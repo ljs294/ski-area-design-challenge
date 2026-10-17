@@ -409,6 +409,57 @@ body.solo .frame { border-radius: 0; }
 .hud .cred .foot .go { min-width: 96px; justify-content: center; }
 .hud .cred .ofl { padding: 12px 16px; font: 500 11.5px 'Overpass Mono', monospace; color: var(--muted); white-space: pre-wrap; line-height: 1.45; }
 .hud .kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; margin-left: 4px; border: 1px solid var(--hair2); border-bottom-width: 2px; border-radius: 4px; background: var(--tile); font: 600 11.5px 'Overpass Mono', monospace; color: var(--text); }
+/* the lift construction tool (Phase 3 mockup): the menu's rows, steps, tower card and load gauge; the profile strip */
+.hud .lrow { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; padding: 3px 12px; font: 600 12.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .step.lstep { min-width: 0; height: 28px; }
+.hud .lnote { padding: 6px 12px 2px; font: 500 11.5px 'Overpass Mono', monospace; color: var(--soft); }
+.hud .lnote b { color: var(--text); font-weight: 600; }
+.hud .lsteps { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; gap: 2px; padding: 6px 8px; }
+.hud .lsteps span { display: flex; align-items: center; gap: 5px; padding: 5px 7px 4px 5px; border-radius: 4px; font: 700 11.5px 'DotFix', 'Overpass'; color: var(--faint); white-space: nowrap; }
+.hud .lsteps span b { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.3px currentColor; font: 700 9.5px 'Overpass Mono', monospace; flex: none; }
+.hud .lsteps span.done { color: var(--muted); }
+.hud .lsteps span.done b { color: var(--pos); box-shadow: inset 0 0 0 1.3px var(--pos); }
+.hud .lsteps span.now { background: var(--chip); color: var(--strong); }
+.hud .lsteps span[data-act]:hover { color: var(--strong); }
+.hud .sub.ltop { align-items: center; padding-top: 7px; }
+.hud .ltop .step { width: 116px; }
+.hud .lstat { padding: 4px 12px 2px; font: 700 12.5px 'DotFix', 'Overpass'; line-height: 1.35; }
+.hud .lstat.ok { color: var(--pos); }
+.hud .lstat.bad { color: var(--neg); }
+.hud .lgauge { padding: 4px 14px 0; }
+.hud .ldet { padding: 0 12px 4px; font: 500 11px 'Overpass Mono', monospace; color: var(--soft); line-height: 1.4; }
+.hud .lkeys { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 3px 12px 7px; font: 500 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .lkeys .kbd { margin: 0 3px 0 0; height: 19px; min-width: 19px; padding: 0 5px; font-size: 10.5px; }
+.hud .lbtns { display: flex; gap: 6px; padding: 2px 12px 6px; }
+.hud .lbtns .ghost { flex: 1; height: 30px; display: flex; align-items: center; justify-content: center; }
+.hud .lmsg { padding: 2px 12px; font: 600 12px 'DotFix', 'Overpass'; line-height: 1.35; }
+.hud .lmsg.err { color: var(--neg); }
+.hud .lmsg.warn { color: var(--warn); }
+.hud .lstrip { overflow: hidden; }
+.hud .lstrip .lsh { display: flex; align-items: center; gap: 12px; height: 30px; padding: 0 12px; border-bottom: 1px solid var(--hair); font: 800 13px 'DotFix', 'Overpass'; white-space: nowrap; }
+.hud .lstrip .lsh .mono { font: 500 11.5px 'Overpass Mono', monospace; color: var(--muted); }
+.hud .lstrip .lten { margin-left: auto; display: flex; align-items: center; gap: 8px; font: 700 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .lstrip .lten b { font: 700 11.5px 'Overpass Mono', monospace; }
+.hud .lstrip .lsempty { height: 0; }
+.hud .lsteps span { padding: 5px 5px 4px 4px; font-size: 11px; gap: 4px; }
+.hud .kv.ltw { padding: 4px 12px 2px; gap: 1px 10px; }
+.hud .kv.ltw dd { font-size: 11.5px; white-space: normal; max-width: 230px; line-height: 1.3; }
+.hud .lstrip .lsh .seg.mini span { padding: 3px 8px 2px; font-size: 11px; }
+.hud .lsteps.tsteps { grid-template-columns: repeat(3, auto); }
+.hud .field.tname { height: 28px; padding: 0 8px; font: 700 13px 'DotFix', 'Overpass'; }
+/* Analysis › Lifts and Trails: the filter bar, sortable headers and rows that light their lift or trail; the focus card */
+.hud .afilt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 7px 12px 0; font: 700 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .afilt > span { min-width: 52px; }
+.hud .afilt .seg.mini span { padding: 3px 8px 2px; font-size: 11px; gap: 0; }
+.hud .tbl .r.arow { cursor: pointer; }
+.hud .tbl .r.arow:hover, .hud .tbl .r.arow.hv, .hud .tbl .r.arow.on { background: var(--hover); }
+.hud .tbl .r.arow.on { box-shadow: inset 2px 0 0 var(--text); }
+.hud .tbl .r.th .srt { cursor: pointer; }
+.hud .tbl .r.th .srt:hover, .hud .tbl .r.th .srt.on { color: var(--strong); }
+.hud .pn.fcard { right: 10px; top: 56px; width: 300px; z-index: 6; }
+.hud .pn.fcard .hd { cursor: default; }
+.hud .pn.fcard .hd .nm { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.hud .pn.fcard .hd .nm + .x { margin-left: 4px; }
 </style>
 
 <!-- Symbols: one solid set on a 24 px grid, drawn like trail and road signs: filled shapes, knock-outs in the
@@ -448,8 +499,8 @@ body.solo .frame { border-radius: 0; }
     <p>The layout from your sketch as a clickable mockup, in the Trailhead look over our Unity mountain. The status bar runs the full width of the bottom, docked to the edge or floating; the clock and weather run, the tools draw on the mountain, and building costs money. Nothing is saved when you reload.</p>
   </div>
   <ul class="try">
-    <li><b>Build a lift:</b> Toolbox → Lifts → New, click the base station, then the top station, choose a model, then Break ground. Save plan keeps it as an orange plan instead.</li>
-    <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
+    <li><b>Build a lift</b> (Phase 3 tool): Toolbox → Lifts → New opens the lift menu: type, capacity, and towers <b>Automatic</b> or <b>By hand</b>. The whole terminal follows the pointer; click to anchor it, then click far away to place the other terminal, which fixes the line (drawn as a trail map draws a lift, a line with a dot at each end). Automatic puts the towers in as you aim. By hand, the tower in hand slides along the line, green where it fits and red with the reason; Page Up / Page Down change it ±5 ft, a click places it, a click on a tower selects it (drag to slide, Delete to remove), and Fill the rest finishes the line. The profile strip shows the side view, the chairs' height over the ground against 15 ft, the green band where the tower in hand fits, and the line's tension. Review, then Break ground (or Save plan). Every rule number is a P3-02 draft placeholder; hover a readout for its rule ID. States: <code>#solo&amp;demo=liftorigin</code>, <code>liftauto</code>, <code>lift</code>, <code>liftred</code>, <code>liftreview</code>, <code>liftsel</code>.</li>
+    <li><b>Draw a trail</b> (Phase 3 tool): Toolbox → Trails → New opens the trail menu: name, brush width (<b>[ ]</b> or the slider, 25–400 ft) and Graded or Natural. <b>1 Paint:</b> drag on the mountain to paint the trail's area, any widths, leaving holes for islands of trees; Shift-drag erases, Ctrl+Z undoes a stroke, and a separate patch shows red. <b>2 Head and tail:</b> click the top, then the bottom (they join a lift's end or another trail nearby); the centreline, the pending contours (yellow), stretches too steep to grade (red) and the rating appear, with the profile along the bottom. <b>3 Review</b>, then Break ground. Scroll to zoom in first: at this distance 100 ft is about 5 px. States: <code>trailpaint</code>, <code>trailends</code>, <code>trailreview</code>. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking with clicks.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
     <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets one legend card (with contours added to it); its ✕ closes it until you pick another layer. The bar reads the layer under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
     <li><b>Photo mode</b> (P, or the menu): the HUD gives way to one thin bar. <b>Time</b> moves the sun ([ and ] a quarter hour; the clock stops while you frame), <b>Date</b> its path through the year (Shift [ and ]), <b>Lens</b> is the field of view, <b>Focus</b> is depth of field (Off, Natural or Miniature), <b>Grade</b> the look, and <b>Size</b> saves at the screen's resolution or twice it. Space or F12 captures, H hides the bar, Esc or P leaves and puts the clock, look and lens back. <b>Credits</b> (menu, or the title) list every area's data sources with the areas that use them.</li>
@@ -460,7 +511,7 @@ body.solo .frame { border-radius: 0; }
     <div class="map" id="map"><img src="assets/game-bluebird.jpg" alt="The mountain on a bluebird day"><canvas id="info" width="1280" height="720" hidden></canvas><svg id="contours" viewBox="0 0 1280 720"></svg><svg id="world" viewBox="0 0 1280 720"></svg></div>
     <div id="ui"></div><div class="flash" id="flash"></div>
   </div></div>
-  <p class="pagenote">An interactive style mockup, not the game: the mountain is a capture of our Unity build with the sky composited behind it. The numbers, costs, weather, the elevation readout and the info layers are placeholders (the opening values in the bar come from your sketch).</p>
+  <p class="pagenote">An interactive style mockup, not the game: the mountain is a capture of our Unity build with the sky composited behind it. The numbers, costs, weather, the elevation readout and the info layers are placeholders (the opening values in the bar come from your sketch). The lift tool's rope, tower and tension numbers follow P3-02's draft rules (round 5) on the placeholder terrain; they're placeholders until that gate is approved.</p>
 </div>
 
 <!-- The capture at half size, for the info layers to read (a data URL, so a canvas may read it from a local file). -->
@@ -537,7 +588,9 @@ body.solo .frame { border-radius: 0; }
 
   // ---------- the world: a resort placed by eye on the capture (1280x720 space) ----------
   const MPX = 5.8;   // rough metres per pixel along the ground
-  const MODELS = { 'Fixed 4': { cap: 1800, speed: 2.3, term: 1.2e6, perM: 1500 }, 'Detach 4': { cap: 2400, speed: 5.0, term: 1.86e6, perM: 2150 }, 'Detach 6': { cap: 3000, speed: 5.0, term: 2.4e6, perM: 2600 } };
+  const MODELS = { 'Fixed 4': { cap: 1800, speed: 2.3, term: 1.2e6, perM: 1500 }, 'Detach 4': { cap: 2400, speed: 5.0, term: 1.86e6, perM: 2150 }, 'Detach 6': { cap: 3000, speed: 5.0, term: 2.4e6, perM: 2600 },
+    // the Phase 3 catalog's fixed-grip quads (their construction numbers live in LIFT_TYPES)
+    'Sessellift FGQ-4': { cap: 2400, speed: 2.29, term: 1.25e6, perM: 623 }, 'Monta FG4': { cap: 2400, speed: 2.29, term: 1.18e6, perM: 656 } };
   const DIFFS = { green: 'Green', blue: 'Blue', black: 'Black', double: 'Double' };
   const S = {
     day: 148, t: 5 * 3600 + 27 * 60 + 47, paused: false, speed: 2, docked: true,
@@ -620,7 +673,7 @@ body.solo .frame { border-radius: 0; }
     { id: 'controls', title: 'Controls', note: 'In the game every key below can be changed: click it, then press the new one.', rows: [
       { k: 'invertZoom', label: 'Invert scroll zoom', desc: 'Scroll down to zoom in.', seg: ONOFF },
       { k: 'zoomSpeed', label: 'Zoom speed', seg: [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']] },
-    ], keys: [['Toolbox', ['T']], ['Analysis', ['Tab']], ['Pause', ['Space']], ['Speed', ['1–4']], ['Zoom', ['+', '−']], ['Reset view', ['Home']], ['Units', ['U']], ['Save', ['Ctrl', 'S']], ['Snow, trees', ['Shift', '1 · 3']], ['Info layers', ['Shift', '6–0']], ['Hide the UI', ['H']], ['Finish a line', ['Enter']], ['Back out', ['Esc']]] },
+    ], keys: [['Toolbox', ['T']], ['Analysis', ['Tab']], ['Pause', ['Space']], ['Speed', ['1–4']], ['Zoom', ['+', '−']], ['Reset view', ['Home']], ['Units', ['U']], ['Save', ['Ctrl', 'S']], ['Snow, trees', ['Shift', '1 · 3']], ['Info layers', ['Shift', '6–0']], ['Hide the UI', ['H']], ['Finish a line', ['Enter']], ['Tower height', ['Page Up', 'Page Down']], ['Remove a tower', ['Delete']], ['Brush width', ['[', ']']], ['Undo a stroke', ['Ctrl', 'Z']], ['Back out', ['Esc']]] },
     { id: 'data', title: 'Data', rows: [
       { k: 'library', label: 'Library folder', desc: 'C:\\Users\\you\\AppData\\Local\\SkiAreaDesignChallenge', btn: ['Open', 'Change…'] },
       { k: 'disk', label: 'Disk use', desc: "3 areas: 1.2 GB, terrain caches 840 MB, older versions' caches 310 MB.", btn: ['Free 310 MB'] },
@@ -733,12 +786,12 @@ body.solo .frame { border-radius: 0; }
   const TABS = [['lifts', 'Lifts'], ['trails', 'Trails'], ['snow', 'Snowmaking'], ['infra', 'Infrastructure']];
   const TOOLS = {
     lifts: [
-      { id: 'new-lift', label: 'New', name: 'New lift', hint: 'click the base, then the top station', key: 'N', glyph: 's-lift', badge: 'new', kind: 'lift' },
+      { id: 'new-lift', label: 'New', name: 'New lift', hint: 'anchor a terminal, then click the far end', key: 'N', glyph: 's-lift', badge: 'new', kind: 'lift' },
       { id: 'edit-lift', label: 'Edit', name: 'Edit lift', hint: 'change a lift\'s model', key: 'E', glyph: 's-lift', badge: 'edit', kind: 'pick', target: 'lift', mode: 'edit' },
       { id: 'remove-lift', label: 'Remove', name: 'Remove lift', hint: 'take a lift out and salvage it', key: 'X', glyph: 's-lift', badge: 'remove', kind: 'pick', target: 'lift', mode: 'remove' },
     ],
     trails: [
-      { id: 'new-trail', label: 'New', name: 'New trail', hint: 'click down the fall line', key: 'N', glyph: 's-trail', badge: 'new', kind: 'trail' },
+      { id: 'new-trail', label: 'New', name: 'New trail', hint: 'paint it, then set its head and tail', key: 'N', glyph: 's-trail', badge: 'new', kind: 'trail' },
       { id: 'edit-trail', label: 'Edit', name: 'Edit trail', hint: 're-rate a trail', key: 'E', glyph: 's-trail', badge: 'edit', kind: 'pick', target: 'trail', mode: 'edit' },
       { id: 'remove-trail', label: 'Remove', name: 'Remove trail', hint: 'let a trail grow back in', key: 'X', glyph: 's-trail', badge: 'remove', kind: 'pick', target: 'trail', mode: 'remove' },
     ],
@@ -760,8 +813,8 @@ body.solo .frame { border-radius: 0; }
     if (S.tool === id) { closeTool(); return; }
     S.tool = id; S.sel = null; S.removeArmed = null; S.sketch = false;
     const t = toolById(id);
-    if (t.kind === 'lift') S.draft = { kind: 'lift', pts: [], model: 'Detach 4', name: LIFT_NAMES[liftSeq % LIFT_NAMES.length], n: nextLiftNumber() };
-    else if (t.kind === 'trail') S.draft = { kind: 'trail', pts: [], diff: 'blue', done: false, name: TRAIL_NAMES[trailSeq % TRAIL_NAMES.length] };
+    if (t.kind === 'lift') S.draft = newLiftDraft();
+    else if (t.kind === 'trail') S.draft = newTrailDraft();
     else if (t.kind === 'points' || t.kind === 'line') S.draft = { kind: t.kind, tool: t.id, pts: [], done: false };
     else S.draft = null;
     render();
@@ -770,13 +823,13 @@ body.solo .frame { border-radius: 0; }
 
   // ---------- numbers, from the placeholder heights ----------
   const flat = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]) * MPX;
-  function liftStats(a, b, model) {
+  function liftStats(a, b, model, capOver) {
     const m = MODELS[model], run = Math.max(1, flat(a, b)), ea = elevAt(a), eb = elevAt(b), rise = eb - ea;
     const len = Math.hypot(run, rise), grade = Math.abs(rise) / run * 100;   // steepness is a grade: rise over run
     const towers = Math.max(2, Math.ceil(len / 120)), grading = Math.round(len * 1.7);
     const cost = { term: m.term, line: len * m.perM, towers: towers * 83000, grading: grading * 140 };
     cost.total = cost.term + cost.line + cost.towers + cost.grading;
-    return { len, rise, grade, ea, eb, towers, grading, cost, ride: len / m.speed, cap: m.cap, speed: m.speed };
+    return { len, rise, grade, ea, eb, towers, grading, cost, ride: len / m.speed, cap: capOver || m.cap, speed: m.speed };
   }
   function pathStats(pts) {
     let len = 0, run = 0, steep = 0;
@@ -819,10 +872,12 @@ body.solo .frame { border-radius: 0; }
     if (planned) s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4"/>`;
     else {
       s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${ink}" stroke-width="1.5"/>`;
-      const n = Math.round(len / 16);
-      for (let k = 1; k < n; k++) { const p = lerp(A, B, k / n); s += `<line x1="${f1(p.x - uy * 3.5)}" y1="${f1(p.y + ux * 3.5)}" x2="${f1(p.x + uy * 3.5)}" y2="${f1(p.y - ux * 3.5)}" stroke="${ink}" stroke-width="1.3"/>`; }
+      // towers where they were placed (Phase 3 lifts), or evenly spaced ticks for the placeholder lifts
+      const ticks = l.towers ? l.towers.map(P) : []; if (!l.towers) { const n = Math.round(len / 16); for (let k = 1; k < n; k++) ticks.push(lerp(A, B, k / n)); }
+      for (const p of ticks) s += `<line x1="${f1(p.x - uy * 3.5)}" y1="${f1(p.y + ux * 3.5)}" x2="${f1(p.x + uy * 3.5)}" y2="${f1(p.y - ux * 3.5)}" stroke="${ink}" stroke-width="1.3"/>`;
     }
-    for (const p of [A, B]) s += planned ? `<rect x="${f1(p.x - 4)}" y="${f1(p.y - 4)}" width="8" height="8" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>` : `<rect x="${p.x - 3.5}" y="${p.y - 3.5}" width="7" height="7" fill="${ink}" stroke="${white}" stroke-width="1.3"/>`;
+    // terminals as a trail map draws them: a dot at each end
+    for (const p of [A, B]) s += planned ? `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.6" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>` : `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.2" fill="${ink}" stroke="${white}" stroke-width="1.4"/>`;
     if (S.layers.labels && !o.noTag) {
       const tx = ux > 0 ? A.x - (l.name.length * 7.4 + 28) - 8 : A.x + 10;
       s += tagBox(tx, A.y - 9, liftPlate(tx, A.y - 9, l.n, planned), l.name, planned ? flag : '#4a443e', planned ? '3 2' : '');
@@ -868,17 +923,14 @@ body.solo .frame { border-radius: 0; }
   let mouse = null;
   function drawWorld() {
     let s = '';
-    const hiId = S.sel || S.hover;
+    const hiId = S.sel || S.hover || S.rowHover || S.focus;
     for (const th of S.things) if (S.layers[toolById(th.kind).layer]) s += drawThing(th);
     if (S.layers.trails) for (const tr of S.trails) s += drawTrail(tr, { hi: hiId === tr.id });
     if (S.layers.lifts) for (const l of S.lifts) s += drawLift(l, { hi: hiId === l.id });
     const d = S.draft;
-    if (d && d.kind === 'lift') {
-      const pts = d.pts.slice(); if (pts.length === 1 && mouse) pts.push(mouse);
-      if (pts.length === 2) { const st = liftStats(pts[0], pts[1], d.model); s += drawLift({ n: d.n, name: d.name, a: pts[0], b: pts[1], built: false }, { noTag: d.pts.length < 2 }) + dimension(pts[0], pts[1], `${lenTxt(st.len)} · ${st.rise >= 0 ? '+' : '−'}${lenV(Math.abs(st.rise))} · ${Math.round(st.grade)}%`); }
-      else if (pts.length === 1) s += `<rect x="${f1(pts[0][0] - 4)}" y="${f1(pts[0][1] - 4)}" width="8" height="8" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>`;
-    }
-    if (d && (d.kind === 'trail' || d.kind === 'line')) {
+    if (d && d.kind === 'lift') s += drawLiftDraft(d);
+    if (d && d.kind === 'trail') s += drawTrailDraft(d);
+    if (d && d.kind === 'line') {
       const pts = d.pts.slice(); if (!d.done && mouse && pts.length) pts.push(mouse);
       if (d.kind === 'trail') s += drawTrail({ name: d.name, diff: d.diff, pts, built: false }, { noTag: !d.done });
       else s += drawThing({ kind: d.tool, pts, built: false });
@@ -1029,80 +1081,938 @@ body.solo .frame { border-radius: 0; }
     return `<div class="legend" data-ui="legend">${b}</div>`;
   }
 
-  // ---------- panels ----------
-  // The lift's profile: the ground along the line (from the placeholder heights), towers, and the planned cable.
-  function liftProfile(a, b, st) {
-    const w = 344, h = 46, n = 28, X = (t) => 12 + t * (w - 24);
-    if (!st) return `<svg width="${w}" height="${h}" style="display:block"><rect x="12" y="4" width="${w - 24}" height="${h - 12}" style="fill:var(--chart-bg);stroke:var(--row)"/></svg>`;
-    const ground = []; for (let i = 0; i <= n; i++) { const t = i / n; ground.push([t, elevAt([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])]); }
-    const lo = Math.min(...ground.map((p) => p[1])) - 10, hi = Math.max(...ground.map((p) => p[1])) + 30, Y = (e) => h - 8 - (e - lo) / (hi - lo) * (h - 16);
-    const gAt = (t) => { const i = Math.min(n - 1, Math.floor(t * n)), f = t * n - i; return ground[i][1] + (ground[i + 1][1] - ground[i][1]) * f; };
-    let s = `<rect x="12" y="4" width="${w - 24}" height="${h - 12}" style="fill:var(--chart-bg);stroke:var(--row)"/>`;
-    const gp = ground.map(([t, e], i) => `${i ? 'L' : 'M'}${f1(X(t))} ${f1(Y(e))}`).join(' ');
-    s += `<path d="${gp} L${f1(X(1))} ${h - 8} L${f1(X(0))} ${h - 8}z" style="fill:var(--chart-fill)"/><path d="${gp}" fill="none" stroke-width="1.4" style="stroke:var(--chart-a)"/>`;
-    const c0 = gAt(0) + 10, c1 = gAt(1) + 10, cable = (t) => c0 + (c1 - c0) * t;
-    const pts = [[0, c0]];
-    for (let k = 1; k <= st.towers; k++) { const t = k / (st.towers + 1), top = Math.max(cable(t), gAt(t) + 8); pts.push([t, top]); s += `<line x1="${f1(X(t))}" y1="${f1(Y(gAt(t)))}" x2="${f1(X(t))}" y2="${f1(Y(top))}" stroke-width="1.6" style="stroke:var(--chart-a)"/>`; }
-    pts.push([1, c1]);
-    s += `<path d="${pts.map(([t, e], i) => `${i ? 'L' : 'M'}${f1(X(t))} ${f1(Y(e))}`).join(' ')}" fill="none" stroke="${flag}" stroke-width="1.8" stroke-dasharray="6 3"/>`;
-    return `<svg width="${w}" height="${h}" style="display:block">${s}</svg>`;
+  // ---------- the lift construction tool: a stand-in for P3-02's rope and tower rules ----------
+  // Rule IDs are P3-02's (p3-02-design-rules.md); the readouts' tooltips cite them. Numbers are its LC-02 values, tuned
+  // at the style tile (task 07). Positions along the lift are feet from the bottom terminal along the line; heights are feet.
+  const FT = 3.28084, FT_PX = MPX * FT;   // feet along the ground per screen pixel
+  const RULE = { clear: 15, drop: 8.4, termRope: 10, hMin: 25, hMax: 100, hStep: 5, gap: 50, sheaveMax: 1500, groupMin: 750, bendMax: 4.5, fpm: 450, grid: 5, exitDeg: 16, minLen: 300, site: 10, leanMax: 15, termLen: 60, termWide: 30 };
+  // LC-02: both quads share these for now; terminals, line and towers price the plan in the mockup's economy.
+  const LIFT_TYPES = {
+    'Sessellift FGQ-4': { seats: 4, spacing: 45, rope: 4.44, rated: 42800, cw: 18000, chairE: 350, chairF: 1030, term: 1.25e6, perFt: 190, tower: 52000 },
+    'Monta FG4': { seats: 4, spacing: 45, rope: 4.44, rated: 42800, cw: 18000, chairE: 350, chairF: 1030, term: 1.18e6, perFt: 200, tower: 49000 },
+  };
+  const HEADS = { pend: ['Type pending', 'the next span needs towers', 8], s4: ['Support', '4 sheaves', 4], s6: ['Support', '6 sheaves', 6], b8: ['Breakover', '8 sheaves', 8], d8: ['Hold-down', '8 sheaves', 8], c8: ['Combination', '4 + 4 sheaves', 4] };
+  const liftCap = (T) => Math.round(T.seats * RULE.fpm * 60 / T.spacing);   // LC-03: shown, not chosen (2,400 an hour)
+  const loadPerFt = (T, full) => T.rope + (full ? T.chairF : T.chairE) / T.spacing;   // RP-03: chairs as an even load
+  // P1: the ground under the line, sampled every 5 ft along the ray once the line is fixed.
+  function rayProfile(A, dir, ft) {
+    const n = Math.floor(ft / RULE.grid) + 2, g = new Float64Array(n);
+    for (let i = 0; i < n; i++) { const px = i * RULE.grid / FT_PX; g[i] = elevXY(A[0] + dir[0] * px, A[1] + dir[1] * px) * FT; }
+    return g;
   }
+  const groundAt = (g, s) => { const f = Math.max(0, Math.min(g.length - 1.001, s / RULE.grid)), i = Math.floor(f); return g[i] + (g[i + 1] - g[i]) * (f - i); };
+  const rayPt = (d, s) => [d.a[0] + d.dir[0] * s / FT_PX, d.a[1] + d.dir[1] * s / FT_PX];
+  // How far the ray runs over the mountain before it leaves the terrain or the frame (the core box, SH-06).
+  function rayReach(A, dir) {
+    let s = 0;
+    for (; s < 14000; s += 10) { const p = [A[0] + dir[0] * s / FT_PX, A[1] + dir[1] * s / FT_PX]; if (p[0] < 4 || p[0] > W - 4 || p[1] < 4 || p[1] > H - 4 || !onTerrain(p)) break; }
+    return Math.max(0, s - 10);
+  }
+  // LF-08: a terminal sits where the ground under its footprint (60 × 30 ft behind the bullwheel, a mockup size) varies
+  // by 10 ft at most, on the mountain. ang is the way the line leaves it.
+  function terminalSite(p, ang) {
+    const c = Math.cos(ang), s = Math.sin(ang), at = (u, v) => [p[0] + (u * c - v * s) / FT_PX, p[1] + (u * s + v * c) / FT_PX];
+    const pts = [[0, 0], [0, -RULE.termWide / 2], [0, RULE.termWide / 2], [-RULE.termLen, -RULE.termWide / 2], [-RULE.termLen, RULE.termWide / 2], [-RULE.termLen / 2, 0]].map(([u, v]) => at(u, v));
+    if (!pts.every(onTerrain)) return { ok: false, why: 'Off the mountain: terminals stand inside the area' };
+    const zs = pts.map((q) => elevXY(q[0], q[1]) * FT), vary = Math.max(...zs) - Math.min(...zs);
+    return vary > RULE.site ? { ok: false, why: `Too steep for a terminal: the ground varies ${Math.round(vary)} ft under it, ${RULE.site} ft at most` } : { ok: true, vary };
+  }
+  // RP-02 and RP-03: a span is a parabola on its chord (P4), its horizontal tension taken from the tension at mid-span,
+  // which is the counterweight's plus the load per foot times the height above the bottom terminal's rope.
+  function spanGeo(p, q, w, T, zb) {
+    const L = q.x - p.x, m = (q.z - p.z) / L, c = Math.sqrt(1 + m * m), Hh = (T.cw + w * ((p.z + q.z) / 2 - zb)) / c, k = w * c / (2 * Hh);
+    return { L, m, k, sIn: m - k * L, sOut: m + k * L };
+  }
+  const ropeAt = (p, q, geo, s) => p.z + geo.m * (s - p.x) - geo.k * (s - p.x) * (q.x - s);
+  // TW-01: the chairs' bottom (8.4 ft under the rope) clears the ground by 15 ft, checked every 5 ft. The load and
+  // unload zones are exempt: from a terminal to where the chairs first reach 15 ft.
+  function spanClear(p, q, geo, g) {
+    const n = Math.max(2, Math.ceil(geo.L / RULE.grid)), cs = new Float64Array(n + 1);
+    for (let i = 0; i <= n; i++) { const s = p.x + geo.L * i / n; cs[i] = ropeAt(p, q, geo, s) - RULE.drop - groundAt(g, s); }
+    let lo = 0, hi = n;
+    if (cs.some((c) => c >= RULE.clear)) { if (p.term) while (lo < n && cs[lo] < RULE.clear) lo++; if (q.term) while (hi > 0 && cs[hi] < RULE.clear) hi--; }
+    let min = Infinity, at = p.x, open = -1;
+    const dips = [];
+    for (let i = lo; i <= hi; i++) {
+      const s = p.x + geo.L * i / n;
+      if (cs[i] < min) { min = cs[i]; at = s; }
+      if (cs[i] < RULE.clear) { if (open < 0) open = s; } else if (open >= 0) { dips.push([open, s]); open = -1; }
+    }
+    if (open >= 0) dips.push([open, p.x + geo.L * hi / n]);
+    return { min, at, dips, zoneA: p.term ? p.x + geo.L * lo / n : null, zoneB: q.term ? p.x + geo.L * hi / n : null, cs };
+  }
+  // TW-04 to TW-06: the head follows what the rope does in both load cases. L is the load on one rope's sheave group
+  // in each case (+ presses down, − pulls up, lbf), B the bend in degrees. A group within 750 lbf of zero (LC-02) can't
+  // keep the rope seated on its own: that's a combination.
+  function headFor(L, B) {
+    const mn = Math.min(...L), mx = Math.max(...L), bend = Math.max(...B.map(Math.abs)), big = Math.max(...L.map(Math.abs));
+    const fits = (n) => big / n <= RULE.sheaveMax && bend / n <= RULE.bendMax;
+    if (mn >= RULE.groupMin) {
+      for (const c of ['s4', 's6', 'b8']) { const n = HEADS[c][2]; if (fits(n)) return { code: c, n, ok: true }; }
+      return { code: 'b8', n: 8, ok: false, rule: 'TW-06', why: bend / 8 > RULE.bendMax ? 'Too sharp for one breakover: add one on the crest' : `Presses ${forceTxt(big / 8)} on each sheave: ${forceTxt(RULE.sheaveMax)} at most` };
+    }
+    if (mx <= -RULE.groupMin) return fits(8) ? { code: 'd8', n: 8, ok: true } : { code: 'd8', n: 8, ok: false, rule: 'TW-06', why: 'Too sharp for one hold-down: add one before the rise' };
+    return fits(4) ? { code: 'c8', n: 4, ok: true } : { code: 'c8', n: 4, ok: false, rule: 'TW-06', why: 'Too sharp for a combination: add a tower beside it' };
+  }
+  // The towers that stand on the line (a top terminal slid back leaves some past it until the player decides, LF-05).
+  const towersOn = (d, towers = d.towers) => towers.filter((t) => t.x <= d.len - RULE.gap);
+  // The whole line in both load cases (RP-04): spans, clearances, each tower's head, the tension range, and what fails.
+  function evalLift(d, towers = towersOn(d)) {
+    const T = LIFT_TYPES[d.type], g = d.g, sorted = towers.slice().sort((a, b) => a.x - b.x);
+    const pts = [{ x: 0, z: groundAt(g, 0) + RULE.termRope, term: true }];
+    for (const t of sorted) pts.push({ x: t.x, base: t.x, z: groundAt(g, t.x) + t.h, t, lean: 0 });
+    pts.push({ x: d.len, z: groundAt(g, d.len) + RULE.termRope, term: true });
+    // TW-14: a leaned mast bisects the rope's angles there (taken from its neighbours), 15° at most; its head then sits
+    // height × sin(lean) along the line from its base.
+    for (let j = 1; j < pts.length - 1; j++) {
+      const a = Math.atan2(pts[j].z - pts[j - 1].z, pts[j].x - pts[j - 1].x), b = Math.atan2(pts[j + 1].z - pts[j].z, pts[j + 1].x - pts[j].x);
+      pts[j].ropeAng = (a + b) / 2;
+      if (d.stance === 'leaned') {
+        const lean = Math.max(-RULE.leanMax, Math.min(RULE.leanMax, pts[j].ropeAng * 180 / Math.PI)), r = lean * Math.PI / 180, h = pts[j].t.h;
+        pts[j].lean = lean; pts[j].x = pts[j].base + h * Math.sin(r); pts[j].z = groundAt(g, pts[j].base) + h * Math.cos(r);
+      }
+    }
+    const zb = Math.min(pts[0].z, pts[pts.length - 1].z), zt = Math.max(pts[0].z, pts[pts.length - 1].z);
+    const ws = [loadPerFt(T, false), loadPerFt(T, true)];
+    const spans = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p = pts[i], q = pts[i + 1];
+      let geo = ws.map((w) => spanGeo(p, q, w, T, zb));
+      // A span sagging more than a tenth of its length (P4's range) is a gap still waiting for towers, not a rope:
+      // it's drawn as its chord and counts as "needs towers", never against the tower in hand.
+      const open = geo[1].k * geo[1].L / 4 > 0.1;
+      if (open) geo = geo.map((gg) => ({ ...gg, k: 0, sIn: gg.m, sOut: gg.m }));
+      const cl = geo.map((gg) => spanClear(p, q, gg, g));
+      const worst = cl[0].min <= cl[1].min ? cl[0] : cl[1];
+      // RP-01: the rope runs level in a terminal; its train turns it onto the first span, 16° at most.
+      let exit = 0;
+      if (p.term) exit = Math.max(...geo.map((gg) => Math.abs(Math.atan(gg.sIn)) * 180 / Math.PI));
+      if (q.term) exit = Math.max(exit, ...geo.map((gg) => Math.abs(Math.atan(gg.sOut)) * 180 / Math.PI));
+      spans.push(open ? { p, q, geo, cl, open, min: Infinity, at: p.x, dips: [], exit: 0 } : { p, q, geo, cl, min: worst.min, at: worst.at, dips: cl[0].dips.concat(cl[1].dips), exit: exit > RULE.exitDeg ? exit : 0 });
+    }
+    const tw = [];
+    for (let j = 1; j < pts.length - 1; j++) {
+      const L = [], B = [];
+      ws.forEach((w, c) => { const bend = Math.atan(spans[j - 1].geo[c].sOut) - Math.atan(spans[j].geo[c].sIn), Tj = T.cw + w * (pts[j].z - zb); L.push(2 * Tj * Math.sin(bend / 2)); B.push(bend * 180 / Math.PI); });
+      const pending = spans[j - 1].open || spans[j].open;
+      // TW-14: on a plumb mast, the part of the rope's load across the mast pushes it sideways (Phase 4 prices it)
+      const side = pts[j].lean ? 0 : Math.abs(L[1]) * Math.abs(Math.sin(pts[j].ropeAng));
+      tw.push({ j, x: pts[j].base, hx: pts[j].x, h: pts[j].t.h, ref: pts[j].t, L, B, lean: pts[j].lean, side, head: pending ? { code: 'pend', n: 8, ok: true, pending: true } : headFor(L, B) });
+    }
+    tw.forEach((o, i) => { o.no = i + 1; });   // towers count up from the bottom terminal
+    const tension = { lo: T.cw, hi: T.cw + ws[1] * (zt - zb), hiE: T.cw + ws[0] * (zt - zb), rated: T.rated };
+    const errors = [], warnings = [];
+    if (tension.hi > T.rated) errors.push({ rule: 'RP-05', text: `Too much rise for this lift: tension at the top ${Math.round(tension.hi / T.rated * 100)}% of rating` });
+    let lowest = null;
+    spans.forEach((sp, i) => {
+      const a = sp.p.term ? 'the bottom terminal' : `tower ${tw[i - 1].no}`, b = sp.q.term ? 'the top terminal' : `tower ${tw[i].no}`;
+      sp.name = `${a} and ${b}`;
+      if (sp.open) errors.push({ rule: 'TW-07', text: `Needs towers between ${sp.name}: ${lenFt(sp.q.x - sp.p.x)} is too long a span` });
+      if (sp.dips.length) errors.push({ rule: 'TW-01', text: `Chairs pass ${lenFt(Math.max(0, Math.floor(sp.min)))} over the ground between ${sp.name}: ${lenFt(RULE.clear)} needed` });
+      if (sp.exit) errors.push({ rule: 'RP-01', text: `The rope meets ${sp.p.term ? a : b} at ${sp.exit.toFixed(0)}°: ${RULE.exitDeg}° at most. Put a tower nearer it.` });
+      if (sp.min < Infinity && (!lowest || sp.min < lowest.min)) lowest = { min: sp.min, at: sp.at, name: sp.name };
+    });
+    for (const o of tw) if (!o.head.ok) errors.push({ rule: o.head.rule, text: `Tower ${o.no}: ${o.head.why}` });
+    const xs = pts.map((p) => p.x);
+    for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] < RULE.gap) errors.push({ rule: 'TW-03', text: `Two supports ${lenFt(xs[i] - xs[i - 1])} apart: ${lenFt(RULE.gap)} needed` });
+    if (!errors.some((e) => e.rule === 'RP-05') && tension.hi > T.rated * 0.9) warnings.push(`Tension at the top ${Math.round(tension.hi / T.rated * 100)}% of rating: little room to lengthen the line`);
+    for (const o of tw) if (o.h >= 80) warnings.push(`Tower ${o.no} is ${lenFt(o.h)} tall: tall towers catch the wind (comes in Phase 4)`);
+    return { pts, spans, towers: tw, tension, errors, warnings, lowest, bottomAtA: true, zb, zt, ws };
+  }
+  // The tower in hand (LF-04): can it stand here at this height? Spacing and siting (TW-03), its head and its
+  // neighbours' heads (TW-04 to TW-06), the chairs near it (TW-01: within 200 ft, or half a span) and the rope's angle
+  // into a station (RP-01). A span still waiting for towers further up stays red on its own; it doesn't count against
+  // this tower.
+  function towerCheck(d, x, h, skip, base) {
+    const others = towersOn(d).filter((t) => t !== skip);
+    if (!onTerrain(rayPt(d, x))) return { ok: false, rule: 'TW-03', why: 'Off the mountain: towers stand inside the area' };
+    const near = Math.min(x, d.len - x, ...others.map((t) => Math.abs(t.x - x)));
+    if (near < RULE.gap) return { ok: false, rule: 'TW-03', why: `Only ${lenFt(near)} from the next support: ${lenFt(RULE.gap)} needed` };
+    const t = { x, h, probe: true }, ev = evalLift(d, others.concat([t])), k = ev.towers.findIndex((o) => o.ref === t), me = ev.towers[k];
+    for (const sp of [ev.spans[k], ev.spans[k + 1]]) {
+      const reach = Math.min(200, (sp.q.x - sp.p.x) / 2), lo = x - reach, hi = x + reach;
+      for (const [a, b] of sp.dips) if (b >= lo && a <= hi) { const c = Math.max(0, Math.floor(Math.min(...sp.cl.map((cl) => cl.min)))); return { ok: false, rule: 'TW-01', why: `Chairs pass ${lenFt(c)} over the ground: ${lenFt(RULE.clear)} needed`, me, ev, k }; }
+    }
+    for (const sp of [ev.spans[k], ev.spans[k + 1]]) if (sp.exit) return { ok: false, rule: 'RP-01', why: `The rope meets the station at ${sp.exit.toFixed(0)}°: ${RULE.exitDeg}° at most`, me, ev, k };
+    if (!me.head.ok) return { ok: false, rule: me.head.rule, why: me.head.why, me, ev, k };
+    const was = base || evalLift(d, others);
+    for (const o of [ev.towers[k - 1], ev.towers[k + 1]]) {
+      if (!o || o.head.ok) continue;
+      const before = was.towers.find((w) => w.ref === o.ref);
+      if (before && before.head.ok) return { ok: false, rule: o.head.rule, why: `Tower ${o.no} couldn't carry the rope: ${o.head.why.toLowerCase()}`, me, ev, k };
+    }
+    return { ok: true, me, ev, k };
+  }
+  // TW-13: how far the next span can reach from the tower in hand before the chairs drop below 15 ft, with a next
+  // tower at this height and at 100 ft; and whether the rope will pull up within that reach (the ground ahead steepens).
+  function nextReach(d, x, h) {
+    const T = LIFT_TYPES[d.type], ws = [loadPerFt(T, false), loadPerFt(T, true)], zb = groundAt(d.g, 0) + RULE.termRope;
+    const p = { x, z: groundAt(d.g, x) + h }, far = (h2) => {
+      let best = 0;
+      for (let x2 = x + RULE.gap; x2 <= Math.min(d.len, x + 2000); x2 += 10) {
+        const q = { x: x2, z: groundAt(d.g, x2) + h2 }, ok = ws.every((w) => { const geo = spanGeo(p, q, w, T, zb); return geo.k * geo.L / 4 <= 0.1 && !spanClear(p, q, geo, d.g).dips.length; });
+        if (ok) best = x2 - x;
+      }
+      return best;
+    };
+    const r1 = far(h), r2 = far(RULE.hMax), span = Math.max(r1, 150), g0 = groundAt(d.g, x), g1 = groundAt(d.g, x + span / 2), g2 = groundAt(d.g, x + span);
+    return { here: r1, tall: r2, holdAhead: (g2 - g1) - (g1 - g0) > span * 0.06 };
+  }
+  // TW-09: where the tower in hand could stand at its height, checked every 5 ft; recomputed only when something changes.
+  // By hand, towers go in from the bottom up (LF-04), so the band starts past the last placed tower.
+  function standBand(d, h, skip, from = RULE.gap) {
+    const base = evalLift(d, towersOn(d).filter((t) => t !== skip)), out = [];
+    let open = null;
+    for (let x = Math.max(RULE.gap, from); x <= d.len - RULE.gap; x += RULE.grid) {
+      const ok = towerCheck(d, x, h, skip, base).ok;
+      if (ok && open === null) open = x; else if (!ok && open !== null) { out.push([open, x - RULE.grid]); open = null; }
+    }
+    if (open !== null) out.push([open, d.len - RULE.gap]);
+    return out;
+  }
+  // TW-12 stand-in: walk from a support toward the top terminal, putting each tower as far on as it can go at a
+  // modest height (35 ft, then 40, 30, and taller only when nothing modest clears), on the 5 ft grid, backing up a
+  // tower when nothing reaches on. Never leaves a red tower; says why when nothing fits. Plumb towers only.
+  const AUTO_H = [35, 40, 30, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 25];
+  function autoFill(d, fromX, kept) {
+    const placed = kept.slice(), T = LIFT_TYPES[d.type];
+    if (evalLift(d, placed).errors.some((e) => e.rule === 'RP-05')) return { towers: placed, ok: false, why: `Too much rise for a ${d.type}: about ${lenFt((T.rated - T.cw) / loadPerFt(T, true))} at most` };
+    // Only the span being tried and the bend behind it are solved for each candidate (P7), not the whole line.
+    const ws = [loadPerFt(T, false), loadPerFt(T, true)], ptAt = (x, h) => ({ x, z: groundAt(d.g, x) + h });
+    const A = { x: 0, z: groundAt(d.g, 0) + RULE.termRope, term: true }, B = { x: d.len, z: groundAt(d.g, d.len) + RULE.termRope, term: true }, zb = Math.min(A.z, B.z);
+    const span = (p, q) => {   // null when the chairs can't clear it (TW-01, RP-01), else its geometry in both cases
+      const geo = ws.map((w) => spanGeo(p, q, w, T, zb));
+      if (geo[1].k * geo[1].L / 4 > 0.1) return null;
+      for (const gg of geo) {
+        if (spanClear(p, q, gg, d.g).dips.length) return null;
+        if ((p.term && Math.abs(Math.atan(gg.sIn)) * 180 / Math.PI > RULE.exitDeg) || (q.term && Math.abs(Math.atan(gg.sOut)) * 180 / Math.PI > RULE.exitDeg)) return null;
+      }
+      return geo;
+    };
+    const headAt = (inGeo, p, outGeo) => { const L = [], Bd = []; ws.forEach((w, c) => { const bend = Math.atan(inGeo[c].sOut) - Math.atan(outGeo[c].sIn), Tj = T.cw + w * (p.z - zb); L.push(2 * Tj * Math.sin(bend / 2)); Bd.push(bend * 180 / Math.PI); }); return headFor(L, Bd); };
+    // the chain we extend: the point before the start (for the first bend) and the start itself
+    const sorted = placed.slice().sort((a, b) => a.x - b.x), before = sorted.filter((t) => t.x < fromX), start = sorted.find((t) => t.x === fromX);
+    const prevPt = before.length ? ptAt(before[before.length - 1].x, before[before.length - 1].h) : A;
+    const chain = [{ p: start ? ptAt(start.x, start.h) : A, inGeo: start ? span(prevPt, ptAt(start.x, start.h)) || ws.map((w) => spanGeo(prevPt, ptAt(start.x, start.h), w, T, zb)) : null, bound: Infinity }];
+    const t0 = performance.now();   // a line with no fit gives up quickly rather than stall the pointer
+    while (performance.now() - t0 < 60) {
+      const cur = chain[chain.length - 1], tail = span(cur.p, B);
+      if (tail && (!cur.inGeo || headAt(cur.inGeo, cur.p, tail).ok)) return { towers: placed.concat(chain.slice(1).map((c) => c.t)), ok: true };
+      let found = null;
+      for (const h of AUTO_H) {
+        for (let x = Math.min(d.len - RULE.gap, cur.p.x + 800, cur.bound); x >= cur.p.x + RULE.gap; x -= RULE.grid) {
+          const q = ptAt(x, h), geo = span(cur.p, q);
+          if (!geo || !onTerrain(rayPt(d, x)) || (cur.inGeo && !headAt(cur.inGeo, cur.p, geo).ok)) continue;
+          found = { p: q, inGeo: geo, bound: Infinity, t: { x, h, auto: true } };
+          break;
+        }
+        if (found) break;
+      }
+      if (found) { chain.push(found); continue; }
+      if (chain.length < 2) break;
+      const dead = chain.pop();   // nothing reaches on from here: try the tower before it a little nearer
+      chain[chain.length - 1].bound = dead.t.x - RULE.grid;
+    }
+    const far = chain[chain.length - 1].p.x;
+    return { towers: placed.concat(chain.slice(1).map((c) => c.t)), ok: false, why: `No layout fits past ${lenFt(far)}: towers up to ${lenFt(RULE.hMax)} can't keep the chairs ${lenFt(RULE.clear)} up and the heads within their limits there` };
+  }
+
+  // ---------- the lift construction tool: the draft, the menu, the profile strip and the drawing on the mountain ----------
+  // The flow (owner, 2026-10-16; P3-02 LF-01 to LF-11): the whole bottom terminal follows the pointer, a click anchors
+  // it, a second click far away places the top terminal and fixes the line, then the towers go in automatically or by
+  // hand, from the bottom up.
+  const lenFt = (ft) => (IMP() ? `${Math.round(ft).toLocaleString('en-US')} ft` : `${(ft / FT).toFixed(ft / FT < 20 ? 1 : 0)} m`);
+  const forceTxt = (lbf) => (IMP() ? `${Math.round(lbf).toLocaleString('en-US')} lbf` : `${(lbf * 0.00444822).toFixed(1)} kN`);
+  const snapFt = (s) => Math.round(s / RULE.grid) * RULE.grid;
+  const LIFT_STEPS = [['first', 'First terminal'], ['other', 'Other terminal'], ['towers', 'Towers'], ['review', 'Review']];
+  function newLiftDraft() {
+    return { kind: 'lift', step: 'first', mode: S.liftMode || 'auto', stance: 'plumb', type: 'Sessellift FGQ-4', a: null, dir: null, len: 0, reach: 0, g: null,
+      towers: [], inH: 35, sel: null, hand: null, aim: null, autoMsg: null, armAuto: false, armCancel: false,
+      name: LIFT_NAMES[liftSeq % LIFT_NAMES.length], n: nextLiftNumber() };
+  }
+  // The last evaluation and band, kept until the towers, the line, the type or the capacity change (TW-09: recomputed
+  // only when something changes).
+  let evMemo = { key: '', ev: null }, bandMemo = { key: '', band: [] };
+  const liftSig = (d) => `${d.type}|${d.stance}|${d.len}|${d.a}|${d.towers.map((t) => `${t.x}:${t.h}`).join(',')}`;
+  function liftEval(d) { const k = liftSig(d); if (evMemo.key !== k) evMemo = { key: k, ev: evalLift(d) }; return evMemo.ev; }
+  const lastTower = (d) => Math.max(0, ...towersOn(d).map((t) => t.x));
+  function liftBand(d, h, skip) { const k = `${liftSig(d)}|${h}|${skip ? skip.x : ''}`; if (bandMemo.key !== k) bandMemo = { key: k, band: standBand(d, h, skip, skip ? RULE.gap : lastTower(d) + RULE.gap) }; return bandMemo.band; }
+  let reachMemo = { key: '', r: null };
+  function liftReach(d, x, h) { const k = `${liftSig(d)}|${x}|${h}`; if (reachMemo.key !== k) reachMemo = { key: k, r: nextReach(d, x, h) }; return reachMemo.r; }
+  const hasHandTowers = (d) => d.towers.some((t) => t.hand);
+  // Fix the line through the end the player clicked, and put the towers in if Automatic is on.
+  function fixLine(d, B) {
+    const dx = B[0] - d.a[0], dy = B[1] - d.a[1], px = Math.hypot(dx, dy);
+    d.dir = [dx / px, dy / px]; d.reach = snapFt(rayReach(d.a, d.dir)); d.len = Math.min(d.reach, snapFt(px * FT_PX));
+    d.g = rayProfile(d.a, d.dir, d.reach + 20); d.aim = null; d.towers = [];
+    if (d.mode === 'auto') { placeAuto(d); d.step = 'review'; } else d.step = 'towers';
+  }
+  function placeAuto(d, fromX = 0, kept = []) {
+    const r = autoFill(d, fromX, kept);
+    d.towers = r.towers; d.autoMsg = r.ok ? null : r.why; d.sel = null;
+    return r.ok;
+  }
+  // While aiming, the line from the anchored terminal to the pointer (with Automatic's towers), redone at most ten
+  // times a second (TW-12's preview rate).
+  let aimTimer = 0, aimLast = 0;
+  function aimAt(p, force) {
+    const d = S.draft, dx = p[0] - d.a[0], dy = p[1] - d.a[1], px = Math.hypot(dx, dy), len = snapFt(px * FT_PX);
+    if (len < RULE.minLen || !onTerrain(p)) { d.aim = { p, short: len < RULE.minLen, off: !onTerrain(p) }; return; }
+    const ang = Math.atan2(dy, dx), low = elevAt(p) <= elevAt(d.a), siteA = terminalSite(d.a, ang), siteB = terminalSite(p, ang + Math.PI);
+    const dir = [dx / px, dy / px], aim = { p, a: d.a, dir, len, g: rayProfile(d.a, dir, len + 20), type: d.type, stance: 'plumb', towers: [] };
+    aim.bad = low ? 'The top terminal must be higher' : !siteB.ok ? siteB.why : !siteA.ok ? `Bottom terminal: ${siteA.why.toLowerCase()}` : null;
+    if (aim.bad) { d.aim = aim; return; }
+    if (d.mode === 'auto') {
+      const now = performance.now();
+      if (force || now - aimLast > 100) { aimLast = now; const r = autoFill(aim, 0, []); aim.towers = r.towers; aim.msg = r.ok ? null : r.why; }
+      else { aim.towers = (d.aim && d.aim.towers || []).filter((t) => t.x < len - RULE.gap); aim.stale = true; clearTimeout(aimTimer); aimTimer = setTimeout(() => { if (S.draft === d && d.step === 'other' && mouse) { aimAt(mouse, true); refreshLift(); } }, 110); }
+    }
+    d.aim = aim;
+  }
+  // The pointer near the line: over a placed tower, or the tower in hand at the nearest 5 ft.
+  function handAt(d, p) {
+    if (!p || !d.g) return null;
+    const rx = p[0] - d.a[0], ry = p[1] - d.a[1], along = rx * d.dir[0] + ry * d.dir[1], perp = Math.abs(rx * d.dir[1] - ry * d.dir[0]);
+    if (perp > 24 / S.zoom || along < -6 || along * FT_PX > d.len + 60) return null;
+    const s = along * FT_PX, hit = towersOn(d).find((t) => Math.abs(t.x - s) / FT_PX < 6 / S.zoom);
+    if (hit) return { hover: hit };
+    if (d.sel) return { idle: true };
+    const x = Math.max(lastTower(d) + RULE.gap, Math.min(d.len - RULE.gap, snapFt(s)));
+    if (x > d.len - RULE.gap) return { full: true };
+    return { x, chk: towerCheck(d, x, d.inH, null, liftEval(d)), next: liftReach(d, x, d.inH) };
+  }
+  const liftCost = (d, ev) => { const T = LIFT_TYPES[d.type], slope = Math.hypot(d.len, ev.zt - ev.zb); return T.term + slope * T.perFt + towersOn(d).reduce((a, t) => a + T.tower + t.h * 650, 0); };
+  const headWord = (h) => `${HEADS[h.code][0]} · ${HEADS[h.code][1]}`;
+
+  // ----- on the mountain -----
+  // A terminal in plan, as a trail map draws a station: its house behind the bullwheel, pointing along the line.
+  function terminalGlyph(p, ang, col, op = 1) {
+    const c = Math.cos(ang), s = Math.sin(ang), T = (x, y) => `${f1(p[0] + x * c - y * s)} ${f1(p[1] + x * s + y * c)}`;
+    // the house behind the bullwheel, the loading ramp beside it, and the bullwheel with the two rope lines leaving it
+    return `<g opacity="${op}"><path d="M${T(-4, -9)}L${T(-34, -9)}L${T(-34, 9)}L${T(-4, 9)}Z" fill="${graphite}" stroke="${col}" stroke-width="1.6"/><path d="M${T(-30, -5)}L${T(-9, -5)}M${T(-30, 0)}L${T(-9, 0)}M${T(-30, 5)}L${T(-9, 5)}" stroke="${col}" stroke-width=".9" opacity=".6"/><path d="M${T(-2, -6.5)}L${T(16, -6.5)}M${T(-2, 6.5)}L${T(16, 6.5)}" stroke="${col}" stroke-width="1.6" stroke-dasharray="3 2"/><circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="7.5" fill="${graphite}" stroke="${col}" stroke-width="2"/><circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="2" fill="${col}"/></g>`;
+  }
+  // A readout card beside the pointer: a bold first line, then plain lines.
+  function readoutCard(x, y, lines) {
+    const w = Math.max(...lines.map((l) => l[0].length)) * 6.1 + 18, h = lines.length * 15 + 8, cx = 640 + (x + 16 + w - 640) * S.zoom > W - 6 ? x - 16 - w : x + 16;   // flip left at the frame's edge, zoomed or not
+    return `<g style="pointer-events:none"><rect x="${f1(cx)}" y="${f1(y - 10)}" width="${f1(w)}" height="${h}" rx="2" fill="${graphite}"/>${lines.map(([t, col], i) => `<text x="${f1(cx + 9)}" y="${f1(y + 5 + i * 15)}" style="font:${i ? 500 : 700} 11px DotFix,Overpass,sans-serif;fill:${col || '#efe9df'}">${esc(t)}</text>`).join('')}</g>`;
+  }
+  const OKC = '#5fd06a', BADC = '#ff5a4a';
+  function towerTick(d, x, col, w = 2.6, len = 6) {
+    const p = rayPt(d, x), nx = -d.dir[1] * len, ny = d.dir[0] * len;
+    return `<line x1="${f1(p[0] - nx)}" y1="${f1(p[1] - ny)}" x2="${f1(p[0] + nx)}" y2="${f1(p[1] + ny)}" stroke="${graphite}" stroke-width="${w + 2.4}" stroke-linecap="round"/><line x1="${f1(p[0] - nx)}" y1="${f1(p[1] - ny)}" x2="${f1(p[0] + nx)}" y2="${f1(p[1] + ny)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`;
+  }
+  const segLine = (d, a, b, col, wd, extra = '') => { const p = rayPt(d, a), q = rayPt(d, b); return `<line x1="${f1(p[0])}" y1="${f1(p[1])}" x2="${f1(q[0])}" y2="${f1(q[1])}" stroke="${col}" stroke-width="${wd}" stroke-linecap="round" ${extra}/>`; };
+  function drawLiftDraft(d) {
+    let s = '';
+    if (d.step === 'first') {
+      if (mouse) {
+        const e = 6, up = Math.atan2(elevXY(mouse[0], mouse[1] + e) - elevXY(mouse[0], mouse[1] - e), elevXY(mouse[0] + e, mouse[1]) - elevXY(mouse[0] - e, mouse[1])), site = terminalSite(mouse, up);
+        s += terminalGlyph(mouse, up, site.ok ? OKC : BADC, 0.95);
+        s += readoutCard(mouse[0], mouse[1] - 4, site.ok ? [['Click to anchor the bottom terminal'], [`Elev. ${lenTxt(elevAt(mouse))} · ground varies ${Math.round(site.vary)} ft under it`, '#cfc7bb']] : [[site.why, BADC]]);
+      }
+      return s;
+    }
+    if (d.step === 'other') {
+      const m = d.aim && d.aim.p, ang = m ? Math.atan2(m[1] - d.a[1], m[0] - d.a[0]) : -Math.PI / 2;
+      if (m) {
+        const bad = d.aim.short || d.aim.off || d.aim.bad || d.aim.msg;
+        s += `<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${f1(m[0])}" y2="${f1(m[1])}" stroke="${white}" stroke-width="3.6" opacity=".7"/><line x1="${d.a[0]}" y1="${d.a[1]}" x2="${f1(m[0])}" y2="${f1(m[1])}" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4"/>`;
+        if (d.aim.towers) for (const t of d.aim.towers) s += towerTick(d.aim, t.x, d.aim.stale ? '#cfc7bb' : white, 2.2, 5);
+        if (d.aim.g) { const e0 = elevAt(d.a), e1 = elevAt(m), rise = (e1 - e0) * FT; s += dimension(d.a, m, `${lenFt(d.aim.len)} · ${rise >= 0 ? '+' : '−'}${lenFt(Math.abs(rise))} · ${Math.round(Math.abs(rise) / d.aim.len * 100)}%`); }
+        s += terminalGlyph(m, ang + Math.PI, bad ? BADC : OKC, 0.92);
+        const lines = d.aim.short ? [['Too short', BADC], [`Terminals stand ${lenFt(RULE.minLen)} apart at least`, '#cfc7bb']] : d.aim.off ? [['Off the mountain', BADC]] : d.aim.bad ? [[d.aim.bad, BADC]]
+          : [['Click to place the top terminal'], d.aim.msg ? [d.aim.msg, BADC] : d.mode === 'auto' ? [`${d.aim.towers.length} towers, placed automatically`, '#cfc7bb'] : ['Then place the towers by hand', '#cfc7bb']];
+        s += readoutCard(m[0], m[1] + 14, lines);
+      }
+      s += terminalGlyph(d.a, ang, flag);
+      return s;
+    }
+    // The line, as a trail map draws a lift: a line with a dot at each end; orange while it's a plan.
+    const ev = liftEval(d), A = d.a, B = rayPt(d, d.len), sel = d.sel, hp = d.hand;
+    const band = hp && hp.chk ? liftBand(d, d.inH, null) : sel ? liftBand(d, sel.h, sel) : [];
+    for (const [a, b] of band) s += segLine(d, a, Math.max(b, a + 2), OKC, 9, 'opacity=".55"');
+    s += `<line x1="${A[0]}" y1="${A[1]}" x2="${f1(B[0])}" y2="${f1(B[1])}" stroke="${white}" stroke-width="4.6" opacity=".8"/><line x1="${A[0]}" y1="${A[1]}" x2="${f1(B[0])}" y2="${f1(B[1])}" stroke="${flag}" stroke-width="2.4"/>`;
+    for (const sp of ev.spans) {
+      if (sp.open) s += segLine(d, sp.p.x, sp.q.x, graphite, 3.4, 'stroke-dasharray="2 5" opacity=".9"');
+      for (const [a, b] of sp.dips) s += segLine(d, a, Math.max(b, a + 3), BADC, 3.4);
+    }
+    for (const o of ev.towers) {
+      if (o.ref === sel) s += towerTick(d, o.x, selC, 5, 9);
+      s += towerTick(d, o.x, o.head.ok ? white : BADC, 2.6, 6);
+    }
+    for (const t of d.towers) if (!towersOn(d).includes(t)) s += towerTick(d, t.x, '#8f877c', 2, 5);   // past a top terminal slid back (LF-05)
+    for (const p of [A, B]) s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="5.2" fill="${flag}" stroke="${white}" stroke-width="1.8"/>`;
+    if (ev.lowest && ev.lowest.min < 60) { const p = rayPt(d, ev.lowest.at), bad = ev.lowest.min < RULE.clear; s += `<g style="pointer-events:none"><path d="M${f1(p[0])} ${f1(p[1] + 3)}l-4 7h8z" fill="${bad ? BADC : white}" stroke="${graphite}" stroke-width="1"/></g>`; }
+    if (S.layers.labels) { const tw = d.name.length * 7.4 + 28, up = d.dir[0] > 0, tx = Math.max(6, Math.min(W - tw - 6, up ? A[0] - tw - 10 : A[0] + 12)); s += tagBox(tx, A[1] - 9, liftPlate(tx, A[1] - 9, d.n, true), d.name, flag, '3 2'); }
+    const hov = hp && hp.hover && ev.towers.find((t) => t.ref === hp.hover);
+    if (hov) { const o = hov, p = rayPt(d, o.x); s += towerTick(d, o.x, selC, 3.4, 8) + readoutCard(p[0], p[1] - 22, [[`Tower ${o.no} · ${lenFt(o.h)} · ${HEADS[o.head.code][0]}`], ['Click to select, drag to slide', '#cfc7bb']]); }
+    else if (hp && hp.full && mouse) s += readoutCard(mouse[0], mouse[1] - 30, [['No room for another tower'], ['Review, or slide the top terminal up', '#cfc7bb']]);
+    else if (hp && hp.chk && mouse) {
+      const p = rayPt(d, hp.x), ok = hp.chk.ok, no = hp.chk.me ? hp.chk.me.no : '';
+      s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="9" fill="none" stroke="${ok ? OKC : BADC}" stroke-width="1.6"/>` + towerTick(d, hp.x, ok ? OKC : BADC, 3.6, 8);
+      s += readoutCard(p[0], p[1] - 30, [[`Tower ${no} · ${lenFt(d.inH)}${ok ? ` · ${HEADS[hp.chk.me.head.code][0]}` : ''}`], ok ? ['Click to place it', OKC] : [hp.chk.why, BADC], ['Page Up / Page Down: ±5 ft', '#a39b90']]);
+    }
+    return s;
+  }
+
+  // ----- the profile strip: the side view, and under it the chairs' height over the ground -----
+  function liftStripInner(d, w) {
+    const L = d.g ? d : d.aim && d.aim.g ? d.aim : null;
+    if (!L) return `<div class="lsh"><b>Profile</b><span class="mono">${d.step === 'first' ? 'Anchor a terminal, then aim at the other end' : 'Aim at the other end'}: the line shows here from the side.</span></div><div class="lsempty"></div>`;
+    const ev = L === d ? liftEval(d) : evalLift(L), T = LIFT_TYPES[d.type], sw = w - 2, padL = 58, padR = 14;
+    // the side view: true elevations, so a 15 ft clearance is a pixel or two; the track under it reads the chairs
+    let zl = Infinity, zh = -Infinity;
+    const N = Math.min(400, Math.ceil(L.len / RULE.grid)), gs = [];
+    for (let i = 0; i <= N; i++) { const s = L.len * i / N, z = groundAt(L.g, s); gs.push([s, z]); zl = Math.min(zl, z); zh = Math.max(zh, z); }
+    for (const p of ev.pts) zh = Math.max(zh, p.z);
+    // Fit stretches each axis to the strip; True scale uses one scale for both, so the line keeps its real steepness.
+    const top = 8, base = 72, fx = (sw - padL - padR) / L.len, fy = (base - top) / Math.max(1, zh - zl), one = Math.min(fx, fy);
+    const X = (s) => padL + s * (S.liftTrue ? one : fx), Y = (z) => base - (z - zl) * (S.liftTrue ? one : fy);
+    let g = '';
+    const gstep = IMP() ? ((zh - zl) > 600 ? 200 : 100) : 50 * FT;
+    for (let z = Math.ceil(zl / gstep) * gstep; z <= zh; z += gstep) g += `<line x1="${padL}" y1="${f1(Y(z))}" x2="${f1(sw - padR)}" y2="${f1(Y(z))}" style="stroke:var(--row)"/><text x="${padL - 4}" y="${f1(Y(z) + 3)}" text-anchor="end" style="font:500 8.5px 'Overpass Mono';fill:var(--chart-label)">${IMP() ? Math.round(z).toLocaleString('en-US') : Math.round(z / FT).toLocaleString('en-US')}</text>`;
+    const band = L === d ? (d.hand && d.hand.chk ? liftBand(d, d.inH, null) : d.sel ? liftBand(d, d.sel.h, d.sel) : []) : [];
+    for (const [a, b] of band) g += `<rect x="${f1(X(a))}" y="2" width="${f1(Math.max(2, X(b) - X(a)))}" height="118" style="fill:var(--text)" opacity=".07"/><rect x="${f1(X(a))}" y="2" width="${f1(Math.max(2, X(b) - X(a)))}" height="1.5" style="fill:var(--soft)"/>`;
+    const gp = gs.map(([s, z], i) => `${i ? 'L' : 'M'}${f1(X(s))} ${f1(Y(z))}`).join('');
+    g += `<path d="${gp}L${f1(X(L.len))} ${base}L${f1(X(0))} ${base}Z" style="fill:var(--chart-fill)"/><path d="${gp}" fill="none" stroke-width="1.3" style="stroke:var(--chart-a)"/>`;
+    ev.spans.forEach((sp) => {
+      const geo = sp.geo[1], n = 14; let pth = '';
+      for (let i = 0; i <= n; i++) { const s = sp.p.x + (sp.q.x - sp.p.x) * i / n; pth += `${i ? 'L' : 'M'}${f1(X(s))} ${f1(Y(ropeAt(sp.p, sp.q, geo, s)))}`; }
+      g += `<path d="${pth}" fill="none" stroke-width="1.6" ${sp.open ? 'stroke-dasharray="5 4" ' : ''}style="stroke:${sp.dips.length || sp.exit ? 'var(--neg)' : sp.open ? 'var(--soft)' : 'var(--strong)'}"/>`;
+      if (sp.open) g += `<text x="${f1(X((sp.p.x + sp.q.x) / 2))}" y="${f1((Y(sp.p.z) + Y(sp.q.z)) / 2 - 6)}" text-anchor="middle" style="font:700 10px 'DotFix','Overpass';fill:var(--soft)">needs towers</text>`;
+    });
+    for (const o of ev.towers) {
+      const pt = ev.pts[o.j], xb = X(o.x), x = X(pt.x), yt = Y(pt.z), yg = Y(groundAt(L.g, o.x)), col = o.head.ok ? 'var(--text)' : 'var(--neg)', c = o.head.code;
+      if (o.ref === d.sel) g += `<rect x="${f1(xb - 7)}" y="2" width="14" height="118" style="fill:var(--chip)"/>`;
+      g += `<line x1="${f1(xb)}" y1="${f1(yg)}" x2="${f1(x)}" y2="${f1(yt)}" stroke-width="1.6" style="stroke:${col}"/>`;
+      // the head: sheaves over the rope (support, breakover), under it (hold-down) or both (combination)
+      const dot = (dy) => `<circle cx="${f1(x - 2.2)}" cy="${f1(yt + dy)}" r="1.25" style="fill:${col}"/><circle cx="${f1(x + 2.2)}" cy="${f1(yt + dy)}" r="1.25" style="fill:${col}"/>`;
+      g += c === 'd8' ? dot(2.6) : c === 'c8' ? dot(-2.6) + dot(2.6) : dot(-2.6) + (c === 'b8' ? `<circle cx="${f1(x)}" cy="${f1(yt - 4.4)}" r="1.25" style="fill:${col}"/>` : '');
+      g += `<text x="${f1(x)}" y="${f1(Math.max(9, yt - 8))}" text-anchor="middle" style="font:600 9px 'Overpass Mono';fill:${o.head.ok ? 'var(--muted)' : 'var(--neg)'}">${IMP() ? o.h : (o.h / FT).toFixed(1)}</text>`;
+    }
+    for (const p of [ev.pts[0], ev.pts[ev.pts.length - 1]]) g += `<rect x="${f1(X(p.x) - 4)}" y="${f1(Y(p.z) - 3)}" width="8" height="6" rx="1" style="fill:var(--strong)"/>`;
+    if (L === d && d.hand && d.hand.chk) { const x = X(d.hand.x), ok = d.hand.chk.ok; g += `<line x1="${f1(x)}" y1="2" x2="${f1(x)}" y2="120" stroke-width="1.4" stroke-dasharray="3 2" style="stroke:${ok ? 'var(--soft)' : 'var(--neg)'}"/><line x1="${f1(x)}" y1="${f1(Y(groundAt(d.g, d.hand.x)))}" x2="${f1(x)}" y2="${f1(Y(groundAt(d.g, d.hand.x) + d.inH))}" stroke-width="2.6" style="stroke:${ok ? 'var(--strong)' : 'var(--neg)'}"/>`; }
+    // the clearance track (TW-01): the chairs' bottom over the ground, 0 to 60 ft, against the dashed 15 ft line
+    const t0 = 82, t1 = 118, CY = (c) => t1 - Math.max(0, Math.min(60, c)) / 60 * (t1 - t0);
+    g += `<line x1="${padL}" y1="${t1}" x2="${f1(sw - padR)}" y2="${t1}" style="stroke:var(--chart-b)"/><line x1="${padL}" y1="${f1(CY(RULE.clear))}" x2="${f1(sw - padR)}" y2="${f1(CY(RULE.clear))}" stroke-dasharray="4 3" style="stroke:var(--soft)"/>`;
+    let cp = '';
+    ev.spans.forEach((sp) => {
+      if (sp.open) { g += `<rect x="${f1(X(sp.p.x))}" y="${t0}" width="${f1(X(sp.q.x) - X(sp.p.x))}" height="${t1 - t0}" fill="url(#lgap)"/>`; return; }
+      const n = sp.cl[0].cs.length - 1; let first = true;
+      for (let k = 0; k <= n; k += 2) { const s = sp.p.x + (sp.q.x - sp.p.x) * k / n, c = Math.min(sp.cl[0].cs[k], sp.cl[1].cs[k]); cp += `${first ? 'M' : 'L'}${f1(X(s))} ${f1(CY(c))}`; first = false; }
+    });
+    for (const sp of ev.spans) for (const [a, b] of sp.dips) g += `<rect x="${f1(X(a))}" y="${f1(CY(RULE.clear))}" width="${f1(Math.max(2, X(b) - X(a)))}" height="${f1(t1 - CY(RULE.clear))}" style="fill:var(--neg)" opacity=".45"/>`;
+    const z0 = ev.spans[0].cl[1].zoneA, z1 = ev.spans[ev.spans.length - 1].cl[1].zoneB;
+    if (z0 !== null) g += `<rect x="${padL}" y="${t0}" width="${f1(Math.max(0, X(z0) - padL))}" height="${t1 - t0}" fill="url(#lzone)"/>`;
+    if (z1 !== null) g += `<rect x="${f1(X(z1))}" y="${t0}" width="${f1(Math.max(0, X(L.len) - X(z1)))}" height="${t1 - t0}" fill="url(#lzone)"/>`;
+    g += `<path d="${cp}" fill="none" stroke-width="1.4" style="stroke:var(--chart-a)"/>`;
+    if (ev.lowest) { const x = X(ev.lowest.at), y = CY(ev.lowest.min), bad = ev.lowest.min < RULE.clear; g += `<circle cx="${f1(x)}" cy="${f1(y)}" r="2.6" style="fill:${bad ? 'var(--neg)' : 'var(--strong)'}"/><text x="${f1(Math.min(x + 6, sw - 70))}" y="${f1(Math.max(t0 + 8, y - 4))}" style="font:600 9.5px 'Overpass Mono';fill:${bad ? 'var(--neg)' : 'var(--muted)'}">lowest ${lenFt(Math.max(0, Math.floor(ev.lowest.min)))}</text>`; }
+    // labels on the left, the distance axis along the bottom
+    g += `<text x="6" y="${t0 + 8}" style="font:700 10px 'DotFix','Overpass';fill:var(--soft)">Chairs</text><text x="6" y="${t0 + 19}" style="font:500 9.5px 'DotFix','Overpass';fill:var(--soft)">over ground</text><text x="${padL - 4}" y="${f1(CY(RULE.clear) + 3)}" text-anchor="end" style="font:600 9px 'Overpass Mono';fill:var(--soft)">${lenFt(RULE.clear)}</text>`;
+    const stepAx = IMP() ? (L.len > 5000 ? 1000 : 500) : (L.len > 1600 * FT ? 300 * FT : 100 * FT);
+    for (let s = 0; s <= L.len + 1; s += stepAx) g += `<line x1="${f1(X(s))}" y1="${t1}" x2="${f1(X(s))}" y2="${t1 + 3}" style="stroke:var(--chart-label)"/><text x="${f1(X(s))}" y="${t1 + 12}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${s ? (IMP() ? s.toLocaleString('en-US') : Math.round(s / FT).toLocaleString('en-US')) : 0}</text>`;
+    const defs = `<defs><pattern id="lzone" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" style="fill:var(--chart-bg)"/><line x1="0" y1="0" x2="0" y2="5" stroke-width="1.6" style="stroke:var(--hair2)"/></pattern><pattern id="lgap" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke-width="1.4" style="stroke:var(--hair2)"/></pattern></defs>`;
+    // the header: the line's numbers, then the tension bar (RP-06) with lbf beside it
+    const t = ev.tension, lo = t.lo / t.rated, hi = t.hi / t.rated, BW = 128, BX = (f) => 1 + Math.min(1.12, f) / 1.12 * (BW - 2), over = hi > 1;
+    const bar = `<svg width="${BW}" height="12" style="display:block"><rect x="0.5" y="2.5" width="${BW - 1}" height="7" rx="1" style="fill:var(--chart-bg);stroke:var(--hair2)"/><rect x="${f1(BX(lo))}" y="3" width="${f1(BX(hi) - BX(lo))}" height="6" style="fill:${over ? 'var(--neg)' : 'var(--chart-a)'}"/><line x1="${f1(BX(1))}" y1="0" x2="${f1(BX(1))}" y2="12" stroke-width="1.6" style="stroke:var(--strong)"/></svg>`;
+    const rise = ev.zt - ev.zb;
+    return `<div class="lsh"><b>Profile</b><span class="mono">${lenFt(L.len)} · rise ${lenFt(rise)} · ${Math.round(rise / L.len * 100)}% · ${ev.towers.length} tower${ev.towers.length === 1 ? '' : 's'}</span>
+      <div class="seg mini" title="LF-10: Fit stretches the profile to the strip; True scale draws it 1:1">${[['fit', 'Fit'], ['true', 'True scale']].map(([v, l]) => `<span class="${(S.liftTrue ? 'true' : 'fit') === v ? 'on' : ''}" data-act="lscale" data-v="${v}">${l}</span>`).join('')}</div>
+      <span class="lten" title="RP-03, RP-05, RP-06: line tension from the bottom to the top of the loaded side, against the type's rated tension (${forceTxt(t.rated)}, LC-02).">Tension ${bar}<b style="color:${over ? 'var(--neg)' : 'var(--text)'}">${Math.round(lo * 100)}–${Math.round(hi * 100)}%</b><span class="mono">${forceTxt(t.lo)} – ${forceTxt(t.hi)}</span></span></div>
+      <svg width="${sw}" height="134" style="display:block" title="">${defs}${g}</svg>`;
+  }
+  function liftStrip(d, left, bottom) {
+    const w = Math.round(W / (S.set.hudScale / 100) - left - 10);
+    return `<div class="pn lstrip" id="liftstrip" style="left:${left}px;bottom:${bottom}px;width:${w}px;z-index:4" title="LF-10: the side view and the chairs' height over the ground. The band is where the tower in hand could stand at its height (TW-09); the dashed line is the chairs' 15 ft over bare ground (TW-01); hatched ends are the load and unload zones.">${liftStripInner(d, w)}</div>`;
+  }
+
+  // ----- the lift menu (LF-01): type, capacity and towers, the steps, then what the step needs -----
+  function loadGauge(o) {
+    if (o.head.pending) return `<div class="ldet" style="padding-top:2px">The head is chosen once the span past it has its towers (TW-04).</div>`;
+    const w = 316, cx = w / 2, half = cx - 12, X = (f) => cx + Math.max(-1.1, Math.min(1.1, f)) * half, n = o.head.n, seat = RULE.groupMin / n / RULE.sheaveMax, c = o.head.code;
+    const per = o.L.map((v) => v / n / RULE.sheaveMax);
+    let g = `<rect x="${f1(X(-1))}" y="15" width="${f1(2 * half)}" height="9" style="fill:var(--chart-bg);stroke:var(--row)"/>`;
+    if (c !== 'd8') g += `<rect x="${f1(X(seat))}" y="15" width="${f1(X(1) - X(seat))}" height="9" style="fill:var(--chart-fill)"/>`;
+    if (c === 'd8' || c === 'c8') g += `<rect x="${f1(X(-1))}" y="15" width="${f1(X(-seat) - X(-1))}" height="9" style="fill:var(--chart-fill)"/>`;
+    g += `<rect x="${f1(X(-seat))}" y="15" width="${f1(X(seat) - X(-seat))}" height="9" style="fill:var(--hair2)" opacity=".7"/><line x1="${f1(cx)}" y1="12" x2="${f1(cx)}" y2="27" style="stroke:var(--soft)"/>`;
+    for (const f of [-1, 1]) g += `<line x1="${f1(X(f))}" y1="11" x2="${f1(X(f))}" y2="28" stroke-width="1.6" style="stroke:var(--strong)"/>`;
+    ['empty', 'full'].forEach((lab, i) => { const x = X(per[i]), bad = Math.abs(per[i]) > 1; g += `<rect x="${f1(x - 1.5)}" y="11" width="3" height="17" style="fill:${bad ? 'var(--neg)' : 'var(--strong)'}"/><text x="${f1(x)}" y="${i ? 37 : 8}" text-anchor="middle" style="font:700 9.5px 'DotFix','Overpass';fill:${bad ? 'var(--neg)' : 'var(--muted)'}">${lab}</text>`; });
+    g += `<text x="${f1(X(-1))}" y="49" style="font:600 10px 'DotFix','Overpass';fill:var(--soft)">◂ pulls up</text><text x="${f1(X(1))}" y="49" text-anchor="end" style="font:600 10px 'DotFix','Overpass';fill:var(--soft)">presses down ▸</text><text x="${f1(cx)}" y="49" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">0 · ends ±${forceTxt(RULE.sheaveMax)}</text>`;
+    const word = (v) => (v >= 0 ? 'presses' : 'pulls'), pct = (v) => Math.round(Math.abs(v) / n / RULE.sheaveMax * 100);
+    return `<div class="lgauge" title="TW-04, TW-05, TW-11, RP-04: the load on each sheave in the two load cases (line empty, uphill side full), as % of ${forceTxt(RULE.sheaveMax)}. The shaded side is what this head carries; the grey middle is a group load under ${forceTxt(RULE.groupMin)} (LC-02), where the rope needs hold-down sheaves too.">
+      <svg width="${w}" height="53" style="display:block">${g}</svg></div>
+      <div class="ldet">Full: ${word(o.L[1])} ${forceTxt(Math.abs(o.L[1]) / n)} a sheave (${pct(o.L[1])}%) · empty: ${forceTxt(Math.abs(o.L[0]) / n)} (${pct(o.L[0])}%) · bend ${Math.abs(o.B[1]).toFixed(1)}°${o.lean ? ` · leans ${Math.abs(o.lean).toFixed(0)}°` : o.side > 1 ? ` · pushes the mast sideways ${forceTxt(o.side)}` : ''}</div>`;
+  }
+  function towerCard(d, ev) {
+    const stepper = (h, lo, hi) => `<div class="step lstep"><span class="sb${lo ? ' dis' : ''}" data-act="${lo ? '' : 'lh'}" data-v="-5" title="Page Down">‹</span><b>${lenFt(h)}</b><span class="sb${hi ? ' dis' : ''}" data-act="${hi ? '' : 'lh'}" data-v="5" title="Page Up">›</span></div>`;
+    if (d.sel) {
+      const o = ev.towers.find((t) => t.ref === d.sel);
+      return `<div class="sub ltop"><span>Tower ${o.no}</span>${stepper(o.h, o.h <= RULE.hMin, o.h >= RULE.hMax)}</div>
+        <div class="lstat ${o.head.ok ? 'ok' : 'bad'}" title="TW-04: the head follows what the rope does; kit ${o.head.code}">${o.head.ok ? `✓ ${headWord(o.head)}` : `✕ ${esc(o.head.why)}`}</div>${loadGauge(o)}
+        <div class="lkeys"><span><span class="kbd">Page Up</span><span class="kbd">Page Down</span> height</span><span>drag to slide</span><span><span class="kbd">Delete</span> removes it</span></div>`;
+    }
+    const hp = d.hand, chk = hp && hp.chk;
+    let status = !chk ? `<div class="lstat" style="color:var(--soft)">${hp && hp.full ? 'No room for another tower below the top terminal.' : 'Move the pointer onto the line, above the last tower.'}</div>` : '';
+    if (chk) {
+      // TW-13: status, head and load, the clearance behind it, and how far the next tower can go
+      const me = chk.me, behind = me && chk.ev.spans[chk.k], pct = (v) => Math.round(Math.abs(v) / me.head.n / RULE.sheaveMax * 100), nx = hp.next;
+      const row = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`;
+      status = `<dl class="kv ltw">${row('Status', chk.ok ? '<b style="color:var(--pos)">OK</b>' : `<b style="color:var(--neg)">${esc(chk.why)}</b>`, chk.ok ? 'TW-13' : chk.rule)}
+        ${me ? row('Head and load', me.head.pending ? 'pending' : `${HEADS[me.head.code][0]} · ${pct(me.L[0])}% empty · ${pct(me.L[1])}% full`, `TW-04, TW-11: kit ${me.head.code}`) : ''}
+        ${behind && behind.min < Infinity ? row('Clearance', `lowest ${lenFt(Math.max(0, Math.floor(behind.min)))} behind it`, 'TW-01') : ''}
+        ${nx ? row('Next tower', nx.here ? `within ${lenFt(nx.here)}, or ${lenFt(nx.tall)} with a ${lenFt(RULE.hMax)} tower` : `none reaches at ${lenFt(d.inH)}; ${lenFt(nx.tall)} with a ${lenFt(RULE.hMax)} tower`, 'TW-13') : ''}</dl>
+        ${nx && nx.holdAhead ? '<div class="lmsg warn" title="TW-06, TW-13">! Hold-downs ahead: the ground steepens within that reach</div>' : ''}`;
+    }
+    return `<div class="sub ltop"><span>Tower in hand${chk && chk.me ? ` <span style="color:var(--soft);font-weight:600">(${chk.me.no})</span>` : ''}</span>${stepper(d.inH, d.inH <= RULE.hMin, d.inH >= RULE.hMax)}</div>${status}
+      ${chk && chk.me ? loadGauge(chk.me) : ''}
+      <div class="lkeys"><span><span class="kbd">Page Up</span><span class="kbd">Page Down</span> ±${lenFt(RULE.hStep)}</span><span>click a tower to select it</span></div>`;
+  }
+  function liftCtx() {
+    const d = S.draft, cur = LIFT_STEPS.findIndex(([k]) => k === d.step), ev = d.g ? liftEval(d) : null;
+    let h = `<div class="lsteps">${LIFT_STEPS.map(([k, v], i) => { const can = d.g && (k === 'towers' || k === 'review'); return `<span class="${i === cur ? 'now' : i < cur || (d.g && i < 2) ? 'done' : ''}"${can && i !== cur ? ` data-act="lstep" data-v="${k}"` : ''}><b>${i < cur || (d.g && i < 2 && i !== cur) ? '✓' : i + 1}</b>${v}</span>`; }).join('')}</div><div class="rule"></div>`;
+    const hint = (t) => `<div class="hint">${t}</div>`;
+    if (d.step === 'first') h += hint('The bottom terminal follows the pointer, green where it can sit. <b>Click</b> to anchor it: the dot is its bullwheel.');
+    else if (d.step === 'other') h += hint(`<b>Click</b> far up the mountain to place the top terminal. That fixes the line and turns the bottom terminal to face it.${d.mode === 'auto' ? ' The towers go in as you aim.' : ' Then you place the towers, from the bottom up.'}`) + (d.aim && d.aim.msg ? `<div class="lmsg err">${esc(d.aim.msg)}</div>` : '');
+    else if (d.step === 'towers') {
+      h += towerCard(d, ev);
+      h += `<div class="lbtns"><span class="ghost" data-act="lfill" title="LF-04, TW-12: automatic towers from your last tower to the top terminal">Fill the rest</span><span class="ghost" data-act="lstep" data-v="review">Review<span class="kbd" style="margin-left:8px">Enter</span></span></div>`;
+      if (d.autoMsg) h += `<div class="lmsg err">${esc(d.autoMsg)}</div>`;
+    } else {
+      const T = LIFT_TYPES[d.type], slope = Math.hypot(d.len, ev.zt - ev.zb), rise = ev.zt - ev.zb, hs = ev.towers.map((o) => o.h);
+      const counts = {}; for (const o of ev.towers) { const k = HEADS[o.head.code][0].toLowerCase(); counts[k] = (counts[k] || 0) + 1; }
+      const kv = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`;
+      const card = d.sel || (d.hand && d.hand.chk);
+      if (card) h += `<div class="lnote" style="padding:7px 12px 6px">${lenFt(slope)} · rise ${lenFt(rise)} · ${ev.towers.length} towers · lowest chairs ${ev.lowest ? lenFt(Math.max(0, Math.floor(ev.lowest.min))) : '–'}</div>`;
+      else h += `<dl class="kv" style="padding-top:6px">${kv('Length', `<b>${lenFt(slope)}</b> slope · ${lenFt(d.len)} across`, 'LF-06')}${kv('Rise', `<b>${lenFt(rise)}</b> · ${Math.round(rise / d.len * 100)}%`)}${kv('Ride', `${fmtTime(slope / RULE.fpm * 60)} at ${speedTxt(RULE.fpm / 196.85)}`, 'LC-04: slope length over 450 ft/min')}${kv('Capacity', `<b>${liftCap(T).toLocaleString('en-US')}</b> an hour`, 'LC-03')}
+        ${kv('Towers', ev.towers.length ? `<b>${ev.towers.length}</b> · ${Math.min(...hs) === Math.max(...hs) ? `all ${lenFt(hs[0])}` : `${lenFt(Math.min(...hs))}–${lenFt(Math.max(...hs))}`}` : dash, 'TW-02: 25–100 ft in 5 ft steps')}${ev.towers.length ? kv('Heads', Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(' · '), 'TW-04') : ''}
+        ${kv('Lowest chairs', ev.lowest ? `<b style="color:${ev.lowest.min < RULE.clear ? 'var(--neg)' : ''}">${lenFt(Math.max(0, Math.floor(ev.lowest.min)))}</b> over the ground` : dash, 'TW-01: 15 ft at least, outside the load and unload zones')}
+        ${kv('Tension', `<b>${Math.round(ev.tension.lo / ev.tension.rated * 100)}–${Math.round(ev.tension.hi / ev.tension.rated * 100)}%</b> of the rating`, 'RP-06')}${kv('Cost estimate', `${money(liftCost(d, ev))}`)}</dl>`;
+      const msgs = ev.errors.map((e) => `<div class="lmsg err" title="${e.rule}">✕ ${esc(e.text)}</div>`).concat(ev.warnings.map((w) => `<div class="lmsg warn">! ${esc(w)}</div>`));
+      if (d.autoMsg) msgs.unshift(`<div class="lmsg err" title="TW-12">✕ ${esc(d.autoMsg)}</div>`);
+      if (msgs.length) h += `<div class="rule"></div><div style="padding:4px 0">${msgs.slice(0, card ? 1 : 3).join('')}${msgs.length > (card ? 1 : 3) ? `<div class="lmsg" style="color:var(--soft)">and ${msgs.length - (card ? 1 : 3)} more</div>` : ''}</div>`;
+      if (card) h += `<div class="rule"></div>${towerCard(d, ev)}`;
+      else h += `<div class="hint" style="padding-top:2px">Every tower stays editable: click one to select it, or click the line to add one.</div>`;
+      h += `<div class="lbtns"><span class="ghost" data-act="lreplace" title="LF-06, TW-12: automatic placement on the whole line">${d.armReplace ? 'Click again: re-place your towers' : 'Re-place towers'}</span></div>`;
+    }
+    if (d.dropAsk) h = `<div class="lmsg warn" style="padding-top:8px">${d.dropAsk} tower${d.dropAsk > 1 ? 's' : ''} stand past the top terminal now.</div><div class="lbtns"><span class="ghost" data-act="ldrop">Drop ${d.dropAsk > 1 ? 'them' : 'it'}</span><span class="ghost" data-act="lkeep">Put the terminal back</span></div>` + h;
+    const ready = d.step === 'review' && ev && !ev.errors.length && !d.autoMsg && !d.dropAsk, cost = ev ? short(liftCost(d, ev)).replace('+', '') : '';
+    h += `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}" title="LF-06, CF: Confirm"><span>Break ground</span><span class="mono">${d.step === 'review' ? cost : ''}</span></div><div class="ghost${d.step === 'review' ? '' : ' dis'}" data-act="${d.step === 'review' ? 'plan' : ''}">Save plan</div></div>`;
+    return h;
+  }
+  function liftPanel() {
+    const d = S.draft, T = LIFT_TYPES[d.type];
+    const seg = (act, cur, opts, tip) => `<div class="seg"${tip ? ` title="${tip}"` : ''}>${opts.map(([v, l]) => `<span class="${cur === v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</span>`).join('')}</div>`;
+    return panelShell(`<span class="plate">${d.n}</span>New lift <span class="nm">${esc(d.name)}</span>${d.armCancel ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard it? ✕ again</span>' : ''}`, `
+      <div style="padding:8px 0 4px">
+        <div class="lrow"><span>Type</span>${seg('ltype', d.type, Object.keys(LIFT_TYPES).map((k) => [k, k]), 'LF-01, LC-02: both fixed-grip quads share these values for now')}</div>
+        <div class="lrow"><span>Towers</span>${seg('lmode', d.mode, [['auto', d.armAuto ? 'Again: re-place' : 'Automatic'], ['hand', 'By hand']], 'LF-01, TW-12: automatic towers, or yours; it can change until you break ground')}</div>
+        <div class="lrow"><span>Stand</span>${seg('lstand', d.stance, [['plumb', 'Plumb'], ['leaned', 'Leaned']], 'TW-14: plumb, or leaned square to the rope (15° at most)')}</div>
+        <div class="lnote" title="LC-02, LC-03: capacity is shown, not chosen"><b>${liftCap(T).toLocaleString('en-US')}</b> an hour · ${speedTxt(RULE.fpm / 196.85)} · chairs ${lenFt(T.spacing)} apart</div>
+      </div><div class="rule"></div><div id="liftctx">${liftCtx()}</div>`, 344);
+  }
+  // Redraw only what the pointer changes: the mountain, the strip and the menu's lower part.
+  function refreshLift() {
+    drawWorld();
+    const d = S.draft; if (!d || d.kind !== 'lift') return;
+    const st = document.getElementById('liftstrip'); if (st) st.innerHTML = liftStripInner(d, st.offsetWidth);
+    const cx = document.getElementById('liftctx'); if (cx) cx.innerHTML = liftCtx();
+    if (S.set.tooltips === 'off') ui.querySelectorAll('[title]').forEach((n) => n.removeAttribute('title'));
+  }
+  // The menu's buttons (and the keys that share them).
+  function liftAct(a, v) {
+    const d = S.draft;
+    if (a !== 'lmode') d.armAuto = false;
+    if (a !== 'lreplace') d.armReplace = false;
+    d.armCancel = false;
+    const autoAgain = () => { if (d.g && d.mode === 'auto' && !hasHandTowers(d)) { placeAuto(d); d.step = 'review'; } };
+    switch (a) {
+      case 'ltype': d.type = v; autoAgain(); break;
+      case 'lstand': d.stance = v; S.liftStance = v; break;
+      case 'lscale': S.liftTrue = v === 'true'; break;
+      case 'ldrop': d.towers = towersOn(d); d.dropAsk = 0; break;
+      case 'lkeep': d.len = d.lenWas; d.dropAsk = 0; break;
+      case 'lmode':
+        if (v === d.mode) break;
+        if (v === 'auto' && d.g && hasHandTowers(d) && !d.armAuto) { d.armAuto = true; break; }
+        d.mode = v; S.liftMode = v; d.armAuto = false;
+        if (v === 'auto' && d.g) { placeAuto(d); d.step = 'review'; }
+        break;
+      case 'lstep': if (d.g) d.step = v; d.sel = null; break;
+      case 'lfill': { const on = towersOn(d), from = on.length ? Math.max(...on.map((t) => t.x)) : 0; if (placeAuto(d, from, on)) d.step = 'review'; break; }
+      case 'lreplace': if (hasHandTowers(d) && !d.armReplace) { d.armReplace = true; break; } d.armReplace = false; placeAuto(d); break;
+      case 'lh': if (d.sel) { d.sel.h = Math.max(RULE.hMin, Math.min(RULE.hMax, d.sel.h + (+v))); d.sel.hand = true; } else d.inH = Math.max(RULE.hMin, Math.min(RULE.hMax, d.inH + (+v))); d.hand = handAt(d, mouse); break;
+      case 'ldel': if (d.sel) { d.towers = d.towers.filter((t) => t !== d.sel); d.sel = null; d.hand = handAt(d, mouse); } break;
+      default: return;
+    }
+    render();
+  }
+  // Clicks on the mountain while the lift tool is out.
+  let liftDrag = null, liftDragged = false;
+  function liftClick(p) {
+    const d = S.draft;
+    d.armCancel = false;
+    if (d.step === 'first') {
+      const e = 6, up = Math.atan2(elevXY(p[0], p[1] + e) - elevXY(p[0], p[1] - e), elevXY(p[0] + e, p[1]) - elevXY(p[0] - e, p[1])), site = terminalSite(p, up);
+      if (site.ok) { d.a = p; d.step = 'other'; aimAt(p, true); } else log(`<span>${esc(site.why)}</span>`, '#d4513f');
+      render(); return;
+    }
+    if (d.step === 'other') {
+      aimAt(p, true);
+      if (d.aim.short) log(`<span>Too short: terminals stand ${lenFt(RULE.minLen)} apart at least</span>`, '#d4513f');
+      else if (d.aim.off) log('<span>The top terminal stands on the mountain too</span>', '#d4513f');
+      else if (d.aim.bad) log(`<span>${esc(d.aim.bad)}</span>`, '#d4513f');
+      else fixLine(d, p);
+      render(); return;
+    }
+    const hp = handAt(d, p);
+    if (hp && hp.hover) d.sel = hp.hover;
+    else if (d.sel) d.sel = null;
+    else if (hp && hp.chk) {
+      if (hp.chk.ok) { d.towers.push({ x: hp.x, h: d.inH, hand: true }); }
+      else log(`<span>${esc(hp.chk.why)}</span>`, '#d4513f');
+    }
+    d.hand = handAt(d, p);
+    render();
+  }
+  function liftKeys(e, k) {
+    const d = S.draft;
+    if ((k === 'pageup' || k === 'pagedown') && d.g) { e.preventDefault(); liftAct('lh', k === 'pageup' ? 5 : -5); return true; }
+    if ((k === 'delete' || k === 'backspace') && d.sel) { e.preventDefault(); liftAct('ldel'); return true; }
+    if (k === 'enter' && d.step === 'towers') { liftAct('lstep', 'review'); return true; }
+    if (k === 'escape') {   // back out one step; placed towers are never dropped
+      if (d.sel) d.sel = null;
+      else if (d.step === 'other') { d.a = null; d.aim = null; d.step = 'first'; }
+      else if (d.step === 'first') return false;
+      else if (d.step === 'review' && d.mode === 'hand') d.step = 'towers';
+      else return true;
+      render(); return true;
+    }
+    return false;
+  }
+
+  // ---------- the trail tool (P3-02 TR, TD, GR, CL, TF): paint an area, set its head and tail, review ----------
+  // A stand-in for the game's engine on the mockup's placeholder terrain: the footprint is a raster of half-pixel cells
+  // (about 9.5 ft, where the game uses 1 m), the centreline keeps as far from the edges as it can, and each 25 ft
+  // station is graded to a level bench with 1:1 faces inside the footprint.
+  const TG = 2, TW = W * TG, TH = H * TG, CELL_FT = FT_PX / TG;   // cells per pixel, the raster's size, feet per cell
+  const TRULE = { wMin: 25, wMax: 400, wStep: 5, wDef: 100, bench: 25, station: 25, minLen: 100, snap: 30, window: 75 };
+  const BANDS = [[25, 'green', 'Easiest'], [40, 'blue', 'More difficult'], [60, 'black', 'Most difficult'], [Infinity, 'double', 'Experts only']];
+  const bandOf = (v) => BANDS.find((b) => v < b[0]);
+  const BAND_CLR = { green: '#3fae6a', blue: '#4d8ad6', black: 'var(--text)', double: 'var(--text)' };
+  let trailRuns = 0, shiftDown = false;
+  window.addEventListener('keydown', (e) => { if (e.key === 'Shift') { shiftDown = true; if (S.draft && S.draft.kind === 'trail') drawWorld(); } });
+  window.addEventListener('keyup', (e) => { if (e.key === 'Shift') { shiftDown = false; if (S.draft && S.draft.kind === 'trail') drawWorld(); } });
+  function newTrailDraft() {
+    clearFootprint();
+    return { kind: 'trail', step: 'paint', width: S.trailWidth || TRULE.wDef, graded: true, name: `Run ${trailRuns + 1}`, mask: new Uint8Array(TW * TH), comp: null,
+      strokes: [], head: null, tail: null, line: null, est: null, msg: null, box: null };
+  }
+  // The footprint canvas sits on the map under the drawings; painted cells show orange, a separate patch red (TF-02).
+  let fpCanvas = null;
+  function fpCtx() {
+    if (!fpCanvas) { fpCanvas = document.createElement('canvas'); fpCanvas.width = TW; fpCanvas.height = TH; fpCanvas.style.cssText = 'position:absolute;left:0;top:0;width:1280px;height:720px;pointer-events:none'; mapEl.insertBefore(fpCanvas, worldEl); }
+    return fpCanvas.getContext('2d');
+  }
+  function clearFootprint() { if (fpCanvas) fpCtx().clearRect(0, 0, TW, TH); }
+  // The footprint shows only while a trail is being drawn.
+  function syncFootprint() { if (fpCanvas) fpCanvas.style.display = S.draft && S.draft.kind === 'trail' ? '' : 'none'; }
+  const insideFp = (d, p) => { const x = Math.round(p[0] * TG), y = Math.round(p[1] * TG); return x >= 0 && y >= 0 && x < TW && y < TH && d.mask[y * TW + x] === 1; };
+  // TR-01, TR-02: a stroke stamps discs of the brush's width along the pointer's path; Shift erases. Each stroke keeps
+  // what it changed, so Ctrl+Z undoes it whole.
+  function stamp(d, p, erase) {
+    const r = d.width / 2 / CELL_FT, cx = p[0] * TG, cy = p[1] * TG, st = d.stroke, ctx = fpCtx();
+    for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(TH - 1, Math.ceil(cy + r)); y++) for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(TW - 1, Math.ceil(cx + r)); x++) {
+      if ((x - cx) ** 2 + (y - cy) ** 2 > r * r || !onTerrain([x / TG, y / TG])) continue;
+      const i = y * TW + x, v = erase ? 0 : 1;
+      if (d.mask[i] !== v) { st.idx.push(i); st.was.push(d.mask[i]); d.mask[i] = v; }
+    }
+    ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'; ctx.fillStyle = 'rgba(214,160,120,0.22)';
+    ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.6, r), 0, 2 * Math.PI); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+  }
+  function strokeTo(d, p) {
+    const last = d.stroke.last, step = Math.max(0.3, d.width / 4 / FT_PX);
+    if (last) { const n = Math.ceil(Math.hypot(p[0] - last[0], p[1] - last[1]) / step); for (let k = 1; k <= n; k++) stamp(d, [last[0] + (p[0] - last[0]) * k / n, last[1] + (p[1] - last[1]) * k / n], d.stroke.erase); }
+    else stamp(d, p, d.stroke.erase);
+    d.stroke.last = p;
+  }
+  function endStroke(d) {
+    if (d.stroke.idx.length) d.strokes.push(d.stroke);
+    d.stroke = null; afterStroke(d);
+  }
+  function undoStroke(d) {
+    const st = d.strokes.pop(); if (!st) return;
+    for (let k = st.idx.length - 1; k >= 0; k--) d.mask[st.idx[k]] = st.was[k];
+    afterStroke(d);
+  }
+  // After each stroke (never while dragging): the patches, the area and the estimated rating (TF-02, TD-06).
+  function afterStroke(d) {
+    let x0 = TW, y0 = TH, x1 = -1, y1 = -1;
+    for (let i = 0; i < d.mask.length; i++) if (d.mask[i]) { const x = i % TW, y = (i / TW) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    d.box = x1 < 0 ? null : [x0, y0, x1, y1];
+    d.comp = new Int32Array(TW * TH); d.patches = [];
+    if (d.box) {
+      const stack = [];
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const i = y * TW + x; if (!d.mask[i] || d.comp[i]) continue;
+        const id = d.patches.length + 1; let n = 0; stack.push(i); d.comp[i] = id;
+        while (stack.length) { const j = stack.pop(), jx = j % TW; n++; for (const k of [j - 1, j + 1, j - TW, j + TW]) { if (k < 0 || k >= d.mask.length || (k === j - 1 && jx === 0) || (k === j + 1 && jx === TW - 1)) continue; if (d.mask[k] && !d.comp[k]) { d.comp[k] = id; stack.push(k); } } }
+        d.patches.push(n);
+      }
+    }
+    d.main = d.patches.length ? 1 + d.patches.indexOf(Math.max(...d.patches)) : 0;
+    // TD-06: every cell on natural ground; (3 × the mean + the 90th percentile) / 4
+    const sl = [];
+    if (d.box) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (d.mask[y * TW + x]) sl.push(slopeAt([x / TG, y / TG]));
+    sl.sort((a, b) => a - b);
+    const mean = sl.reduce((a, b) => a + b, 0) / (sl.length || 1), p90 = sl.length ? sl[Math.floor(sl.length * 0.9)] : 0;
+    d.est = sl.length ? { value: (3 * mean + p90) / 4, acres: sl.length * CELL_FT * CELL_FT / 43560 } : null;
+    d.head = d.tail = d.line = null;
+    paintFootprint(d);
+  }
+  function paintFootprint(d) {
+    const ctx = fpCtx(); ctx.clearRect(0, 0, TW, TH);
+    if (!d.box) return;
+    const [x0, y0, x1, y1] = d.box, img = ctx.createImageData(x1 - x0 + 1, y1 - y0 + 1);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const i = y * TW + x; if (!d.mask[i]) continue;
+      // a muted wash inside, and a dashed edge: surveyor's orange for the trail, red for a separate patch
+      const o = ((y - y0) * (x1 - x0 + 1) + (x - x0)) * 4, red = d.comp[i] !== d.main;
+      const edge = !d.mask[i - 1] || !d.mask[i + 1] || !d.mask[i - TW] || !d.mask[i + TW], dash = (x + y) % 8 < 4;
+      if (edge && dash) { img.data[o] = 255; img.data[o + 1] = red ? 70 : 106; img.data[o + 2] = red ? 60 : 31; img.data[o + 3] = 235; }
+      else if (edge) { img.data[o] = 251; img.data[o + 1] = 248; img.data[o + 2] = 242; img.data[o + 3] = 150; }
+      else { img.data[o] = red ? 220 : 214; img.data[o + 1] = red ? 120 : 160; img.data[o + 2] = red ? 110 : 120; img.data[o + 3] = 56; }
+    }
+    ctx.putImageData(img, x0, y0);
+  }
+  // Natural ground's steepest grade at a point, in percent (rise over run, feet over feet).
+  function slopeAt(p) { const e = 1.5, gx = (elevXY(p[0] + e, p[1]) - elevXY(p[0] - e, p[1])) * FT / (2 * e * FT_PX), gy = (elevXY(p[0], p[1] + e) - elevXY(p[0], p[1] - e)) * FT / (2 * e * FT_PX); return Math.hypot(gx, gy) * 100; }
+  const groundFt = (p) => elevXY(p[0], p[1]) * FT;
+  // TR-05: a head or tail within 30 ft of a lift's top or bottom, or of a point on another trail, snaps there. (At the
+  // mockup's scale 30 ft is under 2 px, so the snap reaches 6 px on screen at least.)
+  function snapEnd(p) {
+    const reach = Math.max(TRULE.snap / FT_PX, 6 / S.zoom);
+    let best = null, bd = reach;
+    for (const l of S.lifts) for (const [q, what] of [[l.a, `${l.name} bottom`], [l.b, `${l.name} top`]]) { const dd = Math.hypot(q[0] - p[0], q[1] - p[1]); if (dd < bd) { bd = dd; best = { p: q.slice(), what }; } }
+    for (const t of S.trails) for (let i = 1; i < t.pts.length; i++) {
+      const a = t.pts[i - 1], b = t.pts[i], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)), q = [a[0] + dx * u, a[1] + dy * u], dd = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (dd < bd) { bd = dd; best = { p: q, what: t.name }; }
+    }
+    return best;
+  }
+  // TR-03: the centreline runs from head to tail inside the footprint, keeping as far from the edges as it can (a
+  // shortest path whose cost rises near the edge), then smoothed; stations every 25 ft.
+  function centreline(d) {
+    const [bx0, by0, bx1, by1] = d.box, x0 = Math.max(0, bx0 - 2), y0 = Math.max(0, by0 - 2), w = Math.min(TW - 1, bx1 + 2) - x0 + 1, h = Math.min(TH - 1, by1 + 2) - y0 + 1;
+    const inn = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d.comp[(y + y0) * TW + x + x0] === d.main;
+    const dist = new Float32Array(w * h);   // chamfer distance to the nearest cell outside the footprint
+    for (let i = 0; i < w * h; i++) dist[i] = inn(i % w, (i / w) | 0) ? 1e9 : 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; if (!dist[i]) continue; let v = dist[i]; if (x) v = Math.min(v, dist[i - 1] + 1); if (y) v = Math.min(v, dist[i - w] + 1); if (x && y) v = Math.min(v, dist[i - w - 1] + 1.414); if (y && x < w - 1) v = Math.min(v, dist[i - w + 1] + 1.414); dist[i] = v; }
+    for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) { const i = y * w + x; if (!dist[i]) continue; let v = dist[i]; if (x < w - 1) v = Math.min(v, dist[i + 1] + 1); if (y < h - 1) v = Math.min(v, dist[i + w] + 1); if (x < w - 1 && y < h - 1) v = Math.min(v, dist[i + w + 1] + 1.414); if (y < h - 1 && x) v = Math.min(v, dist[i + w - 1] + 1.414); dist[i] = v; }
+    const cellOf = (p) => { let cx = Math.round(p[0] * TG) - x0, cy = Math.round(p[1] * TG) - y0; if (!inn(cx, cy)) { let best = null, bd = 1e9; for (let yy = cy - 12; yy <= cy + 12; yy++) for (let xx = cx - 12; xx <= cx + 12; xx++) if (inn(xx, yy) && (xx - cx) ** 2 + (yy - cy) ** 2 < bd) { bd = (xx - cx) ** 2 + (yy - cy) ** 2; best = [xx, yy]; } if (!best) return -1; [cx, cy] = best; } return cy * w + cx; };
+    const s0 = cellOf(d.head.p), s1 = cellOf(d.tail.p);
+    if (s0 < 0 || s1 < 0) return null;
+    // Dijkstra with a binary heap; each step costs its length × (1 + 8 / distance to the edge)
+    const cost = new Float64Array(w * h).fill(Infinity), from = new Int32Array(w * h).fill(-1), heap = [[0, s0]]; cost[s0] = 0;
+    const push = (c, i) => { heap.push([c, i]); let k = heap.length - 1; while (k) { const pk = (k - 1) >> 1; if (heap[pk][0] <= heap[k][0]) break; [heap[pk], heap[k]] = [heap[k], heap[pk]]; k = pk; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+    while (heap.length) {
+      const [c, i] = pop(); if (c > cost[i]) continue; if (i === s1) break;
+      const x = i % w, y = (i / w) | 0;
+      for (const [dx, dy, l] of [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]]) {
+        const nx = x + dx, ny = y + dy; if (!inn(nx, ny)) continue;
+        const j = ny * w + nx, nc = c + l * (1 + 8 / (dist[j] + 0.5));
+        if (nc < cost[j]) { cost[j] = nc; from[j] = i; push(nc, j); }
+      }
+    }
+    if (from[s1] < 0 && s1 !== s0) return null;
+    let path = []; for (let i = s1; i >= 0; i = from[i]) { path.push([(i % w + x0) / TG, (((i / w) | 0) + y0) / TG]); if (i === s0) break; }
+    path.reverse(); path[0] = d.head.p; path[path.length - 1] = d.tail.p;
+    for (let pass = 0; pass < 3; pass++) path = path.map((p, i) => (i === 0 || i === path.length - 1 ? p : [(path[i - 1][0] + 2 * p[0] + path[i + 1][0]) / 4, (path[i - 1][1] + 2 * p[1] + path[i + 1][1]) / 4]));
+    // stations every 25 ft along it
+    const st = [], seg = TRULE.station / FT_PX; let carry = 0;
+    st.push(path[0]);
+    for (let i = 1; i < path.length; i++) { const a = path[i - 1], b = path[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]); let u = seg - carry; while (u <= l) { st.push([a[0] + (b[0] - a[0]) * u / l, a[1] + (b[1] - a[1]) * u / l]); u += seg; } carry = l - (u - seg); }
+    if (Math.hypot(st[st.length - 1][0] - path[path.length - 1][0], st[st.length - 1][1] - path[path.length - 1][1]) > seg * 0.4) st.push(path[path.length - 1]);
+    return st.slice(0, 800);
+  }
+  // GR-01 to GR-08 and TD-01 to TD-03 at each station: a level bench at the centreline's natural height, as wide as
+  // 1:1 faces allow inside the footprint (GR-03), 25 ft at least (GR-04) or the station stays natural (GR-07).
+  function gradeTrail(d) {
+    const st = d.line, n = st.length, step = 0.25, dFt = step * FT_PX;
+    const out = { stations: [], cut: 0, fill: 0, ungraded: 0, len: (n - 1) * TRULE.station };
+    for (let i = 0; i < n; i++) {
+      const p = st[i], a = st[Math.max(0, i - 1)], b = st[Math.min(n - 1, i + 1)], tl = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / tl, ny = (b[0] - a[0]) / tl, z = groundFt(p);
+      const side = (sgn) => {   // the footprint's reach this side, the bench edge (GR-03), and the ground along it
+        const gs = []; let reach = 0;
+        for (let k = 1; k < 200; k++) { const q = [p[0] + sgn * nx * k * step, p[1] + sgn * ny * k * step]; if (!insideFp(d, q)) break; reach = k * dFt; gs.push([reach, groundFt(q)]); }
+        let bench = 0; for (const [off, g] of gs) bench = Math.max(bench, off - Math.abs(g - z));
+        return { reach, bench: Math.min(bench, reach), gs };
+      };
+      const L = side(-1), R = side(1), width = L.bench + R.bench, graded = d.graded && width >= TRULE.bench;
+      if (graded) for (const s of [L, R]) for (const [off, g] of s.gs) {
+        const des = off <= s.bench ? z : g > z ? Math.min(g, z + (off - s.bench)) : Math.max(g, z - (off - s.bench));
+        if (g > des) out.cut += (g - des) * dFt * TRULE.station; else out.fill += (des - g) * dFt * TRULE.station;
+      }
+      if (!graded) out.ungraded += TRULE.station;
+      out.stations.push({ p, z, nx, ny, graded, bL: L.bench, bR: R.bench, reachL: L.reach, reachR: R.reach });
+    }
+    // TD-01: graded stations read the bench's fall-line slope; ungraded ones read natural ground
+    for (let i = 0; i < n; i++) { const s = out.stations[i], a = out.stations[Math.max(0, i - 1)], b = out.stations[Math.min(n - 1, i + 1)], run = (Math.min(n - 1, i + 1) - Math.max(0, i - 1)) * TRULE.station || 1; s.slope = s.graded ? Math.abs(a.z - b.z) / run * 100 : slopeAt(s.p); s.band = bandOf(s.slope)[1]; }
+    // TD-02: (3 × the mean + the steepest 75 ft window) / 4
+    const mean = out.stations.reduce((a, s) => a + s.slope, 0) / n;
+    let max = 0, at = 0; for (let i = 1; i < n - 1; i++) { const v = (out.stations[i - 1].slope + out.stations[i].slope + out.stations[i + 1].slope) / 3; if (v > max) { max = v; at = i; } }
+    out.mean = mean; out.max = max; out.maxAt = at; out.value = (3 * mean + max) / 4; out.band = bandOf(out.value);
+    out.drop = out.stations[0].z - out.stations[n - 1].z;
+    // CL-01: trees in the footprint, from the capture's dark forest cells (about one tree to 400 ft²)
+    let forest = 0; const [x0, y0, x1, y1] = d.box; for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (d.mask[y * TW + x] && lumAt(x / TG, y / TG) < 0.6) forest++;
+    out.trees = Math.round(forest * CELL_FT * CELL_FT / 400);
+    out.acres = d.est.acres;
+    return out;
+  }
+  const yd3 = (ft3) => (IMP() ? `${Math.round(ft3 / 27).toLocaleString('en-US')} yd³` : `${Math.round(ft3 * 0.0283168).toLocaleString('en-US')} m³`);
+  const trailCost = (r) => r.acres * 14000 + r.trees * 0;   // clearing only: grading has no cost in Phase 3 (GR-08)
+  function setEnds(d) {
+    d.line = null; d.res = null; d.msg = null;
+    if (!d.head || !d.tail) return;
+    if (groundFt(d.head.p) <= groundFt(d.tail.p)) { d.msg = 'The head must be higher than the tail (TR-03)'; return; }
+    const line = centreline(d);
+    if (!line) { d.msg = 'The head and the tail must both be on the trail'; return; }
+    if ((line.length - 1) * TRULE.station < TRULE.minLen) { d.msg = `Too short: a trail is ${lenFt(TRULE.minLen)} at least (TR-04)`; return; }
+    d.line = line; d.res = gradeTrail(d);
+  }
+  // ----- on the mountain -----
+  const ratingSym = (k, x, y) => diffSym(x - 9, y - 9, k);
+  function drawTrailDraft(d) {
+    let s = '';
+    if (d.res) {
+      const r = d.res, path = `M${r.stations.map((t) => `${f1(t.p[0])} ${f1(t.p[1])}`).join('L')}`;
+      // CF-08: yellow pending contours across the graded bench, every fourth station
+      r.stations.forEach((t, i) => { if (t.graded && i % 4 === 2) s += `<line x1="${f1(t.p[0] - t.nx * t.bL / FT_PX)}" y1="${f1(t.p[1] - t.ny * t.bL / FT_PX)}" x2="${f1(t.p[0] + t.nx * t.bR / FT_PX)}" y2="${f1(t.p[1] + t.ny * t.bR / FT_PX)}" stroke="#ffd34d" stroke-width="1.1"/>`; });
+      s += `<path d="${path}" fill="none" stroke="${white}" stroke-width="3.4" opacity=".8"/><path d="${path}" fill="none" stroke="${flag}" stroke-width="1.8" stroke-dasharray="5 3"/>`;
+      // GR-07: stretches too steep to grade, red
+      let run = null; r.stations.forEach((t, i) => { if (!t.graded && d.graded) run = run || [i]; if ((t.graded || i === r.stations.length - 1) && run) { const seg = r.stations.slice(run[0], i + 1); s += `<path d="M${seg.map((q) => `${f1(q.p[0])} ${f1(q.p[1])}`).join('L')}" fill="none" stroke="${BADC}" stroke-width="3"/>`; run = null; } });
+      if (S.layers.labels) { const m = r.stations[Math.floor(r.stations.length / 2)].p, x = m[0] + 12, y = m[1] - 9; s += tagBox(x, y, diffSym(x, y, r.band[1]), d.name, flag, '3 2'); }
+    }
+    for (const [e, lab] of [[d.head, 'Head'], [d.tail, 'Tail']]) if (e) s += `<g><circle cx="${f1(e.p[0])}" cy="${f1(e.p[1])}" r="${e.snap ? 6 : 4.5}" fill="${graphite}" stroke="${e.snap ? selC : flag}" stroke-width="1.8"/></g>` + readoutCard(e.p[0], e.p[1] - 6, [[e.snap ? `${lab} · joins ${e.snap}` : lab]]);
+    if (mouse && d.step === 'paint') {
+      const r = d.width / 2 / FT_PX, er = shiftDown;
+      s += `<circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(Math.max(1.5, r))}" fill="none" stroke="${graphite}" stroke-width="2.6" opacity=".45" stroke-dasharray="3 2.5"/><circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(Math.max(1.5, r))}" fill="none" stroke="${er ? BADC : white}" stroke-width="1.3" stroke-dasharray="3 2.5"/>`;
+      s += readoutCard(mouse[0] + r, mouse[1] - 4, [[er ? `Erase · ${lenFt(d.width)}` : `Paint · ${lenFt(d.width)} wide`], ['[ ] width · Shift erases · Ctrl+Z undoes', '#a39b90']]);
+    }
+    if (mouse && d.step === 'ends' && !(d.head && d.tail)) {
+      const sn = snapEnd(mouse), p = sn ? sn.p : mouse;
+      s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${sn ? 6 : 4}" fill="none" stroke="${sn ? selC : white}" stroke-width="1.6"/>` + readoutCard(p[0], p[1] - 6, [[`Click the ${d.head ? 'tail (bottom)' : 'head (top)'}`], sn ? [`Joins ${sn.what}`, '#ffd34d'] : [`Elev. ${lenTxt(elevAt(p))}`, '#cfc7bb']]);
+    }
+    return s;
+  }
+  // ----- the trail profile (TF-04): distance along the centreline against elevation -----
+  function trailStripInner(d, w) {
+    if (!d.res) return `<div class="lsh"><b>Profile</b><span class="mono">${d.step === 'paint' ? 'Paint the trail, then set its head and tail' : 'Click the head, then the tail'}: the trail shows here from the side.</span></div><div class="lsempty"></div>`;
+    const r = d.res, sw = w - 2, padL = 58, padR = 14, top = 10, base = 112, L = r.len || 1;
+    const zs = r.stations.map((t) => t.z), zl = Math.min(...zs), zh = Math.max(...zs), X = (s) => padL + s / L * (sw - padL - padR), Y = (z) => base - (z - zl) / Math.max(1, zh - zl) * (base - top);
+    let g = '';
+    const gstep = IMP() ? ((zh - zl) > 600 ? 200 : 100) : 50 * FT;
+    for (let z = Math.ceil(zl / gstep) * gstep; z <= zh; z += gstep) g += `<line x1="${padL}" y1="${f1(Y(z))}" x2="${f1(sw - padR)}" y2="${f1(Y(z))}" style="stroke:var(--row)"/><text x="${padL - 4}" y="${f1(Y(z) + 3)}" text-anchor="end" style="font:500 8.5px 'Overpass Mono';fill:var(--chart-label)">${IMP() ? Math.round(z).toLocaleString('en-US') : Math.round(z / FT).toLocaleString('en-US')}</text>`;
+    const xs = (i) => X(i * TRULE.station);
+    // the steepest 75 ft window (TD-02)
+    g += `<rect x="${f1(xs(r.maxAt - 1))}" y="${top - 6}" width="${f1(Math.max(3, xs(r.maxAt + 1) - xs(r.maxAt - 1)))}" height="${base - top + 6}" style="fill:var(--text)" opacity=".08"/><text x="${f1(xs(r.maxAt))}" y="${top + 2}" text-anchor="middle" style="font:600 9px 'Overpass Mono';fill:var(--muted)">steepest ${Math.round(r.max)}%</text>`;
+    // natural ground dashed; the graded surface solid in its band's colour; ungraded stretches red
+    const nat = r.stations.map((t, i) => `${i ? 'L' : 'M'}${f1(xs(i))} ${f1(Y(t.z))}`).join('');
+    g += `<path d="${nat}L${f1(xs(r.stations.length - 1))} ${base}L${f1(xs(0))} ${base}Z" style="fill:var(--chart-fill)"/><path d="${nat}" fill="none" stroke-width="1.2" stroke-dasharray="4 3" style="stroke:var(--chart-a)"/>`;
+    for (let i = 1; i < r.stations.length; i++) { const a = r.stations[i - 1], b = r.stations[i], ok = a.graded && b.graded, col = !d.graded ? 'var(--strong)' : ok ? BAND_CLR[b.band] : 'var(--neg)'; g += `<line x1="${f1(xs(i - 1))}" y1="${f1(Y(a.z))}" x2="${f1(xs(i))}" y2="${f1(Y(b.z))}" stroke-width="${ok || !d.graded ? 2.4 : 3}" stroke-linecap="round" style="stroke:${col}"/>`; }
+    const stepAx = IMP() ? (L > 5000 ? 1000 : L > 2000 ? 500 : 250) : (L > 1600 * FT ? 300 * FT : 100 * FT);
+    for (let s = 0; s <= L + 1; s += stepAx) g += `<line x1="${f1(X(s))}" y1="${base}" x2="${f1(X(s))}" y2="${base + 3}" style="stroke:var(--chart-label)"/><text x="${f1(X(s))}" y="${base + 12}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${s ? (IMP() ? s.toLocaleString('en-US') : Math.round(s / FT).toLocaleString('en-US')) : 0}</text>`;
+    return `<div class="lsh"><b>Profile</b><span class="mono">${lenFt(r.len)} · vertical ${lenFt(r.drop)} · mean ${Math.round(r.mean)}% · steepest ${Math.round(r.max)}%</span><span class="lten">${RATING[r.band[1]]}<b style="font-family:'DotFix','Overpass'">${r.band[2]}</b><span class="mono">${Math.round(r.value)}%</span></span></div>
+      <svg width="${sw}" height="128" style="display:block">${g}</svg>`;
+  }
+  function trailStrip(d, left, bottom) {
+    const w = Math.round(W / (S.set.hudScale / 100) - left - 10);
+    return `<div class="pn lstrip" id="trailstrip" style="left:${left}px;bottom:${bottom}px;width:${w}px;z-index:4" title="TF-04: distance along the centreline against elevation. Natural ground dashed, the graded surface solid in its rating's colour, stretches too steep to grade red (GR-07), the steepest 75 ft shaded (TD-02).">${trailStripInner(d, w)}</div>`;
+  }
+  // ----- the trail menu (TF-01) -----
+  const TRAIL_STEPS = [['paint', 'Paint'], ['ends', 'Head and tail'], ['review', 'Review']];
+  function trailCtx() {
+    const d = S.draft, cur = TRAIL_STEPS.findIndex(([k]) => k === d.step), seps = d.patches ? d.patches.length : 0;
+    let h = `<div class="lsteps tsteps">${TRAIL_STEPS.map(([k, v], i) => `<span class="${i === cur ? 'now' : i < cur ? 'done' : ''}"${i < cur ? ` data-act="tstep" data-v="${k}"` : ''}><b>${i < cur ? '✓' : i + 1}</b>${v}</span>`).join('')}</div><div class="rule"></div>`;
+    const kv = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`, rate = (v) => { const b = bandOf(v); return `<span class="word">${RATING[b[1]]}${b[2]}</span> <span style="color:var(--soft)">${Math.round(v)}%</span>`; };
+    if (d.step === 'paint') {
+      h += d.est ? `<dl class="kv">${kv('Area', IMP() ? `<b>${d.est.acres.toFixed(1)}</b> acres` : `<b>${(d.est.acres * 0.404686).toFixed(1)}</b> ha`)}${kv('Estimated rating', rate(d.est.value), 'TD-06: on natural ground, from every cell: (3 × the mean + the 90th percentile) / 4')}</dl>`
+        : `<div class="hint">Drag on the mountain to paint the trail. Paint wider or narrower stretches as you go; leave holes for islands of trees.</div>`;
+      if (seps > 1) h += `<div class="lmsg err" title="TR-02, TF-02">✕ ${seps - 1} separate patch${seps > 2 ? 'es' : ''}: join or erase ${seps > 2 ? 'them' : 'it'}</div>`;
+      h += `<div class="lkeys"><span><span class="kbd">[</span><span class="kbd">]</span> width</span><span><span class="kbd">Shift</span> erases</span><span><span class="kbd">Ctrl</span><span class="kbd">Z</span> undoes a stroke</span></div>`;
+    } else if (d.step === 'ends') {
+      h += `<div class="hint">${!d.head ? 'Click the <b>head</b>, where the trail starts at the top.' : !d.tail ? 'Now click the <b>tail</b>, where it ends at the bottom.' : 'The centreline keeps as far from the edges as it can, around islands.'} Ends within ${lenFt(TRULE.snap)} of a lift's top or bottom, or of another trail, join it.</div>`;
+      if (d.msg) h += `<div class="lmsg err">✕ ${esc(d.msg)}</div>`;
+      if (d.res) h += `<dl class="kv">${kv('Rating', rate(d.res.value), 'TD-02: (3 × the mean + the steepest 75 ft) / 4')}${kv('Too steep to grade', d.res.ungraded ? `<b style="color:var(--neg)">${lenFt(d.res.ungraded)}</b>` : 'none', 'GR-07')}</dl>`;
+    } else {
+      const r = d.res;
+      h += `<dl class="kv" style="padding-top:6px">${kv('Length', `<b>${lenFt(r.len)}</b>`, 'TR-03: along the centreline')}${kv('Vertical', `<b>${lenFt(r.drop)}</b>`)}${kv('Rating', rate(r.value), 'TD-02, TD-03')}${kv('Grade', `mean <b>${Math.round(r.mean)}%</b> · steepest <b>${Math.round(r.max)}%</b>`, 'TD-01, TD-02: the steepest 75 ft')}
+        ${d.graded ? kv('Cut · fill', `${yd3(r.cut)} · ${yd3(r.fill)}`, 'GR-08') + kv('Balance', `${r.cut >= r.fill ? '' : '−'}${yd3(Math.abs(r.cut - r.fill))}`, 'GR-08: cut − fill') + kv('Too steep to grade', r.ungraded ? `<b style="color:var(--neg)">${lenFt(r.ungraded)}</b>` : 'none', 'GR-07') : kv('Grading', 'natural, none', 'TF-06')}
+        ${kv('Trees cleared', `about <b>${r.trees.toLocaleString('en-US')}</b>`, 'CL-01, CL-02')}${kv('Clearing estimate', money(trailCost(r)), 'GR-08: grading has no cost in Phase 3')}</dl>`;
+      const warn = [];
+      if (d.graded && r.ungraded) warn.push(`${lenFt(r.ungraded)} too steep to bench stays natural ground (GR-07)`);
+      if (d.graded && Math.abs(r.cut - r.fill) > 0.3 * Math.max(r.cut, r.fill)) warn.push(`Cut and fill don't balance: ${yd3(Math.abs(r.cut - r.fill))} more ${r.cut > r.fill ? 'cut' : 'fill'}`);
+      if (warn.length) h += `<div class="rule"></div><div style="padding:4px 0">${warn.map((w) => `<div class="lmsg warn">! ${esc(w)}</div>`).join('')}</div>`;
+    }
+    const can = d.step === 'paint' ? d.est && seps === 1 : d.step === 'ends' ? !!d.res : false;
+    if (d.step !== 'review') h += `<div class="lbtns"><span class="ghost${can ? '' : ' dis'}" data-act="${can ? 'tnext' : ''}">Next<span class="kbd" style="margin-left:8px">Enter</span></span></div>`;
+    const ready = d.step === 'review';
+    h += `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}" title="TF-05, CF-06"><span>Break ground</span><span class="mono">${ready ? short(trailCost(d.res)).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`;
+    return h;
+  }
+  function trailPanel() {
+    const d = S.draft, pct = (d.width - TRULE.wMin) / (TRULE.wMax - TRULE.wMin) * 100;
+    return panelShell(`${g('s-trail')}New trail <span class="nm">${esc(d.name)}</span>${d.armCancel ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard it? ✕ again</span>' : ''}`, `
+      <div style="padding:8px 0 4px">
+        <div class="lrow"><span>Name</span><input id="trailname" class="field tname" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(d.name)}"></div>
+        <div class="lrow"><span>Brush</span><div class="rng-wrap" style="min-width:0" title="TR-01: 25–400 ft, in 5 ft steps; one trail can mix widths"><input type="range" class="rng" min="${TRULE.wMin}" max="${TRULE.wMax}" step="${TRULE.wStep}" value="${d.width}" data-trail="w" style="--p:${pct}%" aria-label="Brush width"><span class="rv" id="trailw" style="width:52px">${lenFt(d.width)}</span></div></div>
+        <div class="lrow"><span>Grading</span><div class="seg" title="TR-06, TF-06: Graded benches the trail; Natural keeps the ground">${[['g', 'Graded'], ['n', 'Natural']].map(([v, l]) => `<span class="${(d.graded ? 'g' : 'n') === v ? 'on' : ''}" data-act="tgrade" data-v="${v}">${l}</span>`).join('')}</div></div>
+        <div class="lnote" title="TR-06: Glades and Zones, and Thin or no clearing, come later">Run · trees cleared</div>
+      </div><div class="rule"></div><div id="trailctx">${trailCtx()}</div>`, 344);
+  }
+  function refreshTrail() {
+    drawWorld();
+    const d = S.draft; if (!d || d.kind !== 'trail') return;
+    const st = document.getElementById('trailstrip'); if (st) st.innerHTML = trailStripInner(d, st.offsetWidth);
+    const cx = document.getElementById('trailctx'); if (cx) cx.innerHTML = trailCtx();
+  }
+  function trailAct(a, v) {
+    const d = S.draft; d.armCancel = false;
+    switch (a) {
+      case 'tgrade': d.graded = v === 'g'; if (d.head && d.tail) setEnds(d); break;
+      case 'tnext': if (d.step === 'paint' && d.est && d.patches.length === 1) d.step = 'ends'; else if (d.step === 'ends' && d.res) d.step = 'review'; break;
+      case 'tstep': d.step = v; if (v === 'paint') { d.head = d.tail = d.line = d.res = null; d.msg = null; } break;
+      default: return;
+    }
+    render();
+  }
+  function trailClick(p) {
+    const d = S.draft; d.armCancel = false;
+    if (d.step !== 'ends') return;
+    const sn = snapEnd(p), e = { p: sn ? sn.p : p, snap: sn ? sn.what : null };
+    if (!sn && !insideFp(d, p)) { log('<span>Click on the painted trail</span>', '#d4513f'); return; }
+    if (!d.head || d.tail) { d.head = e; d.tail = null; d.res = null; d.msg = null; } else { d.tail = e; setEnds(d); }
+    render();
+  }
+  function trailKeys(e, k) {
+    const d = S.draft;
+    if (k === '[' || k === ']') { d.width = Math.max(TRULE.wMin, Math.min(TRULE.wMax, d.width + (k === ']' ? 1 : -1) * TRULE.wStep * (e.shiftKey ? 5 : 1))); S.trailWidth = d.width; render(); return true; }
+    if (k === 'enter') { trailAct('tnext'); return true; }
+    if (k === 'escape') {   // back one step (CF-07)
+      if (d.step === 'review') d.step = 'ends';
+      else if (d.step === 'ends') { if (d.tail) { d.tail = null; d.res = d.line = null; d.msg = null; } else if (d.head) d.head = null; else d.step = 'paint'; }
+      else return false;
+      render(); return true;
+    }
+    return false;
+  }
+
+  // ---------- panels ----------
   function panelShell(head, body, width = 344) {
     return `<div class="pn" id="pn" style="left:${S.panelPos.x}px;top:${S.panelPos.y}px;width:${width}px"><div class="hd" data-drag="1">${head}<span class="x" data-act="close" title="Close (Esc)">✕</span></div>${body}</div>`;
   }
   const dash = '<span style="color:var(--ph)">—</span>';
-  function liftPanel() {
-    const d = S.draft, ready = d.pts.length === 2, st = ready ? liftStats(d.pts[0], d.pts[1], d.model) : null;
-    const hint = d.pts.length === 0 ? 'Click the <b>base station</b> on the mountain.' : d.pts.length === 1 ? 'Now click the <b>top station</b>.' : 'Choose a model, then break ground. <b>Esc</b> redraws.';
-    const kv = (label, val) => `<dt>${label}</dt><dd>${val}</dd>`;
-    return panelShell(`<span class="plate">${d.n}</span>New lift <span class="nm">${esc(d.name)}</span>`, `
-      <div style="padding:9px 12px 2px;display:grid;gap:6px">
-        <div class="seg"><span class="on">Chair</span><span class="off" title="Not in the mockup">Gondola</span><span class="off">T-bar</span><span class="off">Carpet</span></div>
-        <div class="seg">${Object.keys(MODELS).map((m) => `<span class="${m === d.model ? 'on' : ''}" data-act="model" data-v="${m}">${m}</span>`).join('')}</div>
-      </div>
-      <dl class="kv">
-        ${kv('Slope length', st ? `<b>${lenV(st.len)}</b> ${lenU()}` : dash)}
-        ${kv('Vertical rise', st ? `<b>${st.rise >= 0 ? '' : '−'}${lenV(Math.abs(st.rise))}</b> ${lenU()} · ${Math.round(st.grade)}%` : dash)}
-        ${kv('Line speed', `${speedTxt(MODELS[d.model].speed)}${st ? ` · ride ${fmtTime(st.ride)}` : ''}`)}
-        ${kv('Capacity', `<b>${MODELS[d.model].cap.toLocaleString('en-US')}</b> an hour`)}
-      </dl>
-      <div class="rule"></div>
-      <div class="sub"><span>Profile</span><span>${st ? `${lenV(st.ea)} → ${lenV(st.eb)} ${lenU()} · ${st.towers} towers` : ''}</span></div>
-      ${liftProfile(d.pts[0], d.pts[1], st)}
-      <div class="rule"></div>
-      <div class="sub"><span>Cost estimate</span><span>±12 %</span></div>
-      <dl class="kv" style="padding-top:5px">
-        ${kv('Terminals (2)', money(MODELS[d.model].term))}
-        ${kv(`Line${st ? ` · ${lenTxt(st.len)} × ${perLenShort(MODELS[d.model].perM)}` : ''}`, st ? money(st.cost.line) : dash)}
-        ${kv(`Towers${st ? ` (${st.towers})` : ''}`, st ? money(st.cost.towers) : dash)}
-        ${kv(`Grading${st ? ` · ${volTxt(st.grading)}` : ''}`, st ? money(st.cost.grading) : dash)}
-        <dt style="color:var(--text)">Total</dt><dd><b>${st ? money(st.cost.total) : dash}</b></dd>
-      </dl>
-      <div class="hint">${hint}</div>
-      <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>Break ground</span><span class="mono">${st ? short(st.cost.total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`);
-  }
   const RATING = { green: '<svg width="11" height="11" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4.3" fill="#3fae6a"/></svg>', blue: '<svg width="11" height="11" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="#4d8ad6"/></svg>', black: '<svg width="11" height="11" viewBox="0 0 10 10"><path d="M5 .5L9.5 5 5 9.5.5 5z" fill="currentColor"/></svg>', double: '<svg width="16" height="11" viewBox="0 0 16 10"><path d="M4.5.5L8 5 4.5 9.5 1 5zM11.5.5L15 5l-3.5 4.5L8 5z" fill="currentColor"/></svg>' };
-  function trailPanel() {
-    const d = S.draft, st = pathStats(d.pts), ready = d.done && d.pts.length > 1;
-    const hint = !d.pts.length ? 'Click where the trail <b>starts</b>, up the mountain.' : !d.done ? 'Keep clicking down the fall line. <b>Double-click</b> or press <b>Enter</b> to finish.' : 'Finished. Choose a rating, then cut it or save it as a plan.';
-    return panelShell(`${g('s-trail')}New trail <span class="nm">${esc(d.name)}</span>`, `
-      <div style="padding:10px 12px 4px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === d.diff ? 'on' : ''}" data-act="diff" data-v="${k}">${RATING[k]}${v}</span>`).join('')}</div></div>
-      <dl class="kv">
-        <dt>Length</dt><dd><b>${lenV(st.len)}</b> ${lenU()}</dd>
-        <dt>Vertical drop</dt><dd><b>${lenV(st.drop)}</b> ${lenU()}</dd>
-        <dt>Average grade</dt><dd><b>${st.avg.toFixed(0)}</b>%</dd>
-        <dt>Steepest grade</dt><dd><b>${st.steep.toFixed(0)}</b>%</dd>
-      </dl>
-      <div class="rule"></div>
-      <div class="sub"><span>Cost estimate</span><span>±15 %</span></div>
-      <dl class="kv" style="padding-top:5px">
-        <dt>Tree clearing</dt><dd>${money(st.clearing)}</dd>
-        <dt>Grading</dt><dd>${money(st.grading)}</dd>
-        <dt style="color:var(--text)">Total</dt><dd><b>${money(st.total)}</b></dd>
-      </dl>
-      <div class="hint">${hint}</div>
-      <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>Cut trail</span><span class="mono">${ready ? short(st.total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`);
-  }
   function placePanel() {
     const d = S.draft, t = toolById(d.tool), line = t.kind === 'line';
     const len = line ? pathStats(d.pts).len : 0, count = d.pts.length, total = line ? len * t.perM : count * t.each;
@@ -1120,21 +2030,79 @@ body.solo .frame { border-radius: 0; }
     const head = `${toolGlyph(t)}${t.name}`;
     if (!obj) return panelShell(head, `<div class="hint">Click a ${t.target} on the mountain.</div>`, 300);
     if (t.target === 'lift') {
-      const st = liftStats(obj.a, obj.b, obj.model);
+      const st = liftStats(obj.a, obj.b, obj.model, obj.cap);
       const top = `<div class="hint" style="padding-bottom:0;display:flex;gap:8px;align-items:center"><span class="plate${obj.built ? ' built' : ''}">${obj.n}</span><b style="font-size:14px">${esc(obj.name)}</b><span style="color:var(--soft)">${obj.built ? 'operating' : 'planned'}</span></div>`;
-      const facts = `<dl class="kv"><dt>Slope length</dt><dd><b>${lenV(st.len)}</b> ${lenU()}</dd><dt>Capacity</dt><dd><b>${st.cap.toLocaleString('en-US')}</b> an hour</dd><dt>Ride</dt><dd>${fmtTime(st.ride)}</dd></dl>`;
+      // LF-11: a built lift's card stays simple: name, type, capacity, length, rise, ride, towers
+      const facts = `<dl class="kv"><dt>Type</dt><dd>${esc(obj.model)}</dd><dt>Capacity</dt><dd><b>${st.cap.toLocaleString('en-US')}</b> an hour</dd><dt>Length</dt><dd><b>${lenV(st.len)}</b> ${lenU()}</dd><dt>Rise</dt><dd>${lenV(Math.abs(st.rise))} ${lenU()}</dd><dt>Ride</dt><dd>${fmtTime(st.ride)}</dd>${obj.towers ? `<dt>Towers</dt><dd>${obj.towers.length}</dd>` : ''}</dl>`;
       if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px 0"><div class="seg">${Object.keys(MODELS).map((m) => `<span class="${m === obj.model ? 'on' : ''}" data-act="setmodel" data-v="${m}">${m}</span>`).join('')}</div></div>` + facts + `<div class="hint">Changing the model re-prices the line.${obj.built ? ' Upgrading a running lift costs the difference.' : ''}</div>`, 300);
       const refund = obj.built ? st.cost.total * 0.15 : 0;
       return panelShell(head, top + facts + `<div class="hint">${obj.built ? `Removing it salvages about <b>${money(refund)}</b>.` : 'It\'s only a plan, so removing it is free.'}</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>${S.removeArmed === obj.id ? 'Click again to confirm' : `Remove ${esc(obj.name)}`}</span><span class="mono">${obj.built ? short(refund) : ''}</span></div></div>`, 300);
     }
     const st = pathStats(obj.pts);
-    const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:var(--soft)">· ${lenTxt(st.len)} · ${lenTxt(st.drop)} drop</span></div>`;
+    const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:var(--soft)">· ${lenTxt(st.len)} · ${lenTxt(st.drop)} vertical</span></div>`;
     if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === obj.diff ? 'on' : ''}" data-act="setdiff" data-v="${k}">${RATING[k]}${v}</span>`).join('')}</div></div><div class="hint" style="padding-top:0">The rating changes the signs and who skis it.</div>`, 300);
     return panelShell(head, top + `<div class="hint">It will grow back in over a few seasons.</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>${S.removeArmed === obj.id ? 'Click again to confirm' : `Remove ${esc(obj.name)}`}</span><span class="mono"></span></div></div>`, 300);
   }
+  // ---------- Analysis › Lifts and Trails: filters, sortable columns, and rows that light their lift or trail ----------
+  // Hovering a row glows it on the mountain; clicking it (or the thing on the map) opens its focus card.
+  const LEN_BINS = [['any', 'Any', 0, Infinity], ['s', 'Under 2,000', 0, 2000], ['m', '2,000–5,000', 2000, 5000], ['l', 'Over 5,000', 5000, Infinity]];
+  const VERT_BINS = [['any', 'Any', 0, Infinity], ['s', 'Under 500', 0, 500], ['m', '500–1,500', 500, 1500], ['l', 'Over 1,500', 1500, Infinity]];
+  const binLabel = (b) => (b[0] === 'any' ? 'Any' : b[2] === 0 ? `Under ${lenFt(b[3])}` : b[3] === Infinity ? `Over ${lenFt(b[2])}` : `${lenFt(b[2]).replace(/ (ft|m)$/, '')}–${lenFt(b[3])}`);
+  S.af = { lifts: { status: 'all', len: 'any', vert: 'any', sort: null }, trails: { status: 'all', len: 'any', vert: 'any', rating: 'all', sort: null } };
+  S.rowHover = null; S.focus = null;
+  // One record per drawn lift or trail: what the rows, the filters and the focus card read.
+  function liftRec(l, open) {
+    const st = liftStats(l.a, l.b, l.model, l.cap), wt = waitFor(l);
+    return { id: l.id, kind: 'lift', o: l, name: l.name, len: st.len * FT, vert: Math.abs(st.rise) * FT, cap: st.cap, ride: st.ride, wait: l.built && open ? wt : null, status: !l.built ? 'planned' : open ? 'open' : 'closed' };
+  }
+  function trailRec(t, open, i) {
+    const st = pathStats(t.pts);
+    return { id: t.id, kind: 'trail', o: t, name: t.name, len: st.len * FT, vert: st.drop * FT, avg: st.avg, steep: st.steep, rating: t.diff, surface: !t.built ? '—' : t.diff === 'black' || t.diff === 'double' ? (i % 2 ? 'Moguls' : 'Ungroomed') : 'Groomed', status: !t.built ? 'planned' : open ? 'open' : 'closed' };
+  }
+  const STATUS_LAMP = { open: ['Open', '#5fbf6a'], closed: ['Closed', '#d4513f'], planned: ['Planned', '#ff6a1f'] };
+  function listTab(tab, open) {
+    const f = S.af[tab], lifts = tab === 'lifts';
+    let recs = lifts ? S.lifts.map((l) => liftRec(l, open)) : S.trails.map((t, i) => trailRec(t, open, i));
+    const inBin = (bins, k, v) => { const b = bins.find((x) => x[0] === k); return v >= b[2] && v < b[3]; };
+    recs = recs.filter((r) => (f.status === 'all' || r.status === f.status) && inBin(LEN_BINS, f.len, r.len) && inBin(VERT_BINS, f.vert, r.vert) && (lifts || f.rating === 'all' || r.rating === f.rating));
+    if (f.sort) { const [k, dir] = f.sort.split('-'); recs.sort((a, b) => (dir === 'up' ? a[k] - b[k] : b[k] - a[k])); }
+    const segs = (act, cur, opts) => `<div class="seg mini">${opts.map(([v, l]) => `<span class="${cur === v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</span>`).join('')}</div>`;
+    const bar = `<div class="afilt"><span>Status</span>${segs('afs', f.status, [['all', 'All'], ['open', 'Open'], ['closed', 'Closed'], ['planned', 'Planned']])}
+      ${lifts ? '' : `<span>Rating</span>${segs('afr', f.rating, [['all', 'All'], ...Object.keys(RATING).map((k) => [k, RATING[k]])])}`}</div>
+      <div class="afilt"><span>Length</span>${segs('afl', f.len, LEN_BINS.map((b) => [b[0], binLabel(b)]))}</div>
+      <div class="afilt"><span>Vertical</span>${segs('afv', f.vert, VERT_BINS.map((b) => [b[0], binLabel(b)]))}</div>`;
+    const sortHead = (k, label) => { const on = f.sort && f.sort.startsWith(k), arrow = on ? (f.sort.endsWith('up') ? ' ▴' : ' ▾') : ''; return `<span class="n srt${on ? ' on' : ''}" data-act="asort" data-v="${k}" title="Sort by ${label.toLowerCase()}">${label}${arrow}</span>`; };
+    const lamp = (s) => `<span class="nm" style="justify-content:flex-end">${lampHtml(STATUS_LAMP[s][1])}${STATUS_LAMP[s][0]}</span>`;
+    const cols = lifts ? 'grid-template-columns:1.6fr 1.1fr 0.8fr 0.8fr 0.7fr 0.55fr 0.8fr' : 'grid-template-columns:1.6fr 0.85fr 0.85fr 0.95fr 0.8fr';
+    const rowCls = (r) => `r arow${S.focus === r.id ? ' on' : ''}${S.rowHover === r.id ? ' hv' : ''}`;
+    const rows = recs.map((r) => (lifts
+      ? `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm"><span class="plate${r.o.built ? ' built' : ''}" style="font-size:10px">${r.o.n}</span>${esc(r.name)}</span><span class="nm">${esc(r.o.model)}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span class="n">${r.cap.toLocaleString('en-US')}</span><span class="n" style="color:${r.wait > 8 ? 'var(--warn)' : ''}">${r.wait !== null ? r.wait.toFixed(1) : '—'}</span>${lamp(r.status)}</div>`
+      : `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm">${RATING[r.rating]}${esc(r.name)}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span>${r.surface}</span>${lamp(r.status)}</div>`)).join('');
+    const head = lifts ? `<div class="r th" style="${cols}"><span>Lift</span><span>Model</span>${sortHead('len', 'Length')}${sortHead('vert', 'Vertical')}<span class="n">An hour</span><span class="n">Wait</span><span style="text-align:right">Status</span></div>`
+      : `<div class="r th" style="${cols}"><span>Trail</span>${sortHead('len', 'Length')}${sortHead('vert', 'Vertical')}<span>Surface</span><span style="text-align:right">Status</span></div>`;
+    const builtN = lifts ? S.lifts.filter((l) => l.built).length : S.trails.filter((t) => t.built).length, others = (lifts ? S.liftsTotal : S.trailsTotal) - builtN;
+    const foot = recs.length ? (lifts ? `${others} more lifts run elsewhere on the mountain: ${(others * 2100).toLocaleString('en-US')} riders an hour between them.` : `${others} more trails elsewhere on the mountain.`) : `No ${tab} match these filters.`;
+    return `${bar}<div class="tbl" style="margin-top:6px">${head}${rows}<div class="foot">${foot} Hover a row to find it on the mountain; click it for its card.</div></div>`;
+  }
+  // The focus card (LF-11, TF-08's simple cards): the lift's or trail's key figures, with Edit and Remove.
+  function focusCard() {
+    const id = S.focus, l = S.lifts.find((x) => x.id === id), t = S.trails.find((x) => x.id === id);
+    if (!l && !t) return '';
+    const open = isOpen(), kv = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+    if (l) {
+      const r = liftRec(l, open), st = STATUS_LAMP[r.status];
+      return `<div class="pn fcard"><div class="hd"><span class="plate${l.built ? ' built' : ''}">${l.n}</span>${esc(l.name)}<span class="nm">${lampHtml(st[1])} ${st[0]}</span><span class="x" data-act="fclose" title="Close (Esc)">✕</span></div>
+        <dl class="kv">${kv('Type', esc(l.model))}${kv('Capacity', `<b>${r.cap.toLocaleString('en-US')}</b> an hour`)}${kv('Length', `<b>${lenFt(r.len)}</b>`)}${kv('Vertical', `<b>${lenFt(r.vert)}</b>`)}${kv('Ride', fmtTime(r.ride))}${l.towers ? kv('Towers', l.towers.length) : ''}${kv('Wait now', r.wait !== null ? `${r.wait.toFixed(1)} min` : '—')}</dl>
+        <div class="acts" style="grid-template-columns:1fr 1fr"><div class="ghost" data-act="fedit" data-v="lift">Edit</div><div class="ghost" data-act="fremove" data-v="lift">Remove</div></div></div>`;
+    }
+    const r = trailRec(t, open, S.trails.indexOf(t)), st = STATUS_LAMP[r.status];
+    return `<div class="pn fcard"><div class="hd">${RATING[t.diff]}${esc(t.name)}<span class="nm">${lampHtml(st[1])} ${st[0]}</span><span class="x" data-act="fclose" title="Close (Esc)">✕</span></div>
+      <dl class="kv">${kv('Rating', `${DIFFS[t.diff]}`)}${kv('Length', `<b>${lenFt(r.len)}</b>`)}${kv('Vertical', `<b>${lenFt(r.vert)}</b>`)}${kv('Average grade', `${Math.round(r.avg)}%`)}${kv('Steepest', `${Math.round(r.steep)}%`)}${kv('Surface', r.surface)}</dl>
+      <div class="acts" style="grid-template-columns:1fr 1fr"><div class="ghost" data-act="fedit" data-v="trail">Edit</div><div class="ghost" data-act="fremove" data-v="trail">Remove</div></div></div>`;
+  }
   const ATABS = [['overview', 'Overview'], ['lifts', 'Lifts'], ['trails', 'Trails'], ['guests', 'Guests'], ['snow', 'Snowmaking'], ['weather', 'Weather'], ['amenities', 'Amenities'], ['finances', 'Finances']];
   const isOpen = () => { const h = S.t / 3600; return h >= LIFTS_OPEN && h < LIFTS_CLOSE; };
-  const waitFor = (l) => { if (!S.skiers || !l.built) return 0; const st = liftStats(l.a, l.b, l.model); return Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)); };
+  const waitFor = (l) => { if (!S.skiers || !l.built) return 0; const st = liftStats(l.a, l.b, l.model, l.cap); return Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)); };
   const lampHtml = (c) => `<i class="lamp" style="--lamp:${c}"></i>`;
   let chartHover = null;   // the chart column under the pointer, as 'chart:index'
   // A column: an invisible hit area the chart's height, then its bar (brighter while hovered).
@@ -1221,23 +2189,7 @@ body.solo .frame { border-radius: 0; }
         <div class="cols">${kvs([['Lifts running', `<b>${open ? S.liftsTotal : 0}</b> of ${S.liftsTotal}`], ['Trails open', `<b>${openTrails()}</b> of ${S.trails.length ? S.trailsTotal : 0}`], ['Average wait', open ? `<b>${avgWait.toFixed(1)}</b> min` : 'closed'], ['Guest rating', `<b>${sat}</b>%`]])}
         ${kvs([['Snow base', `<b>${snowAmt(S.base)}</b>`], ['New snow, 24 h', `<b>${snowAmt(wx.fell)}</b>`], ['Forecast, 24 h', `<b>${snowAmt(wx.fc)}</b>`], ['Today', `<span style="color:${S.today < 0 ? 'var(--neg)' : 'var(--pos)'}">${short(S.today)}</span>`]])}</div>`;
     }
-    if (S.atab === 'lifts') {
-      const cols = 'grid-template-columns:1.7fr 0.9fr 0.9fr 0.7fr 0.8fr';
-      const rows = S.lifts.map((l) => { const st = liftStats(l.a, l.b, l.model), wt = waitFor(l), state = !l.built ? ['Planned', '#ff6a1f'] : open ? ['Open', '#5fbf6a'] : ['Closed', '#d4513f'];
-        return `<div class="r" style="${cols}"><span class="nm"><span class="plate${l.built ? ' built' : ''}" style="font-size:10px">${l.n}</span>${esc(l.name)}</span><span>${l.model}</span><span class="n">${st.cap.toLocaleString('en-US')}</span><span class="n" style="color:${wt > 8 ? 'var(--warn)' : ''}">${l.built && open ? wt.toFixed(1) : '—'}</span><span class="nm" style="justify-content:flex-end">${lampHtml(state[1])}${state[0]}</span></div>`; }).join('');
-      const others = S.liftsTotal - built.length;
-      return `<div class="tbl"><div class="r th" style="${cols}"><span>Lift</span><span>Model</span><span class="n">An hour</span><span class="n">Wait</span><span style="text-align:right">Status</span></div>${rows}
-        <div class="foot">${others} more lifts run elsewhere on the mountain: ${(others * 2100).toLocaleString('en-US')} riders an hour between them.</div></div>`;
-    }
-    if (S.atab === 'trails') {
-      const cols = 'grid-template-columns:1.6fr 0.8fr 0.8fr 0.9fr 0.8fr';
-      const rows = S.trails.map((t, i) => { const st = pathStats(t.pts), state = !t.built ? ['Planned', '#ff6a1f'] : open ? ['Open', '#5fbf6a'] : ['Closed', '#d4513f'];
-        const groom = !t.built ? '—' : t.diff === 'black' || t.diff === 'double' ? (i % 2 ? 'Moguls' : 'Ungroomed') : 'Groomed';
-        return `<div class="r" style="${cols}"><span class="nm">${RATING[t.diff]}${esc(t.name)}</span><span class="n">${lenTxt(st.len)}</span><span class="n">${lenTxt(st.drop)}</span><span>${groom}</span><span class="nm" style="justify-content:flex-end">${lampHtml(state[1])}${state[0]}</span></div>`; }).join('');
-      const others = S.trailsTotal - S.trails.filter((t) => t.built).length;
-      return `<div class="tbl"><div class="r th" style="${cols}"><span>Trail</span><span class="n">Length</span><span class="n">Drop</span><span>Surface</span><span style="text-align:right">Status</span></div>${rows}
-        <div class="foot">${others} more trails elsewhere on the mountain.</div></div>`;
-    }
+    if (S.atab === 'lifts' || S.atab === 'trails') return listTab(S.atab, open);
     if (S.atab === 'guests') {
       // Placeholders: who's here by ability (the trail-rating signs), where they are, and how they rate the day.
       const sat = Math.round(Math.max(55, Math.min(95, 90 - avgWait * 1.6))), n = S.skiers;
@@ -1411,6 +2363,7 @@ body.solo .frame { border-radius: 0; }
       <div class="sepl"></div><div class="row" data-act="settings" data-ui="menu-settings">Settings<span class="r">›</span></div><div class="row" data-act="controls" data-ui="menu-controls">Controls<span class="r">›</span></div><div class="row" data-act="photo" data-ui="menu-photo">Photo mode<span class="r">P</span></div><div class="row" data-act="credits" data-ui="menu-credits">Credits<span class="r">›</span></div>
       <div class="sepl"></div><div class="row" data-act="title" data-ui="menu-exit">Exit to title</div>${P2 ? '<div class="row" data-act="quit" data-ui="menu-quit">Quit to desktop</div>' : ''}</div>`;
     h += `<div class="tr" data-ui="tr">${P2 ? `<span class="sq dis" data-ui="tr-sketch" title="Sketching comes in Phase 3">${g('s-pencil')}</span>` : `<span class="sq${S.sketch ? ' on' : ''}" data-act="sketch" data-ui="tr-sketch" title="Sketch">${g('s-pencil')}</span>`}<span class="sq${S.drop === 'layers' ? ' on' : ''}" data-act="drop" data-v="layers" data-ui="tr-layers" title="Map layers">${g('s-map')}</span><span class="sq${S.drop === 'menu' ? ' on' : ''}" data-act="drop" data-v="menu" data-ui="tr-menu" title="Menu">${g('s-menu')}</span></div>`;
+    if (S.focus && !S.drop) h += focusCard();
     if (S.sketch) h += `<div class="strip">${g('s-pencil')}<span>Sketching: drag on the mountain to draw</span><span class="ghost" data-act="clearsketch">Clear</span><span class="ghost" data-act="sketch">Done</span></div>`;
     if (S.analysis) h += analysisPanel(trayBottom);
     if (S.toolbox && !S.analysis) {
@@ -1422,6 +2375,10 @@ body.solo .frame { border-radius: 0; }
         <div class="tools">${TOOLS[S.tab].map(tile).join('')}</div></div>`;
     }
     if (S.tool) { const t = toolById(S.tool); h += t.kind === 'lift' ? liftPanel() : t.kind === 'trail' ? trailPanel() : t.kind === 'pick' ? pickPanel() : placePanel(); }
+    // the lift tool's profile strip, beside the tray along the bottom
+    if (S.draft && S.draft.kind === 'lift') h += liftStrip(S.draft, 436, trayBottom);
+    if (S.draft && S.draft.kind === 'trail') h += trailStrip(S.draft, 436, trayBottom);
+    syncFootprint();
     const spd = [1, 2, 3, 4].map((n) => `<span class="${S.speed >= n ? 'on' : ''}" data-act="speed" data-v="${n}" data-ui="bar-speed-${n}" title="Speed ${n}"><svg viewBox="0 0 11 13"><use href="#s-speed"/></svg></span>`).join('');
     const moneyCell = P2
       ? `<span class="stat dis" data-ui="bar-money" title="Bank balance: comes with the simulation in Phase 4"><span class="nodata">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash" data-ui="bar-cash">${nd}</span><span class="delta" id="delta" data-ui="bar-delta">${nd}</span></span></span>`
@@ -1482,7 +2439,7 @@ body.solo .frame { border-radius: 0; }
   // placeholders consistent with Analysis (2,100 riders an hour per other lift, 21 acres per other trail).
   const REST = { summit: 3185, base: 1924, liftCap: 2100, trailAcres: 21, snowfallCm: 1166 };
   function resortStats() {
-    const built = S.lifts.filter((l) => l.built), st = built.map((l) => liftStats(l.a, l.b, l.model));
+    const built = S.lifts.filter((l) => l.built), st = built.map((l) => liftStats(l.a, l.b, l.model, l.cap));
     const tops = st.map((x) => Math.max(x.ea, x.eb)), bottoms = st.map((x) => Math.min(x.ea, x.eb));
     const summit = Math.max(REST.summit, ...tops), base = Math.min(REST.base, ...bottoms);
     const uphill = st.reduce((a, x) => a + x.cap, 0) + Math.max(0, S.liftsTotal - built.length) * REST.liftCap;
@@ -1666,14 +2623,14 @@ body.solo .frame { border-radius: 0; }
     const d = S.draft, t = toolById(S.tool);
     let cost = 0, label = '';
     if (d.kind === 'lift') {
-      const st = liftStats(d.pts[0], d.pts[1], d.model);
-      S.lifts.push({ id: 'l' + (uid++), n: d.n, name: d.name, a: d.pts[0], b: d.pts[1], model: d.model, built: !asPlan });
-      cost = st.cost.total; label = `${d.n} ${d.name}`; liftSeq++;
+      const ev = liftEval(d), B = rayPt(d, d.len);   // stored bottom first, with the towers where they stand
+      S.lifts.push({ id: 'l' + (uid++), n: d.n, name: d.name, a: ev.bottomAtA ? d.a : B, b: ev.bottomAtA ? B : d.a, model: d.type, cap: liftCap(LIFT_TYPES[d.type]), towers: towersOn(d).map((t) => rayPt(d, t.x)), built: !asPlan });
+      cost = liftCost(d, ev); label = `${d.n} ${d.name}`; liftSeq++;
       if (!asPlan) S.liftsTotal++;
-    } else if (d.kind === 'trail') {
-      const st = pathStats(d.pts);
-      S.trails.push({ id: 't' + (uid++), name: d.name, diff: d.diff, pts: d.pts, built: !asPlan });
-      cost = st.total; label = d.name; trailSeq++;
+    } else if (d.kind === 'trail') {   // NW-09: one map line along its centreline, rated by TD-02
+      const r = d.res, pts = r.stations.filter((q, i) => i % 6 === 0 || i === r.stations.length - 1).map((q) => q.p);
+      S.trails.push({ id: 't' + (uid++), name: d.name, diff: r.band[1], pts, built: !asPlan });
+      cost = trailCost(r); label = d.name; trailSeq++; trailRuns++;
       if (!asPlan) S.trailsTotal++;
     } else if (d.kind === 'line') {
       S.things.push({ id: 'x' + (uid++), kind: d.tool, pts: d.pts, built: !asPlan });
@@ -1693,7 +2650,18 @@ body.solo .frame { border-radius: 0; }
       case 'analysis': S.analysis = !S.analysis; if (S.analysis) { S.toolbox = false; S.tool = null; S.draft = null; S.sel = null; } break;
       case 'tab': S.tab = v; S.tool = null; S.draft = null; S.sel = null; break;
       case 'tool': chooseTool(v); return;
-      case 'close': closeTool(); return;
+      case 'tgrade': case 'tnext': case 'tstep': trailAct(a, v); return;
+      case 'afs': S.af[S.atab].status = v; break;
+      case 'afl': S.af[S.atab].len = v; break;
+      case 'afv': S.af[S.atab].vert = v; break;
+      case 'afr': S.af[S.atab].rating = v; break;
+      case 'asort': { const f = S.af[S.atab]; f.sort = f.sort === `${v}-down` ? `${v}-up` : f.sort === `${v}-up` ? null : `${v}-down`; break; }
+      case 'afocus': S.focus = S.focus === v ? null : v; S.drop = null; break;
+      case 'fclose': S.focus = null; break;
+      case 'fedit': case 'fremove': { const id = S.focus; S.analysis = false; S.toolbox = true; S.tab = v === 'lift' ? 'lifts' : 'trails'; chooseTool(`${a === 'fedit' ? 'edit' : 'remove'}-${v}`); S.sel = id; S.focus = null; break; }
+      case 'close': if (S.draft && S.draft.kind === 'trail' && S.draft.strokes.length && S.set.confirmRemove === 'on' && !S.draft.armCancel) { S.draft.armCancel = true; break; }
+        if (S.draft && S.draft.kind === 'lift' && S.draft.a && S.set.confirmRemove === 'on' && !S.draft.armCancel) { S.draft.armCancel = true; break; } closeTool(); return;
+      case 'ltype': case 'lcap': case 'lmode': case 'lstep': case 'lfill': case 'lreplace': case 'lh': case 'ldel': liftAct(a, v); return;
       case 'model': S.draft.model = v; break;
       case 'diff': S.draft.diff = v; break;
       case 'build': commit(false); return;
@@ -1785,21 +2753,39 @@ body.solo .frame { border-radius: 0; }
     if (hd && !e.target.closest('[data-act]')) { const pn = document.getElementById('pn'); const U = K * S.set.hudScale / 100; drag = { dx: e.clientX / U - pn.offsetLeft, dy: e.clientY / U - pn.offsetTop }; e.preventDefault(); return; }
     if (onUi(e)) return;
     if (S.drop) { S.drop = null; render(); }
+    // the lift tool: press on a tower to select and slide it, or on the far terminal to slide that along the line
+    if (S.draft && S.draft.kind === 'lift' && S.draft.g) {
+      const d = S.draft, p = toMap(e), hp = handAt(d, p), B = rayPt(d, d.len);
+      if (hp && hp.hover) { liftDrag = { t: hp.hover }; d.sel = hp.hover; liftDragged = false; stage.setPointerCapture(e.pointerId); }
+      else if (Math.hypot(p[0] - B[0], p[1] - B[1]) < 9 / S.zoom) { liftDrag = { term: true }; d.lenWas = d.len; liftDragged = false; stage.setPointerCapture(e.pointerId); }
+    }
+    if (S.draft && S.draft.kind === 'trail' && S.draft.step === 'paint' && e.button === 0) { const d = S.draft; d.stroke = { idx: [], was: [], erase: e.shiftKey, last: null }; strokeTo(d, toMap(e)); stage.setPointerCapture(e.pointerId); }
     if (S.sketch) { sketching = [toMap(e)]; S.sketches.push(sketching); stage.setPointerCapture(e.pointerId); }
   });
   stage.addEventListener('pointermove', (e) => {
     if (drag) { const sc = S.set.hudScale / 100, U = K * sc; S.panelPos = { x: Math.max(0, Math.min(W / sc - 120, e.clientX / U - drag.dx)), y: Math.max(0, Math.min(H / sc - 60, e.clientY / U - drag.dy)) }; const pn = document.getElementById('pn'); pn.style.left = S.panelPos.x + 'px'; pn.style.top = S.panelPos.y + 'px'; return; }
     if (sketching) { sketching.push(toMap(e)); drawWorld(); return; }
-    if (onUi(e)) { if (mouse) { mouse = null; showElev(); if (S.draft) drawWorld(); } return; }
+    if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { const p = toMap(e); strokeTo(S.draft, p); mouse = p; showElev(); drawWorld(); return; }
+    if (liftDrag) {
+      const d = S.draft, p = toMap(e), s = ((p[0] - d.a[0]) * d.dir[0] + (p[1] - d.a[1]) * d.dir[1]) * FT_PX;
+      if (liftDrag.t) { liftDrag.t.x = Math.max(RULE.gap, Math.min(d.len - RULE.gap, snapFt(s))); liftDrag.t.hand = true; }
+      else d.len = Math.max(RULE.minLen, Math.min(d.reach, snapFt(s)));
+      liftDragged = true; mouse = p; showElev(); refreshLift(); return;
+    }
+    if (onUi(e)) { if (mouse) { mouse = null; showElev(); if (S.draft && S.draft.kind === 'lift') { S.draft.hand = null; refreshLift(); } else if (S.draft) drawWorld(); } return; }
     mouse = toMap(e); showElev();
+    if (S.draft && S.draft.kind === 'lift') { const d = S.draft; if (d.step === 'other' && d.a) aimAt(mouse); if (d.g) d.hand = handAt(d, mouse); refreshLift(); return; }
     const picking = S.tool && toolById(S.tool).kind === 'pick';
     if (picking) S.hover = pickAt(mouse, toolById(S.tool).target);
+    else if (!S.tool && !S.sketch) { const hv = pickAt(mouse, 'lift') || pickAt(mouse, 'trail'); stage.classList.toggle('pick', !!hv); if (hv !== S.hover) { S.hover = hv; drawWorld(); } }
     if (S.draft || picking) drawWorld();
   });
-  stage.addEventListener('pointerleave', () => { mouse = null; showElev(); if (S.draft) drawWorld(); });
-  window.addEventListener('pointerup', () => { if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; });
+  stage.addEventListener('pointerleave', () => { if (liftDrag) return; mouse = null; showElev(); if (S.draft && S.draft.kind === 'lift') { S.draft.hand = null; refreshLift(); } else if (S.draft) drawWorld(); });
+  window.addEventListener('pointerup', () => { if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { endStroke(S.draft); render(); } if (liftDrag) { const d = S.draft; if (liftDrag.term) d.dropAsk = d.towers.length - towersOn(d).length; liftDrag = null; render(); } });
   stage.addEventListener('input', (e) => {
+    if (e.target.id === 'trailname' && S.draft && S.draft.kind === 'trail') { S.draft.name = e.target.value.slice(0, 28); return; }
     const rg = e.target.closest('input.rng'); if (!rg) return;
+    if (rg.dataset.trail) { const d = S.draft; d.width = +rg.value; S.trailWidth = d.width; rg.style.setProperty('--p', `${(rg.value - rg.min) / (rg.max - rg.min) * 100}%`); document.getElementById('trailw').textContent = lenFt(d.width); drawWorld(); return; }
     if (rg.dataset.ph) {   // the photo bar's Time and Lens: live, without re-rendering the bar under the pointer
       rg.style.setProperty('--p', `${(rg.value - rg.min) / (rg.max - rg.min) * 100}%`);
       if (rg.dataset.ph === 'time') { S.t = +rg.value; document.getElementById('phclock').textContent = phClock(); }
@@ -1812,6 +2798,7 @@ body.solo .frame { border-radius: 0; }
   });
   const hoverChart = (key) => { if (key === chartHover) return; chartHover = key; const el = document.getElementById('anabody'); if (el) el.innerHTML = analysisBody(); };
   stage.addEventListener('mouseover', (e) => { const hb = e.target.closest('.hb'); hoverChart(hb ? hb.dataset.hov : null); });
+  stage.addEventListener('mouseover', (e) => { const row = e.target.closest('[data-row]'), id = row ? row.dataset.row : null; if (id !== S.rowHover) { S.rowHover = id; document.querySelectorAll('#anabody .arow').forEach((n) => n.classList.toggle('hv', n.dataset.row === id)); drawWorld(); } });
   stage.addEventListener('mouseleave', () => hoverChart(null));
   // The tray's label names the tool under the pointer.
   stage.addEventListener('mouseover', (e) => {
@@ -1827,12 +2814,14 @@ body.solo .frame { border-radius: 0; }
     const p = toMap(e), now = performance.now(), dbl = now - lastClick < 320; lastClick = now;
     const d = S.draft;
     if (d) {
-      if (d.kind === 'lift') { if (d.pts.length < 2) d.pts.push(p); }
+      if (d.kind === 'lift') { if (liftDragged) { liftDragged = false; return; } liftClick(p); return; }
+      if (d.kind === 'trail') { trailClick(p); return; }
       else if (d.kind === 'trail' || d.kind === 'line') { if (d.done) return; if (dbl && d.pts.length > 1) d.done = true; else d.pts.push(p); }
       else d.pts.push(p);
       render(); return;
     }
     if (S.tool && toolById(S.tool).kind === 'pick') { S.sel = pickAt(p, toolById(S.tool).target); S.removeArmed = null; render(); }
+    else if (!S.tool) { S.focus = pickAt(p, 'lift') || pickAt(p, 'trail'); S.drop = null; render(); }   // a lift or trail opens its card
   });
 
   // ---------- keys ----------
@@ -1845,6 +2834,7 @@ body.solo .frame { border-radius: 0; }
     }
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); if (!S.p2) act('savegame'); return; }
+    if ((e.ctrlKey || e.metaKey) && k === 'z' && S.draft && S.draft.kind === 'trail' && S.draft.step === 'paint') { e.preventDefault(); undoStroke(S.draft); render(); return; }   // TF-02
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (S.modal && k !== 'escape') return;   // a window is open: only Esc, which closes it
     if (S.photo) {   // photo mode's keys; everything else waits until you leave
@@ -1855,13 +2845,16 @@ body.solo .frame { border-radius: 0; }
       return;
     }
     if (k === 'p') { enterPhoto(); return; }
+    if (S.draft && S.draft.kind === 'lift' && liftKeys(e, k)) return;
+    if (S.draft && S.draft.kind === 'trail' && trailKeys(e, k)) return;
     if (k === 'escape') {
       if (S.modal) S.modal = null;
       else if (S.drop) S.drop = null;
-      else if (S.draft && S.draft.pts.length) { S.draft.pts = []; S.draft.done = false; }
+      else if (S.draft && S.draft.pts && S.draft.pts.length) { S.draft.pts = []; S.draft.done = false; }
       else if (S.sel) S.sel = null;
       else if (S.tool) { S.tool = null; S.draft = null; }
       else if (S.sketch) S.sketch = false;
+      else if (S.focus) S.focus = null;
       else if (S.toolbox || S.analysis) { S.toolbox = false; S.analysis = false; }
       render(); return;
     }
@@ -1882,6 +2875,7 @@ body.solo .frame { border-radius: 0; }
     if (k === 'u') { act('units'); return; }
     if (k === '=' || k === '+') { act('zoom', 1); return; }
     if (k === '-') { act('zoom', -1); return; }
+    if (k === 'pageup' || k === 'pagedown') { e.preventDefault(); act('zoom', k === 'pageup' ? 1 : -1); return; }   // zoom, unless a tower is in hand
     if (k === 'home') { act('resetview'); return; }
     if (S.toolbox && !S.p2) { const t = TOOLS[S.tab].find((x) => x.key.toLowerCase() === k); if (t) chooseTool(t.id); }
   });
@@ -1953,8 +2947,6 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('dlwait')) S.dl = { name: 'Crystal Mountain', pct: 41, state: 'wait' };
     if (d.includes('dlfail')) S.dl = { name: 'Crystal Mountain', pct: 41, state: 'fail' };
     if (d.includes('tray') || d.includes('lift') || d.includes('trail') || d.includes('edit')) S.toolbox = true;
-    if (d.includes('lift')) { chooseTool('new-lift'); S.draft.pts = [[886, 316], [946, 203]]; }
-    if (d.includes('trail')) { S.tab = 'trails'; chooseTool('new-trail'); S.draft.pts = [[962, 330], [1000, 410], [1012, 500], [990, 590]]; S.draft.done = true; S.draft.diff = 'black'; }
     if (d.includes('edit')) { chooseTool('edit-lift'); S.sel = 'l3'; }
     if (d.includes('ttrails')) { S.toolbox = true; S.tab = 'trails'; }
     if (d.includes('snow')) { S.toolbox = true; S.tab = 'snow'; }
@@ -1978,6 +2970,8 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('finmonth')) S.finScale = 'month';
     if (d.includes('finseason')) S.finScale = 'season';
     const hv = d.find((x) => /^hov\d+$/.test(x)); if (hv) chartHover = (S.atab === 'finances' ? `fin:${S.finScale}:` : S.atab === 'weather' ? 'wx:' : 'ov:') + hv.slice(3);
+    for (const x of d) { const m = x.match(/^(row|focus)([lt]\d+)$/); if (m) { if (m[1] === 'row') S.rowHover = m[2]; else S.focus = m[2]; } }
+    if (d.includes('sortlen')) { S.af.lifts.sort = 'len-down'; S.af.trails.sort = 'len-down'; }
     if (d.includes('compact')) S.set.money = 'compact';
     if (d.includes('scale90')) S.set.hudScale = 90;
     if (d.includes('scale110')) S.set.hudScale = 110;
@@ -1989,6 +2983,46 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('noon')) S.t = 12.5 * 3600;
     if (d.includes('snowing')) S.t = 2 * 3600;
     mouse = S.info ? [742, 440] : [930, 260];
+    // The lift tool (Phase 3): liftorigin (the terminal under the pointer), liftauto (aiming, towers going in),
+    // lift and liftred (by hand: the tower in hand fits, or doesn't), liftreview (Automatic's layout), liftsel (a
+    // tower selected in review).
+    // The trail tool (Phase 3): trailpaint (painted, with an island and a stray patch), trailends (head and tail set),
+    // trailreview (its review); zoomed in, as you would to paint. trail is the review too.
+    const tf = ['trailpaint', 'trailends', 'trailreview', 'trail'].find((x) => d.includes(x));
+    if (tf) {
+      S.toolbox = true; S.tab = 'trails'; if (S.tool !== 'new-trail') chooseTool('new-trail');
+      const td = S.draft, paint = (pts, w, erase = false) => { td.width = w; td.stroke = { idx: [], was: [], erase, last: null }; for (const p of pts) strokeTo(td, p); endStroke(td); };
+      S.zoom = 1.3;
+      paint([[1000, 300], [997, 330], [993, 360], [990, 390], [985, 420], [980, 450]], 150);
+      paint([[994, 352], [992, 372]], 40, true);   // an island of trees
+      td.width = 100;
+      if (tf === 'trailpaint') { paint([[1032, 318], [1036, 330]], 60); td.width = 100; mouse = [981, 442]; }
+      else {
+        td.step = 'ends'; td.head = { p: [1000, 303], snap: null }; td.tail = { p: [980, 447], snap: null }; setEnds(td);
+        if (tf !== 'trailends') td.step = 'review';
+        mouse = tf === 'trailends' ? [960, 280] : [1240, 140];
+      }
+    }
+    const LD = { a: [1190, 334], b: [944, 250] }, lf = ['liftorigin', 'liftauto', 'liftred', 'liftreview', 'liftsel', 'lift'].find((x) => d.includes(x));
+    if (lf) {
+      S.toolbox = true; S.tab = 'lifts'; if (S.tool !== 'new-lift') chooseTool('new-lift');
+      const ld = S.draft;
+      if (lf === 'liftorigin') mouse = LD.a.slice();
+      else if (lf === 'liftauto') { ld.mode = 'auto'; ld.a = LD.a; ld.step = 'other'; mouse = [LD.a[0] + (LD.b[0] - LD.a[0]) * 0.94, LD.a[1] + (LD.b[1] - LD.a[1]) * 0.94]; aimAt(mouse, true); }
+      else {
+        ld.a = LD.a; ld.mode = 'auto'; fixLine(ld, LD.b);
+        const all = ld.towers.slice().sort((p, q) => p.x - q.x);
+        if (lf === 'lift' || lf === 'liftred') {
+          ld.mode = 'hand'; ld.step = 'towers'; ld.towers = all.slice(0, 6).map((t) => ({ x: t.x, h: t.h, hand: true }));
+          let x = all[6] ? all[6].x : ld.len / 2;
+          if (lf === 'liftred') { ld.inH = 25; const base = liftEval(ld); for (let y = all[5].x + 80; y < ld.len - 60; y += 5) { const c = towerCheck(ld, y, 25, null, base); if (!c.ok && c.rule === 'TW-01') { x = y; break; } } }
+          mouse = rayPt(ld, x); ld.hand = handAt(ld, mouse);
+        } else {
+          mouse = [1240, 140];
+          if (lf === 'liftsel') { const ev = liftEval(ld), o = ev.towers.find((t) => t.head.code === 'c8') || ev.towers[Math.floor(ev.towers.length / 2)]; ld.sel = o.ref; }
+        }
+      }
+    }
     // photo, with phnatural / phmini (Focus), phgolden (the hour), ph2x (Size), phpostcard (Grade), phhidden
     if (d.includes('photo')) {
       enterPhoto();
