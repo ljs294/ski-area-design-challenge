@@ -115,7 +115,7 @@ namespace MountainPlanner.App
                     Hud.TakeToolKeyboard(_tools.Context.Window.FirstControl);
             }
             if (_tools.Armed) return;
-            // Undo and redo of committed work (P3-06 Q5); heights and trees follow once task 05 lands.
+            // Undo and redo of committed work (P3-06 Q5); heights and trees follow through the terrain session (P3-05, TE2).
             if (KeyBindings.Pressed(keys, GameAction.Undo))
             {
                 var design = Design;

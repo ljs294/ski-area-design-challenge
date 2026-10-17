@@ -1,6 +1,6 @@
 # P3-05 Terrain edit pipeline: the plan
 
-**Status:** approved by the owner on 2026-10-16 ("Go. Start with PR A"). Decisions TE1–TE4 are in
+**Status:** approved by the owner on 2026-10-16 ("Go. Start with PR A"). Decisions TE1–TE5 are in
 [phase0-decisions.md](phase0-decisions.md#phase-3-task-05-terrain-edit-pipeline-decided-2026-10-16).
 **Branch:** `feature/p3-05-terrain-edits`, from origin/main 3f05e1b.
 **Task:** row 05 of the [Phase 3 plan](phase2-14-phase3-plan.md#3-tasks) (0.3 §10).
@@ -50,3 +50,41 @@ None of the edit seams existed yet:
   unchanged (GR-06); the clearing filter keeps every tree outside and none inside, and undo restores the forest
   golden; cover and forest goldens unchanged outside edited tiles; a sub-rectangle upload equals a full rebuild
   (EditMode); 0 B idle frames (PlayMode).
+
+## As built (PR B)
+
+- **Domain (`Domain/Edits`):**
+  - `EditedHeights` (SH-02): the source at a lattice point plus its change, bilinear changes between points.
+  - `TestBench` (TE4): the straight 300 m test bench.
+  - `PendingContours` (CF-08): marching squares over the changed cells.
+  - `IHeightSource` and `EditLattice`.
+- **`DesignHistory` (TE2, additive):**
+  - `Submit(command, terrain)`, `Load(document, terrain)`, `Terrain` and `TerrainRevision`.
+  - `Stamp(inputSequence)` uses the current terrain revision.
+  - `DesignSnapshot` carries both.
+- **Persistence:**
+  - `PackageHeights`: the float32 heights read a 256-row chunk at a time, identical doubles to the cache build's `HeightField`, which now shares its sampling code.
+  - `CoverField.BuildRegion` over any heights, with a clearing predicate; `BuildTile` is now the whole-tile case.
+  - `ForestField.IsCleared` (CL-05).
+  - `GridFile.ReadChunkIndex` and `ReadFloatChunk`.
+- **World:**
+  - `SplatTexels.ComposeWindow`, equal to `Compose` byte for byte (EditMode test).
+  - `TerrainTiles.ApplySplatRegion` and `SetHeightsRegion`.
+  - `ForestInstance.Flags` (`Cleared`), which the cull and crown-map kernels skip.
+- **Presentation:**
+  - `TerrainEditPipeline`: plans the patches in parallel on workers, then applies heights, splat and trees by rectangle; the heightmap is rebound after the sync. Snow and contour labels rebuild off the main thread, latest change wins.
+  - `PendingContourView`, drawn with `MountainPlannerEdits/PendingContours.shader`.
+  - `ForestRenderer.UpdateTrees` and `RedrawCrownCore`.
+- **App:**
+  - `TerrainEditSession`.
+  - `MountainViewer.Edits.cs`: `-testedit` (F6, F7, F8, Ctrl+Z, Ctrl+Y), `-testbench x,z[,deg]`, `-testbench-preview` and `-editbench <out.json>`.
+  - The HUD's elevation and slope read the edited float32 heights.
+- **The cache isn't bumped:** it stays v12, built from the package alone. Edits apply in memory to the touched tiles.
+- **Memory:**
+  - the tree instances are kept, about 21 MB on a 5 km site;
+  - the crown map's sum buffer is kept, about 25 MB of VRAM on 5 km;
+  - `PackageHeights` holds up to 6 chunks a layer, about 60 MB;
+  - the edit-time `CoverField` holds about 100 MB on 5 km.
+  All of it is allocated only once a session starts.
+- **Design points (TE5, owner 2026-10-17):** whole millimetres from the site's centre on the package grid's axes; absolute EPSG:6350 millimetres would overflow an `int`.
+- **The test bench's edges look serrated** where its 1:1 faces end at the footprint on the 1 m lattice. That look belongs to task 08 (grading) and task 07 (the style tile).

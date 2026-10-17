@@ -10,7 +10,7 @@ struct Tree
     float heightScale;
     float widthScale;
     uint prototype;
-    uint pad;
+    uint flags;   // 1: cleared (ForestCull never lists it)
 };
 StructuredBuffer<Tree> _Trees;
 StructuredBuffer<uint> _Visible;

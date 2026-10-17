@@ -13,7 +13,10 @@ namespace MountainPlanner.World
         public float HeightScale;
         public float WidthScale;
         public uint Prototype;
-        public uint Pad;
+        /// <summary><see cref="Cleared"/> when a terrain edit cleared the tree (CL-05): the cull and the crown map skip it.</summary>
+        public uint Flags;
+
+        public const uint Cleared = 1;
 
         /// <summary>
         /// Decodes a tile's cached trees into world-space instances, standing each on the tile's own
@@ -33,7 +36,7 @@ namespace MountainPlanner.World
                 float gx = fx * (res - 1), gz = fz * (res - 1);
                 int x0 = Mathf.Min((int)gx, res - 2), z0 = Mathf.Min((int)gz, res - 2);
                 float tx = gx - x0, tz = gz - z0;
-                float h = Mathf.Lerp(Mathf.Lerp(heights[z0, x0], heights[z0, x0 + 1], tx), Mathf.Lerp(heights[z0 + 1, x0], heights[z0 + 1, x0 + 1], tx), tz);
+                float h = Ground(heights[z0, x0], heights[z0, x0 + 1], heights[z0 + 1, x0], heights[z0 + 1, x0 + 1], tx, tz);
                 float scale = height / Mathf.Max(1, nativeHeights[prototype]);
                 result[i] = new ForestInstance
                 {
@@ -43,5 +46,9 @@ namespace MountainPlanner.World
             }
             return result;
         }
+
+        /// <summary>The ground under a trunk: bilinear between a cell's four normalised posts (h01, h11 are a row north).</summary>
+        public static float Ground(float h00, float h10, float h01, float h11, float tx, float tz) =>
+            Mathf.Lerp(Mathf.Lerp(h00, h10, tx), Mathf.Lerp(h01, h11, tx), tz);
     }
 }

@@ -25,8 +25,12 @@ namespace MountainPlanner.UI.Tools
         /// <summary>Task 08's centreline snapping (NW-07); null until trails have a centreline.</summary>
         public ICentrelineSnap Lines { get; set; }
 
-        /// <summary>Task 05's terrain revision (CF-03); 0 until terrain edits exist.</summary>
-        public Func<long> TerrainRevision { get; set; }
+        /// <summary>
+        /// The terrain edits the tool's current analysis would commit at Break ground (task 05, TE2): the complete edit
+        /// set once applied (<see cref="DesignHistory.Terrain"/> plus this tool's grading and clearing), or null for none.
+        /// The host submits it with the command and clears it on commit; each tool starts with none. Task 08 sets it.
+        /// </summary>
+        public Domain.Edits.TerrainEdits PendingTerrain { get; set; }
 
         /// <summary>A one-line notice in the HUD's toasts ("New trail discarded").</summary>
         public Action<string> Notice { get; set; }
@@ -66,10 +70,10 @@ namespace MountainPlanner.UI.Tools
         public void Claim(GameAction action, bool on) => KeyBindings.Claim(action, on);
 
         /// <summary>The stamp an analysis started now would carry (CF-03); each call is a new input.</summary>
-        public AnalysisStamp NextStamp() => new AnalysisStamp(History.Revision, TerrainRevision?.Invoke() ?? 0, ++_input);
+        public AnalysisStamp NextStamp() => History.Stamp(++_input);
 
         /// <summary>The stamp a result must carry to still be current.</summary>
-        public AnalysisStamp CurrentStamp => new AnalysisStamp(History.Revision, TerrainRevision?.Invoke() ?? 0, _input);
+        public AnalysisStamp CurrentStamp => History.Stamp(_input);
 
         /// <summary>
         /// Runs <paramref name="work"/> off the main thread (CF-02 step 3). The host hands the result to

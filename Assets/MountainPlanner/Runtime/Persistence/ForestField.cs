@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using MountainPlanner.Domain.Cover;
+using MountainPlanner.Domain.Edits;
 using MountainPlanner.Domain.Flora;
 using MountainPlanner.Domain.Geo;
 
@@ -673,6 +674,20 @@ namespace MountainPlanner.Persistence
                 bytes[o + 7] = (byte)Math.Min(255, Math.Round(t.WidthScale / WidthStep));
             }
             return bytes;
+        }
+
+        /// <summary>
+        /// CL-05: whether a tile's tree <paramref name="i"/> stands in a cleared cell. The tree's trunk decides, read at
+        /// the same position the game draws it (the packed 16-bit fractions). Clearing filters the forest the package
+        /// grows; it never regrows it, so trees outside cleared cells are exactly the ones the cache holds (CL-07).
+        /// </summary>
+        public static bool IsCleared(byte[] packed, int i, double tileWest, double tileNorth, double tileMetres, TerrainEdits edits, EditLattice lattice)
+        {
+            if (edits.IsEmpty) return false;
+            int o = i * BytesPerTree;
+            float fx = (packed[o] | packed[o + 1] << 8) / 65535f, fz = (packed[o + 2] | packed[o + 3] << 8) / 65535f;
+            lattice.CellAt(tileWest + fx * tileMetres, tileNorth - tileMetres + fz * tileMetres, out int c, out int r);
+            return edits.IsClearedAt(c, r);
         }
 
         /// <summary>Unpacks one tree: position as a 0–1 fraction of the tile (x east, z north).</summary>

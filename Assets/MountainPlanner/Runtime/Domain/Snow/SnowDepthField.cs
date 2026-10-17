@@ -49,6 +49,33 @@ namespace MountainPlanner.Domain.Snow
             _dirtyX0 = 0; _dirtyY0 = 0; _dirtyX1 = Width; _dirtyY1 = Height;
         }
 
+        /// <summary>
+        /// Copies a rectangle of cells from a full field of depths (one per cell, in <see cref="Cells"/> order) and marks
+        /// only that rectangle changed: a terrain edit's snow (task P3-05) uploads just the cells it touched.
+        /// </summary>
+        public void CopyRect(float[] depthMetres, int x, int y, int width, int height)
+        {
+            if (depthMetres == null || depthMetres.Length != _depth.Length) throw new ArgumentException("One depth per cell.", nameof(depthMetres));
+            int x0 = Math.Max(0, x), y0 = Math.Max(0, y), x1 = Math.Min(Width, x + width), y1 = Math.Min(Height, y + height);
+            if (x1 <= x0 || y1 <= y0) return;
+            for (int j = y0; j < y1; j++)
+                for (int i = x0; i < x1; i++)
+                {
+                    float d = depthMetres[j * Width + i];
+                    if (!(d >= 0) || float.IsInfinity(d)) throw new ArgumentOutOfRangeException(nameof(depthMetres), "Depth must be finite and not negative.");
+                    _depth[j * Width + i] = d;
+                }
+            if (IsDirty)
+            {
+                _dirtyX0 = Math.Min(_dirtyX0, x0); _dirtyY0 = Math.Min(_dirtyY0, y0);
+                _dirtyX1 = Math.Max(_dirtyX1, x1); _dirtyY1 = Math.Max(_dirtyY1, y1);
+            }
+            else
+            {
+                _dirtyX0 = x0; _dirtyY0 = y0; _dirtyX1 = x1; _dirtyY1 = y1;
+            }
+        }
+
         /// <summary>Sets a rectangle of cells (clipped to the field) and marks it changed.</summary>
         public void SetRect(int x, int y, int width, int height, float depthMetres)
         {

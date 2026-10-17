@@ -250,6 +250,7 @@ namespace MountainPlanner.App
                 int shot = Array.IndexOf(args, "-screenshot");
                 if (shot >= 0 && shot + 1 < args.Length) StartCoroutine(CaptureAndQuit(args[shot + 1]));
                 StartCoroutine(RunPhotoArguments(args));   // -photo, -photoshot (MountainViewer.Photo.cs)
+                StartTerrainEdits(args);   // -testedit, -testbench, -editbench (MountainViewer.Edits.cs, task P3-05)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
             }
@@ -279,6 +280,7 @@ namespace MountainPlanner.App
         System.Collections.IEnumerator CaptureAndQuit(string path)
         {
             while (!_resort.CoverReady.IsCompleted) yield return null;   // the cover, snowpack, contour labels and forest are in
+            while (EditsBusy) yield return null;                          // and any -testbench edit
             for (int i = 0; i < 90; i++) yield return null; // let LOD and shadows settle
             var cam = Camera != null ? Camera.transform.position : Vector3.zero;
             Debug.Log($"[MountainViewer] camera {cam}, ground below {_resort.Surface.HeightAt(cam.x, cam.z):F0} m, target {(Camera != null ? Camera.Target : Vector3.zero)}, " +
@@ -323,6 +325,7 @@ namespace MountainPlanner.App
                 // arrows, + and −, Home and the mouse.
                 if (Camera != null && Hud != null) Camera.LettersToTools = Hud.ToolboxOpen;
                 HandleKeys(Keyboard.current);
+                UpdateTerrainEdits(Keyboard.current);
                 // A click on the mountain closes the HUD's dropdowns (the mockup).
                 var click = Mouse.current;
                 if (Hud != null && _resort != null && click != null && click.leftButton.wasPressedThisFrame && !Hud.IsPointerOverPanel(click.position.ReadValue())) Hud.ClickedMap();
@@ -536,6 +539,7 @@ namespace MountainPlanner.App
             DisplayUnits.Changed -= OnUnitsChanged;
             ReleasePhoto();
             StopTools();
+            ReleaseTerrainEdits();
             if (ViewCamera.KeysBlocked == (Func<bool>)UiHasKeyboard) ViewCamera.KeysBlocked = null;
             ReleaseSettings();
         }
@@ -571,8 +575,7 @@ namespace MountainPlanner.App
         /// <summary>The slope (a grade in percent) and the way it faces (degrees from true north) at a point, over 4 m as the shader measures.</summary>
         (float Percent, float Bearing) SlopeAt(float x, float z)
         {
-            var s = _resort.Surface;
-            float east = (s.HeightAt(x + 2, z) - s.HeightAt(x - 2, z)) / 4, north = (s.HeightAt(x, z + 2) - s.HeightAt(x, z - 2)) / 4;
+            float east = (ReadoutHeight(x + 2, z) - ReadoutHeight(x - 2, z)) / 4, north = (ReadoutHeight(x, z + 2) - ReadoutHeight(x, z - 2)) / 4;
             float bearing = Mathf.Atan2(-east, -north) * Mathf.Rad2Deg - (float)_resort.Manifest.Crs.GridConvergenceDegrees;
             return ((float)SlopeBands.PercentFromRise(Mathf.Sqrt(east * east + north * north)), bearing);
         }
@@ -616,7 +619,7 @@ namespace MountainPlanner.App
                 if (!float.IsNaN(hit))
                 {
                     var g = ray.GetPoint(hit);
-                    elevation = _resort.Surface.HeightAt(g.x, g.z);
+                    elevation = ReadoutHeight(g.x, g.z);   // the edited float32 heights (SH-02, task P3-05)
                     // What the info layer that's on reads under the pointer (task 12b.2).
                     if (!float.IsNaN(elevation) && (info == MapLayers.SlopeAngle || info == MapLayers.Exposure)) (slope, bearing) = SlopeAt(g.x, g.z);
                     else if (!float.IsNaN(elevation) && info == MapLayers.SnowDepth) snow = SnowDepthAt(g.x, g.z);

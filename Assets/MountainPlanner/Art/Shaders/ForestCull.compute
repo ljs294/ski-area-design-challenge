@@ -13,7 +13,7 @@ struct Tree
     float heightScale;
     float widthScale;
     uint prototype;
-    uint pad;
+    uint flags;        // 1: cleared by a terrain edit (CL-05): never drawn, no crown
 };
 
 StructuredBuffer<Tree> _Trees;
@@ -45,6 +45,7 @@ void Cull(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= _TreeCount) return;
     Tree t = _Trees[id.x];
+    if (t.flags != 0) return;
     float height = _NativeHeights[t.prototype] * t.heightScale;
     float reach = _Reach[t.prototype] * t.widthScale;
     float3 centre = t.position + float3(0, height * 0.5, 0);
@@ -104,6 +105,7 @@ void CrownSplat(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= _TreeCount) return;
     Tree t = _Trees[id.x];
+    if (t.flags != 0) return;
     float r = _CrownRadius[t.prototype] * t.widthScale / _CrownRect.z;        // texels
     float2 p = (t.position.xz - _CrownRect.xy) / _CrownRect.z - 0.5;         // texel-centre coordinates
     int2 i0 = (int2)floor(p);

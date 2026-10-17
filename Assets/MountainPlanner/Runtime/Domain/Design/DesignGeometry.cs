@@ -5,7 +5,8 @@ namespace MountainPlanner.Domain.Design
 {
     /// <summary>
     /// The design's units: whole millimetres in the package grid (SH-03), so a document has the same bytes on every
-    /// machine. The rules' imperial steps are exact in millimetres (5 ft = 1,524 mm).
+    /// machine. Points are measured from the site's centre on the grid's axes (owner ruling TE5): absolute EPSG:6350
+    /// millimetres would overflow an int. The rules' imperial steps are exact in millimetres (5 ft = 1,524 mm).
     /// </summary>
     public static class DesignUnits
     {

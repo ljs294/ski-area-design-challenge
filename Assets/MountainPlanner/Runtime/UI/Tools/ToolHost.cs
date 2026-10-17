@@ -158,7 +158,9 @@ namespace MountainPlanner.UI.Tools
             var command = Active.Commit(stage, _ctx.History.Revision);
             if (command == null) return null;
             _confirmedTick = _tick;
-            var result = _ctx.History.Submit(command);
+            // Break ground brings the analysis's terrain edits with it, so undo takes both back (TE2); a plan changes no ground (CF-06).
+            var terrain = stage == WorkStage.Built ? _ctx.PendingTerrain : null;
+            var result = _ctx.History.Submit(command, terrain);
             Submitted?.Invoke(result);
             if (!result.Accepted)
             {
@@ -166,6 +168,7 @@ namespace MountainPlanner.UI.Tools
                 return result;
             }
             _ctx.Preview.Clear();
+            _ctx.PendingTerrain = null;
             Active.Committed(result);   // the tool says what it built, and starts over at step 1 (P3-06 Q4)
             return result;
         }

@@ -79,6 +79,45 @@ namespace MountainPlanner.Persistence
             return values;
         }
 
+        /// <summary>
+        /// A float32 grid's header and the byte offset and length of each row chunk, for reading a part of it with
+        /// <see cref="ReadFloatChunk"/> (task P3-05: the edited heights read only the rows they need).
+        /// </summary>
+        public static GridHeader ReadChunkIndex(Stream input, out long[] offsets, out int[] lengths)
+        {
+            var r = new BinaryReader(input, Encoding.UTF8, true);
+            var header = ReadHeaderAndIndex(r, out lengths);
+            if (header.Type != GridValueType.Float32) throw new InvalidDataException("The grid is not float32.");
+            offsets = new long[lengths.Length];
+            long at = input.Position;
+            for (int c = 0; c < lengths.Length; c++)
+            {
+                offsets[c] = at;
+                at += lengths[c];
+            }
+            return header;
+        }
+
+        /// <summary>One row chunk of a float32 grid (<see cref="ChunkRows"/> rows, fewer in the last), row-major.</summary>
+        public static float[] ReadFloatChunk(Stream input, GridHeader header, long offset, int length, int chunk)
+        {
+            int rows = Math.Min(ChunkRows, header.Height - chunk * ChunkRows);
+            input.Position = offset;
+            var packed = new byte[length];
+            int read = 0;
+            while (read < length)
+            {
+                int n = input.Read(packed, read, length - read);
+                if (n == 0) throw new InvalidDataException("The grid file is truncated.");
+                read += n;
+            }
+            byte[] raw = Inflate(packed, rows * header.Width * 4);
+            FloatPredictor.Decode(raw, header.Width, rows);
+            var values = new float[rows * header.Width];
+            Buffer.BlockCopy(raw, 0, values, 0, raw.Length);
+            return values;
+        }
+
         public static void Write(Stream output, GridHeader header, ushort[] values)
         {
             if (header.Type != GridValueType.UInt16) throw new ArgumentException("Header type must be UInt16 for ushort values.");

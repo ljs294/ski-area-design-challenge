@@ -10,8 +10,9 @@ namespace MountainPlanner.Persistence.Saves
     /// The design open in the game and where it saves (task P3-04): its <see cref="DesignHistory"/> (task 03; the tools
     /// submit commands to it), the save it came from, and whether anything changed since. Engine-free, so the save rules
     /// are tested in Tests/Core; the game passes in the time and its version. <see cref="Current"/> is the one open area's
-    /// design, for the tools, the HUD and the terrain pipeline (task 05 sets <see cref="Edits"/> and applies
-    /// <see cref="LoadedEdits"/>).
+    /// design, for the tools, the HUD and the terrain pipeline. Its committed terrain edits live in the history's steps
+    /// (task 05, TE2): a loaded save's edits are the history's first, undo and redo move them with the document, and a
+    /// save writes <see cref="DesignHistory.Terrain"/>, so nothing keeps a second copy.
     /// </summary>
     public sealed class OpenDesign
     {
@@ -26,14 +27,14 @@ namespace MountainPlanner.Persistence.Saves
         /// <summary>The named save Ctrl+S writes to, or null until the first Save names one (SV1).</summary>
         public string SaveFolder { get; private set; }
         public string SaveName { get; private set; } = "";
-        /// <summary>The terrain edits a loaded save brought, for task 05 to lay over the package's heights and forest.</summary>
+        /// <summary>The terrain edits a loaded save brought; the history starts from them (<see cref="DesignHistory.Terrain"/>).</summary>
         public TerrainEdits LoadedEdits { get; private set; } = TerrainEdits.Empty;
         /// <summary>Why the save had to come from its backup (shown once), or empty.</summary>
         public string Recovered { get; private set; } = "";
 
         /// <summary>
-        /// Task 05's committed terrain edits (heights and clearing), read at each save; the loaded ones until task 05
-        /// sets it. Once DesignHistory steps hold their edits (TE2), this reads the current step's.
+        /// The committed terrain edits (heights and clearing) a save writes: the history's current step's (TE2). A test
+        /// may stand another source in.
         /// </summary>
         public Func<TerrainEdits> Edits { get; set; }
 
@@ -41,18 +42,22 @@ namespace MountainPlanner.Persistence.Saves
         public Action<SaveStep> Step { get; set; }
 
         DesignDocument _saved;
+        TerrainEdits _savedTerrain;
         bool _otherChanges;
 
         /// <summary>Raised when <see cref="Dirty"/> may have changed (an edit, a save), for the bar's save symbol.</summary>
         public event Action DirtyChanged;
 
-        public OpenDesign(string dataRoot, string packageId, string heightsSha256, DesignDocument document)
+        public OpenDesign(string dataRoot, string packageId, string heightsSha256, DesignDocument document, TerrainEdits edits = null)
         {
             DataRoot = dataRoot;
             PackageId = packageId;
             HeightsSha256 = heightsSha256 ?? "";
             History = new DesignHistory(document);
-            _saved = document;
+            if (edits != null && !edits.IsEmpty) History.Load(document, edits);   // the save's edits start the history (TE2)
+            Edits = () => History.Terrain;
+            _saved = History.Document;
+            _savedTerrain = History.Terrain;
             History.Changed += _ => DirtyChanged?.Invoke();
         }
 
@@ -74,7 +79,7 @@ namespace MountainPlanner.Persistence.Saves
                 throw new InvalidDataException($"This save belongs to another area ({save.PackageId}).");
             if (!string.IsNullOrEmpty(heightsSha256) && !string.IsNullOrEmpty(save.HeightsSha256) && save.HeightsSha256 != heightsSha256)
                 throw new InvalidDataException("This save was made on different terrain for this area, so its edits can't be laid over it.");
-            var open = new OpenDesign(dataRoot, packageId, heightsSha256, save.Design)
+            var open = new OpenDesign(dataRoot, packageId, heightsSha256, save.Design, save.Edits)
             {
                 LoadedEdits = save.Edits, Recovered = save.Recovered,
             };
@@ -87,9 +92,9 @@ namespace MountainPlanner.Persistence.Saves
         }
 
         /// <summary>Anything changed since the last save or autosave: the bar's save symbol is white, leaving asks (SV2).</summary>
-        public bool Dirty => !ReferenceEquals(History.Document, _saved) || _otherChanges;
+        public bool Dirty => !ReferenceEquals(History.Document, _saved) || !ReferenceEquals(History.Terrain, _savedTerrain) || _otherChanges;
 
-        /// <summary>For changes outside the document (task 05's terrain edits): marks the design as needing a save.</summary>
+        /// <summary>For changes outside the history: marks the design as needing a save (terrain edits in the history already count).</summary>
         public void MarkChanged()
         {
             _otherChanges = true;
@@ -130,10 +135,12 @@ namespace MountainPlanner.Persistence.Saves
             {
                 Name = name, Autosave = autosave, SavedUtc = utc, GameVersion = gameVersion ?? "",
                 PackageId = PackageId, HeightsSha256 = HeightsSha256, Design = doc,
-                Edits = Edits?.Invoke() ?? LoadedEdits,
+                Edits = Edits?.Invoke() ?? History.Terrain,
             };
+            var terrain = History.Terrain;
             if (!SaveStore.Write(folder, save, Step)) return false;
             _saved = doc;
+            _savedTerrain = terrain;
             _otherChanges = false;
             DirtyChanged?.Invoke();
             return true;

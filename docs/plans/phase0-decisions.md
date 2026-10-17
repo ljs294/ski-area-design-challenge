@@ -385,3 +385,4 @@ approved the plan and all four recommendations.
 | TE2 | **Undo:** each `DesignHistory` step holds its terrain edit set; undo and redo switch sets, and only the tiles that differ are rebuilt (CF-05, CL-07) |
 | TE3 | **Preview:** the yellow pending contours only (CF-08); the ground changes at Break ground |
 | TE4 | **Grading:** task 05 builds a straight test bench only, for timing and the demo; task 08 writes the GR engine to the same edit tiles |
+| TE5 | **Design points** (task 03's `PointMm`) are whole millimetres **from the site's centre** on the package grid's axes (the game's local frame), not absolute EPSG:6350: absolute millimetres overflow an `int` (Jackson Hole's northing is about 2,500 km). Decided 2026-10-17 at PR B's review |
