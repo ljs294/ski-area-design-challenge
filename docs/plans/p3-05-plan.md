@@ -1,6 +1,6 @@
 # P3-05 Terrain edit pipeline: the plan
 
-**Status:** approved by the owner on 2026-10-16 ("Go. Start with PR A"). Decisions TE1–TE4 are in
+**Status:** approved by the owner on 2026-10-16 ("Go. Start with PR A"). Decisions TE1–TE5 are in
 [phase0-decisions.md](phase0-decisions.md#phase-3-task-05-terrain-edit-pipeline-decided-2026-10-16).
 **Branch:** `feature/p3-05-terrain-edits`, from origin/main 3f05e1b.
 **Task:** row 05 of the [Phase 3 plan](phase2-14-phase3-plan.md#3-tasks) (0.3 §10).
@@ -86,5 +86,5 @@ None of the edit seams existed yet:
   - `PackageHeights` holds up to 6 chunks a layer, about 60 MB;
   - the edit-time `CoverField` holds about 100 MB on 5 km.
   All of it is allocated only once a session starts.
-- **Design points:** task 03's design points are millimetres. Absolute EPSG:6350 millimetres overflow an `int`, so the test bench's trail points are millimetres from the site's centre on the package grid's axes. This is raised with the owner.
+- **Design points (TE5, owner 2026-10-17):** whole millimetres from the site's centre on the package grid's axes; absolute EPSG:6350 millimetres would overflow an `int`.
 - **The test bench's edges look serrated** where its 1:1 faces end at the footprint on the 1 m lattice. That look belongs to task 08 (grading) and task 07 (the style tile).
