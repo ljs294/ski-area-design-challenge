@@ -306,6 +306,8 @@ namespace MountainPlanner.UI
             bool tab = e.direction == NavigationMoveEvent.Direction.Next || e.direction == NavigationMoveEvent.Direction.Previous;
             var focused = _root.panel?.focusController?.focusedElement as VisualElement;
             if (!tab && focused != null && _root.Contains(focused) && UiFocus.KeyboardActive(_root)) return;
+            // Another document on this panel has the keys (the photo bar, given them by Tab; P3-01): its own navigation.
+            if (focused != null && !_root.Contains(focused)) return;
             e.StopPropagation();
             _root.focusController?.IgnoreEvent(e);
         }
