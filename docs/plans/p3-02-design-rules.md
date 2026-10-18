@@ -192,6 +192,8 @@ ruled differently. No archived code is copied; the rules are stated here as pros
 - **GR-05, between stations:** the design surface blends linearly between neighbouring stations' sections.
 - **GR-06, footprint:** grading **never leaves the painted footprint**. Heights outside it are byte-identical before
   and after (test).
+  - *Exception (task 07, SK19):* a terminal's pad (LF-12) grades outside any trail, within GR-11's terminal-pad
+    envelope.
 - **GR-07, too steep:**
   - Stations that can't hold a bench keep natural ground and are drawn red.
   - Review reports the ungraded length in ft.
@@ -207,9 +209,17 @@ ruled differently. No archived code is copied; the rules are stated here as pros
 - **GR-11, the envelope (built to grow):**
   - The grading engine takes a footprint, a centreline, a bench width and an **envelope**: where cut and fill may
     reach.
-  - Phase 3 uses **envelope = footprint** (GR-06).
+  - Phase 3 uses **envelope = footprint** (GR-06), except a terminal's pad (LF-12), whose faces may reach **200 ft
+    (61 m)** past the pad *(tuned at 07)*; a face that hasn't met the ground there is clipped and the step reported.
   - A later cat track through steep terrain keeps a fixed bench and lets its 1:1 faces reach past the painted width,
     up to a set limit (0.1's road exception). That adds an envelope value, not a new engine.
+
+- **GR-12 v2, rounded tie-ins** (owner, task 07, SK2, SK20): each face's crest and toe are rounded over **10 ft
+  (3 m)** *(tuned at 07: 10, 15 and 20 ft compared in captures)*, inside the footprint. The rounding fades to nothing at
+  the footprint's edge and never takes more than half the bench's width, so most of the bench stays level (GR-01). Where a
+  face would reach the footprint's edge, the bench narrows by the rounding width so the toe rounds inside the footprint.
+  Sharp creases stair-step on the 1 m heightmap; the rounding and the terrain shader's wider slope on earthwork keep the
+  edges smooth.
 
 ![A level bench with 1:1 cut and fill faces inside the footprint](images/p3-02/bench-section.svg)
 
@@ -225,6 +235,7 @@ ruled differently. No archived code is copied; the rules are stated here as pros
 - **CL-09, round terminals** (owner, task 07, decision SK14): a built lift also clears round each terminal, for loading
   and unloading: the terminal's footprint (from its model) plus **20 ft (6.1 m)** all round, and **50 ft (15.2 m)**
   more along the line in front of it *(tuned at 07)*.
+  - **v2** (task 07, SK19): it also covers the terminal's pad and every cell its faces change (LF-12).
 - **CL-04:** *retired.* Paths clear nothing (PA-05).
 - **CL-05, effects:** clearing writes the clearing mask that forest density reads (0.3 §4.5). The forest floor and snow
   follow it (task 05).
@@ -339,7 +350,8 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - Undoable whole (CF-05).
 - **LF-08, terminal siting:**
   - No part of the terminal stands in a lake or on a road, and it lies inside the core box (SH-06).
-  - The ground under its footprint varies by no more than **10 ft (3 m)**; terminals aren't graded in Phase 3.
+  - The natural ground under its footprint varies by no more than **10 ft (3 m)**; the terminal is then built on its
+    graded pad (LF-12, task 07).
   - The two terminals stand at least **300 ft (91 m)** apart.
 - **LF-09, keys (C8):** while a tower is in hand or selected, Page Up / Page Down move it; camera zoom keeps the wheel
   and + / −. Delete removes the selected tower; Esc backs out one step (CF-07).
@@ -358,6 +370,15 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - It closes when the lift is committed.
 - **LF-11, after building:** a built lift's card is simple: name, type, capacity, length, rise, ride time, tower count.
   The engineering detail (tension, loads, clearances) shows only while the lift is being edited.
+- **LF-12 v1, terminal pads** (owner, task 07, SK19): every terminal is built on a level pad, so only its plinth comes
+  out of the ground.
+  - The pad is the terminal's footprint plus **20 ft (6.1 m)** all round (CL-09's margin), level at the terminal's base
+    elevation (its load or unload level).
+  - The top terminal's pad runs at least **60 ft (18.3 m)** behind its bullwheel, for the unload zone.
+  - Around it, 1:1 cut and fill faces run to the ground (GR-02), within GR-11's 200 ft terminal-pad envelope.
+  - The pad is part of the lift's Break ground: its height deltas ride with the lift's command (no save change).
+  - When the rope must leave the bottom terminal steeper than its row allows even with hold-down towers (TW-16 v2), the
+    terminal stands higher as a last resort and its pad fills up to it.
 
 ### 5.2 Catalog (LC)
 
@@ -374,20 +395,20 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - each terminal's train limits.
 
   Later types (doubles, triples, detachables) get their own entries.
-- **LC-02, Phase 3 values** for both quads *(tuned at 07)*:
+- **LC-02 v2, Phase 3 values** for both quads *(tuned at 07: SK8 the chair's drop; SK17 the 1¾ in rope)*:
 
   | Property | Value | Basis |
   |---|---|---|
   | Seats | 4 | The models |
   | Rope speed | **450 fpm (2.29 m/s)**, fixed (your ruling) | ANSI B77.1's fixed-grip limits fall 50 fpm per seat (600, 550, 500 fpm for one to three seats), giving 450 for a quad. France caps 3–4 seat fixed grips at 2.3 m/s (453 fpm) |
   | Chair spacing | 45 ft (13.7 m), fixed for now (your ruling) | A 6.0 s interval; new fixed quads carry up to 2,400 pph |
-  | Haul rope | **1⅝ in (41 mm)**, 6-strand fibre core, 4.44 lb/ft (6.61 kg/m), breaking strength 214,000 lbf (952 kN) | Fixed-grip ropes run 1⅜–1¾ in (35–45 mm). 1⅝ in keeps the models' 17 in (432 mm) sheaves at the required 10× the rope's diameter |
-  | Rated tension | **42,800 lbf (190 kN)**: the breaking strength ÷ 5 | US tramway codes require a factor of safety of 5 on a new haul rope |
+  | Haul rope | **1¾ in (44.5 mm)**, 6-strand fibre core, 5.15 lb/ft (7.66 kg/m), breaking strength 248,000 lbf (1,104 kN) | Fixed-grip ropes run 1⅜–1¾ in (35–45 mm); the owner chose the top of the range (SK17). The models' 17 in (432 mm) sheaves stay close to 10× the rope's diameter |
+  | Rated tension | **49,600 lbf (221 kN)**: the breaking strength ÷ 5 | US tramway codes require a factor of safety of 5 on a new haul rope |
   | Counterweight tension, per side | **18,000 lbf (80 kN)** | A comparable fixed-grip double runs about 17,000 lbf per side |
   | Chair | **350 lb (159 kg)** empty; 1,030 lb (467 kg) with 4 riders at **170 lb (77 kg)** each | Fixed chairs weigh about 250–450 lb; US codes use a 170 lb design rider |
-  | Load on the rope | 27.3 lb/ft (40.7 kg/m) loaded, 12.2 lb/ft (18.2 kg/m) empty | RP-03 |
-  | Rise this allows | about **900 ft (275 m)** of vertical: (42,800 − 18,000) ÷ 27.3 | RP-05. Typical fixed quads climb 300–1,200 ft; longer lines need two lifts |
-  | Rope to chair bottom | about 8.4 ft (2.55 m); task 09 measures the model | Real chairs: 8–10 ft |
+  | Load on the rope | 28.0 lb/ft (41.7 kg/m) loaded, 12.9 lb/ft (19.2 kg/m) empty | RP-03 |
+  | Rise this allows | about **1,130 ft (344 m)** of vertical: (49,600 − 18,000) ÷ 28.0 | RP-05. Typical fixed quads climb 300–1,200 ft; longer lines need two lifts |
+  | Rope to chair bottom | **8.7 ft (2.66 m)**, measured on the model (SK8) | Real chairs: 8–10 ft |
   | Line gauge | From each model's spec (the Monta's is 16.06 ft, 4.895 m) | The models |
   | Rope height at loading | 9.97 ft (3.039 m) above the load level | The models; real chairs about 10 ft |
   | Sheave | 17 in (432 mm) | The models |
@@ -423,6 +444,8 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     within 0.01°. The point where it leaves lies on that sheave's groove circle.
   - Across a train, the rope runs straight from sheave to sheave and turns a little at each. For the forces, the
     train's total bend is shared equally among its sheaves, as on real equalising trains.
+  - *Realised for the look at task 07 (SK16):* each train is posed to the rope level by level (rockers, yokes, the
+    equaliser), the spans rebuilt between the trains' contacts, three passes; the mismatch stays under 0.01°.
 - **RP-03 v1, tension:**
   - The counterweight sets the tension at the bottom terminal.
   - Up the line, tension grows by the load per unit length × the height gained (frictionless sheaves), separately
@@ -445,14 +468,19 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   along the whole line.
   - The load and unload zones are exempt: from each station to the first point where the chairs reach 15 ft.
   - A span that breaks the rule is red.
-- **TW-02, heights:**
+- **TW-02 v2, heights:**
   - A tower's height is **the rope's height above the ground at the tower**.
   - Heights run **25–100 ft (7.6–30.5 m) in 5 ft steps**; 25 ft is the lowest step at which the chairs clear 15 ft
     at the tower.
+  - **Station towers** (owner, task 07, SK18), within **100 ft (30.5 m)** of a bullwheel, where TW-01 exempts the load
+    and unload zones, may carry the rope from **15 ft (4.6 m)**.
   - The kit builds the mast from that height. The 1 m mast sections take up the remainder at the base, as the Lift
     Lab does.
-- **TW-03, spacing and siting:**
+- **TW-03 v2, spacing and siting:**
   - towers at least **50 ft (15.2 m)** apart, and from a terminal;
+  - except a **station tower** (SK18), which may stand from **15 ft (4.6 m)** past its terminal's front; by default
+    about **40 ft (12.2 m)** from the bullwheel. How close becomes a player setting later (shorter towers against wind
+    exposure);
   - not in a lake or on a road;
   - inside the core box.
 - **TW-04, head types:** at each tower, the load on each sheave (2T sin(δ/2), split over the sheaves, where δ is the
@@ -512,15 +540,19 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - The head then sits height × sin(lean) along the line from the base, and every rule uses the head's real position.
   - On a plumb tower on a steep line, part of the rope's load pushes the mast sideways. It's shown now, and Phase 4
     can price it.
-- **TW-16, terminals are heads** (owner, task 07, decision SK15):
+- **TW-16 v2, terminals are heads** (owner, task 07, SK15, SK18, SK19):
   - **At the bottom,** the rope runs level through the loading area. The return terminal's built-in hold-down row turns
-    it up, and it leaves at no more than that row allows: **15.9°** on the Sessellift's station arc. There is always
-    a **breakover tower soon after** it, which brings the rope to the line's angle.
-  - **At the top,** the rope comes in level to the bullwheel over the drive terminal's built-in support row, which can
-    take at most **18°** (4 sheaves × 4.5°, LC-02). There is always **at least one breakover before the top
-    terminal**, to bring the rope to the height and flatness the terminal needs.
-  - Placement (by hand or TW-12) puts the station breakovers in first, about **70 ft (21 m)** from each bullwheel
-    *(tuned at 07)*; a terminal whose rope angle is over its row's limit is red.
+    it up, and its trains rock to the angle the rope actually leaves at, up to the row's limit (**15.9°** on the
+    Sessellift's station arc).
+  - Where the line climbs gentler than that, a **breakover soon after** brings the rope to the line's angle. Where it
+    climbs steeper, the next tower turns the rope up further and is a **hold-down**; a second follows where one would be
+    too sharp (TW-06). Only if that still can't work is the terminal raised, as a last resort (LF-12).
+  - **At the top,** the rope comes in level to the bullwheel over the drive terminal's built-in support row, whose
+    trains rock to the arriving rope, at most **18°** (4 sheaves × 4.5°, LC-02). There is always **at least one
+    breakover before the top terminal**.
+  - Placement puts the **station towers** in first, as close as TW-03 v2 allows (about 40 ft from each bullwheel),
+    from 15 ft tall (TW-02 v2); a terminal whose rope angle is over its row's limit is red.
+  - Each type's row limits come from its catalog entry (LC-01).
 - **TW-15, stored:**
   - A tower's position along the line, its height and its stance are authored and saved.
   - Its head type, forces and rope geometry are derived (SH-05).

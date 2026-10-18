@@ -241,6 +241,14 @@ namespace MountainPlanner.App
                     Camera.Frame(new Vector3(v[0], _resort.Surface.HeightAt(v[0], v[1]), v[1]), v[2]);
                     Camera.SetAngles(v[3], v[4]);
                 }
+                // -fly x,z,height,yaw,pitch: a free-fly camera at a height above the ground (captures that look up at
+                // something, such as a tower head, which -view's orbit round a ground point can't; task 07).
+                int fly = Array.IndexOf(args, "-fly");
+                if (fly >= 0 && fly + 1 < args.Length && Camera != null)
+                {
+                    var f = args[fly + 1].Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                    Camera.FlyFrom(new Vector3(f[0], _resort.Surface.HeightAt(f[0], f[1]) + f[2], f[1]), f[3], f[4]);
+                }
                 int bench = Array.IndexOf(args, "-benchmark");
                 if (bench >= 0 && bench + 1 < args.Length) StartCoroutine(RunBenchmark(args[bench + 1]));
                 int benchViews = Array.IndexOf(args, "-benchmark-views");

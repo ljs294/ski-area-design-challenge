@@ -123,6 +123,22 @@ Shader "MountainPlanner/Terrain"
             return SAMPLE_TEXTURE2D_LOD(_TrailMap, sampler_TrailMap, uv, 0);
         }
 
+        // The offset across the trail (m) at full float precision (task 07, finding #11): half floats and hardware
+        // bilinear weights can't place 1 in corduroy ridges 100 ft from the centreline, so it has its own RFloat map,
+        // filtered here by hand. Texel centres sit on the 1 m lattice points, as in _TrailMap.
+        TEXTURE2D_FLOAT(_TrailOffset);
+
+        float TrailOffsetAt(float2 xz)
+        {
+            float2 p = xz - _TrailRect.xy - 0.5;
+            float2 f = p - floor(p);
+            int2 size = int2(round(1 / _TrailRect.zw));
+            int2 i0 = clamp(int2(floor(p)), int2(0, 0), size - 1), i1 = clamp(i0 + int2(1, 1), int2(0, 0), size - 1);
+            float a = LOAD_TEXTURE2D(_TrailOffset, i0).r, b = LOAD_TEXTURE2D(_TrailOffset, int2(i1.x, i0.y)).r;
+            float c = LOAD_TEXTURE2D(_TrailOffset, int2(i0.x, i1.y)).r, d = LOAD_TEXTURE2D(_TrailOffset, i1).r;
+            return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+        }
+
         // The crown map (P2-09, ForestRenderer.BuildCrownMap): the share of the ground under tree crowns, 2 m over the
         // core and 6 m over the ring. -1 when there's no forest yet, which keeps the cover map's stand look.
         TEXTURE2D(_CrownMapCore); SAMPLER(sampler_CrownMapCore);
@@ -436,6 +452,19 @@ Shader "MountainPlanner/Terrain"
                 float earth = onTrail * smoothstep(0.08, 0.4, abs(trail.g));
                 float earthFace = earth * smoothstep(0.35, 0.7, trail.a);
                 float groomed = onTrail * (1 - smoothstep(0.55, 0.85, trail.a));
+                // The faces' crests and toes (finding #12): the 1 m heightmap stair-steps a crease running across its grid,
+                // so on earthwork the shading takes the slope over 4 m instead, which follows the crease, not the steps.
+                [branch] if (earth > 0.01)
+                {
+                    float res = max(_HeightmapParams.x, 2);
+                    float2 huv = (i.uv * (res - 1) + 0.5) / res;
+                    float t2 = 2 / res;
+                    float e = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(t2, 0), 0).r - SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(t2, 0), 0).r;
+                    float no = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(0, t2), 0).r - SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(0, t2), 0).r;
+                    float2 g = float2(e, no) * _HeightmapParams.y / max(4 * _HeightmapParams.z, 1e-3);
+                    float3 wide = normalize(float3(-g.x, 1, -g.y));
+                    n = normalize(lerp(n, wide, 0.85 * earth));
+                }
                 {
                     float moved = c0.a * earth;
                     c0.a -= moved;
@@ -553,27 +582,39 @@ Shader "MountainPlanner/Terrain"
                         best = max(best, heights[k]);
                     }
                 }
-                // Built trails (task 07). Groomed snow: the snow's own grain mostly smoothed away, then corduroy, ridges about
-                // 1 in (25 mm) apart running along the trail (lines of constant offset), faded before they alias, and the
-                // seams between groomer passes every 15 ft (4.57 m) with each pass a shade apart, which is what reads
-                // from a distance.
+                // Built trails (task 07). Groomed snow: the snow's own grain mostly smoothed away, then dense corduroy
+                // (owner, SK20): ridges 1 in (25 mm) apart along the trail (lines of constant offset), a sine profile while
+                // a ridge spans at least 2 pixels, then, as they shrink below that, the ridges' averaged light: darker where
+                // the sun crosses them, brighter where it runs along them. The seams between 15 ft groomer passes stay, faint.
                 [branch] if (groomed > 0.01 && weights[0] > 0.004)
                 {
-                    float u = trail.b;
-                    float2 du = float2(TrailAt(i.positionWS.xz + float2(0.5, 0)).b - TrailAt(i.positionWS.xz - float2(0.5, 0)).b,
-                                       TrailAt(i.positionWS.xz + float2(0, 0.5)).b - TrailAt(i.positionWS.xz - float2(0, 0.5)).b);
-                    float3 acrossWS = normalize(float3(du.x, 0, du.y) + float3(1e-5, 0, 0));
+                    float u = TrailOffsetAt(i.positionWS.xz);
+                    // The across-trail direction from the offset's screen derivatives (no extra texture reads).
+                    float2 dx = ddx(i.positionWS.xz), dy = ddy(i.positionWS.xz);
+                    float du_x = ddx(u), du_y = ddy(u);
+                    float det = dx.x * dy.y - dx.y * dy.x;
+                    float2 gradU = abs(det) > 1e-8 ? float2(du_x * dy.y - du_y * dx.y, du_y * dx.x - du_x * dy.x) / det : float2(1, 0);
+                    float3 acrossWS = normalize(float3(gradU.x, 0, gradU.y) + float3(1e-5, 0, 0));
                     normals[0] = normalize(lerp(normals[0], n, 0.6 * groomed));
-                    float cycles = u / 0.025;
-                    float alias = fwidth(cycles);
-                    float cord = (1 - smoothstep(0.25, 0.6, alias)) * groomed;
-                    normals[0] = normalize(normals[0] + acrossWS * cos(cycles * 6.2831853) * 0.45 * cord);
-                    albedos[0].rgb *= 1 - 0.05 * cord * (0.5 + 0.5 * sin(cycles * 6.2831853));
+                    float cycles = u / 0.0254;
+                    float perPixel = fwidth(cycles);
+                    float fine = (1 - smoothstep(0.25, 0.5, perPixel)) * groomed;   // individual ridges, while 2+ px each
+                    float wave = sin(cycles * 6.2831853);
+                    normals[0] = normalize(normals[0] + acrossWS * cos(cycles * 6.2831853) * 0.5 * fine);
+                    albedos[0].rgb *= 1 - 0.06 * fine * (0.5 + 0.5 * wave);
+                    // The averaged ridges: the mean of the light on both ridge flanks against the flat surface's.
+                    float far = (1 - fine) * groomed;
+                    Light ridgeSun = GetMainLight();
+                    float3 plus = normalize(normals[0] + acrossWS * 0.5), minus = normalize(normals[0] - acrossWS * 0.5);
+                    float flat0 = max(saturate(dot(normals[0], ridgeSun.direction)), 0.05);
+                    float avg = 0.5 * (saturate(dot(plus, ridgeSun.direction)) + saturate(dot(minus, ridgeSun.direction)));
+                    albedos[0].rgb *= lerp(1, clamp(avg / flat0, 0.85, 1.05), far);
+                    smooths[0] = lerp(smooths[0], smooths[0] * 0.7, far);
                     float lane = u / 4.572;
                     float seamWidth = max(0.06, fwidth(u) * 0.75);
                     float seam = 1 - smoothstep(0, seamWidth, abs(frac(lane + 0.5) - 0.5) * 4.572);
                     float shade = Hash12(int2((int)floor(lane + 1000), 7)) - 0.5;
-                    albedos[0].rgb *= (1 + 0.035 * shade * groomed) * (1 - 0.1 * seam * groomed);
+                    albedos[0].rgb *= (1 + 0.015 * shade * groomed) * (1 - 0.03 * seam * groomed);
                     albedos[0].rgb *= lerp(1, 1.03, groomed);
                 }
                 // Summer: the bench is seeded and mown, a fresher, more even green; the faces fresh earth, stonier in cut.

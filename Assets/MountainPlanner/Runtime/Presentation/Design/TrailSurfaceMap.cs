@@ -24,9 +24,11 @@ namespace MountainPlanner.Presentation.Design
         public const int MaxTexels = 2048;
 
         static readonly int MapId = Shader.PropertyToID("_TrailMap"), RectId = Shader.PropertyToID("_TrailRect"),
-                            ParamsId = Shader.PropertyToID("_TrailParams");
+                            ParamsId = Shader.PropertyToID("_TrailParams"), OffsetId = Shader.PropertyToID("_TrailOffset");
 
         Texture2D _map;
+        /// <summary>The offset across the trail at full float precision (finding #11: 1 in corduroy needs it).</summary>
+        Texture2D _offset;
 
         public TrailSurfaceMap() => Shader.SetGlobalVector(ParamsId, Vector4.zero);
 
@@ -105,7 +107,8 @@ namespace MountainPlanner.Presentation.Design
                     if (len < 1e-6) continue;
                     ux /= len;
                     uy /= len;
-                    double slope = (edited.At(x + ux, y + uy) - edited.At(x - ux, y - uy)) / 2;
+                    // Over ±2 m, so the snow/earth boundary that reads it follows the face, not the 1 m lattice's steps.
+                    double slope = (edited.At(x + 2 * ux, y + 2 * uy) - edited.At(x - 2 * ux, y - 2 * uy)) / 4;
                     across[at] = (float)Math.Abs(slope);
                 }
 
@@ -115,6 +118,10 @@ namespace MountainPlanner.Presentation.Design
                 _map = new Texture2D(w, h, TextureFormat.RGBAHalf, false, true)
                 {
                     name = "Trail surface", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp,
+                };
+                _offset = new Texture2D(w, h, TextureFormat.RFloat, false, true)
+                {
+                    name = "Trail offset", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp,
                 };
             }
             // Texture rows run north from the south edge; lattice rows run south.
@@ -132,6 +139,14 @@ namespace MountainPlanner.Presentation.Design
                 }
             }
             _map.Apply(false);
+            NativeArray<float> offsets = _offset.GetPixelData<float>(0);
+            for (int j = 0; j < h; j++)
+            {
+                int row = h - 1 - j;
+                for (int i = 0; i < w; i++) offsets[row * w + i] = offset[j * w + i];
+            }
+            _offset.Apply(false);
+            Shader.SetGlobalTexture(OffsetId, _offset);
             var (west, north) = frame.ToLocal(new AlbersPoint(lattice.X(c0), lattice.Y(r0)));
             double south = north - (h - 1);
             // Texel centres sit on lattice points: uv = (p − corner + 0.5) / size.
@@ -145,10 +160,14 @@ namespace MountainPlanner.Presentation.Design
 
         void Release()
         {
-            if (_map == null) return;
-            if (Application.isPlaying) UnityEngine.Object.Destroy(_map);
-            else UnityEngine.Object.DestroyImmediate(_map);
+            foreach (var t in new[] { _map, _offset })
+            {
+                if (t == null) continue;
+                if (Application.isPlaying) UnityEngine.Object.Destroy(t);
+                else UnityEngine.Object.DestroyImmediate(t);
+            }
             _map = null;
+            _offset = null;
         }
 
         public void Dispose()

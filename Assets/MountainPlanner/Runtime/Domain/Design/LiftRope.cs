@@ -21,6 +21,8 @@ namespace MountainPlanner.Domain.Design
         /// <summary>Between the two ropes, bullwheel pitch diameter.</summary>
         public double GaugeMetres { get; }
         public double RopeDiameterMetres { get; }
+        /// <summary>The line sheaves' radius to their flange tops (17 in, 432 mm across; the models).</summary>
+        public const double SheaveRadiusMetres = 0.216;
         /// <summary>
         /// TW-16: the bottom (return) terminal's built-in hold-down row turns the rope up from level in the loading area;
         /// it leaves at no more than this (radians; 15.9° on the Sessellift's station arc).
@@ -56,15 +58,39 @@ namespace MountainPlanner.Domain.Design
         public double Capacity => Seats * SpeedMetresPerSecond * 3600 / ChairSpacingMetres;
 
         /// <summary>
-        /// LC-02 for both quads: 450 fpm, 45 ft spacing, a 1⅝ in rope (4.44 lb/ft), rated 42,800 lbf, counterweight
-        /// 18,000 lbf, 350 lb chairs, 170 lb riders; the chair hangs 8.7 ft (2.66 m, measured on the model) below the
-        /// rope; the Sessellift's gauge is 13.5 ft (4.12 m), the Monta's 16.06 ft (4.895 m).
+        /// LC-02 v2 for both quads (rope 1¾ in, owner, task 07, SK17): 450 fpm, 45 ft spacing, a 1¾ in (44.5 mm) 6x19
+        /// fibre-core rope, 5.15 lb/ft (7.66 kg/m), breaking strength 248,000 lbf (1,104 kN, the 1⅝ in table value scaled by
+        /// diameter²), rated at a fifth, 49,600 lbf (220.8 kN); counterweight 18,000 lbf per side; 350 lb chairs, 170 lb
+        /// riders; the chair hangs 8.7 ft (2.66 m, measured on the model) below the rope; the Sessellift's gauge is 13.5 ft
+        /// (4.12 m), the Monta's 16.06 ft (4.895 m). RP-05's rise is now (49,600 − 18,000) ÷ 28.0 lb/ft, about 1,130 ft.
         /// </summary>
         public static LiftType Of(string catalogId)
         {
             double gauge = catalogId == LiftCatalogIds.MontaFg4 ? 4.895 : 4.12;
-            return new LiftType(catalogId, 4, 2.286, 13.716, 6.61, 190_400, 80_070, 158.8, 77.1, 2.66, gauge, 0.0413);
+            return new LiftType(catalogId, 4, 2.286, 13.716, 7.66, 220_800, 80_070, 158.8, 77.1, 2.66, gauge, 0.04445);
         }
+
+        /// <summary>
+        /// The terminals' footprints (CL-09, LF-12), measured on the Sessellift's models (task 07): metres behind the
+        /// bullwheel (away from the line), in front of it and either side. The Monta takes the same until its own are
+        /// measured.
+        /// </summary>
+        public double BottomBehind { get; } = 2.3;
+        public double BottomAhead { get; } = 8.1;
+        public double BottomHalfWidth { get; } = 3.0;
+        public double TopBehind { get; } = 2.5;
+        public double TopAhead { get; } = 7.2;
+        public double TopHalfWidth { get; } = 3.3;
+
+        /// <summary>
+        /// Where the rope leaves each terminal's row (the models' rope_*_out sockets): metres along the line from the
+        /// bullwheel, and above the terminal's origin (its load or unload level). The view measures the real sockets and
+        /// may pass its own; these are the Sessellift's.
+        /// </summary>
+        public double BottomExitAlong { get; set; } = 5.889;
+        public double BottomExitRise { get; set; } = 3.543;
+        public double TopExitBack { get; set; } = 3.1;
+        public double TopExitRise { get; set; } = 3.039;
     }
 
     /// <summary>
@@ -287,9 +313,16 @@ namespace MountainPlanner.Domain.Design
                 double s = ropeS[0] + j;
                 clear[j] = Math.Min(RopeAt(_loaded, s), RopeAt(_empty, s)) - type.ChairDropMetres - GroundAt(s);
             }
-            // The exempt zones end where the chairs first reach 15 ft, and at the first (last) tower at the latest, so a
-            // span between towers that sags into the ground is never exempt.
-            int firstTower = n > 0 ? (int)Math.Floor(ropeS[1] - ropeS[0]) : steps, lastTower = n > 0 ? (int)Math.Ceiling(ropeS[n] - ropeS[0]) : 0;
+            // The exempt zones end where the chairs first reach 15 ft, and at the first (last) line tower at the latest, so a
+            // span between line towers that sags into the ground is never exempt. Station towers (TW-02 v2: within 100 ft
+            // of a bullwheel) stand inside the zones.
+            double zone = DesignUnits.StationZoneMm / 1000.0;
+            int firstLine = 0;
+            while (firstLine < n && baseS[firstLine] <= zone) firstLine++;
+            int lastLine = n - 1;
+            while (lastLine >= 0 && LengthMetres - baseS[lastLine] <= zone) lastLine--;
+            int firstTower = firstLine < n ? (int)Math.Floor(ropeS[firstLine + 1] - ropeS[0]) : steps;
+            int lastTower = lastLine >= 0 ? (int)Math.Ceiling(ropeS[lastLine + 1] - ropeS[0]) : 0;
             int first = 0, last = steps;
             while (first < Math.Min(steps, firstTower) && clear[first] < Clearance) first++;
             while (last > Math.Max(0, lastTower) && clear[last] < Clearance) last--;
@@ -311,7 +344,7 @@ namespace MountainPlanner.Domain.Design
         /// The catenary through both points whose horizontal tension is the RP-03 tension at the span's lower end,
         /// a = H / w, in closed form.
         /// </summary>
-        static Span Catenary(double s1, double y1, double s2, double y2, double t0, double w, double y0)
+        public static Span Catenary(double s1, double y1, double s2, double y2, double t0, double w, double y0)
         {
             double chord = Math.Atan2(y2 - y1, s2 - s1);
             double horizontal = (t0 + w * (Math.Min(y1, y2) - y0)) * Math.Cos(chord);

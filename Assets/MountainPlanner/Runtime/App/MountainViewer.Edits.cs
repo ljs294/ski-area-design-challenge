@@ -80,6 +80,9 @@ namespace MountainPlanner.App
             if (timing >= 0 && timing + 1 < args.Length) StartCoroutine(RunEditBenchmark(args[timing + 1]));
             if (Array.IndexOf(args, "-styletile") >= 0)
             {
+                // -styletile-round <ft>: GR-12's rounding width for A/B captures (finding #12).
+                int round = Array.IndexOf(args, "-styletile-round");
+                if (round >= 0 && round + 1 < args.Length) StyleTile.RoundMetres = float.Parse(args[round + 1], CultureInfo.InvariantCulture) * 0.3048;
                 var report = StyleTile.Build(_edits, _resort.Frame, Lifts);
                 Debug.Log("[StyleTile] " + report);
                 while (!_edits.Applying.IsCompleted) yield return null;

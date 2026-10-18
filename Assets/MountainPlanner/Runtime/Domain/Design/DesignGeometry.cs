@@ -20,6 +20,10 @@ namespace MountainPlanner.Domain.Design
         /// <summary>TW-02: tower heights 25–100 ft in 5 ft steps.</summary>
         public const int TowerMinMm = 25 * FiveFeetMm / 5;
         public const int TowerMaxMm = 100 * FiveFeetMm / 5;
+        /// <summary>TW-02 v2 (owner, task 07, SK18): a station tower, in a terminal's load or unload zone, from 15 ft.</summary>
+        public const int StationTowerMinMm = 15 * FiveFeetMm / 5;
+        /// <summary>TW-02 v2: the station zone reaches 100 ft from either bullwheel.</summary>
+        public const int StationZoneMm = 100 * FiveFeetMm / 5;
 
         /// <summary>TR-05: ends within 30 ft snap; NW-10's Join uses the same reach.</summary>
         public const int SnapMm = 30 * FiveFeetMm / 5;

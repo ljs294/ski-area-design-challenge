@@ -1,7 +1,7 @@
 # Phase 3 · 07 Model contract: posable trains, grips, piers (round 2)
 
 **Audience:** the model thread (`feature/p3-07-models`) and the style tile thread (`feature/p3-07-style-tile`).
-**Status:** agreed in the round 2 plan, approved by the owner on 2026-10-17 (SK16–SK20). **Findings:**
+**Status:** agreed in the round 2 plan, approved by the owner on 2026-10-17 (SK16–SK20); amended by the owner's answers in the model thread (§7). **Findings:**
 [p3-07-findings.md](p3-07-findings.md) #1, #2, #3, #5, #6, #8, #9, #10.
 
 The game poses the lift's moving parts once, at build, from the rope. It needs these parts, names and keys in the
@@ -96,3 +96,28 @@ asks for a fix here: each portal leg face projected along its own normal.
   - FBX files whose meshes didn't change restored from git (`cmp -l`).
 - **Approval:** the owner approves in their own thread, then one LiftImport, the EditMode lift tests and the Lift Lab
   rebuild. The model thread merges into `feature/p3-07-style-tile` (no PR of its own).
+
+## 7. Amendments (owner, in the model thread, 2026-10-17)
+
+- **Piers:** no pier section and no stacking. "Piers should simply be really tall to allow them to adjust height as
+  needed. We'll create off ramp models later."
+  - Each terminal keeps its own pier, extended to about 15 m below its 0.00 level, so a raised terminal shows more pier
+    and the rest is buried in its pad.
+  - `pier_top` stays, for information.
+  - One `sessellift_fgq4_terminal_footing` (kind `terminal_footing`, one LOD, origin at grade) carries `foundation_base`
+    and `pier_seat`; the game places it at the ground under each terminal's pier.
+  - Terminal bodies lose `foundation_base` and are baked without a ground plane.
+- **Rope:** 1¾ in, 44.45 mm (`common.ropeDiameter`).
+  - Tower heads' rope sockets rise 4.2 mm.
+  - The terminals' rows and the drive's guide sheaves move 4.2 mm away from the rope, which stays at 3039.
+  - The fixed grip's blades widen to fit.
+- **Sheaves at LOD1:** each sheave's mesh rides inside its rocker part; `sheave_*` pivots still exist at every LOD.
+  The chair's LOD1 budget is 260.
+- **Names:**
+  - Sheave 1 is at the −u end (today's numbering).
+  - s6's `link_r1` holds sheaves 5 and 6 directly.
+  - c8 rockers are `rocker_rs1/2` (support) and `rocker_rh1/2` (hold-down).
+  - Drive: `beam_r` → `rocker_r1/2` → `sheave_r2..r5`.
+  - Return: `eq_r` → `yoke_r1/2` → `rocker_r1..r4` → `sheave_r2..r9`.
+  - The chair's seat and `bar_hinge` sockets ride under `hanger`; the hinge axis is Unity X; `lifts.json` gains
+    `socketParents`.
