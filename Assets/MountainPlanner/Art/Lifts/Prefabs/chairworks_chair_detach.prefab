@@ -480,6 +480,9 @@ MonoBehaviour:
   CatalogName: Quad chair, detachable grip
   Pivots: []
   PivotAxes: []
+  PivotParents: 
+  PivotHinged: 
+  PivotRange: []
   Sockets:
   - {fileID: 8989970071606023275}
   - {fileID: 6944521827942477475}

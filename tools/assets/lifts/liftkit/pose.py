@@ -69,7 +69,13 @@ def solve(pivots, top, rows, s_in, s_out, fixed=(), iters=30, anchor=None):
                 d = pts[k + 1] - pts[k]
                 r.append(math.atan2(d[1], d[0]) - tg[k])
         r.extend(1e-3 * v for v in x)   # the redundant links (s6) stay near rest
-        if anchor:
+        if anchor:   # a fixed entry: the rows share the turn by the turn over each sheave, the first held fast
+            r = []
+            for row in rows:
+                pts = [place(pivots, ang, s) for s in row]
+                slopes = [s_in] + [math.atan2(*(b - a)[::-1]) for a, b in zip(pts, pts[1:])] + [s_out]
+                r.extend(b - a - (s_out - s_in) / len(row) for a, b in zip(slopes, slopes[1:]))
+            r.extend(1e-3 * v for v in x)
             r.append(1e3 * (place(pivots, ang, anchor[0])[1] - anchor[1]))
         return np.array(r)
     x = np.zeros(len(free))
@@ -84,7 +90,7 @@ def solve(pivots, top, rows, s_in, s_out, fixed=(), iters=30, anchor=None):
         x = x + step
         if np.abs(step).max() < 1e-9:
             break
-    err = residual(x)[:sum(len(t) for t in targets)]
+    err = residual(x)[:sum(len(t) for t in targets)] if not anchor else residual(x)[-1:] / 1e3
     return dict(zip(free, x)), float(np.abs(err).max())
 
 
