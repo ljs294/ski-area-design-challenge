@@ -43,7 +43,7 @@ namespace MountainPlanner.Presentation.Lifts
         /// <paramref name="origin"/> along <paramref name="dir"/> (s along it, w up). Safe ranges default to ±35° until the
         /// models carry their own.
         /// </summary>
-        public static Train Read(LiftRig rig, string side, Vector3 origin, Vector3 dir, Vector3 right)
+        public static Train Read(LiftRig rig, string side, Vector3 origin, Vector3 dir, Vector3 right, bool rigid = false)
         {
             var nodes = new List<Transform>();
             var sheaves = new List<Transform>();
@@ -75,16 +75,35 @@ namespace MountainPlanner.Presentation.Lifts
                 return -1;
             }
             float S(Vector3 p) => Vector3.Dot(p - origin, dir);
+            // A fixed sheave outside the train (a terminal's guide or level sheave on the structure) isn't part of it.
+            sheaves.RemoveAll(x => ParentOf(x) < 0);
+            if (sheaves.Count < 2) return null;
             sheaves.Sort((a, b) => S(a.position).CompareTo(S(b.position)));
-            double range = 35 * Math.PI / 180;
+            // Each pivot's safe range from the model's clash sweep (degrees about its own axis), turned into this plane's
+            // sense (positive tips +s up, about Cross(dir, up)); ±35° where a model carries none. A rigid train (the drive's
+            // row until its rebuild is decided) doesn't turn at all.
+            var plane = Vector3.Cross(dir, Vector3.up).normalized;
             var treeNodes = new List<SheaveTree.Node>();
-            foreach (var n in nodes) treeNodes.Add(new SheaveTree.Node(ParentOf(n), S(n.position), n.position.y - origin.y, -range, range));
+            foreach (var n in nodes)
+            {
+                double lo = -35 * Math.PI / 180, hi = 35 * Math.PI / 180;
+                int at = Array.IndexOf(rig.Pivots, n);
+                if (at >= 0 && rig.PivotRange != null && at < rig.PivotRange.Length && rig.PivotAxes != null && at < rig.PivotAxes.Length)
+                {
+                    var axis = rig.transform.TransformDirection(rig.PivotAxes[at]);
+                    float sense = Vector3.Dot(axis, plane) >= 0 ? 1 : -1;
+                    var r = rig.PivotRange[at] * Mathf.Deg2Rad;
+                    lo = sense > 0 ? r.x : -r.y;
+                    hi = sense > 0 ? r.y : -r.x;
+                }
+                if (rigid) lo = hi = 0;
+                treeNodes.Add(new SheaveTree.Node(ParentOf(n), S(n.position), n.position.y - origin.y, lo, hi));
+            }
             var treeSheaves = new List<SheaveTree.Sheave>();
             bool[] hold = null;
             for (int k = 0; k < sheaves.Count; k++)
             {
                 int parent = ParentOf(sheaves[k]);
-                if (parent < 0) return null;   // a sheave outside the train's tree: not posable
                 treeSheaves.Add(new SheaveTree.Sheave(parent, S(sheaves[k].position), sheaves[k].position.y - origin.y));
                 for (var x = sheaves[k].parent; x != null && x != rig.transform; x = x.parent)
                     if (x.name.Contains("_pivot_yoke_hold_") || x.name.Contains("_pivot_rocker_" + side + "h"))
