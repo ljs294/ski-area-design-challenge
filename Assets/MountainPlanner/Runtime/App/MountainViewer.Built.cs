@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using MountainPlanner.App.Edits;
 using MountainPlanner.Domain.Design;
@@ -85,6 +86,7 @@ namespace MountainPlanner.App
                 var rope = view.Rope;
                 Debug.Log($"[Built] {lift.Name}: {rope.Towers.Count} towers ({string.Join(", ", view.Heads)}), {view.ChairCount} chairs, " +
                           $"lowest chair {rope.LowestClearance / 0.3048:F1} ft at {rope.LowestClearanceS / 0.3048:F0} ft, top tension {rope.TopTensionShare:P0} of rating, " +
+                          $"trains {(view.Posed ? $"posed (tangent within {view.PoseError * 180 / Math.PI:F3}°)" : "not posable (shipped models)")}, " +
                           $"bottom terminal raised {view.BottomRaise / 0.3048:F0} ft, rope leaves the bottom at {rope.BottomExitAngle * Mathf.Rad2Deg:F1}° and reaches the top at {rope.TopEntryAngle * Mathf.Rad2Deg:F1}° ({(rope.TerminalsOk ? "within" : "OVER")} TW-16)");
             }
             var gone = new List<LiftId>();

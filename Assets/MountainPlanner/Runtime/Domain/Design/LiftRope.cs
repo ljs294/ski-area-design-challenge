@@ -21,6 +21,8 @@ namespace MountainPlanner.Domain.Design
         /// <summary>Between the two ropes, bullwheel pitch diameter.</summary>
         public double GaugeMetres { get; }
         public double RopeDiameterMetres { get; }
+        /// <summary>The line sheaves' radius to their flange tops (17 in, 432 mm across; the models).</summary>
+        public const double SheaveRadiusMetres = 0.216;
         /// <summary>
         /// TW-16: the bottom (return) terminal's built-in hold-down row turns the rope up from level in the loading area;
         /// it leaves at no more than this (radians; 15.9° on the Sessellift's station arc).
