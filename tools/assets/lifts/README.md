@@ -100,6 +100,10 @@ The game poses the lift's moving parts once, at build, from the rope (the model 
 | `c8` | `block_r` (rigid with both triangular frames) → `yoke_sup_r`, `yoke_hold_r` (overlapping the frames: range 0) → `rocker_rs1/2`, `rocker_rh1/2` → `sheave_rs1..4`, `sheave_rh1..4` |
 | the drive's row | `beam_r` (the beam's pin through the plate) → `rocker_r1`, `rocker_r2` → `sheave_r2..5` |
 
+  The drive's row equalises a little (owner): stops of ±10° on `beam_r` and ±5° on its rockers (spec
+  `drive.entryTrains.pinStops`; the build clamps the clash range to them). Sharing the turn equally up to the row's
+  18° limit takes 8.6° and 4.7°, and the rope then comes in from the bullwheel at most 0.81° off level. The return's
+  row keeps a level entry at the bullwheel's height (its first sheave held) for exits of about 8.3° to 29.9°.
   Sheaves are their own parts at LOD0 and ride in their rocker at LOD1; at LOD2-3 each side's whole train is one
   part under its top pivot, never the body. The main pin and the lug plates stay in the body.
 - **The Sessellift chair:** `grip` (the origin, on the rope) → `hanger`, which turns about the grip's own stack axis

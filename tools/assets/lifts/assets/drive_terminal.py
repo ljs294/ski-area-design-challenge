@@ -347,7 +347,7 @@ def build(spec, lod, stage):
     plate = {"v": (m(pl["v"][0]), m(pl["v"][1])), "top": m(pl["top"]), "width": m(pl["width"]), "pin": m(pl["pin"])}
     for side, name in ((-1, "l"), (1, "r")):
         parts.sheave_train(body, a, name, m(et["u"]), side * hg, rope, rope_r, m(c["guideSheave"]["dia"]), m(c["guideSheave"]["width"]),
-                           train, et["mode"], None, lod, st, plate=plate)
+                           train, et["mode"], None, lod, st, plate=plate, stops=et.get("pinStops"))
     u_out = m(et["u"]) + (tr["n"] - 1) / 2 * m(tr["pitch"])   # the rope leaves over the outermost train sheave
 
     # guide sheaves between the pier and the bullwheel (rope rides on top), hung inboard from the base frame

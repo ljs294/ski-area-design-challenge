@@ -51,6 +51,13 @@ def clear_scene():
         bpy.data.meshes.remove(m)
 
 
+def stopped(rng, stop):
+    """A pivot's clash range clamped to its mechanical stops (degrees either way), when it has them."""
+    if stop is None:
+        return rng
+    return [max(rng[0], -stop), min(rng[1], stop)]
+
+
 def ao_options(kind, assets):
     """(ground plane?, stacking section height or None) for an asset's AO bake. The ground plane only goes under what
     stands on it at its own 0.00 (contract M5, finding #9): heads sit on a mast, Sessellift terminals on a pier of
@@ -190,7 +197,10 @@ def main():
                            "axis": list(frame.unity(a0.pivots[k]["axis"])),
                            "parent": a0.pivots[k].get("parent"),
                            "hinge": export.hinged(a0, split, k),
-                           "range": sweep[k]["range"], "rangeBy": sweep[k]["by"]}
+                           "range": stopped(sweep[k]["range"], a0.pivots[k].get("stop")),
+                           "rangeBy": sweep[k]["by"] if a0.pivots[k].get("stop") is None
+                           else [f"stop {a0.pivots[k]['stop']} deg" if abs(r) > a0.pivots[k]["stop"] else b
+                                 for r, b in zip(sweep[k]["range"], sweep[k]["by"])]}
                        for k in export.pivot_order(a0.pivots)},
             "socketParents": dict(a0.socket_parents),
             "aoTiling": tiling,

@@ -53,7 +53,8 @@ def sheave_bracket(mb, centre, width, from_w, lod, style):
         prims.cylinder(mb, (c.x, pv, c.z), (c.x, c.y + inboard * (width / 2), c.z), 0.045, sides(lod, 10, 6), style.but(cls="machined"))
 
 
-def sheave_train(mb, asset, name, u_c, v_rope, rope_w, rope_r, dia, width, train, mode, attach, lod, st, first=2, plate=None):
+def sheave_train(mb, asset, name, u_c, v_rope, rope_w, rope_r, dia, width, train, mode, attach, lod, st, first=2, plate=None,
+                 stops=None):
     """A balanced sheave train on one rope: sheaves in pairs on rockers, the rockers on a main beam pivoted on a
     hanger that runs to the structure at attach = (v, w). mode "hold": sheaves above the rope (rope under them);
     "support": below it (rope on top). Rockers and hanger sit inboard of the sheaves, so grips pass outboard.
@@ -61,7 +62,8 @@ def sheave_train(mb, asset, name, u_c, v_rope, rope_w, rope_r, dia, width, train
     "width": along u, "pin": dia} in metres, with the beam's pin through it.
     Posable (contract P3-07 M2): beam_<name> on the beam's pin (the plate's pin) carries rocker_<name>1, 2 on their
     pins, each carrying its two sheaves (sheave_<name><first>...). Sheaves are their own parts at LOD0 and ride in
-    their rocker at LOD1; at LOD2-3 the whole train is one part under beam_<name>. train: n, pitch, rocker, beam (m)."""
+    their rocker at LOD1; at LOD2-3 the whole train is one part under beam_<name>. train: n, pitch, rocker, beam (m).
+    stops: {"beam": deg, "rocker": deg}, mechanical stops either way (the build's clash range is clamped to them)."""
     r = dia / 2
     up = 1.0 if mode == "hold" else -1.0          # from the axles toward the rockers and beam
     wz = rope_w + up * (rope_r + r)               # axle height
@@ -71,10 +73,15 @@ def sheave_train(mb, asset, name, u_c, v_rope, rope_w, rope_r, dia, width, train
     offs = [(k - (n - 1) / 2) * pitch for k in range(n)]
     w_rock, w_beam = wz + up * train["rocker"], wz + up * train["beam"]
     top = f"beam_{name}"
+    stops = stops or {}
     asset.pivots[top] = {"pos": (u_c, v_rope, w_beam), "axis": (0.0, 1.0, 0.0)}
+    if "beam" in stops:
+        asset.pivots[top]["stop"] = stops["beam"]
     for i in range(0, n - 1, 2):
         rk = f"rocker_{name}{i // 2 + 1}"
         asset.pivots[rk] = {"pos": (u_c + (offs[i] + offs[i + 1]) / 2, v_rope, w_rock), "axis": (0.0, 1.0, 0.0), "parent": top}
+        if "rocker" in stops:
+            asset.pivots[rk]["stop"] = stops["rocker"]
         for k in (i, i + 1):
             asset.pivots[f"sheave_{name}{first + k}"] = {"pos": (u_c + offs[k], v_rope, wz), "axis": (0.0, 1.0, 0.0), "parent": rk}
 
