@@ -542,8 +542,10 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     can price it.
 - **TW-16 v2, terminals are heads** (owner, task 07, SK15, SK18, SK19):
   - **At the bottom,** the rope runs level through the loading area. The return terminal's built-in hold-down row turns
-    it up, and its trains rock to the angle the rope actually leaves at, up to the row's limit (**15.9°** on the
-    Sessellift's station arc).
+    it up, and its trains rock to the angle the rope actually leaves at, from **8.3°** to the row's design limit
+    (**15.9°** on the Sessellift's station arc; the row keeps every sheave on the rope from 8.3° to 20°, measured on the
+    model at task 07). Where the line is gentler than 8.3°, the bottom station tower stands taller so the rope climbs out
+    at 8.3° or more, and a breakover brings it back down to the line.
   - Where the line climbs gentler than that, a **breakover soon after** brings the rope to the line's angle. Where it
     climbs steeper, the next tower turns the rope up further and is a **hold-down**; a second follows where one would be
     too sharp (TW-06). Only if that still can't work is the terminal raised, as a last resort (LF-12).

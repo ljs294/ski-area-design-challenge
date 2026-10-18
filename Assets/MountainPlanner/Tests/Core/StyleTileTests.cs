@@ -457,7 +457,9 @@ namespace MountainPlanner.Tests
             var placed = TowerPlacement.Place(Quad, line, bx, by, tx, ty, line.At(bx, by), line.At(tx, ty), TowerStance.Plumb);
             var first = placed.Towers[0];
             var last = placed.Towers[placed.Towers.Count - 1];
-            Assert.That(first.AlongMm, Is.EqualTo(DesignUnits.FeetToMm(45)));
+            // 45 ft by default; farther (in 5 ft steps, within the 100 ft zone) where the return's row needs it to leave
+            // between 8.3° and 15.9°.
+            Assert.That(first.AlongMm, Is.InRange(DesignUnits.FeetToMm(45), DesignUnits.FeetToMm(100)));
             Assert.That(800_000 - last.AlongMm, Is.EqualTo(DesignUnits.FeetToMm(45)).Within(DesignUnits.FiveFeetMm));
             Assert.That(placed.Towers.TrueForAll(t => t.HeightMm >= DesignUnits.StationTowerMinMm));
             Assert.That(placed.Rope.TerminalsOk, Is.True, $"bottom {placed.Rope.BottomExitAngle * 180 / Math.PI:F1}°, top {placed.Rope.TopEntryAngle * 180 / Math.PI:F1}°");
@@ -467,6 +469,19 @@ namespace MountainPlanner.Tests
             // AddLift accepts them (TW-02 v2's station heights).
             var towers = placed.Towers.Select((t, i) => new Tower(TowerId.Make(3, i), t.AlongMm, t.HeightMm)).ToList();
             Assert.That(DesignRules.TowersProblem(800_000L * 800_000L, towers), Is.Null);
+        }
+
+        [Test]
+        public void TW16v2_AGentleBottomStillLeavesTheRowAtEightPointThreeDegreesOrMore()
+        {
+            // A 5% line (under 3°): the return's row needs at least 8.3°, so the station tower stands taller and a breakover
+            // brings the rope back down to the line.
+            var line = new Profile(s => 0.05 * s);
+            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
+            var placed = TowerPlacement.Place(Quad, line, bx, by, tx, ty, line.At(bx, by), line.At(tx, ty), TowerStance.Plumb);
+            Assert.That(placed.Rope.BottomExitAngle, Is.GreaterThanOrEqualTo(Quad.BottomExitMin - 1e-9),
+                $"{placed.Rope.BottomExitAngle * 180 / Math.PI:F1}°");
+            Assert.That(placed.Rope.TerminalsOk, Is.True);
         }
 
         [Test]

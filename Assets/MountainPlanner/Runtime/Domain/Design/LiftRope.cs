@@ -28,6 +28,12 @@ namespace MountainPlanner.Domain.Design
         /// it leaves at no more than this (radians; 15.9° on the Sessellift's station arc).
         /// </summary>
         public double BottomExitMax { get; } = 15.9 * Math.PI / 180;
+        /// <summary>
+        /// TW-16 v2: and at least this (radians): below about 8.3° the return's row can't keep all eight sheaves on the rope
+        /// with the rope level at the bullwheel (the model thread's pose sweep, task 07). The row works from 8.3° to 20°;
+        /// 15.9° stays the design limit.
+        /// </summary>
+        public double BottomExitMin { get; } = 8.3 * Math.PI / 180;
         /// <summary>TW-16: the top (drive) terminal's built-in 4-sheave support row brings the rope level to the bullwheel;
         /// it can take at most 4 × 4.5° = 18° (LC-02) of arriving rope angle.</summary>
         public double TopEntryMax { get; } = 18 * Math.PI / 180;
@@ -158,7 +164,8 @@ namespace MountainPlanner.Domain.Design
         public double BottomExitAngle { get; }
         public double TopEntryAngle { get; }
         /// <summary>TW-16: both terminals' rows can turn the rope to level.</summary>
-        public bool TerminalsOk => Math.Abs(BottomExitAngle) <= Type.BottomExitMax + 1e-9 && Math.Abs(TopEntryAngle) <= Type.TopEntryMax + 1e-9;
+        public bool TerminalsOk => BottomExitAngle <= Type.BottomExitMax + 1e-9 && BottomExitAngle >= Type.BottomExitMin - 1e-9
+                                   && Math.Abs(TopEntryAngle) <= Type.TopEntryMax + 1e-9;
 
         readonly TowerSolution[] _towers;
         readonly Span[] _loaded, _empty;
