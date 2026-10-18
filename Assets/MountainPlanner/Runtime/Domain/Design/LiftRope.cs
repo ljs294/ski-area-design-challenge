@@ -342,7 +342,7 @@ namespace MountainPlanner.Domain.Design
         /// The catenary through both points whose horizontal tension is the RP-03 tension at the span's lower end,
         /// a = H / w, in closed form.
         /// </summary>
-        static Span Catenary(double s1, double y1, double s2, double y2, double t0, double w, double y0)
+        public static Span Catenary(double s1, double y1, double s2, double y2, double t0, double w, double y0)
         {
             double chord = Math.Atan2(y2 - y1, s2 - s1);
             double horizontal = (t0 + w * (Math.Min(y1, y2) - y0)) * Math.Cos(chord);
