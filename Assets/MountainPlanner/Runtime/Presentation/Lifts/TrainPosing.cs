@@ -29,7 +29,14 @@ namespace MountainPlanner.Presentation.Lifts
         }
 
         /// <summary>Whether a placed model has a posable train on that side (at least one rocker pivot).</summary>
-        public static bool Posable(LiftRig rig, string side) => rig != null && rig.Pivot("rocker_" + side + "1") != null;
+        public static bool Posable(LiftRig rig, string side)
+        {
+            if (rig == null || rig.Pivots == null) return false;
+            string key = "_pivot_rocker_" + side;
+            foreach (var p in rig.Pivots)
+                if (p != null && p.name.Contains(key)) return true;   // rocker_r1…, or a combination's rocker_rs1 / rocker_rh1
+            return false;
+        }
 
         /// <summary>
         /// Reads a rig's train on <paramref name="side"/> ("r" or "l", the model's own right or left) in the plane through
@@ -80,7 +87,7 @@ namespace MountainPlanner.Presentation.Lifts
                 if (parent < 0) return null;   // a sheave outside the train's tree: not posable
                 treeSheaves.Add(new SheaveTree.Sheave(parent, S(sheaves[k].position), sheaves[k].position.y - origin.y));
                 for (var x = sheaves[k].parent; x != null && x != rig.transform; x = x.parent)
-                    if (x.name.Contains("_pivot_yoke_hold_"))
+                    if (x.name.Contains("_pivot_yoke_hold_") || x.name.Contains("_pivot_rocker_" + side + "h"))
                     {
                         hold ??= new bool[sheaves.Count];
                         hold[k] = true;

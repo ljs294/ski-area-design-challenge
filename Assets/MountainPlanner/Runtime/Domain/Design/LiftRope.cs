@@ -67,7 +67,7 @@ namespace MountainPlanner.Domain.Design
         public static LiftType Of(string catalogId)
         {
             double gauge = catalogId == LiftCatalogIds.MontaFg4 ? 4.895 : 4.12;
-            return new LiftType(catalogId, 4, 2.286, 13.716, 7.66, 220_800, 80_070, 158.8, 77.1, 2.66, gauge, 0.0445);
+            return new LiftType(catalogId, 4, 2.286, 13.716, 7.66, 220_800, 80_070, 158.8, 77.1, 2.66, gauge, 0.04445);
         }
 
         /// <summary>

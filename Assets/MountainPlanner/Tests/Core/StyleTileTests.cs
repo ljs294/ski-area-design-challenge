@@ -257,7 +257,7 @@ namespace MountainPlanner.Tests
             // RP-05's allowed rise with LC-02 v2's 1¾ in rope: (rated − counterweight) ÷ loaded load, about 1,130 ft.
             double rise = (Quad.RatedTensionNewtons - Quad.CounterweightNewtons) / Quad.LoadedNewtonsPerMetre;
             Assert.That(rise / 0.3048, Is.InRange(1100, 1160));
-            Assert.That(Quad.RopeDiameterMetres, Is.EqualTo(0.0445).Within(1e-4), "SK17: 1¾ in");
+            Assert.That(Quad.RopeDiameterMetres, Is.EqualTo(0.04445).Within(1e-5), "SK17: 1¾ in");
         }
 
         [Test]

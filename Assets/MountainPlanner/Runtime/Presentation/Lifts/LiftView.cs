@@ -164,6 +164,10 @@ namespace MountainPlanner.Presentation.Lifts
             var drive = PlaceTerminal(Prefab("drive"), top, Quaternion.LookRotation(-dir), Height, livery);
             var retRig = ret != null ? ret.GetComponent<LiftRig>() : null;
             var driveRig = drive != null ? drive.GetComponent<LiftRig>() : null;
+            // Each terminal's pier runs about 15 m below its 0.00 level, buried in the pad; its footing stands at grade under
+            // the pier (the model contract, owner: piers simply tall, no stacking). Models without one skip it.
+            PlaceFooting(ret, Height, livery);
+            PlaceFooting(drive, Height, livery);
 
             // Where the rope leaves each station, along the line and in elevation.
             float S(Vector3 p) => Vector3.Dot(p - bottom, dir);
@@ -336,6 +340,17 @@ namespace MountainPlanner.Presentation.Lifts
             var origin = bullwheel - rotation * centre;
             origin.y = (float)height(origin);
             return Spawn(prefab, origin, rotation, livery);
+        }
+
+        void PlaceFooting(GameObject terminal, Func<Vector3, double> height, Color livery)
+        {
+            var footing = Prefab("terminal_footing");
+            var rig = terminal != null ? terminal.GetComponent<LiftRig>() : null;
+            var top = rig != null ? rig.Socket("pier_top") : null;
+            if (footing == null || top == null) return;
+            var at = new Vector3(top.position.x, 0, top.position.z);
+            at.y = (float)height(at);
+            Spawn(footing, at, terminal.transform.rotation, livery);
         }
 
         GameObject Spawn(GameObject prefab, Vector3 position, Quaternion rotation, Color livery)
