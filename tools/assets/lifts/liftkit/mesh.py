@@ -4,6 +4,7 @@ Per face: palette class (-> UV2 swatch), snow capacity (UV1.x), livery mask (UV1
 (0 structure, 1 glass), flat or smooth shading, and per-corner UV0 (box-mapped detail-atlas coordinates).
 Vertices are stored in Blender space; faces are oriented against an explicit outward direction.
 """
+import contextlib
 import hashlib
 import struct
 
@@ -80,6 +81,19 @@ class MeshBuilder:
         self.faces = []          # tuples of vertex indices
         self.style = []          # Style per face
         self.uv0 = []            # per face: list of (u, v) per corner
+        self.tags = []           # per face: the moving part it belongs to (None: the body), see grouped()
+        self.group = None        # the tag new faces get
+
+    @contextlib.contextmanager
+    def grouped(self, tag):
+        """Faces added inside are tagged `tag`: a moving part's name, optionally with "#piece" (a pin or tube the
+        clash sweep treats on its own; liftkit/clash.py). split() later cuts the tagged faces out into parts, after
+        separate_flush has run on the whole merged mesh."""
+        prev, self.group = self.group, tag
+        try:
+            yield self
+        finally:
+            self.group = prev
 
     # -- construction -------------------------------------------------------------------------
     def vert(self, p_lift):
@@ -102,6 +116,7 @@ class MeshBuilder:
         self.faces.append(tuple(idx))
         self.style.append(style)
         self.uv0.append(uv)
+        self.tags.append(self.group)
         return len(self.faces) - 1
 
     def merge(self, other):
@@ -110,6 +125,7 @@ class MeshBuilder:
         self.faces.extend(tuple(i + off for i in f) for f in other.faces)
         self.style.extend(other.style)
         self.uv0.extend(other.uv0)
+        self.tags.extend(t if t is not None else self.group for t in other.tags)
         return self
 
     def translated(self, d_lift):
@@ -119,11 +135,13 @@ class MeshBuilder:
         m.verts = [v + d for v in m.verts]
         return m
 
-    def separate_flush(self, gap=FLUSH_GAP):
+    def separate_flush(self, gap=FLUSH_GAP, once_per_plane=False):
         """Parts are built as overlapping solids, so where two meet flush (a brace across a frame, spoke tops level
         with the rim) two faces of one slot share a plane, face the same way and overlap: they z-fight in Unity and
         render black in Cycles. Pull the smaller face of each such pair `gap` into its own part, moving its
-        corners, so the part shrinks by that much. Deterministic: faces in index order. Returns faces moved."""
+        corners, so the part shrinks by that much. Deterministic: faces in index order. Returns faces moved.
+        once_per_plane: a corner shared by two pulled faces of one plane moves `gap` once, not twice (posable assets,
+        task P3-07; the older assets keep the doubled pull so their shipped meshes stay as they are)."""
         planes = {}
         for fi, f in enumerate(self.faces):
             pts = [self.verts[i] for i in f]
@@ -134,6 +152,7 @@ class MeshBuilder:
             key = (tuple(round(c, 3) for c in n), round(n.dot(pts[0]), 3), self.style[fi].slot)
             planes.setdefault(key, []).append(fi)
         moved = set()
+        pulled = set()   # (vertex, plane): a corner shared by two pulled faces of one plane moves once, not twice
         for (nk, _, _), group in planes.items():
             if len(group) < 2:
                 continue
@@ -153,9 +172,41 @@ class MeshBuilder:
                         continue
                     small = fb if ab <= aa else fa
                     for i in set(self.faces[small]):
-                        self.verts[i] = self.verts[i] - n * gap
+                        if not once_per_plane or (i, nk) not in pulled:
+                            self.verts[i] = self.verts[i] - n * gap
+                            pulled.add((i, nk))
                     moved.add(small)
         return len(moved)
+
+    def split(self, pieces=False):
+        """(body, {tag: MeshBuilder}): the untagged faces and each tag's faces, each with its own copy of the
+        vertices it uses (a tube's ring can be shared by two parts). pieces=False folds "part#piece" into "part"."""
+        out = {}
+        for fi, f in enumerate(self.faces):
+            t = self.tags[fi]
+            if t is not None and not pieces:
+                t = t.split("#")[0] or None   # "#pin": a piece of the body
+            mb, remap = out.setdefault(t, (MeshBuilder(), {}))
+            idx = []
+            for i in f:
+                if i not in remap:
+                    remap[i] = len(mb.verts)
+                    mb.verts.append(self.verts[i].copy())
+                idx.append(remap[i])
+            mb.faces.append(tuple(idx))
+            mb.style.append(self.style[fi])
+            mb.uv0.append(self.uv0[fi])
+            mb.tags.append(self.tags[fi])
+        body = out.pop(None, (MeshBuilder(), None))[0]
+        return body, {t: mb for t, (mb, _) in out.items()}
+
+    def bake_uv(self):
+        """Fixes each face's box-mapped UV0 where it stands now (in the lift frame), so a part keeps its texture when it
+        is moved onto its pivot (decision P3-07 contract M1)."""
+        for fi, (f, s) in enumerate(zip(self.faces, self.style)):
+            if self.uv0[fi] is None:
+                self.uv0[fi] = detail_uv([frame.lift(self.verts[i]) for i in f], textures.tile_of(s))
+        return self
 
     # -- queries ------------------------------------------------------------------------------
     def tri_count(self):

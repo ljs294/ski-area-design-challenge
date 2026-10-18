@@ -12,7 +12,8 @@
   "common": {
     "ropeElevation": 3039,
     "lineGauge": 4120,
-    "ropeDiameter": 36,
+    "ropeDiameter": 44.45,
+    "_rope": "1 3/4 in haul rope (owner, P3-07 SK17); the sheave rows hang from fixed pins, so on line towers the rope sockets move with it",
     "travel": "ccw",
     "loadedRope": "right when looking uphill: v+ at the return terminal, v- at the drive terminal",
     "snowAllowance": 305,
@@ -26,7 +27,7 @@
     }
   },
   "drive": {
-    "pier": {"u": 1508, "v": 613, "top": 2700, "bottom": -1500},
+    "pier": {"u": 1508, "v": 613, "top": 2700, "bottom": -15000, "_note": "really tall (owner, P3-07): the terminal can be raised or lowered and the pier still reaches the ground; the rest is buried. The footing is its own prefab (terminal_footing)"},
     "footing": {"u": 3000, "v": 2200, "top": -1500, "bottom": -2500},
     "pierHead": {"u": 1600, "v": 1266, "bottom": 2700, "top": 2875},
     "entryBeams": {"vIn": 430, "vOut": 633, "bottom": 2875, "top": 3179, "uFrom": -543, "uTo": 2857},
@@ -70,7 +71,7 @@
       "downSpout": {"dia": 60, "from": [360, 2533, 3825], "to": [360, 3313, 3343]}
     }
   },  "return": {
-    "pedestal": {"u": 1524, "v": 622, "top": 1533, "bottom": -1500},
+    "pedestal": {"u": 1524, "v": 622, "top": 1533, "bottom": -15000, "_note": "really tall, as the drive's pier"},
     "footing": {"u": 3000, "v": 2200, "top": -1500, "bottom": -2500},
     "head": {"u": 1684, "v": 1222, "bottom": 1943, "top": 2505, "base": 1581, "skirt": 1533, "neck": 714,
              "flare": [[611, 1943], [570, 1886], [517, 1854], [452, 1822], [417, 1790], [376, 1727], [357, 1663], [357, 1581]]},
@@ -147,6 +148,7 @@
     "seats": 4, "axisV": -32,
     "tube": {"hanger": 80, "frame": 60, "edge": 52, "bar": 27, "sleeve": 38, "rod": 16, "handle": 40},
     "hanger": [[238, -20], [257, -71], [305, -198], [337, -357], [364, -515], [384, -674], [389, -753], [375, -841], [337, -928], [273, -1000], [202, -1036], [130, -1055], [60, -1063]],
+    "knuckle": {"_note": "the pin knuckle where the hanger hinges on the grip (P3-07): a boss across the rope round the hanger's top ring, larger than the tube so the joint stays closed at +-30 degrees", "dia": 92, "halfLength": 46, "sides": 12, "pinDia": 36, "pinPast": 10},
     "clamp": {"halfWidth": 126, "u": 98, "wFrom": -1024, "wTo": -1284},
     "topBar": {"w": -1160, "halfLength": 781},
     "web": {"thick": 10, "top": -1190, "lower": [[0, -1254], [340, -1254], [435, -1248], [486, -1236], [549, -1217], [593, -1192]]},

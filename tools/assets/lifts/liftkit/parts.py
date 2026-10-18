@@ -59,8 +59,9 @@ def sheave_train(mb, asset, name, u_c, v_rope, rope_w, rope_r, dia, width, train
     "support": below it (rope on top). Rockers and hanger sit inboard of the sheaves, so grips pass outboard.
     plate: instead of that hanger, a plate bolted to a structure face, {"v": (from, to) unsigned, "top": w,
     "width": along u, "pin": dia} in metres, with the beam's pin through it.
-    Sheaves are moving parts on their axles at LOD0-1 (sheave_<name><first>...), merged into the body at LOD2;
-    LOD3 keeps a box for the whole train. train: n, pitch, rocker, beam (metres)."""
+    Posable (contract P3-07 M2): beam_<name> on the beam's pin (the plate's pin) carries rocker_<name>1, 2 on their
+    pins, each carrying its two sheaves (sheave_<name><first>...). Sheaves are their own parts at LOD0 and ride in
+    their rocker at LOD1; at LOD2-3 the whole train is one part under beam_<name>. train: n, pitch, rocker, beam (m)."""
     r = dia / 2
     up = 1.0 if mode == "hold" else -1.0          # from the axles toward the rockers and beam
     wz = rope_w + up * (rope_r + r)               # axle height
@@ -69,38 +70,49 @@ def sheave_train(mb, asset, name, u_c, v_rope, rope_w, rope_r, dia, width, train
     n, pitch = train["n"], train["pitch"]
     offs = [(k - (n - 1) / 2) * pitch for k in range(n)]
     w_rock, w_beam = wz + up * train["rocker"], wz + up * train["beam"]
+    top = f"beam_{name}"
+    asset.pivots[top] = {"pos": (u_c, v_rope, w_beam), "axis": (0.0, 1.0, 0.0)}
+    for i in range(0, n - 1, 2):
+        rk = f"rocker_{name}{i // 2 + 1}"
+        asset.pivots[rk] = {"pos": (u_c + (offs[i] + offs[i + 1]) / 2, v_rope, w_rock), "axis": (0.0, 1.0, 0.0), "parent": top}
+        for k in (i, i + 1):
+            asset.pivots[f"sheave_{name}{first + k}"] = {"pos": (u_c + offs[k], v_rope, wz), "axis": (0.0, 1.0, 0.0), "parent": rk}
+
+    def rocker_of(k):
+        return f"rocker_{name}{k // 2 + 1}" if lod <= 1 else top
     if lod >= 3:
         va, vb = sorted((pv, v_rope - inboard * width / 2))
-        prims.box(mb, (u_c + offs[0] - r, va, min(wz - r, w_beam)), (u_c + offs[-1] + r, vb, max(wz + r, w_beam)), st["steel"])
+        with mb.grouped(top):
+            prims.box(mb, (u_c + offs[0] - r, va, min(wz - r, w_beam)), (u_c + offs[-1] + r, vb, max(wz + r, w_beam)), st["steel"])
         return
     for k, du in enumerate(offs):
         centre = Vector((u_c + du, v_rope, wz))
-        target = MeshBuilder() if lod <= 1 else mb
-        sheave(target, centre, V, dia, width, lod, row_face(k, n, st), st["rubber"])   # red ends, galvanised middle
-        if lod <= 1:
-            key = f"sheave_{name}{first + k}"
-            asset.parts[key] = target
-            asset.pivots[key] = {"pos": tuple(centre), "axis": (0.0, 1.0, 0.0)}
-            if lod == 0:   # axle boss from the rocker plate
+        with mb.grouped(f"sheave_{name}{first + k}" if lod == 0 else rocker_of(k)):
+            sheave(mb, centre, V, dia, width, lod, row_face(k, n, st), st["rubber"])   # red ends, galvanised middle
+        if lod == 0:   # axle boss from the rocker plate
+            with mb.grouped(rocker_of(k) + "#axle"):
                 prims.cylinder(mb, (centre.x, pv, wz), (centre.x, v_rope + inboard * width / 2, wz), 0.035, 8, st["rod"])
     plate_t, bar = 0.02, 0.06
     v0, v1 = sorted((pv - plate_t / 2, pv + plate_t / 2))
     pins = []
     for i in range(0, n - 1, 2):   # rockers: a slim bar through each pair's axles, a lug up (or down) to the rocker pin
         a_u, b_u = u_c + offs[i] - 0.07, u_c + offs[i + 1] + 0.07
-        prims.box(mb, (a_u, v0, wz - bar), (b_u, v1, wz + bar), st["steel"])
         rc = u_c + (offs[i] + offs[i + 1]) / 2
-        if lod <= 1:
-            lo_, hi_ = sorted((wz + up * bar, w_rock + up * 0.04))
-            prims.box(mb, (rc - 0.06, v0, lo_), (rc + 0.06, v1, hi_), st["steel"])
-        pins.append((rc, w_rock))
+        with mb.grouped(rocker_of(i)):
+            prims.box(mb, (a_u, v0, wz - bar), (b_u, v1, wz + bar), st["steel"])
+            if lod <= 1:
+                lo_, hi_ = sorted((wz + up * bar, w_rock + up * 0.04))
+                prims.box(mb, (rc - 0.06, v0, lo_), (rc + 0.06, v1, hi_), st["steel"])
+        pins.append((rc, w_rock, rocker_of(i)))
     half = pitch * (n // 2) / 2 + 0.1   # main beam between the rocker pins, against the rockers
     b0, b1 = sorted((pv + inboard * plate_t / 2, pv + inboard * (plate_t / 2 + 0.1)))
     beam_c = (w_rock + w_beam) / 2
-    prims.box(mb, (u_c - half, b0, beam_c - 0.08), (u_c + half, b1, beam_c + 0.08), st["steel"])
+    with mb.grouped(top):
+        prims.box(mb, (u_c - half, b0, beam_c - 0.08), (u_c + half, b1, beam_c + 0.08), st["steel"])
     if lod == 0:   # rocker pins through the beam and rockers
-        for pu, pw in pins:
-            prims.cylinder(mb, (pu, min(b0, v0) - 0.01, pw), (pu, max(b1, v1) + 0.01, pw), 0.03, 8, st["rod"])
+        for pu, pw, rk in pins:
+            with mb.grouped(rk + "#pin"):
+                prims.cylinder(mb, (pu, min(b0, v0) - 0.01, pw), (pu, max(b1, v1) + 0.01, pw), 0.03, 8, st["rod"])
     if plate:   # plate on the structure face, down past the beam, with the beam's pin through both
         side = -inboard
         p0, p1 = sorted((side * plate["v"][0], side * plate["v"][1]))
@@ -108,7 +120,8 @@ def sheave_train(mb, asset, name, u_c, v_rope, rope_w, rope_r, dia, width, train
         prims.box(mb, (u_c - hw, p0, w_beam - 0.05), (u_c + hw, p1, plate["top"]), st["steel"])
         if lod <= 1:
             q0, q1 = min(b0, p0), max(b1, p1)
-            prims.cylinder(mb, (u_c, q0 - 0.01, w_beam), (u_c, q1 + 0.01, w_beam), plate["pin"] / 2, sides(lod, 10, 6), st["rod"])
+            with mb.grouped(top + "#pin"):
+                prims.cylinder(mb, (u_c, q0 - 0.01, w_beam), (u_c, q1 + 0.01, w_beam), plate["pin"] / 2, sides(lod, 10, 6), st["rod"])
         return
     av, aw = attach   # hanger from the beam's centre pin to the structure
     h0, h1 = min(b0, av), max(b1, av)
@@ -198,11 +211,16 @@ def hold_rope(a, count, radius, u_first, rope_w, steps=16, mode="hold"):
             for k in range(steps + 1)], theta
 
 
-def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, parts_lod, outer_yoke, level="apex"):
-    """One row of a line assembly: sheaves (moving parts up to parts_lod), rockers (twin plates through both axles,
-    pinned at their middle) and train yokes (twin bridge plates, legs down to the rocker pins; only the inboard one
-    when outer_yoke is False). Returns what the frame above it needs: axles, rocker pins, train pins with their
-    weights, and the (along, toward-structure) frame of the row."""
+def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, outer_yoke, level="apex", top=None,
+         yokes=None):
+    """One row of a line assembly: sheaves, rockers (twin plates through both axles, pinned at their middle) and train
+    yokes (twin bridge plates, legs down to the rocker pins; only the inboard one when outer_yoke is False). Returns
+    what the frame above it needs: axles, rocker pins, train pins with their weights, and the (along,
+    toward-structure) frame of the row.
+    Posable (contract P3-07 M2): faces are tagged with their pivot (MeshBuilder.grouped) and the pivots recorded on
+    the asset: sheave_<name><first+k> on its axle (its own part at LOD0, riding in its rocker at LOD1),
+    rocker_<name><i> on its pin, the train pivots `yokes` (one name per group of two rockers or a lone rocker) on their
+    pins, under `top`; at LOD2-3 the whole row is one part under `top`."""
     s = a["sheave"]
     r = s["dia"] / 2
     sg = -1.0 if mode == "support" else 1.0            # from the rope toward the axles and on to the structure
@@ -224,29 +242,51 @@ def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, f
     # the far LODs pin at the axles' centroid: the load centre of the rockers and trains up close, so a curved row
     # hangs at the same height at every LOD (the chord between the end axles runs well off a tight arc)
     centroid = sum(axles, Vector()) / len(axles)
+
+    # the pivots, the same at every LOD: rockers on the middle of their two axles, trains on their yokes' pins
+    yk = a["yoke"]
+    rockers = [f"rocker_{name}{i // 2 + 1}" for i in range(0, count, 2)]
+    groups = [list(range(j, min(j + 2, len(rockers)))) for j in range(0, len(rockers), 2)]
+    yokes = yokes or [f"yoke_{name}{j + 1}" for j in range(len(groups))]
+    for gi, grp in enumerate(groups):
+        if len(grp) == 2:
+            q0, q1 = ((axles[2 * i] + axles[2 * i + 1]) / 2 for i in grp)
+            d, nrm = local(q0, q1)
+            mid = (q0 + q1) / 2
+        else:
+            mid = (axles[2 * grp[0]] + axles[2 * grp[0] + 1]) / 2
+            d, nrm = local(axles[-2], axles[-1])
+        tp = mid + nrm * yk["pinOffset"]
+        if yokes[gi] != top:
+            asset.pivots[yokes[gi]] = {"pos": (tp.x, v_rope, tp.z), "axis": (0.0, 1.0, 0.0), "parent": top}
+        for i in grp:
+            pin = (axles[2 * i] + axles[2 * i + 1]) / 2
+            asset.pivots[rockers[i]] = {"pos": (pin.x, v_rope, pin.z), "axis": (0.0, 1.0, 0.0), "parent": yokes[gi]}
+            for k in (2 * i, 2 * i + 1):
+                asset.pivots[f"sheave_{name}{first + k}"] = {"pos": (axles[k].x, v_rope, axles[k].z),
+                                                            "axis": (0.0, 1.0, 0.0), "parent": rockers[i]}
+
     if lod >= 3:   # one block for the row: sheaves, rockers and yokes
         va, vb = span(X["rockerOut"][0], X["yokeIn"][1])
         d, nrm = local(axles[0], axles[-1])
         mid = (axles[0] + axles[-1]) / 2 + nrm * 0.05
         length = (axles[-1] - axles[0]).length + 2 * r
-        prims.obox(mb, (mid.x, (va + vb) / 2, mid.z), (d, V, nrm), (length / 2, (vb - va) / 2, r + 0.05), st["steel"])
+        with mb.grouped(top):
+            prims.obox(mb, (mid.x, (va + vb) / 2, mid.z), (d, V, nrm), (length / 2, (vb - va) / 2, r + 0.05), st["steel"])
         pins = [(centroid + nrm * a["yoke"]["pinOffset"], count)]
         return {"axles": axles, "rockers": [axles[0], axles[-1]], "trains": pins, "local": local, "span": span, "sg": sg}
     n_side = sides(lod, *a["sides"])
     for k, c in enumerate(axles):
         centre = Vector((c.x, v_rope, c.z))
-        target = MeshBuilder() if lod <= parts_lod else mb
-        line_sheave(target, centre, V, s, lod, st, n_side, row_face(k, count, st))
-        if lod <= parts_lod:
-            key = f"sheave_{name}{first + k}"
-            asset.parts[key] = target
-            asset.pivots[key] = {"pos": tuple(centre), "axis": (0.0, 1.0, 0.0)}
+        with mb.grouped(f"sheave_{name}{first + k}" if lod == 0 else rockers[k // 2] if lod == 1 else top):
+            line_sheave(mb, centre, V, s, lod, st, n_side, row_face(k, count, st))
     if lod >= 2:   # far out: one bar for the rockers and yokes
         va, vb = span(X["rockerOut"][0], X["yokeIn"][1])
         d, nrm = local(axles[0], axles[-1])
         mid = (axles[0] + axles[-1]) / 2 + nrm * 0.06
         length = (axles[-1] - axles[0]).length + 0.2
-        prims.obox(mb, (mid.x, (va + vb) / 2, mid.z), (d, V, nrm), (length / 2, (vb - va) / 2, 0.08), st["steel"])
+        with mb.grouped(top):
+            prims.obox(mb, (mid.x, (va + vb) / 2, mid.z), (d, V, nrm), (length / 2, (vb - va) / 2, 0.08), st["steel"])
         pins = [(centroid + nrm * a["yoke"]["pinOffset"], count)]
         return {"axles": axles, "rockers": [], "trains": pins, "local": local, "span": span, "sg": sg}
 
@@ -257,19 +297,22 @@ def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, f
         d, nrm = local(p0, p1)
         mid = (p0 + p1) / 2
         rocker_pins.append(mid)
-        for xr in (X["rockerOut"], X["rockerIn"]):
-            va, vb = span(*xr)
-            prims.obox(mb, (mid.x, (va + vb) / 2, mid.z), (d, V, nrm), (rk["length"] / 2, (vb - va) / 2, rk["height"] / 2), st["steel"])
+        tag = rockers[i // 2]
+        with mb.grouped(tag):
+            for xr in (X["rockerOut"], X["rockerIn"]):
+                va, vb = span(*xr)
+                prims.obox(mb, (mid.x, (va + vb) / 2, mid.z), (d, V, nrm), (rk["length"] / 2, (vb - va) / 2, rk["height"] / 2), st["steel"])
         if lod == 0:   # axle ends and the rocker pin
-            for p in (p0, p1):
-                a0, a1 = span(X["rockerOut"][0] - 0.012, X["rockerIn"][1] + 0.012)
-                prims.cylinder(mb, (p.x, a0, p.z), (p.x, a1, p.z), a["axle"] / 2, 8, st["rod"])
-            a0, a1 = span((X["yokeOut"][0] if outer_yoke else X["rockerOut"][0]) - 0.012, X["yokeIn"][1] + 0.012)
-            prims.cylinder(mb, (mid.x, a0, mid.z), (mid.x, a1, mid.z), a["pin"] / 2, 8, st["rod"])
+            with mb.grouped(tag + "#axle"):
+                for p in (p0, p1):
+                    a0, a1 = span(X["rockerOut"][0] - 0.012, X["rockerIn"][1] + 0.012)
+                    prims.cylinder(mb, (p.x, a0, p.z), (p.x, a1, p.z), a["axle"] / 2, 8, st["rod"])
+            with mb.grouped(tag + "#pin"):
+                a0, a1 = span((X["yokeOut"][0] if outer_yoke else X["rockerOut"][0]) - 0.012, X["yokeIn"][1] + 0.012)
+                prims.cylinder(mb, (mid.x, a0, mid.z), (mid.x, a1, mid.z), a["pin"] / 2, 8, st["rod"])
 
-    yk = a["yoke"]
     trains = []
-    for grp in [rocker_pins[i:i + 2] for i in range(0, len(rocker_pins), 2)]:
+    for gi, grp in enumerate([rocker_pins[i:i + 2] for i in range(0, len(rocker_pins), 2)]):
         lw = yk["leg"] / 2
         if len(grp) == 2:   # bridge between two rocker pins
             q0, q1 = grp
@@ -285,28 +328,38 @@ def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, f
             d, nrm = local(axles[-2], axles[-1])
             outline = [(-lw, yk["bar"][1]), (-lw, -yk["legPast"]), (lw, -yk["legPast"]), (lw, yk["bar"][1])]
             weight = 2
-        for xr in ((X["yokeOut"], X["yokeIn"]) if outer_yoke else (X["yokeIn"],)):
-            va, vb = span(*xr)
-            prims.prism(mb, outline, (mid.x, va, mid.z), d, nrm, V, vb - va, st["steel"])
+        with mb.grouped(yokes[gi]):
+            for xr in ((X["yokeOut"], X["yokeIn"]) if outer_yoke else (X["yokeIn"],)):
+                va, vb = span(*xr)
+                prims.prism(mb, outline, (mid.x, va, mid.z), d, nrm, V, vb - va, st["steel"])
         trains.append((mid + nrm * yk["pinOffset"], weight))
     return {"axles": axles, "rockers": rocker_pins, "trains": trains, "local": local, "span": span, "sg": sg}
 
 
-def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, radius, first=1, parts_lod=0, level="apex"):
+def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, radius, first=1, level="apex"):
     """A line-tower sheave assembly on one rope, after the owner's reference model (spec "tower.assembly", metres):
     a row of sheaves on an arc of `radius` (support: the rope rides on them and the chain hangs below; hold: the
     mirror image, pressing down on the rope), rockers and train yokes (see _row), a cross tube from each yoke's
     middle to the main beam (163 mm square, inboard of the sheaves) that carries two trains or a train and a lone
     rocker and is pinned at the load centre; a single train takes the pin in a short block. The first and last
-    sheave are red, the rest galvanised. level: see arc_axles. Returns (u, w) of the main pin."""
+    sheave are red, the rest galvanised. level: see arc_axles. Returns (u, w) of the main pin.
+    Posable (contract P3-07 M2): eq_<name> on the main pin carries yoke_<name>1, 2 (or yoke_<name>1 and the lone
+    rocker's link_<name>1); a single train's yoke_<name>1 is itself the top pin (no equaliser)."""
     X = a["x"]
-    row = _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, parts_lod, True, level)
+    n_rockers = count // 2
+    if n_rockers <= 2:
+        top, yokes = f"yoke_{name}1", [f"yoke_{name}1"]
+    else:
+        top = f"eq_{name}"
+        yokes = [f"yoke_{name}{j // 2 + 1}" if j + 1 < n_rockers else f"link_{name}1" for j in range(0, n_rockers, 2)]
+    row = _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, True, level, top, yokes)
     span, local = row["span"], row["local"]
     carry = row["trains"]
     if lod <= 1:   # cross tubes from the yokes to the beam
         a0, a1 = span(X["tube"][0], X["tube"][1] + 0.01)
-        for tp, _ in carry:
-            prims.cylinder(mb, (tp.x, a0, tp.z), (tp.x, a1, tp.z), a["tube"] / 2, sides(lod, 10, 6), st["steel"])
+        for (tp, _), yoke in zip(carry, yokes):
+            with mb.grouped(yoke + "#tube"):
+                prims.cylinder(mb, (tp.x, a0, tp.z), (tp.x, a1, tp.z), a["tube"] / 2, sides(lod, 10, 6), st["steel"])
     bm = a["beam"]
     va, vb = span(*X["beam"])
     if len(carry) >= 2:
@@ -319,22 +372,31 @@ def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, 
         axles = row["axles"]
         d, nrm = local(axles[0], axles[-1])
         length, centre = bm["block"], pin
-    prims.obox(mb, (centre.x, (va + vb) / 2, centre.z), (d, V, nrm), (length / 2, (vb - va) / 2, bm["size"] / 2), st["steel"])
+    asset.pivots[top] = {"pos": (pin.x, v_rope, pin.z), "axis": (0.0, 1.0, 0.0)}
+    with mb.grouped(top):
+        prims.obox(mb, (centre.x, (va + vb) / 2, centre.z), (d, V, nrm), (length / 2, (vb - va) / 2, bm["size"] / 2), st["steel"])
     return pin.x, pin.z
 
 
-def combo_assembly(mb, asset, name, v_rope, rope_w, a, count, lod, st, radius, parts_lod=0):
+def combo_assembly(mb, asset, name, v_rope, rope_w, a, count, lod, st, radius):
     """A combination assembly: a support row under the rope and a hold-down row over it, each hold-down sheave
     directly above a support sheave. The frame is open on the outboard side (grips pass) and closes on the inboard
     side: each row's train frame is a triangular plate from its rocker pins to an apex pointing at the rope, and
-    the two apexes meet a central block at rope level, which takes the pin. Returns (u, w) of the pin."""
+    the two apexes meet a central block at rope level, which takes the pin. Returns (u, w) of the pin.
+    Posable (contract P3-07 M2): block_<name> (the central block, rigid with both triangular frames) carries
+    yoke_sup_<name> and yoke_hold_<name> (each row's yoke on its pin), their rockers rocker_<name>s1, 2 and
+    rocker_<name>h1, 2, and the sheaves sheave_<name>s1..4 and sheave_<name>h1..4."""
     X = a["x"]
     fr = a["combo"]
-    rows = [_row(mb, asset, name + tag, 0.0, v_rope, rope_w, a, count, mode, radius, lod, st, first, parts_lod, False)
-            for tag, mode, first in (("s", "support", 1), ("h", "hold", 1))]
+    top = f"block_{name}"
+    asset.pivots[top] = {"pos": (0.0, v_rope, rope_w), "axis": (0.0, 1.0, 0.0)}
+    rows = [_row(mb, asset, name + tag, 0.0, v_rope, rope_w, a, count, mode, radius, lod, st, first, False, "apex", top,
+                 [f"yoke_{yk}_{name}"])
+            for tag, mode, first, yk in (("s", "support", 1, "sup"), ("h", "hold", 1, "hold"))]
     if lod >= 2:   # one block joining the rows
         va, vb = rows[0]["span"](X["yokeIn"][0], X["beam"][1])
-        prims.box(mb, (-0.25, va, rope_w - 0.3), (0.25, vb, rope_w + 0.3), st["steel"])
+        with mb.grouped(top):
+            prims.box(mb, (-0.25, va, rope_w - 0.3), (0.25, vb, rope_w + 0.3), st["steel"])
         return 0.0, rope_w
     for row in rows:   # triangular inboard plate per row: along the rocker pins, apex toward the rope
         sg = row["sg"]
@@ -346,14 +408,17 @@ def combo_assembly(mb, asset, name, v_rope, rope_w, a, count, lod, st, radius, p
         tri = [(-half, a["yoke"]["bar"][1]), (half, a["yoke"]["bar"][1]), (half, -a["yoke"]["legPast"]),
                (fr["apexHalf"], apex_n), (-fr["apexHalf"], apex_n), (-half, -a["yoke"]["legPast"])]
         va, vb = row["span"](*X["yokeIn"])
-        prims.prism(mb, tri, (mid.x, va, mid.z), d, nrm, V, vb - va, st["steel"])
+        with mb.grouped(top):
+            prims.prism(mb, tri, (mid.x, va, mid.z), d, nrm, V, vb - va, st["steel"])
         if lod <= 1:   # cross tube from the apex to the central block
             a0, a1 = row["span"](X["tube"][0], X["tube"][1] + 0.01)
             w_t = rope_w + sg * (fr["apex"] + 0.05)
-            prims.cylinder(mb, (0.0, a0, w_t), (0.0, a1, w_t), a["tube"] / 2, sides(lod, 10, 6), st["steel"])
+            with mb.grouped(top + "#tube"):
+                prims.cylinder(mb, (0.0, a0, w_t), (0.0, a1, w_t), a["tube"] / 2, sides(lod, 10, 6), st["steel"])
     va, vb = rows[0]["span"](*X["beam"])
     h = fr["blockHalfW"]
-    prims.box(mb, (-fr["blockHalfU"], va, rope_w - h), (fr["blockHalfU"], vb, rope_w + h), st["steel"])
+    with mb.grouped(top):
+        prims.box(mb, (-fr["blockHalfU"], va, rope_w - h), (fr["blockHalfU"], vb, rope_w + h), st["steel"])
     return 0.0, rope_w
 
 
@@ -684,8 +749,9 @@ def fixed_grip(mb, lod, style, dark=None, metal=None, g=None, hanger=None):
     # from its underside into the hanger
     prims.lathe(mb, (0.0, 0.0, aw), V, [(r * k, v * k) for r, v in hs["profile"]], hs["sides"], style, closed=False,
                 phase=math.pi / hs["sides"])
-    if hanger is not None:
-        _socket(mb, g, hanger)
+    if hanger is not None:   # its own piece for the clash sweep when the grip is a moving part (liftkit/clash.py)
+        with mb.grouped(mb.group + "#socket" if mb.group else None):
+            _socket(mb, g, hanger)
     # the dark collar ring, the spring housing, the nut and the bolt's dark end
     along(co["v"][0], co["v"][1], co["dia"] / 2, 8, dark, caps=(False, False))
     s0, s1 = sp["v"]

@@ -34,14 +34,19 @@ def frame_to(n):
     return b1, b2, n
 
 
-def bake(objects, rays=32, reach=1.0, ground=True, strength=0.8, floor=0.25):
-    """Bakes AO for every mesh object in `objects` (one LOD of one asset, world transforms applied)."""
+def bake(objects, rays=32, reach=1.0, ground=True, strength=0.8, floor=0.25, ghosts=()):
+    """Bakes AO for every mesh object in `objects` (one LOD of one asset, world transforms applied). ghosts: heights
+    (m) at which a cast-only copy of the whole LOD also occludes, as for a mast section stacked between two others;
+    then every ray is also cast mirrored top to bottom, so a corner at the section's foot and its twin at the top
+    sample mirrored directions and agree (the spiral itself isn't symmetric)."""
+    mirror = bool(ghosts)
     verts, polys = [], []
-    for o in objects:
-        m = o.matrix_world
-        base = len(verts)
-        verts.extend(m @ v.co for v in o.data.vertices)
-        polys.extend([base + i for i in p.vertices] for p in o.data.polygons)
+    for dz in (0.0, *ghosts):
+        for o in objects:
+            m = o.matrix_world
+            base = len(verts)
+            verts.extend(m @ v.co + Vector((0.0, 0.0, dz)) for v in o.data.vertices)
+            polys.extend([base + i for i in p.vertices] for p in o.data.polygons)
     if ground:
         s = 60.0
         base = len(verts)
@@ -77,12 +82,18 @@ def bake(objects, rays=32, reach=1.0, ground=True, strength=0.8, floor=0.25):
                 b1, b2, nn = frame_to(n)
                 origin = p + nn * 0.01
                 blocked = 0.0
+                cast = []
                 for d in dirs:
                     w = b1 * d.x + b2 * d.y + nn * d.z
+                    cast.append(w)
+                    if mirror:
+                        wm = Vector((w.x, w.y, -w.z))
+                        cast.append(wm if wm.dot(nn) > 1e-6 else w)
+                for w in cast:
                     hit = tree.ray_cast(origin, w, reach)
                     if hit[0] is not None:
                         blocked += 1.0 - (hit[3] / reach) * 0.5     # nearer hits occlude more
-                ao = max(floor, 1.0 - strength * blocked / len(dirs))
+                ao = max(floor, 1.0 - strength * blocked / len(cast))
                 cache[key] = ao
             i = loop.index * 4
             values[i] = values[i + 1] = values[i + 2] = ao
@@ -90,3 +101,30 @@ def bake(objects, rays=32, reach=1.0, ground=True, strength=0.8, floor=0.25):
         col.data.foreach_set("color", values)
         stats.extend(values[0::4])
     return (min(stats), sum(stats) / len(stats)) if stats else (1.0, 1.0)
+
+
+def tiling_error(objects, height, eps=1e-4):
+    """The largest AO difference between a corner at a stacking section's foot (w = 0) and the matching corner at its
+    top (w = height): same plan position and normal. 0 when the section tiles without a band (contract M5)."""
+    # (corners on faces at the joint, like a stringer's end caps, face up or down and have no twin: not compared)
+    feet, tops = {}, {}
+    for o in objects:
+        mesh = o.data
+        mw = o.matrix_world
+        col = mesh.color_attributes.get("AO")
+        values = [0.0] * (4 * len(mesh.loops))
+        col.data.foreach_get("color", values)
+        for loop in mesh.loops:
+            p = mw @ mesh.vertices[loop.vertex_index].co
+            n = mesh.corner_normals[loop.index].vector
+            key = (round(p.x, 4), round(p.y, 4), round(n.x, 3), round(n.y, 3), round(n.z, 3))
+            if abs(p.z) < eps:
+                feet.setdefault(key, []).append(values[loop.index * 4])
+            elif abs(p.z - height) < eps:
+                tops.setdefault(key, []).append(values[loop.index * 4])
+    if not feet.keys() & tops.keys():
+        raise ValueError("no corner at the section's foot has a twin at its top: nothing to compare")
+    worst = 0.0
+    for key in feet.keys() & tops.keys():
+        worst = max(worst, abs(sum(feet[key]) / len(feet[key]) - sum(tops[key]) / len(tops[key])))
+    return worst

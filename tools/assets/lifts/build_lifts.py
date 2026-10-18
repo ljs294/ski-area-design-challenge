@@ -21,9 +21,10 @@ import bpy
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "assets"))
-from liftkit import ao, export, frame, materials, palette, textures  # noqa: E402
+from liftkit import ao, clash, export, frame, materials, palette, textures  # noqa: E402
 
 MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "chair", "sle_ground_gun": "sle_ground_gun",
+           "terminal_footing": "terminal_footing",
            "monta_drive": "monta_drive", "monta_return": "monta_return",
            # name -> (module, variant): the stick gun's lance in feet of pipe
            "sle_stick_gun_10": ("sle_stick_gun", 10), "sle_stick_gun_20": ("sle_stick_gun", 20),
@@ -38,7 +39,7 @@ TOWER.update({f"tower_base_l{d:03d}": f"base_l{d:03d}" for d in range(25, 151, 2
 SLE = ("sle_stick_gun_10", "sle_stick_gun_20", "sle_stick_gun_30", "sle_ground_gun")
 MONTA = ("monta_drive", "monta_return")
 CHAIRWORKS = ("chairworks_chair_detach", "chairworks_chair_fixed")
-ALL = "drive,return,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA) + "," + ",".join(CHAIRWORKS)
+ALL = "drive,return,terminal_footing,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA) + "," + ",".join(CHAIRWORKS)
 
 
 def clear_scene():
@@ -50,7 +51,16 @@ def clear_scene():
         bpy.data.meshes.remove(m)
 
 
-def check_asset(kind, assets, report, budgets, spec):
+def ao_options(kind, assets):
+    """(ground plane?, stacking section height or None) for an asset's AO bake. The ground plane only goes under what
+    stands on it at its own 0.00 (contract M5, finding #9): heads sit on a mast, Sessellift terminals on a pier of
+    any height; a mast section is baked between its neighbours (a cast-only ghost section above and one below, so
+    both ends get the same light)."""
+    ground = kind not in ("tower_head", "tower_mast", "chair", "terminal_footing")         and not (kind == "terminal" and "pier_top" in assets[0].sockets)
+    return ground, (assets[0].sockets["top"][2] if kind == "tower_mast" else None)
+
+
+def check_asset(kind, assets, report, budgets, spec, split=None):
     problems = []
     caps = budgets[kind]["lods"]
     if len(assets) != len(caps):
@@ -63,10 +73,14 @@ def check_asset(kind, assets, report, budgets, spec):
         if b >= a:
             problems.append(f"LOD totals must decrease: {totals}")
             break
-    for lod, a in enumerate(assets):
-        err = export.pivot_centering_error(a)
-        if err > 0.001:
-            problems.append(f"LOD{lod}: a moving part is {err * 1000:.1f} mm off its axle")
+    err = export.pivot_centering_error(assets[0], split)
+    if err > 0.001:
+        problems.append(f"a wheel is {err * 1000:.1f} mm off its axle")
+    for lod, (_, parts) in enumerate(split):
+        for name in parts:
+            parent = assets[0].pivots[name].get("parent")
+            if parent and parent not in assets[0].pivots:
+                problems.append(f"LOD{lod}: {name}'s parent {parent} has no pivot")
     if kind == "terminal":
         c = spec["common"]
         line_v = assets[0].sockets.get("line", (0, 0, 0))[1]
@@ -141,24 +155,45 @@ def main():
         coll = bpy.data.collections.new(aid)
         bpy.context.scene.collection.children.link(coll)
         mats = [chair_mat] if kind == "chair" else [structure, glass]
-        objs, rep = export.make_objects(assets, mats, coll)
+        objs, rep, split = export.make_objects(assets, mats, coll)
+        sweep = clash.sweep(assets[0]) if assets[0].pivots else {}
+        tiling = None
         if opts.get("ao", "on") != "off":
             t_ao = time.time()
-            ao_stats = [ao.bake([o for o in objs if o.type == "MESH" and o.name.endswith(f"_LOD{lod}")],
-                                rays=32 if lod == 0 else 16, ground=kind != "chair") for lod in range(len(assets))]
+            ground, section = ao_options(kind, assets)
+            # moving parts hang under their pivots' empties: update the scene first, or their world matrices are still
+            # the identity and they get baked where their pivots' origins are (as the shipped sheaves were, before P3-07)
+            bpy.context.view_layer.update()
+            ao_stats = []
+            for lod in range(len(assets)):
+                lod_objs = [o for o in objs if o.type == "MESH" and o.name.endswith(f"_LOD{lod}")]
+                ao_stats.append(ao.bake(lod_objs, rays=32 if lod == 0 else 16, ground=ground,
+                                        ghosts=(-section, section) if section else ()))
+                if section:
+                    worst = ao.tiling_error(lod_objs, section)
+                    tiling = max(tiling or 0.0, worst)
             print(f"{aid}: ambient occlusion baked in {time.time() - t_ao:.1f} s (min/mean per LOD: "
                   + ", ".join(f"{lo:.2f}/{mean:.2f}" for lo, mean in ao_stats) + ")", flush=True)
         path = os.path.join(out_dir, f"{aid}.fbx")
         export.export_fbx(objs, path)
         own = spec if name in TOWER else spec_for(mod)
-        problems = check_asset(kind, assets, rep, budgets, own)
+        problems = check_asset(kind, assets, rep, budgets, own, split)
+        if tiling is not None and tiling > 0.01:
+            problems.append(f"mast section AO differs by {tiling:.3f} between its top and bottom (> 0.01)")
         a0 = assets[0]
         result["assets"][aid] = {
             "kind": kind,
             "fbx": os.path.basename(path),
             "lods": rep["lods"],
-            "pivots": {k: {"pos": [round(x, 4) for x in frame.unity(v["pos"])], "axis": list(frame.unity(v["axis"]))}
-                       for k, v in a0.pivots.items()},
+            # parents before children; range in degrees for Quaternion.AngleAxis(angle, axis) from the rest pose
+            "pivots": {k: {"pos": [round(x, 4) for x in frame.unity(a0.pivots[k]["pos"])],
+                           "axis": list(frame.unity(a0.pivots[k]["axis"])),
+                           "parent": a0.pivots[k].get("parent"),
+                           "hinge": export.hinged(a0, split, k),
+                           "range": sweep[k]["range"], "rangeBy": sweep[k]["by"]}
+                       for k in export.pivot_order(a0.pivots)},
+            "socketParents": dict(a0.socket_parents),
+            "aoTiling": tiling,
             "sockets": {k: [round(x, 4) for x in frame.unity(p)] for k, p in a0.sockets.items()},
             "bounds": [[round(x, 3) for x in frame.unity(b)] for b in a0.body.bounds_lift()],
             "dims": a0.dims,
