@@ -695,7 +695,7 @@ def _socket(mb, g, hanger, steps=3):
         prev = cur
 
 
-def fixed_grip(mb, lod, style, dark=None, metal=None, g=None, hanger=None):
+def fixed_grip(mb, lod, style, dark=None, metal=None, g=None, hanger=None, socket_group=None):
     """The fixed grip on the rope at the chair frame's origin (fixed_grip.json, mm), after photographs of the grip
     in service: a chamfered jaw block on the rope with black jaw blades over the top half of the rope both ways (just
     wider than it, their tops flaring up toward the block); out across the rope one cast arm turned round the stack's
@@ -703,7 +703,8 @@ def fixed_grip(mb, lod, style, dark=None, metal=None, g=None, hanger=None):
     the nut and the bolt's dark end. Up close the hanger flows out of the housing's underside through a socket joined
     to the hanger's own tube (hanger: from hanger_joint; the chair builds the hanger first, from hanger_from_socket).
     LOD1: the jaws as one block, the stack as one bar. style: the castings (the hanger's silver); dark: the jaw
-    blades, the collar and the bolt's end; metal: the nut."""
+    blades, the collar and the bolt's end; metal: the nut. socket_group: the part the socket rides with when the
+    hanger is a moving part (the Sessellift chair's, task P3-07: it turns inside the housing about the stack axis)."""
     g = g or fixed_grip_spec()
     dark = dark or style
     metal = metal or style
@@ -749,8 +750,8 @@ def fixed_grip(mb, lod, style, dark=None, metal=None, g=None, hanger=None):
     # from its underside into the hanger
     prims.lathe(mb, (0.0, 0.0, aw), V, [(r * k, v * k) for r, v in hs["profile"]], hs["sides"], style, closed=False,
                 phase=math.pi / hs["sides"])
-    if hanger is not None:   # its own piece for the clash sweep when the grip is a moving part (liftkit/clash.py)
-        with mb.grouped(mb.group + "#socket" if mb.group else None):
+    if hanger is not None:
+        with mb.grouped(socket_group or mb.group):
             _socket(mb, g, hanger)
     # the dark collar ring, the spring housing, the nut and the bolt's dark end
     along(co["v"][0], co["v"][1], co["dia"] / 2, 8, dark, caps=(False, False))

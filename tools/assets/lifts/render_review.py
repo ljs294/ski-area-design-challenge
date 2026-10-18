@@ -1113,13 +1113,11 @@ def lean_photos(built_all, spec, out_dir, mats):
     restore_uv([o for o in shown if o.type == "MESH"])
     bpy.context.view_layer.update()
     shoot = _shooter("tower_lean", out_dir)
-    # The shooter's azimuth is in Blender's frame: across the line (the lean shows) is along v, down the line along u.
-    side = math.degrees(math.atan2(u_b.y, u_b.x))
-    down = math.degrees(math.atan2(-v_b.y, -v_b.x))
-    mid = tuple(frame.b((0.0, 0.0, 5.0)))
-    shoot("side", mid, side, 6, 30.0, lens=40)
-    shoot("bases", tuple(frame.b((0.0, 0.0, 0.6))), side - 20, 14, 8.0, lens=40)
-    shoot("downline", mid, down, 10, 26.0, lens=40)
+    # The shooter takes lift-frame targets and azimuths (from +u toward +v): the lean shows from across the line (+v),
+    # a little round toward +u so the row of bases along v doesn't stand in line; down the line from +u.
+    shoot("side", (0.0, 0.0, 4.0), 68, 6, 46.0, lens=40)
+    shoot("bases", (0.0, 0.0, 0.8), 55, 14, 20.0, lens=40)
+    shoot("downline", (0.0, 0.0, 4.0), 0, 10, 34.0, lens=40)
     for o in made:
         bpy.data.objects.remove(o)
     _photo_end(sc, [snow, fig])
@@ -1294,8 +1292,8 @@ def pose_photos(built_all, spec, out_dir, mats, chairs):
             restore_uv(objs)
             shoot = _shooter(_tag(f"pose_chair_{deg:+d}"), out_dir)
             shoot("side", (0.0, 0.0, -1.3), 90, 3, 7.0, lens=40)
-            shoot("knuckle", tuple(hinge + Vector((0.0, 0.0, 0.05))), 60, 12, 0.9, lens=45)
-            shoot("knuckle_back", tuple(hinge + Vector((0.0, 0.0, 0.05))), 235, 8, 0.9, lens=45)
+            shoot("joint", tuple(hinge + Vector((0.0, 0.0, 0.05))), 60, 12, 0.9, lens=45)
+            shoot("joint_back", tuple(hinge + Vector((0.0, 0.0, 0.05))), 235, 8, 0.9, lens=45)
             bpy.data.objects.remove(rope)
         _turn(empties, {})
         bpy.data.objects.remove(snow)

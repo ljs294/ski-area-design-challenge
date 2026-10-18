@@ -9,7 +9,8 @@ Gate 1 review):
   footrest stubs and the rod through its eyes.
 
 The origin is the grip on the rope. Up close (LOD0-1) the grip and the hanger are moving parts (task P3-07): the
-grip clamps along the rope, and the hanger with everything under it hangs plumb from a pin knuckle at its top ring. Chair frame (the lift frame's axes, reused): u = direction of travel
+grip clamps along the rope, and the hanger with everything under it hangs plumb, turning about the grip's own stack
+axis (where the grip's arm reaches across to the rope), with no geometry added. Chair frame (the lift frame's axes, reused): u = direction of travel
 (Unity +Z), v = outboard, away from the bullwheel (Unity +X), w = up. The chair is symmetric about
 v = axisV (the drawn chair sits 32 mm inboard of the rope).
 """
@@ -59,31 +60,25 @@ def build(spec, lod, stage):
     near = lod == 0
     n_hanger, n_frame, n_thin = (6, 5, 4) if near else (4, 4, 3)
 
-    # Posable (contract P3-07 M3): the grip clamps along the rope and the hanger swings plumb from it. Every face up
-    # close rides with "grip" (on the rope) or "hanger" (hinged at the hanger's top ring, where it leaves the grip's
-    # socket, about the axis across the rope); a pin knuckle there keeps the joint closed at any angle.
-    hinge = hinge_point(ch)
+    # Posable (contract P3-07 M3, the owner's call: no new geometry): the grip clamps along the rope and the hanger
+    # swings plumb from it about the grip's stack axis, the axis of the arm reaching across to the rope (hinge_point).
+    # The cast housing is turned round that axis, so the hanger's socket, which flows up into the housing, turns inside
+    # it without opening a gap; far out the hanger starts inside the grip's bar, on the same axis.
     mb.group = "hanger"
-    # hanger: the question mark from the grip into the clamp, from its top ring at the hinge (up close the grip's
-    # socket flows into that ring)
-    hanger = [Vector((0.0, m(v), m(w))) for v, w in parts.hanger_from_socket(ch["hanger"])]
-    if not near:
-        hanger = [hanger[0]] + [Vector((0.0, m(v), m(w))) for v, w in (ch["hanger"][i] for i in (3, 6, 9, 12))]
+    # hanger: the question mark from the grip into the clamp; up close it starts where the grip's socket ends
+    if near:
+        hanger = [Vector((0.0, m(v), m(w))) for v, w in parts.hanger_from_socket(ch["hanger"])]
+    else:
+        hanger = [Vector((0.0, m(v), m(w))) for v, w in ch["hanger"]]
+        hanger = [hanger[i] for i in (0, 3, 6, 9, 12)]
     rings = prims.tube_path(mb, hanger, tube["hanger"], n_hanger, steel, caps=False)
-    kn = ch["knuckle"]
-    if near:   # the pin knuckle round the hinge, across the rope, and its pin
-        half, kr = m(kn["halfLength"]), m(kn["dia"]) / 2
-        prims.cylinder(mb, hinge - Vector((0, half, 0)), hinge + Vector((0, half, 0)), kr, kn["sides"], steel)
-        pin = half + m(kn["pinPast"])
-        prims.cylinder(mb, hinge - Vector((0, pin, 0)), hinge + Vector((0, pin, 0)), m(kn["pinDia"]) / 2, 8, Style("machined"))
 
-    # the grip on the rope (fixed_grip.json, every fixed-grip chair's), flowing down into the hanger up close
+    # the grip on the rope (fixed_grip.json, every fixed-grip chair's), flowing down into the hanger up close; the
+    # socket rides with the hanger
     with mb.grouped("grip"):
         joint = parts.hanger_joint(rings, hanger, tube["hanger"], steel) if near else None
-        parts.fixed_grip(mb, lod, steel, dark=Style("trim_dark"), metal=Style("machined"), hanger=joint)
-        if not near:   # the housing down to the hinge, round the hanger's top ring
-            h = m(kn["dia"]) / 2
-            prims.box(mb, (-h, hinge.y - h, hinge.z - h), (h, hinge.y + h, m(parts.fixed_grip_spec()["axisW"])), steel)
+        parts.fixed_grip(mb, lod, steel, dark=Style("trim_dark"), metal=Style("machined"), hanger=joint,
+                         socket_group="hanger#socket")
     cl = ch["clamp"]
     prims.box(mb, (-m(cl["u"]) / 2, ax - m(cl["halfWidth"]), m(cl["wTo"])), (m(cl["u"]) / 2, ax + m(cl["halfWidth"]), m(cl["wFrom"])), grip_st)
 
@@ -135,9 +130,11 @@ def build(spec, lod, stage):
 
 
 def hinge_point(ch):
-    """Where the hanger hinges on the grip: the centre of its top ring, where it leaves the grip's socket."""
-    v, w = parts.hanger_from_socket(ch["hanger"])[0]
-    return Vector((0.0, m(v), m(w)))
+    """Where the hanger hinges on the grip: on the grip's stack axis (the cast arm, housing and bolt turned round it,
+    reaching across to the rope), at the middle of the socket the hanger flows up into."""
+    g = parts.fixed_grip_spec()
+    top = g["socket"]["top"]
+    return Vector((0.0, m((top["v"][0] + top["v"][1]) / 2), m(g["axisW"])))
 
 
 def finish(a, mb, ch):
@@ -153,7 +150,7 @@ def finish(a, mb, ch):
         vs = ax - hw + (i + 0.5) * (2 * hw / ch["seats"])
         a.sockets[f"seat_{i + 1}"] = (0.14, vs, top_w - 0.05)
     # the grip takes the rope's slope about the axis across the rope; the hanger, its seats and its safety bar hang
-    # plumb from the hinge (far out the chair is one part and hangs plumb)
+    # plumb, turning about the grip's stack axis (far out the chair is one part and hangs plumb)
     a.pivots = {"grip": {"pos": (0.0, 0.0, 0.0), "axis": (0.0, 1.0, 0.0)},
                 "hanger": {"pos": tuple(hinge_point(ch)), "axis": (0.0, 1.0, 0.0), "parent": "grip", "hinge": True}}
     a.socket_parents = {k: "hanger" for k in a.sockets if k != "grip"}

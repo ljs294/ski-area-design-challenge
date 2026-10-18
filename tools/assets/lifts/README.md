@@ -102,9 +102,10 @@ The game poses the lift's moving parts once, at build, from the rope (the model 
 
   Sheaves are their own parts at LOD0 and ride in their rocker at LOD1; at LOD2-3 each side's whole train is one
   part under its top pivot, never the body. The main pin and the lug plates stay in the body.
-- **The Sessellift chair:** `grip` (the origin, on the rope) → `hanger` (hinged at the hanger's top ring, where it
-  leaves the grip's socket, about X). A pin knuckle (spec `chair.knuckle`) round the hinge keeps the joint closed at
-  any angle. LOD0-1 are split; LOD2 stays one body.
+- **The Sessellift chair:** `grip` (the origin, on the rope) → `hanger`, which turns about the grip's own stack axis
+  (the cast arm's axis, reaching across to the rope, 8 mm under it), with no geometry added (owner). The hanger's
+  socket rides with the hanger and turns inside the housing, which is turned round that axis, so no gap opens. LOD0-1
+  are split; LOD2 stays one body.
 - **Piers and footings:** the Sessellift terminals' piers are really tall (owner): they run to 15 m below the 0.00
   level, so a raised or lowered terminal still stands on its pier; `pier_top` marks the pier's top centre.
   `sessellift_fgq4_terminal_footing` (kind `terminal_footing`) is the footing, placed by the game at grade.
@@ -205,8 +206,8 @@ if a rope socket is off the rope, or if a mast section's AO doesn't tile.
 | Terminal footing (budget 12, one level) | 10 | - | - | - |
 | Monta drive terminal | 19,730 | 9,514 | 2,074 | 418 |
 | Monta return terminal | 3,640 | 1,824 | 948 | 364 |
-| Chair budget | 1,600 | 260 | 60 | - |
-| Sessellift quad chair | 1,056 | 258 | 60 | - |
+| Chair budget | 1,600 | 250 | 60 | - |
+| Sessellift quad chair | 984 | 246 | 60 | - |
 | Chairworks chair, detachable grip | 1,596 | 248 | 56 | - |
 | Chairworks chair, fixed grip | 752 | 186 | 56 | - |
 | Tower head budget | 16,000 | 5,000 | 1,000 | 200 |
