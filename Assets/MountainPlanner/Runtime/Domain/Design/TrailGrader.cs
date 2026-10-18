@@ -307,8 +307,13 @@ namespace MountainPlanner.Domain.Design
             // GR-06: the face along this point's own line out from the centreline must meet the ground by the footprint's
             // edge. Between stations, and on curves, the blended bench can overreach; narrow it here (to below zero if it
             // must, which only narrows the 1:1 envelope) so the section reaches the edge on natural ground.
-            bench = Math.Min(bench, half - Math.Abs(edge - zz) / FaceSlope);
-            return Section(u, ground, zz, bench, Math.Min(round, Math.Max(0, half - Math.Abs(u))));   // GR-12 fades out at the edge
+            // With GR-12's rounding the face meets the ground that much sooner, so its toe has room to round inside the
+            // footprint (finding #12: an unrounded toe at the edge stair-stepped on the 1 m grid).
+            bench = Math.Min(bench, half - round - Math.Abs(edge - zz) / FaceSlope);
+            // GR-12 v2: the rounding fades out at the footprint's edge, and never takes more than half the bench's width.
+            double r = Math.Min(round, Math.Max(0, half - Math.Abs(u)));
+            r = Math.Min(r, Math.Max(0, bench));
+            return Section(u, ground, zz, bench, r);
         }
 
         /// <summary>

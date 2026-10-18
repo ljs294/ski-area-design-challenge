@@ -8,7 +8,7 @@ namespace MountainPlanner.Domain.Design
     /// LF-12 (owner, task 07, SK19): every terminal is built on a level pad, so only its plinth comes out of the ground. The
     /// pad is the terminal's footprint plus 20 ft all round (CL-09's margin), level at the terminal's base elevation; the
     /// top terminal's pad runs at least 60 ft behind its bullwheel, for the unload zone. Around it, 1:1 cut and fill faces
-    /// run out to the ground (GR-02's slope) within an envelope of 50 ft (GR-11's terminal-pad envelope, an exception to
+    /// run out to the ground (GR-02's slope) within an envelope of 200 ft (GR-11's terminal-pad envelope, an exception to
     /// GR-06): a face that hasn't met the ground there is clipped, and the step is reported. Everything the pad and its
     /// faces touch is cleared (CL-09 v2). Positions in the edit lattice's frame; (ux, uy) points toward the other terminal.
     /// </summary>
@@ -18,8 +18,9 @@ namespace MountainPlanner.Domain.Design
         public const double MarginMetres = 6.096;
         /// <summary>The top terminal's unload zone: the pad reaches 60 ft behind the bullwheel.</summary>
         public const double UnloadBehindMetres = 18.288;
-        /// <summary>The faces' envelope past the pad: 50 ft.</summary>
-        public const double FaceReachMetres = 15.24;
+        /// <summary>The faces' envelope past the pad: 200 ft (tuned at 07: 50 and 100 ft left clipped steps behind the top pad on the
+        /// style tile's steep hill).</summary>
+        public const double FaceReachMetres = 60.96;
         public const double FaceSlope = 1;
 
         public sealed class Result

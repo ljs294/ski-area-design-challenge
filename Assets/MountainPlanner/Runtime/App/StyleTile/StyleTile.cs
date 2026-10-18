@@ -46,7 +46,7 @@ namespace MountainPlanner.App
 
         public const int TrailWidthFeet = 100;
         /// <summary>GR-12: the faces' crest and toe rounded over 10 ft (owner SK2; tuned at 07: 5 ft, under two 1 m cells, still stair-stepped on the heightmap).</summary>
-        public const double RoundMetres = 3.048;
+        public static double RoundMetres = 3.048;
         public const string TrailName = "Style Tile Run";
         public const string LiftName = "Style Tile Quad";
 

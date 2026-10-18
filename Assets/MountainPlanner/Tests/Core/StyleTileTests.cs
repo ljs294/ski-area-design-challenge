@@ -163,8 +163,9 @@ namespace MountainPlanner.Tests
             var stations = TrailGrader.Stations(Curve(), out _);
             for (int k = 1; k < stations.Count / 2 - 1; k += 5)
                 Assert.That(hr.At(stations[2 * k], stations[2 * k + 1]), Is.EqualTo(hs.At(stations[2 * k], stations[2 * k + 1])).Within(0.002), $"station {k}");
-            Assert.That(round.CutCubicMetres, Is.EqualTo(sharp.CutCubicMetres).Within(sharp.CutCubicMetres * 0.1));
-            Assert.That(round.FillCubicMetres, Is.EqualTo(sharp.FillCubicMetres).Within(sharp.FillCubicMetres * 0.1));
+            // Rounding inside the footprint narrows the bench where a face reaches the edge, so the volumes drop a little.
+            Assert.That(round.CutCubicMetres, Is.LessThanOrEqualTo(sharp.CutCubicMetres + 1).And.GreaterThan(sharp.CutCubicMetres * 0.6));
+            Assert.That(round.FillCubicMetres, Is.LessThanOrEqualTo(sharp.FillCubicMetres + 1).And.GreaterThan(sharp.FillCubicMetres * 0.6));
         }
 
         [Test]
@@ -422,11 +423,11 @@ namespace MountainPlanner.Tests
             // Faces at most 1:1 across the pad's side.
             for (int d = 10; d < 25; d++)
                 Assert.That(Math.Abs(h.At(x + d + 1, y) - h.At(x + d, y)), Is.LessThanOrEqualTo(1.0 + 0.02), $"{d} m out");
-            // Past the 50 ft envelope nothing changes (GR-06's exception stops there).
+            // Past the 200 ft envelope nothing changes (GR-06's exception stops there).
             for (int d = 0; d < 360; d += 20)
             {
-                double a = d * Math.PI / 180, px = x + Math.Cos(a) * 45, py = y + 3 + Math.Sin(a) * 45;
-                Assert.That(h.At(px, py), Is.EqualTo(natural.At(px, py)).Within(1e-9), $"{d}°, 45 m out");
+                double a = d * Math.PI / 180, px = x + Math.Cos(a) * 85, py = y + 3 + Math.Sin(a) * 85;
+                Assert.That(h.At(px, py), Is.EqualTo(natural.At(px, py)).Within(1e-9), $"{d}°, 85 m out");
             }
             Assert.That(pad.ClearedCells, Is.GreaterThan(300), "CL-09 v2 clears the pad and its faces");
         }
