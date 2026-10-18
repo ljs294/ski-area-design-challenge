@@ -48,9 +48,11 @@ def place(pivots, angles, name):
     return p
 
 
-def solve(pivots, top, rows, s_in, s_out, fixed=(), iters=30):
+def solve(pivots, top, rows, s_in, s_out, fixed=(), iters=30, anchor=None):
     """Pivot angles (radians) under `top` that put each row's axle chords at the shared-load slopes. rows: lists of
-    sheave pivot names, each ordered along +u. fixed: pivots that don't turn (a range of zero)."""
+    sheave pivot names, each ordered along +u. fixed: pivots that don't turn (a range of zero). anchor: (sheave, axle
+    height) held fast, as where a terminal's row takes the rope level from the bullwheel at the bullwheel's height;
+    the slopes then share the turn as evenly as that allows."""
     free = [k for k in subtree(pivots, top) if not k.startswith("sheave_") and k not in fixed]
     free.sort(key=lambda k: len(chain(pivots, k)))
     targets = []
@@ -67,6 +69,8 @@ def solve(pivots, top, rows, s_in, s_out, fixed=(), iters=30):
                 d = pts[k + 1] - pts[k]
                 r.append(math.atan2(d[1], d[0]) - tg[k])
         r.extend(1e-3 * v for v in x)   # the redundant links (s6) stay near rest
+        if anchor:
+            r.append(1e3 * (place(pivots, ang, anchor[0])[1] - anchor[1]))
         return np.array(r)
     x = np.zeros(len(free))
     for _ in range(iters):
@@ -86,14 +90,21 @@ def solve(pivots, top, rows, s_in, s_out, fixed=(), iters=30):
 
 def rope_path(pivots, angles, row, rho, s_in, s_out, side, far=8.0):
     """The rope past a posed row, (u, w) points: in at s_in tangent to the first sheave, over (side +1: the rope on
-    top of a support row) or under (side -1: a hold-down row) each sheave, out at s_out."""
-    n = len(row)
-    slopes = [s_in] + [s_in - (k + 1) * (s_in - s_out) / n for k in range(n - 1)] + [s_out]
+    top of a support row) or under (side -1: a hold-down row) each sheave, out at s_out. Between sheaves it runs
+    parallel to the line through their posed axles (it rides the same side of both)."""
+    centres = [place(pivots, angles, s) for s in row]
+    slopes = [s_in] + [math.atan2(*(b - a)[::-1]) for a, b in zip(centres, centres[1:])] + [s_out]
     pts = []
-    for k, s in enumerate(row):
-        c = place(pivots, angles, s)
+    for k, c in enumerate(centres):
         for a in (slopes[k], slopes[k + 1]):
             pts.append(c + side * rho * np.array([-math.sin(a), math.cos(a)]))
     first = pts[0] - far * np.array([math.cos(s_in), math.sin(s_in)])
     last = pts[-1] + far * np.array([math.cos(s_out), math.sin(s_out)])
     return [first] + pts + [last]
+
+
+def turns(pivots, angles, row, s_in, s_out):
+    """How far the rope turns over each sheave of a posed row (radians): its share of the row's load."""
+    centres = [place(pivots, angles, s) for s in row]
+    slopes = [s_in] + [math.atan2(*(b - a)[::-1]) for a, b in zip(centres, centres[1:])] + [s_out]
+    return [b - a for a, b in zip(slopes, slopes[1:])]
