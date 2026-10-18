@@ -7,7 +7,7 @@
   ],
   "body": {"_note": "the jaw block on the rope, a chamfered block", "u": [-75, 75], "v": [-30, 74], "w": [-35, 40], "chamfer": 14},
   "tails": {"_note": "the black jaw blades over the top half of the rope: arches from the rope's sides (w from) over the top (w to), half-width v",
-            "to": 380, "arc": 4, "root": {"v": 26, "w": [-2, 38]}, "tip": {"v": 22, "w": [-2, 22]}},
+            "to": 380, "arc": 4, "root": {"v": 30, "w": [-2, 38]}, "tip": {"v": 26, "w": [-2, 26]}, "_rope": "widened 4 mm for the 1 3/4 in rope (P3-07); were root v 26, tip v 22 / w 22 on the 36 mm rope"},
   "axisW": -8,
   "housing": {"_note": "one cast arm and housing from inside the jaw block out to the collar: (radius, v) turned round the stack's axis, 8-sided",
               "profile": [[30, 55], [36, 100], [52, 160], [52, 270], [30, 292]], "sides": 8},

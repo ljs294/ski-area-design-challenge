@@ -12,7 +12,8 @@
   "common": {
     "ropeElevation": 3039,
     "lineGauge": 4120,
-    "ropeDiameter": 36,
+    "ropeDiameter": 44.45,
+    "_rope": "1 3/4 in haul rope (owner, P3-07 SK17); the sheave rows hang from fixed pins, so on line towers the rope sockets move with it",
     "travel": "ccw",
     "loadedRope": "right when looking uphill: v+ at the return terminal, v- at the drive terminal",
     "snowAllowance": 305,
@@ -26,7 +27,7 @@
     }
   },
   "drive": {
-    "pier": {"u": 1508, "v": 613, "top": 2700, "bottom": -1500},
+    "pier": {"u": 1508, "v": 613, "top": 2700, "bottom": -15000, "_note": "really tall (owner, P3-07): the terminal can be raised or lowered and the pier still reaches the ground; the rest is buried. The footing is its own prefab (terminal_footing)"},
     "footing": {"u": 3000, "v": 2200, "top": -1500, "bottom": -2500},
     "pierHead": {"u": 1600, "v": 1266, "bottom": 2700, "top": 2875},
     "entryBeams": {"vIn": 430, "vOut": 633, "bottom": 2875, "top": 3179, "uFrom": -543, "uTo": 2857},
@@ -70,7 +71,7 @@
       "downSpout": {"dia": 60, "from": [360, 2533, 3825], "to": [360, 3313, 3343]}
     }
   },  "return": {
-    "pedestal": {"u": 1524, "v": 622, "top": 1533, "bottom": -1500},
+    "pedestal": {"u": 1524, "v": 622, "top": 1533, "bottom": -15000, "_note": "really tall, as the drive's pier"},
     "footing": {"u": 3000, "v": 2200, "top": -1500, "bottom": -2500},
     "head": {"u": 1684, "v": 1222, "bottom": 1943, "top": 2505, "base": 1581, "skirt": 1533, "neck": 714,
              "flare": [[611, 1943], [570, 1886], [517, 1854], [452, 1822], [417, 1790], [376, 1727], [357, 1663], [357, 1581]]},

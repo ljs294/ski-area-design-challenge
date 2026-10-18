@@ -19,10 +19,11 @@ which carry the Sessellift chair; and the **Chairworks quad chair** with either 
 | `chairworks_chair.json` | The Chairworks chair's dimensions (the body, both grips) and its `catalog` |
 | `fixed_grip.json` | The fixed grip every fixed-grip chair carries (LP22) |
 | `budgets.json` | Triangle budgets per LOD and LOD switch distances. The build and the Unity tests both read it |
-| `build_lifts.py` | Builds every asset and LOD, bakes AO, exports one FBX per asset plus the textures, and checks budgets, pivots and sockets |
-| `assets/*.py` | One module per asset: `drive_terminal`, `return_terminal`, `chair`, `tower` (the line tower kit, see below), `sle_stick_gun` (three lance lengths from one module), `sle_ground_gun`, `monta_drive`, `monta_return` and `chairworks_chair` (two grips from one module) |
-| `liftkit/` | The shared kit: `frame` (lift frame to Blender), `prims` (boxes, beams, cylinders, prisms, lathes), `parts` (sheaves, sheave trains, line assemblies, railings, ladders), `heads` (the entry head shared by the drive terminal and the towers), `mesh` (MeshBuilder, per-face data, flush-face separation), `palette`, `textures` (detail atlas), `ao`, `materials`, `export` |
-| `render_review.py` | Review renders: orthographic views with dimensions (`gate1`), LOD lineup (`lods`), shader data (`data`), Cycles photos on snow (`photos`, `terminal_photos`, `tower_photos`; the snow guns' photos, line-up and both heads at one scale come with `photos`), the tower kit in clay (`towers`) |
+| `build_lifts.py` | Builds every asset and LOD, bakes AO, sweeps the pivots for clashes, exports one FBX per asset plus the textures, and checks budgets, pivots, sockets and AO tiling |
+| `audit_lifts.py` | Game-rule audit before a model review: re-imports each FBX and checks the pivots' places, the nesting LiftImport will build, far trains kept as parts, ranges and AO tiling |
+| `assets/*.py` | One module per asset: `drive_terminal`, `return_terminal`, `chair`, `tower` (the line tower kit, see below), `sle_stick_gun` (three lance lengths from one module), `sle_ground_gun`, `monta_drive`, `monta_return`, `chairworks_chair` (two grips from one module) and `terminal_footing` |
+| `liftkit/` | The shared kit: `frame` (lift frame to Blender), `prims` (boxes, beams, cylinders, prisms, lathes), `parts` (sheaves, sheave trains, line assemblies, railings, ladders), `heads` (the entry head shared by the drive terminal and the towers), `mesh` (MeshBuilder, per-face data and part tags, flush-face separation), `palette`, `textures` (detail atlas), `ao`, `materials`, `export`, `clash` (the pivots' safe ranges), `pose` (posing for the review photos) |
+| `render_review.py` | Review renders: orthographic views with dimensions (`gate1`), LOD lineup (`lods`), shader data (`data`), Cycles photos on snow (`photos`, `terminal_photos`, `tower_photos`; the snow guns' photos, line-up and both heads at one scale come with `photos`), leaned bases (`lean_photos`), posed heads, chair and raised terminals (`pose_photos`), the tower kit in clay (`towers`) |
 | `build-lifts.bat` | Double-click: builds everything and opens the photos |
 
 ```sh
@@ -45,14 +46,18 @@ runs at w = 3039 mm, and the line gauge (bullwheel pitch diameter) is 4120 mm.
 
 - `<id>_LOD0..3`: the body (chair: LOD0..2).
 - `<id>_<part>_LODn` under the empty `<id>_pivot_<part>`: moving parts (the bullwheel and every sheave, a snow
-  gun's hinged lance or gun), with the origin on the real axle or hinge pin.
+  gun's hinged lance or gun, the posable trains and the chair's grip and hanger, below), with the origin on the
+  real axle or hinge pin.
 - `<id>_socket_<name>` empties:
-  - terminals: `line`, `rope_{left,right}_{bw,out}`, `chair_load` or `chair_unload`, `foundation_base`;
-  - chair: `grip`, `seat_1..4`, `bar_hinge`;
+  - terminals: `line`, `rope_{left,right}_{bw,out}`, `chair_load` or `chair_unload`; the Sessellift's `pier_top`,
+    the Monta's `foundation_base`;
+  - the Sessellift terminal footing: `foundation_base`, `pier_seat`;
+  - chair: `grip`, `seat_1..4`, `bar_hinge` (the seats and the bar's hinge ride with the hanger);
   - snow guns: `base` (the origin, at grade), `nozzle`, and the hose couplers (`hose_side`, and `hose_bottom` or
     `hose_rear`).
 
-LiftImport checks every pivot and socket against `out/lifts.json` to 1 mm. When an asset's spec has a `catalog`,
+LiftImport checks every pivot and socket against `out/lifts.json` to 1 mm, and nests the pivots and the riding sockets
+as `lifts.json` says (see Posable parts). When an asset's spec has a `catalog`,
 `lifts.json` carries its maker and the name the game shows (`LiftRig.Maker`, `LiftRig.CatalogName`).
 
 | Channel | Meaning |
@@ -61,13 +66,54 @@ LiftImport checks every pivot and socket against `out/lifts.json` to 1 mm. When 
 | **UV1 x** | Snow capacity of the face (the shader adds `_SnowLoad` on up-facing surfaces) |
 | **UV1 y** | Livery mask: 1 on the drive hood panels, which take the player's colour |
 | **UV2** | Palette swatch in `lift_palette.png`: albedo, with metallic and smoothness packed in alpha |
-| **Vertex colour R** | Baked ambient occlusion (ray-cast, deterministic, floor 0.25) |
+| **Vertex colour R** | Baked ambient occlusion (ray-cast, deterministic, floor 0.25; the ground plane only under what stands at its own 0.00: bases and snow guns, not heads, Sessellift terminals or mast sections) |
 | **Submesh / slot** | `LiftStructure` (opaque), `LiftGlass` (tinted, drive LOD0-1), `LiftChair` |
 
 `lift_trim.png` is the detail atlas: 4 × 4 tiles of 256 px, one metre each. The tiles are plain, paint,
 galvanised, grating, checker plate, concrete formwork, hood panel, rubber and seat vinyl. Its channels are
 RG normal, B cavity and A brightness, with 0.5 neutral. Faces pick a tile by palette class
 (`textures.CLASS_TILE`) or by `Style.trim`.
+
+## Posable parts (task P3-07)
+
+The game poses the lift's moving parts once, at build, from the rope (the model contract,
+`docs/plans/p3-07-model-contract.md`). Shapes are unchanged: only how the faces are grouped and where they pivot.
+
+- **Part tags.** A builder draws as before and tags faces with their pivot (`MeshBuilder.grouped`); `separate_flush`
+  runs once on the whole merged LOD, then `MeshBuilder.split` cuts the tagged faces out into parts. Pins, axles and
+  tubes are tagged `<part>#pin` (one piece of their part; `#pin` alone is the body's). UV0 is box-mapped in the
+  lift frame before a part moves onto its pivot, so the texture stays put. On posable assets a corner shared by two
+  pulled faces of one plane moves 2 mm once, not twice.
+- **Pivots** in `lifts.json`: `pos`, `axis`, `parent` (a pivot name or null; parents come first), `hinge` (true when
+  a part sits off its axle at any LOD), `range` ([min, max] degrees for `Quaternion.AngleAxis(angle, axis)` from the
+  rest pose, from `liftkit/clash.py`; wheels get the whole turn) with `rangeBy` (what stops it), and per asset
+  `socketParents`. The FBX keeps the empties flat: Blender's FBX export with `bake_space_transform` misplaces a third
+  level of nesting, so LiftImport builds the nesting in the prefab (`LiftRig.PivotParents`, `PivotHinged`,
+  `PivotRange`).
+- **Trains** (per rope side `l`/`r`; numbers count along +u from the same end as the sheaves):
+
+| Asset | Hierarchy |
+|---|---|
+| `b8`, `d8`, the return's row | `eq_r` (the main pin under the crossarm) → `yoke_r1`, `yoke_r2` → `rocker_r1..4` → sheaves (the return's are `sheave_r2..9`) |
+| `s6` | `eq_r` → `yoke_r1` (→ `rocker_r1`, `rocker_r2`) and `link_r1` (the lone rocker's link, on its top pin, its rocker plates rigid with it) → sheaves |
+| `s4` | `yoke_r1` (the top pin, no equaliser) → `rocker_r1`, `rocker_r2` → sheaves |
+| `c8` | `block_r` (rigid with both triangular frames) → `yoke_sup_r`, `yoke_hold_r` (overlapping the frames: range 0) → `rocker_rs1/2`, `rocker_rh1/2` → `sheave_rs1..4`, `sheave_rh1..4` |
+| the drive's row | `beam_r` (the beam's pin through the plate) → `rocker_r1`, `rocker_r2` → `sheave_r2..5` |
+
+  Sheaves are their own parts at LOD0 and ride in their rocker at LOD1; at LOD2-3 each side's whole train is one
+  part under its top pivot, never the body. The main pin and the lug plates stay in the body.
+- **The Sessellift chair:** `grip` (the origin, on the rope) → `hanger`, which turns about the grip's own stack axis
+  (the cast arm's axis, reaching across to the rope, 8 mm under it), with no geometry added (owner). The hanger's
+  socket rides with the hanger and turns inside the housing, which is turned round that axis, so no gap opens. LOD0-1
+  are split; LOD2 stays one body.
+- **Piers and footings:** the Sessellift terminals' piers are really tall (owner): they run to 15 m below the 0.00
+  level, so a raised or lowered terminal still stands on its pier; `pier_top` marks the pier's top centre.
+  `sessellift_fgq4_terminal_footing` (kind `terminal_footing`) is the footing, placed by the game at grade.
+- **Rope:** 1¾ in (`common.ropeDiameter` 44.45). The line heads' rows hang from fixed pins, so their sockets move with
+  the rope; the terminal rows and the c8 rows sit 4.2 mm further from the rope than with the old 36 mm.
+- **Ambient occlusion:** heads and Sessellift terminals are baked without the ground plane; a mast section between
+  a cast-only ghost section above and one below, with every ray also cast mirrored, so its top and bottom corners
+  agree (the build fails above 0.01). The scene is updated before the bake, so parts are baked where they hang.
 
 ## Line towers (LP11)
 
@@ -149,14 +195,15 @@ spin only at LOD0 on towers; from LOD1 a head is one mesh.
 
 ## Budgets (enforced)
 
-The build exits non-zero if an LOD is over budget, if totals don't decrease, if a moving part is off its
-axle, or if a rope socket is off the rope.
+The build exits non-zero if an LOD is over budget, if totals don't decrease, if a wheel is off its axle,
+if a rope socket is off the rope, or if a mast section's AO doesn't tile.
 
 | Asset | LOD0 | LOD1 | LOD2 | LOD3 |
 |---|---|---|---|---|
 | Terminal budget | 24,000 | 10,000 | 2,500 | 500 |
-| Drive terminal | 13,914 | 6,794 | 1,788 | 254 |
-| Return terminal | 19,864 | 7,028 | 1,836 | 316 |
+| Drive terminal | 13,902 | 6,782 | 1,776 | 242 |
+| Return terminal | 19,852 | 7,016 | 1,824 | 304 |
+| Terminal footing (budget 12, one level) | 10 | - | - | - |
 | Monta drive terminal | 19,730 | 9,514 | 2,074 | 418 |
 | Monta return terminal | 3,640 | 1,824 | 948 | 364 |
 | Chair budget | 1,600 | 250 | 60 | - |
@@ -172,6 +219,7 @@ axle, or if a rope socket is off the rope.
 | Mast section | 144 | 88 | 40 | 12 |
 | Tower base budget | 400 | 300 | 60 | 40 |
 | Tower base | 314 | 278 | 58 | 36 |
+| Leaned bases (`l025`-`l150`) | 308 | 272 | 56 | 34 |
 | Snow gun budget | 600 | 160 | 40 | 12 |
 | Stick gun (10, 20 or 30 ft) | 598 | 154 | 38 | 8 |
 | Ground gun | 534 | 156 | 30 | 12 |

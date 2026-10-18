@@ -1268,6 +1268,36 @@ MonoBehaviour:
   - {x: 1, y: 0, z: 0}
   - {x: 1, y: 0, z: 0}
   - {x: 1, y: 0, z: 0}
+  PivotParents: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  PivotHinged: 000000000000000000000000000000000000000000000000000000
+  PivotRange:
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
   Sockets:
   - {fileID: 7768102708049912469}
   - {fileID: 3918800158743021480}

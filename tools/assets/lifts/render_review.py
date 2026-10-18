@@ -8,6 +8,8 @@ Shots:
   photos  Cycles photos: the chair (angles, close-ups, a line of chairs, snowfall) and each terminal on snow
           with its rope loop and chairs (hero, back, side, approach, high, bullwheel, entry, snowfall, livery);
           terminal_photos renders only the terminals' sets; LIFT_PHOTOS=hero,back limits either to those shots.
+  pose_photos  the posable models (task P3-07): heads and terminal rows posed to sample rope slopes, the chair's
+          grip at 0 and +-30 degrees, each terminal raised on its tall pier with its footing (liftkit/pose.py).
 Blender's metadata stamp is off so the PNGs carry no paths.
 """
 import json
@@ -18,6 +20,7 @@ import bpy
 from mathutils import Matrix, Vector
 
 from liftkit import frame, materials
+from liftkit import pose as lk_pose
 
 MM_PER_PX = 8.0
 FIGURE_H = 1.8
@@ -253,15 +256,19 @@ def figure(at_lift):
 
 
 def hang_chairs(chair_objs, positions):
-    """Linked duplicates of the chair LOD0 at (lift point, heading angle) positions; returns the new objects."""
+    """Linked duplicates of the chair LOD0 at (lift point, heading angle) positions; returns the new objects. A chair
+    in parts (the grip and the hanger on their pivots) is copied part by part, each where it hangs now."""
     made = []
-    src = chair_objs[0]
+    bpy.context.view_layer.update()
     for i, (p, yaw) in enumerate(positions):
-        o = src.copy()
-        o.name = f"ReviewChair{i}"
-        o.matrix_world = Matrix.Translation(frame.b(p)) @ Matrix.Rotation(yaw, 4, "Z")
-        bpy.context.scene.collection.objects.link(o)
-        made.append(o)
+        place = Matrix.Translation(frame.b(p)) @ Matrix.Rotation(yaw, 4, "Z")
+        for j, src in enumerate(chair_objs):
+            o = src.copy()
+            o.parent = None
+            o.name = f"ReviewChair{i}_{j}"
+            o.matrix_world = place @ src.matrix_world
+            bpy.context.scene.collection.objects.link(o)
+            made.append(o)
     return made
 
 
@@ -841,6 +848,7 @@ def _stack(mast, foot_w, n, at_lift=(0.0, 0.0, 0.0)):
         o = src.copy()
         o.name = f"ReviewMast{len(bpy.data.objects)}"
         o.location = frame.b((at_lift[0], at_lift[1], foot_w + i * 1.0 + at_lift[2]))
+        o.hide_viewport = o.hide_render = False   # a hidden source's copy would keep a stale matrix_world
         bpy.context.scene.collection.objects.link(o)
         made.append(o)
     return made
@@ -1105,13 +1113,11 @@ def lean_photos(built_all, spec, out_dir, mats):
     restore_uv([o for o in shown if o.type == "MESH"])
     bpy.context.view_layer.update()
     shoot = _shooter("tower_lean", out_dir)
-    # The shooter's azimuth is in Blender's frame: across the line (the lean shows) is along v, down the line along u.
-    side = math.degrees(math.atan2(u_b.y, u_b.x))
-    down = math.degrees(math.atan2(-v_b.y, -v_b.x))
-    mid = tuple(frame.b((0.0, 0.0, 5.0)))
-    shoot("side", mid, side, 6, 30.0, lens=40)
-    shoot("bases", tuple(frame.b((0.0, 0.0, 0.6))), side - 20, 14, 8.0, lens=40)
-    shoot("downline", mid, down, 10, 26.0, lens=40)
+    # The shooter takes lift-frame targets and azimuths (from +u toward +v): the lean shows from across the line (+v),
+    # a little round toward +u so the row of bases along v doesn't stand in line; down the line from +u.
+    shoot("side", (0.0, 0.0, 4.0), 68, 6, 46.0, lens=40)
+    shoot("bases", (0.0, 0.0, 0.8), 55, 14, 20.0, lens=40)
+    shoot("downline", (0.0, 0.0, 4.0), 0, 10, 34.0, lens=40)
     for o in made:
         bpy.data.objects.remove(o)
     _photo_end(sc, [snow, fig])
@@ -1147,6 +1153,178 @@ def head_match(drive, tower_head, spec, out_dir):
             cam.rotation_euler = (frame.b(tuple(target)) - cam.location).to_track_quat("-Z", "Y").to_euler()
             render(os.path.join(out_dir, f"headmatch_{name}_{key}.png"))
         restore_uv(objs)
+
+
+def _pivot_empties(built):
+    aid = built["assets"][0].id
+    return {o.name[len(aid) + len("_pivot_"):]: o for o in built["objects"] if o.type == "EMPTY" and "_pivot_" in o.name}
+
+
+def _nest(built):
+    """Parents a built asset's pivot empties as lifts.json nests them (the FBX keeps them flat; LiftImport nests them in
+    the prefab), keeping their places, so turning one carries the pivots under it."""
+    a0 = built["assets"][0]
+    empties = _pivot_empties(built)
+    bpy.context.view_layer.update()
+    for name, p in a0.pivots.items():
+        parent = p.get("parent")
+        if parent and empties[name].parent is not empties[parent]:
+            empties[name].parent = empties[parent]
+            empties[name].matrix_parent_inverse = empties[parent].matrix_world.inverted()
+    bpy.context.view_layer.update()
+    return empties
+
+
+def _turn(empties, angles):
+    """Turns pivot empties by u-w angles (radians, counter-clockwise from u toward w; liftkit/pose.py): a turn about the
+    lift frame's v axis, which is Blender's -x."""
+    for name, e in empties.items():
+        e.rotation_euler = (-angles.get(name, 0.0), 0.0, 0.0)
+    bpy.context.view_layer.update()
+
+
+def _rope_curve(name, pts_lift, dia):
+    curve = bpy.data.curves.new(name, "CURVE")
+    curve.dimensions = "3D"
+    curve.bevel_depth = dia / 2000
+    curve.bevel_resolution = 3
+    sp = curve.splines.new("POLY")
+    sp.points.add(len(pts_lift) - 1)
+    for i, p in enumerate(pts_lift):
+        sp.points[i].co = (*frame.b(tuple(p)), 1.0)
+    o = bpy.data.objects.new(name, curve)
+    bpy.context.scene.collection.objects.link(o)
+    o.data.materials.append(_rope_material())
+    return o
+
+
+# rope slopes (degrees: arriving, leaving, along +u) per posable model for the posed photos
+POSES = {"tower_s4": [(14.0, 10.0)], "tower_s6": [(16.0, 10.0)], "tower_b8": [(24.0, 12.0), (6.0, 2.0)],
+         "tower_d8": [(10.0, 18.0), (2.0, 4.0)], "tower_c8": [(12.0, 11.0)],
+         "return": [(0.0, 10.0), (0.0, 15.0)], "drive": [(0.0, -8.0), (0.0, -14.0)]}
+
+
+def pose_rows(a0, side):
+    """A posable model's top pivot on one rope side and its sheave rows ({tag: names along +u}; tag "" for one row,
+    "s"/"h" for a combination's), or None."""
+    tops = [k for k, p in a0.pivots.items() if not p.get("parent") and k.split("_")[0] in ("eq", "yoke", "block", "beam")
+            and (k.endswith("_" + side) or k.endswith("_" + side + "1"))]
+    if not tops:
+        return None
+    top = tops[0]
+    sheaves = sorted((k for k in lk_pose.subtree(a0.pivots, top) if k.startswith("sheave_")),
+                     key=lambda k: a0.pivots[k]["pos"][0])
+    rows = {}
+    for k in sheaves:
+        rows.setdefault(k[len("sheave_" + side):].rstrip("0123456789"), []).append(k)
+    return top, rows
+
+
+def _tag(text):
+    return text.replace("+", "p").replace("-", "m")
+
+
+def pose_photos(built_all, spec, out_dir, mats, chairs):
+    """Cycles "photos" of the posable models (task P3-07): each head and terminal row with its trains turned on their
+    pins to sample rope slopes (POSES) and the rope drawn over the posed sheaves, from outboard of the right rope and
+    three-quarter; the chair with its grip on a rope sloping 0 and +-30 degrees and the hanger plumb; and each
+    terminal raised 4 m on its really tall pier, then with the ground see-through to its footing at grade."""
+    from liftkit import parts as lk_parts
+    sc, sun = _photo_scene()
+    asm = lk_parts.line_spec(spec)
+    rho = asm["ropeR"]
+    dia = spec["common"]["ropeDiameter"]
+    hg = spec["common"]["lineGauge"] / 2000
+    log = {}
+    for key, poses in POSES.items():
+        if key not in built_all:
+            continue
+        b = built_all[key]
+        a0 = b["assets"][0]
+        empties = _nest(b)
+        objs = lod_objects(b, 0)
+        combo = key == "tower_c8"
+        sheave_r = asm["sheave"]["dia"] / 2 if key != "drive" else spec["common"]["guideSheave"]["dia"] / 2000
+        hold = key in ("tower_d8", "return")   # rows the rope runs under
+        fixed = [k for k in a0.pivots if combo and k.startswith("yoke_")]   # a combination's yokes are rigid (range 0)
+        for s_in, s_out in poses:
+            angles, ropes, errs = {}, [], []
+            for side in ("l", "r"):
+                got = pose_rows(a0, side)
+                if not got:
+                    continue
+                top, rows = got
+                ang, err = lk_pose.solve(a0.pivots, top, list(rows.values()), math.radians(s_in), math.radians(s_out), fixed)
+                angles.update(ang)
+                errs.append(err)
+                for tag, row in rows.items():
+                    if combo and tag == "h":
+                        continue   # the rope runs between a combination's rows: drawn over the support row
+                    ride = -1.0 if hold else 1.0
+                    path = lk_pose.rope_path(a0.pivots, ang, row, sheave_r + rho, math.radians(s_in), math.radians(s_out), ride)
+                    v = a0.pivots[row[0]]["pos"][1]
+                    ropes.append(_rope_curve(f"PoseRope{side}{tag}", [(p[0], v, p[1]) for p in path], dia))
+            _turn(empties, angles)
+            log[f"{key} {s_in:+.0f} -> {s_out:+.0f}"] = {
+                "maxChordErrorDeg": round(math.degrees(max(errs)), 4),
+                "unityDeg": {k: round(-math.degrees(x), 2) for k, x in sorted(angles.items()) if abs(x) > 1e-6}}
+            show_only(objs + ropes + [sun])
+            restore_uv(objs)
+            r_top = a0.pivots[pose_rows(a0, "r")[0]]["pos"]
+            shoot = _shooter(_tag(f"pose_{key}_{s_in:+.0f}_{s_out:+.0f}"), out_dir)
+            shoot("outboard", (r_top[0], r_top[1], r_top[2]), 90, 3, 4.5 if key.startswith("tower_") else 6.0, lens=40)
+            shoot("threequarter", (r_top[0], r_top[1] * 0.6, r_top[2]), 40, 14, 6.5, lens=40)
+            _turn(empties, {})
+            for o in ropes:
+                bpy.data.objects.remove(o)
+    if "chair" in built_all:   # the grip along a sloping rope, the hanger plumb
+        b = built_all["chair"]
+        empties = _nest(b)
+        objs = lod_objects(b, 0)
+        hinge = Vector(b["assets"][0].pivots["hanger"]["pos"])
+        snow = _snow_plane(-spec["common"]["ropeElevation"] / 1000)
+        for deg in (0, 30, -30):
+            t = math.radians(deg)
+            _turn(empties, {"grip": t, "hanger": -t})
+            d = Vector((math.cos(t), 0.0, math.sin(t)))
+            rope = _rope_curve("PoseChairRope", [tuple(-d * 6.0), tuple(d * 6.0)], dia)
+            show_only(objs + [rope, snow, sun])
+            restore_uv(objs)
+            shoot = _shooter(_tag(f"pose_chair_{deg:+d}"), out_dir)
+            shoot("side", (0.0, 0.0, -1.3), 90, 3, 7.0, lens=40)
+            shoot("joint", tuple(hinge + Vector((0.0, 0.0, 0.05))), 60, 12, 0.9, lens=45)
+            shoot("joint_back", tuple(hinge + Vector((0.0, 0.0, 0.05))), 235, 8, 0.9, lens=45)
+            bpy.data.objects.remove(rope)
+        _turn(empties, {})
+        bpy.data.objects.remove(snow)
+    for key in ("drive", "return"):   # raised 4 m on the tall pier; then the ground see-through to the footing
+        if key not in built_all or "terminal_footing" not in built_all:
+            continue
+        b, f = built_all[key], built_all["terminal_footing"]
+        raise_by = 4.0
+        a0 = b["assets"][0]
+        objs = lod_objects(b, 0)
+        foot = lod_objects(f, 0)
+        at = a0.sockets["pier_top"]
+        _move(f, (at[0], at[1], -raise_by))
+        snow = _snow_plane(-raise_by)
+        lo, hi = bounds_lift(objs)
+        lo.z = -raise_by
+        centre = (lo + hi) / 2
+        radius = (hi - lo).length / 2
+        show_only(objs + foot + [snow, sun])
+        restore_uv(objs + foot)
+        shoot = _shooter(f"pose_{key}_raised", out_dir)
+        shoot("hero", tuple(centre), 35, 10, radius * 2.4, lens=40)
+        glass = _photo_material("PoseGroundGlass", (0.85, 0.9, 0.95), 0.4)
+        next(n for n in glass.node_tree.nodes if n.type == "BSDF_PRINCIPLED").inputs["Alpha"].default_value = 0.2
+        snow.data.materials[0] = glass
+        shoot("through_ground", (at[0], 0.0, -raise_by), 35, 6, 14.0, lens=35)
+        bpy.data.objects.remove(snow)
+        _move(f, (-at[0], -at[1], raise_by))
+    with open(os.path.join(out_dir, "pose_log.json"), "w") as fh:
+        json.dump(log, fh, indent=1)
+    _photo_end(sc, [])
 
 
 def render_all(built, spec, out_dir, shots, mats):
@@ -1191,6 +1369,8 @@ def render_all(built, spec, out_dir, shots, mats):
         sle_heads(built, out_dir, mats)
     if "lean_photos" in shots and "tower_base" in built and "tower_mast" in built:
         lean_photos({k: v for k, v in built.items() if k.startswith("tower_")}, spec, out_dir, mats)
+    if "pose_photos" in shots:
+        pose_photos(built, spec, out_dir, mats, chairs)
     if ("photos" in shots or "tower_photos" in shots) and "tower_base" in built and "tower_mast" in built:
         tower_photos({k: v for k, v in built.items() if k.startswith("tower_")}, spec, out_dir, mats, chairs)
     print(f"Review renders in {out_dir}", flush=True)

@@ -1385,6 +1385,12 @@ MonoBehaviour:
   - {x: 0, y: 1, z: 0}
   - {x: 1, y: 0, z: 0}
   - {x: 1, y: 0, z: 0}
+  PivotParents: ffffffffffffffffffffffff
+  PivotHinged: 000000
+  PivotRange:
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
+  - {x: -180, y: 180}
   Sockets:
   - {fileID: 5371945705868047221}
   - {fileID: 8804050371426236801}

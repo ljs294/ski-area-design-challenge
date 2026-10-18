@@ -247,9 +247,10 @@ def head(spec, t, variant, lod, st):
         if lod <= 2:
             for va, vb in lugs:
                 prims.box(mb, (pin_u - m(lg["halfU"]), va, w_lo), (pin_u + m(lg["halfU"]), vb, w_hi), st["galv"])
-        if lod <= 1:
+        if lod <= 1:   # the main pin (its own piece for the clash sweep, liftkit/clash.py)
             p0, p1 = b_in - side * (lt + 0.012), b_out + side * (lt + 0.012)
-            prims.cylinder(mb, (pin_u, p0, pin_w), (pin_u, p1, pin_w), asm["mainPin"] / 2, 12 if lod == 0 else 8, st["rod"])
+            with mb.grouped("#pin"):
+                prims.cylinder(mb, (pin_u, p0, pin_w), (pin_u, p1, pin_w), asm["mainPin"] / 2, 12 if lod == 0 else 8, st["rod"])
 
     # the ladder's last stretch, from the mast top up through the platform hatch, with grab rails above the deck
     deck = m(d["entryPlatform"]["deck"]) + ow

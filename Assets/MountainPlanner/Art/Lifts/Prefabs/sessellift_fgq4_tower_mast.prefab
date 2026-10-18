@@ -118,6 +118,9 @@ MonoBehaviour:
   CatalogName: Line tower mast section, 1 m
   Pivots: []
   PivotAxes: []
+  PivotParents: 
+  PivotHinged: 
+  PivotRange: []
   Sockets:
   - {fileID: 27872643174146200}
   LiveryRenderers: []

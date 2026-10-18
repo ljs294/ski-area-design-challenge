@@ -61,5 +61,13 @@
     ],
     "shadowLods": 2,
     "crossFade": true
+  },
+  "terminal_footing": {
+    "_about": "A terminal's concrete footing, its own prefab since the piers became really tall (P3-07): below grade, so one plain level and no shadows.",
+    "lods": [
+      {"lod": 0, "maxTris": 12, "untilM": 1000}
+    ],
+    "shadowLods": 0,
+    "crossFade": false
   }
 }
