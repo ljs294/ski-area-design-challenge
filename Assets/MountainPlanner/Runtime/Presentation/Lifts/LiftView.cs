@@ -257,9 +257,9 @@ namespace MountainPlanner.Presentation.Lifts
                     trains.Add(TrainPosing.Read(heads[i], sides[1], bottom, dir, right));
                     above.Add(Rope.Towers[i].Head != LiftRope.Head.D8);
                 }
-                // The drive's flat row can't share a downward break with a level entry (the model thread's finding; the
-                // owner is deciding on a rebuild): held flat, the break on its last sheave.
-                trains.Add(TrainPosing.Read(driveRig, sides[2], bottom, dir, right, rigid: true));
+                // The drive's four sheaves equalise a little (owner: "Keep it 4 sheaves, but allow them to equalize a
+                // little"): within the model's stops, beam ±10° and rockers ±5°.
+                trains.Add(TrainPosing.Read(driveRig, sides[2], bottom, dir, right));
                 above.Add(true);                          // the drive's row supports it
                 if (trains.Exists(t => t == null)) return false;
                 var trees = trains.ConvertAll(t => t.Tree);
