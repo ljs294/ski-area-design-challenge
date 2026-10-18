@@ -17,7 +17,7 @@ namespace MountainPlanner.App
     ///   (<see cref="TrailGrader"/>: GR-01 to GR-08, CL-01, CL-02);
     /// - the lift: <see cref="AddLift"/> (built, Leaned, its towers) with CL-03's corridor.
     /// The points are fixed below (metres from the site's centre), so every run builds the same design, and it saves and
-    /// loads through save v1 unchanged. The towers were placed by <see cref="PlaceTowers"/> once and are listed as authored.
+    /// loads through save v1 unchanged. The towers were placed by <see cref="TowerPlacement"/> once and are listed as authored.
     /// </summary>
     public static class StyleTile
     {
@@ -55,17 +55,10 @@ namespace MountainPlanner.App
         public const float LiftOffset = 75f;
 
         /// <summary>
-        /// Where the rope leaves the return (bottom) and meets the drive (top), from the models' rope_*_out sockets: metres
-        /// along the line from the bullwheel, and above the ground at the bullwheel (the terminals sit on the ground there).
-        /// LiftView solves with the sockets themselves; these match them for placement.
-        /// </summary>
-        public static double ExitS = 5.889, ExitRise = 3.543, TopBack = 3.1, TopRise = 3.039;
-
-        /// <summary>
         /// Towers as (feet along the line from the bottom bullwheel, feet of height): placed once by
-        /// <see cref="PlaceTowers"/> (TW-16's station breakovers first) and frozen here; empty places them again.
+        /// <see cref="TowerPlacement"/> (TW-16's station breakovers first) and frozen here; empty places them again.
         /// </summary>
-        public static (int AlongFeet, int HeightFeet)[] Towers = { (70, 25), (320, 55), (570, 40), (820, 40), (1070, 35), (1320, 40), (1570, 40), (1820, 35), (2070, 35), (2265, 50) };
+        public static (int AlongFeet, int HeightFeet)[] Towers = Array.Empty<(int, int)>();   // re-placed under TW-16 v2 (round 2), frozen again after review
 
         /// <summary>
         /// Builds the design into the session's history: the trail with its grading and clearing, then the lift with its
@@ -108,28 +101,59 @@ namespace MountainPlanner.App
             var b = frame.ToAlbers(LiftLine[0], LiftLine[1]);
             var t = frame.ToAlbers(LiftLine[2], LiftLine[3]);
             var after = new EditedHeights(heights.Source, heights.Lattice, history.Terrain);
-            if (MountainPlanner.Presentation.Lifts.LiftView.RopeExit(models, "sessellift_fgq4_return", out float ra, out float rr)) { ExitS = ra; ExitRise = rr; }
-            if (MountainPlanner.Presentation.Lifts.LiftView.RopeExit(models, "sessellift_fgq4_drive", out float da, out float dr)) { TopBack = da; TopRise = dr; }
-            var towers = Towers.Length > 0 ? Authored() : PlaceTowers(after, b, t, ExitS, after.At(b.X, b.Y) + ExitRise, TopBack, after.At(t.X, t.Y) + TopRise);
-            var corridor = LiftClearing.Corridor(history.Terrain, heights.Lattice, b.X, b.Y, t.X, t.Y, out int cleared);
-            // CL-09: round each terminal, its model's footprint plus the margin and the loading or unloading zone.
+            var type = LiftType.Of(LiftCatalogIds.SesselliftFgq4);
+            if (MountainPlanner.Presentation.Lifts.LiftView.RopeExit(models, "sessellift_fgq4_return", out float ra, out float rr)) { type.BottomExitAlong = ra; type.BottomExitRise = rr; }
+            if (MountainPlanner.Presentation.Lifts.LiftView.RopeExit(models, "sessellift_fgq4_drive", out float da, out float dr)) { type.TopExitBack = da; type.TopExitRise = dr; }
             double lx = t.X - b.X, ly = t.Y - b.Y, ll = Math.Sqrt(lx * lx + ly * ly);
             lx /= ll;
             ly /= ll;
-            foreach (var (asset, at, sx, sy) in new[] { ("sessellift_fgq4_return", b, lx, ly), ("sessellift_fgq4_drive", t, -lx, -ly) })
+            // Each terminal's origin (its load or unload level) sits off its bullwheel along the line; its pad is level there.
+            double bOff = MountainPlanner.Presentation.Lifts.LiftView.OriginAlong(models, "sessellift_fgq4_return");
+            double tOff = MountainPlanner.Presentation.Lifts.LiftView.OriginAlong(models, "sessellift_fgq4_drive");
+            double bottomLevel = after.At(b.X + lx * bOff, b.Y + ly * bOff), topLevel = after.At(t.X - lx * tOff, t.Y - ly * tOff);
+
+            // LF-12: the pads, then the towers on the padded ground (TW-16 v2); a raised bottom terminal (the last resort)
+            // regrades its pad up to it.
+            TerrainEdits Pads(double raise, out TerminalPad.Result bp, out TerminalPad.Result tp)
             {
-                if (!MountainPlanner.Presentation.Lifts.LiftView.TerminalExtent(models, asset, out float behind, out float ahead, out float half))
-                    (behind, ahead, half) = (10f, 6f, 4f);   // without the models: about the FGQ-4's size
-                corridor = LiftClearing.Terminal(corridor, heights.Lattice, at.X, at.Y, sx, sy, behind, ahead, half, out int around);
-                cleared += around;
-                report.AppendFormat(CultureInfo.InvariantCulture, "{0} footprint {1:F1} m behind, {2:F1} m ahead, +-{3:F1} m; ", asset, behind, ahead, half);
+                bp = TerminalPad.Grade(after, b.X, b.Y, lx, ly, type.BottomBehind, type.BottomAhead, type.BottomHalfWidth, bottomLevel + raise, false);
+                var withBottom = new EditedHeights(heights.Source, heights.Lattice, bp.Edits);
+                tp = TerminalPad.Grade(withBottom, t.X, t.Y, -lx, -ly, type.TopBehind, type.TopAhead, type.TopHalfWidth, topLevel, true);
+                return tp.Edits;
             }
+            var padded = Pads(0, out var bottomPad, out var topPad);
+            var onPads = new EditedHeights(heights.Source, heights.Lattice, padded);
+            List<TowerSpec> towers;
+            double raised = 0;
+            if (Towers.Length > 0) towers = Authored();
+            else
+            {
+                var placed = TowerPlacement.Place(type, onPads, b.X, b.Y, t.X, t.Y, bottomLevel, topLevel, TowerStance.Leaned);
+                if (placed.BottomRaise > 0)
+                {
+                    raised = placed.BottomRaise;
+                    padded = Pads(raised, out bottomPad, out topPad);
+                    onPads = new EditedHeights(heights.Source, heights.Lattice, padded);
+                    placed = TowerPlacement.Place(type, onPads, b.X, b.Y, t.X, t.Y, bottomLevel + raised, topLevel, TowerStance.Leaned);
+                }
+                towers = placed.Towers;
+            }
+            report.AppendFormat(CultureInfo.InvariantCulture,
+                "pads: bottom cut {0:F0} / fill {1:F0} yd³ (clipped {2:F2} m), top cut {3:F0} / fill {4:F0} yd³ (clipped {5:F2} m), bottom raised {6:F0} ft; ",
+                bottomPad.CutCubicMetres * 1.30795, bottomPad.FillCubicMetres * 1.30795, bottomPad.ClippedStepMetres,
+                topPad.CutCubicMetres * 1.30795, topPad.FillCubicMetres * 1.30795, topPad.ClippedStepMetres, raised / 0.3048);
+
+            // CL-03's corridor and CL-09 round each terminal, over the padded edits.
+            var corridor = LiftClearing.Corridor(padded, heights.Lattice, b.X, b.Y, t.X, t.Y, out int cleared);
+            corridor = LiftClearing.Terminal(corridor, heights.Lattice, b.X, b.Y, lx, ly, type.BottomBehind, type.BottomAhead, type.BottomHalfWidth, out int aroundB);
+            corridor = LiftClearing.Terminal(corridor, heights.Lattice, t.X, t.Y, -lx, -ly, type.TopBehind, type.TopAhead, type.TopHalfWidth, out int aroundT);
+            cleared += aroundB + aroundT + bottomPad.ClearedCells + topPad.ClearedCells;
             var lift = new AddLift(history.Revision, LiftName, LiftCatalogIds.SesselliftFgq4, bottom, top, TowerMode.ByHand, TowerStance.Leaned,
                                    towers, WorkStage.Built);
             var r2 = history.Submit(lift, corridor);
-            report.AppendFormat(CultureInfo.InvariantCulture, "lift {0}: {1:F0} ft, rise {2:F0} ft, {3} towers [{4}], corridor {5} cells",
+            report.AppendFormat(CultureInfo.InvariantCulture, "lift {0}: {1:F0} ft, rise {2:F0} ft, {3} towers [{4}], {5} cells cleared",
                 r2.Accepted ? "built" : "REJECTED " + r2, Math.Sqrt(bottom.DistanceSquared(top)) / 304.8,
-                (after.At(t.X, t.Y) - after.At(b.X, b.Y)) / 0.3048, towers.Count, Describe(towers), cleared);
+                (topLevel - bottomLevel) / 0.3048, towers.Count, Describe(towers), cleared);
             return report.ToString();
         }
 
@@ -214,93 +238,6 @@ namespace MountainPlanner.App
                 sb.Append(Math.Round(tw.AlongMm / 304.8)).Append('/').Append(Math.Round(tw.HeightMm / 304.8));
             }
             return sb.ToString();
-        }
-
-        /// <summary>
-        /// A simple stand-in for TW-12 (task 09 writes the real one), used to author the style tile's towers. First the
-        /// stations' breakovers (TW-16, owner): one 70 ft from each bullwheel, its height set so the rope leaves the bottom
-        /// terminal's hold-down row, and reaches the top terminal's support row, within the rows' limits, gently. Then line
-        /// towers every 250 ft at 35 ft on a 5 ft grid; while a span's chairs come within 15 ft of the ground (TW-01) or a
-        /// head is too sharp, the towers either side of the low point go up 5 ft, or a tower goes in at the low point once
-        /// they reach 60 ft; while a terminal's angle is over its limit, its breakover moves 5 ft toward the rope's level.
-        /// </summary>
-        public static List<TowerSpec> PlaceTowers(IHeightSource ground, AlbersPoint bottom, AlbersPoint top,
-                                                  double bottomExitS, double bottomExitY, double topExitBack, double topExitY)
-        {
-            var type = LiftType.Of(LiftCatalogIds.SesselliftFgq4);
-            double length = Math.Sqrt((top.X - bottom.X) * (top.X - bottom.X) + (top.Y - bottom.Y) * (top.Y - bottom.Y));
-            double ux = (top.X - bottom.X) / length, uy = (top.Y - bottom.Y) / length;
-            double GroundAt(double s) => ground.At(bottom.X + ux * s, bottom.Y + uy * s);
-            const double grid = 1.524, minH = 7.62, maxH = 30.48, station = 21.336;   // 5 ft; 25-100 ft (TW-02); 70 ft
-            double Snap(double v) => Math.Round(v / grid) * grid;
-            double Height(double s, double ropeY) => Math.Max(minH, Math.Min(maxH, Snap(ropeY - GroundAt(s))));
-            // The stations' breakovers: the rope from the bottom row climbing at half its limit, into the top row at a third.
-            double sb = Snap(station), st = Snap(length - station);
-            var along = new List<double> { sb };
-            var heights = new List<double> { Height(sb, bottomExitY + (sb - bottomExitS) * Math.Tan(type.BottomExitMax / 2)) };
-            for (double s = sb + 76.2; s < st - 40; s += 76.2)
-            {
-                along.Add(Snap(s));
-                heights.Add(10.668);   // 35 ft
-            }
-            along.Add(st);
-            heights.Add(Height(st, topExitY - (length - topExitBack - st) * Math.Tan(type.TopEntryMax / 3)));
-            double raise = 0;   // TW-16: the bottom terminal raised when the ground is too steep for its row (owner)
-            for (int round = 0; round < 400; round++)
-            {
-                var specs = new List<Tower>();
-                for (int i = 0; i < along.Count; i++) specs.Add(new Tower(TowerId.Make(1, i), (int)Math.Round(along[i] * 1000), (int)Math.Round(heights[i] * 1000)));
-                var rope = LiftRope.Solve(type, ground, bottom.X, bottom.Y, top.X, top.Y, specs, TowerStance.Leaned, bottomExitS, bottomExitY + raise, topExitBack, topExitY);
-                // TW-16 first: a terminal's angle over its limit moves its breakover toward the rope's level.
-                if (Math.Abs(rope.BottomExitAngle) > type.BottomExitMax)
-                {
-                    double h = heights[0] + (rope.BottomExitAngle > 0 ? -grid : grid);
-                    if (h >= minH && h <= maxH) { heights[0] = h; continue; }
-                    if (rope.BottomExitAngle > 0 && raise < LiftRope.MaxTerminalRaise) { raise += LiftRope.RaiseStep; continue; }   // owner: raise it
-                    break;
-                }
-                int last = along.Count - 1;
-                if (Math.Abs(rope.TopEntryAngle) > type.TopEntryMax)
-                {
-                    double h = heights[last] + (rope.TopEntryAngle > 0 ? grid : -grid);
-                    if (h < minH || h > maxH) break;
-                    heights[last] = h;
-                    continue;
-                }
-                int sharp = -1;
-                for (int i = 1; i < rope.Towers.Count - 1; i++) if (rope.Towers[i].Head == LiftRope.Head.TooSharp) sharp = i;
-                if (rope.LowestClearance >= LiftRope.Clearance && sharp < 0) break;
-                double at = sharp >= 0 ? rope.Towers[sharp].BaseS : rope.LowestClearanceS;
-                int next = along.FindIndex(a => a > at);
-                if (next < 0) next = along.Count;
-                int prev = next - 1;
-                bool inner(int i) => i > 0 && i < along.Count - 1;   // the stations' breakovers keep their heights
-                bool canRaise = (!inner(prev) || heights[prev] < 18.29) && (!inner(next) || heights[next] < 18.29) && (inner(prev) || inner(next));
-                if (canRaise && sharp < 0)
-                {
-                    if (inner(prev)) heights[prev] += grid;
-                    if (inner(next)) heights[next] += grid;
-                }
-                else
-                {
-                    double put = Snap(Math.Max(sb + 15.24, Math.Min(st - 15.24, at)));
-                    if ((prev >= 0 && put - along[prev] < 15.24) || (next < along.Count && along[next] - put < 15.24))
-                    {
-                        // Too close to a neighbour to add one: raise the nearest line tower instead, up to 100 ft (TW-02).
-                        int near = prev >= 0 && (next >= along.Count || at - along[prev] < along[next] - at) ? prev : next;
-                        if (inner(near) && heights[near] < maxH) heights[near] += grid; else break;
-                    }
-                    else
-                    {
-                        along.Insert(next, put);
-                        heights.Insert(next, 10.668);
-                    }
-                }
-            }
-            var list = new List<TowerSpec>();
-            for (int i = 0; i < along.Count; i++)
-                list.Add(new TowerSpec(DesignUnits.FeetToMm((int)Math.Round(along[i] / 0.3048 / 5) * 5), DesignUnits.FeetToMm((int)Math.Round(heights[i] / 0.3048 / 5) * 5)));
-            return list;
         }
     }
 }

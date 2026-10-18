@@ -69,6 +69,20 @@ namespace MountainPlanner.Presentation.Lifts
         GameObject Prefab(string id) => _models != null ? _models.Find(_prefix + id) : null;
 
         /// <summary>
+        /// LF-12: how far a terminal's origin (its load or unload level, where it stands on its pad) lies from its bullwheel
+        /// along the line toward the other terminal, in metres, from its rope_*_bw sockets.
+        /// </summary>
+        public static double OriginAlong(LiftModelSet models, string assetId)
+        {
+            var prefab = models != null ? models.Find(assetId) : null;
+            var rig = prefab != null ? prefab.GetComponent<LiftRig>() : null;
+            var l = rig != null ? rig.Socket("rope_left_bw") : null;
+            var r = rig != null ? rig.Socket("rope_right_bw") : null;
+            if (l == null || r == null) return 0;
+            return -(l.localPosition.z + r.localPosition.z) / 2;
+        }
+
+        /// <summary>
         /// Where a terminal's rope leaves it toward the line (TW-16): how far along the line from the bullwheel, and how
         /// high above the terminal's origin (on the ground), from its rope_right_bw and rope_right_out sockets.
         /// </summary>

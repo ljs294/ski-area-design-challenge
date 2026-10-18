@@ -253,9 +253,10 @@ namespace MountainPlanner.Tests
         public void LC02_LC03_TheQuadCarries2400PeoplePerHour()
         {
             Assert.That(Quad.Capacity, Is.EqualTo(2400).Within(1));
-            // RP-05's allowed rise: (rated − counterweight) ÷ loaded load, about 900 ft.
+            // RP-05's allowed rise with LC-02 v2's 1¾ in rope: (rated − counterweight) ÷ loaded load, about 1,130 ft.
             double rise = (Quad.RatedTensionNewtons - Quad.CounterweightNewtons) / Quad.LoadedNewtonsPerMetre;
-            Assert.That(rise / 0.3048, Is.InRange(880, 930));
+            Assert.That(rise / 0.3048, Is.InRange(1100, 1160));
+            Assert.That(Quad.RopeDiameterMetres, Is.EqualTo(0.0445).Within(1e-4), "SK17: 1¾ in");
         }
 
         [Test]
@@ -404,6 +405,81 @@ namespace MountainPlanner.Tests
             {
                 if (System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root, true);
             }
+        }
+
+        [Test]
+        public void LF12_APadIsLevelWithOneToOneFacesAndNothingChangesPastItsEnvelope()
+        {
+            var natural = Natural(new Plane(0.15, 0.3));
+            double x = West + 300, y = North - 300;
+            double level = natural.At(x, y);
+            var pad = TerminalPad.Grade(natural, x, y, 0, 1, 2.3, 8.1, 3.0, level, false);
+            var h = new EditedHeights(natural.Source, Lattice, pad.Edits);
+            // Level inside: the footprint plus 20 ft (from 2.3 + 6.1 m behind to 8.1 + 6.1 m in front, 9.1 m either side).
+            for (int dy = -7; dy <= 13; dy += 2)
+                for (int dx = -8; dx <= 8; dx += 2)
+                    Assert.That(h.At(x + dx, y + dy), Is.EqualTo(level).Within(0.002), $"({dx}, {dy}) on the pad");
+            // Faces at most 1:1 across the pad's side.
+            for (int d = 10; d < 25; d++)
+                Assert.That(Math.Abs(h.At(x + d + 1, y) - h.At(x + d, y)), Is.LessThanOrEqualTo(1.0 + 0.02), $"{d} m out");
+            // Past the 50 ft envelope nothing changes (GR-06's exception stops there).
+            for (int d = 0; d < 360; d += 20)
+            {
+                double a = d * Math.PI / 180, px = x + Math.Cos(a) * 45, py = y + 3 + Math.Sin(a) * 45;
+                Assert.That(h.At(px, py), Is.EqualTo(natural.At(px, py)).Within(1e-9), $"{d}°, 45 m out");
+            }
+            Assert.That(pad.ClearedCells, Is.GreaterThan(300), "CL-09 v2 clears the pad and its faces");
+        }
+
+        [Test]
+        public void LF12_TheTopPadRunsSixtyFeetBehindItsBullwheel()
+        {
+            var natural = Natural(new Plane(0, 0.25));   // the hill keeps rising behind the top terminal (north)
+            double x = West + 300, y = North - 300;
+            double level = natural.At(x, y);
+            // The other terminal is downhill (south), so +u points south and "behind" is north, up the hill.
+            var pad = TerminalPad.Grade(natural, x, y, 0, -1, 2.5, 7.2, 3.3, level, true);
+            var h = new EditedHeights(natural.Source, Lattice, pad.Edits);
+            Assert.That(h.At(x, y + 18.0), Is.EqualTo(level).Within(0.002), "level 59 ft behind: the unload zone");
+            Assert.That(h.At(x, y + 18.0) - natural.At(x, y + 18.0), Is.LessThan(-4), "cut into the hill");
+        }
+
+        [Test]
+        public void TW02v2_TW03v2_StationTowersStandCloseAndShort()
+        {
+            // Flat round both terminals' pads, 30% between: the station towers stand 45 ft from the bullwheels (40 ft or
+            // 15 ft past the terminal's front, whichever is farther, on a 5 ft grid) and may be under 25 ft.
+            // The top eases from 30% to flat over 300 ft (a parabola), as a real top approach does.
+            double Ground(double s) => s < 40 ? 0 : s < 670 ? 0.3 * (s - 40) : s < 760 ? 189 + 0.3 * (s - 670) - 0.15 * (s - 670) * (s - 670) / 90 : 202.5;
+            var line = new Profile(Ground);
+            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
+            var placed = TowerPlacement.Place(Quad, line, bx, by, tx, ty, line.At(bx, by), line.At(tx, ty), TowerStance.Plumb);
+            var first = placed.Towers[0];
+            var last = placed.Towers[placed.Towers.Count - 1];
+            Assert.That(first.AlongMm, Is.EqualTo(DesignUnits.FeetToMm(45)));
+            Assert.That(800_000 - last.AlongMm, Is.EqualTo(DesignUnits.FeetToMm(45)).Within(DesignUnits.FiveFeetMm));
+            Assert.That(placed.Towers.TrueForAll(t => t.HeightMm >= DesignUnits.StationTowerMinMm));
+            Assert.That(placed.Rope.TerminalsOk, Is.True, $"bottom {placed.Rope.BottomExitAngle * 180 / Math.PI:F1}°, top {placed.Rope.TopEntryAngle * 180 / Math.PI:F1}°");
+            Assert.That(placed.Rope.LowestClearance, Is.GreaterThanOrEqualTo(LiftRope.Clearance),
+                $"lowest at {placed.Rope.LowestClearanceS:F0} m; towers " + string.Join(", ", placed.Towers.Select(t => $"{t.AlongMm / 1000.0:F0}/{t.HeightMm / 1000.0:F1}")));
+            Assert.That(placed.BottomRaise, Is.EqualTo(0));
+            // AddLift accepts them (TW-02 v2's station heights).
+            var towers = placed.Towers.Select((t, i) => new Tower(TowerId.Make(3, i), t.AlongMm, t.HeightMm)).ToList();
+            Assert.That(DesignRules.TowersProblem(800_000L * 800_000L, towers), Is.Null);
+        }
+
+        [Test]
+        public void TW16v2_ASteepBottomGetsAHoldDownNotARaise()
+        {
+            // A short flat pad, then 50% (27°): steeper than the bottom row's 15.9°. The rope leaves within the row and a
+            // tower near the station turns it up further (a hold-down or combination); the terminal isn't raised.
+            var line = new Profile(s => s < 20 ? 0 : s < 740 ? 0.5 * (s - 20) : 360);
+            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
+            var placed = TowerPlacement.Place(Quad, line, bx, by, tx, ty, line.At(bx, by), line.At(tx, ty), TowerStance.Plumb);
+            Assert.That(placed.Rope.BottomExitAngle, Is.LessThanOrEqualTo(Quad.BottomExitMax + 1e-9));
+            Assert.That(placed.BottomRaise, Is.EqualTo(0));
+            bool holdDown = placed.Rope.Towers.Take(3).Any(t => t.Head == LiftRope.Head.D8 || t.Head == LiftRope.Head.C8);
+            Assert.That(holdDown, Is.True, string.Join(", ", placed.Rope.Towers.Select(t => t.Head)));
         }
 
         /// <summary>A profile along the test line, which runs due north from (100, 900) to (100, 100).</summary>
