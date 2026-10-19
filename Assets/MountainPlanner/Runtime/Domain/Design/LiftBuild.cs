@@ -51,6 +51,18 @@ namespace MountainPlanner.Domain.Design
             public bool Ok => Problems.Count == 0;
         }
 
+        /// <summary>
+        /// Each terminal's level where nothing raised it: the ground at its origin (LF-12), whole millimetres, as the build starts
+        /// from. A lift from a v1 save, whose levels weren't stored, stands at these.
+        /// </summary>
+        public static LiftLevels GroundLevels(LiftType type, IHeightSource ground, double bx, double by, double tx, double ty)
+        {
+            double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
+            double ux = (tx - bx) / length, uy = (ty - by) / length;
+            return LiftLevels.FromMetres(ground.At(bx + ux * type.Bottom.OriginAlong, by + uy * type.Bottom.OriginAlong),
+                                         ground.At(tx - ux * type.Top.OriginAlong, ty - uy * type.Top.OriginAlong));
+        }
+
         /// <summary>LF-08 v2: a terminal cuts at most 10 ft into the hill; on a steeper site it stands higher on its pier.</summary>
         public const double SitingVariationMetres = 3.048;
 

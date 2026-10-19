@@ -143,12 +143,12 @@ namespace MountainPlanner.Presentation.Lifts
         /// ground (<paramref name="ground"/>, in the package's frame); <paramref name="frame"/> turns design points into
         /// local metres. The livery colours the drive's hood.
         /// </summary>
-        /// <param name="levels">Each terminal's base elevation as built (<see cref="LiftBuild.Result"/>), when known: a raised
-        /// terminal stands on its pier above the ground (LF-12 v3, pads only cut). Without it, each stands at its origin's
-        /// ground. Saved designs carry it with task 09's save v2 (SK14).</param>
-        public void Build(Lift lift, IHeightSource ground, LocalFrame frame, Color livery, (double Bottom, double Top)? levels = null)
+        /// <remarks>Each terminal stands at the lift's stored level (SK14, save v2): a raised terminal stands on its pier
+        /// above the ground (LF-12 v3, pads only cut). A lift without levels (from a v1 save) stands at its origins' ground.</remarks>
+        public void Build(Lift lift, IHeightSource ground, LocalFrame frame, Color livery)
         {
             Clear();
+            (double Bottom, double Top)? levels = lift.Levels is LiftLevels v ? (v.BottomMetres, v.TopMetres) : ((double, double)?)null;
             var type = LiftTypes.Measured(LiftType.Of(lift.CatalogId), _models);
             var bottom = new Vector3((float)lift.Bottom.XMetres, 0, (float)lift.Bottom.YMetres);
             var top = new Vector3((float)lift.Top.XMetres, 0, (float)lift.Top.YMetres);

@@ -81,8 +81,7 @@ namespace MountainPlanner.App
                 if (_liftViews.TryGetValue(lift.Id, out var shown) && ReferenceEquals(shown.Lift, lift)) continue;
                 shown.View?.Dispose();
                 var view = new LiftView(_resort.Root.transform, Lifts, _liftMaterials, _cableMaterial, lift.Name);
-                view.Build(lift, heights, _resort.Frame, new Color(0.72f, 0.12f, 0.09f),
-                           StyleTile.TerminalLevels.TryGetValue((lift.Bottom, lift.Top), out var levels) ? levels : ((double, double)?)null);
+                view.Build(lift, heights, _resort.Frame, new Color(0.72f, 0.12f, 0.09f));
                 _liftViews[lift.Id] = (lift, view);
                 var rope = view.Rope;
                 Debug.Log($"[Built] {lift.Name}: {rope.Towers.Count} towers ({string.Join(", ", view.Heads)}), {view.ChairCount} chairs, " +

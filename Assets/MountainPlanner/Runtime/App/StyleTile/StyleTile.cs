@@ -52,10 +52,6 @@ namespace MountainPlanner.App
         /// <summary>The lift's bottom and top bullwheels, local metres; empty: beside the trail, <see cref="LiftOffset"/> to its right looking up.</summary>
         public static float[] LiftLine = { 661.0f, -853.2f, 131.9f, -377.7f };
 
-        /// <summary>Each built lift's terminal levels (LF-12 v3: a raise isn't in the terrain), by its bottom and top points,
-        /// for the view; saved designs carry them with task 09's save v2 (SK14).</summary>
-        public static readonly Dictionary<(PointMm, PointMm), (double Bottom, double Top)> TerminalLevels =
-            new Dictionary<(PointMm, PointMm), (double Bottom, double Top)>();
         public const float LiftOffset = 75f;
 
         /// <summary>
@@ -171,9 +167,8 @@ namespace MountainPlanner.App
                 rope.LowestClearance / 0.3048, rope.LowestClearanceS / 0.3048, rope.Shortfall / 0.3048, rope.ShortfallS / 0.3048,
                 rope.Towers[0].Reveal / 0.3048, rope.Towers[rope.Towers.Count - 1].Reveal / 0.3048);
             var lift = new AddLift(history.Revision, name, LiftCatalogIds.SesselliftFgq4, bottom, top, TowerMode.ByHand, TowerStance.Leaned,
-                                   built.Towers, WorkStage.Built);
+                                   built.Towers, WorkStage.Built, built.Levels);
             var r2 = history.Submit(lift, built.Edits);
-            TerminalLevels[(bottom, top)] = (built.BottomLevel, built.TopLevel);
             report.AppendFormat(CultureInfo.InvariantCulture, "lift {0}: {1:F0} ft, top tension {2:P0} of rating, {3} towers [{4}], {5} cells cleared",
                 r2.Accepted ? "built" : "REJECTED " + r2, Math.Sqrt(bottom.DistanceSquared(top)) / 304.8, rope.TopTensionShare,
                 built.Towers.Count, Describe(built.Towers), built.ClearedCells);
