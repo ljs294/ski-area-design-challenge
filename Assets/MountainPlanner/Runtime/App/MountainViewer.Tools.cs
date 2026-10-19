@@ -84,6 +84,7 @@ namespace MountainPlanner.App
             _tools?.Close();
             _preview?.Dispose();
             _designOverlay?.Dispose();
+            DisposeTrailLayer();
             _tools = null;
             _preview = null;
             _designOverlay = null;

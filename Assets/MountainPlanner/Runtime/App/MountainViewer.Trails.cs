@@ -19,6 +19,38 @@ namespace MountainPlanner.App
     public sealed partial class MountainViewer
     {
         EarthworkHost _ground;
+        TrailMapView _trailLayer;
+        MountainPlanner.UI.LandmarkLabelOverlay _trailLabels;
+        readonly List<(string Name, Vector3 At)> _trailLabelSpots = new List<(string, Vector3)>();
+
+        /// <summary>The Trails map layer (task 08, TL6), once the ground's session is up.</summary>
+        internal TrailMapView TrailLayer => _trailLayer;
+
+        /// <summary>Redraws the Trails layer with the built work (from UpdateBuiltWork, once the edits are laid).</summary>
+        void RebuildTrailLayer(DesignDocument doc, EditedHeights heights)
+        {
+            if (_resort == null) return;
+            _trailLayer ??= new TrailMapView(_resort.Root.transform, _resort.Surface, HighlightMaterial);
+            _trailLayer.Rebuild(doc, heights, _resort.Frame, _edits?.Earthwork, _trailLabelSpots, _resort.Surface);
+            if (_trailLabels == null && Hud != null) _trailLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer);
+            _trailLabels?.SetLandmarks(_trailLabelSpots);
+        }
+
+        /// <summary>Once a frame, after the camera has moved: the layer follows the camera and the names their lines.</summary>
+        void TickTrailLayer(UnityEngine.Camera cam)
+        {
+            if (_trailLayer == null) return;
+            bool on = _layers == null || _layers.TrailsOn;
+            if (_trailLayer.Visible != on) _trailLayer.Visible = on;
+            if (cam != null) _trailLayer.Follow(cam);
+            _trailLabels?.Update(cam, on && _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
+        }
+
+        void DisposeTrailLayer()
+        {
+            _trailLayer?.Dispose();
+            _trailLayer = null;
+        }
 
         /// <summary>The tools' view of the terrain edit session.</summary>
         internal IEarthworkHost Ground => _ground ?? (_ground = new EarthworkHost(this));

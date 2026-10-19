@@ -19,6 +19,8 @@ namespace MountainPlanner.Presentation
         ToolNew, ToolEdit, ToolRemove,
         ToolNext, BreakGround, BrushNarrower, BrushWider, Erase, UndoStroke, TowerUp, TowerDown, DeleteSelected, ToolWindowKeys,
         Undo, Redo,
+        // P3-08: the Trails map layer (TL6).
+        LayerTrails,
     }
 
     [Flags]
@@ -149,6 +151,8 @@ namespace MountainPlanner.Presentation
             new Info("Building", "Use the tool window with the keys", Context.Tray, new KeyChord(Key.Tab)),
             new Info("Game", "Undo", Context.Normal, new KeyChord(Key.Z, KeyMods.Ctrl)),
             new Info("Game", "Redo", Context.Normal, new KeyChord(Key.Y, KeyMods.Ctrl), new KeyChord(Key.Z, KeyMods.Ctrl | KeyMods.Shift)),
+            // P3-08: the Trails map layer (owner TL6).
+            new Info("Layers", "Trails", Context.Normal, new KeyChord(Key.Digit4, KeyMods.Shift)),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>

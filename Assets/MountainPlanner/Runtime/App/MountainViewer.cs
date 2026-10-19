@@ -439,6 +439,7 @@ namespace MountainPlanner.App
             // Map layers (Shift+2, 4 and 5 are free for lifts and the rest as they're built).
             if (KeyBindings.Pressed(keys, GameAction.LayerSnow, letters)) ToggleLayer(MapLayers.Snow);
             if (KeyBindings.Pressed(keys, GameAction.LayerTrees, letters)) ToggleLayer(MapLayers.Trees);
+            if (KeyBindings.Pressed(keys, GameAction.LayerTrails, letters)) ToggleLayer(MapLayers.Trails);   // task 08
             // Info layers: Contours with anything; the other four take turns.
             if (KeyBindings.Pressed(keys, GameAction.InfoContours, letters)) ToggleLayer(MapLayers.Contours);
             if (KeyBindings.Pressed(keys, GameAction.InfoSlope, letters)) ToggleLayer(MapLayers.SlopeAngle);
@@ -582,6 +583,7 @@ namespace MountainPlanner.App
             DrawChairs();   // after the camera has moved, for its LODs
             if (_contourLabels == null || _resort == null) return;
             _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
+            TickTrailLayer(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);   // task 08
             var set = _resort.ContourLabels[(int)DisplayUnits.Current];
             if (!ReferenceEquals(set, _contourLabelSet))
             {

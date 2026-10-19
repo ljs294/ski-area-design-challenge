@@ -31,6 +31,10 @@ namespace MountainPlanner.Presentation.Design
             new Color(0.784f, 0.722f, 0.627f),   // Paint: a muted trail tone #c8b8a0
             new Color(0.957f, 0.945f, 0.918f),   // Brush: white
             new Color(0.878f, 0.278f, 0.227f),   // Lift: #e0473a
+            new Color(0.247f, 0.682f, 0.416f),   // RatingGreen: the mockup's #3fae6a
+            new Color(0.302f, 0.541f, 0.839f),   // RatingBlue: #4d8ad6
+            new Color(0.067f, 0.067f, 0.067f),   // RatingBlack
+            new Color(1f, 1f, 1f),               // Casing: white
         };
 
         sealed class Slot
