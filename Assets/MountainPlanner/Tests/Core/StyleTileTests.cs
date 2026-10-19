@@ -414,35 +414,39 @@ namespace MountainPlanner.Tests
             var natural = Natural(new Plane(0.15, 0.3));
             double x = West + 300, y = North - 300;
             double level = natural.At(x, y);
-            var pad = TerminalPad.Grade(natural, x, y, 0, 1, 2.3, 8.1, 3.0, level, false);
+            var pad = TerminalPad.Grade(natural, x, y, 0, 1, 2.3, 8.1, 3.0, level);
             var h = new EditedHeights(natural.Source, Lattice, pad.Edits);
-            // Level inside: the footprint plus 20 ft (from 2.3 + 6.1 m behind to 8.1 + 6.1 m in front, 9.1 m either side).
-            for (int dy = -7; dy <= 13; dy += 2)
-                for (int dx = -8; dx <= 8; dx += 2)
+            // Level inside: the footprint plus 5 ft (from 2.3 + 1.5 m behind to 8.1 + 1.5 m in front, 4.5 m either side).
+            for (int dy = -3; dy <= 9; dy += 2)
+                for (int dx = -4; dx <= 4; dx += 2)
                     Assert.That(h.At(x + dx, y + dy), Is.EqualTo(level).Within(0.002), $"({dx}, {dy}) on the pad");
             // Faces at most 1:1 across the pad's side.
-            for (int d = 10; d < 25; d++)
+            for (int d = 5; d < 20; d++)
                 Assert.That(Math.Abs(h.At(x + d + 1, y) - h.At(x + d, y)), Is.LessThanOrEqualTo(1.0 + 0.02), $"{d} m out");
-            // Past the 200 ft envelope nothing changes (GR-06's exception stops there).
+            // Past the 50 ft envelope nothing changes (GR-06's exception stops there).
             for (int d = 0; d < 360; d += 20)
             {
-                double a = d * Math.PI / 180, px = x + Math.Cos(a) * 85, py = y + 3 + Math.Sin(a) * 85;
-                Assert.That(h.At(px, py), Is.EqualTo(natural.At(px, py)).Within(1e-9), $"{d}°, 85 m out");
+                double a = d * Math.PI / 180, px = x + Math.Cos(a) * 30, py = y + 3 + Math.Sin(a) * 30;
+                Assert.That(h.At(px, py), Is.EqualTo(natural.At(px, py)).Within(1e-9), $"{d}°, 30 m out");
             }
-            Assert.That(pad.ClearedCells, Is.GreaterThan(300), "CL-09 v2 clears the pad and its faces");
+            Assert.That(pad.ClearedCells, Is.GreaterThan(100), "CL-09 v2 clears the pad and its faces");
         }
 
         [Test]
-        public void LF12_TheTopPadRunsSixtyFeetBehindItsBullwheel()
+        public void LF12v2_ATopPadEndsJustBehindItsTerminal()
         {
+            // Finding r3 #2: the pad hugs the terminal, ending just behind its hood, with no unload extension.
             var natural = Natural(new Plane(0, 0.25));   // the hill keeps rising behind the top terminal (north)
             double x = West + 300, y = North - 300;
             double level = natural.At(x, y);
             // The other terminal is downhill (south), so +u points south and "behind" is north, up the hill.
-            var pad = TerminalPad.Grade(natural, x, y, 0, -1, 2.5, 7.2, 3.3, level, true);
+            var pad = TerminalPad.Grade(natural, x, y, 0, -1, 2.5, 7.2, 3.3, level);
             var h = new EditedHeights(natural.Source, Lattice, pad.Edits);
-            Assert.That(h.At(x, y + 18.0), Is.EqualTo(level).Within(0.002), "level 59 ft behind: the unload zone");
-            Assert.That(h.At(x, y + 18.0) - natural.At(x, y + 18.0), Is.LessThan(-4), "cut into the hill");
+            Assert.That(h.At(x, y + 3.9), Is.EqualTo(level).Within(0.002), "level 2.5 m + 5 ft behind the bullwheel");
+            // Behind the pad's edge (4.0 m) the 1:1 face climbs to meet the hill at about 5.4 m; beyond, the hill is untouched.
+            Assert.That(h.At(x, y + 4.8), Is.GreaterThan(level + 0.5), "the face rises behind the pad");
+            Assert.That(h.At(x, y + 8.0), Is.EqualTo(natural.At(x, y + 8.0)).Within(1e-9), "untouched 26 ft behind");
+            Assert.That(h.At(x, y + 18.0), Is.EqualTo(natural.At(x, y + 18.0)).Within(1e-9), "no unload extension");
         }
 
         [Test]

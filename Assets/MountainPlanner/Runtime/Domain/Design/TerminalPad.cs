@@ -5,22 +5,19 @@ using MountainPlanner.Domain.Edits;
 namespace MountainPlanner.Domain.Design
 {
     /// <summary>
-    /// LF-12 (owner, task 07, SK19): every terminal is built on a level pad, so only its plinth comes out of the ground. The
-    /// pad is the terminal's footprint plus 20 ft all round (CL-09's margin), level at the terminal's base elevation; the
-    /// top terminal's pad runs at least 60 ft behind its bullwheel, for the unload zone. Around it, 1:1 cut and fill faces
-    /// run out to the ground (GR-02's slope) within an envelope of 200 ft (GR-11's terminal-pad envelope, an exception to
-    /// GR-06): a face that hasn't met the ground there is clipped, and the step is reported. Everything the pad and its
-    /// faces touch is cleared (CL-09 v2). Positions in the edit lattice's frame; (ux, uy) points toward the other terminal.
+    /// LF-12 v2 (owner, task 07, SK19; round 3, SK25): every terminal is built on a level pad, so only its plinth comes out
+    /// of the ground. The pad hugs the terminal: its footprint plus 5 ft all round, level at the terminal's base elevation,
+    /// the same at either end (the unload area beyond comes with the off-ramp models). Around it, 1:1 cut and fill faces
+    /// run out to the ground (GR-02's slope) within GR-11's 50 ft terminal-pad envelope (an exception to GR-06): a face that
+    /// hasn't met the ground there is clipped, and the step is reported. Everything the pad and its faces touch is cleared
+    /// (CL-09 v2). Positions in the edit lattice's frame; (ux, uy) points toward the other terminal.
     /// </summary>
     public static class TerminalPad
     {
-        /// <summary>20 ft, as CL-09.</summary>
-        public const double MarginMetres = 6.096;
-        /// <summary>The top terminal's unload zone: the pad reaches 60 ft behind the bullwheel.</summary>
-        public const double UnloadBehindMetres = 18.288;
-        /// <summary>The faces' envelope past the pad: 200 ft (tuned at 07: 50 and 100 ft left clipped steps behind the top pad on the
-        /// style tile's steep hill).</summary>
-        public const double FaceReachMetres = 60.96;
+        /// <summary>LF-12 v2: 5 ft round the footprint (owner, round 3).</summary>
+        public const double MarginMetres = 1.524;
+        /// <summary>GR-11 v2: the faces' envelope past the pad, 50 ft.</summary>
+        public const double FaceReachMetres = 15.24;
         public const double FaceSlope = 1;
 
         public sealed class Result
@@ -39,11 +36,10 @@ namespace MountainPlanner.Domain.Design
         /// the margin is added here), level at <paramref name="elevation"/>, over the current edited heights.
         /// </summary>
         public static Result Grade(EditedHeights current, double x, double y, double ux, double uy,
-                                   double behind, double ahead, double halfWidth, double elevation, bool top)
+                                   double behind, double ahead, double halfWidth, double elevation)
         {
             if (current == null) throw new ArgumentNullException(nameof(current));
             double b = behind + MarginMetres, a = ahead + MarginMetres, w = halfWidth + MarginMetres;
-            if (top) b = Math.Max(b, UnloadBehindMetres);
             double reach = Math.Sqrt(Math.Max(a, b) * Math.Max(a, b) + w * w) + FaceReachMetres + 2;
             var lattice = current.Lattice;
             int c0 = (int)Math.Floor(x - reach - lattice.West), c1 = (int)Math.Ceiling(x + reach - lattice.West);

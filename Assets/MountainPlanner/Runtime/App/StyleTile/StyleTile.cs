@@ -106,9 +106,9 @@ namespace MountainPlanner.App
             // regrades its pad up to it.
             TerrainEdits Pads(double raise, out TerminalPad.Result bp, out TerminalPad.Result tp)
             {
-                bp = TerminalPad.Grade(after, b.X, b.Y, lx, ly, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel + raise, false);
+                bp = TerminalPad.Grade(after, b.X, b.Y, lx, ly, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel + raise);
                 var withBottom = new EditedHeights(heights.Source, heights.Lattice, bp.Edits);
-                tp = TerminalPad.Grade(withBottom, t.X, t.Y, -lx, -ly, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, topLevel, true);
+                tp = TerminalPad.Grade(withBottom, t.X, t.Y, -lx, -ly, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, topLevel);
                 return tp.Edits;
             }
             var padded = Pads(0, out var bottomPad, out var topPad);
