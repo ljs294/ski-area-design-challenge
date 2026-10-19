@@ -446,3 +446,4 @@ questions, and added TL13.
 | TL11 | **Mockup first:** the Edit trail panel follows TF-07, Remove confirms, the review's terrain rows, the live Trails layer row and the Grading column; screenshots in both themes |
 | TL12 | **One PR**, with the mockup approval as a checkpoint in the thread |
 | TL13 | **Grading only when the player chooses it** (owner): a new trail starts **Natural**; it is graded only when the player switches it to Graded. Natural trails clear trees and change no ground (TF-06) |
+| TL14 | **A terrain modification tool** in the style of Cities: Skylines 2 (owner): raise, lower, level, smooth and slope brushes for grading cat tracks, junctions and the ground round lifts by hand. It becomes **its own Phase 3 task after 08 and 09**, planned first; its strokes are authored data (a save change the coordinator sequences). Task 08 builds TL3's replay so hand edits can slot in |
