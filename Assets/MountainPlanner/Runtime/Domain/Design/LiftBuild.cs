@@ -198,6 +198,7 @@ namespace MountainPlanner.Domain.Design
                 // small shortfalls): the bottom terminal up 1 ft, the last resort (TW-16 v3).
                 LiftRope.Zones(type, length, out double frontB, out double edgeB, out _, out _);
                 if (!again && rope.ShortfallBetween(frontB, edgeB + LiftRope.Clearance * 4, out _) > LiftRope.ClearanceTolerance
+                    && envelope.DeepestMetres >= LiftLineEnvelope.CapMetres - 0.1
                     && rope.Towers[0].Reveal <= 1e-6 && raiseB < LiftRope.MaxTerminalRaise - 1e-9)
                 {
                     raiseB = Math.Min(LiftRope.MaxTerminalRaise, raiseB + LiftRope.RaiseStep);

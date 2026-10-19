@@ -47,7 +47,7 @@ namespace MountainPlanner.Tests
             Assert.That(type.Bottom.ExitAlong, Is.EqualTo(along).Within(1e-6));
             Assert.That(type.Bottom.ExitRise, Is.EqualTo(rise).Within(1e-6));
             Assert.That(type.Top.OriginAlong, Is.EqualTo(LiftView.OriginAlong(models, type.Top.Model)).Within(1e-6));
-            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).Bottom.ExitAlong, Is.EqualTo(5.889).Within(1e-9), "the catalog entry is untouched");
+            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).Bottom.ExitAlong, Is.EqualTo(7.880).Within(1e-9), "the catalog entry is untouched");
         }
 
         [Test]
@@ -103,10 +103,15 @@ namespace MountainPlanner.Tests
                 bool hold = rig.Socket("rope_right_hold") != null && rig.Socket("rope_left_hold") != null;
                 Assert.That(hold, Is.EqualTo(end.Row == TerminalRow.HoldDown), $"{end.Model}: {end.Row}");
                 Assert.That(LiftView.RopeExit(models, end.Model, out float along, out float rise), Is.True, end.Model);
-                Assert.That(end.ExitAlong, Is.EqualTo(along).Within(0.02), $"{end.Model} exit along");
-                Assert.That(end.ExitRise, Is.EqualTo(rise).Within(0.02), $"{end.Model} exit rise");
-                Assert.That(end.OriginAlong, Is.EqualTo(LiftView.OriginAlong(models, end.Model)).Within(0.02), $"{end.Model} origin");
-                TestContext.Progress.WriteLine($"{end.Model}: exit {along:F3}/{rise:F3} m, origin {LiftView.OriginAlong(models, end.Model):F3} m");
+                LiftView.TerminalExtent(models, end.Model, out float b0, out float a0, out float h0);
+                string measured = $"{end.Model} measures exit {along:F3}/{rise:F3} m, origin {LiftView.OriginAlong(models, end.Model):F3} m, footprint {b0:F3}/{a0:F3}/{h0:F3} m";
+                Assert.That(end.ExitAlong, Is.EqualTo(along).Within(0.02), measured);
+                Assert.That(end.ExitRise, Is.EqualTo(rise).Within(0.02), measured);
+                Assert.That(end.OriginAlong, Is.EqualTo(LiftView.OriginAlong(models, end.Model)).Within(0.02), measured);
+                Assert.That(end.Behind, Is.EqualTo(b0).Within(0.02), measured);
+                Assert.That(end.Ahead, Is.EqualTo(a0).Within(0.02), measured);
+                Assert.That(end.HalfWidth, Is.EqualTo(h0).Within(0.02), measured);
+
             }
             Assert.That(type.Bottom.Model, Does.EndWith(catalogId == LiftCatalogIds.MontaFg4 ? "_drive" : "_return"));
         }

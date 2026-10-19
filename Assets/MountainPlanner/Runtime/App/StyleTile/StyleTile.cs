@@ -98,7 +98,7 @@ namespace MountainPlanner.App
         /// from a local point, <paramref name="length"/> metres, built exactly as the style tile's own. Returns its report.
         /// </summary>
         public static string BuildUphill(TerrainEditSession session, LocalFrame frame, MountainPlanner.World.Lifts.LiftModelSet models,
-                                         float x, float z, float length, string name)
+                                         float x, float z, float length, string name, string catalogId = LiftCatalogIds.SesselliftFgq4)
         {
             var heights = session.Pipeline.Heights;
             var a = frame.ToAlbers(x, z);
@@ -107,7 +107,7 @@ namespace MountainPlanner.App
             if (g < 1e-6) return "no slope there";
             // Each end slides along the line (the bottom down, the top on up), 5 ft at a time and at most 150 m, to the nearest
             // spot that passes LF-08, as task 09's terminal ghost shows green only where a terminal can stand (finding r4 #3).
-            var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(LiftCatalogIds.SesselliftFgq4), models);
+            var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(catalogId), models);
             double ux = gx / g, uy = gz / g;
             double Slide(double sx, double sy, double sign, TerminalEnd end)
             {
@@ -125,12 +125,12 @@ namespace MountainPlanner.App
                                (float)Math.Round(x + ux * (length + on), 1), (float)Math.Round(z + uy * (length + on), 1) };
             var report = new StringBuilder();
             report.AppendFormat(CultureInfo.InvariantCulture, "ends slid {0:F0} ft down and {1:F0} ft up to stand (LF-08); ", back / 0.3048, on / 0.3048);
-            BuildLift(session, frame, models, line, name, report);
+            BuildLift(session, frame, models, line, name, report, catalogId);
             return report.ToString();
         }
 
         static void BuildLift(TerrainEditSession session, LocalFrame frame, MountainPlanner.World.Lifts.LiftModelSet models, float[] liftLine,
-                              string name, StringBuilder report)
+                              string name, StringBuilder report, string catalogId = LiftCatalogIds.SesselliftFgq4)
         {
             var history = session.History;
             var heights = session.Pipeline.Heights;
@@ -140,7 +140,7 @@ namespace MountainPlanner.App
             var b = frame.ToAlbers(liftLine[0], liftLine[1]);
             var t = frame.ToAlbers(liftLine[2], liftLine[3]);
             var after = new EditedHeights(heights.Source, heights.Lattice, history.Terrain);
-            var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(LiftCatalogIds.SesselliftFgq4), models);
+            var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(catalogId), models);
 
             // The one build path every lift takes (round 3): pads, towers, any ramp or raise, the envelope, the clearing.
             var built = LiftBuild.Build(type, after, b.X, b.Y, t.X, t.Y, TowerStance.Leaned);
@@ -166,7 +166,7 @@ namespace MountainPlanner.App
                 rope.TopEntryEmpty * 180 / Math.PI, rope.TerminalsOk ? "within" : "OVER", rope.ClearanceOk ? "OK" : "SHORT",
                 rope.LowestClearance / 0.3048, rope.LowestClearanceS / 0.3048, rope.Shortfall / 0.3048, rope.ShortfallS / 0.3048,
                 rope.Towers[0].Reveal / 0.3048, rope.Towers[rope.Towers.Count - 1].Reveal / 0.3048);
-            var lift = new AddLift(history.Revision, name, LiftCatalogIds.SesselliftFgq4, bottom, top, TowerMode.ByHand, TowerStance.Leaned,
+            var lift = new AddLift(history.Revision, name, catalogId, bottom, top, TowerMode.ByHand, TowerStance.Leaned,
                                    built.Towers, WorkStage.Built, built.Levels);
             var r2 = history.Submit(lift, built.Edits);
             report.AppendFormat(CultureInfo.InvariantCulture, "lift {0}: {1:F0} ft, top tension {2:P0} of rating, {3} towers [{4}], {5} cells cleared",

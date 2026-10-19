@@ -77,13 +77,13 @@ namespace MountainPlanner.Domain.Design
                 type.Bottom = new TerminalEnd("monta_fg4_drive", TerminalRow.HoldDown, MontaExitMin, MontaExitMax, 0.9 * MontaExitMax,
                                               5.042, 11.075, 6.25, 10.869, 3.555, 0, 12);
                 type.Top = new TerminalEnd("monta_fg4_return", TerminalRow.Support, -TowerForces.SheaveBendLimit, 0, 0,
-                                           0.26, 3.782, 2.473, 1.922, 3.039, 0, 1);
+                                           2.572, 3.782, 2.572, 1.922, 3.039, 0, 1);
             }
             else
             {
                 type.Bottom = new TerminalEnd("sessellift_fgq4_return", TerminalRow.HoldDown, ReturnExitMin, ReturnExitMax, 0.9 * ReturnExitMax,
-                                              2.3, 8.1, 3.0, 5.889, 3.543, 0, 8);
-                type.Top = new TerminalEnd("sessellift_fgq4_drive", TerminalRow.Support, -DriveEntryMax, 0, 0, 2.5, 7.2, 3.3, 3.1, 3.039, 0, 4);
+                                              2.332, 8.059, 3.022, 7.880, 3.543, 1.990, 8);
+                type.Top = new TerminalEnd("sessellift_fgq4_drive", TerminalRow.Support, -DriveEntryMax, 0, 0, 2.530, 7.218, 3.328, 7.021, 3.039, 3.230, 4);
             }
             return type;
         }

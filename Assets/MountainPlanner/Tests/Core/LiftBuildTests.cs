@@ -133,26 +133,30 @@ namespace MountainPlanner.Tests
         [Test]
         public void GR11v2_TheTrenchLetsTheChairsClimbOutOfASteepBottom()
         {
-            // 30% from the bottom terminal on: steeper than the return's row can climb, so a narrow cut under the chairs (both
-            // ropes' paths plus 2 ft) lets them rise to 15 ft by 100 ft; never deeper than 10 ft, cut only, cleared.
-            var natural = new EditedHeights(new Profile(s => 0.3 * s), Lattice, TerrainEdits.Empty);
-            var b = LiftBuild.Build(Quad, natural, West + 100, North - 900, West + 100, North - 100, TowerStance.Leaned, TestContext.Progress.WriteLine);
-            AssertBuilt(b, "30%");
+            // 24% from the bottom terminal on: steep enough that a narrow cut under the chairs (both ropes' paths plus 2 ft) lets
+            // them rise to 15 ft by 100 ft; never deeper than 10 ft, cut only, cleared. (At 30% the cut would pass 10 ft, so the
+            // terminal is raised instead, TW-16 v3's next remedy: TW16v3_EveryGroundBuildsWithinTheRulesOrSaysWhy.)
+            var natural = new EditedHeights(new Profile(s => 0.24 * s), Lattice, TerrainEdits.Empty);
+            var b = LiftBuild.Build(Quad, natural, West + 100, North - 900, West + 100, North - 100, TowerStance.Leaned);
+            AssertBuilt(b, "24%");
             var e = b.Envelope;
             Assert.That(e.CutCubicMetres, Is.GreaterThan(0));
-            Assert.That(e.DeepestMetres, Is.LessThanOrEqualTo(LiftLineEnvelope.CapMetres + 0.06));
             Assert.That(e.ClearedCells, Is.GreaterThan(0));
             double half = Quad.GaugeMetres / 2 + Quad.ChairHalfWidthMetres + LiftLineEnvelope.MarginMetres;
             Assert.That(e.WidthMetres, Is.LessThanOrEqualTo(2 * (half + e.DeepestMetres) + 2), "the chair paths and their 1:1 sides");
             Assert.That(e.FromS, Is.GreaterThanOrEqualTo(Quad.Bottom.Ahead + TerminalPad.MarginMetres - 1.5 - 1e-6), "from the pad's edge");
             Assert.That(e.ToS, Is.LessThan(b.Rope.Towers[1].BaseS - LiftLineEnvelope.TowerKeepMetres + 1e-6), "clear of the first line tower");
             var edited = new EditedHeights(natural.Source, Lattice, e.Edits);
+            double deepest = 0;
             for (double s = e.FromS; s <= e.ToS; s += 2)
                 for (double d = -half - 15; d <= half + 15; d += 1.5)
                 {
                     double x = West + 100 + d, y = North - 900 + s;
                     Assert.That(edited.At(x, y), Is.LessThanOrEqualTo(natural.At(x, y) + 1e-6), $"cut only at {s:F0} m, {d:F1} m");
+                    deepest = Math.Max(deepest, natural.At(x, y) - edited.At(x, y));
                 }
+            // At most 10 ft, plus the small overcut for the bumps between lattice posts (GR-11 v2).
+            Assert.That(deepest, Is.LessThanOrEqualTo(LiftLineEnvelope.CapMetres + 0.06), "the deepest cut");
         }
 
         [Test]
@@ -176,7 +180,9 @@ namespace MountainPlanner.Tests
                 var b = Build(f, cross);
                 TestContext.Progress.WriteLine($"{name}: {Describe(b)}");
                 AssertBuilt(b, name);
-                Assert.That(Deg(b.Rope.BottomExitEmpty), Is.EqualTo(0.9 * 15.9).Within(0.1), name);
+                // The aim (14.3°), or where a raised bottom terminal leaves it (the last resort), within the row's range.
+                Assert.That(b.BottomRaise > 0 ? Quad.Bottom.Takes(b.Rope.BottomExitEmpty) : Math.Abs(Deg(b.Rope.BottomExitEmpty) - 0.9 * 15.9) <= 0.1,
+                            Is.True, $"{name}: exit {Deg(b.Rope.BottomExitEmpty):F2}°");
                 Assert.That(Deg(b.Rope.TopEntryEmpty), Is.InRange(0, 0.1), name);
             }
             var steep = Build(s => s < 740 ? 0.4 * s : 296);
