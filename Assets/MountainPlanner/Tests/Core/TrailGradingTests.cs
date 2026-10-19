@@ -428,6 +428,27 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void TF07_EditTrailChangesFootprintEndsAndSettingsInOneCommand()
+        {
+            var h = new DesignHistory(DesignDocument.Empty(77));
+            var r = h.Submit(new AddTrail(h.Revision, "Run 1", TrailSettings.NaturalRun, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300), WorkStage.Built));
+            var id = new TrailId(r.Created[0]);
+            var before = DesignTestKit.Bytes(h);
+            var edit = h.Submit(new EditTrail(h.Revision, id, "Upper Run", Strip(150, (0, 0), (10, -300)), M(0, -5), M(10, -295), TrailSettings.GradedRun, WorkStage.Built));
+            Assert.That(edit.Accepted, Is.True, edit.ToString());
+            var t = h.Document.FindTrail(id);
+            Assert.That(t.Name, Is.EqualTo("Upper Run"));
+            Assert.That(t.Settings.Grading, Is.EqualTo(TrailGrading.Graded));
+            Assert.That(t.Head, Is.EqualTo(M(0, -5)));
+            h.Undo();
+            Assert.That(DesignTestKit.Bytes(h), Is.EqualTo(before), "one undo restores the document exactly");
+            var same = h.Submit(new EditTrail(h.Revision, id, "Run 1", Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300), TrailSettings.NaturalRun, WorkStage.Built));
+            Assert.That(same.Accepted, Is.False, "nothing changes");
+            var plan = h.Submit(new EditTrail(h.Revision, id, "Run 1", Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300), TrailSettings.GradedRun, WorkStage.Plan));
+            Assert.That(plan.Accepted, Is.False, "a built trail stays built");
+        }
+
+        [Test]
         public void TL3_ForeignEditsAreKept()
         {
             var g = new Plane(0.2, 0.2);

@@ -143,7 +143,7 @@ namespace MountainPlanner.Tests
             Assert.That(layers.Toggle(MapLayers.SnowConditions), Is.False);
             Assert.That(layers.IsOn(MapLayers.SnowConditions), Is.False);
             Assert.That(layers.Toggle("ground"), Is.False, "retired ids do nothing");
-            Assert.That(MapLayers.MapIds, Is.EqualTo(new[] { MapLayers.Snow, MapLayers.Trees }));
+            Assert.That(MapLayers.MapIds, Is.EqualTo(new[] { MapLayers.Snow, MapLayers.Trees, MapLayers.Trails }), "task 08 adds Trails (TL6)");
             Assert.That(MapLayers.InfoIds, Is.EqualTo(new[] { MapLayers.SlopeAngle, MapLayers.Exposure, MapLayers.SnowDepth, MapLayers.SnowConditions, MapLayers.Contours }));
         }
 

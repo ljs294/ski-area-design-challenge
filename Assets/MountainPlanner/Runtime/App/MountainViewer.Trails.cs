@@ -218,8 +218,24 @@ namespace MountainPlanner.App
             _tools.Close();
             Hud.SetToolbox(false);
             yield return Shot(dir, "5-built");
+            // Analysis › Trails and the trail's card (TL8, TL16), then Edit trail on it (TF-07).
+            var built = Design.Document.Trails.Count > 0 ? Design.Document.Trails[Design.Document.Trails.Count - 1] : null;
+            Hud.SetAnalysis(true);
+            Hud.SetAnalysisTab("trails");
+            yield return Shot(dir, "6-analysis");
+            if (built != null)
+            {
+                Hud.OpenTrailCardFor(built.Id.Value);
+                yield return Shot(dir, "7-card");
+                Hud.CloseTrailCardIfOpen();
+                Hud.SetAnalysis(false);
+                ChooseTrailTool(EditTrailTool.ToolId, built.Id.Value);
+                yield return Shot(dir, "8-edit");
+                _tools.Close();
+                Hud.SetToolbox(false);
+            }
             Design.Undo();
-            yield return Shot(dir, "6-undone");
+            yield return Shot(dir, "9-undone");
             Application.Quit();
         }
 
