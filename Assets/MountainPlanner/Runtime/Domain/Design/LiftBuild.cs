@@ -32,23 +32,28 @@ namespace MountainPlanner.Domain.Design
             public double BottomRaise { get; internal set; }
             public double TopRaise { get; internal set; }
             public int ClearedCells { get; internal set; }
-            /// <summary>LF-08: why a terminal can't stand where it was put (null when both can), for the red reason.</summary>
-            public string SitingProblem { get; internal set; }
+            /// <summary>Each terminal's base elevation as built (its origin's ground plus any raise), metres; the view stands the
+            /// terminals there (the raise isn't in the terrain: pads only cut, LF-12 v3).</summary>
+            public double BottomLevel { get; internal set; }
+            public double TopLevel { get; internal set; }
+            /// <summary>How much of each raise came from a steep site (LF-08 v2), metres.</summary>
+            public double BottomSteepRaise { get; internal set; }
+            public double TopSteepRaise { get; internal set; }
 
-            /// <summary>Every rule the lift's geometry answers to holds: LF-08, TW-01 v2, TW-16 v3, no head too sharp, no
-            /// clipped pad.</summary>
+            /// <summary>Every rule the lift's geometry answers to holds: TW-01 v2, TW-16 v3, no head too sharp, no clipped
+            /// pad.</summary>
             public bool Ok
             {
                 get
                 {
-                    if (SitingProblem != null || !Rope.ClearanceOk || !Rope.TerminalsOk) return false;
+                    if (!Rope.ClearanceOk || !Rope.TerminalsOk) return false;
                     foreach (var t in Rope.Towers) if (t.Head == LiftRope.Head.TooSharp) return false;
                     return BottomPad.ClippedStepMetres < 0.05 && TopPad.ClippedStepMetres < 0.05;
                 }
             }
         }
 
-        /// <summary>LF-08: the natural ground under a terminal's footprint varies by no more than 10 ft.</summary>
+        /// <summary>LF-08 v2: a terminal cuts at most 10 ft into the hill; on a steeper site it stands higher on its pier.</summary>
         public const double SitingVariationMetres = 3.048;
 
         /// <summary>
@@ -56,7 +61,11 @@ namespace MountainPlanner.Domain.Design
         /// (<paramref name="x"/>, <paramref name="y"/>) and (<paramref name="ux"/>, <paramref name="uy"/>) pointing toward the
         /// other terminal, sampled every metre (metres).
         /// </summary>
-        public static double SiteVariation(IHeightSource ground, TerminalEnd end, double x, double y, double ux, double uy)
+        public static double SiteVariation(IHeightSource ground, TerminalEnd end, double x, double y, double ux, double uy) =>
+            SiteHighest(ground, end, x, y, ux, uy, out double lowest) - lowest;
+
+        /// <summary>The highest (and lowest) ground under <paramref name="end"/>'s footprint, every metre.</summary>
+        public static double SiteHighest(IHeightSource ground, TerminalEnd end, double x, double y, double ux, double uy, out double lowest)
         {
             double lo = double.MaxValue, hi = double.MinValue;
             for (double a = -end.Behind; a <= end.Ahead + 1e-9; a += 1)
@@ -66,7 +75,8 @@ namespace MountainPlanner.Domain.Design
                     lo = Math.Min(lo, h);
                     hi = Math.Max(hi, h);
                 }
-            return hi - lo;
+            lowest = lo;
+            return hi;
         }
 
         public static Result Build(LiftType type, EditedHeights current, double bx, double by, double tx, double ty, TowerStance stance,
@@ -75,15 +85,14 @@ namespace MountainPlanner.Domain.Design
             if (current == null) throw new ArgumentNullException(nameof(current));
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
             double ux = (tx - bx) / length, uy = (ty - by) / length;
-            // LF-08 on the ground as it was, before any pad (finding r4 #3): a terminal on a cliff is reported, not hidden.
-            string siting = null;
-            double varB = SiteVariation(current, type.Bottom, bx, by, ux, uy), varT = SiteVariation(current, type.Top, tx, ty, -ux, -uy);
-            if (varB > SitingVariationMetres) siting = $"the bottom terminal stands on ground that varies {varB / 0.3048:F0} ft (LF-08: 10 ft)";
-            if (varT > SitingVariationMetres)
-                siting = (siting != null ? siting + "; " : "") + $"the top terminal stands on ground that varies {varT / 0.3048:F0} ft (LF-08: 10 ft)";
             double bottomLevel = current.At(bx + ux * type.Bottom.OriginAlong, by + uy * type.Bottom.OriginAlong);
             double topLevel = current.At(tx - ux * type.Top.OriginAlong, ty - uy * type.Top.OriginAlong);
-            double raiseB = 0, raiseT = 0;
+            // LF-08 v2 (owner, round 4, SK30): steep sites are allowed; the terminal stands higher on its pier until it cuts at
+            // most 10 ft into the hill (its pad only cuts, LF-12 v3).
+            double steepB = Math.Max(0, SiteHighest(current, type.Bottom, bx, by, ux, uy, out _) - SitingVariationMetres - bottomLevel);
+            double steepT = Math.Max(0, SiteHighest(current, type.Top, tx, ty, -ux, -uy, out _) - SitingVariationMetres - topLevel);
+            double raiseB = Math.Ceiling(steepB / LiftRope.RaiseStep - 1e-9) * LiftRope.RaiseStep;
+            double raiseT = Math.Ceiling(steepT / LiftRope.RaiseStep - 1e-9) * LiftRope.RaiseStep;
             TerminalPad.Result bottomPad = null, topPad = null;
             TowerPlacement.Result placed = null;
             LiftLineEnvelope.Result envelope = null;
@@ -92,7 +101,8 @@ namespace MountainPlanner.Domain.Design
             double Steps(double metres) => Math.Ceiling(metres / LiftRope.RaiseStep - 1e-9) * LiftRope.RaiseStep;
             List<TowerSpec> towers = null;
             LiftRope rope = null;
-            for (int attempt = 0; attempt < 5; attempt++)
+            const int Attempts = 8;
+            for (int attempt = 0; attempt < Attempts; attempt++)
             {
                 bottomPad = TerminalPad.Grade(current, bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel + raiseB);
                 var withBottom = new EditedHeights(current.Source, current.Lattice, bottomPad.Edits);
@@ -178,6 +188,8 @@ namespace MountainPlanner.Domain.Design
                             $"top raise asked {placed.TopRaise:F2} m, shortfall {rope.Shortfall:F2} m at {rope.ShortfallS:F0} m");
                 // The last resorts, read off the final rope: the top on a built-up unload ramp while its level span or low
                 // zone falls short; the bottom raised where the trench would go deeper than its 10 ft.
+                // The last attempt keeps what it built, so the result's rope and levels always agree.
+                if (attempt == Attempts - 1) break;
                 bool again = false;
                 double top = Math.Max(placed.TopRaise, Steps(rope.ShortfallBetween(edgeT, frontT, out _)));
                 // A top station tower too sharp a hold-down (the line arriving from well above the level span, as at a flat
@@ -211,7 +223,8 @@ namespace MountainPlanner.Domain.Design
             return new Result
             {
                 Towers = towers, Edits = edits, Rope = rope, BottomPad = bottomPad, TopPad = topPad, Envelope = envelope,
-                BottomRaise = raiseB, TopRaise = raiseT, SitingProblem = siting,
+                BottomRaise = raiseB, TopRaise = raiseT, BottomLevel = bottomLevel + raiseB, TopLevel = topLevel + raiseT,
+                BottomSteepRaise = steepB, TopSteepRaise = steepT,
                 ClearedCells = cleared + aroundB + aroundT + bottomPad.ClearedCells + topPad.ClearedCells + envelope.ClearedCells,
             };
         }

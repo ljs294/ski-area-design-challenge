@@ -367,6 +367,8 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - No part of the terminal stands in a lake or on a road, and it lies inside the core box (SH-06).
   - The natural ground under its footprint varies by no more than **10 ft (3 m)**; the terminal is then built on its
     graded pad (LF-12, task 07).
+  - **v2** (owner, task 07 round 4, SK30): steeper sites are allowed. The terminal stands higher on its pier until it
+    cuts at most 10 ft into the hill; its pad only cuts (LF-12 v3).
   - The two terminals stand at least **300 ft (91 m)** apart.
 - **LF-09, keys (C8):** while a tower is in hand or selected, Page Up / Page Down move it; camera zoom keeps the wheel
   and + / −. Delete removes the selected tower; Esc backs out one step (CF-07).
@@ -392,9 +394,12 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     beyond comes with the off-ramp models.
   - Around it, 1:1 cut and fill faces run to the ground (GR-02), within GR-11's 50 ft terminal-pad envelope.
   - The pad is part of the lift's Break ground: its height deltas ride with the lift's command (no save change).
-  - A terminal that must stand higher (TW-16 v3's last resorts: a flat summit's unload ramp, a bottom too steep for its
-    trench) has its pad filled up to it, so the raise lives in the saved terrain edits and a reload rebuilds the same
-    rope. A raise whose fill can't fit its envelope turns the lift red.
+  - **v3, cut only** (owner, task 07 round 4, SK30): the pad is a clearance envelope round the terminal. Ground poking
+    above the terminal's level is cut away; ground below is left as it is, under the terminal's pier, with nothing
+    filled up to it. An inlaid unload ramp model comes later.
+  - A terminal that stands higher (a steep site, LF-08 v2; TW-16 v3's last resorts, a flat summit or a bottom too steep
+    for its trench) simply stands higher on its pier. Its level isn't in the terrain: the build hands it to the view,
+    and saved designs carry it with task 09's save v2 (SK14).
 
 ### 5.2 Catalog (LC)
 
@@ -596,11 +601,13 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     placement aims the empty rope at **14.3°** (90% of the limit), so the loaded one is flatter and still in range.
   - **A support row** (the Sessellift drive): **the last span is level.** The last tower carries the rope at the
     station's rope height (RP-01), so it runs straight into the terminal; the sag brings it in just above level, so
-    in both load cases it only ever presses down on the row (0–18°), never pulls up. That tower takes the whole turn to
+    in both load cases it only ever presses down on the row (0–18°), never pulls up. *Round 4:* each head's rope side,
+    and a combination's loaded row, follow the drawn rope's own bend; a too-sharp head with no room for a TW-06 partner
+    on the bend's side gets one on the other. That tower takes the whole turn to
     level, with breakovers before it where one would be too sharp (TW-06).
   - **Remedies, in order:** where the station tower stands (TW-03 v3); taller or added line towers; at the bottom, the
-    lift-line envelope (GR-11 v2) and then the terminal raised on its filled pad; at the top, **a raised unload ramp**
-    where the ground doesn't fall away from the terminal (owner Q6). Raises go in 1 ft steps, at most 30 ft.
+    lift-line envelope (GR-11 v2) and then the terminal raised; at the top, **the terminal raised** where the ground
+    doesn't fall away from it (owner Q6; on its pier, nothing filled, round 4). Raises go in 1 ft steps, at most 30 ft.
   - Placement only adds or raises line towers, never lowers or moves them; a crest too sharp for the room is left
     red with its reason (TW-06), its neighbours raised at most 20 ft trying.
   - RP-03's tensioning end and the Monta's own ends are task 09's.

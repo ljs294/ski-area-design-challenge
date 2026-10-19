@@ -186,15 +186,17 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void LF08_ATerminalOnGroundTooSteepIsReported()
+        public void LF08v2_ATerminalOnASteepSiteStandsHigherAndOnlyCuts()
         {
-            // Finding r4 #3: the build checks LF-08 at both ends (10 ft of variation under the footprint at most) and says why.
+            // Finding r4 #3 (owner, SK30): steep sites are allowed; the terminal stands higher on its pier until it cuts at
+            // most 10 ft into the hill, and its pad only cuts (LF-12 v3): nothing is filled up to it.
             var bench = Build(s => s < 30 ? 0 : s < 770 ? 0.3 * (s - 30) : 222);
-            Assert.That(bench.SitingProblem, Is.Null, "both terminals on benches");
+            Assert.That(bench.BottomSteepRaise + bench.TopSteepRaise, Is.EqualTo(0), "both terminals on benches");
             Assert.That(bench.Ok, Is.True, Describe(bench));
-            var cliff = Build(s => s < 30 ? 0 : 0.6 * (s - 30));
-            Assert.That(cliff.SitingProblem, Does.Contain("top terminal"), "the top on a 60% face");
-            Assert.That(cliff.Ok, Is.False);
+            var cliff = Build(s => s < 30 ? 0 : s < 700 ? 0.3 * (s - 30) : 201 + 1.5 * (s - 700));   // a 150% face at the top
+            Assert.That(cliff.TopSteepRaise, Is.GreaterThan(0), "the top on a 150% face stands higher");
+            Assert.That(cliff.BottomPad.FillCubicMetres + cliff.TopPad.FillCubicMetres, Is.EqualTo(0), "cut only");
+            Assert.That(cliff.Rope.TerminalsOk, Is.True, Describe(cliff));
         }
 
         [Test]

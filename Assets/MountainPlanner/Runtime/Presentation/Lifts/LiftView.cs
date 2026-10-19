@@ -143,7 +143,10 @@ namespace MountainPlanner.Presentation.Lifts
         /// ground (<paramref name="ground"/>, in the package's frame); <paramref name="frame"/> turns design points into
         /// local metres. The livery colours the drive's hood.
         /// </summary>
-        public void Build(Lift lift, IHeightSource ground, LocalFrame frame, Color livery)
+        /// <param name="levels">Each terminal's base elevation as built (<see cref="LiftBuild.Result"/>), when known: a raised
+        /// terminal stands on its pier above the ground (LF-12 v3, pads only cut). Without it, each stands at its origin's
+        /// ground. Saved designs carry it with task 09's save v2 (SK14).</param>
+        public void Build(Lift lift, IHeightSource ground, LocalFrame frame, Color livery, (double Bottom, double Top)? levels = null)
         {
             Clear();
             var type = LiftTypes.Measured(LiftType.Of(lift.CatalogId), _models);
@@ -159,8 +162,8 @@ namespace MountainPlanner.Presentation.Lifts
 
             // Terminals: each end's model (TW-16 v3: the type says which stands where), facing along the line toward the
             // other end, with its bullwheel's centre on the design point.
-            var ret = PlaceTerminal(Model(type.Bottom.Model), bottom, Quaternion.LookRotation(dir), Height, livery);
-            var drive = PlaceTerminal(Model(type.Top.Model), top, Quaternion.LookRotation(-dir), Height, livery);
+            var ret = PlaceTerminal(Model(type.Bottom.Model), bottom, Quaternion.LookRotation(dir), Height, livery, levels?.Bottom);
+            var drive = PlaceTerminal(Model(type.Top.Model), top, Quaternion.LookRotation(-dir), Height, livery, levels?.Top);
             var retRig = ret != null ? ret.GetComponent<LiftRig>() : null;
             var driveRig = drive != null ? drive.GetComponent<LiftRig>() : null;
             // Each terminal's pier runs about 15 m below its 0.00 level, buried in the pad; its footing stands at grade under
@@ -342,7 +345,8 @@ namespace MountainPlanner.Presentation.Lifts
             }
         }
 
-        GameObject PlaceTerminal(GameObject prefab, Vector3 bullwheel, Quaternion rotation, Func<Vector3, double> height, Color livery)
+        GameObject PlaceTerminal(GameObject prefab, Vector3 bullwheel, Quaternion rotation, Func<Vector3, double> height, Color livery,
+                                 double? level = null)
         {
             if (prefab == null) return null;
             var rig = prefab.GetComponent<LiftRig>();
@@ -351,7 +355,7 @@ namespace MountainPlanner.Presentation.Lifts
             var centre = l != null && r != null ? (l.localPosition + r.localPosition) / 2 : Vector3.zero;
             centre.y = 0;
             var origin = bullwheel - rotation * centre;
-            origin.y = (float)height(origin);
+            origin.y = (float)(level ?? height(origin));
             return Spawn(prefab, origin, rotation, livery);
         }
 

@@ -389,10 +389,14 @@ namespace MountainPlanner.Tests
             double level = natural.At(x, y);
             var pad = TerminalPad.Grade(natural, x, y, 0, 1, 2.3, 8.1, 3.0, level);
             var h = new EditedHeights(natural.Source, Lattice, pad.Edits);
-            // Level inside: the footprint plus 5 ft (from 2.3 + 1.5 m behind to 8.1 + 1.5 m in front, 4.5 m either side).
+            // Inside the footprint plus 5 ft (from 2.3 + 1.5 m behind to 8.1 + 1.5 m in front, 4.5 m either side) nothing
+            // stands above the terminal's level: higher ground is cut to it, lower ground is left (LF-12 v3, cut only).
             for (int dy = -3; dy <= 9; dy += 2)
                 for (int dx = -4; dx <= 4; dx += 2)
-                    Assert.That(h.At(x + dx, y + dy), Is.EqualTo(level).Within(0.002), $"({dx}, {dy}) on the pad");
+                {
+                    double n = natural.At(x + dx, y + dy);
+                    Assert.That(h.At(x + dx, y + dy), Is.EqualTo(Math.Min(n, level)).Within(0.002), $"({dx}, {dy}) on the pad");
+                }
             // Faces at most 1:1 across the pad's side.
             for (int d = 5; d < 20; d++)
                 Assert.That(Math.Abs(h.At(x + d + 1, y) - h.At(x + d, y)), Is.LessThanOrEqualTo(1.0 + 0.02), $"{d} m out");

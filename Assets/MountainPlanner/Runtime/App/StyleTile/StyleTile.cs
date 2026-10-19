@@ -51,6 +51,11 @@ namespace MountainPlanner.App
 
         /// <summary>The lift's bottom and top bullwheels, local metres; empty: beside the trail, <see cref="LiftOffset"/> to its right looking up.</summary>
         public static float[] LiftLine = { 661.0f, -853.2f, 131.9f, -377.7f };
+
+        /// <summary>Each built lift's terminal levels (LF-12 v3: a raise isn't in the terrain), by its bottom and top points,
+        /// for the view; saved designs carry them with task 09's save v2 (SK14).</summary>
+        public static readonly Dictionary<(PointMm, PointMm), (double Bottom, double Top)> TerminalLevels =
+            new Dictionary<(PointMm, PointMm), (double Bottom, double Top)>();
         public const float LiftOffset = 75f;
 
         /// <summary>
@@ -147,7 +152,7 @@ namespace MountainPlanner.App
             report.AppendFormat(CultureInfo.InvariantCulture,
                 "ends: bottom {0} ({1:F1}/{2:F1}/{3:F1} m), top {4} ({5:F1}/{6:F1}/{7:F1} m); " +
                 "pads: bottom cut {8:F0} / fill {9:F0} yd³ (clipped {10:F2} m), top cut {11:F0} / fill {12:F0} yd³ (clipped {13:F2} m); " +
-                "raised: bottom {14:F0} ft, top {15:F0} ft; " + (built.SitingProblem != null ? "SITING: " + built.SitingProblem + "; " : "") + "envelope: {16} ",
+                "raised: bottom {14:F0} ft, top {15:F0} ft (steep site {17:F0} / {18:F0} ft); envelope: {16} ",
                 type.Bottom.Row, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth,
                 type.Top.Row, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth,
                 built.BottomPad.CutCubicMetres * 1.30795, built.BottomPad.FillCubicMetres * 1.30795, built.BottomPad.ClippedStepMetres,
@@ -157,7 +162,7 @@ namespace MountainPlanner.App
                     ? string.Format(CultureInfo.InvariantCulture, "{0:F0} yd³, {1:F1} ft deep, {2:F0} ft wide, {3:F0}-{4:F0} ft;",
                         built.Envelope.CutCubicMetres * 1.30795, built.Envelope.DeepestMetres / 0.3048, built.Envelope.WidthMetres / 0.3048,
                         built.Envelope.FromS / 0.3048, built.Envelope.ToS / 0.3048)
-                    : "none;");
+                    : "none;", built.BottomSteepRaise / 0.3048, built.TopSteepRaise / 0.3048);
             report.AppendFormat(CultureInfo.InvariantCulture,
                 " rope: leaves the bottom at {0:F1}° loaded / {1:F1}° empty, reaches the top at {2:F1}° / {3:F1}° ({4} TW-16), " +
                 "TW-01 v2 {5} (lowest {6:F1} ft at {7:F0} ft, shortfall {8:F1} ft at {9:F0} ft), foundations {10:F1} / {11:F1} ft; ",
@@ -168,6 +173,7 @@ namespace MountainPlanner.App
             var lift = new AddLift(history.Revision, name, LiftCatalogIds.SesselliftFgq4, bottom, top, TowerMode.ByHand, TowerStance.Leaned,
                                    built.Towers, WorkStage.Built);
             var r2 = history.Submit(lift, built.Edits);
+            TerminalLevels[(bottom, top)] = (built.BottomLevel, built.TopLevel);
             report.AppendFormat(CultureInfo.InvariantCulture, "lift {0}: {1:F0} ft, top tension {2:P0} of rating, {3} towers [{4}], {5} cells cleared",
                 r2.Accepted ? "built" : "REJECTED " + r2, Math.Sqrt(bottom.DistanceSquared(top)) / 304.8, rope.TopTensionShare,
                 built.Towers.Count, Describe(built.Towers), built.ClearedCells);
