@@ -99,11 +99,21 @@ The game poses the lift's moving parts once, at build, from the rope (the model 
 | `s4` | `yoke_r1` (the top pin, no equaliser) → `rocker_r1`, `rocker_r2` → sheaves |
 | `c8` | `block_r` (rigid with both triangular frames) → `yoke_sup_r`, `yoke_hold_r` (overlapping the frames: range 0) → `rocker_rs1/2`, `rocker_rh1/2` → `sheave_rs1..4`, `sheave_rh1..4` |
 | the drive's row | `beam_r` (the beam's pin through the plate) → `rocker_r1`, `rocker_r2` → `sheave_r2..5` |
+| the Monta drive's exit row | `eq_l` (the long carrier, on the pin through its clamp under the front cross tube) → `yoke_l1` (on a hanger block) and `eq_l2` (the link bar, on the other block) → `yoke_l2`, `yoke_l3` → `rocker_l1..6` → `sheave_l1..12`; on the right rope the reference has it end for end: `eq_r` → `yoke_r3` and `eq_r2` → `yoke_r1`, `yoke_r2` |
 
   The drive's row equalises a little (owner): stops of ±10° on `beam_r` and ±5° on its rockers (spec
   `drive.entryTrains.pinStops`; the build clamps the clash range to them). Sharing the turn equally up to the row's
   18° limit takes 8.6° and 4.7°, and the rope then comes in from the bullwheel at most 0.81° off level. The return's
   row keeps a level entry at the bullwheel's height (its first sheave held) for exits of about 8.3° to 29.9°.
+  The Monta drive's exit rows are the reference's own equaliser tree, with stops of ±10° on the carrier, link bar and
+  yokes and ±5° on the rockers (spec `drive.exit.pivots.pinStops`). The reference's rows step 0°, 5° and 10°, so a
+  rope leaving at its 10° cut up to 58 mm into the middle sheaves (owner): the build settles each row to that rope
+  (`restExitDeg`, the turn shared equally, the first sheave held at the bullwheel's height; `settle_rows`), which moves
+  sheaves up to 74 mm, and the game's station-rope arc now runs within 6 mm under every sheave. From that rest
+  (`pose.band`) every sheave stays on the rope for exits of 5° to 16° on the left rope and 6° to 16° on the right,
+  inside the clash ranges. Its plates are spread across the rope's plane so the parts can turn, and its guide sheaves
+  and the return's deflection sheaves stay single wheels (owner), so the Monta isn't posable in the game
+  (`TrainPosing.Posable` needs a rocker at both terminals).
   Sheaves are their own parts at LOD0 and ride in their rocker at LOD1; at LOD2-3 each side's whole train is one
   part under its top pivot, never the body. The main pin and the lug plates stay in the body.
 - **The Sessellift chair:** `grip` (the origin, on the rope) → `hanger`, which turns about the grip's own stack axis
@@ -113,7 +123,8 @@ The game poses the lift's moving parts once, at build, from the rope (the model 
 - **Piers and footings:** the Sessellift terminals' piers are really tall (owner): they run to 15 m below the 0.00
   level, so a raised or lowered terminal still stands on its pier; `pier_top` marks the pier's top centre.
   `sessellift_fgq4_terminal_footing` (kind `terminal_footing`) is the footing, placed by the game at grade.
-- **Rope:** 1¾ in (`common.ropeDiameter` 44.45). The line heads' rows hang from fixed pins, so their sockets move with
+- **Rope:** 1¾ in (`common.ropeDiameter` 44.45), the Monta's too (owner: rope sizes aligned; its sheaves sit 1.2 mm
+  further from the rope than with its old 42 mm). The line heads' rows hang from fixed pins, so their sockets move with
   the rope; the terminal rows and the c8 rows sit 4.2 mm further from the rope than with the old 36 mm.
 - **Ambient occlusion:** heads and Sessellift terminals are baked without the ground plane; a mast section between
   a cast-only ghost section above and one below, with every ray also cast mirrored, so its top and bottom corners

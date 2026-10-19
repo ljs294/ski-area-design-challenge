@@ -6,6 +6,10 @@ barrel hood with framed panels, and the line's hold-down trains hung from a rais
 The rope runs level from the bullwheel over the guide sheaves and leaves climbing under the exit trains (three
 trains of four per rope). Loaded chairs leave on the right rope (v+). Millimetres in the spec; the lift frame's
 origin is on the bullwheel's axle at grade, u toward the line.
+
+Posable (task P3-07, the Monta's trains): each rope's exit row is the reference's equaliser tree, the long carrier on
+the clamp's pin over a train and the link bar, the link bar over the other two trains (exit_pivots), so the game can
+pose the row to the rope. The guide sheaves stay single wheels.
 """
 import math
 
@@ -246,9 +250,10 @@ def hood_lining(mb, prof, h, st, inset=0.08):
 
 
 # -- the bullwheel ---------------------------------------------------------------------------------
-def wheel(mb, centre, wl, pitch_r, lod, st):
+def wheel(mb, centre, wl, pitch_r, lod, st, rope_r=0.021):
     """The bullwheel (spec common.wheel, mm): a flat web ring with flanges above and below the rope channel at
-    its rim, tapered spokes and the hub; centre on the axle at rope elevation."""
+    its rim, tapered spokes and the hub; centre on the axle at rope elevation. The channel's liner sits 1 mm into
+    the rope (radius rope_r, metres) on its pitch circle."""
     c = Vector(centre)
     t = m(wl["thick"])
     ro, rw, ri = m(wl["outer"]) / 2, m(wl["web"]) / 2, m(wl["inner"]) / 2
@@ -263,7 +268,7 @@ def wheel(mb, centre, wl, pitch_r, lod, st):
         a, b = sorted((s * t / 2, s * (t / 2 - fl)))
         prims.lathe(mb, c, W, [(rw, a), (ro, a), (ro, b), (rw, b)], n, dark)
     if lod == 0:   # the channel's liner, where the rope runs
-        prims.lathe(mb, c, W, [(rw, -(t / 2 - fl)), (pitch_r - 0.02, -(t / 2 - fl) + 0.01), (pitch_r - 0.02, t / 2 - fl - 0.01), (rw, t / 2 - fl)],
+        prims.lathe(mb, c, W, [(rw, -(t / 2 - fl)), (pitch_r - rope_r + 0.001, -(t / 2 - fl) + 0.01), (pitch_r - rope_r + 0.001, t / 2 - fl - 0.01), (rw, t / 2 - fl)],
                     n, st["rubber"], closed=False)
     hub_r = m(wl["hubDia"]) / 2
     w0, w1 = m(wl["spokeHub"]) / 2, m(wl["spokeRim"]) / 2
@@ -273,6 +278,111 @@ def wheel(mb, centre, wl, pitch_r, lod, st):
         p = W.cross(d).normalized()
         poly = [(hub_r * 0.9, -w0), (ri + 0.02, -w1), (ri + 0.02, w1), (hub_r * 0.9, w0)]
         prims.prism(mb, poly, c - W * (t / 2), d, p, W, t, dark)
+
+
+# -- the exit trains' pivots -----------------------------------------------------------------------
+def exit_pivots(a, ex, rows, hg):
+    """The exit rows' equaliser tree on both ropes (spec drive.exit.pivots; contract P3-07 M2): eq_<s> (the long
+    carrier, on the clamp's pin) carries one train's yoke and eq_<s>2 (the link bar, on its hanger block's pin), which
+    carries the other two; yoke_<s>1..3 each carry two rockers rocker_<s>1..6 (pinned at their plates' middle), each
+    two sheaves sheave_<s>1..12, numbered along +u from the bullwheel as before. Every pin has its stop (spec
+    pinStops). Returns the plate classifier (a left train plate -> the left part it rides with) and the pins."""
+    pv = ex["pivots"]
+    stops = pv["pinStops"]
+    plates = [b for b in ex["boxes"] if b["name"] == "trainPlate" and b["c"][1] < 0]
+    trains = ex["trains"]["left"]["sheaves"]
+    rocker_u = [(rows[2 * i][0] + rows[2 * i + 1][0]) / 2 for i in range(len(rows) // 2)]
+    yoke_u = [sum(u for u, _ in tr) / len(tr) for tr in trains]
+
+    def nearest(us, u):
+        return min(range(len(us)), key=lambda i: abs(us[i] - u))
+
+    def plate_part(b):
+        if b["h"][0] < 400:
+            return f"rocker_l{nearest(rocker_u, b['c'][0]) + 1}"
+        return f"yoke_l{nearest(yoke_u, b['c'][0]) + 1}"
+
+    def plate_w(part):
+        ws = [b["c"][2] for b in plates if plate_part(b) == part]
+        return sum(ws) / len(ws)
+
+    pins = []
+    for side in (-1, 1):
+        sd = "l" if side < 0 else "r"
+        tr = pv["left" if side < 0 else "right"]
+        v = side * hg
+
+        def pivot(name, u, w, parent, stop, kind):
+            a.pivots[name] = {"pos": (m(u), v, m(w)), "axis": (0.0, 1.0, 0.0), "parent": parent, "stop": stops[stop]}
+            if kind:
+                pins.append((name + "#pin" if kind != "carrier" else "#pin", side, m(u), m(w), kind))
+        pivot(f"eq_{sd}", *tr["carrier"], None, "carrier", "carrier")
+        pivot(f"eq_{sd}2", *tr["link"], f"eq_{sd}", "link", "link")
+        for t in range(len(trains)):
+            yk = f"yoke_l{t + 1}"
+            yoke_u_plates = [b["c"][0] for b in plates if plate_part(b) == yk]
+            pivot(f"yoke_{sd}{t + 1}", sum(yoke_u_plates) / len(yoke_u_plates), plate_w(yk),
+                  f"eq_{sd}" if t + 1 == tr["onCarrier"] else f"eq_{sd}2", "yoke", "yoke")
+        for i, u in enumerate(rocker_u):
+            pivot(f"rocker_{sd}{i + 1}", u, plate_w(f"rocker_l{i + 1}"), f"yoke_{sd}{i // 2 + 1}", "rocker", "rocker")
+        for k, (u, w) in enumerate(rows):
+            a.pivots[f"sheave_{sd}{k + 1}"] = {"pos": (m(u), v, m(w)), "axis": (0.0, 1.0, 0.0), "parent": f"rocker_{sd}{k // 2 + 1}"}
+    return {"plate": plate_part, "pins": pins, "dia": pv["pinDia"], "pinV": pv["pinV"]}
+
+
+def settle_rows(a, mb, deg, lod):
+    """Settles each rope's exit row to the rope (the owner, P3-07 Monta trains: the reference's rows step 0, 5 and 10
+    degrees, so a rope leaving at its 10 degrees cut into the middle sheaves): the tree is posed for a rope coming in
+    level and leaving at `deg`, sharing the turn equally with the first sheave held at the bullwheel's height
+    (liftkit/pose.py), and that pose becomes the rest pose. Each face moves with its part, every pivot down the tree
+    moves with its parents; then the faces' tags fold into the LOD's parts: sheaves ride in their rocker at LOD1, and
+    at LOD2-3 each side's whole tree is one part under eq_<s>."""
+    from liftkit import frame, pose
+    angles = {}
+    for sd in "lr":
+        row = sorted((k for k in pose.subtree(a.pivots, f"eq_{sd}") if k.startswith("sheave_")), key=lambda k: a.pivots[k]["pos"][0])
+        ang, err = pose.solve(a.pivots, f"eq_{sd}", [row], 0.0, math.radians(deg), anchor=(row[0], a.pivots[row[0]]["pos"][2]))
+        if err > 1e-5:
+            raise ValueError(f"monta_fg4_drive: the {sd} row can't hold its first sheave level ({err * 1000:.2f} mm)")
+        angles.update(ang)
+    done = {}
+    for f, tag in zip(mb.faces, mb.tags):
+        part = (tag or "").split("#")[0]
+        if part not in a.pivots:
+            continue
+        for i in f:
+            if i in done:
+                if done[i] != part:
+                    raise ValueError(f"monta_fg4_drive: a vertex is shared by {done[i]} and {part}")
+                continue
+            done[i] = part
+            u, v, w = frame.lift(mb.verts[i])
+            pu, pw = pose.carry(a.pivots, angles, part, (u, w))
+            mb.verts[i] = frame.b((float(pu), v, float(pw)))
+    moved = {k: pose.place(a.pivots, angles, k) for k in a.pivots if k in angles or k.startswith("sheave_")}
+    for k, (pu, pw) in moved.items():
+        p = a.pivots[k]["pos"]
+        a.pivots[k]["pos"] = (float(pu), p[1], float(pw))
+
+    def fold(part):
+        if lod >= 2:
+            return f"eq_{part.split('_')[1][0]}"
+        if lod == 1 and part.startswith("sheave_"):
+            return a.pivots[part]["parent"]
+        return part
+    mb.tags = [t if (t or "").split("#")[0] not in a.pivots else fold(t.split("#")[0]) + (t[t.index("#"):] if "#" in t else "")
+               for t in mb.tags]
+
+
+def exit_pins(mb, tree, lod, st):
+    """The exit trees' pins across the rope's plane: the carrier's through the clamp (a piece of the body, LOD0-1), the
+    link bar's, the yokes' and the rockers' (pieces of their parts, LOD0), each its own piece for the clash sweep."""
+    for tag, side, u, w, kind in tree["pins"]:
+        if lod >= 2 or (lod == 1 and kind != "carrier"):
+            continue
+        v0, v1 = sorted(side * m(x) for x in tree["pinV"][kind])
+        with mb.grouped(tag):
+            prims.cylinder(mb, (u, v0, w), (u, v1, w), m(tree["dia"][kind]) / 2, 10 if kind == "carrier" else 8, st["rod"])
 
 
 # -- the build -------------------------------------------------------------------------------------
@@ -358,11 +468,11 @@ def build(spec, lod, stage):
     centre = Vector((0.0, 0.0, rope))
     if lod <= 2:
         wb = MeshBuilder()
-        wheel(wb, centre, c["wheel"], hg, lod, st)
+        wheel(wb, centre, c["wheel"], hg, lod, st, m(c["ropeDiameter"]) / 2)
         a.parts["bullwheel"] = wb
         a.pivots["bullwheel"] = {"pos": tuple(centre), "axis": (0.0, 0.0, 1.0)}
     else:
-        wheel(body, centre, c["wheel"], hg, lod, st)
+        wheel(body, centre, c["wheel"], hg, lod, st, m(c["ropeDiameter"]) / 2)
 
     # guide sheaves on brackets and cross bars from the carriage (rope rides on top)
     for k, g in enumerate(d["guideSheaves"]):
@@ -395,56 +505,68 @@ def build(spec, lod, stage):
     rows = [s for tr in left["sheaves"] for s in tr]
     n_row = len(rows)
     dv_side = {-1: ex["trains"]["left"]["shiftV"], 1: ex["trains"]["right"]["shiftV"]}
-    for side in (-1, 1):
+    tree = exit_pivots(a, ex, rows, hg)
+    for side in (-1, 1):   # faces carry their finest part here; settle_rows folds them into each LOD's parts
+        sd = "l" if side < 0 else "r"
         for k, (u, w) in enumerate(rows):
             centre_s = Vector((m(u), side * hg, m(w)))
             face = parts.row_face(k, n_row, st)
             if lod <= 2:
-                target = MeshBuilder() if lod <= 1 else body
-                parts.line_sheave(target, centre_s, V, sv, min(lod, 2), st, sheave_sides, face)
-                if lod <= 1:
-                    name = f"sheave_{'l' if side < 0 else 'r'}{k + 1}"
-                    a.parts[name] = target
-                    a.pivots[name] = {"pos": tuple(centre_s), "axis": (0.0, 1.0, 0.0)}
-        if lod >= 3:   # far out: one bar along each row
-            p0, p1 = Vector((m(rows[0][0]), side * hg, m(rows[0][1]))), Vector((m(rows[-1][0]), side * hg, m(rows[-1][1])))
-            dd = (p1 - p0).normalized()
-            nn = dd.cross(V).normalized()
-            prims.obox(body, tuple((p0 + p1) / 2), (dd, V, nn), ((p1 - p0).length / 2 + 0.2, 0.08, 0.2), st["steel"])
+                with body.grouped(f"sheave_{sd}{k + 1}"):
+                    parts.line_sheave(body, centre_s, V, sv, min(lod, 2), st, sheave_sides, face)
     if lod <= 2:
         for b in ex["boxes"]:
             side = -1 if b["c"][1] < 0 else 1
+            sd = "l" if side < 0 else "r"
             if b["name"] in ("trainPlate", "clamp") and lod >= 2:
                 continue
             if b["name"] == "trainPlate":
                 if side < 0:   # the left trains' plates, and their mirror image for the right rope
+                    part = tree["plate"](b)
+                    for s2, mirror in (("l", False), ("r", True)):
+                        with body.grouped(part.replace("_l", "_" + s2, 1)):
+                            box_from(body, b, st, mirror=mirror)
+            elif b["name"] == "carrier":   # the long carrier and its hanger blocks swing on the clamp; the link bar on its block
+                with body.grouped(f"eq_{sd}" if b["h"][0] < 1000 or b["h"][0] > 1500 else f"eq_{sd}2"):
                     box_from(body, b, st)
-                    box_from(body, b, st, mirror=True)
-            elif b["name"] == "carrier":
-                box_from(body, b, st)
             elif b["name"] == "clamp" and (lod <= 1 or b["h"][0] > 150):
                 box_from(body, b, st, shift=(0.0, dv_side[side], 0.0))
+        exit_pins(body, tree, lod, st)
         if lod == 0:
             for p in ex["nuts"]:
                 side = -1 if p[1] < 0 else 1
                 q = (p[0], p[1] + dv_side[side], p[2])
                 prims.cylinder(body, mv((q[0] - 15, q[1], q[2])), mv((q[0] + 15, q[1], q[2])), 0.02, 6, st["rod"])
+    exit_deg = ex["pivots"]["restExitDeg"]
+    settle_rows(a, body, exit_deg, lod)
+    if lod >= 3:   # far out: one bar along each settled row
+        for side in (-1, 1):
+            sd = "l" if side < 0 else "r"
+            q0, q1 = a.pivots[f"sheave_{sd}1"]["pos"], a.pivots[f"sheave_{sd}{n_row}"]["pos"]
+            p0, p1 = Vector(q0), Vector(q1)
+            dd = (p1 - p0).normalized()
+            nn = dd.cross(V).normalized()
+            with body.grouped(f"eq_{sd}"):
+                prims.obox(body, tuple((p0 + p1) / 2), (dd, V, nn), ((p1 - p0).length / 2 + 0.2, 0.08, 0.2), st["steel"])
 
-    # the rope: level from the wheel to the first exit sheave (hold), leaving under the last one (out)
+    # the rope: level from the wheel to the first exit sheave (hold), leaving under the last one (out) at the angle the
+    # rows are settled to
     rr = m(c["sheave"]["grooveBottom"]) / 2 + m(c["ropeDiameter"]) / 2
-    (u_a, w_a), (u_b, w_b) = rows[-2], rows[-1]
-    ang = math.atan2(w_b - w_a, u_b - u_a)
+    ang = math.radians(exit_deg)
     u_hold = m(rows[0][0])
-    u_out, w_out = m(u_b) + rr * math.sin(ang), m(w_b) - rr * math.cos(ang)
+    out = {}
+    for sd in "lr":
+        u_b, v_b, w_b = a.pivots[f"sheave_{sd}{n_row}"]["pos"]
+        out[sd] = (u_b + rr * math.sin(ang), v_b, w_b - rr * math.cos(ang))
     a.body = body
     a.sockets = {
         "line": (0.0, 0.0, 0.0),
         "rope_left_bw": (0.0, -hg, rope), "rope_right_bw": (0.0, hg, rope),
         "rope_left_hold": (u_hold, -hg, rope), "rope_right_hold": (u_hold, hg, rope),
-        "rope_left_out": (u_out, -hg, w_out), "rope_right_out": (u_out, hg, w_out),
+        "rope_left_out": out["l"], "rope_right_out": out["r"],
         "chair_load": (m(d["loadU"]), hg, rope),
         "foundation_base": (0.0, 0.0, m(min(p["footing"]["lo"][2] for p in d["piers"]))),
     }
-    a.dims.update({"rope": d["ropeElevation"], "ropeExitDeg": round(math.degrees(ang), 2), "exitSheaves": n_row,
+    a.dims.update({"rope": d["ropeElevation"], "ropeExitDeg": exit_deg, "exitSheaves": n_row,
                    "boomSpacing": round(d["booms"][1]["v"] - d["booms"][0]["v"])})
     return a

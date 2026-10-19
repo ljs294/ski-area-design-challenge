@@ -87,11 +87,11 @@ def build(spec, lod, stage):
     centre = Vector((0.0, 0.0, rope))
     if lod <= 2:
         wb = MeshBuilder()
-        wheel(wb, centre, c["wheel"], hg, lod, st)
+        wheel(wb, centre, c["wheel"], hg, lod, st, m(c["ropeDiameter"]) / 2)
         a.parts["bullwheel"] = wb
         a.pivots["bullwheel"] = {"pos": tuple(centre), "axis": (0.0, 0.0, 1.0)}
     else:
-        wheel(body, centre, c["wheel"], hg, lod, st)
+        wheel(body, centre, c["wheel"], hg, lod, st, m(c["ropeDiameter"]) / 2)
 
     # deflection sheaves at the arm's ends (the rope rides on top; a single sheave is first and last: red)
     for dfl in r["deflection"]:

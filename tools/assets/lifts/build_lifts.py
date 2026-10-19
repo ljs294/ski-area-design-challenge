@@ -215,7 +215,8 @@ def main():
         shown = cat.get("parts", {}).get(aid) or cat.get("parts", {}).get(name)
         if shown:
             result["assets"][aid]["catalog"] = {"maker": cat["maker"], "model": cat["name"], "name": shown}
-        built[name] = {"assets": assets, "objects": objs, "collection": coll, "spec": own}
+        built[name] = {"assets": assets, "objects": objs, "collection": coll, "spec": own,
+                       "ranges": {k: v["range"] for k, v in result["assets"][aid]["pivots"].items()}}   # Unity degrees
         print(f"{aid}: tris per LOD {[e['total'] for e in rep['lods']]}" + (f"  PROBLEMS: {problems}" if problems else ""), flush=True)
         failures += [f"{aid}: {p}" for p in problems]
     result["failures"] = failures
