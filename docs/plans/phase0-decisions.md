@@ -424,3 +424,22 @@ look before tasks 08 and 09. Plan: [p3-07-plan.md](p3-07-plan.md). The owner ans
 | SK28 | **Real-ground check** (round 3): a fan of 32 Jackson Hole 2 km lines between LF-08 terminal sites; 23 build within every rule, the rest red for TW-06 crests on cliffy ground or small shortfalls just past a low zone (task 09's full TW-12 placement) |
 | SK29 | **Round 4 split** (owner, 2026-10-18): TW-05's full per-sheave forces in both load cases (the 750 lbf group minimum on hold-downs), any span rule, and the support on long steep spans and crests (findings r4 #1, #2b, #3b) go to **task 09** with its load gauges; round 3's small shortfalls past a low zone too |
 | SK30 | **Steep terminal sites** (owner, round 4): allowed; the terminal is raised (cutting at most 10 ft into the hill) and stands on its pier with **nothing filled up to it**: pads are cut-only clearance envelopes (LF-08 v2, LF-12 v3); an inlaid unload ramp model comes later. Supersedes SK22's filled unload ramp. Raised levels go to the view in memory until save v2 (SK14) |
+
+## Phase 3 task 09, lifts: decided 2026-10-19
+
+**Context:** fixed-grip chairlifts placed, towered, roped and edited by the player. Plan: [p3-09-plan.md](p3-09-plan.md).
+The owner answered revision 1's eight questions, then asked for an adversarial review before the go.
+
+| # | Decision |
+|---|---|
+| LT1 | **Towers:** both automatic placement by the game and fully individual placement (By hand) from day 1; the mode is per lift |
+| LT2 | **Editing a built lift** = moving towers (along the line, height) and moving terminals |
+| LT3 | **Save v2** stores each lift's absolute terminal levels (whole mm); the design golden is re-pinned |
+| LT4 | **The mockup's stand-ins are dropped:** footprints measured on the models, TW-13's real "next tower within" reach, "Hold-downs ahead" from the real forces |
+| LT5 | **Physics picks the heads:** b8-heavy lines are fine; head counts are shown on two sites |
+| LT6 | **The Monta FG4's top return** is a fixed row, its angle range measured from its single deflection sheaves; a Blender rebuild only if captures show the rope leaving them |
+| LT7 | **The Lifts map layer** is Shift+2 (Trails Shift+4, P3-08) |
+| LT8 | **Two PRs:** A the engine and save v2, B the game |
+| LT9 | **Moving a built lift's terminals** (owner "Proceed" on revision 2): either end moves anywhere, re-aiming the line; Automatic re-places the towers; By hand keeps each tower's distance from the bottom terminal and drops those past the new top after asking; the lift's earthwork rebuilds (LF-05 v2) |
+| LT10 | **Lift lines on the map:** as the mockup (the Lifts layer, every zoom, names on the Labels layer), but the red line fades out once the camera is close enough to see the 3D lift (about 2,000 ft) |
+| LT11 | **Tensioning:** the counterweight stays at the bottom terminal on both lifts (RP-03 as written); the Monta's bottom station drives and tensions |
