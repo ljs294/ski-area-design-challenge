@@ -117,6 +117,7 @@ namespace MountainPlanner.Domain.Design
                 _site = site;
                 Order = order;
                 Reads = ReadsOf(trail, site);
+                Tiles = TilesOf(trail, site);
                 var mine = new List<Keep>();
                 var lat = site.Lattice;
                 foreach (var k in rounds)
@@ -133,6 +134,36 @@ namespace MountainPlanner.Domain.Design
             public int Phase => 0;
             public long Order { get; }
             public PointRect Reads { get; }
+            public IReadOnlyCollection<EditTileKey> Tiles { get; }
+
+            /// <summary>The tiles each stroke's capsule reaches, 3 m wider than the brush (inside <see cref="Reads"/>).</summary>
+            static IReadOnlyCollection<EditTileKey> TilesOf(Trail t, EarthworkSite site)
+            {
+                var keys = new SortedSet<EditTileKey>();
+                var lat = site.Lattice;
+                foreach (var part in t.Parts)
+                    foreach (var s in part.Strokes)
+                    {
+                        if (s.Erase) continue;
+                        double r = s.WidthMm / 2000.0 + 3;
+                        var pts = s.Points;
+                        for (int k = 0; k < Math.Max(1, pts.Count - 1); k++)
+                        {
+                            site.PointOf(pts[k], out double ax, out double ay);
+                            site.PointOf(pts[Math.Min(k + 1, pts.Count - 1)], out double bx, out double by);
+                            double len = Math.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+                            int steps = Math.Max(1, (int)Math.Ceiling(len / 16));
+                            for (int q = 0; q <= steps; q++)
+                            {
+                                double x = ax + (bx - ax) * q / steps, y = ay + (by - ay) * q / steps, reach = r + 16;
+                                var box = new PointRect((int)Math.Floor(x - reach - lat.West), (int)Math.Floor(lat.North - y - reach),
+                                                        (int)Math.Ceiling(x + reach - lat.West), (int)Math.Ceiling(lat.North - y + reach));
+                                foreach (var key in box.TileKeys()) keys.Add(key);
+                            }
+                        }
+                    }
+                return keys;
+            }
 
             static PointRect ReadsOf(Trail t, EarthworkSite site)
             {

@@ -31,10 +31,21 @@ namespace MountainPlanner.Domain.Design
         public PointRect Bounds => new PointRect(MinColumn, MinRow, MaxColumn, MaxRow);
         public IEnumerable<EditTileKey> Tiles => _tiles.Keys;
 
+        // The last tile used: neighbouring points are mostly in the same one, so most calls skip the dictionary.
+        EditTileKey _lastKey;
+        Tile _last;
+
         Tile For(int c, int r, out int at)
         {
             var key = EditTileKey.Of(c, r);
-            if (!_tiles.TryGetValue(key, out var t)) _tiles[key] = t = new Tile();
+            Tile t;
+            if (_last != null && key == _lastKey) t = _last;
+            else
+            {
+                if (!_tiles.TryGetValue(key, out t)) _tiles[key] = t = new Tile();
+                _last = t;
+                _lastKey = key;
+            }
             at = (r - key.FirstRow) * Side + (c - key.FirstColumn);
             if (c < MinColumn) MinColumn = c;
             if (c > MaxColumn) MaxColumn = c;
@@ -47,6 +58,7 @@ namespace MountainPlanner.Domain.Design
         {
             var key = EditTileKey.Of(c, r);
             at = (r - key.FirstRow) * Side + (c - key.FirstColumn);
+            if (_last != null && key == _lastKey) return _last;
             return _tiles.TryGetValue(key, out var t) ? t : null;
         }
 

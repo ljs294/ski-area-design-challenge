@@ -233,8 +233,8 @@ ruled differently. No archived code is copied; the rules are stated here as pros
     up to a set limit (0.1's road exception). That adds an envelope value, not a new engine.
 
 - **GR-13, the edge envelope** (task 08, TL2): every changed point stays between the 1:1 slopes rising from the fixed
-  ground round it (the footprint's edge, islands, earlier trails' ground, TF-11's rounds and ungraded stretches), so the
-  faces meet the ground at every edge, whatever shape is painted.
+  ground within 2 m of the paint (the footprint's edge, islands, earlier trails' ground, TF-11's rounds and ungraded
+  stretches), so the faces meet the ground at every edge, whatever shape is painted.
 - **GR-14, grading is a choice** (owner, task 08, TL13): a trail is graded only when the player sets it to Graded. A new
   trail starts Natural, and editing a trail keeps its setting.
 - **GR-12 v2, rounded tie-ins** (owner, task 07, SK2, SK20): each face's crest and toe are rounded over **10 ft

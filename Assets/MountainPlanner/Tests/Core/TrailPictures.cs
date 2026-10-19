@@ -301,6 +301,61 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void TimingOneKilometre()
+        {
+            var (h, site, m) = Open();
+            using (h)
+            {
+                // Down the fall line for 1 km from the NE of the area, 100 ft wide, graded.
+                var pts = new List<PointMm>();
+                double x = 300, y = 700;
+                for (int k = 0; k <= 40; k++)
+                {
+                    pts.Add(PointMm.FromMetres(x, y));
+                    double ax = site.OriginX + x, ay = site.OriginY + y;
+                    double gx = h.At(ax + 5, ay) - h.At(ax - 5, ay), gy = h.At(ax, ay + 5) - h.At(ax, ay - 5), g = Math.Sqrt(gx * gx + gy * gy);
+                    x -= 25 * gx / g; y -= 25 * gy / g;
+                }
+                var trail = new Trail(TrailId.Make(1, 1), "Bench", WorkStage.Built, TrailSettings.GradedRun,
+                                      new[] { new FootprintPart(new[] { new Stroke(DesignUnits.FeetToMm(100), false, pts.ToArray()) }) }, pts[0], pts[pts.Count - 1]);
+                var doc = DesignDocument.Empty(1);
+                var r = new AddTrail(1, "Bench", TrailSettings.GradedRun, trail.Parts, trail.Head, trail.Tail, WorkStage.Built).Apply(doc);
+                var micro = System.Diagnostics.Stopwatch.StartNew();
+                double sum = 0;
+                for (int q = 0; q < 100000; q++) sum += h.At(site.OriginX + 300 + (q % 300), site.OriginY + 600 - q / 300);
+                TestContext.Progress.WriteLine($"100k package reads: {micro.Elapsed.TotalMilliseconds:F1} ms ({sum:F0})");
+                for (int run = 0; run < 3; run++)
+                {
+                    var w = System.Diagnostics.Stopwatch.StartNew();
+                    var work = new DesignEarthwork(h, site);
+                    work.Prime(doc, TerrainEdits.Empty);
+                    var rebuilt = work.Rebuild(r.Document, TerrainEdits.Empty);
+                    double a = w.Elapsed.TotalMilliseconds;
+                    var ground = new EditedHeights(h, site.Lattice, TerrainEdits.Empty);
+                    var pending = new EditedHeights(h, site.Lattice, rebuilt.Edits);
+                    var seg = new List<double>();
+                    PendingContours.Build(ground, pending, rebuilt.Changed, 3.048, seg);
+                    double b = w.Elapsed.TotalMilliseconds;
+                    var build = rebuilt.DetailOf(r.Created[0]) as TrailBuild;
+                    TrailRating.Rate(pending, build.Footprint, build.Grade);
+                    double c = w.Elapsed.TotalMilliseconds;
+                    w.Restart();
+                    var fp = TrailFootprint.Build(trail.Parts, site.Lattice, site.OriginX, site.OriginY);
+                    double f1 = w.Elapsed.TotalMilliseconds;
+                    site.PointOf(trail.Head.Value, out double hx, out double hy);
+                    site.PointOf(trail.Tail.Value, out double tx, out double ty);
+                    var cl = TrailCentreline.Find(fp, hx, hy, tx, ty);
+                    double f2 = w.Elapsed.TotalMilliseconds;
+                    var gg = TrailGrader.GradeFootprint(ground, fp, cl.Points, true, 1, trail.Id);
+                    double f3 = w.Elapsed.TotalMilliseconds;
+
+                    TestContext.Progress.WriteLine($"  footprint {f1:F1} ({fp.Width}x{fp.Height}), centreline {f2 - f1:F1}, grade {f3 - f2:F1}");
+                    TestContext.Progress.WriteLine($"rebuild {a:F1} ms ({rebuilt.Tiles.Count} tiles, {rebuilt.Changed.Count} changed, {build.Grade.LengthMetres:F0} m), contours {b - a:F1} ms, rating {c - b:F1} ms");
+                }
+            }
+        }
+
+        [Test]
         public void Trails()
         {
             var (h, site, m) = Open();

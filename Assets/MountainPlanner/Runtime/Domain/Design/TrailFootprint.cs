@@ -203,34 +203,58 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         static float[] Clearances(bool[] on, int w, int h, out double max)
         {
+            // Only the painted extent of each column and row is transformed: beyond it every cell is unpainted (distance
+            // 0), and the unpainted cell just past either end is always nearer than any farther one, so the result is
+            // exactly the whole grid's. A diagonal run's box is mostly empty, so this is most of the speed (task 08).
             const double Inf = 1e20;
+            var colLo = new int[w];
+            var colHi = new int[w];
+            var rowLo = new int[h];
+            var rowHi = new int[h];
+            for (int i = 0; i < w; i++) { colLo[i] = int.MaxValue; colHi[i] = -1; }
+            for (int j = 0; j < h; j++)
+            {
+                rowLo[j] = int.MaxValue;
+                rowHi[j] = -1;
+                for (int i = 0; i < w; i++)
+                {
+                    if (!on[j * w + i]) continue;
+                    if (i < rowLo[j]) rowLo[j] = i;
+                    rowHi[j] = i;
+                    if (j < colLo[i]) colLo[i] = j;
+                    colHi[i] = j;
+                }
+            }
             var d2 = new double[w * h];
-            for (int k = 0; k < d2.Length; k++) d2[k] = on[k] ? Inf : 0;
-            int n = Math.Max(w, h);
+            int n = Math.Max(w, h) + 2;
             var f = new double[n];
             var outv = new double[n];
             var v = new int[n];
             var z = new double[n + 1];
             for (int i = 0; i < w; i++)
             {
-                for (int j = 0; j < h; j++) f[j] = d2[j * w + i];
-                Transform(f, h, outv, v, z);
-                for (int j = 0; j < h; j++) d2[j * w + i] = outv[j];
-            }
-            for (int j = 0; j < h; j++)
-            {
-                for (int i = 0; i < w; i++) f[i] = d2[j * w + i];
-                Transform(f, w, outv, v, z);
-                for (int i = 0; i < w; i++) d2[j * w + i] = outv[i];
+                if (colHi[i] < 0) continue;
+                int a0 = Math.Max(0, colLo[i] - 1), b0 = Math.Min(h - 1, colHi[i] + 1), m = b0 - a0 + 1;
+                for (int t = 0; t < m; t++) f[t] = on[(a0 + t) * w + i] ? Inf : 0;
+                Transform(f, m, outv, v, z);
+                for (int t = 0; t < m; t++) d2[(a0 + t) * w + i] = outv[t];
             }
             var clear = new float[w * h];
             max = 0;
-            for (int k = 0; k < clear.Length; k++)
+            for (int j = 0; j < h; j++)
             {
-                if (!on[k]) continue;
-                double c = Math.Sqrt(d2[k]) - 0.5;
-                clear[k] = (float)c;
-                if (c > max) max = c;
+                if (rowHi[j] < 0) continue;
+                int a0 = Math.Max(0, rowLo[j] - 1), b0 = Math.Min(w - 1, rowHi[j] + 1), m = b0 - a0 + 1;
+                for (int t = 0; t < m; t++) f[t] = d2[j * w + a0 + t];
+                Transform(f, m, outv, v, z);
+                for (int t = 0; t < m; t++)
+                {
+                    int k = j * w + a0 + t;
+                    if (!on[k]) continue;
+                    double c = Math.Sqrt(outv[t]) - 0.5;
+                    clear[k] = (float)c;
+                    if (c > max) max = c;
+                }
             }
             return clear;
         }

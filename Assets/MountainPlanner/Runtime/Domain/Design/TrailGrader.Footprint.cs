@@ -90,40 +90,52 @@ namespace MountainPlanner.Domain.Design
             result.LengthMetres = length;
             result.UngradedStations = ungraded;
             result.UngradedMetres = count > 1 ? length * ungraded / count : 0;
-            // The footprint's lattice points: located on the centreline, and their design heights.
+            // The footprint's lattice points, kept compact: per point row, only the span round its paint (a diagonal run's
+            // box is mostly empty), within three cells. Located on the centreline, then their design heights.
             int pc0 = fp.Column0, pr0 = fp.Row0, pw = fp.Width + 1, ph = fp.Height + 1;
+            var grid = new SpanGrid(fp, pw, ph, 3);
+            int n = grid.Count;
             bool any = false;
-            var design = graded ? new double[pw * ph] : null;
-            var ground = graded ? new double[pw * ph] : null;
-            var free = graded ? new bool[pw * ph] : null;   // a point GR-13 may clamp
-            var claim = new bool[pw * ph];
+            var design = graded ? new double[n] : null;
+            var ground = graded ? new double[n] : null;
+            var free = graded ? new bool[n] : null;   // a point GR-13 may clamp
+            var near = graded ? new bool[n] : null;   // within two cells of the paint: GR-13's fixed ground
+            var claim = new bool[n];
             Located point = null;
             if (graded)
             {
                 for (int k = 0; k < count && !any; k++) any = ok[k];
                 double reach = 1.5 * fp.MaxClearance + 3;
-                point = any ? Locate(line, along, lattice, pc0, pr0, pw, ph, 0, 0, reach) : null;
+                point = any ? LocateSpans(line, along, lattice, pc0, pr0, grid, reach) : null;
+                MarkNear(fp, grid, near, 2);
             }
             for (int j = 0; j < ph; j++)
-                for (int i = 0; i < pw; i++)
+            {
+                if (grid.Lo[j] > grid.Hi[j]) continue;
+                // A span's ground in one read (exactly AtPoint each, SH-02), then only the points near the paint keep it.
+                if (graded) current.AtPointsRow(pc0 + grid.Lo[j], pr0 + j, grid.Hi[j] - grid.Lo[j] + 1, ground, grid.Offset[j]);
+                for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
                 {
-                    int c = pc0 + i, r = pr0 + j, at = j * pw + i;
+                    int c = pc0 + i, r = pr0 + j, at = grid.Index(i, j);
                     bool mine = fp.Interior(c, r) && (isFixed == null || !isFixed(c, r));
                     if (mine) { writes.Claim(c, r); claim[at] = true; }
-                    if (graded) ground[at] = current.AtPoint(c, r);
+                    if (graded && !near[at]) ground[at] = double.NaN;
                 }
+            }
             for (int j = 0; j < ph && graded; j++)
-                for (int i = 0; i < pw; i++)
+                for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
                 {
-                    int c = pc0 + i, r = pr0 + j, at = j * pw + i;
+                    int c = pc0 + i, r = pr0 + j, at = grid.Index(i, j);
                     double g = ground[at];
                     design[at] = g;
                     if (!claim[at] || point == null || point.Dist[at] == double.MaxValue) continue;
                     double pcl = fp.PointClearance(c, r);
                     double u = point.Offset[at];
                     // The ground where this point's line out meets the edge: bilinear on the lattice (SH-02), from the
-                    // points already read; the edge always lies inside the box.
-                    double edge = Bilinear(ground, pw, ph, i + point.OutX[at] * pcl, j - point.OutY[at] * pcl);
+                    // points already read where it can.
+                    double fi = i + point.OutX[at] * pcl, fj = j - point.OutY[at] * pcl;
+                    double edge = grid.Bilinear(ground, fi, fj, out bool okEdge);
+                    if (!okEdge) edge = current.At(lattice.X(pc0) + fi, lattice.Y(pr0) - fj);
                     double d = Design(point.Along[at], u, g, edge, Math.Abs(u) + pcl, along, z, left, right, ok, roundMetres);
                     design[at] = d;
                     free[at] = d != g;
@@ -131,20 +143,21 @@ namespace MountainPlanner.Domain.Design
             if (graded && any)
             {
                 // GR-13: the 1:1 slopes up and down from every fixed point bound every changed one. Two chamfer passes on the
-                // 1 m lattice (steps 1 and √2), so neighbouring points never differ by more than the face slope allows.
-                var upper = new double[pw * ph];
-                var lower = new double[pw * ph];
-                for (int k = 0; k < upper.Length; k++)
+                // 1 m lattice (steps 1 and sqrt 2), so neighbouring points never differ by more than the face slope allows.
+                var upper = new double[n];
+                var lower = new double[n];
+                for (int k = 0; k < n; k++)
                 {
-                    upper[k] = free[k] ? double.PositiveInfinity : ground[k];
-                    lower[k] = free[k] ? double.NegativeInfinity : ground[k];
+                    bool source = !free[k] && near[k];
+                    upper[k] = source ? ground[k] : double.PositiveInfinity;
+                    lower[k] = source ? ground[k] : double.NegativeInfinity;
                 }
-                Chamfer(upper, lower, pw, ph, FaceSlope);
+                ChamferSpans(upper, lower, grid, ph, FaceSlope);
                 double cut = 0, fill = 0;
                 for (int j = 0; j < ph; j++)
-                    for (int i = 0; i < pw; i++)
+                    for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
                     {
-                        int at = j * pw + i, c = pc0 + i, r = pr0 + j;
+                        int at = grid.Index(i, j), c = pc0 + i, r = pr0 + j;
                         if (!claim[at]) continue;
                         double h = design[at];
                         if (free[at])
@@ -162,6 +175,7 @@ namespace MountainPlanner.Domain.Design
                 result.CutCubicMetres = cut;
                 result.FillCubicMetres = fill;
             }
+
             // CL-01, CL-02, CL-08: every painted cell, the ragged band measured from the edge (islands included).
             int cleared = 0;
             for (int j = 0; j < fp.Height; j++)
@@ -177,16 +191,6 @@ namespace MountainPlanner.Domain.Design
             return result;
         }
 
-        static double Bilinear(double[] g, int w, int h, double fi, double fj)
-        {
-            fi = Math.Max(0, Math.Min(w - 1.000001, fi));
-            fj = Math.Max(0, Math.Min(h - 1.000001, fj));
-            int i = (int)fi, j = (int)fj;
-            double tx = fi - i, ty = fj - j;
-            int at = j * w + i;
-            double top = g[at] + (g[at + 1] - g[at]) * tx, bottom = g[at + w] + (g[at + w + 1] - g[at + w]) * tx;
-            return top + (bottom - top) * ty;
-        }
 
         /// <summary>GR-05 v2 (proposed): how far the bench width's smoothing reaches, in stations (50 ft each way).</summary>
         public const int WidthSmoothStations = 2;
@@ -211,6 +215,160 @@ namespace MountainPlanner.Domain.Design
             }
         }
 
+
+
+        /// <summary>
+        /// The grader's compact lattice: per point row j, columns Lo[j]..Hi[j] (empty when Lo &gt; Hi), within a reach of
+        /// the row's paint (rows next to painted ones count, so the chamfer's passes see every point they need).
+        /// </summary>
+        sealed class SpanGrid
+        {
+            public readonly int[] Lo, Hi, Offset;
+            public readonly int Count, Height;
+
+            public SpanGrid(TrailFootprint fp, int pw, int ph, int reach)
+            {
+                Height = ph;
+                Lo = new int[ph];
+                Hi = new int[ph];
+                Offset = new int[ph];
+                var rowLo = new int[fp.Height];
+                var rowHi = new int[fp.Height];
+                for (int j = 0; j < fp.Height; j++)
+                {
+                    rowLo[j] = int.MaxValue;
+                    rowHi[j] = int.MinValue;
+                    for (int i = 0; i < fp.Width; i++)
+                        if (fp.Contains(fp.Column0 + i, fp.Row0 + j)) { if (i < rowLo[j]) rowLo[j] = i; rowHi[j] = i; }
+                }
+                int total = 0;
+                for (int j = 0; j < ph; j++)
+                {
+                    int l = int.MaxValue, h = int.MinValue;
+                    for (int cj = Math.Max(0, j - 1 - reach); cj <= Math.Min(fp.Height - 1, j + reach); cj++)
+                    {
+                        if (rowLo[cj] > rowHi[cj]) continue;
+                        l = Math.Min(l, rowLo[cj]);
+                        h = Math.Max(h, rowHi[cj] + 1);
+                    }
+                    if (l > h) { Lo[j] = 1; Hi[j] = 0; }
+                    else { Lo[j] = Math.Max(0, l - reach); Hi[j] = Math.Min(pw - 1, h + reach); }
+                    Offset[j] = total;
+                    total += Math.Max(0, Hi[j] - Lo[j] + 1);
+                }
+                Count = total;
+            }
+
+            /// <summary>The compact index of point (i, j), or -1 outside the spans.</summary>
+            public int Index(int i, int j) => j < 0 || j >= Height || i < Lo[j] || i > Hi[j] ? -1 : Offset[j] + i - Lo[j];
+
+            /// <summary>Bilinear between the four points round (fi, fj); false when one is outside the spans or unread.</summary>
+            public double Bilinear(double[] g, double fi, double fj, out bool found)
+            {
+                int i = (int)Math.Floor(fi), j = (int)Math.Floor(fj);
+                double tx = fi - i, ty = fj - j;
+                int a = Index(i, j), b = Index(i + 1, j), c = Index(i, j + 1), d = Index(i + 1, j + 1);
+                found = a >= 0 && b >= 0 && c >= 0 && d >= 0 && !double.IsNaN(g[a]) && !double.IsNaN(g[b]) && !double.IsNaN(g[c]) && !double.IsNaN(g[d]);
+                if (!found) return double.NaN;
+                double top = g[a] + (g[b] - g[a]) * tx, bottom = g[c] + (g[d] - g[c]) * tx;
+                return top + (bottom - top) * ty;
+            }
+        }
+
+        /// <summary>Marks the grid's points within <paramref name="reach"/> cells of a painted edge, and every point a painted cell touches.</summary>
+        static void MarkNear(TrailFootprint fp, SpanGrid grid, bool[] near, int reach)
+        {
+            for (int j = 0; j < fp.Height; j++)
+                for (int i = 0; i < fp.Width; i++)
+                {
+                    if (!fp.Contains(fp.Column0 + i, fp.Row0 + j)) continue;
+                    bool edge = !fp.Contains(fp.Column0 + i - 1, fp.Row0 + j) || !fp.Contains(fp.Column0 + i + 1, fp.Row0 + j)
+                             || !fp.Contains(fp.Column0 + i, fp.Row0 + j - 1) || !fp.Contains(fp.Column0 + i, fp.Row0 + j + 1);
+                    int k = edge ? reach : 0;
+                    for (int y = j - k; y <= j + 1 + k; y++)
+                        for (int x = i - k; x <= i + 1 + k; x++)
+                        {
+                            int at = grid.Index(x, y);
+                            if (at >= 0) near[at] = true;
+                        }
+                }
+        }
+
+        /// <summary><see cref="Locate"/> on the compact grid: each segment visits only the span points within reach.</summary>
+        static Located LocateSpans(IReadOnlyList<double> line, double[] along, EditLattice lattice, int c0, int r0, SpanGrid grid, double reach)
+        {
+            var located = new Located(grid.Count);
+            int count = line.Count / 2;
+            for (int k = 0; k + 1 < count; k++)
+            {
+                double ax = line[2 * k], ay = line[2 * k + 1], bx = line[2 * k + 2], by = line[2 * k + 3];
+                double sx = bx - ax, sy = by - ay, len2 = sx * sx + sy * sy;
+                if (len2 <= 0) continue;
+                double len = Math.Sqrt(len2);
+                int ci0 = (int)Math.Floor(Math.Min(ax, bx) - reach - 1 - lattice.West) - c0;
+                int ci1 = (int)Math.Ceiling(Math.Max(ax, bx) + reach + 1 - lattice.West) - c0;
+                int rj0 = Math.Max(0, (int)Math.Floor(lattice.North - (Math.Max(ay, by) + reach + 1)) - r0);
+                int rj1 = Math.Min(grid.Height - 1, (int)Math.Ceiling(lattice.North - (Math.Min(ay, by) - reach - 1)) - r0);
+                for (int j = rj0; j <= rj1; j++)
+                    for (int i = Math.Max(ci0, grid.Lo[j]); i <= Math.Min(ci1, grid.Hi[j]); i++)
+                    {
+                        double px = lattice.X(c0 + i), py = lattice.Y(r0 + j);
+                        double rx = px - ax, ry = py - ay;
+                        double t = (rx * sx + ry * sy) / len2;
+                        double tc = t < 0 ? 0 : t > 1 ? 1 : t;
+                        double qx = ax + sx * tc - px, qy = ay + sy * tc - py;
+                        double dist = Math.Sqrt(qx * qx + qy * qy);
+                        int at = grid.Index(i, j);
+                        if (dist >= located.Dist[at]) continue;
+                        double cross = (sx * ry - sy * rx) / len;
+                        located.Dist[at] = dist;
+                        located.Offset[at] = cross >= 0 ? dist : -dist;
+                        if (dist > 1e-9) { located.OutX[at] = -qx / dist; located.OutY[at] = -qy / dist; }
+                        else { located.OutX[at] = -sy / len; located.OutY[at] = sx / len; }
+                        located.Along[at] = along[k] + tc * len;
+                    }
+            }
+            return located;
+        }
+
+        /// <summary>
+        /// GR-13's bounds on the compact grid: <paramref name="upper"/> becomes min over fixed q of g(q) + s·dist(p, q) and
+        /// <paramref name="lower"/> max of g(q) - s·dist, distances along 8-neighbour steps (1 and sqrt 2).
+        /// </summary>
+        static void ChamferSpans(double[] upper, double[] lower, SpanGrid grid, int h, double s)
+        {
+            double a = s, b = s * 1.4142135623730951;
+            for (int j = 0; j < h; j++)
+                for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
+                {
+                    int at = grid.Index(i, j);
+                    double u = upper[at], l = lower[at];
+                    Take(upper, lower, grid.Index(i - 1, j), a, ref u, ref l);
+                    Take(upper, lower, grid.Index(i, j - 1), a, ref u, ref l);
+                    Take(upper, lower, grid.Index(i - 1, j - 1), b, ref u, ref l);
+                    Take(upper, lower, grid.Index(i + 1, j - 1), b, ref u, ref l);
+                    upper[at] = u; lower[at] = l;
+                }
+            for (int j = h - 1; j >= 0; j--)
+                for (int i = grid.Hi[j]; i >= grid.Lo[j]; i--)
+                {
+                    int at = grid.Index(i, j);
+                    double u = upper[at], l = lower[at];
+                    Take(upper, lower, grid.Index(i + 1, j), a, ref u, ref l);
+                    Take(upper, lower, grid.Index(i, j + 1), a, ref u, ref l);
+                    Take(upper, lower, grid.Index(i + 1, j + 1), b, ref u, ref l);
+                    Take(upper, lower, grid.Index(i - 1, j + 1), b, ref u, ref l);
+                    upper[at] = u; lower[at] = l;
+                }
+        }
+
+        static void Take(double[] upper, double[] lower, int from, double step, ref double u, ref double l)
+        {
+            if (from < 0) return;
+            u = Math.Min(u, upper[from] + step);
+            l = Math.Max(l, lower[from] - step);
+        }
+
         /// <summary>A footprint's claims and clearing only, no heights (a trail without a centreline yet).</summary>
         public static EarthworkWrites ClearOnly(TrailFootprint fp, ulong seed, TrailId id, Func<int, int, bool> isFixed)
         {
@@ -233,41 +391,5 @@ namespace MountainPlanner.Domain.Design
             return d;
         }
 
-        /// <summary>
-        /// GR-13's bounds: <paramref name="upper"/> becomes min over fixed q of g(q) + s·dist(p, q) and
-        /// <paramref name="lower"/> max of g(q) − s·dist, distances along 8-neighbour steps (1 and √2).
-        /// </summary>
-        static void Chamfer(double[] upper, double[] lower, int w, int h, double s)
-        {
-            double a = s, b = s * 1.4142135623730951;
-            for (int j = 0; j < h; j++)
-                for (int i = 0; i < w; i++)
-                {
-                    int at = j * w + i;
-                    double u = upper[at], l = lower[at];
-                    if (i > 0) { u = Math.Min(u, upper[at - 1] + a); l = Math.Max(l, lower[at - 1] - a); }
-                    if (j > 0)
-                    {
-                        u = Math.Min(u, upper[at - w] + a); l = Math.Max(l, lower[at - w] - a);
-                        if (i > 0) { u = Math.Min(u, upper[at - w - 1] + b); l = Math.Max(l, lower[at - w - 1] - b); }
-                        if (i < w - 1) { u = Math.Min(u, upper[at - w + 1] + b); l = Math.Max(l, lower[at - w + 1] - b); }
-                    }
-                    upper[at] = u; lower[at] = l;
-                }
-            for (int j = h - 1; j >= 0; j--)
-                for (int i = w - 1; i >= 0; i--)
-                {
-                    int at = j * w + i;
-                    double u = upper[at], l = lower[at];
-                    if (i < w - 1) { u = Math.Min(u, upper[at + 1] + a); l = Math.Max(l, lower[at + 1] - a); }
-                    if (j < h - 1)
-                    {
-                        u = Math.Min(u, upper[at + w] + a); l = Math.Max(l, lower[at + w] - a);
-                        if (i < w - 1) { u = Math.Min(u, upper[at + w + 1] + b); l = Math.Max(l, lower[at + w + 1] - b); }
-                        if (i > 0) { u = Math.Min(u, upper[at + w - 1] + b); l = Math.Max(l, lower[at + w - 1] - b); }
-                    }
-                    upper[at] = u; lower[at] = l;
-                }
-        }
     }
 }

@@ -588,7 +588,7 @@ namespace MountainPlanner.UI.Tools
                 a.Rebuild = earthwork.Rebuild(after.Document, committed);
                 var pending = new EditedHeights(heights.Source, heights.Lattice, a.Rebuild.Edits);
                 a.Contours = new List<double>();
-                PendingContours.Build(heights, pending, a.Rebuild.Tiles, interval, a.Contours);
+                PendingContours.Build(heights, pending, a.Rebuild.Changed, interval, a.Contours);
                 if (remove) return a;
                 ulong id = key != 0 ? key : after.Created[0];
                 // A change that moves no ground (a rename) regrades nothing: the trail's last grade stands.

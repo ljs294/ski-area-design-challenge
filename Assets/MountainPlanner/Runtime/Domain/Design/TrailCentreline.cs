@@ -36,55 +36,64 @@ namespace MountainPlanner.Domain.Design
             if (start < 0 || goal < 0 || start == goal) return result;
 
             double W = Math.Max(1, fp.MaxClearance);
-            var weight = new double[w * h];
+            // The painted cells only, compactly (a diagonal run's box is mostly empty): idx maps a box cell to its slot.
+            var idx = new int[w * h];
+            var box = new int[fp.Cells];
+            var weight = new double[fp.Cells];
+            int m = 0;
             for (int j = 0; j < h; j++)
                 for (int i = 0; i < w; i++)
                 {
-                    double c = fp.Clearance(fp.Column0 + i, fp.Row0 + j);
-                    double q = W / Math.Max(0.5, c);
-                    weight[j * w + i] = fp.Contains(fp.Column0 + i, fp.Row0 + j) ? 1 + q * q : double.PositiveInfinity;
+                    int at = j * w + i;
+                    if (!fp.Contains(fp.Column0 + i, fp.Row0 + j)) { idx[at] = -1; continue; }
+                    double q = W / Math.Max(0.5, fp.Clearance(fp.Column0 + i, fp.Row0 + j));
+                    idx[at] = m;
+                    box[m] = at;
+                    weight[m] = 1 + q * q;
+                    m++;
                 }
 
-            var cost = new double[w * h];
-            var from = new int[w * h];
-            for (int k = 0; k < cost.Length; k++) { cost[k] = double.PositiveInfinity; from[k] = -1; }
+            var cost = new double[m];
+            var from = new int[m];
+            for (int k = 0; k < m; k++) { cost[k] = double.PositiveInfinity; from[k] = -1; }
             var heap = new MinHeap(1024);
-            cost[start] = 0;
-            heap.Push(0, start);
+            int s0 = idx[start], g0 = idx[goal];
+            cost[s0] = 0;
+            heap.Push(0, s0);
             const double Diag = 1.4142135623730951;
             while (heap.Count > 0)
             {
-                heap.Pop(out double c0, out int at);
-                if (c0 > cost[at]) continue;
-                if (at == goal) break;
-                int x = at % w, y = at / w;
+                heap.Pop(out double c0, out int slot);
+                if (c0 > cost[slot]) continue;
+                if (slot == g0) break;
+                int at = box[slot], x = at % w, y = at / w;
                 for (int dy = -1; dy <= 1; dy++)
                     for (int dx = -1; dx <= 1; dx++)
                     {
                         if (dx == 0 && dy == 0) continue;
                         int nx = x + dx, ny = y + dy;
                         if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-                        int n = ny * w + nx;
-                        if (double.IsInfinity(weight[n])) continue;
+                        int ns = idx[ny * w + nx];
+                        if (ns < 0) continue;
                         // A diagonal step needs both its side cells painted, so the path never cuts a corner off the footprint.
-                        if (dx != 0 && dy != 0 && (double.IsInfinity(weight[y * w + nx]) || double.IsInfinity(weight[ny * w + x]))) continue;
-                        double step = (dx != 0 && dy != 0 ? Diag : 1) * 0.5 * (weight[at] + weight[n]);
+                        if (dx != 0 && dy != 0 && (idx[y * w + nx] < 0 || idx[ny * w + x] < 0)) continue;
+                        double step = (dx != 0 && dy != 0 ? Diag : 1) * 0.5 * (weight[slot] + weight[ns]);
                         double next = c0 + step;
-                        if (next < cost[n] || (next == cost[n] && at < from[n]))
+                        if (next < cost[ns] || (next == cost[ns] && box[slot] < (from[ns] < 0 ? int.MaxValue : box[from[ns]])))
                         {
-                            cost[n] = next;
-                            from[n] = at;
-                            heap.Push(next, n);
+                            cost[ns] = next;
+                            from[ns] = slot;
+                            heap.Push(next, ns);
                         }
                     }
             }
-            if (double.IsInfinity(cost[goal])) return result;
+            if (double.IsInfinity(cost[g0])) return result;
 
             var cells = new List<int>();
-            for (int k = goal; k >= 0; k = from[k])
+            for (int k = g0; k >= 0; k = from[k])
             {
-                cells.Add(k);
-                if (k == start) break;
+                cells.Add(box[k]);
+                if (k == s0) break;
             }
             cells.Reverse();
             int count = cells.Count;

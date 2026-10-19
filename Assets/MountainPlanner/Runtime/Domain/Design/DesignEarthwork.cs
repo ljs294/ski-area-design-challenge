@@ -18,6 +18,11 @@ namespace MountainPlanner.Domain.Design
         long Order { get; }
         /// <summary>Every lattice point it may read or write; its writes stay inside.</summary>
         PointRect Reads { get; }
+        /// <summary>
+        /// The edit tiles it may read or write: inside <see cref="Reads"/>, but only those its work reaches (a diagonal run's
+        /// box holds many tiles it never touches).
+        /// </summary>
+        IReadOnlyCollection<EditTileKey> Tiles { get; }
         /// <summary>Whether its writes would be the same as <paramref name="other"/>'s on the same ground.</summary>
         bool SameAs(IEarthworkItem other);
         /// <summary>
@@ -119,6 +124,8 @@ namespace MountainPlanner.Domain.Design
             public TerrainEdits Edits { get; internal set; }
             /// <summary>The tiles that were rebuilt (a superset of those that changed).</summary>
             public IReadOnlyList<EditTileKey> Tiles { get; internal set; }
+            /// <summary>The tiles whose content differs from the committed edits (what pending contours redraw).</summary>
+            public IReadOnlyList<EditTileKey> Changed { get; internal set; }
             /// <summary>How many pieces were graded again.</summary>
             public int Regraded { get; internal set; }
             internal Dictionary<ulong, Entry> Overlay;
@@ -143,7 +150,7 @@ namespace MountainPlanner.Domain.Design
                 _primed = false;
                 var items = Collect(doc);
                 var tiles = new HashSet<EditTileKey>();
-                foreach (var it in items) foreach (var k in it.Reads.TileKeys()) tiles.Add(k);
+                foreach (var it in items) foreach (var k in it.Tiles) tiles.Add(k);
                 var overlay = new Dictionary<ulong, Entry>();
                 Fold(items, committed ?? TerrainEdits.Empty, tiles, new HashSet<ulong>(), PointRect.Empty, overlay, foreign: false, out _);
                 foreach (var kv in overlay) _cache[kv.Key] = kv.Value;
@@ -188,12 +195,12 @@ namespace MountainPlanner.Domain.Design
                     if (_cache.TryGetValue(it.Key, out var e) && e.Item.SameAs(it)) continue;
                     dirty.Add(it.Key);
                     if (e != null) foreach (var t in e.Writes.Tiles) tiles.Add(t);
-                    foreach (var t in it.Reads.TileKeys()) tiles.Add(t);
+                    foreach (var t in it.Tiles) tiles.Add(t);
                 }
                 var edits = Fold(items, committed, tiles, dirty, changed, overlay, foreign: true, out int regraded);
                 var list = new List<EditTileKey>(tiles);
                 list.Sort();
-                return new Result { Edits = edits, Tiles = list, Regraded = regraded, Overlay = overlay, Version = _version };
+                return new Result { Edits = edits, Tiles = list, Changed = TerrainEdits.Changed(committed, edits), Regraded = regraded, Overlay = overlay, Version = _version };
             }
         }
 
@@ -275,7 +282,7 @@ namespace MountainPlanner.Domain.Design
                 {
                     // Everything it reads must be folded up to here.
                     var fresh = new List<EditTileKey>();
-                    foreach (var t in it.Reads.TileKeys())
+                    foreach (var t in it.Tiles)
                         if (!work.ContainsKey(t)) { Open(t); fresh.Add(t); }
                     foreach (var t in fresh)
                         foreach (var (pi, pw) in done) Lay(pi, pw, t, work, claims);

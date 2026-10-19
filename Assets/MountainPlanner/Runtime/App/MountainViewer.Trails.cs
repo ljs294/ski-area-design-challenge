@@ -273,7 +273,7 @@ namespace MountainPlanner.App
             var heights = _edits.Pipeline.Heights;
             var pending = new EditedHeights(heights.Source, heights.Lattice, rebuilt.Edits);
             var contours = new List<double>();
-            PendingContours.Build(heights, pending, rebuilt.Tiles, UnitFormat.ContourIntervalMetres(DisplayUnits.Current), contours);
+            PendingContours.Build(heights, pending, rebuilt.Changed, UnitFormat.ContourIntervalMetres(DisplayUnits.Current), contours);
             if (after.Created.Count > 0 && rebuilt.DetailOf(after.Created[0]) is TrailBuild b && b.Grade != null)
                 TrailRating.Rate(pending, b.Footprint, b.Grade);
             ms = watch.Elapsed.TotalMilliseconds;
@@ -291,6 +291,8 @@ namespace MountainPlanner.App
             for (int i = 0; i < 60; i++) yield return null;
             const int spots = 10;
             var report = new TrailBenchReport();
+            var shortPreview = new List<double>();
+            var shortCommit = new List<double>();
             var straightPreview = new List<double>();
             var straightCommit = new List<double>();
             var mixedPreview = new List<double>();
@@ -302,9 +304,15 @@ namespace MountainPlanner.App
             {
                 float angle = s * Mathf.PI * 2 / spots;
                 var head = new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * 600f;
-                var path = FallLine(head, 1000);
-                foreach (bool mixed in new[] { false, true })
+                var longPath = FallLine(head, 1000);
+                var shortPath = FallLine(head, 300);
+                foreach (int variant in new[] { 0, 1, 2 })
                 {
+                    // 0: 1,000 ft (300 m) at 100 ft, CF-09's own edit; 1: 1 km at 100 ft; 2: 1 km of mixed widths with an island.
+                    bool mixed = variant == 2;
+                    var path = variant == 0 ? shortPath : longPath;
+                    var previewList = variant == 0 ? shortPreview : mixed ? mixedPreview : straightPreview;
+                    var commitList = variant == 0 ? shortCommit : mixed ? mixedCommit : straightCommit;
                     var strokes = new List<Stroke>();
                     if (!mixed) strokes.Add(new Stroke(DesignUnits.FeetToMm(100), false, path.ToArray()));
                     else
@@ -320,14 +328,14 @@ namespace MountainPlanner.App
                     var add = new AddTrail(history.Revision, "Bench " + s, TrailSettings.GradedRun, new[] { new FootprintPart(strokes.ToArray()) },
                                            path[0], path[path.Count - 1], WorkStage.Built);
                     var rebuilt = AnalyseForBench(add, out double ms);
-                    (mixed ? mixedPreview : straightPreview).Add(ms);
+                    previewList.Add(ms);
                     yield return null;
                     var watch = System.Diagnostics.Stopwatch.StartNew();
                     var r = history.Submit(add, rebuilt.Edits);
                     _edits.Earthwork.Accept(rebuilt);
                     while (!_edits.Applying.IsCompleted) yield return null;
                     yield return null;   // the frame that shows it
-                    (mixed ? mixedCommit : straightCommit).Add(watch.Elapsed.TotalMilliseconds);
+                    commitList.Add(watch.Elapsed.TotalMilliseconds);
                     if (!r.Accepted) Debug.LogWarning("[TrailBench] rejected: " + r);
                     for (int i = 0; i < 5; i++) yield return null;
                     if (mixed && r.Accepted)
@@ -362,6 +370,8 @@ namespace MountainPlanner.App
             report.site = _resort.Manifest.Site.Name;
             report.spots = spots;
             report.lengthM = 1000;
+            report.shortPreview = Stat.Of(shortPreview);
+            report.shortCommit = Stat.Of(shortCommit);
             report.straightPreview = Stat.Of(straightPreview);
             report.straightCommit = Stat.Of(straightCommit);
             report.mixedPreview = Stat.Of(mixedPreview);
@@ -369,12 +379,13 @@ namespace MountainPlanner.App
             report.editPreview = Stat.Of(edit);
             report.undo = Stat.Of(undo);
             report.pass = report.straightPreview.p95 <= 100 && report.straightCommit.p95 <= 250;
+            report.shortPass = report.shortPreview.p95 <= 100 && report.shortCommit.p95 <= 250;
             File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
             Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                "[TrailBench] 1 km 100 ft: preview p95 {0:F1} ms, commit p95 {1:F1} ms; mixed with an island: preview p95 {2:F1} ms, commit p95 {3:F1} ms; " +
+                "[TrailBench] 1,000 ft: preview p95 {7:F1} ms, commit p95 {8:F1} ms ({9}); 1 km 100 ft: preview p95 {0:F1} ms, commit p95 {1:F1} ms; mixed with an island: preview p95 {2:F1} ms, commit p95 {3:F1} ms; " +
                 "edit preview p95 {4:F1} ms; undo p95 {5:F1} ms; {6}",
                 report.straightPreview.p95, report.straightCommit.p95, report.mixedPreview.p95, report.mixedCommit.p95, report.editPreview.p95,
-                report.undo.p95, report.pass ? "PASS" : "FAIL"));
+                report.undo.p95, report.pass ? "PASS" : "FAIL", report.shortPreview.p95, report.shortCommit.p95, report.shortPass ? "PASS" : "FAIL"));
             Application.Quit();
         }
 
@@ -399,10 +410,10 @@ namespace MountainPlanner.App
     {
         public string schema = "mountain-planner-trail-benchmark/1";
         public string commit, measuredUtc, gpu, cpu, site;
-        public bool commitDirty, development, pass;
+        public bool commitDirty, development, pass, shortPass;
         public int spots;
         public float lengthM;
-        public Stat straightPreview, straightCommit, mixedPreview, mixedCommit, editPreview, undo;
+        public Stat shortPreview, shortCommit, straightPreview, straightCommit, mixedPreview, mixedCommit, editPreview, undo;
         public float previewBudgetMs = 100, commitBudgetMs = 250;
     }
 }
