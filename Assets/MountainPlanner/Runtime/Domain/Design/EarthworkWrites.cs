@@ -94,6 +94,32 @@ namespace MountainPlanner.Domain.Design
             return t != null && (t.Cleared[at >> 6] & (1UL << (at & 63))) != 0;
         }
 
+        /// <summary>
+        /// Canonical bytes for goldens (SH-04): per tile in key order, its column and row, then for every point in row order
+        /// a flag byte (1 claimed, 2 written, 4 cleared) and, when written, the delta as four little-endian bytes.
+        /// </summary>
+        public byte[] CanonicalBytes()
+        {
+            using var ms = new System.IO.MemoryStream();
+            using var w = new System.IO.BinaryWriter(ms);
+            foreach (var kv in _tiles)
+            {
+                w.Write(kv.Key.Column);
+                w.Write(kv.Key.Row);
+                var t = kv.Value;
+                for (int at = 0; at < EditTileKey.Count; at++)
+                {
+                    ulong bit = 1UL << (at & 63);
+                    int word = at >> 6;
+                    byte flags = (byte)(((t.Claimed[word] & bit) != 0 ? 1 : 0) | ((t.Written[word] & bit) != 0 ? 2 : 0) | ((t.Cleared[word] & bit) != 0 ? 4 : 0));
+                    w.Write(flags);
+                    if ((flags & 2) != 0) w.Write(t.Delta[at]);
+                }
+            }
+            w.Flush();
+            return ms.ToArray();
+        }
+
         /// <summary>ORs its claims on a tile into <paramref name="bits"/> (64 words, the tile's points in row order).</summary>
         public void OrClaims(EditTileKey key, ulong[] bits)
         {

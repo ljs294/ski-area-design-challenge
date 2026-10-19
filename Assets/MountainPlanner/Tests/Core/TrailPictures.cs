@@ -230,13 +230,47 @@ namespace MountainPlanner.Tests
             // Across a 45% east-facing slope, heading south at about 30%: mixed widths and an island of trees.
             ["sidehill"] = new Spot { Name = "Sidehill", Path = new double[] { 200, -330, 225, -480, 235, -600, 250, -760 }, WidthsFt = new[] { 100, 220, 100 },
                                       Islands = new[] { (245.0, -540.0, 45) } },
-            // Down the crest of a spur running south.
-            ["ridge"] = new Spot { Name = "Ridge", Path = new double[] { 700, 330, 705, 180, 700, 20 }, WidthsFt = new[] { 120 } },
-            // Down the gully beside it.
-            ["gully"] = new Spot { Name = "Gully", Path = new double[] { 520, 260, 560, 110, 610, -60 }, WidthsFt = new[] { 120 } },
+            // Down the crest of the most convex spur on the 2 km area (FindRidgesAndGullies), on its fall line.
+            ["ridge"] = new Spot { Name = "Ridge", Path = new double[] { 183, 790, 280, 720, 377, 650 }, WidthsFt = new[] { 120 } },
+            // Down the most concave gully, on its fall line.
+            ["gully"] = new Spot { Name = "Gully", Path = new double[] { 271, -78, 360, -160, 449, -242 }, WidthsFt = new[] { 120 } },
             // A traverse across a 70-80% face: too steep for a bench in places (GR-07, red).
             ["steep"] = new Spot { Name = "Steep face", Path = new double[] { -650, 380, -660, 500, -650, 640 }, WidthsFt = new[] { 150 } },
         };
+
+        [Test]
+        public void FindRidgesAndGullies()
+        {
+            var (h, site, m) = Open();
+            using (h)
+            {
+                var found = new List<(double score, string line)>();
+                for (int y = -800; y <= 800; y += 40)
+                    for (int x = -800; x <= 800; x += 40)
+                    {
+                        double px = site.OriginX + x, py = site.OriginY + y;
+                        double gx = (h.At(px + 20, py) - h.At(px - 20, py)) / 40, gy = (h.At(px, py + 20) - h.At(px, py - 20)) / 40;
+                        double g = Math.Sqrt(gx * gx + gy * gy);
+                        if (g < 0.25 || g > 0.5) continue;
+                        double fx = -gx / g, fy = -gy / g, nx = -fy, ny = fx;
+                        // Cross curvature averaged over 150 m down the fall line.
+                        double curv = 0;
+                        for (int t = -75; t <= 75; t += 25)
+                        {
+                            double cx = px + fx * t, cy = py + fy * t;
+                            curv += h.At(cx + nx * 30, cy + ny * 30) + h.At(cx - nx * 30, cy - ny * 30) - 2 * h.At(cx, cy);
+                        }
+                        curv /= 7;
+                        found.Add((curv, $"{x},{y} fall ({fx:F2},{fy:F2}) grade {g * 100:F0}% curvature {curv:F1} m"));
+                    }
+                found.Sort((a, b) => a.score.CompareTo(b.score));
+                var lines = new List<string> { "ridges (most convex):" };
+                for (int i = 0; i < 6; i++) lines.Add(found[i].line);
+                lines.Add("gullies (most concave):");
+                for (int i = found.Count - 1; i >= found.Count - 6; i--) lines.Add(found[i].line);
+                File.WriteAllLines(Out("ridges-gullies.txt"), lines);
+            }
+        }
 
         [Test]
         public void Timing()
