@@ -136,6 +136,8 @@ namespace MountainPlanner.Presentation.Design
             s.WidthScale = scale;
             s.LastWidth = -1;
             s.Renderer.sortingOrder = behind ? -1 : 0;
+            // Opaque lines at the same depth fight: one behind sits a little lower, so the line over it wins.
+            s.Renderer.transform.localPosition = behind ? new Vector3(0, -0.6f, 0) : Vector3.zero;
         }
 
         public void Line(int slot, Vector2[] xz, int count, PreviewInk ink, bool closed = false)
