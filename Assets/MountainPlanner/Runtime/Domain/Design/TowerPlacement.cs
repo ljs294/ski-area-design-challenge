@@ -48,6 +48,29 @@ namespace MountainPlanner.Domain.Design
         /// frame) over <paramref name="ground"/> (with the pads graded). <paramref name="bottomLevel"/> and
         /// <paramref name="topLevel"/> are the terminals' base elevations (their load and unload levels).
         /// </summary>
+        /// <summary>
+        /// Where a station tower at <paramref name="s"/> must carry the rope for the empty rope to leave its terminal at the
+        /// end's aim (TW-16 v3; plumb, the solve's foundation reveal settles the lean): <paramref name="bottom"/> for the
+        /// bottom end, whose rope leaves at (<paramref name="exitS"/>, <paramref name="exitY"/>); else the top, reached at
+        /// (<paramref name="topExitS"/>, <paramref name="topExitY"/>). Tension is RP-03's from the bottom exit.
+        /// </summary>
+        public static double AimedY(LiftType type, bool bottom, double s, double exitS, double exitY, double topExitS, double topExitY)
+        {
+            double t0 = type.CounterweightNewtons, we = type.EmptyNewtonsPerMetre;
+            double target = bottom ? Math.Tan(type.Bottom.Aim) : -Math.Tan(type.Top.Aim);
+            double lo = (bottom ? exitY : topExitY) - 60, hi = (bottom ? exitY : topExitY) + 120;
+            for (int k = 0; k < 60; k++)
+            {
+                double mid = (lo + hi) / 2;
+                double slope = bottom
+                    ? LiftRope.Catenary(exitS, exitY, s, mid, t0, we, exitY).Slope(exitS)
+                    : LiftRope.Catenary(s, mid, topExitS, topExitY, t0, we, exitY).Slope(topExitS);
+                // The bottom exit steepens as the point rises; the top arrival flattens.
+                if (bottom == slope < target) lo = mid; else hi = mid;
+            }
+            return (lo + hi) / 2;
+        }
+
         public static Result Place(LiftType type, IHeightSource ground, double bx, double by, double tx, double ty,
                                    double bottomLevel, double topLevel, TowerStance stance)
         {
@@ -65,23 +88,7 @@ namespace MountainPlanner.Domain.Design
             LiftRope.Zones(type, length, out double frontB, out double edgeB, out double edgeT, out double frontT);
             var result = new Result();
 
-            // Where a station tower at s must carry the rope for the empty rope to leave its terminal at the end's aim
-            // (plumb; the solve's foundation reveal settles the lean).
-            double Aimed(bool bottom, double s)
-            {
-                double target = bottom ? Math.Tan(type.Bottom.Aim) : -Math.Tan(type.Top.Aim);
-                double lo = (bottom ? exitY : topExitY) - 60, hi = (bottom ? exitY : topExitY) + 120;
-                for (int k = 0; k < 60; k++)
-                {
-                    double mid = (lo + hi) / 2;
-                    double slope = bottom
-                        ? LiftRope.Catenary(exitS, exitY, s, mid, t0, we, exitY).Slope(exitS)
-                        : LiftRope.Catenary(s, mid, topExitS, topExitY, t0, we, exitY).Slope(topExitS);
-                    // The bottom exit steepens as the point rises; the top arrival flattens.
-                    if (bottom == slope < target) lo = mid; else hi = mid;
-                }
-                return (lo + hi) / 2;
-            }
+            double Aimed(bool bottom, double s) => AimedY(type, bottom, s, exitS, exitY, topExitS, topExitY);
             // TW-01 v2 along a station span (from the terminal's front to the tower), both load cases: how far the chairs
             // fall short of the low zone's rising line at worst.
             double SpanShortfall(bool bottom, double s, double y)

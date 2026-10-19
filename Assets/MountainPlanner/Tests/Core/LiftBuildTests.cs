@@ -136,7 +136,7 @@ namespace MountainPlanner.Tests
             // 30% from the bottom terminal on: steeper than the return's row can climb, so a narrow cut under the chairs (both
             // ropes' paths plus 2 ft) lets them rise to 15 ft by 100 ft; never deeper than 10 ft, cut only, cleared.
             var natural = new EditedHeights(new Profile(s => 0.3 * s), Lattice, TerrainEdits.Empty);
-            var b = Build(s => 0.3 * s);
+            var b = LiftBuild.Build(Quad, natural, West + 100, North - 900, West + 100, North - 100, TowerStance.Leaned, TestContext.Progress.WriteLine);
             AssertBuilt(b, "30%");
             var e = b.Envelope;
             Assert.That(e.CutCubicMetres, Is.GreaterThan(0));
@@ -206,6 +206,54 @@ namespace MountainPlanner.Tests
             var b = Build(s => s < 300 ? 0.25 * s : s < 500 ? 75 : 75 + 0.5 * (s - 500), 0.1);
             Assert.That(b.Towers.Select(t => (t.AlongMm, t.HeightMm)), Is.EqualTo(a.Towers.Select(t => (t.AlongMm, t.HeightMm))));
             Assert.That(TerrainEditBytes.Encode(b.Edits), Is.EqualTo(TerrainEditBytes.Encode(a.Edits)));
+        }
+
+        [TestCase(0.25, 0.0)]
+        [TestCase(0.3, 0.1)]
+        [TestCase(0.45, -0.05)]
+        public void TL3_ALiftsEarthworkReplaysFromWhatsStoredByteForByte(double grade, double cross)
+        {
+            // Task 09 (P3-08's replay, TL3): the earthwork is a search-free function of the stored towers, levels and stance,
+            // and the first build makes it with that same function, so a rebuild on the same ground gives the same bytes.
+            var ground = new EditedHeights(new Profile(s => grade * s + 4 * Math.Sin(s / 40), cross), Lattice, TerrainEdits.Empty);
+            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
+            var b = LiftBuild.Build(Quad, ground, bx, by, tx, ty, TowerStance.Leaned);
+            var stored = b.Towers.Select((t, i) => new Tower(TowerId.Make(1, i), t.AlongMm, t.HeightMm)).ToList();
+            var again = LiftBuild.Earthwork(Quad, ground, bx, by, tx, ty, stored, b.Levels, TowerStance.Leaned);
+            Assert.That(TerrainEditBytes.Encode(again.Edits), Is.EqualTo(TerrainEditBytes.Encode(b.Edits)));
+            Assert.That(again.Rope.Shortfall, Is.EqualTo(b.Rope.Shortfall));
+            Assert.That(b.Levels.BottomMm, Is.EqualTo((int)Math.Round(b.BottomLevel * 1000)), "levels are whole millimetres before grading");
+        }
+
+        [Test]
+        public void TL3_GroundCutElsewhereUnderTheLineLeavesTheRopeWhereItWas()
+        {
+            // A trail cut under a span (never within 15 ft of a tower base, TF-11): the rope hangs from the stored towers and
+            // levels, so it doesn't move; the lift's own cuts only change by what the trail already took.
+            var natural = new EditedHeights(new Profile(s => 0.3 * s), Lattice, TerrainEdits.Empty);
+            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
+            var b = LiftBuild.Build(Quad, natural, bx, by, tx, ty, TowerStance.Plumb);
+            var stored = b.Towers.Select((t, i) => new Tower(TowerId.Make(1, i), t.AlongMm, t.HeightMm)).ToList();
+            // A 2 m cut across the line midway between two towers past the station zone.
+            int k = stored.Count / 2;
+            double mid = (stored[k].AlongMm + stored[k + 1].AlongMm) / 2000.0;
+            TerrainEdits edits;
+            var cut = new Dictionary<EditTileKey, TerrainEditTile.Builder>();
+            int c0 = (int)Math.Round(bx - 15 - West), c1 = (int)Math.Round(bx + 15 - West);
+            int r0 = (int)Math.Round(North - (by + mid + 4)), r1 = (int)Math.Round(North - (by + mid - 4));
+            for (int r = r0; r <= r1; r++)
+                for (int c = c0; c <= c1; c++)
+                {
+                    var key = EditTileKey.Of(c, r);
+                    if (!cut.TryGetValue(key, out var tb)) cut[key] = tb = new TerrainEditTile.Builder(key);
+                    tb.SetDeltaMm(c - key.FirstColumn, r - key.FirstRow, -2000);
+                }
+            edits = TerrainEdits.From(cut.Values.Select(v => v.Build()).ToArray());
+            var withTrail = new EditedHeights(natural.Source, Lattice, edits);
+            var again = LiftBuild.Earthwork(Quad, withTrail, bx, by, tx, ty, stored, b.Levels, TowerStance.Plumb);
+            for (int i = 0; i < stored.Count; i++)
+                Assert.That(again.Rope.Towers[i].RopeY, Is.EqualTo(b.Rope.Towers[i].RopeY).Within(1e-9), $"tower {i}");
+            Assert.That(again.Rope.Shortfall, Is.LessThanOrEqualTo(b.Rope.Shortfall + 1e-9));
         }
 
         [Test]
