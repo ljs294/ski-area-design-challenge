@@ -52,7 +52,7 @@ namespace MountainPlanner.App
             _design = new DesignHistory(DesignDocument.Empty(DesignSeed(_resort.Manifest.PackageId)));
             _preview = new PendingPreview(_resort.Root.transform, "Tool preview", _resort.Surface, HighlightMaterial);
             FollowDesign();
-            _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core), Hud.OpenWindow);
+            _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core) { Earthwork = Ground }, Hud.OpenWindow);
             _tools.ActiveChanged += Hud.SetActiveTool;
             _tools.Notice += text => Hud.Toast(text);
             Hud.ToolChosen += id => _tools.Choose(id);
@@ -142,7 +142,7 @@ namespace MountainPlanner.App
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
             // A tool lives in the open tray (P3-06 Q4: T or Esc closes it); photo mode and the title close it too.
             if (_tools.Armed && (_photo || TitleMode || Hud == null || !Hud.ToolboxOpen)) _tools.Close();
-            if (_tools.Armed && cam != null) _tools.Tick(ReadToolInput(cam));
+            if (_tools.Armed && cam != null && !_toolScripted) _tools.Tick(ReadToolInput(cam));
             if (cam != null)
             {
                 _preview?.Follow(cam);
