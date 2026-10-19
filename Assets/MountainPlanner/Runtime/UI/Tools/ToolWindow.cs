@@ -161,6 +161,17 @@ namespace MountainPlanner.UI.Tools
 
         Label _goLabel;
 
+        /// <summary>
+        /// A strip that rides with the window in the HUD's layer, outside it (task 08's trail profile, TF-04; task 09's lift
+        /// profile, LF-10): added when the window opens, removed when it closes.
+        /// </summary>
+        public void AddStrip(VisualElement strip)
+        {
+            Window.RegisterCallback<AttachToPanelEvent>(_ => { if (Window.parent != null && strip.parent != Window.parent) Window.parent.Add(strip); });
+            Window.RegisterCallback<DetachFromPanelEvent>(_ => strip.RemoveFromHierarchy());
+            if (Window.parent != null) Window.parent.Add(strip);
+        }
+
         /// <summary>The main commit button's words (Break ground; task 08's Edit and Remove say Apply or Remove).</summary>
         public void SetGoLabel(string text) => _goLabel.text = text ?? "Break ground";
 

@@ -84,6 +84,7 @@ namespace MountainPlanner.UI.Tools
         System.Action<int> _setGrading;
         UnityEngine.UIElements.TextField _nameField;
         UnityEngine.UIElements.Button[] _editButtons;
+        TrailProfileStrip _strip;
         // Footprints of the design's trails, for picking (Edit, Remove); kept while each trail is unchanged.
         readonly Dictionary<TrailId, (Trail trail, TrailFootprint fp)> _picks = new Dictionary<TrailId, (Trail, TrailFootprint)>();
         Trail _hover;
@@ -111,6 +112,7 @@ namespace MountainPlanner.UI.Tools
                 _nameField = w.AddText("name", "Name", _name, DesignRules.NameMaxLength, Rename);
                 AddBrushAndGrading(w);
                 w.AddNote("kind", "Run · trees cleared", "TR-06: Glades and Zones, and Thin or no clearing, come later");
+                w.AddStrip(_strip = new TrailProfileStrip());
                 w.SetSteps(NewSteps);
                 SetFeet(_feet);
                 Go(Step.Paint);
@@ -124,6 +126,7 @@ namespace MountainPlanner.UI.Tools
                 _editButtons = w.AddButtons("edit", new[] { "Repaint", "Move ends", "Rename", "Split", "Join" }, EditAction,
                     new[] { "TF-07: the trail's strokes open in Paint", "TF-07: click a new head, then a new tail", "TF-07: keep the name typed above",
                             "NW-10: Split and Join come with the network (task 10)", "NW-10: Split and Join come with the network (task 10)" });
+                w.AddStrip(_strip = new TrailProfileStrip());
                 w.SetSteps(EditSteps);
                 SetFeet(_feet);
             }
@@ -600,6 +603,7 @@ namespace MountainPlanner.UI.Tools
                 _ctx.PendingTerrain = a.Problem == null ? a.Rebuild.Edits : null;
                 if (a.Contours != null) host.ShowPending(a.Contours);
                 DrawAnalysis();
+                if (a.Build?.Grade != null && a.Rating != null) _strip?.Show(a.Build.Grade, a.Rating);
                 if (_step == Step.Review) { BuildReview(); _ctx.Window.ShowReview(_review); }
                 else if (_step == Step.Ends) EndsStatus();
             });
@@ -608,6 +612,9 @@ namespace MountainPlanner.UI.Tools
         void DropAnalysis()
         {
             _analysis = null;
+            _strip?.ShowWaiting(_step == Step.Paint || _step == Step.Pick
+                ? "Paint the trail, then set its head and tail: the trail shows here from the side."
+                : "Click the head, then the tail: the trail shows here from the side.");
             _ctx.PendingTerrain = null;
             _ctx.Earthwork?.ClearPending();
             _ctx.Preview.Hide(CentrelineSlot);
