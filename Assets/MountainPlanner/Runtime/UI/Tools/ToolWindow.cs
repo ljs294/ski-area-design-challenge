@@ -83,7 +83,7 @@ namespace MountainPlanner.UI.Tools
             Window.Body.Add(_acts = Part("toolwin-acts", "tw-acts"));
             _go = new Button(() => BreakGroundClicked?.Invoke()) { name = "review-go" };
             _go.AddToClassList("mp-go");
-            var goLabel = new Label("Break ground") { pickingMode = PickingMode.Ignore };
+            var goLabel = _goLabel = new Label("Break ground") { pickingMode = PickingMode.Ignore };
             goLabel.AddToClassList("tw-go__label");
             _go.Add(goLabel);
             _goKbd = new Label(KeyBindings.Caption(GameAction.BreakGround)) { pickingMode = PickingMode.Ignore };
@@ -158,6 +158,32 @@ namespace MountainPlanner.UI.Tools
 
         /// <summary>The design's name after the title ("Summit Quad").</summary>
         public void SetName(string name) => _name.text = name ?? "";
+
+        Label _goLabel;
+
+        /// <summary>The main commit button's words (Break ground; task 08's Edit and Remove say Apply or Remove).</summary>
+        public void SetGoLabel(string text) => _goLabel.text = text ?? "Break ground";
+
+        /// <summary>
+        /// A row of plain buttons under the options (task 08's Repaint, Move ends, Rename). Returns the buttons, so a tool
+        /// can grey one out.
+        /// </summary>
+        public Button[] AddButtons(string name, string[] labels, Action<int> clicked, string[] tooltips = null)
+        {
+            var row = Part("toolwin-opt-" + name, "tw-btns");
+            var buttons = new Button[labels.Length];
+            for (int i = 0; i < labels.Length; i++)
+            {
+                int at = i;
+                var b = new Button(() => clicked(at)) { name = $"toolwin-opt-{name}-{i}", text = labels[i] };
+                b.AddToClassList("mp-ghost");
+                if (tooltips != null && i < tooltips.Length) b.tooltip = tooltips[i];
+                buttons[i] = b;
+                row.Add(b);
+            }
+            _opts.Add(row);
+            return buttons;
+        }
 
         /// <summary>"Discard it? ✕ again" while a second Esc or ✕ would throw drawn work away (CF-07).</summary>
         public void SetAsking(string text)
