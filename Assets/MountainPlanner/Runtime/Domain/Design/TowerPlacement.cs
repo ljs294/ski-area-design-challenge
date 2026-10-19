@@ -46,14 +46,14 @@ namespace MountainPlanner.Domain.Design
             double stationMin = DesignUnits.StationTowerMinMm / 1000.0;
 
             // Rounded to the 5 ft grid away from each terminal, so the 15 ft past its front always holds.
-            double sb = Math.Ceiling(Math.Max(StationDefault, type.BottomAhead + PastFront) / Grid - 1e-9) * Grid;
-            double st = Math.Floor((length - Math.Max(StationDefault, type.TopAhead + PastFront)) / Grid + 1e-9) * Grid;
-            double exitS = type.BottomExitAlong, topBack = type.TopExitBack;
+            double sb = Math.Ceiling(Math.Max(StationDefault, type.Bottom.Ahead + PastFront) / Grid - 1e-9) * Grid;
+            double st = Math.Floor((length - Math.Max(StationDefault, type.Top.Ahead + PastFront)) / Grid + 1e-9) * Grid;
+            double exitS = type.Bottom.ExitAlong, topBack = type.Top.ExitAlong;
             double raise = 0;
-            double ExitY() => bottomLevel + raise + type.BottomExitRise;
-            double topExitY = topLevel + type.TopExitRise;
+            double ExitY() => bottomLevel + raise + type.Bottom.ExitRise;
+            double topExitY = topLevel + type.Top.ExitRise;
             double lineAngle = Math.Atan2(topExitY - ExitY(), (length - topBack) - exitS);
-            double climb = Math.Min(type.BottomExitMax * 0.9, Math.Max(type.BottomExitMin * 1.1, lineAngle));
+            double climb = Math.Min(type.Bottom.AngleMax * 0.9, Math.Max(type.Bottom.AngleMin * 1.1, lineAngle));
             double Height(double s, double ropeY, double min) => Math.Max(min, Math.Min(MaxHeight, Snap(ropeY - GroundAt(s))));
 
             var along = new List<double> { sb };
@@ -64,7 +64,7 @@ namespace MountainPlanner.Domain.Design
                 heights.Add(LineHeight);
             }
             along.Add(st);
-            heights.Add(Height(st, topExitY - (length - topBack - st) * Math.Tan(type.TopEntryMax / 3), stationMin));
+            heights.Add(Height(st, topExitY - (length - topBack - st) * Math.Tan((-type.Top.AngleMin) / 3), stationMin));
 
             LiftRope rope = null;
             bool Inner(int i) => i > 0 && i < along.Count - 1;
@@ -80,7 +80,7 @@ namespace MountainPlanner.Domain.Design
                 // The return's row works between its minimum and maximum exit (TW-16 v2). Close to the terminal a 5 ft
                 // step swings the angle more than that window, so when the height flips between too flat and too steep the
                 // station tower moves 5 ft farther out and tries again.
-                int want = rope.BottomExitAngle < type.BottomExitMin ? 1 : rope.BottomExitAngle > type.BottomExitMax ? -1 : 0;
+                int want = rope.BottomExitAngle < type.Bottom.AngleMin ? 1 : rope.BottomExitAngle > type.Bottom.AngleMax ? -1 : 0;
                 if (want != 0 && want == -lastStep && along.Count > 1 && along[0] + Grid < along[1] - 15.24
                     && along[0] + Grid <= DesignUnits.StationZoneMm / 1000.0)
                 {
@@ -88,14 +88,14 @@ namespace MountainPlanner.Domain.Design
                     lastStep = 0;
                     continue;
                 }
-                if (rope.BottomExitAngle < type.BottomExitMin)
+                if (rope.BottomExitAngle < type.Bottom.AngleMin)
                 {
                     // Too flat for the return's row: the bottom station tower stands taller, so the rope climbs out.
                     lastStep = 1;
                     if (heights[0] + Grid <= MaxHeight) { heights[0] += Grid; continue; }
                     break;
                 }
-                if (Math.Abs(rope.BottomExitAngle) > type.BottomExitMax)
+                if (Math.Abs(rope.BottomExitAngle) > type.Bottom.AngleMax)
                 {
                     lastStep = rope.BottomExitAngle > 0 ? -1 : 1;
                     double h = heights[0] + (rope.BottomExitAngle > 0 ? -Grid : Grid);
@@ -103,7 +103,7 @@ namespace MountainPlanner.Domain.Design
                     if (rope.BottomExitAngle > 0 && raise < LiftRope.MaxTerminalRaise - 1e-9) { raise += LiftRope.RaiseStep; continue; }
                     break;
                 }
-                if (Math.Abs(rope.TopEntryAngle) > type.TopEntryMax)
+                if (Math.Abs(rope.TopEntryAngle) > (-type.Top.AngleMin))
                 {
                     double h = heights[last] + (rope.TopEntryAngle > 0 ? Grid : -Grid);
                     if (h < stationMin - 1e-9 || h > MaxHeight) break;

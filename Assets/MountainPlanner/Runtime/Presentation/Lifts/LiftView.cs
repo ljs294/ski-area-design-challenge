@@ -72,7 +72,8 @@ namespace MountainPlanner.Presentation.Lifts
             Root.transform.SetParent(parent, false);
         }
 
-        GameObject Prefab(string id) => _models != null ? _models.Find(_prefix + id) : null;
+        GameObject Prefab(string id) => Model(_prefix + id);
+        GameObject Model(string assetId) => _models != null ? _models.Find(assetId) : null;
 
         /// <summary>
         /// LF-12: how far a terminal's origin (its load or unload level, where it stands on its pad) lies from its bullwheel
@@ -147,7 +148,7 @@ namespace MountainPlanner.Presentation.Lifts
         public void Build(Lift lift, IHeightSource ground, LocalFrame frame, Color livery)
         {
             Clear();
-            var type = LiftType.Of(lift.CatalogId);
+            var type = LiftTypes.Measured(LiftType.Of(lift.CatalogId), _models);
             var bottom = new Vector3((float)lift.Bottom.XMetres, 0, (float)lift.Bottom.YMetres);
             var top = new Vector3((float)lift.Top.XMetres, 0, (float)lift.Top.YMetres);
             double Height(Vector3 p)
@@ -158,10 +159,10 @@ namespace MountainPlanner.Presentation.Lifts
             var dir = (top - bottom).normalized;
             var right = Vector3.Cross(Vector3.up, dir);   // the loaded rope is on the right looking uphill (LC-02 models)
 
-            // Terminals: the return at the bottom facing up the line, the drive at the top facing down it, each with its
-            // bullwheel's centre on the design point.
-            var ret = PlaceTerminal(Prefab("return"), bottom, Quaternion.LookRotation(dir), Height, livery);
-            var drive = PlaceTerminal(Prefab("drive"), top, Quaternion.LookRotation(-dir), Height, livery);
+            // Terminals: each end's model (TW-16 v3: the type says which stands where), facing along the line toward the
+            // other end, with its bullwheel's centre on the design point.
+            var ret = PlaceTerminal(Model(type.Bottom.Model), bottom, Quaternion.LookRotation(dir), Height, livery);
+            var drive = PlaceTerminal(Model(type.Top.Model), top, Quaternion.LookRotation(-dir), Height, livery);
             var retRig = ret != null ? ret.GetComponent<LiftRig>() : null;
             var driveRig = drive != null ? drive.GetComponent<LiftRig>() : null;
             // Each terminal's pier runs about 15 m below its 0.00 level, buried in the pad; its footing stands at grade under
@@ -251,7 +252,7 @@ namespace MountainPlanner.Presentation.Lifts
             {
                 var sides = side == 0 ? up : down;
                 var trains = new List<TrainPosing.Train> { TrainPosing.Read(retRig, sides[0], bottom, dir, right) };
-                var above = new List<bool> { false };   // the return's row holds the rope down
+                var above = new List<bool> { type.Bottom.Row == TerminalRow.Support };   // a hold-down row holds the rope down
                 for (int i = 0; i < heads.Count; i++)
                 {
                     trains.Add(TrainPosing.Read(heads[i], sides[1], bottom, dir, right));
@@ -260,7 +261,7 @@ namespace MountainPlanner.Presentation.Lifts
                 // The drive's four sheaves equalise a little (owner: "Keep it 4 sheaves, but allow them to equalize a
                 // little"): within the model's stops, beam ±10° and rockers ±5°.
                 trains.Add(TrainPosing.Read(driveRig, sides[2], bottom, dir, right));
-                above.Add(true);                          // the drive's row supports it
+                above.Add(type.Top.Row == TerminalRow.Support);
                 if (trains.Exists(t => t == null)) return false;
                 var trees = trains.ConvertAll(t => t.Tree);
                 var holds = trains.ConvertAll(t => t.HoldRow);

@@ -342,8 +342,8 @@ namespace MountainPlanner.Tests
             // A station breakover 70 ft from each bullwheel keeps both within their rows.
             var placed = Line(line, TowerStance.Plumb, (21.3, 7.62), (100, 12.19), (180, 10.67), (260, 10.67), (340, 10.67),
                               (420, 10.67), (500, 10.67), (580, 10.67), (660, 10.67), (730, 12.19), (778.7, 7.62));
-            Assert.That(Math.Abs(placed.BottomExitAngle), Is.LessThanOrEqualTo(placed.Type.BottomExitMax));
-            Assert.That(Math.Abs(placed.TopEntryAngle), Is.LessThanOrEqualTo(placed.Type.TopEntryMax));
+            Assert.That(Math.Abs(placed.BottomExitAngle), Is.LessThanOrEqualTo(placed.Type.Bottom.AngleMax));
+            Assert.That(Math.Abs(placed.TopEntryAngle), Is.LessThanOrEqualTo(-placed.Type.Top.AngleMin));
             Assert.That(placed.TerminalsOk, Is.True);
         }
 
@@ -359,7 +359,7 @@ namespace MountainPlanner.Tests
             var rope = LiftRope.SolveRaised(Quad, steep, bx, by, tx, ty, towers, TowerStance.Plumb, 6, steep.At(bx, by) + 4.54, 4, steep.At(tx, ty) + 3.04, out double raise);
             Assert.That(raise, Is.GreaterThan(0));
             Assert.That(raise / LiftRope.RaiseStep, Is.EqualTo(Math.Round(raise / LiftRope.RaiseStep)).Within(1e-9));
-            Assert.That(rope.BottomExitAngle, Is.LessThanOrEqualTo(Quad.BottomExitMax));
+            Assert.That(rope.BottomExitAngle, Is.LessThanOrEqualTo(Quad.Bottom.AngleMax));
         }
 
         [Test]
@@ -479,7 +479,7 @@ namespace MountainPlanner.Tests
             var line = new Profile(s => 0.05 * s);
             double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
             var placed = TowerPlacement.Place(Quad, line, bx, by, tx, ty, line.At(bx, by), line.At(tx, ty), TowerStance.Plumb);
-            Assert.That(placed.Rope.BottomExitAngle, Is.GreaterThanOrEqualTo(Quad.BottomExitMin - 1e-9),
+            Assert.That(placed.Rope.BottomExitAngle, Is.GreaterThanOrEqualTo(Quad.Bottom.AngleMin - 1e-9),
                 $"{placed.Rope.BottomExitAngle * 180 / Math.PI:F1}°");
             Assert.That(placed.Rope.TerminalsOk, Is.True);
         }
@@ -492,7 +492,7 @@ namespace MountainPlanner.Tests
             var line = new Profile(s => s < 20 ? 0 : s < 740 ? 0.5 * (s - 20) : 360);
             double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
             var placed = TowerPlacement.Place(Quad, line, bx, by, tx, ty, line.At(bx, by), line.At(tx, ty), TowerStance.Plumb);
-            Assert.That(placed.Rope.BottomExitAngle, Is.LessThanOrEqualTo(Quad.BottomExitMax + 1e-9));
+            Assert.That(placed.Rope.BottomExitAngle, Is.LessThanOrEqualTo(Quad.Bottom.AngleMax + 1e-9));
             Assert.That(placed.BottomRaise, Is.EqualTo(0));
             bool holdDown = placed.Rope.Towers.Take(3).Any(t => t.Head == LiftRope.Head.D8 || t.Head == LiftRope.Head.C8);
             Assert.That(holdDown, Is.True, string.Join(", ", placed.Rope.Towers.Select(t => t.Head)));

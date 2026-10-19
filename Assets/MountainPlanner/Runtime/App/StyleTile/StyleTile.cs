@@ -17,7 +17,8 @@ namespace MountainPlanner.App
     ///   (<see cref="TrailGrader"/>: GR-01 to GR-08, CL-01, CL-02);
     /// - the lift: <see cref="AddLift"/> (built, Leaned, its towers) with CL-03's corridor.
     /// The points are fixed below (metres from the site's centre), so every run builds the same design, and it saves and
-    /// loads through save v1 unchanged. The towers were placed by <see cref="TowerPlacement"/> once and are listed as authored.
+    /// loads through save v1 unchanged. Like a player's drawing, only the lines are given: the towers, pads and grading come
+    /// from the engine on every build (round 3: no style-tile tuning).
     /// </summary>
     public static class StyleTile
     {
@@ -45,20 +46,12 @@ namespace MountainPlanner.App
         public const double TraceMetres = 850;
 
         public const int TrailWidthFeet = 100;
-        /// <summary>GR-12: the faces' crest and toe rounded over 10 ft (owner SK2; tuned at 07: 5 ft, under two 1 m cells, still stair-stepped on the heightmap).</summary>
-        public static double RoundMetres = 3.048;
         public const string TrailName = "Style Tile Run";
         public const string LiftName = "Style Tile Quad";
 
         /// <summary>The lift's bottom and top bullwheels, local metres; empty: beside the trail, <see cref="LiftOffset"/> to its right looking up.</summary>
         public static float[] LiftLine = { 661.0f, -853.2f, 131.9f, -377.7f };
         public const float LiftOffset = 75f;
-
-        /// <summary>
-        /// Towers as (feet along the line from the bottom bullwheel, feet of height): placed once by
-        /// <see cref="TowerPlacement"/> (TW-16's station breakovers first) and frozen here; empty places them again.
-        /// </summary>
-        public static (int AlongFeet, int HeightFeet)[] Towers = Array.Empty<(int, int)>();   // re-placed under TW-16 v2 (round 2), frozen again after review
 
         /// <summary>
         /// Builds the design into the session's history: the trail with its grading and clearing, then the lift with its
@@ -84,7 +77,7 @@ namespace MountainPlanner.App
             }
             int width = DesignUnits.FeetToMm(TrailWidthFeet);
             var id = TrailId.Make(history.Document.Seed, history.Document.NextOrdinal);
-            var graded = TrailGrader.Grade(heights, line, width / 1000.0, true, history.Document.Seed, id, RoundMetres);
+            var graded = TrailGrader.Grade(heights, line, width / 1000.0, true, history.Document.Seed, id);
             var parts = new[] { new FootprintPart(new[] { new Stroke(width, false, points) }, Array.Empty<Cut>()) };
             var trail = new AddTrail(history.Revision, TrailName, TrailSettings.GradedRun, parts, points[0], points[points.Length - 1], WorkStage.Built);
             var r1 = history.Submit(trail, graded.Edits);
@@ -101,32 +94,27 @@ namespace MountainPlanner.App
             var b = frame.ToAlbers(LiftLine[0], LiftLine[1]);
             var t = frame.ToAlbers(LiftLine[2], LiftLine[3]);
             var after = new EditedHeights(heights.Source, heights.Lattice, history.Terrain);
-            var type = LiftType.Of(LiftCatalogIds.SesselliftFgq4);
-            if (MountainPlanner.Presentation.Lifts.LiftView.RopeExit(models, "sessellift_fgq4_return", out float ra, out float rr)) { type.BottomExitAlong = ra; type.BottomExitRise = rr; }
-            if (MountainPlanner.Presentation.Lifts.LiftView.RopeExit(models, "sessellift_fgq4_drive", out float da, out float dr)) { type.TopExitBack = da; type.TopExitRise = dr; }
+            var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(LiftCatalogIds.SesselliftFgq4), models);
             double lx = t.X - b.X, ly = t.Y - b.Y, ll = Math.Sqrt(lx * lx + ly * ly);
             lx /= ll;
             ly /= ll;
             // Each terminal's origin (its load or unload level) sits off its bullwheel along the line; its pad is level there.
-            double bOff = MountainPlanner.Presentation.Lifts.LiftView.OriginAlong(models, "sessellift_fgq4_return");
-            double tOff = MountainPlanner.Presentation.Lifts.LiftView.OriginAlong(models, "sessellift_fgq4_drive");
+            double bOff = type.Bottom.OriginAlong, tOff = type.Top.OriginAlong;
             double bottomLevel = after.At(b.X + lx * bOff, b.Y + ly * bOff), topLevel = after.At(t.X - lx * tOff, t.Y - ly * tOff);
 
             // LF-12: the pads, then the towers on the padded ground (TW-16 v2); a raised bottom terminal (the last resort)
             // regrades its pad up to it.
             TerrainEdits Pads(double raise, out TerminalPad.Result bp, out TerminalPad.Result tp)
             {
-                bp = TerminalPad.Grade(after, b.X, b.Y, lx, ly, type.BottomBehind, type.BottomAhead, type.BottomHalfWidth, bottomLevel + raise, false);
+                bp = TerminalPad.Grade(after, b.X, b.Y, lx, ly, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel + raise, false);
                 var withBottom = new EditedHeights(heights.Source, heights.Lattice, bp.Edits);
-                tp = TerminalPad.Grade(withBottom, t.X, t.Y, -lx, -ly, type.TopBehind, type.TopAhead, type.TopHalfWidth, topLevel, true);
+                tp = TerminalPad.Grade(withBottom, t.X, t.Y, -lx, -ly, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, topLevel, true);
                 return tp.Edits;
             }
             var padded = Pads(0, out var bottomPad, out var topPad);
             var onPads = new EditedHeights(heights.Source, heights.Lattice, padded);
             List<TowerSpec> towers;
             double raised = 0;
-            if (Towers.Length > 0) towers = Authored();
-            else
             {
                 var placed = TowerPlacement.Place(type, onPads, b.X, b.Y, t.X, t.Y, bottomLevel, topLevel, TowerStance.Leaned);
                 if (placed.BottomRaise > 0)
@@ -145,8 +133,8 @@ namespace MountainPlanner.App
 
             // CL-03's corridor and CL-09 round each terminal, over the padded edits.
             var corridor = LiftClearing.Corridor(padded, heights.Lattice, b.X, b.Y, t.X, t.Y, out int cleared);
-            corridor = LiftClearing.Terminal(corridor, heights.Lattice, b.X, b.Y, lx, ly, type.BottomBehind, type.BottomAhead, type.BottomHalfWidth, out int aroundB);
-            corridor = LiftClearing.Terminal(corridor, heights.Lattice, t.X, t.Y, -lx, -ly, type.TopBehind, type.TopAhead, type.TopHalfWidth, out int aroundT);
+            corridor = LiftClearing.Terminal(corridor, heights.Lattice, b.X, b.Y, lx, ly, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, out int aroundB);
+            corridor = LiftClearing.Terminal(corridor, heights.Lattice, t.X, t.Y, -lx, -ly, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, out int aroundT);
             cleared += aroundB + aroundT + bottomPad.ClearedCells + topPad.ClearedCells;
             var lift = new AddLift(history.Revision, LiftName, LiftCatalogIds.SesselliftFgq4, bottom, top, TowerMode.ByHand, TowerStance.Leaned,
                                    towers, WorkStage.Built);
@@ -220,13 +208,6 @@ namespace MountainPlanner.App
             }
             while (top > 300 && Rise(top) > 259) top -= 10;
             return new[] { bx, bz, bx + ux * top, bz + uz * top };
-        }
-
-        static List<TowerSpec> Authored()
-        {
-            var list = new List<TowerSpec>();
-            foreach (var (along, height) in Towers) list.Add(new TowerSpec(DesignUnits.FeetToMm(along), DesignUnits.FeetToMm(height)));
-            return list;
         }
 
         static string Describe(List<TowerSpec> towers)

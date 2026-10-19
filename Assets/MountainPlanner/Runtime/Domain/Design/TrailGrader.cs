@@ -27,6 +27,9 @@ namespace MountainPlanner.Domain.Design
         /// <summary>CL-02: the ragged band along the footprint's edge, 10 ft.</summary>
         public const double EdgeBandMetres = 3.048;
         public const int MaxStations = 800;
+        /// <summary>GR-12 v2: the faces' crest and toe are rounded over 10 ft for every graded trail (owner SK2; 5 ft, under
+        /// two 1 m cells, still stair-stepped on the heightmap).</summary>
+        public const double RoundingMetres = 3.048;
 
         public sealed class Result
         {
@@ -48,10 +51,11 @@ namespace MountainPlanner.Domain.Design
         /// <summary>
         /// Grades (or, for a natural trail, only clears) a trail along <paramref name="centreline"/> (head first),
         /// <paramref name="widthMetres"/> wide, over the current edited heights; returns the edits with it on top.
-        /// <paramref name="roundMetres"/> rounds the crest and toe of each face over that distance (GR-12, 0 = sharp).
+        /// <paramref name="roundMetres"/> rounds the crest and toe of each face over that distance (GR-12 v2: the rule's
+        /// <see cref="RoundingMetres"/>; 0 = sharp, for tests).
         /// </summary>
         public static Result Grade(EditedHeights current, IReadOnlyList<double> centreline, double widthMetres, bool graded,
-                                   ulong seed, TrailId id, double roundMetres = 0)
+                                   ulong seed, TrailId id, double roundMetres = RoundingMetres)
         {
             if (current == null) throw new ArgumentNullException(nameof(current));
             if (centreline == null || centreline.Count < 4 || centreline.Count % 2 != 0)

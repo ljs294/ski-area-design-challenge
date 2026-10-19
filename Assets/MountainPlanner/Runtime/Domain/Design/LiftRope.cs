@@ -23,20 +23,11 @@ namespace MountainPlanner.Domain.Design
         public double RopeDiameterMetres { get; }
         /// <summary>The line sheaves' radius to their flange tops (17 in, 432 mm across; the models).</summary>
         public const double SheaveRadiusMetres = 0.216;
-        /// <summary>
-        /// TW-16: the bottom (return) terminal's built-in hold-down row turns the rope up from level in the loading area;
-        /// it leaves at no more than this (radians; 15.9° on the Sessellift's station arc).
-        /// </summary>
-        public double BottomExitMax { get; } = 15.9 * Math.PI / 180;
-        /// <summary>
-        /// TW-16 v2: and at least this (radians): below about 8.3° the return's row can't keep all eight sheaves on the rope
-        /// with the rope level at the bullwheel (the model thread's pose sweep, task 07). The row works from 8.3° to 20°;
-        /// 15.9° stays the design limit.
-        /// </summary>
-        public double BottomExitMin { get; } = 8.3 * Math.PI / 180;
-        /// <summary>TW-16: the top (drive) terminal's built-in 4-sheave support row brings the rope level to the bullwheel;
-        /// it can take at most 4 × 4.5° = 18° (LC-02) of arriving rope angle.</summary>
-        public double TopEntryMax { get; } = 18 * Math.PI / 180;
+        /// <summary>The terminal at each end of the line (TW-16 v3): its model, its row and what that row needs.</summary>
+        public TerminalEnd Bottom { get; private set; }
+        public TerminalEnd Top { get; private set; }
+        /// <summary>TW-01 v2: half the chair's width across the rope (the Sessellift chair's footrest rods, 1,020 mm).</summary>
+        public double ChairHalfWidthMetres { get; private set; } = 1.05;
 
         public LiftType(string catalogId, int seats, double speed, double spacing, double ropeKgPerMetre, double rated,
                         double counterweight, double chairKg, double riderKg, double chairDrop, double gauge, double ropeDiameter)
@@ -72,31 +63,37 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         public static LiftType Of(string catalogId)
         {
-            double gauge = catalogId == LiftCatalogIds.MontaFg4 ? 4.895 : 4.12;
-            return new LiftType(catalogId, 4, 2.286, 13.716, 7.66, 220_800, 80_070, 158.8, 77.1, 2.66, gauge, 0.04445);
+            bool monta = catalogId == LiftCatalogIds.MontaFg4;
+            double gauge = monta ? 4.895 : 4.12;
+            var type = new LiftType(catalogId, 4, 2.286, 13.716, 7.66, 220_800, 80_070, 158.8, 77.1, 2.66, gauge, 0.04445);
+            // The Sessellift's ends, measured on its models (task 07). The Monta takes the same numbers until task 09 gives
+            // it its own ends (its drive is at the bottom, owner's ruling).
+            string prefix = monta ? "monta_fg4_" : "sessellift_fgq4_";
+            type.Bottom = new TerminalEnd(prefix + "return", TerminalRow.HoldDown, ReturnExitMin, ReturnExitMax, 0.9 * ReturnExitMax,
+                                          2.3, 8.1, 3.0, 5.889, 3.543, 0);
+            type.Top = new TerminalEnd(prefix + "drive", TerminalRow.Support, -DriveEntryMax, 0, 0, 2.5, 7.2, 3.3, 3.1, 3.039, 0);
+            return type;
         }
 
         /// <summary>
-        /// The terminals' footprints (CL-09, LF-12), measured on the Sessellift's models (task 07): metres behind the
-        /// bullwheel (away from the line), in front of it and either side. The Monta takes the same until its own are
-        /// measured.
+        /// TW-16 v2: the Sessellift return's hold-down row turns the rope up from level in the loading area, and it leaves at
+        /// 8.3° to 15.9° (radians): 15.9° on the station arc is the design limit, and below about 8.3° the row can't keep
+        /// all eight sheaves on the rope with the rope level at the bullwheel (the model thread's pose sweep, task 07).
         /// </summary>
-        public double BottomBehind { get; } = 2.3;
-        public double BottomAhead { get; } = 8.1;
-        public double BottomHalfWidth { get; } = 3.0;
-        public double TopBehind { get; } = 2.5;
-        public double TopAhead { get; } = 7.2;
-        public double TopHalfWidth { get; } = 3.3;
+        public static readonly double ReturnExitMin = 8.3 * Math.PI / 180, ReturnExitMax = 15.9 * Math.PI / 180;
+        /// <summary>TW-16: the Sessellift drive's 4-sheave support row brings the rope level to the bullwheel; it can take at
+        /// most 4 × 4.5° = 18° (LC-02) of arriving rope angle.</summary>
+        public static readonly double DriveEntryMax = 18 * Math.PI / 180;
 
-        /// <summary>
-        /// Where the rope leaves each terminal's row (the models' rope_*_out sockets): metres along the line from the
-        /// bullwheel, and above the terminal's origin (its load or unload level). The view measures the real sockets and
-        /// may pass its own; these are the Sessellift's.
-        /// </summary>
-        public double BottomExitAlong { get; set; } = 5.889;
-        public double BottomExitRise { get; set; } = 3.543;
-        public double TopExitBack { get; set; } = 3.1;
-        public double TopExitRise { get; set; } = 3.039;
+        /// <summary>The same type with its ends (and chair) measured on the real models; the catalog entry is untouched.</summary>
+        public LiftType With(TerminalEnd bottom, TerminalEnd top, double chairHalfWidth)
+        {
+            var copy = (LiftType)MemberwiseClone();
+            copy.Bottom = bottom;
+            copy.Top = top;
+            copy.ChairHalfWidthMetres = chairHalfWidth;
+            return copy;
+        }
     }
 
     /// <summary>
@@ -163,9 +160,8 @@ namespace MountainPlanner.Domain.Design
         /// case), radians, positive climbing.</summary>
         public double BottomExitAngle { get; }
         public double TopEntryAngle { get; }
-        /// <summary>TW-16: both terminals' rows can turn the rope to level.</summary>
-        public bool TerminalsOk => BottomExitAngle <= Type.BottomExitMax + 1e-9 && BottomExitAngle >= Type.BottomExitMin - 1e-9
-                                   && Math.Abs(TopEntryAngle) <= Type.TopEntryMax + 1e-9;
+        /// <summary>TW-16: both terminals' rows can turn the rope to level (the top row's turn taken either way, TW-16 v2).</summary>
+        public bool TerminalsOk => Type.Bottom.Takes(BottomExitAngle) && Math.Abs(TopEntryAngle) <= -Type.Top.AngleMin + 1e-9;
 
         readonly TowerSolution[] _towers;
         readonly Span[] _loaded, _empty;
@@ -197,7 +193,7 @@ namespace MountainPlanner.Domain.Design
         {
             raise = 0;
             var rope = Solve(type, ground, bottomX, bottomY, topX, topY, towers, stance, bottomExitS, bottomExitY, topExitBack, topExitY);
-            while (rope.BottomExitAngle > type.BottomExitMax && raise < MaxTerminalRaise - 1e-9)
+            while (rope.BottomExitAngle > type.Bottom.AngleMax && raise < MaxTerminalRaise - 1e-9)
             {
                 raise += RaiseStep;
                 rope = Solve(type, ground, bottomX, bottomY, topX, topY, towers, stance, bottomExitS, bottomExitY + raise, topExitBack, topExitY);
