@@ -228,9 +228,25 @@ namespace MountainPlanner.Editor
             var pivots = ((JObject)info["pivots"]).Properties().ToList();
             rig.Pivots = pivots.Select(p => all.First(t => t.name == $"{id}_pivot_{p.Name}")).ToArray();
             rig.PivotAxes = pivots.Select(p => ToVector((JArray)p.Value["axis"])).ToArray();
+            // nested pivots (task P3-07): the parent's index, the hinge flag and the clash sweep's safe range
+            var names = pivots.Select(p => p.Name).ToList();
+            rig.PivotParents = pivots.Select(p => p.Value["parent"]?.Type == JTokenType.String ? names.IndexOf((string)p.Value["parent"]) : -1).ToArray();
+            rig.PivotHinged = pivots.Select(p => (bool?)p.Value["hinge"] ?? false).ToArray();
+            rig.PivotRange = pivots.Select(p => p.Value["range"] is JArray r ? new Vector2((float)r[0], (float)r[1]) : new Vector2(-180f, 180f)).ToArray();
+            // The FBX carries the pivots flat (Blender's FBX export misplaces a third level of nesting); nest them here,
+            // keeping their places, so turning a pivot carries everything under it.
+            for (int i = 0; i < pivots.Count; i++)
+            {
+                if (pivots[i].Value["parent"]?.Type == JTokenType.String && rig.PivotParents[i] < 0)
+                    throw new System.InvalidOperationException($"{id}: pivot {pivots[i].Name}'s parent {pivots[i].Value["parent"]} is not a pivot");
+                if (rig.PivotParents[i] >= 0) rig.Pivots[i].SetParent(rig.Pivots[rig.PivotParents[i]], true);
+            }
             var sockets = ((JObject)info["sockets"]).Properties().ToList();
             rig.Sockets = sockets.Select(s => all.FirstOrDefault(t => t.name == $"{id}_socket_{s.Name}")
                 ?? throw new System.InvalidOperationException($"{id}: socket {s.Name} is missing from the FBX")).ToArray();
+            if (info["socketParents"] is JObject socketParents)   // sockets that ride with a pivot (the chair's seats)
+                foreach (var sp in socketParents.Properties())
+                    rig.Socket(sp.Name).SetParent(rig.Pivot((string)sp.Value) ?? throw new System.InvalidOperationException($"{id}: socket {sp.Name} rides with unknown pivot {sp.Value}"), true);
             rig.LiveryRenderers = go.GetComponentsInChildren<Renderer>(true).Where(r => r.name.StartsWith(id + "_LOD") && rig.Kind == "terminal").ToArray();
 
             // The FBX round trip must keep every pivot and socket where the build put it.

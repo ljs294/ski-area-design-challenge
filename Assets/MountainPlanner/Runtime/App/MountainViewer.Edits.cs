@@ -39,9 +39,10 @@ namespace MountainPlanner.App
             _editKeys = Array.IndexOf(args, "-testedit") >= 0;
             int bench = Array.IndexOf(args, "-testbench");
             int timing = Array.IndexOf(args, "-editbench");
+            bool styleTile = Array.IndexOf(args, "-styletile") >= 0;
             // A loaded save with terrain edits needs the session too, to lay them over the mountain.
             bool saved = OpenDesign.Current != null && !OpenDesign.Current.History.Terrain.IsEmpty;
-            if (!_editKeys && bench < 0 && timing < 0 && !saved) return;
+            if (!_editKeys && bench < 0 && timing < 0 && !saved && !styleTile) return;
             _editsStarting = true;
             StartCoroutine(StartEditsWhenReady(args, bench, timing));
         }
@@ -60,6 +61,7 @@ namespace MountainPlanner.App
             }
             if (task.IsCanceled) yield break;
             _edits = task.Result;
+            FollowBuiltWork(_edits);   // built trails and lifts drawn as they are (MountainViewer.Built.cs, task 07)
             if (_preview != null) _preview.Cleared += _edits.ClearPreview;   // a tool's preview clearing takes the yellow contours with it (CF-08)
             Debug.Log("[TerrainEdits] ready" + (_editKeys ? ": F6 preview a bench at the pointer, F7 break ground, F8 cancel, Ctrl+Z / Ctrl+Y" : ""));
             if (bench >= 0 && bench + 1 < args.Length)
@@ -76,10 +78,26 @@ namespace MountainPlanner.App
                 }
             }
             if (timing >= 0 && timing + 1 < args.Length) StartCoroutine(RunEditBenchmark(args[timing + 1]));
+            if (Array.IndexOf(args, "-styletile") >= 0)
+            {
+                var report = StyleTile.Build(_edits, _resort.Frame, Lifts);
+                Debug.Log("[StyleTile] " + report);
+                // -extralift x,z: a second lift up the fall line from there, through the same build path (a check, round 3).
+                int extra = Array.IndexOf(args, "-extralift");
+                if (extra >= 0 && extra + 1 < args.Length)
+                {
+                    var v = args[extra + 1].Split(',').Select(t => float.Parse(t, CultureInfo.InvariantCulture)).ToArray();
+                    Debug.Log("[StyleTile] extra " + StyleTile.BuildUphill(_edits, _resort.Frame, Lifts, v[0], v[1], v.Length > 2 ? v[2] : 650, "Check Quad"));
+                }
+                while (!_edits.Applying.IsCompleted) yield return null;
+            }
         }
 
         /// <summary>True while edits are starting or applying: captures wait for them.</summary>
         bool EditsBusy => _editsStarting || (_edits != null && !_edits.Applying.IsCompleted);
+
+        /// <summary>Edits applying or built work waiting to be redrawn: captures and the benchmark wait for both.</summary>
+        bool WorkBusy => EditsBusy || BuiltBusy;
 
         void UpdateTerrainEdits(Keyboard keyboard)
         {
@@ -116,6 +134,7 @@ namespace MountainPlanner.App
 
         void ReleaseTerrainEdits()
         {
+            ReleaseBuiltWork();
             if (_preview != null && _edits != null) _preview.Cleared -= _edits.ClearPreview;
             _edits?.Dispose();
             _edits = null;

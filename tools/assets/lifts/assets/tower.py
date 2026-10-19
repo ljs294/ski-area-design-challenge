@@ -2,6 +2,10 @@
 
   base   concrete footing below grade and a square pier; the steel base plate with anchor nuts, gussets and the
          mast's foot. Origin at grade on the mast centreline; socket mast_foot on the plate.
+         Leaned variants (base_l025 ... base_l150, TW-14, task P3-07): for a mast leaning 2.5-15 degrees toward +u
+         (down the line, toward the return) the pier leans with it, its sides parallel to the mast (owner), from the level
+         footing to a top square to the mast; the plate, nuts and gussets sit square to the mast; mast_foot is where the
+         leaned mast's axis leaves the plate. The game stacks the sections along that axis.
   mast   one 1 m section of the round mast with its ladder (stringers, 4 rungs, a standoff). Origin at the
          section's foot; socket top. The game stacks sections to reach the tower's height.
   head   a cap on the mast top carrying the drive terminal's entry head (liftkit/heads.py: the chamfered
@@ -52,7 +56,13 @@ def styles():
     }
 
 
+# TW-14's leaned bases (task P3-07): the lean in tenths of a degree, every 2.5 degrees up to the 15 degree cap.
+LEANS = {f"base_l{d:03d}": d / 10.0 for d in range(25, 151, 25)}
+
+
 def kind_of(variant):
+    if variant in LEANS:
+        return "tower_base"
     return "tower_" + ("head" if variant not in ("mast", "base") else variant)
 
 
@@ -61,47 +71,72 @@ def build(spec, lod, stage, variant):
     st = styles()
     if variant == "base":
         return base(t, lod, st)
+    if variant in LEANS:
+        return base(t, lod, st, LEANS[variant], "sessellift_fgq4_tower_" + variant)
     if variant == "mast":
         return mast_section(t, lod, st)
     return head(spec, t, variant, lod, st)
 
 
 # -- base ------------------------------------------------------------------------------------------
-def base(t, lod, st):
+def base(t, lod, st, lean_deg=0.0, asset_id="sessellift_fgq4_tower_base"):
     b = t["base"]
-    a = Asset("sessellift_fgq4_tower_base")
+    a = Asset(asset_id)
     mb = MeshBuilder()
     fo, pi, pl = b["footing"], b["pier"], b["plate"]
     fh = m(fo["half"])
     prims.box(mb, (-fh, -fh, m(fo["bottom"])), (fh, fh, m(fo["top"])), st["concrete"])
     ph, top = m(pi["half"]), m(pi["top"])
-    if lod <= 1:   # pier with chamfered vertical edges
-        c = m(pi["chamfer"])
-        poly = [(ph - c, -ph), (ph, -ph + c), (ph, ph - c), (ph - c, ph), (-ph + c, ph), (-ph, ph - c), (-ph, -ph + c), (-ph + c, -ph)]
-        prims.prism(mb, poly, (0.0, 0.0, m(fo["top"])), U, V, W, top - m(fo["top"]), st["concrete"])
+    th = math.radians(lean_deg)
+    n = Vector((math.sin(th), 0.0, math.cos(th)))       # the mast's axis, leaning toward +u
+    eu = Vector((math.cos(th), 0.0, -math.sin(th)))     # across the plate, in the line's plane
+    p0 = W * top                                        # the plate's centre on the pier, on the mast's axis
+    if lean_deg == 0:
+        if lod <= 1:   # pier with chamfered vertical edges
+            c = m(pi["chamfer"])
+            poly = [(ph - c, -ph), (ph, -ph + c), (ph, ph - c), (ph - c, ph), (-ph + c, ph), (-ph, ph - c), (-ph, -ph + c), (-ph + c, -ph)]
+            prims.prism(mb, poly, (0.0, 0.0, m(fo["top"])), U, V, W, top - m(fo["top"]), st["concrete"])
+        else:
+            prims.box(mb, (-ph, -ph, m(fo["top"])), (ph, ph, top), st["concrete"])
     else:
-        prims.box(mb, (-ph, -ph, m(fo["top"])), (ph, ph, top), st["concrete"])
+        # The pier leans with the mast (owner, P3-07): its sides run parallel to the mast's axis, from the level footing
+        # up to its top, square to the axis through p0, where the plate sits.
+        c = m(pi["chamfer"]) if lod <= 1 else 0.0
+        poly = [(ph - c, -ph), (ph, -ph + c), (ph, ph - c), (ph - c, ph), (-ph + c, ph), (-ph, ph - c), (-ph, -ph + c), (-ph + c, -ph)]             if c > 0 else [(ph, -ph), (ph, ph), (-ph, ph), (-ph, -ph)]
+        z0 = m(fo["top"])
+        tops = [p0 + eu * u + V * v for u, v in poly]
+        bottoms = [q - n * ((q.z - z0) / n.z) for q in tops]
+        highs = [mb.vert(tuple(q)) for q in tops]
+        lows = [mb.vert(tuple(q)) for q in bottoms]
+        k = len(poly)
+        wind = prims.winding(poly)
+        for i in range(k):
+            j = (i + 1) % k
+            (u0, v0), (u1, v1) = poly[i], poly[j]
+            out = eu * ((v1 - v0) * wind) + V * (-(u1 - u0) * wind)
+            mb.face([lows[i], lows[j], highs[j], highs[i]], st["concrete"], tuple(out))
+        mb.face(list(highs), st["concrete"].but(smooth=False), tuple(n))
     plh, plt = m(pl["half"]), m(pl["thick"])
-    prims.box(mb, (-plh, -plh, top), (plh, plh, top + plt), st["galv"])
-    foot = top + plt
+    prims.obox(mb, p0 + n * (plt / 2), (eu, V, n), (plh, plh, plt / 2), st["galv"])
+    foot = p0 + n * plt
     r = m(t["mast"]["dia"]) / 2
     if lod <= 2:   # the mast's foot up to the first section
-        prims.cylinder(mb, (0, 0, foot), (0, 0, foot + 0.02), r, parts.sides(lod, *t["mast"]["sides"]), st["galv"], caps=(False, True))
+        prims.cylinder(mb, foot, foot + n * 0.02, r, parts.sides(lod, *t["mast"]["sides"]), st["galv"], caps=(False, True))
     if lod <= 1:
         bo, gu = b["bolts"], b["gussets"]
         for i in range(bo["count"]):   # anchor nuts on the plate
             ang = 2 * math.pi * (i + 0.5) / bo["count"]
-            p = Vector((math.cos(ang), math.sin(ang), 0)) * m(bo["radius"])
-            prims.cylinder(mb, p + W * foot, p + W * (foot + m(bo["height"])), m(bo["dia"]) / 2, 6, st["rod"], caps=(False, True))
+            p = foot + (eu * math.cos(ang) + V * math.sin(ang)) * m(bo["radius"])
+            prims.cylinder(mb, p, p + n * m(bo["height"]), m(bo["dia"]) / 2, 6, st["rod"], caps=(False, True))
         for i in range(gu["count"]):   # triangular gussets from the plate up the mast
             ang = 2 * math.pi * i / gu["count"]
-            d = Vector((math.cos(ang), math.sin(ang), 0))
-            side = Vector((-d.y, d.x, 0))
+            d = eu * math.cos(ang) + V * math.sin(ang)
+            side = n.cross(d).normalized()
             tri = [(r - 0.01, 0.0), (r + m(gu["reach"]), 0.0), (r - 0.01, m(gu["height"]))]
-            prims.prism(mb, tri, tuple(W * foot - side * m(gu["thick"]) / 2), d, W, side, m(gu["thick"]), st["galv"])
+            prims.prism(mb, tri, tuple(foot - side * m(gu["thick"]) / 2), d, n, side, m(gu["thick"]), st["galv"])
     a.body = mb
-    a.sockets = {"mast_foot": (0.0, 0.0, foot), "foundation_base": (0.0, 0.0, m(fo["bottom"]))}
-    a.dims.update({"mastFoot": round(foot * 1000), "pierHalf": pi["half"]})
+    a.sockets = {"mast_foot": tuple(foot), "foundation_base": (0.0, 0.0, m(fo["bottom"]))}
+    a.dims.update({"mastFoot": round(foot.z * 1000), "pierHalf": pi["half"], "leanDeg": lean_deg})
     return a
 
 
@@ -212,9 +247,10 @@ def head(spec, t, variant, lod, st):
         if lod <= 2:
             for va, vb in lugs:
                 prims.box(mb, (pin_u - m(lg["halfU"]), va, w_lo), (pin_u + m(lg["halfU"]), vb, w_hi), st["galv"])
-        if lod <= 1:
+        if lod <= 1:   # the main pin (its own piece for the clash sweep, liftkit/clash.py)
             p0, p1 = b_in - side * (lt + 0.012), b_out + side * (lt + 0.012)
-            prims.cylinder(mb, (pin_u, p0, pin_w), (pin_u, p1, pin_w), asm["mainPin"] / 2, 12 if lod == 0 else 8, st["rod"])
+            with mb.grouped("#pin"):
+                prims.cylinder(mb, (pin_u, p0, pin_w), (pin_u, p1, pin_w), asm["mainPin"] / 2, 12 if lod == 0 else 8, st["rod"])
 
     # the ladder's last stretch, from the mast top up through the platform hatch, with grab rails above the deck
     deck = m(d["entryPlatform"]["deck"]) + ow

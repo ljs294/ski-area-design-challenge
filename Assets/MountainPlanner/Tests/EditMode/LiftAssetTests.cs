@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using MountainPlanner.World.Lifts;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -13,7 +14,8 @@ namespace MountainPlanner.Tests
     // Guards the imported lift assets (decisions LP1-LP8, tools/assets/lifts/README.md): triangle budgets
     // per LOD from budgets.json, shadows only on the near LODs, moving parts centred on their axles, sockets
     // on the rope (each terminal against its own maker's spec), the mesh channels the lift shader reads, the lift
-    // frame's handedness, snow guns standing at grade on a hinge, and our naming.
+    // frame's handedness, snow guns standing at grade on a hinge, and our naming; and the posable parts (task P3-07):
+    // nested pivots that round-trip through the FBX, parents that carry their children rigidly, and safe ranges.
     public sealed class LiftAssetTests
     {
         const string SetPath = "Assets/MountainPlanner/Art/Lifts/LiftModels.asset";
@@ -24,7 +26,7 @@ namespace MountainPlanner.Tests
 
         [Serializable] sealed class LodBudget { public int lod; public int maxTris; public float untilM; }
         [Serializable] sealed class KindBudget { public LodBudget[] lods; public int shadowLods; public bool crossFade; }
-        [Serializable] sealed class Budgets { public KindBudget terminal; public KindBudget chair; public KindBudget tower_head; public KindBudget tower_mast; public KindBudget tower_base; public KindBudget snowgun; }
+        [Serializable] sealed class Budgets { public KindBudget terminal; public KindBudget terminal_footing; public KindBudget chair; public KindBudget tower_head; public KindBudget tower_mast; public KindBudget tower_base; public KindBudget snowgun; }
         [Serializable] sealed class Common { public float ropeElevation; public float lineGauge; }
         [Serializable] sealed class Spec { public Common common; }
 
@@ -38,6 +40,7 @@ namespace MountainPlanner.Tests
         static KindBudget BudgetFor(Budgets b, string kind) => kind switch
         {
             "terminal" => b.terminal,
+            "terminal_footing" => b.terminal_footing,
             "chair" => b.chair,
             "tower_head" => b.tower_head,
             "tower_mast" => b.tower_mast,
@@ -120,18 +123,21 @@ namespace MountainPlanner.Tests
         {
             var rig = prefab.GetComponent<LiftRig>();
             Assert.That(rig.Pivots.Length, Is.EqualTo(rig.PivotAxes.Length));
-            // a snow gun's lance (or gun) is hinged at one end: it swings about its axle rather than spinning on it
-            bool hinged = rig.Kind == "snowgun";
+            Assert.That(rig.PivotHinged, Has.Length.EqualTo(rig.Pivots.Length), "PivotHinged");
             for (int i = 0; i < rig.Pivots.Length; i++)
             {
                 var pivot = rig.Pivots[i];
                 Assert.That(pivot.localRotation, Is.EqualTo(Quaternion.identity), pivot.name);
                 Assert.That(pivot.localScale, Is.EqualTo(Vector3.one), pivot.name);
                 var axis = rig.PivotAxes[i].normalized;
-                foreach (var filter in pivot.GetComponentsInChildren<MeshFilter>(true))
+                // only the pivot's own meshes: a nested pivot's are checked under that pivot. A hinged part (a snow
+                // gun's lance, a train's yoke, the chair's hanger) swings about a pin off its middle.
+                foreach (Transform child in pivot)
                 {
+                    var filter = child.GetComponent<MeshFilter>();
+                    if (filter == null) continue;
                     Assert.That(filter.transform.localPosition.magnitude, Is.LessThan(Mm), filter.name);
-                    if (hinged) continue;
+                    if (rig.PivotHinged[i]) continue;
                     var centre = filter.sharedMesh.bounds.center;
                     var across = centre - axis * Vector3.Dot(centre, axis);
                     Assert.That(across.magnitude, Is.LessThan(Mm), $"{filter.name} is off its axle by {across.magnitude * 1000:F1} mm");
@@ -146,6 +152,7 @@ namespace MountainPlanner.Tests
             if (rig.Kind == "chair") Assert.Ignore("Chairs hang from the rope; no rope sockets.");
             if (rig.Kind == "tower_mast" || rig.Kind == "tower_base") Assert.Ignore("Mast sections and bases carry no rope.");
             if (rig.Kind == "snowgun") Assert.Ignore("Snow guns carry no rope.");
+            if (rig.Kind == "terminal_footing") Assert.Ignore("A terminal's footing carries no rope.");
             var common = LoadSpec(prefab.name).common;
             if (rig.Kind == "tower_head")
             {
@@ -259,11 +266,155 @@ namespace MountainPlanner.Tests
                 Assert.That(outgoing.localPosition.z, Is.GreaterThan(atWheel.localPosition.z), $"{side} rope must run toward the line (+Z)");
                 Assert.That(Mathf.Sign(outgoing.localPosition.x), Is.EqualTo(side == "left" ? -1f : 1f), $"{side} rope must be on the {side} (X)");
             }
-            Assert.That(rig.Socket("foundation_base").localPosition.y, Is.LessThan(-2f), "foundations reach at least 2 m below grade (LP7)");
+            if (rig.Socket("pier_top") != null)
+            {
+                // the Sessellift's really tall piers (task P3-07): the footing is its own prefab; the pier runs on far
+                // below grade under its top, so a raised terminal still stands on it
+                Assert.That(rig.Socket("foundation_base"), Is.Null, "the footing (and its foundation_base) is its own prefab");
+                Assert.That(rig.Socket("pier_top").localPosition.y, Is.GreaterThan(0f), "the pier's top is above the 0.00 level");
+                float lowest = prefab.GetComponentsInChildren<MeshFilter>(true).Where(f => f.name == prefab.name + "_LOD0")
+                    .Min(f => f.transform.localPosition.y + f.sharedMesh.bounds.min.y);
+                Assert.That(lowest, Is.LessThan(-10f), "the pier reaches more than 10 m below the 0.00 level");
+            }
+            else
+                Assert.That(rig.Socket("foundation_base").localPosition.y, Is.LessThan(-2f), "foundations reach at least 2 m below grade (LP7)");
             var loadOrUnload = rig.Socket("chair_load") ?? rig.Socket("chair_unload");
             Assert.That(loadOrUnload, Is.Not.Null, "a terminal marks where riders load or unload");
             // Loaded chairs ride up on the right rope (counter-clockwise from above): +X at the bottom, -X at the top.
             Assert.That(Mathf.Sign(loadOrUnload.localPosition.x), Is.EqualTo(rig.Socket("chair_load") != null ? 1f : -1f));
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void TerminalFootingsSitBelowGrade(GameObject prefab)
+        {
+            // A terminal's footing (task P3-07) is placed by the game at the ground or pad under the pier: origin at
+            // grade, the block wholly below it, its underside at least 2 m down (LP7).
+            var rig = prefab.GetComponent<LiftRig>();
+            if (rig.Kind != "terminal_footing") Assert.Ignore("Terminal footings only.");
+            Assert.That(rig.Socket("foundation_base").localPosition.y, Is.LessThan(-2f), "foundation_base");
+            Assert.That(rig.Socket("pier_seat").localPosition.y, Is.LessThan(0f), "pier_seat below grade");
+            foreach (var filter in prefab.GetComponentsInChildren<MeshFilter>(true))
+                Assert.That(filter.transform.localPosition.y + filter.sharedMesh.bounds.max.y, Is.LessThanOrEqualTo(Mm), filter.name);
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void NestedPivotsRoundTripThroughTheFbx(GameObject prefab)
+        {
+            // Every pivot sits under its parent pivot's transform with no rotation at rest, at the position the Blender
+            // build put it (to 1 mm, against tools/assets/lifts/out/lifts.json when a build is on disk).
+            var rig = prefab.GetComponent<LiftRig>();
+            Assert.That(rig.PivotParents, Has.Length.EqualTo(rig.Pivots.Length), "PivotParents");
+            for (int i = 0; i < rig.Pivots.Length; i++)
+            {
+                int parent = rig.PivotParents[i];
+                if (parent >= 0)
+                    Assert.That(rig.Pivots[i].parent, Is.SameAs(rig.Pivots[parent]), rig.Pivots[i].name);
+                else
+                    Assert.That(rig.Pivots, Has.No.SameAs(rig.Pivots[i].parent), rig.Pivots[i].name + " is a top pivot");
+                Assert.That(Quaternion.Angle(rig.Pivots[i].rotation, prefab.transform.rotation), Is.LessThan(0.01f), rig.Pivots[i].name);
+            }
+            string report = RepoPath("tools/assets/lifts/out/lifts.json");
+            if (!File.Exists(report)) Assert.Ignore("No lift build on disk (tools/assets/lifts/out/lifts.json) to compare with.");
+            var built = JObject.Parse(File.ReadAllText(report))["assets"]?[prefab.name]?["pivots"] as JObject;
+            if (built == null) Assert.Ignore($"{prefab.name} is not in the build on disk.");
+            Assert.That(built.Count, Is.EqualTo(rig.Pivots.Length), "pivot count");
+            foreach (var p in built.Properties())
+            {
+                var pivot = rig.Pivot(p.Name);
+                Assert.That(pivot, Is.Not.Null, p.Name);
+                var pos = (JArray)p.Value["pos"];
+                var want = new Vector3((float)pos[0], (float)pos[1], (float)pos[2]);
+                var got = prefab.transform.InverseTransformPoint(pivot.position);
+                Assert.That((got - want).magnitude, Is.LessThan(Mm), $"{p.Name} at {got:F4}, built at {want:F4}");
+                if (p.Value["parent"]?.Type == JTokenType.String)
+                    Assert.That(pivot.parent, Is.SameAs(rig.Pivot((string)p.Value["parent"])), $"{p.Name}'s parent");
+            }
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void TurningAParentPivotMovesItsChildrenRigidly(GameObject prefab)
+        {
+            // Turn each pivot that carries others by up to 10 degrees about its axis (within its range): every pivot
+            // and mesh under it must keep its place relative to it, a rigid turn about the parent's axle.
+            var rig = prefab.GetComponent<LiftRig>();
+            if (rig.PivotParents == null || !rig.PivotParents.Any(p => p >= 0)) Assert.Ignore("No nested pivots.");
+            var go = UnityEngine.Object.Instantiate(prefab);
+            try
+            {
+                var r = go.GetComponent<LiftRig>();
+                for (int i = 0; i < r.Pivots.Length; i++)
+                {
+                    if (!r.PivotParents.Contains(i)) continue;
+                    var pivot = r.Pivots[i];
+                    float angle = Mathf.Clamp(10f, r.PivotRange[i].x, r.PivotRange[i].y);
+                    if (Mathf.Abs(angle) < 0.5f) angle = 10f;   // a rigid part (range 0) still turns rigidly in the test
+                    var below = pivot.GetComponentsInChildren<Transform>(true).Where(t => t != pivot).ToArray();
+                    var before = below.Select(t => go.transform.InverseTransformPoint(t.position)).ToArray();
+                    var centre = go.transform.InverseTransformPoint(pivot.position);
+                    var turn = Quaternion.AngleAxis(angle, r.PivotAxes[i]);
+                    pivot.localRotation = turn;
+                    for (int k = 0; k < below.Length; k++)
+                    {
+                        var want = centre + turn * (before[k] - centre);
+                        var got = go.transform.InverseTransformPoint(below[k].position);
+                        Assert.That((got - want).magnitude, Is.LessThan(Mm), $"{below[k].name} under {pivot.name}");
+                    }
+                    pivot.localRotation = Quaternion.identity;
+                }
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void PivotRangesContainTheRestPose(GameObject prefab)
+        {
+            var rig = prefab.GetComponent<LiftRig>();
+            Assert.That(rig.PivotRange, Has.Length.EqualTo(rig.Pivots.Length), "PivotRange");
+            for (int i = 0; i < rig.Pivots.Length; i++)
+            {
+                Assert.That(rig.PivotRange[i].x, Is.LessThanOrEqualTo(0f).And.GreaterThanOrEqualTo(-180f), rig.Pivots[i].name);
+                Assert.That(rig.PivotRange[i].y, Is.GreaterThanOrEqualTo(0f).And.LessThanOrEqualTo(180f), rig.Pivots[i].name);
+            }
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void PosableHeadsCarryTheirTrainsAtEveryLod(GameObject prefab)
+        {
+            // Contract P3-07 M2: up close every train level is its own part on its pin; far out each side's whole train
+            // is one part under that side's top pivot, never folded into the body, so it turns with the train.
+            var rig = prefab.GetComponent<LiftRig>();
+            string[] topKinds = { "_pivot_eq_", "_pivot_yoke_", "_pivot_block_", "_pivot_beam_" };
+            var tops = Enumerable.Range(0, rig.Pivots.Length).Where(i => rig.PivotParents != null && rig.PivotParents[i] < 0)
+                .Select(i => rig.Pivots[i]).Where(p => topKinds.Any(p.name.Contains)).ToArray();
+            if (tops.Length == 0) Assert.Ignore("No posable sheave trains.");
+            Assert.That(tops.Length, Is.EqualTo(2), "one train top pivot per rope");
+            int lods = prefab.GetComponent<LODGroup>().lodCount;
+            foreach (var top in tops)
+                for (int lod = 0; lod < lods; lod++)
+                    Assert.That(top.GetComponentsInChildren<MeshFilter>(true).Any(f => f.name.EndsWith("_LOD" + lod)), $"{top.name} carries a LOD{lod} part");
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void ChairGripsFollowTheRopeWithThePlumbHangerBelow(GameObject prefab)
+        {
+            // Contract P3-07 M3: up close the Sessellift chair is a grip on the rope (its origin) carrying a hanger hinged
+            // across the rope; the seats and the safety bar's hinge ride with the hanger.
+            if (prefab.name != "sessellift_fgq4_chair") Assert.Ignore("The Sessellift chair only.");
+            var rig = prefab.GetComponent<LiftRig>();
+            var grip = rig.Pivot("grip");
+            var hanger = rig.Pivot("hanger");
+            Assert.That(grip, Is.Not.Null, "grip");
+            Assert.That(hanger, Is.Not.Null, "hanger");
+            Assert.That(grip.localPosition.magnitude, Is.LessThan(Mm), "the grip pivot is on the rope at the origin");
+            Assert.That(hanger.parent, Is.SameAs(grip), "the hanger hangs from the grip");
+            Assert.That(hanger.localPosition.y, Is.LessThan(0f), "the hinge is below the rope");
+            int i = Array.IndexOf(rig.Pivots, hanger);
+            Assert.That(Mathf.Abs(Vector3.Dot(rig.PivotAxes[i].normalized, Vector3.right)), Is.GreaterThan(0.999f), "hinged across the rope (X)");
+            foreach (string s in new[] { "seat_1", "seat_2", "seat_3", "seat_4", "bar_hinge" })
+                Assert.That(rig.Socket(s).IsChildOf(hanger), s + " rides with the hanger");
         }
     }
 }

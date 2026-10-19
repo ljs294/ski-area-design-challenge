@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace MountainPlanner.Domain.Design
@@ -33,12 +34,20 @@ namespace MountainPlanner.Domain.Design
             return null;
         }
 
-        /// <summary>TW-02: 25–100 ft in 5 ft steps.</summary>
-        public static string TowerHeightProblem(int heightMm)
+        /// <summary>TW-02: 25–100 ft in 5 ft steps; v2, a station tower (within 100 ft of a bullwheel) from 15 ft.</summary>
+        public static string TowerHeightProblem(int heightMm, bool station = false)
         {
-            if (heightMm < DesignUnits.TowerMinMm || heightMm > DesignUnits.TowerMaxMm || heightMm % DesignUnits.FiveFeetMm != 0)
-                return "A tower is 25–100 ft tall, in 5 ft steps.";
+            int min = station ? DesignUnits.StationTowerMinMm : DesignUnits.TowerMinMm;
+            if (heightMm < min || heightMm > DesignUnits.TowerMaxMm || heightMm % DesignUnits.FiveFeetMm != 0)
+                return station ? "A tower by a terminal is 15–100 ft tall, in 5 ft steps." : "A tower is 25–100 ft tall, in 5 ft steps.";
             return null;
+        }
+
+        /// <summary>TW-02 v2: whether a tower stands in a station zone, within 100 ft of either bullwheel.</summary>
+        public static bool InStationZone(long lineLengthSquaredMm, int alongMm)
+        {
+            double length = Math.Sqrt(lineLengthSquaredMm);
+            return alongMm <= DesignUnits.StationZoneMm || length - alongMm <= DesignUnits.StationZoneMm;
         }
 
         public static string PartsProblem(IReadOnlyList<FootprintPart> parts)
@@ -120,7 +129,8 @@ namespace MountainPlanner.Domain.Design
             if (towers.Count > MaxTowersPerLift) return "A lift has too many towers.";
             for (int i = 0; i < towers.Count; i++)
             {
-                string p = TowerAlongProblem(lineLengthSquaredMm, towers[i].AlongMm) ?? TowerHeightProblem(towers[i].HeightMm);
+                string p = TowerAlongProblem(lineLengthSquaredMm, towers[i].AlongMm)
+                           ?? TowerHeightProblem(towers[i].HeightMm, InStationZone(lineLengthSquaredMm, towers[i].AlongMm));
                 if (p != null) return p;
                 if (towers[i].Id.IsNone) return "A tower needs an ID.";
                 if (i > 0 && towers[i].AlongMm == towers[i - 1].AlongMm) return "Two towers can't stand in the same place.";

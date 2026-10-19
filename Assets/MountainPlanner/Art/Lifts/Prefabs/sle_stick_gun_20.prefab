@@ -822,6 +822,10 @@ MonoBehaviour:
   - {fileID: 4517332070112140935}
   PivotAxes:
   - {x: 1, y: 0, z: 0}
+  PivotParents: ffffffff
+  PivotHinged: 01
+  PivotRange:
+  - {x: -2.31, y: 3.69}
   Sockets:
   - {fileID: 5706413152090936381}
   - {fileID: 579046132130471331}

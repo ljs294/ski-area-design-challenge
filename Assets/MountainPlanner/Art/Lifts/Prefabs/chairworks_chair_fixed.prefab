@@ -511,6 +511,9 @@ MonoBehaviour:
   CatalogName: Quad chair, fixed grip
   Pivots: []
   PivotAxes: []
+  PivotParents: 
+  PivotHinged: 
+  PivotRange: []
   Sockets:
   - {fileID: 5789949372683249474}
   - {fileID: 6344323943450742967}

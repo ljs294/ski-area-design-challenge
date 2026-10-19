@@ -232,7 +232,7 @@ namespace MountainPlanner.App
                     StartCoroutine(WhenForestReady(() => Forest.LodTransitions = new Vector4(t[0], t[1], t[2], t[3])));
                 }
                 if (Array.IndexOf(args, "-baretrees") >= 0) _layers.SetTreeSnow(false);
-                if (Array.IndexOf(args, "-nosnow") >= 0) _layers.Set(MapLayers.Snow, false);
+                if (Array.IndexOf(args, "-nosnow") >= 0 || Summer(args)) _layers.Set(MapLayers.Snow, false);
                 if (Array.IndexOf(args, "-noforest") >= 0) _layers.Set(MapLayers.Trees, false);
                 int view = Array.IndexOf(args, "-view");
                 if (view >= 0 && view + 1 < args.Length && Camera != null)
@@ -240,6 +240,14 @@ namespace MountainPlanner.App
                     var v = args[view + 1].Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
                     Camera.Frame(new Vector3(v[0], _resort.Surface.HeightAt(v[0], v[1]), v[1]), v[2]);
                     Camera.SetAngles(v[3], v[4]);
+                }
+                // -fly x,z,height,yaw,pitch: a free-fly camera at a height above the ground (captures that look up at
+                // something, such as a tower head, which -view's orbit round a ground point can't; task 07).
+                int fly = Array.IndexOf(args, "-fly");
+                if (fly >= 0 && fly + 1 < args.Length && Camera != null)
+                {
+                    var f = args[fly + 1].Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                    Camera.FlyFrom(new Vector3(f[0], _resort.Surface.HeightAt(f[0], f[1]) + f[2], f[1]), f[3], f[4]);
                 }
                 int bench = Array.IndexOf(args, "-benchmark");
                 if (bench >= 0 && bench + 1 < args.Length) StartCoroutine(RunBenchmark(args[bench + 1]));
@@ -268,19 +276,28 @@ namespace MountainPlanner.App
         {
             int time = Array.IndexOf(args, "-time"), day = Array.IndexOf(args, "-day");
             bool hasTime = time >= 0 && time + 1 < args.Length, hasDay = day >= 0 && day + 1 < args.Length;
-            if (!hasTime && !hasDay) return;
+            if (!hasTime && !hasDay && !Summer(args)) return;
             var now = Lighting.Clock.Now;
-            int second = now.SecondOfDay, dayOfYear = now.DayOfYear;
+            int second = now.SecondOfDay, dayOfYear = Summer(args) ? MidJuly : now.DayOfYear;
             if (hasTime && TimeSpan.TryParse(args[time + 1], System.Globalization.CultureInfo.InvariantCulture, out var hm))
                 second = (int)hm.TotalSeconds % ViewTime.SecondsPerDay;
             if (hasDay && int.TryParse(args[day + 1], out int d)) dayOfYear = Mathf.Clamp(d, 1, ViewTime.DaysInYear(now.Year));
             Lighting.SetTime(new ViewTime(now.Year, dayOfYear, second));
         }
 
+        /// <summary>-season summer (task 07, SK4): the snow off and a mid-July sun, unless -day says otherwise.</summary>
+        static bool Summer(string[] args)
+        {
+            int season = Array.IndexOf(args, "-season");
+            return season >= 0 && season + 1 < args.Length && args[season + 1] == "summer";
+        }
+
+        const int MidJuly = 196;
+
         System.Collections.IEnumerator CaptureAndQuit(string path)
         {
             while (!_resort.CoverReady.IsCompleted) yield return null;   // the cover, snowpack, contour labels and forest are in
-            while (EditsBusy) yield return null;                          // and any -testbench edit
+            while (WorkBusy) yield return null;                           // and any -testbench or -styletile edit, drawn
             for (int i = 0; i < 90; i++) yield return null; // let LOD and shadows settle
             var cam = Camera != null ? Camera.transform.position : Vector3.zero;
             Debug.Log($"[MountainViewer] camera {cam}, ground below {_resort.Surface.HeightAt(cam.x, cam.z):F0} m, target {(Camera != null ? Camera.Target : Vector3.zero)}, " +
@@ -331,6 +348,7 @@ namespace MountainPlanner.App
                 if (Hud != null && _resort != null && click != null && click.leftButton.wasPressedThisFrame && !Hud.IsPointerOverPanel(click.position.ReadValue())) Hud.ClickedMap();
                 TickTools();   // the armed construction tool (MountainViewer.Tools.cs)
             }
+            UpdateBuiltWork();   // built trails and lifts (MountainViewer.Built.cs)
             _resort?.States?.Sync();
             RunClock();
             // The Auto theme follows this sun on every screen (task P2-01); nothing happens unless sunrise or sunset passed.
@@ -560,6 +578,7 @@ namespace MountainPlanner.App
         /// <summary>Moves the contour labels with the camera, after it has moved this frame.</summary>
         void LateUpdate()
         {
+            DrawChairs();   // after the camera has moved, for its LODs
             if (_contourLabels == null || _resort == null) return;
             _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
             var set = _resort.ContourLabels[(int)DisplayUnits.Current];

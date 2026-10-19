@@ -107,10 +107,11 @@ def hoop(mb, ends, top, base, corner, lod, style):
 
 
 def base(mb, r, lod, st):
-    """Footing and pier (concrete); the steel mast head with its concave flares, skirt and rail beds; the two
+    """The pier (concrete, really tall); the steel mast head with its concave flares, skirt and rail beds; the two
     frame rails with the brackets under them; the lower frame, the hydraulic cylinder and the frame-end block."""
-    fo, pe, hd, rb, rl = r["footing"], r["pedestal"], r["head"], r["railBeds"], r["rails"]
-    prims.box(mb, (-m(fo["u"]) / 2, -m(fo["v"]) / 2, m(fo["bottom"])), (m(fo["u"]) / 2, m(fo["v"]) / 2, m(fo["top"])), st["concrete"])
+    pe, hd, rb, rl = r["pedestal"], r["head"], r["railBeds"], r["rails"]
+    # the pier runs far below grade (owner, P3-07: really tall, so the terminal can be raised or lowered); the footing
+    # is its own prefab (assets/terminal_footing.py), placed by the game at the ground or pad
     prims.box(mb, (-m(pe["u"]) / 2, -m(pe["v"]) / 2, m(pe["bottom"])), (m(pe["u"]) / 2, m(pe["v"]) / 2, m(pe["top"])),
               st["concrete"], skip=("-2",))
     hu, hv, neck = m(hd["u"]) / 2, m(hd["v"]) / 2, m(hd["neck"]) / 2
@@ -477,15 +478,16 @@ def entry_trains(mb, a, spec, r, lod, st):
     for side, name in ((-1, "l"), (1, "r")):
         v_rope = side * hg
         pin_u, pin_w = parts.line_assembly(mb, a, name, u0, v_rope, rope, asm, et["count"], "hold", lod, st, radius,
-                                           first=2, parts_lod=1, level=level)
+                                           first=2, level=level)
         b_in, b_out = v_rope - side * X["beam"][1], v_rope - side * X["beam"][0]
         lt = m(lg["thick"])
         if lod <= 2:   # lug plates either side of the equaliser, from the crossbeam's underside down past the pin
             for va, vb in (sorted((b_in, b_in - side * lt)), sorted((b_out, b_out + side * lt))):
                 prims.box(mb, (pin_u - m(lg["halfU"]), va, pin_w - m(lg["past"])), (pin_u + m(lg["halfU"]), vb, cb0), st["steel"])
-        if lod <= 1:
-            prims.cylinder(mb, (pin_u, b_in - side * (lt + 0.012), pin_w), (pin_u, b_out + side * (lt + 0.012), pin_w),
-                           asm["mainPin"] / 2, 12 if lod == 0 else 8, st["rod"])
+        if lod <= 1:   # the main pin (its own piece for the clash sweep, liftkit/clash.py)
+            with mb.grouped("#pin"):
+                prims.cylinder(mb, (pin_u, b_in - side * (lt + 0.012), pin_w), (pin_u, b_out + side * (lt + 0.012), pin_w),
+                               asm["mainPin"] / 2, 12 if lod == 0 else 8, st["rod"])
     axles = parts.arc_axles(asm, et["count"], radius, level)
     u_first = u0 + axles[0][0]
     if level == "first":
@@ -590,7 +592,7 @@ def build(spec, lod, stage):
         "rope_left_hold": (u_hold, -hg, rope), "rope_right_hold": (u_hold, hg, rope),
         "rope_left_out": (u_out, -hg, w_out), "rope_right_out": (u_out, hg, w_out),
         "chair_load": (0.0, hg, rope),   # riders sit down over the pier, along the chair guide
-        "foundation_base": (0.0, 0.0, m(r["footing"]["bottom"])),
+        "pier_top": (0.0, 0.0, m(r["pedestal"]["top"])),   # the pier's top centre, under the steel head
     }
     a.dims.update({"bullwheelU": round(u_bw * 1000), "guideSheaveU": r["guideSheaves"]["u"], "liftingFrameU": lf["u"],
                    "railsEnd": r["rails"]["uTo"], "pedestalTop": r["pedestal"]["top"], "portalTop": lf["portal"]["top"],

@@ -853,6 +853,10 @@ MonoBehaviour:
   - {fileID: 1813158106891007183}
   PivotAxes:
   - {x: 1, y: 0, z: 0}
+  PivotParents: ffffffff
+  PivotHinged: 01
+  PivotRange:
+  - {x: -2.31, y: 3.69}
   Sockets:
   - {fileID: 1893159764540766059}
   - {fileID: 713080438011615495}

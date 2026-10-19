@@ -307,9 +307,9 @@ def build(spec, lod, stage):
     rope_r = m(c["ropeDiameter"]) / 2
     u_bw = m(d["bullwheel"]["u"])
 
-    # pier and footing (LP7), steel pier head, longitudinal beams and the drive base frame
-    pi, fo = d["pier"], d["footing"]
-    prims.box(body, (-m(fo["u"]) / 2, -m(fo["v"]) / 2, m(fo["bottom"])), (m(fo["u"]) / 2, m(fo["v"]) / 2, m(fo["top"])), st["concrete"])
+    # the pier (really tall, owner P3-07: the terminal can be raised or lowered and it still reaches the ground; the
+    # footing is its own prefab, assets/terminal_footing.py), steel pier head, longitudinal beams and the drive base frame
+    pi = d["pier"]
     prims.box(body, (-m(pi["u"]) / 2, -m(pi["v"]) / 2, m(pi["bottom"])), (m(pi["u"]) / 2, m(pi["v"]) / 2, m(pi["top"])), st["concrete"], skip=("-2",))
     ph = d["pierHead"]
     prims.box(body, (-m(ph["u"]) / 2, -m(ph["v"]) / 2, m(ph["bottom"])), (m(ph["u"]) / 2, m(ph["v"]) / 2, m(ph["top"])), st["steel"])
@@ -347,7 +347,7 @@ def build(spec, lod, stage):
     plate = {"v": (m(pl["v"][0]), m(pl["v"][1])), "top": m(pl["top"]), "width": m(pl["width"]), "pin": m(pl["pin"])}
     for side, name in ((-1, "l"), (1, "r")):
         parts.sheave_train(body, a, name, m(et["u"]), side * hg, rope, rope_r, m(c["guideSheave"]["dia"]), m(c["guideSheave"]["width"]),
-                           train, et["mode"], None, lod, st, plate=plate)
+                           train, et["mode"], None, lod, st, plate=plate, stops=et.get("pinStops"))
     u_out = m(et["u"]) + (tr["n"] - 1) / 2 * m(tr["pitch"])   # the rope leaves over the outermost train sheave
 
     # guide sheaves between the pier and the bullwheel (rope rides on top), hung inboard from the base frame
@@ -381,7 +381,7 @@ def build(spec, lod, stage):
         "rope_left_bw": (u_bw, -hg, rope), "rope_right_bw": (u_bw, hg, rope),
         "rope_left_out": (u_out, -hg, rope), "rope_right_out": (u_out, hg, rope),
         "chair_unload": (0.0, -hg, rope),
-        "foundation_base": (0.0, 0.0, m(d["footing"]["bottom"])),
+        "pier_top": (0.0, 0.0, m(pi["top"])),   # the pier's top centre, under the steel pier head
     }
     a.dims.update({"bullwheelU": round(u_bw * 1000), "guideSheaveU": d["guideSheaves"]["u"], "columnU": pi["u"],
                    "columnV": pi["v"], "columnTop": pi["top"], "platformEnd": d["entryPlatform"]["uTo"], "entryU": d["portal"]["u"]})

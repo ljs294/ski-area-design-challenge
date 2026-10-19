@@ -42,6 +42,7 @@ Shader "MountainPlanner/LiftStructure"
             float _SnowSmoothness;
             float _GlassAlpha;
             float _Glass;
+            float4 _DetailMap_TexelSize;
         CBUFFER_END
         TEXTURE2D(_PaletteMap);   // sampled with the core library's sampler_PointClamp: flat swatches, no bleeding
         TEXTURE2D(_DetailMap); SAMPLER(sampler_DetailMap);
@@ -49,13 +50,25 @@ Shader "MountainPlanner/LiftStructure"
         // UV0 is box-mapped metres with the detail-atlas tile in the integer part of U (tile * 256 + metres; see
         // tools/assets/lifts/liftkit/textures.py). Sample inside that tile's 4 x 4 atlas cell, repeating every
         // metre, with the gradients of the unwrapped coordinates so mips don't jump at the wrap.
+        // Task 07 (finding #10): sampling with the raw gradients let anisotropic filtering, at grazing angles, reach
+        // across into the neighbouring atlas cells (grating, tread plate) and smear them over plain steel. Now the
+        // detail is sampled isotropically at the major axis's mip, kept half a texel inside its own cell, and faded to
+        // neutral (0.5: a flat normal, no cavity, unchanged brightness) as it shrinks below a few pixels of its cell.
         half4 SampleDetail(float2 uv0)
         {
             float tile = floor(uv0.x / 256.0);
             float2 local = float2(uv0.x - tile * 256.0, uv0.y) * _DetailDensity;
             float2 cell = float2(tile - 4.0 * floor(tile / 4.0), floor(tile / 4.0));
-            return SAMPLE_TEXTURE2D_GRAD(_DetailMap, sampler_DetailMap, (cell + frac(local)) * 0.25,
-                                         ddx(local) * 0.25, ddy(local) * 0.25);
+            float cellTexels = max(_DetailMap_TexelSize.z * 0.25, 1.0);
+            float rho = max(length(ddx(local)), length(ddy(local))) * cellTexels;   // texels per pixel, major axis
+            float lod = log2(max(rho, 1e-4));
+            float maxLod = log2(cellTexels) - 2.0;                                   // the cell still 4 texels across
+            float useLod = clamp(lod, 0.0, maxLod);
+            float inset = 0.5 * exp2(useLod) / cellTexels;                          // half a texel at that mip
+            float2 inCell = clamp(frac(local), inset, 1.0 - inset);
+            half4 detail = SAMPLE_TEXTURE2D_LOD(_DetailMap, sampler_DetailMap, (cell + inCell) * 0.25, useLod);
+            half fade = (half)saturate((lod - (maxLod - 1.5)) / 1.5);
+            return lerp(detail, half4(0.5h, 0.5h, 0.5h, 0.5h), fade);
         }
         ENDHLSL
 

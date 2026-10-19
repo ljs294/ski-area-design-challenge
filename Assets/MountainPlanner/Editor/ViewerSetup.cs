@@ -163,6 +163,12 @@ namespace MountainPlanner.Editor
             viewer.TerrainMaterial = TerrainMaterial();
             viewer.HighlightMaterial = HighlightMaterial();
             viewer.Trees = AssetDatabase.LoadAssetAtPath<MountainPlanner.World.TreePrototypeSet>(TreeImport.SetPath);
+            // Built lifts (task 07): the lift models and their materials, and the haul rope's shader.
+            viewer.Lifts = AssetDatabase.LoadAssetAtPath<MountainPlanner.World.Lifts.LiftModelSet>(LiftImport.SetPath);
+            viewer.LiftStructureMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/MountainPlanner/Art/Lifts/Materials/LiftStructure.mat");
+            viewer.LiftGlassMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/MountainPlanner/Art/Lifts/Materials/LiftGlass.mat");
+            viewer.LiftChairMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/MountainPlanner/Art/Lifts/Materials/LiftChair.mat");
+            viewer.CableShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/LiftCable.shader");
             viewer.CliffMaterial = CliffMaterial();
             viewer.EdgeMaterial = EdgeMaterial();
             viewer.FarShadowCompute = AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/MountainPlanner/Art/Shaders/FarShadow.compute");

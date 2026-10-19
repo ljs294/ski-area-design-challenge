@@ -6,12 +6,14 @@
     "parts": {"drive": "Drive terminal", "return": "Return terminal", "chair": "Quad chair",
       "s4": "Line tower head, support 4", "s6": "Line tower head, support 6", "b8": "Line tower head, breakover 8",
       "d8": "Line tower head, hold-down 8", "c8": "Line tower head, combination 4/4",
-      "mast": "Line tower mast section, 1 m", "base": "Line tower base"}
+      "mast": "Line tower mast section, 1 m", "base": "Line tower base",
+      "base_l025": "Line tower base, leaned 2.5 degrees", "base_l050": "Line tower base, leaned 5 degrees", "base_l075": "Line tower base, leaned 7.5 degrees", "base_l100": "Line tower base, leaned 10 degrees", "base_l125": "Line tower base, leaned 12.5 degrees", "base_l150": "Line tower base, leaned 15 degrees"}
   },
   "common": {
     "ropeElevation": 3039,
     "lineGauge": 4120,
-    "ropeDiameter": 36,
+    "ropeDiameter": 44.45,
+    "_rope": "1 3/4 in haul rope (owner, P3-07 SK17); the sheave rows hang from fixed pins, so on line towers the rope sockets move with it",
     "travel": "ccw",
     "loadedRope": "right when looking uphill: v+ at the return terminal, v- at the drive terminal",
     "snowAllowance": 305,
@@ -25,7 +27,7 @@
     }
   },
   "drive": {
-    "pier": {"u": 1508, "v": 613, "top": 2700, "bottom": -1500},
+    "pier": {"u": 1508, "v": 613, "top": 2700, "bottom": -15000, "_note": "really tall (owner, P3-07): the terminal can be raised or lowered and the pier still reaches the ground; the rest is buried. The footing is its own prefab (terminal_footing)"},
     "footing": {"u": 3000, "v": 2200, "top": -1500, "bottom": -2500},
     "pierHead": {"u": 1600, "v": 1266, "bottom": 2700, "top": 2875},
     "entryBeams": {"vIn": 430, "vOut": 633, "bottom": 2875, "top": 3179, "uFrom": -543, "uTo": 2857},
@@ -45,7 +47,8 @@
     "link": {"plates": {"u": [2630, 2857], "w": [2795, 3261], "thick": 20}, "rods": {"u": 2918, "v": 420, "w": [2721, 3524], "dia": 24},
              "tab": {"u": [2878, 2958], "w": [3452, 3471], "width": 90}, "lower": {"u": [2858, 2978], "w": [3240, 3266], "width": 120},
              "member": {"u": [2908, 2963], "v": 250, "w": [2721, 3524]}},
-    "entryTrains": {"u": 3116, "mode": "support", "plate": {"v": [1896, 1926], "top": 3225, "width": 160, "pin": 60}},
+    "entryTrains": {"u": 3116, "mode": "support", "plate": {"v": [1896, 1926], "top": 3225, "width": 160, "pin": 60},
+      "pinStops": {"beam": 10, "rocker": 5, "_note": "the owner (P3-07): keep 4 sheaves and let them equalise a little. Sharing the turn equally up to the row's 18 deg limit (4 x 4.5) the beam turns 8.6 deg and the rockers 4.7 deg, and the rope comes in from the bullwheel at most 0.81 deg off level; stops just beyond (degrees either way)"}},
     "walkway": {"deck": 3459, "stringer": 280, "uFrom": 668, "uTo": 2862, "vFrom": 433, "vTo": 1497,
                 "hoodWing": {"uFrom": 635, "uTo": 1650, "vFrom": -110},
                 "landing": {"uFrom": 2560, "uTo": 2862, "vFrom": -320},
@@ -69,7 +72,7 @@
       "downSpout": {"dia": 60, "from": [360, 2533, 3825], "to": [360, 3313, 3343]}
     }
   },  "return": {
-    "pedestal": {"u": 1524, "v": 622, "top": 1533, "bottom": -1500},
+    "pedestal": {"u": 1524, "v": 622, "top": 1533, "bottom": -15000, "_note": "really tall, as the drive's pier"},
     "footing": {"u": 3000, "v": 2200, "top": -1500, "bottom": -2500},
     "head": {"u": 1684, "v": 1222, "bottom": 1943, "top": 2505, "base": 1581, "skirt": 1533, "neck": 714,
              "flare": [[611, 1943], [570, 1886], [517, 1854], [452, 1822], [417, 1790], [376, 1727], [357, 1663], [357, 1581]]},
