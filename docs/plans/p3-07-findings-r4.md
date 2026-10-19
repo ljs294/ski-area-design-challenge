@@ -2,7 +2,7 @@
 
 **Audience:** the project owner and coding agents.
 
-**Status:** fixes in, awaiting the owner's look (the review in the game began 2026-10-18).
+**Status:** closed: the owner approved the look on 2026-10-19 ("Amazing, approved").
 
 **Build reviewed:** `feature/p3-07-style-tile` at a9ea046, round 3's fixes:
 - one build path for every lift;

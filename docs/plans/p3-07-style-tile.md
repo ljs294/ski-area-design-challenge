@@ -1,7 +1,7 @@
 # Phase 3 · 07 Style tile: one trail and one lift (report)
 
-**Audience:** the project owner and coding agents. **Status:** for your review (task 07 ⛳: the look and the benchmark).
-**Plan:** [p3-07-plan.md](p3-07-plan.md). **Decisions:** SK1–SK15 in
+**Audience:** the project owner and coding agents. **Status:** approved by the owner on 2026-10-19 after four in-game review rounds (task 07 ⛳: the look and the benchmark).
+**Plan:** [p3-07-plan.md](p3-07-plan.md). **Decisions:** SK1–SK30 in
 [phase0-decisions.md](phase0-decisions.md#phase-3-task-07-style-tile-decided-2026-10-17). **Demo:** `demo.bat` 65 (winter),
 65s (summer), 65c (every capture), 65b (the benchmark with the style tile).
 
@@ -91,3 +91,40 @@ bullwheel, 27 ft in front) × 20 ft wide; the drive 32 ft (8 ft, 24 ft) × 22 ft
   for top terminals; the bottom terminal's raise here is derived until then.
 - **The leaned tower bases** (`tower_base_l025`–`l150`) are built in Blender and await your approval before import;
   until then a leaning mast stands on the plumb base.
+
+## 6. Rounds 3 and 4: one build path for every lift
+
+The owner's rule for round 3: whatever a player draws gets the same result with no hand tuning. So every lift is built
+by `LiftBuild` (Domain), the style tile included. Its steps, in order:
+1. **Pads:** cut-only clearance envelopes (LF-12 v3).
+2. **Placement** (`TowerPlacement`):
+   - station towers aimed at their terminals: the bottom rope leaves at 14.3°, the top's last span is level (TW-16 v3);
+   - steel in 5 ft steps, the foundation showing the rest (TW-02 v3);
+   - line towers evenly spaced, then only added or raised (TW-06 partners on either side).
+3. **The last resorts:** a terminal raised on its pier for a steep site (LF-08 v2), a flat top or a bottom too steep
+   for its trench.
+4. **The lift-line trench under the chairs** (GR-11 v2).
+5. **Clearing.**
+
+**Checks and drawing:**
+- **Clearance** is measured under each rope and across the chair. The low zones climb to 15 ft by 100 ft from the
+  bullwheel (TW-01 v2).
+- **The rope is drawn** with the empty sag (RP-08), on the side of each head its own bend calls for.
+
+**Findings:** [round 3](p3-07-findings-r3.md) (#1–#4) and [round 4](p3-07-findings-r4.md) (#1–#4).
+
+**Checks:**
+- **Tests:** 529 engine tests, including a fan of 32 real Jackson Hole lines between LF-08 terminal sites (24 within
+  every rule; the rest red for TW-06 crests on cliffy ground or small shortfalls past a low zone); EditMode 973/0;
+  PlayMode 43/43.
+- **Benchmark:** High release 8.06 ms p95 (baseline 7.94, +1.5%); Medium release 4.88 ms (+4.5%); Development High and
+  Medium totals within the baselines with 0 B garbage. Single camera spots in the 1-lap Medium Development run swing
+  15–27% between runs (noise; the release runs pass every spot).
+- **The check lift:** `-extralift x,z` builds a second lift straight up the fall line through the same path. Its ends
+  slide to the nearest spot that sits within 10 ft.
+
+**Handed to task 09** (SK29):
+- TW-05's per-sheave forces in both load cases (with the 750 lbf hold-down minimum);
+- any span rule and the support on long steep spans and crests;
+- the small shortfalls just past a low zone;
+- terminal levels in save v2 (SK14). Raised levels reach the view in memory until then.
