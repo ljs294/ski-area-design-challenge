@@ -3,6 +3,10 @@
 **Status:** approved by the owner on 2026-10-19 ("Proceed"; questions 9–11 as recommended, LT9–LT11). Revision 1 was answered on 2026-10-19 (questions 1–8, decisions
 LT1–LT8 below) and then reviewed by three adversarial reviewers (rules, engineering, player experience); their findings
 are folded in (§11). Branch `feature/p3-09-lifts` from origin/main 738d5b4, `demo.bat` 68.
+**Progress:** PR A (the engine and save v2) is ready for review: TW-04/TW-05 forces, the Monta's own ends, named reasons,
+earthwork from what's stored, save v2, EditLift, towers by hand (TW-09, TW-13), LiftClearance, the catalog matched to
+the models, the Sugarloaf acceptance fixture. The mockup for Edit and Remove lift awaits your approval before PR B.
+
 **Spec:** [Phase 3 plan](phase2-14-phase3-plan.md) row 09; rules LF, LC, RP, TW, CL-03/CL-09 and GR-11 v2 in
 [p3-02-design-rules.md](p3-02-design-rules.md) §5, with P3-07's revisions (SK13–SK30).
 
