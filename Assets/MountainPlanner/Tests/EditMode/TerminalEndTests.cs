@@ -51,11 +51,11 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void TheMontaDrivesTwoEqualiserRowsPoseAsOneTrain()
+        public void TheMontaDrivesCarrierAndLinkBarPoseAsOneTrain()
         {
-            // The Monta drive's exit rows (bb42477): per rope, two top equalisers (eq_<s>, eq_<s>2), three yokes, six rockers,
+            // The Monta drive's exit rows (bb42477): per rope, a carrier (eq_<s>) carrying a link bar (eq_<s>2), three yokes, six rockers,
             // twelve sheaves, resting for a rope in level and out at 10° under them (a hold-down row: the Monta's drive is its
-            // bottom station). Both equalisers are read as roots of one train, and the rope poses under it within the stops
+            // bottom station). The carrier is the train's one root with the link bar under it, and the rope poses under it within the stops
             // from 6° to 14° (the model thread's sweep: 5–16° left, 6–16° right).
             var prefab = Models().Find("monta_fg4_drive");
             if (prefab == null) Assert.Ignore("No Monta drive.");
@@ -69,8 +69,8 @@ namespace MountainPlanner.Tests
                     var dir = go.transform.forward;
                     var train = TrainPosing.Read(rig, side, go.transform.position, dir, Vector3.Cross(Vector3.up, dir));
                     Assert.That(train, Is.Not.Null, side);
-                    int roots = train.Tree.Nodes.Count(n => n.Parent < 0);
-                    Assert.That(roots, Is.EqualTo(2), $"{side}: two top equalisers");
+                    Assert.That(train.Tree.Nodes.Count(n => n.Parent < 0), Is.EqualTo(1), $"{side}: one carrier at the top");
+                    Assert.That(train.Nodes.Count(t => t.name.Contains("_pivot_eq_")), Is.EqualTo(2), $"{side}: the carrier and its link bar");
                     Assert.That(train.Tree.Sheaves.Count, Is.EqualTo(12), side);
                     double rho = LiftType.SheaveRadiusMetres + 0.04445 / 2;
                     foreach (double degrees in new[] { 6.0, 10.0, 14.0 })
