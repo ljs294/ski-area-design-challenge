@@ -65,6 +65,28 @@ namespace MountainPlanner.App
             Hud.SetTrails(_trailRows);
         }
 
+        /// <summary>For captures: a built trail on the map (New trail by script, then Break ground) if there's none yet.</summary>
+        internal bool TrailBuiltForCapture()
+        {
+            if (Design == null || _tools == null) return false;
+            if (Design.Document.Trails.Count > 0) return true;
+            Hud.SetToolboxTab("trails");
+            Hud.SetToolbox(true);
+            bool built = TrailReviewForCapture() && _tools.Confirm(WorkStage.Built)?.Accepted == true;
+            _tools.Close();
+            Hud.SetToolbox(false);
+            return built;
+        }
+
+        /// <summary>For captures: Edit or Remove trail armed on the last trail (built first if needed).</summary>
+        internal bool TrailPickForCapture(string toolId)
+        {
+            if (!TrailBuiltForCapture()) return false;
+            var trails = Design.Document.Trails;
+            ChooseTrailTool(toolId, trails[trails.Count - 1].Id.Value);
+            return _tools.Active is TrailTool tool && tool.Target != null;
+        }
+
         /// <summary>The card's Edit or Remove (the mockup's fedit, fremove): the Trails tab, that tool, the trail chosen.</summary>
         void ChooseTrailTool(string toolId, ulong trail)
         {
