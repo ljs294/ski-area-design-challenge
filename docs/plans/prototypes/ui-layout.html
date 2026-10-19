@@ -838,8 +838,8 @@ body.solo .frame { border-radius: 0; }
   const TOOLS = {
     lifts: [
       { id: 'new-lift', label: 'New', name: 'New lift', hint: 'anchor a terminal, then click the far end', key: 'N', glyph: 's-lift', badge: 'new', kind: 'lift' },
-      { id: 'edit-lift', label: 'Edit', name: 'Edit lift', hint: 'change a lift\'s model', key: 'E', glyph: 's-lift', badge: 'edit', kind: 'pick', target: 'lift', mode: 'edit' },
-      { id: 'remove-lift', label: 'Remove', name: 'Remove lift', hint: 'take a lift out and salvage it', key: 'X', glyph: 's-lift', badge: 'remove', kind: 'pick', target: 'lift', mode: 'remove' },
+      { id: 'edit-lift', label: 'Edit', name: 'Edit lift', hint: 'move its towers and terminals', key: 'E', glyph: 's-lift', badge: 'edit', kind: 'pick', target: 'lift', mode: 'edit' },
+      { id: 'remove-lift', label: 'Remove', name: 'Remove lift', hint: 'take a lift out, with its pads and clearing', key: 'X', glyph: 's-lift', badge: 'remove', kind: 'pick', target: 'lift', mode: 'remove' },
     ],
     trails: [
       { id: 'new-trail', label: 'New', name: 'New trail', hint: 'paint it, then set its head and tail', key: 'N', glyph: 's-trail', badge: 'new', kind: 'trail' },
@@ -863,7 +863,7 @@ body.solo .frame { border-radius: 0; }
   function chooseTool(id) {
     if (S.tool === id) { closeTool(); return; }
     // CF-01: another tool cancels the current one at once; say so, so work is never dropped silently (P3-06 Q8)
-    if (S.draft && (S.draft.kind === 'lift' ? S.draft.a : S.draft.kind === 'trail' ? S.draft.strokes.length : 0)) log(`<span>${toolById(S.tool).name} discarded</span>`, '#6f675e', true);
+    if (S.draft && (S.draft.kind === 'lift' ? (S.draft.edit ? S.draft.hist.length : S.draft.a) : S.draft.kind === 'trail' ? S.draft.strokes.length : 0)) log(`<span>${toolById(S.tool).name} discarded</span>`, '#6f675e', true);
     S.tool = id; S.sel = null; S.removeArmed = null; S.sketch = false;
     const t = toolById(id);
     if (t.kind === 'lift') S.draft = newLiftDraft();
@@ -918,6 +918,7 @@ body.solo .frame { border-radius: 0; }
     : kind === 'double' ? `<path d="M${x + 6.5} ${y + 4}l3.5 5-3.5 5-3.5-5zM${x + 12.5} ${y + 4}l3.5 5-3.5 5-3.5-5z" fill="#efe9df"/>` : `<path d="M${x + 9} ${y + 3.5}l5.5 5.5-5.5 5.5-5.5-5.5z" fill="#efe9df"/>`;
   const liftPlate = (x, y, n, planned) => planned ? `<rect x="${x + 3}" y="${y + 3}" width="12" height="12" rx="1.5" fill="none" stroke="${flag}" stroke-width="1.4"/><text x="${x + 9}" y="${y + 12.6}" text-anchor="middle" style="font:900 9.5px DotFix,Overpass,sans-serif;fill:${flag}">${n}</text>`
     : `<rect x="${x + 3}" y="${y + 3}" width="12" height="12" rx="1.5" fill="${white}"/><text x="${x + 9}" y="${y + 12.6}" text-anchor="middle" style="font:900 9.5px DotFix,Overpass,sans-serif;fill:${ink}">${n}</text>`;
+  const LINE_FADE = [1.4, 1.75];   // the zoom where built lift lines start to fade, and where they're gone
   function drawLift(l, o = {}) {
     const A = P(l.a), B = P(l.b), len = Math.hypot(B.x - A.x, B.y - A.y) || 1, ux = (B.x - A.x) / len, uy = (B.y - A.y) / len, planned = !l.built;
     let s = '';
@@ -932,6 +933,11 @@ body.solo .frame { border-radius: 0; }
     }
     // terminals as a trail map draws them: a dot at each end
     for (const p of [A, B]) s += planned ? `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.6" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>` : `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.2" fill="${liftRed}" stroke="${white}" stroke-width="1.4"/>`;
+    // Close up, a built lift's line fades out and its model speaks for it (owner, task 09 question 10: in the game under
+    // about 2,000 ft of camera distance; here over the two closest zoom steps). A lit lift (hover, pick) stays; plans and
+    // work being drawn always show; the name stays with the Labels layer.
+    const fade = planned || o.hi ? 1 : Math.max(0, Math.min(1, (LINE_FADE[1] - S.zoom) / (LINE_FADE[1] - LINE_FADE[0])));
+    s = fade <= 0 ? '' : fade < 1 ? `<g opacity="${fade.toFixed(2)}">${s}</g>` : s;
     if (S.layers.labels && !o.noTag) {
       const ltr = B.x >= A.x, P0 = ltr ? A : B, P1 = ltr ? B : A, pid = `ll-${l.id || 'draft'}`, col = planned ? flag : liftRed;
       s += `<path id="${pid}" d="M${f1(P0.x)} ${f1(P0.y)}L${f1(P1.x)} ${f1(P1.y)}" fill="none" stroke="none"/><text dy="3.6" style="font:800 10px DotFix,Overpass,sans-serif;letter-spacing:.07em;fill:${col};stroke:rgba(251,248,242,.96);stroke-width:4.5px;stroke-linejoin:round;paint-order:stroke"><textPath href="#${pid}" startOffset="50%" text-anchor="middle"><tspan style="font-weight:900">${l.n}</tspan>  ${esc(l.name.toUpperCase())}</textPath></text>`;
@@ -981,7 +987,10 @@ body.solo .frame { border-radius: 0; }
     const hiId = S.sel || S.hover || S.rowHover || S.focus;
     for (const th of S.things) if (S.layers[toolById(th.kind).layer]) s += drawThing(th);
     if (S.layers.trails) for (const tr of S.trails) s += drawTrail(tr, { hi: hiId === tr.id });
-    if (S.layers.lifts) for (const l of S.lifts) s += drawLift(l, { hi: hiId === l.id });
+    // a lift open in Edit lift is drawn by its draft instead
+    if (S.layers.lifts) for (const l of S.lifts) if (!(S.draft && S.draft.edit === l.id)) s += drawLift(l, { hi: hiId === l.id });
+    // Remove lift: the picked lift is lit (the wider white casing) and a second click on it takes it out
+    if (S.tool === 'remove-lift' && S.removeArmed && S.removeArmed === S.sel) { const l = S.lifts.find((x) => x.id === S.sel); if (l) s += readoutCard((l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2 + 6, [['Click again to remove'], ['Esc keeps it', '#cfc7bb']]); }
     const d = S.draft;
     if (d && d.kind === 'lift') s += drawLiftDraft(d);
     if (d && d.kind === 'trail') s += drawTrailDraft(d);
@@ -1214,9 +1223,10 @@ body.solo .frame { border-radius: 0; }
   // The whole line in both load cases (RP-04): spans, clearances, each tower's head, the tension range, and what fails.
   function evalLift(d, towers = towersOn(d)) {
     const T = LIFT_TYPES[d.type], g = d.g, sorted = towers.slice().sort((a, b) => a.x - b.x);
-    const pts = [{ x: 0, z: groundAt(g, 0) + RULE.termRope, term: true }];
+    // a terminal's level (SK14) lifts or lowers its rope with it
+    const pts = [{ x: 0, z: groundAt(g, 0) + RULE.termRope + (d.lvA || 0), term: true }];
     for (const t of sorted) pts.push({ x: t.x, base: t.x, z: groundAt(g, t.x) + t.h, t, lean: 0 });
-    pts.push({ x: d.len, z: groundAt(g, d.len) + RULE.termRope, term: true });
+    pts.push({ x: d.len, z: groundAt(g, d.len) + RULE.termRope + (d.lvB || 0), term: true });
     // TW-14: a leaned mast bisects the rope's angles there (taken from its neighbours), 15° at most; its head then sits
     // height × sin(lean) along the line from its base.
     for (let j = 1; j < pts.length - 1; j++) {
@@ -1301,7 +1311,7 @@ body.solo .frame { border-radius: 0; }
   // TW-13: how far the next span can reach from the tower in hand before the chairs drop below 15 ft, with a next
   // tower at this height and at 100 ft; and whether the rope will pull up within that reach (the ground ahead steepens).
   function nextReach(d, x, h) {
-    const T = LIFT_TYPES[d.type], ws = [loadPerFt(T, false), loadPerFt(T, true)], zb = groundAt(d.g, 0) + RULE.termRope;
+    const T = LIFT_TYPES[d.type], ws = [loadPerFt(T, false), loadPerFt(T, true)], zb = groundAt(d.g, 0) + RULE.termRope + (d.lvA || 0);
     const p = { x, z: groundAt(d.g, x) + h }, far = (h2) => {
       let best = 0;
       for (let x2 = x + RULE.gap; x2 <= Math.min(d.len, x + 2000); x2 += 10) {
@@ -1334,7 +1344,7 @@ body.solo .frame { border-radius: 0; }
     if (evalLift(d, placed).errors.some((e) => e.rule === 'RP-05')) return { towers: placed, ok: false, why: `Too much rise for a ${d.type}: about ${lenFt((T.rated - T.cw) / loadPerFt(T, true))} at most` };
     // Only the span being tried and the bend behind it are solved for each candidate (P7), not the whole line.
     const ws = [loadPerFt(T, false), loadPerFt(T, true)], ptAt = (x, h) => ({ x, z: groundAt(d.g, x) + h });
-    const A = { x: 0, z: groundAt(d.g, 0) + RULE.termRope, term: true }, B = { x: d.len, z: groundAt(d.g, d.len) + RULE.termRope, term: true }, zb = Math.min(A.z, B.z);
+    const A = { x: 0, z: groundAt(d.g, 0) + RULE.termRope + (d.lvA || 0), term: true }, B = { x: d.len, z: groundAt(d.g, d.len) + RULE.termRope + (d.lvB || 0), term: true }, zb = Math.min(A.z, B.z);
     const span = (p, q) => {   // null when the chairs can't clear it (TW-01, RP-01), else its geometry in both cases
       const geo = ws.map((w) => spanGeo(p, q, w, T, zb));
       if (geo[1].k * geo[1].L / 4 > 0.1) return null;
@@ -1376,6 +1386,7 @@ body.solo .frame { border-radius: 0; }
   // The flow (owner, 2026-10-16; P3-02 LF-01 to LF-11): the whole bottom terminal follows the pointer, a click anchors
   // it, a second click far away places the top terminal and fixes the line, then the towers go in automatically or by
   // hand, from the bottom up.
+  const elevFt = (ft) => (IMP() ? `${Math.round(ft).toLocaleString('en-US')} ft` : `${Math.round(ft / FT).toLocaleString('en-US')} m`);
   const lenFt = (ft) => (IMP() ? `${Math.round(ft).toLocaleString('en-US')} ft` : `${(ft / FT).toFixed(ft / FT < 20 ? 1 : 0)} m`);
   const forceTxt = (lbf) => (IMP() ? `${Math.round(lbf).toLocaleString('en-US')} lbf` : `${(lbf * 0.00444822).toFixed(1)} kN`);
   const snapFt = (s) => Math.round(s / RULE.grid) * RULE.grid;
@@ -1388,7 +1399,7 @@ body.solo .frame { border-radius: 0; }
   // The last evaluation and band, kept until the towers, the line, the type or the capacity change (TW-09: recomputed
   // only when something changes).
   let evMemo = { key: '', ev: null }, bandMemo = { key: '', band: [] };
-  const liftSig = (d) => `${d.type}|${d.stance}|${d.len}|${d.a}|${d.towers.map((t) => `${t.x}:${t.h}`).join(',')}`;
+  const liftSig = (d) => `${d.type}|${d.stance}|${d.len}|${d.a}|${d.dir}|${d.lvA || 0}:${d.lvB || 0}|${d.towers.map((t) => `${t.x}:${t.h}`).join(',')}`;
   function liftEval(d) { const k = liftSig(d); if (evMemo.key !== k) evMemo = { key: k, ev: evalLift(d) }; return evMemo.ev; }
   const lastTower = (d) => Math.max(0, ...towersOn(d).map((t) => t.x));
   function liftBand(d, h, skip) { const k = `${liftSig(d)}|${h}|${skip ? skip.x : ''}`; if (bandMemo.key !== k) bandMemo = { key: k, band: standBand(d, h, skip, skip ? RULE.gap : lastTower(d) + RULE.gap) }; return bandMemo.band; }
@@ -1427,6 +1438,7 @@ body.solo .frame { border-radius: 0; }
   // The pointer near the line: over a placed tower, or the tower in hand at the nearest 5 ft.
   function handAt(d, p) {
     if (!p || !d.g) return null;
+    if (d.edit) { const end = nearEnd(d, p); if (end) return { term: end }; }   // Edit lift: a terminal under the pointer
     const rx = p[0] - d.a[0], ry = p[1] - d.a[1], along = rx * d.dir[0] + ry * d.dir[1], perp = Math.abs(rx * d.dir[1] - ry * d.dir[0]);
     if (perp > 24 / S.zoom || along < -6 || along * FT_PX > d.len + 60) return null;
     const s = along * FT_PX, hit = towersOn(d).find((t) => Math.abs(t.x - s) / FT_PX < 6 / S.zoom);
@@ -1435,6 +1447,109 @@ body.solo .frame { border-radius: 0; }
     const x = Math.max(lastTower(d) + RULE.gap, Math.min(d.len - RULE.gap, snapFt(s)));
     if (x > d.len - RULE.gap) return { full: true };
     return { x, chk: towerCheck(d, x, d.inH, null, liftEval(d)), next: liftReach(d, x, d.inH) };
+  }
+  // The tower in hand moved by the keys (← / →, LF-09): it stays put when the pointer leaves the line.
+  function handAtX(d, x) {
+    x = Math.max(lastTower(d) + RULE.gap, Math.min(d.len - RULE.gap, snapFt(x)));
+    if (x > d.len - RULE.gap) return { full: true, key: true };
+    return { x, key: true, chk: towerCheck(d, x, d.inH, null, liftEval(d)), next: liftReach(d, x, d.inH) };
+  }
+  // Enter or a click: place the tower in hand if it fits; by the keys the next one comes in as far on as it can reach
+  // (TW-13's "next tower within").
+  function placeHand(d) {
+    const hp = d.hand;
+    if (!hp || !hp.chk) return;
+    if (!hp.chk.ok) { log(`<span>${esc(hp.chk.why)}</span>`, '#d4513f'); return; }
+    d.towers.push({ x: hp.x, h: d.inH, hand: true });
+    d.hand = hp.key ? handAtX(d, hp.x + Math.max(RULE.gap, hp.next && hp.next.here || 0)) : handAt(d, mouse);
+  }
+  // Tab / Shift+Tab: the next or previous part, from the bottom up (Edit lift includes the two terminals).
+  function cycleSel(d, step) {
+    const parts = towersOn(d).slice().sort((p, q) => p.x - q.x).map((t) => ({ t }));
+    if (d.edit) { parts.unshift({ end: 'a' }); parts.push({ end: 'b' }); }
+    if (!parts.length) return;
+    const i = parts.findIndex((p) => (p.end ? p.end === d.selT : p.t === d.sel)), n = parts.length;
+    const nx = parts[i < 0 ? (step > 0 ? 0 : n - 1) : (i + step + n) % n];
+    d.sel = nx.t || null; d.selT = nx.end || null; d.hand = null;
+  }
+
+  // ----- Edit lift (owner, task 09, LT2): a built lift opened as a draft inside the tool -----
+  // Its towers and terminals are selectable; every change is a step of the tool's own undo, and Apply commits all of it
+  // as one command (one Ctrl+Z later undoes the whole edit). Cancel drops it.
+  const specOf = (d) => ({ a: d.a.slice(), dir: d.dir.slice(), len: d.len, reach: d.reach, type: d.type, mode: d.mode, stance: d.stance, lvA: d.lvA || 0, lvB: d.lvB || 0, towers: towersOn(d).map((t) => ({ ...t })) });
+  function editDraft(l) {
+    const d = newLiftDraft();
+    Object.assign(d, { edit: l.id, n: l.n, name: l.name, hist: [], fut: [], selT: null, lvA: 0, lvB: 0 });
+    const sp = l.spec;
+    if (sp) { Object.assign(d, { a: sp.a.slice(), dir: sp.dir.slice(), len: sp.len, reach: sp.reach, type: sp.type, mode: sp.mode, stance: sp.stance, lvA: sp.lvA, lvB: sp.lvB, towers: sp.towers.map((t) => ({ ...t })) }); d.g = rayProfile(d.a, d.dir, d.reach + 20); }
+    else { d.type = LIFT_TYPES[l.model] ? l.model : 'Sessellift FGQ-4'; d.mode = 'auto'; d.a = l.a.slice(); fixLine(d, l.b); }   // a lift from before the catalog
+    d.step = 'edit';
+    return d;
+  }
+  const editSnapOf = (d) => ({ a: d.a.slice(), dir: d.dir.slice(), len: d.len, reach: d.reach, g: d.g, towers: d.towers.map((t) => ({ ...t })), type: d.type, mode: d.mode, stance: d.stance, lvA: d.lvA, lvB: d.lvB, dropAsk: d.dropAsk || 0 });
+  function editSnap(d) { if (!d.edit) return; d.hist.push(editSnapOf(d)); if (d.hist.length > 100) d.hist.shift(); d.fut = []; }
+  function editUndo(d, redo) {
+    const from = redo ? d.fut : d.hist, to = redo ? d.hist : d.fut;
+    if (!from.length) return;
+    to.push(editSnapOf(d));
+    const s = from.pop();
+    Object.assign(d, s, { a: s.a.slice(), dir: s.dir.slice(), towers: s.towers.map((t) => ({ ...t })) });
+    d.sel = null; d.hand = null; d.armAuto = false; d.armReplace = false; d.armCancel = false; d.termBad = null;
+  }
+  const endPt = (d, end) => (end === 'a' ? d.a : rayPt(d, d.len));
+  function nearEnd(d, p) {
+    for (const end of ['a', 'b']) { const q = endPt(d, end); if (Math.hypot(p[0] - q[0], p[1] - q[1]) < 11 / S.zoom) return end; }
+    return null;
+  }
+  // Drag a terminal anywhere: the line re-aims through the other one. Where it can't stand, the ghost turns red with
+  // the rule's reason and the line keeps its last good place. Automatic re-places the towers (at most ten times a
+  // second while dragging); By hand keeps each tower's distance from the bottom terminal.
+  let editAutoLast = 0, editAutoT = 0;
+  function moveEnd(d, end, p) {
+    const A = end === 'a' ? p : d.a, B = end === 'b' ? p : rayPt(d, d.len);
+    const dx = B[0] - A[0], dy = B[1] - A[1], px = Math.hypot(dx, dy) || 1, dir = [dx / px, dy / px], len = snapFt(px * FT_PX), ang = Math.atan2(dy, dx);
+    let bad = null;
+    if (!onTerrain(p)) bad = 'Off the mountain: terminals stand inside the area';
+    else if (len < RULE.minLen) bad = `Too short: terminals stand ${lenFt(RULE.minLen)} apart at least`;
+    else if (elevAt(B) <= elevAt(A)) bad = 'The top terminal must be higher';
+    else { const st = end === 'a' ? terminalSite(A, ang) : terminalSite(B, ang + Math.PI); if (!st.ok) bad = st.why; }
+    const reach = bad ? 0 : snapFt(rayReach(A, dir));
+    if (!bad && reach < len) bad = 'The line leaves the mountain on the way';
+    d.termBad = bad ? { end, why: bad, p, ang: end === 'a' ? ang : ang + Math.PI } : null;
+    if (bad) return;
+    d.a = A.slice(); d.dir = dir; d.reach = reach; d.len = len; d.g = rayProfile(d.a, dir, reach + 20);
+    if (d.mode !== 'auto') return;
+    const now = performance.now();
+    clearTimeout(editAutoT);
+    if (now - editAutoLast > 100) { editAutoLast = now; placeAuto(d); }
+    else editAutoT = setTimeout(() => { if (S.draft === d) { placeAuto(d); refreshLift(); } }, 110);
+  }
+  function endMove(d, moved) {
+    d.dragEnd = null;
+    if (d.termBad) { log(`<span>${esc(d.termBad.why)}</span>`, '#d4513f'); d.termBad = null; }
+    if (!moved) return;
+    if (d.mode === 'auto') { clearTimeout(editAutoT); placeAuto(d); }
+    else d.dropAsk = d.towers.length - towersOn(d).length;   // towers past the new top: one line asks (LF-05)
+  }
+  function applyEdit() {
+    const d = S.draft, l = S.lifts.find((x) => x.id === d.edit);
+    if (!l) return;
+    S.liftUndo.push({ kind: 'edit', id: l.id, was: JSON.parse(JSON.stringify(l)) });
+    Object.assign(l, { a: d.a.slice(), b: rayPt(d, d.len), model: d.type, cap: liftCap(LIFT_TYPES[d.type]), towers: towersOn(d).map((t) => rayPt(d, t.x)), spec: specOf(d) });
+    S.saveDue = true;
+    log(`<span><b>${l.n} ${esc(l.name)}</b>: ${d.hist.length} change${d.hist.length > 1 ? 's' : ''} applied <span style="color:var(--soft)">· Ctrl+Z undoes the edit</span></span>`, '#1a6b3c');
+    S.draft = null; S.sel = null;   // the tool stays out, to pick the next lift (P3-06)
+    render();
+  }
+  // Ctrl+Z outside a tool: the last applied edit or removal comes back whole (the game's DesignHistory does this for
+  // every command; the mockup keeps only the lifts').
+  function liftUndoLast() {
+    const u = S.liftUndo.pop();
+    if (!u) return false;
+    if (u.kind === 'edit') { const l = S.lifts.find((x) => x.id === u.id); if (l) { for (const k of Object.keys(l)) delete l[k]; Object.assign(l, u.was); } log(`<span>Undone: the edit of <b>${esc(u.was.name)}</b></span>`, '#6f675e'); }
+    else { S.lifts.splice(Math.min(u.i, S.lifts.length), 0, u.was); if (u.was.built) S.liftsTotal++; log(`<span><b>${esc(u.was.name)}</b> is back</span>`, '#6f675e'); }
+    S.saveDue = true; render();
+    return true;
   }
   const liftCost = (d, ev) => { const T = LIFT_TYPES[d.type], slope = Math.hypot(d.len, ev.zt - ev.zb); return T.term + slope * T.perFt + towersOn(d).reduce((a, t) => a + T.tower + t.h * 650, 0); };
   const headWord = (h) => `${HEADS[h.code][0]} · ${HEADS[h.code][1]}`;
@@ -1486,7 +1601,8 @@ body.solo .frame { border-radius: 0; }
     const ev = liftEval(d), A = d.a, B = rayPt(d, d.len), sel = d.sel, hp = d.hand;
     const band = hp && hp.chk ? liftBand(d, d.inH, null) : sel ? liftBand(d, sel.h, sel) : [];
     for (const [a, b] of band) s += segLine(d, a, Math.max(b, a + 2), OKC, 9, 'opacity=".55"');
-    s += `<line x1="${A[0]}" y1="${A[1]}" x2="${f1(B[0])}" y2="${f1(B[1])}" stroke="${white}" stroke-width="4.6" opacity=".8"/><line x1="${A[0]}" y1="${A[1]}" x2="${f1(B[0])}" y2="${f1(B[1])}" stroke="${flag}" stroke-width="2.4"/>`;
+    const lineC = d.edit ? liftRed : flag;   // a built lift being edited keeps its red
+    s += `<line x1="${A[0]}" y1="${A[1]}" x2="${f1(B[0])}" y2="${f1(B[1])}" stroke="${white}" stroke-width="4.6" opacity=".8"/><line x1="${A[0]}" y1="${A[1]}" x2="${f1(B[0])}" y2="${f1(B[1])}" stroke="${lineC}" stroke-width="2.4"/>`;
     for (const sp of ev.spans) {
       if (sp.open) s += segLine(d, sp.p.x, sp.q.x, graphite, 3.4, 'stroke-dasharray="2 5" opacity=".9"');
       for (const [a, b] of sp.dips) s += segLine(d, a, Math.max(b, a + 3), BADC, 3.4);
@@ -1496,16 +1612,27 @@ body.solo .frame { border-radius: 0; }
       s += towerTick(d, o.x, o.head.ok ? white : BADC, 2.6, 6);
     }
     for (const t of d.towers) if (!towersOn(d).includes(t)) s += towerTick(d, t.x, '#8f877c', 2, 5);   // past a top terminal slid back (LF-05)
-    for (const p of [A, B]) s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="5.2" fill="${flag}" stroke="${white}" stroke-width="1.8"/>`;
+    if (d.edit) {   // Edit lift: both terminals drawn whole and selectable; the one being dragged shows its ghost where the pointer is
+      const ang = Math.atan2(d.dir[1], d.dir[0]), hovEnd = hp && hp.term;
+      for (const [end, p, a] of [['a', A, ang], ['b', B, ang + Math.PI]]) {
+        if (d.selT === end || hovEnd === end) s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="11" fill="none" stroke="${selC}" stroke-width="${d.selT === end ? 2.4 : 1.4}"/>`;
+        s += terminalGlyph(p, a, d.selT === end ? selC : white);
+      }
+      const tb = d.termBad;
+      if (tb) s += terminalGlyph(tb.p, tb.ang, BADC, 0.92) + readoutCard(tb.p[0], tb.p[1] + 14, [[tb.why, BADC], ['The line stays where it last could', '#cfc7bb']]);
+      else if (d.dragEnd) { const rise = ev.zt - ev.zb; s += dimension(A, B, `${lenFt(d.len)} · +${lenFt(rise)} · ${Math.round(rise / d.len * 100)}%`); }
+    } else for (const p of [A, B]) s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="5.2" fill="${flag}" stroke="${white}" stroke-width="1.8"/>`;
     if (ev.lowest && ev.lowest.min < 60) { const p = rayPt(d, ev.lowest.at), bad = ev.lowest.min < RULE.clear; s += `<g style="pointer-events:none"><path d="M${f1(p[0])} ${f1(p[1] + 3)}l-4 7h8z" fill="${bad ? BADC : white}" stroke="${graphite}" stroke-width="1"/></g>`; }
-    if (S.layers.labels) { const tw = d.name.length * 7.4 + 28, up = d.dir[0] > 0, tx = Math.max(6, Math.min(W - tw - 6, up ? A[0] - tw - 10 : A[0] + 12)); s += tagBox(tx, A[1] - 9, liftPlate(tx, A[1] - 9, d.n, true), d.name, flag, '3 2'); }
+    // the name tag beside the bottom terminal (in Edit lift under it, clear of its house)
+    if (S.layers.labels) { const tw = d.name.length * 7.4 + 28, up = d.dir[0] > 0, gap = 10, tx = d.edit ? Math.max(6, Math.min(W - tw - 6, A[0] - tw / 2)) : Math.max(6, Math.min(W - tw - 6, up ? A[0] - tw - gap : A[0] + gap + 2)); s += d.edit ? tagBox(tx, A[1] + 16, liftPlate(tx, A[1] + 16, d.n, false), d.name) : tagBox(tx, A[1] - 9, liftPlate(tx, A[1] - 9, d.n, true), d.name, flag, '3 2'); }
     const hov = hp && hp.hover && ev.towers.find((t) => t.ref === hp.hover);
     if (hov) { const o = hov, p = rayPt(d, o.x); s += towerTick(d, o.x, selC, 3.4, 8) + readoutCard(p[0], p[1] - 22, [[`Tower ${o.no} · ${lenFt(o.h)} · ${HEADS[o.head.code][0]}`], ['Click to select, drag to slide', '#cfc7bb']]); }
-    else if (hp && hp.full && mouse) s += readoutCard(mouse[0], mouse[1] - 30, [['No room for another tower'], ['Review, or slide the top terminal up', '#cfc7bb']]);
-    else if (hp && hp.chk && mouse) {
+    else if (hp && hp.term && !d.dragEnd) { const p = endPt(d, hp.term); s += readoutCard(p[0], p[1] - 34, [[`${hp.term === 'a' ? 'Bottom' : 'Top'} terminal · level ${elevFt(groundAt(d.g, hp.term === 'a' ? 0 : d.len) + (hp.term === 'a' ? d.lvA : d.lvB))}`], ['Click to select, drag to move it anywhere', '#cfc7bb']]); }
+    else if (hp && hp.full && (mouse || hp.key)) s += readoutCard((mouse || B)[0], (mouse || B)[1] - 30, [['No room for another tower'], ['Review, or slide the top terminal up', '#cfc7bb']]);
+    else if (hp && hp.chk && (mouse || hp.key)) {
       const p = rayPt(d, hp.x), ok = hp.chk.ok, no = hp.chk.me ? hp.chk.me.no : '';
       s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="9" fill="none" stroke="${ok ? OKC : BADC}" stroke-width="1.6"/>` + towerTick(d, hp.x, ok ? OKC : BADC, 3.6, 8);
-      s += readoutCard(p[0], p[1] - 30, [[`Tower ${no} · ${lenFt(d.inH)}${ok ? ` · ${HEADS[hp.chk.me.head.code][0]}` : ''}`], ok ? ['Click to place it', OKC] : [hp.chk.why, BADC], ['Page Up / Page Down: ±5 ft', '#a39b90']]);
+      s += readoutCard(p[0], p[1] - 30, [[`Tower ${no} · ${lenFt(d.inH)}${ok ? ` · ${HEADS[hp.chk.me.head.code][0]}` : ''}`], ok ? [hp.key ? 'Enter places it' : 'Click or Enter places it', OKC] : [hp.chk.why, BADC], [`← / → slide · Page Up / Page Down ±${lenFt(RULE.hStep)}`, '#a39b90']]);
     }
     return s;
   }
@@ -1545,7 +1672,13 @@ body.solo .frame { border-radius: 0; }
       g += c === 'd8' ? dot(2.6) : c === 'c8' ? dot(-2.6) + dot(2.6) : dot(-2.6) + (c === 'b8' ? `<circle cx="${f1(x)}" cy="${f1(yt - 4.4)}" r="1.25" style="fill:${col}"/>` : '');
       g += `<text x="${f1(x)}" y="${f1(Math.max(9, yt - 8))}" text-anchor="middle" style="font:600 9px 'Overpass Mono';fill:${o.head.ok ? 'var(--muted)' : 'var(--neg)'}">${IMP() ? o.h : (o.h / FT).toFixed(1)}</text>`;
     }
-    for (const p of [ev.pts[0], ev.pts[ev.pts.length - 1]]) g += `<rect x="${f1(X(p.x) - 4)}" y="${f1(Y(p.z) - 3)}" width="8" height="6" rx="1" style="fill:var(--strong)"/>`;
+    [ev.pts[0], ev.pts[ev.pts.length - 1]].forEach((p, i) => {
+      // Edit lift: the selected terminal gets the selected tower's chip; a raised one stands on its pier (SK14)
+      const end = i ? 'b' : 'a', lv = L === d ? (i ? d.lvB : d.lvA) || 0 : 0;
+      if (L === d && d.selT === end) g += `<rect x="${f1(X(p.x) - 7)}" y="2" width="14" height="118" style="fill:var(--chip)"/>`;
+      if (lv > 0) g += `<line x1="${f1(X(p.x))}" y1="${f1(Y(groundAt(L.g, p.x)))}" x2="${f1(X(p.x))}" y2="${f1(Y(p.z - RULE.termRope))}" stroke-width="2.4" style="stroke:var(--text)"/>`;
+      g += `<rect x="${f1(X(p.x) - 4)}" y="${f1(Y(p.z) - 3)}" width="8" height="6" rx="1" style="fill:var(--strong)"/>`;
+    });
     if (L === d && d.hand && d.hand.chk) { const x = X(d.hand.x), ok = d.hand.chk.ok; g += `<line x1="${f1(x)}" y1="2" x2="${f1(x)}" y2="120" stroke-width="1.4" stroke-dasharray="3 2" style="stroke:${ok ? 'var(--soft)' : 'var(--neg)'}"/><line x1="${f1(x)}" y1="${f1(Y(groundAt(d.g, d.hand.x)))}" x2="${f1(x)}" y2="${f1(Y(groundAt(d.g, d.hand.x) + d.inH))}" stroke-width="2.6" style="stroke:${ok ? 'var(--strong)' : 'var(--neg)'}"/>`; }
     // the clearance track (TW-01): the chairs' bottom over the ground, 0 to 60 ft, against the dashed 15 ft line
     const t0 = 82, t1 = 118, CY = (c) => t1 - Math.max(0, Math.min(60, c)) / 60 * (t1 - t0);
@@ -1583,73 +1716,122 @@ body.solo .frame { border-radius: 0; }
 
   // ----- the lift menu (LF-01): type, capacity and towers, the steps, then what the step needs -----
   function loadGauge(o) {
-    if (o.head.pending) return `<div class="ldet" style="padding-top:2px">The head is chosen once the span past it has its towers (TW-04).</div>`;
-    const w = 316, cx = w / 2, half = cx - 12, X = (f) => cx + Math.max(-1.1, Math.min(1.1, f)) * half, n = o.head.n, seat = RULE.groupMin / n / RULE.sheaveMax, c = o.head.code;
+    // The tower in hand at the end of the strung line (TW-11): its loads as the open span stands now, against the head
+    // they'd give; the head itself is settled once the span past it has its towers (TW-04).
+    const pend = o.head.pending, head = pend ? headFor(o.L, o.B) : o.head;
+    const w = 316, cx = w / 2, half = cx - 12, X = (f) => cx + Math.max(-1.1, Math.min(1.1, f)) * half, n = head.n, seat = RULE.groupMin / n / RULE.sheaveMax, c = head.code;
     const per = o.L.map((v) => v / n / RULE.sheaveMax);
     let g = `<rect x="${f1(X(-1))}" y="15" width="${f1(2 * half)}" height="9" style="fill:var(--chart-bg);stroke:var(--row)"/>`;
     if (c !== 'd8') g += `<rect x="${f1(X(seat))}" y="15" width="${f1(X(1) - X(seat))}" height="9" style="fill:var(--chart-fill)"/>`;
     if (c === 'd8' || c === 'c8') g += `<rect x="${f1(X(-1))}" y="15" width="${f1(X(-seat) - X(-1))}" height="9" style="fill:var(--chart-fill)"/>`;
     g += `<rect x="${f1(X(-seat))}" y="15" width="${f1(X(seat) - X(-seat))}" height="9" style="fill:var(--hair2)" opacity=".7"/><line x1="${f1(cx)}" y1="12" x2="${f1(cx)}" y2="27" style="stroke:var(--soft)"/>`;
     for (const f of [-1, 1]) g += `<line x1="${f1(X(f))}" y1="11" x2="${f1(X(f))}" y2="28" stroke-width="1.6" style="stroke:var(--strong)"/>`;
-    ['empty', 'full'].forEach((lab, i) => { const x = X(per[i]), bad = Math.abs(per[i]) > 1; g += `<rect x="${f1(x - 1.5)}" y="11" width="3" height="17" style="fill:${bad ? 'var(--neg)' : 'var(--strong)'}"/><text x="${f1(x)}" y="${i ? 37 : 8}" text-anchor="middle" style="font:700 9.5px 'DotFix','Overpass';fill:${bad ? 'var(--neg)' : 'var(--muted)'}">${lab}</text>`; });
+    ['empty', 'full'].forEach((lab, i) => { const x = X(per[i]), bad = Math.abs(per[i]) > 1; g += `<rect x="${f1(x - 1.5)}" y="11" width="3" height="17" style="fill:${bad ? 'var(--neg)' : 'var(--strong)'}"/><text x="${f1(Math.max(16, Math.min(w - 16, x)))}" y="${i ? 37 : 8}" text-anchor="middle" style="font:700 9.5px 'DotFix','Overpass';fill:${bad ? 'var(--neg)' : 'var(--muted)'}">${lab}</text>`; });
     g += `<text x="${f1(X(-1))}" y="49" style="font:600 10px 'DotFix','Overpass';fill:var(--soft)">◂ pulls up</text><text x="${f1(X(1))}" y="49" text-anchor="end" style="font:600 10px 'DotFix','Overpass';fill:var(--soft)">presses down ▸</text><text x="${f1(cx)}" y="49" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">0 · ends ±${forceTxt(RULE.sheaveMax)}</text>`;
     const word = (v) => (v >= 0 ? 'presses' : 'pulls'), pct = (v) => Math.round(Math.abs(v) / n / RULE.sheaveMax * 100);
     return `<div class="lgauge" title="TW-04, TW-05, TW-11, RP-04: the load on each sheave in the two load cases (line empty, uphill side full), as % of ${forceTxt(RULE.sheaveMax)}. The shaded side is what this head carries; the grey middle is a group load under ${forceTxt(RULE.groupMin)} (LC-02), where the rope needs hold-down sheaves too.">
       <svg width="${w}" height="53" style="display:block">${g}</svg></div>
-      <div class="ldet">Full: ${word(o.L[1])} ${forceTxt(Math.abs(o.L[1]) / n)} a sheave (${pct(o.L[1])}%) · empty: ${forceTxt(Math.abs(o.L[0]) / n)} (${pct(o.L[0])}%) · bend ${Math.abs(o.B[1]).toFixed(1)}°${o.lean ? ` · leans ${Math.abs(o.lean).toFixed(0)}°` : o.side > 1 ? ` · pushes the mast sideways ${forceTxt(o.side)}` : ''}</div>`;
+      <div class="ldet">${pend ? `For now a ${HEADS[c][0].toLowerCase()}, until the span past it is strung. Full ${pct(o.L[1])}% · empty ${pct(o.L[0])}% · bend ${Math.abs(o.B[1]).toFixed(1)}°` : `Full: ${word(o.L[1])} ${forceTxt(Math.abs(o.L[1]) / n)} a sheave (${pct(o.L[1])}%) · empty: ${forceTxt(Math.abs(o.L[0]) / n)} (${pct(o.L[0])}%) · bend ${Math.abs(o.B[1]).toFixed(1)}°${o.lean ? ` · leans ${Math.abs(o.lean).toFixed(0)}°` : o.side > 1 ? ` · pushes the mast sideways ${forceTxt(o.side)}` : ''}`}</div>`;
   }
+  // The keys line (LF-09, every key rebindable): small key caps, then what they do.
+  const kb = (...ks) => ks.map((x) => `<span class="kbd">${x}</span>`).join('');
   function towerCard(d, ev) {
     const stepper = (h, lo, hi) => `<div class="step lstep"><span class="sb${lo ? ' dis' : ''}" data-act="${lo ? '' : 'lh'}" data-v="-5" title="Page Down">‹</span><b>${lenFt(h)}</b><span class="sb${hi ? ' dis' : ''}" data-act="${hi ? '' : 'lh'}" data-v="5" title="Page Up">›</span></div>`;
     if (d.sel) {
       const o = ev.towers.find((t) => t.ref === d.sel);
-      return `<div class="sub ltop"><span>Tower ${o.no}</span>${stepper(o.h, o.h <= RULE.hMin, o.h >= RULE.hMax)}</div>
+      if (!o) return `<div class="lstat" style="color:var(--soft)">This tower stands past the top terminal.</div>`;
+      return `<div class="sub ltop"><span>Tower ${o.no}${d.edit ? ` <span style="color:var(--soft);font-weight:600">· ${lenFt(o.x)} up the line</span>` : ''}</span>${stepper(o.h, o.h <= RULE.hMin, o.h >= RULE.hMax)}</div>
         <div class="lstat ${o.head.ok ? 'ok' : 'bad'}" title="TW-04: the head follows what the rope does; kit ${o.head.code}">${o.head.ok ? `✓ ${headWord(o.head)}` : `✕ ${esc(o.head.why)}`}</div>${loadGauge(o)}
-        <div class="lkeys"><span><span class="kbd">Page Up</span><span class="kbd">Page Down</span> height</span><span>drag to slide</span><span><span class="kbd">Delete</span> removes it</span></div>`;
+        <div class="lkeys"><span>${kb('←', '→')} slide ${lenFt(5)}, Shift ${lenFt(50)}</span><span>${kb('Page Up', 'Page Down')} height</span><span>${kb('Tab')} next</span><span>${kb('Delete')} removes it</span></div>`;
     }
     const hp = d.hand, chk = hp && hp.chk;
-    let status = !chk ? `<div class="lstat" style="color:var(--soft)">${hp && hp.full ? 'No room for another tower below the top terminal.' : 'Move the pointer onto the line, above the last tower.'}</div>` : '';
+    let status = !chk ? `<div class="lstat" style="color:var(--soft)">${hp && hp.full ? 'No room for another tower below the top terminal.' : 'Move the pointer onto the line above the last tower, or press → to bring the next tower in.'}</div>` : '';
     if (chk) {
       // TW-13: status, head and load, the clearance behind it, and how far the next tower can go
       const me = chk.me, behind = me && chk.ev.spans[chk.k], pct = (v) => Math.round(Math.abs(v) / me.head.n / RULE.sheaveMax * 100), nx = hp.next;
       const row = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`;
       status = `<dl class="kv ltw">${row('Status', chk.ok ? '<b style="color:var(--pos)">OK</b>' : `<b style="color:var(--neg)">${esc(chk.why)}</b>`, chk.ok ? 'TW-13' : chk.rule)}
-        ${me ? row('Head and load', me.head.pending ? 'pending' : `${HEADS[me.head.code][0]} · ${pct(me.L[0])}% empty · ${pct(me.L[1])}% full`, `TW-04, TW-11: kit ${me.head.code}`) : ''}
+        ${me ? (() => { const hh = me.head.pending ? headFor(me.L, me.B) : me.head, pc = (v) => Math.round(Math.abs(v) / hh.n / RULE.sheaveMax * 100); return row('Head and load', `${HEADS[hh.code][0]}${me.head.pending ? ' for now' : ''} · ${pc(me.L[0])}% empty · ${pc(me.L[1])}% full`, `TW-04, TW-11: kit ${hh.code}`); })() : ''}
         ${behind && behind.min < Infinity ? row('Clearance', `lowest ${lenFt(Math.max(0, Math.floor(behind.min)))} behind it`, 'TW-01') : ''}
         ${nx ? row('Next tower', nx.here ? `within ${lenFt(nx.here)}, or ${lenFt(nx.tall)} with a ${lenFt(RULE.hMax)} tower` : `none reaches at ${lenFt(d.inH)}; ${lenFt(nx.tall)} with a ${lenFt(RULE.hMax)} tower`, 'TW-13') : ''}</dl>
         ${nx && nx.holdAhead ? '<div class="lmsg warn" title="TW-06, TW-13">! Hold-downs ahead: the ground steepens within that reach</div>' : ''}`;
     }
     return `<div class="sub ltop"><span>Tower in hand${chk && chk.me ? ` <span style="color:var(--soft);font-weight:600">(${chk.me.no})</span>` : ''}</span>${stepper(d.inH, d.inH <= RULE.hMin, d.inH >= RULE.hMax)}</div>${status}
       ${chk && chk.me ? loadGauge(chk.me) : ''}
-      <div class="lkeys"><span><span class="kbd">Page Up</span><span class="kbd">Page Down</span> ±${lenFt(RULE.hStep)}</span><span>click a tower to select it</span></div>`;
+      <div class="lkeys"><span>${kb('←', '→')} slide</span><span>${kb('Page Up', 'Page Down')} ±${lenFt(RULE.hStep)}</span><span>${kb('Enter')} place</span><span>${kb('Tab')} select placed</span><span>${kb('Delete')} remove</span></div>`;
+  }
+  // Edit lift: the selected terminal. Its level (SK14) steps ±1 ft; it moves by dragging, anywhere.
+  function terminalCard(d, ev) {
+    const end = d.selT, bottom = end === 'a', x = bottom ? 0 : d.len, lv = (bottom ? d.lvA : d.lvB) || 0, ground = groundAt(d.g, x);
+    const ang = Math.atan2(d.dir[1], d.dir[0]) + (bottom ? 0 : Math.PI), site = terminalSite(endPt(d, end), ang);
+    const drive = (d.type === 'Monta FG4') === bottom;   // the Sessellift drives at the top, the Monta FG4 at the bottom
+    const off = lv > 0 ? `+${lenFt(lv)}` : lv < 0 ? `−${lenFt(-lv)}` : lenFt(0), how = lv > 0 ? `+${lenFt(lv)} raised` : lv < 0 ? `${lenFt(-lv)} cut in` : 'on the ground';
+    const lo = lv <= -RULE.site, hi = lv >= 30;
+    const step = `<div class="step lstep" title="SK14: the terminal's level, ±${lenFt(1)}"><span class="sb${lo ? ' dis' : ''}" data-act="${lo ? '' : 'llevel'}" data-v="-1" title="Page Down">‹</span><b>${off}</b><span class="sb${hi ? ' dis' : ''}" data-act="${hi ? '' : 'llevel'}" data-v="1" title="Page Up">›</span></div>`;
+    return `<div class="sub ltop"><span>${bottom ? 'Bottom' : 'Top'} terminal <span style="color:var(--soft);font-weight:600">· ${drive ? 'drive' : 'return'}</span></span>${step}</div>
+      <div class="lnote" style="padding-top:4px">${bottom ? 'Bottom' : 'Top'} terminal level <b>${elevFt(ground + lv)}</b> (${how})</div>
+      <div class="lstat ${site.ok ? 'ok' : 'bad'}" title="LF-08 v2, LF-12 v3">${site.ok ? `✓ Sits on its pad: the ground varies ${lenFt(Math.round(site.vary))} under it` : `✕ ${esc(site.why)}`}</div>
+      <div class="ldet">${esc(d.type)}'s ${drive ? 'drive' : 'return'} end. Drag it anywhere: the line re-aims through the other terminal${d.mode === 'auto' ? ' and the towers re-place' : ', and the towers keep their distance from the bottom'}.</div>
+      <div class="lkeys"><span>${kb('Page Up', 'Page Down')} level ±${lenFt(1)}</span><span>drag to move it</span><span>${kb('Tab')} next</span><span>${kb('Esc')} back</span></div>`;
+  }
+  // The line's figures (LF-06): the review, and Edit lift with nothing selected.
+  function liftFacts(d, ev, net, brief) {   // brief: Edit lift, whose window shows the capacity already
+    const T = LIFT_TYPES[d.type], slope = Math.hypot(d.len, ev.zt - ev.zb), rise = ev.zt - ev.zb, hs = ev.towers.map((o) => o.h);
+    const counts = {}; for (const o of ev.towers) { const k = HEADS[o.head.code][0].toLowerCase(); counts[k] = (counts[k] || 0) + 1; }
+    const kv = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`;
+    return `<dl class="kv" style="padding-top:6px">${kv('Length', `<b>${lenFt(slope)}</b> slope · ${lenFt(d.len)} across`, 'LF-06')}${kv('Rise', `<b>${lenFt(rise)}</b> · ${Math.round(rise / d.len * 100)}%`)}${kv('Ride', `${fmtTime(slope / RULE.fpm * 60)} at ${speedTxt(RULE.fpm / 196.85)}`, 'LC-04: slope length over 450 ft/min')}${brief ? '' : kv('Capacity', `<b>${liftCap(T).toLocaleString('en-US')}</b> an hour`, 'LC-03')}
+        ${kv('Towers', ev.towers.length ? `<b>${ev.towers.length}</b> · ${Math.min(...hs) === Math.max(...hs) ? `all ${lenFt(hs[0])}` : `${lenFt(Math.min(...hs))}–${lenFt(Math.max(...hs))}`}` : dash, 'TW-02: 25–100 ft in 5 ft steps')}${ev.towers.length ? kv('Heads', Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(' · '), 'TW-04') : ''}
+        ${kv('Lowest chairs', ev.lowest ? `<b style="color:${ev.lowest.min < RULE.clear ? 'var(--neg)' : ''}">${lenFt(Math.max(0, Math.floor(ev.lowest.min)))}</b> over the ground` : dash, 'TW-01: 15 ft at least, outside the load and unload zones')}
+        ${kv('Tension', `<b>${Math.round(ev.tension.lo / ev.tension.rated * 100)}–${Math.round(ev.tension.hi / ev.tension.rated * 100)}%</b> of the rating`, 'RP-06')}${net ? netRow() : ''}</dl>`;
+  }
+  const liftMsgs = (d, ev) => {
+    const msgs = ev.errors.map((e) => `<div class="lmsg err" title="${e.rule}">✕ ${esc(e.text)}</div>`).concat(ev.warnings.map((w) => `<div class="lmsg warn">! ${esc(w)}</div>`));
+    if (d.autoMsg) msgs.unshift(`<div class="lmsg err" title="TW-12">✕ ${esc(d.autoMsg)}</div>`);
+    return msgs;
+  };
+  const msgBlock = (msgs, n) => (msgs.length ? `<div class="rule"></div><div style="padding:4px 0">${msgs.slice(0, n).join('')}${msgs.length > n ? `<div class="lmsg" style="color:var(--soft)">and ${msgs.length - n} more</div>` : ''}</div>` : '');
+  // Switching to Automatic over towers placed by hand asks first (LF-01): one line, then the seg's second click.
+  const autoAsk = (d) => (d.armAuto ? '<div class="lmsg warn" style="padding-top:6px" title="LF-01">! Automatic re-places the towers you placed by hand. Click Automatic again to go ahead.</div>' : '');
+  const dropAskHtml = (d) => `<div class="lmsg warn" style="padding-top:8px">${d.dropAsk} tower${d.dropAsk > 1 ? 's' : ''} stand past the top terminal now.</div><div class="lbtns"><span class="ghost" data-act="ldrop">Drop ${d.dropAsk > 1 ? 'them' : 'it'}</span><span class="ghost" data-act="lkeep">Put the terminal back</span></div>`;
+  function editCtx() {
+    const d = S.draft, ev = liftEval(d), msgs = liftMsgs(d, ev), n = d.hist.length;
+    let h = autoAsk(d);
+    if (d.dropAsk) h += dropAskHtml(d);
+    if (d.selT) h += terminalCard(d, ev) + msgBlock(msgs, 1);
+    else if (d.sel) h += `${msgs.length ? msgBlock(msgs, 1).replace('<div class="rule"></div>', '') + '<div class="rule"></div>' : ''}${towerCard(d, ev)}`;
+    else {
+      h += liftFacts(d, ev, false, true) + msgBlock(msgs, 2);
+      h += `<div class="lkeys" style="padding-top:6px"><span>click a tower or a terminal</span><span>${kb('Tab', 'Shift Tab')} select</span><span>drag a terminal anywhere: the line re-aims</span><span>${kb('Esc')} cancel</span></div>`;
+    }
+    h += `<div class="lbtns"><span class="ghost" data-act="lreplace" title="LF-06, TW-12: automatic placement on the whole line">${d.armReplace ? 'Again: re-place yours' : 'Re-place towers'}</span><span class="ghost${n ? '' : ' dis'}" data-act="${n ? 'lundo' : ''}" title="The edit's own undo; Ctrl+Y redoes">Undo<span class="kbd" style="margin-left:8px">Ctrl Z</span></span></div>`;
+    const blocked = ev.errors.length || d.autoMsg, ready = n && !blocked && !d.dropAsk;
+    h += `<div class="lnote" style="padding:0 12px 2px" title="LT2: a draft inside the tool until Apply">${n ? `${n} change${n > 1 ? 's' : ''}, not applied yet` : 'No changes yet'}${blocked ? '<span style="color:var(--neg)"> · red blocks Apply</span>' : ''}</div>`;
+    h += `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'lapply' : ''}" data-ui="review-apply" title="LT2: every change as one step; one Ctrl+Z later undoes the whole edit. A red tower blocks it, as it blocks Break ground (LF-04)."><span>Apply</span><span class="kbd kbd-go">Ctrl Enter</span></div><div class="ghost" data-act="lcancel" data-ui="review-cancel">${d.armCancel ? 'Again: discard' : 'Cancel'}</div></div>`;
+    return h;
   }
   function liftCtx() {
-    const d = S.draft, cur = LIFT_STEPS.findIndex(([k]) => k === d.step), ev = d.g ? liftEval(d) : null;
+    const d = S.draft;
+    if (d.edit) return editCtx();
+    const cur = LIFT_STEPS.findIndex(([k]) => k === d.step), ev = d.g ? liftEval(d) : null;
     let h = `<div class="lsteps" data-ui="toolwin-steps">${LIFT_STEPS.map(([k, v], i) => { const can = d.g && (k === 'towers' || k === 'review'); return `<span class="${i === cur ? 'now' : i < cur || (d.g && i < 2) ? 'done' : ''}"${can && i !== cur ? ` data-act="lstep" data-v="${k}"` : ''}><b>${i < cur || (d.g && i < 2 && i !== cur) ? '✓' : i + 1}</b>${v}</span>`; }).join('')}</div><div class="rule"></div>`;
     const hint = (t) => `<div class="hint">${t}</div>`;
+    h += autoAsk(d);
     if (d.step === 'first') h += hint('The bottom terminal follows the pointer, green where it can sit. <b>Click</b> to anchor it: the dot is its bullwheel.');
     else if (d.step === 'other') h += hint(`<b>Click</b> far up the mountain to place the top terminal. That fixes the line and turns the bottom terminal to face it.${d.mode === 'auto' ? ' The towers go in as you aim.' : ' Then you place the towers, from the bottom up.'}`) + (d.aim && d.aim.msg ? `<div class="lmsg err">${esc(d.aim.msg)}</div>` : '');
     else if (d.step === 'towers') {
       h += towerCard(d, ev);
-      h += `<div class="lbtns"><span class="ghost" data-act="lfill" title="LF-04, TW-12: automatic towers from your last tower to the top terminal">Fill the rest</span><span class="ghost" data-act="lstep" data-v="review">Review<span class="kbd" style="margin-left:8px">Enter</span></span></div>`;
+      h += `<div class="lbtns"><span class="ghost" style="flex:auto" data-act="lfill" title="LF-04, TW-12: automatic towers from your last tower to the top terminal">Fill the rest</span><span class="ghost" style="flex:auto" data-act="lreplace" title="LF-06, TW-12: automatic placement on the whole line">${d.armReplace ? 'Again: re-place yours' : 'Re-place towers'}</span><span class="ghost" style="flex:auto" data-act="lstep" data-v="review">Review</span></div>`;
       if (d.autoMsg) h += `<div class="lmsg err">${esc(d.autoMsg)}</div>`;
     } else {
-      const T = LIFT_TYPES[d.type], slope = Math.hypot(d.len, ev.zt - ev.zb), rise = ev.zt - ev.zb, hs = ev.towers.map((o) => o.h);
-      const counts = {}; for (const o of ev.towers) { const k = HEADS[o.head.code][0].toLowerCase(); counts[k] = (counts[k] || 0) + 1; }
-      const kv = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`;
-      const card = d.sel || (d.hand && d.hand.chk);
+      const slope = Math.hypot(d.len, ev.zt - ev.zb), rise = ev.zt - ev.zb, card = d.sel || (d.hand && d.hand.chk), msgs = liftMsgs(d, ev);
       if (card) h += `<div class="lnote" style="padding:7px 12px 6px">${lenFt(slope)} · rise ${lenFt(rise)} · ${ev.towers.length} towers · lowest chairs ${ev.lowest ? lenFt(Math.max(0, Math.floor(ev.lowest.min))) : '–'}</div>`;
-      else h += `<dl class="kv" style="padding-top:6px">${kv('Length', `<b>${lenFt(slope)}</b> slope · ${lenFt(d.len)} across`, 'LF-06')}${kv('Rise', `<b>${lenFt(rise)}</b> · ${Math.round(rise / d.len * 100)}%`)}${kv('Ride', `${fmtTime(slope / RULE.fpm * 60)} at ${speedTxt(RULE.fpm / 196.85)}`, 'LC-04: slope length over 450 ft/min')}${kv('Capacity', `<b>${liftCap(T).toLocaleString('en-US')}</b> an hour`, 'LC-03')}
-        ${kv('Towers', ev.towers.length ? `<b>${ev.towers.length}</b> · ${Math.min(...hs) === Math.max(...hs) ? `all ${lenFt(hs[0])}` : `${lenFt(Math.min(...hs))}–${lenFt(Math.max(...hs))}`}` : dash, 'TW-02: 25–100 ft in 5 ft steps')}${ev.towers.length ? kv('Heads', Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(' · '), 'TW-04') : ''}
-        ${kv('Lowest chairs', ev.lowest ? `<b style="color:${ev.lowest.min < RULE.clear ? 'var(--neg)' : ''}">${lenFt(Math.max(0, Math.floor(ev.lowest.min)))}</b> over the ground` : dash, 'TW-01: 15 ft at least, outside the load and unload zones')}
-        ${kv('Tension', `<b>${Math.round(ev.tension.lo / ev.tension.rated * 100)}–${Math.round(ev.tension.hi / ev.tension.rated * 100)}%</b> of the rating`, 'RP-06')}${netRow()}</dl>`;
-      const msgs = ev.errors.map((e) => `<div class="lmsg err" title="${e.rule}">✕ ${esc(e.text)}</div>`).concat(ev.warnings.map((w) => `<div class="lmsg warn">! ${esc(w)}</div>`));
-      if (d.autoMsg) msgs.unshift(`<div class="lmsg err" title="TW-12">✕ ${esc(d.autoMsg)}</div>`);
-      if (msgs.length) h += `<div class="rule"></div><div style="padding:4px 0">${msgs.slice(0, card ? 1 : 3).join('')}${msgs.length > (card ? 1 : 3) ? `<div class="lmsg" style="color:var(--soft)">and ${msgs.length - (card ? 1 : 3)} more</div>` : ''}</div>`;
+      else h += liftFacts(d, ev, true);
+      h += msgBlock(msgs, card ? 1 : 3);
       if (card) h += `<div class="rule"></div>${towerCard(d, ev)}`;
       else h += `<div class="hint" style="padding-top:2px">Every tower stays editable: click one to select it, or click the line to add one.</div>`;
       h += `<div class="lbtns"><span class="ghost" data-act="lreplace" title="LF-06, TW-12: automatic placement on the whole line">${d.armReplace ? 'Click again: re-place your towers' : 'Re-place towers'}</span></div>`;
     }
-    if (d.dropAsk) h = `<div class="lmsg warn" style="padding-top:8px">${d.dropAsk} tower${d.dropAsk > 1 ? 's' : ''} stand past the top terminal now.</div><div class="lbtns"><span class="ghost" data-act="ldrop">Drop ${d.dropAsk > 1 ? 'them' : 'it'}</span><span class="ghost" data-act="lkeep">Put the terminal back</span></div>` + h;
+    if (d.dropAsk) h = dropAskHtml(d) + h;
     const ready = d.step === 'review' && ev && !ev.errors.length && !d.autoMsg && !d.dropAsk;
     h += reviewActs(ready, d.step === 'review', 'LF-06, CF-06');
     return h;
@@ -1657,10 +1839,12 @@ body.solo .frame { border-radius: 0; }
   function liftPanel() {
     const d = S.draft, T = LIFT_TYPES[d.type];
     const seg = (act, cur, opts, tip) => `<div class="seg"${tip ? ` title="${tip}"` : ''}>${opts.map(([v, l]) => `<span class="${cur === v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</span>`).join('')}</div>`;
-    return panelShell(`<span class="plate">${d.n}</span>New lift <span class="nm">${esc(d.name)}</span>${d.armCancel ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard it? ✕ again</span>' : ''}`, `
+    const head = d.edit ? `<span class="plate built">${d.n}</span>Edit lift <span class="nm">${esc(d.name)}</span>${d.armCancel ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard the changes? Again</span>' : ''}`
+      : `<span class="plate">${d.n}</span>New lift <span class="nm">${esc(d.name)}</span>${d.armCancel ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard it? ✕ again</span>' : ''}`;
+    return panelShell(head, `
       <div style="padding:8px 0 4px">
-        <div class="lrow"><span>Type</span>${seg('ltype', d.type, Object.keys(LIFT_TYPES).map((k) => [k, k]), 'LF-01, LC-02: both fixed-grip quads share these values for now')}</div>
-        <div class="lrow"><span>Towers</span>${seg('lmode', d.mode, [['auto', d.armAuto ? 'Again: re-place' : 'Automatic'], ['hand', 'By hand']], 'LF-01, TW-12: automatic towers, or yours; it can change until you break ground')}</div>
+        <div class="lrow"><span>Type</span>${seg('ltype', d.type, Object.keys(LIFT_TYPES).map((k) => [k, k]), d.edit ? 'SetLiftType: in Automatic the towers re-place for the new type' : 'LF-01, LC-02: both fixed-grip quads share these values for now')}</div>
+        <div class="lrow"><span>Towers</span>${seg('lmode', d.mode, [['auto', d.armAuto ? 'Again: re-place' : 'Automatic'], ['hand', 'By hand']], d.edit ? 'LF-01: to By hand keeps the towers; to Automatic re-places them, asking first if you placed any' : 'LF-01, TW-12: automatic towers, or yours; it can change until you break ground')}</div>
         <div class="lrow"><span>Stand</span>${seg('lstand', d.stance, [['plumb', 'Plumb'], ['leaned', 'Leaned']], 'TW-14: plumb, or leaned square to the rope (15° at most)')}</div>
         <div class="lnote" title="LC-02, LC-03: capacity is shown, not chosen"><b>${liftCap(T).toLocaleString('en-US')}</b> an hour · ${speedTxt(RULE.fpm / 196.85)} · chairs ${lenFt(T.spacing)} apart</div>
       </div><div class="rule"></div><div id="liftctx">${liftCtx()}</div>`, 344, 'toolwin');
@@ -1673,30 +1857,43 @@ body.solo .frame { border-radius: 0; }
     const cx = document.getElementById('liftctx'); if (cx) cx.innerHTML = liftCtx();
     if (S.set.tooltips === 'off') ui.querySelectorAll('[title]').forEach((n) => n.removeAttribute('title'));
   }
+  // Edit lift's Cancel (and Esc with nothing selected): asks once when there are changes, then drops the draft; the
+  // tool stays out to pick another lift.
+  function cancelEdit(d) {
+    if (d.hist.length && S.set.confirmRemove === 'on' && !d.armCancel) { d.armCancel = true; render(); return; }
+    if (d.hist.length) log(`<span>Changes to <b>${esc(d.name)}</b> discarded</span>`, '#6f675e', true);
+    S.draft = null; S.sel = null; render();
+  }
   // The menu's buttons (and the keys that share them).
+  const LIFT_ACTS = ['ltype', 'lcap', 'lmode', 'lstand', 'lscale', 'lstep', 'lfill', 'lreplace', 'lh', 'ldel', 'ldrop', 'lkeep', 'llevel', 'lundo', 'lapply', 'lcancel'];
   function liftAct(a, v) {
     const d = S.draft;
+    if (a === 'lcancel') { cancelEdit(d); return; }
     if (a !== 'lmode') d.armAuto = false;
     if (a !== 'lreplace') d.armReplace = false;
     d.armCancel = false;
-    const autoAgain = () => { if (d.g && d.mode === 'auto' && !hasHandTowers(d)) { placeAuto(d); d.step = 'review'; } };
+    const toReview = () => { if (!d.edit) d.step = 'review'; };   // Edit lift has no steps
+    const autoAgain = () => { if (d.g && d.mode === 'auto' && !hasHandTowers(d)) { placeAuto(d); toReview(); } };
     switch (a) {
-      case 'ltype': d.type = v; autoAgain(); break;
-      case 'lstand': d.stance = v; S.liftStance = v; break;
+      case 'ltype': if (v !== d.type) { editSnap(d); d.type = v; autoAgain(); } break;
+      case 'lstand': if (v !== d.stance) { editSnap(d); d.stance = v; S.liftStance = v; } break;
       case 'lscale': S.liftTrue = v === 'true'; break;
-      case 'ldrop': d.towers = towersOn(d); d.dropAsk = 0; break;
-      case 'lkeep': d.len = d.lenWas; d.dropAsk = 0; break;
+      case 'ldrop': d.towers = towersOn(d); d.dropAsk = 0; break;   // part of the terminal's move, not a step of its own
+      case 'lkeep': if (d.edit) editUndo(d); else d.len = d.lenWas; d.dropAsk = 0; break;
       case 'lmode':
         if (v === d.mode) break;
         if (v === 'auto' && d.g && hasHandTowers(d) && !d.armAuto) { d.armAuto = true; break; }
-        d.mode = v; S.liftMode = v; d.armAuto = false;
-        if (v === 'auto' && d.g) { placeAuto(d); d.step = 'review'; }
+        editSnap(d); d.mode = v; if (!d.edit) S.liftMode = v; d.armAuto = false;
+        if (v === 'auto' && d.g) { placeAuto(d); toReview(); }
         break;
       case 'lstep': if (d.g) d.step = v; d.sel = null; break;
       case 'lfill': { const on = towersOn(d), from = on.length ? Math.max(...on.map((t) => t.x)) : 0; if (placeAuto(d, from, on)) d.step = 'review'; break; }
-      case 'lreplace': if (hasHandTowers(d) && !d.armReplace) { d.armReplace = true; break; } d.armReplace = false; placeAuto(d); break;
-      case 'lh': if (d.sel) { d.sel.h = Math.max(RULE.hMin, Math.min(RULE.hMax, d.sel.h + (+v))); d.sel.hand = true; } else d.inH = Math.max(RULE.hMin, Math.min(RULE.hMax, d.inH + (+v))); d.hand = handAt(d, mouse); break;
-      case 'ldel': if (d.sel) { d.towers = d.towers.filter((t) => t !== d.sel); d.sel = null; d.hand = handAt(d, mouse); } break;
+      case 'lreplace': if (hasHandTowers(d) && !d.armReplace) { d.armReplace = true; break; } d.armReplace = false; editSnap(d); placeAuto(d); break;
+      case 'lh': if (d.sel) { editSnap(d); d.sel.h = Math.max(RULE.hMin, Math.min(RULE.hMax, d.sel.h + (+v))); d.sel.hand = true; } else d.inH = Math.max(RULE.hMin, Math.min(RULE.hMax, d.inH + (+v))); d.hand = d.hand && d.hand.key ? handAtX(d, d.hand.x) : handAt(d, mouse); break;
+      case 'ldel': if (d.sel) { editSnap(d); d.towers = d.towers.filter((t) => t !== d.sel); d.sel = null; d.hand = handAt(d, mouse); } break;
+      case 'llevel': if (d.selT) { const k = d.selT === 'a' ? 'lvA' : 'lvB', to = Math.max(-RULE.site, Math.min(30, (d[k] || 0) + (+v))); if (to !== d[k]) { editSnap(d); d[k] = to; autoAgain(); } } break;   // Automatic re-places for the new level
+      case 'lundo': editUndo(d); break;
+      case 'lapply': applyEdit(); return;
       default: return;
     }
     render();
@@ -1720,22 +1917,30 @@ body.solo .frame { border-radius: 0; }
       render(); return;
     }
     const hp = handAt(d, p);
-    if (hp && hp.hover) d.sel = hp.hover;
-    else if (d.sel) d.sel = null;
-    else if (hp && hp.chk) {
-      if (hp.chk.ok) { d.towers.push({ x: hp.x, h: d.inH, hand: true }); }
-      else log(`<span>${esc(hp.chk.why)}</span>`, '#d4513f');
-    }
+    if (hp && hp.term) { d.selT = hp.term; d.sel = null; }
+    else if (hp && hp.hover) { d.sel = hp.hover; d.selT = null; }
+    else if (d.sel || d.selT) { d.sel = null; d.selT = null; }
+    else if (hp && hp.chk) { d.hand = hp; editSnap(d); placeHand(d); if (d.edit && d.towers.length === d.hist[d.hist.length - 1].towers.length) d.hist.pop(); }
     d.hand = handAt(d, p);
     render();
   }
   function liftKeys(e, k) {
-    const d = S.draft;
-    if ((k === 'pageup' || k === 'pagedown') && d.g) { e.preventDefault(); liftAct('lh', k === 'pageup' ? 5 : -5); return true; }
+    const d = S.draft, onLine = d.g && d.step !== 'first' && d.step !== 'other';
+    // ← / →: slide the selected tower, or the tower in hand, 5 ft (Shift 50 ft); the camera keeps them otherwise
+    if ((k === 'arrowleft' || k === 'arrowright') && onLine && (d.sel || d.step === 'towers')) {
+      e.preventDefault();
+      const by = (k === 'arrowright' ? 1 : -1) * (e.shiftKey ? 50 : 5);
+      if (d.sel) { editSnap(d); d.sel.x = Math.max(RULE.gap, Math.min(d.len - RULE.gap, snapFt(d.sel.x + by))); d.sel.hand = true; }
+      else d.hand = handAtX(d, d.hand && d.hand.x != null ? d.hand.x + by : lastTower(d) + RULE.gap);
+      render(); return true;
+    }
+    if ((k === 'pageup' || k === 'pagedown') && d.g) { e.preventDefault(); if (d.selT) liftAct('llevel', k === 'pageup' ? 1 : -1); else liftAct('lh', k === 'pageup' ? 5 : -5); return true; }
     if ((k === 'delete' || k === 'backspace') && d.sel) { e.preventDefault(); liftAct('ldel'); return true; }
-    if (k === 'enter' && d.step === 'towers') { liftAct('lstep', 'review'); return true; }
+    if (k === 'tab' && onLine) { e.preventDefault(); cycleSel(d, e.shiftKey ? -1 : 1); render(); return true; }
+    if (k === 'enter' && d.step === 'towers') { if (d.hand && d.hand.chk && !d.sel) { placeHand(d); render(); } else liftAct('lstep', 'review'); return true; }
     if (k === 'escape') {   // back out one step; placed towers are never dropped
-      if (d.sel) d.sel = null;
+      if (d.sel || d.selT) { d.sel = null; d.selT = null; }
+      else if (d.edit) { if (d.dropAsk) liftAct('lkeep'); else cancelEdit(d); return true; }
       else if (d.step === 'other') { d.a = null; d.aim = null; d.step = 'first'; }
       else if (d.step === 'first') return false;
       else if (d.step === 'review' && d.mode === 'hand') d.step = 'towers';
@@ -2090,15 +2295,18 @@ body.solo .frame { border-radius: 0; }
   function pickPanel() {
     const t = toolById(S.tool), obj = S.sel && (t.target === 'lift' ? S.lifts : S.trails).find((o) => o.id === S.sel);
     const head = `${toolGlyph(t)}${t.name}`;
+    if (!obj && t.target === 'lift') return panelShell(head, `<div class="hint">${t.mode === 'edit' ? 'Click a lift on the mountain to open it here: its towers and terminals become yours to move.' : 'Click a lift on the mountain: it lights up, and a second click removes it.'}</div>`, 300);
     if (!obj) return panelShell(head, `<div class="hint">Click a ${t.target} on the mountain.</div>`, 300);
     if (t.target === 'lift') {
       const st = liftStats(obj.a, obj.b, obj.model, obj.cap);
       const top = `<div class="hint" style="padding-bottom:0;display:flex;gap:8px;align-items:center"><span class="plate${obj.built ? ' built' : ''}">${obj.n}</span><b style="font-size:14px">${esc(obj.name)}</b><span style="color:var(--soft)">${obj.built ? 'operating' : 'planned'}</span></div>`;
       // LF-11: a built lift's card stays simple: name, type, capacity, length, rise, ride, towers
       const facts = `<dl class="kv"><dt>Type</dt><dd>${esc(obj.model)}</dd><dt>Capacity</dt><dd><b>${st.cap.toLocaleString('en-US')}</b> an hour</dd><dt>Length</dt><dd><b>${lenV(st.len)}</b> ${lenU()}</dd><dt>Rise</dt><dd>${lenV(Math.abs(st.rise))} ${lenU()}</dd><dt>Ride</dt><dd>${fmtTime(st.ride)}</dd>${obj.towers ? `<dt>Towers</dt><dd>${obj.towers.length}</dd>` : ''}</dl>`;
-      if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px 0"><div class="seg">${Object.keys(MODELS).map((m) => `<span class="${m === obj.model ? 'on' : ''}" data-act="setmodel" data-v="${m}">${m}</span>`).join('')}</div></div>` + facts + `<div class="hint">Changing the model re-prices the line.${obj.built ? ' Upgrading a running lift costs the difference.' : ''}</div>`, 300);
-      const refund = obj.built ? st.cost.total * 0.15 : 0;
-      return panelShell(head, top + facts + `<div class="hint">${obj.built ? `Removing it salvages about <b>${money(refund)}</b>.` : 'It\'s only a plan, so removing it is free.'}</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>${S.removeArmed === obj.id ? 'Click again to confirm' : `Remove ${esc(obj.name)}`}</span><span class="mono">${obj.built ? short(refund) : ''}</span></div></div>`, 300);
+      // Edit lift opens the lift in the lift window (liftPanel); this shows only until it opens.
+      if (t.mode === 'edit') return panelShell(head, top + facts, 300);
+      // Remove lift (task 09): no money in Phase 3; the lift, its pads and its clearing go in one undoable command
+      const armed = S.removeArmed === obj.id;
+      return panelShell(head, top + facts + `<div class="hint">${obj.built ? 'Removes the lift, its pads and its clearing.' : 'Removes the plan.'} Ctrl+Z brings it back.</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>${armed ? 'Click again to remove' : `Remove ${esc(obj.name)}`}</span><span class="mono">${armed ? 'Esc keeps it' : ''}</span></div></div>`, 300);
     }
     const st = pathStats(obj.pts);
     const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:var(--soft)">· ${lenTxt(st.len)} · ${lenTxt(st.drop)} vertical</span></div>`;
@@ -2116,6 +2324,7 @@ body.solo .frame { border-radius: 0; }
   S.af = { lifts: { on: false, hide: { status: [], len: [], vert: [] }, sort: null }, trails: { on: false, hide: { status: [], len: [], vert: [], rating: [] }, sort: null } };
   S.afMenu = null;
   S.rowHover = null; S.focus = null;
+  S.liftUndo = [];   // applied lift edits and removals, for Ctrl+Z outside a tool
   // One record per drawn lift or trail: what the rows, the filters and the focus card read.
   function liftRec(l, open) {
     const st = liftStats(l.a, l.b, l.model, l.cap), wt = waitFor(l);
@@ -2419,7 +2628,7 @@ body.solo .frame { border-radius: 0; }
       : `<div class="row lay" data-act="layer" data-v="${k}" data-ui="layer-${LAY_UI[k] || k}"><span class="chk${S.layers[k] ? ' on' : ''}"></span>${label}${key ? `<span class="r">Shift ${key}</span>` : ''}</div>`;
     const inf = (k) => `<div class="row lay" data-act="info" data-v="${k}" data-ui="layer-${INFO_UI[k] || k}"><span class="rad${S.info === k ? ' on' : ''}"></span>${INFO[k][0]}<span class="r">Shift ${INFO[k][1]}</span></div>`;
     let rc = '';
-    if (S.drop === 'layers') rc += `<div class="drop" data-ui="layers"><div class="ghead">Map layers</div>${lay('snow', 'Snow', '1')}${lay('trees', 'Trees', '3')}${lay('lifts', 'Lifts')}${lay('trails', 'Trails')}${lay('making', 'Snowmaking')}${lay('infra', 'Infrastructure')}${lay('labels', 'Labels')}
+    if (S.drop === 'layers') rc += `<div class="drop" data-ui="layers"><div class="ghead">Map layers</div>${lay('snow', 'Snow', '1')}${lay('trees', 'Trees', '3')}${lay('lifts', 'Lifts', '2')}${lay('trails', 'Trails')}${lay('making', 'Snowmaking')}${lay('infra', 'Infrastructure')}${lay('labels', 'Labels')}
       <div class="sepl"></div><div class="ghead">Info layers</div>${inf('slope')}${inf('aspect')}${inf('depth')}
       <div class="row lay dis" data-ui="layer-conditions" title="Comes with the snow simulation"><span class="rad"></span><span>Snow conditions<small>Comes with the snow simulation</small></span><span class="r">Shift 0</span></div>
       <div class="row lay" data-act="contours" data-ui="layer-contours"><span class="chk${S.contours ? ' on' : ''}"></span>Contours<span class="r">Shift 6</span></div></div>`;
@@ -2448,7 +2657,7 @@ body.solo .frame { border-radius: 0; }
         <div class="toollabel" id="toollabel" data-ui="toolbox-label">${cur && TOOLS[S.tab].includes(cur) ? `${cur.name}<span class="mono">${cur.key}</span>` : 'Select tool'}</div>
         <div class="tools">${TOOLS[S.tab].map(tile).join('')}</div></div>`;
     }
-    if (S.tool) { const t = toolById(S.tool); h += t.kind === 'lift' ? liftPanel() : t.kind === 'trail' ? trailPanel() : t.kind === 'pick' ? pickPanel() : placePanel(); }
+    if (S.tool) { const t = toolById(S.tool); h += t.kind === 'lift' || (S.draft && S.draft.edit) ? liftPanel() : t.kind === 'trail' ? trailPanel() : t.kind === 'pick' ? pickPanel() : placePanel(); }
     // the lift tool's profile strip, beside the tray along the bottom
     if (S.draft && S.draft.kind === 'lift') h += liftStrip(S.draft, 436, trayBottom);
     if (S.draft && S.draft.kind === 'trail') h += trailStrip(S.draft, 436, trayBottom);
@@ -2842,7 +3051,7 @@ body.solo .frame { border-radius: 0; }
     let cost = 0, label = '';
     if (d.kind === 'lift') {
       const ev = liftEval(d), B = rayPt(d, d.len);   // stored bottom first, with the towers where they stand
-      S.lifts.push({ id: 'l' + (uid++), n: d.n, name: d.name, a: ev.bottomAtA ? d.a : B, b: ev.bottomAtA ? B : d.a, model: d.type, cap: liftCap(LIFT_TYPES[d.type]), towers: towersOn(d).map((t) => rayPt(d, t.x)), built: !asPlan });
+      S.lifts.push({ id: 'l' + (uid++), n: d.n, name: d.name, a: ev.bottomAtA ? d.a : B, b: ev.bottomAtA ? B : d.a, model: d.type, cap: liftCap(LIFT_TYPES[d.type]), towers: towersOn(d).map((t) => rayPt(d, t.x)), built: !asPlan, spec: specOf(d) });
       cost = liftCost(d, ev); label = `${d.n} ${d.name}`; liftSeq++;
       if (!asPlan) S.liftsTotal++;
     } else if (d.kind === 'trail') {   // NW-09: one map line along its centreline, rated by TD-02
@@ -2878,10 +3087,12 @@ body.solo .frame { border-radius: 0; }
       case 'asortd': S.af[S.atab].sort = S.af[S.atab].sort === v ? null : v; break;
       case 'afocus': S.focus = S.focus === v ? null : v; S.drop = null; break;
       case 'fclose': S.focus = null; break;
-      case 'fedit': case 'fremove': { const id = S.focus; S.analysis = false; S.toolbox = true; S.tab = v === 'lift' ? 'lifts' : 'trails'; chooseTool(`${a === 'fedit' ? 'edit' : 'remove'}-${v}`); S.sel = id; S.focus = null; break; }
+      case 'fedit': case 'fremove': { const id = S.focus; S.analysis = false; S.toolbox = true; S.tab = v === 'lift' ? 'lifts' : 'trails'; chooseTool(`${a === 'fedit' ? 'edit' : 'remove'}-${v}`); S.sel = id; S.focus = null;
+        if (v === 'lift') { const l = S.lifts.find((x) => x.id === id); if (a === 'fedit' && l) S.draft = editDraft(l); else if (a === 'fremove') S.removeArmed = S.set.confirmRemove === 'on' ? id : null; }   // the card already picked it
+        break; }
       case 'close': if (S.draft && S.draft.kind === 'trail' && S.draft.strokes.length && S.set.confirmRemove === 'on' && !S.draft.armCancel) { S.draft.armCancel = true; break; }
-        if (S.draft && S.draft.kind === 'lift' && S.draft.a && S.set.confirmRemove === 'on' && !S.draft.armCancel) { S.draft.armCancel = true; break; } closeTool(); return;
-      case 'ltype': case 'lcap': case 'lmode': case 'lstep': case 'lfill': case 'lreplace': case 'lh': case 'ldel': liftAct(a, v); return;
+        if (S.draft && S.draft.kind === 'lift' && S.draft.a && (!S.draft.edit || S.draft.hist.length) && S.set.confirmRemove === 'on' && !S.draft.armCancel) { S.draft.armCancel = true; break; } closeTool(); return;
+      case 'ltype': case 'lcap': case 'lmode': case 'lstand': case 'lscale': case 'lstep': case 'lfill': case 'lreplace': case 'lh': case 'ldel': case 'ldrop': case 'lkeep': case 'llevel': case 'lundo': case 'lapply': case 'lcancel': liftAct(a, v); return;
       case 'model': S.draft.model = v; break;
       case 'diff': S.draft.diff = v; break;
       case 'build': commit(false); return;
@@ -2892,7 +3103,12 @@ body.solo .frame { border-radius: 0; }
         if (S.set.confirmRemove === 'on' && S.removeArmed !== S.sel) { S.removeArmed = S.sel; break; }
         S.removeArmed = null;
         const t = toolById(S.tool), list = t.target === 'lift' ? S.lifts : S.trails, i = list.findIndex((x) => x.id === S.sel);
-        if (i >= 0) { const o = list[i]; list.splice(i, 1); if (t.target === 'trail' && o.built) S.trailsTotal--; if (t.target === 'lift' && o.built) { S.liftsTotal--; spend(-liftStats(o.a, o.b, o.model).cost.total * 0.15); } S.saveDue = true; log(`<span><b>${esc(o.name)}</b> removed</span>`, '#8e2b1f'); }
+        if (i >= 0) {
+          const o = list[i]; list.splice(i, 1); if (t.target === 'trail' && o.built) S.trailsTotal--; S.saveDue = true;
+          // Remove lift: the lift, its earthwork and its clearing in one undoable command; no money in Phase 3
+          if (t.target === 'lift') { if (o.built) S.liftsTotal--; S.liftUndo.push({ kind: 'remove', i, was: o }); log(`<span><b>${esc(o.name)}</b> removed <span style="color:var(--soft)">· Ctrl+Z brings it back</span></span>`, '#8e2b1f'); }
+          else log(`<span><b>${esc(o.name)}</b> removed</span>`, '#8e2b1f');
+        }
         S.sel = null; break;
       }
       case 'pause': S.paused = !S.paused; S.autoPaused = false; break;
@@ -2978,8 +3194,9 @@ body.solo .frame { border-radius: 0; }
     // the lift tool: press on a tower to select and slide it, or on the far terminal to slide that along the line
     if (S.draft && S.draft.kind === 'lift' && S.draft.g) {
       const d = S.draft, p = toMap(e), hp = handAt(d, p), B = rayPt(d, d.len);
-      if (hp && hp.hover) { liftDrag = { t: hp.hover }; d.sel = hp.hover; liftDragged = false; stage.setPointerCapture(e.pointerId); }
-      else if (Math.hypot(p[0] - B[0], p[1] - B[1]) < 9 / S.zoom) { liftDrag = { term: true }; d.lenWas = d.len; liftDragged = false; stage.setPointerCapture(e.pointerId); }
+      if (hp && hp.term) { liftDrag = { end: hp.term }; d.selT = hp.term; d.sel = null; editSnap(d); liftDragged = false; stage.setPointerCapture(e.pointerId); }   // Edit lift: a terminal, anywhere
+      else if (hp && hp.hover) { liftDrag = { t: hp.hover }; d.sel = hp.hover; d.selT = null; editSnap(d); liftDragged = false; stage.setPointerCapture(e.pointerId); }
+      else if (!d.edit && Math.hypot(p[0] - B[0], p[1] - B[1]) < 9 / S.zoom) { liftDrag = { term: true }; d.lenWas = d.len; liftDragged = false; stage.setPointerCapture(e.pointerId); }
     }
     if (S.draft && S.draft.kind === 'trail' && S.draft.step === 'paint' && e.button === 0) { const d = S.draft; d.stroke = { idx: [], was: [], erase: e.shiftKey, last: null }; strokeTo(d, toMap(e)); stage.setPointerCapture(e.pointerId); }
     if (S.sketch) { sketching = [toMap(e)]; S.sketches.push(sketching); stage.setPointerCapture(e.pointerId); }
@@ -2990,7 +3207,8 @@ body.solo .frame { border-radius: 0; }
     if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { const p = toMap(e); strokeTo(S.draft, p); mouse = p; showElev(); drawWorld(); return; }
     if (liftDrag) {
       const d = S.draft, p = toMap(e), s = ((p[0] - d.a[0]) * d.dir[0] + (p[1] - d.a[1]) * d.dir[1]) * FT_PX;
-      if (liftDrag.t) { liftDrag.t.x = Math.max(RULE.gap, Math.min(d.len - RULE.gap, snapFt(s))); liftDrag.t.hand = true; }
+      if (liftDrag.end) { d.dragEnd = liftDrag.end; moveEnd(d, liftDrag.end, p); }
+      else if (liftDrag.t) { liftDrag.t.x = Math.max(RULE.gap, Math.min(d.len - RULE.gap, snapFt(s))); liftDrag.t.hand = true; }
       else d.len = Math.max(RULE.minLen, Math.min(d.reach, snapFt(s)));
       liftDragged = true; mouse = p; showElev(); refreshLift(); return;
     }
@@ -3003,7 +3221,7 @@ body.solo .frame { border-radius: 0; }
     if (S.draft || picking) drawWorld();
   });
   stage.addEventListener('pointerleave', () => { if (liftDrag) return; mouse = null; showElev(); if (S.draft && S.draft.kind === 'lift') { S.draft.hand = null; refreshLift(); } else if (S.draft) drawWorld(); });
-  window.addEventListener('pointerup', () => { if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { endStroke(S.draft); render(); } if (liftDrag) { const d = S.draft; if (liftDrag.term) d.dropAsk = d.towers.length - towersOn(d).length; liftDrag = null; render(); } });
+  window.addEventListener('pointerup', () => { if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { endStroke(S.draft); render(); } if (liftDrag) { const d = S.draft; if (liftDrag.term) d.dropAsk = d.towers.length - towersOn(d).length; if (liftDrag.end) endMove(d, liftDragged); if (d.edit && !liftDragged) d.hist.pop(); liftDrag = null; render(); } });
   stage.addEventListener('input', (e) => {
     if (e.target.id === 'trailname' && S.draft && S.draft.kind === 'trail') { S.draft.name = e.target.value.slice(0, 28); return; }
     const rg = e.target.closest('input.rng'); if (!rg) return;
@@ -3042,7 +3260,15 @@ body.solo .frame { border-radius: 0; }
       else d.pts.push(p);
       render(); return;
     }
-    if (S.tool && toolById(S.tool).kind === 'pick') { S.sel = pickAt(p, toolById(S.tool).target); S.removeArmed = null; render(); }
+    if (S.tool && toolById(S.tool).kind === 'pick') {
+      const t = toolById(S.tool), id = pickAt(p, t.target);
+      if (t.target === 'lift' && id) {   // Edit lift opens the lift in the tool; Remove lift lights it, and a second click removes it
+        if (t.mode === 'edit') { S.sel = id; S.draft = editDraft(S.lifts.find((x) => x.id === id)); render(); return; }
+        if (S.removeArmed === id || S.set.confirmRemove !== 'on') { S.sel = id; S.removeArmed = id; act('remove'); return; }
+        S.sel = id; S.removeArmed = id; render(); return;
+      }
+      S.sel = id; S.removeArmed = null; render();
+    }
     else if (!S.tool) { S.focus = pickAt(p, 'lift') || pickAt(p, 'trail'); S.drop = null; render(); }   // a lift or trail opens its card
   });
 
@@ -3060,9 +3286,12 @@ body.solo .frame { border-radius: 0; }
     const k = e.key.toLowerCase();
     if (S.lib) { libKey(e); return; }   // S2 Load Area's own keys (task P3-04)
     // Ctrl+Enter: Break ground from the review step (P3-06), when the window's button is live
-    if ((e.ctrlKey || e.metaKey) && k === 'enter') { const go = document.querySelector('[data-ui="review-go"]:not(.dis)'); if (go) { e.preventDefault(); act('build'); } return; }
+    if ((e.ctrlKey || e.metaKey) && k === 'enter') { const go = document.querySelector('[data-ui="review-go"]:not(.dis)'); if (go) { e.preventDefault(); act('build'); } else if (document.querySelector('[data-ui="review-apply"]:not(.dis)')) { e.preventDefault(); liftAct('lapply'); } return; }
     if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); if (!S.modal) act('savegame'); return; }
     if ((e.ctrlKey || e.metaKey) && k === 'z' && S.draft && S.draft.kind === 'trail' && S.draft.step === 'paint') { e.preventDefault(); undoStroke(S.draft); render(); return; }   // TF-02
+    // Edit lift's own undo inside the tool; outside a tool, the last applied lift edit or removal (one command each)
+    if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y') && S.draft && S.draft.edit) { e.preventDefault(); editUndo(S.draft, k === 'y'); render(); return; }
+    if ((e.ctrlKey || e.metaKey) && k === 'z' && !S.draft && !S.modal && S.liftUndo.length) { e.preventDefault(); liftUndoLast(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (S.modal && k !== 'escape') return;   // a window is open: only Esc, which closes it
     if (S.photo) {   // photo mode's keys; everything else waits until you leave
@@ -3079,17 +3308,17 @@ body.solo .frame { border-radius: 0; }
       if (S.modal) S.modal = null;
       else if (S.drop) S.drop = null;
       else if (S.draft && S.draft.pts && S.draft.pts.length) { S.draft.pts = []; S.draft.done = false; }
-      else if (S.sel) S.sel = null;
+      else if (S.sel) { S.sel = null; S.removeArmed = null; }
       else if (S.tool) { S.tool = null; S.draft = null; }
       else if (S.sketch) S.sketch = false;
       else if (S.focus) S.focus = null;
       else if (S.toolbox || S.analysis) { S.toolbox = false; S.analysis = false; }
       render(); return;
     }
-    // Shift+1 and 3 for the map layers, Shift+6 to 0 for the info layers (by key position, whatever Shift types).
+    // Shift+1 to 3 for the map layers, Shift+6 to 0 for the info layers (by key position, whatever Shift types).
     if (e.shiftKey && /^Digit[0-9]$/.test(e.code)) {
       const n = e.code.slice(5);
-      if (n === '1') act('layer', 'snow'); else if (n === '3') act('layer', 'trees'); else if (n === '6') act('contours');
+      if (n === '1') act('layer', 'snow'); else if (n === '2') act('layer', 'lifts'); else if (n === '3') act('layer', 'trees'); else if (n === '6') act('contours');
       else if (n === '7') act('info', 'slope'); else if (n === '8') act('info', 'aspect'); else if (n === '9') act('info', 'depth');
       else if (n === '0') log('<span>Snow conditions comes with the snow simulation</span>', '#6f675e');
       return;
@@ -3184,7 +3413,6 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('dlwait')) S.dl = { name: 'Crystal Mountain', pct: 41, state: 'wait' };
     if (d.includes('dlfail')) S.dl = { name: 'Crystal Mountain', pct: 41, state: 'fail' };
     if (d.includes('tray') || d.includes('lift') || d.includes('trail') || d.includes('edit')) S.toolbox = true;
-    if (d.includes('edit')) { chooseTool('edit-lift'); S.sel = 'l3'; }
     if (d.includes('ttrails')) { S.toolbox = true; S.tab = 'trails'; }
     if (d.includes('snow')) { S.toolbox = true; S.tab = 'snow'; }
     if (d.includes('infra')) { S.toolbox = true; S.tab = 'infra'; }
@@ -3222,8 +3450,55 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('snowing')) S.t = 2 * 3600;
     mouse = S.info ? [742, 440] : [930, 260];
     // The lift tool (Phase 3): liftorigin (the terminal under the pointer), liftauto (aiming, towers going in),
-    // lift and liftred (by hand: the tower in hand fits, or doesn't), liftreview (Automatic's layout), liftsel (a
-    // tower selected in review).
+    // lift and liftred (by hand: the tower in hand fits, or doesn't), liftbyhand (by hand from the keys: the tower in
+    // hand where the status line warns of hold-downs ahead), liftreview (Automatic's layout), liftsel (a tower selected
+    // in review).
+    // Task 09, on 4 Teewinot (built with the tool on the same line): liftedit (Edit lift, a tower raised and selected;
+    // edit is the same), liftterm (the bottom terminal selected, raised 3 ft), liftmove (the top terminal being dragged,
+    // the towers re-placing), liftdrop (By hand, the top terminal moved down: the one-line ask), liftblock (a tower
+    // lowered until it's red: Apply blocked), liftask (Automatic asks first over towers moved by hand), liftremove
+    // (Remove lift: picked and lit, click again to remove), liftnear and liftclose (zoomed in: the built lines fading,
+    // and gone).
+    if (['liftedit', 'edit', 'liftterm', 'liftmove', 'liftdrop', 'liftblock', 'liftask', 'liftremove', 'liftnear', 'liftclose'].some((x) => d.includes(x))) {
+      const ld = newLiftDraft(); ld.a = [1190, 334]; ld.mode = 'auto'; fixLine(ld, [944, 250]);
+      S.lifts.push({ id: 'l4', n: 4, name: 'Teewinot', a: ld.a, b: rayPt(ld, ld.len), model: ld.type, cap: liftCap(LIFT_TYPES[ld.type]), towers: towersOn(ld).map((t) => rayPt(ld, t.x)), built: true, spec: specOf(ld) });
+      mouse = [1240, 140];
+      const l4 = S.lifts[S.lifts.length - 1], open = () => { S.toolbox = true; S.tab = 'lifts'; chooseTool('edit-lift'); S.sel = 'l4'; S.draft = editDraft(l4); return S.draft; };
+      const byNo = (dd, no) => liftEval(dd).towers.find((o) => o.no === no).ref;
+      if (d.includes('liftedit') || d.includes('edit')) { const ed = open(); ed.sel = byNo(ed, 3); editSnap(ed); ed.sel.h += 5; ed.sel.hand = true; }
+      if (d.includes('liftask')) {
+        const ed = open(); editSnap(ed);
+        find: for (const o of liftEval(ed).towers) for (const [dx, dh] of [[0, 5], [0, 10], [10, 0], [-10, 0], [20, 5], [-20, 5]]) {
+          const t = o.ref, x0 = t.x, h0 = t.h; t.x += dx; t.h += dh;
+          if (!liftEval(ed).errors.length) { t.hand = true; break find; }
+          t.x = x0; t.h = h0;
+        }
+        ed.armAuto = true;
+      }
+      if (d.includes('liftterm')) { const ed = open(); ed.selT = 'a'; for (let i = 0; i < 3; i++) liftAct('llevel', 1); }
+      if (d.includes('liftmove') || d.includes('liftdrop')) {
+        const ed = open(), drop = d.includes('liftdrop');
+        if (drop) { editSnap(ed); ed.mode = 'hand'; }
+        ed.selT = 'b'; editSnap(ed);
+        const B = rayPt(ed, ed.len), side = [-ed.dir[1], ed.dir[0]];
+        // the top terminal dragged: aside and down the hill for liftmove, back down the line for liftdrop
+        for (const f of drop ? [0.72, 0.68, 0.76, 0.64, 0.8] : [0.9, 0.86, 0.94, 0.82]) {
+          const q = drop ? rayPt(ed, ed.len * f) : [B[0] + side[0] * 34 - ed.dir[0] * ed.len * (1 - f) / FT_PX, B[1] + side[1] * 34 - ed.dir[1] * ed.len * (1 - f) / FT_PX];
+          moveEnd(ed, 'b', q); if (!ed.termBad) break;
+        }
+        clearTimeout(editAutoT); ed.termBad = null;
+        if (drop) endMove(ed, true); else { ed.dragEnd = 'b'; placeAuto(ed); }
+      }
+      if (d.includes('liftblock')) {
+        const ed = open();
+        // a red tower: one whose own head fails at a new height; else any change that turns something red
+        const tryH = (own) => { for (const o of liftEval(ed).towers) for (const h of [RULE.hMax, 70, RULE.hMin]) { const t = o.ref, was = t.h; editSnap(ed); t.h = h; t.hand = true; const ev = liftEval(ed), me = ev.towers.find((x) => x.ref === t); if (own ? !me.head.ok : ev.errors.length) { ed.sel = t; return true; } t.h = was; t.hand = false; ed.hist.pop(); } return false; };
+        if (!tryH(true)) tryH(false);
+      }
+      if (d.includes('liftremove')) { S.toolbox = true; S.tab = 'lifts'; chooseTool('remove-lift'); S.sel = 'l4'; S.removeArmed = 'l4'; mouse = [1080, 300]; }
+      if (d.includes('liftnear')) S.zoom = 1.6;
+      if (d.includes('liftclose')) S.zoom = 1.8;
+    }
     // The trail tool (Phase 3): trailpaint (painted, with an island and a stray patch), trailends (head and tail set),
     // trailreview (its review); zoomed in, as you would to paint. trail is the review too.
     const tf = ['trailpaint', 'trailends', 'trailreview', 'trail'].find((x) => d.includes(x));
@@ -3241,7 +3516,7 @@ body.solo .frame { border-radius: 0; }
         mouse = tf === 'trailends' ? [960, 280] : [1240, 140];
       }
     }
-    const LD = { a: [1190, 334], b: [944, 250] }, lf = ['liftorigin', 'liftauto', 'liftred', 'liftreview', 'liftsel', 'lift'].find((x) => d.includes(x));
+    const LD = { a: [1190, 334], b: [944, 250] }, lf = ['liftorigin', 'liftauto', 'liftred', 'liftbyhand', 'liftreview', 'liftsel', 'lift'].find((x) => d.includes(x));
     if (lf) {
       S.toolbox = true; S.tab = 'lifts'; if (S.tool !== 'new-lift') chooseTool('new-lift');
       const ld = S.draft;
@@ -3250,11 +3525,16 @@ body.solo .frame { border-radius: 0; }
       else {
         ld.a = LD.a; ld.mode = 'auto'; fixLine(ld, LD.b);
         const all = ld.towers.slice().sort((p, q) => p.x - q.x);
-        if (lf === 'lift' || lf === 'liftred') {
+        if (lf === 'lift' || lf === 'liftred' || lf === 'liftbyhand') {
           ld.mode = 'hand'; ld.step = 'towers'; ld.towers = all.slice(0, 6).map((t) => ({ x: t.x, h: t.h, hand: true }));
           let x = all[6] ? all[6].x : ld.len / 2;
           if (lf === 'liftred') { ld.inH = 25; const base = liftEval(ld); for (let y = all[5].x + 80; y < ld.len - 60; y += 5) { const c = towerCheck(ld, y, 25, null, base); if (!c.ok && c.rule === 'TW-01') { x = y; break; } } }
           mouse = rayPt(ld, x); ld.hand = handAt(ld, mouse);
+          if (lf === 'liftbyhand') {   // from the keys: the first spot past the last tower where it fits and hold-downs lie ahead
+            ld.towers = all.slice(0, 3).map((t) => ({ x: t.x, h: t.h, hand: true })); mouse = null; ld.hand = null;
+            for (let y = lastTower(ld) + RULE.gap; y < ld.len - RULE.gap; y += 5) { const hh = handAtX(ld, y); if (hh.chk && hh.chk.ok && hh.next && hh.next.holdAhead) { ld.hand = hh; break; } }
+            if (!ld.hand) for (let y = lastTower(ld) + RULE.gap; y < ld.len - RULE.gap && !ld.hand; y += 5) { const hh = handAtX(ld, y); if (hh.chk && hh.chk.ok) ld.hand = hh; }
+          }
         } else {
           mouse = [1240, 140];
           if (lf === 'liftsel') { const ev = liftEval(ld), o = ev.towers.find((t) => t.head.code === 'c8') || ev.towers[Math.floor(ev.towers.length / 2)]; ld.sel = o.ref; }
