@@ -2102,10 +2102,10 @@ body.solo .frame { border-radius: 0; }
     }
     const st = pathStats(obj.pts);
     const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:var(--soft)">· ${lenTxt(st.len)} · ${lenTxt(st.drop)} vertical</span></div>`;
-    if (t.mode === 'edit') return panelShell(head, top + `<dl class="kv"><dt>Rating</dt><dd>${RATING[obj.diff]}${DIFFS[obj.diff]}</dd><dt>Average grade</dt><dd>${Math.round(st.avg)}%</dd><dt>Steepest</dt><dd>${Math.round(st.steep)}%</dd></dl>
+    if (t.mode === 'edit') return panelShell(head, top + `<dl class="kv"><dt>Rating</dt><dd>${RATING[obj.diff]} ${BANDS.find((b) => b[1] === obj.diff)[2]}</dd><dt>Average grade</dt><dd>${Math.round(st.avg)}%</dd><dt>Steepest</dt><dd>${Math.round(st.steep)}%</dd></dl>
       <div style="padding:2px 12px 8px"><div class="lrow"><span>Grading</span><div class="seg" title="TR-06, TF-06: Natural keeps the ground; Graded benches it">${[['n', 'Natural'], ['g', 'Graded']].map(([v, l]) => `<span class="${(obj.graded ? 'g' : 'n') === v ? 'on' : ''}" data-act="tedit" data-v="grade-${v}">${l}</span>`).join('')}</div></div></div>
-      <div class="lbtns" style="padding:0 12px 8px"><span class="ghost" data-act="tedit" data-v="paint" title="TF-07: the trail's strokes open in Paint; add, erase, leave islands">Repaint</span><span class="ghost" data-act="tedit" data-v="ends" title="TF-07: click a new head, then a new tail">Move head and tail</span><span class="ghost" data-act="rename" title="TF-07">Rename</span></div>
-      <div class="lbtns" style="padding:0 12px 8px"><span class="ghost dis" title="NW-10: Split and Join come with the network (task 10)">Split</span><span class="ghost dis" title="NW-10: Split and Join come with the network (task 10)">Join</span></div>
+      <div class="lbtns" style="padding:0 12px 8px"><span class="ghost" data-act="tedit" data-v="paint" title="TF-07: the trail's strokes open in Paint; add, erase, leave islands">Repaint</span><span class="ghost" data-act="tedit" data-v="ends" title="TF-07: click a new head, then a new tail">Move ends</span></div>
+      <div class="lbtns" style="padding:0 12px 8px"><span class="ghost" data-act="rename" title="TF-07">Rename</span><span class="ghost dis" title="NW-10: Split and Join come with the network (task 10)">Split</span><span class="ghost dis" title="NW-10: Split and Join come with the network (task 10)">Join</span></div>
       <div class="hint" style="padding-top:0">The rating comes from the ground: regrade or repaint to change it. Grading runs again only where something changed.</div>`, 300);
     return panelShell(head, top + `<div class="hint">${obj.built ? 'Its ground and trees go back to how they were before it was built (CL-07). Ctrl+Z brings it back.' : 'It\'s only a plan: nothing on the ground changes.'}</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>${S.removeArmed === obj.id ? 'Click again to confirm' : `Remove ${esc(obj.name)}`}</span><span class="mono"></span></div></div>`, 300);
   }
@@ -2867,7 +2867,7 @@ body.solo .frame { border-radius: 0; }
     S.saveDue = true;
     if (asPlan) log(`<span><b>${esc(label)}</b> saved as a plan <span class="mono" style="color:var(--soft)">${short(cost).replace('+', '')}</span></span>`, '#ff6a1f');
     else { spend(cost); log(`<span><b>${esc(label)}</b>: ground broken <span class="mono" style="color:var(--neg)">${short(-cost)}</span></span>`, '#1a6b3c'); }
-    const again = t.id; S.tool = null; chooseTool(again);
+    const again = t.id; S.tool = null; S.draft = null; chooseTool(again);   // the work went in: nothing to discard
   }
   function act(a, v, e) {
     if (a !== 'amenu' && a !== 'afchk' && a !== 'afclr') S.afMenu = null;
@@ -3243,7 +3243,7 @@ body.solo .frame { border-radius: 0; }
     // tower selected in review).
     // The trail tool (Phase 3): trailpaint (painted, with an island and a stray patch), trailends (head and tail set),
     // trailreview (its review); zoomed in, as you would to paint. trail is the review too.
-    const tf = ['trailpaint', 'trailends', 'trailreview', 'trail'].find((x) => d.includes(x));
+    const tf = ['trailpaint', 'trailends', 'trailreview', 'trail', 'trailfix', 'trailgone'].find((x) => d.includes(x));
     if (tf) {
       S.toolbox = true; S.tab = 'trails'; if (S.tool !== 'new-trail') chooseTool('new-trail');
       const td = S.draft, paint = (pts, w, erase = false) => { td.width = w; td.stroke = { idx: [], was: [], erase, last: null }; for (const p of pts) strokeTo(td, p); endStroke(td); };
@@ -3257,6 +3257,9 @@ body.solo .frame { border-radius: 0; }
         if (tf !== 'trailends') td.step = 'review';
         mouse = tf === 'trailends' ? [960, 280] : [1240, 140];
       }
+      // Task 08: trailfix (the trail built, then Edit trail on it, TF-07) and trailgone (Remove trail on it).
+      const tx = ['trailfix', 'trailgone'].find((x) => d.includes(x));
+      if (tx) { td.graded = true; setEnds(td); commit(false); chooseTool(tx === 'trailfix' ? 'edit-trail' : 'remove-trail'); S.sel = S.trails[S.trails.length - 1].id; mouse = [1240, 140]; }
     }
     const LD = { a: [1190, 334], b: [944, 250] }, lf = ['liftorigin', 'liftauto', 'liftred', 'liftreview', 'liftsel', 'lift'].find((x) => d.includes(x));
     if (lf) {
