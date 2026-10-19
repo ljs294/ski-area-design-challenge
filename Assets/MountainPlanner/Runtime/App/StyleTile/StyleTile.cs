@@ -88,11 +88,38 @@ namespace MountainPlanner.App
 
             // The lift.
             if (LiftLine.Length == 0) LiftLine = BesideTheTrail(heights, frame);
-            report.Append("lift line [").Append(Join(LiftLine)).Append("]; ");
-            var bottom = PointMm.FromMetres(LiftLine[0], LiftLine[1]);
-            var top = PointMm.FromMetres(LiftLine[2], LiftLine[3]);
-            var b = frame.ToAlbers(LiftLine[0], LiftLine[1]);
-            var t = frame.ToAlbers(LiftLine[2], LiftLine[3]);
+            BuildLift(session, frame, models, LiftLine, LiftName, report);
+            return report.ToString();
+        }
+
+        /// <summary>
+        /// A second lift for checking that the same build path works on other ground (round 3): straight up the fall line
+        /// from a local point, <paramref name="length"/> metres, built exactly as the style tile's own. Returns its report.
+        /// </summary>
+        public static string BuildUphill(TerrainEditSession session, LocalFrame frame, MountainPlanner.World.Lifts.LiftModelSet models,
+                                         float x, float z, float length, string name)
+        {
+            var heights = session.Pipeline.Heights;
+            var a = frame.ToAlbers(x, z);
+            double gx = heights.At(a.X + 30, a.Y) - heights.At(a.X - 30, a.Y), gz = heights.At(a.X, a.Y + 30) - heights.At(a.X, a.Y - 30);
+            double g = Math.Sqrt(gx * gx + gz * gz);
+            if (g < 1e-6) return "no slope there";
+            var line = new[] { x, z, (float)Math.Round(x + gx / g * length, 1), (float)Math.Round(z + gz / g * length, 1) };
+            var report = new StringBuilder();
+            BuildLift(session, frame, models, line, name, report);
+            return report.ToString();
+        }
+
+        static void BuildLift(TerrainEditSession session, LocalFrame frame, MountainPlanner.World.Lifts.LiftModelSet models, float[] liftLine,
+                              string name, StringBuilder report)
+        {
+            var history = session.History;
+            var heights = session.Pipeline.Heights;
+            report.Append("lift line [").Append(Join(liftLine)).Append("]; ");
+            var bottom = PointMm.FromMetres(liftLine[0], liftLine[1]);
+            var top = PointMm.FromMetres(liftLine[2], liftLine[3]);
+            var b = frame.ToAlbers(liftLine[0], liftLine[1]);
+            var t = frame.ToAlbers(liftLine[2], liftLine[3]);
             var after = new EditedHeights(heights.Source, heights.Lattice, history.Terrain);
             var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(LiftCatalogIds.SesselliftFgq4), models);
 
@@ -120,13 +147,12 @@ namespace MountainPlanner.App
                 rope.TopEntryEmpty * 180 / Math.PI, rope.TerminalsOk ? "within" : "OVER", rope.ClearanceOk ? "OK" : "SHORT",
                 rope.LowestClearance / 0.3048, rope.LowestClearanceS / 0.3048, rope.Shortfall / 0.3048, rope.ShortfallS / 0.3048,
                 rope.Towers[0].Reveal / 0.3048, rope.Towers[rope.Towers.Count - 1].Reveal / 0.3048);
-            var lift = new AddLift(history.Revision, LiftName, LiftCatalogIds.SesselliftFgq4, bottom, top, TowerMode.ByHand, TowerStance.Leaned,
+            var lift = new AddLift(history.Revision, name, LiftCatalogIds.SesselliftFgq4, bottom, top, TowerMode.ByHand, TowerStance.Leaned,
                                    built.Towers, WorkStage.Built);
             var r2 = history.Submit(lift, built.Edits);
             report.AppendFormat(CultureInfo.InvariantCulture, "lift {0}: {1:F0} ft, top tension {2:P0} of rating, {3} towers [{4}], {5} cells cleared",
                 r2.Accepted ? "built" : "REJECTED " + r2, Math.Sqrt(bottom.DistanceSquared(top)) / 304.8, rope.TopTensionShare,
                 built.Towers.Count, Describe(built.Towers), built.ClearedCells);
-            return report.ToString();
         }
 
         static string Join(float[] v)

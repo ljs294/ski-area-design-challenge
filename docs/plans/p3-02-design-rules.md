@@ -209,8 +209,20 @@ ruled differently. No archived code is copied; the rules are stated here as pros
 - **GR-11, the envelope (built to grow):**
   - The grading engine takes a footprint, a centreline, a bench width and an **envelope**: where cut and fill may
     reach.
-  - Phase 3 uses **envelope = footprint** (GR-06), except a terminal's pad (LF-12), whose faces may reach **200 ft
-    (61 m)** past the pad *(tuned at 07)*; a face that hasn't met the ground there is clipped and the step reported.
+  - Phase 3 uses **envelope = footprint** (GR-06), except a terminal's pad (LF-12 v2), whose faces may reach **50 ft
+    (15.2 m)** past the pad (v2, task 07 round 3; the 200 ft tuned for the style tile's hill is gone). A face that
+    hasn't met the ground there is clipped and the step reported.
+  - **v2, the lift-line envelope** (owner, task 07 round 3, finding #3, SK24): the trench under the chairs leaving the
+    bottom terminal, like the dug-in loading area of a real lift.
+    - **Where:** from the pad's edge, wherever the chairs fall short of TW-01 v2.
+    - **What:** the ground comes down just enough, level across both ropes' chair paths plus **5 ft (1.5 m)** either
+      side (about 30 ft on the Sessellift).
+    - **How:** cut only, 1:1 sides, at most **10 ft (3 m)** deep, never within 15 ft of a line tower's base (TF-11).
+    - **A pit:** where a steep bottom's station tower would stand too high on its 15 ft of steel, the ground under it
+      comes down too.
+    - **Checked on the finished rope:** a little deeper where real ground has bumps between the lattice's posts.
+    - **Deeper needs** raise the terminal instead (TW-16 v3).
+    - **Part of the lift's Break ground** (no save change).
   - A later cat track through steep terrain keeps a fixed bench and lets its 1:1 faces reach past the painted width,
     up to a set limit (0.1's road exception). That adds an envelope value, not a new engine.
 
@@ -236,6 +248,7 @@ ruled differently. No archived code is copied; the rules are stated here as pros
   and unloading: the terminal's footprint (from its model) plus **20 ft (6.1 m)** all round, and **50 ft (15.2 m)**
   more along the line in front of it *(tuned at 07)*.
   - **v2** (task 07, SK19): it also covers the terminal's pad and every cell its faces change (LF-12).
+  - **v3** (task 07 round 3, SK24): and every cell the lift-line envelope cuts (GR-11 v2).
 - **CL-04:** *retired.* Paths clear nothing (PA-05).
 - **CL-05, effects:** clearing writes the clearing mask that forest density reads (0.3 §4.5). The forest floor and snow
   follow it (task 05).
@@ -305,6 +318,8 @@ ruled differently. No archived code is copied; the rules are stated here as pros
   The network gets a junction there (NW-07).
 - **TF-11, near lifts:** grading never changes the ground within 15 ft (4.6 m) of a tower base or terminal. A trail
   that would push a built lift's chair clearance below 15 ft (TW-01) turns that stretch red and blocks Break ground.
+  - *v2 (task 07 round 3):* a lift's own pads and envelope (LF-12, GR-11 v2) are part of the lift and exempt, except
+    the 15 ft round each line tower's base. No trail may fill a lift's envelope.
 
 ## 5. Lifts
 
@@ -370,15 +385,16 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - It closes when the lift is committed.
 - **LF-11, after building:** a built lift's card is simple: name, type, capacity, length, rise, ride time, tower count.
   The engineering detail (tension, loads, clearances) shows only while the lift is being edited.
-- **LF-12 v1, terminal pads** (owner, task 07, SK19): every terminal is built on a level pad, so only its plinth comes
-  out of the ground.
-  - The pad is the terminal's footprint plus **20 ft (6.1 m)** all round (CL-09's margin), level at the terminal's base
-    elevation (its load or unload level).
-  - The top terminal's pad runs at least **60 ft (18.3 m)** behind its bullwheel, for the unload zone.
-  - Around it, 1:1 cut and fill faces run to the ground (GR-02), within GR-11's 200 ft terminal-pad envelope.
+- **LF-12 v2, terminal pads** (owner, task 07, SK19; v2 round 3, finding #2, SK25): every terminal is built on a level
+  pad, so only its plinth comes out of the ground.
+  - The pad hugs the terminal: its footprint (measured on its model) plus **5 ft (1.5 m)** all round, level at the
+    terminal's base elevation (its load or unload level). The same at either end: no unload extension; the unload area
+    beyond comes with the off-ramp models.
+  - Around it, 1:1 cut and fill faces run to the ground (GR-02), within GR-11's 50 ft terminal-pad envelope.
   - The pad is part of the lift's Break ground: its height deltas ride with the lift's command (no save change).
-  - When the rope must leave the bottom terminal steeper than its row allows even with hold-down towers (TW-16 v2), the
-    terminal stands higher as a last resort and its pad fills up to it.
+  - A terminal that must stand higher (TW-16 v3's last resorts: a flat summit's unload ramp, a bottom too steep for its
+    trench) has its pad filled up to it, so the raise lives in the saved terrain edits and a reload rebuilds the same
+    rope. A raise whose fill can't fit its envelope turns the lift red.
 
 ### 5.2 Catalog (LC)
 
@@ -392,7 +408,10 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - the drop from the rope to the chair's bottom;
   - line gauge;
   - sheave diameter and per-sheave limits;
-  - each terminal's train limits.
+  - the chair's width (TW-01 v2 measures under it);
+  - **each end** (TW-16 v3): which terminal model stands there, its row (hold-down or support), the rope angles that
+    row takes and the angle placement aims at, its footprint, where the rope leaves it and where its origin lies, the
+    last three measured on the model.
 
   Later types (doubles, triples, detachables) get their own entries.
 - **LC-02 v2, Phase 3 values** for both quads *(tuned at 07: SK8 the chair's drop; SK17 the 1¾ in rope)*:
@@ -459,28 +478,42 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   of rating").
 - **RP-06, tension readout:** while building, a bar shows the bottom and top tension as % of the rating, with lbf in
   the detail line.
+- **RP-08, the drawn load** (owner, task 07 round 3, finding #4, SK27): the rope is drawn at the load it carries. The
+  chairs are empty until the simulation brings riders, so both sides hang with the empty sag (on a 250 ft span at the
+  bottom, about 5½ ft against 12 ft loaded). Every check keeps both load cases (RP-04).
 - **RP-07, chairs:** chairs hang plumb from the rope and travel at rope speed. Each chair's position is a pure
   function of the lift's ID, the clock time and its index.
 
 ### 5.4 Towers (TW)
 
-- **TW-01, clearance:** every chair's bottom stays at least **15 ft (4.57 m) above bare ground**, in both load cases,
-  along the whole line.
-  - The load and unload zones are exempt: from each station to the first point where the chairs reach 15 ft.
+- **TW-01 v2, clearance** (v2 by the owner at task 07 round 3, finding #4, SK23): every chair's bottom stays at least
+  **15 ft (4.57 m) above bare ground**.
+  - **Under each rope, across the chair's width:** the uphill rope loaded and empty, the downhill rope empty.
+  - **On a terminal's pad** (its footprint plus LF-12's 5 ft) the terminal governs.
+  - **The low zones:** from each pad's edge, the chairs climb at least along a straight line from their height over the
+    pad to **15 ft at 100 ft (30.5 m) from the bullwheel**, the station zone's edge (owner Q5). The old exemption ("to
+    the first point where the chairs reach 15 ft") could swallow a whole sagging span; this can't.
+  - **Elsewhere**, 15 ft.
   - A span that breaks the rule is red.
 - **TW-02 v2, heights:**
   - A tower's height is **the rope's height above the ground at the tower**.
   - Heights run **25–100 ft (7.6–30.5 m) in 5 ft steps**; 25 ft is the lowest step at which the chairs clear 15 ft
     at the tower.
-  - **Station towers** (owner, task 07, SK18), within **100 ft (30.5 m)** of a bullwheel, where TW-01 exempts the load
-    and unload zones, may carry the rope from **15 ft (4.6 m)**.
+  - **Station towers** (owner, task 07, SK18), within **100 ft (30.5 m)** of a bullwheel, in TW-01's low zones, may
+    carry the rope from **15 ft (4.6 m)**.
+  - **v3, the foundation shows the rest** (owner, task 07 round 3, SK26): a station tower's steel stays in 5 ft steps,
+    and its concrete foundation stands up to just under 5 ft above the ground, so the rope meets its terminal exactly
+    (TW-16 v3). The reveal is derived like the lean, never stored; a tower set by hand that can't reach its terminal's
+    need shows a red terminal angle.
   - The kit builds the mast from that height. The 1 m mast sections take up the remainder at the base, as the Lift
     Lab does.
 - **TW-03 v2, spacing and siting:**
   - towers at least **50 ft (15.2 m)** apart, and from a terminal;
-  - except a **station tower** (SK18), which may stand from **15 ft (4.6 m)** past its terminal's front; by default
-    about **40 ft (12.2 m)** from the bullwheel. How close becomes a player setting later (shorter towers against wind
-    exposure);
+  - except a **station tower** (SK18), which may stand from **15 ft (4.6 m)** past its terminal's front, at least
+    **40 ft (12.2 m)** from the bullwheel. **v3** (round 3, finding #3): placement stands it where its terminal needs it
+    (TW-16 v3), within the 100 ft station zone: the bottom one at the first slot where the chairs have climbed to
+    15 ft, the top one at the closest slot where it's 15 ft tall. How close becomes a player setting later (shorter
+    towers against wind exposure);
   - not in a lake or on a road;
   - inside the core box.
 - **TW-04, head types:** at each tower, the load on each sheave (2T sin(δ/2), split over the sheaves, where δ is the
@@ -502,8 +535,9 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     breakover: add one on the crest".
 - **TW-07, span limits:** no fixed number. A longer span sags more, so it needs taller towers (TW-01, TW-02), and bends
   the rope harder at both ends, so it needs bigger heads (TW-05).
-- **TW-08, tolerance:** clearance is checked every 3.3 ft (1 m) along the line against SH-02's heights, to within
-  0.1 ft (3 cm).
+- **TW-08 v2, tolerance:** clearance is checked every 3.3 ft (1 m) along the line against SH-02's heights, to within
+  0.1 ft (3 cm), under each rope at the rope and at both edges of the chair (round 3). The ground is sampled once per
+  line and every solve reads it.
 - **TW-09, where it can stand:** for the tower in hand at its height, the line is checked every 5 ft (1.5 m) and the
   places it could stand are marked (the green band). It's recomputed only when the height or a placed part changes.
 - **TW-10, speed:** a tower move evaluates in ≤0.5 ms, and TW-09 in ≤2 ms, with 0 B garbage per frame (§5.5).
@@ -555,6 +589,21 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - Placement puts the **station towers** in first, as close as TW-03 v2 allows (about 40 ft from each bullwheel),
     from 15 ft tall (TW-02 v2); a terminal whose rope angle is over its row's limit is red.
   - Each type's row limits come from its catalog entry (LC-01).
+- **TW-16 v3, each end needs its rope** (owner, task 07 round 3, findings #1 and #3, SK21, SK22):
+  - **Each end is read from the terminal model standing there** (LC-01). A lift's terminals face where its bullwheels
+    are (the Monta's drive is its bottom station; task 09), so no rule assumes which end is the drive.
+  - **A hold-down row** (the Sessellift return): the rope leaves within its range (8.3–15.9°) in both load cases;
+    placement aims the empty rope at **14.3°** (90% of the limit), so the loaded one is flatter and still in range.
+  - **A support row** (the Sessellift drive): **the last span is level.** The last tower carries the rope at the
+    station's rope height (RP-01), so it runs straight into the terminal; the sag brings it in just above level, so
+    in both load cases it only ever presses down on the row (0–18°), never pulls up. That tower takes the whole turn to
+    level, with breakovers before it where one would be too sharp (TW-06).
+  - **Remedies, in order:** where the station tower stands (TW-03 v3); taller or added line towers; at the bottom, the
+    lift-line envelope (GR-11 v2) and then the terminal raised on its filled pad; at the top, **a raised unload ramp**
+    where the ground doesn't fall away from the terminal (owner Q6). Raises go in 1 ft steps, at most 30 ft.
+  - Placement only adds or raises line towers, never lowers or moves them; a crest too sharp for the room is left
+    red with its reason (TW-06), its neighbours raised at most 20 ft trying.
+  - RP-03's tensioning end and the Monta's own ends are task 09's.
 - **TW-15, stored:**
   - A tower's position along the line, its height and its stance are authored and saved.
   - Its head type, forces and rope geometry are derived (SH-05).

@@ -82,6 +82,13 @@ namespace MountainPlanner.App
             {
                 var report = StyleTile.Build(_edits, _resort.Frame, Lifts);
                 Debug.Log("[StyleTile] " + report);
+                // -extralift x,z: a second lift up the fall line from there, through the same build path (a check, round 3).
+                int extra = Array.IndexOf(args, "-extralift");
+                if (extra >= 0 && extra + 1 < args.Length)
+                {
+                    var v = args[extra + 1].Split(',').Select(t => float.Parse(t, CultureInfo.InvariantCulture)).ToArray();
+                    Debug.Log("[StyleTile] extra " + StyleTile.BuildUphill(_edits, _resort.Frame, Lifts, v[0], v[1], v.Length > 2 ? v[2] : 650, "Check Quad"));
+                }
                 while (!_edits.Applying.IsCompleted) yield return null;
             }
         }
