@@ -66,12 +66,25 @@ namespace MountainPlanner.Domain.Design
             bool monta = catalogId == LiftCatalogIds.MontaFg4;
             double gauge = monta ? 4.895 : 4.12;
             var type = new LiftType(catalogId, 4, 2.286, 13.716, 7.66, 220_800, 80_070, 158.8, 77.1, 2.66, gauge, 0.04445);
-            // The Sessellift's ends, measured on its models (task 07). The Monta takes the same numbers until task 09 gives
-            // it its own ends (its drive is at the bottom, owner's ruling).
-            string prefix = monta ? "monta_fg4_" : "sessellift_fgq4_";
-            type.Bottom = new TerminalEnd(prefix + "return", TerminalRow.HoldDown, ReturnExitMin, ReturnExitMax, 0.9 * ReturnExitMax,
-                                          2.3, 8.1, 3.0, 5.889, 3.543, 0);
-            type.Top = new TerminalEnd(prefix + "drive", TerminalRow.Support, -DriveEntryMax, 0, 0, 2.5, 7.2, 3.3, 3.1, 3.039, 0);
+            // Each end is the terminal model standing there (TW-16 v3; the owner's ruling, 2026-10-18: terminals face where
+            // their bullwheels are). The Sessellift drives at the top: its return's hold-down row (8 sheaves) at the bottom,
+            // its drive's support row (4) at the top. The Monta drives at the bottom: its drive's hold-down rows (12 sheaves,
+            // the carrier and link-bar trees) at the bottom, and its return's single deflection sheave at the top (LT6: a
+            // fixed row, its range a sheave's 4.5°). Both tension at the bottom (LT11, RP-03). Footprints, exits and origins
+            // are the models' (the view measures them again: LiftTypes.Measured).
+            if (monta)
+            {
+                type.Bottom = new TerminalEnd("monta_fg4_drive", TerminalRow.HoldDown, MontaExitMin, MontaExitMax, 0.9 * MontaExitMax,
+                                              5.042, 11.075, 6.25, 10.869, 3.555, 0, 12);
+                type.Top = new TerminalEnd("monta_fg4_return", TerminalRow.Support, -TowerForces.SheaveBendLimit, 0, 0,
+                                           0.26, 3.782, 2.473, 1.922, 3.039, 0, 1);
+            }
+            else
+            {
+                type.Bottom = new TerminalEnd("sessellift_fgq4_return", TerminalRow.HoldDown, ReturnExitMin, ReturnExitMax, 0.9 * ReturnExitMax,
+                                              2.3, 8.1, 3.0, 5.889, 3.543, 0, 8);
+                type.Top = new TerminalEnd("sessellift_fgq4_drive", TerminalRow.Support, -DriveEntryMax, 0, 0, 2.5, 7.2, 3.3, 3.1, 3.039, 0, 4);
+            }
             return type;
         }
 
@@ -81,6 +94,9 @@ namespace MountainPlanner.Domain.Design
         /// all eight sheaves on the rope with the rope level at the bullwheel (the model thread's pose sweep, task 07).
         /// </summary>
         public static readonly double ReturnExitMin = 8.3 * Math.PI / 180, ReturnExitMax = 15.9 * Math.PI / 180;
+        /// <summary>The Monta drive's hold-down rows keep every sheave on the rope from 6° to 16° (the model thread's pose
+        /// sweep, P3-07 Monta trains: 5–16° left, 6–16° right); placement aims at 90%.</summary>
+        public static readonly double MontaExitMin = 6 * Math.PI / 180, MontaExitMax = 16 * Math.PI / 180;
         /// <summary>TW-16: the Sessellift drive's 4-sheave support row brings the rope level to the bullwheel; it can take at
         /// most 4 × 4.5° = 18° (LC-02) of arriving rope angle.</summary>
         public static readonly double DriveEntryMax = 18 * Math.PI / 180;
@@ -126,10 +142,13 @@ namespace MountainPlanner.Domain.Design
             /// <summary>TW-02 v3: how far a station tower's foundation stands above the ground, under its 5 ft steel (metres; 0
             /// for a line tower).</summary>
             public readonly double Reveal;
+            /// <summary>TW-04/TW-05: what the head carries in both load cases (task 09).</summary>
+            public readonly TowerForces.Loads Loads;
 
             public TowerSolution(double baseS, double baseY, double ropeS, double ropeY, double lean, double bendLoaded, double bendEmpty,
-                                 Head head, double reveal)
+                                 Head head, double reveal, TowerForces.Loads loads)
             {
+                Loads = loads;
                 BaseS = baseS;
                 BaseY = baseY;
                 RopeS = ropeS;
@@ -179,6 +198,13 @@ namespace MountainPlanner.Domain.Design
         /// never pulled up).</summary>
         public bool TerminalsOk => Type.Bottom.Takes(BottomExitLoaded) && Type.Bottom.Takes(BottomExitEmpty)
                                    && Type.Top.Takes(-TopEntryLoaded) && Type.Top.Takes(-TopEntryEmpty);
+        /// <summary>TW-05 at each terminal's own row: every sheave within LC-02's limits in both load cases (task 09).</summary>
+        public bool RowsOk { get; }
+        /// <summary>RP-03: the tension at the top terminal, loaded and empty, newtons (the bottom's is the counterweight).</summary>
+        public double TopTensionLoaded { get; }
+        public double TopTensionEmpty { get; }
+        /// <summary>RP-05: the top of the loaded side stays within the rope's rating.</summary>
+        public bool TensionOk => TopTensionShare <= 1 + 1e-9;
 
         readonly TowerSolution[] _towers;
         readonly Span[] _loaded, _empty;
@@ -252,6 +278,7 @@ namespace MountainPlanner.Domain.Design
             _loaded = new Span[n + 1];
             _empty = new Span[n + 1];
             var heads = new Head[n];
+            var loads = new TowerForces.Loads[n];
             var bendL = new double[n];
             var bendE = new double[n];
 
@@ -312,7 +339,9 @@ namespace MountainPlanner.Domain.Design
                 {
                     bendL[i] = Math.Atan(_loaded[i + 1].Slope(ropeS[i + 1])) - Math.Atan(_loaded[i].Slope(ropeS[i + 1]));
                     bendE[i] = Math.Atan(_empty[i + 1].Slope(ropeS[i + 1])) - Math.Atan(_empty[i].Slope(ropeS[i + 1]));
-                    heads[i] = HeadFor(bendL[i], bendE[i], t0 + wl * (ropeY[i + 1] - ropeY[0]));
+                    double h = ropeY[i + 1] - ropeY[0];
+                    loads[i] = new TowerForces.Loads(t0 + wl * h, t0 + we * h, bendL[i], bendE[i]);
+                    heads[i] = loads[i].Head;
                 }
             }
 
@@ -344,13 +373,17 @@ namespace MountainPlanner.Domain.Design
                 }
                 Solve();
             }
-            TopTensionShare = (t0 + wl * (ropeY[n + 1] - ropeY[0])) / type.RatedTensionNewtons;
+            TopTensionLoaded = t0 + wl * (ropeY[n + 1] - ropeY[0]);
+            TopTensionEmpty = t0 + we * (ropeY[n + 1] - ropeY[0]);
+            TopTensionShare = TopTensionLoaded / type.RatedTensionNewtons;
             BottomExitLoaded = Math.Atan(_loaded[0].Slope(ropeS[0]));
             BottomExitEmpty = Math.Atan(_empty[0].Slope(ropeS[0]));
             TopEntryLoaded = Math.Atan(_loaded[n].Slope(ropeS[n + 1]));
             TopEntryEmpty = Math.Atan(_empty[n].Slope(ropeS[n + 1]));
+            RowsOk = TowerForces.RowCarries(type.Bottom, t0, BottomExitLoaded) && TowerForces.RowCarries(type.Bottom, t0, BottomExitEmpty)
+                     && TowerForces.RowCarries(type.Top, TopTensionLoaded, TopEntryLoaded) && TowerForces.RowCarries(type.Top, TopTensionEmpty, TopEntryEmpty);
             for (int i = 0; i < n; i++)
-                _towers[i] = new TowerSolution(baseS[i], baseY[i], ropeS[i + 1], ropeY[i + 1], lean[i], bendL[i], bendE[i], heads[i], reveal[i]);
+                _towers[i] = new TowerSolution(baseS[i], baseY[i], ropeS[i + 1], ropeY[i + 1], lean[i], bendL[i], bendE[i], heads[i], reveal[i], loads[i]);
 
             // TW-01 v2, every metre (TW-08), under each rope across the chair: the uphill rope loaded and empty, the downhill
             // rope empty (RP-04). On a terminal's pad (its footprint plus LF-12's 5 ft, the loading and unloading area) the
@@ -463,22 +496,5 @@ namespace MountainPlanner.Domain.Design
         }
 
         static double Asinh(double x) => Math.Log(x + Math.Sqrt(x * x + 1));
-
-        /// <summary>
-        /// A simple TW-04 (task 07): the rope presses down where it turns down over the head in both cases (support,
-        /// sized by the sheaves its bend and load need), pulls up where it turns up in both (hold-down), and flips
-        /// between them otherwise (combination). LC-02: 4.5° and 1,500 lbf (6.67 kN) per sheave.
-        /// </summary>
-        public static Head HeadFor(double bendLoaded, double bendEmpty, double tension)
-        {
-            bool downL = bendLoaded < 0, downE = bendEmpty < 0;
-            if (downL != downE) return Head.C8;
-            double bend = Math.Max(Math.Abs(bendLoaded), Math.Abs(bendEmpty));
-            double load = 2 * tension * Math.Sin(bend / 2);
-            int sheaves = Math.Max((int)Math.Ceiling(bend / BendPerSheave - 1e-9), (int)Math.Ceiling(load / 6672 - 1e-9));
-            if (sheaves > 8) return Head.TooSharp;
-            if (!downL) return Head.D8;
-            return sheaves <= 4 ? Head.S4 : sheaves <= 6 ? Head.S6 : Head.B8;
-        }
     }
 }

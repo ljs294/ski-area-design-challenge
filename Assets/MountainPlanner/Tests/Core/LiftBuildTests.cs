@@ -40,7 +40,7 @@ namespace MountainPlanner.Tests
             $"towers [{string.Join(", ", b.Towers.Select(t => $"{t.AlongMm / 304.8:F0}/{t.HeightMm / 304.8:F0}"))}], heads [{string.Join(",", b.Rope.Towers.Select(t => t.Head))}], " +
             $"exit {Deg(b.Rope.BottomExitLoaded):F1}/{Deg(b.Rope.BottomExitEmpty):F1}°, top {Deg(b.Rope.TopEntryLoaded):F2}/{Deg(b.Rope.TopEntryEmpty):F2}°, " +
             $"shortfall {b.Rope.Shortfall / Ft:F2} ft at {b.Rope.ShortfallS / Ft:F0} ft, raise {b.BottomRaise / Ft:F0}/{b.TopRaise / Ft:F0} ft, " +
-            $"trench {b.Envelope.DeepestMetres / Ft:F1} ft";
+            $"trench {b.Envelope.DeepestMetres / Ft:F1} ft, rows {(b.Rope.RowsOk ? "ok" : "OVER")}, top tension {b.Rope.TopTensionShare:P0}";
 
         /// <summary>Every rule the lift's geometry answers to, and the document's own (TW-02, TW-03). Some made-up grounds put a
         /// terminal on a slope LF-08 forbids (reported, tested on its own below); the rest must hold everywhere.</summary>
@@ -228,9 +228,11 @@ namespace MountainPlanner.Tests
 
         // Real ground: the committed Jackson Hole 2 km package, a fixed fan of lines.
 
-        [Test]
-        public void TW16v3_AFanOfRealLinesBuildsWithinTheRules()
+        [TestCase(LiftCatalogIds.SesselliftFgq4)]
+        [TestCase(LiftCatalogIds.MontaFg4)]
+        public void TW16v3_AFanOfRealLinesBuildsWithinTheRules(string catalogId)
         {
+            var quad = LiftType.Of(catalogId);
             string dir = TestData.Folder("jackson-hole-2km");
             foreach (string file in Directory.GetFiles(dir, "*.grid")) TestData.Bytes(dir, Path.GetFileName(file));
             var m = ResortPackage.ReadManifest(dir);
@@ -239,6 +241,8 @@ namespace MountainPlanner.Tests
             var natural = new EditedHeights(heights, new EditLattice(tiles.West, tiles.North), TerrainEdits.Empty);
             int built = 0, red = 0, gentle = 0, steep = 0, crested = 0, sidehill = 0;
             var problems = new List<string>();
+            var buildMs = new List<double>();
+            var heads = new SortedDictionary<LiftRope.Head, int>();
             // Where a terminal could stand (LF-08): natural ground varying by 10 ft or less over a 40 ft square, on a 20 m grid.
             double cx = m.Site.CentreX, cy = m.Site.CentreY, half = m.Site.SizeMetres / 2 - 60;
             var sites = new List<(double X, double Y, double H)>();
@@ -282,14 +286,26 @@ namespace MountainPlanner.Tests
                 if (grade > 0.4) steep++;
                 if (bend > 10) crested++;
                 if (side > 0.25) sidehill++;
-                var b = LiftBuild.Build(Quad, natural, ax, ay, bx, by, TowerStance.Leaned);
+                var sw = Stopwatch.StartNew();
+                var b = LiftBuild.Build(quad, natural, ax, ay, bx, by, TowerStance.Leaned);
+                foreach (var t in b.Rope.Towers) heads[t.Head] = heads.TryGetValue(t.Head, out int c) ? c + 1 : 1;
+                buildMs.Add(sw.Elapsed.TotalMilliseconds);
                 built++;
                 string what = $"({ax - cx:F0}, {ay - cy:F0}) to ({bx - cx:F0}, {by - cy:F0}) m ({length / Ft:F0} ft, {grade:P0}, bend {bend:F0} m, side {side:P0})";
                 TestContext.Progress.WriteLine($"{what}: {(b.Ok ? "ok" : "RED")} {Describe(b)}");
                 if (!b.Rope.TerminalsOk) problems.Add(what + ": " + Describe(b));
-                if (!b.Ok) red++;
+                if (!b.Ok)
+                {
+                    red++;
+                    // Task 09: a line nothing fits is red with a named reason, never a silent failure.
+                    Assert.That(b.Problems, Is.Not.Empty, what);
+                    TestContext.Progress.WriteLine("    " + string.Join("; ", b.Problems));
+                }
                 Assert.That(b.Towers.Max(t => t.HeightMm), Is.LessThanOrEqualTo(DesignUnits.TowerMaxMm), what);
             }
+            buildMs.Sort();
+            TestContext.Progress.WriteLine($"LiftBuild over the fan: median {buildMs[buildMs.Count / 2]:F0} ms, slowest {buildMs[buildMs.Count - 1]:F0} ms");
+            TestContext.Progress.WriteLine($"heads: {string.Join(", ", heads.Select(kv => $"{kv.Key} {kv.Value}"))}");
             TestContext.Progress.WriteLine($"{built} lines: {red} red; gentle {gentle}, steep {steep}, crest or hollow {crested}, sidehill {sidehill}");
             // Every terminal takes its rope (TW-16 v3); most lines build within every rule. The rest are red for a rule the
             // tool will show: a crest too sharp for the room on cliffy ground (TW-06), or a small shortfall just past a low

@@ -40,7 +40,8 @@ namespace MountainPlanner.Domain.Design
         }
 
         const double Grid = 1.524, LineHeight = 10.668, MaxHeight = 30.48, StationDefault = 12.192, PastFront = 4.572,
-                     MaxSpan = 76.2, MinGap = 15.24, Tolerance = LiftRope.ClearanceTolerance;
+                     MaxSpan = 76.2, MinGap = 15.24, Tolerance = LiftRope.ClearanceTolerance,
+                     StationNeighbourMax = 18.288;   // 60 ft: past that a station span's shortfall goes to the trench
 
         /// <summary>
         /// Places towers on the line from <paramref name="bottom"/> to <paramref name="top"/> (bullwheels, in the package's
@@ -158,7 +159,10 @@ namespace MountainPlanner.Domain.Design
             //    envelope (the bottom) or the unload ramp (the top) rather than to ever taller towers.
             LiftRope rope = null;
             bool Inner(int i) => i > 0 && i < along.Count - 1;
-            bool sharpStuck = false;
+            var raisedNeighbour = new[] { -1, -1 };
+            var neighbourDone = new bool[2];
+            bool undone = false;
+            var stuck = new HashSet<double>();   // towers (by position) too sharp with nothing left to try (TW-06: left red)
             double bottomLeftTo = double.MinValue, topLeftFrom = double.MaxValue;   // stretches left to the envelope and the ramp
             var eased = new List<int>();   // how many 5 ft steps each tower has been raised to ease a sharp crest beside it
             for (int round = 0; round < 500; round++)
@@ -168,8 +172,22 @@ namespace MountainPlanner.Domain.Design
                     specs.Add(new Tower(TowerId.Make(1, i), (int)Math.Round(along[i] * 1000), (int)Math.Round(heights[i] * 1000)));
                 rope = LiftRope.Solve(type, ground, bx, by, tx, ty, specs, stance, exitS, exitY, topBack, topExitY, line);
                 int sharp = -1;
-                if (!sharpStuck)
-                    for (int i = 0; i < rope.Towers.Count; i++) if (rope.Towers[i].Head == LiftRope.Head.TooSharp) { sharp = i; break; }
+                for (int i = 0; i < rope.Towers.Count; i++)
+                    if (rope.Towers[i].Head == LiftRope.Head.TooSharp && !stuck.Contains(along[i])) { sharp = i; break; }
+                // A station tower's neighbour raised past what its head can take: the last step back, and the stretch goes on
+                // to the trench or the ramp instead.
+                for (int e = 0; e < 2; e++)
+                {
+                    int r = raisedNeighbour[e];
+                    if (r < 0 || neighbourDone[e]) continue;
+                    if (r < rope.Towers.Count && rope.Towers[r].Head == LiftRope.Head.TooSharp)
+                    {
+                        heights[r] -= Grid;
+                        neighbourDone[e] = true;
+                        undone = true;
+                    }
+                }
+                if (undone) { undone = false; continue; }
                 double from = rope.Towers[0].RopeS, to = rope.Towers[rope.Towers.Count - 1].RopeS;
                 from = Math.Max(from, bottomLeftTo);
                 to = Math.Min(to, topLeftFrom);
@@ -217,8 +235,23 @@ namespace MountainPlanner.Domain.Design
                     heights.Insert(ins, Math.Max(DesignUnits.TowerMinMm / 1000.0, Math.Min(MaxHeight, Snap(ropeThere - GroundAt(put)))));
                     continue;
                 }
-                // No room beside a station tower (its height is its terminal's), or in a low zone: the stretch up to the
-                // next tower goes to the envelope (the bottom) or the unload ramp (the top).
+                // No room beside a station tower (its height is its terminal's): the line tower on the other side of the
+                // short span stands taller first (TW-16 v3's remedies in order: line towers before the trench; task 09,
+                // SK29's small shortfalls just past a low zone).
+                if (sharp < 0 && prev == 0 && next < along.Count && Inner(next) && !neighbourDone[0] && heights[next] < StationNeighbourMax)
+                {
+                    heights[next] += Grid;
+                    raisedNeighbour[0] = next;
+                    continue;
+                }
+                if (sharp < 0 && next == along.Count - 1 && prev >= 0 && Inner(prev) && !neighbourDone[1] && heights[prev] < StationNeighbourMax)
+                {
+                    heights[prev] += Grid;
+                    raisedNeighbour[1] = prev;
+                    continue;
+                }
+                // Still short there, or in a low zone: the stretch up to the next tower goes to the envelope (the bottom) or the
+                // unload ramp (the top).
                 if (sharp < 0 && (inZone || prev == 0 || next == along.Count - 1))
                 {
                     if (at < length / 2) bottomLeftTo = Math.Max(bottomLeftTo, next < along.Count ? along[next] : at + 1);
@@ -239,7 +272,7 @@ namespace MountainPlanner.Domain.Design
                             if (i >= 0 && i < along.Count && Inner(i) && heights[i] < MaxHeight && eased[i] < 4) { heights[i] += Grid; eased[i]++; raised = true; }
                     }
                     else if (Inner(sharp) && heights[sharp] < MaxHeight) { heights[sharp] += Grid; raised = true; }
-                    if (!raised) sharpStuck = true;
+                    if (!raised) stuck.Add(along[sharp]);
                     continue;
                 }
                 // No room: the nearer line tower stands taller.

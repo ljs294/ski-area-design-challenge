@@ -40,17 +40,12 @@ namespace MountainPlanner.Domain.Design
             public double BottomSteepRaise { get; internal set; }
             public double TopSteepRaise { get; internal set; }
 
-            /// <summary>Every rule the lift's geometry answers to holds: TW-01 v2, TW-16 v3, no head too sharp, no clipped
-            /// pad.</summary>
-            public bool Ok
-            {
-                get
-                {
-                    if (!Rope.ClearanceOk || !Rope.TerminalsOk) return false;
-                    foreach (var t in Rope.Towers) if (t.Head == LiftRope.Head.TooSharp) return false;
-                    return BottomPad.ClippedStepMetres < 0.05 && TopPad.ClippedStepMetres < 0.05;
-                }
-            }
+            /// <summary>Why the lift is red, with each rule (TW-01 v2, TW-05, TW-06, TW-16 v3, RP-05, LF-12); empty when it isn't.</summary>
+            public List<LiftProblem> Problems => _problems ??= LiftProblems.For(Rope, BottomPad.ClippedStepMetres, TopPad.ClippedStepMetres);
+            List<LiftProblem> _problems;
+
+            /// <summary>Every rule the lift's geometry answers to holds.</summary>
+            public bool Ok => Problems.Count == 0;
         }
 
         /// <summary>LF-08 v2: a terminal cuts at most 10 ft into the hill; on a steeper site it stands higher on its pier.</summary>
@@ -204,6 +199,15 @@ namespace MountainPlanner.Domain.Design
                 // A bottom still leaving too steeply (its station tower at its 15 ft with no foundation showing): up 1 ft more.
                 if (rope.BottomExitEmpty > type.Bottom.AngleMax + 1e-9 && rope.Towers[0].Reveal <= 1e-6 && raiseB < LiftRope.MaxTerminalRaise - 1e-9
                     && envelope.NeededMetres <= LiftLineEnvelope.CapMetres + 1e-9)
+                {
+                    raiseB = Math.Min(LiftRope.MaxTerminalRaise, raiseB + LiftRope.RaiseStep);
+                    again = true;
+                }
+                // The chairs still short of the bottom low zone's rising line with the trench at its deepest (task 09, SK29's
+                // small shortfalls): the bottom terminal up 1 ft, the last resort (TW-16 v3).
+                LiftRope.Zones(type, length, out double frontB, out double edgeB, out _, out _);
+                if (!again && rope.ShortfallBetween(frontB, edgeB + LiftRope.Clearance * 4, out _) > LiftRope.ClearanceTolerance
+                    && rope.Towers[0].Reveal <= 1e-6 && raiseB < LiftRope.MaxTerminalRaise - 1e-9)
                 {
                     raiseB = Math.Min(LiftRope.MaxTerminalRaise, raiseB + LiftRope.RaiseStep);
                     again = true;

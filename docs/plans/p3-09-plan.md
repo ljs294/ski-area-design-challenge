@@ -124,13 +124,13 @@ superseded result is dropped, and a command against an old revision is rejected 
 - CL-03's 55 ft corridor and CL-09 v3 round each terminal (footprint + 20 ft, + 50 ft in front, the pad and the trench)
   go into the lift's terrain edits in one `DesignHistory.Submit(command, TerrainEdits)` step. Undo removes the lift
   and restores the trees and ground exactly (test).
-- **Earthwork for P3-08's replay (TL3), made order-proof.** A lift's earthwork becomes a pure function of the
-  stored lift (towers, levels, type) and the **source** heights:
-  - the build's search (raises, station steel, trench depth) runs once, at Break ground;
-  - what it settles is stored (towers and levels) or re-derived from the source alone (the trench's floor from the
-    rope, its 10 ft cap from the source ground);
-  - pads and trench only cut, so they apply as a minimum over the ground, and the order with trails doesn't matter
-    (P3-08 never fills a lift's envelope and keeps 15 ft round its towers, TF-11, so the rope can't move).
+- **Earthwork for P3-08's replay (TL3), made reproducible.** A lift's earthwork becomes a pure, search-free function
+  (`LiftEarthwork`) of the stored lift (towers, levels, type) and the ground the replay gives it:
+  - the build's search (raises, station steel, towers) runs once, in the tool, and what it settles is stored;
+  - **the first build's earthwork is made by the same function**, so a later replay on the same ground gives the same
+    bytes by construction; on changed ground (a trail laid under it) it regrades deterministically;
+  - pads and trench only cut (a minimum over the ground). P3-08 never fills a lift's envelope and keeps 15 ft round
+    its towers (TF-11), so the rope, which hangs from the stored towers and levels, can't move.
   - `LiftEarthwork` lists all of the lift's own tiles, so a replay touching one rebuilds the whole lift and never
     leaves a seam between old and new code.
   - Levels are rounded to whole mm inside the build, before grading, so a replay is byte-identical (golden).

@@ -37,10 +37,14 @@ namespace MountainPlanner.Domain.Design
         public double ExitRise { get; }
         /// <summary>Where the terminal's origin lies from its bullwheel (its rope_*_bw sockets).</summary>
         public double OriginAlong { get; }
+        /// <summary>How many sheaves the row turns the rope over, per rope side (TW-05 at the row; task 09): the Sessellift
+        /// return's 8, its drive's 4, the Monta drive's 12, the Monta return's single deflection sheave.</summary>
+        public int Sheaves { get; }
 
         public TerminalEnd(string model, TerminalRow row, double angleMin, double angleMax, double aim,
-                           double behind, double ahead, double halfWidth, double exitAlong, double exitRise, double originAlong)
+                           double behind, double ahead, double halfWidth, double exitAlong, double exitRise, double originAlong, int sheaves)
         {
+            Sheaves = sheaves;
             Model = model;
             Row = row;
             AngleMin = angleMin;
@@ -56,15 +60,15 @@ namespace MountainPlanner.Domain.Design
 
         /// <summary>The same end with the rope exit measured on its model.</summary>
         public TerminalEnd WithExit(double along, double rise) =>
-            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, along, rise, OriginAlong);
+            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, along, rise, OriginAlong, Sheaves);
 
         /// <summary>The same end with its footprint measured on its model.</summary>
         public TerminalEnd WithFootprint(double behind, double ahead, double halfWidth) =>
-            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, behind, ahead, halfWidth, ExitAlong, ExitRise, OriginAlong);
+            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, behind, ahead, halfWidth, ExitAlong, ExitRise, OriginAlong, Sheaves);
 
         /// <summary>The same end with its origin measured on its model.</summary>
         public TerminalEnd WithOrigin(double along) =>
-            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, ExitAlong, ExitRise, along);
+            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, ExitAlong, ExitRise, along, Sheaves);
 
         /// <summary>Whether a rope at <paramref name="angle"/> (the end's frame) suits the row.</summary>
         public bool Takes(double angle) => angle >= AngleMin - 1e-9 && angle <= AngleMax + 1e-9;
