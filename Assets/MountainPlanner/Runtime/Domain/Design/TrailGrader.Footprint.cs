@@ -75,6 +75,10 @@ namespace MountainPlanner.Domain.Design
                 }
                 if (graded && !ok[k]) ungraded++;
             }
+            // Proposed GR-05 v2: the bench's width follows its neighbours. Each side takes the narrowest GR-03 width within
+            // two stations, then the average of those over two stations, so it can never be wider than GR-03 allows at the
+            // station, and lidar roughness doesn't step the faces in and out every 25 ft.
+            if (graded) { Smooth(left, ok); Smooth(right, ok); }
             result.Stations = line.ToArray();
             result.Along = along;
             result.Ground = (double[])z.Clone();
@@ -182,6 +186,29 @@ namespace MountainPlanner.Domain.Design
             int at = j * w + i;
             double top = g[at] + (g[at + 1] - g[at]) * tx, bottom = g[at + w] + (g[at + w + 1] - g[at + w]) * tx;
             return top + (bottom - top) * ty;
+        }
+
+        /// <summary>GR-05 v2 (proposed): how far the bench width's smoothing reaches, in stations (50 ft each way).</summary>
+        public const int WidthSmoothStations = 2;
+
+        static void Smooth(double[] width, bool[] ok)
+        {
+            int n = width.Length, k = WidthSmoothStations;
+            var min = new double[n];
+            for (int i = 0; i < n; i++)
+            {
+                double m = width[i];
+                for (int t = Math.Max(0, i - k); t <= Math.Min(n - 1, i + k); t++) if (ok[t]) m = Math.Min(m, width[t]);
+                min[i] = m;
+            }
+            for (int i = 0; i < n; i++)
+            {
+                if (!ok[i]) continue;
+                double sum = 0;
+                int c = 0;
+                for (int t = Math.Max(0, i - k); t <= Math.Min(n - 1, i + k); t++) if (ok[t]) { sum += min[t]; c++; }
+                width[i] = Math.Min(width[i], sum / c);
+            }
         }
 
         /// <summary>A footprint's claims and clearing only, no heights (a trail without a centreline yet).</summary>
