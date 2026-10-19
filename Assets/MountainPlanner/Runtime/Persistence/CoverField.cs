@@ -60,7 +60,32 @@ namespace MountainPlanner.Persistence
         /// Road coverage over a tile's texels (task 12d): paved and unpaved, anti-aliased, on a grid whose cell centres
         /// are the texels (row 0 north). Null when no road touches the tile.
         /// </summary>
+        // Each tile's road coverage, kept once built: the roads never change, and the edit pipeline asks for one tile's
+        // coverage once per edited patch (task 08: a 1 km trail's commit rasterised the same tile's roads 30-odd times).
+        // The same bytes either way; a few tiles kept, the oldest dropped.
+        readonly object _roadGate = new object();
+        readonly List<((double, double, double, double, int) Key, (byte[] Paved, byte[] Unpaved)? Value)> _roadCache =
+            new List<((double, double, double, double, int), (byte[], byte[])?)>();
+        const int RoadTilesKept = 8;
+
         (byte[] Paved, byte[] Unpaved)? RoadCoverage(AlbersBox bounds, int resolution, double step)
+        {
+            var key = (bounds.West, bounds.North, bounds.East, bounds.South, resolution);
+            lock (_roadGate)
+                foreach (var e in _roadCache)
+                    if (e.Key.Equals(key)) return e.Value;
+            var value = RasteriseRoads(bounds, resolution, step);
+            lock (_roadGate)
+            {
+                foreach (var e in _roadCache)
+                    if (e.Key.Equals(key)) return e.Value;
+                if (_roadCache.Count >= RoadTilesKept) _roadCache.RemoveAt(0);
+                _roadCache.Add((key, value));
+            }
+            return value;
+        }
+
+        (byte[] Paved, byte[] Unpaved)? RasteriseRoads(AlbersBox bounds, int resolution, double step)
         {
             var grid = new GridSpec(bounds.West - step / 2, bounds.North + step / 2, step, resolution, resolution);
             byte[]? paved = null, unpaved = null;

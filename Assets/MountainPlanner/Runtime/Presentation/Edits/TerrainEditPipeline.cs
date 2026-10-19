@@ -35,6 +35,8 @@ namespace MountainPlanner.Presentation.Edits
         public struct Report
         {
             public double PlanMs, HeightsMs, SplatMs, TreesMs, TotalMs, SnowMs;
+            /// <summary>Task 08's breakdown of the plan: worker time on posts, on cover and on trees (summed over threads).</summary>
+            public double PostsWorkMs, CoverWorkMs, TreesPlanMs;
             public int CacheTiles, Patches, Posts, Texels, Trees, Cleared;
         }
 
@@ -195,7 +197,7 @@ namespace MountainPlanner.Presentation.Edits
             Last = report;
             UnityEngine.Debug.Log($"[TerrainEdits] {report.Patches} patches over {report.CacheTiles} tiles: {report.Posts:N0} posts, {report.Texels:N0} texels, " +
                                   $"{report.Trees:N0} trees ({report.Cleared:N0} cleared); plan {report.PlanMs:F1} ms, heights {report.HeightsMs:F1}, " +
-                                  $"splat {report.SplatMs:F1}, trees {report.TreesMs:F1}, total {report.TotalMs:F1} ms");
+                                  $"splat {report.SplatMs:F1}, trees {report.TreesMs:F1}, total {report.TotalMs:F1} ms (worker: posts {report.PostsWorkMs:F0}, cover {report.CoverWorkMs:F0}, tree plan {report.TreesPlanMs:F0})");
             if (_states != null) RebuildSnow(patches, ct);
         }
 
@@ -263,11 +265,14 @@ namespace MountainPlanner.Presentation.Edits
                 tilesTouched.Add(planned[k].Tile);
                 report.Posts += counts[k].Posts;
                 report.Texels += counts[k].Texels;
+                report.PostsWorkMs += counts[k].PostsWorkMs;
+                report.CoverWorkMs += counts[k].CoverWorkMs;
             }
             report.Patches = patches.Count;
             report.CacheTiles = tilesTouched.Count;
 
             // Trees: each touched tile's packed trees, read once; the ones in a patch stand on the new ground, cleared or not.
+            var treeWatch = Stopwatch.StartNew();
             if (trees != null && ranges != null)
                 foreach (var key in tilesTouched)
                 {
@@ -298,6 +303,7 @@ namespace MountainPlanner.Presentation.Edits
                         }
                     }
                 }
+            report.TreesPlanMs = treeWatch.Elapsed.TotalMilliseconds;
             return patches;
         }
 
@@ -317,6 +323,7 @@ namespace MountainPlanner.Presentation.Edits
                 West = b.West + (area.C0 - gc), East = b.West + (area.C1 - gc), North = b.North - (area.R0 - gr), South = b.North - (area.R1 - gr),
             };
             int w = i1 - i0 + 1, h = j1 - j0 + 1;
+            var watch = Stopwatch.StartNew();
             var hm = new float[h, w];   // [z, x], south row first
             for (int j = j0; j <= j1; j++)
                 for (int i = i0; i <= i1; i++)
@@ -325,6 +332,8 @@ namespace MountainPlanner.Presentation.Edits
             patch.HeightX = i0;
             patch.HeightY = 1024 - j1;
             report.Posts += w * h;
+            report.PostsWorkMs += watch.Elapsed.TotalMilliseconds;
+            watch.Restart();
 
             // Cover texels within 2 m of the area (the slope stencil reads 1 m either side of a bilinear sample).
             int n = tile.CoverResolution;
@@ -344,6 +353,7 @@ namespace MountainPlanner.Presentation.Edits
                 patch.SplatY = n - tj1;
                 report.Texels += inner.width * inner.height;
             }
+            report.CoverWorkMs += watch.Elapsed.TotalMilliseconds;
             return patch;
         }
 

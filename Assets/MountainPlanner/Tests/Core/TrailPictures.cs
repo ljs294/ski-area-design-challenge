@@ -356,6 +356,31 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void TimingCoverRegions()
+        {
+            string dir = TestData.Folder("jackson-hole-2km");
+            foreach (string g in Directory.GetFiles(dir, "*.grid")) TestData.Bytes(dir, Path.GetFileName(g));
+            var m = ResortPackage.ReadManifest(dir);
+            var tiles = TileGrid.For(SiteSquare.Create(new AlbersPoint(m.Site.CentreX, m.Site.CentreY), m.Site.SizeMetres / 1000.0));
+            using var lazy = new PackageHeights(dir, m);
+            var cover = new CoverField(m, dir, lazy);
+            tiles.TryTileAt(new AlbersPoint(m.Site.CentreX, m.Site.CentreY), out var key);
+            var box = tiles.Bounds(key);
+            int res = TerrainCache.CoreCoverResolution;
+            var region = new byte[90 * 90 * TerrainCache.CoverBands];
+            for (int run = 0; run < 3; run++)
+            {
+                var w = System.Diagnostics.Stopwatch.StartNew();
+                for (int k = 0; k < 38; k++)
+                {
+                    int i0 = (k * 23) % (res - 90), j0 = (k * 37) % (res - 90);
+                    cover.BuildRegion(box, res, i0, j0, i0 + 90, j0 + 90, lazy, null, region);
+                }
+                TestContext.Progress.WriteLine($"38 regions of 90x90 texels: {w.Elapsed.TotalMilliseconds:F1} ms (res {res})");
+            }
+        }
+
+        [Test]
         public void Trails()
         {
             var (h, site, m) = Open();

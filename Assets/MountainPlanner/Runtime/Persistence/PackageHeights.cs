@@ -128,7 +128,10 @@ namespace MountainPlanner.Persistence
                 var chunk = System.Threading.Volatile.Read(ref _chunks[c]);
                 if (chunk != null)
                 {
-                    _used[c] = System.Threading.Interlocked.Increment(ref _tick);
+                    // Marked used at the current tick, without the interlocked increment: every read paid one, and the
+                    // edit pipeline's parallel workers fought over it (task 08). Ticks move on each load, which is all the
+                    // keep-the-recent-ones rule needs.
+                    _used[c] = System.Threading.Volatile.Read(ref _tick);
                     return chunk;
                 }
                 lock (this)
