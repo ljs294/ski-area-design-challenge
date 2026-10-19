@@ -143,6 +143,7 @@ namespace MountainPlanner.UI.Tools
                     PaintStatus();
                     break;
                 case Step.Ends:
+                    _ctx.Preview.Hide(0);   // the brush ring belongs to painting
                     w.SetKeys((GameAction.ToolNext, "review"));
                     w.ShowReview(null);
                     w.SetCommit(false, false);

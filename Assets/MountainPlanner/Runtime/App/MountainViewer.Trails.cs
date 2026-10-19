@@ -116,6 +116,7 @@ namespace MountainPlanner.App
                 _tools.Tick(GroundInput(b, release: true));
                 yield return WaitTool(trail);
             }
+            int lastFeet = trail.BrushFeet;
             foreach (var (x, z, ft) in spot.islands)
             {
                 while (trail.BrushFeet > ft) _tools.Tick(new ToolInput { Keys = ToolKeys.BrushNarrower });
@@ -123,6 +124,7 @@ namespace MountainPlanner.App
                 _tools.Tick(GroundInput(new Vector2(x, z), release: true, erase: true));
                 yield return WaitTool(trail);
             }
+            while (trail.BrushFeet < lastFeet) _tools.Tick(new ToolInput { Keys = ToolKeys.BrushWider });
             yield return Shot(dir, "1-paint");
 
             _tools.Tick(new ToolInput { Keys = ToolKeys.Next });
