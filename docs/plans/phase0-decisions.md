@@ -424,3 +424,25 @@ look before tasks 08 and 09. Plan: [p3-07-plan.md](p3-07-plan.md). The owner ans
 | SK28 | **Real-ground check** (round 3): a fan of 32 Jackson Hole 2 km lines between LF-08 terminal sites; 23 build within every rule, the rest red for TW-06 crests on cliffy ground or small shortfalls just past a low zone (task 09's full TW-12 placement) |
 | SK29 | **Round 4 split** (owner, 2026-10-18): TW-05's full per-sheave forces in both load cases (the 750 lbf group minimum on hold-downs), any span rule, and the support on long steep spans and crests (findings r4 #1, #2b, #3b) go to **task 09** with its load gauges; round 3's small shortfalls past a low zone too |
 | SK30 | **Steep terminal sites** (owner, round 4): allowed; the terminal is raised (cutting at most 10 ft into the hill) and stands on its pier with **nothing filled up to it**: pads are cut-only clearance envelopes (LF-08 v2, LF-12 v3); an inlaid unload ramp model comes later. Supersedes SK22's filled unload ramp. Raised levels go to the view in memory until save v2 (SK14) |
+
+## Phase 3 task 08, trails: decided 2026-10-19
+
+**Context:** painting, the automatic centreline, grading, clearing, the profile, Edit and Remove, the Trails map layer
+and Analysis › Trails. Plan: [p3-08-plan.md](p3-08-plan.md). The owner answered "Ok to all" to the plan's twelve
+questions, and added TL13.
+
+| # | Decision |
+|---|---|
+| TL1 | **Centreline (TR-03):** a cost path from head to tail whose cost rises near any edge or island, then smoothed inside the footprint and cut into 25 ft stations |
+| TL2 | **GR-03 v2 and GR-13, the edge envelope:** each side's bench budget runs to the painted edge along the section; every cell then stays between 1:1 slopes rising from the natural ground at the footprint's boundary (edges, islands, earlier trails, TF-11's rounds). The style tile's trail moves to the same engine and its golden heights re-pin |
+| TL3 | **Edit and delete terrain:** the touched tiles are rebuilt by replaying the built work that reaches them, in order: trails by ID, then lifts' earthwork through a hook task 09 fills |
+| TL4 | **Overlaps (TF-10):** the earlier trail keeps its grading; trees are cleared under both |
+| TL5 | **TF-11:** task 08 keeps 15 ft round tower bases and terminals and puts no fill in a lift's envelope; the chair-clearance block uses task 09's clearance check when it lands |
+| TL6 | **Trails map layer:** trail-map lines in the rating's colour, name centred, symbol at the head, plans orange; on by default; Shift+4. The graded ground stays visible when the layer is off |
+| TL7 | **Profile:** the TF-04 strip shows in New and Edit trail; the focus card stays simple (TF-08) |
+| TL8 | **Analysis › Trails columns:** Trail, Length, Vertical, Grading, Status (Built or Planned); surface and open or closed wait for the simulation |
+| TL9 | **Shared table:** task 08 writes a generic `AnalysisList` (table, filters, focus-card shell) that task 09 reuses for Lifts; the first to merge lands it |
+| TL10 | **Fixtures:** four crops of the Jackson Hole 2 km package (sidehill, ridge, gully, too-steep face) with golden heights, plus analytic surfaces |
+| TL11 | **Mockup first:** the Edit trail panel follows TF-07, Remove confirms, the review's terrain rows, the live Trails layer row and the Grading column; screenshots in both themes |
+| TL12 | **One PR**, with the mockup approval as a checkpoint in the thread |
+| TL13 | **Grading only when the player chooses it** (owner): a new trail starts **Natural**; it is graded only when the player switches it to Graded. Natural trails clear trees and change no ground (TF-06) |
