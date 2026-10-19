@@ -7,6 +7,8 @@ namespace MountainPlanner.Domain.Design
     /// <summary>What a built trail's grade hands back to the tools (task 08): its footprint, centreline and grade.</summary>
     public sealed class TrailBuild
     {
+        /// <summary>The trail as it was graded: a view can reuse this build while the trail is the same object.</summary>
+        public Trail Trail { get; internal set; }
         public TrailFootprint Footprint { get; internal set; }
         public TrailCentreline.Result Centreline { get; internal set; }
         /// <summary>Null when no centreline joins the ends.</summary>
@@ -220,7 +222,7 @@ namespace MountainPlanner.Domain.Design
                                        IReadOnlyList<Keep> rounds)
         {
             var fp = TrailFootprint.Build(trail.Parts, site.Lattice, site.OriginX, site.OriginY);
-            var build = new TrailBuild { Footprint = fp };
+            var build = new TrailBuild { Footprint = fp, Trail = trail };
             var lat = site.Lattice;
             Func<int, int, bool> isFixed = (c, r) =>
             {

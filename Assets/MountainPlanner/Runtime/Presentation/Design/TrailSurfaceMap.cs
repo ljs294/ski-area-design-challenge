@@ -33,7 +33,7 @@ namespace MountainPlanner.Presentation.Design
         public TrailSurfaceMap() => Shader.SetGlobalVector(ParamsId, Vector4.zero);
 
         /// <summary>The trails the map shows: built, with a stroke. Returns how many it drew.</summary>
-        public int Rebuild(DesignDocument doc, EditedHeights edited, LocalFrame frame)
+        public int Rebuild(DesignDocument doc, EditedHeights edited, LocalFrame frame, Func<Trail, TrailBuild> built = null)
         {
             var trails = new List<(double[] line, double half, TrailFootprint fp)>();
             var seen = new HashSet<TrailId>();
@@ -42,7 +42,14 @@ namespace MountainPlanner.Presentation.Design
                 if (t.Stage != WorkStage.Built || !t.HasEnds) continue;
                 seen.Add(t.Id);
                 // Task 08: each trail's painted footprint and automatic centreline (TR-02, TR-03), kept while the trail is unchanged.
-                if (!_shapes.TryGetValue(t.Id, out var shape) || !ReferenceEquals(shape.trail, t))
+                if ((!_shapes.TryGetValue(t.Id, out var shape) || !ReferenceEquals(shape.trail, t))
+                    && built?.Invoke(t) is TrailBuild b && ReferenceEquals(b.Trail, t) && b.Centreline != null && b.Centreline.Found)
+                {
+                    // The earthwork's own footprint and centreline for this very trail (task 08): no second computation.
+                    shape = (t, b.Footprint, b.Centreline.Points);
+                    _shapes[t.Id] = shape;
+                }
+                if (!_shapes.TryGetValue(t.Id, out shape) || !ReferenceEquals(shape.trail, t))
                 {
                     var fp = TrailFootprint.Build(t.Parts, edited.Lattice, frame.Origin.X, frame.Origin.Y);
                     var head = frame.ToAlbers(t.Head.Value.XMetres, t.Head.Value.YMetres);

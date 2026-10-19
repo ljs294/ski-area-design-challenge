@@ -123,9 +123,11 @@ namespace MountainPlanner.UI.Tools
             {
                 _nameField = w.AddText("name", "Name", "", DesignRules.NameMaxLength, Rename);
                 AddBrushAndGrading(w);
-                _editButtons = w.AddButtons("edit", new[] { "Repaint", "Move ends", "Rename", "Split", "Join" }, EditAction,
-                    new[] { "TF-07: the trail's strokes open in Paint", "TF-07: click a new head, then a new tail", "TF-07: keep the name typed above",
-                            "NW-10: Split and Join come with the network (task 10)", "NW-10: Split and Join come with the network (task 10)" });
+                var change = w.AddButtons("edit", new[] { "Repaint", "Move ends", "Rename" }, EditAction,
+                    new[] { "TF-07: the trail's strokes open in Paint", "TF-07: click a new head, then a new tail", "TF-07: keep the name typed above" });
+                var network = w.AddButtons("network", new[] { "Split", "Join" }, _ => { },
+                    new[] { "NW-10: Split and Join come with the network (task 10)", "NW-10: Split and Join come with the network (task 10)" });
+                _editButtons = new[] { change[0], change[1], change[2], network[0], network[1] };
                 w.AddStrip(_strip = new TrailProfileStrip());
                 w.SetSteps(EditSteps);
                 SetFeet(_feet);
@@ -258,13 +260,14 @@ namespace MountainPlanner.UI.Tools
             _editButtons[4].SetEnabled(false);
         }
 
-        // A built trail's card line (TF-08): length, vertical and rating, from its last grade.
+        // A built trail's card line (TF-08): length, vertical and rating, from its last grade; its profile in the strip.
         string Facts(Trail t)
         {
             var build = _ctx.Earthwork?.Earthwork?.DetailOf(t.Id.Value) as TrailBuild;
             var heights = _ctx.Earthwork?.Heights;
             if (build?.Grade == null || heights == null) return $"{t.Name}.";
             var r = TrailRating.Rate(heights, build.Footprint, build.Grade);
+            _strip?.Show(build.Grade, r);
             return $"{t.Name}: {Rating(r.ValuePercent)}, {ToolFormat.Length(build.Grade.LengthMetres)}, {ToolFormat.Length(System.Math.Abs(r.DropMetres))} vertical.";
         }
 

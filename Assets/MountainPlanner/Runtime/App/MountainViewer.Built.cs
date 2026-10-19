@@ -72,7 +72,7 @@ namespace MountainPlanner.App
             if (_designOverlay != null) _designOverlay.ShowBuilt = !ReferenceEquals(_designOverlay.History, _builtFor.History);
             var doc = _builtFor.History.Document;
             var heights = _builtFor.Pipeline.Heights;
-            int trails = _trailMap.Rebuild(doc, heights, _resort.Frame);
+            int trails = _trailMap.Rebuild(doc, heights, _resort.Frame, t => _edits?.Earthwork?.DetailOf(t.Id.Value) as TrailBuild);
             RebuildTrailLayer(doc, heights);   // the Trails map layer (MountainViewer.Trails.cs, task 08)
             var keep = new HashSet<LiftId>();
             foreach (var lift in doc.Lifts)

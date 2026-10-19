@@ -70,17 +70,17 @@ namespace MountainPlanner.Presentation.Design
         {
             labels?.Clear();
             var seen = new HashSet<TrailId>();
-            int slot = 0;
+            int slot = CasingSlot + 1;
             _slots.Clear();
             foreach (var t in doc.Trails)
             {
                 if (!t.HasEnds) continue;
                 seen.Add(t.Id);
-                if (!_shapes.TryGetValue(t.Id, out var s) || !ReferenceEquals(s.Trail, t)) _shapes[t.Id] = s = Build(t, heights, frame);
+                if (!_shapes.TryGetValue(t.Id, out var s) || !ReferenceEquals(s.Trail, t)) _shapes[t.Id] = s = Build(t, heights, frame, earthwork);
                 Rate(s, heights, earthwork);
                 if (s.Line == null) continue;
                 _slots.Add((t.Id, slot));
-                _lines.Line(slot++, s.Line, s.Line.Length, InkOf(s, t.Id == _focus));
+                _lines.Line(slot++, s.Line, s.Line.Length, InkOf(s));
                 if (labels != null)
                 {
                     var mid = s.Line[s.Line.Length / 2];
@@ -90,27 +90,38 @@ namespace MountainPlanner.Presentation.Design
                 }
             }
             _lines.HideFrom(slot);
+            _used = slot;
+            DrawCasing();
             var stale = new List<TrailId>();
             foreach (var id in _shapes.Keys) if (!seen.Contains(id)) stale.Add(id);
             foreach (var id in stale) _shapes.Remove(id);
         }
 
-        /// <summary>A trail in focus (a hovered Analysis row, its focus card) draws white; the rest keep their colour.</summary>
+        /// <summary>A trail in focus (a hovered Analysis row, its focus card) gets a wider white casing under its line (owner, #87).</summary>
         public void Focus(TrailId id)
         {
             if (id == _focus) return;
             _focus = id;
-            foreach (var (tid, slot) in _slots)
-                if (_shapes.TryGetValue(tid, out var s) && s.Line != null) _lines.Line(slot, s.Line, s.Line.Length, InkOf(s, tid == _focus));
+            DrawCasing();
+        }
+
+        int _used;
+        // The casing first, so the trails from slot 1 draw over it.
+        const int CasingSlot = 0;
+
+        void DrawCasing()
+        {
+            if (_focus.IsNone || !_shapes.TryGetValue(_focus, out var s) || s.Line == null) { _lines.Hide(CasingSlot); return; }
+            _lines.Line(CasingSlot, s.Line, s.Line.Length, PreviewInk.Casing);
+            _lines.SetWidth(CasingSlot, 2.4f, behind: true);
         }
 
         public void Follow(Camera camera) => _lines.Follow(camera);
 
         public int VisibleParts => _lines.Visible;
 
-        static PreviewInk InkOf(Shape s, bool focus)
+        static PreviewInk InkOf(Shape s)
         {
-            if (focus) return PreviewInk.Casing;
             if (s.Trail.Stage == WorkStage.Plan) return PreviewInk.Plan;
             return s.Band == SlopeBands.Band.Green ? PreviewInk.RatingGreen : s.Band == SlopeBands.Band.Blue ? PreviewInk.RatingBlue : PreviewInk.RatingBlack;
         }
@@ -118,13 +129,23 @@ namespace MountainPlanner.Presentation.Design
         public static string Symbol(SlopeBands.Band band) =>
             band == SlopeBands.Band.Green ? "●" : band == SlopeBands.Band.Blue ? "■" : band == SlopeBands.Band.Black ? "◆" : "◆◆";
 
-        static Shape Build(Trail t, EditedHeights heights, LocalFrame frame)
+        static Shape Build(Trail t, EditedHeights heights, LocalFrame frame, DesignEarthwork earthwork)
         {
             var s = new Shape { Trail = t };
-            s.Footprint = TrailFootprint.Build(t.Parts, heights.Lattice, frame.Origin.X, frame.Origin.Y);
             var head = frame.ToAlbers(t.Head.Value.XMetres, t.Head.Value.YMetres);
             var tail = frame.ToAlbers(t.Tail.Value.XMetres, t.Tail.Value.YMetres);
-            var c = TrailCentreline.Find(s.Footprint, head.X, head.Y, tail.X, tail.Y);
+            // The earthwork's own footprint and centreline for this very trail when it has them (task 08).
+            TrailCentreline.Result c;
+            if (earthwork?.DetailOf(t.Id.Value) is TrailBuild b && ReferenceEquals(b.Trail, t) && b.Centreline != null)
+            {
+                s.Footprint = b.Footprint;
+                c = b.Centreline;
+            }
+            else
+            {
+                s.Footprint = TrailFootprint.Build(t.Parts, heights.Lattice, frame.Origin.X, frame.Origin.Y);
+                c = TrailCentreline.Find(s.Footprint, head.X, head.Y, tail.X, tail.Y);
+            }
             if (!c.Found) return s;
             int n = Math.Min(c.Points.Length / 2, 1000);
             s.Line = new Vector2[n];
