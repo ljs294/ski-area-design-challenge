@@ -25,10 +25,40 @@ namespace MountainPlanner.Domain.Design
         /// <summary>TF-11: grading keeps 15 ft (4.6 m) round each tower base and terminal.</summary>
         public const double LiftRoundMetres = 4.572;
 
+        /// <summary>
+        /// A place grading keeps off (TF-11), in the lattice's frame: a tower base's 15 ft round, or a terminal's measured
+        /// footprint (from its bullwheel, Behind away from the line to Ahead along it, and HalfWidth either side) grown by
+        /// 15 ft.
+        /// </summary>
+        public readonly struct Keep : IEquatable<Keep>
+        {
+            public readonly double X, Y, Ux, Uy, Behind, Ahead, HalfWidth;
+            public Keep(double x, double y, double ux, double uy, double behind, double ahead, double halfWidth)
+            {
+                X = x; Y = y; Ux = ux; Uy = uy; Behind = behind; Ahead = ahead; HalfWidth = halfWidth;
+            }
+
+            public static Keep Round(double x, double y) => new Keep(x, y, 1, 0, 0, 0, 0);
+
+            public bool Covers(double x, double y)
+            {
+                double dx = x - X, dy = y - Y;
+                double s = dx * Ux + dy * Uy, t = Math.Abs(-dx * Uy + dy * Ux);
+                double ds = s < -Behind ? -Behind - s : s > Ahead ? s - Ahead : 0, dt = Math.Max(0, t - HalfWidth);
+                return ds * ds + dt * dt <= LiftRoundMetres * LiftRoundMetres;
+            }
+
+            public double Reach => Math.Max(Math.Max(Behind, Ahead), HalfWidth) + LiftRoundMetres;
+
+            public bool Equals(Keep o) => X == o.X && Y == o.Y && Ux == o.Ux && Uy == o.Uy && Behind == o.Behind && Ahead == o.Ahead && HalfWidth == o.HalfWidth;
+            public override bool Equals(object obj) => obj is Keep o && Equals(o);
+            public override int GetHashCode() => X.GetHashCode() ^ Y.GetHashCode();
+        }
+
         public void Collect(DesignDocument doc, EarthworkSite site, List<IEarthworkItem> into)
         {
             Dictionary<ulong, long> order = null;
-            List<(double x, double y)> rounds = null;
+            List<Keep> rounds = null;
             foreach (var t in doc.Trails)
             {
                 if (t.Stage != WorkStage.Built || !t.HasEnds) continue;
@@ -49,49 +79,52 @@ namespace MountainPlanner.Domain.Design
             return map;
         }
 
-        /// <summary>TF-11's protected rounds: each built lift's terminals and tower bases, in the lattice's frame.</summary>
-        static List<(double x, double y)> Rounds(DesignDocument doc, EarthworkSite site)
+        /// <summary>TF-11's places: each built lift's terminals (their measured footprints) and tower bases.</summary>
+        static List<Keep> Rounds(DesignDocument doc, EarthworkSite site)
         {
-            var rounds = new List<(double, double)>();
+            var keeps = new List<Keep>();
             foreach (var l in doc.Lifts)
             {
                 if (l.Stage != WorkStage.Built) continue;
                 site.PointOf(l.Bottom, out double bx, out double by);
                 site.PointOf(l.Top, out double tx, out double ty);
-                rounds.Add((bx, by));
-                rounds.Add((tx, ty));
                 double len = l.LengthMetres;
-                if (len <= 0) continue;
+                if (len <= 0) { keeps.Add(Keep.Round(bx, by)); continue; }
+                double ux = (tx - bx) / len, uy = (ty - by) / len;
+                var type = LiftType.Of(l.CatalogId);
+                keeps.Add(type?.Bottom != null ? new Keep(bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth) : Keep.Round(bx, by));
+                keeps.Add(type?.Top != null ? new Keep(tx, ty, -ux, -uy, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth) : Keep.Round(tx, ty));
                 foreach (var tw in l.Towers)
                 {
                     double f = tw.AlongMm / 1000.0 / len;
-                    rounds.Add((bx + (tx - bx) * f, by + (ty - by) * f));
+                    keeps.Add(Keep.Round(bx + (tx - bx) * f, by + (ty - by) * f));
                 }
             }
-            return rounds;
+            return keeps;
         }
 
         sealed class Item : IEarthworkItem
         {
             readonly Trail _trail;
             readonly EarthworkSite _site;
-            readonly (double x, double y)[] _rounds;
+            readonly Keep[] _rounds;
             readonly ulong _seed;
 
-            public Item(Trail trail, ulong seed, long order, EarthworkSite site, List<(double x, double y)> rounds)
+            public Item(Trail trail, ulong seed, long order, EarthworkSite site, List<Keep> rounds)
             {
                 _trail = trail;
                 _seed = seed;
                 _site = site;
                 Order = order;
                 Reads = ReadsOf(trail, site);
-                var mine = new List<(double, double)>();
+                var mine = new List<Keep>();
                 var lat = site.Lattice;
-                foreach (var (x, y) in rounds)
+                foreach (var k in rounds)
                 {
-                    var box = new PointRect((int)Math.Floor(x - LiftRoundMetres - lat.West), (int)Math.Floor(lat.North - y - LiftRoundMetres),
-                                            (int)Math.Ceiling(x + LiftRoundMetres - lat.West), (int)Math.Ceiling(lat.North - y + LiftRoundMetres));
-                    if (box.Intersects(Reads)) mine.Add((x, y));
+                    double reach = k.Reach;
+                    var box = new PointRect((int)Math.Floor(k.X - reach - lat.West), (int)Math.Floor(lat.North - k.Y - reach),
+                                            (int)Math.Ceiling(k.X + reach - lat.West), (int)Math.Ceiling(lat.North - k.Y + reach));
+                    if (box.Intersects(Reads)) mine.Add(k);
                 }
                 _rounds = mine.ToArray();
             }
@@ -135,7 +168,7 @@ namespace MountainPlanner.Domain.Design
             bool SameRounds(Item o)
             {
                 if (o._rounds.Length != _rounds.Length) return false;
-                for (int i = 0; i < _rounds.Length; i++) if (o._rounds[i] != _rounds[i]) return false;
+                for (int i = 0; i < _rounds.Length; i++) if (!o._rounds[i].Equals(_rounds[i])) return false;
                 return true;
             }
 
@@ -153,22 +186,17 @@ namespace MountainPlanner.Domain.Design
         /// leave alone (TF-10, TF-11).
         /// </summary>
         public static TrailBuild Grade(Trail trail, EditedHeights ground, EarthworkSite site, ulong seed, Func<int, int, bool> claimed,
-                                       IReadOnlyList<(double x, double y)> rounds)
+                                       IReadOnlyList<Keep> rounds)
         {
             var fp = TrailFootprint.Build(trail.Parts, site.Lattice, site.OriginX, site.OriginY);
             var build = new TrailBuild { Footprint = fp };
             var lat = site.Lattice;
-            double r2 = LiftRoundMetres * LiftRoundMetres;
             Func<int, int, bool> isFixed = (c, r) =>
             {
                 if (claimed != null && claimed(c, r)) return true;
                 if (rounds == null) return false;
                 double x = lat.X(c), y = lat.Y(r);
-                for (int i = 0; i < rounds.Count; i++)
-                {
-                    double dx = x - rounds[i].x, dy = y - rounds[i].y;
-                    if (dx * dx + dy * dy <= r2) return true;
-                }
+                for (int i = 0; i < rounds.Count; i++) if (rounds[i].Covers(x, y)) return true;
                 return false;
             };
             if (trail.HasEnds && !fp.IsEmpty)

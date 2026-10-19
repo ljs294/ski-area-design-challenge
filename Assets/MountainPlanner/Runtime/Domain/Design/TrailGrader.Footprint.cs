@@ -18,6 +18,9 @@ namespace MountainPlanner.Domain.Design
             public double[] Ground { get; internal set; }
             /// <summary>Whether each station holds a bench (GR-04); false is drawn red (GR-07). All false on a Natural trail.</summary>
             public bool[] Benched { get; internal set; }
+            /// <summary>Each benched station's bench width left and right of the centreline, metres (0 where unbenched).</summary>
+            public double[] BenchLeft { get; internal set; }
+            public double[] BenchRight { get; internal set; }
             public int UngradedStations { get; internal set; }
             public double UngradedMetres { get; internal set; }
             public double LengthMetres { get; internal set; }
@@ -76,6 +79,10 @@ namespace MountainPlanner.Domain.Design
             result.Along = along;
             result.Ground = (double[])z.Clone();
             result.Benched = ok;
+            result.BenchLeft = new double[count];
+            result.BenchRight = new double[count];
+            for (int k = 0; k < count; k++)
+                if (ok[k]) { result.BenchLeft[k] = left[k]; result.BenchRight[k] = right[k]; }
             result.LengthMetres = length;
             result.UngradedStations = ungraded;
             result.UngradedMetres = count > 1 ? length * ungraded / count : 0;

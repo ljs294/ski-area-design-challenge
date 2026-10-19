@@ -6,7 +6,7 @@ using MountainPlanner.Domain.Measure;
 namespace MountainPlanner.Domain.Design
 {
     /// <summary>
-    /// A trail's difficulty (TD-01 to TD-03, TD-06) and the profile the tools draw (TF-04). Slopes are grades in percent,
+    /// A trail's difficulty (TD-01 v2 to TD-03, TD-06) and the profile the tools draw (TF-04). Slopes are grades in percent,
     /// the fall-line slope of the 1 m cells, as the Slope angle layer shows them.
     /// </summary>
     public static class TrailRating
@@ -60,9 +60,13 @@ namespace MountainPlanner.Domain.Design
                 double nx = -ey / len, ny = ex / len;
                 cells.Clear();
                 seen.Clear();
+                // TD-01 v2 (owner, TL15): a benched station reads its bench, the running surface; the rest read the whole
+                // section inside the footprint.
+                bool bench = grade.IsGraded && grade.Benched[k];
                 foreach (int side in new[] { 1, -1 })
                     for (double d = side > 0 ? 0 : 1; ; d += 1)
                     {
+                        if (bench && d > (side > 0 ? grade.BenchLeft[k] : grade.BenchRight[k])) break;
                         double x = cx + nx * d * side, y = cy + ny * d * side;
                         fp.Lattice.CellAt(x, y, out int c, out int r);
                         if (!fp.Contains(c, r)) break;
