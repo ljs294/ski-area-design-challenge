@@ -95,53 +95,37 @@ namespace MountainPlanner.App
             var t = frame.ToAlbers(LiftLine[2], LiftLine[3]);
             var after = new EditedHeights(heights.Source, heights.Lattice, history.Terrain);
             var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(LiftCatalogIds.SesselliftFgq4), models);
-            double lx = t.X - b.X, ly = t.Y - b.Y, ll = Math.Sqrt(lx * lx + ly * ly);
-            lx /= ll;
-            ly /= ll;
-            // Each terminal's origin (its load or unload level) sits off its bullwheel along the line; its pad is level there.
-            double bOff = type.Bottom.OriginAlong, tOff = type.Top.OriginAlong;
-            double bottomLevel = after.At(b.X + lx * bOff, b.Y + ly * bOff), topLevel = after.At(t.X - lx * tOff, t.Y - ly * tOff);
 
-            // LF-12: the pads, then the towers on the padded ground (TW-16 v2); a raised bottom terminal (the last resort)
-            // regrades its pad up to it.
-            TerrainEdits Pads(double raise, out TerminalPad.Result bp, out TerminalPad.Result tp)
-            {
-                bp = TerminalPad.Grade(after, b.X, b.Y, lx, ly, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel + raise);
-                var withBottom = new EditedHeights(heights.Source, heights.Lattice, bp.Edits);
-                tp = TerminalPad.Grade(withBottom, t.X, t.Y, -lx, -ly, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, topLevel);
-                return tp.Edits;
-            }
-            var padded = Pads(0, out var bottomPad, out var topPad);
-            var onPads = new EditedHeights(heights.Source, heights.Lattice, padded);
-            List<TowerSpec> towers;
-            double raised = 0;
-            {
-                var placed = TowerPlacement.Place(type, onPads, b.X, b.Y, t.X, t.Y, bottomLevel, topLevel, TowerStance.Leaned);
-                if (placed.BottomRaise > 0)
-                {
-                    raised = placed.BottomRaise;
-                    padded = Pads(raised, out bottomPad, out topPad);
-                    onPads = new EditedHeights(heights.Source, heights.Lattice, padded);
-                    placed = TowerPlacement.Place(type, onPads, b.X, b.Y, t.X, t.Y, bottomLevel + raised, topLevel, TowerStance.Leaned);
-                }
-                towers = placed.Towers;
-            }
+            // The one build path every lift takes (round 3): pads, towers, any ramp or raise, the envelope, the clearing.
+            var built = LiftBuild.Build(type, after, b.X, b.Y, t.X, t.Y, TowerStance.Leaned);
+            var rope = built.Rope;
             report.AppendFormat(CultureInfo.InvariantCulture,
-                "pads: bottom cut {0:F0} / fill {1:F0} yd³ (clipped {2:F2} m), top cut {3:F0} / fill {4:F0} yd³ (clipped {5:F2} m), bottom raised {6:F0} ft; ",
-                bottomPad.CutCubicMetres * 1.30795, bottomPad.FillCubicMetres * 1.30795, bottomPad.ClippedStepMetres,
-                topPad.CutCubicMetres * 1.30795, topPad.FillCubicMetres * 1.30795, topPad.ClippedStepMetres, raised / 0.3048);
-
-            // CL-03's corridor and CL-09 round each terminal, over the padded edits.
-            var corridor = LiftClearing.Corridor(padded, heights.Lattice, b.X, b.Y, t.X, t.Y, out int cleared);
-            corridor = LiftClearing.Terminal(corridor, heights.Lattice, b.X, b.Y, lx, ly, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, out int aroundB);
-            corridor = LiftClearing.Terminal(corridor, heights.Lattice, t.X, t.Y, -lx, -ly, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, out int aroundT);
-            cleared += aroundB + aroundT + bottomPad.ClearedCells + topPad.ClearedCells;
+                "ends: bottom {0} ({1:F1}/{2:F1}/{3:F1} m), top {4} ({5:F1}/{6:F1}/{7:F1} m); " +
+                "pads: bottom cut {8:F0} / fill {9:F0} yd³ (clipped {10:F2} m), top cut {11:F0} / fill {12:F0} yd³ (clipped {13:F2} m); " +
+                "raised: bottom {14:F0} ft, top {15:F0} ft; envelope: {16} ",
+                type.Bottom.Row, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth,
+                type.Top.Row, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth,
+                built.BottomPad.CutCubicMetres * 1.30795, built.BottomPad.FillCubicMetres * 1.30795, built.BottomPad.ClippedStepMetres,
+                built.TopPad.CutCubicMetres * 1.30795, built.TopPad.FillCubicMetres * 1.30795, built.TopPad.ClippedStepMetres,
+                built.BottomRaise / 0.3048, built.TopRaise / 0.3048,
+                built.Envelope.CutCubicMetres > 0
+                    ? string.Format(CultureInfo.InvariantCulture, "{0:F0} yd³, {1:F1} ft deep, {2:F0} ft wide, {3:F0}-{4:F0} ft;",
+                        built.Envelope.CutCubicMetres * 1.30795, built.Envelope.DeepestMetres / 0.3048, built.Envelope.WidthMetres / 0.3048,
+                        built.Envelope.FromS / 0.3048, built.Envelope.ToS / 0.3048)
+                    : "none;");
+            report.AppendFormat(CultureInfo.InvariantCulture,
+                " rope: leaves the bottom at {0:F1}° loaded / {1:F1}° empty, reaches the top at {2:F1}° / {3:F1}° ({4} TW-16), " +
+                "TW-01 v2 {5} (lowest {6:F1} ft at {7:F0} ft, shortfall {8:F1} ft at {9:F0} ft), foundations {10:F1} / {11:F1} ft; ",
+                rope.BottomExitLoaded * 180 / Math.PI, rope.BottomExitEmpty * 180 / Math.PI, rope.TopEntryLoaded * 180 / Math.PI,
+                rope.TopEntryEmpty * 180 / Math.PI, rope.TerminalsOk ? "within" : "OVER", rope.ClearanceOk ? "OK" : "SHORT",
+                rope.LowestClearance / 0.3048, rope.LowestClearanceS / 0.3048, rope.Shortfall / 0.3048, rope.ShortfallS / 0.3048,
+                rope.Towers[0].Reveal / 0.3048, rope.Towers[rope.Towers.Count - 1].Reveal / 0.3048);
             var lift = new AddLift(history.Revision, LiftName, LiftCatalogIds.SesselliftFgq4, bottom, top, TowerMode.ByHand, TowerStance.Leaned,
-                                   towers, WorkStage.Built);
-            var r2 = history.Submit(lift, corridor);
-            report.AppendFormat(CultureInfo.InvariantCulture, "lift {0}: {1:F0} ft, rise {2:F0} ft, {3} towers [{4}], {5} cells cleared",
-                r2.Accepted ? "built" : "REJECTED " + r2, Math.Sqrt(bottom.DistanceSquared(top)) / 304.8,
-                (topLevel - bottomLevel) / 0.3048, towers.Count, Describe(towers), cleared);
+                                   built.Towers, WorkStage.Built);
+            var r2 = history.Submit(lift, built.Edits);
+            report.AppendFormat(CultureInfo.InvariantCulture, "lift {0}: {1:F0} ft, top tension {2:P0} of rating, {3} towers [{4}], {5} cells cleared",
+                r2.Accepted ? "built" : "REJECTED " + r2, Math.Sqrt(bottom.DistanceSquared(top)) / 304.8, rope.TopTensionShare,
+                built.Towers.Count, Describe(built.Towers), built.ClearedCells);
             return report.ToString();
         }
 

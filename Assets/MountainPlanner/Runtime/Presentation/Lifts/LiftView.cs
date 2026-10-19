@@ -24,8 +24,6 @@ namespace MountainPlanner.Presentation.Lifts
         /// <summary>The head chosen for each tower, in order (for captures, tests and the review).</summary>
         public IReadOnlyList<string> Heads => _heads;
         public int ChairCount => _chairCount;
-        /// <summary>TW-16: how far the bottom terminal stands above the ground (metres).</summary>
-        public float BottomRaise { get; private set; }
 
         readonly LiftModelSet _models;
         readonly LiftMaterials _materials;
@@ -177,14 +175,9 @@ namespace MountainPlanner.Presentation.Lifts
             float length = Vector3.Distance(Flat(bottom), Flat(top));
             var b = frame.ToAlbers(bottom.x, bottom.z);
             var t = frame.ToAlbers(top.x, top.z);
-            Rope = LiftRope.SolveRaised(type, ground, b.X, b.Y, t.X, t.Y, lift.Towers, lift.Stance, S(bExit), bExit.y, length - S(tExit), tExit.y, out double raise);
-            BottomRaise = (float)raise;
-            if (ret != null && raise > 0)
-            {
-                // The bottom terminal stands higher (TW-16, for now): lift the model, and its sockets with it.
-                ret.transform.position += Vector3.up * BottomRaise;
-                bExit = retRig.Socket("rope_right_out").position;
-            }
+            // Each terminal stands on its pad (LF-12 v2), raised by any last resort in its fill; the station towers' foundations
+            // stand as high as their terminals need (TW-02 v3, derived as the build derived them).
+            Rope = LiftRope.Solve(type, ground, b.X, b.Y, t.X, t.Y, lift.Towers, lift.Stance, S(bExit), bExit.y, length - S(tExit), tExit.y);
 
             // Towers: the base level on its pier, the mast sections and head along the mast's axis (leaned down the line
             // by the rope's lean, TW-14), the rope at the head's sockets.
@@ -198,7 +191,7 @@ namespace MountainPlanner.Presentation.Lifts
                 at.y = (float)sol.BaseY;
                 var facing = Quaternion.LookRotation(-dir);   // the platform side (+Z) faces the return
                 var lean = Quaternion.AngleAxis((float)(sol.Lean * Mathf.Rad2Deg), Vector3.Cross(Vector3.up, -dir));
-                var h = SpawnTower(head, at, facing, lean, lift.Towers[i].HeightMm / 1000f, livery);
+                var h = SpawnTower(head, at, facing, lean, lift.Towers[i].HeightMm / 1000f, (float)sol.Reveal, livery);
                 heads.Add(h != null ? h.GetComponent<LiftRig>() : null);
             }
 
@@ -209,7 +202,7 @@ namespace MountainPlanner.Presentation.Lifts
             var loop = new List<Vector3>(4096);
             float half = (float)type.GaugeMetres / 2;
             if (retRig != null) loop.AddRange(StationRope(retRig, "right"));
-            AddSpans(loop, Rope.Loaded, bottom, dir, right * half, S(bExit), S(tExit), true);
+            AddSpans(loop, Rope.Empty, bottom, dir, right * half, S(bExit), S(tExit), true);   // RP-08: the load it carries
             if (driveRig != null)
             {
                 var down = StationRope(driveRig, "left");
@@ -266,7 +259,9 @@ namespace MountainPlanner.Presentation.Lifts
                 var trees = trains.ConvertAll(t => t.Tree);
                 var holds = trains.ConvertAll(t => t.HoldRow);
                 double y0 = trees[0].Sheaves[0].AxleW;
-                double w = side == 0 ? type.LoadedNewtonsPerMetre : type.EmptyNewtonsPerMetre;
+                // RP-08 (owner, round 3): the rope hangs at the load it carries; the chairs are empty, so both sides take the
+                // empty sag. The checks keep both load cases.
+                double w = type.EmptyNewtonsPerMetre;
                 var posed = RopeOverSheaves.PoseLine(trees, above, holds, rho, type.CounterweightNewtons, w, y0);
                 for (int i = 0; i < trains.Count; i++) TrainPosing.Apply(trains[i], posed.Poses[i], dir);
                 PoseError = Math.Max(PoseError, posed.TangentError);
@@ -364,11 +359,12 @@ namespace MountainPlanner.Presentation.Lifts
         }
 
         /// <summary>
-        /// A tower: the base on the ground (level; a leaned mast needs the tilted base plate, a model change in review), as
-        /// many 1 m mast sections as fit and the head, so the rope passes the head <paramref name="ropeHeight"/> from the
-        /// mast's foot along its axis; the base rides up or down by the remainder (under half a metre), as a footing would.
+        /// A tower: the base on the ground (level, or leaned with the mast, TW-14), as many 1 m mast sections as fit and the
+        /// head, so the rope passes the head <paramref name="steel"/> (the stored 5 ft step) from the mast's foot along its
+        /// axis; the base rides up or down by the remainder (under half a metre), as a footing would, and up by a station
+        /// tower's foundation <paramref name="reveal"/> (TW-02 v3).
         /// </summary>
-        GameObject SpawnTower(string headId, Vector3 position, Quaternion facing, Quaternion lean, float ropeHeight, Color livery)
+        GameObject SpawnTower(string headId, Vector3 position, Quaternion facing, Quaternion lean, float steel, float reveal, Color livery)
         {
             var head = Prefab(headId);
             var mast = Prefab("tower_mast");
@@ -381,8 +377,8 @@ namespace MountainPlanner.Presentation.Lifts
             var footLocal = foundation.GetComponent<LiftRig>().Socket("mast_foot").localPosition;
             float foot = footLocal.y;
             float ropeOnHead = head.GetComponent<LiftRig>().Socket("rope_right").localPosition.y;
-            int sections = Mathf.Max(1, Mathf.RoundToInt(ropeHeight - foot - ropeOnHead));
-            float rise = ropeHeight - (foot + sections + ropeOnHead);
+            int sections = Mathf.Max(1, Mathf.RoundToInt(steel - foot - ropeOnHead));
+            float rise = steel - (foot + sections + ropeOnHead) + reveal;
             var basePos = position + Vector3.up * rise;
             Spawn(foundation, basePos, facing, livery);
             var axis = lean * Vector3.up;

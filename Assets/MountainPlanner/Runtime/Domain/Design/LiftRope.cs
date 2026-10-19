@@ -97,11 +97,11 @@ namespace MountainPlanner.Domain.Design
     }
 
     /// <summary>
-    /// The style tile's rope (task 07, decision SK6): each span a catenary between the rope's support points, with RP-03's
+    /// A lift's rope (task 07, decision SK6; round 3): each span a catenary between the rope's support points, with RP-03's
     /// tension (the counterweight at the bottom, plus the load per metre times the height gained), for the loaded uphill
     /// side and the empty downhill side; the head each tower needs from the rope's bend (a simple form of TW-04); TW-14's
-    /// lean; TW-01's clearance. Task 09 replaces the support points with RP-02's sheave trains and tangent solve, and the
-    /// head choice with TW-04's per-sheave forces.
+    /// lean; TW-16 v3's station towers, whose foundations stand as high as their terminal needs (TW-02 v3); TW-01 v2's
+    /// clearance under each rope. Task 09 replaces the head choice with TW-04's per-sheave forces.
     ///
     /// The profile frame: s is the horizontal distance from the bottom bullwheel along the line, y the elevation (both
     /// metres). Terminal rope exits are given by the caller (the models' sockets).
@@ -123,8 +123,12 @@ namespace MountainPlanner.Domain.Design
             /// <summary>The rope's bend over the head, radians, for the loaded and the empty side: positive turns up (pulls up).</summary>
             public readonly double BendLoaded, BendEmpty;
             public readonly Head Head;
+            /// <summary>TW-02 v3: how far a station tower's foundation stands above the ground, under its 5 ft steel (metres; 0
+            /// for a line tower).</summary>
+            public readonly double Reveal;
 
-            public TowerSolution(double baseS, double baseY, double ropeS, double ropeY, double lean, double bendLoaded, double bendEmpty, Head head)
+            public TowerSolution(double baseS, double baseY, double ropeS, double ropeY, double lean, double bendLoaded, double bendEmpty,
+                                 Head head, double reveal)
             {
                 BaseS = baseS;
                 BaseY = baseY;
@@ -134,6 +138,7 @@ namespace MountainPlanner.Domain.Design
                 BendLoaded = bendLoaded;
                 BendEmpty = bendEmpty;
                 Head = head;
+                Reveal = reveal;
             }
         }
 
@@ -153,18 +158,32 @@ namespace MountainPlanner.Domain.Design
         public IReadOnlyList<Span> Empty => _empty;
         /// <summary>RP-05: the highest tension, at the top of the loaded side, as a share of the rating.</summary>
         public double TopTensionShare { get; }
-        /// <summary>TW-01: the lowest chair-bottom clearance over the ground outside the load and unload zones, metres.</summary>
+        /// <summary>TW-01 v2: the lowest chair clearance under either rope outside the low zones, metres, and where.</summary>
         public double LowestClearance { get; }
         public double LowestClearanceS { get; }
-        /// <summary>TW-16: the rope's steepest angle leaving the bottom terminal and arriving at the top one (either load
-        /// case), radians, positive climbing.</summary>
-        public double BottomExitAngle { get; }
-        public double TopEntryAngle { get; }
-        /// <summary>TW-16: both terminals' rows can turn the rope to level (the top row's turn taken either way, TW-16 v2).</summary>
-        public bool TerminalsOk => Type.Bottom.Takes(BottomExitAngle) && Math.Abs(TopEntryAngle) <= -Type.Top.AngleMin + 1e-9;
+        /// <summary>TW-01 v2: the most the chairs fall short of the rule anywhere (the low zones' rising line, 15 ft past
+        /// them), metres, and where; 0 when they never do.</summary>
+        public double Shortfall { get; }
+        public double ShortfallS { get; }
+        /// <summary>TW-01 v2 holds everywhere, to TW-08's 0.1 ft.</summary>
+        public bool ClearanceOk => Shortfall <= ClearanceTolerance;
+        /// <summary>TW-16: the rope's angle leaving the bottom terminal and arriving at the top one in each load case,
+        /// radians, positive climbing up the line; and the steeper of the two (for reports).</summary>
+        public double BottomExitLoaded { get; }
+        public double BottomExitEmpty { get; }
+        public double TopEntryLoaded { get; }
+        public double TopEntryEmpty { get; }
+        public double BottomExitAngle => Steepest(BottomExitLoaded, BottomExitEmpty);
+        public double TopEntryAngle => Steepest(TopEntryLoaded, TopEntryEmpty);
+        /// <summary>TW-16 v3: each end's row takes the rope in both load cases (in the end's own frame, so a support row is
+        /// never pulled up).</summary>
+        public bool TerminalsOk => Type.Bottom.Takes(BottomExitLoaded) && Type.Bottom.Takes(BottomExitEmpty)
+                                   && Type.Top.Takes(-TopEntryLoaded) && Type.Top.Takes(-TopEntryEmpty);
 
         readonly TowerSolution[] _towers;
         readonly Span[] _loaded, _empty;
+        readonly double _first;
+        readonly double[] _clear, _need;
 
         /// <summary>TW-14's cap: 15°.</summary>
         public const double MaxLean = 15 * Math.PI / 180;
@@ -176,43 +195,29 @@ namespace MountainPlanner.Domain.Design
         public const double BendPerSheave = 4.5 * Math.PI / 180;
         /// <summary>TW-01: 15 ft.</summary>
         public const double Clearance = 4.572;
+        /// <summary>TW-08: clearance is checked to 0.1 ft.</summary>
+        public const double ClearanceTolerance = 0.03;
+        /// <summary>TW-02 v3: a station tower's foundation shows up to just under 5 ft (the next 5 ft of steel takes over).</summary>
+        public const double MaxReveal = 1.523;
+        /// <summary>The terminal raise's steps and limit (TW-16 v3's last resort, LF-12 v2: the pad fills up to it): 1 ft, 30 ft.</summary>
+        public const double RaiseStep = 0.3048, MaxTerminalRaise = 9.144;
 
         /// <summary>
         /// Solves the rope for a straight line from <paramref name="bottomX"/>, <paramref name="bottomY"/> (the bottom
         /// bullwheel, local metres) to the top one, over <paramref name="ground"/>. The rope leaves the bottom terminal at
-        /// (bottomExitS, bottomExitY) and reaches the top one at (length − topExitBack, topExitY).
+        /// (bottomExitS, bottomExitY) and reaches the top one at (length − topExitBack, topExitY). <paramref name="line"/>
+        /// is the ground sampled under the line (sampled here when not given).
         /// </summary>
-        /// <summary>
-        /// TW-16 for now (owner, task 07): where the ground under the bottom terminal is too steep for its hold-down row,
-        /// the terminal stands higher, in 1 ft steps up to 30 ft, until the rope leaves within the row's limit. Derived, not
-        /// stored, until task 09 makes terminal elevation an authored value (save v2).
-        /// </summary>
-        public static LiftRope SolveRaised(LiftType type, IHeightSource ground, double bottomX, double bottomY, double topX, double topY,
-                                           IReadOnlyList<Tower> towers, TowerStance stance,
-                                           double bottomExitS, double bottomExitY, double topExitBack, double topExitY, out double raise)
-        {
-            raise = 0;
-            var rope = Solve(type, ground, bottomX, bottomY, topX, topY, towers, stance, bottomExitS, bottomExitY, topExitBack, topExitY);
-            while (rope.BottomExitAngle > type.Bottom.AngleMax && raise < MaxTerminalRaise - 1e-9)
-            {
-                raise += RaiseStep;
-                rope = Solve(type, ground, bottomX, bottomY, topX, topY, towers, stance, bottomExitS, bottomExitY + raise, topExitBack, topExitY);
-            }
-            return rope;
-        }
-
-        /// <summary>TW-16's terminal raise: 1 ft steps, at most 30 ft.</summary>
-        public const double RaiseStep = 0.3048, MaxTerminalRaise = 9.144;
-
         public static LiftRope Solve(LiftType type, IHeightSource ground, double bottomX, double bottomY, double topX, double topY,
                                      IReadOnlyList<Tower> towers, TowerStance stance,
-                                     double bottomExitS, double bottomExitY, double topExitBack, double topExitY)
+                                     double bottomExitS, double bottomExitY, double topExitBack, double topExitY, LineGround line = null)
         {
-            return new LiftRope(type, ground, bottomX, bottomY, topX, topY, towers, stance, bottomExitS, bottomExitY, topExitBack, topExitY);
+            return new LiftRope(type, ground, bottomX, bottomY, topX, topY, towers, stance, bottomExitS, bottomExitY, topExitBack, topExitY,
+                                line ?? LineGround.Sample(ground, type, bottomX, bottomY, topX, topY));
         }
 
         LiftRope(LiftType type, IHeightSource ground, double bx, double by, double tx, double ty, IReadOnlyList<Tower> towers,
-                 TowerStance stance, double bottomExitS, double bottomExitY, double topExitBack, double topExitY)
+                 TowerStance stance, double bottomExitS, double bottomExitY, double topExitBack, double topExitY, LineGround line)
         {
             Type = type;
             double dx = tx - bx, dy = ty - by;
@@ -225,6 +230,7 @@ namespace MountainPlanner.Domain.Design
             var ropeS = new double[n + 2];
             var ropeY = new double[n + 2];
             var lean = new double[n];
+            var reveal = new double[n];
             ropeS[0] = bottomExitS;
             ropeY[0] = bottomExitY;
             ropeS[n + 1] = LengthMetres - topExitBack;
@@ -236,6 +242,10 @@ namespace MountainPlanner.Domain.Design
                 baseS[i] = towers[i].AlongMm / 1000.0;
                 baseY[i] = GroundAt(baseS[i]);
             }
+            // TW-02 v3: the first and last towers within the station zone (100 ft of their bullwheel) are station towers.
+            double zone = DesignUnits.StationZoneMm / 1000.0;
+            bool bottomStation = n > 0 && baseS[0] <= zone + 1e-9;
+            bool topStation = n > (bottomStation ? 1 : 0) && LengthMetres - baseS[n - 1] <= zone + 1e-9;
 
             double t0 = type.CounterweightNewtons;
             double wl = type.LoadedNewtonsPerMetre, we = type.EmptyNewtonsPerMetre;
@@ -251,8 +261,42 @@ namespace MountainPlanner.Domain.Design
                 {
                     double height = towers[i].HeightMm / 1000.0;
                     ropeS[i + 1] = baseS[i] - height * Math.Sin(lean[i]);
-                    ropeY[i + 1] = baseY[i] + height * Math.Cos(lean[i]);
+                    ropeY[i + 1] = baseY[i] + reveal[i] + height * Math.Cos(lean[i]);
                 }
+            }
+
+            // TW-16 v3: a station tower's foundation stands as high as its terminal needs, so the empty rope leaves the
+            // station at the end's aim: a hold-down row's 90% climb, a support row's level last span. Whole millimetres,
+            // erring inside the row's range (the loaded rope is then flatter at a hold-down row and presses harder on a
+            // support row).
+            void Aim()
+            {
+                Place();
+                if (bottomStation) reveal[0] = Reveal(0, true);
+                if (topStation) reveal[n - 1] = Reveal(n - 1, false);
+                Place();
+            }
+            double Reveal(int i, bool bottom)
+            {
+                double target = bottom ? Math.Tan(type.Bottom.Aim) : -Math.Tan(type.Top.Aim);
+                double Slope(int mm)
+                {
+                    double y = ropeY[i + 1] - reveal[i] + mm / 1000.0;
+                    return bottom
+                        ? Catenary(ropeS[0], ropeY[0], ropeS[1], y, t0, we, ropeY[0]).Slope(ropeS[0])
+                        : Catenary(ropeS[n], y, ropeS[n + 1], ropeY[n + 1], t0, we, ropeY[0]).Slope(ropeS[n + 1]);
+                }
+                // The bottom exit steepens as the tower rises; the top arrival flattens. Keep the side inside the range.
+                bool Inside(int mm) => bottom ? Slope(mm) <= target : Slope(mm) >= target;
+                int lo = 0, hi = (int)(MaxReveal * 1000);
+                if (!Inside(lo)) return 0;
+                if (Inside(hi)) return hi / 1000.0;
+                while (hi - lo > 1)
+                {
+                    int mid = (lo + hi) / 2;
+                    if (Inside(mid)) lo = mid; else hi = mid;
+                }
+                return lo / 1000.0;
             }
 
             // RP-03: tension from the counterweight at the bottom plus the load per metre times the height gained; TW-04's
@@ -276,14 +320,15 @@ namespace MountainPlanner.Domain.Design
             double Bisector(int i) => (Math.Atan2(ropeY[i + 1] - ropeY[i], ropeS[i + 1] - ropeS[i])
                                        + Math.Atan2(ropeY[i + 2] - ropeY[i + 1], ropeS[i + 2] - ropeS[i + 1])) / 2;
 
-            Place();
+            Aim();
             Solve();
             if (stance == TowerStance.Leaned)
             {
                 // TW-14 v2 (owner, task 07): on a Leaned lift a tower leans where it's needed, where the rope crosses its
                 // head at more than 10° or its head is a breakover, hold-down or combination (the heaviest loads); the rest
                 // stay plumb. Which towers lean is decided on the plumb rope; a leaning mast then stands square to the rope,
-                // bisecting its chords, capped at 15° and in the base models' 2.5° steps. Three passes settle the rope.
+                // bisecting its chords, capped at 15° and in the base models' 2.5° steps. Three passes settle the rope, the
+                // station foundations re-aimed with each.
                 var leans = new bool[n];
                 for (int i = 0; i < n; i++)
                     leans[i] = Math.Abs(Bisector(i)) > LeanFrom || heads[i] == Head.B8 || heads[i] == Head.D8 || heads[i] == Head.C8;
@@ -295,45 +340,104 @@ namespace MountainPlanner.Domain.Design
                         double bisect = Math.Max(-MaxLean, Math.Min(MaxLean, Bisector(i)));
                         lean[i] = Math.Round(bisect / LeanStep) * LeanStep;
                     }
-                    Place();
+                    Aim();
                 }
                 Solve();
             }
             TopTensionShare = (t0 + wl * (ropeY[n + 1] - ropeY[0])) / type.RatedTensionNewtons;
-            double Steepest(double a, double b) => Math.Abs(a) >= Math.Abs(b) ? a : b;
-            BottomExitAngle = Steepest(Math.Atan(_loaded[0].Slope(ropeS[0])), Math.Atan(_empty[0].Slope(ropeS[0])));
-            TopEntryAngle = Steepest(Math.Atan(_loaded[n].Slope(ropeS[n + 1])), Math.Atan(_empty[n].Slope(ropeS[n + 1])));
+            BottomExitLoaded = Math.Atan(_loaded[0].Slope(ropeS[0]));
+            BottomExitEmpty = Math.Atan(_empty[0].Slope(ropeS[0]));
+            TopEntryLoaded = Math.Atan(_loaded[n].Slope(ropeS[n + 1]));
+            TopEntryEmpty = Math.Atan(_empty[n].Slope(ropeS[n + 1]));
             for (int i = 0; i < n; i++)
-                _towers[i] = new TowerSolution(baseS[i], baseY[i], ropeS[i + 1], ropeY[i + 1], lean[i], bendL[i], bendE[i], heads[i]);
+                _towers[i] = new TowerSolution(baseS[i], baseY[i], ropeS[i + 1], ropeY[i + 1], lean[i], bendL[i], bendE[i], heads[i], reveal[i]);
 
-            // TW-01, every metre (TW-08), both cases; the load and unload zones (from each station to where the chairs
-            // first reach 15 ft) are exempt.
-            double lowest = double.MaxValue, lowestS = 0;
-            int steps = (int)Math.Floor(ropeS[n + 1] - ropeS[0]);
-            var clear = new double[steps + 1];
-            for (int j = 0; j <= steps; j++)
+            // TW-01 v2, every metre (TW-08), under each rope across the chair: the uphill rope loaded and empty, the downhill
+            // rope empty (RP-04). On a terminal's pad (its footprint plus LF-12's 5 ft, the loading and unloading area) the
+            // terminal governs. From the pad's edge the chairs climb at least along a straight line to 15 ft at the station
+            // zone's edge (100 ft from the bullwheel); past the zones, 15 ft.
+            Zones(type, LengthMetres, out double frontB, out double edgeB, out double edgeT, out double frontT);
+            int j0 = (int)Math.Ceiling(Math.Max(frontB, ropeS[0])), j1 = (int)Math.Floor(Math.Min(frontT, ropeS[n + 1]));
+            j1 = Math.Min(j1, line.Count - 1);
+            _first = j0;
+            int count = Math.Max(0, j1 - j0 + 1);
+            _clear = new double[count];
+            _need = new double[count];
+            int kl = 0, ke = 0;
+            double drop = type.ChairDropMetres;
+            for (int j = 0; j < count; j++)
             {
-                double s = ropeS[0] + j;
-                clear[j] = Math.Min(RopeAt(_loaded, s), RopeAt(_empty, s)) - type.ChairDropMetres - GroundAt(s);
+                double s = j0 + j;
+                while (kl < n && s > _loaded[kl].To) kl++;
+                while (ke < n && s > _empty[ke].To) ke++;
+                double up = Math.Min(_loaded[kl].Y(s), _empty[ke].Y(s)), down = _empty[ke].Y(s);
+                _clear[j] = Math.Min(up - drop - line.UnderUp[j0 + j], down - drop - line.UnderDown[j0 + j]);
             }
-            // The exempt zones end where the chairs first reach 15 ft, and at the first (last) line tower at the latest, so a
-            // span between line towers that sags into the ground is never exempt. Station towers (TW-02 v2: within 100 ft
-            // of a bullwheel) stand inside the zones.
-            double zone = DesignUnits.StationZoneMm / 1000.0;
-            int firstLine = 0;
-            while (firstLine < n && baseS[firstLine] <= zone) firstLine++;
-            int lastLine = n - 1;
-            while (lastLine >= 0 && LengthMetres - baseS[lastLine] <= zone) lastLine--;
-            int firstTower = firstLine < n ? (int)Math.Floor(ropeS[firstLine + 1] - ropeS[0]) : steps;
-            int lastTower = lastLine >= 0 ? (int)Math.Ceiling(ropeS[lastLine + 1] - ropeS[0]) : 0;
-            int first = 0, last = steps;
-            while (first < Math.Min(steps, firstTower) && clear[first] < Clearance) first++;
-            while (last > Math.Max(0, lastTower) && clear[last] < Clearance) last--;
-            for (int j = first; j <= last; j++)
-                if (clear[j] < lowest) { lowest = clear[j]; lowestS = ropeS[0] + j; }
-            LowestClearance = lowest == double.MaxValue ? 0 : lowest;
+            // The rising line starts from the chairs' height over their terminal's own level (its pad) at the pad's edge.
+            double Lower(int k, double s) => Math.Min(_loaded[k].Y(s), _empty[k].Y(s));
+            double cB = count > 0 ? Math.Max(0, Math.Min(Clearance, Lower(0, j0) - drop - (bottomExitY - type.Bottom.ExitRise))) : 0;
+            double cT = count > 0 ? Math.Max(0, Math.Min(Clearance, Lower(n, j0 + count - 1) - drop - (topExitY - type.Top.ExitRise))) : 0;
+            double lowest = double.MaxValue, lowestS = 0, worst = 0, worstS = 0;
+            for (int j = 0; j < count; j++)
+            {
+                double s = j0 + j;
+                double need = Clearance;
+                if (s < edgeB) need = Math.Min(need, cB + (Clearance - cB) * Math.Max(0, s - j0) / (edgeB - j0));
+                if (s > edgeT) need = Math.Min(need, cT + (Clearance - cT) * Math.Max(0, j0 + count - 1 - s) / (j0 + count - 1 - edgeT));
+                _need[j] = need;
+                if (need - _clear[j] > worst) { worst = need - _clear[j]; worstS = s; }
+                if (s >= edgeB && s <= edgeT && _clear[j] < lowest) { lowest = _clear[j]; lowestS = s; }
+            }
+            LowestClearance = lowest == double.MaxValue ? Clearance : lowest;
             LowestClearanceS = lowestS;
+            Shortfall = worst;
+            ShortfallS = worstS;
         }
+
+        /// <summary>
+        /// TW-01 v2: the most the chairs fall short of the rule between <paramref name="from"/> and <paramref name="to"/>
+        /// (metres along the line), and where; 0 when they never do.
+        /// </summary>
+        public double ShortfallBetween(double from, double to, out double at)
+        {
+            at = 0;
+            double worst = 0;
+            for (int j = 0; j < _clear.Length; j++)
+            {
+                double s = _first + j;
+                if (s < from || s > to) continue;
+                if (_need[j] - _clear[j] > worst) { worst = _need[j] - _clear[j]; at = s; }
+            }
+            return worst;
+        }
+
+        /// <summary>TW-01 v2 at <paramref name="s"/>: the chairs' clearance under the lower rope, and what the rule asks
+        /// there (metres); false inside a terminal's footprint.</summary>
+        public bool ClearanceAt(double s, out double clearance, out double need)
+        {
+            int j = (int)Math.Round(s - _first);
+            clearance = need = 0;
+            if (j < 0 || j >= _clear.Length) return false;
+            clearance = _clear[j];
+            need = _need[j];
+            return true;
+        }
+
+        /// <summary>
+        /// TW-01 v2's low zones on a line <paramref name="length"/> metres long: each runs from its terminal's pad edge
+        /// (footprint plus LF-12's 5 ft; <paramref name="frontB"/>, <paramref name="frontT"/>) to the station zone's edge, 100 ft
+        /// from the bullwheel (<paramref name="edgeB"/>, <paramref name="edgeT"/>), metres along the line from the bottom.
+        /// </summary>
+        public static void Zones(LiftType type, double length, out double frontB, out double edgeB, out double edgeT, out double frontT)
+        {
+            double zone = DesignUnits.StationZoneMm / 1000.0;
+            frontB = type.Bottom.Ahead + TerminalPad.MarginMetres;
+            frontT = length - type.Top.Ahead - TerminalPad.MarginMetres;
+            edgeB = Math.Max(zone, frontB + 1);
+            edgeT = Math.Min(length - zone, frontT - 1);
+        }
+
+        static double Steepest(double a, double b) => Math.Abs(a) >= Math.Abs(b) ? a : b;
 
         /// <summary>The rope's elevation at s on one side's spans (the nearest span past either end).</summary>
         public static double RopeAt(IReadOnlyList<Span> spans, double s)

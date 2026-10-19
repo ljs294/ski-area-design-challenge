@@ -332,44 +332,17 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void TW16_TerminalsTurnTheRopeOnlySoFar()
-        {
-            // Flat at both stations (as LF-08 sites terminals), 40% (22°) between. With no tower near either terminal the
-            // rope leaves the return and reaches the drive too steeply for their rows (15.9° and 18°).
-            var line = new Profile(s => s < 60 ? 0 : s < 740 ? 0.4 * (s - 60) : 272);
-            var bare = Line(line, TowerStance.Plumb, (300, 10.67), (500, 10.67));
-            Assert.That(bare.TerminalsOk, Is.False);
-            // A station breakover 70 ft from each bullwheel keeps both within their rows.
-            var placed = Line(line, TowerStance.Plumb, (21.3, 7.62), (100, 12.19), (180, 10.67), (260, 10.67), (340, 10.67),
-                              (420, 10.67), (500, 10.67), (580, 10.67), (660, 10.67), (730, 12.19), (778.7, 7.62));
-            Assert.That(Math.Abs(placed.BottomExitAngle), Is.LessThanOrEqualTo(placed.Type.Bottom.AngleMax));
-            Assert.That(Math.Abs(placed.TopEntryAngle), Is.LessThanOrEqualTo(-placed.Type.Top.AngleMin));
-            Assert.That(placed.TerminalsOk, Is.True);
-        }
-
-        [Test]
-        public void TW16_ABottomTerminalOnSteepGroundStandsHigher()
-        {
-            // 40% from the bottom terminal on: even a 25 ft breakover at 70 ft can't keep the rope within 15.9°, so the
-            // terminal is raised (owner, for now), in 1 ft steps, until it can.
-            var steep = new Profile(s => s < 740 ? 0.4 * s : 296);
-            var towers = new[] { (21.3, 7.62), (100.0, 10.67), (180.0, 10.67), (260.0, 10.67), (340.0, 10.67), (420.0, 10.67), (500.0, 10.67), (580.0, 10.67), (660.0, 10.67), (778.7, 7.62) }
-                .Select((t, i) => new Tower(TowerId.Make(5, i), (int)(t.Item1 * 1000), (int)(t.Item2 * 1000))).ToList();
-            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
-            var rope = LiftRope.SolveRaised(Quad, steep, bx, by, tx, ty, towers, TowerStance.Plumb, 6, steep.At(bx, by) + 4.54, 4, steep.At(tx, ty) + 3.04, out double raise);
-            Assert.That(raise, Is.GreaterThan(0));
-            Assert.That(raise / LiftRope.RaiseStep, Is.EqualTo(Math.Round(raise / LiftRope.RaiseStep)).Within(1e-9));
-            Assert.That(rope.BottomExitAngle, Is.LessThanOrEqualTo(Quad.Bottom.AngleMax));
-        }
-
-        [Test]
         public void TW01_ClearanceIsMeasuredOutsideTheLoadingZones()
         {
             var ground = new Plane(0, 0.3);
             var low = Line(ground, TowerStance.Plumb, (150, 7.62), (650, 7.62));
             var high = Line(ground, TowerStance.Plumb, Enumerable.Range(1, 9).Select(i => (i * 80.0, 12.19)).ToArray());
             Assert.That(low.LowestClearance, Is.LessThan(0), "a 500 m span between two short towers sags into the ground, and it isn't exempt");
-            Assert.That(high.LowestClearance, Is.GreaterThanOrEqualTo(LiftRope.Clearance), "40 ft towers every 260 ft keep 15 ft");
+            Assert.That(low.ClearanceOk, Is.False);
+            // 40 ft towers every 260 ft keep 15 ft between them, but the first span (from the station to 262 ft) is no longer
+            // exempt (TW-01 v2, finding r3 #4): its chairs must be back at 15 ft by 100 ft.
+            Assert.That(high.ShortfallBetween(90, 700, out _), Is.LessThanOrEqualTo(LiftRope.ClearanceTolerance), "15 ft between the towers");
+            Assert.That(high.ShortfallBetween(0, 90, out _), Is.GreaterThan(LiftRope.ClearanceTolerance), "the first span falls short");
         }
 
         [Test]
@@ -447,59 +420,6 @@ namespace MountainPlanner.Tests
             Assert.That(h.At(x, y + 4.8), Is.GreaterThan(level + 0.5), "the face rises behind the pad");
             Assert.That(h.At(x, y + 8.0), Is.EqualTo(natural.At(x, y + 8.0)).Within(1e-9), "untouched 26 ft behind");
             Assert.That(h.At(x, y + 18.0), Is.EqualTo(natural.At(x, y + 18.0)).Within(1e-9), "no unload extension");
-        }
-
-        [Test]
-        public void TW02v2_TW03v2_StationTowersStandCloseAndShort()
-        {
-            // Flat round both terminals' pads, 30% between: the station towers stand 45 ft from the bullwheels (40 ft or
-            // 15 ft past the terminal's front, whichever is farther, on a 5 ft grid) and may be under 25 ft.
-            // The top eases from 30% to flat over 300 ft (a parabola), as a real top approach does.
-            double Ground(double s) => s < 40 ? 0 : s < 670 ? 0.3 * (s - 40) : s < 760 ? 189 + 0.3 * (s - 670) - 0.15 * (s - 670) * (s - 670) / 90 : 202.5;
-            var line = new Profile(Ground);
-            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
-            var placed = TowerPlacement.Place(Quad, line, bx, by, tx, ty, line.At(bx, by), line.At(tx, ty), TowerStance.Plumb);
-            var first = placed.Towers[0];
-            var last = placed.Towers[placed.Towers.Count - 1];
-            // 45 ft by default; farther (in 5 ft steps, within the 100 ft zone) where the return's row needs it to leave
-            // between 8.3° and 15.9°.
-            Assert.That(first.AlongMm, Is.InRange(DesignUnits.FeetToMm(45), DesignUnits.FeetToMm(100)));
-            Assert.That(800_000 - last.AlongMm, Is.EqualTo(DesignUnits.FeetToMm(45)).Within(DesignUnits.FiveFeetMm));
-            Assert.That(placed.Towers.TrueForAll(t => t.HeightMm >= DesignUnits.StationTowerMinMm));
-            Assert.That(placed.Rope.TerminalsOk, Is.True, $"bottom {placed.Rope.BottomExitAngle * 180 / Math.PI:F1}°, top {placed.Rope.TopEntryAngle * 180 / Math.PI:F1}°");
-            Assert.That(placed.Rope.LowestClearance, Is.GreaterThanOrEqualTo(LiftRope.Clearance),
-                $"lowest at {placed.Rope.LowestClearanceS:F0} m; towers " + string.Join(", ", placed.Towers.Select(t => $"{t.AlongMm / 1000.0:F0}/{t.HeightMm / 1000.0:F1}")));
-            Assert.That(placed.BottomRaise, Is.EqualTo(0));
-            // AddLift accepts them (TW-02 v2's station heights).
-            var towers = placed.Towers.Select((t, i) => new Tower(TowerId.Make(3, i), t.AlongMm, t.HeightMm)).ToList();
-            Assert.That(DesignRules.TowersProblem(800_000L * 800_000L, towers), Is.Null);
-        }
-
-        [Test]
-        public void TW16v2_AGentleBottomStillLeavesTheRowAtEightPointThreeDegreesOrMore()
-        {
-            // A 5% line (under 3°): the return's row needs at least 8.3°, so the station tower stands taller and a breakover
-            // brings the rope back down to the line.
-            var line = new Profile(s => 0.05 * s);
-            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
-            var placed = TowerPlacement.Place(Quad, line, bx, by, tx, ty, line.At(bx, by), line.At(tx, ty), TowerStance.Plumb);
-            Assert.That(placed.Rope.BottomExitAngle, Is.GreaterThanOrEqualTo(Quad.Bottom.AngleMin - 1e-9),
-                $"{placed.Rope.BottomExitAngle * 180 / Math.PI:F1}°");
-            Assert.That(placed.Rope.TerminalsOk, Is.True);
-        }
-
-        [Test]
-        public void TW16v2_ASteepBottomGetsAHoldDownNotARaise()
-        {
-            // A short flat pad, then 50% (27°): steeper than the bottom row's 15.9°. The rope leaves within the row and a
-            // tower near the station turns it up further (a hold-down or combination); the terminal isn't raised.
-            var line = new Profile(s => s < 20 ? 0 : s < 740 ? 0.5 * (s - 20) : 360);
-            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
-            var placed = TowerPlacement.Place(Quad, line, bx, by, tx, ty, line.At(bx, by), line.At(tx, ty), TowerStance.Plumb);
-            Assert.That(placed.Rope.BottomExitAngle, Is.LessThanOrEqualTo(Quad.Bottom.AngleMax + 1e-9));
-            Assert.That(placed.BottomRaise, Is.EqualTo(0));
-            bool holdDown = placed.Rope.Towers.Take(3).Any(t => t.Head == LiftRope.Head.D8 || t.Head == LiftRope.Head.C8);
-            Assert.That(holdDown, Is.True, string.Join(", ", placed.Rope.Towers.Select(t => t.Head)));
         }
 
         /// <summary>A profile along the test line, which runs due north from (100, 900) to (100, 100).</summary>
