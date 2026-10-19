@@ -32,6 +32,9 @@ namespace MountainPlanner.UI.Tools
         /// </summary>
         public Domain.Edits.TerrainEdits PendingTerrain { get; set; }
 
+        /// <summary>The ground the tools shape (task 08): the terrain edit session and its earthwork; null in tests without one.</summary>
+        public IEarthworkHost Earthwork { get; set; }
+
         /// <summary>A one-line notice in the HUD's toasts ("New trail discarded").</summary>
         public Action<string> Notice { get; set; }
 

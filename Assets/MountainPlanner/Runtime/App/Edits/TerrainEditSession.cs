@@ -32,6 +32,12 @@ namespace MountainPlanner.App.Edits
         public DesignHistory History { get; }
         public TerrainEditPipeline Pipeline { get; }
         public PendingContourView Preview { get; }
+        /// <summary>The design's earthwork (task 08, TL3): built work folded into terrain edits; ready once primed.</summary>
+        public DesignEarthwork Earthwork { get; }
+        /// <summary>The earthwork learning the committed design, off the main thread.</summary>
+        public Task Priming { get; private set; } = Task.CompletedTask;
+        public bool EarthworkReady => Priming.IsCompleted && !Priming.IsFaulted && Earthwork.Primed;
+        int _loads;
         /// <summary>The last apply, for captures and the benchmark to wait on.</summary>
         public Task Applying { get; private set; } = Task.CompletedTask;
 
@@ -41,6 +47,9 @@ namespace MountainPlanner.App.Edits
             History = history;
             Pipeline = pipeline;
             Preview = new PendingContourView(resort.Root.transform);
+            Earthwork = new DesignEarthwork(pipeline.Heights.Source,
+                                            new EarthworkSite(pipeline.Heights.Lattice, resort.Frame.Origin.X, resort.Frame.Origin.Y));
+            Prime();
             History.Changed += OnChanged;
             Pipeline.LabelsChanged += labels => _resort.ContourLabels = labels;
         }
@@ -67,8 +76,18 @@ namespace MountainPlanner.App.Edits
             return session;
         }
 
+        void Prime()
+        {
+            _loads = History.Loads;
+            var doc = History.Document;
+            var terrain = History.Terrain;
+            var earthwork = Earthwork;
+            Priming = Task.Run(() => earthwork.Prime(doc, terrain));
+        }
+
         void OnChanged(DesignSnapshot snapshot)
         {
+            if (History.Loads != _loads) Prime();   // a loaded save: learn its design again
             ClearPreview();
             Applying = Pipeline.ApplyAsync(snapshot.Terrain);
         }
@@ -104,6 +123,9 @@ namespace MountainPlanner.App.Edits
         }
 
         public bool HasPending => _pending.HasValue;
+
+        /// <summary>Draws a tool's pending contours (task 08), from <see cref="PendingContours"/> segments in package metres.</summary>
+        public void ShowPending(List<double> segments) => Preview.Show(segments, _resort.Frame);
 
         public void ClearPreview()
         {

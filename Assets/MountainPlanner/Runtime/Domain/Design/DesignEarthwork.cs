@@ -87,7 +87,7 @@ namespace MountainPlanner.Domain.Design
             public void Dispose() { if (_c != null) lock (Registered) Registered.Remove(_c); _c = null; }
         }
 
-        sealed class Entry
+        internal sealed class Entry
         {
             public IEarthworkItem Item;
             public EarthworkWrites Writes;
@@ -98,8 +98,8 @@ namespace MountainPlanner.Domain.Design
         readonly EarthworkSite _site;
         readonly Dictionary<ulong, Entry> _cache = new Dictionary<ulong, Entry>();
         readonly object _gate = new object();
-        EarthworkWrites _foreign = new EarthworkWrites();
         bool _primed;
+        long _version;
 
         public DesignEarthwork(IHeightSource source, EarthworkSite site)
         {
@@ -110,7 +110,10 @@ namespace MountainPlanner.Domain.Design
         public EarthworkSite Site => _site;
         public bool Primed { get { lock (_gate) return _primed; } }
 
-        /// <summary>The result of a rebuild.</summary>
+        /// <summary>
+        /// The result of a rebuild. Its pieces' new writes are remembered only once <see cref="Accept"/> takes it (the
+        /// command went in), so a cancelled preview leaves the earthwork as it was.
+        /// </summary>
         public sealed class Result
         {
             public TerrainEdits Edits { get; internal set; }
@@ -118,49 +121,41 @@ namespace MountainPlanner.Domain.Design
             public IReadOnlyList<EditTileKey> Tiles { get; internal set; }
             /// <summary>How many pieces were graded again.</summary>
             public int Regraded { get; internal set; }
+            internal Dictionary<ulong, Entry> Overlay;
+            internal long Version;
+
+            /// <summary>What a piece's grade handed back in this rebuild (a trail's stations and volumes), or null.</summary>
+            public object DetailOf(ulong key) => Overlay != null && Overlay.TryGetValue(key, out var e) ? e?.Detail : null;
+            /// <summary>A piece's writes in this rebuild, when it was graded again.</summary>
+            public EarthworkWrites WritesOf(ulong key) => Overlay != null && Overlay.TryGetValue(key, out var e) ? e?.Writes : null;
         }
 
         /// <summary>
         /// Learns a design and its committed edits (a load or a new session): grades every built piece in order from the
-        /// source, and keeps whatever the committed edits hold that no piece explains. Changes nothing.
+        /// source. Changes no edits.
         /// </summary>
         public void Prime(DesignDocument doc, TerrainEdits committed)
         {
             if (doc == null) throw new ArgumentNullException(nameof(doc));
-            committed = committed ?? TerrainEdits.Empty;
             lock (_gate)
             {
                 _cache.Clear();
-                _foreign = new EarthworkWrites();
                 _primed = false;
                 var items = Collect(doc);
                 var tiles = new HashSet<EditTileKey>();
                 foreach (var it in items) foreach (var k in it.Reads.TileKeys()) tiles.Add(k);
-                Fold(items, committed, tiles, new HashSet<ulong>(), PointRect.Empty, out _);
-                // Foreign: committed changes on points no piece claims, and cleared cells no piece clears.
-                foreach (var tile in committed.Tiles)
-                {
-                    var key = tile.Key;
-                    var claimed = new ulong[EditTileKey.Count / 64];
-                    var clears = new ulong[EditTileKey.Count / 64];
-                    foreach (var e in _cache.Values) { e.Writes.OrClaims(key, claimed); e.Writes.OrClears(key, clears); }
-                    for (int j = 0; j < EditTileKey.Side; j++)
-                        for (int i = 0; i < EditTileKey.Side; i++)
-                        {
-                            int at = j * EditTileKey.Side + i;
-                            ulong bit = 1UL << (at & 63);
-                            int d = tile.DeltaMm(i, j);
-                            if (d != 0 && (claimed[at >> 6] & bit) == 0) _foreign.Write(key.FirstColumn + i, key.FirstRow + j, d);
-                            if (tile.IsCleared(i, j) && (clears[at >> 6] & bit) == 0) _foreign.Clear(key.FirstColumn + i, key.FirstRow + j);
-                        }
-                }
+                var overlay = new Dictionary<ulong, Entry>();
+                Fold(items, committed ?? TerrainEdits.Empty, tiles, new HashSet<ulong>(), PointRect.Empty, overlay, foreign: false, out _);
+                foreach (var kv in overlay) _cache[kv.Key] = kv.Value;
+                _version++;
                 _primed = true;
             }
         }
 
         /// <summary>
         /// The terrain edits for <paramref name="doc"/>, from <paramref name="committed"/> (the history's current edits):
-        /// rebuilds the tiles that can have changed. Primes first if it hasn't.
+        /// rebuilds the tiles that can have changed. What the committed edits hold there that no piece explains (work from
+        /// before a contributor existed) is kept as it is, laid last.
         /// </summary>
         public Result Rebuild(DesignDocument doc, TerrainEdits committed)
         {
@@ -175,6 +170,7 @@ namespace MountainPlanner.Domain.Design
                 var tiles = new HashSet<EditTileKey>();
                 var changed = PointRect.Empty;
                 var dirty = new HashSet<ulong>();
+                var overlay = new Dictionary<ulong, Entry>();
                 // Gone: their old writes come off.
                 var gone = new List<ulong>();
                 foreach (var kv in _cache) if (!present.Contains(kv.Key)) gone.Add(kv.Key);
@@ -184,7 +180,7 @@ namespace MountainPlanner.Domain.Design
                     var old = _cache[k].Writes;
                     foreach (var t in old.Tiles) tiles.Add(t);
                     changed = changed.Union(old.Bounds);
-                    _cache.Remove(k);
+                    overlay[k] = null;
                 }
                 // New or changed: their old writes and everything they read.
                 foreach (var it in items)
@@ -194,20 +190,40 @@ namespace MountainPlanner.Domain.Design
                     if (e != null) foreach (var t in e.Writes.Tiles) tiles.Add(t);
                     foreach (var t in it.Reads.TileKeys()) tiles.Add(t);
                 }
-                var edits = Fold(items, committed, tiles, dirty, changed, out int regraded);
+                var edits = Fold(items, committed, tiles, dirty, changed, overlay, foreign: true, out int regraded);
                 var list = new List<EditTileKey>(tiles);
                 list.Sort();
-                return new Result { Edits = edits, Tiles = list, Regraded = regraded };
+                return new Result { Edits = edits, Tiles = list, Regraded = regraded, Overlay = overlay, Version = _version };
             }
         }
 
-        /// <summary>What a piece's last grade handed back (a trail's stations and volumes), or null.</summary>
+        /// <summary>
+        /// Remembers a rebuild's writes once its command went in. A result from before another accept or prime is ignored
+        /// (the earthwork stays correct, only slower next time). Returns whether it was taken.
+        /// </summary>
+        public bool Accept(Result result)
+        {
+            if (result?.Overlay == null) return false;
+            lock (_gate)
+            {
+                if (result.Version != _version) return false;
+                foreach (var kv in result.Overlay)
+                {
+                    if (kv.Value == null) _cache.Remove(kv.Key);
+                    else _cache[kv.Key] = kv.Value;
+                }
+                _version++;
+                return true;
+            }
+        }
+
+        /// <summary>What a piece's last accepted grade handed back, or null.</summary>
         public object DetailOf(ulong key)
         {
             lock (_gate) return _cache.TryGetValue(key, out var e) ? e.Detail : null;
         }
 
-        /// <summary>A piece's last writes, or null (tests, the trail map).</summary>
+        /// <summary>A piece's last accepted writes, or null (tests, the trail map).</summary>
         public EarthworkWrites WritesOf(ulong key)
         {
             lock (_gate) return _cache.TryGetValue(key, out var e) ? e.Writes : null;
@@ -221,51 +237,102 @@ namespace MountainPlanner.Domain.Design
             return items;
         }
 
+        Entry Known(ulong key, Dictionary<ulong, Entry> overlay)
+        {
+            if (overlay.TryGetValue(key, out var e)) return e;
+            return _cache.TryGetValue(key, out e) ? e : null;
+        }
+
         /// <summary>
         /// Folds the pieces in order over the source on <paramref name="tiles"/> (which grows as later pieces need
         /// regrading), the committed edits elsewhere. Dirty pieces are graded again, and so is any later piece whose reads
-        /// meet a change; the rest lay their cached writes.
+        /// meet a change; the rest lay their remembered writes. New writes go to <paramref name="overlay"/>.
         /// </summary>
         TerrainEdits Fold(List<IEarthworkItem> items, TerrainEdits committed, HashSet<EditTileKey> tiles, HashSet<ulong> dirty,
-                          PointRect changed, out int regraded)
+                          PointRect changed, Dictionary<ulong, Entry> overlay, bool foreign, out int regraded)
         {
             regraded = 0;
             var work = new SortedDictionary<EditTileKey, TerrainEditTile.Builder>();
             var claims = new Dictionary<EditTileKey, ulong[]>();
-            foreach (var t in tiles) { work[t] = new TerrainEditTile.Builder(t); claims[t] = new ulong[EditTileKey.Count / 64]; }
+            var foreignTiles = new Dictionary<EditTileKey, TerrainEditTile>();
+            void Open(EditTileKey t)
+            {
+                work[t] = new TerrainEditTile.Builder(t);
+                claims[t] = new ulong[EditTileKey.Count / 64];
+                tiles.Add(t);
+                if (foreign) foreignTiles[t] = Foreign(committed, t);
+            }
+            foreach (var t in new List<EditTileKey>(tiles)) Open(t);
             var done = new List<(IEarthworkItem item, EarthworkWrites writes)>();
             var context = new EarthworkContext(claims);
 
             foreach (var it in items)
             {
-                bool regrade = dirty.Contains(it.Key) || !_cache.ContainsKey(it.Key) || it.Reads.Intersects(changed);
+                var known = Known(it.Key, overlay);
+                bool regrade = dirty.Contains(it.Key) || known == null || it.Reads.Intersects(changed);
                 EarthworkWrites writes;
                 if (regrade)
                 {
                     // Everything it reads must be folded up to here.
                     var fresh = new List<EditTileKey>();
                     foreach (var t in it.Reads.TileKeys())
-                        if (!work.ContainsKey(t)) { work[t] = new TerrainEditTile.Builder(t); claims[t] = new ulong[EditTileKey.Count / 64]; tiles.Add(t); fresh.Add(t); }
+                        if (!work.ContainsKey(t)) { Open(t); fresh.Add(t); }
                     foreach (var t in fresh)
                         foreach (var (pi, pw) in done) Lay(pi, pw, t, work, claims);
                     var built = new List<TerrainEditTile>(work.Count);
                     foreach (var b in work.Values) built.Add(b.Build());
                     var ground = new EditedHeights(_source, _site.Lattice, committed.With(built));
                     writes = it.Build(ground, context, out object detail);
-                    _cache.TryGetValue(it.Key, out var old);
-                    changed = changed.Union(EarthworkWrites.Difference(old?.Writes, writes));
-                    _cache[it.Key] = new Entry { Item = it, Writes = writes, Detail = detail };
+                    changed = changed.Union(EarthworkWrites.Difference(known?.Writes, writes));
+                    overlay[it.Key] = new Entry { Item = it, Writes = writes, Detail = detail };
                     regraded++;
                 }
-                else writes = _cache[it.Key].Writes;
+                else writes = known.Writes;
                 foreach (var t in writes.Tiles)
                     if (work.ContainsKey(t)) Lay(it, writes, t, work, claims);
                 done.Add((it, writes));
             }
-            foreach (var t in work.Keys) _foreign.ApplyTo(work[t]);
             var result = new List<TerrainEditTile>(work.Count);
-            foreach (var b in work.Values) result.Add(b.Build());
+            foreach (var kv in work)
+            {
+                if (foreignTiles.TryGetValue(kv.Key, out var f) && f != null) LayForeign(f, kv.Value);
+                result.Add(kv.Value.Build());
+            }
             return committed.With(result);
+        }
+
+        /// <summary>
+        /// The committed tile's changes that no remembered piece explains: heights on points none claims, cleared cells none
+        /// clears. Null when there are none.
+        /// </summary>
+        TerrainEditTile Foreign(TerrainEdits committed, EditTileKey key)
+        {
+            if (!committed.TryGet(key, out var tile) || tile.IsEmpty) return null;
+            var claimed = new ulong[EditTileKey.Count / 64];
+            var clears = new ulong[EditTileKey.Count / 64];
+            foreach (var e in _cache.Values) { e.Writes.OrClaims(key, claimed); e.Writes.OrClears(key, clears); }
+            TerrainEditTile.Builder b = null;
+            for (int j = 0; j < EditTileKey.Side; j++)
+                for (int i = 0; i < EditTileKey.Side; i++)
+                {
+                    int at = j * EditTileKey.Side + i;
+                    ulong bit = 1UL << (at & 63);
+                    int d = tile.DeltaMm(i, j);
+                    if (d != 0 && (claimed[at >> 6] & bit) == 0) (b = b ?? new TerrainEditTile.Builder(key)).SetDeltaMm(i, j, d);
+                    if (tile.IsCleared(i, j) && (clears[at >> 6] & bit) == 0) (b = b ?? new TerrainEditTile.Builder(key)).SetCleared(i, j, true);
+                }
+            return b?.Build();
+        }
+
+        static void LayForeign(TerrainEditTile f, TerrainEditTile.Builder into)
+        {
+            for (int j = 0; j < EditTileKey.Side; j++)
+                for (int i = 0; i < EditTileKey.Side; i++)
+                {
+                    int d = f.DeltaMm(i, j);
+                    if (d != 0) into.SetDeltaMm(i, j, d);
+                    if (f.IsCleared(i, j)) into.SetCleared(i, j, true);
+                }
         }
 
         static void Lay(IEarthworkItem item, EarthworkWrites writes, EditTileKey tile, SortedDictionary<EditTileKey, TerrainEditTile.Builder> work,

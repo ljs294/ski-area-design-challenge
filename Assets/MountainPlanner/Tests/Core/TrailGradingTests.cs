@@ -307,9 +307,10 @@ namespace MountainPlanner.Tests
                                    parts, head, tail, WorkStage.Built);
             var after = cmd.Apply(h.Document);
             Assert.That(after.Accepted, Is.True, after.ToString());
-            var edits = work.Rebuild(after.Document, h.Terrain).Edits;
-            var r = h.Submit(cmd, edits);
+            var rebuilt = work.Rebuild(after.Document, h.Terrain);
+            var r = h.Submit(cmd, rebuilt.Edits);
             Assert.That(r.Accepted, Is.True);
+            work.Accept(rebuilt);
             return new TrailId(r.Created[0]);
         }
 
@@ -317,7 +318,9 @@ namespace MountainPlanner.Tests
         {
             var after = cmd.Apply(h.Document);
             Assert.That(after.Accepted, Is.True, after.ToString());
-            Assert.That(h.Submit(cmd, work.Rebuild(after.Document, h.Terrain).Edits).Accepted, Is.True);
+            var rebuilt = work.Rebuild(after.Document, h.Terrain);
+            Assert.That(h.Submit(cmd, rebuilt.Edits).Accepted, Is.True);
+            work.Accept(rebuilt);
         }
 
         static TerrainEdits Fresh(IHeightSource g, DesignDocument doc)
@@ -394,6 +397,34 @@ namespace MountainPlanner.Tests
             for (int dr = -4; dr <= 4; dr++)
                 for (int dc = -4; dc <= 4; dc++)
                     if (dr * dr + dc * dc <= 16) Assert.That(e.AtPoint(c + dc, r + dr), Is.EqualTo(g.At(Lattice.X(c + dc), Lattice.Y(r + dr))));
+        }
+
+        [Test]
+        public void TL3_ACancelledPreviewChangesNothing()
+        {
+            var g = new Rolling();
+            var (h, work) = Session(g);
+            var a = Add(h, work, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300));
+            // Preview a repaint, and drop it.
+            var preview = new RepaintTrail(h.Revision, a, Strip(200, (0, 0), (30, -300))).Apply(h.Document);
+            work.Rebuild(preview.Document, h.Terrain);
+            Commit(h, work, new RenameTrail(h.Revision, a, "Renamed"));   // a change that moves no ground
+            Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True);
+        }
+
+        [Test]
+        public void TL3_EditsNoPieceExplainsSurviveARebuildAfterPriming()
+        {
+            var g = new Plane(0.2, 0.2);
+            var (h, work) = Session(g);
+            Add(h, work, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300));
+            // Work from outside the earthwork (a lift before its contributor exists) lands on the trail's tiles.
+            LocalToLattice(80, -150, out int c, out int r);
+            var key = EditTileKey.Of(c, r);
+            var lifted = h.Terrain.With(new[] { h.Terrain.Get(key).Edit().SetDeltaMm(c - key.FirstColumn, r - key.FirstRow, 700).Build() });
+            h.Load(h.Document, lifted);
+            Add(h, work, Strip(100, (60, 0), (70, -300)), M(60, 0), M(70, -300));
+            Assert.That(h.Terrain.DeltaMmAt(c, r), Is.EqualTo(700));
         }
 
         [Test]
