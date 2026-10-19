@@ -723,6 +723,13 @@ def _rope_out_path(spec, a0, rope_w, far):
         u_hold = a0.sockets["rope_right_hold"][0]      # to the first sheave, straight to where the rope leaves the
         u_out, w_out = a0.sockets["rope_right_out"][0], a0.sockets["rope_right_out"][2]   # last one, then on up
         theta = math.radians(a0.dims.get("ropeExitDeg", 0.0))
+        row = sorted((k for k in a0.pivots if k.startswith("sheave_r") and k[8:].isdigit()), key=lambda k: a0.pivots[k]["pos"][0])
+        if row and "sheave" in spec.get("common", {}):   # a posable row: under each sheave, as it rests
+            rho = spec["common"]["sheave"]["grooveBottom"] / 2000 + spec["common"]["ropeDiameter"] / 2000
+            pts = [(float(u), float(w)) for u, w in lk_pose.rope_path(a0.pivots, {}, row, rho, 0.0, theta, -1.0)[1:-1]]
+            u_out, w_out = pts[-1]
+            s = (far - u_out) / math.cos(theta)
+            return pts + [(u_out + s * math.cos(theta), w_out + s * math.sin(theta))]
         s = (far - u_out) / math.cos(theta)
         return [(u_hold, rope_w), (u_out, w_out), (u_out + s * math.cos(theta), w_out + s * math.sin(theta))]
     from liftkit import parts as lk_parts
@@ -814,6 +821,10 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
         else:
             shoot("holddown", ((u_hold + u_out) / 2, hg, rope_w + 0.3), 90, -2, 6.5, lens=40)
         shoot("leaving", (u_out + 10.0, 0.0, _w_on(path, u_out + 10.0, rope_w) - 1.0), 200, 6, 32.0, lens=40)
+        if key.startswith("monta_"):   # the exit row on the right rope: from outboard over the boom, and from inboard below
+            mid = ((u_hold + u_out) / 2, hg, rope_w + 0.45)
+            shoot("trains", mid, 75, 12, 8.0, lens=40)
+            shoot("trains_inboard", mid, -100, -12, 3.5, lens=24)
     if key.endswith("drive"):   # under the hood: from low, looking up at the wheel
         shoot("bullwheel", (u_bw, 0.0, rope_w), 150, -7, 9.5, lens=35)
     else:
@@ -1201,7 +1212,11 @@ def _rope_curve(name, pts_lift, dia):
 # rope slopes (degrees: arriving, leaving, along +u) per posable model for the posed photos
 POSES = {"tower_s4": [(14.0, 10.0)], "tower_s6": [(16.0, 10.0)], "tower_b8": [(24.0, 12.0), (6.0, 2.0)],
          "tower_d8": [(10.0, 18.0), (2.0, 4.0)], "tower_c8": [(12.0, 11.0)],
-         "return": [(0.0, 10.0), (0.0, 15.0)], "drive": [(0.0, -8.0), (0.0, -14.0)]}
+         "return": [(0.0, 10.0), (0.0, 15.0)], "drive": [(0.0, -8.0), (0.0, -14.0)],
+         "monta_drive": [(0.0, 6.0), (0.0, 10.0), (0.0, 16.0)]}
+# rows that take the rope level from the bullwheel: their first sheave is held at its rest height (pose.solve anchor),
+# and the log carries the band of exit angles that keeps every sheave on the rope (pose.band)
+ANCHORED = ("monta_drive",)
 
 
 def pose_rows(a0, side):
@@ -1245,7 +1260,12 @@ def pose_photos(built_all, spec, out_dir, mats, chairs):
         objs = lod_objects(b, 0)
         combo = key == "tower_c8"
         sheave_r = asm["sheave"]["dia"] / 2 if key != "drive" else spec["common"]["guideSheave"]["dia"] / 2000
-        hold = key in ("tower_d8", "return")   # rows the rope runs under
+        rope_rho, rope_dia = rho, dia
+        own = b.get("spec")
+        if key.startswith("monta_") and own:   # the Monta's own sheave (its groove) and rope
+            sheave_r = own["common"]["sheave"]["grooveBottom"] / 2000
+            rope_rho, rope_dia = own["common"]["ropeDiameter"] / 2000, own["common"]["ropeDiameter"]
+        hold = key in ("tower_d8", "return", "monta_drive")   # rows the rope runs under
         fixed = [k for k in a0.pivots if combo and k.startswith("yoke_")]   # a combination's yokes are rigid (range 0)
         for s_in, s_out in poses:
             angles, ropes, errs = {}, [], []
@@ -1254,16 +1274,28 @@ def pose_photos(built_all, spec, out_dir, mats, chairs):
                 if not got:
                     continue
                 top, rows = got
-                ang, err = lk_pose.solve(a0.pivots, top, list(rows.values()), math.radians(s_in), math.radians(s_out), fixed)
+                anchor = None
+                if key in ANCHORED:
+                    first = list(rows.values())[0][0]
+                    anchor = (first, a0.pivots[first]["pos"][2])
+                ang, err = lk_pose.solve(a0.pivots, top, list(rows.values()), math.radians(s_in), math.radians(s_out), fixed,
+                                         anchor=anchor)
                 angles.update(ang)
                 errs.append(err)
+                if anchor:
+                    row = list(rows.values())[0]
+                    log.setdefault(f"{key} turns", {})[f"{side} {s_out:+.0f}"] = [
+                        round(math.degrees(t), 2) for t in lk_pose.turns(a0.pivots, ang, row, math.radians(s_in), math.radians(s_out))]
+                    if s_out == poses[0][1]:
+                        log.setdefault(f"{key} band", {})[side] = lk_pose.band(a0.pivots, top, row, math.radians(s_in), anchor,
+                                                                               ranges=b.get("ranges"))
                 for tag, row in rows.items():
                     if combo and tag == "h":
                         continue   # the rope runs between a combination's rows: drawn over the support row
                     ride = -1.0 if hold else 1.0
-                    path = lk_pose.rope_path(a0.pivots, ang, row, sheave_r + rho, math.radians(s_in), math.radians(s_out), ride)
+                    path = lk_pose.rope_path(a0.pivots, ang, row, sheave_r + rope_rho, math.radians(s_in), math.radians(s_out), ride)
                     v = a0.pivots[row[0]]["pos"][1]
-                    ropes.append(_rope_curve(f"PoseRope{side}{tag}", [(p[0], v, p[1]) for p in path], dia))
+                    ropes.append(_rope_curve(f"PoseRope{side}{tag}", [(p[0], v, p[1]) for p in path], rope_dia))
             _turn(empties, angles)
             log[f"{key} {s_in:+.0f} -> {s_out:+.0f}"] = {
                 "maxChordErrorDeg": round(math.degrees(max(errs)), 4),

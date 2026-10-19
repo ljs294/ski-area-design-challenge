@@ -35,8 +35,13 @@ def chain(pivots, name):
 
 def place(pivots, angles, name):
     """A pivot's or sheave's (u, w) with the given pivot angles (a dict) applied down its chain of parents."""
+    return carry(pivots, angles, name, (pivots[name]["pos"][0], pivots[name]["pos"][2]))
+
+
+def carry(pivots, angles, name, uw):
+    """A point (u, w) riding with pivot `name`, moved by the pivot angles of its chain (its own turn included)."""
     names = chain(pivots, name)
-    p = np.array([pivots[name]["pos"][0], pivots[name]["pos"][2]], dtype=float)
+    p = np.array(uw, dtype=float)
     for anc in reversed(names):   # innermost turn first, each about its own rest position, then up the chain
         a = angles.get(anc, 0.0)
         if a == 0.0:
@@ -114,3 +119,31 @@ def turns(pivots, angles, row, s_in, s_out):
     centres = [place(pivots, angles, s) for s in row]
     slopes = [s_in] + [math.atan2(*(b - a)[::-1]) for a, b in zip(centres, centres[1:])] + [s_out]
     return [b - a for a, b in zip(slopes, slopes[1:])]
+
+
+def band(pivots, top, row, s_in, anchor, outs=range(0, 41), slack=1e-4, ranges=None):
+    """The exit slopes (whole degrees in `outs`, signed as s_out) at which a row posed by solve(anchor=...) keeps
+    every sheave on the rope (each takes a turn of the rope's own sense, to `slack` radians) with every pivot inside
+    its range: `ranges` {pivot: [min, max]} in Unity degrees as lifts.json has them (the clash sweep clamped to the
+    stops; a pose angle is the negative), else its stop (degrees either way; pivots without one are free). Returns
+    {"from", "to", "count", "worst": the largest pivot turn in the band (degrees), "shares": [min, max] turn per
+    sheave over the band (degrees)}."""
+    ok, worst, lo, hi = [], 0.0, None, None
+    for deg in outs:
+        s_out = math.radians(deg)
+        ang, _ = solve(pivots, top, [row], s_in, s_out, anchor=anchor)
+        tu = turns(pivots, ang, row, s_in, s_out)
+        sense = 1.0 if s_out >= s_in else -1.0
+        on = all(sense * t >= -slack for t in tu)
+        if ranges:
+            inside = all(ranges[k][0] - 1e-6 <= -math.degrees(a) <= ranges[k][1] + 1e-6 for k, a in ang.items())
+        else:
+            inside = all(abs(math.degrees(a)) <= pivots[k].get("stop", 360.0) + 1e-6 for k, a in ang.items())
+        if on and inside:
+            ok.append(deg)
+            worst = max([worst] + [abs(math.degrees(a)) for a in ang.values()])
+            lo = min([lo] + [math.degrees(t) for t in tu] if lo is not None else [math.degrees(t) for t in tu])
+            hi = max([hi] + [math.degrees(t) for t in tu] if hi is not None else [math.degrees(t) for t in tu])
+    if not ok:
+        return {"from": None, "to": None, "count": 0}
+    return {"from": ok[0], "to": ok[-1], "count": len(ok), "worst": round(worst, 2), "shares": [round(lo, 2), round(hi, 2)]}
