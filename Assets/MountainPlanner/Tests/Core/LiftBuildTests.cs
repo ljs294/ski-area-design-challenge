@@ -42,10 +42,13 @@ namespace MountainPlanner.Tests
             $"shortfall {b.Rope.Shortfall / Ft:F2} ft at {b.Rope.ShortfallS / Ft:F0} ft, raise {b.BottomRaise / Ft:F0}/{b.TopRaise / Ft:F0} ft, " +
             $"trench {b.Envelope.DeepestMetres / Ft:F1} ft";
 
-        /// <summary>Every rule the lift's geometry answers to, and the document's own (TW-02, TW-03).</summary>
+        /// <summary>Every rule the lift's geometry answers to, and the document's own (TW-02, TW-03). Some made-up grounds put a
+        /// terminal on a slope LF-08 forbids (reported, tested on its own below); the rest must hold everywhere.</summary>
         static void AssertBuilt(LiftBuild.Result b, string what)
         {
-            Assert.That(b.Ok, Is.True, $"{what}: {Describe(b)}");
+            Assert.That(b.Rope.ClearanceOk && b.Rope.TerminalsOk, Is.True, $"{what}: {Describe(b)}");
+            Assert.That(b.Rope.Towers.All(t => t.Head != LiftRope.Head.TooSharp), Is.True, $"{what}: {Describe(b)}");
+            Assert.That(b.BottomPad.ClippedStepMetres < 0.05 && b.TopPad.ClippedStepMetres < 0.05, Is.True, $"{what}: {Describe(b)}");
             var towers = b.Towers.Select((t, i) => new Tower(TowerId.Make(9, i), t.AlongMm, t.HeightMm)).ToList();
             Assert.That(DesignRules.TowersProblem(800_000L * 800_000L, towers), Is.Null, $"{what}: {Describe(b)}");
         }
@@ -180,6 +183,18 @@ namespace MountainPlanner.Tests
             TestContext.Progress.WriteLine($"40% into a flat summit: {Describe(steep)}");
             Assert.That(steep.Rope.ClearanceOk && steep.Rope.TerminalsOk, Is.True, "clearance and terminals still hold");
             Assert.That(steep.Towers.Max(t => t.HeightMm), Is.LessThanOrEqualTo(DesignUnits.FeetToMm(60)), "modest towers, not a runaway");
+        }
+
+        [Test]
+        public void LF08_ATerminalOnGroundTooSteepIsReported()
+        {
+            // Finding r4 #3: the build checks LF-08 at both ends (10 ft of variation under the footprint at most) and says why.
+            var bench = Build(s => s < 30 ? 0 : s < 770 ? 0.3 * (s - 30) : 222);
+            Assert.That(bench.SitingProblem, Is.Null, "both terminals on benches");
+            Assert.That(bench.Ok, Is.True, Describe(bench));
+            var cliff = Build(s => s < 30 ? 0 : 0.6 * (s - 30));
+            Assert.That(cliff.SitingProblem, Does.Contain("top terminal"), "the top on a 60% face");
+            Assert.That(cliff.Ok, Is.False);
         }
 
         [Test]

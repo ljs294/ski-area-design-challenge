@@ -32,17 +32,41 @@ namespace MountainPlanner.Domain.Design
             public double BottomRaise { get; internal set; }
             public double TopRaise { get; internal set; }
             public int ClearedCells { get; internal set; }
+            /// <summary>LF-08: why a terminal can't stand where it was put (null when both can), for the red reason.</summary>
+            public string SitingProblem { get; internal set; }
 
-            /// <summary>Every rule the lift's geometry answers to holds: TW-01 v2, TW-16 v3, no head too sharp, no clipped pad.</summary>
+            /// <summary>Every rule the lift's geometry answers to holds: LF-08, TW-01 v2, TW-16 v3, no head too sharp, no
+            /// clipped pad.</summary>
             public bool Ok
             {
                 get
                 {
-                    if (!Rope.ClearanceOk || !Rope.TerminalsOk) return false;
+                    if (SitingProblem != null || !Rope.ClearanceOk || !Rope.TerminalsOk) return false;
                     foreach (var t in Rope.Towers) if (t.Head == LiftRope.Head.TooSharp) return false;
                     return BottomPad.ClippedStepMetres < 0.05 && TopPad.ClippedStepMetres < 0.05;
                 }
             }
+        }
+
+        /// <summary>LF-08: the natural ground under a terminal's footprint varies by no more than 10 ft.</summary>
+        public const double SitingVariationMetres = 3.048;
+
+        /// <summary>
+        /// LF-08: how much the ground varies under <paramref name="end"/>'s footprint with its bullwheel at
+        /// (<paramref name="x"/>, <paramref name="y"/>) and (<paramref name="ux"/>, <paramref name="uy"/>) pointing toward the
+        /// other terminal, sampled every metre (metres).
+        /// </summary>
+        public static double SiteVariation(IHeightSource ground, TerminalEnd end, double x, double y, double ux, double uy)
+        {
+            double lo = double.MaxValue, hi = double.MinValue;
+            for (double a = -end.Behind; a <= end.Ahead + 1e-9; a += 1)
+                for (double w = -end.HalfWidth; w <= end.HalfWidth + 1e-9; w += 1)
+                {
+                    double h = ground.At(x + ux * a + uy * w, y + uy * a - ux * w);
+                    lo = Math.Min(lo, h);
+                    hi = Math.Max(hi, h);
+                }
+            return hi - lo;
         }
 
         public static Result Build(LiftType type, EditedHeights current, double bx, double by, double tx, double ty, TowerStance stance,
@@ -51,6 +75,12 @@ namespace MountainPlanner.Domain.Design
             if (current == null) throw new ArgumentNullException(nameof(current));
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
             double ux = (tx - bx) / length, uy = (ty - by) / length;
+            // LF-08 on the ground as it was, before any pad (finding r4 #3): a terminal on a cliff is reported, not hidden.
+            string siting = null;
+            double varB = SiteVariation(current, type.Bottom, bx, by, ux, uy), varT = SiteVariation(current, type.Top, tx, ty, -ux, -uy);
+            if (varB > SitingVariationMetres) siting = $"the bottom terminal stands on ground that varies {varB / 0.3048:F0} ft (LF-08: 10 ft)";
+            if (varT > SitingVariationMetres)
+                siting = (siting != null ? siting + "; " : "") + $"the top terminal stands on ground that varies {varT / 0.3048:F0} ft (LF-08: 10 ft)";
             double bottomLevel = current.At(bx + ux * type.Bottom.OriginAlong, by + uy * type.Bottom.OriginAlong);
             double topLevel = current.At(tx - ux * type.Top.OriginAlong, ty - uy * type.Top.OriginAlong);
             double raiseB = 0, raiseT = 0;
@@ -159,6 +189,13 @@ namespace MountainPlanner.Domain.Design
                     raiseT = Math.Min(LiftRope.MaxTerminalRaise, raiseT + Math.Max(LiftRope.RaiseStep, top));
                     again = true;
                 }
+                // A bottom still leaving too steeply (its station tower at its 15 ft with no foundation showing): up 1 ft more.
+                if (rope.BottomExitEmpty > type.Bottom.AngleMax + 1e-9 && rope.Towers[0].Reveal <= 1e-6 && raiseB < LiftRope.MaxTerminalRaise - 1e-9
+                    && envelope.NeededMetres <= LiftLineEnvelope.CapMetres + 1e-9)
+                {
+                    raiseB = Math.Min(LiftRope.MaxTerminalRaise, raiseB + LiftRope.RaiseStep);
+                    again = true;
+                }
                 if (envelope.NeededMetres > LiftLineEnvelope.CapMetres + 1e-9 && raiseB < LiftRope.MaxTerminalRaise - 1e-9)
                 {
                     raiseB = Math.Min(LiftRope.MaxTerminalRaise, raiseB + Steps(envelope.NeededMetres - LiftLineEnvelope.CapMetres));
@@ -174,7 +211,7 @@ namespace MountainPlanner.Domain.Design
             return new Result
             {
                 Towers = towers, Edits = edits, Rope = rope, BottomPad = bottomPad, TopPad = topPad, Envelope = envelope,
-                BottomRaise = raiseB, TopRaise = raiseT,
+                BottomRaise = raiseB, TopRaise = raiseT, SitingProblem = siting,
                 ClearedCells = cleared + aroundB + aroundT + bottomPad.ClearedCells + topPad.ClearedCells + envelope.ClearedCells,
             };
         }

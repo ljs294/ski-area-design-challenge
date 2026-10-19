@@ -49,7 +49,7 @@ namespace MountainPlanner.Domain.Design
             {
                 Edits = next.Edits,
                 CutCubicMetres = CutCubicMetres + next.CutCubicMetres,
-                NeededMetres = NeededMetres,
+                NeededMetres = Math.Max(NeededMetres, DeepestMetres + next.NeededMetres),   // a deeper re-check counts for the raise
                 DeepestMetres = DeepestMetres + next.DeepestMetres,
                 WidthMetres = Math.Max(WidthMetres, next.WidthMetres),
                 FromS = CutCubicMetres > 0 ? Math.Min(FromS, next.FromS) : next.FromS,

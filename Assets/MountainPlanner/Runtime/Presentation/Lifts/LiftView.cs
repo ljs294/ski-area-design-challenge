@@ -246,15 +246,27 @@ namespace MountainPlanner.Presentation.Lifts
                 var sides = side == 0 ? up : down;
                 var trains = new List<TrainPosing.Train> { TrainPosing.Read(retRig, sides[0], bottom, dir, right) };
                 var above = new List<bool> { type.Bottom.Row == TerminalRow.Support };   // a hold-down row holds the rope down
+                var turn = new List<int> { 0 };
                 for (int i = 0; i < heads.Count; i++)
                 {
                     trains.Add(TrainPosing.Read(heads[i], sides[1], bottom, dir, right));
-                    above.Add(Rope.Towers[i].Head != LiftRope.Head.D8);
+                    // The drawn (empty, RP-08) rope's own bend over the head picks its side: turning up, beneath (a c8's
+                    // hold-down row); turning down, on top (finding r4 #2).
+                    double bend = Rope.Towers[i].BendEmpty;
+                    above.Add(bend <= 0);
+                    turn.Add(bend > 0 ? 1 : bend < 0 ? -1 : 0);
+                    bool support = Rope.Towers[i].Head == LiftRope.Head.S4 || Rope.Towers[i].Head == LiftRope.Head.S6 || Rope.Towers[i].Head == LiftRope.Head.B8;
+                    if (side == 0 && (support && bend > 0 || Rope.Towers[i].Head == LiftRope.Head.D8 && bend < 0 || Rope.Towers[i].Head == LiftRope.Head.TooSharp))
+                    {
+                        SideMismatches++;
+                        MismatchNote += $" #{i} {Rope.Towers[i].Head} at {Rope.Towers[i].BaseS / 0.3048:F0} ft (bend {bend * 180 / Math.PI:F1}°/{Rope.Towers[i].BendLoaded * 180 / Math.PI:F1}° loaded)";
+                    }
                 }
                 // The drive's four sheaves equalise a little (owner: "Keep it 4 sheaves, but allow them to equalize a
                 // little"): within the model's stops, beam ±10° and rockers ±5°.
                 trains.Add(TrainPosing.Read(driveRig, sides[2], bottom, dir, right));
                 above.Add(type.Top.Row == TerminalRow.Support);
+                turn.Add(0);
                 if (trains.Exists(t => t == null)) return false;
                 var trees = trains.ConvertAll(t => t.Tree);
                 var holds = trains.ConvertAll(t => t.HoldRow);
@@ -262,7 +274,7 @@ namespace MountainPlanner.Presentation.Lifts
                 // RP-08 (owner, round 3): the rope hangs at the load it carries; the chairs are empty, so both sides take the
                 // empty sag. The checks keep both load cases.
                 double w = type.EmptyNewtonsPerMetre;
-                var posed = RopeOverSheaves.PoseLine(trees, above, holds, rho, type.CounterweightNewtons, w, y0);
+                var posed = RopeOverSheaves.PoseLine(trees, above, holds, rho, type.CounterweightNewtons, w, y0, true, 3, turn);
                 for (int i = 0; i < trains.Count; i++) TrainPosing.Apply(trains[i], posed.Poses[i], dir);
                 PoseError = Math.Max(PoseError, posed.TangentError);
 
@@ -311,6 +323,9 @@ namespace MountainPlanner.Presentation.Lifts
 
         /// <summary>Whether the trains were posed to the rope (posable models), and the largest tangent mismatch (radians).</summary>
         public bool Posed { get; private set; }
+        /// <summary>Heads whose type disagrees with the drawn rope's bend over them (or too sharp to carry it): reported.</summary>
+        public int SideMismatches { get; private set; }
+        public string MismatchNote { get; private set; } = "";
         public double PoseError { get; private set; }
 
         static Vector3 Flat(Vector3 p) => new Vector3(p.x, 0, p.z);

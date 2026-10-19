@@ -194,9 +194,21 @@ namespace MountainPlanner.Domain.Design
                 if (sharp < 0 && prev >= 0 && next < along.Count)
                     put = Math.Max(along[prev] + MinGap, Math.Min(along[next] - MinGap, put));
                 put = Math.Max(sb + MinGap, Math.Min(st - MinGap, put));
+                bool Roomy(double p)
+                {
+                    int k = along.FindIndex(x => x > p);
+                    return k > 0 && k < along.Count && p - along[k - 1] >= MinGap - 1e-9 && along[k] - p >= MinGap - 1e-9;
+                }
+                // TW-06: no room on the bend's side (a station tower there, say), so the partner goes on the other.
+                if (sharp >= 0 && !Roomy(put))
+                {
+                    double other = Snap(at + (rope.Towers[sharp].BendLoaded > 0 ? 1 : -1) * MinGap);
+                    other = Math.Max(sb + MinGap, Math.Min(st - MinGap, other));
+                    if (Roomy(other)) put = other;
+                }
                 int ins = along.FindIndex(x => x > put);
                 if (ins < 0) ins = along.Count;
-                bool roomy = ins > 0 && ins < along.Count && put - along[ins - 1] >= MinGap - 1e-9 && along[ins] - put >= MinGap - 1e-9;
+                bool roomy = Roomy(put);
                 if (roomy)
                 {
                     along.Insert(ins, put);

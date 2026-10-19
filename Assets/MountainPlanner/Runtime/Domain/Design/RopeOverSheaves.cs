@@ -214,10 +214,13 @@ namespace MountainPlanner.Domain.Design
         /// last), each with whether the rope rides on top (support) and, for a combination, which sheaves are its hold-down
         /// row (<paramref name="holdRow"/>, null otherwise). The rope runs level into the first train and out of the last
         /// (<paramref name="levelEnds"/>). Tension: RP-03 from <paramref name="t0"/> at <paramref name="y0"/>, with
-        /// <paramref name="w"/> newtons per metre.
+        /// <paramref name="w"/> newtons per metre. <paramref name="turn"/>, where given, is how the solved rope turns over
+        /// each train (+1 up, −1 down, 0 unknown): a combination loads the row that turn asks for (finding r4 #2) rather than
+        /// one guessed from the first pass's angles.
         /// </summary>
         public static PosedSide PoseLine(IReadOnlyList<SheaveTree> trains, IReadOnlyList<bool> ropeAbove, IReadOnlyList<bool[]> holdRow,
-                                         double rho, double t0, double w, double y0, bool levelEnds = true, int iterations = 3)
+                                         double rho, double t0, double w, double y0, bool levelEnds = true, int iterations = 3,
+                                         IReadOnlyList<int> turn = null)
         {
             int n = trains.Count;
             if (n < 2) throw new ArgumentException("A line needs at least two trains (its terminals' rows).");
@@ -250,7 +253,7 @@ namespace MountainPlanner.Domain.Design
                     if (holdRow != null && holdRow[i] != null)
                     {
                         // A combination: the rope turning up loads its hold-down row (rope beneath), turning down its support row.
-                        bool up = phiOut[i] > phiIn[i];
+                        bool up = turn != null && turn[i] != 0 ? turn[i] > 0 : phiOut[i] > phiIn[i];
                         touched = new bool[holdRow[i].Length];
                         for (int k = 0; k < touched.Length; k++) touched[k] = holdRow[i][k] == up;
                         above = !up;

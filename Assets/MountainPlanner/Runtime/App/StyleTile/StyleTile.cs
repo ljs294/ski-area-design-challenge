@@ -104,8 +104,26 @@ namespace MountainPlanner.App
             double gx = heights.At(a.X + 30, a.Y) - heights.At(a.X - 30, a.Y), gz = heights.At(a.X, a.Y + 30) - heights.At(a.X, a.Y - 30);
             double g = Math.Sqrt(gx * gx + gz * gz);
             if (g < 1e-6) return "no slope there";
-            var line = new[] { x, z, (float)Math.Round(x + gx / g * length, 1), (float)Math.Round(z + gz / g * length, 1) };
+            // Each end slides along the line (the bottom down, the top on up), 5 ft at a time and at most 150 m, to the nearest
+            // spot that passes LF-08, as task 09's terminal ghost shows green only where a terminal can stand (finding r4 #3).
+            var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(LiftCatalogIds.SesselliftFgq4), models);
+            double ux = gx / g, uy = gz / g;
+            double Slide(double sx, double sy, double sign, TerminalEnd end)
+            {
+                for (double d = 0; d <= 150; d += 1.524)
+                {
+                    double px = sx + sign * ux * d, py = sy + sign * uy * d;
+                    if (LiftBuild.SiteVariation(heights, end, px, py, sign > 0 ? -ux : ux, sign > 0 ? -uy : uy) <= LiftBuild.SitingVariationMetres) return d;
+                }
+                return 0;
+            }
+            double back = Slide(a.X, a.Y, -1, type.Bottom);
+            var tA = frame.ToAlbers((float)(x + ux * length), (float)(z + uy * length));
+            double on = Slide(tA.X, tA.Y, 1, type.Top);
+            var line = new[] { (float)Math.Round(x - ux * back, 1), (float)Math.Round(z - uy * back, 1),
+                               (float)Math.Round(x + ux * (length + on), 1), (float)Math.Round(z + uy * (length + on), 1) };
             var report = new StringBuilder();
+            report.AppendFormat(CultureInfo.InvariantCulture, "ends slid {0:F0} ft down and {1:F0} ft up to stand (LF-08); ", back / 0.3048, on / 0.3048);
             BuildLift(session, frame, models, line, name, report);
             return report.ToString();
         }
@@ -129,7 +147,7 @@ namespace MountainPlanner.App
             report.AppendFormat(CultureInfo.InvariantCulture,
                 "ends: bottom {0} ({1:F1}/{2:F1}/{3:F1} m), top {4} ({5:F1}/{6:F1}/{7:F1} m); " +
                 "pads: bottom cut {8:F0} / fill {9:F0} yd³ (clipped {10:F2} m), top cut {11:F0} / fill {12:F0} yd³ (clipped {13:F2} m); " +
-                "raised: bottom {14:F0} ft, top {15:F0} ft; envelope: {16} ",
+                "raised: bottom {14:F0} ft, top {15:F0} ft; " + (built.SitingProblem != null ? "SITING: " + built.SitingProblem + "; " : "") + "envelope: {16} ",
                 type.Bottom.Row, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth,
                 type.Top.Row, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth,
                 built.BottomPad.CutCubicMetres * 1.30795, built.BottomPad.FillCubicMetres * 1.30795, built.BottomPad.ClippedStepMetres,
