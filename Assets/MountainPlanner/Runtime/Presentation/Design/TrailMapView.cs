@@ -34,7 +34,30 @@ namespace MountainPlanner.Presentation.Design
 
         public TrailMapView(Transform parent, World.ITerrainSurface surface, Material lineMaterial)
         {
-            _lines = new PendingPreview(parent, "Trails layer", surface, lineMaterial);
+            _ground = new EditedSurface(surface);
+            _lines = new PendingPreview(parent, "Trails layer", _ground, lineMaterial);
+        }
+
+        readonly EditedSurface _ground;
+
+        /// <summary>
+        /// The ground the lines drape on: the edited heights the edit pipeline laid (SH-02), exact the moment they're laid,
+        /// rather than the terrain's own sampling, which can lag an edit; the terrain outside them.
+        /// </summary>
+        sealed class EditedSurface : World.ITerrainSurface
+        {
+            readonly World.ITerrainSurface _terrain;
+            public EditedHeights Heights;
+            public LocalFrame Frame;
+            public EditedSurface(World.ITerrainSurface terrain) { _terrain = terrain; }
+            public Rect Footprint => _terrain?.Footprint ?? default;
+
+            public float HeightAt(float x, float z)
+            {
+                if (Heights == null) return _terrain != null ? _terrain.HeightAt(x, z) : float.NaN;
+                var a = Frame.ToAlbers(x, z);
+                return (float)Heights.At(a.X, a.Y);
+            }
         }
 
         public bool Visible
@@ -69,6 +92,8 @@ namespace MountainPlanner.Presentation.Design
                             World.ITerrainSurface surface)
         {
             labels?.Clear();
+            _ground.Heights = heights;
+            _ground.Frame = frame;
             var seen = new HashSet<TrailId>();
             int slot = CasingSlot + 1;
             _slots.Clear();
@@ -84,7 +109,7 @@ namespace MountainPlanner.Presentation.Design
                 if (labels != null)
                 {
                     var mid = s.Line[s.Line.Length / 2];
-                    float y = surface != null ? surface.HeightAt(mid.x, mid.y) : 0;
+                    float y = _ground.HeightAt(mid.x, mid.y);
                     string symbol = t.Stage == WorkStage.Plan ? "" : Symbol(s.Band) + " ";
                     labels.Add((symbol + t.Name, new Vector3(mid.x, float.IsNaN(y) ? 0 : y, mid.y)));
                 }

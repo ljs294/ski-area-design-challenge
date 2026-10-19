@@ -109,7 +109,9 @@ namespace MountainPlanner.Presentation.Design
 
         void Ensure(Slot s, int n)
         {
-            if (s.Points.Length < n) s.Points = new Vector3[Mathf.NextPowerOfTwo(n)];
+            // Grown keeping the points already written: a long line fills its buffer segment by segment (task 08 found
+            // long trails losing their first points to (0, 0, 0) when it was replaced instead).
+            if (s.Points.Length < n) Array.Resize(ref s.Points, Mathf.NextPowerOfTwo(n));
         }
 
         void Push(Slot s)

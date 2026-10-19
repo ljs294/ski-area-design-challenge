@@ -200,6 +200,13 @@ echo     65s The same in summer: the snow off, a mid-July sun, a mown bench and 
 echo     65c The style tile's captures: the benchmark and close views, summer and winter, day and night (render lane).
 echo     65b The benchmark with the style tile shown (High and Medium), compared with the baselines (measure lane).
 echo.
+echo   Phase 3, task 08: trails (rebuilds the game, about 2 minutes; close the Unity editor first; on the desktop)
+echo     67 The game with the trail tools: T, Trails tab. New (N): paint, Shift-drag erases, [ ] brush; Enter; click
+echo        the head and the tail; Natural or Graded (yellow contours, red too steep, the profile strip); Break ground.
+echo        Edit (E) and Remove (X): click a trail. Shift+4 the Trails layer; Tab, Trails: the list, its filters and cards.
+echo     67b The trail timing run: 1,000 ft and 1 km trails at 10 spots (preview, commit, edit, undo against 100 / 250 ms).
+echo     67c The trail captures on Jackson Hole 2 km: a sidehill and a ridge, each step of the tool (render lane).
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -284,6 +291,9 @@ if /i "%CHOICE%"=="63b" goto editbench
 if /i "%CHOICE%"=="64" goto toolbox
 if /i "%CHOICE%"=="65" goto styletile
 if /i "%CHOICE%"=="65s" goto styletilesummer
+if /i "%CHOICE%"=="67" goto trails
+if /i "%CHOICE%"=="67b" goto trailbench
+if /i "%CHOICE%"=="67c" goto trailcaptures
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -804,6 +814,31 @@ if not exist "%EDITS%" mkdir "%EDITS%"
 if exist "%GAMEDEV%" %MEASURE% "%GAMEDEV%" %SCREEN% -quality high -editbench "%EDITS%\high-dev.json" -logFile "%EDITS%\high-dev.log" <nul
 findstr /c:"[EditBenchmark]" "%EDITS%\high.log"
 if exist "%EDITS%\high-dev.log" findstr /c:"[EditBenchmark]" "%EDITS%\high-dev.log"
+goto done
+
+:trails
+rem Task P3-08: the trail tools in the real game. Always rebuilt, so the tools on this branch are the ones you try.
+call :buildplayer
+if not exist "%GAME%" goto done
+"%GAME%" <nul
+goto done
+
+:trailbench
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\p3-08" mkdir "%~dp0test-results\p3-08"
+%MEASURE% "%GAME%" -notitle -quality high -trailbench "%~dp0test-results\p3-08\trailbench.json" -logFile "%~dp0test-results\p3-08\trailbench.log" <nul
+findstr /c:"[TrailBench]" "%~dp0test-results\p3-08\trailbench.log"
+goto done
+
+:trailcaptures
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "JH2=%LOCALAPPDATA%\SkiAreaDesignChallenge-p308\jh2km"
+if not exist "%JH2%\manifest.json" robocopy "%~dp0TestData\jackson-hole-2km" "%JH2%" /e /njh /njs /nfl /ndl >nul
+%RENDER% "%GAME%" -package "%JH2%" -notitle -view 230,-545,420,250,42 -trailshots "%~dp0test-results\p3-08\sidehill" -trailspot sidehill <nul
+%RENDER% "%GAME%" -package "%JH2%" -notitle -view 280,720,330,200,45 -trailshots "%~dp0test-results\p3-08\ridge" -trailspot ridge <nul
+start "" "%~dp0test-results\p3-08"
 goto done
 
 :toolbox
