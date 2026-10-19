@@ -86,13 +86,13 @@ namespace MountainPlanner.Domain.Design
             result.LengthMetres = length;
             result.UngradedStations = ungraded;
             result.UngradedMetres = count > 1 ? length * ungraded / count : 0;
-
             // The footprint's lattice points: located on the centreline, and their design heights.
             int pc0 = fp.Column0, pr0 = fp.Row0, pw = fp.Width + 1, ph = fp.Height + 1;
             bool any = false;
             var design = graded ? new double[pw * ph] : null;
             var ground = graded ? new double[pw * ph] : null;
             var free = graded ? new bool[pw * ph] : null;   // a point GR-13 may clamp
+            var claim = new bool[pw * ph];
             Located point = null;
             if (graded)
             {
@@ -104,22 +104,26 @@ namespace MountainPlanner.Domain.Design
                 for (int i = 0; i < pw; i++)
                 {
                     int c = pc0 + i, r = pr0 + j, at = j * pw + i;
-                    bool interior = fp.Interior(c, r);
-                    bool mine = interior && (isFixed == null || !isFixed(c, r));
-                    if (mine) writes.Claim(c, r);
-                    if (!graded) continue;
-                    double g = current.AtPoint(c, r);
-                    ground[at] = g;
+                    bool mine = fp.Interior(c, r) && (isFixed == null || !isFixed(c, r));
+                    if (mine) { writes.Claim(c, r); claim[at] = true; }
+                    if (graded) ground[at] = current.AtPoint(c, r);
+                }
+            for (int j = 0; j < ph && graded; j++)
+                for (int i = 0; i < pw; i++)
+                {
+                    int c = pc0 + i, r = pr0 + j, at = j * pw + i;
+                    double g = ground[at];
                     design[at] = g;
-                    if (!mine || point == null || point.Dist[at] == double.MaxValue) continue;
+                    if (!claim[at] || point == null || point.Dist[at] == double.MaxValue) continue;
                     double pcl = fp.PointClearance(c, r);
                     double u = point.Offset[at];
-                    double edge = current.At(lattice.X(c) + point.OutX[at] * pcl, lattice.Y(r) + point.OutY[at] * pcl);
+                    // The ground where this point's line out meets the edge: bilinear on the lattice (SH-02), from the
+                    // points already read; the edge always lies inside the box.
+                    double edge = Bilinear(ground, pw, ph, i + point.OutX[at] * pcl, j - point.OutY[at] * pcl);
                     double d = Design(point.Along[at], u, g, edge, Math.Abs(u) + pcl, along, z, left, right, ok, roundMetres);
                     design[at] = d;
                     free[at] = d != g;
                 }
-
             if (graded && any)
             {
                 // GR-13: the 1:1 slopes up and down from every fixed point bound every changed one. Two chamfer passes on the
@@ -137,14 +141,14 @@ namespace MountainPlanner.Domain.Design
                     for (int i = 0; i < pw; i++)
                     {
                         int at = j * pw + i, c = pc0 + i, r = pr0 + j;
-                        if (!writes.Claims(c, r)) continue;
+                        if (!claim[at]) continue;
                         double h = design[at];
                         if (free[at])
                         {
                             if (lower[at] > upper[at]) h = ground[at];
                             else h = Math.Max(lower[at], Math.Min(upper[at], h));
                         }
-                        double source = current.Source.At(lattice.X(c), lattice.Y(r));
+                        double source = ground[at] - current.Edits.DeltaMmAt(c, r) / 1000.0;
                         long mm = (long)Math.Round((h - source) * 1000, MidpointRounding.AwayFromZero);
                         mm = Math.Max(-TerrainEditTile.DeltaLimitMm, Math.Min(TerrainEditTile.DeltaLimitMm, mm));
                         double change = source + mm / 1000.0 - ground[at];
@@ -154,7 +158,6 @@ namespace MountainPlanner.Domain.Design
                 result.CutCubicMetres = cut;
                 result.FillCubicMetres = fill;
             }
-
             // CL-01, CL-02, CL-08: every painted cell, the ragged band measured from the edge (islands included).
             int cleared = 0;
             for (int j = 0; j < fp.Height; j++)
@@ -168,6 +171,17 @@ namespace MountainPlanner.Domain.Design
                 }
             result.ClearedCells = cleared;
             return result;
+        }
+
+        static double Bilinear(double[] g, int w, int h, double fi, double fj)
+        {
+            fi = Math.Max(0, Math.Min(w - 1.000001, fi));
+            fj = Math.Max(0, Math.Min(h - 1.000001, fj));
+            int i = (int)fi, j = (int)fj;
+            double tx = fi - i, ty = fj - j;
+            int at = j * w + i;
+            double top = g[at] + (g[at + 1] - g[at]) * tx, bottom = g[at + w] + (g[at + w + 1] - g[at + w]) * tx;
+            return top + (bottom - top) * ty;
         }
 
         /// <summary>A footprint's claims and clearing only, no heights (a trail without a centreline yet).</summary>

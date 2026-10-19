@@ -239,6 +239,34 @@ namespace MountainPlanner.Tests
         };
 
         [Test]
+        public void Timing()
+        {
+            var (h, site, m) = Open();
+            using (h)
+            {
+                var s = Spots["sidehill"];
+                var strokes = new List<Stroke>();
+                for (int k = 0; k + 1 < s.Path.Length / 2; k++)
+                    strokes.Add(new Stroke(DesignUnits.FeetToMm(s.WidthsFt[k]), false, new[] { PointMm.FromMetres(s.Path[2 * k], s.Path[2 * k + 1]), PointMm.FromMetres(s.Path[2 * k + 2], s.Path[2 * k + 3]) }));
+                var parts = new[] { new FootprintPart(strokes.ToArray()) };
+                var ground = new EditedHeights(h, site.Lattice, TerrainEdits.Empty);
+                for (int run = 0; run < 3; run++)
+                {
+                    var w = System.Diagnostics.Stopwatch.StartNew();
+                    var fp = TrailFootprint.Build(parts, site.Lattice, site.OriginX, site.OriginY);
+                    double a = w.Elapsed.TotalMilliseconds;
+                    site.PointOf(PointMm.FromMetres(s.Path[0], s.Path[1]), out double hx, out double hy);
+                    site.PointOf(PointMm.FromMetres(s.Path[s.Path.Length - 2], s.Path[s.Path.Length - 1]), out double tx, out double ty);
+                    var line = TrailCentreline.Find(fp, hx, hy, tx, ty);
+                    double b = w.Elapsed.TotalMilliseconds;
+                    var g = TrailGrader.GradeFootprint(ground, fp, line.Points, true, 1, TrailId.Make(1, 1));
+                    double c = w.Elapsed.TotalMilliseconds;
+                    TestContext.Progress.WriteLine($"footprint {a:F1} ms ({fp.Width}x{fp.Height}), centreline {b - a:F1} ms ({line.Points.Length / 2} pts), grade {c - b:F1} ms");
+                }
+            }
+        }
+
+        [Test]
         public void Trails()
         {
             var (h, site, m) = Open();
