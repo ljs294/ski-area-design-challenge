@@ -45,6 +45,26 @@ namespace MountainPlanner.Domain.Design
         public override int GetHashCode() => Id.GetHashCode() ^ AlongMm ^ (HeightMm << 7);
     }
 
+    /// <summary>
+    /// SK14, LF-12 v3 (task 09, save v2): the base elevation each terminal stands at, its load or unload level, as authored:
+    /// the ground at its origin when it was built, raised for a steep site (LF-08 v2) or a last resort (TW-16 v3), or set by
+    /// hand. <b>Absolute</b> elevation in whole millimetres in the package's height datum, unlike the plan points (TE5),
+    /// which are millimetres from the site's centre. A raise isn't in the terrain (pads only cut), so it's stored.
+    /// </summary>
+    public readonly struct LiftLevels : IEquatable<LiftLevels>
+    {
+        public readonly int BottomMm;
+        public readonly int TopMm;
+        public LiftLevels(int bottomMm, int topMm) { BottomMm = bottomMm; TopMm = topMm; }
+        public static LiftLevels FromMetres(double bottom, double top) =>
+            new LiftLevels((int)Math.Round(bottom * 1000, MidpointRounding.AwayFromZero), (int)Math.Round(top * 1000, MidpointRounding.AwayFromZero));
+        public double BottomMetres => BottomMm / 1000.0;
+        public double TopMetres => TopMm / 1000.0;
+        public bool Equals(LiftLevels o) => BottomMm == o.BottomMm && TopMm == o.TopMm;
+        public override bool Equals(object obj) => obj is LiftLevels o && Equals(o);
+        public override int GetHashCode() => BottomMm * 397 ^ TopMm;
+    }
+
     /// <summary>A tower to place, before it has an ID.</summary>
     public readonly struct TowerSpec
     {
@@ -72,11 +92,16 @@ namespace MountainPlanner.Domain.Design
         public TowerStance Stance { get; }
         /// <summary>Sorted by <see cref="Tower.AlongMm"/>; no two share a position.</summary>
         public IReadOnlyList<Tower> Towers => _towers;
+        /// <summary>The terminals' levels (save v2); null where they aren't known (a v1 save's lift: derived from the
+        /// ground when it opens, as before).</summary>
+        public LiftLevels? Levels { get; }
 
         readonly Tower[] _towers;
 
-        public Lift(LiftId id, string name, WorkStage stage, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance, IReadOnlyList<Tower> towers)
+        public Lift(LiftId id, string name, WorkStage stage, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance, IReadOnlyList<Tower> towers,
+                    LiftLevels? levels = null)
         {
+            Levels = levels;
             Id = id;
             Name = name;
             Stage = stage;
@@ -100,10 +125,11 @@ namespace MountainPlanner.Domain.Design
             return -1;
         }
 
-        public Lift WithName(string name) => new Lift(Id, name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers);
-        public Lift WithStage(WorkStage stage) => new Lift(Id, Name, stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers);
-        public Lift WithTowerMode(TowerMode mode) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, mode, Stance, _towers);
-        public Lift WithStance(TowerStance stance) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, stance, _towers);
-        public Lift WithTowers(IReadOnlyList<Tower> towers) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers);
+        public Lift WithName(string name) => new Lift(Id, name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels);
+        public Lift WithStage(WorkStage stage) => new Lift(Id, Name, stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels);
+        public Lift WithTowerMode(TowerMode mode) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, mode, Stance, _towers, Levels);
+        public Lift WithStance(TowerStance stance) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, stance, _towers, Levels);
+        public Lift WithLevels(LiftLevels? levels) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, levels);
+        public Lift WithTowers(IReadOnlyList<Tower> towers) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels);
     }
 }

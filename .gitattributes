@@ -40,3 +40,4 @@ roads.json -text
 tools/git-hooks/* text eol=lf
 # The frozen save fixture (task P3-04): byte-exact, no line-end conversion
 TestData/formats/v1-save/** -text
+TestData/formats/v2-save/** -text

@@ -16,10 +16,13 @@ namespace MountainPlanner.Domain.Design
         public TowerStance Stance { get; }
         public IReadOnlyList<TowerSpec> Towers { get; }
         public WorkStage Stage { get; }
+        /// <summary>The terminals' levels as the build settled them (SK14, save v2); null leaves them to the ground.</summary>
+        public LiftLevels? Levels { get; }
 
         public AddLift(long baseRevision, string name, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance,
-            IReadOnlyList<TowerSpec> towers, WorkStage stage) : base(baseRevision)
+            IReadOnlyList<TowerSpec> towers, WorkStage stage, LiftLevels? levels = null) : base(baseRevision)
         {
+            Levels = levels;
             Name = name;
             CatalogId = catalogId;
             Bottom = bottom;
@@ -42,7 +45,7 @@ namespace MountainPlanner.Domain.Design
             var id = mint.Lift();
             created.Add(id.Value);
             var towers = LiftTowers.Mint(ref mint, Towers, created);
-            var lift = new Lift(id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers);
+            var lift = new Lift(id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels);
             if (DesignRules.TowersProblem(lift.LengthSquaredMm, lift.Towers) is string t) return Invalid(doc, t);
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(lift), created);
         }
@@ -255,6 +258,80 @@ namespace MountainPlanner.Domain.Design
         {
             if (doc.FindLift(Lift) == null) return Missing(doc, "That lift");
             return CommandResult.Accept(doc.RemoveLift(Lift));
+        }
+    }
+
+    /// <summary>What an <see cref="EditLift"/> changes, for its undo label.</summary>
+    public enum LiftEdit : byte { Edit, MoveTerminal, ChangeType, TerminalLevel }
+
+    /// <summary>
+    /// Edit lift's Apply (task 09, LT2, LT9): one step that changes a built or planned lift's line, type, mode, stance,
+    /// towers and terminal levels together, so one Ctrl+Z undoes the whole edit (CF-05). Covers moving either terminal
+    /// anywhere (LF-05 v2), changing the type (P3-06 round 2), setting a terminal's level (SK14) and moving towers along the
+    /// line and in height. Towers listed in <see cref="Kept"/> keep their IDs (with their new place and height); the rest are
+    /// removed; <see cref="Added"/> get new IDs.
+    /// </summary>
+    public sealed class EditLift : DesignCommand
+    {
+        public LiftId Lift { get; }
+        public string CatalogId { get; }
+        public PointMm Bottom { get; }
+        public PointMm Top { get; }
+        public TowerMode TowerMode { get; }
+        public TowerStance Stance { get; }
+        public IReadOnlyList<Tower> Kept { get; }
+        public IReadOnlyList<TowerSpec> Added { get; }
+        public LiftLevels? Levels { get; }
+        public LiftEdit Kind { get; }
+
+        public EditLift(long baseRevision, LiftId lift, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance,
+                        IReadOnlyList<Tower> kept, IReadOnlyList<TowerSpec> added, LiftLevels? levels, LiftEdit kind = LiftEdit.Edit)
+            : base(baseRevision)
+        {
+            Lift = lift;
+            CatalogId = catalogId;
+            Bottom = bottom;
+            Top = top;
+            TowerMode = towerMode;
+            Stance = stance;
+            Kept = kept ?? System.Array.Empty<Tower>();
+            Added = added ?? System.Array.Empty<TowerSpec>();
+            Levels = levels;
+            Kind = kind;
+        }
+
+        /// <summary>The lift as it stands, changed only where the caller says: the tool's starting point for a draft.</summary>
+        public static EditLift From(long baseRevision, Lift l, LiftEdit kind = LiftEdit.Edit) =>
+            new EditLift(baseRevision, l.Id, l.CatalogId, l.Bottom, l.Top, l.TowerMode, l.Stance, l.Towers, null, l.Levels, kind);
+
+        public override string Label => Kind switch
+        {
+            LiftEdit.MoveTerminal => "Move terminal",
+            LiftEdit.ChangeType => "Change lift type",
+            LiftEdit.TerminalLevel => "Change terminal level",
+            _ => "Edit lift",
+        };
+
+        protected override CommandResult Run(DesignDocument doc)
+        {
+            var l = doc.FindLift(Lift);
+            if (l == null) return Missing(doc, "That lift");
+            if (DesignRules.LiftLineProblem(CatalogId, Bottom, Top, TowerMode, Stance) is string p) return Invalid(doc, p);
+            var towers = new List<Tower>();
+            var seen = new HashSet<ulong>();
+            foreach (var t in Kept)
+            {
+                if (l.IndexOfTower(t.Id) < 0) return Missing(doc, "That tower");
+                if (!seen.Add(t.Id.Value)) return Invalid(doc, "A tower is listed twice.");
+                towers.Add(t);
+            }
+            var mint = new IdMint(doc);
+            var created = new List<ulong>();
+            towers.AddRange(LiftTowers.Mint(ref mint, Added, created));
+            var next = new Lift(l.Id, l.Name, l.Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels);
+            if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers) is string t2) return Invalid(doc, t2);
+            if (DesignBytes.Same(l, next)) return Invalid(doc, "Nothing changes.");
+            return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(next), created);
         }
     }
 

@@ -36,6 +36,16 @@ namespace MountainPlanner.Domain.Design
             return w.ToArray();
         }
 
+        /// <summary>One lift's bytes, for comparing lifts (an edit that changes nothing).</summary>
+        public static byte[] Encode(Lift lift)
+        {
+            var w = new Writer();
+            WriteLift(w, lift);
+            return w.ToArray();
+        }
+
+        public static bool Same(Lift a, Lift b) => Same(Encode(a), Encode(b));
+
         /// <summary>Reads <see cref="Encode(DesignDocument)"/>'s bytes back; anything malformed throws <see cref="FormatException"/>.</summary>
         public static DesignDocument Decode(byte[] bytes)
         {
@@ -139,6 +149,13 @@ namespace MountainPlanner.Domain.Design
                 w.I32(t.AlongMm);
                 w.I32(t.HeightMm);
             }
+            // Shape 2 (task 09): the terminal levels, absolute whole mm (SK14), or none.
+            w.U8((byte)(l.Levels.HasValue ? 1 : 0));
+            if (l.Levels is LiftLevels v)
+            {
+                w.I32(v.BottomMm);
+                w.I32(v.TopMm);
+            }
         }
 
         static Lift ReadLift(Reader r)
@@ -153,7 +170,11 @@ namespace MountainPlanner.Domain.Design
             var stance = (TowerStance)r.U8();
             var towers = new Tower[r.Count(DesignRules.MaxTowersPerLift)];
             for (int i = 0; i < towers.Length; i++) towers[i] = new Tower(new TowerId(r.U64()), r.I32(), r.I32());
-            return new Lift(id, name, stage, catalog, bottom, top, mode, stance, towers);
+            LiftLevels? levels = null;
+            byte has = r.U8();
+            if (has > 1) throw new FormatException("A lift's levels flag isn't 0 or 1.");
+            if (has == 1) levels = new LiftLevels(r.I32(), r.I32());
+            return new Lift(id, name, stage, catalog, bottom, top, mode, stance, towers, levels);
         }
 
         sealed class Writer
