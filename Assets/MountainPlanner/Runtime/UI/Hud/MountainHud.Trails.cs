@@ -102,7 +102,7 @@ namespace MountainPlanner.UI
             acts.Add(edit);
             acts.Add(remove);
             _trailCard.Add(acts);
-            _root.Add(_trailCard);
+            _root.Q("hud").Add(_trailCard);   // in the HUD's layer, as its windows are
         }
 
         /// <summary>The trails Analysis › Trails lists (rebuilt when the design changes, never per tick).</summary>

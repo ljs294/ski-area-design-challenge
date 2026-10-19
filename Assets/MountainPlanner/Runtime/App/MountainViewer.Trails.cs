@@ -239,6 +239,145 @@ namespace MountainPlanner.App
             Application.Quit();
         }
 
+        // ---------- -trailbench <out.json>: the trail edit timing (task 08 acceptance, CF-09) ----------
+
+        void StartTrailBench(string[] args)
+        {
+            int i = Array.IndexOf(args, "-trailbench");
+            if (i >= 0 && i + 1 < args.Length) StartCoroutine(RunTrailBench(args[i + 1]));
+        }
+
+        /// <summary>A path down the fall line from a local point, every 25 m, about <paramref name="length"/> long.</summary>
+        List<PointMm> FallLine(Vector2 from, float length)
+        {
+            var pts = new List<PointMm>();
+            var at = from;
+            for (float walked = 0; walked <= length; walked += 25)
+            {
+                pts.Add(PointMm.FromMetres(at.x, at.y));
+                at += _edits.Downhill(at.x, at.y) * 25;
+            }
+            return pts;
+        }
+
+        /// <summary>
+        /// The tool's whole analysis for a command, as New, Edit and Remove trail run it (the preview, CF-09): apply it to
+        /// the design, fold the earthwork (TL3), the pending contours and the rating.
+        /// </summary>
+        DesignEarthwork.Result AnalyseForBench(DesignCommand cmd, out double ms)
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var history = _edits.History;
+            var after = cmd.Apply(history.Document);
+            var rebuilt = _edits.Earthwork.Rebuild(after.Document, history.Terrain);
+            var heights = _edits.Pipeline.Heights;
+            var pending = new EditedHeights(heights.Source, heights.Lattice, rebuilt.Edits);
+            var contours = new List<double>();
+            PendingContours.Build(heights, pending, rebuilt.Tiles, UnitFormat.ContourIntervalMetres(DisplayUnits.Current), contours);
+            if (after.Created.Count > 0 && rebuilt.DetailOf(after.Created[0]) is TrailBuild b && b.Grade != null)
+                TrailRating.Rate(pending, b.Footprint, b.Grade);
+            ms = watch.Elapsed.TotalMilliseconds;
+            return rebuilt;
+        }
+
+        IEnumerator RunTrailBench(string outPath)
+        {
+            while (_resort == null || Forest == null || !_resort.CoverReady.IsCompleted) yield return null;
+            EnsureTerrainEdits();
+            while (_edits == null || !_edits.EarthworkReady) yield return null;
+            if (Camera != null) Camera.InputEnabled = false;
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = -1;
+            for (int i = 0; i < 60; i++) yield return null;
+            const int spots = 10;
+            var report = new TrailBenchReport();
+            var straightPreview = new List<double>();
+            var straightCommit = new List<double>();
+            var mixedPreview = new List<double>();
+            var mixedCommit = new List<double>();
+            var edit = new List<double>();
+            var undo = new List<double>();
+            var history = _edits.History;
+            for (int s = 0; s < spots; s++)
+            {
+                float angle = s * Mathf.PI * 2 / spots;
+                var head = new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * 600f;
+                var path = FallLine(head, 1000);
+                foreach (bool mixed in new[] { false, true })
+                {
+                    var strokes = new List<Stroke>();
+                    if (!mixed) strokes.Add(new Stroke(DesignUnits.FeetToMm(100), false, path.ToArray()));
+                    else
+                    {
+                        // 100 and 200 ft stretches with an island of trees in the wide one.
+                        for (int k = 0; k + 1 < path.Count; k += 8)
+                        {
+                            int end = Math.Min(path.Count - 1, k + 8);
+                            strokes.Add(new Stroke(DesignUnits.FeetToMm((k / 8) % 2 == 0 ? 100 : 200), false, path.GetRange(k, end - k + 1).ToArray()));
+                        }
+                        strokes.Add(new Stroke(DesignUnits.FeetToMm(40), true, new[] { path[12] }));
+                    }
+                    var add = new AddTrail(history.Revision, "Bench " + s, TrailSettings.GradedRun, new[] { new FootprintPart(strokes.ToArray()) },
+                                           path[0], path[path.Count - 1], WorkStage.Built);
+                    var rebuilt = AnalyseForBench(add, out double ms);
+                    (mixed ? mixedPreview : straightPreview).Add(ms);
+                    yield return null;
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    var r = history.Submit(add, rebuilt.Edits);
+                    _edits.Earthwork.Accept(rebuilt);
+                    while (!_edits.Applying.IsCompleted) yield return null;
+                    yield return null;   // the frame that shows it
+                    (mixed ? mixedCommit : straightCommit).Add(watch.Elapsed.TotalMilliseconds);
+                    if (!r.Accepted) Debug.LogWarning("[TrailBench] rejected: " + r);
+                    for (int i = 0; i < 5; i++) yield return null;
+                    if (mixed && r.Accepted)
+                    {
+                        // An edit (Natural, then back): the earthwork rebuilds only what the trail touches.
+                        var id = new TrailId(r.Created[0]);
+                        var t = history.Document.FindTrail(id);
+                        var change = new EditTrail(history.Revision, id, t.Name, t.Parts, t.Head.Value, t.Tail.Value, TrailSettings.NaturalRun, WorkStage.Built);
+                        var re = AnalyseForBench(change, out double ems);
+                        edit.Add(ems);
+                        history.Submit(change, re.Edits);
+                        _edits.Earthwork.Accept(re);
+                        while (!_edits.Applying.IsCompleted) yield return null;
+                        history.Undo();
+                        while (!_edits.Applying.IsCompleted) yield return null;
+                    }
+                    watch.Restart();
+                    history.Undo();
+                    while (!_edits.Applying.IsCompleted) yield return null;
+                    yield return null;
+                    undo.Add(watch.Elapsed.TotalMilliseconds);
+                    for (int i = 0; i < 5; i++) yield return null;
+                }
+            }
+            var build = BuildInfo.Current;
+            report.commit = build.commit;
+            report.commitDirty = build.dirty;
+            report.measuredUtc = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+            report.gpu = SystemInfo.graphicsDeviceName;
+            report.cpu = SystemInfo.processorType;
+            report.development = Debug.isDebugBuild;
+            report.site = _resort.Manifest.Site.Name;
+            report.spots = spots;
+            report.lengthM = 1000;
+            report.straightPreview = Stat.Of(straightPreview);
+            report.straightCommit = Stat.Of(straightCommit);
+            report.mixedPreview = Stat.Of(mixedPreview);
+            report.mixedCommit = Stat.Of(mixedCommit);
+            report.editPreview = Stat.Of(edit);
+            report.undo = Stat.Of(undo);
+            report.pass = report.straightPreview.p95 <= 100 && report.straightCommit.p95 <= 250;
+            File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
+            Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "[TrailBench] 1 km 100 ft: preview p95 {0:F1} ms, commit p95 {1:F1} ms; mixed with an island: preview p95 {2:F1} ms, commit p95 {3:F1} ms; " +
+                "edit preview p95 {4:F1} ms; undo p95 {5:F1} ms; {6}",
+                report.straightPreview.p95, report.straightCommit.p95, report.mixedPreview.p95, report.mixedCommit.p95, report.editPreview.p95,
+                report.undo.p95, report.pass ? "PASS" : "FAIL"));
+            Application.Quit();
+        }
+
         sealed class EarthworkHost : IEarthworkHost
         {
             readonly MountainViewer _viewer;
@@ -252,5 +391,18 @@ namespace MountainPlanner.App
             public void ClearPending() => _viewer._edits?.ClearPreview();
             public double ContourInterval => UnitFormat.ContourIntervalMetres(DisplayUnits.Current);
         }
+    }
+
+    /// <summary>-trailbench's report (task 08): the trail edit timings against CF-09's budgets on a 1 km run.</summary>
+    [Serializable]
+    public sealed class TrailBenchReport
+    {
+        public string schema = "mountain-planner-trail-benchmark/1";
+        public string commit, measuredUtc, gpu, cpu, site;
+        public bool commitDirty, development, pass;
+        public int spots;
+        public float lengthM;
+        public Stat straightPreview, straightCommit, mixedPreview, mixedCommit, editPreview, undo;
+        public float previewBudgetMs = 100, commitBudgetMs = 250;
     }
 }

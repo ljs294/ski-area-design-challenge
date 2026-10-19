@@ -182,7 +182,8 @@ namespace MountainPlanner.UI
                 _rowButtons[row.Id] = b;
             }
             Shown = shown.Count;
-            _count.text = shown.Count == _all.Count ? $"{_all.Count} {_noun} on the map" : $"{shown.Count} of {_all.Count} {_noun} on the map";
+            string noun = _all.Count == 1 && _noun.EndsWith("s") ? _noun.Substring(0, _noun.Length - 1) : _noun;
+            _count.text = shown.Count == _all.Count ? $"{_all.Count} {noun} on the map" : $"{shown.Count} of {_all.Count} {_noun} on the map";
             int active = 0;
             foreach (var h in _hidden.Values) active += h.Count;
             _clear.EnableInClassList("hidden", active == 0);
