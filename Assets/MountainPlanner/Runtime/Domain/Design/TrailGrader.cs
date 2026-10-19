@@ -19,7 +19,7 @@ namespace MountainPlanner.Domain.Design
     /// envelope reaches it; the edge step that remains is reported (<see cref="Result.EdgeStepMetres"/>).
     /// Positions are metres in the edit lattice's frame (x east, y north).
     /// </summary>
-    public static class TrailGrader
+    public static partial class TrailGrader
     {
         public const double StationMetres = 7.62;
         public const double MinBenchMetres = 7.62;

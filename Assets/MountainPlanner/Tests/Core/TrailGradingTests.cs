@@ -1,0 +1,412 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Edits;
+using MountainPlanner.Domain.Measure;
+using NUnit.Framework;
+using static MountainPlanner.Tests.DesignTestKit;
+
+namespace MountainPlanner.Tests
+{
+    // Task P3-08: painted footprints, the automatic centreline, grading on the footprint, clearing, the rating and the
+    // earthwork fold (rules TR-02, TR-03, GR-01 to GR-08, GR-13, TF-06, TF-10, TF-11, CL-01, CL-02, CL-08, TD-01 to TD-06;
+    // owner decisions TL1 to TL4).
+    public sealed class TrailGradingTests
+    {
+        const double West = 500_000.25, North = 4_200_000.75;
+        static readonly EditLattice Lattice = new EditLattice(West, North);
+        // The site's centre: design point (0, 0) sits 1 km into the lattice.
+        static readonly EarthworkSite Site = new EarthworkSite(Lattice, West + 1000, North - 1000);
+        static readonly TrailId Id = TrailId.Make(77, 1);
+
+        sealed class Plane : IHeightSource
+        {
+            readonly double _east, _north;
+            public Plane(double east, double north) { _east = east; _north = north; }
+            public double At(double x, double y) => 1800 + _east * (x - West) + _north * (y - North);
+        }
+
+        sealed class Rolling : IHeightSource
+        {
+            public double At(double x, double y)
+            {
+                double s = North - y;
+                return 2000 - 0.35 * s + 0.25 * (x - West) + 3 * Math.Sin(s * 0.02) + 0.6 * Math.Sin(x * 0.09) * Math.Cos(y * 0.05);
+            }
+        }
+
+        static EditedHeights Natural(IHeightSource g) => new EditedHeights(g, Lattice, TerrainEdits.Empty);
+
+        static PointMm M(double x, double y) => PointMm.FromMetres(x, y);
+
+        static FootprintPart[] Strip(double widthFt, params (double x, double y)[] pts) =>
+            new[] { new FootprintPart(new[] { new Stroke(Ft((int)widthFt), false, pts.Select(p => M(p.x, p.y)).ToArray()) }) };
+
+        static TrailFootprint Footprint(FootprintPart[] parts) => TrailFootprint.Build(parts, Lattice, Site.OriginX, Site.OriginY);
+
+        /// <summary>A straight trail down the y axis, head at y = 0, tail at y = −length.</summary>
+        static (TrailFootprint fp, TrailBuild build) Straight(EditedHeights ground, double length = 300, int widthFt = 100, bool graded = true,
+                                                             FootprintPart[] parts = null)
+        {
+            parts = parts ?? Strip(widthFt, (0, 0), (0, -length));
+            var trail = new Trail(Id, "Run 1", WorkStage.Built, graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun, parts, M(0, 0), M(0, -length));
+            var build = TrailEarthwork.Grade(trail, ground, Site, 77, null, null);
+            return (build.Footprint, build);
+        }
+
+        static EditedHeights Apply(EditedHeights ground, EarthworkWrites writes)
+        {
+            var tiles = new List<TerrainEditTile>();
+            foreach (var key in writes.Tiles)
+            {
+                var b = ground.Edits.Get(key).Edit();
+                writes.ApplyTo(b);
+                tiles.Add(b.Build());
+            }
+            return new EditedHeights(ground.Source, Lattice, ground.Edits.With(tiles));
+        }
+
+        static void LocalToLattice(double x, double y, out int c, out int r)
+        {
+            c = (int)Math.Round(Site.OriginX + x - West);
+            r = (int)Math.Round(North - (Site.OriginY + y));
+        }
+
+        [Test]
+        public void TR02_TheFootprintIsTheStrokesWithIslandsAndPatches()
+        {
+            var paint = new Stroke(Ft(100), false, new[] { M(0, 0), M(0, -200) });
+            var hole = new Stroke(Ft(30), true, new[] { M(0, -100) });
+            var fp = Footprint(new[] { new FootprintPart(new[] { paint, hole }) });
+            Assert.That(fp.Patches, Is.EqualTo(1), "an island leaves one piece");
+            Assert.That(fp.Contains(M(0, -100)), Is.False, "the island is unpainted");
+            Assert.That(fp.Contains(M(10, -100)), Is.True);
+            Assert.That(fp.Cells, Is.EqualTo(30.48 * 200 + Math.PI * 15.24 * 15.24 - Math.PI * 4.572 * 4.572).Within(150), "area to within a cell row");
+            var two = Footprint(new[] { new FootprintPart(new[] { paint, new Stroke(Ft(50), false, new[] { M(200, 0), M(200, -50) }) }) });
+            Assert.That(two.Patches, Is.EqualTo(2), "TF-02: a second patch");
+        }
+
+        [Test]
+        public void TR03_TheCentrelineKeepsToTheMiddle()
+        {
+            var fp = Footprint(Strip(100, (0, 0), (0, -300)));
+            Site.PointOf(M(0, 0), out double hx, out double hy);
+            Site.PointOf(M(0, -300), out double tx, out double ty);
+            var line = TrailCentreline.Find(fp, hx, hy, tx, ty);
+            Assert.That(line.Found, Is.True);
+            for (int k = 0; k < line.Points.Length / 2; k++)
+            {
+                double x = line.Points[2 * k] - Site.OriginX;
+                Assert.That(Math.Abs(x), Is.LessThan(1.0), $"point {k} within a cell of the axis");
+            }
+            Assert.That(line.LengthMetres, Is.EqualTo(300).Within(3));
+        }
+
+        [Test]
+        public void TR03_TheCentrelineGoesRoundIslandsByTheWiderSide()
+        {
+            // A 200 ft trail with a 60 ft island set 20 ft east of the axis: the west channel is wider.
+            var paint = new Stroke(Ft(200), false, new[] { M(0, 0), M(0, -300) });
+            var hole = new Stroke(Ft(60), true, new[] { M(6.1, -150) });
+            var fp = Footprint(new[] { new FootprintPart(new[] { paint, hole }) });
+            Site.PointOf(M(0, 0), out double hx, out double hy);
+            Site.PointOf(M(0, -300), out double tx, out double ty);
+            var line = TrailCentreline.Find(fp, hx, hy, tx, ty);
+            Assert.That(line.Found, Is.True);
+            double atIsland = double.NaN;
+            for (int k = 0; k < line.Points.Length / 2; k++)
+            {
+                Assert.That(fp.ContainsAt(line.Points[2 * k], line.Points[2 * k + 1]), Is.True, $"point {k} on the footprint");
+                if (Math.Abs(line.Points[2 * k + 1] - Site.OriginY + 150) < 1) atIsland = line.Points[2 * k] - Site.OriginX;
+            }
+            // The island spans x 6.1 ± 9.1 m: its west edge is at −3.0 m, the west channel −30.5 to −3.0 m.
+            Assert.That(atIsland, Is.LessThan(-3.0 - 6), "west of the island, well clear of it");
+        }
+
+        [Test]
+        public void GR01_TheBenchIsLevelAcrossTheSection()
+        {
+            var ground = Natural(new Plane(0.3, 0.1));
+            var (fp, build) = Straight(ground);
+            Assert.That(build.Grade.UngradedStations, Is.EqualTo(0));
+            var h = Apply(ground, build.Writes);
+            for (double y = -50; y >= -250; y -= 50)
+            {
+                LocalToLattice(0, y, out int c, out int r);
+                double mid = h.AtPoint(c, r);
+                for (int d = -6; d <= 6; d++)
+                    Assert.That(h.AtPoint(c + d, r), Is.EqualTo(mid).Within(0.0011), $"level across at y {y}, offset {d} (GR-10: 1 mm, whole-mm storage)");
+            }
+        }
+
+        [Test]
+        public void GR03_TheBenchOnAUniformSidehillIsTheBudgetTimesOneLessTheGrade()
+        {
+            var ground = Natural(new Plane(0.3, 0));
+            var fp = Footprint(Strip(100, (0, 0), (0, -300)));
+            Site.PointOf(M(0, 0), out double hx, out double hy);
+            var line = new[] { hx, hy, hx, hy - 300 };
+            var g = TrailGrader.GradeFootprint(ground, fp, line, true, 77, Id, null, 0);
+            var h = Apply(ground, g.Writes);
+            LocalToLattice(0, -150, out int c, out int r);
+            double z = h.AtPoint(c, r);
+            int level = 0;
+            for (int d = -20; d <= 20; d++) if (Math.Abs(h.AtPoint(c + d, r) - z) < 0.001) level++;
+            // 15.24 m either side × 0.7 = 10.67 m each way: about 21 level points across.
+            Assert.That(level, Is.InRange(19, 23));
+        }
+
+        [Test]
+        public void GR07_TooSteepStaysNaturalAndIsReported()
+        {
+            var ground = Natural(new Plane(1.2, 0));
+            var (fp, build) = Straight(ground);
+            Assert.That(build.Grade.UngradedStations, Is.EqualTo(build.Grade.Benched.Length), "a 120% sidehill holds no bench");
+            Assert.That(build.Grade.UngradedMetres, Is.EqualTo(build.Grade.LengthMetres).Within(1e-9));
+            var h = Apply(ground, build.Writes);
+            for (int r = fp.Row0; r <= fp.LastRow; r++)
+                for (int c = fp.Column0; c <= fp.LastColumn; c++)
+                    Assert.That(h.AtPoint(c, r), Is.EqualTo(ground.AtPoint(c, r)).Within(0.0005));
+        }
+
+        [Test]
+        public void GR06_NothingOutsideTheFootprintChanges()
+        {
+            var ground = Natural(new Rolling());
+            var paint = new Stroke(Ft(120), false, new[] { M(0, 0), M(20, -150), M(-10, -300) });
+            var wide = new Stroke(Ft(250), false, new[] { M(15, -120), M(10, -180) });
+            var hole = new Stroke(Ft(40), true, new[] { M(-5, -220) });
+            var parts = new[] { new FootprintPart(new[] { paint, wide, hole }) };
+            var (fp, build) = Straight(ground, 300, 100, true, parts);
+            var h = Apply(ground, build.Writes);
+            int changed = 0;
+            for (int r = fp.Row0 - 3; r <= fp.LastRow + 3; r++)
+                for (int c = fp.Column0 - 3; c <= fp.LastColumn + 3; c++)
+                {
+                    bool moved = h.AtPoint(c, r) != ground.AtPoint(c, r);
+                    if (moved) changed++;
+                    if (!fp.Interior(c, r)) Assert.That(moved, Is.False, $"point {c},{r} lies off the footprint's interior");
+                    if (!fp.Contains(c, r)) Assert.That(h.Edits.IsClearedAt(c, r), Is.False, $"cell {c},{r} is off the footprint");
+                }
+            Assert.That(changed, Is.GreaterThan(1000), "it did grade");
+        }
+
+        [Test]
+        public void GR13_FacesMeetTheGroundAtEveryEdgeNoSteeperThanOneToOne()
+        {
+            var ground = Natural(new Rolling());
+            var paint = new Stroke(Ft(100), false, new[] { M(0, 0), M(25, -150), M(-15, -300) });
+            var wide = new Stroke(Ft(220), false, new[] { M(20, -110), M(15, -170) });
+            var hole = new Stroke(Ft(35), true, new[] { M(18, -140) });
+            var (fp, build) = Straight(ground, 300, 100, true, new[] { new FootprintPart(new[] { paint, wide, hole }) });
+            var h = Apply(ground, build.Writes);
+            int edges = 0;
+            for (int r = fp.Row0; r <= fp.LastRow; r++)
+                for (int c = fp.Column0; c <= fp.LastColumn; c++)
+                {
+                    if (!fp.Interior(c, r)) continue;
+                    for (int dr = -1; dr <= 1; dr++)
+                        for (int dc = -1; dc <= 1; dc++)
+                        {
+                            if (dr == 0 && dc == 0 || fp.Interior(c + dc, r + dr)) continue;
+                            double dist = dr != 0 && dc != 0 ? Math.Sqrt(2) : 1;
+                            Assert.That(Math.Abs(h.AtPoint(c, r) - h.AtPoint(c + dc, r + dr)), Is.LessThanOrEqualTo(dist + 0.002),
+                                        $"point {c},{r} beside the edge");
+                            edges++;
+                        }
+                }
+            Assert.That(edges, Is.GreaterThan(10), "some changed points touch the edge or the island");
+        }
+
+        [Test]
+        public void GR08_VolumesAreTheDesignMinusGroundRaster()
+        {
+            var ground = Natural(new Plane(0.3, 0.15));
+            var (fp, build) = Straight(ground);
+            var h = Apply(ground, build.Writes);
+            double cut = 0, fill = 0;
+            for (int r = fp.Row0; r <= fp.LastRow; r++)
+                for (int c = fp.Column0; c <= fp.LastColumn; c++)
+                {
+                    double d = h.AtPoint(c, r) - ground.AtPoint(c, r);
+                    if (d > 0) fill += d; else cut -= d;
+                }
+            Assert.That(build.Grade.CutCubicMetres, Is.EqualTo(cut).Within(cut * 0.001));
+            Assert.That(build.Grade.FillCubicMetres, Is.EqualTo(fill).Within(fill * 0.001));
+            Assert.That(cut, Is.GreaterThan(100));
+            Assert.That(fill, Is.GreaterThan(100));
+        }
+
+        [Test]
+        public void TF06_ANaturalTrailClearsButChangesNoGround()
+        {
+            var ground = Natural(new Plane(0.3, 0.1));
+            var (fp, build) = Straight(ground, graded: false);
+            var h = Apply(ground, build.Writes);
+            for (int r = fp.Row0; r <= fp.LastRow; r++)
+                for (int c = fp.Column0; c <= fp.LastColumn; c++)
+                    Assert.That(h.AtPoint(c, r), Is.EqualTo(ground.AtPoint(c, r)));
+            Assert.That(build.Grade.ClearedCells, Is.GreaterThan(fp.Cells * 0.8));
+        }
+
+        [Test]
+        public void CL01_CL02_CL08_ClearingCoversTheFootprintWithARaggedEdgeAndSparesIslands()
+        {
+            var ground = Natural(new Plane(0.2, 0));
+            var paint = new Stroke(Ft(150), false, new[] { M(0, 0), M(0, -300) });
+            var hole = new Stroke(Ft(40), true, new[] { M(0, -150) });
+            var (fp, build) = Straight(ground, 300, 100, true, new[] { new FootprintPart(new[] { paint, hole }) });
+            int band = 0, bandCleared = 0;
+            for (int r = fp.Row0; r < fp.Row0 + fp.Height; r++)
+                for (int c = fp.Column0; c < fp.Column0 + fp.Width; c++)
+                {
+                    bool cleared = build.Writes.Clears(c, r);
+                    if (!fp.Contains(c, r)) { Assert.That(cleared, Is.False, "CL-08: islands and outside keep their trees"); continue; }
+                    double inside = fp.Clearance(c, r);
+                    if (inside >= TrailGrader.EdgeBandMetres) Assert.That(cleared, Is.True, "CL-01");
+                    else { band++; if (cleared) bandCleared++; }
+                }
+            Assert.That(bandCleared, Is.GreaterThan(band / 5).And.LessThan(band * 4 / 5), "CL-02: a ragged band, round the island too");
+        }
+
+        [Test]
+        public void TD01_TD02_ARunStraightDownAPlaneRatesItsGrade()
+        {
+            var ground = Natural(new Plane(0, 0.3));   // rises 30% to the north: straight down the fall line
+            var (fp, build) = Straight(ground);
+            var h = Apply(ground, build.Writes);
+            var rating = TrailRating.Rate(h, fp, build.Grade);
+            Assert.That(rating.MeanPercent, Is.EqualTo(30).Within(0.5));
+            Assert.That(rating.ValuePercent, Is.EqualTo(30).Within(1));
+            Assert.That(rating.Band, Is.EqualTo(SlopeBands.Band.Blue), "TD-03: 25–40% is More difficult");
+            Assert.That(rating.DropMetres, Is.EqualTo(0.3 * 300).Within(3));
+        }
+
+        [Test]
+        public void TD06_TheEstimateReadsThePaintedCells()
+        {
+            var ground = Natural(new Plane(0.45, 0));
+            var fp = Footprint(Strip(100, (0, 0), (0, -300)));
+            Assert.That(TrailRating.Estimate(ground, fp), Is.EqualTo(45).Within(0.01));
+        }
+
+        // ---- the earthwork fold (TL3, TF-10, TF-11) ----
+
+        static (DesignHistory h, DesignEarthwork work) Session(IHeightSource g)
+        {
+            var h = new DesignHistory(DesignDocument.Empty(77));
+            var work = new DesignEarthwork(g, Site);
+            work.Prime(h.Document, h.Terrain);
+            return (h, work);
+        }
+
+        static TrailId Add(DesignHistory h, DesignEarthwork work, FootprintPart[] parts, PointMm head, PointMm tail, bool graded = true)
+        {
+            var cmd = new AddTrail(h.Revision, "Run " + (h.Document.Trails.Count + 1), graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun,
+                                   parts, head, tail, WorkStage.Built);
+            var after = cmd.Apply(h.Document);
+            Assert.That(after.Accepted, Is.True, after.ToString());
+            var edits = work.Rebuild(after.Document, h.Terrain).Edits;
+            var r = h.Submit(cmd, edits);
+            Assert.That(r.Accepted, Is.True);
+            return new TrailId(r.Created[0]);
+        }
+
+        static void Commit(DesignHistory h, DesignEarthwork work, DesignCommand cmd)
+        {
+            var after = cmd.Apply(h.Document);
+            Assert.That(after.Accepted, Is.True, after.ToString());
+            Assert.That(h.Submit(cmd, work.Rebuild(after.Document, h.Terrain).Edits).Accepted, Is.True);
+        }
+
+        static TerrainEdits Fresh(IHeightSource g, DesignDocument doc)
+        {
+            var w = new DesignEarthwork(g, Site);
+            w.Prime(DesignDocument.Empty(doc.Seed), TerrainEdits.Empty);
+            return w.Rebuild(doc, TerrainEdits.Empty).Edits;
+        }
+
+        static bool Same(TerrainEdits a, TerrainEdits b) => TerrainEdits.Changed(a, b).Count == 0;
+
+        [Test]
+        public void TL3_DeleteRestoresTheGroundAndTreesExactly()
+        {
+            var g = new Rolling();
+            var (h, work) = Session(g);
+            var id = Add(h, work, Strip(100, (0, 0), (10, -300)), M(0, 0), M(10, -300));
+            Assert.That(h.Terrain.IsEmpty, Is.False);
+            Commit(h, work, new DeleteTrail(h.Revision, id));
+            Assert.That(h.Terrain.IsEmpty, Is.True, "no edits left");
+        }
+
+        [Test]
+        public void TF10_AnOverlappingTrailKeepsOffTheEarlierOnesGround()
+        {
+            var g = new Rolling();
+            var (h, work) = Session(g);
+            var first = Add(h, work, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300));
+            var before = new EditedHeights(g, Lattice, h.Terrain);
+            var claimed = work.WritesOf(first.Value);
+            Add(h, work, Strip(100, (-150, -100), (150, -200)), M(-150, -100), M(150, -200));
+            var after = new EditedHeights(g, Lattice, h.Terrain);
+            int kept = 0;
+            for (int r = claimed.MinRow; r <= claimed.MaxRow; r++)
+                for (int c = claimed.MinColumn; c <= claimed.MaxColumn; c++)
+                    if (claimed.Claims(c, r)) { Assert.That(after.AtPoint(c, r), Is.EqualTo(before.AtPoint(c, r))); kept++; }
+            Assert.That(kept, Is.GreaterThan(5000));
+        }
+
+        [Test]
+        public void TL3_EditingOneTrailEqualsBuildingTheDesignFresh()
+        {
+            var g = new Rolling();
+            var (h, work) = Session(g);
+            var a = Add(h, work, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300));
+            var b = Add(h, work, Strip(80, (-120, -80), (140, -220)), M(-120, -80), M(140, -220));
+            Add(h, work, Strip(90, (100, 50), (120, -260)), M(100, 50), M(120, -260));
+            Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True, "incremental adds");
+            // Repaint the first: the second (which crosses it) must follow.
+            Commit(h, work, new RepaintTrail(h.Revision, a, Strip(140, (0, 0), (15, -300))));
+            Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True, "after a repaint");
+            Commit(h, work, new DeleteTrail(h.Revision, a));
+            Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True, "after a delete");
+            Commit(h, work, new SetTrailSettings(h.Revision, b, TrailSettings.NaturalRun));
+            Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True, "after Natural");
+            // Undo restores exactly; the next edit after an undo still matches a fresh build.
+            h.Undo();
+            h.Undo();
+            Commit(h, work, new SetTrailSettings(h.Revision, b, TrailSettings.NaturalRun));
+            Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True, "an edit after undoing two");
+        }
+
+        [Test]
+        public void TF11_GradingKeepsFifteenFeetRoundALiftsTowersAndTerminals()
+        {
+            var g = new Plane(0.3, 0.3);
+            var (h, work) = Session(g);
+            var lift = h.Submit(new AddLift(h.Revision, "Chair 1", LiftCatalogIds.SesselliftFgq4, M(-200, -150), M(200, -150),
+                                            TowerMode.Automatic, TowerStance.Plumb, new[] { new TowerSpec(200_000, Ft(35)) }, WorkStage.Built));
+            Assert.That(lift.Accepted, Is.True, lift.ToString());
+            Add(h, work, Strip(150, (0, 0), (0, -300)), M(0, 0), M(0, -300));
+            var e = new EditedHeights(g, Lattice, h.Terrain);
+            LocalToLattice(0, -150, out int c, out int r);   // the tower stands on the trail's axis
+            for (int dr = -4; dr <= 4; dr++)
+                for (int dc = -4; dc <= 4; dc++)
+                    if (dr * dr + dc * dc <= 16) Assert.That(e.AtPoint(c + dc, r + dr), Is.EqualTo(g.At(Lattice.X(c + dc), Lattice.Y(r + dr))));
+        }
+
+        [Test]
+        public void TL3_ForeignEditsAreKept()
+        {
+            var g = new Plane(0.2, 0.2);
+            var h = new DesignHistory(DesignDocument.Empty(77));
+            var foreign = TerrainEdits.Empty.With(new[] { TerrainEditTile.Empty(new EditTileKey(40, 40)).Edit().SetDeltaMm(3, 3, 500).Build() });
+            h.Load(h.Document, foreign);
+            var work = new DesignEarthwork(g, Site);
+            work.Prime(h.Document, h.Terrain);
+            Add(h, work, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300));
+            Assert.That(h.Terrain.DeltaMmAt(40 * 64 + 3, 40 * 64 + 3), Is.EqualTo(500));
+        }
+    }
+}
