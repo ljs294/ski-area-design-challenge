@@ -34,6 +34,47 @@ namespace MountainPlanner.App
             _trailLayer.Rebuild(doc, heights, _resort.Frame, _edits?.Earthwork, _trailLabelSpots, _resort.Surface);
             if (_trailLabels == null && Hud != null) _trailLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer);
             _trailLabels?.SetLandmarks(_trailLabelSpots);
+            FillTrailList(doc);
+        }
+
+        readonly List<MountainPlanner.UI.TrailRow> _trailRows = new List<MountainPlanner.UI.TrailRow>();
+        bool _trailListWired;
+
+        /// <summary>Analysis › Trails (task 08): one row per trail, from the Trails layer's figures.</summary>
+        void FillTrailList(DesignDocument doc)
+        {
+            if (Hud == null || _trailLayer == null) return;
+            if (!_trailListWired)
+            {
+                _trailListWired = true;
+                Hud.TrailFocused += id => _trailLayer?.Focus(new TrailId(id));
+                Hud.TrailEditChosen += id => ChooseTrailTool(EditTrailTool.ToolId, id);
+                Hud.TrailRemoveChosen += id => ChooseTrailTool(RemoveTrailTool.ToolId, id);
+            }
+            _trailRows.Clear();
+            foreach (var t in doc.Trails)
+            {
+                _trailLayer.TryGetFacts(t.Id, out var f);
+                _trailRows.Add(new MountainPlanner.UI.TrailRow
+                {
+                    Id = t.Id.Value, Name = t.Name, RatingPercent = f.Rating, MeanPercent = f.Mean, SteepestPercent = f.Steepest,
+                    LengthMetres = f.LengthMetres, VerticalMetres = Math.Abs(f.DropMetres),
+                    Graded = t.Settings.Grading == TrailGrading.Graded, Built = t.Stage == WorkStage.Built,
+                });
+            }
+            Hud.SetTrails(_trailRows);
+        }
+
+        /// <summary>The card's Edit or Remove (the mockup's fedit, fremove): the Trails tab, that tool, the trail chosen.</summary>
+        void ChooseTrailTool(string toolId, ulong trail)
+        {
+            if (_tools == null || Hud == null) return;
+            Hud.SetAnalysis(false);
+            Hud.SetToolboxTab("trails");
+            Hud.SetToolbox(true);
+            if (_tools.ActiveId != toolId) _tools.Choose(toolId);
+            var t = Design.Document.FindTrail(new TrailId(trail));
+            if (_tools.Active is TrailTool tool && t != null) tool.ChooseTrail(t);
         }
 
         /// <summary>Once a frame, after the camera has moved: the layer follows the camera and the names their lines.</summary>

@@ -106,6 +106,7 @@ namespace MountainPlanner.UI
             WireBar();
             WireLayers();
             WirePanels();
+            WireTrails();   // Analysis › Trails (MountainHud.Trails.cs, task 08)
             WireGlass();
             WireKeyCaptions();
             _menu.RegisterCallback<GeometryChangedEvent>(_ => FitDrop(_menu));

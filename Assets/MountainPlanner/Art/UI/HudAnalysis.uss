@@ -1,0 +1,36 @@
+/* Analysis lists (task P3-08; task 09 reuses them for Lifts), ported from the mockup's Analysis › Lifts and Trails
+   (docs/plans/prototypes/ui-layout.html: .atools, .atb, .tbl .r, .th, .dd, .amenu, .mi, .foot, .pn.fcard). Pixel values
+   are the mockup's (the 1280×720 stage). Plates are solid (linear blending). Every colour rule also sets the text outline
+   colour (UiThemeTests). */
+
+/* the count and the Filter button (.atools, .atb) */
+.hud .an-list { flex-shrink: 1; min-height: 0; }
+.hud .an-tools { flex-direction: row; align-items: center; padding: 8px 12px 2px 12px; }
+.hud .an-tools__count { margin: 0; padding: 0; font-size: 12px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .an-tb { margin: 0 0 0 6px; padding: 3px 9px 2px 9px; border-width: 1px; border-color: var(--hair2); border-radius: 4px; background-color: rgba(0, 0, 0, 0); font-size: 12px; -unity-font-style: bold; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .an-tb:hover { border-color: var(--ghost-hover); color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .an-tb--on { background-color: var(--chip); color: var(--strong); -unity-text-outline-color: var(--strong); }
+
+/* the rows (.tbl .r): a hairline between rows, the header in small bold soft type */
+.hud .an-row { flex-direction: row; align-items: center; margin: 0; padding: 5px 12px; border-width: 1px 0 0 0; border-color: var(--row); border-radius: 0; background-color: rgba(0, 0, 0, 0); }
+.hud .an-row--head { border-width: 0; padding: 8px 12px 4px 12px; }
+.hud .an-row--item:hover, .hud .an-row--item:focus { background-color: var(--hover); }
+.hud .an-row--on { background-color: var(--hover); border-left-width: 2px; border-left-color: var(--text); }
+.hud .an-rows { max-height: 300px; flex-shrink: 1; }
+.hud .an-cell { flex-direction: row; align-items: center; margin: 0 8px 0 0; padding: 0; overflow: hidden; font-size: 12.5px; -unity-font-style: bold; white-space: nowrap; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .an-cell--n { justify-content: flex-end; -unity-text-align: middle-right; -unity-font-style: normal; }
+.hud .an-head { margin: 0; padding: 0; font-size: 11.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .an-row--head .an-cell--n { justify-content: flex-end; }
+.hud .an-dd { width: 15px; height: 15px; margin: 0 0 0 3px; padding: 0; border-width: 1px; border-color: var(--hair2); border-radius: 3px; background-color: rgba(0, 0, 0, 0); font-size: 9px; -unity-text-align: middle-center; color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .an-dd:hover, .hud .an-dd--act { border-color: var(--muted); color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .an-foot { margin: 0; padding: 7px 12px 4px 12px; border-top-width: 1px; border-color: var(--row); white-space: normal; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+
+/* a column's menu (.amenu, .mi) */
+.hud .an-menu { position: absolute; top: 58px; min-width: 190px; padding: 4px 0; background-color: var(--panel); border-width: 1px; border-color: var(--hair); border-radius: 5px; }
+.hud .an-mi { margin: 0; padding: 5px 10px; border-width: 0; border-radius: 0; background-color: rgba(0, 0, 0, 0); -unity-text-align: middle-left; font-size: 12px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .an-mi:hover, .hud .an-mi:focus { background-color: var(--hover); }
+.hud .an-mi:disabled { color: var(--faint); -unity-text-outline-color: var(--faint); }
+
+/* the focus card (.pn.fcard): right of the map, under the corner buttons */
+.hud .an-card { position: absolute; right: 10px; top: 56px; width: 300px; }
+.hud .an-card__acts { padding: 4px 12px 10px 12px; }

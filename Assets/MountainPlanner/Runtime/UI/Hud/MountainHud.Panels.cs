@@ -199,6 +199,7 @@ namespace MountainPlanner.UI
             foreach (string t in AnalysisTabs) _root.Q("analysis-tab-" + t).EnableInClassList("tab--on", t == tab);
             _analysisEmpty.text = AnalysisEmpty[Mathf.Max(0, i)];
             _when?.EnableInClassList("stat--on", _analysisOpen && tab == "weather");
+            ShowTrailsTab();   // task 08
         }
 
         public string AnalysisTab => _analysisTab;

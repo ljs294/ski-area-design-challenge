@@ -4,6 +4,7 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:hud="MountainPlanner.UI.Hud">
     <Style src="Hud.uss" />
     <Style src="HudTools.uss" />
+    <Style src="HudAnalysis.uss" />
     <ui:VisualElement name="hud" class="hud" picking-mode="Ignore">
         <ui:VisualElement name="contour-labels" class="contour-labels" picking-mode="Ignore" />
         <ui:Label name="credit" class="credit" text="Map data © OpenStreetMap contributors" picking-mode="Ignore" />

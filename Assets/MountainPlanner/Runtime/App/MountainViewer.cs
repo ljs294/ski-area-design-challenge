@@ -404,6 +404,7 @@ namespace MountainPlanner.App
                 else if (_photo) SetPhoto(false);   // photo mode (MountainViewer.Photo.cs) puts everything back
                 else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
                 else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
+                else if (Hud != null && _resort != null && Hud.CloseTrailCardIfOpen()) { }   // a trail's focus card (task 08)
                 else if (_resort != null && EscapeTool()) { }   // the armed tool backs out a step (CF-07, P3-06)
                 else if (Hud != null && _resort != null && Hud.BackOut()) { }
                 else if (Hud != null && _resort != null) Hud.ToggleMenu();

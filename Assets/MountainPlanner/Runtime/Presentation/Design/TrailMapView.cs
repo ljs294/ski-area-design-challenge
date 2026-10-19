@@ -28,8 +28,8 @@ namespace MountainPlanner.Presentation.Design
             public TrailFootprint Footprint;
             public Vector2[] Line;   // local x/z metres
             public SlopeBands.Band Band;
-            public double Rating = double.NaN;
-            public double LengthMetres;
+            public double Rating = double.NaN, Mean = double.NaN, Steepest = double.NaN;
+            public double LengthMetres, DropMetres;
         }
 
         public TrailMapView(Transform parent, World.ITerrainSurface surface, Material lineMaterial)
@@ -43,13 +43,21 @@ namespace MountainPlanner.Presentation.Design
             set => _lines.Root.gameObject.SetActive(value);
         }
 
-        /// <summary>What a trail is rated and how long it runs, as drawn (Analysis › Trails reads these).</summary>
-        public bool TryGetFacts(TrailId id, out double ratingPercent, out double lengthMetres)
+        /// <summary>A trail's figures as drawn (Analysis › Trails and its card read these).</summary>
+        public readonly struct Facts
         {
-            ratingPercent = lengthMetres = double.NaN;
+            public readonly double Rating, Mean, Steepest, LengthMetres, DropMetres;
+            public Facts(double rating, double mean, double steepest, double length, double drop)
+            {
+                Rating = rating; Mean = mean; Steepest = steepest; LengthMetres = length; DropMetres = drop;
+            }
+        }
+
+        public bool TryGetFacts(TrailId id, out Facts facts)
+        {
+            facts = default;
             if (!_shapes.TryGetValue(id, out var s)) return false;
-            ratingPercent = s.Rating;
-            lengthMetres = s.LengthMetres;
+            facts = new Facts(s.Rating, s.Mean, s.Steepest, s.LengthMetres, s.DropMetres);
             return true;
         }
 
@@ -126,6 +134,7 @@ namespace MountainPlanner.Presentation.Design
                 s.Line[k] = new Vector2((float)(c.Points[2 * at] - frame.Origin.X), (float)(c.Points[2 * at + 1] - frame.Origin.Y));
             }
             s.LengthMetres = c.LengthMetres;
+            s.DropMetres = heights.At(head.X, head.Y) - heights.At(tail.X, tail.Y);
             return s;
         }
 
@@ -136,7 +145,10 @@ namespace MountainPlanner.Presentation.Design
             {
                 var r = TrailRating.Rate(heights, build.Footprint, build.Grade);
                 s.Rating = r.ValuePercent;
+                s.Mean = r.MeanPercent;
+                s.Steepest = r.MaxPercent;
                 s.LengthMetres = build.Grade.LengthMetres;
+                s.DropMetres = r.DropMetres;
             }
             else if (double.IsNaN(s.Rating)) s.Rating = TrailRating.Estimate(heights, s.Footprint);
             s.Band = double.IsNaN(s.Rating) ? SlopeBands.Band.Green : SlopeBands.Of(s.Rating);
