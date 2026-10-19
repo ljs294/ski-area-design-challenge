@@ -113,7 +113,7 @@ namespace MountainPlanner.Tests
             // A short station tower far out: the chairs sag below 15 ft in the span behind it.
             var low = hand.Evaluate(150, DesignUnits.FeetToMm(15));
             Assert.That(low.Ok, Is.False);
-            Assert.That(low.Problem.Value.Rule, Is.AnyOf("TW-01", "TW-02", "TW-16"));
+            Assert.That(low.Problem.Value.Rule, Is.EqualTo("TW-01").Or.EqualTo("TW-02").Or.EqualTo("TW-16"));
             Assert.That(low.Problem.Value.Message, Is.Not.Empty);
             // Somewhere in the green band it's fine, and it says how far the next one can reach.
             var band = hand.Band(DesignUnits.FeetToMm(15));
