@@ -128,6 +128,11 @@ namespace MountainPlanner.UI.Tools
                     if (tray.layout.xMax + 10 + w.width > stage.layout.width - 170) Window.style.top = 66;
                 }
             }
+            // A strip under the window (the trail profile) is a floor too, where the two overlap across (150% on a small screen).
+            foreach (var strip in _strips)
+                if (strip.parent == stage && strip.resolvedStyle.display == DisplayStyle.Flex && strip.layout.height > 0
+                    && strip.layout.xMin < w.xMax && strip.layout.xMax > w.xMin && strip.layout.yMin > w.yMin)
+                    barTop = Mathf.Min(barTop, strip.layout.yMin);
             float room = Mathf.Max(120, barTop - 10 - w.yMin);
             if (Math.Abs(Window.resolvedStyle.maxHeight.value - room) > 0.5f) Window.style.maxHeight = room;
         }
@@ -160,6 +165,7 @@ namespace MountainPlanner.UI.Tools
         public void SetName(string name) => _name.text = name ?? "";
 
         Label _goLabel;
+        readonly List<VisualElement> _strips = new List<VisualElement>();
 
         /// <summary>
         /// A strip that rides with the window in the HUD's layer, outside it (task 08's trail profile, TF-04; task 09's lift
@@ -167,6 +173,8 @@ namespace MountainPlanner.UI.Tools
         /// </summary>
         public void AddStrip(VisualElement strip)
         {
+            _strips.Add(strip);
+            strip.RegisterCallback<GeometryChangedEvent>(_ => Fit());
             Window.RegisterCallback<AttachToPanelEvent>(_ => { if (Window.parent != null && strip.parent != Window.parent) Window.parent.Add(strip); });
             Window.RegisterCallback<DetachFromPanelEvent>(_ => strip.RemoveFromHierarchy());
             if (Window.parent != null) Window.parent.Add(strip);

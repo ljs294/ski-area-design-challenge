@@ -730,7 +730,7 @@ namespace MountainPlanner.UI.Tools
                     .Add("Balance", ToolFormat.Volume(cut - fill, signed: true), "GR-08: cut − fill");
                 if (g.UngradedStations > 0) _review.Add("Ungraded", ToolFormat.Length(g.UngradedMetres), "GR-07: too steep to bench, kept natural");
             }
-            else _review.Add("Grading", "Natural: the ground stays as it is", "TF-06, GR-14");
+            else _review.Add("Grading", "natural, none", "TF-06, GR-14");
             _review.Add("Trees cleared", ToolFormat.Area(g.ClearedCells), "CL-01, CL-02: the ragged edge keeps some at the treeline")
                 .Reserved("Network", "NW-12: No lift serves this, Leads nowhere (task 10)", ReviewModel.NetworkSlot);
             if (a.Graded && g.UngradedStations > 0)

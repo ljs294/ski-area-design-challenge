@@ -110,7 +110,7 @@
 /* the step buttons (.lbtns) and the commit buttons (.acts: Break ground fills, Save plan is a ghost) */
 .hud .tw-btns { flex-direction: row; padding: 2px 12px 6px 12px; }
 .hud .tw-btns > .mp-ghost { flex-grow: 1; height: 30px; flex-direction: row; justify-content: center; align-items: center; }
-.hud .tw-acts { flex-direction: row; padding: 4px 12px 12px 12px; }
+.hud .tw-acts { flex-direction: row; flex-shrink: 0; padding: 4px 12px 12px 12px; }   /* pinned: only the scroll above it gives way */
 .hud .tw-acts > .mp-go { flex-grow: 1; flex-direction: row; justify-content: space-between; align-items: center; margin-right: 6px; }
 .hud .tw-acts > .mp-ghost { flex-shrink: 0; }
 .hud .tw-acts > .mp-ghost:disabled, .hud .tw-btns > .mp-ghost:disabled { border-color: var(--hair2); }   /* the mockup's .ghost.dis */
