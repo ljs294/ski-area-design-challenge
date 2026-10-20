@@ -108,7 +108,8 @@ namespace MountainPlanner.Tests.Core
             Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts" }),
                 "no network, stats, ratings, rope or volumes (SH-05); no undo history (DD1)");
             Assert.That(((JObject)o["Design"]["Lifts"][0]).Properties().Select(p => p.Name),
-                Is.EqualTo(new[] { "Id", "Name", "Stage", "Catalog", "Bottom", "Top", "TowerMode", "Stance", "Towers" }), "tower positions, heights and stance are authored (SH-05, TW-15)");
+                Is.EqualTo(new[] { "Id", "Name", "Stage", "Catalog", "Bottom", "Top", "TowerMode", "Stance", "Towers", "Levels" }),
+                "tower positions, heights and stance are authored (SH-05, TW-15), and the terminals' levels (SK14, v2)");
         }
 
         [Test]
@@ -123,14 +124,24 @@ namespace MountainPlanner.Tests.Core
                 Is.EqualTo(Directory.GetFiles(Path.Combine(a, SaveStore.TilesFolder)).Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal)));
         }
 
+        /// <summary>The save the v2 fixture holds (task 09): the v1 fixture's, its first lift with terminal levels, the top one
+        /// raised 3 ft on its pier (LF-08 v2). Levels are absolute whole millimetres, unlike the site-centred points.</summary>
+        static SaveFile FixtureSaveTwo()
+        {
+            var save = FixtureSave();
+            var lift = save.Design.Lifts[0];
+            save.Design = save.Design.PutLift(lift.WithLevels(new LiftLevels(2_012_345, 2_187_654 + 914)));
+            return save;
+        }
+
         [Test]
         public void TheWriterReproducesTheFrozenFixtureByteForByte()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v1-save")), "Saves", JacksonHole, "save-001");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v2-save")), "Saves", JacksonHole, "save-001");
             string folder = Path.Combine(_root, "again");
-            SaveStore.Write(folder, FixtureSave());
+            SaveStore.Write(folder, FixtureSaveTwo());
             Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveFile.FileName)), Is.EqualTo(File.ReadAllBytes(Path.Combine(fixture, SaveFile.FileName))),
-                "save.json v1 is frozen: a writer change is a format change (0.3 §5)");
+                "save.json v2 is frozen: a writer change is a format change (0.3 §5)");
             foreach (string tile in Directory.GetFiles(Path.Combine(fixture, SaveStore.TilesFolder)))
                 Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveStore.TilesFolder, Path.GetFileName(tile))), Is.EqualTo(File.ReadAllBytes(tile)));
         }
@@ -226,12 +237,12 @@ namespace MountainPlanner.Tests.Core
             SaveStore.Write(folder, FixtureSave());
             string path = Path.Combine(folder, SaveFile.FileName);
             var o = JObject.Parse(File.ReadAllText(path));
-            o["Version"] = 2;
+            o["Version"] = 3;
             File.WriteAllText(path, o.ToString());
             byte[] before = File.ReadAllBytes(path);
 
             var e = Assert.Throws<FormatTooNewException>(() => SaveStore.Read(folder));
-            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 2; this version reads up to 1). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 3; this version reads up to 2). Update the game to open it."));
             Assert.That(SaveStore.Write(folder, FixtureSave()), Is.False);
             Assert.That(SaveStore.Rename(folder, "Mine now"), Is.False);
             Assert.That(File.ReadAllBytes(path), Is.EqualTo(before), "nothing is written over a newer save (0.3 §5 rule 3)");
@@ -326,13 +337,43 @@ namespace MountainPlanner.Tests.Core
         }
 
         /// <summary>Regenerates TestData/formats/v1-save. Only before the first merge: after it, v1 is frozen.</summary>
-        [Test, Explicit("Regenerates the frozen v1 save fixture")]
-        public void WriteTheVersionOneFixture()
+        [Test]
+        public void TheVersionTwoFixtureReadsUnchanged()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v2-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture2");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveTwo(), back);
+            Assert.That(back.Design.Lifts[0].Levels, Is.EqualTo(new LiftLevels(2_012_345, 2_188_568)));
+            Assert.That(back.Design.Lifts[1].Levels, Is.Null);
+        }
+
+        [Test]
+        public void AVersionOneSaveMigratesToTwoWithItsLiftsLevelsUnknown()
+        {
+            // 0.3 §5: the v1 fixture, unedited, opens through the migration; its document is the v1 one, every lift's levels
+            // null (they lived in memory only before save v2) and derived from the ground when it opens, as before.
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v1-save")), "Saves", JacksonHole, "save-001");
+            var o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName))), out int from);
+            Assert.That(from, Is.EqualTo(1));
+            Assert.That((int)o["Version"], Is.EqualTo(2));
+            Assert.That((int)o["Design"]["Shape"], Is.EqualTo(2));
+            Assert.That(((JArray)o["Design"]["Lifts"]).All(l => l["Levels"].Type == JTokenType.Null), Is.True);
+            string copy = Path.Combine(_root, "v1");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(FixtureSave().Design)), Is.True);
+            Assert.That(back.Design.Lifts.All(l => l.Levels == null), Is.True);
+        }
+
+        [Test, Explicit("Regenerates the frozen v2 save fixture")]
+        public void WriteTheVersionTwoFixture()
         {
             string formats = TestData.Folder("formats");
-            string folder = Path.Combine(formats, "v1-save", "Saves", JacksonHole, "save-001");
+            string folder = Path.Combine(formats, "v2-save", "Saves", JacksonHole, "save-001");
             if (Directory.Exists(folder)) Directory.Delete(folder, true);
-            Assert.That(SaveStore.Write(folder, FixtureSave()), Is.True);
+            Assert.That(SaveStore.Write(folder, FixtureSaveTwo()), Is.True);
             File.Delete(Path.Combine(folder, SaveFile.BackupName));
         }
 
