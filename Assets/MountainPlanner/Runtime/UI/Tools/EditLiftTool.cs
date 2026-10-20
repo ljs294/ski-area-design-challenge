@@ -102,6 +102,7 @@ namespace MountainPlanner.UI.Tools
             _without = null;
             _built = null;
             _applyEdits = null;
+            _rebuild = null;
             _ctx.PendingTerrain = null;
             _ctx.HoldLift?.Invoke(0);
             _ctx.Preview.HideFrom(0);
@@ -143,16 +144,29 @@ namespace MountainPlanner.UI.Tools
             Changed();
         }
 
-        // The ground without this lift (every other built lift replayed, LT24): what the draft builds on.
+        // The design's earthwork fold (TL3, P3-08's), when the area's session has one; null in tests without it.
+        DesignEarthwork Fold => _ctx.Earthwork != null && _ctx.Earthwork.Ready ? _ctx.Earthwork.Earthwork : null;
+        DesignEarthwork.Result _rebuild;   // Apply's whole earthwork, accepted by the fold once the command is in
+
+        // The ground without this lift: the design's earthwork folded without it (trails and the other lifts kept, TL3), or
+        // with no fold every other built lift replayed (LT24): what the draft builds on.
         void WorkOutGround()
         {
             var ground = _ctx.EditedGround?.Invoke();
             if (ground == null || _ctx.ToGround == null) { _without = null; return; }
             _groundWorking = true;
             var doc = _ctx.History.Document;
+            var committed = _ctx.History.Terrain;
             var id = _lift.Id;
             var toGround = _ctx.ToGround;
-            _ctx.Analyse(() => new EditedHeights(ground.Source, ground.Lattice, LiftReplay.Rebuild(ground.Source, ground.Lattice, doc, p => toGround(p), id)), g =>
+            var fold = Fold;
+            long revision = _ctx.History.Revision;
+            _ctx.Analyse(() =>
+            {
+                if (fold == null) return new EditedHeights(ground.Source, ground.Lattice, LiftReplay.Rebuild(ground.Source, ground.Lattice, doc, p => toGround(p), id));
+                var gone = new DeleteLift(revision, id).Apply(doc);
+                return new EditedHeights(ground.Source, ground.Lattice, fold.Rebuild(gone.Document, committed).Edits);
+            }, g =>
             {
                 _groundWorking = false;
                 if (_lift == null || _lift.Id.Value != id.Value) return;
@@ -180,6 +194,7 @@ namespace MountainPlanner.UI.Tools
             _version++;
             _built = null;
             _applyEdits = null;
+            _rebuild = null;
             _ctx.PendingTerrain = null;
             Analyse();
             Refresh();
@@ -235,6 +250,9 @@ namespace MountainPlanner.UI.Tools
             var t = _ctx.ToGround(d.Top);
             var type = LiftType.Of(d.CatalogId);
             var doc = _ctx.History.Document;
+            var committed = _ctx.History.Terrain;
+            long revision = _ctx.History.Revision;
+            var fold = Fold;
             var lift = _lift;
             var toGround = _ctx.ToGround;
             int version = _version;
@@ -255,15 +273,29 @@ namespace MountainPlanner.UI.Tools
                     var levels = d.Levels ?? LiftBuild.GroundLevels(type, ground, b.X, b.Y, t.X, t.Y);
                     r = LiftBuild.BuildWith(type, ground, b.X, b.Y, t.X, t.Y, specs, d.Stance, levels);
                 }
+                // Apply's whole earthwork: the fold with the edited lift in its place (trails, then lifts, TL3), or with no
+                // fold the built lifts replayed (LT24).
+                if (fold != null)
+                {
+                    bool replaced = d.Replace || d.Towers.Count == 0;
+                    var cmd = Command(revision, lift, d, replaced ? null : d.Towers, replaced ? r.Towers : null, r.Levels);
+                    var after = cmd.Apply(doc);
+                    if (after.Accepted)
+                    {
+                        var rebuilt = fold.Rebuild(after.Document, committed);
+                        return (r, rebuilt.Edits, rebuilt);
+                    }
+                }
                 var edited = new Lift(lift.Id, lift.Name, lift.Stage, d.CatalogId, d.Bottom, d.Top, d.Mode, d.Stance, Stored(d, r), r.Levels);
                 var edits = LiftReplay.Rebuild(ground.Source, ground.Lattice, doc, p => toGround(p), default, edited);
-                return (r, edits);
+                return (r, edits, (DesignEarthwork.Result)null);
             }, done =>
             {
                 _building = false;
                 if (_draft == null || version != _version) return;
                 _built = done.r;
-                _applyEdits = done.edits;
+                _applyEdits = done.Item2;
+                _rebuild = done.Item3;
                 // A re-place's towers become the draft's (new ids), and its levels; By hand they were the draft's already.
                 if (_draft.Replace || _draft.Towers.Count == 0)
                 {
@@ -597,8 +629,24 @@ namespace MountainPlanner.UI.Tools
             return new EditLift(baseRevision, _lift.Id, _draft.CatalogId, _draft.Bottom, _draft.Top, _draft.Mode, _draft.Stance, kept, added, _draft.Levels, kind);
         }
 
+        // The command a draft makes: towers that are the lift's own keep their IDs; the rest (or a re-place's) are new.
+        static EditLift Command(long revision, Lift lift, Draft d, List<Tower> towers, List<TowerSpec> placed, LiftLevels levels)
+        {
+            var kept = new List<Tower>();
+            var added = new List<TowerSpec>();
+            if (towers != null)
+                foreach (var tw in towers)
+                    if (tw.Id.Value != 0 && lift.IndexOfTower(tw.Id) >= 0) kept.Add(tw);
+                    else added.Add(new TowerSpec(tw.AlongMm, tw.HeightMm));
+            if (placed != null) added.AddRange(placed);
+            return new EditLift(revision, lift.Id, d.CatalogId, d.Bottom, d.Top, d.Mode, d.Stance, kept, added, levels);
+        }
+
         public void Committed(CommandResult result)
         {
+            // The fold takes Apply's earthwork as its own once it's the history's (as the trail tools do).
+            if (_rebuild != null && _ctx.History.Terrain == _rebuild.Edits) _ctx.Earthwork?.Earthwork?.Accept(_rebuild);
+            _rebuild = null;
             _ctx.Notice?.Invoke($"{_lift.Name}: {_undo.Count} change{(_undo.Count == 1 ? "" : "s")} applied · Ctrl+Z undoes the edit");
             Picking();
         }

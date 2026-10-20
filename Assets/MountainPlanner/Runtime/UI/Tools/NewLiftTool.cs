@@ -388,7 +388,12 @@ namespace MountainPlanner.UI.Tools
             return k.ToString();
         }
 
-        bool BuiltIsCurrent() => _built != null && _builtFor == BuildKey();
+        bool BuiltIsCurrent() => _built != null && _builtFor == BuildKey() && (_builtRebuild == null || _builtRevision == _ctx.History.Revision);
+
+        // The fold's earthwork for Break ground when the area has one (accepted once the lift is in), else the build's own.
+        DesignEarthwork.Result _builtRebuild;
+        long _builtRevision = -1;
+        Domain.Edits.TerrainEdits BuiltEdits => _builtRebuild != null ? _builtRebuild.Edits : _built?.Edits;
 
         // The profile strip (LF-10) from a solved rope over its ground, the terminals at their levels.
         LiftProfile ShowProfile(LiftRope rope, Domain.Edits.IHeightSource ground, LiftLevels levels, double openFrom = double.NaN)
@@ -410,7 +415,7 @@ namespace MountainPlanner.UI.Tools
         {
             if (BuiltIsCurrent())
             {
-                if (_step == Step.Review) { _ctx.PendingTerrain = _built.Edits; BuildReview(); _ctx.Window.ShowReview(_review); }
+                if (_step == Step.Review) { _ctx.PendingTerrain = BuiltEdits; BuildReview(); _ctx.Window.ShowReview(_review); }
                 return;
             }
             _built = null;
@@ -436,17 +441,39 @@ namespace MountainPlanner.UI.Tools
                 hand = new List<TowerSpec>(_placed.Count);
                 foreach (var tw in _placed) hand.Add(new TowerSpec(tw.AlongMm, tw.HeightMm));
             }
-            _ctx.Analyse(() => hand != null
-                ? LiftBuild.BuildWith(type, ground, b.X, b.Y, t.X, t.Y, hand, stance, bottomHand, topHand)
-                : LiftBuild.Build(type, ground, b.X, b.Y, t.X, t.Y, stance, null, bottomHand, topHand), result =>
+            var fold = _ctx.Earthwork != null && _ctx.Earthwork.Ready ? _ctx.Earthwork.Earthwork : null;
+            var doc = _ctx.History.Document;
+            var committed = _ctx.History.Terrain;
+            long revision = _ctx.History.Revision;
+            string name = _name, catalogId = _catalogId;
+            var mode = _mode;
+            var bottom = _bottom;
+            var top = _top;
+            _ctx.Analyse(() =>
             {
+                var r = hand != null
+                    ? LiftBuild.BuildWith(type, ground, b.X, b.Y, t.X, t.Y, hand, stance, bottomHand, topHand)
+                    : LiftBuild.Build(type, ground, b.X, b.Y, t.X, t.Y, stance, null, bottomHand, topHand);
+                // Break ground's whole earthwork from the design's fold (trails, then lifts, TL3), as the trail tools make theirs.
+                DesignEarthwork.Result rebuilt = null;
+                if (fold != null)
+                {
+                    var after = new AddLift(revision, name, catalogId, bottom, top, mode, stance, r.Towers, WorkStage.Built, r.Levels).Apply(doc);
+                    if (after.Accepted) rebuilt = fold.Rebuild(after.Document, committed);
+                }
+                return (r, rebuilt);
+            }, done =>
+            {
+                var result = done.r;
                 _building = false;
                 if (_step != Step.Review && _step != Step.Towers) return;
                 _built = result;
+                _builtRebuild = done.rebuilt;
+                _builtRevision = revision;
                 _builtFor = key;
                 ShowProfile(result.Rope, new Domain.Edits.EditedHeights(ground.Source, ground.Lattice, result.Edits), result.Levels);
                 if (_step == Step.Towers) { TowersPlacedHint(); return; }
-                _ctx.PendingTerrain = result.Edits;
+                _ctx.PendingTerrain = BuiltEdits;
                 BuildReview();
                 _ctx.Window.ShowReview(_review);
             });
@@ -506,6 +533,8 @@ namespace MountainPlanner.UI.Tools
             _turnDeg = 0;
             _bottomLevelFt = _topLevelFt = 0;
             ClearTowers();
+            if (_builtRebuild != null && _ctx.History.Terrain == _builtRebuild.Edits) _ctx.Earthwork?.Earthwork?.Accept(_builtRebuild);
+            _builtRebuild = null;
             _builtFor = null;
             _ctx.Notice?.Invoke(_name + (result.Document.FindLift(new LiftId(result.Created[0]))?.Stage == WorkStage.Plan ? ": saved as a plan" : ": ground broken"));
             _name = NextName(result.Document);

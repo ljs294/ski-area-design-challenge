@@ -57,5 +57,27 @@ namespace MountainPlanner.Tests
             Assert.That(TerrainEdits.Changed(without1, only2.Edits), Is.Empty, "without the first: only the second's own work");
             Assert.That(TerrainEdits.Changed(without1, b2.Edits).Count, Is.GreaterThan(0), "the first lift's pads and clearing are gone");
         }
+
+        [Test]
+        public void TL24_TheEarthworkFoldLaysLiftsAsTheirBuildsDid()
+        {
+            // The shared fold (P3-08's DesignEarthwork, TL3) with task 09's lift contributor: the same bytes as the builds,
+            // and a removed lift's ground gone with the other's kept.
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var b1 = Build(TerrainEdits.Empty, new PointMm(0, 0), new PointMm(0, 800_000));
+            Add(h, "Chair 1", new PointMm(0, 0), new PointMm(0, 800_000), b1);
+            var b2 = Build(b1.Edits, new PointMm(300_000, 0), new PointMm(300_000, 700_000));
+            var id2 = Add(h, "Chair 2", new PointMm(300_000, 0), new PointMm(300_000, 700_000), b2);
+            var site = new EarthworkSite(Lattice, West + 100, North - 900);
+            var fold = new DesignEarthwork(new Slope(), site);
+            fold.Prime(DesignDocument.Empty(3), TerrainEdits.Empty);
+            var all = fold.Rebuild(h.Document, TerrainEdits.Empty);
+            Assert.That(TerrainEdits.Changed(all.Edits, b2.Edits), Is.Empty, "the fold lays both lifts as built");
+            Assert.That(fold.Accept(all), Is.True);
+            var removed = new DeleteLift(h.Revision, id2).Apply(h.Document);
+            Assert.That(removed.Accepted, Is.True);
+            var without = fold.Rebuild(removed.Document, all.Edits);
+            Assert.That(TerrainEdits.Changed(without.Edits, b1.Edits), Is.Empty, "removing the second lift leaves the first's ground exactly");
+        }
     }
 }

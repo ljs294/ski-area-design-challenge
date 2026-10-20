@@ -23,6 +23,7 @@ namespace MountainPlanner.UI.Tools
         string _armedName;
         bool _armedBuilt;
         TerrainEdits _without;          // the ground without the armed lift, once worked out
+        DesignEarthwork.Result _rebuild; // the same, as the design's fold made it (accepted once the removal is in)
         bool _working, _removeWhenReady;
         readonly Vector2[] _line = new Vector2[2];
 
@@ -43,6 +44,7 @@ namespace MountainPlanner.UI.Tools
             _armed = default;
             _armedName = null;
             _without = null;
+            _rebuild = null;
             _working = _removeWhenReady = false;
             _ctx.HoldLift?.Invoke(0);
             _ctx.Preview.HideFrom(0);
@@ -93,12 +95,23 @@ namespace MountainPlanner.UI.Tools
             if (ground == null || _ctx.ToGround == null) { _without = null; return; }   // no game ground (tests): the ground stays
             _working = true;
             var doc = _ctx.History.Document;
+            var committed = _ctx.History.Terrain;
+            long revision = _ctx.History.Revision;
             var toGround = _ctx.ToGround;
-            _ctx.Analyse(() => LiftReplay.Rebuild(ground.Source, ground.Lattice, doc, p => toGround(p), id), edits =>
+            var fold = _ctx.Earthwork != null && _ctx.Earthwork.Ready ? _ctx.Earthwork.Earthwork : null;
+            // The design's earthwork folded without it (trails and the other lifts kept exactly, TL3), or with no fold every
+            // other built lift replayed (LT24).
+            _ctx.Analyse(() =>
+            {
+                if (fold == null) return (LiftReplay.Rebuild(ground.Source, ground.Lattice, doc, p => toGround(p), id), (DesignEarthwork.Result)null);
+                var r = fold.Rebuild(new DeleteLift(revision, id).Apply(doc).Document, committed);
+                return (r.Edits, r);
+            }, done =>
             {
                 _working = false;
                 if (_armed.Value != id.Value) return;
-                _without = edits;
+                _without = done.Item1;
+                _rebuild = done.Item2;
                 if (_removeWhenReady) Remove();
             });
         }
@@ -115,6 +128,8 @@ namespace MountainPlanner.UI.Tools
             var name = _armedName;
             var result = _ctx.Submit?.Invoke(new DeleteLift(_ctx.History.Revision, _armed), _armedBuilt ? _without : null);
             if (result == null || !result.Accepted) return;
+            if (_rebuild != null && _ctx.History.Terrain == _rebuild.Edits) _ctx.Earthwork?.Earthwork?.Accept(_rebuild);
+            _rebuild = null;
             _ctx.Notice?.Invoke(name + " removed");
             _ctx.Window.SetName(null);
             Idle();
