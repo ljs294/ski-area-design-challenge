@@ -80,8 +80,25 @@ namespace MountainPlanner.App
                 keep.Add(lift.Id);
                 if (_liftViews.TryGetValue(lift.Id, out var shown) && ReferenceEquals(shown.Lift, lift)) continue;
                 shown.View?.Dispose();
+                _liftViews.Remove(lift.Id);
+                // A lift built before towers came to the tool (task 09) has none: it can't be drawn until it's edited or
+                // re-placed. One lift that can't be drawn never stops the others.
+                if (lift.Towers.Count == 0)
+                {
+                    Debug.LogWarning($"[Built] {lift.Name}: no towers (built before task 09's placement); not drawn until it's edited");
+                    continue;
+                }
                 var view = new LiftView(_resort.Root.transform, Lifts, _liftMaterials, _cableMaterial, lift.Name);
-                view.Build(lift, heights, _resort.Frame, new Color(0.72f, 0.12f, 0.09f));
+                try
+                {
+                    view.Build(lift, heights, _resort.Frame, new Color(0.72f, 0.12f, 0.09f));
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                    view.Dispose();
+                    continue;
+                }
                 _liftViews[lift.Id] = (lift, view);
                 var rope = view.Rope;
                 Debug.Log($"[Built] {lift.Name}: {rope.Towers.Count} towers ({string.Join(", ", view.Heads)}), {view.ChairCount} chairs, " +
