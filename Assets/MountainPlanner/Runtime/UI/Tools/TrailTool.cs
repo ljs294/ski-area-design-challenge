@@ -429,6 +429,8 @@ namespace MountainPlanner.UI.Tools
                     _live.Clear();
                     _live.Add(input.Point);
                     _lastXz = at;
+                    _pointerXz = at;   // the stroke's own start: a dab (a click with no drag) stays a dab
+                    _pointerMm = input.Point;
                     paint?.Stamp(at, at, radius, _liveErase);   // the brush paints where it lands
                 }
                 else if (_painting && input.Drag && inside)
