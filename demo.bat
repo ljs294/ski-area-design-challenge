@@ -777,9 +777,10 @@ echo     slide it, Page Up/Down its height), green where it fits; click or Enter
 echo     Fill the rest finishes the line. Enter (or Review) for the review.
 echo   4 Break ground (Ctrl+Enter): towers, pads, trench and clearing; the chairs run. Ctrl+Z takes it back.
 echo   Hover a built lift: it glows. Zoom far out: lifts show as red trail-map lines. Shift+2 hides the lifts.
-echo   E for Edit lift: click a lift, then a tower or terminal (or [ and ]); slide, raise, drag a terminal, change
+echo   M for Edit lift: click a lift, then a tower or terminal (or [ and ]); slide, raise, drag a terminal, change
 echo     the type; Ctrl+Z undoes inside the tool; Apply (Ctrl+Enter) or Cancel.
 echo   X for Remove lift: click a lift, click it again (or Enter) to remove it with its pads and clearing.
+echo   Tab for Analysis, Lifts tab: the list; hover a row to light its lift, click it for its card (Edit, Remove).
 start "" "%GAME%"
 goto menu
 
