@@ -127,8 +127,24 @@ namespace MountainPlanner.Tests
                 yield return Press(Key.N);
                 Assert.That(viewer.Tools.ActiveId, Is.EqualTo(NewTrailTool.ToolId), "N arms New trail on the Trails tab");
                 var trail = (NewTrailTool)viewer.Tools.Active;
+                yield return Frames(3);
+                bool covered = false;
+                for (int i = 0; i <= 40; i++) covered |= viewer.Hud.IsPointerOverPanel(ScreenOf(cam, Vector2.Lerp(top, bottom, i / 40f), ctx));
+                if (covered)
+                {
+                    // The trail window (wider than a small screen at 150%) sits over the stroke: drag it down to the bottom
+                    // edge, its title still showing, as a player would.
+                    var window = (UI.Hud.HudWindow)hud.Q("toolwin");
+                    window.MoveTo(new Vector2(0, hud.panel.visualTree.worldBound.height));
+                    // The profile strip only shows (TF-04); on the 640x480 test screen at 150% it covers the lift's line, so
+                    // set it aside: this test is about the keys and the pointer, not the strip.
+                    var strip = hud.Q("trail-profile");
+                    if (strip != null) strip.style.display = DisplayStyle.None;
+                    yield return Frames(3);
+                }
                 yield return Drag(cam, ctx, top, bottom);
-                Assert.That(trail.Strokes, Is.EqualTo(1), "one stroke painted");
+                Assert.That(trail.Strokes, Is.EqualTo(1), $"one stroke painted (window moved {covered}, step {trail.CurrentStep}); from " +
+                    Where(viewer, cam, ScreenOf(cam, top, ctx), top, bottom) + "; to " + Where(viewer, cam, ScreenOf(cam, bottom, ctx), bottom, bottom));
                 for (int i = 0; i < 300 && (trail.Analysing || trail.Raster == null); i++) yield return null;
                 Assert.That(trail.Raster.Patches, Is.EqualTo(1));
                 yield return Press(Key.Enter);
@@ -231,7 +247,11 @@ namespace MountainPlanner.Tests
             var ray = cam.ScreenPointToRay(screen);
             float hit = viewer.Camera.GroundAlong(ray, 30000);
             var g = float.IsNaN(hit) ? Vector3.zero : ray.GetPoint(hit);
-            return $"screen {Screen.width}x{Screen.height}, pointer {screen}, over a panel {viewer.Hud.IsPointerOverPanel(screen)}, " +
+            var root = viewer.Hud.Document.rootVisualElement;
+            var picked = root.panel.Pick(RuntimePanelUtils.ScreenToPanel(root.panel, new Vector2(screen.x, Screen.height - screen.y)));
+            string chain = "";
+            for (var e = picked; e != null && e != root; e = e.parent) chain += (e.name ?? e.GetType().Name) + "<";
+            return $"screen {Screen.width}x{Screen.height}, pointer {screen}, over a panel {viewer.Hud.IsPointerOverPanel(screen)} ({chain}), " +
                    $"hits {g.x:F0},{g.z:F0} meaning {meant.x:F0},{meant.y:F0} (bottom {bottom.x:F0},{bottom.y:F0}), camera {cam.transform.position}";
         }
 
