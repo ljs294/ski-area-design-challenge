@@ -177,6 +177,37 @@ namespace MountainPlanner.Domain.Design
             }
         }
 
+        /// <summary>
+        /// Each box cell's patch, in row order: 0 unpainted, else 1, 2, … in the order the patches' first cells come.
+        /// <paramref name="largest"/> is the patch with the most cells (the lower label on a tie): the trail; any other is
+        /// a patch apart (TF-02, shown red while painting).
+        /// </summary>
+        public int[] PatchLabels(out int largest)
+        {
+            var label = new int[_in.Length];
+            var queue = new int[_in.Length];
+            int w = Width, h = Height, patches = 0, bestCount = 0;
+            largest = 0;
+            for (int start = 0; start < _in.Length; start++)
+            {
+                if (!_in[start] || label[start] != 0) continue;
+                patches++;
+                int head = 0, tail = 0;
+                queue[tail++] = start;
+                label[start] = patches;
+                while (head < tail)
+                {
+                    int c = queue[head++], x = c % w, y = c / w;
+                    if (x > 0 && _in[c - 1] && label[c - 1] == 0) { label[c - 1] = patches; queue[tail++] = c - 1; }
+                    if (x < w - 1 && _in[c + 1] && label[c + 1] == 0) { label[c + 1] = patches; queue[tail++] = c + 1; }
+                    if (y > 0 && _in[c - w] && label[c - w] == 0) { label[c - w] = patches; queue[tail++] = c - w; }
+                    if (y < h - 1 && _in[c + w] && label[c + w] == 0) { label[c + w] = patches; queue[tail++] = c + w; }
+                }
+                if (tail > bestCount) { bestCount = tail; largest = patches; }
+            }
+            return label;
+        }
+
         static int CountPatches(bool[] on, int w, int h)
         {
             var seen = new bool[on.Length];

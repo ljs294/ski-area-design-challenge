@@ -123,6 +123,24 @@ Shader "MountainPlanner/Terrain"
             return SAMPLE_TEXTURE2D_LOD(_TrailMap, sampler_TrailMap, uv, 0);
         }
 
+        // The trail being painted (task 08, TF-02; owner 2026-10-19: paint like a brush): a world map over the core, r the
+        // painted ground and g a separate patch (TrailPaintMap), filtered so the brush's edge reads soft. The mockup's
+        // footprint canvas: orange where painted, red where a patch stands apart. _PaintParams.x = 0 when nothing's painted.
+        TEXTURE2D(_PaintMap); SAMPLER(sampler_PaintMap);
+        float4 _PaintRect;           // west, south, 1 / width, 1 / depth (world metres, texel corners)
+        float4 _PaintParams;
+
+        float3 ApplyPaint(float3 colour, float2 xz)
+        {
+            UNITY_BRANCH
+            if (_PaintParams.x < 0.5) return colour;
+            float2 uv = (xz - _PaintRect.xy) * _PaintRect.zw;
+            if (any(uv <= 0) || any(uv >= 1)) return colour;
+            float2 paint = SAMPLE_TEXTURE2D_LOD(_PaintMap, sampler_PaintMap, uv, 0).rg;
+            colour = lerp(colour, float3(0.84, 0.45, 0.20), 0.45 * paint.r);
+            return lerp(colour, float3(0.80, 0.14, 0.10), 0.55 * paint.g);
+        }
+
         // The offset across the trail (m) at full float precision (task 07, finding #11): half floats and hardware
         // bilinear weights can't place 1 in corduroy ridges 100 ft from the centreline, so it has its own RFloat map,
         // filtered here by hand. Texel centres sit on the 1 m lattice points, as in _TrailMap.
@@ -500,7 +518,7 @@ Shader "MountainPlanner/Terrain"
                     [unroll] for (int k = 0; k < 8; k++) flat += weights[k] * _OverlayColor[k].rgb;
                     Light sun0 = GetMainLight();
                     float lambert = saturate(dot(n, sun0.direction)) * 0.6 + 0.5;
-                    return half4(ApplyContours(flat * lambert, i.positionWS.y), 1);
+                    return half4(ApplyContours(ApplyPaint(flat, i.positionWS.xz) * lambert, i.positionWS.y), 1);
                 }
 
                 // Info layers (task 12b): slope angle, exposure or snow depth over the ground, lit so the relief reads.
@@ -516,7 +534,7 @@ Shader "MountainPlanner/Terrain"
                         info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopePercent, i.positionCS.xy) : ExposureColour(-rise, slopePercent);
                     }
                     Light sunI = GetMainLight();
-                    float3 shaded = ApplyContours(ShadeInfo(info, n, sunI.direction), i.positionWS.y);
+                    float3 shaded = ApplyContours(ShadeInfo(ApplyPaint(info, i.positionWS.xz), n, sunI.direction), i.positionWS.y);
                     return half4(ApplyHaze(MixFog(shaded, i.fog), i.positionWS), 1);
                 }
 
@@ -653,6 +671,7 @@ Shader "MountainPlanner/Terrain"
                     total += w;
                 }
                 albedo /= total;
+                albedo = ApplyPaint(albedo, i.positionWS.xz);
                 normal = normalize(normal);
                 smooth /= total;
 

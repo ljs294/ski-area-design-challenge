@@ -242,10 +242,17 @@ namespace MountainPlanner.Presentation
 
         static bool IsLetter(Key key) => key >= Key.A && key <= Key.Z;
 
+        /// <summary>
+        /// Set by the UI: true while a text field has the focus (a trail's name, a save's name, a search). Every action
+        /// then reads as up, so typing never moves the camera or fires a shortcut (owner, 2026-10-19); Esc, which isn't
+        /// an action here, still lets go of the field.
+        /// </summary>
+        public static System.Func<bool> Typing;
+
         /// <summary>The action's key went down this frame with exactly its modifiers. <paramref name="letters"/> false skips letter keys (the Toolbox tray is open).</summary>
         public static bool Pressed(Keyboard keyboard, GameAction action, bool letters = true)
         {
-            if (keyboard == null) return false;
+            if (keyboard == null || (Typing != null && Typing())) return false;
             Load();
             var mods = ModsOf(keyboard);
             int i = (int)action * Slots;
@@ -261,7 +268,7 @@ namespace MountainPlanner.Presentation
         /// <summary>The action's key is down. Shift is free (it means faster) unless the binding itself has Shift; Ctrl and Alt must match.</summary>
         public static bool Held(Keyboard keyboard, GameAction action, bool letters = true)
         {
-            if (keyboard == null) return false;
+            if (keyboard == null || (Typing != null && Typing())) return false;
             Load();
             var mods = ModsOf(keyboard);
             int i = (int)action * Slots;

@@ -423,12 +423,20 @@ namespace MountainPlanner.UI.Tools
                     _live.Clear();
                     _live.Add(input.Point);
                     _lastXz = at;
+                    _ctx.Paint?.Stamp(at, radius, _liveErase);   // the brush paints where it lands (owner, 2026-10-19)
                 }
                 else if (_painting && input.Drag && inside && Vector2.Distance(at, _lastXz) >= Mathf.Max(3f, radius / 2))
                 {
+                    // Stamps every quarter brush along the move, so a quick drag paints a solid band, not beads.
+                    if (_ctx.Paint != null)
+                    {
+                        float step = Mathf.Max(1f, radius / 2), d = Vector2.Distance(_lastXz, at);
+                        int n = Mathf.Max(1, Mathf.CeilToInt(d / step));
+                        for (int k = 1; k <= n; k++) _ctx.Paint.Stamp(Vector2.Lerp(_lastXz, at, k / (float)n), radius, _liveErase);
+                    }
                     _live.Add(input.Point);
                     _lastXz = at;
-                    DrawStroke(1, _live, _feet, _liveErase);
+                    if (_ctx.Paint == null) DrawStroke(1, _live, _feet, _liveErase);
                 }
             }
             else preview.Hide(0);
@@ -453,7 +461,7 @@ namespace MountainPlanner.UI.Tools
             DrawStrokes();
             _raster = null;
             _estimate = double.NaN;
-            if (_strokes.Count == 0) { _analysing = false; PaintStatus(); return; }
+            if (_strokes.Count == 0) { _analysing = false; _ctx.Paint?.Clear(); PaintStatus(); return; }
             _analysing = true;
             if (_step == Step.Paint) PaintStatus();
             var parts = Parts();
@@ -469,6 +477,8 @@ namespace MountainPlanner.UI.Tools
                 _raster = p.Footprint;
                 _estimate = p.Estimate;
                 _analysing = false;
+                // The painted ground, exactly as the trail will store it: the trail orange, a patch apart red (TF-02).
+                if (_mode != TrailToolMode.Remove) _ctx.Paint?.Show(p.Footprint);
                 if (_step == Step.Paint) PaintStatus();
             });
         }
@@ -476,6 +486,12 @@ namespace MountainPlanner.UI.Tools
         void DrawStrokes()
         {
             int slot = StrokeSlots;
+            if (_ctx.Paint != null && _mode != TrailToolMode.Remove)
+            {
+                // The paint on the ground shows the strokes (TrailPaintMap): no edge lines.
+                for (int k = slot; k < RedSlots; k++) _ctx.Preview.Hide(k);
+                return;
+            }
             foreach (var s in _strokes)
             {
                 if (slot + 1 >= RedSlots) break;

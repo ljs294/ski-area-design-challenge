@@ -18,6 +18,7 @@ namespace MountainPlanner.App
         DesignHistory _design;
         ToolHost _tools;
         PendingPreview _preview;
+        TrailPaintMap _trailPaint;
         DesignOverlay _designOverlay;
         bool _pressOnMap;
 
@@ -51,8 +52,11 @@ namespace MountainPlanner.App
             if (Hud == null || _resort == null || TitleMode || _tools != null) return;
             _design = new DesignHistory(DesignDocument.Empty(DesignSeed(_resort.Manifest.PackageId)));
             _preview = new PendingPreview(_resort.Root.transform, "Tool preview", _resort.Surface, HighlightMaterial);
+            _trailPaint = new TrailPaintMap(_resort.Core);
+            _preview.Cleared += _trailPaint.Clear;   // a tool's close or commit takes its paint off the ground too
             FollowDesign();
-            _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core) { Earthwork = Ground }, Hud.OpenWindow);
+            _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core)
+                { Earthwork = Ground, Lines = new TrailLineSnap(() => Ground?.Earthwork), Paint = _trailPaint }, Hud.OpenWindow);
             _tools.ActiveChanged += Hud.SetActiveTool;
             _tools.Notice += text => Hud.Toast(text);
             Hud.ToolChosen += id => _tools.Choose(id);
@@ -83,6 +87,8 @@ namespace MountainPlanner.App
         {
             _tools?.Close();
             _preview?.Dispose();
+            _trailPaint?.Dispose();
+            _trailPaint = null;
             _designOverlay?.Dispose();
             DisposeTrailLayer();
             _tools = null;
@@ -147,6 +153,7 @@ namespace MountainPlanner.App
             if (cam != null)
             {
                 _preview?.Follow(cam);
+                _trailPaint?.Flush();
                 _designOverlay?.Follow(cam);
             }
         }

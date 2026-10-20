@@ -394,6 +394,12 @@ namespace MountainPlanner.App
         /// </summary>
         void HandleKeys(Keyboard keys)
         {
+            // A click on the map lets go of a text field, as anywhere else would: the keys go back to the game.
+            var mouse = Mouse.current;
+            if (mouse != null && Hud != null && Hud.Typing
+                && (mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame)
+                && !PointerOverUi(mouse.position.ReadValue()))
+                Hud.ReleaseKeyboard();
             if (keys == null) return;
             bool letters = Camera == null || !Camera.LettersToTools;
             bool flowKeys = (FlowHasKeyboard?.Invoke() ?? false) || FlowTookEscapeFrame == Time.frameCount;

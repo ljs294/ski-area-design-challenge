@@ -40,6 +40,7 @@ namespace MountainPlanner.UI
         public static void Prepare(VisualElement root)
         {
             if (root == null || Roots.ContainsKey(root)) return;
+            Presentation.KeyBindings.Typing ??= Typing;   // typing in any field silences every key binding
             var state = new RootState { Root = root };
             state.Ring = new VisualElement { name = "ui-focus-ring", pickingMode = PickingMode.Ignore };
             state.Ring.AddToClassList(RingClass);
@@ -52,6 +53,35 @@ namespace MountainPlanner.UI
             root.RegisterCallback<FocusOutEvent>(e => { if (e.relatedTarget == null) { state.Focused = null; UpdateRing(state); } }, TrickleDown.TrickleDown);
             root.RegisterCallback<DetachFromPanelEvent>(_ => Roots.Remove(root));
             root.schedule.Execute(() => UpdateRing(state)).Every(100);
+        }
+
+        /// <summary>
+        /// True while a text field in any prepared document has the focus, however it got it (a click counts): the key
+        /// bindings then stay quiet (<see cref="Presentation.KeyBindings.Typing"/>). Checked once a frame; allocates nothing.
+        /// </summary>
+        public static bool Typing()
+        {
+            if (_typingFrame == Time.frameCount) return _typing;
+            _typingFrame = Time.frameCount;
+            _typing = false;
+            foreach (var kv in Roots)
+            {
+                if (IsTyping(kv.Key)) { _typing = true; break; }
+            }
+            return _typing;
+        }
+
+        static int _typingFrame = -1;
+        static bool _typing;
+
+        /// <summary>True while a shown text field inside <paramref name="root"/> has the focus.</summary>
+        public static bool IsTyping(VisualElement root)
+        {
+            var focused = root?.panel?.focusController?.focusedElement as VisualElement;
+            if (focused == null || !root.Contains(focused) || !IsShown(focused)) return false;
+            for (var x = focused; x != null && x != root; x = x.hierarchy.parent)
+                if (x.ClassListContains(TextField.ussClassName) || x.ClassListContains("unity-base-text-field")) return true;
+            return false;
         }
 
         /// <summary>True once a navigation key was used in this document (until the next click).</summary>

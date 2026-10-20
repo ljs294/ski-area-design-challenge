@@ -333,6 +333,45 @@ namespace MountainPlanner.Tests
         static bool Same(TerrainEdits a, TerrainEdits b) => TerrainEdits.Changed(a, b).Count == 0;
 
         [Test]
+        public void TF02_PatchLabelsNameTheTrailAndAnyPatchApart()
+        {
+            // Painting shows the trail orange and a patch apart red (owner, 2026-10-19): the larger patch is the trail.
+            var parts = new[] { new FootprintPart(new[]
+            {
+                new Stroke(Ft(100), false, new[] { M(0, 0), M(0, -300) }),
+                new Stroke(Ft(50), false, new[] { M(200, 0), M(200, -40) }),
+            }) };
+            var fp = Footprint(parts);
+            Assert.That(fp.Patches, Is.EqualTo(2));
+            var labels = fp.PatchLabels(out int main);
+            int mainCells = 0, apart = 0;
+            foreach (int l in labels) { if (l == main) mainCells++; else if (l != 0) apart++; }
+            Assert.That(mainCells + apart, Is.EqualTo(fp.Cells), "every painted cell has a patch");
+            Assert.That(mainCells, Is.GreaterThan(apart), "the long run is the trail, the short dab the patch apart");
+            Assert.That(fp.ContainsAt(fp.CellX(fp.Column0 + 1), fp.CellY(fp.Row0 + 1)), Is.False, "the margin is unpainted");
+        }
+
+        [Test]
+        public void TR05_AnEndSnapsToAnyPointOnAnotherTrail()
+        {
+            // The owner's report (2026-10-19): a head or tail couldn't join midway down a run. TR-05 snaps an end within
+            // 30 ft of any point on another trail's centreline, not only its head and tail.
+            var g = new Rolling();
+            var (h, work) = Session(g);
+            var run = Add(h, work, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300), graded: false);
+            var lines = new TrailLineSnap(() => work);
+            var hit = DesignSnap.Nearest(h.Document, M(5, -150), SnapTargets.All, lines, 0, DesignUnits.SnapMm);
+            Assert.That(hit.Kind, Is.EqualTo(SnapKind.TrailLine), "midway down the run, far from its ends");
+            Assert.That(hit.Owner, Is.EqualTo(run.Value));
+            Assert.That(hit.At.XMetres, Is.EqualTo(0).Within(1.0), "on the centreline, in the middle of the run");
+            Assert.That(hit.At.YMetres, Is.EqualTo(-150).Within(1.0));
+            Assert.That(DesignSnap.Nearest(h.Document, M(40, -150), SnapTargets.All, lines, 0, DesignUnits.SnapMm).Snapped, Is.False,
+                        "40 m off is beyond 30 ft");
+            Assert.That(DesignSnap.Nearest(h.Document, M(5, -150), SnapTargets.All, lines, run.Value, DesignUnits.SnapMm).Snapped, Is.False,
+                        "a trail never snaps to itself (Edit skips it)");
+        }
+
+        [Test]
         public void TL3_DeleteRestoresTheGroundAndTreesExactly()
         {
             var g = new Rolling();

@@ -24,6 +24,8 @@ namespace MountainPlanner.UI.Tools
 
         /// <summary>Task 08's centreline snapping (NW-07); null until trails have a centreline.</summary>
         public ICentrelineSnap Lines { get; set; }
+        /// <summary>The ground a trail tool paints, brush-style (TF-02); null in tests without a map.</summary>
+        public ITrailPaint Paint { get; set; }
 
         /// <summary>
         /// The terrain edits the tool's current analysis would commit at Break ground (task 05, TE2): the complete edit
