@@ -66,11 +66,14 @@ namespace MountainPlanner.UI
         {
             get
             {
-                if (ModalOpen) return true;
+                if (ModalOpen || UiFocus.IsTyping(_root)) return true;   // a text field has every key, however it was reached
                 var focused = _root?.panel?.focusController?.focusedElement as VisualElement;
                 return focused != null && _root.Contains(focused) && UiFocus.KeyboardActive(_root) && UiFocus.IsShown(focused);
             }
         }
+
+        /// <summary>True while a HUD text field (a trail's name) has the focus: every key is the field's.</summary>
+        public bool Typing => UiFocus.IsTyping(_root);
 
         /// <summary>Esc's step when a HUD control has the keyboard: let go of it, so the camera keys work again.</summary>
         public bool ReleaseKeyboard()
@@ -106,6 +109,7 @@ namespace MountainPlanner.UI
             WireBar();
             WireLayers();
             WirePanels();
+            WireTrails();   // Analysis › Trails (MountainHud.Trails.cs, task 08)
             WireGlass();
             WireKeyCaptions();
             _menu.RegisterCallback<GeometryChangedEvent>(_ => FitDrop(_menu));
@@ -315,7 +319,7 @@ namespace MountainPlanner.UI
 
         void LetGoAfterClick()
         {
-            if (ModalOpen) return;
+            if (ModalOpen || UiFocus.IsTyping(_root)) return;   // a click into a text field puts the caret there and keeps it
             var focused = _root.panel?.focusController?.focusedElement as VisualElement;
             if (focused != null && _root.Contains(focused)) ((Focusable)focused).Blur();
         }

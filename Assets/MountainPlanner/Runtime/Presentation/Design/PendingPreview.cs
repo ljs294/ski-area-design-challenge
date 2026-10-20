@@ -31,6 +31,10 @@ namespace MountainPlanner.Presentation.Design
             new Color(0.784f, 0.722f, 0.627f),   // Paint: a muted trail tone #c8b8a0
             new Color(0.957f, 0.945f, 0.918f),   // Brush: white
             new Color(0.878f, 0.278f, 0.227f),   // Lift: #e0473a
+            new Color(0.247f, 0.682f, 0.416f),   // RatingGreen: the mockup's #3fae6a
+            new Color(0.302f, 0.541f, 0.839f),   // RatingBlue: #4d8ad6
+            new Color(0.067f, 0.067f, 0.067f),   // RatingBlack
+            new Color(1f, 1f, 1f),               // Casing: white
         };
 
         sealed class Slot
@@ -43,6 +47,8 @@ namespace MountainPlanner.Presentation.Design
             public Vector2 DotAt;
             public float DotGround;
             public float LastWidth = -1;
+            /// <summary>How many times the usual width (task 08's casing under a trail in focus).</summary>
+            public float WidthScale = 1;
         }
 
         readonly Transform _root;
@@ -103,7 +109,9 @@ namespace MountainPlanner.Presentation.Design
 
         void Ensure(Slot s, int n)
         {
-            if (s.Points.Length < n) s.Points = new Vector3[Mathf.NextPowerOfTwo(n)];
+            // Grown keeping the points already written: a long line fills its buffer segment by segment (task 08 found
+            // long trails losing their first points to (0, 0, 0) when it was replaced instead).
+            if (s.Points.Length < n) Array.Resize(ref s.Points, Mathf.NextPowerOfTwo(n));
         }
 
         void Push(Slot s)
@@ -115,6 +123,21 @@ namespace MountainPlanner.Presentation.Design
             for (int i = 0; i < s.Count; i++) c += s.Points[i];
             s.Centre = s.Count > 0 ? c / s.Count : Vector3.zero;
             s.LastWidth = -1;
+        }
+
+        /// <summary>
+        /// A slot's line drawn <paramref name="scale"/> times as wide, and behind the others when <paramref name="behind"/>
+        /// (task 08: the white casing under a trail in focus, the owner's "wider white casing").
+        /// </summary>
+        public void SetWidth(int slot, float scale, bool behind)
+        {
+            if (slot >= _slots.Length || _slots[slot] == null) return;
+            var s = _slots[slot];
+            s.WidthScale = scale;
+            s.LastWidth = -1;
+            s.Renderer.sortingOrder = behind ? -1 : 0;
+            // Opaque lines at the same depth fight: one behind sits a little lower, so the line over it wins.
+            s.Renderer.transform.localPosition = behind ? new Vector3(0, -0.6f, 0) : Vector3.zero;
         }
 
         public void Line(int slot, Vector2[] xz, int count, PreviewInk ink, bool closed = false)
@@ -204,7 +227,7 @@ namespace MountainPlanner.Presentation.Design
                 var s = _slots[i];
                 if (s == null || !s.Renderer.enabled) continue;
                 float metresPerPixel = Vector3.Distance(local, s.Centre) * perPixel;
-                float width = metresPerPixel * PixelsWide;
+                float width = metresPerPixel * PixelsWide * s.WidthScale;
                 if (s.LastWidth > 0 && Mathf.Abs(width - s.LastWidth) < s.LastWidth * 0.1f) continue;
                 s.LastWidth = width;
                 s.Renderer.widthMultiplier = width;

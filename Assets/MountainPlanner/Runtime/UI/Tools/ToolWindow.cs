@@ -83,7 +83,7 @@ namespace MountainPlanner.UI.Tools
             Window.Body.Add(_acts = Part("toolwin-acts", "tw-acts"));
             _go = new Button(() => BreakGroundClicked?.Invoke()) { name = "review-go" };
             _go.AddToClassList("mp-go");
-            var goLabel = new Label("Break ground") { pickingMode = PickingMode.Ignore };
+            var goLabel = _goLabel = new Label("Break ground") { pickingMode = PickingMode.Ignore };
             goLabel.AddToClassList("tw-go__label");
             _go.Add(goLabel);
             _goKbd = new Label(KeyBindings.Caption(GameAction.BreakGround)) { pickingMode = PickingMode.Ignore };
@@ -128,6 +128,11 @@ namespace MountainPlanner.UI.Tools
                     if (tray.layout.xMax + 10 + w.width > stage.layout.width - 170) Window.style.top = 66;
                 }
             }
+            // A strip under the window (the trail profile) is a floor too, where the two overlap across (150% on a small screen).
+            foreach (var strip in _strips)
+                if (strip.parent == stage && strip.resolvedStyle.display == DisplayStyle.Flex && strip.layout.height > 0
+                    && strip.layout.xMin < w.xMax && strip.layout.xMax > w.xMin && strip.layout.yMin > w.yMin)
+                    barTop = Mathf.Min(barTop, strip.layout.yMin);
             float room = Mathf.Max(120, barTop - 10 - w.yMin);
             if (Math.Abs(Window.resolvedStyle.maxHeight.value - room) > 0.5f) Window.style.maxHeight = room;
         }
@@ -158,6 +163,46 @@ namespace MountainPlanner.UI.Tools
 
         /// <summary>The design's name after the title ("Summit Quad").</summary>
         public void SetName(string name) => _name.text = name ?? "";
+
+        Label _goLabel;
+        readonly List<VisualElement> _strips = new List<VisualElement>();
+
+        /// <summary>
+        /// A strip that rides with the window in the HUD's layer, outside it (task 08's trail profile, TF-04; task 09's lift
+        /// profile, LF-10): added when the window opens, removed when it closes.
+        /// </summary>
+        public void AddStrip(VisualElement strip)
+        {
+            _strips.Add(strip);
+            strip.RegisterCallback<GeometryChangedEvent>(_ => Fit());
+            Window.RegisterCallback<AttachToPanelEvent>(_ => { if (Window.parent != null && strip.parent != Window.parent) Window.parent.Add(strip); });
+            Window.RegisterCallback<DetachFromPanelEvent>(_ => strip.RemoveFromHierarchy());
+            if (Window.parent != null) Window.parent.Add(strip);
+        }
+
+        /// <summary>The main commit button's words (Break ground; task 08's Edit and Remove say Apply or Remove).</summary>
+        public void SetGoLabel(string text) => _goLabel.text = text ?? "Break ground";
+
+        /// <summary>
+        /// A row of plain buttons under the options (task 08's Repaint, Move ends, Rename). Returns the buttons, so a tool
+        /// can grey one out.
+        /// </summary>
+        public Button[] AddButtons(string name, string[] labels, Action<int> clicked, string[] tooltips = null)
+        {
+            var row = Part("toolwin-opt-" + name, "tw-btns");
+            var buttons = new Button[labels.Length];
+            for (int i = 0; i < labels.Length; i++)
+            {
+                int at = i;
+                var b = new Button(() => clicked(at)) { name = $"toolwin-opt-{name}-{i}", text = labels[i] };
+                b.AddToClassList("mp-ghost");
+                if (tooltips != null && i < tooltips.Length) b.tooltip = tooltips[i];
+                buttons[i] = b;
+                row.Add(b);
+            }
+            _opts.Add(row);
+            return buttons;
+        }
 
         /// <summary>"Discard it? ✕ again" while a second Esc or ✕ would throw drawn work away (CF-07).</summary>
         public void SetAsking(string text)

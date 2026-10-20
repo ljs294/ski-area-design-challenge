@@ -18,10 +18,10 @@ namespace MountainPlanner.UI
         static readonly (string Tab, string Id, string Label, string Name, string Key, string Glyph, string Badge)[] Tools =
         {
             ("lifts", "new-lift", "New", "New lift", "N", "s-lift", "new"),
-            ("lifts", "edit-lift", "Edit", "Edit lift", "E", "s-lift", "edit"),
+            ("lifts", "edit-lift", "Edit", "Edit lift", "M", "s-lift", "edit"),
             ("lifts", "remove-lift", "Remove", "Remove lift", "X", "s-lift", "remove"),
             ("trails", "new-trail", "New", "New trail", "N", "s-trail", "new"),
-            ("trails", "edit-trail", "Edit", "Edit trail", "E", "s-trail", "edit"),
+            ("trails", "edit-trail", "Edit", "Edit trail", "M", "s-trail", "edit"),
             ("trails", "remove-trail", "Remove", "Remove trail", "X", "s-trail", "remove"),
             ("snow", "gun", "Snow gun", "Snow gun", "G", "s-gun", null),
             ("snow", "pipe", "Water line", "Water line", "W", "s-pipe", null),
@@ -95,7 +95,7 @@ namespace MountainPlanner.UI
             // Inert parts keep their tooltips (as the mockup's titles do) but take no clicks or keyboard stops.
             Inert(_trSketch, "sq--dis", null);
             foreach (string name in new[] { "bar-money", "bar-lifts", "bar-trails", "bar-guests", "bar-save" }) Inert(_root.Q(name), null, null);
-            foreach (string name in new[] { "menu-save", "menu-rename", "layer-lifts", "layer-trails", "layer-snowmaking", "layer-infrastructure", "layer-conditions" })
+            foreach (string name in new[] { "menu-save", "menu-rename", "layer-lifts", "layer-snowmaking", "layer-infrastructure", "layer-conditions" })
                 Inert(_root.Q(name), "row--dis", null);
 
             WireTooltips();
@@ -199,6 +199,7 @@ namespace MountainPlanner.UI
             foreach (string t in AnalysisTabs) _root.Q("analysis-tab-" + t).EnableInClassList("tab--on", t == tab);
             _analysisEmpty.text = AnalysisEmpty[Mathf.Max(0, i)];
             _when?.EnableInClassList("stat--on", _analysisOpen && tab == "weather");
+            ShowTrailsTab();   // task 08
         }
 
         public string AnalysisTab => _analysisTab;

@@ -19,6 +19,11 @@ export const STATES = [
   { name: 'tool-trail', mockup: 'trailpaint' },
   { name: 'tool-lift-review', mockup: 'liftreview' },
   { name: 'tool-trail-review', mockup: 'trailreview' },
+  // Task P3-08: Edit trail and Remove trail on a built trail (TF-07), and Analysis › Trails; p3 draws the mockup without
+  // its Phase 2 switch, as these are live from task 08.
+  { name: 'tool-trail-edit', mockup: 'trailfix', p3: true },
+  { name: 'tool-trail-remove', mockup: 'trailgone', p3: true },
+  { name: 'analysis-trails', mockup: 'atrails', p3: true },
   { name: 'analysis', mockup: 'aoverview' },
   { name: 'analysis-lifts', mockup: 'alifts' },
   { name: 'analysis-weather', mockup: 'aweather' },

@@ -220,19 +220,23 @@ namespace MountainPlanner.Tests
         // ---------- keys (SH-07, LF-09) ----------
 
         [Test]
-        public void SH07_ToolKeysAreRebindableAndNeverSwapWithTheCamera()
+        public void SH07_ToolKeysAreRebindableAndSwapWithTheCamera()
         {
             Assert.That(KeyBindings.Caption(GameAction.ToolNew), Is.EqualTo("N"));
             Assert.That(KeyBindings.Caption(GameAction.ToolNext), Is.EqualTo("Enter"));
             Assert.That(KeyBindings.Caption(GameAction.BreakGround), Is.EqualTo("Ctrl Enter"));
             Assert.That(KeyBindings.Caption(GameAction.TowerUp), Is.EqualTo("Page Up"));
             Assert.That(KeyBindings.Caption(GameAction.Erase), Is.EqualTo("Shift"));
-            // The tray's letters live only while it's open, when the camera has no letters: no swap with WASD.
-            Assert.That(KeyBindings.Bind(GameAction.ToolNew, 0, new KeyChord(Key.W)), Is.Null);
-            Assert.That(KeyBindings.Get(GameAction.MoveForward, 0), Is.EqualTo(new KeyChord(Key.W)));
-            // Two tray keys do swap.
+            Assert.That(KeyBindings.Caption(GameAction.ToolEdit), Is.EqualTo("M"), "E rotates the camera (TL19)");
+            // The camera's keys work with the tray open too (TL19), so a tray letter on W swaps with Move forward.
+            Assert.That(KeyBindings.Bind(GameAction.ToolNew, 0, new KeyChord(Key.W)), Is.EqualTo(GameAction.MoveForward));
+            Assert.That(KeyBindings.Get(GameAction.MoveForward, 0), Is.EqualTo(new KeyChord(Key.N)));
+            // Two tray keys swap.
             Assert.That(KeyBindings.Bind(GameAction.ToolEdit, 0, new KeyChord(Key.W)), Is.EqualTo(GameAction.ToolNew));
-            Assert.That(KeyBindings.Get(GameAction.ToolNew, 0), Is.EqualTo(new KeyChord(Key.E)));
+            Assert.That(KeyBindings.Get(GameAction.ToolNew, 0), Is.EqualTo(new KeyChord(Key.M)));
+            // A key a tool takes only while it claims it shadows the camera's instead of swapping (as Page Up does).
+            Assert.That(KeyBindings.Bind(GameAction.TowerUp, 0, new KeyChord(Key.Home)), Is.Null);
+            Assert.That(KeyBindings.Get(GameAction.ResetView, 0), Is.EqualTo(new KeyChord(Key.Home)));
         }
 
         [Test]
@@ -427,6 +431,57 @@ namespace MountainPlanner.Tests
             Assert.That(built.HasEnds, Is.True);
             Assert.That(built.Parts[0].Strokes.Count, Is.EqualTo(1));
             Assert.That(trail.CurrentStep, Is.EqualTo(0), "ready for the next trail");
+        }
+
+        // ---------- Edit and Remove trail (task 08, TF-07) ----------
+
+        TrailId BuiltTrail()
+        {
+            var parts = new[] { new FootprintPart(new[] { new Stroke(DesignUnits.FeetToMm(100), false, new[] { DesignFrame.ToDesign(new Vector2(0, 300)), DesignFrame.ToDesign(new Vector2(0, -300)) }) }) };
+            var r = _design.Submit(new AddTrail(_design.Revision, "Run 1", TrailSettings.NaturalRun, parts,
+                DesignFrame.ToDesign(new Vector2(0, 280)), DesignFrame.ToDesign(new Vector2(0, -280)), WorkStage.Built));
+            Assert.That(r.Accepted, Is.True, r.ToString());
+            return new TrailId(r.Created[0]);
+        }
+
+        [Test]
+        public void TF07_EditTrailPicksATrailAndRegradesItInOneUndo()
+        {
+            var id = BuiltTrail();
+            _host.Choose(EditTrailTool.ToolId);
+            var tool = (EditTrailTool)_host.Active;
+            Assert.That(tool.CurrentStep, Is.EqualTo(0), "Pick");
+            _host.Tick(At(5, 0, click: true));
+            Assert.That(tool.Target?.Id, Is.EqualTo(id), "a click on the trail picks it");
+            Assert.That(tool.Graded, Is.False, "it keeps its own setting (GR-14)");
+            tool.ChooseGraded(true);
+            Assert.That(tool.CurrentStep, Is.EqualTo(3), "Natural to Graded goes straight to review");
+            Assert.That(_host.Confirm(WorkStage.Built).Accepted, Is.True);
+            Assert.That(_design.Document.FindTrail(id).Settings.Grading, Is.EqualTo(TrailGrading.Graded));
+            Assert.That(_design.UndoLabel, Is.EqualTo("Edit trail"));
+            _design.Undo();
+            Assert.That(_design.Document.FindTrail(id).Settings.Grading, Is.EqualTo(TrailGrading.Natural), "one undo puts it back");
+        }
+
+        [Test]
+        public void TF07_RemoveTrailPicksATrailAndRemovesIt()
+        {
+            var id = BuiltTrail();
+            _host.Choose(RemoveTrailTool.ToolId);
+            var tool = (RemoveTrailTool)_host.Active;
+            _host.Tick(At(-5, 100, click: true));
+            Assert.That(tool.CurrentStep, Is.EqualTo(1), "its review");
+            Assert.That(_host.Confirm(WorkStage.Built).Accepted, Is.True);
+            Assert.That(_design.Document.FindTrail(id), Is.Null);
+            _design.Undo();
+            Assert.That(_design.Document.FindTrail(id), Is.Not.Null, "Ctrl+Z brings it back");
+        }
+
+        [Test]
+        public void GR14_ANewTrailStartsNatural()
+        {
+            _host.Choose(NewTrailTool.ToolId);
+            Assert.That(((NewTrailTool)_host.Active).Graded, Is.False);
         }
 
         [Test]

@@ -127,8 +127,24 @@ namespace MountainPlanner.Tests
                 yield return Press(Key.N);
                 Assert.That(viewer.Tools.ActiveId, Is.EqualTo(NewTrailTool.ToolId), "N arms New trail on the Trails tab");
                 var trail = (NewTrailTool)viewer.Tools.Active;
+                yield return Frames(3);
+                bool covered = false;
+                for (int i = 0; i <= 40; i++) covered |= viewer.Hud.IsPointerOverPanel(ScreenOf(cam, Vector2.Lerp(top, bottom, i / 40f), ctx));
+                if (covered)
+                {
+                    // The trail window (wider than a small screen at 150%) sits over the stroke: drag it down to the bottom
+                    // edge, its title still showing, as a player would.
+                    var window = (UI.Hud.HudWindow)hud.Q("toolwin");
+                    window.MoveTo(new Vector2(0, hud.panel.visualTree.worldBound.height));
+                    // The profile strip only shows (TF-04); on the 640x480 test screen at 150% it covers the lift's line, so
+                    // set it aside: this test is about the keys and the pointer, not the strip.
+                    var strip = hud.Q("trail-profile");
+                    if (strip != null) strip.style.display = DisplayStyle.None;
+                    yield return Frames(3);
+                }
                 yield return Drag(cam, ctx, top, bottom);
-                Assert.That(trail.Strokes, Is.EqualTo(1), "one stroke painted");
+                Assert.That(trail.Strokes, Is.EqualTo(1), $"one stroke painted (window moved {covered}, step {trail.CurrentStep}); from " +
+                    Where(viewer, cam, ScreenOf(cam, top, ctx), top, bottom) + "; to " + Where(viewer, cam, ScreenOf(cam, bottom, ctx), bottom, bottom));
                 for (int i = 0; i < 300 && (trail.Analysing || trail.Raster == null); i++) yield return null;
                 Assert.That(trail.Raster.Patches, Is.EqualTo(1));
                 yield return Press(Key.Enter);
@@ -143,6 +159,60 @@ namespace MountainPlanner.Tests
                 var chair = viewer.Design.Document.Lifts[0];
                 Assert.That(run.Head.Value, Is.EqualTo(chair.Top), "the head snapped to the lift's top");
                 Assert.That(run.Tail.Value, Is.EqualTo(chair.Bottom), "the tail snapped to its bottom");
+
+                // The map keys work while a tool is armed (owner, TL19): W pans and E turns the view, and neither is a tool key.
+                Assert.That(viewer.Tools.Armed, Is.True, "the tool stays armed after Break ground");
+                var eye = viewer.Camera.transform.position;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState(Key.W));
+                yield return Frames(6);
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+                yield return Frames(2);
+                Assert.That(Vector3.Distance(viewer.Camera.transform.position, eye), Is.GreaterThan(0.5f), "W pans with a tool armed");
+                Assert.That(viewer.Tools.ActiveId, Is.EqualTo(NewTrailTool.ToolId), "W left the tool alone");
+                var turn = viewer.Camera.transform.rotation;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState(Key.E));
+                yield return Frames(6);
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+                yield return Frames(2);
+                Assert.That(Quaternion.Angle(viewer.Camera.transform.rotation, turn), Is.GreaterThan(0.5f), "E turns the view with a tool armed");
+                Assert.That(viewer.Tools.ActiveId, Is.EqualTo(NewTrailTool.ToolId), "E no longer arms Edit (Edit is M)");
+
+                // Typing in a field is the field's alone (owner, 2026-10-19): a click puts the caret in the trail's name, and
+                // WASD, the tray's letters, T and Space then do nothing in the game (the test's virtual keyboard sends no
+                // text to UI Toolkit, so what the field types isn't checked here). A click on the map gives the keys back.
+                var nameField = hud.Q<TextField>("toolwin-opt-name-field");
+                Assert.That(nameField, Is.Not.Null, "the trail window's name field");
+                yield return ClickElement(nameField.Q(TextField.textInputUssName) ?? nameField);
+                Assert.That(viewer.Hud.Typing, Is.True, $"a click put the caret in the name (focused {Name(Focused(hud))})");
+                Assert.That(UiFocus.KeyboardActive(hud), Is.False, "reached with the mouse, not the keys");
+                var still = viewer.Camera.Target;
+                bool paused = viewer.Clock.Paused;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState(Key.W));
+                for (float until = Time.realtimeSinceStartup + 0.4f; Time.realtimeSinceStartup < until;) yield return null;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+                yield return Frames(2);
+                foreach (var key in new[] { Key.A, Key.S, Key.D, Key.X, Key.T, Key.Space, Key.N })
+                    yield return Press(key);
+                yield return Frames(3);
+                Assert.That(Vector3.Distance(viewer.Camera.Target, still), Is.LessThan(0.5f), "WASD typed instead of panning");
+                Assert.That(viewer.Tools.ActiveId, Is.EqualTo(NewTrailTool.ToolId), "X typed instead of arming Remove");
+                Assert.That(viewer.Hud.ToolboxOpen, Is.True, "T typed instead of closing the Toolbox");
+                Assert.That(viewer.Clock.Paused, Is.EqualTo(paused), "Space typed instead of pausing");
+                // A right-click on the map (it doesn't paint) lets go of the field; W pans again.
+                var map = ScreenOf(cam, Vector2.Lerp(top, bottom, 0.5f), ctx);
+                InputSystem.QueueStateEvent(_mouse, new MouseState { position = map });
+                yield return Frames(2);
+                InputSystem.QueueStateEvent(_mouse, new MouseState { position = map }.WithButton(UnityEngine.InputSystem.LowLevel.MouseButton.Right, true));
+                yield return Frames(2);
+                InputSystem.QueueStateEvent(_mouse, new MouseState { position = map });
+                yield return Frames(2);
+                Assert.That(viewer.Hud.Typing, Is.False, "a click on the map let go of the name");
+                still = viewer.Camera.Target;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState(Key.W));
+                for (float until = Time.realtimeSinceStartup + 0.4f; Time.realtimeSinceStartup < until;) yield return null;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+                yield return Frames(3);
+                Assert.That(Vector3.Distance(viewer.Camera.Target, still), Is.GreaterThan(1f), "W pans again once the name lets go");
 
                 // Esc closes the tool (nothing drawn), then the tray; the letters go back to the camera.
                 yield return Press(Key.Escape);
@@ -231,8 +301,34 @@ namespace MountainPlanner.Tests
             var ray = cam.ScreenPointToRay(screen);
             float hit = viewer.Camera.GroundAlong(ray, 30000);
             var g = float.IsNaN(hit) ? Vector3.zero : ray.GetPoint(hit);
-            return $"screen {Screen.width}x{Screen.height}, pointer {screen}, over a panel {viewer.Hud.IsPointerOverPanel(screen)}, " +
+            var root = viewer.Hud.Document.rootVisualElement;
+            var picked = root.panel.Pick(RuntimePanelUtils.ScreenToPanel(root.panel, new Vector2(screen.x, Screen.height - screen.y)));
+            string chain = "";
+            for (var e = picked; e != null && e != root; e = e.parent) chain += (e.name ?? e.GetType().Name) + "<";
+            return $"screen {Screen.width}x{Screen.height}, pointer {screen}, over a panel {viewer.Hud.IsPointerOverPanel(screen)} ({chain}), " +
                    $"hits {g.x:F0},{g.z:F0} meaning {meant.x:F0},{meant.y:F0} (bottom {bottom.x:F0},{bottom.y:F0}), camera {cam.transform.position}";
+        }
+
+        /// <summary>
+        /// A mouse click on a HUD element as UI Toolkit hears it: pointer down (which also ends keyboard mode), focus, pointer
+        /// up (after which the HUD lets go of whatever a click focused, unless it's a text field). The test's virtual mouse
+        /// doesn't reach UI Toolkit's own click handling, so the events go to the element directly.
+        /// </summary>
+        static IEnumerator ClickElement(VisualElement e)
+        {
+            var at = e.worldBound.center;
+            using (var down = PointerDownEvent.GetPooled(new Event { type = EventType.MouseDown, mousePosition = at, button = 0, clickCount = 1 }))
+            {
+                down.target = e;
+                e.SendEvent(down);
+            }
+            e.Focus();
+            using (var up = PointerUpEvent.GetPooled(new Event { type = EventType.MouseUp, mousePosition = at, button = 0, clickCount = 1 }))
+            {
+                up.target = e;
+                e.SendEvent(up);
+            }
+            yield return Frames(3);
         }
 
         static Vector2 ScreenOf(Camera cam, Vector2 at, ToolContext ctx)

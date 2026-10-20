@@ -18,6 +18,7 @@ namespace MountainPlanner.App
         DesignHistory _design;
         ToolHost _tools;
         PendingPreview _preview;
+        TrailPaintMap _trailPaint;
         DesignOverlay _designOverlay;
         bool _pressOnMap;
 
@@ -51,8 +52,15 @@ namespace MountainPlanner.App
             if (Hud == null || _resort == null || TitleMode || _tools != null) return;
             _design = new DesignHistory(DesignDocument.Empty(DesignSeed(_resort.Manifest.PackageId)));
             _preview = new PendingPreview(_resort.Root.transform, "Tool preview", _resort.Surface, HighlightMaterial);
+            _trailPaint = new TrailPaintMap();
+            var cli = System.Environment.GetCommandLineArgs();
+            int style = System.Array.IndexOf(cli, "-paintstyle");   // review captures: a, b or c
+            if (style >= 0 && style + 1 < cli.Length && cli[style + 1].Length > 0)
+                _trailPaint.Style = Mathf.Max(0, "abc".IndexOf(char.ToLowerInvariant(cli[style + 1][0])));
+            _preview.Cleared += _trailPaint.Clear;   // a tool's close or commit takes its paint off the ground too
             FollowDesign();
-            _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core), Hud.OpenWindow);
+            _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core)
+                { Earthwork = Ground, Lines = new TrailLineSnap(() => Ground?.Earthwork), Paint = _trailPaint }, Hud.OpenWindow);
             _tools.ActiveChanged += Hud.SetActiveTool;
             _tools.Notice += text => Hud.Toast(text);
             Hud.ToolChosen += id => _tools.Choose(id);
@@ -83,7 +91,10 @@ namespace MountainPlanner.App
         {
             _tools?.Close();
             _preview?.Dispose();
+            _trailPaint?.Dispose();
+            _trailPaint = null;
             _designOverlay?.Dispose();
+            DisposeTrailLayer();
             _tools = null;
             _preview = null;
             _designOverlay = null;
@@ -142,10 +153,11 @@ namespace MountainPlanner.App
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
             // A tool lives in the open tray (P3-06 Q4: T or Esc closes it); photo mode and the title close it too.
             if (_tools.Armed && (_photo || TitleMode || Hud == null || !Hud.ToolboxOpen)) _tools.Close();
-            if (_tools.Armed && cam != null) _tools.Tick(ReadToolInput(cam));
+            if (_tools.Armed && cam != null && !_toolScripted) _tools.Tick(ReadToolInput(cam));
             if (cam != null)
             {
                 _preview?.Follow(cam);
+                _trailPaint?.Flush();
                 _designOverlay?.Follow(cam);
             }
         }

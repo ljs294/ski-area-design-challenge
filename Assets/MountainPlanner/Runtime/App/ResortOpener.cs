@@ -80,6 +80,8 @@ namespace MountainPlanner.App
         /// <summary>The snowpack's inputs (8 m cells over the ring), kept for terrain edits to rebuild the snow.</summary>
         public float[] SnowElevation, SnowCanopy;
         public long CliffTriangles;
+        /// <summary>Each cache tile's cliff shell, for terrain edits to trim where the ground moves.</summary>
+        public readonly System.Collections.Generic.Dictionary<(int, int), CliffShells.Placed> Cliffs = new System.Collections.Generic.Dictionary<(int, int), CliffShells.Placed>();
         public Material CliffMaterial;
         /// <summary>The diorama walls (their snow cap follows the Snow layer).</summary>
         public Material EdgeMaterial;
@@ -282,7 +284,8 @@ namespace MountainPlanner.App
                     if (shell == null) continue;
                     var tile = order[n];
                     var (ox, oz) = resort.Frame.ToLocal(new AlbersPoint(tile.West, tile.North - resort.Cache.TileMetres));
-                    CliffShells.Create(resort.Root.transform, $"Cliffs t{tile.Column}_{tile.Row}", new Vector3((float)ox, 0, (float)oz), shell, forest.Cliff);
+                    resort.Cliffs[(tile.Column, tile.Row)] =
+                        CliffShells.Place(resort.Root.transform, $"Cliffs t{tile.Column}_{tile.Row}", new Vector3((float)ox, 0, (float)oz), shell, forest.Cliff);
                     triangles += shell.Indices.Length / 3;
                     load?.Advance(LoadStage.Cliffs, triangles);
                     if (n % TilesPerFrame == 0) await Task.Yield();

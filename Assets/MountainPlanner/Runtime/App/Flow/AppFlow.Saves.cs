@@ -49,7 +49,9 @@ namespace MountainPlanner.App.Flow
             try { m = ResortPackage.ReadManifest(packageFolder); }
             catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException) { return true; }   // the viewer reports it
             string heights = m.Layers.FirstOrDefault(l => l.Id == "heights-core")?.Sha256 ?? "";
-            string folder = pick ?? SaveStore.Newest(DataRoot, m.PackageId)?.Folder;
+            // A capture or benchmark run never opens the player's own design unless it's asked to: it builds and undoes work
+            // on whatever it opens (task 08: a UI capture opened the owner's autosave).
+            string folder = pick ?? (CaptureRun ? null : SaveStore.Newest(DataRoot, m.PackageId)?.Folder);
             if (string.IsNullOrEmpty(folder))
             {
                 OpenDesign.Current = OpenDesign.New(DataRoot, m.PackageId, heights);
@@ -125,6 +127,15 @@ namespace MountainPlanner.App.Flow
                 };
         }
 
+        /// <summary>A capture, benchmark or test run: it never opens or autosaves the player's saves on its own.</summary>
+        static bool CaptureRun => _captureRun ??= Array.Exists(Environment.GetCommandLineArgs(), a => Array.IndexOf(CaptureSwitches, a) >= 0);
+        static bool? _captureRun;
+        static readonly string[] CaptureSwitches =
+        {
+            "-uicapture", "-flowcapture", "-trailshots", "-trailbench", "-paintbench", "-paintmovie", "-screenshot", "-benchmark", "-benchmark-views", "-pathmovie", "-lineup",
+            "-lodtransitions", "-clip", "-titleshots", "-titlemovie", "-photoshot", "-styletile", "-testbench", "-editbench", "-smoketest",
+        };
+
         void UpdateSaves(Keyboard keys)
         {
             var open = OpenDesign.Current;
@@ -133,7 +144,7 @@ namespace MountainPlanner.App.Flow
             if (!live) return;
             if (!FlowHasKeyboard() && KeyBindings.Pressed(keys, GameAction.Save)) SaveNow(null);
             int minutes = UI.Flow.GameplayPreferences.AutosaveMinutes;
-            if (minutes > 0 && open.Dirty && Time.realtimeSinceStartup - _savedAt >= minutes * 60f)
+            if (minutes > 0 && !CaptureRun && open.Dirty && Time.realtimeSinceStartup - _savedAt >= minutes * 60f)
             {
                 _savedAt = Time.realtimeSinceStartup;
                 if (TryWrite(() => open.Autosave(Now, GameVersion), "Autosave")) _saveHud.Toast("Autosaved");

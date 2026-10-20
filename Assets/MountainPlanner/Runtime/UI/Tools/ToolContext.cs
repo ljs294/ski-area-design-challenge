@@ -24,6 +24,8 @@ namespace MountainPlanner.UI.Tools
 
         /// <summary>Task 08's centreline snapping (NW-07); null until trails have a centreline.</summary>
         public ICentrelineSnap Lines { get; set; }
+        /// <summary>The ground a trail tool paints, brush-style (TF-02); null in tests without a map.</summary>
+        public ITrailPaint Paint { get; set; }
 
         /// <summary>
         /// The terrain edits the tool's current analysis would commit at Break ground (task 05, TE2): the complete edit
@@ -31,6 +33,9 @@ namespace MountainPlanner.UI.Tools
         /// The host submits it with the command and clears it on commit; each tool starts with none. Task 08 sets it.
         /// </summary>
         public Domain.Edits.TerrainEdits PendingTerrain { get; set; }
+
+        /// <summary>The ground the tools shape (task 08): the terrain edit session and its earthwork; null in tests without one.</summary>
+        public IEarthworkHost Earthwork { get; set; }
 
         /// <summary>A one-line notice in the HUD's toasts ("New trail discarded").</summary>
         public Action<string> Notice { get; set; }

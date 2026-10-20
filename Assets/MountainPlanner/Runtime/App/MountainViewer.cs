@@ -258,7 +258,10 @@ namespace MountainPlanner.App
                 int shot = Array.IndexOf(args, "-screenshot");
                 if (shot >= 0 && shot + 1 < args.Length) StartCoroutine(CaptureAndQuit(args[shot + 1]));
                 StartCoroutine(RunPhotoArguments(args));   // -photo, -photoshot (MountainViewer.Photo.cs)
+                OpenSaveForCapture(args);  // -opensave <folder>: a save on a package opened from the command line (task 08 review)
                 StartTerrainEdits(args);   // -testedit, -testbench, -editbench (MountainViewer.Edits.cs, task P3-05)
+                StartTrailShots(args);     // -trailshots <folder> [-trailspot name] (MountainViewer.Trails.cs, task P3-08)
+                StartTrailBench(args);     // -trailbench <out.json> (MountainViewer.Trails.cs, task P3-08)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
             }
@@ -387,11 +390,17 @@ namespace MountainPlanner.App
 
         /// <summary>
         /// The view keys (docs/plans/controls-key-map.md; rebindable, <see cref="KeyBindings"/>). The HUD owns T, Tab, U, Space, 1–4, Ctrl+S and Enter;
-        /// while its Toolbox tray is open (<see cref="ViewCamera.LettersToTools"/>) letters are tool keys, so P
-        /// and C wait until it closes.
+        /// while its Toolbox tray is open (<see cref="ViewCamera.LettersToTools"/>) letters are tool keys, so P waits until
+        /// it closes; the camera's keys (C, Home) work at all times (TL19).
         /// </summary>
         void HandleKeys(Keyboard keys)
         {
+            // A click on the map lets go of a text field, as anywhere else would: the keys go back to the game.
+            var mouse = Mouse.current;
+            if (mouse != null && Hud != null && Hud.Typing
+                && (mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame)
+                && !PointerOverUi(mouse.position.ReadValue()))
+                Hud.ReleaseKeyboard();
             if (keys == null) return;
             bool letters = Camera == null || !Camera.LettersToTools;
             bool flowKeys = (FlowHasKeyboard?.Invoke() ?? false) || FlowTookEscapeFrame == Time.frameCount;
@@ -403,6 +412,7 @@ namespace MountainPlanner.App
                 else if (_photo) SetPhoto(false);   // photo mode (MountainViewer.Photo.cs) puts everything back
                 else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
                 else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
+                else if (Hud != null && _resort != null && Hud.CloseTrailCardIfOpen()) { }   // a trail's focus card (task 08)
                 else if (_resort != null && EscapeTool()) { }   // the armed tool backs out a step (CF-07, P3-06)
                 else if (Hud != null && _resort != null && Hud.BackOut()) { }
                 else if (Hud != null && _resort != null) Hud.ToggleMenu();
@@ -432,12 +442,13 @@ namespace MountainPlanner.App
             }
             if (KeyBindings.Pressed(keys, GameAction.HideUi, letters)) _ui = !_ui;
             if (KeyBindings.Pressed(keys, GameAction.PhotoMode, letters)) SetPhoto(true);
-            if (KeyBindings.Pressed(keys, GameAction.FreeFly, letters) && Camera != null) Camera.ToggleMode();
+            if (KeyBindings.Pressed(keys, GameAction.FreeFly) && Camera != null) Camera.ToggleMode();
             if (KeyBindings.Pressed(keys, GameAction.Units, letters)) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
-            if (KeyBindings.Pressed(keys, GameAction.ResetView, letters)) HomeView();
+            if (KeyBindings.Pressed(keys, GameAction.ResetView)) HomeView();
             // Map layers (Shift+2, 4 and 5 are free for lifts and the rest as they're built).
             if (KeyBindings.Pressed(keys, GameAction.LayerSnow, letters)) ToggleLayer(MapLayers.Snow);
             if (KeyBindings.Pressed(keys, GameAction.LayerTrees, letters)) ToggleLayer(MapLayers.Trees);
+            if (KeyBindings.Pressed(keys, GameAction.LayerTrails, letters)) ToggleLayer(MapLayers.Trails);   // task 08
             // Info layers: Contours with anything; the other four take turns.
             if (KeyBindings.Pressed(keys, GameAction.InfoContours, letters)) ToggleLayer(MapLayers.Contours);
             if (KeyBindings.Pressed(keys, GameAction.InfoSlope, letters)) ToggleLayer(MapLayers.SlopeAngle);
@@ -581,6 +592,7 @@ namespace MountainPlanner.App
             DrawChairs();   // after the camera has moved, for its LODs
             if (_contourLabels == null || _resort == null) return;
             _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
+            TickTrailLayer(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);   // task 08
             var set = _resort.ContourLabels[(int)DisplayUnits.Current];
             if (!ReferenceEquals(set, _contourLabelSet))
             {

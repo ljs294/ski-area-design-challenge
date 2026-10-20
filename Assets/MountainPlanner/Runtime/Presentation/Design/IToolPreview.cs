@@ -22,6 +22,8 @@ namespace MountainPlanner.Presentation.Design
         Brush,
         /// <summary>A built lift on the placeholder overlay, the trail map's lift red.</summary>
         Lift,
+        /// <summary>Task 08's Trails layer: a built trail in its rating's colour (TD-03), and the white casing of one in focus.</summary>
+        RatingGreen, RatingBlue, RatingBlack, Casing,
     }
 
     /// <summary>

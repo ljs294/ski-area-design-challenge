@@ -289,6 +289,25 @@ namespace MountainPlanner.App.Flow
                 h.SetToolboxTab(on ? "trails" : "lifts"); h.SetToolbox(on);
                 if (on && !v.TrailReviewForCapture()) Debug.LogWarning("[UiCapture] tool-trail-review: the trail didn't reach its review");
             }),
+            // Task P3-08: Edit and Remove trail on a built trail (TF-07), and Analysis › Trails with it (the mockup's
+            // trailfix, trailgone and atrails).
+            ("tool-trail-edit", false, (h, v, on) =>
+            {
+                if (!on) { v.UndoCaptureTrails(); h.SetToolbox(false); return; }
+                if (!v.TrailPickForCapture(MountainPlanner.UI.Tools.EditTrailTool.ToolId)) Debug.LogWarning("[UiCapture] tool-trail-edit: no trail to edit");
+            }),
+            ("tool-trail-remove", false, (h, v, on) =>
+            {
+                if (!on) { v.UndoCaptureTrails(); h.SetToolbox(false); return; }
+                if (!v.TrailPickForCapture(MountainPlanner.UI.Tools.RemoveTrailTool.ToolId)) Debug.LogWarning("[UiCapture] tool-trail-remove: no trail to remove");
+            }),
+            ("analysis-trails", false, (h, v, on) =>
+            {
+                if (on && !v.TrailBuiltForCapture()) Debug.LogWarning("[UiCapture] analysis-trails: no trail");
+                if (!on) v.UndoCaptureTrails();
+                h.SetAnalysisTab(on ? "trails" : "overview");
+                h.SetAnalysis(on);
+            }),
             ("analysis", false, (h, v, on) => { h.SetAnalysisTab("overview"); h.SetAnalysis(on); }),
             ("analysis-lifts", false, (h, v, on) => { h.SetAnalysisTab(on ? "lifts" : "overview"); h.SetAnalysis(on); }),
             ("analysis-weather", false, (h, v, on) => { h.SetAnalysisTab(on ? "weather" : "overview"); h.SetAnalysis(on); }),

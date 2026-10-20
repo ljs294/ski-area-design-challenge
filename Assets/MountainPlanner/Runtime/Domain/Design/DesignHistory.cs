@@ -60,6 +60,9 @@ namespace MountainPlanner.Domain.Design
             Revision = firstRevision;
         }
 
+        /// <summary>How many times <see cref="Load"/> has replaced the design (task 08: the earthwork learns a loaded design again).</summary>
+        public int Loads { get; private set; }
+
         public bool CanUndo => _undo.Count > 0;
         public bool CanRedo => _redo.Count > 0;
         public int UndoCount => _undo.Count;
@@ -115,6 +118,7 @@ namespace MountainPlanner.Domain.Design
         /// <summary>Replaces the design (a load or a new area), with its saved terrain edits, and clears undo and redo.</summary>
         public void Load(DesignDocument document, TerrainEdits terrain = null)
         {
+            Loads++;
             _undo.Clear();
             _redo.Clear();
             Move(document ?? throw new ArgumentNullException(nameof(document)), terrain ?? TerrainEdits.Empty);
