@@ -459,6 +459,12 @@ body.solo .frame { border-radius: 0; }
 .hud .lstat.ok { color: var(--pos); }
 .hud .lstat.bad { color: var(--neg); }
 .hud .lstat.warnc { color: var(--warn); }
+.hud .ldd { position: relative; }
+.hud .ldd .ddb { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 10px; border: 1px solid var(--hair2); border-radius: 4px; font: 700 12px 'DotFix', 'Overpass'; color: var(--text); cursor: pointer; }
+.hud .ldd .ddb:hover, .hud .ldd .ddb.on { border-color: var(--ghost-hover); }
+.hud .ldd .ddb .car { font-size: 10px; color: var(--soft); }
+.hud .ldd .amenu { width: 100%; }
+.hud .ldd .amenu .tick { width: 12px; color: var(--pos); }
 .hud .lgauge { padding: 4px 14px 0; }
 .hud .ldet { padding: 0 12px 4px; font: 500 11px 'Overpass Mono', monospace; color: var(--soft); line-height: 1.4; }
 .hud .lkeys { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 3px 12px 7px; font: 500 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
@@ -878,7 +884,7 @@ body.solo .frame { border-radius: 0; }
   // ---------- numbers, from the placeholder heights ----------
   const flat = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]) * MPX;
   function liftStats(a, b, model, capOver) {
-    const m = MODELS[model], run = Math.max(1, flat(a, b)), ea = elevAt(a), eb = elevAt(b), rise = eb - ea;
+    const LTm = typeof LIFT_TYPES !== 'undefined' && LIFT_TYPES[model], m = MODELS[model] || (LTm ? { cap: liftCap(LTm), speed: LTm.fpm / 196.85, term: LTm.term, perM: LTm.perFt * 3.28084 } : MODELS['Fixed 4']), run = Math.max(1, flat(a, b)), ea = elevAt(a), eb = elevAt(b), rise = eb - ea;
     const len = Math.hypot(run, rise), grade = Math.abs(rise) / run * 100;   // steepness is a grade: rise over run
     const towers = Math.max(2, Math.ceil(len / 120)), grading = Math.round(len * 1.7);
     const cost = { term: m.term, line: len * m.perM, towers: towers * 83000, grading: grading * 140 };
@@ -896,7 +902,7 @@ body.solo .frame { border-radius: 0; }
     const clearing = len * 38, grading = len * 24;
     return { len, drop, avg, steep, clearing, grading, total: clearing + grading };
   }
-  const fmtTime = (s) => { const m = Math.floor(s / 60), r = Math.round(s % 60); return `${m}:${String(r).padStart(2, '0')}`; };
+  const fmtTime = (s) => { const t = Math.round(s), m = Math.floor(t / 60), r = t % 60; return `${m}:${String(r).padStart(2, '0')}`; };
   const metres = (e) => Math.round(e).toLocaleString('en-US');
 
   // ---------- drawing the world ----------
@@ -1155,9 +1161,38 @@ body.solo .frame { border-radius: 0; }
   // rise limit block a lift; head loads, the rope's angle into a station and steep terminal ground are amber warnings.
   // LC-02: both quads share these for now; terminals, line and towers price the plan in the mockup's economy.
   const LIFT_TYPES = {
-    'Sessellift FGQ-4': { family: 'fixed4', seats: 4, spacing: 45, rope: 4.44, rated: 42800, cw: 18000, chairE: 350, chairF: 1030, term: 1.25e6, perFt: 190, tower: 52000 },
-    'Monta FG4': { family: 'fixed4', seats: 4, spacing: 45, rope: 4.44, rated: 42800, cw: 18000, chairE: 350, chairF: 1030, term: 1.18e6, perFt: 200, tower: 49000 },
+    'Sessellift FGQ-4': { name: 'Sessellift FGQ-4', kind: 'fixed', family: 'fixed4', fpm: 450, seats: 4, spacing: 45, rope: 4.44, rated: 42800, cw: 18000, chairE: 350, chairF: 1030, term: 1.25e6, perFt: 190, tower: 52000 },
+    'Monta FG4': { name: 'Monta FG4', kind: 'fixed', family: 'fixed4', fpm: 450, seats: 4, spacing: 45, rope: 4.44, rated: 42800, cw: 18000, chairE: 350, chairF: 1030, term: 1.18e6, perFt: 200, tower: 49000 },
   };
+  // The lift types (owner, 2026-10-19): pick a type, then its carrier. Only the fixed-grip quad has models yet (Sessellift
+  // FGQ-4, Monta FG4); the others are drawn with them until their own exist. Speeds, spacings and weights are
+  // placeholders that give typical capacities: 450 ft/min for fixed grips, 1,000 for detachables, 2,000 for a tram.
+  const LT = (name, kind, family, fpm, seats, spacing, rope, cw, chairE, chairF, term, perFt, tower, cap) => ({ name, kind, family, fpm, seats, spacing, rope, cw, chairE, chairF, rated: Infinity, term, perFt, tower, cap });
+  Object.assign(LIFT_TYPES, {
+    fixed2: LT('Fixed-grip double', 'fixed', 'fixed2', 450, 2, 45, 3.6, 14000, 200, 540, 0.8e6, 150, 40000),
+    fixed3: LT('Fixed-grip triple', 'fixed', 'fixed3', 450, 3, 45, 4.0, 16000, 280, 790, 1.0e6, 170, 46000),
+    detach4: LT('Detachable quad', 'detach', 'detach4', 1000, 4, 80, 5.2, 30000, 900, 1580, 3.2e6, 260, 70000),
+    detach6: LT('Detachable six', 'detach', 'detach6', 1000, 6, 100, 6.0, 36000, 1300, 2320, 4.4e6, 300, 80000),
+    detach8: LT('Detachable eight', 'detach', 'detach8', 1000, 8, 120, 6.4, 40000, 1700, 3060, 5.2e6, 330, 88000),
+    gond6: LT('Gondola, 6 a cabin', 'gondola', 'gondola', 1000, 6, 150, 5.2, 32000, 1300, 2320, 5.0e6, 320, 80000),
+    gond8: LT('Gondola, 8 a cabin', 'gondola', 'gondola', 1000, 8, 160, 6.0, 36000, 1700, 3060, 6.0e6, 360, 88000),
+    gond10: LT('Gondola, 10 a cabin', 'gondola', 'gondola', 1000, 10, 167, 6.4, 40000, 2000, 3700, 7.0e6, 400, 96000),
+    tram60: LT('Aerial tram, 60 a cabin', 'tram', 'tram', 2000, 60, 5000, 15, 450000, 18000, 28200, 14e6, 600, 250000, 500),
+    tram100: LT('Aerial tram, 100 a cabin', 'tram', 'tram', 2000, 100, 5000, 15, 500000, 24000, 41000, 18e6, 700, 300000, 750),
+  });
+  Object.assign(LIFT_TYPES.tram60, { hMax: 250 }); Object.assign(LIFT_TYPES.tram100, { hMax: 250 });   // trams stand on towers up to 250 ft
+  Object.assign(LIFT_TYPES, {
+  });
+  const LIFT_KINDS = [
+    ['fixed', 'Fixed-grip chair', [['fixed2', 'Double'], ['fixed3', 'Triple'], ['fixed4', 'Quad']]],
+    ['detach', 'Detachable chair', [['detach4', 'Quad'], ['detach6', 'Six'], ['detach8', 'Eight']]],
+    ['gondola', 'Detachable gondola', [['gond6', '6 a cabin'], ['gond8', '8 a cabin'], ['gond10', '10 a cabin']]],
+    ['tram', 'Aerial tram', [['tram60', '60 a cabin'], ['tram100', '100 a cabin']]],
+  ];
+  const KIND_DEFAULT = { fixed: 'Sessellift FGQ-4', detach: 'detach4', gondola: 'gond8', tram: 'tram100' };
+  const LEGACY_TYPE = { 'Fixed 4': 'Sessellift FGQ-4', 'Detach 4': 'detach4', 'Detach 6': 'detach6' };   // the placeholder lifts
+  const carrierKey = (t) => (LIFT_TYPES[t].family === 'fixed4' ? 'fixed4' : t);
+  const liftTypeName = (t) => (LIFT_TYPES[t] ? LIFT_TYPES[t].name : t);
   // How much vertical a lift may climb (owner, 2026-10-19), replacing the rope-tension limit (RP-05): set by carrier size
   // and fixed grip or detachable, generous, with the haul rope assumed sized to suit; a tram has no limit. Tension still
   // shapes the rope's sag and the towers' loads, but no longer stops a lift. The models don't change.
@@ -1170,7 +1205,7 @@ body.solo .frame { border-radius: 0; }
   const LEGACY_FAMILY = { 'Fixed 4': 'fixed4', 'Detach 4': 'detach4', 'Detach 6': 'detach6' };   // the placeholder lifts' types
   const riseFamily = (d) => RISE_FAMILIES[(d.legacy && LEGACY_FAMILY[d.legacy]) || LIFT_TYPES[d.type].family];
   const HEADS = { pend: ['Type pending', 'the next span needs towers', 8], s4: ['Support', '4 sheaves', 4], s6: ['Support', '6 sheaves', 6], b8: ['Breakover', '8 sheaves', 8], d8: ['Hold-down', '8 sheaves', 8], c8: ['Combination', '4 + 4 sheaves', 4] };
-  const liftCap = (T) => Math.round(T.seats * RULE.fpm * 60 / T.spacing);   // LC-03: shown, not chosen (2,400 an hour)
+  const liftCap = (T) => T.cap || Math.round(T.seats * (T.fpm || RULE.fpm) * 60 / T.spacing);   // LC-03: shown, not chosen (2,400 an hour)
   const loadPerFt = (T, full) => T.rope + (full ? T.chairF : T.chairE) / T.spacing;   // RP-03: chairs as an even load
   // P1: the ground under the line, sampled every 5 ft along the ray once the line is fixed.
   function rayProfile(A, dir, ft) {
@@ -1208,7 +1243,9 @@ body.solo .frame { border-radius: 0; }
     const n = Math.max(2, Math.ceil(geo.L / RULE.grid)), cs = new Float64Array(n + 1);
     for (let i = 0; i <= n; i++) { const s = p.x + geo.L * i / n; cs[i] = ropeAt(p, q, geo, s) - RULE.drop - groundAt(g, s); }
     let lo = 0, hi = n;
-    if (cs.some((c) => c >= RULE.clear)) { if (p.term) while (lo < n && cs[lo] < RULE.clear) lo++; if (q.term) while (hi > 0 && cs[hi] < RULE.clear) hi--; }
+    // the zone reaches 400 ft at most, so a long span's sag can't hide inside it
+    const zn = Math.ceil(400 / geo.L * n);
+    if (cs.some((c) => c >= RULE.clear)) { if (p.term) while (lo < Math.min(n, zn) && cs[lo] < RULE.clear) lo++; if (q.term) while (hi > Math.max(0, n - zn) && cs[hi] < RULE.clear) hi--; }
     let min = Infinity, at = p.x, open = -1;
     const dips = [];
     for (let i = lo; i <= hi; i++) {
@@ -1292,7 +1329,9 @@ body.solo .frame { border-radius: 0; }
       if (sp.exit) (RULE.strict ? errors : warnings).push(RULE.strict ? { rule: 'RP-01', text: `The rope meets ${sp.p.term ? a : b} at ${sp.exit.toFixed(0)}°: ${RULE.exitDeg}° at most. Put a tower nearer it.` } : `The rope meets the station steeply (${sp.exit.toFixed(0)}°)`);
       if (sp.min < Infinity && (!lowest || sp.min < lowest.min)) lowest = { min: sp.min, at: sp.at, name: sp.name };
     });
-    for (const o of tw) if (!o.head.ok) { if (RULE.strict) errors.push({ rule: o.head.rule, text: `Tower ${o.no}: ${o.head.why}` }); else warnings.push(`Tower ${o.no}: ${o.head.why}`); }
+    const over = tw.filter((o) => !o.head.ok);   // lenient: one line for every over-loaded head
+    if (RULE.strict) for (const o of over) errors.push({ rule: o.head.rule, text: `Tower ${o.no}: ${o.head.why}` });
+    else if (over.length) warnings.push(`${over.length === 1 ? `Tower ${over[0].no} carries` : `Towers ${over.map((o) => o.no).join(', ')} carry`} more than ${over.length === 1 ? 'its head is' : 'their heads are'} rated for`);
     const xs = pts.map((p) => p.x);
     for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] < RULE.gap) errors.push({ rule: 'TW-03', text: `Two supports ${lenFt(xs[i] - xs[i - 1])} apart: ${lenFt(RULE.gap)} needed` });
     for (const o of tw) if (o.h >= 80) warnings.push(`Tower ${o.no} is ${lenFt(o.h)} tall: tall towers catch the wind (comes in Phase 4)`);
@@ -1334,7 +1373,7 @@ body.solo .frame { border-radius: 0; }
       }
       return best;
     };
-    const r1 = far(h), r2 = far(RULE.hMax), span = Math.max(r1, 150), g0 = groundAt(d.g, x), g1 = groundAt(d.g, x + span / 2), g2 = groundAt(d.g, x + span);
+    const r1 = far(h), r2 = far(towerMax(d)), span = Math.max(r1, 150), g0 = groundAt(d.g, x), g1 = groundAt(d.g, x + span / 2), g2 = groundAt(d.g, x + span);
     return { here: r1, tall: r2, holdAhead: (g2 - g1) - (g1 - g0) > span * 0.06 };
   }
   // TW-09: where the tower in hand could stand at its height, checked every 5 ft; recomputed only when something changes.
@@ -1353,6 +1392,8 @@ body.solo .frame { border-radius: 0; }
   // modest height (35 ft, then 40, 30, and taller only when nothing modest clears), on the 5 ft grid, backing up a
   // tower when nothing reaches on. Never leaves a red tower; says why when nothing fits. Plumb towers only.
   const AUTO_H = [35, 40, 30, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 25];
+  const towerMax = (d) => LIFT_TYPES[d.type].hMax || RULE.hMax;
+  const autoHeights = (d) => (towerMax(d) > RULE.hMax ? AUTO_H.concat(Array.from({ length: (towerMax(d) - RULE.hMax) / 10 }, (_, i) => RULE.hMax + 10 * (i + 1))) : AUTO_H);
   function autoFill(d, fromX, kept) {
     const placed = kept.slice(), T = LIFT_TYPES[d.type];
     if (evalLift(d, placed).errors.some((e) => e.rule === 'RISE')) { const [fam, mx] = riseFamily(d); return { towers: placed, ok: false, why: `Too much rise for a ${fam}: ${lenFt(mx)} at most` }; }
@@ -1376,9 +1417,9 @@ body.solo .frame { border-radius: 0; }
     const t0 = performance.now();   // a line with no fit gives up quickly rather than stall the pointer
     while (performance.now() - t0 < 60) {
       const cur = chain[chain.length - 1], tail = span(cur.p, B);
-      if (tail && (!cur.inGeo || headAt(cur.inGeo, cur.p, tail).ok)) return { towers: placed.concat(chain.slice(1).map((c) => c.t)), ok: true };
+      if (tail && (!RULE.strict || !cur.inGeo || headAt(cur.inGeo, cur.p, tail).ok)) return { towers: placed.concat(chain.slice(1).map((c) => c.t)), ok: true };
       let found = null;
-      for (const h of AUTO_H) {
+      for (const h of autoHeights(d)) {
         for (let x = Math.min(d.len - RULE.gap, cur.p.x + 800, cur.bound); x >= cur.p.x + RULE.gap; x -= RULE.grid) {
           const q = ptAt(x, h), geo = span(cur.p, q);
           if (!geo || !onTerrain(rayPt(d, x)) || (RULE.strict && cur.inGeo && !headAt(cur.inGeo, cur.p, geo).ok)) continue;
@@ -1393,7 +1434,7 @@ body.solo .frame { border-radius: 0; }
       chain[chain.length - 1].bound = dead.t.x - RULE.grid;
     }
     const far = chain[chain.length - 1].p.x;
-    return { towers: placed.concat(chain.slice(1).map((c) => c.t)), ok: false, why: `No layout fits past ${lenFt(far)}: towers up to ${lenFt(RULE.hMax)} can't keep the chairs ${lenFt(RULE.clear)} up and the heads within their limits there` };
+    return { towers: placed.concat(chain.slice(1).map((c) => c.t)), ok: false, why: `No layout fits past ${lenFt(far)}: towers up to ${lenFt(towerMax(d))} can't keep the chairs ${lenFt(RULE.clear)} up and the heads within their limits there` };
   }
 
   // ---------- the lift construction tool: the draft, the menu, the profile strip and the drawing on the mountain ----------
@@ -1496,7 +1537,7 @@ body.solo .frame { border-radius: 0; }
     Object.assign(d, { edit: l.id, n: l.n, name: l.name, hist: [], fut: [], selT: null, lvA: 0, lvB: 0 });
     const sp = l.spec;
     if (sp) { Object.assign(d, { a: sp.a.slice(), dir: sp.dir.slice(), len: sp.len, reach: sp.reach, type: sp.type, mode: sp.mode, stance: sp.stance, lvA: sp.lvA, lvB: sp.lvB, towers: sp.towers.map((t) => ({ ...t })) }); d.g = rayProfile(d.a, d.dir, d.reach + 20); }
-    else { d.type = LIFT_TYPES[l.model] ? l.model : 'Sessellift FGQ-4'; d.legacy = LIFT_TYPES[l.model] ? null : l.model; d.mode = 'auto'; d.a = l.a.slice(); fixLine(d, l.b); }   // a lift from before the catalog
+    else { d.type = LIFT_TYPES[l.model] ? l.model : LEGACY_TYPE[l.model] || 'Sessellift FGQ-4'; d.legacy = null; d.mode = 'auto'; d.a = l.a.slice(); fixLine(d, l.b); }   // a lift from before the catalog
     d.step = 'edit';
     return d;
   }
@@ -1753,7 +1794,7 @@ body.solo .frame { border-radius: 0; }
     if (d.sel) {
       const o = ev.towers.find((t) => t.ref === d.sel);
       if (!o) return `<div class="lstat" style="color:var(--soft)">This tower stands past the top terminal.</div>`;
-      return `<div class="sub ltop"><span>Tower ${o.no}${d.edit ? ` <span style="color:var(--soft);font-weight:600">· ${lenFt(o.x)} up the line</span>` : ''}</span>${stepper(o.h, o.h <= RULE.hMin, o.h >= RULE.hMax)}</div>
+      return `<div class="sub ltop"><span>Tower ${o.no}${d.edit ? ` <span style="color:var(--soft);font-weight:600">· ${lenFt(o.x)} up the line</span>` : ''}</span>${stepper(o.h, o.h <= RULE.hMin, o.h >= towerMax(d))}</div>
         <div class="lstat ${o.head.ok ? 'ok' : RULE.strict ? 'bad' : 'warnc'}" title="TW-04: the head follows what the rope does; kit ${o.head.code}">${o.head.ok ? `✓ ${headWord(o.head)}` : `✕ ${esc(o.head.why)}`}</div>${loadGauge(o)}
         <div class="lkeys"><span>${kb('←', '→')} slide ${lenFt(5)}, Shift ${lenFt(50)}</span><span>${kb('Page Up', 'Page Down')} height</span><span>${kb('Tab')} next</span><span>${kb('Delete')} removes it</span></div>`;
     }
@@ -1766,10 +1807,10 @@ body.solo .frame { border-radius: 0; }
       status = `<dl class="kv ltw">${row('Status', chk.ok ? '<b style="color:var(--pos)">OK</b>' : `<b style="color:var(--neg)">${esc(chk.why)}</b>`, chk.ok ? 'TW-13' : chk.rule)}
         ${me ? (() => { const hh = me.head.pending ? headFor(me.L, me.B) : me.head, pc = (v) => Math.round(Math.abs(v) / hh.n / RULE.sheaveMax * 100); return row('Head and load', `${HEADS[hh.code][0]}${me.head.pending ? ' for now' : ''} · ${pc(me.L[0])}% empty · ${pc(me.L[1])}% full`, `TW-04, TW-11: kit ${hh.code}`); })() : ''}
         ${behind && behind.min < Infinity ? row('Clearance', `lowest ${lenFt(Math.max(0, Math.floor(behind.min)))} behind it`, 'TW-01') : ''}
-        ${nx ? row('Next tower', nx.here ? `within ${lenFt(nx.here)}, or ${lenFt(nx.tall)} with a ${lenFt(RULE.hMax)} tower` : `none reaches at ${lenFt(d.inH)}; ${lenFt(nx.tall)} with a ${lenFt(RULE.hMax)} tower`, 'TW-13') : ''}</dl>
+        ${nx ? row('Next tower', nx.here ? `within ${lenFt(nx.here)}, or ${lenFt(nx.tall)} with a ${lenFt(towerMax(d))} tower` : `none reaches at ${lenFt(d.inH)}; ${lenFt(nx.tall)} with a ${lenFt(RULE.hMax)} tower`, 'TW-13') : ''}</dl>
         ${nx && nx.holdAhead ? '<div class="lmsg warn" title="TW-06, TW-13">! Hold-downs ahead: the ground steepens within that reach</div>' : ''}`;
     }
-    return `<div class="sub ltop"><span>Tower in hand${chk && chk.me ? ` <span style="color:var(--soft);font-weight:600">(${chk.me.no})</span>` : ''}</span>${stepper(d.inH, d.inH <= RULE.hMin, d.inH >= RULE.hMax)}</div>${status}
+    return `<div class="sub ltop"><span>Tower in hand${chk && chk.me ? ` <span style="color:var(--soft);font-weight:600">(${chk.me.no})</span>` : ''}</span>${stepper(d.inH, d.inH <= RULE.hMin, d.inH >= towerMax(d))}</div>${status}
       ${chk && chk.me ? loadGauge(chk.me) : ''}
       <div class="lkeys"><span>${kb('←', '→')} slide</span><span>${kb('Page Up', 'Page Down')} ±${lenFt(RULE.hStep)}</span><span>${kb('Enter')} place</span><span>${kb('Tab')} select placed</span><span>${kb('Delete')} remove</span></div>`;
   }
@@ -1792,7 +1833,7 @@ body.solo .frame { border-radius: 0; }
     const T = LIFT_TYPES[d.type], slope = Math.hypot(d.len, ev.zt - ev.zb), rise = ev.zt - ev.zb, hs = ev.towers.map((o) => o.h);
     const counts = {}; for (const o of ev.towers) { const k = HEADS[o.head.code][0].toLowerCase(); counts[k] = (counts[k] || 0) + 1; }
     const kv = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`;
-    return `<dl class="kv" style="padding-top:6px">${kv('Length', `<b>${lenFt(slope)}</b> slope · ${lenFt(d.len)} across`, 'LF-06')}${kv('Rise', `<b>${lenFt(rise)}</b> · ${Math.round(rise / d.len * 100)}%`)}${kv('Ride', `${fmtTime(slope / RULE.fpm * 60)} at ${speedTxt(RULE.fpm / 196.85)}`, 'LC-04: slope length over 450 ft/min')}${brief ? '' : kv('Capacity', `<b>${liftCap(T).toLocaleString('en-US')}</b> an hour`, 'LC-03')}
+    return `<dl class="kv" style="padding-top:6px">${kv('Length', `<b>${lenFt(slope)}</b> slope · ${lenFt(d.len)} across`, 'LF-06')}${kv('Rise', `<b>${lenFt(rise)}</b> · ${Math.round(rise / d.len * 100)}%`)}${kv('Ride', `${fmtTime(slope / LIFT_TYPES[d.type].fpm * 60)} at ${speedTxt(LIFT_TYPES[d.type].fpm / 196.85)}`, 'LC-04: slope length over 450 ft/min')}${brief ? '' : kv('Capacity', `<b>${liftCap(T).toLocaleString('en-US')}</b> an hour`, 'LC-03')}
         ${kv('Towers', ev.towers.length ? `<b>${ev.towers.length}</b> · ${Math.min(...hs) === Math.max(...hs) ? `all ${lenFt(hs[0])}` : `${lenFt(Math.min(...hs))}–${lenFt(Math.max(...hs))}`}` : dash, 'TW-02: 25–100 ft in 5 ft steps')}${ev.towers.length ? kv('Heads', Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(' · '), 'TW-04') : ''}
         ${kv('Lowest chairs', ev.lowest ? `<b style="color:${ev.lowest.min < RULE.clear ? 'var(--neg)' : ''}">${lenFt(Math.max(0, Math.floor(ev.lowest.min)))}</b> over the ground` : dash, 'TW-01: 15 ft at least, outside the load and unload zones')}
         ${kv('Rise allowed', (() => { const [fam, mx] = riseFamily(d); return mx === Infinity ? `no limit (${fam})` : `<b>${lenFt(mx)}</b> for a ${fam}`; })(), 'Owner, 2026-10-19: by carrier size, fixed or detachable')}${net ? netRow() : ''}</dl>`;
@@ -1856,10 +1897,12 @@ body.solo .frame { border-radius: 0; }
       : `<span class="plate">${d.n}</span>New lift <span class="nm">${esc(d.name)}</span>${d.armCancel ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard it? ✕ again</span>' : ''}`;
     return panelShell(head, `
       <div style="padding:8px 0 4px">
-        <div class="lrow"><span>Type</span>${seg('ltype', d.type, Object.keys(LIFT_TYPES).map((k) => [k, k]), d.edit ? 'SetLiftType: in Automatic the towers re-place for the new type' : 'LF-01, LC-02: both fixed-grip quads share these values for now')}</div>
+        <div class="lrow"><span>Type</span><div class="ldd"><span class="ddb${S.lkMenu ? ' on' : ''}" data-act="lkmenu" title="${d.edit ? 'SetLiftType: in Automatic the towers re-place for the new type' : 'The kind of lift (owner, 2026-10-19)'}">${LIFT_KINDS.find((k) => k[0] === T.kind)[1]}<span class="car">▾</span></span>${S.lkMenu ? `<div class="amenu">${LIFT_KINDS.map(([k, l]) => `<div class="mi" data-act="lkind" data-v="${k}"><span class="tick">${k === T.kind ? '✓' : ''}</span>${l}</div>`).join('')}</div>` : ''}</div></div>
+        <div class="lrow"><span>${T.kind === 'gondola' || T.kind === 'tram' ? 'Cabin' : 'Chair'}</span>${seg('lcarrier', carrierKey(d.type), LIFT_KINDS.find((k) => k[0] === T.kind)[2], 'The carrier size: smaller carriers climb further')}</div>
+        ${T.family === 'fixed4' ? `<div class="lrow"><span>Model</span>${seg('ltype', d.type, [['Sessellift FGQ-4', 'Sessellift FGQ-4'], ['Monta FG4', 'Monta FG4']], 'LC-02: both models share these values for now')}</div>` : ''}
         <div class="lrow"><span>Towers</span>${seg('lmode', d.mode, [['auto', d.armAuto ? 'Again: re-place' : 'Automatic'], ['hand', 'By hand']], d.edit ? 'LF-01: to By hand keeps the towers; to Automatic re-places them, asking first if you placed any' : 'LF-01, TW-12: automatic towers, or yours; it can change until you break ground')}</div>
         <div class="lrow"><span>Stand</span>${seg('lstand', d.stance, [['plumb', 'Plumb'], ['leaned', 'Leaned']], 'TW-14: plumb, or leaned square to the rope (15° at most)')}</div>
-        <div class="lnote" title="LC-02, LC-03: capacity is shown, not chosen"><b>${liftCap(T).toLocaleString('en-US')}</b> an hour · ${speedTxt(RULE.fpm / 196.85)} · chairs ${lenFt(T.spacing)} apart</div>
+        <div class="lnote" title="LC-02, LC-03: capacity is shown, not chosen"><b>${liftCap(T).toLocaleString('en-US')}</b> an hour · ${speedTxt(T.fpm / 196.85)} · ${T.kind === 'tram' ? 'two cabins' : `${T.kind === 'gondola' ? 'cabins' : 'chairs'} ${lenFt(T.spacing)} apart`}${T.family === 'fixed4' ? '' : '<br>drawn with the quad\'s model until its own exists'}</div>
       </div><div class="rule"></div><div id="liftctx">${liftCtx()}</div>`, 344, 'toolwin');
   }
   // Redraw only what the pointer changes: the mountain, the strip and the menu's lower part.
@@ -1889,6 +1932,9 @@ body.solo .frame { border-radius: 0; }
     const autoAgain = () => { if (d.g && d.mode === 'auto' && !hasHandTowers(d)) { placeAuto(d); toReview(); } };
     switch (a) {
       case 'ltype': if (v !== d.type || d.legacy) { editSnap(d); d.type = v; d.legacy = null; autoAgain(); } break;
+      case 'lkmenu': S.lkMenu = !S.lkMenu; break;
+      case 'lkind': S.lkMenu = false; if (LIFT_TYPES[d.type].kind !== v) { editSnap(d); d.type = KIND_DEFAULT[v]; d.legacy = null; autoAgain(); } break;
+      case 'lcarrier': { const t = v === 'fixed4' ? (LIFT_TYPES[d.type].family === 'fixed4' ? d.type : 'Sessellift FGQ-4') : v; if (t !== d.type) { editSnap(d); d.type = t; d.legacy = null; autoAgain(); } break; }
       case 'lstand': if (v !== d.stance) { editSnap(d); d.stance = v; S.liftStance = v; } break;
       case 'lscale': S.liftTrue = v === 'true'; break;
       case 'ldrop': d.towers = towersOn(d); d.dropAsk = 0; break;   // part of the terminal's move, not a step of its own
@@ -1902,7 +1948,7 @@ body.solo .frame { border-radius: 0; }
       case 'lstep': if (d.g) d.step = v; d.sel = null; break;
       case 'lfill': { const on = towersOn(d), from = on.length ? Math.max(...on.map((t) => t.x)) : 0; if (placeAuto(d, from, on)) d.step = 'review'; break; }
       case 'lreplace': if (hasHandTowers(d) && !d.armReplace) { d.armReplace = true; break; } d.armReplace = false; editSnap(d); placeAuto(d); break;
-      case 'lh': if (d.sel) { editSnap(d); d.sel.h = Math.max(RULE.hMin, Math.min(RULE.hMax, d.sel.h + (+v))); d.sel.hand = true; } else d.inH = Math.max(RULE.hMin, Math.min(RULE.hMax, d.inH + (+v))); d.hand = d.hand && d.hand.key ? handAtX(d, d.hand.x) : handAt(d, mouse); break;
+      case 'lh': if (d.sel) { editSnap(d); d.sel.h = Math.max(RULE.hMin, Math.min(towerMax(d), d.sel.h + (+v))); d.sel.hand = true; } else d.inH = Math.max(RULE.hMin, Math.min(towerMax(d), d.inH + (+v))); d.hand = d.hand && d.hand.key ? handAtX(d, d.hand.x) : handAt(d, mouse); break;
       case 'ldel': if (d.sel) { editSnap(d); d.towers = d.towers.filter((t) => t !== d.sel); d.sel = null; d.hand = handAt(d, mouse); } break;
       case 'llevel': if (d.selT) { const k = d.selT === 'a' ? 'lvA' : 'lvB', to = Math.max(-RULE.site, Math.min(30, (d[k] || 0) + (+v))); if (to !== d[k]) { editSnap(d); d[k] = to; autoAgain(); } } break;   // Automatic re-places for the new level
       case 'lundo': editUndo(d); break;
@@ -2369,7 +2415,7 @@ body.solo .frame { border-radius: 0; }
     const cols = lifts ? 'grid-template-columns:1.6fr 1.1fr 0.8fr 0.8fr 0.7fr 0.55fr 0.8fr' : 'grid-template-columns:1.6fr 0.85fr 0.85fr 0.95fr 0.8fr';
     const rowCls = (r) => `r arow${S.focus === r.id ? ' on' : ''}${S.rowHover === r.id ? ' hv' : ''}`;
     const rows = recs.map((r) => (lifts
-      ? `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm"><span class="plate${r.o.built ? ' built' : ''}" style="font-size:10px">${r.o.n}</span>${esc(r.name)}</span><span class="nm">${esc(r.o.model)}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span class="n">${r.cap.toLocaleString('en-US')}</span><span class="n" style="color:${r.wait > 8 ? 'var(--warn)' : ''}">${r.wait !== null ? r.wait.toFixed(1) : '—'}</span>${lamp(r.status)}</div>`
+      ? `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm"><span class="plate${r.o.built ? ' built' : ''}" style="font-size:10px">${r.o.n}</span>${esc(r.name)}</span><span class="nm">${esc(liftTypeName(r.o.model))}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span class="n">${r.cap.toLocaleString('en-US')}</span><span class="n" style="color:${r.wait > 8 ? 'var(--warn)' : ''}">${r.wait !== null ? r.wait.toFixed(1) : '—'}</span>${lamp(r.status)}</div>`
       : `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm">${RATING[r.rating]}${esc(r.name)}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span>${r.surface}</span>${lamp(r.status)}</div>`)).join('');
     const head = lifts ? `<div class="r th" style="${cols}">${hc('Lift')}${hc('Model')}${hc('Length', 'len', 'len', true)}${hc('Vertical', 'vert', 'vert', true)}<span class="n">An hour</span><span class="n">Wait</span>${hc('Status', 'status', null, true)}</div>`
       : `<div class="r th" style="${cols}">${hc('Trail', 'rating')}${hc('Length', 'len', 'len', true)}${hc('Vertical', 'vert', 'vert', true)}<span>Surface</span>${hc('Status', 'status', null, true)}</div>`;
@@ -2386,7 +2432,7 @@ body.solo .frame { border-radius: 0; }
     if (l) {
       const r = liftRec(l, open), st = STATUS_LAMP[r.status];
       return `<div class="pn fcard"><div class="hd"><span class="plate${l.built ? ' built' : ''}">${l.n}</span>${esc(l.name)}<span class="nm">${lampHtml(st[1])} ${st[0]}</span><span class="x" data-act="fclose" title="Close (Esc)">✕</span></div>
-        <dl class="kv">${kv('Type', esc(l.model))}${kv('Capacity', `<b>${r.cap.toLocaleString('en-US')}</b> an hour`)}${kv('Length', `<b>${lenFt(r.len)}</b>`)}${kv('Vertical', `<b>${lenFt(r.vert)}</b>`)}${kv('Ride', fmtTime(r.ride))}${l.towers ? kv('Towers', l.towers.length) : ''}${kv('Wait now', r.wait !== null ? `${r.wait.toFixed(1)} min` : '—')}</dl>
+        <dl class="kv">${kv('Type', esc(liftTypeName(l.model)))}${kv('Capacity', `<b>${r.cap.toLocaleString('en-US')}</b> an hour`)}${kv('Length', `<b>${lenFt(r.len)}</b>`)}${kv('Vertical', `<b>${lenFt(r.vert)}</b>`)}${kv('Ride', fmtTime(r.ride))}${l.towers ? kv('Towers', l.towers.length) : ''}${kv('Wait now', r.wait !== null ? `${r.wait.toFixed(1)} min` : '—')}</dl>
         <div class="acts" style="grid-template-columns:1fr 1fr"><div class="ghost" data-act="fedit" data-v="lift">Edit</div><div class="ghost" data-act="fremove" data-v="lift">Remove</div></div></div>`;
     }
     const r = trailRec(t, open, S.trails.indexOf(t)), st = STATUS_LAMP[r.status];
@@ -3086,6 +3132,7 @@ body.solo .frame { border-radius: 0; }
   }
   function act(a, v, e) {
     if (a !== 'amenu' && a !== 'afchk' && a !== 'afclr') S.afMenu = null;
+    if (a !== 'lkmenu') S.lkMenu = false;
     switch (a) {
       case 'toolbox': S.toolbox = !S.toolbox; S.analysis = false; if (!S.toolbox) { S.tool = null; S.draft = null; S.sel = null; } break;
       case 'analysis': S.analysis = !S.analysis; if (S.analysis) { S.toolbox = false; S.tool = null; S.draft = null; S.sel = null; } break;
@@ -3105,7 +3152,7 @@ body.solo .frame { border-radius: 0; }
         break; }
       case 'close': if (S.draft && S.draft.kind === 'trail' && S.draft.strokes.length && S.set.confirmRemove === 'on' && !S.draft.armCancel) { S.draft.armCancel = true; break; }
         if (S.draft && S.draft.kind === 'lift' && S.draft.a && (!S.draft.edit || S.draft.hist.length) && S.set.confirmRemove === 'on' && !S.draft.armCancel) { S.draft.armCancel = true; break; } closeTool(); return;
-      case 'ltype': case 'lcap': case 'lmode': case 'lstand': case 'lscale': case 'lstep': case 'lfill': case 'lreplace': case 'lh': case 'ldel': case 'ldrop': case 'lkeep': case 'llevel': case 'lundo': case 'lapply': case 'lcancel': liftAct(a, v); return;
+      case 'lkmenu': case 'lkind': case 'lcarrier': case 'ltype': case 'lcap': case 'lmode': case 'lstand': case 'lscale': case 'lstep': case 'lfill': case 'lreplace': case 'lh': case 'ldel': case 'ldrop': case 'lkeep': case 'llevel': case 'lundo': case 'lapply': case 'lcancel': liftAct(a, v); return;
       case 'model': S.draft.model = v; break;
       case 'diff': S.draft.diff = v; break;
       case 'build': commit(false); return;
@@ -3564,6 +3611,11 @@ body.solo .frame { border-radius: 0; }
       if (d.includes('phpostcard')) S.ph.grade = 'Postcard';
       if (d.includes('phhidden')) S.ph.hidden = true;
     }   // with an info layer on, the pointer sits on the face so the readout says something
+  }
+  // demo flags for the lift type: ltype<key> (ltypedetach6, ltypegond8, ltypetram100…) and lkmenu (the Type dropdown open)
+  if (demo) {
+    for (const x of demo.split(',')) { const m = x.match(/^ltype([a-z0-9]+)$/); if (m && S.draft && S.draft.kind === 'lift' && LIFT_TYPES[m[1]]) { S.draft.type = m[1]; if (S.draft.g && S.draft.mode === 'auto') placeAuto(S.draft); } }
+    if (demo.split(',').includes('lkmenu')) S.lkMenu = true;
   }
   render();
   requestAnimationFrame(tick);
