@@ -106,10 +106,22 @@ namespace MountainPlanner.Tests
                 Assert.That(lift.CurrentStep, Is.EqualTo(2), $"the top terminal fixed the line ({lift.Problem}); " + Where(viewer, cam, topScreen, top, bottom));
                 yield return Press(Key.Enter);
                 Assert.That(lift.CurrentStep, Is.EqualTo(3), "Enter: the review");
-                Assert.That(hud.Q<Button>("review-go").enabledSelf, Is.True);
+                // Task 09: the review waits for the lift's build (the ground's edit session starting, then LiftBuild off the
+                // main thread); a blocking problem keeps Break ground off, so the test's line must be buildable.
+                for (float until = Time.realtimeSinceStartup + 60; Time.realtimeSinceStartup < until && lift.Built == null;)
+                {
+                    if (lift.CurrentStep == 3 && !lift.Building && lift.Built == null) { yield return Press(Key.Escape); yield return Press(Key.Enter); }
+                    yield return null;
+                }
+                Assert.That(lift.Built, Is.Not.Null, "the lift was built for the review");
+                Assert.That(hud.Q<Button>("review-go").enabledSelf, Is.EqualTo(lift.Built.Ok), string.Join("; ", lift.Built.Problems));
+                if (!lift.Built.Ok) Assert.Inconclusive("the picked line is red: " + string.Join("; ", lift.Built.Problems));
                 AssertShownOnScreen(hud, "review-go");
                 yield return Chord(Key.LeftCtrl, Key.Enter);
                 Assert.That(viewer.Design.Document.Lifts.Count, Is.EqualTo(1), "Ctrl+Enter broke ground");
+                var placed = viewer.Design.Document.Lifts[0];
+                Assert.That(placed.Towers.Count, Is.GreaterThan(0), "TW-12's towers came with it");
+                Assert.That(placed.Levels, Is.Not.Null, "and its terminal levels (SK14)");
                 Assert.That(lift.CurrentStep, Is.EqualTo(0), "ready for the next lift");
 
                 // Switching away mid-draw cancels at once and puts everything back (CF-01).

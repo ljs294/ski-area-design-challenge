@@ -450,3 +450,4 @@ The owner answered revision 1's eight questions, then asked for an adversarial r
 | LT16 | **Every lift-menu choice is a dropdown;** Towers is one quiet line (Automatic ▾ · Plumb ▾) |
 | LT17 | **Keys after TL19:** `,` and `.` slide a tower 5 ft (Shift 50 ft); Page Up / Page Down change a tower's height or a terminal's level only while one is claimed (selected or in hand); otherwise the camera has them. Toolbox Edit is M |
 | LT18 | **The changes amend PR #91** (Q15). The mockup's 400 ft cap on a station's exempt zone is its own engine's fix: ours already ends the low zone 100 ft from the bullwheel (TW-01 v2). Ride times round to the second |
+| LT19 | **Placing a terminal like a plopped building** (owner, 2026-10-19): the terminal's own model follows the pointer while it's placed (bottom and top), and Page Up / Page Down raise or lower its level (SK14's stored level) before the click, as in Cities: Skylines |

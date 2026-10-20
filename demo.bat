@@ -200,6 +200,10 @@ echo     65s The same in summer: the snow off, a mid-July sun, a mown bench and 
 echo     65c The style tile's captures: the benchmark and close views, summer and winter, day and night (render lane).
 echo     65b The benchmark with the style tile shown (High and Medium), compared with the baselines (measure lane).
 echo.
+echo   Phase 3, task 09: lifts (rebuilds the game; on the desktop)
+echo     68 Place a chairlift in the game: Toolbox, Lifts, New; bottom then top terminal, Enter, and Break ground
+echo        builds it with automatic towers, rope and moving chairs. -extramonta check lifts are in 65's notes.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -282,6 +286,7 @@ if /i "%CHOICE%"=="62" goto savefile
 if /i "%CHOICE%"=="63" goto terrainedits
 if /i "%CHOICE%"=="63b" goto editbench
 if /i "%CHOICE%"=="64" goto toolbox
+if /i "%CHOICE%"=="68" goto lifts
 if /i "%CHOICE%"=="65" goto styletile
 if /i "%CHOICE%"=="65s" goto styletilesummer
 if /i "%CHOICE%"=="65c" goto styletilecaptures
@@ -749,6 +754,21 @@ echo then U for "- - - m"; P for photo mode, Tab, then the arrows move in the ba
 echo the keys back, and Esc again leaves photo mode.
 "%GAME%" <nul
 goto done
+
+:lifts
+rem Task P3-09: placing a chairlift. Always rebuilt, so the lift tool on this branch is the one you try.
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open an area, then T for the Toolbox, the Lifts tab, N for New lift:
+echo   1 Click where the bottom terminal sits (green where it can), 2 click higher up for the top terminal.
+echo   3 Pick Sessellift FGQ-4 or Monta FG4 (the Monta drives at the bottom), Plumb or Leaned; Enter for the review.
+echo   4 The review fills in after a moment: towers, the lowest chairs, the rise allowed, and any amber warnings.
+echo   5 Break ground (Ctrl+Enter): the lift is built with its towers, pads, trench and clearing; the chairs run.
+echo   Ctrl+Z (no tool armed) takes it back with its clearing. Towers by hand, the terminal ghost with Page Up/Down
+echo   levels, Edit and Remove come next in task 09.
+start "" "%GAME%"
+goto menu
 
 :styletile
 rem Task P3-07: the style tile by command (-styletile): the trail graded and cleared, the lift with its towers, rope and chairs.

@@ -1,3 +1,4 @@
+using System;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Persistence.Saves;
 using MountainPlanner.Presentation;
@@ -52,7 +53,24 @@ namespace MountainPlanner.App
             _design = new DesignHistory(DesignDocument.Empty(DesignSeed(_resort.Manifest.PackageId)));
             _preview = new PendingPreview(_resort.Root.transform, "Tool preview", _resort.Surface, HighlightMaterial);
             FollowDesign();
-            _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core), Hud.OpenWindow);
+            _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core)
+            {
+                // Task 09: lifts build on the edited ground; the edit session starts the first time a tool asks for it.
+                EditedGround = () =>
+                {
+                    if (_edits == null && !_editsStarting && _resort != null)
+                    {
+                        _editsStarting = true;
+                        StartCoroutine(StartEditsWhenReady(Array.Empty<string>(), -1, -1));
+                    }
+                    return _edits?.Pipeline.Heights;
+                },
+                ToGround = p =>
+                {
+                    var a = _resort.Frame.ToAlbers((float)p.XMetres, (float)p.YMetres);
+                    return (a.X, a.Y);
+                },
+            }, Hud.OpenWindow);
             _tools.ActiveChanged += Hud.SetActiveTool;
             _tools.Notice += text => Hud.Toast(text);
             Hud.ToolChosen += id => _tools.Choose(id);

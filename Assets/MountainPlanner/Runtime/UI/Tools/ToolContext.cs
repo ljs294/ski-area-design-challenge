@@ -32,6 +32,15 @@ namespace MountainPlanner.UI.Tools
         /// </summary>
         public Domain.Edits.TerrainEdits PendingTerrain { get; set; }
 
+        /// <summary>
+        /// The ground as edited now (task 05's heights in the package's frame), for builds that need the real terrain (task 09's
+        /// lifts); null while the edit session is still starting.
+        /// </summary>
+        public Func<Domain.Edits.EditedHeights> EditedGround { get; set; }
+
+        /// <summary>A design point (site-centred mm, TE5) in <see cref="EditedGround"/>'s frame.</summary>
+        public Func<PointMm, (double X, double Y)> ToGround { get; set; }
+
         /// <summary>A one-line notice in the HUD's toasts ("New trail discarded").</summary>
         public Action<string> Notice { get; set; }
 

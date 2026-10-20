@@ -44,6 +44,10 @@ namespace MountainPlanner.UI.Tools
         System.Action<int> _setType, _setMode, _setStance;
         int _hintKey = int.MinValue;
         string _problem;
+        // Task 09: the lift as Break ground would build it (LiftBuild: towers, levels, earthwork, clearing), or null while it's
+        // being worked out (off the main thread, CF-02) or the ground isn't ready.
+        LiftBuild.Result _built;
+        bool _building;
 
         public string Id => ToolId;
         public string Name => "New lift";
@@ -112,6 +116,7 @@ namespace MountainPlanner.UI.Tools
                     w.SetHint(null);
                     w.SetKeys();   // Break ground shows its own key
                     w.SetNext(false, false);
+                    StartBuild();
                     BuildReview();
                     w.ShowReview(_review);
                     break;
@@ -235,6 +240,38 @@ namespace MountainPlanner.UI.Tools
             }
         }
 
+        /// <summary>
+        /// Task 09: the lift built by the one build path (TW-12's towers, TW-16 v3's ends, the pads, trench and clearing, LF-12,
+        /// GR-11 v2, CL-03/CL-09) on the edited ground, off the main thread; the review fills in when it's done. Towers by hand
+        /// come with the lift menu's port (PR B); until then both modes place them automatically.
+        /// </summary>
+        void StartBuild()
+        {
+            _built = null;
+            _ctx.PendingTerrain = null;
+            var ground = _ctx.EditedGround?.Invoke();
+            if (ground == null || _ctx.ToGround == null)
+            {
+                _building = false;
+                _ctx.Window.SetMessage("Getting the ground ready: open Review again in a moment");
+                return;
+            }
+            _building = true;
+            var b = _ctx.ToGround(_bottom);
+            var t = _ctx.ToGround(_top);
+            var type = LiftType.Of(TypeIds[_type]);
+            var stance = _stance;
+            _ctx.Analyse(() => LiftBuild.Build(type, ground, b.X, b.Y, t.X, t.Y, stance), result =>
+            {
+                _building = false;
+                if (_step != Step.Review) return;
+                _built = result;
+                _ctx.PendingTerrain = result.Edits;
+                BuildReview();
+                _ctx.Window.ShowReview(_review);
+            });
+        }
+
         void BuildReview()
         {
             float run = Vector2.Distance(_bottomXz, _topXz), rise = _topZ - _bottomZ;
@@ -244,11 +281,18 @@ namespace MountainPlanner.UI.Tools
                 .Add("Rise", $"{ToolFormat.Length(rise)} · {ToolFormat.Grade(rise, run)}")
                 .Add("Ride", $"{ToolFormat.Duration(slope / FpmToMetresPerSecond(RopeFpm))} at {RopeFpm:0} ft/min", "LC-04: slope length over 450 ft/min")
                 .Add("Capacity", $"{CapacityPerHour:#,0} an hour", "LC-03")
-                .Reserved("Towers", "TW-02, TW-12: the lift task places them", "towers")
-                .Reserved("Lowest chairs", "TW-01: 15 ft at least", "clearance")
-                .Reserved("Tension", "RP-06", "tension")
-                .Reserved("Network", "NW-12: No way down (task 10)", ReviewModel.NetworkSlot)
-                .Ready(true, true);
+                .Reserved("Network", "NW-12: No way down (task 10)", ReviewModel.NetworkSlot);
+            if (_built == null)
+            {
+                _review.Add("Towers", _building ? "placing…" : "—", "TW-12").Ready(false, true);
+                return;
+            }
+            var rope = _built.Rope;
+            _review.Add("Towers", $"{_built.Towers.Count} towers", "TW-02, TW-12")
+                .Add("Lowest chairs", $"{ToolFormat.Length(rope.LowestClearance)} over the ground", "TW-01: 15 ft at least")
+                .Add("Rise allowed", $"{ToolFormat.Length(rope.RiseMetres)} of {(double.IsInfinity(rope.Type.RiseLimitMetres) ? "no limit" : ToolFormat.Length(rope.Type.RiseLimitMetres))}", "LC-07");
+            foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
+            _review.Ready(_built.Ok, true);
         }
 
         // ft/min to metres a second.
@@ -268,11 +312,16 @@ namespace MountainPlanner.UI.Tools
         public DesignCommand Commit(WorkStage stage, long baseRevision)
         {
             if (_step != Step.Review) return null;
-            return new AddLift(baseRevision, _name, TypeIds[_type], _bottom, _top, _mode, _stance, null, stage);
+            // Break ground carries the built lift's towers and levels (TW-15, SK14); a plan carries the line only (CF-06).
+            if (stage == WorkStage.Built && _built == null) return null;
+            return stage == WorkStage.Built
+                ? new AddLift(baseRevision, _name, TypeIds[_type], _bottom, _top, _mode, _stance, _built.Towers, stage, _built.Levels)
+                : new AddLift(baseRevision, _name, TypeIds[_type], _bottom, _top, _mode, _stance, null, stage);
         }
 
         public void Committed(CommandResult result)
         {
+            _built = null;
             _ctx.Notice?.Invoke(_name + (result.Document.FindLift(new LiftId(result.Created[0]))?.Stage == WorkStage.Plan ? ": saved as a plan" : ": ground broken"));
             _name = NextName(result.Document);
             _ctx.Window.SetName(_name);
@@ -289,5 +338,7 @@ namespace MountainPlanner.UI.Tools
         public int TowerFeet => _towerFeet;
         public int CurrentStep => (int)_step;
         public string Problem => _problem;
+        public LiftBuild.Result Built => _built;
+        public bool Building => _building;
     }
 }
