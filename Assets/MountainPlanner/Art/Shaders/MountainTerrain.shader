@@ -123,6 +123,59 @@ Shader "MountainPlanner/Terrain"
             return SAMPLE_TEXTURE2D_LOD(_TrailMap, sampler_TrailMap, uv, 0);
         }
 
+        // The trail being painted (task 08, TF-02; owner 2026-10-19: paint like a brush; 2026-10-20: make it elegant): the
+        // lattice's own 1 m cells (TrailPaintMap), r painted and g a patch apart, filtered so the coverage is smooth, then
+        // drawn as a light fill with a crisp line where the coverage crosses half (the paint's edge), a few pixels wide at
+        // any zoom. _PaintParams.x = 0 when nothing's painted, y the style: 0 A (light orange, darker edge), 1 B (white-blue
+        // highlight, blue edge), 2 C (the live difficulty's colour, _PaintTint). A patch apart is red in every style.
+        // _PaintCursor: the brush under the pointer (x, z, radius, w 1 painting, 2 rubbing out, 0 hidden).
+        TEXTURE2D(_PaintMap); SAMPLER(sampler_PaintMap);
+        float4 _PaintRect;           // west, south, 1 / width, 1 / depth (world metres, texel corners)
+        float4 _PaintParams;
+        float4 _PaintCursor;
+        float4 _PaintTint;
+
+        float3 ApplyPaint(float3 colour, float2 xz)
+        {
+            UNITY_BRANCH
+            if (_PaintParams.x > 0.5)
+            {
+                float2 uv = (xz - _PaintRect.xy) * _PaintRect.zw;
+                if (all(uv > 0) && all(uv < 1))
+                {
+                    float2 paint = SAMPLE_TEXTURE2D_LOD(_PaintMap, sampler_PaintMap, uv, 0).rg;
+                    float cover = saturate(paint.r + paint.g);
+                    float w = clamp(fwidth(cover), 1e-4, 0.25);
+                    float inside = smoothstep(0.5 - w, 0.5 + w, cover);
+                    float edge = saturate(1 - abs(cover - 0.5) / (1.5 * w));
+                    float apart = saturate(paint.g / max(cover, 1e-3));
+                    float3 fill, edgeInk;
+                    float alpha;
+                    // Snow is near white, so a fill needs colour and weight to read on it (linear space).
+                    if (_PaintParams.y < 0.5) { fill = float3(0.92, 0.50, 0.18); edgeInk = float3(0.66, 0.24, 0.04); alpha = 0.42; }
+                    else if (_PaintParams.y < 1.5) { fill = float3(0.42, 0.66, 1.00); edgeInk = float3(0.10, 0.38, 0.88); alpha = 0.40; }
+                    else { fill = _PaintTint.rgb; edgeInk = _PaintTint.rgb * 0.7; alpha = 0.45; }
+                    fill = lerp(fill, float3(0.86, 0.16, 0.10), apart);
+                    edgeInk = lerp(edgeInk, float3(0.70, 0.08, 0.05), apart);
+                    colour = lerp(colour, fill, alpha * inside);
+                    colour = lerp(colour, edgeInk, 0.9 * edge);
+                }
+            }
+            UNITY_BRANCH
+            if (_PaintCursor.w > 0.5)
+            {
+                // A soft disc in a crisp dark ring (red to rub out), about two pixels wide whatever the zoom.
+                float d = distance(xz, _PaintCursor.xy), r = _PaintCursor.z;
+                float px = max(fwidth(d), 1e-3);
+                float ring = saturate(1.5 - abs(d - r) / px);
+                float disc = 1 - smoothstep(r - px, r + px, d);
+                float3 ink = _PaintCursor.w > 1.5 ? float3(0.80, 0.12, 0.08) : float3(0.12, 0.13, 0.16);
+                colour = lerp(colour, ink, 0.10 * disc);
+                colour = lerp(colour, ink, 0.80 * ring);
+            }
+            return colour;
+        }
+
         // The offset across the trail (m) at full float precision (task 07, finding #11): half floats and hardware
         // bilinear weights can't place 1 in corduroy ridges 100 ft from the centreline, so it has its own RFloat map,
         // filtered here by hand. Texel centres sit on the 1 m lattice points, as in _TrailMap.
@@ -407,16 +460,22 @@ Shader "MountainPlanner/Terrain"
             // The ground's rise per metre east (x) and north (y), from the tile's heightmap by central differences two
             // samples either side (4 m across in the core, 8 m in the ring): the slope a skier feels, without the
             // 1 m lidar's ruts and ditches, the same at any distance whatever the mesh's LOD.
+            // The slope over two samples either side, divided by the span actually sampled: at a tile's edge the clamped
+            // sampler can't reach past it, and dividing by the full 4 samples there halved the slope, a light or dark
+            // stripe along every tile edge (the review, 2026-10-20).
             float2 HeightGradient(float2 uv)
             {
                 float res = max(_HeightmapParams.x, 2);
                 float2 huv = (uv * (res - 1) + 0.5) / res;
-                float t = 2 / res;
-                float east = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(t, 0), 0).r;
-                float west = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(t, 0), 0).r;
-                float north = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(0, t), 0).r;
-                float south = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(0, t), 0).r;
-                return float2(east - west, north - south) * _HeightmapParams.y / max(4 * _HeightmapParams.z, 1e-3);
+                float t = 2 / res, lo = 0.5 / res, hi = 1 - 0.5 / res;
+                float2 e1 = float2(min(huv.x + t, hi), huv.y), w1 = float2(max(huv.x - t, lo), huv.y);
+                float2 n1 = float2(huv.x, min(huv.y + t, hi)), s1 = float2(huv.x, max(huv.y - t, lo));
+                float east = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, e1, 0).r;
+                float west = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, w1, 0).r;
+                float north = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, n1, 0).r;
+                float south = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, s1, 0).r;
+                float2 span = max(float2(e1.x - w1.x, n1.y - s1.y) * res, 1e-3) * max(_HeightmapParams.z, 1e-3);
+                return float2(east - west, north - south) * _HeightmapParams.y / span;
             }
 
             // Fine creases (beauty pass, item 2): how far the ground sits below its neighbours 3 samples away (3 m in
@@ -454,16 +513,17 @@ Shader "MountainPlanner/Terrain"
                 float groomed = onTrail * (1 - smoothstep(0.55, 0.85, trail.a));
                 // The faces' crests and toes (finding #12): the 1 m heightmap stair-steps a crease running across its grid,
                 // so on earthwork the shading takes the slope over 4 m instead, which follows the crease, not the steps.
-                [branch] if (earth > 0.01)
+                // The whole trail too (owner's report 2026-10-19, TL22: graded ground looked steppy): the heightmap holds
+                // heights in steps of about 4 cm (15 bits of the tile's height range), which rough lidar hides and a smooth
+                // bench shows as bands along the contours.
+                // Graded trails only (the review, 2026-10-20: on a natural trail the smoothing drew the paint's outline over
+                // untouched lidar); channel b says how far a graded trail covers the point.
+                float smoothShade = max(earth, saturate(trail.b));
+                [branch] if (smoothShade > 0.01)
                 {
-                    float res = max(_HeightmapParams.x, 2);
-                    float2 huv = (i.uv * (res - 1) + 0.5) / res;
-                    float t2 = 2 / res;
-                    float e = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(t2, 0), 0).r - SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(t2, 0), 0).r;
-                    float no = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(0, t2), 0).r - SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(0, t2), 0).r;
-                    float2 g = float2(e, no) * _HeightmapParams.y / max(4 * _HeightmapParams.z, 1e-3);
+                    float2 g = HeightGradient(i.uv);
                     float3 wide = normalize(float3(-g.x, 1, -g.y));
-                    n = normalize(lerp(n, wide, 0.85 * earth));
+                    n = normalize(lerp(n, wide, 0.85 * smoothShade));
                 }
                 {
                     float moved = c0.a * earth;
@@ -500,7 +560,7 @@ Shader "MountainPlanner/Terrain"
                     [unroll] for (int k = 0; k < 8; k++) flat += weights[k] * _OverlayColor[k].rgb;
                     Light sun0 = GetMainLight();
                     float lambert = saturate(dot(n, sun0.direction)) * 0.6 + 0.5;
-                    return half4(ApplyContours(flat * lambert, i.positionWS.y), 1);
+                    return half4(ApplyContours(ApplyPaint(flat, i.positionWS.xz) * lambert, i.positionWS.y), 1);
                 }
 
                 // Info layers (task 12b): slope angle, exposure or snow depth over the ground, lit so the relief reads.
@@ -516,7 +576,7 @@ Shader "MountainPlanner/Terrain"
                         info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopePercent, i.positionCS.xy) : ExposureColour(-rise, slopePercent);
                     }
                     Light sunI = GetMainLight();
-                    float3 shaded = ApplyContours(ShadeInfo(info, n, sunI.direction), i.positionWS.y);
+                    float3 shaded = ApplyContours(ShadeInfo(ApplyPaint(info, i.positionWS.xz), n, sunI.direction), i.positionWS.y);
                     return half4(ApplyHaze(MixFog(shaded, i.fog), i.positionWS), 1);
                 }
 
@@ -653,6 +713,7 @@ Shader "MountainPlanner/Terrain"
                     total += w;
                 }
                 albedo /= total;
+                albedo = ApplyPaint(albedo, i.positionWS.xz);
                 normal = normalize(normal);
                 smooth /= total;
 

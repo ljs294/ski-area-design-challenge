@@ -19,7 +19,7 @@ namespace MountainPlanner.Domain.Design
     /// envelope reaches it; the edge step that remains is reported (<see cref="Result.EdgeStepMetres"/>).
     /// Positions are metres in the edit lattice's frame (x east, y north).
     /// </summary>
-    public static class TrailGrader
+    public static partial class TrailGrader
     {
         public const double StationMetres = 7.62;
         public const double MinBenchMetres = 7.62;
@@ -264,13 +264,14 @@ namespace MountainPlanner.Domain.Design
         }
 
         /// <summary>GR-03: the widest b with b ≤ d − |g(d) − z| / s for some offset d inside the footprint, one outward scan in 0.5 m steps.</summary>
-        static double Side(IHeightSource ground, double cx, double cy, double nx, double ny, double half, double z)
+        static double Side(IHeightSource ground, double cx, double cy, double nx, double ny, double half, double z, double slope = 0)
         {
             double best = 0;
             for (double d = 0.5; ; d += 0.5)
             {
                 double dd = Math.Min(d, half);
-                double b = dd - Math.Abs(ground.At(cx + nx * dd, cy + ny * dd) - z) / FaceSlope;
+                // GR-01 v2: the bench may keep a side slope, rising `slope` per metre out along this side.
+                double b = dd - Math.Abs(ground.At(cx + nx * dd, cy + ny * dd) - (z + slope * dd)) / FaceSlope;
                 if (b > best) best = b;
                 if (dd >= half) break;
             }
@@ -282,42 +283,78 @@ namespace MountainPlanner.Domain.Design
         /// (GR-07) makes its half of the stretch natural.
         /// </summary>
         static double Design(double t, double u, double ground, double edge, double half, double[] along, double[] z, double[] left,
-                             double[] right, bool[] ok, double round)
+                             double[] right, bool[] ok, double round, bool ramp = false, double[] cross = null, int segment = -1,
+                             double headGrade = 0, double tailGrade = 0)
         {
             int count = along.Length;
             int k = 0;
-            int lo = 0, hi = count - 2;
-            while (lo <= hi)   // the last station at or before t
+            if (segment >= 0) k = segment;   // the swept location already knows the stretch (task 08)
+            else
             {
-                int mid = (lo + hi) >> 1;
-                if (along[mid] <= t) { k = mid; lo = mid + 1; } else hi = mid - 1;
+                int lo = 0, hi = count - 2;
+                while (lo <= hi)   // the last station at or before t
+                {
+                    int mid = (lo + hi) >> 1;
+                    if (along[mid] <= t) { k = mid; lo = mid + 1; } else hi = mid - 1;
+                }
             }
             k = Math.Min(k, count - 2);
             double span = along[k + 1] - along[k];
-            double f = span > 0 ? Math.Max(0, Math.Min(1, (t - along[k]) / span)) : 0;
-            double zz, bench;
+            double fRaw = span > 0 ? (t - along[k]) / span : 0;
+            double f = Math.Max(0, Math.Min(1, fRaw));
+            double zz, bench, weight = 1;
             if (!ok[k] || !ok[k + 1])
             {
-                int s = f < 0.5 ? k : k + 1;
-                if (!ok[s]) return ground;
-                zz = z[s];
-                bench = u >= 0 ? left[s] : right[s];
+                if (ramp)
+                {
+                    // GR-05 v3 (owner's report 2026-10-19: steps): between a benched station and one too steep for a bench
+                    // (GR-07), the ground ramps from the bench's section to natural across the whole stretch, the bench's
+                    // elevation following the centreline, instead of holding the benched station's level for half the
+                    // stretch and dropping to natural at once (a flat tread and a riser on every such stretch).
+                    int g = ok[k] ? k : ok[k + 1] ? k + 1 : -1;
+                    if (g < 0) return ground;
+                    weight = g == k ? 1 - f : f;
+                    weight = weight * weight * (3 - 2 * weight);   // eased in and out: no crease where the ramp starts or ends
+                    zz = z[k] + (z[k + 1] - z[k]) * f;
+                    bench = u >= 0 ? left[g] : right[g];
+                }
+                else
+                {
+                    int s = f < 0.5 ? k : k + 1;
+                    if (!ok[s]) return ground;
+                    zz = z[s];
+                    bench = u >= 0 ? left[s] : right[s];
+                }
             }
             else
             {
                 zz = z[k] + (z[k + 1] - z[k]) * f;
                 bench = u >= 0 ? left[k] + (left[k + 1] - left[k]) * f : right[k] + (right[k + 1] - right[k]) * f;
             }
+            // Past the head or the tail the bench carries the end stretch's grade on (the review, 2026-10-20: it ran on
+            // level, a grade break at each end), and the faces and GR-13 bring it to the ground at the paint's edge.
+            if (ramp && k == 0 && fRaw < 0 && ok[0] && ok[1]) zz = z[0] + headGrade * (t - along[0]);
+            else if (ramp && k == count - 2 && fRaw > 1 && ok[k] && ok[k + 1]) zz = z[count - 1] + tailGrade * (t - along[count - 1]);
+            // GR-01 v2: the bench's side slope here (rise per metre toward +u), blended between the stations like the rest.
+            double cs = cross == null ? 0 : cross[k] + (cross[k + 1] - cross[k]) * f;
+            double side = u >= 0 ? cs : -cs;   // the rise per metre outward on this point's side
             // GR-06: the face along this point's own line out from the centreline must meet the ground by the footprint's
             // edge. Between stations, and on curves, the blended bench can overreach; narrow it here (to below zero if it
             // must, which only narrows the 1:1 envelope) so the section reaches the edge on natural ground.
             // With GR-12's rounding the face meets the ground that much sooner, so its toe has room to round inside the
             // footprint (finding #12: an unrounded toe at the edge stair-stepped on the 1 m grid).
-            bench = Math.Min(bench, half - round - Math.Abs(edge - zz) / FaceSlope);
+            bench = Math.Min(bench, half - round - Math.Abs(edge - (zz + side * half)) / FaceSlope);
             // GR-12 v2: the rounding fades out at the footprint's edge, and never takes more than half the bench's width.
             double r = Math.Min(round, Math.Max(0, half - Math.Abs(u)));
-            r = Math.Min(r, Math.Max(0, bench));
-            return Section(u, ground, zz, bench, r);
+            // A narrow bench keeps half the rounding at least, so its section is a rounded trough, never a sharp V (the
+            // review, 2026-10-20); a wide one is unchanged.
+            r = ramp ? Math.Min(r, Math.Max(0.5 * round, bench)) : Math.Min(r, Math.Max(0, bench));
+            // A tilted bench: its height at this offset inside the bench, or at the bench's edge for the face beyond it,
+            // the turn from tilt to face rounded like the face's own crest (the review: else a slope break along the edge).
+            double a = Math.Abs(u), b = Math.Max(0, bench);
+            double zb = zz + side * (ramp && r > 0 ? a - SoftRise(a - b, r) : Math.Min(a, b));
+            double d = Section(u, ground, zb, bench, r);
+            return weight >= 1 ? d : ground + (d - ground) * weight;
         }
 
         /// <summary>

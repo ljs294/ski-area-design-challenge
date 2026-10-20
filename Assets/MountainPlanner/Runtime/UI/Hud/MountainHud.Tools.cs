@@ -26,8 +26,8 @@ namespace MountainPlanner.UI
             "new-trail" => "paint it, then set its head and tail",
             "edit-lift" => "change a lift",
             "remove-lift" => "take a lift out",
-            "edit-trail" => "change a trail",
-            "remove-trail" => "let a trail grow back in",
+            "edit-trail" => "repaint it, move its ends, regrade it",
+            "remove-trail" => "put its ground and trees back",
             _ => "",
         };
 

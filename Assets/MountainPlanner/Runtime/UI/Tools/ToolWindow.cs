@@ -133,12 +133,11 @@ namespace MountainPlanner.UI.Tools
                     if (tray.layout.xMax + 10 + w.width > stage.layout.width - 170) Window.style.top = 66;
                 }
             }
-            // The profile strip (task 09) along the bottom is a floor too where the window is over it.
-            if (_strip != null && _strip.parent == stage && _strip.resolvedStyle.display == DisplayStyle.Flex)
-            {
-                var sl = _strip.layout;
-                if (sl.height > 0 && w.xMax > sl.xMin && w.xMin < sl.xMax) barTop = Mathf.Min(barTop, sl.yMin);
-            }
+            // A strip under the window (the trail profile) is a floor too, where the two overlap across (150% on a small screen).
+            foreach (var strip in _strips)
+                if (strip.parent == stage && strip.resolvedStyle.display == DisplayStyle.Flex && strip.layout.height > 0
+                    && strip.layout.xMin < w.xMax && strip.layout.xMax > w.xMin && strip.layout.yMin > w.yMin)
+                    barTop = Mathf.Min(barTop, strip.layout.yMin);
             float room = Mathf.Max(120, barTop - 10 - w.yMin);
             if (Math.Abs(Window.resolvedStyle.maxHeight.value - room) > 0.5f) Window.style.maxHeight = room;
         }
@@ -169,6 +168,45 @@ namespace MountainPlanner.UI.Tools
 
         /// <summary>The design's name after the title ("Summit Quad").</summary>
         public void SetName(string name) => _name.text = name ?? "";
+
+        readonly List<VisualElement> _strips = new List<VisualElement>();
+
+        /// <summary>
+        /// A strip that rides with the window in the HUD's layer, outside it (task 08's trail profile, TF-04; task 09's lift
+        /// profile, LF-10): added when the window opens, removed when it closes.
+        /// </summary>
+        public void AddStrip(VisualElement strip)
+        {
+            _strips.Add(strip);
+            strip.RegisterCallback<GeometryChangedEvent>(_ => Fit());
+            Window.RegisterCallback<AttachToPanelEvent>(_ => { if (Window.parent != null && strip.parent != Window.parent) Window.parent.Add(strip); });
+            Window.RegisterCallback<DetachFromPanelEvent>(_ => strip.RemoveFromHierarchy());
+            if (Window.parent != null) Window.parent.Add(strip);
+        }
+
+        /// <summary>The main commit button's words (Break ground; task 08's Edit and Remove say Apply or Remove).</summary>
+        public void SetGoLabel(string text) => _goLabel.text = text ?? "Break ground";
+
+        /// <summary>
+        /// A row of plain buttons under the options (task 08's Repaint, Move ends, Rename). Returns the buttons, so a tool
+        /// can grey one out.
+        /// </summary>
+        public Button[] AddButtons(string name, string[] labels, Action<int> clicked, string[] tooltips = null)
+        {
+            var row = Part("toolwin-opt-" + name, "tw-btns");
+            var buttons = new Button[labels.Length];
+            for (int i = 0; i < labels.Length; i++)
+            {
+                int at = i;
+                var b = new Button(() => clicked(at)) { name = $"toolwin-opt-{name}-{i}", text = labels[i] };
+                b.AddToClassList("mp-ghost");
+                if (tooltips != null && i < tooltips.Length) b.tooltip = tooltips[i];
+                buttons[i] = b;
+                row.Add(b);
+            }
+            _opts.Add(row);
+            return buttons;
+        }
 
         /// <summary>"Discard it? ✕ again" while a second Esc or ✕ would throw drawn work away (CF-07).</summary>
         public void SetAsking(string text)
@@ -278,13 +316,12 @@ namespace MountainPlanner.UI.Tools
             if (_strip == null)
             {
                 _strip = new LiftProfileStrip();
-                Window.RegisterCallback<DetachFromPanelEvent>(_ => _strip?.RemoveFromHierarchy());
-            }
-            if (_strip.parent == null && Window.parent != null)
-            {
-                Window.parent.Add(_strip);
-                Window.parent.RegisterCallback<GeometryChangedEvent>(_ => PlaceStrip());
-                _strip.schedule.Execute(PlaceStrip);
+                AddStrip(_strip);   // a floor for the window, added to the stage with it (P3-08's strips)
+                _strip.RegisterCallback<AttachToPanelEvent>(_ =>
+                {
+                    _strip.parent?.RegisterCallback<GeometryChangedEvent>(__ => PlaceStrip());
+                    _strip.schedule.Execute(PlaceStrip);
+                });
             }
             _strip.style.display = DisplayStyle.Flex;
             _strip.Show(profile, hint);

@@ -24,6 +24,8 @@ namespace MountainPlanner.Presentation
     public sealed class MapLayers
     {
         public const string Snow = "snow", Trees = "trees", Lifts = "lifts";
+        /// <summary>Task 08: the trails drawn as a trail map (owner TL6); the graded ground stays when it's off.</summary>
+        public const string Trails = "trails";
         public const string SlopeAngle = "slope", Exposure = "exposure", SnowDepth = "depth", SnowConditions = "conditions", Contours = "contours";
         public const string CoverMap = "cover";
 
@@ -38,6 +40,7 @@ namespace MountainPlanner.Presentation
         public bool TreesOn { get; private set; } = true;
         /// <summary>The Lifts layer (task 09, LT7): the viewer reads it each frame and shows or hides every lift.</summary>
         public bool LiftsOn { get; private set; } = true;
+        public bool TrailsOn { get; private set; } = true;
         public bool ContoursOn { get; private set; }
         public InfoView Info { get; private set; }
         public bool CoverMapOn => Info == InfoView.CoverMap;
@@ -57,12 +60,12 @@ namespace MountainPlanner.Presentation
         ForestView _forest;
 
         /// <summary>The map layers, in the HUD's order.</summary>
-        public static readonly string[] MapIds = { Snow, Trees, Lifts };
+        public static readonly string[] MapIds = { Snow, Trees, Lifts, Trails };
         /// <summary>The info layers, in the HUD's order.</summary>
         public static readonly string[] InfoIds = { SlopeAngle, Exposure, SnowDepth, SnowConditions, Contours };
 
         /// <summary>Whether a layer can be switched in this version (Snow conditions waits for the snow simulation).</summary>
-        public static bool IsSwitchable(string id) => id == Snow || id == Trees || id == Lifts || id == Contours || id == CoverMap || ViewOf(id) != InfoView.None;
+        public static bool IsSwitchable(string id) => id == Snow || id == Trees || id == Lifts || id == Trails || id == Contours || id == CoverMap || ViewOf(id) != InfoView.None;
 
         /// <summary>The info layers that take turns; Contours combine with any of them.</summary>
         public static bool IsExclusive(string id) => id == SnowConditions || ViewOf(id) != InfoView.None;
@@ -81,6 +84,7 @@ namespace MountainPlanner.Presentation
             Snow => SnowOn,
             Trees => TreesOn,
             Lifts => LiftsOn,
+            Trails => TrailsOn,
             Contours => ContoursOn,
             SnowConditions => false,
             _ => ViewOf(id) != InfoView.None && Info == ViewOf(id),
@@ -117,6 +121,7 @@ namespace MountainPlanner.Presentation
                 case Snow: SnowOn = on; break;
                 case Trees: TreesOn = on; break;
                 case Lifts: LiftsOn = on; break;
+                case Trails: TrailsOn = on; break;
                 case Contours: ContoursOn = on; break;
                 default:
                     var view = ViewOf(id);

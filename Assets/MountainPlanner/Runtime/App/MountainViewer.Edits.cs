@@ -42,7 +42,9 @@ namespace MountainPlanner.App
             bool styleTile = Array.IndexOf(args, "-styletile") >= 0 || Array.IndexOf(args, "-liftbench") >= 0;
             // A loaded save with terrain edits needs the session too, to lay them over the mountain.
             bool saved = OpenDesign.Current != null && !OpenDesign.Current.History.Terrain.IsEmpty;
-            if (!_editKeys && bench < 0 && timing < 0 && !saved && !styleTile) return;
+            // UI captures arm the trail tools (task 08), which need the ground's session ready when they do.
+            bool capture = Array.IndexOf(args, "-uicapture") >= 0;
+            if (!_editKeys && bench < 0 && timing < 0 && !saved && !styleTile && !capture) return;
             _editsStarting = true;
             StartCoroutine(StartEditsWhenReady(args, bench, timing));
         }
@@ -64,6 +66,7 @@ namespace MountainPlanner.App
             FollowBuiltWork(_edits);   // built trails and lifts drawn as they are (MountainViewer.Built.cs, task 07)
             if (_preview != null) _preview.Cleared += _edits.ClearPreview;   // a tool's preview clearing takes the yellow contours with it (CF-08)
             Debug.Log("[TerrainEdits] ready" + (_editKeys ? ": F6 preview a bench at the pointer, F7 break ground, F8 cancel, Ctrl+Z / Ctrl+Y" : ""));
+            if (Array.IndexOf(args, "-regrade") >= 0) _edits.RegradeForCapture();   // captures: a save graded as this build grades
             if (bench >= 0 && bench + 1 < args.Length)
             {
                 var v = args[bench + 1].Split(',').Select(t => float.Parse(t, CultureInfo.InvariantCulture)).ToArray();

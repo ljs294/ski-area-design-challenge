@@ -851,13 +851,13 @@ body.solo .frame { border-radius: 0; }
   const TOOLS = {
     lifts: [
       { id: 'new-lift', label: 'New', name: 'New lift', hint: 'anchor a terminal, then click the far end', key: 'N', glyph: 's-lift', badge: 'new', kind: 'lift' },
-      { id: 'edit-lift', label: 'Edit', name: 'Edit lift', hint: 'move its towers and terminals', key: 'E', glyph: 's-lift', badge: 'edit', kind: 'pick', target: 'lift', mode: 'edit' },
+      { id: 'edit-lift', label: 'Edit', name: 'Edit lift', hint: 'move its towers and terminals', key: 'M', glyph: 's-lift', badge: 'edit', kind: 'pick', target: 'lift', mode: 'edit' },
       { id: 'remove-lift', label: 'Remove', name: 'Remove lift', hint: 'take a lift out, with its pads and clearing', key: 'X', glyph: 's-lift', badge: 'remove', kind: 'pick', target: 'lift', mode: 'remove' },
     ],
     trails: [
       { id: 'new-trail', label: 'New', name: 'New trail', hint: 'paint it, then set its head and tail', key: 'N', glyph: 's-trail', badge: 'new', kind: 'trail' },
-      { id: 'edit-trail', label: 'Edit', name: 'Edit trail', hint: 're-rate a trail', key: 'E', glyph: 's-trail', badge: 'edit', kind: 'pick', target: 'trail', mode: 'edit' },
-      { id: 'remove-trail', label: 'Remove', name: 'Remove trail', hint: 'let a trail grow back in', key: 'X', glyph: 's-trail', badge: 'remove', kind: 'pick', target: 'trail', mode: 'remove' },
+      { id: 'edit-trail', label: 'Edit', name: 'Edit trail', hint: 'repaint it, move its ends, regrade it', key: 'M', glyph: 's-trail', badge: 'edit', kind: 'pick', target: 'trail', mode: 'edit' },
+      { id: 'remove-trail', label: 'Remove', name: 'Remove trail', hint: 'put its ground and trees back', key: 'X', glyph: 's-trail', badge: 'remove', kind: 'pick', target: 'trail', mode: 'remove' },
     ],
     snow: [
       { id: 'gun', label: 'Snow gun', name: 'Snow gun', hint: 'place fan guns along a trail', key: 'G', glyph: 's-gun', kind: 'points', unit: 'snow gun', each: 42000, layer: 'making' },
@@ -2035,10 +2035,10 @@ body.solo .frame { border-radius: 0; }
   window.addEventListener('keyup', (e) => { if (e.key === 'Shift') { shiftDown = false; if (S.draft && S.draft.kind === 'trail') drawWorld(); } });
   function newTrailDraft() {
     clearFootprint();
-    return { kind: 'trail', step: 'paint', width: S.trailWidth || TRULE.wDef, graded: true, name: `Run ${trailRuns + 1}`, mask: new Uint8Array(TW * TH), comp: null,
+    return { kind: 'trail', step: 'paint', width: S.trailWidth || TRULE.wDef, graded: false, name: `Run ${trailRuns + 1}`, mask: new Uint8Array(TW * TH), comp: null,
       strokes: [], head: null, tail: null, line: null, est: null, msg: null, box: null };
   }
-  // The footprint canvas sits on the map under the drawings; painted cells show orange, a separate patch red (TF-02).
+  // The footprint canvas sits on the map under the drawings; painted cells show blue (TL25: the owner's style B), a separate patch red (TF-02).
   let fpCanvas = null;
   function fpCtx() {
     if (!fpCanvas) { fpCanvas = document.createElement('canvas'); fpCanvas.width = TW; fpCanvas.height = TH; fpCanvas.style.cssText = 'position:absolute;left:0;top:0;width:1280px;height:720px;pointer-events:none'; mapEl.insertBefore(fpCanvas, worldEl); }
@@ -2057,7 +2057,7 @@ body.solo .frame { border-radius: 0; }
       const i = y * TW + x, v = erase ? 0 : 1;
       if (d.mask[i] !== v) { st.idx.push(i); st.was.push(d.mask[i]); d.mask[i] = v; }
     }
-    ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'; ctx.fillStyle = 'rgba(214,160,120,0.22)';
+    ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'; ctx.fillStyle = 'rgba(90,150,240,0.30)';   // TL25: the game's style B, blue
     ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.6, r), 0, 2 * Math.PI); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
   }
   function strokeTo(d, p) {
@@ -2297,7 +2297,7 @@ body.solo .frame { border-radius: 0; }
       <div style="padding:8px 0 4px">
         <div class="lrow"><span>Name</span><input id="trailname" class="field tname" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(d.name)}"></div>
         <div class="lrow"><span>Brush</span><div class="rng-wrap" style="min-width:0" title="TR-01: 25–400 ft, in 5 ft steps; one trail can mix widths"><input type="range" class="rng" min="${TRULE.wMin}" max="${TRULE.wMax}" step="${TRULE.wStep}" value="${d.width}" data-trail="w" style="--p:${pct}%" aria-label="Brush width"><span class="rv" id="trailw" style="width:52px">${lenFt(d.width)}</span></div></div>
-        <div class="lrow"><span>Grading</span><div class="seg" title="TR-06, TF-06: Graded benches the trail; Natural keeps the ground">${[['g', 'Graded'], ['n', 'Natural']].map(([v, l]) => `<span class="${(d.graded ? 'g' : 'n') === v ? 'on' : ''}" data-act="tgrade" data-v="${v}">${l}</span>`).join('')}</div></div>
+        <div class="lrow"><span>Grading</span><div class="seg" title="TR-06, TF-06, TL13: Natural keeps the ground and clears the trees; Graded benches the trail level across">${[['n', 'Natural'], ['g', 'Graded']].map(([v, l]) => `<span class="${(d.graded ? 'g' : 'n') === v ? 'on' : ''}" data-act="tgrade" data-v="${v}">${l}</span>`).join('')}</div></div>
         <div class="lnote" title="TR-06: Glades and Zones, and Thin or no clearing, come later">Run · trees cleared</div>
       </div><div class="rule"></div><div id="trailctx">${trailCtx()}</div>`, 344, 'toolwin');
   }
@@ -2381,8 +2381,12 @@ body.solo .frame { border-radius: 0; }
     }
     const st = pathStats(obj.pts);
     const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:var(--soft)">· ${lenTxt(st.len)} · ${lenTxt(st.drop)} vertical</span></div>`;
-    if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === obj.diff ? 'on' : ''}" data-act="setdiff" data-v="${k}">${RATING[k]}${v}</span>`).join('')}</div></div><div class="hint" style="padding-top:0">The rating changes the signs and who skis it.</div>`, 300);
-    return panelShell(head, top + `<div class="hint">It will grow back in over a few seasons.</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>${S.removeArmed === obj.id ? 'Click again to confirm' : `Remove ${esc(obj.name)}`}</span><span class="mono"></span></div></div>`, 300);
+    if (t.mode === 'edit') return panelShell(head, top + `<dl class="kv"><dt>Rating</dt><dd>${RATING[obj.diff]} ${BANDS.find((b) => b[1] === obj.diff)[2]}</dd><dt>Average grade</dt><dd>${Math.round(st.avg)}%</dd><dt>Steepest</dt><dd>${Math.round(st.steep)}%</dd></dl>
+      <div style="padding:2px 12px 8px"><div class="lrow"><span>Grading</span><div class="seg" title="TR-06, TF-06: Natural keeps the ground; Graded benches it">${[['n', 'Natural'], ['g', 'Graded']].map(([v, l]) => `<span class="${(obj.graded ? 'g' : 'n') === v ? 'on' : ''}" data-act="tedit" data-v="grade-${v}">${l}</span>`).join('')}</div></div></div>
+      <div class="lbtns" style="padding:0 12px 8px"><span class="ghost" data-act="tedit" data-v="paint" title="TF-07: the trail's strokes open in Paint; add, erase, leave islands">Repaint</span><span class="ghost" data-act="tedit" data-v="ends" title="TF-07: click a new head, then a new tail">Move ends</span></div>
+      <div class="lbtns" style="padding:0 12px 8px"><span class="ghost" data-act="rename" title="TF-07">Rename</span><span class="ghost dis" title="NW-10: Split and Join come with the network (task 10)">Split</span><span class="ghost dis" title="NW-10: Split and Join come with the network (task 10)">Join</span></div>
+      <div class="hint" style="padding-top:0">The rating comes from the ground: regrade or repaint to change it. Grading runs again only where something changed.</div>`, 300);
+    return panelShell(head, top + `<div class="hint">${obj.built ? 'Its ground and trees go back to how they were before it was built (CL-07). Ctrl+Z brings it back.' : 'It\'s only a plan: nothing on the ground changes.'}</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>${S.removeArmed === obj.id ? 'Click again to confirm' : `Remove ${esc(obj.name)}`}</span><span class="mono"></span></div></div>`, 300);
   }
   // ---------- Analysis › Lifts and Trails: filters, sortable columns, and rows that light their lift or trail ----------
   // Hovering a row glows it on the mountain; clicking it (or the thing on the map) opens its focus card.
@@ -2403,9 +2407,9 @@ body.solo .frame { border-radius: 0; }
   }
   function trailRec(t, open, i) {
     const st = pathStats(t.pts);
-    return { id: t.id, kind: 'trail', o: t, name: t.name, len: st.len * FT, vert: st.drop * FT, avg: st.avg, steep: st.steep, rating: t.diff, surface: !t.built ? '—' : t.diff === 'black' || t.diff === 'double' ? (i % 2 ? 'Moguls' : 'Ungroomed') : 'Groomed', status: !t.built ? 'planned' : open ? 'open' : 'closed' };
+    return { id: t.id, kind: 'trail', o: t, name: t.name, len: st.len * FT, vert: st.drop * FT, avg: st.avg, steep: st.steep, rating: t.diff, surface: t.graded ? 'Graded' : 'Natural', status: !t.built ? 'planned' : 'built' };
   }
-  const STATUS_LAMP = { open: ['Open', '#5fbf6a'], closed: ['Closed', '#d4513f'], planned: ['Planned', '#ff6a1f'] };
+  const STATUS_LAMP = { open: ['Open', '#5fbf6a'], closed: ['Closed', '#d4513f'], planned: ['Planned', '#ff6a1f'], built: ['Built', '#9aa3a8'] };
   function listTab(tab, open) {
     const f = S.af[tab], lifts = tab === 'lifts';
     const all = lifts ? S.lifts.map((l) => liftRec(l, open)) : S.trails.map((t, i) => trailRec(t, open, i));
@@ -2430,7 +2434,7 @@ body.solo .frame { border-radius: 0; }
       ? `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm"><span class="plate${r.o.built ? ' built' : ''}" style="font-size:10px">${r.o.n}</span>${esc(r.name)}</span><span class="nm">${esc(liftTypeName(r.o.model))}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span class="n">${r.cap.toLocaleString('en-US')}</span><span class="n" style="color:${r.wait > 8 ? 'var(--warn)' : ''}">${r.wait !== null ? r.wait.toFixed(1) : '—'}</span>${lamp(r.status)}</div>`
       : `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm">${RATING[r.rating]}${esc(r.name)}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span>${r.surface}</span>${lamp(r.status)}</div>`)).join('');
     const head = lifts ? `<div class="r th" style="${cols}">${hc('Lift')}${hc('Model')}${hc('Length', 'len', 'len', true)}${hc('Vertical', 'vert', 'vert', true)}<span class="n">An hour</span><span class="n">Wait</span>${hc('Status', 'status', null, true)}</div>`
-      : `<div class="r th" style="${cols}">${hc('Trail', 'rating')}${hc('Length', 'len', 'len', true)}${hc('Vertical', 'vert', 'vert', true)}<span>Surface</span>${hc('Status', 'status', null, true)}</div>`;
+      : `<div class="r th" style="${cols}">${hc('Trail', 'rating')}${hc('Length', 'len', 'len', true)}${hc('Vertical', 'vert', 'vert', true)}<span>Grading</span>${hc('Status', 'status', null, true)}</div>`;
     const builtN = lifts ? S.lifts.filter((l) => l.built).length : S.trails.filter((t) => t.built).length, others = (lifts ? S.liftsTotal : S.trailsTotal) - builtN;
     const foot = recs.length ? (lifts ? `${others} more lifts run elsewhere on the mountain: ${(others * 2100).toLocaleString('en-US')} riders an hour between them.` : `${others} more trails elsewhere on the mountain.`) : `No ${tab} match the filters.`;
     const tools = `<div class="atools"><span>${recs.length === all.length ? `${all.length} ${tab}` : `${recs.length} of ${all.length} ${tab}`} on the map</span><span style="margin-left:auto"></span>${active ? '<span class="atb" data-act="afclear">Clear filters</span>' : ''}<span class="atb${f.on ? ' on' : ''}" data-act="afon" title="Filter: a ▾ on each column sorts and filters it">Filter${active ? ` · ${active}` : ''}</span></div>`;
@@ -3127,7 +3131,10 @@ body.solo .frame { border-radius: 0; }
       if (!asPlan) S.liftsTotal++;
     } else if (d.kind === 'trail') {   // NW-09: one map line along its centreline, rated by TD-02
       const r = d.res, pts = r.stations.filter((q, i) => i % 6 === 0 || i === r.stations.length - 1).map((q) => q.p);
-      S.trails.push({ id: 't' + (uid++), name: d.name, diff: r.band[1], pts, built: !asPlan });
+      const keep = { strokes: d.strokes, mask: new Uint8Array(d.mask), width: d.width, head: d.head, tail: d.tail };
+      const rec = { id: d.editing || 't' + (uid++), name: d.name, diff: r.band[1], pts, built: !asPlan, graded: d.graded, draft: keep };
+      const at = d.editing ? S.trails.findIndex((x) => x.id === d.editing) : -1;
+      if (at >= 0) { rec.built = S.trails[at].built || !asPlan; S.trails[at] = rec; } else S.trails.push(rec);
       cost = trailCost(r); label = d.name; trailSeq++; trailRuns++;
       if (!asPlan) S.trailsTotal++;
     } else if (d.kind === 'line') {
@@ -3140,7 +3147,7 @@ body.solo .frame { border-radius: 0; }
     S.saveDue = true;
     if (asPlan) log(`<span><b>${esc(label)}</b> saved as a plan <span class="mono" style="color:var(--soft)">${short(cost).replace('+', '')}</span></span>`, '#ff6a1f');
     else { spend(cost); log(`<span><b>${esc(label)}</b>: ground broken <span class="mono" style="color:var(--neg)">${short(-cost)}</span></span>`, '#1a6b3c'); }
-    const again = t.id; S.tool = null; chooseTool(again);
+    const again = t.id; S.tool = null; S.draft = null; chooseTool(again);   // the work went in: nothing to discard
   }
   function act(a, v, e) {
     if (a !== 'amenu' && a !== 'afchk' && a !== 'afclr') S.afMenu = null;
@@ -3170,6 +3177,16 @@ body.solo .frame { border-radius: 0; }
       case 'build': commit(false); return;
       case 'plan': commit(true); return;
       case 'setmodel': { const l = S.lifts.find((x) => x.id === S.sel); if (l && l.model !== v) { const before = liftStats(l.a, l.b, l.model).cost.total; l.model = v; const diff = liftStats(l.a, l.b, v).cost.total - before; if (l.built && diff > 0) spend(diff); S.saveDue = true; log(`<span><b>${esc(l.name)}</b> is now a ${v}${l.built && diff > 0 ? ` <span class="mono" style="color:var(--neg)">${short(-diff)}</span>` : ''}</span>`); } break; }
+      case 'tedit': {
+        const tr = S.trails.find((x) => x.id === S.sel); if (!tr) break;
+        if (v === 'grade-g' || v === 'grade-n') { tr.graded = v === 'grade-g'; S.saveDue = true; log(`<span><b>${esc(tr.name)}</b> ${tr.graded ? 'graded' : 'left natural'}</span>`); break; }
+        const keep = tr.draft; if (!keep) { log('<span>That trail came before the trail tool kept its paint</span>', '#6f675e', true); break; }
+        chooseTool('new-trail');
+        const d = S.draft; d.editing = tr.id; d.name = tr.name; d.graded = !!tr.graded; d.width = keep.width; d.strokes = keep.strokes.slice(); d.mask = new Uint8Array(keep.mask);
+        paintFootprint(d); afterStroke(d);
+        if (v === 'ends') { d.step = 'ends'; d.head = keep.head; d.tail = keep.tail; setEnds(d); }
+        render(); return;
+      }
       case 'setdiff': { const t = S.trails.find((x) => x.id === S.sel); if (t) { t.diff = v; S.saveDue = true; log(`<span><b>${esc(t.name)}</b> re-rated ${DIFFS[v].toLowerCase()}</span>`); } break; }
       case 'remove': {
         if (S.set.confirmRemove === 'on' && S.removeArmed !== S.sel) { S.removeArmed = S.sel; break; }
@@ -3573,7 +3590,7 @@ body.solo .frame { border-radius: 0; }
     }
     // The trail tool (Phase 3): trailpaint (painted, with an island and a stray patch), trailends (head and tail set),
     // trailreview (its review); zoomed in, as you would to paint. trail is the review too.
-    const tf = ['trailpaint', 'trailends', 'trailreview', 'trail'].find((x) => d.includes(x));
+    const tf = ['trailpaint', 'trailends', 'trailreview', 'trail', 'trailfix', 'trailgone'].find((x) => d.includes(x));
     if (tf) {
       S.toolbox = true; S.tab = 'trails'; if (S.tool !== 'new-trail') chooseTool('new-trail');
       const td = S.draft, paint = (pts, w, erase = false) => { td.width = w; td.stroke = { idx: [], was: [], erase, last: null }; for (const p of pts) strokeTo(td, p); endStroke(td); };
@@ -3587,6 +3604,9 @@ body.solo .frame { border-radius: 0; }
         if (tf !== 'trailends') td.step = 'review';
         mouse = tf === 'trailends' ? [960, 280] : [1240, 140];
       }
+      // Task 08: trailfix (the trail built, then Edit trail on it, TF-07) and trailgone (Remove trail on it).
+      const tx = ['trailfix', 'trailgone'].find((x) => d.includes(x));
+      if (tx) { td.graded = true; setEnds(td); commit(false); chooseTool(tx === 'trailfix' ? 'edit-trail' : 'remove-trail'); S.sel = S.trails[S.trails.length - 1].id; mouse = [1240, 140]; }
     }
     const LD = { a: [1190, 334], b: [944, 250] }, lf = ['liftorigin', 'liftauto', 'liftred', 'liftbyhand', 'liftreview', 'liftsel', 'lift'].find((x) => d.includes(x));
     if (lf) {

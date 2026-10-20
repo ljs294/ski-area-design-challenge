@@ -25,6 +25,8 @@ namespace MountainPlanner.Presentation
         LayerLifts,
         // P3-09 (LF-04, LT17): the tower in hand or selected slides down or up the line, 5 ft (Shift 50 ft).
         TowerSlideBack, TowerSlideOn,
+        // P3-08: the Trails map layer (TL6).
+        LayerTrails,
     }
 
     [Flags]
@@ -74,10 +76,11 @@ namespace MountainPlanner.Presentation
 
         /// <summary>
         /// When an action works: in the normal view, in photo mode, or both; <see cref="Tray"/> while the Toolbox tray
-        /// is open (its letters, and the keys of the armed tool: a tool is only ever armed with the tray open).
+        /// is open (its letters, and the keys of the armed tool: a tool is only ever armed with the tray open);
+        /// <see cref="Always"/> for the camera, whose keys work at all times (owner, 2026-10-19: TL19).
         /// </summary>
         [Flags]
-        public enum Context { Normal = 1, Photo = 2, Both = 3, Tray = 4 }
+        public enum Context { Normal = 1, Photo = 2, Both = 3, Tray = 4, Always = 7 }
 
         public readonly struct Info
         {
@@ -86,29 +89,35 @@ namespace MountainPlanner.Presentation
             public readonly KeyChord First, Second;
             /// <summary>Held like a modifier (Erase is Shift), so Shift, Ctrl or Alt alone may be its key.</summary>
             public readonly bool Hold;
-            public Info(string group, string label, Context when, KeyChord first, KeyChord second = default, bool hold = false)
+            /// <summary>
+            /// Live only while the armed tool claims it (the brush keys while painting, the tower keys with a tower in
+            /// hand): it then shadows any other action on its key, so it may share one (Page Up zooms otherwise).
+            /// </summary>
+            public readonly bool WhileClaimed;
+            public Info(string group, string label, Context when, KeyChord first, KeyChord second = default, bool hold = false,
+                        bool whileClaimed = false)
             {
-                Group = group; Label = label; When = when; First = first; Second = second; Hold = hold;
+                Group = group; Label = label; When = when; First = first; Second = second; Hold = hold; WhileClaimed = whileClaimed;
             }
         }
 
         /// <summary>Every action, in <see cref="GameAction"/> order: its group and label on the Controls page, and its defaults.</summary>
         public static readonly Info[] Actions =
         {
-            new Info("Camera", "Move forward", Context.Both, new KeyChord(Key.W), new KeyChord(Key.UpArrow)),
-            new Info("Camera", "Move back", Context.Both, new KeyChord(Key.S), new KeyChord(Key.DownArrow)),
-            new Info("Camera", "Move left", Context.Both, new KeyChord(Key.A), new KeyChord(Key.LeftArrow)),
-            new Info("Camera", "Move right", Context.Both, new KeyChord(Key.D), new KeyChord(Key.Period)),
-            new Info("Camera", "Rotate left", Context.Both, new KeyChord(Key.Q)),
-            new Info("Camera", "Rotate right", Context.Both, new KeyChord(Key.E)),
-            new Info("Camera", "Tilt up", Context.Both, new KeyChord(Key.R)),
-            new Info("Camera", "Tilt down", Context.Both, new KeyChord(Key.F)),
-            new Info("Camera", "Zoom in", Context.Both, new KeyChord(Key.Equals), new KeyChord(Key.NumpadPlus)),
-            new Info("Camera", "Zoom out", Context.Both, new KeyChord(Key.Minus), new KeyChord(Key.NumpadMinus)),
-            new Info("Camera", "Zoom in · free-fly: rise", Context.Both, new KeyChord(Key.PageUp)),
-            new Info("Camera", "Zoom out · free-fly: sink", Context.Both, new KeyChord(Key.PageDown)),
-            new Info("Camera", "Free-fly", Context.Both, new KeyChord(Key.C)),
-            new Info("Camera", "Reset the view", Context.Both, new KeyChord(Key.Home)),
+            new Info("Camera", "Move forward", Context.Always, new KeyChord(Key.W), new KeyChord(Key.UpArrow)),
+            new Info("Camera", "Move back", Context.Always, new KeyChord(Key.S), new KeyChord(Key.DownArrow)),
+            new Info("Camera", "Move left", Context.Always, new KeyChord(Key.A), new KeyChord(Key.LeftArrow)),
+            new Info("Camera", "Move right", Context.Always, new KeyChord(Key.D), new KeyChord(Key.RightArrow)),
+            new Info("Camera", "Rotate left", Context.Always, new KeyChord(Key.Q)),
+            new Info("Camera", "Rotate right", Context.Always, new KeyChord(Key.E)),
+            new Info("Camera", "Tilt up", Context.Always, new KeyChord(Key.R)),
+            new Info("Camera", "Tilt down", Context.Always, new KeyChord(Key.F)),
+            new Info("Camera", "Zoom in", Context.Always, new KeyChord(Key.Equals), new KeyChord(Key.NumpadPlus)),
+            new Info("Camera", "Zoom out", Context.Always, new KeyChord(Key.Minus), new KeyChord(Key.NumpadMinus)),
+            new Info("Camera", "Zoom in · free-fly: rise", Context.Always, new KeyChord(Key.PageUp)),
+            new Info("Camera", "Zoom out · free-fly: sink", Context.Always, new KeyChord(Key.PageDown)),
+            new Info("Camera", "Free-fly", Context.Always, new KeyChord(Key.C)),
+            new Info("Camera", "Reset the view", Context.Always, new KeyChord(Key.Home)),
             new Info("Game", "Toolbox", Context.Normal, new KeyChord(Key.T)),
             new Info("Game", "Analysis", Context.Normal, new KeyChord(Key.Tab)),
             new Info("Game", "Pause", Context.Normal, new KeyChord(Key.Space)),
@@ -140,16 +149,16 @@ namespace MountainPlanner.Presentation
             new Info("Game", "Save", Context.Normal, new KeyChord(Key.S, KeyMods.Ctrl)),
             // P3-06: the tray's letters (the Lifts and Trails tabs), then the tools' own keys (TF-09, LF-09; SH-07).
             new Info("Toolbox", "New", Context.Tray, new KeyChord(Key.N)),
-            new Info("Toolbox", "Edit", Context.Tray, new KeyChord(Key.E)),
+            new Info("Toolbox", "Edit", Context.Tray, new KeyChord(Key.M)),   // E rotates the camera (TL19)
             new Info("Toolbox", "Remove", Context.Tray, new KeyChord(Key.X)),
             new Info("Building", "Next step", Context.Tray, new KeyChord(Key.Enter), new KeyChord(Key.NumpadEnter)),
             new Info("Building", "Break ground", Context.Tray, new KeyChord(Key.Enter, KeyMods.Ctrl), new KeyChord(Key.NumpadEnter, KeyMods.Ctrl)),
-            new Info("Building", "Brush narrower", Context.Tray, new KeyChord(Key.LeftBracket)),
-            new Info("Building", "Brush wider", Context.Tray, new KeyChord(Key.RightBracket)),
-            new Info("Building", "Erase while painting (hold)", Context.Tray, new KeyChord(Key.LeftShift), new KeyChord(Key.RightShift), hold: true),
-            new Info("Building", "Undo a stroke", Context.Tray, new KeyChord(Key.Z, KeyMods.Ctrl)),
-            new Info("Building", "Tower up 5 ft", Context.Tray, new KeyChord(Key.PageUp)),
-            new Info("Building", "Tower down 5 ft", Context.Tray, new KeyChord(Key.PageDown)),
+            new Info("Building", "Brush narrower", Context.Tray, new KeyChord(Key.LeftBracket), whileClaimed: true),
+            new Info("Building", "Brush wider", Context.Tray, new KeyChord(Key.RightBracket), whileClaimed: true),
+            new Info("Building", "Erase while painting (hold)", Context.Tray, new KeyChord(Key.LeftShift), new KeyChord(Key.RightShift), hold: true, whileClaimed: true),
+            new Info("Building", "Undo a stroke", Context.Tray, new KeyChord(Key.Z, KeyMods.Ctrl), whileClaimed: true),
+            new Info("Building", "Tower up 5 ft", Context.Tray, new KeyChord(Key.PageUp), whileClaimed: true),
+            new Info("Building", "Tower down 5 ft", Context.Tray, new KeyChord(Key.PageDown), whileClaimed: true),
             new Info("Building", "Delete the selected", Context.Tray, new KeyChord(Key.Delete)),
             // As the photo bar's Tab (P3-01): the tool window takes the keyboard; Esc gives it back.
             new Info("Building", "Use the tool window with the keys", Context.Tray, new KeyChord(Key.Tab)),
@@ -157,14 +166,16 @@ namespace MountainPlanner.Presentation
             new Info("Game", "Redo", Context.Normal, new KeyChord(Key.Y, KeyMods.Ctrl), new KeyChord(Key.Z, KeyMods.Ctrl | KeyMods.Shift)),
             // P3-09 (LT21): turn the terminal in hand 5° (Shift 45°; Shift + wheel too); its level 1 ft (LT19), claimed while
             // a terminal is in hand, so Page Up / Page Down zoom otherwise.
-            new Info("Building", "Turn the terminal left", Context.Tray, new KeyChord(Key.Comma)),
-            new Info("Building", "Turn the terminal right", Context.Tray, new KeyChord(Key.Period)),
-            new Info("Building", "Terminal up 1 ft", Context.Tray, new KeyChord(Key.PageUp)),
-            new Info("Building", "Terminal down 1 ft", Context.Tray, new KeyChord(Key.PageDown)),
+            new Info("Building", "Turn the terminal left", Context.Tray, new KeyChord(Key.Comma), whileClaimed: true),
+            new Info("Building", "Turn the terminal right", Context.Tray, new KeyChord(Key.Period), whileClaimed: true),
+            new Info("Building", "Terminal up 1 ft", Context.Tray, new KeyChord(Key.PageUp), whileClaimed: true),
+            new Info("Building", "Terminal down 1 ft", Context.Tray, new KeyChord(Key.PageDown), whileClaimed: true),
             new Info("Layers", "Lifts", Context.Normal, new KeyChord(Key.Digit2, KeyMods.Shift)),
             // LT17: , and . slide a tower (the arrows stay the camera's); claimed only while a tower is in hand or selected.
-            new Info("Building", "Tower down the line 5 ft", Context.Tray, new KeyChord(Key.Comma)),
-            new Info("Building", "Tower up the line 5 ft", Context.Tray, new KeyChord(Key.Period)),
+            new Info("Building", "Tower down the line 5 ft", Context.Tray, new KeyChord(Key.Comma), whileClaimed: true),
+            new Info("Building", "Tower up the line 5 ft", Context.Tray, new KeyChord(Key.Period), whileClaimed: true),
+            // P3-08: the Trails map layer (owner TL6).
+            new Info("Layers", "Trails", Context.Normal, new KeyChord(Key.Digit4, KeyMods.Shift)),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>
@@ -179,7 +190,7 @@ namespace MountainPlanner.Presentation
         {
             if (key == Key.Escape || key == Key.ContextMenu) return true;
             var info = Actions[(int)action];
-            if (key == Key.Enter || key == Key.NumpadEnter) return (info.When & Context.Tray) == 0;
+            if (key == Key.Enter || key == Key.NumpadEnter) return info.When != Context.Tray;
             if (IsModifier(key)) return !info.Hold;
             return false;
         }
@@ -247,10 +258,17 @@ namespace MountainPlanner.Presentation
 
         static bool IsLetter(Key key) => key >= Key.A && key <= Key.Z;
 
+        /// <summary>
+        /// Set by the UI: true while a text field has the focus (a trail's name, a save's name, a search). Every action
+        /// then reads as up, so typing never moves the camera or fires a shortcut (owner, 2026-10-19); Esc, which isn't
+        /// an action here, still lets go of the field.
+        /// </summary>
+        public static System.Func<bool> Typing;
+
         /// <summary>The action's key went down this frame with exactly its modifiers. <paramref name="letters"/> false skips letter keys (the Toolbox tray is open).</summary>
         public static bool Pressed(Keyboard keyboard, GameAction action, bool letters = true)
         {
-            if (keyboard == null) return false;
+            if (keyboard == null || (Typing != null && Typing())) return false;
             Load();
             var mods = ModsOf(keyboard);
             int i = (int)action * Slots;
@@ -284,7 +302,7 @@ namespace MountainPlanner.Presentation
         /// <summary>The action's key is down. Shift is free (it means faster) unless the binding itself has Shift; Ctrl and Alt must match.</summary>
         public static bool Held(Keyboard keyboard, GameAction action, bool letters = true)
         {
-            if (keyboard == null) return false;
+            if (keyboard == null || (Typing != null && Typing())) return false;
             Load();
             var mods = ModsOf(keyboard);
             int i = (int)action * Slots;
@@ -390,6 +408,7 @@ namespace MountainPlanner.Presentation
                     var other = (GameAction)(i / Slots);
                     if (other == action) { Bound[i] = old; continue; }   // the action's own other slot: swap the two
                     if ((Actions[(int)other].When & Actions[(int)action].When) == 0) continue;
+                    if (Actions[(int)other].WhileClaimed || Actions[(int)action].WhileClaimed) continue;   // it shadows, never swaps
                     Bound[i] = old;
                     swapped = other;
                 }

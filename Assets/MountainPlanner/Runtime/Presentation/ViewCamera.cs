@@ -73,8 +73,8 @@ namespace MountainPlanner.Presentation
         /// </summary>
         public static System.Func<bool> KeysBlocked;
         /// <summary>
-        /// Set by the HUD while the Toolbox tray is open: letter keys belong to the tools then, and the camera
-        /// moves with the arrows, Page Up / Page Down, + / − and the mouse only.
+        /// Set by the HUD while the Toolbox tray is open: the letters that aren't the camera's belong to the tools then.
+        /// The camera's own keys work at all times, building or not (owner, 2026-10-19: TL19).
         /// </summary>
         public bool LettersToTools;
         /// <summary>False ignores the keyboard and mouse entirely (benchmarks, scripted reviews).</summary>
@@ -196,7 +196,7 @@ namespace MountainPlanner.Presentation
             var keys = Keyboard.current;
             bool fast = keys != null && keys.shiftKey.isPressed;
             float boost = fast ? 3f : 1f;
-            bool letters = !LettersToTools;
+            const bool letters = true;   // the camera's keys always work (TL19); the tray's letters keep clear of them
             float zoomRate = CameraOptions.SpeedFactor;
             bool fly = Current == Mode.FreeFly;
             var yawOnly = Quaternion.Euler(0, _yawGoal, 0);

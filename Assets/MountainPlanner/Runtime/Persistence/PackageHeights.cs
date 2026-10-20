@@ -11,7 +11,7 @@ namespace MountainPlanner.Persistence
     /// time as edits and readouts need them, instead of holding about 230 MB for a 5 km site. A few recent chunks are
     /// kept per layer. The layers were checked against their hashes when the cache was built from them. Thread-safe.
     /// </summary>
-    public sealed class PackageHeights : IHeightSource, IDisposable
+    public sealed class PackageHeights : IHeightSource, IHeightRows, IDisposable
     {
         /// <summary>Chunks kept per layer: about 5 MB each on a 5 km site.</summary>
         public const int KeptChunks = 6;
@@ -27,6 +27,49 @@ namespace MountainPlanner.Persistence
         public GridHeaderView Core => new GridHeaderView(_core.Header);
 
         public double At(double x, double y) => TerrainCache.Blend(new ChunkGrid(_core), new ChunkGrid(_ring), x, y);
+
+        /// <summary>
+        /// A row of lattice points (task 08's grader): the same <see cref="TerrainCache.Blend"/> as <see cref="At"/>, so the
+        /// same doubles, with each layer's chunks looked up once for the row rather than eight times a point.
+        /// </summary>
+        public void AtRow(double y, double west, int column0, int count, double[] into, int offset)
+        {
+            var core = new CachedGrid(_core, new ChunkCache());
+            var ring = new CachedGrid(_ring, new ChunkCache());
+            for (int i = 0; i < count; i++) into[offset + i] = TerrainCache.Blend(core, ring, west + (column0 + i), y);
+        }
+
+        /// <summary>The two chunks a bilinear row reads (its row and the next), kept for the row.</summary>
+        sealed class ChunkCache
+        {
+            public int C0 = -1, C1 = -1;
+            public float[] A0, A1;
+        }
+
+        readonly struct CachedGrid : TerrainCache.IFloatGrid
+        {
+            readonly Layer _layer;
+            readonly ChunkCache _cache;
+            public CachedGrid(Layer layer, ChunkCache cache) { _layer = layer; _cache = cache; }
+            public GridHeader Header => _layer.Header;
+
+            public float Value(int column, int row)
+            {
+                int c = row / GridFile.ChunkRows;
+                float[] chunk;
+                if (c == _cache.C0) chunk = _cache.A0;
+                else if (c == _cache.C1) chunk = _cache.A1;
+                else
+                {
+                    chunk = _layer.Chunk(c);
+                    _cache.C1 = _cache.C0;
+                    _cache.A1 = _cache.A0;
+                    _cache.C0 = c;
+                    _cache.A0 = chunk;
+                }
+                return chunk[(row % GridFile.ChunkRows) * _layer.Header.Width + column];
+            }
+        }
 
         /// <summary>Chunks read from disk so far (for the timing report).</summary>
         public int ChunksRead => _core.Reads + _ring.Reads;
@@ -85,7 +128,10 @@ namespace MountainPlanner.Persistence
                 var chunk = System.Threading.Volatile.Read(ref _chunks[c]);
                 if (chunk != null)
                 {
-                    _used[c] = System.Threading.Interlocked.Increment(ref _tick);
+                    // Marked used at the current tick, without the interlocked increment: every read paid one, and the
+                    // edit pipeline's parallel workers fought over it (task 08). Ticks move on each load, which is all the
+                    // keep-the-recent-ones rule needs.
+                    _used[c] = System.Threading.Volatile.Read(ref _tick);
                     return chunk;
                 }
                 lock (this)

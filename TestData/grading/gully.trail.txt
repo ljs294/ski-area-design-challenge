@@ -1,0 +1,20 @@
+# Task P3-08 grading fixture: a trail on a crop of the Jackson Hole 2 km package (TestData/jackson-hole-2km).
+# Points are design mm from the site's centre (TE5); goldens from TrailFixtureTests.RecordTheGradingFixtures.
+origin -1188828 2381976
+lattice -1192828 2385976
+stroke 36576 271000 -78000 360000 -160000
+stroke 36576 360000 -160000 449000 -242000
+head 271000 -78000
+tail 449000 -242000
+golden graded.band Black
+golden graded.cutM3 6183.731
+golden graded.fillM3 2826.662
+golden graded.rating 44.795
+golden graded.ungradedStations 0
+golden graded.writes 8a1a30e64b6548e30ec27f002e7eee116f907f67c970b0d4bb7b0606ac492a48
+golden natural.band DoubleBlack
+golden natural.cutM3 0.000
+golden natural.fillM3 0.000
+golden natural.rating 74.806
+golden natural.ungradedStations 0
+golden natural.writes fa6bd57e6d4175f48b2b38b2933f655531724b0ec89c68ad5a2d666cf64c2bb6

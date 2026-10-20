@@ -9,6 +9,15 @@ namespace MountainPlanner.Domain.Edits
     }
 
     /// <summary>
+    /// A height source that reads a row of lattice points faster than point by point (task 08's grader): the heights at
+    /// (west + column0 + i, y) for i below count, each exactly what <see cref="IHeightSource.At"/> gives there.
+    /// </summary>
+    public interface IHeightRows
+    {
+        void AtRow(double y, double west, int column0, int count, double[] into, int offset);
+    }
+
+    /// <summary>
     /// The 1 m corner lattice the edit tiles sit on (GR-09): point column c and row r lie at
     /// (<see cref="West"/> + c, <see cref="North"/> − r), the same points as the terrain cache's 1 m heightmaps.
     /// Cell (c, r) is the square east and south of point (c, r).
@@ -55,6 +64,19 @@ namespace MountainPlanner.Domain.Edits
 
         /// <summary>The edited height at a lattice point.</summary>
         public double AtPoint(int column, int row) => AtPost(Lattice.X(column), Lattice.Y(row), column, row);
+
+        /// <summary>
+        /// The edited heights at <paramref name="count"/> lattice points of a row from <paramref name="column0"/>, each
+        /// exactly <see cref="AtPoint"/>; a source that reads rows (<see cref="IHeightRows"/>) does it in one go.
+        /// </summary>
+        public void AtPointsRow(int column0, int row, int count, double[] into, int offset)
+        {
+            double y = Lattice.Y(row);
+            if (Source is IHeightRows rows) rows.AtRow(y, Lattice.West, column0, count, into, offset);
+            else for (int i = 0; i < count; i++) into[offset + i] = Source.At(Lattice.X(column0 + i), y);
+            if (Edits.IsEmpty) return;
+            for (int i = 0; i < count; i++) into[offset + i] += Edits.DeltaMmAt(column0 + i, row) / 1000.0;
+        }
 
         /// <summary>
         /// The edited height at lattice point (column, row), with the source read at (x, y): a caller that places the

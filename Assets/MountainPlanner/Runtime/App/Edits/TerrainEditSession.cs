@@ -32,6 +32,12 @@ namespace MountainPlanner.App.Edits
         public DesignHistory History { get; }
         public TerrainEditPipeline Pipeline { get; }
         public PendingContourView Preview { get; }
+        /// <summary>The design's earthwork (task 08, TL3): built work folded into terrain edits; ready once primed.</summary>
+        public DesignEarthwork Earthwork { get; }
+        /// <summary>The earthwork learning the committed design, off the main thread.</summary>
+        public Task Priming { get; private set; } = Task.CompletedTask;
+        public bool EarthworkReady => Priming.IsCompleted && !Priming.IsFaulted && Earthwork.Primed;
+        int _loads;
         /// <summary>The last apply, for captures and the benchmark to wait on.</summary>
         public Task Applying { get; private set; } = Task.CompletedTask;
 
@@ -41,6 +47,9 @@ namespace MountainPlanner.App.Edits
             History = history;
             Pipeline = pipeline;
             Preview = new PendingContourView(resort.Root.transform);
+            Earthwork = new DesignEarthwork(pipeline.Heights.Source,
+                                            new EarthworkSite(pipeline.Heights.Lattice, resort.Frame.Origin.X, resort.Frame.Origin.Y));
+            Prime();
             History.Changed += OnChanged;
             Pipeline.LabelsChanged += labels => _resort.ContourLabels = labels;
         }
@@ -60,6 +69,7 @@ namespace MountainPlanner.App.Edits
                 throw new OperationCanceledException();
             }
             if (resort.Forest != null) pipeline.AttachForest(resort.Forest, resort.TreeInstances, resort.TreeRanges);
+            pipeline.AttachCliffs(resort.Cliffs);
             if (resort.SnowElevation != null)
                 pipeline.AttachSnow(resort.States, resort.SnowElevation, resort.SnowCanopy, resort.Manifest.Crs.GridConvergenceDegrees, resort.Ring);
             var session = new TerrainEditSession(resort, history, pipeline);
@@ -67,8 +77,18 @@ namespace MountainPlanner.App.Edits
             return session;
         }
 
+        void Prime()
+        {
+            _loads = History.Loads;
+            var doc = History.Document;
+            var terrain = History.Terrain;
+            var earthwork = Earthwork;
+            Priming = Task.Run(() => earthwork.Prime(doc, terrain));
+        }
+
         void OnChanged(DesignSnapshot snapshot)
         {
+            if (History.Loads != _loads) Prime();   // a loaded save: learn its design again
             ClearPreview();
             Applying = Pipeline.ApplyAsync(snapshot.Terrain);
         }
@@ -105,6 +125,9 @@ namespace MountainPlanner.App.Edits
 
         public bool HasPending => _pending.HasValue;
 
+        /// <summary>Draws a tool's pending contours (task 08), from <see cref="PendingContours"/> segments in package metres.</summary>
+        public void ShowPending(List<double> segments) => Preview.Show(segments, _resort.Frame);
+
         public void ClearPreview()
         {
             _pending = null;
@@ -131,6 +154,26 @@ namespace MountainPlanner.App.Edits
             var r = History.Submit(command, result.Edits);
             if (!r.Accepted) UnityEngine.Debug.LogWarning($"[TerrainEdits] the test bench was rejected: {r}");
             return r.Accepted;
+        }
+
+        /// <summary>
+        /// Captures only (-regrade, task 08 review): grades the open design afresh with this build's rules and shows the
+        /// result, so a save made by an older build can be judged as this one would grade it. Display only: the history,
+        /// and so the save, keep the edits they had.
+        /// </summary>
+        public void RegradeForCapture()
+        {
+            var doc = History.Document;
+            var site = Earthwork.Site;
+            var source = Pipeline.Heights.Source;
+            var work = Task.Run(() =>
+            {
+                var fresh = new DesignEarthwork(source, site);
+                fresh.Prime(DesignDocument.Empty(doc.Seed), TerrainEdits.Empty);
+                return fresh.Rebuild(doc, TerrainEdits.Empty).Edits;
+            });
+            Applying = work.ContinueWith(t => Pipeline.ApplyAsync(t.Result), TaskScheduler.FromCurrentSynchronizationContext()).Unwrap();
+            UnityEngine.Debug.Log($"[TerrainEdits] regrading {doc.Trails.Count} trails with this build's rules (display only)");
         }
 
         public void Dispose()

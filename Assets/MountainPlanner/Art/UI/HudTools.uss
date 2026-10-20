@@ -3,6 +3,15 @@
    .acts, .go). Pixel values are the mockup's (the 1280×720 stage). Plates are solid (linear blending). Every colour
    rule also sets the text outline colour (UiThemeTests). */
 
+/* ---------- the trail profile strip (task 08, TF-04; the mockup's .lstrip): right of the tray, above the bar ---------- */
+.hud .tps { position: absolute; left: 372px; right: 10px; bottom: 62px; height: 158px;
+    --tps-a: var(--chart-a); --tps-fill: var(--chart-fill); --tps-row: var(--row); --tps-strong: var(--strong); --tps-neg: var(--neg); --tps-text: var(--text); }
+.hud .tps__head { flex-direction: row; align-items: center; height: 30px; padding: 0 12px; border-bottom-width: 1px; border-color: var(--hair); }
+.hud .tps__title { margin: 0 12px 0 0; padding: 0; flex-shrink: 0; font-size: 13px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .tps__mono { margin: 0; padding: 0; flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .tps__rating { margin: 0 0 0 12px; padding: 0; flex-shrink: 0; font-size: 12.5px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .tps__chart { flex-grow: 1; }
+
 /* ---------- tray tiles ---------- */
 .hud .tool--on, .hud .tool--on:hover { background-color: var(--on-bg); }
 .hud .tool--on .tool__glyph, .hud .tool--on .tool__label { color: var(--on-fg); -unity-text-outline-color: var(--on-fg); }
@@ -101,7 +110,7 @@
 /* the step buttons (.lbtns) and the commit buttons (.acts: Break ground fills, Save plan is a ghost) */
 .hud .tw-btns { flex-direction: row; padding: 2px 12px 6px 12px; }
 .hud .tw-btns > .mp-ghost { flex-grow: 1; height: 30px; flex-direction: row; justify-content: center; align-items: center; }
-.hud .tw-acts { flex-direction: row; padding: 4px 12px 12px 12px; }
+.hud .tw-acts { flex-direction: row; flex-shrink: 0; padding: 4px 12px 12px 12px; }   /* pinned: only the scroll above it gives way */
 .hud .tw-acts > .mp-go { flex-grow: 1; flex-direction: row; justify-content: space-between; align-items: center; margin-right: 6px; }
 .hud .tw-acts > .mp-ghost { flex-shrink: 0; }
 .hud .tw-acts > .mp-ghost:disabled, .hud .tw-btns > .mp-ghost:disabled { border-color: var(--hair2); }   /* the mockup's .ghost.dis */

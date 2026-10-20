@@ -11,7 +11,7 @@ namespace MountainPlanner.UI
     {
         static readonly (string Row, GameAction Action)[] LayerKeys =
         {
-            ("layer-snow", GameAction.LayerSnow), ("layer-trees", GameAction.LayerTrees), ("layer-lifts", GameAction.LayerLifts), ("layer-slope", GameAction.InfoSlope),
+            ("layer-snow", GameAction.LayerSnow), ("layer-trees", GameAction.LayerTrees), ("layer-lifts", GameAction.LayerLifts), ("layer-trails", GameAction.LayerTrails), ("layer-slope", GameAction.InfoSlope),
             ("layer-exposure", GameAction.InfoExposure), ("layer-depth", GameAction.InfoDepth), ("layer-conditions", GameAction.InfoConditions),
             ("layer-contours", GameAction.InfoContours), ("menu-photo", GameAction.PhotoMode),
         };

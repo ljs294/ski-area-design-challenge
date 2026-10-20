@@ -31,6 +31,15 @@ namespace MountainPlanner.UI.Tools
         }
 
         /// <summary>A brush or tower size in whole feet (or metres): "100 ft".</summary>
+        /// <summary>A volume (GR-08): cubic yards, or cubic metres when metric; <paramref name="signed"/> shows + for a surplus.</summary>
+        public static string Volume(double cubicMetres, bool signed = false)
+        {
+            double v = Imperial ? cubicMetres * 1.307950619 : cubicMetres;
+            string n = Math.Abs(v).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+            string sign = v < -0.5 ? "−" : signed && v > 0.5 ? "+" : "";
+            return $"{sign}{n} {(Imperial ? "yd³" : "m³")}";
+        }
+
         public static string Feet(int feet) => Imperial ? $"{feet} ft" : $"{Math.Round(feet * UnitFormat.MetresPerFoot):0} m";
     }
 }

@@ -84,11 +84,11 @@ view's (H, Space). The camera keeps WASD, the arrows, Q/E, R/F, the zoom keys, C
 | 1–4 | Game speed: 1, 3, 10 or 30 game minutes a second; choosing one starts the clock (built in P2-02) |
 | Ctrl+S | Save the design (task P3-04): the first save asks for a name, then saves to it; rebindable (`GameAction.Save`) |
 | Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) | Undo / redo a change to the design, when no tool is armed (P3-06) |
-| Inside the open Toolbox tray | Tool letters: N (New) / E (Edit) / X (Remove) on the Lifts and Trails tabs (P3-06); G / W / P and L / R / K come with their tools |
+| Inside the open Toolbox tray | Tool letters: N (New) / M (Edit) / X (Remove) on the Lifts and Trails tabs (P3-06; Edit moved off E, which rotates the camera, TL19). The camera keys work at all times, so a tool letter never uses W A S D, Q E, R F or C: the planned G / W / P and L / R / K pick new letters for W and R with their tools |
 
 ## Building tools (task P3-06; rules TF-09, LF-09, CF-07)
 
-Live while a tool is armed, which happens only with the tray open. All rebindable (SH-07).
+Live while a tool is armed, which happens only with the tray open. All rebindable (SH-07). The camera keys keep working throughout (owner, 2026-10-19: TL19); the brush and tower keys take [ ] and Page Up / Page Down only while the tool uses them.
 
 | Key | Action |
 |---|---|

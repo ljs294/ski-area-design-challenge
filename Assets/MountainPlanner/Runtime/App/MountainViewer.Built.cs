@@ -73,7 +73,8 @@ namespace MountainPlanner.App
             if (_designOverlay != null) _designOverlay.ShowBuilt = !ReferenceEquals(_designOverlay.History, _builtFor.History);
             var doc = _builtFor.History.Document;
             var heights = _builtFor.Pipeline.Heights;
-            int trails = _trailMap.Rebuild(doc, heights, _resort.Frame);
+            int trails = _trailMap.Rebuild(doc, heights, _resort.Frame, t => _edits?.Earthwork?.DetailOf(t.Id.Value) as TrailBuild);
+            RebuildTrailLayer(doc, heights);   // the Trails map layer (MountainViewer.Trails.cs, task 08)
             var keep = new HashSet<LiftId>();
             foreach (var lift in doc.Lifts)
             {
@@ -119,7 +120,9 @@ namespace MountainPlanner.App
                           $"trains {(view.Posed ? $"posed (tangent within {view.PoseError * 180 / Math.PI:F3}°{(view.SideMismatches > 0 ? $", {view.SideMismatches} head(s) disagree with the rope's bend:{view.MismatchNote}" : "")})" : "not posable (shipped models)")}, " +
                           $"rope leaves the bottom at {rope.BottomExitLoaded * Mathf.Rad2Deg:F1}° loaded / {rope.BottomExitEmpty * Mathf.Rad2Deg:F1}° empty and reaches the top at " +
                           $"{rope.TopEntryLoaded * Mathf.Rad2Deg:F1}° / {rope.TopEntryEmpty * Mathf.Rad2Deg:F1}° ({(rope.TerminalsOk ? "within" : "OVER")} TW-16), " +
-                          $"station foundations {rope.Towers[0].Reveal / 0.3048:F1} / {rope.Towers[rope.Towers.Count - 1].Reveal / 0.3048:F1} ft");
+                          (rope.Towers.Count > 0   // a lift built before task 09 places its towers has none
+                              ? $"station foundations {rope.Towers[0].Reveal / 0.3048:F1} / {rope.Towers[rope.Towers.Count - 1].Reveal / 0.3048:F1} ft"
+                              : "no towers yet"));
             }
             var gone = new List<LiftId>();
             foreach (var kv in _liftViews) if (!keep.Contains(kv.Key)) gone.Add(kv.Key);

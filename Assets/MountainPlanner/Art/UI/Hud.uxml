@@ -4,6 +4,7 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:hud="MountainPlanner.UI.Hud">
     <Style src="Hud.uss" />
     <Style src="HudTools.uss" />
+    <Style src="HudAnalysis.uss" />
     <ui:VisualElement name="hud" class="hud" picking-mode="Ignore">
         <ui:VisualElement name="contour-labels" class="contour-labels" picking-mode="Ignore" />
         <ui:Label name="credit" class="credit" text="Map data © OpenStreetMap contributors" picking-mode="Ignore" />
@@ -186,9 +187,10 @@
                     <ui:Label class="row__label" text="Lifts" picking-mode="Ignore" />
                     <ui:Label class="row__key mono" text="Shift 2" picking-mode="Ignore" />
                 </ui:Button>
-                <ui:Button name="layer-trails" class="row lay row--dis" tooltip="Comes with the building tools in Phase 3">
-                    <ui:VisualElement class="chk" picking-mode="Ignore" />
+                <ui:Button name="layer-trails" class="row lay">
+                    <ui:VisualElement class="chk" picking-mode="Ignore"><ui:VisualElement class="chk__tick" picking-mode="Ignore" /></ui:VisualElement>
                     <ui:Label class="row__label" text="Trails" picking-mode="Ignore" />
+                    <ui:Label class="row__key mono" text="Shift 4" picking-mode="Ignore" />
                 </ui:Button>
                 <ui:Button name="layer-snowmaking" class="row lay row--dis" tooltip="Comes with the building tools in Phase 3">
                     <ui:VisualElement class="chk" picking-mode="Ignore" />
