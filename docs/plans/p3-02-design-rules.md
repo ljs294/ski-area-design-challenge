@@ -438,7 +438,7 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   | Load on the rope | 28.0 lb/ft (41.7 kg/m) loaded, 12.9 lb/ft (19.2 kg/m) empty | RP-03 |
   | Rise this allows | about **1,130 ft (344 m)** of vertical: (49,600 − 18,000) ÷ 28.0 | RP-05. Typical fixed quads climb 300–1,200 ft; longer lines need two lifts |
   | Rope to chair bottom | **8.7 ft (2.66 m)**, measured on the model (SK8) | Real chairs: 8–10 ft |
-  | Line gauge | From each model's spec (the Monta's is 16.06 ft, 4.895 m) | The models |
+  | Line gauge | 13.5 ft (4.12 m) on both quads (task 09, LT12: the Monta's models were narrowed from 16.06 ft to share the tower heads) | The models |
   | Rope height at loading | 9.97 ft (3.039 m) above the load level | The models; real chairs about 10 ft |
   | Sheave | 17 in (432 mm) | The models |
   | Per sheave | at most **1,500 lbf (6.7 kN)** and **4.5°** of bend: game rules, as no passenger-ropeway figure was found | — |

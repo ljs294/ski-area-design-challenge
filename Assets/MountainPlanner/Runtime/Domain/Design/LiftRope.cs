@@ -59,12 +59,12 @@ namespace MountainPlanner.Domain.Design
         /// fibre-core rope, 5.15 lb/ft (7.66 kg/m), breaking strength 248,000 lbf (1,104 kN, the 1⅝ in table value scaled by
         /// diameter²), rated at a fifth, 49,600 lbf (220.8 kN); counterweight 18,000 lbf per side; 350 lb chairs, 170 lb
         /// riders; the chair hangs 8.7 ft (2.66 m, measured on the model) below the rope; the Sessellift's gauge is 13.5 ft
-        /// (4.12 m), the Monta's 16.06 ft (4.895 m). RP-05's rise is now (49,600 − 18,000) ÷ 28.0 lb/ft, about 1,130 ft.
+        /// (4.12 m), and the Monta's the same (owner, task 09, LT12: the Monta was narrowed to it rather than given wider tower heads). RP-05's rise is now (49,600 − 18,000) ÷ 28.0 lb/ft, about 1,130 ft.
         /// </summary>
         public static LiftType Of(string catalogId)
         {
             bool monta = catalogId == LiftCatalogIds.MontaFg4;
-            double gauge = monta ? 4.895 : 4.12;
+            double gauge = 4.12;
             var type = new LiftType(catalogId, 4, 2.286, 13.716, 7.66, 220_800, 80_070, 158.8, 77.1, 2.66, gauge, 0.04445);
             // Each end is the terminal model standing there (TW-16 v3; the owner's ruling, 2026-10-18: terminals face where
             // their bullwheels are). The Sessellift drives at the top: its return's hold-down row (8 sheaves) at the bottom,
@@ -77,7 +77,7 @@ namespace MountainPlanner.Domain.Design
                 type.Bottom = new TerminalEnd("monta_fg4_drive", TerminalRow.HoldDown, MontaExitMin, MontaExitMax, 0.9 * MontaExitMax,
                                               5.042, 11.075, 6.25, 10.869, 3.555, 0, 12);
                 type.Top = new TerminalEnd("monta_fg4_return", TerminalRow.Support, -TowerForces.SheaveBendLimit, 0, 0,
-                                           2.572, 3.782, 2.572, 1.922, 3.039, 0, 1);
+                                           2.165, 3.782, 2.165, 1.922, 3.039, 0, 1);
             }
             else
             {
