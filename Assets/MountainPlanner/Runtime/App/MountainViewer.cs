@@ -436,9 +436,10 @@ namespace MountainPlanner.App
             if (KeyBindings.Pressed(keys, GameAction.FreeFly, letters) && Camera != null) Camera.ToggleMode();
             if (KeyBindings.Pressed(keys, GameAction.Units, letters)) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
             if (KeyBindings.Pressed(keys, GameAction.ResetView, letters)) HomeView();
-            // Map layers (Shift+2, 4 and 5 are free for lifts and the rest as they're built).
+            // Map layers (Shift+4 and 5 are free for trails and the rest as they're built).
             if (KeyBindings.Pressed(keys, GameAction.LayerSnow, letters)) ToggleLayer(MapLayers.Snow);
             if (KeyBindings.Pressed(keys, GameAction.LayerTrees, letters)) ToggleLayer(MapLayers.Trees);
+            if (KeyBindings.Pressed(keys, GameAction.LayerLifts, letters)) ToggleLayer(MapLayers.Lifts);
             // Info layers: Contours with anything; the other four take turns.
             if (KeyBindings.Pressed(keys, GameAction.InfoContours, letters)) ToggleLayer(MapLayers.Contours);
             if (KeyBindings.Pressed(keys, GameAction.InfoSlope, letters)) ToggleLayer(MapLayers.SlopeAngle);

@@ -181,9 +181,10 @@
                     <ui:Label class="row__label" text="Trees" picking-mode="Ignore" />
                     <ui:Label class="row__key mono" text="Shift 3" picking-mode="Ignore" />
                 </ui:Button>
-                <ui:Button name="layer-lifts" class="row lay row--dis" tooltip="Comes with the building tools in Phase 3">
-                    <ui:VisualElement class="chk" picking-mode="Ignore" />
+                <ui:Button name="layer-lifts" class="row lay">
+                    <ui:VisualElement class="chk" picking-mode="Ignore"><ui:VisualElement class="chk__tick" picking-mode="Ignore" /></ui:VisualElement>
                     <ui:Label class="row__label" text="Lifts" picking-mode="Ignore" />
+                    <ui:Label class="row__key mono" text="Shift 2" picking-mode="Ignore" />
                 </ui:Button>
                 <ui:Button name="layer-trails" class="row lay row--dis" tooltip="Comes with the building tools in Phase 3">
                     <ui:VisualElement class="chk" picking-mode="Ignore" />

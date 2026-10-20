@@ -46,7 +46,8 @@
 | P | Photo mode: the photo bar replaces the HUD (see [Photo mode](#photo-mode)); Esc or P leaves and puts the view back | Task 11; the bar is P2-07 |
 | Shift+1 | **Map layer:** Snow | Task 12 |
 | Shift+3 | **Map layer:** Trees | Task 12 |
-| Shift+2, 4, 5 | Free, for map layers still to come (lifts and the rest as they're built) | — |
+| Shift+2 | **Map layer:** Lifts (models, rope, chairs and map lines) | Task P3-09 |
+| Shift+4, 5 | Free, for map layers still to come (trails and the rest as they're built) | — |
 | Shift+6 | **Info layer:** Contours (combine with any info layer) | Task 12b |
 | Shift+7 | **Info layer:** Slope angle | Task 12b |
 | Shift+8 | **Info layer:** Slope exposure | Task 12b |
@@ -97,6 +98,9 @@ Live while a tool is armed, which happens only with the tray open. All rebindabl
 | Shift (held) | Erase while painting |
 | Ctrl+Z | Undo the last stroke, while painting |
 | Page Up / Page Down | The tower in hand or the selected tower up or down 5 ft |
+| Page Up / Page Down | The terminal in hand up or down 1 ft (P3-09, LT19) |
+| , / . (Shift: 45°), Shift + wheel | Turn the bottom terminal in hand 5° (a wheel notch 15°; P3-09, LT21) |
+| Enter | Remove lift: remove the selected lift (P3-09) |
 | Delete | Delete the selected tower or trail |
 | Tab | The tool window takes the keyboard: the arrows walk its controls, Enter or Space presses one; Esc gives the keys back |
 | Esc | Back one step; at the first step the tool closes, asking first if anything is drawn (fixed) |

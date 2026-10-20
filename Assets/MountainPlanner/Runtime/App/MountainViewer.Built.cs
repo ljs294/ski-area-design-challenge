@@ -67,6 +67,7 @@ namespace MountainPlanner.App
                 _liftMaterials?.SetSnowLoad(snow);
             }
             if (_clock != null && !_clock.Paused) _chairSeconds += Time.unscaledDeltaTime;
+            ShowLifts(_layers == null || _layers.LiftsOn, false);
             if (!_builtDirty || EditsBusy) return;
             _builtDirty = false;
             if (_designOverlay != null) _designOverlay.ShowBuilt = !ReferenceEquals(_designOverlay.History, _builtFor.History);
@@ -135,12 +136,23 @@ namespace MountainPlanner.App
                 _liftViews[id].View.Dispose();
                 _liftViews.Remove(id);
             }
+            ShowLifts(_liftsShown, true);   // new views take the layer
             if (trails > 0 || _liftViews.Count > 0) Debug.Log($"[Built] {trails} trails, {_liftViews.Count} lifts drawn");
+        }
+
+        // The Lifts map layer (task 09, LT7): the models, rope and chairs and the map lines, all together.
+        bool _liftsShown = true;
+        void ShowLifts(bool on, bool force)
+        {
+            if (on == _liftsShown && !force) return;
+            _liftsShown = on;
+            foreach (var kv in _liftViews) if (kv.Value.View?.Root != null) kv.Value.View.Root.SetActive(on);
+            _mapLines?.SetVisible(on);
         }
 
         void DrawChairs()
         {
-            if (_liftViews.Count == 0 || Camera == null) return;
+            if (_liftViews.Count == 0 || Camera == null || !_liftsShown) return;
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             foreach (var kv in _liftViews) kv.Value.View.DrawChairs(cam, _chairSeconds);
         }
@@ -174,7 +186,7 @@ namespace MountainPlanner.App
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
             if (_mapLines != null && cam != null) _mapLines.Follow(cam, Camera.Distance, _hoveredId != 0 ? _hoveredId : _heldLiftId);
             bool picking = _tools == null || !_tools.Armed || _tools.Active is MountainPlanner.UI.Tools.IPicksLifts;
-            if (_liftViews.Count > 0 && cam != null && picking && !PhotoOpen)
+            if (_liftViews.Count > 0 && cam != null && picking && !PhotoOpen && _liftsShown)
             {
                 // -hoverlift (captures): the pointer on the first built lift's rope, a fifth of the way round.
                 if (_hoverFirstLift && HoverPointerForCapture == null)

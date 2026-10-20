@@ -21,6 +21,8 @@ namespace MountainPlanner.Presentation
         Undo, Redo,
         // P3-09 (LT19, LT21): the terminal being placed turns (a preview of the space it takes) and sets its level.
         TerminalTurnLeft, TerminalTurnRight, TerminalLevelUp, TerminalLevelDown,
+        // P3-09 (LT7): the Lifts map layer.
+        LayerLifts,
     }
 
     [Flags]
@@ -157,6 +159,7 @@ namespace MountainPlanner.Presentation
             new Info("Building", "Turn the terminal right", Context.Tray, new KeyChord(Key.Period)),
             new Info("Building", "Terminal up 1 ft", Context.Tray, new KeyChord(Key.PageUp)),
             new Info("Building", "Terminal down 1 ft", Context.Tray, new KeyChord(Key.PageDown)),
+            new Info("Layers", "Lifts", Context.Normal, new KeyChord(Key.Digit2, KeyMods.Shift)),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>

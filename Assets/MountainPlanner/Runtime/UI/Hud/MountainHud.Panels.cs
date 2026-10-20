@@ -95,7 +95,7 @@ namespace MountainPlanner.UI
             // Inert parts keep their tooltips (as the mockup's titles do) but take no clicks or keyboard stops.
             Inert(_trSketch, "sq--dis", null);
             foreach (string name in new[] { "bar-money", "bar-lifts", "bar-trails", "bar-guests", "bar-save" }) Inert(_root.Q(name), null, null);
-            foreach (string name in new[] { "menu-save", "menu-rename", "layer-lifts", "layer-trails", "layer-snowmaking", "layer-infrastructure", "layer-conditions" })
+            foreach (string name in new[] { "menu-save", "menu-rename", "layer-trails", "layer-snowmaking", "layer-infrastructure", "layer-conditions" })
                 Inert(_root.Q(name), "row--dis", null);
 
             WireTooltips();
