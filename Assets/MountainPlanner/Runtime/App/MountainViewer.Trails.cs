@@ -332,8 +332,13 @@ namespace MountainPlanner.App
             var edit = new List<double>();
             var undo = new List<double>();
             var history = _edits.History;
-            for (int s = 0; s < spots; s++)
+            // Spot -1 is a warm-up, not counted (the code's first run and the ground's first reads from disk, as the frame
+            // benchmark's warm-up lap); then two rounds over the ten spots, so p95 isn't simply the slowest run.
+            const int rounds = 2;
+            for (int pass = -1; pass < spots * rounds; pass++)
             {
+                int s = pass < 0 ? 0 : pass % spots;
+                bool counted = pass >= 0;
                 float angle = s * Mathf.PI * 2 / spots;
                 var head = new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * 600f;
                 var longPath = FallLine(head, 1000);
@@ -360,14 +365,14 @@ namespace MountainPlanner.App
                     var add = new AddTrail(history.Revision, "Bench " + s, TrailSettings.GradedRun, new[] { new FootprintPart(strokes.ToArray()) },
                                            path[0], path[path.Count - 1], WorkStage.Built);
                     var rebuilt = AnalyseForBench(add, out double ms);
-                    previewList.Add(ms);
+                    if (counted) previewList.Add(ms);
                     yield return null;
                     var watch = System.Diagnostics.Stopwatch.StartNew();
                     var r = history.Submit(add, rebuilt.Edits);
                     _edits.Earthwork.Accept(rebuilt);
                     while (!_edits.Applying.IsCompleted) yield return null;
                     yield return null;   // the frame that shows it
-                    commitList.Add(watch.Elapsed.TotalMilliseconds);
+                    if (counted) commitList.Add(watch.Elapsed.TotalMilliseconds);
                     if (!r.Accepted) Debug.LogWarning("[TrailBench] rejected: " + r);
                     for (int i = 0; i < 60; i++) yield return null;   // the snow rebuild after an edit settles, as it would while a player paints
                     if (mixed && r.Accepted)
@@ -377,7 +382,7 @@ namespace MountainPlanner.App
                         var t = history.Document.FindTrail(id);
                         var change = new EditTrail(history.Revision, id, t.Name, t.Parts, t.Head.Value, t.Tail.Value, TrailSettings.NaturalRun, WorkStage.Built);
                         var re = AnalyseForBench(change, out double ems);
-                        edit.Add(ems);
+                        if (counted) edit.Add(ems);
                         history.Submit(change, re.Edits);
                         _edits.Earthwork.Accept(re);
                         while (!_edits.Applying.IsCompleted) yield return null;
@@ -388,7 +393,7 @@ namespace MountainPlanner.App
                     history.Undo();
                     while (!_edits.Applying.IsCompleted) yield return null;
                     yield return null;
-                    undo.Add(watch.Elapsed.TotalMilliseconds);
+                    if (counted) undo.Add(watch.Elapsed.TotalMilliseconds);
                     for (int i = 0; i < 60; i++) yield return null;   // the snow rebuild after an edit settles, as it would while a player paints
                 }
             }

@@ -50,6 +50,10 @@ namespace MountainPlanner.Domain.Design
         }
 
         public double AreaSquareMetres => Cells;
+
+        /// <summary>The box's cells in row order (painted or not) and their clearances, for the centreline's search.</summary>
+        internal bool[] Mask => _in;
+        internal float[] ClearanceGrid => _clear;
         public bool IsEmpty => Cells == 0;
 
         /// <summary>The box's lattice point bounds (inclusive): every point a footprint cell touches.</summary>

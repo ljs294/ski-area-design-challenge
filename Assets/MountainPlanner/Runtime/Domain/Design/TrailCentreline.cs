@@ -41,17 +41,17 @@ namespace MountainPlanner.Domain.Design
             var box = new int[fp.Cells];
             var weight = new double[fp.Cells];
             int m = 0;
-            for (int j = 0; j < h; j++)
-                for (int i = 0; i < w; i++)
-                {
-                    int at = j * w + i;
-                    if (!fp.Contains(fp.Column0 + i, fp.Row0 + j)) { idx[at] = -1; continue; }
-                    double q = W / Math.Max(0.5, fp.Clearance(fp.Column0 + i, fp.Row0 + j));
-                    idx[at] = m;
-                    box[m] = at;
-                    weight[m] = 1 + q * q;
-                    m++;
-                }
+            var mask = fp.Mask;
+            var clear = fp.ClearanceGrid;
+            for (int at = 0; at < w * h; at++)
+            {
+                if (!mask[at]) { idx[at] = -1; continue; }
+                double q = W / Math.Max(0.5, clear[at]);
+                idx[at] = m;
+                box[m] = at;
+                weight[m] = 1 + q * q;
+                m++;
+            }
 
             var cost = new double[m];
             var from = new int[m];
