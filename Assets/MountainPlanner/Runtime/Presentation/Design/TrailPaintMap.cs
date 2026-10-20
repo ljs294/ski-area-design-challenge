@@ -53,9 +53,9 @@ namespace MountainPlanner.Presentation.Design
         Texture2D _map, _stage;
         RectInt _dirty, _shown;   // in window cells (x column, y row from the north)
         bool _realloc;
-        int _style;
+        int _style = 1;   // B, the owner's choice (TL25): a blue fill with a blue edge
 
-        /// <summary>The look (0 A: light fill and a crisp edge; 1 B: white-blue highlight; 2 C: the difficulty's colour).</summary>
+        /// <summary>The look (0 A: orange; 1 B: blue, the game's (owner, TL25); 2 C: the live difficulty's colour). -paintstyle a/b/c for reviews.</summary>
         public int Style
         {
             get => _style;
