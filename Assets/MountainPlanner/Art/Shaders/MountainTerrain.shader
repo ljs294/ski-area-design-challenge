@@ -137,8 +137,8 @@ Shader "MountainPlanner/Terrain"
             float2 uv = (xz - _PaintRect.xy) * _PaintRect.zw;
             if (any(uv <= 0) || any(uv >= 1)) return colour;
             float2 paint = SAMPLE_TEXTURE2D_LOD(_PaintMap, sampler_PaintMap, uv, 0).rg;
-            colour = lerp(colour, float3(0.84, 0.45, 0.20), 0.45 * paint.r);
-            return lerp(colour, float3(0.80, 0.14, 0.10), 0.55 * paint.g);
+            colour = lerp(colour, float3(0.86, 0.36, 0.10), 0.62 * paint.r);   // strong enough to read on lit snow (linear space)
+            return lerp(colour, float3(0.78, 0.08, 0.05), 0.68 * paint.g);
         }
 
         // The offset across the trail (m) at full float precision (task 07, finding #11): half floats and hardware

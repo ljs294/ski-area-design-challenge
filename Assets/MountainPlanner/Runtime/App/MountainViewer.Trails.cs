@@ -218,6 +218,7 @@ namespace MountainPlanner.App
                 _tools.Tick(GroundInput(a, click: true, drag: true));
                 int steps = Mathf.CeilToInt(Vector2.Distance(a, b) / 5);
                 for (int t = 1; t <= steps; t++) _tools.Tick(GroundInput(Vector2.Lerp(a, b, (float)t / steps), drag: true));
+                if (k == 0) yield return Shot(dir, "0-brushing");   // the first stroke mid-drag: the brush's paint as it goes on
                 _tools.Tick(GroundInput(b, release: true));
                 yield return WaitTool(trail);
             }
