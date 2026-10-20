@@ -515,7 +515,7 @@ namespace MountainPlanner.Tests
             Assert.That(kind, Is.Not.Null);
 
             // Through the menus as a click would: the tram's default is 100 a cabin; the carrier keeps the maker.
-            var dd = typeof(NewLiftTool).GetField("_kindDd", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lift) as ToolDropdown;
+            var dd = ((LiftTypeMenu)typeof(NewLiftTool).GetField("_typeMenu", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lift)).Kind;
             dd.Choose(3);
             Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.Of("tram-100", "sessellift")));
             dd.Choose(0);
@@ -536,7 +536,7 @@ namespace MountainPlanner.Tests
             _host.Choose(NewLiftTool.ToolId);
             var w = _host.Context.Window;
             var lift = (NewLiftTool)_host.Active;
-            var dd = typeof(NewLiftTool).GetField("_carrierDd", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lift) as ToolDropdown;
+            var dd = lift.CarrierMenu;
             dd.Show();
             var menu = w.Window.Q("toolwin-dd-carrier-menu");
             Assert.That(menu, Is.Not.Null, "the menu opens");
@@ -609,6 +609,86 @@ namespace MountainPlanner.Tests
             Assert.That(built.Towers.Count, Is.EqualTo(count));
             Assert.That(lift.Placed.Count, Is.EqualTo(0), "the next lift starts with none");
             lift.ChooseTowers(TowerMode.Automatic);   // the next test starts from Automatic
+        }
+
+        // ---------- Edit lift (task 09, LT2) ----------
+
+        LiftId BuiltOnSlope()
+        {
+            var ground = new MountainPlanner.Domain.Edits.EditedHeights(new SlopeHeights(), new MountainPlanner.Domain.Edits.EditLattice(-3000.5, 3000.5),
+                                                                        MountainPlanner.Domain.Edits.TerrainEdits.Empty);
+            var quad = LiftType.Of(LiftCatalogIds.SesselliftFgq4);
+            var b = LiftBuild.Build(quad, ground, 0, -400, 0, 600, TowerStance.Plumb);
+            var r = _design.Submit(new AddLift(_design.Revision, "Chair 1", quad.CatalogId, DesignFrame.ToDesign(new Vector2(0, -400)), DesignFrame.ToDesign(new Vector2(0, 600)),
+                                               TowerMode.Automatic, TowerStance.Plumb, b.Towers, WorkStage.Built, b.Levels), b.Edits);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            return new LiftId(r.Created[0]);
+        }
+
+        [Test]
+        public void EditLift_ARaisedTowerAppliesAsOneStepAndUndoesWhole()
+        {
+            var id = BuiltOnSlope();
+            var before = _design.Document.FindLift(id);
+            Assert.That(ToolCatalog.IsLive(EditLiftTool.ToolId), Is.True);
+            _host.Choose(EditLiftTool.ToolId);
+            var tool = (EditLiftTool)_host.Active;
+            GiveGround();
+            _host.Context.LiftUnderPointer = () => id.Value;
+            _host.Tick(At(5, 0, click: true));
+            Assert.That(tool.Editing, Is.True, "a click on the lit lift opens it");
+            Assert.That(_host.Context.Window.Window.Q<Label>("toolwin-dd-model-value").text, Is.EqualTo("Sessellift FGQ-4"));
+
+            // A tower 5 ft taller: one change, By hand now; Ctrl+Z takes it back inside the tool.
+            int mid = before.Towers.Count / 2;
+            tool.SelectTower(mid);
+            Assert.That(KeyBindings.IsClaimed(GameAction.TowerUp), Is.True, "Page Up is the selected tower's");
+            _host.Tick(new ToolInput { Keys = ToolKeys.TowerUp });
+            Assert.That(tool.Changes, Is.EqualTo(1));
+            Assert.That(tool.DraftTowers[mid].HeightMm, Is.EqualTo(before.Towers[mid].HeightMm + DesignUnits.FiveFeetMm));
+            _host.Tick(new ToolInput { Keys = ToolKeys.UndoStroke });
+            Assert.That(tool.Changes, Is.EqualTo(0), "Ctrl+Z inside the tool");
+            Assert.That(tool.DraftTowers[mid].HeightMm, Is.EqualTo(before.Towers[mid].HeightMm));
+
+            // Again, then Apply once the draft is built.
+            _host.Tick(new ToolInput { Keys = ToolKeys.TowerUp });
+            _host.Tick(new ToolInput { Keys = ToolKeys.TowerUp });
+            PumpUntil(() => tool.Built != null && _host.Context.Window.CanBreakGround, "the draft builds and can be applied");
+            int revision = (int)_design.Revision;
+            _host.Tick(new ToolInput { Keys = ToolKeys.BreakGround });
+            var after = _design.Document.FindLift(id);
+            Assert.That(_design.Revision, Is.EqualTo(revision + 1), "one command for the whole edit");
+            Assert.That(after.Towers[mid].HeightMm, Is.EqualTo(before.Towers[mid].HeightMm + 2 * DesignUnits.FiveFeetMm));
+            Assert.That(after.TowerMode, Is.EqualTo(TowerMode.ByHand), "a tower changed by hand makes it By hand");
+            Assert.That(after.Towers[mid].Id, Is.EqualTo(before.Towers[mid].Id), "the tower keeps its ID");
+            Assert.That(tool.Editing, Is.False, "back to picking the next lift");
+            Assert.That(_design.Undo(), Is.True);
+            Assert.That(_design.Document.FindLift(id).Towers[mid].HeightMm, Is.EqualTo(before.Towers[mid].HeightMm), "one Ctrl+Z undoes the edit");
+        }
+
+        [Test]
+        public void EditLift_CancelAsksOnceWhenThereAreChanges()
+        {
+            var id = BuiltOnSlope();
+            var levels = _design.Document.FindLift(id).Levels;
+            long revision = _design.Revision;
+            _host.Choose(EditLiftTool.ToolId);
+            var tool = (EditLiftTool)_host.Active;
+            GiveGround();
+            Assert.That(tool.Open(id.Value), Is.True);
+            tool.SelectTerminal(bottom: true);
+            Assert.That(KeyBindings.IsClaimed(GameAction.TerminalLevelUp), Is.True);
+            PumpUntil(() => tool.Built != null, "the draft builds");
+            _host.Tick(new ToolInput { Keys = ToolKeys.LevelUp });
+            Assert.That(tool.Changes, Is.EqualTo(1), "the bottom terminal 1 ft up");
+            Assert.That(_host.Escape(), Is.True);   // deselects
+            Assert.That(_host.Escape(), Is.True);   // asks
+            Assert.That(tool.Editing, Is.True, "the first Esc with changes only asks");
+            Assert.That(_host.Escape(), Is.True);
+            Assert.That(tool.Editing, Is.False, "the second drops the draft");
+            Assert.That(_host.Armed, Is.True, "the tool stays out");
+            Assert.That(_design.Revision, Is.EqualTo(revision), "nothing applied");
+            Assert.That(_design.Document.FindLift(id).Levels, Is.EqualTo(levels));
         }
 
         // ---------- Remove lift (task 09) ----------

@@ -131,6 +131,17 @@ namespace MountainPlanner.Domain.Design
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
             double ux = (tx - bx) / length, uy = (ty - by) / length;
             var levels = StartLevels(type, current, bx, by, tx, ty, bottomHand, topHand, out double steepB, out double steepT);
+            return BuildWith(type, current, bx, by, tx, ty, towers, stance, levels, steepB, steepT);
+        }
+
+        /// <summary>Edit lift (LT2): the lift built on the towers and terminal levels given (absolute, as stored), no search.</summary>
+        public static Result BuildWith(LiftType type, EditedHeights current, double bx, double by, double tx, double ty,
+                                       IReadOnlyList<TowerSpec> towers, TowerStance stance, LiftLevels levels, double steepB = 0, double steepT = 0)
+        {
+            if (current == null) throw new ArgumentNullException(nameof(current));
+            if (towers == null || towers.Count == 0) throw new ArgumentException("A lift needs at least one tower.", nameof(towers));
+            double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
+            double ux = (tx - bx) / length, uy = (ty - by) / length;
             var stored = new List<Tower>(towers.Count);
             for (int i = 0; i < towers.Count; i++) stored.Add(new Tower(TowerId.Make(1, i), towers[i].AlongMm, towers[i].HeightMm));
             stored.Sort((a, b) => a.AlongMm.CompareTo(b.AlongMm));

@@ -20,7 +20,7 @@ namespace MountainPlanner.UI.Tools
         readonly VisualElement _opts, _steps, _keys, _kv, _btns, _acts, _msgs, _extra;
         string _extraKey;
         readonly Button _next, _go, _plan;
-        readonly Label _goKbd, _nextKbd;
+        readonly Label _goKbd, _nextKbd, _goLabel;
         int _reviewVersion = -1;
         ReviewModel _review;
 
@@ -86,7 +86,7 @@ namespace MountainPlanner.UI.Tools
             Window.Body.Add(_acts = Part("toolwin-acts", "tw-acts"));
             _go = new Button(() => BreakGroundClicked?.Invoke()) { name = "review-go" };
             _go.AddToClassList("mp-go");
-            var goLabel = new Label("Break ground") { pickingMode = PickingMode.Ignore };
+            var goLabel = _goLabel = new Label("Break ground") { pickingMode = PickingMode.Ignore };
             goLabel.AddToClassList("tw-go__label");
             _go.Add(goLabel);
             _goKbd = new Label(KeyBindings.Caption(GameAction.BreakGround)) { pickingMode = PickingMode.Ignore };
@@ -328,6 +328,7 @@ namespace MountainPlanner.UI.Tools
             _steps.Clear();
             _stepItems.Clear();
             _stepNumbers.Clear();
+            _steps.EnableInClassList("hidden", names.Length == 0);   // Edit lift has no steps
             for (int i = 0; i < names.Length; i++)
             {
                 var s = Part("toolwin-step-" + (i + 1), "tw-step");
@@ -470,8 +471,19 @@ namespace MountainPlanner.UI.Tools
         public void SetCommit(bool breakGround, bool savePlan)
         {
             _go.SetEnabled(breakGround);
-            _plan.SetEnabled(savePlan);
+            _plan.SetEnabled(savePlan || _planAlways);
         }
+
+        /// <summary>Renames the commit buttons (Edit lift: Apply and Cancel; task 09, LT2).</summary>
+        public void SetCommitText(string go, string plan)
+        {
+            _goLabel.text = go;
+            _plan.text = plan;
+        }
+
+        /// <summary>Whether the second commit button takes clicks even with nothing to commit (Edit lift's Cancel).</summary>
+        public void SetPlanAlwaysLive(bool on) => _planAlways = on;
+        bool _planAlways;
 
         public bool CanBreakGround => _go.enabledSelf;
         public bool CanSavePlan => _plan.enabledSelf;

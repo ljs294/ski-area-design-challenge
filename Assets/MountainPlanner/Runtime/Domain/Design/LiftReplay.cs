@@ -17,14 +17,17 @@ namespace MountainPlanner.Domain.Design
         /// <paramref name="natural"/> with no edits. <paramref name="toGround"/> turns a design point into
         /// <paramref name="natural"/>'s frame.
         /// </summary>
-        public static TerrainEdits Rebuild(IHeightSource natural, EditLattice lattice, DesignDocument doc, Func<PointMm, (double X, double Y)> toGround, LiftId skip = default)
+        /// <param name="replace">Edit lift's draft, standing in for the lift with its id (LT2's Apply), or null.</param>
+        public static TerrainEdits Rebuild(IHeightSource natural, EditLattice lattice, DesignDocument doc, Func<PointMm, (double X, double Y)> toGround,
+                                           LiftId skip = default, Lift replace = null)
         {
             if (natural == null) throw new ArgumentNullException(nameof(natural));
             if (doc == null) throw new ArgumentNullException(nameof(doc));
             if (toGround == null) throw new ArgumentNullException(nameof(toGround));
             var current = new EditedHeights(natural, lattice, TerrainEdits.Empty);
-            foreach (var lift in doc.Lifts)
+            foreach (var listed in doc.Lifts)
             {
+                var lift = replace != null && listed.Id.Value == replace.Id.Value ? replace : listed;
                 if (lift.Id.Value == skip.Value || lift.Stage != WorkStage.Built || lift.Levels is not LiftLevels levels || lift.Towers.Count == 0) continue;
                 var b = toGround(lift.Bottom);
                 var t = toGround(lift.Top);
