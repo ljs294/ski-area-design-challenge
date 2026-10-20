@@ -132,7 +132,7 @@ namespace MountainPlanner.App.Flow
         static bool? _captureRun;
         static readonly string[] CaptureSwitches =
         {
-            "-uicapture", "-flowcapture", "-trailshots", "-trailbench", "-paintbench", "-screenshot", "-benchmark", "-benchmark-views", "-pathmovie", "-lineup",
+            "-uicapture", "-flowcapture", "-trailshots", "-trailbench", "-paintbench", "-paintmovie", "-screenshot", "-benchmark", "-benchmark-views", "-pathmovie", "-lineup",
             "-lodtransitions", "-clip", "-titleshots", "-titlemovie", "-photoshot", "-styletile", "-testbench", "-editbench", "-smoketest",
         };
 

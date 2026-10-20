@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Edits;
 using Unity.Collections;
@@ -13,11 +14,14 @@ namespace MountainPlanner.Presentation.Design
         void Align(EditLattice lattice, double originX, double originY);
         /// <summary>
         /// Paints (or rubs out) the capsule <paramref name="radius"/> metres round the segment from <paramref name="a"/> to
-        /// <paramref name="b"/> (local x/z): exactly the cells <see cref="TrailFootprint"/> paints for that stretch of a stroke.
+        /// <paramref name="b"/> (local x/z), the stretch of a stroke <see cref="TrailFootprint"/> paints, its edge anti-aliased.
         /// </summary>
         void Stamp(Vector2 a, Vector2 b, float radius, bool erase);
-        /// <summary>Shows a worked-out footprint: the cells it paints, a patch apart red.</summary>
-        void Show(TrailFootprint footprint);
+        /// <summary>
+        /// Shows the strokes as painted (the same stamps, replayed in order, so nothing changes when a stroke ends) and the
+        /// worked-out footprint's patches apart in red.
+        /// </summary>
+        void Redraw(IReadOnlyList<FootprintPart> parts, TrailFootprint footprint);
         /// <summary>Takes all the paint off the ground.</summary>
         void Clear();
         /// <summary>The brush under the pointer (local x/z), drawn on the ground; hidden when <paramref name="shown"/> is false.</summary>
@@ -85,46 +89,64 @@ namespace MountainPlanner.Presentation.Design
             int cMin = (int)Math.Floor(Math.Min(ax, bx) - r - _lattice.West) - 1, cMax = (int)Math.Ceiling(Math.Max(ax, bx) + r - _lattice.West) + 1;
             int rMin = (int)Math.Floor(_lattice.North - Math.Max(ay, by) - r) - 1, rMax = (int)Math.Ceiling(_lattice.North - Math.Min(ay, by) + r) + 1;
             if (!Cover(cMin, rMin, cMax, rMax)) return;
-            double dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy, r2 = r * r;
+            double dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
             for (int row = Math.Max(rMin, _r0); row <= Math.Min(rMax, _r0 + _h - 1); row++)
             {
                 double y = _lattice.North - row - 0.5;
                 for (int col = Math.Max(cMin, _c0); col <= Math.Min(cMax, _c0 + _w - 1); col++)
                 {
-                    // TrailFootprint.Capsule's own test: the cell's centre within r of the segment.
+                    // TrailFootprint.Capsule's own distance, from the cell's centre to the segment; the coverage falls from
+                    // 1 to 0 across the metre round the brush's edge, so the edge follows the brush, not the cells' steps.
                     double x = _lattice.West + col + 0.5;
                     double t = len2 == 0 ? 0 : Math.Max(0, Math.Min(1, ((x - ax) * dx + (y - ay) * dy) / len2));
-                    double ex = ax + t * dx - x, ey = ay + t * dy - y;
-                    if (ex * ex + ey * ey > r2) continue;
+                    double ex = ax + t * dx - x, ey = ay + t * dy - y, d2 = ex * ex + ey * ey;
+                    if (d2 > (r + 0.5) * (r + 0.5)) continue;
+                    double cover = Math.Max(0, Math.Min(1, r - Math.Sqrt(d2) + 0.5));
+                    byte v = (byte)Math.Round(cover * 255);
                     int at = Index(col, row);
-                    _cpu[at] = erase ? (byte)0 : (byte)255;
+                    if (erase) { int keep = 255 - v; if (_cpu[at] > keep) _cpu[at] = (byte)keep; }
+                    else if (_cpu[at] < v) _cpu[at] = v;
                     _cpu[at + 1] = 0;
                 }
             }
             Touch(Math.Max(cMin, _c0) - _c0, Math.Max(rMin, _r0) - _r0, Math.Min(cMax, _c0 + _w - 1) - _c0, Math.Min(rMax, _r0 + _h - 1) - _r0);
         }
 
-        public void Show(TrailFootprint fp)
+        public void Redraw(IReadOnlyList<FootprintPart> parts, TrailFootprint fp)
         {
-            if (!_aligned || fp == null) { ClearCpu(); return; }
-            if (!Cover(fp.Column0, fp.Row0, fp.Column0 + fp.Width - 1, fp.Row0 + fp.Height - 1)) return;
+            if (!_aligned) return;
             ClearCpu();
-            if (fp.IsEmpty) return;
-            var labels = fp.PatchLabels(out int main);
-            int x0 = int.MaxValue, y0 = int.MaxValue, x1 = int.MinValue, y1 = int.MinValue;
-            for (int j = 0; j < fp.Height; j++)
-                for (int i = 0; i < fp.Width; i++)
+            if (parts == null) return;
+            if (fp != null && !Cover(fp.Column0 - 2, fp.Row0 - 2, fp.Column0 + fp.Width + 1, fp.Row0 + fp.Height + 1)) return;
+            foreach (var part in parts)
+                foreach (var s in part.Strokes)
                 {
-                    int label = labels[j * fp.Width + i];
-                    if (label == 0) continue;
+                    float r = s.WidthMm / 2000f;
+                    var pts = s.Points;
+                    if (pts.Count == 1) Stamp(Local(pts[0]), Local(pts[0]), r, s.Erase);
+                    for (int k = 0; k + 1 < pts.Count; k++) Stamp(Local(pts[k]), Local(pts[k + 1]), r, s.Erase);
+                }
+            if (fp == null || fp.IsEmpty || fp.Patches < 2) return;
+            // A patch apart (TF-02) turns red, its anti-aliased rim with it.
+            var labels = fp.PatchLabels(out int main);
+            for (int j = -1; j <= fp.Height; j++)
+                for (int i = -1; i <= fp.Width; i++)
+                {
                     int col = fp.Column0 + i, row = fp.Row0 + j;
                     int at = Index(col, row);
-                    if (label == main) _cpu[at] = 255; else _cpu[at + 1] = 255;
-                    x0 = Math.Min(x0, col - _c0); x1 = Math.Max(x1, col - _c0);
-                    y0 = Math.Min(y0, row - _r0); y1 = Math.Max(y1, row - _r0);
+                    if (_cpu[at] == 0) continue;
+                    int label = Label(labels, fp, i, j);
+                    if (label == 0) for (int n = 0; n < 4 && label == 0; n++) label = Label(labels, fp, i + (n == 0 ? 1 : n == 1 ? -1 : 0), j + (n == 2 ? 1 : n == 3 ? -1 : 0));
+                    if (label == 0 || label == main) continue;
+                    _cpu[at + 1] = _cpu[at];
+                    _cpu[at] = 0;
                 }
-            if (x0 <= x1) Touch(x0, y0, x1, y1);
         }
+
+        static int Label(int[] labels, TrailFootprint fp, int i, int j) =>
+            i < 0 || j < 0 || i >= fp.Width || j >= fp.Height ? 0 : labels[j * fp.Width + i];
+
+        static Vector2 Local(PointMm p) => new Vector2((float)p.XMetres, (float)p.YMetres);
 
         public void Clear()
         {

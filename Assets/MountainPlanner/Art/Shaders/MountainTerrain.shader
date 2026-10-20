@@ -149,15 +149,16 @@ Shader "MountainPlanner/Terrain"
                     float inside = smoothstep(0.5 - w, 0.5 + w, cover);
                     float edge = saturate(1 - abs(cover - 0.5) / (1.5 * w));
                     float apart = saturate(paint.g / max(cover, 1e-3));
-                    float3 fill, line;
+                    float3 fill, edgeInk;
                     float alpha;
-                    if (_PaintParams.y < 0.5) { fill = float3(0.90, 0.52, 0.22); line = float3(0.70, 0.28, 0.06); alpha = 0.30; }
-                    else if (_PaintParams.y < 1.5) { fill = float3(0.80, 0.90, 1.00); line = float3(0.16, 0.48, 0.92); alpha = 0.45; }
-                    else { fill = _PaintTint.rgb; line = _PaintTint.rgb * 0.75; alpha = 0.30; }
+                    // Snow is near white, so a fill needs colour and weight to read on it (linear space).
+                    if (_PaintParams.y < 0.5) { fill = float3(0.92, 0.50, 0.18); edgeInk = float3(0.66, 0.24, 0.04); alpha = 0.42; }
+                    else if (_PaintParams.y < 1.5) { fill = float3(0.42, 0.66, 1.00); edgeInk = float3(0.10, 0.38, 0.88); alpha = 0.40; }
+                    else { fill = _PaintTint.rgb; edgeInk = _PaintTint.rgb * 0.7; alpha = 0.45; }
                     fill = lerp(fill, float3(0.86, 0.16, 0.10), apart);
-                    line = lerp(line, float3(0.70, 0.08, 0.05), apart);
+                    edgeInk = lerp(edgeInk, float3(0.70, 0.08, 0.05), apart);
                     colour = lerp(colour, fill, alpha * inside);
-                    colour = lerp(colour, line, 0.9 * edge);
+                    colour = lerp(colour, edgeInk, 0.9 * edge);
                 }
             }
             UNITY_BRANCH

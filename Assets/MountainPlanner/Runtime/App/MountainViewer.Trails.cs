@@ -245,8 +245,89 @@ namespace MountainPlanner.App
             Application.Quit();
         }
 
+        /// <summary>
+        /// -paintmovie &lt;folder&gt; (with -view and -trailspot): the brush at work for the owner's review, a frame saved
+        /// per step as &lt;folder&gt;/paint/f_&lt;ms&gt;.jpg at 15 fps (Editor/PickerLabSetup.EncodeMovies makes paint.mp4):
+        /// the spot's path painted at a steady drag, a wider second pass, an island rubbed out, then a hold. Not a measurement.
+        /// </summary>
+        IEnumerator PaintMovie(string folder, string spotName)
+        {
+            while (_resort == null || !_resort.CoverReady.IsCompleted || WorkBusy || _tools == null) yield return null;
+            if (!TrailSpots.TryGetValue(spotName, out var spot)) yield break;
+            if (Camera != null) Camera.InputEnabled = false;
+            Hud.SetToolboxTab("trails");
+            Hud.SetToolbox(true);
+            _tools.Choose(NewTrailTool.ToolId);
+            var trail = (NewTrailTool)_tools.Active;
+            _toolScripted = true;
+            while (!Ground.Ready) yield return null;
+            string frames = Path.Combine(folder, "paint");
+            Directory.CreateDirectory(frames);
+            int frame = 0;
+            IEnumerator Shoot()
+            {
+                yield return new WaitForEndOfFrame();
+                var shot = ScreenCapture.CaptureScreenshotAsTexture();
+                File.WriteAllBytes(Path.Combine(frames, $"f_{frame * 1000 / 15:D6}.jpg"), shot.EncodeToJPG(88));
+                Destroy(shot);
+                frame++;
+            }
+            IEnumerator Hover(Vector2 at, int count)
+            {
+                for (int i = 0; i < count; i++) { _tools.Tick(GroundInput(at)); yield return null; yield return Shoot(); }
+            }
+            IEnumerator Drag(Vector2 a, Vector2 b, bool erase, float metresPerFrame)
+            {
+                _tools.Tick(GroundInput(a, click: true, drag: true, erase: erase));
+                yield return null;
+                yield return Shoot();
+                int steps = Mathf.Max(1, Mathf.CeilToInt(Vector2.Distance(a, b) / metresPerFrame));
+                for (int t = 1; t <= steps; t++)
+                {
+                    _tools.Tick(GroundInput(Vector2.Lerp(a, b, t / (float)steps), drag: true, erase: erase));
+                    yield return null;
+                    yield return Shoot();
+                }
+                _tools.Tick(GroundInput(b, release: true, erase: erase));
+                yield return null;
+                yield return Shoot();
+            }
+            int n = spot.path.Length / 2;
+            var first = new Vector2(spot.path[0], spot.path[1]);
+            for (int i = 0; i < 30; i++) yield return null;
+            yield return Hover(first, 10);
+            for (int k = 0; k + 1 < n; k++)
+            {
+                int feet = spot.feet.Length == 1 ? spot.feet[0] : spot.feet[k];
+                while (trail.BrushFeet < feet) _tools.Tick(new ToolInput { Keys = ToolKeys.BrushWider });
+                while (trail.BrushFeet > feet) _tools.Tick(new ToolInput { Keys = ToolKeys.BrushNarrower });
+                var a = new Vector2(spot.path[2 * k], spot.path[2 * k + 1]);
+                var b = new Vector2(spot.path[2 * k + 2], spot.path[2 * k + 3]);
+                yield return Hover(a, 4);
+                yield return Drag(a, b, false, 4f);
+            }
+            foreach (var (x, z, ft) in spot.islands)
+            {
+                while (trail.BrushFeet > ft) _tools.Tick(new ToolInput { Keys = ToolKeys.BrushNarrower });
+                var c = new Vector2(x, z);
+                yield return Hover(c + new Vector2(-12, 0), 6);
+                yield return Drag(c + new Vector2(-6, 0), c + new Vector2(6, 0), true, 1.5f);
+            }
+            yield return Hover(new Vector2(spot.path[2 * n - 2], spot.path[2 * n - 1]), 30);
+            Debug.Log($"[PaintMovie] {frame} frames saved to {frames}");
+            UndoCaptureTrails();
+            Application.Quit();
+        }
+
         void StartTrailShots(string[] args)
         {
+            int pm = Array.IndexOf(args, "-paintmovie");
+            if (pm >= 0 && pm + 1 < args.Length)
+            {
+                int sp = Array.IndexOf(args, "-trailspot");
+                StartCoroutine(PaintMovie(args[pm + 1], sp >= 0 && sp + 1 < args.Length ? args[sp + 1] : "sidehill"));
+                return;
+            }
             int pb = Array.IndexOf(args, "-paintbench");
             if (pb >= 0 && pb + 1 < args.Length) { StartCoroutine(PaintBench(args[pb + 1])); return; }
             int i = Array.IndexOf(args, "-trailshots");

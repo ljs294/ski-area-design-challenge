@@ -490,7 +490,7 @@ namespace MountainPlanner.UI.Tools
         {
             SlopeBands.Band.Green => new Color(0.20f, 0.62f, 0.30f),
             SlopeBands.Band.Blue => new Color(0.18f, 0.42f, 0.82f),
-            _ => new Color(0.16f, 0.16f, 0.18f),
+            _ => new Color(0.22f, 0.24f, 0.30f),   // black runs: a dark slate that still reads as paint
         };
 
         // Redraws every stroke's edges and works out the footprint again (after a stroke, an undo, or a step back).
@@ -522,7 +522,7 @@ namespace MountainPlanner.UI.Tools
                 // the live estimate's difficulty (TD-06).
                 if (_mode != TrailToolMode.Remove)
                 {
-                    _ctx.Paint?.Show(p.Footprint);
+                    _ctx.Paint?.Redraw(Parts(), p.Footprint);
                     if (!double.IsNaN(p.Estimate)) _ctx.Paint?.Tint(BandTint(SlopeBands.Of(p.Estimate)));
                 }
                 if (_step == Step.Paint) PaintStatus();
