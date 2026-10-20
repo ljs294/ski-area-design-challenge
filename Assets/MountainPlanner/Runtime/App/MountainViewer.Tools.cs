@@ -71,6 +71,8 @@ namespace MountainPlanner.App
                     return (a.X, a.Y);
                 },
                 BottomGhost = _ghosts[0] ??= Lifts != null ? new Presentation.Lifts.TerminalGhost(_resort.Root.transform, Lifts) : null,
+                LiftUnderPointer = () => _hoveredId,
+                HoldLift = id => _heldLiftId = id,
                 TopGhost = _ghosts[1] ??= Lifts != null ? new Presentation.Lifts.TerminalGhost(_resort.Root.transform, Lifts) : null,
             }, Hud.OpenWindow);
             _tools.ActiveChanged += Hud.SetActiveTool;

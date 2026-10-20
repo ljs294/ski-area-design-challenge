@@ -61,6 +61,7 @@ namespace MountainPlanner.UI.Tools
             var tool = entry.Make();
             _ctx = _context(tool);
             _ctx.Notice = s => Notice?.Invoke(s);
+            _ctx.Submit = SubmitNow;
             var window = new ToolWindow(tool.Id, tool.Name, entry.Glyph);
             _ctx.Window = window;
             window.NextClicked += () => _clicked |= ToolKeys.Next;
@@ -144,6 +145,17 @@ namespace MountainPlanner.UI.Tools
             if (Active == null) return;
             if (input.Pressed(ToolKeys.BreakGround)) { Confirm(WorkStage.Built); input.Keys &= ~ToolKeys.BreakGround; }
             Active.Tick(input);
+        }
+
+        // A command the tool made itself (Remove lift, Edit lift's Apply): one a tick, reported like Break ground.
+        CommandResult SubmitNow(DesignCommand command, Domain.Edits.TerrainEdits terrain)
+        {
+            if (Active == null || command == null || _confirmedTick == _tick) return null;
+            _confirmedTick = _tick;
+            var result = _ctx.History.Submit(command, terrain);
+            Submitted?.Invoke(result);
+            if (!result.Accepted) _ctx.Window?.SetMessage(result.Reason);
+            return result;
         }
 
         /// <summary>

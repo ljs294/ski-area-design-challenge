@@ -57,6 +57,10 @@ namespace MountainPlanner.UI.Tools
         public bool Pressed(ToolKeys key) => (Keys & key) != 0;
     }
 
+    /// <summary>A tool that picks built lifts with the pointer (Edit and Remove lift, task 09): the viewer lights the lift under
+    /// the pointer while it's armed, as it does with no tool.</summary>
+    public interface IPicksLifts { }
+
     /// <summary>What Esc did (CF-07): backed out a step, or the tool is at its first step and would close.</summary>
     public enum ToolBackOut { Stepped, Close }
 

@@ -45,6 +45,19 @@ namespace MountainPlanner.UI.Tools
         /// <summary>A design point (site-centred mm, TE5) in <see cref="EditedGround"/>'s frame.</summary>
         public Func<PointMm, (double X, double Y)> ToGround { get; set; }
 
+        /// <summary>The built lift under the pointer, lit by the viewer's hover (task 09, LT23), or 0; set while a tool that
+        /// picks lifts (<see cref="IPicksLifts"/>) is armed.</summary>
+        public Func<ulong> LiftUnderPointer { get; set; }
+
+        /// <summary>Keeps a lift lit while the tool has it selected (0 for none): Remove lift's first click, Edit lift's lift.</summary>
+        public Action<ulong> HoldLift { get; set; }
+
+        /// <summary>
+        /// Submits a command the tool makes itself (Remove lift, Edit lift's Apply), with the complete edit set once applied
+        /// (null keeps the ground), through the host, so it's reported like Break ground. Set by the host.
+        /// </summary>
+        public Func<DesignCommand, Domain.Edits.TerrainEdits, CommandResult> Submit { get; internal set; }
+
         /// <summary>A one-line notice in the HUD's toasts ("New trail discarded").</summary>
         public Action<string> Notice { get; set; }
 

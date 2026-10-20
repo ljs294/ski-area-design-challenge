@@ -80,6 +80,7 @@ namespace MountainPlanner.App
                 keep.Add(lift.Id);
                 if (_liftViews.TryGetValue(lift.Id, out var shown) && ReferenceEquals(shown.Lift, lift)) continue;
                 if (shown.View != null && shown.View == _hovered) _hovered = null;
+                if (shown.View != null && shown.View == _held) _held = null;
                 shown.View?.Dispose();
                 _liftViews.Remove(lift.Id);
                 // A lift built before towers came to the tool (task 09) has none: it can't be drawn until it's edited or
@@ -130,6 +131,7 @@ namespace MountainPlanner.App
             foreach (var id in gone)
             {
                 if (_liftViews[id].View == _hovered) _hovered = null;
+                if (_liftViews[id].View == _held) _held = null;
                 _liftViews[id].View.Dispose();
                 _liftViews.Remove(id);
             }
@@ -148,6 +150,9 @@ namespace MountainPlanner.App
         LiftOutline _outline;
         LiftView _hovered;
         ulong _hoveredId;
+        // The lift a tool holds lit (Remove lift's first click), and its view.
+        ulong _heldLiftId;
+        LiftView _held;
         LiftMapLines _mapLines;
 
         /// <summary>The built lifts' map lines (captures and tests).</summary>
@@ -167,8 +172,9 @@ namespace MountainPlanner.App
             LiftView hit = null;
             ulong hitId = 0;
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
-            if (_mapLines != null && cam != null) _mapLines.Follow(cam, Camera.Distance, _hoveredId);
-            if (_liftViews.Count > 0 && cam != null && (_tools == null || !_tools.Armed) && !PhotoOpen)
+            if (_mapLines != null && cam != null) _mapLines.Follow(cam, Camera.Distance, _hoveredId != 0 ? _hoveredId : _heldLiftId);
+            bool picking = _tools == null || !_tools.Armed || _tools.Active is MountainPlanner.UI.Tools.IPicksLifts;
+            if (_liftViews.Count > 0 && cam != null && picking && !PhotoOpen)
             {
                 // -hoverlift (captures): the pointer on the first built lift's rope, a fifth of the way round.
                 if (_hoverFirstLift && HoverPointerForCapture == null)
@@ -196,20 +202,30 @@ namespace MountainPlanner.App
                     }
                 }
             }
-            if (hit == _hovered) return;
+            // A lift a tool holds (Remove lift's first click) stays lit with the hovered one.
+            if (_heldLiftId != 0 && !picking) _heldLiftId = 0;
+            LiftView held = null;
+            if (_heldLiftId != 0) foreach (var kv in _liftViews) if (kv.Key.Value == _heldLiftId) { held = kv.Value.View; break; }
+            if (hit == _hovered && held == _held) return;
             _hovered?.SetHighlight(false);
+            _held?.SetHighlight(false);
             _hovered = hit;
             _hoveredId = hitId;
+            _held = held;
             if (_hoverFirstLift) Debug.Log(hit != null ? $"[Hover] lift {hitId:x16} lit" : "[Hover] nothing lit");
             _hovered?.SetHighlight(true);
-            if (_outline == null && hit != null && cam != null) _outline = new LiftOutline(cam);
-            if (_outline != null) _outline.Lit = hit != null;
+            _held?.SetHighlight(true);
+            bool lit = hit != null || held != null;
+            if (_outline == null && lit && cam != null) _outline = new LiftOutline(cam);
+            if (_outline != null) _outline.Lit = lit;
         }
 
         void ReleaseBuiltWork()
         {
             _hovered = null;
             _hoveredId = 0;
+            _held = null;
+            _heldLiftId = 0;
             _outline?.Dispose();
             _outline = null;
             _mapLines?.Dispose();

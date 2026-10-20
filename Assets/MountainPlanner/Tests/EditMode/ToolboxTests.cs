@@ -491,6 +491,59 @@ namespace MountainPlanner.Tests
             Assert.That(DesignFrame.ToLocal(hit.At), Is.EqualTo(new Vector2(0, 300)), "and the end lands exactly on the top");
         }
 
+        // ---------- Remove lift (task 09) ----------
+
+        LiftId AddLiftAt(WorkStage stage)
+        {
+            var r = _design.Submit(new AddLift(_design.Revision, "Chair 1", LiftCatalogIds.SesselliftFgq4,
+                DesignFrame.ToDesign(new Vector2(0, -600)), DesignFrame.ToDesign(new Vector2(0, 300)), TowerMode.Automatic, TowerStance.Plumb, null, stage));
+            Assert.That(r.Accepted, Is.True);
+            return new LiftId(r.Created[0]);
+        }
+
+        [Test]
+        public void RemoveLift_TheFirstClickSelectsTheSecondRemovesAndUndoPutsItBack()
+        {
+            var id = AddLiftAt(WorkStage.Built);
+            Assert.That(ToolCatalog.IsLive(RemoveLiftTool.ToolId), Is.True);
+            _host.Choose(RemoveLiftTool.ToolId);
+            var tool = (RemoveLiftTool)_host.Active;
+            ulong held = 0, under = id.Value;
+            _host.Context.LiftUnderPointer = () => under;
+            _host.Context.HoldLift = v => held = v;
+            _host.Tick(At(300, 0, click: true));
+            Assert.That(tool.Armed, Is.EqualTo(id.Value), "the first click selects it");
+            Assert.That(held, Is.EqualTo(id.Value), "and keeps it lit");
+            Assert.That(_design.Document.Lifts.Count, Is.EqualTo(1), "nothing removed yet");
+            _host.Tick(default);
+            _host.Tick(At(300, 0, click: true));
+            Assert.That(_design.Document.Lifts.Count, Is.EqualTo(0), "the second click removes it");
+            Assert.That(tool.Armed, Is.EqualTo(0UL));
+            Assert.That(held, Is.EqualTo(0UL), "nothing stays lit");
+            Assert.That(_host.Armed, Is.True, "the tool stays out for the next one");
+            Assert.That(_design.Undo(), Is.True);
+            Assert.That(_design.Document.Lifts.Count, Is.EqualTo(1), "one Ctrl+Z puts it back");
+        }
+
+        [Test]
+        public void RemoveLift_EscKeepsItAndAPlanPicksByItsLine()
+        {
+            AddLiftAt(WorkStage.Plan);
+            _host.Choose(RemoveLiftTool.ToolId);
+            var tool = (RemoveLiftTool)_host.Active;
+            _host.Tick(At(2, -100, click: true));   // 2 m off the plan's line
+            Assert.That(tool.Armed, Is.Not.EqualTo(0UL), "a plan picks by its dashed line");
+            Assert.That(_host.Escape(), Is.True);
+            Assert.That(tool.Armed, Is.EqualTo(0UL), "Esc keeps it");
+            Assert.That(_host.Armed, Is.True, "Esc with a lift selected only steps back");
+            _host.Tick(At(2, -100, click: true));
+            _host.Tick(default);
+            _host.Tick(new ToolInput { Keys = ToolKeys.Next });   // Enter removes the selected lift
+            Assert.That(_design.Document.Lifts.Count, Is.EqualTo(0));
+            _host.Tick(At(200, -100, click: true));
+            Assert.That(tool.Armed, Is.EqualTo(0UL), "nothing under the pointer: nothing selected");
+        }
+
         [Test]
         public void TR05_ATrailsHeadSnapsToALiftTop()
         {
