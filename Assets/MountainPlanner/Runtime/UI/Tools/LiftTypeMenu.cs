@@ -25,10 +25,10 @@ namespace MountainPlanner.UI.Tools
         {
             new[] { "Double", "Triple", "Quad" },
             new[] { "Quad", "Six", "Eight" },
-            new[] { "6 a cabin", "8 a cabin", "10 a cabin" },
-            new[] { "60 a cabin", "100 a cabin" },
+            new[] { "6 person", "8 person", "10 person" },
+            new[] { "60 person", "100 person" },
         };
-        static readonly int[] KindDefault = { 2, 0, 1, 1 };   // the quad, a detachable quad, 8 a cabin, 100 a cabin
+        static readonly int[] KindDefault = { 2, 0, 1, 1 };   // the quad, a detachable quad, 8 person, 100 person
         static readonly string[] QuadModels = { "Sessellift FGQ-4", "Monta FG4", "Chairworks (comes later)" };
         static readonly string[] QuadIds = { LiftCatalogIds.SesselliftFgq4, LiftCatalogIds.MontaFg4 };
         static readonly bool[] QuadOff = { false, false, true };

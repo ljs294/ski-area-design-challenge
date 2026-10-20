@@ -509,12 +509,12 @@ namespace MountainPlanner.Tests
             Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-model-value").text, Is.EqualTo("Monta FG4"));
             lift.Choose(LiftCatalogIds.Of("gondola-8", "monta"));
             Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-kind-value").text, Is.EqualTo("Detachable gondola"));
-            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-carrier-value").text, Is.EqualTo("8 a cabin"));
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-carrier-value").text, Is.EqualTo("8 person"));
             Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-model-value").text, Does.StartWith("Monta "));
             Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-note-capacity").text, Does.Contain("drawn with the quad's model"));
             Assert.That(kind, Is.Not.Null);
 
-            // Through the menus as a click would: the tram's default is 100 a cabin; the carrier keeps the maker.
+            // Through the menus as a click would: the tram's default is 100 person; the carrier keeps the maker.
             var dd = ((LiftTypeMenu)typeof(NewLiftTool).GetField("_typeMenu", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lift)).Kind;
             dd.Choose(3);
             Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.Of("tram-100", "sessellift")));

@@ -460,7 +460,7 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   triple 2,500 ft, quad 2,200 ft; detachable quad 3,600 ft, six 3,300 ft, eight 3,000 ft; gondola 4,500 ft; tram no
   limit. Over it the lift is red ("Too much rise for a fixed-grip quad: 2,350 ft, 2,200 ft at most").
 - **LC-08, lift types** (owner, task 09, LT15): Fixed-grip chair (double, triple, quad), Detachable chair (quad, six,
-  eight), Detachable gondola (6, 8, 10 a cabin), Aerial tram (60, 100 a cabin), each with a model or maker. Only the
+  eight), Detachable gondola (6, 8 or 10 person), Aerial tram (60 or 100 person), each with a model or maker. Only the
   fixed quad has its own models (Sessellift FGQ-4, Monta FG4); the others draw with them and carry placeholder speeds,
   spacings and weights (the mockup's LIFT_TYPES). Trams stand on towers up to 250 ft.
 - **LC-09, what blocks** (owner, task 09, LT14, lenient placement): only chair clearance (TW-01), tower spacing (TW-03),

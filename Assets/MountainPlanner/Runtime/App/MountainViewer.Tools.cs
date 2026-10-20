@@ -267,7 +267,7 @@ namespace MountainPlanner.App
             return true;
         }
 
-        /// <summary>For captures (task 09): New lift's menu on a Monta gondola, 8 a cabin, with the Cabin dropdown open.</summary>
+        /// <summary>For captures (task 09): New lift's menu on a Monta gondola, 8 person, with the Cabin dropdown open.</summary>
         internal bool LiftMenuForCapture()
         {
             if (_tools == null || !_tools.Choose(NewLiftTool.ToolId) || !(_tools.Active is NewLiftTool lift)) return false;

@@ -131,11 +131,11 @@ namespace MountainPlanner.Domain.Design
             ["detach-quad"] = new CarrierSpec("Detachable quad", 1000, 4, 80, 5.2, 30000, 900, 1580, 3600),
             ["detach-six"] = new CarrierSpec("Detachable six", 1000, 6, 100, 6.0, 36000, 1300, 2320, 3300),
             ["detach-eight"] = new CarrierSpec("Detachable eight", 1000, 8, 120, 6.4, 40000, 1700, 3060, 3000),
-            ["gondola-6"] = new CarrierSpec("Gondola, 6 a cabin", 1000, 6, 150, 5.2, 32000, 1300, 2320, 4500),
-            ["gondola-8"] = new CarrierSpec("Gondola, 8 a cabin", 1000, 8, 160, 6.0, 36000, 1700, 3060, 4500),
-            ["gondola-10"] = new CarrierSpec("Gondola, 10 a cabin", 1000, 10, 167, 6.4, 40000, 2000, 3700, 4500),
-            ["tram-60"] = new CarrierSpec("Aerial tram, 60 a cabin", 2000, 60, 5000, 15, 450000, 18000, 28200, double.PositiveInfinity, 500),
-            ["tram-100"] = new CarrierSpec("Aerial tram, 100 a cabin", 2000, 100, 5000, 15, 500000, 24000, 41000, double.PositiveInfinity, 750),
+            ["gondola-6"] = new CarrierSpec("Gondola, 6 person", 1000, 6, 150, 5.2, 32000, 1300, 2320, 4500),
+            ["gondola-8"] = new CarrierSpec("Gondola, 8 person", 1000, 8, 160, 6.0, 36000, 1700, 3060, 4500),
+            ["gondola-10"] = new CarrierSpec("Gondola, 10 person", 1000, 10, 167, 6.4, 40000, 2000, 3700, 4500),
+            ["tram-60"] = new CarrierSpec("Aerial tram, 60 person", 2000, 60, 5000, 15, 450000, 18000, 28200, double.PositiveInfinity, 500),
+            ["tram-100"] = new CarrierSpec("Aerial tram, 100 person", 2000, 100, 5000, 15, 500000, 24000, 41000, double.PositiveInfinity, 750),
         };
 
         /// <summary>
