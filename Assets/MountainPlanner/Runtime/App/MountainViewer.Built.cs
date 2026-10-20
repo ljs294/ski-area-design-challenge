@@ -79,6 +79,7 @@ namespace MountainPlanner.App
                 if (lift.Stage != WorkStage.Built) continue;
                 keep.Add(lift.Id);
                 if (_liftViews.TryGetValue(lift.Id, out var shown) && ReferenceEquals(shown.Lift, lift)) continue;
+                if (shown.View != null && shown.View == _hovered) _hovered = null;
                 shown.View?.Dispose();
                 _liftViews.Remove(lift.Id);
                 // A lift built before towers came to the tool (task 09) has none: it can't be drawn until it's edited or
@@ -101,6 +102,15 @@ namespace MountainPlanner.App
                 }
                 _liftViews[lift.Id] = (lift, view);
                 var rope = view.Rope;
+                // LT10: the lift's trail-map line, ticks at its towers.
+                if (_mapLines == null) _mapLines = new LiftMapLines(_resort.Root.transform);
+                var b0 = new Vector3((float)lift.Bottom.XMetres, 0, (float)lift.Bottom.YMetres);
+                var t0 = new Vector3((float)lift.Top.XMetres, 0, (float)lift.Top.YMetres);
+                var along = (t0 - b0).normalized;
+                var ticks = new List<Vector3>(rope.Towers.Count);
+                foreach (var tower in rope.Towers) ticks.Add(b0 + along * (float)tower.BaseS);
+                var surface = _resort.Surface;
+                _mapLines.Set(lift.Id.Value, b0, t0, ticks, (x, z) => surface.HeightAt(x, z));
                 Debug.Log($"[Built] {lift.Name}: {rope.Towers.Count} towers ({string.Join(", ", view.Heads)}), {view.ChairCount} chairs, " +
                           $"TW-01 v2 {(rope.ClearanceOk ? "OK" : "SHORT")} (lowest chair {rope.LowestClearance / 0.3048:F1} ft at {rope.LowestClearanceS / 0.3048:F0} ft, " +
                           $"shortfall {rope.Shortfall / 0.3048:F1} ft at {rope.ShortfallS / 0.3048:F0} ft), top tension {rope.TopTensionShare:P0} of rating, " +
@@ -111,8 +121,15 @@ namespace MountainPlanner.App
             }
             var gone = new List<LiftId>();
             foreach (var kv in _liftViews) if (!keep.Contains(kv.Key)) gone.Add(kv.Key);
+            if (_mapLines != null)
+            {
+                var shown = new HashSet<ulong>();
+                foreach (var kv in _liftViews) if (!gone.Contains(kv.Key)) shown.Add(kv.Key.Value);
+                _mapLines.KeepOnly(shown);
+            }
             foreach (var id in gone)
             {
+                if (_liftViews[id].View == _hovered) _hovered = null;
                 _liftViews[id].View.Dispose();
                 _liftViews.Remove(id);
             }
@@ -126,8 +143,77 @@ namespace MountainPlanner.App
             foreach (var kv in _liftViews) kv.Value.View.DrawChairs(cam, _chairSeconds);
         }
 
+        // ---------- the hovered lift glows (task 09, LT23) ----------
+
+        LiftOutline _outline;
+        LiftView _hovered;
+        ulong _hoveredId;
+        LiftMapLines _mapLines;
+
+        /// <summary>The built lifts' map lines (captures and tests).</summary>
+        public LiftMapLines LiftMapLines => _mapLines;
+
+        /// <summary>The lift lit under the pointer now, or null (captures and tests).</summary>
+        public LiftView HoveredLift => _hovered;
+
+        /// <summary>For captures and tests: where the pointer is (a fraction of the screen), or null for the mouse.</summary>
+        internal Vector2? HoverPointerForCapture;
+        bool _hoverFirstLift = Array.IndexOf(Environment.GetCommandLineArgs(), "-hoverlift") >= 0;
+
+        // Every frame: with no tool armed, the pointer off the panels and out of photo mode, the nearest lift part under the
+        // pointer (within a few pixels, in front of the ground) lights its whole lift. Allocates nothing.
+        void UpdateLiftHover()
+        {
+            LiftView hit = null;
+            ulong hitId = 0;
+            var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
+            if (_mapLines != null && cam != null) _mapLines.Follow(cam, Camera.Distance, _hoveredId);
+            if (_liftViews.Count > 0 && cam != null && (_tools == null || !_tools.Armed) && !PhotoOpen)
+            {
+                // -hoverlift (captures): the pointer on the first built lift's rope, a fifth of the way round.
+                if (_hoverFirstLift && HoverPointerForCapture == null)
+                    foreach (var kv in _liftViews)
+                    {
+                        var at = cam.WorldToScreenPoint(kv.Value.View.RopePoint(0.2f));
+                        if (at.z > 0) HoverPointerForCapture = new Vector2(at.x / Screen.width, at.y / Screen.height);
+                        break;
+                    }
+                var mouse = UnityEngine.InputSystem.Mouse.current;
+                Vector2? screen = HoverPointerForCapture.HasValue ? new Vector2(HoverPointerForCapture.Value.x * Screen.width, HoverPointerForCapture.Value.y * Screen.height)
+                    : mouse != null ? mouse.position.ReadValue() : (Vector2?)null;
+                if (screen.HasValue && !PointerOverUi(screen.Value))
+                {
+                    var ray = cam.ScreenPointToRay(screen.Value);
+                    float ground = Camera.GroundAlong(ray, 30000);
+                    if (float.IsNaN(ground)) ground = 30000;
+                    // About 8 pixels' worth of slack at each distance.
+                    float slack = 8 * 2 * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, cam.pixelHeight);
+                    float best = float.MaxValue;
+                    foreach (var kv in _liftViews)
+                    {
+                        var view = kv.Value.View;
+                        if (view != null && view.Pick(ray, ground + 2, slack, out float t) && t < best) { best = t; hit = view; hitId = kv.Key.Value; }
+                    }
+                }
+            }
+            if (hit == _hovered) return;
+            _hovered?.SetHighlight(false);
+            _hovered = hit;
+            _hoveredId = hitId;
+            if (_hoverFirstLift) Debug.Log(hit != null ? $"[Hover] lift {hitId:x16} lit" : "[Hover] nothing lit");
+            _hovered?.SetHighlight(true);
+            if (_outline == null && hit != null && cam != null) _outline = new LiftOutline(cam);
+            if (_outline != null) _outline.Lit = hit != null;
+        }
+
         void ReleaseBuiltWork()
         {
+            _hovered = null;
+            _hoveredId = 0;
+            _outline?.Dispose();
+            _outline = null;
+            _mapLines?.Dispose();
+            _mapLines = null;
             FollowBuiltWork(null);
             foreach (var kv in _liftViews) kv.Value.View.Dispose();
             _liftViews.Clear();

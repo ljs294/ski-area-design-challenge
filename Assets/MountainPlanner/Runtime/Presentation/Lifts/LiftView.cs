@@ -17,7 +17,7 @@ namespace MountainPlanner.Presentation.Lifts
     /// for every lift, so per frame it allocates nothing: the chairs are drawn instanced from preallocated matrices.
     /// The stacking and the station rope follow the Lift Lab's (task P1 lift pilot), which now shares this code.
     /// </summary>
-    public sealed class LiftView : IDisposable
+    public sealed partial class LiftView : IDisposable
     {
         public LiftRope Rope { get; private set; }
         public GameObject Root { get; }
@@ -578,7 +578,7 @@ namespace MountainPlanner.Presentation.Lifts
                     _lodDistances[i] = size / (2f * Mathf.Tan(30f * Mathf.Deg2Rad) * h) * QualitySettings.lodBias;
                 }
             }
-            Object.Destroy(instance);
+            Gone(instance);
         }
 
         readonly List<Material> _instanced = new List<Material>();
@@ -649,6 +649,7 @@ namespace MountainPlanner.Presentation.Lifts
                     {
                         if (part.Materials[sub] == null) continue;
                         var rp = new RenderParams(part.Materials[sub]) { shadowCastingMode = ShadowCastingMode.On, receiveShadows = true, worldBounds = _bounds };
+                        if (_highlighted) rp.renderingLayerMask |= LiftOutline.Layer;   // the hovered lift's chairs glow too (LT23)
                         Graphics.RenderMeshInstanced(rp, part.Mesh, sub, part.Matrices, part.Count);
                     }
                 }
@@ -657,22 +658,30 @@ namespace MountainPlanner.Presentation.Lifts
         void Clear()
         {
             if (Root != null)   // at quit the scene may have destroyed it first
-                for (int i = Root.transform.childCount - 1; i >= 0; i--) Object.Destroy(Root.transform.GetChild(i).gameObject);
-            if (_cable != null) Object.Destroy(_cable);
+                for (int i = Root.transform.childCount - 1; i >= 0; i--) Gone(Root.transform.GetChild(i).gameObject);
+            if (_cable != null) Gone(_cable);
             _cable = null;
-            foreach (var m in _instanced) Object.Destroy(m);
+            foreach (var m in _instanced) Gone(m);
             _instanced.Clear();
             _heads.Clear();
             Posed = false;
             PoseError = 0;
             _chairLods = Array.Empty<ChairLod>();
             _chairCount = 0;
+            ForgetPick();
+        }
+
+        // Destroy in play, at once outside it (EditMode tests and editor tools build lifts too).
+        static void Gone(Object o)
+        {
+            if (Application.isPlaying) Object.Destroy(o);
+            else Object.DestroyImmediate(o);
         }
 
         public void Dispose()
         {
             Clear();
-            if (Root != null) Object.Destroy(Root);
+            if (Root != null) Gone(Root);
         }
     }
 }
