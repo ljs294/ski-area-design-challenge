@@ -126,7 +126,7 @@ namespace MountainPlanner.UI.Tools
             _ctx.Claim(GameAction.TowerSlideBack, towersInHand);
             _ctx.Claim(GameAction.TowerSlideOn, towersInHand);
             _ctx.Claim(GameAction.DeleteSelected, towersInHand);
-            if (step != Step.Towers) w.SetButtons();
+            if (step != Step.Towers) { w.SetButtons(); w.ShowGauge(null); }
             // LT19, LT21: a terminal in hand turns (the bottom only: the top faces the line) and takes its level.
             bool terminalInHand = step == Step.First || step == Step.Other;
             _ctx.Claim(GameAction.TerminalTurnLeft, step == Step.First);

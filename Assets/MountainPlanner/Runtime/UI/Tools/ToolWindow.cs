@@ -70,6 +70,8 @@ namespace MountainPlanner.UI.Tools
             _msg.AddToClassList("tw-msg");
             _msg.AddToClassList("hidden");
             _msgs.Add(_msg);
+            body.Add(_gauge = new LiftLoadGauge());
+            _gauge.Show(null);
             body.Add(_kv = Part("toolwin-review", "tw-kv"));
             body.Add(_keys = Part("toolwin-keys", "tw-keys"));
             body.Add(_extra = Part("toolwin-extra", "tw-btns"));
@@ -130,6 +132,12 @@ namespace MountainPlanner.UI.Tools
                     // Below the top-right buttons (sketch, layers, menu: 46 px tall at 10 px) when it reaches under them.
                     if (tray.layout.xMax + 10 + w.width > stage.layout.width - 170) Window.style.top = 66;
                 }
+            }
+            // The profile strip (task 09) along the bottom is a floor too where the window is over it.
+            if (_strip != null && _strip.parent == stage && _strip.resolvedStyle.display == DisplayStyle.Flex)
+            {
+                var sl = _strip.layout;
+                if (sl.height > 0 && w.xMax > sl.xMin && w.xMin < sl.xMax) barTop = Mathf.Min(barTop, sl.yMin);
             }
             float room = Mathf.Max(120, barTop - 10 - w.yMin);
             if (Math.Abs(Window.resolvedStyle.maxHeight.value - room) > 0.5f) Window.style.maxHeight = room;
@@ -256,6 +264,10 @@ namespace MountainPlanner.UI.Tools
         // ---------- the lift profile strip (task 09, LF-10) ----------
 
         LiftProfileStrip _strip;
+        LiftLoadGauge _gauge;
+
+        /// <summary>A tower's load gauge under the hint (TW-11, task 09), or none.</summary>
+        public void ShowGauge(Domain.Design.TowerForces.Loads? loads, bool provisional = false) => _gauge.Show(loads, provisional);
 
         /// <summary>
         /// Shows the profile strip beside the Toolbox tray along the bottom (made on first use, gone with the window), with
@@ -277,12 +289,15 @@ namespace MountainPlanner.UI.Tools
             _strip.style.display = DisplayStyle.Flex;
             _strip.Show(profile, hint);
             PlaceStrip();
+            Window.schedule.Execute(Fit);
             return _strip;
         }
 
         public void HideStrip()
         {
-            if (_strip != null) _strip.style.display = DisplayStyle.None;
+            if (_strip == null || _strip.style.display == DisplayStyle.None) return;
+            _strip.style.display = DisplayStyle.None;
+            Window.schedule.Execute(Fit);
         }
 
         public LiftProfileStrip Strip => _strip;

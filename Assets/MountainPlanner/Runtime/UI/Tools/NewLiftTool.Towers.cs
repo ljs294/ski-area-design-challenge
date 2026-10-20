@@ -200,6 +200,7 @@ namespace MountainPlanner.UI.Tools
                     where += $"\n{HeadName(_status.Head)} · lowest chairs {ToolFormat.Length(_status.LowestClearance)} · the next can reach {ToolFormat.Length(_status.NextReach)}";
                 w.SetHint(where);
             }
+            w.ShowGauge(_status != null && !complete && _hand != null && !_filling ? _status.Loads : (TowerForces.Loads?)null, provisional: true);
             if (_status != null && !complete && _status.Problem is LiftProblem bad) w.SetMessage(bad.Message);
             else if (_status != null && !complete && _status.Warning is LiftProblem amber) w.SetMessage(amber.Message, true);
             else w.SetMessage(null);

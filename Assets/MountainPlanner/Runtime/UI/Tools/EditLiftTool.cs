@@ -117,6 +117,7 @@ namespace MountainPlanner.UI.Tools
             w.ShowReview(null);
             w.SetCommit(false, false);
             w.HideStrip();
+            w.ShowGauge(null);
         }
 
         void Open(Lift lift)
@@ -499,9 +500,13 @@ namespace MountainPlanner.UI.Tools
                 w.SetHint($"Tower {_selTower + 1}: {ToolFormat.Feet(Mathf.RoundToInt(tw.HeightMm / 304.8f))} at {ToolFormat.Length(tw.AlongMm / 1000.0)} up the line. Drag it or slide it; Delete takes it out.");
                 w.SetKeys((GameAction.TowerSlideBack, "slide"), (GameAction.TowerSlideOn, "slide"), (GameAction.TowerUp, "taller"),
                           (GameAction.TowerDown, "shorter"), (GameAction.DeleteSelected, "remove"), (GameAction.BrushWider, "next"));
+                // TW-11: its loads, once the draft's rope is solved with it in place.
+                var rope = _built?.Rope;
+                w.ShowGauge(rope != null && rope.Towers.Count == _draft.Towers.Count ? rope.Towers[_selTower].Loads : (TowerForces.Loads?)null);
             }
             else if (_sel == Pick.Bottom || _sel == Pick.Top)
             {
+                w.ShowGauge(null);
                 string which = _sel == Pick.Bottom ? "Bottom" : "Top";
                 string level = _draft.Levels is LiftLevels lv ? ToolFormat.Length(_sel == Pick.Bottom ? lv.BottomMetres : lv.TopMetres) : "at its ground";
                 w.SetHint($"{which} terminal: level {level}. Drag it anywhere: the line re-aims through the other one.");
@@ -509,6 +514,7 @@ namespace MountainPlanner.UI.Tools
             }
             else
             {
+                w.ShowGauge(null);
                 w.SetHint("Click a tower or a terminal, or step through them with [ and ].");
                 w.SetKeys((GameAction.BrushNarrower, "previous"), (GameAction.BrushWider, "next"), (GameAction.UndoStroke, "undo"));
             }
