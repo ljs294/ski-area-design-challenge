@@ -33,6 +33,21 @@ def mv(p):
     return tuple(m(x) for x in p)
 
 
+def gauge_shift(c):
+    """How far (mm) each rope's parts move out from where the spec measured them: the spec's positions are at the
+    reference's gauge (common.referenceGauge), the lift runs at common.lineGauge (the owner, task P3-09: the
+    Sessellift's, so both lifts share one tower head kit). Negative moves them in toward the centreline; a part on
+    side s (-1 left, +1 right) moves s * gauge_shift in v."""
+    return (c["lineGauge"] - c.get("referenceGauge", c["lineGauge"])) / 2
+
+
+def gauge_wheel(c):
+    """The bullwheel at the line gauge: its rim (outer, web and inner diameters) scaled from the reference's gauge;
+    hub, spokes, thickness and flanges as measured."""
+    k = c["lineGauge"] / c.get("referenceGauge", c["lineGauge"])
+    return dict(c["wheel"], **{key: c["wheel"][key] * k for key in ("outer", "web", "inner")})
+
+
 def styles(lod):
     return {
         "concrete": Style("concrete", snow=0.9),
@@ -281,7 +296,7 @@ def wheel(mb, centre, wl, pitch_r, lod, st, rope_r=0.021):
 
 
 # -- the exit trains' pivots -----------------------------------------------------------------------
-def exit_pivots(a, ex, rows, hg):
+def exit_pivots(a, ex, rows, hg, gs=0.0):
     """The exit rows' equaliser tree on both ropes (spec drive.exit.pivots; contract P3-07 M2): eq_<s> (the long
     carrier, on the clamp's pin) carries one train's yoke and eq_<s>2 (the link bar, on its hanger block's pin), which
     carries the other two; yoke_<s>1..3 each carry two rockers rocker_<s>1..6 (pinned at their plates' middle), each
@@ -327,7 +342,8 @@ def exit_pivots(a, ex, rows, hg):
             pivot(f"rocker_{sd}{i + 1}", u, plate_w(f"rocker_l{i + 1}"), f"yoke_{sd}{i // 2 + 1}", "rocker", "rocker")
         for k, (u, w) in enumerate(rows):
             a.pivots[f"sheave_{sd}{k + 1}"] = {"pos": (m(u), v, m(w)), "axis": (0.0, 1.0, 0.0), "parent": f"rocker_{sd}{k // 2 + 1}"}
-    return {"plate": plate_part, "pins": pins, "dia": pv["pinDia"], "pinV": pv["pinV"]}
+    pin_v = {k: [x + gs for x in span] for k, span in pv["pinV"].items() if not k.startswith("_")}
+    return {"plate": plate_part, "pins": pins, "dia": pv["pinDia"], "pinV": pin_v}
 
 
 def settle_rows(a, mb, deg, lod):
@@ -393,6 +409,7 @@ def build(spec, lod, stage):
     body = MeshBuilder()
     rope = m(d["ropeElevation"])
     hg = m(c["lineGauge"]) / 2
+    gs = gauge_shift(c)
     sv = parts.metres(c["sheave"], keep=())
     sheave_sides = parts.sides(lod, 14, 10, 6, 4)
     ntube = parts.sides(lod, 20, 12, 8, 6)
@@ -468,15 +485,16 @@ def build(spec, lod, stage):
     centre = Vector((0.0, 0.0, rope))
     if lod <= 2:
         wb = MeshBuilder()
-        wheel(wb, centre, c["wheel"], hg, lod, st, m(c["ropeDiameter"]) / 2)
+        wheel(wb, centre, gauge_wheel(c), hg, lod, st, m(c["ropeDiameter"]) / 2)
         a.parts["bullwheel"] = wb
         a.pivots["bullwheel"] = {"pos": tuple(centre), "axis": (0.0, 0.0, 1.0)}
     else:
-        wheel(body, centre, c["wheel"], hg, lod, st, m(c["ropeDiameter"]) / 2)
+        wheel(body, centre, gauge_wheel(c), hg, lod, st, m(c["ropeDiameter"]) / 2)
 
     # guide sheaves on brackets and cross bars from the carriage (rope rides on top)
     for k, g in enumerate(d["guideSheaves"]):
-        centre_g = Vector(mv((g["u"], g["v"], g["w"])))
+        dv = (-1 if g["v"] < 0 else 1) * gs          # each sheave, its bracket and its bar's outer end move to the gauge
+        centre_g = Vector(mv((g["u"], g["v"] + dv, g["w"])))
         if lod <= 2:
             target = MeshBuilder() if lod <= 1 else body
             parts.line_sheave(target, centre_g, V, sv, min(lod, 2), st, sheave_sides, st["red"])
@@ -484,12 +502,12 @@ def build(spec, lod, stage):
                 name = f"sheave_g{'l' if g['v'] < 0 else 'r'}"
                 a.parts[name] = target
                 a.pivots[name] = {"pos": tuple(centre_g), "axis": (0.0, 1.0, 0.0)}
-            box_from(body, g["bracket"], st)
+            box_from(body, g["bracket"], st, shift=(0.0, dv, 0.0))
             lo, hi = g["bar"]["lo"], g["bar"]["hi"]
             if g["v"] < 0:
-                lo = (lo[0], min(lo[1], g["barReach"]), lo[2])
+                lo = (lo[0], min(lo[1], g["barReach"]) + dv, lo[2])
             else:
-                hi = (hi[0], max(hi[1], g["barReach"]), hi[2])
+                hi = (hi[0], max(hi[1], g["barReach"]) + dv, hi[2])
             prims.box(body, mv(lo), mv(hi), st["steel"])
 
     # the hood over the machinery
@@ -505,7 +523,7 @@ def build(spec, lod, stage):
     rows = [s for tr in left["sheaves"] for s in tr]
     n_row = len(rows)
     dv_side = {-1: ex["trains"]["left"]["shiftV"], 1: ex["trains"]["right"]["shiftV"]}
-    tree = exit_pivots(a, ex, rows, hg)
+    tree = exit_pivots(a, ex, rows, hg, gs)
     for side in (-1, 1):   # faces carry their finest part here; settle_rows folds them into each LOD's parts
         sd = "l" if side < 0 else "r"
         for k, (u, w) in enumerate(rows):
@@ -525,17 +543,17 @@ def build(spec, lod, stage):
                     part = tree["plate"](b)
                     for s2, mirror in (("l", False), ("r", True)):
                         with body.grouped(part.replace("_l", "_" + s2, 1)):
-                            box_from(body, b, st, mirror=mirror)
+                            box_from(body, b, st, shift=(0.0, -gs, 0.0), mirror=mirror)
             elif b["name"] == "carrier":   # the long carrier and its hanger blocks swing on the clamp; the link bar on its block
                 with body.grouped(f"eq_{sd}" if b["h"][0] < 1000 or b["h"][0] > 1500 else f"eq_{sd}2"):
-                    box_from(body, b, st)
+                    box_from(body, b, st, shift=(0.0, side * gs, 0.0))
             elif b["name"] == "clamp" and (lod <= 1 or b["h"][0] > 150):
-                box_from(body, b, st, shift=(0.0, dv_side[side], 0.0))
+                box_from(body, b, st, shift=(0.0, dv_side[side] + side * gs, 0.0))
         exit_pins(body, tree, lod, st)
         if lod == 0:
             for p in ex["nuts"]:
                 side = -1 if p[1] < 0 else 1
-                q = (p[0], p[1] + dv_side[side], p[2])
+                q = (p[0], p[1] + dv_side[side] + side * gs, p[2])
                 prims.cylinder(body, mv((q[0] - 15, q[1], q[2])), mv((q[0] + 15, q[1], q[2])), 0.02, 6, st["rod"])
     exit_deg = ex["pivots"]["restExitDeg"]
     settle_rows(a, body, exit_deg, lod)
