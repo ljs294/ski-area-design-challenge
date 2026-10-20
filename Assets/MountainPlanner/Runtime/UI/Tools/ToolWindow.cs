@@ -197,6 +197,67 @@ namespace MountainPlanner.UI.Tools
             return Set;
         }
 
+        readonly List<ToolDropdown> _dropdowns = new List<ToolDropdown>();
+        readonly Dictionary<string, Label> _rowLabels = new Dictionary<string, Label>();
+
+        /// <summary>A dropdown row (the lift's Type, Chair and Model; task 09). <paramref name="picked"/> gets the option's index.</summary>
+        public ToolDropdown AddDropdown(string name, string label, Action<int> picked, string tooltip = null)
+        {
+            var row = Part("toolwin-opt-" + name, "tw-row");
+            var l = new Label(label) { pickingMode = PickingMode.Ignore };
+            l.AddToClassList("tw-row__label");
+            row.Add(l);
+            _rowLabels[name] = l;
+            var dd = Dropdown(name, false, picked, tooltip);
+            dd.Button.AddToClassList("tw-dd--grow");
+            row.Add(dd.Button);
+            _opts.Add(row);
+            return dd;
+        }
+
+        /// <summary>A quieter row of two dropdowns with a dot between (the lift's Towers: Automatic · Plumb).</summary>
+        public (ToolDropdown First, ToolDropdown Second) AddDropdownPair(string name, string label, string first, Action<int> pickedFirst,
+                                                                          string second, Action<int> pickedSecond, string tipFirst = null, string tipSecond = null)
+        {
+            var row = Part("toolwin-opt-" + name, "tw-row");
+            row.AddToClassList("tw-row--pair");
+            var l = new Label(label) { pickingMode = PickingMode.Ignore };
+            l.AddToClassList("tw-row__label");
+            row.Add(l);
+            var a = Dropdown(first, true, pickedFirst, tipFirst);
+            var b = Dropdown(second, true, pickedSecond, tipSecond);
+            var dot = new Label("·") { pickingMode = PickingMode.Ignore };
+            dot.AddToClassList("tw-row__dot");
+            row.Add(a.Button);
+            row.Add(dot);
+            row.Add(b.Button);
+            _opts.Add(row);
+            return (a, b);
+        }
+
+        ToolDropdown Dropdown(string name, bool quiet, Action<int> picked, string tooltip)
+        {
+            var dd = new ToolDropdown(name, Window, quiet, picked);
+            if (tooltip != null) dd.Button.tooltip = tooltip;
+            dd.Opened += opening => { foreach (var other in _dropdowns) if (other != opening) other.Close(); };
+            _dropdowns.Add(dd);
+            return dd;
+        }
+
+        /// <summary>Renames an option row's label (the lift's Chair row reads Cabin for a gondola or tram).</summary>
+        public void SetRowLabel(string name, string label)
+        {
+            if (_rowLabels.TryGetValue(name, out var l)) l.text = label;
+        }
+
+        /// <summary>Esc closes an open dropdown first (true if one was open).</summary>
+        public bool CloseMenus()
+        {
+            bool any = false;
+            foreach (var d in _dropdowns) any |= d.Close();
+            return any;
+        }
+
         /// <summary>A slider row (the brush). Returns a setter for the value and its caption.</summary>
         public Action<int, string> AddSlider(string name, string label, int min, int max, int step, int value, Action<int> moved, string tooltip = null)
         {

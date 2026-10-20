@@ -123,3 +123,51 @@
 
 /* the profile strip's slot above the status bar (LF-10, TF-04): tasks 08 and 09 draw into it */
 .hud .tool-strip { position: absolute; left: 440px; right: 10px; bottom: 62px; height: 160px; }
+
+/* ---------- dropdowns (task 09; the mockup's .ldd, .ddb, .amenu, .mi) ---------- */
+.hud .tw-dd {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    height: 28px;
+    margin: 0;
+    padding: 0 10px;
+    border-width: 1px;
+    border-color: var(--hair2);
+    border-radius: 4px;
+    background-color: var(--panel);
+}
+.hud .tw-dd--grow { flex-grow: 1; }
+.hud .tw-dd:hover, .hud .tw-dd:focus { border-color: var(--ghost-hover); }
+.hud .tw-dd__value { margin: 0; padding: 0; font-size: 12px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .tw-dd__caret { margin: 0 0 0 6px; padding: 0; font-size: 10px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw-dd--quiet { height: 22px; padding: 0 4px; border-color: rgba(0, 0, 0, 0); background-color: rgba(0, 0, 0, 0); justify-content: flex-start; }
+.hud .tw-dd--quiet .tw-dd__value { -unity-font-style: normal; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .tw-dd--quiet:hover, .hud .tw-dd--quiet:focus { border-color: var(--hair2); }
+.hud .tw-dd--quiet:hover .tw-dd__value, .hud .tw-dd--quiet:focus .tw-dd__value { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .tw-row--pair { padding: 5px 12px 1px 12px; }
+.hud .tw-row__dot { margin: 0 2px; padding: 0; color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .tw-menu {
+    position: absolute;
+    padding: 4px 0;
+    border-width: 1px;
+    border-color: var(--hair);
+    border-radius: 5px;
+    background-color: var(--panel);
+}
+.hud .tw-menu--quiet { min-width: 140px; }
+.hud .tw-menu__item {
+    flex-direction: row;
+    align-items: center;
+    height: 26px;
+    margin: 0;
+    padding: 0 10px;
+    border-width: 0;
+    border-radius: 0;
+    background-color: rgba(0, 0, 0, 0);
+}
+.hud .tw-menu__item:hover, .hud .tw-menu__item:focus { background-color: var(--hover); }
+.hud .tw-menu__tick { width: 16px; margin: 0; padding: 0; font-size: 12px; color: var(--pos); -unity-text-outline-color: var(--pos); }
+.hud .tw-menu__label { margin: 0; padding: 0; font-size: 12px; -unity-font-style: bold; white-space: nowrap; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .tw-menu__item--dis .tw-menu__label { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .tw-menu__item--dis:hover { background-color: rgba(0, 0, 0, 0); }

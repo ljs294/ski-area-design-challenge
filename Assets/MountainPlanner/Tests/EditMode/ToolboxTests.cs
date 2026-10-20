@@ -8,6 +8,7 @@ using MountainPlanner.UI.Tools;
 using MountainPlanner.World;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.UIElements;
 using UnityEngine.InputSystem;
 using UnityEngine.TestTools;
 
@@ -489,6 +490,59 @@ namespace MountainPlanner.Tests
             var hit = _host.Context.Snap(near, SnapTargets.All);
             Assert.That(hit.Kind, Is.EqualTo(SnapKind.LiftTop), "zoomed out, 6 px reach it");
             Assert.That(DesignFrame.ToLocal(hit.At), Is.EqualTo(new Vector2(0, 300)), "and the end lands exactly on the top");
+        }
+
+        [Test]
+        public void NewLift_TheTypeMenuPicksKindCarrierAndMaker()
+        {
+            // LT13 and the approved mockup: Type, then Chair (Cabin for gondolas and trams), then Model; every choice a dropdown.
+            _host.Choose(NewLiftTool.ToolId);
+            var lift = (NewLiftTool)_host.Active;
+            var w = _host.Context.Window.Window;
+            var kind = w.Q<UnityEngine.UIElements.Button>("toolwin-dd-kind");
+            Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftFgq4), "the Sessellift quad first");
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-kind-value").text, Is.EqualTo("Fixed-grip chair"));
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-carrier-value").text, Is.EqualTo("Quad"));
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-model-value").text, Is.EqualTo("Sessellift FGQ-4"));
+            lift.Choose(LiftCatalogIds.MontaFg4);
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-model-value").text, Is.EqualTo("Monta FG4"));
+            lift.Choose(LiftCatalogIds.Of("gondola-8", "monta"));
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-kind-value").text, Is.EqualTo("Detachable gondola"));
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-carrier-value").text, Is.EqualTo("8 a cabin"));
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-model-value").text, Does.StartWith("Monta "));
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-note-capacity").text, Does.Contain("drawn with the quad's model"));
+            Assert.That(kind, Is.Not.Null);
+
+            // Through the menus as a click would: the tram's default is 100 a cabin; the carrier keeps the maker.
+            var dd = typeof(NewLiftTool).GetField("_kindDd", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lift) as ToolDropdown;
+            dd.Choose(3);
+            Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.Of("tram-100", "sessellift")));
+            dd.Choose(0);
+            Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftFgq4), "back to the fixed-grip quad");
+
+            // The chosen type is what Break ground builds.
+            lift.Choose(LiftCatalogIds.Of("detach-six", "chairworks"));
+            _host.Tick(At(0, -400, click: true));
+            _host.Tick(At(0, 600, click: true));
+            _host.Tick(new ToolInput { Keys = ToolKeys.Next });
+            _host.Tick(new ToolInput { Keys = ToolKeys.BreakGround });
+            Assert.That(_design.Document.Lifts[0].CatalogId, Is.EqualTo(LiftCatalogIds.Of("detach-six", "chairworks")));
+        }
+
+        [Test]
+        public void ToolDropdown_OpensOverTheWindowAndEscClosesItFirst()
+        {
+            _host.Choose(NewLiftTool.ToolId);
+            var w = _host.Context.Window;
+            var lift = (NewLiftTool)_host.Active;
+            var dd = typeof(NewLiftTool).GetField("_carrierDd", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lift) as ToolDropdown;
+            dd.Show();
+            var menu = w.Window.Q("toolwin-dd-carrier-menu");
+            Assert.That(menu, Is.Not.Null, "the menu opens");
+            Assert.That(menu.Query<UnityEngine.UIElements.Button>().ToList().Count, Is.EqualTo(3), "Double, Triple, Quad");
+            Assert.That(_host.Escape(), Is.True);
+            Assert.That(w.Window.Q("toolwin-dd-carrier-menu"), Is.Null, "Esc closes the menu first");
+            Assert.That(_host.Armed, Is.True, "and leaves the tool alone");
         }
 
         // ---------- Remove lift (task 09) ----------

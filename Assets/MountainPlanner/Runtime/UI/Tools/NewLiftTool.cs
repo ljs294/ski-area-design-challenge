@@ -19,14 +19,33 @@ namespace MountainPlanner.UI.Tools
     {
         public const string ToolId = "new-lift";
 
-        // Task 09 moves these into the lift catalog (LC-02, LC-03): both fixed-grip quads share them for now.
-        const double RopeFpm = 450, CapacityPerHour = 2400;
         const float TerminalRadius = 8f;        // the ghost's footprint around the bullwheel, metres
         const float SitingReliefMetres = 3.048f;   // LF-08: the ground varies by no more than 10 ft under a terminal
         const float MinApartMetres = 91.44f;       // LF-08: the terminals stand at least 300 ft apart
         static readonly string[] Steps = { "First terminal", "Other terminal", "Towers", "Review" };
-        static readonly string[] Types = { "Sessellift FGQ-4", "Monta FG4" };
-        static readonly string[] TypeIds = { LiftCatalogIds.SesselliftFgq4, LiftCatalogIds.MontaFg4 };
+        // The type menu (owner 2026-10-19, LT13; the approved mockup): the kind, then its carrier, then its maker. Only the
+        // fixed-grip quad has its own models (Sessellift FGQ-4, Monta FG4); the others are drawn with the quad's until theirs
+        // exist. Carrier ids are LiftCatalogIds.Carriers'; "fixed-quad" stands for the two quad models.
+        static readonly string[] Kinds = { "Fixed-grip chair", "Detachable chair", "Detachable gondola", "Aerial tram" };
+        static readonly string[][] KindCarriers =
+        {
+            new[] { "fixed-double", "fixed-triple", "fixed-quad" },
+            new[] { "detach-quad", "detach-six", "detach-eight" },
+            new[] { "gondola-6", "gondola-8", "gondola-10" },
+            new[] { "tram-60", "tram-100" },
+        };
+        static readonly string[][] CarrierNames =
+        {
+            new[] { "Double", "Triple", "Quad" },
+            new[] { "Quad", "Six", "Eight" },
+            new[] { "6 a cabin", "8 a cabin", "10 a cabin" },
+            new[] { "60 a cabin", "100 a cabin" },
+        };
+        static readonly int[] KindDefault = { 2, 0, 1, 1 };   // the quad, a detachable quad, 8 a cabin, 100 a cabin
+        static readonly string[] QuadModels = { "Sessellift FGQ-4", "Monta FG4", "Chairworks (comes later)" };
+        static readonly string[] QuadIds = { LiftCatalogIds.SesselliftFgq4, LiftCatalogIds.MontaFg4 };
+        static readonly bool[] QuadOff = { false, false, true };
+        static readonly string[] MakerNames = { "Sessellift", "Monta", "Chairworks" };
 
         // The switch remembers the last choice for the session (LF-01: Automatic the first time).
         static TowerMode _lastMode = TowerMode.Automatic;
@@ -38,14 +57,15 @@ namespace MountainPlanner.UI.Tools
         PointMm _bottom, _top;
         Vector2 _bottomXz, _topXz;
         float _bottomZ, _topZ;
-        int _type;
+        string _catalogId = LiftCatalogIds.SesselliftFgq4;
         TowerMode _mode;
         TowerStance _stance = TowerStance.Plumb;
         int _towerFeet = 35;
         string _name;
         readonly ReviewModel _review = new ReviewModel();
         readonly Vector2[] _line = new Vector2[2];
-        System.Action<int> _setType, _setMode, _setStance;
+        ToolDropdown _kindDd, _carrierDd, _modelDd, _modeDd, _stanceDd;
+        UnityEngine.UIElements.Label _note;
         int _hintKey = int.MinValue;
         string _problem;
         // Task 09: the lift as Break ground would build it (LiftBuild: towers, levels, earthwork, clearing), or null while it's
@@ -59,7 +79,7 @@ namespace MountainPlanner.UI.Tools
         float _bottomGround, _topGround;
         Vector2 _bottomFacing = Vector2.up;
         LiftType _liftType;
-        int _liftTypeOf = -1;
+        string _liftTypeOf;
         const int LevelMinFt = -10, LevelMaxFt = 30;
         const float MaxSitingFeet = 40;   // LC-09: amber past this, still placeable
 
@@ -74,12 +94,15 @@ namespace MountainPlanner.UI.Tools
             _name = NextName(context.History.Document);
             var w = context.Window;
             w.SetName(_name);
-            _setType = w.AddSwitch("type", "Type", Types, _type, i => { _type = i; _setType(i); }, "LF-01, LC-02: both fixed-grip quads share these values for now");
-            _setMode = w.AddSwitch("towers", "Towers", new[] { "Automatic", "By hand" }, _mode == TowerMode.Automatic ? 0 : 1, PickMode,
-                "LF-01, TW-12: automatic towers, or yours; it can change until you break ground");
-            _setStance = w.AddSwitch("stand", "Stand", new[] { "Plumb", "Leaned" }, 0, i => { _stance = i == 0 ? TowerStance.Plumb : TowerStance.Leaned; _setStance(i); },
-                "TW-14: plumb, or leaned square to the rope");
-            w.AddNote("capacity", $"{CapacityPerHour:#,0} an hour · {RopeFpm:0} ft/min", "LC-02, LC-03: capacity is shown, not chosen");
+            _kindDd = w.AddDropdown("kind", "Type", PickKind, "The kind of lift (owner, 2026-10-19)");
+            _carrierDd = w.AddDropdown("carrier", "Chair", PickCarrier, "The carrier size: smaller carriers climb further (LT14)");
+            _modelDd = w.AddDropdown("model", "Model", PickModel, "LC-02: its maker; a type without its own models is drawn with the quad's");
+            (_modeDd, _stanceDd) = w.AddDropdownPair("towers", "Towers", "mode", PickMode, "stance", PickStance,
+                "LF-01, TW-12: automatic towers, or yours; it can change until you break ground", "TW-14: plumb, or leaned square to the rope (15° at most)");
+            _modeDd.Set(new[] { "Automatic", "By hand" }, _mode == TowerMode.Automatic ? 0 : 1);
+            _stanceDd.Set(new[] { "Plumb", "Leaned" }, _stance == TowerStance.Plumb ? 0 : 1);
+            _note = w.AddNote("capacity", "", "LC-02, LC-03: capacity is shown, not chosen");
+            ShowType();
             w.SetSteps(Steps);
             Go(Step.First);
         }
@@ -87,8 +110,82 @@ namespace MountainPlanner.UI.Tools
         void PickMode(int i)
         {
             _mode = _lastMode = i == 0 ? TowerMode.Automatic : TowerMode.ByHand;
-            _setMode(i);
+            _modeDd.Set(new[] { "Automatic", "By hand" }, i);
             if (_step == Step.Towers) Go(Step.Towers);
+        }
+
+        void PickStance(int i)
+        {
+            _stance = i == 0 ? TowerStance.Plumb : TowerStance.Leaned;
+            _stanceDd.Set(new[] { "Plumb", "Leaned" }, i);
+            Retype();
+        }
+
+        // ---------- the type menu ----------
+
+        static int KindOf(string id)
+        {
+            string carrier = LiftCatalogIds.Carrier(id);
+            for (int k = 0; k < KindCarriers.Length; k++)
+                if (System.Array.IndexOf(KindCarriers[k], carrier) >= 0) return k;
+            return 0;
+        }
+
+        static string IdFor(string carrier, string maker) =>
+            carrier == "fixed-quad" ? (maker == "monta" ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4) : LiftCatalogIds.Of(carrier, maker);
+
+        void PickKind(int k)
+        {
+            if (k == KindOf(_catalogId)) return;
+            Choose(IdFor(KindCarriers[k][KindDefault[k]], "sessellift"));
+        }
+
+        void PickCarrier(int c)
+        {
+            int k = KindOf(_catalogId);
+            Choose(IdFor(KindCarriers[k][c], LiftCatalogIds.Maker(_catalogId)));
+        }
+
+        void PickModel(int m)
+        {
+            if (LiftCatalogIds.Carrier(_catalogId) == "fixed-quad") { if (m < QuadIds.Length) Choose(QuadIds[m]); }
+            else Choose(LiftCatalogIds.Of(LiftCatalogIds.Carrier(_catalogId), LiftCatalogIds.Makers[m]));
+        }
+
+        /// <summary>Picks a lift type by its catalog id (the menu, tests and captures).</summary>
+        public void Choose(string catalogId)
+        {
+            if (!LiftCatalogIds.Known(catalogId) || catalogId == _catalogId) return;
+            _catalogId = catalogId;
+            ShowType();
+            Retype();
+        }
+
+        // The menu shows the type, and the note its capacity, speed and spacing.
+        void ShowType()
+        {
+            int k = KindOf(_catalogId);
+            string carrier = LiftCatalogIds.Carrier(_catalogId);
+            _kindDd.Set(Kinds, k);
+            _carrierDd.Set(CarrierNames[k], System.Array.IndexOf(KindCarriers[k], carrier));
+            _ctx.Window.SetRowLabel("carrier", k >= 2 ? "Cabin" : "Chair");
+            bool quad = carrier == "fixed-quad";
+            if (quad) _modelDd.Set(QuadModels, System.Array.IndexOf(QuadIds, _catalogId), QuadOff);
+            else
+            {
+                int m = System.Array.IndexOf(LiftCatalogIds.Makers, LiftCatalogIds.Maker(_catalogId));
+                _modelDd.Set(MakerNames, m, null, MakerNames[m] + " " + Type.Name.ToLowerInvariant());
+            }
+            var t = Type;
+            string spacing = k == 3 ? "two cabins" : $"{(k == 2 ? "cabins" : "chairs")} {ToolFormat.Length(t.ChairSpacingMetres)} apart";
+            _note.text = $"{t.Capacity:#,0} an hour · {t.SpeedMetresPerSecond * 196.850394:#,0} ft/min · {spacing}"
+                         + (quad ? "" : "\ndrawn with the quad's model until its own exists");
+        }
+
+        // A new type or stance while the line is fixed: the review works it out again.
+        void Retype()
+        {
+            if (_step == Step.Review) Go(Step.Review);
         }
 
         static string NextName(DesignDocument doc) => "Chair " + (doc.Lifts.Count + 1);
@@ -225,7 +322,7 @@ namespace MountainPlanner.UI.Tools
         {
             get
             {
-                if (_liftTypeOf != _type) { _liftType = LiftType.Of(TypeIds[_type]); _liftTypeOf = _type; }
+                if (_liftTypeOf != _catalogId) { _liftType = LiftType.Of(_catalogId); _liftTypeOf = _catalogId; }
                 return _liftType;
             }
         }
@@ -358,7 +455,7 @@ namespace MountainPlanner.UI.Tools
             _building = true;
             var b = _ctx.ToGround(_bottom);
             var t = _ctx.ToGround(_top);
-            var type = LiftType.Of(TypeIds[_type]);
+            var type = LiftType.Of(_catalogId);
             var stance = _stance;
             double bottomHand = _bottomLevelFt * 0.3048, topHand = _topLevelFt * 0.3048;   // LT19: the levels set by hand
             _ctx.Analyse(() => LiftBuild.Build(type, ground, b.X, b.Y, t.X, t.Y, stance, null, bottomHand, topHand), result =>
@@ -379,8 +476,8 @@ namespace MountainPlanner.UI.Tools
             _review.Clear()
                 .Add("Length", $"{ToolFormat.Length(slope)} slope · {ToolFormat.Length(run)} across", "LF-06")
                 .Add("Rise", $"{ToolFormat.Length(rise)} · {ToolFormat.Grade(rise, run)}")
-                .Add("Ride", $"{ToolFormat.Duration(slope / FpmToMetresPerSecond(RopeFpm))} at {RopeFpm:0} ft/min", "LC-04: slope length over 450 ft/min")
-                .Add("Capacity", $"{CapacityPerHour:#,0} an hour", "LC-03")
+                .Add("Ride", $"{ToolFormat.Duration(slope / Type.SpeedMetresPerSecond)} at {Type.SpeedMetresPerSecond * 196.850394:#,0} ft/min", "LC-04: slope length over the rope speed")
+                .Add("Capacity", $"{Type.Capacity:#,0} an hour", "LC-03")
                 .Reserved("Network", "NW-12: No way down (task 10)", ReviewModel.NetworkSlot);
             if (_built == null)
             {
@@ -394,9 +491,6 @@ namespace MountainPlanner.UI.Tools
             foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
             _review.Ready(_built.Ok, true);
         }
-
-        // ft/min to metres a second.
-        static double FpmToMetresPerSecond(double fpm) => fpm * 0.3048 / 60;
 
         public ToolBackOut Escape()
         {
@@ -415,10 +509,10 @@ namespace MountainPlanner.UI.Tools
             // Break ground carries the built lift's towers and levels (TW-15, SK14); a plan carries the line only (CF-06).
             // Without the game's ground (tests, labs: no EditedGround hook) it breaks ground on the line alone, as P3-06 did.
             if (stage == WorkStage.Built && _built == null && _ctx.EditedGround != null) return null;
-            if (_built == null) return new AddLift(baseRevision, _name, TypeIds[_type], _bottom, _top, _mode, _stance, null, stage);
+            if (_built == null) return new AddLift(baseRevision, _name, _catalogId, _bottom, _top, _mode, _stance, null, stage);
             return stage == WorkStage.Built
-                ? new AddLift(baseRevision, _name, TypeIds[_type], _bottom, _top, _mode, _stance, _built.Towers, stage, _built.Levels)
-                : new AddLift(baseRevision, _name, TypeIds[_type], _bottom, _top, _mode, _stance, null, stage);
+                ? new AddLift(baseRevision, _name, _catalogId, _bottom, _top, _mode, _stance, _built.Towers, stage, _built.Levels)
+                : new AddLift(baseRevision, _name, _catalogId, _bottom, _top, _mode, _stance, null, stage);
         }
 
         public void Committed(CommandResult result)
@@ -451,5 +545,6 @@ namespace MountainPlanner.UI.Tools
         public int BottomLevelFeet => _bottomLevelFt;
         public int TopLevelFeet => _topLevelFt;
         public bool Building => _building;
+        public string CatalogId => _catalogId;
     }
 }

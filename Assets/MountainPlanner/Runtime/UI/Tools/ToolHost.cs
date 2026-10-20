@@ -122,6 +122,7 @@ namespace MountainPlanner.UI.Tools
         public bool Escape()
         {
             if (Active == null) return false;
+            if (_ctx.Window != null && _ctx.Window.CloseMenus()) return true;   // an open dropdown closes first
             if (_asking) { Disarm(); return true; }
             if (Active.Escape() == ToolBackOut.Stepped) return true;
             if (AllowClose()) Disarm();
