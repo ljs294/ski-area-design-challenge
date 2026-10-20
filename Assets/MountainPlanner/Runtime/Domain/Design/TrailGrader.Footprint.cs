@@ -43,8 +43,10 @@ namespace MountainPlanner.Domain.Design
         /// CL-01, CL-02 (the ragged band, measured from the edge, islands included) and CL-08 (islands keep their trees).
         /// </summary>
         public static Graded GradeFootprint(EditedHeights current, TrailFootprint fp, IReadOnlyList<double> centreline, bool graded,
-                                            ulong seed, TrailId id, Func<int, int, bool> isFixed = null, double roundMetres = RoundingMetres)
+                                            ulong seed, TrailId id, Func<int, int, bool> isFixed = null, double roundMetres = RoundingMetres,
+                                            Options options = null)
         {
+            options ??= Options.Rules;
             if (current == null) throw new ArgumentNullException(nameof(current));
             if (fp == null) throw new ArgumentNullException(nameof(fp));
             var lattice = current.Lattice;
@@ -77,12 +79,18 @@ namespace MountainPlanner.Domain.Design
                 {
                     budgetL[k] = Budget(fp, cx, cy, nx, ny);
                     budgetR[k] = Budget(fp, cx, cy, -nx, -ny);
-                    cross[k] = CrossSlope(current, cx, cy, nx, ny, budgetL[k], budgetR[k], z[k]);
+                    cross[k] = CrossSlope(current, cx, cy, nx, ny, budgetL[k], budgetR[k], z[k], options.CrossSlopeCap);
                     inside[k] = true;
                 }
             }
             // The side slope follows its neighbours (two stations each way), so lidar roughness doesn't twist the bench.
             if (graded) cross = Average(cross, inside, WidthSmoothStations);
+            var natural = (double[])z.Clone();
+            // GR-01 v3 (owner, TL23, after measuring the rolls on their own trails): the bench's long profile is the ground
+            // under the centreline averaged over 75 ft either way, so lidar rolls don't carry into the bench (the rolls drop
+            // three to four times for a few percent more earth); the window shrinks at the ends, so the head and tail keep
+            // their ground and still join what they join.
+            if (graded && options.ProfileSmoothStations > 0) z = Profile(z, options.ProfileSmoothStations);
             for (int k = 0; k < count && graded; k++)
             {
                 if (inside[k])
@@ -103,7 +111,7 @@ namespace MountainPlanner.Domain.Design
             result.CrossSlope = cross;
             result.Stations = line.ToArray();
             result.Along = along;
-            result.Ground = (double[])z.Clone();
+            result.Ground = natural;
             result.Benched = ok;
             result.BenchLeft = new double[count];
             result.BenchRight = new double[count];
@@ -558,13 +566,14 @@ namespace MountainPlanner.Domain.Design
         /// the ground's side slope across the section, up to <see cref="MaxCrossSlope"/> either way. The ground's slope is the
         /// least-squares fit of the section's ground across its painted width (to 15 m a side), from the centreline's height.
         /// </summary>
-        static double CrossSlope(IHeightSource ground, double cx, double cy, double nx, double ny, double left, double right, double z)
+        static double CrossSlope(IHeightSource ground, double cx, double cy, double nx, double ny, double left, double right, double z,
+                                 double cap = MaxCrossSlope)
         {
             double sum = 0, sq = 0;
             for (double d = 0.5; d <= Math.Min(left, 15); d += 0.5) { sum += d * (ground.At(cx + nx * d, cy + ny * d) - z); sq += d * d; }
             for (double d = 0.5; d <= Math.Min(right, 15); d += 0.5) { sum += -d * (ground.At(cx - nx * d, cy - ny * d) - z); sq += d * d; }
             if (sq <= 0) return 0;
-            return Math.Max(-MaxCrossSlope, Math.Min(MaxCrossSlope, sum / sq));
+            return Math.Max(-cap, Math.Min(cap, sum / sq));
         }
 
         /// <summary>The average over <paramref name="reach"/> stations each way, of the stations that count.</summary>
@@ -582,8 +591,39 @@ namespace MountainPlanner.Domain.Design
             return o;
         }
 
-        /// <summary>GR-01 v2: the steepest side slope a graded bench keeps, rise over run (10%).</summary>
-        public const double MaxCrossSlope = 0.10;
+        /// <summary>
+        /// The grader's tunable rules, for experiments and review pictures (the game always grades with <see cref="Rules"/>).
+        /// </summary>
+        public sealed class Options
+        {
+            /// <summary>GR-01 v2's side slope cap (rise over run). The ground's fit is capped at <see cref="MaxCrossSlope"/>
+            /// first; a larger cap here lets the bench keep up to this much instead.</summary>
+            public double CrossSlopeCap = MaxCrossSlope;
+            /// <summary>The bench's long profile as a moving average over this many stations each way (0: the ground).</summary>
+            public int ProfileSmoothStations = ProfileStations;
+            public static readonly Options Rules = new Options();
+        }
+
+        /// <summary>A moving average of the profile, the window shrinking toward the ends so the head and tail stay put.</summary>
+        static double[] Profile(double[] z, int reach)
+        {
+            var o = new double[z.Length];
+            for (int i = 0; i < z.Length; i++)
+            {
+                int r = Math.Min(reach, Math.Min(i, z.Length - 1 - i));
+                double sum = 0;
+                for (int t = i - r; t <= i + r; t++) sum += z[t];
+                o[i] = sum / (2 * r + 1);
+            }
+            return o;
+        }
+
+        /// <summary>GR-01 v2: the steepest side slope a graded bench keeps, rise over run (owner, TL23: 20%).</summary>
+        public const double MaxCrossSlope = 0.20;
+
+        /// <summary>GR-01 v3 (owner, TL23): the bench's long profile is the average of the ground under the centreline over
+        /// this many stations each way (75 ft), so lidar rolls don't carry into the bench.</summary>
+        public const int ProfileStations = 3;
 
         static double Budget(TrailFootprint fp, double cx, double cy, double nx, double ny)
         {

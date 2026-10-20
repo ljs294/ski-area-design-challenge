@@ -139,9 +139,9 @@ namespace MountainPlanner.Tests
         [Test]
         public void GR01_TheBenchIsStraightAcrossTheSectionAtTheSideSlopeCap()
         {
-            // GR-01 v2 (owner, 2026-10-19): the bench keeps the ground's side slope up to 10%: on a 30% side slope it runs
-            // straight across at 10%, and on a 5% one it keeps the ground's 5%.
-            foreach (var (side, want) in new[] { (0.3, 0.10), (0.05, 0.05) })
+            // GR-01 v2 (owner, TL21, TL23): the bench keeps the ground's side slope up to 20%: on a 30% side slope it runs
+            // straight across at 20%, and on a 5% one it keeps the ground's 5%.
+            foreach (var (side, want) in new[] { (0.3, 0.20), (0.05, 0.05) })
             {
                 var ground = Natural(new Plane(side, 0.1));
                 var (fp, build) = Straight(ground);
@@ -158,10 +158,48 @@ namespace MountainPlanner.Tests
             }
         }
 
+        /// <summary>A 30% fall line with lidar-like rolls along it: ±0.6 m over 20 m.</summary>
+        sealed class Rolls : IHeightSource
+        {
+            public double At(double x, double y)
+            {
+                double ly = y - Site.OriginY, lx = x - Site.OriginX;
+                return 1800 + 0.3 * ly + 0.1 * lx + 0.6 * Math.Sin(ly * 2 * Math.PI / 20);
+            }
+        }
+
+        [Test]
+        public void GR01v3_TheBenchsLongProfileSmoothsTheRollsUnderTheCentreline()
+        {
+            // GR-01 v3 (owner, TL23): the bench's height along the trail is the ground under the centreline averaged over
+            // 75 ft either way, so a skier doesn't feel every lidar roll; the head and tail keep their ground.
+            var ground = Natural(new Rolls());
+            var (fp, build) = Straight(ground, 300);
+            var h = Apply(ground, build.Writes);
+            double RmsGradeChange(EditedHeights e)
+            {
+                double sum = 0;
+                int n = 0;
+                for (double y = -30; y >= -270; y -= 5)
+                {
+                    LocalToLattice(0, y + 5, out int c0, out int r0);
+                    LocalToLattice(0, y, out _, out int r1);
+                    LocalToLattice(0, y - 5, out _, out int r2);
+                    double g0 = (e.AtPoint(c0, r1) - e.AtPoint(c0, r0)) / 5, g1 = (e.AtPoint(c0, r2) - e.AtPoint(c0, r1)) / 5;
+                    sum += (g1 - g0) * (g1 - g0); n++;
+                }
+                return Math.Sqrt(sum / n);
+            }
+            double natural = RmsGradeChange(ground), graded = RmsGradeChange(h);
+            Assert.That(graded, Is.LessThan(0.3 * natural), $"rolls {graded * 100:F1}% RMS graded vs {natural * 100:F1}% natural");
+            LocalToLattice(0, 0, out int hc, out int hr);
+            Assert.That(h.AtPoint(hc, hr), Is.EqualTo(ground.AtPoint(hc, hr)).Within(0.3), "the head keeps its ground");
+        }
+
         [Test]
         public void GR03_TheBenchOnAUniformSidehillIsTheBudgetTimesOneLessTheGradeLeftToCut()
         {
-            // GR-03 with GR-01 v2: the faces take up only the side slope the bench doesn't keep, 30% − 10% here.
+            // GR-03 with GR-01 v2: the faces take up only the side slope the bench doesn't keep, 30% − 20% here.
             var ground = Natural(new Plane(0.3, 0));
             var fp = Footprint(Strip(100, (0, 0), (0, -300)));
             Site.PointOf(M(0, 0), out double hx, out double hy);
@@ -173,8 +211,8 @@ namespace MountainPlanner.Tests
             Assert.That(Math.Abs(slope), Is.EqualTo(TrailGrader.MaxCrossSlope).Within(0.002));
             int bench = 0;
             for (int d = -20; d <= 20; d++) if (Math.Abs(h.AtPoint(c + d, r) - (z + slope * d)) < 0.002) bench++;
-            // 15.24 m either side × (1 − 0.2) = 12.2 m each way: about 25 points on the bench across.
-            Assert.That(bench, Is.InRange(23, 27));
+            // 15.24 m either side × (1 − 0.1) = 13.7 m each way: about 28 points on the bench across.
+            Assert.That(bench, Is.InRange(26, 30));
         }
 
         [Test]

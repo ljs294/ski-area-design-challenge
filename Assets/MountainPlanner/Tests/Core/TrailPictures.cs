@@ -172,12 +172,12 @@ namespace MountainPlanner.Tests
             return DrawTrail(h, site, trail, graded, file);
         }
 
-        static string DrawTrail(IHeightSource h, EarthworkSite site, Trail trail, bool graded, string file)
+        static string DrawTrail(IHeightSource h, EarthworkSite site, Trail trail, bool graded, string file, TrailGrader.Options options = null)
         {
             var s = new Spot { Name = trail.Name };
             var ground = new EditedHeights(h, site.Lattice, TerrainEdits.Empty);
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            var build = TrailEarthwork.Grade(trail, ground, site, 1, null, null);
+            var build = TrailEarthwork.Grade(trail, ground, site, 1, null, null, options);
             double ms = watch.Elapsed.TotalMilliseconds;
             var tiles = new List<TerrainEditTile>();
             foreach (var key in build.Writes.Tiles) { var b = TerrainEditTile.Empty(key).Edit(); build.Writes.ApplyTo(b); tiles.Add(b.Build()); }
@@ -381,6 +381,90 @@ namespace MountainPlanner.Tests
                 }
                 TestContext.Progress.WriteLine($"38 regions of 90x90 texels: {w.Elapsed.TotalMilliseconds:F1} ms (res {res})");
             }
+        }
+
+        /// <summary>
+        /// The owner's question (2026-10-20, "can we get even better? would more side cut help?"): each graded trail of a
+        /// save graded several ways, with how smooth it skis along the centreline (the grade change between consecutive
+        /// 5 m pieces), how much of the paint is level bench, and the earth moved. Same environment as OwnersTrails.
+        /// </summary>
+        [Test]
+        public void OwnersTrailVariants()
+        {
+            string save = Environment.GetEnvironmentVariable("MP_OWNER_SAVE"), dir = Environment.GetEnvironmentVariable("MP_OWNER_PACKAGE");
+            if (string.IsNullOrEmpty(save) || string.IsNullOrEmpty(dir)) Assert.Ignore("set MP_OWNER_SAVE and MP_OWNER_PACKAGE");
+            var file = MountainPlanner.Persistence.Saves.SaveJson.Read(File.ReadAllText(Path.Combine(save, "save.json")), out _);
+            var m = ResortPackage.ReadManifest(dir);
+            var tiles = TileGrid.For(SiteSquare.Create(new AlbersPoint(m.Site.CentreX, m.Site.CentreY), m.Site.SizeMetres / 1000.0));
+            var site = new EarthworkSite(new EditLattice(tiles.West, tiles.North), m.Site.CentreX, m.Site.CentreY);
+            var variants = new (string name, TrailGrader.Options o)[]
+            {
+                ("10% side slope, ground profile", new TrailGrader.Options { CrossSlopeCap = 0.10, ProfileSmoothStations = 0 }),
+                ("the rules (TL23)", new TrailGrader.Options()),
+                ("20% side slope", new TrailGrader.Options { CrossSlopeCap = 0.20 }),
+                ("profile smoothed 75 ft", new TrailGrader.Options { ProfileSmoothStations = 3 }),
+                ("profile smoothed 150 ft", new TrailGrader.Options { ProfileSmoothStations = 6 }),
+                ("both: 20% + 150 ft", new TrailGrader.Options { CrossSlopeCap = 0.20, ProfileSmoothStations = 6 }),
+            };
+            var lines = new List<string>();
+            using (var h = new PackageHeights(dir, m))
+            {
+                var ground = new EditedHeights(h, site.Lattice, TerrainEdits.Empty);
+                foreach (var t in file.Design.Trails)
+                {
+                    if (t.Settings.Grading != TrailGrading.Graded || !t.HasEnds) continue;
+                    bool first = true;
+                    foreach (var (name, o) in variants)
+                    {
+                        var build = TrailEarthwork.Grade(t, ground, site, 1, null, null, o);
+                        var list = new List<TerrainEditTile>();
+                        foreach (var key in build.Writes.Tiles) { var b = TerrainEditTile.Empty(key).Edit(); build.Writes.ApplyTo(b); list.Add(b.Build()); }
+                        var after = new EditedHeights(h, site.Lattice, TerrainEdits.Empty.With(list));
+                        var line = build.Centreline.Points;
+                        if (first)
+                        {
+                            var (nr, nb) = Rolls(ground, line);
+                            lines.Add($"{t.Name}: natural ground along the centreline: rolls {nr:F1}% RMS, {nb} grade changes over 5 points");
+                            first = false;
+                        }
+                        var (rms, breaks) = Rolls(after, line);
+                        var g = build.Grade;
+                        double paint = 0, bench = 0;
+                        for (int k = 0; k < g.Benched.Length; k++) { bench += g.BenchLeft[k] + g.BenchRight[k]; }
+                        paint = build.Footprint.AreaSquareMetres / Math.Max(1, g.LengthMetres);
+                        const double Yd3 = 1.307950619;
+                        lines.Add($"  {name,-24} rolls {rms,4:F1}% RMS, {breaks,3} changes over 5 points; bench {100 * (bench / Math.Max(1, g.Benched.Length)) / Math.Max(1, paint),3:F0}% of the paint; " +
+                                  $"cut {g.CutCubicMetres * Yd3,7:F0} yd³, fill {g.FillCubicMetres * Yd3,7:F0} yd³; ungraded {g.UngradedMetres / 0.3048:F0} ft");
+                        if (name.StartsWith("both")) DrawTrail(h, site, t, true, "variant-" + t.Id.Value.ToString("x16") + ".png", o);
+                    }
+                }
+            }
+            File.WriteAllLines(Out("owner-variants.txt"), lines);
+            foreach (var l in lines) TestContext.Progress.WriteLine(l);
+        }
+
+        /// <summary>How the ground rolls along a line: the grade over each 5 m piece, then the RMS of the change from one piece to the next, and how many changes pass 5 points.</summary>
+        static (double rms, int breaks) Rolls(IHeightSource h, double[] line)
+        {
+            var heights = new List<double>();
+            double carry = 0;
+            for (int k = 0; k + 3 < line.Length; k += 2)
+            {
+                double ax = line[k], ay = line[k + 1], bx = line[k + 2], by = line[k + 3];
+                double len = Math.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+                for (double d = carry; d < len; d += 5) heights.Add(h.At(ax + (bx - ax) * d / len, ay + (by - ay) * d / len));
+                carry = (carry - len) % 5;
+                if (carry < 0) carry += 5;
+            }
+            double sum = 0;
+            int n = 0, breaks = 0;
+            for (int i = 2; i < heights.Count; i++)
+            {
+                double g0 = (heights[i - 1] - heights[i - 2]) / 5, g1 = (heights[i] - heights[i - 1]) / 5, dg = (g1 - g0) * 100;
+                sum += dg * dg; n++;
+                if (Math.Abs(dg) > 5) breaks++;
+            }
+            return (n > 0 ? Math.Sqrt(sum / n) : 0, breaks);
         }
 
         /// <summary>

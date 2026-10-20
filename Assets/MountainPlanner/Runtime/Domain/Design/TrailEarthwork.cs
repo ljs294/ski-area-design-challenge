@@ -219,7 +219,7 @@ namespace MountainPlanner.Domain.Design
         /// leave alone (TF-10, TF-11).
         /// </summary>
         public static TrailBuild Grade(Trail trail, EditedHeights ground, EarthworkSite site, ulong seed, Func<int, int, bool> claimed,
-                                       IReadOnlyList<Keep> rounds)
+                                       IReadOnlyList<Keep> rounds, TrailGrader.Options options = null)
         {
             var fp = TrailFootprint.Build(trail.Parts, site.Lattice, site.OriginX, site.OriginY);
             var build = new TrailBuild { Footprint = fp, Trail = trail };
@@ -244,7 +244,7 @@ namespace MountainPlanner.Domain.Design
             {
                 try
                 {
-                    build.Grade = TrailGrader.GradeFootprint(ground, fp, build.Centreline.Points, graded, seed, trail.Id, isFixed);
+                    build.Grade = TrailGrader.GradeFootprint(ground, fp, build.Centreline.Points, graded, seed, trail.Id, isFixed, options: options);
                     build.Writes = build.Grade.Writes;
                     return build;
                 }

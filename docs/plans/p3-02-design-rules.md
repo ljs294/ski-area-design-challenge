@@ -186,6 +186,12 @@ ruled differently. No archived code is copied; the rules are stated here as pros
     the ground's side slope across the section, up to **10%** either way (the least-squares fit of the ground across the
     painted width, averaged over two stations each way), so it runs straight across rather than dead level, and the
     faces take up only the slope it doesn't keep. A later cat track may set a flatter cap.
+    - *Cap raised to **20%*** (owner, TL23, after measuring on their own trails: a wider bench and less earth moved;
+      side slope doesn't change how smoothly the trail skis).
+  - **v3, the long profile** (owner, TL23): the bench's elevation at a station is the natural ground under the centreline
+    **averaged over 75 ft (3 stations) either way**, the window shrinking at the head and tail so the ends keep their
+    ground. Lidar rolls no longer carry into the bench: on the owner's runs the grade's roll (RMS change between 5 m
+    pieces) fell from 8-10% to 2-3.5% for 2-3% more earth.
 - **GR-02, faces:**
   - From each bench edge, a face runs to natural ground at **1:1 (45°)**, the same slope for cut and fill.
   - There is no widen-to-fit: the footprint is never enlarged to make a bench fit.
