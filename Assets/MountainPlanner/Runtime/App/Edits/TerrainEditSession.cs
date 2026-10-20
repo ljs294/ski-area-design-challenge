@@ -156,6 +156,26 @@ namespace MountainPlanner.App.Edits
             return r.Accepted;
         }
 
+        /// <summary>
+        /// Captures only (-regrade, task 08 review): grades the open design afresh with this build's rules and shows the
+        /// result, so a save made by an older build can be judged as this one would grade it. Display only: the history,
+        /// and so the save, keep the edits they had.
+        /// </summary>
+        public void RegradeForCapture()
+        {
+            var doc = History.Document;
+            var site = Earthwork.Site;
+            var source = Pipeline.Heights.Source;
+            var work = Task.Run(() =>
+            {
+                var fresh = new DesignEarthwork(source, site);
+                fresh.Prime(DesignDocument.Empty(doc.Seed), TerrainEdits.Empty);
+                return fresh.Rebuild(doc, TerrainEdits.Empty).Edits;
+            });
+            Applying = work.ContinueWith(t => Pipeline.ApplyAsync(t.Result), TaskScheduler.FromCurrentSynchronizationContext()).Unwrap();
+            UnityEngine.Debug.Log($"[TerrainEdits] regrading {doc.Trails.Count} trails with this build's rules (display only)");
+        }
+
         public void Dispose()
         {
             History.Changed -= OnChanged;

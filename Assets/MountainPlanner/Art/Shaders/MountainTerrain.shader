@@ -472,7 +472,11 @@ Shader "MountainPlanner/Terrain"
                 float groomed = onTrail * (1 - smoothstep(0.55, 0.85, trail.a));
                 // The faces' crests and toes (finding #12): the 1 m heightmap stair-steps a crease running across its grid,
                 // so on earthwork the shading takes the slope over 4 m instead, which follows the crease, not the steps.
-                [branch] if (earth > 0.01)
+                // The whole trail too (owner's report 2026-10-19, TL22: graded ground looked steppy): the heightmap holds
+                // heights in steps of about 4 cm (15 bits of the tile's height range), which rough lidar hides and a smooth
+                // bench shows as bands along the contours.
+                float smoothShade = max(earth, onTrail);
+                [branch] if (smoothShade > 0.01)
                 {
                     float res = max(_HeightmapParams.x, 2);
                     float2 huv = (i.uv * (res - 1) + 0.5) / res;
@@ -481,7 +485,7 @@ Shader "MountainPlanner/Terrain"
                     float no = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(0, t2), 0).r - SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(0, t2), 0).r;
                     float2 g = float2(e, no) * _HeightmapParams.y / max(4 * _HeightmapParams.z, 1e-3);
                     float3 wide = normalize(float3(-g.x, 1, -g.y));
-                    n = normalize(lerp(n, wide, 0.85 * earth));
+                    n = normalize(lerp(n, wide, 0.85 * smoothShade));
                 }
                 {
                     float moved = c0.a * earth;

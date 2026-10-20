@@ -7,11 +7,11 @@ stroke 36576 360000 -160000 449000 -242000
 head 271000 -78000
 tail 449000 -242000
 golden graded.band Black
-golden graded.cutM3 5319.829
-golden graded.fillM3 2922.944
-golden graded.rating 44.248
+golden graded.cutM3 5361.075
+golden graded.fillM3 2905.537
+golden graded.rating 44.203
 golden graded.ungradedStations 0
-golden graded.writes 90aac6a81def9d2b76190b04036a5a6c0a1ec028ddf18d527de2a772e313fe3a
+golden graded.writes 1ff574c954983a1861ead0f1b6377a7a18edf057676d74cf5643dbe262b46ec3
 golden natural.band DoubleBlack
 golden natural.cutM3 0.000
 golden natural.fillM3 0.000

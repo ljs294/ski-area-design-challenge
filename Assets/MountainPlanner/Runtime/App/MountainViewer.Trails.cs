@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Edits;
 using MountainPlanner.Domain.Measure;
@@ -134,6 +135,22 @@ namespace MountainPlanner.App
             if (_edits != null || _editsStarting || _resort == null) return;
             _editsStarting = true;
             StartCoroutine(StartEditsWhenReady(Array.Empty<string>(), -1, -1));
+        }
+
+        // ---------- -opensave <folder> [-regrade]: the owner's own design in a capture (task 08 review) ----------
+
+        /// <summary>
+        /// Opens a save on a package opened from the command line, as the game's flow opens one from the library (captures
+        /// of a player's own trails, with -view and -screenshot; -regrade then shows them as this build grades them).
+        /// </summary>
+        void OpenSaveForCapture(string[] args)
+        {
+            int i = Array.IndexOf(args, "-opensave");
+            if (i < 0 || i + 1 >= args.Length || Persistence.Saves.OpenDesign.Current != null) return;
+            var m = _resort.Manifest;
+            string heights = m.Layers.FirstOrDefault(l => l.Id == "heights-core")?.Sha256 ?? "";
+            Persistence.Saves.OpenDesign.Current = Persistence.Saves.OpenDesign.Load(DataRoot, args[i + 1], m.PackageId, heights);
+            Debug.Log($"[Saves] Opened {args[i + 1]} for a capture: {Persistence.Saves.OpenDesign.Current.History.Document.Trails.Count} trails");
         }
 
         // ---------- -trailshots <folder>: the New trail tool driven by script, a picture per step (task 08 review) ----------

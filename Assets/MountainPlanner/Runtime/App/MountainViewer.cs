@@ -258,6 +258,7 @@ namespace MountainPlanner.App
                 int shot = Array.IndexOf(args, "-screenshot");
                 if (shot >= 0 && shot + 1 < args.Length) StartCoroutine(CaptureAndQuit(args[shot + 1]));
                 StartCoroutine(RunPhotoArguments(args));   // -photo, -photoshot (MountainViewer.Photo.cs)
+                OpenSaveForCapture(args);  // -opensave <folder>: a save on a package opened from the command line (task 08 review)
                 StartTerrainEdits(args);   // -testedit, -testbench, -editbench (MountainViewer.Edits.cs, task P3-05)
                 StartTrailShots(args);     // -trailshots <folder> [-trailspot name] (MountainViewer.Trails.cs, task P3-08)
                 StartTrailBench(args);     // -trailbench <out.json> (MountainViewer.Trails.cs, task P3-08)

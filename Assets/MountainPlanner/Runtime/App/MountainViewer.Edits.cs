@@ -66,6 +66,7 @@ namespace MountainPlanner.App
             FollowBuiltWork(_edits);   // built trails and lifts drawn as they are (MountainViewer.Built.cs, task 07)
             if (_preview != null) _preview.Cleared += _edits.ClearPreview;   // a tool's preview clearing takes the yellow contours with it (CF-08)
             Debug.Log("[TerrainEdits] ready" + (_editKeys ? ": F6 preview a bench at the pointer, F7 break ground, F8 cancel, Ctrl+Z / Ctrl+Y" : ""));
+            if (Array.IndexOf(args, "-regrade") >= 0) _edits.RegradeForCapture();   // captures: a save graded as this build grades
             if (bench >= 0 && bench + 1 < args.Length)
             {
                 var v = args[bench + 1].Split(',').Select(t => float.Parse(t, CultureInfo.InvariantCulture)).ToArray();

@@ -9,11 +9,11 @@ erase 13716 245000 -540000
 head 200000 -330000
 tail 250000 -760000
 golden graded.band Blue
-golden graded.cutM3 10355.747
-golden graded.fillM3 8925.250
-golden graded.rating 39.256
+golden graded.cutM3 10422.676
+golden graded.fillM3 8980.044
+golden graded.rating 39.159
 golden graded.ungradedStations 0
-golden graded.writes 03fd5efb2083efde74f4c6f28fadb3b7adde98ec30254962ea16eaabc7cb68d4
+golden graded.writes a49e3b411f489a22ad1d047a45bf3905c2d19d8b4ffd0c935c92a06cb74f2c30
 golden natural.band Black
 golden natural.cutM3 0.000
 golden natural.fillM3 0.000

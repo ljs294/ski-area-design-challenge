@@ -123,7 +123,7 @@ namespace MountainPlanner.Domain.Design
             var free = graded ? new bool[n] : null;   // a point GR-13 may clamp
             var near = graded ? new bool[n] : null;   // within two cells of the paint: GR-13's fixed ground
             var claim = new bool[n];
-            Located point = null;
+            Swept point = null;
             if (graded)
             {
                 for (int k = 0; k < count && !any; k++) any = ok[k];
@@ -155,10 +155,30 @@ namespace MountainPlanner.Domain.Design
                     double u = point.Offset[at];
                     // The ground where this point's line out meets the edge: bilinear on the lattice (SH-02), from the
                     // points already read where it can.
-                    double fi = i + point.OutX[at] * pcl, fj = j - point.OutY[at] * pcl;
-                    double edge = grid.Bilinear(ground, fi, fj, out bool okEdge);
-                    if (!okEdge) edge = current.At(lattice.X(pc0) + fi, lattice.Y(pr0) - fj);
-                    double d = Design(point.Along[at], u, g, edge, Math.Abs(u) + pcl, along, z, left, right, ok, roundMetres, ramp: true, cross: cross);
+                    // GR-06 per point (GR-05 v3, the owner's corner report): the section's own painted extent on this side,
+                    // blended between its stations like the bench, not the nearest unpainted ground in any direction (in a
+                    // corner that's often across the other leg, and it cut the bench back for nothing). Beyond the extent,
+                    // the point is at the edge.
+                    double EdgeAlong(double ox, double oy, double dist)
+                    {
+                        double fi = i + ox * dist, fj = j - oy * dist;
+                        double e = grid.Bilinear(ground, fi, fj, out bool okEdge);
+                        return okEdge ? e : current.At(lattice.X(pc0) + fi, lattice.Y(pr0) - fj);
+                    }
+                    double half1 = Math.Max(Math.Abs(u), SectionReach(point.Along[at], u, along, budgetL, budgetR));
+                    double d = Design(point.Along[at], u, g, EdgeAlong(point.OutX[at], point.OutY[at], half1 - Math.Abs(u)), half1, along, z, left, right,
+                                      ok, roundMetres, ramp: true, cross: cross);
+                    // Inside a tight bend, the next section too (GR-05 v3), blended in by how nearly as close it is.
+                    double gap = point.Dist2[at] - point.Dist[at];
+                    if (point.Dist2[at] != double.MaxValue && gap < SectionBlendMetres)
+                    {
+                        double u2 = point.Offset2[at];
+                        double half2 = Math.Max(Math.Abs(u2), SectionReach(point.Along2[at], u2, along, budgetL, budgetR));
+                        double d2 = Design(point.Along2[at], u2, g, EdgeAlong(point.OutX2[at], point.OutY2[at], half2 - Math.Abs(u2)), half2, along, z,
+                                           left, right, ok, roundMetres, ramp: true, cross: cross);
+                        double w2 = 0.5 * (1 - gap / SectionBlendMetres);
+                        d += (d2 - d) * w2;
+                    }
                     design[at] = d;
                     free[at] = d != g;
                 }
@@ -325,9 +345,9 @@ namespace MountainPlanner.Domain.Design
         /// inside a tight bend, where sweeps cross, the nearest section wins. Before the head and past the tail, the end
         /// stations' sections run on.
         /// </summary>
-        static Located LocateSpans(IReadOnlyList<double> line, double[] along, EditLattice lattice, int c0, int r0, SpanGrid grid, double reach)
+        static Swept LocateSpans(IReadOnlyList<double> line, double[] along, EditLattice lattice, int c0, int r0, SpanGrid grid, double reach)
         {
-            var located = new Located(grid.Count);
+            var located = new Swept(grid.Count);
             int count = line.Count / 2;
             var tx = new double[count];
             var ty = new double[count];
@@ -350,7 +370,8 @@ namespace MountainPlanner.Domain.Design
                         double g0 = (px - ax) * tx[k] + (py - ay) * ty[k];
                         double g1 = (px - bx) * tx[k + 1] + (py - by) * ty[k + 1];
                         double t;
-                        if (g0 >= 0 && g1 <= 0)
+                        // A crossing either way: past a bend's centre of curvature the order of the section lines reverses.
+                        if ((g0 >= 0 && g1 <= 0) || (g0 <= 0 && g1 >= 0))
                         {
                             double lo = 0, hi = 1, flo = g0;
                             for (int it = 0; it < 30; it++)
@@ -370,13 +391,9 @@ namespace MountainPlanner.Domain.Design
                         double qx = px - cx, qy = py - cy;
                         double dist = Math.Sqrt(qx * qx + qy * qy);
                         int at = grid.Index(i, j);
-                        if (dist >= located.Dist[at]) continue;
                         double cross = ux * qy - uy * qx;
-                        located.Dist[at] = dist;
-                        located.Offset[at] = cross >= 0 ? dist : -dist;
-                        if (dist > 1e-9) { located.OutX[at] = qx / dist; located.OutY[at] = qy / dist; }
-                        else { located.OutX[at] = -uy; located.OutY[at] = ux; }
-                        located.Along[at] = along[k] + t * len;
+                        double ox = dist > 1e-9 ? qx / dist : -uy, oy = dist > 1e-9 ? qy / dist : ux;
+                        located.Offer(at, dist, cross >= 0 ? dist : -dist, along[k] + t * len, ox, oy);
                     }
             }
             return located;
@@ -396,6 +413,85 @@ namespace MountainPlanner.Domain.Design
             ex /= len;
             ey /= len;
         }
+
+        /// <summary>
+        /// The swept location's two nearest sections per point (GR-05 v3): inside a bend tighter than the trail is wide,
+        /// several stations' sections reach the same ground, and the design blends the nearest two by distance.
+        /// </summary>
+        sealed class Swept
+        {
+            public readonly double[] Dist, Offset, Along, OutX, OutY;
+            public readonly double[] Dist2, Offset2, Along2, OutX2, OutY2;
+            public Swept(int n)
+            {
+                Dist = new double[n]; Offset = new double[n]; Along = new double[n]; OutX = new double[n]; OutY = new double[n];
+                Dist2 = new double[n]; Offset2 = new double[n]; Along2 = new double[n]; OutX2 = new double[n]; OutY2 = new double[n];
+                for (int i = 0; i < n; i++) { Dist[i] = double.MaxValue; Dist2[i] = double.MaxValue; }
+            }
+
+            /// <summary>A section through slot <paramref name="at"/>; the same place on the line again (a station both its segments reach) counts once.</summary>
+            public void Offer(int at, double dist, double offset, double along, double ox, double oy)
+            {
+                if (Dist[at] != double.MaxValue && Math.Abs(along - Along[at]) < SameSectionMetres)
+                {
+                    if (dist < Dist[at]) Set(at, dist, offset, along, ox, oy, false);
+                    return;
+                }
+                if (Dist2[at] != double.MaxValue && Math.Abs(along - Along2[at]) < SameSectionMetres)
+                {
+                    if (dist < Dist2[at]) Set(at, dist, offset, along, ox, oy, true);
+                    if (Dist2[at] < Dist[at]) Swap(at);
+                    return;
+                }
+                if (dist < Dist[at])
+                {
+                    Dist2[at] = Dist[at]; Offset2[at] = Offset[at]; Along2[at] = Along[at]; OutX2[at] = OutX[at]; OutY2[at] = OutY[at];
+                    Set(at, dist, offset, along, ox, oy, false);
+                }
+                else if (dist < Dist2[at]) Set(at, dist, offset, along, ox, oy, true);
+            }
+
+            void Set(int at, double dist, double offset, double along, double ox, double oy, bool second)
+            {
+                if (second) { Dist2[at] = dist; Offset2[at] = offset; Along2[at] = along; OutX2[at] = ox; OutY2[at] = oy; }
+                else { Dist[at] = dist; Offset[at] = offset; Along[at] = along; OutX[at] = ox; OutY[at] = oy; }
+            }
+
+            void Swap(int at)
+            {
+                (Dist[at], Dist2[at]) = (Dist2[at], Dist[at]);
+                (Offset[at], Offset2[at]) = (Offset2[at], Offset[at]);
+                (Along[at], Along2[at]) = (Along2[at], Along[at]);
+                (OutX[at], OutX2[at]) = (OutX2[at], OutX[at]);
+                (OutY[at], OutY2[at]) = (OutY2[at], OutY[at]);
+            }
+        }
+
+        /// <summary>A section's painted extent on the point's side, blended between the stations either side of it.</summary>
+        static double SectionReach(double t, double u, double[] along, double[] reachL, double[] reachR)
+        {
+            int count = along.Length;
+            if (count < 2) return u >= 0 ? reachL[0] : reachR[0];
+            int k = 0, lo = 0, hi = count - 2;
+            while (lo <= hi)
+            {
+                int mid = (lo + hi) >> 1;
+                if (along[mid] <= t) { k = mid; lo = mid + 1; } else hi = mid - 1;
+            }
+            double span = along[k + 1] - along[k];
+            double f = span > 0 ? Math.Max(0, Math.Min(1, (t - along[k]) / span)) : 0;
+            var r = u >= 0 ? reachL : reachR;
+            return r[k] + (r[k + 1] - r[k]) * f;
+        }
+
+        /// <summary>Two sections closer along the line than this are the same one.</summary>
+        const double SameSectionMetres = 1.0;
+
+        /// <summary>
+        /// GR-05 v3: inside a bend, how much nearer one section must be than the next to take a point alone. Between, the two
+        /// blend linearly (half each where they are equally near), so the bench changes smoothly through the bend.
+        /// </summary>
+        public const double SectionBlendMetres = 8.0;
 
         /// <summary>(p − C(t)) · T(t) on a segment's sweep (T unnormalised: only its sign matters).</summary>
         static double SweepSide(double px, double py, double ax, double ay, double sx, double sy, double t0x, double t0y, double t1x, double t1y, double t)
