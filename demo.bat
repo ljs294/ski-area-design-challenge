@@ -203,7 +203,7 @@ echo.
 echo   Phase 3, task 08: trails (rebuilds the game, about 2 minutes; close the Unity editor first; on the desktop)
 echo     67 The game with the trail tools: T, Trails tab. New (N): paint, Shift-drag erases, [ ] brush; Enter; click
 echo        the head and the tail; Natural or Graded (yellow contours, red too steep, the profile strip); Break ground.
-echo        Edit (E) and Remove (X): click a trail. Shift+4 the Trails layer; Tab, Trails: the list, its filters and cards.
+echo        Edit (M) and Remove (X): click a trail. Shift+4 the Trails layer; Tab, Trails: the list, its filters and cards.
 echo     67b The trail timing run: 1,000 ft and 1 km trails at 10 spots (preview, commit, edit, undo against 100 / 250 ms).
 echo     67c The trail captures on Jackson Hole 2 km: a sidehill and a ridge, each step of the tool (render lane).
 echo.

@@ -18,10 +18,10 @@ namespace MountainPlanner.UI
         static readonly (string Tab, string Id, string Label, string Name, string Key, string Glyph, string Badge)[] Tools =
         {
             ("lifts", "new-lift", "New", "New lift", "N", "s-lift", "new"),
-            ("lifts", "edit-lift", "Edit", "Edit lift", "E", "s-lift", "edit"),
+            ("lifts", "edit-lift", "Edit", "Edit lift", "M", "s-lift", "edit"),
             ("lifts", "remove-lift", "Remove", "Remove lift", "X", "s-lift", "remove"),
             ("trails", "new-trail", "New", "New trail", "N", "s-trail", "new"),
-            ("trails", "edit-trail", "Edit", "Edit trail", "E", "s-trail", "edit"),
+            ("trails", "edit-trail", "Edit", "Edit trail", "M", "s-trail", "edit"),
             ("trails", "remove-trail", "Remove", "Remove trail", "X", "s-trail", "remove"),
             ("snow", "gun", "Snow gun", "Snow gun", "G", "s-gun", null),
             ("snow", "pipe", "Water line", "Water line", "W", "s-pipe", null),

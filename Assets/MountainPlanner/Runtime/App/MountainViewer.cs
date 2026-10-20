@@ -389,8 +389,8 @@ namespace MountainPlanner.App
 
         /// <summary>
         /// The view keys (docs/plans/controls-key-map.md; rebindable, <see cref="KeyBindings"/>). The HUD owns T, Tab, U, Space, 1–4, Ctrl+S and Enter;
-        /// while its Toolbox tray is open (<see cref="ViewCamera.LettersToTools"/>) letters are tool keys, so P
-        /// and C wait until it closes.
+        /// while its Toolbox tray is open (<see cref="ViewCamera.LettersToTools"/>) letters are tool keys, so P waits until
+        /// it closes; the camera's keys (C, Home) work at all times (TL19).
         /// </summary>
         void HandleKeys(Keyboard keys)
         {
@@ -435,9 +435,9 @@ namespace MountainPlanner.App
             }
             if (KeyBindings.Pressed(keys, GameAction.HideUi, letters)) _ui = !_ui;
             if (KeyBindings.Pressed(keys, GameAction.PhotoMode, letters)) SetPhoto(true);
-            if (KeyBindings.Pressed(keys, GameAction.FreeFly, letters) && Camera != null) Camera.ToggleMode();
+            if (KeyBindings.Pressed(keys, GameAction.FreeFly) && Camera != null) Camera.ToggleMode();
             if (KeyBindings.Pressed(keys, GameAction.Units, letters)) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
-            if (KeyBindings.Pressed(keys, GameAction.ResetView, letters)) HomeView();
+            if (KeyBindings.Pressed(keys, GameAction.ResetView)) HomeView();
             // Map layers (Shift+2, 4 and 5 are free for lifts and the rest as they're built).
             if (KeyBindings.Pressed(keys, GameAction.LayerSnow, letters)) ToggleLayer(MapLayers.Snow);
             if (KeyBindings.Pressed(keys, GameAction.LayerTrees, letters)) ToggleLayer(MapLayers.Trees);

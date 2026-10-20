@@ -220,19 +220,23 @@ namespace MountainPlanner.Tests
         // ---------- keys (SH-07, LF-09) ----------
 
         [Test]
-        public void SH07_ToolKeysAreRebindableAndNeverSwapWithTheCamera()
+        public void SH07_ToolKeysAreRebindableAndSwapWithTheCamera()
         {
             Assert.That(KeyBindings.Caption(GameAction.ToolNew), Is.EqualTo("N"));
             Assert.That(KeyBindings.Caption(GameAction.ToolNext), Is.EqualTo("Enter"));
             Assert.That(KeyBindings.Caption(GameAction.BreakGround), Is.EqualTo("Ctrl Enter"));
             Assert.That(KeyBindings.Caption(GameAction.TowerUp), Is.EqualTo("Page Up"));
             Assert.That(KeyBindings.Caption(GameAction.Erase), Is.EqualTo("Shift"));
-            // The tray's letters live only while it's open, when the camera has no letters: no swap with WASD.
-            Assert.That(KeyBindings.Bind(GameAction.ToolNew, 0, new KeyChord(Key.W)), Is.Null);
-            Assert.That(KeyBindings.Get(GameAction.MoveForward, 0), Is.EqualTo(new KeyChord(Key.W)));
-            // Two tray keys do swap.
+            Assert.That(KeyBindings.Caption(GameAction.ToolEdit), Is.EqualTo("M"), "E rotates the camera (TL19)");
+            // The camera's keys work with the tray open too (TL19), so a tray letter on W swaps with Move forward.
+            Assert.That(KeyBindings.Bind(GameAction.ToolNew, 0, new KeyChord(Key.W)), Is.EqualTo(GameAction.MoveForward));
+            Assert.That(KeyBindings.Get(GameAction.MoveForward, 0), Is.EqualTo(new KeyChord(Key.N)));
+            // Two tray keys swap.
             Assert.That(KeyBindings.Bind(GameAction.ToolEdit, 0, new KeyChord(Key.W)), Is.EqualTo(GameAction.ToolNew));
-            Assert.That(KeyBindings.Get(GameAction.ToolNew, 0), Is.EqualTo(new KeyChord(Key.E)));
+            Assert.That(KeyBindings.Get(GameAction.ToolNew, 0), Is.EqualTo(new KeyChord(Key.M)));
+            // A key a tool takes only while it claims it shadows the camera's instead of swapping (as Page Up does).
+            Assert.That(KeyBindings.Bind(GameAction.TowerUp, 0, new KeyChord(Key.Home)), Is.Null);
+            Assert.That(KeyBindings.Get(GameAction.ResetView, 0), Is.EqualTo(new KeyChord(Key.Home)));
         }
 
         [Test]

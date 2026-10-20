@@ -160,6 +160,23 @@ namespace MountainPlanner.Tests
                 Assert.That(run.Head.Value, Is.EqualTo(chair.Top), "the head snapped to the lift's top");
                 Assert.That(run.Tail.Value, Is.EqualTo(chair.Bottom), "the tail snapped to its bottom");
 
+                // The map keys work while a tool is armed (owner, TL19): W pans and E turns the view, and neither is a tool key.
+                Assert.That(viewer.Tools.Armed, Is.True, "the tool stays armed after Break ground");
+                var eye = viewer.Camera.transform.position;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState(Key.W));
+                yield return Frames(6);
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+                yield return Frames(2);
+                Assert.That(Vector3.Distance(viewer.Camera.transform.position, eye), Is.GreaterThan(0.5f), "W pans with a tool armed");
+                Assert.That(viewer.Tools.ActiveId, Is.EqualTo(NewTrailTool.ToolId), "W left the tool alone");
+                var turn = viewer.Camera.transform.rotation;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState(Key.E));
+                yield return Frames(6);
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+                yield return Frames(2);
+                Assert.That(Quaternion.Angle(viewer.Camera.transform.rotation, turn), Is.GreaterThan(0.5f), "E turns the view with a tool armed");
+                Assert.That(viewer.Tools.ActiveId, Is.EqualTo(NewTrailTool.ToolId), "E no longer arms Edit (Edit is M)");
+
                 // Esc closes the tool (nothing drawn), then the tray; the letters go back to the camera.
                 yield return Press(Key.Escape);
                 Assert.That(viewer.Tools.Armed, Is.False);

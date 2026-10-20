@@ -217,12 +217,14 @@ namespace MountainPlanner.Tests
                 Assert.That(clock.Elapsed.TotalMilliseconds, Is.LessThan(100), "within 100 ms");
                 Assert.That(view.transform.position.z, Is.GreaterThan(before.z), "W pans north here (yaw 0)");
 
-                // With the Toolbox tray open, letters are tool keys: W no longer moves the camera, the arrows still do.
+                // With the Toolbox tray open the camera's keys still work (TL19): W keeps moving it, and so do the arrows.
                 view.LettersToTools = true;
                 yield return null;
                 before = view.transform.position;
                 yield return null;
-                Assert.That(Vector3.Distance(view.transform.position, before), Is.LessThan(0.01f), "W belongs to the tools");
+                yield return null;
+                Assert.That(view.transform.position.z, Is.GreaterThan(before.z), "W still pans with the tray open");
+                before = view.transform.position;
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.UpArrow));
                 yield return null;
                 yield return null;

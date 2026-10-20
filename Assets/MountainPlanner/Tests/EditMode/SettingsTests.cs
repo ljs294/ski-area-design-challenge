@@ -212,7 +212,7 @@ namespace MountainPlanner.Tests
                 {
                     var c = KeyBindings.Get((GameAction)a, s);
                     if (c.IsNone) continue;
-                    if (seen.TryGetValue(c, out var other))
+                    if (seen.TryGetValue(c, out var other) && !KeyBindings.Actions[a].WhileClaimed && !KeyBindings.Actions[(int)other].WhileClaimed)
                         Assert.That(KeyBindings.Actions[a].When & KeyBindings.Actions[(int)other].When, Is.EqualTo((KeyBindings.Context)0),
                                     $"{(GameAction)a} and {other} share {c}");
                     else seen[c] = (GameAction)a;
