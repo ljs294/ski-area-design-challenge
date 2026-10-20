@@ -212,12 +212,17 @@ namespace MountainPlanner.Tests
                 {
                     var c = KeyBindings.Get((GameAction)a, s);
                     if (c.IsNone) continue;
-                    if (seen.TryGetValue(c, out var other))
+                    // A tool's keys that are live only while it claims them (one at a time: the terminal in hand turns, the tower in
+                    // hand slides, LT17) may share a key with each other.
+                    if (seen.TryGetValue(c, out var other) && !(ClaimOnly((GameAction)a) && ClaimOnly(other)))
                         Assert.That(KeyBindings.Actions[a].When & KeyBindings.Actions[(int)other].When, Is.EqualTo((KeyBindings.Context)0),
                                     $"{(GameAction)a} and {other} share {c}");
                     else seen[c] = (GameAction)a;
                 }
         }
+
+        static bool ClaimOnly(GameAction a) => a == GameAction.TerminalTurnLeft || a == GameAction.TerminalTurnRight
+            || a == GameAction.TowerSlideBack || a == GameAction.TowerSlideOn;
 
         [Test]
         public void BindingATakenKeySwapsIt()

@@ -201,7 +201,7 @@ echo     65c The style tile's captures: the benchmark and close views, summer an
 echo     65b The benchmark with the style tile shown (High and Medium), compared with the baselines (measure lane).
 echo.
 echo   Phase 3, task 09: lifts (rebuilds the game; on the desktop)
-echo     68 Place a chairlift in the game: Toolbox, Lifts, New; bottom then top terminal, Enter, and Break ground
+echo     68 Lifts in the game: New (type menu, terminals, towers by hand), hover glow and map lines, Edit and Remove
 echo        builds it with automatic towers, rope and moving chairs. -extramonta check lifts are in 65's notes.
 echo.
 echo     Q  Quit
@@ -286,7 +286,7 @@ if /i "%CHOICE%"=="62" goto savefile
 if /i "%CHOICE%"=="63" goto terrainedits
 if /i "%CHOICE%"=="63b" goto editbench
 if /i "%CHOICE%"=="64" goto toolbox
-if /i "%CHOICE%"=="68" goto lifts
+if /i "%CHOICE%"=="68" goto placelift
 if /i "%CHOICE%"=="65" goto styletile
 if /i "%CHOICE%"=="65s" goto styletilesummer
 if /i "%CHOICE%"=="65c" goto styletilecaptures
@@ -755,18 +755,23 @@ echo the keys back, and Esc again leaves photo mode.
 "%GAME%" <nul
 goto done
 
-:lifts
-rem Task P3-09: placing a chairlift. Always rebuilt, so the lift tool on this branch is the one you try.
+:placelift
+rem Task P3-09: placing, editing and removing lifts. Always rebuilt, so the lift tools on this branch are the ones you try.
 call :buildplayer
 if not exist "%GAME%" goto done
 echo.
 echo Open an area, then T for the Toolbox, the Lifts tab, N for New lift:
-echo   1 Click where the bottom terminal sits (green where it can), 2 click higher up for the top terminal.
-echo   3 Pick Sessellift FGQ-4 or Monta FG4 (the Monta drives at the bottom), Plumb or Leaned; Enter for the review.
-echo   4 The review fills in after a moment: towers, the lowest chairs, the rise allowed, and any amber warnings.
-echo   5 Break ground (Ctrl+Enter): the lift is built with its towers, pads, trench and clearing; the chairs run.
-echo   Ctrl+Z (no tool armed) takes it back with its clearing. Towers by hand, the terminal ghost with Page Up/Down
-echo   levels, Edit and Remove come next in task 09.
+echo   Pick the type in the menu (Type, Chair or Cabin, Model), Towers Automatic or By hand, Plumb or Leaned.
+echo   1 The bottom terminal follows the pointer: Shift+wheel or , . turn it, Page Up/Down its level; click to place.
+echo   2 The top terminal follows the pointer up the hill, with its level; click to fix the line.
+echo   3 Automatic: the towers appear. By hand: the tower in hand follows the pointer up the line (, and .
+echo     slide it, Page Up/Down its height), green where it fits; click or Enter places it, Delete takes one back,
+echo     Fill the rest finishes the line. Enter (or Review) for the review.
+echo   4 Break ground (Ctrl+Enter): towers, pads, trench and clearing; the chairs run. Ctrl+Z takes it back.
+echo   Hover a built lift: it glows. Zoom far out: lifts show as red trail-map lines. Shift+2 hides the lifts.
+echo   E for Edit lift: click a lift, then a tower or terminal (or [ and ]); slide, raise, drag a terminal, change
+echo     the type; Ctrl+Z undoes inside the tool; Apply (Ctrl+Enter) or Cancel.
+echo   X for Remove lift: click a lift, click it again (or Enter) to remove it with its pads and clearing.
 start "" "%GAME%"
 goto menu
 

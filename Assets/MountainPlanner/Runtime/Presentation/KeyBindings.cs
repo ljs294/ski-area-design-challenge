@@ -23,7 +23,7 @@ namespace MountainPlanner.Presentation
         TerminalTurnLeft, TerminalTurnRight, TerminalLevelUp, TerminalLevelDown,
         // P3-09 (LT7): the Lifts map layer.
         LayerLifts,
-        // P3-09 (LF-04): the tower in hand slides down or up the line, 5 ft (Shift 50 ft).
+        // P3-09 (LF-04, LT17): the tower in hand or selected slides down or up the line, 5 ft (Shift 50 ft).
         TowerSlideBack, TowerSlideOn,
     }
 
@@ -98,7 +98,7 @@ namespace MountainPlanner.Presentation
             new Info("Camera", "Move forward", Context.Both, new KeyChord(Key.W), new KeyChord(Key.UpArrow)),
             new Info("Camera", "Move back", Context.Both, new KeyChord(Key.S), new KeyChord(Key.DownArrow)),
             new Info("Camera", "Move left", Context.Both, new KeyChord(Key.A), new KeyChord(Key.LeftArrow)),
-            new Info("Camera", "Move right", Context.Both, new KeyChord(Key.D), new KeyChord(Key.RightArrow)),
+            new Info("Camera", "Move right", Context.Both, new KeyChord(Key.D), new KeyChord(Key.Period)),
             new Info("Camera", "Rotate left", Context.Both, new KeyChord(Key.Q)),
             new Info("Camera", "Rotate right", Context.Both, new KeyChord(Key.E)),
             new Info("Camera", "Tilt up", Context.Both, new KeyChord(Key.R)),
@@ -162,8 +162,9 @@ namespace MountainPlanner.Presentation
             new Info("Building", "Terminal up 1 ft", Context.Tray, new KeyChord(Key.PageUp)),
             new Info("Building", "Terminal down 1 ft", Context.Tray, new KeyChord(Key.PageDown)),
             new Info("Layers", "Lifts", Context.Normal, new KeyChord(Key.Digit2, KeyMods.Shift)),
-            new Info("Building", "Tower down the line 5 ft", Context.Tray, new KeyChord(Key.LeftArrow)),
-            new Info("Building", "Tower up the line 5 ft", Context.Tray, new KeyChord(Key.RightArrow)),
+            // LT17: , and . slide a tower (the arrows stay the camera's); claimed only while a tower is in hand or selected.
+            new Info("Building", "Tower down the line 5 ft", Context.Tray, new KeyChord(Key.Comma)),
+            new Info("Building", "Tower up the line 5 ft", Context.Tray, new KeyChord(Key.Period)),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>
