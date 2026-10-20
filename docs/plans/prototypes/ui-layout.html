@@ -465,6 +465,12 @@ body.solo .frame { border-radius: 0; }
 .hud .ldd .ddb .car { font-size: 10px; color: var(--soft); }
 .hud .ldd .amenu { width: 100%; }
 .hud .ldd .amenu .tick { width: 12px; color: var(--pos); }
+.hud .ltow { display: flex; align-items: center; gap: 6px; padding: 5px 12px 1px; font: 600 12px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .ltow > span:first-child { width: 64px; }
+.hud .ltow .dot { color: var(--faint); }
+.hud .ldd.quiet .ddb { height: 22px; padding: 0 4px; border-color: transparent; font-weight: 600; color: var(--muted); gap: 5px; justify-content: flex-start; }
+.hud .ldd.quiet .ddb:hover, .hud .ldd.quiet .ddb.on { border-color: var(--hair2); color: var(--strong); }
+.hud .ldd.quiet .amenu { width: auto; min-width: 140px; }
 .hud .lgauge { padding: 4px 14px 0; }
 .hud .ldet { padding: 0 12px 4px; font: 500 11px 'Overpass Mono', monospace; color: var(--soft); line-height: 1.4; }
 .hud .lkeys { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 3px 12px 7px; font: 500 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
@@ -1189,6 +1195,7 @@ body.solo .frame { border-radius: 0; }
     ['gondola', 'Detachable gondola', [['gond6', '6 a cabin'], ['gond8', '8 a cabin'], ['gond10', '10 a cabin']]],
     ['tram', 'Aerial tram', [['tram60', '60 a cabin'], ['tram100', '100 a cabin']]],
   ];
+  const MAKERS = ['Sessellift', 'Monta', 'Chairworks'];   // the code-name makers (no real ones in the repo)
   const KIND_DEFAULT = { fixed: 'Sessellift FGQ-4', detach: 'detach4', gondola: 'gond8', tram: 'tram100' };
   const LEGACY_TYPE = { 'Fixed 4': 'Sessellift FGQ-4', 'Detach 4': 'detach4', 'Detach 6': 'detach6' };   // the placeholder lifts
   const carrierKey = (t) => (LIFT_TYPES[t].family === 'fixed4' ? 'fixed4' : t);
@@ -1892,16 +1899,18 @@ body.solo .frame { border-radius: 0; }
   }
   function liftPanel() {
     const d = S.draft, T = LIFT_TYPES[d.type];
-    const seg = (act, cur, opts, tip) => `<div class="seg"${tip ? ` title="${tip}"` : ''}>${opts.map(([v, l]) => `<span class="${cur === v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</span>`).join('')}</div>`;
+    // every choice is a dropdown (owner, 2026-10-19); the tower options are a quieter pair on one line
+    const dd = (k, label, opts, act, cur, tip, quiet) => `<div class="ldd${quiet ? ' quiet' : ''}"${tip ? ` title="${tip}"` : ''}><span class="ddb${S.lkMenu === k ? ' on' : ''}" data-act="lkmenu" data-v="${k}">${label}<span class="car">▾</span></span>${S.lkMenu === k ? `<div class="amenu">${opts.map(([v, l, dis]) => `<div class="mi${dis ? ' dis' : ''}" data-act="${dis ? '' : act}" data-v="${v}"><span class="tick">${v === cur ? '✓' : ''}</span>${l}</div>`).join('')}</div>` : ''}</div>`;
     const head = d.edit ? `<span class="plate built">${d.n}</span>Edit lift <span class="nm">${esc(d.name)}</span>${d.armCancel ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard the changes? Again</span>' : ''}`
       : `<span class="plate">${d.n}</span>New lift <span class="nm">${esc(d.name)}</span>${d.armCancel ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard it? ✕ again</span>' : ''}`;
     return panelShell(head, `
       <div style="padding:8px 0 4px">
-        <div class="lrow"><span>Type</span><div class="ldd"><span class="ddb${S.lkMenu ? ' on' : ''}" data-act="lkmenu" title="${d.edit ? 'SetLiftType: in Automatic the towers re-place for the new type' : 'The kind of lift (owner, 2026-10-19)'}">${LIFT_KINDS.find((k) => k[0] === T.kind)[1]}<span class="car">▾</span></span>${S.lkMenu ? `<div class="amenu">${LIFT_KINDS.map(([k, l]) => `<div class="mi" data-act="lkind" data-v="${k}"><span class="tick">${k === T.kind ? '✓' : ''}</span>${l}</div>`).join('')}</div>` : ''}</div></div>
-        <div class="lrow"><span>${T.kind === 'gondola' || T.kind === 'tram' ? 'Cabin' : 'Chair'}</span>${seg('lcarrier', carrierKey(d.type), LIFT_KINDS.find((k) => k[0] === T.kind)[2], 'The carrier size: smaller carriers climb further')}</div>
-        ${T.family === 'fixed4' ? `<div class="lrow"><span>Model</span>${seg('ltype', d.type, [['Sessellift FGQ-4', 'Sessellift FGQ-4'], ['Monta FG4', 'Monta FG4']], 'LC-02: both models share these values for now')}</div>` : ''}
-        <div class="lrow"><span>Towers</span>${seg('lmode', d.mode, [['auto', d.armAuto ? 'Again: re-place' : 'Automatic'], ['hand', 'By hand']], d.edit ? 'LF-01: to By hand keeps the towers; to Automatic re-places them, asking first if you placed any' : 'LF-01, TW-12: automatic towers, or yours; it can change until you break ground')}</div>
-        <div class="lrow"><span>Stand</span>${seg('lstand', d.stance, [['plumb', 'Plumb'], ['leaned', 'Leaned']], 'TW-14: plumb, or leaned square to the rope (15° at most)')}</div>
+        <div class="lrow"><span>Type</span>${dd('kind', LIFT_KINDS.find((k) => k[0] === T.kind)[1], LIFT_KINDS.map(([k, l]) => [k, l]), 'lkind', T.kind, d.edit ? 'SetLiftType: in Automatic the towers re-place for the new type' : 'The kind of lift (owner, 2026-10-19)')}</div>
+        <div class="lrow"><span>${T.kind === 'gondola' || T.kind === 'tram' ? 'Cabin' : 'Chair'}</span>${dd('carrier', LIFT_KINDS.find((k) => k[0] === T.kind)[2].find((c) => c[0] === carrierKey(d.type))[1], LIFT_KINDS.find((k) => k[0] === T.kind)[2], 'lcarrier', carrierKey(d.type), 'The carrier size: smaller carriers climb further')}</div>
+        <div class="lrow"><span>Model</span>${T.family === 'fixed4'
+          ? dd('model', d.type, [['Sessellift FGQ-4', 'Sessellift FGQ-4'], ['Monta FG4', 'Monta FG4'], ['', 'Chairworks (comes later)', true]], 'ltype', d.type, 'LC-02: the models share these values for now')
+          : dd('model', `${d.maker || 'Sessellift'} ${T.name.toLowerCase()}`, MAKERS.map((m) => [m, m]), 'lmaker', d.maker || 'Sessellift', 'Its maker; its model is drawn with the quad\'s until its own exists')}</div>
+        <div class="ltow"><span>Towers</span>${dd('mode', d.armAuto ? 'Again: re-place' : d.mode === 'auto' ? 'Automatic' : 'By hand', [['auto', 'Automatic'], ['hand', 'By hand']], 'lmode', d.mode, d.edit ? 'LF-01: to By hand keeps the towers; to Automatic re-places them, asking first if you placed any' : 'LF-01, TW-12: automatic towers, or yours', true)}<span class="dot">·</span>${dd('stance', d.stance === 'plumb' ? 'Plumb' : 'Leaned', [['plumb', 'Plumb'], ['leaned', 'Leaned']], 'lstand', d.stance, 'TW-14: plumb, or leaned square to the rope (15° at most)', true)}</div>
         <div class="lnote" title="LC-02, LC-03: capacity is shown, not chosen"><b>${liftCap(T).toLocaleString('en-US')}</b> an hour · ${speedTxt(T.fpm / 196.85)} · ${T.kind === 'tram' ? 'two cabins' : `${T.kind === 'gondola' ? 'cabins' : 'chairs'} ${lenFt(T.spacing)} apart`}${T.family === 'fixed4' ? '' : '<br>drawn with the quad\'s model until its own exists'}</div>
       </div><div class="rule"></div><div id="liftctx">${liftCtx()}</div>`, 344, 'toolwin');
   }
@@ -1932,7 +1941,8 @@ body.solo .frame { border-radius: 0; }
     const autoAgain = () => { if (d.g && d.mode === 'auto' && !hasHandTowers(d)) { placeAuto(d); toReview(); } };
     switch (a) {
       case 'ltype': if (v !== d.type || d.legacy) { editSnap(d); d.type = v; d.legacy = null; autoAgain(); } break;
-      case 'lkmenu': S.lkMenu = !S.lkMenu; break;
+      case 'lkmenu': S.lkMenu = S.lkMenu === v ? null : v; break;
+      case 'lmaker': d.maker = v; break;
       case 'lkind': S.lkMenu = false; if (LIFT_TYPES[d.type].kind !== v) { editSnap(d); d.type = KIND_DEFAULT[v]; d.legacy = null; autoAgain(); } break;
       case 'lcarrier': { const t = v === 'fixed4' ? (LIFT_TYPES[d.type].family === 'fixed4' ? d.type : 'Sessellift FGQ-4') : v; if (t !== d.type) { editSnap(d); d.type = t; d.legacy = null; autoAgain(); } break; }
       case 'lstand': if (v !== d.stance) { editSnap(d); d.stance = v; S.liftStance = v; } break;
@@ -3152,7 +3162,7 @@ body.solo .frame { border-radius: 0; }
         break; }
       case 'close': if (S.draft && S.draft.kind === 'trail' && S.draft.strokes.length && S.set.confirmRemove === 'on' && !S.draft.armCancel) { S.draft.armCancel = true; break; }
         if (S.draft && S.draft.kind === 'lift' && S.draft.a && (!S.draft.edit || S.draft.hist.length) && S.set.confirmRemove === 'on' && !S.draft.armCancel) { S.draft.armCancel = true; break; } closeTool(); return;
-      case 'lkmenu': case 'lkind': case 'lcarrier': case 'ltype': case 'lcap': case 'lmode': case 'lstand': case 'lscale': case 'lstep': case 'lfill': case 'lreplace': case 'lh': case 'ldel': case 'ldrop': case 'lkeep': case 'llevel': case 'lundo': case 'lapply': case 'lcancel': liftAct(a, v); return;
+      case 'lmaker': case 'lkmenu': case 'lkind': case 'lcarrier': case 'ltype': case 'lcap': case 'lmode': case 'lstand': case 'lscale': case 'lstep': case 'lfill': case 'lreplace': case 'lh': case 'ldel': case 'ldrop': case 'lkeep': case 'llevel': case 'lundo': case 'lapply': case 'lcancel': liftAct(a, v); return;
       case 'model': S.draft.model = v; break;
       case 'diff': S.draft.diff = v; break;
       case 'build': commit(false); return;
@@ -3615,7 +3625,7 @@ body.solo .frame { border-radius: 0; }
   // demo flags for the lift type: ltype<key> (ltypedetach6, ltypegond8, ltypetram100…) and lkmenu (the Type dropdown open)
   if (demo) {
     for (const x of demo.split(',')) { const m = x.match(/^ltype([a-z0-9]+)$/); if (m && S.draft && S.draft.kind === 'lift' && LIFT_TYPES[m[1]]) { S.draft.type = m[1]; if (S.draft.g && S.draft.mode === 'auto') placeAuto(S.draft); } }
-    if (demo.split(',').includes('lkmenu')) S.lkMenu = true;
+    if (demo.split(',').includes('lkmenu')) S.lkMenu = 'kind';
   }
   render();
   requestAnimationFrame(tick);
