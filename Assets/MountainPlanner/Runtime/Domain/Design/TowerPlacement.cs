@@ -39,7 +39,7 @@ namespace MountainPlanner.Domain.Design
             public double TopRaise { get; internal set; }
         }
 
-        const double Grid = 1.524, LineHeight = 10.668, MaxHeight = 30.48, StationDefault = 12.192, PastFront = 4.572,
+        const double Grid = 1.524, LineHeight = 10.668, StationDefault = 12.192, PastFront = 4.572,
                      MaxSpan = 76.2, MinGap = 15.24, Tolerance = LiftRope.ClearanceTolerance,
                      StationNeighbourMax = 18.288;   // 60 ft: past that a station span's shortfall goes to the trench
 
@@ -87,6 +87,7 @@ namespace MountainPlanner.Domain.Design
             double topBack = type.Top.ExitAlong, topExitS = length - topBack, topExitY = topLevel + type.Top.ExitRise;
             LiftRope.Zones(type, length, out double frontB, out double edgeB, out double edgeT, out double frontT);
             var result = new Result();
+            double MaxHeight = type.TowerMaxMetres;   // TW-02: 100 ft; a tram's 250 ft (LC-08)
 
             double Aimed(bool bottom, double s) => AimedY(type, bottom, s, exitS, exitY, topExitS, topExitY);
             // TW-01 v2 along a station span (from the terminal's front to the tower), both load cases: how far the chairs

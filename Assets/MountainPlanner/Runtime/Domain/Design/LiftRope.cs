@@ -28,6 +28,14 @@ namespace MountainPlanner.Domain.Design
         public TerminalEnd Top { get; private set; }
         /// <summary>TW-01 v2: half the chair's width across the rope (the Sessellift chair's footrest rods, 1,020 mm).</summary>
         public double ChairHalfWidthMetres { get; private set; } = 1.05;
+        /// <summary>LC-08: the type's name in the menu ("Fixed-grip quad", "Detachable six"…) and its rise family.</summary>
+        public string Name { get; private set; } = "Fixed-grip quad";
+        /// <summary>LC-07 (owner, task 09, LT13): how much vertical the lift may climb, metres; infinite for a tram.</summary>
+        public double RiseLimitMetres { get; private set; } = 2200 * 0.3048;
+        /// <summary>TW-02 with LC-08: the tallest tower (100 ft; a tram's 250 ft).</summary>
+        public double TowerMaxMetres { get; private set; } = DesignUnits.TowerMaxMm / 1000.0;
+        /// <summary>LC-03: people an hour; a tram's is its own (one cabin each way), not seats × speed ÷ spacing.</summary>
+        double? _capacity;
 
         public LiftType(string catalogId, int seats, double speed, double spacing, double ropeKgPerMetre, double rated,
                         double counterweight, double chairKg, double riderKg, double chairDrop, double gauge, double ropeDiameter)
@@ -52,7 +60,7 @@ namespace MountainPlanner.Domain.Design
         public double LoadedNewtonsPerMetre => (RopeKgPerMetre + (ChairKg + Seats * RiderKg) / ChairSpacingMetres) * Gravity;
         public double EmptyNewtonsPerMetre => (RopeKgPerMetre + ChairKg / ChairSpacingMetres) * Gravity;
         /// <summary>LC-03, people per hour.</summary>
-        public double Capacity => Seats * SpeedMetresPerSecond * 3600 / ChairSpacingMetres;
+        public double Capacity => _capacity ?? Seats * SpeedMetresPerSecond * 3600 / ChairSpacingMetres;
 
         /// <summary>
         /// LC-02 v2 for both quads (rope 1¾ in, owner, task 07, SK17): 450 fpm, 45 ft spacing, a 1¾ in (44.5 mm) 6x19
@@ -63,9 +71,24 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         public static LiftType Of(string catalogId)
         {
-            bool monta = catalogId == LiftCatalogIds.MontaFg4;
+            bool monta = LiftCatalogIds.Maker(catalogId) == "monta";
             double gauge = 4.12;
             var type = new LiftType(catalogId, 4, 2.286, 13.716, 7.66, 220_800, 80_070, 158.8, 77.1, 2.66, gauge, 0.04445);
+            string carrier = LiftCatalogIds.Carrier(catalogId);
+            if (carrier != "fixed-quad" && Carriers.TryGetValue(carrier, out var c))
+            {
+                // LC-08's placeholders (the mockup's LIFT_TYPES, owner, LT15): speed, spacing, the rope (its weight scaled from
+                // the quad's 1¾ in by diameter²), counterweight and carrier weights; drawn with the quad's models.
+                const double Lb = 0.45359237, Lbf = 4.448222, Ft = 0.3048;
+                double ropeKg = 7.66 * (c.RopeCm * c.RopeCm) / (4.445 * 4.445);
+                double rider = (c.FullLb - c.EmptyLb) / c.Seats * Lb;
+                type = new LiftType(catalogId, c.Seats, c.Fpm * Ft / 60, c.SpacingFt * Ft, ropeKg, double.PositiveInfinity, c.CounterweightLbf * Lbf,
+                                    c.EmptyLb * Lb, rider, 2.66, gauge, c.RopeCm / 100);
+                type.Name = c.Name;
+                type.RiseLimitMetres = c.RiseFt * Ft;
+                type._capacity = c.Capacity;
+                if (carrier.StartsWith("tram-", StringComparison.Ordinal)) type.TowerMaxMetres = DesignUnits.TramTowerMaxMm / 1000.0;
+            }
             // Each end is the terminal model standing there (TW-16 v3; the owner's ruling, 2026-10-18: terminals face where
             // their bullwheels are). The Sessellift drives at the top: its return's hold-down row (8 sheaves) at the bottom,
             // its drive's support row (4) at the top. The Monta drives at the bottom: its drive's hold-down rows (12 sheaves,
@@ -87,6 +110,33 @@ namespace MountainPlanner.Domain.Design
             }
             return type;
         }
+
+        /// <summary>One placeholder type (LC-08): menu name, speed (fpm), seats, spacing (ft), rope diameter (cm),
+        /// counterweight (lbf), carrier empty and full (lb), rise limit (ft, LC-07) and any capacity of its own.</summary>
+        sealed class CarrierSpec
+        {
+            public string Name; public double Fpm; public int Seats; public double SpacingFt, RopeCm, CounterweightLbf, EmptyLb, FullLb, RiseFt;
+            public double? Capacity;
+            public CarrierSpec(string name, double fpm, int seats, double spacing, double rope, double cw, double empty, double full, double rise, double? capacity = null)
+            {
+                Name = name; Fpm = fpm; Seats = seats; SpacingFt = spacing; RopeCm = rope; CounterweightLbf = cw; EmptyLb = empty; FullLb = full; RiseFt = rise; Capacity = capacity;
+            }
+        }
+
+        /// <summary>LC-07 and LC-08 (owner, task 09, LT13, LT15): the mockup's LIFT_TYPES and rise families.</summary>
+        static readonly Dictionary<string, CarrierSpec> Carriers = new Dictionary<string, CarrierSpec>
+        {
+            ["fixed-double"] = new CarrierSpec("Fixed-grip double", 450, 2, 45, 3.6, 14000, 200, 540, 2800),
+            ["fixed-triple"] = new CarrierSpec("Fixed-grip triple", 450, 3, 45, 4.0, 16000, 280, 790, 2500),
+            ["detach-quad"] = new CarrierSpec("Detachable quad", 1000, 4, 80, 5.2, 30000, 900, 1580, 3600),
+            ["detach-six"] = new CarrierSpec("Detachable six", 1000, 6, 100, 6.0, 36000, 1300, 2320, 3300),
+            ["detach-eight"] = new CarrierSpec("Detachable eight", 1000, 8, 120, 6.4, 40000, 1700, 3060, 3000),
+            ["gondola-6"] = new CarrierSpec("Gondola, 6 a cabin", 1000, 6, 150, 5.2, 32000, 1300, 2320, 4500),
+            ["gondola-8"] = new CarrierSpec("Gondola, 8 a cabin", 1000, 8, 160, 6.0, 36000, 1700, 3060, 4500),
+            ["gondola-10"] = new CarrierSpec("Gondola, 10 a cabin", 1000, 10, 167, 6.4, 40000, 2000, 3700, 4500),
+            ["tram-60"] = new CarrierSpec("Aerial tram, 60 a cabin", 2000, 60, 5000, 15, 450000, 18000, 28200, double.PositiveInfinity, 500),
+            ["tram-100"] = new CarrierSpec("Aerial tram, 100 a cabin", 2000, 100, 5000, 15, 500000, 24000, 41000, double.PositiveInfinity, 750),
+        };
 
         /// <summary>
         /// TW-16 v2: the Sessellift return's hold-down row turns the rope up from level in the loading area, and it leaves at
@@ -203,8 +253,12 @@ namespace MountainPlanner.Domain.Design
         /// <summary>RP-03: the tension at the top terminal, loaded and empty, newtons (the bottom's is the counterweight).</summary>
         public double TopTensionLoaded { get; }
         public double TopTensionEmpty { get; }
-        /// <summary>RP-05: the top of the loaded side stays within the rope's rating.</summary>
+        /// <summary>RP-05: the top of the loaded side within the rope's rating. Shown, no longer blocking (v2, LT13).</summary>
         public bool TensionOk => TopTensionShare <= 1 + 1e-9;
+        /// <summary>LC-07: the lift's rise, top terminal level over the bottom one's, metres.</summary>
+        public double RiseMetres { get; }
+        /// <summary>LC-07 (owner, task 09, LT13): the rise within the type's limit (a tram has none).</summary>
+        public bool RiseOk => RiseMetres <= Type.RiseLimitMetres + 1e-9;
 
         readonly TowerSolution[] _towers;
         readonly Span[] _loaded, _empty;
@@ -373,6 +427,7 @@ namespace MountainPlanner.Domain.Design
                 }
                 Solve();
             }
+            RiseMetres = (topExitY - type.Top.ExitRise) - (bottomExitY - type.Bottom.ExitRise);
             TopTensionLoaded = t0 + wl * (ropeY[n + 1] - ropeY[0]);
             TopTensionEmpty = t0 + we * (ropeY[n + 1] - ropeY[0]);
             TopTensionShare = TopTensionLoaded / type.RatedTensionNewtons;

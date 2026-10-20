@@ -43,12 +43,19 @@ namespace MountainPlanner.Domain.Design
             public double BottomSteepRaise { get; internal set; }
             public double TopSteepRaise { get; internal set; }
 
-            /// <summary>Why the lift is red, with each rule (TW-01 v2, TW-05, TW-06, TW-16 v3, RP-05, LF-12); empty when it isn't.</summary>
-            public List<LiftProblem> Problems => _problems ??= LiftProblems.For(Rope, BottomPad.ClippedStepMetres, TopPad.ClippedStepMetres);
+            /// <summary>Why the lift is red (blocking: TW-01 v2, LC-07) or amber (TW-05, TW-06, TW-16 v3, LF-08, LF-12), each with its
+            /// rule (LC-09, owner, LT14); empty when it's neither.</summary>
+            public List<LiftProblem> Problems => _problems ??= LiftProblems.For(Rope, BottomPad.ClippedStepMetres, TopPad.ClippedStepMetres,
+                                                                                BottomSiteVariation, TopSiteVariation);
             List<LiftProblem> _problems;
 
-            /// <summary>Every rule the lift's geometry answers to holds.</summary>
-            public bool Ok => Problems.Count == 0;
+            /// <summary>Nothing blocks it (LC-09): it can be built; amber warnings may remain.</summary>
+            public bool Ok => !LiftProblems.AnyBlocks(Problems);
+            /// <summary>Within every rule, amber ones too.</summary>
+            public bool Clean => Problems.Count == 0;
+            /// <summary>How much the natural ground varies under each terminal's footprint (LF-08), metres.</summary>
+            public double BottomSiteVariation { get; internal set; }
+            public double TopSiteVariation { get; internal set; }
         }
 
         /// <summary>
@@ -132,7 +139,7 @@ namespace MountainPlanner.Domain.Design
                 {
                     double s = t.AlongMm / 1000.0, g = onPads.At(bx + ux * s, by + uy * s);
                     double steel = Math.Floor((ropeY - g) / Math.Cos(lean) / 1.524 + 1e-6) * 1.524;
-                    steel = Math.Max(DesignUnits.StationTowerMinMm / 1000.0, Math.Min(DesignUnits.TowerMaxMm / 1000.0, steel));
+                    steel = Math.Max(DesignUnits.StationTowerMinMm / 1000.0, Math.Min(type.TowerMaxMetres, steel));
                     return DesignUnits.FeetToMm((int)Math.Round(steel / 0.3048));
                 }
                 specs[0] = new Tower(specs[0].Id, specs[0].AlongMm, SteelMm(specs[0], placed.BottomStationY, placed.BottomStationLean));
@@ -142,7 +149,7 @@ namespace MountainPlanner.Domain.Design
                     const double tolerance = 0.1 * Math.PI / 180;
                     int h = specs[i].HeightMm;
                     if (reveal <= 1e-6 && over > tolerance && h - DesignUnits.FiveFeetMm >= DesignUnits.StationTowerMinMm) return -1;
-                    if (reveal >= LiftRope.MaxReveal - 1e-3 && over < -tolerance && h + DesignUnits.FiveFeetMm <= DesignUnits.TowerMaxMm) return 1;
+                    if (reveal >= LiftRope.MaxReveal - 1e-3 && over < -tolerance && h + DesignUnits.FiveFeetMm <= type.TowerMaxMetres * 1000 + 0.5) return 1;
                     return 0;
                 }
                 Tower Restep(Tower t, int steps) => new Tower(t.Id, t.AlongMm, t.HeightMm + steps * DesignUnits.FiveFeetMm);
@@ -198,8 +205,8 @@ namespace MountainPlanner.Domain.Design
                 // small shortfalls): the bottom terminal up 1 ft, the last resort (TW-16 v3).
                 LiftRope.Zones(type, length, out double frontB, out double edgeB, out _, out _);
                 if (!again && rope.ShortfallBetween(frontB, edgeB + LiftRope.Clearance * 4, out _) > LiftRope.ClearanceTolerance
-                    && envelope.DeepestMetres >= LiftLineEnvelope.CapMetres - 0.1
-                    && rope.Towers[0].Reveal <= 1e-6 && raiseB < LiftRope.MaxTerminalRaise - 1e-9)
+                    && (envelope.DeepestMetres >= LiftLineEnvelope.CapMetres - 0.1 || attempt >= 2)   // the trench at its cap, or no further for two attempts
+                    && raiseB < LiftRope.MaxTerminalRaise - 1e-9)
                 {
                     raiseB = Math.Min(LiftRope.MaxTerminalRaise, raiseB + LiftRope.RaiseStep);
                     again = true;
@@ -224,6 +231,8 @@ namespace MountainPlanner.Domain.Design
                 Towers = towers, Edits = work.Edits, Rope = work.Rope, BottomPad = work.BottomPad, TopPad = work.TopPad, Envelope = work.Envelope,
                 BottomRaise = raiseB, TopRaise = raiseT, BottomLevel = levels.BottomMetres, TopLevel = levels.TopMetres, Levels = levels,
                 BottomSteepRaise = steepB, TopSteepRaise = steepT, ClearedCells = work.ClearedCells,
+                BottomSiteVariation = SiteVariation(current, type.Bottom, bx, by, ux, uy),
+                TopSiteVariation = SiteVariation(current, type.Top, tx, ty, -ux, -uy),
             };
         }
 

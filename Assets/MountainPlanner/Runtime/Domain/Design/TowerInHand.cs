@@ -18,8 +18,11 @@ namespace MountainPlanner.Domain.Design
         public sealed class Status
         {
             public bool Ok => Problem == null;
-            /// <summary>The red reason, with its rule, or null.</summary>
+            /// <summary>The red reason, with its rule, or null (LC-09: clearance, spacing, height).</summary>
             public LiftProblem? Problem { get; internal set; }
+            /// <summary>An amber warning, with its rule, or null (LC-09: a head over its limits, the rope's angle into the
+            /// station). It doesn't stop the tower being placed.</summary>
+            public LiftProblem? Warning { get; internal set; }
             /// <summary>The head it would get (provisional) and what it carries.</summary>
             public LiftRope.Head Head { get; internal set; }
             public TowerForces.Loads Loads { get; internal set; }
@@ -88,7 +91,7 @@ namespace MountainPlanner.Domain.Design
             long lengthSq = (long)Math.Round(_length * 1000) * (long)Math.Round(_length * 1000);
             string spacing = along < FirstAlong - 1e-6 ? "Too close to the tower below it: towers stand at least 50 ft apart"
                 : along > _length - DesignUnits.TowerGapMm / 1000.0 ? "Too close to the top terminal" : null;
-            string height = DesignRules.TowerHeightProblem(heightMm, DesignRules.InStationZone(lengthSq, alongMm));
+            string height = DesignRules.TowerHeightProblem(heightMm, DesignRules.InStationZone(lengthSq, alongMm), LiftCatalogIds.TowerMaxMm(_type.CatalogId));
             var rope = Solve(towers);
             int me = towers.Count - 1;
             var sol = rope.Towers[me];
@@ -116,9 +119,9 @@ namespace MountainPlanner.Domain.Design
             // envelope, as on an automatic lift).
             else if (worst > (me == 0 ? LiftLineEnvelope.CapMetres : LiftRope.ClearanceTolerance))
                 status.Problem = new LiftProblem("TW-01", $"The chairs pass {Ft1(LiftRope.Clearance - worst)} over the ground at {Ft(worstS)}; they need 15 ft", worstS);
-            else if (sharp != null) status.Problem = new LiftProblem("TW-06", sharp, along);
+            if (sharp != null) status.Warning = new LiftProblem("TW-06", sharp, along, false);
             else if (me == 0 && !rowOk)
-                status.Problem = new LiftProblem("TW-16", "The rope would leave the bottom terminal outside its row's range", 0);
+                status.Warning = new LiftProblem("TW-16", "The rope would leave the bottom terminal outside its row's range", 0, false);
             // TW-13's next reach, at this height and at 100 ft.
             // Past the bottom station tower the trench still reaches, up to 15 ft before the next tower (GR-11 v2).
             double slack = me == 0 ? LiftLineEnvelope.CapMetres : 0;
@@ -127,7 +130,7 @@ namespace MountainPlanner.Domain.Design
             bool station = DesignRules.InStationZone(lengthSq, alongMm);
             int nextHeight = station ? DesignUnits.FeetToMm(35) : Math.Max(heightMm, DesignUnits.TowerMinMm);
             status.NextReach = Reach(sol, nextHeight / 1000.0, slack, out bool upA);
-            status.NextReachTallest = Reach(sol, DesignUnits.TowerMaxMm / 1000.0, slack, out bool upB);
+            status.NextReachTallest = Reach(sol, _type.TowerMaxMetres, slack, out bool upB);
             status.HoldDownsAhead = upA;
             // Its own head, provisionally: as if the next tower stood as far up as it can reach, as tall as this one.
             if (status.NextReach > 0)
@@ -173,7 +176,7 @@ namespace MountainPlanner.Domain.Design
                 if (!clear) continue;   // a longer span may still clear: the furthest one that does counts
                 best = d;
                 // The rope over this tower turns up when the span ahead leaves steeper than the one arriving.
-                if (Math.Atan(empty.Slope(here.RopeS)) > incoming + 1e-6 && nextHeight < DesignUnits.TowerMaxMm / 1000.0 - 1e-6) pullsUp = true;
+                if (Math.Atan(empty.Slope(here.RopeS)) > incoming + 1e-6 && nextHeight < _type.TowerMaxMetres - 1e-6) pullsUp = true;
             }
             return best;
         }
@@ -201,8 +204,8 @@ namespace MountainPlanner.Domain.Design
             return runs;
         }
 
-        /// <summary>TW-09's quick test (proxy P7): only the span behind the candidate and the bend over the tower below it,
-        /// plumb; <see cref="Evaluate"/> confirms the place picked.</summary>
+        /// <summary>TW-09's quick test (proxy P7): the chairs' clearance in the span behind the candidate, plumb (only what
+        /// blocks, LC-09); <see cref="Evaluate"/> confirms the place picked and adds the amber warnings.</summary>
         bool Green(double s, int heightMm)
         {
             double t0 = _type.CounterweightNewtons, wl = _type.LoadedNewtonsPerMetre, we = _type.EmptyNewtonsPerMetre, drop = _type.ChairDropMetres;
@@ -230,20 +233,7 @@ namespace MountainPlanner.Domain.Design
                 double slack = _placed.Count == 0 ? LiftLineEnvelope.CapMetres : LiftRope.ClearanceTolerance;   // the trench's, as above
                 if (chairs - Math.Max(_line.UnderUp[j], _line.UnderDown[j]) < need - slack) return false;
             }
-            if (_placed.Count > 0)
-            {
-                var prev = _strung.Towers[_strung.Towers.Count - 1];
-                int k = _strung.Towers.Count - 1;
-                double inL = Math.Atan(_strung.Loaded[k].Slope(ps)), inE = Math.Atan(_strung.Empty[k].Slope(ps));
-                double h = ps > 0 ? py - ExitY : 0;
-                var loads = new TowerForces.Loads(t0 + wl * h, t0 + we * h, Math.Atan(loaded.Slope(ps)) - inL, Math.Atan(empty.Slope(ps)) - inE);
-                if (loads.Head == LiftRope.Head.TooSharp) return false;
-            }
-            else
-            {
-                double exitL = Math.Atan(loaded.Slope(ps)), exitE = Math.Atan(empty.Slope(ps));
-                if (!_type.Bottom.Takes(exitL) || !_type.Bottom.Takes(exitE)) return false;
-            }
+            // Head loads and the rope's angle into the station are amber (LC-09, LT14): they don't make the band red.
             return true;
         }
 

@@ -456,6 +456,17 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - a 6x19 wire rope table.
 
   No maker is named, per A2.
+- **LC-07, rise limit** (owner, task 09, LT13): how much vertical a lift may climb, by type: fixed-grip double 2,800 ft,
+  triple 2,500 ft, quad 2,200 ft; detachable quad 3,600 ft, six 3,300 ft, eight 3,000 ft; gondola 4,500 ft; tram no
+  limit. Over it the lift is red ("Too much rise for a fixed-grip quad: 2,350 ft, 2,200 ft at most").
+- **LC-08, lift types** (owner, task 09, LT15): Fixed-grip chair (double, triple, quad), Detachable chair (quad, six,
+  eight), Detachable gondola (6, 8, 10 a cabin), Aerial tram (60, 100 a cabin), each with a model or maker. Only the
+  fixed quad has its own models (Sessellift FGQ-4, Monta FG4); the others draw with them and carry placeholder speeds,
+  spacings and weights (the mockup's LIFT_TYPES). Trams stand on towers up to 250 ft.
+- **LC-09, what blocks** (owner, task 09, LT14, lenient placement): only chair clearance (TW-01), tower spacing (TW-03),
+  an unfinished gap (towers by hand) and the rise limit (LC-07) block a lift. Head loads (TW-04 to TW-06), the rope's
+  angle into a station (TW-16) and terminal ground varying more than 40 ft are amber warnings; automatic placement
+  still works to avoid them.
 - **LC-06, the clearance against the codes:** B77.1-2006 (as Michigan adopts it) asks for 13 ft from the deepest
   design snow to the top of the seat where people ski under the line, and 5 ft everywhere. TW-01's 15 ft from bare
   ground to the chair's bottom is your stricter, simpler rule, applied everywhere.
@@ -487,6 +498,8 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
 - **RP-05, tension range:** the highest tension, at the top of the loaded side, must not exceed the type's rated
   tension. Too much rise for a type turns the whole lift red ("Too much rise for this lift: tension at the top 112%
   of rating").
+  - **v2, retired for blocking** (owner, task 09, LT13): the rope is assumed sized to suit. A **rise limit per type**
+    blocks instead (LC-07). Tension is still counterweight + load × rise and still shapes the sag and the head loads.
 - **RP-06, tension readout:** while building, a bar shows the bottom and top tension as % of the rating, with lbf in
   the detail line.
 - **RP-08, the drawn load** (owner, task 07 round 3, finding #4, SK27): the rope is drawn at the load it carries. The

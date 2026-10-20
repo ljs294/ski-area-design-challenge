@@ -46,7 +46,7 @@ namespace MountainPlanner.Domain.Design
             created.Add(id.Value);
             var towers = LiftTowers.Mint(ref mint, Towers, created);
             var lift = new Lift(id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels);
-            if (DesignRules.TowersProblem(lift.LengthSquaredMm, lift.Towers) is string t) return Invalid(doc, t);
+            if (DesignRules.TowersProblem(lift.LengthSquaredMm, lift.Towers, lift.CatalogId) is string t) return Invalid(doc, t);
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(lift), created);
         }
     }
@@ -73,7 +73,7 @@ namespace MountainPlanner.Domain.Design
             var id = mint.Tower();
             var towers = new List<Tower>(l.Towers) { new Tower(id, Tower.AlongMm, Tower.HeightMm) };
             var next = l.WithTowers(towers);
-            if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers) is string p) return Invalid(doc, p);
+            if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers, next.CatalogId) is string p) return Invalid(doc, p);
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(next), id.Value);
         }
     }
@@ -103,7 +103,7 @@ namespace MountainPlanner.Domain.Design
             var towers = new List<Tower>(l.Towers);
             towers[i] = new Tower(Tower, AlongMm, HeightMm);
             var next = l.WithTowers(towers);
-            if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers) is string p) return Invalid(doc, p);
+            if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers, next.CatalogId) is string p) return Invalid(doc, p);
             return CommandResult.Accept(doc.PutLift(next));
         }
     }
@@ -170,7 +170,7 @@ namespace MountainPlanner.Domain.Design
             towers.AddRange(LiftTowers.Mint(ref mint, Added, created));
             var next = l.WithTowers(towers);
             if (Mode.HasValue) next = next.WithTowerMode(Mode.Value);
-            if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers) is string p) return Invalid(doc, p);
+            if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers, next.CatalogId) is string p) return Invalid(doc, p);
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(next), created);
         }
     }
@@ -329,7 +329,7 @@ namespace MountainPlanner.Domain.Design
             var created = new List<ulong>();
             towers.AddRange(LiftTowers.Mint(ref mint, Added, created));
             var next = new Lift(l.Id, l.Name, l.Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels);
-            if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers) is string t2) return Invalid(doc, t2);
+            if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers, next.CatalogId) is string t2) return Invalid(doc, t2);
             if (DesignBytes.Same(l, next)) return Invalid(doc, "Nothing changes.");
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(next), created);
         }

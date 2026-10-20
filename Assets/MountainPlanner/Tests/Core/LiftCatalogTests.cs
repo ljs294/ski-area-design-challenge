@@ -1,0 +1,113 @@
+using System;
+using System.Linq;
+using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Edits;
+using NUnit.Framework;
+using static MountainPlanner.Tests.DesignTestKit;
+
+namespace MountainPlanner.Tests
+{
+    // The owner's rulings after the lift mockup (task 09, LT13–LT15): lift types with placeholder numbers (LC-08), a rise
+    // limit per type instead of RP-05's tension limit (LC-07), and lenient placement where only clearance, spacing and the
+    // rise limit block (LC-09).
+    public sealed class LiftCatalogTests
+    {
+        const double Ft = 0.3048;
+        const double West = 500_000.25, North = 4_200_000.75;
+        static readonly EditLattice Lattice = new EditLattice(West, North);
+
+        sealed class Line : IHeightSource
+        {
+            readonly Func<double, double> _f;
+            public Line(Func<double, double> f) { _f = f; }
+            public double At(double x, double y) => 1500 + _f(y - (North - 1500));
+        }
+
+        [Test]
+        public void LC08_EveryCarrierAndMakerIsAKnownType()
+        {
+            Assert.That(LiftCatalogIds.Known(LiftCatalogIds.SesselliftFgq4), Is.True);
+            Assert.That(LiftCatalogIds.Known(LiftCatalogIds.MontaFg4), Is.True);
+            foreach (string carrier in LiftCatalogIds.Carriers)
+                foreach (string maker in LiftCatalogIds.Makers)
+                {
+                    string id = LiftCatalogIds.Of(carrier, maker);
+                    Assert.That(LiftCatalogIds.Known(id), Is.True, id);
+                    var type = LiftType.Of(id);
+                    Assert.That(type.Bottom.Model, Does.StartWith(maker == "monta" ? "monta_fg4_" : "sessellift_fgq4_"), "drawn with the maker's quad");
+                    Assert.That(type.GaugeMetres, Is.EqualTo(4.12), "the models' gauge (LT12)");
+                }
+            Assert.That(LiftCatalogIds.Known("detach-quad:acme"), Is.False);
+            Assert.That(LiftCatalogIds.Known("chair-lift"), Is.False);
+        }
+
+        [Test]
+        public void LC08_ThePlaceholdersGiveTypicalCapacities()
+        {
+            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).Capacity, Is.EqualTo(2400).Within(1));
+            Assert.That(LiftType.Of("fixed-double:sessellift").Capacity, Is.EqualTo(1200).Within(1));
+            Assert.That(LiftType.Of("detach-six:monta").Capacity, Is.EqualTo(3600).Within(1));
+            Assert.That(LiftType.Of("detach-six:monta").SpeedMetresPerSecond, Is.EqualTo(1000 * Ft / 60).Within(1e-9));
+            Assert.That(LiftType.Of("gondola-8:sessellift").Capacity, Is.EqualTo(3000).Within(1));
+            Assert.That(LiftType.Of("tram-100:sessellift").Capacity, Is.EqualTo(750), "a tram's own (one cabin each way)");
+        }
+
+        [Test]
+        public void TW02_TramsStandOnTowersUpTo250Feet()
+        {
+            Assert.That(LiftType.Of("tram-60:monta").TowerMaxMetres, Is.EqualTo(250 * Ft).Within(1e-9));
+            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).TowerMaxMetres, Is.EqualTo(100 * Ft).Within(1e-9));
+            Assert.That(DesignRules.TowerHeightProblem(Ft(200), false, LiftCatalogIds.TowerMaxMm("tram-60:monta")), Is.Null);
+            Assert.That(DesignRules.TowerHeightProblem(Ft(200)), Is.Not.Null, "100 ft for everything else");
+            var h = new DesignHistory(DesignDocument.Empty(4));
+            var r = h.Submit(new AddLift(h.Revision, "Tram", "tram-100:sessellift", P(0, 0), P(0, 6000), TowerMode.ByHand, TowerStance.Plumb,
+                                         new[] { Tower(3000, 200) }, WorkStage.Built));
+            Assert.That(r.Accepted, Is.True, r.ToString());
+        }
+
+        [TestCase(LiftCatalogIds.SesselliftFgq4, 2200)]
+        [TestCase("fixed-double:monta", 2800)]
+        [TestCase("detach-quad:sessellift", 3600)]
+        [TestCase("gondola-10:monta", 4500)]
+        public void LC07_EachTypeHasItsRiseLimit(string id, double feet)
+        {
+            Assert.That(LiftType.Of(id).RiseLimitMetres, Is.EqualTo(feet * Ft).Within(1e-9));
+        }
+
+        [Test]
+        public void LC07_TooMuchRiseBlocksAndTensionNoLongerDoes()
+        {
+            // A straight 50% line: 1,900 ft of rise passes the quad's 2,200 ft (its top tension well past the rope's rating,
+            // which is shown, not blocking); 2,400 ft doesn't; a tram has no limit.
+            double bx = West + 100, by = North - 1500;
+            Func<double, double> f = s => 0.5 * s;
+            LiftBuild.Result Build(string id, double lengthFt) =>
+                LiftBuild.Build(LiftType.Of(id), new EditedHeights(new Line(f), Lattice, TerrainEdits.Empty), bx, by, bx, by + lengthFt * Ft, TowerStance.Leaned);
+            var ok = Build(LiftCatalogIds.SesselliftFgq4, 3800);
+            Assert.That(ok.Rope.TensionOk, Is.False, "past the old RP-05 rating");
+            Assert.That(ok.Problems.Where(p => p.Rule == "LC-07"), Is.Empty, string.Join("; ", ok.Problems));
+            var over = Build(LiftCatalogIds.SesselliftFgq4, 4800);
+            var rise = over.Problems.Single(p => p.Rule == "LC-07");
+            Assert.That(rise.Blocks, Is.True);
+            Assert.That(rise.Message, Does.StartWith("Too much rise for a fixed-grip quad"));
+            Assert.That(over.Ok, Is.False);
+            Assert.That(Build("tram-100:monta", 4800).Problems.Where(p => p.Rule == "LC-07"), Is.Empty, "a tram has no limit");
+        }
+
+        [Test]
+        public void LC09_HeadLoadsAndStationAnglesAreAmberNotRed()
+        {
+            // A rope with a too-sharp head and a station angle out of range: amber, so the lift can still be built.
+            var rope = LiftRope.Solve(LiftType.Of(LiftCatalogIds.SesselliftFgq4),
+                new EditedHeights(new Line(s => s < 300 ? 0 : (s - 300) * 0.9), Lattice, TerrainEdits.Empty),
+                West + 100, North - 1500, West + 100, North - 1000, new[] { new Tower(TowerId.Make(1, 0), 300_000, Ft(100)) }, TowerStance.Plumb,
+                7.88, 1503.5, 7.0, 1500 + 180 + 3.0);
+            var problems = LiftProblems.For(rope);
+            foreach (var p in problems)
+                if (p.Rule == "TW-05" || p.Rule == "TW-06" || p.Rule == "TW-16" || p.Rule == "LF-08" || p.Rule == "LF-12")
+                    Assert.That(p.Blocks, Is.False, p.ToString());
+                else
+                    Assert.That(p.Rule, Is.EqualTo("TW-01").Or.EqualTo("LC-07"), p.ToString());
+        }
+    }
+}

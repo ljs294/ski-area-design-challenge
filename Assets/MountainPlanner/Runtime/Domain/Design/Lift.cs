@@ -10,15 +10,56 @@ namespace MountainPlanner.Domain.Design
     public enum TowerStance : byte { Plumb = 1, Leaned = 2 }
 
     /// <summary>
-    /// The catalog entries a lift can name (LC-01, E13: fixed-grip only in Phase 3). Code names only (A2). The entries'
-    /// numbers belong to task 09; the document stores just the ID.
+    /// The catalog entries a lift can name (LC-01; LC-08, owner, task 09, LT15). Code names only (A2). The document stores
+    /// just the ID: the fixed-grip quads by model (<see cref="SesselliftFgq4"/>, <see cref="MontaFg4"/>), every other type as
+    /// <c>&lt;carrier&gt;:&lt;maker&gt;</c>, e.g. <c>detach-six:monta</c>. Only the fixed quads have their own models; the
+    /// rest draw with them (the maker's quad, the Sessellift's for Chairworks) and carry placeholder numbers.
     /// </summary>
     public static class LiftCatalogIds
     {
         public const string SesselliftFgq4 = "sessellift-fgq4";
         public const string MontaFg4 = "monta-fg4";
 
-        public static bool Known(string id) => id == SesselliftFgq4 || id == MontaFg4;
+        /// <summary>The carriers other than the fixed quad, in menu order (LC-08).</summary>
+        public static readonly string[] Carriers =
+        {
+            "fixed-double", "fixed-triple", "detach-quad", "detach-six", "detach-eight", "gondola-6", "gondola-8", "gondola-10",
+            "tram-60", "tram-100",
+        };
+        /// <summary>The code-name makers (A2).</summary>
+        public static readonly string[] Makers = { "sessellift", "monta", "chairworks" };
+
+        public static string Of(string carrier, string maker) => carrier + ":" + maker;
+
+        public static bool Known(string id)
+        {
+            if (id == SesselliftFgq4 || id == MontaFg4) return true;
+            if (id == null) return false;
+            int colon = id.IndexOf(':');
+            if (colon < 0) return false;
+            return Array.IndexOf(Carriers, id.Substring(0, colon)) >= 0 && Array.IndexOf(Makers, id.Substring(colon + 1)) >= 0;
+        }
+
+        /// <summary>The carrier part ("fixed-quad" for the two models).</summary>
+        public static string Carrier(string id)
+        {
+            if (id == SesselliftFgq4 || id == MontaFg4) return "fixed-quad";
+            int colon = id?.IndexOf(':') ?? -1;
+            return colon < 0 ? id : id.Substring(0, colon);
+        }
+
+        /// <summary>The maker part.</summary>
+        public static string Maker(string id)
+        {
+            if (id == MontaFg4) return "monta";
+            if (id == SesselliftFgq4) return "sessellift";
+            int colon = id?.IndexOf(':') ?? -1;
+            return colon < 0 ? "sessellift" : id.Substring(colon + 1);
+        }
+
+        /// <summary>TW-02 with LC-08: trams stand on towers up to 250 ft, every other lift up to 100 ft.</summary>
+        public static int TowerMaxMm(string id) =>
+            id != null && id.StartsWith("tram-", StringComparison.Ordinal) ? DesignUnits.TramTowerMaxMm : DesignUnits.TowerMaxMm;
     }
 
     /// <summary>
