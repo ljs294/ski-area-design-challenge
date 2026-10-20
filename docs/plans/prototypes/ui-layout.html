@@ -1159,8 +1159,9 @@ body.solo .frame { border-radius: 0; }
   // and fixed grip or detachable, generous, with the haul rope assumed sized to suit; a tram has no limit. Tension still
   // shapes the rope's sag and the towers' loads, but no longer stops a lift. The models don't change.
   const RISE_FAMILIES = {
-    fixed2: ['fixed-grip double', 1800], fixed3: ['fixed-grip triple', 2000], fixed4: ['fixed-grip quad', 2200],
-    detach4: ['detachable quad', 2800], detach6: ['detachable six', 3200], detach8: ['detachable eight', 3500],
+    // smaller carriers load the line less, so they climb further; detachables run heavier ropes than fixed grips
+    fixed2: ['fixed-grip double', 2800], fixed3: ['fixed-grip triple', 2500], fixed4: ['fixed-grip quad', 2200],
+    detach4: ['detachable quad', 3600], detach6: ['detachable six', 3300], detach8: ['detachable eight', 3000],
     gondola: ['gondola', 4500], tram: ['tram', Infinity],
   };
   const LEGACY_FAMILY = { 'Fixed 4': 'fixed4', 'Detach 4': 'detach4', 'Detach 6': 'detach6' };   // the placeholder lifts' types
