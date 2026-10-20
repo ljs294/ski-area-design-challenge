@@ -137,7 +137,9 @@ namespace MountainPlanner.App
                 _liftViews.Remove(id);
             }
             ShowLifts(_liftsShown, true);   // new views take the layer
-            if (trails > 0 || _liftViews.Count > 0) Debug.Log($"[Built] {trails} trails, {_liftViews.Count} lifts drawn");
+            int chairs = 0;
+            foreach (var kv in _liftViews) chairs += kv.Value.View != null ? kv.Value.View.ChairCount : 0;
+            if (trails > 0 || _liftViews.Count > 0) Debug.Log($"[Built] {trails} trails, {_liftViews.Count} lifts drawn, {chairs} chairs");
         }
 
         // The Lifts map layer (task 09, LT7): the models, rope and chairs and the map lines, all together.
@@ -154,7 +156,23 @@ namespace MountainPlanner.App
         {
             if (_liftViews.Count == 0 || Camera == null || !_liftsShown) return;
             var cam = Camera.GetComponent<UnityEngine.Camera>();
-            foreach (var kv in _liftViews) kv.Value.View.DrawChairs(cam, _chairSeconds);
+            long start = System.Diagnostics.Stopwatch.GetTimestamp();
+            using (ChairsMarker.Auto())
+                foreach (var kv in _liftViews) kv.Value.View.DrawChairs(cam, _chairSeconds);
+            _chairTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+            _chairFrames++;
+        }
+
+        // The chairs' main-thread cost (task 09's benchmark): a profiler marker, and a mean logged when the viewer goes.
+        static readonly Unity.Profiling.ProfilerMarker ChairsMarker = new Unity.Profiling.ProfilerMarker("MountainPlanner.Lifts.Chairs");
+        long _chairTicks;
+        int _chairFrames;
+
+        void LogChairCost()
+        {
+            if (_chairFrames == 0) return;
+            double ms = _chairTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / _chairFrames;
+            Debug.Log($"[Chairs] {ms:F3} ms a frame on the main thread over {_chairFrames} frames, {_liftViews.Count} lifts");
         }
 
         // ---------- the hovered lift glows (task 09, LT23) ----------

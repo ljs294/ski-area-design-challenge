@@ -555,6 +555,7 @@ namespace MountainPlanner.App
 
         void OnDestroy()
         {
+            LogChairCost();
             _resort?.CacheLease?.Dispose();   // the next scene's viewer holds its own
             DisplayUnits.Changed -= OnUnitsChanged;
             ReleasePhoto();
