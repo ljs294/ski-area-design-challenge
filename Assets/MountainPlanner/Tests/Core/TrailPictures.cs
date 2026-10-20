@@ -443,6 +443,119 @@ namespace MountainPlanner.Tests
             foreach (var l in lines) TestContext.Progress.WriteLine(l);
         }
 
+        /// <summary>
+        /// The owner's ask (2026-10-20): an adversarial check that the graded surface is as smooth as it can look. Every
+        /// changed lattice point's sharpest bend (the largest second difference across it, in m per m²), as statistics and
+        /// a kink map: a rounded 1:1 toe or crest (GR-12, 10 ft) bends about 0.33; anything well above is an unrounded
+        /// crease, and on the bench itself (under 35% slope) anything above 0.05 is a bump. The owner's graded trails (as
+        /// OwnersTrails) and the four review spots on the 2 km package.
+        /// </summary>
+        [Test]
+        public void SmoothnessAudit()
+        {
+            var lines = new List<string>();
+            string save = Environment.GetEnvironmentVariable("MP_OWNER_SAVE"), dir = Environment.GetEnvironmentVariable("MP_OWNER_PACKAGE");
+            if (!string.IsNullOrEmpty(save) && !string.IsNullOrEmpty(dir))
+            {
+                var file = MountainPlanner.Persistence.Saves.SaveJson.Read(File.ReadAllText(Path.Combine(save, "save.json")), out _);
+                var m = ResortPackage.ReadManifest(dir);
+                var tiles = TileGrid.For(SiteSquare.Create(new AlbersPoint(m.Site.CentreX, m.Site.CentreY), m.Site.SizeMetres / 1000.0));
+                var site = new EarthworkSite(new EditLattice(tiles.West, tiles.North), m.Site.CentreX, m.Site.CentreY);
+                using (var h = new PackageHeights(dir, m))
+                    foreach (var t in file.Design.Trails)
+                        if (t.Settings.Grading == TrailGrading.Graded && t.HasEnds) lines.Add(Audit(h, site, t, "audit-" + t.Name.Length + "-" + t.Id.Value.ToString("x16")));
+            }
+            var (ph, psite, _) = Open();
+            using (ph)
+                foreach (var kv in Spots)
+                {
+                    var sp = kv.Value;
+                    var strokes = new List<Stroke>();
+                    int n = sp.Path.Length / 2;
+                    for (int k = 0; k + 1 < n; k++)
+                    {
+                        int ft = sp.WidthsFt.Length == 1 ? sp.WidthsFt[0] : sp.WidthsFt[k];
+                        strokes.Add(new Stroke(DesignUnits.FeetToMm(ft), false, new[] { PointMm.FromMetres(sp.Path[2 * k], sp.Path[2 * k + 1]), PointMm.FromMetres(sp.Path[2 * k + 2], sp.Path[2 * k + 3]) }));
+                    }
+                    foreach (var (x, y, ft) in sp.Islands) strokes.Add(new Stroke(DesignUnits.FeetToMm(ft), true, new[] { PointMm.FromMetres(x, y) }));
+                    var trail = new Trail(TrailId.Make(1, 1), sp.Name, WorkStage.Built, TrailSettings.GradedRun, new[] { new FootprintPart(strokes.ToArray()) },
+                                          PointMm.FromMetres(sp.Path[0], sp.Path[1]), PointMm.FromMetres(sp.Path[2 * n - 2], sp.Path[2 * n - 1]));
+                    lines.Add(Audit(ph, psite, trail, "audit-" + kv.Key));
+                }
+            File.WriteAllLines(Out("smoothness-audit.txt"), lines);
+            foreach (var l in lines) TestContext.Progress.WriteLine(l);
+        }
+
+        static string Audit(IHeightSource h, EarthworkSite site, Trail trail, string file)
+        {
+            var natural = new EditedHeights(h, site.Lattice, TerrainEdits.Empty);
+            var build = TrailEarthwork.Grade(trail, natural, site, 1, null, null);
+            var list = new List<TerrainEditTile>();
+            foreach (var key in build.Writes.Tiles) { var b = TerrainEditTile.Empty(key).Edit(); build.Writes.ApplyTo(b); list.Add(b.Build()); }
+            var after = new EditedHeights(h, site.Lattice, TerrainEdits.Empty.With(list));
+            var fp = build.Footprint;
+            int c0 = fp.Column0 - 3, r0 = fp.Row0 - 3, w = fp.Width + 7, hh = fp.Height + 7;
+            var kink = new double[w * hh];
+            var slope = new double[w * hh];
+            var changed = new bool[w * hh];
+            var all = new List<double>();
+            var bench = new List<double>();
+            var worst = new List<(double k, int c, int r, double slope, double clear, double delta)>();
+            for (int j = 1; j < hh - 1; j++)
+                for (int i = 1; i < w - 1; i++)
+                {
+                    int c = c0 + i, r = r0 + j;
+                    double z = after.AtPoint(c, r);
+                    double d = z - natural.AtPoint(c, r);
+                    if (Math.Abs(d) < 0.01) continue;
+                    double ex = after.AtPoint(c + 1, r), wx = after.AtPoint(c - 1, r), no = after.AtPoint(c, r - 1), so = after.AtPoint(c, r + 1);
+                    double ne = after.AtPoint(c + 1, r - 1), sw = after.AtPoint(c - 1, r + 1), nw = after.AtPoint(c - 1, r - 1), se = after.AtPoint(c + 1, r + 1);
+                    double k = Math.Max(Math.Max(Math.Abs(ex - 2 * z + wx), Math.Abs(no - 2 * z + so)), Math.Max(Math.Abs(ne - 2 * z + sw), Math.Abs(nw - 2 * z + se)) / 2);
+                    double sl = Math.Sqrt((ex - wx) * (ex - wx) + (no - so) * (no - so)) / 2;
+                    int at = j * w + i;
+                    kink[at] = k; slope[at] = sl; changed[at] = true;
+                    all.Add(k);
+                    if (sl < 0.35) bench.Add(k);
+                    worst.Add((k, c, r, sl, fp.PointClearance(c, r), d));
+                }
+            all.Sort(); bench.Sort();
+            worst.Sort((a, b) => b.k.CompareTo(a.k));
+            double P(List<double> v, double q) => v.Count == 0 ? 0 : v[Math.Min(v.Count - 1, (int)(q * v.Count))];
+            int sharp = all.FindAll(v => v > 0.5).Count, bumps = bench.FindAll(v => v > 0.05).Count;
+            // The kink map: grey relief, changed points from green (smooth) through yellow (0.33, a rounded toe) to red (1+).
+            int scale = Math.Max(1, 900 / Math.Max(w, hh));
+            var img = new Rgb(w * scale, hh * scale);
+            for (int j = 0; j < hh; j++)
+                for (int i = 0; i < w; i++)
+                {
+                    int at = j * w + i, c = c0 + i, r = r0 + j;
+                    double rr, gg, bb;
+                    if (changed[at])
+                    {
+                        double t = Math.Min(1, kink[at] / 1.0);
+                        if (t < 0.33) { rr = 60 + 500 * t; gg = 170; bb = 60; } else { rr = 230; gg = 170 * (1 - (t - 0.33) / 0.67); bb = 40; }
+                    }
+                    else
+                    {
+                        double s2 = j > 0 && i > 0 && j < hh - 1 && i < w - 1 ? (after.AtPoint(c + 1, r) - after.AtPoint(c - 1, r)) * 40 : 0;
+                        rr = gg = bb = Math.Max(40, Math.Min(220, 130 + s2));
+                    }
+                    bool edge = fp.Contains(c, r) != fp.Contains(c + 1, r) || fp.Contains(c, r) != fp.Contains(c, r + 1);
+                    if (edge) { rr = gg = bb = 255; }
+                    for (int y = 0; y < scale; y++) for (int x = 0; x < scale; x++) img.Set(i * scale + x, j * scale + y, rr, gg, bb);
+                }
+            img.Save(Out(file + ".png"));
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"{trail.Name}: {all.Count:N0} changed points; bend p50 {P(all, 0.5):F3}, p90 {P(all, 0.9):F3}, p99 {P(all, 0.99):F3}, max {(all.Count > 0 ? all[all.Count - 1] : 0):F2} m/m²; ");
+            sb.Append($"{sharp} sharper than 0.5 ({100.0 * sharp / Math.Max(1, all.Count):F2}%); bench {bench.Count:N0} points, p90 {P(bench, 0.9):F3}, {bumps} bumps over 0.05 ({100.0 * bumps / Math.Max(1, bench.Count):F1}%)");
+            for (int i = 0; i < Math.Min(8, worst.Count); i++)
+            {
+                var x = worst[i];
+                sb.Append($"\n    worst {x.k:F2} at ({x.c - fp.Column0}, {x.r - fp.Row0}) slope {x.slope:P0}, {x.clear:F1} m from the paint edge, change {x.delta:+0.00;-0.00} m");
+            }
+            return sb.ToString();
+        }
+
         /// <summary>How the ground rolls along a line: the grade over each 5 m piece, then the RMS of the change from one piece to the next, and how many changes pass 5 points.</summary>
         static (double rms, int breaks) Rolls(IHeightSource h, double[] line)
         {

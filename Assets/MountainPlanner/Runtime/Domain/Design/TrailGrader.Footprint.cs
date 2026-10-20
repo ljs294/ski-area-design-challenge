@@ -90,7 +90,9 @@ namespace MountainPlanner.Domain.Design
             // under the centreline averaged over 75 ft either way, so lidar rolls don't carry into the bench (the rolls drop
             // three to four times for a few percent more earth); the window shrinks at the ends, so the head and tail keep
             // their ground and still join what they join.
-            if (graded && options.ProfileSmoothStations > 0) z = Profile(z, options.ProfileSmoothStations);
+            if (graded && options.ProfileSmoothStations > 0) z = Profile(z, along, options.ProfileSmoothStations * StationMetres);
+            // The grade the bench carries on past each end: over the last 25 ft at least, never a short last stretch's.
+            double headGrade = EndGrade(z, along, true), tailGrade = EndGrade(z, along, false);
             for (int k = 0; k < count && graded; k++)
             {
                 if (inside[k])
@@ -102,8 +104,19 @@ namespace MountainPlanner.Domain.Design
                     right[k] = Side(current, cx, cy, -nx, -ny, budgetR[k], z[k], -cross[k]);
                     ok[k] = left[k] + right[k] >= MinBenchMetres;
                 }
-                if (!ok[k]) ungraded++;
             }
+            // GR-07 over a stretch (the review: on a marginal sidehill, stations that alternate between a bench and none
+            // made a washboard): a benched run shorter than three stations (75 ft) stays natural with its neighbours.
+            if (graded)
+                for (int k = 0; k < count;)
+                {
+                    if (!ok[k]) { k++; continue; }
+                    int e = k;
+                    while (e < count && ok[e]) e++;
+                    if (e - k < ShortestBenchStations && !(k == 0 && e == count)) for (int q = k; q < e; q++) ok[q] = false;
+                    k = e;
+                }
+            for (int k = 0; k < count && graded; k++) if (!ok[k]) ungraded++;
             // Proposed GR-05 v2: the bench's width follows its neighbours. Each side takes the narrowest GR-03 width within
             // two stations, then the average of those over two stations, so it can never be wider than GR-03 allows at the
             // station, and lidar roughness doesn't step the faces in and out every 25 ft.
@@ -159,7 +172,6 @@ namespace MountainPlanner.Domain.Design
                     double g = ground[at];
                     design[at] = g;
                     if (!claim[at] || point == null || point.Dist[at] == double.MaxValue) continue;
-                    double pcl = fp.PointClearance(c, r);
                     double u = point.Offset[at];
                     // The ground where this point's line out meets the edge: bilinear on the lattice (SH-02), from the
                     // points already read where it can.
@@ -173,17 +185,17 @@ namespace MountainPlanner.Domain.Design
                         double e = grid.Bilinear(ground, fi, fj, out bool okEdge);
                         return okEdge ? e : current.At(lattice.X(pc0) + fi, lattice.Y(pr0) - fj);
                     }
-                    double half1 = Math.Max(Math.Abs(u), SectionReach(point.Along[at], u, along, budgetL, budgetR));
+                    double half1 = Math.Max(Math.Abs(u), SectionReach(point.Along[at], u, along, budgetL, budgetR, point.Seg[at]));
                     double d = Design(point.Along[at], u, g, EdgeAlong(point.OutX[at], point.OutY[at], half1 - Math.Abs(u)), half1, along, z, left, right,
-                                      ok, roundMetres, ramp: true, cross: cross);
+                                      ok, roundMetres, ramp: true, cross: cross, segment: point.Seg[at], headGrade: headGrade, tailGrade: tailGrade);
                     // Inside a tight bend, the next section too (GR-05 v3), blended in by how nearly as close it is.
                     double gap = point.Dist2[at] - point.Dist[at];
                     if (point.Dist2[at] != double.MaxValue && gap < SectionBlendMetres)
                     {
                         double u2 = point.Offset2[at];
-                        double half2 = Math.Max(Math.Abs(u2), SectionReach(point.Along2[at], u2, along, budgetL, budgetR));
+                        double half2 = Math.Max(Math.Abs(u2), SectionReach(point.Along2[at], u2, along, budgetL, budgetR, point.Seg2[at]));
                         double d2 = Design(point.Along2[at], u2, g, EdgeAlong(point.OutX2[at], point.OutY2[at], half2 - Math.Abs(u2)), half2, along, z,
-                                           left, right, ok, roundMetres, ramp: true, cross: cross);
+                                           left, right, ok, roundMetres, ramp: true, cross: cross, segment: point.Seg2[at], headGrade: headGrade, tailGrade: tailGrade);
                         double w2 = 0.5 * (1 - gap / SectionBlendMetres);
                         d += (d2 - d) * w2;
                     }
@@ -203,6 +215,28 @@ namespace MountainPlanner.Domain.Design
                     lower[k] = source ? ground[k] : double.NegativeInfinity;
                 }
                 ChamferSpans(upper, lower, grid, ph, FaceSlope);
+                // The clamped design at every point the trail may change; every other point keeps its ground.
+                var height0 = new double[n];
+                for (int k = 0; k < n; k++) height0[k] = ground[k];
+                for (int j = 0; j < ph; j++)
+                    for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
+                    {
+                        int at = grid.Index(i, j);
+                        if (!claim[at] || !free[at]) continue;   // (non-free points keep their ground)
+                        // Where the 1:1 cones from fixed ground on either side can't both hold (steep ground: they cross),
+                        // the point settles between them rather than dropping to natural ground beside designed points (the
+                        // smoothness audit, 2026-10-20: small cliffs across the bench on the steep face). Both cases are the
+                        // same clamp of the design between the two bounds, so there's no step where they meet.
+                        double lo = Math.Min(lower[at], upper[at]), hi = Math.Max(lower[at], upper[at]);
+                        lower[at] = lo; upper[at] = hi;
+                        height0[at] = Math.Max(lo, Math.Min(hi, design[at]));
+                    }
+                // GR-12 v3, the finish (the smoothness audit, 2026-10-20): the surface is smoothed over about 2 m (two
+                // passes of a 1-4-6-4-1 kernel each way) at the points the trail changes, which rounds what the clamp leaves
+                // sharp (faces meeting fixed ground, the toes round islands, the lattice's stair-steps along diagonal creases)
+                // and leaves a straight bench or face exactly as it was (the heights, not the change, are smoothed, so the
+                // ground's own roughness never comes back into the bench). Then the cones clamp again, so GR-13 still holds.
+                var smooth = roundMetres > 0 ? Finish(height0, grid, ph, 2) : height0;   // part of GR-12: off with the rounding
                 double cut = 0, fill = 0;
                 for (int j = 0; j < ph; j++)
                     for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
@@ -210,11 +244,8 @@ namespace MountainPlanner.Domain.Design
                         int at = grid.Index(i, j), c = pc0 + i, r = pr0 + j;
                         if (!claim[at]) continue;
                         double h = design[at];
-                        if (free[at])
-                        {
-                            if (lower[at] > upper[at]) h = ground[at];
-                            else h = Math.Max(lower[at], Math.Min(upper[at], h));
-                        }
+                        if (free[at]) h = Math.Max(lower[at], Math.Min(upper[at], smooth[at]));
+                        else h = ground[at];
                         double source = ground[at] - current.Edits.DeltaMmAt(c, r) / 1000.0;
                         long mm = (long)Math.Round((h - source) * 1000, MidpointRounding.AwayFromZero);
                         mm = Math.Max(-TerrainEditTile.DeltaLimitMm, Math.Min(TerrainEditTile.DeltaLimitMm, mm));
@@ -381,14 +412,18 @@ namespace MountainPlanner.Domain.Design
                         // A crossing either way: past a bend's centre of curvature the order of the section lines reverses.
                         if ((g0 >= 0 && g1 <= 0) || (g0 <= 0 && g1 >= 0))
                         {
-                            double lo = 0, hi = 1, flo = g0;
-                            for (int it = 0; it < 30; it++)
+                            // Regula falsi (the Illinois variant) on the bracket: a few steps to well under a millimetre.
+                            double lo = 0, hi = 1, flo = g0, fhi = g1;
+                            t = flo == 0 ? 0 : fhi == 0 ? 1 : 0.5;
+                            int side = 0;
+                            for (int it = 0; it < 24 && flo != 0 && fhi != 0; it++)
                             {
-                                double mid = 0.5 * (lo + hi);
-                                double f = SweepSide(px, py, ax, ay, sx, sy, tx[k], ty[k], tx[k + 1], ty[k + 1], mid);
-                                if ((f >= 0) == (flo >= 0)) { lo = mid; flo = f; } else hi = mid;
+                                t = (lo * fhi - hi * flo) / (fhi - flo);
+                                double f = SweepSide(px, py, ax, ay, sx, sy, tx[k], ty[k], tx[k + 1], ty[k + 1], t);
+                                if (Math.Abs(f) < 1e-5 || hi - lo < 1e-7) break;
+                                if ((f >= 0) == (fhi >= 0)) { hi = t; fhi = f; if (side == -1) flo *= 0.5; side = -1; }
+                                else { lo = t; flo = f; if (side == 1) fhi *= 0.5; side = 1; }
                             }
-                            t = 0.5 * (lo + hi);
                         }
                         else if (first && g0 < 0) t = 0;
                         else if (last && g1 > 0) t = 1;
@@ -397,11 +432,18 @@ namespace MountainPlanner.Domain.Design
                         double ux = tx[k] + (tx[k + 1] - tx[k]) * t, uy = ty[k] + (ty[k + 1] - ty[k]) * t, ul = Math.Sqrt(ux * ux + uy * uy);
                         if (ul < 1e-9) { ux = sx / len; uy = sy / len; } else { ux /= ul; uy /= ul; }
                         double qx = px - cx, qy = py - cy;
-                        double dist = Math.Sqrt(qx * qx + qy * qy);
                         int at = grid.Index(i, j);
                         double cross = ux * qy - uy * qx;
-                        double ox = dist > 1e-9 ? qx / dist : -uy, oy = dist > 1e-9 ? qy / dist : ux;
-                        located.Offer(at, dist, cross >= 0 ? dist : -dist, along[k] + t * len, ox, oy);
+                        double ahead = qx * ux + qy * uy;   // past the end station along its tangent (0 on a section)
+                        bool cap = (first && t == 0 && ahead < 0) || (last && t == 1 && ahead > 0);
+                        // Past the head or the tail (the smoothness audit, 2026-10-20: a seam ran straight out of each end):
+                        // the end station's section runs on, the point's offset measured square to it, not as the distance
+                        // to the end point (whose side flipped across the centreline's extension).
+                        double dist = cap ? Math.Abs(cross) : Math.Sqrt(qx * qx + qy * qy);
+                        double ox, oy;
+                        if (cap || dist <= 1e-9) { double sgn = cross >= 0 ? 1 : -1; ox = -uy * sgn; oy = ux * sgn; }
+                        else { ox = qx / dist; oy = qy / dist; }
+                        located.Offer(at, dist, cross >= 0 ? dist : -dist, along[k] + t * len + (cap ? ahead : 0), ox, oy, k);
                     }
             }
             return located;
@@ -430,39 +472,42 @@ namespace MountainPlanner.Domain.Design
         {
             public readonly double[] Dist, Offset, Along, OutX, OutY;
             public readonly double[] Dist2, Offset2, Along2, OutX2, OutY2;
+            /// <summary>The stretch between stations each section lies on (its first station).</summary>
+            public readonly int[] Seg, Seg2;
             public Swept(int n)
             {
+                Seg = new int[n]; Seg2 = new int[n];
                 Dist = new double[n]; Offset = new double[n]; Along = new double[n]; OutX = new double[n]; OutY = new double[n];
                 Dist2 = new double[n]; Offset2 = new double[n]; Along2 = new double[n]; OutX2 = new double[n]; OutY2 = new double[n];
                 for (int i = 0; i < n; i++) { Dist[i] = double.MaxValue; Dist2[i] = double.MaxValue; }
             }
 
             /// <summary>A section through slot <paramref name="at"/>; the same place on the line again (a station both its segments reach) counts once.</summary>
-            public void Offer(int at, double dist, double offset, double along, double ox, double oy)
+            public void Offer(int at, double dist, double offset, double along, double ox, double oy, int seg)
             {
                 if (Dist[at] != double.MaxValue && Math.Abs(along - Along[at]) < SameSectionMetres)
                 {
-                    if (dist < Dist[at]) Set(at, dist, offset, along, ox, oy, false);
+                    if (dist < Dist[at]) Set(at, dist, offset, along, ox, oy, seg, false);
                     return;
                 }
                 if (Dist2[at] != double.MaxValue && Math.Abs(along - Along2[at]) < SameSectionMetres)
                 {
-                    if (dist < Dist2[at]) Set(at, dist, offset, along, ox, oy, true);
+                    if (dist < Dist2[at]) Set(at, dist, offset, along, ox, oy, seg, true);
                     if (Dist2[at] < Dist[at]) Swap(at);
                     return;
                 }
                 if (dist < Dist[at])
                 {
-                    Dist2[at] = Dist[at]; Offset2[at] = Offset[at]; Along2[at] = Along[at]; OutX2[at] = OutX[at]; OutY2[at] = OutY[at];
-                    Set(at, dist, offset, along, ox, oy, false);
+                    Dist2[at] = Dist[at]; Offset2[at] = Offset[at]; Along2[at] = Along[at]; OutX2[at] = OutX[at]; OutY2[at] = OutY[at]; Seg2[at] = Seg[at];
+                    Set(at, dist, offset, along, ox, oy, seg, false);
                 }
-                else if (dist < Dist2[at]) Set(at, dist, offset, along, ox, oy, true);
+                else if (dist < Dist2[at]) Set(at, dist, offset, along, ox, oy, seg, true);
             }
 
-            void Set(int at, double dist, double offset, double along, double ox, double oy, bool second)
+            void Set(int at, double dist, double offset, double along, double ox, double oy, int seg, bool second)
             {
-                if (second) { Dist2[at] = dist; Offset2[at] = offset; Along2[at] = along; OutX2[at] = ox; OutY2[at] = oy; }
-                else { Dist[at] = dist; Offset[at] = offset; Along[at] = along; OutX[at] = ox; OutY[at] = oy; }
+                if (second) { Dist2[at] = dist; Offset2[at] = offset; Along2[at] = along; OutX2[at] = ox; OutY2[at] = oy; Seg2[at] = seg; }
+                else { Dist[at] = dist; Offset[at] = offset; Along[at] = along; OutX[at] = ox; OutY[at] = oy; Seg[at] = seg; }
             }
 
             void Swap(int at)
@@ -472,20 +517,49 @@ namespace MountainPlanner.Domain.Design
                 (Along[at], Along2[at]) = (Along2[at], Along[at]);
                 (OutX[at], OutX2[at]) = (OutX2[at], OutX[at]);
                 (OutY[at], OutY2[at]) = (OutY2[at], OutY[at]);
+                (Seg[at], Seg2[at]) = (Seg2[at], Seg[at]);
             }
         }
 
+        /// <summary>
+        /// GR-12 v3's finish: <paramref name="passes"/> passes of a 1-4-6-4-1 kernel along the rows, then the columns, over
+        /// the compact grid's heights; a neighbour off the grid, or unread, counts as the point itself. A plane (a straight
+        /// bench, a face) comes through exactly where the kernel stays on it.
+        /// </summary>
+        static double[] Finish(double[] change, SpanGrid grid, int h, int passes)
+        {
+            var a = (double[])change.Clone();
+            var b = new double[a.Length];
+            int self = 0;
+            double V(double[] v, int idx) => idx < 0 || double.IsNaN(v[idx]) ? v[self] : v[idx];
+            for (int pass = 0; pass < passes; pass++)
+            {
+                for (int j = 0; j < h; j++)
+                    for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
+                    {
+                        int at = grid.Index(i, j);
+                        self = at;
+                        if (double.IsNaN(a[at])) { b[at] = a[at]; continue; }
+                        b[at] = (V(a, grid.Index(i - 2, j)) + 4 * V(a, grid.Index(i - 1, j)) + 6 * a[at] + 4 * V(a, grid.Index(i + 1, j)) + V(a, grid.Index(i + 2, j))) / 16;
+                    }
+                for (int j = 0; j < h; j++)
+                    for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
+                    {
+                        int at = grid.Index(i, j);
+                        self = at;
+                        if (double.IsNaN(b[at])) { a[at] = b[at]; continue; }
+                        a[at] = (V(b, grid.Index(i, j - 2)) + 4 * V(b, grid.Index(i, j - 1)) + 6 * b[at] + 4 * V(b, grid.Index(i, j + 1)) + V(b, grid.Index(i, j + 2))) / 16;
+                    }
+            }
+            return a;
+        }
+
         /// <summary>A section's painted extent on the point's side, blended between the stations either side of it.</summary>
-        static double SectionReach(double t, double u, double[] along, double[] reachL, double[] reachR)
+        static double SectionReach(double t, double u, double[] along, double[] reachL, double[] reachR, int segment)
         {
             int count = along.Length;
             if (count < 2) return u >= 0 ? reachL[0] : reachR[0];
-            int k = 0, lo = 0, hi = count - 2;
-            while (lo <= hi)
-            {
-                int mid = (lo + hi) >> 1;
-                if (along[mid] <= t) { k = mid; lo = mid + 1; } else hi = mid - 1;
-            }
+            int k = Math.Min(segment, count - 2);
             double span = along[k + 1] - along[k];
             double f = span > 0 ? Math.Max(0, Math.Min(1, (t - along[k]) / span)) : 0;
             var r = u >= 0 ? reachL : reachR;
@@ -604,19 +678,54 @@ namespace MountainPlanner.Domain.Design
             public static readonly Options Rules = new Options();
         }
 
-        /// <summary>A moving average of the profile, the window shrinking toward the ends so the head and tail stay put.</summary>
-        static double[] Profile(double[] z, int reach)
+        /// <summary>
+        /// GR-01 v3's profile: at each station, a straight line fitted to the ground under the centreline within
+        /// <paramref name="reach"/> metres either way (75 ft, the owner's window, every station weighted alike), evaluated
+        /// there. The window shrinks toward the ends so the head and tail keep their ground; the fit is by distance, so a
+        /// uniform grade comes through exactly however the stations are spaced (the last stretch is usually short: the
+        /// review, 2026-10-20, found a plain average bent the profile there).
+        /// </summary>
+        static double[] Profile(double[] z, double[] along, double reach)
         {
-            var o = new double[z.Length];
-            for (int i = 0; i < z.Length; i++)
+            int n = z.Length;
+            var o = new double[n];
+            for (int i = 0; i < n; i++)
             {
-                int r = Math.Min(reach, Math.Min(i, z.Length - 1 - i));
-                double sum = 0;
-                for (int t = i - r; t <= i + r; t++) sum += z[t];
-                o[i] = sum / (2 * r + 1);
+                double r = Math.Min(reach, Math.Min(along[i] - along[0], along[n - 1] - along[i]));
+                if (r <= 1e-6) { o[i] = z[i]; continue; }
+                double sw = 0, sd = 0, sdd = 0, sz = 0, sdz = 0;
+                for (int t = i; t >= 0 && along[i] - along[t] <= r; t--) Acc(t);
+                for (int t = i + 1; t < n && along[t] - along[i] <= r; t++) Acc(t);
+                double den = sw * sdd - sd * sd;
+                o[i] = Math.Abs(den) > 1e-12 ? (sz * sdd - sdz * sd) / den : sz / sw;
+
+                void Acc(int t)
+                {
+                    double d = along[t] - along[i], w = 1;
+                    sw += w; sd += w * d; sdd += w * d * d; sz += w * z[t]; sdz += w * d * z[t];
+                }
             }
             return o;
         }
+
+        /// <summary>The profile's grade at the head (or the tail), over at least one full station's length.</summary>
+        static double EndGrade(double[] z, double[] along, bool head)
+        {
+            int n = z.Length;
+            if (n < 2) return 0;
+            if (head)
+            {
+                int j = 1;
+                while (j < n - 1 && along[j] - along[0] < StationMetres) j++;
+                return along[j] > along[0] ? (z[j] - z[0]) / (along[j] - along[0]) : 0;
+            }
+            int m = n - 2;
+            while (m > 0 && along[n - 1] - along[m] < StationMetres) m--;
+            return along[n - 1] > along[m] ? (z[n - 1] - z[m]) / (along[n - 1] - along[m]) : 0;
+        }
+
+        /// <summary>GR-07 over a stretch: the shortest benched run graded, in stations (75 ft).</summary>
+        public const int ShortestBenchStations = 3;
 
         /// <summary>GR-01 v2: the steepest side slope a graded bench keeps, rise over run (owner, TL23: 20%).</summary>
         public const double MaxCrossSlope = 0.20;

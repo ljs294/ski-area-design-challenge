@@ -425,16 +425,22 @@ Shader "MountainPlanner/Terrain"
             // The ground's rise per metre east (x) and north (y), from the tile's heightmap by central differences two
             // samples either side (4 m across in the core, 8 m in the ring): the slope a skier feels, without the
             // 1 m lidar's ruts and ditches, the same at any distance whatever the mesh's LOD.
+            // The slope over two samples either side, divided by the span actually sampled: at a tile's edge the clamped
+            // sampler can't reach past it, and dividing by the full 4 samples there halved the slope, a light or dark
+            // stripe along every tile edge (the review, 2026-10-20).
             float2 HeightGradient(float2 uv)
             {
                 float res = max(_HeightmapParams.x, 2);
                 float2 huv = (uv * (res - 1) + 0.5) / res;
-                float t = 2 / res;
-                float east = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(t, 0), 0).r;
-                float west = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(t, 0), 0).r;
-                float north = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(0, t), 0).r;
-                float south = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(0, t), 0).r;
-                return float2(east - west, north - south) * _HeightmapParams.y / max(4 * _HeightmapParams.z, 1e-3);
+                float t = 2 / res, lo = 0.5 / res, hi = 1 - 0.5 / res;
+                float2 e1 = float2(min(huv.x + t, hi), huv.y), w1 = float2(max(huv.x - t, lo), huv.y);
+                float2 n1 = float2(huv.x, min(huv.y + t, hi)), s1 = float2(huv.x, max(huv.y - t, lo));
+                float east = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, e1, 0).r;
+                float west = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, w1, 0).r;
+                float north = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, n1, 0).r;
+                float south = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, s1, 0).r;
+                float2 span = max(float2(e1.x - w1.x, n1.y - s1.y) * res, 1e-3) * max(_HeightmapParams.z, 1e-3);
+                return float2(east - west, north - south) * _HeightmapParams.y / span;
             }
 
             // Fine creases (beauty pass, item 2): how far the ground sits below its neighbours 3 samples away (3 m in
@@ -475,15 +481,12 @@ Shader "MountainPlanner/Terrain"
                 // The whole trail too (owner's report 2026-10-19, TL22: graded ground looked steppy): the heightmap holds
                 // heights in steps of about 4 cm (15 bits of the tile's height range), which rough lidar hides and a smooth
                 // bench shows as bands along the contours.
-                float smoothShade = max(earth, onTrail);
+                // Graded trails only (the review, 2026-10-20: on a natural trail the smoothing drew the paint's outline over
+                // untouched lidar); channel b says how far a graded trail covers the point.
+                float smoothShade = max(earth, saturate(trail.b));
                 [branch] if (smoothShade > 0.01)
                 {
-                    float res = max(_HeightmapParams.x, 2);
-                    float2 huv = (i.uv * (res - 1) + 0.5) / res;
-                    float t2 = 2 / res;
-                    float e = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(t2, 0), 0).r - SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(t2, 0), 0).r;
-                    float no = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(0, t2), 0).r - SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(0, t2), 0).r;
-                    float2 g = float2(e, no) * _HeightmapParams.y / max(4 * _HeightmapParams.z, 1e-3);
+                    float2 g = HeightGradient(i.uv);
                     float3 wide = normalize(float3(-g.x, 1, -g.y));
                     n = normalize(lerp(n, wide, 0.85 * smoothShade));
                 }

@@ -192,6 +192,9 @@ ruled differently. No archived code is copied; the rules are stated here as pros
     **averaged over 75 ft (3 stations) either way**, the window shrinking at the head and tail so the ends keep their
     ground. Lidar rolls no longer carry into the bench: on the owner's runs the grade's roll (RMS change between 5 m
     pieces) fell from 8-10% to 2-3.5% for 2-3% more earth.
+    - *The profile is a local straight-line fit* (TL24), every station in the window weighted alike: a uniform grade
+      comes through exactly however the stations are spaced (the last stretch is usually short), and past the head and
+      tail the bench carries the end grade, taken over at least 25 ft, on to where the faces meet the paint's edge.
 - **GR-02, faces:**
   - From each bench edge, a face runs to natural ground at **1:1 (45°)**, the same slope for cut and fill.
   - There is no widen-to-fit: the footprint is never enlarged to make a bench fit.
@@ -249,6 +252,11 @@ ruled differently. No archived code is copied; the rules are stated here as pros
 - **GR-13, the edge envelope** (task 08, TL2): every changed point stays between the 1:1 slopes rising from the fixed
   ground within 2 m of the paint (the footprint's edge, islands, earlier trails' ground, TF-11's rounds and ungraded
   stretches), so the faces meet the ground at every edge, whatever shape is painted.
+  - *Where the slopes cross* (fixed ground steeper than 1:1 on both sides, TL24): the point is clamped between them, the
+    same clamp as everywhere else, instead of falling back to natural ground beside designed points (small cliffs).
+- **GR-07 over a stretch** (TL24): a benched run shorter than 3 stations (75 ft) stays natural with its neighbours, and
+  a graded stretch eases into a natural one (a smooth ramp, no crease at either end), so a marginal sidehill never
+  alternates bench and natural every 25 ft.
 - **GR-14, grading is a choice** (owner, task 08, TL13): a trail is graded only when the player sets it to Graded. A new
   trail starts Natural, and editing a trail keeps its setting.
 - **GR-12 v2, rounded tie-ins** (owner, task 07, SK2, SK20): each face's crest and toe are rounded over **10 ft
@@ -257,6 +265,11 @@ ruled differently. No archived code is copied; the rules are stated here as pros
   face would reach the footprint's edge, the bench narrows by the rounding width so the toe rounds inside the footprint.
   Sharp creases stair-step on the 1 m heightmap; the rounding and the terrain shader's wider slope on earthwork keep the
   edges smooth.
+  - **v3, the finish** (owner's ask for an adversarial smoothness review, TL24): after GR-13 the graded surface is
+    smoothed over about 2 m (two passes of a 1-4-6-4-1 kernel each way, heights not changes, so the ground's own
+    roughness never returns to the bench) and clamped by GR-13 again. It rounds what the clamp leaves sharp (faces
+    meeting fixed ground, toes round islands, the lattice's stair-steps); a straight bench or face is unchanged. A
+    narrow bench keeps half the rounding at least (a trough, never a V), and a tilted bench rounds into its face.
 
 ![A level bench with 1:1 cut and fill faces inside the footprint](images/p3-02/bench-section.svg)
 

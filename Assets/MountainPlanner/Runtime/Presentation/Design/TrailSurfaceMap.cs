@@ -13,7 +13,8 @@ namespace MountainPlanner.Presentation.Design
     /// built trails' bounds. Per lattice point:
     /// R the footprint (1 inside, fading over the last metre);
     /// G the height change, edited minus natural, in metres (cut negative, fill positive);
-    /// B the offset across the trail from its centreline, in metres (corduroy and groomer passes run along it);
+    /// B 1 on a graded trail, 0 on a natural one (the terrain shader smooths a graded surface's shading; the offset
+    /// across the trail, which corduroy and groomer passes run along, is the full-precision _TrailOffset map);
     /// A the edited ground's slope across the trail (0 on a level bench, about 1 on a 1:1 face).
     /// It is display data derived from the design and the edited heights, never stored and never read by a rule.
     /// Each trail's painted footprint and automatic centreline come from task 08's TrailFootprint and TrailCentreline.
@@ -35,7 +36,7 @@ namespace MountainPlanner.Presentation.Design
         /// <summary>The trails the map shows: built, with a stroke. Returns how many it drew.</summary>
         public int Rebuild(DesignDocument doc, EditedHeights edited, LocalFrame frame, Func<Trail, TrailBuild> built = null)
         {
-            var trails = new List<(double[] line, double half, TrailFootprint fp)>();
+            var trails = new List<(double[] line, double half, TrailFootprint fp, bool graded)>();
             var seen = new HashSet<TrailId>();
             foreach (var t in doc.Trails)
             {
@@ -59,7 +60,7 @@ namespace MountainPlanner.Presentation.Design
                     _shapes[t.Id] = shape;
                 }
                 if (shape.line == null) continue;
-                trails.Add((shape.line, shape.fp.MaxClearance * 1.5 + 3, shape.fp));
+                trails.Add((shape.line, shape.fp.MaxClearance * 1.5 + 3, shape.fp, t.Settings.Grading == TrailGrading.Graded));
             }
             var stale = new List<TrailId>();
             foreach (var id in _shapes.Keys) if (!seen.Contains(id)) stale.Add(id);
@@ -72,7 +73,7 @@ namespace MountainPlanner.Presentation.Design
 
             var lattice = edited.Lattice;
             double minX = double.MaxValue, maxX = double.MinValue, minY = double.MaxValue, maxY = double.MinValue;
-            foreach (var (line, half, _) in trails)
+            foreach (var (line, half, _, _) in trails)
                 for (int i = 0; i < line.Length; i += 2)
                 {
                     minX = Math.Min(minX, line[i] - half); maxX = Math.Max(maxX, line[i] + half);
@@ -83,6 +84,7 @@ namespace MountainPlanner.Presentation.Design
             int h = Math.Min(MaxTexels, (int)Math.Ceiling(lattice.North - (minY - 2)) - r0 + 1);
 
             var foot = new float[w * h];
+            var graded = new float[w * h];
             var change = new float[w * h];
             var offset = new float[w * h];
             var across = new float[w * h];
@@ -91,7 +93,7 @@ namespace MountainPlanner.Presentation.Design
             // Per trail: locate every point on its centreline, keep the nearest trail's offset and the footprint.
             var normalX = new float[w * h];
             var normalY = new float[w * h];
-            foreach (var (line, half, fp) in trails)
+            foreach (var (line, half, fp, isGraded) in trails)
             {
                 var along = new double[line.Length / 2];
                 for (int k = 1; k < along.Length; k++)
@@ -100,12 +102,16 @@ namespace MountainPlanner.Presentation.Design
                 for (int i = 0; i < w * h; i++)
                 {
                     double d = located.Dist[i];
-                    if (d >= nearest[i] || d > half + 2) continue;
+                    if (d > half + 2) continue;
                     int pc = c0 + i % w, pr = r0 + i / w;
                     if (!fp.Contains(pc, pr) && !fp.Contains(pc - 1, pr - 1)) continue;
+                    // The painted footprint (islands included), fading over its last metre: the most any trail covers the
+                    // point, so a later trail's paint edge never cuts a line through an earlier one (the review, 2026-10-20).
+                    float cover = Mathf.Clamp01((float)fp.PointClearance(pc, pr));
+                    if (cover > foot[i]) foot[i] = cover;
+                    if (isGraded && cover > graded[i]) graded[i] = cover;
+                    if (d >= nearest[i]) continue;
                     nearest[i] = d;
-                    // The painted footprint (islands included), fading over its last metre.
-                    foot[i] = Mathf.Clamp01((float)fp.PointClearance(pc, pr));
                     offset[i] = (float)located.Offset[i];
                 }
             }
@@ -151,7 +157,7 @@ namespace MountainPlanner.Presentation.Design
                     int at = j * w + i, p = (row * w + i) * 4;
                     pixels[p] = Mathf.FloatToHalf(foot[at]);
                     pixels[p + 1] = Mathf.FloatToHalf(change[at]);
-                    pixels[p + 2] = Mathf.FloatToHalf(offset[at]);
+                    pixels[p + 2] = Mathf.FloatToHalf(graded[at]);
                     pixels[p + 3] = Mathf.FloatToHalf(across[at]);
                 }
             }
