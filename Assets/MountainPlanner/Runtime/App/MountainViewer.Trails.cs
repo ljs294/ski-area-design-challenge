@@ -70,12 +70,22 @@ namespace MountainPlanner.App
         {
             if (Design == null || _tools == null) return false;
             if (Design.Document.Trails.Count > 0) return true;
+            _captureTrails++;
             Hud.SetToolboxTab("trails");
             Hud.SetToolbox(true);
             bool built = TrailReviewForCapture() && _tools.Confirm(WorkStage.Built)?.Accepted == true;
             _tools.Close();
             Hud.SetToolbox(false);
             return built;
+        }
+
+        int _captureTrails;
+
+        /// <summary>For captures: takes back the trails the captures built, so the design is as it was (and quitting asks nothing).</summary>
+        internal void UndoCaptureTrails()
+        {
+            _tools?.Close();
+            for (; _captureTrails > 0; _captureTrails--) Design?.Undo();
         }
 
         /// <summary>For captures: Edit or Remove trail armed on the last trail (built first if needed).</summary>
@@ -359,7 +369,7 @@ namespace MountainPlanner.App
                     yield return null;   // the frame that shows it
                     commitList.Add(watch.Elapsed.TotalMilliseconds);
                     if (!r.Accepted) Debug.LogWarning("[TrailBench] rejected: " + r);
-                    for (int i = 0; i < 5; i++) yield return null;
+                    for (int i = 0; i < 60; i++) yield return null;   // the snow rebuild after an edit settles, as it would while a player paints
                     if (mixed && r.Accepted)
                     {
                         // An edit (Natural, then back): the earthwork rebuilds only what the trail touches.
@@ -379,7 +389,7 @@ namespace MountainPlanner.App
                     while (!_edits.Applying.IsCompleted) yield return null;
                     yield return null;
                     undo.Add(watch.Elapsed.TotalMilliseconds);
-                    for (int i = 0; i < 5; i++) yield return null;
+                    for (int i = 0; i < 60; i++) yield return null;   // the snow rebuild after an edit settles, as it would while a player paints
                 }
             }
             var build = BuildInfo.Current;

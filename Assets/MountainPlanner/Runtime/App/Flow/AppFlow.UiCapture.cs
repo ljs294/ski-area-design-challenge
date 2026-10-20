@@ -293,17 +293,18 @@ namespace MountainPlanner.App.Flow
             // trailfix, trailgone and atrails).
             ("tool-trail-edit", false, (h, v, on) =>
             {
-                if (!on) { v.Tools?.Close(); h.SetToolbox(false); return; }
+                if (!on) { v.UndoCaptureTrails(); h.SetToolbox(false); return; }
                 if (!v.TrailPickForCapture(MountainPlanner.UI.Tools.EditTrailTool.ToolId)) Debug.LogWarning("[UiCapture] tool-trail-edit: no trail to edit");
             }),
             ("tool-trail-remove", false, (h, v, on) =>
             {
-                if (!on) { v.Tools?.Close(); h.SetToolbox(false); return; }
+                if (!on) { v.UndoCaptureTrails(); h.SetToolbox(false); return; }
                 if (!v.TrailPickForCapture(MountainPlanner.UI.Tools.RemoveTrailTool.ToolId)) Debug.LogWarning("[UiCapture] tool-trail-remove: no trail to remove");
             }),
             ("analysis-trails", false, (h, v, on) =>
             {
                 if (on && !v.TrailBuiltForCapture()) Debug.LogWarning("[UiCapture] analysis-trails: no trail");
+                if (!on) v.UndoCaptureTrails();
                 h.SetAnalysisTab(on ? "trails" : "overview");
                 h.SetAnalysis(on);
             }),

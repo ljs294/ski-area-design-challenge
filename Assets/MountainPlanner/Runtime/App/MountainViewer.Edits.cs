@@ -42,7 +42,9 @@ namespace MountainPlanner.App
             bool styleTile = Array.IndexOf(args, "-styletile") >= 0;
             // A loaded save with terrain edits needs the session too, to lay them over the mountain.
             bool saved = OpenDesign.Current != null && !OpenDesign.Current.History.Terrain.IsEmpty;
-            if (!_editKeys && bench < 0 && timing < 0 && !saved && !styleTile) return;
+            // UI captures arm the trail tools (task 08), which need the ground's session ready when they do.
+            bool capture = Array.IndexOf(args, "-uicapture") >= 0;
+            if (!_editKeys && bench < 0 && timing < 0 && !saved && !styleTile && !capture) return;
             _editsStarting = true;
             StartCoroutine(StartEditsWhenReady(args, bench, timing));
         }
