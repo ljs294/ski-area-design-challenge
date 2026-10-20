@@ -149,7 +149,7 @@ namespace MountainPlanner.UI.Tools
                     w.SetHint("Click far up the mountain to place the top terminal. That fixes the line.");
                     w.SetKeys((GameAction.TerminalLevelUp, "higher"), (GameAction.TerminalLevelDown, "lower"));
                     w.SetNext(false, false);
-                    w.ShowStrip(null, "Aim at the other end: once it's placed, the line shows here from the side.");
+                    w.HideStrip();   // the strip comes with the line: while aiming it would cover the mountain
                     break;
                 case Step.Towers:
                     w.ShowReview(null);
