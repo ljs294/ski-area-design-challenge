@@ -140,9 +140,76 @@ namespace MountainPlanner.App
                 _liftViews.Remove(id);
             }
             ShowLifts(_liftsShown, true);   // new views take the layer
+            FillLiftList(doc);
+            LabelLifts(doc);
             int chairs = 0;
             foreach (var kv in _liftViews) chairs += kv.Value.View != null ? kv.Value.View.ChairCount : 0;
             if (trails > 0 || _liftViews.Count > 0) Debug.Log($"[Built] {trails} trails, {_liftViews.Count} lifts drawn, {chairs} chairs");
+        }
+
+        // ---------- lift names on the Labels layer (task 09, UI-16) ----------
+
+        MountainPlanner.UI.LandmarkLabelOverlay _liftLabels;
+        readonly List<(string Name, Vector3 At)> _liftLabelSpots = new List<(string, Vector3)>();
+
+        // Each lift's name at the middle of its line, a little over the ground (rebuilt when the design changes).
+        void LabelLifts(DesignDocument doc)
+        {
+            if (Hud == null || _resort == null) return;
+            _liftLabelSpots.Clear();
+            foreach (var l in doc.Lifts)
+            {
+                var mid = (DesignFrame.ToLocal(l.Bottom) + DesignFrame.ToLocal(l.Top)) / 2;
+                _liftLabelSpots.Add((l.Name, new Vector3(mid.x, _resort.Surface.HeightAt(mid.x, mid.y) + 12, mid.y)));
+            }
+            _liftLabels ??= new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer);
+            _liftLabels.SetLandmarks(_liftLabelSpots);
+        }
+
+        // ---------- Analysis › Lifts (task 09) ----------
+
+        readonly List<MountainPlanner.UI.LiftRow> _liftRowList = new List<MountainPlanner.UI.LiftRow>();
+        bool _liftListWired;
+        ulong _focusedLiftId;   // a row under the pointer or a card open: lit like a held lift
+
+        void FillLiftList(DesignDocument doc)
+        {
+            if (Hud == null || _resort == null) return;
+            if (!_liftListWired)
+            {
+                _liftListWired = true;
+                Hud.LiftFocused += id => _focusedLiftId = id;
+                Hud.LiftEditChosen += id => ChooseLiftTool(MountainPlanner.UI.Tools.EditLiftTool.ToolId, id);
+                Hud.LiftRemoveChosen += id => ChooseLiftTool(MountainPlanner.UI.Tools.RemoveLiftTool.ToolId, id);
+            }
+            _liftRowList.Clear();
+            foreach (var l in doc.Lifts)
+            {
+                var type = LiftType.Of(l.CatalogId);
+                double vertical = l.Levels is LiftLevels lv ? lv.TopMetres - lv.BottomMetres
+                    : _resort.Surface.HeightAt((float)l.Top.XMetres, (float)l.Top.YMetres) - _resort.Surface.HeightAt((float)l.Bottom.XMetres, (float)l.Bottom.YMetres);
+                double slope = Math.Sqrt(l.LengthMetres * l.LengthMetres + vertical * vertical);
+                _liftRowList.Add(new MountainPlanner.UI.LiftRow
+                {
+                    Id = l.Id.Value, Name = l.Name, Model = MountainPlanner.UI.Tools.LiftTypeMenu.ModelName(l.CatalogId),
+                    LengthMetres = slope, VerticalMetres = Math.Abs(vertical), Capacity = type.Capacity,
+                    RideSeconds = type.SpeedMetresPerSecond > 0 ? slope / type.SpeedMetresPerSecond : 0,
+                    Towers = l.Towers.Count, Built = l.Stage == WorkStage.Built,
+                });
+            }
+            Hud.SetLifts(_liftRowList);
+        }
+
+        // The card's Edit or Remove: that tool, open on the lift.
+        void ChooseLiftTool(string toolId, ulong lift)
+        {
+            if (_tools == null || Hud == null) return;
+            Hud.SetAnalysis(false);
+            Hud.SetToolboxTab("lifts");
+            Hud.SetToolbox(true);
+            if (_tools.ActiveId != toolId) _tools.Choose(toolId);
+            if (_tools.Active is MountainPlanner.UI.Tools.EditLiftTool edit) edit.Open(lift);
+            else if (_tools.Active is MountainPlanner.UI.Tools.RemoveLiftTool remove) remove.Choose(lift);
         }
 
         // The Lifts map layer (task 09, LT7): the models, rope and chairs and the map lines, all together.
@@ -206,7 +273,8 @@ namespace MountainPlanner.App
             ulong hitId = 0;
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
             if (_mapLines != null && cam != null) _mapLines.Follow(cam, Camera.Distance, _hoveredId != 0 ? _hoveredId : _heldLiftId);
-            bool picking = _tools == null || !_tools.Armed || _tools.Active is MountainPlanner.UI.Tools.IPicksLifts;
+            _liftLabels?.Update(cam, _liftsShown && _hudShown && !PhotoOpen && (Hud == null || Hud.LabelsOn));
+            bool picking = _tools == null || !_tools.Armed || _tools.Active is MountainPlanner.UI.Tools.IPicksLifts || _focusedLiftId != 0;
             if (_liftViews.Count > 0 && cam != null && picking && !PhotoOpen && _liftsShown)
             {
                 // -hoverlift (captures): the pointer on the first built lift's rope, a fifth of the way round.
@@ -238,7 +306,8 @@ namespace MountainPlanner.App
             // A lift a tool holds (Remove lift's first click) stays lit with the hovered one.
             if (_heldLiftId != 0 && !picking) _heldLiftId = 0;
             LiftView held = null;
-            if (_heldLiftId != 0) foreach (var kv in _liftViews) if (kv.Key.Value == _heldLiftId) { held = kv.Value.View; break; }
+            ulong holding = _heldLiftId != 0 ? _heldLiftId : _focusedLiftId;   // a tool's lift, else Analysis' row or card
+            if (holding != 0) foreach (var kv in _liftViews) if (kv.Key.Value == holding) { held = kv.Value.View; break; }
             if (hit == _hovered && held == _held) return;
             _hovered?.SetHighlight(false);
             _held?.SetHighlight(false);

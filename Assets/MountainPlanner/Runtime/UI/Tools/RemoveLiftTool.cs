@@ -190,6 +190,9 @@ namespace MountainPlanner.UI.Tools
             _ctx = null;
         }
 
+        /// <summary>Selects a lift as a first click on it would (Analysis' card).</summary>
+        public void Choose(ulong liftId) => Select(_ctx?.History.Document.FindLift(new LiftId(liftId)));
+
         // For tests.
         public ulong Armed => _armed.Value;
         public bool Working => _working;

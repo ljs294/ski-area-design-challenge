@@ -42,6 +42,15 @@ namespace MountainPlanner.UI.Tools
         public string CatalogId { get; private set; }
         public LiftType Type { get; private set; }
 
+        /// <summary>A type's model as the lists name it: "Sessellift FGQ-4", or its maker and type ("Monta gondola, 8 person").</summary>
+        public static string ModelName(string catalogId)
+        {
+            if (catalogId == LiftCatalogIds.SesselliftFgq4) return QuadModels[0];
+            if (catalogId == LiftCatalogIds.MontaFg4) return QuadModels[1];
+            int m = Array.IndexOf(LiftCatalogIds.Makers, LiftCatalogIds.Maker(catalogId));
+            return (m >= 0 ? MakerNames[m] + " " : "") + LiftType.Of(catalogId).Name.ToLowerInvariant();
+        }
+
         /// <summary>Adds the three rows; <paramref name="changed"/> runs after a pick changes the type.</summary>
         public LiftTypeMenu(ToolWindow window, string catalogId, Action changed, string kindTip)
         {

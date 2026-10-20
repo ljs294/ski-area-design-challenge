@@ -200,6 +200,7 @@ namespace MountainPlanner.UI
             _analysisEmpty.text = AnalysisEmpty[Mathf.Max(0, i)];
             _when?.EnableInClassList("stat--on", _analysisOpen && tab == "weather");
             ShowTrailsTab();   // task 08
+            ShowLiftsTab();    // task 09
         }
 
         public string AnalysisTab => _analysisTab;
