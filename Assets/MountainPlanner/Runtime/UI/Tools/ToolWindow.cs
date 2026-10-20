@@ -253,6 +253,59 @@ namespace MountainPlanner.UI.Tools
             if (_rowLabels.TryGetValue(name, out var l)) l.text = label;
         }
 
+        // ---------- the lift profile strip (task 09, LF-10) ----------
+
+        LiftProfileStrip _strip;
+
+        /// <summary>
+        /// Shows the profile strip beside the Toolbox tray along the bottom (made on first use, gone with the window), with
+        /// <paramref name="profile"/>, or its <paramref name="hint"/> while there's no line yet.
+        /// </summary>
+        public LiftProfileStrip ShowStrip(LiftProfile profile, string hint = null)
+        {
+            if (_strip == null)
+            {
+                _strip = new LiftProfileStrip();
+                Window.RegisterCallback<DetachFromPanelEvent>(_ => _strip?.RemoveFromHierarchy());
+            }
+            if (_strip.parent == null && Window.parent != null)
+            {
+                Window.parent.Add(_strip);
+                Window.parent.RegisterCallback<GeometryChangedEvent>(_ => PlaceStrip());
+                _strip.schedule.Execute(PlaceStrip);
+            }
+            _strip.style.display = DisplayStyle.Flex;
+            _strip.Show(profile, hint);
+            PlaceStrip();
+            return _strip;
+        }
+
+        public void HideStrip()
+        {
+            if (_strip != null) _strip.style.display = DisplayStyle.None;
+        }
+
+        public LiftProfileStrip Strip => _strip;
+
+        // Beside the tray, its bottom on the tray's, to the stage's right edge (the mockup's liftStrip).
+        void PlaceStrip()
+        {
+            var stage = _strip?.parent;
+            if (stage == null) return;
+            var tray = stage.Q("toolbox");
+            var bar = stage.Q("bar");
+            float stageW = stage.layout.width;
+            if (float.IsNaN(stageW) || stageW <= 0) return;
+            bool trayShown = tray != null && tray.resolvedStyle.display != DisplayStyle.None && !tray.ClassListContains("hidden") && tray.layout.width > 0;
+            float left = trayShown ? tray.layout.xMax + 10 : 10;
+            float bottom = trayShown ? tray.layout.yMax : (bar != null ? bar.layout.yMin - 10 : stage.layout.height - 10);
+            const float height = 30 + 134 + 2;
+            _strip.style.left = left;
+            _strip.style.top = bottom - height;
+            _strip.style.width = Mathf.Max(200, stageW - left - 10);
+            _strip.style.height = height;
+        }
+
         /// <summary>Esc closes an open dropdown first (true if one was open).</summary>
         public bool CloseMenus()
         {

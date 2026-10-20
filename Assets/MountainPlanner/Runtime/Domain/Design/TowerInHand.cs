@@ -67,6 +67,9 @@ namespace MountainPlanner.Domain.Design
         /// test: the line is complete when this clears the ground).</summary>
         public LiftRope Strung => _strung;
 
+        /// <summary>The terminal levels the tower in hand stands against (the profile strip).</summary>
+        public LiftLevels Levels => _levels;
+
         double ExitY => _levels.BottomMetres + _type.Bottom.ExitRise;
         double TopExitY => _levels.TopMetres + _type.Top.ExitRise;
         double GroundAt(double s) => _ground.At(_bx + _ux * s, _by + _uy * s);

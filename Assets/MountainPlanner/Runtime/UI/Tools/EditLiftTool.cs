@@ -116,6 +116,7 @@ namespace MountainPlanner.UI.Tools
             w.SetNext(false, false);
             w.ShowReview(null);
             w.SetCommit(false, false);
+            w.HideStrip();
         }
 
         void Open(Lift lift)
@@ -136,6 +137,7 @@ namespace MountainPlanner.UI.Tools
             _ctx.Claim(GameAction.BrushNarrower, true);   // [ and ]: the previous and next part
             _ctx.Claim(GameAction.BrushWider, true);
             _ctx.Claim(GameAction.UndoStroke, true);      // Ctrl+Z: the edit's own undo
+            _ctx.Window.ShowStrip(null, "Working out the lift…");
             WorkOutGround();
             Changed();
         }
@@ -270,6 +272,9 @@ namespace MountainPlanner.UI.Tools
                 }
                 _draft.Levels = done.r.Levels;
                 _ctx.PendingTerrain = _applyEdits;
+                var b = _ctx.ToGround(_draft.Bottom);
+                var t = _ctx.ToGround(_draft.Top);
+                _ctx.Window.ShowStrip(LiftProfile.From(done.r.Rope, new EditedHeights(_without.Source, _without.Lattice, done.r.Edits), b.X, b.Y, t.X, t.Y, done.r.Levels));
                 Refresh();
             });
         }

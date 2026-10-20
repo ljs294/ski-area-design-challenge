@@ -143,11 +143,13 @@ namespace MountainPlanner.UI.Tools
                     w.SetNext(false, false);
                     w.ShowReview(null);
                     w.SetCommit(false, false);
+                    w.HideStrip();
                     break;
                 case Step.Other:
                     w.SetHint("Click far up the mountain to place the top terminal. That fixes the line.");
                     w.SetKeys((GameAction.TerminalLevelUp, "higher"), (GameAction.TerminalLevelDown, "lower"));
                     w.SetNext(false, false);
+                    w.ShowStrip(null, "Aim at the other end: once it's placed, the line shows here from the side.");
                     break;
                 case Step.Towers:
                     w.ShowReview(null);
@@ -388,6 +390,17 @@ namespace MountainPlanner.UI.Tools
 
         bool BuiltIsCurrent() => _built != null && _builtFor == BuildKey();
 
+        // The profile strip (LF-10) from a solved rope over its ground, the terminals at their levels.
+        LiftProfile ShowProfile(LiftRope rope, Domain.Edits.IHeightSource ground, LiftLevels levels, double openFrom = double.NaN)
+        {
+            if (rope == null || ground == null || _ctx.ToGround == null) return null;
+            var b = _ctx.ToGround(_bottom);
+            var t = _ctx.ToGround(_top);
+            var profile = LiftProfile.From(rope, ground, b.X, b.Y, t.X, t.Y, levels, openFrom);
+            _ctx.Window.ShowStrip(profile);
+            return profile;
+        }
+
         void TowersPlacedHint()
         {
             if (_built != null) _ctx.Window.SetHint($"{_built.Towers.Count} towers placed automatically (TW-12). Enter for the review.");
@@ -431,6 +444,7 @@ namespace MountainPlanner.UI.Tools
                 if (_step != Step.Review && _step != Step.Towers) return;
                 _built = result;
                 _builtFor = key;
+                ShowProfile(result.Rope, new Domain.Edits.EditedHeights(ground.Source, ground.Lattice, result.Edits), result.Levels);
                 if (_step == Step.Towers) { TowersPlacedHint(); return; }
                 _ctx.PendingTerrain = result.Edits;
                 BuildReview();

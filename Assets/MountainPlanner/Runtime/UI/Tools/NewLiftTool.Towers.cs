@@ -29,6 +29,7 @@ namespace MountainPlanner.UI.Tools
         Vector2 _lastPointer = new Vector2(float.NaN, float.NaN);
         bool _filling, _armReplace;
         int _drawnTowers;
+        LiftProfile _handProfile;   // the strip's profile of the towers placed so far, strung to the top terminal
 
         /// <summary>The towers placed by hand so far (tests).</summary>
         public IReadOnlyList<Tower> Placed => _placed;
@@ -53,6 +54,9 @@ namespace MountainPlanner.UI.Tools
             _length = System.Math.Sqrt((t.X - b.X) * (t.X - b.X) + (t.Y - b.Y) * (t.Y - b.Y));
             _hand = new TowerInHand(Type, ground, b.X, b.Y, t.X, t.Y, levels, _placed, _stance);
             if (_handS < _hand.FirstAlong) _handS = _hand.FirstAlong;
+            double open = _placed.Count > 0 && !TowerFill.IsComplete(Type, _hand, _placed.Count, _length) ? _hand.Strung.Towers[_hand.Strung.Towers.Count - 1].RopeS
+                        : _placed.Count == 0 ? 0 : double.NaN;
+            _handProfile = ShowProfile(_hand.Strung, ground, levels, open);
         }
 
         void TowersTick(in ToolInput input)
@@ -100,6 +104,7 @@ namespace MountainPlanner.UI.Tools
             {
                 _bandKey = bandKey;
                 _band = _hand.Band(_handMm);
+                if (_handProfile != null) { _handProfile.Band = _band; _handProfile.Version++; }
                 for (int i = 0; i < _band.Count && i < MaxBandRuns; i++)
                 {
                     _bandLines[i] ??= new Vector2[2];
@@ -116,6 +121,20 @@ namespace MountainPlanner.UI.Tools
             }
             if (input.Pressed(ToolKeys.Delete) && _placed.Count > 0) TakeBack();
             HandHint(complete);
+            if (_handProfile != null)
+            {
+                bool shown = !complete && _status != null;
+                double s = shown ? _handS : double.NaN;
+                bool ok = shown && _status.Ok;
+                if (s != _handProfile.HandS && !(double.IsNaN(s) && double.IsNaN(_handProfile.HandS)) || _handProfile.HandMm != _handMm || _handProfile.HandOk != ok)
+                {
+                    _handProfile.HandS = s;
+                    _handProfile.HandMm = _handMm;
+                    _handProfile.HandOk = ok;
+                    if (complete) _handProfile.Band = new List<(double, double)>();
+                    _ctx.Window.Strip?.Refresh();
+                }
+            }
             DrawTowers(complete);
         }
 
