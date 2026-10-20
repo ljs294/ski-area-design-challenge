@@ -458,6 +458,7 @@ body.solo .frame { border-radius: 0; }
 .hud .lstat { padding: 4px 12px 2px; font: 700 12.5px 'DotFix', 'Overpass'; line-height: 1.35; }
 .hud .lstat.ok { color: var(--pos); }
 .hud .lstat.bad { color: var(--neg); }
+.hud .lstat.warnc { color: var(--warn); }
 .hud .lgauge { padding: 4px 14px 0; }
 .hud .ldet { padding: 0 12px 4px; font: 500 11px 'Overpass Mono', monospace; color: var(--soft); line-height: 1.4; }
 .hud .lkeys { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 3px 12px 7px; font: 500 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
@@ -1149,7 +1150,9 @@ body.solo .frame { border-radius: 0; }
   // Rule IDs are P3-02's (p3-02-design-rules.md); the readouts' tooltips cite them. Numbers are its LC-02 values, tuned
   // at the style tile (task 07). Positions along the lift are feet from the bottom terminal along the line; heights are feet.
   const FT = 3.28084, FT_PX = MPX * FT;   // feet along the ground per screen pixel
-  const RULE = { clear: 15, drop: 8.4, termRope: 10, hMin: 25, hMax: 100, hStep: 5, gap: 50, sheaveMax: 1500, groupMin: 750, bendMax: 4.5, fpm: 450, grid: 5, exitDeg: 16, minLen: 300, site: 10, leanMax: 15, termLen: 60, termWide: 30 };
+  const RULE = { clear: 15, drop: 8.4, termRope: 10, hMin: 25, hMax: 100, hStep: 5, gap: 50, sheaveMax: 1500, groupMin: 750, bendMax: 4.5, fpm: 450, grid: 5, exitDeg: 16, minLen: 300, site: 40, strict: false, leanMax: 15, termLen: 60, termWide: 30 };
+  // The mockup places leniently (owner, 2026-10-19): with strict off, only chair clearance, tower spacing and the
+  // rise limit block a lift; head loads, the rope's angle into a station and steep terminal ground are amber warnings.
   // LC-02: both quads share these for now; terminals, line and towers price the plan in the mockup's economy.
   const LIFT_TYPES = {
     'Sessellift FGQ-4': { family: 'fixed4', seats: 4, spacing: 45, rope: 4.44, rated: 42800, cw: 18000, chairE: 350, chairF: 1030, term: 1.25e6, perFt: 190, tower: 52000 },
@@ -1286,10 +1289,10 @@ body.solo .frame { border-radius: 0; }
       sp.name = `${a} and ${b}`;
       if (sp.open) errors.push({ rule: 'TW-07', text: `Needs towers between ${sp.name}: ${lenFt(sp.q.x - sp.p.x)} is too long a span` });
       if (sp.dips.length) errors.push({ rule: 'TW-01', text: `Chairs pass ${lenFt(Math.max(0, Math.floor(sp.min)))} over the ground between ${sp.name}: ${lenFt(RULE.clear)} needed` });
-      if (sp.exit) errors.push({ rule: 'RP-01', text: `The rope meets ${sp.p.term ? a : b} at ${sp.exit.toFixed(0)}°: ${RULE.exitDeg}° at most. Put a tower nearer it.` });
+      if (sp.exit) (RULE.strict ? errors : warnings).push(RULE.strict ? { rule: 'RP-01', text: `The rope meets ${sp.p.term ? a : b} at ${sp.exit.toFixed(0)}°: ${RULE.exitDeg}° at most. Put a tower nearer it.` } : `The rope meets the station steeply (${sp.exit.toFixed(0)}°)`);
       if (sp.min < Infinity && (!lowest || sp.min < lowest.min)) lowest = { min: sp.min, at: sp.at, name: sp.name };
     });
-    for (const o of tw) if (!o.head.ok) errors.push({ rule: o.head.rule, text: `Tower ${o.no}: ${o.head.why}` });
+    for (const o of tw) if (!o.head.ok) { if (RULE.strict) errors.push({ rule: o.head.rule, text: `Tower ${o.no}: ${o.head.why}` }); else warnings.push(`Tower ${o.no}: ${o.head.why}`); }
     const xs = pts.map((p) => p.x);
     for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] < RULE.gap) errors.push({ rule: 'TW-03', text: `Two supports ${lenFt(xs[i] - xs[i - 1])} apart: ${lenFt(RULE.gap)} needed` });
     for (const o of tw) if (o.h >= 80) warnings.push(`Tower ${o.no} is ${lenFt(o.h)} tall: tall towers catch the wind (comes in Phase 4)`);
@@ -1309,13 +1312,13 @@ body.solo .frame { border-radius: 0; }
       const reach = Math.min(200, (sp.q.x - sp.p.x) / 2), lo = x - reach, hi = x + reach;
       for (const [a, b] of sp.dips) if (b >= lo && a <= hi) { const c = Math.max(0, Math.floor(Math.min(...sp.cl.map((cl) => cl.min)))); return { ok: false, rule: 'TW-01', why: `Chairs pass ${lenFt(c)} over the ground: ${lenFt(RULE.clear)} needed`, me, ev, k }; }
     }
-    for (const sp of [ev.spans[k], ev.spans[k + 1]]) if (sp.exit) return { ok: false, rule: 'RP-01', why: `The rope meets the station at ${sp.exit.toFixed(0)}°: ${RULE.exitDeg}° at most`, me, ev, k };
-    if (!me.head.ok) return { ok: false, rule: me.head.rule, why: me.head.why, me, ev, k };
+    for (const sp of [ev.spans[k], ev.spans[k + 1]]) if (sp.exit && RULE.strict) return { ok: false, rule: 'RP-01', why: `The rope meets the station at ${sp.exit.toFixed(0)}°: ${RULE.exitDeg}° at most`, me, ev, k };
+    if (!me.head.ok && RULE.strict) return { ok: false, rule: me.head.rule, why: me.head.why, me, ev, k };
     const was = base || evalLift(d, others);
     for (const o of [ev.towers[k - 1], ev.towers[k + 1]]) {
       if (!o || o.head.ok) continue;
       const before = was.towers.find((w) => w.ref === o.ref);
-      if (before && before.head.ok) return { ok: false, rule: o.head.rule, why: `Tower ${o.no} couldn't carry the rope: ${o.head.why.toLowerCase()}`, me, ev, k };
+      if (RULE.strict && before && before.head.ok) return { ok: false, rule: o.head.rule, why: `Tower ${o.no} couldn't carry the rope: ${o.head.why.toLowerCase()}`, me, ev, k };
     }
     return { ok: true, me, ev, k };
   }
@@ -1361,7 +1364,7 @@ body.solo .frame { border-radius: 0; }
       if (geo[1].k * geo[1].L / 4 > 0.1) return null;
       for (const gg of geo) {
         if (spanClear(p, q, gg, d.g).dips.length) return null;
-        if ((p.term && Math.abs(Math.atan(gg.sIn)) * 180 / Math.PI > RULE.exitDeg) || (q.term && Math.abs(Math.atan(gg.sOut)) * 180 / Math.PI > RULE.exitDeg)) return null;
+        if (RULE.strict && ((p.term && Math.abs(Math.atan(gg.sIn)) * 180 / Math.PI > RULE.exitDeg) || (q.term && Math.abs(Math.atan(gg.sOut)) * 180 / Math.PI > RULE.exitDeg))) return null;
       }
       return geo;
     };
@@ -1378,7 +1381,7 @@ body.solo .frame { border-radius: 0; }
       for (const h of AUTO_H) {
         for (let x = Math.min(d.len - RULE.gap, cur.p.x + 800, cur.bound); x >= cur.p.x + RULE.gap; x -= RULE.grid) {
           const q = ptAt(x, h), geo = span(cur.p, q);
-          if (!geo || !onTerrain(rayPt(d, x)) || (cur.inGeo && !headAt(cur.inGeo, cur.p, geo).ok)) continue;
+          if (!geo || !onTerrain(rayPt(d, x)) || (RULE.strict && cur.inGeo && !headAt(cur.inGeo, cur.p, geo).ok)) continue;
           found = { p: q, inGeo: geo, bound: Infinity, t: { x, h, auto: true } };
           break;
         }
@@ -1620,7 +1623,7 @@ body.solo .frame { border-radius: 0; }
     }
     for (const o of ev.towers) {
       if (o.ref === sel) s += towerTick(d, o.x, selC, 5, 9);
-      s += towerTick(d, o.x, o.head.ok ? white : BADC, 2.6, 6);
+      s += towerTick(d, o.x, o.head.ok ? white : RULE.strict ? BADC : '#f0b43c', 2.6, 6);
     }
     for (const t of d.towers) if (!towersOn(d).includes(t)) s += towerTick(d, t.x, '#8f877c', 2, 5);   // past a top terminal slid back (LF-05)
     if (d.edit) {   // Edit lift: both terminals drawn whole and selectable; the one being dragged shows its ghost where the pointer is
@@ -1675,7 +1678,7 @@ body.solo .frame { border-radius: 0; }
       if (sp.open) g += `<text x="${f1(X((sp.p.x + sp.q.x) / 2))}" y="${f1((Y(sp.p.z) + Y(sp.q.z)) / 2 - 6)}" text-anchor="middle" style="font:700 10px 'DotFix','Overpass';fill:var(--soft)">needs towers</text>`;
     });
     for (const o of ev.towers) {
-      const pt = ev.pts[o.j], xb = X(o.x), x = X(pt.x), yt = Y(pt.z), yg = Y(groundAt(L.g, o.x)), col = o.head.ok ? 'var(--text)' : 'var(--neg)', c = o.head.code;
+      const pt = ev.pts[o.j], xb = X(o.x), x = X(pt.x), yt = Y(pt.z), yg = Y(groundAt(L.g, o.x)), col = o.head.ok || !RULE.strict ? 'var(--text)' : 'var(--neg)', c = o.head.code;
       if (o.ref === d.sel) g += `<rect x="${f1(xb - 7)}" y="2" width="14" height="118" style="fill:var(--chip)"/>`;
       g += `<line x1="${f1(xb)}" y1="${f1(yg)}" x2="${f1(x)}" y2="${f1(yt)}" stroke-width="1.6" style="stroke:${col}"/>`;
       // the head: sheaves over the rope (support, breakover), under it (hold-down) or both (combination)
@@ -1751,7 +1754,7 @@ body.solo .frame { border-radius: 0; }
       const o = ev.towers.find((t) => t.ref === d.sel);
       if (!o) return `<div class="lstat" style="color:var(--soft)">This tower stands past the top terminal.</div>`;
       return `<div class="sub ltop"><span>Tower ${o.no}${d.edit ? ` <span style="color:var(--soft);font-weight:600">· ${lenFt(o.x)} up the line</span>` : ''}</span>${stepper(o.h, o.h <= RULE.hMin, o.h >= RULE.hMax)}</div>
-        <div class="lstat ${o.head.ok ? 'ok' : 'bad'}" title="TW-04: the head follows what the rope does; kit ${o.head.code}">${o.head.ok ? `✓ ${headWord(o.head)}` : `✕ ${esc(o.head.why)}`}</div>${loadGauge(o)}
+        <div class="lstat ${o.head.ok ? 'ok' : RULE.strict ? 'bad' : 'warnc'}" title="TW-04: the head follows what the rope does; kit ${o.head.code}">${o.head.ok ? `✓ ${headWord(o.head)}` : `✕ ${esc(o.head.why)}`}</div>${loadGauge(o)}
         <div class="lkeys"><span>${kb('←', '→')} slide ${lenFt(5)}, Shift ${lenFt(50)}</span><span>${kb('Page Up', 'Page Down')} height</span><span>${kb('Tab')} next</span><span>${kb('Delete')} removes it</span></div>`;
     }
     const hp = d.hand, chk = hp && hp.chk;
