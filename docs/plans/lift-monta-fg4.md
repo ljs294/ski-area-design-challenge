@@ -21,7 +21,11 @@ The model stays local and unnamed; we measured it and built our own. The lift ca
   ride up the right rope.
 - **Origin:** on the bullwheel's axle at grade, +Z toward the line. The Sessellift terminals' origin is on their
   pier instead.
-- **Rope:** the line gauge is 4,895 mm. Both terminals were lowered to the Sessellift chair's rope height,
+- **Gauge:** 4,120 mm, the Sessellift's (owner, task P3-09, 2026-10-19), so both lifts share one tower head kit.
+  The reference measures 4,895 mm; the spec keeps its positions there (`common.referenceGauge`) and the build
+  narrows only the rope's parts: the bullwheel's rim scales to the new pitch and every sheave moves 387.5 mm in with
+  what carries it (exit trains, guide sheaves and brackets, the return's deflection sheaves and arm ends).
+- **Rope:** both terminals were lowered to the Sessellift chair's rope height,
   3,039 mm, by cutting their diagonal members at the same angles (the drive's leaning legs, the return's strut and
   column). The lift carries that chair unchanged.
 - **Footings:** 2.5 m below grade (LP7). This gate carried the return's two pads down to match; nothing changed
@@ -36,7 +40,7 @@ The model stays local and unnamed; we measured it and built our own. The lift ca
   maker and each terminal, so the Lab shows "Monta Drive terminal".
 - **Lift Lab** (`demo.bat` 23), key 9: the Monta at work. Its drive is the bottom station, with the rope climbing
   out up the line and Sessellift chairs on it; the return stands beside it.
-- **Tests:** the lift tests check each terminal against its own maker's spec (for the Monta, a 4,895 mm gauge and
+- **Tests:** the lift tests check each terminal against its own maker's spec (for the Monta, a 4,120 mm gauge and
   a 3,039 mm rope), and accept a bullwheel on the origin.
 
 ![The Monta in the Lift Lab (Unity URP), key 9](images/lift-monta-fg4-ingame.jpg)

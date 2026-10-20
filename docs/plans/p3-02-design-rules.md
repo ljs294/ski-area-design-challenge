@@ -373,6 +373,11 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     it blocks Break ground until fixed.
 - **LF-05, moving the top terminal:** until the lift is committed, the top terminal can slide along the fixed line,
   from the menu or by dragging it. Towers beyond it are dropped, after asking.
+  - **v2, editing a built lift** (owner, task 09, LT2, LT9): **Edit lift** moves towers (along the line and in height)
+    and moves **either terminal anywhere**, re-aiming the line; it also changes the type and a terminal's level (SK14).
+    In Automatic the towers re-place; By hand, each keeps its distance from the bottom terminal, and towers past the new
+    top are dropped after asking. The changes are a draft in the tool; **Apply** commits them as one step with the lift's
+    rebuilt earthwork, so one Ctrl+Z undoes the whole edit. A red tower blocks Apply.
 - **LF-06, review:**
   - The panel shows length (horizontal and slope), rise, ride time, capacity, tower count, the lowest chair clearance
     and the tension range, plus warnings.
@@ -452,7 +457,7 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   | Load on the rope | 28.0 lb/ft (41.7 kg/m) loaded, 12.9 lb/ft (19.2 kg/m) empty | RP-03 |
   | Rise this allows | about **1,130 ft (344 m)** of vertical: (49,600 − 18,000) ÷ 28.0 | RP-05. Typical fixed quads climb 300–1,200 ft; longer lines need two lifts |
   | Rope to chair bottom | **8.7 ft (2.66 m)**, measured on the model (SK8) | Real chairs: 8–10 ft |
-  | Line gauge | From each model's spec (the Monta's is 16.06 ft, 4.895 m) | The models |
+  | Line gauge | 13.5 ft (4.12 m) on both quads (task 09, LT12: the Monta's models were narrowed from 16.06 ft to share the tower heads) | The models |
   | Rope height at loading | 9.97 ft (3.039 m) above the load level | The models; real chairs about 10 ft |
   | Sheave | 17 in (432 mm) | The models |
   | Per sheave | at most **1,500 lbf (6.7 kN)** and **4.5°** of bend: game rules, as no passenger-ropeway figure was found | — |
@@ -470,6 +475,17 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - a 6x19 wire rope table.
 
   No maker is named, per A2.
+- **LC-07, rise limit** (owner, task 09, LT13): how much vertical a lift may climb, by type: fixed-grip double 2,800 ft,
+  triple 2,500 ft, quad 2,200 ft; detachable quad 3,600 ft, six 3,300 ft, eight 3,000 ft; gondola 4,500 ft; tram no
+  limit. Over it the lift is red ("Too much rise for a fixed-grip quad: 2,350 ft, 2,200 ft at most").
+- **LC-08, lift types** (owner, task 09, LT15): Fixed-grip chair (double, triple, quad), Detachable chair (quad, six,
+  eight), Detachable gondola (6, 8, 10 a cabin), Aerial tram (60, 100 a cabin), each with a model or maker. Only the
+  fixed quad has its own models (Sessellift FGQ-4, Monta FG4); the others draw with them and carry placeholder speeds,
+  spacings and weights (the mockup's LIFT_TYPES). Trams stand on towers up to 250 ft.
+- **LC-09, what blocks** (owner, task 09, LT14, lenient placement): only chair clearance (TW-01), tower spacing (TW-03),
+  an unfinished gap (towers by hand) and the rise limit (LC-07) block a lift. Head loads (TW-04 to TW-06), the rope's
+  angle into a station (TW-16) and terminal ground varying more than 40 ft are amber warnings; automatic placement
+  still works to avoid them.
 - **LC-06, the clearance against the codes:** B77.1-2006 (as Michigan adopts it) asks for 13 ft from the deepest
   design snow to the top of the seat where people ski under the line, and 5 ft everywhere. TW-01's 15 ft from bare
   ground to the chair's bottom is your stricter, simpler rule, applied everywhere.
@@ -490,7 +506,8 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - *Realised for the look at task 07 (SK16):* each train is posed to the rope level by level (rockers, yokes, the
     equaliser), the spans rebuilt between the trains' contacts, three passes; the mismatch stays under 0.01°.
 - **RP-03 v1, tension:**
-  - The counterweight sets the tension at the bottom terminal.
+  - The counterweight sets the tension at the bottom terminal. *Task 09 (owner, LT11): on both lifts, the Monta FG4's
+    bottom station included, which both drives and tensions.*
   - Up the line, tension grows by the load per unit length × the height gained (frictionless sheaves), separately
     for each side: T(h) = T₀ + w·h.
   - The loads: the loaded uphill side is rope + loaded chair ÷ spacing; the empty side is rope + empty chair ÷
@@ -500,6 +517,8 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
 - **RP-05, tension range:** the highest tension, at the top of the loaded side, must not exceed the type's rated
   tension. Too much rise for a type turns the whole lift red ("Too much rise for this lift: tension at the top 112%
   of rating").
+  - **v2, retired for blocking** (owner, task 09, LT13): the rope is assumed sized to suit. A **rise limit per type**
+    blocks instead (LC-07). Tension is still counterweight + load × rise and still shapes the sag and the head loads.
 - **RP-06, tension readout:** while building, a bar shows the bottom and top tension as % of the rating, with lbf in
   the detail line.
 - **RP-08, the drawn load** (owner, task 07 round 3, finding #4, SK27): the rope is drawn at the load it carries. The
@@ -551,6 +570,10 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
 
 - **TW-05, limits per sheave and group:** LC-02's maximum load and maximum bend per sheave, and its minimum group load (so the rope stays seated), in
   every case.
+  - *Task 09:* the bend one sheave may take is **the smaller of 4.5° and 2·asin(1,500 lbf ÷ 2T)**: 4.5° at the
+    counterweight's 18,000 lbf, about 1.9° near the top of a 1,000 ft rise (about 46,000 lbf), where a b8 turns about 15°.
+    The same limits apply at each terminal's own row (TW-16 v3), with its own sheave count (the Sessellift return 8, its
+    drive 4; the Monta drive 12, its return's single deflection sheave 1, LT6). Each red reason names its rule.
 - **TW-06, several towers close together:**
   - One tower can bend the rope only so far, and less where the tension is higher.
   - At a sharp crest the bend is shared by two or three breakovers close together; before a sharp rise, by two or
@@ -564,6 +587,8 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   line and every solve reads it.
 - **TW-09, where it can stand:** for the tower in hand at its height, the line is checked every 5 ft (1.5 m) and the
   places it could stand are marked (the green band). It's recomputed only when the height or a placed part changes.
+  *Task 09:* by hand too, the first span's shortfall up to GR-11 v2's 10 ft is left to the lift-line trench that Break
+  ground digs, as on an automatic lift.
 - **TW-10, speed:** a tower move evaluates in ≤0.5 ms, and TW-09 in ≤2 ms, with 0 B garbage per frame (§5.5).
 - **TW-11, load gauge:** while building, each tower's gauge shows its per-sheave load in both cases, from "pulls up"
   to "presses down", as % of the limits.

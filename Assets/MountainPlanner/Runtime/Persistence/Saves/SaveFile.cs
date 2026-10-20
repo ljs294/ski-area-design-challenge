@@ -1,5 +1,6 @@
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Edits;
+using Newtonsoft.Json.Linq;
 
 namespace MountainPlanner.Persistence.Saves
 {
@@ -11,13 +12,26 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo);
+
+        /// <summary>
+        /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
+        /// levels aren't known (they lived in memory only), so they're null and derived from the ground when it opens, as v1 did.
+        /// </summary>
+        static void UpToTwo(JObject o)
+        {
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 2;
+            if (design["Lifts"] is JArray lifts)
+                foreach (var l in lifts)
+                    if (l is JObject lift && lift["Levels"] == null) lift["Levels"] = JValue.CreateNull();
+        }
 
         /// <summary>The player's name for it ("Autosave" for the autosave slot).</summary>
         public string Name { get; set; } = "";

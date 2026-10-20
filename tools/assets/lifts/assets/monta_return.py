@@ -14,7 +14,7 @@ from liftkit.mesh import MeshBuilder, Style
 from liftkit.prims import U, V, W
 
 import monta_drive
-from monta_drive import box_from, cframes, m, mv, wheel
+from monta_drive import box_from, cframes, gauge_shift, gauge_wheel, m, mv, wheel
 
 KIND = "terminal"
 LODS = 4
@@ -32,6 +32,7 @@ def build(spec, lod, stage):
     body = MeshBuilder()
     rope = m(r["ropeElevation"])
     hg = m(c["lineGauge"]) / 2
+    gs = gauge_shift(c)                 # the deflection sheaves, their brackets and the arm's ends move to the gauge
     sv = parts.metres(c["sheave"], keep=())
 
     # concrete pads: under the strut at grade, and under the column below grade
@@ -61,7 +62,7 @@ def build(spec, lod, stage):
     # the cross arm (an I-beam across the line) on the strut, reaching the deflection sheaves' brackets
     ar = r["arm"]
     au, aw = m((ar["lo"][0] + ar["hi"][0]) / 2), m((ar["lo"][2] + ar["hi"][2]) / 2)
-    reach = m(ar["reach"])
+    reach = m(ar["reach"] + gs)
     ah, af = m(ar["hi"][2] - ar["lo"][2]), m(ar["hi"][0] - ar["lo"][0])
     if lod <= 1:
         prims.ibeam(body, (au, -reach, aw), (au, reach, aw), ah, af, 0.02, 0.014, st["steel"], up=W)
@@ -72,7 +73,8 @@ def build(spec, lod, stage):
     for b in r["boxes"]:
         if b["name"] in ("columnBasePlate", "strutBasePlate") and lod >= 2:
             continue
-        box_from(body, b, st)
+        dv = (-1 if b["c"][1] < 0 else 1) * gs if b["name"] == "armBracket" else 0.0
+        box_from(body, b, st, shift=(0.0, dv, 0.0))
     if lod == 0:   # anchor bolts on the base plates
         for p in r["bolts"]:
             prims.cylinder(body, mv((p[0], p[1], p[2] - 30)), mv((p[0], p[1], p[2] + 40)), 0.012, 6, st["rod"])
@@ -87,15 +89,15 @@ def build(spec, lod, stage):
     centre = Vector((0.0, 0.0, rope))
     if lod <= 2:
         wb = MeshBuilder()
-        wheel(wb, centre, c["wheel"], hg, lod, st, m(c["ropeDiameter"]) / 2)
+        wheel(wb, centre, gauge_wheel(c), hg, lod, st, m(c["ropeDiameter"]) / 2)
         a.parts["bullwheel"] = wb
         a.pivots["bullwheel"] = {"pos": tuple(centre), "axis": (0.0, 0.0, 1.0)}
     else:
-        wheel(body, centre, c["wheel"], hg, lod, st, m(c["ropeDiameter"]) / 2)
+        wheel(body, centre, gauge_wheel(c), hg, lod, st, m(c["ropeDiameter"]) / 2)
 
     # deflection sheaves at the arm's ends (the rope rides on top; a single sheave is first and last: red)
     for dfl in r["deflection"]:
-        cs = Vector(mv((dfl["u"], dfl["v"], dfl["w"])))
+        cs = Vector(mv((dfl["u"], dfl["v"] + (-1 if dfl["v"] < 0 else 1) * gs, dfl["w"])))
         if lod <= 2:
             target = MeshBuilder() if lod <= 1 else body
             parts.line_sheave(target, cs, V, sv, min(lod, 2), st, parts.sides(lod, 14, 10, 6), st["red"])

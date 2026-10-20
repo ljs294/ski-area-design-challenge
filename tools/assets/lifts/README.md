@@ -186,7 +186,9 @@ spin only at LOD0 on towers; from LOD1 a head is one mesh.
 | `monta_fg4_drive` | grade, on the bullwheel's axle | the bottom (loading) station: twin tubular booms, a ribbed rounded hood with a window band over the bullwheel, inclined legs on two piers, the Sessellift sheave trains; the rope leaves climbing over a hold-down row |
 | `monta_fg4_return` | grade, on the bullwheel's axle | the top station: an exposed bullwheel on an H-section column and a diagonal strut, with a cross arm and deflection sheaves |
 
-- **Gauge and rope:** the line gauge is 4,895 mm. Both terminals are lowered to the Sessellift chair's rope height
+- **Gauge and rope:** the line gauge is the Sessellift's 4,120 mm (owner, P3-09), so the Monta uses the Sessellift
+  tower heads. The spec's positions are the reference's, at its 4,895 mm (`common.referenceGauge`); the build scales
+  the bullwheel's rim to the line gauge and moves every sheave in with its mounts (`monta_drive.gauge_shift`). Both terminals are lowered to the Sessellift chair's rope height
   (3,039 mm, `common.ropeElevation`), so the lift carries that chair unchanged.
 - **Sockets:** as the Sessellift terminals (`line`, `rope_*_bw`, `rope_*_out`, the drive's `rope_*_hold`,
   `foundation_base`), but the drive has `chair_load` and the return `chair_unload`: the drive is at the bottom.

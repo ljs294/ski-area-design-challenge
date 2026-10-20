@@ -10,15 +10,56 @@ namespace MountainPlanner.Domain.Design
     public enum TowerStance : byte { Plumb = 1, Leaned = 2 }
 
     /// <summary>
-    /// The catalog entries a lift can name (LC-01, E13: fixed-grip only in Phase 3). Code names only (A2). The entries'
-    /// numbers belong to task 09; the document stores just the ID.
+    /// The catalog entries a lift can name (LC-01; LC-08, owner, task 09, LT15). Code names only (A2). The document stores
+    /// just the ID: the fixed-grip quads by model (<see cref="SesselliftFgq4"/>, <see cref="MontaFg4"/>), every other type as
+    /// <c>&lt;carrier&gt;:&lt;maker&gt;</c>, e.g. <c>detach-six:monta</c>. Only the fixed quads have their own models; the
+    /// rest draw with them (the maker's quad, the Sessellift's for Chairworks) and carry placeholder numbers.
     /// </summary>
     public static class LiftCatalogIds
     {
         public const string SesselliftFgq4 = "sessellift-fgq4";
         public const string MontaFg4 = "monta-fg4";
 
-        public static bool Known(string id) => id == SesselliftFgq4 || id == MontaFg4;
+        /// <summary>The carriers other than the fixed quad, in menu order (LC-08).</summary>
+        public static readonly string[] Carriers =
+        {
+            "fixed-double", "fixed-triple", "detach-quad", "detach-six", "detach-eight", "gondola-6", "gondola-8", "gondola-10",
+            "tram-60", "tram-100",
+        };
+        /// <summary>The code-name makers (A2).</summary>
+        public static readonly string[] Makers = { "sessellift", "monta", "chairworks" };
+
+        public static string Of(string carrier, string maker) => carrier + ":" + maker;
+
+        public static bool Known(string id)
+        {
+            if (id == SesselliftFgq4 || id == MontaFg4) return true;
+            if (id == null) return false;
+            int colon = id.IndexOf(':');
+            if (colon < 0) return false;
+            return Array.IndexOf(Carriers, id.Substring(0, colon)) >= 0 && Array.IndexOf(Makers, id.Substring(colon + 1)) >= 0;
+        }
+
+        /// <summary>The carrier part ("fixed-quad" for the two models).</summary>
+        public static string Carrier(string id)
+        {
+            if (id == SesselliftFgq4 || id == MontaFg4) return "fixed-quad";
+            int colon = id?.IndexOf(':') ?? -1;
+            return colon < 0 ? id : id.Substring(0, colon);
+        }
+
+        /// <summary>The maker part.</summary>
+        public static string Maker(string id)
+        {
+            if (id == MontaFg4) return "monta";
+            if (id == SesselliftFgq4) return "sessellift";
+            int colon = id?.IndexOf(':') ?? -1;
+            return colon < 0 ? "sessellift" : id.Substring(colon + 1);
+        }
+
+        /// <summary>TW-02 with LC-08: trams stand on towers up to 250 ft, every other lift up to 100 ft.</summary>
+        public static int TowerMaxMm(string id) =>
+            id != null && id.StartsWith("tram-", StringComparison.Ordinal) ? DesignUnits.TramTowerMaxMm : DesignUnits.TowerMaxMm;
     }
 
     /// <summary>
@@ -43,6 +84,26 @@ namespace MountainPlanner.Domain.Design
         public bool Equals(Tower o) => Id == o.Id && AlongMm == o.AlongMm && HeightMm == o.HeightMm;
         public override bool Equals(object obj) => obj is Tower o && Equals(o);
         public override int GetHashCode() => Id.GetHashCode() ^ AlongMm ^ (HeightMm << 7);
+    }
+
+    /// <summary>
+    /// SK14, LF-12 v3 (task 09, save v2): the base elevation each terminal stands at, its load or unload level, as authored:
+    /// the ground at its origin when it was built, raised for a steep site (LF-08 v2) or a last resort (TW-16 v3), or set by
+    /// hand. <b>Absolute</b> elevation in whole millimetres in the package's height datum, unlike the plan points (TE5),
+    /// which are millimetres from the site's centre. A raise isn't in the terrain (pads only cut), so it's stored.
+    /// </summary>
+    public readonly struct LiftLevels : IEquatable<LiftLevels>
+    {
+        public readonly int BottomMm;
+        public readonly int TopMm;
+        public LiftLevels(int bottomMm, int topMm) { BottomMm = bottomMm; TopMm = topMm; }
+        public static LiftLevels FromMetres(double bottom, double top) =>
+            new LiftLevels((int)Math.Round(bottom * 1000, MidpointRounding.AwayFromZero), (int)Math.Round(top * 1000, MidpointRounding.AwayFromZero));
+        public double BottomMetres => BottomMm / 1000.0;
+        public double TopMetres => TopMm / 1000.0;
+        public bool Equals(LiftLevels o) => BottomMm == o.BottomMm && TopMm == o.TopMm;
+        public override bool Equals(object obj) => obj is LiftLevels o && Equals(o);
+        public override int GetHashCode() => BottomMm * 397 ^ TopMm;
     }
 
     /// <summary>A tower to place, before it has an ID.</summary>
@@ -72,11 +133,16 @@ namespace MountainPlanner.Domain.Design
         public TowerStance Stance { get; }
         /// <summary>Sorted by <see cref="Tower.AlongMm"/>; no two share a position.</summary>
         public IReadOnlyList<Tower> Towers => _towers;
+        /// <summary>The terminals' levels (save v2); null where they aren't known (a v1 save's lift: derived from the
+        /// ground when it opens, as before).</summary>
+        public LiftLevels? Levels { get; }
 
         readonly Tower[] _towers;
 
-        public Lift(LiftId id, string name, WorkStage stage, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance, IReadOnlyList<Tower> towers)
+        public Lift(LiftId id, string name, WorkStage stage, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance, IReadOnlyList<Tower> towers,
+                    LiftLevels? levels = null)
         {
+            Levels = levels;
             Id = id;
             Name = name;
             Stage = stage;
@@ -100,10 +166,11 @@ namespace MountainPlanner.Domain.Design
             return -1;
         }
 
-        public Lift WithName(string name) => new Lift(Id, name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers);
-        public Lift WithStage(WorkStage stage) => new Lift(Id, Name, stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers);
-        public Lift WithTowerMode(TowerMode mode) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, mode, Stance, _towers);
-        public Lift WithStance(TowerStance stance) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, stance, _towers);
-        public Lift WithTowers(IReadOnlyList<Tower> towers) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers);
+        public Lift WithName(string name) => new Lift(Id, name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels);
+        public Lift WithStage(WorkStage stage) => new Lift(Id, Name, stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels);
+        public Lift WithTowerMode(TowerMode mode) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, mode, Stance, _towers, Levels);
+        public Lift WithStance(TowerStance stance) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, stance, _towers, Levels);
+        public Lift WithLevels(LiftLevels? levels) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, levels);
+        public Lift WithTowers(IReadOnlyList<Tower> towers) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels);
     }
 }

@@ -35,11 +35,14 @@ namespace MountainPlanner.Domain.Design
         }
 
         /// <summary>TW-02: 25–100 ft in 5 ft steps; v2, a station tower (within 100 ft of a bullwheel) from 15 ft.</summary>
-        public static string TowerHeightProblem(int heightMm, bool station = false)
+        public static string TowerHeightProblem(int heightMm, bool station = false, int maxMm = DesignUnits.TowerMaxMm)
         {
             int min = station ? DesignUnits.StationTowerMinMm : DesignUnits.TowerMinMm;
-            if (heightMm < min || heightMm > DesignUnits.TowerMaxMm || heightMm % DesignUnits.FiveFeetMm != 0)
-                return station ? "A tower by a terminal is 15–100 ft tall, in 5 ft steps." : "A tower is 25–100 ft tall, in 5 ft steps.";
+            if (heightMm < min || heightMm > maxMm || heightMm % DesignUnits.FiveFeetMm != 0)
+            {
+                int top = maxMm / DesignUnits.FiveFeetMm * 5;
+                return station ? $"A tower by a terminal is 15–{top} ft tall, in 5 ft steps." : $"A tower is 25–{top} ft tall, in 5 ft steps.";
+            }
             return null;
         }
 
@@ -124,13 +127,13 @@ namespace MountainPlanner.Domain.Design
             return null;
         }
 
-        public static string TowersProblem(long lineLengthSquaredMm, IReadOnlyList<Tower> towers)
+        public static string TowersProblem(long lineLengthSquaredMm, IReadOnlyList<Tower> towers, string catalogId = null)
         {
             if (towers.Count > MaxTowersPerLift) return "A lift has too many towers.";
             for (int i = 0; i < towers.Count; i++)
             {
                 string p = TowerAlongProblem(lineLengthSquaredMm, towers[i].AlongMm)
-                           ?? TowerHeightProblem(towers[i].HeightMm, InStationZone(lineLengthSquaredMm, towers[i].AlongMm));
+                           ?? TowerHeightProblem(towers[i].HeightMm, InStationZone(lineLengthSquaredMm, towers[i].AlongMm), LiftCatalogIds.TowerMaxMm(catalogId));
                 if (p != null) return p;
                 if (towers[i].Id.IsNone) return "A tower needs an ID.";
                 if (i > 0 && towers[i].AlongMm == towers[i - 1].AlongMm) return "Two towers can't stand in the same place.";
@@ -149,7 +152,7 @@ namespace MountainPlanner.Domain.Design
         {
             if (l.Id.IsNone) return "A lift needs an ID.";
             return NameProblem(l.Name) ?? StageProblem(l.Stage) ?? LiftLineProblem(l.CatalogId, l.Bottom, l.Top, l.TowerMode, l.Stance)
-                ?? TowersProblem(l.LengthSquaredMm, l.Towers);
+                ?? TowersProblem(l.LengthSquaredMm, l.Towers, l.CatalogId);
         }
 
         /// <summary>A whole document, as read back: every entity valid, IDs unique across kinds.</summary>

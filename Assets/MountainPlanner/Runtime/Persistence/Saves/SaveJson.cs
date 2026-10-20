@@ -10,13 +10,16 @@ using Newtonsoft.Json.Linq;
 namespace MountainPlanner.Persistence.Saves
 {
     /// <summary>
-    /// save.json, version 1 (task P3-04; frozen, 0.3 §5). Written by hand in a fixed order, so the same save always gives
+    /// save.json, version 2 (task P3-04, v1; task P3-09, v2: each lift's terminal levels; frozen, 0.3 §5). Written by hand in a fixed order, so the same save always gives
     /// the same bytes (SH-04): two-space indents, "\n" line ends, integers only, IDs and the seed as 16-digit hex,
     /// points as [x, y] in whole millimetres from the site's centre on the package grid's axes (TE5; never absolute
-    /// EPSG:6350), and every enum as a fixed word that never follows a C# rename.
+    /// EPSG:6350), and every enum as a fixed word that never follows a C# rename. A lift's "Levels" (v2, SK14) are the
+    /// terminals' base elevations: <b>absolute</b> elevation in whole millimetres in the package's height datum, unlike
+    /// the site-centred points; null where unknown (a lift from a v1 save).
     /// <code>
-    /// { "Version": 1, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 1, "Seed", "NextOrdinal", "Trails": [...], "Lifts": [...] },
+    /// { "Version": 2, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 2, "Seed", "NextOrdinal", "Trails": [...],
+    ///               "Lifts": [ { ..., "Towers": [...], "Levels": { "BottomMm", "TopMm" } or null } ] },
     ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] } }
     /// </code>
     /// </summary>
@@ -142,6 +145,15 @@ namespace MountainPlanner.Persistence.Saves
                 w.WriteEndObject();
             }
             w.WriteEndArray();
+            w.WritePropertyName("Levels");
+            if (l.Levels is LiftLevels v)
+            {
+                w.WriteStartObject();
+                w.WritePropertyName("BottomMm"); w.WriteValue(v.BottomMm);
+                w.WritePropertyName("TopMm"); w.WriteValue(v.TopMm);
+                w.WriteEndObject();
+            }
+            else w.WriteNull();
             w.WriteEndObject();
         }
 
@@ -276,7 +288,15 @@ namespace MountainPlanner.Persistence.Saves
                 towers.Add(new Tower(new TowerId(HexValue(Str(to, "Id"))), Int(to, "AlongMm"), Int(to, "HeightMm")));
             }
             return new Lift(new LiftId(HexValue(Str(l, "Id"))), Str(l, "Name"), Words.Stage(Str(l, "Stage")), Str(l, "Catalog"),
-                Point(l, "Bottom"), Point(l, "Top"), Words.Mode(Str(l, "TowerMode")), Words.Stance(Str(l, "Stance")), towers);
+                Point(l, "Bottom"), Point(l, "Top"), Words.Mode(Str(l, "TowerMode")), Words.Stance(Str(l, "Stance")), towers, Levels(l));
+        }
+
+        static LiftLevels? Levels(JObject l)
+        {
+            var t = Field(l, "Levels");
+            if (t.Type == JTokenType.Null) return null;
+            var o = AsObj(t);
+            return new LiftLevels(Int(o, "BottomMm"), Int(o, "TopMm"));
         }
 
         static List<TileRef> ReadTiles(JObject o)

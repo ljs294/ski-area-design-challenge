@@ -24,8 +24,8 @@ namespace MountainPlanner.Tests
         [Test]
         public void EachEndsRowMatchesItsTerminalModel()
         {
-            // A hold-down row has the rope_*_hold sockets the rope runs under; a support row has none. (The Monta's own ends
-            // come with task 09: its drive stands at the bottom.)
+            // A hold-down row has the rope_*_hold sockets the rope runs under; a support row has none. (The Monta's own ends:
+            // TW16v3_EachEndIsTheModelStandingThereWithItsRow.)
             var models = Models();
             var type = LiftType.Of(LiftCatalogIds.SesselliftFgq4);
             foreach (var end in new[] { type.Bottom, type.Top })
@@ -47,7 +47,7 @@ namespace MountainPlanner.Tests
             Assert.That(type.Bottom.ExitAlong, Is.EqualTo(along).Within(1e-6));
             Assert.That(type.Bottom.ExitRise, Is.EqualTo(rise).Within(1e-6));
             Assert.That(type.Top.OriginAlong, Is.EqualTo(LiftView.OriginAlong(models, type.Top.Model)).Within(1e-6));
-            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).Bottom.ExitAlong, Is.EqualTo(5.889).Within(1e-9), "the catalog entry is untouched");
+            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).Bottom.ExitAlong, Is.EqualTo(7.880).Within(1e-9), "the catalog entry is untouched");
         }
 
         [Test]
@@ -78,6 +78,61 @@ namespace MountainPlanner.Tests
                         var pose = RopeOverSheaves.Solve(train.Tree, 0, degrees * Mathf.Deg2Rad, false, rho);
                         Assert.That(pose.Clamped, Is.False, $"{side} at {degrees}°: within the stops");
                     }
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        [TestCase(LiftCatalogIds.SesselliftFgq4)]
+        [TestCase(LiftCatalogIds.MontaFg4)]
+        public void TW16v3_EachEndIsTheModelStandingThereWithItsRow(string catalogId)
+        {
+            // Task 09 (the owner's ruling, 2026-10-18: terminals face where their bullwheels are): the Monta drives at the
+            // bottom. Each end's row is the model's (a hold-down row has rope_*_hold sockets), and the catalog's exit and
+            // origin are the model's within 2 cm, so the Domain build and the view solve the same rope.
+            var models = Models();
+            var type = LiftType.Of(catalogId);
+            foreach (var end in new[] { type.Bottom, type.Top })
+            {
+                var prefab = models.Find(end.Model);
+                Assert.That(prefab, Is.Not.Null, end.Model);
+                var rig = prefab.GetComponent<LiftRig>();
+                bool hold = rig.Socket("rope_right_hold") != null && rig.Socket("rope_left_hold") != null;
+                Assert.That(hold, Is.EqualTo(end.Row == TerminalRow.HoldDown), $"{end.Model}: {end.Row}");
+                Assert.That(LiftView.RopeExit(models, end.Model, out float along, out float rise), Is.True, end.Model);
+                LiftView.TerminalExtent(models, end.Model, out float b0, out float a0, out float h0);
+                string measured = $"{end.Model} measures exit {along:F3}/{rise:F3} m, origin {LiftView.OriginAlong(models, end.Model):F3} m, footprint {b0:F3}/{a0:F3}/{h0:F3} m";
+                Assert.That(end.ExitAlong, Is.EqualTo(along).Within(0.02), measured);
+                Assert.That(end.ExitRise, Is.EqualTo(rise).Within(0.02), measured);
+                Assert.That(end.OriginAlong, Is.EqualTo(LiftView.OriginAlong(models, end.Model)).Within(0.02), measured);
+                Assert.That(end.Behind, Is.EqualTo(b0).Within(0.02), measured);
+                Assert.That(end.Ahead, Is.EqualTo(a0).Within(0.02), measured);
+                Assert.That(end.HalfWidth, Is.EqualTo(h0).Within(0.02), measured);
+
+            }
+            Assert.That(type.Bottom.Model, Does.EndWith(catalogId == LiftCatalogIds.MontaFg4 ? "_drive" : "_return"));
+        }
+
+        [Test]
+        public void TW16v3_TheMontaDrivesRowsTakeTheirWholeRange()
+        {
+            // The catalog's 6–16° (LiftType.MontaExitMin/Max): every sheave stays on the rope within the pin stops.
+            var prefab = Models().Find("monta_fg4_drive");
+            if (prefab == null) Assert.Ignore("No Monta drive.");
+            var go = Object.Instantiate(prefab);
+            try
+            {
+                var rig = go.GetComponent<LiftRig>();
+                foreach (string side in new[] { "l", "r" })
+                {
+                    var dir = go.transform.forward;
+                    var train = TrainPosing.Read(rig, side, go.transform.position, dir, Vector3.Cross(Vector3.up, dir));
+                    double rho = LiftType.SheaveRadiusMetres + 0.04445 / 2;
+                    foreach (double radians in new[] { LiftType.MontaExitMin, LiftType.MontaExitMax })
+                        Assert.That(RopeOverSheaves.Solve(train.Tree, 0, radians, false, rho).Clamped, Is.False, $"{side} at {radians * Mathf.Rad2Deg:F1}°");
                 }
             }
             finally

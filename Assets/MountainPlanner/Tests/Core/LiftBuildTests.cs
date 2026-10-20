@@ -40,7 +40,7 @@ namespace MountainPlanner.Tests
             $"towers [{string.Join(", ", b.Towers.Select(t => $"{t.AlongMm / 304.8:F0}/{t.HeightMm / 304.8:F0}"))}], heads [{string.Join(",", b.Rope.Towers.Select(t => t.Head))}], " +
             $"exit {Deg(b.Rope.BottomExitLoaded):F1}/{Deg(b.Rope.BottomExitEmpty):F1}°, top {Deg(b.Rope.TopEntryLoaded):F2}/{Deg(b.Rope.TopEntryEmpty):F2}°, " +
             $"shortfall {b.Rope.Shortfall / Ft:F2} ft at {b.Rope.ShortfallS / Ft:F0} ft, raise {b.BottomRaise / Ft:F0}/{b.TopRaise / Ft:F0} ft, " +
-            $"trench {b.Envelope.DeepestMetres / Ft:F1} ft";
+            $"trench {b.Envelope.DeepestMetres / Ft:F1} ft, rows {(b.Rope.RowsOk ? "ok" : "OVER")}, top tension {b.Rope.TopTensionShare:P0}";
 
         /// <summary>Every rule the lift's geometry answers to, and the document's own (TW-02, TW-03). Some made-up grounds put a
         /// terminal on a slope LF-08 forbids (reported, tested on its own below); the rest must hold everywhere.</summary>
@@ -133,26 +133,30 @@ namespace MountainPlanner.Tests
         [Test]
         public void GR11v2_TheTrenchLetsTheChairsClimbOutOfASteepBottom()
         {
-            // 30% from the bottom terminal on: steeper than the return's row can climb, so a narrow cut under the chairs (both
-            // ropes' paths plus 2 ft) lets them rise to 15 ft by 100 ft; never deeper than 10 ft, cut only, cleared.
-            var natural = new EditedHeights(new Profile(s => 0.3 * s), Lattice, TerrainEdits.Empty);
-            var b = Build(s => 0.3 * s);
-            AssertBuilt(b, "30%");
+            // 24% from the bottom terminal on: steep enough that a narrow cut under the chairs (both ropes' paths plus 2 ft) lets
+            // them rise to 15 ft by 100 ft; never deeper than 10 ft, cut only, cleared. (At 30% the cut would pass 10 ft, so the
+            // terminal is raised instead, TW-16 v3's next remedy: TW16v3_EveryGroundBuildsWithinTheRulesOrSaysWhy.)
+            var natural = new EditedHeights(new Profile(s => 0.24 * s), Lattice, TerrainEdits.Empty);
+            var b = LiftBuild.Build(Quad, natural, West + 100, North - 900, West + 100, North - 100, TowerStance.Leaned);
+            AssertBuilt(b, "24%");
             var e = b.Envelope;
             Assert.That(e.CutCubicMetres, Is.GreaterThan(0));
-            Assert.That(e.DeepestMetres, Is.LessThanOrEqualTo(LiftLineEnvelope.CapMetres + 0.06));
             Assert.That(e.ClearedCells, Is.GreaterThan(0));
             double half = Quad.GaugeMetres / 2 + Quad.ChairHalfWidthMetres + LiftLineEnvelope.MarginMetres;
             Assert.That(e.WidthMetres, Is.LessThanOrEqualTo(2 * (half + e.DeepestMetres) + 2), "the chair paths and their 1:1 sides");
             Assert.That(e.FromS, Is.GreaterThanOrEqualTo(Quad.Bottom.Ahead + TerminalPad.MarginMetres - 1.5 - 1e-6), "from the pad's edge");
             Assert.That(e.ToS, Is.LessThan(b.Rope.Towers[1].BaseS - LiftLineEnvelope.TowerKeepMetres + 1e-6), "clear of the first line tower");
             var edited = new EditedHeights(natural.Source, Lattice, e.Edits);
+            double deepest = 0;
             for (double s = e.FromS; s <= e.ToS; s += 2)
                 for (double d = -half - 15; d <= half + 15; d += 1.5)
                 {
                     double x = West + 100 + d, y = North - 900 + s;
                     Assert.That(edited.At(x, y), Is.LessThanOrEqualTo(natural.At(x, y) + 1e-6), $"cut only at {s:F0} m, {d:F1} m");
+                    deepest = Math.Max(deepest, natural.At(x, y) - edited.At(x, y));
                 }
+            // At most 10 ft, plus the small overcut for the bumps between lattice posts (GR-11 v2).
+            Assert.That(deepest, Is.LessThanOrEqualTo(LiftLineEnvelope.CapMetres + 0.06), "the deepest cut");
         }
 
         [Test]
@@ -176,7 +180,9 @@ namespace MountainPlanner.Tests
                 var b = Build(f, cross);
                 TestContext.Progress.WriteLine($"{name}: {Describe(b)}");
                 AssertBuilt(b, name);
-                Assert.That(Deg(b.Rope.BottomExitEmpty), Is.EqualTo(0.9 * 15.9).Within(0.1), name);
+                // The aim (14.3°), or where a raised bottom terminal leaves it (the last resort), within the row's range.
+                Assert.That(b.BottomRaise > 0 ? Quad.Bottom.Takes(b.Rope.BottomExitEmpty) : Math.Abs(Deg(b.Rope.BottomExitEmpty) - 0.9 * 15.9) <= 0.1,
+                            Is.True, $"{name}: exit {Deg(b.Rope.BottomExitEmpty):F2}°");
                 Assert.That(Deg(b.Rope.TopEntryEmpty), Is.InRange(0, 0.1), name);
             }
             var steep = Build(s => s < 740 ? 0.4 * s : 296);
@@ -208,6 +214,54 @@ namespace MountainPlanner.Tests
             Assert.That(TerrainEditBytes.Encode(b.Edits), Is.EqualTo(TerrainEditBytes.Encode(a.Edits)));
         }
 
+        [TestCase(0.25, 0.0)]
+        [TestCase(0.3, 0.1)]
+        [TestCase(0.45, -0.05)]
+        public void TL3_ALiftsEarthworkReplaysFromWhatsStoredByteForByte(double grade, double cross)
+        {
+            // Task 09 (P3-08's replay, TL3): the earthwork is a search-free function of the stored towers, levels and stance,
+            // and the first build makes it with that same function, so a rebuild on the same ground gives the same bytes.
+            var ground = new EditedHeights(new Profile(s => grade * s + 4 * Math.Sin(s / 40), cross), Lattice, TerrainEdits.Empty);
+            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
+            var b = LiftBuild.Build(Quad, ground, bx, by, tx, ty, TowerStance.Leaned);
+            var stored = b.Towers.Select((t, i) => new Tower(TowerId.Make(1, i), t.AlongMm, t.HeightMm)).ToList();
+            var again = LiftBuild.Earthwork(Quad, ground, bx, by, tx, ty, stored, b.Levels, TowerStance.Leaned);
+            Assert.That(TerrainEditBytes.Encode(again.Edits), Is.EqualTo(TerrainEditBytes.Encode(b.Edits)));
+            Assert.That(again.Rope.Shortfall, Is.EqualTo(b.Rope.Shortfall));
+            Assert.That(b.Levels.BottomMm, Is.EqualTo((int)Math.Round(b.BottomLevel * 1000)), "levels are whole millimetres before grading");
+        }
+
+        [Test]
+        public void TL3_GroundCutElsewhereUnderTheLineLeavesTheRopeWhereItWas()
+        {
+            // A trail cut under a span (never within 15 ft of a tower base, TF-11): the rope hangs from the stored towers and
+            // levels, so it doesn't move; the lift's own cuts only change by what the trail already took.
+            var natural = new EditedHeights(new Profile(s => 0.3 * s), Lattice, TerrainEdits.Empty);
+            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
+            var b = LiftBuild.Build(Quad, natural, bx, by, tx, ty, TowerStance.Plumb);
+            var stored = b.Towers.Select((t, i) => new Tower(TowerId.Make(1, i), t.AlongMm, t.HeightMm)).ToList();
+            // A 2 m cut across the line midway between two towers past the station zone.
+            int k = stored.Count / 2;
+            double mid = (stored[k].AlongMm + stored[k + 1].AlongMm) / 2000.0;
+            TerrainEdits edits;
+            var cut = new Dictionary<EditTileKey, TerrainEditTile.Builder>();
+            int c0 = (int)Math.Round(bx - 15 - West), c1 = (int)Math.Round(bx + 15 - West);
+            int r0 = (int)Math.Round(North - (by + mid + 4)), r1 = (int)Math.Round(North - (by + mid - 4));
+            for (int r = r0; r <= r1; r++)
+                for (int c = c0; c <= c1; c++)
+                {
+                    var key = EditTileKey.Of(c, r);
+                    if (!cut.TryGetValue(key, out var tb)) cut[key] = tb = new TerrainEditTile.Builder(key);
+                    tb.SetDeltaMm(c - key.FirstColumn, r - key.FirstRow, -2000);
+                }
+            edits = TerrainEdits.From(cut.Values.Select(v => v.Build()).ToArray());
+            var withTrail = new EditedHeights(natural.Source, Lattice, edits);
+            var again = LiftBuild.Earthwork(Quad, withTrail, bx, by, tx, ty, stored, b.Levels, TowerStance.Plumb);
+            for (int i = 0; i < stored.Count; i++)
+                Assert.That(again.Rope.Towers[i].RopeY, Is.EqualTo(b.Rope.Towers[i].RopeY).Within(1e-9), $"tower {i}");
+            Assert.That(again.Rope.Shortfall, Is.LessThanOrEqualTo(b.Rope.Shortfall + 1e-9));
+        }
+
         [Test]
         public void TW12_AOneMileLinePlacesWithinFiftyMilliseconds()
         {
@@ -228,9 +282,11 @@ namespace MountainPlanner.Tests
 
         // Real ground: the committed Jackson Hole 2 km package, a fixed fan of lines.
 
-        [Test]
-        public void TW16v3_AFanOfRealLinesBuildsWithinTheRules()
+        [TestCase(LiftCatalogIds.SesselliftFgq4)]
+        [TestCase(LiftCatalogIds.MontaFg4)]
+        public void TW16v3_AFanOfRealLinesBuildsWithinTheRules(string catalogId)
         {
+            var quad = LiftType.Of(catalogId);
             string dir = TestData.Folder("jackson-hole-2km");
             foreach (string file in Directory.GetFiles(dir, "*.grid")) TestData.Bytes(dir, Path.GetFileName(file));
             var m = ResortPackage.ReadManifest(dir);
@@ -239,6 +295,8 @@ namespace MountainPlanner.Tests
             var natural = new EditedHeights(heights, new EditLattice(tiles.West, tiles.North), TerrainEdits.Empty);
             int built = 0, red = 0, gentle = 0, steep = 0, crested = 0, sidehill = 0;
             var problems = new List<string>();
+            var buildMs = new List<double>();
+            var heads = new SortedDictionary<LiftRope.Head, int>();
             // Where a terminal could stand (LF-08): natural ground varying by 10 ft or less over a 40 ft square, on a 20 m grid.
             double cx = m.Site.CentreX, cy = m.Site.CentreY, half = m.Site.SizeMetres / 2 - 60;
             var sites = new List<(double X, double Y, double H)>();
@@ -282,14 +340,26 @@ namespace MountainPlanner.Tests
                 if (grade > 0.4) steep++;
                 if (bend > 10) crested++;
                 if (side > 0.25) sidehill++;
-                var b = LiftBuild.Build(Quad, natural, ax, ay, bx, by, TowerStance.Leaned);
+                var sw = Stopwatch.StartNew();
+                var b = LiftBuild.Build(quad, natural, ax, ay, bx, by, TowerStance.Leaned);
+                foreach (var t in b.Rope.Towers) heads[t.Head] = heads.TryGetValue(t.Head, out int c) ? c + 1 : 1;
+                buildMs.Add(sw.Elapsed.TotalMilliseconds);
                 built++;
                 string what = $"({ax - cx:F0}, {ay - cy:F0}) to ({bx - cx:F0}, {by - cy:F0}) m ({length / Ft:F0} ft, {grade:P0}, bend {bend:F0} m, side {side:P0})";
                 TestContext.Progress.WriteLine($"{what}: {(b.Ok ? "ok" : "RED")} {Describe(b)}");
                 if (!b.Rope.TerminalsOk) problems.Add(what + ": " + Describe(b));
-                if (!b.Ok) red++;
+                if (!b.Ok)
+                {
+                    red++;
+                    // Task 09: a line nothing fits is red with a named reason, never a silent failure.
+                    Assert.That(b.Problems, Is.Not.Empty, what);
+                    TestContext.Progress.WriteLine("    " + string.Join("; ", b.Problems));
+                }
                 Assert.That(b.Towers.Max(t => t.HeightMm), Is.LessThanOrEqualTo(DesignUnits.TowerMaxMm), what);
             }
+            buildMs.Sort();
+            TestContext.Progress.WriteLine($"LiftBuild over the fan: median {buildMs[buildMs.Count / 2]:F0} ms, slowest {buildMs[buildMs.Count - 1]:F0} ms");
+            TestContext.Progress.WriteLine($"heads: {string.Join(", ", heads.Select(kv => $"{kv.Key} {kv.Value}"))}");
             TestContext.Progress.WriteLine($"{built} lines: {red} red; gentle {gentle}, steep {steep}, crest or hollow {crested}, sidehill {sidehill}");
             // Every terminal takes its rope (TW-16 v3); most lines build within every rule. The rest are red for a rule the
             // tool will show: a crest too sharp for the room on cliffy ground (TW-06), or a small shortfall just past a low

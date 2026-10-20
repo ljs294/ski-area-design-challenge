@@ -12,7 +12,7 @@ namespace MountainPlanner.Domain.Design
     public sealed class DesignDocument
     {
         /// <summary>The shape of the authored data. Task 04's save file freezes it; a change bumps this.</summary>
-        public const int ShapeVersion = 1;
+        public const int ShapeVersion = 2;
 
         /// <summary>The design's key seed: every ID is a keyed hash of it (SH-04).</summary>
         public ulong Seed { get; }
