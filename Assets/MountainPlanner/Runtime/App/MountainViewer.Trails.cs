@@ -304,10 +304,11 @@ namespace MountainPlanner.App
             var rebuilt = _edits.Earthwork.Rebuild(after.Document, history.Terrain);
             var heights = _edits.Pipeline.Heights;
             var pending = new EditedHeights(heights.Source, heights.Lattice, rebuilt.Edits);
-            var contours = new List<double>();
-            PendingContours.Build(heights, pending, rebuilt.Changed, UnitFormat.ContourIntervalMetres(DisplayUnits.Current), contours);
+            // As the tool runs it: the contours across threads while the rating runs here.
+            var contours = System.Threading.Tasks.Task.Run(() => TrailTool.Contours(heights, pending, rebuilt.Changed, UnitFormat.ContourIntervalMetres(DisplayUnits.Current)));
             if (after.Created.Count > 0 && rebuilt.DetailOf(after.Created[0]) is TrailBuild b && b.Grade != null)
                 TrailRating.Rate(pending, b.Footprint, b.Grade);
+            contours.Wait();
             ms = watch.Elapsed.TotalMilliseconds;
             return rebuilt;
         }

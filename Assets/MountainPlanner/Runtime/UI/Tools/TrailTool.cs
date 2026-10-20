@@ -590,14 +590,15 @@ namespace MountainPlanner.UI.Tools
                 if (!after.Accepted) { a.Problem = after.Reason; return a; }
                 a.Rebuild = earthwork.Rebuild(after.Document, committed);
                 var pending = new EditedHeights(heights.Source, heights.Lattice, a.Rebuild.Edits);
-                a.Contours = new List<double>();
-                PendingContours.Build(heights, pending, a.Rebuild.Changed, interval, a.Contours);
-                if (remove) return a;
+                // The contours on other threads while the rating runs here (CF-09's budget on a 1 km run, TL18).
+                var contours = System.Threading.Tasks.Task.Run(() => Contours(heights, pending, a.Rebuild.Changed, interval));
+                if (remove) { a.Contours = contours.Result; return a; }
                 ulong id = key != 0 ? key : after.Created[0];
                 // A change that moves no ground (a rename) regrades nothing: the trail's last grade stands.
                 a.Build = (a.Rebuild.DetailOf(id) ?? earthwork.DetailOf(id)) as TrailBuild;
                 if (a.Build?.Grade == null) { a.Problem = "No way through the painted area joins the head to the tail."; return a; }
                 a.Rating = TrailRating.Rate(pending, a.Build.Footprint, a.Build.Grade);
+                a.Contours = contours.Result;
                 return a;
             }, a =>
             {
@@ -610,6 +611,24 @@ namespace MountainPlanner.UI.Tools
                 if (_step == Step.Review) { BuildReview(); _ctx.Window.ShowReview(_review); }
                 else if (_step == Step.Ends) EndsStatus();
             });
+        }
+
+        /// <summary>
+        /// The pending contours (CF-08), a tile at a time across threads, joined in tile order: the same segments as one
+        /// <see cref="PendingContours.Build"/> over all of them.
+        /// </summary>
+        public static List<double> Contours(EditedHeights current, EditedHeights pending, IReadOnlyList<EditTileKey> tiles, double interval)
+        {
+            var parts = new List<double>[tiles.Count];
+            System.Threading.Tasks.Parallel.For(0, tiles.Count, k =>
+            {
+                var part = new List<double>();
+                PendingContours.Build(current, pending, new[] { tiles[k] }, interval, part);
+                parts[k] = part;
+            });
+            var all = new List<double>();
+            foreach (var part in parts) all.AddRange(part);
+            return all;
         }
 
         void DropAnalysis()
