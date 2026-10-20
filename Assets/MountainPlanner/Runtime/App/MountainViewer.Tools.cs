@@ -70,6 +70,8 @@ namespace MountainPlanner.App
                     var a = _resort.Frame.ToAlbers((float)p.XMetres, (float)p.YMetres);
                     return (a.X, a.Y);
                 },
+                BottomGhost = _ghosts[0] ??= Lifts != null ? new Presentation.Lifts.TerminalGhost(_resort.Root.transform, Lifts) : null,
+                TopGhost = _ghosts[1] ??= Lifts != null ? new Presentation.Lifts.TerminalGhost(_resort.Root.transform, Lifts) : null,
             }, Hud.OpenWindow);
             _tools.ActiveChanged += Hud.SetActiveTool;
             _tools.Notice += text => Hud.Toast(text);
@@ -97,8 +99,16 @@ namespace MountainPlanner.App
             return h == 0 ? 1 : h;
         }
 
+        // The terminals being placed (task 09, LT19): made once per area, shared by every New lift.
+        readonly Presentation.Lifts.TerminalGhost[] _ghosts = new Presentation.Lifts.TerminalGhost[2];
+
         void StopTools()
         {
+            for (int i = 0; i < _ghosts.Length; i++)
+            {
+                _ghosts[i]?.Dispose();
+                _ghosts[i] = null;
+            }
             _tools?.Close();
             _preview?.Dispose();
             _designOverlay?.Dispose();
@@ -217,6 +227,55 @@ namespace MountainPlanner.App
             return lift.CurrentStep == 3;
         }
 
+        /// <summary>
+        /// For captures (task 09, LT19–LT22): New lift with the bottom terminal's ghost turned 30° and raised 5 ft over a spot
+        /// that can take it; with <paramref name="top"/>, the bottom placed and the top's ghost aimed up the hill, 3 ft up.
+        /// </summary>
+        internal bool LiftGhostForCapture(bool top)
+        {
+            _groundForCapture = null;
+            if (_tools == null || !_tools.Choose(NewLiftTool.ToolId) || !(_tools.Active is NewLiftTool lift)) return false;
+            var cam = Camera.GetComponent<UnityEngine.Camera>();
+            if (!CoreSpot(new Vector2(0.55f, 0.4f), out var at)) return false;
+            var saved = _pointer;
+            _pointer = at;
+            var g = ReadToolInput(cam).Ground;
+            _pointer = saved;
+            for (int i = 0; i < 6; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.TurnLeft });
+            for (int i = 0; i < 5; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.LevelUp });
+            if (!top)
+            {
+                _groundForCapture = g;
+                Camera.Frame(g, 48);
+                Camera.SetAngles(Camera.Yaw + 35, 30);
+                return true;
+            }
+            _tools.Tick(GroundInput(g, click: true));
+            if (lift.CurrentStep != 1) return false;
+            for (int i = 0; i < 3; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.LevelUp });
+            // The top 260 m up the fall line from the bottom, framed from the side.
+            float hx = _resort.Surface.HeightAt(g.x + 10, g.z) - _resort.Surface.HeightAt(g.x - 10, g.z);
+            float hz = _resort.Surface.HeightAt(g.x, g.z + 10) - _resort.Surface.HeightAt(g.x, g.z - 10);
+            var up = new Vector3(hx, 0, hz).normalized;
+            var t = g + up * 260;
+            t.y = _resort.Surface.HeightAt(t.x, t.z);
+            _groundForCapture = t;
+            Camera.Frame(t, 75);
+            Camera.SetAngles(Mathf.Atan2(up.x, up.z) * Mathf.Rad2Deg + 30, 48);
+            return true;
+        }
+
+        // For captures: the ground the armed tool sees each frame instead of the pointer's (a fixed spot while the shot waits).
+        Vector3? _groundForCapture;
+
+        internal void ClearGroundForCapture() => _groundForCapture = null;
+
+        ToolInput GroundInput(Vector3 g, bool click)
+        {
+            g.y = _resort.Surface.HeightAt(g.x, g.z);
+            return new ToolInput { HasGround = true, Ground = g, Point = DesignFrame.ToDesign(g), InCore = _resort.Core.Contains(new Vector2(g.x, g.z)), Click = click };
+        }
+
         /// <summary>For captures: New trail painted between two spots in the core, head and tail set, at its review.</summary>
         internal bool TrailReviewForCapture()
         {
@@ -254,6 +313,7 @@ namespace MountainPlanner.App
 
         ToolInput ReadToolInput(UnityEngine.Camera cam)
         {
+            if (_groundForCapture.HasValue) return GroundInput(_groundForCapture.Value, false);
             var input = new ToolInput();
             var mouse = Mouse.current;
             var keys = Keyboard.current;
@@ -301,6 +361,17 @@ namespace MountainPlanner.App
                 if (KeyBindings.Pressed(keys, GameAction.TowerUp)) input.Keys |= ToolKeys.TowerUp;
                 if (KeyBindings.Pressed(keys, GameAction.TowerDown)) input.Keys |= ToolKeys.TowerDown;
                 if (KeyBindings.Pressed(keys, GameAction.DeleteSelected)) input.Keys |= ToolKeys.Delete;
+                // P3-09: the terminal in hand (LT19, LT21).
+                if (KeyBindings.PressedAnyShift(keys, GameAction.TerminalTurnLeft)) input.Keys |= ToolKeys.TurnLeft;
+                if (KeyBindings.PressedAnyShift(keys, GameAction.TerminalTurnRight)) input.Keys |= ToolKeys.TurnRight;
+                if (KeyBindings.Pressed(keys, GameAction.TerminalLevelUp)) input.Keys |= ToolKeys.LevelUp;
+                if (KeyBindings.Pressed(keys, GameAction.TerminalLevelDown)) input.Keys |= ToolKeys.LevelDown;
+                input.Shift = keys.shiftKey.isPressed;
+                if (input.Shift && mouse != null && KeyBindings.IsClaimed(GameAction.TerminalTurnLeft) && !input.OverPanel)
+                {
+                    float scroll = mouse.scroll.ReadValue().y;
+                    if (Mathf.Abs(scroll) > 0.01f) input.TurnNotches = Mathf.Abs(scroll) >= 60 ? scroll / 120f : Mathf.Sign(scroll);
+                }
             }
             return input;
         }

@@ -19,6 +19,8 @@ namespace MountainPlanner.Presentation
         ToolNew, ToolEdit, ToolRemove,
         ToolNext, BreakGround, BrushNarrower, BrushWider, Erase, UndoStroke, TowerUp, TowerDown, DeleteSelected, ToolWindowKeys,
         Undo, Redo,
+        // P3-09 (LT19, LT21): the terminal being placed turns (a preview of the space it takes) and sets its level.
+        TerminalTurnLeft, TerminalTurnRight, TerminalLevelUp, TerminalLevelDown,
     }
 
     [Flags]
@@ -149,6 +151,12 @@ namespace MountainPlanner.Presentation
             new Info("Building", "Use the tool window with the keys", Context.Tray, new KeyChord(Key.Tab)),
             new Info("Game", "Undo", Context.Normal, new KeyChord(Key.Z, KeyMods.Ctrl)),
             new Info("Game", "Redo", Context.Normal, new KeyChord(Key.Y, KeyMods.Ctrl), new KeyChord(Key.Z, KeyMods.Ctrl | KeyMods.Shift)),
+            // P3-09 (LT21): turn the terminal in hand 5° (Shift 45°; Shift + wheel too); its level 1 ft (LT19), claimed while
+            // a terminal is in hand, so Page Up / Page Down zoom otherwise.
+            new Info("Building", "Turn the terminal left", Context.Tray, new KeyChord(Key.Comma)),
+            new Info("Building", "Turn the terminal right", Context.Tray, new KeyChord(Key.Period)),
+            new Info("Building", "Terminal up 1 ft", Context.Tray, new KeyChord(Key.PageUp)),
+            new Info("Building", "Terminal down 1 ft", Context.Tray, new KeyChord(Key.PageDown)),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>
@@ -242,6 +250,24 @@ namespace MountainPlanner.Presentation
             {
                 var c = Bound[i + s];
                 if (c.IsNone || c.Mods != mods || (!letters && IsLetter(c.Key)) || Shadowed((int)action, c)) continue;
+                if (keyboard[c.Key].wasPressedThisFrame) return true;
+            }
+            return false;
+        }
+
+        /// <summary>The action's key went down this frame; Shift is free (it means a bigger step) unless the binding has it.</summary>
+        public static bool PressedAnyShift(Keyboard keyboard, GameAction action)
+        {
+            if (keyboard == null) return false;
+            Load();
+            var mods = ModsOf(keyboard);
+            int i = (int)action * Slots;
+            for (int s = 0; s < Slots; s++)
+            {
+                var c = Bound[i + s];
+                if (c.IsNone || Shadowed((int)action, c)) continue;
+                var need = c.Mods & ~KeyMods.Shift;
+                if ((mods & ~KeyMods.Shift) != need || ((c.Mods & KeyMods.Shift) != 0 && (mods & KeyMods.Shift) == 0)) continue;
                 if (keyboard[c.Key].wasPressedThisFrame) return true;
             }
             return false;

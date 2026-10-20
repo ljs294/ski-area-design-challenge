@@ -283,6 +283,19 @@ namespace MountainPlanner.App.Flow
                 h.SetToolboxTab("lifts"); h.SetToolbox(on);
                 if (on && !v.LiftReviewForCapture()) Debug.LogWarning("[UiCapture] tool-lift-review: no spot where a lift could sit");
             }),
+            // Task 09 (LT19–LT22): the terminal being placed as its own model, turned and raised; then the top's while aiming.
+            ("tool-lift-ghost", false, (h, v, on) =>
+            {
+                if (!on) { v.ClearGroundForCapture(); v.Tools?.Close(); }
+                h.SetToolboxTab("lifts"); h.SetToolbox(on);
+                if (on && !v.LiftGhostForCapture(false)) Debug.LogWarning("[UiCapture] tool-lift-ghost: no spot in the core");
+            }),
+            ("tool-lift-ghost-top", false, (h, v, on) =>
+            {
+                if (!on) { v.ClearGroundForCapture(); v.Tools?.Close(); }
+                h.SetToolboxTab("lifts"); h.SetToolbox(on);
+                if (on && !v.LiftGhostForCapture(true)) Debug.LogWarning("[UiCapture] tool-lift-ghost-top: the bottom didn't place");
+            }),
             ("tool-trail-review", false, (h, v, on) =>
             {
                 if (!on) v.Tools?.Close();

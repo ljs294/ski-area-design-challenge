@@ -1,13 +1,17 @@
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Presentation;
 using MountainPlanner.Presentation.Design;
+using MountainPlanner.Presentation.Lifts;
 using UnityEngine;
 
 namespace MountainPlanner.UI.Tools
 {
     /// <summary>
-    /// Toolbox › Lifts › New (LF-01 to LF-03, LF-08; P3-06's part). The bottom terminal follows the pointer, green
-    /// where it can sit; a click anchors it; a second click places the top terminal and fixes the line. Step 3, Towers,
+    /// Toolbox › Lifts › New (LF-01 to LF-03, LF-08; P3-06's part; task 09's plop, LT19–LT22). The bottom terminal's own
+    /// model follows the pointer, see-through and green where it can stand, amber where it will stand higher on its pier,
+    /// red where it can't; Shift + wheel or , and . turn it (a preview of the space it takes, LT20) and Page Up / Page Down
+    /// set its level. A click anchors it; the top terminal then follows the pointer facing back along the line, with its
+    /// own level, and a second click fixes the line. Step 3, Towers,
     /// holds the Automatic or By hand switch (LF-01) and the tower in hand's height (Page Up / Page Down, LF-09); placing
     /// towers along the line is task 09's. Break ground submits <see cref="AddLift"/> (CF-05, CF-06).
     /// </summary>
@@ -48,6 +52,16 @@ namespace MountainPlanner.UI.Tools
         // being worked out (off the main thread, CF-02) or the ground isn't ready.
         LiftBuild.Result _built;
         bool _building;
+        // Task 09's plop (LT19–LT22): the bottom's preview turn (degrees from uphill), each terminal's level set by hand
+        // (feet above the ground at its origin), and the type the ghosts show.
+        float _turnDeg;
+        int _bottomLevelFt, _topLevelFt;
+        float _bottomGround, _topGround;
+        Vector2 _bottomFacing = Vector2.up;
+        LiftType _liftType;
+        int _liftTypeOf = -1;
+        const int LevelMinFt = -10, LevelMaxFt = 30;
+        const float MaxSitingFeet = 40;   // LC-09: amber past this, still placeable
 
         public string Id => ToolId;
         public string Name => "New lift";
@@ -89,17 +103,26 @@ namespace MountainPlanner.UI.Tools
             bool towersInHand = step == Step.Towers && _mode == TowerMode.ByHand;
             _ctx.Claim(GameAction.TowerUp, towersInHand);
             _ctx.Claim(GameAction.TowerDown, towersInHand);
+            // LT19, LT21: a terminal in hand turns (the bottom only: the top faces the line) and takes its level.
+            bool terminalInHand = step == Step.First || step == Step.Other;
+            _ctx.Claim(GameAction.TerminalTurnLeft, step == Step.First);
+            _ctx.Claim(GameAction.TerminalTurnRight, step == Step.First);
+            _ctx.Claim(GameAction.TerminalLevelUp, terminalInHand);
+            _ctx.Claim(GameAction.TerminalLevelDown, terminalInHand);
+            if (step == Step.First) _ctx.TopGhost?.Hide();
             switch (step)
             {
                 case Step.First:
-                    w.SetHint("The bottom terminal follows the pointer, green where it can sit. Click to anchor it: the dot is its bullwheel.");
-                    w.SetKeys();
+                    w.SetHint("The bottom terminal follows the pointer, green where it can stand. Click to place it: the dot is its bullwheel.");
+                    w.SetKeys((GameAction.TerminalTurnLeft, "turn"), (GameAction.TerminalTurnRight, "turn"),
+                              (GameAction.TerminalLevelUp, "higher"), (GameAction.TerminalLevelDown, "lower"));
                     w.SetNext(false, false);
                     w.ShowReview(null);
                     w.SetCommit(false, false);
                     break;
                 case Step.Other:
                     w.SetHint("Click far up the mountain to place the top terminal. That fixes the line.");
+                    w.SetKeys((GameAction.TerminalLevelUp, "higher"), (GameAction.TerminalLevelDown, "lower"));
                     w.SetNext(false, false);
                     break;
                 case Step.Towers:
@@ -130,36 +153,57 @@ namespace MountainPlanner.UI.Tools
             {
                 case Step.First:
                 {
-                    if (!input.HasGround) { Draw(default, false); return; }
+                    // LT21: turn (5°, Shift 45°, a wheel notch 15°) and level (1 ft) the terminal in hand.
+                    if (input.Pressed(ToolKeys.TurnLeft)) _turnDeg += input.Shift ? 45 : 5;
+                    if (input.Pressed(ToolKeys.TurnRight)) _turnDeg -= input.Shift ? 45 : 5;
+                    _turnDeg = Mathf.Repeat(_turnDeg + input.TurnNotches * 15, 360);
+                    StepLevel(input, ref _bottomLevelFt);
+                    if (!input.HasGround) { Draw(default, false); _ctx.BottomGhost?.Hide(); return; }
                     var at = new Vector2(input.Ground.x, input.Ground.z);
-                    _problem = Siting(at);
+                    var facing = Turn(Uphill(at), _turnDeg);
+                    var end = Type.Bottom;
+                    var tint = Site(end, at, facing, out float ground, out float relief);
+                    float level = ground + _bottomLevelFt * 0.3048f;
+                    _problem = tint == GhostTint.Bad ? "A terminal must stand inside the area" : null;
+                    _ctx.BottomGhost?.Show(end.Model, new Vector3(at.x, level, at.y), level, new Vector3(facing.x, 0, facing.y), tint);
                     Draw(at, true);
-                    _ctx.Window.SetMessage(_problem);
+                    if (_problem != null) { _ctx.Window.SetMessage(_problem); _levelKey = int.MinValue; }
+                    else Levelling("Bottom", level, _bottomLevelFt, relief);
                     if (input.Click && _problem == null)
                     {
                         _bottom = input.Point;
                         _bottomXz = at;
-                        _bottomZ = input.Ground.y;
+                        _bottomZ = level;
+                        _bottomGround = ground;
+                        _bottomFacing = facing;
                         Go(Step.Other);
                     }
                     break;
                 }
                 case Step.Other:
                 {
-                    if (!input.HasGround) { Draw(default, false); return; }
+                    StepLevel(input, ref _topLevelFt);
+                    if (!input.HasGround) { Draw(default, false); _ctx.TopGhost?.Hide(); return; }
                     var at = new Vector2(input.Ground.x, input.Ground.z);
-                    float z = input.Ground.y;
-                    _problem = Siting(at)
+                    var up = at - _bottomXz;
+                    var along = up.sqrMagnitude > 1e-4f ? up.normalized : _bottomFacing;
+                    // LF-02: the anchored bottom swings to face the pointer; the top faces back along the line (LT20).
+                    _ctx.BottomGhost?.Show(Type.Bottom.Model, new Vector3(_bottomXz.x, _bottomZ, _bottomXz.y), _bottomZ, new Vector3(along.x, 0, along.y), GhostTint.Ok);
+                    var tint = Site(Type.Top, at, -along, out float ground, out float relief);
+                    float z = ground + _topLevelFt * 0.3048f;
+                    _problem = (tint == GhostTint.Bad ? "A terminal must stand inside the area" : null)
                         ?? (z <= _bottomZ ? "The top terminal must be higher" : null)
                         ?? (Vector2.Distance(at, _bottomXz) < MinApartMetres ? "The terminals stand at least 300 ft apart" : null);
+                    _ctx.TopGhost?.Show(Type.Top.Model, new Vector3(at.x, z, at.y), z, new Vector3(-along.x, 0, -along.y), _problem != null ? GhostTint.Bad : tint);
                     Draw(at, true);
-                    _ctx.Window.SetMessage(_problem);
-                    Aiming(at, z);
+                    if (_problem != null) { _ctx.Window.SetMessage(_problem); _levelKey = int.MinValue; }
+                    else Levelling("Top", z, _topLevelFt, relief, Vector2.Distance(at, _bottomXz), z - _bottomZ);
                     if (input.Click && _problem == null)
                     {
                         _top = input.Point;
                         _topXz = at;
                         _topZ = z;
+                        _topGround = ground;
                         Go(Step.Towers);
                     }
                     break;
@@ -177,31 +221,86 @@ namespace MountainPlanner.UI.Tools
             }
         }
 
-        // The hint's figures while aiming, rebuilt only when the rounded length changes (no string a frame).
-        void Aiming(Vector2 at, float z)
+        LiftType Type
         {
-            float run = Vector2.Distance(at, _bottomXz);
-            int key = ToolFormat.LengthKey(run) * 31 + ToolFormat.LengthKey(z - _bottomZ);
-            if (key == _hintKey) return;
-            _hintKey = key;
-            _ctx.Window.SetHint($"Click far up the mountain to place the top terminal. {ToolFormat.Length(run)} across · rise {ToolFormat.Length(z - _bottomZ)} · {ToolFormat.Grade(z - _bottomZ, run)}");
+            get
+            {
+                if (_liftTypeOf != _type) { _liftType = LiftType.Of(TypeIds[_type]); _liftTypeOf = _type; }
+                return _liftType;
+            }
         }
 
-        /// <summary>LF-08 (P3-06's part): inside the core box, on the ground, the ground under it within 10 ft. Lakes and roads are task 09's.</summary>
-        string Siting(Vector2 at)
+        void StepLevel(in ToolInput input, ref int feet)
         {
-            if (!_ctx.InCore(at + new Vector2(TerminalRadius, TerminalRadius)) || !_ctx.InCore(at - new Vector2(TerminalRadius, TerminalRadius)))
-                return "A terminal must stand inside the area";
+            if (input.Pressed(ToolKeys.LevelUp)) feet = Mathf.Min(LevelMaxFt, feet + 1);
+            if (input.Pressed(ToolKeys.LevelDown)) feet = Mathf.Max(LevelMinFt, feet - 1);
+        }
+
+        /// <summary>The way up the hill at <paramref name="at"/> (the mockup's default facing), or north on the flat.</summary>
+        Vector2 Uphill(Vector2 at)
+        {
+            const float d = 10;
+            float gx = _ctx.HeightAt(at + new Vector2(d, 0)) - _ctx.HeightAt(at - new Vector2(d, 0));
+            float gz = _ctx.HeightAt(at + new Vector2(0, d)) - _ctx.HeightAt(at - new Vector2(0, d));
+            var g = new Vector2(gx, gz);
+            return float.IsNaN(g.x) || float.IsNaN(g.y) || g.sqrMagnitude < 1e-6f ? Vector2.up : g.normalized;
+        }
+
+        static Vector2 Turn(Vector2 v, float degrees)
+        {
+            float r = degrees * Mathf.Deg2Rad, c = Mathf.Cos(r), s = Mathf.Sin(r);
+            return new Vector2(v.x * c - v.y * s, v.x * s + v.y * c);
+        }
+
+        /// <summary>
+        /// LF-08 over the terminal's real footprint as it faces (<see cref="TerminalEnd"/>, measured on its model): red
+        /// outside the area; amber where the ground under it varies more than 10 ft, so it stands higher on its pier
+        /// (LF-08 v2, LC-09); green otherwise. <paramref name="ground"/> is the ground at its origin (its 0.00 level).
+        /// </summary>
+        GhostTint Site(TerminalEnd end, Vector2 at, Vector2 facing, out float ground, out float relief)
+        {
+            var side = new Vector2(facing.y, -facing.x);
+            ground = _ctx.HeightAt(at + facing * (float)end.OriginAlong);
+            relief = 0;
             float lo = float.MaxValue, hi = float.MinValue;
-            for (int i = 0; i <= 8; i++)
-            {
-                var p = i == 8 ? at : at + TerminalRadius * new Vector2(Mathf.Cos(i * Mathf.PI / 4), Mathf.Sin(i * Mathf.PI / 4));
-                float h = _ctx.HeightAt(p);
-                if (float.IsNaN(h)) return "A terminal must stand inside the area";
-                lo = Mathf.Min(lo, h);
-                hi = Mathf.Max(hi, h);
-            }
-            return hi - lo > SitingReliefMetres ? "Too steep here: the ground under a terminal varies by 10 ft at most" : null;
+            for (float a = -(float)end.Behind; a <= (float)end.Ahead + 1e-3f; a += 2)
+                for (float w = -(float)end.HalfWidth; w <= (float)end.HalfWidth + 1e-3f; w += 2)
+                {
+                    var p = at + facing * a + side * w;
+                    float h = _ctx.HeightAt(p);
+                    if (!_ctx.InCore(p) || float.IsNaN(h)) return GhostTint.Bad;
+                    lo = Mathf.Min(lo, h);
+                    hi = Mathf.Max(hi, h);
+                }
+            if (float.IsNaN(ground)) return GhostTint.Bad;
+            relief = hi - lo;
+            return relief > SitingReliefMetres ? GhostTint.Raised : GhostTint.Ok;
+        }
+
+        // The window's line about the terminal in hand: its level (LT19) and the ground under it, rebuilt only when either
+        // changes by a foot (no string a frame).
+        void Levelling(string which, float level, int handFeet, float relief, float run = 0, float rise = 0)
+        {
+            int key = Mathf.RoundToInt(level / 0.3048f) * 4096 + handFeet * 64 + Mathf.Min(63, Mathf.RoundToInt(relief / 0.3048f / 5));
+            key = key * 31 + ToolFormat.LengthKey(run) * 17 + ToolFormat.LengthKey(rise);
+            if (key == _levelKey) return;
+            _levelKey = key;
+            string hand = handFeet == 0 ? "" : $" ({(handFeet > 0 ? "+" : "−")}{System.Math.Abs(handFeet)} ft)";
+            string place = which == "Bottom"
+                ? "The bottom terminal follows the pointer, green where it can stand. Click to place it: the dot is its bullwheel."
+                : $"Click far up the mountain to place the top terminal. {ToolFormat.Length(run)} across · rise {ToolFormat.Length(rise)} · {ToolFormat.Grade(rise, run)}";
+            _ctx.Window.SetHint(place + "\n" + which + " terminal level " + ToolFormat.Length(level) + hand);
+            bool steep = relief > SitingReliefMetres;
+            _ctx.Window.SetMessage(steep ? $"The ground under it varies {ToolFormat.Length(relief)}: it stands higher on its pier{(relief > MaxSitingFeet * 0.3048f ? " (over 40 ft)" : "")}" : null, true);
+        }
+
+        int _levelKey = int.MinValue;
+
+        // The ring round a terminal while there's no model to show it (LT19: the model itself, when the lift models are there).
+        void Mark(int slot, Vector2 at, PreviewInk ink)
+        {
+            if (_ctx.BottomGhost != null) _ctx.Preview.Hide(slot);
+            else _ctx.Preview.Ring(slot, at, TerminalRadius, ink);
         }
 
         void Draw(Vector2 pointer, bool hasPointer)
@@ -211,19 +310,19 @@ namespace MountainPlanner.UI.Tools
             switch (_step)
             {
                 case Step.First:
-                    if (hasPointer) { p.Ring(0, pointer, TerminalRadius, ink); p.Dot(1, pointer, ink); }
+                    if (hasPointer) { Mark(0, pointer, ink); p.Dot(1, pointer, ink); }
                     else p.HideFrom(0);
                     p.HideFrom(2);
                     break;
                 case Step.Other:
-                    p.Ring(0, _bottomXz, TerminalRadius, PreviewInk.Line);
+                    Mark(0, _bottomXz, PreviewInk.Line);
                     p.Dot(1, _bottomXz, PreviewInk.Line);
                     if (hasPointer)
                     {
                         _line[0] = _bottomXz;
                         _line[1] = pointer;
                         p.Line(2, _line, 2, ink);
-                        p.Ring(3, pointer, TerminalRadius, ink);
+                        Mark(3, pointer, ink);
                         p.Dot(4, pointer, ink);
                     }
                     else p.HideFrom(2);
@@ -231,10 +330,10 @@ namespace MountainPlanner.UI.Tools
                 default:
                     _line[0] = _bottomXz;
                     _line[1] = _topXz;
-                    p.Ring(0, _bottomXz, TerminalRadius, PreviewInk.Line);
+                    Mark(0, _bottomXz, PreviewInk.Line);
                     p.Dot(1, _bottomXz, PreviewInk.Line);
                     p.Line(2, _line, 2, PreviewInk.Line);
-                    p.Ring(3, _topXz, TerminalRadius, PreviewInk.Line);
+                    Mark(3, _topXz, PreviewInk.Line);
                     p.Dot(4, _topXz, PreviewInk.Line);
                     break;
             }
@@ -261,7 +360,8 @@ namespace MountainPlanner.UI.Tools
             var t = _ctx.ToGround(_top);
             var type = LiftType.Of(TypeIds[_type]);
             var stance = _stance;
-            _ctx.Analyse(() => LiftBuild.Build(type, ground, b.X, b.Y, t.X, t.Y, stance), result =>
+            double bottomHand = _bottomLevelFt * 0.3048, topHand = _topLevelFt * 0.3048;   // LT19: the levels set by hand
+            _ctx.Analyse(() => LiftBuild.Build(type, ground, b.X, b.Y, t.X, t.Y, stance, null, bottomHand, topHand), result =>
             {
                 _building = false;
                 if (_step != Step.Review) return;
@@ -284,7 +384,7 @@ namespace MountainPlanner.UI.Tools
                 .Reserved("Network", "NW-12: No way down (task 10)", ReviewModel.NetworkSlot);
             if (_built == null)
             {
-                _review.Add("Towers", _building ? "placing…" : "—", "TW-12").Ready(false, true);
+                _review.Add("Towers", _building ? "placing…" : "—", "TW-12").Ready(_ctx.EditedGround == null, true);
                 return;
             }
             var rope = _built.Rope;
@@ -313,7 +413,9 @@ namespace MountainPlanner.UI.Tools
         {
             if (_step != Step.Review) return null;
             // Break ground carries the built lift's towers and levels (TW-15, SK14); a plan carries the line only (CF-06).
-            if (stage == WorkStage.Built && _built == null) return null;
+            // Without the game's ground (tests, labs: no EditedGround hook) it breaks ground on the line alone, as P3-06 did.
+            if (stage == WorkStage.Built && _built == null && _ctx.EditedGround != null) return null;
+            if (_built == null) return new AddLift(baseRevision, _name, TypeIds[_type], _bottom, _top, _mode, _stance, null, stage);
             return stage == WorkStage.Built
                 ? new AddLift(baseRevision, _name, TypeIds[_type], _bottom, _top, _mode, _stance, _built.Towers, stage, _built.Levels)
                 : new AddLift(baseRevision, _name, TypeIds[_type], _bottom, _top, _mode, _stance, null, stage);
@@ -322,6 +424,10 @@ namespace MountainPlanner.UI.Tools
         public void Committed(CommandResult result)
         {
             _built = null;
+            _ctx.BottomGhost?.Hide();   // the built lift takes their place
+            _ctx.TopGhost?.Hide();
+            _turnDeg = 0;
+            _bottomLevelFt = _topLevelFt = 0;
             _ctx.Notice?.Invoke(_name + (result.Document.FindLift(new LiftId(result.Created[0]))?.Stage == WorkStage.Plan ? ": saved as a plan" : ": ground broken"));
             _name = NextName(result.Document);
             _ctx.Window.SetName(_name);
@@ -330,6 +436,8 @@ namespace MountainPlanner.UI.Tools
 
         public void Disarm()
         {
+            _ctx?.BottomGhost?.Hide();
+            _ctx?.TopGhost?.Hide();
             _ctx = null;
         }
 
@@ -339,6 +447,9 @@ namespace MountainPlanner.UI.Tools
         public int CurrentStep => (int)_step;
         public string Problem => _problem;
         public LiftBuild.Result Built => _built;
+        public float TurnDegrees => _turnDeg;
+        public int BottomLevelFeet => _bottomLevelFt;
+        public int TopLevelFeet => _topLevelFt;
         public bool Building => _building;
     }
 }

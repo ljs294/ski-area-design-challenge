@@ -18,6 +18,11 @@ namespace MountainPlanner.UI.Tools
         TowerUp = 32,
         TowerDown = 64,
         Delete = 128,
+        // P3-09 (LT19, LT21): the terminal in hand turns and changes level.
+        TurnLeft = 256,
+        TurnRight = 512,
+        LevelUp = 1024,
+        LevelDown = 2048,
     }
 
     /// <summary>
@@ -44,6 +49,10 @@ namespace MountainPlanner.UI.Tools
         /// <summary>The Erase key is held (Shift by default: Shift-drag erases, TF-02).</summary>
         public bool Erase;
         public ToolKeys Keys;
+        /// <summary>Shift is held: a turn key's bigger step (P3-09).</summary>
+        public bool Shift;
+        /// <summary>Shift + wheel notches this frame while a terminal turn is claimed (+ turns left), else 0 (LT21).</summary>
+        public float TurnNotches;
 
         public bool Pressed(ToolKeys key) => (Keys & key) != 0;
     }

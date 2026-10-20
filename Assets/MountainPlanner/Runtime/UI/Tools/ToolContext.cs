@@ -38,6 +38,10 @@ namespace MountainPlanner.UI.Tools
         /// </summary>
         public Func<Domain.Edits.EditedHeights> EditedGround { get; set; }
 
+        /// <summary>The terminals being placed, as their own models (task 09, LT19, LT22); null without the lift models.</summary>
+        public Presentation.Lifts.TerminalGhost BottomGhost { get; set; }
+        public Presentation.Lifts.TerminalGhost TopGhost { get; set; }
+
         /// <summary>A design point (site-centred mm, TE5) in <see cref="EditedGround"/>'s frame.</summary>
         public Func<PointMm, (double X, double Y)> ToGround { get; set; }
 

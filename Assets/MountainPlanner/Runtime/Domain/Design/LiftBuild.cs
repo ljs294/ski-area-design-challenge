@@ -96,14 +96,16 @@ namespace MountainPlanner.Domain.Design
             return hi;
         }
 
+        /// <param name="bottomHand">How far the player set the bottom terminal above (or below) the ground at its origin
+        /// while placing it (LT19, metres); the build starts there and may still raise it as a last resort.</param>
         public static Result Build(LiftType type, EditedHeights current, double bx, double by, double tx, double ty, TowerStance stance,
-                                   Action<string> log = null)
+                                   Action<string> log = null, double bottomHand = 0, double topHand = 0)
         {
             if (current == null) throw new ArgumentNullException(nameof(current));
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
             double ux = (tx - bx) / length, uy = (ty - by) / length;
-            double bottomLevel = current.At(bx + ux * type.Bottom.OriginAlong, by + uy * type.Bottom.OriginAlong);
-            double topLevel = current.At(tx - ux * type.Top.OriginAlong, ty - uy * type.Top.OriginAlong);
+            double bottomLevel = current.At(bx + ux * type.Bottom.OriginAlong, by + uy * type.Bottom.OriginAlong) + bottomHand;
+            double topLevel = current.At(tx - ux * type.Top.OriginAlong, ty - uy * type.Top.OriginAlong) + topHand;
             // LF-08 v2 (owner, round 4, SK30): steep sites are allowed; the terminal stands higher on its pier until it cuts at
             // most 10 ft into the hill (its pad only cuts, LF-12 v3).
             double steepB = Math.Max(0, SiteHighest(current, type.Bottom, bx, by, ux, uy, out _) - SitingVariationMetres - bottomLevel);

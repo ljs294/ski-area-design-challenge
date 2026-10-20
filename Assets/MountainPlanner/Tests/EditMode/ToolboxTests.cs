@@ -320,6 +320,49 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void LT19_TheTerminalInHandTurnsAndTakesItsLevel()
+        {
+            // Task 09 (LT19–LT21): while a terminal is in hand, , and . (or Shift + wheel) turn it and Page Up / Page Down set
+            // its level; the camera has those keys back once it's placed.
+            _host.Choose(NewLiftTool.ToolId);
+            var lift = (NewLiftTool)_host.Active;
+            Assert.That(KeyBindings.IsClaimed(GameAction.TerminalLevelUp), Is.True, "the bottom terminal takes Page Up");
+            Assert.That(KeyBindings.IsClaimed(GameAction.TerminalTurnLeft), Is.True);
+            Assert.That(KeyBindings.IsClaimed(GameAction.TowerUp), Is.False);
+            var at = At(0, -400);
+            at.Keys = ToolKeys.TurnLeft;
+            _host.Tick(at);
+            Assert.That(lift.TurnDegrees, Is.EqualTo(5).Within(1e-4));
+            at.Keys = ToolKeys.TurnRight;
+            at.Shift = true;
+            _host.Tick(at);
+            Assert.That(lift.TurnDegrees, Is.EqualTo(320).Within(1e-4), "Shift: 45°");
+            at.Keys = ToolKeys.None;
+            at.Shift = false;
+            at.TurnNotches = 2;
+            _host.Tick(at);
+            Assert.That(lift.TurnDegrees, Is.EqualTo(350).Within(1e-4), "a wheel notch: 15°");
+            at.TurnNotches = 0;
+            at.Keys = ToolKeys.LevelUp;
+            for (int i = 0; i < 3; i++) _host.Tick(at);
+            Assert.That(lift.BottomLevelFeet, Is.EqualTo(3));
+            at.Keys = ToolKeys.LevelDown;
+            for (int i = 0; i < 40; i++) _host.Tick(at);
+            Assert.That(lift.BottomLevelFeet, Is.EqualTo(-10), "10 ft into the hill at most");
+            _host.Tick(At(0, -400, click: true));
+            Assert.That(lift.CurrentStep, Is.EqualTo(1));
+            Assert.That(KeyBindings.IsClaimed(GameAction.TerminalTurnLeft), Is.False, "the top faces the line (LT20)");
+            Assert.That(KeyBindings.IsClaimed(GameAction.TerminalLevelUp), Is.True, "the top terminal's level");
+            var top = At(0, 600);
+            top.Keys = ToolKeys.LevelUp;
+            _host.Tick(top);
+            Assert.That(lift.TopLevelFeet, Is.EqualTo(1));
+            _host.Tick(At(0, 600, click: true));
+            Assert.That(KeyBindings.IsClaimed(GameAction.TerminalLevelUp), Is.False, "placed: Page Up zooms again");
+            _host.Close();
+        }
+
+        [Test]
         public void LF09_PageUpRaisesTheTowerInHandOnlyByHand()
         {
             _host.Choose(NewLiftTool.ToolId);

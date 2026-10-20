@@ -263,6 +263,21 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void LT19_TheLevelsSetByHandAreWhereTheTerminalsStand()
+        {
+            // The player raised the bottom terminal 5 ft and set the top 2 ft into the hill while placing them: the build
+            // starts there (and may only raise further), stores those levels and stands the rope on them.
+            var ground = new EditedHeights(new Profile(s => 0.2 * s), Lattice, TerrainEdits.Empty);
+            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
+            var plain = LiftBuild.Build(Quad, ground, bx, by, tx, ty, TowerStance.Plumb);
+            var hand = LiftBuild.Build(Quad, ground, bx, by, tx, ty, TowerStance.Plumb, null, 5 * Ft, -2 * Ft);
+            Assert.That(hand.BottomLevel - hand.BottomRaise, Is.EqualTo(plain.BottomLevel - plain.BottomRaise + 5 * Ft).Within(0.002));
+            Assert.That(hand.TopLevel - hand.TopRaise, Is.EqualTo(plain.TopLevel - plain.TopRaise - 2 * Ft).Within(0.002));
+            Assert.That(hand.Levels.BottomMm, Is.EqualTo((int)Math.Round(hand.BottomLevel * 1000)));
+            Assert.That(hand.Ok, Is.True, string.Join("; ", hand.Problems));
+        }
+
+        [Test]
         public void TW12_AOneMileLinePlacesWithinFiftyMilliseconds()
         {
             var ground = new EditedHeights(new Profile(s => 0.3 * s + 6 * Math.Sin(s / 60)), Lattice, TerrainEdits.Empty);
