@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Presentation;
 using MountainPlanner.Presentation.Design;
@@ -15,7 +16,7 @@ namespace MountainPlanner.UI.Tools
     /// holds the Automatic or By hand switch (LF-01) and the tower in hand's height (Page Up / Page Down, LF-09); placing
     /// towers along the line is task 09's. Break ground submits <see cref="AddLift"/> (CF-05, CF-06).
     /// </summary>
-    public sealed class NewLiftTool : IDesignTool
+    public sealed partial class NewLiftTool : IDesignTool
     {
         public const string ToolId = "new-lift";
 
@@ -60,7 +61,6 @@ namespace MountainPlanner.UI.Tools
         string _catalogId = LiftCatalogIds.SesselliftFgq4;
         TowerMode _mode;
         TowerStance _stance = TowerStance.Plumb;
-        int _towerFeet = 35;
         string _name;
         readonly ReviewModel _review = new ReviewModel();
         readonly Vector2[] _line = new Vector2[2];
@@ -185,21 +185,33 @@ namespace MountainPlanner.UI.Tools
         // A new type or stance while the line is fixed: the review works it out again.
         void Retype()
         {
-            if (_step == Step.Review) Go(Step.Review);
+            if (_step == Step.Review || (_step == Step.Towers && _mode == TowerMode.Automatic)) Go(_step);
+            else if (_step == Step.Towers) { PrepareHand(); _hintKey2 = long.MinValue; }
         }
 
         static string NextName(DesignDocument doc) => "Chair " + (doc.Lifts.Count + 1);
 
         void Go(Step step)
         {
-            _step = step;
             var w = _ctx.Window;
-            w.SetStep((int)step);
             w.SetMessage(null);
             _hintKey = int.MinValue;
+            // By hand, no towers yet: the review waits for them (LF-04).
+            if (step == Step.Review && _mode == TowerMode.ByHand && _placed.Count == 0 && _ctx.EditedGround != null && _ctx.ToGround != null)
+            {
+                w.SetMessage("Place the towers first, or Fill the rest");
+                if (_step == Step.Towers) return;
+                step = Step.Towers;
+            }
+            _step = step;
+            w.SetStep((int)step);
             bool towersInHand = step == Step.Towers && _mode == TowerMode.ByHand;
             _ctx.Claim(GameAction.TowerUp, towersInHand);
             _ctx.Claim(GameAction.TowerDown, towersInHand);
+            _ctx.Claim(GameAction.TowerSlideBack, towersInHand);
+            _ctx.Claim(GameAction.TowerSlideOn, towersInHand);
+            _ctx.Claim(GameAction.DeleteSelected, towersInHand);
+            if (step != Step.Towers) w.SetButtons();
             // LT19, LT21: a terminal in hand turns (the bottom only: the top faces the line) and takes its level.
             bool terminalInHand = step == Step.First || step == Step.Other;
             _ctx.Claim(GameAction.TerminalTurnLeft, step == Step.First);
@@ -223,14 +235,26 @@ namespace MountainPlanner.UI.Tools
                     w.SetNext(false, false);
                     break;
                 case Step.Towers:
-                    w.SetHint(_mode == TowerMode.Automatic
-                        ? "The towers go in automatically along the line (they come with the lift task)."
-                        : $"Tower in hand: {ToolFormat.Feet(_towerFeet)}. Placing it along the line comes with the lift task.");
-                    if (towersInHand) w.SetKeys((GameAction.TowerUp, "taller"), (GameAction.TowerDown, "shorter"), (GameAction.ToolNext, "review"));
-                    else w.SetKeys((GameAction.ToolNext, "review"));
-                    w.SetNext(true, true);
                     w.ShowReview(null);
                     w.SetCommit(false, false);
+                    if (_mode == TowerMode.Automatic)
+                    {
+                        w.SetHint("The towers go in automatically along the line…");
+                        w.SetKeys((GameAction.ToolNext, "review"));
+                        w.SetButtons();
+                        w.SetNext(true, true);
+                        if (!BuiltIsCurrent()) StartBuild();
+                        else TowersPlacedHint();
+                    }
+                    else
+                    {
+                        w.SetKeys((GameAction.TowerSlideBack, "slide"), (GameAction.TowerSlideOn, "slide"), (GameAction.TowerUp, "taller"),
+                                  (GameAction.TowerDown, "shorter"), (GameAction.ToolNext, "place"), (GameAction.DeleteSelected, "take back"));
+                        w.SetNext(false, false);
+                        _hintKey2 = long.MinValue;
+                        PrepareHand();
+                        HandHint();
+                    }
                     break;
                 case Step.Review:
                     w.SetHint(null);
@@ -306,14 +330,10 @@ namespace MountainPlanner.UI.Tools
                     break;
                 }
                 case Step.Towers:
-                    if (_mode == TowerMode.ByHand && (input.Pressed(ToolKeys.TowerUp) || input.Pressed(ToolKeys.TowerDown)))
-                    {
-                        _towerFeet = Mathf.Clamp(_towerFeet + (input.Pressed(ToolKeys.TowerUp) ? 5 : -5), 25, 100);
-                        Go(Step.Towers);
-                    }
-                    if (input.Pressed(ToolKeys.Next)) Go(Step.Review);
+                    TowersTick(input);
                     break;
                 case Step.Review:
+                    DrawTowers();
                     break;
             }
         }
@@ -441,8 +461,30 @@ namespace MountainPlanner.UI.Tools
         /// GR-11 v2, CL-03/CL-09) on the edited ground, off the main thread; the review fills in when it's done. Towers by hand
         /// come with the lift menu's port (PR B); until then both modes place them automatically.
         /// </summary>
+        // What the build was made from: a build for anything else is stale (a type, stance, mode or tower changed).
+        string _builtFor;
+        string BuildKey()
+        {
+            var k = new System.Text.StringBuilder().Append(_catalogId).Append('|').Append(_stance).Append('|').Append(_mode)
+                .Append('|').Append(_bottomLevelFt).Append('|').Append(_topLevelFt);
+            if (_mode == TowerMode.ByHand) foreach (var t in _placed) k.Append('|').Append(t.AlongMm).Append('/').Append(t.HeightMm);
+            return k.ToString();
+        }
+
+        bool BuiltIsCurrent() => _built != null && _builtFor == BuildKey();
+
+        void TowersPlacedHint()
+        {
+            if (_built != null) _ctx.Window.SetHint($"{_built.Towers.Count} towers placed automatically (TW-12). Enter for the review.");
+        }
+
         void StartBuild()
         {
+            if (BuiltIsCurrent())
+            {
+                if (_step == Step.Review) { _ctx.PendingTerrain = _built.Edits; BuildReview(); _ctx.Window.ShowReview(_review); }
+                return;
+            }
             _built = null;
             _ctx.PendingTerrain = null;
             var ground = _ctx.EditedGround?.Invoke();
@@ -458,11 +500,23 @@ namespace MountainPlanner.UI.Tools
             var type = LiftType.Of(_catalogId);
             var stance = _stance;
             double bottomHand = _bottomLevelFt * 0.3048, topHand = _topLevelFt * 0.3048;   // LT19: the levels set by hand
-            _ctx.Analyse(() => LiftBuild.Build(type, ground, b.X, b.Y, t.X, t.Y, stance, null, bottomHand, topHand), result =>
+            string key = BuildKey();
+            // By hand, exactly the towers placed (LF-04); Automatic, TW-12's search.
+            List<TowerSpec> hand = null;
+            if (_mode == TowerMode.ByHand && _placed.Count > 0)
+            {
+                hand = new List<TowerSpec>(_placed.Count);
+                foreach (var tw in _placed) hand.Add(new TowerSpec(tw.AlongMm, tw.HeightMm));
+            }
+            _ctx.Analyse(() => hand != null
+                ? LiftBuild.BuildWith(type, ground, b.X, b.Y, t.X, t.Y, hand, stance, bottomHand, topHand)
+                : LiftBuild.Build(type, ground, b.X, b.Y, t.X, t.Y, stance, null, bottomHand, topHand), result =>
             {
                 _building = false;
-                if (_step != Step.Review) return;
+                if (_step != Step.Review && _step != Step.Towers) return;
                 _built = result;
+                _builtFor = key;
+                if (_step == Step.Towers) { TowersPlacedHint(); return; }
                 _ctx.PendingTerrain = result.Edits;
                 BuildReview();
                 _ctx.Window.ShowReview(_review);
@@ -497,7 +551,7 @@ namespace MountainPlanner.UI.Tools
             switch (_step)
             {
                 case Step.Review: Go(Step.Towers); return ToolBackOut.Stepped;
-                case Step.Towers: Go(Step.Other); return ToolBackOut.Stepped;
+                case Step.Towers: ClearTowers(); Go(Step.Other); return ToolBackOut.Stepped;
                 case Step.Other: Go(Step.First); return ToolBackOut.Stepped;
                 default: return ToolBackOut.Close;
             }
@@ -522,6 +576,8 @@ namespace MountainPlanner.UI.Tools
             _ctx.TopGhost?.Hide();
             _turnDeg = 0;
             _bottomLevelFt = _topLevelFt = 0;
+            ClearTowers();
+            _builtFor = null;
             _ctx.Notice?.Invoke(_name + (result.Document.FindLift(new LiftId(result.Created[0]))?.Stage == WorkStage.Plan ? ": saved as a plan" : ": ground broken"));
             _name = NextName(result.Document);
             _ctx.Window.SetName(_name);
@@ -537,7 +593,7 @@ namespace MountainPlanner.UI.Tools
 
         // For tests and captures.
         internal void ChooseTowers(TowerMode mode) => PickMode(mode == TowerMode.Automatic ? 0 : 1);
-        public int TowerFeet => _towerFeet;
+        public int TowerFeet => Mathf.RoundToInt(_handMm / 304.8f);
         public int CurrentStep => (int)_step;
         public string Problem => _problem;
         public LiftBuild.Result Built => _built;

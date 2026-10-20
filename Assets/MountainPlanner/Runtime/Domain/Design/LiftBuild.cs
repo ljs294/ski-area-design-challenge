@@ -96,6 +96,57 @@ namespace MountainPlanner.Domain.Design
             return hi;
         }
 
+        /// <summary>
+        /// Each terminal's level before any search (LT19, LF-08 v2): the ground at its origin plus the level set by hand,
+        /// raised in 1 ft steps where the site is steep until it cuts at most 10 ft into the hill. What towers by hand stand
+        /// against (task 09), and where <see cref="Build"/> starts.
+        /// </summary>
+        public static LiftLevels StartLevels(LiftType type, IHeightSource current, double bx, double by, double tx, double ty,
+                                             double bottomHand, double topHand, out double steepB, out double steepT)
+        {
+            double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
+            double ux = (tx - bx) / length, uy = (ty - by) / length;
+            double bottomLevel = current.At(bx + ux * type.Bottom.OriginAlong, by + uy * type.Bottom.OriginAlong) + bottomHand;
+            double topLevel = current.At(tx - ux * type.Top.OriginAlong, ty - uy * type.Top.OriginAlong) + topHand;
+            steepB = Math.Max(0, SiteHighest(current, type.Bottom, bx, by, ux, uy, out _) - SitingVariationMetres - bottomLevel);
+            steepT = Math.Max(0, SiteHighest(current, type.Top, tx, ty, -ux, -uy, out _) - SitingVariationMetres - topLevel);
+            double raiseB = Math.Ceiling(steepB / LiftRope.RaiseStep - 1e-9) * LiftRope.RaiseStep;
+            double raiseT = Math.Ceiling(steepT / LiftRope.RaiseStep - 1e-9) * LiftRope.RaiseStep;
+            steepB = raiseB;
+            steepT = raiseT;
+            return LiftLevels.FromMetres(bottomLevel + raiseB, topLevel + raiseT);
+        }
+
+        /// <summary>
+        /// Towers by hand (LF-04, task 09): the lift built on the towers given, with no search. Its terminals stand at
+        /// <see cref="StartLevels"/>; the pads, trench and clearing come from <see cref="Earthwork"/>, as a replay's do. A
+        /// line the towers don't finish is red with its reasons (<see cref="Result.Problems"/>), never changed behind the
+        /// player's back.
+        /// </summary>
+        public static Result BuildWith(LiftType type, EditedHeights current, double bx, double by, double tx, double ty,
+                                       IReadOnlyList<TowerSpec> towers, TowerStance stance, double bottomHand = 0, double topHand = 0)
+        {
+            if (current == null) throw new ArgumentNullException(nameof(current));
+            if (towers == null || towers.Count == 0) throw new ArgumentException("Towers by hand need at least one tower.", nameof(towers));
+            double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
+            double ux = (tx - bx) / length, uy = (ty - by) / length;
+            var levels = StartLevels(type, current, bx, by, tx, ty, bottomHand, topHand, out double steepB, out double steepT);
+            var stored = new List<Tower>(towers.Count);
+            for (int i = 0; i < towers.Count; i++) stored.Add(new Tower(TowerId.Make(1, i), towers[i].AlongMm, towers[i].HeightMm));
+            stored.Sort((a, b) => a.AlongMm.CompareTo(b.AlongMm));
+            var specs = new List<TowerSpec>(stored.Count);
+            foreach (var t in stored) specs.Add(new TowerSpec(t.AlongMm, t.HeightMm));
+            var work = Earthwork(type, current, bx, by, tx, ty, stored, levels, stance);
+            return new Result
+            {
+                Towers = specs, Edits = work.Edits, Rope = work.Rope, BottomPad = work.BottomPad, TopPad = work.TopPad, Envelope = work.Envelope,
+                BottomRaise = steepB, TopRaise = steepT, BottomLevel = levels.BottomMetres, TopLevel = levels.TopMetres, Levels = levels,
+                BottomSteepRaise = steepB, TopSteepRaise = steepT, ClearedCells = work.ClearedCells,
+                BottomSiteVariation = SiteVariation(current, type.Bottom, bx, by, ux, uy),
+                TopSiteVariation = SiteVariation(current, type.Top, tx, ty, -ux, -uy),
+            };
+        }
+
         /// <param name="bottomHand">How far the player set the bottom terminal above (or below) the ground at its origin
         /// while placing it (LT19, metres); the build starts there and may still raise it as a last resort.</param>
         public static Result Build(LiftType type, EditedHeights current, double bx, double by, double tx, double ty, TowerStance stance,

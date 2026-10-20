@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -543,6 +544,71 @@ namespace MountainPlanner.Tests
             Assert.That(_host.Escape(), Is.True);
             Assert.That(w.Window.Q("toolwin-dd-carrier-menu"), Is.Null, "Esc closes the menu first");
             Assert.That(_host.Armed, Is.True, "and leaves the tool alone");
+        }
+
+        // ---------- Towers by hand (task 09, LF-04) ----------
+
+        /// <summary>The slope as the edited ground: design points map to (x, z) metres, height 2000 + 0.15 z.</summary>
+        sealed class SlopeHeights : MountainPlanner.Domain.Edits.IHeightSource
+        {
+            public double At(double x, double y) => 2000 + 0.15 * y;
+        }
+
+        void GiveGround()
+        {
+            var ground = new MountainPlanner.Domain.Edits.EditedHeights(new SlopeHeights(), new MountainPlanner.Domain.Edits.EditLattice(-3000.5, 3000.5),
+                                                                        MountainPlanner.Domain.Edits.TerrainEdits.Empty);
+            _host.Context.EditedGround = () => ground;
+            _host.Context.ToGround = p => (p.XMetres, p.YMetres);
+        }
+
+        void PumpUntil(Func<bool> done, string what)
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            while (!done() && clock.ElapsedMilliseconds < 60_000) { System.Threading.Thread.Sleep(10); _host.Tick(default); }
+            Assert.That(done(), Is.True, what);
+        }
+
+        [Test]
+        public void ByHand_PlaceATowerTakeItBackFillTheRestAndBreakGround()
+        {
+            _host.Choose(NewLiftTool.ToolId);
+            var lift = (NewLiftTool)_host.Active;
+            lift.ChooseTowers(TowerMode.ByHand);
+            GiveGround();
+            _host.Tick(At(0, -400, click: true));
+            _host.Tick(At(0, 600, click: true));
+            Assert.That(lift.CurrentStep, Is.EqualTo(2), "towers");
+            Assert.That(KeyBindings.IsClaimed(GameAction.TowerSlideOn), Is.True, "← → slide the tower in hand");
+            _host.Tick(new ToolInput { Keys = ToolKeys.None });
+            Assert.That(lift.HandStatus, Is.Not.Null, "a tower in hand");
+            // Slide it up the line until it's green, then Enter places it.
+            for (int i = 0; i < 400 && !lift.HandStatus.Ok; i++) _host.Tick(new ToolInput { Keys = ToolKeys.SlideOn });
+            Assert.That(lift.HandStatus.Ok, Is.True, "somewhere up the line it can stand");
+            double at = lift.HandAlong;
+            _host.Tick(new ToolInput { Keys = ToolKeys.Next });
+            Assert.That(lift.Placed.Count, Is.EqualTo(1), "Enter placed it");
+            Assert.That(lift.Placed[0].AlongMm / 1000.0, Is.EqualTo(at).Within(0.01));
+            Assert.That(lift.HandAlong, Is.GreaterThan(at), "the next one starts past it");
+            _host.Tick(new ToolInput { Keys = ToolKeys.Delete });
+            Assert.That(lift.Placed.Count, Is.EqualTo(0), "Delete takes it back");
+            _host.Tick(new ToolInput { Keys = ToolKeys.Next });
+            Assert.That(lift.CurrentStep, Is.EqualTo(2), "no towers: Enter places, it doesn't skip to the review");
+
+            // Fill the rest finishes the line, then the review builds on exactly those towers.
+            typeof(NewLiftTool).GetMethod("FillTheRest", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(lift, new object[] { false });
+            PumpUntil(() => lift.CurrentStep == 3, "Fill the rest goes on to the review");
+            PumpUntil(() => lift.Built != null, "the review builds");
+            Assert.That(lift.Built.Towers.Select(t => t.AlongMm), Is.EqualTo(lift.Placed.Select(t => t.AlongMm)), "built on the towers placed");
+            Assert.That(lift.Built.Ok, Is.True, string.Join("; ", lift.Built.Problems));
+            int count = lift.Built.Towers.Count;
+            _host.Tick(new ToolInput { Keys = ToolKeys.BreakGround });
+            Assert.That(_design.Document.Lifts.Count, Is.EqualTo(1));
+            var built = _design.Document.Lifts[0];
+            Assert.That(built.TowerMode, Is.EqualTo(TowerMode.ByHand));
+            Assert.That(built.Towers.Count, Is.EqualTo(count));
+            Assert.That(lift.Placed.Count, Is.EqualTo(0), "the next lift starts with none");
+            lift.ChooseTowers(TowerMode.Automatic);   // the next test starts from Automatic
         }
 
         // ---------- Remove lift (task 09) ----------

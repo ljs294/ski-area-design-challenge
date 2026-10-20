@@ -17,7 +17,8 @@ namespace MountainPlanner.UI.Tools
     {
         public readonly HudWindow Window;
         readonly Label _name, _ask, _hint, _msg;
-        readonly VisualElement _opts, _steps, _keys, _kv, _btns, _acts, _msgs;
+        readonly VisualElement _opts, _steps, _keys, _kv, _btns, _acts, _msgs, _extra;
+        string _extraKey;
         readonly Button _next, _go, _plan;
         readonly Label _goKbd, _nextKbd;
         int _reviewVersion = -1;
@@ -71,6 +72,8 @@ namespace MountainPlanner.UI.Tools
             _msgs.Add(_msg);
             body.Add(_kv = Part("toolwin-review", "tw-kv"));
             body.Add(_keys = Part("toolwin-keys", "tw-keys"));
+            body.Add(_extra = Part("toolwin-extra", "tw-btns"));
+            _extra.AddToClassList("hidden");
             body.Add(_btns = Part("toolwin-btns", "tw-btns"));
             _next = new Button(() => NextClicked?.Invoke()) { name = "toolwin-next" };
             _next.AddToClassList("mp-ghost");
@@ -431,6 +434,30 @@ namespace MountainPlanner.UI.Tools
                 _msgs.Add(m);
             }
             SetCommit(review.CanBreakGround, review.CanSavePlan);
+        }
+
+        /// <summary>
+        /// A row of the tool's own buttons over Next (the lift's Fill the rest, Re-place towers, Review; task 09), rebuilt only
+        /// when their names or captions change; none hides the row. A null click greys one.
+        /// </summary>
+        public void SetButtons(params (string Name, string Text, Action Click)[] buttons)
+        {
+            var key = new System.Text.StringBuilder();
+            foreach (var b in buttons) key.Append(b.Name).Append('|').Append(b.Text).Append('|').Append(b.Click == null ? '0' : '1').Append(';');
+            string k = key.ToString();
+            if (k == _extraKey) return;
+            _extraKey = k;
+            _extra.Clear();
+            _extra.EnableInClassList("hidden", buttons.Length == 0);
+            foreach (var b in buttons)
+            {
+                var click = b.Click;
+                var button = new Button(() => click?.Invoke()) { name = "toolwin-btn-" + b.Name };
+                button.AddToClassList("mp-ghost");
+                button.Add(new Label(b.Text) { pickingMode = PickingMode.Ignore });
+                button.SetEnabled(click != null);
+                _extra.Add(button);
+            }
         }
 
         /// <summary>The Next button (with its key): shown before the review step, live once the step is done.</summary>

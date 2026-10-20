@@ -101,6 +101,9 @@ Live while a tool is armed, which happens only with the tray open. All rebindabl
 | Page Up / Page Down | The terminal in hand up or down 1 ft (P3-09, LT19) |
 | , / . (Shift: 45°), Shift + wheel | Turn the bottom terminal in hand 5° (a wheel notch 15°; P3-09, LT21) |
 | Enter | Remove lift: remove the selected lift (P3-09) |
+| ← / → (Shift: 50 ft) | Slide the tower in hand down or up the line 5 ft (P3-09, LF-04) |
+| Enter | Towers by hand: place the tower in hand; with the line finished, go on to the review (P3-09) |
+| Delete | Towers by hand: take the last tower back (P3-09) |
 | Delete | Delete the selected tower or trail |
 | Tab | The tool window takes the keyboard: the arrows walk its controls, Enter or Space presses one; Esc gives the keys back |
 | Esc | Back one step; at the first step the tool closes, asking first if anything is drawn (fixed) |

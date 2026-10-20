@@ -368,6 +368,8 @@ namespace MountainPlanner.App
                 if (KeyBindings.PressedAnyShift(keys, GameAction.TerminalTurnRight)) input.Keys |= ToolKeys.TurnRight;
                 if (KeyBindings.Pressed(keys, GameAction.TerminalLevelUp)) input.Keys |= ToolKeys.LevelUp;
                 if (KeyBindings.Pressed(keys, GameAction.TerminalLevelDown)) input.Keys |= ToolKeys.LevelDown;
+                if (KeyBindings.PressedAnyShift(keys, GameAction.TowerSlideBack)) input.Keys |= ToolKeys.SlideBack;
+                if (KeyBindings.PressedAnyShift(keys, GameAction.TowerSlideOn)) input.Keys |= ToolKeys.SlideOn;
                 input.Shift = keys.shiftKey.isPressed;
                 if (input.Shift && mouse != null && KeyBindings.IsClaimed(GameAction.TerminalTurnLeft) && !input.OverPanel)
                 {

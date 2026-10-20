@@ -23,6 +23,9 @@ namespace MountainPlanner.UI.Tools
         TurnRight = 512,
         LevelUp = 1024,
         LevelDown = 2048,
+        // P3-09 (LF-04): the tower in hand slides down or up the line.
+        SlideBack = 4096,
+        SlideOn = 8192,
     }
 
     /// <summary>
