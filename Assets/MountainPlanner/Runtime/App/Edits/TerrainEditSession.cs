@@ -69,6 +69,7 @@ namespace MountainPlanner.App.Edits
                 throw new OperationCanceledException();
             }
             if (resort.Forest != null) pipeline.AttachForest(resort.Forest, resort.TreeInstances, resort.TreeRanges);
+            pipeline.AttachCliffs(resort.Cliffs);
             if (resort.SnowElevation != null)
                 pipeline.AttachSnow(resort.States, resort.SnowElevation, resort.SnowCanopy, resort.Manifest.Crs.GridConvergenceDegrees, resort.Ring);
             var session = new TerrainEditSession(resort, history, pipeline);

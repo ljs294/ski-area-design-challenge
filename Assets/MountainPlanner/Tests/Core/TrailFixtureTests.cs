@@ -168,6 +168,42 @@ namespace MountainPlanner.Tests
             ("steep-face", new double[] { -650, 380, -660, 500, -650, 640 }, new[] { 150 }, new (double, double, int)[0]),
         };
 
+        [Test, Explicit("Diagnostic (owner's report 2026-10-19, narrow benches and steps): per station, painted half-widths, cross slope, bench")]
+        public void BenchWidthReport()
+        {
+            foreach (string name in Names)
+            {
+                var f = Read(name);
+                var lattice = new EditLattice(f.West, f.North);
+                var heights = Heights(name, lattice);
+                var site = new EarthworkSite(lattice, f.OriginX, f.OriginY);
+                var ground = new EditedHeights(heights, lattice, TerrainEdits.Empty);
+                var build = TrailEarthwork.Grade(TrailOf(f, true), ground, site, Seed, null, null);
+                var g = build.Grade;
+                var st = g.Stations;
+                int n = st.Length / 2, ok = 0, flips = 0;
+                double paintSum = 0, benchSum = 0;
+                var sb = new System.Text.StringBuilder();
+                for (int k = 0; k < n; k++)
+                {
+                    int a = Math.Max(0, k - 1), b = Math.Min(n - 1, k + 1);
+                    double tx = st[2 * b] - st[2 * a], ty = st[2 * b + 1] - st[2 * a + 1], tl = Math.Sqrt(tx * tx + ty * ty);
+                    double nx = -ty / tl, ny = tx / tl, cx = st[2 * k], cy = st[2 * k + 1];
+                    double hl = 0, hr = 0;
+                    while (hl < 200 && build.Footprint.ContainsAt(cx + nx * (hl + 0.5), cy + ny * (hl + 0.5))) hl += 0.5;
+                    while (hr < 200 && build.Footprint.ContainsAt(cx - nx * (hr + 0.5), cy - ny * (hr + 0.5))) hr += 0.5;
+                    double cross = (ground.At(cx + nx * 5, cy + ny * 5) - ground.At(cx - nx * 5, cy - ny * 5)) / 10;
+                    double along = (ground.At(cx + tx / tl * 5, cy + ty / tl * 5) - ground.At(cx - tx / tl * 5, cy - ty / tl * 5)) / 10;
+                    if (g.Benched[k]) ok++;
+                    if (k > 0 && g.Benched[k] != g.Benched[k - 1]) flips++;
+                    paintSum += hl + hr; benchSum += g.BenchLeft[k] + g.BenchRight[k];
+                    sb.AppendLine($"  {k,3} paint {hl,5:F1}+{hr,5:F1} m  cross {cross * 100,5:F0}%  along {along * 100,5:F0}%  bench {(g.Benched[k] ? $"{g.BenchLeft[k],5:F1}+{g.BenchRight[k],5:F1}" : "  -- natural --")}");
+                }
+                TestContext.Out.WriteLine($"{name}: {n} stations, {ok} benched, {flips} benched/natural changes, bench {100 * benchSum / Math.Max(1, paintSum):F0}% of the painted width");
+                TestContext.Out.Write(sb.ToString());
+            }
+        }
+
         [Test, Explicit("Re-records the grading fixtures from the Jackson Hole 2 km package; needs the owner's approval")]
         public void RecordTheGradingFixtures()
         {

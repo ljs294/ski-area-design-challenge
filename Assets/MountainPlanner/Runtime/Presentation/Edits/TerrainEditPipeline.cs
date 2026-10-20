@@ -99,6 +99,14 @@ namespace MountainPlanner.Presentation.Edits
             _ranges = ranges;
         }
 
+        /// <summary>The cliff shells by cache tile: hidden where an edit moves the ground under them.</summary>
+        public void AttachCliffs(IReadOnlyDictionary<(int, int), World.CliffShells.Placed> cliffs) => _cliffs = cliffs;
+
+        IReadOnlyDictionary<(int, int), World.CliffShells.Placed> _cliffs;
+
+        /// <summary>A shell stands on moved ground where the edit there is more than 10 cm (GR-13's smallest tie-ins keep theirs).</summary>
+        public const int CliffTrimMm = 100;
+
         /// <summary>The snowpack's inputs once it's computed (ResortOpener's 8 m elevation and canopy cells).</summary>
         public void AttachSnow(SurfaceStates states, float[] elevation, float[] canopy, double convergence, Rect ring)
         {
@@ -191,6 +199,20 @@ namespace MountainPlanner.Presentation.Edits
                 if (treesChanged) _forest.RedrawCrownCore();
             }
             report.TreesMs = part.Elapsed.TotalMilliseconds;
+            if (_cliffs != null)
+            {
+                var trimmed = new HashSet<(int, int)>();
+                foreach (var p in patches)
+                {
+                    if (!trimmed.Add(p.Tile) || !_cliffs.TryGetValue(p.Tile, out var shell)) continue;
+                    World.CliffShells.Trim(shell, (x, z) =>
+                    {
+                        var a = _frame.ToAlbers(x, z);
+                        int c = (int)Math.Round(a.X - _lattice.West), r = (int)Math.Round(_lattice.North - a.Y);
+                        return Math.Abs(to.DeltaMmAt(c, r)) > CliffTrimMm;
+                    });
+                }
+            }
             Current = to;
             Heights = heights;
             report.TotalMs = total.Elapsed.TotalMilliseconds;

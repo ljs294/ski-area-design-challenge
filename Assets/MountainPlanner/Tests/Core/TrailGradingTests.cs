@@ -27,6 +27,18 @@ namespace MountainPlanner.Tests
             public double At(double x, double y) => 1800 + _east * (x - West) + _north * (y - North);
         }
 
+        /// <summary>A slope falling north to south at 10% whose side slope steepens from 30% to 120% between y −120 and −180 (local).</summary>
+        sealed class Steepening : IHeightSource
+        {
+            public double At(double x, double y)
+            {
+                double ly = y - Site.OriginY, lx = x - Site.OriginX;
+                double f = Math.Max(0, Math.Min(1, (-120 - ly) / 60));
+                double side = 0.3 + 0.9 * f * f * (3 - 2 * f);
+                return 1800 + 0.1 * ly + side * lx;
+            }
+        }
+
         sealed class Rolling : IHeightSource
         {
             public double At(double x, double y)
@@ -125,24 +137,31 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void GR01_TheBenchIsLevelAcrossTheSection()
+        public void GR01_TheBenchIsStraightAcrossTheSectionAtTheSideSlopeCap()
         {
-            var ground = Natural(new Plane(0.3, 0.1));
-            var (fp, build) = Straight(ground);
-            Assert.That(build.Grade.UngradedStations, Is.EqualTo(0));
-            var h = Apply(ground, build.Writes);
-            for (double y = -50; y >= -250; y -= 50)
+            // GR-01 v2 (owner, 2026-10-19): the bench keeps the ground's side slope up to 10%: on a 30% side slope it runs
+            // straight across at 10%, and on a 5% one it keeps the ground's 5%.
+            foreach (var (side, want) in new[] { (0.3, 0.10), (0.05, 0.05) })
             {
-                LocalToLattice(0, y, out int c, out int r);
-                double mid = h.AtPoint(c, r);
-                for (int d = -6; d <= 6; d++)
-                    Assert.That(h.AtPoint(c + d, r), Is.EqualTo(mid).Within(0.0011), $"level across at y {y}, offset {d} (GR-10: 1 mm, whole-mm storage)");
+                var ground = Natural(new Plane(side, 0.1));
+                var (fp, build) = Straight(ground);
+                Assert.That(build.Grade.UngradedStations, Is.EqualTo(0));
+                var h = Apply(ground, build.Writes);
+                for (double y = -50; y >= -250; y -= 50)
+                {
+                    LocalToLattice(0, y, out int c, out int r);
+                    double mid = h.AtPoint(c, r), slope = (h.AtPoint(c + 6, r) - h.AtPoint(c - 6, r)) / 12;
+                    Assert.That(Math.Abs(slope), Is.EqualTo(want).Within(0.002), $"the bench's side slope at y {y}, on a {side:P0} side slope");
+                    for (int d = -6; d <= 6; d++)
+                        Assert.That(h.AtPoint(c + d, r), Is.EqualTo(mid + slope * d).Within(0.0021), $"straight across at y {y}, offset {d} (GR-10, whole-mm storage)");
+                }
             }
         }
 
         [Test]
-        public void GR03_TheBenchOnAUniformSidehillIsTheBudgetTimesOneLessTheGrade()
+        public void GR03_TheBenchOnAUniformSidehillIsTheBudgetTimesOneLessTheGradeLeftToCut()
         {
+            // GR-03 with GR-01 v2: the faces take up only the side slope the bench doesn't keep, 30% − 10% here.
             var ground = Natural(new Plane(0.3, 0));
             var fp = Footprint(Strip(100, (0, 0), (0, -300)));
             Site.PointOf(M(0, 0), out double hx, out double hy);
@@ -150,11 +169,36 @@ namespace MountainPlanner.Tests
             var g = TrailGrader.GradeFootprint(ground, fp, line, true, 77, Id, null, 0);
             var h = Apply(ground, g.Writes);
             LocalToLattice(0, -150, out int c, out int r);
-            double z = h.AtPoint(c, r);
-            int level = 0;
-            for (int d = -20; d <= 20; d++) if (Math.Abs(h.AtPoint(c + d, r) - z) < 0.001) level++;
-            // 15.24 m either side × 0.7 = 10.67 m each way: about 21 level points across.
-            Assert.That(level, Is.InRange(19, 23));
+            double z = h.AtPoint(c, r), slope = (h.AtPoint(c + 3, r) - h.AtPoint(c - 3, r)) / 6;
+            Assert.That(Math.Abs(slope), Is.EqualTo(TrailGrader.MaxCrossSlope).Within(0.002));
+            int bench = 0;
+            for (int d = -20; d <= 20; d++) if (Math.Abs(h.AtPoint(c + d, r) - (z + slope * d)) < 0.002) bench++;
+            // 15.24 m either side × (1 − 0.2) = 12.2 m each way: about 25 points on the bench across.
+            Assert.That(bench, Is.InRange(23, 27));
+        }
+
+        [Test]
+        public void GR05_AGradedStretchRampsIntoAnUngradedOne()
+        {
+            // The owner's report (2026-10-19): graded trails came out stepped where stations too steep for a bench (GR-07)
+            // met benched ones: the benched station's level held flat for half the stretch, then dropped to natural. Now the
+            // ground ramps across the stretch: walking down the trail at any offset, no row-to-row change is a riser.
+            var ground = Natural(new Steepening());
+            var (fp, build) = Straight(ground, 300);
+            var g = build.Grade;
+            Assert.That(g.UngradedStations, Is.InRange(1, g.Benched.Length - 1), "some stations benched, some too steep");
+            var h = Apply(ground, build.Writes);
+            for (int off = -8; off <= 8; off += 2)
+            {
+                LocalToLattice(off, -20, out int c, out int r0);
+                LocalToLattice(off, -280, out _, out int r1);
+                for (int r = r0; r < r1; r++)
+                {
+                    double step = Math.Abs(h.AtPoint(c, r + 1) - h.AtPoint(c, r));
+                    double natural = Math.Abs(ground.AtPoint(c, r + 1) - ground.AtPoint(c, r));
+                    Assert.That(step, Is.LessThanOrEqualTo(Math.Max(natural, 0.1) + 0.35), $"no riser at offset {off} m, row {r} (natural {natural:F2} m)");
+                }
+            }
         }
 
         [Test]

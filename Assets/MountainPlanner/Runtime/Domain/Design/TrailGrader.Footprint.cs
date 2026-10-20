@@ -21,6 +21,8 @@ namespace MountainPlanner.Domain.Design
             /// <summary>Each benched station's bench width left and right of the centreline, metres (0 where unbenched).</summary>
             public double[] BenchLeft { get; internal set; }
             public double[] BenchRight { get; internal set; }
+            /// <summary>GR-01 v2: each station's bench side slope, rise per metre toward the left of the centreline.</summary>
+            public double[] CrossSlope { get; internal set; }
             public int UngradedStations { get; internal set; }
             public double UngradedMetres { get; internal set; }
             public double LengthMetres { get; internal set; }
@@ -57,6 +59,10 @@ namespace MountainPlanner.Domain.Design
             var left = new double[count];
             var right = new double[count];
             var ok = new bool[count];
+            var cross = new double[count];   // GR-01 v2: each station's side slope, rise per metre toward the left (+n)
+            var budgetL = new double[count];
+            var budgetR = new double[count];
+            var inside = new bool[count];
             int ungraded = 0;
             double walked = 0;
             for (int k = 0; k < count; k++)
@@ -64,21 +70,37 @@ namespace MountainPlanner.Domain.Design
                 if (k > 0) walked += Dist(line[2 * k - 2], line[2 * k - 1], line[2 * k], line[2 * k + 1]);
                 along[k] = walked;
                 double cx = line[2 * k], cy = line[2 * k + 1];
-                Tangent(line, k, out double ex, out double ey);
+                SweepTangent(line, k, out double ex, out double ey);
                 double nx = -ey, ny = ex;
                 z[k] = current.At(cx, cy);
                 if (graded && fp.ContainsAt(cx, cy))
                 {
-                    left[k] = Side(current, cx, cy, nx, ny, Budget(fp, cx, cy, nx, ny), z[k]);
-                    right[k] = Side(current, cx, cy, -nx, -ny, Budget(fp, cx, cy, -nx, -ny), z[k]);
+                    budgetL[k] = Budget(fp, cx, cy, nx, ny);
+                    budgetR[k] = Budget(fp, cx, cy, -nx, -ny);
+                    cross[k] = CrossSlope(current, cx, cy, nx, ny, budgetL[k], budgetR[k], z[k]);
+                    inside[k] = true;
+                }
+            }
+            // The side slope follows its neighbours (two stations each way), so lidar roughness doesn't twist the bench.
+            if (graded) cross = Average(cross, inside, WidthSmoothStations);
+            for (int k = 0; k < count && graded; k++)
+            {
+                if (inside[k])
+                {
+                    double cx = line[2 * k], cy = line[2 * k + 1];
+                    SweepTangent(line, k, out double ex, out double ey);
+                    double nx = -ey, ny = ex;
+                    left[k] = Side(current, cx, cy, nx, ny, budgetL[k], z[k], cross[k]);
+                    right[k] = Side(current, cx, cy, -nx, -ny, budgetR[k], z[k], -cross[k]);
                     ok[k] = left[k] + right[k] >= MinBenchMetres;
                 }
-                if (graded && !ok[k]) ungraded++;
+                if (!ok[k]) ungraded++;
             }
             // Proposed GR-05 v2: the bench's width follows its neighbours. Each side takes the narrowest GR-03 width within
             // two stations, then the average of those over two stations, so it can never be wider than GR-03 allows at the
             // station, and lidar roughness doesn't step the faces in and out every 25 ft.
             if (graded) { Smooth(left, ok); Smooth(right, ok); }
+            result.CrossSlope = cross;
             result.Stations = line.ToArray();
             result.Along = along;
             result.Ground = (double[])z.Clone();
@@ -136,7 +158,7 @@ namespace MountainPlanner.Domain.Design
                     double fi = i + point.OutX[at] * pcl, fj = j - point.OutY[at] * pcl;
                     double edge = grid.Bilinear(ground, fi, fj, out bool okEdge);
                     if (!okEdge) edge = current.At(lattice.X(pc0) + fi, lattice.Y(pr0) - fj);
-                    double d = Design(point.Along[at], u, g, edge, Math.Abs(u) + pcl, along, z, left, right, ok, roundMetres);
+                    double d = Design(point.Along[at], u, g, edge, Math.Abs(u) + pcl, along, z, left, right, ok, roundMetres, ramp: true, cross: cross);
                     design[at] = d;
                     free[at] = d != g;
                 }
@@ -294,17 +316,28 @@ namespace MountainPlanner.Domain.Design
                 }
         }
 
-        /// <summary><see cref="Locate"/> on the compact grid: each segment visits only the span points within reach.</summary>
+        /// <summary>
+        /// Each point's place on the centreline (GR-05 v3, owner's report 2026-10-19: terraces fanning out of bends): the
+        /// sections sweep smoothly between stations, each one square to a tangent that turns linearly from one station's
+        /// to the next, so a point's along-distance changes evenly all the way round a bend. (Square to the nearest straight
+        /// piece instead, every point in the wedge outside a station's corner took that station's height: flat wedges with
+        /// steep bands between them.) A point lies on segment k's sweep where (p − C(t)) · T(t) = 0, found by bisection;
+        /// inside a tight bend, where sweeps cross, the nearest section wins. Before the head and past the tail, the end
+        /// stations' sections run on.
+        /// </summary>
         static Located LocateSpans(IReadOnlyList<double> line, double[] along, EditLattice lattice, int c0, int r0, SpanGrid grid, double reach)
         {
             var located = new Located(grid.Count);
             int count = line.Count / 2;
+            var tx = new double[count];
+            var ty = new double[count];
+            for (int k = 0; k < count; k++) { SweepTangent(line, k, out double ex, out double ey); tx[k] = ex; ty[k] = ey; }
             for (int k = 0; k + 1 < count; k++)
             {
                 double ax = line[2 * k], ay = line[2 * k + 1], bx = line[2 * k + 2], by = line[2 * k + 3];
-                double sx = bx - ax, sy = by - ay, len2 = sx * sx + sy * sy;
-                if (len2 <= 0) continue;
-                double len = Math.Sqrt(len2);
+                double sx = bx - ax, sy = by - ay, len = Math.Sqrt(sx * sx + sy * sy);
+                if (len <= 0) continue;
+                bool first = k == 0, last = k + 2 == count;
                 int ci0 = (int)Math.Floor(Math.Min(ax, bx) - reach - 1 - lattice.West) - c0;
                 int ci1 = (int)Math.Ceiling(Math.Max(ax, bx) + reach + 1 - lattice.West) - c0;
                 int rj0 = Math.Max(0, (int)Math.Floor(lattice.North - (Math.Max(ay, by) + reach + 1)) - r0);
@@ -313,22 +346,63 @@ namespace MountainPlanner.Domain.Design
                     for (int i = Math.Max(ci0, grid.Lo[j]); i <= Math.Min(ci1, grid.Hi[j]); i++)
                     {
                         double px = lattice.X(c0 + i), py = lattice.Y(r0 + j);
-                        double rx = px - ax, ry = py - ay;
-                        double t = (rx * sx + ry * sy) / len2;
-                        double tc = t < 0 ? 0 : t > 1 ? 1 : t;
-                        double qx = ax + sx * tc - px, qy = ay + sy * tc - py;
+                        // Which side of each station's section line the point lies: ahead of the first, behind the second.
+                        double g0 = (px - ax) * tx[k] + (py - ay) * ty[k];
+                        double g1 = (px - bx) * tx[k + 1] + (py - by) * ty[k + 1];
+                        double t;
+                        if (g0 >= 0 && g1 <= 0)
+                        {
+                            double lo = 0, hi = 1, flo = g0;
+                            for (int it = 0; it < 30; it++)
+                            {
+                                double mid = 0.5 * (lo + hi);
+                                double f = SweepSide(px, py, ax, ay, sx, sy, tx[k], ty[k], tx[k + 1], ty[k + 1], mid);
+                                if ((f >= 0) == (flo >= 0)) { lo = mid; flo = f; } else hi = mid;
+                            }
+                            t = 0.5 * (lo + hi);
+                        }
+                        else if (first && g0 < 0) t = 0;
+                        else if (last && g1 > 0) t = 1;
+                        else continue;
+                        double cx = ax + sx * t, cy = ay + sy * t;
+                        double ux = tx[k] + (tx[k + 1] - tx[k]) * t, uy = ty[k] + (ty[k + 1] - ty[k]) * t, ul = Math.Sqrt(ux * ux + uy * uy);
+                        if (ul < 1e-9) { ux = sx / len; uy = sy / len; } else { ux /= ul; uy /= ul; }
+                        double qx = px - cx, qy = py - cy;
                         double dist = Math.Sqrt(qx * qx + qy * qy);
                         int at = grid.Index(i, j);
                         if (dist >= located.Dist[at]) continue;
-                        double cross = (sx * ry - sy * rx) / len;
+                        double cross = ux * qy - uy * qx;
                         located.Dist[at] = dist;
                         located.Offset[at] = cross >= 0 ? dist : -dist;
-                        if (dist > 1e-9) { located.OutX[at] = -qx / dist; located.OutY[at] = -qy / dist; }
-                        else { located.OutX[at] = -sy / len; located.OutY[at] = sx / len; }
-                        located.Along[at] = along[k] + tc * len;
+                        if (dist > 1e-9) { located.OutX[at] = qx / dist; located.OutY[at] = qy / dist; }
+                        else { located.OutX[at] = -uy; located.OutY[at] = ux; }
+                        located.Along[at] = along[k] + t * len;
                     }
             }
             return located;
+        }
+
+        /// <summary>
+        /// A station's tangent for the sweep (GR-05 v3): the chord over two stations each way, so the sections turn smoothly
+        /// where the simplified centreline has a corner and neighbouring sections don't cross within the trail's width.
+        /// </summary>
+        static void SweepTangent(IReadOnlyList<double> line, int k, out double ex, out double ey)
+        {
+            int count = line.Count / 2;
+            int a = Math.Max(0, k - 2), b = Math.Min(count - 1, k + 2);
+            ex = line[2 * b] - line[2 * a];
+            ey = line[2 * b + 1] - line[2 * a + 1];
+            double len = Math.Sqrt(ex * ex + ey * ey);
+            ex /= len;
+            ey /= len;
+        }
+
+        /// <summary>(p − C(t)) · T(t) on a segment's sweep (T unnormalised: only its sign matters).</summary>
+        static double SweepSide(double px, double py, double ax, double ay, double sx, double sy, double t0x, double t0y, double t1x, double t1y, double t)
+        {
+            double cx = ax + sx * t, cy = ay + sy * t;
+            double ux = t0x + (t1x - t0x) * t, uy = t0y + (t1y - t0y) * t;
+            return (px - cx) * ux + (py - cy) * uy;
         }
 
         /// <summary>
@@ -383,6 +457,38 @@ namespace MountainPlanner.Domain.Design
         }
 
         /// <summary>GR-03 v2: how far the section runs from the centreline along (nx, ny) before it leaves the footprint.</summary>
+        /// <summary>
+        /// GR-01 v2 (owner, 2026-10-19: "side slope should be permitted to an extent on a graded trail"): the bench keeps
+        /// the ground's side slope across the section, up to <see cref="MaxCrossSlope"/> either way. The ground's slope is the
+        /// least-squares fit of the section's ground across its painted width (to 15 m a side), from the centreline's height.
+        /// </summary>
+        static double CrossSlope(IHeightSource ground, double cx, double cy, double nx, double ny, double left, double right, double z)
+        {
+            double sum = 0, sq = 0;
+            for (double d = 0.5; d <= Math.Min(left, 15); d += 0.5) { sum += d * (ground.At(cx + nx * d, cy + ny * d) - z); sq += d * d; }
+            for (double d = 0.5; d <= Math.Min(right, 15); d += 0.5) { sum += -d * (ground.At(cx - nx * d, cy - ny * d) - z); sq += d * d; }
+            if (sq <= 0) return 0;
+            return Math.Max(-MaxCrossSlope, Math.Min(MaxCrossSlope, sum / sq));
+        }
+
+        /// <summary>The average over <paramref name="reach"/> stations each way, of the stations that count.</summary>
+        static double[] Average(double[] v, bool[] counts, int reach)
+        {
+            var o = new double[v.Length];
+            for (int i = 0; i < v.Length; i++)
+            {
+                if (!counts[i]) continue;
+                double sum = 0;
+                int c = 0;
+                for (int t = Math.Max(0, i - reach); t <= Math.Min(v.Length - 1, i + reach); t++) if (counts[t]) { sum += v[t]; c++; }
+                o[i] = sum / c;
+            }
+            return o;
+        }
+
+        /// <summary>GR-01 v2: the steepest side slope a graded bench keeps, rise over run (10%).</summary>
+        public const double MaxCrossSlope = 0.10;
+
         static double Budget(TrailFootprint fp, double cx, double cy, double nx, double ny)
         {
             double limit = 2 * fp.MaxClearance + 4;

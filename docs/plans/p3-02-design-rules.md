@@ -182,6 +182,10 @@ ruled differently. No archived code is copied; the rules are stated here as pros
 - **GR-01, level bench:**
   - At every station, the running surface is **level across the section**, so contours run square to the centreline.
   - The bench's elevation is the natural ground at the centreline station.
+  - **v2** (owner, task 08, TL21: "side slope should be permitted to an extent on a graded trail"): the bench keeps
+    the ground's side slope across the section, up to **10%** either way (the least-squares fit of the ground across the
+    painted width, averaged over two stations each way), so it runs straight across rather than dead level, and the
+    faces take up only the slope it doesn't keep. A later cat track may set a flatter cap.
 - **GR-02, faces:**
   - From each bench edge, a face runs to natural ground at **1:1 (45°)**, the same slope for cut and fill.
   - There is no widen-to-fit: the footprint is never enlarged to make a bench fit.
@@ -196,6 +200,10 @@ ruled differently. No archived code is copied; the rules are stated here as pros
 - **GR-05, between stations:** the design surface blends linearly between neighbouring stations' sections.
   - **v2** (owner, task 08, TL17): each side's bench width is first the narrowest within two stations (50 ft) and then
     the average of those, so it is never wider than GR-03 allows and rough ground doesn't step the faces every 25 ft.
+  - **v3** (owner's reports, task 08, TL21): the sections sweep smoothly between stations (each square to a tangent
+    turning from one station's to the next, over two stations each way), so the bench rounds a bend without flat
+    wedges and steep bands outside it; and between a benched station and one too steep for a bench (GR-07) the ground
+    ramps from the bench to natural across the stretch, instead of a flat tread and a drop.
 - **GR-06, footprint:** grading **never leaves the painted footprint**. Heights outside it are byte-identical before
   and after (test).
   - *Exception (task 07, SK19):* a terminal's pad (LF-12) grades outside any trail, within GR-11's terminal-pad

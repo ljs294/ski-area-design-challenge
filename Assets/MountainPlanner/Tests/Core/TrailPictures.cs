@@ -169,6 +169,12 @@ namespace MountainPlanner.Tests
             var tail = PointMm.FromMetres(s.Path[2 * n - 2], s.Path[2 * n - 1]);
             var trail = new Trail(TrailId.Make(1, 1), s.Name, WorkStage.Built, graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun,
                                   new[] { new FootprintPart(strokes.ToArray()) }, head, tail);
+            return DrawTrail(h, site, trail, graded, file);
+        }
+
+        static string DrawTrail(IHeightSource h, EarthworkSite site, Trail trail, bool graded, string file)
+        {
+            var s = new Spot { Name = trail.Name };
             var ground = new EditedHeights(h, site.Lattice, TerrainEdits.Empty);
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var build = TrailEarthwork.Grade(trail, ground, site, 1, null, null);
@@ -180,13 +186,10 @@ namespace MountainPlanner.Tests
             var g = build.Grade;
             var rating = TrailRating.Rate(after, fp, g);
 
-            double minX = double.MaxValue, maxX = double.MinValue, minY = double.MaxValue, maxY = double.MinValue;
-            for (int k = 0; k < n; k++)
-            {
-                minX = Math.Min(minX, s.Path[2 * k]); maxX = Math.Max(maxX, s.Path[2 * k]);
-                minY = Math.Min(minY, s.Path[2 * k + 1]); maxY = Math.Max(maxY, s.Path[2 * k + 1]);
-            }
-            double size = Math.Max(maxX - minX, maxY - minY) + 120;
+            // The footprint's box, in local metres.
+            double minX = fp.CellX(fp.Column0) - site.OriginX, maxX = fp.CellX(fp.Column0 + fp.Width) - site.OriginX;
+            double maxY = fp.CellY(fp.Row0) - site.OriginY, minY = fp.CellY(fp.Row0 + fp.Height) - site.OriginY;
+            double size = Math.Max(maxX - minX, maxY - minY) + 60;
             int px = 900;
             var img = Relief(after, site, (minX + maxX) / 2, (minY + maxY) / 2, size, px, 2, out var toPx);
             double mpp = size / px;
@@ -377,6 +380,33 @@ namespace MountainPlanner.Tests
                     cover.BuildRegion(box, res, i0, j0, i0 + 90, j0 + 90, lazy, null, region);
                 }
                 TestContext.Progress.WriteLine($"38 regions of 90x90 texels: {w.Elapsed.TotalMilliseconds:F1} ms (res {res})");
+            }
+        }
+
+        /// <summary>
+        /// The owner's own trails (2026-10-19 reports: narrow benches, steps on traverses): every graded trail of a save,
+        /// graded alone on its package's natural ground. MP_OWNER_SAVE is the save's folder, MP_OWNER_PACKAGE the package's.
+        /// </summary>
+        [Test]
+        public void OwnersTrails()
+        {
+            string save = Environment.GetEnvironmentVariable("MP_OWNER_SAVE"), dir = Environment.GetEnvironmentVariable("MP_OWNER_PACKAGE");
+            if (string.IsNullOrEmpty(save) || string.IsNullOrEmpty(dir)) Assert.Ignore("set MP_OWNER_SAVE and MP_OWNER_PACKAGE");
+            var file = MountainPlanner.Persistence.Saves.SaveJson.Read(File.ReadAllText(Path.Combine(save, "save.json")), out _);
+            var m = ResortPackage.ReadManifest(dir);
+            var tiles = TileGrid.For(SiteSquare.Create(new AlbersPoint(m.Site.CentreX, m.Site.CentreY), m.Site.SizeMetres / 1000.0));
+            var site = new EarthworkSite(new EditLattice(tiles.West, tiles.North), m.Site.CentreX, m.Site.CentreY);
+            using (var h = new PackageHeights(dir, m))
+            {
+                var lines = new List<string>();
+                foreach (var t in file.Design.Trails)
+                {
+                    if (t.Settings.Grading != TrailGrading.Graded || !t.HasEnds) continue;
+                    string name = "owner-" + t.Id.Value.ToString("x16");
+                    lines.Add(DrawTrail(h, site, t, true, name + "-graded.png"));
+                }
+                File.WriteAllLines(Out("owner-trails.txt"), lines);
+                foreach (var l in lines) TestContext.Progress.WriteLine(l);
             }
         }
 
