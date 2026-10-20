@@ -2038,7 +2038,7 @@ body.solo .frame { border-radius: 0; }
     return { kind: 'trail', step: 'paint', width: S.trailWidth || TRULE.wDef, graded: false, name: `Run ${trailRuns + 1}`, mask: new Uint8Array(TW * TH), comp: null,
       strokes: [], head: null, tail: null, line: null, est: null, msg: null, box: null };
   }
-  // The footprint canvas sits on the map under the drawings; painted cells show orange, a separate patch red (TF-02).
+  // The footprint canvas sits on the map under the drawings; painted cells show blue (TL25: the owner's style B), a separate patch red (TF-02).
   let fpCanvas = null;
   function fpCtx() {
     if (!fpCanvas) { fpCanvas = document.createElement('canvas'); fpCanvas.width = TW; fpCanvas.height = TH; fpCanvas.style.cssText = 'position:absolute;left:0;top:0;width:1280px;height:720px;pointer-events:none'; mapEl.insertBefore(fpCanvas, worldEl); }
@@ -2057,7 +2057,7 @@ body.solo .frame { border-radius: 0; }
       const i = y * TW + x, v = erase ? 0 : 1;
       if (d.mask[i] !== v) { st.idx.push(i); st.was.push(d.mask[i]); d.mask[i] = v; }
     }
-    ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'; ctx.fillStyle = 'rgba(214,160,120,0.22)';
+    ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'; ctx.fillStyle = 'rgba(90,150,240,0.30)';   // TL25: the game's style B, blue
     ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.6, r), 0, 2 * Math.PI); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
   }
   function strokeTo(d, p) {
