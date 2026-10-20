@@ -1,5 +1,6 @@
 using System;
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Edits;
 using Unity.Collections;
 using UnityEngine;
 
@@ -8,109 +9,173 @@ namespace MountainPlanner.Presentation.Design
     /// <summary>What a trail tool paints on the ground while it draws (TF-02).</summary>
     public interface ITrailPaint
     {
-        /// <summary>Stamps the brush, <paramref name="radius"/> metres round a local x/z point, or rubs it out.</summary>
-        void Stamp(Vector2 xz, float radius, bool erase);
-        /// <summary>Shows a worked-out footprint: its largest patch orange, any other patch red.</summary>
+        /// <summary>The design's 1 m lattice and where the local frame sits in it: the paint's cells are the footprint's.</summary>
+        void Align(EditLattice lattice, double originX, double originY);
+        /// <summary>
+        /// Paints (or rubs out) the capsule <paramref name="radius"/> metres round the segment from <paramref name="a"/> to
+        /// <paramref name="b"/> (local x/z): exactly the cells <see cref="TrailFootprint"/> paints for that stretch of a stroke.
+        /// </summary>
+        void Stamp(Vector2 a, Vector2 b, float radius, bool erase);
+        /// <summary>Shows a worked-out footprint: the cells it paints, a patch apart red.</summary>
         void Show(TrailFootprint footprint);
         /// <summary>Takes all the paint off the ground.</summary>
         void Clear();
+        /// <summary>The brush under the pointer (local x/z), drawn on the ground; hidden when <paramref name="shown"/> is false.</summary>
+        void Cursor(Vector2 xz, float radius, bool erase, bool shown);
+        /// <summary>The paint's tint for style C (the live difficulty estimate's colour).</summary>
+        void Tint(Color colour);
     }
 
     /// <summary>
-    /// The trail being painted, shown on the ground the way a brush paints (owner, 2026-10-19; the mockup's footprint
-    /// canvas, TF-02): a world-space map over the core that the terrain shader tints, r where the brush has been and g
-    /// where a patch stands apart. Stamps land on the CPU copy at once and go to the GPU once a frame by dirty
-    /// rectangle, through a small staging texture (no whole-map upload, nothing allocated per frame). Display only.
+    /// The trail being painted, on the ground the way a brush paints (owner, 2026-10-19 and 2026-10-20: "laggy, not very
+    /// elegant"). Its cells are the design's own 1 m lattice cells, painted with the footprint's own capsule rule, so what
+    /// the brush lays down while dragging is exactly what the worked-out footprint shows after: nothing pops when a stroke
+    /// ends. The map covers only what's painted (it grows), always at 1 m, whatever the site's size. Stamps land on the
+    /// CPU copy and reach the GPU once a frame by dirty rectangle through a small staging texture. Display only.
     /// </summary>
     public sealed class TrailPaintMap : ITrailPaint, IDisposable
     {
-        const int MaxTexels = 4096, Stage = 256;
+        const int Stage = 256, Margin = 128, Step = 64, MaxCells = 4096;
         static readonly int MapId = Shader.PropertyToID("_PaintMap"), RectId = Shader.PropertyToID("_PaintRect"),
-                            ParamsId = Shader.PropertyToID("_PaintParams");
+                            ParamsId = Shader.PropertyToID("_PaintParams"), CursorId = Shader.PropertyToID("_PaintCursor"),
+                            TintId = Shader.PropertyToID("_PaintTint");
 
-        readonly float _west, _south, _texel;
-        readonly int _w, _h;
-        readonly byte[] _cpu;           // rg pairs, rows north from the south edge
+        EditLattice _lattice;
+        double _originX, _originY;
+        bool _aligned;
+        // The window, in lattice cells: columns _c0.._c0+_w-1, rows _r0.._r0+_h-1 (rows run south).
+        int _c0, _r0, _w, _h;
+        byte[] _cpu = Array.Empty<byte>();   // rg pairs, texture rows from the south
         Texture2D _map, _stage;
-        RectInt _dirty;                 // texels waiting for the GPU (empty: width 0)
-        RectInt _shown;                 // texels that may hold paint
-        bool _any;
+        RectInt _dirty, _shown;   // in window cells (x column, y row from the north)
+        bool _realloc;
+        int _style;
 
-        /// <param name="core">The core area in local metres (x east, y north): paint stays inside it.</param>
-        public TrailPaintMap(Rect core)
+        /// <summary>The look (0 A: light fill and a crisp edge; 1 B: white-blue highlight; 2 C: the difficulty's colour).</summary>
+        public int Style
         {
-            _texel = Mathf.Max(1f, Mathf.Ceil(Mathf.Max(core.width, core.height) / MaxTexels));
-            _west = core.xMin;
-            _south = core.yMin;
-            _w = Mathf.Max(1, Mathf.CeilToInt(core.width / _texel));
-            _h = Mathf.Max(1, Mathf.CeilToInt(core.height / _texel));
-            _cpu = new byte[_w * _h * 2];
-            Shader.SetGlobalVector(ParamsId, Vector4.zero);
+            get => _style;
+            set { _style = Mathf.Clamp(value, 0, 2); Shader.SetGlobalVector(ParamsId, new Vector4(_shown.width > 0 ? 1 : 0, _style, 0, 0)); }
         }
 
-        public void Stamp(Vector2 xz, float radius, bool erase)
+        public TrailPaintMap()
         {
-            float r = radius / _texel, cx = (xz.x - _west) / _texel, cy = (xz.y - _south) / _texel;
-            int x0 = Mathf.Max(0, Mathf.FloorToInt(cx - r)), x1 = Mathf.Min(_w - 1, Mathf.CeilToInt(cx + r));
-            int y0 = Mathf.Max(0, Mathf.FloorToInt(cy - r)), y1 = Mathf.Min(_h - 1, Mathf.CeilToInt(cy + r));
-            if (x0 > x1 || y0 > y1) return;
-            float r2 = r * r;
-            for (int y = y0; y <= y1; y++)
+            Shader.SetGlobalVector(ParamsId, Vector4.zero);
+            Shader.SetGlobalVector(CursorId, Vector4.zero);
+            Shader.SetGlobalColor(TintId, new Color(0.85f, 0.42f, 0.16f));
+        }
+
+        public void Align(EditLattice lattice, double originX, double originY)
+        {
+            if (_aligned && lattice.West == _lattice.West && lattice.North == _lattice.North && originX == _originX && originY == _originY) return;
+            _lattice = lattice;
+            _originX = originX;
+            _originY = originY;
+            _aligned = true;
+            _w = _h = 0;
+            _cpu = Array.Empty<byte>();
+            _shown = _dirty = default;
+            _realloc = true;
+        }
+
+        public void Stamp(Vector2 a, Vector2 b, float radius, bool erase)
+        {
+            if (!_aligned) return;
+            double ax = a.x + _originX, ay = a.y + _originY, bx = b.x + _originX, by = b.y + _originY, r = radius;
+            int cMin = (int)Math.Floor(Math.Min(ax, bx) - r - _lattice.West) - 1, cMax = (int)Math.Ceiling(Math.Max(ax, bx) + r - _lattice.West) + 1;
+            int rMin = (int)Math.Floor(_lattice.North - Math.Max(ay, by) - r) - 1, rMax = (int)Math.Ceiling(_lattice.North - Math.Min(ay, by) + r) + 1;
+            if (!Cover(cMin, rMin, cMax, rMax)) return;
+            double dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy, r2 = r * r;
+            for (int row = Math.Max(rMin, _r0); row <= Math.Min(rMax, _r0 + _h - 1); row++)
             {
-                float dy = y + 0.5f - cy;
-                for (int x = x0; x <= x1; x++)
+                double y = _lattice.North - row - 0.5;
+                for (int col = Math.Max(cMin, _c0); col <= Math.Min(cMax, _c0 + _w - 1); col++)
                 {
-                    float dx = x + 0.5f - cx;
-                    if (dx * dx + dy * dy > r2) continue;
-                    int at = (y * _w + x) * 2;
+                    // TrailFootprint.Capsule's own test: the cell's centre within r of the segment.
+                    double x = _lattice.West + col + 0.5;
+                    double t = len2 == 0 ? 0 : Math.Max(0, Math.Min(1, ((x - ax) * dx + (y - ay) * dy) / len2));
+                    double ex = ax + t * dx - x, ey = ay + t * dy - y;
+                    if (ex * ex + ey * ey > r2) continue;
+                    int at = Index(col, row);
                     _cpu[at] = erase ? (byte)0 : (byte)255;
                     _cpu[at + 1] = 0;
                 }
             }
-            Touch(new RectInt(x0, y0, x1 - x0 + 1, y1 - y0 + 1));
+            Touch(Math.Max(cMin, _c0) - _c0, Math.Max(rMin, _r0) - _r0, Math.Min(cMax, _c0 + _w - 1) - _c0, Math.Min(rMax, _r0 + _h - 1) - _r0);
         }
 
         public void Show(TrailFootprint fp)
         {
+            if (!_aligned || fp == null) { ClearCpu(); return; }
+            if (!Cover(fp.Column0, fp.Row0, fp.Column0 + fp.Width - 1, fp.Row0 + fp.Height - 1)) return;
             ClearCpu();
-            if (fp == null || fp.IsEmpty) return;
+            if (fp.IsEmpty) return;
             var labels = fp.PatchLabels(out int main);
-            // The footprint's cells (1 m, lattice-aligned) into the map's texels: local = lattice frame − origin.
-            float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+            int x0 = int.MaxValue, y0 = int.MaxValue, x1 = int.MinValue, y1 = int.MinValue;
             for (int j = 0; j < fp.Height; j++)
                 for (int i = 0; i < fp.Width; i++)
                 {
                     int label = labels[j * fp.Width + i];
                     if (label == 0) continue;
-                    float x = (float)(fp.CellX(fp.Column0 + i) - fp.OriginX), y = (float)(fp.CellY(fp.Row0 + j) - fp.OriginY);
-                    int tx = Mathf.FloorToInt((x - _west) / _texel), ty = Mathf.FloorToInt((y - _south) / _texel);
-                    if (tx < 0 || ty < 0 || tx >= _w || ty >= _h) continue;
-                    int at = (ty * _w + tx) * 2;
-                    if (label == main) _cpu[at] = 255;
-                    else _cpu[at + 1] = 255;
-                    minX = Mathf.Min(minX, tx); maxX = Mathf.Max(maxX, tx);
-                    minY = Mathf.Min(minY, ty); maxY = Mathf.Max(maxY, ty);
+                    int col = fp.Column0 + i, row = fp.Row0 + j;
+                    int at = Index(col, row);
+                    if (label == main) _cpu[at] = 255; else _cpu[at + 1] = 255;
+                    x0 = Math.Min(x0, col - _c0); x1 = Math.Max(x1, col - _c0);
+                    y0 = Math.Min(y0, row - _r0); y1 = Math.Max(y1, row - _r0);
                 }
-            if (minX <= maxX) Touch(new RectInt((int)minX, (int)minY, (int)(maxX - minX) + 1, (int)(maxY - minY) + 1));
+            if (x0 <= x1) Touch(x0, y0, x1, y1);
         }
 
         public void Clear()
         {
             ClearCpu();
-            if (!_any) Shader.SetGlobalVector(ParamsId, Vector4.zero);
+            Shader.SetGlobalVector(CursorId, Vector4.zero);   // a tool's close or commit takes the brush off the ground too
+        }
+
+        public void Cursor(Vector2 xz, float radius, bool erase, bool shown) =>
+            Shader.SetGlobalVector(CursorId, shown ? new Vector4(xz.x, xz.y, radius, erase ? 2 : 1) : Vector4.zero);
+
+        public void Tint(Color colour) => Shader.SetGlobalColor(TintId, colour);
+
+        int Index(int col, int row) => ((_h - 1 - (row - _r0)) * _w + (col - _c0)) * 2;
+
+        /// <summary>Grows the window to hold the cells given (with a margin); false past the largest map.</summary>
+        bool Cover(int cMin, int rMin, int cMax, int rMax)
+        {
+            if (_w > 0 && cMin >= _c0 && rMin >= _r0 && cMax < _c0 + _w && rMax < _r0 + _h) return true;
+            int nc0 = _w > 0 ? Math.Min(_c0, cMin - Margin) : cMin - Margin, nr0 = _w > 0 ? Math.Min(_r0, rMin - Margin) : rMin - Margin;
+            int nc1 = _w > 0 ? Math.Max(_c0 + _w, cMax + Margin) : cMax + Margin, nr1 = _w > 0 ? Math.Max(_r0 + _h, rMax + Margin) : rMax + Margin;
+            nc0 = (int)Math.Floor(nc0 / (double)Step) * Step; nr0 = (int)Math.Floor(nr0 / (double)Step) * Step;
+            int nw = (int)Math.Ceiling((nc1 - nc0) / (double)Step) * Step, nh = (int)Math.Ceiling((nr1 - nr0) / (double)Step) * Step;
+            if (nw > MaxCells || nh > MaxCells) return false;
+            var next = new byte[nw * nh * 2];
+            for (int row = _r0; row < _r0 + _h; row++)
+            {
+                int from = ((_h - 1 - (row - _r0)) * _w) * 2, to = ((nh - 1 - (row - nr0)) * nw + (_c0 - nc0)) * 2;
+                Array.Copy(_cpu, from, next, to, _w * 2);
+            }
+            if (_shown.width > 0) _shown = new RectInt(_shown.x + _c0 - nc0, _shown.y + _r0 - nr0, _shown.width, _shown.height);
+            _c0 = nc0; _r0 = nr0; _w = nw; _h = nh; _cpu = next;
+            _realloc = true;
+            return true;
         }
 
         void ClearCpu()
         {
             if (_shown.width == 0) return;
             for (int y = _shown.yMin; y < _shown.yMax; y++)
-                Array.Clear(_cpu, (y * _w + _shown.xMin) * 2, _shown.width * 2);
-            Touch(_shown);
+            {
+                int row = _r0 + y;
+                Array.Clear(_cpu, Index(_c0 + _shown.xMin, row), _shown.width * 2);
+            }
+            _dirty = _dirty.width == 0 ? _shown : Union(_dirty, _shown);
             _shown = default;
         }
 
-        void Touch(RectInt r)
+        void Touch(int x0, int y0, int x1, int y1)
         {
+            if (x1 < x0 || y1 < y0) return;
+            var r = new RectInt(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
             _dirty = _dirty.width == 0 ? r : Union(_dirty, r);
             _shown = _shown.width == 0 ? r : Union(_shown, r);
         }
@@ -124,44 +189,60 @@ namespace MountainPlanner.Presentation.Design
         /// <summary>Sends this frame's changes to the GPU (once a frame, from the viewer).</summary>
         public void Flush()
         {
-            if (_dirty.width == 0) return;
-            if (_map == null)
+            if (!_aligned || _w == 0) return;
+            if (_realloc || _map == null)
             {
+                if (_map != null) Destroy(_map);
                 _map = new Texture2D(_w, _h, TextureFormat.RG16, false, true)
                 {
                     name = "Trail paint", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp,
                 };
-                _stage = new Texture2D(Stage, Stage, TextureFormat.RG16, false, true) { name = "Trail paint stage" };
+                if (_stage == null) _stage = new Texture2D(Stage, Stage, TextureFormat.RG16, false, true) { name = "Trail paint stage" };
                 var all = _map.GetPixelData<byte>(0);
                 NativeArray<byte>.Copy(_cpu, all, _cpu.Length);
                 _map.Apply(false);
+                _realloc = false;
                 _dirty = default;
+                Bind();
+                return;
             }
-            else
-            {
-                var stage = _stage.GetPixelData<byte>(0);
-                for (int sy = _dirty.yMin; sy < _dirty.yMax; sy += Stage)
-                    for (int sx = _dirty.xMin; sx < _dirty.xMax; sx += Stage)
-                    {
-                        int cw = Mathf.Min(Stage, _dirty.xMax - sx), ch = Mathf.Min(Stage, _dirty.yMax - sy);
-                        for (int y = 0; y < ch; y++)
-                            NativeArray<byte>.Copy(_cpu, ((sy + y) * _w + sx) * 2, stage, y * Stage * 2, cw * 2);
-                        _stage.Apply(false);
-                        Graphics.CopyTexture(_stage, 0, 0, 0, 0, cw, ch, _map, 0, 0, sx, sy);
-                    }
-                _dirty = default;
-            }
-            _any = _shown.width > 0;
+            if (_dirty.width == 0) return;
+            var stage = _stage.GetPixelData<byte>(0);
+            // Texture rows run north from the south edge: window row y (from the north) is texture row _h - 1 - y.
+            int ty0 = _h - _dirty.yMax, ty1 = _h - _dirty.yMin;
+            for (int sy = ty0; sy < ty1; sy += Stage)
+                for (int sx = _dirty.xMin; sx < _dirty.xMax; sx += Stage)
+                {
+                    int cw = Mathf.Min(Stage, _dirty.xMax - sx), ch = Mathf.Min(Stage, ty1 - sy);
+                    for (int y = 0; y < ch; y++)
+                        NativeArray<byte>.Copy(_cpu, ((sy + y) * _w + sx) * 2, stage, y * Stage * 2, cw * 2);
+                    _stage.Apply(false);
+                    Graphics.CopyTexture(_stage, 0, 0, 0, 0, cw, ch, _map, 0, 0, sx, sy);
+                }
+            _dirty = default;
+            Bind();
+        }
+
+        void Bind()
+        {
+            // The window's south-west corner in the local frame: lattice x of column _c0, y of row _r0 + _h's top edge.
+            double west = _lattice.West + _c0 - _originX, south = _lattice.North - (_r0 + _h) - _originY;
             Shader.SetGlobalTexture(MapId, _map);
-            Shader.SetGlobalVector(RectId, new Vector4(_west, _south, 1f / (_w * _texel), 1f / (_h * _texel)));
-            Shader.SetGlobalVector(ParamsId, new Vector4(_any ? 1 : 0, 0, 0, 0));
+            Shader.SetGlobalVector(RectId, new Vector4((float)west, (float)south, 1f / _w, 1f / _h));
+            Shader.SetGlobalVector(ParamsId, new Vector4(_shown.width > 0 ? 1 : 0, _style, 0, 0));
+        }
+
+        static void Destroy(UnityEngine.Object o)
+        {
+            if (Application.isPlaying) UnityEngine.Object.Destroy(o); else UnityEngine.Object.DestroyImmediate(o);
         }
 
         public void Dispose()
         {
             Shader.SetGlobalVector(ParamsId, Vector4.zero);
-            if (_map != null) UnityEngine.Object.Destroy(_map);
-            if (_stage != null) UnityEngine.Object.Destroy(_stage);
+            Shader.SetGlobalVector(CursorId, Vector4.zero);
+            if (_map != null) Destroy(_map);
+            if (_stage != null) Destroy(_stage);
             _map = _stage = null;
         }
     }

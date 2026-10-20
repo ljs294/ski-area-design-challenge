@@ -171,8 +171,84 @@ namespace MountainPlanner.App
                 ["steep"] = (new float[] { -650, 380, -660, 500, -650, 640 }, new[] { 150 }, new (float, float, int)[0]),
             };
 
+        // ---------- -paintbench <file>: how the brush feels (owner, 2026-10-20: "laggy, not very elegant") ----------
+
+        /// <summary>
+        /// Paints strokes with the New trail tool, one input per frame at a quick drag (5 m a frame, a 600 m stroke in two
+        /// seconds), and records each frame's time while dragging and how long after letting go the footprint shows. Only
+        /// the tool's own input is used, so the same bench measures any build.
+        /// </summary>
+        IEnumerator PaintBench(string file)
+        {
+            while (_resort == null || !_resort.CoverReady.IsCompleted || WorkBusy || _tools == null) yield return null;
+            Hud.SetToolboxTab("trails");
+            Hud.SetToolbox(true);
+            _tools.Choose(NewTrailTool.ToolId);
+            var trail = (NewTrailTool)_tools.Active;
+            _toolScripted = true;
+            while (!Ground.Ready) yield return null;
+            for (int i = 0; i < 30; i++) yield return null;
+            var drag = new List<double>();
+            var settle = new List<double>();
+            var showFrame = new List<double>();
+            const int strokes = 12;
+            for (int s = -1; s < strokes; s++)   // the first stroke warms up
+            {
+                float angle = (s + 1) * Mathf.PI * 2 / strokes;
+                var head = new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * 500f;
+                var path = FallLine(head, 600);
+                var pts = new List<Vector2>();
+                foreach (var p in path) pts.Add(DesignFrame.ToLocal(p));
+                _tools.Tick(GroundInput(pts[0], click: true, drag: true));
+                yield return null;
+                // Walk the line 5 m a frame.
+                float walked = 0, total = 0;
+                for (int k = 1; k < pts.Count; k++) total += Vector2.Distance(pts[k - 1], pts[k]);
+                int seg = 1;
+                float segStart = 0;
+                while (walked < total)
+                {
+                    walked = Mathf.Min(total, walked + 5f);
+                    while (seg < pts.Count - 1 && segStart + Vector2.Distance(pts[seg - 1], pts[seg]) < walked) { segStart += Vector2.Distance(pts[seg - 1], pts[seg]); seg++; }
+                    float len = Vector2.Distance(pts[seg - 1], pts[seg]);
+                    var at = Vector2.Lerp(pts[seg - 1], pts[seg], len > 0 ? Mathf.Clamp01((walked - segStart) / len) : 1);
+                    _tools.Tick(GroundInput(at, drag: true));
+                    yield return null;
+                    if (s >= 0) drag.Add(Time.unscaledDeltaTime * 1000.0);
+                }
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                _tools.Tick(GroundInput(pts[pts.Count - 1], release: true));
+                int frames = 0;
+                double worst = 0;
+                while ((trail.Analysing || _tools.Context.Running > 0) && frames < 3000)
+                {
+                    _tools.Tick(default);
+                    yield return null;
+                    frames++;
+                    worst = Math.Max(worst, Time.unscaledDeltaTime * 1000.0);
+                }
+                _tools.Tick(default);
+                yield return null;
+                if (s >= 0) { settle.Add(watch.Elapsed.TotalMilliseconds); showFrame.Add(Math.Max(worst, Time.unscaledDeltaTime * 1000.0)); }
+                // Undo the stroke, so every stroke paints a fresh trail.
+                _tools.Tick(new ToolInput { Keys = ToolKeys.UndoStroke });
+                for (int i = 0; i < 3; i++) { _tools.Tick(default); yield return null; }
+                while (trail.Analysing) { _tools.Tick(default); yield return null; }
+            }
+            drag.Sort(); settle.Sort(); showFrame.Sort();
+            double P(List<double> v, double q) => v.Count == 0 ? 0 : v[Math.Min(v.Count - 1, (int)Math.Floor(q * v.Count))];
+            string line = $"[PaintBench] dragging: frame p50 {P(drag, 0.5):F1} ms, p95 {P(drag, 0.95):F1} ms, max {P(drag, 1):F1} ms over {drag.Count} frames; " +
+                          $"letting go to the footprint shown: p50 {P(settle, 0.5):F0} ms, p95 {P(settle, 0.95):F0} ms; the slowest frame meanwhile p95 {P(showFrame, 0.95):F1} ms";
+            Debug.Log(line);
+            File.WriteAllText(file, line + "\n");
+            UndoCaptureTrails();
+            Application.Quit();
+        }
+
         void StartTrailShots(string[] args)
         {
+            int pb = Array.IndexOf(args, "-paintbench");
+            if (pb >= 0 && pb + 1 < args.Length) { StartCoroutine(PaintBench(args[pb + 1])); return; }
             int i = Array.IndexOf(args, "-trailshots");
             if (i < 0 || i + 1 >= args.Length) return;
             int s = Array.IndexOf(args, "-trailspot");

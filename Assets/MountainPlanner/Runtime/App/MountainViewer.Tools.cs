@@ -52,7 +52,11 @@ namespace MountainPlanner.App
             if (Hud == null || _resort == null || TitleMode || _tools != null) return;
             _design = new DesignHistory(DesignDocument.Empty(DesignSeed(_resort.Manifest.PackageId)));
             _preview = new PendingPreview(_resort.Root.transform, "Tool preview", _resort.Surface, HighlightMaterial);
-            _trailPaint = new TrailPaintMap(_resort.Core);
+            _trailPaint = new TrailPaintMap();
+            var cli = System.Environment.GetCommandLineArgs();
+            int style = System.Array.IndexOf(cli, "-paintstyle");   // review captures: a, b or c
+            if (style >= 0 && style + 1 < cli.Length && cli[style + 1].Length > 0)
+                _trailPaint.Style = Mathf.Max(0, "abc".IndexOf(char.ToLowerInvariant(cli[style + 1][0])));
             _preview.Cleared += _trailPaint.Clear;   // a tool's close or commit takes its paint off the ground too
             FollowDesign();
             _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core)

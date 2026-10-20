@@ -123,22 +123,56 @@ Shader "MountainPlanner/Terrain"
             return SAMPLE_TEXTURE2D_LOD(_TrailMap, sampler_TrailMap, uv, 0);
         }
 
-        // The trail being painted (task 08, TF-02; owner 2026-10-19: paint like a brush): a world map over the core, r the
-        // painted ground and g a separate patch (TrailPaintMap), filtered so the brush's edge reads soft. The mockup's
-        // footprint canvas: orange where painted, red where a patch stands apart. _PaintParams.x = 0 when nothing's painted.
+        // The trail being painted (task 08, TF-02; owner 2026-10-19: paint like a brush; 2026-10-20: make it elegant): the
+        // lattice's own 1 m cells (TrailPaintMap), r painted and g a patch apart, filtered so the coverage is smooth, then
+        // drawn as a light fill with a crisp line where the coverage crosses half (the paint's edge), a few pixels wide at
+        // any zoom. _PaintParams.x = 0 when nothing's painted, y the style: 0 A (light orange, darker edge), 1 B (white-blue
+        // highlight, blue edge), 2 C (the live difficulty's colour, _PaintTint). A patch apart is red in every style.
+        // _PaintCursor: the brush under the pointer (x, z, radius, w 1 painting, 2 rubbing out, 0 hidden).
         TEXTURE2D(_PaintMap); SAMPLER(sampler_PaintMap);
         float4 _PaintRect;           // west, south, 1 / width, 1 / depth (world metres, texel corners)
         float4 _PaintParams;
+        float4 _PaintCursor;
+        float4 _PaintTint;
 
         float3 ApplyPaint(float3 colour, float2 xz)
         {
             UNITY_BRANCH
-            if (_PaintParams.x < 0.5) return colour;
-            float2 uv = (xz - _PaintRect.xy) * _PaintRect.zw;
-            if (any(uv <= 0) || any(uv >= 1)) return colour;
-            float2 paint = SAMPLE_TEXTURE2D_LOD(_PaintMap, sampler_PaintMap, uv, 0).rg;
-            colour = lerp(colour, float3(0.86, 0.36, 0.10), 0.62 * paint.r);   // strong enough to read on lit snow (linear space)
-            return lerp(colour, float3(0.78, 0.08, 0.05), 0.68 * paint.g);
+            if (_PaintParams.x > 0.5)
+            {
+                float2 uv = (xz - _PaintRect.xy) * _PaintRect.zw;
+                if (all(uv > 0) && all(uv < 1))
+                {
+                    float2 paint = SAMPLE_TEXTURE2D_LOD(_PaintMap, sampler_PaintMap, uv, 0).rg;
+                    float cover = saturate(paint.r + paint.g);
+                    float w = clamp(fwidth(cover), 1e-4, 0.25);
+                    float inside = smoothstep(0.5 - w, 0.5 + w, cover);
+                    float edge = saturate(1 - abs(cover - 0.5) / (1.5 * w));
+                    float apart = saturate(paint.g / max(cover, 1e-3));
+                    float3 fill, line;
+                    float alpha;
+                    if (_PaintParams.y < 0.5) { fill = float3(0.90, 0.52, 0.22); line = float3(0.70, 0.28, 0.06); alpha = 0.30; }
+                    else if (_PaintParams.y < 1.5) { fill = float3(0.80, 0.90, 1.00); line = float3(0.16, 0.48, 0.92); alpha = 0.45; }
+                    else { fill = _PaintTint.rgb; line = _PaintTint.rgb * 0.75; alpha = 0.30; }
+                    fill = lerp(fill, float3(0.86, 0.16, 0.10), apart);
+                    line = lerp(line, float3(0.70, 0.08, 0.05), apart);
+                    colour = lerp(colour, fill, alpha * inside);
+                    colour = lerp(colour, line, 0.9 * edge);
+                }
+            }
+            UNITY_BRANCH
+            if (_PaintCursor.w > 0.5)
+            {
+                // A soft disc in a crisp dark ring (red to rub out), about two pixels wide whatever the zoom.
+                float d = distance(xz, _PaintCursor.xy), r = _PaintCursor.z;
+                float px = max(fwidth(d), 1e-3);
+                float ring = saturate(1.5 - abs(d - r) / px);
+                float disc = 1 - smoothstep(r - px, r + px, d);
+                float3 ink = _PaintCursor.w > 1.5 ? float3(0.80, 0.12, 0.08) : float3(0.12, 0.13, 0.16);
+                colour = lerp(colour, ink, 0.10 * disc);
+                colour = lerp(colour, ink, 0.80 * ring);
+            }
+            return colour;
         }
 
         // The offset across the trail (m) at full float precision (task 07, finding #11): half floats and hardware

@@ -409,12 +409,18 @@ namespace MountainPlanner.UI.Tools
             }
 
             var preview = _ctx.Preview;
+            var paint = _ctx.Paint;
             float radius = DesignUnits.FeetToMm(_feet) / 2000f;
+            AlignPaint();
             if (input.HasGround)
             {
-                var at = new Vector2(input.Ground.x, input.Ground.z);
+                var at = DesignFrame.ToLocal(input.Point);   // the point as the stroke stores it, so the paint is the footprint's
                 bool inside = _ctx.InCore(at);
-                preview.Ring(0, at, radius, !inside ? PreviewInk.Bad : (_painting ? _liveErase : input.Erase) ? PreviewInk.Bad : PreviewInk.Brush);
+                bool rubbing = _painting ? _liveErase : input.Erase && _strokes.Count > 0;
+                // The brush on the ground: the paint shader draws it (a soft disc in a crisp ring, red to rub out); the
+                // preview's ring only without a paint map (tests).
+                if (paint != null) { paint.Cursor(at, radius, rubbing || !inside, true); preview.Hide(0); }
+                else preview.Ring(0, at, radius, !inside ? PreviewInk.Bad : rubbing ? PreviewInk.Bad : PreviewInk.Brush);
                 if (input.Click && inside && !_painting)
                 {
                     // A footprint starts with paint (the design's rule), so the very first stroke can't erase.
@@ -423,34 +429,69 @@ namespace MountainPlanner.UI.Tools
                     _live.Clear();
                     _live.Add(input.Point);
                     _lastXz = at;
-                    _ctx.Paint?.Stamp(at, radius, _liveErase);   // the brush paints where it lands (owner, 2026-10-19)
+                    paint?.Stamp(at, at, radius, _liveErase);   // the brush paints where it lands
                 }
-                else if (_painting && input.Drag && inside && Vector2.Distance(at, _lastXz) >= Mathf.Max(3f, radius / 2))
+                else if (_painting && input.Drag && inside)
                 {
-                    // Stamps every quarter brush along the move, so a quick drag paints a solid band, not beads.
-                    if (_ctx.Paint != null)
+                    // The owner's report (2026-10-20, "laggy"): the brush painted only every half radius. Now the stroke keeps
+                    // a point every quarter brush (1 m at least) and the paint is stamped on every frame, the stored stretch
+                    // by stretch (the very capsules the footprint paints) and a tail out to the pointer, so the paint is under
+                    // the brush at once and nothing changes when the stroke ends.
+                    if (Vector2.Distance(at, _lastXz) >= Mathf.Max(1f, radius / 4))
                     {
-                        float step = Mathf.Max(1f, radius / 2), d = Vector2.Distance(_lastXz, at);
-                        int n = Mathf.Max(1, Mathf.CeilToInt(d / step));
-                        for (int k = 1; k <= n; k++) _ctx.Paint.Stamp(Vector2.Lerp(_lastXz, at, k / (float)n), radius, _liveErase);
+                        paint?.Stamp(_lastXz, at, radius, _liveErase);
+                        _live.Add(input.Point);
+                        _lastXz = at;
                     }
-                    _live.Add(input.Point);
-                    _lastXz = at;
-                    if (_ctx.Paint == null) DrawStroke(1, _live, _feet, _liveErase);
+                    else paint?.Stamp(_lastXz, at, radius, _liveErase);
+                    _pointerXz = at;
+                    _pointerMm = input.Point;
+                    if (paint == null) DrawStroke(1, _live, _feet, _liveErase);
                 }
             }
-            else preview.Hide(0);
+            else
+            {
+                preview.Hide(0);
+                paint?.Cursor(Vector2.zero, 0, false, false);
+            }
 
             if (_painting && (input.Release || !input.Drag))
             {
                 _painting = false;
+                // The tail the brush painted out to the pointer is part of the stroke.
+                if (_live.Count > 0 && Vector2.Distance(_pointerXz, _lastXz) > 0.05f && !_pointerMm.Equals(_live[_live.Count - 1])) _live.Add(_pointerMm);
                 _strokes.Add(new Stroke(DesignUnits.FeetToMm(_feet), _liveErase, _live.ToArray()));
                 _live.Clear();
                 Restroke();
             }
         }
 
+        Vector2 _pointerXz;
+        PointMm _pointerMm;
+        (double west, double north, double ox, double oy) _paintSite = (double.NaN, 0, 0, 0);
+
+        // The paint's cells are the lattice's: (re)align when the design's site is known, and show the strokes again.
+        void AlignPaint()
+        {
+            var paint = _ctx.Paint;
+            if (paint == null || _ctx.Earthwork?.Earthwork == null) return;
+            var site = Site;
+            var key = (site.Lattice.West, site.Lattice.North, site.OriginX, site.OriginY);
+            if (key.Equals(_paintSite)) return;
+            _paintSite = key;
+            paint.Align(site.Lattice, site.OriginX, site.OriginY);
+            if (_strokes.Count > 0 && !_painting) Restroke();
+        }
+
         EarthworkSite Site => _ctx.Earthwork?.Earthwork?.Site ?? new EarthworkSite(new EditLattice(0, 0), 0, 0);
+
+        /// <summary>The trail-map colours of the difficulty bands (TD-03), for style C's paint.</summary>
+        static Color BandTint(SlopeBands.Band band) => band switch
+        {
+            SlopeBands.Band.Green => new Color(0.20f, 0.62f, 0.30f),
+            SlopeBands.Band.Blue => new Color(0.18f, 0.42f, 0.82f),
+            _ => new Color(0.16f, 0.16f, 0.18f),
+        };
 
         // Redraws every stroke's edges and works out the footprint again (after a stroke, an undo, or a step back).
         void Restroke()
@@ -477,8 +518,13 @@ namespace MountainPlanner.UI.Tools
                 _raster = p.Footprint;
                 _estimate = p.Estimate;
                 _analysing = false;
-                // The painted ground, exactly as the trail will store it: the trail orange, a patch apart red (TF-02).
-                if (_mode != TrailToolMode.Remove) _ctx.Paint?.Show(p.Footprint);
+                // The painted ground, exactly as the trail will store it: a patch apart red (TF-02). Style C tints it with
+                // the live estimate's difficulty (TD-06).
+                if (_mode != TrailToolMode.Remove)
+                {
+                    _ctx.Paint?.Show(p.Footprint);
+                    if (!double.IsNaN(p.Estimate)) _ctx.Paint?.Tint(BandTint(SlopeBands.Of(p.Estimate)));
+                }
                 if (_step == Step.Paint) PaintStatus();
             });
         }
