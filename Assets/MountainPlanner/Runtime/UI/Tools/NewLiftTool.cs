@@ -592,7 +592,8 @@ namespace MountainPlanner.UI.Tools
         }
 
         // For tests and captures.
-        internal void ChooseTowers(TowerMode mode) => PickMode(mode == TowerMode.Automatic ? 0 : 1);
+        public void ChooseTowers(TowerMode mode) => PickMode(mode == TowerMode.Automatic ? 0 : 1);
+        public ToolDropdown CarrierMenu => _carrierDd;
         public int TowerFeet => Mathf.RoundToInt(_handMm / 304.8f);
         public int CurrentStep => (int)_step;
         public string Problem => _problem;
@@ -602,5 +603,6 @@ namespace MountainPlanner.UI.Tools
         public int TopLevelFeet => _topLevelFt;
         public bool Building => _building;
         public string CatalogId => _catalogId;
+        public PointMm Bottom => _bottom;
     }
 }

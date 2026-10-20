@@ -38,6 +38,8 @@ namespace MountainPlanner.UI.Tools
             var caret = new Label("▾") { pickingMode = PickingMode.Ignore };
             caret.AddToClassList("tw-dd__caret");
             Button.Add(caret);
+            Button.RegisterCallback<GeometryChangedEvent>(_ => Place());
+            host.RegisterCallback<GeometryChangedEvent>(_ => Place());
         }
 
         public bool Open => _menu != null;
@@ -82,15 +84,25 @@ namespace MountainPlanner.UI.Tools
                 _menu.Add(item);
                 if (!off && (first == null || i == _chosen)) first = item;
             }
-            // Over the window, just under the button, as wide as it (a quiet one as wide as it needs).
-            var at0 = _host.WorldToLocal(new Vector2(Button.worldBound.xMin, Button.worldBound.yMax));
-            float width = Button.worldBound.width;
-            _menu.style.left = float.IsNaN(at0.x) ? 0 : at0.x;
-            _menu.style.top = float.IsNaN(at0.y) ? 0 : at0.y + 3;
-            if (!float.IsNaN(width)) _menu.style.minWidth = width;
+            // Over the window, just under the button, as wide as it (a quiet one as wide as it needs); placed once the
+            // button has its layout (a menu opened the frame the window appears waits a frame, hidden).
+            _menu.style.visibility = Visibility.Hidden;
             _host.Add(_menu);
+            Place();
             _host.panel?.visualTree.RegisterCallback<PointerDownEvent>(Outside, TrickleDown.TrickleDown);
             if (Button.focusController?.focusedElement == Button) first?.Focus();
+        }
+
+        void Place()
+        {
+            if (_menu == null) return;
+            var wb = Button.worldBound;
+            if (float.IsNaN(wb.x) || float.IsNaN(wb.width) || wb.width <= 0) return;
+            var at = _host.WorldToLocal(new Vector2(wb.xMin, wb.yMax));
+            _menu.style.left = at.x;
+            _menu.style.top = at.y + 3;
+            _menu.style.minWidth = wb.width;
+            _menu.style.visibility = Visibility.Visible;
         }
 
         void Outside(PointerDownEvent e)

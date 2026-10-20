@@ -267,6 +267,63 @@ namespace MountainPlanner.App
             return true;
         }
 
+        /// <summary>For captures (task 09): New lift's menu on a Monta gondola, 8 a cabin, with the Cabin dropdown open.</summary>
+        internal bool LiftMenuForCapture()
+        {
+            if (_tools == null || !_tools.Choose(NewLiftTool.ToolId) || !(_tools.Active is NewLiftTool lift)) return false;
+            lift.Choose(LiftCatalogIds.Of("gondola-8", "monta"));
+            lift.CarrierMenu.Show();
+            return true;
+        }
+
+        /// <summary>
+        /// For captures (task 09, LF-04): New lift by hand at its Towers step, framed from the side; then
+        /// <see cref="LiftByHandPlaceForCapture"/> places towers once the ground is ready.
+        /// </summary>
+        internal bool LiftByHandBeginForCapture()
+        {
+            if (!LiftGhostForCapture(true) || !(_tools.Active is NewLiftTool lift) || _groundForCapture == null) return false;
+            var top = _groundForCapture.Value;
+            lift.ChooseTowers(TowerMode.ByHand);
+            _tools.Tick(GroundInput(top, click: true));
+            if (lift.CurrentStep != 2) return false;
+            _byHandTop = top;
+            return true;
+        }
+
+        Vector3 _byHandTop;
+
+        /// <summary>For captures: once the tower in hand is ready, <paramref name="towers"/> placed (each slid up to where it's
+        /// green), and the tower in hand left 60% up the line. False until the ground is ready.</summary>
+        internal bool LiftByHandPlaceForCapture(int towers)
+        {
+            if (!(_tools?.Active is NewLiftTool lift) || lift.HandStatus == null) return false;
+            for (int n = lift.Placed.Count; n < towers; n++)
+            {
+                // From the first slot up (as a player slides it), to the first place it's green.
+                for (int i = 0; i < 400; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideBack, Shift = true });
+                for (int i = 0; i < 400 && !lift.HandStatus.Ok; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideOn });
+                if (!lift.HandStatus.Ok) return true;
+                _tools.Tick(new ToolInput { Keys = ToolKeys.Next });
+            }
+            // The camera beside the line.
+            var b = DesignFrame.ToLocal(lift.Bottom);
+            var start = new Vector3(b.x, 0, b.y);
+            var dir = (_byHandTop - start); dir.y = 0; dir.Normalize();
+            // The next tower in hand slid to its first green place, the pointer on it.
+            for (int i = 0; i < 400; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideBack, Shift = true });
+            for (int i = 0; i < 400 && !lift.HandStatus.Ok; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideOn });
+            for (int i = 0; i < 6; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideOn });   // a little past it, where it may still be green
+            var at = start + dir * (float)lift.HandAlong;
+            at.y = _resort.Surface.HeightAt(at.x, at.z);
+            _groundForCapture = at;
+            var mid = Vector3.Lerp(start, _byHandTop, 0.5f);
+            mid.y = _resort.Surface.HeightAt(mid.x, mid.z);
+            Camera.Frame(mid, 330);
+            Camera.SetAngles(Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg + 70, 52);
+            return true;
+        }
+
         // For captures: the ground the armed tool sees each frame instead of the pointer's (a fixed spot while the shot waits).
         Vector3? _groundForCapture;
 

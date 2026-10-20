@@ -207,9 +207,9 @@ namespace MountainPlanner.UI.Tools
             var p = _ctx.Preview;
             int n = 0;
             if (_mode == TowerMode.ByHand)
-                foreach (var t in _placed) p.Dot(SlotBase + n++, At(t.AlongMm / 1000.0), PreviewInk.Line);
+                foreach (var t in _placed) p.Dot(SlotBase + n++, At(t.AlongMm / 1000.0), PreviewInk.Lift);
             else if (_built != null)
-                foreach (var t in _built.Towers) p.Dot(SlotBase + n++, At(t.AlongMm / 1000.0), PreviewInk.Line);
+                foreach (var t in _built.Towers) p.Dot(SlotBase + n++, At(t.AlongMm / 1000.0), PreviewInk.Lift);
             for (int i = n; i < _drawnTowers; i++) p.Hide(SlotBase + i);
             _drawnTowers = n;
             bool hand = _mode == TowerMode.ByHand && _hand != null && !complete && _status != null && _step == Step.Towers;
