@@ -317,8 +317,16 @@ namespace MountainPlanner.App
         internal bool LiftByHandPlaceForCapture(int towers)
         {
             if (!(_tools?.Active is NewLiftTool lift) || lift.HandStatus == null) return false;
+            // The next tower in hand again whenever the editor put it down (the line carried, F2), judged once.
+            bool InHand()
+            {
+                if (lift.Editor != null && !lift.Editor.Adding) lift.Editor.StartAdding();
+                _tools.Tick(default);
+                return lift.HandStatus != null;
+            }
             for (int n = lift.Placed.Count; n < towers; n++)
             {
+                if (!InHand()) return true;
                 // From the first slot up (as a player slides it), to the first place it's green.
                 for (int i = 0; i < 400; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideBack, Shift = true });
                 for (int i = 0; i < 400 && !lift.HandStatus.Ok; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideOn });
@@ -330,6 +338,7 @@ namespace MountainPlanner.App
             var start = new Vector3(b.x, 0, b.y);
             var dir = (_byHandTop - start); dir.y = 0; dir.Normalize();
             // The next tower in hand slid to its first green place, the pointer on it.
+            if (!InHand()) return true;
             for (int i = 0; i < 400; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideBack, Shift = true });
             for (int i = 0; i < 400 && !lift.HandStatus.Ok; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideOn });
             for (int i = 0; i < 6; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideOn });   // a little past it, where it may still be green

@@ -120,18 +120,10 @@ namespace MountainPlanner.Tests
                 yield return Chord(Key.LeftCtrl, Key.Enter);
                 Assert.That(viewer.Design.Document.Lifts.Count, Is.EqualTo(1), "Ctrl+Enter broke ground");
                 var placed = viewer.Design.Document.Lifts[0];
+                string placedName = placed.Name;
                 Assert.That(placed.Towers.Count, Is.GreaterThan(0), "TW-12's towers came with it");
                 Assert.That(placed.Levels, Is.Not.Null, "and its terminal levels (SK14)");
                 Assert.That(lift.CurrentStep, Is.EqualTo(0), "ready for the next lift");
-
-                // F6 (LT39): the lift's card (a click on it on the map, or its Analysis row) renames it in one undoable step.
-                for (int i = 0; i < 600 && viewer.Hud.LiftRenamed == null; i++) yield return null;
-                viewer.Hud.OpenLiftCardFor(placed.Id.Value);
-                viewer.Hud.RenameLiftCardForTest("Summit Quad");
-                Assert.That(viewer.Design.Document.Lifts[0].Name, Is.EqualTo("Summit Quad"), "the card's rename");
-                Assert.That(viewer.Design.Undo(), Is.True);
-                Assert.That(viewer.Design.Document.Lifts[0].Name, Is.EqualTo(placed.Name), "one Ctrl+Z takes it back");
-                viewer.Hud.CloseLiftCardIfOpen();
 
                 // Switching away mid-draw cancels at once and puts everything back (CF-01).
                 yield return Click(ScreenOf(cam, bottom, ctx));
@@ -249,6 +241,15 @@ namespace MountainPlanner.Tests
                 Assert.That(viewer.Design.Document.Trails.Count, Is.EqualTo(0), "Ctrl+Z took the trail back");
                 yield return Chord(Key.LeftCtrl, Key.Y);
                 Assert.That(viewer.Design.Document.Trails.Count, Is.EqualTo(1), "Ctrl+Y put it back");
+
+                // F6 (LT39): the lift's card (a click on it on the map, or its Analysis row) renames it in one undoable step.
+                for (int i = 0; i < 600 && viewer.Hud.LiftRenamed == null; i++) yield return null;
+                viewer.Hud.OpenLiftCardFor(placed.Id.Value);
+                viewer.Hud.RenameLiftCardForTest("Summit Quad");
+                Assert.That(viewer.Design.Document.Lifts[0].Name, Is.EqualTo("Summit Quad"), "the card's rename");
+                Assert.That(viewer.Design.Undo(), Is.True);
+                Assert.That(viewer.Design.Document.Lifts[0].Name, Is.EqualTo(placedName), "one Ctrl+Z takes it back");
+                viewer.Hud.CloseLiftCardIfOpen();
             }
             finally
             {

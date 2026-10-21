@@ -106,8 +106,8 @@ namespace MountainPlanner.App
 
         /// <summary>
         /// -liftbench N (task 09): N fixed-grip quads, each 600 m up the fall line from a grid across the core box, built by the
-        /// game's own build path (towers, pads, trench, clearing), for the benchmark's chairs. Deterministic: the same grid in
-        /// the same order every run.
+        /// game's own build path (towers, pads, trench, clearing), for the benchmark's chairs; every third a Monta FG4 (the
+        /// plan's 7, its own terminals and trains). Deterministic: the same grid in the same order every run.
         /// </summary>
         IEnumerator BuildBenchLifts(int want)
         {
@@ -124,7 +124,8 @@ namespace MountainPlanner.App
                 float z = Mathf.Lerp(core.yMin + inset, core.yMax - inset, (row + 0.5f) / side);
                 int before = _edits.History.Document.Lifts.Count;
                 tried++;
-                string report = StyleTile.BuildUphill(_edits, _resort.Frame, Lifts, x, z, 600, "Bench " + (built + 1));
+                string report = StyleTile.BuildUphill(_edits, _resort.Frame, Lifts, x, z, 600, "Bench " + (built + 1),
+                                                      built % 3 == 2 ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4);
                 if (_edits.History.Document.Lifts.Count > before) built++;
                 else Debug.Log($"[LiftBench] ({x:F0}, {z:F0}): {report}");
                 yield return null;
