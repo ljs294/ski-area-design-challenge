@@ -14,7 +14,7 @@ from liftkit.mesh import MeshBuilder, Style
 from liftkit.prims import U, V, W
 
 import monta_drive
-from monta_drive import box_from, cframes, gauge_shift, gauge_wheel, m, mv, wheel
+from monta_drive import box_from, cframes, gauge_shift, gauge_wheel, m, mv, pier_sockets, wheel
 
 KIND = "terminal"
 LODS = 4
@@ -35,9 +35,13 @@ def build(spec, lod, stage):
     gs = gauge_shift(c)                 # the deflection sheaves, their brackets and the arm's ends move to the gauge
     sv = parts.metres(c["sheave"], keep=())
 
-    # concrete pads: under the strut at grade, and under the column below grade
-    for p in r["pads"]:
-        prims.box(body, mv(p["lo"]), mv(p["hi"]), st["concrete"])
+    # concrete foundations: under the strut, standing at grade, and under the column, below grade; really tall (owner,
+    # P3-09 LT36: down to common.pierBottom, as the Sessellift's piers), the strut's first (pier_top), the column's next
+    pier_tops = []
+    for p in sorted(r["pads"], key=lambda p: -p["hi"][2]):
+        lo, hi = p["lo"], p["hi"]
+        prims.box(body, mv((lo[0], lo[1], c["pierBottom"])), mv(hi), st["concrete"], skip=("-2",))
+        pier_tops.append(mv(((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, hi[2])))
 
     # the column: a flat I-bar from its base plate, splice plates near the top (the head plate is in "boxes")
     co = r["column"]
@@ -113,7 +117,7 @@ def build(spec, lod, stage):
         "rope_left_bw": (0.0, -hg, rope), "rope_right_bw": (0.0, hg, rope),
         "rope_left_out": (u_out, -hg, rope), "rope_right_out": (u_out, hg, rope),
         "chair_unload": (m(r["unloadU"]), -hg, rope),
-        "foundation_base": (0.0, 0.0, m(min(p["lo"][2] for p in r["pads"]))),
     }
+    a.sockets.update(pier_sockets(pier_tops))
     a.dims.update({"rope": r["ropeElevation"], "deflectionU": r["deflection"][0]["u"]})
     return a

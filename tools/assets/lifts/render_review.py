@@ -1329,16 +1329,22 @@ def pose_photos(built_all, spec, out_dir, mats, chairs):
             bpy.data.objects.remove(rope)
         _turn(empties, {})
         bpy.data.objects.remove(snow)
-    for key in ("drive", "return"):   # raised 4 m on the tall pier; then the ground see-through to the footing
-        if key not in built_all or "terminal_footing" not in built_all:
+    for key in ("drive", "return", "monta_drive", "monta_return"):   # raised 4 m on the tall piers; then the ground
+        if key not in built_all or "terminal_footing" not in built_all:   # see-through to the footings
             continue
         b, f = built_all[key], built_all["terminal_footing"]
         raise_by = 4.0
         a0 = b["assets"][0]
         objs = lod_objects(b, 0)
-        foot = lod_objects(f, 0)
-        at = a0.sockets["pier_top"]
-        _move(f, (at[0], at[1], -raise_by))
+        tops = [p for k, p in sorted(a0.sockets.items()) if k.startswith("pier_top")]   # a footing under each pier
+        foot = []
+        for at in tops:
+            for src in lod_objects(f, 0):
+                o = src.copy()
+                o.location = src.location + frame.b((at[0], at[1], -raise_by))
+                o.hide_viewport = o.hide_render = False
+                bpy.context.scene.collection.objects.link(o)
+                foot.append(o)
         snow = _snow_plane(-raise_by)
         lo, hi = bounds_lift(objs)
         lo.z = -raise_by
@@ -1351,9 +1357,11 @@ def pose_photos(built_all, spec, out_dir, mats, chairs):
         glass = _photo_material("PoseGroundGlass", (0.85, 0.9, 0.95), 0.4)
         next(n for n in glass.node_tree.nodes if n.type == "BSDF_PRINCIPLED").inputs["Alpha"].default_value = 0.2
         snow.data.materials[0] = glass
-        shoot("through_ground", (at[0], 0.0, -raise_by), 35, 6, 14.0, lens=35)
+        mid = sum((t[0] for t in tops), 0.0) / len(tops)
+        shoot("through_ground", (mid, 0.0, -raise_by), 35, 6, 14.0 if not key.startswith("monta_") else radius * 2.2, lens=35)
         bpy.data.objects.remove(snow)
-        _move(f, (-at[0], -at[1], raise_by))
+        for o in foot:
+            bpy.data.objects.remove(o)
     with open(os.path.join(out_dir, "pose_log.json"), "w") as fh:
         json.dump(log, fh, indent=1)
     _photo_end(sc, [])
