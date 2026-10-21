@@ -205,7 +205,7 @@ echo     67 The game with the trail tools: T, Trails tab. New (N): paint, Shift-
 echo        the head and the tail; Natural or Graded (yellow contours, red too steep, the profile strip); Break ground.
 echo        Edit (M) and Remove (X): click a trail. Shift+4 the Trails layer; Tab, Trails: the list, its filters and cards.
 echo     67b The trail timing run: 1,000 ft and 1 km trails at 10 spots (preview, commit, edit, undo against 100 / 250 ms).
-echo     67c The trail captures on Jackson Hole 2 km: a sidehill and a ridge, each step of the tool (render lane).
+echo     67c The trail captures on Jackson Hole 2 km: a sidehill and a ridge, each step of the tool, and the paint check (render lane).
 echo   Phase 3, task 09: lifts (rebuilds the game; on the desktop)
 echo     68 Lifts in the game: New (type menu, terminals, towers by hand), hover glow and map lines, Edit and Remove
 echo.
@@ -870,6 +870,9 @@ set "JH2=%LOCALAPPDATA%\SkiAreaDesignChallenge-p308\jh2km"
 if not exist "%JH2%\manifest.json" robocopy "%~dp0TestData\jackson-hole-2km" "%JH2%" /e /njh /njs /nfl /ndl >nul
 %RENDER% "%GAME%" -package "%JH2%" -notitle -view 230,-545,420,250,42 -trailshots "%~dp0test-results\p3-08\sidehill" -trailspot sidehill <nul
 %RENDER% "%GAME%" -package "%JH2%" -notitle -view 280,720,330,200,45 -trailshots "%~dp0test-results\p3-08\ridge" -trailspot ridge <nul
+rem The paint check (findings 2026-10-20): three areas painted far apart, the GPU paint compared with the CPU paint every frame.
+%RENDER% "%GAME%" -package "%JH2%" -notitle -paintcheck "%~dp0test-results\p3-08\paintcheck.txt" <nul
+type "%~dp0test-results\p3-08\paintcheck.txt"
 start "" "%~dp0test-results\p3-08"
 goto done
 

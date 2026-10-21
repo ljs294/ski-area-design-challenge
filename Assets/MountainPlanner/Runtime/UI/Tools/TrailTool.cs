@@ -521,8 +521,9 @@ namespace MountainPlanner.UI.Tools
                 _estimate = p.Estimate;
                 _analysing = false;
                 // The painted ground, exactly as the trail will store it: a patch apart red (TF-02). Style C tints it with
-                // the live estimate's difficulty (TD-06).
-                if (_mode != TrailToolMode.Remove)
+                // the live estimate's difficulty (TD-06). Not while a new stroke is painting: the redraw replays only the
+                // finished strokes and would wipe the live one's paint (findings 2026-10-20, #3); its own let-go redraws.
+                if (_mode != TrailToolMode.Remove && !_painting)
                 {
                     _ctx.Paint?.Redraw(Parts(), p.Footprint);
                     if (!double.IsNaN(p.Estimate)) _ctx.Paint?.Tint(BandTint(SlopeBands.Of(p.Estimate)));

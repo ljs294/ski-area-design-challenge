@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Edits;
-using Unity.Collections;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 
 namespace MountainPlanner.Presentation.Design
 {
@@ -35,14 +35,21 @@ namespace MountainPlanner.Presentation.Design
     /// elegant"). Its cells are the design's own 1 m lattice cells, painted with the footprint's own capsule rule, so what
     /// the brush lays down while dragging is exactly what the worked-out footprint shows after: nothing pops when a stroke
     /// ends. The map covers only what's painted (it grows), always at 1 m, whatever the site's size. Stamps land on the
-    /// CPU copy and reach the GPU once a frame by dirty rectangle through a small staging texture. Display only.
+    /// CPU copy and reach the GPU once a frame by dirty rectangle: the dirty rows into a raw buffer (SetData copies at the
+    /// call, so the player's render thread never reads bytes a later stamp has changed) and a compute kernel writes them
+    /// into the paint texture (findings 2026-10-20: a shared staging texture put blocks of paint in the wrong places).
+    /// Display only.
     /// </summary>
     public sealed class TrailPaintMap : ITrailPaint, IDisposable
     {
-        const int Stage = 256, Margin = 128, Step = 64, MaxCells = 4096;
+        const int Margin = 128, Step = 64, MaxCells = 4096;
+        /// <summary>The upload kernel (Resources).</summary>
+        public const string UploadResource = "MountainPlannerDesign/TrailPaintUpload";
         static readonly int MapId = Shader.PropertyToID("_PaintMap"), RectId = Shader.PropertyToID("_PaintRect"),
                             ParamsId = Shader.PropertyToID("_PaintParams"), CursorId = Shader.PropertyToID("_PaintCursor"),
-                            TintId = Shader.PropertyToID("_PaintTint");
+                            TintId = Shader.PropertyToID("_PaintTint"), CpuId = Shader.PropertyToID("_Cpu"),
+                            TargetId = Shader.PropertyToID("_Map"), UploadRectId = Shader.PropertyToID("_Rect"),
+                            WidthId = Shader.PropertyToID("_Width");
 
         EditLattice _lattice;
         double _originX, _originY;
@@ -50,7 +57,11 @@ namespace MountainPlanner.Presentation.Design
         // The window, in lattice cells: columns _c0.._c0+_w-1, rows _r0.._r0+_h-1 (rows run south).
         int _c0, _r0, _w, _h;
         byte[] _cpu = Array.Empty<byte>();   // rg pairs, texture rows from the south
-        Texture2D _map, _stage;
+        uint[] _words = Array.Empty<uint>();   // the dirty rows' bytes as the buffer's words
+        RenderTexture _map;
+        GraphicsBuffer _buffer;
+        ComputeShader _upload;
+        readonly int[] _rect = new int[4];
         RectInt _dirty, _shown;   // in window cells (x column, y row from the north)
         bool _realloc;
         int _style = 1;   // B, the owner's choice (TL25): a blue fill with a blue edge
@@ -212,38 +223,45 @@ namespace MountainPlanner.Presentation.Design
         public void Flush()
         {
             if (!_aligned || _w == 0) return;
-            if (_realloc || _map == null)
+            if (_upload == null)
+            {
+                _upload = Resources.Load<ComputeShader>(UploadResource);
+                if (_upload == null || !SystemInfo.supportsComputeShaders) return;
+            }
+            if (_realloc || _map == null || !_map.IsCreated())
             {
                 if (_map != null) Destroy(_map);
-                _map = new Texture2D(_w, _h, TextureFormat.RG16, false, true)
+                _buffer?.Release();
+                _map = new RenderTexture(_w, _h, 0, GraphicsFormat.R8G8_UNorm)
                 {
-                    name = "Trail paint", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp,
+                    name = "Trail paint", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, enableRandomWrite = true,
                 };
-                if (_stage == null) _stage = new Texture2D(Stage, Stage, TextureFormat.RG16, false, true) { name = "Trail paint stage" };
-                var all = _map.GetPixelData<byte>(0);
-                NativeArray<byte>.Copy(_cpu, all, _cpu.Length);
-                _map.Apply(false);
+                _map.Create();
+                _buffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw, _cpu.Length / 4, 4);
+                _words = new uint[_cpu.Length / 4];
                 _realloc = false;
-                _dirty = default;
-                Bind();
-                return;
+                _dirty = new RectInt(0, 0, _w, _h);
             }
             if (_dirty.width == 0) return;
-            var stage = _stage.GetPixelData<byte>(0);
-            // Texture rows run north from the south edge: window row y (from the north) is texture row _h - 1 - y.
-            int ty0 = _h - _dirty.yMax, ty1 = _h - _dirty.yMin;
-            for (int sy = ty0; sy < ty1; sy += Stage)
-                for (int sx = _dirty.xMin; sx < _dirty.xMax; sx += Stage)
-                {
-                    int cw = Mathf.Min(Stage, _dirty.xMax - sx), ch = Mathf.Min(Stage, ty1 - sy);
-                    for (int y = 0; y < ch; y++)
-                        NativeArray<byte>.Copy(_cpu, ((sy + y) * _w + sx) * 2, stage, y * Stage * 2, cw * 2);
-                    _stage.Apply(false);
-                    Graphics.CopyTexture(_stage, 0, 0, 0, 0, cw, ch, _map, 0, 0, sx, sy);
-                }
+            // Texture rows run north from the south edge: window row y (from the north) is texture row _h - 1 - y. Whole
+            // rows go up (a row is a multiple of 64 cells, so whole words).
+            int ty0 = _h - _dirty.yMax, rows = _dirty.height;
+            int word0 = ty0 * _w / 2, words = rows * _w / 2;
+            Buffer.BlockCopy(_cpu, word0 * 4, _words, word0 * 4, words * 4);
+            _buffer.SetData(_words, word0, word0, words);
+            _upload.SetBuffer(0, CpuId, _buffer);
+            _upload.SetTexture(0, TargetId, _map);
+            _rect[0] = _dirty.xMin; _rect[1] = ty0; _rect[2] = _dirty.width; _rect[3] = rows;
+            _upload.SetInts(UploadRectId, _rect);   // a kept array: no allocation per frame
+            _upload.SetInt(WidthId, _w);
+            _upload.Dispatch(0, (_dirty.width + 7) / 8, (rows + 7) / 8, 1);
             _dirty = default;
             Bind();
         }
+
+        /// <summary>For the paint checks (EditMode and <c>-paintcheck</c>): the texture the terrain samples, and the CPU paint it should hold.</summary>
+        public Texture GpuTexture => _map;
+        public ReadOnlySpan<byte> CpuBytes => _cpu;
 
         void Bind()
         {
@@ -264,8 +282,9 @@ namespace MountainPlanner.Presentation.Design
             Shader.SetGlobalVector(ParamsId, Vector4.zero);
             Shader.SetGlobalVector(CursorId, Vector4.zero);
             if (_map != null) Destroy(_map);
-            if (_stage != null) Destroy(_stage);
-            _map = _stage = null;
+            _buffer?.Release();
+            _map = null;
+            _buffer = null;
         }
     }
 }

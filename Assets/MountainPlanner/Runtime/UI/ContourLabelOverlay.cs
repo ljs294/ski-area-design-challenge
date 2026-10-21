@@ -146,18 +146,8 @@ namespace MountainPlanner.UI
             }
         }
 
-        /// <summary>True when the ground rises between the camera and the label (checked at 16 points along the way).</summary>
-        static bool Hidden(Vector3 eye, in ContourLabel l, ITerrainSurface surface)
-        {
-            if (surface == null) return false;
-            var target = new Vector3(l.X, l.Elevation, l.Z);
-            for (int k = 1; k < 16; k++)
-            {
-                var p = Vector3.Lerp(eye, target, k / 16f);
-                float ground = surface.HeightAt(p.x, p.z);
-                if (!float.IsNaN(ground) && ground > p.y + 2) return true;
-            }
-            return false;
-        }
+        /// <summary>True when the ground rises between the camera and the label (<see cref="LabelSight"/>).</summary>
+        static bool Hidden(Vector3 eye, in ContourLabel l, ITerrainSurface surface) =>
+            LabelSight.Hidden(eye, new Vector3(l.X, l.Elevation, l.Z), surface);
     }
 }

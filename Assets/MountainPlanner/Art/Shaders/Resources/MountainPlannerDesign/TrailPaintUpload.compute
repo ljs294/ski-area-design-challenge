@@ -1,0 +1,21 @@
+// The trail paint's upload (TrailPaintMap, owner's findings 2026-10-20): the CPU paint's dirty rows reach a raw buffer
+// by GraphicsBuffer.SetData, which copies at the call, and this kernel writes the dirty rectangle into the paint texture.
+// The old path wrote one staging texture per 256-cell block and copied it over; with the player's render thread every
+// block landed with another block's bytes.
+#pragma kernel Upload
+
+ByteAddressBuffer _Cpu;       // the CPU paint: rg byte pairs, rows from the south, _Width texels a row
+RWTexture2D<float2> _Map;     // R8G8_UNorm
+uint4 _Rect;                  // x0, y0 (texture row from the south), width, height
+uint _Width;
+
+[numthreads(8, 8, 1)]
+void Upload(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Rect.z || id.y >= _Rect.w) return;
+    uint2 t = _Rect.xy + id.xy;
+    uint at = (t.y * _Width + t.x) * 2;
+    uint word = _Cpu.Load(at & ~3u);
+    uint pair = (at & 2u) != 0 ? word >> 16 : word & 0xFFFFu;
+    _Map[t] = float2(pair & 0xFFu, (pair >> 8) & 0xFFu) / 255.0;
+}

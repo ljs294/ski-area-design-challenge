@@ -88,7 +88,17 @@ if ($SkipTests) {
         Fail "EditMode tests: $($t.Message). See $log and $xml." $(if ($code -eq 198) { 198 } else { 1 })
     }
     Write-Host "  EditMode $($t.Message)"
-    $report.tests = "EditMode $($t.Message)"
+    # The trail paint's upload broke only with a render thread, as the player runs (findings 2026-10-20): its checks
+    # again under -force-gfx-mt.
+    Step 'Trail paint upload with a render thread'
+    $xml = Join-Path $results 'editmode-gfx-mt.xml'
+    $log = Join-Path $results 'editmode-gfx-mt.log'
+    $started = Get-Date
+    $code = Invoke-Unity $Unity @('-batchmode', '-force-gfx-mt', '-projectPath', $root, '-runTests', '-testPlatform', 'EditMode', '-testFilter', 'MountainPlanner.Tests.TrailPaintMapTests', '-testResults', $xml, '-logFile', $log)
+    $mt = Read-TestResult $xml $started $code
+    if (-not $mt.Ok) { Fail "The trail paint checks with a render thread: $($mt.Message). See $log and $xml." 1 }
+    Write-Host "  Render thread $($mt.Message)"
+    $report.tests = "EditMode $($t.Message); render thread $($mt.Message)"
 }
 
 # ---- 4. Build ----

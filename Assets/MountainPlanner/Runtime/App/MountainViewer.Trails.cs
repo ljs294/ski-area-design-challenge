@@ -117,7 +117,7 @@ namespace MountainPlanner.App
             bool on = _layers == null || _layers.TrailsOn;
             if (_trailLayer.Visible != on) _trailLayer.Visible = on;
             if (cam != null) _trailLayer.Follow(cam);
-            _trailLabels?.Update(cam, on && _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
+            _trailLabels?.Update(cam, _trailLayer.Ground, on && _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
         }
 
         void DisposeTrailLayer()
@@ -319,8 +319,81 @@ namespace MountainPlanner.App
             Application.Quit();
         }
 
+        /// <summary>
+        /// -paintcheck &lt;file&gt;: the paint on the GPU is the paint on the CPU in a real player, with its render thread
+        /// (findings 2026-10-20, #1-#2: earlier paint vanished, then paint landed where none was painted). Paints three
+        /// areas far apart with the New trail tool, a drag a frame and a let-go each, quick second strokes before the last
+        /// footprint is worked out among them, and after every frame's upload reads the paint texture back and compares
+        /// it with the CPU copy. Writes one line, "[PaintCheck] ok" or the frames that differ.
+        /// </summary>
+        IEnumerator PaintCheck(string file)
+        {
+            while (_resort == null || !_resort.CoverReady.IsCompleted || WorkBusy || _tools == null) yield return null;
+            Hud.SetToolboxTab("trails");
+            Hud.SetToolbox(true);
+            _tools.Choose(NewTrailTool.ToolId);
+            var trail = (NewTrailTool)_tools.Active;
+            _toolScripted = true;
+            while (!Ground.Ready) yield return null;
+            for (int i = 0; i < 30; i++) yield return null;
+            var core = _resort.Core;
+            Vector2 At(float u, float v) => core.center + new Vector2(u * core.width, v * core.height);
+            var areas = new[] { (At(-0.3f, 0), At(-0.1f, 0)), (At(0.2f, 0.25f), At(0.35f, 0.25f)), (At(-0.1f, -0.2f), At(-0.1f, -0.38f)) };
+            int frames = 0, bad = 0;
+            var faults = new List<string>();
+            IEnumerator Check(string when)
+            {
+                yield return null;   // the viewer's Update has flushed this frame's paint
+                frames++;
+                var tex = _trailPaint?.GpuTexture;
+                if (tex == null) yield break;
+                var cpu = _trailPaint.CpuBytes.ToArray();
+                var request = UnityEngine.Rendering.AsyncGPUReadback.Request(tex, 0);
+                request.WaitForCompletion();
+                if (request.hasError) { bad++; faults.Add(when + ": readback failed"); yield break; }
+                var gpu = request.GetData<byte>();
+                int wrong = 0;
+                for (int i = 0; i < cpu.Length && i < gpu.Length; i++) if (cpu[i] != gpu[i]) wrong++;
+                if (wrong > 0 || cpu.Length != gpu.Length) { bad++; if (faults.Count < 12) faults.Add($"{when}: {wrong} bytes differ"); }
+            }
+            for (int n = 0; n < areas.Length; n++)
+            {
+                var (a, b) = areas[n];
+                _tools.Tick(GroundInput(a, click: true, drag: true));
+                yield return Check($"area {n + 1} click");
+                int steps = Mathf.CeilToInt(Vector2.Distance(a, b) / 4f);
+                for (int t = 1; t <= steps; t++)
+                {
+                    _tools.Tick(GroundInput(Vector2.Lerp(a, b, t / (float)steps), drag: true));
+                    yield return Check($"area {n + 1} drag {t}");
+                }
+                _tools.Tick(GroundInput(b, release: true));
+                yield return Check($"area {n + 1} let go");
+                // A quick second stroke along the same area while the footprint is worked out (#3).
+                var back = b + (a - b).normalized * 30;
+                _tools.Tick(GroundInput(b, click: true, drag: true));
+                for (int t = 1; t <= 8; t++)
+                {
+                    _tools.Tick(GroundInput(Vector2.Lerp(b, back, t / 8f), drag: true));
+                    yield return Check($"area {n + 1} second stroke {t}");
+                }
+                _tools.Tick(GroundInput(back, release: true));
+                yield return Check($"area {n + 1} second let go");
+                while (trail.Analysing) { _tools.Tick(default); yield return Check($"area {n + 1} worked out"); }
+                for (int i = 0; i < 5; i++) { _tools.Tick(default); yield return Check($"area {n + 1} settled"); }
+            }
+            string line = bad == 0 ? $"[PaintCheck] ok: {frames} frames, the GPU paint matched the CPU paint every frame"
+                                   : $"[PaintCheck] FAILED: {bad} of {frames} frames differ; " + string.Join("; ", faults);
+            Debug.Log(line);
+            File.WriteAllText(file, line + "\n");
+            UndoCaptureTrails();
+            Application.Quit(bad == 0 ? 0 : 1);
+        }
+
         void StartTrailShots(string[] args)
         {
+            int pc = Array.IndexOf(args, "-paintcheck");
+            if (pc >= 0 && pc + 1 < args.Length) { StartCoroutine(PaintCheck(args[pc + 1])); return; }
             int pm = Array.IndexOf(args, "-paintmovie");
             if (pm >= 0 && pm + 1 < args.Length)
             {
