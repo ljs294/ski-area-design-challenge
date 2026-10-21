@@ -49,8 +49,8 @@ runs at w = 3039 mm, and the line gauge (bullwheel pitch diameter) is 4120 mm.
   gun's hinged lance or gun, the posable trains and the chair's grip and hanger, below), with the origin on the
   real axle or hinge pin.
 - `<id>_socket_<name>` empties:
-  - terminals: `line`, `rope_{left,right}_{bw,out}`, `chair_load` or `chair_unload`; the Sessellift's `pier_top`,
-    the Monta's `foundation_base`;
+  - terminals: `line`, `rope_{left,right}_{bw,out}`, `chair_load` or `chair_unload`, and `pier_top` (the Monta's
+    two piers: `pier_top`, `pier_top_2`);
   - the Sessellift terminal footing: `foundation_base`, `pier_seat`;
   - chair: `grip`, `seat_1..4`, `bar_hinge` (the seats and the bar's hinge ride with the hanger);
   - snow guns: `base` (the origin, at grade), `nozzle`, and the hose couplers (`hose_side`, and `hose_bottom` or
@@ -111,18 +111,20 @@ The game poses the lift's moving parts once, at build, from the rope (the model 
   (`restExitDeg`, the turn shared equally, the first sheave held at the bullwheel's height; `settle_rows`), which moves
   sheaves up to 74 mm, and the game's station-rope arc now runs within 6 mm under every sheave. From that rest
   (`pose.band`) every sheave stays on the rope for exits of 5° to 16° on the left rope and 6° to 16° on the right,
-  inside the clash ranges. Its plates are spread across the rope's plane so the parts can turn, and its guide sheaves
-  and the return's deflection sheaves stay single wheels (owner), so the Monta isn't posable in the game
-  (`TrainPosing.Posable` needs a rocker at both terminals).
+  inside the clash ranges. Its plates are spread across the rope's plane so the parts can turn. Its guide sheaves and
+  the return's deflection sheaves stay single fixed wheels (owner, confirmed at P3-09): the return is a fixed row,
+  which the game takes as rigid (LT33).
   Sheaves are their own parts at LOD0 and ride in their rocker at LOD1; at LOD2-3 each side's whole train is one
   part under its top pivot, never the body. The main pin and the lug plates stay in the body.
 - **The Sessellift chair:** `grip` (the origin, on the rope) → `hanger`, which turns about the grip's own stack axis
   (the cast arm's axis, reaching across to the rope, 8 mm under it), with no geometry added (owner). The hanger's
   socket rides with the hanger and turns inside the housing, which is turned round that axis, so no gap opens. LOD0-1
   are split; LOD2 stays one body.
-- **Piers and footings:** the Sessellift terminals' piers are really tall (owner): they run to 15 m below the 0.00
-  level, so a raised or lowered terminal still stands on its pier; `pier_top` marks the pier's top centre.
-  `sessellift_fgq4_terminal_footing` (kind `terminal_footing`) is the footing, placed by the game at grade.
+- **Piers and footings:** every terminal's piers are really tall (owner): they run to 15 m below the 0.00 level, so a
+  raised or lowered terminal still stands on them; `pier_top` marks a pier's top centre, and a terminal with more
+  piers numbers the rest `pier_top_2`, ... (the Monta: the drive's left and right piers; the return's strut
+  foundation, then its column's, whose top is 0.3 m below grade, P3-09 LT36). `sessellift_fgq4_terminal_footing`
+  (kind `terminal_footing`) is the footing, placed by the game at grade under each.
 - **Rope:** 1¾ in (`common.ropeDiameter` 44.45), the Monta's too (owner: rope sizes aligned; its sheaves sit 1.2 mm
   further from the rope than with its old 42 mm). The line heads' rows hang from fixed pins, so their sockets move with
   the rope; the terminal rows and the c8 rows sit 4.2 mm further from the rope than with the old 36 mm.
@@ -191,9 +193,10 @@ spin only at LOD0 on towers; from LOD1 a head is one mesh.
   the bullwheel's rim to the line gauge and moves every sheave in with its mounts (`monta_drive.gauge_shift`). Both terminals are lowered to the Sessellift chair's rope height
   (3,039 mm, `common.ropeElevation`), so the lift carries that chair unchanged.
 - **Sockets:** as the Sessellift terminals (`line`, `rope_*_bw`, `rope_*_out`, the drive's `rope_*_hold`,
-  `foundation_base`), but the drive has `chair_load` and the return `chair_unload`: the drive is at the bottom.
+  `pier_top`, and `pier_top_2` for the second pier), but the drive has `chair_load` and the return `chair_unload`: the drive is at the bottom.
 - **Spec:** `monta_fg4.json` is generated locally from the reference; its `_adjust` notes list every deliberate
-  change (the lowering, the rope line, the return's footings carried down to 2.5 m below grade).
+  change (the lowering, the rope line, every pier carried down to 15 m below grade, `common.pierBottom`, with the
+  drive's buried footing slabs left to the game's footing).
 
 ## Chairworks quad chair and the fixed grip (LP21-LP23)
 
@@ -221,8 +224,8 @@ if a rope socket is off the rope, or if a mast section's AO doesn't tile.
 | Drive terminal | 13,902 | 6,782 | 1,776 | 242 |
 | Return terminal | 19,852 | 7,016 | 1,824 | 304 |
 | Terminal footing (budget 12, one level) | 10 | - | - | - |
-| Monta drive terminal | 19,730 | 9,514 | 2,074 | 418 |
-| Monta return terminal | 3,640 | 1,824 | 948 | 364 |
+| Monta drive terminal | 20,338 | 9,562 | 2,050 | 394 |
+| Monta return terminal | 3,636 | 1,820 | 944 | 360 |
 | Chair budget | 1,600 | 250 | 60 | - |
 | Sessellift quad chair | 984 | 246 | 60 | - |
 | Chairworks chair, detachable grip | 1,596 | 248 | 56 | - |

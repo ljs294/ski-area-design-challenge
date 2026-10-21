@@ -98,7 +98,7 @@ namespace MountainPlanner.Domain.Design
             if (monta)
             {
                 type.Bottom = new TerminalEnd("monta_fg4_drive", TerminalRow.HoldDown, MontaExitMin, MontaExitMax, 0.9 * MontaExitMax,
-                                              5.042, 11.075, 6.25, 10.869, 3.555, 0, 12, ownStation: true);   // TW-16 v4, LT32
+                                              5.042, 11.075, 5.475, 10.869, 3.555, 0, 12, ownStation: true);   // TW-16 v4, LT32; LT36 half-width
                 type.Top = new TerminalEnd("monta_fg4_return", TerminalRow.Support, -TowerForces.SheaveBendLimit, 0, 0,
                                            2.165, 3.782, 2.165, 1.922, 3.039, 0, 1);
             }
