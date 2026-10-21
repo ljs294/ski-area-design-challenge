@@ -301,7 +301,7 @@ namespace MountainPlanner.App
             ulong hitId = 0;
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
             if (_mapLines != null && cam != null) _mapLines.Follow(cam, Camera.Distance, _hoveredId != 0 ? _hoveredId : _heldLiftId);
-            _liftLabels?.Update(cam, _liftsShown && _hudShown && !PhotoOpen && (Hud == null || Hud.LabelsOn));
+            _liftLabels?.Update(cam, _resort?.Surface, _liftsShown && _hudShown && !PhotoOpen && (Hud == null || Hud.LabelsOn));
             bool picking = _tools == null || !_tools.Armed || _tools.Active is MountainPlanner.UI.Tools.IPicksLifts || _focusedLiftId != 0;
             bool draft = DraftView != null;
             if (!draft) _draftPart = int.MinValue;
