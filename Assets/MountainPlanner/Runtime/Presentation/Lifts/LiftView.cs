@@ -237,17 +237,23 @@ namespace MountainPlanner.Presentation.Lifts
         {
             // Our right (the loaded, uphill rope) is the return's right, and the towers' and the drive's left: they face down the line.
             string[] up = { "r", "l", "l" }, down = { "l", "r", "r" };
+            // Every tower's head must turn; a terminal row that can't (the Monta return's fixed row until its rebuild) is
+            // posed round as a fixed sheave at its rope exit (LT33), and said so in the build log.
+            RigidNote = "";
             foreach (var sides in new[] { up, down })
-            {
-                if (!TrainPosing.Posable(retRig, sides[0]) || !TrainPosing.Posable(driveRig, sides[2])) return false;
                 foreach (var h in heads) if (!TrainPosing.Posable(h, sides[1])) return false;
-            }
             double rho = LiftType.SheaveRadiusMetres + type.RopeDiameterMetres / 2;
+            TrainPosing.Train End(LiftRig rig, string side, bool above, string which)
+            {
+                if (TrainPosing.Posable(rig, side)) return TrainPosing.Read(rig, side, bottom, dir, right);
+                if (!RigidNote.Contains(which)) RigidNote += (RigidNote.Length > 0 ? ", " : "") + which;
+                return TrainPosing.Fixed(rig, side, above, rho, bottom, dir, right);
+            }
             var loop = new List<Vector3>(4096);
             for (int side = 0; side < 2; side++)
             {
                 var sides = side == 0 ? up : down;
-                var trains = new List<TrainPosing.Train> { TrainPosing.Read(retRig, sides[0], bottom, dir, right) };
+                var trains = new List<TrainPosing.Train> { End(retRig, sides[0], type.Bottom.Row == TerminalRow.Support, "the bottom terminal's row") };
                 var above = new List<bool> { type.Bottom.Row == TerminalRow.Support };   // a hold-down row holds the rope down
                 var turn = new List<int> { 0 };
                 for (int i = 0; i < heads.Count; i++)
@@ -267,7 +273,7 @@ namespace MountainPlanner.Presentation.Lifts
                 }
                 // The drive's four sheaves equalise a little (owner: "Keep it 4 sheaves, but allow them to equalize a
                 // little"): within the model's stops, beam ±10° and rockers ±5°.
-                trains.Add(TrainPosing.Read(driveRig, sides[2], bottom, dir, right));
+                trains.Add(End(driveRig, sides[2], type.Top.Row == TerminalRow.Support, "the top terminal's row"));
                 above.Add(type.Top.Row == TerminalRow.Support);
                 turn.Add(0);
                 if (trains.Exists(t => t == null)) return false;
@@ -326,6 +332,8 @@ namespace MountainPlanner.Presentation.Lifts
 
         /// <summary>Whether the trains were posed to the rope (posable models), and the largest tangent mismatch (radians).</summary>
         public bool Posed { get; private set; }
+        /// <summary>The terminal rows posed as fixed (no pivots, LT33), for the build log; empty when every train turned.</summary>
+        public string RigidNote { get; private set; } = "";
         /// <summary>Heads whose type disagrees with the drawn rope's bend over them (or too sharp to carry it): reported.</summary>
         public int SideMismatches { get; private set; }
         public string MismatchNote { get; private set; } = "";
