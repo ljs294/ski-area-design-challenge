@@ -1,0 +1,22 @@
+{
+  "_about": "The Sessellift detachable grip (owner LM10), one design for every Sessellift detachable chair. Measured on the D6's 1:50 layouts (0.315 px per mm; five end-view copies overlaid to part grip from station, and both side views) and the owner's photos; millimetres. Grip frame: origin on the rope's axis at the middle of the jaw; u along the rope (the grip is symmetric in u), v outboard (the hanger and springs' side), w up. The hanger arm, its head, the guide roller and the arm's brackets belong to the hanger: they swing with it about the arm's axis (contract M3).",
+  "rope": {"dia": 48},
+  "jaw": {
+    "outline": [[34, 0], [24, 48], [17, 79], [2, 97], [-30, 100], [-46, 79], [-68, 48], [-71, 16], [-68, 0], [-56, -16], [-33, -25], [2, -25], [17, -16]],
+    "halfLength": 290,
+    "pin": {"v": -17.5, "w": 70, "dia": 38}
+  },
+  "body": {"web": {"v": [34, 81], "w": [-41, 60], "halfU": 250}, "springSeat": {"v": 215, "w": 33}},
+  "guards": {"base": 290, "tip": 642, "baseDia": 138, "tipDia": 52},
+  "lever": {"pivot": [-17.5, 70], "head": [552, 271], "widthU": 70, "depth": 70},
+  "crossbar": {"v": 542, "w": 288, "halfU": 150, "size": [60, 50]},
+  "topRoller": {"centre": [552, 271], "dia": 157, "width": 60, "axle": [0.959, 0.283]},
+  "springs": {"u": [-113, 113], "bottom": [241, 53], "top": [502, 257], "od": 145, "wire": 17, "turns": 11.5, "seatDia": 165, "seatThick": 14},
+  "tyrePlate": {"v": [121, 199], "outline": [[-321, 87], [321, 87], [321, 168], [293, 188], [205, 197], [-205, 197], [-293, 188], [-321, 168]],
+                "cutouts": [[[198, 98], [313, 98], [313, 140], [250, 140]], [[-198, 98], [-250, 140], [-313, 140], [-313, 98]]]},
+  "wheels": {"u": [-191, 191], "tread": [113, 160], "dia": 181, "hub": {"v": [81, 186], "dia": 150}, "capDia": 48, "axleW": -5},
+  "arm": {"axisW": -41, "inboard": {"v": [186, 310], "w": [-81, -3]}, "head": {"v": [310, 475], "w": [-89, 16], "halfU": 60},
+          "taper": {"from": [468, 70], "to": [649, 48]}, "brackets": [{"v": [563, 633], "w": [-13, 144]}, {"v": [506, 563], "w": [22, 124]}]},
+  "guideRoller": {"v": [687, 748], "w": -42, "dia": 160},
+  "socket": {"v": 362, "w": -89, "tubeDia": 96}
+}

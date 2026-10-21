@@ -32,6 +32,8 @@ CLASSES = [
     ("sign_black", "#121315", 0, 0.35),     # tower number plates (black, white number)
     ("aluminium", "#C8CCCF", 1, 0.55),      # snow gun lances, heads and barrels (bare aluminium)
     ("valve_maroon", "#6E2A33", 0, 0.40),   # snow gun valve paddles
+    ("spring_blue", "#2A4F9E", 0, 0.45),    # detachable grip springs (as photographed on the D6, owner LM10)
+    ("roller_cream", "#E2DCC2", 0, 0.30),   # grip wheels and rollers (cast polyurethane)
 ]
 INDEX = {name: i for i, (name, *_) in enumerate(CLASSES)}
 

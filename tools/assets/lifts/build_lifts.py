@@ -106,6 +106,8 @@ def check_asset(kind, assets, report, budgets, spec, split=None):
                 off_gauge = abs(abs(p[1] - line_v) - c["lineGauge"] / 2000) > 0.001
                 if name.endswith("_out") and f"{name[:-4]}_hold" in assets[0].sockets:
                     off_height = not (0.001 < abs(p[2] - rope) < 1.5)
+                elif name.endswith("_bw") and "bullwheelW" in assets[0].dims:   # a lowered, tilted wheel (the D6)
+                    off_height = abs(p[2] - assets[0].dims["bullwheelW"] / 1000) > 0.001
                 else:
                     off_height = abs(p[2] - rope) > 0.001
                 if off_gauge or off_height:

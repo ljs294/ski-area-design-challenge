@@ -767,3 +767,136 @@ def fixed_grip(mb, lod, style, dark=None, metal=None, g=None, hanger=None, socke
     along(s0 + sp["shoulder"], s1, sp["dia"][1] / 2, 10, style, caps=(False, False))
     hexagon(nt["v"][0], nt["v"][1], nt["af"], metal, (True, True))
     along(bt["v"][0], bt["v"][1], bt["dia"] / 2, 8, dark, caps=(False, True))
+
+
+# -- the Sessellift detachable grip (lift models 2, owner LM10) -----------------------------------------------------
+_DETACH_GRIP = None
+
+
+def detach_grip_spec():
+    """The Sessellift detachable grip's dimensions (sessellift_detach_grip.json, mm), one design for every Sessellift
+    detachable chair."""
+    global _DETACH_GRIP
+    if _DETACH_GRIP is None:
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sessellift_detach_grip.json")
+        with open(path, encoding="utf-8") as f:
+            _DETACH_GRIP = json.load(f)
+    return _DETACH_GRIP
+
+
+def _mm(*xs):
+    return tuple(x / 1000.0 for x in xs)
+
+
+def detach_grip(mb, lod, st, g=None):
+    """The Sessellift detachable grip on the rope at the chair frame's origin (sessellift_detach_grip.json, mm), measured
+    on the D6's layouts and the owner's photos: the jaw casting round the rope with its pin; the black tapered rope
+    guards either side; the body web and the two running wheels on their hub barrels, outboard of the jaw; the black
+    tyre plate on top, arched at its ends, with its frames' cut-outs; the lever from the jaw's pin up and outboard
+    through the plate to its cream top roller and the crossbar; and the two blue coil springs either side of the lever,
+    from the body up to the crossbar. LOD1: blocks, bars and plain cylinders; LOD2: one block. The hanger arm is
+    detach_grip_arm (it swings with the hanger). st: "alu", "black", "blue", "cream", "rod"."""
+    g = g or detach_grip_spec()
+    U_ = Vector((1.0, 0.0, 0.0))
+    if lod >= 2:
+        prims.box(mb, _mm(-321, -71, -25), _mm(321, 199, 197), st["alu"])
+        return
+    if lod == 1:   # the jaw, body and tyre plate as one block; the rope guards as one bar; the springs as one bar
+        prims.box(mb, _mm(-321, -71, -25), _mm(321, 199, 197), st["alu"])
+        gd = g["guards"]
+        prims.box(mb, _mm(-gd["tip"], -gd["baseDia"] / 3, -gd["baseDia"] / 3), _mm(gd["tip"], gd["baseDia"] / 3, gd["baseDia"] / 3),
+                  st["black"])
+        sp = g["springs"]
+        b0, b1 = Vector(_mm(0, *sp["bottom"])), Vector(_mm(0, *sp["top"]))
+        d = (b1 - b0).normalized()
+        prims.obox(mb, (b0 + b1) / 2, (d, U, d.cross(U).normalized()), ((b1 - b0).length / 2, (abs(sp["u"][0]) + sp["od"] / 2) / 1000.0,
+                   sp["od"] / 2000.0), st["blue"])
+        return
+    near = lod == 0
+    jw = g["jaw"]
+    hl = jw["halfLength"]
+    prims.prism(mb, [_mm(v, w) for v, w in jw["outline"]], _mm(-hl, 0, 0), V, W, U, hl / 500.0, st["alu"])
+    if near:
+        pv, pw = jw["pin"]["v"], jw["pin"]["w"]
+        prims.cylinder(mb, _mm(-hl - 15, pv, pw), _mm(hl + 15, pv, pw), jw["pin"]["dia"] / 2000.0, 8, st["rod"])
+    web = g["body"]["web"]
+    prims.box(mb, _mm(-web["halfU"], web["v"][0], web["w"][0]), _mm(web["halfU"], web["v"][1], web["w"][1]), st["alu"])
+    gd = g["guards"]
+    for s in (-1, 1):   # the rope guards: black cones on the rope's axis, base at the jaw, tip on the rope
+        prims.cylinder(mb, _mm(s * gd["base"], 0, 0), _mm(s * gd["tip"], 0, 0), gd["baseDia"] / 2000.0, 10 if near else 6,
+                       st["black"], caps=(True, True), r1=gd["tipDia"] / 2000.0)
+    wh = g["wheels"]
+    for u in wh["u"]:   # running wheels (cream) on hub barrels, axles along v
+        hb = wh["hub"]
+        prims.cylinder(mb, _mm(u, hb["v"][0], wh["axleW"]), _mm(u, hb["v"][1], wh["axleW"]), hb["dia"] / 2000.0, 12 if near else 6,
+                       st["alu"])
+        prims.cylinder(mb, _mm(u, wh["tread"][0], wh["axleW"]), _mm(u, wh["tread"][1], wh["axleW"]), wh["dia"] / 2000.0,
+                       16 if near else 6, st["cream"])
+        if near:
+            prims.cylinder(mb, _mm(u, hb["v"][1], wh["axleW"]), _mm(u, hb["v"][1] + 12, wh["axleW"]), wh["capDia"] / 2000.0, 8, st["rod"])
+    tp = g["tyrePlate"]   # the tyre plate, arched at its ends, across v
+    prims.prism(mb, [_mm(u, w) for u, w in tp["outline"]], _mm(0, tp["v"][0], 0), U, W, V, (tp["v"][1] - tp["v"][0]) / 1000.0,
+                st["black"])
+    if near:   # the frames' rounded-triangle cut-outs, as dark faces just proud of both side faces
+        for poly in tp["cutouts"]:
+            for v_face, out in ((tp["v"][0] - 1.0, -1.0), (tp["v"][1] + 1.0, 1.0)):
+                mb.face(mb.verts_lift([_mm(u, v_face, w) for u, w in poly]), st["rod"].but(cls="interior"), (0.0, out, 0.0))
+    lv = g["lever"]   # the lever: from the jaw's pin up and outboard to its head, through the plate
+    p0, p1 = Vector(_mm(0, *lv["pivot"])), Vector(_mm(0, *lv["head"]))
+    d = (p1 - p0).normalized()
+    nrm = U_.cross(d).normalized()
+    prims.obox(mb, (p0 + p1) / 2, (d, U_, nrm), ((p1 - p0).length / 2, lv["widthU"] / 2000.0, lv["depth"] / 2000.0), st["alu"])
+    cb = g["crossbar"]
+    prims.box(mb, _mm(-cb["halfU"], cb["v"] - cb["size"][0] / 2, cb["w"] - cb["size"][1] / 2),
+              _mm(cb["halfU"], cb["v"] + cb["size"][0] / 2, cb["w"] + cb["size"][1] / 2), st["alu"])
+    tr = g["topRoller"]   # the cream top roller on the lever's head, its axle rising outboard
+    c = Vector(_mm(0, *tr["centre"]))
+    ax = Vector((0.0, tr["axle"][0], tr["axle"][1])).normalized()
+    prims.cylinder(mb, c - ax * tr["width"] / 2000.0, c + ax * tr["width"] / 2000.0, tr["dia"] / 2000.0, 14 if near else 6, st["cream"])
+    sp = g["springs"]   # two blue coil springs either side of the lever, from the body up to the crossbar
+    b0, b1 = Vector(_mm(0, *sp["bottom"])), Vector(_mm(0, *sp["top"]))
+    axis = (b1 - b0).normalized()
+    e1 = U_
+    e2 = axis.cross(e1).normalized()
+    r = (sp["od"] - sp["wire"]) / 2000.0
+    for su in sp["u"]:
+        off = Vector(_mm(su, 0, 0))
+        if near:
+            seg = 4
+            n = int(round(sp["turns"] * seg))
+            pts = []
+            for q in range(n + 1):
+                th = 2 * math.pi * q / seg
+                pts.append(tuple(off + b0 + (b1 - b0) * (q / n) + (e1 * math.cos(th) + e2 * math.sin(th)) * r))
+            prims.tube_path(mb, pts, sp["wire"] / 2000.0, 3, st["blue"], caps=False)
+            for end_pt in (b0, b1):
+                prims.cylinder(mb, off + end_pt - axis * sp["seatThick"] / 2000.0, off + end_pt, sp["seatDia"] / 2000.0, 8, st["alu"])
+        else:
+            prims.cylinder(mb, off + b0, off + b1, sp["od"] / 2000.0, 5, st["blue"], caps=(False, False))
+
+
+def detach_grip_arm(mb, lod, st, g=None, socket_group=None):
+    """The hanger's arm under the detachable grip: along v at axisW, its inboard section into the grip's body (its own
+    piece for the clash sweep: it turns inside the body), the head block the hanger tube leaves from, the tapering
+    outboard section and the cream guide roller at its end, and up close the two brackets on it."""
+    g = g or detach_grip_spec()
+    ar = g["arm"]
+    near = lod == 0
+    aw = ar["axisW"]
+    ib, hd = ar["inboard"], ar["head"]
+    hu = hd["halfU"]
+    if socket_group:
+        with mb.grouped(socket_group):
+            prims.box(mb, _mm(-40, ib["v"][0], ib["w"][0]), _mm(40, ib["v"][1], ib["w"][1]), st["alu"])
+    else:
+        prims.box(mb, _mm(-40, ib["v"][0], ib["w"][0]), _mm(40, ib["v"][1], ib["w"][1]), st["alu"])
+    prims.box(mb, _mm(-hu, hd["v"][0], hd["w"][0]), _mm(hu, hd["v"][1], hd["w"][1]), st["alu"])
+    if lod >= 1:   # further out the arm ends at the head
+        return
+    (v0, d0), (v1, d1) = ar["taper"]["from"], ar["taper"]["to"]
+    prims.cylinder(mb, _mm(0, v0, aw), _mm(0, v1, aw), d0 / 2000.0, 8 if near else 5, st["alu"], caps=(False, True), r1=d1 / 2000.0)
+    gr = g["guideRoller"]
+    prims.cylinder(mb, _mm(0, gr["v"][0], gr["w"]), _mm(0, gr["v"][1], gr["w"]), gr["dia"] / 2000.0, 14 if near else 6, st["cream"])
+    if near:
+        for br in ar["brackets"]:
+            prims.box(mb, _mm(-12, br["v"][0], br["w"][0]), _mm(12, br["v"][1], br["w"][1]), st["alu"])

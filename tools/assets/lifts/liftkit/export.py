@@ -119,13 +119,22 @@ def spins(name, piv):
 
 
 def centring_error(mb, piv):
-    """Distance (m) between a part's bounds centre and its pivot's axle, measured across the axle."""
+    """Distance (m) between a part's bounds centre and its pivot's axle, measured across the axle: the bounds are taken
+    in the plane square to the axle (the lift frame's own axes when the axle is one of them, as it is for every wheel
+    but the D6's tilted bullwheel)."""
     p = Vector(piv["pos"])
     axis = Vector(piv["axis"]).normalized()
-    lo, hi = mb.bounds_lift()
-    d = (Vector(lo) + Vector(hi)) / 2 - p
-    d -= axis * d.dot(axis)
-    return d.length
+    unit = [Vector(e) for e in ((1, 0, 0), (0, 1, 0), (0, 0, 1))]
+    along = [e for e in unit if abs(abs(axis.dot(e)) - 1.0) < 1e-9]
+    if along:
+        e1, e2 = [e for e in unit if e is not along[0]]
+    else:
+        e1 = axis.cross(unit[1] if abs(axis.dot(unit[1])) < 0.9 else unit[0]).normalized()
+        e2 = axis.cross(e1).normalized()
+    pts = [Vector(frame.lift(v)) - p for v in mb.verts]
+    d1 = [q.dot(e1) for q in pts]
+    d2 = [q.dot(e2) for q in pts]
+    return Vector(((min(d1) + max(d1)) / 2, (min(d2) + max(d2)) / 2)).length
 
 
 def pivot_centering_error(base, split):
