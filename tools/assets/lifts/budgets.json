@@ -69,5 +69,37 @@
     ],
     "shadowLods": 0,
     "crossFade": false
+  },
+  "terminal_detach": {
+    "_about": "A detachable's terminal (the Sessellift D6, owner LM4): about 22 m of station under one hood, so 1.5 times a fixed-grip terminal's budget; only two per lift.",
+    "lods": [
+      {"lod": 0, "maxTris": 36000, "untilM": 25},
+      {"lod": 1, "maxTris": 14000, "untilM": 70},
+      {"lod": 2, "maxTris": 3500, "untilM": 220},
+      {"lod": 3, "maxTris": 600, "untilM": 1200}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "chair_detach": {
+    "_about": "A detachable six-seat chair (the Sessellift D6): the detachable grip and a bench half as wide again as the quad's.",
+    "lods": [
+      {"lod": 0, "maxTris": 2400, "untilM": 10},
+      {"lod": 1, "maxTris": 320, "untilM": 35},
+      {"lod": 2, "maxTris": 80, "untilM": 300}
+    ],
+    "shadowLods": 2,
+    "crossFade": false
+  },
+  "tower_head_wide": {
+    "_about": "The wide-gauge heads (the Sessellift D6 at 5.6 m, owner LM3 and LM5): a crossarm with walkways and railings, and up to 12 sheaves a rope.",
+    "lods": [
+      {"lod": 0, "maxTris": 24000, "untilM": 15},
+      {"lod": 1, "maxTris": 7000, "untilM": 45},
+      {"lod": 2, "maxTris": 1400, "untilM": 150},
+      {"lod": 3, "maxTris": 280, "untilM": 800}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
   }
 }

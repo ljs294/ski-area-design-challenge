@@ -1,0 +1,192 @@
+{
+  "_about": "Sessellift D6, a detachable six-seat chairlift (lift models 2, project 1). Millimetres. Measured on the owner's 1:50 terminal layouts (kept locally, never in the repo) and checked against photos of a built lift. The model is the reference's deliberate mirror (owner, Gate 0, LM7): loaded chairs leave the bottom on the right rope, as on every lift of ours. Origin of each terminal: the bullwheel's axle at the load or unload level 0.00; u toward the other terminal, v right looking along u, w up.",
+  "catalog": {
+    "maker": "Sessellift",
+    "name": "D6",
+    "parts": {
+      "sessellift_d6_drive": "Drive terminal",
+      "sessellift_d6_return": "Return terminal",
+      "sessellift_d6_chair": "Six-seat chair"
+    }
+  },
+  "common": {
+    "ropeElevation": 3600,
+    "lineGauge": 5600,
+    "ropeDiameter": 50.8,
+    "_rope": "2 in haul rope (owner default, Gate 0); the drawn rope is about 48 mm",
+    "travel": "ccw",
+    "loadedRope": "right when looking uphill: v+ at the return terminal (bottom), v- at the drive terminal (top)",
+    "driveEnd": "top",
+    "tensioning": "bottom (the return carries the tension carriage)",
+    "snowAllowance": 305,
+    "bullwheel": {
+      "pitch": 5600,
+      "rimTop": 110,
+      "rimBottom": -60,
+      "plateOuter": 6000,
+      "plateInner": 4900,
+      "plateThick": 40,
+      "plateBelowTop": true,
+      "hubDia": 1400,
+      "hubBottom": -470,
+      "hubTop": -330,
+      "spokes": 8,
+      "spokeWidth": 170,
+      "spokeDepth": 270
+    }
+  },
+  "chair": {
+    "_about": "The Sessellift quad chair made wider and hung lower (owner, LM2 and LM8): every point of the quad's chair (sessellift_fgq4.json chair) is moved by rule, nothing tuned by hand. Widths: a point's half-width grows by widen x t, where t runs from 0 at the hanger clamp (clampHalf) to 1 at the top bar's end (topBarHalf) and stays 1 beyond it, and widen = (seats - 4) / 2 x seatPitch, so the bench takes seats x seatPitch. Heights: every point under the hanger moves down by drop (the drawn chair hangs 3,238 mm from the rope to the bench's underside against the quad's 2,657; its top bar 1,737 against 1,160). The hanger is the drawing's: out of the detachable grip's arm, down and outboard round the station frame, and in level through the clamp. The grip is the Chairworks detachable grip (LM2). The bar gains a middle leg with a footrest, as drawn.",
+    "seats": 6,
+    "seatPitch": 486,
+    "clampHalf": 126,
+    "topBarHalf": 781,
+    "drop": -585,
+    "axisV": -100,
+    "tubeHanger": 90,
+    "hanger": [[193.0, -55.3], [250.0, -58.0], [300.0, -85.0], [456.0, -302.0], [513.0, -524.0], [544.0, -810.0], [567.0, -1063.0], [545.0, -1286.0], [470.0, -1470.0], [330.0, -1600.0], [180.0, -1645.0], [-8.0, -1648.0]],
+    "hangerFar": [0, 3, 6, 9, 11],
+    "middleLeg": true
+  },
+  "terminal": {
+    "_about": "One station design at both ends, end for end (drive at the top, return with tensioning at the bottom), measured on the layouts; u from the bullwheel's axle toward the line. Hood: the end view's half profile (v, w) from the bottom edge to the crown; nose: how far the hood's end stands back from its extreme at height w (the ends overhang at the top); bands: livery below windows.from, glass to windows.to, livery above; mullions every bay. Belly: the white tub under the hood between the masts (a trapezoid across the line). Frame: the two main girders over the ropes; rail: the chair's station rail at v = +-rail.v, round the back on rail.corner. Front mast: a round column on its pier; the return's rear leg tapers (its top and bottom spans in u); the drive's rear support is a box frame.",
+    "hood": {
+      "profile": [[4219, 2971], [4244, 3044], [4308, 3203], [4371, 3361], [4330, 3679], [4346, 3996], [4250, 4300], [4051, 4631], [3571, 5266], [3300, 5480], [2775, 5901], [2540, 6028], [2434, 6076], [2370, 6110], [0, 6114]],
+      "nose": [[2971, 22], [3400, 22], [3420, 403], [3679, 403], [3996, 393], [4314, 381], [4631, 349], [4949, 300], [5266, 229], [5584, 133], [5901, 22], [6114, 0]],
+      "windows": {
+        "from": 3920,
+        "to": 5880
+      },
+      "bay": 803,
+      "endWindow": {
+        "halfV": 2300,
+        "from": 3800,
+        "to": 5800
+      },
+      "inner": 60
+    },
+    "belly": {
+      "u": [-4566, 5292],
+      "top": 2950,
+      "bottom": 1950,
+      "topHalf": 3070,
+      "bottomHalf": 1010
+    },
+    "frame": {
+      "girderV": 1800,
+      "girder": [400, 700],
+      "w": 3700,
+      "u": [-8300, 12000],
+      "cross": 2400
+    },
+    "rail": {
+      "v": 2990,
+      "w": 3780,
+      "back": -6643,
+      "corner": 1935,
+      "section": [120, 160],
+      "tyres": {
+        "from": -3000,
+        "to": 10500,
+        "inset": 260,
+        "size": [220, 300]
+      },
+      "hangerEvery": 2400
+    },
+    "walkway": {
+      "v": [3300, 3950],
+      "w": 2950
+    },
+    "frontMast": {
+      "dia": 762,
+      "top": 2925,
+      "cap": {
+        "half": [600, 900],
+        "height": 350
+      },
+      "ladderV": 700
+    },
+    "pier": {
+      "half": 681,
+      "depth": 15000
+    },
+    "return": {
+      "hood": [-9108, 12821],
+      "frontMast": {
+        "u": 8656,
+        "toc": -950,
+        "ladder": {
+          "top": [2444, 2950],
+          "bottom": [1294, -950],
+          "width": 500
+        }
+      },
+      "rear": {
+        "kind": "leg",
+        "top": [-4500, -3940],
+        "topW": 2670,
+        "bottom": [-3930, -2190],
+        "toc": 100,
+        "halfV": 400
+      }
+    },
+    "drive": {
+      "hood": [-8784, 13137],
+      "frontMast": {
+        "u": 8978,
+        "toc": -950,
+        "ladder": {
+          "top": [-516, 2950],
+          "bottom": [-1554, -950],
+          "width": 500
+        }
+      },
+      "rear": {
+        "kind": "box",
+        "u": [-4056, -1167],
+        "halfV": 700,
+        "toc": 380,
+        "post": 300
+      }
+    }
+  },
+  "towerWide": {
+    "_about": "The D6 line heads (owner LM3, LM5): photo style, built from the gauge so the same kit makes any gauge. On the mast cap a box crossarm reaching overhang past each rope; above it a lifting beam on two posts, tied to the crossarm by inclined braces (the trapezoid the photos show); a grated platform with railings along the crossarm's platform side (+u) between the ropes; the mast ladder up through a hatch. Each rope's sheave assembly hangs on lug plates under the crossarm's end, its pin lugs.hang below it, as on the Sessellift kit, so the rope's height at the head follows the head type. Sheave assemblies and head types (s4 ... c8) are the Sessellift kit's (tower.assembly, tower.heads).",
+    "cap": {
+      "half": 420,
+      "thick": 40
+    },
+    "crossarm": {
+      "width": 420,
+      "depth": 520,
+      "overhang": 450
+    },
+    "liftingBeam": {
+      "width": 260,
+      "depth": 300,
+      "above": 1500,
+      "postV": 600,
+      "braceV": 1900
+    },
+    "platform": {
+      "depth": 900,
+      "inset": 350,
+      "gap": 120,
+      "railing": 1100
+    },
+    "lugs": {
+      "halfU": 130,
+      "thick": 30,
+      "past": 90,
+      "hang": 320
+    },
+    "hatch": 300,
+    "grabRail": 1000,
+    "numberPlate": {
+      "halfV": 200,
+      "height": 260,
+      "thick": 8,
+      "standoff": 20
+    }
+  }
+}

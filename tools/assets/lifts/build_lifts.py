@@ -30,7 +30,11 @@ MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "cha
            "sle_stick_gun_10": ("sle_stick_gun", 10), "sle_stick_gun_20": ("sle_stick_gun", 20),
            "sle_stick_gun_30": ("sle_stick_gun", 30),
            # the Chairworks quad chair with either grip
-           "chairworks_chair_detach": ("chairworks_chair", "detach"), "chairworks_chair_fixed": ("chairworks_chair", "fixed")}
+           "chairworks_chair_detach": ("chairworks_chair", "detach"), "chairworks_chair_fixed": ("chairworks_chair", "fixed"),
+           # the Sessellift D6 detachable six-pack (lift models 2)
+           "d6_chair": "d6_chair", "d6_drive": ("d6_terminal", "drive"), "d6_return": ("d6_terminal", "return")}
+# the D6's wide heads (assets/tower_wide.py): one per Sessellift head type, at the D6's gauge
+MODULES.update({f"d6_tower_{h}": ("tower_wide", h) for h in ("s4", "s6", "b8", "d8", "c8")})
 # the line tower kit (assets/tower.py): name -> variant
 TOWER = {"tower_s4": "s4", "tower_s6": "s6", "tower_b8": "b8", "tower_d8": "d8", "tower_c8": "c8",
          "tower_mast": "mast", "tower_base": "base"}
@@ -39,7 +43,9 @@ TOWER.update({f"tower_base_l{d:03d}": f"base_l{d:03d}" for d in range(25, 151, 2
 SLE = ("sle_stick_gun_10", "sle_stick_gun_20", "sle_stick_gun_30", "sle_ground_gun")
 MONTA = ("monta_drive", "monta_return")
 CHAIRWORKS = ("chairworks_chair_detach", "chairworks_chair_fixed")
-ALL = "drive,return,terminal_footing,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA) + "," + ",".join(CHAIRWORKS)
+D6 = ("d6_drive", "d6_return", "d6_chair") + tuple(f"d6_tower_{h}" for h in ("s4", "s6", "b8", "d8", "c8"))
+ALL = ("drive,return,terminal_footing,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA) + "," + ",".join(CHAIRWORKS)
+       + "," + ",".join(D6))
 
 
 def clear_scene():
@@ -63,7 +69,7 @@ def ao_options(kind, assets):
     stands on it at its own 0.00 (contract M5, finding #9): heads sit on a mast, Sessellift terminals on a pier of
     any height; a mast section is baked between its neighbours (a cast-only ghost section above and one below, so
     both ends get the same light)."""
-    ground = kind not in ("tower_head", "tower_mast", "chair", "terminal_footing")         and not (kind == "terminal" and "pier_top" in assets[0].sockets)
+    ground = kind not in ("tower_head", "tower_head_wide", "tower_mast", "chair", "chair_detach", "terminal_footing")         and not (kind == "terminal" and "pier_top" in assets[0].sockets)         and not (kind == "terminal_detach" and "pier_top_1" in assets[0].sockets)
     return ground, (assets[0].sockets["top"][2] if kind == "tower_mast" else None)
 
 
@@ -88,7 +94,7 @@ def check_asset(kind, assets, report, budgets, spec, split=None):
             parent = assets[0].pivots[name].get("parent")
             if parent and parent not in assets[0].pivots:
                 problems.append(f"LOD{lod}: {name}'s parent {parent} has no pivot")
-    if kind == "terminal":
+    if kind in ("terminal", "terminal_detach"):
         c = spec["common"]
         line_v = assets[0].sockets.get("line", (0, 0, 0))[1]
         rope = assets[0].dims.get("rope", c.get("ropeElevation", 0)) / 1000   # a terminal's own rope height, if it has one
@@ -104,7 +110,7 @@ def check_asset(kind, assets, report, budgets, spec, split=None):
                     off_height = abs(p[2] - rope) > 0.001
                 if off_gauge or off_height:
                     problems.append(f"socket {name} at {p} is off the rope")
-    if kind == "tower_head":   # ropes at the line gauge, level with each other, at the head's declared height
+    if kind in ("tower_head", "tower_head_wide"):   # ropes at the line gauge, level with each other, at the head's declared height
         g = spec["common"]["lineGauge"] / 2000
         rope = assets[0].dims["rope"] / 1000
         for name in ("rope_left", "rope_right"):
@@ -161,7 +167,7 @@ def main():
         aid = assets[0].id
         coll = bpy.data.collections.new(aid)
         bpy.context.scene.collection.children.link(coll)
-        mats = [chair_mat] if kind == "chair" else [structure, glass]
+        mats = [chair_mat] if kind in ("chair", "chair_detach") else [structure, glass]
         objs, rep, split = export.make_objects(assets, mats, coll)
         sweep = clash.sweep(assets[0]) if assets[0].pivots else {}
         tiling = None
@@ -205,6 +211,8 @@ def main():
             "socketParents": dict(a0.socket_parents),
             "aoTiling": tiling,
             "sockets": {k: [round(x, 4) for x in frame.unity(p)] for k, p in a0.sockets.items()},
+            # polylines the game follows (a detachable's station rail), when the asset has any
+            "paths": {k: [[round(x, 4) for x in frame.unity(p)] for p in pts] for k, pts in getattr(a0, "paths", {}).items()},
             "bounds": [[round(x, 3) for x in frame.unity(b)] for b in a0.body.bounds_lift()],
             "dims": a0.dims,
             "partTris": a0.part_tris,

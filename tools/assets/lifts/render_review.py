@@ -38,9 +38,13 @@ ORTHO = {
     "sle_ground_gun": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "monta_drive": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "monta_return": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
+    # the Sessellift D6, as its layouts draw it (seen through the deliberate mirror, Gate 0)
+    "d6_chair": [("front", "-v", "+w"), ("side", "+u", "+w")],
+    "d6_drive": [("side", "-u", "+w"), ("end", "+v", "+w"), ("plan", "-u", "-v")],
+    "d6_return": [("side", "+u", "+w"), ("end", "-v", "+w"), ("plan", "+u", "+v")],
 }
-TERMINALS = ("drive", "return", "monta_drive", "monta_return")
-CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed")
+TERMINALS = ("drive", "return", "monta_drive", "monta_return", "d6_drive", "d6_return")
+CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed", "d6_chair")
 
 
 def chair_rope(built):
@@ -319,11 +323,14 @@ def clay_views(key, built, spec, out_dir, chairs):
     cam.data.lens = 35
     cam.data.clip_end = 500
     sc.render.resolution_x, sc.render.resolution_y = 1600, 1000
-    if key.startswith("sle_stick"):   # tall and thin: frame what stands above the snow, from further out
-        lo = Vector((lo.x, lo.y, max(lo.z, 0.0)))
+    if key.startswith("sle_stick") or key in ("d6_drive", "d6_return"):   # frame what stands above the snow (the
+        lo = Vector((lo.x, lo.y, max(lo.z, 0.0)))                          # D6's piers run 15 m down)
         centre, radius = (lo + hi) / 2, (hi - lo).length / 2
     dist = 3.0 if key.startswith("sle_stick") else 2.4
-    for name, (az, el) in {"threequarter_line": (35, 18), "threequarter_back": (215, 22), "low": (120, 6)}.items():
+    views = {"threequarter_line": (35, 18), "threequarter_back": (215, 22), "low": (120, 6)}
+    if key in ("d6_drive", "d6_return"):   # and the angles of the photos it is compared with
+        views.update({"end_line": (2, 4), "side_line": (55, 6)})
+    for name, (az, el) in views.items():
         a, e = math.radians(az), math.radians(el)
         d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
         eye = centre + d * radius * dist
@@ -885,10 +892,11 @@ def _reference(path_spec, shift_lift):
     return objs
 
 
-def tower_views(built_all, spec, out_dir):
+def tower_views(built_all, spec, out_dir, out="tower_"):
     """Workbench review of the tower kit: a full tower (base, sections, support-8 head) from three sides next to
     a 1.8 m figure, optionally beside a local reference model (LIFT_TOWER_REF), a line-up of the six heads, and
-    close-ups of the support-8 and combination assemblies."""
+    close-ups of the support-8 and combination assemblies. out: the file names' prefix (the D6's wide heads pass
+    theirs in under the kit's keys)."""
     sc = scene_setup()
     sc.display.shading.show_shadows = True
     sc.render.film_transparent = False
@@ -924,7 +932,7 @@ def tower_views(built_all, spec, out_dir):
         else:
             cam.data.type = "PERSP"
             cam.data.lens = lens
-        render(os.path.join(out_dir, f"tower_{name}.png"))
+        render(os.path.join(out_dir, f"{out}{name}.png"))
 
     at = {k: Vector((0.0, 0.0, 0.0)) for k in heads}
 
@@ -981,7 +989,7 @@ def tower_views(built_all, spec, out_dir):
                 cam.location = frame.b(tuple(c + d * 5.0))
                 cam.rotation_euler = (frame.b(tuple(c)) - cam.location).to_track_quat("-Z", "Y").to_euler()
                 sc.render.resolution_x, sc.render.resolution_y = 1600, 1000
-                render(os.path.join(out_dir, f"tower_{name}.png"))
+                render(os.path.join(out_dir, f"{out}{name}.png"))
         place(k, (0.0, 80.0 + 12.0 * heads.index(k), 0.0))
 
     # line-up of every head on two sections, left to right in the heads table's order
@@ -1364,6 +1372,10 @@ def render_all(built, spec, out_dir, shots, mats):
     os.makedirs(out_dir, exist_ok=True)
     shots = (shots or "gate1,lods").split(",")
     chairs = lod_objects(built["chair"], 0) if "chair" in built else None
+    d6_chairs = lod_objects(built["d6_chair"], 0) if "d6_chair" in built else None   # the D6 terminals hang their own
+
+    def chairs_for(key):
+        return d6_chairs if key.startswith("d6_") else chairs
     packed = bpy.data.images["lift_palette"]
     materials.use_palette(mats, materials.opaque_copy(packed))
     if "gate1" in shots:
@@ -1375,7 +1387,7 @@ def render_all(built, spec, out_dir, shots, mats):
                 ortho_views(key, built[key], out_dir)
         for key in built:
             if key in TERMINALS + CHAIRS or key.startswith("sle_"):
-                clay_views(key, built[key], built[key].get("spec", spec), out_dir, chairs)
+                clay_views(key, built[key], built[key].get("spec", spec), out_dir, chairs_for(key))
             if key.startswith("sle_"):
                 sle_views(key, built[key], out_dir)
     if "lods" in shots:
@@ -1387,6 +1399,11 @@ def render_all(built, spec, out_dir, shots, mats):
         tower_views({k: v for k, v in built.items() if k.startswith("tower_")}, spec, out_dir)
         if "drive" in built:
             head_match(built["drive"], built["tower_b8"], spec, out_dir)
+    wide = [k for k in built if k.startswith("d6_tower_")]
+    if "towers" in shots and wide and "tower_base" in built and "tower_mast" in built:   # the D6's heads on the kit's mast
+        kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}
+        kit.update({k[3:]: built[k] for k in wide})
+        tower_views(kit, spec, out_dir, out="d6_tower_")
     materials.use_palette(mats, packed)
     if "photos" in shots or "terminal_photos" in shots:
         for key in built:
