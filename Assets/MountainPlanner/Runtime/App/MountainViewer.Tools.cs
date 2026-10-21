@@ -324,13 +324,15 @@ namespace MountainPlanner.App
                 _tools.Tick(default);
                 return lift.HandStatus != null;
             }
+            // Its status is empty where its gap has no room for it (F2): not green.
+            bool Ok() => lift.HandStatus != null && lift.HandStatus.Ok;
             for (int n = lift.Placed.Count; n < towers; n++)
             {
                 if (!InHand()) return true;
                 // From the first slot up (as a player slides it), to the first place it's green.
                 for (int i = 0; i < 400; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideBack, Shift = true });
-                for (int i = 0; i < 400 && !lift.HandStatus.Ok; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideOn });
-                if (!lift.HandStatus.Ok) return true;
+                for (int i = 0; i < 400 && !Ok(); i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideOn });
+                if (!Ok()) return true;
                 _tools.Tick(new ToolInput { Keys = ToolKeys.Next });
             }
             // The camera beside the line.
@@ -340,7 +342,7 @@ namespace MountainPlanner.App
             // The next tower in hand slid to its first green place, the pointer on it.
             if (!InHand()) return true;
             for (int i = 0; i < 400; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideBack, Shift = true });
-            for (int i = 0; i < 400 && !lift.HandStatus.Ok; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideOn });
+            for (int i = 0; i < 400 && !Ok(); i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideOn });
             for (int i = 0; i < 6; i++) _tools.Tick(new ToolInput { Keys = ToolKeys.SlideOn });   // a little past it, where it may still be green
             var at = start + dir * (float)lift.HandAlong;
             at.y = _resort.Surface.HeightAt(at.x, at.z);
