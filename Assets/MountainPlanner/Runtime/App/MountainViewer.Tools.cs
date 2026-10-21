@@ -349,8 +349,9 @@ namespace MountainPlanner.App
             _groundForCapture = at;
             var mid = Vector3.Lerp(start, _byHandTop, 0.5f);
             mid.y = _resort.Surface.HeightAt(mid.x, mid.z);
-            Camera.Frame(mid, 330);
-            Camera.SetAngles(Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg + 70, 52);
+            // Close on the tower in hand, the placed towers and their rope beside it (F4).
+            Camera.Frame(at, 120);
+            Camera.SetAngles(Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg + 70, 28);
             return true;
         }
 

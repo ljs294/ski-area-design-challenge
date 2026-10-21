@@ -323,7 +323,7 @@ namespace MountainPlanner.UI.Tools
                 string line = _editor.Describe();
                 if (_editor.Adding && _editor.HandStatus != null && _editor.HandStatus.Ok)
                     line += $" · the next can reach {ToolFormat.Length(_editor.HandStatus.NextReach)}";
-                w.SetHint($"Tower {(_editor.Adding ? _placed.Count + 1 : _editor.Selected + 1)}: " + line);
+                w.SetHint(line);
             }
             else if (complete) w.SetHint($"{_placed.Count} towers carry the line to the top terminal. Click one to change it, or Enter for the review.");
             else w.SetHint($"{_placed.Count} towers placed. Insert (or Add tower) puts the next in hand; Delete takes the last one back.");
