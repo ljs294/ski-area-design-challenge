@@ -125,9 +125,15 @@ namespace MountainPlanner.Tests
                 Assert.That(placed.Levels, Is.Not.Null, "and its terminal levels (SK14)");
                 Assert.That(lift.CurrentStep, Is.EqualTo(0), "ready for the next lift");
 
-                // Switching away mid-draw cancels at once and puts everything back (CF-01).
+                // Switching away mid-draw cancels at once and puts everything back (CF-01). The lift window (taller since F1-F5:
+                // the tower keys and buttons) may sit over the spot on the small test screen: aside, as a player would drag it.
+                if (viewer.Hud.IsPointerOverPanel(ScreenOf(cam, bottom, ctx)))
+                {
+                    ((UI.Hud.HudWindow)hud.Q("toolwin")).MoveTo(new Vector2(0, hud.panel.visualTree.worldBound.height));
+                    yield return Frames(3);
+                }
                 yield return Click(ScreenOf(cam, bottom, ctx));
-                Assert.That(lift.CurrentStep, Is.EqualTo(1));
+                Assert.That(lift.CurrentStep, Is.EqualTo(1), $"the bottom anchored again ({lift.Problem}); " + Where(viewer, cam, ScreenOf(cam, bottom, ctx), bottom, bottom));
                 int disarms = viewer.Tools.Disarms;
                 yield return SubmitOn(hud.Q<Button>("toolbox-tab-trails"));
                 Assert.That(viewer.Tools.Armed, Is.False, "another tab cancels the armed tool");
