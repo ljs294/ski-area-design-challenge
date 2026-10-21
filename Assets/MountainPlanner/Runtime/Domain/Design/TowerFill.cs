@@ -81,8 +81,9 @@ namespace MountainPlanner.Domain.Design
             return new Result { Towers = specs, Added = towers.Count - kept, Problem = problem };
         }
 
-        // The line is complete when the chairs clear the ground past the bottom station (its first span and low zone), and
-        // fall short there by no more than GR-11 v2's trench digs at Break ground (the green band's own allowance for it).
+        // The line is complete when the chairs clear the ground past the bottom station (its first span and low zone), fall
+        // short there by no more than GR-11 v2's trench digs at Break ground (the green band's own allowance for it), and the
+        // rope comes into the top terminal within its row's range.
         /// <summary>Whether the towers placed so far finish the line (the tool's Enter: on to the review).</summary>
         public static bool IsComplete(LiftType type, TowerInHand hand, int placed, double length) => Done(type, hand.Strung, placed, length);
 
@@ -92,8 +93,14 @@ namespace MountainPlanner.Domain.Design
             LiftRope.Zones(type, length, out _, out double edgeB, out _, out _);
             double station = Math.Max(strung.Towers[0].RopeS, edgeB + LiftRope.Clearance * 4);
             return strung.ShortfallBetween(station, length, out _) <= LiftRope.ClearanceTolerance
-                && strung.ShortfallBetween(0, station, out _) <= LiftLineEnvelope.CapMetres;
+                && strung.ShortfallBetween(0, station, out _) <= LiftLineEnvelope.CapMetres
+                // ... and the top terminal's row takes the rope: a top station tower's foundation aims it at Break ground
+                // (TW-16 v3); past a line tower it must already (no terminal raise makes up for it now, LT34).
+                && (TopStation(type, strung, length) || type.Top.Takes(-strung.TopEntryLoaded) && type.Top.Takes(-strung.TopEntryEmpty));
         }
+
+        static bool TopStation(LiftType type, LiftRope strung, double length) =>
+            !type.Top.OwnStation && length - strung.Towers[strung.Towers.Count - 1].BaseS <= DesignUnits.StationZoneMm / 1000.0 + 1e-9;
 
         static void Furthest(TowerInHand hand, int heightMm, ref double bestS, ref int bestH)
         {

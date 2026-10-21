@@ -86,7 +86,7 @@ namespace MountainPlanner.Tests
             foreach (var line in rec.Lines)
             {
                 var ground = new EditedHeights(line, lattice, TerrainEdits.Empty);
-                var b = LiftBuild.Build(type, ground, line.Bx, line.By, line.Tx, line.Ty, TowerStance.Leaned);
+                var b = DesignTestKit.AsPlayer((hb, ht) => LiftBuild.Build(type, ground, line.Bx, line.By, line.Tx, line.Ty, TowerStance.Leaned, null, hb, ht));   // LT34
                 foreach (var t in b.Rope.Towers) heads[t.Head] = heads.TryGetValue(t.Head, out int c) ? c + 1 : 1;
                 string what = $"{line.Length / Ft:F0} ft, rise {(line.At(line.Tx, line.Ty) - line.At(line.Bx, line.By)) / Ft:F0} ft";
                 if (b.Ok)

@@ -40,9 +40,10 @@ namespace MountainPlanner.Tests
                 TestContext.Progress.WriteLine($"{name}: {fill.Added} towers [{Describe(fill.Towers)}] {fill.Problem?.ToString() ?? "complete"}");
                 Assert.That(fill.Ok, Is.True, $"{name}: {fill.Problem}");
                 Assert.That(fill.Towers.Count, Is.GreaterThan(0));
-                var built = LiftBuild.BuildWith(Quad, g, Bx, By, Tx, Ty, fill.Towers, TowerStance.Plumb);
+                // As a player builds it: the suggested levels taken (LT34).
+                var built = DesignTestKit.AsPlayer((hb, ht) => LiftBuild.BuildWith(Quad, g, Bx, By, Tx, Ty, fill.Towers, TowerStance.Plumb, hb, ht));
                 Assert.That(built.Towers.Select(t => t.AlongMm), Is.EqualTo(fill.Towers.Select(t => t.AlongMm)), "built on exactly those towers");
-                Assert.That(built.Rope.ClearanceOk, Is.True, $"{name}: shortfall {built.Rope.Shortfall:F2} m at {built.Rope.ShortfallS:F0} m");
+                Assert.That(built.Rope.ClearanceOk, Is.True, $"{name}: shortfall {built.Rope.Shortfall:F2} m at {built.Rope.ShortfallS:F0} m; {string.Join("; ", built.Problems)}");
             }
         }
 

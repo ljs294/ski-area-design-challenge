@@ -98,7 +98,7 @@ namespace MountainPlanner.Domain.Design
             if (monta)
             {
                 type.Bottom = new TerminalEnd("monta_fg4_drive", TerminalRow.HoldDown, MontaExitMin, MontaExitMax, 0.9 * MontaExitMax,
-                                              5.042, 11.075, 6.25, 10.869, 3.555, 0, 12);
+                                              5.042, 11.075, 6.25, 10.869, 3.555, 0, 12, ownStation: true);   // TW-16 v4, LT32
                 type.Top = new TerminalEnd("monta_fg4_return", TerminalRow.Support, -TowerForces.SheaveBendLimit, 0, 0,
                                            2.165, 3.782, 2.165, 1.922, 3.039, 0, 1);
             }
@@ -324,8 +324,9 @@ namespace MountainPlanner.Domain.Design
             }
             // TW-02 v3: the first and last towers within the station zone (100 ft of their bullwheel) are station towers.
             double zone = DesignUnits.StationZoneMm / 1000.0;
-            bool bottomStation = n > 0 && baseS[0] <= zone + 1e-9;
-            bool topStation = n > (bottomStation ? 1 : 0) && LengthMetres - baseS[n - 1] <= zone + 1e-9;
+            // TW-16 v4: a terminal with its own station (the Monta drive) has none after it.
+            bool bottomStation = !type.Bottom.OwnStation && n > 0 && baseS[0] <= zone + 1e-9;
+            bool topStation = !type.Top.OwnStation && n > (bottomStation ? 1 : 0) && LengthMetres - baseS[n - 1] <= zone + 1e-9;
 
             double t0 = type.CounterweightNewtons;
             double wl = type.LoadedNewtonsPerMetre, we = type.EmptyNewtonsPerMetre;
