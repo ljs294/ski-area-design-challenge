@@ -8,7 +8,8 @@ namespace MountainPlanner.Presentation.Design
     /// <summary>
     /// <see cref="IToolPreview"/> drawn with pooled line renderers draped on the terrain (P3-06). Each slot keeps its
     /// renderer and point buffer, so moving a ghost rewrites points and allocates nothing once the buffers have grown.
-    /// Lines keep about the same width on screen: <see cref="Follow"/> scales them by their distance from the camera.
+    /// Lines keep about the same width on screen all along: <see cref="Follow"/> sizes each stretch by its own distance
+    /// from the camera (findings 2026-10-20, #4: sized by a long run's middle, a line was metres wide under the camera).
     /// A placeholder look: tasks 08 and 09 draw the real trails and lifts.
     /// </summary>
     public sealed class PendingPreview : IToolPreview, IDisposable
@@ -19,7 +20,9 @@ namespace MountainPlanner.Presentation.Design
         const float PixelsWide = 2.5f, DotPixels = 10f;
         /// <summary>The lines' shader (Resources): pulls each line toward the eye so far terrain doesn't swallow it.</summary>
         public const string ShaderResource = "MountainPlannerDesign/DesignLine";
-        const int RingPoints = 48, DotPoints = 12;
+        const int RingPoints = 48, DotPoints = 12, WidthKeys = 16;
+        static readonly AnimationCurve One = AnimationCurve.Constant(0, 1, 1);
+        static readonly int FadeNearId = Shader.PropertyToID("_FadeNear"), FadeFarId = Shader.PropertyToID("_FadeFar");
 
         static readonly Color[] Inks =
         {
@@ -47,6 +50,9 @@ namespace MountainPlanner.Presentation.Design
             public Vector2 DotAt;
             public float DotGround;
             public float LastWidth = -1;
+            // The width along the line (metres), a key at each of WidthKeys points spread along it; kept, so Follow allocates nothing.
+            public readonly Keyframe[] Keys = new Keyframe[WidthKeys];
+            public readonly AnimationCurve Curve = new AnimationCurve();
             /// <summary>How many times the usual width (task 08's casing under a trail in focus).</summary>
             public float WidthScale = 1;
         }
@@ -194,6 +200,7 @@ namespace MountainPlanner.Presentation.Design
             s.Renderer.loop = true;
             s.Centre = new Vector3(at.x, s.DotGround, at.y);
             s.LastWidth = -1;
+            s.Renderer.widthCurve = One;   // a dot is sized by its multiplier
         }
 
         public void Hide(int slot)
@@ -213,8 +220,22 @@ namespace MountainPlanner.Presentation.Design
         }
 
         /// <summary>
-        /// Once a frame: keeps every visible line about <see cref="PixelsWide"/> pixels wide and every dot a few pixels
-        /// across, whatever the camera's distance. Rewrites only what changed by more than a tenth; no allocation.
+        /// Lines fade out (dithered) where they're nearer the camera than <paramref name="far"/> metres, gone by
+        /// <paramref name="near"/>; 0, 0 never fades (the default). The Trails map layer's run lines (owner, TL26).
+        /// </summary>
+        public void SetFade(float near, float far)
+        {
+            foreach (var m in _materials)
+            {
+                m.SetFloat(FadeNearId, near);
+                m.SetFloat(FadeFarId, far);
+            }
+        }
+
+        /// <summary>
+        /// Once a frame: keeps every visible line about <see cref="PixelsWide"/> pixels wide all along, each stretch by its
+        /// own distance from the camera, and every dot a few pixels across. Rewrites only what changed by more than a
+        /// tenth; no allocation.
         /// </summary>
         public void Follow(Camera camera)
         {
@@ -226,12 +247,16 @@ namespace MountainPlanner.Presentation.Design
             {
                 var s = _slots[i];
                 if (s == null || !s.Renderer.enabled) continue;
+                if (!s.Dot)
+                {
+                    Widen(s, local, perPixel * PixelsWide * s.WidthScale);
+                    continue;
+                }
                 float metresPerPixel = Vector3.Distance(local, s.Centre) * perPixel;
                 float width = metresPerPixel * PixelsWide * s.WidthScale;
                 if (s.LastWidth > 0 && Mathf.Abs(width - s.LastWidth) < s.LastWidth * 0.1f) continue;
                 s.LastWidth = width;
                 s.Renderer.widthMultiplier = width;
-                if (!s.Dot) continue;
                 // A dot is a small ring as wide as its own radius: it reads as a filled disc.
                 float r = metresPerPixel * DotPixels * 0.5f;
                 s.Renderer.widthMultiplier = r;
@@ -243,6 +268,37 @@ namespace MountainPlanner.Presentation.Design
                 s.Renderer.positionCount = DotPoints;
                 for (int k = 0; k < DotPoints; k++) s.Renderer.SetPosition(k, s.Points[k]);
             }
+        }
+
+        // A line's width curve: each key the width that's PixelsWide at that point's distance, joined straight. Rewritten
+        // when any key would move by more than a tenth of the width last drawn.
+        static void Widen(Slot s, Vector3 eye, float metresPerDistance)
+        {
+            if (s.Count < 2) return;
+            bool changed = s.LastWidth < 0;
+            for (int k = 0; k < WidthKeys && !changed; k++)
+            {
+                float was = s.Keys[k].value;
+                changed = Mathf.Abs(Width(s, k, eye, metresPerDistance) - was) > was * 0.1f;
+            }
+            if (!changed) return;
+            for (int k = 0; k < WidthKeys; k++) s.Keys[k] = new Keyframe(k / (float)(WidthKeys - 1), Width(s, k, eye, metresPerDistance));
+            for (int k = 0; k < WidthKeys; k++)
+            {
+                int a = Mathf.Max(0, k - 1), b = Mathf.Min(WidthKeys - 1, k + 1);
+                float slope = (s.Keys[b].value - s.Keys[a].value) / (s.Keys[b].time - s.Keys[a].time);
+                s.Keys[k].inTangent = s.Keys[k].outTangent = slope;
+            }
+            s.LastWidth = 1;
+            s.Curve.keys = s.Keys;
+            s.Renderer.widthCurve = s.Curve;
+            s.Renderer.widthMultiplier = 1;
+        }
+
+        static float Width(Slot s, int key, Vector3 eye, float metresPerDistance)
+        {
+            var p = s.Points[Mathf.RoundToInt(key / (float)(WidthKeys - 1) * (s.Count - 1))];
+            return Mathf.Max(0.05f, Vector3.Distance(eye, p) * metresPerDistance);
         }
 
         /// <summary>For tests: whether a slot is showing, and how many points it has.</summary>

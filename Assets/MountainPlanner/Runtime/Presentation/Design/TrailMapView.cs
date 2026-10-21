@@ -36,7 +36,11 @@ namespace MountainPlanner.Presentation.Design
         {
             _ground = new EditedSurface(surface);
             _lines = new PendingPreview(parent, "Trails layer", _ground, lineMaterial);
+            _lines.SetFade(FadeNear, FadeFar);
         }
+
+        /// <summary>Run lines fade out near the camera: gone within 40 m, fully drawn from 150 m (owner, TL26).</summary>
+        public const float FadeNear = 40, FadeFar = 150;
 
         readonly EditedSurface _ground;
 
@@ -142,6 +146,9 @@ namespace MountainPlanner.Presentation.Design
         }
 
         public void Follow(Camera camera) => _lines.Follow(camera);
+
+        /// <summary>The ground the lines drape on (the edited heights): the run names' sight test uses it too.</summary>
+        public World.ITerrainSurface Ground => _ground;
 
         public int VisibleParts => _lines.Visible;
 

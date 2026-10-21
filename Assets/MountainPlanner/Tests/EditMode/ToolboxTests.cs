@@ -375,6 +375,63 @@ namespace MountainPlanner.Tests
             Assert.That(trail.Analysing, Is.False, "the area was worked out off the main thread");
         }
 
+        /// <summary>Counts what the trail tool asks of the paint on the ground.</summary>
+        sealed class CountingPaint : ITrailPaint
+        {
+            public int Redraws, Stamps;
+            public void Align(MountainPlanner.Domain.Edits.EditLattice lattice, double originX, double originY) { }
+            public void Stamp(Vector2 a, Vector2 b, float radius, bool erase) => Stamps++;
+            public void Redraw(IReadOnlyList<FootprintPart> parts, TrailFootprint footprint) => Redraws++;
+            public void Clear() { }
+            public void Cursor(Vector2 xz, float radius, bool erase, bool shown) { }
+            public void Tint(Color colour) { }
+        }
+
+        [UnityTest]
+        public IEnumerator NewTrail_AStrokeBeingPaintedIsNotRedrawnAway()
+        {
+            // Findings 2026-10-20, #3: the last stroke's footprint arriving mid-drag replayed only the finished strokes,
+            // wiping the paint of the stroke being painted. It waits for that stroke's own let-go now.
+            var paint = new CountingPaint();
+            _host.Choose(NewTrailTool.ToolId);
+            _host.Context.Paint = paint;   // the context is made when a tool is chosen
+            var trail = (NewTrailTool)_host.Active;
+            // A long, wide first stroke, so its footprint takes a while to work out.
+            for (int i = 0; i < 20; i++) _host.Tick(new ToolInput { Keys = ToolKeys.BrushWider });
+            Assume.That(trail.BrushFeet, Is.EqualTo(200));
+            var down = At(0, 600, click: true);
+            down.Drag = true;
+            _host.Tick(down);
+            for (int z = 590; z >= -600; z -= 10) { var d = At(0, z); d.Drag = true; _host.Tick(d); }
+            var up = At(0, -600);
+            up.Release = true;
+            _host.Tick(up);
+            // The second stroke starts before the first's footprint is worked out, and its result lands mid-drag.
+            var second = At(300, 300, click: true);
+            second.Drag = true;
+            _host.Tick(second);
+            // The host hands a finished result over before the tool's tick, so one done by the click redraws before the
+            // stroke begins (rightly): only what lands mid-drag counts.
+            Assume.That(trail.Analysing, "the first footprint was still being worked out when the second stroke began");
+            int before = paint.Redraws;
+            for (int i = 0; i < 600 && trail.Analysing; i++)
+            {
+                yield return null;
+                var d = At(300, 300 - i % 50);
+                d.Drag = true;
+                _host.Tick(d);
+            }
+            Assert.That(trail.Analysing, Is.False);
+            Assert.That(paint.Redraws, Is.EqualTo(before), "no redraw while the second stroke paints");
+            var lift = At(300, 250);
+            lift.Release = true;
+            _host.Tick(lift);
+            yield return Analysed(trail);
+            Assert.That(paint.Redraws, Is.EqualTo(before + 1), "the let-go redraws both strokes");
+            Assert.That(trail.Strokes, Is.EqualTo(2));
+            for (int i = 0; i < 20; i++) _host.Tick(new ToolInput { Keys = ToolKeys.BrushNarrower });   // the brush carries over
+        }
+
         [UnityTest]
         public IEnumerator NewTrail_PaintHeadTailReviewBreaksGround()
         {
