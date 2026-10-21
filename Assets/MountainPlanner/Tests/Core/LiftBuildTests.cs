@@ -377,6 +377,8 @@ namespace MountainPlanner.Tests
                 TestContext.Progress.WriteLine($"{what}: {(b.Ok ? "ok" : "RED")} {Describe(b)}");
                 // LT34: a terminal stands where it's placed, so one whose row can't take the rope says what to do about it.
                 if (!b.Rope.TerminalsOk && !b.Hints.Any(h => h.Rule == "LT34")) problems.Add(what + ": " + Describe(b));
+                // TW-12 (LT40): chairs left short say why.
+                if (DesignTestKit.UnnamedShortfall(b) is string unnamed) problems.Add(what + ": " + unnamed);
                 if (!b.Ok)
                 {
                     red++;

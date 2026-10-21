@@ -29,6 +29,36 @@ namespace MountainPlanner.Tests
             return b;
         }
 
+        /// <summary>
+        /// TW-12 (LT40): automatic placement never leaves the chairs short without a named reason. Each stretch of
+        /// <paramref name="b"/>'s rope short of TW-01 v2 is either put right by a level hint (LT34: in the low zone and a little
+        /// past it at the bottom, the station zone at the top) or has a TW-12 reason within 50 ft of it (stretches closer than
+        /// 50 ft are one place, as TW-12 counts them). Null when so, else the first stretch that has neither.
+        /// </summary>
+        public static string UnnamedShortfall(LiftBuild.Result b)
+        {
+            var rope = b.Rope;
+            LiftRope.Zones(rope.Type, rope.LengthMetres, out _, out double edgeB, out double edgeT, out _);
+            double near = DesignUnits.TowerGapMm / 1000.0;
+            var gaps = new List<ClearanceGap>();
+            foreach (var gap in LiftClearance.Gaps(rope))
+            {
+                if (b.SuggestedBottomMetres != 0 && gap.FromMetres <= edgeB + LiftRope.Clearance * 4) continue;
+                if (b.SuggestedTopMetres != 0 && gap.ToMetres >= edgeT) continue;
+                if (gaps.Count > 0 && gap.FromMetres - gaps[gaps.Count - 1].ToMetres <= near)
+                    gaps[gaps.Count - 1] = new ClearanceGap(gaps[gaps.Count - 1].FromMetres, gap.ToMetres, Math.Max(gaps[gaps.Count - 1].WorstMetres, gap.WorstMetres));
+                else gaps.Add(gap);
+            }
+            foreach (var gap in gaps)
+            {
+                bool named = false;
+                foreach (var p in b.Unplaced)
+                    if (p.Rule == "TW-12" && p.Blocks && p.AlongMetres >= gap.FromMetres - near && p.AlongMetres <= gap.ToMetres + near) named = true;
+                if (!named) return $"{gap} with no level hint or TW-12 reason";
+            }
+            return null;
+        }
+
         public static PointMm P(int xFt, int yFt) => new PointMm(Ft(xFt), Ft(yFt));
 
         /// <summary>One painted part: a straight stroke between two points, 100 ft wide by default.</summary>

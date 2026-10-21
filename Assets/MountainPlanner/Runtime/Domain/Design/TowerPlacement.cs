@@ -19,9 +19,32 @@ namespace MountainPlanner.Domain.Design
     /// </summary>
     public static class TowerPlacement
     {
+        /// <summary>Why the search stopped with the chairs short or a head too sharp (TW-12, LT40).</summary>
+        public enum GiveUpKind : byte
+        {
+            /// <summary>The towers beside the low point are at TW-02's 100 ft (a tram's 250 ft), or none there may be raised.</summary>
+            TowerLimit,
+            /// <summary>A head too sharp with no room for a TW-06 partner, and raising its neighbours no longer eases it.</summary>
+            TooSharp,
+            /// <summary>The search ran out of rounds.</summary>
+            Rounds,
+        }
+
+        /// <summary>One place the search gave up (s along the line, metres).</summary>
+        public readonly struct GiveUp
+        {
+            public readonly double S;
+            public readonly GiveUpKind Kind;
+            public GiveUp(double s, GiveUpKind kind) { S = s; Kind = kind; }
+            public override string ToString() => $"{Kind} at {S:F0} m";
+        }
+
         public sealed class Result
         {
             public List<TowerSpec> Towers { get; } = new List<TowerSpec>();
+            /// <summary>Where and why the search stopped short of the rules (TW-12, LT40), in the order it did; empty when it
+            /// finished. Stretches left to the envelope and the unload ramp aren't here: LT34's level hints cover them.</summary>
+            public List<GiveUp> GaveUp { get; } = new List<GiveUp>();
             public LiftRope Rope { get; internal set; }
             /// <summary>Where each station tower stands (s along the line, metres), where it carries the rope (elevation, metres)
             /// and how it leans (radians), as solved.</summary>
@@ -185,10 +208,27 @@ namespace MountainPlanner.Domain.Design
             var neighbourDone = new bool[2];
             bool undone = false;
             var stuck = new HashSet<double>();   // towers (by position) too sharp with nothing left to try (TW-06: left red)
+            // Stretches no tower can clear, between the towers either side (TW-12, LT40: left red with the reason); the search
+            // carries on with the rest of the line.
+            var abandoned = new List<(double From, double To)>();
+            double ShortfallOutside(LiftRope r, double from, double to, out double at)
+            {
+                at = from;
+                double worst = 0;
+                for (double x = Math.Ceiling(from); x <= to; x += 1)
+                {
+                    bool skip = false;
+                    foreach (var (a, b) in abandoned) if (x >= a && x <= b) { skip = true; break; }
+                    if (skip || !r.ClearanceAt(x, out double clear, out double need)) continue;
+                    if (need - clear > worst) { worst = need - clear; at = x; }
+                }
+                return worst;
+            }
             double bottomLeftTo = double.MinValue, topLeftFrom = double.MaxValue;   // stretches left to the envelope and the ramp
             var eased = new List<int>();   // how many 5 ft steps each tower has been raised to ease a sharp crest beside it
             int exitFix = 0;               // TW-16 v4's steps on the first line tower
-            for (int round = 0; round < 500; round++)
+            const int Rounds = 500;
+            for (int round = 0; round < Rounds; round++)
             {
                 var specs = new List<Tower>(along.Count);
                 for (int i = 0; i < along.Count; i++)
@@ -242,8 +282,9 @@ namespace MountainPlanner.Domain.Design
                 double from = ownB ? exitS : rope.Towers[0].RopeS, to = rope.Towers[rope.Towers.Count - 1].RopeS;
                 from = Math.Max(from, bottomLeftTo);
                 to = Math.Min(to, topLeftFrom);
-                double shortfall = rope.ShortfallBetween(from, to, out double low);
+                double shortfall = abandoned.Count == 0 ? rope.ShortfallBetween(from, to, out double low) : ShortfallOutside(rope, from, to, out low);
                 if (shortfall <= Tolerance && sharp < 0) break;
+                if (round == Rounds - 1) result.GaveUp.Add(new GiveUp(sharp >= 0 ? rope.Towers[sharp].BaseS : low, GiveUpKind.Rounds));
                 double at = sharp >= 0 ? rope.Towers[sharp].BaseS : low;
                 bool inZone = sharp < 0 && (at < edgeB || at > edgeT);
                 int next = along.FindIndex(x => x > at);
@@ -324,14 +365,22 @@ namespace MountainPlanner.Domain.Design
                             if (i >= 0 && i < along.Count && Raisable(i) && heights[i] < MaxHeight && eased[i] < 4) { heights[i] += Grid; eased[i]++; raised = true; }
                     }
                     else if (Raisable(sharp) && heights[sharp] < MaxHeight) { heights[sharp] += Grid; raised = true; }
-                    if (!raised) stuck.Add(along[sharp]);
+                    if (!raised)
+                    {
+                        stuck.Add(along[sharp]);
+                        result.GaveUp.Add(new GiveUp(rope.Towers[sharp].BaseS, GiveUpKind.TooSharp));
+                    }
                     continue;
                 }
                 // No room: the nearer line tower stands taller.
                 int near = prev >= 0 && (next >= along.Count || at - along[prev] < along[next] - at) ? prev : next;
                 if (near < 0 || near >= along.Count || !Raisable(near)) near = prev >= 0 && Raisable(prev) ? prev : next < along.Count && Raisable(next) ? next : -1;
                 if (near >= 0 && heights[near] < MaxHeight) heights[near] += Grid;
-                else break;
+                else
+                {
+                    result.GaveUp.Add(new GiveUp(at, GiveUpKind.TowerLimit));
+                    abandoned.Add((prev >= 0 ? along[prev] : from, next < along.Count ? along[next] : to));
+                }
             }
             result.Rope = rope;
             var bottomTower = rope.Towers[0];

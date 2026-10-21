@@ -46,14 +46,21 @@ namespace MountainPlanner.Domain.Design
             /// <summary>Why the lift is red (blocking: TW-01 v2, LC-07) or amber (TW-05, TW-06, TW-16 v3, LF-08, LF-12), each with its
             /// rule (LC-09, owner, LT14); empty when it's neither.</summary>
             public List<LiftProblem> Problems => _problems ??= With(LiftProblems.For(Rope, BottomPad.ClippedStepMetres, TopPad.ClippedStepMetres,
-                                                                                     BottomSiteVariation, TopSiteVariation), Hints);
+                                                                                     BottomSiteVariation, TopSiteVariation), Hints, Unplaced);
             /// <summary>LT34: where the line needs a terminal higher or lower than the player set it, by how much (amber).</summary>
             public List<LiftProblem> Hints { get; internal set; } = new List<LiftProblem>();
             /// <summary>LT34: how much higher (+) or lower (-) each terminal should stand for its row to take the rope and its
             /// chairs to clear, metres in 1 ft steps; 0 where it's fine (or nothing within reach fixes it).</summary>
             public double SuggestedBottomMetres { get; internal set; }
             public double SuggestedTopMetres { get; internal set; }
-            static List<LiftProblem> With(List<LiftProblem> a, List<LiftProblem> b) { if (b != null) a.AddRange(b); return a; }
+            /// <summary>TW-12 (LT40): why automatic placement left the chairs short where no level hint puts it right (red).</summary>
+            public List<LiftProblem> Unplaced { get; internal set; } = new List<LiftProblem>();
+            static List<LiftProblem> With(List<LiftProblem> a, List<LiftProblem> b, List<LiftProblem> c)
+            {
+                if (b != null) a.AddRange(b);
+                if (c != null) a.AddRange(c);
+                return a;
+            }
             List<LiftProblem> _problems;
 
             /// <summary>Nothing blocks it (LC-09): it can be built; amber warnings may remain.</summary>
@@ -190,6 +197,7 @@ namespace MountainPlanner.Domain.Design
             // resorts carry on, only to work out how much higher the terminals would have to stand: the review's suggestion.
             const int Attempts = 8;
             List<TowerSpec> asPlaced = null;
+            TowerPlacement.Result placedFirst = null;
             for (int attempt = 0; attempt < Attempts; attempt++)
             {
                 bottomPad = TerminalPad.Grade(current, bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel + raiseB);
@@ -246,7 +254,11 @@ namespace MountainPlanner.Domain.Design
                 envelope = lastWork.Envelope;
                 towers = new List<TowerSpec>(specs.Count);
                 foreach (var t in specs) towers.Add(new TowerSpec(t.AlongMm, t.HeightMm));
-                if (attempt == 0) asPlaced = towers;
+                if (attempt == 0)
+                {
+                    asPlaced = towers;
+                    placedFirst = placed;
+                }
 
                 log?.Invoke($"attempt {attempt}: raise {raiseB:F2}/{raiseT:F2} m, station {placed.BottomStationS:F1} m pit {placed.BottomPit:F2} m, " +
                             $"envelope needed {envelope.NeededMetres:F2} deepest {envelope.DeepestMetres:F2} m, steel {towers[0].HeightMm / 304.8:F0} ft, " +
@@ -317,9 +329,16 @@ namespace MountainPlanner.Domain.Design
             var stored = new List<Tower>(towers.Count);
             for (int i = 0; i < towers.Count; i++) stored.Add(new Tower(TowerId.Make(1, i), towers[i].AlongMm, towers[i].HeightMm));
             var work = Earthwork(type, current, bx, by, tx, ty, stored, levels, stance, log);
+            var built = new EditedHeights(current.Source, current.Lattice, work.Edits);
+            var hints = LevelHints(type, built, bx, by, tx, ty, stored, levels, stance, work, out double sb, out double st, needB, needT);
+            // TW-12 (LT40): a stretch still short that no level hint puts right says why placement couldn't.
+            LiftRope.Zones(type, length, out _, out double bottomEdge, out _, out _);
+            var unplaced = work.Rope.ClearanceOk ? new List<LiftProblem>()
+                : LiftProblems.Unplaced(work.Rope, LineGround.Sample(built, type, bx, by, tx, ty), levels.BottomMetres, levels.TopMetres, placedFirst.GaveUp,
+                                        sb != 0 ? bottomEdge + LiftRope.Clearance * 4 : double.NegativeInfinity, st != 0 ? edgeT : double.PositiveInfinity);
             return new Result
             {
-                Hints = LevelHints(type, new EditedHeights(current.Source, current.Lattice, work.Edits), bx, by, tx, ty, stored, levels, stance, work, out double sb, out double st, needB, needT),
+                Hints = hints, Unplaced = unplaced,
                 SuggestedBottomMetres = sb, SuggestedTopMetres = st,
                 Towers = towers, Edits = work.Edits, Rope = work.Rope, BottomPad = work.BottomPad, TopPad = work.TopPad, Envelope = work.Envelope,
                 BottomRaise = raiseB, TopRaise = raiseT, BottomLevel = levels.BottomMetres, TopLevel = levels.TopMetres, Levels = levels,
