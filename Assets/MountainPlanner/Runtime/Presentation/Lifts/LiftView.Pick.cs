@@ -9,6 +9,13 @@ namespace MountainPlanner.Presentation.Lifts
         // What the pointer can hit, made once after a build (the first pick): each terminal and tower piece as its renderers'
         // box, and the rope with its chairs as capsules every ~5 m along the loop (the chairs hang below the rope).
         Bounds[] _boxes = System.Array.Empty<Bounds>();
+        int[] _boxParts = System.Array.Empty<int>(), _rendererParts = System.Array.Empty<int>();
+        // Which part each spawned piece belongs to (F1): a tower's index, or one of the Part constants.
+        readonly Dictionary<GameObject, int> _partOf = new Dictionary<GameObject, int>();
+        int _spawning = PartRope;
+
+        /// <summary>The part <see cref="Pick(Ray, float, float, out float, out int)"/> hit: a tower's index from 0, or these.</summary>
+        public const int PartBottom = -1, PartTop = -2, PartRope = -3;
         Vector3[] _ropeA = System.Array.Empty<Vector3>(), _ropeB = System.Array.Empty<Vector3>();
         Renderer[] _renderers = System.Array.Empty<Renderer>();
         bool _pickReady, _highlighted;
@@ -27,6 +34,8 @@ namespace MountainPlanner.Presentation.Lifts
             _pickReady = false;
             _highlighted = false;
             _boxes = System.Array.Empty<Bounds>();
+            _boxParts = System.Array.Empty<int>();
+            _partOf.Clear();
             _renderers = System.Array.Empty<Renderer>();
         }
 
@@ -35,22 +44,32 @@ namespace MountainPlanner.Presentation.Lifts
             _pickReady = true;
             if (Root == null) return;
             var boxes = new List<Bounds>();
+            var parts = new List<int>();
+            var rendererParts = new List<int>();
             var renderers = new List<Renderer>();
             for (int i = 0; i < Root.transform.childCount; i++)
             {
                 var child = Root.transform.GetChild(i);
                 bool any = false;
                 var box = default(Bounds);
+                int partOf = _partOf.TryGetValue(child.gameObject, out int p) ? p : PartRope;
                 foreach (var r in child.GetComponentsInChildren<Renderer>())
                 {
                     renderers.Add(r);
+                    rendererParts.Add(partOf);
                     if (child.name == "Haul rope") continue;   // the rope picks as capsules, not its whole-line box
                     if (!any) { box = r.bounds; any = true; }
                     else box.Encapsulate(r.bounds);
                 }
-                if (any) boxes.Add(box);
+                if (any)
+                {
+                    boxes.Add(box);
+                    parts.Add(partOf);
+                }
             }
             _boxes = boxes.ToArray();
+            _boxParts = parts.ToArray();
+            _rendererParts = rendererParts.ToArray();
             _renderers = renderers.ToArray();
             var a = new List<Vector3>();
             var b = new List<Vector3>();
@@ -71,28 +90,33 @@ namespace MountainPlanner.Presentation.Lifts
         /// <paramref name="slackPerMetre"/> × distance of a part (a few pixels' worth); <paramref name="distance"/> is how far
         /// along the ray. Allocates nothing once prepared.
         /// </summary>
-        public bool Pick(Ray ray, float maxDistance, float slackPerMetre, out float distance)
+        public bool Pick(Ray ray, float maxDistance, float slackPerMetre, out float distance) => Pick(ray, maxDistance, slackPerMetre, out distance, out _);
+
+        /// <summary>As <see cref="Pick(Ray, float, float, out float)"/>, saying which part was hit nearest (F1): a tower's
+        /// index, <see cref="PartBottom"/>, <see cref="PartTop"/> or <see cref="PartRope"/> (the rope or a chair).</summary>
+        public bool Pick(Ray ray, float maxDistance, float slackPerMetre, out float distance, out int part)
         {
             distance = float.MaxValue;
+            part = PartRope;
             if (_loop.Length == 0) return false;
             if (!_pickReady) PreparePick();
             var reach = _bounds;
             reach.Expand(Mathf.Max(20f, reach.size.y));
             if (!reach.IntersectRay(ray, out float enter) || enter > maxDistance) return false;
             bool hit = false;
-            foreach (var box in _boxes)
+            for (int i = 0; i < _boxes.Length; i++)
             {
-                var grown = box;
-                float slack = slackPerMetre * Vector3.Distance(ray.origin, box.center);
+                var grown = _boxes[i];
+                float slack = slackPerMetre * Vector3.Distance(ray.origin, grown.center);
                 grown.Expand(2 * slack);
-                if (grown.IntersectRay(ray, out float t) && t < maxDistance && t < distance) { distance = t; hit = true; }
+                if (grown.IntersectRay(ray, out float t) && t < maxDistance && t < distance) { distance = t; hit = true; part = _boxParts[i]; }
             }
             var down = new Vector3(0, ChairDrop, 0);
             for (int i = 0; i < _ropeA.Length; i++)
             {
                 float d = RaySegment(ray, _ropeA[i] - down, _ropeB[i] - down, out float t);
                 if (t <= 0 || t >= maxDistance || t >= distance) continue;
-                if (d <= RopeRadius + slackPerMetre * t) { distance = t; hit = true; }
+                if (d <= RopeRadius + slackPerMetre * t) { distance = t; hit = true; part = PartRope; }
             }
             return hit;
         }
@@ -117,6 +141,20 @@ namespace MountainPlanner.Presentation.Lifts
             _highlighted = on;
             if (!_pickReady) PreparePick();
             ApplyHighlight(on);
+        }
+
+        /// <summary>Lights one part alone (F1: the selected tower or terminal, white as UI-15's lit lift); int.MinValue
+        /// for none. Not with <see cref="SetHighlight"/> on the same view.</summary>
+        public void HighlightPart(int part)
+        {
+            if (!_pickReady) PreparePick();
+            for (int i = 0; i < _renderers.Length; i++)
+            {
+                var r = _renderers[i];
+                if (r == null) continue;
+                bool on = part != int.MinValue && _rendererParts[i] == part;
+                r.renderingLayerMask = on ? r.renderingLayerMask | LiftOutline.Layer : r.renderingLayerMask & ~LiftOutline.Layer;
+            }
         }
 
         void ApplyHighlight(bool on)

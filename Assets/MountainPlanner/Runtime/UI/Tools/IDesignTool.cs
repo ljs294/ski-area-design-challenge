@@ -26,6 +26,7 @@ namespace MountainPlanner.UI.Tools
         // P3-09 (LF-04): the tower in hand slides down or up the line.
         SlideBack = 4096,
         SlideOn = 8192,
+        AddTower = 16384,
     }
 
     /// <summary>

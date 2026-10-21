@@ -107,6 +107,7 @@ Live while a tool is armed, which happens only with the tray open. All rebindabl
 | [ / ] | Edit lift: the previous / next part (bottom terminal, towers, top terminal; P3-09) |
 | Ctrl+Z | Edit lift: undo the last change inside the tool; Apply (Ctrl+Enter) commits the edit as one step (P3-09, LT2) |
 | Delete | Delete the selected tower or trail |
+| Insert | A line's towers (New lift's Towers and Review, Edit lift): a tower in hand to add between the others (P3-09, F2) |
 | Tab | The tool window takes the keyboard: the arrows walk its controls, Enter or Space presses one; Esc gives the keys back |
 | Esc | Back one step; at the first step the tool closes, asking first if anything is drawn (fixed) |
 | Left-click / left-drag | Place, paint (the tool's own button; right-drag still pans, middle-drag still turns) |

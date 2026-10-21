@@ -651,7 +651,7 @@ namespace MountainPlanner.Tests
             Assert.That(lift.CurrentStep, Is.EqualTo(2), "no towers: Enter places, it doesn't skip to the review");
 
             // Fill the rest finishes the line, then the review builds on exactly those towers.
-            typeof(NewLiftTool).GetMethod("FillTheRest", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(lift, new object[] { false });
+            typeof(NewLiftTool).GetMethod("FillTheRest", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(lift, null);
             PumpUntil(() => lift.CurrentStep == 3, "Fill the rest goes on to the review");
             PumpUntil(() => lift.Built != null, "the review builds");
             Assert.That(lift.Built.Towers.Select(t => t.AlongMm), Is.EqualTo(lift.Placed.Select(t => t.AlongMm)), "built on the towers placed");
@@ -744,6 +744,111 @@ namespace MountainPlanner.Tests
             Assert.That(_host.Armed, Is.True, "the tool stays out");
             Assert.That(_design.Revision, Is.EqualTo(revision), "nothing applied");
             Assert.That(_design.Document.FindLift(id).Levels, Is.EqualTo(levels));
+        }
+
+        // ---------- one tower editor, naming (task 09, F1–F3, F5; LT37, LT39) ----------
+
+        void Invoke(object tool, string method) =>
+            tool.GetType().GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(tool, null);
+
+        [Test]
+        public void F1F2_EditLiftPicksATowerIn3DAddsOneInAGapRemovesItAndRevertsToAuto()
+        {
+            var id = BuiltOnSlope();
+            var before = _design.Document.FindLift(id);
+            _host.Choose(EditLiftTool.ToolId);
+            var tool = (EditLiftTool)_host.Active;
+            GiveGround();
+            Assert.That(tool.Open(id.Value), Is.True);
+            PumpUntil(() => tool.Built != null, "the draft builds");
+            int n = before.Towers.Count, mid = n / 2;
+
+            // F1: a click selects what the pointer is on in 3D (the draft's part), not what's on the ground behind it.
+            _host.Context.DraftPartUnderPointer = () => mid;
+            _host.Tick(At(300, 300, click: true));
+            _host.Tick(new ToolInput { Release = true });
+            Assert.That(tool.Selected, Is.EqualTo("tower " + mid));
+            _host.Context.DraftPartUnderPointer = () => LiftDraftEditor.None;
+            _host.Tick(new ToolInput { Keys = ToolKeys.TowerUp });
+            Assert.That(tool.DraftTowers[mid].HeightMm, Is.EqualTo(before.Towers[mid].HeightMm + DesignUnits.FiveFeetMm), "Page Up: 5 ft taller");
+            _host.Tick(new ToolInput { Keys = ToolKeys.SlideOn });
+            Assert.That(tool.DraftTowers[mid].AlongMm, Is.EqualTo(before.Towers[mid].AlongMm + DesignUnits.FiveFeetMm).Or.EqualTo(before.Towers[mid].AlongMm),
+                        ". slides it 5 ft (or it's already 50 ft from the next)");
+            int changes = tool.Changes;
+
+            // F2: Insert puts a tower in hand in the widest gap; it's placed where it's green.
+            _host.Tick(new ToolInput { Keys = ToolKeys.AddTower });
+            Assert.That(tool.Editor.Adding, Is.True, "Insert: a tower in hand");
+            for (int i = 0; i < 400 && (tool.Editor.HandStatus == null || !tool.Editor.HandStatus.Ok); i++) _host.Tick(new ToolInput { Keys = ToolKeys.SlideOn });
+            Assume.That(tool.Editor.HandStatus != null && tool.Editor.HandStatus.Ok, "somewhere in a gap it can stand");
+            _host.Tick(new ToolInput { Keys = ToolKeys.Next });
+            Assert.That(tool.DraftTowers.Count, Is.EqualTo(n + 1), "Enter placed it between its neighbours");
+            Assert.That(tool.DraftTowers.Zip(tool.DraftTowers.Skip(1), (a, b) => b.AlongMm - a.AlongMm).All(d => d >= DesignUnits.TowerGapMm), Is.True, "in order, 50 ft apart");
+            int added = tool.Editor.Selected;
+            Assert.That(added, Is.GreaterThanOrEqualTo(0), "the new tower is selected");
+            _host.Tick(new ToolInput { Keys = ToolKeys.Delete });
+            Assert.That(tool.DraftTowers.Count, Is.EqualTo(n), "Delete removes it");
+            _host.Tick(new ToolInput { Keys = ToolKeys.UndoStroke });
+            Assert.That(tool.DraftTowers.Count, Is.EqualTo(n + 1), "Ctrl+Z puts it back");
+
+            // F3: Revert to auto asks first, then places every tower again and the lift is Automatic.
+            Invoke(tool, "RevertToAuto");
+            Assert.That(tool.Changes, Is.EqualTo(changes + 1), "the first press only asks");
+            Invoke(tool, "RevertToAuto");
+            PumpUntil(() => tool.Built != null, "the re-placed draft builds");
+            Assert.That(_host.Context.Window.Window.Q<Label>("toolwin-dd-mode-value").text, Is.EqualTo("Automatic"));
+            Assert.That(tool.DraftTowers.Select(t => t.AlongMm), Is.EqualTo(before.Towers.Select(t => t.AlongMm)), "the automatic towers again");
+        }
+
+        [Test]
+        public void F5_NewLiftsNameIsTypedInTheTitleAndReachesAddLift()
+        {
+            _host.Choose(NewLiftTool.ToolId);
+            var lift = (NewLiftTool)_host.Active;
+            var w = _host.Context.Window;
+            w.BeginRename();
+            Assert.That(w.Renaming, Is.True, "a click on the name (or F2) types a new one");
+            w.Window.Q<TextField>("toolwin-name-field").value = " ";
+            w.EndRename(true);
+            Assert.That(lift.LiftName, Is.EqualTo("Chair 1"), "a bad name isn't kept");
+            Assert.That(w.Message, Does.Contain("empty"), "and says why");
+            w.BeginRename();
+            w.Window.Q<TextField>("toolwin-name-field").value = "Summit Quad";
+            w.EndRename(false);
+            Assert.That(lift.LiftName, Is.EqualTo("Chair 1"), "Esc puts the old one back");
+            w.BeginRename();
+            w.Window.Q<TextField>("toolwin-name-field").value = "Summit Quad";
+            w.EndRename(true);
+            Assert.That(lift.LiftName, Is.EqualTo("Summit Quad"));
+            Assert.That(w.Window.Q<Label>("toolwin-name").text, Is.EqualTo("Summit Quad"));
+            _host.Tick(At(0, -400, click: true));
+            _host.Tick(At(0, 600, click: true));
+            _host.Tick(new ToolInput { Keys = ToolKeys.Next });
+            _host.Tick(new ToolInput { Keys = ToolKeys.BreakGround });
+            Assert.That(_design.Document.Lifts[0].Name, Is.EqualTo("Summit Quad"), "Break ground's AddLift carries it");
+            Assert.That(lift.LiftName, Is.EqualTo("Chair 2"), "the next lift's default");
+        }
+
+        [Test]
+        public void F5_EditLiftsRenameIsPartOfApplysOneStep()
+        {
+            var id = BuiltOnSlope();
+            _host.Choose(EditLiftTool.ToolId);
+            var tool = (EditLiftTool)_host.Active;
+            GiveGround();
+            Assert.That(tool.Open(id.Value), Is.True);
+            var w = _host.Context.Window;
+            w.BeginRename();
+            w.Window.Q<TextField>("toolwin-name-field").value = "Lookout Quad";
+            w.EndRename(true);
+            Assert.That(tool.Changes, Is.EqualTo(1), "a change of the draft");
+            PumpUntil(() => tool.Built != null && w.CanBreakGround, "the draft builds and can be applied");
+            long revision = _design.Revision;
+            _host.Tick(new ToolInput { Keys = ToolKeys.BreakGround });
+            Assert.That(_design.Revision, Is.EqualTo(revision + 1), "one step");
+            Assert.That(_design.Document.FindLift(id).Name, Is.EqualTo("Lookout Quad"));
+            Assert.That(_design.Undo(), Is.True);
+            Assert.That(_design.Document.FindLift(id).Name, Is.EqualTo("Chair 1"), "one Ctrl+Z undoes it");
         }
 
         // ---------- Remove lift (task 09) ----------

@@ -13,6 +13,10 @@ namespace MountainPlanner.UI
         public double LengthMetres, VerticalMetres, Capacity, RideSeconds;
         public int Towers;
         public bool Built;
+        /// <summary>F6: the towers' heads ("6 s6, 4 s4, 2 b8"), the lowest chairs over the ground and the rise against the
+        /// type's limit (metres; the limit infinite for none), from the built lift's rope; null and NaN for a plan.</summary>
+        public string Heads;
+        public double LowestChairsMetres, RiseMetres, RiseLimitMetres;
     }
 
     /// <summary>
@@ -33,6 +37,9 @@ namespace MountainPlanner.UI
         public event Action<ulong> LiftFocused;
         /// <summary>The card's Edit or Remove: the app arms that tool on the lift.</summary>
         public event Action<ulong> LiftEditChosen, LiftRemoveChosen;
+        /// <summary>F6: the card's name renamed (one undoable RenameLift); the app returns why it can't be, or null.</summary>
+        public Func<ulong, string, string> LiftRenamed;
+        TextField _liftCardField;
 
         static readonly double[] LiftLengthBinsFt = { 3000, 6000 }, LiftVerticalBinsFt = { 1000, 2000 };
 
@@ -63,9 +70,12 @@ namespace MountainPlanner.UI
             _liftCard.AddToClassList("hidden");
             var head = new VisualElement();
             head.AddToClassList("mp-head");
-            _liftCardName = new Label { name = "lift-card-name" };
+            _liftCardName = new Label { name = "lift-card-name", tooltip = "Rename (F2)" };
             _liftCardName.AddToClassList("mp-title");
+            _liftCardName.AddToClassList("tw__name--edit");
+            _liftCardName.RegisterCallback<ClickEvent>(_ => RenameLiftCard());
             head.Add(_liftCardName);
+            _liftCard.RegisterCallback<KeyDownEvent>(e => { if (e.keyCode == UnityEngine.KeyCode.F2 && _liftCardField?.parent == null) { RenameLiftCard(); e.StopPropagation(); } });
             var gap = new VisualElement();
             gap.style.flexGrow = 1;
             head.Add(gap);
@@ -151,12 +161,59 @@ namespace MountainPlanner.UI
             Kv("Vertical", ToolFormat.Length(l.VerticalMetres));
             Kv("Capacity", $"{l.Capacity:#,0} an hour");
             if (l.RideSeconds > 0) Kv("Ride", ToolFormat.Duration(l.RideSeconds));
-            if (l.Built) Kv("Towers", l.Towers.ToString());
+            if (l.Built) Kv("Towers", string.IsNullOrEmpty(l.Heads) ? l.Towers.ToString() : $"{l.Towers} · {l.Heads}");
+            if (l.Built && !double.IsNaN(l.LowestChairsMetres)) Kv("Lowest chairs", $"{ToolFormat.Length(l.LowestChairsMetres)} over the ground");
+            if (l.Built && !double.IsNaN(l.RiseMetres))
+                Kv("Rise", $"{ToolFormat.Length(l.RiseMetres)} of {(double.IsInfinity(l.RiseLimitMetres) ? "no limit" : ToolFormat.Length(l.RiseLimitMetres))}");
             Kv("Status", l.Built ? "Built" : "Planned");
+        }
+
+        // F6 (LT39): the card's name becomes a text field; Enter or a click elsewhere keeps it, Esc puts the old one back.
+        void RenameLiftCard()
+        {
+            if (_liftCardId == 0 || LiftRenamed == null) return;
+            if (_liftCardField == null)
+            {
+                _liftCardField = new TextField { name = "lift-card-name-field", maxLength = Domain.Design.DesignRules.NameMaxLength };
+                _liftCardField.AddToClassList("tw__namefield");
+                _liftCardField.RegisterCallback<KeyDownEvent>(e =>
+                {
+                    if (e.keyCode == UnityEngine.KeyCode.Return || e.keyCode == UnityEngine.KeyCode.KeypadEnter) { EndRenameLiftCard(true); e.StopPropagation(); }
+                    else if (e.keyCode == UnityEngine.KeyCode.Escape) { EndRenameLiftCard(false); e.StopPropagation(); }
+                }, TrickleDown.TrickleDown);
+                _liftCardField.RegisterCallback<FocusOutEvent>(_ => EndRenameLiftCard(true));
+            }
+            if (_liftCardField.parent != null) return;
+            _liftCardField.SetValueWithoutNotify(_liftCardName.text);
+            _liftCardName.parent.Insert(_liftCardName.parent.IndexOf(_liftCardName) + 1, _liftCardField);
+            _liftCardName.AddToClassList("hidden");
+            _liftCardField.schedule.Execute(() => { _liftCardField.Focus(); _liftCardField.SelectAll(); });
+        }
+
+        void EndRenameLiftCard(bool keep)
+        {
+            if (_liftCardField?.parent == null) return;
+            string typed = _liftCardField.value;
+            _liftCardField.RemoveFromHierarchy();
+            _liftCardName.RemoveFromClassList("hidden");
+            if (!keep || typed == _liftCardName.text || LiftRenamed == null) return;
+            string problem = LiftRenamed(_liftCardId, typed);
+            if (problem != null) Toast(problem);
+            else _liftCardName.text = typed;
+        }
+
+        /// <summary>Opens the card's name for typing, or keeps what was typed (tests).</summary>
+        public void RenameLiftCardForTest(string name)
+        {
+            RenameLiftCard();
+            if (_liftCardField == null) return;
+            _liftCardField.SetValueWithoutNotify(name);
+            EndRenameLiftCard(true);
         }
 
         void CloseLiftCard()
         {
+            EndRenameLiftCard(false);
             _liftCardId = 0;
             _liftsList?.SetFocused(0);
             _liftCard?.AddToClassList("hidden");

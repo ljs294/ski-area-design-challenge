@@ -9,7 +9,7 @@ namespace MountainPlanner.UI.Tools
 {
     /// <summary>
     /// Toolbox › Lifts › New (LF-01 to LF-03, LF-08; P3-06's part; task 09's plop, LT19–LT22). The bottom terminal's own
-    /// model follows the pointer, see-through and green where it can stand, amber where it will stand higher on its pier,
+    /// model follows the pointer, see-through and green where it can stand, amber where the ground under it varies over 10 ft (its pad is levelled),
     /// red where it can't; Shift + wheel or , and . turn it (a preview of the space it takes, LT20) and Page Up / Page Down
     /// set its level. A click anchors it; the top terminal then follows the pointer facing back along the line, with its
     /// own level, and a second click fixes the line. Step 3, Towers,
@@ -70,6 +70,13 @@ namespace MountainPlanner.UI.Tools
             _name = NextName(context.History.Document);
             var w = context.Window;
             w.SetName(_name);
+            // F5: the name in the title renames the lift Break ground (or Save plan) adds.
+            w.SetRenamable(n =>
+            {
+                if (DesignRules.NameProblem(n) is string bad) return bad;
+                _name = n;
+                return null;
+            });
             _typeMenu = new LiftTypeMenu(w, LiftCatalogIds.SesselliftFgq4, Retype, "The kind of lift (owner, 2026-10-19)");
             (_modeDd, _stanceDd) = w.AddDropdownPair("towers", "Towers", "mode", PickMode, "stance", PickStance,
                 "LF-01, TW-12: automatic towers, or yours; it can change until you break ground", "TW-14: plumb, or leaned square to the rope (15° at most)");
@@ -101,7 +108,7 @@ namespace MountainPlanner.UI.Tools
         void Retype()
         {
             if (_step == Step.Review || (_step == Step.Towers && _mode == TowerMode.Automatic)) Go(_step);
-            else if (_step == Step.Towers) { PrepareHand(); _hintKey2 = long.MinValue; }
+            else if (_step == Step.Towers) { PrepareHand(); _hintKey2 = long.MinValue; SyncEditor(); _editor?.TowersChanged(); ShowDraft(); }
         }
 
         static string NextName(DesignDocument doc) => "Chair " + (doc.Lifts.Count + 1);
@@ -120,12 +127,10 @@ namespace MountainPlanner.UI.Tools
             }
             _step = step;
             w.SetStep((int)step);
-            bool towersInHand = step == Step.Towers && _mode == TowerMode.ByHand;
-            _ctx.Claim(GameAction.TowerUp, towersInHand);
-            _ctx.Claim(GameAction.TowerDown, towersInHand);
-            _ctx.Claim(GameAction.TowerSlideBack, towersInHand);
-            _ctx.Claim(GameAction.TowerSlideOn, towersInHand);
-            _ctx.Claim(GameAction.DeleteSelected, towersInHand);
+            _editorKey = long.MinValue;
+            // F1–F4: the line's towers stay editable in step 3 and the review; before that there's no line.
+            if (step != Step.Towers && step != Step.Review) { _editor?.Release(); _ctx.ShowDraftLift?.Invoke(null); }
+            if (step == Step.Review) _editor?.StopAdding();   // the review's towers wait for a click
             if (step != Step.Towers) { w.SetButtons(); w.ShowGauge(null); }
             // LT19, LT21: a terminal in hand turns (the bottom only: the top faces the line) and takes its level.
             bool terminalInHand = step == Step.First || step == Step.Other;
@@ -162,14 +167,13 @@ namespace MountainPlanner.UI.Tools
                         w.SetNext(true, true);
                         if (!BuiltIsCurrent()) StartBuild();
                         else TowersPlacedHint();
+                        OpenTowers();
                     }
                     else
                     {
-                        w.SetKeys((GameAction.TowerSlideBack, "slide"), (GameAction.TowerSlideOn, "slide"), (GameAction.TowerUp, "taller"),
-                                  (GameAction.TowerDown, "shorter"), (GameAction.ToolNext, "place"), (GameAction.DeleteSelected, "take back"));
                         w.SetNext(false, false);
                         _hintKey2 = long.MinValue;
-                        PrepareHand();
+                        OpenTowers();
                         HandHint();
                     }
                     break;
@@ -180,6 +184,8 @@ namespace MountainPlanner.UI.Tools
                     StartBuild();
                     BuildReview();
                     w.ShowReview(_review);
+                    OpenTowers();
+                    ReviewButtons();
                     break;
             }
             Draw(default, false);
@@ -250,6 +256,12 @@ namespace MountainPlanner.UI.Tools
                     TowersTick(input);
                     break;
                 case Step.Review:
+                    // Every tower stays editable (the mockup); a terminal clicked takes its level (LT34's suggestion).
+                    EnsureEditor();
+                    SyncEditor();
+                    _editor.KeepAdding = false;
+                    _editor.Tick(input);
+                    EditorHint();
                     DrawTowers();
                     break;
             }
@@ -288,7 +300,7 @@ namespace MountainPlanner.UI.Tools
 
         /// <summary>
         /// LF-08 over the terminal's real footprint as it faces (<see cref="TerminalEnd"/>, measured on its model): red
-        /// outside the area; amber where the ground under it varies more than 10 ft, so it stands higher on its pier
+        /// outside the area; amber where the ground under it varies more than 10 ft, so its pad is cut and filled to level it (LF-12 v4)
         /// (LF-08 v2, LC-09); green otherwise. <paramref name="ground"/> is the ground at its origin (its 0.00 level).
         /// </summary>
         GhostTint Site(TerminalEnd end, Vector2 at, Vector2 facing, out float ground, out float relief)
@@ -325,7 +337,7 @@ namespace MountainPlanner.UI.Tools
                 : $"Click far up the mountain to place the top terminal. {ToolFormat.Length(run)} across · rise {ToolFormat.Length(rise)} · {ToolFormat.Grade(rise, run)}";
             _ctx.Window.SetHint(place + "\n" + which + " terminal level " + ToolFormat.Length(level) + hand);
             bool steep = relief > SitingReliefMetres;
-            _ctx.Window.SetMessage(steep ? $"The ground under it varies {ToolFormat.Length(relief)}: it stands higher on its pier{(relief > MaxSitingFeet * 0.3048f ? " (over 40 ft)" : "")}" : null, true);
+            _ctx.Window.SetMessage(steep ? $"The ground under it varies {ToolFormat.Length(relief)}: its pad will be levelled with cut and fill{(relief > MaxSitingFeet * 0.3048f ? " (over 40 ft)" : "")}" : null, true);
         }
 
         int _levelKey = int.MinValue;
@@ -472,10 +484,14 @@ namespace MountainPlanner.UI.Tools
                 _builtRevision = revision;
                 _builtFor = key;
                 ShowProfile(result.Rope, new Domain.Edits.EditedHeights(ground.Source, ground.Lattice, result.Edits), result.Levels);
-                if (_step == Step.Towers) { TowersPlacedHint(); return; }
+                ShowDraft();   // F4: the line as Break ground would build it
+                SyncEditor();
+                _editorKey = long.MinValue;
+                if (_step == Step.Towers) { if (_mode == TowerMode.Automatic) TowersPlacedHint(); return; }
                 _ctx.PendingTerrain = BuiltEdits;
                 BuildReview();
                 _ctx.Window.ShowReview(_review);
+                ReviewButtons();
             });
         }
 
@@ -506,8 +522,15 @@ namespace MountainPlanner.UI.Tools
         {
             switch (_step)
             {
-                case Step.Review: Go(Step.Towers); return ToolBackOut.Stepped;
-                case Step.Towers: ClearTowers(); Go(Step.Other); return ToolBackOut.Stepped;
+                case Step.Review:
+                    if (_editor != null && _editor.Escape()) { _editorKey = long.MinValue; return ToolBackOut.Stepped; }
+                    Go(Step.Towers);
+                    return ToolBackOut.Stepped;
+                case Step.Towers:
+                    if (_editor != null && _editor.Escape()) { _hintKey2 = _editorKey = long.MinValue; return ToolBackOut.Stepped; }
+                    ClearTowers();
+                    Go(Step.Other);
+                    return ToolBackOut.Stepped;
                 case Step.Other: Go(Step.First); return ToolBackOut.Stepped;
                 default: return ToolBackOut.Close;
             }
@@ -544,6 +567,8 @@ namespace MountainPlanner.UI.Tools
 
         public void Disarm()
         {
+            _editor?.Release();
+            _ctx?.ShowDraftLift?.Invoke(null);
             _ctx?.BottomGhost?.Hide();
             _ctx?.TopGhost?.Hide();
             _ctx = null;
@@ -562,5 +587,6 @@ namespace MountainPlanner.UI.Tools
         public bool Building => _building;
         public string CatalogId => _catalogId;
         public PointMm Bottom => _bottom;
+        public string LiftName => _name;
     }
 }

@@ -124,6 +124,15 @@ namespace MountainPlanner.Tests
                 Assert.That(placed.Levels, Is.Not.Null, "and its terminal levels (SK14)");
                 Assert.That(lift.CurrentStep, Is.EqualTo(0), "ready for the next lift");
 
+                // F6 (LT39): the lift's card (a click on it on the map, or its Analysis row) renames it in one undoable step.
+                for (int i = 0; i < 600 && viewer.Hud.LiftRenamed == null; i++) yield return null;
+                viewer.Hud.OpenLiftCardFor(placed.Id.Value);
+                viewer.Hud.RenameLiftCardForTest("Summit Quad");
+                Assert.That(viewer.Design.Document.Lifts[0].Name, Is.EqualTo("Summit Quad"), "the card's rename");
+                Assert.That(viewer.Design.Undo(), Is.True);
+                Assert.That(viewer.Design.Document.Lifts[0].Name, Is.EqualTo(placed.Name), "one Ctrl+Z takes it back");
+                viewer.Hud.CloseLiftCardIfOpen();
+
                 // Switching away mid-draw cancels at once and puts everything back (CF-01).
                 yield return Click(ScreenOf(cam, bottom, ctx));
                 Assert.That(lift.CurrentStep, Is.EqualTo(1));

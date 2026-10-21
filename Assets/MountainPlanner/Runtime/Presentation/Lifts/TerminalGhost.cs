@@ -6,7 +6,7 @@ using Object = UnityEngine.Object;
 
 namespace MountainPlanner.Presentation.Lifts
 {
-    /// <summary>How the terminal being placed reads (LT22): it can stand, it will stand higher on its pier, or it can't.</summary>
+    /// <summary>How the terminal being placed reads (LT22): it can stand, its pad will be levelled a lot (LF-12 v4), or it can't.</summary>
     public enum GhostTint : byte { Ok, Raised, Bad }
 
     /// <summary>
@@ -20,7 +20,7 @@ namespace MountainPlanner.Presentation.Lifts
 
         readonly Transform _parent;
         readonly LiftModelSet _models;
-        readonly Material[] _tints = new Material[3];
+        readonly Material[] _tints;
         readonly List<Renderer> _renderers = new List<Renderer>();
         Material[][] _byTint = Array.Empty<Material[]>();
         GameObject _instance;
@@ -39,14 +39,22 @@ namespace MountainPlanner.Presentation.Lifts
         {
             _parent = parent;
             _models = models;
+            _tints = MakeTints("Terminal ghost");
+        }
+
+        /// <summary>The see-through green, amber and red (LT22), in <see cref="GhostTint"/> order; the caller destroys them.</summary>
+        internal static Material[] MakeTints(string name)
+        {
             var shader = Resources.Load<Shader>(ShaderResource);
             var colours = new[] { new Color(0.2f, 0.78f, 0.32f, 0.62f), new Color(1f, 0.58f, 0.05f, 0.62f), new Color(0.92f, 0.16f, 0.1f, 0.62f) };
+            var tints = new Material[3];
             for (int i = 0; i < 3; i++)
             {
-                _tints[i] = shader != null ? new Material(shader) : new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-                _tints[i].name = "Terminal ghost " + (GhostTint)i;
-                _tints[i].color = colours[i];
+                tints[i] = shader != null ? new Material(shader) : new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+                tints[i].name = name + " " + (GhostTint)i;
+                tints[i].color = colours[i];
             }
+            return tints;
         }
 
         /// <summary>

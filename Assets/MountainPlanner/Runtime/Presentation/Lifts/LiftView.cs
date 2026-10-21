@@ -162,13 +162,17 @@ namespace MountainPlanner.Presentation.Lifts
 
             // Terminals: each end's model (TW-16 v3: the type says which stands where), facing along the line toward the
             // other end, with its bullwheel's centre on the design point.
+            _spawning = PartBottom;
             var ret = PlaceTerminal(Model(type.Bottom.Model), bottom, Quaternion.LookRotation(dir), Height, livery, levels?.Bottom);
+            _spawning = PartTop;
             var drive = PlaceTerminal(Model(type.Top.Model), top, Quaternion.LookRotation(-dir), Height, livery, levels?.Top);
             var retRig = ret != null ? ret.GetComponent<LiftRig>() : null;
             var driveRig = drive != null ? drive.GetComponent<LiftRig>() : null;
             // Each terminal's pier runs about 15 m below its 0.00 level, buried in the pad; its footing stands at grade under
             // the pier (the model contract, owner: piers simply tall, no stacking). Models without one skip it.
+            _spawning = PartBottom;
             PlaceFooting(ret, Height, livery);
+            _spawning = PartTop;
             PlaceFooting(drive, Height, livery);
 
             // Where the rope leaves each station, along the line and in elevation.
@@ -194,10 +198,12 @@ namespace MountainPlanner.Presentation.Lifts
                 at.y = (float)sol.BaseY;
                 var facing = Quaternion.LookRotation(-dir);   // the platform side (+Z) faces the return
                 var lean = Quaternion.AngleAxis((float)(sol.Lean * Mathf.Rad2Deg), Vector3.Cross(Vector3.up, -dir));
+                _spawning = i;
                 var h = SpawnTower(head, at, facing, lean, lift.Towers[i].HeightMm / 1000f, (float)sol.Reveal, livery);
                 heads.Add(h != null ? h.GetComponent<LiftRig>() : null);
             }
 
+            _spawning = PartRope;
             // Posable models (the model contract): each train rocks to the rope and the rope runs over its sheaves.
             if (retRig != null && driveRig != null && TryPosedLoop(type, retRig, driveRig, heads, bottom, dir, right, livery)) return;
 
@@ -369,18 +375,23 @@ namespace MountainPlanner.Presentation.Lifts
 
         void PlaceFooting(GameObject terminal, Func<Vector3, double> height, Color livery)
         {
+            // A footing at grade under every pier: "pier_top", or "pier_top_<n>" for a terminal on several (the Monta's, LT36).
             var footing = Prefab("terminal_footing");
             var rig = terminal != null ? terminal.GetComponent<LiftRig>() : null;
-            var top = rig != null ? rig.Socket("pier_top") : null;
-            if (footing == null || top == null) return;
-            var at = new Vector3(top.position.x, 0, top.position.z);
-            at.y = (float)height(at);
-            Spawn(footing, at, terminal.transform.rotation, livery);
+            if (footing == null || rig == null || rig.Sockets == null) return;
+            foreach (var top in rig.Sockets)
+            {
+                if (top == null || top.name.IndexOf("_socket_pier_top", StringComparison.Ordinal) < 0) continue;
+                var at = new Vector3(top.position.x, 0, top.position.z);
+                at.y = (float)height(at);
+                Spawn(footing, at, terminal.transform.rotation, livery);
+            }
         }
 
         GameObject Spawn(GameObject prefab, Vector3 position, Quaternion rotation, Color livery)
         {
             var go = Object.Instantiate(prefab, position, rotation, Root.transform);
+            _partOf[go] = _spawning;
             _materials?.Apply(go, livery);
             return go;
         }
@@ -414,6 +425,22 @@ namespace MountainPlanner.Presentation.Lifts
             for (int i = 0; i < sections; i++)
                 Spawn(mast, mastFoot + axis * i, turned, livery);
             return Spawn(head, mastFoot + axis * sections, turned, livery);
+        }
+
+        /// <summary>
+        /// The tower in hand (F4, LT38): one tower by itself as <see cref="Build"/> stands one (base, mast sections, the
+        /// head), its foot at <see cref="Root"/>'s origin, the platform side (+Z) toward the bottom terminal, leaned
+        /// <paramref name="leanRadians"/> down the line. Whatever was built before goes.
+        /// </summary>
+        public void BuildLoneTower(LiftRope.Head head, float leanRadians, float steel, Color livery)
+        {
+            Clear();
+            var at = Root.transform;
+            var (position, rotation) = (at.position, at.rotation);
+            at.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            var lean = Quaternion.AngleAxis(leanRadians * Mathf.Rad2Deg, Vector3.right);
+            SpawnTower(HeadId(head), Vector3.zero, Quaternion.identity, lean, steel, 0, livery);
+            at.SetPositionAndRotation(position, rotation);
         }
 
         /// <summary>

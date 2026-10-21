@@ -1864,7 +1864,7 @@ body.solo .frame { border-radius: 0; }
       h += liftFacts(d, ev, false, true) + msgBlock(msgs, 2);
       h += `<div class="lkeys" style="padding-top:6px"><span>click a tower or a terminal</span><span>${kb('Tab', 'Shift Tab')} select</span><span>drag a terminal anywhere: the line re-aims</span><span>${kb('Esc')} cancel</span></div>`;
     }
-    h += `<div class="lbtns"><span class="ghost" data-act="lreplace" title="LF-06, TW-12: automatic placement on the whole line">${d.armReplace ? 'Again: re-place yours' : 'Re-place towers'}</span><span class="ghost${n ? '' : ' dis'}" data-act="${n ? 'lundo' : ''}" title="The edit's own undo; Ctrl+Y redoes">Undo<span class="kbd" style="margin-left:8px">Ctrl Z</span></span></div>`;
+    h += `<div class="lbtns"><span class="ghost" data-act="lreplace" title="F3 (LT37): every tower placed automatically again, the lift Automatic; asks first where you placed or changed towers">${d.armReplace ? 'Again: revert yours' : 'Revert to auto'}</span><span class="ghost${n ? '' : ' dis'}" data-act="${n ? 'lundo' : ''}" title="The edit's own undo; Ctrl+Y redoes">Undo<span class="kbd" style="margin-left:8px">Ctrl Z</span></span></div>`;
     const blocked = ev.errors.length || d.autoMsg, ready = n && !blocked && !d.dropAsk;
     h += `<div class="lnote" style="padding:0 12px 2px" title="LT2: a draft inside the tool until Apply">${n ? `${n} change${n > 1 ? 's' : ''}, not applied yet` : 'No changes yet'}${blocked ? '<span style="color:var(--neg)"> · red blocks Apply</span>' : ''}</div>`;
     h += `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'lapply' : ''}" data-ui="review-apply" title="LT2: every change as one step; one Ctrl+Z later undoes the whole edit. A red tower blocks it, as it blocks Break ground (LF-04)."><span>Apply</span><span class="kbd kbd-go">Ctrl Enter</span></div><div class="ghost" data-act="lcancel" data-ui="review-cancel">${d.armCancel ? 'Again: discard' : 'Cancel'}</div></div>`;
@@ -1881,7 +1881,7 @@ body.solo .frame { border-radius: 0; }
     else if (d.step === 'other') h += hint(`<b>Click</b> far up the mountain to place the top terminal. That fixes the line and turns the bottom terminal to face it.${d.mode === 'auto' ? ' The towers go in as you aim.' : ' Then you place the towers, from the bottom up.'}`) + (d.aim && d.aim.msg ? `<div class="lmsg err">${esc(d.aim.msg)}</div>` : '');
     else if (d.step === 'towers') {
       h += towerCard(d, ev);
-      h += `<div class="lbtns"><span class="ghost" style="flex:auto" data-act="lfill" title="LF-04, TW-12: automatic towers from your last tower to the top terminal">Fill the rest</span><span class="ghost" style="flex:auto" data-act="lreplace" title="LF-06, TW-12: automatic placement on the whole line">${d.armReplace ? 'Again: re-place yours' : 'Re-place towers'}</span><span class="ghost" style="flex:auto" data-act="lstep" data-v="review">Review</span></div>`;
+      h += `<div class="lbtns"><span class="ghost" style="flex:auto" data-act="lfill" title="LF-04, TW-12: automatic towers from your last tower to the top terminal">Fill the rest</span><span class="ghost" style="flex:auto" data-act="lreplace" title="F3 (LT37): every tower placed automatically again, the lift Automatic; asks first where you placed or changed towers">${d.armReplace ? 'Again: revert yours' : 'Revert to auto'}</span><span class="ghost" style="flex:auto" data-act="lstep" data-v="review">Review</span></div>`;
       if (d.autoMsg) h += `<div class="lmsg err">${esc(d.autoMsg)}</div>`;
     } else {
       const slope = Math.hypot(d.len, ev.zt - ev.zb), rise = ev.zt - ev.zb, card = d.sel || (d.hand && d.hand.chk), msgs = liftMsgs(d, ev);
@@ -1890,7 +1890,7 @@ body.solo .frame { border-radius: 0; }
       h += msgBlock(msgs, card ? 1 : 3);
       if (card) h += `<div class="rule"></div>${towerCard(d, ev)}`;
       else h += `<div class="hint" style="padding-top:2px">Every tower stays editable: click one to select it, or click the line to add one.</div>`;
-      h += `<div class="lbtns"><span class="ghost" data-act="lreplace" title="LF-06, TW-12: automatic placement on the whole line">${d.armReplace ? 'Click again: re-place your towers' : 'Re-place towers'}</span></div>`;
+      h += `<div class="lbtns"><span class="ghost" data-act="lreplace" title="F3 (LT37): by hand, every tower placed automatically again (asking first); automatic, the towers opened by hand">${hasHandTowers(d) ? (d.armReplace ? 'Again: revert yours' : 'Revert to auto') : 'Edit towers'}</span></div>`;
     }
     if (d.dropAsk) h = dropAskHtml(d) + h;
     const ready = d.step === 'review' && ev && !ev.errors.length && !d.autoMsg && !d.dropAsk;

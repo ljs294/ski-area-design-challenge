@@ -40,6 +40,8 @@ namespace MountainPlanner.UI.Tools
             }
             _name = new Label { name = "toolwin-name", pickingMode = PickingMode.Ignore };
             _name.AddToClassList("tw__name");
+            _name.RegisterCallback<ClickEvent>(_ => BeginRename());
+            Window.RegisterCallback<KeyDownEvent>(e => { if (e.keyCode == KeyCode.F2 && _rename != null && !_renaming) { BeginRename(); e.StopPropagation(); } });
             Window.Head.Insert(Window.Head.IndexOf(Window.Title) + 1, _name);
             _ask = new Label { name = "toolwin-ask", pickingMode = PickingMode.Ignore };
             _ask.AddToClassList("tw__ask");
@@ -167,7 +169,70 @@ namespace MountainPlanner.UI.Tools
         // ---------- the head ----------
 
         /// <summary>The design's name after the title ("Summit Quad").</summary>
-        public void SetName(string name) => _name.text = name ?? "";
+        public void SetName(string name)
+        {
+            if (_renaming) EndRename(false);
+            _name.text = name ?? "";
+        }
+
+        // ---------- renaming (F5, LT39) ----------
+
+        Func<string, string> _rename;
+        TextField _nameField;
+        bool _renaming;
+
+        /// <summary>
+        /// F5: the name becomes a button; a click (or F2 while the window has the keyboard) turns it into a text field. Enter
+        /// or a click elsewhere keeps the new name, Esc the old one. <paramref name="rename"/> takes the new name and returns
+        /// why it can't be kept (shown under the field) or null when it's kept; null makes the name plain text again.
+        /// </summary>
+        public void SetRenamable(Func<string, string> rename)
+        {
+            if (_renaming) EndRename(false);
+            _rename = rename;
+            _name.pickingMode = rename != null ? PickingMode.Position : PickingMode.Ignore;
+            _name.EnableInClassList("tw__name--edit", rename != null);
+            _name.tooltip = rename != null ? "Rename (F2)" : null;
+        }
+
+        /// <summary>Whether the name is being typed now (tests).</summary>
+        public bool Renaming => _renaming;
+
+        /// <summary>Opens the name for typing, as a click on it does (F2, tests).</summary>
+        public void BeginRename()
+        {
+            if (_rename == null || _renaming) return;
+            _renaming = true;
+            if (_nameField == null)
+            {
+                _nameField = new TextField { name = "toolwin-name-field", maxLength = Domain.Design.DesignRules.NameMaxLength, isDelayed = false };
+                _nameField.AddToClassList("tw__namefield");
+                _nameField.RegisterCallback<KeyDownEvent>(e =>
+                {
+                    if (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter) { EndRename(true); e.StopPropagation(); }
+                    else if (e.keyCode == KeyCode.Escape) { EndRename(false); e.StopPropagation(); }
+                }, TrickleDown.TrickleDown);
+                _nameField.RegisterCallback<FocusOutEvent>(_ => { if (_renaming) EndRename(true); });
+            }
+            _nameField.SetValueWithoutNotify(_name.text);
+            Window.Head.Insert(Window.Head.IndexOf(_name) + 1, _nameField);
+            _name.AddToClassList("hidden");
+            _nameField.schedule.Execute(() => { _nameField.Focus(); _nameField.SelectAll(); });
+        }
+
+        /// <summary>Keeps (or drops) what was typed (tests call it as Enter or Esc would).</summary>
+        public void EndRename(bool keep)
+        {
+            if (!_renaming) return;
+            _renaming = false;
+            string typed = _nameField.value;
+            _nameField.RemoveFromHierarchy();
+            _name.RemoveFromClassList("hidden");
+            if (!keep || typed == _name.text || _rename == null) return;
+            string problem = _rename(typed);
+            if (problem != null) SetMessage(problem);
+            else _name.text = typed;
+        }
 
         readonly List<VisualElement> _strips = new List<VisualElement>();
 

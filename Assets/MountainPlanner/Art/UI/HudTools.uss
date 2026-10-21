@@ -20,6 +20,10 @@
 .hud .tw { position: absolute; }
 .hud .tw__icon { width: 18px; height: 18px; margin-right: 8px; color: var(--text); -unity-text-outline-color: var(--text); }
 .hud .tw__name { margin-left: 8px; font-size: 14px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+/* F5: a lift's name is a button; a click (or F2) types a new one */
+.hud .tw__name--edit { border-bottom-width: 1px; border-color: var(--hair); }
+.hud .tw__name--edit:hover { color: var(--text); -unity-text-outline-color: var(--text); border-color: var(--soft); }
+.hud .tw__namefield { margin: 0 0 0 8px; min-width: 140px; font-size: 14px; }
 .hud .tw__ask { margin-left: 8px; font-size: 12.5px; -unity-font-style: bold; color: var(--neg); -unity-text-outline-color: var(--neg); }
 .hud .tw__opts { padding: 8px 0 4px 0; }
 .hud .tw > #window-body { flex-shrink: 1; min-height: 0; }

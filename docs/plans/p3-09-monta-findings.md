@@ -47,7 +47,8 @@ A Monta check lift built in game (`-styletile -extralift 650,-300 -extramonta`) 
 ## Plan
 
 ### 1. Monta: no station tower after a hold-down terminal (M1)
-- **Rule (TW-16 v4):** a terminal whose row holds the rope down (the Monta's drive at the bottom) is its own station. No
+- **Rule (TW-16 v4):** a terminal with its own station (the Monta's drive, its hold-down tower built in; `OwnStation`; the
+  Sessellift's return also holds down but has no tower of its own, so the row type alone isn't the test). No
   station tower is placed after it, automatically or as the first tower by hand. The first line tower must keep the rope's
   exit within the row's range (the Monta's 6–16°): automatic placement picks its place and height under that limit, and by
   hand the green band (TW-09) includes it.
@@ -196,3 +197,24 @@ for M1–M3, two to three for F1–F4, and half a day for F5–F6.
    I'll offer it as a session card once you say go.*
 8. **Renaming from the properties panel (F6):** the panel's name can be clicked to rename too, without opening Edit lift?
    *Recommended: yes, one undoable step.*
+
+## Progress (2026-10-20)
+
+All eight answered "yes to all recs". Done on `feature/p3-09-lifts`:
+
+| # | State | How |
+| --- | --- | --- |
+| M2 | done | A terminal row without pivots is posed round as a fixed sheave at its rope exit (`TrainPosing.Fixed`); the Monta's towers' trains rock to the rope. The return's own pivots come with the model session (3b). |
+| M1 | done | `TerminalEnd.OwnStation` (the Monta drive): no station tower after it; the first line tower keeps the exit within 6–16° and stands tall enough for the chairs beside it. The row type alone wasn't the test: the Sessellift's return holds down too and keeps its station tower (LT32's wording fixed). |
+| M3 | done | Both makes stand at their ground plus Page Up / Page Down; pads are cut and filled level with 1:1 faces (LF-12 v4). The old last-resort raises now only work out the review's "raise it N ft (Page Up)", given only to a line that's red or amber; in the review a terminal is clicked, then Page Up. Fill the rest also makes the rope come into the top terminal within its row. |
+| M4 | code done | A footing under every `pier_top*` socket; the 15 m piers come with the model session's branch, after your sign-off. |
+| F1 | done | `LiftDraftEditor`, shared by New lift (Towers, Review) and Edit lift: a click selects the part under the pointer in 3D; Page Up / Page Down, `,` `.`, drag, Delete. |
+| F2 | done | A click on the line where no tower is, Insert or Add tower puts a tower in hand between its neighbours. |
+| F3 | done | Edit towers (automatic lines) and Revert to auto (asks first). |
+| F4 | done | `TowerGhost` (the head the game picks, green or red) and the draft drawn in 3D after every change; Edit lift hides the built lift while its draft is open. |
+| F5 | done | The window's title name is clicked (or F2) to rename; New lift's goes into `AddLift`, Edit lift's into Apply's one `EditLift`. |
+| F6 | done | A click on a lift with no tool armed opens its card (planned lifts by their line), now with heads, lowest chairs and rise; its name renames it in one undoable step. |
+
+Tests: the Domain suite (599) and the lift and Toolbox EditMode tests pass in Unity; the made-up grounds, the fan and
+Sugarloaf build "as a player would" (`DesignTestKit.AsPlayer` takes the suggested levels). A fan line on a 296% sidehill
+stays red with its "move a tower or the terminal". Captures and the benchmark follow.

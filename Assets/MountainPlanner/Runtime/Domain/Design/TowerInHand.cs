@@ -34,6 +34,9 @@ namespace MountainPlanner.Domain.Design
             public double NextReachTallest { get; internal set; }
             /// <summary>TW-13: the rope will pull up within that reach (the ground rises faster than the rope can follow).</summary>
             public bool HoldDownsAhead { get; internal set; }
+            /// <summary>F4: how it stands (its lean down the line, TW-14, radians; its foot's elevation, metres), for its ghost.</summary>
+            public double Lean { get; internal set; }
+            public double BaseY { get; internal set; }
         }
 
         readonly LiftType _type;
@@ -104,6 +107,8 @@ namespace MountainPlanner.Domain.Design
             var sol = rope.Towers[me];
             status.Head = sol.Head;
             status.Loads = sol.Loads;
+            status.Lean = sol.Lean;
+            status.BaseY = sol.BaseY;
             // The span behind it, TW-01 v2.
             // The trench (GR-11 v2) digs the first span, and past the bottom station tower up to 15 ft before the next (as Reach).
             double from = me > 0 ? rope.Towers[me - 1].RopeS : 0, lowest = double.MaxValue, worst = 0, worstS = 0, over = 0;

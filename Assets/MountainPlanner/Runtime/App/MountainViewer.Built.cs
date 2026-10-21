@@ -181,6 +181,14 @@ namespace MountainPlanner.App
                 Hud.LiftFocused += id => _focusedLiftId = id;
                 Hud.LiftEditChosen += id => ChooseLiftTool(MountainPlanner.UI.Tools.EditLiftTool.ToolId, id);
                 Hud.LiftRemoveChosen += id => ChooseLiftTool(MountainPlanner.UI.Tools.RemoveLiftTool.ToolId, id);
+                // F6 (LT39): the card's rename, one undoable step that leaves the ground as it is.
+                Hud.LiftRenamed = (id, name) =>
+                {
+                    var history = Design;
+                    if (history == null) return "No design is open";
+                    var r = history.Submit(new RenameLift(history.Revision, new LiftId(id), name));
+                    return r.Accepted ? null : r.Reason;
+                };
             }
             _liftRowList.Clear();
             foreach (var l in doc.Lifts)
@@ -195,7 +203,26 @@ namespace MountainPlanner.App
                     LengthMetres = slope, VerticalMetres = Math.Abs(vertical), Capacity = type.Capacity,
                     RideSeconds = type.SpeedMetresPerSecond > 0 ? slope / type.SpeedMetresPerSecond : 0,
                     Towers = l.Towers.Count, Built = l.Stage == WorkStage.Built,
+                    Heads = null, LowestChairsMetres = double.NaN, RiseMetres = double.NaN, RiseLimitMetres = double.PositiveInfinity,
                 });
+                // F6: the built lift's own figures, from its solved rope.
+                if (_liftViews.TryGetValue(l.Id, out var shown) && shown.View?.Rope is LiftRope rope)
+                {
+                    var row = _liftRowList[_liftRowList.Count - 1];
+                    var counts = new SortedDictionary<string, int>(StringComparer.Ordinal);
+                    foreach (var h in shown.View.Heads)
+                    {
+                        string k = h.Replace("tower_", "");
+                        counts[k] = counts.TryGetValue(k, out int c) ? c + 1 : 1;
+                    }
+                    var parts = new List<string>();
+                    foreach (var kv in counts) parts.Add($"{kv.Value} {kv.Key}");
+                    row.Heads = string.Join(", ", parts);
+                    row.LowestChairsMetres = rope.LowestClearance;
+                    row.RiseMetres = rope.RiseMetres;
+                    row.RiseLimitMetres = rope.Type.RiseLimitMetres;
+                    _liftRowList[_liftRowList.Count - 1] = row;
+                }
             }
             Hud.SetLifts(_liftRowList);
         }
@@ -218,7 +245,8 @@ namespace MountainPlanner.App
         {
             if (on == _liftsShown && !force) return;
             _liftsShown = on;
-            foreach (var kv in _liftViews) if (kv.Value.View?.Root != null) kv.Value.View.Root.SetActive(on);
+            foreach (var kv in _liftViews) if (kv.Value.View?.Root != null) kv.Value.View.Root.SetActive(on && !LiftHidden(kv.Key));
+            if (_draftView != null && !on) _draftView.Root.SetActive(false);   // shown again at the draft's next redraw
             _mapLines?.SetVisible(on);
         }
 
@@ -228,7 +256,7 @@ namespace MountainPlanner.App
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             long start = System.Diagnostics.Stopwatch.GetTimestamp();
             using (ChairsMarker.Auto())
-                foreach (var kv in _liftViews) kv.Value.View.DrawChairs(cam, _chairSeconds);
+                foreach (var kv in _liftViews) if (!LiftHidden(kv.Key)) kv.Value.View.DrawChairs(cam, _chairSeconds);
             _chairTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
             _chairFrames++;
         }
@@ -275,7 +303,9 @@ namespace MountainPlanner.App
             if (_mapLines != null && cam != null) _mapLines.Follow(cam, Camera.Distance, _hoveredId != 0 ? _hoveredId : _heldLiftId);
             _liftLabels?.Update(cam, _liftsShown && _hudShown && !PhotoOpen && (Hud == null || Hud.LabelsOn));
             bool picking = _tools == null || !_tools.Armed || _tools.Active is MountainPlanner.UI.Tools.IPicksLifts || _focusedLiftId != 0;
-            if (_liftViews.Count > 0 && cam != null && picking && !PhotoOpen && _liftsShown)
+            bool draft = DraftView != null;
+            if (!draft) _draftPart = int.MinValue;
+            if ((_liftViews.Count > 0 && picking || draft) && cam != null && !PhotoOpen && _liftsShown)
             {
                 // -hoverlift (captures): the pointer on the first built lift's rope, a fifth of the way round.
                 if (_hoverFirstLift && HoverPointerForCapture == null)
@@ -296,11 +326,15 @@ namespace MountainPlanner.App
                     // About 8 pixels' worth of slack at each distance.
                     float slack = 8 * 2 * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, cam.pixelHeight);
                     float best = float.MaxValue;
-                    foreach (var kv in _liftViews)
+                    if (picking)
                     {
-                        var view = kv.Value.View;
-                        if (view != null && view.Pick(ray, ground + 2, slack, out float t) && t < best) { best = t; hit = view; hitId = kv.Key.Value; }
+                        foreach (var kv in _liftViews)
+                        {
+                            var view = kv.Value.View;
+                            if (view != null && !LiftHidden(kv.Key) && view.Pick(ray, ground + 2, slack, out float t) && t < best) { best = t; hit = view; hitId = kv.Key.Value; }
+                        }
                     }
+                    PickDraft(ray, ground, slack);
                 }
             }
             // A lift a tool holds (Remove lift's first click) stays lit with the hovered one.
@@ -308,7 +342,9 @@ namespace MountainPlanner.App
             LiftView held = null;
             ulong holding = _heldLiftId != 0 ? _heldLiftId : _focusedLiftId;   // a tool's lift, else Analysis' row or card
             if (holding != 0) foreach (var kv in _liftViews) if (kv.Key.Value == holding) { held = kv.Value.View; break; }
-            if (hit == _hovered && held == _held) return;
+            OpenLiftCardOnClick(cam);
+            if (hit == _hovered && held == _held && _draftLit == _draftLitShown) return;
+            _draftLitShown = _draftLit;
             _hovered?.SetHighlight(false);
             _held?.SetHighlight(false);
             _hovered = hit;
@@ -317,9 +353,59 @@ namespace MountainPlanner.App
             if (_hoverFirstLift) Debug.Log(hit != null ? $"[Hover] lift {hitId:x16} lit" : "[Hover] nothing lit");
             _hovered?.SetHighlight(true);
             _held?.SetHighlight(true);
-            bool lit = hit != null || held != null;
+            bool lit = hit != null || held != null || _draftLit;
             if (_outline == null && lit && cam != null) _outline = new LiftOutline(cam);
             if (_outline != null) _outline.Lit = lit;
+        }
+
+        // ---------- the lift card from the map (F6, LT39) ----------
+
+        Vector2 _cardPress;
+        ulong _cardPressId;
+        bool _cardPressed;
+
+        // With no tool armed, a click on a lift (the lit one, or a plan's dashed line) opens its card, as Analysis › Lifts'
+        // row does; a drag (the camera) doesn't.
+        void OpenLiftCardOnClick(UnityEngine.Camera cam)
+        {
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            if (Hud == null || cam == null || mouse == null || PhotoOpen || (_tools != null && _tools.Armed)) { _cardPressed = false; return; }
+            var pos = mouse.position.ReadValue();
+            if (mouse.leftButton.wasPressedThisFrame && !PointerOverUi(pos))
+            {
+                _cardPressed = true;
+                _cardPress = pos;
+                _cardPressId = _hoveredId != 0 ? _hoveredId : PlanUnder(cam, pos);
+            }
+            if (!_cardPressed || !mouse.leftButton.wasReleasedThisFrame) return;
+            _cardPressed = false;
+            if (_cardPressId == 0 || (pos - _cardPress).sqrMagnitude > 36) return;
+            ulong now = _hoveredId != 0 ? _hoveredId : PlanUnder(cam, pos);
+            if (now == _cardPressId) Hud.OpenLiftCardFor(now);
+        }
+
+        // A planned lift's dashed line within 8 pixels of the pointer, as Remove lift picks plans.
+        ulong PlanUnder(UnityEngine.Camera cam, Vector2 screen)
+        {
+            var doc = Design?.Document;
+            if (doc == null || doc.Lifts.Count == 0 || !_liftsShown) return 0;
+            var ray = cam.ScreenPointToRay(screen);
+            float along = Camera.GroundAlong(ray, 30000);
+            if (float.IsNaN(along)) return 0;
+            var g = ray.GetPoint(along);
+            var p = new Vector2(g.x, g.z);
+            float reach = Mathf.Max(5f, 8 * along * 2 * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, cam.pixelHeight));
+            ulong best = 0;
+            foreach (var l in doc.Lifts)
+            {
+                if (l.Stage != WorkStage.Plan) continue;
+                var a = DesignFrame.ToLocal(l.Bottom);
+                var ab = DesignFrame.ToLocal(l.Top) - a;
+                float t = ab.sqrMagnitude > 1e-6f ? Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude) : 0;
+                float d = Vector2.Distance(p, a + ab * t);
+                if (d < reach) { reach = d; best = l.Id.Value; }
+            }
+            return best;
         }
 
         void ReleaseBuiltWork()

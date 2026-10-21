@@ -82,6 +82,12 @@ namespace MountainPlanner.App
                 LiftUnderPointer = () => _hoveredId,
                 HoldLift = id => _heldLiftId = id,
                 TopGhost = _ghosts[1] ??= Lifts != null ? new Presentation.Lifts.TerminalGhost(_resort.Root.transform, Lifts) : null,
+                // F4 (LT38): the line in 3D while it's built or edited.
+                TowerGhost = () => TowerGhostFor(),
+                ShowDraftLift = ShowDraftLift,
+                HideBuiltLift = HideBuiltLift,
+                DraftPartUnderPointer = () => _draftPart,
+                HighlightDraftPart = HighlightDraftPart,
             }, Hud.OpenWindow);
             _tools.ActiveChanged += Hud.SetActiveTool;
             _tools.Notice += text => Hud.Toast(text);
@@ -114,6 +120,7 @@ namespace MountainPlanner.App
 
         void StopTools()
         {
+            DisposeLiftDraft();
             for (int i = 0; i < _ghosts.Length; i++)
             {
                 _ghosts[i]?.Dispose();
@@ -439,6 +446,7 @@ namespace MountainPlanner.App
                 if (KeyBindings.Pressed(keys, GameAction.TerminalLevelDown)) input.Keys |= ToolKeys.LevelDown;
                 if (KeyBindings.PressedAnyShift(keys, GameAction.TowerSlideBack)) input.Keys |= ToolKeys.SlideBack;
                 if (KeyBindings.PressedAnyShift(keys, GameAction.TowerSlideOn)) input.Keys |= ToolKeys.SlideOn;
+                if (KeyBindings.Pressed(keys, GameAction.TowerAdd)) input.Keys |= ToolKeys.AddTower;
                 input.Shift = keys.shiftKey.isPressed;
                 if (input.Shift && mouse != null && KeyBindings.IsClaimed(GameAction.TerminalTurnLeft) && !input.OverPanel)
                 {

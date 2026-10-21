@@ -9,12 +9,14 @@ namespace MountainPlanner.UI.Tools
 {
     /// <summary>
     /// Toolbox › Lifts › Edit (task 09, LT2, LT9; the approved mockup, #92). Point at a built lift (it lights) and click: it
-    /// opens as a draft in the lift window. Click a tower or a terminal on the line, or step through them with [ and ]:
-    /// - a tower slides along the line (← / →, 5 ft, Shift 50 ft; or drag it), changes height (Page Up / Page Down, 5 ft),
-    ///   or goes (Delete);
+    /// opens as a draft in the lift window, drawn in 3D in the built lift's place (F4, LT38). Click a tower or a terminal
+    /// (what the pointer is on in 3D, F1), or step through them with [ and ] (<see cref="LiftDraftEditor"/>, LT37):
+    /// - a tower slides along the line (, and ., 5 ft, Shift 50 ft; or drag it), changes height (Page Up / Page Down,
+    ///   5 ft), or goes (Delete); a click on the line where no tower is, Insert or Add tower adds one (F2);
     /// - a terminal moves anywhere (drag it: the line re-aims through the other one) or changes level (Page Up / Page Down,
     ///   1 ft, SK14);
-    /// - the type, the tower mode and the stance change in the menu; Re-place towers places them all again (asking first).
+    /// - the type, the tower mode and the stance change in the menu; Revert to auto places every tower again (F3, asking
+    ///   first); the name in the title renames it (F5).
     /// In Automatic, a change to the type, a terminal or a level re-places the towers; By hand keeps them, each its distance
     /// from the bottom terminal (LF-05 v2). Every change is a step of the tool's own undo (Ctrl+Z); Apply (Ctrl+Enter)
     /// commits all of it as one <see cref="EditLift"/> with its earthwork rebuilt, so one Ctrl+Z later undoes the whole edit.
@@ -31,7 +33,7 @@ namespace MountainPlanner.UI.Tools
         // The draft: everything Apply would write. A snapshot of it is one step of the tool's undo.
         sealed class Draft
         {
-            public string CatalogId;
+            public string CatalogId, Name;
             public PointMm Bottom, Top;
             public TowerMode Mode;
             public TowerStance Stance;
@@ -40,20 +42,18 @@ namespace MountainPlanner.UI.Tools
             public bool Replace;                              // Automatic: the towers are placed again at the next analysis
             public Draft Copy() => new Draft
             {
-                CatalogId = CatalogId, Bottom = Bottom, Top = Top, Mode = Mode, Stance = Stance, Towers = new List<Tower>(Towers),
+                CatalogId = CatalogId, Name = Name, Bottom = Bottom, Top = Top, Mode = Mode, Stance = Stance, Towers = new List<Tower>(Towers),
                 Levels = Levels, Replace = Replace,
             };
         }
-
-        enum Pick { None, Bottom, Top, Tower }
 
         ToolContext _ctx;
         Lift _lift;                 // the lift as it stands in the design
         Draft _draft;
         readonly List<Draft> _undo = new List<Draft>();
-        Pick _sel;
-        int _selTower = -1;
-        bool _dragging, _armCancel, _armReplace;
+        LiftDraftEditor _editor;   // F1, F2: the towers and terminals (LT37)
+        long _editorKey = long.MinValue;
+        bool _terminalDrag, _armCancel, _armReplace;
         LiftTypeMenu _typeMenu;
         ToolDropdown _modeDd, _stanceDd;
         readonly ReviewModel _review = new ReviewModel();
@@ -77,6 +77,15 @@ namespace MountainPlanner.UI.Tools
         {
             _ctx = context;
             var w = context.Window;
+            _editor = new LiftDraftEditor(context)
+            {
+                Change = change => Change(d => { change(d.Towers); ByHand(d); }),
+                DragBegan = () => _undo.Add(_draft.Copy()),
+                Dragged = change => { change(_draft.Towers); ByHand(_draft); Refresh(); },
+                DragEnded = DragEnded,
+                Level = Level,
+                HandFor = HandFor,
+            };
             _typeMenu = new LiftTypeMenu(w, LiftCatalogIds.SesselliftFgq4, () => Change(d => { d.CatalogId = _typeMenu.CatalogId; d.Replace = d.Mode == TowerMode.Automatic; }),
                                          "SetLiftType: in Automatic the towers re-place for the new type");
             (_modeDd, _stanceDd) = w.AddDropdownPair("towers", "Towers", "mode", PickMode, "stance", PickStance,
@@ -97,7 +106,10 @@ namespace MountainPlanner.UI.Tools
             _lift = null;
             _draft = null;
             _undo.Clear();
-            _sel = Pick.None;
+            _editor.Release();
+            _terminalDrag = false;
+            _ctx.ShowDraftLift?.Invoke(null);
+            _ctx.HideBuiltLift?.Invoke(0);
             _armCancel = _armReplace = false;
             _without = null;
             _built = null;
@@ -109,6 +121,7 @@ namespace MountainPlanner.UI.Tools
             _drawnTowers = 0;
             var w = _ctx.Window;
             w.SetName(null);
+            w.SetRenamable(null);
             w.SetAsking(null);
             w.SetHint("Point at a lift to light it, then click it to edit its towers, terminals and type.");
             w.SetMessage(null);
@@ -126,22 +139,59 @@ namespace MountainPlanner.UI.Tools
             _lift = lift;
             _draft = new Draft
             {
-                CatalogId = lift.CatalogId, Bottom = lift.Bottom, Top = lift.Top, Mode = lift.TowerMode, Stance = lift.Stance,
+                CatalogId = lift.CatalogId, Name = lift.Name, Bottom = lift.Bottom, Top = lift.Top, Mode = lift.TowerMode, Stance = lift.Stance,
                 Towers = new List<Tower>(lift.Towers), Levels = lift.Levels,
             };
             _undo.Clear();
-            _sel = Pick.None;
+            _editor.Release();
             _ctx.HoldLift?.Invoke(lift.Id.Value);
+            _ctx.HideBuiltLift?.Invoke(lift.Id.Value);   // F4: its draft stands in its place until Apply or Cancel
             _typeMenu.Set(_draft.CatalogId);
             _modeDd.Set(new[] { "Automatic", "By hand" }, _draft.Mode == TowerMode.Automatic ? 0 : 1);
             _stanceDd.Set(new[] { "Plumb", "Leaned" }, _draft.Stance == TowerStance.Plumb ? 0 : 1);
             _ctx.Window.SetName(lift.Name);
-            _ctx.Claim(GameAction.BrushNarrower, true);   // [ and ]: the previous and next part
-            _ctx.Claim(GameAction.BrushWider, true);
+            // F5: renaming is a change of the draft, applied with the rest in Apply's one step.
+            _ctx.Window.SetRenamable(n =>
+            {
+                if (DesignRules.NameProblem(n) is string bad) return bad;
+                if (n != _draft?.Name) Change(d => d.Name = n);
+                return null;
+            });
             _ctx.Claim(GameAction.UndoStroke, true);      // Ctrl+Z: the edit's own undo
             _ctx.Window.ShowStrip(null, "Working out the lift…");
+            SyncEditor();
+            _editor.Open();
             WorkOutGround();
             Changed();
+        }
+
+        // The editor over the draft as it stands.
+        void SyncEditor()
+        {
+            if (_draft == null) return;
+            _editor.BottomXz = BottomXz;
+            _editor.TopXz = TopXz;
+            _editor.Type = LiftType.Of(_draft.CatalogId);
+            _editor.Stance = _draft.Stance;
+            _editor.Towers = _draft.Towers;
+            _editor.Rope = _built != null && _built.Towers.Count == _draft.Towers.Count ? _built.Rope : null;
+        }
+
+        // The tower in hand's judge (TW-13) over the towers below it, on the ground without this lift.
+        TowerInHand HandFor(IReadOnlyList<Tower> below)
+        {
+            if (_draft == null || _without == null) return null;
+            var type = LiftType.Of(_draft.CatalogId);
+            var b = _ctx.ToGround(_draft.Bottom);
+            var t = _ctx.ToGround(_draft.Top);
+            var levels = _draft.Levels ?? LiftBuild.GroundLevels(type, _without, b.X, b.Y, t.X, t.Y);
+            return new TowerInHand(type, _without, b.X, b.Y, t.X, t.Y, levels, below, _draft.Stance);
+        }
+
+        void DragEnded()
+        {
+            if (_undo.Count > 0 && Same(_undo[_undo.Count - 1], _draft)) _undo.RemoveAt(_undo.Count - 1);   // a click, no move
+            else Changed();
         }
 
         // The design's earthwork fold (TL3, P3-08's), when the area's session has one; null in tests without it.
@@ -205,10 +255,12 @@ namespace MountainPlanner.UI.Tools
             if (_undo.Count == 0) return;
             _draft = _undo[_undo.Count - 1];
             _undo.RemoveAt(_undo.Count - 1);
+            _ctx.Window.SetName(_draft.Name);
             _typeMenu.Set(_draft.CatalogId);
             _modeDd.Set(new[] { "Automatic", "By hand" }, _draft.Mode == TowerMode.Automatic ? 0 : 1);
             _stanceDd.Set(new[] { "Plumb", "Leaned" }, _draft.Stance == TowerStance.Plumb ? 0 : 1);
-            if (_sel == Pick.Tower && _selTower >= _draft.Towers.Count) _sel = Pick.None;
+            SyncEditor();
+            _editor.TowersChanged();
             Changed();
         }
 
@@ -228,10 +280,14 @@ namespace MountainPlanner.UI.Tools
             Change(d => d.Stance = stance);
         }
 
-        void RePlace()
+        // F3: Revert to auto places every tower automatically again and sets the lift back to Automatic, asking first where
+        // towers were placed or changed by hand (LF-01); one step of the tool's undo.
+        void RevertToAuto()
         {
             if (_draft == null) return;
             if (_draft.Mode == TowerMode.ByHand && !_armReplace) { _armReplace = true; Refresh(); return; }
+            _editor.Release();
+            _editor.Open();
             Change(d => { d.Mode = TowerMode.Automatic; d.Replace = true; });
             _modeDd.Set(new[] { "Automatic", "By hand" }, 0);
         }
@@ -305,6 +361,12 @@ namespace MountainPlanner.UI.Tools
                 }
                 _draft.Levels = done.r.Levels;
                 _ctx.PendingTerrain = _applyEdits;
+                // F4: the draft in 3D, as Apply would build it.
+                _ctx.ShowDraftLift?.Invoke(new Lift(_lift.Id, _draft.Name, WorkStage.Built, _draft.CatalogId, _draft.Bottom, _draft.Top, _draft.Mode, _draft.Stance,
+                                                    Stored(_draft, done.r), done.r.Levels));
+                SyncEditor();
+                _editor.TowersChanged();
+                _editor.Relight();
                 var b = _ctx.ToGround(_draft.Bottom);
                 var t = _ctx.ToGround(_draft.Top);
                 _ctx.Window.ShowStrip(LiftProfile.From(done.r.Rope, new EditedHeights(_without.Source, _without.Lattice, done.r.Edits), b.X, b.Y, t.X, t.Y, done.r.Levels));
@@ -338,43 +400,29 @@ namespace MountainPlanner.UI.Tools
                 return;
             }
             if (input.Pressed(ToolKeys.UndoStroke)) Undo();
-            if (input.Pressed(ToolKeys.BrushWider)) Step(+1);
-            if (input.Pressed(ToolKeys.BrushNarrower)) Step(-1);
-            float reach = Mathf.Max(4f, PickPixels * input.MetresPerPixel);
-            var p = new Vector2(input.Ground.x, input.Ground.z);
-            if (input.Click && !input.OverPanel && input.HasGround)
+            SyncEditor();
+            _editor.Tick(input);
+            // A terminal moves anywhere: pressed on, then dragged (the press is the step).
+            bool terminal = _editor.Selected == LiftDraftEditor.Bottom || _editor.Selected == LiftDraftEditor.Top;
+            if (input.Click && !input.OverPanel && terminal)
             {
-                Select(p, reach);
-                _dragging = _sel != Pick.None;
-                if (_dragging) _undo.Add(_draft.Copy());   // the drag is one step
+                _terminalDrag = true;
+                _undo.Add(_draft.Copy());
             }
-            else if (input.Drag && _dragging && input.HasGround) Drag(p, input);
-            if (input.Release && _dragging)
+            else if (input.Drag && _terminalDrag && input.HasGround)
+                MoveTerminal(_editor.Selected == LiftDraftEditor.Bottom, input.Point, new Vector2(input.Ground.x, input.Ground.z));
+            if (input.Release && _terminalDrag)
             {
-                _dragging = false;
-                if (_undo.Count > 0 && Same(_undo[_undo.Count - 1], _draft)) _undo.RemoveAt(_undo.Count - 1);   // a click, no move
-                else Changed();
+                _terminalDrag = false;
+                DragEnded();
             }
-            if (_sel == Pick.Tower && _selTower >= 0 && _selTower < _draft.Towers.Count)
-            {
-                double step = input.Shift ? 10 * Slot : Slot;
-                if (input.Pressed(ToolKeys.SlideOn)) SlideTower(step);
-                if (input.Pressed(ToolKeys.SlideBack)) SlideTower(-step);
-                if (input.Pressed(ToolKeys.TowerUp)) HeightTower(+1);
-                if (input.Pressed(ToolKeys.TowerDown)) HeightTower(-1);
-                if (input.Pressed(ToolKeys.Delete)) DeleteTower();
-            }
-            else if (_sel == Pick.Bottom || _sel == Pick.Top)
-            {
-                if (input.Pressed(ToolKeys.LevelUp)) Level(+1);
-                if (input.Pressed(ToolKeys.LevelDown)) Level(-1);
-            }
+            if (_editor.StateKey != _editorKey) { _editorKey = _editor.StateKey; Refresh(); }
             Draw();
         }
 
         static bool Same(Draft a, Draft b)
         {
-            if (a.Bottom.X != b.Bottom.X || a.Bottom.Y != b.Bottom.Y || a.Top.X != b.Top.X || a.Top.Y != b.Top.Y || a.Towers.Count != b.Towers.Count) return false;
+            if (a.Name != b.Name || a.Bottom.X != b.Bottom.X || a.Bottom.Y != b.Bottom.Y || a.Top.X != b.Top.X || a.Top.Y != b.Top.Y || a.Towers.Count != b.Towers.Count) return false;
             for (int i = 0; i < a.Towers.Count; i++) if (a.Towers[i].AlongMm != b.Towers[i].AlongMm || a.Towers[i].HeightMm != b.Towers[i].HeightMm) return false;
             return true;
         }
@@ -384,90 +432,7 @@ namespace MountainPlanner.UI.Tools
         Vector2 Dir => (TopXz - BottomXz).normalized;
         float Length => Vector2.Distance(BottomXz, TopXz);
         Vector2 TowerXz(int i) => BottomXz + Dir * (_draft.Towers[i].AlongMm / 1000f);
-
-        void Select(Vector2 p, float reach)
-        {
-            _sel = Pick.None;
-            _selTower = -1;
-            float best = reach;
-            if (Vector2.Distance(p, BottomXz) < best) { best = Vector2.Distance(p, BottomXz); _sel = Pick.Bottom; }
-            if (Vector2.Distance(p, TopXz) < best) { best = Vector2.Distance(p, TopXz); _sel = Pick.Top; }
-            for (int i = 0; i < _draft.Towers.Count; i++)
-            {
-                float d = Vector2.Distance(p, TowerXz(i));
-                if (d < best) { best = d; _sel = Pick.Tower; _selTower = i; }
-            }
-            Claims();
-            Refresh();
-        }
-
-        // [ and ]: from the bottom terminal through the towers to the top terminal and round.
-        void Step(int by)
-        {
-            int n = _draft.Towers.Count + 2;
-            int at = _sel == Pick.Bottom ? 0 : _sel == Pick.Tower ? _selTower + 1 : _sel == Pick.Top ? n - 1 : (by > 0 ? -1 : n);
-            at = ((at + by) % n + n) % n;
-            _sel = at == 0 ? Pick.Bottom : at == n - 1 ? Pick.Top : Pick.Tower;
-            _selTower = _sel == Pick.Tower ? at - 1 : -1;
-            Claims();
-            Refresh();
-        }
-
-        void Claims()
-        {
-            bool tower = _sel == Pick.Tower, terminal = _sel == Pick.Bottom || _sel == Pick.Top;
-            _ctx.Claim(GameAction.TowerSlideBack, tower);
-            _ctx.Claim(GameAction.TowerSlideOn, tower);
-            _ctx.Claim(GameAction.TowerUp, tower);
-            _ctx.Claim(GameAction.TowerDown, tower);
-            _ctx.Claim(GameAction.DeleteSelected, tower);
-            _ctx.Claim(GameAction.TerminalLevelUp, terminal);
-            _ctx.Claim(GameAction.TerminalLevelDown, terminal);
-        }
-
-        void Drag(Vector2 p, in ToolInput input)
-        {
-            if (_sel == Pick.Tower)
-            {
-                double s = System.Math.Round(Vector2.Dot(p - BottomXz, Dir) / Slot) * Slot;
-                SetAlong(_selTower, s, record: false);
-            }
-            else if (_sel == Pick.Bottom || _sel == Pick.Top) MoveTerminal(_sel == Pick.Bottom, input.Point, p);
-        }
-
-        void SlideTower(double by) => SetAlong(_selTower, _draft.Towers[_selTower].AlongMm / 1000.0 + by, record: true);
-
-        // A tower stays 50 ft clear of its neighbours and the top terminal (TW-03); placed by hand, the lift is By hand now.
-        void SetAlong(int i, double s, bool record)
-        {
-            double gap = DesignUnits.TowerGapMm / 1000.0;
-            double lo = i > 0 ? _draft.Towers[i - 1].AlongMm / 1000.0 + gap : gap;
-            double hi = i < _draft.Towers.Count - 1 ? _draft.Towers[i + 1].AlongMm / 1000.0 - gap : Length - gap;
-            s = System.Math.Max(lo, System.Math.Min(hi, s));
-            int mm = (int)System.Math.Round(s * 1000 / DesignUnits.FiveFeetMm) * DesignUnits.FiveFeetMm;
-            if (mm == _draft.Towers[i].AlongMm) return;
-            System.Action<Draft> set = d => { d.Towers[i] = new Tower(d.Towers[i].Id, mm, d.Towers[i].HeightMm); ByHand(d); };
-            if (record) Change(set);
-            else { set(_draft); Refresh(); }
-        }
-
-        void HeightTower(int steps)
-        {
-            int max = LiftCatalogIds.TowerMaxMm(_draft.CatalogId);
-            int h = Mathf.Clamp(_draft.Towers[_selTower].HeightMm + steps * DesignUnits.FiveFeetMm, DesignUnits.StationTowerMinMm, max);
-            if (h == _draft.Towers[_selTower].HeightMm) return;
-            int i = _selTower;
-            Change(d => { d.Towers[i] = new Tower(d.Towers[i].Id, d.Towers[i].AlongMm, h); ByHand(d); });
-        }
-
-        void DeleteTower()
-        {
-            if (_draft.Towers.Count <= 1) { _ctx.Window.SetMessage("A lift keeps at least one tower"); return; }
-            int i = _selTower;
-            Change(d => { d.Towers.RemoveAt(i); ByHand(d); });
-            _sel = Pick.None;
-            Claims();
-        }
+        Vector2 AlongXz(double s) => BottomXz + Dir * (float)s;
 
         void ByHand(Draft d)
         {
@@ -477,10 +442,9 @@ namespace MountainPlanner.UI.Tools
         }
 
         // SK14: the selected terminal's level, 1 ft at a time, within −10 to +30 ft of the ground at its origin.
-        void Level(int feet)
+        void Level(bool bottom, int feet)
         {
-            if (!(_draft.Levels is LiftLevels lv) || _without == null) return;
-            bool bottom = _sel == Pick.Bottom;
+            if (_draft == null || !(_draft.Levels is LiftLevels lv) || _without == null) return;
             var b = _ctx.ToGround(_draft.Bottom);
             var t = _ctx.ToGround(_draft.Top);
             var ground = LiftBuild.GroundLevels(LiftType.Of(_draft.CatalogId), _without, b.X, b.Y, t.X, t.Y);
@@ -526,37 +490,48 @@ namespace MountainPlanner.UI.Tools
             var w = _ctx.Window;
             int changes = _undo.Count;
             bool blocked = _built != null && !_built.Ok;
-            if (_sel == Pick.Tower && _selTower >= 0 && _selTower < _draft.Towers.Count)
+            string line = _editor.Describe();
+            w.ShowGauge(_editor.Loads, provisional: _editor.Adding);
+            if (_editor.Adding)
             {
-                var tw = _draft.Towers[_selTower];
-                w.SetHint($"Tower {_selTower + 1}: {ToolFormat.Feet(Mathf.RoundToInt(tw.HeightMm / 304.8f))} at {ToolFormat.Length(tw.AlongMm / 1000.0)} up the line. Drag it or slide it; Delete takes it out.");
+                w.SetHint(line);
+                w.SetKeys((GameAction.TowerUp, "taller"), (GameAction.TowerDown, "shorter"), (GameAction.TowerSlideBack, "slide"),
+                          (GameAction.TowerSlideOn, "slide"), (GameAction.ToolNext, "place"));
+            }
+            else if (_editor.Selected >= 0)
+            {
+                w.SetHint(line);
                 w.SetKeys((GameAction.TowerSlideBack, "slide"), (GameAction.TowerSlideOn, "slide"), (GameAction.TowerUp, "taller"),
                           (GameAction.TowerDown, "shorter"), (GameAction.DeleteSelected, "remove"), (GameAction.BrushWider, "next"));
-                // TW-11: its loads, once the draft's rope is solved with it in place.
-                var rope = _built?.Rope;
-                w.ShowGauge(rope != null && rope.Towers.Count == _draft.Towers.Count ? rope.Towers[_selTower].Loads : (TowerForces.Loads?)null);
             }
-            else if (_sel == Pick.Bottom || _sel == Pick.Top)
+            else if (_editor.Selected == LiftDraftEditor.Bottom || _editor.Selected == LiftDraftEditor.Top)
             {
-                w.ShowGauge(null);
-                string which = _sel == Pick.Bottom ? "Bottom" : "Top";
-                string level = _draft.Levels is LiftLevels lv ? ToolFormat.Length(_sel == Pick.Bottom ? lv.BottomMetres : lv.TopMetres) : "at its ground";
-                w.SetHint($"{which} terminal: level {level}. Drag it anywhere: the line re-aims through the other one.");
+                bool bottom = _editor.Selected == LiftDraftEditor.Bottom;
+                string level = _draft.Levels is LiftLevels lv ? ToolFormat.Length(bottom ? lv.BottomMetres : lv.TopMetres) : "at its ground";
+                w.SetHint($"{(bottom ? "Bottom" : "Top")} terminal: level {level}. Drag it anywhere: the line re-aims through the other one.");
                 w.SetKeys((GameAction.TerminalLevelUp, "higher"), (GameAction.TerminalLevelDown, "lower"), (GameAction.BrushWider, "next"));
             }
             else
             {
-                w.ShowGauge(null);
-                w.SetHint("Click a tower or a terminal, or step through them with [ and ].");
-                w.SetKeys((GameAction.BrushNarrower, "previous"), (GameAction.BrushWider, "next"), (GameAction.UndoStroke, "undo"));
+                w.SetHint("Click a tower or a terminal, or step through them with [ and ]. A click on the line where there's no tower adds one.");
+                w.SetKeys((GameAction.BrushNarrower, "previous"), (GameAction.BrushWider, "next"), (GameAction.TowerAdd, "add a tower"), (GameAction.UndoStroke, "undo"));
             }
+            if (_editor.HandProblem is LiftProblem hp) { w.SetMessage(hp.Message, !hp.Blocks); BuildReview(changes, blocked); w.ShowReview(_review); Buttons(changes); return; }
             if (_problem == null) w.SetMessage(null);
             BuildReview(changes, blocked);
             w.ShowReview(_review);
+            Buttons(changes);
+        }
+
+        void Buttons(int changes)
+        {
+            var w = _ctx.Window;
+            bool revertable = _draft.Mode == TowerMode.ByHand;
             w.SetButtons(
-                ("replace", _armReplace ? "Again: re-place yours" : "Re-place towers", RePlace),
+                ("add", "Add tower", _editor.Adding ? null : (System.Action)(() => { _editor.StartAdding(); Refresh(); })),
+                ("revert", _armReplace ? "Again: revert yours" : "Revert to auto", revertable ? (System.Action)RevertToAuto : null),
                 ("undo", "Undo", changes > 0 ? (System.Action)Undo : null));
-            w.SetAsking(_armCancel ? "Discard the changes? Cancel again" : null);
+            w.SetAsking(_armCancel ? "Discard the changes? Cancel again" : _armReplace ? "Your towers go: Revert to auto again" : null);
         }
 
         void BuildReview(int changes, bool blocked)
@@ -583,15 +558,16 @@ namespace MountainPlanner.UI.Tools
             _line[0] = BottomXz;
             _line[1] = TopXz;
             p.Line(2, _line, 2, PreviewInk.Line);
-            p.Ring(BottomRing, BottomXz, 8, _sel == Pick.Bottom ? PreviewInk.Ok : PreviewInk.Line);
+            p.Ring(BottomRing, BottomXz, 8, _editor.Selected == LiftDraftEditor.Bottom ? PreviewInk.Ok : PreviewInk.Line);
             p.Dot(1, BottomXz, PreviewInk.Line);
-            p.Ring(TopRing, TopXz, 8, _sel == Pick.Top ? PreviewInk.Ok : PreviewInk.Line);
+            p.Ring(TopRing, TopXz, 8, _editor.Selected == LiftDraftEditor.Top ? PreviewInk.Ok : PreviewInk.Line);
             p.Dot(4, TopXz, PreviewInk.Line);
             int n = _draft.Towers.Count;
             for (int i = 0; i < n; i++) p.Dot(SlotBase + i, TowerXz(i), PreviewInk.Lift);
             for (int i = n; i < _drawnTowers; i++) p.Hide(SlotBase + i);
             _drawnTowers = n;
-            if (_sel == Pick.Tower && _selTower >= 0 && _selTower < n) p.Ring(SelectedSlot, TowerXz(_selTower), 6, PreviewInk.Ok);
+            if (_editor.Selected >= 0 && _editor.Selected < n) p.Ring(SelectedSlot, TowerXz(_editor.Selected), 6, PreviewInk.Ok);
+            else if (_editor.Adding && _editor.HandStatus != null) p.Ring(SelectedSlot, AlongXz(_editor.HandS), 6, _editor.HandStatus.Ok ? PreviewInk.Ok : PreviewInk.Bad);
             else p.Hide(SelectedSlot);
         }
 
@@ -600,7 +576,7 @@ namespace MountainPlanner.UI.Tools
         public ToolBackOut Escape()
         {
             if (_draft == null) return ToolBackOut.Close;
-            if (_sel != Pick.None) { _sel = Pick.None; Claims(); Refresh(); return ToolBackOut.Stepped; }
+            if (_editor.Escape()) { Refresh(); return ToolBackOut.Stepped; }
             Cancel();
             return ToolBackOut.Stepped;
         }
@@ -626,7 +602,8 @@ namespace MountainPlanner.UI.Tools
                 else added.Add(new TowerSpec(tw.AlongMm, tw.HeightMm));
             bool moved = _draft.Bottom.X != _lift.Bottom.X || _draft.Bottom.Y != _lift.Bottom.Y || _draft.Top.X != _lift.Top.X || _draft.Top.Y != _lift.Top.Y;
             var kind = moved ? LiftEdit.MoveTerminal : _draft.CatalogId != _lift.CatalogId ? LiftEdit.ChangeType : LiftEdit.Edit;
-            return new EditLift(baseRevision, _lift.Id, _draft.CatalogId, _draft.Bottom, _draft.Top, _draft.Mode, _draft.Stance, kept, added, _draft.Levels, kind);
+            return new EditLift(baseRevision, _lift.Id, _draft.CatalogId, _draft.Bottom, _draft.Top, _draft.Mode, _draft.Stance, kept, added, _draft.Levels, kind,
+                                _draft.Name != _lift.Name ? _draft.Name : null);
         }
 
         // The command a draft makes: towers that are the lift's own keep their IDs; the rest (or a re-place's) are new.
@@ -639,7 +616,7 @@ namespace MountainPlanner.UI.Tools
                     if (tw.Id.Value != 0 && lift.IndexOfTower(tw.Id) >= 0) kept.Add(tw);
                     else added.Add(new TowerSpec(tw.AlongMm, tw.HeightMm));
             if (placed != null) added.AddRange(placed);
-            return new EditLift(revision, lift.Id, d.CatalogId, d.Bottom, d.Top, d.Mode, d.Stance, kept, added, levels);
+            return new EditLift(revision, lift.Id, d.CatalogId, d.Bottom, d.Top, d.Mode, d.Stance, kept, added, levels, LiftEdit.Edit, d.Name != lift.Name ? d.Name : null);
         }
 
         public void Committed(CommandResult result)
@@ -647,12 +624,15 @@ namespace MountainPlanner.UI.Tools
             // The fold takes Apply's earthwork as its own once it's the history's (as the trail tools do).
             if (_rebuild != null && _ctx.History.Terrain == _rebuild.Edits) _ctx.Earthwork?.Earthwork?.Accept(_rebuild);
             _rebuild = null;
-            _ctx.Notice?.Invoke($"{_lift.Name}: {_undo.Count} change{(_undo.Count == 1 ? "" : "s")} applied · Ctrl+Z undoes the edit");
+            _ctx.Notice?.Invoke($"{_draft?.Name ?? _lift.Name}: {_undo.Count} change{(_undo.Count == 1 ? "" : "s")} applied · Ctrl+Z undoes the edit");
             Picking();
         }
 
         public void Disarm()
         {
+            _editor?.Release();
+            _ctx?.ShowDraftLift?.Invoke(null);
+            _ctx?.HideBuiltLift?.Invoke(0);
             _ctx?.HoldLift?.Invoke(0);
             _ctx = null;
         }
@@ -669,9 +649,11 @@ namespace MountainPlanner.UI.Tools
         public int Changes => _undo.Count;
         public IReadOnlyList<Tower> DraftTowers => _draft?.Towers;
         public LiftBuild.Result Built => _built;
-        public string Selected => _sel == Pick.Tower ? "tower " + _selTower : _sel.ToString().ToLowerInvariant();
-        public void SelectTower(int i) { _sel = Pick.Tower; _selTower = i; Claims(); Refresh(); }
-        public void SelectTerminal(bool bottom) { _sel = bottom ? Pick.Bottom : Pick.Top; _selTower = -1; Claims(); Refresh(); }
+        public string Selected => _editor.Selected >= 0 ? "tower " + _editor.Selected
+            : _editor.Selected == LiftDraftEditor.Bottom ? "bottom" : _editor.Selected == LiftDraftEditor.Top ? "top" : "none";
+        public void SelectTower(int i) { SyncEditor(); _editor.Select(i); Refresh(); }
+        public void SelectTerminal(bool bottom) { SyncEditor(); _editor.Select(bottom ? LiftDraftEditor.Bottom : LiftDraftEditor.Top); Refresh(); }
+        public LiftDraftEditor Editor => _editor;
         public LiftTypeMenu TypeMenu => _typeMenu;
     }
 }

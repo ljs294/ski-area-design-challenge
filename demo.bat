@@ -770,17 +770,25 @@ if not exist "%GAME%" goto done
 echo.
 echo Open an area, then T for the Toolbox, the Lifts tab, N for New lift:
 echo   Pick the type in the menu (Type, Chair or Cabin, Model), Towers Automatic or By hand, Plumb or Leaned.
+echo   Click the name in the window's title (or F2) to name the lift.
 echo   1 The bottom terminal follows the pointer: Shift+wheel or , . turn it, Page Up/Down its level; click to place.
+echo     It stands where you put it; its pad is levelled with cut and fill (no automatic raise any more).
 echo   2 The top terminal follows the pointer up the hill, with its level; click to fix the line.
-echo   3 Automatic: the towers appear. By hand: the tower in hand follows the pointer up the line (, and .
-echo     slide it, Page Up/Down its height), green where it fits; click or Enter places it, Delete takes one back,
-echo     Fill the rest finishes the line. Enter (or Review) for the review.
-echo   4 Break ground (Ctrl+Enter): towers, pads, trench and clearing; the chairs run. Ctrl+Z takes it back.
-echo   Hover a built lift: it glows. Zoom far out: lifts show as red trail-map lines. Shift+2 hides the lifts.
-echo   M for Edit lift: click a lift, then a tower or terminal (or [ and ]); slide, raise, drag a terminal, change
-echo     the type; Ctrl+Z undoes inside the tool; Apply (Ctrl+Enter) or Cancel.
+echo   3 The line is drawn in 3D as it grows. Automatic: the towers appear; Edit towers opens them by hand.
+echo     By hand: the tower in hand is its own see-through model on the line (the game picks its head), green
+echo     where it fits; , and . slide it, Page Up/Down its height; click or Enter places it. Click a placed tower to
+echo     change it (Page Up/Down, , ., drag, Delete); click the line or press Insert to add one between others;
+echo     Fill the rest finishes the line, Revert to auto places them all again. Enter (or Review) for the review.
+echo   4 Review: if it says "raise it N ft", click that terminal and press Page Up N times. Every tower stays
+echo     editable. Break ground (Ctrl+Enter): towers, pads, trench and clearing; the chairs run. Ctrl+Z takes it back.
+echo   Try a Monta FG4 too: no extra hold-down tower after its drive, and its sheaves sit on the rope.
+echo   Hover a built lift: it glows; click it for its card (rename by clicking its name, Edit, Remove).
+echo   Zoom far out: lifts show as red trail-map lines. Shift+2 hides the lifts.
+echo   M for Edit lift: click a lift; its draft shows in 3D in its place. Click a tower or terminal (or [ and ]);
+echo     the same tower keys, Insert adds one, drag a terminal, change the type or the name, Revert to auto;
+echo     Ctrl+Z undoes inside the tool; Apply (Ctrl+Enter) or Cancel.
 echo   X for Remove lift: click a lift, click it again (or Enter) to remove it with its pads and clearing.
-echo   Tab for Analysis, Lifts tab: the list; hover a row to light its lift, click it for its card (Edit, Remove).
+echo   Tab for Analysis, Lifts tab: the list; hover a row to light its lift, click it for its card.
 start "" "%GAME%"
 goto menu
 

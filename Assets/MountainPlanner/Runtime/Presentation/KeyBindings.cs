@@ -27,6 +27,8 @@ namespace MountainPlanner.Presentation
         TowerSlideBack, TowerSlideOn,
         // P3-08: the Trails map layer (TL6).
         LayerTrails,
+        // P3-09 (F2, LT37): a tower in hand to add between the others.
+        TowerAdd,
     }
 
     [Flags]
@@ -176,6 +178,8 @@ namespace MountainPlanner.Presentation
             new Info("Building", "Tower up the line 5 ft", Context.Tray, new KeyChord(Key.Period), whileClaimed: true),
             // P3-08: the Trails map layer (owner TL6).
             new Info("Layers", "Trails", Context.Normal, new KeyChord(Key.Digit4, KeyMods.Shift)),
+            // P3-09 (F2): Insert puts a tower in hand on the line, between its neighbours; claimed while a line's towers edit.
+            new Info("Building", "Add a tower", Context.Tray, new KeyChord(Key.Insert), whileClaimed: true),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>
@@ -367,6 +371,7 @@ namespace MountainPlanner.Presentation
                 case Key.Enter: return "Enter";
                 case Key.NumpadEnter: return "Num Enter";
                 case Key.Delete: return "Delete";
+                case Key.Insert: return "Insert";
                 case Key.LeftShift: return "Shift";
                 case Key.RightShift: return "Right Shift";
                 case Key.LeftCtrl: return "Ctrl";
