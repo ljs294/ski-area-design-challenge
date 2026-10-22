@@ -623,10 +623,10 @@
       }
     },
     "walkway": {
-      "_walkway": "trains of ten only, as the reference: one inner stringer with level treads stepping 700 below the rope on cross-bearers, carried by a single hanger post (on a saddle) and beam from the train's main yoke, so it turns with the train (owner, Gate 1 v4: no supports off each rocker); railing on the inner side, open over the hanger and the side ladder; end cages",
+      "_walkway": "trains of ten only, as the reference: one inner stringer with level treads stepping 700 below the rope on cross-bearers, carried by a single hanger post (on a saddle) and beam pinned to the train's main yoke, hanging plumb (owner, Gate 1 v5) (owner, Gate 1 v4: no supports off each rocker); railing on the inner side, open over the hanger and the side ladder; end cages",
       "minSheaves": 10,
       "inner": 1010,
-      "outer": 490,
+      "outer": 520,
       "below": 700,
       "past": 250,
       "pitch": 445,

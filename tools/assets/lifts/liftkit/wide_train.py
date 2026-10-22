@@ -42,13 +42,18 @@ def _node(kind, name, pin, weight, kids=(), **kw):
     return dict(kind=kind, name=name, pin=pin, weight=weight, kids=list(kids), **kw)
 
 
-def rocker_outline(h, lod):
-    """A rocker plate in (along, away from the rope) about its axle chord's middle; axles at +-h."""
+def rocker_outline(h, lod, pin):
+    """A rocker plate in (along, away from the rope) about its axle chord's middle; axles at +-h, the pin at (0, pin): the
+    reference's V (owner, Gate 1 v5): a round lobe about each axle, arms down to a boss round the pin, tails down and out
+    past each sheave, open between the sheaves above the arms."""
     if lod >= 1:
-        return [(-(h + 0.07), -0.04), (h + 0.07, -0.04), (h + 0.17, 0.2), (0.08, 0.17), (-0.08, 0.17), (-(h + 0.17), 0.2)]
-    right = [(0.15, 0.025), (h - 0.075, -0.02), (h, -0.045), (h + 0.055, -0.03), (h + 0.07, 0.03), (h + 0.205, 0.23),
-             (h + 0.195, 0.27), (h + 0.145, 0.25), (h + 0.025, 0.11), (0.09, 0.17), (0.0, 0.185)]
-    left = [(-s, n) for s, n in reversed(right[:-1])]
+        right = [(0.0, pin - 0.075), (h - 0.04, -0.055), (h + 0.065, 0.0), (h + 0.2, 0.25), (h + 0.03, 0.09), (0.0, pin + 0.075)]
+    else:
+        lobe = [(h + 0.065 * math.sin(t), -0.065 * math.cos(t)) for t in (math.radians(a) for a in (-40, 0, 40, 80))]
+        right = [(0.0, pin - 0.075), (0.06, pin - 0.068)] + lobe + [(h + 0.07, 0.04), (h + 0.205, 0.23), (h + 0.195, 0.27),
+                                                                      (h + 0.145, 0.25), (h + 0.03, 0.095), (h - 0.06, 0.075),
+                                                                      (0.07, pin + 0.06), (0.0, pin + 0.075)]
+    left = [(-s, n) for s, n in reversed(right[1:-1])]
     return right + left
 
 
@@ -242,7 +247,7 @@ def draw(row, top, rockers, axles, name, a, tr, count, mode, lod, st, top_name=N
     h = tr["pitch"] / 2
     for i, node in enumerate(rockers):   # rockers: twin shaped plates (the outboard one thin on a hold-down row)
         with row.mb.grouped(node["name"]):
-            poly = rocker_outline(h, lod)
+            poly = rocker_outline(h, lod, rk["pinDrop"])
             for x0, x1 in ((-rk["x"][1], -rk["x"][0]), (rk["x"][0], rk["x"][1])):
                 row.plate(poly, node["mid"], node["d"], node["n"], x0, x1, steel)
             if rk.get("horn") and top_name is None and i in (0, len(rockers) - 1):   # the rope horn at the row's ends, inboard plate
@@ -251,8 +256,16 @@ def draw(row, top, rockers, axles, name, a, tr, count, mode, lod, st, top_name=N
                 row.plate(horn, node["mid"], node["d"], node["n"], rk["x"][0], rk["x"][1], steel)
         if lod == 0:
             with row.mb.grouped(node["name"] + "#axle"):
+                for p in node["axles"]:   # the axle shows only as its nuts (the spacers below hide the rest)
+                    for x0, x1 in ((-rk["x"][1] - 0.014, -rk["x"][1]), (rk["x"][1], rk["x"][1] + 0.014)):   # the axle nuts
+                        row.rod(p, x0, x1, 0.042, 6, st["rod"])
+        if lod <= 1:   # hub spacers from each sheave to both plates, as the reference's hubs run through them (Gate 1 v5)
+            with row.mb.grouped(node["name"]):
+                hw = s["width"] / 2
                 for p in node["axles"]:
-                    row.rod(p, -rk["x"][1] - 0.012, rk["x"][1] + 0.012, a["axle"] / 2, 8, st["rod"])
+                    for x0, x1 in ((-rk["x"][0] - 0.002, -hw + 0.01), (hw - 0.01, rk["x"][0] + 0.002)):
+                        prims.cylinder(row.mb, (p.x, row.v(x0), p.z), (p.x, row.v(x1), p.z), s["hub"] / 2 + 0.01,
+                                       8 if lod == 0 else 6, steel, caps=(False, False))
     for node, parent in _walk(top):
         if node["kind"] == "beam4":
             draw_beam4(row, node, tr, mode, lod, st)
