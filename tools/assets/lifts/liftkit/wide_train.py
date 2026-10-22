@@ -277,7 +277,7 @@ def draw(row, top, rockers, axles, name, a, tr, count, mode, lod, st, top_name=N
                 row.obox((k0 + k1) / 2, d, n, (k1 - k0).length / 2 + b6["overhang"], b6["depth"] / 2, b6["x"][0], b6["x"][1], steel)
         if parent is not None and lod == 0:   # the pin through the child and its parent, a nut outboard on support rows
             c0, c1 = _layers(node["kind"], mode, tr)
-            p0, p1 = _layers(parent["kind"], mode, tr)
+            p0, p1 = _layers("beam6" if parent["name"].startswith("yoke_hold_") else parent["kind"], mode, tr)
             pr = tr["rocker"]["pin"] / 2 if node["kind"] == "rocker" else tr["pin"]["dia"] / 2
             lo_, hi_ = min(c0, p0) - 0.012, max(c1, p1) + 0.012
             with row.mb.grouped(node["name"] + "#pin"):
@@ -301,10 +301,14 @@ def draw_beam4(row, node, tr, mode, lod, st):
     poly = [(-half, top_), (half, top_), (half, end), (half * 0.4, belly), (-half * 0.4, belly), (-half, end)] if lod == 0 else \
         [(-half, top_), (half, top_), (half, end), (0.0, belly), (-half, end)]
     layers = [(b4["x"][0], b4["x"][1])] + ([(-b4["x"][1], -b4["x"][0])] if mode == "support" else [])
+    slot = node["name"].startswith("yoke_hold_")   # a combination's hold-down beam: one box between the end block's cheeks
+    if slot:                                       # (owner, Gate 2: the c8 hung too low), so the row can rise beside them
+        layers = [tuple(tr["beam6"]["x"])]
+        poly = [(-half, top_), (half, top_), (half, top_ + deep[0]), (-half, top_ + deep[0])]
     with row.mb.grouped(node["name"]):
         for x0, x1 in layers:
             row.plate(poly, node["pin"], d, n, x0, x1, st["steel"])
-        if lod == 0:   # the boss inboard on its pin
+        if lod == 0 and not slot:   # the boss inboard on its pin
             row.rod(node["pin"], b4["x"][1], b4["x"][1] + b4["boss"][1], b4["boss"][0] / 2, 10, st["steel"])
 
 
@@ -338,9 +342,13 @@ def draw_top(row, top, tr, lod, st, mode, tname):
                 row.obox(pin + W * 0.06, U, W, hw0, 0.09, x0 + pl, x1 - pl, steel)
             if lod == 0:
                 for kid in top["kids"]:
-                    row.rod(kid["pin"], x1, x1 + 0.02, yk["boss"] / 2, 10, steel)
+                    held = kid["name"].startswith("yoke_hold_")   # the hold-down row's pin sits right under the cheeks:
+                    if not held:                                  # no boss outside the plates there, the pin flush
+                        row.rod(kid["pin"], x1, x1 + 0.02, yk["boss"] / 2, 10, steel)
                     with row.mb.grouped(kid["name"] + "#pin"):
-                        row.rod(kid["pin"], _layers("beam4", "hold", tr)[0] - 0.012, x1 + 0.012, tr["pin"]["dia"] / 2, 8, st["rod"])
+                        x_in = tr["beam6"]["x"][0] if held else _layers("beam4", "hold", tr)[0]
+                        row.rod(kid["pin"], x0 + 0.002 if held else min(x_in, x0) - 0.012, x1 + (-0.002 if held else 0.012),
+                                tr["pin"]["dia"] / 2, 8, st["rod"])
             return
         d = (kids[1] - kids[0])
         d = Vector((d.x, 0.0, d.z)).normalized()

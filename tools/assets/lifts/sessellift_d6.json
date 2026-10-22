@@ -679,7 +679,8 @@
       "gap": 730,
       "rope": {
         "support": -80,
-        "hold": -700
+        "hold": -700,
+        "combo": -570
       },
       "pin": {
         "w": 20,

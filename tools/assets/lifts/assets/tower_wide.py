@@ -100,7 +100,7 @@ def build(spec, lod, stage, variant):
     pin_w = tr["pin"]["w"]
     combo = "combo" in cfg
     mode = "hold" if (combo or "hold" in cfg) else "support"
-    rope = tr["rope"][mode]
+    rope = tr["rope"]["combo" if combo else mode]
 
     # cap plate (the reference's elongated octagon) and the haunched crossarm, its bottom flange flared to the cap
     hu, hv, cu, cv = m(cap["halfU"]), m(cap["halfV"]), m(cap["cut"][0]), m(cap["cut"][1])
