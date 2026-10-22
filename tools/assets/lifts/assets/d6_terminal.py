@@ -653,7 +653,10 @@ def belly(mb, t, end, lod, st):
     tray = [ring(lv) for lv in tray_levels]
     tray_back = tray_corner(t, end, tray_levels[-1][0])
     tray_back = tray_back[0] - tray_back[2]
-    keel = [ring(keel_levels[0], keel_top), ring(keel_levels[1], backs[2]), ring(keel_levels[2], backs[3])]
+    # the whole section reaches round the back (round 4, the photos: a deep white drum right out under the back cap,
+    # the hangers looping round it): the keel's levels round off as far in from the tray's back as from its sides
+    keel = [ring(keel_levels[0])] + [ring(lv, tray_back + (keel_levels[0][0] - lv[0])) for lv in keel_levels[1:]]
+    keel_top = tray_back
     for ra, rb in zip(tray, tray[1:]):
         loft(ra, rb)
     if abs(keel_top - tray_back) > 1:

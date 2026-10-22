@@ -949,7 +949,7 @@ def d6_photos(key, built, spec, out_dir, mats, chairs):
     shoot("game", tuple(centre), 40, 35, radius * 3.2, lens=40)        # about as the game's camera sees it
     # matched to the photographed lift's angles (the photos mirrored), from about eye height
     shoot("m_side", (mid, 0.0, 3.6), 100, 2, 30.0, lens=35)             # the long side, a little from the back
-    shoot("m_back_low", (E0, 0.0, 3.4), 192, 1, 15.0, lens=28)          # the back end, close and low
+    shoot("m_back_low", (E0, 0.0, 3.0), 192, -5, 14.0, lens=26)         # the back end, from eye height, looking up
     shoot("m_line_quarter", (E1 - 3.0, 0.0, 3.6), 28, 2, 26.0, lens=35)  # the line end, three-quarter
     shoot("m_high_far", (mid, 0.0, 3.0), 215, 11, 48.0, lens=40)        # from far off and above, behind
     shoot("bullwheel", (0.0, 0.0, bw), 40, -8, 7.5, lens=30)

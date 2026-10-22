@@ -6,7 +6,7 @@
 //   colour R       baked ambient occlusion
 // Snow settles on up-facing surfaces (the tree formula), scaled by capacity and _SnowLoad. Glass is the same
 // shader with _LIFT_GLASS: premultiplied alpha (only its diffuse fades, its reflection stays whole) with a Fresnel
-// opacity from _GlassAlpha face-on to 0.95 at grazing angles, no shadows or depth, so the interior shows through dark
+// opacity from _GlassAlpha face-on (coated station glass, 0.75) to 0.97 at grazing angles, no shadows or depth, so the interior shows through dark
 // mirror glass (lift models 2, round 3: straight alpha scaled the reflection too and turned glass into a dull tint).
 Shader "MountainPlanner/LiftStructure"
 {
@@ -21,7 +21,7 @@ Shader "MountainPlanner/LiftStructure"
         _SnowLoad ("Snow load", Range(0, 1)) = 1
         _SnowColor ("Snow colour", Color) = (0.93, 0.95, 0.98, 1)
         _SnowSmoothness ("Snow smoothness", Range(0, 1)) = 0.3
-        _GlassAlpha ("Glass opacity face-on", Range(0, 1)) = 0.45
+        _GlassAlpha ("Glass opacity face-on", Range(0, 1)) = 0.75
         [Toggle(_LIFT_GLASS)] _Glass ("Glass", Float) = 0
         [HideInInspector] _SrcBlend ("Src blend", Float) = 1
         [HideInInspector] _DstBlend ("Dst blend", Float) = 0
@@ -199,7 +199,7 @@ Shader "MountainPlanner/LiftStructure"
                 surface.alpha = 1.0h;
                 #if defined(_LIFT_GLASS)
                     half facing = 1.0h - saturate(dot(input.normalWS, input.viewDirectionWS));
-                    half glassAlpha = lerp((half)_GlassAlpha, 0.95h, facing * facing * facing * facing);
+                    half glassAlpha = lerp((half)_GlassAlpha, 0.97h, facing * facing * facing * facing);
                     surface.alpha = glassAlpha;
                 #endif
 
