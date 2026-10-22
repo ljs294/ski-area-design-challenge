@@ -373,6 +373,8 @@ def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, 
         (p0, w0), (p1, w1) = carry[0], carry[-1]
         d, nrm = local(p0, p1)
         pin = p0 + (p1 - p0) * (w1 / (w0 + w1))       # at the load centre
+        if len(carry) > 2:   # three hangers (a ten-sheave train): the centre of all it carries, not just the end two
+            pin = sum((p * w for p, w in carry), Vector()) / sum(w for _, w in carry)
         length, centre = (p1 - p0).length + 2 * bm["overhang"], (p0 + p1) / 2
     else:
         pin = carry[0][0]
@@ -513,13 +515,13 @@ def bullwheel(mb, center, spec, lod, style):
         prims.lathe(mb, c, W, ring, n // 2, st)
 
 
-def railing(mb, points, height, lod, style, posts_every=1.2, toe=True, closed=False, posts_at=None):
+def railing(mb, points, height, lod, style, posts_every=1.2, toe=True, closed=False, posts_at=None, post_r=0.024):
     """A handrail along a polyline on a deck: posts, top and knee rails, toe board. posts_at: explicit post
-    feet (lift points) instead of posts spaced evenly along each segment."""
+    feet (lift points) instead of posts spaced evenly along each segment. post_r: the tubes' radius (m)."""
     pts = [vec(p) for p in points]
     if closed:
         pts.append(pts[0])
-    r_post = 0.024
+    r_post = post_r
     if lod >= 3:
         return
     if posts_at is not None and lod <= 1:
@@ -552,15 +554,15 @@ def railing(mb, points, height, lod, style, posts_every=1.2, toe=True, closed=Fa
             prims.beam(mb, a + W * 0.05, b + W * 0.05, 0.008, 0.10, style)
 
 
-def ladder(mb, bottom, top, width, lod, style, rung_every=0.28, handrails=True, rung_style=None):
+def ladder(mb, bottom, top, width, lod, style, rung_every=0.28, handrails=True, rung_style=None, stringer=0.15):
     """A ship's ladder (stringers and rungs) from bottom to top, width across. Rungs are safety yellow up close
-    unless rung_style is given."""
+    unless rung_style is given. stringer: the stringers' depth (m)."""
     b, t = vec(bottom), vec(top)
     x, y, z = prims.basis_along(t - b, W)
     hw = width / 2
     for s in (-1, 1):
         if lod <= 2:
-            prims.beam(mb, b + y * s * hw, t + y * s * hw, 0.012, 0.15, style, up=z)
+            prims.beam(mb, b + y * s * hw, t + y * s * hw, 0.012, stringer, style, up=z)
     if lod <= 1:
         length = (t - b).length
         n = int(length / (rung_every * (1 if lod == 0 else 2)))

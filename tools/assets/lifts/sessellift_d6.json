@@ -495,7 +495,7 @@
     }
   },
   "towerWide": {
-    "_about": "The D6 line heads, measured on the owner's reference tower (Gate 0, 2026-10-21; local, never in the repo) and built from the gauge: a cap on the kit's straight mast, a haunched crossarm ending just inboard of each rope, end blocks carrying the shaft each sheave train hangs from (the rope's height follows the train), the kit's sheave assemblies unchanged, a lifting beam on two outward-leaning legs with lugs over each rope and a hoist rail, stepped walkways inboard of each train 700 below the rope, two caged platforms on the +u face, the mast ladder to the beam and side ladders. mm; w above the mast top; v measured in from the rope where noted.",
+    "_about": "The D6 line heads, after the owner's reference tower (Gate 0 and review T1, 2026-10-22; local, never in the repo), built from the gauge: a cap on the kit's straight mast; a haunched crossarm ending just inboard of each rope, its bottom flange flared to the cap; at each end a clamped end block of twin cheek plates carrying the pin each sheave train hangs from like a pendulum (the round stub over the rope carries nothing); the kit's sheaves on the reference's train (a yoke, 6- and 4-beams, shaped rockers); a lifting beam on two tapered legs with lifting eyes over each rope and a hoist bar; on trains of ten, a walkway of panels each riding its rocker; two caged platforms on the +u face, the mast ladder to the beam and side ladders. mm; w above the mast top; x and v measured in from the rope where noted.",
     "heads": {
       "s4": {
         "support": 4,
@@ -509,13 +509,15 @@
         "support": 10,
         "arc": "flat"
       },
-      "b8": {
-        "support": 8,
-        "arc": "breakover"
+      "b10": {
+        "support": 10,
+        "arc": "breakover",
+        "radius": 12530
       },
-      "d8": {
-        "hold": 8,
-        "arc": "breakover"
+      "d10": {
+        "hold": 10,
+        "arc": "breakover",
+        "radius": 12530
       },
       "c8": {
         "combo": 4,
@@ -525,90 +527,205 @@
     "cap": {
       "halfU": 360,
       "halfV": 345,
-      "thick": 60
+      "thick": 60,
+      "cut": [60, 140],
+      "bolts": {
+        "u": 250,
+        "v": [90, 250],
+        "dia": 36
+      }
     },
     "crossarm": {
       "width": 330,
       "bottom": 300,
       "top": 660,
       "endInset": 67,
-      "endInsetHold": 180,
       "haunch": {
         "from": 1510,
-        "to": 360
+        "to": 360,
+        "flare": 600,
+        "web": 430
       }
     },
-    "shaft": {
-      "w": 480,
-      "dia": 230,
-      "stub": 410
-    },
     "endBlock": {
+      "cheeks": [[150, 190], [480, 520]],
       "halfU": 274,
-      "v": [530, 140],
-      "w": [-120, 800],
-      "_v": "in from the rope"
+      "top": 290,
+      "shoulder": 230,
+      "nose": 140,
+      "notch": {
+        "halfU": 90,
+        "bottom": 163
+      },
+      "boss": {
+        "dia": 183,
+        "thick": 20
+      },
+      "topBars": {
+        "halfU": 235,
+        "x": [[120, 220], [450, 550]],
+        "thick": 30
+      },
+      "rods": {
+        "u": 200,
+        "dia": 57,
+        "top": 800
+      },
+      "nut": [90, 50],
+      "_x": "in from the rope"
     },
-    "hangDrop": 550,
-    "_hangDrop": "support and combination trains hang on a link from the shaft, the rope this far below it (Gate 0)",
     "liftingBeam": {
       "size": 200,
       "w": 1780,
       "halfLength": 2755,
+      "endPlate": {
+        "proud": 10,
+        "thick": 20,
+        "bore": 100,
+        "bolts": 80
+      },
       "legs": {
-        "foot": 1950,
-        "top": 2400,
-        "halfU": 235,
-        "thick": 60
+        "foot": {
+          "w": 680,
+          "u": 162,
+          "v": [1925, 2039]
+        },
+        "top": {
+          "u": 101,
+          "v": [2154, 2447]
+        },
+        "footPlate": [470, 126, 20],
+        "grab": {
+          "dia": 20,
+          "w": [1040, 1600],
+          "off": 50
+        }
       },
       "lugs": {
         "v": [240, 80],
-        "halfU": 130,
         "thick": 20,
-        "drop": 340,
+        "halfU": 130,
+        "corner": 30,
+        "endR": 45,
+        "tip": 160,
+        "eye": 80,
+        "boss": [90, 44],
+        "bore": 45,
         "_v": "in from the rope"
       },
       "rail": {
         "v": [140, 1980],
-        "size": [120, 94]
+        "dia": 30,
+        "below": 75,
+        "standoffs": [159, 1059, 1959],
+        "thick": 20,
+        "halfU": 60
       }
     },
     "walkway": {
+      "_walkway": "trains of ten only: one panel per rocker, riding it (its deck 700 below the rope at the rocker's middle, treads level at rest), hung on two flat-bar arms from the rocker's inboard plate; joints between panels; railing on the inner side, open over the middle panel (crossarm, side ladder)",
+      "minSheaves": 10,
       "inner": 1010,
       "outer": 490,
       "below": 700,
-      "tread": 400,
-      "pitch": 445,
-      "past": 250,
-      "halfLength": 3100,
-      "railing": 1000,
-      "stringer": [80, 140],
-      "hanger": {
-        "v": 1700,
-        "dia": 60
+      "joint": 60,
+      "jointHold": 120,
+      "past": 400,
+      "tread": {
+        "u": 380,
+        "thick": 30
       },
-      "plate": {
-        "halfU": 370,
-        "v": [1180, 1010]
+      "treads": 3,
+      "stringer": [110, 140],
+      "arms": {
+        "x": [100, 112],
+        "width": 60,
+        "at": 130,
+        "bearer": 60
       },
-      "_v": "inner, outer, plate in from the rope; hanger.v from the axis"
+      "railing": {
+        "height": 1000,
+        "knee": 500,
+        "bar": [20, 40],
+        "post": [30, 25]
+      }
     },
     "platform": {
       "u": [310, 830],
       "v": [590, 1510],
       "deckW": 560,
-      "railing": 1000
+      "railing": 1000,
+      "deck": 15,
+      "post": 15
     },
     "sideLadder": {
       "v": 1510,
-      "u": 540,
-      "width": 250
+      "u": 330,
+      "width": 250,
+      "pitch": 300,
+      "above": 320
     },
     "numberPlate": {
       "halfV": 200,
       "height": 260,
       "thick": 8,
       "standoff": 20
+    },
+    "train": {
+      "_train": "the reference's train (review T1): pitch inside a rocker, gap between rockers; rope heights at u 0 for support and hold-down rows (a hold-down row hangs wholly below the end block); x layers inboard from the rope; rocker stop in degrees either way",
+      "pitch": 550,
+      "gap": 730,
+      "rope": {
+        "support": -80,
+        "hold": -640
+      },
+      "pin": {
+        "w": 20,
+        "dia": 140
+      },
+      "rocker": {
+        "x": [88, 98],
+        "pinDrop": 117,
+        "pin": 80,
+        "stop": 5,
+        "horn": 280
+      },
+      "beam4": {
+        "x": [118, 140],
+        "depth": [152, 240],
+        "holdDepth": [152, 180],
+        "overhang": 120,
+        "pinDrop": 26,
+        "boss": [213, 40]
+      },
+      "beam6": {
+        "x": [230, 400],
+        "depth": 208,
+        "overhang": 150
+      },
+      "yoke": {
+        "x": [200, 470],
+        "depth": 282,
+        "overhang": 150,
+        "leg": 195,
+        "plate": 20,
+        "boss": 180,
+        "holdDepth": 236,
+        "holdLift": 52
+      },
+      "pinHead": [110, 100]
+    },
+    "stub": {
+      "u": 172,
+      "w": 203,
+      "reach": 425,
+      "flange": [257, 215, 26],
+      "_stub": "on the crossarm's axis, unloaded, reaching past the rope"
+    },
+    "mastLadder": {
+      "past": 90,
+      "stringer": 80,
+      "clamp": [270, 109]
     }
   }
 }
