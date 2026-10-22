@@ -223,7 +223,9 @@ def main():
                            else [f"stop {a0.pivots[k]['stop']} deg" if abs(r) > a0.pivots[k]["stop"] else b
                                  for r, b in zip(sweep[k]["range"], sweep[k]["by"])],
                            # a part that hangs plumb: the game turns it back by its parents' turns (a walkway's hanger)
-                           **({"plumb": True} if a0.pivots[k].get("plumb") else {})}
+                           **({"plumb": True} if a0.pivots[k].get("plumb") else {}),
+                           # a part that turns with another pivot in the world, whatever its parents do (a walkway on links)
+                           **({"follow": a0.pivots[k]["follow"]} if a0.pivots[k].get("follow") else {})}
                        for k in export.pivot_order(a0.pivots)},
             "socketParents": dict(a0.socket_parents),
             "aoTiling": tiling,

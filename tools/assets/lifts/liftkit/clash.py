@@ -55,6 +55,15 @@ def subtree(pivots, name):
     return kids
 
 
+def subtree_up(pivots, name):
+    """The pivot and its ancestors, [name, parent, ...]: a part that follows any of them turns when this one turns."""
+    out = []
+    while name:
+        out.append(name)
+        name = pivots[name].get("parent")
+    return out
+
+
 def _tree(entries):
     """One BVH over several pieces; returns (tree, polygon index -> piece tag)."""
     verts, polys, owner = [], [], []
@@ -96,8 +105,8 @@ def sweep(a, limit=60.0, step=1.0, tol=0.1, flush=0.001):
         if export.spins(name, piv):
             result[name] = {"range": [-180.0, 180.0], "by": ["spins", "spins"]}
             continue
-        if piv.get("plumb"):   # hangs plumb: the game turns it back by its parents' turns, it has no range of its own
-            result[name] = {"range": [-180.0, 180.0], "by": ["plumb", "plumb"]}
+        if piv.get("plumb") or piv.get("follow"):   # turned by the game to hang plumb or to follow its train: no range
+            result[name] = {"range": [-180.0, 180.0], "by": ["plumb" if piv.get("plumb") else "follows"] * 2}
             continue
         u, v, w = piv["axis"]
         axis = Vector((v, w, u)).normalized()
@@ -110,23 +119,31 @@ def sweep(a, limit=60.0, step=1.0, tol=0.1, flush=0.001):
             continue
         st_tree, st_owner = _tree(static)
         centre = unity(frame.b(piv["pos"]))
-        hangs = {}   # parts under a plumb pivot (a walkway's hanger) move with its pin but stay level
-        for k in moving_parts:
-            q = k
+        ups = set(subtree_up(a.pivots, name))
+        hangs = {}   # parts under a plumb pivot (a walkway's links) move with its pin but stay level; parts under a
+        for k in moving_parts:   # pivot that follows this one (the walkway itself) move so and turn with it about their pin
+            q, fol = k, None
             while q and q != name:
-                if a.pivots[q].get("plumb"):
-                    hangs[k] = unity(frame.b(a.pivots[q]["pos"]))
-                q = a.pivots[q].get("parent")
+                pq = a.pivots[q]
+                if pq.get("follow") in ups and fol is None:
+                    fol = unity(frame.b(pq["pos"]))
+                if pq.get("plumb"):
+                    hangs[k] = (unity(frame.b(pq["pos"])), fol)
+                    break
+                q = pq.get("parent")
 
         def pairs(deg):
             rot = Matrix.Rotation(math.radians(deg), 3, axis)
 
             def move(t, vs):
-                pin = hangs.get(part_of(t))
-                if pin is None:
+                h = hangs.get(part_of(t))
+                if h is None:
                     return [rot @ (p - centre) + centre for p in vs]
+                pin, fol = h
                 off = rot @ (pin - centre) + centre - pin
-                return [p + off for p in vs]
+                if fol is None:
+                    return [p + off for p in vs]
+                return [rot @ (p - fol) + fol + off for p in vs]
             turned = [(t, (move(t, vs), ps)) for t, (vs, ps) in moving]
             tree, owner = _tree(turned)
             return owner, tree.overlap(st_tree)

@@ -14,8 +14,9 @@ foundations):
                lower (owner, 2026-10-22)
   lifting beam above, on two tapered box legs leaning out from the crossarm, with lifting eyes over each rope, end
                plates and a hoist bar on standoffs
-  walkways     on trains of ten only (owner): one stringer with stepped treads on a single hanger from the train's
-               yoke, so it turns with the train (owner, Gate 1 v4: no supports off each rocker); railed on the inner side; two small caged platforms on the crossarm's +u face; the mast ladder carried on up to
+  walkways     on trains of ten only (owner): one stringer with stepped treads hanging from the train's yoke on two
+               plumb links, so it turns with the train while the links hang straight down (owner, Gate 1-2: no
+               supports off the rockers); railed on the inner side; two small caged platforms on the crossarm's +u face; the mast ladder carried on up to
                the beam, side ladders from the platforms down to the walkways
   number plate a light plate on the crossarm's uphill (-u) face
 
@@ -313,12 +314,14 @@ def build(spec, lod, stage, variant):
 
 
 def walkway(mb, a, rockers, top, v_rope, mode, asm, wk, lod, st, yoke_x, yoke_w):
-    """One rope's walkway, as the reference: one stringer along the train with stepped treads on cross-bearers, carried
-    by a single hanger post and beam at the middle, here from the train's main yoke (owner, Gate 1 v4: no supports
-    off the rockers), so the whole walkway turns with the train. Railed on the inner side, open over the middle (the
-    hanger, the side ladder). Returns its deck line [(u0, w0, u1, w1)] at rest, for the side ladder.
-    The hanger hangs plumb (owner, Gate 1 v5): the walkway is its own part, hanger_<side>, pinned to the yoke at the
-    beam's end and marked "plumb", so the game turns it back level whatever the train does (game task)."""
+    """One rope's walkway, as the reference: one stringer along the train with stepped treads on cross-bearers, railed
+    on the inner side (open over the hangers and the side ladder), end cages. It hangs from the train's main yoke on
+    two plumb links (owner, Gate 1 v4/v5 and Gate 2: no supports off the rockers, the hangers hang straight down, the
+    walkway turns with its train): each a box post on a beam pinned to the yoke, pinned again at a lug on the stringer.
+    Equal links make a parallelogram, so the walkway stays parallel to the yoke while the links hang plumb.
+    Parts: hanger_<side>1, hanger_<side>2 ("plumb": the game turns them back by their parents' turns) under the train's
+    top; walkway_<side> under hanger_<side>1 ("follow": the top; the game turns it to the top's own world turn).
+    Returns the deck line [(u0, w0, u1, w1)] at rest, for the side ladder."""
     inb = -1.0 if v_rope > 0 else 1.0
 
     def vx(x):
@@ -343,14 +346,40 @@ def walkway(mb, a, rockers, top, v_rope, mode, asm, wk, lod, st, yoke_x, yoke_w)
     sw, sd = (m(x) for x in wk["stringer"])
     va, vb = sorted((vx(x_in), vx(x_out)))
     hg_ = wk["hanger"]
-    uh = m(hg_["u"])   # clear of the end block's cheeks and the side ladder
-    hang = "hanger_" + top.split("_", 1)[1]
-    a.pivots[hang] = {"pos": (uh, v_rope, yoke_w), "axis": (0.0, 1.0, 0.0), "parent": top, "plumb": True}
-    if lod <= 0:   # the pin through the yoke's inboard web and the beam's end
-        with mb.grouped(hang + "#pin"):
-            prims.cylinder(mb, (uh, vx(yoke_x - 0.05), yoke_w), (uh, vx(yoke_x + 0.06), yoke_w), 0.04, 8, st["rod"])
-    with mb.grouped(hang if lod <= 1 else top):
-        if lod >= 2:   # one slab each way from the middle
+    side = top.split("_", 1)[1]
+    # the yoke's centre line, through its pin and parallel to the line through the pins it carries
+    kids = sorted((p["pos"] for k, p in a.pivots.items() if p.get("parent") == top and not k.startswith("hanger")),
+                  key=lambda p: p[0])
+    slope = (kids[-1][2] - kids[0][2]) / ((kids[-1][0] - kids[0][0]) or 1.0)
+
+    def yoke_at(u):
+        return yoke_w + slope * u
+    hus = [m(u) for u in hg_["u"]]
+    lug = m(hg_["lug"])
+    link = min(yoke_at(u) - (at(u) + lug) for u in hus)   # equal links: a parallelogram
+    pins = [(u, yoke_at(u), yoke_at(u) - link) for u in hus]
+    names = [f"hanger_{side}{k + 1}" for k in range(len(pins))]
+    walk = f"walkway_{side}"
+    for nm, (u, wt, wb) in zip(names, pins):
+        a.pivots[nm] = {"pos": (u, v_rope, wt), "axis": (0.0, 1.0, 0.0), "parent": top, "plumb": True}
+    a.pivots[walk] = {"pos": (pins[0][0], v_rope, pins[0][2]), "axis": (0.0, 1.0, 0.0), "parent": names[0], "follow": top}
+    pu, pv = m(hg_["post"][0]) / 2, m(hg_["post"][1])
+    x_p = x_in + sw / 2
+    p0, p1 = sorted((vx(x_p - pv / 2), vx(x_p + pv / 2)))
+    hb = m(hg_["beam"]) / 2
+    if lod <= 1:   # the hangers: a beam pinned to the yoke's inboard web, a box post down to the walkway's lug
+        for nm, (u, wt, wb) in zip(names, pins):
+            with mb.grouped(nm):
+                b0, b1 = sorted((vx(yoke_x + 0.005), vx(x_p - pv / 2)))
+                prims.box(mb, (u - hb, b0, wt - hb), (u + hb, b1, wt + hb), st["galv"])
+                prims.box(mb, (u - pu, p0, wb - 0.05), (u + pu, p1, wt + hb), st["galv"])
+            if lod == 0:
+                with mb.grouped(nm + "#pin"):
+                    prims.cylinder(mb, (u, vx(yoke_x - 0.05), wt), (u, vx(yoke_x + 0.06), wt), 0.04, 8, st["rod"])
+                with mb.grouped(walk + "#pin"):
+                    prims.cylinder(mb, (u, vx(x_p - pv / 2 - 0.03), wb), (u, vx(x_p + pv / 2 + 0.03), wb), 0.03, 8, st["rod"])
+    with mb.grouped(walk if lod <= 1 else top):
+        if lod >= 2:   # one slab each way from the middle, its inner rail and the hangers as bars
             for ua, ub in ((u0, 0.0), (0.0, u1)):
                 pa = Vector(((ua + ub) / 2, (va + vb) / 2, (at(ua) + at(ub)) / 2 - 0.03))
                 d = Vector((ub - ua, 0.0, at(ub) - at(ua))).normalized()
@@ -358,6 +387,8 @@ def walkway(mb, a, rockers, top, v_rope, mode, asm, wk, lod, st, yoke_x, yoke_w)
                 vr = vx(x_in)   # the inner rail, so the far walkway reads as a walkway, not a dark bar (Gate 2)
                 pr = Vector(((ua + ub) / 2, vr, (at(ua) + at(ub)) / 2 + m(wk["railing"]["height"]) - 0.02))
                 prims.obox(mb, pr, (d, V, Vector((-d.z, 0.0, d.x))), ((ub - ua) / 2 / d.x, 0.02, 0.02), st["galv"])
+            for u, wt, wb in pins:
+                prims.box(mb, (u - pu, p0, at(u)), (u + pu, p1, wt), st["galv"])
             return [(u0, at(u0), u1, at(u1))]
         pitch = m(wk["pitch"]) * (1 if lod == 0 else 2)
         tu = m(wk["tread"]["u"]) * (1 if lod == 0 else 2)
@@ -371,24 +402,22 @@ def walkway(mb, a, rockers, top, v_rope, mode, asm, wk, lod, st, yoke_x, yoke_w)
                 prims.box(mb, (u - 0.02, min(va, vs0), w - tt - 0.05), (u + 0.02, max(vb, vs1), w - tt), st["galv"])
         for ua, ub in zip([u0] + us, us + [u1]):   # the stringer, under the treads' inner ends
             prims.beam(mb, (ua, (vs0 + vs1) / 2, at(ua) - tt - sd / 2), (ub, (vs0 + vs1) / 2, at(ub) - tt - sd / 2), sw, sd, st["galv"])
-        pu, pv = m(hg_["post"][0]) / 2, m(hg_["post"][1])   # the hanger: a box post on a flared saddle, a beam to the yoke
-        x_p = x_in + sw / 2
-        w_foot = at(uh) - tt - sd
-        w_top = yoke_w + m(hg_["beam"]) / 2
-        p0, p1 = sorted((vx(x_p - pv / 2), vx(x_p + pv / 2)))
-        prims.box(mb, (uh - pu, p0, at(uh) - tt), (uh + pu, p1, w_top), st["galv"])
-        if lod == 0:
-            sad = [(-pu - 0.12, 0.0), (pu + 0.12, 0.0), (pu, 0.12), (-pu, 0.12)]
-            prims.prism(mb, sad, (uh, vx(x_in - 0.005), w_foot + sd - 0.01), U, W, V * inb, sw + 0.01, st["galv"])
-        b0, b1 = sorted((vx(yoke_x + 0.005), vx(x_p - pv / 2)))
-        hb = m(hg_["beam"]) / 2
-        prims.box(mb, (uh - hb, b0, yoke_w - hb), (uh + hb, b1, yoke_w + hb), st["galv"])
-        rl = wk["railing"]   # the inner railing in flat bar, open over the middle
+        for u, wt, wb in pins:   # a lug on a flared saddle on the stringer at each hanger, the link's lower pin through it
+            lu_ = [(-pu - 0.12, 0.0), (pu + 0.12, 0.0), (0.06, wb + 0.06 - (at(u) - tt)), (-0.06, wb + 0.06 - (at(u) - tt))]
+            prims.prism(mb, lu_, (u, vx(x_p - pv / 2 - 0.02), at(u) - tt), U, W, V * inb, pv + 0.04, st["galv"])
+        rl = wk["railing"]   # the inner railing in flat bar, open over the hangers and the side ladder
         bar_w, bar_h = (m(x) for x in rl["bar"])
         pw_, pd_ = (m(x) for x in rl["post"])
         vr = vx(x_in - pw_ / 2)
-        o0, o1 = (m(x) for x in hg_["open"])
-        for ua, ub in ((u0 + 0.03, o0), (o1, u1 - 0.03)):
+        gaps = sorted([tuple(m(x) for x in hg_["open"])] + [(u - pu - 0.12, u + pu + 0.12) for u in hus])
+        spans, cur = [], u0 + 0.03
+        for g0, g1 in gaps:
+            if g0 > cur + 0.3:
+                spans.append((cur, g0))
+            cur = max(cur, g1)
+        if u1 - 0.03 > cur + 0.3:
+            spans.append((cur, u1 - 0.03))
+        for ua, ub in spans:
             k_n = max(1, round((ub - ua) / 1.0))
             for k in range(k_n + 1):
                 u = ua + (ub - ua) * k / k_n
@@ -402,7 +431,7 @@ def walkway(mb, a, rockers, top, v_rope, mode, asm, wk, lod, st, yoke_x, yoke_w)
             for hh in (m(rl["height"]), m(rl["knee"])):
                 c0, c1 = sorted((vr, vo))
                 prims.box(mb, (ue - bar_w / 2, c0, at(ue) + hh - bar_h), (ue + bar_w / 2, c1, at(ue) + hh), st["galv"])
-    return [(a, at(a), b, at(b)) for a, b in zip([u0] + us, us + [u1])]
+    return [(a_, at(a_), b_, at(b_)) for a_, b_ in zip([u0] + us, us + [u1])]
 
 
 def side_ladder(mb, sl, s, top_w, decks, lod, st, v=None):

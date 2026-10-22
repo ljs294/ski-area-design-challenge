@@ -257,15 +257,15 @@ def draw(row, top, rockers, axles, name, a, tr, count, mode, lod, st, top_name=N
         if lod == 0:
             with row.mb.grouped(node["name"] + "#axle"):
                 for p in node["axles"]:   # the axle shows only as its nuts (the spacers below hide the rest)
-                    for x0, x1 in ((-rk["x"][1] - 0.014, -rk["x"][1]), (rk["x"][1], rk["x"][1] + 0.014)):   # the axle nuts
-                        row.rod(p, x0, x1, 0.042, 6, st["rod"])
-        if lod <= 1:   # hub spacers from each sheave to both plates, as the reference's hubs run through them (Gate 1 v5)
+                    for x0, x1, cp in ((-rk["x"][1] - 0.014, -rk["x"][1], (True, False)), (rk["x"][1], rk["x"][1] + 0.014, (False, True))):
+                        prims.cylinder(row.mb, (p.x, row.v(x0), p.z), (p.x, row.v(x1), p.z), 0.042, 6, st["rod"], caps=cp)   # the axle nuts
+        if lod == 0:   # hub spacers from each sheave to both plates, as the reference's hubs run through them (Gate 1 v5)
             with row.mb.grouped(node["name"]):
                 hw = s["width"] / 2
                 for p in node["axles"]:
                     for x0, x1 in ((-rk["x"][0] - 0.002, -hw + 0.01), (hw - 0.01, rk["x"][0] + 0.002)):
                         prims.cylinder(row.mb, (p.x, row.v(x0), p.z), (p.x, row.v(x1), p.z), s["hub"] / 2 + 0.01,
-                                       8 if lod == 0 else 4, steel, caps=(False, False))
+                                       6, steel, caps=(False, False))
     for node, parent in _walk(top):
         if node["kind"] == "beam4":
             draw_beam4(row, node, tr, mode, lod, st)

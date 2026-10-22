@@ -23,7 +23,7 @@ Status: **fixed** (built, checked and shown to the owner), **open**, or **game**
 | O10 | Try without the rods from the lifting frame to the walkway ends | Removed | fixed |
 | O11 | Reference sheave spacing; hold-down rows below the end block; c8 without walkway; treads fixed to the walkway | 550 / 730 pitch; d10 rope 620 below the support heads; c8 platform only | fixed |
 | O12 | Remove the supports off every sheave rocker; one hanger and beam carry the walkway | One inner stringer with level stepped treads on one hanger post and beam | fixed |
-| O13 | The platform support always hangs straight down (plumb) | Walkway and hanger on their own pin on the train's yoke, marked `plumb` in lifts.json; the clash sweep keeps plumb parts level | fixed (game: G8) |
+| O13 | The platform support always hangs straight down (plumb) | Hanger links marked `plumb` in lifts.json (see O18 for the walkway itself) | fixed (game: G8) |
 | O14 | Look again at how the sheave pairs attach to their rockers | Rocker plates as the reference's V; hub spacers to both plates; axle nuts | fixed |
 | O15 | Extend the main work platform toward the sheaves, on every head | Platforms to 500 inboard of the rope, or to just inboard of the walkway with the side ladder at their end | fixed |
 
@@ -32,7 +32,8 @@ Status: **fixed** (built, checked and shown to the owner), **open**, or **game**
 | # | Finding | What was done | Status |
 | --- | --- | --- | --- |
 | O16 | The c8 sits far too low under the tower; its sheave tops should line up like a hold-down head's | The hold-down row's beam moved between the end block's cheeks, so the c8 rises 130 mm (rope -570; hold-down sheave tops just under the end block) | fixed |
-| O17 | The sheave-train walkways are too low; bring them up to the bottom of the ladder | Decks 400 below the rope (was 700); the side ladder moves 80 inboard, clear of the walkway's stringer, and reaches to 50 above the deck; those platforms stop at 1.60 m | fixed, to show |
+| O17 | The sheave-train walkways are too low; bring them up to the bottom of the ladder | Decks 400 below the rope (was 700); the side ladder moves 80 inboard, clear of the walkway's stringer, and reaches to 50 above the deck; those platforms stop at 1.60 m | fixed |
+| O18 | The walkways don't rotate with the sheave trains; that looks awkward and is not correct | The walkway hangs from the yoke on two equal plumb links (a parallelogram): it turns with its train while the links hang straight down (pivots hanger_<side>1/2 "plumb", walkway_<side> "follow"); inner railing open from -0.9 to +1.0 m so it clears the crossarm on steep lines | fixed, to show (game: G8) |
 
 ## Open items raised in review (not owner findings)
 
@@ -47,5 +48,6 @@ Status: **fixed** (built, checked and shown to the owner), **open**, or **game**
 
 - G6: head types S10, B10, D10 (head enum, the 8-sheave cap, prefab map, tests).
 - G7: the rope height differs per head (hold-down -700, combination -570, support -80); read it from the rope sockets.
-- G8: pivots marked `plumb` are turned back by their parents' turns so they hang level (the walkway hangers), and are
-  not clamped to a range.
+- G8: pivots marked `plumb` are turned back by their parents' turns so they hang straight down (the walkway links);
+  a pivot marked `follow: <pivot>` is turned so its world angle equals that pivot's (the walkway, which then turns with
+  its train). Neither is clamped to a range. Until the game does this, both stay rigid with their parents.
