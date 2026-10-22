@@ -31,7 +31,8 @@ Status: **fixed** (built, checked and shown to the owner), **open**, or **game**
 
 | # | Finding | What was done | Status |
 | --- | --- | --- | --- |
-| O16 | The c8 sits far too low under the tower; its sheave tops should line up like a hold-down head's | The hold-down row's beam moved between the end block's cheeks, so the c8 rises 130 mm (rope -570; hold-down sheave tops just under the end block) | fixed, to show |
+| O16 | The c8 sits far too low under the tower; its sheave tops should line up like a hold-down head's | The hold-down row's beam moved between the end block's cheeks, so the c8 rises 130 mm (rope -570; hold-down sheave tops just under the end block) | fixed |
+| O17 | The sheave-train walkways are too low; bring them up to the bottom of the ladder | Decks 400 below the rope (was 700); the side ladder moves 80 inboard, clear of the walkway's stringer, and reaches to 50 above the deck; those platforms stop at 1.60 m | fixed, to show |
 
 ## Open items raised in review (not owner findings)
 
