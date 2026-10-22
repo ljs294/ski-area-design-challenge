@@ -354,7 +354,10 @@ def walkway(mb, a, rockers, top, v_rope, mode, asm, wk, lod, st, yoke_x, yoke_w)
             for ua, ub in ((u0, 0.0), (0.0, u1)):
                 pa = Vector(((ua + ub) / 2, (va + vb) / 2, (at(ua) + at(ub)) / 2 - 0.03))
                 d = Vector((ub - ua, 0.0, at(ub) - at(ua))).normalized()
-                prims.obox(mb, pa, (d, V, Vector((-d.z, 0.0, d.x))), ((ub - ua) / 2 / d.x, (vb - va) / 2, 0.03), st["grating"])
+                prims.obox(mb, pa, (d, V, Vector((-d.z, 0.0, d.x))), ((ub - ua) / 2 / d.x, (vb - va) / 2, 0.02), st["galv"])
+                vr = vx(x_in)   # the inner rail, so the far walkway reads as a walkway, not a dark bar (Gate 2)
+                pr = Vector(((ua + ub) / 2, vr, (at(ua) + at(ub)) / 2 + m(wk["railing"]["height"]) - 0.02))
+                prims.obox(mb, pr, (d, V, Vector((-d.z, 0.0, d.x))), ((ub - ua) / 2 / d.x, 0.02, 0.02), st["galv"])
             return [(u0, at(u0), u1, at(u1))]
         pitch = m(wk["pitch"]) * (1 if lod == 0 else 2)
         tu = m(wk["tread"]["u"]) * (1 if lod == 0 else 2)
