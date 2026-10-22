@@ -532,6 +532,7 @@
       "bottom": 300,
       "top": 660,
       "endInset": 67,
+      "endInsetHold": 180,
       "haunch": {
         "from": 1510,
         "to": 360
@@ -558,7 +559,7 @@
         "foot": 1950,
         "top": 2400,
         "halfU": 235,
-        "thick": 150
+        "thick": 60
       },
       "lugs": {
         "v": [240, 80],
@@ -579,6 +580,7 @@
       "tread": 400,
       "pitch": 445,
       "past": 250,
+      "halfLength": 3100,
       "railing": 1000,
       "stringer": [80, 140],
       "hanger": {

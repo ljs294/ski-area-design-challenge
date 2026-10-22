@@ -294,6 +294,9 @@ def tower(asset, chair, rope_r, sheave_r, clear=CLEAR, step=STEP, reach=3.0):
     for (name, z), (d, c) in sorted(near.items()):
         problems.append(f"fit: chair ({z}) passes {name} {d * 1000:.1f} mm away (< {clear * 1000:.0f}) at "
                         f"u {c[0] * 1000:.0f}, v {c[1] * 1000:.0f}, w {c[2] * 1000:.0f}")
+    for name, (tree, *_r) in trees.items():   # the sheaves must turn clear of the head's own steel (Gate 1)
+        if name.startswith("sheave_") and "structure" in trees and trees["structure"][0].overlap(tree):
+            problems.append(f"fit: {name} meets the head's structure")
     deep = min(touch.values(), default=0.0)
     if deep < -THUMP:
         problems.append(f"fit: the grip rides {-deep * 1000:.1f} mm into a sheave (> {THUMP * 1000:.0f})")

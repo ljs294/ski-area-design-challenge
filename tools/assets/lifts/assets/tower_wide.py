@@ -72,7 +72,8 @@ def build(spec, lod, stage, variant):
     lb, wk, pf = hw["liftingBeam"], hw["walkway"], hw["platform"]
     cw = m(ca["width"]) / 2
     cb0, cb1 = m(ca["bottom"]), m(ca["top"])
-    end = hg - m(ca["endInset"])
+    held = "hold" in cfg or "combo" in cfg   # a hold-down row's middle sheaves rise beside the crossarm's ends (Gate 1)
+    end = hg - m(ca["endInsetHold"] if held else ca["endInset"])
     shaft_w = m(sh["w"])
 
     # cap plate and the haunched crossarm
@@ -96,8 +97,8 @@ def build(spec, lod, stage, variant):
         for s in (-1, 1):   # clevis lugs over each rope
             for dv in lu["v"]:
                 v0 = s * (hg - m(dv))
-                prims.box(mb, (-m(lu["halfU"]), v0 - m(lu["thick"]) / 2, bw0 - m(lu["drop"])), (m(lu["halfU"]), v0 + m(lu["thick"]) / 2, bw0),
-                          st["galv"])
+                prims.box(mb, (-m(lu["halfU"]), v0 - m(lu["thick"]) / 2, bw0 + bs - m(lu["drop"])),
+                          (m(lu["halfU"]), v0 + m(lu["thick"]) / 2, bw0 + bs - 0.02), st["galv"])   # straddling the beam
             rl = lb["rail"]   # the hoist rail under the beam
             v0, v1 = sorted((s * m(rl["v"][0]), s * m(rl["v"][1])))
             prims.box(mb, (-m(rl["size"][0]) / 2, v0, bw0 - m(rl["size"][1])), (m(rl["size"][0]) / 2, v1, bw0), st["galv"])
@@ -147,7 +148,8 @@ def build(spec, lod, stage, variant):
     # lifting beam
     for side in (-1, 1):
         line = lines[side]
-        u0, u1 = line[0][0] - m(wk["past"]), line[-1][0] + m(wk["past"])
+        half = max(m(wk["halfLength"]), -line[0][0] + m(wk["past"]), line[-1][0] + m(wk["past"]))   # centred on the mast
+        u0, u1 = -half, half
         vi, vo = sorted((side * (hg - m(wk["inner"])), side * (hg - m(wk["outer"]))))
         v_in = side * (hg - m(wk["inner"]))
         if lod >= 2:   # one slab each way from the middle
@@ -201,20 +203,25 @@ def build(spec, lod, stage, variant):
             p0 = Vector((m(sl["u"]), s * m(sl["v"]), foot))
             parts.ladder(mb, p0, Vector((m(sl["u"]), s * m(sl["v"]), dw)), m(sl["width"]), lod, st["galv"], handrails=False,
                          rung_style=st["galv"])
-    if lod <= 2:
-        tower.ladder_segment(mb, t, 0.0, bw0 + bs, lod, st)
-        npl = hw["numberPlate"]   # a light plate on the +u face (round 3: the photographed number is on that face)
-        bu = cw + m(npl["standoff"])
+    if lod <= 2:   # the mast ladder up past the crossarm, then leaning in to the lifting beam (the reference)
+        tower.ladder_segment(mb, t, 0.0, cb1, lod, st)
+        la = t["ladder"]
+        u_l = la["side"] * (r + m(la["standoff"]))
+        if lod <= 1:
+            parts.ladder(mb, Vector((u_l, 0.0, cb1)), Vector((la["side"] * (bs / 2 + 0.06), 0.0, bw0)), 2 * m(la["halfWidth"]), lod, st["galv"],
+                         handrails=False, rung_style=st["galv"])
+        npl = hw["numberPlate"]   # a light plate on the uphill (-u) face, clear of the ladder on the other
+        bu = -cw - m(npl["standoff"])
         wc = (cb0 + cb1) / 2
         h2 = m(npl["height"]) / 2
         if lod <= 1:
-            prims.box(mb, (bu, -m(npl["halfV"]), wc - h2), (bu + m(npl["thick"]), m(npl["halfV"]), wc + h2), st["white"])
-        a.sockets["number_plate"] = (bu + m(npl["thick"]), 0.0, wc)
+            prims.box(mb, (bu - m(npl["thick"]), -m(npl["halfV"]), wc - h2), (bu, m(npl["halfV"]), wc + h2), st["white"])
+        a.sockets["number_plate"] = (bu - m(npl["thick"]), 0.0, wc)
 
     a.body = mb
     a.sockets.update({"mast_top": (0.0, 0.0, 0.0), "rope_left": (0.0, -hg, rope), "rope_right": (0.0, hg, rope)})
     if "number_plate" not in a.sockets:
-        a.sockets["number_plate"] = (cw + m(hw["numberPlate"]["standoff"] + hw["numberPlate"]["thick"]), 0.0, (cb0 + cb1) / 2)
+        a.sockets["number_plate"] = (-cw - m(hw["numberPlate"]["standoff"] + hw["numberPlate"]["thick"]), 0.0, (cb0 + cb1) / 2)
     n_sheaves = cfg.get("support", 0) + cfg.get("hold", 0) + 2 * cfg.get("combo", 0)
     a.dims.update({"rope": round(rope * 1000), "crossarmTop": round(cb1 * 1000), "gauge": c["lineGauge"],
                    "sheaves": 2 * n_sheaves})
