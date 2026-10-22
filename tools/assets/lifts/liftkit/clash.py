@@ -111,6 +111,13 @@ def sweep(a, limit=60.0, step=1.0, tol=0.1, flush=0.001):
         u, v, w = piv["axis"]
         axis = Vector((v, w, u)).normalized()
         moving_parts = subtree(a.pivots, name)
+        ups = set(subtree_up(a.pivots, name))
+        follows = {}   # parts that turn with this pivot in the world though they hang elsewhere (a walkway pinned to the
+        for k, pk in a.pivots.items():   # crossarm, following its train): they turn by the same angle about their own pin
+            if pk.get("follow") in ups and k not in moving_parts:
+                for q in subtree(a.pivots, k):
+                    follows[q] = unity(frame.b(pk["pos"]))
+        moving_parts = moving_parts | set(follows)
         faces = across(pcs, axis)
         moving = [(t, (drawn_in(vs, axis, flush), ps)) for t, (vs, ps) in faces.items() if part_of(t) in moving_parts]
         static = [(t, pc) for t, pc in faces.items() if part_of(t) not in moving_parts]
@@ -119,7 +126,6 @@ def sweep(a, limit=60.0, step=1.0, tol=0.1, flush=0.001):
             continue
         st_tree, st_owner = _tree(static)
         centre = unity(frame.b(piv["pos"]))
-        ups = set(subtree_up(a.pivots, name))
         hangs = {}   # parts under a plumb pivot (a walkway's links) move with its pin but stay level; parts under a
         for k in moving_parts:   # pivot that follows this one (the walkway itself) move so and turn with it about their pin
             q, fol = k, None
@@ -136,6 +142,9 @@ def sweep(a, limit=60.0, step=1.0, tol=0.1, flush=0.001):
             rot = Matrix.Rotation(math.radians(deg), 3, axis)
 
             def move(t, vs):
+                fp = follows.get(part_of(t))
+                if fp is not None:
+                    return [rot @ (p - fp) + fp for p in vs]
                 h = hangs.get(part_of(t))
                 if h is None:
                     return [rot @ (p - centre) + centre for p in vs]

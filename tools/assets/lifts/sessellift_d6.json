@@ -623,7 +623,7 @@
       }
     },
     "walkway": {
-      "_walkway": "trains of ten only, as the reference: one inner stringer with level treads stepping 400 below the rope on cross-bearers (owner, Gate 2: up to the side ladder), hanging from the train's main yoke on two plumb links of equal length (owner, Gate 1-2), a parallelogram, so it turns with its train; railing on the inner side, open over the hangers and the side ladder; end cages",
+      "_walkway": "trains of ten only, as the reference: one inner stringer with level treads stepping 400 below the rope on cross-bearers (owner, Gate 2: up to the side ladder), hanging at one point from the crossarm on a box post clamped round the arm, its clevis pin through a lug on the stringer, so it turns with its train (owner, Gate 2); railing on the inner side, open over the hanger and the side ladder; end cages",
       "minSheaves": 10,
       "inner": 1010,
       "outer": 520,
@@ -636,13 +636,12 @@
       },
       "stringer": [110, 140],
       "hanger": {
-        "u": [-450, 1200],
         "post": [300, 150],
-        "beam": 150,
-        "open": [-900, 1000],
         "lug": 150,
-        "off": 20,
-        "swing": 35
+        "above": 120,
+        "clevis": [20, 5],
+        "clamp": 20,
+        "open": [-900, 1000]
       },
       "railing": {
         "height": 1000,
