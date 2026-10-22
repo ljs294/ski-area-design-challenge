@@ -123,10 +123,11 @@ def cylinder(mb, p0, p1, r, sides, style, caps=(True, True), r1=None, phase=None
             mb.face(mb.verts_lift(ring_points(p1, axis, r1, sides, ph)), flat, tuple(axis))
 
 
-def tube_path(mb, pts, r, sides, style, caps=True, closed=False):
+def tube_path(mb, pts, r, sides, style, caps=True, closed=False, smooth=None):
     """A round tube swept along a polyline (bent handrails, hangers), with parallel-transported rings.
-    closed: the path is a loop (the last point joins the first); no caps. Returns the rings: (vertex indices, y, z)
-    per point, so another part can join the tube on one of them."""
+    closed: the path is a loop (the last point joins the first); no caps. smooth: shade the sides smooth (default: from
+    five sides; a far LOD's four-sided tube reads round with it). Returns the rings: (vertex indices, y, z) per point,
+    so another part can join the tube on one of them."""
     pts = [vec(p) for p in pts]
     rings, prev_y, prev_t = [], None, None
     n_pts = len(pts)
@@ -163,7 +164,7 @@ def tube_path(mb, pts, r, sides, style, caps=True, closed=False):
                     off = off + bn * off.dot(bn) * (scale - 1.0)
             ring.append(mb.vert(tuple(p + off)))
         rings.append((ring, y, z))
-    side = style.but(smooth=sides >= 5)
+    side = style.but(smooth=sides >= 5 if smooth is None else smooth)
     segs = len(rings) if closed else len(rings) - 1
     for i in range(segs):
         (ra, ya, za), (rb, _, _) = rings[i], rings[(i + 1) % len(rings)]

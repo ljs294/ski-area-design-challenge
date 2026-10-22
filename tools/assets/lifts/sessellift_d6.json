@@ -36,17 +36,62 @@
     }
   },
   "chair": {
-    "_about": "The Sessellift quad chair made wider and hung lower (owner, LM2 and LM8): every point of the quad's chair (sessellift_fgq4.json chair) is moved by rule, nothing tuned by hand. Widths: a point's half-width grows by widen x t, where t runs from 0 at the hanger clamp (clampHalf) to 1 at the top bar's end (topBarHalf) and stays 1 beyond it, and widen = (seats - 4) / 2 x seatPitch, so the bench takes seats x seatPitch. Heights: every point under the hanger moves down by drop (the drawn chair hangs 3,238 mm from the rope to the bench's underside against the quad's 2,657; its top bar 1,737 against 1,160). The hanger is the drawing's: out of the detachable grip's arm, down and outboard round the station frame, and in level through the clamp. The grip is the Sessellift detachable grip (sessellift_detach_grip.json, LM10); the hanger starts at its socket under the arm. The bar gains a middle leg with a footrest, as drawn.",
+    "_about": "The Sessellift quad chair made wider and hung lower (owner, LM2 and LM8): every point of the quad's chair (sessellift_fgq4.json chair) is moved by rule, nothing tuned by hand. Widths: a point's half-width grows by widen x t, where t runs from 0 at the hanger clamp (clampHalf) to 1 at the top bar's end (topBarHalf) and stays 1 beyond it; the frames and top bar take widen.frames, the bench, backrest and safety bar widen.bench (round 2: the drawing's frames at 1,527 from the axis, its bench six seats of 471). Heights: every point under the hanger moves down by drop. The clamp, top bar, web plate and hanger are the drawing's. Round 3 (the photos): bolster, backrest pad and shell, the bar's comb, footrests and stops, end brackets and armrests; positions after the drop, mm.",
     "seats": 6,
-    "seatPitch": 486,
+    "seatPitch": 471,
+    "widen": {
+      "frames": 399,
+      "bench": 441
+    },
     "clampHalf": 126,
     "topBarHalf": 781,
     "drop": -585,
     "axisV": -100,
     "tubeHanger": 96,
-    "hanger": [[362, -89], [361, -127], [395, -191], [425, -254], [464, -381], [479, -476], [526, -762], [556, -900], [567, -1063], [545, -1286], [470, -1470], [330, -1600], [180, -1645], [-8, -1648]],
-    "hangerFar": [0, 3, 6, 8, 11, 13],
-    "middleLeg": true
+    "hanger": [[362, -89], [361, -127], [395, -191], [425, -254], [464, -381], [479, -476], [526, -762], [556, -900], [567, -1063], [578, -1160], [545, -1286], [515, -1350], [468, -1413], [408, -1476], [329, -1527], [233, -1561], [170, -1573], [-8, -1576]],
+    "hangerFar": [0, 3, 6, 9, 11, 13, 15, 17],
+    "clamp": {
+      "halfWidth": 179,
+      "u": 130,
+      "wFrom": -1525,
+      "wTo": -1894,
+      "bolts": 24,
+      "plate": [90, 60]
+    },
+    "topBar": {
+      "w": -1734,
+      "dia": 70
+    },
+    "webLower": [[0, -1858], [206, -1854], [714, -1803], [800, -1764]],
+    "bench": {
+      "bolster": {
+        "at": [300, -3105],
+        "dia": 140,
+        "band": 30
+      },
+      "lattice": 6
+    },
+    "backrest": {
+      "pad": 90,
+      "shell": 4,
+      "ribs": 10,
+      "ribWidth": 30,
+      "endCap": 20
+    },
+    "bar": {
+      "footrests": [0, 938],
+      "footrest": [160, 100, 12],
+      "stop": [60, 50, 40]
+    },
+    "endBracket": {
+      "thick": 10,
+      "height": 30
+    },
+    "armrest": {
+      "path": [[-150, -2935], [0, -2885], [200, -2905], [320, -2985]],
+      "out": 30,
+      "dia": 36
+    }
   },
   "terminal": {
     "_about": "One station design at both ends, end for end (drive at the top, return with tensioning at the bottom), measured on the layouts in round 1 of the adversarial review (four reviewers, every view; the reports stay local). Model mm; u from the bullwheel's axle toward the line, w from the load or unload level. Hood: the end caps' outline (skirt, band, a circular arch, roof) swept along the station; the body between the caps sits bodyInset inside it at the band, tapering to nothing at the roof; 25 window bays of 800 between solid caps; nose (side view) and plan (plan view) give how far a ring's front face stands back from the hood's extreme; the end walls stand endWall inside the extremes. Rail: a 40 x 50 bar; the chairs' grips ride 134 inside it at the rope's height. Bullwheel: tilted about v, line side up; the ropes climb in its plane to the bend, then run level.",
@@ -65,38 +110,84 @@
         "to": 5851,
         "head": 5917,
         "bay": 800,
-        "mullion": 115
+        "mullion": 75
       },
       "heavyMullion": {
         "at": 1600,
-        "width": 230
+        "width": 150
       },
       "nose": [[2958, 402], [3743, 402], [3838, 398], [3997, 392], [4156, 386], [4314, 379], [4473, 367], [4632, 349], [4790, 329], [4949, 300], [5108, 268], [5267, 230], [5425, 184], [5584, 133], [5648, 110], [5743, 75], [5838, 43], [5902, 22], [5997, 0], [6029, 11], [6044, 21], [6060, 37], [6076, 62], [6100, 200]],
       "plan": [[0, 0], [2380, 0], [2602, 38], [2919, 104], [3237, 184], [3554, 263], [3871, 339], [4030, 368], [4189, 387], [4348, 403], [4446, 403]],
       "ring": {
         "width": 232,
-        "crest": 103
+        "bead": 50,
+        "foot": 150
       },
       "endWall": 520,
       "endWindow": {
         "frame": [2349, 3568, 5802],
         "glass": [2289, 3627, 5742],
         "mullions": [[0, 118], [1257, 85], [-1257, 85]],
-        "depth": 60
+        "depth": 60,
+        "guard": {
+          "at": [0.45, 0.65],
+          "header": 0.78,
+          "out": 120,
+          "dia": 50,
+          "half": 1257
+        },
+        "plate": {
+          "half": 350,
+          "w": [160, 380]
+        }
       },
       "lineOpening": {
         "v": 2400,
         "top": 4100
       },
       "lining": 60,
+      "ribLift": 25,
+      "joint": 20,
+      "bracing": {
+        "w": [5000, 5780],
+        "width": 40
+      },
       "soffit": {
         "offset": 392,
         "width": 300,
         "hatchHalf": 450
+      },
+      "roofKit": {
+        "postIn": 1200,
+        "postHeight": 600,
+        "box": {
+          "from": 3500,
+          "length": 3000,
+          "half": 600,
+          "height": 400
+        },
+        "mast": {
+          "height": 1500
+        },
+        "units": [[-3000, 1200], [3000, -1200]],
+        "unit": [800, 600, 450],
+        "_roofKit": "photos: lifeline tripods at both ends with a cable along the crown, a low box with an A-frame mast at the line end, small roof units (u from the hood's middle, v)"
+      },
+      "lamps": {
+        "back": [600, 4240, 3020],
+        "lineRing": [400, 3900, 3300]
       }
     },
     "belly": {
-      "section": [[3133, 2958], [3133, 2690], [1511, 2461], [991, 1944]]
+      "section": [[3133, 2958], [3133, 2690], [1511, 2461], [991, 1944]],
+      "cove": 60,
+      "lip": [20, 20],
+      "joints": [-3156, -2087, -1024, 43, 1110, 2176, 3243, 4310],
+      "jointWidth": 15,
+      "chin": {
+        "pad": 120,
+        "height": 400
+      }
     },
     "frame": {
       "beamV": 1649,
@@ -137,12 +228,12 @@
         "_tyreBank": "the tyre conveyor along each straight (photos: the red row inside the glass): tyres bearing on the grips' tyre plate, under red guards, on a beam from the portals"
       },
       "openRails": {
-        "v": 3352,
+        "v": 3375,
         "w": 3950,
-        "section": [40, 50],
+        "section": [30, 50],
         "from": 300,
         "length": 2000,
-        "_openRails": "short rails over the lever's top roller beyond the rope bend, where grips open and close"
+        "_openRails": "short rails over the lever's top roller beyond the rope bend, where grips open and close; just outboard of the lever's flag plate"
       }
     },
     "rail": {
@@ -175,8 +266,9 @@
     },
     "sheave": {
       "dia": 550,
-      "width": 120,
-      "mount": 100
+      "width": 60,
+      "mount": 100,
+      "_width": "narrower than the grip's body web, which hangs 41 below the rope beside the jaw (round 3)"
     },
     "bullwheel": {
       "tilt": 5.0,

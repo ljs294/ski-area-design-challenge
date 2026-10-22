@@ -82,11 +82,12 @@
     "crossFade": true
   },
   "chair_detach": {
-    "_about": "A detachable six-seat chair (the Sessellift D6): the detachable grip and a bench half as wide again as the quad's.",
+    "_about": "A detachable six-seat chair (the Sessellift D6): the detachable grip and a bench half as wide again as the quad's. Raised by the owner (2026-10-21, round 3): round springs, the padded bench and the grip's rollers up close, the backrest at LOD2, and a 30-triangle speck so a line reads out to 1.2 km (about 16k chair triangles a lift at High).",
     "lods": [
-      {"lod": 0, "maxTris": 2400, "untilM": 10},
-      {"lod": 1, "maxTris": 320, "untilM": 35},
-      {"lod": 2, "maxTris": 80, "untilM": 300}
+      {"lod": 0, "maxTris": 4000, "untilM": 10},
+      {"lod": 1, "maxTris": 600, "untilM": 35},
+      {"lod": 2, "maxTris": 120, "untilM": 300},
+      {"lod": 3, "maxTris": 30, "untilM": 1200}
     ],
     "shadowLods": 2,
     "crossFade": false

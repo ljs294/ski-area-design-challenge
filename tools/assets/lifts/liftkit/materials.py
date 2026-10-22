@@ -171,6 +171,28 @@ def make(name, palette_img, livery_rgb=(0.72, 0.12, 0.09), snow=0.0, glass=False
     return m
 
 
+def cull_backfaces(materials):
+    """Review renders only: back faces render transparent, as Unity culls them (LiftStructure.shader is Cull Back).
+    Cycles shows back faces, which hid single-sided parts and made the glass look opaque (round 3)."""
+    for m in materials:
+        nt = m.node_tree
+        out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+        link = out.inputs["Surface"].links[0] if out.inputs["Surface"].links else None
+        if link is None or link.from_node.name == "CullBack":
+            continue
+        geo = nt.nodes.new("ShaderNodeNewGeometry")
+        hole = nt.nodes.new("ShaderNodeBsdfTransparent")
+        mix = nt.nodes.new("ShaderNodeMixShader")
+        mix.name = "CullBack"
+        src = link.from_socket
+        nt.links.remove(link)
+        nt.links.new(geo.outputs["Backfacing"], mix.inputs["Fac"])
+        nt.links.new(src, mix.inputs[1])
+        nt.links.new(hole.outputs[0], mix.inputs[2])
+        nt.links.new(mix.outputs[0], out.inputs["Surface"])
+        m.use_backface_culling = True
+
+
 def set_snow(materials, snow):
     for m in materials:
         n = m.node_tree.nodes.get("SnowLoad")

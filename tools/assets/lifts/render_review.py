@@ -918,6 +918,9 @@ def d6_photos(key, built, spec, out_dir, mats, chairs):
         hung = hang_chairs(chairs, pos)
     fig = _photo_figure((-6.0, -4.6, 0.0))
     materials.set_livery(mats, (0.018, 0.02, 0.023))
+    materials.cull_backfaces(mats)                    # as the game draws them (round 3: Cycles hid the hollow inside)
+    snow = float(os.environ.get("LIFT_SNOW", "0"))   # LIFT_SNOW=1: the game's default, the Snow layer on
+    materials.set_snow(mats, snow)
     show_only(objs + extras + hung + [fig])
     restore_uv(objs)
     lo, hi = bounds_lift(objs)
@@ -939,10 +942,12 @@ def d6_photos(key, built, spec, out_dir, mats, chairs):
     shoot("windows_close", (E0 + 3.0, 4.2, 4.9), 60, 4, 6.0, lens=35)   # the back cap, its seam and the first panes
     shoot("end_wall", (E0 + 0.6, 0.0, 4.6), 200, 8, 7.0, lens=35)      # the back end's wall, window and ring
     shoot("line_end", (E1 - 0.5, 2.6, 3.4), 30, 6, 8.0, lens=30)       # the opening, the horn, a chair leaving
-    shoot("underside", (1.0, 0.0, 2.6), 160, -22, 9.0, lens=24)       # the soffit, its slots and the belly
+    shoot("underside", (1.0, 0.0, 2.4), 160, -10, 7.0, lens=24)       # the soffit, its slots and the belly (eye above the snow)
+    shoot("game", tuple(centre), 40, 35, radius * 3.2, lens=40)        # about as the game's camera sees it
     shoot("bullwheel", (0.0, 0.0, bw), 40, -8, 7.5, lens=30)
-    materials.set_snow(mats, 1.0)
-    shoot("snowfall", tuple(centre), 35, 12, radius * 2.2, lens=40)
+    if snow < 1.0:
+        materials.set_snow(mats, 1.0)
+        shoot("snowfall", tuple(centre), 35, 12, radius * 2.2, lens=40)
     materials.set_snow(mats, 0.0)
     materials.set_livery(mats, (0.72, 0.12, 0.09))
     for o in hung:
