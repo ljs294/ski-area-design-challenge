@@ -33,7 +33,7 @@ Status: **fixed** (built, checked and shown to the owner), **open**, or **game**
 | --- | --- | --- | --- |
 | O16 | The c8 sits far too low under the tower; its sheave tops should line up like a hold-down head's | The hold-down row's beam moved between the end block's cheeks, so the c8 rises 130 mm (rope -570; hold-down sheave tops just under the end block) | fixed |
 | O17 | The sheave-train walkways are too low; bring them up to the bottom of the ladder | Decks 400 below the rope (was 700); the side ladder moves 80 inboard, clear of the walkway's stringer, and reaches to 50 above the deck; those platforms stop at 1.60 m | fixed |
-| O18 | The walkways don't rotate with the sheave trains; that looks awkward and is not correct | The walkway hangs from the yoke on two equal plumb links (a parallelogram): it turns with its train while the links hang straight down (pivots hanger_<side>1/2 "plumb", walkway_<side> "follow"); inner railing open from -0.9 to +1.0 m so it clears the crossarm on steep lines | fixed, to show (game: G8) |
+| O18 | The walkways don't rotate with the sheave trains; that looks awkward and is not correct | The walkway hangs from the yoke on two equal plumb links (a parallelogram): it turns with its train while the links hang straight down (pivots hanger_<side>1/2 "plumb", walkway_<side> "follow"); the links stand just inboard of the stringer on lugs off its inner face; the inner railing is open from -0.9 to +1.0 m (the crossarm, the side ladder) and around each link for its swing to 35 deg | fixed, to show (game: G8) |
 
 ## Open items raised in review (not owner findings)
 

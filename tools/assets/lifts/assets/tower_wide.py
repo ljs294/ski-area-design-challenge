@@ -364,7 +364,7 @@ def walkway(mb, a, rockers, top, v_rope, mode, asm, wk, lod, st, yoke_x, yoke_w)
         a.pivots[nm] = {"pos": (u, v_rope, wt), "axis": (0.0, 1.0, 0.0), "parent": top, "plumb": True}
     a.pivots[walk] = {"pos": (pins[0][0], v_rope, pins[0][2]), "axis": (0.0, 1.0, 0.0), "parent": names[0], "follow": top}
     pu, pv = m(hg_["post"][0]) / 2, m(hg_["post"][1])
-    x_p = x_in + sw / 2
+    x_p = x_in + sw + m(hg_["off"]) + pv / 2   # the links stand just inboard of the stringer, on lugs off its inner face
     p0, p1 = sorted((vx(x_p - pv / 2), vx(x_p + pv / 2)))
     hb = m(hg_["beam"]) / 2
     if lod <= 1:   # the hangers: a beam pinned to the yoke's inboard web, a box post down to the walkway's lug
@@ -404,12 +404,14 @@ def walkway(mb, a, rockers, top, v_rope, mode, asm, wk, lod, st, yoke_x, yoke_w)
             prims.beam(mb, (ua, (vs0 + vs1) / 2, at(ua) - tt - sd / 2), (ub, (vs0 + vs1) / 2, at(ub) - tt - sd / 2), sw, sd, st["galv"])
         for u, wt, wb in pins:   # a lug on a flared saddle on the stringer at each hanger, the link's lower pin through it
             lu_ = [(-pu - 0.12, 0.0), (pu + 0.12, 0.0), (0.06, wb + 0.06 - (at(u) - tt)), (-0.06, wb + 0.06 - (at(u) - tt))]
-            prims.prism(mb, lu_, (u, vx(x_p - pv / 2 - 0.02), at(u) - tt), U, W, V * inb, pv + 0.04, st["galv"])
-        rl = wk["railing"]   # the inner railing in flat bar, open over the hangers and the side ladder
-        bar_w, bar_h = (m(x) for x in rl["bar"])
+            prims.prism(mb, lu_, (u, vx(x_in + sw - 0.02), at(u) - tt), U, W, V * inb, x_p + pv / 2 + 0.01 - (x_in + sw - 0.02), st["galv"])
+        rl = wk["railing"]   # the inner railing in flat bar, open over the crossarm and the side ladder, and where the
+        bar_w, bar_h = (m(x) for x in rl["bar"])   # hanger beams cross it (wide enough for the plumb links' swing)
         pw_, pd_ = (m(x) for x in rl["post"])
         vr = vx(x_in - pw_ / 2)
-        gaps = sorted([tuple(m(x) for x in hg_["open"])] + [(u - pu - 0.12, u + pu + 0.12) for u in hus])
+        reach = min(link, m(rl["height"]) - lug)   # how far up the rail's plane a link runs above its lower pin
+        g = pu + reach * math.sin(math.radians(hg_["swing"])) + 0.03   # the links' swing against the turning walkway
+        gaps = sorted([tuple(m(x) for x in hg_["open"])] + [(u - g, u + g) for u in hus])
         spans, cur = [], u0 + 0.03
         for g0, g1 in gaps:
             if g0 > cur + 0.3:
@@ -425,7 +427,7 @@ def walkway(mb, a, rockers, top, v_rope, mode, asm, wk, lod, st, yoke_x, yoke_w)
                     prims.box(mb, (u - pd_ / 2, vr - pw_ / 2, at(u)), (u + pd_ / 2, vr + pw_ / 2, at(u) + m(rl["height"])), st["galv"])
             for hh in ((m(rl["height"]), m(rl["knee"])) if lod == 0 else (m(rl["height"]),)):
                 prims.beam(mb, (ua, vr, at(ua) + hh - bar_h / 2), (ub, vr, at(ub) + hh - bar_h / 2), bar_w, bar_h, st["galv"])
-        for ue in (u0 + 0.03, u1 - 0.03):   # the end cages
+        for ue in (u0 + 0.03, u1 - 0.03):   # the end cages, with a bracket out to the rail
             vo = vx(x_out + pw_ / 2)
             prims.box(mb, (ue - pd_ / 2, vo - pw_ / 2, at(ue)), (ue + pd_ / 2, vo + pw_ / 2, at(ue) + m(rl["height"])), st["galv"])
             for hh in (m(rl["height"]), m(rl["knee"])):
