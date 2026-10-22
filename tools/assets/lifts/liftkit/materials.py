@@ -194,13 +194,23 @@ def use_palette(materials, img):
                 n.image = img
 
 
-def opaque_copy(img):
+def opaque_copy(img, livery=None):
+    """An opaque copy of the palette for Workbench previews; livery (an sRGB hex such as "#202326") repaints the livery
+    swatch, so review renders show a hood in a player's colour rather than the untinted white."""
     import numpy as np
+    from . import palette
     name = img.name + "_opaque"
     out = bpy.data.images.get(name) or bpy.data.images.new(name, img.size[0], img.size[1], alpha=True)
     px = np.empty(img.size[0] * img.size[1] * 4, dtype=np.float32)
     img.pixels.foreach_get(px)
     px[3::4] = 1.0
+    if livery:
+        i = palette.INDEX["livery"]
+        col, row = i % palette.GRID, i // palette.GRID
+        grid = px.reshape(img.size[1], img.size[0], 4)
+        c = palette.CELL
+        grid[row * c:(row + 1) * c, col * c:(col + 1) * c, :3] = palette.srgb(livery)
+        px = grid.ravel()
     out.colorspace_settings.name = "sRGB"
     out.pixels.foreach_set(px)
     return out

@@ -304,6 +304,10 @@ def clay_views(key, built, spec, out_dir, chairs):
         u_bw = built["assets"][0].pivots["bullwheel"]["pos"][0]
         # chairs: travel +u on the right rope, -u on the left rope, and one at the far end of the wheel
         pos = [((u_bw + 3.0, hg, rope), 0.0), ((u_bw + 3.0, -hg, rope), math.pi), ((u_bw - hg, 0.0, rope), math.pi / 2)]
+        path = getattr(built["assets"][0], "paths", {}).get("chairs")
+        if path:   # a detachable's chairs ride its station rail: two on the straights, one across the back of the loop
+            gw = path[0][2]
+            pos = [((u_bw + 4.0, hg, gw), 0.0), ((u_bw + 4.0, -hg, gw), math.pi), ((min(p[0] for p in path), 0.0, gw), math.pi / 2)]
         # chair frame: +u travel, +v outboard. In Blender, lift +u = -y; yaw rotates about z.
         extras = hang_chairs(chairs, [(p, _yaw_for(p, u_bw)) for p, _ in pos])
         extras.append(figure((1.5 if key.endswith("drive") else 2.5, 3.2 if key.endswith("drive") else -2.6, 0.0)))
@@ -329,7 +333,7 @@ def clay_views(key, built, spec, out_dir, chairs):
     dist = 3.0 if key.startswith("sle_stick") else 2.4
     views = {"threequarter_line": (35, 18), "threequarter_back": (215, 22), "low": (120, 6)}
     if key in ("d6_drive", "d6_return"):   # and the angles of the photos it is compared with
-        views.update({"end_line": (2, 4), "side_line": (55, 6)})
+        views.update({"end_line": (2, 4), "side_line": (55, 6), "end_back": (182, 4)})
     for name, (az, el) in views.items():
         a, e = math.radians(az), math.radians(el)
         d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
@@ -614,6 +618,10 @@ def chair_photos(built, spec, out_dir, mats, key="chair"):
         bpy.data.objects.remove(o)
     show_only(objs + extras)
     materials.set_snow(mats, 1.0)
+    if key.startswith("d6_"):   # the detachable grip: bigger, so further out, and from every side
+        for name, az, el in (("grip_front", 0, 8), ("grip_outboard", 90, 6), ("grip_top", 60, 55), ("grip_from_below", 125, -32),
+                             ("grip_end_on", 178, 12), ("grip_inboard", -90, 10)):
+            shoot(name, (0.0, 0.25, 0.08), az, el, 2.1, lens=45)
     shoot("snowfall", whole, 32, 14, 8.0)
     materials.set_snow(mats, 0.0)
     _photo_end(sc, extras + [fig])
@@ -850,6 +858,98 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
     _photo_end(sc, extras + [fig])
 
 
+def d6_photos(key, built, spec, out_dir, mats, chairs):
+    """Cycles "photos" of a D6 terminal on snow, in its black livery: the haul rope level from the line to the bend, down
+    in the wheel's plane and round the tilted bullwheel; chairs riding the station rail (paths "chairs") and on the
+    line; a 1.8 m figure. Wide views from every side and high, then close-ups: the side windows, the back end's wall
+    and window, the line end (openings and horns), the underside (soffit slots, belly), the wheel."""
+    sc, sun = _photo_scene()
+    c = spec["common"]
+    t = spec["terminal"]
+    objs = lod_objects(built, 0)
+    a0 = built["assets"][0]
+    rope = c["ropeElevation"] / 1000
+    hg = c["lineGauge"] / 2000
+    bw = a0.dims["bullwheelW"] / 1000
+    tilt = math.radians(a0.dims["bullwheelTilt"])
+    du = Vector((math.cos(tilt), 0.0, math.sin(tilt)))
+    bend = a0.dims["ropeBend"] / 1000
+    u_climb = (rope - bw) / math.tan(tilt)            # where the climbing rope reaches the line's height
+    far = 80.0
+    side_pts = [(far, rope), (bend, rope), (u_climb, rope)]
+    pts = [(u, hg, w) for u, w in side_pts] + [(0.0, hg, bw)]
+    for k in range(1, 24):                             # round the back of the tilted wheel, right rope to left
+        th = math.pi / 2 + math.pi * k / 24
+        q = Vector((0.0, 0.0, bw)) + du * (hg * math.cos(th)) + Vector((0.0, hg * math.sin(th), 0.0))
+        pts.append(tuple(q))
+    pts += [(0.0, -hg, bw)] + [(u, -hg, w) for u, w in reversed(side_pts)]
+    curve = bpy.data.curves.new("PhotoRopeCurve" + key, "CURVE")
+    curve.dimensions = "3D"
+    curve.bevel_depth = c["ropeDiameter"] / 2000
+    curve.bevel_resolution = 2
+    sp = curve.splines.new("POLY")
+    sp.points.add(len(pts) - 1)
+    for i, p in enumerate(pts):
+        sp.points[i].co = (*frame.b(p), 1.0)
+    rope_obj = bpy.data.objects.new("PhotoRope" + key, curve)
+    sc.collection.objects.link(rope_obj)
+    rope_obj.data.materials.append(_rope_material())
+    extras = [rope_obj, _snow_plane(0.0), sun]
+    hung = []
+    if chairs:
+        path = [Vector(p) for p in a0.paths["chairs"]]
+        travel = list(reversed(path))                  # the chairs go round the loop against the path's order
+        seg = [(b - a).length for a, b in zip(travel, travel[1:])]
+        total = sum(seg)
+        pos = []
+        for f in (0.12, 0.30, 0.50, 0.70, 0.88):        # round the station
+            d, i = f * total, 0
+            while i < len(seg) - 1 and d > seg[i]:
+                d -= seg[i]
+                i += 1
+            p = travel[i] + (travel[i + 1] - travel[i]) * (d / seg[i])
+            tv = (travel[i + 1] - travel[i]).normalized()
+            tb = frame.b(tuple(tv))
+            pos.append((tuple(p), math.atan2(tb.y, tb.x) - math.atan2(-1.0, 0.0)))
+        for u in (22.0, 50.0):                          # on the line, both ropes
+            for s in (1, -1):
+                q = (u, s * hg, rope)
+                pos.append((q, _yaw_for(q, 0.0)))
+        hung = hang_chairs(chairs, pos)
+    fig = _photo_figure((-6.0, -4.6, 0.0))
+    materials.set_livery(mats, (0.018, 0.02, 0.023))
+    show_only(objs + extras + hung + [fig])
+    restore_uv(objs)
+    lo, hi = bounds_lift(objs)
+    lo.z = max(lo.z, 0.0)
+    hi.x = min(hi.x, a0.dims["hoodFront"] / 1000 + 1.6)
+    centre = (lo + hi) / 2
+    radius = (hi - lo).length / 2
+    shoot = _shooter(key, out_dir)
+    E0, E1 = a0.dims["hoodBack"] / 1000, a0.dims["hoodFront"] / 1000
+    shoot("hero", tuple(centre), 35, 12, radius * 2.2, lens=40)
+    shoot("hero_far_side", tuple(centre), -35, 12, radius * 2.2, lens=40)
+    shoot("back", tuple(centre), 200, 14, radius * 2.2, lens=40)
+    shoot("side", tuple(centre), 90, 4, radius * 2.2, lens=40)
+    shoot("high", tuple(centre), 55, 48, radius * 2.3, lens=40)
+    shoot("end_back", (E0, 0.0, 3.4), 180, 3, 15.0, lens=35)
+    shoot("end_line", (E1, 0.0, 3.4), 0, 3, 17.0, lens=35)
+    mid = (E0 + E1) / 2
+    shoot("windows", (mid, 4.0, 4.9), 75, 6, 11.0, lens=35)          # the side windows, from outboard and a little ahead
+    shoot("windows_close", (E0 + 3.0, 4.2, 4.9), 60, 4, 6.0, lens=35)   # the back cap, its seam and the first panes
+    shoot("end_wall", (E0 + 0.6, 0.0, 4.6), 200, 8, 7.0, lens=35)      # the back end's wall, window and ring
+    shoot("line_end", (E1 - 0.5, 2.6, 3.4), 30, 6, 8.0, lens=30)       # the opening, the horn, a chair leaving
+    shoot("underside", (1.0, 0.0, 2.6), 160, -22, 9.0, lens=24)       # the soffit, its slots and the belly
+    shoot("bullwheel", (0.0, 0.0, bw), 40, -8, 7.5, lens=30)
+    materials.set_snow(mats, 1.0)
+    shoot("snowfall", tuple(centre), 35, 12, radius * 2.2, lens=40)
+    materials.set_snow(mats, 0.0)
+    materials.set_livery(mats, (0.72, 0.12, 0.09))
+    for o in hung:
+        bpy.data.objects.remove(o)
+    _photo_end(sc, extras + [fig])
+
+
 def _move(built, offset_lift):
     """Moves every root object of a built asset by a lift-frame offset (children follow their parents)."""
     d = frame.b(offset_lift)
@@ -1035,7 +1135,7 @@ def _rope_over_head(spec, variant, rope_w, v, far=60.0):
     return pts
 
 
-def tower_photos(built_all, spec, out_dir, mats, chairs):
+def tower_photos(built_all, spec, out_dir, mats, chairs, out="tower_"):
     """Cycles "photos" of each tower head type on a full tower: base, mast sections to a rope about 9.5 m above the
     snow, the haul rope over (or under) the sheaves with a chair on each side, and a 1.8 m figure; a hero view,
     a close-up of the head and a view up from under the line."""
@@ -1080,7 +1180,7 @@ def tower_photos(built_all, spec, out_dir, mats, chairs):
         show_only(objs + [snow, fig, sun] + [r for r, _ in ropes] + hung)
         restore_uv(objs)
         bpy.context.view_layer.update()
-        shoot = _shooter(f"tower_{variant}", out_dir)
+        shoot = _shooter(f"{out}{variant}", out_dir)
         head_c = (0.0, 0.0, rope_w)
         top = rope_w + 2.2                                  # the portal beam is about 1.9 m over the rope
         shoot("hero", (0.0, 0.0, top / 2), 32, 8, top * 1.9 + 4.0, lens=40)
@@ -1377,7 +1477,7 @@ def render_all(built, spec, out_dir, shots, mats):
     def chairs_for(key):
         return d6_chairs if key.startswith("d6_") else chairs
     packed = bpy.data.images["lift_palette"]
-    materials.use_palette(mats, materials.opaque_copy(packed))
+    materials.use_palette(mats, materials.opaque_copy(packed, os.environ.get("LIFT_LIVERY")))   # e.g. "#202326"
     if "gate1" in shots:
         for key in built:
             if key in ORTHO:
@@ -1391,7 +1491,7 @@ def render_all(built, spec, out_dir, shots, mats):
             if key.startswith("sle_"):
                 sle_views(key, built[key], out_dir)
     if "lods" in shots:
-        lod_lineup({k: v for k, v in built.items() if k in ("drive", "return", "chair")}, out_dir)
+        lod_lineup({k: v for k, v in built.items() if k in ("drive", "return", "chair") or k.startswith("d6_")}, out_dir)
     if "data" in shots:
         for key in built:
             data_views(key, built[key], out_dir)
@@ -1411,6 +1511,8 @@ def render_all(built, spec, out_dir, shots, mats):
                 chair_photos(built[key], built[key].get("spec", spec), out_dir, mats, key)
             elif key.startswith("sle_") and "photos" in shots:
                 gun_photos(key, built[key], out_dir, mats)
+            elif key in ("d6_drive", "d6_return"):
+                d6_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs_for(key))
             elif key in TERMINALS:
                 terminal_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs)
     if "photos" in shots and all(k in built for k, _ in SLE_LINEUP):
@@ -1421,5 +1523,11 @@ def render_all(built, spec, out_dir, shots, mats):
     if "pose_photos" in shots:
         pose_photos(built, spec, out_dir, mats, chairs)
     if ("photos" in shots or "tower_photos" in shots) and "tower_base" in built and "tower_mast" in built:
-        tower_photos({k: v for k, v in built.items() if k.startswith("tower_")}, spec, out_dir, mats, chairs)
+        if any(k.startswith("tower_") and k not in ("tower_base", "tower_mast") for k in built):
+            tower_photos({k: v for k, v in built.items() if k.startswith("tower_")}, spec, out_dir, mats, chairs)
+        wide = [k for k in built if k.startswith("d6_tower_")]
+        if wide:   # the D6's wide heads on the kit's mast, with the six-seat chair on the line
+            kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}
+            kit.update({k[3:]: built[k] for k in wide})
+            tower_photos(kit, built[wide[0]]["spec"], out_dir, mats, chairs_for("d6_"), out="d6_tower_")
     print(f"Review renders in {out_dir}", flush=True)
