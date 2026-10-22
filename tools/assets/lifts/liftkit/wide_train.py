@@ -221,7 +221,7 @@ def draw(row, top, rockers, axles, name, a, tr, count, mode, lod, st, top_name=N
         p0, p1 = axles[0], axles[-1]
         d, n = _frame(p0, p1, sg)
         with row.mb.grouped(tname):
-            mid = (p0 + p1) / 2 + n * 0.05
+            mid = sum(axles, Vector()) / len(axles) + n * 0.05   # on the sheaves' centroid (a curved row sags below its chord)
             row.obox(mid, d, n, ((p1 - p0).length + 2 * r) / 2, r + 0.05, -s["width"] / 2, rk["x"][1], steel)
             if top["kind"] == "yoke":
                 draw_top(row, top, tr, lod, st, mode, tname)
@@ -308,9 +308,19 @@ def draw_top(row, top, tr, lod, st, mode, tname):
         if top["kind"] == "block":
             deep = max(pin.z - k.z for k in kids) + yk["boss"] / 2
             hw0, hw1 = yk["leg"] * 0.9, yk["leg"] / 2
-            poly = [(-hw0, -0.12), (hw0, -0.12), (hw1, deep), (-hw1, deep)]
-            for xa, xb in ((x0, x0 + pl), (x1 - pl, x1)):
-                row.plate(poly, pin, U, -W, xa, xb, steel)
+            if lod >= 2:
+                polys = [[(-hw0, -0.12), (hw0, -0.12), (hw1, deep), (-hw1, deep)]]
+            else:   # an open frame (review T1 verify: not a post): two straps, round pads at the pin and both rows' pins
+                n_c = 12 if lod == 0 else 6
+                pads = [0.0] + [pin.z - k.z for k in kids]
+                polys = [[(rr * math.cos(t), dz + rr * math.sin(t)) for t in (2 * math.pi * j / n_c for j in range(n_c))]
+                         for dz, rr in zip(pads, (0.13, yk["boss"] / 2 + 0.02, yk["boss"] / 2 + 0.02))]
+                sa, sb = 0.055, 0.125
+                bot = max(pads)
+                polys += [[(e * sa, 0.0), (e * sb, 0.0), (e * sb, bot), (e * sa, bot)] for e in (-1, 1)]
+            for poly in polys:
+                for xa, xb in ((x0, x0 + pl), (x1 - pl, x1)):
+                    row.plate(poly, pin, U, -W, xa, xb, steel)
             if lod <= 1:   # a cross plate between them at the top
                 row.obox(pin + W * 0.06, U, W, hw0, 0.09, x0 + pl, x1 - pl, steel)
             if lod == 0:

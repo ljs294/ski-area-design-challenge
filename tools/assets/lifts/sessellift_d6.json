@@ -677,7 +677,7 @@
       "gap": 730,
       "rope": {
         "support": -80,
-        "hold": -640
+        "hold": -700
       },
       "pin": {
         "w": 20,
@@ -710,8 +710,8 @@
         "leg": 195,
         "plate": 20,
         "boss": 180,
-        "holdDepth": 236,
-        "holdLift": 52
+        "holdDepth": 220,
+        "holdLift": 25
       },
       "pinHead": [110, 100]
     },

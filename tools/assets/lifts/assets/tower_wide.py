@@ -134,6 +134,9 @@ def build(spec, lod, stage, variant):
 
         def vx(x):
             return v_rope + inb * x
+        if lod >= 3:   # the end block as one box, so the train doesn't float under the arm
+            prims.box(mb, (-m(eb["halfU"]), min(vx(m(eb["cheeks"][0][0])), vx(m(eb["cheeks"][1][1]))), pin_w - m(eb["nose"])),
+                      (m(eb["halfU"]), max(vx(m(eb["cheeks"][0][0])), vx(m(eb["cheeks"][1][1]))), m(eb["top"])), st["galv"])
         if lod <= 2:
             out = cheek_outline(eb, pin_w, lod)
             for x0, x1 in eb["cheeks"]:
@@ -263,9 +266,8 @@ def build(spec, lod, stage, variant):
             vb = s * (m(pf["v"][0]) + m(pf["v"][1])) / 2
             for vk in (vb - s * 0.3, vb + s * 0.3):   # two cantilevers from the crossarm
                 prims.box(mb, (cw, vk - 0.056, dw - m(pf["deck"]) - 0.112), (pu1, vk + 0.056, dw - m(pf["deck"])), st["galv"])
-            cage = [Vector((pu0, s * m(pf["v"][0]), dw)), Vector((pu1, s * m(pf["v"][0]), dw)), Vector((pu1, s * m(pf["v"][1]), dw)),
-                    Vector((pu0, s * m(pf["v"][1]), dw))]
-            parts.railing(mb, cage, m(pf["railing"]), lod, st["galv"], post_r=m(pf["post"]))
+            guard = [Vector((pu1, s * m(pf["v"][0]), dw)), Vector((pu1, s * m(pf["v"][1]), dw))]   # the +u face only (review
+            parts.railing(mb, guard, m(pf["railing"]), lod, st["galv"], post_r=m(pf["post"]))       # T1 verify): ladders open
             if s in decks:
                 side_ladder(mb, hw["sideLadder"], s, dw - m(pf["deck"]), decks[s], lod, st)
     if lod <= 2:   # the mast ladder up past the crossarm, then leaning in to the lifting beam (the reference), clamped
