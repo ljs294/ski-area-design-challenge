@@ -455,9 +455,10 @@ def fittings(mb, t, end, lod, st):
     prims.box(mb, (m(bu0), m(-bx["half"]), m(top)), (m(bu1), m(bx["half"]), m(bt)), st["roof"].but(group=None))
     mu, mh = (bu0 + bu1) / 2, rk["mast"]["height"]
     if lod <= 1:
-        for dv in (-350, 350):
-            for du in (-250, 250):
-                prims.cylinder(mb, (m(mu + du), m(dv), m(bt)), (m(mu), m(dv * 0.2), m(bt + mh)), 0.025, 6 if lod == 0 else 4,
+        su, sv = rk["mast"]["spread"]
+        for dv in (-sv, sv):
+            for du in (-su, su):
+                prims.cylinder(mb, (m(mu + du), m(dv), m(bt)), (m(mu), m(dv * 0.2), m(bt + mh)), 0.012, 6 if lod == 0 else 4,
                                st["galv"], caps=(False, False))
     else:
         prims.box(mb, (m(mu - 30), -0.1, m(bt)), (m(mu + 30), 0.1, m(bt + mh)), st["galv"])
@@ -521,7 +522,7 @@ def soffit(mb, t, end, cap, body, seam0, seam1, lod, st):
     if lod <= 1:
         stops |= set(hatch)
     # the belly's open top: the soffit stops at the white tub's edge (round 2: it spanned the tub, through the wheel)
-    bh, bback, bcentre, bnose = belly_top(t, end)
+    bh, bback, bcentre, bnose, bhalf = belly_top(t, end)
     stops |= {bback, bcentre, bnose}
     k = bback
     while k < bcentre:
@@ -535,7 +536,7 @@ def soffit(mb, t, end, cap, body, seam0, seam1, lod, st):
         if lod <= 1 and hatch[0] <= u <= hatch[1]:
             cut.append((0.0, sl["hatchHalf"]))
         if bback < u < bnose:
-            cut.append((0.0, bh if u >= bcentre else math.sqrt(max(0.0, bh * bh - (bcentre - u) ** 2))))
+            cut.append((0.0, bhalf(u)))
         out, v = [], 0.0
         for a, b in sorted(cut):
             if a > v:
@@ -561,13 +562,24 @@ def soffit(mb, t, end, cap, body, seam0, seam1, lod, st):
 
 
 # -- belly -------------------------------------------------------------------------------------------------------
+def tray_corner(t, end, h):
+    """The tray's plan at half-width h: it follows the chairs' loop round the back, at the offset it keeps along the
+    straights (round 4, the photos: the white tub reaches out under the back cap; the drawn drive tray, -6500, is this
+    rule's -6507). Returns (corner centre u, corner centre v, corner radius)."""
+    cu, cv, rc, rv = rail_shape(t, end)
+    return cu, cv, rc + (h - rv)
+
+
 def belly_top(t, end):
-    """The belly's top edge in plan (mm): its half-width (the wall's plus its cove), the back, the round back's centre
-    and the nose."""
+    """The belly's top edge in plan (mm): its half-width (the wall's plus its cove), the back, the corners' centre u,
+    the nose, and its half-width at u."""
     b = t["belly"]
     h = b["section"][0][0] + b["cove"]
-    back = end["belly"]["backs"][0]
-    return h, back, back + h, max(end["belly"]["wedge"])
+    cu, cv, r = tray_corner(t, end, h)
+
+    def half(u):
+        return h if u >= cu else cv + math.sqrt(max(0.0, r * r - (cu - u) ** 2))
+    return h, cu - r, cu, max(end["belly"]["wedge"]), half
 
 
 def belly(mb, t, end, lod, st):
@@ -601,13 +613,19 @@ def belly(mb, t, end, lod, st):
             return wj
         return wj + (top - wj) * min(1.0, (u - uf) / (we - uf))
 
-    def ring(level, back):
+    def ring(level, back=None):
+        """A level's outline: its straights from the nose back to its corners, then round the back. With a back, a
+        semicircle (the keel, as drawn); without, the tray's plan round the chairs' loop (two corners and a straight)."""
         hj, wj, we = level
-        cu = back + hj
+        cu, cv, r = (back + hj, 0.0, hj) if back is not None else tray_corner(t, end, hj)
         pts = [(u, hj, level_w(wj, we, u)) for u in stations]
-        for i in range(kc + 1):
-            a = math.pi / 2 + math.pi * i / kc
-            pts.append((cu + hj * math.cos(a), hj * math.sin(a), wj))
+        half = kc // 2
+        for i in range(half + 1):
+            a = math.pi / 2 + math.pi / 2 * i / half
+            pts.append((cu + r * math.cos(a), cv + r * math.sin(a), wj))
+        for i in range(half + 1):
+            a = math.pi + math.pi / 2 * i / half
+            pts.append((cu + r * math.cos(a), -cv + r * math.sin(a), wj))
         pts += [(u, -hj, level_w(wj, we, u)) for u in reversed(stations)]
         return pts
 
@@ -621,6 +639,8 @@ def belly(mb, t, end, lod, st):
     def loft(ra, rb):
         for i in range(len(ra) - 1):
             q = [ra[i], ra[i + 1], rb[i + 1], rb[i]]
+            if q[0] == q[1] and q[2] == q[3]:   # a semicircle's doubled back point
+                continue
             span = max(abs(q[0][2] - q[3][2]), abs(q[1][2] - q[2][2]), abs(q[0][1] - q[3][1]), abs(q[1][1] - q[2][1]),
                        abs(q[0][0] - q[3][0]), abs(q[1][0] - q[2][0]))
             if span < 1.0:   # a level that has already risen into the soffit: no band left
@@ -630,12 +650,14 @@ def belly(mb, t, end, lod, st):
 
     # the tray (its walls, back to backs[1]) over the keel (from keelTop down); where the tray reaches further back
     # than the keel (the drive) its bottom is flat behind the keel, whose back drops plumb (round 2)
-    tray = [ring(lv, backs[0] if k < len(cove) else backs[1]) for k, lv in enumerate(tray_levels)]
+    tray = [ring(lv) for lv in tray_levels]
+    tray_back = tray_corner(t, end, tray_levels[-1][0])
+    tray_back = tray_back[0] - tray_back[2]
     keel = [ring(keel_levels[0], keel_top), ring(keel_levels[1], backs[2]), ring(keel_levels[2], backs[3])]
     for ra, rb in zip(tray, tray[1:]):
         loft(ra, rb)
-    if keel_top != backs[1]:
-        down = backs[1] < keel_top
+    if abs(keel_top - tray_back) > 1:
+        down = tray_back < keel_top
         for i in range(len(tray[-1]) - 1):
             q = [tray[-1][i], tray[-1][i + 1], keel[0][i + 1], keel[0][i]]
             pts = [Vector(p) for p in q]

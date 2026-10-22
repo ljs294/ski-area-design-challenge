@@ -5,7 +5,9 @@
 //   UV1 (data)     x = snow capacity, y = livery mask (the drive hood takes _LiveryColor)
 //   colour R       baked ambient occlusion
 // Snow settles on up-facing surfaces (the tree formula), scaled by capacity and _SnowLoad. Glass is the same
-// shader with _LIFT_GLASS: alpha blended, no shadows or depth, so the drive's interior shows through.
+// shader with _LIFT_GLASS: premultiplied alpha (only its diffuse fades, its reflection stays whole) with a Fresnel
+// opacity from _GlassAlpha face-on to 0.95 at grazing angles, no shadows or depth, so the interior shows through dark
+// mirror glass (lift models 2, round 3: straight alpha scaled the reflection too and turned glass into a dull tint).
 Shader "MountainPlanner/LiftStructure"
 {
     Properties
@@ -19,7 +21,7 @@ Shader "MountainPlanner/LiftStructure"
         _SnowLoad ("Snow load", Range(0, 1)) = 1
         _SnowColor ("Snow colour", Color) = (0.93, 0.95, 0.98, 1)
         _SnowSmoothness ("Snow smoothness", Range(0, 1)) = 0.3
-        _GlassAlpha ("Glass opacity", Range(0, 1)) = 0.6
+        _GlassAlpha ("Glass opacity face-on", Range(0, 1)) = 0.45
         [Toggle(_LIFT_GLASS)] _Glass ("Glass", Float) = 0
         [HideInInspector] _SrcBlend ("Src blend", Float) = 1
         [HideInInspector] _DstBlend ("Dst blend", Float) = 0
@@ -85,6 +87,9 @@ Shader "MountainPlanner/LiftStructure"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma shader_feature_local_fragment _LIFT_GLASS
+            #if defined(_LIFT_GLASS)
+                #define _ALPHAPREMULTIPLY_ON   // URP scales only the diffuse by alpha; blend One, OneMinusSrcAlpha
+            #endif
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
@@ -193,13 +198,15 @@ Shader "MountainPlanner/LiftStructure"
                 surface.occlusion = lerp(1.0h, i.ao, _AOStrength) * cavity;
                 surface.alpha = 1.0h;
                 #if defined(_LIFT_GLASS)
-                    surface.alpha = _GlassAlpha;
+                    half facing = 1.0h - saturate(dot(input.normalWS, input.viewDirectionWS));
+                    half glassAlpha = lerp((half)_GlassAlpha, 0.95h, facing * facing * facing * facing);
+                    surface.alpha = glassAlpha;
                 #endif
 
                 half4 color = UniversalFragmentPBR(input, surface);
                 color.rgb = MixFog(color.rgb, input.fogCoord);
                 #if defined(_LIFT_GLASS)
-                    color.a = _GlassAlpha;
+                    color.a = glassAlpha;
                 #else
                     color.a = 1.0h;
                 #endif

@@ -130,7 +130,7 @@ namespace MountainPlanner.Editor
             if (glass)
             {
                 m.SetOverrideTag("RenderType", "Transparent");
-                if (m.HasProperty("_SrcBlend")) m.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+                if (m.HasProperty("_SrcBlend")) m.SetFloat("_SrcBlend", (float)BlendMode.One);   // premultiplied (shader)
                 if (m.HasProperty("_DstBlend")) m.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
                 if (m.HasProperty("_ZWrite")) m.SetFloat("_ZWrite", 0);
                 m.renderQueue = (int)RenderQueue.Transparent;

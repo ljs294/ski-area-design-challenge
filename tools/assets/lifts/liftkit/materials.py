@@ -165,8 +165,21 @@ def make(name, palette_img, livery_rgb=(0.72, 0.12, 0.09), snow=0.0, glass=False
     lv.name = "Livery"
     lv.outputs[0].default_value = (*linear(livery_rgb), 1.0)
     L(lv.outputs[0], livery.inputs["B"])
-    if glass:
-        bsdf.inputs["Alpha"].default_value = 0.6
+    if glass:   # as LiftStructure.shader: opacity 0.45 face-on to 0.95 grazing, the mirror reflection kept whole
+        lw = N("ShaderNodeLayerWeight")
+        lw.inputs["Blend"].default_value = 0.5
+        f2 = math("MULTIPLY", lw.outputs["Facing"], lw.outputs["Facing"])
+        L(math("ADD", 0.45, math("MULTIPLY", math("MULTIPLY", f2, f2), 0.5)), bsdf.inputs["Alpha"])
+        bsdf.inputs["Specular IOR Level"].default_value = 0.0
+        fres = N("ShaderNodeFresnel")
+        fres.inputs["IOR"].default_value = 1.52
+        gloss = N("ShaderNodeBsdfGlossy")
+        gloss.inputs["Roughness"].default_value = 0.04
+        mix = N("ShaderNodeMixShader")
+        L(fres.outputs["Fac"], mix.inputs["Fac"])
+        L(bsdf.outputs["BSDF"], mix.inputs[1])
+        L(gloss.outputs["BSDF"], mix.inputs[2])
+        L(mix.outputs[0], out.inputs["Surface"])
     nt.nodes.active = tex
     return m
 

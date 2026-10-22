@@ -159,18 +159,20 @@
       },
       "roofKit": {
         "postIn": 1200,
-        "postHeight": 600,
+        "postHeight": 450,
         "box": {
-          "from": 3500,
-          "length": 3000,
-          "half": 600,
-          "height": 400
+          "from": 3200,
+          "length": 2400,
+          "half": 450,
+          "height": 300
         },
         "mast": {
-          "height": 1500
+          "height": 500,
+          "spread": [150, 200],
+          "_mast": "owner, round 4: the 1.5 m A-frame read far too big"
         },
         "units": [[-3000, 1200], [3000, -1200]],
-        "unit": [800, 600, 450],
+        "unit": [600, 450, 300],
         "_roofKit": "photos: lifeline tripods at both ends with a cable along the crown, a low box with an A-frame mast at the line end, small roof units (u from the hood's middle, v)"
       },
       "lamps": {
