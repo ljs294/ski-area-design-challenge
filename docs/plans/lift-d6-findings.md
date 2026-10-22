@@ -22,6 +22,29 @@ P5 whole lift, V1 return, V2 drive, V3 grip.
 - **S2:** noticeable up close or in the Lift Lab.
 - **S3:** detail or polish.
 
+## Status after the fixes (2026-10-21, round 4 verify)
+
+The owner had everything but the towers fixed (section A and K1, K2, K3, K5 wait for the owner's tower plans).
+Three hostile reviewers then verified the work. Their round 4 fixes are in.
+
+- **Terminals (S, L):** 22 of 35 items fixed, 13 partly, none made worse. The one serious slip they found (the line
+  end's wall closed at LOD2-3) is fixed.
+- **Chair and grip (C):** 12 of 17 fixed, 4 partly, none made worse. Their new S2 items (stops facing the wrong way,
+  LOD2 gaps) are fixed.
+- **The station fit check:** the build now sends a chair round each station and out along the ropes at LOD0-2, and
+  fails on any clash. It would have caught every station clash above. Contacts must bear within 3 mm.
+
+**Still open:**
+- the glass shader (Gate 3, in Unity);
+- the springs at 6 points a turn and 4 sides (rounder ones cost about 740 triangles more);
+- the return's portals against its own end view;
+- smaller S3 polish: the return's back door, a deeper tub cove, the ring bead's height, the LOD line-up framing,
+  shots at the LOD switch distances;
+- the chairs' swing in the fit check;
+- the horns' catch range for swinging chairs.
+
+**Handed off:** the game list G1-G5 goes to the integration task.
+
 ## Verdict
 
 **Not ready for Gate 2.** There are 74 findings (16 S1, 38 S2, 20 S3), plus 5 review-tooling items and 16 decisions
