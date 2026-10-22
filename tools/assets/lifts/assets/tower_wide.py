@@ -177,7 +177,8 @@ def build(spec, lod, stage, variant):
     bs = m(lb["size"])
     bw0 = m(lb["w"])
     bl = m(lb["halfLength"])
-    prims.box(mb, (-bs / 2, -bl, bw0), (bs / 2, bl, bw0 + bs), st["galv"])
+    bl_in = bl - m(lb["endPlate"]["thick"])   # the end plates within the beam's length
+    prims.box(mb, (-bs / 2, -bl_in, bw0), (bs / 2, bl_in, bw0 + bs), st["galv"])
     lg = lb["legs"]
     ft_, tp = lg["foot"], lg["top"]
     for s in (-1, 1):
@@ -213,10 +214,10 @@ def build(spec, lod, stage, variant):
         ep = lb["endPlate"]   # end plates, a bore and four bolts
         pr = bs / 2 + m(ep["proud"])
         for s in (-1, 1):
-            v0, v1 = sorted((s * bl, s * (bl + m(ep["thick"]))))
+            v0, v1 = sorted((s * bl_in, s * bl))
             prims.box(mb, (-pr, v0, bw0 + bs / 2 - pr), (pr, v1, bw0 + bs / 2 + pr), st["galv"])
             if lod == 0:
-                vo = s * (bl + m(ep["thick"]))
+                vo = s * bl
                 prims.cylinder(mb, (0.0, vo, bw0 + bs / 2), (0.0, vo + s * 0.003, bw0 + bs / 2), m(ep["bore"]) / 2, 10, st["rubber"])
                 for bu in (-1, 1):
                     for bw_ in (-1, 1):
