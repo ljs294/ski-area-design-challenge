@@ -21,7 +21,7 @@ import bpy
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "assets"))
-from liftkit import ao, clash, export, frame, materials, palette, textures  # noqa: E402
+from liftkit import ao, clash, export, fit, frame, materials, palette, textures  # noqa: E402
 
 MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "chair", "sle_ground_gun": "sle_ground_gun",
            "terminal_footing": "terminal_footing",
@@ -193,6 +193,13 @@ def main():
         export.export_fbx(objs, path)
         own = spec if name in TOWER else spec_for(mod)
         problems = check_asset(kind, assets, rep, budgets, own, split)
+        if getattr(mod, "CHAIR", None):   # a detachable terminal: send its chair through the station (liftkit/fit.py)
+            t_fit = time.time()
+            cmod = importlib.import_module(mod.CHAIR)
+            fp, fs = fit.station(assets[0], cmod.build(spec_for(cmod), 0, stage))
+            problems += fp
+            print(f"{aid}: station fit, {fs['poses']} chair poses in {time.time() - t_fit:.1f} s: "
+                  + ("clear" if not fp else f"{len(fp)} problems"), flush=True)
         if tiling is not None and tiling > 0.01:
             problems.append(f"mast section AO differs by {tiling:.3f} between its top and bottom (> 0.01)")
         a0 = assets[0]

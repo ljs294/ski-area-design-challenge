@@ -31,6 +31,7 @@ from liftkit.prims import U, V, W
 KIND = "terminal_detach"
 LODS = 4
 SPEC = "sessellift_d6.json"
+CHAIR = "d6_chair"   # the chair the build sends through the station (liftkit/fit.py)
 VARIANTS = ("drive", "return")
 
 
@@ -203,8 +204,8 @@ def hood(mb, t, end, lod, st):
     ring(mb, h, cap, E0, E1, seam0, seam1, lod, st)
     end_wall(mb, h, cap, seam0, -1, False, lod, st)
     end_wall(mb, h, cap, seam1, 1, True, lod, st)
-    if lod <= 1:   # the lining, a hand's width inside, facing in (it shows through the soffit's slots and the glass)
-        lin_f = full(offset(cap, h["lining"]))
+    if lod <= 1:   # the lining, a hand's width inside the body (not the caps, which stand proud of it), facing in: it
+        lin_f = full(offset(body, h["lining"]))   # shows through the soffit's slots and the glass
         for a, b in zip(lin_f, lin_f[1:]):
             o = out(a, b)
             face(mb, [P(seam0, a), P(seam0, b), P(seam1, b), P(seam1, a)], st["lining"], (0.0, -o[1], -o[2]))
@@ -646,17 +647,18 @@ def build(spec, lod, stage, variant="return"):
     rope = c["ropeElevation"]
     hg = c["lineGauge"] / 2
 
-    hood(body, t, end, lod, st)
-    belly(body, t, end, lod, st)
-    frame_steel(body, t, end, lod, st)
-    chair_rail(body, t, end, lod, st)
-    horns(body, t, end, lod, st)
-    bend_sheaves(body, t, end, rope, lod, st)
-    carriage(body, t, end, lod, st)
-    front_mast(body, t, end, lod, st)
-    rear_leg(body, t, end, lod, st)
-    p1 = pier(body, end["pierFront"], t["pierDepth"], lod, st)
-    p2 = pier(body, end["pierRear"], t["pierDepth"], lod, st)
+    # each builder's faces are a named piece of the body ("#name"; the export folds them back into it), so the
+    # station fit check (liftkit/fit.py) can say what a chair met and knows the parts it may bear on (#rail)
+    for piece, make in (("#hood", hood), ("#belly", belly), ("#frame", frame_steel), ("#rail", chair_rail),
+                        ("#horns", horns), ("#carriage", carriage), ("#front_mast", front_mast),
+                        ("#rear_leg", rear_leg)):
+        with body.grouped(piece):
+            make(body, t, end, lod, st)
+    with body.grouped("#bend_sheaves"):
+        bend_sheaves(body, t, end, rope, lod, st)
+    with body.grouped("#piers"):
+        p1 = pier(body, end["pierFront"], t["pierDepth"], lod, st)
+        p2 = pier(body, end["pierRear"], t["pierDepth"], lod, st)
 
     tilt = t["bullwheel"]["tilt"]
     bw_w = t["bullwheel"]["w"][variant]

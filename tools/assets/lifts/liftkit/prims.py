@@ -86,9 +86,18 @@ def ring_points(center, axis, radius, sides, phase=0.0):
             for k in range(sides)]
 
 
-def cylinder(mb, p0, p1, r, sides, style, caps=(True, True), r1=None, phase=None, smooth=None):
+def fan(mb, ring_lift, center_lift, style, outward):
+    """A flat disc as triangles about its centre (one vertex there), not one n-gon: baked per-corner AO interpolates
+    across an n-gon's triangulation and draws a line over the disc."""
+    c = mb.vert(tuple(center_lift))
+    idx = mb.verts_lift(ring_lift)
+    for k in range(len(idx)):
+        mb.face([c, idx[k], idx[(k + 1) % len(idx)]], style, tuple(outward))
+
+
+def cylinder(mb, p0, p1, r, sides, style, caps=(True, True), r1=None, phase=None, smooth=None, fan_caps=False):
     """Cylinder (or frustum when r1 is given) from p0 to p1; sides smooth (from six sides, unless smooth says
-    otherwise, as for a hex nut), caps flat."""
+    otherwise, as for a hex nut), caps flat (fan_caps: as triangle fans, see fan())."""
     p0, p1 = vec(p0), vec(p1)
     axis = p1 - p0
     r1 = r if r1 is None else r1
@@ -101,13 +110,17 @@ def cylinder(mb, p0, p1, r, sides, style, caps=(True, True), r1=None, phase=None
         k1 = (k + 1) % sides
         ang = ph + 2 * math.pi * (k + 0.5) / sides
         mb.face([a[k], a[k1], b[k1], b[k]], side, tuple(y * math.cos(ang) + z * math.sin(ang)))
-    flat = style.but(smooth=False)
+    flat = style.but(smooth=False, group=None)
     if caps[0] and r > 0:
-        ca = mb.verts_lift(ring_points(p0, axis, r, sides, ph))
-        mb.face(ca, flat, tuple(-axis))
+        if fan_caps:
+            fan(mb, ring_points(p0, axis, r, sides, ph), p0, flat, -axis)
+        else:
+            mb.face(mb.verts_lift(ring_points(p0, axis, r, sides, ph)), flat, tuple(-axis))
     if caps[1] and r1 > 0:
-        cb = mb.verts_lift(ring_points(p1, axis, r1, sides, ph))
-        mb.face(cb, flat, tuple(axis))
+        if fan_caps:
+            fan(mb, ring_points(p1, axis, r1, sides, ph), p1, flat, axis)
+        else:
+            mb.face(mb.verts_lift(ring_points(p1, axis, r1, sides, ph)), flat, tuple(axis))
 
 
 def tube_path(mb, pts, r, sides, style, caps=True, closed=False):
