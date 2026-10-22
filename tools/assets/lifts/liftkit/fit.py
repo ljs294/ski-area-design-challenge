@@ -25,6 +25,8 @@ STEP = 0.050    # pose spacing along the path (m)
 OUT = 2.5       # how far past the hood's line end the chair is followed along the ropes (m)
 CONTACTS = {"#rail": "wheels", "#tyres": "tyre plate", "#openrail": "top roller"}
 TOUCH = 0.003   # a contact zone must come within this of its piece somewhere, and never sink deeper into it (m)
+THUMP = 0.050   # how far a passing grip may ride into a line sheave: real grips lift it as they pass (round 3, P5-14)
+TRAIN = ("sheave_", "rocker_", "yoke_", "eq_", "link_", "block_")   # a head's sheave trains: built to pass grips closely
 # pieces built to guide a passing grip closely: these zones may come near them (no `clear` needed) but never into them
 GUIDES = {"#horns": ("guide roller", "grip and arm"), "#bend_sheaves": ("grip and arm", "wheels"),
           "#tyres": ("grip and arm",), "#openrail": ("grip and arm",), "#openrail_hangers": ("top roller", "grip and arm"),
@@ -192,3 +194,107 @@ def station(asset, chair, clear=CLEAR, step=STEP):
         problems += [f"fit: the turning bullwheel meets {name} at u {c[0] * 1000:.0f}, v {c[1] * 1000:.0f}, w {c[2] * 1000:.0f}"
                      for name, c in sorted(hit.items())]
     return problems, {"poses": len(poses), "clashes": len(clashes), "tight": len(near)}
+
+
+def tower(asset, chair, rope_r, sheave_r, clear=CLEAR, step=STEP, reach=3.0):
+    """Problems found sending `chair` (an Asset at LOD0) past a line tower head (an Asset at LOD0) on both ropes. The
+    rope is laid as the head's trains lay it: over each support sheave (under each hold-down one) and straight on for
+    `reach` past the row's ends. The grip pitches with the rope, the hanger hangs plumb from its hinge (contract M3).
+    The sheaves are contacts for the grip (it rides over them; a real grip lifts a sheave by a few millimetres: it may
+    not sink deeper than TOUCH); everything else needs `clear`."""
+    body, pieces = asset.body.split(pieces=True)
+    groups = {"structure": body, **pieces}
+    trees = {}
+    for name, mb in groups.items():
+        if not mb.faces:
+            continue
+        pts = _lift_points(mb)
+        trees[name] = (_tree(pts, [list(f) for f in mb.faces]), pts.min(0) - clear, pts.max(0) + clear,
+                       [pts[list(f)].mean(0) for f in mb.faces])
+    cv = _lift_points(chair.body)
+    cf = [list(f) for f in chair.body.faces]
+    grip = np.zeros(len(cv), dtype=bool)
+    for f, tg in zip(chair.body.faces, chair.body.tags):
+        if tg is not None and tg.split("#")[0] == "grip":
+            grip[list(f)] = True
+    fzone = [zone(cv[f].mean(0)) for f in cf]
+    vzone = [zone(p) for p in cv]
+    hinge = np.array(chair.pivots["hanger"]["pos"])
+    sign = _sign()
+    problems, touch, clashes, near = [], {}, {}, {}
+    up_w = np.array((0.0, 0.0, 1.0))
+    for side in (-1.0, 1.0):
+        rows = {}
+        for k, p in asset.pivots.items():
+            if k.startswith("sheave_") and p["pos"][1] * side > 0:
+                rows.setdefault(k.rstrip("0123456789"), []).append(p["pos"])
+        if not rows:
+            continue
+        rope_w = asset.sockets["rope_right" if side > 0 else "rope_left"][2]
+        # the row the rope rests on: a support row under it if there is one, else the hold-down row over it
+        under = [k for k in rows if max(p[2] for p in rows[k]) < rope_w]
+        key = under[0] if under else next(iter(rows))
+        axles = sorted(rows[key])
+        upd = 1.0 if under else -1.0
+        line = [Vector((p[0], p[1], p[2] + upd * (sheave_r + rope_r))) for p in axles]
+        d0, d1 = (line[0] - line[1]).normalized(), (line[-1] - line[-2]).normalized()
+        route = [line[0] + d0 * reach] + line + [line[-1] + d1 * reach]
+        if side < 0:   # outboard is right of the travel: +u on the +v rope, -u on the -v rope
+            route.reverse()
+        for a_, b_ in zip(route, route[1:]):
+            dd = b_ - a_
+            ln = dd.length
+            if ln < 1e-9:
+                continue
+            t3 = dd.normalized()
+            flat = Vector((t3.x, t3.y, 0.0)).normalized()
+            nrm = Vector((-flat.y, flat.x, 0.0))
+            up3 = nrm.cross(t3).normalized()
+            if up3.z < 0:
+                up3 = -up3
+            steps = max(1, int(ln / step))
+            for i in range(steps):
+                o = np.array(a_ + dd * (i / steps))
+                hw = o + hinge[1] * np.array(nrm) + hinge[2] * np.array(up3)
+                xg = o[None, :] + np.outer(cv[:, 0], np.array(t3)) + np.outer(cv[:, 1], np.array(nrm)) + np.outer(cv[:, 2], np.array(up3))
+                xh = (hw[None, :] + np.outer(cv[:, 0], np.array(flat)) + np.outer(cv[:, 1] - hinge[1], np.array(nrm))
+                      + np.outer(cv[:, 2] - hinge[2], up_w))
+                x = np.where(grip[:, None], xg, xh)
+                lo, hi = x.min(0), x.max(0)
+                ct = None
+                for name, (tree, blo, bhi, centres) in trees.items():
+                    if (hi < blo).any() or (lo > bhi).any():
+                        continue
+                    sheave = name.startswith("sheave_")
+                    if ct is None:
+                        ct = _tree(x, cf)
+                    train = name.startswith(TRAIN)
+                    bad = [(i_, j) for i_, j in ct.overlap(tree) if not (sheave and fzone[i_] in ("grip and arm", "wheels"))]
+                    if bad:
+                        k2 = (name.rstrip("0123456789"), ", ".join(sorted({fzone[i_] for i_, _ in bad})))
+                        e = clashes.setdefault(k2, [0, centres[bad[0][1]]])
+                        e[0] += 1
+                        continue
+                    for vi in np.nonzero(np.all((x >= blo) & (x <= bhi), axis=1))[0]:
+                        r = tree.find_nearest(Vector(x[vi]), clear)
+                        if r[0] is None:
+                            continue
+                        if sheave and vzone[vi] in ("grip and arm", "wheels"):
+                            sd = sign * (Vector(x[vi]) - r[0]).dot(r[1])
+                            touch[name] = min(touch.get(name, 1e9), sd)
+                            continue
+                        if train and vzone[vi] != "hanger" and vzone[vi] != "chair body":
+                            continue
+                        k2 = (name.rstrip("0123456789"), vzone[vi])
+                        if k2 not in near or r[3] < near[k2][0]:
+                            near[k2] = (r[3], tuple(r[0]))
+    for (name, zones), (count, c) in sorted(clashes.items()):
+        problems.append(f"fit: chair ({zones}) passes through {name} at {count} poses, e.g. at "
+                        f"u {c[0] * 1000:.0f}, v {c[1] * 1000:.0f}, w {c[2] * 1000:.0f}")
+    for (name, z), (d, c) in sorted(near.items()):
+        problems.append(f"fit: chair ({z}) passes {name} {d * 1000:.1f} mm away (< {clear * 1000:.0f}) at "
+                        f"u {c[0] * 1000:.0f}, v {c[1] * 1000:.0f}, w {c[2] * 1000:.0f}")
+    deep = min(touch.values(), default=0.0)
+    if deep < -THUMP:
+        problems.append(f"fit: the grip rides {-deep * 1000:.1f} mm into a sheave (> {THUMP * 1000:.0f})")
+    return problems, {"clashes": len(clashes), "tight": len(near), "thump": round(-deep * 1000, 1)}

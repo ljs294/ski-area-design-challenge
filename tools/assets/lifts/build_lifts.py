@@ -34,7 +34,7 @@ MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "cha
            # the Sessellift D6 detachable six-pack (lift models 2)
            "d6_chair": "d6_chair", "d6_drive": ("d6_terminal", "drive"), "d6_return": ("d6_terminal", "return")}
 # the D6's wide heads (assets/tower_wide.py): one per Sessellift head type, at the D6's gauge
-MODULES.update({f"d6_tower_{h}": ("tower_wide", h) for h in ("s4", "s6", "b8", "d8", "c8")})
+MODULES.update({f"d6_tower_{h}": ("tower_wide", h) for h in ("s4", "s6", "s10", "b8", "d8", "c8")})
 # the line tower kit (assets/tower.py): name -> variant
 TOWER = {"tower_s4": "s4", "tower_s6": "s6", "tower_b8": "b8", "tower_d8": "d8", "tower_c8": "c8",
          "tower_mast": "mast", "tower_base": "base"}
@@ -43,7 +43,7 @@ TOWER.update({f"tower_base_l{d:03d}": f"base_l{d:03d}" for d in range(25, 151, 2
 SLE = ("sle_stick_gun_10", "sle_stick_gun_20", "sle_stick_gun_30", "sle_ground_gun")
 MONTA = ("monta_drive", "monta_return")
 CHAIRWORKS = ("chairworks_chair_detach", "chairworks_chair_fixed")
-D6 = ("d6_drive", "d6_return", "d6_chair") + tuple(f"d6_tower_{h}" for h in ("s4", "s6", "b8", "d8", "c8"))
+D6 = ("d6_drive", "d6_return", "d6_chair") + tuple(f"d6_tower_{h}" for h in ("s4", "s6", "s10", "b8", "d8", "c8"))
 ALL = ("drive,return,terminal_footing,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA) + "," + ",".join(CHAIRWORKS)
        + "," + ",".join(D6))
 
@@ -196,13 +196,16 @@ def main():
         if getattr(mod, "CHAIR", None):   # a detachable terminal: send its chair through the station (liftkit/fit.py)
             t_fit = time.time()
             cmod = importlib.import_module(mod.CHAIR)
-            fp, fs = [], {"poses": 0}
-            for lod in range(min(len(assets), 3)):   # every LOD the chairs are drawn against in the station (round 4)
-                lp, fs = fit.station(assets[lod], cmod.build(spec_for(cmod), lod, stage))
-                fp += [f"LOD{lod} {p}" for p in lp]
+            fp = []
+            if kind == "tower_head_wide":   # the chair past the head on both ropes (towers, Gate 1)
+                ls = __import__("liftkit.parts", fromlist=["line_spec"]).line_spec(spec_for(mod))
+                fp, _ = fit.tower(assets[0], cmod.build(spec_for(cmod), 0, stage), ls["ropeR"], ls["sheave"]["dia"] / 2)
+            else:
+                for lod in range(min(len(assets), 3)):   # every LOD the chairs are drawn against in the station (round 4)
+                    lp, _ = fit.station(assets[lod], cmod.build(spec_for(cmod), lod, stage))
+                    fp += [f"LOD{lod} {p}" for p in lp]
             problems += fp
-            print(f"{aid}: station fit, {fs['poses']} chair poses in {time.time() - t_fit:.1f} s: "
-                  + ("clear" if not fp else f"{len(fp)} problems"), flush=True)
+            print(f"{aid}: fit in {time.time() - t_fit:.1f} s: " + ("clear" if not fp else f"{len(fp)} problems"), flush=True)
         if tiling is not None and tiling > 0.01:
             problems.append(f"mast section AO differs by {tiling:.3f} between its top and bottom (> 0.01)")
         a0 = assets[0]

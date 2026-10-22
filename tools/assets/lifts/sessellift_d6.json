@@ -495,37 +495,113 @@
     }
   },
   "towerWide": {
-    "_about": "The D6 line heads (owner LM3, LM5): photo style, built from the gauge so the same kit makes any gauge. On the mast cap a box crossarm reaching overhang past each rope; above it a lifting beam on two posts, tied to the crossarm by inclined braces (the trapezoid the photos show); a grated platform with railings along the crossarm's platform side (+u) between the ropes; the mast ladder up through a hatch. Each rope's sheave assembly hangs on lug plates under the crossarm's end, its pin lugs.hang below it, as on the Sessellift kit, so the rope's height at the head follows the head type. Sheave assemblies and head types (s4 ... c8) are the Sessellift kit's (tower.assembly, tower.heads).",
+    "_about": "The D6 line heads, measured on the owner's reference tower (Gate 0, 2026-10-21; local, never in the repo) and built from the gauge: a cap on the kit's straight mast, a haunched crossarm ending just inboard of each rope, end blocks carrying the shaft each sheave train hangs from (the rope's height follows the train), the kit's sheave assemblies unchanged, a lifting beam on two outward-leaning legs with lugs over each rope and a hoist rail, stepped walkways inboard of each train 700 below the rope, two caged platforms on the +u face, the mast ladder to the beam and side ladders. mm; w above the mast top; v measured in from the rope where noted.",
+    "heads": {
+      "s4": {
+        "support": 4,
+        "arc": "flat"
+      },
+      "s6": {
+        "support": 6,
+        "arc": "flat"
+      },
+      "s10": {
+        "support": 10,
+        "arc": "flat"
+      },
+      "b8": {
+        "support": 8,
+        "arc": "breakover"
+      },
+      "d8": {
+        "hold": 8,
+        "arc": "breakover"
+      },
+      "c8": {
+        "combo": 4,
+        "arc": "combo"
+      }
+    },
     "cap": {
-      "half": 420,
-      "thick": 40
+      "halfU": 360,
+      "halfV": 345,
+      "thick": 60
     },
     "crossarm": {
-      "width": 420,
-      "depth": 520,
-      "overhang": 450
+      "width": 330,
+      "bottom": 300,
+      "top": 660,
+      "endInset": 67,
+      "haunch": {
+        "from": 1510,
+        "to": 360
+      }
     },
+    "shaft": {
+      "w": 480,
+      "dia": 230,
+      "stub": 410
+    },
+    "endBlock": {
+      "halfU": 274,
+      "v": [530, 140],
+      "w": [-120, 800],
+      "_v": "in from the rope"
+    },
+    "hangDrop": 550,
+    "_hangDrop": "support and combination trains hang on a link from the shaft, the rope this far below it (Gate 0)",
     "liftingBeam": {
-      "width": 260,
-      "depth": 300,
-      "above": 1500,
-      "postV": 600,
-      "braceV": 1900
+      "size": 200,
+      "w": 1780,
+      "halfLength": 2755,
+      "legs": {
+        "foot": 1950,
+        "top": 2400,
+        "halfU": 235,
+        "thick": 150
+      },
+      "lugs": {
+        "v": [240, 80],
+        "halfU": 130,
+        "thick": 20,
+        "drop": 340,
+        "_v": "in from the rope"
+      },
+      "rail": {
+        "v": [140, 1980],
+        "size": [120, 94]
+      }
+    },
+    "walkway": {
+      "inner": 1010,
+      "outer": 490,
+      "below": 700,
+      "tread": 400,
+      "pitch": 445,
+      "past": 250,
+      "railing": 1000,
+      "stringer": [80, 140],
+      "hanger": {
+        "v": 1700,
+        "dia": 60
+      },
+      "plate": {
+        "halfU": 370,
+        "v": [1180, 1010]
+      },
+      "_v": "inner, outer, plate in from the rope; hanger.v from the axis"
     },
     "platform": {
-      "depth": 900,
-      "inset": 350,
-      "gap": 120,
-      "railing": 1100
+      "u": [310, 830],
+      "v": [590, 1510],
+      "deckW": 560,
+      "railing": 1000
     },
-    "lugs": {
-      "halfU": 130,
-      "thick": 30,
-      "past": 90,
-      "hang": 320
+    "sideLadder": {
+      "v": 1510,
+      "u": 540,
+      "width": 250
     },
-    "hatch": 300,
-    "grabRail": 1000,
     "numberPlate": {
       "halfV": 200,
       "height": 260,

@@ -191,7 +191,7 @@ def arc_axles(a, count, radius, level="apex"):
     up to the row and bends through all of it, as at the return terminal where the line leaves the station
     climbing; u = 0 is then the middle of the chord."""
     p, g, t = a["pitch"], a["rockerGap"], a["trainGap"]
-    chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p]}[count]
+    chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p], 10: [p, g, p, t, p, g, p, t, p]}[count]
     angs = [0.0]
     for ch in chords:
         angs.append(angs[-1] + 2 * math.asin(ch / (2 * radius)))
@@ -210,7 +210,7 @@ def hold_rope(a, count, radius, u_first, rope_w, steps=16, mode="hold"):
     descending (mode "support"). u_first is the first axle's u."""
     rho = a["ropeR"] + a["sheave"]["dia"] / 2          # axle to the rope's centreline
     p, g, t = a["pitch"], a["rockerGap"], a["trainGap"]
-    chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p]}[count]
+    chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p], 10: [p, g, p, t, p, g, p, t, p]}[count]
     theta = sum(2 * math.asin(ch / (2 * radius)) for ch in chords)
     rr = radius + rho                                  # the rope's circle, about the axle circle's centre
     sg = 1.0 if mode == "hold" else -1.0               # the centre is above a hold-down row, below a support row
@@ -343,7 +343,7 @@ def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, f
     return {"axles": axles, "rockers": rocker_pins, "trains": trains, "local": local, "span": span, "sg": sg}
 
 
-def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, radius, first=1, level="apex"):
+def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, radius, first=1, level="apex", outer_yoke=True):
     """A line-tower sheave assembly on one rope, after the owner's reference model (spec "tower.assembly", metres):
     a row of sheaves on an arc of `radius` (support: the rope rides on them and the chain hangs below; hold: the
     mirror image, pressing down on the rope), rockers and train yokes (see _row), a cross tube from each yoke's
@@ -359,7 +359,7 @@ def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, 
     else:
         top = f"eq_{name}"
         yokes = [f"yoke_{name}{j // 2 + 1}" if j + 1 < n_rockers else f"link_{name}1" for j in range(0, n_rockers, 2)]
-    row = _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, True, level, top, yokes)
+    row = _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, outer_yoke, level, top, yokes)
     span, local = row["span"], row["local"]
     carry = row["trains"]
     if lod <= 1:   # cross tubes from the yokes to the beam
