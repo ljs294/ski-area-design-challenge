@@ -623,32 +623,17 @@
       }
     },
     "walkway": {
-      "_walkway": "trains of ten only: one panel per rocker, riding it (its deck 700 below the rope at the rocker's middle, treads level at rest), hung on two flat-bar arms from the rocker's inboard plate; joints between panels; railing on the inner side, open over the middle panel (crossarm, side ladder)",
+      "_walkway": "trains of ten only, as the reference: one inner stringer with level treads stepping 700 below the rope on cross-bearers, carried by a single hanger post (on a saddle) and beam from the train's main yoke, so it turns with the train (owner, Gate 1 v4: no supports off each rocker); railing on the inner side, open over the hanger and the side ladder; end cages",
       "minSheaves": 10,
       "inner": 1010,
       "outer": 490,
       "below": 700,
-      "joint": 60,
-      "jointHold": 120,
-      "past": 400,
-      "tread": {
-        "u": 380,
-        "thick": 30
-      },
-      "treads": 3,
+      "past": 250,
+      "pitch": 445,
+      "tread": {"u": 400, "thick": 30},
       "stringer": [110, 140],
-      "arms": {
-        "x": [96, 110],
-        "width": 60,
-        "at": 130,
-        "bearer": 60
-      },
-      "railing": {
-        "height": 1000,
-        "knee": 500,
-        "bar": [20, 40],
-        "post": [30, 25]
-      }
+      "hanger": {"u": -450, "post": [300, 150], "beam": 150, "open": [-700, 600]},
+      "railing": {"height": 1000, "knee": 500, "bar": [20, 40], "post": [30, 25]}
     },
     "platform": {
       "u": [310, 830],
@@ -710,8 +695,8 @@
         "leg": 195,
         "plate": 20,
         "boss": 180,
-        "holdDepth": 220,
-        "holdLift": 25
+        "holdDepth": 210,
+        "holdLift": 40
       },
       "pinHead": [110, 100]
     },

@@ -14,8 +14,8 @@ foundations):
                lower (owner, 2026-10-22)
   lifting beam above, on two tapered box legs leaning out from the crossarm, with lifting eyes over each rope, end
                plates and a hoist bar on standoffs
-  walkways     on trains of ten only (owner): one panel per rocker, riding it, so it turns with its two sheaves; railed
-               on the inner side; two small caged platforms on the crossarm's +u face; the mast ladder carried on up to
+  walkways     on trains of ten only (owner): one stringer with stepped treads on a single hanger from the train's
+               yoke, so it turns with the train (owner, Gate 1 v4: no supports off each rocker); railed on the inner side; two small caged platforms on the crossarm's +u face; the mast ladder carried on up to
                the beam, side ladders from the platforms down to the walkways
   number plate a light plate on the crossarm's uphill (-u) face
 
@@ -255,7 +255,8 @@ def build(spec, lod, stage, variant):
     decks = {}
     if n_row >= wk["minSheaves"] and lod <= 2:
         for side in (-1, 1):
-            decks[side] = walkway(mb, rockers[side], tops[side], side * hg, mode, asm, wk, lod, st)
+            yoke_w = pin_w + (tr["yoke"]["holdLift"] if mode == "hold" else 0.0)
+            decks[side] = walkway(mb, rockers[side], tops[side], side * hg, mode, asm, wk, lod, st, tr["yoke"]["x"][1], yoke_w)
 
     # the two small caged platforms on the crossarm's +u face, the ladder on up to the beam, side ladders to the walkways
     if lod <= 1:
@@ -303,89 +304,87 @@ def build(spec, lod, stage, variant):
     return a
 
 
-def walkway(mb, rockers, top, v_rope, mode, asm, wk, lod, st):
-    """One rope's walkway: a panel per rocker, in the rocker's part (LOD0-1) so it turns with its sheaves; at LOD2 a slab
-    per rocker under the train's top. Returns the panels' deck lines [(u0, w0, u1, w1)] at rest, for the side ladder."""
+def walkway(mb, rockers, top, v_rope, mode, asm, wk, lod, st, yoke_x, yoke_w):
+    """One rope's walkway, as the reference: one stringer along the train with stepped treads on cross-bearers, carried
+    by a single hanger post and beam at the middle, here from the train's main yoke (owner, Gate 1 v4: no supports
+    off the rockers), so the whole walkway turns with the train. Railed on the inner side, open over the middle (the
+    hanger, the side ladder). Returns its deck line [(u0, w0, u1, w1)] at rest, for the side ladder."""
     inb = -1.0 if v_rope > 0 else 1.0
 
     def vx(x):
         return v_rope + inb * x
     rho = asm["sheave"]["dia"] / 2 + asm["ropeR"]
+    pts = sorted(((p - rk["n"] * rho) for rk in rockers for p in rk["axles"]), key=lambda p: p.x)
+    line = [(p.x, p.z - m(wk["below"])) for p in pts]   # the deck: the rope's line over the sheaves, this far below it
+
+    def at(u):
+        if u <= line[0][0]:
+            (u0_, w0), (u1_, w1) = line[0], line[1]
+        elif u >= line[-1][0]:
+            (u0_, w0), (u1_, w1) = line[-2], line[-1]
+        else:
+            for (u0_, w0), (u1_, w1) in zip(line, line[1:]):
+                if u0_ <= u <= u1_:
+                    break
+        return w0 + (w1 - w0) * (u - u0_) / ((u1_ - u0_) or 1.0)
+    u0, u1 = line[0][0] - m(wk["past"]), line[-1][0] + m(wk["past"])
     x_in, x_out = m(wk["inner"]), m(wk["outer"])
     tt = m(wk["tread"]["thick"])
-    joint = m(wk["jointHold"] if mode == "hold" else wk["joint"])
-    gap_half = None
-    decks = []
-    n = len(rockers)
-    for i, rk in enumerate(rockers):
-        d, nn, mid = rk["d"], rk["n"], rk["mid"]
-        up = Vector((-d.z, 0.0, d.x))                       # the deck's normal (d runs toward +u)
-        p0, p1 = rk["axles"]
-        h = (p1 - p0).length / 2
-        if gap_half is None and n > 1:
-            gap_half = ((rockers[1]["mid"] - rockers[0]["mid"]).length - 2 * h) / 2
-        rope_pt = mid - nn * rho
-        deck0 = rope_pt - W * m(wk["below"])                 # the deck's line, at rest, along the rocker's chord
-        sa = -(h + m(wk["past"])) if i == 0 else -(h + gap_half - joint / 2)
-        sb = (h + m(wk["past"])) if i == n - 1 else (h + gap_half - joint / 2)
-
-        def at(s_):
-            return deck0 + d * s_
-        a_, b_ = at(sa), at(sb)
-        decks.append((a_.x, a_.z, b_.x, b_.z))
-        group = rk["name"] if lod <= 1 else top
-        with mb.grouped(group):
-            if lod >= 2:   # a slab
-                c_ = (a_ + b_) / 2
-                prims.obox(mb, (c_.x, vx((x_in + x_out) / 2), c_.z - 0.03), (d, V, up), ((sb - sa) / 2, (x_in - x_out) / 2, 0.03),
-                           st["grating"])
-                continue
-            sw, sd = (m(x) for x in wk["stringer"])
-            sc = (a_ + b_) / 2 - W * (tt + sd / 2)
-            prims.obox(mb, (sc.x, vx(x_in + sw / 2), sc.z), (d, V, up), ((sb - sa) / 2, sw / 2, sd / 2), st["galv"])
-            if lod == 0:   # level treads at rest, stepping with the panel
-                k_n = wk["treads"]
-                tu = m(wk["tread"]["u"])
-                for k in range(k_n):
-                    s_ = sa + tu / 2 + (sb - sa - tu) * (k / (k_n - 1) if k_n > 1 else 0.5)
-                    p = at(s_)
-                    parts.deck(mb, (p.x - tu / 2, min(vx(x_in), vx(x_out)), p.z - tt), (p.x + tu / 2, max(vx(x_in), vx(x_out)), p.z),
-                               lod, st["grating"], channels=False)
-            else:          # one plate along the panel
-                c_ = (a_ + b_) / 2
-                prims.obox(mb, (c_.x, vx((x_in + x_out) / 2), c_.z - tt / 2), (d, V, up), ((sb - sa) / 2, (x_in - x_out) / 2, tt / 2),
-                           st["grating"])
-            ar = wk["arms"]   # two flat-bar arms from the rocker's inboard plate down past the sheave, then inboard
-            av0, av1 = sorted((vx(m(ar["x"][0])), vx(m(ar["x"][1]))))
-            for e in (-1, 1):
-                s_ = e * m(ar["at"])
-                top_p = mid + d * s_ + nn * 0.15
-                bot_w = at(s_).z - tt - sd - m(ar["bearer"])
-                u_, aw = top_p.x, m(ar["width"]) / 2
-                prims.box(mb, (u_ - aw, av0, min(bot_w, top_p.z)), (u_ + aw, av1, max(bot_w, top_p.z)), st["galv"])
-                v0, v1 = sorted((vx(m(ar["x"][0])), vx(x_in + sw)))
-                prims.box(mb, (u_ - 0.02, v0, bot_w), (u_ + 0.02, v1, bot_w + m(ar["bearer"])), st["galv"])
-            rl = wk["railing"]   # the inner railing, open over the middle panel (the crossarm and the side ladder)
-            if abs(mid.x) > 0.65:
-                bar_w, bar_h = (m(x) for x in rl["bar"])
-                pw_, pd_ = (m(x) for x in rl["post"])
-                vr = vx(x_in - pw_ / 2)
-                ends = [sa + 0.03, (sa + sb) / 2, sb - 0.03] if lod == 0 else [sa + 0.03, sb - 0.03]
-                for s_ in ends:
-                    p = at(s_)
-                    prims.box(mb, (p.x - pd_ / 2, vr - pw_ / 2, p.z), (p.x + pd_ / 2, vr + pw_ / 2, p.z + m(rl["height"])), st["galv"])
-                for hh in ((m(rl["height"]), m(rl["knee"])) if lod == 0 else (m(rl["height"]),)):
-                    pa, pb = at(sa + 0.03) + W * hh, at(sb - 0.03) + W * hh
-                    prims.beam(mb, (pa.x, vr, pa.z - bar_h / 2), (pb.x, vr, pb.z - bar_h / 2), bar_w, bar_h, st["galv"])
-                if i in (0, n - 1):   # the end cage: posts and rails across the panel's end
-                    s_ = sa + 0.03 if i == 0 else sb - 0.03
-                    p = at(s_)
-                    vo = vx(x_out + pw_ / 2)
-                    prims.box(mb, (p.x - pd_ / 2, vo - pw_ / 2, p.z), (p.x + pd_ / 2, vo + pw_ / 2, p.z + m(rl["height"])), st["galv"])
-                    for hh in (m(rl["height"]), m(rl["knee"])):
-                        v0, v1 = sorted((vr, vo))
-                        prims.box(mb, (p.x - bar_w / 2, v0, p.z + hh - bar_h), (p.x + bar_w / 2, v1, p.z + hh), st["galv"])
-    return decks
+    sw, sd = (m(x) for x in wk["stringer"])
+    va, vb = sorted((vx(x_in), vx(x_out)))
+    with mb.grouped(top):
+        if lod >= 2:   # one slab each way from the middle
+            for ua, ub in ((u0, 0.0), (0.0, u1)):
+                pa = Vector(((ua + ub) / 2, (va + vb) / 2, (at(ua) + at(ub)) / 2 - 0.03))
+                d = Vector((ub - ua, 0.0, at(ub) - at(ua))).normalized()
+                prims.obox(mb, pa, (d, V, Vector((-d.z, 0.0, d.x))), ((ub - ua) / 2 / d.x, (vb - va) / 2, 0.03), st["grating"])
+            return [(u0, at(u0), u1, at(u1))]
+        pitch = m(wk["pitch"]) * (1 if lod == 0 else 2)
+        tu = m(wk["tread"]["u"]) * (1 if lod == 0 else 2)
+        n = max(2, round((u1 - u0 - tu) / pitch) + 1)
+        us = [u0 + tu / 2 + (u1 - u0 - tu) * k / (n - 1) for k in range(n)]
+        vs0, vs1 = sorted((vx(x_in), vx(x_in + sw)))
+        for u in us:   # level treads stepping with the rope, each on a cross-bearer from the stringer
+            w = at(u)
+            parts.deck(mb, (u - tu / 2, va, w - tt), (u + tu / 2, vb, w), lod, st["grating"], channels=False)
+            if lod == 0:
+                prims.box(mb, (u - 0.02, min(va, vs0), w - tt - 0.05), (u + 0.02, max(vb, vs1), w - tt), st["galv"])
+        for ua, ub in zip([u0] + us, us + [u1]):   # the stringer, under the treads' inner ends
+            prims.beam(mb, (ua, (vs0 + vs1) / 2, at(ua) - tt - sd / 2), (ub, (vs0 + vs1) / 2, at(ub) - tt - sd / 2), sw, sd, st["galv"])
+        hg_ = wk["hanger"]   # the hanger: a box post on a flared saddle, and a beam out to the yoke
+        pu, pv = m(hg_["post"][0]) / 2, m(hg_["post"][1])
+        uh = m(hg_["u"])   # clear of the end block's cheeks and the side ladder
+        x_p = x_in + sw / 2
+        w_foot = at(uh) - tt - sd
+        w_top = yoke_w + m(hg_["beam"]) / 2
+        p0, p1 = sorted((vx(x_p - pv / 2), vx(x_p + pv / 2)))
+        prims.box(mb, (uh - pu, p0, at(uh) - tt), (uh + pu, p1, w_top), st["galv"])
+        if lod == 0:
+            sad = [(-pu - 0.12, 0.0), (pu + 0.12, 0.0), (pu, 0.12), (-pu, 0.12)]
+            prims.prism(mb, sad, (uh, vx(x_in - 0.005), w_foot + sd - 0.01), U, W, V * inb, sw + 0.01, st["galv"])
+        b0, b1 = sorted((vx(yoke_x - 0.005), vx(x_p - pv / 2)))
+        hb = m(hg_["beam"]) / 2
+        prims.box(mb, (uh - hb, b0, yoke_w - hb), (uh + hb, b1, yoke_w + hb), st["galv"])
+        rl = wk["railing"]   # the inner railing in flat bar, open over the middle
+        bar_w, bar_h = (m(x) for x in rl["bar"])
+        pw_, pd_ = (m(x) for x in rl["post"])
+        vr = vx(x_in - pw_ / 2)
+        o0, o1 = (m(x) for x in hg_["open"])
+        for ua, ub in ((u0 + 0.03, o0), (o1, u1 - 0.03)):
+            k_n = max(1, round((ub - ua) / 1.0))
+            for k in range(k_n + 1):
+                u = ua + (ub - ua) * k / k_n
+                if lod == 0 or k in (0, k_n):
+                    prims.box(mb, (u - pd_ / 2, vr - pw_ / 2, at(u)), (u + pd_ / 2, vr + pw_ / 2, at(u) + m(rl["height"])), st["galv"])
+            for hh in ((m(rl["height"]), m(rl["knee"])) if lod == 0 else (m(rl["height"]),)):
+                prims.beam(mb, (ua, vr, at(ua) + hh - bar_h / 2), (ub, vr, at(ub) + hh - bar_h / 2), bar_w, bar_h, st["galv"])
+        for ue in (u0 + 0.03, u1 - 0.03):   # the end cages
+            vo = vx(x_out + pw_ / 2)
+            prims.box(mb, (ue - pd_ / 2, vo - pw_ / 2, at(ue)), (ue + pd_ / 2, vo + pw_ / 2, at(ue) + m(rl["height"])), st["galv"])
+            for hh in (m(rl["height"]), m(rl["knee"])):
+                c0, c1 = sorted((vr, vo))
+                prims.box(mb, (ue - bar_w / 2, c0, at(ue) + hh - bar_h), (ue + bar_w / 2, c1, at(ue) + hh), st["galv"])
+    return [(a, at(a), b, at(b)) for a, b in zip([u0] + us, us + [u1])]
 
 
 def side_ladder(mb, sl, s, top_w, decks, lod, st):
