@@ -265,7 +265,7 @@ def draw(row, top, rockers, axles, name, a, tr, count, mode, lod, st, top_name=N
                 for p in node["axles"]:
                     for x0, x1 in ((-rk["x"][0] - 0.002, -hw + 0.01), (hw - 0.01, rk["x"][0] + 0.002)):
                         prims.cylinder(row.mb, (p.x, row.v(x0), p.z), (p.x, row.v(x1), p.z), s["hub"] / 2 + 0.01,
-                                       8 if lod == 0 else 6, steel, caps=(False, False))
+                                       8 if lod == 0 else 4, steel, caps=(False, False))
     for node, parent in _walk(top):
         if node["kind"] == "beam4":
             draw_beam4(row, node, tr, mode, lod, st)

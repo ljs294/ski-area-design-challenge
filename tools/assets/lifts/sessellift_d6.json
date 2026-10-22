@@ -630,14 +630,30 @@
       "below": 700,
       "past": 250,
       "pitch": 445,
-      "tread": {"u": 400, "thick": 30},
+      "tread": {
+        "u": 400,
+        "thick": 30
+      },
       "stringer": [110, 140],
-      "hanger": {"u": -450, "post": [300, 150], "beam": 150, "open": [-700, 600]},
-      "railing": {"height": 1000, "knee": 500, "bar": [20, 40], "post": [30, 25]}
+      "hanger": {
+        "u": -450,
+        "post": [300, 150],
+        "beam": 150,
+        "open": [-700, 600]
+      },
+      "railing": {
+        "height": 1000,
+        "knee": 500,
+        "bar": [20, 40],
+        "post": [30, 25]
+      }
     },
     "platform": {
+      "_platform": "the two caged platforms on the crossarm's +u face, reaching toward the sheaves (owner, Gate 1 v6): to reach in from the rope (just inboard of the train's yoke), or to reachWalkway from the axis where a walkway runs below; railed on the +u face and the outer end",
       "u": [310, 830],
       "v": [590, 1510],
+      "reach": 500,
+      "reachWalkway": 1700,
       "deckW": 560,
       "railing": 1000,
       "deck": 15,
@@ -648,7 +664,8 @@
       "u": 330,
       "width": 250,
       "pitch": 300,
-      "above": 320
+      "above": 320,
+      "off": 20
     },
     "numberPlate": {
       "halfV": 200,

@@ -258,20 +258,28 @@ def build(spec, lod, stage, variant):
             yoke_w = pin_w + (tr["yoke"]["holdLift"] if mode == "hold" else 0.0)
             decks[side] = walkway(mb, a, rockers[side], tops[side], side * hg, mode, asm, wk, lod, st, tr["yoke"]["x"][1], yoke_w)
 
-    # the two small caged platforms on the crossarm's +u face, the ladder on up to the beam, side ladders to the walkways
+    # the two caged platforms on the crossarm's +u face, reaching out toward the sheaves (owner, Gate 1 v6): to just
+    # inboard of the train's yoke, or of the walkway where there is one; the ladder on up to the beam, side ladders from
+    # the platforms' outer ends down to the walkways
     if lod <= 1:
         pu0, pu1 = m(pf["u"][0]), m(pf["u"][1])
         dw = m(pf["deckW"])
+        d0 = dw - m(pf["deck"])
         for s in (-1, 1):
-            v0, v1 = sorted((s * m(pf["v"][0]), s * m(pf["v"][1])))
-            parts.deck(mb, (pu0, v0, dw - m(pf["deck"])), (pu1, v1, dw), lod, st["grating"], channels=False)
-            vb = s * (m(pf["v"][0]) + m(pf["v"][1])) / 2
-            for vk in (vb - s * 0.3, vb + s * 0.3):   # two cantilevers from the crossarm
-                prims.box(mb, (cw, vk - 0.056, dw - m(pf["deck"]) - 0.112), (pu1, vk + 0.056, dw - m(pf["deck"])), st["galv"])
-            guard = [Vector((pu1, s * m(pf["v"][0]), dw)), Vector((pu1, s * m(pf["v"][1]), dw))]   # the +u face only (review
-            parts.railing(mb, guard, m(pf["railing"]), lod, st["galv"], post_r=m(pf["post"]))       # T1 verify): ladders open
+            far = m(pf["reachWalkway"]) if s in decks else hg - m(pf["reach"])
+            v0, v1 = sorted((s * m(pf["v"][0]), s * far))
+            parts.deck(mb, (pu0, v0, d0), (pu1, v1, dw), lod, st["grating"], channels=False)
+            n_c = max(2, math.ceil((far - m(pf["v"][0])) / 0.6) + 1)
+            for k in range(n_c):   # cantilevers from the crossarm
+                vk = s * (m(pf["v"][0]) + 0.06 + (far - m(pf["v"][0]) - 0.12) * k / (n_c - 1))
+                prims.box(mb, (cw, vk - 0.056, d0 - 0.112), (pu1, vk + 0.056, d0), st["galv"])
+            guard = [Vector((pu1, s * m(pf["v"][0]), dw)), Vector((pu1, s * far, dw))]   # the +u face (review T1 verify)
+            parts.railing(mb, guard, m(pf["railing"]), lod, st["galv"], post_r=m(pf["post"]))
+            ue0 = pu0 if s not in decks else m(hw["sideLadder"]["u"]) + m(hw["sideLadder"]["width"]) / 2 + 0.03
+            parts.railing(mb, [Vector((ue0, s * far, dw)), Vector((pu1, s * far, dw))], m(pf["railing"]), lod, st["galv"],
+                          post_r=m(pf["post"]))   # the end rail, open at the side ladder
             if s in decks:
-                side_ladder(mb, hw["sideLadder"], s, dw - m(pf["deck"]), decks[s], lod, st)
+                side_ladder(mb, hw["sideLadder"], s, d0, decks[s], lod, st, v=far + m(hw["sideLadder"]["off"]))
     if lod <= 2:   # the mast ladder up past the crossarm, then leaning in to the lifting beam (the reference), clamped
         tower.ladder_segment(mb, t, 0.0, cb1, lod, st)
         la, ml = t["ladder"], hw["mastLadder"]
@@ -394,7 +402,7 @@ def walkway(mb, a, rockers, top, v_rope, mode, asm, wk, lod, st, yoke_x, yoke_w)
     return [(a, at(a), b, at(b)) for a, b in zip([u0] + us, us + [u1])]
 
 
-def side_ladder(mb, sl, s, top_w, decks, lod, st):
+def side_ladder(mb, sl, s, top_w, decks, lod, st, v=None):
     """A side ladder from the platform down to the walkway, its rungs along the line, stopping above the panel deck (the
     panels turn with the train; the ladder is fixed)."""
     u = m(sl["u"])
@@ -405,7 +413,7 @@ def side_ladder(mb, sl, s, top_w, decks, lod, st):
     if w_deck is None:
         return
     bot = w_deck + m(sl["above"])
-    v = s * m(sl["v"])
+    v = s * (v if v is not None else m(sl["v"]))
     hwid = m(sl["width"]) / 2
     for e in (-1, 1):   # stringers, angles in the reference
         prims.box(mb, (u + e * hwid - 0.02, v - 0.02, bot), (u + e * hwid + 0.02, v + 0.02, top_w), st["galv"])

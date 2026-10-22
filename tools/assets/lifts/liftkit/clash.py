@@ -96,6 +96,9 @@ def sweep(a, limit=60.0, step=1.0, tol=0.1, flush=0.001):
         if export.spins(name, piv):
             result[name] = {"range": [-180.0, 180.0], "by": ["spins", "spins"]}
             continue
+        if piv.get("plumb"):   # hangs plumb: the game turns it back by its parents' turns, it has no range of its own
+            result[name] = {"range": [-180.0, 180.0], "by": ["plumb", "plumb"]}
+            continue
         u, v, w = piv["axis"]
         axis = Vector((v, w, u)).normalized()
         moving_parts = subtree(a.pivots, name)
@@ -107,10 +110,24 @@ def sweep(a, limit=60.0, step=1.0, tol=0.1, flush=0.001):
             continue
         st_tree, st_owner = _tree(static)
         centre = unity(frame.b(piv["pos"]))
+        hangs = {}   # parts under a plumb pivot (a walkway's hanger) move with its pin but stay level
+        for k in moving_parts:
+            q = k
+            while q and q != name:
+                if a.pivots[q].get("plumb"):
+                    hangs[k] = unity(frame.b(a.pivots[q]["pos"]))
+                q = a.pivots[q].get("parent")
 
         def pairs(deg):
             rot = Matrix.Rotation(math.radians(deg), 3, axis)
-            turned = [(t, ([rot @ (p - centre) + centre for p in vs], ps)) for t, (vs, ps) in moving]
+
+            def move(t, vs):
+                pin = hangs.get(part_of(t))
+                if pin is None:
+                    return [rot @ (p - centre) + centre for p in vs]
+                off = rot @ (pin - centre) + centre - pin
+                return [p + off for p in vs]
+            turned = [(t, (move(t, vs), ps)) for t, (vs, ps) in moving]
             tree, owner = _tree(turned)
             return owner, tree.overlap(st_tree)
         owner, at_rest = pairs(0.0)
