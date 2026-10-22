@@ -371,7 +371,13 @@ def end_wall(mb, h, cap, u, side, line_end, lod, st):
         return [(v, w) for v, w in inner if w0 < w < w1]
 
     if lod >= 2:
-        wall(full(inner))
+        if line_end:   # open low both sides at every LOD (round 4: a closed wall at LOD2-3 stood across the rope)
+            ov, ow = h["lineOpening"]["v"], h["lineOpening"]["top"]
+            upper = [(inner_v(inner, ow), ow)] + right(ow, 1e9)
+            wall(upper + [(-v, w) for v, w in reversed(upper[:-1])])
+            wall([(-ov, bot), (ov, bot), (ov, ow), (-ov, ow)])
+        else:
+            wall(full(inner))
         wall([(-gv, gw0), (gv, gw0), (gv, gw1), (-gv, gw1)], st["glass"], -20.0)
         if lod == 2:   # the guard bars as one box
             ua, ub = sorted((bar_u - 25, bar_u + 25))
@@ -732,9 +738,9 @@ def portals(mb, t, end, lod, st):
     for pu in end["frame"]["portals"]:
         i0, i1 = po["inner"]
         dx = cu - pu + hs
-        if pu < cu and dx < rg:   # the grips pass at v_grip here: the leg stands 150 inside them
-            v_grip = cv + math.sqrt(rg * rg - dx * dx)
-            i1 = min(i1, v_grip - 150)
+        if pu < cu and dx < rg:   # the grips pass at v_grip here: the leg stands 300 inside them (their guards,
+            v_grip = cv + math.sqrt(rg * rg - dx * dx)   # 0.64 m along the rope, cut inside the curve)
+            i1 = min(i1, v_grip - 300)
             i0 = i1 - po["size"]
         bottom = po["innerFrom"] if math.hypot(pu, i0) < t["gauge"] / 2 + 400 else floor_top
         for s in (-1, 1):
@@ -760,7 +766,8 @@ def floor(mb, t, end, lod, st):
 
     def deck(ua, ub, va, vb):
         over_wheel = ub > -wheel and ua < wheel and min(abs(va), abs(vb)) < wheel
-        parts.deck(mb, (m(ua), m(va), m(w0)), (m(ub), m(vb), m(w1)), lod, st["grating"], snow=0.0, channels=not over_wheel)
+        parts.deck(mb, (m(ua), m(va), m(w0)), (m(ub), m(vb), m(w1)), lod, st["grating"], snow=0.0, channels=not over_wheel,
+                   depth=0.09)   # above the soffit (round 4: 120 mm poked through it)
 
     for s in (-1, 1):
         a, b = sorted((s * fl["v"][0], s * fl["v"][1]))
@@ -970,7 +977,7 @@ def machinery(mb, t, end, lod, st):
         hw, hh = orl["section"][0] / 2, orl["section"][1]
         with mb.grouped("#openrail"):
             prims.box(mb, (m(ra), m(s * orl["v"] - hw), m(orl["w"])), (m(rb), m(s * orl["v"] + hw), m(orl["w"] + hh)), st["rail"])
-        with mb.grouped("#openrail"):   # its hangers up to the portal: one rigid piece with the rail
+        with mb.grouped("#openrail_hangers"):
             for hu in (ra + 100, rb - 100):
                 prims.box(mb, (m(hu - 30), m(s * orl["v"] - 30), m(orl["w"] + hh)), (m(hu + 30), m(s * orl["v"] + 30), m(top)),
                           st["inside"])

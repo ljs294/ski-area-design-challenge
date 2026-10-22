@@ -196,7 +196,10 @@ def main():
         if getattr(mod, "CHAIR", None):   # a detachable terminal: send its chair through the station (liftkit/fit.py)
             t_fit = time.time()
             cmod = importlib.import_module(mod.CHAIR)
-            fp, fs = fit.station(assets[0], cmod.build(spec_for(cmod), 0, stage))
+            fp, fs = [], {"poses": 0}
+            for lod in range(min(len(assets), 3)):   # every LOD the chairs are drawn against in the station (round 4)
+                lp, fs = fit.station(assets[lod], cmod.build(spec_for(cmod), lod, stage))
+                fp += [f"LOD{lod} {p}" for p in lp]
             problems += fp
             print(f"{aid}: station fit, {fs['poses']} chair poses in {time.time() - t_fit:.1f} s: "
                   + ("clear" if not fp else f"{len(fp)} problems"), flush=True)

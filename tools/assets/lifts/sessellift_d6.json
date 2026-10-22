@@ -213,13 +213,14 @@
       },
       "tyreBank": {
         "dia": 400,
-        "width": 80,
+        "width": 70,
         "v": 2960,
         "pitch": 900,
-        "w": 4005,
+        "w": 3990,
+        "_w": "the tyres' bottom facets bear on the tyre plate's top (rope + 197; round 4: 15 mm clear of it)",
         "guard": {
           "v": [2880, 3060],
-          "w": [4005, 4260]
+          "w": [3990, 4260]
         },
         "beam": {
           "v": [2900, 3020],

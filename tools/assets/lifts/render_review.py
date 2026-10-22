@@ -592,6 +592,9 @@ def chair_photos(built, spec, out_dir, mats, key="chair"):
     rope.data.materials.append(_rope_material())
     extras = [rope, _snow_plane(-load), sun]   # show_only hides everything else, lights included
     fig = _photo_figure((0.4, 1.7, -load))
+    if key.startswith("d6_"):   # as the game draws it: back faces hidden, and with LIFT_SNOW=1 its default snow
+        materials.cull_backfaces(mats)
+        materials.set_snow(mats, float(os.environ.get("LIFT_SNOW", "0")))
     show_only(objs + extras)
     restore_uv(objs)
     shoot = _shooter(key, out_dir)

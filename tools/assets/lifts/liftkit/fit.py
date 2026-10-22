@@ -24,9 +24,11 @@ CLEAR = 0.050   # least gap between a passing chair and any station part (m)
 STEP = 0.050    # pose spacing along the path (m)
 OUT = 2.5       # how far past the hood's line end the chair is followed along the ropes (m)
 CONTACTS = {"#rail": "wheels", "#tyres": "tyre plate", "#openrail": "top roller"}
+TOUCH = 0.003   # a contact zone must come within this of its piece somewhere, and never sink deeper into it (m)
 # pieces built to guide a passing grip closely: these zones may come near them (no `clear` needed) but never into them
 GUIDES = {"#horns": ("guide roller", "grip and arm"), "#bend_sheaves": ("grip and arm", "wheels"),
-          "#tyres": ("grip and arm",), "#openrail": ("grip and arm",), "#rail": ("grip and arm",)}
+          "#tyres": ("grip and arm",), "#openrail": ("grip and arm",), "#openrail_hangers": ("top roller", "grip and arm"),
+          "#rail": ("grip and arm",), "#rail_posts": ("wheels",)}
 
 
 def zone(p):
@@ -37,7 +39,7 @@ def zone(p):
             return "top roller"
         if 115 <= v <= 205 and w > 85:
             return "tyre plate"
-        if 80 <= v <= 190 and -100 <= w <= 85 and 91 <= abs(u) <= 291:
+        if 113 <= v <= 160 and -100 <= w <= 85 and 91 <= abs(u) <= 291:   # the treads only
             return "wheels"
         if v >= 680:
             return "guide roller"
@@ -53,6 +55,17 @@ def _tree(points, faces):
 
 def _lift_points(mb):
     return np.array([frame.lift(v) for v in mb.verts], dtype=float)
+
+
+def _sign():
+    """+1 if a BVH normal of a frame.lift mesh points out of a solid, else -1 (lift frame is a mirror of Blender's)."""
+    from .mesh import MeshBuilder, Style
+    from . import prims
+    mb = MeshBuilder()
+    prims.box(mb, (0, 0, 0), (1, 1, 1), Style())
+    t = _tree(_lift_points(mb), [list(f) for f in mb.faces])
+    loc, n, _, _ = t.find_nearest(Vector((0.5, 0.5, 1.2)))
+    return 1.0 if (Vector((0.5, 0.5, 1.2)) - loc).dot(n) > 0 else -1.0
 
 
 def _route(path, rope_w, u_out):
@@ -109,6 +122,8 @@ def station(asset, chair, clear=CLEAR, step=STEP):
     poses = _samples(_route(asset.paths["chairs"], rope_w, u_out), step)
 
     clashes, near = {}, {}
+    touch = {}   # contact piece -> [closest approach, deepest signed distance] of its zone
+    sign = _sign()
     w_up = np.array((0.0, 0.0, 1.0))
     for pi, (o, t, n) in enumerate(poses):
         x = (np.array(o)[None, :] + np.outer(cv[:, 0], np.array(t)) + np.outer(cv[:, 1], np.array(n))
@@ -127,11 +142,16 @@ def station(asset, chair, clear=CLEAR, step=STEP):
                 e = clashes.setdefault(key, [0, centres[bad[0][1]]])
                 e[0] += 1
                 continue
-            if pi % 2:
-                continue
             inside = np.nonzero(np.all((x >= blo) & (x <= bhi), axis=1))[0]
             for i in inside:
-                if vzone[i] == ok or vzone[i] in GUIDES.get(name, ()):
+                if vzone[i] == ok:
+                    r = tree.find_nearest(Vector(x[i]), clear)
+                    if r[0] is not None:
+                        sd = sign * (Vector(x[i]) - r[0]).dot(r[1])
+                        e = touch.setdefault(name, [1e9, 1e9])
+                        e[0], e[1] = min(e[0], abs(sd)), min(e[1], sd)
+                    continue
+                if vzone[i] in GUIDES.get(name, ()):
                     continue
                 r = tree.find_nearest(Vector(x[i]), clear)
                 if r[0] is not None:
@@ -144,9 +164,16 @@ def station(asset, chair, clear=CLEAR, step=STEP):
         problems.append(f"fit: chair ({zones}) passes through {name} at {count} of {len(poses)} poses, e.g. at "
                         f"u {c[0] * 1000:.0f}, v {c[1] * 1000:.0f}, w {c[2] * 1000:.0f}")
     for (name, z), (d, c) in sorted(near.items()):
-        problems.append(f"fit: chair ({z}) passes {name} {d * 1000:.0f} mm away (< {clear * 1000:.0f}) at "
+        problems.append(f"fit: chair ({z}) passes {name} {d * 1000:.1f} mm away (< {clear * 1000:.0f}) at "
                         f"u {c[0] * 1000:.0f}, v {c[1] * 1000:.0f}, w {c[2] * 1000:.0f}")
 
+    for name, zone_ in CONTACTS.items():   # a contact must bear, not float and not sink
+        if name in trees and name in touch:
+            near_, deep = touch[name]
+            if near_ > TOUCH:
+                problems.append(f"fit: the grip's {zone_} never reach {name} (closest {near_ * 1000:.1f} mm)")
+            if deep < -TOUCH:
+                problems.append(f"fit: the grip's {zone_} sink {-deep * 1000:.1f} mm into {name}")
     piv = asset.pivots.get("bullwheel")
     if piv and "bullwheel" in groups:
         wheel = groups["bullwheel"]

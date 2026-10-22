@@ -14,7 +14,7 @@ behind; the raised safety bar with a stay and a black handle per seat, three foo
 top bar; end brackets and black armrests at the bench's ends; the clamp a square plate with its bolts. Snow stays off
 the seats and grips (round 3: the game's Snow layer turned the line white). The origin is the grip on the rope; up close
 the grip and the hanger are moving parts (contract M3). Chair frame as the quad's: u = travel, v = outboard, w = up.
-LOD2 keeps the backrest; LOD3 is a 30-triangle speck so a line reads out to 1.2 km.
+LOD2 keeps the backrest; LOD3 is a 30-triangle speck so a line reads out to the towers' last LOD (800 m).
 """
 import copy
 import json
@@ -125,7 +125,7 @@ def build(spec, lod, stage):
 
 
 def backrest(mb, ch, d6, st, near):
-    """The backrest: the black pad in front, the galvanised shell behind it with a pressed rib per bay (round 3: half the
+    """The backrest: the black pad in front, the galvanised shell behind it (round 3: half the
     chairs on a line are seen from behind, and the photographed backs are bright steel)."""
     ax = m(ch["axisV"])
     br, bk = ch["backrest"], d6["backrest"]
@@ -138,23 +138,13 @@ def backrest(mb, ch, d6, st, near):
     front = Vector((m(bu), ax, m(bw))) + along * (length / 2) - back * (m(br["thick"]) / 2)
     hw = m(br["halfWidth"])
     pad, shell = m(bk["pad"]), m(bk["shell"])
-    prims.obox(mb, front + back * (pad / 2), (along, across, back), (length / 2, hw, pad / 2), st["seat"])
-    sc = front + back * (pad + shell / 2)
-    prims.obox(mb, sc, (along, across, back), (length / 2, hw, shell / 2), st["pan"], skip=("-2",))
+    rear = front + back * m(br["thick"])   # the quad's slab's back face: the pad grows forward from it, so the bar's rod
+    prims.obox(mb, rear - back * (pad / 2), (along, across, back), (length / 2, hw, pad / 2), st["seat"])   # stays behind
+    prims.obox(mb, rear + back * (shell / 2), (along, across, back), (length / 2, hw, shell / 2), st["pan"], skip=("-2",))
     if near:
-        out = sc + back * (shell / 2 + 0.001)
-        n = bk["ribs"]
-        rw = m(bk["ribWidth"]) / 2
-        for k in range(n):   # a diagonal rib across each bay of the pressed shell
-            v0, v1 = -hw + 2 * hw * k / n, -hw + 2 * hw * (k + 1) / n
-            p0 = out - along * (length / 2 - 0.03) + across * (v0 + 0.02)
-            p1 = out + along * (length / 2 - 0.03) + across * (v1 - 0.02)
-            mb.face(mb.verts_lift([tuple(p0 - across * rw), tuple(p1 - across * rw), tuple(p1 + across * rw), tuple(p0 + across * rw)]),
-                    st["pan"], tuple(back))
         for s in (-1, 1):   # the pad's black end caps
-            c = front + back * (pad / 2) + across * (s * (hw + m(bk["endCap"]) / 2))
+            c = rear - back * (pad / 2) + across * (s * (hw + m(bk["endCap"]) / 2))
             prims.obox(mb, c, (along, across, back), (length / 2, m(bk["endCap"]) / 2, pad / 2 + 0.005), st["black"])
-
 
 def bench(mb, ch, d6, st, near):
     """The bench: the seat padded on top and in front over a galvanised pan (round 3: from below the photographed pan is
@@ -226,7 +216,7 @@ def bar(mb, ch, d6, tube, near, n_thin, st):
                    caps=(False, False))
     bk = d6["bar"]
     for cv in seat_centres(ch):   # the comb: a stay from the rail down to the rod, and a black handle, at each seat
-        stay = [(rail["u"], rail["w"])] + [(u, w) for u, _, w in leg[:3]]
+        stay = [(rail["u"], rail["w"])] + [(u, w) for u, _, w in leg[:2]] + [(rod["u"], rod["w"])]   # down to the rod
         prims.tube_path(mb, [sym(u, cv, w) for u, w in stay], tube["rod"], 4, st["steel"], smooth=True)
         hd = b["handle"]
         prims.cylinder(mb, sym(hd["from"][0], cv, hd["from"][1]), sym(hd["to"][0], cv, hd["to"][1]), tube["handle"], 4, st["black"],
@@ -242,11 +232,9 @@ def bar(mb, ch, d6, tube, near, n_thin, st):
     top = ch["topBar"]
     sz = bk["stop"]
     r = m(d6["topBar"]["dia"]) / 2
-    for cv in seat_centres(ch):   # the bar's stops on the top bar, behind it
-        tri = [(-r, m(top["w"]) - m(sz[1]) / 2), (-r - m(sz[0]), m(top["w"])), (-r, m(top["w"]) + m(sz[1]) / 2)]
-        prims.prism(mb, tri, (0.0, ax + m(cv - sz[2] / 2), 0.0), Vector((1, 0, 0)), Vector((0, 0, 1)), Vector((0, 1, 0)), m(sz[2]),
-                    st["black"])
-
+    for cv in seat_centres(ch):   # the bar's stops: black inverted triangles on the top bar's front, one a seat
+        tri = [(m(cv - sz[0] / 2), m(top["w"]) + 0.01), (m(cv + sz[0] / 2), m(top["w"]) + 0.01), (m(cv), m(top["w"]) - m(sz[1]))]
+        prims.prism(mb, tri, (r - 0.005, ax, 0.0), Vector((0, 1, 0)), Vector((0, 0, 1)), Vector((1, 0, 0)), m(sz[2]) / 2, st["black"])
 
 def body(mb, ch, d6, near, n_frame, n_thin, tube, st):
     """Everything under the hanger at LOD0-1: the clamp, the top bar with its web plate and the bar's sleeves, the side
@@ -271,7 +259,7 @@ def body(mb, ch, d6, near, n_frame, n_thin, tube, st):
                 p = (s * (cu - 0.03), ax + t * (chw - 0.03), m(cl["wFrom"]))
                 prims.cylinder(mb, p, (p[0], p[1], p[2] + 0.012), m(cl["bolts"]) / 2, 6, st["steel"])
     prims.cylinder(mb, sym(0, -top["halfLength"], top["w"]), sym(0, top["halfLength"], top["w"]), tube["topBar"], n_frame + 1, st["steel"],
-                   caps=(False, False))
+                   caps=(False, False), smooth=True)
     if near:
         web = ch["web"]
         lower = web["lower"]
@@ -316,11 +304,17 @@ def far(mb, ch, st, gst):
     ax = m(ch["axisV"])
     top, bench_ = ch["topBar"], ch["bench"]
     parts.detach_grip(mb, 2, gst)
-    prims.box(mb, (-0.045, m(362), m(top["w"]) + 0.02), (0.045, m(460), -0.025), st["steel"])
-    prims.box(mb, (-0.035, ax - m(top["halfLength"]), m(top["w"]) - 0.035), (0.035, ax + m(top["halfLength"]), m(top["w"]) + 0.035),
+    # the hanger as the near one runs (round 4: a straight post went through the station's belly): the arm out from the
+    # grip, the drop outboard, the level run in to the clamp, the clamp down to the top bar, the top bar out to the frames
+    prims.box(mb, (-0.06, m(186), m(-89)), (0.06, m(570), m(16)), st["steel"])
+    prims.box(mb, (-0.045, m(470), m(-1625)), (0.045, m(570), m(-89)), st["steel"])
+    prims.box(mb, (-0.045, ax, m(-1625)), (0.045, m(470), m(-1525)), st["steel"])
+    cl = ch["clamp"]
+    prims.box(mb, (-m(cl["u"]) / 2, ax - m(cl["halfWidth"]), m(cl["wTo"])), (m(cl["u"]) / 2, ax + m(cl["halfWidth"]), m(cl["wFrom"])),
               st["steel"])
     side = max(h for _, h, _ in ch["sideFrame"]) - 48
     low = min(w for _, _, w in ch["sideFrame"]) + 57
+    prims.box(mb, (-0.035, ax - m(side), m(top["w"]) - 0.035), (0.035, ax + m(side), m(top["w"]) + 0.035), st["steel"])
     for s in (-1, 1):
         prims.box(mb, (-0.30, ax + s * m(side) - 0.03, m(low)), (0.0, ax + s * m(side) + 0.03, m(top["w"])), st["steel"])
     us = [p[0] for p in bench_["profile"]]

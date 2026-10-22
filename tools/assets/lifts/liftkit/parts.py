@@ -573,15 +573,15 @@ def ladder(mb, bottom, top, width, lod, style, rung_every=0.28, handrails=True, 
             prims.cylinder(mb, b + y * s * (hw + 0.03) + W * 0.9, t + y * s * (hw + 0.03) + W * 0.9, 0.022, 6 if lod == 0 else 4, style)
 
 
-def deck(mb, lo, hi, lod, style, grating=True, snow=None, channels=True):
-    """A walkway deck plate with edge channels (snow: the plate's capacity, 0.8 unless given, e.g. 0 under a roof;
-    channels=False: none, where something passes under the deck)."""
+def deck(mb, lo, hi, lod, style, grating=True, snow=None, channels=True, depth=0.12):
+    """A walkway deck plate with edge channels (snow: the plate's and channels' capacity, the plate 0.8 unless given,
+    e.g. 0 under a roof; channels=False: none, where something passes under the deck; depth: the channels', m)."""
     st = style.but(cls="grating" if grating else style.cls, snow=0.8 if snow is None else snow)
     lo, hi = vec(lo), vec(hi)
     prims.box(mb, lo, hi, st)
     if lod == 0 and channels:   # edge channels under the plate, along both long sides
         along_u = (hi.x - lo.x) >= (hi.y - lo.y)
-        depth = 0.12
+        style = style if snow is None else style.but(snow=snow)
         for s in (0, 1):
             if along_u:
                 y0 = lo.y if s == 0 else hi.y - 0.05
@@ -913,7 +913,8 @@ def detach_grip_arm(mb, lod, st, g=None, socket_group=None):
     if lod >= 2:
         return
     (v0, d0), (v1, d1) = ar["taper"]["from"], ar["taper"]["to"]
-    prims.cylinder(mb, _mm(0, v0, aw), _mm(0, v1, aw), d0 / 2000.0, 8 if near else 5, st["alu"], caps=(False, False), r1=d1 / 2000.0)
+    prims.cylinder(mb, _mm(0, v0, aw), _mm(0, v1, aw), d0 / 2000.0, 8 if near else 5, st["alu"], caps=(False, False), r1=d1 / 2000.0,
+                   smooth=True)
     gr = g["guideRoller"]
     prims.cylinder(mb, _mm(0, gr["v"][0], gr["w"]), _mm(0, gr["v"][1], gr["w"]), gr["dia"] / 2000.0, 14 if near else 6, st["cream"],
                    fan_caps=True)

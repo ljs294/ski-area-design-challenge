@@ -134,7 +134,7 @@ def make(name, palette_img, livery_rgb=(0.72, 0.12, 0.09), snow=0.0, glass=False
     # snow: capacity x snow load x up-facing (true normal, like the shader's geometric normal)
     geo = N("ShaderNodeNewGeometry")
     sepn = N("ShaderNodeSeparateXYZ")
-    L(geo.outputs["True Normal"], sepn.inputs["Vector"])
+    L(geo.outputs["Normal"], sepn.inputs["Vector"])   # the shading normal, as LiftStructure.shader (round 4)
     up = N("ShaderNodeMapRange")
     up.inputs["From Min"].default_value = 0.3
     up.inputs["From Max"].default_value = 0.8
