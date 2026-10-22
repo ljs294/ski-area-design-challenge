@@ -24,6 +24,9 @@ CLEAR = 0.050   # least gap between a passing chair and any station part (m)
 STEP = 0.050    # pose spacing along the path (m)
 OUT = 2.5       # how far past the hood's line end the chair is followed along the ropes (m)
 CONTACTS = {"#rail": "wheels", "#tyres": "tyre plate", "#openrail": "top roller"}
+# pieces built to guide a passing grip closely: these zones may come near them (no `clear` needed) but never into them
+GUIDES = {"#horns": ("guide roller", "grip and arm"), "#bend_sheaves": ("grip and arm", "wheels"),
+          "#tyres": ("grip and arm",), "#openrail": ("grip and arm",), "#rail": ("grip and arm",)}
 
 
 def zone(p):
@@ -128,7 +131,7 @@ def station(asset, chair, clear=CLEAR, step=STEP):
                 continue
             inside = np.nonzero(np.all((x >= blo) & (x <= bhi), axis=1))[0]
             for i in inside:
-                if vzone[i] == ok:
+                if vzone[i] == ok or vzone[i] in GUIDES.get(name, ()):
                     continue
                 r = tree.find_nearest(Vector(x[i]), clear)
                 if r[0] is not None:
@@ -150,12 +153,15 @@ def station(asset, chair, clear=CLEAR, step=STEP):
         pts = _lift_points(wheel)
         pos, ax = Vector(piv["pos"]), Vector(piv["axis"]).normalized()
         wf = [list(f) for f in wheel.faces]
-        hit = set()
+        hit = {}
         for deg in range(0, 46, 5):
             rot = Matrix.Rotation(math.radians(deg), 3, ax)
             wt = _tree([rot @ (Vector(p) - pos) + pos for p in pts], wf)
-            for name, (tree, *_rest) in trees.items():
-                if name != "bullwheel" and wt.overlap(tree):
-                    hit.add(name)
-        problems += [f"fit: the turning bullwheel meets {name}" for name in sorted(hit)]
+            for name, (tree, _lo, _hi, centres) in trees.items():
+                if name != "bullwheel" and name not in hit:
+                    pairs = wt.overlap(tree)
+                    if pairs:
+                        hit[name] = centres[pairs[0][1]]
+        problems += [f"fit: the turning bullwheel meets {name} at u {c[0] * 1000:.0f}, v {c[1] * 1000:.0f}, w {c[2] * 1000:.0f}"
+                     for name, c in sorted(hit.items())]
     return problems, {"poses": len(poses), "clashes": len(clashes), "tight": len(near)}

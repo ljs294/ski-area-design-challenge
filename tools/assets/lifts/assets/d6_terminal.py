@@ -53,6 +53,12 @@ def styles(lod):
         "grating": Style("grating", snow=0.8),
         "red": Style("sheave_red"),
         "rod": Style("machined"),
+        "horn": Style("galvanised", snow=0.5),
+        # under the roof: no snow (round 3: snow is by normal only, so indoor tops turned white)
+        "rail": Style("galvanised"),
+        "inside": Style("paint_grey"),
+        "tyre": Style("rubber"),
+        "guard": Style("sheave_red"),
     }
 
 
@@ -153,6 +159,8 @@ def hood(mb, t, end, lod, st):
     seam0, seam1 = E0 + h["endWall"], E1 - h["endWall"]
     win = h["windows"]
     levels = (win["from"], win["to"], win["head"]) if lod <= 2 else ()
+    if lod <= 1:   # the flip-up bays' transoms are their own bands, not whole facets of the arch
+        levels += tuple(x for f in end["flipBays"] for tr in f["transoms"] for x in tr)
     cap = with_breaks(outline(h, lod), levels)
     top, band = h["roof"], h["band"][1]
 
@@ -321,6 +329,13 @@ def soffit(mb, t, end, cap, body, seam0, seam1, lod, st):
     hatch = (end["frontMast"]["u"] + la["hatch"][0], end["frontMast"]["u"] + la["hatch"][1])
     if lod <= 1:
         stops |= set(hatch)
+    # the belly's open top: the soffit stops at the white tub's edge (round 2: it spanned the tub, through the wheel)
+    bh, bback, bcentre, bnose = belly_top(t, end)
+    stops |= {bback, bcentre, bnose}
+    k = bback
+    while k < bcentre:
+        stops.add(k)
+        k += 200 if lod <= 1 else 600
     stops = sorted(s for s in stops if seam0 <= s <= seam1)
 
     def keep(u):
@@ -328,6 +343,8 @@ def soffit(mb, t, end, cap, body, seam0, seam1, lod, st):
         cut = list(slot_intervals(t, end, u))
         if lod <= 1 and hatch[0] <= u <= hatch[1]:
             cut.append((0.0, sl["hatchHalf"]))
+        if bback < u < bnose:
+            cut.append((0.0, bh if u >= bcentre else math.sqrt(max(0.0, bh * bh - (bcentre - u) ** 2))))
         out, v = [], 0.0
         for a, b in sorted(cut):
             if a > v:
@@ -352,15 +369,25 @@ def soffit(mb, t, end, cap, body, seam0, seam1, lod, st):
 
 
 # -- belly -------------------------------------------------------------------------------------------------------
+def belly_top(t, end):
+    """The belly's top edge in plan (mm): its half-width, the back, the round back's centre and the nose."""
+    h = t["belly"]["section"][0][0]
+    back = end["belly"]["backs"][0]
+    return h, back, back + h, max(end["belly"]["wedge"])
+
+
 def belly(mb, t, end, lod, st):
     """The white housing under the soffit round the bullwheel: the end view's section (a tray over a keel), each level's
     back round in plan, straight to the line end, then a wedge rising into the soffit."""
     sec = [tuple(p) for p in t["belly"]["section"]]
     be = end["belly"]
     backs, uf, wedge = be["backs"], be["front"], be["wedge"]
+    keel_top = be.get("keelTop", backs[1])
     top = sec[0][1]
     nose = max(wedge)
-    stations = [uf + (nose - uf) * f for f in ((1.0, 0.75, 0.5, 0.25, 0.0) if lod <= 1 else (1.0, 0.0))]
+    fr = (1.0, 0.75, 0.5, 0.25, 0.0) if lod <= 1 else (1.0, 0.0)
+    extra = {x for x in wedge if uf < x < nose} if lod <= 1 else set()   # every level's end is a station (no slivers)
+    stations = sorted({uf + (nose - uf) * f for f in fr} | extra, reverse=True)
     kc = (12, 8, 4, 2)[lod]
 
     def level_w(j, u):
@@ -369,25 +396,44 @@ def belly(mb, t, end, lod, st):
             return wj
         return wj + (top - wj) * min(1.0, (u - uf) / (wedge[j] - uf))
 
-    rings = []
-    for j, (hj, wj) in enumerate(sec):
-        cu = backs[j] + hj
+    def ring(j, back):
+        hj, wj = sec[j]
+        cu = back + hj
         pts = [(u, hj, level_w(j, u)) for u in stations]
         for i in range(kc + 1):
             a = math.pi / 2 + math.pi * i / kc
             pts.append((cu + hj * math.cos(a), hj * math.sin(a), wj))
         pts += [(u, -hj, level_w(j, u)) for u in reversed(stations)]
-        rings.append(pts)
+        return pts
+
     inside = Vector(((min(backs) + uf) / 2, 0.0, 2650.0))
-    for ra, rb in zip(rings, rings[1:]):
+
+    def loft(ra, rb):
         for i in range(len(ra) - 1):
             q = [ra[i], ra[i + 1], rb[i + 1], rb[i]]
-            span = max(abs(q[0][2] - q[3][2]), abs(q[1][2] - q[2][2]), abs(q[0][1] - q[3][1]), abs(q[1][1] - q[2][1]))
+            span = max(abs(q[0][2] - q[3][2]), abs(q[1][2] - q[2][2]), abs(q[0][1] - q[3][1]), abs(q[1][1] - q[2][1]),
+                       abs(q[0][0] - q[3][0]), abs(q[1][0] - q[2][0]))
             if span < 1.0:   # a level that has already risen into the soffit: no band left
                 continue
             c = Vector((sum(p[0] for p in q) / 4, sum(p[1] for p in q) / 4, sum(p[2] for p in q) / 4))
             face(mb, q, st["white"], tuple(c - inside))
-    low = rings[-1]
+
+    # the tray (its walls, back to backs[1]) over the keel (from keelTop down); where the tray reaches further back
+    # than the keel (the drive) its bottom is flat behind the keel, whose back drops plumb (round 2)
+    tray = [ring(0, backs[0]), ring(1, backs[1])]
+    keel = [ring(1, keel_top), ring(2, backs[2]), ring(3, backs[3])]
+    loft(*tray)
+    if keel_top != backs[1]:
+        down = backs[1] < keel_top
+        for i in range(len(tray[1]) - 1):
+            q = [tray[1][i], tray[1][i + 1], keel[0][i + 1], keel[0][i]]
+            pts = [Vector(p) for p in q]
+            if (pts[1] - pts[0]).cross(pts[3] - pts[0]).length + (pts[1] - pts[2]).cross(pts[3] - pts[2]).length < 1e3:
+                continue   # the straights: the two outlines coincide
+            face(mb, q, st["white"], (0.0, 0.0, -1.0 if down else 1.0))
+    for ra, rb in zip(keel, keel[1:]):
+        loft(ra, rb)
+    low = keel[-1]
     n = len(low)
     k = len(stations)
     flat = low[k - 1:n - k + 1]
@@ -416,34 +462,94 @@ def frame_steel(mb, t, end, lod, st):
     if lod >= 3:
         return
     ps = f["postSize"]
-    for pu, pw0, pw1 in fe["posts"]:   # posts from the beams up to the overhead members
+    for pu, pw0, pw1 in fe["posts"]:   # posts from the beams' ends up to the roof
         for s in (-1, 1):
             prims.box(mb, (m(pu - ps / 2), m(s * bv - ps / 2), m(pw0)), (m(pu + ps / 2), m(s * bv + ps / 2), m(pw1)), st["steel"])
     ow0, ow1 = f["overhead"]["w"]
     for s in (-1, 1):
         prims.box(mb, (m(fe["overheadU"][0]), m(s * bv - 80), m(ow0)), (m(fe["overheadU"][1]), m(s * bv + 80), m(ow1)), st["steel"])
+    # where the frame meets the masts (round 2: it touched neither): at the back a cross-head on the leg's head under the
+    # beams' ends and the rear posts; at the front a cross-head on the column's head, a drop post under each beam and a
+    # bracket from the beam's end to the front post
+    rs, fm = end["rear"], end["frontMast"]
+    half = bv + bw / 2
+    rear_post = min(fe["posts"], key=lambda p: p[0])
+    prims.box(mb, (m(rs["head"][0]), -m(half), m(rs["headW"])), (m(rs["head"][1]), m(half), m(rear_post[1])), st["steel"])
+    front_post = max(fe["posts"], key=lambda p: p[0])
+    mu, head1 = fm["u"], fm["head"]["w"][1]
+    xa, xb = mu - 286, mu + 4
+    prims.box(mb, (m(xa), -m(half), m(head1)), (m(xb), m(half), m(head1 + 200)), st["steel"])
+    for s in (-1, 1):
+        prims.box(mb, (m(xa + 50), m(s * bv - 120), m(head1 + 200)), (m(xb - 50), m(s * bv + 120), m(front_post[1])), st["steel"])
+        prims.box(mb, (m(u1 - 24), m(s * bv - bw / 2), m(front_post[1])), (m(mu + 191), m(s * bv + bw / 2), m(front_post[1] + 174)),
+                  st["steel"])
     if lod >= 2:
         return
-    po = f["portals"]
+    portals(mb, t, end, lod, st)
+    floor(mb, t, end, lod, st)
+
+
+def portals(mb, t, end, lod, st):
+    """One inverted-U frame over each grip path at each portal (the end views and the isometric): an inner leg inboard
+    of the grips, an outer leg outboard of the guide rollers with a knee into its top beam; nothing across the middle.
+    Near the bullwheel the inner legs start above its spokes; round a corner of the loop they stand inside it."""
+    po = t["frame"]["portals"]
     hs = po["size"] / 2
     pw0, pw1 = po["w"]
+    top0 = pw1 - po["size"]
     o0, o1 = po["outer"]
     (_, cw0), (cv1, cw1) = po["chamfer"]
-    for pu in fe["portals"]:   # across the station: inner legs, outer legs chamfered into the top beam
+    cu, cv, rc, _ = rail_shape(t, end)
+    rg = rc + t["rail"]["grip"][0]                  # the grips' radius round a corner
+    floor_top = t["frame"]["floor"]["w"][1]
+    for pu in end["frame"]["portals"]:
+        i0, i1 = po["inner"]
+        dx = cu - pu + hs
+        if pu < cu and dx < rg:   # the grips pass at v_grip here: the leg stands 150 inside them
+            v_grip = cv + math.sqrt(rg * rg - dx * dx)
+            i1 = min(i1, v_grip - 150)
+            i0 = i1 - po["size"]
+        bottom = po["innerFrom"] if math.hypot(pu, i0) < t["gauge"] / 2 + 400 else floor_top
         for s in (-1, 1):
-            prims.box(mb, (m(pu - hs), m(s * po["inner"] - hs), m(pw0)), (m(pu + hs), m(s * po["inner"] + hs), m(pw1 - po["size"])),
-                      st["steel"])
-            leg = [(o0, pw0), (o1, pw0), (o1, cw0), (cv1, cw1), (cv1, pw1 - po["size"]), (o0, pw1 - po["size"])]
+            a, b = sorted((s * i0, s * i1))
+            prims.box(mb, (m(pu - hs), m(a), m(bottom)), (m(pu + hs), m(b), m(top0)), st["steel"])
+            leg = [(o0, pw0), (o1, pw0), (o1, cw0), (cv1, cw1), (cv1, top0), (o0, po["knee"])]
             prims.prism(mb, [(m(s * a), m(b)) for a, b in leg], (m(pu - hs), 0.0, 0.0), V, W, U, m(po["size"]), st["steel"])
-        prims.box(mb, (m(pu - hs), -m(cv1), m(pw1 - po["size"])), (m(pu + hs), m(cv1), m(pw1)), st["steel"])
-    fl = f["floor"]
-    g0, g1 = fe["floorGap"]   # the wheel's front rim rises through the floor's level: the floor leaves it room
+            a, b = sorted((s * i0, s * cv1))
+            prims.box(mb, (m(pu - hs), m(a), m(top0)), (m(pu + hs), m(b), m(pw1)), st["steel"])
+
+
+def floor(mb, t, end, lod, st):
+    """The station floor (a grated deck, no snow under the roof). Along the straights it runs between the belly's
+    opening and the rail; behind the corners' centres it stays inside the hangers' slot round the loop (round 2: the
+    hangers cut through a rectangular floor there). No edge channels over the bullwheel, whose spokes pass under."""
+    f, fe = t["frame"], end["frame"]
+    fl, sl = f["floor"], t["hood"]["soffit"]
+    w0, w1 = fl["w"]
+    cu, cv, rc, _ = rail_shape(t, end)
+    r_in = rc + sl["offset"] - sl["width"] / 2
+    g0, g1 = fe["floorGap"]
+    wheel = t["gauge"] / 2 + 500
+
+    def deck(ua, ub, va, vb):
+        over_wheel = ub > -wheel and ua < wheel and min(abs(va), abs(vb)) < wheel
+        parts.deck(mb, (m(ua), m(va), m(w0)), (m(ub), m(vb), m(w1)), lod, st["grating"], snow=0.0, channels=not over_wheel)
+
     for s in (-1, 1):
         a, b = sorted((s * fl["v"][0], s * fl["v"][1]))
-        for fu0, fu1 in ((fe["floorU"][0], g0), (g1, fe["floorU"][1])):
-            parts.deck(mb, (m(fu0), m(a), m(fl["w"][0])), (m(fu1), m(b), m(fl["w"][1])), lod, st["grating"])
-        a, b = sorted((s * fl["gapV"], s * fl["v"][1]))
-        parts.deck(mb, (m(g0), m(a), m(fl["w"][0])), (m(g1), m(b), m(fl["w"][1])), lod, st["grating"])
+        for ua, ub in ((cu, -wheel), (-wheel, g0), (g1, fe["floorU"][1])):   # open over the wheel's front: its rim
+            if ub > ua:                                                         # rises through the floor's level there
+                deck(ua, ub, a, b)
+    step = 400 if lod == 0 else 800
+    ub = cu
+    while ub > max(fe["floorU"][0], cu - r_in):
+        ua = max(ub - step, cu - r_in)
+        dx = cu - ua
+        if dx < r_in:
+            vh = min(fl["v"][1], cv + math.sqrt(r_in * r_in - dx * dx) - 20)
+            if vh > 150:
+                deck(ua, ub, -vh, vh)
+        ub = ua
 
 
 def rail_path(t, end, inset=0.0, steps=6):
@@ -461,67 +567,192 @@ def rail_path(t, end, inset=0.0, steps=6):
     return pts
 
 
+def bar_path(mb, pts, width, height, style):
+    """A rectangular bar (width across, height up) swept along a polyline of lift-frame points (mm), mitred at its
+    bends, ends capped."""
+    n = len(pts)
+    secs = []
+    for i, (u, v, w) in enumerate(pts):
+        d_in = Vector((u - pts[i - 1][0], v - pts[i - 1][1], 0.0)).normalized() if i > 0 else None
+        d_out = Vector((pts[i + 1][0] - u, pts[i + 1][1] - v, 0.0)).normalized() if i < n - 1 else None
+        tng = ((d_in or d_out) + (d_out or d_in)).normalized()
+        side = Vector((-tng.y, tng.x, 0.0)) * (width / 2 / max(0.5, (d_in or tng).dot(tng)))
+        secs.append([(u + side.x * a, v + side.y * a, w + b * height / 2) for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+    for i in range(n - 1):
+        sa, sb = secs[i], secs[i + 1]
+        mid = [(sa[k][0] + sb[k][0]) / 2 for k in range(4)], [(sa[k][1] + sb[k][1]) / 2 for k in range(4)]
+        cu_ = sum(mid[0]) / 4
+        cv_ = sum(mid[1]) / 4
+        cw_ = (sa[0][2] + sa[2][2] + sb[0][2] + sb[2][2]) / 4
+        for k in range(4):
+            k1 = (k + 1) % 4
+            q = [sa[k], sa[k1], sb[k1], sb[k]]
+            c = [sum(p[j] for p in q) / 4 for j in range(3)]
+            face(mb, q, style, (c[0] - cu_, c[1] - cv_, c[2] - cw_))
+    for sec, nxt in ((secs[0], secs[1]), (secs[-1], secs[-2])):
+        c = [sum(p[j] for p in sec) / 4 - sum(p[j] for p in nxt) / 4 for j in range(3)]
+        face(mb, sec, style, tuple(c))
+
+
 def chair_rail(mb, t, end, lod, st):
+    """The chair rail the grips' running wheels stand on: a flat-topped bar round the loop, its ends dropping by
+    lead.drop over lead.length so the arriving wheels land on it (#rail, the fit check's contact for the wheels). It is
+    carried from below (#rail_posts): posts from the floor and, at the portals along the straights, brackets from the
+    inner legs (round 2: hangers from above stood in every grip's path)."""
     rail = t["rail"]
-    if lod <= 2:
-        path = [(m(u), m(v), m(rail["w"])) for u, v in rail_path(t, end, steps=6 if lod == 0 else 3)]
-        prims.tube_path(mb, path, m(rail["section"][1]) / 2, 4 if lod <= 1 else 3, st["galv"])
-    if lod <= 1:   # hangers from the portals' top beams down to the rail
+    if lod >= 3:
+        return
+    sw, sh = rail["section"]
+    w = rail["w"]
+    lead = rail["lead"]
+    loop = rail_path(t, end, steps=6 if lod == 0 else 3)
+    (ue, ve), (ue2, ve2) = loop[0], loop[-1]
+    pts = ([(ue, ve, w - lead["drop"]), (ue - lead["length"], ve, w)] + [(u, v, w) for u, v in loop[1:-1]]
+           + [(ue2 - lead["length"], ve2, w), (ue2, ve2, w - lead["drop"])])
+    bar_path(mb, pts, sw, sh, st["rail"])
+    if lod >= 2:
+        return
+    under = w - sh / 2
+    floor_top = t["frame"]["floor"]["w"][1]
+    ps = rail["posts"]["size"] / 2
+    with mb.grouped("#rail_posts"):
+        along, nxt = 0.0, rail["posts"]["every"] / 2
+        for (ua, va), (ub, vb) in zip(loop, loop[1:]):
+            seg = math.hypot(ub - ua, vb - va)
+            while nxt <= along + seg:
+                f = (nxt - along) / seg
+                pu, pv = ua + (ub - ua) * f, va + (vb - va) * f
+                prims.box(mb, (m(pu - ps), m(pv - ps), m(floor_top)), (m(pu + ps), m(pv + ps), m(under)), st["steel"])
+                nxt += rail["posts"]["every"]
+            along += seg
         po = t["frame"]["portals"]
-        top = po["w"][1] - po["size"]
+        bw0, bw1 = rail["bracketW"][0], under
         for pu in end["frame"]["portals"]:
             if end["rail"]["corner"][0] <= pu <= end["rail"]["end"]:
                 for s in (-1, 1):
-                    prims.box(mb, (m(pu - 40), m(s * rail["v"] - 40), m(rail["w"])), (m(pu + 40), m(s * rail["v"] + 40), m(top)), st["steel"])
+                    a, b = sorted((s * po["inner"][1], s * (rail["v"] + sw / 2)))
+                    prims.box(mb, (m(pu - 40), m(a), m(bw0)), (m(pu + 40), m(b), m(bw1)), st["steel"])
 
 
 def horns(mb, t, end, lod, st):
-    """The hanger guides at the line end: a flat fish-tail each side, outboard of the hangers, from inside the end wall
-    out past the hood; its outer face flares toward the tip."""
+    """The hanger guides at the line end, one each side from inside the end wall out past the hood: a channel open
+    toward the rope that the hanger's guide roller runs in (round 2: solid wedges swallowed it). A galvanised web on the
+    drawn fish-tail outline, its outer face flaring toward the tip; along the outline's lower edge a guide under the
+    roller (ending where that edge rises toward the tip), along its upper edge one over it; both reach in to vInner."""
+    if lod >= 3:
+        return
     hn = t["horns"]
     E = end["hood"][1]
     poly = [(E + du, w) for du, w in hn["outline"]]
     root, tip = min(p[0] for p in poly), max(p[0] for p in poly)
     wind = prims.winding(poly)
+    web = hn["web"]
+    g = hn["guides"]
+
+    def vo(u):
+        f = min(1.0, max(0.0, (u - root) / (tip - root)))
+        return hn["vOuter"][0] + (hn["vOuter"][1] - hn["vOuter"][0]) * f
+    k_tip = max(range(len(poly)), key=lambda k: poly[k][0])
+    lower = poly[:k_tip + 1]   # the root's bottom corner out to the tip
+    upper = poly[k_tip:]       # the tip back to the root's top corner
     for s in (-1, 1):
-        def vo(u):
-            f = min(1.0, max(0.0, (u - root) / (tip - root)))
-            return hn["vOuter"][0] + (hn["vOuter"][1] - hn["vOuter"][0]) * f
-        inner = [(u, s * hn["vInner"], w) for u, w in poly]
+        inner = [(u, s * (vo(u) - web), w) for u, w in poly]
         outer = [(u, s * vo(u), w) for u, w in poly]
-        face(mb, inner, st["dark"], (0.0, -s, 0.0))
-        face(mb, outer, st["dark"], (0.0, s, 0.0))
+        face(mb, inner, st["horn"], (0.0, -s, 0.0))
+        face(mb, outer, st["horn"], (0.0, s, 0.0))
         n = len(poly)
         for i in range(n):
             j = (i + 1) % n
             (ua, wa), (ub, wb) = poly[i], poly[j]
-            face(mb, [inner[i], inner[j], outer[j], outer[i]], st["dark"], ((wb - wa) * wind, 0.0, -(ub - ua) * wind))
+            face(mb, [inner[i], inner[j], outer[j], outer[i]], st["horn"], ((wb - wa) * wind, 0.0, -(ub - ua) * wind))
+        if lod >= 2:
+            continue
+        # the guides: plates along the outline's edges, from vInner out into the web
+        for edge, thick, sign in ((lower, g["lowerThick"], 1), (upper, g["upperThick"], -1)):
+            for (ua, wa), (ub, wb) in zip(edge, edge[1:]):
+                if sign > 0 and max(wa, wb) + thick > g["lowerTop"]:
+                    break   # the lower edge has risen to the roller: the guide ends, the web flares on alone
+                vi, vx = s * hn["vInner"], s * (vo((ua + ub) / 2) - web + 5)
+                a = [(ua, vi, wa), (ub, vi, wb), (ub, vx, wb), (ua, vx, wa)]
+                b = [(u, v, w + sign * thick) for u, v, w in a]
+                face(mb, a, st["horn"], (0.0, 0.0, -sign))
+                face(mb, b, st["horn"], (0.0, 0.0, sign))
+                face(mb, [a[0], a[1], b[1], b[0]], st["horn"], (0.0, -s, 0.0))
+                face(mb, [a[0], b[0], b[3], a[3]], st["horn"], (-1.0, 0.0, 0.0))
+                face(mb, [a[1], a[2], b[2], b[1]], st["horn"], (1.0, 0.0, 0.0))
 
 
 def rope_w(t, end, rope, u):
-    """The rope's height at u: in the wheel's plane from the tangent points, level at the rope's height past the bend."""
-    return min(rope, t["bullwheel"]["w"][end["name"]] + math.tan(math.radians(t["bullwheel"]["tilt"])) * u)
+    """The rope's height at u as the game draws it (socket to socket): straight from the wheel's tangent point up to the
+    bend, level beyond."""
+    bw = t["bullwheel"]["w"][end["name"]]
+    return bw + (rope - bw) * max(0.0, u) / end["ropeBend"] if u < end["ropeBend"] else rope
 
 
 def bend_sheaves(mb, t, end, rope, lod, st):
-    """The rope's support sheaves where it bends from the wheel's plane to level (the drive draws three a rope)."""
+    """The rope's support sheaves round its bend from the wheel's plane to level: three a rope (drawn at the drive; the
+    return needs them as much, round 3). Each turns on a stub axle from inboard: a hanger plate inboard of the grips'
+    jaws and a cross member out from the main beam (round 2: boxes up from the axles stood in every grip's path)."""
     sh = end.get("bendSheaves")
     if not sh or lod >= 2:
         return
-    sv = t["sheave"]
+    sv, f = t["sheave"], t["frame"]
+    hg = t["gauge"] / 2
+    pv = hg - sv["width"] / 2 - sv["mount"]   # the hanger plate's outer face
     for u in sh["u"]:
         wc = rope_w(t, end, rope, u) - t["ropeDia"] / 2 - sv["dia"] / 2
+        bw = beam_w(t, end, u)
         for s in (-1, 1):
-            c = Vector((m(u), m(s * t["gauge"] / 2), m(wc)))
-            prims.cylinder(mb, c - V * m(sv["width"]) / 2, c + V * m(sv["width"]) / 2, m(sv["dia"]) / 2, parts.sides(lod, 20, 12),
-                           st["red"])
-            prims.box(mb, (m(u - 60), m(s * t["gauge"] / 2 - 120), m(wc)), (m(u + 60), m(s * t["gauge"] / 2 + 120), m(beam_w(t, end, u))),
-                      st["steel"])
+            c = Vector((m(u), m(s * hg), m(wc)))
+            with mb.grouped("#bend_sheaves"):
+                prims.cylinder(mb, c - V * m(sv["width"]) / 2, c + V * m(sv["width"]) / 2, m(sv["dia"]) / 2,
+                               parts.sides(lod, 20, 12), st["red"], fan_caps=True)
+            with mb.grouped("#bend_brackets"):
+                a = Vector((m(u), m(s * (hg - sv["width"] / 2)), m(wc)))
+                b = Vector((m(u), m(s * (pv - 20)), m(wc)))
+                prims.cylinder(mb, a, b, 0.05, parts.sides(lod, 10, 6), st["rod"])
+                v0, v1 = sorted((s * (pv - 20), s * pv))
+                prims.box(mb, (m(u - 90), m(v0), m(wc - 150)), (m(u + 90), m(v1), m(bw + 300)), st["steel"])
+                v0, v1 = sorted((s * (f["beamV"] + f["beamWidth"] / 2), s * (pv - 20)))
+                prims.box(mb, (m(u - 60), m(v0), m(bw + 100)), (m(u + 60), m(v1), m(bw + 300)), st["steel"])
+
+
+def machinery(mb, t, end, lod, st):
+    """The detach machinery the photos show through the glass (owner, 2026-10-21: simplified, LOD0-1). Along each
+    straight a tyre conveyor whose tyres bear on the grips' tyre plates (#tyres), under red guards on a beam from the
+    portals; beyond the rope's bend, short rails over the levers' top rollers where the grips open and close
+    (#openrail). Static: the grip stays rigid (LM10)."""
+    if lod >= 2:
+        return
+    tb, orl = t["frame"]["tyreBank"], t["frame"]["openRails"]
+    u0, u1 = end["rail"]["corner"][0] + 300, end["rail"]["end"] - 600
+    top = t["frame"]["portals"]["w"][1] - t["frame"]["portals"]["size"]
+    for s in (-1, 1):
+        if lod == 0:
+            with mb.grouped("#tyres"):
+                for k in range(int((u1 - u0) // tb["pitch"]) + 1):
+                    c = Vector((m(u0 + k * tb["pitch"]), m(s * tb["v"]), m(tb["w"])))
+                    prims.cylinder(mb, c - V * m(tb["width"]) / 2, c + V * m(tb["width"]) / 2, m(tb["dia"]) / 2, 12, st["tyre"],
+                                   fan_caps=True)
+        with mb.grouped("#tyre_guards"):
+            for key, style in (("guard", st["guard"]), ("beam", st["inside"])):
+                a, b = sorted((s * tb[key]["v"][0], s * tb[key]["v"][1]))
+                prims.box(mb, (m(u0 - 300), m(a), m(tb[key]["w"][0])), (m(u1 + 300), m(b), m(tb[key]["w"][1])), style)
+        ra = end["ropeBend"] + orl["from"]
+        rb = ra + orl["length"]
+        hw, hh = orl["section"][0] / 2, orl["section"][1]
+        with mb.grouped("#openrail"):
+            prims.box(mb, (m(ra), m(s * orl["v"] - hw), m(orl["w"])), (m(rb), m(s * orl["v"] + hw), m(orl["w"] + hh)), st["rail"])
+        with mb.grouped("#openrail"):   # its hangers up to the portal: one rigid piece with the rail
+            for hu in (ra + 100, rb - 100):
+                prims.box(mb, (m(hu - 30), m(s * orl["v"] - 30), m(orl["w"] + hh)), (m(hu + 30), m(s * orl["v"] + 30), m(top)),
+                          st["inside"])
 
 
 def carriage(mb, t, end, lod, st):
     """The bullwheel's carriage between the main beams (the return's rolls on the beams for the tensioning), in the
-    wheel's plane, and the hub's housing down to the wheel."""
+    wheel's plane, and the hub's housing down to the wheel. It stays inside the hood (round 2: one built from the rear
+    footing's outline hung out under it)."""
     cg = end["carriage"]
     if lod >= 3:
         return
@@ -547,7 +778,8 @@ def carriage(mb, t, end, lod, st):
     axis = Vector((-math.sin(tilt), 0.0, math.cos(tilt)))
     centre = Vector((0.0, 0.0, m(t["bullwheel"]["w"][end["name"]])))
     top = m(beam_w(t, end, 0.0) + bd * 0.1) - centre.z
-    prims.cylinder(mb, centre + axis * 0.2, centre + axis * top, 0.3, 16 if lod == 0 else 10, st["dark"])
+    # the hub's housing, from just above the hub's top (the spec's hubTop, 250) up to the carriage
+    prims.cylinder(mb, centre + axis * 0.26, centre + axis * top, 0.3, 16 if lod == 0 else 10, st["dark"])
 
 
 # -- masts and piers ---------------------------------------------------------------------------------------------
@@ -565,6 +797,9 @@ def front_mast(mb, t, end, lod, st):
                    caps=(False, False))
     prims.box(mb, (m(u - hu), m(-hv), m(head0)), (m(u + hu), m(hv), m(head1)), st["galv"])
     if lod <= 1:
+        fl = fm["flange"]   # the round flange the head sits on (the plan view)
+        prims.cylinder(mb, (m(u), 0.0, m(head0 - fl["thick"])), (m(u), 0.0, m(head0)), m(fl["dia"]) / 2, parts.sides(lod, 24, 16),
+                       st["galv"], fan_caps=True)
         ph = pl["half"]
         prims.box(mb, (m(u - ph), m(-ph), m(plate_lo)), (m(u + ph), m(ph), m(plate_hi)), st["galv"])
         prims.box(mb, (m(u - ph - 30), m(-ph - 30), m(toc)), (m(u + ph + 30), m(ph + 30), m(plate_lo)), st["concrete"])
@@ -603,7 +838,22 @@ def rear_leg(mb, t, end, lod, st):
     prims.box(mb, (m(h0), m(-hv), m(aw)), (m(h1), m(hv), m(hw)), st["steel"])
     if lod <= 1:
         (s0, s1), (sw0, sw1), sv = rs["saddle"], rs["saddleW"], rs["saddleHalfV"]
-        prims.box(mb, (m(s0), m(-sv), m(sw0)), (m(s1), m(sv), m(sw1)), st["steel"])
+        curve = rs.get("saddleCurve")
+        if curve:   # a bracket whose back edge curves from its top corner down and forward (the return's side view)
+            (ca, wa), (cb, wb) = curve
+            arc = [(cb - (cb - ca) * math.cos(a), wa - (wa - wb) * math.sin(a))
+                   for a in (math.pi / 2 * k / 4 for k in range(5))]
+            poly = [(s1, sw0), (s1, sw1)] + arc + [(cb, sw0)]
+            prims.prism(mb, [(m(u), m(w)) for u, w in poly], (0.0, m(-sv), 0.0), U, W, V, m(2 * sv), st["steel"])
+        else:
+            prims.box(mb, (m(s0), m(-sv), m(sw0)), (m(s1), m(sv), m(sw1)), st["steel"])
+        sc = rs.get("sideCover")
+        if sc and lod == 0:   # the access cover on each flank of the leg
+            (c0, c1), (cw0, cw1) = sc["u"], sc["w"]
+            oval = [(m((c0 + c1) / 2 + (c1 - c0) / 2 * math.cos(a)), m((cw0 + cw1) / 2 + (cw1 - cw0) / 2 * math.sin(a)))
+                    for a in (2 * math.pi * k / 12 for k in range(12))]
+            for s in (-1, 1):
+                prims.prism(mb, oval, (0.0, m(s * hv) if s > 0 else m(-hv - 12), 0.0), U, W, V, 0.012, st["steel"])
         (p0, p1), pv = rs["plate"], rs["plateHalfV"]
         prims.box(mb, (m(p0), m(-pv), m(rs["toc"])), (m(p1), m(pv), m(bw_)), st["galv"])
         if lod == 0:
@@ -656,6 +906,15 @@ def build(spec, lod, stage, variant="return"):
             make(body, t, end, lod, st)
     with body.grouped("#bend_sheaves"):
         bend_sheaves(body, t, end, rope, lod, st)
+    with body.grouped("#machinery"):
+        machinery(body, t, end, lod, st)
+    la = end.get("landing")
+    if la and lod <= 1:   # where the ladder comes up through its hatch onto the floor
+        with body.grouped("#frame"):
+            for s in (-1, 1):
+                va, vb = sorted((s * t["hood"]["soffit"]["hatchHalf"], s * t["frame"]["floor"]["v"][0]))
+                fw = t["frame"]["floor"]["w"]
+                parts.deck(body, (m(la["u"][0]), m(va), m(fw[0])), (m(la["u"][1]), m(vb), m(fw[1])), lod, st["grating"], snow=0.0)
     with body.grouped("#piers"):
         p1 = pier(body, end["pierFront"], t["pierDepth"], lod, st)
         p2 = pier(body, end["pierRear"], t["pierDepth"], lod, st)

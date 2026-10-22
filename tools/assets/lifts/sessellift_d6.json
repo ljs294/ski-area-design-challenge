@@ -108,31 +108,75 @@
       },
       "portals": {
         "size": 162,
-        "inner": 998,
+        "inner": [2414, 2582],
+        "innerFrom": 3175,
         "outer": [3603, 3771],
         "w": [3079, 4575],
-        "chamfer": [[3768, 4200], [3397, 4570]]
+        "chamfer": [[3768, 4200], [3397, 4570]],
+        "knee": 4340,
+        "_portals": "one inverted-U frame over each grip path (end views and isometric): an inner leg inboard of the grips, an outer leg outboard of the guide rollers with a knee into the top beam; nothing across the middle"
       },
       "floor": {
         "w": [3062, 3089],
-        "v": [921, 3025],
-        "gapV": 2870
+        "v": [921, 3025]
+      },
+      "tyreBank": {
+        "dia": 400,
+        "width": 80,
+        "v": 2960,
+        "pitch": 900,
+        "w": 4005,
+        "guard": {
+          "v": [2880, 3060],
+          "w": [4005, 4260]
+        },
+        "beam": {
+          "v": [2900, 3020],
+          "w": [4260, 4413]
+        },
+        "_tyreBank": "the tyre conveyor along each straight (photos: the red row inside the glass): tyres bearing on the grips' tyre plate, under red guards, on a beam from the portals"
+      },
+      "openRails": {
+        "v": 3352,
+        "w": 3950,
+        "section": [40, 50],
+        "from": 300,
+        "length": 2000,
+        "_openRails": "short rails over the lever's top roller beyond the rope bend, where grips open and close"
       }
     },
     "rail": {
       "v": 2934,
-      "w": 3497,
+      "w": 3479.5,
       "section": [40, 50],
-      "grip": [-134, 100]
+      "grip": [-134, 120.5],
+      "_rail": "flat-topped bar; its top 95.5 under the rope, where the grip's running wheels stand (round 3: they sank 20.5 into it); carried from below on posts from the floor and on brackets from the portals' inner legs, never from above (the grips pass over it)",
+      "posts": {
+        "size": 80,
+        "every": 1600
+      },
+      "bracketW": [3410, 3450],
+      "lead": {
+        "length": 300,
+        "drop": 30
+      }
     },
     "horns": {
       "outline": [[-885, 3410], [-620, 3410], [750, 3158], [1100, 3409], [1395, 3678], [1535, 3870], [474, 3680], [-885, 3680]],
-      "vInner": 3440,
-      "vOuter": [3590, 3753]
+      "vInner": 3465,
+      "vOuter": [3590, 3753],
+      "web": 30,
+      "guides": {
+        "lowerThick": 45,
+        "lowerTop": 3455,
+        "upperThick": 25,
+        "_guides": "the guide roller (v 3487-3548, w 3475-3635 at the root) runs between them"
+      }
     },
     "sheave": {
       "dia": 550,
-      "width": 120
+      "width": 120,
+      "mount": 100
     },
     "bullwheel": {
       "tilt": 5.0,
@@ -148,6 +192,10 @@
         "grout": 58,
         "thick": 51,
         "bolts": [-480, -200, 200, 480]
+      },
+      "flange": {
+        "dia": 1260,
+        "thick": 40
       }
     },
     "pierDepth": 15000,
@@ -172,26 +220,29 @@
         "end": 11870
       },
       "ropeBend": 7700,
+      "bendSheaves": {
+        "u": [8353, 7830, 7016]
+      },
       "riders": [-6494, 0],
       "belly": {
-        "backs": [-4559, -4559, -4559, -4559],
+        "backs": [-4468, -4468, -4559, -4559],
         "front": 5378,
         "wedge": [0, 6545, 7576, 7576]
       },
       "frame": {
         "beamBottom": 3193,
-        "beamU": [-3884, 8370],
-        "posts": [[-4144, 3368, 5622], [8656, 4346, 5622]],
+        "beamU": [-3925, 8370],
+        "posts": [[-4144, 3368, 6040], [8656, 4346, 6040]],
         "overheadU": [-8141, 11856],
         "portals": [-8140, -4692, -2543, 657, 3856, 7056, 10254, 11856],
         "floorU": [-8023, 11858],
         "floorGap": [-150, 3000]
       },
       "carriage": {
-        "u": [-5376, 1500],
+        "u": [-2600, 1500],
         "halfV": 1300,
-        "cross": [-5376, -1910, 0, 1280],
-        "rollers": [-1910, 1280]
+        "cross": [-2600, 0, 1280],
+        "rollers": [-2400, 1280]
       },
       "frontMast": {
         "u": 8656,
@@ -224,7 +275,12 @@
         "saddleHalfV": 600,
         "plate": [-3840, -2160],
         "plateHalfV": 550,
-        "bolts": [-3600, -3000, -2400]
+        "bolts": [-3637, -3040, -2440],
+        "saddleCurve": [[-4630, 2975], [-4462, 2670]],
+        "sideCover": {
+          "u": [-3496, -3058],
+          "w": [489, 1013]
+        }
       },
       "pierFront": {
         "u": [7970, 9336],
@@ -239,6 +295,9 @@
           "u": [-2122, -1719],
           "top": 398
         }
+      },
+      "landing": {
+        "u": [10900, 11600]
       }
     },
     "drive": {
@@ -269,12 +328,13 @@
       "belly": {
         "backs": [-6500, -6500, -4245, -4245],
         "front": 5700,
-        "wedge": [0, 7916, 7916, 7916]
+        "wedge": [0, 6870, 7916, 7916],
+        "keelTop": -4245
       },
       "frame": {
         "beamBottom": 3162,
         "beamU": [-3812, 8700],
-        "posts": [[-3822, 3330, 5622], [8978, 4400, 5622]],
+        "posts": [[-3822, 3330, 6040], [8978, 4400, 6040]],
         "overheadU": [-7824, 12176],
         "portals": [-7824, -5100, -3573, -2222, 978, 4178, 7378, 10578, 12176],
         "floorU": [-7706, 12176],
@@ -298,7 +358,7 @@
           "bottom": [-1578, -120],
           "top": [-665, 2949],
           "width": 735,
-          "rail": [[-1578, 780], [-620, 3900]],
+          "rail": [[-1500, 1090], [-620, 3900]],
           "hatch": [-950, -400]
         }
       },
@@ -317,7 +377,11 @@
         "saddleHalfV": 600,
         "plate": [-3545, -1802],
         "plateHalfV": 546,
-        "bolts": [-3330, -2713, -2125]
+        "bolts": [-3330, -2713, -2125],
+        "sideCover": {
+          "u": [-3173, -2738],
+          "w": [479, 1000]
+        }
       },
       "pierFront": {
         "u": [8291, 9662],

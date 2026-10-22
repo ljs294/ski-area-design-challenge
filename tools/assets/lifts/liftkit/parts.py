@@ -573,12 +573,13 @@ def ladder(mb, bottom, top, width, lod, style, rung_every=0.28, handrails=True, 
             prims.cylinder(mb, b + y * s * (hw + 0.03) + W * 0.9, t + y * s * (hw + 0.03) + W * 0.9, 0.022, 6 if lod == 0 else 4, style)
 
 
-def deck(mb, lo, hi, lod, style, grating=True):
-    """A walkway deck plate with edge channels."""
-    st = style.but(cls="grating" if grating else style.cls, snow=0.8)
+def deck(mb, lo, hi, lod, style, grating=True, snow=None, channels=True):
+    """A walkway deck plate with edge channels (snow: the plate's capacity, 0.8 unless given, e.g. 0 under a roof;
+    channels=False: none, where something passes under the deck)."""
+    st = style.but(cls="grating" if grating else style.cls, snow=0.8 if snow is None else snow)
     lo, hi = vec(lo), vec(hi)
     prims.box(mb, lo, hi, st)
-    if lod == 0:   # edge channels under the plate, along both long sides
+    if lod == 0 and channels:   # edge channels under the plate, along both long sides
         along_u = (hi.x - lo.x) >= (hi.y - lo.y)
         depth = 0.12
         for s in (0, 1):
