@@ -13,7 +13,7 @@ import numpy as np
 
 N, T = 4, 256
 SIZE = N * T
-TILES = ["plain", "paint", "galvanised", "grating", "checker", "concrete", "panel", "rubber", "seat"]
+TILES = ["plain", "paint", "galvanised", "grating", "checker", "concrete", "panel", "rubber", "seat", "gloss", "roof_rib"]
 TILE = {name: i for i, name in enumerate(TILES)}
 CLASS_TILE = {
     "galvanised": "galvanised", "paint_grey": "paint", "paint_dark": "paint", "machined": "plain",
@@ -21,6 +21,9 @@ CLASS_TILE = {
     "interior": "plain", "seat_pad": "seat", "chair_steel": "galvanised", "safety_yellow": "paint",
     "grating": "grating", "trim_dark": "paint", "white": "panel", "grip": "galvanised", "sheave_rim": "paint",
     "sign_black": "paint", "aluminium": "plain", "valve_maroon": "paint",
+    # the D6's gloss panels carry no seam grid: their joints are geometry on the real panel lines
+    "livery_gloss": "gloss", "livery_mirror": "gloss", "white_smooth": "gloss", "roof_alu": "roof_rib",
+    "glass_black": "plain",
 }
 
 
@@ -81,6 +84,12 @@ def _tile(name):
         return _noise("rub_h", 0.8) * 0.2, 1 + _noise("rub_b", 6) * 0.03, ones, 0.4
     if name == "seat":   # padded vinyl: a fine grain over soft, broad undulation
         return _noise("seat_h", 0.7) * 0.06 + _noise("seat_w", 10) * 0.8, 1 + _noise("seat_b", 12) * 0.02, ones, 0.25
+    if name == "gloss":   # gloss panels: no seams, only a faint long-wave ripple in the reflections
+        return _noise("glo_h", 24) * 0.4, 1 + _noise("glo_b", 30) * 0.01, ones, 0.05
+    if name == "roof_rib":   # standing ribs every 128 px (0.5 m) across x, 10 px wide, rounded
+        d = np.minimum(x % 128, 128 - x % 128)
+        rib = np.clip(1 - (d / 5.0) ** 2, 0, 1)
+        return rib * 3.0 + _noise("rib_h", 1.5) * 0.08, 1 + rib * 0.06, 1 - (d < 8) * (1 - rib) * 0.3, 0.9
     raise KeyError(name)
 
 

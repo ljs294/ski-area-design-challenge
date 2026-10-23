@@ -1,0 +1,742 @@
+{
+  "_about": "Sessellift D6, a detachable six-seat chairlift (lift models 2, project 1). Millimetres. Measured on the owner's 1:50 terminal layouts (kept locally, never in the repo) and checked against photos of a built lift. The model is the reference's deliberate mirror (owner, Gate 0, LM7): loaded chairs leave the bottom on the right rope, as on every lift of ours. Origin of each terminal: the bullwheel's axle at the load or unload level 0.00; u toward the other terminal, v right looking along u, w up.",
+  "catalog": {
+    "maker": "Sessellift",
+    "name": "D6",
+    "parts": {
+      "sessellift_d6_drive": "Drive terminal",
+      "sessellift_d6_return": "Return terminal",
+      "sessellift_d6_chair": "Six-seat chair",
+      "sessellift_d6_tower_s4": "Line tower head, support 4",
+      "sessellift_d6_tower_s6": "Line tower head, support 6",
+      "sessellift_d6_tower_s10": "Line tower head, support 10",
+      "sessellift_d6_tower_b10": "Line tower head, breakover 10",
+      "sessellift_d6_tower_d10": "Line tower head, hold-down 10",
+      "sessellift_d6_tower_c8": "Line tower head, combination 4/4"
+    }
+  },
+  "common": {
+    "ropeElevation": 3600,
+    "lineGauge": 5600,
+    "ropeDiameter": 50.8,
+    "_rope": "2 in haul rope (owner default, Gate 0); the drawn rope is about 48 mm",
+    "travel": "ccw",
+    "loadedRope": "right when looking uphill: v+ at the return terminal (bottom), v- at the drive terminal (top)",
+    "driveEnd": "top",
+    "tensioning": "bottom (the return carries the tension carriage)",
+    "snowAllowance": 305,
+    "bullwheel": {
+      "pitch": 5600,
+      "rimTop": 110,
+      "rimBottom": -60,
+      "plateOuter": 6000,
+      "plateInner": 4900,
+      "plateThick": 40,
+      "plateBelowTop": true,
+      "hubDia": 1100,
+      "hubBottom": -150,
+      "hubTop": 250,
+      "spokes": 8,
+      "spokeWidth": 170,
+      "spokeDepth": 270
+    }
+  },
+  "chair": {
+    "_about": "The Sessellift quad chair made wider and hung lower (owner, LM2 and LM8): every point of the quad's chair (sessellift_fgq4.json chair) is moved by rule, nothing tuned by hand. Widths: a point's half-width grows by widen x t, where t runs from 0 at the hanger clamp (clampHalf) to 1 at the top bar's end (topBarHalf) and stays 1 beyond it; the frames and top bar take widen.frames, the bench, backrest and safety bar widen.bench (round 2: the drawing's frames at 1,527 from the axis, its bench six seats of 471). Heights: every point under the hanger moves down by drop. The clamp, top bar, web plate and hanger are the drawing's. Round 3 (the photos): bolster, backrest pad and shell, the bar's comb, footrests and stops, end brackets and armrests; positions after the drop, mm.",
+    "seats": 6,
+    "seatPitch": 471,
+    "widen": {
+      "frames": 399,
+      "bench": 441
+    },
+    "clampHalf": 126,
+    "topBarHalf": 781,
+    "drop": -585,
+    "axisV": -100,
+    "tubeHanger": 96,
+    "hanger": [[362, -89], [361, -127], [395, -191], [425, -254], [464, -381], [479, -476], [526, -762], [556, -900], [567, -1063], [578, -1160], [545, -1286], [515, -1350], [468, -1413], [408, -1476], [329, -1527], [233, -1561], [170, -1573], [-8, -1576]],
+    "hangerFar": [0, 3, 6, 9, 11, 13, 15, 17],
+    "clamp": {
+      "halfWidth": 179,
+      "u": 130,
+      "wFrom": -1525,
+      "wTo": -1894,
+      "bolts": 24,
+      "plate": [90, 60]
+    },
+    "topBar": {
+      "w": -1734,
+      "dia": 70
+    },
+    "webLower": [[0, -1858], [206, -1854], [714, -1803], [800, -1764]],
+    "bench": {
+      "bolster": {
+        "at": [300, -3105],
+        "dia": 140,
+        "band": 30
+      },
+      "lattice": 6
+    },
+    "backrest": {
+      "pad": 90,
+      "shell": 4,
+      "ribs": 10,
+      "ribWidth": 30,
+      "endCap": 20
+    },
+    "bar": {
+      "footrests": [0, 938],
+      "footrest": [160, 100, 12],
+      "stop": [60, 50, 40]
+    },
+    "endBracket": {
+      "thick": 10,
+      "height": 30
+    },
+    "armrest": {
+      "path": [[-150, -2935], [0, -2885], [200, -2905], [320, -2985]],
+      "out": 30,
+      "dia": 36
+    }
+  },
+  "terminal": {
+    "_about": "One station design at both ends, end for end (drive at the top, return with tensioning at the bottom), measured on the layouts in round 1 of the adversarial review (four reviewers, every view; the reports stay local). Model mm; u from the bullwheel's axle toward the line, w from the load or unload level. Hood: the end caps' outline (skirt, band, a circular arch, roof) swept along the station; the body between the caps sits bodyInset inside it at the band, tapering to nothing at the roof; 25 window bays of 800 between solid caps; nose (side view) and plan (plan view) give how far a ring's front face stands back from the hood's extreme; the end walls stand endWall inside the extremes. Rail: a 40 x 50 bar; the chairs' grips ride 134 inside it at the rope's height. Bullwheel: tilted about v, line side up; the ropes climb in its plane to the bend, then run level.",
+    "hood": {
+      "outline": [[4208, 2958], [4446, 3540], [4446, 3690]],
+      "arc": {
+        "centre": [955, 2797],
+        "radius": 3598,
+        "to": [2382, 6100]
+      },
+      "roof": 6100,
+      "band": [3540, 3690],
+      "bodyInset": 62,
+      "windows": {
+        "from": 3911,
+        "to": 5851,
+        "head": 5917,
+        "bay": 800,
+        "mullion": 75
+      },
+      "heavyMullion": {
+        "at": 1600,
+        "width": 150
+      },
+      "nose": [[2958, 402], [3743, 402], [3838, 398], [3997, 392], [4156, 386], [4314, 379], [4473, 367], [4632, 349], [4790, 329], [4949, 300], [5108, 268], [5267, 230], [5425, 184], [5584, 133], [5648, 110], [5743, 75], [5838, 43], [5902, 22], [5997, 0], [6029, 11], [6044, 21], [6060, 37], [6076, 62], [6100, 200]],
+      "plan": [[0, 0], [2380, 0], [2602, 38], [2919, 104], [3237, 184], [3554, 263], [3871, 339], [4030, 368], [4189, 387], [4348, 403], [4446, 403]],
+      "ring": {
+        "width": 232,
+        "bead": 50,
+        "foot": 150
+      },
+      "endWall": 520,
+      "endWindow": {
+        "frame": [2349, 3568, 5802],
+        "glass": [2289, 3627, 5742],
+        "mullions": [[0, 118], [1257, 85], [-1257, 85]],
+        "depth": 60,
+        "guard": {
+          "at": [0.45, 0.65],
+          "header": 0.78,
+          "out": 120,
+          "dia": 50,
+          "half": 1257
+        },
+        "plate": {
+          "half": 350,
+          "w": [160, 380]
+        }
+      },
+      "lineOpening": {
+        "v": 2400,
+        "top": 4100
+      },
+      "lining": 60,
+      "ribLift": 25,
+      "joint": 20,
+      "bracing": {
+        "w": [5000, 5780],
+        "width": 40
+      },
+      "soffit": {
+        "offset": 392,
+        "width": 300,
+        "hatchHalf": 450
+      },
+      "roofKit": {
+        "postIn": 1200,
+        "postHeight": 450,
+        "box": {
+          "from": 3200,
+          "length": 2400,
+          "half": 450,
+          "height": 300
+        },
+        "mast": {
+          "height": 500,
+          "spread": [150, 200],
+          "_mast": "owner, round 4: the 1.5 m A-frame read far too big"
+        },
+        "units": [[-3000, 1200], [3000, -1200]],
+        "unit": [600, 450, 300],
+        "_roofKit": "photos: lifeline tripods at both ends with a cable along the crown, a low box with an A-frame mast at the line end, small roof units (u from the hood's middle, v)"
+      },
+      "lamps": {
+        "back": [600, 4240, 3020],
+        "lineRing": [400, 3900, 3300]
+      }
+    },
+    "belly": {
+      "section": [[3133, 2958], [3133, 2690], [1511, 2461], [991, 1944]],
+      "cove": 60,
+      "lip": [20, 20],
+      "joints": [-3156, -2087, -1024, 43, 1110, 2176, 3243, 4310],
+      "jointWidth": 15,
+      "chin": {
+        "pad": 120,
+        "height": 400
+      }
+    },
+    "frame": {
+      "beamV": 1649,
+      "beamWidth": 356,
+      "beamDepth": 540,
+      "postSize": 260,
+      "overhead": {
+        "w": [5622, 5700]
+      },
+      "portals": {
+        "size": 162,
+        "inner": [2414, 2582],
+        "innerFrom": 3175,
+        "outer": [3603, 3771],
+        "w": [3079, 4575],
+        "chamfer": [[3768, 4200], [3397, 4570]],
+        "knee": 4340,
+        "_portals": "one inverted-U frame over each grip path (end views and isometric): an inner leg inboard of the grips, an outer leg outboard of the guide rollers with a knee into the top beam; nothing across the middle"
+      },
+      "floor": {
+        "w": [3062, 3089],
+        "v": [921, 3025]
+      },
+      "tyreBank": {
+        "dia": 400,
+        "width": 70,
+        "v": 2960,
+        "pitch": 900,
+        "w": 3990,
+        "_w": "the tyres' bottom facets bear on the tyre plate's top (rope + 197; round 4: 15 mm clear of it)",
+        "guard": {
+          "v": [2880, 3060],
+          "w": [3990, 4260]
+        },
+        "beam": {
+          "v": [2900, 3020],
+          "w": [4260, 4413]
+        },
+        "_tyreBank": "the tyre conveyor along each straight (photos: the red row inside the glass): tyres bearing on the grips' tyre plate, under red guards, on a beam from the portals"
+      },
+      "openRails": {
+        "v": 3375,
+        "w": 3950,
+        "section": [30, 50],
+        "from": 300,
+        "length": 2000,
+        "_openRails": "short rails over the lever's top roller beyond the rope bend, where grips open and close; just outboard of the lever's flag plate"
+      }
+    },
+    "rail": {
+      "v": 2934,
+      "w": 3479.5,
+      "section": [40, 50],
+      "grip": [-134, 120.5],
+      "_rail": "flat-topped bar; its top 95.5 under the rope, where the grip's running wheels stand (round 3: they sank 20.5 into it); carried from below on posts from the floor and on brackets from the portals' inner legs, never from above (the grips pass over it)",
+      "posts": {
+        "size": 80,
+        "every": 1600
+      },
+      "bracketW": [3410, 3450],
+      "lead": {
+        "length": 300,
+        "drop": 30
+      }
+    },
+    "horns": {
+      "outline": [[-885, 3410], [-620, 3410], [750, 3158], [1100, 3409], [1395, 3678], [1535, 3870], [474, 3680], [-885, 3680]],
+      "vInner": 3465,
+      "vOuter": [3590, 3753],
+      "web": 30,
+      "guides": {
+        "lowerThick": 45,
+        "lowerTop": 3455,
+        "upperThick": 25,
+        "_guides": "the guide roller (v 3487-3548, w 3475-3635 at the root) runs between them"
+      }
+    },
+    "sheave": {
+      "dia": 550,
+      "width": 60,
+      "mount": 100,
+      "_width": "narrower than the grip's body web, which hangs 41 below the rope beside the jaw (round 3)"
+    },
+    "bullwheel": {
+      "tilt": 5.0,
+      "w": {
+        "return": 2921,
+        "drive": 2924
+      }
+    },
+    "frontMast": {
+      "dia": 762,
+      "plate": {
+        "half": 628,
+        "grout": 58,
+        "thick": 51,
+        "bolts": [-480, -200, 200, 480]
+      },
+      "flange": {
+        "dia": 1260,
+        "thick": 40
+      }
+    },
+    "pierDepth": 15000,
+    "return": {
+      "hood": [-9108, 12816],
+      "windows": [-8141, 11856],
+      "flipBays": [
+        {
+          "side": 1,
+          "bay": 5,
+          "transoms": [[5463, 5511], [4806, 4889]]
+        },
+        {
+          "side": -1,
+          "bay": 19,
+          "transoms": [[5463, 5511], [4806, 4889]]
+        }
+      ],
+      "rail": {
+        "corner": [-4694, 1000],
+        "radius": 1934,
+        "end": 11870
+      },
+      "ropeBend": 7700,
+      "bendSheaves": {
+        "u": [8353, 7830, 7016]
+      },
+      "riders": [-6494, 0],
+      "belly": {
+        "backs": [-4468, -4468, -4559, -4559],
+        "front": 5378,
+        "wedge": [0, 6545, 7576, 7576]
+      },
+      "frame": {
+        "beamBottom": 3193,
+        "beamU": [-3925, 8370],
+        "posts": [[-4144, 3368, 6040], [8656, 4346, 6040]],
+        "overheadU": [-8141, 11856],
+        "portals": [-8140, -4692, -2543, 657, 3856, 7056, 10254, 11856],
+        "floorU": [-8023, 11858],
+        "floorGap": [-150, 3000]
+      },
+      "carriage": {
+        "u": [-2600, 1500],
+        "halfV": 1300,
+        "cross": [-2600, 0, 1280],
+        "rollers": [-2400, 1280]
+      },
+      "frontMast": {
+        "u": 8656,
+        "toc": -950,
+        "head": {
+          "half": [569, 586],
+          "w": [2735, 2957],
+          "gusset": 250
+        },
+        "ladder": {
+          "bottom": [1330, -937],
+          "top": [2609, 3054],
+          "width": 735,
+          "rail": [[1330, -37], [2714, 4565]],
+          "hatch": [2250, 2900]
+        }
+      },
+      "rear": {
+        "kind": "leg",
+        "toc": 100,
+        "bottom": [-3810, -2233],
+        "bottomW": 225,
+        "top": [-4348, -3921],
+        "topW": 2556,
+        "halfV": 350,
+        "head": [-4338, -3925],
+        "headW": 3060,
+        "saddle": [-4630, -3830],
+        "saddleW": [2594, 2975],
+        "saddleHalfV": 600,
+        "plate": [-3840, -2160],
+        "plateHalfV": 550,
+        "bolts": [-3637, -3040, -2440],
+        "saddleCurve": [[-4630, 2975], [-4462, 2670]],
+        "sideCover": {
+          "u": [-3496, -3058],
+          "w": [489, 1013]
+        }
+      },
+      "pierFront": {
+        "u": [7970, 9336],
+        "halfV": 687,
+        "toc": -950
+      },
+      "pierRear": {
+        "u": [-4157, -1719],
+        "halfV": 611,
+        "toc": 97,
+        "upstand": {
+          "u": [-2122, -1719],
+          "top": 398
+        }
+      },
+      "landing": {
+        "u": [10900, 11600]
+      }
+    },
+    "drive": {
+      "hood": [-8784, 13137],
+      "windows": [-7824, 12176],
+      "flipBays": [
+        {
+          "side": 1,
+          "bay": 5,
+          "transoms": [[5463, 5511], [4806, 4889]]
+        },
+        {
+          "side": -1,
+          "bay": 5,
+          "transoms": [[5463, 5511], [4806, 4889]]
+        }
+      ],
+      "rail": {
+        "corner": [-3573, 199],
+        "radius": 2735,
+        "end": 12189
+      },
+      "ropeBend": 7660,
+      "bendSheaves": {
+        "u": [8313, 7790, 6976]
+      },
+      "riders": [-3000, -2800],
+      "belly": {
+        "backs": [-6500, -6500, -4245, -4245],
+        "front": 5700,
+        "wedge": [0, 6870, 7916, 7916],
+        "keelTop": -4245
+      },
+      "frame": {
+        "beamBottom": 3162,
+        "beamU": [-3812, 8700],
+        "posts": [[-3822, 3330, 6040], [8978, 4400, 6040]],
+        "overheadU": [-7824, 12176],
+        "portals": [-7824, -5100, -3573, -2222, 978, 4178, 7378, 10578, 12176],
+        "floorU": [-7706, 12176],
+        "floorGap": [-150, 3000]
+      },
+      "carriage": {
+        "u": [-3000, 1500],
+        "halfV": 1300,
+        "cross": [-3000, 0, 1280],
+        "rollers": []
+      },
+      "frontMast": {
+        "u": 8978,
+        "toc": -2455,
+        "head": {
+          "half": [565, 500],
+          "w": [2737, 2946],
+          "gusset": 250
+        },
+        "ladder": {
+          "bottom": [-1578, -120],
+          "top": [-665, 2949],
+          "width": 735,
+          "rail": [[-1500, 1090], [-620, 3900]],
+          "hatch": [-950, -400]
+        }
+      },
+      "rear": {
+        "kind": "leg",
+        "toc": 94,
+        "bottom": [-3504, -1930],
+        "bottomW": 238,
+        "top": [-3999, -3625],
+        "topW": 2590,
+        "halfV": 465,
+        "head": [-3999, -3625],
+        "headW": 2850,
+        "saddle": [-4150, -3480],
+        "saddleW": [2590, 2830],
+        "saddleHalfV": 600,
+        "plate": [-3545, -1802],
+        "plateHalfV": 546,
+        "bolts": [-3330, -2713, -2125],
+        "sideCover": {
+          "u": [-3173, -2738],
+          "w": [479, 1000]
+        }
+      },
+      "pierFront": {
+        "u": [8291, 9662],
+        "halfV": 714,
+        "toc": -2455
+      },
+      "pierRear": {
+        "u": [-4151, -1710],
+        "halfV": 611,
+        "toc": 94,
+        "upstand": {
+          "u": [-2110, -1710],
+          "top": 395
+        }
+      }
+    }
+  },
+  "towerWide": {
+    "_about": "The D6 line heads, after the owner's reference tower (Gate 0 and review T1, 2026-10-22; local, never in the repo), built from the gauge: a cap on the kit's straight mast; a haunched crossarm ending just inboard of each rope, its bottom flange flared to the cap; at each end a clamped end block of twin cheek plates carrying the pin each sheave train hangs from like a pendulum (the round stub over the rope carries nothing); the kit's sheaves on the reference's train (a yoke, 6- and 4-beams, shaped rockers); a lifting beam on two tapered legs with lifting eyes over each rope and a hoist bar; on trains of ten, a walkway of panels each riding its rocker; two caged platforms on the +u face, the mast ladder to the beam and side ladders. mm; w above the mast top; x and v measured in from the rope where noted.",
+    "heads": {
+      "s4": {
+        "support": 4,
+        "arc": "flat"
+      },
+      "s6": {
+        "support": 6,
+        "arc": "flat"
+      },
+      "s10": {
+        "support": 10,
+        "arc": "flat"
+      },
+      "b10": {
+        "support": 10,
+        "arc": "breakover",
+        "radius": 12530
+      },
+      "d10": {
+        "hold": 10,
+        "arc": "breakover",
+        "radius": 12530
+      },
+      "c8": {
+        "combo": 4,
+        "arc": "combo"
+      }
+    },
+    "cap": {
+      "halfU": 360,
+      "halfV": 345,
+      "thick": 60,
+      "cut": [60, 140],
+      "bolts": {
+        "u": 250,
+        "v": [90, 250],
+        "dia": 36
+      }
+    },
+    "crossarm": {
+      "width": 330,
+      "bottom": 300,
+      "top": 660,
+      "endInset": 67,
+      "haunch": {
+        "from": 1510,
+        "to": 360,
+        "flare": 600,
+        "web": 430
+      }
+    },
+    "endBlock": {
+      "cheeks": [[150, 190], [480, 520]],
+      "halfU": 274,
+      "top": 290,
+      "shoulder": 230,
+      "nose": 140,
+      "notch": {
+        "halfU": 90,
+        "bottom": 163
+      },
+      "boss": {
+        "dia": 183,
+        "thick": 20
+      },
+      "topBars": {
+        "halfU": 235,
+        "x": [[120, 220], [450, 550]],
+        "thick": 30
+      },
+      "rods": {
+        "u": 200,
+        "dia": 57,
+        "top": 800
+      },
+      "nut": [90, 50],
+      "_x": "in from the rope"
+    },
+    "liftingBeam": {
+      "size": 200,
+      "w": 1780,
+      "halfLength": 2755,
+      "endPlate": {
+        "proud": 10,
+        "thick": 20,
+        "bore": 100,
+        "bolts": 80
+      },
+      "legs": {
+        "foot": {
+          "w": 680,
+          "u": 162,
+          "v": [1925, 2039]
+        },
+        "top": {
+          "u": 101,
+          "v": [2154, 2447]
+        },
+        "footPlate": [470, 126, 20],
+        "grab": {
+          "dia": 20,
+          "w": [1040, 1600],
+          "off": 50
+        }
+      },
+      "lugs": {
+        "v": [240, 80],
+        "thick": 20,
+        "halfU": 130,
+        "corner": 30,
+        "endR": 45,
+        "tip": 160,
+        "eye": 80,
+        "boss": [90, 44],
+        "bore": 45,
+        "_v": "in from the rope"
+      },
+      "rail": {
+        "v": [140, 1980],
+        "dia": 30,
+        "below": 75,
+        "standoffs": [159, 1059, 1959],
+        "thick": 20,
+        "halfU": 60
+      }
+    },
+    "walkway": {
+      "_walkway": "trains of ten only, as the reference: one inner stringer with level treads stepping 400 below the rope on cross-bearers (owner, Gate 2: up to the side ladder), hanging at one point from the crossarm on a box post clamped round the arm, its clevis pin through a lug on the stringer, so it turns with its train (owner, Gate 2); railing on the inner side, open over the hanger and the side ladder; end cages",
+      "minSheaves": 10,
+      "inner": 1010,
+      "outer": 520,
+      "below": 400,
+      "past": 250,
+      "pitch": 445,
+      "tread": {
+        "u": 400,
+        "thick": 30
+      },
+      "stringer": [110, 140],
+      "hanger": {
+        "post": [300, 150],
+        "lug": 150,
+        "above": 120,
+        "clevis": [20, 5],
+        "clamp": 20,
+        "open": [-900, 1000]
+      },
+      "railing": {
+        "height": 1000,
+        "knee": 500,
+        "bar": [20, 40],
+        "post": [30, 25]
+      }
+    },
+    "platform": {
+      "_platform": "the two caged platforms on the crossarm's +u face, reaching toward the sheaves (owner, Gate 1 v6): to reach in from the rope (just inboard of the train's yoke), or to reachWalkway from the axis where a walkway runs below; railed on the +u face and the outer end",
+      "u": [310, 830],
+      "v": [590, 1510],
+      "reach": 500,
+      "reachWalkway": 1600,
+      "deckW": 560,
+      "railing": 1000,
+      "deck": 15,
+      "post": 15
+    },
+    "sideLadder": {
+      "v": 1510,
+      "u": 330,
+      "width": 250,
+      "pitch": 300,
+      "above": 50,
+      "off": 40
+    },
+    "numberPlate": {
+      "halfV": 200,
+      "height": 260,
+      "thick": 8,
+      "standoff": 20
+    },
+    "train": {
+      "_train": "the reference's train (review T1): pitch inside a rocker, gap between rockers; rope heights at u 0 for support and hold-down rows (a hold-down row hangs wholly below the end block); x layers inboard from the rope; rocker stop in degrees either way",
+      "pitch": 550,
+      "gap": 730,
+      "rope": {
+        "support": -80,
+        "hold": -700,
+        "combo": -570
+      },
+      "pin": {
+        "w": 20,
+        "dia": 140
+      },
+      "rocker": {
+        "x": [88, 98],
+        "pinDrop": 117,
+        "pin": 80,
+        "stop": 5,
+        "horn": 280
+      },
+      "beam4": {
+        "x": [118, 140],
+        "depth": [152, 240],
+        "holdDepth": [152, 180],
+        "overhang": 120,
+        "pinDrop": 26,
+        "boss": [213, 40]
+      },
+      "beam6": {
+        "x": [230, 400],
+        "depth": 208,
+        "overhang": 150
+      },
+      "yoke": {
+        "x": [200, 470],
+        "depth": 282,
+        "overhang": 150,
+        "leg": 195,
+        "plate": 20,
+        "boss": 180,
+        "holdDepth": 210,
+        "holdLift": 40
+      },
+      "pinHead": [110, 100]
+    },
+    "stub": {
+      "u": 172,
+      "w": 203,
+      "reach": 425,
+      "flange": [257, 215, 26],
+      "_stub": "on the crossarm's axis, unloaded, reaching past the rope"
+    },
+    "mastLadder": {
+      "past": 90,
+      "stringer": 80,
+      "clamp": [270, 109]
+    }
+  }
+}

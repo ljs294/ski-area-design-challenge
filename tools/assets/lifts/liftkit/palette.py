@@ -32,6 +32,14 @@ CLASSES = [
     ("sign_black", "#121315", 0, 0.35),     # tower number plates (black, white number)
     ("aluminium", "#C8CCCF", 1, 0.55),      # snow gun lances, heads and barrels (bare aluminium)
     ("valve_maroon", "#6E2A33", 0, 0.40),   # snow gun valve paddles
+    ("spring_blue", "#2A4F9E", 0, 0.45),    # detachable grip springs (as photographed on the D6, owner LM10)
+    ("roller_cream", "#E2DCC2", 0, 0.30),   # grip wheels and rollers (cast polyurethane)
+    # the Sessellift D6's finishes (lift models 2, round 3 review): the photographed hood is mirror-gloss
+    ("livery_gloss", "#F4F4F2", 0, 0.80),   # gloss hood paint, tinted by the livery like `livery`
+    ("livery_mirror", "#F4F4F2", 0, 0.90),  # the hood's skirt under the band: reads silver in sun by reflecting snow
+    ("white_smooth", "#E7E8E8", 0, 0.55),   # the white underbody, seam-free
+    ("roof_alu", "#B4B9BD", 1, 0.50),       # ribbed aluminium roof band
+    ("glass_black", "#0A0D10", 0, 0.92),    # mirror-black station glazing
 ]
 INDEX = {name: i for i, (name, *_) in enumerate(CLASSES)}
 

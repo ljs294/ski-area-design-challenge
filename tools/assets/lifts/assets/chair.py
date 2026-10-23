@@ -39,12 +39,7 @@ def build(spec, lod, stage):
     mb = MeshBuilder()
     ax = m(ch["axisV"])
     tube = {k: m(v) / 2 for k, v in ch["tube"].items()}   # radii
-
-    def sym(u, hw, w, s=1):
-        return Vector((m(u), ax + s * m(hw), m(w)))
-
     top = ch["topBar"]
-    frame = ch["sideFrame"]
     bench = ch["bench"]
 
     if lod == 2:   # distant stand-in: hanger, top bar, side frames and bench as boxes
@@ -79,6 +74,22 @@ def build(spec, lod, stage):
         joint = parts.hanger_joint(rings, hanger, tube["hanger"], steel) if near else None
         parts.fixed_grip(mb, lod, steel, dark=Style("trim_dark"), metal=Style("machined"), hanger=joint,
                          socket_group="hanger#socket")
+    body(mb, ch, near, n_frame, n_thin, tube, steel, seat, grip_st)
+    return finish(a, mb, ch)
+
+
+def body(mb, ch, near, n_frame, n_thin, tube, steel, seat, grip_st):
+    """Everything under the hanger, up close and at LOD1 (the D6 chair builds the same body, made wider by rule): the
+    clamp, the top bar with its web plate and the safety bar's sleeves, the side frames and edge rails, the bench, the
+    bottom member, the backrest and the safety bar. tube: radii (m)."""
+    ax = m(ch["axisV"])
+
+    def sym(u, hw, w, s=1):
+        return Vector((m(u), ax + s * m(hw), m(w)))
+
+    top = ch["topBar"]
+    frame = ch["sideFrame"]
+    bench = ch["bench"]
     cl = ch["clamp"]
     prims.box(mb, (-m(cl["u"]) / 2, ax - m(cl["halfWidth"]), m(cl["wTo"])), (m(cl["u"]) / 2, ax + m(cl["halfWidth"]), m(cl["wFrom"])), grip_st)
 
@@ -126,7 +137,6 @@ def build(spec, lod, stage):
 
     # safety bar, raised behind the seat: arms from the front sleeves, rail, legs, footrest stubs, rod, handles
     parts.restraint_bar(mb, ch["bar"], tube, sym, near, n_thin, steel, grip_st)
-    return finish(a, mb, ch)
 
 
 def hinge_point(ch):
