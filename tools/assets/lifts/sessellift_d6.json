@@ -6,7 +6,13 @@
     "parts": {
       "sessellift_d6_drive": "Drive terminal",
       "sessellift_d6_return": "Return terminal",
-      "sessellift_d6_chair": "Six-seat chair"
+      "sessellift_d6_chair": "Six-seat chair",
+      "sessellift_d6_tower_s4": "Line tower head, support 4",
+      "sessellift_d6_tower_s6": "Line tower head, support 6",
+      "sessellift_d6_tower_s10": "Line tower head, support 10",
+      "sessellift_d6_tower_b10": "Line tower head, breakover 10",
+      "sessellift_d6_tower_d10": "Line tower head, hold-down 10",
+      "sessellift_d6_tower_c8": "Line tower head, combination 4/4"
     }
   },
   "common": {

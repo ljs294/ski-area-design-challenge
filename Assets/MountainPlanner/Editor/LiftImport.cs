@@ -247,7 +247,7 @@ namespace MountainPlanner.Editor
             if (info["socketParents"] is JObject socketParents)   // sockets that ride with a pivot (the chair's seats)
                 foreach (var sp in socketParents.Properties())
                     rig.Socket(sp.Name).SetParent(rig.Pivot((string)sp.Value) ?? throw new System.InvalidOperationException($"{id}: socket {sp.Name} rides with unknown pivot {sp.Value}"), true);
-            rig.LiveryRenderers = go.GetComponentsInChildren<Renderer>(true).Where(r => r.name.StartsWith(id + "_LOD") && rig.Kind == "terminal").ToArray();
+            rig.LiveryRenderers = go.GetComponentsInChildren<Renderer>(true).Where(r => r.name.StartsWith(id + "_LOD") && (rig.Kind == "terminal" || rig.Kind == "terminal_detach")).ToArray();
 
             // The FBX round trip must keep every pivot and socket where the build put it.
             for (int i = 0; i < pivots.Count; i++) Expect(id, rig.Pivots[i], ToVector((JArray)pivots[i].Value["pos"]), go.transform);
