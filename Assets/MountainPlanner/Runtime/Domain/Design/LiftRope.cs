@@ -98,7 +98,7 @@ namespace MountainPlanner.Domain.Design
             if (monta)
             {
                 type.Bottom = new TerminalEnd("monta_fg4_drive", TerminalRow.HoldDown, MontaExitMin, MontaExitMax, 0.9 * MontaExitMax,
-                                              5.042, 11.075, 6.25, 10.869, 3.555, 0, 12);
+                                              5.042, 11.075, 5.475, 10.869, 3.555, 0, 12, ownStation: true);   // TW-16 v4, LT32; LT36 half-width
                 type.Top = new TerminalEnd("monta_fg4_return", TerminalRow.Support, -TowerForces.SheaveBendLimit, 0, 0,
                                            2.165, 3.782, 2.165, 1.922, 3.039, 0, 1);
             }
@@ -131,11 +131,11 @@ namespace MountainPlanner.Domain.Design
             ["detach-quad"] = new CarrierSpec("Detachable quad", 1000, 4, 80, 5.2, 30000, 900, 1580, 3600),
             ["detach-six"] = new CarrierSpec("Detachable six", 1000, 6, 100, 6.0, 36000, 1300, 2320, 3300),
             ["detach-eight"] = new CarrierSpec("Detachable eight", 1000, 8, 120, 6.4, 40000, 1700, 3060, 3000),
-            ["gondola-6"] = new CarrierSpec("Gondola, 6 a cabin", 1000, 6, 150, 5.2, 32000, 1300, 2320, 4500),
-            ["gondola-8"] = new CarrierSpec("Gondola, 8 a cabin", 1000, 8, 160, 6.0, 36000, 1700, 3060, 4500),
-            ["gondola-10"] = new CarrierSpec("Gondola, 10 a cabin", 1000, 10, 167, 6.4, 40000, 2000, 3700, 4500),
-            ["tram-60"] = new CarrierSpec("Aerial tram, 60 a cabin", 2000, 60, 5000, 15, 450000, 18000, 28200, double.PositiveInfinity, 500),
-            ["tram-100"] = new CarrierSpec("Aerial tram, 100 a cabin", 2000, 100, 5000, 15, 500000, 24000, 41000, double.PositiveInfinity, 750),
+            ["gondola-6"] = new CarrierSpec("Gondola, 6 person", 1000, 6, 150, 5.2, 32000, 1300, 2320, 4500),
+            ["gondola-8"] = new CarrierSpec("Gondola, 8 person", 1000, 8, 160, 6.0, 36000, 1700, 3060, 4500),
+            ["gondola-10"] = new CarrierSpec("Gondola, 10 person", 1000, 10, 167, 6.4, 40000, 2000, 3700, 4500),
+            ["tram-60"] = new CarrierSpec("Aerial tram, 60 person", 2000, 60, 5000, 15, 450000, 18000, 28200, double.PositiveInfinity, 500),
+            ["tram-100"] = new CarrierSpec("Aerial tram, 100 person", 2000, 100, 5000, 15, 500000, 24000, 41000, double.PositiveInfinity, 750),
         };
 
         /// <summary>
@@ -324,8 +324,9 @@ namespace MountainPlanner.Domain.Design
             }
             // TW-02 v3: the first and last towers within the station zone (100 ft of their bullwheel) are station towers.
             double zone = DesignUnits.StationZoneMm / 1000.0;
-            bool bottomStation = n > 0 && baseS[0] <= zone + 1e-9;
-            bool topStation = n > (bottomStation ? 1 : 0) && LengthMetres - baseS[n - 1] <= zone + 1e-9;
+            // TW-16 v4: a terminal with its own station (the Monta drive) has none after it.
+            bool bottomStation = !type.Bottom.OwnStation && n > 0 && baseS[0] <= zone + 1e-9;
+            bool topStation = !type.Top.OwnStation && n > (bottomStation ? 1 : 0) && LengthMetres - baseS[n - 1] <= zone + 1e-9;
 
             double t0 = type.CounterweightNewtons;
             double wl = type.LoadedNewtonsPerMetre, we = type.EmptyNewtonsPerMetre;

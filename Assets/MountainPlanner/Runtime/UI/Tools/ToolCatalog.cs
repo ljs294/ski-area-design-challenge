@@ -20,6 +20,8 @@ namespace MountainPlanner.UI.Tools
         static readonly List<Entry> Entries = new List<Entry>
         {
             new Entry(NewLiftTool.ToolId, "s-lift", "new", () => new NewLiftTool()),
+            new Entry(EditLiftTool.ToolId, "s-lift", "edit", () => new EditLiftTool()),
+            new Entry(RemoveLiftTool.ToolId, "s-lift", "remove", () => new RemoveLiftTool()),
             new Entry(NewTrailTool.ToolId, "s-trail", "new", () => new NewTrailTool()),
             new Entry(EditTrailTool.ToolId, "s-trail", "edit", () => new EditTrailTool()),       // task 08 (TF-07)
             new Entry(RemoveTrailTool.ToolId, "s-trail", "remove", () => new RemoveTrailTool()), // task 08 (TF-07, CL-07)

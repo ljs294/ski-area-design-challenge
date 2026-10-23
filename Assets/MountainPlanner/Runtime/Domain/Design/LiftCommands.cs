@@ -269,7 +269,7 @@ namespace MountainPlanner.Domain.Design
     /// towers and terminal levels together, so one Ctrl+Z undoes the whole edit (CF-05). Covers moving either terminal
     /// anywhere (LF-05 v2), changing the type (P3-06 round 2), setting a terminal's level (SK14) and moving towers along the
     /// line and in height. Towers listed in <see cref="Kept"/> keep their IDs (with their new place and height); the rest are
-    /// removed; <see cref="Added"/> get new IDs.
+    /// removed; <see cref="Added"/> get new IDs. A <see cref="Name"/> renames it in the same step (F5, LT39).
     /// </summary>
     public sealed class EditLift : DesignCommand
     {
@@ -283,11 +283,14 @@ namespace MountainPlanner.Domain.Design
         public IReadOnlyList<TowerSpec> Added { get; }
         public LiftLevels? Levels { get; }
         public LiftEdit Kind { get; }
+        /// <summary>The lift's new name, or null to keep it.</summary>
+        public string Name { get; }
 
         public EditLift(long baseRevision, LiftId lift, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance,
-                        IReadOnlyList<Tower> kept, IReadOnlyList<TowerSpec> added, LiftLevels? levels, LiftEdit kind = LiftEdit.Edit)
+                        IReadOnlyList<Tower> kept, IReadOnlyList<TowerSpec> added, LiftLevels? levels, LiftEdit kind = LiftEdit.Edit, string name = null)
             : base(baseRevision)
         {
+            Name = name;
             Lift = lift;
             CatalogId = catalogId;
             Bottom = bottom;
@@ -317,6 +320,7 @@ namespace MountainPlanner.Domain.Design
             var l = doc.FindLift(Lift);
             if (l == null) return Missing(doc, "That lift");
             if (DesignRules.LiftLineProblem(CatalogId, Bottom, Top, TowerMode, Stance) is string p) return Invalid(doc, p);
+            if (Name != null && DesignRules.NameProblem(Name) is string n) return Invalid(doc, n);
             var towers = new List<Tower>();
             var seen = new HashSet<ulong>();
             foreach (var t in Kept)
@@ -328,7 +332,7 @@ namespace MountainPlanner.Domain.Design
             var mint = new IdMint(doc);
             var created = new List<ulong>();
             towers.AddRange(LiftTowers.Mint(ref mint, Added, created));
-            var next = new Lift(l.Id, l.Name, l.Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels);
+            var next = new Lift(l.Id, Name ?? l.Name, l.Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels);
             if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers, next.CatalogId) is string t2) return Invalid(doc, t2);
             if (DesignBytes.Same(l, next)) return Invalid(doc, "Nothing changes.");
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(next), created);

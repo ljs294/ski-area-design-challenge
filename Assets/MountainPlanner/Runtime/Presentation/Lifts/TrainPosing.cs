@@ -122,6 +122,26 @@ namespace MountainPlanner.Presentation.Lifts
             };
         }
 
+        /// <summary>
+        /// A terminal row that can't turn (a model without pivots on that side, LT33): one fixed sheave whose rope passes
+        /// through the model's <c>rope_{side}_out</c> socket, on top of it (<paramref name="above"/>) or under it. The line
+        /// still poses round it, so one fixed row never switches posing off for every tower. Null without the socket.
+        /// </summary>
+        public static Train Fixed(LiftRig rig, string side, bool above, double rho, Vector3 origin, Vector3 dir, Vector3 right)
+        {
+            var socket = rig != null ? rig.Socket($"rope_{(side == "r" ? "right" : "left")}_out") : null;
+            if (socket == null) return null;
+            var p = socket.position;
+            double s = Vector3.Dot(p - origin, dir), w = p.y - origin.y;
+            var nodes = new List<SheaveTree.Node> { new SheaveTree.Node(-1, s, w, 0, 0) };
+            var sheaves = new List<SheaveTree.Sheave> { new SheaveTree.Sheave(0, s, above ? w - rho : w + rho) };
+            return new Train
+            {
+                Tree = new SheaveTree(nodes, sheaves), Nodes = new[] { socket }, Sheaves = new[] { socket }, HoldRow = null,
+                Lateral = Vector3.Dot(p - origin, right),
+            };
+        }
+
         /// <summary>Turns each node by its pose, parents first, about the axis across the line (positive tips +s up).</summary>
         public static void Apply(Train train, RopeOverSheaves.Pose pose, Vector3 dir)
         {

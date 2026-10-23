@@ -134,6 +134,7 @@ namespace MountainPlanner.App.Flow
         {
             "-uicapture", "-flowcapture", "-trailshots", "-trailbench", "-paintbench", "-paintmovie", "-paintcheck", "-screenshot", "-benchmark", "-benchmark-views", "-pathmovie", "-lineup",
             "-lodtransitions", "-clip", "-titleshots", "-titlemovie", "-photoshot", "-styletile", "-testbench", "-editbench", "-smoketest",
+            "-liftbench", "-hoverlift",   // task 09
         };
 
         void UpdateSaves(Keyboard keys)

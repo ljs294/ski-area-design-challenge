@@ -6,8 +6,9 @@ namespace MountainPlanner.Presentation
 {
     /// <summary>
     /// What the map shows (T17; tasks 12 and 12b, owner 2026-10-02), in two groups:
-    /// - **Map layers** show or hide physical things: <see cref="Snow"/> and <see cref="Trees"/> (lifts and the rest
-    ///   join as they're built). Any combination.
+    /// - **Map layers** show or hide physical things: <see cref="Snow"/>, <see cref="Trees"/> and <see cref="Lifts"/>
+    ///   (task 09: the models, rope, chairs and map lines together; trails and the rest join as they're built). Any
+    ///   combination.
     /// - **Info layers** only display information: <see cref="SlopeAngle"/>, <see cref="Exposure"/> and
     ///   <see cref="SnowDepth"/> recolour the ground, one at a time (<see cref="Info"/>); <see cref="SnowConditions"/>
     ///   is reserved for the snow simulation; <see cref="Contours"/> draw over anything.
@@ -22,7 +23,7 @@ namespace MountainPlanner.Presentation
     /// </summary>
     public sealed class MapLayers
     {
-        public const string Snow = "snow", Trees = "trees";
+        public const string Snow = "snow", Trees = "trees", Lifts = "lifts";
         /// <summary>Task 08: the trails drawn as a trail map (owner TL6); the graded ground stays when it's off.</summary>
         public const string Trails = "trails";
         public const string SlopeAngle = "slope", Exposure = "exposure", SnowDepth = "depth", SnowConditions = "conditions", Contours = "contours";
@@ -37,6 +38,8 @@ namespace MountainPlanner.Presentation
 
         public bool SnowOn { get; private set; } = true;
         public bool TreesOn { get; private set; } = true;
+        /// <summary>The Lifts layer (task 09, LT7): the viewer reads it each frame and shows or hides every lift.</summary>
+        public bool LiftsOn { get; private set; } = true;
         public bool TrailsOn { get; private set; } = true;
         public bool ContoursOn { get; private set; }
         public InfoView Info { get; private set; }
@@ -57,12 +60,12 @@ namespace MountainPlanner.Presentation
         ForestView _forest;
 
         /// <summary>The map layers, in the HUD's order.</summary>
-        public static readonly string[] MapIds = { Snow, Trees, Trails };
+        public static readonly string[] MapIds = { Snow, Trees, Lifts, Trails };
         /// <summary>The info layers, in the HUD's order.</summary>
         public static readonly string[] InfoIds = { SlopeAngle, Exposure, SnowDepth, SnowConditions, Contours };
 
         /// <summary>Whether a layer can be switched in this version (Snow conditions waits for the snow simulation).</summary>
-        public static bool IsSwitchable(string id) => id == Snow || id == Trees || id == Trails || id == Contours || id == CoverMap || ViewOf(id) != InfoView.None;
+        public static bool IsSwitchable(string id) => id == Snow || id == Trees || id == Lifts || id == Trails || id == Contours || id == CoverMap || ViewOf(id) != InfoView.None;
 
         /// <summary>The info layers that take turns; Contours combine with any of them.</summary>
         public static bool IsExclusive(string id) => id == SnowConditions || ViewOf(id) != InfoView.None;
@@ -80,6 +83,7 @@ namespace MountainPlanner.Presentation
         {
             Snow => SnowOn,
             Trees => TreesOn,
+            Lifts => LiftsOn,
             Trails => TrailsOn,
             Contours => ContoursOn,
             SnowConditions => false,
@@ -116,6 +120,7 @@ namespace MountainPlanner.Presentation
             {
                 case Snow: SnowOn = on; break;
                 case Trees: TreesOn = on; break;
+                case Lifts: LiftsOn = on; break;
                 case Trails: TrailsOn = on; break;
                 case Contours: ContoursOn = on; break;
                 default:

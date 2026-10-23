@@ -46,7 +46,8 @@
 | P | Photo mode: the photo bar replaces the HUD (see [Photo mode](#photo-mode)); Esc or P leaves and puts the view back | Task 11; the bar is P2-07 |
 | Shift+1 | **Map layer:** Snow | Task 12 |
 | Shift+3 | **Map layer:** Trees | Task 12 |
-| Shift+2, 4, 5 | Free, for map layers still to come (lifts and the rest as they're built) | — |
+| Shift+2 | **Map layer:** Lifts (models, rope, chairs and map lines) | Task P3-09 |
+| Shift+4, 5 | Free, for map layers still to come (trails and the rest as they're built) | — |
 | Shift+6 | **Info layer:** Contours (combine with any info layer) | Task 12b |
 | Shift+7 | **Info layer:** Slope angle | Task 12b |
 | Shift+8 | **Info layer:** Slope exposure | Task 12b |
@@ -97,7 +98,16 @@ Live while a tool is armed, which happens only with the tray open. All rebindabl
 | Shift (held) | Erase while painting |
 | Ctrl+Z | Undo the last stroke, while painting |
 | Page Up / Page Down | The tower in hand or the selected tower up or down 5 ft |
+| Page Up / Page Down | The terminal in hand up or down 1 ft (P3-09, LT19) |
+| , / . (Shift: 45°), Shift + wheel | Turn the bottom terminal in hand 5° (a wheel notch 15°; P3-09, LT21) |
+| Enter | Remove lift: remove the selected lift (P3-09) |
+| , / . (Shift: 50 ft) | Slide the tower in hand or the selected tower down or up the line 5 ft (P3-09, LF-04, LT17; claimed in turn with the terminal turn) |
+| Enter | Towers by hand: place the tower in hand; with the line finished, go on to the review (P3-09) |
+| Delete | Towers by hand: take the last tower back (P3-09) |
+| [ / ] | Edit lift: the previous / next part (bottom terminal, towers, top terminal; P3-09) |
+| Ctrl+Z | Edit lift: undo the last change inside the tool; Apply (Ctrl+Enter) commits the edit as one step (P3-09, LT2) |
 | Delete | Delete the selected tower or trail |
+| Insert | A line's towers (New lift's Towers and Review, Edit lift): a tower in hand to add between the others (P3-09, F2) |
 | Tab | The tool window takes the keyboard: the arrows walk its controls, Enter or Space presses one; Esc gives the keys back |
 | Esc | Back one step; at the first step the tool closes, asking first if anything is drawn (fixed) |
 | Left-click / left-drag | Place, paint (the tool's own button; right-drag still pans, middle-drag still turns) |

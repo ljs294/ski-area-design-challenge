@@ -352,6 +352,7 @@ namespace MountainPlanner.App
                 TickTools();   // the armed construction tool (MountainViewer.Tools.cs)
             }
             UpdateBuiltWork();   // built trails and lifts (MountainViewer.Built.cs)
+            UpdateLiftHover();   // the lift under the pointer glows (task 09, LT23)
             _resort?.States?.Sync();
             RunClock();
             // The Auto theme follows this sun on every screen (task P2-01); nothing happens unless sunrise or sunset passed.
@@ -413,6 +414,7 @@ namespace MountainPlanner.App
                 else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
                 else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
                 else if (Hud != null && _resort != null && Hud.CloseTrailCardIfOpen()) { }   // a trail's focus card (task 08)
+                else if (Hud != null && _resort != null && Hud.CloseLiftCardIfOpen()) { }    // a lift's focus card (task 09)
                 else if (_resort != null && EscapeTool()) { }   // the armed tool backs out a step (CF-07, P3-06)
                 else if (Hud != null && _resort != null && Hud.BackOut()) { }
                 else if (Hud != null && _resort != null) Hud.ToggleMenu();
@@ -445,9 +447,10 @@ namespace MountainPlanner.App
             if (KeyBindings.Pressed(keys, GameAction.FreeFly) && Camera != null) Camera.ToggleMode();
             if (KeyBindings.Pressed(keys, GameAction.Units, letters)) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
             if (KeyBindings.Pressed(keys, GameAction.ResetView)) HomeView();
-            // Map layers (Shift+2, 4 and 5 are free for lifts and the rest as they're built).
+            // Map layers (Shift+4 and 5 are free for the rest as they're built).
             if (KeyBindings.Pressed(keys, GameAction.LayerSnow, letters)) ToggleLayer(MapLayers.Snow);
             if (KeyBindings.Pressed(keys, GameAction.LayerTrees, letters)) ToggleLayer(MapLayers.Trees);
+            if (KeyBindings.Pressed(keys, GameAction.LayerLifts, letters)) ToggleLayer(MapLayers.Lifts);
             if (KeyBindings.Pressed(keys, GameAction.LayerTrails, letters)) ToggleLayer(MapLayers.Trails);   // task 08
             // Info layers: Contours with anything; the other four take turns.
             if (KeyBindings.Pressed(keys, GameAction.InfoContours, letters)) ToggleLayer(MapLayers.Contours);
@@ -564,6 +567,7 @@ namespace MountainPlanner.App
 
         void OnDestroy()
         {
+            LogChairCost();
             _resort?.CacheLease?.Dispose();   // the next scene's viewer holds its own
             DisplayUnits.Changed -= OnUnitsChanged;
             ReleasePhoto();

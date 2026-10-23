@@ -48,6 +48,11 @@ def gauge_wheel(c):
     return dict(c["wheel"], **{key: c["wheel"][key] * k for key in ("outer", "web", "inner")})
 
 
+def pier_sockets(tops):
+    """The piers' top centres as sockets pier_top, pier_top_2, ... (the game places a footing at grade under each)."""
+    return {("pier_top" if i == 0 else f"pier_top_{i + 1}"): t for i, t in enumerate(tops)}
+
+
 def styles(lod):
     return {
         "concrete": Style("concrete", snow=0.9),
@@ -414,10 +419,14 @@ def build(spec, lod, stage):
     sheave_sides = parts.sides(lod, 14, 10, 6, 4)
     ntube = parts.sides(lod, 20, 12, 8, 6)
 
-    # piers (footing and block, LP7) under the legs
+    # piers under the legs, really tall (owner, P3-09 LT36: down to common.pierBottom, as the Sessellift's), so a terminal
+    # set higher or lower still stands on them; the footing is the game's, at grade under each pier_top (the measured
+    # footing slabs aren't built)
+    pier_tops = []
     for p in d["piers"]:
-        prims.box(body, mv(p["footing"]["lo"]), mv(p["footing"]["hi"]), st["concrete"])
-        prims.box(body, mv(p["block"]["lo"]), mv(p["block"]["hi"]), st["concrete"], skip=("-2",))
+        lo, hi = p["block"]["lo"], p["block"]["hi"]
+        prims.box(body, mv((lo[0], lo[1], c["pierBottom"])), mv(hi), st["concrete"], skip=("-2",))
+        pier_tops.append(mv(((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, hi[2])))
 
     # legs: leaning tubes on gusseted base plates, saddles and saddle plates cradling the booms
     for lg in d["legs"]:
@@ -583,8 +592,8 @@ def build(spec, lod, stage):
         "rope_left_hold": (u_hold, -hg, rope), "rope_right_hold": (u_hold, hg, rope),
         "rope_left_out": out["l"], "rope_right_out": out["r"],
         "chair_load": (m(d["loadU"]), hg, rope),
-        "foundation_base": (0.0, 0.0, m(min(p["footing"]["lo"][2] for p in d["piers"]))),
     }
+    a.sockets.update(pier_sockets(pier_tops))
     a.dims.update({"rope": d["ropeElevation"], "ropeExitDeg": exit_deg, "exitSheaves": n_row,
                    "boomSpacing": round(d["booms"][1]["v"] - d["booms"][0]["v"])})
     return a

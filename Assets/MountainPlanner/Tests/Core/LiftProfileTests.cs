@@ -17,6 +17,7 @@ namespace MountainPlanner.Tests
     {
         const string Fixture = "lift-profiles";
         const string FileName = "sugarloaf.bin";
+        const string BenchFileName = "jackson-bench.bin";
         const double Ft = 0.3048;
         /// <summary>The strip reaches this far either side of the line and past each end: room for the pads, their 50 ft
         /// faces (GR-11) and the clearing.</summary>
@@ -86,9 +87,10 @@ namespace MountainPlanner.Tests
             foreach (var line in rec.Lines)
             {
                 var ground = new EditedHeights(line, lattice, TerrainEdits.Empty);
-                var b = LiftBuild.Build(type, ground, line.Bx, line.By, line.Tx, line.Ty, TowerStance.Leaned);
+                var b = DesignTestKit.AsPlayer((hb, ht) => LiftBuild.Build(type, ground, line.Bx, line.By, line.Tx, line.Ty, TowerStance.Leaned, null, hb, ht));   // LT34
                 foreach (var t in b.Rope.Towers) heads[t.Head] = heads.TryGetValue(t.Head, out int c) ? c + 1 : 1;
                 string what = $"{line.Length / Ft:F0} ft, rise {(line.At(line.Tx, line.Ty) - line.At(line.Bx, line.By)) / Ft:F0} ft";
+                Assert.That(DesignTestKit.UnnamedShortfall(b), Is.Null, what + ": chairs left short say why (TW-12, LT40)");
                 if (b.Ok)
                 {
                     ok++;
@@ -112,6 +114,48 @@ namespace MountainPlanner.Tests
             TestContext.Progress.WriteLine($"{catalogId}: {ok} of {rec.Lines.Count} lines within every rule; heads {string.Join(", ", heads.Select(kv => $"{kv.Key} {kv.Value}"))}");
             Assert.That(rec.Lines.Count, Is.GreaterThanOrEqualTo(10));
             Assert.That(ok, Is.GreaterThanOrEqualTo(0.7 * rec.Lines.Count));
+        }
+
+        /// <summary>
+        /// TW-12 (LT40): the two lines <c>-liftbench 40</c> built short on the Jackson Hole demo (LT29). Neither can be built
+        /// where it's drawn, so each is red and says why, with the level hints taken as a player would: Bench 20 passes a rock
+        /// under the uphill rope's chairs, 100 ft above the line, just before its top terminal; Bench 38's top terminal stands
+        /// below the crest in front of it. The rest of each line is placed as usual: one stretch the towers can't clear doesn't
+        /// stop the search (Bench 20 used to keep two short stretches lower down).
+        /// </summary>
+        [Test]
+        public void TW12_BenchLinesNoTowersFinishAreRedAndSayWhy()
+        {
+            string dir = TestData.Folder(Fixture);
+            var rec = Read(TestData.Bytes(dir, BenchFileName));
+            var type = LiftType.Of(LiftCatalogIds.SesselliftFgq4);
+            var lattice = new EditLattice(rec.West, rec.North);
+            Assert.That(rec.Lines.Count, Is.EqualTo(2));
+            var why = new[] { "the ground under the chairs stands", "before the top terminal stands" };
+            for (int k = 0; k < rec.Lines.Count; k++)
+            {
+                var line = rec.Lines[k];
+                var ground = new EditedHeights(line, lattice, TerrainEdits.Empty);
+                var b = DesignTestKit.AsPlayer((hb, ht) => LiftBuild.Build(type, ground, line.Bx, line.By, line.Tx, line.Ty, TowerStance.Leaned, null, hb, ht));
+                string what = k == 0 ? "Bench 20" : "Bench 38";
+                TestContext.Progress.WriteLine($"{what}: {b.Towers.Count} towers; {string.Join("; ", b.Problems)}");
+                Assert.That(b.Ok, Is.False, what);
+                Assert.That(DesignTestKit.UnnamedShortfall(b), Is.Null, what);
+                Assert.That(b.Unplaced, Has.Count.EqualTo(1), what);
+                Assert.That(b.Unplaced[0].Message, Does.Contain(why[k]), what);
+                // Short only at the place it names: within a span of it.
+                foreach (var gap in LiftClearance.Gaps(b.Rope))
+                    Assert.That(Math.Abs(b.Unplaced[0].AlongMetres - (gap.FromMetres + gap.ToMetres) / 2), Is.LessThan(250 * Ft), $"{what}: {gap}");
+            }
+            // The same ground under the other quad (its own terminals and station, TW-16 v4): clear, or saying why.
+            var monta = LiftType.Of(LiftCatalogIds.MontaFg4);
+            foreach (var line in rec.Lines)
+            {
+                var ground = new EditedHeights(line, lattice, TerrainEdits.Empty);
+                var b = DesignTestKit.AsPlayer((hb, ht) => LiftBuild.Build(monta, ground, line.Bx, line.By, line.Tx, line.Ty, TowerStance.Leaned, null, hb, ht));
+                TestContext.Progress.WriteLine($"Monta: {b.Towers.Count} towers; {string.Join("; ", b.Problems)}");
+                Assert.That(DesignTestKit.UnnamedShortfall(b), Is.Null, "Monta");
+            }
         }
 
         /// <summary>
@@ -155,13 +199,71 @@ namespace MountainPlanner.Tests
             }
             // At most 16, spread through the list.
             if (lines.Count > 16) lines = Enumerable.Range(0, 16).Select(i => lines[i * lines.Count / 16]).ToList();
+            Write(FileName, tiles.West, tiles.North, lines, heights);
+            TestContext.Progress.WriteLine($"{lines.Count} lines recorded from {sites.Count} terminal sites");
+        }
+
+        /// <summary>
+        /// Records TestData/lift-profiles/jackson-bench.bin from a local copy of the Jackson Hole 5 km demo package (set
+        /// MP_BENCH_SITE to the package folder): the lines <c>-liftbench 40</c> builds (StyleTile.BuildUphill: a grid across the
+        /// core box, 600 m up the fall line, each end slid to a spot that passes LF-08) that automatic placement can't finish,
+        /// Bench 20 and Bench 38 (LT29, LT40).
+        /// </summary>
+        [Test, Explicit("Records TestData/lift-profiles/jackson-bench.bin from the demo package (MP_BENCH_SITE)")]
+        public void RecordTheBenchLines()
+        {
+            string package = Environment.GetEnvironmentVariable("MP_BENCH_SITE");
+            if (string.IsNullOrEmpty(package)) Assert.Ignore("MP_BENCH_SITE isn't set");
+            var m = ResortPackage.ReadManifest(package);
+            var tiles = TileGrid.For(SiteSquare.Create(new AlbersPoint(m.Site.CentreX, m.Site.CentreY), m.Site.SizeMetres / 1000.0));
+            using var heights = new PackageHeights(package, m);
+            var frame = new LocalFrame(new AlbersPoint(m.Site.CentreX, m.Site.CentreY));
+            var core = SiteSquare.Create(frame.Origin, m.Site.SizeMetres / 1000.0).Core;
+            var (cw, cs) = frame.ToLocal(new AlbersPoint(core.West, core.South));
+            float xMin = (float)cw, yMin = (float)cs, xMax = (float)(cw + core.Width), yMax = (float)(cs + core.Height);
+            var type = LiftType.Of(LiftCatalogIds.SesselliftFgq4);
+            const int want = 40;
+            const float inset = 300, length = 600;
+            int side = (int)Math.Ceiling(Math.Sqrt(want * 2f));
+            var lines = new List<(double, double, double, double)>();
+            foreach (int bench in new[] { 20, 38 })
+            {
+                int row = (bench - 1) / side, col = (bench - 1) % side;
+                float x = xMin + inset + (xMax - inset - (xMin + inset)) * ((col + 0.5f) / side);
+                float z = yMin + inset + (yMax - inset - (yMin + inset)) * ((row + 0.5f) / side);
+                var a = frame.ToAlbers(x, z);
+                double gx = heights.At(a.X + 30, a.Y) - heights.At(a.X - 30, a.Y), gz = heights.At(a.X, a.Y + 30) - heights.At(a.X, a.Y - 30);
+                double g = Math.Sqrt(gx * gx + gz * gz), ux = gx / g, uy = gz / g;
+                double Slide(double sx, double sy, double sign, TerminalEnd end)
+                {
+                    for (double d = 0; d <= 150; d += 1.524)
+                    {
+                        double px = sx + sign * ux * d, py = sy + sign * uy * d;
+                        if (LiftBuild.SiteVariation(heights, end, px, py, sign > 0 ? -ux : ux, sign > 0 ? -uy : uy) <= LiftBuild.SitingVariationMetres) return d;
+                    }
+                    return 0;
+                }
+                double back = Slide(a.X, a.Y, -1, type.Bottom);
+                var tA = frame.ToAlbers((float)(x + ux * length), (float)(z + uy * length));
+                double on = Slide(tA.X, tA.Y, 1, type.Top);
+                var b = frame.ToAlbers((float)Math.Round(x - ux * back, 1), (float)Math.Round(z - uy * back, 1));
+                var t = frame.ToAlbers((float)Math.Round(x + ux * (length + on), 1), (float)Math.Round(z + uy * (length + on), 1));
+                lines.Add((b.X, b.Y, t.X, t.Y));
+            }
+            Write(BenchFileName, tiles.West, tiles.North, lines, heights);
+            TestContext.Progress.WriteLine($"{lines.Count} bench lines recorded");
+        }
+
+        /// <summary>Writes a recording: each line's strip of <paramref name="heights"/>, every metre in the line's own frame.</summary>
+        static void Write(string fileName, double west, double north, List<(double, double, double, double)> lines, IHeightSource heights)
+        {
             string dir = Path.Combine(TestData.Folder("formats"), "..", Fixture);
             Directory.CreateDirectory(dir);
-            using var bw = new BinaryWriter(File.Create(Path.Combine(dir, FileName)));
+            using var bw = new BinaryWriter(File.Create(Path.Combine(dir, fileName)));
             bw.Write("MPLP".ToCharArray());
             bw.Write(1);
-            bw.Write(tiles.West);
-            bw.Write(tiles.North);
+            bw.Write(west);
+            bw.Write(north);
             bw.Write(lines.Count);
             foreach (var (bx, by, tx, ty) in lines)
             {
@@ -176,7 +278,6 @@ namespace MountainPlanner.Tests
                         bw.Write((float)heights.At(bx + ux * s + uy * w, by + uy * s - ux * w));
                     }
             }
-            TestContext.Progress.WriteLine($"{lines.Count} lines recorded from {sites.Count} terminal sites");
         }
     }
 }
