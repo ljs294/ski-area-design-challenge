@@ -791,6 +791,8 @@ echo     editable. Break ground (Ctrl+Enter): towers, pads, trench and clearing;
 echo   Try a Monta FG4 too: no extra hold-down tower after its drive, and its sheaves sit on the rope.
 echo   Hover a built lift: it glows; click it for its card (rename by clicking its name, Edit, Remove).
 echo   Zoom far out: lifts show as red trail-map lines. Shift+2 hides the lifts.
+echo   Findings D1/D2: with Labels on, the view stays smooth far out and facing the flats (the clock keeps time);
+echo     a long D6 review shows in about a second, its "raise it N ft" levels a few seconds later.
 echo   M for Edit lift: click a lift; its draft shows in 3D in its place. Click a tower or terminal (or [ and ]);
 echo     the same tower keys, Insert adds one, drag a terminal, change the type or the name, Revert to auto;
 echo     Ctrl+Z undoes inside the tool; Apply (Ctrl+Enter) or Cancel.
