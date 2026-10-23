@@ -193,16 +193,19 @@ def main():
         export.export_fbx(objs, path)
         own = spec if name in TOWER else spec_for(mod)
         problems = check_asset(kind, assets, rep, budgets, own, split)
-        if getattr(mod, "CHAIR", None):   # a detachable terminal: send its chair through the station (liftkit/fit.py)
+        if getattr(mod, "CHAIR", None):   # a terminal or a wide head: send its chair through (liftkit/fit.py)
             t_fit = time.time()
-            cmod = importlib.import_module(mod.CHAIR)
+            cname, _, cvar = mod.CHAIR.partition(":")   # "module" or "module:variant" (the Chairworks fixed chair)
+            cmod = importlib.import_module(cname)
+            cargs = (cvar,) if cvar else ()
             fp = []
             if kind == "tower_head_wide":   # the chair past the head on both ropes (towers, Gate 1)
                 ls = __import__("liftkit.parts", fromlist=["line_spec"]).line_spec(spec_for(mod))
                 fp, _ = fit.tower(assets[0], cmod.build(spec_for(cmod), 0, stage), ls["ropeR"], ls["sheave"]["dia"] / 2)
             else:
-                for lod in range(min(len(assets), 3)):   # every LOD the chairs are drawn against in the station (round 4)
-                    lp, _ = fit.station(assets[lod], cmod.build(spec_for(cmod), lod, stage))
+                check = fit.station if getattr(assets[0], "paths", {}).get("chairs") else fit.fixed   # fixed grips: round the wheel
+                for lod in range(min(len(assets), 3 if check is fit.station else 2)):   # every LOD chairs pass up close
+                    lp, _ = check(assets[lod], cmod.build(spec_for(cmod), lod, stage, *cargs))
                     fp += [f"LOD{lod} {p}" for p in lp]
             problems += fp
             print(f"{aid}: fit in {time.time() - t_fit:.1f} s: " + ("clear" if not fp else f"{len(fp)} problems"), flush=True)

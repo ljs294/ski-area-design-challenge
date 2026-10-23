@@ -21,6 +21,7 @@ from liftkit.mesh import GLASS, MeshBuilder, Style
 from liftkit.prims import U, V, W
 
 KIND = "terminal"
+CHAIR = "chairworks_chair:fixed"   # the chair the build sends round the bullwheel (liftkit/fit.py fixed; polish)
 LODS = 4
 SPEC = "monta_fg4.json"
 

@@ -301,3 +301,99 @@ def tower(asset, chair, rope_r, sheave_r, clear=CLEAR, step=STEP, reach=3.0):
     if deep < -THUMP:
         problems.append(f"fit: the grip rides {-deep * 1000:.1f} mm into a sheave (> {THUMP * 1000:.0f})")
     return problems, {"clashes": len(clashes), "tight": len(near), "thump": round(-deep * 1000, 1)}
+
+
+GRIP_ZONE = 0.25   # a fixed grip and the hanger's top bend ride this far under the rope, round wheels and under sheaves (m)
+
+
+def fixed(asset, chair, clear=CLEAR, step=STEP, arc_step=math.radians(3.0)):
+    """Problems found sending a fixed-grip `chair` (an Asset at LOD0) round a fixed-grip terminal (an Asset at LOD0):
+    in along one rope (its out, hold and bullwheel sockets), round the bullwheel at the line gauge, out along the other
+    and on past the out sockets (polish, the D6's lesson: no chair had been sent through these stations). The chair hangs
+    plumb, its grip on the rope. The grip (its faces tagged "grip") may ride in the bullwheel's liner and the sheaves
+    and need not keep `clear` from anything; it must not pass through other steel. The rest of the chair needs `clear`
+    from everything."""
+    body, pieces = asset.body.split(pieces=True)
+    groups = {"structure": body, **pieces, **asset.parts}
+    trees = {}
+    for name, mb in groups.items():
+        if not mb.faces:
+            continue
+        pts = _lift_points(mb)
+        trees[name] = (_tree(pts, [list(f) for f in mb.faces]), pts.min(0) - clear, pts.max(0) + clear,
+                       [pts[list(f)].mean(0) for f in mb.faces])
+    cv = _lift_points(chair.body)
+    cf = [list(f) for f in chair.body.faces]
+    # the grip and what rides with it at the rope (its socket, the hanger's top bend): within GRIP_ZONE of the rope
+    centres_c = [cv[f].mean(0) for f in cf]
+    fgrip = [(tg is not None and tg.split("#")[0] == "grip") or (c[2] > -GRIP_ZONE and abs(c[0]) < 0.4)
+             for tg, c in zip(chair.body.tags, centres_c)]
+    vgrip = np.zeros(len(cv), dtype=bool)
+    for f, g in zip(cf, fgrip):
+        if g:
+            vgrip[f] = True
+    s = asset.sockets
+    hub = Vector(asset.pivots["bullwheel"]["pos"])
+    path = []
+    for side in ("left", "right"):
+        leg = [Vector(s[f"rope_{side}_{k}"]) for k in ("out", "hold", "bw") if f"rope_{side}_{k}" in s]
+        if side == "right":
+            leg.reverse()
+        if side == "left":
+            path += leg
+            a0, a1 = Vector(s["rope_left_bw"]), Vector(s["rope_right_bw"])
+            r = (a0 - hub).length
+            t0 = math.atan2(a0.y - hub.y, a0.x - hub.x)
+            t1 = math.atan2(a1.y - hub.y, a1.x - hub.x)
+            line_u = Vector(s["rope_left_out"]).x - hub.x   # the loop turns on the side away from the line
+            sweep = (t1 - t0) % (2 * math.pi)
+            mid = t0 + sweep / 2
+            if math.cos(mid) * line_u > 0:
+                sweep -= 2 * math.pi
+            k = max(2, int(abs(sweep) / arc_step))
+            path += [Vector((hub.x + r * math.cos(t0 + sweep * i / k), hub.y + r * math.sin(t0 + sweep * i / k), a0.z))
+                     for i in range(1, k)]
+        else:
+            path += leg
+    u_out = max(Vector(s[k]).x for k in s if k.startswith("rope_") and k.endswith("_out")) + OUT
+    route = [Vector((u_out, path[0].y, path[0].z))] + path + [Vector((u_out, path[-1].y, path[-1].z))]
+    poses = _samples(route, step)
+    # outboard: away from the loop's middle, so the chair hangs outside the bullwheel
+    clashes, near = {}, {}
+    w_up = np.array((0.0, 0.0, 1.0))
+    for o, t, n in poses:
+        if (Vector((hub.x - o.x, hub.y - o.y, 0.0))).dot(n) > 0:
+            n = -n
+            t = -t
+        x = (np.array(o)[None, :] + np.outer(cv[:, 0], np.array(t)) + np.outer(cv[:, 1], np.array(n))
+             + np.outer(cv[:, 2], w_up))
+        lo, hi = x.min(0), x.max(0)
+        ct = None
+        for name, (tree, blo, bhi, centres) in trees.items():
+            if (hi < blo).any() or (lo > bhi).any():
+                continue
+            if name == "#chairguide":   # rails built to steer the passing hangers: the chair may run against them
+                continue
+            rides = name == "bullwheel" or name.startswith(TRAIN)
+            if ct is None:
+                ct = _tree(x, cf)
+            bad = [(i, j) for i, j in ct.overlap(tree) if not (fgrip[i] and rides)]
+            if bad:
+                zones = ", ".join(sorted({"grip" if fgrip[i] else "chair" for i, _ in bad}))
+                e = clashes.setdefault((name, zones), [0, centres[bad[0][1]]])
+                e[0] += 1
+                continue
+            for i in np.nonzero(np.all((x >= blo) & (x <= bhi), axis=1))[0]:
+                if vgrip[i]:
+                    continue
+                r_ = tree.find_nearest(Vector(x[i]), clear)
+                if r_[0] is not None and ((name, "chair") not in near or r_[3] < near[(name, "chair")][0]):
+                    near[(name, "chair")] = (r_[3], tuple(r_[0]))
+    problems = []
+    for (name, zones), (count, c) in sorted(clashes.items()):
+        problems.append(f"fit: chair ({zones}) passes through {name} at {count} of {len(poses)} poses, e.g. at "
+                        f"u {c[0] * 1000:.0f}, v {c[1] * 1000:.0f}, w {c[2] * 1000:.0f}")
+    for (name, z), (d, c) in sorted(near.items()):
+        problems.append(f"fit: chair ({z}) passes {name} {d * 1000:.1f} mm away (< {clear * 1000:.0f}) at "
+                        f"u {c[0] * 1000:.0f}, v {c[1] * 1000:.0f}, w {c[2] * 1000:.0f}")
+    return problems, {"poses": len(poses), "clashes": len(clashes), "tight": len(near)}

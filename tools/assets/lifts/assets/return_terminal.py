@@ -26,6 +26,7 @@ from liftkit.mesh import MeshBuilder, Style
 from liftkit.prims import U, V, W
 
 KIND = "terminal"
+CHAIR = "chair"   # the chair the build sends round the bullwheel (liftkit/fit.py fixed; polish)
 LODS = 4
 
 
@@ -296,9 +297,10 @@ def guides(mb, a, c, r, lod, st):
 
     cg = r["chairGuide"]
     lo, hi = m(cg["bottom"]), m(cg["top"])
-    if lod <= 2:
-        for rail in (cg["outer"], cg["inner"]):
-            rect_path(mb, thin([(m(u), m(v)) for u, v in rail["path"]], lod), m(rail["width"]) / 2, lo, hi, st["galv"])
+    if lod <= 2:   # the rails the chairs' hangers run between: a guide piece for the fit check (liftkit/fit.py fixed)
+        with mb.grouped("#chairguide"):
+            for rail in (cg["outer"], cg["inner"]):
+                rect_path(mb, thin([(m(u), m(v)) for u, v in rail["path"]], lod), m(rail["width"]) / 2, lo, hi, st["galv"])
     hk = cg["hangers"]
     b_lo, b_hi = m(hk["bracketW"][0]), m(hk["bracketW"][1])
     for u0, u1 in hk["u"]:   # C-frames: top beam, outer leg and bracket, inner drop and bracket (hangers pass between)
@@ -307,7 +309,8 @@ def guides(mb, a, c, r, lod, st):
         if lod <= 1:
             for vs, br_v in ((hk["legV"], hk["outerBracketV"]), (hk["dropV"], hk["innerBracketV"])):
                 prims.box(mb, (m(u0), m(vs[0]), b_hi), (m(u1), m(vs[1]), o_lo), st["steel"])
-                prims.box(mb, (m(u0), m(br_v[0]), b_lo), (m(u1), m(br_v[1]), b_hi), st["steel"])
+                with mb.grouped("#chairguide"):
+                    prims.box(mb, (m(u0), m(br_v[0]), b_lo), (m(u1), m(br_v[1]), b_hi), st["steel"])
     bm = cg["beam"]
     if lod <= 1:
         prims.box(mb, (m(bm["uFrom"]), m(bm["v"][0]), o_lo), (m(bm["uTo"]), m(bm["v"][1]), o_hi), st["steel"])

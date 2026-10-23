@@ -17,6 +17,7 @@ import monta_drive
 from monta_drive import box_from, cframes, gauge_shift, gauge_wheel, m, mv, wheel
 
 KIND = "terminal"
+CHAIR = "chairworks_chair:fixed"   # the chair the build sends round the bullwheel (liftkit/fit.py fixed; polish)
 LODS = 4
 SPEC = "monta_fg4.json"
 
