@@ -360,8 +360,10 @@ namespace MountainPlanner.Presentation.Lifts
 
         static Vector3 Flat(Vector3 p) => new Vector3(p.x, 0, p.z);
 
-        static string HeadId(LiftRope.Head head)
+        string HeadId(LiftRope.Head head)
         {
+            // TooSharp is drawn as the kit's biggest support head: the D6's b10, the quads' b8 (until TW-06 is resolved).
+            if (head == LiftRope.Head.TooSharp && _kit != Quad && Model(_kit + "tower_b10") != null) return "tower_b10";
             switch (head)
             {
                 case LiftRope.Head.S4: return "tower_s4";

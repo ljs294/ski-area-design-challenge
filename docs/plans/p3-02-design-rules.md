@@ -490,6 +490,11 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   | Per group (one rope's train) | a support group's load stays at least **½ of one sheave's limit, 750 lbf (3.3 kN)**, in every case, or it needs hold-down sheaves; the same applies in reverse to hold-down groups | US tramway code |
 
 - **LC-03, capacity:** seats × speed ÷ spacing, shown and not chosen. At the values above that's **2,400 pph**.
+  - **v2, detachables** (owner, task 09, LT41): capacity is seats × 3,600 ÷ the **loading interval** (D6 7.2 s, 3,000
+    pph); the spacing on the line is line speed × interval (120 ft at 1,000 fpm, about 2.7× a fixed grip's 45 ft); the
+    carriers slow round each station's rail to boarding (1.0 m/s) and unloading (1.4 m/s), fractions of the line speed
+    within 0.8–1.2 and 1.1–1.6 m/s, on 1 m/s² ramps, so a faster line raises them and the spacing and keeps the capacity.
+    The ride adds the ramps' lost time to slope ÷ speed.
   Spacing becomes editable later.
 - **LC-04, ride time:** slope length ÷ speed, plus nothing for loading (fixed grip).
 - **LC-05, sources:** these values were checked on 2026-10-16 against:
@@ -508,6 +513,10 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   eight), Detachable gondola (6, 8 or 10 person), Aerial tram (60 or 100 person), each with a model or maker. Only the
   fixed quad has its own models (Sessellift FGQ-4, Monta FG4); the others draw with them and carry placeholder speeds,
   spacings and weights (the mockup's LIFT_TYPES). Trams stand on towers up to 250 ft.
+  - **v2** (owner, task 09, LT41): the Sessellift D6 detachable six has its own models and figures (2 in rope, 5.6 m
+    gauge, 3.27 m chair drop, 1,000 fpm, 7.2 s); only it and the fixed quads can be built. Every other type stays in the
+    menu greyed, a placeholder, until its models exist. Detachable placeholders' spacings follow their intervals (quad
+    100 ft, eight 133 ft). Each type has a primary and an accent colour (the D6 black and white), chosen per lift later.
 - **LC-09, what blocks** (owner, task 09, LT14, lenient placement): only chair clearance (TW-01), tower spacing (TW-03),
   an unfinished gap (towers by hand) and the rise limit (LC-07) block a lift. Head loads (TW-04 to TW-06), the rope's
   angle into a station (TW-16) and terminal ground varying more than 40 ft are amber warnings; automatic placement
@@ -593,6 +602,11 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   | Presses down | **Support:** s4, s6 or b8 (breakover), the smallest that carries it |
   | Pulls up | **Hold-down:** d8 |
   | Flips between cases, or the group load falls within 750 lbf of zero (LC-02) | **Combination:** c8, 4 hold-down over 4 support sheaves |
+
+  **v2, heads per type** (owner, task 09, LT41; the D6 handoff's G6): each type chooses from its own tower kit. The
+  quads' is the table above. The D6's wide kit has s4 and s6, then s10 (flat, where the load needs the sheaves on a bend
+  six sheaves' worth could take) or b10 (a sharper breakover), d10 for hold-down, and c8; so a bend needing nine or ten
+  sheaves is carried on the D6 and too sharp on a quad.
 
 - **TW-05, limits per sheave and group:** LC-02's maximum load and maximum bend per sheave, and its minimum group load (so the rope stays seated), in
   every case.
