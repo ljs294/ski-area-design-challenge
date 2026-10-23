@@ -110,5 +110,26 @@ namespace MountainPlanner.Tests
             Assert.That(sl.Bottom.Model, Is.EqualTo("sessellift_fgq4_return"));
             Assert.That(sl.Top.Model, Is.EqualTo("sessellift_fgq4_drive"));
         }
+        [Test]
+        public void TW04v2_EachTypeChoosesFromItsOwnHeads()
+        {
+            // G6, LT41: a bend that needs 9-10 sheaves is carried by the D6's wide kit and too sharp for the quad's.
+            double t = 50_000, deg = Math.PI / 180;   // light enough that the bend, not the load, sets the sheaves
+            double bend = -9 * 4.5 * deg + 0.1 * deg;   // presses down: 9 sheaves by bend
+            Assert.That(TowerForces.Choose(t, t, bend, bend), Is.EqualTo(LiftRope.Head.TooSharp), "the quad stops at 8");
+            Assert.That(TowerForces.Choose(t, t, bend, bend, TowerForces.HeadKit.Wide), Is.EqualTo(LiftRope.Head.B10), "a sharp bend: the curved b10");
+            Assert.That(TowerForces.Choose(t, t, -bend, -bend, TowerForces.HeadKit.Wide), Is.EqualTo(LiftRope.Head.D10), "pulling up: the d10");
+            // A gentle bend under a heavy rope (the load needs the sheaves): the flat s10.
+            double heavy = 1_000_000, gentle = -5 * 4.5 * deg;
+            int need = TowerForces.SheavesFor(heavy, gentle);
+            Assume.That(need, Is.InRange(7, 10));
+            Assert.That(TowerForces.Choose(heavy, heavy, gentle, gentle, TowerForces.HeadKit.Wide), Is.EqualTo(LiftRope.Head.S10));
+            // Small bends pick the same heads in both kits.
+            Assert.That(TowerForces.Choose(t, t, -2 * deg, -2 * deg, TowerForces.HeadKit.Wide), Is.EqualTo(TowerForces.Choose(t, t, -2 * deg, -2 * deg)));
+            Assert.That(TowerForces.SupportSheavesOf(LiftRope.Head.B10), Is.EqualTo(10));
+            Assert.That(TowerForces.HoldDownSheavesOf(LiftRope.Head.D10), Is.EqualTo(10));
+            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftD6).Heads, Is.SameAs(TowerForces.HeadKit.Wide));
+            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).Heads, Is.SameAs(TowerForces.HeadKit.Quad));
+        }
     }
 }

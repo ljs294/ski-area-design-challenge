@@ -19,6 +19,7 @@ namespace MountainPlanner.Presentation.Lifts
         readonly List<Renderer> _renderers = new List<Renderer>();
         Material[][] _byTint = Array.Empty<Material[]>();
         long _key = long.MinValue;
+        string _kit;   // the type's tower kit shown (a catalog constant: compared by reference)
         GhostTint _tint = (GhostTint)255;
 
         public bool Shown => _view.Root.activeSelf && _renderers.Count > 0;
@@ -38,10 +39,10 @@ namespace MountainPlanner.Presentation.Lifts
         /// <paramref name="uphill"/>, the rope <paramref name="steel"/> metres up its mast (the stored height), leaned
         /// <paramref name="leanRadians"/> down the line (TW-14).
         /// </summary>
-        public void Show(LiftRope.Head head, Vector3 foot, Vector3 uphill, float leanRadians, float steel, GhostTint tint)
+        public void Show(LiftRope.Head head, Vector3 foot, Vector3 uphill, float leanRadians, float steel, GhostTint tint, string kit = null)
         {
             long key = (long)head * 1_000_000_000L + Mathf.RoundToInt(steel * 100) * 1000L + Mathf.RoundToInt(leanRadians * Mathf.Rad2Deg / 2.5f);
-            if (key != _key) Make(head, leanRadians, steel, key);
+            if (key != _key || !ReferenceEquals(kit, _kit)) Make(head, leanRadians, steel, key, kit);
             if (!_view.Root.activeSelf) _view.Root.SetActive(true);
             uphill.y = 0;
             var facing = uphill.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(-uphill.normalized) : Quaternion.identity;
@@ -54,10 +55,11 @@ namespace MountainPlanner.Presentation.Lifts
             if (_view.Root.activeSelf) _view.Root.SetActive(false);
         }
 
-        void Make(LiftRope.Head head, float leanRadians, float steel, long key)
+        void Make(LiftRope.Head head, float leanRadians, float steel, long key, string kit)
         {
             _key = key;
-            _view.BuildLoneTower(head, leanRadians, steel, Color.white);
+            _kit = kit;
+            _view.BuildLoneTower(head, leanRadians, steel, Color.white, kit);
             _renderers.Clear();
             // The nearest detail only: a LODGroup would swap in models the ghost material never reached.
             var nearest = new HashSet<Renderer>();

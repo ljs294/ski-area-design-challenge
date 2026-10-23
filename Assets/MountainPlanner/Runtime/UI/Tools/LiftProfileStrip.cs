@@ -238,9 +238,9 @@ namespace MountainPlanner.UI.Tools
                 g.lineWidth = 1.6f;
                 Seg(g, xb, yg, x, yt);
                 void Dots(float dy) { Dot(g, x - 2.2f, yt + dy, 1.25f, c); Dot(g, x + 2.2f, yt + dy, 1.25f, c); }
-                if (t.Head == LiftRope.Head.D8) Dots(2.6f);
+                if (TowerForces.IsHoldDown(t.Head)) Dots(2.6f);
                 else if (t.Head == LiftRope.Head.C8) { Dots(-2.6f); Dots(2.6f); }
-                else { Dots(-2.6f); if (t.Head == LiftRope.Head.B8) Dot(g, x, yt - 4.4f, 1.25f, c); }
+                else { Dots(-2.6f); if (t.Head == LiftRope.Head.B8 || t.Head == LiftRope.Head.B10) Dot(g, x, yt - 4.4f, 1.25f, c); }
             }
 
             // The terminals, where the rope leaves them.

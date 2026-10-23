@@ -312,6 +312,7 @@ namespace MountainPlanner.Tests
 
         [TestCase(LiftCatalogIds.SesselliftFgq4)]
         [TestCase(LiftCatalogIds.MontaFg4)]
+        [TestCase(LiftCatalogIds.SesselliftD6)]
         public void TW16v3_AFanOfRealLinesBuildsWithinTheRules(string catalogId)
         {
             var quad = LiftType.Of(catalogId);

@@ -19,6 +19,12 @@ namespace MountainPlanner.Domain.Design
     {
         public const string SesselliftFgq4 = "sessellift-fgq4";
         public const string MontaFg4 = "monta-fg4";
+        /// <summary>The Sessellift D6 detachable six-pack (LT41): the first detachable with its own models.</summary>
+        public const string SesselliftD6 = "detach-six:sessellift";
+
+        /// <summary>LT41 (owner, 2026-10-23): the types a player can build, the ones with their own models. Every other
+        /// entry stays in the menu as a placeholder (greyed) until its models exist.</summary>
+        public static bool Buildable(string id) => id == SesselliftFgq4 || id == MontaFg4 || id == SesselliftD6;
 
         /// <summary>The carriers other than the fixed quad, in menu order (LC-08).</summary>
         public static readonly string[] Carriers =

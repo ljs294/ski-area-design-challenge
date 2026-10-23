@@ -4,7 +4,7 @@ using MountainPlanner.Domain.Edits;
 
 namespace MountainPlanner.Domain.Design
 {
-    /// <summary>A fixed-grip type's numbers (LC-01, LC-02 as tuned at task 07, decision SK8), in SI units.</summary>
+    /// <summary>A lift type's numbers (LC-01, LC-02 as tuned at task 07, decision SK8; detachables LT41), in SI units.</summary>
     public sealed class LiftType
     {
         public string CatalogId { get; }
@@ -36,6 +36,48 @@ namespace MountainPlanner.Domain.Design
         public double TowerMaxMetres { get; private set; } = DesignUnits.TowerMaxMm / 1000.0;
         /// <summary>LC-03: people an hour; a tram's is its own (one cabin each way), not seats × speed ÷ spacing.</summary>
         double? _capacity;
+
+        // ---------- detachables (LT41) ----------
+
+        /// <summary>The carriers leave the rope in the stations and run round them on a rail, slowly (LT41).</summary>
+        public bool Detachable { get; private set; }
+        /// <summary>LT41: a detachable's loading interval, seconds between carriers; its spacing on the line follows from the
+        /// line speed (<see cref="LineSpacing"/>). A fixed grip's is its spacing over its speed.</summary>
+        public double IntervalSeconds => _interval ?? ChairSpacingMetres / SpeedMetresPerSecond;
+        double? _interval;
+        /// <summary>LT41: station speeds as fractions of the line speed (1.0 and 1.4 m/s at 1,000 fpm; Leitner's boarding
+        /// and deboarding figures), held within realistic bands, so a line-speed slider scales them by itself.</summary>
+        public const double BoardFraction = 1.0 / 5.08, AlightFraction = 1.4 / 5.08;
+        public const double BoardMin = 0.8, BoardMax = 1.2, AlightMin = 1.1, AlightMax = 1.6;
+        /// <summary>LT41: the tyre conveyors slow the carriers in and speed them out at this rate (a game choice), m/s².</summary>
+        public const double RampAccel = 1.0;
+        /// <summary>Boarding speed (the bottom station) at a line speed; a fixed grip loads at line speed.</summary>
+        public double BoardSpeed(double line) => Detachable ? Math.Max(BoardMin, Math.Min(BoardMax, line * BoardFraction)) : line;
+        /// <summary>Deboarding speed (the top station) at a line speed.</summary>
+        public double AlightSpeed(double line) => Detachable ? Math.Max(AlightMin, Math.Min(AlightMax, line * AlightFraction)) : line;
+        /// <summary>The spacing on the line at a line speed: speed × interval (LT41).</summary>
+        public double LineSpacing(double line) => line * IntervalSeconds;
+        /// <summary>The length a ramp takes between the line speed and a station speed at <see cref="RampAccel"/>, metres.</summary>
+        public static double RampLength(double line, double station) => Math.Max(0, line * line - station * station) / (2 * RampAccel);
+        /// <summary>
+        /// The ride, seconds, over <paramref name="lineMetres"/> of slope: at line speed, plus the time the ramps at each end
+        /// lose against it (the chair speeds up out of the bottom station and slows into the top one).
+        /// </summary>
+        public double RideSeconds(double lineMetres)
+        {
+            double v = SpeedMetresPerSecond, t = lineMetres / v;
+            if (!Detachable) return t;
+            foreach (double s in new[] { BoardSpeed(v), AlightSpeed(v) }) t += (v - s) * (v - s) / (2 * RampAccel * v);
+            return t;
+        }
+        /// <summary>The tower heads its kit has (TW-04 v2, LT41): the quads' up to 8 sheaves, the D6's wide ones up to 10.</summary>
+        public TowerForces.HeadKit Heads { get; private set; } = TowerForces.HeadKit.Quad;
+        /// <summary>The prefix of its tower parts (G2): heads from its own kit, the mast and bases from the quad's where it
+        /// has none.</summary>
+        public string TowerKit { get; private set; } = "sessellift_fgq4_";
+
+        /// <summary>LT41: whether a player can build it (<see cref="LiftCatalogIds.Buildable"/>).</summary>
+        public bool Buildable => LiftCatalogIds.Buildable(CatalogId);
 
         public LiftType(string catalogId, int seats, double speed, double spacing, double ropeKgPerMetre, double rated,
                         double counterweight, double chairKg, double riderKg, double chairDrop, double gauge, double ropeDiameter)
@@ -87,6 +129,13 @@ namespace MountainPlanner.Domain.Design
                 type.Name = c.Name;
                 type.RiseLimitMetres = c.RiseFt * Ft;
                 type._capacity = c.Capacity;
+                // LT41: detachable chairs and gondolas leave the rope in the stations; their interval is their spacing over the
+                // line speed (the catalog's spacing is that interval at 1,000 fpm).
+                if (carrier.StartsWith("detach-", StringComparison.Ordinal) || carrier.StartsWith("gondola-", StringComparison.Ordinal))
+                {
+                    type.Detachable = true;
+                    type._interval = c.SpacingFt * Ft / (c.Fpm * Ft / 60);
+                }
                 if (carrier.StartsWith("tram-", StringComparison.Ordinal)) type.TowerMaxMetres = DesignUnits.TramTowerMaxMm / 1000.0;
             }
             // Each end is the terminal model standing there (TW-16 v3; the owner's ruling, 2026-10-18: terminals face where
@@ -95,6 +144,7 @@ namespace MountainPlanner.Domain.Design
             // the carrier and link-bar trees) at the bottom, and its return's single deflection sheave at the top (LT6: a
             // fixed row, its range a sheave's 4.5°). Both tension at the bottom (LT11, RP-03). Footprints, exits and origins
             // are the models' (the view measures them again: LiftTypes.Measured).
+            if (catalogId == LiftCatalogIds.SesselliftD6) return D6(type);
             if (monta)
             {
                 type.Bottom = new TerminalEnd("monta_fg4_drive", TerminalRow.HoldDown, MontaExitMin, MontaExitMax, 0.9 * MontaExitMax,
@@ -109,6 +159,31 @@ namespace MountainPlanner.Domain.Design
                 type.Top = new TerminalEnd("sessellift_fgq4_drive", TerminalRow.Support, -DriveEntryMax, 0, 0, 2.530, 7.218, 3.328, 7.021, 3.039, 3.230, 4);
             }
             return type;
+        }
+
+        /// <summary>
+        /// The Sessellift D6 detachable six-pack (LT41; the D6 findings' G3, G4): a 2 in (50.8 mm) compacted haul rope, about
+        /// 10 kg/m (the quad's 1¾ in scaled by diameter²), rated at 444 kN (its 2,000 kN breaking strength over 4.5); a 5.6 m
+        /// gauge; the six-seat chair (1,300 lb, 170 lb riders) hanging 3.27 m below the rope, 1.5 m either side of it; 1,000 fpm
+        /// and a 7.2 s interval (3,000 an hour, 120 ft apart on the line). Its return stands at the bottom (it tensions), its
+        /// drive at the top. The rope leaves each station level over the bend sheaves inside the hood (three each side), so
+        /// each end is a support row: the first tower takes the rope on from level (TW-16 v3's station tower), never pulling
+        /// it up off them. Footprints and exits are the models' (the hood; the view measures them again).
+        /// </summary>
+        static LiftType D6(LiftType placeholder)
+        {
+            const double Lb = 0.45359237, Ft = 0.3048;
+            double speed = 1000 * Ft / 60, interval = 7.2;
+            var t = new LiftType(LiftCatalogIds.SesselliftD6, 6, speed, speed * interval, 10.0, 444_000, placeholder.CounterweightNewtons,
+                                 1300 * Lb, 170 * Lb, 3.27, 5.6, 0.0508)
+            {
+                Name = "Detachable six", RiseLimitMetres = placeholder.RiseLimitMetres, Detachable = true, _interval = interval,
+                ChairHalfWidthMetres = 1.5, Heads = TowerForces.HeadKit.Wide, TowerKit = "sessellift_d6_",
+            };
+            double level = TowerForces.SheaveBendLimit;
+            t.Bottom = new TerminalEnd("sessellift_d6_return", TerminalRow.Support, -level, 0, 0, 9.108, 12.816, 4.45, 12.816, 3.6, 0, 3);
+            t.Top = new TerminalEnd("sessellift_d6_drive", TerminalRow.Support, -level, 0, 0, 8.784, 13.137, 4.45, 13.137, 3.6, 0, 3);
+            return t;
         }
 
         /// <summary>One placeholder type (LC-08): menu name, speed (fpm), seats, spacing (ft), rope diameter (cm),
@@ -128,9 +203,10 @@ namespace MountainPlanner.Domain.Design
         {
             ["fixed-double"] = new CarrierSpec("Fixed-grip double", 450, 2, 45, 3.6, 14000, 200, 540, 2800),
             ["fixed-triple"] = new CarrierSpec("Fixed-grip triple", 450, 3, 45, 4.0, 16000, 280, 790, 2500),
-            ["detach-quad"] = new CarrierSpec("Detachable quad", 1000, 4, 80, 5.2, 30000, 900, 1580, 3600),
-            ["detach-six"] = new CarrierSpec("Detachable six", 1000, 6, 100, 6.0, 36000, 1300, 2320, 3300),
-            ["detach-eight"] = new CarrierSpec("Detachable eight", 1000, 8, 120, 6.4, 40000, 1700, 3060, 3000),
+            // LT41: spacing = 1,000 fpm × the interval (quad 6 s, 2,400 an hour; six 7.2 s, 3,000; eight 8 s, 3,600).
+            ["detach-quad"] = new CarrierSpec("Detachable quad", 1000, 4, 100, 5.2, 30000, 900, 1580, 3600),
+            ["detach-six"] = new CarrierSpec("Detachable six", 1000, 6, 120, 6.0, 36000, 1300, 2320, 3300),
+            ["detach-eight"] = new CarrierSpec("Detachable eight", 1000, 8, 133.333, 6.4, 40000, 1700, 3060, 3000),
             ["gondola-6"] = new CarrierSpec("Gondola, 6 person", 1000, 6, 150, 5.2, 32000, 1300, 2320, 4500),
             ["gondola-8"] = new CarrierSpec("Gondola, 8 person", 1000, 8, 160, 6.0, 36000, 1700, 3060, 4500),
             ["gondola-10"] = new CarrierSpec("Gondola, 10 person", 1000, 10, 167, 6.4, 40000, 2000, 3700, 4500),
@@ -174,7 +250,8 @@ namespace MountainPlanner.Domain.Design
     /// </summary>
     public sealed class LiftRope
     {
-        public enum Head : byte { S4, S6, B8, D8, C8, TooSharp }
+        /// <summary>A tower's head (TW-04). The wide kit's 10-sheave heads (G6, LT41) come after TooSharp so no value moves.</summary>
+        public enum Head : byte { S4, S6, B8, D8, C8, TooSharp, S10, B10, D10 }
 
         public readonly struct TowerSolution
         {
@@ -395,7 +472,7 @@ namespace MountainPlanner.Domain.Design
                     bendL[i] = Math.Atan(_loaded[i + 1].Slope(ropeS[i + 1])) - Math.Atan(_loaded[i].Slope(ropeS[i + 1]));
                     bendE[i] = Math.Atan(_empty[i + 1].Slope(ropeS[i + 1])) - Math.Atan(_empty[i].Slope(ropeS[i + 1]));
                     double h = ropeY[i + 1] - ropeY[0];
-                    loads[i] = new TowerForces.Loads(t0 + wl * h, t0 + we * h, bendL[i], bendE[i]);
+                    loads[i] = new TowerForces.Loads(t0 + wl * h, t0 + we * h, bendL[i], bendE[i], type.Heads);
                     heads[i] = loads[i].Head;
                 }
             }

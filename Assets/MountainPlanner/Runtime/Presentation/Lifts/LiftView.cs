@@ -29,7 +29,9 @@ namespace MountainPlanner.Presentation.Lifts
         readonly LiftMaterials _materials;
         readonly Material _cableMaterial;
         readonly List<string> _heads = new List<string>();
-        readonly string _prefix;
+        /// <summary>The type's tower kit (G2, LT41): its parts first, the quad's where it has none.</summary>
+        string _kit = Quad;
+        const string Quad = "sessellift_fgq4_";
         Mesh _cable;
 
         // The rope loop in world space, in travel order, with the distance walked to each point.
@@ -65,12 +67,11 @@ namespace MountainPlanner.Presentation.Lifts
             _models = models;
             _materials = materials;
             _cableMaterial = cableMaterial;
-            _prefix = "sessellift_fgq4_";
             Root = new GameObject(name);
             Root.transform.SetParent(parent, false);
         }
 
-        GameObject Prefab(string id) => Model(_prefix + id);
+        GameObject Prefab(string id) => (_kit != Quad ? Model(_kit + id) : null) ?? Model(Quad + id);
         GameObject Model(string assetId) => _models != null ? _models.Find(assetId) : null;
 
         /// <summary>
@@ -150,6 +151,7 @@ namespace MountainPlanner.Presentation.Lifts
             Clear();
             (double Bottom, double Top)? levels = lift.Levels is LiftLevels v ? (v.BottomMetres, v.TopMetres) : ((double, double)?)null;
             var type = LiftTypes.Measured(LiftType.Of(lift.CatalogId), _models);
+            _kit = type.TowerKit;
             var bottom = new Vector3((float)lift.Bottom.XMetres, 0, (float)lift.Bottom.YMetres);
             var top = new Vector3((float)lift.Top.XMetres, 0, (float)lift.Top.YMetres);
             double Height(Vector3 p)
@@ -270,8 +272,8 @@ namespace MountainPlanner.Presentation.Lifts
                     double bend = Rope.Towers[i].BendEmpty;
                     above.Add(bend <= 0);
                     turn.Add(bend > 0 ? 1 : bend < 0 ? -1 : 0);
-                    bool support = Rope.Towers[i].Head == LiftRope.Head.S4 || Rope.Towers[i].Head == LiftRope.Head.S6 || Rope.Towers[i].Head == LiftRope.Head.B8;
-                    if (side == 0 && (support && bend > 0 || Rope.Towers[i].Head == LiftRope.Head.D8 && bend < 0 || Rope.Towers[i].Head == LiftRope.Head.TooSharp))
+                    bool support = TowerForces.IsSupport(Rope.Towers[i].Head);
+                    if (side == 0 && (support && bend > 0 || TowerForces.IsHoldDown(Rope.Towers[i].Head) && bend < 0 || Rope.Towers[i].Head == LiftRope.Head.TooSharp))
                     {
                         SideMismatches++;
                         MismatchNote += $" #{i} {Rope.Towers[i].Head} at {Rope.Towers[i].BaseS / 0.3048:F0} ft (bend {bend * 180 / Math.PI:F1}°/{Rope.Towers[i].BendLoaded * 180 / Math.PI:F1}° loaded)";
@@ -355,6 +357,9 @@ namespace MountainPlanner.Presentation.Lifts
                 case LiftRope.Head.S6: return "tower_s6";
                 case LiftRope.Head.D8: return "tower_d8";
                 case LiftRope.Head.C8: return "tower_c8";
+                case LiftRope.Head.S10: return "tower_s10";   // the wide kit's (G6, LT41)
+                case LiftRope.Head.B10: return "tower_b10";
+                case LiftRope.Head.D10: return "tower_d10";
                 default: return "tower_b8";   // B8, and TooSharp drawn as the biggest support until task 09 reports it
             }
         }
@@ -411,7 +416,7 @@ namespace MountainPlanner.Presentation.Lifts
             int tenths = Mathf.RoundToInt(degrees / 2.5f) * 25;
             var foundation = (tenths > 0 ? Prefab($"tower_base_l{tenths:000}") : null) ?? Prefab("tower_base");
             if (head == null || mast == null || foundation == null) return null;
-            bool leanedBase = foundation.name != _prefix + "tower_base";
+            bool leanedBase = !foundation.name.EndsWith("tower_base", StringComparison.Ordinal);
             var footLocal = foundation.GetComponent<LiftRig>().Socket("mast_foot").localPosition;
             float foot = footLocal.y;
             float ropeOnHead = head.GetComponent<LiftRig>().Socket("rope_right").localPosition.y;
@@ -432,9 +437,10 @@ namespace MountainPlanner.Presentation.Lifts
         /// head), its foot at <see cref="Root"/>'s origin, the platform side (+Z) toward the bottom terminal, leaned
         /// <paramref name="leanRadians"/> down the line. Whatever was built before goes.
         /// </summary>
-        public void BuildLoneTower(LiftRope.Head head, float leanRadians, float steel, Color livery)
+        public void BuildLoneTower(LiftRope.Head head, float leanRadians, float steel, Color livery, string kit = Quad)
         {
             Clear();
+            _kit = kit ?? Quad;
             var at = Root.transform;
             var (position, rotation) = (at.position, at.rotation);
             at.SetPositionAndRotation(Vector3.zero, Quaternion.identity);

@@ -38,7 +38,7 @@ namespace MountainPlanner.Domain.Design
         protected override CommandResult Run(DesignDocument doc)
         {
             string problem = DesignRules.NameProblem(Name) ?? DesignRules.StageProblem(Stage)
-                ?? DesignRules.LiftLineProblem(CatalogId, Bottom, Top, TowerMode, Stance);
+                ?? DesignRules.LiftLineProblem(CatalogId, Bottom, Top, TowerMode, Stance) ?? DesignRules.BuildableProblem(CatalogId);
             if (problem != null) return Invalid(doc, problem);
             var mint = new IdMint(doc);
             var created = new List<ulong>();
@@ -320,6 +320,8 @@ namespace MountainPlanner.Domain.Design
             var l = doc.FindLift(Lift);
             if (l == null) return Missing(doc, "That lift");
             if (DesignRules.LiftLineProblem(CatalogId, Bottom, Top, TowerMode, Stance) is string p) return Invalid(doc, p);
+            // LT41: a lift already in the design keeps its type; changing to another needs one that can be built.
+            if (CatalogId != l.CatalogId && DesignRules.BuildableProblem(CatalogId) is string b) return Invalid(doc, b);
             if (Name != null && DesignRules.NameProblem(Name) is string n) return Invalid(doc, n);
             var towers = new List<Tower>();
             var seen = new HashSet<ulong>();

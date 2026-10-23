@@ -290,7 +290,7 @@ namespace MountainPlanner.UI.Tools
             var xz = At(HandS);
             float y = HandStatus.BaseY != 0 ? (float)HandStatus.BaseY : _ctx.HeightAt(xz);
             var up = new Vector3(Dir.x, 0, Dir.y);
-            ghost.Show(HandStatus.Head, new Vector3(xz.x, y, xz.y), up, (float)HandStatus.Lean, HandMm / 1000f, HandStatus.Ok ? GhostTint.Ok : GhostTint.Bad);
+            ghost.Show(HandStatus.Head, new Vector3(xz.x, y, xz.y), up, (float)HandStatus.Lean, HandMm / 1000f, HandStatus.Ok ? GhostTint.Ok : GhostTint.Bad, Type.TowerKit);
         }
 
         void Place(int below)
@@ -443,6 +443,9 @@ namespace MountainPlanner.UI.Tools
             LiftRope.Head.B8 => "Breakover, 8 sheaves",
             LiftRope.Head.D8 => "Hold-down, 8 sheaves",
             LiftRope.Head.C8 => "Combination, 4 + 4 sheaves",
+            LiftRope.Head.S10 => "Support, 10 sheaves",
+            LiftRope.Head.B10 => "Breakover, 10 sheaves",
+            LiftRope.Head.D10 => "Hold-down, 10 sheaves",
             _ => "Too sharp for one head",
         };
     }
