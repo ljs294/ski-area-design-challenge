@@ -197,7 +197,14 @@ namespace MountainPlanner.UI.Tools
             if (input.Click && !input.OverPanel)
             {
                 int part = _ctx.DraftPartUnderPointer?.Invoke() ?? None;
-                if (part == None && input.HasGround) part = Nearest(new Vector2(input.Ground.x, input.Ground.z), Mathf.Max(4f, PickPixels * input.MetresPerPixel));
+                // Finding E5: the rope (or a terminal while they can't be picked) under the pointer still gives way to a
+                // tower within a few pixels of it, so a click near a tower selects it rather than adding another.
+                bool notTower = part == None || part == LiftView.PartRope || (!Terminals && (part == Bottom || part == Top));
+                if (notTower && input.HasGround)
+                {
+                    int near = Nearest(new Vector2(input.Ground.x, input.Ground.z), Mathf.Max(4f, PickPixels * input.MetresPerPixel));
+                    if (near != None) part = near;
+                }
                 if (part >= 0 || (Terminals && (part == Bottom || part == Top)))
                 {
                     Select(part);

@@ -10,6 +10,9 @@ namespace MountainPlanner.Presentation.Lifts
         // box, and the rope with its chairs as capsules every ~5 m along the loop (the chairs hang below the rope).
         Bounds[] _boxes = System.Array.Empty<Bounds>();
         int[] _boxParts = System.Array.Empty<int>(), _rendererParts = System.Array.Empty<int>();
+        // Finding E5: a terminal's box in its own frame (along the line), not the world's axes, which on a diagonal line
+        // covered the station tower beside it; towers and the rest keep world boxes (identity here).
+        Matrix4x4[] _boxToLocal = System.Array.Empty<Matrix4x4>();
         // Which part each spawned piece belongs to (F1): a tower's index, or one of the Part constants.
         readonly Dictionary<GameObject, int> _partOf = new Dictionary<GameObject, int>();
         int _spawning = PartRope;
@@ -22,6 +25,8 @@ namespace MountainPlanner.Presentation.Lifts
 
         /// <summary>The rope's capsules: centred this far below it, this wide, so the chairs under it count.</summary>
         const float ChairDrop = 1.4f, RopeRadius = 1.8f, RopeStep = 5f;
+        /// <summary>How far behind the rope's hit a tower still takes the pick (E5), metres.</summary>
+        const float TowerReach = 30f;
 
         public bool Highlighted => _highlighted;
 
@@ -35,6 +40,7 @@ namespace MountainPlanner.Presentation.Lifts
             _highlighted = false;
             _boxes = System.Array.Empty<Bounds>();
             _boxParts = System.Array.Empty<int>();
+            _boxToLocal = System.Array.Empty<Matrix4x4>();
             _partOf.Clear();
             _renderers = System.Array.Empty<Renderer>();
         }
@@ -45,6 +51,7 @@ namespace MountainPlanner.Presentation.Lifts
             if (Root == null) return;
             var boxes = new List<Bounds>();
             var parts = new List<int>();
+            var toLocal = new List<Matrix4x4>();
             var rendererParts = new List<int>();
             var renderers = new List<Renderer>();
             for (int i = 0; i < Root.transform.childCount; i++)
@@ -53,22 +60,27 @@ namespace MountainPlanner.Presentation.Lifts
                 bool any = false;
                 var box = default(Bounds);
                 int partOf = _partOf.TryGetValue(child.gameObject, out int p) ? p : PartRope;
+                bool terminal = partOf == PartBottom || partOf == PartTop;
+                var local = terminal ? child.worldToLocalMatrix : Matrix4x4.identity;
                 foreach (var r in child.GetComponentsInChildren<Renderer>())
                 {
                     renderers.Add(r);
                     rendererParts.Add(partOf);
                     if (child.name == "Haul rope") continue;   // the rope picks as capsules, not its whole-line box
-                    if (!any) { box = r.bounds; any = true; }
-                    else box.Encapsulate(r.bounds);
+                    var rb = terminal ? LocalBounds(r, local) : r.bounds;
+                    if (!any) { box = rb; any = true; }
+                    else box.Encapsulate(rb);
                 }
                 if (any)
                 {
                     boxes.Add(box);
                     parts.Add(partOf);
+                    toLocal.Add(local);
                 }
             }
             _boxes = boxes.ToArray();
             _boxParts = parts.ToArray();
+            _boxToLocal = toLocal.ToArray();
             _rendererParts = rendererParts.ToArray();
             _renderers = renderers.ToArray();
             var a = new List<Vector3>();
@@ -92,8 +104,10 @@ namespace MountainPlanner.Presentation.Lifts
         /// </summary>
         public bool Pick(Ray ray, float maxDistance, float slackPerMetre, out float distance) => Pick(ray, maxDistance, slackPerMetre, out distance, out _);
 
-        /// <summary>As <see cref="Pick(Ray, float, float, out float)"/>, saying which part was hit nearest (F1): a tower's
-        /// index, <see cref="PartBottom"/>, <see cref="PartTop"/> or <see cref="PartRope"/> (the rope or a chair).</summary>
+        /// <summary>As <see cref="Pick(Ray, float, float, out float)"/>, saying which part was hit (F1): a tower's index,
+        /// <see cref="PartBottom"/>, <see cref="PartTop"/> or <see cref="PartRope"/> (the rope or a chair). Finding E5: a
+        /// tower the ray meets wins over the rope (thin, it hides nothing: the span in front of a head used to take the click)
+        /// unless a terminal stands in front of it; <paramref name="distance"/> is the nearest hit of any part.</summary>
         public bool Pick(Ray ray, float maxDistance, float slackPerMetre, out float distance, out int part)
         {
             distance = float.MaxValue;
@@ -103,22 +117,53 @@ namespace MountainPlanner.Presentation.Lifts
             var reach = _bounds;
             reach.Expand(Mathf.Max(20f, reach.size.y));
             if (!reach.IntersectRay(ray, out float enter) || enter > maxDistance) return false;
-            bool hit = false;
+            float towerT = float.MaxValue, terminalT = float.MaxValue, ropeT = float.MaxValue;
+            int tower = -1, terminal = PartRope;
             for (int i = 0; i < _boxes.Length; i++)
             {
                 var grown = _boxes[i];
-                float slack = slackPerMetre * Vector3.Distance(ray.origin, grown.center);
+                bool oriented = _boxParts[i] == PartBottom || _boxParts[i] == PartTop;
+                var r = oriented ? new Ray(_boxToLocal[i].MultiplyPoint3x4(ray.origin), _boxToLocal[i].MultiplyVector(ray.direction)) : ray;
+                float slack = slackPerMetre * Vector3.Distance(r.origin, grown.center);
                 grown.Expand(2 * slack);
-                if (grown.IntersectRay(ray, out float t) && t < maxDistance && t < distance) { distance = t; hit = true; part = _boxParts[i]; }
+                if (!grown.IntersectRay(r, out float t) || t >= maxDistance) continue;
+                if (_boxParts[i] >= 0) { if (t < towerT) { towerT = t; tower = _boxParts[i]; } }
+                else if (oriented) { if (t < terminalT) { terminalT = t; terminal = _boxParts[i]; } }
+                else if (t < ropeT) ropeT = t;   // anything else spawned (footings): as the rope
             }
             var down = new Vector3(0, ChairDrop, 0);
             for (int i = 0; i < _ropeA.Length; i++)
             {
                 float d = RaySegment(ray, _ropeA[i] - down, _ropeB[i] - down, out float t);
-                if (t <= 0 || t >= maxDistance || t >= distance) continue;
-                if (d <= RopeRadius + slackPerMetre * t) { distance = t; hit = true; part = PartRope; }
+                if (t <= 0 || t >= maxDistance || t >= ropeT) continue;
+                if (d <= RopeRadius + slackPerMetre * t) ropeT = t;
             }
-            return hit;
+            distance = Mathf.Min(towerT, Mathf.Min(terminalT, ropeT));
+            if (distance == float.MaxValue) return false;
+            // The rope in front of a tower gives way to it when the tower is just behind (the span before its head); a tower
+            // far down the line behind a point on the rope near the eye doesn't take that click.
+            bool towerFirst = tower >= 0 && towerT <= terminalT && towerT <= ropeT + Mathf.Max(TowerReach, 0.1f * ropeT);
+            if (towerFirst) part = tower;
+            else if (terminalT <= ropeT && terminalT < float.MaxValue) part = terminal;
+            else part = PartRope;
+            return true;
+        }
+
+        /// <summary>A renderer's bounds in another frame (<paramref name="toLocal"/>): its mesh's eight corners carried over.</summary>
+        static Bounds LocalBounds(Renderer r, Matrix4x4 toLocal)
+        {
+            var mf = r.GetComponent<MeshFilter>();
+            if (mf == null || mf.sharedMesh == null)
+            {
+                var c = toLocal.MultiplyPoint3x4(r.bounds.center);
+                return new Bounds(c, r.bounds.size);
+            }
+            var b = mf.sharedMesh.bounds;
+            var m = toLocal * r.localToWorldMatrix;
+            var box = new Bounds(m.MultiplyPoint3x4(b.min), Vector3.zero);
+            for (int k = 0; k < 8; k++)
+                box.Encapsulate(m.MultiplyPoint3x4(new Vector3((k & 1) != 0 ? b.max.x : b.min.x, (k & 2) != 0 ? b.max.y : b.min.y, (k & 4) != 0 ? b.max.z : b.min.z)));
+            return box;
         }
 
         /// <summary>The closest distance between a ray and a segment, and how far along the ray it falls.</summary>

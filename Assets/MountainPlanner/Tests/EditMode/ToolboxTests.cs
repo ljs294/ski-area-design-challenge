@@ -813,6 +813,35 @@ namespace MountainPlanner.Tests
             tool.GetType().GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(tool, null);
 
         [Test]
+        public void E5_AClickOnTheRopeBesideATowerSelectsTheTower()
+        {
+            // Finding E5: the rope's pick (or a terminal's) under the pointer gave the click to the line, so a tower came into
+            // hand instead of the one clicked being selected. A tower within a few pixels of the click takes it.
+            var id = BuiltOnSlope();
+            var before = _design.Document.FindLift(id);
+            _host.Choose(EditLiftTool.ToolId);
+            var tool = (EditLiftTool)_host.Active;
+            GiveGround();
+            Assert.That(tool.Open(id.Value), Is.True);
+            PumpUntil(() => tool.Built != null, "the draft builds");
+            int mid = before.Towers.Count / 2;
+            var e = tool.Editor;
+            var at = e.BottomXz + (e.TopXz - e.BottomXz).normalized * (before.Towers[mid].AlongMm / 1000f);
+            _host.Context.DraftPartUnderPointer = () => MountainPlanner.Presentation.Lifts.LiftView.PartRope;
+            _host.Tick(At(at.x + 1, at.y, click: true));
+            _host.Tick(new ToolInput { Release = true });
+            Assert.That(e.Adding, Is.False, "no tower in hand");
+            Assert.That(tool.Selected, Is.EqualTo("tower " + mid), "the tower beside the click is selected");
+            // Mid-span, away from any tower, a click on the rope still puts a tower in hand (F2).
+            Assert.That(_host.Escape(), Is.True);   // deselects
+            double gapMid = (before.Towers[mid].AlongMm + before.Towers[mid + 1].AlongMm) / 2000.0;
+            var span = e.BottomXz + (e.TopXz - e.BottomXz).normalized * (float)gapMid;
+            Assume.That(before.Towers[mid + 1].AlongMm - before.Towers[mid].AlongMm, Is.GreaterThan(30_000), "a span long enough to click in");
+            _host.Tick(At(span.x, span.y, click: true));
+            Assert.That(e.Adding, Is.True, "a click on the line between towers adds one");
+        }
+
+        [Test]
         public void F1F2_EditLiftPicksATowerIn3DAddsOneInAGapRemovesItAndRevertsToAuto()
         {
             var id = BuiltOnSlope();

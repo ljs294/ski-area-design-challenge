@@ -523,6 +523,7 @@ namespace MountainPlanner.UI.Tools
                 _suggesting = false;
                 if (_builtFor != key || _built == null || !_built.LevelsPending) return;
                 _built = result;
+                SyncEditor();
                 if (_step == Step.Towers) { if (_mode == TowerMode.Automatic) TowersPlacedHint(); return; }
                 if (_step != Step.Review) return;
                 BuildReview();
