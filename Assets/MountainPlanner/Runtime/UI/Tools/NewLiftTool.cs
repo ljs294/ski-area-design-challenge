@@ -502,8 +502,10 @@ namespace MountainPlanner.UI.Tools
             _review.Clear()
                 .Add("Length", $"{ToolFormat.Length(slope)} slope · {ToolFormat.Length(run)} across", "LF-06")
                 .Add("Rise", $"{ToolFormat.Length(rise)} · {ToolFormat.Grade(rise, run)}")
-                .Add("Ride", $"{ToolFormat.Duration(slope / Type.SpeedMetresPerSecond)} at {Type.SpeedMetresPerSecond * 196.850394:#,0} ft/min", "LC-04: slope length over the rope speed")
-                .Add("Capacity", $"{Type.Capacity:#,0} an hour", "LC-03")
+                .Add("Ride", $"{ToolFormat.Duration(Type.RideSeconds(slope))} at {Type.SpeedMetresPerSecond * 196.850394:#,0} ft/min",
+                     Type.Detachable ? "LC-04: slope length over the rope speed, plus the ramps out of and into the stations (LT41)" : "LC-04: slope length over the rope speed")
+                .Add("Capacity", Type.Detachable ? $"{Type.Capacity:#,0} an hour · a chair every {Type.IntervalSeconds:0.#} s" : $"{Type.Capacity:#,0} an hour",
+                     Type.Detachable ? "LC-03 v2: seats × 3,600 ÷ the loading interval (LT41)" : "LC-03")
                 .Reserved("Network", "NW-12: No way down (task 10)", ReviewModel.NetworkSlot);
             if (_built == null)
             {

@@ -118,6 +118,55 @@ namespace MountainPlanner.Tests
             }
         }
 
+        [Test]
+        public void G5_TheD6ChairSwungInClearsTheMastAndThePassingChair()
+        {
+            // G5 (the D6 findings; LT41: checked once per type, not per lift): a chair swung 11.5° inboard (the design wind
+            // case) clears the 610 mm mast (about 230 mm, 751 mm at rest, touching near 16.4°), and two chairs swung toward
+            // each other still pass (about 1.07 m).
+            var models = AssetDatabase.LoadAssetAtPath<LiftModelSet>(SetPath);
+            if (models == null) Assert.Ignore("The lift library isn't imported.");
+            var chair = models.Find("sessellift_d6_chair");
+            if (chair == null) Assert.Ignore("The D6 chair isn't imported.");
+            var rig = chair.GetComponent<LiftRig>();
+            var hinge = chair.transform.InverseTransformPoint(rig.Pivot("hanger").position);
+            var points = new List<Vector3>();
+            var group = chair.GetComponent<LODGroup>();
+            foreach (var r in group.GetLODs()[0].renderers)
+            {
+                var mf = r != null ? r.GetComponent<MeshFilter>() : null;
+                if (mf == null || mf.sharedMesh == null) continue;
+                bool hanging = false;
+                for (var x = r.transform; x != null && x != chair.transform; x = x.parent) hanging |= x.name.EndsWith("_pivot_hanger");
+                if (!hanging) continue;   // the grip rides on the rope, past the head's sheaves; the hanger and chair swing
+                foreach (var v in mf.sharedMesh.vertices) points.Add(chair.transform.InverseTransformPoint(r.transform.TransformPoint(v)));
+            }
+            Assume.That(points.Count, Is.GreaterThan(100));
+            var d6 = LiftType.Of(LiftCatalogIds.SesselliftD6);
+            float half = (float)d6.GaugeMetres / 2, mast = 0.305f;
+            // The chair rides the right rope (+x); inboard is -x. Its nearest point to the mast's axis, below the head.
+            float Inner(float degrees)
+            {
+                var turn = Quaternion.AngleAxis(-degrees, Vector3.forward);
+                float inner = float.MaxValue;
+                foreach (var q in points)
+                {
+                    var p = hinge + turn * (q - hinge);
+                    if (p.y > -1f) continue;
+                    inner = Mathf.Min(inner, half + p.x);
+                }
+                return inner;
+            }
+            float rest = Inner(0) - mast, swung = Inner(11.5f) - mast;
+            float touch = 0;
+            for (float a = 0; a <= 30 && touch == 0; a += 0.1f) if (Inner(a) <= mast) touch = a;
+            TestContext.Progress.WriteLine($"D6 chair to the mast: {rest * 1000:F0} mm at rest, {swung * 1000:F0} mm swung 11.5°, touching at {touch:F1}°; passing chairs {2 * Inner(11.5f):F2} m apart");
+            Assert.That(rest, Is.InRange(0.6f, 0.9f), "751 mm at rest (G5)");
+            Assert.That(swung, Is.GreaterThan(0.1f), "clear swung 11.5° inboard");
+            Assert.That(touch, Is.GreaterThan(14f), "it only touches well past the wind case");
+            Assert.That(2 * Inner(11.5f), Is.GreaterThan(0.8f), "two chairs swung toward each other still pass");
+        }
+
         sealed class Slope : IHeightSource
         {
             public double At(double x, double y) => 1500 + 0.25 * (y - (North - 900));

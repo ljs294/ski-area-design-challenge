@@ -775,6 +775,8 @@ if not exist "%GAME%" goto done
 echo.
 echo Open an area, then T for the Toolbox, the Lifts tab, N for New lift:
 echo   Pick the type in the menu (Type, Chair or Cabin, Model), Towers Automatic or By hand, Plumb or Leaned.
+echo   Detachable chair is the Sessellift D6 six-pack: black and white, chairs 120 ft apart that slow round each
+echo     station's rail to load and unload, then speed back onto the rope. Types greyed in the menu come later.
 echo   Click the name in the window's title (or F2) to name the lift.
 echo   1 The bottom terminal follows the pointer: Shift+wheel or , . turn it, Page Up/Down its level; click to place.
 echo     It stands where you put it; its pad is levelled with cut and fill (no automatic raise any more).
