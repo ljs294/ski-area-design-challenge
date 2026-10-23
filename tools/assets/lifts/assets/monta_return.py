@@ -22,7 +22,9 @@ SPEC = "monta_fg4.json"
 
 
 def styles(lod):
-    return monta_drive.styles(lod)
+    st = monta_drive.styles(lod)
+    st["dark"] = st["dark"].but(snow=0.6)   # polish: the return's wheel stands in the open and takes snow
+    return st
 
 
 def build(spec, lod, stage):
@@ -53,11 +55,12 @@ def build(spec, lod, stage):
     prims.prism(body, [(m(u), m(w)) for u, w in sr["profile"]], (0.0, -hv, 0.0), U, W, V, 2 * hv, st["steel"])
     prims.box(body, mv(sr["top"]["lo"]), mv(sr["top"]["hi"]), st["steel"])
     sh = r["strutHead"]
-    for g in sh["gussets"]:
+    for g in (sh["gussets"] if lod <= 2 else []):   # polish: a real LOD3, the small parts left out
         v0, v1 = g["v"]
         prims.prism(body, [(m(u), m(w)) for u, w in g["profile"]], (0.0, m(v0), 0.0), U, W, V, m(v1 - v0), st["steel"])
     tw0, tw1 = sh["top"]["w"]
-    prims.prism(body, [(m(u), m(v)) for u, v in sh["top"]["plan"]], (0.0, 0.0, m(tw0)), U, V, W, m(tw1 - tw0), st["steel"])
+    if lod <= 2:
+        prims.prism(body, [(m(u), m(v)) for u, v in sh["top"]["plan"]], (0.0, 0.0, m(tw0)), U, V, W, m(tw1 - tw0), st["steel"])
 
     # the cross arm (an I-beam across the line) on the strut, reaching the deflection sheaves' brackets
     ar = r["arm"]
@@ -73,6 +76,8 @@ def build(spec, lod, stage):
     for b in r["boxes"]:
         if b["name"] in ("columnBasePlate", "strutBasePlate") and lod >= 2:
             continue
+        if lod >= 3 and b["name"] == "armBracket":
+            continue
         dv = (-1 if b["c"][1] < 0 else 1) * gs if b["name"] == "armBracket" else 0.0
         box_from(body, b, st, shift=(0.0, dv, 0.0))
     if lod == 0:   # anchor bolts on the base plates
@@ -81,9 +86,16 @@ def build(spec, lod, stage):
 
     # the wheel carriage's C-frames and its hub
     car = r["carriage"]
-    cframes(body, car["cframes"], st, lod)
+    if lod <= 2:
+        cframes(body, car["cframes"], st, lod)
+    else:   # far out: the C-frames as one block
+        lo_ = [min(cf["lo"][i] for cf in car["cframes"]) for i in range(3)]
+        hi_ = [max(cf["hi"][i] for cf in car["cframes"]) for i in range(3)]
+        prims.box(body, mv(lo_), mv(hi_), st["steel"])
     hb = car["hub"]
-    prims.cylinder(body, (0.0, 0.0, m(hb["bottom"])), (0.0, 0.0, m(hb["top"])), m(hb["dia"]) / 2, parts.sides(lod, 20, 12, 8, 6), st["rod"])
+    if lod <= 2:
+        prims.cylinder(body, (0.0, 0.0, m(hb["bottom"])), (0.0, 0.0, m(hb["top"])), m(hb["dia"]) / 2, parts.sides(lod, 20, 12, 8, 6), st["rod"],
+                       fan_caps=True)
 
     # the bullwheel on its axle at rope elevation
     centre = Vector((0.0, 0.0, rope))

@@ -60,6 +60,7 @@ def styles(lod):
         "glass": Style("glass", slot=GLASS, smooth=False) if lod <= 1 else Style("glass", smooth=False),
         "interior": Style("interior"),
         "rod": Style("machined"),
+        "inside": Style("paint_grey", snow=0.0),   # under the hood (polish)
     }
 
 
@@ -88,7 +89,7 @@ def oval_leg(mb, lg, n, style):
     c, ax = Vector(mv(lg["centre"])), Vector(lg["axis"])
     e1, e2 = Vector(lg["e1"]), Vector(lg["e2"])
     a1, a2 = m(lg["a1"]), m(lg["a2"])
-    rings = []
+    rings, pts = [], []
     for wz in (m(lg["bottomW"]), m(lg["topW"])):
         ring = []
         for k in range(n):
@@ -96,13 +97,15 @@ def oval_leg(mb, lg, n, style):
             q = c + e1 * (a1 * math.cos(th)) + e2 * (a2 * math.sin(th))
             ring.append(tuple(q + ax * ((wz - q.z) / ax.z)))
         rings.append(mb.verts_lift(ring))
+        pts.append(ring)
     for k in range(n):
         k1 = (k + 1) % n
         th = 2 * math.pi * (k + 0.5) / n + math.pi / n
         out = e1 * (math.cos(th) / a1) + e2 * (math.sin(th) / a2)
         mb.face((rings[0][k], rings[0][k1], rings[1][k1], rings[1][k]), style, tuple(out))
-    mb.face(tuple(rings[0]), style, (0.0, 0.0, -1.0))
-    mb.face(tuple(rings[1]), style, (0.0, 0.0, 1.0))
+    caps = style.but(smooth=False)   # fans, not n-gons: no AO line across the cut ends (polish)
+    for ring, out in ((pts[0], (0.0, 0.0, -1.0)), (pts[1], (0.0, 0.0, 1.0))):
+        prims.fan(mb, ring, tuple(sum((Vector(p) for p in ring), Vector()) / len(ring)), caps, out)
 
 
 def cframes(mb, frames, st, lod):
@@ -142,14 +145,16 @@ def slanted_tube(mb, v0, w0, r, rear, front, n, style):
         top, bot = e
         return (top + bot) / 2 + (top - bot) / 2 * (w - w0) / r
     ring = [(math.cos(2 * math.pi * k / n + math.pi / n), math.sin(2 * math.pi * k / n + math.pi / n)) for k in range(n)]
-    back = mb.verts_lift([(end_u(rear, w0 + r * s), v0 + r * c, w0 + r * s) for c, s in ring])
-    fore = mb.verts_lift([(end_u(front, w0 + r * s), v0 + r * c, w0 + r * s) for c, s in ring])
+    back_pts = [(end_u(rear, w0 + r * s), v0 + r * c, w0 + r * s) for c, s in ring]
+    fore_pts = [(end_u(front, w0 + r * s), v0 + r * c, w0 + r * s) for c, s in ring]
+    back, fore = mb.verts_lift(back_pts), mb.verts_lift(fore_pts)
     for k in range(n):
         k1 = (k + 1) % n
         c, s = ring[k]
         mb.face((back[k], back[k1], fore[k1], fore[k]), style, (0.0, c, s))
-    mb.face(tuple(back), style, (-1.0, 0.0, 0.0))
-    mb.face(tuple(fore), style, (1.0, 0.0, 0.0))
+    caps = style.but(smooth=False)   # fans: no AO line across the slanted cuts (polish)
+    for pts_, out in ((back_pts, (-1.0, 0.0, 0.0)), (fore_pts, (1.0, 0.0, 0.0))):
+        prims.fan(mb, pts_, tuple(sum((Vector(p) for p in pts_), Vector()) / len(pts_)), caps, out)
 
 
 # -- the hood --------------------------------------------------------------------------------------
@@ -180,6 +185,9 @@ def hood(mb, h, lod, st):
         return half - max(0.0, w - rk0) * rk
 
     outline = [(-u, w) for u, w in prof] + [(u, w) for u, w in reversed(prof[:-1])]
+    shell = st["hood"].but(trim="gloss", group="shell", crease=35.0)   # polish: one smooth barrel with its glass, no
+    glass = st["glass"].but(group="shell", crease=35.0)                # 1 m seam grid
+    flat = st["hood"].but(trim="gloss")
     # the outline runs from the -u bottom, over the crown, to the +u bottom; the bottom stays open. Each strip
     # is split at the outer ribs: the window band between them is glass inside the panel zone
     n = len(outline)
@@ -193,16 +201,19 @@ def hood(mb, h, lod, st):
     for k in range(n - 1):
         (u0, w0), (u1, w1) = outline[k], outline[k + 1]
         nu, nw = -(w1 - w0), (u1 - u0)           # outward: left of travel (the outline runs over the top, -u to +u)
-        window = z0 <= min(w0, w1) and max(w0, w1) <= z1 and lod <= 2
-        for a0, a1, style in ((left, mid_a, st["hood"]), (mid_a, mid_b, st["glass"] if window else st["hood"]),
-                              (mid_b, right, st["hood"])):
+        window = z0 <= min(w0, w1) and max(w0, w1) <= z1   # every LOD (polish: LOD3 had no glass)
+        for a0, a1, style in ((left, mid_a, shell), (mid_a, mid_b, glass if window else shell), (mid_b, right, shell)):
             mb.face((a0[k], a0[k + 1], a1[k + 1], a1[k]), style, (nu, 0.0, nw))
-    mb.face(tuple(left), st["hood"], (0.0, -1.0, 0.0))
-    mb.face(tuple(right), st["hood"], (0.0, 1.0, 0.0))
+    for side, vs in ((-1.0, [(u, -ve(w), w) for u, w in outline]), (1.0, [(u, ve(w), w) for u, w in outline])):
+        prims.fan(mb, vs, tuple(sum((Vector(p) for p in vs), Vector()) / len(vs)), flat, (0.0, side, 0.0))   # polish
+    w_lo = min(w for _, w in outline)   # the soffit closes the hood's underside (polish: it was open onto the shell's back)
+    u_lo = max(abs(u) for u, w in outline if w <= w_lo + 1e-6)
+    mb.face(mb.verts_lift([(-u_lo, -ve(w_lo), w_lo), (u_lo, -ve(w_lo), w_lo), (u_lo, ve(w_lo), w_lo), (-u_lo, ve(w_lo), w_lo)]),
+            st["interior"].but(smooth=False), (0.0, 0.0, -1.0))
     bd = h["band"]   # the bottom band runs the full length, past the raked ends
     for sgn in (-1, 1):
         u0, u1 = sorted((sgn * m(bd["u"]), sgn * (m(bd["u"]) + m(bd["thick"]))))
-        prims.box(mb, (u0, -m(bd["halfV"]), m(bd["bottom"])), (u1, m(bd["halfV"]), m(bd["top"])), st["hood"])
+        prims.box(mb, (u0, -m(bd["halfV"]), m(bd["bottom"])), (u1, m(bd["halfV"]), m(bd["top"])), flat)
     if lod >= 2:
         return
     hood_lining(mb, prof, h, st)
@@ -224,14 +235,14 @@ def hood(mb, h, lod, st):
                 if nrm.dot(Vector((mid.x, 0.0, mid.z - axis_w))) < 0:
                     nrm = -nrm
                 # the segments overlap at the bends, so their end faces are hidden: leave them out
-                prims.obox(mb, tuple(mid + nrm * (d / 2)), (t, V, nrm), (ln / 2 + d / 2, width / 2, d / 2), st["hood"],
+                prims.obox(mb, tuple(mid + nrm * (d / 2)), (t, V, nrm), (ln / 2 + d / 2, width / 2, d / 2), flat.but(snow=0.3),
                            skip=("-0", "+0"))
         for (u0, w0) in (band[0], band[-1]):   # strips along the zone's bottom and top edges
             outward = Vector((sgn, 0.0, 0.0)) if w0 < m(pz[1]) - 1e-6 else Vector((sgn * 0.6, 0.0, 0.8)).normalized()
             c = Vector((u0, 0.0, w0)) + outward * (d / 2)
             lo_v, hi_v = m(h["ribs"][0]) - width / 2, m(h["ribs"][-1]) + width / 2
             prims.obox(mb, (c.x, (lo_v + hi_v) / 2, c.z), (outward, V, outward.cross(V).normalized()),
-                       (d / 2, (hi_v - lo_v) / 2, width / 2), st["hood"])
+                       (d / 2, (hi_v - lo_v) / 2, width / 2), flat.but(snow=0.3))
 
 
 def hood_lining(mb, prof, h, st, inset=0.08):
@@ -416,7 +427,8 @@ def build(spec, lod, stage):
 
     # piers (footing and block, LP7) under the legs
     for p in d["piers"]:
-        prims.box(body, mv(p["footing"]["lo"]), mv(p["footing"]["hi"]), st["concrete"])
+        if lod <= 2:   # polish: far out the buried footing is left out
+            prims.box(body, mv(p["footing"]["lo"]), mv(p["footing"]["hi"]), st["concrete"])
         prims.box(body, mv(p["block"]["lo"]), mv(p["block"]["hi"]), st["concrete"], skip=("-2",))
 
     # legs: leaning tubes on gusseted base plates, saddles and saddle plates cradling the booms
@@ -456,30 +468,32 @@ def build(spec, lod, stage):
     if lod <= 1:   # vertical pins on bases
         for p in d["posts"]:
             (u, v), bot, top = p["c"], p["bottom"], p["top"]
-            prims.cylinder(body, mv((u, v, bot)), mv((u, v, bot + p["baseH"])), m(p["dia"]) / 2, 10, st["steel"])
-            prims.cylinder(body, mv((u, v, bot + p["baseH"])), mv((u, v, top)), m(p["pinDia"]) / 2, 8, st["rod"])
+            prims.cylinder(body, mv((u, v, bot)), mv((u, v, bot + p["baseH"])), m(p["dia"]) / 2, 10, st["steel"], fan_caps=True)
+            prims.cylinder(body, mv((u, v, bot + p["baseH"])), mv((u, v, top)), m(p["pinDia"]) / 2, 8, st["rod"], fan_caps=True)
 
+    sti = dict(st, steel=st["inside"])   # polish: what stands under the hood takes no snow
     # tension cylinders between the booms and the carriage
     for cy in d["cylinders"]:
         u0, u1 = cy["u"]
         vc, wc = cy["v"], cy["w"]
         if lod <= 2:
-            prims.cylinder(body, mv((cy["barrelFrom"], vc, wc)), mv((u1, vc, wc)), m(cy["barrelDia"]) / 2, parts.sides(lod, 14, 10, 8), st["steel"])
+            prims.cylinder(body, mv((cy["barrelFrom"], vc, wc)), mv((u1, vc, wc)), m(cy["barrelDia"]) / 2, parts.sides(lod, 14, 10, 8), sti["steel"])
             prims.cylinder(body, mv((u0, vc, wc)), mv((cy["barrelFrom"], vc, wc)), m(cy["rodDia"]) / 2, parts.sides(lod, 10, 8, 6), st["rod"])
         if lod <= 1:
             for pl in cy["plates"]:
-                box_from(body, pl, st)
-            box_from(body, cy["clevis"], st)
+                box_from(body, pl, sti)
+            box_from(body, cy["clevis"], sti)
 
     # the bullwheel carriage: plates, the front piece, the hub, and the C-frames open around the wheel
     car = d["carriage"]
     for b in (car["boxes"] if lod <= 2 else []):
-        box_from(body, b, st)
+        box_from(body, b, sti)
     if lod <= 2:
-        cframes(body, car["cframes"], st, lod)
+        cframes(body, car["cframes"], sti, lod)
     hb = car["hub"]
     if lod <= 2:
-        prims.cylinder(body, (0.0, 0.0, m(hb["bottom"])), (0.0, 0.0, m(hb["top"])), m(hb["dia"]) / 2, parts.sides(lod, 20, 12, 8), st["rod"])
+        prims.cylinder(body, (0.0, 0.0, m(hb["bottom"])), (0.0, 0.0, m(hb["top"])), m(hb["dia"]) / 2, parts.sides(lod, 20, 12, 8), st["rod"],
+                       fan_caps=True)
 
     # the bullwheel, pivoted on its axle at rope elevation
     centre = Vector((0.0, 0.0, rope))
@@ -488,8 +502,7 @@ def build(spec, lod, stage):
         wheel(wb, centre, gauge_wheel(c), hg, lod, st, m(c["ropeDiameter"]) / 2)
         a.parts["bullwheel"] = wb
         a.pivots["bullwheel"] = {"pos": tuple(centre), "axis": (0.0, 0.0, 1.0)}
-    else:
-        wheel(body, centre, gauge_wheel(c), hg, lod, st, m(c["ropeDiameter"]) / 2)
+    # LOD3: no wheel (polish: it sat under the hood where nobody sees it)
 
     # guide sheaves on brackets and cross bars from the carriage (rope rides on top)
     for k, g in enumerate(d["guideSheaves"]):
@@ -502,13 +515,13 @@ def build(spec, lod, stage):
                 name = f"sheave_g{'l' if g['v'] < 0 else 'r'}"
                 a.parts[name] = target
                 a.pivots[name] = {"pos": tuple(centre_g), "axis": (0.0, 1.0, 0.0)}
-            box_from(body, g["bracket"], st, shift=(0.0, dv, 0.0))
+            box_from(body, g["bracket"], sti, shift=(0.0, dv, 0.0))
             lo, hi = g["bar"]["lo"], g["bar"]["hi"]
             if g["v"] < 0:
                 lo = (lo[0], min(lo[1], g["barReach"]) + dv, lo[2])
             else:
                 hi = (hi[0], max(hi[1], g["barReach"]) + dv, hi[2])
-            prims.box(body, mv(lo), mv(hi), st["steel"])
+            prims.box(body, mv(lo), mv(hi), sti["steel"])
 
     # the hood over the machinery
     hb_ = MeshBuilder()
