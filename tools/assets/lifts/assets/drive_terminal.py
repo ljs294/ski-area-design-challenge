@@ -31,10 +31,12 @@ def styles(lod):
         "dark": Style("paint_dark", snow=0.0),
         "red": Style("sheave_red"),
         "rubber": Style("rubber"),
-        "hood": Style("livery", livery=1.0, snow=1.0),
-        "band": Style("white", snow=0.0),
+        "hood": Style("livery", livery=1.0, snow=1.0, trim="gloss"),   # polish: seam-free, as the D6
+        "band": Style("white", snow=0.0, trim="gloss"),
+        "inside": Style("paint_grey", snow=0.0),                       # polish: under the hood, no snow
         "trim": Style("trim_dark", snow=0.0),
-        "glass": Style("glass", slot=GLASS, smooth=False) if lod <= 1 else Style("glass", smooth=False),
+        "glass": (Style("glass", slot=GLASS, smooth=False, group="barrel") if lod <= 1    # polish: one smooth barrel
+                  else Style("glass", smooth=False, group="barrel")),                        # with the hood round it
         "interior": Style("interior"),
         "yellow": Style("safety_yellow"),
         "rod": Style("machined"),
@@ -90,9 +92,9 @@ def build_hood(spec, lod, st):
     for j in reversed(range(win["bays"])):
         u0 = m(win["firstU"]) - j * m(win["bay"] + win["rib"])
         breaks += [u0 - m(win["bay"]), u0]
-    if lod >= 3:   # far away: no window columns, just the shell
-        breaks = []
-    bay_spans = set(range(1, len(breaks), 2)) if lod <= 2 else set()
+    if lod >= 3:   # far away: one glass band each side from the first window to the last (polish: it had none)
+        breaks = [breaks[0], breaks[-1]]
+    bay_spans = set(range(1, len(breaks), 2))
     low, high = m(win["low"]), m(win["high"])
     band_lo, band_hi = m(h["whiteBand"]["low"]), m(h["whiteBand"]["high"])
     far, line = h["farEnd"], h["lineEnd"]
@@ -113,7 +115,7 @@ def build_hood(spec, lod, st):
             elif k in bay_spans and low - 1e-6 <= lo_w and hi_w <= high + 1e-6:
                 style = st["glass"]
             else:
-                style = st["hood"].but(smooth=lo_w > 3.87)
+                style = st["hood"].but(smooth=lo_w > 3.87, group="barrel" if lo_w > 3.87 else None)
             out = (0.0, 0.0, -1.0) if bottom else (0.0, (v0 + v1) / 2, (w0 + w1) / 2 - 4.5)
             mb.face([grid[i][k], grid[i][k + 1], grid[i1][k + 1], grid[i1][k]], style, out)
     # end walls: horizontal strips between matching left/right rows, sharing their vertices so the wall is
@@ -284,7 +286,8 @@ def build_entry(mb, d, lod, st):
     ld = d["ladder"]
     foot = Vector((m(ld["foot"][0]), m(ld["foot"][1]), m(ld["foot"][2])))
     head = Vector((m(ld["head"][0]), m(ld["head"][1]), m(ld["head"][2])))
-    parts.ladder(mb, foot, head, 2 * m(ld["halfWidth"]), lod, st["galv"], rung_every=m(ld["rungs"]), handrails=False)
+    parts.ladder(mb, foot, head, 2 * m(ld["halfWidth"]), lod, st["galv"], rung_every=m(ld["rungs"]), handrails=False,
+                 rung_style=st["yellow"])   # polish: yellow rungs at every LOD, not only up close
     if lod <= 1:
         hr = m(ld["handrail"])
         gn = ld["gooseneck"]
@@ -312,20 +315,21 @@ def build(spec, lod, stage):
     pi = d["pier"]
     prims.box(body, (-m(pi["u"]) / 2, -m(pi["v"]) / 2, m(pi["bottom"])), (m(pi["u"]) / 2, m(pi["v"]) / 2, m(pi["top"])), st["concrete"], skip=("-2",))
     ph = d["pierHead"]
-    prims.box(body, (-m(ph["u"]) / 2, -m(ph["v"]) / 2, m(ph["bottom"])), (m(ph["u"]) / 2, m(ph["v"]) / 2, m(ph["top"])), st["steel"])
+    prims.box(body, (-m(ph["u"]) / 2, -m(ph["v"]) / 2, m(ph["bottom"])), (m(ph["u"]) / 2, m(ph["v"]) / 2, m(ph["top"])), st["inside"])
     eb = d["entryBeams"]
     for s in (-1, 1):
         a_, b_ = sorted((s * m(eb["vIn"]), s * m(eb["vOut"])))
         prims.box(body, (m(eb["uFrom"]), a_, m(eb["bottom"])), (m(eb["uTo"]), b_, m(eb["top"])), st["steel"])
     bf = d["baseFrame"]
-    prims.box(body, (m(bf["uTo"]), -m(bf["v"]) / 2, m(bf["bottom"])), (m(bf["uFrom"]), m(bf["v"]) / 2, m(bf["top"])), st["steel"])
+    prims.box(body, (m(bf["uTo"]), -m(bf["v"]) / 2, m(bf["bottom"])), (m(bf["uFrom"]), m(bf["v"]) / 2, m(bf["top"])), st["inside"])
 
     # drive machinery behind the glass (silhouettes only; LOD0-1)
     if lod <= 1:
         g = d["gearbox"]
         prims.box(body, (u_bw - m(g["u"]) / 2, -m(g["v"]) / 2, m(g["bottom"])), (u_bw + m(g["u"]) / 2, m(g["v"]) / 2, m(g["top"])), st["interior"])
         mo = d["motor"]
-        prims.cylinder(body, (m(mo["from"]), 0, m(mo["w"])), (m(mo["to"]), 0, m(mo["w"])), m(mo["dia"]) / 2, parts.sides(lod, 12, 8), st["interior"])
+        prims.cylinder(body, (m(mo["from"]), 0, m(mo["w"])), (m(mo["to"]), 0, m(mo["w"])), m(mo["dia"]) / 2, parts.sides(lod, 12, 8), st["interior"],
+                       fan_caps=True)
         cb = d["cabinet"]
         prims.box(body, (m(cb["uFrom"]), m(cb["vFrom"]), m(cb["bottom"])), (m(cb["uTo"]), m(cb["vTo"]), m(cb["top"])), st["interior"])
 
@@ -358,7 +362,7 @@ def build(spec, lod, stage):
         target = MeshBuilder() if lod <= 1 else body
         if lod <= 2:
             parts.sheave(target, centre, V, m(gs["dia"]), m(gs["width"]), lod, st["red"], st["rubber"])
-            parts.sheave_bracket(body, centre, m(gs["width"]), m(bf["bottom"]), lod, st["steel"])
+            parts.sheave_bracket(body, centre, m(gs["width"]), m(bf["bottom"]), lod, st["inside"])
         if lod <= 1:
             a.parts[f"sheave_{name}"] = target
             a.pivots[f"sheave_{name}"] = {"pos": tuple(centre), "axis": (0.0, 1.0, 0.0)}
@@ -368,11 +372,10 @@ def build(spec, lod, stage):
     bw_centre = Vector((u_bw, 0.0, rope))
     if lod <= 2:
         bw = MeshBuilder()
-        parts.bullwheel(bw, bw_centre, bw_spec, lod, st["dark"])
+        parts.bullwheel(bw, bw_centre, bw_spec, lod, st["dark"], plate_snow=0.0, fan_caps=True)
         a.parts["bullwheel"] = bw
         a.pivots["bullwheel"] = {"pos": tuple(bw_centre), "axis": (0.0, 0.0, 1.0)}
-    else:
-        parts.bullwheel(body, bw_centre, bw_spec, lod, st["dark"])
+    # LOD3: no wheel (polish: it was merged under the hood's floor where nobody sees it)
 
     a.body = body
     cbm = d["crossbeam"]

@@ -66,10 +66,10 @@ def stopped(rng, stop):
 
 def ao_options(kind, assets):
     """(ground plane?, stacking section height or None) for an asset's AO bake. The ground plane only goes under what
-    stands on it at its own 0.00 (contract M5, finding #9): heads sit on a mast, Sessellift terminals on a pier of
-    any height; a mast section is baked between its neighbours (a cast-only ghost section above and one below, so
+    stands on it at its own 0.00 (contract M5, finding #9): heads sit on a mast, the D6's terminals on piers of any
+    height (the FGQ-4's are baked at their standard grade, polish 2026-10-23); a mast section is baked between its neighbours (a cast-only ghost section above and one below, so
     both ends get the same light)."""
-    ground = kind not in ("tower_head", "tower_head_wide", "tower_mast", "chair", "chair_detach", "terminal_footing")         and not (kind == "terminal" and "pier_top" in assets[0].sockets)         and not (kind == "terminal_detach" and "pier_top_1" in assets[0].sockets)
+    ground = kind not in ("tower_head", "tower_head_wide", "tower_mast", "chair", "chair_detach", "terminal_footing")         and not (kind == "terminal_detach" and "pier_top_1" in assets[0].sockets)
     return ground, (assets[0].sockets["top"][2] if kind == "tower_mast" else None)
 
 

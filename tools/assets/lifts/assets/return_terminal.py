@@ -545,9 +545,10 @@ def bullwheel(mb, centre, pitch, bw, lod, st):
                 prims.prism(mb, fl, c - p * (sw / 2), d, W, p, sw, wheel)
         else:
             prims.prism(mb, prof, c - p * (sw / 2), d, W, p, sw, wheel)
-    prims.cylinder(mb, c + W * m(bw["hubBottom"]), c + W * m(bw["hubTop"]), hr, parts.sides(lod, 24, 16, 8), wheel)
-    if lod <= 1:
-        prims.cylinder(mb, c + W * m(bw["hubTop"]), c + W * m(bw["capTop"]), m(bw["capDia"]) / 2, parts.sides(lod, 16, 10), wheel)
+    prims.cylinder(mb, c + W * m(bw["hubBottom"]), c + W * m(bw["hubTop"]), hr, parts.sides(lod, 24, 16, 8), wheel, fan_caps=True)
+    if lod <= 1:   # polish: fan caps, no AO streaks across the n-gons
+        prims.cylinder(mb, c + W * m(bw["hubTop"]), c + W * m(bw["capTop"]), m(bw["capDia"]) / 2, parts.sides(lod, 16, 10), wheel,
+                       fan_caps=True)
     lg = bw["lugs"]
     if lod == 0:   # hook lugs under the rim, on the spoke lines
         (ra, wa), (rb, wb) = [(m(x), m(y)) for x, y in (lg["from"], lg["to"])]
