@@ -27,18 +27,18 @@ Status: **fixed** (built, checked and shown to the owner), **open**, or **game**
 | O14 | Look again at how the sheave pairs attach to their rockers | Rocker plates as the reference's V; hub spacers to both plates; axle nuts | fixed |
 | O15 | Extend the main work platform toward the sheaves, on every head | Platforms to 500 inboard of the rope, or to just inboard of the walkway with the side ladder at their end | fixed |
 
-## Gate 2 (2026-10-22)
+## Gate 2 (2026-10-22, approved)
 
 | # | Finding | What was done | Status |
 | --- | --- | --- | --- |
 | O16 | The c8 sits far too low under the tower; its sheave tops should line up like a hold-down head's | The hold-down row's beam moved between the end block's cheeks, so the c8 rises 130 mm (rope -570; hold-down sheave tops just under the end block) | fixed |
 | O17 | The sheave-train walkways are too low; bring them up to the bottom of the ladder | Decks 400 below the rope (was 700); the side ladder moves 80 inboard, clear of the walkway's stringer, and reaches to 50 above the deck; those platforms stop at 1.60 m | fixed |
 | O18 | The walkways don't rotate with the sheave trains; that looks awkward and is not correct | The walkway hangs from the yoke on two equal plumb links (a parallelogram): it turns with its train while the links hang straight down (pivots hanger_<side>1/2 "plumb", walkway_<side> "follow"); the links stand just inboard of the stringer on lugs off its inner face; the inner railing is open from -0.9 to +1.0 m (the crossarm, the side ladder) and around each link for its swing to 35 deg | replaced by O19 |
-| O19 | The walkways should be supported off the tower's crossarm at one point, like the reference, not off the sheave train | One box post clamped round the crossarm, plumb, with a clevis over the walkway's inner stringer; the walkway pivots on its pin (walkway_<side>, "follow": the train's top) so it still turns with its train; the inner railing open from -0.9 to +1.0 m over the hanger and the side ladder | fixed, to show (game: G8) |
+| O19 | The walkways should be supported off the tower's crossarm at one point, like the reference, not off the sheave train | One box post clamped round the crossarm, plumb, with a clevis over the walkway's inner stringer; the walkway pivots on its pin (walkway_<side>, "follow": the train's top) so it still turns with its train; the inner railing open from -0.9 to +1.0 m over the hanger and the side ladder | fixed (game: G8) |
 
 ## Open items raised in review (not owner findings)
 
-- LOD1 to LOD2 (45 m, 90 m on the PC) still drops the cages, railings and ladders; LOD2 to LOD3 (150 m) drops the far
+- LOD1 to LOD2 (45 m, 90 m on the PC): the platforms now stay as a plate with their rail (fixed); the cages and the walkway's railings still drop; LOD2 to LOD3 (150 m) drops the far
   walkway and the sheaves' red end discs.
 - Walkway gratings take snow like a solid deck.
 - The 4-beam's outboard bar is straight (the reference's is cranked at its pin); rocker pins carry a hex nut where the

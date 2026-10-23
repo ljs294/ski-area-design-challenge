@@ -260,6 +260,13 @@ def build(spec, lod, stage, variant):
     # the two caged platforms on the crossarm's +u face, reaching out toward the sheaves (owner, Gate 1 v6): to just
     # inboard of the train's yoke, or of the walkway where there is one; the ladder on up to the beam, side ladders from
     # the platforms' outer ends down to the walkways
+    if lod == 2:   # far out: each platform a plate with its +u rail as one bar (Gate 2: they no longer vanish at 45 m)
+        pu0, pu1, dw = m(pf["u"][0]), m(pf["u"][1]), m(pf["deckW"])
+        for s in (-1, 1):
+            far = m(pf["reachWalkway"]) if s in decks else hg - m(pf["reach"])
+            v0, v1 = sorted((s * m(pf["v"][0]), s * far))
+            prims.box(mb, (pu0, v0, dw - 0.04), (pu1, v1, dw), st["grating"])
+            prims.box(mb, (pu1 - 0.03, v0, dw + m(pf["railing"]) - 0.05), (pu1, v1, dw + m(pf["railing"])), st["galv"])
     if lod <= 1:
         pu0, pu1 = m(pf["u"][0]), m(pf["u"][1])
         dw = m(pf["deckW"])
