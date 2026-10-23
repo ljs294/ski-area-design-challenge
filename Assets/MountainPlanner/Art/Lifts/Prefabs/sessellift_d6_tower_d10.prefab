@@ -3603,6 +3603,8 @@ MonoBehaviour:
   - {fileID: 795109083810171896}
   - {fileID: 5046641789103892490}
   LiveryRenderers: []
+  PivotFollows: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000013000000
+  Paths: []
 --- !u!1 &3526929319506848286
 GameObject:
   m_ObjectHideFlags: 0

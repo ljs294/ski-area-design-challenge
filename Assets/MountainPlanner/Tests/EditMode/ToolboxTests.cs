@@ -623,23 +623,27 @@ namespace MountainPlanner.Tests
             Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-kind-value").text, Is.EqualTo("Detachable gondola"));
             Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-carrier-value").text, Is.EqualTo("8 person"));
             Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-model-value").text, Does.StartWith("Monta "));
-            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-note-capacity").text, Does.Contain("drawn with the quad's model"));
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-note-capacity").text, Does.Contain("every"), "a detachable's interval (LT41)");
             Assert.That(kind, Is.Not.Null);
 
-            // Through the menus as a click would: the tram's default is 100 person; the carrier keeps the maker.
+            // Through the menus as a click would (LT41): the trams are placeholders, greyed; the detachable chair is the D6.
             var dd = ((LiftTypeMenu)typeof(NewLiftTool).GetField("_typeMenu", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lift)).Kind;
-            dd.Choose(3);
-            Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.Of("tram-100", "sessellift")));
             dd.Choose(0);
             Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftFgq4), "back to the fixed-grip quad");
+            dd.Choose(3);
+            Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftFgq4), "a tram can't be picked: in the menu only");
+            dd.Choose(1);
+            Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftD6), "the detachable chair: the D6");
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-model-value").text, Is.EqualTo("Sessellift D6"));
 
             // The chosen type is what Break ground builds.
-            lift.Choose(LiftCatalogIds.Of("detach-six", "chairworks"));
+            lift.Choose(LiftCatalogIds.SesselliftFgq4);
+            lift.Choose(LiftCatalogIds.SesselliftD6);
             _host.Tick(At(0, -400, click: true));
             _host.Tick(At(0, 600, click: true));
             _host.Tick(new ToolInput { Keys = ToolKeys.Next });
             _host.Tick(new ToolInput { Keys = ToolKeys.BreakGround });
-            Assert.That(_design.Document.Lifts[0].CatalogId, Is.EqualTo(LiftCatalogIds.Of("detach-six", "chairworks")));
+            Assert.That(_design.Document.Lifts[0].CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftD6));
         }
 
         [Test]

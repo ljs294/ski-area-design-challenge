@@ -43,7 +43,7 @@ namespace MountainPlanner.Tests
                                 b.Levels);
             _material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             _view = new LiftView(null, models, new LiftMaterials(_material, _material, _material), _material, "Pick test lift");
-            _view.Build(lift, new EditedHeights(natural.Source, natural.Lattice, b.Edits), new LocalFrame(new AlbersPoint(West + 100, North - 900)), Color.red);
+            _view.Build(lift, new EditedHeights(natural.Source, natural.Lattice, b.Edits), new LocalFrame(new AlbersPoint(West + 100, North - 900)), new LiftLivery(Color.red, Color.black));
         }
 
         [TearDown]

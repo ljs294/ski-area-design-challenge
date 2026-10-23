@@ -59,7 +59,7 @@ namespace MountainPlanner.Presentation.Lifts
         {
             _key = key;
             _kit = kit;
-            _view.BuildLoneTower(head, leanRadians, steel, Color.white, kit);
+            _view.BuildLoneTower(head, leanRadians, steel, new LiftLivery(Color.white, Color.white), kit);
             _renderers.Clear();
             // The nearest detail only: a LODGroup would swap in models the ghost material never reached.
             var nearest = new HashSet<Renderer>();

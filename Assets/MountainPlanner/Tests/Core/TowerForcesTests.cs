@@ -120,9 +120,9 @@ namespace MountainPlanner.Tests
             Assert.That(TowerForces.Choose(t, t, bend, bend, TowerForces.HeadKit.Wide), Is.EqualTo(LiftRope.Head.B10), "a sharp bend: the curved b10");
             Assert.That(TowerForces.Choose(t, t, -bend, -bend, TowerForces.HeadKit.Wide), Is.EqualTo(LiftRope.Head.D10), "pulling up: the d10");
             // A gentle bend under a heavy rope (the load needs the sheaves): the flat s10.
-            double heavy = 1_000_000, gentle = -5 * 4.5 * deg;
+            double heavy = 150_000, gentle = -5 * 4.5 * deg;   // 22.5°: 5 sheaves by bend, 8 by load
             int need = TowerForces.SheavesFor(heavy, gentle);
-            Assume.That(need, Is.InRange(7, 10));
+            Assert.That(need, Is.InRange(7, 10));
             Assert.That(TowerForces.Choose(heavy, heavy, gentle, gentle, TowerForces.HeadKit.Wide), Is.EqualTo(LiftRope.Head.S10));
             // Small bends pick the same heads in both kits.
             Assert.That(TowerForces.Choose(t, t, -2 * deg, -2 * deg, TowerForces.HeadKit.Wide), Is.EqualTo(TowerForces.Choose(t, t, -2 * deg, -2 * deg)));
