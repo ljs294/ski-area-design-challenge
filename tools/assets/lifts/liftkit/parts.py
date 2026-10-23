@@ -191,7 +191,7 @@ def arc_axles(a, count, radius, level="apex"):
     up to the row and bends through all of it, as at the return terminal where the line leaves the station
     climbing; u = 0 is then the middle of the chord."""
     p, g, t = a["pitch"], a["rockerGap"], a["trainGap"]
-    chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p]}[count]
+    chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p], 10: [p, g, p, t, p, g, p, t, p]}[count]
     angs = [0.0]
     for ch in chords:
         angs.append(angs[-1] + 2 * math.asin(ch / (2 * radius)))
@@ -210,7 +210,7 @@ def hold_rope(a, count, radius, u_first, rope_w, steps=16, mode="hold"):
     descending (mode "support"). u_first is the first axle's u."""
     rho = a["ropeR"] + a["sheave"]["dia"] / 2          # axle to the rope's centreline
     p, g, t = a["pitch"], a["rockerGap"], a["trainGap"]
-    chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p]}[count]
+    chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p], 10: [p, g, p, t, p, g, p, t, p]}[count]
     theta = sum(2 * math.asin(ch / (2 * radius)) for ch in chords)
     rr = radius + rho                                  # the rope's circle, about the axle circle's centre
     sg = 1.0 if mode == "hold" else -1.0               # the centre is above a hold-down row, below a support row
@@ -343,7 +343,7 @@ def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, f
     return {"axles": axles, "rockers": rocker_pins, "trains": trains, "local": local, "span": span, "sg": sg}
 
 
-def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, radius, first=1, level="apex"):
+def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, radius, first=1, level="apex", outer_yoke=True):
     """A line-tower sheave assembly on one rope, after the owner's reference model (spec "tower.assembly", metres):
     a row of sheaves on an arc of `radius` (support: the rope rides on them and the chain hangs below; hold: the
     mirror image, pressing down on the rope), rockers and train yokes (see _row), a cross tube from each yoke's
@@ -359,7 +359,7 @@ def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, 
     else:
         top = f"eq_{name}"
         yokes = [f"yoke_{name}{j // 2 + 1}" if j + 1 < n_rockers else f"link_{name}1" for j in range(0, n_rockers, 2)]
-    row = _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, True, level, top, yokes)
+    row = _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, outer_yoke, level, top, yokes)
     span, local = row["span"], row["local"]
     carry = row["trains"]
     if lod <= 1:   # cross tubes from the yokes to the beam
@@ -373,6 +373,8 @@ def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, 
         (p0, w0), (p1, w1) = carry[0], carry[-1]
         d, nrm = local(p0, p1)
         pin = p0 + (p1 - p0) * (w1 / (w0 + w1))       # at the load centre
+        if len(carry) > 2:   # three hangers (a ten-sheave train): the centre of all it carries, not just the end two
+            pin = sum((p * w for p, w in carry), Vector()) / sum(w for _, w in carry)
         length, centre = (p1 - p0).length + 2 * bm["overhang"], (p0 + p1) / 2
     else:
         pin = carry[0][0]
@@ -513,13 +515,13 @@ def bullwheel(mb, center, spec, lod, style):
         prims.lathe(mb, c, W, ring, n // 2, st)
 
 
-def railing(mb, points, height, lod, style, posts_every=1.2, toe=True, closed=False, posts_at=None):
+def railing(mb, points, height, lod, style, posts_every=1.2, toe=True, closed=False, posts_at=None, post_r=0.024):
     """A handrail along a polyline on a deck: posts, top and knee rails, toe board. posts_at: explicit post
-    feet (lift points) instead of posts spaced evenly along each segment."""
+    feet (lift points) instead of posts spaced evenly along each segment. post_r: the tubes' radius (m)."""
     pts = [vec(p) for p in points]
     if closed:
         pts.append(pts[0])
-    r_post = 0.024
+    r_post = post_r
     if lod >= 3:
         return
     if posts_at is not None and lod <= 1:
@@ -552,15 +554,15 @@ def railing(mb, points, height, lod, style, posts_every=1.2, toe=True, closed=Fa
             prims.beam(mb, a + W * 0.05, b + W * 0.05, 0.008, 0.10, style)
 
 
-def ladder(mb, bottom, top, width, lod, style, rung_every=0.28, handrails=True, rung_style=None):
+def ladder(mb, bottom, top, width, lod, style, rung_every=0.28, handrails=True, rung_style=None, stringer=0.15):
     """A ship's ladder (stringers and rungs) from bottom to top, width across. Rungs are safety yellow up close
-    unless rung_style is given."""
+    unless rung_style is given. stringer: the stringers' depth (m)."""
     b, t = vec(bottom), vec(top)
     x, y, z = prims.basis_along(t - b, W)
     hw = width / 2
     for s in (-1, 1):
         if lod <= 2:
-            prims.beam(mb, b + y * s * hw, t + y * s * hw, 0.012, 0.15, style, up=z)
+            prims.beam(mb, b + y * s * hw, t + y * s * hw, 0.012, stringer, style, up=z)
     if lod <= 1:
         length = (t - b).length
         n = int(length / (rung_every * (1 if lod == 0 else 2)))
@@ -573,14 +575,15 @@ def ladder(mb, bottom, top, width, lod, style, rung_every=0.28, handrails=True, 
             prims.cylinder(mb, b + y * s * (hw + 0.03) + W * 0.9, t + y * s * (hw + 0.03) + W * 0.9, 0.022, 6 if lod == 0 else 4, style)
 
 
-def deck(mb, lo, hi, lod, style, grating=True):
-    """A walkway deck plate with edge channels."""
-    st = style.but(cls="grating" if grating else style.cls, snow=0.8)
+def deck(mb, lo, hi, lod, style, grating=True, snow=None, channels=True, depth=0.12):
+    """A walkway deck plate with edge channels (snow: the plate's and channels' capacity, the plate 0.8 unless given,
+    e.g. 0 under a roof; channels=False: none, where something passes under the deck; depth: the channels', m)."""
+    st = style.but(cls="grating" if grating else style.cls, snow=0.8 if snow is None else snow)
     lo, hi = vec(lo), vec(hi)
     prims.box(mb, lo, hi, st)
-    if lod == 0:   # edge channels under the plate, along both long sides
+    if lod == 0 and channels:   # edge channels under the plate, along both long sides
         along_u = (hi.x - lo.x) >= (hi.y - lo.y)
-        depth = 0.12
+        style = style if snow is None else style.but(snow=snow)
         for s in (0, 1):
             if along_u:
                 y0 = lo.y if s == 0 else hi.y - 0.05
@@ -767,3 +770,156 @@ def fixed_grip(mb, lod, style, dark=None, metal=None, g=None, hanger=None, socke
     along(s0 + sp["shoulder"], s1, sp["dia"][1] / 2, 10, style, caps=(False, False))
     hexagon(nt["v"][0], nt["v"][1], nt["af"], metal, (True, True))
     along(bt["v"][0], bt["v"][1], bt["dia"] / 2, 8, dark, caps=(False, True))
+
+
+# -- the Sessellift detachable grip (lift models 2, owner LM10) -----------------------------------------------------
+_DETACH_GRIP = None
+
+
+def detach_grip_spec():
+    """The Sessellift detachable grip's dimensions (sessellift_detach_grip.json, mm), one design for every Sessellift
+    detachable chair."""
+    global _DETACH_GRIP
+    if _DETACH_GRIP is None:
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sessellift_detach_grip.json")
+        with open(path, encoding="utf-8") as f:
+            _DETACH_GRIP = json.load(f)
+    return _DETACH_GRIP
+
+
+def _mm(*xs):
+    return tuple(x / 1000.0 for x in xs)
+
+
+def detach_grip(mb, lod, st, g=None):
+    """The Sessellift detachable grip on the rope at the chair frame's origin (sessellift_detach_grip.json, mm), measured
+    on the D6's layouts and the owner's photos: the jaw casting round the rope with its pin; the black rope guards, solid
+    rods lying along the rope's top either side; the body web and the wheel carrier with the two running wheels,
+    outboard of the jaw; the black tyre plate on top, arched at its ends, ribbed along its outer face, with its frames'
+    cut-outs; the lever from the jaw's pin up and outboard through the plate to its cream top roller and flag plate;
+    the two blue coil springs either side of it, from the body up to their seats on the crossbar under the roller.
+    LOD1 keeps what reads at the chair ahead of a rider (round 3): the block, the guards, two spring bars, the cream
+    wheels and top roller. LOD2: one block. The hanger arm is detach_grip_arm (it swings with the hanger).
+    st: "alu", "black", "blue", "cream", "rod"."""
+    g = g or detach_grip_spec()
+    U_ = Vector((1.0, 0.0, 0.0))
+    rope_r = g["rope"]["dia"] / 2
+    gd = g["guards"]
+
+    def guards(sides_):
+        """Each rod's underside lies on the rope's top: its axis rises with its radius."""
+        for s in (-1, 1):
+            prims.cylinder(mb, _mm(s * gd["base"], 0, rope_r + gd["baseDia"] / 2), _mm(s * gd["tip"], 0, rope_r + gd["tipDia"] / 2),
+                           gd["baseDia"] / 2000.0, sides_, st["black"], caps=(False, True), r1=gd["tipDia"] / 2000.0, fan_caps=True)
+
+    if lod >= 2:
+        prims.box(mb, _mm(-321, -71, -27), _mm(321, 199, 197), st["alu"])
+        return
+    sp = g["springs"]
+    b0, b1 = Vector(_mm(0, *sp["bottom"])), Vector(_mm(0, *sp["top"]))
+    axis = (b1 - b0).normalized()
+    tr = g["topRoller"]
+    rc = Vector(_mm(0, *tr["centre"]))
+    rax = Vector((0.0, tr["axle"][0], tr["axle"][1])).normalized()
+    wh = g["wheels"]
+    if lod == 1:
+        prims.box(mb, _mm(-321, -71, -27), _mm(321, 199, 197), st["alu"])
+        guards(4)
+        e2 = axis.cross(U_).normalized()
+        for su in sp["u"]:   # each spring a bar
+            prims.obox(mb, Vector(_mm(su, 0, 0)) + (b0 + b1) / 2, (axis, U_, e2), ((b1 - b0).length / 2, sp["od"] / 2000.0, sp["od"] / 2000.0),
+                       st["blue"])
+        for u in wh["u"]:    # the wheels' cream treads as blocks under the plate
+            prims.box(mb, _mm(u - wh["dia"] / 2, wh["tread"][0], wh["axleW"] - wh["dia"] / 2),
+                      _mm(u + wh["dia"] / 2, wh["tread"][1], min(wh["axleW"] + wh["dia"] / 2, 87)), st["cream"])
+        prims.cylinder(mb, rc - rax * tr["width"] / 2000.0, rc + rax * tr["width"] / 2000.0, tr["dia"] / 2000.0, 6, st["cream"],
+                       fan_caps=True)
+        return
+    jw = g["jaw"]
+    hl = jw["halfLength"]
+    prims.prism(mb, [_mm(v, w) for v, w in jw["outline"]], _mm(-hl, 0, 0), V, W, U, hl / 500.0, st["alu"])
+    pv, pw = jw["pin"]["v"], jw["pin"]["w"]
+    prims.cylinder(mb, _mm(-hl - 15, pv, pw), _mm(hl + 15, pv, pw), jw["pin"]["dia"] / 2000.0, 8, st["rod"], fan_caps=True)
+    web = g["body"]["web"]
+    prims.box(mb, _mm(-web["halfU"], web["v"][0], web["w"][0]), _mm(web["halfU"], web["v"][1], web["w"][1]), st["alu"])
+    guards(10)
+    cr = wh["carrier"]   # the wheel carrier between the wheels, along the axle line
+    prims.box(mb, _mm(-wh["u"][1] + wh["dia"] / 2 + 5, cr["v"][0], cr["w"][0]), _mm(wh["u"][1] - wh["dia"] / 2 - 5, cr["v"][1], cr["w"][1]),
+              st["alu"])
+    for u in wh["u"]:   # running wheels (cream) with their shoulders, on stub axles along v
+        hb = wh["hub"]
+        prims.cylinder(mb, _mm(u, hb["v"][0], wh["axleW"]), _mm(u, wh["tread"][0], wh["axleW"]), hb["dia"] / 2000.0, 12, st["alu"],
+                       caps=(True, False))
+        prims.cylinder(mb, _mm(u, wh["tread"][0], wh["axleW"]), _mm(u, wh["tread"][1], wh["axleW"]), wh["dia"] / 2000.0, 16, st["cream"],
+                       fan_caps=True)
+        prims.cylinder(mb, _mm(u, wh["tread"][1], wh["axleW"]), _mm(u, wh["tread"][1] + 8, wh["axleW"]), wh["shoulderDia"] / 2000.0, 16,
+                       st["cream"], fan_caps=True)
+        prims.cylinder(mb, _mm(u, wh["tread"][1] + 8, wh["axleW"]), _mm(u, wh["tread"][1] + 20, wh["axleW"]), wh["capDia"] / 2000.0, 8,
+                       st["rod"], fan_caps=True)
+    tp = g["tyrePlate"]   # the tyre plate, arched at its ends, across v
+    prims.prism(mb, [_mm(u, w) for u, w in tp["outline"]], _mm(0, tp["v"][0], 0), U, W, V, (tp["v"][1] - tp["v"][0]) / 1000.0,
+                st["black"])
+    for poly in tp["cutouts"]:   # the frames' rounded-triangle cut-outs, as dark faces just proud of both side faces
+        for v_face, out in ((tp["v"][0] - 1.0, -1.0), (tp["v"][1] + 1.0, 1.0)):
+            mb.face(mb.verts_lift([_mm(u, v_face, w) for u, w in poly]), st["rod"].but(cls="interior"), (0.0, out, 0.0))
+    rb = tp["ribs"]   # the ribbed band along the plate's outer face (round 2: the photos' main feature of the plate)
+    k = -rb["halfU"]
+    while k <= rb["halfU"] + 0.1:
+        prims.box(mb, _mm(k - rb["width"] / 2, tp["v"][1], rb["w"][0]), _mm(k + rb["width"] / 2, tp["v"][1] + rb["depth"], rb["w"][1]),
+                  st["black"], skip=("-1", "-0", "+0"))   # its face, top and bottom: the ribs' sides only show edge-on
+        k += rb["pitch"]
+    lv = g["lever"]   # the lever: from the jaw's pin up and outboard to its head, through the plate
+    p0, p1 = Vector(_mm(0, *lv["pivot"])), Vector(_mm(0, *lv["head"]))
+    d = (p1 - p0).normalized()
+    nrm = U_.cross(d).normalized()
+    prims.obox(mb, (p0 + p1) / 2, (d, U_, nrm), ((p1 - p0).length / 2, lv["widthU"] / 2000.0, lv["depth"] / 2000.0), st["alu"])
+    fp = g["flagPlate"]
+    prims.prism(mb, [_mm(v, w) for v, w in fp["outline"]], _mm(-fp["thick"] / 2, 0, 0), V, W, U, fp["thick"] / 1000.0, st["alu"])
+    cb = g["crossbar"]   # under the roller, across the lever, carrying the springs' top seats
+    prims.box(mb, _mm(-cb["halfU"], cb["v"] - cb["size"][0] / 2, cb["w"] - cb["size"][1] / 2),
+              _mm(cb["halfU"], cb["v"] + cb["size"][0] / 2, cb["w"] + cb["size"][1] / 2), st["alu"])
+    prims.cylinder(mb, rc - rax * tr["width"] / 2000.0, rc + rax * tr["width"] / 2000.0, tr["dia"] / 2000.0, 14, st["cream"],
+                   fan_caps=True)
+    e1 = U_
+    e2 = axis.cross(e1).normalized()
+    r = (sp["od"] - sp["wire"]) / 2000.0
+    seg = sp["segments"]
+    n = int(round(sp["turns"] * seg))
+    for su in sp["u"]:   # two round blue coil springs either side of the lever, on their seats
+        off = Vector(_mm(su, 0, 0))
+        s0, s1 = b0 + axis * sp["seatThick"] / 1000.0, b1 - axis * sp["seatThick"] / 1000.0
+        pts = [tuple(off + s0 + (s1 - s0) * (q / n) + (e1 * math.cos(2 * math.pi * q / seg) + e2 * math.sin(2 * math.pi * q / seg)) * r)
+               for q in range(n + 1)]
+        prims.tube_path(mb, pts, sp["wire"] / 2000.0, sp["sides"], st["blue"], caps=False, smooth=True)
+        for a, b in ((b0, s0), (s1, b1)):
+            prims.cylinder(mb, off + a, off + b, sp["seatDia"] / 2000.0, 10, st["alu"], fan_caps=True)
+
+
+def detach_grip_arm(mb, lod, st, g=None, socket_group=None):
+    """The hanger's arm under the detachable grip: along v at axisW, its inboard section into the grip's body (its own
+    piece for the clash sweep: it turns inside the body), the head block the hanger tube leaves from, the tapering
+    outboard section reaching the cream guide roller at its end, and up close the two brackets on it. LOD1 keeps the
+    taper and the roller (round 3: the cream rollers are the grip's signature at the chair ahead)."""
+    g = g or detach_grip_spec()
+    ar = g["arm"]
+    near = lod == 0
+    aw = ar["axisW"]
+    ib, hd = ar["inboard"], ar["head"]
+    hu = hd["halfU"]
+    if socket_group:
+        with mb.grouped(socket_group):
+            prims.box(mb, _mm(-40, ib["v"][0], ib["w"][0]), _mm(40, ib["v"][1], ib["w"][1]), st["alu"])
+    else:
+        prims.box(mb, _mm(-40, ib["v"][0], ib["w"][0]), _mm(40, ib["v"][1], ib["w"][1]), st["alu"])
+    prims.box(mb, _mm(-hu, hd["v"][0], hd["w"][0]), _mm(hu, hd["v"][1], hd["w"][1]), st["alu"])
+    if lod >= 2:
+        return
+    (v0, d0), (v1, d1) = ar["taper"]["from"], ar["taper"]["to"]
+    prims.cylinder(mb, _mm(0, v0, aw), _mm(0, v1, aw), d0 / 2000.0, 8 if near else 5, st["alu"], caps=(False, False), r1=d1 / 2000.0,
+                   smooth=True)
+    gr = g["guideRoller"]
+    prims.cylinder(mb, _mm(0, gr["v"][0], gr["w"]), _mm(0, gr["v"][1], gr["w"]), gr["dia"] / 2000.0, 14 if near else 6, st["cream"],
+                   fan_caps=True)
+    if near:
+        for br in ar["brackets"]:
+            prims.box(mb, _mm(-12, br["v"][0], br["w"][0]), _mm(12, br["v"][1], br["w"][1]), st["alu"])

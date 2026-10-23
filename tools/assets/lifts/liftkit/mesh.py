@@ -6,6 +6,7 @@ Vertices are stored in Blender space; faces are oriented against an explicit out
 """
 import contextlib
 import hashlib
+import math
 import struct
 
 import bpy
@@ -61,15 +62,21 @@ def newell(points):
 
 
 class Style:
-    """How a primitive's faces are tagged. Copy with changes via .but(...)."""
+    """How a primitive's faces are tagged. Copy with changes via .but(...).
 
-    __slots__ = ("cls", "snow", "livery", "slot", "smooth", "trim")
+    group: a smoothing group. Faces never share vertices across primitives, so `smooth` alone shades a curved surface
+    built face by face (a hood's arch) flat. Faces of one group get corner normals averaged over every face of the
+    group that meets at the corner's position, except across a crease sharper than `crease` degrees (to_object)."""
 
-    def __init__(self, cls="paint_grey", snow=0.0, livery=0.0, slot=STRUCTURE, smooth=False, trim=None):
+    __slots__ = ("cls", "snow", "livery", "slot", "smooth", "trim", "group", "crease")
+
+    def __init__(self, cls="paint_grey", snow=0.0, livery=0.0, slot=STRUCTURE, smooth=False, trim=None, group=None,
+                 crease=30.0):
         self.cls, self.snow, self.livery, self.slot, self.smooth, self.trim = cls, snow, livery, slot, smooth, trim
+        self.group, self.crease = group, crease
 
     def but(self, **kw):
-        s = Style(self.cls, self.snow, self.livery, self.slot, self.smooth, self.trim)
+        s = Style(self.cls, self.snow, self.livery, self.slot, self.smooth, self.trim, self.group, self.crease)
         for k, v in kw.items():
             setattr(s, k, v)
         return s
@@ -225,7 +232,48 @@ class MeshBuilder:
         for f, s in zip(self.faces, self.style):
             h.update(struct.pack(f"<{len(f)}i", *f))
             h.update(f"{s.cls}{s.snow:.3f}{s.livery:.1f}{s.slot}{int(s.smooth)}{s.trim}".encode())
+            if s.group is not None:   # only grouped faces add to it, so ungrouped assets keep their digests
+                h.update(f"g{s.group}/{s.crease:g}".encode())
         return h.hexdigest()
+
+    def corner_normals(self):
+        """Per-corner normals (Blender space, corner order) when any face has a smoothing group, else None. A grouped
+        corner averages the normals of its group's faces meeting at that position (within 0.1 mm), weighted by each
+        face's corner angle, over the faces within its crease; an ungrouped corner takes its face's normal."""
+        if all(s.group is None for s in self.style):
+            return None
+        fn = []
+        for f in self.faces:
+            n = newell([self.verts[i] for i in f])
+            fn.append(n.normalized() if n.length > 1e-12 else Vector((0.0, 0.0, 1.0)))
+        buckets, keys = {}, []
+        for fi, f in enumerate(self.faces):
+            g, m = self.style[fi].group, len(f)
+            for k, i in enumerate(f):
+                if g is None:
+                    keys.append(None)
+                    continue
+                p = self.verts[i]
+                a, b = self.verts[f[k - 1]] - p, self.verts[f[(k + 1) % m]] - p
+                w = a.angle(b, 0.0) if a.length > 1e-9 and b.length > 1e-9 else 0.0
+                key = (g, round(p.x * 1e4), round(p.y * 1e4), round(p.z * 1e4))
+                buckets.setdefault(key, []).append((fi, w))
+                keys.append(key)
+        out, c = [], 0
+        for fi, f in enumerate(self.faces):
+            lim = math.cos(math.radians(self.style[fi].crease))
+            for _ in f:
+                key = keys[c]
+                c += 1
+                if key is None:
+                    out.append(tuple(fn[fi]))
+                    continue
+                acc = Vector((0.0, 0.0, 0.0))
+                for fj, w in buckets[key]:
+                    if fn[fj].dot(fn[fi]) >= lim:
+                        acc += fn[fj] * w
+                out.append(tuple(acc.normalized() if acc.length > 1e-9 else fn[fi]))
+        return out
 
     # -- Blender object -----------------------------------------------------------------------
     def to_object(self, name, materials, collection=None):
@@ -235,7 +283,10 @@ class MeshBuilder:
         for m in materials:
             mesh.materials.append(m)
         mesh.polygons.foreach_set("material_index", [s.slot for s in self.style])
-        mesh.polygons.foreach_set("use_smooth", [s.smooth for s in self.style])
+        mesh.polygons.foreach_set("use_smooth", [s.smooth or s.group is not None for s in self.style])
+        normals = self.corner_normals()
+        if normals is not None:
+            mesh.normals_split_custom_set(normals)
         corners = [(fi, k) for fi, f in enumerate(self.faces) for k in range(len(f))]
         # Blender keeps polygon corner order as given by from_pydata.
         uvs = [u if u is not None else detail_uv([frame.lift(self.verts[i]) for i in f], textures.tile_of(s))

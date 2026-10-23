@@ -134,7 +134,7 @@ def make(name, palette_img, livery_rgb=(0.72, 0.12, 0.09), snow=0.0, glass=False
     # snow: capacity x snow load x up-facing (true normal, like the shader's geometric normal)
     geo = N("ShaderNodeNewGeometry")
     sepn = N("ShaderNodeSeparateXYZ")
-    L(geo.outputs["True Normal"], sepn.inputs["Vector"])
+    L(geo.outputs["Normal"], sepn.inputs["Vector"])   # the shading normal, as LiftStructure.shader (round 4)
     up = N("ShaderNodeMapRange")
     up.inputs["From Min"].default_value = 0.3
     up.inputs["From Max"].default_value = 0.8
@@ -165,10 +165,45 @@ def make(name, palette_img, livery_rgb=(0.72, 0.12, 0.09), snow=0.0, glass=False
     lv.name = "Livery"
     lv.outputs[0].default_value = (*linear(livery_rgb), 1.0)
     L(lv.outputs[0], livery.inputs["B"])
-    if glass:
-        bsdf.inputs["Alpha"].default_value = 0.6
+    if glass:   # as LiftStructure.shader: opacity 0.75 face-on to 0.97 grazing, the mirror reflection kept whole
+        lw = N("ShaderNodeLayerWeight")
+        lw.inputs["Blend"].default_value = 0.5
+        f2 = math("MULTIPLY", lw.outputs["Facing"], lw.outputs["Facing"])
+        L(math("ADD", 0.75, math("MULTIPLY", math("MULTIPLY", f2, f2), 0.22)), bsdf.inputs["Alpha"])
+        bsdf.inputs["Specular IOR Level"].default_value = 0.0
+        fres = N("ShaderNodeFresnel")
+        fres.inputs["IOR"].default_value = 2.2   # coated station glass: a stronger mirror than plain glass
+        gloss = N("ShaderNodeBsdfGlossy")
+        gloss.inputs["Roughness"].default_value = 0.04
+        mix = N("ShaderNodeMixShader")
+        L(fres.outputs["Fac"], mix.inputs["Fac"])
+        L(bsdf.outputs["BSDF"], mix.inputs[1])
+        L(gloss.outputs["BSDF"], mix.inputs[2])
+        L(mix.outputs[0], out.inputs["Surface"])
     nt.nodes.active = tex
     return m
+
+
+def cull_backfaces(materials):
+    """Review renders only: back faces render transparent, as Unity culls them (LiftStructure.shader is Cull Back).
+    Cycles shows back faces, which hid single-sided parts and made the glass look opaque (round 3)."""
+    for m in materials:
+        nt = m.node_tree
+        out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+        link = out.inputs["Surface"].links[0] if out.inputs["Surface"].links else None
+        if link is None or link.from_node.name == "CullBack":
+            continue
+        geo = nt.nodes.new("ShaderNodeNewGeometry")
+        hole = nt.nodes.new("ShaderNodeBsdfTransparent")
+        mix = nt.nodes.new("ShaderNodeMixShader")
+        mix.name = "CullBack"
+        src = link.from_socket
+        nt.links.remove(link)
+        nt.links.new(geo.outputs["Backfacing"], mix.inputs["Fac"])
+        nt.links.new(src, mix.inputs[1])
+        nt.links.new(hole.outputs[0], mix.inputs[2])
+        nt.links.new(mix.outputs[0], out.inputs["Surface"])
+        m.use_backface_culling = True
 
 
 def set_snow(materials, snow):
@@ -194,13 +229,23 @@ def use_palette(materials, img):
                 n.image = img
 
 
-def opaque_copy(img):
+def opaque_copy(img, livery=None):
+    """An opaque copy of the palette for Workbench previews; livery (an sRGB hex such as "#202326") repaints the livery
+    swatch, so review renders show a hood in a player's colour rather than the untinted white."""
     import numpy as np
+    from . import palette
     name = img.name + "_opaque"
     out = bpy.data.images.get(name) or bpy.data.images.new(name, img.size[0], img.size[1], alpha=True)
     px = np.empty(img.size[0] * img.size[1] * 4, dtype=np.float32)
     img.pixels.foreach_get(px)
     px[3::4] = 1.0
+    if livery:
+        i = palette.INDEX["livery"]
+        col, row = i % palette.GRID, i // palette.GRID
+        grid = px.reshape(img.size[1], img.size[0], 4)
+        c = palette.CELL
+        grid[row * c:(row + 1) * c, col * c:(col + 1) * c, :3] = palette.srgb(livery)
+        px = grid.ravel()
     out.colorspace_settings.name = "sRGB"
     out.pixels.foreach_set(px)
     return out

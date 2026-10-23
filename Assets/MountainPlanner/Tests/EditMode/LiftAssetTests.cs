@@ -22,11 +22,12 @@ namespace MountainPlanner.Tests
         const string ArtRoot = "Assets/MountainPlanner/Art/Lifts";
         const float Mm = 0.001f;
         /// <summary>Our makers' code names, as asset id prefixes (decision LP3).</summary>
-        static readonly string[] Makers = { "sessellift_fgq4_", "sle_", "monta_fg4_", "chairworks_chair_" };
+        static readonly string[] Makers = { "sessellift_fgq4_", "sessellift_d6_", "sle_", "monta_fg4_", "chairworks_chair_" };
 
         [Serializable] sealed class LodBudget { public int lod; public int maxTris; public float untilM; }
         [Serializable] sealed class KindBudget { public LodBudget[] lods; public int shadowLods; public bool crossFade; }
-        [Serializable] sealed class Budgets { public KindBudget terminal; public KindBudget terminal_footing; public KindBudget chair; public KindBudget tower_head; public KindBudget tower_mast; public KindBudget tower_base; public KindBudget snowgun; }
+        [Serializable] sealed class Budgets { public KindBudget terminal; public KindBudget terminal_footing; public KindBudget chair; public KindBudget tower_head; public KindBudget tower_mast; public KindBudget tower_base; public KindBudget snowgun;
+            public KindBudget terminal_detach; public KindBudget chair_detach; public KindBudget tower_head_wide; }
         [Serializable] sealed class Common { public float ropeElevation; public float lineGauge; }
         [Serializable] sealed class Spec { public Common common; }
 
@@ -35,7 +36,9 @@ namespace MountainPlanner.Tests
         static Budgets LoadBudgets() => JsonUtility.FromJson<Budgets>(File.ReadAllText(RepoPath("tools/assets/lifts/budgets.json")));
         /// <summary>The spec an asset was built from: its maker's (the Sessellift's unless another maker's prefix).</summary>
         static Spec LoadSpec(string assetId) => JsonUtility.FromJson<Spec>(File.ReadAllText(RepoPath(
-            assetId.StartsWith("monta_fg4_", StringComparison.Ordinal) ? "tools/assets/lifts/monta_fg4.json" : "tools/assets/lifts/sessellift_fgq4.json")));
+            assetId.StartsWith("monta_fg4_", StringComparison.Ordinal) ? "tools/assets/lifts/monta_fg4.json"
+            : assetId.StartsWith("sessellift_d6_", StringComparison.Ordinal) ? "tools/assets/lifts/sessellift_d6.json"
+            : "tools/assets/lifts/sessellift_fgq4.json")));
 
         static KindBudget BudgetFor(Budgets b, string kind) => kind switch
         {
@@ -46,6 +49,9 @@ namespace MountainPlanner.Tests
             "tower_mast" => b.tower_mast,
             "tower_base" => b.tower_base,
             "snowgun" => b.snowgun,
+            "terminal_detach" => b.terminal_detach,
+            "chair_detach" => b.chair_detach,
+            "tower_head_wide" => b.tower_head_wide,
             _ => throw new ArgumentException(kind),
         };
 
@@ -139,22 +145,39 @@ namespace MountainPlanner.Tests
                     Assert.That(filter.transform.localPosition.magnitude, Is.LessThan(Mm), filter.name);
                     if (rig.PivotHinged[i]) continue;
                     var centre = filter.sharedMesh.bounds.center;
+                    if (Mathf.Max(Mathf.Abs(axis.x), Mathf.Abs(axis.y), Mathf.Abs(axis.z)) < 0.999f)
+                        centre = CentreAcross(filter.sharedMesh, axis);   // a tilted axle (the D6's bullwheel)
                     var across = centre - axis * Vector3.Dot(centre, axis);
                     Assert.That(across.magnitude, Is.LessThan(Mm), $"{filter.name} is off its axle by {across.magnitude * 1000:F1} mm");
                 }
             }
         }
 
+        /// <summary>The middle of a mesh's extent across a tilted axle, measured in the axle's own frame (a world-aligned
+        /// box's centre wanders off a tilted axle when the part isn't symmetric along it).</summary>
+        static Vector3 CentreAcross(Mesh mesh, Vector3 axis)
+        {
+            var toAxle = Quaternion.FromToRotation(axis, Vector3.up);
+            Vector3 lo = Vector3.positiveInfinity, hi = Vector3.negativeInfinity;
+            foreach (var v in mesh.vertices)
+            {
+                var p = toAxle * v;
+                lo = Vector3.Min(lo, p);
+                hi = Vector3.Max(hi, p);
+            }
+            return Quaternion.Inverse(toAxle) * ((lo + hi) / 2f);
+        }
+
         [TestCaseSource(nameof(Cases))]
         public void RopeSocketsAreOnTheRope(GameObject prefab)
         {
             var rig = prefab.GetComponent<LiftRig>();
-            if (rig.Kind == "chair") Assert.Ignore("Chairs hang from the rope; no rope sockets.");
+            if (rig.Kind == "chair" || rig.Kind == "chair_detach") Assert.Ignore("Chairs hang from the rope; no rope sockets.");
             if (rig.Kind == "tower_mast" || rig.Kind == "tower_base") Assert.Ignore("Mast sections and bases carry no rope.");
             if (rig.Kind == "snowgun") Assert.Ignore("Snow guns carry no rope.");
             if (rig.Kind == "terminal_footing") Assert.Ignore("A terminal's footing carries no rope.");
             var common = LoadSpec(prefab.name).common;
-            if (rig.Kind == "tower_head")
+            if (rig.Kind == "tower_head" || rig.Kind == "tower_head_wide")
             {
                 // a tower head carries both ropes at the line gauge, level with each other, at the height its type
                 // puts them (support over the crossbeam, hold-down below it)
@@ -180,7 +203,11 @@ namespace MountainPlanner.Tests
                 // out sockets, owner): above it by less than a metre and a half, further up the line than the row
                 string name = s.name.Substring(s.name.IndexOf("_socket_", StringComparison.Ordinal) + "_socket_".Length);
                 var hold = name.EndsWith("_out", StringComparison.Ordinal) ? rig.Socket(name.Substring(0, name.Length - 4) + "_hold") : null;
-                if (hold != null)
+                if (rig.Kind == "terminal_detach" && name.EndsWith("_bw", StringComparison.Ordinal))
+                    // a detachable's bullwheel is lowered (and tilted) under the station rope: the rope comes off it
+                    // up to a metre below the rope elevation, never above it
+                    Assert.That(p.y, Is.GreaterThan(common.ropeElevation * Mm - 1f).And.LessThanOrEqualTo(common.ropeElevation * Mm + Mm), s.name);
+                else if (hold != null)
                 {
                     Assert.That(p.y, Is.GreaterThan(common.ropeElevation * Mm + Mm).And.LessThan(common.ropeElevation * Mm + 1.5f), s.name);
                     Assert.That(p.z, Is.GreaterThan(prefab.transform.InverseTransformPoint(hold.position).z), s.name);

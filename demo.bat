@@ -207,6 +207,10 @@ echo        Edit (M) and Remove (X): click a trail. Shift+4 the Trails layer; Ta
 echo     67b The trail timing run: 1,000 ft and 1 km trails at 10 spots (preview, commit, edit, undo against 100 / 250 ms).
 echo     67c The trail captures on Jackson Hole 2 km: a sidehill and a ridge, each step of the tool, and the paint check (render lane).
 echo.
+echo   Lift models 2: the Sessellift D6 six-pack (rebuilds the Lift Lab, a few minutes; close the Unity editor first)
+echo     69 The Lift Lab's six-pack: the D6 terminals, its six-seat chair and its six tower heads on full towers.
+echo        X six-pack, L LOD, N snow, C colour, T turntable, mouse/WASD camera, H help, Esc quit.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -294,6 +298,7 @@ if /i "%CHOICE%"=="65s" goto styletilesummer
 if /i "%CHOICE%"=="67" goto trails
 if /i "%CHOICE%"=="67b" goto trailbench
 if /i "%CHOICE%"=="67c" goto trailcaptures
+if /i "%CHOICE%"=="69" goto sixpack
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -904,6 +909,13 @@ echo Importing the lifts into Unity (about 30 seconds)...
 if errorlevel 1 (echo   The import failed - see test-results\lifts.log & goto done)
 call :buildliftlab
 goto done
+
+:sixpack
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the Sessellift D6 six-pack. X six-pack, L LOD, N snow, C colour, T turntable, H help, Esc quit.
+start "" "%LIFTLAB%" -mode sixpack
+goto menu
 
 :liftlab
 if not exist "%LIFTLAB%" call :projectfree && call :buildliftlab
