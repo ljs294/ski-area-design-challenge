@@ -55,6 +55,10 @@ namespace MountainPlanner.Domain.Design
             public double SuggestedTopMetres { get; internal set; }
             /// <summary>TW-12 (LT40): why automatic placement left the chairs short where no level hint puts it right (red).</summary>
             public List<LiftProblem> Unplaced { get; internal set; } = new List<LiftProblem>();
+            /// <summary>Finding D2: built without the level search (<see cref="Build"/>'s <c>suggest</c> false) on a line that
+            /// isn't within the rules, so <see cref="Hints"/> and <see cref="Unplaced"/> are still to come: the same build with
+            /// the search gives the same towers, levels and earthwork, and them.</summary>
+            public bool LevelsPending { get; internal set; }
             static List<LiftProblem> With(List<LiftProblem> a, List<LiftProblem> b, List<LiftProblem> c)
             {
                 if (b != null) a.AddRange(b);
@@ -172,8 +176,11 @@ namespace MountainPlanner.Domain.Design
 
         /// <param name="bottomHand">How far the player set the bottom terminal above (or below) the ground at its origin
         /// while placing it (LT19, metres); the build starts there and may still raise it as a last resort.</param>
+        /// <param name="suggest">False: the lift as placed only, without LT34's search for the levels that would fit (finding
+        /// D2: on a long line the search is most of the time). A line within the rules needs none, so it's complete; one that
+        /// isn't comes back <see cref="Result.LevelsPending"/>, for a second build with the search.</param>
         public static Result Build(LiftType type, EditedHeights current, double bx, double by, double tx, double ty, TowerStance stance,
-                                   Action<string> log = null, double bottomHand = 0, double topHand = 0)
+                                   Action<string> log = null, double bottomHand = 0, double topHand = 0, bool suggest = true)
         {
             if (current == null) throw new ArgumentNullException(nameof(current));
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
@@ -267,7 +274,7 @@ namespace MountainPlanner.Domain.Design
                 // The last resorts, read off the final rope: the top on a built-up unload ramp while its level span or low
                 // zone falls short; the bottom raised where the trench would go deeper than its 10 ft.
                 // The last attempt keeps what it built, so the result's rope and levels always agree.
-                if (attempt == Attempts - 1) break;
+                if (attempt == Attempts - 1 || !suggest) break;
                 bool again = false;
                 double top = Math.Max(placed.TopRaise, Steps(rope.ShortfallBetween(edgeT, frontT, out _)));
                 // A top station tower too sharp a hold-down (the line arriving from well above the level span, as at a flat
@@ -330,15 +337,18 @@ namespace MountainPlanner.Domain.Design
             for (int i = 0; i < towers.Count; i++) stored.Add(new Tower(TowerId.Make(1, i), towers[i].AlongMm, towers[i].HeightMm));
             var work = Earthwork(type, current, bx, by, tx, ty, stored, levels, stance, log);
             var built = new EditedHeights(current.Source, current.Lattice, work.Edits);
-            var hints = LevelHints(type, built, bx, by, tx, ty, stored, levels, stance, work, out double sb, out double st, needB, needT);
+            bool pending = !suggest && !(work.Rope.ClearanceOk && work.Rope.TerminalsOk
+                                         && (work.Envelope == null || work.Envelope.NeededMetres <= LiftLineEnvelope.CapMetres + 1e-9));
+            double sb = 0, st = 0;
+            var hints = pending ? new List<LiftProblem>() : LevelHints(type, built, bx, by, tx, ty, stored, levels, stance, work, out sb, out st, needB, needT);
             // TW-12 (LT40): a stretch still short that no level hint puts right says why placement couldn't.
             LiftRope.Zones(type, length, out _, out double bottomEdge, out _, out _);
-            var unplaced = work.Rope.ClearanceOk ? new List<LiftProblem>()
+            var unplaced = work.Rope.ClearanceOk || pending ? new List<LiftProblem>()
                 : LiftProblems.Unplaced(work.Rope, LineGround.Sample(built, type, bx, by, tx, ty), levels.BottomMetres, levels.TopMetres, placedFirst.GaveUp,
                                         sb != 0 ? bottomEdge + LiftRope.Clearance * 4 : double.NegativeInfinity, st != 0 ? edgeT : double.PositiveInfinity);
             return new Result
             {
-                Hints = hints, Unplaced = unplaced,
+                Hints = hints, Unplaced = unplaced, LevelsPending = pending,
                 SuggestedBottomMetres = sb, SuggestedTopMetres = st,
                 Towers = towers, Edits = work.Edits, Rope = work.Rope, BottomPad = work.BottomPad, TopPad = work.TopPad, Envelope = work.Envelope,
                 BottomRaise = raiseB, TopRaise = raiseT, BottomLevel = levels.BottomMetres, TopLevel = levels.TopMetres, Levels = levels,

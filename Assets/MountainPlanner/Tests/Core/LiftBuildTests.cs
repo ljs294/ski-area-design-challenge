@@ -308,6 +308,64 @@ namespace MountainPlanner.Tests
             Assert.That(times[2], Is.LessThanOrEqualTo(50));
         }
 
+        // Finding D2 (owner, 2026-10-23): a 7,227 ft D6's review sat on "Towers placing…". A long line's build on the package
+        // as the game reads it: one placement, the lift as placed (the review's figures) and the build with LT34's level
+        // search (the hints, a second step), which must agree on everything but the hints.
+        [TestCase(LiftCatalogIds.SesselliftD6, false)]
+        [TestCase(LiftCatalogIds.SesselliftFgq4, false)]
+        [TestCase(LiftCatalogIds.SesselliftD6, true)]
+        public void D2_ALongLineBuildsQuickly(string catalogId, bool realGround)
+        {
+            var type = LiftType.Of(catalogId);
+            EditedHeights ground;
+            double bx, by, tx, ty;
+            PackageHeights heights = null;
+            if (realGround)
+            {
+                // The committed 2 km package, as the game reads it (package grids from disk, a chunk at a time), corner to corner.
+                string dir = TestData.Folder("jackson-hole-2km");
+                foreach (string file in Directory.GetFiles(dir, "*.grid")) TestData.Bytes(dir, Path.GetFileName(file));
+                var m = ResortPackage.ReadManifest(dir);
+                var tiles = TileGrid.For(SiteSquare.Create(new AlbersPoint(m.Site.CentreX, m.Site.CentreY), m.Site.SizeMetres / 1000.0));
+                heights = new PackageHeights(dir, m);
+                ground = new EditedHeights(heights, new EditLattice(tiles.West, tiles.North), TerrainEdits.Empty);
+                double h = m.Site.SizeMetres / 2 - 150;
+                bx = m.Site.CentreX - h; by = m.Site.CentreY - h; tx = m.Site.CentreX + h; ty = m.Site.CentreY + h;
+                if (ground.At(bx, by) > ground.At(tx, ty)) { (bx, tx) = (tx, bx); (by, ty) = (ty, by); }
+            }
+            else
+            {
+                // 7,200 ft at 30% with rolls, as the owner's line.
+                ground = new EditedHeights(new Profile(s => 0.3 * s + 6 * Math.Sin(s / 60)), Lattice, TerrainEdits.Empty);
+                bx = West + 100; by = North - 2300; tx = bx; ty = by + 7200 * Ft;
+            }
+            try
+            {
+                double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
+                var sw = Stopwatch.StartNew();
+                var placed = TowerPlacement.Place(type, ground, bx, by, tx, ty, ground.At(bx, by), ground.At(tx, ty), TowerStance.Leaned);
+                double placeMs = sw.Elapsed.TotalMilliseconds;
+                sw.Restart();
+                var quick = LiftBuild.Build(type, ground, bx, by, tx, ty, TowerStance.Leaned, null, 0, 0, suggest: false);
+                double quickMs = sw.Elapsed.TotalMilliseconds;
+                int attempts = 0;
+                sw.Restart();
+                var b = LiftBuild.Build(type, ground, bx, by, tx, ty, TowerStance.Leaned, s => { if (s.StartsWith("attempt")) attempts++; });
+                double buildMs = sw.Elapsed.TotalMilliseconds;
+                TestContext.Progress.WriteLine($"D2 {catalogId}{(realGround ? " (package)" : "")}, {length / Ft:F0} ft: one placement {placeMs:F0} ms ({placed.Towers.Count} towers), " +
+                                               $"as placed {quickMs:F0} ms{(quick.LevelsPending ? " (levels pending)" : "")}, with the level search {buildMs:F0} ms " +
+                                               $"({attempts} attempts, {b.Hints.Count} hints, {(b.Ok ? "ok" : "not ok")})");
+                Assert.That(quickMs, Is.LessThan(1500), "the review's figures within about a second");
+                Assert.That(buildMs, Is.LessThan(5000), "the hints a few seconds later");
+                if (!quick.LevelsPending) Assert.That(b.Hints.Count + b.Unplaced.Count, Is.EqualTo(0), "a line within the rules as placed needs no hints");
+                Assert.That(b.LevelsPending, Is.False);
+                Assert.That(quick.Towers.Select(t => (t.AlongMm, t.HeightMm)), Is.EqualTo(b.Towers.Select(t => (t.AlongMm, t.HeightMm))), "the same towers");
+                Assert.That(quick.Levels, Is.EqualTo(b.Levels), "the same levels");
+                Assert.That(TerrainEdits.Changed(quick.Edits, b.Edits), Is.Empty, "the same earthwork");
+            }
+            finally { heights?.Dispose(); }
+        }
+
         // Real ground: the committed Jackson Hole 2 km package, a fixed fan of lines.
 
         [TestCase(LiftCatalogIds.SesselliftFgq4)]

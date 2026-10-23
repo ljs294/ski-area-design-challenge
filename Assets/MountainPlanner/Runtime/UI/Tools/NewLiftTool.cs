@@ -463,9 +463,13 @@ namespace MountainPlanner.UI.Tools
             var top = _top;
             _ctx.Analyse(() =>
             {
+                // Finding D2: the lift as placed first, so the review shows at once; where it isn't within the rules, LT34's
+                // search for the levels that would fit follows as a second step (SuggestLevels).
+                var watch = System.Diagnostics.Stopwatch.StartNew();
                 var r = hand != null
                     ? LiftBuild.BuildWith(type, ground, b.X, b.Y, t.X, t.Y, hand, stance, bottomHand, topHand)
-                    : LiftBuild.Build(type, ground, b.X, b.Y, t.X, t.Y, stance, null, bottomHand, topHand);
+                    : LiftBuild.Build(type, ground, b.X, b.Y, t.X, t.Y, stance, null, bottomHand, topHand, suggest: false);
+                long buildMs = watch.ElapsedMilliseconds;
                 // Break ground's whole earthwork from the design's fold (trails, then lifts, TL3), as the trail tools make theirs.
                 DesignEarthwork.Result rebuilt = null;
                 if (fold != null)
@@ -473,12 +477,15 @@ namespace MountainPlanner.UI.Tools
                     var after = new AddLift(revision, name, catalogId, bottom, top, mode, stance, r.Towers, WorkStage.Built, r.Levels).Apply(doc);
                     if (after.Accepted) rebuilt = fold.Rebuild(after.Document, committed);
                 }
+                Debug.Log($"[NewLift] {r.Towers.Count} towers placed in {buildMs} ms, the design's earthwork in {watch.ElapsedMilliseconds - buildMs} ms" +
+                          (r.LevelsPending ? "; the levels to suggest follow" : ""));
                 return (r, rebuilt);
             }, done =>
             {
                 var result = done.r;
                 _building = false;
                 if (_step != Step.Review && _step != Step.Towers) return;
+                if (result.LevelsPending) SuggestLevels(type, ground, b, t, stance, bottomHand, topHand, key);
                 _built = result;
                 _builtRebuild = done.rebuilt;
                 _builtRevision = revision;
@@ -489,6 +496,35 @@ namespace MountainPlanner.UI.Tools
                 _editorKey = long.MinValue;
                 if (_step == Step.Towers) { if (_mode == TowerMode.Automatic) TowersPlacedHint(); return; }
                 _ctx.PendingTerrain = BuiltEdits;
+                BuildReview();
+                _ctx.Window.ShowReview(_review);
+                ReviewButtons();
+            });
+        }
+
+        bool _suggesting;
+
+        /// <summary>
+        /// Finding D2: the build again with LT34's search, for a line that isn't within the rules: the same towers, levels and
+        /// earthwork (the search starts from the lift as placed and comes back to it), with the hints to put it right.
+        /// </summary>
+        void SuggestLevels(LiftType type, Domain.Edits.EditedHeights ground, (double X, double Y) b, (double X, double Y) t, TowerStance stance,
+                           double bottomHand, double topHand, string key)
+        {
+            _suggesting = true;
+            _ctx.Analyse(() =>
+            {
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                var r = LiftBuild.Build(type, ground, b.X, b.Y, t.X, t.Y, stance, null, bottomHand, topHand);
+                Debug.Log($"[NewLift] the levels to suggest in {watch.ElapsedMilliseconds} ms ({r.Hints.Count} hints)");
+                return r;
+            }, result =>
+            {
+                _suggesting = false;
+                if (_builtFor != key || _built == null || !_built.LevelsPending) return;
+                _built = result;
+                if (_step == Step.Towers) { if (_mode == TowerMode.Automatic) TowersPlacedHint(); return; }
+                if (_step != Step.Review) return;
                 BuildReview();
                 _ctx.Window.ShowReview(_review);
                 ReviewButtons();
@@ -517,7 +553,8 @@ namespace MountainPlanner.UI.Tools
                 .Add("Lowest chairs", $"{ToolFormat.Length(rope.LowestClearance)} over the ground", "TW-01: 15 ft at least")
                 .Add("Rise allowed", $"{ToolFormat.Length(rope.RiseMetres)} of {(double.IsInfinity(rope.Type.RiseLimitMetres) ? "no limit" : ToolFormat.Length(rope.Type.RiseLimitMetres))}", "LC-07");
             foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
-            _review.Ready(_built.Ok, true);
+            if (_built.LevelsPending) _review.Add("Levels", _suggesting ? "working out what would fit…" : "—", "LT34");
+            _review.Ready(_built.Ok && !_built.LevelsPending, true);
         }
 
         public ToolBackOut Escape()
