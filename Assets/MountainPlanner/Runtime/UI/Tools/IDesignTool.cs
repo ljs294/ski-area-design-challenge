@@ -27,6 +27,8 @@ namespace MountainPlanner.UI.Tools
         SlideBack = 4096,
         SlideOn = 8192,
         AddTower = 16384,
+        // P3-09 (LT44): the selected tower's kind turns round.
+        TowerKind = 32768,
     }
 
     /// <summary>

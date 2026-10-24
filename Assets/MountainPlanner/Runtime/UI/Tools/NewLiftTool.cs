@@ -451,7 +451,7 @@ namespace MountainPlanner.UI.Tools
             if (_mode == TowerMode.ByHand && _placed.Count > 0)
             {
                 hand = new List<TowerSpec>(_placed.Count);
-                foreach (var tw in _placed) hand.Add(new TowerSpec(tw.AlongMm, tw.HeightMm));
+                foreach (var tw in _placed) hand.Add(tw.Spec);
             }
             var fold = _ctx.Earthwork != null && _ctx.Earthwork.Ready ? _ctx.Earthwork.Earthwork : null;
             var doc = _ctx.History.Document;

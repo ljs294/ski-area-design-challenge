@@ -614,6 +614,13 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   six sheaves' worth could take) or b10 (a sharper breakover), d10 for hold-down, and c8; so a bend needing nine or ten
   sheaves is carried on the D6 and too sharp on a quad.
 
+  **v3, the player's kind** (owner, task 09, LT44, second review E6): a tower may carry a kind chosen by hand: **Auto**
+  (the table above, the default and every automatic tower's), **Support**, **Hold-down** or **Combination** (K in the
+  tower editor turns it round). The game still sizes the head within that kind from the load (TW-05). A kind that
+  can't carry the rope there (a support where the rope pulls up, a hold-down where it presses down, a combination
+  past its four sheaves a way) is drawn as that kind's biggest head and is **red** with its reason and what would
+  carry it; it's never changed behind the player's back. Stored with the tower (save v3).
+
 - **TW-05, limits per sheave and group:** LC-02's maximum load and maximum bend per sheave, and its minimum group load (so the rope stays seated), in
   every case.
   - *Task 09:* the bend one sheave may take is **the smaller of 4.5° and 2·asin(1,500 lbf ÷ 2T)**: 4.5° at the
@@ -732,7 +739,8 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     (TW-12 v2): no station tower takes a bend its head can't carry, so the drawn rope runs straight into its trains.
     The quads keep v3/v4: the FGQ-4's return still exits at 14.3°, and the Monta's drive keeps its own station.
 - **TW-15, stored:**
-  - A tower's position along the line, its height and its stance are authored and saved.
+  - A tower's position along the line, its height and its stance are authored and saved, and (LT44) the kind of
+    head chosen for it, Auto unless the player chose one.
   - Its head type, forces and rope geometry are derived (SH-05).
 
 ![A lift profile: hold-downs before a steep rise, breakovers on the crest](images/p3-02/lift-profile.svg)

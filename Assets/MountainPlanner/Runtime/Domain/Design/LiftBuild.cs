@@ -157,10 +157,10 @@ namespace MountainPlanner.Domain.Design
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
             double ux = (tx - bx) / length, uy = (ty - by) / length;
             var stored = new List<Tower>(towers.Count);
-            for (int i = 0; i < towers.Count; i++) stored.Add(new Tower(TowerId.Make(1, i), towers[i].AlongMm, towers[i].HeightMm));
+            for (int i = 0; i < towers.Count; i++) stored.Add(new Tower(TowerId.Make(1, i), towers[i].AlongMm, towers[i].HeightMm, towers[i].Kind));
             stored.Sort((a, b) => a.AlongMm.CompareTo(b.AlongMm));
             var specs = new List<TowerSpec>(stored.Count);
-            foreach (var t in stored) specs.Add(new TowerSpec(t.AlongMm, t.HeightMm));
+            foreach (var t in stored) specs.Add(t.Spec);
             var work = Earthwork(type, current, bx, by, tx, ty, stored, levels, stance);
             return new Result
             {
@@ -382,7 +382,7 @@ namespace MountainPlanner.Domain.Design
             bool stationB = !type.Bottom.OwnStation && n > 0 && towers[0].AlongMm / 1000.0 <= zone + 1e-9;
             bool stationT = !type.Top.OwnStation && n > (stationB ? 1 : 0) && length - towers[n - 1].AlongMm / 1000.0 <= zone + 1e-9;
             var moved = new List<Tower>(towers);
-            Tower Up(Tower w, double m) => new Tower(w.Id, w.AlongMm, Math.Max(DesignUnits.StationTowerMinMm, w.HeightMm + (int)Math.Round(m * 1000)));
+            Tower Up(Tower w, double m) => w.WithHeight(Math.Max(DesignUnits.StationTowerMinMm, w.HeightMm + (int)Math.Round(m * 1000)));
             LiftRope Solve(double b, double t)
             {
                 if (stationB) moved[0] = Up(towers[0], b);

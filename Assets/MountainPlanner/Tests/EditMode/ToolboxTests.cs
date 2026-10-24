@@ -813,6 +813,38 @@ namespace MountainPlanner.Tests
             tool.GetType().GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(tool, null);
 
         [Test]
+        public void E6_KTurnsASelectedTowersKindRoundAndApplyKeepsIt()
+        {
+            // LT44 (owner, second review E6): the player chooses a tower's kind; the game sizes it.
+            var id = BuiltOnSlope();
+            var before = _design.Document.FindLift(id);
+            _host.Choose(EditLiftTool.ToolId);
+            var tool = (EditLiftTool)_host.Active;
+            GiveGround();
+            Assert.That(tool.Open(id.Value), Is.True);
+            PumpUntil(() => tool.Built != null, "the draft builds");
+            int mid = before.Towers.Count / 2;
+            tool.SelectTower(mid);
+            Assert.That(KeyBindings.IsClaimed(GameAction.TowerKind), Is.True, "K is the selected tower's");
+            Assert.That(tool.Editor.Describe(), Does.Contain("Kind: Auto"));
+            var round = new List<TowerKind>();
+            for (int k = 0; k < 4; k++)
+            {
+                _host.Tick(new ToolInput { Keys = ToolKeys.TowerKind });
+                round.Add(tool.DraftTowers[mid].Kind);
+            }
+            Assert.That(round, Is.EqualTo(new[] { TowerKind.Support, TowerKind.HoldDown, TowerKind.Combination, TowerKind.Auto }));
+            // A support where the rope presses down on a slope: within the rules, and Apply keeps it.
+            _host.Tick(new ToolInput { Keys = ToolKeys.TowerKind });
+            Assert.That(tool.Editor.Describe(), Does.Contain("Kind: support"));
+            PumpUntil(() => tool.Built != null && _host.Context.Window.CanBreakGround, "the draft builds and can be applied");
+            _host.Tick(new ToolInput { Keys = ToolKeys.BreakGround });
+            var after = _design.Document.FindLift(id);
+            Assert.That(after.Towers[mid].Kind, Is.EqualTo(TowerKind.Support), "stored with the tower");
+            Assert.That(after.Towers.Where((t, i) => i != mid).All(t => t.Kind == TowerKind.Auto), Is.True);
+        }
+
+        [Test]
         public void E5_AClickOnTheRopeBesideATowerSelectsTheTower()
         {
             // Finding E5: the rope's pick (or a terminal's) under the pointer gave the click to the line, so a tower came into

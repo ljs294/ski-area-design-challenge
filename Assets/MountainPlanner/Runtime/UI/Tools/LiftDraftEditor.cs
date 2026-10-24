@@ -146,6 +146,7 @@ namespace MountainPlanner.UI.Tools
             _ctx.Claim(GameAction.TowerDown, tower);
             _ctx.Claim(GameAction.TowerSlideBack, tower);
             _ctx.Claim(GameAction.TowerSlideOn, tower);
+            _ctx.Claim(GameAction.TowerKind, Selected >= 0 && !Adding);
             _ctx.Claim(GameAction.DeleteSelected, Selected >= 0 || TakeBack != null);
             _ctx.Claim(GameAction.TerminalLevelUp, terminal && Level != null);
             _ctx.Claim(GameAction.TerminalLevelDown, terminal && Level != null);
@@ -156,7 +157,7 @@ namespace MountainPlanner.UI.Tools
 
         void ClaimAll(bool on)
         {
-            foreach (var a in new[] { GameAction.TowerUp, GameAction.TowerDown, GameAction.TowerSlideBack, GameAction.TowerSlideOn, GameAction.DeleteSelected,
+            foreach (var a in new[] { GameAction.TowerUp, GameAction.TowerDown, GameAction.TowerSlideBack, GameAction.TowerSlideOn, GameAction.DeleteSelected, GameAction.TowerKind,
                                       GameAction.TerminalLevelUp, GameAction.TerminalLevelDown, GameAction.TowerAdd, GameAction.BrushNarrower, GameAction.BrushWider })
                 _ctx.Claim(a, on);
         }
@@ -228,6 +229,7 @@ namespace MountainPlanner.UI.Tools
                 if (input.Pressed(ToolKeys.SlideBack)) SetAlong(Selected, Towers[Selected].AlongMm / 1000.0 - step, record: true);
                 if (input.Pressed(ToolKeys.TowerUp)) Height(Selected, +1);
                 if (input.Pressed(ToolKeys.TowerDown)) Height(Selected, -1);
+                if (input.Pressed(ToolKeys.TowerKind)) NextKind(Selected);
                 if (input.Pressed(ToolKeys.Delete)) Remove(Selected);
             }
             else if ((Selected == Bottom || Selected == Top) && Level != null)
@@ -327,7 +329,7 @@ namespace MountainPlanner.UI.Tools
             s = Math.Max(lo, Math.Min(hi, s));
             int mm = (int)Math.Round(s * 1000 / DesignUnits.FiveFeetMm) * DesignUnits.FiveFeetMm;
             if (mm == Towers[i].AlongMm) return;
-            Action<List<Tower>> set = list => list[i] = new Tower(list[i].Id, mm, list[i].HeightMm);
+            Action<List<Tower>> set = list => list[i] = list[i].WithAlong(mm);
             if (record) Change?.Invoke(set);
             else Dragged?.Invoke(set);
         }
@@ -337,8 +339,24 @@ namespace MountainPlanner.UI.Tools
             int max = LiftCatalogIds.TowerMaxMm(Type.CatalogId);
             int h = Mathf.Clamp(Towers[i].HeightMm + steps * DesignUnits.FiveFeetMm, DesignUnits.StationTowerMinMm, max);
             if (h == Towers[i].HeightMm) return;
-            Change?.Invoke(list => list[i] = new Tower(list[i].Id, list[i].AlongMm, h));
+            Change?.Invoke(list => list[i] = list[i].WithHeight(h));
         }
+
+        // LT44 (owner, second review E6): the kind of head the player wants here, round Auto, support, hold-down and
+        // combination; the game sizes it, and one that can't carry the rope here is red with its reason.
+        void NextKind(int i)
+        {
+            var next = (TowerKind)(((int)Towers[i].Kind + 1) % 4);
+            Change?.Invoke(list => list[i] = list[i].WithKind(next));
+        }
+
+        public static string KindName(TowerKind kind) => kind switch
+        {
+            TowerKind.Support => "support",
+            TowerKind.HoldDown => "hold-down",
+            TowerKind.Combination => "combination",
+            _ => "Auto",
+        };
 
         void Remove(int i)
         {
@@ -426,9 +444,11 @@ namespace MountainPlanner.UI.Tools
             if (Selected >= 0 && Selected < Towers.Count)
             {
                 var t = Towers[Selected];
-                string head = Rope != null && Rope.Towers.Count == Towers.Count ? " · " + HeadName(Rope.Towers[Selected].Head) : "";
-                return $"Tower {Selected + 1}: ‹ {ToolFormat.Feet(Mathf.RoundToInt(t.HeightMm / 304.8f))} › at {ToolFormat.Length(t.AlongMm / 1000.0)} up the line{head}. " +
-                       "Page Up / Page Down change its height; drag or slide it; Delete takes it out.";
+                bool solved = Rope != null && Rope.Towers.Count == Towers.Count;
+                string head = solved ? " · " + HeadName(Rope.Towers[Selected].Head) : "";
+                string unsuited = solved && Rope.Towers[Selected].Loads.Unsuited ? " (can't carry the rope here)" : "";
+                return $"Tower {Selected + 1}: ‹ {ToolFormat.Feet(Mathf.RoundToInt(t.HeightMm / 304.8f))} › at {ToolFormat.Length(t.AlongMm / 1000.0)} up the line{head}{unsuited}. " +
+                       $"Kind: {KindName(t.Kind)} (K changes it). Page Up / Page Down change its height; drag or slide it; Delete takes it out.";
             }
             if (Selected == Bottom || Selected == Top)
                 return $"{(Selected == Bottom ? "Bottom" : "Top")} terminal{(Level != null ? ": Page Up / Page Down set its level." : ".")}";

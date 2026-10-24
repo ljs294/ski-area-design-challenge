@@ -60,16 +60,22 @@ namespace MountainPlanner.Domain.Design
             /// <summary>One rope side's group load in each case, newtons (signed: + pulls up).</summary>
             public readonly double GroupLoaded, GroupEmpty;
             public readonly LiftRope.Head Head;
+            /// <summary>LT44: the kind the player chose for this tower (Auto: the game's choice).</summary>
+            public readonly TowerKind Kind;
+            /// <summary>LT44: the chosen kind can't carry the rope here (a support where it pulls up, a hold-down where it
+            /// presses down, a combination past its four sheaves a way); <see cref="Head"/> is then that kind's biggest.</summary>
+            public readonly bool Unsuited;
 
-            public Loads(double tensionLoaded, double tensionEmpty, double bendLoaded, double bendEmpty, HeadKit kit = null)
+            public Loads(double tensionLoaded, double tensionEmpty, double bendLoaded, double bendEmpty, HeadKit kit = null, TowerKind kind = TowerKind.Auto)
             {
+                Kind = kind;
                 TensionLoaded = tensionLoaded;
                 TensionEmpty = tensionEmpty;
                 BendLoaded = bendLoaded;
                 BendEmpty = bendEmpty;
                 GroupLoaded = GroupLoad(tensionLoaded, bendLoaded);
                 GroupEmpty = GroupLoad(tensionEmpty, bendEmpty);
-                Head = Choose(tensionLoaded, tensionEmpty, bendLoaded, bendEmpty, kit);
+                Head = Choose(tensionLoaded, tensionEmpty, bendLoaded, bendEmpty, kit, kind, out Unsuited);
             }
 
             /// <summary>How many sheaves the head carries on each rope side: support below the rope, hold-down above it.</summary>
@@ -95,12 +101,32 @@ namespace MountainPlanner.Domain.Design
         /// flips between the cases, or a group falls within 750 lbf of zero) a combination (c8), four sheaves each way.
         /// More than its sheaves can carry is <see cref="LiftRope.Head.TooSharp"/> (TW-06).
         /// </summary>
-        public static LiftRope.Head Choose(double tensionLoaded, double tensionEmpty, double bendLoaded, double bendEmpty, HeadKit kit = null)
+        public static LiftRope.Head Choose(double tensionLoaded, double tensionEmpty, double bendLoaded, double bendEmpty, HeadKit kit = null) =>
+            Choose(tensionLoaded, tensionEmpty, bendLoaded, bendEmpty, kit, TowerKind.Auto, out _);
+
+        /// <summary>
+        /// TW-04 v3 (LT44): as <see cref="Choose(double, double, double, double, HeadKit)"/> within the kind chosen: a support
+        /// where the rope presses down in both cases, a hold-down where it pulls up in both, a combination within its four
+        /// sheaves a way, each sized from the load. Where the kind can't carry the rope, <paramref name="unsuited"/> and that
+        /// kind's biggest head (drawn as chosen; the lift is red with the reason, never changed behind the player's back).
+        /// </summary>
+        public static LiftRope.Head Choose(double tensionLoaded, double tensionEmpty, double bendLoaded, double bendEmpty, HeadKit kit,
+                                           TowerKind kind, out bool unsuited)
         {
             kit ??= HeadKit.Quad;
+            unsuited = false;
             double gl = GroupLoad(tensionLoaded, bendLoaded), ge = GroupLoad(tensionEmpty, bendEmpty);
             int need = Math.Max(SheavesFor(tensionLoaded, bendLoaded), SheavesFor(tensionEmpty, bendEmpty));
-            if (gl <= -GroupMinimumNewtons && ge <= -GroupMinimumNewtons)
+            bool presses = gl <= -GroupMinimumNewtons && ge <= -GroupMinimumNewtons, pulls = gl >= GroupMinimumNewtons && ge >= GroupMinimumNewtons;
+            if (kind == TowerKind.Support && !presses || kind == TowerKind.HoldDown && !pulls || kind == TowerKind.Combination && need > 4)
+            {
+                unsuited = true;
+                return kind == TowerKind.Support ? (kit.Ten ? LiftRope.Head.B10 : LiftRope.Head.B8)
+                     : kind == TowerKind.HoldDown ? (kit.Ten ? LiftRope.Head.D10 : LiftRope.Head.D8)
+                     : LiftRope.Head.C8;
+            }
+            if (kind == TowerKind.Combination) return LiftRope.Head.C8;
+            if (presses)
             {
                 if (need <= 4) return LiftRope.Head.S4;
                 if (need <= 6) return LiftRope.Head.S6;

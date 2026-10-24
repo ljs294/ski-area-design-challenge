@@ -1,0 +1,184 @@
+{
+  "Version": 3,
+  "Name": "Teton plan",
+  "Autosave": false,
+  "SavedUtc": "2026-10-16T18:30:00Z",
+  "GameVersion": "0.2.0",
+  "PackageId": "5792676e513f5302",
+  "HeightsSha256": "52e1cd2c5c4f1d0bd0f2de3ebd3b0b5b9bb2a2dbd5e8e5d7bd1b2f3a1c4d5e6f",
+  "Design": {
+    "Shape": 3,
+    "Seed": "000000005eed2026",
+    "NextOrdinal": 10,
+    "Trails": [
+      {
+        "Id": "6b80dc361d27034d",
+        "Name": "Lower Run 1",
+        "Stage": "built",
+        "Grading": "graded",
+        "Kind": "run",
+        "Clearing": "clear",
+        "Head": [304800, 457200],
+        "Tail": [6096, 3048],
+        "Parts": [
+          {
+            "Strokes": [
+              {
+                "WidthMm": 30480,
+                "Erase": false,
+                "Points": [618744, 914400, 6096, 3048]
+              }
+            ],
+            "Cuts": [
+              {
+                "At": [304800, 457200],
+                "Dir": [-612648, -911352],
+                "KeepAhead": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "Id": "86428eb7d8def840",
+        "Name": "Planned glade",
+        "Stage": "plan",
+        "Grading": "graded",
+        "Kind": "run",
+        "Clearing": "clear",
+        "Head": [914400, 762000],
+        "Tail": [792480, 30480],
+        "Parts": [
+          {
+            "Strokes": [
+              {
+                "WidthMm": 30480,
+                "Erase": false,
+                "Points": [914400, 762000, 792480, 30480]
+              }
+            ],
+            "Cuts": []
+          }
+        ]
+      },
+      {
+        "Id": "8a6d1eba3040cc21",
+        "Name": "Run 1",
+        "Stage": "built",
+        "Grading": "graded",
+        "Kind": "run",
+        "Clearing": "clear",
+        "Head": [618744, 914400],
+        "Tail": [304800, 457200],
+        "Parts": [
+          {
+            "Strokes": [
+              {
+                "WidthMm": 30480,
+                "Erase": false,
+                "Points": [618744, 914400, 6096, 3048]
+              }
+            ],
+            "Cuts": [
+              {
+                "At": [304800, 457200],
+                "Dir": [-612648, -911352],
+                "KeepAhead": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "Id": "bdc4a885bb73a16a",
+        "Name": "Run 2",
+        "Stage": "built",
+        "Grading": "natural",
+        "Kind": "run",
+        "Clearing": "clear",
+        "Head": [606552, 908304],
+        "Tail": [731520, -54864],
+        "Parts": [
+          {
+            "Strokes": [
+              {
+                "WidthMm": 30480,
+                "Erase": false,
+                "Points": [606552, 908304, 731520, -54864]
+              }
+            ],
+            "Cuts": []
+          }
+        ]
+      }
+    ],
+    "Lifts": [
+      {
+        "Id": "54c7fa883b8f0a87",
+        "Name": "Chair 2",
+        "Stage": "built",
+        "Catalog": "sessellift-fgq4",
+        "Bottom": [731520, -60960],
+        "Top": [1219200, 792480],
+        "TowerMode": "automatic",
+        "Stance": "plumb",
+        "Towers": [],
+        "Levels": {
+          "BottomMm": 2012345,
+          "TopMm": 2188568
+        }
+      },
+      {
+        "Id": "729e7dd11af32480",
+        "Name": "Chair 1",
+        "Stage": "built",
+        "Catalog": "sessellift-fgq4",
+        "Bottom": [0, 0],
+        "Top": [609600, 914400],
+        "TowerMode": "automatic",
+        "Stance": "leaned",
+        "Towers": [
+          {
+            "Id": "faef8ff25e934590",
+            "AlongMm": 121920,
+            "HeightMm": 10668,
+            "Kind": "hold-down"
+          },
+          {
+            "Id": "1b192977a97c2a3e",
+            "AlongMm": 289560,
+            "HeightMm": 13716,
+            "Kind": "support"
+          },
+          {
+            "Id": "ab26774cd1a7c800",
+            "AlongMm": 457200,
+            "HeightMm": 9144,
+            "Kind": "combination"
+          }
+        ],
+        "Levels": null
+      }
+    ]
+  },
+  "Edits": {
+    "TileMetres": 64,
+    "Tiles": [
+      {
+        "Column": 11,
+        "Row": 7,
+        "Sha256": "f57b8838b0dd46a729359d0908453f058e06e82b41faf92374cdea4b0fac8360"
+      },
+      {
+        "Column": 12,
+        "Row": 7,
+        "Sha256": "2b1213351d5423509793a8ed11971feac886c0cc27420fea23b0bec09c9b5965"
+      },
+      {
+        "Column": 13,
+        "Row": 8,
+        "Sha256": "50f7e549213e0af7ee7052803ce038276eeca345d2150f0f28f340bff967be1c"
+      }
+    ]
+  }
+}

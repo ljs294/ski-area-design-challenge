@@ -481,7 +481,7 @@ namespace MountainPlanner.Domain.Design
                     bendL[i] = Math.Atan(_loaded[i + 1].Slope(ropeS[i + 1])) - Math.Atan(_loaded[i].Slope(ropeS[i + 1]));
                     bendE[i] = Math.Atan(_empty[i + 1].Slope(ropeS[i + 1])) - Math.Atan(_empty[i].Slope(ropeS[i + 1]));
                     double h = ropeY[i + 1] - ropeY[0];
-                    loads[i] = new TowerForces.Loads(t0 + wl * h, t0 + we * h, bendL[i], bendE[i], type.Heads);
+                    loads[i] = new TowerForces.Loads(t0 + wl * h, t0 + we * h, bendL[i], bendE[i], type.Heads, towers[i].Kind);
                     heads[i] = loads[i].Head;
                 }
             }

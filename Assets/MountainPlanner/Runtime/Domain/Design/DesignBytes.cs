@@ -148,6 +148,7 @@ namespace MountainPlanner.Domain.Design
                 w.U64(t.Id.Value);
                 w.I32(t.AlongMm);
                 w.I32(t.HeightMm);
+                w.U8((byte)t.Kind);   // shape 3 (LT44)
             }
             // Shape 2 (task 09): the terminal levels, absolute whole mm (SK14), or none.
             w.U8((byte)(l.Levels.HasValue ? 1 : 0));
@@ -169,7 +170,14 @@ namespace MountainPlanner.Domain.Design
             var mode = (TowerMode)r.U8();
             var stance = (TowerStance)r.U8();
             var towers = new Tower[r.Count(DesignRules.MaxTowersPerLift)];
-            for (int i = 0; i < towers.Length; i++) towers[i] = new Tower(new TowerId(r.U64()), r.I32(), r.I32());
+            for (int i = 0; i < towers.Length; i++)
+            {
+                var towerId = new TowerId(r.U64());
+                int along = r.I32(), height = r.I32();
+                byte kind = r.U8();
+                if (kind > (byte)TowerKind.Combination) throw new FormatException("A tower's kind isn't one this build knows.");
+                towers[i] = new Tower(towerId, along, height, (TowerKind)kind);
+            }
             LiftLevels? levels = null;
             byte has = r.U8();
             if (has > 1) throw new FormatException("A lift's levels flag isn't 0 or 1.");

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using MountainPlanner.Domain.Design;
 using NUnit.Framework;
 
@@ -130,6 +131,67 @@ namespace MountainPlanner.Tests
             Assert.That(TowerForces.HoldDownSheavesOf(LiftRope.Head.D10), Is.EqualTo(10));
             Assert.That(LiftType.Of(LiftCatalogIds.SesselliftD6).Heads, Is.SameAs(TowerForces.HeadKit.Wide));
             Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).Heads, Is.SameAs(TowerForces.HeadKit.Quad));
+        }
+
+        [Test]
+        public void TW04v3_TheKindChosenIsKeptAndSizedOrRed()
+        {
+            // LT44 (owner, second review E6): a tower's kind chosen by hand is the head's kind; the game sizes its sheaves, and a
+            // kind that can't carry the rope there is that kind's biggest head, marked unsuited (red), never changed.
+            double t = 80_000, down = -10 * Math.PI / 180, up = 10 * Math.PI / 180;
+            var kit = TowerForces.HeadKit.Quad;
+            Assert.That(TowerForces.Choose(t, t, down, down, kit, TowerKind.Support, out bool u1), Is.EqualTo(LiftRope.Head.S4));
+            Assert.That(u1, Is.False, "a support where the rope presses down");
+            Assert.That(TowerForces.Choose(t, t, down, down, kit, TowerKind.HoldDown, out bool u2), Is.EqualTo(LiftRope.Head.D8));
+            Assert.That(u2, Is.True, "a hold-down where it presses down can't hold it");
+            Assert.That(TowerForces.Choose(t, t, up, up, kit, TowerKind.HoldDown, out bool u3), Is.EqualTo(LiftRope.Head.D8));
+            Assert.That(u3, Is.False);
+            Assert.That(TowerForces.Choose(t, t, up, up, kit, TowerKind.Support, out bool u4), Is.EqualTo(LiftRope.Head.B8));
+            Assert.That(u4, Is.True, "a support where the rope pulls up");
+            Assert.That(TowerForces.Choose(t, t, down, down, kit, TowerKind.Combination, out bool u5), Is.EqualTo(LiftRope.Head.C8));
+            Assert.That(u5, Is.False, "a combination within its four sheaves");
+            Assert.That(TowerForces.Choose(t, t, 3 * down, 3 * down, kit, TowerKind.Combination, out bool u6), Is.EqualTo(LiftRope.Head.C8));
+            Assert.That(u6, Is.True, "a combination past its four sheaves");
+            Assert.That(TowerForces.Choose(t, t, up, up, TowerForces.HeadKit.Wide, TowerKind.Support, out _), Is.EqualTo(LiftRope.Head.B10), "the D6's own");
+            // Auto is the game's choice, as before.
+            Assert.That(TowerForces.Choose(t, t, down, down, kit, TowerKind.Auto, out bool u7), Is.EqualTo(TowerForces.Choose(t, t, down, down, kit)));
+            Assert.That(u7, Is.False);
+        }
+
+        [Test]
+        public void TW04v3_AnUnsuitedKindIsRedWithItsReason()
+        {
+            // A lift by hand on a crest: the crest tower made a hold-down is red, saying what would carry it; Auto isn't.
+            var quad = LiftType.Of(LiftCatalogIds.SesselliftFgq4);
+            const double West = 500_000.25, North = 4_200_000.75;
+            var ground = new Domain.Edits.EditedHeights(new Crest(North), new Domain.Edits.EditLattice(West, North), Domain.Edits.TerrainEdits.Empty);
+            double bx = West + 100, by = North - 900, ty = North - 100;
+            var auto = LiftBuild.Build(quad, ground, bx, by, bx, ty, TowerStance.Plumb);
+            int crest = 0;
+            for (int i = 1; i < auto.Rope.Towers.Count - 1; i++)
+                if (auto.Rope.Towers[i].BendLoaded < auto.Rope.Towers[crest].BendLoaded) crest = i;
+            Assume.That(TowerForces.IsSupport(auto.Rope.Towers[crest].Head), Is.True, "a support on the crest");
+            var specs = new System.Collections.Generic.List<TowerSpec>();
+            for (int i = 0; i < auto.Towers.Count; i++)
+                specs.Add(new TowerSpec(auto.Towers[i].AlongMm, auto.Towers[i].HeightMm, i == crest ? TowerKind.HoldDown : TowerKind.Auto));
+            var hand = LiftBuild.BuildWith(quad, ground, bx, by, bx, ty, specs, TowerStance.Plumb, auto.Levels);
+            Assert.That(hand.Towers[crest].Kind, Is.EqualTo(TowerKind.HoldDown), "kept as chosen");
+            Assert.That(hand.Rope.Towers[crest].Loads.Unsuited, Is.True);
+            Assert.That(hand.Rope.Towers[crest].Head, Is.EqualTo(LiftRope.Head.D8), "drawn as the kind chosen");
+            Assert.That(hand.Problems.Any(p => p.Rule == "TW-04" && p.Blocks && p.Message.Contains("hold-down") && p.Message.Contains("a support")), Is.True,
+                        string.Join("; ", hand.Problems));
+            Assert.That(hand.Ok, Is.False, "red");
+        }
+
+        sealed class Crest : Domain.Edits.IHeightSource
+        {
+            readonly double _north;
+            public Crest(double north) { _north = north; }
+            public double At(double x, double y)
+            {
+                double s = y - (_north - 900);
+                return 1500 + (s < 450 ? 0.35 * s : 157.5 + 0.05 * (s - 450));
+            }
         }
     }
 }
