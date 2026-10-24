@@ -38,7 +38,8 @@ namespace MountainPlanner.Tests
                 return rail;
             }
             var d6 = LiftType.Of(LiftCatalogIds.SesselliftD6);
-            return CarrierTrack.Detachable(up, Rail(620, 1), down, Rail(10, -1), line, (float)d6.AlightSpeed(line), (float)d6.BoardSpeed(line), (float)LiftType.RampAccel);
+            return CarrierTrack.Detachable(up, Rail(620, 1), down, Rail(10, -1), line, (float)d6.AlightSpeed(line), (float)d6.BoardSpeed(line),
+                                           (float)d6.TurnSpeed(line), (float)LiftType.RampAccel);
         }
 
         [Test]
@@ -47,7 +48,8 @@ namespace MountainPlanner.Tests
             var t = Track();
             var d6 = LiftType.Of(LiftCatalogIds.SesselliftD6);
             Assert.That(t.Speeds.Max(), Is.EqualTo(Line).Within(1e-4f), "line speed on the rope");
-            Assert.That(t.Speeds.Min(), Is.EqualTo((float)d6.BoardSpeed(Line)).Within(0.02f), "boarding speed round the bottom rail");
+            Assert.That(t.Speeds.Min(), Is.EqualTo((float)d6.TurnSpeed(Line)).Within(0.02f), "slowest round the bullwheel (E7)");
+            Assert.That(t.Speeds.Any(s => Mathf.Abs(s - (float)d6.BoardSpeed(Line)) < 0.02f), Is.True, "boarding speed on the way round");
             int count = Mathf.RoundToInt(t.LoopTime / (float)d6.IntervalSeconds);
             Assert.That(count, Is.GreaterThan(30));
             // G4: never closer than 3.5 m in the return's loop (2.5 m in the drive's); about speed × interval on the rail.
@@ -101,9 +103,17 @@ namespace MountainPlanner.Tests
                 view.Build(lift, new EditedHeights(ground.Source, ground.Lattice, b.Edits), new LocalFrame(new AlbersPoint(West + 100, North - 900)), LiftLivery.For(d6.CatalogId));
                 var track = view.Carriers;
                 Assert.That(track, Is.Not.Null);
-                Assert.That(track.Speeds.Min(), Is.EqualTo((float)d6.BoardSpeed(d6.SpeedMetresPerSecond)).Within(0.05f), "the chairs slow to board");
+                float line = (float)d6.SpeedMetresPerSecond;
+                Assert.That(track.Speeds.Min(), Is.EqualTo((float)d6.TurnSpeed(line)).Within(0.05f), "the chairs slow round the bullwheel");
                 Assert.That(view.ChairCount, Is.EqualTo(Mathf.RoundToInt(track.LoopTime / (float)d6.IntervalSeconds)), "one chair an interval round the loop");
-                Assert.That(track.SmallestGap(view.ChairCount), Is.GreaterThanOrEqualTo(2.5f), "G4");
+                Assert.That(track.SmallestGap(view.ChairCount), Is.GreaterThanOrEqualTo(3.5f), "G4");
+                // Finding E7: about five chairs in each terminal (a real six-pack's), not two: the time off the rope over the interval.
+                float inStations = 0;
+                for (int i = 1; i < track.Times.Length; i++)
+                    if (track.Speeds[i - 1] < line - 1e-3f || track.Speeds[i] < line - 1e-3f) inStations += track.Times[i] - track.Times[i - 1];
+                float chairs = inStations / (float)d6.IntervalSeconds;
+                Debug.Log($"D6: {chairs:F1} chairs in its two terminals at a time, smallest gap {track.SmallestGap(view.ChairCount):F2} m");
+                Assert.That(chairs, Is.InRange(8f, 12f), "about five in each terminal");
                 // The D6's own tower heads, from its kit (G2).
                 Assert.That(view.Root.GetComponentsInChildren<LiftRig>().Any(r => r.AssetId.StartsWith("sessellift_d6_tower_")), Is.True);
                 // Its two colours (LT41): black with a white accent.

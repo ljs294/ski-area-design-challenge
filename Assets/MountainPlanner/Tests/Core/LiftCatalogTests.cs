@@ -112,11 +112,16 @@ namespace MountainPlanner.Tests
             Assert.That(d6.BoardSpeed(0.5 * v), Is.EqualTo(LiftType.BoardMin));
             Assert.That(d6.LineSpacing(2 * v), Is.EqualTo(2 * d6.LineSpacing(v)).Within(1e-9));
             Assert.That(d6.Seats * 3600 / d6.IntervalSeconds, Is.EqualTo(d6.Capacity).Within(1e-6));
-            // The ramps: about 12 m from line speed down to boarding at 1 m/s².
-            Assert.That(LiftType.RampLength(v, d6.BoardSpeed(v)), Is.EqualTo(12.4).Within(0.2));
-            // The ride: the line at its speed, plus a second or two for each ramp.
+            // The ramps (finding E7): about 8 m from line speed down to boarding at 1.5 m/s².
+            Assert.That(LiftType.RampLength(v, d6.BoardSpeed(v)), Is.EqualTo(8.3).Within(0.2));
+            // Round the bullwheel slower still (E7): 0.55 m/s, scaling with the line within its band.
+            Assert.That(d6.TurnSpeed(v), Is.EqualTo(0.55).Within(0.01));
+            Assert.That(d6.TurnSpeed(0.5 * v), Is.EqualTo(LiftType.TurnMin));
+            Assert.That(d6.TurnSpeed(2 * v), Is.EqualTo(LiftType.TurnMax));
+            Assert.That(LiftType.TurnMin * d6.IntervalSeconds, Is.GreaterThanOrEqualTo(3.5), "never closer than G4's 3.5 m");
+            // The ride: the line at its speed, plus a second or so for each ramp.
             double ride = d6.RideSeconds(600);
-            Assert.That(ride - 600 / v, Is.InRange(2.0, 4.0));
+            Assert.That(ride - 600 / v, Is.InRange(1.5, 4.0));
             Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).RideSeconds(600), Is.EqualTo(600 / LiftType.Of(LiftCatalogIds.SesselliftFgq4).SpeedMetresPerSecond));
         }
 

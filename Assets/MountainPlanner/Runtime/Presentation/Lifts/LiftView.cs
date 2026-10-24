@@ -636,7 +636,8 @@ namespace MountainPlanner.Presentation.Lifts
             }
             Orient(topRail, up[up.Count - 1]);
             Orient(bottomRail, down[down.Count - 1]);
-            return CarrierTrack.Detachable(up, topRail, down, bottomRail, v, (float)type.AlightSpeed(v), (float)type.BoardSpeed(v), (float)LiftType.RampAccel);
+            return CarrierTrack.Detachable(up, topRail, down, bottomRail, v, (float)type.AlightSpeed(v), (float)type.BoardSpeed(v), (float)type.TurnSpeed(v),
+                                           (float)LiftType.RampAccel);
         }
 
         void PrepareChairs(GameObject chair, LiftLivery livery, LiftType type, CarrierTrack track)

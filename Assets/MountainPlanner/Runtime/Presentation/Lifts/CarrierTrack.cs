@@ -7,7 +7,8 @@ namespace MountainPlanner.Presentation.Lifts
     /// The way a lift's carriers go round, with the speed and time at every point (LT41). On a fixed grip it's the rope
     /// loop at rope speed. On a detachable, the carriers leave the rope at each station and run round its rail: they slow
     /// on the tyre conveyors from line speed to the station's speed (boarding at the bottom, unloading at the top) at
-    /// <see cref="Domain.Design.LiftType.RampAccel"/>, and speed back up before they rejoin the rope. Built once per lift;
+    /// <see cref="Domain.Design.LiftType.RampAccel"/>, slower still round the bullwheel (finding E7), and speed back up
+    /// before they rejoin the rope. Built once per lift;
     /// <see cref="DistanceAt"/> allocates nothing. Gondolas reuse it with their own station speeds and rails.
     /// </summary>
     public sealed class CarrierTrack
@@ -35,10 +36,11 @@ namespace MountainPlanner.Presentation.Lifts
         /// A detachable's track: <paramref name="up"/> (the loaded rope, bottom to top), the top station's rail, the
         /// <paramref name="down"/> rope (top to bottom) and the bottom station's rail, each rail in travel order. On the
         /// rails the carriers slow from <paramref name="line"/> speed to <paramref name="alight"/> (top) and
-        /// <paramref name="board"/> (bottom) and back, at <paramref name="accel"/>.
+        /// <paramref name="board"/> (bottom), to <paramref name="turn"/> round the bullwheel (where the rail turns), and back,
+        /// at <paramref name="accel"/>.
         /// </summary>
         public static CarrierTrack Detachable(IReadOnlyList<Vector3> up, IReadOnlyList<Vector3> topRail, IReadOnlyList<Vector3> down,
-                                              IReadOnlyList<Vector3> bottomRail, float line, float alight, float board, float accel)
+                                              IReadOnlyList<Vector3> bottomRail, float line, float alight, float board, float turn, float accel)
         {
             var points = new List<Vector3>(up.Count + down.Count + 256);
             var speeds = new List<float>(points.Capacity);
@@ -50,16 +52,33 @@ namespace MountainPlanner.Presentation.Lifts
             {
                 // Resampled every half metre, so the ramps are smooth; the speed eases down from the rope's and back.
                 var dense = Resample(rail, 0.5f);
-                float length = 0;
-                for (int i = 1; i < dense.Count; i++) length += Vector3.Distance(dense[i - 1], dense[i]);
-                float walked = 0;
-                for (int i = 0; i < dense.Count; i++)
+                int n = dense.Count;
+                var at = new float[n];
+                for (int i = 1; i < n; i++) at[i] = at[i - 1] + Vector3.Distance(dense[i - 1], dense[i]);
+                float length = n > 0 ? at[n - 1] : 0;
+                // The speed each point allows: the station's along the straights, the turn's where the rail has turned away
+                // from both the way in and the way out (round the bullwheel); then eased so no point asks for more than
+                // the ramp can give either way (a forward and a backward pass).
+                var allow = new float[n];
+                Vector3 Flat(Vector3 v) => new Vector3(v.x, 0, v.z).normalized;
+                var inDir = n > 1 ? Flat(dense[1] - dense[0]) : Vector3.forward;
+                var outDir = n > 1 ? Flat(dense[n - 1] - dense[n - 2]) : Vector3.forward;
+                float cosTurned = Mathf.Cos(15 * Mathf.Deg2Rad);
+                for (int i = 0; i < n; i++)
                 {
-                    if (i > 0) walked += Vector3.Distance(dense[i - 1], dense[i]);
-                    float fromEnd = Mathf.Min(walked, length - walked);
+                    var here = Flat(dense[Mathf.Min(n - 1, i + 1)] - dense[Mathf.Max(0, i - 1)]);
+                    bool turning = Vector3.Dot(here, inDir) < cosTurned && Vector3.Dot(here, outDir) < cosTurned;
+                    allow[i] = Mathf.Min(line, turning ? Mathf.Min(turn, station) : station);
+                }
+                for (int i = 1; i < n; i++) allow[i] = Mathf.Min(allow[i], Mathf.Sqrt(allow[i - 1] * allow[i - 1] + 2 * accel * (at[i] - at[i - 1])));
+                for (int i = n - 2; i >= 0; i--) allow[i] = Mathf.Min(allow[i], Mathf.Sqrt(allow[i + 1] * allow[i + 1] + 2 * accel * (at[i + 1] - at[i])));
+                for (int i = 0; i < n; i++)
+                {
+                    // Off the rope at line speed, it slows no faster than the ramp from either end of the rail.
+                    float fromEnd = Mathf.Min(at[i], length - at[i]);
                     float ramp = Mathf.Sqrt(Mathf.Max(0, line * line - 2 * accel * fromEnd));
                     points.Add(dense[i]);
-                    speeds.Add(Mathf.Clamp(ramp, Mathf.Min(station, line), line));
+                    speeds.Add(Mathf.Clamp(Mathf.Max(ramp, allow[i]), Mathf.Min(turn, line), line));
                 }
             }
             Rope(up);

@@ -49,8 +49,16 @@ namespace MountainPlanner.Domain.Design
         /// and deboarding figures), held within realistic bands, so a line-speed slider scales them by itself.</summary>
         public const double BoardFraction = 1.0 / 5.08, AlightFraction = 1.4 / 5.08;
         public const double BoardMin = 0.8, BoardMax = 1.2, AlightMin = 1.1, AlightMax = 1.6;
-        /// <summary>LT41: the tyre conveyors slow the carriers in and speed them out at this rate (a game choice), m/s².</summary>
-        public const double RampAccel = 1.0;
+        /// <summary>LT41: the tyre conveyors slow the carriers in and speed them out at this rate, m/s². A game choice: no
+        /// source gives it; 1.5 (was 1.0) slows them within about 8 m of the station's entry, so on the D6's 40 m rail most of
+        /// the way round is slow and about five chairs stand in a terminal, as on the owner's photo (finding E7).</summary>
+        public const double RampAccel = 1.5;
+        /// <summary>Finding E7: round the bullwheel the carriers go slower still, a fraction of the line speed held within a
+        /// band (0.55 m/s at 1,000 fpm), so they bunch there about 4 m apart at the D6's 7.2 s, as a real terminal's do (a
+        /// detachable quad's terminal: about 4.1 m at 0.8 m/s with a 5.1 s interval). The band's floor keeps G4's 3.5 m.</summary>
+        public const double TurnFraction = 0.55 / 5.08, TurnMin = 0.5, TurnMax = 0.8;
+        /// <summary>The speed round a station's bullwheel at a line speed; a fixed grip keeps line speed.</summary>
+        public double TurnSpeed(double line) => Detachable ? Math.Max(TurnMin, Math.Min(TurnMax, line * TurnFraction)) : line;
         /// <summary>Boarding speed (the bottom station) at a line speed; a fixed grip loads at line speed.</summary>
         public double BoardSpeed(double line) => Detachable ? Math.Max(BoardMin, Math.Min(BoardMax, line * BoardFraction)) : line;
         /// <summary>Deboarding speed (the top station) at a line speed.</summary>
