@@ -251,6 +251,8 @@ namespace MountainPlanner.App
                 }
                 int bench = Array.IndexOf(args, "-benchmark");
                 if (bench >= 0 && bench + 1 < args.Length) StartCoroutine(RunBenchmark(args[bench + 1]));
+                int hold = Array.IndexOf(args, "-holdview");
+                if (hold >= 0 && hold + 1 < args.Length) StartCoroutine(RunHoldView(args[hold + 1]));
                 int benchViews = Array.IndexOf(args, "-benchmark-views");
                 if (benchViews >= 0 && benchViews + 1 < args.Length) StartCoroutine(RunViewBenchmark(args[benchViews + 1]));
                 int movie = Array.IndexOf(args, "-pathmovie");
@@ -594,6 +596,7 @@ namespace MountainPlanner.App
         void LateUpdate()
         {
             DrawChairs();   // after the camera has moved, for its LODs
+            LogHeightReads();
             if (_contourLabels == null || _resort == null) return;
             _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _resort?.Surface, _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
             TickTrailLayer(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);   // task 08

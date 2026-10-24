@@ -38,7 +38,7 @@ namespace MountainPlanner.Domain.Design
         protected override CommandResult Run(DesignDocument doc)
         {
             string problem = DesignRules.NameProblem(Name) ?? DesignRules.StageProblem(Stage)
-                ?? DesignRules.LiftLineProblem(CatalogId, Bottom, Top, TowerMode, Stance);
+                ?? DesignRules.LiftLineProblem(CatalogId, Bottom, Top, TowerMode, Stance) ?? DesignRules.BuildableProblem(CatalogId);
             if (problem != null) return Invalid(doc, problem);
             var mint = new IdMint(doc);
             var created = new List<ulong>();
@@ -71,7 +71,7 @@ namespace MountainPlanner.Domain.Design
             if (l == null) return Missing(doc, "That lift");
             var mint = new IdMint(doc);
             var id = mint.Tower();
-            var towers = new List<Tower>(l.Towers) { new Tower(id, Tower.AlongMm, Tower.HeightMm) };
+            var towers = new List<Tower>(l.Towers) { new Tower(id, Tower.AlongMm, Tower.HeightMm, Tower.Kind) };
             var next = l.WithTowers(towers);
             if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers, next.CatalogId) is string p) return Invalid(doc, p);
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(next), id.Value);
@@ -101,7 +101,7 @@ namespace MountainPlanner.Domain.Design
             int i = l.IndexOfTower(Tower);
             if (l.Towers[i].AlongMm == AlongMm && l.Towers[i].HeightMm == HeightMm) return Invalid(doc, "Nothing changes.");
             var towers = new List<Tower>(l.Towers);
-            towers[i] = new Tower(Tower, AlongMm, HeightMm);
+            towers[i] = new Tower(Tower, AlongMm, HeightMm, l.Towers[i].Kind);
             var next = l.WithTowers(towers);
             if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers, next.CatalogId) is string p) return Invalid(doc, p);
             return CommandResult.Accept(doc.PutLift(next));
@@ -320,6 +320,8 @@ namespace MountainPlanner.Domain.Design
             var l = doc.FindLift(Lift);
             if (l == null) return Missing(doc, "That lift");
             if (DesignRules.LiftLineProblem(CatalogId, Bottom, Top, TowerMode, Stance) is string p) return Invalid(doc, p);
+            // LT41: a lift already in the design keeps its type; changing to another needs one that can be built.
+            if (CatalogId != l.CatalogId && DesignRules.BuildableProblem(CatalogId) is string b) return Invalid(doc, b);
             if (Name != null && DesignRules.NameProblem(Name) is string n) return Invalid(doc, n);
             var towers = new List<Tower>();
             var seen = new HashSet<ulong>();
@@ -348,7 +350,7 @@ namespace MountainPlanner.Domain.Design
             {
                 var id = mint.Tower();
                 created.Add(id.Value);
-                towers.Add(new Tower(id, s.AlongMm, s.HeightMm));
+                towers.Add(new Tower(id, s.AlongMm, s.HeightMm, s.Kind));
             }
             return towers;
         }

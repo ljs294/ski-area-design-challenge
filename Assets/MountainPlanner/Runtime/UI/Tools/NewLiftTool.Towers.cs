@@ -97,7 +97,7 @@ namespace MountainPlanner.UI.Tools
         {
             ByHandNow();
             change(_placed);
-            for (int i = 0; i < _placed.Count; i++) _placed[i] = new Tower(TowerId.Make(5, i), _placed[i].AlongMm, _placed[i].HeightMm);
+            for (int i = 0; i < _placed.Count; i++) _placed[i] = _placed[i].WithId(TowerId.Make(5, i));
             _armReplace = false;
             AfterChange(true);
         }
@@ -181,7 +181,7 @@ namespace MountainPlanner.UI.Tools
             LiftLevels levels = BuiltIsCurrent() ? _built.Levels : _hand != null ? _hand.Levels
                 : LiftLevels.FromMetres(_bottomZ, _topZ);
             var stored = new List<Tower>(towers.Count);
-            for (int i = 0; i < towers.Count; i++) stored.Add(new Tower(TowerId.Make(5, i), towers[i].AlongMm, towers[i].HeightMm));
+            for (int i = 0; i < towers.Count; i++) stored.Add(towers[i].WithId(TowerId.Make(5, i)));
             _ctx.ShowDraftLift(new Lift(LiftId.Make(5, 0), _name, WorkStage.Built, _catalogId, _bottom, _top, _mode, _stance, stored, levels));
             _ctx.BottomGhost?.Hide();   // the draft's own terminals stand there now
             _ctx.TopGhost?.Hide();
@@ -279,7 +279,7 @@ namespace MountainPlanner.UI.Tools
                 _filling = false;
                 if (_step != Step.Towers) return;
                 _placed.Clear();
-                for (int i = 0; i < r.Towers.Count; i++) _placed.Add(new Tower(TowerId.Make(5, i), r.Towers[i].AlongMm, r.Towers[i].HeightMm));
+                for (int i = 0; i < r.Towers.Count; i++) _placed.Add(new Tower(TowerId.Make(5, i), r.Towers[i].AlongMm, r.Towers[i].HeightMm, r.Towers[i].Kind));
                 AfterChange(true);
                 if (r.Problem is LiftProblem p) _ctx.Window.SetMessage(p.Message);
                 else Go(Step.Review);
@@ -332,7 +332,7 @@ namespace MountainPlanner.UI.Tools
             else w.SetMessage(null);
             w.SetKeys((GameAction.TowerSlideBack, "slide"), (GameAction.TowerSlideOn, "slide"), (GameAction.TowerUp, "taller"),
                       (GameAction.TowerDown, "shorter"), (GameAction.ToolNext, _editor != null && _editor.Adding ? "place" : "review"),
-                      (GameAction.DeleteSelected, _editor != null && _editor.Selected >= 0 ? "remove" : "take back"), (GameAction.TowerAdd, "add"));
+                      (GameAction.DeleteSelected, _editor != null && _editor.Selected >= 0 ? "remove" : "take back"), (GameAction.TowerAdd, "add"), (GameAction.TowerKind, "kind"));
             w.SetButtons(
                 ("fill", "Fill the rest", _filling || _hand == null || complete ? null : (System.Action)FillTheRest),
                 ("add", "Add tower", _filling || _hand == null || _editor == null || _editor.Adding ? null : (System.Action)(() => _editor.StartAdding())),

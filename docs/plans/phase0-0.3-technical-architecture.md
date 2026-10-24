@@ -356,7 +356,7 @@ frozen format ships with a migration and a fixture test.
 | Recently opened list | `<data>/recent.json` | `Version` | 1 | `…/v1-library/recent.json` |
 | View state | `<package>/view.json` | `Version` | 2 | v1: `…/v1-library/Resorts/5792676e513f5302/view.json`; v2 (adds `Name`, task P2-04): `TestData/formats/v2-view/view.json` |
 | Paused download | `<data>/Downloads/<id>/download.json` | `Version` | 1 | `…/v1-library/Downloads/*/download.json` |
-| Save (task P3-04; v2 task P3-09) | `<data>/Saves/<packageId>/<saveId>/save.json` + `tiles/<sha256>.tile` | `Version` | 2 | `TestData/formats/v1-save`, `v2-save` |
+| Save (task P3-04; v2 and v3 task P3-09) | `<data>/Saves/<packageId>/<saveId>/save.json` + `tiles/<sha256>.tile` | `Version` | 3 | `TestData/formats/v1-save`, `v2-save`, `v3-save` |
 
 **The rules:**
 1. **Every file is read through its format's `VersionedJson`** (`Persistence/VersionedJson.cs`). The version comes from

@@ -29,7 +29,9 @@ namespace MountainPlanner.Presentation.Lifts
         readonly LiftMaterials _materials;
         readonly Material _cableMaterial;
         readonly List<string> _heads = new List<string>();
-        readonly string _prefix;
+        /// <summary>The type's tower kit (G2, LT41): its parts first, the quad's where it has none.</summary>
+        string _kit = Quad;
+        const string Quad = "sessellift_fgq4_";
         Mesh _cable;
 
         // The rope loop in world space, in travel order, with the distance walked to each point.
@@ -38,8 +40,10 @@ namespace MountainPlanner.Presentation.Lifts
         float _loopLength;
         Bounds _bounds;
         int _chairCount;
-        float _chairSpacing;
-        float _speed;
+        float _chairInterval;   // seconds between carriers round the track (LT41)
+        CarrierTrack _track;
+        /// <summary>The carriers' track (tests and captures).</summary>
+        public CarrierTrack Carriers => _track;
         ChairLod[] _chairLods = Array.Empty<ChairLod>();
         float[] _lodDistances = Array.Empty<float>();
 
@@ -65,12 +69,11 @@ namespace MountainPlanner.Presentation.Lifts
             _models = models;
             _materials = materials;
             _cableMaterial = cableMaterial;
-            _prefix = "sessellift_fgq4_";
             Root = new GameObject(name);
             Root.transform.SetParent(parent, false);
         }
 
-        GameObject Prefab(string id) => Model(_prefix + id);
+        GameObject Prefab(string id) => (_kit != Quad ? Model(_kit + id) : null) ?? Model(Quad + id);
         GameObject Model(string assetId) => _models != null ? _models.Find(assetId) : null;
 
         /// <summary>
@@ -141,15 +144,16 @@ namespace MountainPlanner.Presentation.Lifts
         /// <summary>
         /// Builds the lift: terminals at its bullwheels, towers, the solved rope and the chairs. Heights are the edited
         /// ground (<paramref name="ground"/>, in the package's frame); <paramref name="frame"/> turns design points into
-        /// local metres. The livery colours the drive's hood.
+        /// local metres. The livery is the lift's two colours (LT41): the primary on the parts the models mark as livery, the accent on theirs.
         /// </summary>
         /// <remarks>Each terminal stands at the lift's stored level (SK14, save v2): a raised terminal stands on its pier
         /// above the ground (LF-12 v3, pads only cut). A lift without levels (from a v1 save) stands at its origins' ground.</remarks>
-        public void Build(Lift lift, IHeightSource ground, LocalFrame frame, Color livery)
+        public void Build(Lift lift, IHeightSource ground, LocalFrame frame, LiftLivery livery)
         {
             Clear();
             (double Bottom, double Top)? levels = lift.Levels is LiftLevels v ? (v.BottomMetres, v.TopMetres) : ((double, double)?)null;
             var type = LiftTypes.Measured(LiftType.Of(lift.CatalogId), _models);
+            _kit = type.TowerKit;
             var bottom = new Vector3((float)lift.Bottom.XMetres, 0, (float)lift.Bottom.YMetres);
             var top = new Vector3((float)lift.Top.XMetres, 0, (float)lift.Top.YMetres);
             double Height(Vector3 p)
@@ -230,7 +234,7 @@ namespace MountainPlanner.Presentation.Lifts
             }
             SetLoop(loop);
             BuildCable((float)type.RopeDiameterMetres / 2);
-            PrepareChairs(Prefab("chair"), livery, (float)type.ChairSpacingMetres, (float)type.SpeedMetresPerSecond);
+            PrepareChairs(Prefab("chair"), livery, type, Track(type, retRig, driveRig, bottom, dir));
         }
 
         /// <summary>
@@ -239,7 +243,7 @@ namespace MountainPlanner.Presentation.Lifts
         /// pivots turned to match, and the loop built through the sheaves' contact points and the spans between them.
         /// Returns false (and changes nothing) when any model isn't posable.
         /// </summary>
-        bool TryPosedLoop(LiftType type, LiftRig retRig, LiftRig driveRig, List<LiftRig> heads, Vector3 bottom, Vector3 dir, Vector3 right, Color livery)
+        bool TryPosedLoop(LiftType type, LiftRig retRig, LiftRig driveRig, List<LiftRig> heads, Vector3 bottom, Vector3 dir, Vector3 right, LiftLivery livery)
         {
             // Our right (the loaded, uphill rope) is the return's right, and the towers' and the drive's left: they face down the line.
             string[] up = { "r", "l", "l" }, down = { "l", "r", "r" };
@@ -270,8 +274,8 @@ namespace MountainPlanner.Presentation.Lifts
                     double bend = Rope.Towers[i].BendEmpty;
                     above.Add(bend <= 0);
                     turn.Add(bend > 0 ? 1 : bend < 0 ? -1 : 0);
-                    bool support = Rope.Towers[i].Head == LiftRope.Head.S4 || Rope.Towers[i].Head == LiftRope.Head.S6 || Rope.Towers[i].Head == LiftRope.Head.B8;
-                    if (side == 0 && (support && bend > 0 || Rope.Towers[i].Head == LiftRope.Head.D8 && bend < 0 || Rope.Towers[i].Head == LiftRope.Head.TooSharp))
+                    bool support = TowerForces.IsSupport(Rope.Towers[i].Head);
+                    if (side == 0 && (support && bend > 0 || TowerForces.IsHoldDown(Rope.Towers[i].Head) && bend < 0 || Rope.Towers[i].Head == LiftRope.Head.TooSharp))
                     {
                         SideMismatches++;
                         MismatchNote += $" #{i} {Rope.Towers[i].Head} at {Rope.Towers[i].BaseS / 0.3048:F0} ft (bend {bend * 180 / Math.PI:F1}°/{Rope.Towers[i].BendLoaded * 180 / Math.PI:F1}° loaded)";
@@ -313,26 +317,35 @@ namespace MountainPlanner.Presentation.Lifts
                         }
                     }
                 }
+                // A detachable's station rope climbs to its bend sheaves before it runs level out (G2).
+                void Bend(LiftRig rig, string sideName) { var b = rig.Socket($"rope_{sideName}_bend"); if (b != null) loop.Add(b.position); }
                 if (side == 0)
                 {
                     loop.Add(retRig.Socket("rope_right_bw").position);
+                    Bend(retRig, "right");
                     loop.AddRange(points);
+                    Bend(driveRig, "left");
                     loop.Add(driveRig.Socket("rope_left_bw").position);
                     AddWheel(loop, driveRig, driveRig.Socket("rope_left_bw").position, driveRig.Socket("rope_right_bw").position);
                 }
                 else
                 {
                     loop.Add(driveRig.Socket("rope_right_bw").position);
+                    Bend(driveRig, "right");
                     points.Reverse();
                     loop.AddRange(points);
+                    Bend(retRig, "left");
                     loop.Add(retRig.Socket("rope_left_bw").position);
                     AddWheel(loop, retRig, retRig.Socket("rope_left_bw").position, retRig.Socket("rope_right_bw").position);
                 }
             }
+            // G8: a pivot marked to follow another (the D6's walkways, pinned to their crossarm's hanger) takes that pivot's
+            // world turn, whatever its own parents do, so the walkway turns with its train.
+            foreach (var rig in heads) Follow(rig);
             Posed = true;
             SetLoop(loop);
             BuildCable((float)type.RopeDiameterMetres / 2);
-            PrepareChairs(Prefab("chair"), livery, (float)type.ChairSpacingMetres, (float)type.SpeedMetresPerSecond);
+            PrepareChairs(Prefab("chair"), livery, type, Track(type, retRig, driveRig, bottom, dir));
             return true;
         }
 
@@ -347,19 +360,24 @@ namespace MountainPlanner.Presentation.Lifts
 
         static Vector3 Flat(Vector3 p) => new Vector3(p.x, 0, p.z);
 
-        static string HeadId(LiftRope.Head head)
+        string HeadId(LiftRope.Head head)
         {
+            // TooSharp is drawn as the kit's biggest support head: the D6's b10, the quads' b8 (until TW-06 is resolved).
+            if (head == LiftRope.Head.TooSharp && _kit != Quad && Model(_kit + "tower_b10") != null) return "tower_b10";
             switch (head)
             {
                 case LiftRope.Head.S4: return "tower_s4";
                 case LiftRope.Head.S6: return "tower_s6";
                 case LiftRope.Head.D8: return "tower_d8";
                 case LiftRope.Head.C8: return "tower_c8";
+                case LiftRope.Head.S10: return "tower_s10";   // the wide kit's (G6, LT41)
+                case LiftRope.Head.B10: return "tower_b10";
+                case LiftRope.Head.D10: return "tower_d10";
                 default: return "tower_b8";   // B8, and TooSharp drawn as the biggest support until task 09 reports it
             }
         }
 
-        GameObject PlaceTerminal(GameObject prefab, Vector3 bullwheel, Quaternion rotation, Func<Vector3, double> height, Color livery,
+        GameObject PlaceTerminal(GameObject prefab, Vector3 bullwheel, Quaternion rotation, Func<Vector3, double> height, LiftLivery livery,
                                  double? level = null)
         {
             if (prefab == null) return null;
@@ -373,7 +391,7 @@ namespace MountainPlanner.Presentation.Lifts
             return Spawn(prefab, origin, rotation, livery);
         }
 
-        void PlaceFooting(GameObject terminal, Func<Vector3, double> height, Color livery)
+        void PlaceFooting(GameObject terminal, Func<Vector3, double> height, LiftLivery livery)
         {
             // A footing at grade under every pier: "pier_top", or "pier_top_<n>" for a terminal on several (the Monta's, LT36).
             var footing = Prefab("terminal_footing");
@@ -388,7 +406,7 @@ namespace MountainPlanner.Presentation.Lifts
             }
         }
 
-        GameObject Spawn(GameObject prefab, Vector3 position, Quaternion rotation, Color livery)
+        GameObject Spawn(GameObject prefab, Vector3 position, Quaternion rotation, LiftLivery livery)
         {
             var go = Object.Instantiate(prefab, position, rotation, Root.transform);
             _partOf[go] = _spawning;
@@ -402,7 +420,7 @@ namespace MountainPlanner.Presentation.Lifts
         /// axis; the base rides up or down by the remainder (under half a metre), as a footing would, and up by a station
         /// tower's foundation <paramref name="reveal"/> (TW-02 v3).
         /// </summary>
-        GameObject SpawnTower(string headId, Vector3 position, Quaternion facing, Quaternion lean, float steel, float reveal, Color livery)
+        GameObject SpawnTower(string headId, Vector3 position, Quaternion facing, Quaternion lean, float steel, float reveal, LiftLivery livery)
         {
             var head = Prefab(headId);
             var mast = Prefab("tower_mast");
@@ -411,7 +429,7 @@ namespace MountainPlanner.Presentation.Lifts
             int tenths = Mathf.RoundToInt(degrees / 2.5f) * 25;
             var foundation = (tenths > 0 ? Prefab($"tower_base_l{tenths:000}") : null) ?? Prefab("tower_base");
             if (head == null || mast == null || foundation == null) return null;
-            bool leanedBase = foundation.name != _prefix + "tower_base";
+            bool leanedBase = !foundation.name.EndsWith("tower_base", StringComparison.Ordinal);
             var footLocal = foundation.GetComponent<LiftRig>().Socket("mast_foot").localPosition;
             float foot = footLocal.y;
             float ropeOnHead = head.GetComponent<LiftRig>().Socket("rope_right").localPosition.y;
@@ -432,9 +450,10 @@ namespace MountainPlanner.Presentation.Lifts
         /// head), its foot at <see cref="Root"/>'s origin, the platform side (+Z) toward the bottom terminal, leaned
         /// <paramref name="leanRadians"/> down the line. Whatever was built before goes.
         /// </summary>
-        public void BuildLoneTower(LiftRope.Head head, float leanRadians, float steel, Color livery)
+        public void BuildLoneTower(LiftRope.Head head, float leanRadians, float steel, LiftLivery livery, string kit = Quad)
         {
             Clear();
+            _kit = kit ?? Quad;
             var at = Root.transform;
             var (position, rotation) = (at.position, at.rotation);
             at.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
@@ -469,6 +488,9 @@ namespace MountainPlanner.Presentation.Lifts
                     }
                 }
             }
+            // A detachable's station (G2): the rope climbs in the wheel's plane to its bend sheaves, then runs level out.
+            var bend = rig.Socket($"rope_{side}_bend");
+            if (hold == null && bend != null) points.Add(bend.position);
             points.Add(exit);
             return points;
         }
@@ -567,13 +589,66 @@ namespace MountainPlanner.Presentation.Lifts
         }
 
         /// <summary>Takes the chair's LODs apart into meshes and materials for instanced drawing, and sizes the matrices.</summary>
-        void PrepareChairs(GameObject chair, Color livery, float spacing, float speed)
+        static void Follow(LiftRig rig)
+        {
+            if (rig == null || rig.PivotFollows == null) return;
+            for (int i = 0; i < rig.PivotFollows.Length && i < rig.Pivots.Length; i++)
+            {
+                int f = rig.PivotFollows[i];
+                if (f >= 0 && rig.Pivots[i] != null && rig.Pivots[f] != null) rig.Pivots[i].rotation = rig.Pivots[f].rotation;
+            }
+        }
+
+        /// <summary>
+        /// The carriers' track (LT41): a detachable's runs up the loaded rope, round the top station's rail, down the other
+        /// rope and round the bottom station's (the terminals' <c>chairs</c> paths); a fixed grip's is the rope loop.
+        /// </summary>
+        CarrierTrack Track(LiftType type, LiftRig bottomRig, LiftRig topRig, Vector3 bottom, Vector3 dir)
+        {
+            float v = (float)type.SpeedMetresPerSecond;
+            var bottomPath = bottomRig != null ? bottomRig.Path("chairs") : null;
+            var topPath = topRig != null ? topRig.Path("chairs") : null;
+            if (!type.Detachable || bottomPath == null || topPath == null || bottomPath.Length < 2 || topPath.Length < 2)
+                return CarrierTrack.Uniform(_loop, v);
+            var bottomRail = new List<Vector3>(bottomPath.Length);
+            foreach (var q in bottomPath) bottomRail.Add(bottomRig.transform.TransformPoint(q));
+            var topRail = new List<Vector3>(topPath.Length);
+            foreach (var q in topPath) topRail.Add(topRig.transform.TransformPoint(q));
+            float S(Vector3 q) => Vector3.Dot(q - bottom, dir);
+            float from = float.MinValue, to = float.MaxValue;
+            foreach (var q in bottomRail) from = Mathf.Max(from, S(q));
+            foreach (var q in topRail) to = Mathf.Min(to, S(q));
+            // The rope between the rails' ends, each side in the loop's (travel) order: up the right, down the left.
+            var right = Vector3.Cross(Vector3.up, dir);
+            var up = new List<Vector3>();
+            var down = new List<Vector3>();
+            foreach (var q in _loop)
+            {
+                float s = S(q);
+                if (s <= from || s >= to) continue;
+                (Vector3.Dot(q - bottom, right) > 0 ? up : down).Add(q);
+            }
+            if (up.Count < 2 || down.Count < 2) return CarrierTrack.Uniform(_loop, v);
+            // Each rail taken from the end nearest the rope that arrives at it.
+            void Orient(List<Vector3> rail, Vector3 arriving)
+            {
+                if (Vector3.Distance(rail[rail.Count - 1], arriving) < Vector3.Distance(rail[0], arriving)) rail.Reverse();
+            }
+            Orient(topRail, up[up.Count - 1]);
+            Orient(bottomRail, down[down.Count - 1]);
+            return CarrierTrack.Detachable(up, topRail, down, bottomRail, v, (float)type.AlightSpeed(v), (float)type.BoardSpeed(v), (float)type.TurnSpeed(v),
+                                           (float)LiftType.RampAccel);
+        }
+
+        void PrepareChairs(GameObject chair, LiftLivery livery, LiftType type, CarrierTrack track)
         {
             _chairCount = 0;
-            if (chair == null || _loopLength <= 0) return;
-            _chairCount = Mathf.Max(1, Mathf.FloorToInt(_loopLength / spacing));
-            _chairSpacing = _loopLength / _chairCount;   // the same chairs evenly round the whole loop
-            _speed = speed;
+            _track = track;
+            if (chair == null || track == null || track.LoopTime <= 0) return;
+            // LT41: the carriers come round one loading interval apart, so they bunch where they're slow (a detachable's
+            // stations) and spread where they're fast; on a fixed grip that's the spacing.
+            _chairCount = Mathf.Max(1, Mathf.RoundToInt(track.LoopTime / (float)type.IntervalSeconds));
+            _chairInterval = track.LoopTime / _chairCount;
             var instance = Object.Instantiate(chair);
             _materials?.Apply(instance, livery);
             var group = instance.GetComponent<LODGroup>();
@@ -645,17 +720,19 @@ namespace MountainPlanner.Presentation.Lifts
             foreach (var lod in _chairLods)
                 foreach (var p in lod.Parts) p.Count = 0;
             var eye = camera.transform.position;
-            float shift = (float)((seconds * _speed) % _loopLength);
+            float loopTime = _track.LoopTime;
+            float shift = (float)(seconds % loopTime);
+            var points = _track.Points;
+            var walked = _track.Walked;
             int seg = 1;
             for (int k = 0; k < _chairCount; k++)
             {
-                float d = (_chairSpacing * k + shift) % _loopLength;
-                if (seg >= _walked.Length || _walked[seg - 1] > d) seg = 1;
-                while (seg < _walked.Length - 1 && _walked[seg] < d) seg++;
-                float span = _walked[seg] - _walked[seg - 1];
-                var a = _loop[seg - 1];
-                var b = _loop[seg];
-                var p = span > 0 ? Vector3.Lerp(a, b, (d - _walked[seg - 1]) / span) : a;
+                float t = (_chairInterval * k + shift) % loopTime;
+                float d = _track.DistanceAt(t, ref seg);
+                float span = walked[seg] - walked[seg - 1];
+                var a = points[seg - 1];
+                var b = points[seg];
+                var p = span > 0 ? Vector3.Lerp(a, b, (d - walked[seg - 1]) / span) : a;
                 float dist = Vector3.Distance(eye, p);
                 int level = 0;
                 while (level < _lodDistances.Length && dist > _lodDistances[level]) level++;

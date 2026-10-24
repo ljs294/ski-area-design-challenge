@@ -113,8 +113,9 @@ namespace MountainPlanner.UI.Tools
             Rect(g, X(-1), y0, X(1) - X(-1), h, Ink(0));
             double seat = TowerForces.GroupMinimumNewtons / Math.Max(1, _loads.SupportSheaves + _loads.HoldDownSheaves) / TowerForces.SheaveLimitNewtons;
             var head = _loads.Head;
-            if (head != LiftRope.Head.D8) Rect(g, X(seat), y0, X(1) - X(seat), h, Ink(1));
-            if (head == LiftRope.Head.D8 || head == LiftRope.Head.C8) Rect(g, X(-1), y0, X(-seat) - X(-1), h, Ink(1));
+            bool down = TowerForces.IsHoldDown(head);
+            if (!down) Rect(g, X(seat), y0, X(1) - X(seat), h, Ink(1));
+            if (down || head == LiftRope.Head.C8) Rect(g, X(-1), y0, X(-seat) - X(-1), h, Ink(1));
             var mid = Ink(2);
             mid.a *= 0.7f;
             Rect(g, X(-seat), y0, X(seat) - X(-seat), h, mid);

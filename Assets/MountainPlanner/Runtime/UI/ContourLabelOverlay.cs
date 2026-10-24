@@ -29,6 +29,11 @@ namespace MountainPlanner.UI
         float[] _priority = Array.Empty<float>();
         int[] _order = Array.Empty<int>();
         float _nextSelect, _labelledInterval = 60.96f;
+        // The camera the labels were last chosen for: a still camera keeps them (finding D1, owner 2026-10-23).
+        Vector3 _selectedEye = new Vector3(float.NaN, 0, 0);
+        Quaternion _selectedTurn;
+        float _selectedFov;
+        int _selectedWidth, _selectedHeight;
         bool _shown;
 
         public ContourLabelOverlay(VisualElement layer)
@@ -56,6 +61,7 @@ namespace MountainPlanner.UI
             }
             _chosenCount = 0;
             _nextSelect = 0;
+            _selectedEye = new Vector3(float.NaN, 0, 0);
         }
 
         /// <summary>Call once a frame. Hidden when <paramref name="visible"/> is false (contours off, or the HUD hidden).</summary>
@@ -71,10 +77,16 @@ namespace MountainPlanner.UI
                 _layer.style.display = DisplayStyle.Flex;
                 _shown = true;
             }
-            if (Time.unscaledTime >= _nextSelect)
+            if (Time.unscaledTime >= _nextSelect && CameraMoved(camera))
             {
                 _nextSelect = Time.unscaledTime + SelectEvery;
+                _selectedEye = camera.transform.position;
+                _selectedTurn = camera.transform.rotation;
+                _selectedFov = camera.fieldOfView;
+                _selectedWidth = Screen.width;
+                _selectedHeight = Screen.height;
                 Select(camera, surface);
+                Selections++;
             }
             for (int k = 0; k < MaxLabels; k++)
             {
@@ -93,6 +105,14 @@ namespace MountainPlanner.UI
                 if (label.style.display != DisplayStyle.Flex) label.style.display = DisplayStyle.Flex;
             }
         }
+
+        bool CameraMoved(Camera camera) =>
+            float.IsNaN(_selectedEye.x) || (camera.transform.position - _selectedEye).sqrMagnitude > 0.01f
+            || Quaternion.Angle(camera.transform.rotation, _selectedTurn) > 0.05f || !Mathf.Approximately(camera.fieldOfView, _selectedFov)
+            || Screen.width != _selectedWidth || Screen.height != _selectedHeight;
+
+        /// <summary>How many times the labels have been chosen (tests: a still camera adds none).</summary>
+        public int Selections { get; private set; }
 
         void Hide()
         {

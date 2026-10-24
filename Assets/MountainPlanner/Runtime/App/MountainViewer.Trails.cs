@@ -117,7 +117,9 @@ namespace MountainPlanner.App
             bool on = _layers == null || _layers.TrailsOn;
             if (_trailLayer.Visible != on) _trailLayer.Visible = on;
             if (cam != null) _trailLayer.Follow(cam);
-            _trailLabels?.Update(cam, _trailLayer.Ground, on && _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
+            // The run names' sight test samples the loaded terrain (it carries the edits), as every other label's does: the
+            // trail layer's edited heights read the package from disk, a chunk at a time (finding D1, owner 2026-10-23).
+            _trailLabels?.Update(cam, _resort?.Surface, on && _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
         }
 
         void DisposeTrailLayer()

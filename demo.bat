@@ -775,6 +775,8 @@ if not exist "%GAME%" goto done
 echo.
 echo Open an area, then T for the Toolbox, the Lifts tab, N for New lift:
 echo   Pick the type in the menu (Type, Chair or Cabin, Model), Towers Automatic or By hand, Plumb or Leaned.
+echo   Detachable chair is the Sessellift D6 six-pack: black and white, chairs 120 ft apart that slow round each
+echo     station's rail to load and unload, then speed back onto the rope. Types greyed in the menu come later.
 echo   Click the name in the window's title (or F2) to name the lift.
 echo   1 The bottom terminal follows the pointer: Shift+wheel or , . turn it, Page Up/Down its level; click to place.
 echo     It stands where you put it; its pad is levelled with cut and fill (no automatic raise any more).
@@ -789,6 +791,12 @@ echo     editable. Break ground (Ctrl+Enter): towers, pads, trench and clearing;
 echo   Try a Monta FG4 too: no extra hold-down tower after its drive, and its sheaves sit on the rope.
 echo   Hover a built lift: it glows; click it for its card (rename by clicking its name, Edit, Remove).
 echo   Zoom far out: lifts show as red trail-map lines. Shift+2 hides the lifts.
+echo   Findings D1/D2: with Labels on, the view stays smooth far out and facing the flats (the clock keeps time);
+echo     a long D6 review shows in about a second, its "raise it N ft" levels a few seconds later.
+echo   Second review E1-E7: a D6 line after a steep rise gets a few tall towers, not a run 50 ft apart; the rope is
+echo     level into both D6 terminals; a D6 pad stops at the hood's middle; chairs bunch round the bullwheels;
+echo     clicking a tower selects it; K turns a selected tower's kind (Auto, support, hold-down, combination).
+echo     Lifts already built keep their towers: Edit lift, Revert to auto places them again.
 echo   M for Edit lift: click a lift; its draft shows in 3D in its place. Click a tower or terminal (or [ and ]);
 echo     the same tower keys, Insert adds one, drag a terminal, change the type or the name, Revert to auto;
 echo     Ctrl+Z undoes inside the tool; Apply (Ctrl+Enter) or Cancel.

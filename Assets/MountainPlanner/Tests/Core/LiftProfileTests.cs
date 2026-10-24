@@ -76,6 +76,7 @@ namespace MountainPlanner.Tests
 
         [TestCase(LiftCatalogIds.SesselliftFgq4)]
         [TestCase(LiftCatalogIds.MontaFg4)]
+        [TestCase(LiftCatalogIds.SesselliftD6)]
         public void TW01v2_TowersKeepTheRopeClearOverRecordedLinesOnASecondMountain(string catalogId)
         {
             string dir = TestData.Folder(Fixture);

@@ -65,6 +65,20 @@ namespace MountainPlanner.Domain.Design
                 list.Add(new LiftProblem("TW-05", $"The {(bottom ? "bottom" : "top")} terminal's row would carry {Lbf(Math.Abs(TowerForces.GroupLoad(t, a)) / Math.Max(1, end.Sheaves))} a sheave; each takes 1,500 lbf",
                                          bottom ? 0 : rope.LengthMetres, false));
             }
+            // Red: a head of the kind the player chose that can't carry the rope there (TW-04 v3, LT44), each with its reason.
+            for (int i = 0; i < rope.Towers.Count; i++)
+            {
+                var loads = rope.Towers[i].Loads;
+                if (!loads.Unsuited) continue;
+                string what = loads.Kind == TowerKind.Support ? "a support" : loads.Kind == TowerKind.HoldDown ? "a hold-down" : "a combination";
+                string why = loads.Kind == TowerKind.Combination ? "the rope bends more there than its four sheaves a way carry"
+                           : loads.GroupLoaded > 0 && loads.GroupEmpty > 0 ? "the rope pulls up there"
+                           : loads.GroupLoaded < 0 && loads.GroupEmpty < 0 ? "the rope presses down there"
+                           : "the rope pulls up in one case and presses down in the other";
+                var auto = TowerForces.Choose(loads.TensionLoaded, loads.TensionEmpty, loads.BendLoaded, loads.BendEmpty, rope.Type.Heads);
+                string fix = TowerForces.IsHoldDown(auto) ? "a hold-down" : auto == LiftRope.Head.C8 ? "a combination" : auto == LiftRope.Head.TooSharp ? "another place" : "a support";
+                list.Add(new LiftProblem("TW-04", $"Tower {i + 1} is {what}, but {why}: make it {fix} or Auto", rope.Towers[i].BaseS, true));
+            }
             // Amber: over-loaded heads, one line (LT14).
             int sharp = 0, upward = 0;
             double first = -1;

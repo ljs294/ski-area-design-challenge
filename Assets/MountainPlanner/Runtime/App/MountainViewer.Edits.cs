@@ -90,10 +90,11 @@ namespace MountainPlanner.App
                 if (extra >= 0 && extra + 1 < args.Length)
                 {
                     var v = args[extra + 1].Split(',').Select(t => float.Parse(t, CultureInfo.InvariantCulture)).ToArray();
-                    // -extramonta: a Monta FG4 instead, its drive at the bottom (task 09).
-                    bool monta = Array.IndexOf(args, "-extramonta") >= 0;
+                    // -extramonta: a Monta FG4 instead, its drive at the bottom (task 09); -extrad6: the Sessellift D6 (LT41).
+                    bool monta = Array.IndexOf(args, "-extramonta") >= 0, d6 = Array.IndexOf(args, "-extrad6") >= 0;
                     Debug.Log("[StyleTile] extra " + StyleTile.BuildUphill(_edits, _resort.Frame, Lifts, v[0], v[1], v.Length > 2 ? v[2] : 650,
-                                                                          monta ? "Check Monta" : "Check Quad", monta ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4));
+                                                                          d6 ? "Check D6" : monta ? "Check Monta" : "Check Quad",
+                                                                          d6 ? LiftCatalogIds.SesselliftD6 : monta ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4));
                 }
                 while (!_edits.Applying.IsCompleted) yield return null;
             }
@@ -106,8 +107,8 @@ namespace MountainPlanner.App
 
         /// <summary>
         /// -liftbench N (task 09): N fixed-grip quads, each 600 m up the fall line from a grid across the core box, built by the
-        /// game's own build path (towers, pads, trench, clearing), for the benchmark's chairs; every third a Monta FG4 (the
-        /// plan's 7, its own terminals and trains). Deterministic: the same grid in the same order every run.
+        /// game's own build path (towers, pads, trench, clearing), for the benchmark's chairs: in turn a Sessellift quad, a
+        /// Sessellift D6 detachable (LT41) and a Monta FG4. Deterministic: the same grid in the same order every run.
         /// </summary>
         IEnumerator BuildBenchLifts(int want)
         {
@@ -124,8 +125,9 @@ namespace MountainPlanner.App
                 float z = Mathf.Lerp(core.yMin + inset, core.yMax - inset, (row + 0.5f) / side);
                 int before = _edits.History.Document.Lifts.Count;
                 tried++;
+                // A third Sessellift quads, a third Montas, a third D6 detachables (LT41: their chairs run round the stations).
                 string report = StyleTile.BuildUphill(_edits, _resort.Frame, Lifts, x, z, 600, "Bench " + (built + 1),
-                                                      built % 3 == 2 ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4);
+                                                      built % 3 == 2 ? LiftCatalogIds.MontaFg4 : built % 3 == 1 ? LiftCatalogIds.SesselliftD6 : LiftCatalogIds.SesselliftFgq4);
                 if (_edits.History.Document.Lifts.Count > before) built++;
                 else Debug.Log($"[LiftBench] ({x:F0}, {z:F0}): {report}");
                 yield return null;

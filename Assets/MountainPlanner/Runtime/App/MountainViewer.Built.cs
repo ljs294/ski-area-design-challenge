@@ -95,7 +95,7 @@ namespace MountainPlanner.App
                 var view = new LiftView(_resort.Root.transform, Lifts, _liftMaterials, _cableMaterial, lift.Name);
                 try
                 {
-                    view.Build(lift, heights, _resort.Frame, new Color(0.72f, 0.12f, 0.09f));
+                    view.Build(lift, heights, _resort.Frame, LiftLivery.For(lift.CatalogId));   // LT41: the type's two colours
                 }
                 catch (Exception e)
                 {
@@ -201,7 +201,7 @@ namespace MountainPlanner.App
                 {
                     Id = l.Id.Value, Name = l.Name, Model = MountainPlanner.UI.Tools.LiftTypeMenu.ModelName(l.CatalogId),
                     LengthMetres = slope, VerticalMetres = Math.Abs(vertical), Capacity = type.Capacity,
-                    RideSeconds = type.SpeedMetresPerSecond > 0 ? slope / type.SpeedMetresPerSecond : 0,
+                    RideSeconds = type.SpeedMetresPerSecond > 0 ? type.RideSeconds(slope) : 0,
                     Towers = l.Towers.Count, Built = l.Stage == WorkStage.Built,
                     Heads = null, LowestChairsMetres = double.NaN, RiseMetres = double.NaN, RiseLimitMetres = double.PositiveInfinity,
                 });

@@ -623,23 +623,27 @@ namespace MountainPlanner.Tests
             Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-kind-value").text, Is.EqualTo("Detachable gondola"));
             Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-carrier-value").text, Is.EqualTo("8 person"));
             Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-model-value").text, Does.StartWith("Monta "));
-            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-note-capacity").text, Does.Contain("drawn with the quad's model"));
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-note-capacity").text, Does.Contain("every"), "a detachable's interval (LT41)");
             Assert.That(kind, Is.Not.Null);
 
-            // Through the menus as a click would: the tram's default is 100 person; the carrier keeps the maker.
+            // Through the menus as a click would (LT41): the trams are placeholders, greyed; the detachable chair is the D6.
             var dd = ((LiftTypeMenu)typeof(NewLiftTool).GetField("_typeMenu", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(lift)).Kind;
-            dd.Choose(3);
-            Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.Of("tram-100", "sessellift")));
             dd.Choose(0);
             Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftFgq4), "back to the fixed-grip quad");
+            dd.Choose(3);
+            Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftFgq4), "a tram can't be picked: in the menu only");
+            dd.Choose(1);
+            Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftD6), "the detachable chair: the D6");
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-model-value").text, Is.EqualTo("Sessellift D6"));
 
             // The chosen type is what Break ground builds.
-            lift.Choose(LiftCatalogIds.Of("detach-six", "chairworks"));
+            lift.Choose(LiftCatalogIds.SesselliftFgq4);
+            lift.Choose(LiftCatalogIds.SesselliftD6);
             _host.Tick(At(0, -400, click: true));
             _host.Tick(At(0, 600, click: true));
             _host.Tick(new ToolInput { Keys = ToolKeys.Next });
             _host.Tick(new ToolInput { Keys = ToolKeys.BreakGround });
-            Assert.That(_design.Document.Lifts[0].CatalogId, Is.EqualTo(LiftCatalogIds.Of("detach-six", "chairworks")));
+            Assert.That(_design.Document.Lifts[0].CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftD6));
         }
 
         [Test]
@@ -807,6 +811,67 @@ namespace MountainPlanner.Tests
 
         void Invoke(object tool, string method) =>
             tool.GetType().GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(tool, null);
+
+        [Test]
+        public void E6_KTurnsASelectedTowersKindRoundAndApplyKeepsIt()
+        {
+            // LT44 (owner, second review E6): the player chooses a tower's kind; the game sizes it.
+            var id = BuiltOnSlope();
+            var before = _design.Document.FindLift(id);
+            _host.Choose(EditLiftTool.ToolId);
+            var tool = (EditLiftTool)_host.Active;
+            GiveGround();
+            Assert.That(tool.Open(id.Value), Is.True);
+            PumpUntil(() => tool.Built != null, "the draft builds");
+            int mid = before.Towers.Count / 2;
+            tool.SelectTower(mid);
+            Assert.That(KeyBindings.IsClaimed(GameAction.TowerKind), Is.True, "K is the selected tower's");
+            Assert.That(tool.Editor.Describe(), Does.Contain("Kind: Auto"));
+            var round = new List<TowerKind>();
+            for (int k = 0; k < 4; k++)
+            {
+                _host.Tick(new ToolInput { Keys = ToolKeys.TowerKind });
+                round.Add(tool.DraftTowers[mid].Kind);
+            }
+            Assert.That(round, Is.EqualTo(new[] { TowerKind.Support, TowerKind.HoldDown, TowerKind.Combination, TowerKind.Auto }));
+            // A support where the rope presses down on a slope: within the rules, and Apply keeps it.
+            _host.Tick(new ToolInput { Keys = ToolKeys.TowerKind });
+            Assert.That(tool.Editor.Describe(), Does.Contain("Kind: support"));
+            PumpUntil(() => tool.Built != null && _host.Context.Window.CanBreakGround, "the draft builds and can be applied");
+            _host.Tick(new ToolInput { Keys = ToolKeys.BreakGround });
+            var after = _design.Document.FindLift(id);
+            Assert.That(after.Towers[mid].Kind, Is.EqualTo(TowerKind.Support), "stored with the tower");
+            Assert.That(after.Towers.Where((t, i) => i != mid).All(t => t.Kind == TowerKind.Auto), Is.True);
+        }
+
+        [Test]
+        public void E5_AClickOnTheRopeBesideATowerSelectsTheTower()
+        {
+            // Finding E5: the rope's pick (or a terminal's) under the pointer gave the click to the line, so a tower came into
+            // hand instead of the one clicked being selected. A tower within a few pixels of the click takes it.
+            var id = BuiltOnSlope();
+            var before = _design.Document.FindLift(id);
+            _host.Choose(EditLiftTool.ToolId);
+            var tool = (EditLiftTool)_host.Active;
+            GiveGround();
+            Assert.That(tool.Open(id.Value), Is.True);
+            PumpUntil(() => tool.Built != null, "the draft builds");
+            int mid = before.Towers.Count / 2;
+            var e = tool.Editor;
+            var at = e.BottomXz + (e.TopXz - e.BottomXz).normalized * (before.Towers[mid].AlongMm / 1000f);
+            _host.Context.DraftPartUnderPointer = () => MountainPlanner.Presentation.Lifts.LiftView.PartRope;
+            _host.Tick(At(at.x + 1, at.y, click: true));
+            _host.Tick(new ToolInput { Release = true });
+            Assert.That(e.Adding, Is.False, "no tower in hand");
+            Assert.That(tool.Selected, Is.EqualTo("tower " + mid), "the tower beside the click is selected");
+            // Mid-span, away from any tower, a click on the rope still puts a tower in hand (F2).
+            Assert.That(_host.Escape(), Is.True);   // deselects
+            double gapMid = (before.Towers[mid].AlongMm + before.Towers[mid + 1].AlongMm) / 2000.0;
+            var span = e.BottomXz + (e.TopXz - e.BottomXz).normalized * (float)gapMid;
+            Assume.That(before.Towers[mid + 1].AlongMm - before.Towers[mid].AlongMm, Is.GreaterThan(30_000), "a span long enough to click in");
+            _host.Tick(At(span.x, span.y, click: true));
+            Assert.That(e.Adding, Is.True, "a click on the line between towers adds one");
+        }
 
         [Test]
         public void F1F2_EditLiftPicksATowerIn3DAddsOneInAGapRemovesItAndRevertsToAuto()
