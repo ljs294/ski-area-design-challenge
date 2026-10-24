@@ -64,3 +64,5 @@ The bottom terminal and its first tower:
 **Lifts already built keep their towers:** a save stores each lift's towers, so the owner's two Chair 6 lines look as
 before until they're placed again (Edit lift, then Revert to auto). A save written by this build is v3, which the
 build before it refuses to open, as 0.3 §5 requires.
+
+**Owner, 2026-10-24:** "lifts look pretty good. Lets settle it for now." The second review is closed.
