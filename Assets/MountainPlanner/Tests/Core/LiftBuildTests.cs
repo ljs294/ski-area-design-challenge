@@ -172,8 +172,9 @@ namespace MountainPlanner.Tests
         [Test]
         public void TW16v3_EveryGroundBuildsWithinTheRulesOrSaysWhy()
         {
-            // Made-up ground covering what a player meets: each builds within every rule, or (a straight 40% line running into
-            // a dead-flat summit) is left red for TW-06 with modest towers, never ever taller ones (TW-12).
+            // Made-up ground covering what a player meets: each builds within every rule. A straight 40% line running into a
+            // dead-flat summit was left red for TW-06 with towers kept to 60 ft; LT45 (the owner's finding E3) uses height up to
+            // TW-02's 100 ft before more towers, so it now builds within the rules too, with its breakovers spread out.
             var grounds = new (string Name, Func<double, double> F, double Cross)[]
             {
                 ("flat", s => 0, 0),
@@ -196,8 +197,10 @@ namespace MountainPlanner.Tests
             }
             var steep = Build(s => s < 740 ? 0.4 * s : 296);
             TestContext.Progress.WriteLine($"40% into a flat summit: {Describe(steep)}");
-            Assert.That(steep.Rope.ClearanceOk && steep.Rope.TerminalsOk, Is.True, "clearance and terminals still hold");
-            Assert.That(steep.Towers.Max(t => t.HeightMm), Is.LessThanOrEqualTo(DesignUnits.FeetToMm(60)), "modest towers, not a runaway");
+            AssertBuilt(steep, "40% into a flat summit");
+            Assert.That(steep.Towers.Max(t => t.HeightMm), Is.LessThanOrEqualTo(DesignUnits.FeetToMm(100)), "TW-02's 100 ft at most");
+            int bunched = steep.Towers.Zip(steep.Towers.Skip(1), (a, b) => b.AlongMm - a.AlongMm).Count(d => d < DesignUnits.FeetToMm(100));
+            Assert.That(bunched, Is.LessThanOrEqualTo(3), "a few breakovers before the summit, not a run of them 50 ft apart");
         }
 
         [Test]

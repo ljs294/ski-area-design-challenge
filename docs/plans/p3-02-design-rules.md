@@ -620,6 +620,10 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     three hold-downs. TW-03's 50 ft minimum allows that.
   - A tower that would need more is red: "Too sharp for one hold-down: add one before the rise", or "…for one
     breakover: add one on the crest".
+  - **v2, groups spaced by their spans** (owner, task 09, LT45, finding E3): a break gets as many towers as its heads
+    need, spaced as far apart as the rope allows, taller rather than more. Where the repair adds a partner it goes
+    midway along the span on the bend's side (50 ft away only where that span is short), so a group is never a run
+    of towers 50 ft apart.
 - **TW-07, span limits:** no fixed number. A longer span sags more, so it needs taller towers (TW-01, TW-02), and bends
   the rope harder at both ends, so it needs bigger heads (TW-05).
 - **TW-08 v2, tolerance:** clearance is checked every 3.3 ft (1 m) along the line against SH-02's heights, to within
@@ -643,6 +647,21 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - The preview updates at least **10 times a second** while you aim, off the main thread, with stale results
     dropped (CF-03).
   - The final placement of a 1-mile (1.6 km) line takes **≤50 ms**.
+  - **v2, the line planned** (owner, task 09, LT45; findings E2–E4, 2026-10-23):
+    - **The towers between the station towers are chosen together:** the fewest towers whose spans keep the loaded
+      chairs 15 ft up (TW-01 v2; the low zones are the trench's and the unload ramp's) and whose every head carries
+      its bend in both load cases, each span's sag included (TW-04, TW-05, on the kit's largest heads). The station
+      towers' heads count too, so no end takes a turn no head carries.
+    - **Taller before more:** a tower may stand up to TW-02's 100 ft before another is added. The search's old soft
+      caps (line towers raised to 60 ft at most, a station tower's neighbour to 60 ft, a crest's neighbours by 20 ft)
+      are gone.
+    - **Among plans with as many towers,** heights nearest a modest 35 ft, then spans nearest even. Each tower then
+      comes down in 5 ft steps while everything still fits.
+    - **The first span's shortfall** up to 15 ft short of the first line tower is the trench's (GR-11 v2, at most
+      10 ft), as Break ground digs it; no tower is squeezed in there.
+    - **Where nothing fits** (a steep pitch running right up to a level top, say), the plan is the line whose heads
+      are least past what they carry; the repair (adding or raising towers) and LT34's level hints take it from there.
+    - The candidates are every 25 ft along the line, with 35, 45, 60, 80 and 100 ft of steel.
 - **TW-13, placement status bar:** a line in the lift menu about the tower in hand.
   - **Status:** OK, or the red reason.
   - **Head and load:** the head it would get, and its load in both cases as %.
@@ -701,6 +720,11 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
       beside it. The Sessellift's return keeps its station tower.
     - **No terminal raises.** The remedies end at the line towers and the envelope; what's left is the player's, told
       by how much (LF-12 v4).
+  - **v5, detachables level at both ends** (owner, task 09, LT43; findings E2, E4): a detachable's two terminals both
+    have support rows. The rope runs **level** between each terminal and its station tower, at the terminal's own rope
+    height, in both directions. The turn from level to the line is shared by the station tower and the towers after it
+    (TW-12 v2): no station tower takes a bend its head can't carry, so the drawn rope runs straight into its trains.
+    The quads keep v3/v4: the FGQ-4's return still exits at 14.3°, and the Monta's drive keeps its own station.
 - **TW-15, stored:**
   - A tower's position along the line, its height and its stance are authored and saved.
   - Its head type, forces and rope geometry are derived (SH-05).

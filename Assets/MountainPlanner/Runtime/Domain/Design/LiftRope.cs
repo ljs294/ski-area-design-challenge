@@ -492,7 +492,8 @@ namespace MountainPlanner.Domain.Design
                 // station foundations re-aimed with each.
                 var leans = new bool[n];
                 for (int i = 0; i < n; i++)
-                    leans[i] = Math.Abs(Bisector(i)) > LeanFrom || heads[i] == Head.B8 || heads[i] == Head.D8 || heads[i] == Head.C8;
+                    leans[i] = Math.Abs(Bisector(i)) > LeanFrom || heads[i] == Head.B8 || heads[i] == Head.D8 || heads[i] == Head.C8
+                               || heads[i] == Head.B10 || heads[i] == Head.D10;   // the D6's (LT41)
                 for (int pass = 0; pass < 3; pass++)
                 {
                     for (int i = 0; i < n; i++)
