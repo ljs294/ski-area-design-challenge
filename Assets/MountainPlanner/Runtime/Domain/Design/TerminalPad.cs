@@ -10,6 +10,10 @@ namespace MountainPlanner.Domain.Design
     /// (GR-02, the trail doctrine) within GR-11's 50 ft terminal-pad envelope (a face that hasn't met the ground there is
     /// clipped, and the step is reported). So the terminal and its piers stand on the pad where it's placed. Everything it
     /// changes is cleared (CL-09 v2).
+    /// LF-12 v5 (owner, LT42, second review E1): a detachable terminal's pad ends at the hood's middle. Its front half (nose,
+    /// bullwheel, station rail) stands over natural ground: nothing there is filled and no face reaches into it; only ground
+    /// that would rise above the pad's level, into the terminal itself, is cut back to it (with 1:1 faces), as the
+    /// terminal must stand clear.
     /// Positions in the edit lattice's frame; (ux, uy) points toward the other terminal.
     /// </summary>
     public static class TerminalPad
@@ -34,12 +38,17 @@ namespace MountainPlanner.Domain.Design
         /// Grades a pad around a bullwheel at (<paramref name="x"/>, <paramref name="y"/>): from <paramref name="behind"/>
         /// metres behind it to <paramref name="ahead"/> in front, <paramref name="halfWidth"/> either side (the footprint;
         /// the margin is added here), level at <paramref name="elevation"/>, over the current edited heights.
+        /// <paramref name="padAhead"/> (LF-12 v5): where a detachable's pad ends in front of the bullwheel, the hood's
+        /// middle; past it the ground is only cut where it rises above the pad. NaN (or <paramref name="ahead"/>): the
+        /// whole footprint, as before.
         /// </summary>
         public static Result Grade(EditedHeights current, double x, double y, double ux, double uy,
-                                   double behind, double ahead, double halfWidth, double elevation)
+                                   double behind, double ahead, double halfWidth, double elevation, double padAhead = double.NaN)
         {
             if (current == null) throw new ArgumentNullException(nameof(current));
             double b = behind + MarginMetres, a = ahead + MarginMetres, w = halfWidth + MarginMetres;
+            bool front = !double.IsNaN(padAhead) && padAhead < ahead - 1e-9;   // the front half left natural (LF-12 v5)
+            double p = front ? padAhead : a;   // the levelled pad's front edge (no margin past the hood's middle)
             double reach = Math.Sqrt(Math.Max(a, b) * Math.Max(a, b) + w * w) + FaceReachMetres + 2;
             var lattice = current.Lattice;
             int c0 = (int)Math.Floor(x - reach - lattice.West), c1 = (int)Math.Ceiling(x + reach - lattice.West);
@@ -51,15 +60,27 @@ namespace MountainPlanner.Domain.Design
                 if (!builders.TryGetValue(key, out var bd)) builders[key] = bd = current.Edits.Get(key).Edit();
                 return bd;
             }
-            // Distance outside the pad rectangle (0 inside), in the line's frame.
-            double Outside(double px, double py)
+            // Distance outside a pad rectangle ending at `to` in front (0 inside), in the line's frame.
+            double OutsideTo(double px, double py, double to)
             {
                 double rx = px - x, ry = py - y;
                 double along = rx * ux + ry * uy, across = -rx * uy + ry * ux;
-                double da = along < -b ? -b - along : along > a ? along - a : 0;
+                double da = along < -b ? -b - along : along > to ? along - to : 0;
                 double dc = Math.Abs(across) > w ? Math.Abs(across) - w : 0;
                 return Math.Sqrt(da * da + dc * dc);
             }
+            double Outside(double px, double py) => OutsideTo(px, py, a);
+            bool InFront(double px, double py) => front && (px - x) * ux + (py - y) * uy > p;
+            // The design height at a point: cut and fill toward the pad (to its front edge), and in front of a detachable's
+            // pad only cut, where the ground rises above the pad toward the terminal's whole footprint.
+            double Design(double px, double py, double ground)
+            {
+                double cutOff = Outside(px, py);
+                if (InFront(px, py)) return Math.Min(elevation + cutOff * FaceSlope, ground);
+                double fillOff = front ? OutsideTo(px, py, p) : cutOff;
+                return Math.Max(elevation - fillOff * FaceSlope, Math.Min(elevation + cutOff * FaceSlope, ground));
+            }
+            double Reach(double px, double py) => front && !InFront(px, py) ? Math.Min(Outside(px, py), OutsideTo(px, py, p)) : Outside(px, py);
             var result = new Result();
             double cut = 0, fill = 0, clipped = 0;
             int cleared = 0;
@@ -67,11 +88,10 @@ namespace MountainPlanner.Domain.Design
                 for (int c = c0; c <= c1; c++)
                 {
                     double px = lattice.X(c), py = lattice.Y(r);
-                    double off = Outside(px, py);
+                    double off = Reach(px, py);
                     if (off > FaceReachMetres) continue;
                     double ground = current.AtPoint(c, r);
-                    double rise = off * FaceSlope;
-                    double design = Math.Max(elevation - rise, Math.Min(elevation + rise, ground));   // cut and fill (LF-12 v4)
+                    double design = Design(px, py, ground);   // cut and fill (LF-12 v4); cut only in front of a detachable's pad (v5)
                     if (off > FaceReachMetres - 1 && Math.Abs(design - ground) > 1e-3) clipped = Math.Max(clipped, Math.Abs(design - ground));
                     if (Math.Abs(design - ground) < 1e-4) design = ground;   // untouched past where the face met the ground
                     double source = current.Source.At(px, py);
@@ -87,12 +107,13 @@ namespace MountainPlanner.Domain.Design
             for (int r = r0; r <= r1; r++)
                 for (int c = c0; c <= c1; c++)
                 {
-                    double off = Outside(lattice.X(c) + 0.5, lattice.Y(r) - 0.5);
+                    double cx = lattice.X(c) + 0.5, cy = lattice.Y(r) - 0.5;
+                    double off = Reach(cx, cy);
                     if (off > FaceReachMetres) continue;
-                    bool onPad = off <= 0;
+                    bool onPad = off <= 0 && !InFront(cx, cy);
                     if (!onPad)
                     {
-                        double before = current.AtPoint(c, r), design = Math.Max(elevation - off, Math.Min(elevation + off, before));
+                        double before = current.AtPoint(c, r), design = Design(cx, cy, before);
                         if (Math.Abs(design - before) < 0.05) continue;
                     }
                     var key = EditTileKey.Of(c, r);

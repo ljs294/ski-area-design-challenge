@@ -450,6 +450,12 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     with 1:1 faces to the ground (GR-02), for every make. Where the line needs a terminal higher or lower (the rope
     leaving its row outside the range, the chairs low beside it, a trench past its cap), the review says by how much
     ("raise it 6 ft (Page Up)", amber) and the player decides.
+  - **v5, a detachable's front half stands over natural ground** (owner, task 09, LT42, second review E1): a detachable
+    terminal's pad ends at the **hood's middle**, measured on its model (the D6 drive's about 7 ft, its return's about
+    6 ft in front of the bullwheel). Its front half (the nose, the bullwheel and the station rail toward the line) leaves
+    the ground as it is: nothing filled and no face reaching under it. Only ground that would rise above the pad's
+    level, into the terminal itself, is cut back to it with 1:1 faces. The quads keep v4 over their whole footprint.
+    Clearing (CL-09) and the low zones (TW-01 v2) still measure from the whole footprint.
 
 ### 5.2 Catalog (LC)
 

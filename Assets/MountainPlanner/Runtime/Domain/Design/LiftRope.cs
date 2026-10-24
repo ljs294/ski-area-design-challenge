@@ -181,8 +181,9 @@ namespace MountainPlanner.Domain.Design
                 ChairHalfWidthMetres = 1.5, Heads = TowerForces.HeadKit.Wide, TowerKit = "sessellift_d6_",
             };
             double level = TowerForces.SheaveBendLimit;
-            t.Bottom = new TerminalEnd("sessellift_d6_return", TerminalRow.Support, -level, 0, 0, 9.108, 12.816, 4.45, 12.816, 3.6, 0, 3);
-            t.Top = new TerminalEnd("sessellift_d6_drive", TerminalRow.Support, -level, 0, 0, 8.784, 13.137, 4.45, 13.137, 3.6, 0, 3);
+            // LT42: a detachable's pads end at the hood's middle (LF-12 v5).
+            t.Bottom = new TerminalEnd("sessellift_d6_return", TerminalRow.Support, -level, 0, 0, 9.108, 12.816, 4.45, 12.816, 3.6, 0, 3, padToMiddle: true);
+            t.Top = new TerminalEnd("sessellift_d6_drive", TerminalRow.Support, -level, 0, 0, 8.784, 13.137, 4.45, 13.137, 3.6, 0, 3, padToMiddle: true);
             return t;
         }
 

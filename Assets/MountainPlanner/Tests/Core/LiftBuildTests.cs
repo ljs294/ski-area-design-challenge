@@ -222,6 +222,47 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void LF12v5_ADetachablesPadEndsAtTheHoodsMiddle()
+        {
+            // LT42 (owner, second review E1): a D6 terminal's front half stands over natural ground. On a 30% line the top
+            // terminal's front (downhill) is left alone; the bottom's front (uphill) is only cut, where the ground rises above
+            // the pad toward the terminal, never filled; the replay lays the same ground.
+            var d6 = LiftType.Of(LiftCatalogIds.SesselliftD6);
+            var natural = new EditedHeights(new Profile(s => 0.3 * s), Lattice, TerrainEdits.Empty);
+            double bx = West + 100, by = North - 900, ty = North - 100, length = ty - by;
+            var b = LiftBuild.Build(d6, natural, bx, by, bx, ty, TowerStance.Leaned);
+            var edited = new EditedHeights(natural.Source, Lattice, b.TopPad.Edits);
+            Assert.That(d6.Top.PadAhead, Is.EqualTo((d6.Top.Ahead - d6.Top.Behind) / 2).Within(1e-9), "the hood's middle");
+            double w = d6.Top.HalfWidth + TerminalPad.MarginMetres;
+            int frontPoints = 0, behindEdited = 0;
+            for (double along = -d6.Top.Behind; along <= d6.Top.Ahead + 15; along += 1)
+                for (double d = -w; d <= w; d += 1)
+                {
+                    double x = bx + d, y = ty - along;   // the top's front faces down the line
+                    double change = edited.At(x, y) - natural.At(x, y);
+                    if (along > d6.Top.PadAhead + 1.5)
+                    {
+                        frontPoints++;
+                        Assert.That(change, Is.EqualTo(0).Within(1e-3), $"the top's front half untouched at {along:F0} m, {d:F0} m");
+                    }
+                    else if (along < d6.Top.PadAhead - 1.5 && Math.Abs(change) > 0.01) behindEdited++;
+                }
+            Assert.That(frontPoints, Is.GreaterThan(50));
+            Assert.That(behindEdited, Is.GreaterThan(20), "the pad behind the middle is levelled");
+            // The bottom's front half: the hill rises toward the line; cut only.
+            var bottom = new EditedHeights(natural.Source, Lattice, b.BottomPad.Edits);
+            for (double along = d6.Bottom.PadAhead + 1.5; along <= d6.Bottom.Ahead + 15; along += 1)
+                for (double d = -w; d <= w; d += 1)
+                    Assert.That(bottom.At(bx + d, by + along), Is.LessThanOrEqualTo(natural.At(bx + d, by + along) + 1e-3), $"the bottom's front only cut at {along:F0} m");
+            // The quads keep their whole footprint (LF-12 v2).
+            Assert.That(Quad.Top.PadAhead, Is.EqualTo(Quad.Top.Ahead));
+            // A replay from what's stored lays the same ground (TL3).
+            var stored = b.Towers.Select((t, i) => new Tower(TowerId.Make(1, i), t.AlongMm, t.HeightMm)).ToList();
+            var replay = LiftBuild.Earthwork(d6, natural, bx, by, bx, ty, stored, b.Levels, TowerStance.Leaned);
+            Assert.That(TerrainEdits.Changed(replay.Edits, b.Edits), Is.Empty, "the replay matches");
+        }
+
+        [Test]
         public void SH04_ALiftBuildsTheSameEveryTime()
         {
             var a = Build(s => s < 300 ? 0.25 * s : s < 500 ? 75 : 75 + 0.5 * (s - 500), 0.1);

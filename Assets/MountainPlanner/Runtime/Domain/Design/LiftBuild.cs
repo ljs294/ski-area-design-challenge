@@ -207,9 +207,9 @@ namespace MountainPlanner.Domain.Design
             TowerPlacement.Result placedFirst = null;
             for (int attempt = 0; attempt < Attempts; attempt++)
             {
-                bottomPad = TerminalPad.Grade(current, bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel + raiseB);
+                bottomPad = TerminalPad.Grade(current, bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel + raiseB, type.Bottom.PadAhead);
                 var withBottom = new EditedHeights(current.Source, current.Lattice, bottomPad.Edits);
-                topPad = TerminalPad.Grade(withBottom, tx, ty, -ux, -uy, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, topLevel + raiseT);
+                topPad = TerminalPad.Grade(withBottom, tx, ty, -ux, -uy, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, topLevel + raiseT, type.Top.PadAhead);
                 onPads = new EditedHeights(current.Source, current.Lattice, topPad.Edits);
                 placed = TowerPlacement.Place(type, onPads, bx, by, tx, ty, bottomLevel + raiseB, topLevel + raiseT, stance);
                 // The station towers' steel: their rope point is what the terminal needs, so the ground under them changes only
@@ -484,9 +484,9 @@ namespace MountainPlanner.Domain.Design
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
             double ux = (tx - bx) / length, uy = (ty - by) / length;
             double bottomLevel = levels.BottomMetres, topLevel = levels.TopMetres;
-            var bottomPad = TerminalPad.Grade(current, bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel);
+            var bottomPad = TerminalPad.Grade(current, bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel, type.Bottom.PadAhead);
             var withBottom = new EditedHeights(current.Source, current.Lattice, bottomPad.Edits);
-            var topPad = TerminalPad.Grade(withBottom, tx, ty, -ux, -uy, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, topLevel);
+            var topPad = TerminalPad.Grade(withBottom, tx, ty, -ux, -uy, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, topLevel, type.Top.PadAhead);
             var onPads = new EditedHeights(current.Source, current.Lattice, topPad.Edits);
             LiftRope Solve(EditedHeights g) => LiftRope.Solve(type, g, bx, by, tx, ty, towers, stance,
                                                              type.Bottom.ExitAlong, bottomLevel + type.Bottom.ExitRise,

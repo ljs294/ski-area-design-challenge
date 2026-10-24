@@ -46,11 +46,18 @@ namespace MountainPlanner.Domain.Design
         /// exit within the row's range instead.
         /// </summary>
         public bool OwnStation { get; }
+        /// <summary>LT42 (owner, second review E1): a detachable terminal's front half (its nose, bullwheel and station rail
+        /// toward the line) stands over natural ground; its pad (LF-12 v5) ends at the hood's middle.</summary>
+        public bool PadToMiddle { get; }
+        /// <summary>Where the pad ends in front of the bullwheel (LF-12 v5): the hood's middle for a detachable, else the
+        /// footprint's front, <see cref="Ahead"/>.</summary>
+        public double PadAhead => PadToMiddle ? (Ahead - Behind) / 2 : Ahead;
 
         public TerminalEnd(string model, TerminalRow row, double angleMin, double angleMax, double aim,
                            double behind, double ahead, double halfWidth, double exitAlong, double exitRise, double originAlong, int sheaves,
-                           bool ownStation = false)
+                           bool ownStation = false, bool padToMiddle = false)
         {
+            PadToMiddle = padToMiddle;
             OwnStation = ownStation;
             Sheaves = sheaves;
             Model = model;
@@ -68,15 +75,15 @@ namespace MountainPlanner.Domain.Design
 
         /// <summary>The same end with the rope exit measured on its model.</summary>
         public TerminalEnd WithExit(double along, double rise) =>
-            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, along, rise, OriginAlong, Sheaves, OwnStation);
+            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, along, rise, OriginAlong, Sheaves, OwnStation, PadToMiddle);
 
         /// <summary>The same end with its footprint measured on its model.</summary>
         public TerminalEnd WithFootprint(double behind, double ahead, double halfWidth) =>
-            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, behind, ahead, halfWidth, ExitAlong, ExitRise, OriginAlong, Sheaves, OwnStation);
+            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, behind, ahead, halfWidth, ExitAlong, ExitRise, OriginAlong, Sheaves, OwnStation, PadToMiddle);
 
         /// <summary>The same end with its origin measured on its model.</summary>
         public TerminalEnd WithOrigin(double along) =>
-            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, ExitAlong, ExitRise, along, Sheaves, OwnStation);
+            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, ExitAlong, ExitRise, along, Sheaves, OwnStation, PadToMiddle);
 
         /// <summary>Whether a rope at <paramref name="angle"/> (the end's frame) suits the row.</summary>
         public bool Takes(double angle) => angle >= AngleMin - 1e-9 && angle <= AngleMax + 1e-9;
