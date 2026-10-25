@@ -11,11 +11,12 @@
     "crossFade": true
   },
   "chair": {
-    "_about": "Up close raised from 800 to 1,600 (the owner, 2026-09-29) so the grips can be modelled: only chairs within the first switch distance use it; the far levels, which most chairs on a line use, are unchanged.",
+    "_about": "Up close raised from 800 to 1,600 (the owner, 2026-09-29) so the grips can be modelled: only chairs within the first switch distance use it; the far levels, which most chairs on a line use, are unchanged. Polish (2026-10-23, owner): the far level 60 -> 120 for a backrest, and a 30-triangle speck out to 800 m so the chairs no longer vanish at 300 m (as the D6 chair).",
     "lods": [
       {"lod": 0, "maxTris": 1600, "untilM": 10},
       {"lod": 1, "maxTris": 250, "untilM": 35},
-      {"lod": 2, "maxTris": 60, "untilM": 300}
+      {"lod": 2, "maxTris": 120, "untilM": 300},
+      {"lod": 3, "maxTris": 30, "untilM": 800}
     ],
     "shadowLods": 2,
     "crossFade": false
