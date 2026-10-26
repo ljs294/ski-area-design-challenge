@@ -1,7 +1,7 @@
 name: Problem
 description: Something in the game is broken, wrong or confusing.
 title: ""
-labels: ["problem", "triage"]
+labels: ["problem", "new"]
 body:
   - type: markdown
     attributes:

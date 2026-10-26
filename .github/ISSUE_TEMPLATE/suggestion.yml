@@ -1,7 +1,7 @@
 name: Suggestion
 description: An idea that would make the game better.
 title: ""
-labels: ["suggestion", "triage"]
+labels: ["suggestion", "new"]
 body:
   - type: input
     id: version

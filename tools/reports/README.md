@@ -70,7 +70,11 @@ To read a `crash.dmp`, open it in Visual Studio or WinDbg (both free) with the s
 ## Triage on GitHub
 
 - Issues arrive through the **Problem** and **Suggestion** forms (`.github/ISSUE_TEMPLATE/`), labelled
-  `problem` or `suggestion`, and `triage`.
+  `problem` or `suggestion`, and `new`. `new` means nobody has looked yet: `label:new` is the inbox. Triage adds an
+  area label, `confirmed` or `needs-info` and a milestone, then takes `new` off.
+- Issues from other people: `is:issue is:open -author:@me`. The owner's own, and the threads' (they file through the
+  owner's `gh`), are `author:@me`. A report the owner files for a player without GitHub gets `from-player`; both
+  together: `is:issue is:open (-author:@me OR label:from-player)`.
 - Area labels (terrain, trees, lifts, trails, interface, performance, downloads, saves) and `crash`, `needs-info`
   and `confirmed` are added by hand; each release has a milestone (`v0.3.0` first).
 - A report zip in an issue is public. Never re-post logs or saves elsewhere, and never quote a player's email.
