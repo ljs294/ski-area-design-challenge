@@ -110,6 +110,11 @@ namespace MountainPlanner.Domain.Design
         public static string StageProblem(WorkStage stage) =>
             stage == WorkStage.Plan || stage == WorkStage.Built ? null : "Unknown stage.";
 
+        /// <summary>LT41: only types with their own models can be added (the rest are in the menu as placeholders). A design
+        /// that already holds one (an older save) still loads.</summary>
+        public static string BuildableProblem(string catalogId) =>
+            LiftCatalogIds.Buildable(catalogId) ? null : "That lift type can't be built yet: its models are still to come.";
+
         public static string LiftLineProblem(string catalogId, PointMm bottom, PointMm top, TowerMode mode, TowerStance stance)
         {
             if (!LiftCatalogIds.Known(catalogId)) return "Unknown lift type.";

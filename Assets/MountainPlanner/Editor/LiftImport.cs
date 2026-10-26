@@ -248,6 +248,7 @@ namespace MountainPlanner.Editor
                 foreach (var sp in socketParents.Properties())
                     rig.Socket(sp.Name).SetParent(rig.Pivot((string)sp.Value) ?? throw new System.InvalidOperationException($"{id}: socket {sp.Name} rides with unknown pivot {sp.Value}"), true);
             rig.LiveryRenderers = go.GetComponentsInChildren<Renderer>(true).Where(r => r.name.StartsWith(id + "_LOD") && (rig.Kind == "terminal" || rig.Kind == "terminal_detach")).ToArray();
+            ReadPathsAndFollows(rig, info);
 
             // The FBX round trip must keep every pivot and socket where the build put it.
             for (int i = 0; i < pivots.Count; i++) Expect(id, rig.Pivots[i], ToVector((JArray)pivots[i].Value["pos"]), go.transform);
@@ -257,6 +258,48 @@ namespace MountainPlanner.Editor
             var prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
             Object.DestroyImmediate(go);
             return prefab;
+        }
+
+        /// <summary>LT41, G8: the asset's paths (a detachable station's rail) and the pivots that follow another.</summary>
+        static void ReadPathsAndFollows(LiftRig rig, JObject info)
+        {
+            rig.Paths = info["paths"] is JObject paths
+                ? paths.Properties().Select(p => new LiftPath { Name = p.Name, Points = ((JArray)p.Value).Select(v => ToVector((JArray)v)).ToArray() }).ToArray()
+                : new LiftPath[0];
+            var names = ((JObject)info["pivots"]).Properties().Select(p => p.Name).ToList();
+            rig.PivotFollows = ((JObject)info["pivots"]).Properties()
+                .Select(p => p.Value["follow"]?.Type == JTokenType.String ? names.IndexOf((string)p.Value["follow"]) : -1).ToArray();
+        }
+
+        /// <summary>
+        /// Writes the paths and follow pivots (LT41, G8) onto the lift prefabs already imported, from a lift build's
+        /// lifts.json (<c>-liftReport &lt;file&gt;</c>, else out/lifts.json), without copying the models again (no FBX churn).
+        /// </summary>
+        [MenuItem("Mountain Planner/Import Lift Paths")]
+        public static void ImportPaths()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            int i = System.Array.IndexOf(args, "-liftReport");
+            string report = i >= 0 && i + 1 < args.Length ? args[i + 1] : Path.Combine(Source, "lifts.json");
+            var lifts = JObject.Parse(File.ReadAllText(report));
+            int written = 0;
+            foreach (var asset in ((JObject)lifts["assets"]).Properties())
+            {
+                string path = $"{Root}/Prefabs/{asset.Name}.prefab";
+                var prefab = PrefabUtility.LoadPrefabContents(path);
+                if (prefab == null) continue;
+                try
+                {
+                    var rig = prefab.GetComponent<LiftRig>();
+                    if (rig == null) continue;
+                    ReadPathsAndFollows(rig, (JObject)asset.Value);
+                    PrefabUtility.SaveAsPrefabAsset(prefab, path);
+                    written++;
+                }
+                finally { PrefabUtility.UnloadPrefabContents(prefab); }
+            }
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[LiftImport] paths and follows written on {written} prefabs from {report}");
         }
 
         static void Expect(string id, Transform t, Vector3 expected, Transform root)

@@ -450,6 +450,12 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     with 1:1 faces to the ground (GR-02), for every make. Where the line needs a terminal higher or lower (the rope
     leaving its row outside the range, the chairs low beside it, a trench past its cap), the review says by how much
     ("raise it 6 ft (Page Up)", amber) and the player decides.
+  - **v5, a detachable's front half stands over natural ground** (owner, task 09, LT42, second review E1): a detachable
+    terminal's pad ends at the **hood's middle**, measured on its model (the D6 drive's about 7 ft, its return's about
+    6 ft in front of the bullwheel). Its front half (the nose, the bullwheel and the station rail toward the line) leaves
+    the ground as it is: nothing filled and no face reaching under it. Only ground that would rise above the pad's
+    level, into the terminal itself, is cut back to it with 1:1 faces. The quads keep v4 over their whole footprint.
+    Clearing (CL-09) and the low zones (TW-01 v2) still measure from the whole footprint.
 
 ### 5.2 Catalog (LC)
 
@@ -490,6 +496,11 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   | Per group (one rope's train) | a support group's load stays at least **½ of one sheave's limit, 750 lbf (3.3 kN)**, in every case, or it needs hold-down sheaves; the same applies in reverse to hold-down groups | US tramway code |
 
 - **LC-03, capacity:** seats × speed ÷ spacing, shown and not chosen. At the values above that's **2,400 pph**.
+  - **v2, detachables** (owner, task 09, LT41): capacity is seats × 3,600 ÷ the **loading interval** (D6 7.2 s, 3,000
+    pph); the spacing on the line is line speed × interval (120 ft at 1,000 fpm, about 2.7× a fixed grip's 45 ft); the
+    carriers slow round each station's rail to boarding (1.0 m/s) and unloading (1.4 m/s), fractions of the line speed
+    within 0.8–1.2 and 1.1–1.6 m/s, on 1 m/s² ramps, so a faster line raises them and the spacing and keeps the capacity.
+    The ride adds the ramps' lost time to slope ÷ speed.
   Spacing becomes editable later.
 - **LC-04, ride time:** slope length ÷ speed, plus nothing for loading (fixed grip).
 - **LC-05, sources:** these values were checked on 2026-10-16 against:
@@ -508,6 +519,10 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   eight), Detachable gondola (6, 8 or 10 person), Aerial tram (60 or 100 person), each with a model or maker. Only the
   fixed quad has its own models (Sessellift FGQ-4, Monta FG4); the others draw with them and carry placeholder speeds,
   spacings and weights (the mockup's LIFT_TYPES). Trams stand on towers up to 250 ft.
+  - **v2** (owner, task 09, LT41): the Sessellift D6 detachable six has its own models and figures (2 in rope, 5.6 m
+    gauge, 3.27 m chair drop, 1,000 fpm, 7.2 s); only it and the fixed quads can be built. Every other type stays in the
+    menu greyed, a placeholder, until its models exist. Detachable placeholders' spacings follow their intervals (quad
+    100 ft, eight 133 ft). Each type has a primary and an accent colour (the D6 black and white), chosen per lift later.
 - **LC-09, what blocks** (owner, task 09, LT14, lenient placement): only chair clearance (TW-01), tower spacing (TW-03),
   an unfinished gap (towers by hand) and the rise limit (LC-07) block a lift. Head loads (TW-04 to TW-06), the rope's
   angle into a station (TW-16) and terminal ground varying more than 40 ft are amber warnings; automatic placement
@@ -594,6 +609,18 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   | Pulls up | **Hold-down:** d8 |
   | Flips between cases, or the group load falls within 750 lbf of zero (LC-02) | **Combination:** c8, 4 hold-down over 4 support sheaves |
 
+  **v2, heads per type** (owner, task 09, LT41; the D6 handoff's G6): each type chooses from its own tower kit. The
+  quads' is the table above. The D6's wide kit has s4 and s6, then s10 (flat, where the load needs the sheaves on a bend
+  six sheaves' worth could take) or b10 (a sharper breakover), d10 for hold-down, and c8; so a bend needing nine or ten
+  sheaves is carried on the D6 and too sharp on a quad.
+
+  **v3, the player's kind** (owner, task 09, LT44, second review E6): a tower may carry a kind chosen by hand: **Auto**
+  (the table above, the default and every automatic tower's), **Support**, **Hold-down** or **Combination** (K in the
+  tower editor turns it round). The game still sizes the head within that kind from the load (TW-05). A kind that
+  can't carry the rope there (a support where the rope pulls up, a hold-down where it presses down, a combination
+  past its four sheaves a way) is drawn as that kind's biggest head and is **red** with its reason and what would
+  carry it; it's never changed behind the player's back. Stored with the tower (save v3).
+
 - **TW-05, limits per sheave and group:** LC-02's maximum load and maximum bend per sheave, and its minimum group load (so the rope stays seated), in
   every case.
   - *Task 09:* the bend one sheave may take is **the smaller of 4.5° and 2·asin(1,500 lbf ÷ 2T)**: 4.5° at the
@@ -606,6 +633,10 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     three hold-downs. TW-03's 50 ft minimum allows that.
   - A tower that would need more is red: "Too sharp for one hold-down: add one before the rise", or "…for one
     breakover: add one on the crest".
+  - **v2, groups spaced by their spans** (owner, task 09, LT45, finding E3): a break gets as many towers as its heads
+    need, spaced as far apart as the rope allows, taller rather than more. Where the repair adds a partner it goes
+    midway along the span on the bend's side (50 ft away only where that span is short), so a group is never a run
+    of towers 50 ft apart.
 - **TW-07, span limits:** no fixed number. A longer span sags more, so it needs taller towers (TW-01, TW-02), and bends
   the rope harder at both ends, so it needs bigger heads (TW-05).
 - **TW-08 v2, tolerance:** clearance is checked every 3.3 ft (1 m) along the line against SH-02's heights, to within
@@ -629,6 +660,21 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - The preview updates at least **10 times a second** while you aim, off the main thread, with stale results
     dropped (CF-03).
   - The final placement of a 1-mile (1.6 km) line takes **≤50 ms**.
+  - **v2, the line planned** (owner, task 09, LT45; findings E2–E4, 2026-10-23):
+    - **The towers between the station towers are chosen together:** the fewest towers whose spans keep the loaded
+      chairs 15 ft up (TW-01 v2; the low zones are the trench's and the unload ramp's) and whose every head carries
+      its bend in both load cases, each span's sag included (TW-04, TW-05, on the kit's largest heads). The station
+      towers' heads count too, so no end takes a turn no head carries.
+    - **Taller before more:** a tower may stand up to TW-02's 100 ft before another is added. The search's old soft
+      caps (line towers raised to 60 ft at most, a station tower's neighbour to 60 ft, a crest's neighbours by 20 ft)
+      are gone.
+    - **Among plans with as many towers,** heights nearest a modest 35 ft, then spans nearest even. Each tower then
+      comes down in 5 ft steps while everything still fits.
+    - **The first span's shortfall** up to 15 ft short of the first line tower is the trench's (GR-11 v2, at most
+      10 ft), as Break ground digs it; no tower is squeezed in there.
+    - **Where nothing fits** (a steep pitch running right up to a level top, say), the plan is the line whose heads
+      are least past what they carry; the repair (adding or raising towers) and LT34's level hints take it from there.
+    - The candidates are every 25 ft along the line, with 35, 45, 60, 80 and 100 ft of steel.
 - **TW-13, placement status bar:** a line in the lift menu about the tower in hand.
   - **Status:** OK, or the red reason.
   - **Head and load:** the head it would get, and its load in both cases as %.
@@ -687,8 +733,14 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
       beside it. The Sessellift's return keeps its station tower.
     - **No terminal raises.** The remedies end at the line towers and the envelope; what's left is the player's, told
       by how much (LF-12 v4).
+  - **v5, detachables level at both ends** (owner, task 09, LT43; findings E2, E4): a detachable's two terminals both
+    have support rows. The rope runs **level** between each terminal and its station tower, at the terminal's own rope
+    height, in both directions. The turn from level to the line is shared by the station tower and the towers after it
+    (TW-12 v2): no station tower takes a bend its head can't carry, so the drawn rope runs straight into its trains.
+    The quads keep v3/v4: the FGQ-4's return still exits at 14.3°, and the Monta's drive keeps its own station.
 - **TW-15, stored:**
-  - A tower's position along the line, its height and its stance are authored and saved.
+  - A tower's position along the line, its height and its stance are authored and saved, and (LT44) the kind of
+    head chosen for it, Auto unless the player chose one.
   - Its head type, forces and rope geometry are derived (SH-05).
 
 ![A lift profile: hold-downs before a steep rise, breakovers on the crest](images/p3-02/lift-profile.svg)

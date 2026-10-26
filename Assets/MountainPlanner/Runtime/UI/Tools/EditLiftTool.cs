@@ -325,7 +325,7 @@ namespace MountainPlanner.UI.Tools
                 else
                 {
                     var specs = new List<TowerSpec>(d.Towers.Count);
-                    foreach (var tw in d.Towers) specs.Add(new TowerSpec(tw.AlongMm, tw.HeightMm));
+                    foreach (var tw in d.Towers) specs.Add(tw.Spec);
                     var levels = d.Levels ?? LiftBuild.GroundLevels(type, ground, b.X, b.Y, t.X, t.Y);
                     r = LiftBuild.BuildWith(type, ground, b.X, b.Y, t.X, t.Y, specs, d.Stance, levels);
                 }
@@ -356,7 +356,7 @@ namespace MountainPlanner.UI.Tools
                 if (_draft.Replace || _draft.Towers.Count == 0)
                 {
                     _draft.Towers.Clear();
-                    foreach (var tw in done.r.Towers) _draft.Towers.Add(new Tower(default, tw.AlongMm, tw.HeightMm));
+                    foreach (var tw in done.r.Towers) _draft.Towers.Add(new Tower(default, tw.AlongMm, tw.HeightMm, tw.Kind));
                     _draft.Replace = false;
                 }
                 _draft.Levels = done.r.Levels;
@@ -378,8 +378,8 @@ namespace MountainPlanner.UI.Tools
         static List<Tower> Stored(Draft d, LiftBuild.Result r)
         {
             var list = new List<Tower>();
-            if (d.Replace || d.Towers.Count == 0) for (int i = 0; i < r.Towers.Count; i++) list.Add(new Tower(TowerId.Make(7, i), r.Towers[i].AlongMm, r.Towers[i].HeightMm));
-            else for (int i = 0; i < d.Towers.Count; i++) list.Add(new Tower(d.Towers[i].Id.Value != 0 ? d.Towers[i].Id : TowerId.Make(7, i), d.Towers[i].AlongMm, d.Towers[i].HeightMm));
+            if (d.Replace || d.Towers.Count == 0) for (int i = 0; i < r.Towers.Count; i++) list.Add(new Tower(TowerId.Make(7, i), r.Towers[i].AlongMm, r.Towers[i].HeightMm, r.Towers[i].Kind));
+            else for (int i = 0; i < d.Towers.Count; i++) list.Add(d.Towers[i].WithId(d.Towers[i].Id.Value != 0 ? d.Towers[i].Id : TowerId.Make(7, i)));
             return list;
         }
 
@@ -514,7 +514,7 @@ namespace MountainPlanner.UI.Tools
             else
             {
                 w.SetHint("Click a tower or a terminal, or step through them with [ and ]. A click on the line where there's no tower adds one.");
-                w.SetKeys((GameAction.BrushNarrower, "previous"), (GameAction.BrushWider, "next"), (GameAction.TowerAdd, "add a tower"), (GameAction.UndoStroke, "undo"));
+                w.SetKeys((GameAction.BrushNarrower, "previous"), (GameAction.BrushWider, "next"), (GameAction.TowerAdd, "add a tower"), (GameAction.TowerKind, "tower kind"), (GameAction.UndoStroke, "undo"));
             }
             if (_editor.HandProblem is LiftProblem hp) { w.SetMessage(hp.Message, !hp.Blocks); BuildReview(changes, blocked); w.ShowReview(_review); Buttons(changes); return; }
             if (_problem == null) w.SetMessage(null);
@@ -599,7 +599,7 @@ namespace MountainPlanner.UI.Tools
             var added = new List<TowerSpec>();
             foreach (var tw in _draft.Towers)
                 if (tw.Id.Value != 0 && _lift.IndexOfTower(tw.Id) >= 0) kept.Add(tw);
-                else added.Add(new TowerSpec(tw.AlongMm, tw.HeightMm));
+                else added.Add(tw.Spec);
             bool moved = _draft.Bottom.X != _lift.Bottom.X || _draft.Bottom.Y != _lift.Bottom.Y || _draft.Top.X != _lift.Top.X || _draft.Top.Y != _lift.Top.Y;
             var kind = moved ? LiftEdit.MoveTerminal : _draft.CatalogId != _lift.CatalogId ? LiftEdit.ChangeType : LiftEdit.Edit;
             return new EditLift(baseRevision, _lift.Id, _draft.CatalogId, _draft.Bottom, _draft.Top, _draft.Mode, _draft.Stance, kept, added, _draft.Levels, kind,
@@ -614,7 +614,7 @@ namespace MountainPlanner.UI.Tools
             if (towers != null)
                 foreach (var tw in towers)
                     if (tw.Id.Value != 0 && lift.IndexOfTower(tw.Id) >= 0) kept.Add(tw);
-                    else added.Add(new TowerSpec(tw.AlongMm, tw.HeightMm));
+                    else added.Add(tw.Spec);
             if (placed != null) added.AddRange(placed);
             return new EditLift(revision, lift.Id, d.CatalogId, d.Bottom, d.Top, d.Mode, d.Stance, kept, added, levels, LiftEdit.Edit, d.Name != lift.Name ? d.Name : null);
         }

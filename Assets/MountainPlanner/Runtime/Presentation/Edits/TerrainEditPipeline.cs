@@ -87,6 +87,9 @@ namespace MountainPlanner.Presentation.Edits
                                                              Dictionary<(int, int), Terrain> tiles, CancellationToken ct = default) =>
             Task.Run(() => new TerrainEditPipeline(folder, package, cache, frame, tiles), ct);
 
+        /// <summary>Package height chunks read from disk so far (finding D1: nothing per frame should need one).</summary>
+        public int ChunksRead => _source.ChunksRead;
+
         /// <summary>The edit lattice (the tile grid's north-west corner, 1 m).</summary>
         public EditLattice Lattice => _lattice;
         public TileGrid Grid => _grid;

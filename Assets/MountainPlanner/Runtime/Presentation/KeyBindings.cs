@@ -29,6 +29,8 @@ namespace MountainPlanner.Presentation
         LayerTrails,
         // P3-09 (F2, LT37): a tower in hand to add between the others.
         TowerAdd,
+        // P3-09 (LT44, second review E6): the selected tower's kind, round Auto, support, hold-down and combination.
+        TowerKind,
     }
 
     [Flags]
@@ -180,6 +182,8 @@ namespace MountainPlanner.Presentation
             new Info("Layers", "Trails", Context.Normal, new KeyChord(Key.Digit4, KeyMods.Shift)),
             // P3-09 (F2): Insert puts a tower in hand on the line, between its neighbours; claimed while a line's towers edit.
             new Info("Building", "Add a tower", Context.Tray, new KeyChord(Key.Insert), whileClaimed: true),
+            // P3-09 (LT44): K turns the selected tower's kind round; claimed while a tower is selected.
+            new Info("Building", "Tower kind (Auto, support, hold-down, combination)", Context.Tray, new KeyChord(Key.K), whileClaimed: true),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>

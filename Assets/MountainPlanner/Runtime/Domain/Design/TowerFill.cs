@@ -77,7 +77,7 @@ namespace MountainPlanner.Domain.Design
             if (towers.Count >= MaxTowers && problem == null)
                 problem = new LiftProblem("TW-12", "Too many towers: this line can't be finished automatically", 0);
             var specs = new List<TowerSpec>(towers.Count);
-            foreach (var t in towers) specs.Add(new TowerSpec(t.AlongMm, t.HeightMm));
+            foreach (var t in towers) specs.Add(t.Spec);
             return new Result { Towers = specs, Added = towers.Count - kept, Problem = problem };
         }
 

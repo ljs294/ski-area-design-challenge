@@ -16,11 +16,12 @@ namespace MountainPlanner.Presentation.Lifts
     {
         static readonly int SnowLoadId = Shader.PropertyToID("_SnowLoad");
         static readonly int LiveryId = Shader.PropertyToID("_LiveryColor");
+        static readonly int AccentId = Shader.PropertyToID("_AccentColor");
 
         readonly Material _structure;
         readonly Material _glass;
         readonly Material _chair;
-        readonly Dictionary<Color32, Material> _livery = new Dictionary<Color32, Material>();
+        readonly Dictionary<(Color32, Color32), Material> _livery = new Dictionary<(Color32, Color32), Material>();
         readonly List<Material> _copies = new List<Material>();
         readonly Material _glassCopy;
         readonly Material _chairCopy;
@@ -45,20 +46,27 @@ namespace MountainPlanner.Presentation.Lifts
             return m;
         }
 
-        /// <summary>The structure material in a livery colour (cached per colour).</summary>
-        public Material StructureFor(Color livery)
+        /// <summary>The structure material in a lift's two colours (LT41; cached per pair).</summary>
+        public Material StructureFor(LiftLivery livery)
         {
-            Color32 key = livery;
+            var key = ((Color32)livery.Primary, (Color32)livery.Accent);
             if (_livery.TryGetValue(key, out var m)) return m;
             m = Copy(_structure);
-            m.name = $"{_structure.name} ({key.r},{key.g},{key.b})";
-            m.SetColor(LiveryId, livery);
+            m.name = $"{_structure.name} ({key.Item1.r},{key.Item1.g},{key.Item1.b} / {key.Item2.r},{key.Item2.g},{key.Item2.b})";
+            m.SetColor(LiveryId, livery.Primary);
+            if (m.HasProperty(AccentId)) m.SetColor(AccentId, livery.Accent);
             _livery.Add(key, m);
             return m;
         }
 
+        /// <summary>One colour (the Lift Lab's swatches): the primary, with the default accent.</summary>
+        public Material StructureFor(Color livery) => StructureFor(new LiftLivery(livery, LiftLivery.DarkAccent));
+
         /// <summary>Points every renderer of a placed lift asset at the runtime copies, in a livery colour.</summary>
-        public void Apply(GameObject instance, Color livery)
+        public void Apply(GameObject instance, Color livery) => Apply(instance, new LiftLivery(livery, LiftLivery.DarkAccent));
+
+        /// <summary>Points every renderer of a placed lift asset at the runtime copies, in the lift's two colours.</summary>
+        public void Apply(GameObject instance, LiftLivery livery)
         {
             var structure = StructureFor(livery);
             foreach (var r in instance.GetComponentsInChildren<Renderer>(true))

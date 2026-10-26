@@ -45,7 +45,7 @@ namespace MountainPlanner.App
             long start = System.Diagnostics.Stopwatch.GetTimestamp();
             try
             {
-                _draftView.Build(lift, _edits.Pipeline.Heights, _resort.Frame, new Color(0.72f, 0.12f, 0.09f));
+                _draftView.Build(lift, _edits.Pipeline.Heights, _resort.Frame, LiftLivery.For(lift.CatalogId));
             }
             catch (Exception e)
             {

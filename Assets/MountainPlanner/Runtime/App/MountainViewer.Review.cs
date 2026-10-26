@@ -21,6 +21,8 @@ namespace MountainPlanner.App
     ///                            GPU times, garbage and memory per leg and in total, checks them against the
     ///                            quality preset's budget (-quality), saves a screenshot of each leg, then quits.
     ///   -benchmark-views &lt;out.json&gt;  the earlier benchmark: 300 frames at each fixed view, with visible trees per LOD.
+    ///   -holdview &lt;out.json&gt;   600 frames held at the -view given, with a save (-opensave) and its work in; -nolabels and
+    ///                            -layeroff &lt;id,id&gt; for A/B runs (finding D1).
     ///   -benchres &lt;w&gt;x&lt;h&gt;   a fixed window for this run only, restored before quitting (<see cref="BenchmarkResolution"/>);
     ///                            demo.bat passes 1920x1080 with every benchmark. Never -screen-*: Unity saves it.
     ///   -lineup &lt;out prefix&gt;    no mountain: every species in a row on flat snow, captured at each forced LOD
@@ -430,6 +432,65 @@ namespace MountainPlanner.App
             File.WriteAllText(outPath, json.ToString());
             Debug.Log($"[Benchmark] written to {outPath}");
             Application.Quit();
+        }
+
+        /// <summary>
+        /// -holdview &lt;out.json&gt; (finding D1): once the mountain, the save and its building work are in, 600 frames held at
+        /// the camera's view (-view): frame and GPU times, garbage, draw calls, the package height chunks read from disk while
+        /// measuring and the labels' sight checks. -nolabels turns the labels off, -layeroff &lt;id,id&gt; map layers (lifts,
+        /// trails), to attribute the cost. Then quits.
+        /// </summary>
+        IEnumerator RunHoldView(string outPath)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            while (Forest == null) yield return null;
+            while (!_resort.CoverReady.IsCompleted) yield return null;
+            float wait = Time.unscaledTime + 120;
+            while (_edits == null && Time.unscaledTime < wait) yield return null;
+            while (WorkBusy) yield return null;
+            if (Array.IndexOf(args, "-nolabels") >= 0) Hud?.SetLabels(false);
+            int off = Array.IndexOf(args, "-layeroff");
+            if (off >= 0 && off + 1 < args.Length) foreach (string layer in args[off + 1].Split(',')) SetLayerForCapture(layer, false);
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = -1;
+            if (Camera != null) Camera.InputEnabled = false;
+            for (int f = 0; f < 120; f++) yield return null;   // settle
+            using var stats = new FrameStats();
+            stats.Reset();
+            int reads = _edits?.Pipeline.ChunksRead ?? 0;
+            int checks = SightChecks();
+            for (int f = 0; f < 600; f++)
+            {
+                yield return null;
+                stats.Record(Time.unscaledDeltaTime, FrameStats.SampleGpuMs());
+            }
+            stats.Stop();
+            reads = (_edits?.Pipeline.ChunksRead ?? 0) - reads;
+            checks = SightChecks() - checks;
+            var s = stats.Summarise();
+            string Arg(string name) { int i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length ? args[i + 1] : ""; }
+            File.WriteAllText(outPath, "{\n  \"view\": \"" + Arg("-view") + "\",\n  \"labels\": " + (Hud == null || Hud.LabelsOn ? "true" : "false")
+                                       + ",\n  \"layersOff\": \"" + Arg("-layeroff") + "\",\n  \"screen\": [" + Screen.width + ", " + Screen.height
+                                       + "],\n  \"heightChunksRead\": " + reads + ",\n  \"labelSightChecks\": " + checks
+                                       + ",\n  \"frames\": " + JsonUtility.ToJson(s, true).Replace("\n", "\n  ") + "\n}\n");
+            Debug.Log($"[HoldView] frame p50 {s.p50Ms:F2} p95 {s.p95Ms:F2} max {s.maxMs:F1} ms, gpu p95 {s.gpuP95Ms:F2} ms, {reads} height chunks read, " +
+                      $"{checks} sight checks, heap +{s.heapGrowthBytes / 1024} KB, {s.gcCollections} collections; written to {outPath}");
+            Application.Quit();
+        }
+
+        int SightChecks() => (_landmarkLabels?.SightChecks ?? 0) + (_trailLabels?.SightChecks ?? 0) + (_liftLabels?.SightChecks ?? 0);
+
+        float _heightReadsLogAt;
+        int _heightReadsLogged;
+
+        /// <summary>Development builds: package height chunks read from disk, each second some were (finding D1: none at rest).</summary>
+        void LogHeightReads()
+        {
+            if (!Debug.isDebugBuild || _edits == null || Time.unscaledTime < _heightReadsLogAt) return;
+            _heightReadsLogAt = Time.unscaledTime + 1;
+            int reads = _edits.Pipeline.ChunksRead;
+            if (reads != _heightReadsLogged) Debug.Log($"[Heights] {reads - _heightReadsLogged} package height chunks read from disk in the last second ({reads} in all)");
+            _heightReadsLogged = reads;
         }
 
         /// <summary>
