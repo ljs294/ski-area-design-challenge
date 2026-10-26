@@ -67,7 +67,7 @@ namespace MountainPlanner.Tests
             yield return null;
             Assert.That(ui.Q<Label>(className: "credits-version")?.text, Is.EqualTo("Version 0.2.0"));
             Assert.That(ui.Q<Button>("logs-open"), Is.Not.Null, "Settings › Data › Logs › Open");
-            Assert.That(ui.Q<Button>("logs-copy"), Is.Not.Null, "Settings › Data › Logs › Copy report");
+            Assert.That(ui.Q<Button>("logs-send"), Is.Not.Null, "Settings › Data › Logs › Send logs… (task P3-14)");
         }
 
         [UnityTest]

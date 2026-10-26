@@ -136,6 +136,8 @@ namespace MountainPlanner.Persistence.Reports
             if (!parts.Contains(ReportPart.System)) { report.System.Clear(); report.Settings.Clear(); }
             report.Title = privacy.Scrub(report.Title);
             report.Note = privacy.Scrub(report.Note);
+            foreach (var map in new[] { report.System, report.Settings })
+                foreach (string key in map.Keys.ToList()) map[key] = privacy.Scrub(map[key]);
 
             using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write))
             using (var zip = new ZipArchive(stream, ZipArchiveMode.Create))

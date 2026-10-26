@@ -40,6 +40,8 @@ namespace MountainPlanner.Persistence.Reports
         public string PackageId = "";
         public string Name = "";
         public string SaveName = "";
+        /// <summary>The area's centre and size, so it can be downloaded again when the owner hasn't got it.</summary>
+        public double Latitude, Longitude, SizeMetres;
         public List<string> Attribution = new List<string>();
     }
 
@@ -78,7 +80,10 @@ namespace MountainPlanner.Persistence.Reports
         public ReportArea? Area;
         /// <summary>GPU, driver, CPU, memory, Windows, display and scale, keyed by name.</summary>
         public SortedDictionary<string, string> System = new SortedDictionary<string, string>(global::System.StringComparer.Ordinal);
-        /// <summary>Every setting the player can change, by its stored key.</summary>
+        /// <summary>
+        /// Every setting the player can change, by its stored key; each value is typed: "i:3", "f:1.5" or "s:text" (as
+        /// PlayerPrefs keeps it), so a report's settings can be applied as they were (decision PR9).
+        /// </summary>
         public SortedDictionary<string, string> Settings = new SortedDictionary<string, string>(global::System.StringComparer.Ordinal);
         public List<ReportFile> Files = new List<ReportFile>();
 

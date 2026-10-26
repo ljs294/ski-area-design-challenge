@@ -9,7 +9,18 @@ namespace MountainPlanner.UI.Flow
     /// </summary>
     public static class DataPreferences
     {
-        const string FolderKey = "LibraryFolder", OfflineKey = "Offline";
+        const string FolderKey = "LibraryFolder", OfflineKey = "Offline", CrashOfferKey = "CrashOffer";
+
+        /// <summary>Settings › Data › Offer a report after a crash (task P3-14): on unless the player turned it off.</summary>
+        public static bool CrashOffer => (_crashOffer ?? SettingsStore.GetInt(CrashOfferKey, 1) != 0);
+
+        static bool? _crashOffer;
+
+        public static void SetCrashOffer(bool on, bool remember = true)
+        {
+            if (remember) SettingsStore.SetInt(CrashOfferKey, on ? 1 : 0);
+            _crashOffer = on;
+        }
 
         /// <summary>The chosen library folder, or "" for the default (%LOCALAPPDATA%\SkiAreaDesignChallenge).</summary>
         public static string LibraryFolder => SettingsStore.GetString(FolderKey, "");

@@ -34,8 +34,8 @@ namespace MountainPlanner.UI.Flow
         public event Action ClearCacheConfirmed;
         /// <summary>Data › Logs › Open: the error logs' folder (task P2-10).</summary>
         public event Action LogsOpenChosen;
-        /// <summary>Data › Logs › Copy report: the newest error log onto the clipboard (task P2-10).</summary>
-        public event Action ReportCopyChosen;
+        /// <summary>Data › Logs › Send logs…: Send feedback on Problem (task P3-14).</summary>
+        public event Action LogsSendChosen;
 
         /// <summary>False for captures and tests: changes apply for this run only, and the player's settings stay as they were.</summary>
         public bool Remember = true;
@@ -527,13 +527,17 @@ namespace MountainPlanner.UI.Flow
             _cacheText.name = "data-cache";
             // Task P2-10: the error logs a tester sends with a bug report.
             var logsOpen = Ghost("logs-open", "Open", () => LogsOpenChosen?.Invoke());
-            var logsCopy = Ghost("logs-copy", "Copy report", () => ReportCopyChosen?.Invoke());
+            // Task P3-14: Send logs opens Send feedback on Problem; it replaces P2-10's Copy report.
+            var logsSend = Ghost("logs-send", "Send logs…", () => LogsSendChosen?.Invoke());
             var logs = new VisualElement();
             logs.AddToClassList("settings-pair");
             logsOpen.AddToClassList("settings-pair__first");
             logs.Add(logsOpen);
-            logs.Add(logsCopy);
-            Row(page, "Logs", "Errors are saved here. Send the newest one with a bug report.", logs);
+            logs.Add(logsSend);
+            Row(page, "Logs", "Error logs and the game log, for a problem report.", logs);
+            Row(page, "Offer a report after a crash", "If the game closed unexpectedly, the title asks once whether to send a report.",
+                Seg("crash-offer", new[] { "on", "off" }, new[] { "On", "Off" },
+                    () => DataPreferences.CrashOffer ? 0 : 1, i => { DataPreferences.SetCrashOffer(i == 0, Remember); Refresh(); }));
             Row(page, "Offline mode", "No downloads, map tiles or place search; the areas you have open as usual.",
                 Seg("offline", new[] { "on", "off" }, new[] { "On", "Off" },
                     () => DataPreferences.OfflineNow ? 0 : 1, i => { DataPreferences.SetOffline(i == 0, Remember); Refresh(); }));

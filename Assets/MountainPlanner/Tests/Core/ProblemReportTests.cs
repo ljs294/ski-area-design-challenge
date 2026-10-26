@@ -76,12 +76,14 @@ namespace MountainPlanner.Tests
             var report = Report();
             report.Title = "Crash when pat saves";
             report.Note = @"My saves are in C:\Users\pat\AppData";
+            report.Settings["MountainPlanner.LibraryFolder"] = @"s:D:\Games\pat\Areas";
             ReportBundle.Write(zip, report, ReportBundle.Gather(sources, Now), ReportPart.All.ToList(), Privacy);
             foreach (var entry in Entries(zip).Where(e => !e.Key.StartsWith("save/") && !e.Key.EndsWith(".dmp") && !e.Key.EndsWith(".jpg")))
                 Assert.IsFalse(Privacy.Leaks(Encoding.UTF8.GetString(entry.Value)), $"{entry.Key} names the player");
             var read = ReportBundle.Read(zip);
             Assert.AreEqual("Crash when %USERNAME% saves", read.Title);
             StringAssert.Contains(@"C:\Users\%USERNAME%\AppData", read.Note);
+            Assert.AreEqual(@"s:D:\Games\%USERNAME%\Areas", read.Settings["MountainPlanner.LibraryFolder"]);
         }
 
         [Test]
@@ -236,7 +238,7 @@ namespace MountainPlanner.Tests
             };
             r.System[SystemKeys.Gpu] = "NVIDIA GeForce RTX 3060 Ti";
             r.System[SystemKeys.Windows] = "Windows 11 (10.0.26200) 64bit";
-            r.Settings["MountainPlanner.Quality"] = "High";
+            r.Settings["MountainPlanner.Quality"] = "s:High";
             return r;
         }
 
