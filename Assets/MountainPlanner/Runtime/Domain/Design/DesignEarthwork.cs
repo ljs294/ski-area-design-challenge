@@ -131,8 +131,9 @@ namespace MountainPlanner.Domain.Design
             internal Dictionary<ulong, Entry> Overlay;
             internal long Version;
 
-            /// <summary>What a piece's grade handed back in this rebuild (a trail's stations and volumes), or null.</summary>
-            public object DetailOf(ulong key) => Overlay != null && Overlay.TryGetValue(key, out var e) ? e?.Detail : null;
+            /// <summary>What a piece's grade handed back in this rebuild (a trail's stations and volumes), or null. A part
+            /// of a split chain (NT2) gets its share of the chain's detail.</summary>
+            public object DetailOf(ulong key) => Overlay == null ? null : Find(Overlay, key);
             /// <summary>A piece's writes in this rebuild, when it was graded again.</summary>
             public EarthworkWrites WritesOf(ulong key) => Overlay != null && Overlay.TryGetValue(key, out var e) ? e?.Writes : null;
         }
@@ -227,7 +228,17 @@ namespace MountainPlanner.Domain.Design
         /// <summary>What a piece's last accepted grade handed back, or null.</summary>
         public object DetailOf(ulong key)
         {
-            lock (_gate) return _cache.TryGetValue(key, out var e) ? e.Detail : null;
+            lock (_gate) return Find(_cache, key);
+        }
+
+        /// <summary>A piece's detail, or its share of a grouped one (NT2: a split chain graded under its top part's key).</summary>
+        static object Find(Dictionary<ulong, Entry> entries, ulong key)
+        {
+            if (entries.TryGetValue(key, out var e))
+                return e?.Detail is IGroupedDetail own ? own.DetailFor(key) : e?.Detail;
+            foreach (var other in entries.Values)
+                if (other?.Detail is IGroupedDetail g && g.DetailFor(key) is object d) return d;
+            return null;
         }
 
         /// <summary>A piece's last accepted writes, or null (tests, the trail map).</summary>

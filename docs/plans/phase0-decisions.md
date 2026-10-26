@@ -485,3 +485,21 @@ The owner answered revision 1's eight questions, then asked for an adversarial r
 | LT16 | **Every lift-menu choice is a dropdown;** Towers is one quiet line (Automatic ▾ · Plumb ▾) |
 | LT17 | **Keys after TL19:** `,` and `.` slide a tower 5 ft (Shift 50 ft); Page Up / Page Down change a tower's height or a terminal's level only while one is claimed (selected or in hand); otherwise the camera has them. Toolbox Edit is M |
 | LT18 | **The changes amend PR #91** (Q15). The mockup's 400 ft cap on a station's exempt zone is its own engine's fix: ours already ends the low zone 100 ft from the bullwheel (TW-01 v2). Ride times round to the second |
+
+## Phase 3 task 10, paths, junctions and the network: decided 2026-10-25
+
+**Context:** automatic paths, derived junctions, Split and Join, the derived ski network with its connectivity check and
+warnings, the status bar counts, Analysis › Network and map label collisions. Plan: [p3-10-plan.md](p3-10-plan.md).
+The owner said "Go. Yes to all nine recommendations."
+
+| # | Decision |
+|---|---|
+| NT1 | **Split and Join are buttons in the Edit trail window** (as the mockup), not Toolbox tiles; the tray's letters stay free |
+| NT2 | **A split pair is graded as one trail,** so Split never changes the ground (NW-10); TrailEarthwork grades the two sides of one cut as one centreline |
+| NT3 | **Joining two separately painted Graded trails is allowed:** the seam regrades (within about ±75 ft, GR-01 v3) and undo restores it. Natural trails and a split pair's join change no ground |
+| NT4 | **Analysis › Network is its own tab,** after Trails |
+| NT5 | **The status bar shows built lift and trail counts now;** a count turns amber when anything it counts has an NW-12 warning, its tooltip says what, and a click opens Analysis › Network. Guests stay greyed until Phase 4 |
+| NT6 | **"Leads nowhere" is literal:** a trail whose tail joins no lift bottom, no other trail and no path. "No way down" on the lift covers longer dead ends |
+| NT7 | **Label collisions:** lift names win over trail names; a trail name slides along its line, then hides. Contour labels are unchanged |
+| NT8 | **Timing:** the engine-free work (geometry, connectivity, tests, the network golden) and the mockup start now; the game UI, lift nodes in the game and labels wait for #94 (labels also #97), merging main as each lands |
+| NT9 | **Segment ratings** (NW-08) are computed and tested but not shown; the player sees one rating per trail |
