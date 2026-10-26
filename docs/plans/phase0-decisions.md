@@ -531,3 +531,26 @@ Release.
 | PR8 | **Symbols:** the build is Mono; `release.ps1` keeps each tagged release's game DLLs and PDBs in `D:\skiAreaDesignChallenge\symbols\<version>`, outside git and never shipped. Native frames use Unity's public symbol server |
 | PR9 | **Opening a report:** `tools/reports/open-report.ps1` (demo.bat 71o; a zip or `-Issue N`) unpacks into a scratch `-data` folder, copies the area in from the owner's library (or names the package to download), opens the save, prints the system info and starts the game with `-reportsettings`: the reported settings for that session only, under their own prefix, never over the owner's |
 | PR10 | **The old backlog stays in the docs;** new findings go to Issues from v0.3.0 |
+
+## Phase 3 task 15, terrain brush: decided 2026-10-26
+
+**Context:** the owner asked for a Cities: Skylines 2-style terrain tool during task 08 (TL14), for hand-grading cat
+tracks, junctions and the ground round lifts, and started it on 2026-10-26 ("get the brush going"). The plan went
+through three revisions: five brushes (rev 1), the CS2 set and one pane (rev 2), then a confirmation and fixed
+structures (rev 3, approved). Plan: [p3-15-plan.md](p3-15-plan.md); rules TB-01 to TB-14 in
+[p3-02-design-rules.md §4.6](p3-02-design-rules.md).
+
+| # | Decision |
+|---|---|
+| BR1 | **A Terrain tab in the Toolbox** holds the CS2 set: **Raise/Lower** (hold left to raise, hold right to lower), **Flatten** (right click samples the target elevation under the pointer, left paints toward it), **Smooth**, and **Slope** (right click sets the target elevation; a left drag ramps the ground toward it). Tray letters B, L, O and G |
+| BR2 | **One brush pane for all four,** nearly identical: Diameter and Strength, plus the Target elevation (Flatten, Slope) and the Slope (Slope) where they apply |
+| BR3 | **Slope picks its grade by trail rating:** four chips (● Easiest under 25%, ■ More difficult 25–40%, ◆ Most difficult 40–60%, ◆◆ Experts only 60% and up, from TD-03) choose the band, and a slider sets the grade inside it |
+| BR4 | **The tool owns the right mouse button** while a Terrain tool is armed (right-drag pan comes back when it closes; WASD and the arrows still pan, middle-drag still turns) |
+| BR5 | **The ground moves live and at once:** "when raising or lowering terrain you should see it raise as you hold the mouse" |
+| BR6 | **Strokes replay last,** after every trail and lift (TL3's fold, phase 2): hand grading is the finishing pass. Raise and Lower are relative, so they ride on a regraded trail |
+| BR7 | **A final confirmation:** strokes stay pending until Break ground, whose review gives the cut and fill. The confirmed session is one undo step; Ctrl+Z inside the tool takes back the last pending stroke |
+| BR8 | **The cost is volumes for now:** cut, fill and the net import or export (yd³, m³ in metric), trees cleared and towers re-heighted. A money line joins it with the Phase 4 economy |
+| BR9 | **Terminals, and later every building, are fixed:** the brush never changes the ground of their pads, and the ground may slope into them at **no more than 1:1** |
+| BR10 | **A lift's clearance envelope can't be infringed:** the brush never brings ground closer to the line than the clearance rule allows |
+| BR11 | **Towers follow the ground:** a tower's head (and so the rope) stays where it was, in the same orientation, and the tower's height changes with the ground at its base. Where the tower would pass its height limits, **the brush stops** there ("held by tower 7") |
+| BR12 | **Save v4** (design Shape 4) adds the strokes; the design golden re-pins (owner OK with the plan) |
