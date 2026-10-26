@@ -512,3 +512,22 @@ The owner answered revision 1's eight questions, then asked for an adversarial r
 | LT43 | **Detachables are level at both ends** (owner, 2026-10-23, second review E2 and E4; TW-16 v5): the rope runs level between each detachable terminal and its station tower, at the terminal's rope height, and the turn to the line is shared by the station tower and the towers after it, never one head past what it carries. Detachables only: the FGQ-4's return keeps its 14.3° exit and the Monta's drive its own station (TW-16 v3/v4) |
 | LT44 | **The player chooses a hand-placed tower's kind** (owner, 2026-10-23, second review E6; TW-04 v3; replaces LT5's "physics picks the heads" and LT38's "the player doesn't choose heads" for towers set by hand): Auto (the game's choice, as before), Support, Hold-down or Combination; the game sizes the sheaves from the bend and load, and a kind that can't carry its bend is red with its reason, never changed. Automatic placement stays Auto; Edit towers can set one tower. Stored with the tower (save v3) |
 | LT45 | **Taller towers before more of them** (owner, 2026-10-23, second review E3: "the game may be arbitrarily restricting tower height"; TW-12 v2, TW-06 v2): TW-02's 100 ft stays the line-tower maximum, and placement uses height up to it before adding towers. Its soft caps (60 ft, a crest's neighbours by 20 ft, partners always 50 ft away) are gone; the line between the station towers is planned together as the fewest towers whose heads all carry their bends, with heights near a modest 35 ft |
+
+## Phase 3 task 14, problem reports and Send feedback: decided 2026-10-25
+
+**Context:** the owner asked "How will I debug user issues in the future?" and "We should also just provide a button
+for users to send logs", then widened it to suggestions and to tracking issues. Friends get the game from a GitHub
+Release.
+
+| # | Decision |
+|---|---|
+| PR1 | **One Send feedback dialog,** Problem or Suggestion. The error notice and Settings › Data › Logs open it on Problem; the in-game menu opens it on Suggestion. No hotkey (bindable later) |
+| PR2 | **Sending:** the game saves the zip in `<data>/Reports`, shows it in Explorer and opens a pre-filled GitHub issue form (kind, title, version and GPU only in the link); the player drags the zip into the issue. Nothing is uploaded by the game and no key or token is in the build. Friends without GitHub send the file directly |
+| PR3 | **No email address and no mail-to-issue script** (owner, 2026-10-25). Uploading from the game (a free relay) stays a later decision |
+| PR4 | **GitHub Issues track problems and suggestions** (labels `problem`, `suggestion`, `crash`, area and status labels, a milestone per release, a free project board). Discussions stays off; **the wiki is on hold** |
+| PR5 | **The report:** `report.json` ("report" v1, not frozen), the error logs, Player.log and Player-prev.log (last 4 MB each), Unity's newest crash dump, the open save (read only; included by default, with a toggle), a screenshot (on by default), system info and every setting, the player's note. The package itself is never included, only its ID and attribution. The zip stays under GitHub's 25 MB |
+| PR6 | **Privacy:** nothing is sent automatically; the dialog lists every file and its size first; the Windows user name in any path or log becomes `%USERNAME%`; no computer name |
+| PR7 | **After a crash** the title offers a report once, at the next launch (a running marker the clean quit removes); never in tool runs or scratch `-data` folders; Settings › Data can turn it off |
+| PR8 | **Symbols:** the build is Mono; `release.ps1` keeps each tagged release's game DLLs and PDBs in `D:\skiAreaDesignChallenge\symbols\<version>`, outside git and never shipped. Native frames use Unity's public symbol server |
+| PR9 | **Opening a report:** `tools/reports/open-report.ps1` (demo.bat 71o; a zip or `-Issue N`) unpacks into a scratch `-data` folder, copies the area in from the owner's library (or names the package to download), opens the save, prints the system info and starts the game with `-reportsettings`: the reported settings for that session only, under their own prefix, never over the owner's |
+| PR10 | **The old backlog stays in the docs;** new findings go to Issues from v0.3.0 |

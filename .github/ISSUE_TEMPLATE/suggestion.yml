@@ -1,0 +1,36 @@
+name: Suggestion
+description: An idea that would make the game better.
+title: ""
+labels: ["suggestion", "new"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Game version
+      placeholder: v0.3.0 (a1b2c3d)
+  - type: dropdown
+    id: area
+    attributes:
+      label: Part of the game
+      options:
+        - Not sure
+        - Terrain and snow
+        - Trees and forest
+        - Lifts
+        - Trails
+        - Interface
+        - Speed or smoothness
+        - Downloads and areas
+        - Saves
+  - type: textarea
+    id: details
+    attributes:
+      label: Your idea
+      description: What would you like, and why?
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Screenshot or report (optional)
+      description: Drag a screenshot or the report zip here.

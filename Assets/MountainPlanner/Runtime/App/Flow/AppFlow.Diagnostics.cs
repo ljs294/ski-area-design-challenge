@@ -8,7 +8,7 @@ namespace MountainPlanner.App.Flow
 {
     /// <summary>
     /// Task P2-10: the version under the title and in Credits; the session's first error shows the notice once (owner,
-    /// 2026-10-12) with Open folder; Settings › Data › Logs opens the folder or copies the newest log for a bug report.
+    /// 2026-10-12) with Open folder; Settings › Data › Logs opens the folder, or Send logs (task P3-14).
     /// </summary>
     public sealed partial class AppFlow
     {
@@ -23,7 +23,7 @@ namespace MountainPlanner.App.Flow
         {
             Screens.SetVersion(BuildInfo.Current.TitleVersion);
             Screens.ErrorLogsOpenChosen += OpenErrorLogs;
-            Screens.ErrorReportCopyChosen += CopyErrorReport;
+            WireReport();   // Send feedback and the crash marker (AppFlow.Report.cs, task P3-14)
             ErrorReporter.FirstError += OnFirstError;
             if (ErrorReporter.LogPath != null) OnFirstError(ErrorReporter.LogPath);   // an error before the flow existed
         }
@@ -43,23 +43,6 @@ namespace MountainPlanner.App.Flow
         {
             Directory.CreateDirectory(ErrorLogFolder);
             Application.OpenURL(new Uri(ErrorLogFolder).AbsoluteUri);
-        }
-
-        /// <summary>The newest log onto the clipboard, to paste into a message.</summary>
-        void CopyErrorReport()
-        {
-            var files = ErrorLog.Files(ErrorLogFolder);
-            if (files.Count == 0)
-            {
-                Screens.Toast("No errors have been logged.");
-                return;
-            }
-            try
-            {
-                GUIUtility.systemCopyBuffer = ErrorLog.ReadShared(files[0]);
-                Screens.Toast($"Copied {Path.GetFileName(files[0])}: paste it into your bug report.", 4);
-            }
-            catch (Exception e) { Screens.Toast($"The log couldn't be read: {e.Message}", 5); }
         }
 
         static void NoteTitleReady(float seconds, bool bundled)

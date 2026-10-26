@@ -84,8 +84,11 @@ To release:
 - **The code:** `Persistence/ErrorLog.cs` is plain C# that `dotnet test` covers. `App/Diagnostics/ErrorReporter.cs`
   holds the Unity hooks.
 - **In the game:**
-  - the session's first error shows a notice, once, with Open folder;
-  - Settings › Data › Logs has Open and Copy report.
+  - the session's first error shows a notice, once, with Send logs and Open folder;
+  - Settings › Data › Logs has Open and Send logs… (task P3-14; Copy report is gone).
+- **Problem reports (task P3-14):** Send feedback saves `<data>/Reports/report-<stamp>.zip` (report.json "problem
+  report" v1, the logs, the crash dump, the save, a screenshot), shows it in Explorer and opens a pre-filled GitHub
+  issue. `tools/reports/open-report.ps1` opens one on the owner's PC (demo.bat 71); see `tools/reports/README.md`.
 - **Flags:**
   - `-errorlogs <folder>` writes the logs elsewhere;
   - `-crashtest` forces a test exception once the title is in;

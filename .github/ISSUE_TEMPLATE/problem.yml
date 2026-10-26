@@ -1,0 +1,51 @@
+name: Problem
+description: Something in the game is broken, wrong or confusing.
+title: ""
+labels: ["problem", "new"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. If the game opened this page from **Send feedback**, the title and version are filled in.
+        Drag the `report-....zip` file it saved into the box below. Issues are public; the report has no personal
+        details except what you typed, and your Windows user name is taken out of its logs.
+  - type: input
+    id: version
+    attributes:
+      label: Game version
+      description: Shown bottom left on the title screen.
+      placeholder: v0.3.0 (a1b2c3d)
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Graphics card
+      placeholder: NVIDIA GeForce RTX 3060 Ti
+  - type: dropdown
+    id: area
+    attributes:
+      label: Part of the game
+      options:
+        - Not sure
+        - Terrain and snow
+        - Trees and forest
+        - Lifts
+        - Trails
+        - Interface
+        - Speed or smoothness
+        - Downloads and areas
+        - Saves
+        - Crash or freeze
+  - type: textarea
+    id: details
+    attributes:
+      label: What happened, and what were you doing?
+      description: What did you expect instead? Steps to make it happen again help most.
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Report file
+      description: Drag the report zip here (up to 25 MB). Without a GitHub account, send the file to the developer directly.

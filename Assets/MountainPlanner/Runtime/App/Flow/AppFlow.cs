@@ -250,6 +250,7 @@ namespace MountainPlanner.App.Flow
                 hud.CreditsChosen += () => Screens.ShowCredits(Credits());   // the menu's Credits (task P2-07)
                 MountainViewer.PhotoErrorShown = (title, text) => Screens.Alert(title, text, null, null);   // photo save errors (S11)
                 WireSaves(hud);   // Save, autosave (task P3-04)
+                WireReportHud(hud);   // the menu's Send feedback (task P3-14)
             }
             var then = _afterTitle;
             _afterTitle = FlowScreen.Title;
@@ -265,6 +266,8 @@ namespace MountainPlanner.App.Flow
             UpdateDownloads();
             HandleKeys(Keyboard.current);
             UpdateSaves(Keyboard.current);
+            UpdateCrashOffer();   // task P3-14
+            if (Screens.CrashOfferShown && !Screens.TitleShown) Screens.ShowCrashOffer(false);   // only ever over the title's signs
 
             // The title's slow drift over the demo mountain (the viewer's own camera input is off in title mode).
             var cam = _viewer != null ? _viewer.Camera : null;
@@ -328,6 +331,7 @@ namespace MountainPlanner.App.Flow
                 bool used = true;
                 if (Screens.PromptOpen) Screens.ClosePrompt();
                 else if (Screens.ConfirmOpen) Screens.CloseConfirm();
+                else if (Screens.FeedbackOpen) Screens.CloseFeedback();   // over Settings when opened from Data › Logs
                 else if (Screens.OverlayOpen) Screens.CloseOverlay();
                 else used = Controller.Escape();
                 if (used) MountainViewer.FlowTookEscapeFrame = Time.frameCount;   // the in-game menu doesn't open as well
@@ -339,7 +343,7 @@ namespace MountainPlanner.App.Flow
         /// counts (task P2-03.1): under it no key moves the camera, and Esc can't quit the game while an area opens.
         /// </summary>
         bool FlowHasKeyboard() =>
-            Screens.CoverUp || Screens.ConfirmOpen || Screens.PromptOpen || Screens.OverlayOpen || (Picker != null && Picker.IsOpen) || Controller.Screen == FlowScreen.Library || Controller.Screen == FlowScreen.Quality;
+            Screens.CoverUp || Screens.ConfirmOpen || Screens.PromptOpen || Screens.FeedbackOpen || Screens.OverlayOpen || (Picker != null && Picker.IsOpen) || Controller.Screen == FlowScreen.Library || Controller.Screen == FlowScreen.Quality;
 
         // ---------- IFlowHost ----------
 

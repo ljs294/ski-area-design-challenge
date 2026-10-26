@@ -28,25 +28,25 @@ WHAT YOU NEED
   slowly, lower Settings > Graphics > Quality preset.
 
 
-REPORTING A PROBLEM
+REPORTING A PROBLEM OR AN IDEA
 
-When something goes wrong, the game saves an error log and shows "A log was saved" with an Open folder button.
-The logs are in:
+In the game, use Send feedback: in the menu (top right), on the "A log was saved" notice (Send logs), or in
+Settings > Data > Logs > Send logs. Pick Problem or Suggestion, say what happened, and choose what goes in:
+a screenshot, the error logs, the game log, your save, and your computer's details (Windows, processor, graphics
+card, screen and settings). If the game closed by itself, the next start offers a report once.
 
-    %LOCALAPPDATA%\SkiAreaDesignChallenge\Logs
+Save and open GitHub saves one zip file, shows it in a folder window and opens a GitHub issue with the title and
+version filled in: drag the zip into the issue and submit it. GitHub issues are public. Without a GitHub account,
+send the zip to the developer any way you like. The game never sends anything by itself, and your Windows user
+name is taken out of the logs. Reports are kept in:
 
-Each file starts with the game's version and your computer's details (Windows version, processor, graphics card,
-screen and settings), followed by the errors. It holds nothing else about you.
+    %LOCALAPPDATA%\SkiAreaDesignChallenge\Reports
 
-To send one, either:
-- in the game, open Settings > Data > Logs and click Copy report, then paste it into your message; or
-- attach the newest errors-....log file from the folder above.
-
-If the game closes by itself without saving a log, please also send these two files:
+If the game won't start at all, send these files instead:
+    %LOCALAPPDATA%\SkiAreaDesignChallenge\Logs (the newest errors-....log)
     %USERPROFILE%\AppData\LocalLow\Alpine Labs\Ski Area Design Challenge\Player.log
     %USERPROFILE%\AppData\LocalLow\Alpine Labs\Ski Area Design Challenge\Player-prev.log
 
-Please say what you were doing when it happened, and the version: {VERSION}. The version is also shown at the bottom
-left of the title and in Credits.
+Please include the version: {VERSION}. It is also shown at the bottom left of the title and in Credits.
 
 NOTICES.txt lists the fonts, data and software the game uses, and their licences.

@@ -4,6 +4,7 @@
          Task P2-01: full-screen screens and modals sit in a centred 16:9 column (mp:StageColumn), so they keep
          their shape on 21:9 and 32:9; the download card, pill and toast stay on the screen's edges. -->
     <ui:Style src="Flow.uss" />
+    <ui:Style src="FlowReport.uss" />
     <ui:VisualElement name="flow" class="flow" picking-mode="Ignore">
 
         <!-- S1 Title: trail signs on cedar posts at the left, centred vertically over the live demo mountain; Credits, Settings and Quit in the corner. -->
@@ -315,8 +316,68 @@
              Brought to the front when shown, so it shows over the cover too. -->
         <ui:VisualElement name="error-notice" class="error-notice hidden">
             <ui:Label name="error-notice-text" text="Something went wrong. A log was saved for a bug report." class="error-notice-text" />
+            <ui:Button name="error-notice-send" text="Send logs" class="mp-go" />
             <ui:Button name="error-notice-open" text="Open folder" class="mp-ghost" />
             <ui:Button name="error-notice-x" text="✕" class="mp-x" tooltip="Close" />
+        </ui:VisualElement>
+
+        <!-- Task P3-14: the title's offer after the game closed unexpectedly (#demo=crashoffer), once per crash. -->
+        <ui:VisualElement name="crash-notice" class="error-notice hidden">
+            <ui:Label name="crash-notice-text" text="The game closed unexpectedly last time. Send a report?" class="error-notice-text" />
+            <ui:Button name="crash-notice-send" text="Send report" class="mp-go" />
+            <ui:Button name="crash-notice-later" text="Not now" class="mp-ghost" />
+        </ui:VisualElement>
+
+        <!-- Task P3-14: Send feedback (#demo=fb, fbsug, fbcrash) and Report saved (#demo=fbsent). FlowScreens.Report.cs fills the parts. -->
+        <ui:VisualElement name="feedback" class="modal hidden">
+            <mp:StageColumn>
+                <ui:VisualElement name="feedback-panel" class="mp-win feedback-panel">
+                    <ui:VisualElement class="mp-head">
+                        <ui:Label name="feedback-head" text="Send feedback" class="mp-title" />
+                        <ui:VisualElement class="mp-spacer" />
+                        <ui:Button name="feedback-x" text="✕" class="mp-x" tooltip="Cancel (Esc)" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="feedback-form" class="feedback-form">
+                        <!-- The form scrolls when the window is taller than the screen (150% on 1080p); the buttons stay. -->
+                        <ui:ScrollView name="feedback-body" class="feedback-body" horizontal-scroller-visibility="Hidden">
+                            <ui:VisualElement name="feedback-kind" class="mp-seg feedback-kind">
+                                <ui:Button name="feedback-kind-problem" text="Problem" class="mp-seg__opt mp-seg__opt--first" />
+                                <ui:Button name="feedback-kind-suggestion" text="Suggestion" class="mp-seg__opt" />
+                            </ui:VisualElement>
+                            <ui:Label name="feedback-summary-cap" text="In a few words" class="feedback-cap" />
+                            <ui:TextField name="feedback-summary" class="feedback-field" max-length="80" />
+                            <ui:Label name="feedback-note-cap" text="What happened, and what were you doing?" class="feedback-cap" />
+                            <ui:TextField name="feedback-note" class="feedback-field feedback-note" multiline="true" max-length="4000" />
+                            <ui:Label text="Included in the report" class="feedback-cap" />
+                            <ui:VisualElement name="feedback-parts" class="feedback-parts" />
+                            <ui:VisualElement name="feedback-total" class="feedback-total">
+                                <ui:Label name="feedback-total-text" text="Saved as one zip file on this PC" class="feedback-total__l" />
+                                <ui:Label name="feedback-size" text="" class="feedback-total__r mono" />
+                            </ui:VisualElement>
+                            <ui:Label name="feedback-privacy" text="Nothing is sent until you post it yourself. Your Windows user name is taken out of the logs. &lt;b&gt;GitHub issues are public.&lt;/b&gt;" class="feedback-privacy" />
+                        </ui:ScrollView>
+                        <ui:VisualElement class="feedback-acts">
+                            <ui:Button name="feedback-send" text="Save and open GitHub" class="mp-go feedback-go" />
+                            <ui:Button name="feedback-save" text="Save only" class="mp-ghost" />
+                            <ui:Button name="feedback-cancel" text="Cancel" class="mp-ghost" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:VisualElement name="feedback-done" class="feedback-form hidden">
+                        <ui:VisualElement class="feedback-file">
+                            <ui:Label name="feedback-file" text="" class="feedback-file__name mono" />
+                            <ui:Label name="feedback-file-size" text="" class="feedback-file__size mono" />
+                        </ui:VisualElement>
+                        <ui:Label name="feedback-step1" text="" class="feedback-step" />
+                        <ui:Label name="feedback-step2" text="" class="feedback-step" />
+                        <ui:Label name="feedback-hint" text="No GitHub account? Send the file to the developer any way you like." class="feedback-hint" />
+                        <ui:VisualElement class="feedback-acts">
+                            <ui:Button name="feedback-done-ok" text="Done" class="mp-go feedback-go" />
+                            <ui:Button name="feedback-folder" text="Show in folder" class="mp-ghost" />
+                            <ui:Button name="feedback-copy" text="Copy summary" class="mp-ghost" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </mp:StageColumn>
         </ui:VisualElement>
 
     </ui:VisualElement>
