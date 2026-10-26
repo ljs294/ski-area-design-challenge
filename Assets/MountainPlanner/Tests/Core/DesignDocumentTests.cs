@@ -16,7 +16,7 @@ namespace MountainPlanner.Tests
         /// lifts' terminal levels; owner, LT3), from a82d1aa8… at shape 1.
         /// </summary>
         // Shape 3 (LT44): each tower's kind; the scripted design's towers are all Auto.
-        const string GoldenSha = "224681ef7dbeb576ab85ec52a8ba9a529945a95b36a308898dd2b2e466bbfe16";
+        const string GoldenSha = "0642d8d84f5ba6935e8c03edde16d7b22ffce6a17e79f10fa32c8617bac4ada2";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()
@@ -58,7 +58,9 @@ namespace MountainPlanner.Tests
         {
             // The authored shape, property by property (SH-05, NW-06, TW-15). A new property is a format change for
             // task 04 (bump ShapeVersion, migrate, fixture) and must never be derived data.
-            AssertProperties(typeof(DesignDocument), "Seed", "NextOrdinal", "Trails", "Lifts");
+            AssertProperties(typeof(DesignDocument), "Seed", "NextOrdinal", "Trails", "Lifts", "Areas");
+            AssertProperties(typeof(AreaRecord), "Id", "Name", "Ends");   // NW-15 (task P3-10): the player's names, not the hubs
+            AssertFields(typeof(AreaEnd), "Lift", "Bottom");
             AssertProperties(typeof(Trail), "Id", "Name", "Stage", "Settings", "Parts", "Head", "Tail", "HasEnds");
             AssertProperties(typeof(FootprintPart), "Strokes", "Cuts");
             AssertProperties(typeof(Stroke), "WidthMm", "Erase", "Points");
@@ -68,7 +70,7 @@ namespace MountainPlanner.Tests
             AssertFields(typeof(Tower), "Id", "AlongMm", "HeightMm", "Kind");
             AssertFields(typeof(TrailSettings), "Grading", "Kind", "Clearing");
             AssertFields(typeof(Cut), "At", "DirX", "DirY", "KeepAhead");
-            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(3));
+            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(4));
         }
 
         static void AssertProperties(Type type, params string[] names)

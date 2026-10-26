@@ -83,3 +83,34 @@ Chair 2 bottoms (157 ft apart) split the mountain in two.
   - `NetworkView` station rings at world radius;
   - `Presentation/Design/StationRing.cs` for the lift tool, pooled and rebuilt only when a terminal moves;
   - the Kearsarge captures from the copy, expecting Chair 5 connected and the Chair 1 + 2 and Chair 3 + 4 bases merged.
+
+
+## 6. Hubs and Areas (NW-14 v2, NW-15; owner NT17–NT21, 2026-10-26)
+
+- **Engine:**
+  - `DesignStations` builds each station's convex hull and merges by hull distance (200 ft), repeatedly, with the
+    own-ends guard. `Outline` gives the rounded outline for drawing.
+  - `TrailNetworkGeometry` measures footprints against the hull: points along its edges every 2 m, or a footprint
+    wholly inside.
+  - A path between two runs ending in one station is dropped.
+- **Areas:**
+  - `DesignAreas` binds the player's `AreaRecord`s (an ID, a name, the lift ends) to hubs with 2+ lifts, by shared ends.
+  - `RenameArea` is one undoable step.
+  - `DeleteLift` drops a lift's ends from the names.
+  - `NetworkReport.Areas` and `ReachFromArea`: the hub's descent plus each lift loading there.
+- **Format:**
+  - Design shape 4 and save v4: the design's "Areas". The migration gives a v3 save none; the fixture is
+    `TestData/formats/v4-save`.
+  - P3-15's terrain brush also takes save v4 on its branch: whichever merges second takes the next number.
+  - The design, graph and network goldens are re-pinned.
+- **Mockup:**
+  - the hub shapes;
+  - the Areas table;
+  - the Area card, its name (click or F2);
+  - Area labels on both maps;
+  - the lift tool's growing hub ("Joins … · gathers …").
+  - Demos: `net`, `netarea`, `liftbase`, `liftbaseaim` and `liftbasearea`.
+- **Game, after the owner approves the mockup:**
+  - one `NetworkView.StationArea` per station from `DesignStations.Outline`;
+  - the Areas table, the card (`MountainHud.Areas.cs`, the lift card's rename pattern) and the labels;
+  - the catchment drawing the joined hub from `DesignStations.Of(doc, editing, draft ends)`.

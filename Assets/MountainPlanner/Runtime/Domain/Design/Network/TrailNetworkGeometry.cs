@@ -453,22 +453,17 @@ namespace MountainPlanner.Domain.Design
             {
                 var shapes = Prepare(doc);
                 foreach (var station in stations)
+                {
+                    var samples = HullSamples(station.Hull);
                     foreach (var s in shapes)
                     {
                         if (s.Empty) continue;
                         bool attached = DesignStations.At(stations, s.Trail.Head.Value) == station || DesignStations.At(stations, s.Trail.Tail.Value) == station;
-                        if (attached) continue;
-                        double bestD = double.MaxValue, bx = 0, by = 0;
-                        foreach (var m in station.Members)
-                        {
-                            _site.PointOf(m.At, out double px, out double py);
-                            double d = ReachSquared(s, px, py);
-                            if (d < bestD) { bestD = d; bx = px; by = py; }
-                        }
-                        if (bestD == double.MaxValue) continue;
+                        if (attached || !NearHull(s, station.Hull, samples, out double bx, out double by)) continue;
                         s.Nearest(bx, by, out _, out _, out double along, out _);
                         into.Add(new StationLink(s.Trail.Id, s.AlongMm(along), station.Id));
                     }
+                }
             }
         }
 
@@ -496,18 +491,57 @@ namespace MountainPlanner.Domain.Design
         /// preview), in ID order. False, with nothing added, when a network build holds the geometry: the caller asks
         /// again next frame rather than wait.
         /// </summary>
-        public bool TryTrailsWithin(DesignDocument doc, PointMm at, List<Trail> into)
+        public bool TryTrailsWithin(DesignDocument doc, PointMm at, List<Trail> into) => TryTrailsWithin(doc, new[] { at }, into);
+
+        /// <summary>The built trails a station with this hull would gather (NT20: the hub the terminal in hand would join).</summary>
+        public bool TryTrailsWithin(DesignDocument doc, IReadOnlyList<PointMm> hull, List<Trail> into)
         {
             if (!System.Threading.Monitor.TryEnter(_gate)) return false;
             try
             {
                 var shapes = Prepare(doc);
-                _site.PointOf(at, out double px, out double py);
+                var samples = HullSamples(hull);
                 foreach (var s in shapes)
-                    if (!s.Empty && ReachSquared(s, px, py) < double.MaxValue) into.Add(s.Trail);
+                    if (!s.Empty && NearHull(s, hull, samples, out _, out _)) into.Add(s.Trail);
                 return true;
             }
             finally { System.Threading.Monitor.Exit(_gate); }
+        }
+
+        /// <summary>A hull's edges every 2 m, in the lattice's frame.</summary>
+        List<(double X, double Y)> HullSamples(IReadOnlyList<PointMm> hull)
+        {
+            var samples = new List<(double, double)>();
+            foreach (var p in DesignStations.Samples(hull, 2000))
+            {
+                _site.PointOf(p, out double x, out double y);
+                samples.Add((x, y));
+            }
+            return samples;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="s"/>'s footprint comes within a station's reach of its hull (NW-14 v2): within reach of
+        /// a point along the hull's edges, or wholly inside it. (bx, by) is the point on the hull the trail is cut nearest.
+        /// </summary>
+        bool NearHull(Shape s, IReadOnlyList<PointMm> hull, List<(double X, double Y)> samples, out double bx, out double by)
+        {
+            double best = double.MaxValue;
+            bx = by = 0;
+            foreach (var (x, y) in samples)
+            {
+                double d = ReachSquared(s, x, y);
+                if (d < best) { best = d; bx = x; by = y; }
+            }
+            if (best < double.MaxValue) return true;
+            if (hull.Count < 3) return false;
+            // Wholly inside: any one of its cells is.
+            var lat = _site.Lattice;
+            if (!DesignStations.InsideHull(hull, ToPoint(lat.West + s.EdgeColumn[0] + 0.5, lat.North - s.EdgeRow[0] - 0.5))) return false;
+            long cx = 0, cy = 0;
+            foreach (var p in hull) { cx += p.X; cy += p.Y; }
+            _site.PointOf(new PointMm((int)(cx / hull.Count), (int)(cy / hull.Count)), out bx, out by);
+            return true;
         }
 
         // ---- paths ----

@@ -246,6 +246,64 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void NW14v2_NT18_AHubTakesInATerminalNearItsShape()
+        {
+            // Two bottoms 190 ft apart share a hub; a third, 212 ft from each but 190 ft from the line between them, joins it.
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var one = AddLift(h, "Chair 1", P(0, 0), P(-1500, 3000));
+            var two = AddLift(h, "Chair 2", P(190, 0), P(1500, 3000));
+            var three = AddLift(h, "Chair 3", P(95, 190), P(95, 4000));
+            var stations = DesignStations.Of(h.Document);
+            var hub = DesignStations.Of(stations, one, true);
+            Assert.That(DesignStations.Of(stations, two, true), Is.SameAs(hub));
+            Assert.That(DesignStations.Of(stations, three, true), Is.SameAs(hub), "NT18: the shape grows to take it in");
+            Assert.That(hub.Lifts, Is.EquivalentTo(new[] { one, two, three }));
+            Assert.That(hub.IsArea, Is.True, "NW-15: two or more lifts make an Area");
+            Assert.That(hub.Hull.Count, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void NW14v2_NT17_WhatIsDrawnIsWhatCatches()
+        {
+            // Between two terminals 190 ft apart, 90 ft off the line joining them: 131 ft from each, inside the hub's shape.
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var one = AddLift(h, "Chair 1", P(0, 0), P(-1500, 3000));
+            AddLift(h, "Chair 2", P(190, 0), P(1500, 3000));
+            var run = AddTrail(h, "Down the middle", P(95, 2500), P(95, -90));
+            var stations = DesignStations.Of(h.Document);
+            var hub = DesignStations.Of(stations, one, true);
+            Assert.That(DesignStations.At(stations, P(95, -90)), Is.SameAs(hub));
+            Assert.That(DesignStations.At(stations, P(95, -110)), Is.Null, "110 ft off the shape's middle");
+            var g = DesignNetwork.Build(h.Document);
+            Assert.That(g.Edges.Single(e => e.Owner == run.Value).To, Is.EqualTo(hub.Id), "its tail joins the hub");
+            // The outline: every point 100 ft from the hull, closed.
+            var outline = DesignStations.Outline(hub);
+            Assert.That(outline[0], Is.EqualTo(outline[outline.Count - 2]).Within(1e-9));
+            for (int i = 0; i < outline.Count; i += 2)
+            {
+                var q = PointMm.FromMetres(outline[i], outline[i + 1]);
+                Assert.That(System.Math.Sqrt(hub.DistanceSquared(q)), Is.EqualTo(DesignStations.ReachMm).Within(2), "on the 100 ft line");
+            }
+        }
+
+        [Test]
+        public void NW14v2_ALiftsOwnEndsNeverShareAHub()
+        {
+            // Chair 1's ends are 400 ft apart, with Chair 2's and Chair 3's bottoms between them, each within 200 ft of the
+            // other and of one of Chair 1's ends: one hub can't take them all, or Chair 1 would run from a station to itself.
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var one = AddLift(h, "Chair 1", P(0, 0), P(400, 0));
+            var two = AddLift(h, "Chair 2", P(100, 100), P(-2000, 3000));
+            var three = AddLift(h, "Chair 3", P(300, 100), P(2000, 3000));
+            var stations = DesignStations.Of(h.Document);
+            Assert.That(DesignStations.Of(stations, one, true), Is.Not.SameAs(DesignStations.Of(stations, one, false)));
+            var g = DesignNetwork.Build(h.Document);
+            var edge = g.Edges.Single(e => e.Kind == EdgeKind.Lift && e.Owner == one.Value);
+            Assert.That(edge.From, Is.Not.EqualTo(edge.To));
+            Assert.That(DesignStations.Of(h.Document).Select(st => st.Id), Is.EqualTo(stations.Select(st => st.Id)), "the same hubs every time");
+        }
+
+        [Test]
         public void NW14_NT14_ATransferCounts()
         {
             var h = new DesignHistory(DesignDocument.Empty(3));

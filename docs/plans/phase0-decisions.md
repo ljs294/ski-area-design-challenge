@@ -555,4 +555,9 @@ The owner said "Go. Yes to all nine recommendations."
 | NT13 | **Stations** (owner, 2026-10-26, from Kearsarge: Chair 5 built beside a run's middle, Chair 1 and 2 bottoms 157 ft apart): every terminal has a station reaching 100 ft; overlapping stations merge; a trail joins a station when its end or footprint comes within the reach (NW-14, NW-02/03/07 v2) |
 | NT14 | **A transfer counts:** a lift whose top sits in a station with another lift's bottom has a way down |
 | NT15 | **A station looks like an area ring** in the Network view: a soft circle the size of its reach, the terminal circles inside; mockup first |
+| NT17 | **One rounded shape per hub** (owner, 2026-10-26): a station is drawn as one smooth outline round all its terminals, 100 ft out from them; what's drawn is exactly what catches trails (NW-14 v2) |
+| NT18 | **A hub grows by taking in more**: the reach stays 100 ft; shapes that touch merge, again until none do; buildings will join later |
+| NT19 | **Areas** (owner: "Hubs should be able to be named once they have a certain amount of items in them, right now more than one lift … Base areas should act as a larger node that allows all of them to interact"): a hub with 2+ lifts is an Area with a default name, listed in Analysis › Network, with a card (renamable) and a map label; names saved (save v4, NW-15) |
+| NT20 | **Placing a lift shows the hub growing**: the hub the terminal would join is redrawn live as it would be |
+| NT21 | **Later (not task 10):** a cost or unlock for the number of base areas, and a skills/unlock tree; to the coordinator's backlog (the economy and buildings come after Phase 3) |
 | NT16 | **The catchment ring while placing a lift** ("just like placing service buildings in Cities: Skylines 2"): the terminals being placed show their 100 ft ring, existing terminals theirs fainter, and the trails it would catch light up; mockup first |

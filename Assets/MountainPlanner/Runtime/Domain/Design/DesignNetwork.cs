@@ -290,6 +290,9 @@ namespace MountainPlanner.Domain.Design
                 foreach (var p in foundPaths)
                 {
                     if (p.A == p.B || !lengths.ContainsKey(p.A.Value) || !lengths.ContainsKey(p.B.Value)) continue;
+                    // Both ends in one station (NW-14 v2): the station already joins them, so no path.
+                    var inA = DesignStations.At(stations, p.AtA);
+                    if (inA != null && inA == DesignStations.At(stations, p.AtB)) continue;
                     if (p.A.CompareTo(p.B) < 0) paths.Add(p);
                     else
                     {

@@ -833,6 +833,26 @@ Paths are automatic: you never draw one. They connect trails that come close wit
   - The Network view draws a station as an area ring the size of its reach (NT15); placing a lift shows the ring round
     its terminals as it goes, with the existing terminals' rings and the trails it would catch (NT16).
   - TR-05's 30 ft snap while drawing is unchanged.
+  - *v2 (owner NT17, NT18, 2026-10-26):*
+    - A station's area is the **rounded hull** of its terminals: their convex hull, grown 100 ft. What's drawn is what
+      catches trails.
+    - Two stations whose areas touch (hulls within 200 ft) merge, again until none touch, so a hub grows as more joins
+      it.
+    - A merge that would put both ends of one lift in one station is skipped.
+    - A path between two runs that both end in one station is dropped: the station joins them.
+- **NW-15, Areas (task 10, owner NT19–NT20, 2026-10-26):**
+  - A station holding terminals of **two or more lifts** is an **Area**: one larger node where everything in it
+    interacts.
+  - **What it reaches:** a descent from the Area, plus each lift that loads there, ridden and descended from its top.
+  - **Its name:** until the player names it, the Area goes by its lifts and ends, e.g. "Chair 1 & Chair 2 base", "Chair
+    3 top", "Chair 3 & Chair 4 transfer".
+  - **A saved name** keeps the lift ends the Area held when named. It binds to the hub sharing most of those ends, so it
+    keeps through growth, merges (the older name wins), moved lifts and reloads; a split brings the other name back.
+  - Deleting a lift drops its ends from the names.
+  - **Where it shows:** the Network tab lists the Areas; an Area's shape or row opens its card (rename with a click or
+    F2); its name is labelled on the map.
+  - **Placing a lift (NT20):** the hub the terminal would join is drawn as it would be with it, growing before the
+    click.
 
 ## 8. What the player already sees
 

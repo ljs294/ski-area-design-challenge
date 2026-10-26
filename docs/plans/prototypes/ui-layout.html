@@ -714,7 +714,7 @@ body.solo .frame { border-radius: 0; }
       { id: 't3', name: 'Headwall', diff: 'black', pts: [[880, 326], [838, 408], [801, 500], [778, 590]], built: true },
       { id: 't4', name: 'Timberline', diff: 'blue', pts: [[893, 322], [938, 384], [908, 470], [832, 556], [788, 596]], built: true },
     ],
-    things: [], sketches: [],
+    things: [], sketches: [], areaNames: [],   // NW-15: the Areas the player has named, each with the lift ends it held
     draft: null, sel: null, hover: null, panelPos: { x: 10, y: 10 },
   };
   let uid = 10, liftSeq = 0, trailSeq = 0;
@@ -1049,6 +1049,7 @@ body.solo .frame { border-radius: 0; }
     if (S.layers.trails) for (const tr of S.trails) s += drawTrail(tr, { hi: hiId === tr.id });
     // a lift open in Edit lift is drawn by its draft instead
     if (S.layers.lifts) for (const l of S.lifts) if (!(S.draft && S.draft.edit === l.id)) s += drawLift(l, { hi: hiId === l.id });
+    if (S.layers.lifts && S.layers.labels) s += netLabels(areaLabels(netOf().areas, '#ffffff'));   // NT19: the Areas' names
     // Remove lift: the picked lift is lit (the wider white casing) and a second click on it takes it out
     if (S.tool === 'remove-lift' && S.removeArmed && S.removeArmed === S.sel) { const l = S.lifts.find((x) => x.id === S.sel); if (l) s += readoutCard((l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2 + 6, [['Click again to remove'], ['Esc keeps it', '#cfc7bb']]); }
     const d = S.draft;
@@ -1704,20 +1705,27 @@ body.solo .frame { border-radius: 0; }
   // NT16 (owner, 2026-10-26: "just like placing service buildings in Cities: Skylines 2"): while placing a lift, each
   // terminal in hand shows its 100 ft catchment area (NW-14), the built terminals theirs fainter, and the trails it
   // would gather light up in their own colours. words: what the terminal at p would join, for the readout.
+  // NT20: the hub each terminal would join is drawn as it would be with it, grown before the click.
   function catchment(pts, skip) {
-    const lifts = S.lifts.filter((l) => l.built && l.id !== skip), stations = stationsOf(lifts), trails = S.trails.filter((t) => t.built && t.pts.length > 1);
-    let s = stationRings(stations, null, null, null, { ring: '#efe9df', fill: '#1b1815', opacity: 0.32 });
+    const lifts = S.lifts.filter((l) => l.built && l.id !== skip), trails = S.trails.filter((t) => t.built && t.pts.length > 1);
+    const before = stationsOf(lifts), beforeAreas = areasOf(before, lifts);
+    const after = stationsOf(lifts, pts.map((p, i) => ({ lift: 'draft', bottom: i === 0, p })));
+    const mine = after.filter((st) => st.lifts.includes('draft'));
+    let s = stationRings(after.filter((st) => !mine.includes(st)), null, null, null, { ring: '#efe9df', fill: '#1b1815', opacity: 0.32 });
     const caught = new Set(), words = [];
-    for (const p of pts) {
-      const near = stationAt(stations, p, 2 * NET.reach), names = [];
-      for (const t of trails) if (lineNear(p, t.pts).d <= NET.reach && !caught.has(t.id)) { caught.add(t.id); names.push(t.name); }
-      s += `<g style="pointer-events:none"><circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${f1(NET.reach)}" fill="#3aa0ff" opacity=".28"/><circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${f1(NET.reach)}" fill="none" stroke="#123a66" stroke-width="3.8"/><circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${f1(NET.reach)}" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-dasharray="5 3"/></g>`;
-      // pts[0] is the bottom, pts[1] the top: beside another lift's other end it's a transfer (NT14), beside the same end a shared one
-      const bottom = p === pts[0], name = (m) => { const l = lifts.find((x) => x.id === m.lift); return `${l.n} ${l.name}`; };
-      const same = near ? near.members.filter((m) => m.bottom === bottom).map(name) : [], other = near ? near.members.filter((m) => m.bottom !== bottom).map(name) : [];
-      const join = other.length ? `Transfer ${bottom ? 'from' : 'to'} ${other.join(', ')}` : same.length ? `Shares a ${bottom ? 'base' : 'top'} with ${same.join(', ')}` : '';
-      words.push([join, names.length ? `gathers ${names.join(', ')}` : ''].filter(Boolean).join(' · ').replace(/^g/, (c) => join ? c : 'G') || 'No trail within 100 ft yet');
-    }
+    pts.forEach((p, i) => {
+      const bottom = i === 0, st = mine.find((x) => x.members.some((m) => m.lift === 'draft' && m.bottom === bottom)), names = [];
+      if (!st) return;
+      for (const t of trails) if (lineToHull(t.pts, st.hull).d <= NET.reach && !caught.has(t.id)) { caught.add(t.id); names.push(t.name); }
+      const d = hullPath(st.hull, NET.reach);
+      s += `<g style="pointer-events:none"><path d="${d}" fill="#3aa0ff" opacity=".28"/><path d="${d}" fill="none" stroke="#123a66" stroke-width="3.8"/><path d="${d}" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-dasharray="5 3"/></g>`;
+      // beside an Area it joins it; beside another lift's other end it's a transfer (NT14), beside the same end a shared one
+      const others = st.members.filter((m) => m.lift !== 'draft'), name = (m) => { const l = lifts.find((x) => x.id === m.lift); return `${l.n} ${l.name}`; };
+      const area = beforeAreas.find((a) => others.some((m) => a.st.members.some((o) => o.lift === m.lift && o.bottom === m.bottom)));
+      const same = others.filter((m) => m.bottom === bottom).map(name), other = others.filter((m) => m.bottom !== bottom).map(name);
+      const join = area ? `Joins ${area.name}` : other.length ? `Transfer ${bottom ? 'from' : 'to'} ${other.join(', ')}` : same.length ? `Shares a ${bottom ? 'base' : 'top'} with ${same.join(', ')}` : '';
+      words[i] = [join, names.length ? `gathers ${names.join(', ')}` : ''].filter(Boolean).join(' · ').replace(/^g/, (c) => join ? c : 'G') || 'No trail within 100 ft yet';
+    });
     for (const t of trails) if (caught.has(t.id)) s += litLine(t.pts.map(P), runColour[t.diff] || NETC.run, false);
     return { svg: s, words };
   }
@@ -2443,20 +2451,102 @@ body.solo .frame { border-radius: 0; }
   // footprints); lines that pass within NET.path px without meeting get one path at their closest point (PA-05: 100 ft
   // wide trails within 30 ft), running downhill, or both ways within 3 ft (PA-06).
   // NW-14's stations (NT13): every terminal reaches NET.reach px (standing in for 100 ft: the drawn runs stop short of
-  // their terminals, so the coarse map needs the wider stand-in); terminals of different lifts within twice that share one.
+  // their terminals, so the coarse map needs the wider stand-in). v2 (NT17, NT18): a station's area is the rounded hull of
+  // its terminals (their convex hull grown by the reach), and stations whose areas touch merge, again and again, so a hub
+  // grows as more joins it; a merge that would hold both ends of one lift is skipped.
   const NET = { reach: 20, line: 30 / FT_PX, path: 6.9 };
-  function stationsOf(lifts) {
-    const ends = [];
-    for (const l of lifts) ends.push({ lift: l.id, bottom: true, p: l.a }, { lift: l.id, bottom: false, p: l.b });
-    const up = ends.map((_, i) => i), find = (i) => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; };
-    for (let i = 0; i < ends.length; i++) for (let k = i + 1; k < ends.length; k++)
-      if (ends[i].lift !== ends[k].lift && Math.hypot(ends[i].p[0] - ends[k].p[0], ends[i].p[1] - ends[k].p[1]) <= 2 * NET.reach) { const a = find(i), b = find(k); up[Math.max(a, b)] = Math.min(a, b); }
-    const groups = new Map();
-    ends.forEach((e, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(e); });
-    return [...groups.values()].map((m) => ({ id: 'st' + (m[0].bottom ? 'b' : 't') + m[0].lift, members: m, p: [m.reduce((a, e) => a + e.p[0], 0) / m.length, m.reduce((a, e) => a + e.p[1], 0) / m.length] }));
+  const cross3 = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  // The convex hull (monotone chain, counter-clockwise in the map's own x, y); one or two points stay as they are.
+  function hullOf(pts) {
+    const q = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]).filter((x, i, a) => !i || x[0] !== a[i - 1][0] || x[1] !== a[i - 1][1]);
+    if (q.length < 3) return q;
+    const lo = [], hi = [];
+    for (const x of q) { while (lo.length > 1 && cross3(lo[lo.length - 2], lo[lo.length - 1], x) <= 0) lo.pop(); lo.push(x); }
+    for (let i = q.length - 1; i >= 0; i--) { const x = q[i]; while (hi.length > 1 && cross3(hi[hi.length - 2], hi[hi.length - 1], x) <= 0) hi.pop(); hi.push(x); }
+    lo.pop(); hi.pop();
+    return lo.concat(hi);
   }
-  // The station within reach of p (its nearest terminal), or null.
-  const stationAt = (stations, p, reach = NET.reach) => { let best = null, bd = reach; for (const st of stations) for (const m of st.members) { const d = Math.hypot(p[0] - m.p[0], p[1] - m.p[1]); if (d <= bd) { bd = d; best = st; } } return best; };
+  const hullEdges = (h) => h.length === 1 ? [[h[0], h[0]]] : h.map((x, i) => [x, h[(i + 1) % h.length]]);
+  const insideHull = (h, p) => h.length > 2 && h.every((x, i) => cross3(x, h[(i + 1) % h.length], p) >= 0);
+  // Two segments' distance, and how far along the first (from a0) its nearest point lies.
+  function segSeg(a0, a1, b0, b1) {
+    const la = Math.hypot(a1[0] - a0[0], a1[1] - a0[1]), d = cross3([0, 0], [a1[0] - a0[0], a1[1] - a0[1]], [b1[0] - b0[0], b1[1] - b0[1]]);
+    if (d) {
+      const t = cross3([0, 0], [b0[0] - a0[0], b0[1] - a0[1]], [b1[0] - b0[0], b1[1] - b0[1]]) / d, u = cross3([0, 0], [b0[0] - a0[0], b0[1] - a0[1]], [a1[0] - a0[0], a1[1] - a0[1]]) / d;
+      if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { d: 0, t: t * la };
+    }
+    let best = { d: segNear(a0, b0, b1).d, t: 0 };
+    const c1 = segNear(a1, b0, b1).d; if (c1 < best.d) best = { d: c1, t: la };
+    for (const b of [b0, b1]) { const r = segNear(b, a0, a1); if (r.d < best.d) best = { d: r.d, t: r.f * la }; }
+    return best;
+  }
+  const pointToHull = (h, p) => insideHull(h, p) ? 0 : Math.min(...hullEdges(h).map(([a, b]) => segNear(p, a, b).d));
+  function hullDist(h, g) {
+    if (insideHull(h, g[0]) || insideHull(g, h[0])) return 0;
+    let best = Infinity;
+    for (const [a, b] of hullEdges(h)) for (const [c, d] of hullEdges(g)) best = Math.min(best, segSeg(a, b, c, d).d);
+    return best;
+  }
+  // A line's distance to a hull, and how far along the line its nearest point lies (a point inside counts as 0 there).
+  function lineToHull(pts, h) {
+    let best = { d: Infinity, along: 0 }, run = 0;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], b = pts[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (insideHull(h, a)) return { d: 0, along: run };
+      for (const [c, d] of hullEdges(h)) { const r = segSeg(a, b, c, d); if (r.d < best.d) best = { d: r.d, along: run + r.t }; }
+      run += len;
+    }
+    return best;
+  }
+  // extra: terminals being placed (NT20), as { lift, bottom, p }.
+  function stationsOf(lifts, extra = []) {
+    const groups = [];
+    for (const l of lifts) groups.push([{ lift: l.id, bottom: true, p: l.a }], [{ lift: l.id, bottom: false, p: l.b }]);
+    for (const e of extra) groups.push([e]);
+    const hullG = (g) => hullOf(g.map((m) => m.p));
+    for (let merged = true; merged;) {
+      merged = false;
+      for (let i = 0; i < groups.length && !merged; i++) for (let k = i + 1; k < groups.length && !merged; k++) {
+        const A = groups[i], B = groups[k];
+        if (A.some((m) => B.some((o) => o.lift === m.lift))) continue;   // never both ends of one lift
+        if (hullDist(hullG(A), hullG(B)) > 2 * NET.reach) continue;
+        groups[i] = A.concat(B); groups.splice(k, 1); merged = true;
+      }
+    }
+    return groups.map((m) => {
+      const hull = hullOf(m.map((x) => x.p));
+      return { id: 'st' + (m[0].bottom ? 'b' : 't') + m[0].lift, members: m, hull, lifts: [...new Set(m.map((x) => x.lift))],
+        p: [hull.reduce((a, x) => a + x[0], 0) / hull.length, hull.reduce((a, x) => a + x[1], 0) / hull.length] };
+    });
+  }
+  // The station whose area holds p (the nearest), or null.
+  const stationAt = (stations, p, reach = NET.reach) => { let best = null, bd = reach; for (const st of stations) { const d = pointToHull(st.hull, p); if (d <= bd) { bd = d; best = st; } } return best; };
+  // The rounded hull's outline as an SVG path: each edge pushed out by R, an arc round each corner.
+  function hullPath(h, R) {
+    if (h.length === 1) { const [x, y] = h[0]; return `M${f1(x - R)} ${f1(y)}a${f1(R)} ${f1(R)} 0 1 0 ${f1(2 * R)} 0a${f1(R)} ${f1(R)} 0 1 0 ${f1(-2 * R)} 0Z`; }
+    const off = hullEdges(h).map(([a, b]) => { const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = (b[1] - a[1]) / len * R, ny = -(b[0] - a[0]) / len * R; return [[a[0] + nx, a[1] + ny], [b[0] + nx, b[1] + ny]]; });
+    let d = `M${f1(off[0][0][0])} ${f1(off[0][0][1])}`;
+    off.forEach((e, i) => { const nx = off[(i + 1) % off.length][0]; d += `L${f1(e[1][0])} ${f1(e[1][1])}A${f1(R)} ${f1(R)} 0 0 1 ${f1(nx[0])} ${f1(nx[1])}`; });
+    return d + 'Z';
+  }
+  // NW-15 (NT19): a station holding two or more lifts is an Area, named after its lifts and ends until the player names
+  // it. A saved name follows the hub sharing most of its lift ends (names in the order given), so it keeps through growth
+  // and merges, the older name winning; a split brings the other back.
+  const endKey = (m) => (m.bottom ? 'b' : 't') + m.lift;
+  function defaultAreaName(st, lifts) {
+    const ls = st.lifts.map((id) => lifts.find((l) => l.id === id)).filter(Boolean).sort((a, b) => a.n - b.n).map((l) => l.name);
+    const kind = st.members.every((m) => m.bottom) ? 'base' : st.members.every((m) => !m.bottom) ? 'top' : 'transfer';
+    return `${ls.length > 2 ? ls.slice(0, -1).join(', ') + ' & ' + ls[ls.length - 1] : ls.join(' & ')} ${kind}`;
+  }
+  function areasOf(stations, lifts) {
+    const hubs = stations.filter((st) => st.lifts.length >= 2), bound = new Map();
+    for (const rec of S.areaNames) {
+      let best = null, bs = 0;
+      for (const st of hubs) { if (bound.has(st.id)) continue; const k = st.members.filter((m) => rec.ends.includes(endKey(m))).length; if (k > bs) { bs = k; best = st; } }
+      if (best) bound.set(best.id, rec);
+    }
+    return hubs.map((st) => { const rec = bound.get(st.id); return { id: st.id, st, name: rec ? rec.name : defaultAreaName(st, lifts), named: !!rec, rec }; });
+  }
   const segNear = (p, a, b) => {
     const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
     const f = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0, q = [a[0] + f * dx, a[1] + f * dy];
@@ -2517,12 +2607,11 @@ body.solo .frame { border-radius: 0; }
         stops[t.id].push({ a, n });
       }
     }
-    // NW-07 v2: a trail passing through a station (within its reach, its ends elsewhere) is cut there, nearest the terminal.
+    // NW-07 v2: a trail passing through a station (within its area, its ends elsewhere) is cut there, nearest the hub.
     for (const st of stations) for (const t of trails) {
       if (stops[t.id].some((q) => q.n === st.id)) continue;
-      let best = null;
-      for (const m of st.members) { const r = lineNear(m.p, t.pts); if (r.d <= NET.reach && (!best || r.d < best.d)) best = r; }
-      if (best) stops[t.id].push({ a: best.along, n: st.id });
+      const r = lineToHull(t.pts, st.hull);
+      if (r.d <= NET.reach) stops[t.id].push({ a: r.along, n: st.id });
     }
     for (let i = 0; i < trails.length; i++) for (let k = i + 1; k < trails.length; k++) {
       const A = trails[i], B = trails[k], xs = crossings(A.pts, B.pts);
@@ -2570,7 +2659,15 @@ body.solo .frame { border-radius: 0; }
     // A station is a node per terminal (each picks the station), as the game's view draws it.
     const nodes = Object.keys(kind).filter((k) => at[k] && kind[k] !== 'station').map((k) => ({ id: k, kind: kind[k], p: at[k] }));
     for (const st of stations) for (const m of st.members) nodes.push({ id: st.id, kind: 'station', p: m.p, lift: m.lift, bottom: m.bottom });
-    return { lifts, trails, liftSt, trailSt, trailReach, trailFirst, junctions, paths, nodes, edges, descendFrom, stations, topOf, bottomOf };
+    // NW-15: the Areas, with the trails that touch each and what a skier reaches from it: down from the Area itself, and
+    // up any lift that loads there and down from its top (an Area is one larger node: everything in it interacts)
+    const areaReach = (st) => {
+      const r = descendFrom(st.id), out = { reach: new Set(r.reach), segs: new Set(r.segs), lifts: new Set(r.lifts), nodes: new Set(r.nodes) };
+      for (const lid of bottoms[st.id]) { out.lifts.add(lid); const q = liftSt[lid]; for (const k of ['reach', 'segs', 'lifts', 'nodes']) for (const x of q[k]) out[k].add(x); }
+      return out;
+    };
+    const areas = areasOf(stations, lifts).map((a) => ({ ...a, here: new Set(edges.filter((e) => e.trail && (e.from === a.id || e.to === a.id)).map((e) => e.trail)).size, reach: areaReach(a.st) }));
+    return { lifts, trails, liftSt, trailSt, trailReach, trailFirst, junctions, paths, nodes, edges, descendFrom, stations, topOf, bottomOf, areas };
   }
   const NET_WORDS = { way: 'No way down', serve: 'No lift serves this', nowhere: 'Leads nowhere' };
   const trailWarn = (st) => (!st.served ? NET_WORDS.serve : st.nowhere ? NET_WORDS.nowhere : null);
@@ -2596,11 +2693,15 @@ body.solo .frame { border-radius: 0; }
     const rows = n.lifts.map((l) => { const st = n.liftSt[l.id]; return `<div class="r arow${S.netLift === l.id ? ' on' : ''}${S.rowHover === l.id ? ' hv' : ''}" style="${cols}" data-row="${l.id}" data-act="netlift" data-v="${l.id}" data-ui="network-lift-${l.id}"><span class="nm"><span class="plate built" style="font-size:10px">${l.n}</span>${esc(l.name)}</span><span class="n">${st.reach.size}</span>${lamp(st.ok, st.ok ? 'Connected' : NET_WORDS.way)}</div>`; }).join('');
     const trows = warnT.map((t) => `<div class="r arow${S.netLift === t.id ? ' on' : ''}${S.rowHover === t.id ? ' hv' : ''}" style="${tcols}" data-row="${t.id}" data-act="netlift" data-v="${t.id}" data-ui="network-trail-${t.id}"><span class="nm">${RATING[t.diff]}${esc(t.name)}</span>${lamp(false, trailWarn(n.trailSt[t.id]))}</div>`).join('');
     const plural = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
+    // NT19: the Areas (hubs with two or more lifts); click one to light what it reaches and open its card
+    const acols = 'grid-template-columns:1.9fr 0.55fr 0.85fr 0.9fr';
+    const arows = n.areas.map((a) => `<div class="r arow${S.netNode === a.id ? ' on' : ''}" style="${acols}" data-act="netarea" data-v="${a.id}" data-ui="network-area-${a.id}"><span class="nm">${esc(a.name)}</span><span class="n">${a.st.lifts.length}</span><span class="n">${a.here}</span><span class="n">${a.reach.reach.size}</span></div>`).join('');
     const line = lw || warnT.length ? `<span style="color:var(--warn)">${[lw ? `${plural(lw, 'lift')} with no way down` : '', warnT.length ? `${plural(warnT.length, 'trail')} to look at` : ''].filter(Boolean).join(' · ')}</span>` : 'Every lift has a way down';
-    return `<div class="atools" data-ui="network-tools"><span>${plural(n.lifts.length, 'lift')} · ${plural(n.trails.length, 'trail')} · ${plural(n.junctions.length, 'junction')} · ${plural(n.paths.length, 'path')}</span><span style="margin-left:auto">${line}</span></div>
+    return `<div class="atools" data-ui="network-tools"><span>${plural(n.lifts.length, 'lift')} · ${plural(n.trails.length, 'trail')} · ${plural(n.areas.length, 'area')} · ${plural(n.junctions.length, 'junction')} · ${plural(n.paths.length, 'path')}</span><span style="margin-left:auto">${line}</span></div>
       <div class="tbl"><div class="r th" style="${cols}"><span>Lift</span><span class="n">Trails reached</span><span class="n">Status</span></div>${rows}</div>
+      ${n.areas.length ? `<div class="tbl" style="margin-top:8px" data-ui="network-areas"><div class="r th" style="${acols}"><span>Area</span><span class="n">Lifts</span><span class="n">Trails here</span><span class="n">Trails reached</span></div>${arows}</div>` : ''}
       ${warnT.length ? `<div class="tbl" style="margin-top:8px"><div class="r th" style="${tcols}"><span>Trail</span><span class="n">Warning</span></div>${trows}</div>` : ''}
-      <div class="tbl"><div class="foot">A lift is connected when a way down from its top reaches a lift's bottom. A terminal gathers every trail within 100 ft of it, and terminals that close together share one area, so you can unload and ride on. Click a lift, a trail or a node, here or on the map, to light up everything you can ski to from it (Esc clears it); dashed links are paths between trails that pass within 30 ft.</div></div>`;
+      <div class="tbl"><div class="foot">A lift is connected when a way down from its top reaches a lift's bottom. A terminal gathers every trail within 100 ft of it, and terminals that close together share one area, so you can unload and ride on; two or more lifts sharing one make an Area, which you can name. Click a lift, a trail or a node, here or on the map, to light up everything you can ski to from it (Esc clears it); dashed links are paths between trails that pass within 30 ft.</div></div>`;
   }
   // The Network view (owner, 2026-10-25: "a more specific layer where the background looks much different"): while
   // Analysis › Network is open the mountain goes to a dark grey relief and the network draws as a diagram, not as the
@@ -2669,24 +2770,28 @@ body.solo .frame { border-radius: 0; }
   }
   // pick: a lift or trail ID; node: a network node picked (finding 7). The picked lift or trail, and what's reachable from
   // it segment by segment, light in their own colours (R2-1), the picked one wider with a glow; the rest is grey.
-  // NT15: a station's area, a soft disc the size of its reach round each terminal with one outline round them all (a
-  // shared base reads as one area); lit while it's picked or what's picked reaches it.
+  // NT15, NT17: a station's area, one rounded shape round all its terminals (an Area's outline a little bolder); lit
+  // while it's picked or what's picked reaches it, the picked one with the white glow.
   function stationRings(stations, r, pick, node, opts = {}) {
     let s = '';
     for (const st of stations) {
-      const on = !r || node === st.id || r.nodes.has(st.id) || st.members.some((m) => m.lift === pick);
-      const R = opts.reach || NET.reach, ring = opts.ring || (on ? '#ff8f80' : '#77736d'), fill = opts.fill || (on ? '#4a2622' : '#2a2a2a');
-      s += `<g opacity="${opts.opacity || (on ? 0.8 : 0.5)}" style="pointer-events:none">${st.members.map((m) => `<circle cx="${f1(m.p[0])}" cy="${f1(m.p[1])}" r="${f1(R + 1.6)}" fill="${ring}"/>`).join('')}${st.members.map((m) => `<circle cx="${f1(m.p[0])}" cy="${f1(m.p[1])}" r="${f1(R)}" fill="${fill}"/>`).join('')}</g>`;
+      const on = !r || node === st.id || r.nodes.has(st.id) || st.members.some((m) => m.lift === pick), hub = st.lifts.length >= 2;
+      const ring = opts.ring || (on ? '#ff8f80' : '#77736d'), fill = opts.fill || (on ? '#4a2622' : '#2a2a2a'), d = hullPath(st.hull, opts.reach || NET.reach);
+      if (node === st.id) s += `<path d="${d}" fill="none" stroke="#ffffff" stroke-width="9" opacity=".32" style="pointer-events:none"/>`;
+      s += `<path d="${d}" fill="${fill}" stroke="${ring}" stroke-width="${hub ? 2.6 : 1.8}" opacity="${opts.opacity || (on ? 0.8 : 0.5)}" style="pointer-events:none"/>`;
     }
     return s;
   }
+  // NT19: each Area's name, over its shape (and under it when there's no room).
+  const areaLabels = (areas, colour) => areas.map((a) => ({ order: 0, text: a.name, colour, spots: [P([a.st.p[0], a.st.p[1] - NET.reach - 6]), P([a.st.p[0], a.st.p[1] + NET.reach + 16])] }));
   function drawNetwork(pick, hiId, node) {
     const n = netOf();
     // R2-2: a trail is picked by the segment under the click (S.netSeg); from its list row, by its first segment. The
     // reach starts down that segment, so nothing above its top node lights.
     const seg = !pick || n.liftSt[pick] ? null
       : (S.netSeg && S.netSeg.trail === pick && n.edges.find((e) => e.trail === pick && Math.abs(e.a0 - S.netSeg.a0) < 1e-6)) || n.trailFirst[pick];
-    const r = node ? n.descendFrom(node) : !pick ? null : n.liftSt[pick] || (seg ? n.descendFrom(seg.from, seg) : null);
+    const area = node && n.areas.find((a) => a.id === node);
+    const r = area ? area.reach : node ? n.descendFrom(node) : !pick ? null : n.liftSt[pick] || (seg ? n.descendFrom(seg.from, seg) : null);
     const labels = [], ends = []; let s = stationRings(n.stations, r, pick, node);
     for (const t of n.trails) {
       const st = n.trailSt[t.id], pts = t.pts.map(P), d = pathD(pts), own = runColour[t.diff] || NETC.run;
@@ -2736,6 +2841,7 @@ body.solo .frame { border-radius: 0; }
       s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad + 1.6}" fill="${NETC.halo}"/><circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad}" fill="${fill}" stroke="${ring}" stroke-width="2"/>`;
     }
     s += ends.join('');
+    labels.push(...areaLabels(n.areas, '#ffd2ca'));
     if (S.layers.labels) s += netLabels(labels.sort((a, b) => a.order - b.order));
     return s;
   }
@@ -2838,6 +2944,7 @@ body.solo .frame { border-radius: 0; }
   }
   // The focus card (LF-11, TF-08's simple cards): the lift's or trail's key figures, with Edit and Remove.
   function focusCard() {
+    if (S.focus && S.focus.startsWith('area:')) return areaCard(S.focus.slice(5));
     const id = S.focus, l = S.lifts.find((x) => x.id === id), t = S.trails.find((x) => x.id === id);
     if (!l && !t) return '';
     const open = isOpen(), kv = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
@@ -2851,6 +2958,17 @@ body.solo .frame { border-radius: 0; }
     return `<div class="pn fcard"><div class="hd">${RATING[t.diff]}${esc(t.name)}<span class="nm">${lampHtml(st[1])} ${st[0]}</span><span class="x" data-act="fclose" title="Close (Esc)">✕</span></div>
       <dl class="kv">${kv('Rating', `${DIFFS[t.diff]}`)}${kv('Length', `<b>${lenFt(r.len)}</b>`)}${kv('Vertical', `<b>${lenFt(r.vert)}</b>`)}${kv('Average grade', `${Math.round(r.avg)}%`)}${kv('Steepest', `${Math.round(r.steep)}%`)}${kv('Surface', r.surface)}</dl>
       <div class="acts" style="grid-template-columns:1fr 1fr"><div class="ghost" data-act="fedit" data-v="trail">Edit</div><div class="ghost" data-act="fremove" data-v="trail">Remove</div></div></div>`;
+  }
+  // NT19: an Area's card: its name (click or F2 renames it), its lifts and what each does there, the trails that touch
+  // it and what a skier reaches from it. Single-lift stations and junctions still have no card (finding 7).
+  function areaCard(id) {
+    const n = netOf(), a = n.areas.find((x) => x.id === id);
+    if (!a) return '';
+    const kv = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+    const lifts = a.st.members.map((m) => { const l = n.lifts.find((x) => x.id === m.lift); return `<span class="plate built" style="font-size:10px">${l.n}</span> ${esc(l.name)} <span style="color:var(--soft)">${m.bottom ? 'loads' : 'unloads'}</span>`; }).join('<br>');
+    return `<div class="pn fcard" data-ui="network-area-card"><div class="hd"><span data-act="arearename" data-v="${id}" data-ui="network-area-card-name" title="Rename (F2)" style="cursor:text">${esc(a.name)}</span><span class="nm">Area</span><span class="x" data-act="fclose" title="Close (Esc)">✕</span></div>
+      <dl class="kv">${kv('Lifts', lifts)}${kv('Trails here', `<b>${a.here}</b>`)}${kv('Reaches', `<b>${a.reach.reach.size}</b> trails · <b>${a.reach.lifts.size}</b> lifts`)}</dl>
+      <div class="hint">One stop on the network: every lift and trail here connects.${a.named ? '' : ' Click the name to name it.'}</div></div>`;
   }
   const ATABS = [['overview', 'Overview'], ['lifts', 'Lifts'], ['trails', 'Trails'], ['network', 'Network'], ['guests', 'Guests'], ['snow', 'Snowmaking'], ['weather', 'Weather'], ['amenities', 'Amenities'], ['finances', 'Finances']];
   const isOpen = () => { const h = S.t / 3600; return h >= LIFTS_OPEN && h < LIFTS_CLOSE; };
@@ -3176,10 +3294,10 @@ body.solo .frame { border-radius: 0; }
     else if (S.modal && S.modal.stats) h += statsPanel();
     else if (S.modal && S.modal.save) h += saveDialog();
     else if (S.modal && S.modal.fb) h += feedbackPanel();   // task P3-14
-    else if (S.modal && S.modal.input) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">Rename resort<span class="x" data-act="modal">✕</span></div>
-      <div style="padding:12px 12px 2px"><input id="nameinput" class="field" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(S.name)}"></div>
-      <div class="hint">Shown in the status bar, the menu, Analysis and your saves.</div>
-      <div class="acts"><div class="go" data-act="renameok"><span>Rename</span><span class="mono">Enter</span></div><div class="ghost" data-act="modal">Cancel</div></div></div></div>`;
+    else if (S.modal && S.modal.input) { const ar = S.modal.area && netOf().areas.find((x) => x.id === S.modal.area); h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">${ar ? 'Name area' : 'Rename resort'}<span class="x" data-act="modal">✕</span></div>
+      <div style="padding:12px 12px 2px"><input id="nameinput" class="field" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(ar ? ar.name : S.name)}"></div>
+      <div class="hint">${ar ? 'Shown on the map, in Analysis › Network and on its card; it stays with the area as it grows.' : 'Shown in the status bar, the menu, Analysis and your saves.'}</div>
+      <div class="acts"><div class="go" data-act="renameok"><span>Rename</span><span class="mono">Enter</span></div><div class="ghost" data-act="modal">Cancel</div></div></div></div>`; }
     else if (S.modal) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">${S.modal.title}<span class="x" data-act="modal">✕</span></div><div class="hint" style="padding:12px">${S.modal.body}</div><div class="acts" style="grid-template-columns:1fr"><div class="ghost" data-act="modal">OK</div></div></div></div>`;
     if (S.notice && !S.modal) h += noticeHtml();   // task P3-14: the error notice and the crash offer
     if (S.lib) h = libScreen();   // S2 Load Area (task P3-04) stands in for the title's screens
@@ -3634,7 +3752,9 @@ body.solo .frame { border-radius: 0; }
       case 'asortd': S.af[S.atab].sort = S.af[S.atab].sort === v ? null : v; break;
       case 'afocus': S.focus = S.focus === v ? null : v; S.drop = null; break;
       case 'netlift': S.netLift = S.netLift === v ? null : v; S.netNode = null; S.netSeg = null; S.focus = S.netLift; break;
-      case 'fclose': S.focus = null; S.netLift = null; break;   // NT11: the card's ✕ clears the pick too
+      case 'netarea': S.netNode = S.netNode === v ? null : v; S.netLift = null; S.netSeg = null; S.focus = S.netNode ? 'area:' + v : null; break;   // NT19
+      case 'arearename': S.drop = null; S.modal = { input: true, area: v }; break;
+      case 'fclose': S.focus = null; S.netLift = null; S.netNode = null; break;   // NT11: the card's ✕ clears the pick too
       case 'legendpeek': S.legendPeek = !S.legendPeek; break;
       case 'fedit': case 'fremove': { const id = S.focus; S.analysis = false; S.toolbox = true; S.tab = v === 'lift' ? 'lifts' : 'trails'; chooseTool(`${a === 'fedit' ? 'edit' : 'remove'}-${v}`); S.sel = id; S.focus = null;
         if (v === 'lift') { const l = S.lifts.find((x) => x.id === id); if (a === 'fedit' && l) S.draft = editDraft(l); else if (a === 'fremove') S.removeArmed = S.set.confirmRemove === 'on' ? id : null; }   // the card already picked it
@@ -3679,7 +3799,12 @@ body.solo .frame { border-radius: 0; }
       case 'stats': S.drop = null; S.modal = S.modal && S.modal.stats ? null : { stats: true }; break;
       case 'renameok': {
         const f = document.getElementById('nameinput'), v = f ? f.value.trim().replace(/\s+/g, ' ').slice(0, 28) : '';
+        const area = S.modal && S.modal.area && netOf().areas.find((x) => x.id === S.modal.area);
         S.modal = null;
+        if (area) {   // NW-15: the name, with the ends the area holds now
+          if (v && v !== area.name) { if (area.rec) { area.rec.name = v; area.rec.ends = area.st.members.map(endKey); } else S.areaNames.push({ name: v, ends: area.st.members.map(endKey) }); S.saveDue = true; log(`<span>Area named <b>${esc(v)}</b></span>`); }
+          render(); return;
+        }
         if (v && v !== S.name) { S.name = v; S.saveDue = true; render(); log(`<span>Renamed to <b>${esc(v)}</b></span>`); return; }
         break;
       }
@@ -3745,7 +3870,8 @@ body.solo .frame { border-radius: 0; }
   function netHit(p) {
     const node = pickNode(p); if (node) return { node };
     const id = pickAt(p, 'lift') || pickAt(p, 'trail'), tr = id && S.trails.find((t) => t.id === id);
-    if (!tr) return id ? { id } : {};
+    if (!id) { const a = netOf().areas.find((x) => pointToHull(x.st.hull, p) <= NET.reach); return a ? { node: a.id } : {}; }   // NT19: inside an Area's shape
+    if (!tr) return { id };
     const along = lineNear(p, tr.pts).along, e = netOf().edges.find((x) => x.trail === id && along >= x.a0 - 1e-6 && along <= x.a1 + 1e-6);
     return { id, seg: e ? { trail: id, a0: e.a0 } : null };
   }
@@ -3865,7 +3991,8 @@ body.solo .frame { border-radius: 0; }
       S.netNode = node && node !== S.netNode ? node : null;
       S.netLift = id && !same ? id : null;
       S.netSeg = S.netLift ? segKey : null;
-      S.focus = S.netLift; S.drop = null; render();
+      const isArea = S.netNode && netOf().areas.some((a) => a.id === S.netNode);   // NT19: an Area opens its card
+      S.focus = S.netLift || (isArea ? 'area:' + S.netNode : null); S.drop = null; render();
     }
     else if (!S.tool) { S.focus = pickAt(p, 'lift') || pickAt(p, 'trail'); S.drop = null; render(); }   // a lift or trail opens its card
   });
@@ -3901,6 +4028,7 @@ body.solo .frame { border-radius: 0; }
       return;
     }
     if (k === 'p') { enterPhoto(); return; }
+    if (k === 'f2' && S.focus && S.focus.startsWith('area:')) { e.preventDefault(); act('arearename', S.focus.slice(5)); render(); return; }   // NT19
     if (S.draft && S.draft.kind === 'lift' && liftKeys(e, k)) return;
     if (S.draft && S.draft.kind === 'trail' && trailKeys(e, k)) return;
     if (k === 'escape') {
@@ -4059,6 +4187,7 @@ body.solo .frame { border-radius: 0; }
       if (d.includes('netpicktrail')) S.netLift = 't2';   // Cornice: Catwalk, then Bighorn below the junction, then Aspen Quad
       if (d.includes('netcard')) { S.netLift = 't2'; S.focus = 't2'; }   // finding 3: Cornice's card under the folded key
       if (d.includes('netseg')) { const e = netOf().edges.filter((x) => x.trail === 't2').sort((a, b) => a.a0 - b.a0)[1]; S.netLift = 't2'; S.focus = 't2'; if (e) S.netSeg = { trail: 't2', a0: e.a0 }; }   // R2-2: lower Cornice
+      if (d.includes('netarea')) { const a = netOf().areas[0]; if (a) { S.netNode = a.id; S.focus = 'area:' + a.id; } }   // NT19: Aspen Quad & Beaver Double base, its card
       if (d.includes('netnode')) { const js = netOf().nodes.filter((x) => x.kind === 'junction').sort((a, b) => b.p[1] - a.p[1]); if (js.length) S.netNode = js[0].id; }   // finding 7: where Catwalk meets Bighorn
     }
     if (d.includes('sortlen')) { S.af.lifts.sort = 'len-down'; S.af.trails.sort = 'len-down'; }
@@ -4148,7 +4277,7 @@ body.solo .frame { border-radius: 0; }
     // Bighorn's heads; liftbaseaim aims its top up the ridge.
     if (d.some((x) => x.startsWith('liftbase'))) {
       S.toolbox = true; S.tab = 'lifts'; if (S.tool !== 'new-lift') chooseTool('new-lift');
-      S.analysis = false; mouse = [684, 414];   // on the trail map, where the tool is used
+      S.analysis = false; mouse = d.includes('liftbasearea') ? [574, 598] : [684, 414];   // on the trail map, where the tool is used; liftbasearea: beside the Aspen Quad & Beaver Double base (NT20)
       if (d.includes('liftbaseaim')) { const ld = S.draft; ld.mode = 'auto'; ld.a = mouse.slice(); ld.step = 'other'; mouse = [878, 300]; aimAt(mouse, true); }
     }
     const LD = { a: [1190, 334], b: [944, 250] }, lf = d.some((x) => x.startsWith('liftbase')) ? null : ['liftorigin', 'liftauto', 'liftred', 'liftbyhand', 'liftreview', 'liftsel', 'lift'].find((x) => d.includes(x));

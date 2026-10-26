@@ -59,8 +59,20 @@ namespace MountainPlanner.Domain.Design
             };
         }
 
+        /// <summary>An Area (NW-15, NT19) as the Network tab lists it: the trails that touch it and what a skier reaches.</summary>
+        public sealed class AreaStatus
+        {
+            public Area Area { get; internal set; }
+            /// <summary>Trails with an end or a cut in its hub, in ID order.</summary>
+            public IReadOnlyList<TrailId> TrailsHere { get; internal set; }
+            /// <summary><see cref="ReachFromArea"/>'s reach.</summary>
+            public Reach Reach { get; internal set; }
+        }
+
         public IReadOnlyList<LiftStatus> Lifts { get; }
         public IReadOnlyList<TrailStatus> Trails { get; }
+        /// <summary>The Areas, in station ID order.</summary>
+        public IReadOnlyList<AreaStatus> Areas { get; }
         public NetworkGraph Graph { get; }
 
         readonly ulong _seed;
@@ -68,7 +80,7 @@ namespace MountainPlanner.Domain.Design
         readonly Dictionary<ulong, List<LiftId>> _bottoms;
 
         NetworkReport(NetworkGraph graph, ulong seed, Dictionary<ulong, List<int>> down, Dictionary<ulong, List<LiftId>> bottoms,
-                      LiftStatus[] lifts, TrailStatus[] trails)
+                      LiftStatus[] lifts, TrailStatus[] trails, AreaStatus[] areas)
         {
             Graph = graph;
             _seed = seed;
@@ -76,12 +88,50 @@ namespace MountainPlanner.Domain.Design
             _bottoms = bottoms;
             Lifts = lifts;
             Trails = trails;
+            Areas = areas;
+        }
+
+        /// <summary>The Area whose hub is this station node, or null.</summary>
+        public AreaStatus AreaAt(ulong station)
+        {
+            foreach (var a in Areas) if (a.Area.Station.Id == station) return a;
+            return null;
+        }
+
+        /// <summary>
+        /// What a skier reaches from an Area (NW-15: one larger node where everything interacts): a descent from the hub,
+        /// and up each lift that loads there and down from its top. Those lifts count as reached. Nothing for a station
+        /// that isn't in the graph.
+        /// </summary>
+        public Reach ReachFromArea(ulong station) => AreaReach(Graph, _down, _bottoms, station);
+
+        static Reach AreaReach(NetworkGraph graph, Dictionary<ulong, List<int>> down, Dictionary<ulong, List<LiftId>> bottoms, ulong station)
+        {
+            if (!graph.TryGetNode(station, out _)) return Reach.Nothing;
+            var parts = new List<Reach> { Search(graph, down, bottoms, station) };
+            var loads = bottoms.TryGetValue(station, out var here) ? here : new List<LiftId>();
+            foreach (var lift in loads)
+            {
+                ulong top = graph.StationOf(lift, top: true);
+                if (top != 0) parts.Add(Search(graph, down, bottoms, top, transferFrom: lift));
+            }
+            var segments = new SortedSet<int>();
+            var trails = new SortedSet<TrailId>();
+            var lifts = new SortedSet<LiftId>(loads);
+            var nodes = new SortedSet<ulong>();
+            foreach (var r in parts)
+            {
+                segments.UnionWith(r.Segments);
+                trails.UnionWith(r.Trails);
+                lifts.UnionWith(r.Lifts);
+                nodes.UnionWith(r.Nodes);
+            }
+            return new Reach { Segments = new List<int>(segments), Trails = new List<TrailId>(trails), Lifts = new List<LiftId>(lifts), Nodes = new List<ulong>(nodes) };
         }
 
         /// <summary>A descent from <paramref name="node"/> (finding 7: any node); nothing for a node not in the graph.</summary>
         public Reach ReachFrom(ulong node) => Graph.TryGetNode(node, out _) ? Search(Graph, _down, _bottoms, node) : Reach.Nothing;
 
-        /// <summary>A descent from the lift's top (NW-13).</summary>
         /// <summary>A descent from the lift's top station (NW-13); another lift's bottom in that station is reached at once
         /// (a transfer, NT14).</summary>
         public Reach ReachFrom(LiftId lift)
@@ -274,7 +324,17 @@ namespace MountainPlanner.Domain.Design
                 if (t.Stage != WorkStage.Built || !lengths.ContainsKey(t.Id.Value)) continue;
                 trailList.Add(new TrailStatus { Trail = t.Id, Served = served.Contains(t.Id.Value), LeadsNowhere = !joinsAtTail.Contains(t.Id.Value) });
             }
-            return new NetworkReport(graph, doc.Seed, down, bottoms, liftList.ToArray(), trailList.ToArray());
+            // NW-15: the Areas, each with the trails that touch its hub and what it reaches.
+            var areaList = new List<AreaStatus>();
+            foreach (var area in DesignAreas.Of(doc, graph.Stations))
+            {
+                ulong id = area.Station.Id;
+                var here = new SortedSet<TrailId>();
+                foreach (var e in edges)
+                    if (e.Kind == EdgeKind.TrailSegment && (e.From == id || e.To == id)) here.Add(new TrailId(e.Owner));
+                areaList.Add(new AreaStatus { Area = area, TrailsHere = new List<TrailId>(here), Reach = AreaReach(graph, down, bottoms, id) });
+            }
+            return new NetworkReport(graph, doc.Seed, down, bottoms, liftList.ToArray(), trailList.ToArray(), areaList.ToArray());
         }
 
         static bool Joins(NetworkGraph graph, ulong node) =>

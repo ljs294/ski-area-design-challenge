@@ -24,6 +24,8 @@ namespace MountainPlanner.Domain.Design
         public const ulong ClearingEdgeTag = 11;
         /// <summary>NW-14's stations (task 10, owner NT13).</summary>
         public const ulong StationTag = 12;
+        /// <summary>NW-15's named Areas (task 10, owner NT19).</summary>
+        public const ulong AreaTag = 13;
 
         public static ulong Hash(ulong seed, ulong tag, ulong a) => Hash(seed, tag, a, 0);
 
