@@ -131,7 +131,10 @@ namespace MountainPlanner.Tests
             yield return Frames(3);
             var ui = flow.Screens.Document.rootVisualElement;
             Assert.That(ui.Q<Button>("logs-send"), Is.Not.Null, "Settings › Data › Logs › Send logs…");
-            Assert.That(ui.Q("crash-offer"), Is.Not.Null);
+            flow.Screens.ShowCrashOffer(true);   // the title's offer is its own notice, not the Settings switch of the same idea
+            Assert.That(ui.Q("crash-notice").ClassListContains("hidden"), Is.False, "the crash offer shows");
+            Assert.That(ui.Q("crash-notice").Q<Button>("crash-notice-send"), Is.Not.Null);
+            flow.Screens.ShowCrashOffer(false);
             bool chosen = false;
             flow.Screens.Settings.LogsSendChosen += () => chosen = true;
             // Enter on the focused button, as Settings is used by keyboard (its scroll view keeps a synthetic pointer's clicks).

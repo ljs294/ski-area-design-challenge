@@ -211,6 +211,14 @@ echo   Lift models 2: the Sessellift D6 six-pack (rebuilds the Lift Lab, a few m
 echo     69 The Lift Lab's six-pack: the D6 terminals, its six-seat chair and its six tower heads on full towers.
 echo        X six-pack, L LOD, N snow, C colour, T turntable, mouse/WASD camera, H help, Esc quit.
 echo.
+echo   Phase 3, task 14: problem reports and Send feedback (rebuilds the game, about 2 minutes; close the Unity editor first)
+echo     71 The game with a forced error: "A log was saved" shows with Send logs. Try it, the menu's Send feedback and
+echo        Settings ^> Data ^> Logs ^> Send logs: Problem or Suggestion, untick parts, Save and open GitHub (a zip in
+echo        %%LOCALAPPDATA%%\SkiAreaDesignChallenge\Reports, Explorer, a pre-filled issue; don't submit it).
+echo     71o Open a problem report: the newest one, a zip or a GitHub issue number; its area, save and settings in a
+echo        scratch library (your own settings stay as they are).
+echo     71c The Send feedback captures, both themes, 50-150%% (render lane), into test-results\report-captures.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -299,6 +307,9 @@ if /i "%CHOICE%"=="67" goto trails
 if /i "%CHOICE%"=="67b" goto trailbench
 if /i "%CHOICE%"=="67c" goto trailcaptures
 if /i "%CHOICE%"=="69" goto sixpack
+if /i "%CHOICE%"=="71" goto reports
+if /i "%CHOICE%"=="71o" goto openreport
+if /i "%CHOICE%"=="71c" goto reportcaptures
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -908,6 +919,35 @@ echo Importing the lifts into Unity (about 30 seconds)...
 "%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.LiftImport.Import -quit -logFile "%~dp0test-results\lifts.log" <nul
 if errorlevel 1 (echo   The import failed - see test-results\lifts.log & goto done)
 call :buildliftlab
+goto done
+
+:reports
+rem Task P3-14: Send feedback in the real game. -crashtest forces one exception once the title is in, so the notice shows.
+call :buildplayer
+if not exist "%GAME%" goto done
+"%GAME%" -crashtest <nul
+goto done
+
+:openreport
+set "REPORTARG="
+set /p "REPORTARG=A report zip, an issue number, or Enter for your newest report: "
+if not defined REPORTARG (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\reports\open-report.ps1"
+) else (
+  echo %REPORTARG%| findstr /r "^[0-9][0-9]*$" >nul && (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\reports\open-report.ps1" -Issue %REPORTARG%
+  ) || (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\reports\open-report.ps1" -Report "%REPORTARG:"=%"
+  )
+)
+goto done
+
+:reportcaptures
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "REPCAP=%~dp0test-results\report-captures"
+%RENDER% "%GAME%" -uicapture "%REPCAP%" -uionly s12-feedback,s12-feedback-saved,s12-feedback-suggestion,s12-feedback-crash,s12-error-notice,s12-crash-offer,s8-settings-data -uisizes 1920x1080,2560x1080 -uibase 85 -logFile "%~dp0test-results\report-captures.log" <nul
+start "" "%REPCAP%"
 goto done
 
 :sixpack

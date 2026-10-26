@@ -103,3 +103,49 @@ function Test-ZipLayout([string]$zip, [string]$version) {
     if ($names | Where-Object { $_ -match 'DoNotShip' }) { $problems.Add('ships a DoNotShip folder') }
     return , $problems.ToArray()
 }
+
+# ---- Symbols (task P3-14, decision PR8) ----
+# The build is Mono: release stack traces already name the methods. What a crash dump needs is kept here, outside git
+# and the zip: the shipped exe, UnityPlayer.dll and crash handler with Unity's matching player PDBs, the Burst debug
+# information, and the game's own DLLs with their PDBs (from Library/Bee, only when they match the shipped DLLs).
+
+function Get-SymbolsRoot([string]$root) {
+    # Beside the main checkout (D:\skiAreaDesignChallenge\symbols), also from a worktree.
+    $common = (& git -C $root rev-parse --path-format=absolute --git-common-dir).Trim()
+    return Join-Path (Split-Path (Split-Path $common -Parent) -Parent) 'symbols'
+}
+
+function Save-Symbols([string]$player, [string]$root, [string]$unity, [string]$version, [string]$out) {
+    $target = Join-Path $out $version
+    if (Test-Path $target) { Remove-Item -Recurse -Force $target }
+    foreach ($d in 'native', 'managed', 'burst') { New-Item -ItemType Directory -Force (Join-Path $target $d) | Out-Null }
+    foreach ($f in "$($script:ProductFile).exe", 'UnityPlayer.dll', 'UnityCrashHandler64.exe') {
+        $p = Join-Path $player $f
+        if (Test-Path $p) { Copy-Item $p (Join-Path $target 'native') }
+    }
+    $variation = Join-Path (Split-Path $unity -Parent) 'Data\PlaybackEngines\windowsstandalonesupport\Variations\win64_player_nondevelopment_mono'
+    if (Test-Path $variation) { Get-ChildItem $variation -Filter '*.pdb' | Copy-Item -Destination (Join-Path $target 'native') }
+    $burst = Get-ChildItem $player -Directory | Where-Object { $_.Name -match '_BurstDebugInformation_DoNotShip$' } | Select-Object -First 1
+    if ($burst) { Copy-Item (Join-Path $burst.FullName '*') (Join-Path $target 'burst') -Recurse }
+    $managed = Join-Path $player "$($script:ProductFile)_Data\Managed"
+    $bee = Join-Path $root 'Library\Bee\PlayerScriptAssemblies'
+    $matched = 0; $shipped = 0
+    foreach ($dll in @(Get-ChildItem $managed -Filter 'MountainPlanner.*.dll' -ErrorAction SilentlyContinue)) {
+        $shipped++
+        Copy-Item $dll.FullName (Join-Path $target 'managed')
+        $built = Join-Path $bee $dll.Name
+        $pdb = [System.IO.Path]::ChangeExtension($built, '.pdb')
+        if ((Test-Path $built) -and (Test-Path $pdb) -and (Get-FileHash $built).Hash -eq (Get-FileHash $dll.FullName).Hash) {
+            Copy-Item $pdb (Join-Path $target 'managed')
+            $matched++
+        }
+    }
+    $files = @(Get-ChildItem $target -Recurse -File | ForEach-Object {
+        [ordered]@{ path = $_.FullName.Substring($target.Length + 1).Replace('\', '/'); bytes = $_.Length; sha256 = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant() }
+    })
+    $commit = ''
+    try { $commit = (& git -C $root rev-parse HEAD 2>$null) -join "" } catch { }
+    $info = [ordered]@{ version = $version; commit = $commit; unity = (Split-Path (Split-Path (Split-Path $unity -Parent) -Parent) -Leaf); managedPdbs = "$matched of $shipped"; files = $files }
+    $info | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $target 'symbols.json') -Encoding utf8
+    return [pscustomobject]@{ Folder = $target; ManagedPdbs = $matched; ManagedDlls = $shipped; Files = $files.Count }
+}

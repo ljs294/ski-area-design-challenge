@@ -267,7 +267,7 @@ namespace MountainPlanner.App.Flow
             HandleKeys(Keyboard.current);
             UpdateSaves(Keyboard.current);
             UpdateCrashOffer();   // task P3-14
-            if (Screens.CrashOfferShown && (Controller.Screen != FlowScreen.Title || !MountainViewer.TitleMode)) Screens.ShowCrashOffer(false);
+            if (Screens.CrashOfferShown && !Screens.TitleShown) Screens.ShowCrashOffer(false);   // only ever over the title's signs
 
             // The title's slow drift over the demo mountain (the viewer's own camera input is off in title mode).
             var cam = _viewer != null ? _viewer.Camera : null;

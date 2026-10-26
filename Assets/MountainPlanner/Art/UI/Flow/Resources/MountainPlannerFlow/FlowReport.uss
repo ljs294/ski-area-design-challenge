@@ -3,7 +3,8 @@
    text outline too (UiThemeTests). This file is P3-14's; Flow.uss stays as it was. */
 
 .feedback-panel { width: 560px; }
-.feedback-form { padding-bottom: 12px; }
+.feedback-form { padding-bottom: 12px; flex-shrink: 1; min-height: 0; }
+.feedback-body { flex-shrink: 1; min-height: 0; }
 .feedback-kind { margin: 12px 12px 0 12px; }
 .feedback-kind > .mp-seg__opt { flex-grow: 1; height: 30px; font-size: 12.5px; }
 .feedback-cap {
@@ -46,7 +47,7 @@
 .feedback-part__text { flex-grow: 1; flex-shrink: 1; }
 .feedback-part__name { margin: 0; padding: 0; font-size: 12.5px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
 .feedback-part__sub { margin: 0; padding: 0; font-size: 11.5px; white-space: normal; color: var(--soft); -unity-text-outline-color: var(--soft); }
-.feedback-part:not(.feedback-part--on) .feedback-part__name { color: var(--soft); -unity-text-outline-color: var(--soft); }
+.feedback-part--off .feedback-part__name { color: var(--soft); -unity-text-outline-color: var(--soft); }
 .feedback-part__size { margin: 0 0 0 10px; padding: 0; font-size: 11.5px; color: var(--muted); -unity-text-outline-color: var(--muted); }
 
 .feedback-total { flex-direction: row; justify-content: space-between; padding: 6px 12px 0 12px; }

@@ -32,7 +32,10 @@ namespace MountainPlanner.App.Flow
         bool _crashOfferDecided;
         ProblemReport _report;
         IReadOnlyList<ReportItem> _reportItems;
-        bool _reportBusy;
+        bool _reportBusy, _reportTest;
+
+        /// <summary>Runs that aren't the player's own session: a scratch library, an opened report, captures and smoke tests.</summary>
+        static readonly string[] NotAPlayerSession = { "-data", "-reportsettings", "-uicapture", "-flowcapture", "-smoketest", "-titlemovie", "-displaycheck", "-reporttest" };
 
         /// <summary>&lt;data&gt;/Reports: the library's own, so a scratch -data run keeps its reports with it.</summary>
         string ReportsFolder => ReportBundle.FolderIn(DataRoot);
@@ -48,7 +51,9 @@ namespace MountainPlanner.App.Flow
 
             // Tool runs never get here (no flow); a scratch -data folder or an opened report isn't the player's session.
             string[] args = Environment.GetCommandLineArgs();
-            if (Application.isEditor || Array.IndexOf(args, "-data") >= 0 || Array.IndexOf(args, "-reportsettings") >= 0) return;
+            _reportTest = Array.IndexOf(args, "-reporttest") >= 0;
+            if (_reportTest) OpenReportsExternally = false;
+            if (Application.isEditor || NotAPlayerSession.Any(a => Array.IndexOf(args, a) >= 0)) return;
             _crashMarker = new CrashMarker(MountainViewer.DataRoot);
             _crashMarker.Begin($"{BuildInfo.Current.DisplayVersion} ({BuildInfo.Current.ShortCommit}), started {DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss'Z'", CultureInfo.InvariantCulture)}");
             _crashPending = _crashMarker.PendingCrash;
@@ -67,7 +72,25 @@ namespace MountainPlanner.App.Flow
         {
             if (_crashOfferDecided || TitleReadySeconds < 0 || Screens.CoverUp) return;
             _crashOfferDecided = true;
+            if (_reportTest) StartCoroutine(ReportTest());
             if (_crashPending != null && DataPreferences.CrashOffer && Controller.Screen == FlowScreen.Title) Screens.ShowCrashOffer(true);
+        }
+
+        /// <summary>
+        /// -reporttest: once the title is in, a Problem report with every part is written into the library's Reports
+        /// folder (no Explorer, no browser), its path logged, and the game quits 0 (3 if it failed). Checks a shipped exe.
+        /// </summary>
+        IEnumerator ReportTest()
+        {
+            OpenFeedback(ReportKind.Problem, false);
+            for (float until = Time.realtimeSinceStartup + 20; !Screens.FeedbackOpen && Time.realtimeSinceStartup < until;) yield return null;
+            Screens.SetFeedbackText("Report test", "Written by -reporttest.");
+            var request = new FeedbackRequest { Kind = ReportKind.Problem, Title = "Report test", Note = "Written by -reporttest." };
+            foreach (var p in Screens.FeedbackParts) request.Parts.Add(p.Part);
+            SendFeedback(request);
+            for (float until = Time.realtimeSinceStartup + 60; !Screens.FeedbackSaved && Time.realtimeSinceStartup < until;) yield return null;
+            Debug.Log(Screens.FeedbackSaved ? $"[Report] -reporttest wrote {LastReportPath}" : "[Report] -reporttest failed: no report was saved");
+            Application.Quit(Screens.FeedbackSaved ? 0 : 3);
         }
 
         /// <summary>Opens Send feedback on <paramref name="kind"/>; the view is captured first, without the dialog.</summary>

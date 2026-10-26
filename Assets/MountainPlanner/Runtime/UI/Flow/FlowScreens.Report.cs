@@ -54,6 +54,8 @@ namespace MountainPlanner.UI.Flow
         /// <summary>True while Report saved shows (tests and captures).</summary>
         public bool FeedbackSaved => FeedbackOpen && IsShown(_feedbackDone);
         public bool CrashOfferShown => IsShown(_crashOffer);
+        /// <summary>True while the title's signs show (the crash offer belongs to them).</summary>
+        public bool TitleShown => IsShown(_title);
         public string FeedbackKind => _feedbackKind;
         public IReadOnlyList<FeedbackPart> FeedbackParts => _parts;
 
@@ -79,7 +81,7 @@ namespace MountainPlanner.UI.Flow
             _feedbackSend = _root.Q<Button>("feedback-send");
             _feedbackSave = _root.Q<Button>("feedback-save");
             _feedbackDoneOk = _root.Q<Button>("feedback-done-ok");
-            _crashOffer = _root.Q("crash-offer");
+            _crashOffer = _root.Q("crash-notice");
             if (_feedback == null) return;
 
             _feedbackProblem.clicked += () => SetFeedbackKind("problem");
@@ -105,12 +107,12 @@ namespace MountainPlanner.UI.Flow
                 HideErrorNotice();
                 ErrorLogsSendChosen?.Invoke();
             };
-            _root.Q<Button>("crash-offer-send").clicked += () =>
+            _root.Q<Button>("crash-notice-send").clicked += () =>
             {
                 Show(_crashOffer, false);
                 CrashReportChosen?.Invoke();
             };
-            _root.Q<Button>("crash-offer-later").clicked += () =>
+            _root.Q<Button>("crash-notice-later").clicked += () =>
             {
                 Show(_crashOffer, false);
                 CrashOfferDismissed?.Invoke();
@@ -129,7 +131,7 @@ namespace MountainPlanner.UI.Flow
             Show(_feedbackForm, true);
             Show(_feedbackDone, false);
             SetText(_feedbackHead, "Send feedback");
-            SetFeedbackKind(kind ?? "problem", keepTicks: true);
+            SetFeedbackKind(kind ?? "problem");   // a suggestion starts without the logs and the save
             _feedback.BringToFront();
             Show(_feedback, true);
             UiFocus.OpenModal(_feedback, _feedbackSummary);
@@ -141,7 +143,7 @@ namespace MountainPlanner.UI.Flow
             if (_feedback == null) return;
             SetText(_feedbackHead, "Report saved");
             SetText(_feedbackFile, fileName);
-            SetText(_feedbackFileSize, LibraryViewModel.Disk(bytes));
+            SetText(_feedbackFileSize, Size(bytes));
             SetText(_feedbackStep1, openedGitHub
                 ? "1. It's open in a folder window, and your browser has a new GitHub issue with the title and version filled in."
                 : "1. It's open in a folder window.");
@@ -167,6 +169,9 @@ namespace MountainPlanner.UI.Flow
             if (show) _crashOffer.BringToFront();
             Show(_crashOffer, show);
         }
+
+        /// <summary>Hides the error notice at once (-uicapture).</summary>
+        public void HideErrorNoticeForCapture() => HideErrorNotice();
 
         /// <summary>The player's title and note (tests type through these).</summary>
         public void SetFeedbackText(string title, string note)
@@ -206,6 +211,7 @@ namespace MountainPlanner.UI.Flow
                 row.AddToClassList("feedback-part");
                 if (i == 0) row.AddToClassList("feedback-part--first");
                 row.EnableInClassList("feedback-part--on", p.On);
+                row.EnableInClassList("feedback-part--off", !p.On);
                 var chk = new VisualElement { pickingMode = PickingMode.Ignore };
                 chk.AddToClassList("feedback-part__chk");
                 var tick = new VisualElement { pickingMode = PickingMode.Ignore };
@@ -217,7 +223,7 @@ namespace MountainPlanner.UI.Flow
                 text.Add(Text(p.Name, "feedback-part__name"));
                 if (p.Sub.Length > 0) text.Add(Text(p.Sub, "feedback-part__sub"));
                 row.Add(text);
-                row.Add(Text(LibraryViewModel.Disk(p.Bytes), "feedback-part__size", "mono"));
+                row.Add(Text(Size(p.Bytes), "feedback-part__size", "mono"));
                 string part = p.Part;
                 void Toggle()
                 {
@@ -232,6 +238,14 @@ namespace MountainPlanner.UI.Flow
             RefreshFeedback();
         }
 
+        /// <summary>"84 KB", "1.2 MB", "25 MB": a report's sizes, in GitHub's binary megabytes (its 25 MB limit).</summary>
+        public static string Size(long bytes)
+        {
+            if (bytes < 1024 * 1024) return $"{Math.Max(1, (bytes + 1023) / 1024)} KB";
+            double mb = bytes / (1024.0 * 1024.0);
+            return mb < 10 ? $"{mb:0.0} MB" : $"{mb:0} MB";
+        }
+
         /// <summary>The bytes the ticked parts add (report.json's few KB included).</summary>
         long FeedbackBytes => 4096 + _parts.Where(p => p.On).Sum(p => p.Bytes);
 
@@ -239,7 +253,7 @@ namespace MountainPlanner.UI.Flow
         {
             long bytes = FeedbackBytes;
             bool over = bytes > FeedbackLimit, titled = _feedbackSummary.value.Trim().Length > 0;
-            SetText(_feedbackSize, $"{LibraryViewModel.Disk(bytes)} of {LibraryViewModel.Disk(FeedbackLimit)}");
+            SetText(_feedbackSize, $"{Size(bytes)} of {Size(FeedbackLimit)}");
             _feedbackTotal.EnableInClassList("feedback-total--over", over);
             SetText(_feedbackTotal.Q<Label>("feedback-total-text"), over ? "Too big for GitHub: leave out the save or the game log" : "Saved as one zip file on this PC");
             _feedbackSend.SetEnabled(titled && !over);
