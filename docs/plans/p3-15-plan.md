@@ -1,7 +1,9 @@
 # Phase 3 task 15: terrain brush, plan (approved 2026-10-26)
 
-**Status:** approved by the owner on 2026-10-26 (rev 3). Decisions BR1–BR12 in [phase0-decisions.md](phase0-decisions.md); rules TB-01–TB-14 and TW-02 v4 in [p3-02-design-rules.md](p3-02-design-rules.md).
+**Status:** approved by the owner on 2026-10-26 (rev 3; rev 4 adds close-up contours, BR13). Decisions BR1–BR13 in [phase0-decisions.md](phase0-decisions.md); rules TB-01–TB-14 and TW-02 v4 in [p3-02-design-rules.md](p3-02-design-rules.md).
 
+
+**Status (2026-10-26):** the plan docs (BR1–BR12, TB-01–TB-14, TW-02 v4) are committed. So are PR A (engine and save v4, 4406ff98), the mockup (7e71ec99) and PR B (fixed heads, 37d81677). All are local on `feature/p3-15-terrain-brush`; 647/647 engine-free tests pass and every Unity assembly compiles. Waiting on: your OK of the mockup, and the P3-10 relay about the shared earthwork file. **Rev 4 adds close-up contours (§ Close-up contours), at your request.**
 
 ## Context
 The owner asked for this as TL14: a Cities: Skylines 2-style terrain tool for hand-grading cat tracks, junctions and the ground round lifts. Brush strokes are authored data that the earthwork replay (TL3) rebuilds byte for byte. Main already has save v3 (P3-09, LT44), so this is **save v4 / design Shape 4**.
@@ -76,9 +78,8 @@ The owner asked for this as TL14: a Cities: Skylines 2-style terrain tool for ha
   - **Lift envelope:** h ≤ the envelope floor at (s, d) = rope − chair drop − required clearance (15 ft, with the low zones; `ClearanceAt`), over the chair band and the corridor. It's built from `LiftClearance.Rope`, `LiftRope.RopeAt`, `ChairDropMetres` and the `LineGround` chair band. On pads, the terminal rules govern.
   - **Tower bases:** ground at the base stays inside what the fixed head allows. Line towers can be 25–100 ft (trams 250), station towers 15 ft and up, with each kind's foundation reveal.
 
-**2. Fixed heads (TW-02 v4):**
-- A built lift's heads and rope come from the **ground before hand grading**.
-- `DesignEarthwork` keeps the edits at the phase-2 boundary (derived and cached, never saved). The rope solve (`LiftClearance.Rope`, `LiftView`, the card's lowest chairs) reads that ground.
+**2. Fixed heads (TW-02 v4; built in PR B):**
+- A built lift's heads and rope come from the **ground before hand grading**: each tower's base level as the lift's own earthwork left it (`LiftBuild.Works.Rope`, the fold's detail). `LiftRope.SolveWithBases` solves the rope from those levels, and `LiftView.Build(..., fixedBases)` uses it.
 - **As-built** tower height = head − final ground, split into 5 ft steel steps plus a foundation reveal (0–5 ft) on every tower. Station towers already have a reveal (`LiftRope.cs` 0–1.523 m).
 - `LiftView` draws each mast from the fixed head down to the final ground. The lift card shows as-built heights.
 - Stored `HeightMm` is unchanged (the design height over the pre-brush ground), so **towers need no save change**.
@@ -135,6 +136,37 @@ The owner asked for this as TL14: a Cities: Skylines 2-style terrain tool for ha
   - I'll check five tabs fit the tray.
 - **ToolWindow:** gains a mouse-hint line and a chip row, if `AddSwitch` doesn't already cover the chips.
 
+## Close-up contours (added at your request, rev 4)
+**Owner request (2026-10-26):** more contour lines as you zoom in, down to 10 ft up close. You chose **40 → 20 → 10 ft** (metric **10 → 5 → 2.5 m**), and contours **switch on by themselves while a Terrain brush is armed**.
+
+**What's there today:**
+- `Art/Shaders/InfoLayers.hlsl:93-110` (`ContourLevel`, `ApplyContours`) draws three levels: 40 / 200 / 1,000 ft (10 / 50 / 250 m).
+- Each level fades in by its on-screen spacing (`fwidth`; gone under 3 px apart, full at 7 px).
+- The 40 ft lines are faint (0.35 strength, 0.5 px), so from the usual distance you mostly see 200 and 1,000 ft.
+- Intervals come from `UnitFormat.ContourIntervalMetres` (`UnitFormat.cs:55-56`), and `MapLayers.ApplyUnits` sets `_MP_ContourInterval`.
+
+**The change (Presentation only; no Domain, save or cache change):**
+- **Two finer levels in `ApplyContours`:** 20 ft and 10 ft (5 m and 2.5 m), each with the same pixel-spacing fade.
+  - They appear by themselves as you zoom in and never crowd the view when you're far away. No camera hook is needed; this is the same rule the 40 ft level already follows.
+  - Strength and width go below the 40 ft line's, so the hierarchy reads 10 < 20 < 40 < 200 < 1,000.
+  - The 40 ft line gets a little stronger, so it reads at the usual distance. The numbers get tuned on captures.
+- **Accuracy up close:** the finer levels read the 1 m `_Heightmap` per pixel, the same sample the Slope layer takes (`MountainTerrain.shader:468-493`). So the terrain mesh's coarser detail at Low and Medium never pushes a 10 ft line sideways. The 40 ft and coarser levels keep the mesh height they use today.
+  - The ring is 2 m data, so its finer lines are as good as 2 m allows.
+  - Cliff shells keep the three levels they have.
+- **Intervals:** `UnitFormat` gains `ContourFineMetres` (20 ft or 5 m) and `ContourFinestMetres` (10 ft or 2.5 m). `MapLayers.ApplyUnits` sets two more globals (`_MP_ContourFine`, `_MP_ContourFinest`), and the units switch updates them.
+- **Unchanged:**
+  - labels stay every 200 ft / 50 m (`ContourLabels`, `ContourLabelOverlay`);
+  - the yellow pending contours stay at 40 ft (CF-08).
+- **Contours while brushing:** arming any Terrain tool turns the Contours layer on; Shift+6 still toggles it inside the tool. Disarm puts back what you had. The tool owns this through `MapLayers`; it never changes your saved layer choice.
+- **Legend and docs:** `InfoLegend.ContoursNote` becomes "Contours every 40 ft, down to 10 ft up close; labelled every 200 ft" (metric: 10 m, down to 2.5 m). Also updated: game-ui-direction.md (lines 149 and 214), controls-key-map.md (Shift+6), and decision BR13 in phase0-decisions plus the memory note.
+- **Mockup:** the ui-layout.html contour overlay gets the two finer levels when zoomed, and the `terrain*` states show contours on.
+- **Tests:**
+  - EditMode: `MapLayersTests` checks the new globals and their values in both unit systems; `InfoLegend` checks the note.
+  - Core: `MeasureTests` checks the `UnitFormat` intervals.
+  - The existing interval pins stay as they are.
+- **Captures for you:** the same view at three zoom distances (about 3,500 m, 800 m and 150 m), in both themes, contours on, before and after.
+- **Performance:** with contours on, one extra heightmap sample and two line levels per pixel. Measure a contours-on view before and after; the demo 41 benchmark runs with contours off, so it shouldn't move.
+
 ## Budgets
 - **While dragging:** every frame, live ≤8 ms at a 60 ft brush and ≤16 ms at 400 ft (p95). The FixedGround band is built once per session per tile, so dabs stay cheap. No garbage per frame.
 - **Confirm** ≤250 ms p95; idle 0 B.
@@ -145,7 +177,7 @@ The owner asked for this as TL14: a Cities: Skylines 2-style terrain tool for ha
 1. **Mockup:** ui-layout.html gets the Terrain tab, its four tiles, the shared pane in four states, and the Break ground review with tower and held rows. Captures in both themes go to you for your OK.
 2. **PR A, engine and save v4:** strokes, BrushRun, FixedGround, the contributor, the Fold fix, the migration and fixture.
 3. **PR B, fixed-head lifts:** the phase-boundary ground, the rope from it, as-built heights and foundation reveals, LiftView masts and the card.
-4. **PR C, the tool:** the tool, live ground, review, HUD tab, keys and demo 73.
+4. **PR C, the tool:** the tool, live ground, review, HUD tab, keys and demo 73, **plus close-up contours** in their own commit. The contours don't depend on the brush, so they can split into a small PR and land first if you'd rather.
 
 I'll ask you before each push, PR and merge.
 
@@ -168,4 +200,5 @@ I'll ask you before each push, PR and merge.
 - **Also:** the full `dotnet test tools/domain-tests/Tests` (count reported), repo checks and `compile-check.ps1`. I'll merge origin/main before each push.
 - **A second site:** a cat track to a terminal and a junction under a lift line on another Jackson Hole spot.
 - **For your phone:** captures and a short movie per brush (`-brushmovie`), including towers growing under Lower and the brush held at the envelope.
-- **demo.bat:** 73, 73b (`-brushbench`), 73m (movie).
+- **Contours:** EditMode `MapLayersTests` (the new globals in both unit systems) and three zoom captures with `-contours` in both themes, compared before and after; plus a contours-on timing view before and after.
+- **demo.bat:** 73, 73b (`-brushbench`), 73m (movie), 73c (the contour zoom captures).

@@ -70,7 +70,7 @@ Shader "MountainPlanner/Terrain"
         float _ControlRes;           // per tile (property block): splat texels per edge
         float _TileSize;             // per tile: metres per splat uv
         TEXTURE2D(_Heightmap); SAMPLER(sampler_mp_linear_clamp);   // per tile: Unity's heightmap on the GPU (task 12b: slope and exposure at 1 m)
-        float4 _HeightmapParams;     // per tile: x texels per edge, y metres per unit sample, z metres between samples
+        float4 _HeightmapParams;     // per tile: x texels per edge, y metres per unit sample, z metres between samples, w the tile's base elevation (BR13)
         float4 _RingBounds;          // xmin, zmin, xmax, zmax in world space: the data's edge
         float _Tile[8];              // metres per texture repeat, per terrain slot (task 12d: eight, with roads)
         float _Smooth[8];
@@ -494,6 +494,17 @@ Shader "MountainPlanner/Terrain"
                 return 1 - 0.45 * saturate(below / 1.5);
             }
 
+            // BR13 (task 15): the elevation the close-up contours follow, the 1 m heightmap's own (the slope's sample),
+            // so the mesh's coarser levels of detail never push a 10 ft line sideways. The mesh's where no heightmap is bound.
+            float ContourElevation(float2 uv, float meshY)
+            {
+                UNITY_BRANCH
+                if (_MP_Contours < 0.5 || _HeightmapParams.x < 1.5) return meshY;
+                float res = _HeightmapParams.x;
+                float2 huv = (uv * (res - 1) + 0.5) / res;
+                return _HeightmapParams.w + SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv, 0).r * _HeightmapParams.y;
+            }
+
             half4 Frag(Varyings i) : SV_Target
             {
                 ClipToRing(i.positionWS);
@@ -560,7 +571,7 @@ Shader "MountainPlanner/Terrain"
                     [unroll] for (int k = 0; k < 8; k++) flat += weights[k] * _OverlayColor[k].rgb;
                     Light sun0 = GetMainLight();
                     float lambert = saturate(dot(n, sun0.direction)) * 0.6 + 0.5;
-                    return half4(ApplyContours(ApplyPaint(flat, i.positionWS.xz) * lambert, i.positionWS.y), 1);
+                    return half4(ApplyContours(ApplyPaint(flat, i.positionWS.xz) * lambert, i.positionWS.y, ContourElevation(i.uv, i.positionWS.y)), 1);
                 }
 
                 // Info layers (task 12b): slope angle, exposure or snow depth over the ground, lit so the relief reads.
@@ -576,7 +587,7 @@ Shader "MountainPlanner/Terrain"
                         info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopePercent, i.positionCS.xy) : ExposureColour(-rise, slopePercent);
                     }
                     Light sunI = GetMainLight();
-                    float3 shaded = ApplyContours(ShadeInfo(ApplyPaint(info, i.positionWS.xz), n, sunI.direction), i.positionWS.y);
+                    float3 shaded = ApplyContours(ShadeInfo(ApplyPaint(info, i.positionWS.xz), n, sunI.direction), i.positionWS.y, ContourElevation(i.uv, i.positionWS.y));
                     return half4(ApplyHaze(MixFog(shaded, i.fog), i.positionWS), 1);
                 }
 
@@ -734,7 +745,7 @@ Shader "MountainPlanner/Terrain"
                 sun.shadowAttenuation *= 1 - 0.5 * under * farFade;
                 float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation * lerp(1, crease, 0.5) + SampleSH(normal) * skyLight)
                            + sun.color * spec * sun.shadowAttenuation;
-                lit = ApplyContours(lit, i.positionWS.y);
+                lit = ApplyContours(lit, i.positionWS.y, ContourElevation(i.uv, i.positionWS.y));
                 lit = MixFog(lit, i.fog);
                 return half4(ApplyHaze(lit, i.positionWS), 1);
             }

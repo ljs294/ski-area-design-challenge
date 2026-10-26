@@ -54,6 +54,9 @@ namespace MountainPlanner.Domain.Measure
         /// <summary>Contours: a line every 40 ft (labelled every 200 ft, heavy every 1,000 ft, USGS mountain maps), or 10 / 50 / 250 m.</summary>
         public static double ContourIntervalMetres(UnitSystem units) => units == UnitSystem.Imperial ? 40 * MetresPerFoot : 10;
         public const int IndexEvery = 5, MajorEvery = 25;
+        /// <summary>BR13 (task 15): the finer lines that fade in close up, 20 and 10 ft (5 and 2.5 m), unlabelled.</summary>
+        public static double ContourFineMetres(UnitSystem units) => ContourIntervalMetres(units) / 2;
+        public static double ContourFinestMetres(UnitSystem units) => ContourIntervalMetres(units) / 4;
 
         /// <summary>A contour's label: the elevation alone, as on a topographic map ("8200"; units come from the legend).</summary>
         public static string ContourLabel(double metres, UnitSystem units) =>

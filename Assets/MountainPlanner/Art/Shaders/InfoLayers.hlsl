@@ -9,6 +9,8 @@ float _MP_InfoView;          // 0 none, 2 slope angle, 3 exposure, 4 snow depth 
 float _MP_Contours;          // 1: contour lines on
 float _MP_GridConvergence;   // radians from grid north clockwise to true north
 float _MP_ContourInterval;   // metres between contours: 40 ft or 10 m (UnitFormat.ContourIntervalMetres)
+float _MP_ContourFine;       // BR13: 20 ft or 5 m, close up (UnitFormat.ContourFineMetres)
+float _MP_ContourFinest;     // BR13: 10 ft or 2.5 m, closer still
 float _MP_SnowDepthStops[6]; // metres at each snow-depth colour: round numbers in the player's units
 
 // Slope angle: steepness as a grade in percent (rise over run; 100% is 45°), in the trail-difficulty bands of
@@ -46,7 +48,8 @@ static const float3 SnowDepthColours[6] =
 };
 
 // Contours: every 40 ft (10 m), heavier every 200 ft (50 m), heavier still every 1,000 ft (250 m); a level fades
-// out when its lines would sit closer than a few pixels, so zooming out leaves only the heavier ones.
+// out when its lines would sit closer than a few pixels, so zooming out leaves only the heavier ones. Close up, finer
+// levels every 20 ft and 10 ft (5 m, 2.5 m) fade in the same way (owner BR13, task 15).
 static const float3 ContourColour = float3(0.22, 0.17, 0.12);
 
 // pixel: the fragment's screen position (SV_POSITION.xy). The double-black hatching is drawn on the screen, 7 px
@@ -99,14 +102,25 @@ float ContourLevel(float elevation, float interval, float halfWidth)
     return saturate(halfWidth + 0.5 - px) * saturate((spacing - 3) / 4);
 }
 
-float3 ApplyContours(float3 colour, float elevation)
+// fineElevation: the elevation the finer levels follow; the terrain passes its 1 m heightmap's, so the mesh's level of
+// detail never moves a 10 ft line sideways (BR13).
+float3 ApplyContours(float3 colour, float elevation, float fineElevation)
 {
     if (_MP_Contours < 0.5) return colour;
     float interval = _MP_ContourInterval > 0 ? _MP_ContourInterval : 10;
-    float minor = ContourLevel(elevation, interval, 0.5) * 0.35;
+    float fine = _MP_ContourFine > 0 ? _MP_ContourFine : interval / 2;
+    float finest = _MP_ContourFinest > 0 ? _MP_ContourFinest : interval / 4;
+    float tenth = ContourLevel(fineElevation, finest, 0.4) * 0.2;
+    float fifth = ContourLevel(fineElevation, fine, 0.45) * 0.28;
+    float minor = ContourLevel(elevation, interval, 0.55) * 0.42;
     float index = ContourLevel(elevation, interval * 5, 0.8) * 0.6;
     float major = ContourLevel(elevation, interval * 25, 1.1) * 0.75;
-    return lerp(colour, ContourColour, max(minor, max(index, major)));
+    return lerp(colour, ContourColour, max(max(tenth, fifth), max(minor, max(index, major))));
+}
+
+float3 ApplyContours(float3 colour, float elevation)
+{
+    return ApplyContours(colour, elevation, elevation);
 }
 
 #endif
