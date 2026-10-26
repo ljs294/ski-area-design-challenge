@@ -123,6 +123,31 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void NW13_R2_2_APickedSegmentReachesNothingAboveIt()
+        {
+            // Main from Chair's top to its bottom; Branch leaves Main halfway down and ends in the woods.
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var chair = AddLift(h, "Chair", P(0, 0), P(0, 3000));
+            var main = AddTrail(h, "Main", P(20, 2990), P(20, 10));
+            var r = h.Submit(new AddTrail(h.Revision, "Branch", TrailSettings.GradedRun, Straight(P(25, 1500), P(1500, 0), 60),
+                                          P(25, 1500), P(1500, 0), WorkStage.Built));
+            Assert.That(r.Accepted, Is.True, r.ToString());
+            var branch = new TrailId(r.Created[0]);
+            var report = NetworkReport.Build(h.Document, new TrailNetworkGeometry(Site));
+
+            int upper = report.SegmentAt(main, Ft(500)), lower = report.SegmentAt(main, Ft(2500));
+            Assert.That(upper, Is.Not.EqualTo(lower), "Main is cut where Branch leaves");
+            var fromUpper = report.ReachFromSegment(upper);
+            Assert.That(fromUpper.Trails, Is.EquivalentTo(new[] { main, branch }), "the upper stretch passes the branch");
+
+            var fromLower = report.ReachFromSegment(lower);
+            Assert.That(fromLower.Segments, Is.EqualTo(new[] { lower }), "below the branch: only itself");
+            Assert.That(fromLower.Trails, Is.EqualTo(new[] { main }), "R2-2: nothing above its top node");
+            Assert.That(fromLower.Lifts, Is.EqualTo(new[] { chair }));
+            Assert.That(report.ReachFromSegment(-1).Nodes, Is.Empty);
+        }
+
+        [Test]
         public void NW13_Finding5_ATrailReachesTheLiftAtItsBottomButDoesntRideIt()
         {
             var doc = SpurOntoMain(out var chair, out var main, out var spur);

@@ -1197,7 +1197,7 @@ body.solo .frame { border-radius: 0; }
       ${row(`<circle cx="11" cy="6" r="3.6" fill="#14171a" stroke="${NETC.run}" stroke-width="1.6"/>`, 'Run starts or ends')}
       ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="11" opacity=".32"/><line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="6"/><line x1="1" y1="6" x2="21" y2="6" stroke="${runColour.blue}" stroke-width="3.6"/>`, 'Picked')}
       ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="5"/><line x1="1" y1="6" x2="21" y2="6" stroke="${runColour.green}" stroke-width="2.6"/>`, 'Reached, in its own colour')}
-      <div class="ln">Click a lift, a trail or a node to light everything you can ski to from it. Esc or a click on empty ground clears it.</div></div>`;
+      <div class="ln">Click a lift, a stretch of trail or a node to light everything you can ski to from it. Esc or a click on empty ground clears it.</div></div>`;
   }
   // The legend card for the info layer that's on (and the contour interval when contours are on).
   function legendCard() {
@@ -2514,11 +2514,12 @@ body.solo .frame { border-radius: 0; }
     const served = new Set(), liftSt = {}, trailReach = {};
     for (const l of lifts) { liftSt[l.id] = descendFrom('lt' + l.id); for (const t of liftSt[l.id].reach) served.add(t); }
     // Finding 2: from a trail, everything a skier can reach from its head.
-    for (const t of trails) trailReach[t.id] = descendFrom(stops[t.id][0].n, edges.find((e) => e.trail === t.id && e.from === stops[t.id][0].n));
+    const trailFirst = {};
+    for (const t of trails) { trailFirst[t.id] = edges.find((e) => e.trail === t.id && e.from === stops[t.id][0].n); trailReach[t.id] = descendFrom(stops[t.id][0].n, trailFirst[t.id]); }
     const trailSt = {};
     for (const t of trails) { const st = stops[t.id], tail = st[st.length - 1]; trailSt[t.id] = { served: served.has(t.id), nowhere: kind[tail.n] === 'tail' }; }
     const nodes = Object.keys(kind).filter((k) => at[k]).map((k) => ({ id: k, kind: kind[k], p: at[k] }));
-    return { lifts, trails, liftSt, trailSt, trailReach, junctions, paths, nodes, descendFrom };
+    return { lifts, trails, liftSt, trailSt, trailReach, trailFirst, junctions, paths, nodes, edges, descendFrom };
   }
   const NET_WORDS = { way: 'No way down', serve: 'No lift serves this', nowhere: 'Leads nowhere' };
   const trailWarn = (st) => (!st.served ? NET_WORDS.serve : st.nowhere ? NET_WORDS.nowhere : null);
@@ -2618,19 +2619,21 @@ body.solo .frame { border-radius: 0; }
   // pick: a lift or trail ID; node: a network node picked (finding 7). The picked lift or trail, and what's reachable from
   // it segment by segment, light in their own colours (R2-1), the picked one wider with a glow; the rest is grey.
   function drawNetwork(pick, hiId, node) {
-    const n = netOf(), r = node ? n.descendFrom(node) : !pick ? null : n.liftSt[pick] || n.trailReach[pick] || null;
+    const n = netOf();
+    // R2-2: a trail is picked by the segment under the click (S.netSeg); from its list row, by its first segment. The
+    // reach starts down that segment, so nothing above its top node lights.
+    const seg = !pick || n.liftSt[pick] ? null
+      : (S.netSeg && S.netSeg.trail === pick && n.edges.find((e) => e.trail === pick && Math.abs(e.a0 - S.netSeg.a0) < 1e-6)) || n.trailFirst[pick];
+    const r = node ? n.descendFrom(node) : !pick ? null : n.liftSt[pick] || (seg ? n.descendFrom(seg.from, seg) : null);
     const labels = [], ends = []; let s = '';
     for (const t of n.trails) {
       const st = n.trailSt[t.id], pts = t.pts.map(P), d = pathD(pts), own = runColour[t.diff] || NETC.run;
       const me = pick === t.id, col = r ? NETC.off : !st.served ? NETC.warn : NETC.run, w = hiId === t.id ? 4.4 : 2.6;
-      if (me) s += litLine(pts, own, true);
-      else {
-        s += `<path d="${d}" fill="none" stroke="${NETC.halo}" stroke-width="${w + 3}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round"${!st.served && !r ? ' stroke-dasharray="7 4"' : ''}/>`;
-        s += chevrons(pts, col);
-      }
-      if (r && !me) for (const e of r.segs) if (e.trail === t.id) {   // finding 4: only the stretches reached
+      s += `<path d="${d}" fill="none" stroke="${NETC.halo}" stroke-width="${w + 3}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round"${!st.served && !r ? ' stroke-dasharray="7 4"' : ''}/>`;
+      s += chevrons(pts, col);
+      if (r) for (const e of r.segs) if (e.trail === t.id) {   // finding 4: only the stretches reached; the picked one with its glow
         const sub = subLine(t.pts, e.a0, e.a1).map(P);
-        if (sub.length > 1) s += litLine(sub, own, false);
+        if (sub.length > 1) s += litLine(sub, own, e === seg);
       }
       if (st.nowhere) {   // the dead end: a bar across the tail, drawn over the nodes
         const B = pts[pts.length - 1], A = pts[pts.length - 2], len = Math.hypot(B.x - A.x, B.y - A.y) || 1, ux = (B.x - A.x) / len, uy = (B.y - A.y) / len;
@@ -3562,7 +3565,7 @@ body.solo .frame { border-radius: 0; }
       case 'afclr': S.af[S.atab].hide[v] = []; break;
       case 'asortd': S.af[S.atab].sort = S.af[S.atab].sort === v ? null : v; break;
       case 'afocus': S.focus = S.focus === v ? null : v; S.drop = null; break;
-      case 'netlift': S.netLift = S.netLift === v ? null : v; S.netNode = null; S.focus = S.netLift; break;
+      case 'netlift': S.netLift = S.netLift === v ? null : v; S.netNode = null; S.netSeg = null; S.focus = S.netLift; break;
       case 'fclose': S.focus = null; S.netLift = null; break;   // NT11: the card's ✕ clears the pick too
       case 'legendpeek': S.legendPeek = !S.legendPeek; break;
       case 'fedit': case 'fremove': { const id = S.focus; S.analysis = false; S.toolbox = true; S.tab = v === 'lift' ? 'lifts' : 'trails'; chooseTool(`${a === 'fedit' ? 'edit' : 'remove'}-${v}`); S.sel = id; S.focus = null;
@@ -3773,9 +3776,17 @@ body.solo .frame { border-radius: 0; }
     }
     else if (!S.tool && S.analysis && S.atab === 'network') {
       // findings 2, 3, 6, 7: a node picks itself (no card); a lift or trail picks and opens its card; empty ground clears
-      const node = pickNode(p), id = node ? null : pickAt(p, 'lift') || pickAt(p, 'trail');
+      // R2-2: on a trail, the segment under the click is what's picked; a second click on it clears the pick
+      const node = pickNode(p), id = node ? null : pickAt(p, 'lift') || pickAt(p, 'trail'), tr = id && S.trails.find((t) => t.id === id);
+      let segKey = null;
+      if (tr) {
+        const along = lineNear(p, tr.pts).along, e = netOf().edges.find((x) => x.trail === id && along >= x.a0 - 1e-6 && along <= x.a1 + 1e-6);
+        if (e) segKey = { trail: id, a0: e.a0 };
+      }
+      const same = id && id === S.netLift && (!segKey || (S.netSeg && Math.abs(S.netSeg.a0 - segKey.a0) < 1e-6));
       S.netNode = node && node !== S.netNode ? node : null;
-      S.netLift = id && id !== S.netLift ? id : null;
+      S.netLift = id && !same ? id : null;
+      S.netSeg = S.netLift ? segKey : null;
       S.focus = S.netLift; S.drop = null; render();
     }
     else if (!S.tool) { S.focus = pickAt(p, 'lift') || pickAt(p, 'trail'); S.drop = null; render(); }   // a lift or trail opens its card
@@ -3955,7 +3966,7 @@ body.solo .frame { border-radius: 0; }
     for (const x of d) { const m = x.match(/^(row|focus)([lt]\d+)$/); if (m) { if (m[1] === 'row') S.rowHover = m[2]; else S.focus = m[2]; } }
     // net (task P3-10): two more lifts: Moose Double, whose run reaches Timberline by a path, and Teton Double with no
     // trail yet (no way down); Catwalk leaves Cornice and crosses Bighorn (junctions); Cornice already leads nowhere. netpick picks Moose Double in Analysis › Network.
-    if (['net', 'netpick', 'netpicktrail', 'netcard', 'netnode'].some((x) => d.includes(x))) {
+    if (['net', 'netpick', 'netpicktrail', 'netcard', 'netnode', 'netseg'].some((x) => d.includes(x))) {
       if (S.p2) { S.lifts = []; S.trails = []; }
       if (!S.lifts.some((l) => l.id === 'l2')) {
         S.lifts.push({ id: 'l2', n: 2, name: 'Aspen Quad', a: [548, 616], b: [652, 402], model: 'Fixed 4', built: true }, { id: 'l3', n: 3, name: 'Ridge Six', a: [770, 598], b: [886, 316], model: 'Detach 6', built: true });
@@ -3968,6 +3979,7 @@ body.solo .frame { border-radius: 0; }
       if (d.includes('netpick')) S.netLift = 'l5';
       if (d.includes('netpicktrail')) S.netLift = 't2';   // Cornice: Catwalk, then Bighorn below the junction, then Aspen Quad
       if (d.includes('netcard')) { S.netLift = 't2'; S.focus = 't2'; }   // finding 3: Cornice's card under the folded key
+      if (d.includes('netseg')) { const e = netOf().edges.filter((x) => x.trail === 't2').sort((a, b) => a.a0 - b.a0)[1]; S.netLift = 't2'; S.focus = 't2'; if (e) S.netSeg = { trail: 't2', a0: e.a0 }; }   // R2-2: lower Cornice
       if (d.includes('netnode')) { const js = netOf().nodes.filter((x) => x.kind === 'junction').sort((a, b) => b.p[1] - a.p[1]); if (js.length) S.netNode = js[0].id; }   // finding 7: where Catwalk meets Bighorn
     }
     if (d.includes('sortlen')) { S.af.lifts.sort = 'len-down'; S.af.trails.sort = 'len-down'; }

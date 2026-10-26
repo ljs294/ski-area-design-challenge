@@ -95,6 +95,34 @@ namespace MountainPlanner.Domain.Design
             return Reach.Nothing;
         }
 
+        /// <summary>
+        /// A descent down one trail segment (owner R2-2: a click on a trail picks the stretch under the pointer): the
+        /// segment, then everything below its lower node. Nothing above its top node is reached. Nothing for an index that
+        /// isn't a trail segment.
+        /// </summary>
+        public Reach ReachFromSegment(int edge)
+        {
+            var edges = Graph.Edges;
+            if (edge < 0 || edge >= edges.Count || edges[edge].Kind != EdgeKind.TrailSegment) return Reach.Nothing;
+            return Search(Graph, _down, _bottoms, edges[edge].From, edge);
+        }
+
+        /// <summary>The trail segment of <paramref name="trail"/> holding the point <paramref name="alongMm"/> from its head
+        /// (the lower one where two meet); -1 when the trail isn't in the graph.</summary>
+        public int SegmentAt(TrailId trail, int alongMm)
+        {
+            var edges = Graph.Edges;
+            int last = -1;
+            for (int i = 0; i < edges.Count; i++)
+            {
+                var e = edges[i];
+                if (e.Kind != EdgeKind.TrailSegment || e.Owner != trail.Value) continue;
+                last = i;
+                if (alongMm >= e.StartMm && alongMm < e.EndMm) return i;
+            }
+            return last;   // past the end: the last segment
+        }
+
         /// <param name="first">When not negative, the search leaves <paramref name="start"/> by that segment only.</param>
         static Reach Search(NetworkGraph graph, Dictionary<ulong, List<int>> down, Dictionary<ulong, LiftId> bottoms, ulong start, int first = -1)
         {
