@@ -5,7 +5,7 @@
 **Status:**
 - **Round 1** (findings 1–7): all fixed in the mockup, and in `NetworkReport` where the game needs it (plan approved
   2026-10-26; decisions NT10–NT12; commit cd13d6e1).
-- **Round 2** (findings 8 on): open, **recording only**. Nothing is fixed until the owner says go.
+- **Round 2** (R2-1 on): R2-1 fixed in the mockup at the owner's word ("Please correct!"), for review.
 
 The game port follows the approved mockup.
 
@@ -28,10 +28,10 @@ diagram over a dark grey relief with a key (mockup commit 950f0aae).
 | 6 | No clear way to untoggle the selection of a lift or trail (owner, 2026-10-25) | The Network view's pick (finding 2): the only way out today is clicking the same lift or trail again, which nothing tells you | Fixed (NT11): Esc clears the pick and the card, a click on empty ground clears it, and the card's ✕ clears it too. The key's hint line says so | Fixed in the mockup, for review |
 | 7 | Nodes should be selectable the same way (lighting what's reachable from them), but show no properties pane (owner, 2026-10-25) | The Network view: junctions, lift tops and bottoms, path ends and a run's own ends can't be picked today | Fixed: a click within about 8 px of a node picks it (nodes win over the lines through them): a blue glow ring, everything downhill of it lit by segment, no card. A lift's top lights like the lift; its bottom lights nothing. `NetworkReport.ReachFrom(node)` (demo `p2,netnode`) | Fixed in the mockup and NetworkReport, for review |
 
-## Round 2 (2026-10-26): recording only
+## Round 2 (2026-10-26)
 
 Reviewed: the mockup after round 1's fixes (cd13d6e1). Numbered as the owner gives them: R2-1, R2-2 and so on.
 
 | # | Finding | Where | Fix | Status |
 |---|---|---|---|---|
-| R2-1 | When a lift lights because it's reachable, it should still light red, not blue. Trails and lifts should highlight in their own colours (owner, 2026-10-26) | The Network view's pick highlight (round 1's findings 2 and 5): everything reached turns one blue, lifts included | Not fixed yet. Idea: "reached" keeps each thing's own colour (lifts red; trails their colour) and shows as reached by being lit (a brighter, wider line with a glow), while what isn't reached goes grey; the picked one stays apart (white core over a glow). To ask when fixing: a trail's own colour is its rating colour (green, blue, black) or the diagram's pale run colour | Recorded |
+| R2-1 | When a lift lights because it's reachable, it should still light red, not blue. Trails and lifts should highlight in their own colours (owner, 2026-10-26) | The Network view's pick highlight (round 1's findings 2 and 5): everything reached turns one blue, lifts included | Fixed (owner: "Please correct!"): what's reached lights in its own colour, lifts red and trails their rating colour (green, blue, black, as on the trail map), drawn in a white casing with white chevrons; the picked lift or trail is wider with a soft white glow (a picked node gets the same glow); what isn't reached is grey. The key shows Picked and "Reached, in its own colour" | Fixed in the mockup, for review (demos `p2,netpicktrail`, `p2,netpick`) |

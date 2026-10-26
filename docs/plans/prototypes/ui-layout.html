@@ -1165,8 +1165,8 @@ body.solo .frame { border-radius: 0; }
       ${row(`<circle cx="11" cy="6" r="4.6" fill="#fff" stroke="#14171a" stroke-width="1.8"/>`, 'Junction')}
       ${row(`<circle cx="11" cy="6" r="4.6" fill="${NETC.lift}" stroke="#fff" stroke-width="1.6"/>`, 'Lift top or bottom')}
       ${row(`<circle cx="11" cy="6" r="3.6" fill="#14171a" stroke="${NETC.run}" stroke-width="1.6"/>`, 'Run starts or ends')}
-      ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="${NETC.reach}" stroke-width="9" opacity=".45"/><line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="3"/>`, 'Picked')}
-      ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="${NETC.reach}" stroke-width="2.6"/>`, 'Reached from it')}
+      ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="11" opacity=".32"/><line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="6"/><line x1="1" y1="6" x2="21" y2="6" stroke="${runColour.blue}" stroke-width="3.6"/>`, 'Picked')}
+      ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="5"/><line x1="1" y1="6" x2="21" y2="6" stroke="${runColour.green}" stroke-width="2.6"/>`, 'Reached, in its own colour')}
       <div class="ln">Click a lift, a trail or a node to light everything you can ski to from it. Esc or a click on empty ground clears it.</div></div>`;
   }
   // The legend card for the info layer that's on (and the contour interval when contours are on).
@@ -2525,7 +2525,7 @@ body.solo .frame { border-radius: 0; }
   // trail map. Lifts are red with chevrons pointing up; runs are pale with chevrons pointing down; a stretch no lift
   // serves is amber and dashed; a run that leads nowhere ends in an amber bar; junctions are white dots, lift ends
   // squares; paths are dashed links with their direction (PA-08). Clicking a lift or a trail (on the map or in the list)
-  // picks it (finding 2): what it reaches turns blue, the picked one itself is drawn wider in white over a blue glow,
+  // picks it (finding 2): what it reaches lights in its own colour (R2-1), the picked one wider with a white glow,
   // and everything else goes grey.
   const NETC = { lift: '#e0483a', run: '#dfe8ee', warn: '#f0b43c', reach: '#59c3ff', off: '#6d7378', halo: 'rgba(12,14,16,.85)' };
   function chevrons(pts, colour, step = 34) {   // small V marks along a line, pointing along it
@@ -2577,20 +2577,30 @@ body.solo .frame { border-radius: 0; }
     return out;
   }
   const pathD = (pts) => `M${pts.map((q) => `${f1(q.x)} ${f1(q.y)}`).join('L')}`;
-  // pick: a lift or trail ID; node: a network node picked (finding 7). The picked lift, trail or node is drawn over a
-  // blue glow; what's reachable from it is blue, segment by segment; the rest is grey.
+  // A line lit in its own colour (round 2, R2-1): a white casing round the lift's red or the trail's rating colour, white
+  // chevrons along it; the picked one is wider, with a soft white glow.
+  function litLine(pts, colour, picked, step) {
+    const d = pathD(pts), w = picked ? 5 : 3.4;
+    return (picked ? `<path d="${d}" fill="none" stroke="#ffffff" stroke-width="17" stroke-linecap="round" opacity=".32"/>` : '')
+      + `<path d="${d}" fill="none" stroke="${NETC.halo}" stroke-width="${w + 6.5}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#ffffff" stroke-width="${w + 3.4}" stroke-linecap="round"/>`
+      + `<path d="${d}" fill="none" stroke="${colour}" stroke-width="${w}" stroke-linecap="round"/>${chevrons(pts, '#ffffff', step)}`;
+  }
+  // pick: a lift or trail ID; node: a network node picked (finding 7). The picked lift or trail, and what's reachable from
+  // it segment by segment, light in their own colours (R2-1), the picked one wider with a glow; the rest is grey.
   function drawNetwork(pick, hiId, node) {
     const n = netOf(), r = node ? n.descendFrom(node) : !pick ? null : n.liftSt[pick] || n.trailReach[pick] || null;
     const labels = [], ends = []; let s = '';
     for (const t of n.trails) {
-      const st = n.trailSt[t.id], pts = t.pts.map(P), d = pathD(pts);
-      const me = pick === t.id, col = me ? '#ffffff' : r ? NETC.off : !st.served ? NETC.warn : NETC.run, w = me ? 4.2 : hiId === t.id ? 4.4 : 2.6;
-      if (me) s += `<path d="${d}" fill="none" stroke="${NETC.reach}" stroke-width="12" stroke-linecap="round" opacity=".45"/>`;
-      s += `<path d="${d}" fill="none" stroke="${NETC.halo}" stroke-width="${w + 3}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round"${!st.served && !r ? ' stroke-dasharray="7 4"' : ''}/>`;
-      s += chevrons(pts, col);
+      const st = n.trailSt[t.id], pts = t.pts.map(P), d = pathD(pts), own = runColour[t.diff] || NETC.run;
+      const me = pick === t.id, col = r ? NETC.off : !st.served ? NETC.warn : NETC.run, w = hiId === t.id ? 4.4 : 2.6;
+      if (me) s += litLine(pts, own, true);
+      else {
+        s += `<path d="${d}" fill="none" stroke="${NETC.halo}" stroke-width="${w + 3}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round"${!st.served && !r ? ' stroke-dasharray="7 4"' : ''}/>`;
+        s += chevrons(pts, col);
+      }
       if (r && !me) for (const e of r.segs) if (e.trail === t.id) {   // finding 4: only the stretches reached
         const sub = subLine(t.pts, e.a0, e.a1).map(P);
-        if (sub.length > 1) s += `<path d="${pathD(sub)}" fill="none" stroke="${NETC.reach}" stroke-width="${w}" stroke-linecap="round"/>${chevrons(sub, NETC.reach)}`;
+        if (sub.length > 1) s += litLine(sub, own, false);
       }
       if (st.nowhere) {   // the dead end: a bar across the tail, drawn over the nodes
         const B = pts[pts.length - 1], A = pts[pts.length - 2], len = Math.hypot(B.x - A.x, B.y - A.y) || 1, ux = (B.x - A.x) / len, uy = (B.y - A.y) / len;
@@ -2603,24 +2613,26 @@ body.solo .frame { border-radius: 0; }
       s += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${NETC.halo}" stroke-width="5" stroke-linecap="round"/><line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="#ffffff" stroke-width="1.8" stroke-dasharray="2.4 2.2"/>`;
     }
     for (const l of n.lifts) {
-      // finding 5: a lift whose bottom the descent reaches is blue (NT10: its top isn't ridden)
+      // finding 5: a lift whose bottom the descent reaches lights, in its own red (R2-1; NT10: its top isn't ridden)
       const A = P(l.a), B = P(l.b), ok = n.liftSt[l.id].ok, got = r && pick !== l.id && r.lifts.has(l.id);
-      const col = got ? NETC.reach : r && pick !== l.id ? NETC.off : NETC.lift, w = hiId === l.id || pick === l.id ? 5 : 3.4;
-      if (pick === l.id) s += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${NETC.reach}" stroke-width="14" stroke-linecap="round" opacity=".45"/>`;
-      s += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${NETC.halo}" stroke-width="${w + 3}" stroke-linecap="round"/><line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${col}" stroke-width="${w}"/>`;
-      s += chevrons([A, B], '#ffffff', 40);
+      if (pick === l.id || got) s += litLine([A, B], NETC.lift, pick === l.id, 40);
+      else {
+        const col = r ? NETC.off : NETC.lift, w = hiId === l.id ? 5 : 3.4;
+        s += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${NETC.halo}" stroke-width="${w + 3}" stroke-linecap="round"/><line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${col}" stroke-width="${w}"/>`;
+        s += chevrons([A, B], '#ffffff', 40);
+      }
       if (!ok) s += `<circle cx="${f1(B.x)}" cy="${f1(B.y)}" r="11" fill="none" stroke="${NETC.warn}" stroke-width="2.4"/>`;
       labels.push({ order: 0, text: `${l.n} ${l.name}`, colour: ok ? '#ffb3aa' : NETC.warn, spots: [B, lerp(A, B, 0.85)] });
     }
     // Every node is a circle (finding 1): junctions large and white, lift ends red, path ends small, a trail's own end open.
     for (const nd of n.nodes) {
       const A = P(nd.p), lift = nd.kind === 'top' || nd.kind === 'bottom', lid = lift ? nd.id.slice(2) : null;
-      const liftFill = !r || pick === lid ? NETC.lift : nd.kind === 'bottom' && r.lifts.has(lid) ? NETC.reach : NETC.off;
+      const liftFill = !r || pick === lid || (nd.kind === 'bottom' && r.lifts.has(lid)) ? NETC.lift : NETC.off;
       const [rad, fill, ring] = lift ? [6.5, liftFill, '#fff'] : nd.kind === 'junction' ? [6.5, '#fff', NETC.halo]
         : nd.kind === 'pathend' ? [4, '#fff', NETC.halo]
         : [4.5, NETC.halo, nd.kind === 'tail' && n.trailSt[nd.id.slice(2)] && n.trailSt[nd.id.slice(2)].nowhere ? NETC.warn : NETC.run];
-      if (node === nd.id) s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad + 7}" fill="${NETC.reach}" opacity=".45"/>`;   // finding 7: the picked node
-      s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad + 1.6}" fill="${NETC.halo}"/><circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad}" fill="${fill}" stroke="${node === nd.id ? NETC.reach : ring}" stroke-width="2"/>`;
+      if (node === nd.id) s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad + 8}" fill="#ffffff" opacity=".32"/>`;   // finding 7: the picked node, with the picked glow
+      s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad + 1.6}" fill="${NETC.halo}"/><circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad}" fill="${fill}" stroke="${ring}" stroke-width="2"/>`;
     }
     s += ends.join('');
     if (S.layers.labels) s += netLabels(labels.sort((a, b) => a.order - b.order));
