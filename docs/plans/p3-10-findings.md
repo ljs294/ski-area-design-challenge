@@ -2,7 +2,8 @@
 
 **Audience:** the project owner and coding agents.
 
-**Status:** open; findings are added as the owner gives them, and each row says where it was fixed.
+**Status:** recording only (owner, 2026-10-25: "you are ONLY recording findings, not making fixes yet"). Fixes wait for
+the owner's go. Findings 1 and 2 were fixed in the mockup before that instruction (commits 0eae148f, ccc804b7).
 
 **Build reviewed:** `feature/p3-10-network`: first the mockup's Network view (`prototypes/ui-layout.html`, demo states
 `#solo&demo=p2,net` and `p2,netpick`), later the game.
@@ -15,3 +16,4 @@ look, a diagram over a dark grey relief with a key (mockup commit 950f0aae).
 |---|---|---|---|---|
 | 1 | Make nodes between trails more prominent as a circle. Lift nodes can be circles too: every node is a circle (owner, 2026-10-25) | The Network view's diagram (mockup) | Every network node draws as a circle with a dark ring: junctions large and white, lift ends red, path ends small white, a trail's own head and tail open (amber when it leads nowhere). The key shows each; the `net` demo gained Catwalk, which leaves Cornice and crosses Bighorn, so two junctions show | Fixed in the mockup, for review |
 | 2 | In the Network view, clicking a lift highlights every trail reachable from it; the same for a trail. The picked one and the reachable trails should look slightly different (owner, 2026-10-25) | The Network view: clicks on the map and rows in the list (mockup) | A click on a lift or trail (map or list) picks it. What a skier can reach downhill from it (a lift's top, a trail's head; never riding a lift) turns blue; the picked one is wider and white over a blue glow; the rest goes grey. Clicking it again clears the pick. The key shows Picked and Reached from it. For the game: `NetworkReport` gains each trail's reach, as it has each lift's | Fixed in the mockup, for review (demo states `p2,netpick`, `p2,netpicktrail`) |
+| 3 | Trail and lift properties popups are blocked by the legend. Consider moving the legend, but don't make the screen too cluttered (owner, 2026-10-25) | The right-hand column: the lift or trail card and the legend (the Network key or an info layer's) share the top right, and the legend draws over the card | Not fixed yet. Idea to discuss: stack the card under the legend in one column, with the legend folded to its title line while a card is open | Recorded |
