@@ -1152,9 +1152,11 @@ body.solo .frame { border-radius: 0; }
       ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="${NETC.run}" stroke-width="2.6"/>${chev('#1b1815')}`, 'Run, going down')}
       ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="${NETC.warn}" stroke-width="2.6" stroke-dasharray="5 3"/>`, 'No lift serves this')}
       ${row(`<line x1="1" y1="6" x2="15" y2="6" stroke="${NETC.run}" stroke-width="2.6"/><line x1="16" y1="1" x2="16" y2="11" stroke="${NETC.warn}" stroke-width="3"/>`, 'Leads nowhere')}
-      ${row(`<circle cx="11" cy="6" r="4.5" fill="none" stroke="${NETC.warn}" stroke-width="2"/>`, 'No way down')}
+      ${row(`<circle cx="11" cy="6" r="5" fill="none" stroke="${NETC.warn}" stroke-width="2"/>`, 'No way down')}
       ${row(`<line x1="2" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2.4 2.2"/>`, 'Path between runs')}
-      ${row(`<circle cx="11" cy="6" r="3.6" fill="currentColor"/>`, 'Junction')}
+      ${row(`<circle cx="11" cy="6" r="4.6" fill="#fff" stroke="#14171a" stroke-width="1.8"/>`, 'Junction')}
+      ${row(`<circle cx="11" cy="6" r="4.6" fill="${NETC.lift}" stroke="#fff" stroke-width="1.6"/>`, 'Lift top or bottom')}
+      ${row(`<circle cx="11" cy="6" r="3.6" fill="#14171a" stroke="${NETC.run}" stroke-width="1.6"/>`, 'Run starts or ends')}
       <div class="ln">Pick a lift in the list to light what its top reaches.</div></div>`;
   }
   // The legend card for the info layer that's on (and the contour interval when contours are on).
@@ -2463,7 +2465,8 @@ body.solo .frame { border-radius: 0; }
     }
     const trailSt = {};
     for (const t of trails) { const st = stops[t.id], tail = st[st.length - 1]; trailSt[t.id] = { served: served.has(t.id), nowhere: kind[tail.n] === 'tail' }; }
-    return { lifts, trails, liftSt, trailSt, junctions, paths };
+    const nodes = Object.keys(kind).filter((k) => at[k]).map((k) => ({ id: k, kind: kind[k], p: at[k] }));
+    return { lifts, trails, liftSt, trailSt, junctions, paths, nodes };
   }
   const NET_WORDS = { way: 'No way down', serve: 'No lift serves this', nowhere: 'Leads nowhere' };
   const trailWarn = (st) => (!st.served ? NET_WORDS.serve : st.nowhere ? NET_WORDS.nowhere : null);
@@ -2539,15 +2542,15 @@ body.solo .frame { border-radius: 0; }
     return pts[0];
   }
   function drawNetwork(pick, hiId) {
-    const n = netOf(), reach = pick ? n.liftSt[pick].reach : null, labels = []; let s = '';
+    const n = netOf(), reach = pick ? n.liftSt[pick].reach : null, labels = [], ends = []; let s = '';
     for (const t of n.trails) {
       const st = n.trailSt[t.id], pts = t.pts.map(P), d = `M${pts.map((q) => `${f1(q.x)} ${f1(q.y)}`).join('L')}`;
       const col = reach ? (reach.has(t.id) ? NETC.reach : NETC.off) : !st.served ? NETC.warn : NETC.run, w = hiId === t.id ? 4.4 : 2.6;
       s += `<path d="${d}" fill="none" stroke="${NETC.halo}" stroke-width="${w + 3}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round"${!st.served && !reach ? ' stroke-dasharray="7 4"' : ''}/>`;
       s += chevrons(pts, col);
-      if (st.nowhere) {   // the dead end: a bar across the tail
+      if (st.nowhere) {   // the dead end: a bar across the tail, drawn over the nodes
         const B = pts[pts.length - 1], A = pts[pts.length - 2], len = Math.hypot(B.x - A.x, B.y - A.y) || 1, ux = (B.x - A.x) / len, uy = (B.y - A.y) / len;
-        s += `<path d="M${f1(B.x - uy * 7)} ${f1(B.y + ux * 7)}L${f1(B.x + uy * 7)} ${f1(B.y - ux * 7)}" stroke="${NETC.warn}" stroke-width="3.4" stroke-linecap="round"/>`;
+        ends.push(`<path d="M${f1(B.x - uy * 7)} ${f1(B.y + ux * 7)}L${f1(B.x + uy * 7)} ${f1(B.y - ux * 7)}" stroke="${NETC.warn}" stroke-width="3.4" stroke-linecap="round"/>`);
       }
       labels.push({ order: 1, text: t.name, colour: reach && !reach.has(t.id) ? NETC.off : '#eef2f4', spots: [0.5, 0.38, 0.62, 0.26, 0.74, 0.16, 0.84].map((f) => alongPts(pts, f)) });
     }
@@ -2559,11 +2562,19 @@ body.solo .frame { border-radius: 0; }
       const A = P(l.a), B = P(l.b), ok = n.liftSt[l.id].ok, col = pick && pick !== l.id ? NETC.off : NETC.lift, w = hiId === l.id || pick === l.id ? 5 : 3.4;
       s += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${NETC.halo}" stroke-width="${w + 3}" stroke-linecap="round"/><line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${col}" stroke-width="${w}"/>`;
       s += chevrons([A, B], '#ffffff', 40);
-      for (const q of [A, B]) s += `<rect x="${f1(q.x - 4.5)}" y="${f1(q.y - 4.5)}" width="9" height="9" fill="${col}" stroke="#fff" stroke-width="1.4"/>`;
-      if (!ok) s += `<circle cx="${f1(B.x)}" cy="${f1(B.y)}" r="9" fill="none" stroke="${NETC.warn}" stroke-width="2.2"/>`;
+      if (!ok) s += `<circle cx="${f1(B.x)}" cy="${f1(B.y)}" r="11" fill="none" stroke="${NETC.warn}" stroke-width="2.4"/>`;
       labels.push({ order: 0, text: `${l.n} ${l.name}`, colour: ok ? '#ffb3aa' : NETC.warn, spots: [B, lerp(A, B, 0.85)] });
     }
-    for (const j of n.junctions) { const A = P(j.p); s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="3.8" fill="#fff" stroke="${NETC.halo}" stroke-width="1.6"/>`; }
+    // Every node is a circle (finding 1): junctions large and white, lift ends red, path ends small, a trail's own end open.
+    const dim = (id) => pick && !(id.startsWith('l') ? id.slice(2) === pick : true);
+    for (const nd of n.nodes) {
+      const A = P(nd.p), lift = nd.kind === 'top' || nd.kind === 'bottom';
+      const [r, fill, ring] = lift ? [6.5, dim(nd.id) ? NETC.off : NETC.lift, '#fff'] : nd.kind === 'junction' ? [6.5, '#fff', NETC.halo]
+        : nd.kind === 'pathend' ? [4, '#fff', NETC.halo]
+        : [4.5, NETC.halo, nd.kind === 'tail' && n.trailSt[nd.id.slice(2)] && n.trailSt[nd.id.slice(2)].nowhere ? NETC.warn : NETC.run];
+      s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${r + 1.6}" fill="${NETC.halo}"/><circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${r}" fill="${fill}" stroke="${ring}" stroke-width="2"/>`;
+    }
+    s += ends.join('');
     if (S.layers.labels) s += netLabels(labels.sort((a, b) => a.order - b.order));
     return s;
   }
@@ -3758,7 +3769,7 @@ body.solo .frame { border-radius: 0; }
     const hv = d.find((x) => /^hov\d+$/.test(x)); if (hv) chartHover = (S.atab === 'finances' ? `fin:${S.finScale}:` : S.atab === 'weather' ? 'wx:' : 'ov:') + hv.slice(3);
     for (const x of d) { const m = x.match(/^(row|focus)([lt]\d+)$/); if (m) { if (m[1] === 'row') S.rowHover = m[2]; else S.focus = m[2]; } }
     // net (task P3-10): two more lifts: Moose Double, whose run reaches Timberline by a path, and Teton Double with no
-    // trail yet (no way down); Cornice already leads nowhere. netpick picks Moose Double in Analysis › Network.
+    // trail yet (no way down); Catwalk leaves Cornice and crosses Bighorn (junctions); Cornice already leads nowhere. netpick picks Moose Double in Analysis › Network.
     if (d.includes('net') || d.includes('netpick')) {
       if (S.p2) { S.lifts = []; S.trails = []; }
       if (!S.lifts.some((l) => l.id === 'l2')) {
@@ -3767,7 +3778,7 @@ body.solo .frame { border-radius: 0; }
           { id: 't3', name: 'Headwall', diff: 'black', pts: [[880, 326], [838, 408], [801, 500], [778, 590]], built: true }, { id: 't4', name: 'Timberline', diff: 'blue', pts: [[893, 322], [938, 384], [908, 470], [832, 556], [788, 596]], built: true });
       }
       S.lifts.push({ id: 'l5', n: 5, name: 'Moose Double', a: [1010, 600], b: [1100, 380], model: 'Fixed 4', built: true }, { id: 'l6', n: 6, name: 'Teton Double', a: [1150, 560], b: [1230, 330], model: 'Fixed 4', built: true });
-      S.trails.push({ id: 't5', name: 'Lost Creek', diff: 'green', pts: [[1092, 392], [1000, 420], [917, 463]], built: true });
+      S.trails.push({ id: 't5', name: 'Lost Creek', diff: 'green', pts: [[1092, 392], [1000, 420], [917, 463]], built: true }, { id: 't6', name: 'Catwalk', diff: 'green', pts: [[704, 466], [640, 500], [596, 560], [556, 606]], built: true });
       S.analysis = true; S.atab = 'network';
       if (d.includes('netpick')) S.netLift = 'l5';
     }
