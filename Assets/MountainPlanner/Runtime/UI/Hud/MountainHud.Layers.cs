@@ -30,7 +30,9 @@ namespace MountainPlanner.UI
             _legend.RegisterCallback<GeometryChangedEvent>(_ => FitLegend());
             _root.Q<Button>("legend-x").clicked += () =>
             {
-                _legendClosed = true;
+                // The Network view's key closes on its own (game finding 2); an info layer's legend as before.
+                if (_networkView) _networkKeyClosed = true;
+                else _legendClosed = true;
                 ShowLegend();
             };
             // One row per layer, named layer-<id> (MapLayers ids). Snow conditions waits for the snow simulation.
@@ -89,7 +91,7 @@ namespace MountainPlanner.UI
 
         void ShowLegend()
         {
-            bool show = (_networkView || ((_legendInfo != null || _legendContours) && !_legendClosed)) && _drop != Drop.Menu;
+            bool show = (_networkView ? !_networkKeyClosed : (_legendInfo != null || _legendContours) && !_legendClosed) && _drop != Drop.Menu;
             _legend.EnableInClassList("hidden", !show);
             _legend.EnableInClassList("legend--below", _drop == Drop.Layers);
             if (_drop != Drop.Layers) _root.Q("rcol").RemoveFromClassList("rcol--side");

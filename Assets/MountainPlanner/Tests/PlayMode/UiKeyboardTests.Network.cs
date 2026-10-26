@@ -60,6 +60,26 @@ namespace MountainPlanner.Tests
             Assert.That(root.Q<Label>("legend-title").text, Is.EqualTo("Network"));
             Assert.That(root.Q("legend").ClassListContains("hidden"), Is.False, "the key shows in the Network view");
 
+            // Game finding 1: the key's last row is "Reachable", its swatch four touching squares (green, blue, black, red).
+            var reachable = root.Q("legend-body").Query<Label>(className: "lr__word").Where(l => l.text == "Reachable").First();
+            Assert.That(reachable, Is.Not.Null);
+            Assert.That(reachable.parent.Q(className: "lr__sw--stripes").Query(className: "lr__part").ToList().Count, Is.EqualTo(4));
+
+            // Game finding 2: the key's ✕ closes it; opening the Network view again brings it back.
+            using (var e = NavigationSubmitEvent.GetPooled())
+            {
+                var x = root.Q<Button>("legend-x");
+                e.target = x;
+                x.SendEvent(e);
+            }
+            yield return Frames(2);
+            Assert.That(root.Q("legend").ClassListContains("hidden"), Is.True, "the ✕ closes the Network key");
+            hud.SetAnalysis(false);
+            hud.SetAnalysis(true);
+            yield return Frames(2);
+            Assert.That(hud.NetworkViewOn, Is.True);
+            Assert.That(root.Q("legend").ClassListContains("hidden"), Is.False, "the key is back when the view reopens");
+
             // NT12: a card stacks under the legend, and the legend folds while it's open.
             hud.SetTrails(new[] { new TrailRow { Id = 7, Name = "Test Run", RatingPercent = 30, LengthMetres = 500, VerticalMetres = 150, Built = true } });
             hud.OpenTrailCardFor(7);

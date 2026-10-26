@@ -47,3 +47,6 @@
 .hud .legend__fold { width: 22px; height: 22px; margin: 0 4px 0 -6px; padding: 0; border-width: 0; border-radius: 4px; background-color: rgba(0, 0, 0, 0);
     font-size: 11px; color: var(--soft); -unity-text-outline-color: var(--soft); }
 .hud .legend__fold:hover { background-color: var(--hover); color: var(--strong); -unity-text-outline-color: var(--strong); }
+/* game finding 1: the key's "Reachable" swatch, touching squares of the colours things light in */
+.hud .lr__sw--stripes { flex-direction: row; overflow: hidden; }
+.hud .lr__part { flex-grow: 1; }

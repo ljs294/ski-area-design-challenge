@@ -41,6 +41,8 @@ namespace MountainPlanner.UI
         AnalysisList _networkLifts, _networkTrails;
         Button _legendFold;
         bool _legendPeek, _networkView;
+        /// <summary>Game finding 2: the key's ✕ closed the Network key; opening the Network view again brings it back.</summary>
+        bool _networkKeyClosed;
         int _networkLiftCount, _networkTrailCount;
 
         /// <summary>The Network view comes on or off: Analysis › Network opened or closed (the app greys the ground).</summary>
@@ -180,6 +182,7 @@ namespace MountainPlanner.UI
             bool view = on && _analysisOpen;
             if (view == _networkView) return;
             _networkView = view;
+            if (view) _networkKeyClosed = false;
             ShowNetworkKey();
             NetworkViewChanged?.Invoke(view);
         }
@@ -196,7 +199,8 @@ namespace MountainPlanner.UI
                 _legendBody.Add(LegendRow(Hex(0xdfe8ee), false, "Run, going down", ""));
                 _legendBody.Add(LegendRow(Hex(0xf0b43c), false, "No lift serves it, or leads nowhere", ""));
                 _legendBody.Add(LegendRow(Color.white, false, "Junction, or a path between runs", ""));
-                _legendBody.Add(LegendRow(Hex(0x2f6bb0), false, "Reached, in its own colour", ""));
+                // Game finding 1: "Reachable", its swatch the colours things light in: green, blue, black runs and red lifts.
+                _legendBody.Add(LegendStripeRow(new[] { Hex(0x1f8a4c), Hex(0x2f6bb0), Hex(0x1f1c19), Hex(0xe0483a) }, "Reachable"));
                 _legendBody.Add(Note("Click a lift, a stretch of trail or a node to light everything you can ski to from it. Esc or a click on empty ground clears it."));
             }
             else
@@ -207,6 +211,22 @@ namespace MountainPlanner.UI
                 return;
             }
             ShowLegend();
+        }
+
+        /// <summary>A legend row whose swatch is touching squares of <paramref name="colours"/>, left to right.</summary>
+        static VisualElement LegendStripeRow(Color[] colours, string word)
+        {
+            var row = LegendRow(Color.clear, false, word, "");
+            var swatch = row.Q(className: "lr__sw");
+            swatch.AddToClassList("lr__sw--stripes");
+            foreach (var c in colours)
+            {
+                var part = new VisualElement { pickingMode = PickingMode.Ignore };
+                part.AddToClassList("lr__part");
+                part.style.backgroundColor = c;
+                swatch.Add(part);
+            }
+            return row;
         }
 
         static Color Hex(int rgb) => new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f, 1);

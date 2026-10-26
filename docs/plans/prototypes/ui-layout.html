@@ -1043,6 +1043,7 @@ body.solo .frame { border-radius: 0; }
     // Analysis › Network (NW-13): the lift picked (or hovered) in its list lights every trail its top reaches.
     const netOn = S.analysis && S.atab === 'network', netPick = netOn && (S.lifts.some((l) => l.id === S.rowHover) ? S.rowHover : S.netLift);
     mapEl.classList.toggle('netview', !!netOn);
+    if (!netOn) S.netKeyClosed = false;   // the key comes back when the Network view opens again
     if (netOn) { worldEl.innerHTML = drawNetwork(netPick, hiId, netPick === S.netLift ? S.netNode : null); return; }
     for (const th of S.things) if (S.layers[toolById(th.kind).layer]) s += drawThing(th);
     if (S.layers.trails) for (const tr of S.trails) s += drawTrail(tr, { hi: hiId === tr.id });
@@ -1185,7 +1186,7 @@ body.solo .frame { border-radius: 0; }
     const mk = (svg) => `<svg width="22" height="12" viewBox="0 0 22 12" style="background:#1d2023;border-radius:2px">${svg}</svg>`;   // the diagram's colours on its own dark ground, in both themes
     const chev = (c) => `<path d="M9 3l4 3-4 3" fill="none" stroke="${c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
     const row = (svg, word) => `<div class="lr"><span>${mk(svg)}</span><span>${word}</span><span></span></div>`;
-    return `<div class="legend" data-ui="legend"><div class="lh" data-ui="legend-head">Network</div>
+    return `<div class="legend" data-ui="legend"><div class="lh" data-ui="legend-head">Network<span class="x" data-act="netkeyx" data-ui="legend-x" title="Close the key">✕</span></div>
       ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="${NETC.lift}" stroke-width="3.4"/>${chev('#fff')}`, 'Lift, going up')}
       ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="${NETC.run}" stroke-width="2.6"/>${chev('#1b1815')}`, 'Run, going down')}
       ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="${NETC.warn}" stroke-width="2.6" stroke-dasharray="5 3"/>`, 'No lift serves this')}
@@ -1196,12 +1197,12 @@ body.solo .frame { border-radius: 0; }
       ${row(`<circle cx="11" cy="6" r="4.6" fill="${NETC.lift}" stroke="#fff" stroke-width="1.6"/>`, 'Lift top or bottom')}
       ${row(`<circle cx="11" cy="6" r="3.6" fill="#14171a" stroke="${NETC.run}" stroke-width="1.6"/>`, 'Run starts or ends')}
       ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="11" opacity=".32"/><line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="6"/><line x1="1" y1="6" x2="21" y2="6" stroke="${runColour.blue}" stroke-width="3.6"/>`, 'Picked')}
-      ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="5"/><line x1="1" y1="6" x2="21" y2="6" stroke="${runColour.green}" stroke-width="2.6"/>`, 'Reached, in its own colour')}
+      ${row(`<rect x="0" y="0" width="5.5" height="12" fill="${runColour.green}"/><rect x="5.5" y="0" width="5.5" height="12" fill="${runColour.blue}"/><rect x="11" y="0" width="5.5" height="12" fill="${runColour.black}"/><rect x="16.5" y="0" width="5.5" height="12" fill="${NETC.lift}"/>`, 'Reachable')}
       <div class="ln">Click a lift, a stretch of trail or a node to light everything you can ski to from it. Esc or a click on empty ground clears it.</div></div>`;
   }
   // The legend card for the info layer that's on (and the contour interval when contours are on).
   function legendCard() {
-    if (S.analysis && S.atab === 'network') return netLegend();
+    if (S.analysis && S.atab === 'network') return S.netKeyClosed ? '' : netLegend();   // game finding 2: its ✕ closes it until the view reopens
     if ((!S.info && !S.contours) || S.legendClosed) return '';
     // One card for the info layer and contours together; the X closes it until another layer is picked.
     // Keys show only in the open layers panel.
@@ -3640,6 +3641,7 @@ body.solo .frame { border-radius: 0; }
       case 'info': S.info = S.info === v ? null : v; if (S.info) S.legendClosed = false; break;
       case 'contours': S.contours = !S.contours; if (S.contours) S.legendClosed = false; break;
       case 'legendx': S.legendClosed = true; break;
+      case 'netkeyx': S.netKeyClosed = true; break;
       case 'resume': S.drop = null; break;
       case 'photo': S.drop = null; enterPhoto(); return;
       case 'phexit': exitPhoto(); return;

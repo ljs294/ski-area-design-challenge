@@ -217,6 +217,7 @@ echo   Phase 3, task 10: the ski network (rebuilds the game, about 2 minutes; cl
 echo     70 The Network view on the style tile and a second lift: Tab, then Network (or click the bar's lift or trail count).
 echo        Click a stretch of trail, a lift or a node to light what you can ski to from it; hover lights a stretch; Esc clears.
 echo     70c The Network view captures, dark and light (render lane), into test-results\p3-10-network.
+echo     70k Your own areas: this build at the title; Continue or Load Area (Kearsarge Mountain), then Tab, Network.
 echo.
 echo   Phase 3, task 14: problem reports and Send feedback (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     71 The game with a forced error: "A log was saved" shows with Send logs. Try it, the menu's Send feedback and
@@ -317,6 +318,7 @@ if /i "%CHOICE%"=="67c" goto trailcaptures
 if /i "%CHOICE%"=="69" goto sixpack
 if /i "%CHOICE%"=="70" goto network
 if /i "%CHOICE%"=="70c" goto networkcaptures
+if /i "%CHOICE%"=="70k" goto networkown
 if /i "%CHOICE%"=="71" goto reports
 if /i "%CHOICE%"=="71o" goto openreport
 if /i "%CHOICE%"=="71c" goto reportcaptures
@@ -1014,6 +1016,14 @@ for %%T in (dark light) do (
   %RENDER% "%GAME%" -benchres 1920x1080 -notitle -styletile -extralift -150,-900,450 -networkdemo -view 150,-560,1700,200,40 -theme %%T -networkshots "%~dp0test-results\p3-10-network\%%T" -logFile "%~dp0test-results\p3-10-network\%%T.log" <nul
 )
 start "" "%~dp0test-results\p3-10-network"
+goto done
+
+:networkown
+rem Task P3-10, game finding 3: your own saved areas (Kearsarge from the 68 play test) in this build: the title, no flags.
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo At the title, Continue (your latest save) or Load Area, Kearsarge Mountain. Then Tab and choose Network.
+"%GAME%" <nul
 goto done
 
 :sixpack
