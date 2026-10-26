@@ -96,8 +96,8 @@ namespace MountainPlanner.Tests
             var mainSegments = Enumerable.Range(0, edges.Count).Where(i => edges[i].Kind == EdgeKind.TrailSegment && edges[i].Owner == main.Value).ToArray();
             Assert.That(mainSegments.Length, Is.EqualTo(2), "Main is cut where Spur joins");
             int upper = mainSegments.OrderBy(i => edges[i].StartMm).First(), lower = mainSegments.OrderBy(i => edges[i].StartMm).Last();
-            Assert.That(reach.Segments, Does.Contain(lower), "below the junction");
-            Assert.That(reach.Segments, Does.Not.Contain(upper), "no skiing up Main from the junction");
+            Assert.That(reach.Segments, Has.Member(lower), "below the junction");
+            Assert.That(reach.Segments, Has.No.Member(upper), "no skiing up Main from the junction");
             Assert.That(reach.Trails, Is.EquivalentTo(new[] { main, spur }));
         }
 
@@ -156,7 +156,7 @@ namespace MountainPlanner.Tests
             Assert.That(reach.Lifts, Is.EqualTo(new[] { chair }), "Main ends at Chair's bottom");
             var upper = report.Graph.Edges.Select((e, i) => (e, i)).Where(x => x.e.Kind == EdgeKind.TrailSegment && x.e.Owner == main.Value)
                 .OrderBy(x => x.e.StartMm).First().i;
-            Assert.That(reach.Segments, Does.Not.Contain(upper), "NT10: Chair's top isn't reached by riding it");
+            Assert.That(reach.Segments, Has.No.Member(upper), "NT10: Chair's top isn't reached by riding it");
             Assert.That(report.ReachFrom(chair).Lifts, Is.EqualTo(new[] { chair }), "a lift's own bottom counts (NW-03)");
         }
 
@@ -169,7 +169,7 @@ namespace MountainPlanner.Tests
             var fromJunction = report.ReachFrom(junction);
             Assert.That(fromJunction.Trails, Is.EqualTo(new[] { main }));
             Assert.That(fromJunction.Lifts, Is.EqualTo(new[] { chair }));
-            Assert.That(fromJunction.Nodes, Does.Contain(junction), "the start is reached");
+            Assert.That(fromJunction.Nodes, Has.Member(junction), "the start is reached");
 
             var fromBottom = report.ReachFrom(DesignNetwork.LiftBottomNode(doc.Seed, chair));
             Assert.That(fromBottom.Segments, Is.Empty, "nothing runs downhill from a lift's bottom");
@@ -187,7 +187,7 @@ namespace MountainPlanner.Tests
             var ends = report.Graph.Nodes.Where(n => n.Kind == NodeKind.PathEnd).ToArray();
             Assert.That(ends.Length, Is.EqualTo(2));
             var reach = report.ReachFrom(ends[0].Id);
-            Assert.That(reach.Nodes, Does.Contain(ends[1].Id), "PA-06: level, so both ways");
+            Assert.That(reach.Nodes, Has.Member(ends[1].Id), "PA-06: level, so both ways");
             Assert.That(reach.Trails, Is.EquivalentTo(new[] { a, b }));
         }
 

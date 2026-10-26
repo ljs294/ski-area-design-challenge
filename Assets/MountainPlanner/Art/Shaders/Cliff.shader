@@ -71,7 +71,8 @@ Shader "MountainPlanner/Cliff"
                 if (_MP_InfoView > 0.5)
                 {
                     float3 info;
-                    if (_MP_InfoView > 3.5)
+                    if (_MP_InfoView > 4.5) info = NetworkReliefColour;   // task P3-10: the Network view
+                    else if (_MP_InfoView > 3.5)
                     {
                         float depth = 0.3048;
                         if (_SnowDepthParams.w > 0.5)

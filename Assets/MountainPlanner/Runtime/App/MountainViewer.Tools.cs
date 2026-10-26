@@ -132,6 +132,7 @@ namespace MountainPlanner.App
             _trailPaint = null;
             _designOverlay?.Dispose();
             DisposeTrailLayer();
+            DisposeNetworkView();   // task P3-10
             _tools = null;
             _preview = null;
             _designOverlay = null;

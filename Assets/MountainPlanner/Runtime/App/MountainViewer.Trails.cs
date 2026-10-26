@@ -115,7 +115,8 @@ namespace MountainPlanner.App
         {
             if (_trailLayer == null) return;
             bool on = _layers == null || _layers.TrailsOn;
-            if (_trailLayer.Visible != on) _trailLayer.Visible = on;
+            bool lines = on && !_networkOn;   // the Network view's diagram stands in for the run lines (task P3-10)
+            if (_trailLayer.Visible != lines) _trailLayer.Visible = lines;
             if (cam != null) _trailLayer.Follow(cam);
             // The run names' sight test samples the loaded terrain (it carries the edits), as every other label's does: the
             // trail layer's edited heights read the package from disk, a chunk at a time (finding D1, owner 2026-10-23).

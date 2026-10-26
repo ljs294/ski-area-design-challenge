@@ -543,7 +543,10 @@ namespace MountainPlanner.UI.Tools
                      Type.Detachable ? "LC-04: slope length over the rope speed, plus the ramps out of and into the stations (LT41)" : "LC-04: slope length over the rope speed")
                 .Add("Capacity", Type.Detachable ? $"{Type.Capacity:#,0} an hour · a chair every {Type.IntervalSeconds:0.#} s" : $"{Type.Capacity:#,0} an hour",
                      Type.Detachable ? "LC-03 v2: seats × 3,600 ÷ the loading interval (LT41)" : "LC-03")
-                .Reserved("Network", "NW-12: No way down (task 10)", ReviewModel.NetworkSlot);
+                .Reserved("Network", "NW-12: No way down", ReviewModel.NetworkSlot);
+            // NW-04: the lift as if built, in the network of everything else (task P3-10); a first lift alone has no way down.
+            NetworkCheck.Fill(_review, NetworkCheck.Warnings(_ctx.History.Document,
+                new AddLift(_ctx.History.Revision, _name, _catalogId, _bottom, _top, _mode, _stance, null, WorkStage.Built), 0, _ctx.Earthwork?.Earthwork, _ctx.Earthwork?.Heights?.Source));
             if (_built == null)
             {
                 _review.Add("Towers", _building ? "placing…" : "—", "TW-12").Ready(_ctx.EditedGround == null, true);

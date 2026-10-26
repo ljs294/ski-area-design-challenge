@@ -77,6 +77,7 @@ namespace MountainPlanner.UI
             if ((infoId != null && infoId != _legendInfo) || (contours && !_legendContours)) _legendClosed = false;
             _legendInfo = infoId;
             _legendContours = contours;
+            if (_networkView) { ShowLegend(); return; }   // the Network view's key stays (task P3-10); this comes back after
             if (infoId != _shownLegend || contours != _shownContours)
             {
                 _shownLegend = infoId;
@@ -88,7 +89,7 @@ namespace MountainPlanner.UI
 
         void ShowLegend()
         {
-            bool show = (_legendInfo != null || _legendContours) && !_legendClosed && _drop != Drop.Menu;
+            bool show = (_networkView || ((_legendInfo != null || _legendContours) && !_legendClosed)) && _drop != Drop.Menu;
             _legend.EnableInClassList("hidden", !show);
             _legend.EnableInClassList("legend--below", _drop == Drop.Layers);
             if (_drop != Drop.Layers) _root.Q("rcol").RemoveFromClassList("rcol--side");

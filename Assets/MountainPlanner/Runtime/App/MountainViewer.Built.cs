@@ -142,6 +142,7 @@ namespace MountainPlanner.App
             ShowLifts(_liftsShown, true);   // new views take the layer
             FillLiftList(doc);
             LabelLifts(doc);
+            RequestNetwork(doc);   // the ski network, off the main thread (MountainViewer.Network.cs, task P3-10)
             int chairs = 0;
             foreach (var kv in _liftViews) chairs += kv.Value.View != null ? kv.Value.View.ChairCount : 0;
             if (trails > 0 || _liftViews.Count > 0) Debug.Log($"[Built] {trails} trails, {_liftViews.Count} lifts drawn, {chairs} chairs");
@@ -247,7 +248,7 @@ namespace MountainPlanner.App
             _liftsShown = on;
             foreach (var kv in _liftViews) if (kv.Value.View?.Root != null) kv.Value.View.Root.SetActive(on && !LiftHidden(kv.Key));
             if (_draftView != null && !on) _draftView.Root.SetActive(false);   // shown again at the draft's next redraw
-            _mapLines?.SetVisible(on);
+            _mapLines?.SetVisible(on && !_networkOn);   // the Network view's diagram stands in for them (task P3-10)
         }
 
         void DrawChairs()
@@ -302,7 +303,8 @@ namespace MountainPlanner.App
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
             if (_mapLines != null && cam != null) _mapLines.Follow(cam, Camera.Distance, _hoveredId != 0 ? _hoveredId : _heldLiftId);
             _liftLabels?.Update(cam, _resort?.Surface, _liftsShown && _hudShown && !PhotoOpen && (Hud == null || Hud.LabelsOn));
-            bool picking = _tools == null || !_tools.Armed || _tools.Active is MountainPlanner.UI.Tools.IPicksLifts || _focusedLiftId != 0;
+            // The Network view picks its own way (MountainViewer.Network.cs, task P3-10).
+            bool picking = !_networkOn && (_tools == null || !_tools.Armed || _tools.Active is MountainPlanner.UI.Tools.IPicksLifts || _focusedLiftId != 0);
             bool draft = DraftView != null;
             if (!draft) _draftPart = int.MinValue;
             if ((_liftViews.Count > 0 && picking || draft) && cam != null && !PhotoOpen && _liftsShown)
@@ -342,7 +344,7 @@ namespace MountainPlanner.App
             LiftView held = null;
             ulong holding = _heldLiftId != 0 ? _heldLiftId : _focusedLiftId;   // a tool's lift, else Analysis' row or card
             if (holding != 0) foreach (var kv in _liftViews) if (kv.Key.Value == holding) { held = kv.Value.View; break; }
-            OpenLiftCardOnClick(cam);
+            if (!_networkOn) OpenLiftCardOnClick(cam);
             if (hit == _hovered && held == _held && _draftLit == _draftLitShown) return;
             _draftLitShown = _draftLit;
             _hovered?.SetHighlight(false);

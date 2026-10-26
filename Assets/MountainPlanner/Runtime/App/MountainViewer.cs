@@ -415,6 +415,7 @@ namespace MountainPlanner.App
                 else if (_photo) SetPhoto(false);   // photo mode (MountainViewer.Photo.cs) puts everything back
                 else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
                 else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
+                else if (_resort != null && ClearNetworkPick()) { }   // the Network view's pick and its card (task P3-10, NT11)
                 else if (Hud != null && _resort != null && Hud.CloseTrailCardIfOpen()) { }   // a trail's focus card (task 08)
                 else if (Hud != null && _resort != null && Hud.CloseLiftCardIfOpen()) { }    // a lift's focus card (task 09)
                 else if (_resort != null && EscapeTool()) { }   // the armed tool backs out a step (CF-07, P3-06)
@@ -600,6 +601,7 @@ namespace MountainPlanner.App
             if (_contourLabels == null || _resort == null) return;
             _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _resort?.Surface, _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
             TickTrailLayer(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);   // task 08
+            TickNetwork(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);      // task P3-10
             var set = _resort.ContourLabels[(int)DisplayUnits.Current];
             if (!ReferenceEquals(set, _contourLabelSet))
             {

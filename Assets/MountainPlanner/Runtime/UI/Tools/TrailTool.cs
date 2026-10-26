@@ -797,7 +797,10 @@ namespace MountainPlanner.UI.Tools
             }
             else _review.Add("Grading", "natural, none", "TF-06, GR-14");
             _review.Add("Trees cleared", ToolFormat.Area(g.ClearedCells), "CL-01, CL-02: the ragged edge keeps some at the treeline")
-                .Reserved("Network", "NW-12: No lift serves this, Leads nowhere (task 10)", ReviewModel.NetworkSlot);
+                .Reserved("Network", "NW-12: No lift serves this, Leads nowhere", ReviewModel.NetworkSlot);
+            // NW-04: the trail as if built, in the network of everything else (task P3-10); warnings never block.
+            NetworkCheck.Fill(_review, NetworkCheck.Warnings(_ctx.History.Document, Command(_ctx.History.Revision, WorkStage.Built),
+                                                             _mode == TrailToolMode.Edit && _target != null ? _target.Id.Value : 0, _ctx.Earthwork?.Earthwork, _ctx.Earthwork?.Heights?.Source));
             if (a.Graded && g.UngradedStations > 0)
                 _review.Warn($"{ToolFormat.Length(g.UngradedMetres)} is too steep to bench and stays natural (red)", "GR-07");
             if (r.DropMetres < 0) _review.Warn("The head is lower than the tail: the trail runs uphill", "TR-03");

@@ -37,7 +37,7 @@ namespace MountainPlanner.UI
         /// <summary>A row clicked or chosen with Enter: its focus card opens.</summary>
         public event Action<ulong> Chosen;
 
-        readonly string _noun;
+        readonly string _noun, _id;
         readonly Column[] _cols;
         readonly Label _count, _foot;
         readonly Button _filter, _clear;
@@ -52,24 +52,26 @@ namespace MountainPlanner.UI
         string _footText;
         readonly Dictionary<ulong, Button> _rowButtons = new Dictionary<ulong, Button>();
 
-        public AnalysisList(string noun, Column[] columns)
+        /// <param name="id">The elements' name part when two lists share a noun (task P3-10's Network tab); the noun by default.</param>
+        public AnalysisList(string noun, Column[] columns, string id = null)
         {
             _noun = noun;
+            _id = id ?? noun;
             _cols = columns;
-            Root = new VisualElement { name = "an-list-" + noun };
+            Root = new VisualElement { name = "an-list-" + _id };
             Root.AddToClassList("an-list");
             var tools = new VisualElement();
             tools.AddToClassList("an-tools");
-            _count = new Label { name = "an-count-" + noun };
+            _count = new Label { name = "an-count-" + _id };
             _count.AddToClassList("an-tools__count");
             tools.Add(_count);
             var gap = new VisualElement();
             gap.style.flexGrow = 1;
             tools.Add(gap);
-            _clear = new Button(ClearFilters) { name = "an-clear-" + noun, text = "Clear filters" };
+            _clear = new Button(ClearFilters) { name = "an-clear-" + _id, text = "Clear filters" };
             _clear.AddToClassList("an-tb");
             tools.Add(_clear);
-            _filter = new Button(() => { _filterOn = !_filterOn; _menuCol = -1; Redraw(); }) { name = "an-filter-" + noun, text = "Filter" };
+            _filter = new Button(() => { _filterOn = !_filterOn; _menuCol = -1; Redraw(); }) { name = "an-filter-" + _id, text = "Filter" };
             _filter.AddToClassList("an-tb");
             tools.Add(_filter);
             Root.Add(tools);
@@ -83,7 +85,7 @@ namespace MountainPlanner.UI
             _foot = new Label();
             _foot.AddToClassList("an-foot");
             Root.Add(_foot);
-            _menu = new VisualElement { name = "an-menu-" + noun };
+            _menu = new VisualElement { name = "an-menu-" + _id };
             _menu.AddToClassList("an-menu");
             Root.Add(_menu);
             Redraw();
@@ -140,7 +142,7 @@ namespace MountainPlanner.UI
                 if (_filterOn && (col.Bin != null || col.SortKey != null))
                 {
                     int at = c;
-                    var dd = new Button(() => { _menuCol = _menuCol == at ? -1 : at; Redraw(); }) { name = $"an-dd-{_noun}-{c}", text = "▾", tooltip = "Filter and sort" };
+                    var dd = new Button(() => { _menuCol = _menuCol == at ? -1 : at; Redraw(); }) { name = $"an-dd-{_id}-{c}", text = "▾", tooltip = "Filter and sort" };
                     dd.AddToClassList("an-dd");
                     dd.EnableInClassList("an-dd--act", _sortCol == c || (_hidden.TryGetValue(c, out var h) && h.Count > 0));
                     cell.Add(dd);
@@ -162,7 +164,7 @@ namespace MountainPlanner.UI
             foreach (var r in shown)
             {
                 var row = r;
-                var b = new Button(() => Chosen?.Invoke(row.Id)) { name = $"an-row-{_noun}-{row.Id:x}" };
+                var b = new Button(() => Chosen?.Invoke(row.Id)) { name = $"an-row-{_id}-{row.Id:x}" };
                 b.AddToClassList("an-row");
                 b.AddToClassList("an-row--item");
                 b.EnableInClassList("an-row--on", row.Id == _focused);

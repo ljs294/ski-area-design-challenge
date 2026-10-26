@@ -34,3 +34,16 @@
 /* the focus card (.pn.fcard): right of the map, under the corner buttons */
 .hud .an-card { position: absolute; right: 10px; top: 56px; width: 300px; }
 .hud .an-card__acts { padding: 4px 12px 10px 12px; }
+
+/* ---------- task P3-10: Analysis › Network, the bar's live counts, cards stacked under the legend (NT5, NT12) ---------- */
+.hud .stat--warn .count { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.hud .an-network { flex-grow: 1; }
+.hud .an-network__line { padding: 6px 12px 2px 12px; font-size: 11.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .an-network__line--warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.hud .an-network__warnings { margin-top: 8px; }
+.hud .rcol > .an-card--stacked { position: relative; right: 0; top: 0; margin-top: 6px; }
+.hud .legend--folded { padding-bottom: 0; }
+.hud .legend--folded #legend-body { display: none; }
+.hud .legend__fold { width: 22px; height: 22px; margin: 0 4px 0 -6px; padding: 0; border-width: 0; border-radius: 4px; background-color: rgba(0, 0, 0, 0);
+    font-size: 11px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .legend__fold:hover { background-color: var(--hover); color: var(--strong); -unity-text-outline-color: var(--strong); }
