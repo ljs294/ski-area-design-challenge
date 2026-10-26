@@ -33,6 +33,7 @@ namespace MountainPlanner.Tests
                 {
                     string id = LiftCatalogIds.Of(carrier, maker);
                     Assert.That(LiftCatalogIds.Known(id), Is.True, id);
+                    if (id == LiftCatalogIds.SesselliftD6) continue;   // its own models (LT41, below)
                     var type = LiftType.Of(id);
                     Assert.That(type.Bottom.Model, Does.StartWith(maker == "monta" ? "monta_fg4_" : "sessellift_fgq4_"), "drawn with the maker's quad");
                     Assert.That(type.GaugeMetres, Is.EqualTo(4.12), "the models' gauge (LT12)");
@@ -46,7 +47,9 @@ namespace MountainPlanner.Tests
         {
             Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).Capacity, Is.EqualTo(2400).Within(1));
             Assert.That(LiftType.Of("fixed-double:sessellift").Capacity, Is.EqualTo(1200).Within(1));
-            Assert.That(LiftType.Of("detach-six:monta").Capacity, Is.EqualTo(3600).Within(1));
+            Assert.That(LiftType.Of("detach-six:monta").Capacity, Is.EqualTo(3000).Within(1), "LT41: 7.2 s, 120 ft");
+            Assert.That(LiftType.Of("detach-quad:monta").Capacity, Is.EqualTo(2400).Within(1), "LT41: 6 s, 100 ft");
+            Assert.That(LiftType.Of("detach-eight:monta").Capacity, Is.EqualTo(3600).Within(1), "LT41: 8 s");
             Assert.That(LiftType.Of("detach-six:monta").SpeedMetresPerSecond, Is.EqualTo(1000 * Ft / 60).Within(1e-9));
             Assert.That(LiftType.Of("gondola-8:sessellift").Capacity, Is.EqualTo(3000).Within(1));
             Assert.That(LiftType.Of("tram-100:sessellift").Capacity, Is.EqualTo(750), "a tram's own (one cabin each way)");
@@ -59,10 +62,67 @@ namespace MountainPlanner.Tests
             Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).TowerMaxMetres, Is.EqualTo(100 * Ft).Within(1e-9));
             Assert.That(DesignRules.TowerHeightProblem(Ft(200), false, LiftCatalogIds.TowerMaxMm("tram-60:monta")), Is.Null);
             Assert.That(DesignRules.TowerHeightProblem(Ft(200)), Is.Not.Null, "100 ft for everything else");
+        }
+
+        [Test]
+        public void LT41_OnlyTypesWithTheirOwnModelsCanBeAdded()
+        {
             var h = new DesignHistory(DesignDocument.Empty(4));
-            var r = h.Submit(new AddLift(h.Revision, "Tram", "tram-100:sessellift", P(0, 0), P(0, 6000), TowerMode.ByHand, TowerStance.Plumb,
-                                         new[] { Tower(3000, 200) }, WorkStage.Built));
-            Assert.That(r.Accepted, Is.True, r.ToString());
+            var tram = h.Submit(new AddLift(h.Revision, "Tram", "tram-100:sessellift", P(0, 0), P(0, 6000), TowerMode.ByHand, TowerStance.Plumb,
+                                            new[] { Tower(3000, 200) }, WorkStage.Built));
+            Assert.That(tram.Accepted, Is.False, "a menu placeholder (owner, LT41)");
+            Assert.That(tram.Reason, Does.Contain("can't be built yet"));
+            foreach (string id in new[] { LiftCatalogIds.SesselliftFgq4, LiftCatalogIds.MontaFg4, LiftCatalogIds.SesselliftD6 })
+            {
+                var r = h.Submit(new AddLift(h.Revision, id, id, P(0, 0), P(0, 3000), TowerMode.Automatic, TowerStance.Plumb, null, WorkStage.Plan));
+                Assert.That(r.Accepted, Is.True, id + ": " + r);
+            }
+        }
+
+        [Test]
+        public void LT41_TheD6IsADetachableSixPack()
+        {
+            var d6 = LiftType.Of(LiftCatalogIds.SesselliftD6);
+            Assert.That(d6.Detachable && d6.Buildable, Is.True);
+            Assert.That(d6.Seats, Is.EqualTo(6));
+            Assert.That(d6.SpeedMetresPerSecond, Is.EqualTo(1000 * Ft / 60).Within(1e-9));
+            Assert.That(d6.IntervalSeconds, Is.EqualTo(7.2).Within(1e-9));
+            Assert.That(d6.ChairSpacingMetres / Ft, Is.EqualTo(120).Within(1e-6), "G4: 120 ft");
+            Assert.That(d6.Capacity, Is.EqualTo(3000).Within(1e-6));
+            Assert.That(d6.GaugeMetres, Is.EqualTo(5.6));
+            Assert.That(d6.ChairDropMetres, Is.EqualTo(3.27), "G3");
+            Assert.That(d6.RopeDiameterMetres, Is.EqualTo(0.0508));
+            Assert.That(d6.Bottom.Model, Is.EqualTo("sessellift_d6_return"));
+            Assert.That(d6.Top.Model, Is.EqualTo("sessellift_d6_drive"));
+            // Roughly twice a fixed grip's spacing (owner): 120 ft against the quad's 45.
+            Assert.That(d6.ChairSpacingMetres / LiftType.Of(LiftCatalogIds.SesselliftFgq4).ChairSpacingMetres, Is.InRange(2.0, 3.0));
+            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).Detachable, Is.False);
+        }
+
+        [Test]
+        public void LT41_StationSpeedsAndSpacingFollowTheLineSpeed()
+        {
+            var d6 = LiftType.Of(LiftCatalogIds.SesselliftD6);
+            double v = d6.SpeedMetresPerSecond;
+            Assert.That(d6.BoardSpeed(v), Is.EqualTo(1.0).Within(0.01), "boarding about 1 m/s at 1,000 fpm");
+            Assert.That(d6.AlightSpeed(v), Is.EqualTo(1.4).Within(0.01), "deboarding about 1.4 m/s");
+            // A faster line (a future slider): loading speeds up with it, within its band; the spacing grows; capacity holds.
+            Assert.That(d6.BoardSpeed(1.2 * v), Is.EqualTo(1.2).Within(0.01));
+            Assert.That(d6.BoardSpeed(2 * v), Is.EqualTo(LiftType.BoardMax), "never past the band");
+            Assert.That(d6.BoardSpeed(0.5 * v), Is.EqualTo(LiftType.BoardMin));
+            Assert.That(d6.LineSpacing(2 * v), Is.EqualTo(2 * d6.LineSpacing(v)).Within(1e-9));
+            Assert.That(d6.Seats * 3600 / d6.IntervalSeconds, Is.EqualTo(d6.Capacity).Within(1e-6));
+            // The ramps (finding E7): about 8 m from line speed down to boarding at 1.5 m/s².
+            Assert.That(LiftType.RampLength(v, d6.BoardSpeed(v)), Is.EqualTo(8.3).Within(0.2));
+            // Round the bullwheel slower still (E7): 0.55 m/s, scaling with the line within its band.
+            Assert.That(d6.TurnSpeed(v), Is.EqualTo(0.55).Within(0.01));
+            Assert.That(d6.TurnSpeed(0.5 * v), Is.EqualTo(LiftType.TurnMin));
+            Assert.That(d6.TurnSpeed(2 * v), Is.EqualTo(LiftType.TurnMax));
+            Assert.That(LiftType.TurnMin * d6.IntervalSeconds, Is.GreaterThanOrEqualTo(3.5), "never closer than G4's 3.5 m");
+            // The ride: the line at its speed, plus a second or so for each ramp.
+            double ride = d6.RideSeconds(600);
+            Assert.That(ride - 600 / v, Is.InRange(1.5, 4.0));
+            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgq4).RideSeconds(600), Is.EqualTo(600 / LiftType.Of(LiftCatalogIds.SesselliftFgq4).SpeedMetresPerSecond));
         }
 
         [TestCase(LiftCatalogIds.SesselliftFgq4, 2200)]

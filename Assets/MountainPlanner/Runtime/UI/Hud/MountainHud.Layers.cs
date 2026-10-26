@@ -53,6 +53,13 @@ namespace MountainPlanner.UI
             };
         }
 
+        /// <summary>Labels on or off without a click (-nolabels, finding D1's A/B runs).</summary>
+        public void SetLabels(bool on)
+        {
+            LabelsOn = on;
+            _root.Q<Button>("layer-labels")?.EnableInClassList("row--on", on);
+        }
+
         /// <summary>Shows a layer's state (the app owns it; a click asks for the change through <see cref="LayerChanged"/>).</summary>
         public void SetLayer(string id, bool on)
         {

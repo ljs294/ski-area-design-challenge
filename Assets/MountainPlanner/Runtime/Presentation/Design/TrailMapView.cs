@@ -147,7 +147,7 @@ namespace MountainPlanner.Presentation.Design
 
         public void Follow(Camera camera) => _lines.Follow(camera);
 
-        /// <summary>The ground the lines drape on (the edited heights): the run names' sight test uses it too.</summary>
+        /// <summary>The ground the lines drape on (the edited heights, read from the package: never sampled per frame).</summary>
         public World.ITerrainSurface Ground => _ground;
 
         public int VisibleParts => _lines.Visible;

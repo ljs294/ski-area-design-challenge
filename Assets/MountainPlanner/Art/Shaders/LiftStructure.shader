@@ -2,7 +2,7 @@
 // lighting over a shared palette, with the model's own data doing the rest.
 //   UV2 (palette)  one swatch per face: RGB albedo, A packs metallic (A >= 0.5) and smoothness ((A mod 0.5) * 2)
 //   UV0 (detail)   box-mapped metres + atlas tile (SampleDetail): RG tangent-space normal, B cavity, A brightness (0.5 = neutral)
-//   UV1 (data)     x = snow capacity, y = livery mask (the drive hood takes _LiveryColor)
+//   UV1 (data)     x = snow capacity, y = livery mask: 1 takes _LiveryColor (the primary, the drive hood), 2 _AccentColor (LT41)
 //   colour R       baked ambient occlusion
 // Snow settles on up-facing surfaces (the tree formula), scaled by capacity and _SnowLoad. Glass is the same
 // shader with _LIFT_GLASS: premultiplied alpha (only its diffuse fades, its reflection stays whole) with a Fresnel
@@ -18,6 +18,7 @@ Shader "MountainPlanner/LiftStructure"
         _DetailDensity ("Detail tiles per metre", Float) = 1
         _AOStrength ("Baked AO strength", Range(0, 1)) = 1
         _LiveryColor ("Livery colour", Color) = (0.72, 0.12, 0.09, 1)
+        _AccentColor ("Accent colour", Color) = (0.13, 0.14, 0.15, 1)
         _SnowLoad ("Snow load", Range(0, 1)) = 1
         _SnowColor ("Snow colour", Color) = (0.93, 0.95, 0.98, 1)
         _SnowSmoothness ("Snow smoothness", Range(0, 1)) = 0.3
@@ -39,6 +40,7 @@ Shader "MountainPlanner/LiftStructure"
             float _DetailDensity;
             float _AOStrength;
             float4 _LiveryColor;
+            float4 _AccentColor;
             float _SnowLoad;
             float4 _SnowColor;
             float _SnowSmoothness;
@@ -166,7 +168,11 @@ Shader "MountainPlanner/LiftStructure"
                 half3 normalTS = normalize(half3((detail.rg * 2.0h - 1.0h) * _DetailStrength, 1.0h));
                 half cavity = lerp(1.0h, saturate(detail.b * 2.0h), _DetailStrength);
                 half3 albedo = pal.rgb * lerp(1.0h, detail.a * 2.0h, _DetailStrength);
-                albedo = lerp(albedo, albedo * _LiveryColor.rgb, saturate(i.data.y));
+                // The lift's two colours (LT41): a livery mask of 1 takes the primary, 2 the accent (parts painted 2 by the
+                // model pipeline; until then every livery part is primary).
+                half3 tint = lerp(half3(1.0h, 1.0h, 1.0h), (half3)_LiveryColor.rgb, saturate(i.data.y));
+                tint = lerp(tint, (half3)_AccentColor.rgb, saturate(i.data.y - 1.0h));
+                albedo *= tint;
 
                 float3 geometricN = normalize(i.normalWS);
                 half snow = saturate(i.data.x * _SnowLoad * smoothstep(0.3, 0.8, geometricN.y));

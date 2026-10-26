@@ -142,8 +142,18 @@ namespace MountainPlanner.App
             var after = new EditedHeights(heights.Source, heights.Lattice, history.Terrain);
             var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(catalogId), models);
 
-            // The one build path every lift takes (round 3): pads, towers, any ramp or raise, the envelope, the clearing.
+            // The one build path every lift takes (round 3): pads, towers, the envelope, the clearing. The terminals stand at
+            // their ground; where the review suggests a level (LT34), it's taken as a player would (Page Up), a few rounds.
             var built = LiftBuild.Build(type, after, b.X, b.Y, t.X, t.Y, TowerStance.Leaned);
+            double handB = 0, handT = 0;
+            for (int round = 0; round < 8 && (built.SuggestedBottomMetres != 0 || built.SuggestedTopMetres != 0); round++)
+            {
+                handB += built.SuggestedBottomMetres;
+                handT += built.SuggestedTopMetres;
+                built = LiftBuild.Build(type, after, b.X, b.Y, t.X, t.Y, TowerStance.Leaned, null, handB, handT);
+            }
+            if (handB != 0 || handT != 0)
+                report.AppendFormat(CultureInfo.InvariantCulture, "levels taken from the review: bottom {0:+0;-0} ft, top {1:+0;-0} ft; ", handB / 0.3048, handT / 0.3048);
             var rope = built.Rope;
             report.AppendFormat(CultureInfo.InvariantCulture,
                 "ends: bottom {0} ({1:F1}/{2:F1}/{3:F1} m), top {4} ({5:F1}/{6:F1}/{7:F1} m); " +

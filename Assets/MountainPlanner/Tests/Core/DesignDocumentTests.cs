@@ -15,7 +15,8 @@ namespace MountainPlanner.Tests
         /// its commands, and needs the owner's approval (AGENTS.md determinism rules). Re-pinned for shape 2 (task 09, the
         /// lifts' terminal levels; owner, LT3), from a82d1aa8… at shape 1.
         /// </summary>
-        const string GoldenSha = "ab53d87b8de082b52469e1cf7be97867623ed0591cfc52749bc6cc215394db2b";
+        // Shape 3 (LT44): each tower's kind; the scripted design's towers are all Auto.
+        const string GoldenSha = "224681ef7dbeb576ab85ec52a8ba9a529945a95b36a308898dd2b2e466bbfe16";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()
@@ -64,10 +65,10 @@ namespace MountainPlanner.Tests
             AssertProperties(typeof(Lift), "Id", "Name", "Stage", "CatalogId", "Bottom", "Top", "TowerMode", "Stance", "Towers",
                 "Levels", "LengthSquaredMm", "LengthMetres");
             AssertFields(typeof(LiftLevels), "BottomMm", "TopMm");
-            AssertFields(typeof(Tower), "Id", "AlongMm", "HeightMm");
+            AssertFields(typeof(Tower), "Id", "AlongMm", "HeightMm", "Kind");
             AssertFields(typeof(TrailSettings), "Grading", "Kind", "Clearing");
             AssertFields(typeof(Cut), "At", "DirX", "DirY", "KeepAhead");
-            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(2));
+            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(3));
         }
 
         static void AssertProperties(Type type, params string[] names)
@@ -147,7 +148,7 @@ namespace MountainPlanner.Tests
             Assert.Throws<FormatException>(() => DesignBytes.Decode(bytes.Take(bytes.Length - 3).ToArray()), "truncated");
             Assert.Throws<FormatException>(() => DesignBytes.Decode(bytes.Concat(new byte[] { 0 }).ToArray()), "trailing");
             var future = (byte[])bytes.Clone();
-            future[4] = 3;
+            future[4] = (byte)(DesignDocument.ShapeVersion + 1);
             Assert.Throws<FormatException>(() => DesignBytes.Decode(future), "a newer shape");
             var magic = (byte[])bytes.Clone();
             magic[0] = (byte)'X';
