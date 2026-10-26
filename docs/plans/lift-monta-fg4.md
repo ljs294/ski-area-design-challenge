@@ -14,8 +14,8 @@ The model stays local and unnamed; we measured it and built our own. The lift ca
 
 | Asset | Triangles (LOD0/1/2/3) | What it is |
 |---|---|---|
-| **Drive terminal** (`monta_fg4_drive`) | 19,730 / 9,514 / 2,074 / 418 | The bottom (loading) station: twin tubular booms, a ribbed rounded hood with a window band over the bullwheel, inclined legs on two piers, and our sheave trains. The rope leaves climbing over a hold-down row |
-| **Return terminal** (`monta_fg4_return`) | 3,640 / 1,824 / 948 / 364 | The top station: an exposed bullwheel on an H-section column and a diagonal strut, with a cross arm and deflection sheaves |
+| **Drive terminal** (`monta_fg4_drive`) | 20,404 / 9,628 / 2,084 / 360 | The bottom (loading) station: twin tubular booms, a ribbed rounded hood with a window band over the bullwheel, inclined legs on two piers, and our sheave trains. The rope leaves climbing over a hold-down row |
+| **Return terminal** (`monta_fg4_return`) | 3,640 / 1,824 / 948 / 244 | The top station: an exposed bullwheel on an H-section column and a diagonal strut, with a cross arm and deflection sheaves |
 
 - **Bottom drive:** the drive loads (`chair_load`) and the return unloads (`chair_unload`). Loaded chairs still
   ride up the right rope.
@@ -29,7 +29,9 @@ The model stays local and unnamed; we measured it and built our own. The lift ca
   3,039 mm, by cutting their diagonal members at the same angles (the drive's leaning legs, the return's strut and
   column). The lift carries that chair unchanged.
 - **Footings:** 2.5 m below grade (LP7). This gate carried the return's two pads down to match; nothing changed
-  above grade.
+  above grade. **Since P3-09 (LT36):** every pier and foundation runs to 15 m below the 0.00 level, as the
+  Sessellift's do, with `pier_top` and `pier_top_2` at their top centres; the drive's buried footing slabs went, and
+  the game places its footing at grade under each pier.
 - **Livery:** the drive's hood takes the player's colour (LP5); its glass is tinted over a dark lining (LP8).
 
 ![The Monta return terminal, the top station](images/lift-monta-fg4-return.jpg)

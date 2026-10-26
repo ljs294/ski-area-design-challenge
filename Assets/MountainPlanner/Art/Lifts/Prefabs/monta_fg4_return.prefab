@@ -674,7 +674,7 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!1 &3712778224129323867
+--- !u!1 &4571636390943697864
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -682,24 +682,55 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2297780063372223905}
+  - component: {fileID: 7666279184537908876}
   m_Layer: 0
-  m_Name: monta_fg4_return_socket_foundation_base
+  m_Name: monta_fg4_return_socket_pier_top
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2297780063372223905
+--- !u!4 &7666279184537908876
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3712778224129323867}
+  m_GameObject: {fileID: 4571636390943697864}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0, y: -2.5, z: 0}
+  m_LocalPosition: {x: -0, y: 0.2002, z: 3.0316}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7658985424230267333}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &4981419187108594140
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7962517477064867391}
+  m_Layer: 0
+  m_Name: monta_fg4_return_socket_pier_top_2
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7962517477064867391
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4981419187108594140}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0, y: -0.2998, z: 0.4494}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1315,8 +1346,9 @@ Transform:
   - {fileID: 3563932947156005203}
   - {fileID: 2940767761968103557}
   - {fileID: 4125776451291119457}
-  - {fileID: 2297780063372223905}
   - {fileID: 5371945705868047221}
+  - {fileID: 7666279184537908876}
+  - {fileID: 7962517477064867391}
   - {fileID: 8804050371426236801}
   - {fileID: 3891600224128096057}
   - {fileID: 7099702472933303102}
@@ -1331,32 +1363,32 @@ LODGroup:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8676347379430647586}
   serializedVersion: 2
-  m_LocalReferencePoint: {x: 0, y: 0.4988501, z: 0.80840576}
-  m_Size: 5.9977
+  m_LocalReferencePoint: {x: 0, y: -5.75115, z: 0.80840576}
+  m_Size: 18.4977
   m_FadeMode: 1
   m_AnimateCrossFading: 1
   m_LastLODIsBillboard: 0
   m_LODs:
-  - screenRelativeHeight: 0.25970805
+  - screenRelativeHeight: 0.8009739
     fadeTransitionWidth: 0
     renderers:
     - renderer: {fileID: 4872340456516211193}
     - renderer: {fileID: 5829110631464886606}
     - renderer: {fileID: 1467483702710968351}
     - renderer: {fileID: 5652405554885552333}
-  - screenRelativeHeight: 0.09443929
+  - screenRelativeHeight: 0.29126325
     fadeTransitionWidth: 0
     renderers:
     - renderer: {fileID: 6207096093499952129}
     - renderer: {fileID: 5617168905618872852}
     - renderer: {fileID: 8842023750404553396}
     - renderer: {fileID: 5027535026514223857}
-  - screenRelativeHeight: 0.029680919
+  - screenRelativeHeight: 0.091539875
     fadeTransitionWidth: 0
     renderers:
     - renderer: {fileID: 8606166927780222662}
     - renderer: {fileID: 2749312263053579475}
-  - screenRelativeHeight: 0.0051941606
+  - screenRelativeHeight: 0.016019478
     fadeTransitionWidth: 0
     renderers:
     - renderer: {fileID: 1280329109842847879}
@@ -1398,7 +1430,8 @@ MonoBehaviour:
   - {fileID: 3891600224128096057}
   - {fileID: 3519120596184614846}
   - {fileID: 4125776451291119457}
-  - {fileID: 2297780063372223905}
+  - {fileID: 7666279184537908876}
+  - {fileID: 7962517477064867391}
   LiveryRenderers:
   - {fileID: 4872340456516211193}
   - {fileID: 6207096093499952129}
