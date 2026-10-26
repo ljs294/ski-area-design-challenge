@@ -23,7 +23,7 @@ from liftkit.export import Asset
 from liftkit.mesh import MeshBuilder, Style
 
 KIND = "chair"
-LODS = 3
+LODS = 4
 
 
 def m(x):
@@ -32,9 +32,10 @@ def m(x):
 
 def build(spec, lod, stage):
     ch = spec["chair"]
-    steel = Style("chair_steel", snow=0.4)
-    seat = Style("seat_pad", snow=1.0)
+    steel = Style("chair_steel", snow=0.1)   # the D6's lessons (polish): seats and grips take no snow, steel a little
+    seat = Style("seat_pad")
     grip_st = Style("grip")
+    grip_steel = Style("chair_steel")          # the grip runs through the bullwheel's liner: no snow
     a = Asset("sessellift_fgq4_chair")
     mb = MeshBuilder()
     ax = m(ch["axisV"])
@@ -42,7 +43,14 @@ def build(spec, lod, stage):
     top = ch["topBar"]
     bench = ch["bench"]
 
-    if lod == 2:   # distant stand-in: hanger, top bar, side frames and bench as boxes
+    if lod == 3:   # a speck out to 800 m (polish: chairs vanished at 300 m while the towers stayed): seat and back as one
+        us = [p[0] for p in bench["profile"]] + [ch["backrest"]["top"][0], ch["backrest"]["bottom"][0]]   # block, the
+        ws = [p[1] for p in bench["profile"]] + [ch["backrest"]["top"][1]]                                  # top bar, hanger
+        prims.box(mb, (m(min(us)), ax - m(bench["halfWidth"]), m(min(ws))), (m(max(us)), ax + m(bench["halfWidth"]), m(max(ws))), seat, skip=("-2",))
+        prims.box(mb, (-0.03, ax - m(top["halfLength"]), m(top["w"]) - 0.03), (0.03, ax + m(top["halfLength"]), m(top["w"]) + 0.03), steel, skip=("-2",))
+        prims.box(mb, (-0.04, -0.04, m(top["w"])), (0.04, 0.3, 0.0), steel, skip=("-2",))
+        return finish(a, mb, ch)
+    if lod == 2:   # distant stand-in: hanger, top bar, side frames, bench and backrest as boxes
         prims.box(mb, (-0.04, -0.04, m(top["w"])), (0.04, 0.3, 0.0), steel)
         prims.box(mb, (-0.03, ax - m(top["halfLength"]) - 0.25, m(top["w"]) - 0.03), (0.03, ax + m(top["halfLength"]) + 0.25, m(top["w"]) + 0.03), steel)
         for s in (-1, 1):
@@ -50,6 +58,7 @@ def build(spec, lod, stage):
         us = [p[0] for p in bench["profile"]]
         ws = [p[1] for p in bench["profile"]]
         prims.box(mb, (m(min(us)), ax - m(bench["halfWidth"]), m(min(ws))), (m(max(us)), ax + m(bench["halfWidth"]), m(max(ws))), seat)
+        backrest(mb, ch, ax, seat, 1, 0.0)
         return finish(a, mb, ch)
 
     near = lod == 0
@@ -66,13 +75,13 @@ def build(spec, lod, stage):
     else:
         hanger = [Vector((0.0, m(v), m(w))) for v, w in ch["hanger"]]
         hanger = [hanger[i] for i in (0, 3, 6, 9, 12)]
-    rings = prims.tube_path(mb, hanger, tube["hanger"], n_hanger, steel, caps=False)
+    rings = prims.tube_path(mb, hanger, tube["hanger"], n_hanger, steel, caps=False, smooth=True)
 
     # the grip on the rope (fixed_grip.json, every fixed-grip chair's), flowing down into the hanger up close; the
     # socket rides with the hanger
     with mb.grouped("grip"):
         joint = parts.hanger_joint(rings, hanger, tube["hanger"], steel) if near else None
-        parts.fixed_grip(mb, lod, steel, dark=Style("trim_dark"), metal=Style("machined"), hanger=joint,
+        parts.fixed_grip(mb, lod, grip_steel, dark=Style("trim_dark"), metal=Style("machined"), hanger=joint,
                          socket_group="hanger#socket")
     body(mb, ch, near, n_frame, n_thin, tube, steel, seat, grip_st)
     return finish(a, mb, ch)
@@ -108,9 +117,9 @@ def body(mb, ch, near, n_frame, n_thin, tube, steel, seat, grip_st):
     main = frame if near else [frame[i] for i in (0, 3, 4, 5, 7, 9, 10)]
     edge = [ch["edgeRail"][i] for i in (0, 2, 3, 4, 6, 7, 8, 9)]
     for s in (-1, 1):
-        prims.tube_path(mb, [sym(u, hw, w, s) for u, hw, w in main], tube["frame"], n_frame, steel, caps=near)
+        prims.tube_path(mb, [sym(u, hw, w, s) for u, hw, w in main], tube["frame"], n_frame, steel, caps=near, smooth=True)
         if near:
-            prims.tube_path(mb, [sym(u, hw, w, s) for u, hw, w in edge], tube["edge"], n_thin, steel)
+            prims.tube_path(mb, [sym(u, hw, w, s) for u, hw, w in edge], tube["edge"], n_thin, steel, smooth=True)
 
     # bench (thin, tilted back), bottom cross member and the low slatted backrest
     hwb = m(bench["halfWidth"])
@@ -120,6 +129,14 @@ def body(mb, ch, near, n_frame, n_thin, tube, steel, seat, grip_st):
     if near:
         half = m(bm["size"]) / 2
         prims.box(mb, (m(bm["u"]) - half, ax - m(bm["halfWidth"]), m(bm["w"]) - half), (m(bm["u"]) + half, ax + m(bm["halfWidth"]), m(bm["w"]) + half), steel, skip=("-1", "+1"))
+    backrest(mb, ch, ax, seat, ch["backrest"]["slats"] if near else 1, 0.4 if near else 0.0)
+
+    # safety bar, raised behind the seat: arms from the front sleeves, rail, legs, footrest stubs, rod, handles
+    parts.restraint_bar(mb, ch["bar"], tube, sym, near, n_thin, steel, grip_st)
+
+
+def backrest(mb, ch, ax, seat, slats, gap):
+    """The low slatted backrest (one board far out)."""
     br = ch["backrest"]
     (tu, tw), (bu, bw) = br["top"], br["bottom"]
     along = Vector((m(tu - bu), 0, m(tw - bw)))
@@ -127,16 +144,11 @@ def body(mb, ch, near, n_frame, n_thin, tube, steel, seat, grip_st):
     along.normalize()
     across = Vector((0, 1, 0))
     normal = along.cross(across).normalized()
-    slats = br["slats"] if near else 1
-    gap = 0.4 if near else 0.0
     pitch = length / slats
     for k in range(slats):
         centre = Vector((m(bu), ax, m(bw))) + along * (pitch * (k + 0.5))
         prims.obox(mb, centre, (along, across, normal), (pitch * (1 - gap) / 2 if slats > 1 else length / 2, m(br["halfWidth"]), m(br["thick"]) / 2), seat,
                    skip=("-1", "+1"))
-
-    # safety bar, raised behind the seat: arms from the front sleeves, rail, legs, footrest stubs, rod, handles
-    parts.restraint_bar(mb, ch["bar"], tube, sym, near, n_thin, steel, grip_st)
 
 
 def hinge_point(ch):

@@ -22,7 +22,7 @@ from liftkit.mesh import MeshBuilder, Style
 from liftkit.prims import U, V, W
 
 KIND = "chair"
-LODS = 3
+LODS = 4
 SPEC = "chairworks_chair.json"
 VARIANTS = ("detach", "fixed")
 
@@ -148,9 +148,10 @@ def detach_grip(mb, g, st, rubber, dark, metal):
 
 def build(spec, lod, stage, grip="detach"):
     ch = spec
-    steel = Style("chair_steel", snow=0.4)
-    seat = Style("seat_pad", snow=1.0)
-    grip_st = Style("grip", snow=0.3)
+    steel = Style("chair_steel", snow=0.1)   # the D6's lessons (polish): seats and grips take no snow, steel a little
+    seat = Style("seat_pad")
+    grip_st = Style("grip")
+    grip_steel = Style("chair_steel")          # the fixed grip runs through the bullwheel's liner: no snow
     wheel_st = Style("rubber")
     a = Asset(f"chairworks_chair_{grip}")
     mb = MeshBuilder()
@@ -163,7 +164,16 @@ def build(spec, lod, stage, grip="detach"):
         far = (0, 1, len(hp) - 2, len(hp) - 1)
     sf, rr, el = ch["sideFrames"], ch["rearRails"], ch["endLoops"]
     vl, vr = sf["v"]
-    if lod <= 1:
+    if lod == 3:   # a speck out to 800 m (polish): bench and back as one block, the top bar and the hanger
+        bn, bk = ch["bench"], ch["backrest"]
+        us = [bn["back"][0], bn["front"][0], bk["top"][0]]
+        ws = [bn["back"][1], bn["front"][1], bk["top"][1]]
+        prims.box(mb, (m(min(us)), m(bn["v"][0]), m(min(ws))), (m(max(us)), m(bn["v"][1]), m(max(ws))), seat, skip=("-2",))
+        top = sf["path"][0]
+        prims.box(mb, (m(top[0]) - 0.03, m(vl), m(top[1]) - 0.03), (m(top[0]) + 0.03, m(vr), m(top[1]) + 0.03), steel, skip=("-2",))
+        lo_v, hi_v = sorted((m(hp[0][0]), m(hp[-2][0])))
+        prims.box(mb, (-0.04, lo_v - 0.04, m(hp[-2][1])), (0.04, hi_v + 0.04, m(hp[0][1])), steel, skip=("-2",))
+    elif lod <= 1:
         n_main, n_seat = (6, 6) if lod == 0 else (4, 4)   # the hanger and frame as the Sessellift chair's hanger
         # the hanger: out of the grip, down the dogleg, back in through the clamp (up close, out of the fixed grip's
         # socket)
@@ -175,7 +185,7 @@ def build(spec, lod, stage, grip="detach"):
             reduce_from, pts = (pts[0][0] - 3.0, pts[0][1]), pts[1:]
         hanger_pts = [(0.0, m(v), m(w)) for v, w in pts]
         # far out the detachable grip's arm is narrower than the hanger: close the hanger's ends there and in the clamp
-        hanger_rings = prims.tube_path(mb, hanger_pts, r, n_main, steel, caps=grip == "detach" and lod > 0)
+        hanger_rings = prims.tube_path(mb, hanger_pts, r, n_main, steel, caps=grip == "detach" and lod > 0, smooth=True)
         if reduce_from is not None:
             ar = ch["gripDetach"]["arm"]["u"]
             reducer(mb, hanger_rings[0], reduce_from, (ar[1] - ar[0]) / 2, steel)
@@ -190,7 +200,7 @@ def build(spec, lod, stage, grip="detach"):
             frame = prims.fillet(frame, 1, kr, KNEE_STEPS)
             frame = prims.fillet(frame, 3 + KNEE_STEPS, cr, CORNER_STEPS)
             frame = prims.fillet(frame, 2 + KNEE_STEPS, cr, CORNER_STEPS)
-        prims.tube_path(mb, frame, tube["frame"], n_main, steel, caps=False)
+        prims.tube_path(mb, frame, tube["frame"], n_main, steel, caps=False, smooth=True)
         # the seat frame: two rear rails and a looped rail at each end
         for key in ("upper", "lower"):
             u, w = rr[key]
@@ -198,7 +208,7 @@ def build(spec, lod, stage, grip="detach"):
                            caps=(False, False))
         loop = el["path"] if lod == 0 else [el["path"][i] for i in (0, 1, 5, 6)]
         for v in el["v"]:
-            prims.tube_path(mb, [(m(u), m(v), m(w)) for u, w in loop], tube["seat"], n_seat, steel, caps=False)
+            prims.tube_path(mb, [(m(u), m(v), m(w)) for u, w in loop], tube["seat"], n_seat, steel, caps=False, smooth=True)
         prims.box(mb, mv(ch["clamp"]["lo"]), mv(ch["clamp"]["hi"]), steel)
         bk = ch["backrest"]
         plate(mb, bk["bottom"], bk["top"], bk["v"][0], bk["v"][1], bk["thick"], seat)
@@ -210,8 +220,11 @@ def build(spec, lod, stage, grip="detach"):
         for v in (vl, vr):
             prims.beam(mb, (m(top[0]), m(v), m(top[1])), (m(sf["path"][-1][0]), m(v), m(sf["path"][-1][1])), fd, fd,
                        steel, skip_ends=True)
+        bk = ch["backrest"]   # the backrest as a board (polish: the far chairs had none)
+        plate(mb, bk["bottom"], bk["top"], bk["v"][0], bk["v"][1], bk["thick"], seat)
     bn = ch["bench"]
-    plate(mb, bn["back"], bn["front"], bn["v"][0], bn["v"][1], bn["thick"], seat)
+    if lod <= 2:
+        plate(mb, bn["back"], bn["front"], bn["v"][0], bn["v"][1], bn["thick"], seat)
 
     # -- the grip ---------------------------------------------------------------------------------------------------
     if grip == "detach":
@@ -230,18 +243,18 @@ def build(spec, lod, stage, grip="detach"):
             for u in wh["u"]:
                 ty = wh["tyre"]
                 prims.cylinder(mb, (m(u), m(ty["v"][0]), m(wh["w"])), (m(u), m(ty["v"][1]), m(wh["w"])), m(ty["dia"]) / 2, 4,
-                               wheel_st, caps=(True, False))
+                               wheel_st, caps=(True, False), smooth=True)
             for c, ax, sp in springs(g):
                 s0, s1 = sp["seats"]["s"]
                 prims.cylinder(mb, tuple(c + ax * m(s0)), tuple(c + ax * m(s1)), m(sp["coilDia"] + sp["wire"]) / 2, 4, grip_st,
-                               caps=(False, False))
-        else:
+                               caps=(False, False), smooth=True)
+        elif lod == 2:
             prims.box(mb, (m(-277.0), m(-25.0), m(-68.0)), (m(277.0), m(380.0), m(99.0)), grip_st)
     else:   # the fixed grip every fixed-grip chair shares (fixed_grip.json)
         if lod <= 1:
             joint = parts.hanger_joint(hanger_rings, hanger_pts, r, steel) if lod == 0 else None
-            parts.fixed_grip(mb, lod, steel, dark=Style("trim_dark"), metal=Style("machined"), hanger=joint)
-        else:
+            parts.fixed_grip(mb, lod, grip_steel, dark=Style("trim_dark"), metal=Style("machined"), hanger=joint)
+        elif lod == 2:
             g = parts.fixed_grip_spec()
             prims.box(mb, (-m(g["tails"]["to"]) * 0.6, m(g["body"]["v"][0]), m(g["body"]["w"][0])),
                       (m(g["tails"]["to"]) * 0.6, m(g["bolt"]["v"][1]), m(g["body"]["w"][1])), grip_st)
