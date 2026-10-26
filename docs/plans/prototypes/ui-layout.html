@@ -3138,7 +3138,7 @@ body.solo .frame { border-radius: 0; }
   }
   function feedbackPanel() {
     const fb = S.modal.fb, prob = fb.kind === 'problem', ok = !!fb.title.trim();
-    if (fb.sent) return `<div class="modal" data-act="modalbg"><div class="pn fb" data-ui="feedback-sent"><div class="hd">Report saved<span class="x" data-act="modal">✕</span></div>
+    if (fb.sent) return `<div class="modal" data-act="modalbg"><div class="pn fb" data-ui="feedback-done"><div class="hd">Report saved<span class="x" data-act="modal">✕</span></div>
       <div class="file">report-20261025-1432.zip<small>${fbSize(fbTotal(fb))}</small></div>
       <ol><li>It's open in a folder window, and your browser has a new GitHub issue with the title and version filled in.</li>
       <li><b>Drag the file into the issue</b>, then click <b>Submit new issue</b>.</li></ol>
@@ -3170,7 +3170,7 @@ body.solo .frame { border-radius: 0; }
   }
   // The session's first error (P2-10's notice, now with Send logs), and the title's offer after a crash.
   function noticeHtml() {
-    if (S.notice === 'crash') return `<div class="notice" data-ui="crash-offer"><span>The game closed unexpectedly last time. Send a report?</span><div class="go" data-act="feedback" data-v="crash"><span>Send report</span></div><div class="ghost" data-act="notice">Not now</div></div>`;
+    if (S.notice === 'crash') return `<div class="notice" data-ui="crash-notice"><span>The game closed unexpectedly last time. Send a report?</span><div class="go" data-act="feedback" data-v="crash"><span>Send report</span></div><div class="ghost" data-act="notice">Not now</div></div>`;
     return `<div class="notice" data-ui="error-notice"><span>Something went wrong. A log was saved for a bug report.</span><div class="go" data-act="feedback" data-v="problem"><span>Send logs</span></div><div class="ghost" data-act="notice" data-v="open">Open folder</div><span class="x" data-act="notice">✕</span></div>`;
   }
   function saveDialog() {

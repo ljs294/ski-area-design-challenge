@@ -85,8 +85,7 @@ only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architec
 | Tree assets | `tools/assets/trees/` | Blender species pipeline, enforced budgets |
 | Lift assets | `tools/assets/lifts/` | Blender lift and snow gun pipeline, budgets, Lift Lab (demo 22/23) |
 | GPU lanes | `tools/gpu/` | Shared GPU queue: measure and render lanes |
-| Release | `tools/release/`, `release.bat` | Version from tag, error logs, zip, compile check |
-| Problem reports | `Persistence/Reports/`, `App/Flow/AppFlow.Report.cs`, `tools/reports/` | Send feedback zip, GitHub issues, demo 71, symbols |
+| Release, reports | `tools/release/`, `release.bat`, `tools/reports/` | Version from tag, error logs, zip, symbols, problem reports (demo 71) |
 | Benchmark | `Assets/MountainPlanner/Runtime/App/Benchmark/`, `tools/perf/`, `docs/perf/` | Fixed camera path, budgets, baselines |
 | Brand | `docs/brand/`, `tools/brand/`, `Art/UI/Brand/` | Twin Peaks marks, export, loading box and name plate |
 | Plans | `docs/plans/` | Roadmap and phase plans |
