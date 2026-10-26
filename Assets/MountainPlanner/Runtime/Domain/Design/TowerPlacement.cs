@@ -606,27 +606,54 @@ namespace MountainPlanner.Domain.Design
                 best[e] = spanCost[e] + over;
             }
             var order = new List<int>();
+            int widest = 0;
+            for (int i = 0; i < n; i++) widest = Math.Max(widest, into[i].Count);
+            var inBest = new double[widest];
+            var inAngle = new double[widest];
+            var inLength = new double[widest];
             for (int v = 1; v < end; v++)
             {
                 var o = outs[v];
-                // The cheapest ways in first: the rest mostly stop at the first comparison, before the bend's sums.
+                // The ways in, cheapest first. For each way on, once a way in can't beat the best found even before its bend
+                // is counted, none after it can (they cost more), so the search stops there: most pairs are never weighed.
+                // Ties go to the earlier way in, as before, so the plan is the same.
                 order.Clear();
-                order.AddRange(into[v]);
+                foreach (int e in into[v]) if (!double.IsPositiveInfinity(best[e])) order.Add(e);
                 order.Sort((x, y) => best[x].CompareTo(best[y]) != 0 ? best[x].CompareTo(best[y]) : x.CompareTo(y));
-                foreach (int e in order)
+                // The ways in laid out flat, and the head's limits at v read once (the inner loop runs a million times a mile).
+                int m = order.Count;
+                for (int j = 0; j < m; j++)
                 {
-                    double be0 = best[e];
-                    if (double.IsPositiveInfinity(be0)) continue;
-                    double a1 = spanAngle[e], l1 = spanLength[e];
-                    for (int k = 0; k < o.Length; k++)
+                    int e = order[j];
+                    inBest[j] = best[e];
+                    inAngle[j] = spanAngle[e];
+                    inLength[j] = spanLength[e];
+                }
+                double sL = sagL[v], sE = sagE[v], mL = minL[v], mE = minE[v], cL = capL[v], cE = capE[v], c4L = cap4L[v], c4E = cap4E[v];
+                for (int k = 0; k < o.Length; k++)
+                {
+                    int f = o[k];
+                    double cost = spanCost[f], a2 = spanAngle[f], l2 = spanLength[f], bf = best[f];
+                    int from0 = -1;
+                    for (int j = 0; j < m; j++)
                     {
-                        int f = o[k];
-                        double c = be0 + spanCost[f];
-                        if (c >= best[f]) continue;
-                        c += Over(Excess(v, a1, l1, spanAngle[f], spanLength[f]));
-                        if (c >= best[f]) continue;
-                        best[f] = c;
-                        prev[f] = e;
+                        double c = inBest[j] + cost;
+                        if (c >= bf) break;
+                        // Excess (above), inlined.
+                        double turn = a2 - inAngle[j], run = inLength[j] + l2;
+                        double bl = turn - sL * run, be = turn - sE * run, over;
+                        if (bl <= -mL && be <= -mE) over = Math.Max(-bl - cL, -be - cE);
+                        else if (bl >= mL && be >= mE) over = Math.Max(bl - cL, be - cE);
+                        else over = Math.Max(Math.Abs(bl) - c4L, Math.Abs(be) - c4E);
+                        if (over > 0) c += Over(over);
+                        if (c >= bf) continue;
+                        bf = c;
+                        from0 = j;
+                    }
+                    if (from0 >= 0)
+                    {
+                        best[f] = bf;
+                        prev[f] = order[from0];
                     }
                 }
             }
