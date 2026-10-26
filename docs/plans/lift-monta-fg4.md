@@ -14,8 +14,8 @@ The model stays local and unnamed; we measured it and built our own. The lift ca
 
 | Asset | Triangles (LOD0/1/2/3) | What it is |
 |---|---|---|
-| **Drive terminal** (`monta_fg4_drive`) | 20,338 / 9,562 / 2,050 / 394 | The bottom (loading) station: twin tubular booms, a ribbed rounded hood with a window band over the bullwheel, inclined legs on two piers, and our sheave trains. The rope leaves climbing over a hold-down row |
-| **Return terminal** (`monta_fg4_return`) | 3,636 / 1,820 / 944 / 360 | The top station: an exposed bullwheel on an H-section column and a diagonal strut, with a cross arm and deflection sheaves |
+| **Drive terminal** (`monta_fg4_drive`) | 20,404 / 9,628 / 2,084 / 360 | The bottom (loading) station: twin tubular booms, a ribbed rounded hood with a window band over the bullwheel, inclined legs on two piers, and our sheave trains. The rope leaves climbing over a hold-down row |
+| **Return terminal** (`monta_fg4_return`) | 3,640 / 1,824 / 948 / 244 | The top station: an exposed bullwheel on an H-section column and a diagonal strut, with a cross arm and deflection sheaves |
 
 - **Bottom drive:** the drive loads (`chair_load`) and the return unloads (`chair_unload`). Loaded chairs still
   ride up the right rope.

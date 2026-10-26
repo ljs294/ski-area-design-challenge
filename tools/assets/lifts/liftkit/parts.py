@@ -447,11 +447,12 @@ def bullwheel_spec(common):
     return spec
 
 
-def bullwheel(mb, center, spec, lod, style):
+def bullwheel(mb, center, spec, lod, style, plate_snow=0.7, fan_caps=False):
     """Horizontal bullwheel (vertical axle through center at rope elevation).
 
     spec (metres): pitch (rope circle diameter), rimTop/rimBottom (w relative to rope), plateOuter/plateInner
-    (top annulus diameters), plateThick, hubDia, hubBottom/hubTop (relative), spokes, spokeWidth, spokeDepth."""
+    (top annulus diameters), plateThick, hubDia, hubBottom/hubTop (relative), spokes, spokeWidth, spokeDepth.
+    plate_snow: the top plate's snow (0 under a hood); fan_caps: the hub's caps as fans (no AO streaks)."""
     c = vec(center)
     n = sides(lod, 64, 32, 16, 8)
     rp = spec["pitch"] / 2
@@ -472,24 +473,25 @@ def bullwheel(mb, center, spec, lod, style):
             prims.lathe(mb, c, W, [(rp + 0.012, -0.018), (rp + 0.002, -0.01), (rp + 0.002, 0.01), (rp + 0.012, 0.018)], n, liner, closed=False)
         # top annulus plate
         plate = [(ri, p_lo), (spec["plateOuter"] / 2, p_lo), (spec["plateOuter"] / 2, p_hi), (ri, p_hi)]
-        prims.lathe(mb, c, W, plate, n, st.but(snow=0.7))
+        prims.lathe(mb, c, W, plate, n, st.but(snow=plate_snow))
     else:
-        prims.lathe(mb, c, W, [(ri, bot), (spec["plateOuter"] / 2, bot), (spec["plateOuter"] / 2, p_hi), (ri, p_hi)], n, st.but(snow=0.7))
+        prims.lathe(mb, c, W, [(ri, bot), (spec["plateOuter"] / 2, bot), (spec["plateOuter"] / 2, p_hi), (ri, p_hi)], n, st.but(snow=plate_snow))
         if lod >= 3:
             return
     # hub: a drawn base, flange and shaft where given, else a plain drum
     hub = spec.get("hub")
     if hub and lod <= 1:
         hs = sides(lod, 24, 16)
-        prims.cylinder(mb, c + W * hub["baseBottom"], c + W * hub["baseTop"], hub["baseDia"] / 2, hs, st)
-        prims.cylinder(mb, c + W * hub["flangeBottom"], c + W * hub["flangeTop"], hub["flangeDia"] / 2, hs, st)
-        prims.cylinder(mb, c + W * hub["flangeTop"], c + W * hub["shaftTop"], hub["shaftDia"] / 2, sides(lod, 12, 8), st.but(cls="machined"))
+        prims.cylinder(mb, c + W * hub["baseBottom"], c + W * hub["baseTop"], hub["baseDia"] / 2, hs, st, fan_caps=fan_caps)
+        prims.cylinder(mb, c + W * hub["flangeBottom"], c + W * hub["flangeTop"], hub["flangeDia"] / 2, hs, st, fan_caps=fan_caps)
+        prims.cylinder(mb, c + W * hub["flangeTop"], c + W * hub["shaftTop"], hub["shaftDia"] / 2, sides(lod, 12, 8), st.but(cls="machined"),
+                       fan_caps=fan_caps)
         hr = hub["flangeDia"] / 2
         spoke_w = (hub["flangeBottom"] + hub["flangeTop"]) / 2
     else:
         hr = spec["hubDia"] / 2
         hb, ht = spec["hubBottom"], spec["hubTop"]
-        prims.cylinder(mb, c + W * hb, c + W * ht, hr, sides(lod, 24, 16, 8), st)
+        prims.cylinder(mb, c + W * hb, c + W * ht, hr, sides(lod, 24, 16, 8), st, fan_caps=fan_caps)
         spoke_w = hb + (ht - hb) * 0.35
     # spokes (sloping from the hub up to the rim), I-section at LOD0, boxes further out
     k = spec["spokes"] if lod <= 1 else spec["spokes"] // 2

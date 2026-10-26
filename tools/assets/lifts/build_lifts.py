@@ -66,10 +66,10 @@ def stopped(rng, stop):
 
 def ao_options(kind, assets):
     """(ground plane?, stacking section height or None) for an asset's AO bake. The ground plane only goes under what
-    stands on it at its own 0.00 (contract M5, finding #9): heads sit on a mast, Sessellift terminals on a pier of
-    any height; a mast section is baked between its neighbours (a cast-only ghost section above and one below, so
+    stands on it at its own 0.00 (contract M5, finding #9): heads sit on a mast, the D6's terminals on piers of any
+    height (the FGQ-4's are baked at their standard grade, polish 2026-10-23); a mast section is baked between its neighbours (a cast-only ghost section above and one below, so
     both ends get the same light)."""
-    ground = kind not in ("tower_head", "tower_head_wide", "tower_mast", "chair", "chair_detach", "terminal_footing")         and not (kind == "terminal" and "pier_top" in assets[0].sockets)         and not (kind == "terminal_detach" and "pier_top_1" in assets[0].sockets)
+    ground = kind not in ("tower_head", "tower_head_wide", "tower_mast", "chair", "chair_detach", "terminal_footing")         and not (kind == "terminal_detach" and "pier_top_1" in assets[0].sockets)
     return ground, (assets[0].sockets["top"][2] if kind == "tower_mast" else None)
 
 
@@ -193,16 +193,19 @@ def main():
         export.export_fbx(objs, path)
         own = spec if name in TOWER else spec_for(mod)
         problems = check_asset(kind, assets, rep, budgets, own, split)
-        if getattr(mod, "CHAIR", None):   # a detachable terminal: send its chair through the station (liftkit/fit.py)
+        if getattr(mod, "CHAIR", None):   # a terminal or a wide head: send its chair through (liftkit/fit.py)
             t_fit = time.time()
-            cmod = importlib.import_module(mod.CHAIR)
+            cname, _, cvar = mod.CHAIR.partition(":")   # "module" or "module:variant" (the Chairworks fixed chair)
+            cmod = importlib.import_module(cname)
+            cargs = (cvar,) if cvar else ()
             fp = []
             if kind == "tower_head_wide":   # the chair past the head on both ropes (towers, Gate 1)
                 ls = __import__("liftkit.parts", fromlist=["line_spec"]).line_spec(spec_for(mod))
                 fp, _ = fit.tower(assets[0], cmod.build(spec_for(cmod), 0, stage), ls["ropeR"], ls["sheave"]["dia"] / 2)
             else:
-                for lod in range(min(len(assets), 3)):   # every LOD the chairs are drawn against in the station (round 4)
-                    lp, _ = fit.station(assets[lod], cmod.build(spec_for(cmod), lod, stage))
+                check = fit.station if getattr(assets[0], "paths", {}).get("chairs") else fit.fixed   # fixed grips: round the wheel
+                for lod in range(min(len(assets), 3 if check is fit.station else 2)):   # every LOD chairs pass up close
+                    lp, _ = check(assets[lod], cmod.build(spec_for(cmod), lod, stage, *cargs))
                     fp += [f"LOD{lod} {p}" for p in lp]
             problems += fp
             print(f"{aid}: fit in {time.time() - t_fit:.1f} s: " + ("clear" if not fp else f"{len(fp)} problems"), flush=True)
