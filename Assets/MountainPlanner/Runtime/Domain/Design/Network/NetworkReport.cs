@@ -37,15 +37,92 @@ namespace MountainPlanner.Domain.Design
             public NetworkWarning Warning => !Served ? NetworkWarning.NoLiftServes : LeadsNowhere ? NetworkWarning.LeadsNowhere : NetworkWarning.None;
         }
 
+        /// <summary>
+        /// What a descent from one node reaches (NW-13; owner findings 2, 4, 5 and 7): trail segments and paths, never a
+        /// lift. Lists are in the graph's order (segments) or ID order (trails, lifts, nodes).
+        /// </summary>
+        public sealed class Reach
+        {
+            /// <summary>The reached trail segments, as indices into <see cref="NetworkGraph.Edges"/> (finding 4: a trail met
+            /// partway is reached only below the meeting).</summary>
+            public IReadOnlyList<int> Segments { get; internal set; }
+            /// <summary>Trails with any reached segment.</summary>
+            public IReadOnlyList<TrailId> Trails { get; internal set; }
+            /// <summary>Lifts whose bottom the descent reaches (finding 5). They aren't ridden (NT10).</summary>
+            public IReadOnlyList<LiftId> Lifts { get; internal set; }
+            /// <summary>Every node reached, the start included.</summary>
+            public IReadOnlyList<ulong> Nodes { get; internal set; }
+
+            public static readonly Reach Nothing = new Reach
+            {
+                Segments = Array.Empty<int>(), Trails = Array.Empty<TrailId>(), Lifts = Array.Empty<LiftId>(), Nodes = Array.Empty<ulong>(),
+            };
+        }
+
         public IReadOnlyList<LiftStatus> Lifts { get; }
         public IReadOnlyList<TrailStatus> Trails { get; }
         public NetworkGraph Graph { get; }
 
-        NetworkReport(NetworkGraph graph, LiftStatus[] lifts, TrailStatus[] trails)
+        readonly ulong _seed;
+        readonly Dictionary<ulong, List<int>> _down;
+        readonly Dictionary<ulong, LiftId> _bottoms;
+
+        NetworkReport(NetworkGraph graph, ulong seed, Dictionary<ulong, List<int>> down, Dictionary<ulong, LiftId> bottoms,
+                      LiftStatus[] lifts, TrailStatus[] trails)
         {
             Graph = graph;
+            _seed = seed;
+            _down = down;
+            _bottoms = bottoms;
             Lifts = lifts;
             Trails = trails;
+        }
+
+        /// <summary>A descent from <paramref name="node"/> (finding 7: any node); nothing for a node not in the graph.</summary>
+        public Reach ReachFrom(ulong node) => Graph.TryGetNode(node, out _) ? Search(Graph, _down, _bottoms, node) : Reach.Nothing;
+
+        /// <summary>A descent from the lift's top (NW-13).</summary>
+        public Reach ReachFrom(LiftId lift) => ReachFrom(DesignNetwork.LiftTopNode(_seed, lift));
+
+        /// <summary>A descent from the trail's head: the start of its first segment (finding 2).</summary>
+        public Reach ReachFrom(TrailId trail)
+        {
+            var edges = Graph.Edges;
+            // Edges are sorted by kind, owner, then start, so a trail's first segment is the one from its head.
+            for (int i = 0; i < edges.Count; i++)
+                if (edges[i].Kind == EdgeKind.TrailSegment && edges[i].Owner == trail.Value) return ReachFrom(edges[i].From);
+            return Reach.Nothing;
+        }
+
+        static Reach Search(NetworkGraph graph, Dictionary<ulong, List<int>> down, Dictionary<ulong, LiftId> bottoms, ulong start)
+        {
+            var edges = graph.Edges;
+            var visited = new HashSet<ulong> { start };
+            var queue = new Queue<ulong>();
+            queue.Enqueue(start);
+            var segments = new List<int>();
+            var trails = new SortedSet<TrailId>();
+            var lifts = new SortedSet<LiftId>();
+            while (queue.Count > 0)
+            {
+                ulong n = queue.Dequeue();
+                if (n != start && bottoms.TryGetValue(n, out var lift)) lifts.Add(lift);
+                if (!down.TryGetValue(n, out var outs)) continue;
+                foreach (int i in outs)
+                {
+                    var e = edges[i];
+                    if (e.Kind == EdgeKind.TrailSegment)
+                    {
+                        segments.Add(i);
+                        trails.Add(new TrailId(e.Owner));
+                    }
+                    if (visited.Add(e.To)) queue.Enqueue(e.To);
+                }
+            }
+            segments.Sort();
+            var nodes = new List<ulong>(visited);
+            nodes.Sort();
+            return new Reach { Segments = segments, Trails = new List<TrailId>(trails), Lifts = new List<LiftId>(lifts), Nodes = nodes };
         }
 
         public int LiftWarnings
@@ -107,40 +184,21 @@ namespace MountainPlanner.Domain.Design
                 list.Add(i);
             }
 
-            var served = new HashSet<ulong>();
-            var liftList = new List<LiftStatus>();
-            var visited = new HashSet<ulong>();
-            var queue = new Queue<ulong>();
             var lifts = new List<Lift>(doc.Lifts);
             lifts.Sort((a, b) => a.Id.CompareTo(b.Id));
+            var bottoms = new Dictionary<ulong, LiftId>();
+            foreach (var lift in lifts)
+                if (lift.Stage == WorkStage.Built) bottoms[DesignNetwork.LiftBottomNode(doc.Seed, lift.Id)] = lift.Id;
+
+            var served = new HashSet<ulong>();
+            var liftList = new List<LiftStatus>();
             foreach (var lift in lifts)
             {
                 if (lift.Stage != WorkStage.Built) continue;
-                ulong top = DesignNetwork.LiftTopNode(doc.Seed, lift.Id);
-                visited.Clear();
-                queue.Clear();
-                var reached = new SortedSet<TrailId>();
-                bool connected = false;
-                visited.Add(top);
-                queue.Enqueue(top);
-                while (queue.Count > 0)
-                {
-                    ulong n = queue.Dequeue();
-                    if (n != top && graph.TryGetNode(n, out var node) && node.Kind == NodeKind.LiftBottom) connected = true;
-                    if (!down.TryGetValue(n, out var outs)) continue;
-                    foreach (int i in outs)
-                    {
-                        var e = edges[i];
-                        if (e.Kind == EdgeKind.TrailSegment)
-                        {
-                            reached.Add(new TrailId(e.Owner));
-                            served.Add(e.Owner);
-                        }
-                        if (visited.Add(e.To)) queue.Enqueue(e.To);
-                    }
-                }
-                // The top itself is a bottom only for a lift whose ends meet, which LF rules forbid; a descent must move.
-                liftList.Add(new LiftStatus { Lift = lift.Id, Connected = connected, Reaches = new List<TrailId>(reached) });
+                // A descent from the top; the top is a bottom only for a lift whose ends meet, which LF rules forbid.
+                var reach = Search(graph, down, bottoms, DesignNetwork.LiftTopNode(doc.Seed, lift.Id));
+                foreach (var t in reach.Trails) served.Add(t.Value);
+                liftList.Add(new LiftStatus { Lift = lift.Id, Connected = reach.Lifts.Count > 0, Reaches = reach.Trails });
             }
 
             // NT6: what each trail's last 30 ft meets.
@@ -164,7 +222,7 @@ namespace MountainPlanner.Domain.Design
                 if (t.Stage != WorkStage.Built || !lengths.ContainsKey(t.Id.Value)) continue;
                 trailList.Add(new TrailStatus { Trail = t.Id, Served = served.Contains(t.Id.Value), LeadsNowhere = !joinsAtTail.Contains(t.Id.Value) });
             }
-            return new NetworkReport(graph, liftList.ToArray(), trailList.ToArray());
+            return new NetworkReport(graph, doc.Seed, down, bottoms, liftList.ToArray(), trailList.ToArray());
         }
 
         static bool Joins(NetworkGraph graph, ulong node) =>

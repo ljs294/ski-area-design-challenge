@@ -73,6 +73,78 @@ namespace MountainPlanner.Tests
             Assert.That(report.Trails.Count, Is.EqualTo(0));
         }
 
+        /// <summary>Chair with Main down it, and Spur from the woods joining Main halfway down.</summary>
+        static DesignDocument SpurOntoMain(out LiftId chair, out TrailId main, out TrailId spur)
+        {
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            chair = AddLift(h, "Chair", P(0, 0), P(0, 3000));
+            main = AddTrail(h, "Main", P(20, 2990), P(20, 10));
+            var r = h.Submit(new AddTrail(h.Revision, "Spur", TrailSettings.GradedRun, Straight(P(1500, 3000), P(25, 1500), 60),
+                                          P(1500, 3000), P(25, 1500), WorkStage.Built));
+            Assert.That(r.Accepted, Is.True, r.ToString());
+            spur = new TrailId(r.Created[0]);
+            return h.Document;
+        }
+
+        [Test]
+        public void NW13_Finding4_ATrailMetPartwayIsReachedOnlyBelowTheMeeting()
+        {
+            var doc = SpurOntoMain(out _, out var main, out var spur);
+            var report = NetworkReport.Build(doc, new TrailNetworkGeometry(Site));
+            var reach = report.ReachFrom(spur);
+            var edges = report.Graph.Edges;
+            var mainSegments = Enumerable.Range(0, edges.Count).Where(i => edges[i].Kind == EdgeKind.TrailSegment && edges[i].Owner == main.Value).ToArray();
+            Assert.That(mainSegments.Length, Is.EqualTo(2), "Main is cut where Spur joins");
+            int upper = mainSegments.OrderBy(i => edges[i].StartMm).First(), lower = mainSegments.OrderBy(i => edges[i].StartMm).Last();
+            Assert.That(reach.Segments, Does.Contain(lower), "below the junction");
+            Assert.That(reach.Segments, Does.Not.Contain(upper), "no skiing up Main from the junction");
+            Assert.That(reach.Trails, Is.EquivalentTo(new[] { main, spur }));
+        }
+
+        [Test]
+        public void NW13_Finding5_ATrailReachesTheLiftAtItsBottomButDoesntRideIt()
+        {
+            var doc = SpurOntoMain(out var chair, out var main, out var spur);
+            var report = NetworkReport.Build(doc, new TrailNetworkGeometry(Site));
+            var reach = report.ReachFrom(spur);
+            Assert.That(reach.Lifts, Is.EqualTo(new[] { chair }), "Main ends at Chair's bottom");
+            var upper = report.Graph.Edges.Select((e, i) => (e, i)).Where(x => x.e.Kind == EdgeKind.TrailSegment && x.e.Owner == main.Value)
+                .OrderBy(x => x.e.StartMm).First().i;
+            Assert.That(reach.Segments, Does.Not.Contain(upper), "NT10: Chair's top isn't reached by riding it");
+            Assert.That(report.ReachFrom(chair).Lifts, Is.EqualTo(new[] { chair }), "a lift's own bottom counts (NW-03)");
+        }
+
+        [Test]
+        public void NW13_Finding7_AnyNodeCanBeTheStart()
+        {
+            var doc = SpurOntoMain(out var chair, out var main, out _);
+            var report = NetworkReport.Build(doc, new TrailNetworkGeometry(Site));
+            var junction = report.Graph.Nodes.Single(n => n.Kind == NodeKind.Junction).Id;
+            var fromJunction = report.ReachFrom(junction);
+            Assert.That(fromJunction.Trails, Is.EqualTo(new[] { main }));
+            Assert.That(fromJunction.Lifts, Is.EqualTo(new[] { chair }));
+            Assert.That(fromJunction.Nodes, Does.Contain(junction), "the start is reached");
+
+            var fromBottom = report.ReachFrom(DesignNetwork.LiftBottomNode(doc.Seed, chair));
+            Assert.That(fromBottom.Segments, Is.Empty, "nothing runs downhill from a lift's bottom");
+            Assert.That(fromBottom.Lifts, Is.Empty);
+            Assert.That(report.ReachFrom(12345UL).Nodes, Is.Empty, "a node not in the graph");
+        }
+
+        [Test]
+        public void NW13_Finding7_APathEndReachesAcrossThePath()
+        {
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var a = AddTrail(h, "A", P(0, 3000), P(0, 0));
+            var b = AddTrail(h, "B", P(120, 3000), P(120, 0));   // a 20 ft gap
+            var report = NetworkReport.Build(h.Document, new TrailNetworkGeometry(Site));
+            var ends = report.Graph.Nodes.Where(n => n.Kind == NodeKind.PathEnd).ToArray();
+            Assert.That(ends.Length, Is.EqualTo(2));
+            var reach = report.ReachFrom(ends[0].Id);
+            Assert.That(reach.Nodes, Does.Contain(ends[1].Id), "PA-06: level, so both ways");
+            Assert.That(reach.Trails, Is.EquivalentTo(new[] { a, b }));
+        }
+
         [Test]
         public void NW08_NT9_ASegmentIsRatedOnItsOwnStations()
         {
