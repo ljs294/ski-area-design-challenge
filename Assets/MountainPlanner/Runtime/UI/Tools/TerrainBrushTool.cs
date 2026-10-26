@@ -101,6 +101,9 @@ namespace MountainPlanner.UI.Tools
         /// <summary>The ground with the pending strokes on it (tests).</summary>
         public TerrainEdits PendingGround => _pending;
 
+        /// <summary>The pane's running bill, or the review once Break ground opens it (tests, captures).</summary>
+        public ReviewModel Bill => _review;
+
         /// <summary>The review is being worked out (tests, captures).</summary>
         public bool Analysing => _analysing;
 
@@ -241,18 +244,52 @@ namespace MountainPlanner.UI.Tools
                 TerrainToolMode.Smooth => "Left smooths the ground under the brush.",
                 _ => "Right-click sets the target; drag from the start to slope to it.",
             });
-            _review.Clear();
-            if (_session.Count > 0)
-            {
-                _review.Add("Cut · fill", $"{ToolFormat.Volume(_cut)} · {ToolFormat.Volume(_fill)}", "TB-09: so far, pending")
-                       .Add("Cleared of trees", ToolFormat.Area(_cleared), "TB-10: ground moved 1 ft or more");
-                if (_held.Count > 0) _review.Warn($"Held {HeldWords(_held)}", "TB-10 to TB-13");
-            }
-            _review.Ready(_session.Count > 0, false);
-            w.ShowReview(_review);
+            _billKey = null;
+            ShowBill();
             w.SetPlanAlwaysLive(false);
             if (_ctx.Earthwork != null && !_ctx.Earthwork.Ready) w.SetMessage("Getting the ground ready…", true);
             else w.SetMessage(null);
+        }
+
+        /// <summary>How often the bill counts up while you drag (BR14): bounded, never per frame.</summary>
+        const float BillSeconds = 0.2f;
+        float _billClock;
+        string _billKey;
+        readonly HashSet<Hold> _billHeld = new HashSet<Hold>();
+
+        /// <summary>
+        /// The running bill (TB-09): the pending strokes plus the one being painted, so cut and fill count up as you drag
+        /// (BR14). Redrawn only when a figure it shows changes.
+        /// </summary>
+        void ShowBill()
+        {
+            double cut = _cut, fill = _fill;
+            int cleared = _cleared;
+            _billHeld.Clear();
+            _billHeld.UnionWith(_held);
+            if (_run != null)
+            {
+                _run.Volumes(out double c, out double f);
+                cut += c;
+                fill += f;
+                cleared += _run.ClearedCount;
+                foreach (var h in _run.Held()) _billHeld.Add(h);
+            }
+            bool any = _session.Count > 0 || _run != null;
+            string volumes = $"{ToolFormat.Volume(cut)} · {ToolFormat.Volume(fill)}", area = ToolFormat.Area(cleared);
+            string held = _billHeld.Count > 0 ? HeldWords(_billHeld) : null;
+            string key = any ? volumes + "|" + area + "|" + held + "|" + _session.Count : "";
+            if (key == _billKey) return;
+            _billKey = key;
+            _review.Clear();
+            if (any)
+            {
+                _review.Add("Cut · fill", volumes, "TB-09: so far, pending")
+                       .Add("Cleared of trees", area, "TB-10: ground moved 1 ft or more");
+                if (held != null) _review.Warn($"Held {held}", "TB-10 to TB-13");
+            }
+            _review.Ready(_session.Count > 0, false);
+            _ctx.Window.ShowReview(_review);
         }
 
         // ---------- painting ----------
@@ -296,6 +333,8 @@ namespace MountainPlanner.UI.Tools
                     if (held) Begin(input, lower, _carryStart);   // a long drag carries on as a new stroke (TB-14)
                 }
                 Live();
+                _billClock += input.DeltaSeconds;
+                if (_run != null && _billClock >= BillSeconds) { _billClock = 0; ShowBill(); }
             }
             if (!held || (_rightStroke ? input.RightRelease : input.Release)) Finish();
         }
@@ -365,6 +404,7 @@ namespace MountainPlanner.UI.Tools
             _run = new BrushRun(_settings, new EditedHeights(heights.Source, heights.Lattice, _pending), _ctx.Earthwork.Earthwork.Site, _fixed);
             _dabs = new List<BrushDab>(256);
             _clock = 0;
+            _billClock = 0;
             _pathMm = 0;
             _lastDab = input.Point;
             Dab(input.Point, 1000);

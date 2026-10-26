@@ -141,6 +141,27 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void BR14_CutAndFillCountUpWhileYouDrag()
+        {
+            _host.Choose(TerrainIds.Raise);
+            var tool = (TerrainBrushTool)_host.Active;
+            Assert.That(tool.Bill.Rows, Is.Empty, "no bill before the first stroke");
+            _host.Tick(At(0, 0, left: true, click: true));
+            var seen = new List<string>();
+            for (int t = 0; t < 45; t++)
+            {
+                _host.Tick(At(0, 0, left: true));
+                string v = tool.Bill.Rows.Count > 0 ? tool.Bill.Rows[0].Value : null;
+                if (v != null && (seen.Count == 0 || seen[seen.Count - 1] != v)) seen.Add(v);
+            }
+            Assert.That(tool.Pending, Is.EqualTo(0), "still held: nothing pending yet");
+            Assert.That(seen.Count, Is.GreaterThanOrEqualTo(3), "the cut · fill figure moves several times mid-drag: " + string.Join(", ", seen));
+            _host.Tick(At(0, 0, left: true, release: true));
+            Assert.That(tool.Pending, Is.EqualTo(1));
+            Assert.That(tool.Bill.Rows[0].Label, Is.EqualTo("Cut · fill"), "the bill stays once the stroke is pending");
+        }
+
+        [Test]
         public void TB08_CtrlZTakesBackTheLastPendingStroke()
         {
             _host.Choose(TerrainIds.Raise);

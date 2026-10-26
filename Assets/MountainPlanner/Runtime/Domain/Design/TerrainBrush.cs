@@ -391,7 +391,26 @@ namespace MountainPlanner.Domain.Design
         }
 
         /// <summary>TB-09: how many cells the stroke clears.</summary>
-        public int ClearedCount => ClearedCells().Count;
+        public int ClearedCount
+        {
+            get
+            {
+                // The same cells as ClearedCells, counted into one reused set: the running bill asks for it while you drag.
+                _countCells.Clear();
+                foreach (var p in _patches.Values)
+                    for (int at = 0; at < Count; at++)
+                    {
+                        if (Math.Abs((long)p.D[at] - p.D0[at]) < TerrainBrush.ClearMm) continue;
+                        int c = p.Key.FirstColumn + at % Side, r = p.Key.FirstRow + at / Side;
+                        for (int dr = -1; dr <= 0; dr++)
+                            for (int dc = -1; dc <= 0; dc++)
+                                if (!_ground.Edits.IsClearedAt(c + dc, r + dr)) _countCells.Add(((long)(r + dr) << 32) | (uint)(c + dc));
+                    }
+                return _countCells.Count;
+            }
+        }
+
+        readonly HashSet<long> _countCells = new HashSet<long>();
 
         /// <summary>Rounds n / d half away from zero (d &gt; 0).</summary>
         internal static long RoundDiv(long n, long d) => n >= 0 ? (n + d / 2) / d : -((-n + d / 2) / d);

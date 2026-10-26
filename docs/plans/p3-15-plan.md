@@ -1,6 +1,6 @@
 # Phase 3 task 15: terrain brush, plan (approved 2026-10-26)
 
-**Status:** approved by the owner on 2026-10-26 (rev 3; rev 4 adds close-up contours, BR13). Decisions BR1–BR13 in [phase0-decisions.md](phase0-decisions.md); rules TB-01–TB-14 and TW-02 v4 in [p3-02-design-rules.md](p3-02-design-rules.md).
+**Status:** approved by the owner on 2026-10-26 (rev 3; rev 4 adds close-up contours, BR13). Decisions BR1–BR14 in [phase0-decisions.md](phase0-decisions.md); rules TB-01–TB-14 and TW-02 v4 in [p3-02-design-rules.md](p3-02-design-rules.md).
 
 
 **Status (2026-10-26):** the plan docs (BR1–BR12, TB-01–TB-14, TW-02 v4) are committed. So are PR A (engine and save v4, 4406ff98), the mockup (7e71ec99) and PR B (fixed heads, 37d81677). All are local on `feature/p3-15-terrain-brush`; 647/647 engine-free tests pass and every Unity assembly compiles. Waiting on: your OK of the mockup, and the P3-10 relay about the shared earthwork file. **Rev 4 adds close-up contours (§ Close-up contours), at your request.**

@@ -226,6 +226,7 @@ echo     73 The game: Toolbox ^> Terrain (B Raise/Lower, L Flatten, O Smooth, G 
 echo        the target, [ ] diameter, , . strength, PgUp/PgDn target, Enter Break ground, then Enter to Confirm. Contours
 echo        come on while a brush is armed; zoom in and they go down to 10 ft. Try it beside a lift's terminal and under
 echo        its line: the brush stops at the pad, the chairs' clearance and a tower's limits, and towers re-height.
+echo        The pane's cut and fill count up while you drag.
 echo     73b The brush bench: live ground with a 60 ft and a 400 ft brush, the review and the confirm (measure lane).
 echo     73m The brush tour on Jackson Hole 2 km: a quad, then each brush beside and under it, with screenshots and a movie
 echo        (render lane; the movie is encoded after), into test-results\p3-15\tour.
@@ -979,6 +980,17 @@ goto done
 rem Task P3-15: the terrain brush in the real game. Always rebuilt, so the brushes on this branch are the ones you try.
 call :buildplayer
 if not exist "%GAME%" goto done
+echo.
+echo Open an area ^(Jackson Hole, the demo, is fine^), then T for the Toolbox and the Terrain tab:
+echo   B Raise/Lower: hold left to raise, right to lower; the ground moves as you hold, and the pane's Cut and fill
+echo     count up while you drag. [ ] diameter, , . strength.
+echo   L Flatten: right-click takes the target elevation under the pointer; left paints toward it ^(PgUp/PgDn +-1 ft^).
+echo   O Smooth: left smooths under the brush.
+echo   G Slope: right-click sets the target; drag with left to ramp to it. Pick the grade by rating; Shift+, / Shift+. +-1%%.
+echo   Ctrl+Z takes back the last stroke. Enter opens Break ground: cut, fill, trees, towers re-heighted, held places;
+echo     Enter again confirms ^(one undo step^). Esc with strokes pending asks, then puts the ground back.
+echo   Contours come on while a brush is armed: zoom in close for 20 ft and 10 ft lines.
+echo   Near a lift ^(build one on the Lifts tab first^): the brush stops at the pad, the chairs' clearance and a tower's limits.
 start "" "%GAME%"
 goto done
 

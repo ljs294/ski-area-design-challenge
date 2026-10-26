@@ -380,12 +380,15 @@ ground round lifts.
   path the target height runs from the start toward the target at the chosen grade and then holds at the target.
   Each point takes its distance along the path from its projection onto it, so the ramp is **level across** (the
   bench doctrine, GR-01). The grade is picked by rating (TD-03 bands: ● under 25%, ■ 25–40%, ◆ 40–60%, ◆◆ 60% and
-  up) and set by a slider inside the band (Shift+, / Shift+. ±1%).
+  up) and set by a slider inside the band (Shift+, / Shift+. ±1%). A target far from the ground makes a cut or fill
+  as deep as the limits allow, with steep side walls: the brush does what it's told, as CS2's does (BR14).
 - **TB-08, the session:** strokes stay pending while the ground moves live (BR5). Ctrl+Z takes back the last pending
   stroke; **Break ground** (Enter) opens the review and its Confirm puts every pending stroke in as one command and
   one undo step. Esc or ✕ with strokes pending asks first (CF-06) and puts the ground back.
 - **TB-09, the review:** cut, fill and the net import or export (yd³; m³ in metric), trees cleared, every tower whose
   height changes ("Tower 7: 45 → 52 ft"), and where the brush was held (TB-11 to TB-13). No money until Phase 4.
+  While painting, the pane's running bill counts the stroke in hand too: cut, fill, trees cleared and holds update
+  about five times a second as you drag (BR14).
 - **TB-10, limits:** brushes work only inside the area's core; no point moves more than **40 ft (12.2 m)** from
   natural ground, and a deeper existing cut is never pulled back; a cell a stroke moves **1 ft or more** is cleared of
   trees. Snow, slope and contours follow the new ground; there is no separate brushed look.
