@@ -48,7 +48,8 @@ namespace MountainPlanner.App.Edits
             Pipeline = pipeline;
             Preview = new PendingContourView(resort.Root.transform);
             Earthwork = new DesignEarthwork(pipeline.Heights.Source,
-                                            new EarthworkSite(pipeline.Heights.Lattice, resort.Frame.Origin.X, resort.Frame.Origin.Y));
+                                            new EarthworkSite(pipeline.Heights.Lattice, resort.Frame.Origin.X, resort.Frame.Origin.Y,
+                                                              CorePoints(pipeline.Heights.Lattice, resort)));
             Prime();
             History.Changed += OnChanged;
             Pipeline.LabelsChanged += labels => _resort.ContourLabels = labels;
@@ -75,6 +76,15 @@ namespace MountainPlanner.App.Edits
             var session = new TerrainEditSession(resort, history, pipeline);
             if (!history.Terrain.IsEmpty) await (session.Applying = pipeline.ApplyAsync(history.Terrain, ct));
             return session;
+        }
+
+        /// <summary>The area's core box as lattice points (SH-06, TB-10): where terrain brushes may work.</summary>
+        static PointRect CorePoints(EditLattice lattice, OpenedResort resort)
+        {
+            var core = resort.Core;
+            double ox = resort.Frame.Origin.X, oy = resort.Frame.Origin.Y;
+            return new PointRect((int)Math.Ceiling(ox + core.xMin - lattice.West), (int)Math.Ceiling(lattice.North - (oy + core.yMax)),
+                                 (int)Math.Floor(ox + core.xMax - lattice.West), (int)Math.Floor(lattice.North - (oy + core.yMin)));
         }
 
         void Prime()
@@ -127,6 +137,12 @@ namespace MountainPlanner.App.Edits
 
         /// <summary>Draws a tool's pending contours (task 08), from <see cref="PendingContours"/> segments in package metres.</summary>
         public void ShowPending(List<double> segments) => Preview.Show(segments, _resort.Frame);
+
+        /// <summary>
+        /// Lays edits that aren't the history's over the mountain (task 15: a terrain brush's pending strokes, or the
+        /// committed ground again on cancel). The history's next change lays its own edits as usual.
+        /// </summary>
+        public void Show(TerrainEdits edits) => Applying = Pipeline.ApplyAsync(edits);
 
         public void ClearPreview()
         {

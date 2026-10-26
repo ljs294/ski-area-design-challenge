@@ -70,6 +70,7 @@ namespace MountainPlanner.UI.Tools
             window.Window.CloseRequested = AllowClose;
             Active = tool;
             _asking = false;
+            ViewCamera.RightButtonClaimed = tool is IOwnsRightButton;
             // Tab hands the tool window the keyboard while a tool is armed, instead of opening Analysis (P3-06 Q7).
             KeyBindings.Claim(GameAction.ToolWindowKeys, true);
             tool.Arm(_ctx);
@@ -97,6 +98,7 @@ namespace MountainPlanner.UI.Tools
             try { tool.Disarm(); }
             finally
             {
+                ViewCamera.RightButtonClaimed = false;
                 ctx.Disarmed();
                 KeyBindings.ClearClaims();
                 ctx.Preview.Clear();

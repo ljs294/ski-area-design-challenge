@@ -25,6 +25,10 @@ namespace MountainPlanner.UI.Tools
             new Entry(NewTrailTool.ToolId, "s-trail", "new", () => new NewTrailTool()),
             new Entry(EditTrailTool.ToolId, "s-trail", "edit", () => new EditTrailTool()),       // task 08 (TF-07)
             new Entry(RemoveTrailTool.ToolId, "s-trail", "remove", () => new RemoveTrailTool()), // task 08 (TF-07, CL-07)
+            new Entry(TerrainIds.Raise, "s-raise", null, () => new RaiseLowerTool()),           // task 15 (TB-01)
+            new Entry(TerrainIds.Flatten, "s-flatten", null, () => new FlattenTool()),
+            new Entry(TerrainIds.Smooth, "s-smooth", null, () => new SmoothTool()),
+            new Entry(TerrainIds.Slope, "s-slope", null, () => new SlopeTool()),
         };
 
         public static IReadOnlyList<Entry> All => Entries;

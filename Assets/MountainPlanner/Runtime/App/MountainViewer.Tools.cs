@@ -21,7 +21,7 @@ namespace MountainPlanner.App
         PendingPreview _preview;
         TrailPaintMap _trailPaint;
         DesignOverlay _designOverlay;
-        bool _pressOnMap;
+        bool _pressOnMap, _rightOnMap;
 
         /// <summary>
         /// The design the tools work on: the open save's (task P3-04, <see cref="OpenDesign.Current"/>), or, when the
@@ -63,6 +63,7 @@ namespace MountainPlanner.App
             _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core)
             {
                 Earthwork = Ground, Lines = new TrailLineSnap(() => Ground?.Earthwork), Paint = _trailPaint,
+                LiveGround = Ground as ILiveGround,   // task 15's brushes
                 // Task 09: lifts build on the edited ground; the edit session starts the first time a tool asks for it.
                 EditedGround = () =>
                 {
@@ -178,7 +179,8 @@ namespace MountainPlanner.App
             }
         }
 
-        static readonly GameAction[] TrayLetters = { GameAction.ToolNew, GameAction.ToolEdit, GameAction.ToolRemove };
+        static readonly GameAction[] TrayLetters = { GameAction.ToolNew, GameAction.ToolEdit, GameAction.ToolRemove,
+                                                     GameAction.TerrainRaise, GameAction.TerrainFlatten, GameAction.TerrainSmooth, GameAction.TerrainSlope };
 
         static string Lower(string label) => string.IsNullOrEmpty(label) ? "" : char.ToLowerInvariant(label[0]) + label.Substring(1);
 
@@ -363,7 +365,7 @@ namespace MountainPlanner.App
         ToolInput GroundInput(Vector3 g, bool click)
         {
             g.y = _resort.Surface.HeightAt(g.x, g.z);
-            return new ToolInput { HasGround = true, Ground = g, Point = DesignFrame.ToDesign(g), InCore = _resort.Core.Contains(new Vector2(g.x, g.z)), Click = click };
+            return new ToolInput { HasGround = true, Ground = g, Point = DesignFrame.ToDesign(g), InCore = _resort.Core.Contains(new Vector2(g.x, g.z)), Click = click, DeltaSeconds = 1f / 30 };
         }
 
         /// <summary>For captures: New trail painted between two spots in the core, head and tail set, at its review.</summary>
@@ -439,7 +441,13 @@ namespace MountainPlanner.App
                 if (left.wasPressedThisFrame && !input.OverPanel) { _pressOnMap = true; input.Click = true; }
                 input.Drag = _pressOnMap && left.isPressed;
                 if (_pressOnMap && left.wasReleasedThisFrame) { input.Release = true; _pressOnMap = false; }
+                // Task 15 (BR4): the right button, for a tool that owns it.
+                var right = mouse.rightButton;
+                if (right.wasPressedThisFrame && !input.OverPanel && ViewCamera.RightButtonClaimed) { _rightOnMap = true; input.RightClick = true; }
+                input.RightDrag = _rightOnMap && right.isPressed;
+                if (_rightOnMap && right.wasReleasedThisFrame) { input.RightRelease = true; _rightOnMap = false; }
             }
+            input.DeltaSeconds = Time.unscaledDeltaTime;
             if (keys != null && !UiHasKeyboard())
             {
                 input.Erase = KeyBindings.Held(keys, GameAction.Erase);
@@ -460,6 +468,11 @@ namespace MountainPlanner.App
                 if (KeyBindings.PressedAnyShift(keys, GameAction.TowerSlideOn)) input.Keys |= ToolKeys.SlideOn;
                 if (KeyBindings.Pressed(keys, GameAction.TowerAdd)) input.Keys |= ToolKeys.AddTower;
                 if (KeyBindings.Pressed(keys, GameAction.TowerKind)) input.Keys |= ToolKeys.TowerKind;
+                // P3-15: the brushes' strength and target; Shift goes with them (a slope's grade, 10 ft steps).
+                if (KeyBindings.PressedAnyShift(keys, GameAction.BrushWeaker)) input.Keys |= ToolKeys.BrushWeaker;
+                if (KeyBindings.PressedAnyShift(keys, GameAction.BrushStronger)) input.Keys |= ToolKeys.BrushStronger;
+                if (KeyBindings.PressedAnyShift(keys, GameAction.TargetUp)) input.Keys |= ToolKeys.TargetUp;
+                if (KeyBindings.PressedAnyShift(keys, GameAction.TargetDown)) input.Keys |= ToolKeys.TargetDown;
                 input.Shift = keys.shiftKey.isPressed;
                 if (input.Shift && mouse != null && KeyBindings.IsClaimed(GameAction.TerminalTurnLeft) && !input.OverPanel)
                 {

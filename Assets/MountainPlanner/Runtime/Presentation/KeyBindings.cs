@@ -31,6 +31,9 @@ namespace MountainPlanner.Presentation
         TowerAdd,
         // P3-09 (LT44, second review E6): the selected tower's kind, round Auto, support, hold-down and combination.
         TowerKind,
+        // P3-15 (TB-01): the Terrain tab's letters; the brushes' strength (Shift: a Slope's grade) and target (TB-02, TB-07).
+        TerrainRaise, TerrainFlatten, TerrainSmooth, TerrainSlope,
+        BrushWeaker, BrushStronger, TargetUp, TargetDown,
     }
 
     [Flags]
@@ -184,6 +187,16 @@ namespace MountainPlanner.Presentation
             new Info("Building", "Add a tower", Context.Tray, new KeyChord(Key.Insert), whileClaimed: true),
             // P3-09 (LT44): K turns the selected tower's kind round; claimed while a tower is selected.
             new Info("Building", "Tower kind (Auto, support, hold-down, combination)", Context.Tray, new KeyChord(Key.K), whileClaimed: true),
+            // P3-15 (TB-01, TB-02): the Terrain tab's letters (they keep off W A S D, Q E, R F and C, TL19), then the brushes'
+            // keys, claimed while a brush is armed.
+            new Info("Toolbox", "Raise or lower ground", Context.Tray, new KeyChord(Key.B)),
+            new Info("Toolbox", "Flatten ground", Context.Tray, new KeyChord(Key.L)),
+            new Info("Toolbox", "Smooth ground", Context.Tray, new KeyChord(Key.O)),
+            new Info("Toolbox", "Slope ground", Context.Tray, new KeyChord(Key.G)),
+            new Info("Building", "Brush weaker (Shift: a gentler slope)", Context.Tray, new KeyChord(Key.Comma), whileClaimed: true),
+            new Info("Building", "Brush stronger (Shift: a steeper slope)", Context.Tray, new KeyChord(Key.Period), whileClaimed: true),
+            new Info("Building", "Target up 1 ft (Shift 10 ft)", Context.Tray, new KeyChord(Key.PageUp), whileClaimed: true),
+            new Info("Building", "Target down 1 ft (Shift 10 ft)", Context.Tray, new KeyChord(Key.PageDown), whileClaimed: true),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>

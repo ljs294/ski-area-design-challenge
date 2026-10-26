@@ -29,7 +29,7 @@ namespace MountainPlanner.Presentation.Edits
     /// Moving between any two edit sets (an edit, undo, redo, a load) gives the same result as opening with the later one,
     /// so undo restores byte-identical heights and the same trees. Changes apply one at a time, in the order asked.
     /// </summary>
-    public sealed class TerrainEditPipeline : IDisposable
+    public sealed partial class TerrainEditPipeline : IDisposable
     {
         /// <summary>Timings of one change, for the edit benchmark (CF-09).</summary>
         public struct Report

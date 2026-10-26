@@ -28,12 +28,20 @@ namespace MountainPlanner.UI
             "remove-lift" => "take a lift out",
             "edit-trail" => "repaint it, move its ends, regrade it",
             "remove-trail" => "put its ground and trees back",
+            TerrainIds.Raise => "left raises, right lowers",
+            TerrainIds.Flatten => "right-click a height, paint to it",
+            TerrainIds.Smooth => "take out the bumps",
+            TerrainIds.Slope => "right-click a height, drag a ramp to it",
             _ => "",
         };
 
         /// <summary>The tray letter's action for a tool id: New, Edit or Remove (the Lifts and Trails tabs).</summary>
         public static GameAction? ToolAction(string id) =>
-            id.StartsWith("new-", StringComparison.Ordinal) ? GameAction.ToolNew
+            id == TerrainIds.Raise ? GameAction.TerrainRaise
+            : id == TerrainIds.Flatten ? GameAction.TerrainFlatten
+            : id == TerrainIds.Smooth ? GameAction.TerrainSmooth
+            : id == TerrainIds.Slope ? GameAction.TerrainSlope
+            : id.StartsWith("new-", StringComparison.Ordinal) ? GameAction.ToolNew
             : id.StartsWith("edit-", StringComparison.Ordinal) ? GameAction.ToolEdit
             : id.StartsWith("remove-", StringComparison.Ordinal) ? GameAction.ToolRemove
             : (GameAction?)null;
@@ -41,6 +49,15 @@ namespace MountainPlanner.UI
         /// <summary>The tool a tray letter means in the open tab ("new-lift"), or null.</summary>
         public string ToolFor(GameAction action)
         {
+            if (_toolboxTab == "terrain")   // P3-15: the Terrain tab's own letters
+                return action switch
+                {
+                    GameAction.TerrainRaise => TerrainIds.Raise,
+                    GameAction.TerrainFlatten => TerrainIds.Flatten,
+                    GameAction.TerrainSmooth => TerrainIds.Smooth,
+                    GameAction.TerrainSlope => TerrainIds.Slope,
+                    _ => null,
+                };
             string noun = _toolboxTab == "lifts" ? "lift" : _toolboxTab == "trails" ? "trail" : null;
             if (noun == null) return null;
             return action switch

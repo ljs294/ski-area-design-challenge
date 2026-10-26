@@ -66,6 +66,12 @@ namespace MountainPlanner.Presentation
         /// which live across scene reloads, so the flow sets it once and the viewer's <see cref="PointerBlocked"/> stays its own.
         /// </summary>
         public static System.Func<Vector2, bool> OverlayBlocked;
+
+        /// <summary>
+        /// A Terrain brush owns the right button while it's armed (owner BR4, task 15): right-drag stops panning (WASD, the
+        /// arrows and middle-drag still move the view). The tool host sets it and clears it when the tool closes.
+        /// </summary>
+        public static bool RightButtonClaimed;
         /// <summary>
         /// Set by the viewer: true while the UI has the keyboard (the in-game menu or a dialog is open, or a HUD
         /// control was reached with Tab or the arrows), so the arrows and letters move focus there, not the camera.
@@ -208,7 +214,7 @@ namespace MountainPlanner.Presentation
             {
                 Vector2 delta = mouse.delta.ReadValue();
                 Vector2 pointer = mouse.position.ReadValue();
-                bool middle = mouse.middleButton.isPressed, rightDown = mouse.rightButton.isPressed;
+                bool middle = mouse.middleButton.isPressed, rightDown = mouse.rightButton.isPressed && !RightButtonClaimed;
                 if (!middle && !rightDown) _dragOnPanel = false;
                 else if (mouse.middleButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame)
                     _dragOnPanel |= IsPointerBlocked(pointer);

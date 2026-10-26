@@ -112,6 +112,13 @@ Live while a tool is armed, which happens only with the tray open. All rebindabl
 | Tab | The tool window takes the keyboard: the arrows walk its controls, Enter or Space presses one; Esc gives the keys back |
 | Esc | Back one step; at the first step the tool closes, asking first if anything is drawn (fixed) |
 | Left-click / left-drag | Place, paint (the tool's own button; right-drag still pans, middle-drag still turns) |
+| B / L / O / G | The Terrain tab's tools: Raise or lower, Flatten, Smooth, Slope (P3-15, TB-01; letters off W A S D, Q E, R F and C) |
+| [ / ] | Terrain brushes: diameter 5 ft narrower / wider (10–400 ft, TB-02) |
+| , / . | Terrain brushes: strength 5% weaker / stronger (TB-02); with Shift on Slope, the grade 1% gentler / steeper inside its rating (TB-07) |
+| Page Up / Page Down (Shift: 10 ft) | Flatten and Slope: the target elevation up or down 1 ft (TB-05, TB-07) |
+| Right-click / right-drag | Terrain brushes own the right button while armed (owner BR4): Raise/Lower lowers, Flatten and Slope take the target under the pointer; WASD, the arrows and middle-drag still move the view |
+| Enter | Terrain brushes: Break ground opens the review; in the review, Confirm (TB-08) |
+| Ctrl+Z | Terrain brushes: take back the last pending stroke (TB-08) |
 
 ## Removed from the keyboard
 
