@@ -782,8 +782,9 @@ Paths are automatic: you never draw one. They connect trails that come close wit
 
 - **NW-01, derived:** the ski network is rebuilt from lifts and trails on every load and edit, and never stored. The
   same design gives the same graph bytes (golden).
-- **NW-02, graph:**
-  - **Nodes:** lift tops and bottoms, trail heads and tails, junctions and path ends.
+- **NW-02, graph:** *v2 (task 10, owner NT13):* lift ends are stations (NW-14).
+  - **Nodes:** stations (NW-14), trail heads and tails, junctions and path ends.
+  - *v1:* lift tops and bottoms were nodes of their own.
   - **Edges:**
     - lifts go up;
     - trail segments (NW-08) go from head toward tail;
@@ -791,6 +792,8 @@ Paths are automatic: you never draw one. They connect trails that come close wit
   - Saved plans (CF-06) are left out.
 - **NW-03, lifts are the backbone:** there is no Guest Entrance in Phase 3. A built lift is **connected** when a
   descent from its top reaches some lift's bottom, its own included.
+  - *v2 (task 10, owner NT14):* a descent from its top's station reaches a station that holds a lift's bottom. A top
+    in a station with another lift's bottom is connected at once (a transfer: unload and ride on).
 - **NW-04, flags:** the NW-12 warnings show in review, in the Analysis network view and in the status bar's lift and
   trail counts.
 - **NW-05, measuring:** topology uses metres in the local frame (SH-03); reported lengths are horizontal, in ft.
@@ -802,6 +805,8 @@ Paths are automatic: you never draw one. They connect trails that come close wit
   - or two footprints overlap.
 
   It sits on each trail's centreline, at the snap point or nearest the overlap's middle.
+  - *v2 (task 10, owner NT13):* a trail that passes through a station (NW-14) is cut there, at its centreline's point
+    nearest the terminal; the station is that stop. A trail end in a station attaches to it (no 30 ft limit there).
 - **NW-08, segments:**
   - Each trail's centreline is cut at its junctions and path ends into **segments**, the network's edges.
   - Each segment has its own rating (TD-02 on its stations), kept for guests later. The player sees one rating per
@@ -821,6 +826,13 @@ Paths are automatic: you never draw one. They connect trails that come close wit
   - **"Leads nowhere":** a trail whose tail reaches no lift bottom, no other trail and no path.
 - **NW-13, seeing the network:** an **Analysis › Network** view lists each lift with its status. Selecting a lift
   highlights every trail reachable from its top.
+- **NW-14, stations (task 10, owner NT13–NT16, 2026-10-26):**
+  - Every built lift terminal has a **station** reaching **100 ft (30.5 m)** from its bullwheel point.
+  - Stations whose areas overlap (terminals within 200 ft) **merge** into one: a shared base or a transfer.
+  - A trail joins a station when its head or tail, or any part of its footprint, comes within the reach (NW-07 v2).
+  - The Network view draws a station as an area ring the size of its reach (NT15); placing a lift shows the ring round
+    its terminals as it goes, with the existing terminals' rings and the trails it would catch (NT16).
+  - TR-05's 30 ft snap while drawing is unchanged.
 
 ## 8. What the player already sees
 

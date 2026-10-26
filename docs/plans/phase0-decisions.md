@@ -552,3 +552,7 @@ The owner said "Go. Yes to all nine recommendations."
 | NT10 | **A trail's reach stops at the lifts it leads to** (owner, 2026-10-26, finding 5): a lift whose bottom the descent reaches lights as reached, but the highlight doesn't ride it |
 | NT11 | **Clearing a pick** (finding 6): Esc, a click on empty ground, or the card's ✕ |
 | NT12 | **The card and the legend share one right-hand column** (finding 3): the legend on top, folded to its title line while a card is open (▸ unfolds it), the card below |
+| NT13 | **Stations** (owner, 2026-10-26, from Kearsarge: Chair 5 built beside a run's middle, Chair 1 and 2 bottoms 157 ft apart): every terminal has a station reaching 100 ft; overlapping stations merge; a trail joins a station when its end or footprint comes within the reach (NW-14, NW-02/03/07 v2) |
+| NT14 | **A transfer counts:** a lift whose top sits in a station with another lift's bottom has a way down |
+| NT15 | **A station looks like an area ring** in the Network view: a soft circle the size of its reach, the terminal circles inside; mockup first |
+| NT16 | **The catchment ring while placing a lift** ("just like placing service buildings in Cities: Skylines 2"): the terminals being placed show their 100 ft ring, existing terminals theirs fainter, and the trails it would catch light up; mockup first |

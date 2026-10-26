@@ -56,6 +56,17 @@ namespace MountainPlanner.Presentation.Design
 
         public struct Link { public Vector3 A, B; }
 
+        /// <summary>One terminal's part of a station's area (NW-14, NT15): its station, its lift, the terminal and the
+        /// area's rim draped over the ground (closed: the last point repeats the first).</summary>
+        public struct StationArea
+        {
+            public ulong Station, Lift;
+            /// <summary>A terminal being placed (NT16): a blue area in a dashed white ring, lit whatever the pick.</summary>
+            public bool Candidate;
+            public Vector3 Centre;
+            public Vector3[] Rim;
+        }
+
         /// <summary>A dead end's bar: where the run ends, and its direction there.</summary>
         public struct DeadEnd { public Vector3 At, Dir; }
 
@@ -70,6 +81,10 @@ namespace MountainPlanner.Presentation.Design
         // The mockup's colours (sRGB; turned linear for the vertices).
         static readonly Color Lift = Hex(0xe0483a), Run = Hex(0xdfe8ee), Warn = Hex(0xf0b43c), Off = Hex(0x6d7378);
         static readonly Color Halo = new Color(12 / 255f, 14 / 255f, 16 / 255f, 0.85f), White = Color.white;
+        // A station's area (NT15): lit while it's picked or reached, grey under someone else's pick.
+        static readonly Color AreaRing = WithAlpha(Hex(0xff8f80), 0.8f), AreaFill = WithAlpha(Hex(0x4a2622), 0.8f);
+        static readonly Color AreaRingOff = WithAlpha(Hex(0x77736d), 0.5f), AreaFillOff = WithAlpha(Hex(0x2a2a2a), 0.5f);
+        static readonly Color CandidateFill = WithAlpha(Hex(0x3aa0ff), 0.28f), CandidateEdge = Hex(0x123a66);
         const float NodePickPixels = 8, LinePickPixels = 8;
 
         readonly GameObject _root;
@@ -84,20 +99,22 @@ namespace MountainPlanner.Presentation.Design
         Node[] _nodes = Array.Empty<Node>();
         Link[] _links = Array.Empty<Link>();
         DeadEnd[] _deadEnds = Array.Empty<DeadEnd>();
+        StationArea[] _areas = Array.Empty<StationArea>();
 
         int _pickEdge = -1, _hoverEdge = -1;
         ulong _pickLift, _pickNode, _hoverLift, _hoverNode, _rowTrail;
         readonly HashSet<int> _reachSegments = new HashSet<int>();
         readonly HashSet<ulong> _reachLifts = new HashSet<ulong>();
+        readonly HashSet<ulong> _reachNodes = new HashSet<ulong>(), _litAreas = new HashSet<ulong>();
         bool _picked, _dirty = true, _visible;
         Vector3 _lastEye;
         Quaternion _lastTurn;
         float _lastFov;
         int _lastHeight;
 
-        public NetworkView(Transform parent)
+        public NetworkView(Transform parent, string name = "Network view")
         {
-            _root = new GameObject("Network view");
+            _root = new GameObject(name);
             _root.transform.SetParent(parent, false);
             _mesh = new Mesh { name = "Network diagram", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             _mesh.MarkDynamic();
@@ -127,8 +144,9 @@ namespace MountainPlanner.Presentation.Design
         public int VertexCount => _vertices.Count;
 
         /// <summary>The network to draw (rebuilt with the design, never per frame).</summary>
-        public void Set(Segment[] segments, LiftLine[] lifts, Node[] nodes, Link[] links, DeadEnd[] deadEnds)
+        public void Set(Segment[] segments, LiftLine[] lifts, Node[] nodes, Link[] links, DeadEnd[] deadEnds, StationArea[] areas = null)
         {
+            _areas = areas ?? Array.Empty<StationArea>();
             _segments = segments ?? Array.Empty<Segment>();
             _lifts = lifts ?? Array.Empty<LiftLine>();
             _nodes = nodes ?? Array.Empty<Node>();
@@ -137,9 +155,24 @@ namespace MountainPlanner.Presentation.Design
             _dirty = true;
         }
 
-        /// <summary>The pick and what it reaches; nothing picked when every pick is empty.</summary>
-        public void SetPick(int edge, ulong lift, ulong node, IEnumerable<int> segments, IEnumerable<ulong> lifts)
+        /// <summary>
+        /// The lift tool's catchment (NT16), drawn on the trail map: the built terminals' areas faint, the terminals in
+        /// hand as <see cref="StationArea.Candidate"/> areas, and the trails they'd gather lit in their own colours.
+        /// </summary>
+        public void SetCatchment(Segment[] gathered, StationArea[] areas)
         {
+            Set(gathered, null, null, null, null, areas);
+            var edges = new List<int>();
+            foreach (var s in _segments) edges.Add(s.Edge);
+            SetPick(-1, 0, 0, edges, null);
+            _picked = true;   // the built areas faint, the gathered trails lit
+        }
+
+        /// <summary>The pick and what it reaches; nothing picked when every pick is empty.</summary>
+        public void SetPick(int edge, ulong lift, ulong node, IEnumerable<int> segments, IEnumerable<ulong> lifts, IEnumerable<ulong> nodes = null)
+        {
+            _reachNodes.Clear();
+            if (nodes != null) foreach (ulong n in nodes) _reachNodes.Add(n);
             _pickEdge = edge;
             _pickLift = lift;
             _pickNode = node;
@@ -192,6 +225,23 @@ namespace MountainPlanner.Presentation.Design
             _eye = camera.transform.position;
             _right = camera.transform.right;
             _up = camera.transform.up;
+
+            // Station areas (NT15), under everything: every terminal's rim first, then the fills over them, so a shared
+            // base reads as one area with one outline.
+            _litAreas.Clear();
+            foreach (var a in _areas)
+                if (!_picked || a.Station == _pickNode || _reachNodes.Contains(a.Station) || (a.Lift != 0 && a.Lift == _pickLift)) _litAreas.Add(a.Station);
+            foreach (var a in _areas)
+                if (!a.Candidate && a.Rim != null && a.Rim.Length > 2) Ribbon(a.Rim, 3.2f, _litAreas.Contains(a.Station) ? AreaRing : AreaRingOff, 0, 0);
+            foreach (var a in _areas)
+                if (!a.Candidate && a.Rim != null && a.Rim.Length > 2) Fan(a.Centre, a.Rim, _litAreas.Contains(a.Station) ? AreaFill : AreaFillOff);
+            foreach (var a in _areas)
+            {
+                if (!a.Candidate || a.Rim == null || a.Rim.Length <= 2) continue;
+                Fan(a.Centre, a.Rim, CandidateFill);
+                Ribbon(a.Rim, 3.8f, CandidateEdge, 0, 0);
+                Ribbon(a.Rim, 1.8f, White, 5, 3);
+            }
 
             // Runs: the base line (grey under a pick; pale, or amber dashed where no lift serves it).
             foreach (var s in _segments)
@@ -369,6 +419,23 @@ namespace MountainPlanner.Presentation.Design
             }
         }
 
+        /// <summary>A filled area in world units: a fan from <paramref name="centre"/> to each rim point.</summary>
+        void Fan(Vector3 centre, Vector3[] rim, Color colour)
+        {
+            Color32 c = colour.linear;
+            c.a = (byte)Mathf.RoundToInt(colour.a * 255);
+            int v0 = _vertices.Count;
+            _vertices.Add(centre);
+            _colours.Add(c);
+            foreach (var p in rim) { _vertices.Add(p); _colours.Add(c); }
+            for (int k = 0; k + 1 < rim.Length; k++)
+            {
+                _triangles.Add(v0);
+                _triangles.Add(v0 + 1 + k);
+                _triangles.Add(v0 + 2 + k);
+            }
+        }
+
         void Disc(Vector3 at, float radiusPx, Color colour)
         {
             Color32 c = colour.linear;
@@ -470,6 +537,7 @@ namespace MountainPlanner.Presentation.Design
         }
 
         static Color Hex(int rgb) => new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f, 1);
+        static Color WithAlpha(Color c, float a) { c.a = a; return c; }
 
         /// <summary>A trail's own colour from its rating (TD-03 bands), as the trail map draws it.</summary>
         public static Color RatingColour(double percent) =>

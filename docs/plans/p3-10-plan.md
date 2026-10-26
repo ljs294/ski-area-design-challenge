@@ -63,3 +63,23 @@ Every test name cites its rule. The network golden: the same design gives the sa
 save, in any order. Pruning on delete; a test resort with a disconnected lift; each warning; path directions; split then
 join restores the trail; Split leaves the ground byte-identical. Existing design and graph goldens unchanged. Full
 `dotnet test` with LFS, EditMode, PlayMode (`-force-gfx-mt` for the overlay), repo checks, compile-check.
+
+## 5. Stations (NW-14, owner NT13–NT16, 2026-10-26)
+
+From the owner's Kearsarge area: Chair 5 was built beside a run's middle and showed "No way down", and the Chair 1 and
+Chair 2 bottoms (157 ft apart) split the mountain in two.
+- **Engine:** `Network/DesignStations.cs` gives every built terminal a station reaching 100 ft. Terminals of different
+  lifts within 200 ft merge (union-find in lift ID order). The ID is a keyed hash of the member end keys (JN-04).
+  - Lift edges run station to station.
+  - A trail end within 100 ft attaches.
+  - `TrailNetworkGeometry` (`IStationLinks`) cuts a trail whose footprint passes within the reach.
+  - `NetworkReport` counts every bottom in a station, and another lift's bottom in a lift's top station (a transfer, NT14).
+- **Goldens:** the graph format is 2. The P3-03 graph golden and the network golden are re-pinned for NW-14.
+- **Mockup first:** the Network view draws each station as an area ring (NT15), with a shared base reading as one area
+  (demo `net`: Beaver Double shares Aspen Quad's base, and its top lands beside Bighorn and Catwalk). The lift tool
+  shows the catchment ring round each terminal in hand, the built terminals' rings fainter, and the trails it would
+  gather lit (NT16; demos `liftbase` and `liftbaseaim`).
+- **Game, after the mockup is approved:**
+  - `NetworkView` station rings at world radius;
+  - `Presentation/Design/StationRing.cs` for the lift tool, pooled and rebuilt only when a terminal moves;
+  - the Kearsarge captures from the copy, expecting Chair 5 connected and the Chair 1 + 2 and Chair 3 + 4 bases merged.

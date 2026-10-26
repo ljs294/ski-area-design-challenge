@@ -329,13 +329,15 @@ namespace MountainPlanner.UI.Tools
         {
             int key = Mathf.RoundToInt(level / 0.3048f) * 4096 + handFeet * 64 + Mathf.Min(63, Mathf.RoundToInt(relief / 0.3048f / 5));
             key = key * 31 + ToolFormat.LengthKey(run) * 17 + ToolFormat.LengthKey(rise);
+            var note = _ctx.CatchmentNote?.Invoke();
+            key = key * 31 + (note != null ? note.GetHashCode() : 0);
             if (key == _levelKey) return;
             _levelKey = key;
             string hand = handFeet == 0 ? "" : $" ({(handFeet > 0 ? "+" : "−")}{System.Math.Abs(handFeet)} ft)";
             string place = which == "Bottom"
                 ? "The bottom terminal follows the pointer, green where it can stand. Click to place it: the dot is its bullwheel."
                 : $"Click far up the mountain to place the top terminal. {ToolFormat.Length(run)} across · rise {ToolFormat.Length(rise)} · {ToolFormat.Grade(rise, run)}";
-            _ctx.Window.SetHint(place + "\n" + which + " terminal level " + ToolFormat.Length(level) + hand);
+            _ctx.Window.SetHint(place + "\n" + which + " terminal level " + ToolFormat.Length(level) + hand + (note != null ? "\n" + note : ""));
             bool steep = relief > SitingReliefMetres;
             _ctx.Window.SetMessage(steep ? $"The ground under it varies {ToolFormat.Length(relief)}: its pad will be levelled with cut and fill{(relief > MaxSitingFeet * 0.3048f ? " (over 40 ft)" : "")}" : null, true);
         }

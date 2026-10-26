@@ -88,6 +88,7 @@ namespace MountainPlanner.App
                 HideBuiltLift = HideBuiltLift,
                 DraftPartUnderPointer = () => _draftPart,
                 HighlightDraftPart = HighlightDraftPart,
+                CatchmentNote = () => _catchmentNote,   // P3-10, NT16
             }, Hud.OpenWindow);
             _tools.ActiveChanged += Hud.SetActiveTool;
             _tools.Notice += text => Hud.Toast(text);
@@ -133,6 +134,7 @@ namespace MountainPlanner.App
             _designOverlay?.Dispose();
             DisposeTrailLayer();
             DisposeNetworkView();   // task P3-10
+            DisposeCatchment();
             _tools = null;
             _preview = null;
             _designOverlay = null;

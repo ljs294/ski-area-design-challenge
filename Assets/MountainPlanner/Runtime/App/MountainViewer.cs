@@ -603,6 +603,7 @@ namespace MountainPlanner.App
             _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _resort?.Surface, _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
             TickTrailLayer(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);   // task 08
             TickNetwork(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);      // task P3-10
+            TickCatchment(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);    // task P3-10, NT16
             var set = _resort.ContourLabels[(int)DisplayUnits.Current];
             if (!ReferenceEquals(set, _contourLabelSet))
             {

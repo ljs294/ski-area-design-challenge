@@ -600,7 +600,7 @@ body.solo .frame { border-radius: 0; }
     <p>The layout from your sketch as a clickable mockup, in the Trailhead look over our Unity mountain. The status bar runs the full width of the bottom, docked to the edge or floating; the clock and weather run, the tools draw on the mountain, and building costs money. Nothing is saved when you reload.</p>
   </div>
   <ul class="try">
-    <li><b>Build a lift</b> (Phase 3 tool): Toolbox → Lifts → New opens the lift menu: type, capacity, and towers <b>Automatic</b> or <b>By hand</b>. The whole terminal follows the pointer; click to anchor it, then click far away to place the other terminal, which fixes the line (drawn as a trail map draws a lift, a line with a dot at each end). Automatic puts the towers in as you aim. By hand, the tower in hand slides along the line, green where it fits and red with the reason; Page Up / Page Down change it ±5 ft, a click places it, a click on a tower selects it (drag to slide, Delete to remove), and Fill the rest finishes the line. The profile strip shows the side view, the chairs' height over the ground against 15 ft, the green band where the tower in hand fits, and the line's tension. Review, then Break ground (or Save plan). Every rule number is a P3-02 draft placeholder; hover a readout for its rule ID. States: <code>#solo&amp;demo=liftorigin</code>, <code>liftauto</code>, <code>lift</code>, <code>liftred</code>, <code>liftreview</code>, <code>liftsel</code>.</li>
+    <li><b>Build a lift</b> (Phase 3 tool): Toolbox → Lifts → New opens the lift menu: type, capacity, and towers <b>Automatic</b> or <b>By hand</b>. The whole terminal follows the pointer; click to anchor it, then click far away to place the other terminal, which fixes the line (drawn as a trail map draws a lift, a line with a dot at each end). Automatic puts the towers in as you aim. By hand, the tower in hand slides along the line, green where it fits and red with the reason; Page Up / Page Down change it ±5 ft, a click places it, a click on a tower selects it (drag to slide, Delete to remove), and Fill the rest finishes the line. The profile strip shows the side view, the chairs' height over the ground against 15 ft, the green band where the tower in hand fits, and the line's tension. Review, then Break ground (or Save plan). Every rule number is a P3-02 draft placeholder; hover a readout for its rule ID. States: <code>#solo&amp;demo=liftorigin</code>, <code>liftauto</code>, <code>lift</code>, <code>liftred</code>, <code>liftreview</code>, <code>liftsel</code>. The catchment ring (NW-14, NT16): each terminal in hand shows its 100 ft area, built terminals theirs fainter, and the trails it would gather light up; the readout names a shared base or a transfer: <code>#solo&amp;demo=p2,net,liftbase</code>, <code>liftbaseaim</code>.</li>
     <li><b>Draw a trail</b> (Phase 3 tool): Toolbox → Trails → New opens the trail menu: name, brush width (<b>[ ]</b> or the slider, 25–400 ft) and Graded or Natural. <b>1 Paint:</b> drag on the mountain to paint the trail's area, any widths, leaving holes for islands of trees; Shift-drag erases, Ctrl+Z undoes a stroke, and a separate patch shows red. <b>2 Head and tail:</b> click the top, then the bottom (they join a lift's end or another trail nearby); the centreline, the pending contours (yellow), stretches too steep to grade (red) and the rating appear, with the profile along the bottom. <b>3 Review</b>, then Break ground. Scroll to zoom in first: at this distance 100 ft is about 5 px. States: <code>trailpaint</code>, <code>trailends</code>, <code>trailreview</code>. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking with clicks.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
     <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets one legend card (with contours added to it); its ✕ closes it until you pick another layer. The bar reads the layer under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
@@ -1194,7 +1194,7 @@ body.solo .frame { border-radius: 0; }
       ${row(`<circle cx="11" cy="6" r="5" fill="none" stroke="${NETC.warn}" stroke-width="2"/>`, 'No way down')}
       ${row(`<line x1="2" y1="6" x2="20" y2="6" stroke="#ffffff" stroke-width="1.8" stroke-dasharray="2.4 2.2"/>`, 'Path between runs')}
       ${row(`<circle cx="11" cy="6" r="4.6" fill="#fff" stroke="#14171a" stroke-width="1.8"/>`, 'Junction')}
-      ${row(`<circle cx="11" cy="6" r="4.6" fill="${NETC.lift}" stroke="#fff" stroke-width="1.6"/>`, 'Lift top or bottom')}
+      ${row(`<circle cx="11" cy="6" r="6" fill="#ff8f80" opacity=".8"/><circle cx="11" cy="6" r="5" fill="#4a2622"/><circle cx="11" cy="6" r="3" fill="${NETC.lift}" stroke="#fff" stroke-width="1.2"/>`, 'Lift terminal, 100 ft around')}
       ${row(`<circle cx="11" cy="6" r="3.6" fill="#14171a" stroke="${NETC.run}" stroke-width="1.6"/>`, 'Run starts or ends')}
       ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="11" opacity=".32"/><line x1="1" y1="6" x2="21" y2="6" stroke="#fff" stroke-width="6"/><line x1="1" y1="6" x2="21" y2="6" stroke="${runColour.blue}" stroke-width="3.6"/>`, 'Picked')}
       ${row(`<rect x="0" y="0" width="5.5" height="12" fill="${runColour.green}"/><rect x="5.5" y="0" width="5.5" height="12" fill="${runColour.blue}"/><rect x="11" y="0" width="5.5" height="12" fill="${runColour.black}"/><rect x="16.5" y="0" width="5.5" height="12" fill="${NETC.lift}"/>`, 'Reachable')}
@@ -1701,18 +1701,41 @@ body.solo .frame { border-radius: 0; }
     return `<line x1="${f1(p[0] - nx)}" y1="${f1(p[1] - ny)}" x2="${f1(p[0] + nx)}" y2="${f1(p[1] + ny)}" stroke="${graphite}" stroke-width="${w + 2.4}" stroke-linecap="round"/><line x1="${f1(p[0] - nx)}" y1="${f1(p[1] - ny)}" x2="${f1(p[0] + nx)}" y2="${f1(p[1] + ny)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`;
   }
   const segLine = (d, a, b, col, wd, extra = '') => { const p = rayPt(d, a), q = rayPt(d, b); return `<line x1="${f1(p[0])}" y1="${f1(p[1])}" x2="${f1(q[0])}" y2="${f1(q[1])}" stroke="${col}" stroke-width="${wd}" stroke-linecap="round" ${extra}/>`; };
+  // NT16 (owner, 2026-10-26: "just like placing service buildings in Cities: Skylines 2"): while placing a lift, each
+  // terminal in hand shows its 100 ft catchment area (NW-14), the built terminals theirs fainter, and the trails it
+  // would gather light up in their own colours. words: what the terminal at p would join, for the readout.
+  function catchment(pts, skip) {
+    const lifts = S.lifts.filter((l) => l.built && l.id !== skip), stations = stationsOf(lifts), trails = S.trails.filter((t) => t.built && t.pts.length > 1);
+    let s = stationRings(stations, null, null, null, { ring: '#efe9df', fill: '#1b1815', opacity: 0.32 });
+    const caught = new Set(), words = [];
+    for (const p of pts) {
+      const near = stationAt(stations, p, 2 * NET.reach), names = [];
+      for (const t of trails) if (lineNear(p, t.pts).d <= NET.reach && !caught.has(t.id)) { caught.add(t.id); names.push(t.name); }
+      s += `<g style="pointer-events:none"><circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${f1(NET.reach)}" fill="#3aa0ff" opacity=".28"/><circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${f1(NET.reach)}" fill="none" stroke="#123a66" stroke-width="3.8"/><circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${f1(NET.reach)}" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-dasharray="5 3"/></g>`;
+      // pts[0] is the bottom, pts[1] the top: beside another lift's other end it's a transfer (NT14), beside the same end a shared one
+      const bottom = p === pts[0], name = (m) => { const l = lifts.find((x) => x.id === m.lift); return `${l.n} ${l.name}`; };
+      const same = near ? near.members.filter((m) => m.bottom === bottom).map(name) : [], other = near ? near.members.filter((m) => m.bottom !== bottom).map(name) : [];
+      const join = other.length ? `Transfer ${bottom ? 'from' : 'to'} ${other.join(', ')}` : same.length ? `Shares a ${bottom ? 'base' : 'top'} with ${same.join(', ')}` : '';
+      words.push([join, names.length ? `gathers ${names.join(', ')}` : ''].filter(Boolean).join(' · ').replace(/^g/, (c) => join ? c : 'G') || 'No trail within 100 ft yet');
+    }
+    for (const t of trails) if (caught.has(t.id)) s += litLine(t.pts.map(P), runColour[t.diff] || NETC.run, false);
+    return { svg: s, words };
+  }
   function drawLiftDraft(d) {
     let s = '';
     if (d.step === 'first') {
       if (mouse) {
         const e = 6, up = Math.atan2(elevXY(mouse[0], mouse[1] + e) - elevXY(mouse[0], mouse[1] - e), elevXY(mouse[0] + e, mouse[1]) - elevXY(mouse[0] - e, mouse[1])), site = terminalSite(mouse, up);
-        s += terminalGlyph(mouse, up, site.ok ? OKC : BADC, 0.95);
-        s += readoutCard(mouse[0], mouse[1] - 4, site.ok ? [['Click to anchor the bottom terminal'], [`Elev. ${lenTxt(elevAt(mouse))} · ground varies ${Math.round(site.vary)} ft under it`, '#cfc7bb']] : [[site.why, BADC]]);
+        const c = catchment([mouse], d.edit);
+        s += c.svg + terminalGlyph(mouse, up, site.ok ? OKC : BADC, 0.95);
+        s += readoutCard(mouse[0], mouse[1] - 4, site.ok ? [['Click to anchor the bottom terminal'], [`Elev. ${lenTxt(elevAt(mouse))} · ground varies ${Math.round(site.vary)} ft under it`, '#cfc7bb'], [c.words[0], '#ffffff']] : [[site.why, BADC]]);
       }
       return s;
     }
     if (d.step === 'other') {
       const m = d.aim && d.aim.p, ang = m ? Math.atan2(m[1] - d.a[1], m[0] - d.a[0]) : -Math.PI / 2;
+      const c = catchment(m ? [d.a, m] : [d.a], d.edit);
+      s += c.svg;
       if (m) {
         const bad = d.aim.short || d.aim.off || d.aim.bad || d.aim.msg;
         s += `<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${f1(m[0])}" y2="${f1(m[1])}" stroke="${white}" stroke-width="3.6" opacity=".7"/><line x1="${d.a[0]}" y1="${d.a[1]}" x2="${f1(m[0])}" y2="${f1(m[1])}" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4"/>`;
@@ -1720,7 +1743,7 @@ body.solo .frame { border-radius: 0; }
         if (d.aim.g) { const e0 = elevAt(d.a), e1 = elevAt(m), rise = (e1 - e0) * FT; s += dimension(d.a, m, `${lenFt(d.aim.len)} · ${rise >= 0 ? '+' : '−'}${lenFt(Math.abs(rise))} · ${Math.round(Math.abs(rise) / d.aim.len * 100)}%`); }
         s += terminalGlyph(m, ang + Math.PI, bad ? BADC : OKC, 0.92);
         const lines = d.aim.short ? [['Too short', BADC], [`Terminals stand ${lenFt(RULE.minLen)} apart at least`, '#cfc7bb']] : d.aim.off ? [['Off the mountain', BADC]] : d.aim.bad ? [[d.aim.bad, BADC]]
-          : [['Click to place the top terminal'], d.aim.msg ? [d.aim.msg, BADC] : d.mode === 'auto' ? [`${d.aim.towers.length} towers, placed automatically`, '#cfc7bb'] : ['Then place the towers by hand', '#cfc7bb']];
+          : [['Click to place the top terminal'], d.aim.msg ? [d.aim.msg, BADC] : d.mode === 'auto' ? [`${d.aim.towers.length} towers, placed automatically`, '#cfc7bb'] : ['Then place the towers by hand', '#cfc7bb'], [`Top: ${c.words[1]}`, '#ffffff']];
         s += readoutCard(m[0], m[1] + 14, lines);
       }
       s += terminalGlyph(d.a, ang, flag);
@@ -1731,6 +1754,7 @@ body.solo .frame { border-radius: 0; }
     const band = hp && hp.chk ? liftBand(d, d.inH, null) : sel ? liftBand(d, sel.h, sel) : [];
     for (const [a, b] of band) s += segLine(d, a, Math.max(b, a + 2), OKC, 9, 'opacity=".55"');
     const lineC = d.edit ? liftRed : flag;   // a built lift being edited keeps its red
+    s += catchment([A, B], d.edit).svg;
     s += `<line x1="${A[0]}" y1="${A[1]}" x2="${f1(B[0])}" y2="${f1(B[1])}" stroke="${white}" stroke-width="4.6" opacity=".8"/><line x1="${A[0]}" y1="${A[1]}" x2="${f1(B[0])}" y2="${f1(B[1])}" stroke="${lineC}" stroke-width="2.4"/>`;
     for (const sp of ev.spans) {
       if (sp.open) s += segLine(d, sp.p.x, sp.q.x, graphite, 3.4, 'stroke-dasharray="2 5" opacity=".9"');
@@ -2418,7 +2442,21 @@ body.solo .frame { border-radius: 0; }
   // end (the drawn runs stop short of their terminals) or NET.line px (30 ft) of another trail's line joins it (TR-05); crossing lines are a junction (NW-07: overlapping
   // footprints); lines that pass within NET.path px without meeting get one path at their closest point (PA-05: 100 ft
   // wide trails within 30 ft), running downhill, or both ways within 3 ft (PA-06).
+  // NW-14's stations (NT13): every terminal reaches NET.reach px (standing in for 100 ft: the drawn runs stop short of
+  // their terminals, so the coarse map needs the wider stand-in); terminals of different lifts within twice that share one.
   const NET = { reach: 20, line: 30 / FT_PX, path: 6.9 };
+  function stationsOf(lifts) {
+    const ends = [];
+    for (const l of lifts) ends.push({ lift: l.id, bottom: true, p: l.a }, { lift: l.id, bottom: false, p: l.b });
+    const up = ends.map((_, i) => i), find = (i) => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; };
+    for (let i = 0; i < ends.length; i++) for (let k = i + 1; k < ends.length; k++)
+      if (ends[i].lift !== ends[k].lift && Math.hypot(ends[i].p[0] - ends[k].p[0], ends[i].p[1] - ends[k].p[1]) <= 2 * NET.reach) { const a = find(i), b = find(k); up[Math.max(a, b)] = Math.min(a, b); }
+    const groups = new Map();
+    ends.forEach((e, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(e); });
+    return [...groups.values()].map((m) => ({ id: 'st' + (m[0].bottom ? 'b' : 't') + m[0].lift, members: m, p: [m.reduce((a, e) => a + e.p[0], 0) / m.length, m.reduce((a, e) => a + e.p[1], 0) / m.length] }));
+  }
+  // The station within reach of p (its nearest terminal), or null.
+  const stationAt = (stations, p, reach = NET.reach) => { let best = null, bd = reach; for (const st of stations) for (const m of st.members) { const d = Math.hypot(p[0] - m.p[0], p[1] - m.p[1]); if (d <= bd) { bd = d; best = st; } } return best; };
   const segNear = (p, a, b) => {
     const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
     const f = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0, q = [a[0] + f * dx, a[1] + f * dy];
@@ -2456,9 +2494,11 @@ body.solo .frame { border-radius: 0; }
     const lifts = S.lifts.filter((l) => l.built).concat(extra.lift ? [extra.lift] : []);
     const trails = S.trails.filter((t) => t.built && t.pts.length > 1 && t.id !== (extra.trail && extra.trail.id)).concat(extra.trail ? [extra.trail] : []);
     const kind = {}, at = {}, stops = {}, edges = [], junctions = [], paths = [];
-    for (const l of lifts) { kind['lb' + l.id] = 'bottom'; kind['lt' + l.id] = 'top'; at['lb' + l.id] = l.a; at['lt' + l.id] = l.b; }
+    // NW-14: the lift ends are stations; a lift runs from its bottom's station to its top's.
+    const stations = stationsOf(lifts), bottoms = {}, topOf = {}, bottomOf = {};
+    for (const st of stations) { kind[st.id] = 'station'; at[st.id] = st.p; bottoms[st.id] = st.members.filter((m) => m.bottom).map((m) => m.lift); for (const m of st.members) (m.bottom ? bottomOf : topOf)[m.lift] = st.id; }
     for (const t of trails) stops[t.id] = [];
-    const liftEnd = (p) => { let best = null, bd = NET.reach; for (const l of lifts) for (const [k, q] of [['lb', l.a], ['lt', l.b]]) { const d = Math.hypot(p[0] - q[0], p[1] - q[1]); if (d <= bd) { bd = d; best = k + l.id; } } return best; };
+    const liftEnd = (p) => { const st = stationAt(stations, p); return st ? st.id : null; };
     const junction = (p, list) => { const id = 'j' + junctions.length; kind[id] = 'junction'; at[id] = p; junctions.push({ id, p }); for (const [t, a] of list) stops[t.id].push({ a, n: id }); return id; };
     for (const t of trails) {
       const len = lineLength(t.pts);
@@ -2476,6 +2516,13 @@ body.solo .frame { border-radius: 0; }
         if (!n) { n = (a ? 'tt' : 'th') + t.id; kind[n] = a ? 'tail' : 'head'; at[n] = end; }
         stops[t.id].push({ a, n });
       }
+    }
+    // NW-07 v2: a trail passing through a station (within its reach, its ends elsewhere) is cut there, nearest the terminal.
+    for (const st of stations) for (const t of trails) {
+      if (stops[t.id].some((q) => q.n === st.id)) continue;
+      let best = null;
+      for (const m of st.members) { const r = lineNear(m.p, t.pts); if (r.d <= NET.reach && (!best || r.d < best.d)) best = r; }
+      if (best) stops[t.id].push({ a: best.along, n: st.id });
     }
     for (let i = 0; i < trails.length; i++) for (let k = i + 1; k < trails.length; k++) {
       const A = trails[i], B = trails[k], xs = crossings(A.pts, B.pts);
@@ -2502,25 +2549,28 @@ body.solo .frame { border-radius: 0; }
     // segments it runs along (finding 4: a trail met partway lights only below the meeting), their trails, the lifts
     // whose bottoms it reaches (finding 5; not ridden, NT10), and the nodes.
     // first: leave from by that segment only (a trail's own way down, not its neighbours' from the same head)
-    const descendFrom = (from, first) => {
+    // transfer: a lift's own descent, which counts the other lifts loading in its top station (NT14)
+    const descendFrom = (from, first, transfer) => {
       const seen = new Set([from]), q = first ? [] : [from], reach = new Set(), segs = new Set(), lifts = new Set();
       if (first) { reach.add(first.trail); segs.add(first); if (!seen.has(first.to)) { seen.add(first.to); q.push(first.to); } }
       while (q.length) {
         const n = q.shift();
-        if (kind[n] === 'bottom' && n !== from) lifts.add(n.slice(2));
+        if (kind[n] === 'station') for (const lid of bottoms[n]) if (n !== from || (transfer && lid !== transfer)) lifts.add(lid);
         for (const e of out[n] || []) { if (e.trail) { reach.add(e.trail); segs.add(e); } if (!seen.has(e.to)) { seen.add(e.to); q.push(e.to); } }
       }
       return { ok: lifts.size > 0, reach, segs, lifts, nodes: seen };
     };
     const served = new Set(), liftSt = {}, trailReach = {};
-    for (const l of lifts) { liftSt[l.id] = descendFrom('lt' + l.id); for (const t of liftSt[l.id].reach) served.add(t); }
+    for (const l of lifts) { liftSt[l.id] = descendFrom(topOf[l.id], null, l.id); for (const t of liftSt[l.id].reach) served.add(t); }
     // Finding 2: from a trail, everything a skier can reach from its head.
     const trailFirst = {};
     for (const t of trails) { trailFirst[t.id] = edges.find((e) => e.trail === t.id && e.from === stops[t.id][0].n); trailReach[t.id] = descendFrom(stops[t.id][0].n, trailFirst[t.id]); }
     const trailSt = {};
     for (const t of trails) { const st = stops[t.id], tail = st[st.length - 1]; trailSt[t.id] = { served: served.has(t.id), nowhere: kind[tail.n] === 'tail' }; }
-    const nodes = Object.keys(kind).filter((k) => at[k]).map((k) => ({ id: k, kind: kind[k], p: at[k] }));
-    return { lifts, trails, liftSt, trailSt, trailReach, trailFirst, junctions, paths, nodes, edges, descendFrom };
+    // A station is a node per terminal (each picks the station), as the game's view draws it.
+    const nodes = Object.keys(kind).filter((k) => at[k] && kind[k] !== 'station').map((k) => ({ id: k, kind: kind[k], p: at[k] }));
+    for (const st of stations) for (const m of st.members) nodes.push({ id: st.id, kind: 'station', p: m.p, lift: m.lift, bottom: m.bottom });
+    return { lifts, trails, liftSt, trailSt, trailReach, trailFirst, junctions, paths, nodes, edges, descendFrom, stations, topOf, bottomOf };
   }
   const NET_WORDS = { way: 'No way down', serve: 'No lift serves this', nowhere: 'Leads nowhere' };
   const trailWarn = (st) => (!st.served ? NET_WORDS.serve : st.nowhere ? NET_WORDS.nowhere : null);
@@ -2550,7 +2600,7 @@ body.solo .frame { border-radius: 0; }
     return `<div class="atools" data-ui="network-tools"><span>${plural(n.lifts.length, 'lift')} · ${plural(n.trails.length, 'trail')} · ${plural(n.junctions.length, 'junction')} · ${plural(n.paths.length, 'path')}</span><span style="margin-left:auto">${line}</span></div>
       <div class="tbl"><div class="r th" style="${cols}"><span>Lift</span><span class="n">Trails reached</span><span class="n">Status</span></div>${rows}</div>
       ${warnT.length ? `<div class="tbl" style="margin-top:8px"><div class="r th" style="${tcols}"><span>Trail</span><span class="n">Warning</span></div>${trows}</div>` : ''}
-      <div class="tbl"><div class="foot">A lift is connected when a way down from its top reaches a lift's bottom. Click a lift, a trail or a node, here or on the map, to light up everything you can ski to from it (Esc clears it); dashed links are paths between trails that pass within 30 ft.</div></div>`;
+      <div class="tbl"><div class="foot">A lift is connected when a way down from its top reaches a lift's bottom. A terminal gathers every trail within 100 ft of it, and terminals that close together share one area, so you can unload and ride on. Click a lift, a trail or a node, here or on the map, to light up everything you can ski to from it (Esc clears it); dashed links are paths between trails that pass within 30 ft.</div></div>`;
   }
   // The Network view (owner, 2026-10-25: "a more specific layer where the background looks much different"): while
   // Analysis › Network is open the mountain goes to a dark grey relief and the network draws as a diagram, not as the
@@ -2619,6 +2669,17 @@ body.solo .frame { border-radius: 0; }
   }
   // pick: a lift or trail ID; node: a network node picked (finding 7). The picked lift or trail, and what's reachable from
   // it segment by segment, light in their own colours (R2-1), the picked one wider with a glow; the rest is grey.
+  // NT15: a station's area, a soft disc the size of its reach round each terminal with one outline round them all (a
+  // shared base reads as one area); lit while it's picked or what's picked reaches it.
+  function stationRings(stations, r, pick, node, opts = {}) {
+    let s = '';
+    for (const st of stations) {
+      const on = !r || node === st.id || r.nodes.has(st.id) || st.members.some((m) => m.lift === pick);
+      const R = opts.reach || NET.reach, ring = opts.ring || (on ? '#ff8f80' : '#77736d'), fill = opts.fill || (on ? '#4a2622' : '#2a2a2a');
+      s += `<g opacity="${opts.opacity || (on ? 0.8 : 0.5)}" style="pointer-events:none">${st.members.map((m) => `<circle cx="${f1(m.p[0])}" cy="${f1(m.p[1])}" r="${f1(R + 1.6)}" fill="${ring}"/>`).join('')}${st.members.map((m) => `<circle cx="${f1(m.p[0])}" cy="${f1(m.p[1])}" r="${f1(R)}" fill="${fill}"/>`).join('')}</g>`;
+    }
+    return s;
+  }
   function drawNetwork(pick, hiId, node) {
     const n = netOf();
     // R2-2: a trail is picked by the segment under the click (S.netSeg); from its list row, by its first segment. The
@@ -2626,7 +2687,7 @@ body.solo .frame { border-radius: 0; }
     const seg = !pick || n.liftSt[pick] ? null
       : (S.netSeg && S.netSeg.trail === pick && n.edges.find((e) => e.trail === pick && Math.abs(e.a0 - S.netSeg.a0) < 1e-6)) || n.trailFirst[pick];
     const r = node ? n.descendFrom(node) : !pick ? null : n.liftSt[pick] || (seg ? n.descendFrom(seg.from, seg) : null);
-    const labels = [], ends = []; let s = '';
+    const labels = [], ends = []; let s = stationRings(n.stations, r, pick, node);
     for (const t of n.trails) {
       const st = n.trailSt[t.id], pts = t.pts.map(P), d = pathD(pts), own = runColour[t.diff] || NETC.run;
       const me = pick === t.id, col = r ? NETC.off : !st.served ? NETC.warn : NETC.run, w = S.rowHover === t.id ? 4.4 : 2.6;
@@ -2665,8 +2726,8 @@ body.solo .frame { border-radius: 0; }
     }
     // Every node is a circle (finding 1): junctions large and white, lift ends red, path ends small, a trail's own end open.
     for (const nd of n.nodes) {
-      const A = P(nd.p), lift = nd.kind === 'top' || nd.kind === 'bottom', lid = lift ? nd.id.slice(2) : null;
-      const liftFill = !r || pick === lid || (nd.kind === 'bottom' && r.lifts.has(lid)) ? NETC.lift : NETC.off;
+      const A = P(nd.p), lift = nd.kind === 'station', lid = lift ? nd.lift : null;
+      const liftFill = !r || pick === lid || (nd.bottom && r.lifts.has(lid)) ? NETC.lift : NETC.off;
       const [rad, fill, ring] = lift ? [6.5, liftFill, '#fff'] : nd.kind === 'junction' ? [6.5, '#fff', NETC.halo]
         : nd.kind === 'pathend' ? [4, '#fff', NETC.halo]
         : [4.5, NETC.halo, nd.kind === 'tail' && n.trailSt[nd.id.slice(2)] && n.trailSt[nd.id.slice(2)].nowhere ? NETC.warn : NETC.run];
@@ -3990,7 +4051,8 @@ body.solo .frame { border-radius: 0; }
         S.trails.push({ id: 't1', name: 'Bighorn', diff: 'blue', pts: [[648, 410], [612, 472], [584, 540], [560, 604]], built: true }, { id: 't2', name: 'Cornice', diff: 'black', pts: [[660, 406], [706, 462], [673, 540], [602, 610]], built: true },
           { id: 't3', name: 'Headwall', diff: 'black', pts: [[880, 326], [838, 408], [801, 500], [778, 590]], built: true }, { id: 't4', name: 'Timberline', diff: 'blue', pts: [[893, 322], [938, 384], [908, 470], [832, 556], [788, 596]], built: true });
       }
-      S.lifts.push({ id: 'l5', n: 5, name: 'Moose Double', a: [1010, 600], b: [1100, 380], model: 'Fixed 4', built: true }, { id: 'l6', n: 6, name: 'Teton Double', a: [1150, 560], b: [1230, 330], model: 'Fixed 4', built: true });
+      S.lifts.push({ id: 'l5', n: 5, name: 'Moose Double', a: [1010, 600], b: [1100, 380], model: 'Fixed 4', built: true }, { id: 'l6', n: 6, name: 'Teton Double', a: [1150, 560], b: [1230, 330], model: 'Fixed 4', built: true },
+        { id: 'l7', n: 7, name: 'Beaver Double', a: [520, 634], b: [575, 520], model: 'Fixed 2', built: true });   // NW-14: shares Aspen Quad's base; its top lands beside Bighorn and Catwalk
       S.trails.push({ id: 't5', name: 'Lost Creek', diff: 'green', pts: [[1092, 392], [1000, 420], [917, 463]], built: true }, { id: 't6', name: 'Catwalk', diff: 'green', pts: [[702.7, 469.8], [560, 520], [548, 600]], built: true });
       S.analysis = true; S.atab = 'network';
       if (d.includes('netpick')) S.netLift = 'l5';
@@ -4082,7 +4144,14 @@ body.solo .frame { border-radius: 0; }
       const tx = ['trailfix', 'trailgone'].find((x) => d.includes(x));
       if (tx) { td.graded = true; setEnds(td); commit(false); chooseTool(tx === 'trailfix' ? 'edit-trail' : 'remove-trail'); S.sel = S.trails[S.trails.length - 1].id; mouse = [1240, 140]; }
     }
-    const LD = { a: [1190, 334], b: [944, 250] }, lf = ['liftorigin', 'liftauto', 'liftred', 'liftbyhand', 'liftreview', 'liftsel', 'lift'].find((x) => d.includes(x));
+    // liftbase (NT16): a bottom terminal in hand beside Aspen Quad's top (a transfer), its catchment gathering Cornice and
+    // Bighorn's heads; liftbaseaim aims its top up the ridge.
+    if (d.some((x) => x.startsWith('liftbase'))) {
+      S.toolbox = true; S.tab = 'lifts'; if (S.tool !== 'new-lift') chooseTool('new-lift');
+      S.analysis = false; mouse = [684, 414];   // on the trail map, where the tool is used
+      if (d.includes('liftbaseaim')) { const ld = S.draft; ld.mode = 'auto'; ld.a = mouse.slice(); ld.step = 'other'; mouse = [878, 300]; aimAt(mouse, true); }
+    }
+    const LD = { a: [1190, 334], b: [944, 250] }, lf = d.some((x) => x.startsWith('liftbase')) ? null : ['liftorigin', 'liftauto', 'liftred', 'liftbyhand', 'liftreview', 'liftsel', 'lift'].find((x) => d.includes(x));
     if (lf) {
       S.toolbox = true; S.tab = 'lifts'; if (S.tool !== 'new-lift') chooseTool('new-lift');
       const ld = S.draft;

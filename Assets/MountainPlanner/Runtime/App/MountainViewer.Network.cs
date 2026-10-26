@@ -189,14 +189,11 @@ namespace MountainPlanner.App
                 if (!lastOf.TryGetValue(e.Owner, out var last) || graph.Edges[last.Edge].EndMm < e.EndMm) lastOf[e.Owner] = (i, pts);
             }
             var lifts = new List<NetworkView.LiftLine>();
-            var liftEnds = new Dictionary<ulong, (ulong Lift, bool Bottom)>();
             foreach (var s in report.Lifts)
             {
                 var l = doc.FindLift(s.Lift);
                 if (l == null) continue;
                 lifts.Add(new NetworkView.LiftLine { Id = s.Lift.Value, Bottom = DrapePoint(l.Bottom), Top = DrapePoint(l.Top), Connected = s.Connected });
-                liftEnds[DesignNetwork.LiftBottomNode(doc.Seed, s.Lift)] = (s.Lift.Value, true);
-                liftEnds[DesignNetwork.LiftTopNode(doc.Seed, s.Lift)] = (s.Lift.Value, false);
             }
             var deadTails = new HashSet<ulong>();
             var deadEnds = new List<NetworkView.DeadEnd>();
@@ -209,12 +206,23 @@ namespace MountainPlanner.App
                 deadEnds.Add(new NetworkView.DeadEnd { At = b, Dir = (b - a).normalized });
             }
             var nodes = new List<NetworkView.Node>();
+            var areas = new List<NetworkView.StationArea>();
             foreach (var n in graph.Nodes)
             {
-                var kind = n.Kind == NodeKind.Junction ? NetworkView.NodeKind.Junction : n.Kind == NodeKind.PathEnd ? NetworkView.NodeKind.PathEnd
-                    : n.Kind == NodeKind.LiftBottom || n.Kind == NodeKind.LiftTop ? NetworkView.NodeKind.LiftEnd : NetworkView.NodeKind.RunEnd;
-                liftEnds.TryGetValue(n.Id, out var le);
-                nodes.Add(new NetworkView.Node { Id = n.Id, Kind = kind, Lift = le.Lift, Bottom = le.Bottom, DeadEnd = deadTails.Contains(n.Id), At = DrapePoint(n.At) });
+                if (n.Kind == NodeKind.Station)
+                {
+                    // NW-14: a station's terminals are its circles, each picking the station.
+                    var station = graph.StationById(n.Id);
+                    if (station == null) continue;
+                    foreach (var m in station.Members)
+                    {
+                        areas.Add(new NetworkView.StationArea { Station = n.Id, Lift = m.Lift.Value, Centre = DrapePoint(m.At), Rim = StationRim(site.OriginX + m.At.XMetres, site.OriginY + m.At.YMetres, Drape) });
+                        nodes.Add(new NetworkView.Node { Id = n.Id, Kind = NetworkView.NodeKind.LiftEnd, Lift = m.Lift.Value, Bottom = m.Bottom, At = DrapePoint(m.At) });
+                    }
+                    continue;
+                }
+                var kind = n.Kind == NodeKind.Junction ? NetworkView.NodeKind.Junction : n.Kind == NodeKind.PathEnd ? NetworkView.NodeKind.PathEnd : NetworkView.NodeKind.RunEnd;
+                nodes.Add(new NetworkView.Node { Id = n.Id, Kind = kind, DeadEnd = deadTails.Contains(n.Id), At = DrapePoint(n.At) });
             }
             var links = new List<NetworkView.Link>();
             var seen = new HashSet<ulong>();
@@ -223,8 +231,22 @@ namespace MountainPlanner.App
                 if (e.Kind != EdgeKind.Path || !seen.Add(e.Owner)) continue;
                 if (graph.TryGetNode(e.From, out var a) && graph.TryGetNode(e.To, out var b)) links.Add(new NetworkView.Link { A = DrapePoint(a.At), B = DrapePoint(b.At) });
             }
-            _networkView.Set(segments.ToArray(), lifts.ToArray(), nodes.ToArray(), links.ToArray(), deadEnds.ToArray());
+            _networkView.Set(segments.ToArray(), lifts.ToArray(), nodes.ToArray(), links.ToArray(), deadEnds.ToArray(), areas.ToArray());
             ApplyNetworkPick();
+        }
+
+        /// <summary>A station's rim round one terminal (NW-14: 100 ft), every 7.5 degrees, draped; closed.</summary>
+        static Vector3[] StationRim(double cx, double cy, Func<double, double, Vector3> drape)
+        {
+            const int sides = 48;
+            double r = DesignStations.ReachMm / 1000.0;
+            var rim = new Vector3[sides + 1];
+            for (int k = 0; k <= sides; k++)
+            {
+                double a = k * Math.PI * 2 / sides;
+                rim[k] = drape(cx + r * Math.Cos(a), cy + r * Math.Sin(a));
+            }
+            return rim;
         }
 
         /// <summary>The centreline (lattice x, y pairs) between two distances along it, every 15 m or closer, draped.</summary>
@@ -312,7 +334,7 @@ namespace MountainPlanner.App
             else if (_pickNode != 0) reach = _network.ReachFrom(_pickNode);
             var lifts = new List<ulong>();
             if (reach != null) foreach (var l in reach.Lifts) lifts.Add(l.Value);
-            _networkView.SetPick(edge, _pickLift, _pickNode, reach?.Segments, lifts);
+            _networkView.SetPick(edge, _pickLift, _pickNode, reach?.Segments, lifts, reach?.Nodes);
         }
 
         void HoverAndClickNetwork(UnityEngine.Camera cam)
@@ -422,7 +444,7 @@ namespace MountainPlanner.App
             }
             foreach (var n in _network.Graph.Nodes)
             {
-                if (n.Kind != NodeKind.Junction && n.Kind != NodeKind.LiftBottom) continue;
+                if (n.Kind != NodeKind.Junction && !(n.Kind == NodeKind.Station && _network.Graph.StationById(n.Id)?.HasBottom == true)) continue;
                 PickNetwork(0, -1, 0, n.Id);
                 yield return Shot(dir, "4-node");
                 break;
@@ -434,6 +456,19 @@ namespace MountainPlanner.App
                 _netHoverHeld = true;
                 yield return Shot(dir, "5-hover");
                 _netHoverHeld = false;
+            }
+            // NT16: the lift tool's catchment on the trail map, a bottom terminal in hand 25 m beside the first lift's top
+            // (a transfer), as if the pointer held it there.
+            if (_network.Lifts.Count > 0 && _networkDoc?.FindLift(_network.Lifts[0].Lift) is Lift first)
+            {
+                Hud.SetAnalysis(false);
+                var top = DesignFrame.ToLocal(first.Top);
+                var beside = DesignFrame.ToLocal(first.Bottom) - top;
+                _catchShot = top + new Vector2(-beside.y, beside.x).normalized * 25;
+                for (int k = 0; k < 10; k++) yield return null;
+                yield return Shot(dir, "6-catchment");
+                Debug.Log("[NetworkShots] catchment: " + _catchmentNote);
+                _catchShot = null;
             }
             Debug.Log($"[NetworkShots] {_network.Lifts.Count} lifts, {_network.Trails.Count} trails, {_network.Graph.Nodes.Count} nodes, {edges.Count} edges; " +
                       $"warnings: {_network.LiftWarnings} lifts, {_network.TrailWarnings} trails; diagram {_networkView?.VertexCount} vertices");

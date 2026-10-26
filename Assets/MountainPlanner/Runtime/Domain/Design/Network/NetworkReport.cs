@@ -65,9 +65,9 @@ namespace MountainPlanner.Domain.Design
 
         readonly ulong _seed;
         readonly Dictionary<ulong, List<int>> _down;
-        readonly Dictionary<ulong, LiftId> _bottoms;
+        readonly Dictionary<ulong, List<LiftId>> _bottoms;
 
-        NetworkReport(NetworkGraph graph, ulong seed, Dictionary<ulong, List<int>> down, Dictionary<ulong, LiftId> bottoms,
+        NetworkReport(NetworkGraph graph, ulong seed, Dictionary<ulong, List<int>> down, Dictionary<ulong, List<LiftId>> bottoms,
                       LiftStatus[] lifts, TrailStatus[] trails)
         {
             Graph = graph;
@@ -82,7 +82,13 @@ namespace MountainPlanner.Domain.Design
         public Reach ReachFrom(ulong node) => Graph.TryGetNode(node, out _) ? Search(Graph, _down, _bottoms, node) : Reach.Nothing;
 
         /// <summary>A descent from the lift's top (NW-13).</summary>
-        public Reach ReachFrom(LiftId lift) => ReachFrom(DesignNetwork.LiftTopNode(_seed, lift));
+        /// <summary>A descent from the lift's top station (NW-13); another lift's bottom in that station is reached at once
+        /// (a transfer, NT14).</summary>
+        public Reach ReachFrom(LiftId lift)
+        {
+            ulong top = Graph.StationOf(lift, top: true);
+            return top == 0 ? Reach.Nothing : Search(Graph, _down, _bottoms, top, transferFrom: lift);
+        }
 
         /// <summary>A descent down the trail from its head (finding 2): its first segment, then everything below. Other
         /// runs that leave the same head (a lift's top, a junction) aren't on the way.</summary>
@@ -124,7 +130,9 @@ namespace MountainPlanner.Domain.Design
         }
 
         /// <param name="first">When not negative, the search leaves <paramref name="start"/> by that segment only.</param>
-        static Reach Search(NetworkGraph graph, Dictionary<ulong, List<int>> down, Dictionary<ulong, LiftId> bottoms, ulong start, int first = -1)
+        /// <param name="transferFrom">For a lift's own reach: the other lifts' bottoms in its top station count (NT14).</param>
+        static Reach Search(NetworkGraph graph, Dictionary<ulong, List<int>> down, Dictionary<ulong, List<LiftId>> bottoms, ulong start, int first = -1,
+                            LiftId? transferFrom = null)
         {
             var edges = graph.Edges;
             var visited = new HashSet<ulong> { start };
@@ -142,7 +150,9 @@ namespace MountainPlanner.Domain.Design
             while (queue.Count > 0)
             {
                 ulong n = queue.Dequeue();
-                if (n != start && bottoms.TryGetValue(n, out var lift)) lifts.Add(lift);
+                if (bottoms.TryGetValue(n, out var here))
+                    foreach (var lift in here)
+                        if (n != start || (transferFrom.HasValue && lift != transferFrom.Value)) lifts.Add(lift);
                 if (!down.TryGetValue(n, out var outs)) continue;
                 foreach (int i in outs)
                 {
@@ -222,9 +232,15 @@ namespace MountainPlanner.Domain.Design
 
             var lifts = new List<Lift>(doc.Lifts);
             lifts.Sort((a, b) => a.Id.CompareTo(b.Id));
-            var bottoms = new Dictionary<ulong, LiftId>();
-            foreach (var lift in lifts)
-                if (lift.Stage == WorkStage.Built) bottoms[DesignNetwork.LiftBottomNode(doc.Seed, lift.Id)] = lift.Id;
+            // Each station's lifts that load there (NW-14): a station can hold several bottoms (a shared base).
+            var bottoms = new Dictionary<ulong, List<LiftId>>();
+            foreach (var st in graph.Stations)
+                foreach (var m in st.Members)
+                {
+                    if (!m.Bottom) continue;
+                    if (!bottoms.TryGetValue(st.Id, out var list)) bottoms.Add(st.Id, list = new List<LiftId>());
+                    list.Add(m.Lift);
+                }
 
             var served = new HashSet<ulong>();
             var liftList = new List<LiftStatus>();
@@ -232,7 +248,7 @@ namespace MountainPlanner.Domain.Design
             {
                 if (lift.Stage != WorkStage.Built) continue;
                 // A descent from the top; the top is a bottom only for a lift whose ends meet, which LF rules forbid.
-                var reach = Search(graph, down, bottoms, DesignNetwork.LiftTopNode(doc.Seed, lift.Id));
+                var reach = Search(graph, down, bottoms, graph.StationOf(lift.Id, top: true), transferFrom: lift.Id);
                 foreach (var t in reach.Trails) served.Add(t.Value);
                 liftList.Add(new LiftStatus { Lift = lift.Id, Connected = reach.Lifts.Count > 0, Reaches = reach.Trails });
             }
@@ -262,7 +278,8 @@ namespace MountainPlanner.Domain.Design
         }
 
         static bool Joins(NetworkGraph graph, ulong node) =>
-            graph.TryGetNode(node, out var n) && (n.Kind == NodeKind.LiftBottom || n.Kind == NodeKind.Junction || n.Kind == NodeKind.PathEnd);
+            graph.TryGetNode(node, out var n) && (n.Kind == NodeKind.Junction || n.Kind == NodeKind.PathEnd
+                                                  || (n.Kind == NodeKind.Station && graph.StationById(node)?.HasBottom == true));
 
         /// <summary>
         /// NW-08, NT9: a segment's own rating, TD-02 on the stations between <paramref name="startMm"/> and

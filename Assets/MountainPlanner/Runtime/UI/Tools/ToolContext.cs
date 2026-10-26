@@ -47,6 +47,10 @@ namespace MountainPlanner.UI.Tools
         public Presentation.Lifts.TerminalGhost BottomGhost { get; set; }
         public Presentation.Lifts.TerminalGhost TopGhost { get; set; }
 
+        /// <summary>What the terminal in hand would join (NW-14, NT16: a shared base or a transfer, and the trails it
+        /// gathers), set by the game's catchment preview while a lift tool is armed; null when there's nothing to say.</summary>
+        public Func<string> CatchmentNote { get; set; }
+
         /// <summary>The tower in hand as its own model (F4, LT38); null without the lift models.</summary>
         public Func<Presentation.Lifts.TowerGhost> TowerGhost { get; set; }
 

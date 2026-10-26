@@ -27,7 +27,7 @@ namespace MountainPlanner.Domain.Design
     /// Cells are visited in row order and ties go to the lower trail ID, then the lower row and column (SH-04).
     /// Thread-safe: calls take a lock.
     /// </summary>
-    public sealed class TrailNetworkGeometry : ITrailGeometry
+    public sealed class TrailNetworkGeometry : ITrailGeometry, IStationLinks
     {
         /// <summary>TR-05, PA-05: 30 ft.</summary>
         public const double SnapMetres = DesignUnits.SnapMm / 1000.0;
@@ -211,15 +211,15 @@ namespace MountainPlanner.Domain.Design
             public bool Near(Shape o, int cells) =>
                 !Empty && !o.Empty && MinC - cells <= o.MaxC && o.MinC - cells <= MaxC && MinR - cells <= o.MaxR && o.MinR - cells <= MaxR;
 
-            /// <summary>The nearest boundary cell to (column, row) within the 3 × 3 buckets round it: its index and squared
-            /// distance in cells, ties to the lower index; -1 when none.</summary>
-            public int NearestEdge(int column, int row, out int distanceSquared)
+            /// <summary>The nearest boundary cell to (column, row) within the buckets <paramref name="ring"/> round it (1:
+            /// the 3 × 3): its index and squared distance in cells, ties to the lower index; -1 when none.</summary>
+            public int NearestEdge(int column, int row, out int distanceSquared, int ring = 1)
             {
                 int bc = FloorDiv(column, BucketCells), br = FloorDiv(row, BucketCells);
                 int best = -1;
                 distanceSquared = int.MaxValue;
-                for (int j = br - 1; j <= br + 1; j++)
-                    for (int i = bc - 1; i <= bc + 1; i++)
+                for (int j = br - ring; j <= br + ring; j++)
+                    for (int i = bc - ring; i <= bc + ring; i++)
                     {
                         if (!_buckets.TryGetValue(BucketKey(i, j), out var list)) continue;
                         foreach (int k in list)
@@ -299,9 +299,10 @@ namespace MountainPlanner.Domain.Design
             return ends;
         }
 
+        /// <summary>Whether a trail end lies in a station (NW-14: within 100 ft of a built terminal), which it attaches to.</summary>
         static bool OnLiftEnd(List<PointMm> liftEnds, PointMm p)
         {
-            foreach (var e in liftEnds) if (e.Within(p, DesignUnits.SnapMm)) return true;
+            foreach (var e in liftEnds) if (e.Within(p, DesignStations.ReachMm)) return true;
             return false;
         }
 
@@ -437,6 +438,76 @@ namespace MountainPlanner.Domain.Design
                 if (x >= west && x <= east && y >= south && y <= north) return true;
             }
             return false;
+        }
+
+        // ---- stations (NW-07 v2, NW-14) ----
+
+        /// <summary>
+        /// Each trail whose footprint comes within a station's reach of one of its terminals (the terminal on it, or its
+        /// nearest boundary cell within 100 ft), and whose ends don't attach to that station, is cut at its centreline's
+        /// point nearest that terminal (the nearest one of the station's, ties to the first). Stations and trails in ID order.
+        /// </summary>
+        public void FindStationLinks(DesignDocument doc, IReadOnlyList<Station> stations, List<StationLink> into)
+        {
+            lock (_gate)
+            {
+                var shapes = Prepare(doc);
+                foreach (var station in stations)
+                    foreach (var s in shapes)
+                    {
+                        if (s.Empty) continue;
+                        bool attached = DesignStations.At(stations, s.Trail.Head.Value) == station || DesignStations.At(stations, s.Trail.Tail.Value) == station;
+                        if (attached) continue;
+                        double bestD = double.MaxValue, bx = 0, by = 0;
+                        foreach (var m in station.Members)
+                        {
+                            _site.PointOf(m.At, out double px, out double py);
+                            double d = ReachSquared(s, px, py);
+                            if (d < bestD) { bestD = d; bx = px; by = py; }
+                        }
+                        if (bestD == double.MaxValue) continue;
+                        s.Nearest(bx, by, out _, out _, out double along, out _);
+                        into.Add(new StationLink(s.Trail.Id, s.AlongMm(along), station.Id));
+                    }
+            }
+        }
+
+        /// <summary>
+        /// The squared distance (m²) from lattice point (px, py) to <paramref name="s"/>'s footprint: 0 inside it, its
+        /// nearest boundary cell's otherwise; <see cref="double.MaxValue"/> past a station's reach (NW-14).
+        /// </summary>
+        double ReachSquared(Shape s, double px, double py)
+        {
+            var lat = _site.Lattice;
+            double reach = DesignStations.ReachMm / 1000.0;
+            int reachCells = (int)Math.Ceiling(reach) + 1, ring = reachCells / BucketCells + 1;
+            double reach2 = (reach + 0.5) * (reach + 0.5);   // cell centre to point: half a cell of slack
+            lat.CellAt(px, py, out int pc, out int pr);
+            if (pc < s.MinC - reachCells || pc > s.MaxC + reachCells || pr < s.MinR - reachCells || pr > s.MaxR + reachCells) return double.MaxValue;
+            if (s.Footprint.Contains(pc, pr)) return 0;
+            int k = s.NearestEdge(pc, pr, out _, ring);
+            if (k < 0) return double.MaxValue;
+            double ex = lat.West + s.EdgeColumn[k] + 0.5 - px, ey = lat.North - s.EdgeRow[k] - 0.5 - py, d = ex * ex + ey * ey;
+            return d > reach2 ? double.MaxValue : d;
+        }
+
+        /// <summary>
+        /// The built trails a terminal at <paramref name="at"/> would gather (NW-14, NT16: the lift tool's catchment
+        /// preview), in ID order. False, with nothing added, when a network build holds the geometry: the caller asks
+        /// again next frame rather than wait.
+        /// </summary>
+        public bool TryTrailsWithin(DesignDocument doc, PointMm at, List<Trail> into)
+        {
+            if (!System.Threading.Monitor.TryEnter(_gate)) return false;
+            try
+            {
+                var shapes = Prepare(doc);
+                _site.PointOf(at, out double px, out double py);
+                foreach (var s in shapes)
+                    if (!s.Empty && ReachSquared(s, px, py) < double.MaxValue) into.Add(s.Trail);
+                return true;
+            }
+            finally { System.Threading.Monitor.Exit(_gate); }
         }
 
         // ---- paths ----

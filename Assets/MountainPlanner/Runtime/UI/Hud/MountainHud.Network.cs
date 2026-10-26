@@ -127,7 +127,7 @@ namespace MountainPlanner.UI
                 rows.Add(new AnalysisList.Row { Id = l.Id, Data = l });
                 if (!l.Connected) noWay++;
             }
-            _networkLifts.SetRows(rows, "A lift is connected when a way down from its top reaches a lift's bottom. Click a lift, a stretch of trail or a node on the map to light everything you can ski to from it; Esc clears it.");
+            _networkLifts.SetRows(rows, "A lift is connected when a way down from its top reaches a lift's bottom. A terminal gathers every trail within 100 ft of it, and terminals that close share one area, so you can unload and ride on. Click a lift, a stretch of trail or a node on the map to light everything you can ski to from it; Esc clears it.");
             var trows = new List<AnalysisList.Row>(warnings.Count);
             foreach (var t in warnings) trows.Add(new AnalysisList.Row { Id = t.Id, Data = t });
             _networkTrails.SetRows(trows, "");
@@ -199,6 +199,7 @@ namespace MountainPlanner.UI
                 _legendBody.Add(LegendRow(Hex(0xdfe8ee), false, "Run, going down", ""));
                 _legendBody.Add(LegendRow(Hex(0xf0b43c), false, "No lift serves it, or leads nowhere", ""));
                 _legendBody.Add(LegendRow(Color.white, false, "Junction, or a path between runs", ""));
+                _legendBody.Add(LegendAreaRow("Lift terminal, 100 ft around"));
                 // Game finding 1: "Reachable", its swatch the colours things light in: green, blue, black runs and red lifts.
                 _legendBody.Add(LegendStripeRow(new[] { Hex(0x1f8a4c), Hex(0x2f6bb0), Hex(0x1f1c19), Hex(0xe0483a) }, "Reachable"));
                 _legendBody.Add(Note("Click a lift, a stretch of trail or a node to light everything you can ski to from it. Esc or a click on empty ground clears it."));
@@ -211,6 +212,15 @@ namespace MountainPlanner.UI
                 return;
             }
             ShowLegend();
+        }
+
+        /// <summary>NT15: a station's area, its dark red disc in a light red ring.</summary>
+        static VisualElement LegendAreaRow(string word)
+        {
+            var row = LegendRow(Hex(0x4a2622), false, word, "");
+            var swatch = row.Q(className: "lr__sw");
+            swatch.AddToClassList("lr__sw--area");
+            return row;
         }
 
         /// <summary>A legend row whose swatch is touching squares of <paramref name="colours"/>, left to right.</summary>

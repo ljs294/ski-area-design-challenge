@@ -28,7 +28,8 @@ namespace MountainPlanner.Tests
             Assert.That(report.Of(orphan).Warning, Is.EqualTo(NetworkWarning.NoLiftServes));
             TrailStatusOf(doc, report, "Spur", out var spur);
             Assert.That(spur.Warning, Is.EqualTo(NetworkWarning.None), "off Home Run, down to Chair 1's bottom");
-            Assert.That(report.Of(chair1).Reaches.Select(t => doc.FindTrail(t).Name), Is.EquivalentTo(new[] { "Home Run", "Spur" }));
+            // NW-14: Parallel passes within 100 ft of Chair 1's top and ends within it of its bottom, so it joins too.
+            Assert.That(report.Of(chair1).Reaches.Select(t => doc.FindTrail(t).Name), Is.EquivalentTo(new[] { "Home Run", "Spur", "Parallel" }));
         }
 
         static void TrailStatusOf(DesignDocument doc, NetworkReport report, string name, out NetworkReport.TrailStatus status) =>
@@ -171,7 +172,7 @@ namespace MountainPlanner.Tests
             Assert.That(fromJunction.Lifts, Is.EqualTo(new[] { chair }));
             Assert.That(fromJunction.Nodes, Has.Member(junction), "the start is reached");
 
-            var fromBottom = report.ReachFrom(DesignNetwork.LiftBottomNode(doc.Seed, chair));
+            var fromBottom = report.ReachFrom(report.Graph.StationOf(chair, top: false));
             Assert.That(fromBottom.Segments, Is.Empty, "nothing runs downhill from a lift's bottom");
             Assert.That(fromBottom.Lifts, Is.Empty);
             Assert.That(report.ReachFrom(12345UL).Nodes, Is.Empty, "a node not in the graph");
@@ -189,6 +190,84 @@ namespace MountainPlanner.Tests
             var reach = report.ReachFrom(ends[0].Id);
             Assert.That(reach.Nodes, Has.Member(ends[1].Id), "PA-06: level, so both ways");
             Assert.That(reach.Trails, Is.EquivalentTo(new[] { a, b }));
+        }
+
+        [Test]
+        public void NW14_NT13_ALiftBuiltBesideARunsMiddleIsConnected()
+        {
+            // Kearsarge's Chair 5: the run came first and only passes by both terminals (80 ft off its centreline).
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var run = AddTrail(h, "Run", P(0, 3000), P(0, 0));
+            var late = AddLift(h, "Late", P(80, 200), P(80, 2000));
+            var report = NetworkReport.Build(h.Document, new TrailNetworkGeometry(Site));
+            Assert.That(report.Of(late).Connected, Is.True, "cut at both stations (NW-07 v2)");
+            Assert.That(report.Of(late).Reaches, Is.EqualTo(new[] { run }));
+            var stops = report.Graph.Edges.Where(e => e.Kind == EdgeKind.TrailSegment).Select(e => e.To).ToArray();
+            Assert.That(stops, Has.Member(report.Graph.StationOf(late, top: true)));
+            Assert.That(stops, Has.Member(report.Graph.StationOf(late, top: false)));
+        }
+
+        [Test]
+        public void NW14_NT13_ARunEnding52FtFromATerminalJoins()
+        {
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var chair = AddLift(h, "Chair", P(0, 0), P(0, 3000));
+            AddTrail(h, "Down", P(52, 3000), P(52, 0));   // past TR-05's 30 ft snap, inside the station
+            var report = NetworkReport.Build(h.Document, new TrailNetworkGeometry(Site));
+            Assert.That(report.Of(chair).Connected, Is.True);
+        }
+
+        [Test]
+        public void NW14_NT13_BottomsWithin200FtShareAStation()
+        {
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var one = AddLift(h, "Chair 1", P(0, 0), P(0, 3000));
+            var two = AddLift(h, "Chair 2", P(157, 0), P(1500, 3000));   // Kearsarge's Chair 1 and 2: 157 ft apart
+            var three = AddLift(h, "Chair 3", P(-210, 0), P(-1500, 3000));   // 210 ft from Chair 1's: apart
+            var stations = DesignStations.Of(h.Document);
+            Assert.That(DesignStations.Of(stations, one, true), Is.SameAs(DesignStations.Of(stations, two, true)), "a shared base");
+            Assert.That(DesignStations.Of(stations, three, true), Is.Not.SameAs(DesignStations.Of(stations, one, true)));
+            Assert.That(DesignStations.Of(stations, one, false), Is.Not.SameAs(DesignStations.Of(stations, one, true)), "never a lift's own ends");
+            Assert.That(stations.Count, Is.EqualTo(5));
+        }
+
+        [Test]
+        public void NW14_NT16_ATerminalInHandGathersTheTrailsWithinReach()
+        {
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var run = AddTrail(h, "Run", P(0, 3000), P(0, 0));   // 100 ft wide: its edge 50 ft off the centreline
+            var geometry = new TrailNetworkGeometry(Site);
+            var into = new System.Collections.Generic.List<Trail>();
+            Assert.That(geometry.TryTrailsWithin(h.Document, P(140, 1500), into), Is.True);
+            Assert.That(into.Select(t => t.Id), Is.EqualTo(new[] { run }), "90 ft from its edge");
+            into.Clear();
+            geometry.TryTrailsWithin(h.Document, P(170, 1500), into);
+            Assert.That(into, Is.Empty, "120 ft from its edge");
+        }
+
+        [Test]
+        public void NW14_NT14_ATransferCounts()
+        {
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var lower = AddLift(h, "Lower", P(0, 0), P(0, 3000));
+            var upper = AddLift(h, "Upper", P(60, 3050), P(60, 6000));   // loads beside Lower's top
+            var report = NetworkReport.Build(h.Document, new TrailNetworkGeometry(Site));
+            Assert.That(report.Of(lower).Connected, Is.True, "unload and ride on");
+            Assert.That(report.ReachFrom(lower).Lifts, Is.EqualTo(new[] { upper }));
+            Assert.That(report.Of(upper).Connected, Is.False, "nothing down from Upper's top");
+        }
+
+        [Test]
+        public void NW14_JN04_AStationKeepsItsIdWhenAnUnrelatedLiftIsAdded()
+        {
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            AddLift(h, "Chair 1", P(0, 0), P(0, 3000));
+            AddLift(h, "Chair 2", P(100, 0), P(1500, 3000));
+            var before = DesignStations.Of(h.Document).Select(s => s.Id).ToArray();
+            AddLift(h, "Far", P(4000, 0), P(4000, 3000));
+            var after = DesignStations.Of(h.Document).Select(s => s.Id).ToArray();
+            Assert.That(after.Length, Is.EqualTo(before.Length + 2));
+            foreach (var id in before) Assert.That(after, Has.Member(id));
         }
 
         [Test]

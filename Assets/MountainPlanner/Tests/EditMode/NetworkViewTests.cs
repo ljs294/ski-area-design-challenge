@@ -65,6 +65,36 @@ namespace MountainPlanner.Tests
             Assert.That(_view.VertexCount, Is.GreaterThan(1000));
         }
 
+        static Vector3[] Rim(Vector3 c, float r)
+        {
+            var rim = new Vector3[49];
+            for (int k = 0; k <= 48; k++) rim[k] = c + new Vector3(Mathf.Cos(k * Mathf.PI / 24), 0, Mathf.Sin(k * Mathf.PI / 24)) * r;
+            return rim;
+        }
+
+        [Test]
+        public void NW14_NT15_NT16_StationAreasAndTheCatchmentDraw()
+        {
+            // NT15: a shared base, two terminals' areas under one station.
+            var areas = new[]
+            {
+                new NetworkView.StationArea { Station = 11, Lift = 1, Centre = Vector3.zero, Rim = Rim(Vector3.zero, 30.48f) },
+                new NetworkView.StationArea { Station = 11, Lift = 2, Centre = new Vector3(40, 0, 0), Rim = Rim(new Vector3(40, 0, 0), 30.48f) },
+            };
+            _view.Set(null, null, null, null, null, areas);
+            _view.Visible = true;
+            _view.Follow(_cam);
+            int plain = _view.VertexCount;
+            Assert.That(plain, Is.GreaterThan(2 * 49), "two rims and two fills");
+
+            // NT16: the lift tool's catchment, a terminal in hand and the trail it gathers lit.
+            var candidate = new NetworkView.StationArea { Candidate = true, Centre = new Vector3(0, 0, 200), Rim = Rim(new Vector3(0, 0, 200), 30.48f) };
+            var gathered = new[] { new NetworkView.Segment { Edge = 0, Trail = 7, Points = Line(-100, 210, 100, 210, 8), Own = Color.blue, Served = true } };
+            _view.SetCatchment(gathered, new[] { areas[0], areas[1], candidate });
+            _view.Follow(_cam);
+            Assert.That(_view.VertexCount, Is.GreaterThan(plain + 49), "the candidate's area and the lit trail");
+        }
+
         [Test]
         public void NW13_ANodeWinsTheClickOverTheLineThroughIt()
         {
