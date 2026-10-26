@@ -34,6 +34,9 @@ namespace MountainPlanner.Domain.Design
             public double NextReachTallest { get; internal set; }
             /// <summary>TW-13: the rope will pull up within that reach (the ground rises faster than the rope can follow).</summary>
             public bool HoldDownsAhead { get; internal set; }
+            /// <summary>F4: how it stands (its lean down the line, TW-14, radians; its foot's elevation, metres), for its ghost.</summary>
+            public double Lean { get; internal set; }
+            public double BaseY { get; internal set; }
         }
 
         readonly LiftType _type;
@@ -62,6 +65,13 @@ namespace MountainPlanner.Domain.Design
             _placed.Sort((a, b) => a.AlongMm.CompareTo(b.AlongMm));
             _strung = Solve(_placed);
         }
+
+        /// <summary>The placed towers alone, the rope strung from the last of them to the top terminal (Fill the rest's done
+        /// test: the line is complete when this clears the ground).</summary>
+        public LiftRope Strung => _strung;
+
+        /// <summary>The terminal levels the tower in hand stands against (the profile strip).</summary>
+        public LiftLevels Levels => _levels;
 
         double ExitY => _levels.BottomMetres + _type.Bottom.ExitRise;
         double TopExitY => _levels.TopMetres + _type.Top.ExitRise;
@@ -97,13 +107,18 @@ namespace MountainPlanner.Domain.Design
             var sol = rope.Towers[me];
             status.Head = sol.Head;
             status.Loads = sol.Loads;
+            status.Lean = sol.Lean;
+            status.BaseY = sol.BaseY;
             // The span behind it, TW-01 v2.
-            double from = me > 0 ? rope.Towers[me - 1].RopeS : 0, lowest = double.MaxValue, worst = 0, worstS = 0;
+            // The trench (GR-11 v2) digs the first span, and past the bottom station tower up to 15 ft before the next (as Reach).
+            double from = me > 0 ? rope.Towers[me - 1].RopeS : 0, lowest = double.MaxValue, worst = 0, worstS = 0, over = 0;
             for (double s = Math.Ceiling(from); s <= sol.RopeS; s += 1)
                 if (rope.ClearanceAt(s, out double clear, out double need))
                 {
                     lowest = Math.Min(lowest, clear);
                     if (need - clear > worst) { worst = need - clear; worstS = s; }
+                    double allow = me == 0 || (me == 1 && s < sol.RopeS - LiftLineEnvelope.TowerKeepMetres) ? LiftLineEnvelope.CapMetres : LiftRope.ClearanceTolerance;
+                    over = Math.Max(over, need - clear - allow);
                 }
             status.LowestClearance = lowest == double.MaxValue ? LiftRope.Clearance : lowest;
             // A placed tower made too sharp by this one (TW-06), or the bottom terminal's row out of range (TW-16 v3).
@@ -117,7 +132,7 @@ namespace MountainPlanner.Domain.Design
             else if (height != null) status.Problem = new LiftProblem("TW-02", height, along);
             // The first span's shortfall, up to GR-11 v2's 10 ft, is the trench's to dig at Break ground (the lift-line
             // envelope, as on an automatic lift).
-            else if (worst > (me == 0 ? LiftLineEnvelope.CapMetres : LiftRope.ClearanceTolerance))
+            else if (over > 0)
                 status.Problem = new LiftProblem("TW-01", $"The chairs pass {Ft1(LiftRope.Clearance - worst)} over the ground at {Ft(worstS)}; they need 15 ft", worstS);
             if (sharp != null) status.Warning = new LiftProblem("TW-06", sharp, along, false);
             else if (me == 0 && !rowOk)
@@ -230,7 +245,9 @@ namespace MountainPlanner.Domain.Design
                 int j = (int)Math.Min(_line.Count - 1, Math.Max(0, Math.Round(x)));
                 double need = Need(x);
                 double chairs = Math.Min(loaded.Y(x), empty.Y(x)) - drop;
-                double slack = _placed.Count == 0 ? LiftLineEnvelope.CapMetres : LiftRope.ClearanceTolerance;   // the trench's, as above
+                // The trench's (GR-11 v2): the first span, and past the bottom station tower up to 15 ft before the next (as Reach).
+                double slack = _placed.Count == 0 || (_placed.Count == 1 && x < s - LiftLineEnvelope.TowerKeepMetres)
+                    ? LiftLineEnvelope.CapMetres : LiftRope.ClearanceTolerance;
                 if (chairs - Math.Max(_line.UnderUp[j], _line.UnderDown[j]) < need - slack) return false;
             }
             // Head loads and the rope's angle into the station are amber (LC-09, LT14): they don't make the band red.

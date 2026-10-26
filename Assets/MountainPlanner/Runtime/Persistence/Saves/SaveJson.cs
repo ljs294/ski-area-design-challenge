@@ -10,16 +10,19 @@ using Newtonsoft.Json.Linq;
 namespace MountainPlanner.Persistence.Saves
 {
     /// <summary>
-    /// save.json, version 2 (task P3-04, v1; task P3-09, v2: each lift's terminal levels; frozen, 0.3 §5). Written by hand in a fixed order, so the same save always gives
+    /// save.json, version 3 (task P3-04, v1; task P3-09, v2: each lift's terminal levels; v3: each tower's kind, LT44;
+    /// frozen, 0.3 §5). Written by hand in a fixed order, so the same save always gives
     /// the same bytes (SH-04): two-space indents, "\n" line ends, integers only, IDs and the seed as 16-digit hex,
     /// points as [x, y] in whole millimetres from the site's centre on the package grid's axes (TE5; never absolute
     /// EPSG:6350), and every enum as a fixed word that never follows a C# rename. A lift's "Levels" (v2, SK14) are the
     /// terminals' base elevations: <b>absolute</b> elevation in whole millimetres in the package's height datum, unlike
-    /// the site-centred points; null where unknown (a lift from a v1 save).
+    /// the site-centred points; null where unknown (a lift from a v1 save). A tower's "Kind" (v3) is the head's kind the
+    /// player chose: "auto" (the game's choice; every tower of a v1 or v2 save), "support", "hold-down" or "combination".
     /// <code>
-    /// { "Version": 2, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 2, "Seed", "NextOrdinal", "Trails": [...],
-    ///               "Lifts": [ { ..., "Towers": [...], "Levels": { "BottomMm", "TopMm" } or null } ] },
+    /// { "Version": 3, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 3, "Seed", "NextOrdinal", "Trails": [...],
+    ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
+    ///                            "Levels": { "BottomMm", "TopMm" } or null } ] },
     ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] } }
     /// </code>
     /// </summary>
@@ -142,6 +145,7 @@ namespace MountainPlanner.Persistence.Saves
                 w.WritePropertyName("Id"); w.WriteValue(Hex(t.Id.Value));
                 w.WritePropertyName("AlongMm"); w.WriteValue(t.AlongMm);
                 w.WritePropertyName("HeightMm"); w.WriteValue(t.HeightMm);
+                w.WritePropertyName("Kind"); w.WriteValue(Words.Kind(t.Kind));
                 w.WriteEndObject();
             }
             w.WriteEndArray();
@@ -285,7 +289,7 @@ namespace MountainPlanner.Persistence.Saves
             foreach (var x in Arr(l, "Towers"))
             {
                 var to = AsObj(x);
-                towers.Add(new Tower(new TowerId(HexValue(Str(to, "Id"))), Int(to, "AlongMm"), Int(to, "HeightMm")));
+                towers.Add(new Tower(new TowerId(HexValue(Str(to, "Id"))), Int(to, "AlongMm"), Int(to, "HeightMm"), Words.TowerKind(Str(to, "Kind"))));
             }
             return new Lift(new LiftId(HexValue(Str(l, "Id"))), Str(l, "Name"), Words.Stage(Str(l, "Stage")), Str(l, "Catalog"),
                 Point(l, "Bottom"), Point(l, "Top"), Words.Mode(Str(l, "TowerMode")), Words.Stance(Str(l, "Stance")), towers, Levels(l));
@@ -386,6 +390,16 @@ namespace MountainPlanner.Persistence.Saves
             public static TowerMode Mode(string s) => s == "automatic" ? TowerMode.Automatic : s == "by-hand" ? TowerMode.ByHand : throw Unknown(s);
             public static string Stance(TowerStance v) => v == TowerStance.Plumb ? "plumb" : v == TowerStance.Leaned ? "leaned" : throw Bad(v);
             public static TowerStance Stance(string s) => s == "plumb" ? TowerStance.Plumb : s == "leaned" ? TowerStance.Leaned : throw Unknown(s);
+            public static string Kind(TowerKind v) => v switch
+            {
+                Domain.Design.TowerKind.Auto => "auto", Domain.Design.TowerKind.Support => "support",
+                Domain.Design.TowerKind.HoldDown => "hold-down", Domain.Design.TowerKind.Combination => "combination", _ => throw Bad(v),
+            };
+            public static TowerKind TowerKind(string s) => s switch
+            {
+                "auto" => Domain.Design.TowerKind.Auto, "support" => Domain.Design.TowerKind.Support,
+                "hold-down" => Domain.Design.TowerKind.HoldDown, "combination" => Domain.Design.TowerKind.Combination, _ => throw Unknown(s),
+            };
 
             static Exception Bad(object v) => new ArgumentException($"{v.GetType().Name} {v} has no saved word.");
             static Exception Unknown(string s) => new FormatException($"'{s}' isn't a known value");

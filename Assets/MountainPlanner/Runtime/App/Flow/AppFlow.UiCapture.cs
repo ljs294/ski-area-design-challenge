@@ -189,7 +189,8 @@ namespace MountainPlanner.App.Flow
                 Controller.PickerCancelled();
             }
 
-            if ((HudStates.Any(h => Wanted("s6-" + h.Name)) || PhotoStates.Any(p => Wanted("s10-" + p.Name)) || Wanted("s7-menu") || Wanted("s8-settings-game")) && demo != null)
+            if ((HudStates.Any(h => Wanted("s6-" + h.Name)) || PhotoStates.Any(p => Wanted("s10-" + p.Name)) || Wanted("s7-menu") || Wanted("s8-settings-game")
+                 || Wanted("s6-tool-lift-menu") || Wanted("s6-tool-lift-byhand")) && demo != null)
             {
                 Controller.Open(demo);
                 yield return Wait(1);
@@ -211,6 +212,26 @@ namespace MountainPlanner.App.Flow
                         state.Set(hud, _viewer, false);
                         yield return Wait(0.3f);
                     }
+                // Task 09: the lift type menu open, and towers by hand (the edited ground starts over a few frames).
+                if (hud != null && Wanted("s6-tool-lift-menu"))
+                {
+                    hud.SetToolboxTab("lifts"); hud.SetToolbox(true);
+                    if (!_viewer.LiftMenuForCapture()) Debug.LogWarning("[UiCapture] tool-lift-menu: New lift didn't open");
+                    yield return Wait(0.5f);
+                    yield return EachLook(folder, "s6-tool-lift-menu");
+                    _viewer.Tools?.Close(); hud.SetToolbox(false);
+                    yield return Wait(0.3f);
+                }
+                if (hud != null && Wanted("s6-tool-lift-byhand"))
+                {
+                    hud.SetToolboxTab("lifts"); hud.SetToolbox(true);
+                    if (!_viewer.LiftByHandBeginForCapture()) Debug.LogWarning("[UiCapture] tool-lift-byhand: the line didn't fix");
+                    for (float t = 0; t < 60 && !_viewer.LiftByHandPlaceForCapture(3); t += Time.unscaledDeltaTime) yield return null;
+                    yield return Wait(1.5f);
+                    yield return EachLook(folder, "s6-tool-lift-byhand");
+                    _viewer.ClearGroundForCapture(); _viewer.Tools?.Close(); hud.SetToolbox(false);
+                    yield return Wait(0.3f);
+                }
                 _viewer?.SetPointerForCapture(null);
                 MountainPlanner.Presentation.DisplayUnits.Set(units, remember: false);
                 if (hud != null && Wanted("s7-menu"))
@@ -282,6 +303,19 @@ namespace MountainPlanner.App.Flow
                 if (!on) v.Tools?.Close();   // no "discarded" note in the next shot
                 h.SetToolboxTab("lifts"); h.SetToolbox(on);
                 if (on && !v.LiftReviewForCapture()) Debug.LogWarning("[UiCapture] tool-lift-review: no spot where a lift could sit");
+            }),
+            // Task 09 (LT19–LT22): the terminal being placed as its own model, turned and raised; then the top's while aiming.
+            ("tool-lift-ghost", false, (h, v, on) =>
+            {
+                if (!on) { v.ClearGroundForCapture(); v.Tools?.Close(); }
+                h.SetToolboxTab("lifts"); h.SetToolbox(on);
+                if (on && !v.LiftGhostForCapture(false)) Debug.LogWarning("[UiCapture] tool-lift-ghost: no spot in the core");
+            }),
+            ("tool-lift-ghost-top", false, (h, v, on) =>
+            {
+                if (!on) { v.ClearGroundForCapture(); v.Tools?.Close(); }
+                h.SetToolboxTab("lifts"); h.SetToolbox(on);
+                if (on && !v.LiftGhostForCapture(true)) Debug.LogWarning("[UiCapture] tool-lift-ghost-top: the bottom didn't place");
             }),
             ("tool-trail-review", false, (h, v, on) =>
             {

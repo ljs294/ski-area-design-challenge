@@ -20,6 +20,10 @@
 .hud .tw { position: absolute; }
 .hud .tw__icon { width: 18px; height: 18px; margin-right: 8px; color: var(--text); -unity-text-outline-color: var(--text); }
 .hud .tw__name { margin-left: 8px; font-size: 14px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+/* F5: a lift's name is a button; a click (or F2) types a new one */
+.hud .tw__name--edit { border-bottom-width: 1px; border-color: var(--hair); }
+.hud .tw__name--edit:hover { color: var(--text); -unity-text-outline-color: var(--text); border-color: var(--soft); }
+.hud .tw__namefield { margin: 0 0 0 8px; min-width: 140px; font-size: 14px; }
 .hud .tw__ask { margin-left: 8px; font-size: 12.5px; -unity-font-style: bold; color: var(--neg); -unity-text-outline-color: var(--neg); }
 .hud .tw__opts { padding: 8px 0 4px 0; }
 .hud .tw > #window-body { flex-shrink: 1; min-height: 0; }
@@ -132,3 +136,96 @@
 
 /* the profile strip's slot above the status bar (LF-10, TF-04): tasks 08 and 09 draw into it */
 .hud .tool-strip { position: absolute; left: 440px; right: 10px; bottom: 62px; height: 160px; }
+
+/* ---------- dropdowns (task 09; the mockup's .ldd, .ddb, .amenu, .mi) ---------- */
+.hud .tw-dd {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    height: 28px;
+    margin: 0;
+    padding: 0 10px;
+    border-width: 1px;
+    border-color: var(--hair2);
+    border-radius: 4px;
+    background-color: var(--panel);
+}
+.hud .tw-dd--grow { flex-grow: 1; }
+.hud .tw-dd:hover, .hud .tw-dd:focus { border-color: var(--ghost-hover); }
+.hud .tw-dd__value { margin: 0; padding: 0; font-size: 12px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .tw-dd__caret { margin: 0 0 0 6px; padding: 0; font-size: 10px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw-dd--quiet { height: 22px; padding: 0 4px; border-color: rgba(0, 0, 0, 0); background-color: rgba(0, 0, 0, 0); justify-content: flex-start; }
+.hud .tw-dd--quiet .tw-dd__value { -unity-font-style: normal; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .tw-dd--quiet:hover, .hud .tw-dd--quiet:focus { border-color: var(--hair2); }
+.hud .tw-dd--quiet:hover .tw-dd__value, .hud .tw-dd--quiet:focus .tw-dd__value { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .tw-row--pair { padding: 5px 12px 1px 12px; }
+.hud .tw-row__dot { margin: 0 2px; padding: 0; color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .tw-menu {
+    position: absolute;
+    padding: 4px 0;
+    border-width: 1px;
+    border-color: var(--hair);
+    border-radius: 5px;
+    background-color: var(--panel);
+}
+.hud .tw-menu--quiet { min-width: 140px; }
+.hud .tw-menu__item {
+    flex-direction: row;
+    align-items: center;
+    height: 26px;
+    margin: 0;
+    padding: 0 10px;
+    border-width: 0;
+    border-radius: 0;
+    background-color: rgba(0, 0, 0, 0);
+}
+.hud .tw-menu__item:hover, .hud .tw-menu__item:focus { background-color: var(--hover); }
+.hud .tw-menu__tick { width: 16px; margin: 0; padding: 0; font-size: 12px; color: var(--pos); -unity-text-outline-color: var(--pos); }
+.hud .tw-menu__label { margin: 0; padding: 0; font-size: 12px; -unity-font-style: bold; white-space: nowrap; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .tw-menu__item--dis .tw-menu__label { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .tw-menu__item--dis:hover { background-color: rgba(0, 0, 0, 0); }
+.hud #toolwin-extra > .mp-ghost { margin-right: 6px; padding: 0 6px; }
+
+/* ---------- the lift profile strip (task 09, LF-10; the mockup's .lstrip, .lsh, .lten) ---------- */
+.hud .tw-strip { position: absolute; overflow: hidden; border-width: 1px; border-color: var(--hair); border-radius: 6px; background-color: var(--panel); }
+.hud .tw-strip__head { flex-direction: row; align-items: center; height: 30px; padding: 0 12px; border-bottom-width: 1px; border-color: var(--hair); }
+.hud .tw-strip__title { margin: 0 12px 0 0; padding: 0; font-size: 13px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .tw-strip__info { margin: 0 12px 0 0; padding: 0; font-size: 11.5px; white-space: nowrap; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .tw-strip__seg { height: 22px; margin: 0 12px 0 0; flex-shrink: 0; }
+.hud .tw-strip__seg > .mp-seg__opt { flex-shrink: 0; padding: 0 8px; font-size: 11px; }
+.hud .tw-strip__info { flex-shrink: 1; overflow: hidden; }
+.hud .tw-strip__rise { margin-left: auto; flex-direction: row; align-items: center; }
+.hud .tw-strip__rise-label { margin: 0 8px 0 0; padding: 0; font-size: 11.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw-strip__bar { width: 128px; height: 12px; margin: 0 8px 0 0; }
+.hud .tw-strip__rise-value { margin: 0 6px 0 0; padding: 0; font-size: 11.5px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .tw-strip__rise-value--over { color: var(--neg); -unity-text-outline-color: var(--neg); }
+.hud .tw-strip__chart { position: relative; }
+.hud .tw-strip__labels { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.hud .tw-strip__empty { position: absolute; left: 12px; top: 10px; margin: 0; padding: 0; font-size: 11.5px; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .tw-strip__label { position: absolute; margin: 0; padding: 0; font-size: 9px; white-space: nowrap; color: var(--chart-label); -unity-text-outline-color: var(--chart-label); }
+.hud .tw-strip__label--tower { font-size: 9px; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .tw-strip__label--bad { font-size: 9.5px; color: var(--neg); -unity-text-outline-color: var(--neg); }
+.hud .tw-strip__label--side { font-size: 10px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw-strip__label--side2 { font-size: 9.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw-strip__ink { position: absolute; width: 0; height: 0; }
+.hud .tw-strip__ink--chart-fill { background-color: var(--chart-fill); }
+.hud .tw-strip__ink--chart-a { background-color: var(--chart-a); }
+.hud .tw-strip__ink--chart-b { background-color: var(--chart-b); }
+.hud .tw-strip__ink--chart-label { background-color: var(--chart-label); }
+.hud .tw-strip__ink--chart-bg { background-color: var(--chart-bg); }
+.hud .tw-strip__ink--row { background-color: var(--row); }
+.hud .tw-strip__ink--neg { background-color: var(--neg); }
+.hud .tw-strip__ink--strong { background-color: var(--strong); }
+.hud .tw-strip__ink--soft { background-color: var(--soft); }
+.hud .tw-strip__ink--text { background-color: var(--text); }
+.hud .tw-strip__ink--hair2 { background-color: var(--hair2); }
+.hud .tw-strip__ink--chip { background-color: var(--chip); }
+.hud .tw-strip__ink--pos { background-color: var(--pos); }
+
+/* ---------- a tower's load gauge (task 09, TW-11; the mockup's .lgauge, .ldet) ---------- */
+.hud .tw-gauge { padding: 4px 12px 2px 12px; }
+.hud .tw-gauge__bar { height: 32px; position: relative; }
+.hud .tw-gauge__mark { position: absolute; top: 0; translate: -50% 0; margin: 0; padding: 0; font-size: 9.5px; -unity-font-style: bold; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .tw-gauge__ends { flex-direction: row; justify-content: space-between; }
+.hud .tw-gauge__end { margin: 0; padding: 0; font-size: 10px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw-gauge__detail { margin: 2px 0 0 0; padding: 0; font-size: 11px; white-space: normal; color: var(--soft); -unity-text-outline-color: var(--soft); }

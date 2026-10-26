@@ -17,9 +17,10 @@ namespace MountainPlanner.UI.Tools
     {
         public readonly HudWindow Window;
         readonly Label _name, _ask, _hint, _msg;
-        readonly VisualElement _opts, _steps, _keys, _kv, _btns, _acts, _msgs;
+        readonly VisualElement _opts, _steps, _keys, _kv, _btns, _acts, _msgs, _extra;
+        string _extraKey;
         readonly Button _next, _go, _plan;
-        readonly Label _goKbd, _nextKbd;
+        readonly Label _goKbd, _nextKbd, _goLabel;
         int _reviewVersion = -1;
         ReviewModel _review;
 
@@ -39,6 +40,8 @@ namespace MountainPlanner.UI.Tools
             }
             _name = new Label { name = "toolwin-name", pickingMode = PickingMode.Ignore };
             _name.AddToClassList("tw__name");
+            _name.RegisterCallback<ClickEvent>(_ => BeginRename());
+            Window.RegisterCallback<KeyDownEvent>(e => { if (e.keyCode == KeyCode.F2 && _rename != null && !_renaming) { BeginRename(); e.StopPropagation(); } });
             Window.Head.Insert(Window.Head.IndexOf(Window.Title) + 1, _name);
             _ask = new Label { name = "toolwin-ask", pickingMode = PickingMode.Ignore };
             _ask.AddToClassList("tw__ask");
@@ -69,8 +72,12 @@ namespace MountainPlanner.UI.Tools
             _msg.AddToClassList("tw-msg");
             _msg.AddToClassList("hidden");
             _msgs.Add(_msg);
+            body.Add(_gauge = new LiftLoadGauge());
+            _gauge.Show(null);
             body.Add(_kv = Part("toolwin-review", "tw-kv"));
             body.Add(_keys = Part("toolwin-keys", "tw-keys"));
+            body.Add(_extra = Part("toolwin-extra", "tw-btns"));
+            _extra.AddToClassList("hidden");
             body.Add(_btns = Part("toolwin-btns", "tw-btns"));
             _next = new Button(() => NextClicked?.Invoke()) { name = "toolwin-next" };
             _next.AddToClassList("mp-ghost");
@@ -162,9 +169,71 @@ namespace MountainPlanner.UI.Tools
         // ---------- the head ----------
 
         /// <summary>The design's name after the title ("Summit Quad").</summary>
-        public void SetName(string name) => _name.text = name ?? "";
+        public void SetName(string name)
+        {
+            if (_renaming) EndRename(false);
+            _name.text = name ?? "";
+        }
 
-        Label _goLabel;
+        // ---------- renaming (F5, LT39) ----------
+
+        Func<string, string> _rename;
+        TextField _nameField;
+        bool _renaming;
+
+        /// <summary>
+        /// F5: the name becomes a button; a click (or F2 while the window has the keyboard) turns it into a text field. Enter
+        /// or a click elsewhere keeps the new name, Esc the old one. <paramref name="rename"/> takes the new name and returns
+        /// why it can't be kept (shown under the field) or null when it's kept; null makes the name plain text again.
+        /// </summary>
+        public void SetRenamable(Func<string, string> rename)
+        {
+            if (_renaming) EndRename(false);
+            _rename = rename;
+            _name.pickingMode = rename != null ? PickingMode.Position : PickingMode.Ignore;
+            _name.EnableInClassList("tw__name--edit", rename != null);
+            _name.tooltip = rename != null ? "Rename (F2)" : null;
+        }
+
+        /// <summary>Whether the name is being typed now (tests).</summary>
+        public bool Renaming => _renaming;
+
+        /// <summary>Opens the name for typing, as a click on it does (F2, tests).</summary>
+        public void BeginRename()
+        {
+            if (_rename == null || _renaming) return;
+            _renaming = true;
+            if (_nameField == null)
+            {
+                _nameField = new TextField { name = "toolwin-name-field", maxLength = Domain.Design.DesignRules.NameMaxLength, isDelayed = false };
+                _nameField.AddToClassList("tw__namefield");
+                _nameField.RegisterCallback<KeyDownEvent>(e =>
+                {
+                    if (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter) { EndRename(true); e.StopPropagation(); }
+                    else if (e.keyCode == KeyCode.Escape) { EndRename(false); e.StopPropagation(); }
+                }, TrickleDown.TrickleDown);
+                _nameField.RegisterCallback<FocusOutEvent>(_ => { if (_renaming) EndRename(true); });
+            }
+            _nameField.SetValueWithoutNotify(_name.text);
+            Window.Head.Insert(Window.Head.IndexOf(_name) + 1, _nameField);
+            _name.AddToClassList("hidden");
+            _nameField.schedule.Execute(() => { _nameField.Focus(); _nameField.SelectAll(); });
+        }
+
+        /// <summary>Keeps (or drops) what was typed (tests call it as Enter or Esc would).</summary>
+        public void EndRename(bool keep)
+        {
+            if (!_renaming) return;
+            _renaming = false;
+            string typed = _nameField.value;
+            _nameField.RemoveFromHierarchy();
+            _name.RemoveFromClassList("hidden");
+            if (!keep || typed == _name.text || _rename == null) return;
+            string problem = _rename(typed);
+            if (problem != null) SetMessage(problem);
+            else _name.text = typed;
+        }
+
         readonly List<VisualElement> _strips = new List<VisualElement>();
 
         /// <summary>
@@ -242,6 +311,126 @@ namespace MountainPlanner.UI.Tools
             return Set;
         }
 
+        readonly List<ToolDropdown> _dropdowns = new List<ToolDropdown>();
+        readonly Dictionary<string, Label> _rowLabels = new Dictionary<string, Label>();
+
+        /// <summary>A dropdown row (the lift's Type, Chair and Model; task 09). <paramref name="picked"/> gets the option's index.</summary>
+        public ToolDropdown AddDropdown(string name, string label, Action<int> picked, string tooltip = null)
+        {
+            var row = Part("toolwin-opt-" + name, "tw-row");
+            var l = new Label(label) { pickingMode = PickingMode.Ignore };
+            l.AddToClassList("tw-row__label");
+            row.Add(l);
+            _rowLabels[name] = l;
+            var dd = Dropdown(name, false, picked, tooltip);
+            dd.Button.AddToClassList("tw-dd--grow");
+            row.Add(dd.Button);
+            _opts.Add(row);
+            return dd;
+        }
+
+        /// <summary>A quieter row of two dropdowns with a dot between (the lift's Towers: Automatic · Plumb).</summary>
+        public (ToolDropdown First, ToolDropdown Second) AddDropdownPair(string name, string label, string first, Action<int> pickedFirst,
+                                                                          string second, Action<int> pickedSecond, string tipFirst = null, string tipSecond = null)
+        {
+            var row = Part("toolwin-opt-" + name, "tw-row");
+            row.AddToClassList("tw-row--pair");
+            var l = new Label(label) { pickingMode = PickingMode.Ignore };
+            l.AddToClassList("tw-row__label");
+            row.Add(l);
+            var a = Dropdown(first, true, pickedFirst, tipFirst);
+            var b = Dropdown(second, true, pickedSecond, tipSecond);
+            var dot = new Label("·") { pickingMode = PickingMode.Ignore };
+            dot.AddToClassList("tw-row__dot");
+            row.Add(a.Button);
+            row.Add(dot);
+            row.Add(b.Button);
+            _opts.Add(row);
+            return (a, b);
+        }
+
+        ToolDropdown Dropdown(string name, bool quiet, Action<int> picked, string tooltip)
+        {
+            var dd = new ToolDropdown(name, Window, quiet, picked);
+            if (tooltip != null) dd.Button.tooltip = tooltip;
+            dd.Opened += opening => { foreach (var other in _dropdowns) if (other != opening) other.Close(); };
+            _dropdowns.Add(dd);
+            return dd;
+        }
+
+        /// <summary>Renames an option row's label (the lift's Chair row reads Cabin for a gondola or tram).</summary>
+        public void SetRowLabel(string name, string label)
+        {
+            if (_rowLabels.TryGetValue(name, out var l)) l.text = label;
+        }
+
+        // ---------- the lift profile strip (task 09, LF-10) ----------
+
+        LiftProfileStrip _strip;
+        LiftLoadGauge _gauge;
+
+        /// <summary>A tower's load gauge under the hint (TW-11, task 09), or none.</summary>
+        public void ShowGauge(Domain.Design.TowerForces.Loads? loads, bool provisional = false) => _gauge.Show(loads, provisional);
+
+        /// <summary>
+        /// Shows the profile strip beside the Toolbox tray along the bottom (made on first use, gone with the window), with
+        /// <paramref name="profile"/>, or its <paramref name="hint"/> while there's no line yet.
+        /// </summary>
+        public LiftProfileStrip ShowStrip(LiftProfile profile, string hint = null)
+        {
+            if (_strip == null)
+            {
+                _strip = new LiftProfileStrip();
+                AddStrip(_strip);   // a floor for the window, added to the stage with it (P3-08's strips)
+                _strip.RegisterCallback<AttachToPanelEvent>(_ =>
+                {
+                    _strip.parent?.RegisterCallback<GeometryChangedEvent>(__ => PlaceStrip());
+                    _strip.schedule.Execute(PlaceStrip);
+                });
+            }
+            _strip.style.display = DisplayStyle.Flex;
+            _strip.Show(profile, hint);
+            PlaceStrip();
+            Window.schedule.Execute(Fit);
+            return _strip;
+        }
+
+        public void HideStrip()
+        {
+            if (_strip == null || _strip.style.display == DisplayStyle.None) return;
+            _strip.style.display = DisplayStyle.None;
+            Window.schedule.Execute(Fit);
+        }
+
+        public LiftProfileStrip Strip => _strip;
+
+        // Beside the tray, its bottom on the tray's, to the stage's right edge (the mockup's liftStrip).
+        void PlaceStrip()
+        {
+            var stage = _strip?.parent;
+            if (stage == null) return;
+            var tray = stage.Q("toolbox");
+            var bar = stage.Q("bar");
+            float stageW = stage.layout.width;
+            if (float.IsNaN(stageW) || stageW <= 0) return;
+            bool trayShown = tray != null && tray.resolvedStyle.display != DisplayStyle.None && !tray.ClassListContains("hidden") && tray.layout.width > 0;
+            float left = trayShown ? tray.layout.xMax + 10 : 10;
+            float bottom = trayShown ? tray.layout.yMax : (bar != null ? bar.layout.yMin - 10 : stage.layout.height - 10);
+            const float height = 30 + 134 + 2;
+            _strip.style.left = left;
+            _strip.style.top = bottom - height;
+            _strip.style.width = Mathf.Max(200, stageW - left - 10);
+            _strip.style.height = height;
+        }
+
+        /// <summary>Esc closes an open dropdown first (true if one was open).</summary>
+        public bool CloseMenus()
+        {
+            bool any = false;
+            foreach (var d in _dropdowns) any |= d.Close();
+            return any;
+        }
+
         /// <summary>A slider row (the brush). Returns a setter for the value and its caption.</summary>
         public Action<int, string> AddSlider(string name, string label, int min, int max, int step, int value, Action<int> moved, string tooltip = null)
         {
@@ -309,6 +498,7 @@ namespace MountainPlanner.UI.Tools
             _steps.Clear();
             _stepItems.Clear();
             _stepNumbers.Clear();
+            _steps.EnableInClassList("hidden", names.Length == 0);   // Edit lift has no steps
             for (int i = 0; i < names.Length; i++)
             {
                 var s = Part("toolwin-step-" + (i + 1), "tw-step");
@@ -417,6 +607,30 @@ namespace MountainPlanner.UI.Tools
             SetCommit(review.CanBreakGround, review.CanSavePlan);
         }
 
+        /// <summary>
+        /// A row of the tool's own buttons over Next (the lift's Fill the rest, Re-place towers, Review; task 09), rebuilt only
+        /// when their names or captions change; none hides the row. A null click greys one.
+        /// </summary>
+        public void SetButtons(params (string Name, string Text, Action Click)[] buttons)
+        {
+            var key = new System.Text.StringBuilder();
+            foreach (var b in buttons) key.Append(b.Name).Append('|').Append(b.Text).Append('|').Append(b.Click == null ? '0' : '1').Append(';');
+            string k = key.ToString();
+            if (k == _extraKey) return;
+            _extraKey = k;
+            _extra.Clear();
+            _extra.EnableInClassList("hidden", buttons.Length == 0);
+            foreach (var b in buttons)
+            {
+                var click = b.Click;
+                var button = new Button(() => click?.Invoke()) { name = "toolwin-btn-" + b.Name };
+                button.AddToClassList("mp-ghost");
+                button.Add(new Label(b.Text) { pickingMode = PickingMode.Ignore });
+                button.SetEnabled(click != null);
+                _extra.Add(button);
+            }
+        }
+
         /// <summary>The Next button (with its key): shown before the review step, live once the step is done.</summary>
         public void SetNext(bool shown, bool live)
         {
@@ -427,8 +641,19 @@ namespace MountainPlanner.UI.Tools
         public void SetCommit(bool breakGround, bool savePlan)
         {
             _go.SetEnabled(breakGround);
-            _plan.SetEnabled(savePlan);
+            _plan.SetEnabled(savePlan || _planAlways);
         }
+
+        /// <summary>Renames the commit buttons (Edit lift: Apply and Cancel; task 09, LT2).</summary>
+        public void SetCommitText(string go, string plan)
+        {
+            _goLabel.text = go;
+            _plan.text = plan;
+        }
+
+        /// <summary>Whether the second commit button takes clicks even with nothing to commit (Edit lift's Cancel).</summary>
+        public void SetPlanAlwaysLive(bool on) => _planAlways = on;
+        bool _planAlways;
 
         public bool CanBreakGround => _go.enabledSelf;
         public bool CanSavePlan => _plan.enabledSelf;

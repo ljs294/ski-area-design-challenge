@@ -25,9 +25,13 @@ namespace MountainPlanner.Domain.Design
         /// never do. <paramref name="siteX"/>, <paramref name="siteY"/> is the site's centre in <paramref name="ground"/>'s
         /// frame (design points are millimetres from it, TE5).
         /// </summary>
-        public static List<ClearanceGap> Failing(IHeightSource ground, Lift lift, LiftType type, double siteX, double siteY)
+        public static List<ClearanceGap> Failing(IHeightSource ground, Lift lift, LiftType type, double siteX, double siteY) =>
+            Gaps(Rope(ground, lift, type, siteX, siteY));
+
+        /// <summary>The stretches where <paramref name="rope"/>'s chairs fall short of TW-01 v2, every metre; empty when they
+        /// never do.</summary>
+        public static List<ClearanceGap> Gaps(LiftRope rope)
         {
-            var rope = Rope(ground, lift, type, siteX, siteY);
             var gaps = new List<ClearanceGap>();
             double from = -1, to = 0, worst = 0;
             for (double s = 0; s <= rope.LengthMetres; s += 1)

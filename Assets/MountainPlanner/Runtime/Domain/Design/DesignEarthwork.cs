@@ -76,7 +76,7 @@ namespace MountainPlanner.Domain.Design
     /// </summary>
     public sealed class DesignEarthwork
     {
-        static readonly List<IEarthworkContributor> Registered = new List<IEarthworkContributor> { new TrailEarthwork() };
+        static readonly List<IEarthworkContributor> Registered = new List<IEarthworkContributor> { new TrailEarthwork(), new LiftEarthwork() };
 
         /// <summary>Adds a contributor (task 09's lifts). Returns a handle that removes it.</summary>
         public static IDisposable Register(IEarthworkContributor contributor)

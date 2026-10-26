@@ -21,6 +21,7 @@ node tools/perf/compare.mjs docs/perf/jackson-hole-5km-high.json <run.json>
 | `jackson-hole-5km-high-dev.json` | Development | `-quality high -laps 1` (exact garbage and memory) | 8.19 ms | 7.86 ms |
 | `jackson-hole-5km-medium-dev.json` | Development | `-quality medium -laps 1` | 4.83 ms | 4.56 ms |
 | `jackson-hole-5km-high-dev-hud.json` | Development | `-quality high -laps 1 -withhud` | 8.02 ms | 7.83 ms |
+| `jackson-hole-5km-high-lifts40.json` | Release | `-quality high -liftbench 40` (40 built quads, 3,898 chairs; the log's `[Chairs]` line gives their main-thread cost, 0.44 ms) | 7.80 ms | 7.57 ms |
 
 `demo.bat` 41 runs High and Medium (Release and Development) and High with the HUD, and compares each with its file;
 `demo.bat` 42 runs one preset. Run every benchmark through the GPU's measure lane (`tools/gpu/gpu.ps1 run -Lane
@@ -49,3 +50,4 @@ Re-pin only when a change is meant to cost or save frame time, or when the bench
 light, its site), and say why here. Build both players from a clean commit (the report records the SHA and whether the
 tree was dirty), run all eight in a row under one measure slot, confirm with a second High and Medium run, and replace
 the files in the same PR as the change.
+- **2026-10-20, Phase 3 task 09** (commit after a314b7c): `jackson-hole-5km-high-lifts40.json` added. 40 lifts built by `-liftbench 40` (a grid of fixed-grip quads 600 m up the fall line, the game's own build path) cost +0.38 ms p95 at High against the same build with none (7.42 ms); chairs are 0.44 ms a frame of main-thread work with 0 B garbage, so the planned Burst chair job waits (LT29).

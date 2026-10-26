@@ -227,7 +227,9 @@ namespace MountainPlanner.Presentation
 
                 // Windows reports 120 per wheel notch; some devices report 1.
                 float scroll = mouse.scroll.ReadValue().y * (CameraOptions.InvertZoom ? -1f : 1f);
-                if (Mathf.Abs(scroll) > 0.01f && !IsPointerBlocked(pointer))
+                // Shift + wheel turns a terminal in hand instead (P3-09, LT21).
+                bool turning = KeyBindings.IsClaimed(GameAction.TerminalTurnLeft) && Keyboard.current != null && Keyboard.current.shiftKey.isPressed;
+                if (Mathf.Abs(scroll) > 0.01f && !IsPointerBlocked(pointer) && !turning)
                 {
                     float notches = Mathf.Abs(scroll) >= 20f ? scroll / 120f : scroll;
                     if (fly) _eye += forward * notches * speed * 0.15f * boost * zoomRate;

@@ -19,6 +19,12 @@ namespace MountainPlanner.Domain.Design
     {
         public const string SesselliftFgq4 = "sessellift-fgq4";
         public const string MontaFg4 = "monta-fg4";
+        /// <summary>The Sessellift D6 detachable six-pack (LT41): the first detachable with its own models.</summary>
+        public const string SesselliftD6 = "detach-six:sessellift";
+
+        /// <summary>LT41 (owner, 2026-10-23): the types a player can build, the ones with their own models. Every other
+        /// entry stays in the menu as a placeholder (greyed) until its models exist.</summary>
+        public static bool Buildable(string id) => id == SesselliftFgq4 || id == MontaFg4 || id == SesselliftD6;
 
         /// <summary>The carriers other than the fixed quad, in menu order (LC-08).</summary>
         public static readonly string[] Carriers =
@@ -63,8 +69,22 @@ namespace MountainPlanner.Domain.Design
     }
 
     /// <summary>
+    /// TW-04 v3 (owner, LT44, second review E6): the kind of head the player chose for a tower set by hand. Auto is the
+    /// game's choice from the rope's bend (TW-04, as before); the others fix the kind and the game sizes its sheaves. A
+    /// kind that can't carry the rope there is red with its reason (TW-05), never changed. Saved (save v3).
+    /// </summary>
+    public enum TowerKind : byte
+    {
+        Auto = 0,
+        Support = 1,
+        HoldDown = 2,
+        Combination = 3,
+    }
+
+    /// <summary>
     /// A tower as authored (TW-15): its position along the line from the bottom terminal's origin and its height, the
-    /// rope's height above the ground there (TW-02). Its head type, forces and rope geometry are derived (SH-05).
+    /// rope's height above the ground there (TW-02), and the kind of head chosen for it (LT44; Auto almost always). Its
+    /// head, forces and rope geometry are derived (SH-05).
     /// </summary>
     public readonly struct Tower : IEquatable<Tower>
     {
@@ -73,17 +93,27 @@ namespace MountainPlanner.Domain.Design
         public readonly int AlongMm;
         /// <summary>25–100 ft in 5 ft steps (TW-02), in mm.</summary>
         public readonly int HeightMm;
+        /// <summary>LT44: the head's kind as chosen, or Auto.</summary>
+        public readonly TowerKind Kind;
 
-        public Tower(TowerId id, int alongMm, int heightMm)
+        public Tower(TowerId id, int alongMm, int heightMm, TowerKind kind = TowerKind.Auto)
         {
             Id = id;
             AlongMm = alongMm;
             HeightMm = heightMm;
+            Kind = kind;
         }
 
-        public bool Equals(Tower o) => Id == o.Id && AlongMm == o.AlongMm && HeightMm == o.HeightMm;
+        /// <summary>The same tower elsewhere along the line, or at another height, or of another kind.</summary>
+        public Tower WithAlong(int alongMm) => new Tower(Id, alongMm, HeightMm, Kind);
+        public Tower WithHeight(int heightMm) => new Tower(Id, AlongMm, heightMm, Kind);
+        public Tower WithKind(TowerKind kind) => new Tower(Id, AlongMm, HeightMm, kind);
+        public Tower WithId(TowerId id) => new Tower(id, AlongMm, HeightMm, Kind);
+        public TowerSpec Spec => new TowerSpec(AlongMm, HeightMm, Kind);
+
+        public bool Equals(Tower o) => Id == o.Id && AlongMm == o.AlongMm && HeightMm == o.HeightMm && Kind == o.Kind;
         public override bool Equals(object obj) => obj is Tower o && Equals(o);
-        public override int GetHashCode() => Id.GetHashCode() ^ AlongMm ^ (HeightMm << 7);
+        public override int GetHashCode() => Id.GetHashCode() ^ AlongMm ^ (HeightMm << 7) ^ ((int)Kind << 29);
     }
 
     /// <summary>
@@ -111,7 +141,8 @@ namespace MountainPlanner.Domain.Design
     {
         public readonly int AlongMm;
         public readonly int HeightMm;
-        public TowerSpec(int alongMm, int heightMm) { AlongMm = alongMm; HeightMm = heightMm; }
+        public readonly TowerKind Kind;
+        public TowerSpec(int alongMm, int heightMm, TowerKind kind = TowerKind.Auto) { AlongMm = alongMm; HeightMm = heightMm; Kind = kind; }
     }
 
     /// <summary>

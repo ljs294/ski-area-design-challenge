@@ -24,6 +24,10 @@ Saved files from each frozen format version. The rules are in
   `SaveFileTests` checks that it reads unchanged and that today's writer reproduces it byte for byte. Git keeps these
   bytes exactly (`-text` in `.gitattributes`).
 
+- **`v3-save/Saves/5792676e513f5302/save-001/`** is the same save in format v3 (task P3-09, LT44): every tower carries
+  its `Kind`, and the lift with towers has one of each kind the player can choose (hold-down, support, combination).
+  v1 and v2 saves migrate with every tower `auto`. `SaveFileTests` checks that the writer reproduces it byte for byte.
+
 **`demo/`** holds files from a future version (format 99), for `demo.bat` 44 and 45. Each has only what the refusal
 reads: a version number, and a name for the greyed library row.
 

@@ -2,6 +2,14 @@ using UnityEngine;
 
 namespace MountainPlanner.World.Lifts
 {
+    /// <summary>One of a lift asset's paths (<see cref="LiftRig.Paths"/>).</summary>
+    [System.Serializable]
+    public struct LiftPath
+    {
+        public string Name;
+        public Vector3[] Points;
+    }
+
     /// <summary>
     /// The attachment points of an imported lift asset (terminal, chair, tower piece or snow gun), filled by Mountain
     /// Planner ▸ Import Lifts. The prefab's local frame is the lift frame: +Z along the line toward the other
@@ -41,6 +49,22 @@ namespace MountainPlanner.World.Lifts
         public Transform[] Sockets;
         /// <summary>Renderers whose material carries the player's livery colour (the drive hood).</summary>
         public Renderer[] LiveryRenderers;
+        /// <summary>Index into <see cref="Pivots"/> of the pivot each one turns with in the world, whatever its parents do
+        /// (a walkway on its links follows its train, G8), or -1 (indexed like Pivots).</summary>
+        public int[] PivotFollows;
+        /// <summary>
+        /// Polylines the game follows, in the prefab's frame (LT41): a detachable terminal's <c>chairs</c>, the way a
+        /// carrier's grip runs round the station on its rail, from where it leaves the rope to where it rejoins it.
+        /// </summary>
+        public LiftPath[] Paths;
+
+        /// <summary>A named path's points, or null.</summary>
+        public Vector3[] Path(string name)
+        {
+            if (Paths == null) return null;
+            foreach (var p in Paths) if (p.Name == name) return p.Points;
+            return null;
+        }
 
         public Transform Socket(string name)
         {
