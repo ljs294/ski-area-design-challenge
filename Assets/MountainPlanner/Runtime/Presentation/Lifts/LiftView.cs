@@ -148,9 +148,22 @@ namespace MountainPlanner.Presentation.Lifts
         /// </summary>
         /// <remarks>Each terminal stands at the lift's stored level (SK14, save v2): a raised terminal stands on its pier
         /// above the ground (LF-12 v3, pads only cut). A lift without levels (from a v1 save) stands at its origins' ground.</remarks>
-        public void Build(Lift lift, IHeightSource ground, LocalFrame frame, LiftLivery livery)
+        readonly List<float> _asBuilt = new List<float>();
+
+        /// <summary>TW-02 v4: each tower's steel as built over the ground it stands on now, metres (its stored height until hand
+        /// grading moves the ground at its base).</summary>
+        public IReadOnlyList<float> AsBuiltHeights => _asBuilt;
+
+        /// <summary>
+        /// Builds the lift over <paramref name="ground"/>. <paramref name="fixedBases"/> (TW-02 v4, task 15): each tower's
+        /// base level as the lift's own earthwork left it (<see cref="LiftBuild.Works"/>), so the heads and rope stay where
+        /// they were built while hand grading moves the ground; each tower then stands on <paramref name="ground"/> with the
+        /// steel and foundation it needs (<see cref="AsBuiltHeights"/>). Null: the bases on <paramref name="ground"/>.
+        /// </summary>
+        public void Build(Lift lift, IHeightSource ground, LocalFrame frame, LiftLivery livery, IReadOnlyList<double> fixedBases = null)
         {
             Clear();
+            _asBuilt.Clear();
             (double Bottom, double Top)? levels = lift.Levels is LiftLevels v ? (v.BottomMetres, v.TopMetres) : ((double, double)?)null;
             var type = LiftTypes.Measured(LiftType.Of(lift.CatalogId), _models);
             _kit = type.TowerKit;
@@ -188,7 +201,9 @@ namespace MountainPlanner.Presentation.Lifts
             var t = frame.ToAlbers(top.x, top.z);
             // Each terminal stands on its pad (LF-12 v2), raised by any last resort in its fill; the station towers' foundations
             // stand as high as their terminals need (TW-02 v3, derived as the build derived them).
-            Rope = LiftRope.Solve(type, ground, b.X, b.Y, t.X, t.Y, lift.Towers, lift.Stance, S(bExit), bExit.y, length - S(tExit), tExit.y);
+            Rope = fixedBases != null && fixedBases.Count == lift.Towers.Count
+                ? LiftRope.SolveWithBases(type, ground, b.X, b.Y, t.X, t.Y, lift.Towers, lift.Stance, S(bExit), bExit.y, length - S(tExit), tExit.y, fixedBases)
+                : LiftRope.Solve(type, ground, b.X, b.Y, t.X, t.Y, lift.Towers, lift.Stance, S(bExit), bExit.y, length - S(tExit), tExit.y);
 
             // Towers: the base level on its pier, the mast sections and head along the mast's axis (leaned down the line
             // by the rope's lean, TW-14), the rope at the head's sockets.
@@ -198,12 +213,25 @@ namespace MountainPlanner.Presentation.Lifts
                 var sol = Rope.Towers[i];
                 string head = HeadId(sol.Head);
                 _heads.Add(head);
+                // TW-02 v4: the tower stands on the ground as it is now, its steel and foundation reaching the fixed head; a
+                // leaned mast's foot slides along the line with its length, so the head keeps its place and its lean.
                 var at = bottom + dir * (float)sol.BaseS;
-                at.y = (float)sol.BaseY;
+                double groundY = Height(at);
+                double steel = lift.Towers[i].HeightMm / 1000.0, reveal = sol.Reveal;
+                if (Math.Abs(groundY - sol.BaseY) > 1e-4) LiftRope.AsBuilt(sol, groundY, out steel, out reveal);
+                if (Math.Abs(groundY - sol.BaseY) > 1e-4 && Math.Abs(sol.Lean) > 1e-9)
+                    for (int pass = 0; pass < 2; pass++)
+                    {
+                        at = bottom + dir * (float)(sol.RopeS + steel * Math.Sin(sol.Lean));
+                        groundY = Height(at);
+                        LiftRope.AsBuilt(sol, groundY, out steel, out reveal);
+                    }
+                _asBuilt.Add((float)steel);
+                at.y = (float)groundY;
                 var facing = Quaternion.LookRotation(-dir);   // the platform side (+Z) faces the return
                 var lean = Quaternion.AngleAxis((float)(sol.Lean * Mathf.Rad2Deg), Vector3.Cross(Vector3.up, -dir));
                 _spawning = i;
-                var h = SpawnTower(head, at, facing, lean, lift.Towers[i].HeightMm / 1000f, (float)sol.Reveal, livery);
+                var h = SpawnTower(head, at, facing, lean, (float)steel, (float)reveal, livery);
                 heads.Add(h != null ? h.GetComponent<LiftRig>() : null);
             }
 

@@ -308,6 +308,35 @@ namespace MountainPlanner.Tests
             Assert.That(held, Does.Contain(new Hold(HoldKind.Tower, lift.Id, 3)));
         }
 
+        [Test]
+        public void TW02v4_HeadsStayPutAndTheSteelFollowsTheGround()
+        {
+            var (h, fold, lift) = Lifted();
+            var built = ((LiftBuild.Works)fold.DetailOf(lift.Id.Value)).Rope;
+            var t = built.Towers[2];
+            Confirm(h, fold, BrushSettings.RaiseOrLower(true, 9144, 300), Hold(0, -300 + t.BaseS, 12));
+            var after = new EditedHeights(new Tilted(), Lattice, h.Terrain);
+            double bx = Site.OriginX, by = Site.OriginY - 300, tx = Site.OriginX, ty = Site.OriginY + 500;
+            var levels = lift.Levels.Value;
+            var bases = built.Towers.Select(x => x.BaseY).ToList();
+            var fixedRope = LiftRope.SolveWithBases(Quad, after, bx, by, tx, ty, lift.Towers, lift.Stance, Quad.Bottom.ExitAlong,
+                levels.BottomMetres + Quad.Bottom.ExitRise, Quad.Top.ExitAlong, levels.TopMetres + Quad.Top.ExitRise, bases);
+            for (int i = 0; i < built.Towers.Count; i++)
+            {
+                Assert.That(fixedRope.Towers[i].RopeY, Is.EqualTo(built.Towers[i].RopeY).Within(1e-9), "the head stays where it was built");
+                Assert.That(fixedRope.Towers[i].RopeS, Is.EqualTo(built.Towers[i].RopeS).Within(1e-9));
+            }
+            double ground = after.At(bx, by + t.BaseS);
+            Assert.That(ground, Is.LessThan(t.BaseY - 1), "the brush lowered the ground at the tower");
+            LiftRope.AsBuilt(t, ground, out double steel, out double reveal);
+            Assert.That(steel * Math.Cos(t.Lean) + reveal + ground, Is.EqualTo(t.RopeY).Within(1e-6), "steel and foundation reach the head");
+            Assert.That(steel, Is.GreaterThan(lift.Towers[2].HeightMm / 1000.0), "a taller tower");
+            Assert.That(reveal, Is.InRange(0, LiftRope.MaxReveal));
+            Assert.That(Math.Round(steel / 1.524, 6) % 1, Is.EqualTo(0), "steel in 5 ft steps");
+            LiftRope.AsBuilt(t, t.BaseY, out double same, out _);
+            Assert.That(same, Is.EqualTo(lift.Towers[2].HeightMm / 1000.0).Within(1e-9), "unchanged ground: the stored height");
+        }
+
         // ---------- replay: TB-14 ----------
 
         static IReadOnlyList<StrokePainting> Scripted()
