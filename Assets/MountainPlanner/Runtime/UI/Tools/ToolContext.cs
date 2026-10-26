@@ -37,6 +37,49 @@ namespace MountainPlanner.UI.Tools
         /// <summary>The ground the tools shape (task 08): the terrain edit session and its earthwork; null in tests without one.</summary>
         public IEarthworkHost Earthwork { get; set; }
 
+        /// <summary>
+        /// The ground as edited now (task 05's heights in the package's frame), for builds that need the real terrain (task 09's
+        /// lifts); null while the edit session is still starting.
+        /// </summary>
+        public Func<Domain.Edits.EditedHeights> EditedGround { get; set; }
+
+        /// <summary>The terminals being placed, as their own models (task 09, LT19, LT22); null without the lift models.</summary>
+        public Presentation.Lifts.TerminalGhost BottomGhost { get; set; }
+        public Presentation.Lifts.TerminalGhost TopGhost { get; set; }
+
+        /// <summary>The tower in hand as its own model (F4, LT38); null without the lift models.</summary>
+        public Func<Presentation.Lifts.TowerGhost> TowerGhost { get; set; }
+
+        /// <summary>Draws the lift being built or edited in 3D as it stands (F4: terminals, the towers so far, the rope, no
+        /// chairs); null hides it. Called when the draft changes, never per frame.</summary>
+        public Action<Lift> ShowDraftLift { get; set; }
+
+        /// <summary>Hides a built lift while Edit lift shows its draft in its place (0 shows it again).</summary>
+        public Action<ulong> HideBuiltLift { get; set; }
+
+        /// <summary>The draft's part under the pointer (F1): a tower's index, or LiftView.PartBottom / PartTop / PartRope;
+        /// int.MinValue for none.</summary>
+        public Func<int> DraftPartUnderPointer { get; set; }
+
+        /// <summary>Lights one part of the draft white (F1: the selected tower or terminal); int.MinValue for none.</summary>
+        public Action<int> HighlightDraftPart { get; set; }
+
+        /// <summary>A design point (site-centred mm, TE5) in <see cref="EditedGround"/>'s frame.</summary>
+        public Func<PointMm, (double X, double Y)> ToGround { get; set; }
+
+        /// <summary>The built lift under the pointer, lit by the viewer's hover (task 09, LT23), or 0; set while a tool that
+        /// picks lifts (<see cref="IPicksLifts"/>) is armed.</summary>
+        public Func<ulong> LiftUnderPointer { get; set; }
+
+        /// <summary>Keeps a lift lit while the tool has it selected (0 for none): Remove lift's first click, Edit lift's lift.</summary>
+        public Action<ulong> HoldLift { get; set; }
+
+        /// <summary>
+        /// Submits a command the tool makes itself (Remove lift, Edit lift's Apply), with the complete edit set once applied
+        /// (null keeps the ground), through the host, so it's reported like Break ground. Set by the host.
+        /// </summary>
+        public Func<DesignCommand, Domain.Edits.TerrainEdits, CommandResult> Submit { get; internal set; }
+
         /// <summary>A one-line notice in the HUD's toasts ("New trail discarded").</summary>
         public Action<string> Notice { get; set; }
 

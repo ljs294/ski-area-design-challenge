@@ -106,15 +106,34 @@ namespace MountainPlanner.Tests
                 Assert.That(lift.CurrentStep, Is.EqualTo(2), $"the top terminal fixed the line ({lift.Problem}); " + Where(viewer, cam, topScreen, top, bottom));
                 yield return Press(Key.Enter);
                 Assert.That(lift.CurrentStep, Is.EqualTo(3), "Enter: the review");
-                Assert.That(hud.Q<Button>("review-go").enabledSelf, Is.True);
+                // Task 09: the review waits for the lift's build (the ground's edit session starting, then LiftBuild off the
+                // main thread); a blocking problem keeps Break ground off, so the test's line must be buildable.
+                for (float until = Time.realtimeSinceStartup + 60; Time.realtimeSinceStartup < until && lift.Built == null;)
+                {
+                    if (lift.CurrentStep == 3 && !lift.Building && lift.Built == null) { yield return Press(Key.Escape); yield return Press(Key.Enter); }
+                    yield return null;
+                }
+                Assert.That(lift.Built, Is.Not.Null, "the lift was built for the review");
+                Assert.That(hud.Q<Button>("review-go").enabledSelf, Is.EqualTo(lift.Built.Ok), string.Join("; ", lift.Built.Problems));
+                if (!lift.Built.Ok) Assert.Inconclusive("the picked line is red: " + string.Join("; ", lift.Built.Problems));
                 AssertShownOnScreen(hud, "review-go");
                 yield return Chord(Key.LeftCtrl, Key.Enter);
                 Assert.That(viewer.Design.Document.Lifts.Count, Is.EqualTo(1), "Ctrl+Enter broke ground");
+                var placed = viewer.Design.Document.Lifts[0];
+                string placedName = placed.Name;
+                Assert.That(placed.Towers.Count, Is.GreaterThan(0), "TW-12's towers came with it");
+                Assert.That(placed.Levels, Is.Not.Null, "and its terminal levels (SK14)");
                 Assert.That(lift.CurrentStep, Is.EqualTo(0), "ready for the next lift");
 
-                // Switching away mid-draw cancels at once and puts everything back (CF-01).
+                // Switching away mid-draw cancels at once and puts everything back (CF-01). The lift window (taller since F1-F5:
+                // the tower keys and buttons) may sit over the spot on the small test screen: aside, as a player would drag it.
+                if (viewer.Hud.IsPointerOverPanel(ScreenOf(cam, bottom, ctx)))
+                {
+                    ((UI.Hud.HudWindow)hud.Q("toolwin")).MoveTo(new Vector2(0, hud.panel.visualTree.worldBound.height));
+                    yield return Frames(3);
+                }
                 yield return Click(ScreenOf(cam, bottom, ctx));
-                Assert.That(lift.CurrentStep, Is.EqualTo(1));
+                Assert.That(lift.CurrentStep, Is.EqualTo(1), $"the bottom anchored again ({lift.Problem}); " + Where(viewer, cam, ScreenOf(cam, bottom, ctx), bottom, bottom));
                 int disarms = viewer.Tools.Disarms;
                 yield return SubmitOn(hud.Q<Button>("toolbox-tab-trails"));
                 Assert.That(viewer.Tools.Armed, Is.False, "another tab cancels the armed tool");
@@ -228,6 +247,15 @@ namespace MountainPlanner.Tests
                 Assert.That(viewer.Design.Document.Trails.Count, Is.EqualTo(0), "Ctrl+Z took the trail back");
                 yield return Chord(Key.LeftCtrl, Key.Y);
                 Assert.That(viewer.Design.Document.Trails.Count, Is.EqualTo(1), "Ctrl+Y put it back");
+
+                // F6 (LT39): the lift's card (a click on it on the map, or its Analysis row) renames it in one undoable step.
+                for (int i = 0; i < 600 && viewer.Hud.LiftRenamed == null; i++) yield return null;
+                viewer.Hud.OpenLiftCardFor(placed.Id.Value);
+                viewer.Hud.RenameLiftCardForTest("Summit Quad");
+                Assert.That(viewer.Design.Document.Lifts[0].Name, Is.EqualTo("Summit Quad"), "the card's rename");
+                Assert.That(viewer.Design.Undo(), Is.True);
+                Assert.That(viewer.Design.Document.Lifts[0].Name, Is.EqualTo(placedName), "one Ctrl+Z takes it back");
+                viewer.Hud.CloseLiftCardIfOpen();
             }
             finally
             {

@@ -18,6 +18,15 @@ namespace MountainPlanner.UI.Tools
         TowerUp = 32,
         TowerDown = 64,
         Delete = 128,
+        // P3-09 (LT19, LT21): the terminal in hand turns and changes level.
+        TurnLeft = 256,
+        TurnRight = 512,
+        LevelUp = 1024,
+        LevelDown = 2048,
+        // P3-09 (LF-04): the tower in hand slides down or up the line.
+        SlideBack = 4096,
+        SlideOn = 8192,
+        AddTower = 16384,
     }
 
     /// <summary>
@@ -44,9 +53,17 @@ namespace MountainPlanner.UI.Tools
         /// <summary>The Erase key is held (Shift by default: Shift-drag erases, TF-02).</summary>
         public bool Erase;
         public ToolKeys Keys;
+        /// <summary>Shift is held: a turn key's bigger step (P3-09).</summary>
+        public bool Shift;
+        /// <summary>Shift + wheel notches this frame while a terminal turn is claimed (+ turns left), else 0 (LT21).</summary>
+        public float TurnNotches;
 
         public bool Pressed(ToolKeys key) => (Keys & key) != 0;
     }
+
+    /// <summary>A tool that picks built lifts with the pointer (Edit and Remove lift, task 09): the viewer lights the lift under
+    /// the pointer while it's armed, as it does with no tool.</summary>
+    public interface IPicksLifts { }
 
     /// <summary>What Esc did (CF-07): backed out a step, or the tool is at its first step and would close.</summary>
     public enum ToolBackOut { Stepped, Close }

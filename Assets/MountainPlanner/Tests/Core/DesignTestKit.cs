@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using MountainPlanner.Domain.Design;
@@ -9,6 +10,55 @@ namespace MountainPlanner.Tests
     static class DesignTestKit
     {
         public static int Ft(int feet) => DesignUnits.FeetToMm(feet);
+
+        /// <summary>
+        /// LT34: a lift built as a player builds it. The terminals stand where they're placed; where the review suggests
+        /// raising (or lowering) one, the player does with Page Up / Page Down and builds again. <paramref name="build"/>
+        /// takes the levels set by hand (bottom, top), metres.
+        /// </summary>
+        public static LiftBuild.Result AsPlayer(Func<double, double, LiftBuild.Result> build)
+        {
+            double bottom = 0, top = 0;
+            var b = build(0, 0);
+            for (int round = 0; round < 8 && (b.SuggestedBottomMetres != 0 || b.SuggestedTopMetres != 0); round++)
+            {
+                bottom += b.SuggestedBottomMetres;
+                top += b.SuggestedTopMetres;
+                b = build(bottom, top);
+            }
+            return b;
+        }
+
+        /// <summary>
+        /// TW-12 (LT40): automatic placement never leaves the chairs short without a named reason. Each stretch of
+        /// <paramref name="b"/>'s rope short of TW-01 v2 is either put right by a level hint (LT34: in the low zone and a little
+        /// past it at the bottom, the station zone at the top) or has a TW-12 reason within 50 ft of it (stretches closer than
+        /// 50 ft are one place, as TW-12 counts them). Null when so, else the first stretch that has neither.
+        /// </summary>
+        public static string UnnamedShortfall(LiftBuild.Result b)
+        {
+            var rope = b.Rope;
+            LiftRope.Zones(rope.Type, rope.LengthMetres, out _, out double edgeB, out double edgeT, out _);
+            double near = DesignUnits.TowerGapMm / 1000.0;
+            var gaps = new List<ClearanceGap>();
+            foreach (var gap in LiftClearance.Gaps(rope))
+            {
+                if (b.SuggestedBottomMetres != 0 && gap.FromMetres <= edgeB + LiftRope.Clearance * 4) continue;
+                if (b.SuggestedTopMetres != 0 && gap.ToMetres >= edgeT) continue;
+                if (gaps.Count > 0 && gap.FromMetres - gaps[gaps.Count - 1].ToMetres <= near)
+                    gaps[gaps.Count - 1] = new ClearanceGap(gaps[gaps.Count - 1].FromMetres, gap.ToMetres, Math.Max(gaps[gaps.Count - 1].WorstMetres, gap.WorstMetres));
+                else gaps.Add(gap);
+            }
+            foreach (var gap in gaps)
+            {
+                bool named = false;
+                foreach (var p in b.Unplaced)
+                    if (p.Rule == "TW-12" && p.Blocks && p.AlongMetres >= gap.FromMetres - near && p.AlongMetres <= gap.ToMetres + near) named = true;
+                if (!named) return $"{gap} with no level hint or TW-12 reason";
+            }
+            return null;
+        }
+
         public static PointMm P(int xFt, int yFt) => new PointMm(Ft(xFt), Ft(yFt));
 
         /// <summary>One painted part: a straight stroke between two points, 100 ft wide by default.</summary>

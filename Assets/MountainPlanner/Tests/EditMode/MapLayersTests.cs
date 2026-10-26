@@ -143,8 +143,22 @@ namespace MountainPlanner.Tests
             Assert.That(layers.Toggle(MapLayers.SnowConditions), Is.False);
             Assert.That(layers.IsOn(MapLayers.SnowConditions), Is.False);
             Assert.That(layers.Toggle("ground"), Is.False, "retired ids do nothing");
-            Assert.That(MapLayers.MapIds, Is.EqualTo(new[] { MapLayers.Snow, MapLayers.Trees, MapLayers.Trails }), "task 08 adds Trails (TL6)");
+            Assert.That(MapLayers.MapIds, Is.EqualTo(new[] { MapLayers.Snow, MapLayers.Trees, MapLayers.Lifts, MapLayers.Trails }), "task 09 adds Lifts (LT7), task 08 Trails (TL6)");
             Assert.That(MapLayers.InfoIds, Is.EqualTo(new[] { MapLayers.SlopeAngle, MapLayers.Exposure, MapLayers.SnowDepth, MapLayers.SnowConditions, MapLayers.Contours }));
+        }
+
+        [Test]
+        public void LiftsIsAMapLayerOnByDefault()
+        {
+            // Task 09 (LT7): Shift+2 shows or hides the lifts; any combination with Snow and Trees.
+            var layers = new MapLayers();
+            Assert.That(MapLayers.IsSwitchable(MapLayers.Lifts), Is.True);
+            Assert.That(MapLayers.IsExclusive(MapLayers.Lifts), Is.False);
+            Assert.That(layers.LiftsOn, Is.True);
+            Assert.That(layers.Toggle(MapLayers.Lifts), Is.True);
+            Assert.That(layers.LiftsOn && layers.IsOn(MapLayers.Lifts), Is.False);
+            Assert.That(layers.TreesOn && layers.SnowOn, Is.True, "the others are left alone");
+            Assert.That(KeyBindings.Default(GameAction.LayerLifts, 0), Is.EqualTo(new KeyChord(UnityEngine.InputSystem.Key.Digit2, KeyMods.Shift)));
         }
 
         [Test]

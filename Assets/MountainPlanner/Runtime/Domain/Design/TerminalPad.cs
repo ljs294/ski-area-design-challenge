@@ -5,11 +5,11 @@ using MountainPlanner.Domain.Edits;
 namespace MountainPlanner.Domain.Design
 {
     /// <summary>
-    /// LF-12 v3 (owner, task 07, SK19; round 3, SK25; round 4, SK30): the pad is a clearance envelope round the terminal:
-    /// its footprint plus 5 ft all round, at the terminal's base elevation, the same at either end. **Cut only:** ground
-    /// poking above that level is cut away, with 1:1 faces out to the ground (GR-02) within GR-11's 50 ft terminal-pad
-    /// envelope (a face that hasn't met the ground there is clipped, and the step is reported); ground below is left as it
-    /// is, under the terminal's pier (an inlaid unload ramp model comes later). Everything it cuts is cleared (CL-09 v2).
+    /// LF-12 v4 (owner, 2026-10-20, LT35; was v3's cut only): the pad is the terminal's footprint plus 5 ft all round,
+    /// **flattened** to the terminal's level: ground above is cut and ground below filled, with 1:1 faces out to the ground
+    /// (GR-02, the trail doctrine) within GR-11's 50 ft terminal-pad envelope (a face that hasn't met the ground there is
+    /// clipped, and the step is reported). So the terminal and its piers stand on the pad where it's placed. Everything it
+    /// changes is cleared (CL-09 v2).
     /// Positions in the edit lattice's frame; (ux, uy) points toward the other terminal.
     /// </summary>
     public static class TerminalPad
@@ -71,7 +71,7 @@ namespace MountainPlanner.Domain.Design
                     if (off > FaceReachMetres) continue;
                     double ground = current.AtPoint(c, r);
                     double rise = off * FaceSlope;
-                    double design = Math.Min(elevation + rise, ground);   // cut only
+                    double design = Math.Max(elevation - rise, Math.Min(elevation + rise, ground));   // cut and fill (LF-12 v4)
                     if (off > FaceReachMetres - 1 && Math.Abs(design - ground) > 1e-3) clipped = Math.Max(clipped, Math.Abs(design - ground));
                     if (Math.Abs(design - ground) < 1e-4) design = ground;   // untouched past where the face met the ground
                     double source = current.Source.At(px, py);
@@ -92,7 +92,7 @@ namespace MountainPlanner.Domain.Design
                     bool onPad = off <= 0;
                     if (!onPad)
                     {
-                        double before = current.AtPoint(c, r), design = Math.Min(elevation + off, before);
+                        double before = current.AtPoint(c, r), design = Math.Max(elevation - off, Math.Min(elevation + off, before));
                         if (Math.Abs(design - before) < 0.05) continue;
                     }
                     var key = EditTileKey.Of(c, r);

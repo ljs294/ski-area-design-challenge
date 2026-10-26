@@ -412,6 +412,8 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     graded pad (LF-12, task 07).
   - **v2** (owner, task 07 round 4, SK30): steeper sites are allowed. The terminal stands higher on its pier until it
     cuts at most 10 ft into the hill; its pad only cuts (LF-12 v3).
+  - **v3** (owner, task 09, M3, LT34): a terminal stands where it's placed, at its ground plus the level the player sets
+    with Page Up / Page Down. The build never raises it; its pad is flattened under it (LF-12 v4).
   - The two terminals stand at least **300 ft (91 m)** apart.
 - **LF-09, keys (C8):** while a tower is in hand or selected, Page Up / Page Down move it; camera zoom keeps the wheel
   and + / −. Delete removes the selected tower; Esc backs out one step (CF-07).
@@ -443,6 +445,11 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - A terminal that stands higher (a steep site, LF-08 v2; TW-16 v3's last resorts, a flat summit or a bottom too steep
     for its trench) simply stands higher on its pier. Its level isn't in the terrain: the build hands it to the view,
     and saved designs carry it with task 09's save v2 (SK14).
+  - **v4, cut and fill** (owner, task 09, M3, LT34, LT35; replaces v3 and the raises above): the terminal stands at its
+    ground plus the level set by hand, and the pad is flattened to that level: cut on the high side, filled on the low,
+    with 1:1 faces to the ground (GR-02), for every make. Where the line needs a terminal higher or lower (the rope
+    leaving its row outside the range, the chairs low beside it, a trench past its cap), the review says by how much
+    ("raise it 6 ft (Page Up)", amber) and the player decides.
 
 ### 5.2 Catalog (LC)
 
@@ -498,7 +505,7 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   triple 2,500 ft, quad 2,200 ft; detachable quad 3,600 ft, six 3,300 ft, eight 3,000 ft; gondola 4,500 ft; tram no
   limit. Over it the lift is red ("Too much rise for a fixed-grip quad: 2,350 ft, 2,200 ft at most").
 - **LC-08, lift types** (owner, task 09, LT15): Fixed-grip chair (double, triple, quad), Detachable chair (quad, six,
-  eight), Detachable gondola (6, 8, 10 a cabin), Aerial tram (60, 100 a cabin), each with a model or maker. Only the
+  eight), Detachable gondola (6, 8 or 10 person), Aerial tram (60 or 100 person), each with a model or maker. Only the
   fixed quad has its own models (Sessellift FGQ-4, Monta FG4); the others draw with them and carry placeholder speeds,
   spacings and weights (the mockup's LIFT_TYPES). Trams stand on towers up to 250 ft.
 - **LC-09, what blocks** (owner, task 09, LT14, lenient placement): only chair clearance (TW-01), tower spacing (TW-03),
@@ -674,6 +681,12 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - Placement only adds or raises line towers, never lowers or moves them; a crest too sharp for the room is left
     red with its reason (TW-06), its neighbours raised at most 20 ft trying.
   - RP-03's tensioning end and the Monta's own ends are task 09's.
+  - **v4** (owner, task 09, M1 and M3, LT32, LT34):
+    - **A terminal with its own station** (the Monta's drive, with its hold-down tower built in) gets no station tower.
+      The first line tower keeps the rope's exit within the row's range and stands tall enough for the chairs to clear
+      beside it. The Sessellift's return keeps its station tower.
+    - **No terminal raises.** The remedies end at the line towers and the envelope; what's left is the player's, told
+      by how much (LF-12 v4).
 - **TW-15, stored:**
   - A tower's position along the line, its height and its stance are authored and saved.
   - Its head type, forces and rope geometry are derived (SH-05).

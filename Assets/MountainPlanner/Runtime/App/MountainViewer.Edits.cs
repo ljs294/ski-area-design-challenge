@@ -39,7 +39,7 @@ namespace MountainPlanner.App
             _editKeys = Array.IndexOf(args, "-testedit") >= 0;
             int bench = Array.IndexOf(args, "-testbench");
             int timing = Array.IndexOf(args, "-editbench");
-            bool styleTile = Array.IndexOf(args, "-styletile") >= 0;
+            bool styleTile = Array.IndexOf(args, "-styletile") >= 0 || Array.IndexOf(args, "-liftbench") >= 0;
             // A loaded save with terrain edits needs the session too, to lay them over the mountain.
             bool saved = OpenDesign.Current != null && !OpenDesign.Current.History.Terrain.IsEmpty;
             // UI captures arm the trail tools (task 08), which need the ground's session ready when they do.
@@ -97,10 +97,46 @@ namespace MountainPlanner.App
                 }
                 while (!_edits.Applying.IsCompleted) yield return null;
             }
+            int liftBench = Array.IndexOf(args, "-liftbench");
+            if (liftBench >= 0 && liftBench + 1 < args.Length && int.TryParse(args[liftBench + 1], out int want)) yield return BuildBenchLifts(want);
+        }
+
+        /// <summary>True while the -liftbench lifts are being built: the benchmark and captures wait for them.</summary>
+        bool _benchLiftsBuilding;
+
+        /// <summary>
+        /// -liftbench N (task 09): N fixed-grip quads, each 600 m up the fall line from a grid across the core box, built by the
+        /// game's own build path (towers, pads, trench, clearing), for the benchmark's chairs; every third a Monta FG4 (the
+        /// plan's 7, its own terminals and trains). Deterministic: the same grid in the same order every run.
+        /// </summary>
+        IEnumerator BuildBenchLifts(int want)
+        {
+            _benchLiftsBuilding = true;
+            var core = _resort.Core;
+            int side = Mathf.CeilToInt(Mathf.Sqrt(want * 2f));
+            float inset = 300;
+            int built = 0, tried = 0;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            for (int i = 0; i < side * side && built < want; i++)
+            {
+                int row = i / side, col = i % side;
+                float x = Mathf.Lerp(core.xMin + inset, core.xMax - inset, (col + 0.5f) / side);
+                float z = Mathf.Lerp(core.yMin + inset, core.yMax - inset, (row + 0.5f) / side);
+                int before = _edits.History.Document.Lifts.Count;
+                tried++;
+                string report = StyleTile.BuildUphill(_edits, _resort.Frame, Lifts, x, z, 600, "Bench " + (built + 1),
+                                                      built % 3 == 2 ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4);
+                if (_edits.History.Document.Lifts.Count > before) built++;
+                else Debug.Log($"[LiftBench] ({x:F0}, {z:F0}): {report}");
+                yield return null;
+            }
+            while (!_edits.Applying.IsCompleted) yield return null;
+            Debug.Log($"[LiftBench] {built} lifts built of {want} asked ({tried} places tried) in {clock.Elapsed.TotalSeconds:F1} s");
+            _benchLiftsBuilding = false;
         }
 
         /// <summary>True while edits are starting or applying: captures wait for them.</summary>
-        bool EditsBusy => _editsStarting || (_edits != null && !_edits.Applying.IsCompleted);
+        bool EditsBusy => _editsStarting || _benchLiftsBuilding || (_edits != null && !_edits.Applying.IsCompleted);
 
         /// <summary>Edits applying or built work waiting to be redrawn: captures and the benchmark wait for both.</summary>
         bool WorkBusy => EditsBusy || BuiltBusy;

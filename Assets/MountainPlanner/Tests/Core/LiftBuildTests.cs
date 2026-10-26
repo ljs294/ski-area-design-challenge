@@ -30,9 +30,14 @@ namespace MountainPlanner.Tests
             public double At(double x, double y) => 1500 + _f(y - (North - 900)) + _cross * (x - (West + 100));
         }
 
+        /// <summary>LT34: built as a player builds it (the suggested levels taken, <see cref="DesignTestKit.AsPlayer"/>).</summary>
         static LiftBuild.Result Build(Func<double, double> f, double cross = 0, TowerStance stance = TowerStance.Leaned) =>
+            DesignTestKit.AsPlayer((hb, ht) => Raw(f, cross, stance, hb, ht));
+
+        /// <summary>Built as placed, the terminals at their ground (plus <paramref name="hb"/>, <paramref name="ht"/>).</summary>
+        static LiftBuild.Result Raw(Func<double, double> f, double cross = 0, TowerStance stance = TowerStance.Leaned, double hb = 0, double ht = 0) =>
             LiftBuild.Build(Quad, new EditedHeights(new Profile(f, cross), Lattice, TerrainEdits.Empty),
-                            West + 100, North - 900, West + 100, North - 100, stance);
+                            West + 100, North - 900, West + 100, North - 100, stance, null, hb, ht);
 
         static double Deg(double radians) => radians * 180 / Math.PI;
 
@@ -85,13 +90,18 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void TW16v3_AFlatSummitGetsARaisedUnloadRamp()
+        public void LT34_AFlatSummitSaysHowMuchToRaiseTheTop()
         {
-            // Owner Q6: where the ground doesn't fall away from the top terminal, it stands on a built-up pad, a few feet.
+            // Owner, 2026-10-20 (LT34, was owner Q6's raised unload ramp): the top terminal stands where it's placed; where the
+            // ground doesn't fall away from it, the review says how much to raise it, and raised that much the line fits.
+            var placed = Raw(s => s < 650 ? 0.3 * s : 195);
+            Assert.That(placed.TopRaise, Is.EqualTo(0), "never raised by the build");
+            Assert.That(placed.SuggestedTopMetres / Ft, Is.InRange(1, 10), Describe(placed));
+            Assert.That(placed.Problems.Any(p => p.Rule == "LT34" && p.Message.Contains("raise it") && !p.Blocks), Is.True, string.Join("; ", placed.Problems));
             var b = Build(s => s < 650 ? 0.3 * s : 195);
             AssertBuilt(b, "flat top");
-            Assert.That(b.TopRaise / Ft, Is.InRange(1, 10), Describe(b));
             Assert.That(Deg(b.Rope.TopEntryEmpty), Is.InRange(0, 0.1));
+            Assert.That(b.Hints, Is.Empty, "raised as suggested, nothing left to suggest");
         }
 
         [Test]
@@ -180,9 +190,8 @@ namespace MountainPlanner.Tests
                 var b = Build(f, cross);
                 TestContext.Progress.WriteLine($"{name}: {Describe(b)}");
                 AssertBuilt(b, name);
-                // The aim (14.3°), or where a raised bottom terminal leaves it (the last resort), within the row's range.
-                Assert.That(b.BottomRaise > 0 ? Quad.Bottom.Takes(b.Rope.BottomExitEmpty) : Math.Abs(Deg(b.Rope.BottomExitEmpty) - 0.9 * 15.9) <= 0.1,
-                            Is.True, $"{name}: exit {Deg(b.Rope.BottomExitEmpty):F2}°");
+                // Within the row's range, at its aim (14.3°) unless the player raised the terminal (LT34).
+                Assert.That(Quad.Bottom.Takes(b.Rope.BottomExitEmpty), Is.True, $"{name}: exit {Deg(b.Rope.BottomExitEmpty):F2}°");
                 Assert.That(Deg(b.Rope.TopEntryEmpty), Is.InRange(0, 0.1), name);
             }
             var steep = Build(s => s < 740 ? 0.4 * s : 296);
@@ -192,17 +201,21 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void LF08v2_ATerminalOnASteepSiteStandsHigherAndOnlyCuts()
+        public void LF12v4_ATerminalOnASteepSiteStandsWhereItsPlacedOnAFlattenedPad()
         {
-            // Finding r4 #3 (owner, SK30): steep sites are allowed; the terminal stands higher on its pier until it cuts at
-            // most 10 ft into the hill, and its pad only cuts (LF-12 v3): nothing is filled up to it.
+            // Owner, 2026-10-20 (M3, LT34, LT35): steep sites are allowed; the terminal stands at its ground (plus the level set
+            // by hand), never raised by the build, and its pad is flattened to that level: cut on the high side, filled on the low.
             var bench = Build(s => s < 30 ? 0 : s < 770 ? 0.3 * (s - 30) : 222);
-            Assert.That(bench.BottomSteepRaise + bench.TopSteepRaise, Is.EqualTo(0), "both terminals on benches");
             Assert.That(bench.Ok, Is.True, Describe(bench));
-            var cliff = Build(s => s < 30 ? 0 : s < 700 ? 0.3 * (s - 30) : 201 + 1.5 * (s - 700));   // a 150% face at the top
-            Assert.That(cliff.TopSteepRaise, Is.GreaterThan(0), "the top on a 150% face stands higher");
-            Assert.That(cliff.BottomPad.FillCubicMetres + cliff.TopPad.FillCubicMetres, Is.EqualTo(0), "cut only");
-            Assert.That(cliff.Rope.TerminalsOk, Is.True, Describe(cliff));
+            var cliff = Raw(s => s < 30 ? 0 : s < 700 ? 0.3 * (s - 30) : 201 + 1.5 * (s - 700));   // a 150% face at the top
+            Assert.That(cliff.TopSteepRaise + cliff.BottomSteepRaise + cliff.TopRaise + cliff.BottomRaise, Is.EqualTo(0), "never raised");
+            var start = LiftBuild.GroundLevels(Quad, new EditedHeights(new Profile(s => s < 30 ? 0 : s < 700 ? 0.3 * (s - 30) : 201 + 1.5 * (s - 700)), Lattice, TerrainEdits.Empty),
+                                               West + 100, North - 900, West + 100, North - 100);
+            Assert.That(cliff.Levels, Is.EqualTo(start), "both at their ground");
+            Assert.That(cliff.TopPad.CutCubicMetres, Is.GreaterThan(0), "the face cut back to the top's level");
+            var slope = Raw(s => 0.3 * s);
+            Assert.That(slope.BottomPad.FillCubicMetres, Is.GreaterThan(0), "the bottom on a 30% slope: its downhill side filled");
+            Assert.That(slope.BottomPad.CutCubicMetres, Is.GreaterThan(0), "and its uphill side cut");
         }
 
         [Test]
@@ -260,6 +273,21 @@ namespace MountainPlanner.Tests
             for (int i = 0; i < stored.Count; i++)
                 Assert.That(again.Rope.Towers[i].RopeY, Is.EqualTo(b.Rope.Towers[i].RopeY).Within(1e-9), $"tower {i}");
             Assert.That(again.Rope.Shortfall, Is.LessThanOrEqualTo(b.Rope.Shortfall + 1e-9));
+        }
+
+        [Test]
+        public void LT19_TheLevelsSetByHandAreWhereTheTerminalsStand()
+        {
+            // The player raised the bottom terminal 5 ft and set the top 2 ft into the hill while placing them: the build
+            // starts there (and may only raise further), stores those levels and stands the rope on them.
+            var ground = new EditedHeights(new Profile(s => 0.2 * s), Lattice, TerrainEdits.Empty);
+            double bx = West + 100, by = North - 900, tx = West + 100, ty = North - 100;
+            var plain = LiftBuild.Build(Quad, ground, bx, by, tx, ty, TowerStance.Plumb);
+            var hand = LiftBuild.Build(Quad, ground, bx, by, tx, ty, TowerStance.Plumb, null, 5 * Ft, -2 * Ft);
+            Assert.That(hand.BottomLevel - hand.BottomRaise, Is.EqualTo(plain.BottomLevel - plain.BottomRaise + 5 * Ft).Within(0.002));
+            Assert.That(hand.TopLevel - hand.TopRaise, Is.EqualTo(plain.TopLevel - plain.TopRaise - 2 * Ft).Within(0.002));
+            Assert.That(hand.Levels.BottomMm, Is.EqualTo((int)Math.Round(hand.BottomLevel * 1000)));
+            Assert.That(hand.Ok, Is.True, string.Join("; ", hand.Problems));
         }
 
         [Test]
@@ -341,13 +369,16 @@ namespace MountainPlanner.Tests
                 if (bend > 10) crested++;
                 if (side > 0.25) sidehill++;
                 var sw = Stopwatch.StartNew();
-                var b = LiftBuild.Build(quad, natural, ax, ay, bx, by, TowerStance.Leaned);
+                var b = DesignTestKit.AsPlayer((hb, ht) => LiftBuild.Build(quad, natural, ax, ay, bx, by, TowerStance.Leaned, null, hb, ht));   // LT34
                 foreach (var t in b.Rope.Towers) heads[t.Head] = heads.TryGetValue(t.Head, out int c) ? c + 1 : 1;
                 buildMs.Add(sw.Elapsed.TotalMilliseconds);
                 built++;
                 string what = $"({ax - cx:F0}, {ay - cy:F0}) to ({bx - cx:F0}, {by - cy:F0}) m ({length / Ft:F0} ft, {grade:P0}, bend {bend:F0} m, side {side:P0})";
                 TestContext.Progress.WriteLine($"{what}: {(b.Ok ? "ok" : "RED")} {Describe(b)}");
-                if (!b.Rope.TerminalsOk) problems.Add(what + ": " + Describe(b));
+                // LT34: a terminal stands where it's placed, so one whose row can't take the rope says what to do about it.
+                if (!b.Rope.TerminalsOk && !b.Hints.Any(h => h.Rule == "LT34")) problems.Add(what + ": " + Describe(b));
+                // TW-12 (LT40): chairs left short say why.
+                if (DesignTestKit.UnnamedShortfall(b) is string unnamed) problems.Add(what + ": " + unnamed);
                 if (!b.Ok)
                 {
                     red++;
@@ -361,7 +392,8 @@ namespace MountainPlanner.Tests
             TestContext.Progress.WriteLine($"LiftBuild over the fan: median {buildMs[buildMs.Count / 2]:F0} ms, slowest {buildMs[buildMs.Count - 1]:F0} ms");
             TestContext.Progress.WriteLine($"heads: {string.Join(", ", heads.Select(kv => $"{kv.Key} {kv.Value}"))}");
             TestContext.Progress.WriteLine($"{built} lines: {red} red; gentle {gentle}, steep {steep}, crest or hollow {crested}, sidehill {sidehill}");
-            // Every terminal takes its rope (TW-16 v3); most lines build within every rule. The rest are red for a rule the
+            // Every terminal takes its rope (TW-16 v3) or the review says how to make it (LT34); most lines build within every
+            // rule (the suggested levels taken, as a player would). The rest are red for a rule the
             // tool will show: a crest too sharp for the room on cliffy ground (TW-06), or a small shortfall just past a low
             // zone (task 09's full placement).
             Assert.That(problems, Is.Empty);

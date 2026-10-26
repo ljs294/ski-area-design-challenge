@@ -19,8 +19,16 @@ namespace MountainPlanner.Presentation
         ToolNew, ToolEdit, ToolRemove,
         ToolNext, BreakGround, BrushNarrower, BrushWider, Erase, UndoStroke, TowerUp, TowerDown, DeleteSelected, ToolWindowKeys,
         Undo, Redo,
+        // P3-09 (LT19, LT21): the terminal being placed turns (a preview of the space it takes) and sets its level.
+        TerminalTurnLeft, TerminalTurnRight, TerminalLevelUp, TerminalLevelDown,
+        // P3-09 (LT7): the Lifts map layer.
+        LayerLifts,
+        // P3-09 (LF-04, LT17): the tower in hand or selected slides down or up the line, 5 ft (Shift 50 ft).
+        TowerSlideBack, TowerSlideOn,
         // P3-08: the Trails map layer (TL6).
         LayerTrails,
+        // P3-09 (F2, LT37): a tower in hand to add between the others.
+        TowerAdd,
     }
 
     [Flags]
@@ -158,8 +166,20 @@ namespace MountainPlanner.Presentation
             new Info("Building", "Use the tool window with the keys", Context.Tray, new KeyChord(Key.Tab)),
             new Info("Game", "Undo", Context.Normal, new KeyChord(Key.Z, KeyMods.Ctrl)),
             new Info("Game", "Redo", Context.Normal, new KeyChord(Key.Y, KeyMods.Ctrl), new KeyChord(Key.Z, KeyMods.Ctrl | KeyMods.Shift)),
+            // P3-09 (LT21): turn the terminal in hand 5° (Shift 45°; Shift + wheel too); its level 1 ft (LT19), claimed while
+            // a terminal is in hand, so Page Up / Page Down zoom otherwise.
+            new Info("Building", "Turn the terminal left", Context.Tray, new KeyChord(Key.Comma), whileClaimed: true),
+            new Info("Building", "Turn the terminal right", Context.Tray, new KeyChord(Key.Period), whileClaimed: true),
+            new Info("Building", "Terminal up 1 ft", Context.Tray, new KeyChord(Key.PageUp), whileClaimed: true),
+            new Info("Building", "Terminal down 1 ft", Context.Tray, new KeyChord(Key.PageDown), whileClaimed: true),
+            new Info("Layers", "Lifts", Context.Normal, new KeyChord(Key.Digit2, KeyMods.Shift)),
+            // LT17: , and . slide a tower (the arrows stay the camera's); claimed only while a tower is in hand or selected.
+            new Info("Building", "Tower down the line 5 ft", Context.Tray, new KeyChord(Key.Comma), whileClaimed: true),
+            new Info("Building", "Tower up the line 5 ft", Context.Tray, new KeyChord(Key.Period), whileClaimed: true),
             // P3-08: the Trails map layer (owner TL6).
             new Info("Layers", "Trails", Context.Normal, new KeyChord(Key.Digit4, KeyMods.Shift)),
+            // P3-09 (F2): Insert puts a tower in hand on the line, between its neighbours; claimed while a line's towers edit.
+            new Info("Building", "Add a tower", Context.Tray, new KeyChord(Key.Insert), whileClaimed: true),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>
@@ -265,6 +285,24 @@ namespace MountainPlanner.Presentation
             return false;
         }
 
+        /// <summary>The action's key went down this frame; Shift is free (it means a bigger step) unless the binding has it.</summary>
+        public static bool PressedAnyShift(Keyboard keyboard, GameAction action)
+        {
+            if (keyboard == null) return false;
+            Load();
+            var mods = ModsOf(keyboard);
+            int i = (int)action * Slots;
+            for (int s = 0; s < Slots; s++)
+            {
+                var c = Bound[i + s];
+                if (c.IsNone || Shadowed((int)action, c)) continue;
+                var need = c.Mods & ~KeyMods.Shift;
+                if ((mods & ~KeyMods.Shift) != need || ((c.Mods & KeyMods.Shift) != 0 && (mods & KeyMods.Shift) == 0)) continue;
+                if (keyboard[c.Key].wasPressedThisFrame) return true;
+            }
+            return false;
+        }
+
         /// <summary>The action's key is down. Shift is free (it means faster) unless the binding itself has Shift; Ctrl and Alt must match.</summary>
         public static bool Held(Keyboard keyboard, GameAction action, bool letters = true)
         {
@@ -333,6 +371,7 @@ namespace MountainPlanner.Presentation
                 case Key.Enter: return "Enter";
                 case Key.NumpadEnter: return "Num Enter";
                 case Key.Delete: return "Delete";
+                case Key.Insert: return "Insert";
                 case Key.LeftShift: return "Shift";
                 case Key.RightShift: return "Right Shift";
                 case Key.LeftCtrl: return "Ctrl";
