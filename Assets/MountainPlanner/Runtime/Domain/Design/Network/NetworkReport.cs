@@ -84,25 +84,33 @@ namespace MountainPlanner.Domain.Design
         /// <summary>A descent from the lift's top (NW-13).</summary>
         public Reach ReachFrom(LiftId lift) => ReachFrom(DesignNetwork.LiftTopNode(_seed, lift));
 
-        /// <summary>A descent from the trail's head: the start of its first segment (finding 2).</summary>
+        /// <summary>A descent down the trail from its head (finding 2): its first segment, then everything below. Other
+        /// runs that leave the same head (a lift's top, a junction) aren't on the way.</summary>
         public Reach ReachFrom(TrailId trail)
         {
             var edges = Graph.Edges;
             // Edges are sorted by kind, owner, then start, so a trail's first segment is the one from its head.
             for (int i = 0; i < edges.Count; i++)
-                if (edges[i].Kind == EdgeKind.TrailSegment && edges[i].Owner == trail.Value) return ReachFrom(edges[i].From);
+                if (edges[i].Kind == EdgeKind.TrailSegment && edges[i].Owner == trail.Value) return Search(Graph, _down, _bottoms, edges[i].From, i);
             return Reach.Nothing;
         }
 
-        static Reach Search(NetworkGraph graph, Dictionary<ulong, List<int>> down, Dictionary<ulong, LiftId> bottoms, ulong start)
+        /// <param name="first">When not negative, the search leaves <paramref name="start"/> by that segment only.</param>
+        static Reach Search(NetworkGraph graph, Dictionary<ulong, List<int>> down, Dictionary<ulong, LiftId> bottoms, ulong start, int first = -1)
         {
             var edges = graph.Edges;
             var visited = new HashSet<ulong> { start };
             var queue = new Queue<ulong>();
-            queue.Enqueue(start);
             var segments = new List<int>();
             var trails = new SortedSet<TrailId>();
             var lifts = new SortedSet<LiftId>();
+            if (first < 0) queue.Enqueue(start);
+            else
+            {
+                segments.Add(first);
+                trails.Add(new TrailId(edges[first].Owner));
+                if (visited.Add(edges[first].To)) queue.Enqueue(edges[first].To);
+            }
             while (queue.Count > 0)
             {
                 ulong n = queue.Dequeue();

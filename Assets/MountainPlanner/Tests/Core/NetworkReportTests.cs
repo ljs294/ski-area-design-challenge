@@ -102,6 +102,27 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void NW13_Finding2_ATrailsReachGoesDownItNotDownItsNeighbours()
+        {
+            // Two runs leave Chair's top; picking one mustn't light the other.
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var chair = AddLift(h, "Chair", P(0, 0), P(0, 3000));
+            // 25 ft wide, their heads 56 ft apart and running apart: no overlap and no path between them
+            TrailId Narrow(string name, PointMm head, PointMm tail)
+            {
+                var r = h.Submit(new AddTrail(h.Revision, name, TrailSettings.GradedRun, Straight(head, tail, 25), head, tail, WorkStage.Built));
+                Assert.That(r.Accepted, Is.True, r.ToString());
+                return new TrailId(r.Created[0]);
+            }
+            var east = Narrow("East", P(28, 2995), P(1500, 2000));
+            var west = Narrow("West", P(-28, 2995), P(-1500, 2000));
+            var report = NetworkReport.Build(h.Document, new TrailNetworkGeometry(Site));
+            Assert.That(report.ReachFrom(east).Trails, Is.EqualTo(new[] { east }));
+            Assert.That(report.ReachFrom(west).Trails, Is.EqualTo(new[] { west }));
+            Assert.That(report.ReachFrom(chair).Trails, Is.EquivalentTo(new[] { east, west }), "the lift's top reaches both");
+        }
+
+        [Test]
         public void NW13_Finding5_ATrailReachesTheLiftAtItsBottomButDoesntRideIt()
         {
             var doc = SpurOntoMain(out var chair, out var main, out var spur);

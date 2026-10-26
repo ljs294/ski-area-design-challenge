@@ -530,3 +530,6 @@ The owner said "Go. Yes to all nine recommendations."
 | NT7 | **Label collisions:** lift names win over trail names; a trail name slides along its line, then hides. Contour labels are unchanged |
 | NT8 | **Timing:** the engine-free work (geometry, connectivity, tests, the network golden) and the mockup start now; the game UI, lift nodes in the game and labels wait for #94 (labels also #97), merging main as each lands |
 | NT9 | **Segment ratings** (NW-08) are computed and tested but not shown; the player sees one rating per trail |
+| NT10 | **A trail's reach stops at the lifts it leads to** (owner, 2026-10-26, finding 5): a lift whose bottom the descent reaches lights as reached, but the highlight doesn't ride it |
+| NT11 | **Clearing a pick** (finding 6): Esc, a click on empty ground, or the card's ✕ |
+| NT12 | **The card and the legend share one right-hand column** (finding 3): the legend on top, folded to its title line while a card is open (▸ unfolds it), the card below |
