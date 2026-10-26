@@ -224,8 +224,8 @@ if a rope socket is off the rope, or if a mast section's AO doesn't tile.
 | Drive terminal | 13,902 | 6,782 | 1,776 | 242 |
 | Return terminal | 19,852 | 7,016 | 1,824 | 304 |
 | Terminal footing (budget 12, one level) | 10 | - | - | - |
-| Monta drive terminal | 20,338 | 9,562 | 2,050 | 394 |
-| Monta return terminal | 3,636 | 1,820 | 944 | 360 |
+| Monta drive terminal | 20,404 | 9,628 | 2,084 | 360 |
+| Monta return terminal | 3,640 | 1,824 | 948 | 244 |
 | Chair budget | 1,600 | 250 | 60 | - |
 | Sessellift quad chair | 984 | 246 | 60 | - |
 | Chairworks chair, detachable grip | 1,596 | 248 | 56 | - |
