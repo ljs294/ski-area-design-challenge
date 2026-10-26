@@ -42,3 +42,4 @@ tools/git-hooks/* text eol=lf
 TestData/formats/v1-save/** -text
 TestData/formats/v2-save/** -text
 TestData/formats/v3-save/** -text
+TestData/formats/v4-save/** -text
