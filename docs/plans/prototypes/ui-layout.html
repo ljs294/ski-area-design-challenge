@@ -441,6 +441,32 @@ body.solo .frame { border-radius: 0; }
 .hud .modal .pn.svd input { width: calc(100% - 24px); margin: 6px 12px 10px; }
 .hud .modal .pn.svd .acts { padding: 0 12px 12px; display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
 .hud .modal .pn.svd .acts.three { grid-template-columns: 1fr; }
+/* ---------- Send feedback, the error notice and the crash offer (task P3-14; this region is P3-14's) ---------- */
+.hud .modal .pn.fb { width: 560px; }
+.hud .fb .kind { margin: 12px 12px 0; }
+.hud .fb .kind span { padding: 7px 0 6px; font-size: 12.5px; }
+.hud .fb label.cap { display: block; padding: 10px 12px 4px; font: 700 12px 'DotFix', 'Overpass'; color: var(--muted); }
+.hud .fb .field { width: calc(100% - 24px); margin: 0 12px; height: 34px; font: 700 13.5px 'DotFix', 'Overpass'; }
+.hud .fb textarea.field { height: 84px; padding: 8px 11px; resize: none; font: 500 13px 'DotFix', 'Overpass'; line-height: 1.4; }
+.hud .fb .inc { margin: 0 12px; border: 1px solid var(--hair); border-radius: 4px; }
+.hud .fb .inc .ir { display: grid; grid-template-columns: 15px 1fr auto; align-items: center; gap: 10px; min-height: 32px; padding: 4px 10px; border-top: 1px solid var(--div); font: 600 12.5px 'DotFix', 'Overpass'; color: var(--text); cursor: pointer; }
+.hud .fb .inc .ir:first-child { border-top: 0; }
+.hud .fb .inc .ir small { display: block; font: 500 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .fb .inc .ir.off { color: var(--soft); }
+.hud .fb .inc .mono { font: 500 11.5px 'Overpass Mono', monospace; color: var(--muted); }
+.hud .fb .tot { display: flex; justify-content: space-between; padding: 6px 12px 0; font: 500 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .fb .tot .mono { font: 500 11.5px 'Overpass Mono', monospace; }
+.hud .fb .priv { margin: 10px 12px 0; padding: 8px 10px; border-left: 3px solid var(--hair2); background: var(--tile); font: 500 12px 'DotFix', 'Overpass'; color: var(--muted); line-height: 1.4; }
+.hud .fb .priv b { color: var(--strong); }
+.hud .fb .acts { grid-template-columns: 1fr auto auto; padding: 12px; }
+.hud .fb .file { display: flex; align-items: center; gap: 10px; margin: 12px 12px 0; padding: 10px 12px; border: 1px solid var(--hair); border-radius: 4px; background: var(--tile); font: 700 13px 'Overpass Mono', monospace; color: var(--strong); }
+.hud .fb .file small { margin-left: auto; font: 500 11.5px 'Overpass Mono', monospace; color: var(--soft); }
+.hud .fb ol { margin: 10px 12px 0 30px; padding: 0; font: 500 12.5px 'DotFix', 'Overpass'; color: var(--text); line-height: 1.5; }
+.hud .fb ol b { color: var(--strong); }
+.hud .notice { position: absolute; left: 50%; bottom: 168px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 14px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px var(--shadow); z-index: 8; font: 600 14px 'DotFix', 'Overpass'; color: var(--text); white-space: nowrap; }
+.hud .notice > span:first-child { margin-right: 6px; }
+.hud .notice .go, .hud .notice .ghost { height: 28px; }
+.hud .notice .x { padding: 0 8px; color: var(--soft); cursor: pointer; }
 /* the lift construction tool (Phase 3 mockup): the menu's rows, steps, tower card and load gauge; the profile strip */
 .hud .lrow { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; padding: 3px 12px; font: 600 12.5px 'DotFix', 'Overpass'; color: var(--soft); }
 .hud .step.lstep { min-width: 0; height: 28px; }
@@ -567,6 +593,7 @@ body.solo .frame { border-radius: 0; }
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
     <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets one legend card (with contours added to it); its ✕ closes it until you pick another layer. The bar reads the layer under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
     <li><b>Photo mode</b> (P, or the menu): the HUD gives way to one thin bar. <b>Time</b> moves the sun ([ and ] a quarter hour; the clock stops while you frame), <b>Date</b> its path through the year (Shift [ and ]), <b>Lens</b> is the field of view, <b>Focus</b> is depth of field (Off, Natural or Miniature), <b>Grade</b> the look, and <b>Size</b> saves at the screen's resolution or twice it. Space or F12 captures, H hides the bar, Esc or P leaves and puts the clock, look and lens back. <b>Credits</b> (menu, or the title) list every area's data sources with the areas that use them.</li>
+    <li><b>Send feedback</b> (task P3-14): the menu's <b>Send feedback</b>, Settings › Data › Logs › <b>Send logs…</b>, the error notice (<b>#demo=errnote</b>) and the title's offer after a crash (<b>#demo=crashoffer</b>) open one window. Pick <b>Problem</b> or <b>Suggestion</b>, give it a title and tick what goes in. <b>Save and open GitHub</b> saves one zip, shows it in Explorer and opens a pre-filled GitHub issue; you drag the zip in. The game sends nothing itself. States: <b>#demo=fb</b>, <b>fbsug</b>, <b>fbcrash</b>, <b>fbsent</b>.</li>
     <li><b>Saves</b> (task P3-04): Ctrl+S or the bar's save symbol saves; the first save asks for a name. Autosave (Settings › Gameplay, every 10 minutes by default) keeps one Autosave slot per area. Exit to title with changes asks to save first. <a href="#demo=load" onclick="setTimeout(() => location.reload())">Load Area</a> lists each area's saves: → shows them, Enter opens, F2 renames, Delete removes; a save from a newer version is greyed.</li>
     <li><b>Also live:</b> play/pause and four speeds, save (white when there are changes), Analysis with eight tabs and the sketch pencil. The bar's clock and weather, money, open lifts, open trails and guests open their Analysis tab. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name for the resort's stats), the weather with the next 24 hours' snowfall, and the elevation under the pointer. Figures are imperial until you press U; steepness is always a grade in percent. <b>Keys:</b> T toolbox, Tab analysis, U units, Shift+1 snow, Shift+3 trees, Shift+6 contours, Shift+7–9 info layers, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
@@ -684,7 +711,7 @@ body.solo .frame { border-radius: 0; }
   const DEFAULTS = { hudScale: 85,   // the owner's default size (2026-10-06); the game's scale goes 50–150% in 5% steps
     tooltips: 'on', notify: 'all', clock: '12', money: 'full', autosave: 10, pauseOnBuild: 'off', confirmRemove: 'on',
     quality: 'High', renderScale: 100, aa: 'MSAA 4×', shadows: 'High', shadowDist: 150, terrain: 'High', shading: 'on', trees: 'Auto', textures: 'full',
-    display: 'Borderless', resolution: '2560 × 1080 · 21:9', vsync: 'off', fps: 'Unlimited', fov: 60, offline: 'off',
+    display: 'Borderless', resolution: '2560 × 1080 · 21:9', vsync: 'off', fps: 'Unlimited', fov: 60, offline: 'off', crashOffer: 'on',
     master: 80, music: 60, effects: 75, ambience: 70, muteBg: 'on', invertZoom: 'off', zoomSpeed: 'normal' };
   S.set = { ...DEFAULTS };
   const ONOFF = [['on', 'On'], ['off', 'Off']];
@@ -742,6 +769,9 @@ body.solo .frame { border-radius: 0; }
       { k: 'library', label: 'Library folder', desc: 'C:\\Users\\you\\AppData\\Local\\SkiAreaDesignChallenge', btn: ['Open', 'Change…'] },
       { k: 'disk', label: 'Disk use', desc: "3 areas: 1.2 GB, terrain caches 840 MB, older versions' caches 310 MB.", btn: ['Free 310 MB'] },
       { k: 'offline', label: 'Offline mode', desc: 'No downloads, map tiles or place search; the areas you have open as usual.', seg: ONOFF },
+      // Task P3-14: Send logs opens Send feedback on Problem; Copy report (P2-10) gives way to it.
+      { k: 'logs', label: 'Logs', desc: 'Error logs and the game log, for a problem report. 3 error logs, 84 KB.', btn: [['Open'], ['Send logs…', 'feedback', 'problem']] },
+      { k: 'crashOffer', label: 'Offer a report after a crash', desc: 'If the game closed unexpectedly, the title asks once whether to send a report.', seg: ONOFF },
     ] },
   ];
   const settingRow = (k) => SETTINGS.flatMap((pg) => pg.rows).find((row) => row.k === k);
@@ -2717,7 +2747,7 @@ body.solo .frame { border-radius: 0; }
       <div class="qrow" data-ui="menu-theme"><span>Theme</span>${qseg('quick', S.theme, [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Auto']]).replace(/data-act="quick"/g, 'data-act="sset" data-k="theme"')}</div>
       <div class="qrow" data-ui="menu-dock"><span>Status bar</span>${qseg('quick', S.docked ? 'docked' : 'floating', [['docked', 'Docked'], ['floating', 'Floating']]).replace(/data-act="quick"/g, 'data-act="sset" data-k="dock"')}</div>
       <div class="qrow" data-ui="menu-units"><span>Units</span>${qseg('quick', S.units, [['metric', 'Metric'], ['imperial', 'Imperial']]).replace(/data-act="quick"/g, 'data-act="sset" data-k="units"')}</div>
-      <div class="sepl"></div><div class="row" data-act="settings" data-ui="menu-settings">Settings<span class="r">›</span></div><div class="row" data-act="controls" data-ui="menu-controls">Controls<span class="r">›</span></div><div class="row" data-act="photo" data-ui="menu-photo">Photo mode<span class="r">P</span></div><div class="row" data-act="credits" data-ui="menu-credits">Credits<span class="r">›</span></div>
+      <div class="sepl"></div><div class="row" data-act="settings" data-ui="menu-settings">Settings<span class="r">›</span></div><div class="row" data-act="controls" data-ui="menu-controls">Controls<span class="r">›</span></div><div class="row" data-act="photo" data-ui="menu-photo">Photo mode<span class="r">P</span></div><div class="row" data-act="credits" data-ui="menu-credits">Credits<span class="r">›</span></div><div class="row" data-act="feedback" data-v="suggestion" data-ui="menu-feedback">Send feedback<span class="r">›</span></div>
       <div class="sepl"></div><div class="row" data-act="title" data-ui="menu-exit">Exit to title</div>${P2 ? '<div class="row" data-act="quit" data-ui="menu-quit">Quit to desktop</div>' : ''}</div>`;
     h += `<div class="tr" data-ui="tr">${P2 ? `<span class="sq dis" data-ui="tr-sketch" title="Sketching comes in Phase 3">${g('s-pencil')}</span>` : `<span class="sq${S.sketch ? ' on' : ''}" data-act="sketch" data-ui="tr-sketch" title="Sketch">${g('s-pencil')}</span>`}<span class="sq${S.drop === 'layers' ? ' on' : ''}" data-act="drop" data-v="layers" data-ui="tr-layers" title="Map layers">${g('s-map')}</span><span class="sq${S.drop === 'menu' ? ' on' : ''}" data-act="drop" data-v="menu" data-ui="tr-menu" title="Menu">${g('s-menu')}</span></div>`;
     if (S.focus && !S.drop) h += focusCard();
@@ -2764,11 +2794,13 @@ body.solo .frame { border-radius: 0; }
     else if (S.modal && S.modal.credits) h += creditsPanel();
     else if (S.modal && S.modal.stats) h += statsPanel();
     else if (S.modal && S.modal.save) h += saveDialog();
+    else if (S.modal && S.modal.fb) h += feedbackPanel();   // task P3-14
     else if (S.modal && S.modal.input) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">Rename resort<span class="x" data-act="modal">✕</span></div>
       <div style="padding:12px 12px 2px"><input id="nameinput" class="field" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(S.name)}"></div>
       <div class="hint">Shown in the status bar, the menu, Analysis and your saves.</div>
       <div class="acts"><div class="go" data-act="renameok"><span>Rename</span><span class="mono">Enter</span></div><div class="ghost" data-act="modal">Cancel</div></div></div></div>`;
     else if (S.modal) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">${S.modal.title}<span class="x" data-act="modal">✕</span></div><div class="hint" style="padding:12px">${S.modal.body}</div><div class="acts" style="grid-template-columns:1fr"><div class="ghost" data-act="modal">OK</div></div></div></div>`;
+    if (S.notice && !S.modal) h += noticeHtml();   // task P3-14: the error notice and the crash offer
     if (S.lib) h = libScreen();   // S2 Load Area (task P3-04) stands in for the title's screens
     ui.innerHTML = h;
     if (S.set.tooltips === 'off') ui.querySelectorAll('[title]').forEach((n) => n.removeAttribute('title'));
@@ -2789,7 +2821,7 @@ body.solo .frame { border-radius: 0; }
       const i = row.step.indexOf(val), fmt = row.fmt || ((x) => x), lo = i <= 0, hi = i >= row.step.length - 1;
       return `<div class="step"><span class="sb${lo ? ' dis' : ''}" data-act="${lo ? '' : 'sstep'}" data-k="${row.k}" data-v="-1">‹</span><b>${fmt(val)}</b><span class="sb${hi ? ' dis' : ''}" data-act="${hi ? '' : 'sstep'}" data-k="${row.k}" data-v="1">›</span></div>`;
     }
-    if (row.btn) return `<div class="sbtns">${row.btn.map((b) => `<span class="ghost">${esc(b)}</span>`).join('')}</div>`;
+    if (row.btn) return `<div class="sbtns">${row.btn.map((b) => Array.isArray(b) ? `<span class="ghost"${b[1] ? ` data-act="${b[1]}" data-v="${b[2] || ''}"` : ''}>${esc(b[0])}</span>` : `<span class="ghost">${esc(b)}</span>`).join('')}</div>`;
     const [lo, hi] = row.range, pc = (val - lo) / (hi - lo) * 100;
     return `<div class="rng-wrap"><input type="range" class="rng" min="${lo}" max="${hi}" step="5" value="${val}" data-k="${row.k}" style="--p:${pc}%" aria-label="${row.label}"><span class="rv">${val}${row.unit}</span></div>`;
   }
@@ -3086,6 +3118,61 @@ body.solo .frame { border-radius: 0; }
     if (slot) { slot.when = 'just now'; area.saves.splice(area.saves.indexOf(slot), 1); area.saves.unshift(slot); }
     else area.saves.unshift({ name: 'Autosave', auto: true, when: 'just now', trails: S.trails.length, lifts: S.lifts.length });
   }
+  // ---------- Send feedback, the error notice and the crash offer (task P3-14; this region is P3-14's) ----------
+  // One dialog for problems and suggestions. Nothing leaves the PC: Send saves the zip, shows it in Explorer and opens a
+  // pre-filled GitHub issue (kind, title, version and GPU in the link only); the player drags the zip into the issue.
+  const FB_PARTS = [
+    { k: 'shot', name: 'Screenshot', sub: 'The view just before this window opened', kb: 1240 },
+    { k: 'logs', name: 'Error logs', sub: '3 logs from this week', kb: 84, problem: true },
+    { k: 'player', name: 'Game log', sub: 'Player.log and Player-prev.log', kb: 2110, problem: true },
+    { k: 'dump', name: 'Crash dump', sub: 'From the crash on 24 Oct, 9:12 PM', kb: 610, crash: true },
+    { k: 'save', name: 'Your save', sub: () => `“Upper bowl” of ${esc(S.name)}, read only`, kb: 340, problem: true },
+    { k: 'sys', name: 'System and settings', sub: 'v0.3.0 · RTX 3060 Ti · Windows 11 · 2560×1080 at 85% · High', kb: 4 },
+  ];
+  const fbSize = (kb) => kb >= 1000 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`;
+  const fbTotal = (fb) => FB_PARTS.filter((p) => fb.inc[p.k] && (!p.crash || fb.crash)).reduce((t, p) => t + p.kb, 2);
+  function feedbackOpen(kind, crash) {
+    const fb = { kind: kind || 'problem', crash: !!crash, title: '', note: '', inc: {}, sent: false };
+    for (const p of FB_PARTS) fb.inc[p.k] = p.problem ? fb.kind === 'problem' : true;
+    S.drop = null; S.notice = null; S.modal = { fb };
+  }
+  function feedbackPanel() {
+    const fb = S.modal.fb, prob = fb.kind === 'problem', ok = !!fb.title.trim();
+    if (fb.sent) return `<div class="modal" data-act="modalbg"><div class="pn fb" data-ui="feedback-sent"><div class="hd">Report saved<span class="x" data-act="modal">✕</span></div>
+      <div class="file">report-20261025-1432.zip<small>${fbSize(fbTotal(fb))}</small></div>
+      <ol><li>It's open in a folder window, and your browser has a new GitHub issue with the title and version filled in.</li>
+      <li><b>Drag the file into the issue</b>, then click <b>Submit new issue</b>.</li></ol>
+      <div class="hint">No GitHub account? Send the file to the developer any way you like.</div>
+      <div class="acts"><div class="go" data-act="modal"><span>Done</span><span class="mono">Enter</span></div><div class="ghost" data-act="fb" data-v="folder">Show in folder</div><div class="ghost" data-act="fb" data-v="copy">Copy summary</div></div></div></div>`;
+    const rows = FB_PARTS.filter((p) => !p.crash || fb.crash).map((p) => {
+      const on = fb.inc[p.k], sub = typeof p.sub === 'function' ? p.sub() : p.sub;
+      return `<div class="ir${on ? '' : ' off'}" data-act="fb" data-v="inc:${p.k}" data-ui="feedback-inc-${p.k}"><span class="chk${on ? ' on' : ''}"></span><span>${p.name}<small>${sub}</small></span><span class="mono">${fbSize(p.kb)}</span></div>`;
+    }).join('');
+    return `<div class="modal" data-act="modalbg"><div class="pn fb" data-ui="feedback"><div class="hd">Send feedback<span class="x" data-act="modal">✕</span></div>
+      <div class="seg kind" data-ui="feedback-kind"><span class="${prob ? 'on' : ''}" data-act="fb" data-v="kind:problem">Problem</span><span class="${prob ? '' : 'on'}" data-act="fb" data-v="kind:suggestion">Suggestion</span></div>
+      <label class="cap" for="fbtitle">${prob ? 'In a few words' : 'Your idea in a few words'}</label>
+      <input id="fbtitle" class="field" maxlength="80" spellcheck="true" autocomplete="off" placeholder="${prob ? 'Trees vanish when I zoom out' : 'Let me name lift towers'}" value="${esc(fb.title)}">
+      <label class="cap" for="fbnote">${prob ? 'What happened, and what were you doing?' : 'Tell us more (optional)'}</label>
+      <textarea id="fbnote" class="field" maxlength="4000" spellcheck="true">${esc(fb.note)}</textarea>
+      <label class="cap">Included in the report</label>
+      <div class="inc">${rows}</div>
+      <div class="tot"><span>Saved as one zip file on this PC</span><span class="mono">${fbSize(fbTotal(fb))} of 25 MB</span></div>
+      <div class="priv">Nothing is sent until you post it yourself. Your Windows user name is removed from every file. <b>GitHub issues are public.</b></div>
+      <div class="acts"><div class="go${ok ? '' : ' dis'}" data-act="${ok ? 'fb' : ''}" data-v="send" data-ui="feedback-send"><span>Save and open GitHub</span><span class="mono">Enter</span></div><div class="ghost${ok ? '' : ' dis'}" data-act="${ok ? 'fb' : ''}" data-v="saveonly">Save only</div><div class="ghost" data-act="modal">Cancel</div></div></div></div>`;
+  }
+  function fbAct(v) {
+    const fb = S.modal && S.modal.fb; if (!fb) return;
+    if (v.startsWith('kind:')) { fb.kind = v.slice(5); for (const p of FB_PARTS) if (p.problem) fb.inc[p.k] = fb.kind === 'problem'; }
+    else if (v.startsWith('inc:')) fb.inc[v.slice(4)] = !fb.inc[v.slice(4)];
+    else if (v === 'send' || v === 'saveonly') { fb.sent = true; log(`<span>Report saved <span style="color:var(--soft)">report-20261025-1432.zip</span></span>`, '#6f675e', true); }
+    else if (v === 'folder') log('<span>Explorer opens the Reports folder</span>', '#6f675e', true);
+    else if (v === 'copy') log('<span>Summary copied</span>', '#6f675e', true);
+  }
+  // The session's first error (P2-10's notice, now with Send logs), and the title's offer after a crash.
+  function noticeHtml() {
+    if (S.notice === 'crash') return `<div class="notice" data-ui="crash-offer"><span>The game closed unexpectedly last time. Send a report?</span><div class="go" data-act="feedback" data-v="crash"><span>Send report</span></div><div class="ghost" data-act="notice">Not now</div></div>`;
+    return `<div class="notice" data-ui="error-notice"><span>Something went wrong. A log was saved for a bug report.</span><div class="go" data-act="feedback" data-v="problem"><span>Send logs</span></div><div class="ghost" data-act="notice" data-v="open">Open folder</div><span class="x" data-act="notice">✕</span></div>`;
+  }
   function saveDialog() {
     if (S.modal.save === 'as') return `<div class="modal" data-act="modalbg"><div class="pn svd" data-ui="prompt"><div class="hd">Save<span class="x" data-act="modal">✕</span></div>
       <div class="hint">Saved under <b>${esc(S.name)}</b> in Load Area. Ctrl+S saves to it from now on; autosave keeps its own slot.</div>
@@ -3241,6 +3328,9 @@ body.solo .frame { border-radius: 0; }
       case 'phday': S.day = Math.max(1, Math.min(365, S.day + (+v))); break;
       case 'phgrade': S.ph.grade = GRADES[Math.max(0, Math.min(GRADES.length - 1, GRADES.indexOf(S.ph.grade) + (+v)))]; break;
       case 'credits': S.drop = null; S.modal = { credits: true }; break;
+      case 'feedback': feedbackOpen(v === 'crash' ? 'problem' : v, v === 'crash'); break;   // task P3-14
+      case 'fb': fbAct(v); break;
+      case 'notice': if (v === 'open') log('<span>Explorer opens the Logs folder</span>', '#6f675e', true); S.notice = null; break;
       case 'cofl': S.modal = { credits: true, ofl: !S.modal.ofl }; break;
       case 'quit': S.drop = null; S.modal = { title: 'Quit to desktop', body: 'The game closes here; the mockup stays open.' }; break;
       case 'settings': S.drop = null; S.modal = { settings: true }; break;
@@ -3313,6 +3403,11 @@ body.solo .frame { border-radius: 0; }
   window.addEventListener('pointerup', () => { if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { endStroke(S.draft); render(); } if (liftDrag) { const d = S.draft; if (liftDrag.term) d.dropAsk = d.towers.length - towersOn(d).length; if (liftDrag.end) endMove(d, liftDragged); if (d.edit && !liftDragged) d.hist.pop(); liftDrag = null; render(); } });
   stage.addEventListener('input', (e) => {
     if (e.target.id === 'trailname' && S.draft && S.draft.kind === 'trail') { S.draft.name = e.target.value.slice(0, 28); return; }
+    if ((e.target.id === 'fbtitle' || e.target.id === 'fbnote') && S.modal && S.modal.fb) {   // P3-14: kept across re-renders; Send lights once there's a title
+      const fb = S.modal.fb, had = !!fb.title.trim(); if (e.target.id === 'fbtitle') fb.title = e.target.value; else fb.note = e.target.value;
+      if (had !== !!fb.title.trim()) document.querySelectorAll('.fb .acts > div:not(:last-child)').forEach((n) => { n.classList.toggle('dis', !fb.title.trim()); n.dataset.act = fb.title.trim() ? 'fb' : ''; });
+      return;
+    }
     const rg = e.target.closest('input.rng'); if (!rg) return;
     if (rg.dataset.trail) { const d = S.draft; d.width = +rg.value; S.trailWidth = d.width; rg.style.setProperty('--p', `${(rg.value - rg.min) / (rg.max - rg.min) * 100}%`); document.getElementById('trailw').textContent = lenFt(d.width); drawWorld(); return; }
     if (rg.dataset.ph) {   // the photo bar's Time and Lens: live, without re-rendering the bar under the pointer
@@ -3364,7 +3459,8 @@ body.solo .frame { border-radius: 0; }
   // ---------- keys ----------
   window.addEventListener('keydown', (e) => {
     // Typing a name: only Enter and Esc mean anything.
-    if (e.target && e.target.tagName === 'INPUT') {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+      if (e.target.id === 'fbtitle' && e.key === 'Enter') { e.preventDefault(); if (S.modal.fb.title.trim()) { fbAct('send'); render(); } return; }   // P3-14
       if (e.target.id === 'nameinput' && e.key === 'Enter') { e.preventDefault(); act('renameok'); }
       else if (e.target.id === 'saveinput' && e.key === 'Enter') { e.preventDefault(); saveAct('ok'); }
       else if (e.target.id === 'libinput' && e.key === 'Enter') { e.preventDefault(); libAct('renok'); }
@@ -3509,6 +3605,12 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('rename')) S.modal = { input: true };
     if (d.includes('rstats')) S.modal = { stats: true };
     if (d.includes('credits')) S.modal = { credits: true };
+    // fb, fbsug, fbcrash, fbsent: Send feedback (task P3-14); errnote and crashoffer: the notices that open it.
+    if (d.includes('fb') || d.includes('fbsent')) { feedbackOpen('problem'); S.modal.fb.title = 'Trees vanish when I zoom out'; S.modal.fb.note = 'Near the top of the tram, trees blink out at the second zoom step and come back after a second.'; if (d.includes('fbsent')) S.modal.fb.sent = true; }
+    if (d.includes('fbsug')) feedbackOpen('suggestion');
+    if (d.includes('fbcrash')) feedbackOpen('problem', true);
+    if (d.includes('errnote')) S.notice = 'error';
+    if (d.includes('crashoffer')) S.notice = 'crash';
     if (d.includes('ofl')) S.modal = { credits: true, ofl: true };
     if (d.includes('layers')) S.drop = 'layers';
     if (d.includes('analysis')) { S.analysis = true; S.t = 12.5 * 3600; S.incomeToday = 0.31e6; S.opsToday = 0.12e6; S.today = S.incomeToday - S.opsToday - S.buildToday; }

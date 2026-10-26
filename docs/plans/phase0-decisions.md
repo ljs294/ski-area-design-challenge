@@ -485,3 +485,22 @@ The owner answered revision 1's eight questions, then asked for an adversarial r
 | LT16 | **Every lift-menu choice is a dropdown;** Towers is one quiet line (Automatic ▾ · Plumb ▾) |
 | LT17 | **Keys after TL19:** `,` and `.` slide a tower 5 ft (Shift 50 ft); Page Up / Page Down change a tower's height or a terminal's level only while one is claimed (selected or in hand); otherwise the camera has them. Toolbox Edit is M |
 | LT18 | **The changes amend PR #91** (Q15). The mockup's 400 ft cap on a station's exempt zone is its own engine's fix: ours already ends the low zone 100 ft from the bullwheel (TW-01 v2). Ride times round to the second |
+
+## Phase 3 task 14, problem reports and Send feedback: decided 2026-10-25
+
+**Context:** the owner asked "How will I debug user issues in the future?" and "We should also just provide a button
+for users to send logs", then widened it to suggestions and to tracking issues. Friends get the game from a GitHub
+Release.
+
+| # | Decision |
+|---|---|
+| PR1 | **One Send feedback dialog,** Problem or Suggestion. The error notice and Settings › Data › Logs open it on Problem; the in-game menu opens it on Suggestion. No hotkey (bindable later) |
+| PR2 | **Sending:** the game saves the zip in `<data>/Reports`, shows it in Explorer and opens a pre-filled GitHub issue form (kind, title, version and GPU only in the link); the player drags the zip into the issue. Nothing is uploaded by the game and no key or token is in the build. Friends without GitHub send the file directly |
+| PR3 | **No email address and no mail-to-issue script** (owner, 2026-10-25). Uploading from the game (a free relay) stays a later decision |
+| PR4 | **GitHub Issues track problems and suggestions** (labels `problem`, `suggestion`, `crash`, area and status labels, a milestone per release, a free project board). Discussions stays off; **the wiki is on hold** |
+| PR5 | **The report:** `report.json` ("report" v1, not frozen), the error logs, Player.log and Player-prev.log (last 4 MB each), Unity's newest crash dump, the open save (read only; included by default, with a toggle), a screenshot (on by default), system info and every setting, the player's note. The package itself is never included, only its ID and attribution. The zip stays under GitHub's 25 MB |
+| PR6 | **Privacy:** nothing is sent automatically; the dialog lists every file and its size first; the Windows user name in any path or log becomes `%USERNAME%`; no computer name |
+| PR7 | **After a crash** the title offers a report once, at the next launch (a running marker the clean quit removes); never in tool runs or scratch `-data` folders; Settings › Data can turn it off |
+| PR8 | **Symbols:** the build is Mono; `release.ps1` keeps each tagged release's game DLLs and PDBs in `D:\skiAreaDesignChallenge\symbols\<version>`, outside git and never shipped. Native frames use Unity's public symbol server |
+| PR9 | **Opening a report:** `-openreport <zip>` unpacks into a scratch `-data` folder, copies the area in from the owner's library (or names the package to download), opens the save, prints the system info and applies the reported settings for that session only, never saved |
+| PR10 | **The old backlog stays in the docs;** new findings go to Issues from v0.3.0 |
