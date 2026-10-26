@@ -169,6 +169,7 @@ namespace MountainPlanner.App.Flow
                 Screens.ShowDownloadCard(false, false, false);
             }
             yield return CaptureDownloadStates(folder);   // task P2-06: S4's other states, S11's dialogs (AppFlow.UiCapture.Downloads.cs)
+            yield return CaptureReportStates(folder);   // task P3-14: Send feedback, the notices (AppFlow.UiCapture.Report.cs)
 
             if (Wanted("s5-quality") && demo != null)
             {

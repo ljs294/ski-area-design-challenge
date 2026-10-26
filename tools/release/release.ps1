@@ -14,6 +14,9 @@
        -DemoPackage, else the newest Jackson Hole 5 km in this PC's library (demo.bat 12 downloads it).
     5. The smoke test, in the GPU render lane: the exe starts as a fresh install (empty library, offline), the title comes
        in from the built-in demo, a forced exception reaches the error log, and it quits 0. -NoSmoke skips it.
+    5b. Symbols (task P3-14): a tagged release keeps what crash dumps need in <Symbols>\<version> (default
+       D:\skiAreaDesignChallenge\symbols, beside the main checkout), outside git and never in the zip; -KeepSymbols
+       keeps a preview's too. tools/reports/README.md says how to use them.
     6. The zip <Out>\SkiAreaDesignChallenge-<version>-win64.zip with README.txt and NOTICES.txt, its .sha256 and
        release.json (what was built and checked).
   A tagged release refuses -AllowDirty, -SkipTests and -NoSmoke.
@@ -24,6 +27,8 @@ param(
     [switch]$NoSmoke,
     [string]$DemoPackage = '',
     [string]$Out = '',
+    [switch]$KeepSymbols,
+    [string]$Symbols = '',
     [string]$Unity = 'C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe'
 )
 $ErrorActionPreference = 'Stop'
@@ -142,6 +147,15 @@ if (-not $NoSmoke) {
     }
     Write-Host "  $($line.Line.Trim())"
     $report.smoke = 'passed'
+}
+
+# ---- 5b. Symbols ----
+if ($release -or $KeepSymbols) {
+    Step 'Symbols (kept outside git and the zip)'
+    if (-not $Symbols) { $Symbols = Get-SymbolsRoot $root }
+    $kept = Save-Symbols $player $root $Unity $version $Symbols
+    Write-Host "  $($kept.Files) files in $($kept.Folder) (game PDBs $($kept.ManagedPdbs) of $($kept.ManagedDlls))"
+    $report.symbols = $kept.Folder
 }
 
 # ---- 6. Zip ----

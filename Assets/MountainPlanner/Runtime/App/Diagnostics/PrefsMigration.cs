@@ -106,6 +106,20 @@ namespace MountainPlanner.App.Diagnostics
             finally { RegCloseKey(key); }
         }
 
+        /// <summary>Every value name under HKCU\<paramref name="path"/> with its registry type (problem reports, task P3-14).</summary>
+        public static List<(string name, int type)> ListValues(string path)
+        {
+            var values = new List<(string, int)>();
+            if (!Open(path, false, out IntPtr key)) return values;
+            try
+            {
+                foreach (string name in Names(key))
+                    if (Read(key, name, out int type, out _)) values.Add((name, type));
+            }
+            finally { RegCloseKey(key); }
+            return values;
+        }
+
         /// <summary>Removes HKCU\<paramref name="path"/> and everything under it (tests).</summary>
         public static void DeleteTree(string path) => RegDeleteTree(CurrentUser, path);
 

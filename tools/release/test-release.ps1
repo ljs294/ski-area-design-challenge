@@ -78,6 +78,27 @@ try {
     $problems = Test-ZipLayout $bad '0.2.0'
     Check (($problems -join ';') -match 'DoNotShip') 'DoNotShip is refused'
     Check (($problems -join ';') -match 'cache') 'a demo without its cache is refused'
+
+    Write-Host 'Symbols (task P3-14)'
+    $player = Join-Path $scratch 'Player'
+    $bee = Join-Path $scratch 'proj\Library\Bee\PlayerScriptAssemblies'
+    New-Item -ItemType Directory -Force (Join-Path $player 'SkiAreaDesignChallenge_Data\Managed'), (Join-Path $player 'Ski Area Design Challenge_BurstDebugInformation_DoNotShip'), $bee | Out-Null
+    Set-Content (Join-Path $player 'SkiAreaDesignChallenge.exe') 'exe'
+    Set-Content (Join-Path $player 'Ski Area Design Challenge_BurstDebugInformation_DoNotShip\lib_burst_generated.pdb') 'burst'
+    foreach ($n in 'MountainPlanner.App', 'MountainPlanner.UI') {
+        Set-Content (Join-Path $player "SkiAreaDesignChallenge_Data\Managed\$n.dll") $n
+        Set-Content (Join-Path $bee "$n.pdb") "pdb $n"
+    }
+    Set-Content (Join-Path $bee 'MountainPlanner.App.dll') 'MountainPlanner.App'
+    Set-Content (Join-Path $bee 'MountainPlanner.UI.dll') 'a different build'
+    $kept = Save-Symbols $player (Join-Path $scratch 'proj') (Join-Path $scratch 'Unity\Editor\Unity.exe') '0.3.0' (Join-Path $scratch 'symbols')
+    $sym = Join-Path $scratch 'symbols\0.3.0'
+    Check (Test-Path (Join-Path $sym 'native\SkiAreaDesignChallenge.exe')) 'the shipped exe is kept'
+    Check (Test-Path (Join-Path $sym 'burst\lib_burst_generated.pdb')) 'the Burst debug information is kept'
+    Check (Test-Path (Join-Path $sym 'managed\MountainPlanner.App.pdb')) 'a PDB that matches its shipped DLL is kept'
+    Check (-not (Test-Path (Join-Path $sym 'managed\MountainPlanner.UI.pdb'))) "a PDB from another build isn't"
+    Check ($kept.ManagedPdbs -eq 1 -and $kept.ManagedDlls -eq 2) 'the PDBs are counted'
+    Check ((Get-Content -Raw (Join-Path $sym 'symbols.json')) -match '"version":\s*"0.3.0"') 'symbols.json names the version'
 } finally {
     Remove-Item -Recurse -Force $scratch -ErrorAction SilentlyContinue
 }
