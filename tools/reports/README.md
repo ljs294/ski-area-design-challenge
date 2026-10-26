@@ -75,6 +75,9 @@ To read a `crash.dmp`, open it in Visual Studio or WinDbg (both free) with the s
 - Issues from other people: `is:issue is:open -author:@me`. The owner's own, and the threads' (they file through the
   owner's `gh`), are `author:@me`. A report the owner files for a player without GitHub gets `from-player`; both
   together: `is:issue is:open (-author:@me OR label:from-player)`.
+- The board: [Ski Area Design Challenge feedback](https://github.com/users/ljs294/projects/1) (private, linked to the
+  repo), Status New → Accepted → In progress → Done. Its built-in *Auto-add to project* workflow (the board's
+  ⋯ › Workflows, filter `is:issue`) puts every new issue on it; GitHub's API can't switch that on.
 - Area labels (terrain, trees, lifts, trails, interface, performance, downloads, saves) and `crash`, `needs-info`
   and `confirmed` are added by hand; each release has a milestone (`v0.3.0` first).
 - A report zip in an issue is public. Never re-post logs or saves elsewhere, and never quote a player's email.
