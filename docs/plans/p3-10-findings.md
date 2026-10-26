@@ -30,7 +30,8 @@ diagram over a dark grey relief with a key (mockup commit 950f0aae).
 
 ## Round 2 (2026-10-26): recording only
 
-Reviewed: the mockup after round 1's fixes (cd13d6e1). Numbers carry on from round 1.
+Reviewed: the mockup after round 1's fixes (cd13d6e1). Numbered as the owner gives them: R2-1, R2-2 and so on.
 
 | # | Finding | Where | Fix | Status |
 |---|---|---|---|---|
+| R2-1 | When a lift lights because it's reachable, it should still light red, not blue. Trails and lifts should highlight in their own colours (owner, 2026-10-26) | The Network view's pick highlight (round 1's findings 2 and 5): everything reached turns one blue, lifts included | Not fixed yet. Idea: "reached" keeps each thing's own colour (lifts red; trails their colour) and shows as reached by being lit (a brighter, wider line with a glow), while what isn't reached goes grey; the picked one stays apart (white core over a glow). To ask when fixing: a trail's own colour is its rating colour (green, blue, black) or the diagram's pale run colour | Recorded |
