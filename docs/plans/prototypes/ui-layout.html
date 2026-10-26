@@ -41,6 +41,9 @@ body.solo .frame { border-radius: 0; }
 /* ---------- the map ---------- */
 .map { position: absolute; inset: 0; transform-origin: 640px 400px; transition: transform 0.25s ease; }
 .map img { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; }
+/* task P3-10: the Network view, a diagram over a dark relief of the mountain (the game: a grey, dimmed terrain look) */
+.map.netview img { filter: grayscale(1) brightness(.38) contrast(1.15); }
+.map.netview #contours { opacity: .35; }
 .map svg { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; overflow: visible; }
 .stage.aim { cursor: crosshair; }
 .stage.pick { cursor: pointer; }
@@ -1001,12 +1004,10 @@ body.solo .frame { border-radius: 0; }
     // Analysis › Network (NW-13): the lift picked (or hovered) in its list lights every trail its top reaches.
     const netOn = S.analysis && S.atab === 'network', netPick = netOn && (S.lifts.some((l) => l.id === S.rowHover) ? S.rowHover : S.netLift);
     const reach = netPick ? netOf().liftSt[netPick] : null;
+    mapEl.classList.toggle('netview', !!netOn);
+    if (netOn) { worldEl.innerHTML = drawNetwork(netPick, hiId); return; }
     for (const th of S.things) if (S.layers[toolById(th.kind).layer]) s += drawThing(th);
-    if (S.layers.trails) for (const tr of S.trails) {
-      const lit = reach && reach.reach.has(tr.id), one = drawTrail(tr, { hi: hiId === tr.id || lit });
-      s += reach && !lit ? `<g opacity=".35">${one}</g>` : one;
-    }
-    if (netOn && S.layers.trails) s += drawNetwork();
+    if (S.layers.trails) for (const tr of S.trails) s += drawTrail(tr, { hi: hiId === tr.id });
     // a lift open in Edit lift is drawn by its draft instead
     if (S.layers.lifts) for (const l of S.lifts) if (!(S.draft && S.draft.edit === l.id)) s += drawLift(l, { hi: hiId === l.id });
     // Remove lift: the picked lift is lit (the wider white casing) and a second click on it takes it out
@@ -1141,8 +1142,24 @@ body.solo .frame { border-radius: 0; }
     if (S.info === 'aspect') { const a = aspectOf(s); return a ? `<i style="background:${a[1]}"></i>Faces <b>${a[0]} · ${Math.round(s.bearing)}°</b>` : `<i style="background:${FLAT}"></i>Flat · under 10%`; }
     return `<i style="background:${depthHex(s.cm)}"></i>Snow <b>${snowLen(s.cm)}</b>`;
   }
+  // The Network view's key (task P3-10): what the diagram's marks mean.
+  function netLegend() {
+    const mk = (svg) => `<svg width="22" height="12" viewBox="0 0 22 12">${svg}</svg>`;
+    const chev = (c) => `<path d="M9 3l4 3-4 3" fill="none" stroke="${c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const row = (svg, word) => `<div class="lr"><span>${mk(svg)}</span><span>${word}</span><span></span></div>`;
+    return `<div class="legend" data-ui="legend"><div class="lh" data-ui="legend-head">Network</div>
+      ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="${NETC.lift}" stroke-width="3.4"/>${chev('#fff')}`, 'Lift, going up')}
+      ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="${NETC.run}" stroke-width="2.6"/>${chev('#1b1815')}`, 'Run, going down')}
+      ${row(`<line x1="1" y1="6" x2="21" y2="6" stroke="${NETC.warn}" stroke-width="2.6" stroke-dasharray="5 3"/>`, 'No lift serves this')}
+      ${row(`<line x1="1" y1="6" x2="15" y2="6" stroke="${NETC.run}" stroke-width="2.6"/><line x1="16" y1="1" x2="16" y2="11" stroke="${NETC.warn}" stroke-width="3"/>`, 'Leads nowhere')}
+      ${row(`<circle cx="11" cy="6" r="4.5" fill="none" stroke="${NETC.warn}" stroke-width="2"/>`, 'No way down')}
+      ${row(`<line x1="2" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2.4 2.2"/>`, 'Path between runs')}
+      ${row(`<circle cx="11" cy="6" r="3.6" fill="currentColor"/>`, 'Junction')}
+      <div class="ln">Pick a lift in the list to light what its top reaches.</div></div>`;
+  }
   // The legend card for the info layer that's on (and the contour interval when contours are on).
   function legendCard() {
+    if (S.analysis && S.atab === 'network') return netLegend();
     if ((!S.info && !S.contours) || S.legendClosed) return '';
     // One card for the info layer and contours together; the X closes it until another layer is picked.
     // Keys show only in the open layers panel.
@@ -2478,11 +2495,76 @@ body.solo .frame { border-radius: 0; }
       ${warnT.length ? `<div class="tbl" style="margin-top:8px"><div class="r th" style="${tcols}"><span>Trail</span><span class="n">Warning</span></div>${trows}</div>` : ''}
       <div class="tbl"><div class="foot">A lift is connected when a way down from its top reaches a lift's bottom. Click a lift to light up every trail its top reaches; dashed links are paths between trails that pass within 30 ft.</div></div>`;
   }
-  // The map while Analysis › Network is open: junction rings and dashed path links (PA-08), not map lines of their own.
-  function drawNetwork() {
-    const n = netOf(); let s = '';
-    for (const p of n.paths) { const A = P(p.a), B = P(p.b); s += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${white}" stroke-width="4.2" stroke-linecap="round" opacity=".9"/><line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${ink}" stroke-width="1.6" stroke-dasharray="2.6 2.2"/>`; }
-    for (const j of n.junctions) { const A = P(j.p); s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="3.4" fill="${white}" stroke="${ink}" stroke-width="1.4"/>`; }
+  // The Network view (owner, 2026-10-25: "a more specific layer where the background looks much different"): while
+  // Analysis › Network is open the mountain goes to a dark grey relief and the network draws as a diagram, not as the
+  // trail map. Lifts are red with chevrons pointing up; runs are pale with chevrons pointing down; a stretch no lift
+  // serves is amber and dashed; a run that leads nowhere ends in an amber bar; junctions are white dots, lift ends
+  // squares; paths are dashed links with their direction (PA-08). The lift picked in the list turns what its top reaches
+  // cyan and greys the rest.
+  const NETC = { lift: '#e0483a', run: '#dfe8ee', warn: '#f0b43c', reach: '#59c3ff', off: '#6d7378', halo: 'rgba(12,14,16,.85)' };
+  function chevrons(pts, colour, step = 34) {   // small V marks along a line, pointing along it
+    let s = '', run = step / 2;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const A = pts[i], B = pts[i + 1], len = Math.hypot(B.x - A.x, B.y - A.y); if (!len) continue;
+      const ux = (B.x - A.x) / len, uy = (B.y - A.y) / len;
+      for (; run < len; run += step) {
+        const x = A.x + ux * run, y = A.y + uy * run, bx = x - ux * 4.2, by = y - uy * 4.2;
+        s += `<path d="M${f1(bx - uy * 3.6)} ${f1(by + ux * 3.6)}L${f1(x)} ${f1(y)}L${f1(bx + uy * 3.6)} ${f1(by - ux * 3.6)}" fill="none" stroke="${colour}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`;
+      }
+      run -= len;
+    }
+    return s;
+  }
+  // Names as NT7 places them: lifts first, then each trail's name at the first free spot along its line (from the
+  // middle out), hidden when none is free; a name near the right edge reads to the left of its point.
+  function netLabels(items) {
+    const placed = [], W = 1280; let s = '';
+    for (const it of items) {
+      const w = it.text.length * 7.3 + 6, h = 13;
+      for (const at of it.spots) {
+        const right = at.x + 8 + w > W - 6, x = right ? at.x - 8 - w : at.x + 8, y = at.y - 7 - h + 3;
+        if (placed.some((r) => x < r.x + r.w && r.x < x + w && y < r.y + r.h && r.y < y + h)) continue;
+        placed.push({ x, y, w, h });
+        s += `<text x="${f1(x)}" y="${f1(at.y - 7)}" style="font:700 10.5px DotFix,Overpass,sans-serif;letter-spacing:.05em;fill:${it.colour};stroke:${NETC.halo};stroke-width:3.5px;stroke-linejoin:round;paint-order:stroke">${esc(it.text.toUpperCase())}</text>`;
+        break;
+      }
+    }
+    return s;
+  }
+  function alongPts(pts, f) {   // the point a fraction f of the way along a line
+    const lens = []; let total = 0;
+    for (let i = 0; i + 1 < pts.length; i++) { const l = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y); lens.push(l); total += l; }
+    let run = f * total;
+    for (let i = 0; i < lens.length; i++) { if (run <= lens[i] || i === lens.length - 1) return lerp(pts[i], pts[i + 1], lens[i] ? Math.min(1, run / lens[i]) : 0); run -= lens[i]; }
+    return pts[0];
+  }
+  function drawNetwork(pick, hiId) {
+    const n = netOf(), reach = pick ? n.liftSt[pick].reach : null, labels = []; let s = '';
+    for (const t of n.trails) {
+      const st = n.trailSt[t.id], pts = t.pts.map(P), d = `M${pts.map((q) => `${f1(q.x)} ${f1(q.y)}`).join('L')}`;
+      const col = reach ? (reach.has(t.id) ? NETC.reach : NETC.off) : !st.served ? NETC.warn : NETC.run, w = hiId === t.id ? 4.4 : 2.6;
+      s += `<path d="${d}" fill="none" stroke="${NETC.halo}" stroke-width="${w + 3}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round"${!st.served && !reach ? ' stroke-dasharray="7 4"' : ''}/>`;
+      s += chevrons(pts, col);
+      if (st.nowhere) {   // the dead end: a bar across the tail
+        const B = pts[pts.length - 1], A = pts[pts.length - 2], len = Math.hypot(B.x - A.x, B.y - A.y) || 1, ux = (B.x - A.x) / len, uy = (B.y - A.y) / len;
+        s += `<path d="M${f1(B.x - uy * 7)} ${f1(B.y + ux * 7)}L${f1(B.x + uy * 7)} ${f1(B.y - ux * 7)}" stroke="${NETC.warn}" stroke-width="3.4" stroke-linecap="round"/>`;
+      }
+      labels.push({ order: 1, text: t.name, colour: reach && !reach.has(t.id) ? NETC.off : '#eef2f4', spots: [0.5, 0.38, 0.62, 0.26, 0.74, 0.16, 0.84].map((f) => alongPts(pts, f)) });
+    }
+    for (const p of n.paths) {
+      const A = P(p.a), B = P(p.b);
+      s += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${NETC.halo}" stroke-width="5" stroke-linecap="round"/><line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="#ffffff" stroke-width="1.8" stroke-dasharray="2.4 2.2"/>`;
+    }
+    for (const l of n.lifts) {
+      const A = P(l.a), B = P(l.b), ok = n.liftSt[l.id].ok, col = pick && pick !== l.id ? NETC.off : NETC.lift, w = hiId === l.id || pick === l.id ? 5 : 3.4;
+      s += `<line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${NETC.halo}" stroke-width="${w + 3}" stroke-linecap="round"/><line x1="${f1(A.x)}" y1="${f1(A.y)}" x2="${f1(B.x)}" y2="${f1(B.y)}" stroke="${col}" stroke-width="${w}"/>`;
+      s += chevrons([A, B], '#ffffff', 40);
+      for (const q of [A, B]) s += `<rect x="${f1(q.x - 4.5)}" y="${f1(q.y - 4.5)}" width="9" height="9" fill="${col}" stroke="#fff" stroke-width="1.4"/>`;
+      if (!ok) s += `<circle cx="${f1(B.x)}" cy="${f1(B.y)}" r="9" fill="none" stroke="${NETC.warn}" stroke-width="2.2"/>`;
+      labels.push({ order: 0, text: `${l.n} ${l.name}`, colour: ok ? '#ffb3aa' : NETC.warn, spots: [B, lerp(A, B, 0.85)] });
+    }
+    for (const j of n.junctions) { const A = P(j.p); s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="3.8" fill="#fff" stroke="${NETC.halo}" stroke-width="1.6"/>`; }
+    if (S.layers.labels) s += netLabels(labels.sort((a, b) => a.order - b.order));
     return s;
   }
   function reviewActs(ready, plan, rules) {
