@@ -2,16 +2,21 @@
 
 **Audience:** the project owner and coding agents.
 
-**Status:** all seven fixed in the mockup, and in `NetworkReport` where the game needs it, for the owner's review
-(plan approved 2026-10-26; decisions NT10–NT12). Findings 1 and 2 were fixed first (commits 0eae148f, ccc804b7); 3–7
-were recorded, then fixed together. The game port follows the approved mockup.
+**Status:**
+- **Round 1** (findings 1–7): all fixed in the mockup, and in `NetworkReport` where the game needs it (plan approved
+  2026-10-26; decisions NT10–NT12; commit cd13d6e1).
+- **Round 2** (findings 8 on): open, **recording only**. Nothing is fixed until the owner says go.
+
+The game port follows the approved mockup.
 
 **Build reviewed:** `feature/p3-10-network`: first the mockup's Network view (`prototypes/ui-layout.html`, demo states
 `#solo&demo=p2,net` and `p2,netpick`), later the game.
 
-**Earlier rounds, before this doc:** round 1 (2026-10-25), "how is the network map any different from the trails for
-lift overview? … a more specific layer where the background looks much different": the Network view became its own
-look, a diagram over a dark grey relief with a key (mockup commit 950f0aae).
+**Before this doc:** the first look (2026-10-25), "how is the network map any different from the trails for lift
+overview? … a more specific layer where the background looks much different": the Network view became its own look, a
+diagram over a dark grey relief with a key (mockup commit 950f0aae).
+
+## Round 1 (2026-10-25): findings 1–7, fixed
 
 | # | Finding | Where | Fix | Status |
 |---|---|---|---|---|
@@ -22,3 +27,10 @@ look, a diagram over a dark grey relief with a key (mockup commit 950f0aae).
 | 5 | Clicking a trail should also show the lifts downhill that are reachable (owner, 2026-10-25) | The Network view's pick highlight: a picked trail lights only trails today; the lifts it leads to stay grey | Fixed (NT10): a lift whose bottom the descent reaches lights blue (line and bottom circle); its top isn't ridden. `NetworkReport.Reach.Lifts` lists them | Fixed in the mockup and NetworkReport, for review |
 | 6 | No clear way to untoggle the selection of a lift or trail (owner, 2026-10-25) | The Network view's pick (finding 2): the only way out today is clicking the same lift or trail again, which nothing tells you | Fixed (NT11): Esc clears the pick and the card, a click on empty ground clears it, and the card's ✕ clears it too. The key's hint line says so | Fixed in the mockup, for review |
 | 7 | Nodes should be selectable the same way (lighting what's reachable from them), but show no properties pane (owner, 2026-10-25) | The Network view: junctions, lift tops and bottoms, path ends and a run's own ends can't be picked today | Fixed: a click within about 8 px of a node picks it (nodes win over the lines through them): a blue glow ring, everything downhill of it lit by segment, no card. A lift's top lights like the lift; its bottom lights nothing. `NetworkReport.ReachFrom(node)` (demo `p2,netnode`) | Fixed in the mockup and NetworkReport, for review |
+
+## Round 2 (2026-10-26): recording only
+
+Reviewed: the mockup after round 1's fixes (cd13d6e1). Numbers carry on from round 1.
+
+| # | Finding | Where | Fix | Status |
+|---|---|---|---|---|
