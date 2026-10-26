@@ -2628,12 +2628,17 @@ body.solo .frame { border-radius: 0; }
     const labels = [], ends = []; let s = '';
     for (const t of n.trails) {
       const st = n.trailSt[t.id], pts = t.pts.map(P), d = pathD(pts), own = runColour[t.diff] || NETC.run;
-      const me = pick === t.id, col = r ? NETC.off : !st.served ? NETC.warn : NETC.run, w = hiId === t.id ? 4.4 : 2.6;
+      const me = pick === t.id, col = r ? NETC.off : !st.served ? NETC.warn : NETC.run, w = S.rowHover === t.id ? 4.4 : 2.6;
       s += `<path d="${d}" fill="none" stroke="${NETC.halo}" stroke-width="${w + 3}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round"${!st.served && !r ? ' stroke-dasharray="7 4"' : ''}/>`;
       s += chevrons(pts, col);
       if (r) for (const e of r.segs) if (e.trail === t.id) {   // finding 4: only the stretches reached; the picked one with its glow
         const sub = subLine(t.pts, e.a0, e.a1).map(P);
         if (sub.length > 1) s += litLine(sub, own, e === seg);
+      }
+      const hs = S.hoverSeg && S.hoverSeg.trail === t.id && n.edges.find((e) => e.trail === t.id && Math.abs(e.a0 - S.hoverSeg.a0) < 1e-6);
+      if (hs) {   // R2-3: the hovered segment alone, wider, in whatever it's drawn in now
+        const sub = subLine(t.pts, hs.a0, hs.a1).map(P), lit = r && r.segs.has(hs), c = lit ? own : col;
+        if (sub.length > 1) s += `<path d="${pathD(sub)}" fill="none" stroke="#ffffff" stroke-width="${lit ? 11 : 8}" stroke-linecap="round" opacity=".85"/><path d="${pathD(sub)}" fill="none" stroke="${c}" stroke-width="${lit ? 5 : 4.4}" stroke-linecap="round"/>${chevrons(sub, lit ? '#ffffff' : c)}`;
       }
       if (st.nowhere) {   // the dead end: a bar across the tail, drawn over the nodes
         const B = pts[pts.length - 1], A = pts[pts.length - 2], len = Math.hypot(B.x - A.x, B.y - A.y) || 1, ux = (B.x - A.x) / len, uy = (B.y - A.y) / len;
@@ -2665,6 +2670,7 @@ body.solo .frame { border-radius: 0; }
         : nd.kind === 'pathend' ? [4, '#fff', NETC.halo]
         : [4.5, NETC.halo, nd.kind === 'tail' && n.trailSt[nd.id.slice(2)] && n.trailSt[nd.id.slice(2)].nowhere ? NETC.warn : NETC.run];
       if (node === nd.id) s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad + 8}" fill="#ffffff" opacity=".32"/>`;   // finding 7: the picked node, with the picked glow
+      if (S.hoverNode === nd.id && node !== nd.id) s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad + 4.5}" fill="none" stroke="#ffffff" stroke-width="2.2" opacity=".9"/>`;   // R2-3: the hovered node
       s += `<circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad + 1.6}" fill="${NETC.halo}"/><circle cx="${f1(A.x)}" cy="${f1(A.y)}" r="${rad}" fill="${fill}" stroke="${ring}" stroke-width="2"/>`;
     }
     s += ends.join('');
@@ -3671,6 +3677,15 @@ body.solo .frame { border-radius: 0; }
     el.innerHTML = `<span class="elevrow"><span class="lab">Elev.</span>${v}</span>${S.info ? `<span class="ro" data-ui="bar-readout">${readout(mouse)}</span>` : ''}`;
   }
   function segDist(p, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1; let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2; t = Math.max(0, Math.min(1, t)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); }
+  // What's under a point in the Network view (findings 2 and 7, R2-2, R2-3): a node first (it wins over the lines
+  // through it), else a lift, else a trail and the segment holding that point along it.
+  function netHit(p) {
+    const node = pickNode(p); if (node) return { node };
+    const id = pickAt(p, 'lift') || pickAt(p, 'trail'), tr = id && S.trails.find((t) => t.id === id);
+    if (!tr) return id ? { id } : {};
+    const along = lineNear(p, tr.pts).along, e = netOf().edges.find((x) => x.trail === id && along >= x.a0 - 1e-6 && along <= x.a1 + 1e-6);
+    return { id, seg: e ? { trail: id, a0: e.a0 } : null };
+  }
   // A network node under the pointer (finding 7): it wins the click over the lines through it.
   function pickNode(p) {
     let best = null, bd = 8 / S.zoom;
@@ -3717,6 +3732,11 @@ body.solo .frame { border-radius: 0; }
     if (S.draft && S.draft.kind === 'lift') { const d = S.draft; if (d.step === 'other' && d.a) aimAt(mouse); if (d.g) d.hand = handAt(d, mouse); refreshLift(); return; }
     const picking = S.tool && toolById(S.tool).kind === 'pick';
     if (picking) S.hover = pickAt(mouse, toolById(S.tool).target);
+    else if (!S.tool && !S.sketch && S.analysis && S.atab === 'network') {   // R2-3: hover lights the segment (or node) under the pointer
+      const hit = netHit(mouse), key = hit.node || (hit.seg ? `${hit.seg.trail}@${hit.seg.a0}` : hit.id) || null;
+      stage.classList.toggle('pick', !!key);
+      if (key !== S.hoverKey) { S.hoverKey = key; S.hoverNode = hit.node || null; S.hoverSeg = hit.seg || null; S.hover = hit.seg ? null : hit.id || null; drawWorld(); }
+    }
     else if (!S.tool && !S.sketch) { const hv = pickAt(mouse, 'lift') || pickAt(mouse, 'trail'); stage.classList.toggle('pick', !!hv); if (hv !== S.hover) { S.hover = hv; drawWorld(); } }
     if (S.draft || picking) drawWorld();
   });
@@ -3777,12 +3797,7 @@ body.solo .frame { border-radius: 0; }
     else if (!S.tool && S.analysis && S.atab === 'network') {
       // findings 2, 3, 6, 7: a node picks itself (no card); a lift or trail picks and opens its card; empty ground clears
       // R2-2: on a trail, the segment under the click is what's picked; a second click on it clears the pick
-      const node = pickNode(p), id = node ? null : pickAt(p, 'lift') || pickAt(p, 'trail'), tr = id && S.trails.find((t) => t.id === id);
-      let segKey = null;
-      if (tr) {
-        const along = lineNear(p, tr.pts).along, e = netOf().edges.find((x) => x.trail === id && along >= x.a0 - 1e-6 && along <= x.a1 + 1e-6);
-        if (e) segKey = { trail: id, a0: e.a0 };
-      }
+      const hit = netHit(p), node = hit.node || null, id = hit.id || null, segKey = hit.seg || null;
       const same = id && id === S.netLift && (!segKey || (S.netSeg && Math.abs(S.netSeg.a0 - segKey.a0) < 1e-6));
       S.netNode = node && node !== S.netNode ? node : null;
       S.netLift = id && !same ? id : null;
