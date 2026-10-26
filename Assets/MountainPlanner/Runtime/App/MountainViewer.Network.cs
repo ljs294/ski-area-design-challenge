@@ -20,6 +20,7 @@ namespace MountainPlanner.App
         TrailNetworkGeometry _netGeometry;
         EarthworkSite _netSite;
         Task<NetworkReport> _networkJob;
+        System.Diagnostics.Stopwatch _networkWatch;
         DesignDocument _networkJobDoc, _networkPending;
         NetworkReport _network;
         DesignDocument _networkDoc;
@@ -49,7 +50,7 @@ namespace MountainPlanner.App
         void StartNetwork(DesignDocument doc)
         {
             var earthwork = _edits?.Earthwork;
-            if (earthwork == null || _builtFor == null) return;
+            if (earthwork == null || _builtFor == null) { Debug.LogWarning("[Network] no earthwork yet: the network waits for the next rebuild"); return; }
             var site = earthwork.Site;
             if (_netGeometry == null || !SameSite(site, _netSite))
             {
@@ -59,6 +60,7 @@ namespace MountainPlanner.App
             }
             var geometry = _netGeometry;
             _networkJobDoc = doc;
+            _networkWatch = System.Diagnostics.Stopwatch.StartNew();
             _networkJob = Task.Run(() => NetworkReport.Build(doc, geometry));
         }
 
@@ -86,7 +88,13 @@ namespace MountainPlanner.App
                 var job = _networkJob;
                 var doc = _networkJobDoc;
                 _networkJob = null;
-                if (job.Status == TaskStatus.RanToCompletion) ApplyNetwork(doc, job.Result);
+                if (job.Status == TaskStatus.RanToCompletion)
+                {
+                    var r = job.Result;
+                    Debug.Log($"[Network] {r.Lifts.Count} lifts, {r.Trails.Count} trails, {r.Graph.Nodes.Count} nodes, {r.Graph.Edges.Count} edges " +
+                              $"in {_networkWatch?.Elapsed.TotalMilliseconds:F0} ms off the main thread; {r.LiftWarnings} lift and {r.TrailWarnings} trail warnings");
+                    ApplyNetwork(doc, r);
+                }
                 else Debug.LogException(job.Exception);
                 if (_networkPending != null)
                 {
@@ -311,6 +319,7 @@ namespace MountainPlanner.App
         {
             var mouse = UnityEngine.InputSystem.Mouse.current;
             if (mouse == null || PhotoOpen || (_tools != null && _tools.Armed)) { _networkView.SetHover(-1, 0, 0, 0); return; }
+            if (_netHoverHeld) return;
             var pos = mouse.position.ReadValue();
             bool overUi = PointerOverUi(pos);
             var hit = overUi ? new NetworkView.Hit { Edge = -1 } : _networkView.Pick(cam, pos);
@@ -325,6 +334,114 @@ namespace MountainPlanner.App
             if (!hit.Any) { ClearNetworkPick(); return; }
             PickNetwork(hit.Trail, hit.Edge, hit.Lift, hit.Node);
         }
+
+        // ---------- -networkshots <folder>: the Network view for review (with -styletile, and -extralift for a lift with no way down) ----------
+
+        void StartNetworkShots(string[] args)
+        {
+            int i = Array.IndexOf(args, "-networkshots");
+            bool demo = Array.IndexOf(args, "-networkdemo") >= 0;
+            if (demo) { _netDemoPending = true; StartCoroutine(NetworkDemoTrail()); }
+            if (i >= 0 && i + 1 < args.Length) StartCoroutine(NetworkShots(args[i + 1]));
+        }
+
+        /// <summary>
+        /// -networkdemo (demo.bat 70, captures): with -styletile and -extralift, a run painted beside the second lift from its
+        /// top to its bottom (its ends within 30 ft of the lift's), so the network shows a connected lift and a trail it reaches.
+        /// </summary>
+        bool _netDemoPending;
+
+        System.Collections.IEnumerator NetworkDemoTrail()
+        {
+            try { yield return NetworkDemoTrailSteps(); }
+            finally { _netDemoPending = false; }
+        }
+
+        System.Collections.IEnumerator NetworkDemoTrailSteps()
+        {
+            while (_resort == null || _edits == null || !_edits.EarthworkReady || WorkBusy) yield return null;
+            DesignDocument doc;
+            for (int f = 0; ; f++)
+            {
+                doc = _edits.History.Document;
+                if (doc.Lifts.Count >= 2 || f > 3000) break;
+                yield return null;
+            }
+            if (doc.Lifts.Count < 2) { Debug.LogWarning("[Network] -networkdemo needs -styletile and -extralift"); yield break; }
+            var lift = doc.Lifts[doc.Lifts.Count - 1];
+            foreach (var l in doc.Lifts) if (l.Name == "Check Quad") lift = l;
+            // 20 ft to the side of the line, the ends 20 ft in from the lift's ends: both within TR-05's 30 ft.
+            var b = DesignFrame.ToLocal(lift.Bottom);
+            var t = DesignFrame.ToLocal(lift.Top);
+            var along = (t - b).normalized;
+            var side = new Vector2(along.y, -along.x) * 6.1f;
+            var head = DesignFrame.ToDesign(t - along * 6.1f + side);
+            var tail = DesignFrame.ToDesign(b + along * 6.1f + side);
+            var parts = new[] { new FootprintPart(new[] { new Stroke(DesignUnits.FeetToMm(60), false, new[] { head, tail }) }) };
+            var history = _edits.History;
+            var cmd = new AddTrail(history.Revision, "Lift Line", TrailSettings.NaturalRun, parts, head, tail, WorkStage.Built);
+            var after = cmd.Apply(history.Document);
+            if (!after.Accepted) { Debug.LogWarning("[Network] -networkdemo: " + after); yield break; }
+            var rebuilt = _edits.Earthwork.Rebuild(after.Document, history.Terrain);
+            history.Submit(cmd, rebuilt.Edits);
+            _edits.Earthwork.Accept(rebuilt);
+            Debug.Log("[Network] -networkdemo: Lift Line painted beside " + lift.Name);
+        }
+
+        /// <summary>Analysis › Network opened over the built work: the view, then a trail's lower segment, a lift and a
+        /// junction picked, then a hovered segment, a picture each (1-network.png and on), then quits.</summary>
+        System.Collections.IEnumerator NetworkShots(string dir)
+        {
+            System.IO.Directory.CreateDirectory(dir);
+            for (int f = 0; _resort == null || !_resort.CoverReady.IsCompleted || _edits == null || WorkBusy || _network == null || NetworkBusy || _netDemoPending; f++)
+            {
+                if (f % 300 == 299)
+                    Debug.Log($"[NetworkShots] waiting: resort {_resort != null}, cover {_resort?.CoverReady.IsCompleted}, edits {_edits != null}, " +
+                              $"edits busy {EditsBusy}, built busy {BuiltBusy}, network {_network != null}, network busy {NetworkBusy}");
+                yield return null;
+            }
+            Debug.Log("[NetworkShots] the network is in; opening Analysis › Network");
+            for (int k = 0; k < 30; k++) yield return null;
+            while (WorkBusy || NetworkBusy) yield return null;
+            Hud.SetAnalysisTab("network");
+            Hud.SetAnalysis(true);
+            yield return Shot(dir, "1-network");
+            var edges = _network.Graph.Edges;
+            int lastSegment = -1, firstSegment = -1;
+            for (int k = 0; k < edges.Count; k++)
+                if (edges[k].Kind == EdgeKind.TrailSegment) { if (firstSegment < 0) firstSegment = k; lastSegment = k; }
+            if (lastSegment >= 0)
+            {
+                PickNetwork(edges[lastSegment].Owner, lastSegment, 0, 0);
+                yield return Shot(dir, "2-segment");
+            }
+            if (_network.Lifts.Count > 0)
+            {
+                PickNetwork(0, -1, _network.Lifts[0].Lift.Value, 0);
+                yield return Shot(dir, "3-lift");
+            }
+            foreach (var n in _network.Graph.Nodes)
+            {
+                if (n.Kind != NodeKind.Junction && n.Kind != NodeKind.LiftBottom) continue;
+                PickNetwork(0, -1, 0, n.Id);
+                yield return Shot(dir, "4-node");
+                break;
+            }
+            ClearNetworkPick();
+            if (firstSegment >= 0)
+            {
+                _networkView.SetHover(firstSegment, 0, 0, 0);
+                _netHoverHeld = true;
+                yield return Shot(dir, "5-hover");
+                _netHoverHeld = false;
+            }
+            Debug.Log($"[NetworkShots] {_network.Lifts.Count} lifts, {_network.Trails.Count} trails, {_network.Graph.Nodes.Count} nodes, {edges.Count} edges; " +
+                      $"warnings: {_network.LiftWarnings} lifts, {_network.TrailWarnings} trails; diagram {_networkView?.VertexCount} vertices");
+            Application.Quit();
+        }
+
+        /// <summary>A capture holds the hover (the pointer isn't on the map).</summary>
+        bool _netHoverHeld;
 
         void DisposeNetworkView()
         {

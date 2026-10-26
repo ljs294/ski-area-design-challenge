@@ -300,7 +300,7 @@
 .hud .tab:hover { color: var(--text); -unity-text-outline-color: var(--text); }
 .hud .tab--on, .hud .tab--on:hover { background-color: var(--chip); color: var(--strong); -unity-text-outline-color: var(--strong); }
 .hud .tab--dis, .hud .tab--dis:hover { color: var(--faint); -unity-text-outline-color: var(--faint); }
-.hud .tabs--small .tab { height: 25px; padding: 5px 8px 4px 8px; font-size: 13px; }
+.hud .tabs--small .tab { height: 25px; padding: 5px 5px 4px 5px; font-size: 12.5px; }   /* nine Analysis tabs fit (task P3-10) */
 .hud .tabrule { height: 1px; margin: 0 8px; background-color: var(--tabrule); }
 .hud .toollabel { flex-direction: row; padding: 9px 12px 7px 12px; color: var(--strong); -unity-text-outline-color: var(--strong); }
 .hud .toollabel__name { font-size: 12.5px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }

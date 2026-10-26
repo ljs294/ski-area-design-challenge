@@ -12,7 +12,7 @@ float _MP_ContourInterval;   // metres between contours: 40 ft or 10 m (UnitForm
 float _MP_SnowDepthStops[6]; // metres at each snow-depth colour: round numbers in the player's units
 
 // The Network view (task P3-10, owner 2026-10-25): a dark grey relief under the network's diagram, so the lines read.
-static const float3 NetworkReliefColour = float3(0.20, 0.205, 0.21);
+static const float3 NetworkReliefColour = float3(0.045, 0.047, 0.05);   // linear: a dark slate once lit
 
 // Slope angle: steepness as a grade in percent (rise over run; 100% is 45°), in the trail-difficulty bands of
 // SlopeBands (green, blue, black; double black is black with white hatching, as two diamonds are on a sign).

@@ -299,7 +299,6 @@ namespace MountainPlanner.Presentation.Design
         {
             Color32 c = colour.linear;
             c.a = (byte)Mathf.RoundToInt(colour.a * 255);
-            float phase = 0;
             for (int i = 0; i + 1 < pts.Length; i++)
             {
                 Vector3 a = pts[i], b = pts[i + 1];
@@ -310,24 +309,14 @@ namespace MountainPlanner.Presentation.Design
                     Quad(a, b, widthPx, c);
                     continue;
                 }
-                // Dashes in pixels at this stretch's distance.
-                float px = Px((a + b) * 0.5f), on = dash * px, off = gap * px, s = 0;
-                while (s < len)
+                // Dashes in pixels at this stretch's distance, counted from its start (a whole number of steps, so the
+                // loop always ends, whatever the rounding).
+                float px = Px((a + b) * 0.5f), on = Mathf.Max(dash * px, 1e-3f), period = on + Mathf.Max(gap * px, 1e-3f);
+                int count = Mathf.Min(4096, Mathf.CeilToInt(len / period));
+                for (int k = 0; k < count; k++)
                 {
-                    float cycle = phase % (on + off);
-                    if (cycle < on)
-                    {
-                        float e = Mathf.Min(len, s + (on - cycle));
-                        Quad(Vector3.Lerp(a, b, s / len), Vector3.Lerp(a, b, e / len), widthPx, c);
-                        phase += e - s;
-                        s = e;
-                    }
-                    else
-                    {
-                        float e = Mathf.Min(len, s + (on + off - cycle));
-                        phase += e - s;
-                        s = e;
-                    }
+                    float s0 = k * period, s1 = Mathf.Min(len, s0 + on);
+                    if (s1 > s0) Quad(Vector3.Lerp(a, b, s0 / len), Vector3.Lerp(a, b, s1 / len), widthPx, c);
                 }
             }
             // Round joints and ends.
@@ -363,18 +352,20 @@ namespace MountainPlanner.Presentation.Design
                 float len = Vector3.Distance(a, b);
                 if (len < 1e-4f) continue;
                 var mid = (a + b) * 0.5f;
-                float px = Px(mid), step = stepPx * px;
+                float px = Px(mid), step = Mathf.Max(stepPx * px, 1e-3f);
                 var u = (b - a) / len;
                 var side = Vector3.Cross(u, _eye - mid).normalized;
-                float s = due * step;
-                for (; s < len; s += step)
+                // A whole number of marks, so the loop always ends.
+                float first = due * step;
+                int count = first < len ? Mathf.Min(4096, Mathf.FloorToInt((len - first) / step) + 1) : 0;
+                for (int k = 0; k < count; k++)
                 {
-                    var tip = a + u * s;
+                    var tip = a + u * (first + k * step);
                     var back = tip - u * (4.2f * px);
                     Quad(back - side * (3.6f * px), tip, 1.8f, c);
                     Quad(back + side * (3.6f * px), tip, 1.8f, c);
                 }
-                due = (s - len) / step;
+                due = Mathf.Repeat((first + count * step - len) / step, 1f);
             }
         }
 
@@ -486,9 +477,16 @@ namespace MountainPlanner.Presentation.Design
 
         public void Dispose()
         {
-            Object.Destroy(_root);
-            Object.Destroy(_mesh);
-            Object.Destroy(_material);
+            Gone(_root);
+            Gone(_mesh);
+            Gone(_material);
+        }
+
+        static void Gone(Object o)
+        {
+            if (o == null) return;
+            if (Application.isPlaying) Object.Destroy(o);
+            else Object.DestroyImmediate(o);   // EditMode tests
         }
     }
 }

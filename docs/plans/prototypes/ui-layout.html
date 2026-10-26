@@ -207,7 +207,7 @@ body.solo .frame { border-radius: 0; }
 .hud .tool svg.g { width: 26px; height: 26px; }
 
 /* the analysis panel: tabs like the tray's, two-column figures, and tables */
-.hud .ana .tabs span { font-size: 13px; padding: 5px 8px 4px; }
+.hud .ana .tabs span { font-size: 12.5px; padding: 5px 5px 4px; }   /* nine tabs fit (task P3-10) */
 .hud .cols { display: grid; grid-template-columns: 1fr 1fr; }
 .hud .cols .kv + .kv { border-left: 1px solid var(--hair); }
 .hud .tbl { padding: 0 0 4px; }
@@ -2539,7 +2539,7 @@ body.solo .frame { border-radius: 0; }
   // that have a warning. Click a lift to light up what it reaches; the map shows junctions and dashed paths.
   function networkTab() {
     const n = netOf(), cols = 'grid-template-columns:1.7fr 0.9fr 1.1fr', tcols = 'grid-template-columns:1.7fr 1.8fr';
-    if (!n.lifts.length && !n.trails.length) return `<div class="empty" data-ui="network-empty">Build a lift, then a trail down from its top: the network joins them where they meet.</div>`;
+    if (!n.lifts.length && !n.trails.length) return `<div class="empty" data-ui="analysis-empty">Build a lift, then a trail down from its top: the network joins them where they meet.</div>`;
     const lw = n.lifts.filter((l) => !n.liftSt[l.id].ok).length, warnT = n.trails.filter((t) => trailWarn(n.trailSt[t.id]));
     const lamp = (ok, word) => `<span class="nm" style="justify-content:flex-end">${lampHtml(ok ? '#5fbf6a' : '#f0b43c')}${word}</span>`;
     const rows = n.lifts.map((l) => { const st = n.liftSt[l.id]; return `<div class="r arow${S.netLift === l.id ? ' on' : ''}${S.rowHover === l.id ? ' hv' : ''}" style="${cols}" data-row="${l.id}" data-act="netlift" data-v="${l.id}" data-ui="network-lift-${l.id}"><span class="nm"><span class="plate built" style="font-size:10px">${l.n}</span>${esc(l.name)}</span><span class="n">${st.reach.size}</span>${lamp(st.ok, st.ok ? 'Connected' : NET_WORDS.way)}</div>`; }).join('');

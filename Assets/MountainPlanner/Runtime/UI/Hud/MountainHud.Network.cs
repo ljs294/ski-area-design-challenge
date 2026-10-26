@@ -62,7 +62,7 @@ namespace MountainPlanner.UI
             _network = new VisualElement { name = "an-network" };
             _network.AddToClassList("an-network");
             _network.AddToClassList("hidden");
-            _networkLine = new Label { name = "network-line" };
+            _networkLine = new Label { name = "network-tools" };   // the mockup's name for the line
             _networkLine.AddToClassList("an-network__line");
             _network.Add(_networkLine);
 

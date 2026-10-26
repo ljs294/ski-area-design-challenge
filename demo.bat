@@ -213,6 +213,11 @@ echo   Lift models 2: the Sessellift D6 six-pack (rebuilds the Lift Lab, a few m
 echo     69 The Lift Lab's six-pack: the D6 terminals, its six-seat chair and its six tower heads on full towers.
 echo        X six-pack, L LOD, N snow, C colour, T turntable, mouse/WASD camera, H help, Esc quit.
 echo.
+echo   Phase 3, task 10: the ski network (rebuilds the game, about 2 minutes; close the Unity editor first)
+echo     70 The Network view on the style tile and a second lift: Tab, then Network (or click the bar's lift or trail count).
+echo        Click a stretch of trail, a lift or a node to light what you can ski to from it; hover lights a stretch; Esc clears.
+echo     70c The Network view captures, dark and light (render lane), into test-results\p3-10-network.
+echo.
 echo   Phase 3, task 14: problem reports and Send feedback (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     71 The game with a forced error: "A log was saved" shows with Send logs. Try it, the menu's Send feedback and
 echo        Settings ^> Data ^> Logs ^> Send logs: Problem or Suggestion, untick parts, Save and open GitHub (a zip in
@@ -310,6 +315,8 @@ if /i "%CHOICE%"=="67" goto trails
 if /i "%CHOICE%"=="67b" goto trailbench
 if /i "%CHOICE%"=="67c" goto trailcaptures
 if /i "%CHOICE%"=="69" goto sixpack
+if /i "%CHOICE%"=="70" goto network
+if /i "%CHOICE%"=="70c" goto networkcaptures
 if /i "%CHOICE%"=="71" goto reports
 if /i "%CHOICE%"=="71o" goto openreport
 if /i "%CHOICE%"=="71c" goto reportcaptures
@@ -988,6 +995,25 @@ if not exist "%GAME%" goto done
 set "REPCAP=%~dp0test-results\report-captures"
 %RENDER% "%GAME%" -uicapture "%REPCAP%" -uionly s12-feedback,s12-feedback-saved,s12-feedback-suggestion,s12-feedback-crash,s12-error-notice,s12-crash-offer,s8-settings-data -uisizes 1920x1080,2560x1080 -uibase 85 -logFile "%~dp0test-results\report-captures.log" <nul
 start "" "%REPCAP%"
+goto done
+
+:network
+rem Task P3-10: the style tile's trail and lift, and a second lift with no trail yet (No way down), in the Network view.
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo Once the mountain is in, press Tab and choose Network (or click the lift or trail count in the bar).
+"%GAME%" -notitle -styletile -extralift -150,-900,450 -networkdemo <nul
+goto done
+
+:networkcaptures
+rem Task P3-10: the Network view, a segment, a lift and a node picked, and a hover, in both themes (render lane).
+call :buildplayer
+if not exist "%GAME%" goto done
+for %%T in (dark light) do (
+  if not exist "%~dp0test-results\p3-10-network\%%T" mkdir "%~dp0test-results\p3-10-network\%%T"
+  %RENDER% "%GAME%" -benchres 1920x1080 -notitle -styletile -extralift -150,-900,450 -networkdemo -view 150,-560,1700,200,40 -theme %%T -networkshots "%~dp0test-results\p3-10-network\%%T" -logFile "%~dp0test-results\p3-10-network\%%T.log" <nul
+)
+start "" "%~dp0test-results\p3-10-network"
 goto done
 
 :sixpack
