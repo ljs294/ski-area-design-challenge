@@ -22,6 +22,8 @@ namespace MountainPlanner.Domain.Design
         public const ulong PathEndTag = 10;
         /// <summary>CL-02's ragged edge: whether a cell in a trail's edge band is cleared (task 07).</summary>
         public const ulong ClearingEdgeTag = 11;
+        /// <summary>A terrain brush stroke (task 15, TB-14).</summary>
+        public const ulong TerrainStrokeTag = 12;
 
         public static ulong Hash(ulong seed, ulong tag, ulong a) => Hash(seed, tag, a, 0);
 

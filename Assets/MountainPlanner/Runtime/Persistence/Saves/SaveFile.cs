@@ -12,13 +12,13 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour);
 
         /// <summary>
         /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
@@ -46,6 +46,17 @@ namespace MountainPlanner.Persistence.Saves
                     if (l is JObject lift && lift["Towers"] is JArray towers)
                         foreach (var t in towers)
                             if (t is JObject tower && tower["Kind"] == null) tower["Kind"] = "auto";
+        }
+
+        /// <summary>
+        /// v3 → v4 (task P3-15, TB-14): the design's shape 3 → 4, which adds the confirmed terrain brush strokes. A v3 design
+        /// had none.
+        /// </summary>
+        static void UpToFour(JObject o)
+        {
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 4;
+            if (design["Strokes"] == null) design["Strokes"] = new JArray();
         }
 
         /// <summary>The player's name for it ("Autosave" for the autosave slot).</summary>

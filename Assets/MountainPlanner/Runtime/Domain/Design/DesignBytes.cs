@@ -25,6 +25,9 @@ namespace MountainPlanner.Domain.Design
             foreach (var t in doc.Trails) WriteTrail(w, t);
             w.I32(doc.Lifts.Count);
             foreach (var l in doc.Lifts) WriteLift(w, l);
+            // Shape 4 (task 15): the terrain strokes.
+            w.I32(doc.Strokes.Count);
+            foreach (var k in doc.Strokes) WriteStroke(w, k);
             return w.ToArray();
         }
 
@@ -59,8 +62,10 @@ namespace MountainPlanner.Domain.Design
             for (int i = 0; i < trails.Length; i++) trails[i] = ReadTrail(r);
             var lifts = new Lift[r.Count(1 << 20)];
             for (int i = 0; i < lifts.Length; i++) lifts[i] = ReadLift(r);
+            var strokes = new TerrainStroke[r.Count(DesignRules.MaxStrokes)];
+            for (int i = 0; i < strokes.Length; i++) strokes[i] = ReadStroke(r);
             if (!r.AtEnd) throw new FormatException("Trailing bytes after the design document.");
-            var doc = DesignDocument.From(seed, next, trails, lifts);
+            var doc = DesignDocument.From(seed, next, trails, lifts, strokes);
             // Canonical means written in order: a reordered file is not this format.
             if (!Same(Encode(doc), bytes)) throw new FormatException("The design document isn't in canonical order.");
             return doc;
@@ -183,6 +188,37 @@ namespace MountainPlanner.Domain.Design
             if (has > 1) throw new FormatException("A lift's levels flag isn't 0 or 1.");
             if (has == 1) levels = new LiftLevels(r.I32(), r.I32());
             return new Lift(id, name, stage, catalog, bottom, top, mode, stance, towers, levels);
+        }
+
+        static void WriteStroke(Writer w, TerrainStroke k)
+        {
+            var s = k.Settings;
+            w.U64(k.Id.Value);
+            w.U8((byte)s.Kind);
+            w.I32(s.RadiusMm);
+            w.I32(s.FalloffPermille);
+            w.I32(s.StepMm);
+            w.I32(s.StrengthPermille);
+            w.I32(s.TargetMm);
+            w.I32(s.StartMm);
+            w.I32(s.GradePermille);
+            w.I32(s.LimitMm);
+            w.I32(k.Dabs.Count);
+            foreach (var d in k.Dabs)
+            {
+                w.Point(d.At);
+                w.U16(d.WeightPermille);
+            }
+        }
+
+        static TerrainStroke ReadStroke(Reader r)
+        {
+            var id = new TerrainStrokeId(r.U64());
+            var kind = (BrushKind)r.U8();
+            var s = new BrushSettings(kind, r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.I32());
+            var dabs = new BrushDab[r.Count(DesignRules.MaxDabsPerStroke)];
+            for (int i = 0; i < dabs.Length; i++) dabs[i] = new BrushDab(r.Point(), r.U16());
+            return new TerrainStroke(id, s, dabs);
         }
 
         sealed class Writer

@@ -16,6 +16,10 @@ namespace MountainPlanner.Domain.Design
         public const int MaxPartsPerTrail = 256;
         public const int MaxCutsPerPart = 256;
         public const int MaxTowersPerLift = 400;
+        /// <summary>TB-14: a stroke holds at most 4,096 dabs (about 2 minutes held); a longer drag carries on as a new stroke.</summary>
+        public const int MaxDabsPerStroke = 4096;
+        /// <summary>A design holds at most this many strokes (about 3 MB of save.json at full length).</summary>
+        public const int MaxStrokes = 50_000;
 
         public static string NameProblem(string name)
         {
@@ -161,6 +165,37 @@ namespace MountainPlanner.Domain.Design
         }
 
         /// <summary>A whole document, as read back: every entity valid, IDs unique across kinds.</summary>
+        /// <summary>
+        /// TB-02 to TB-10: a stroke's numbers are in range and only the ones its kind uses are set. Elevations stay within
+        /// ±10 km of the datum, a diameter is 10–400 ft in 5 ft steps, the limit at most TB-10's 40 ft.
+        /// </summary>
+        public static string StrokeProblem(BrushSettings s, IReadOnlyList<BrushDab> dabs)
+        {
+            const int elevation = 10_000_000;
+            if (s.Kind < BrushKind.Raise || s.Kind > BrushKind.Slope) return "A stroke's brush isn't one this build knows.";
+            if (s.RadiusMm < TerrainBrush.RadiusMinMm || s.RadiusMm > TerrainBrush.RadiusMaxMm || s.RadiusMm % (DesignUnits.FiveFeetMm / 2) != 0)
+                return "A brush is 10–400 ft across, in 5 ft steps.";
+            if (s.FalloffPermille < 0 || s.FalloffPermille > 1000) return "A brush's soft edge is out of range.";
+            if (s.LimitMm < 1 || s.LimitMm > TerrainBrush.LimitMm) return "A stroke's depth limit is out of range.";
+            bool raise = s.Kind == BrushKind.Raise || s.Kind == BrushKind.Lower;
+            if (raise ? s.StepMm < 1 || s.StepMm > TerrainBrush.StepMaxMm : s.StepMm != 0) return "A stroke's step is out of range.";
+            if (raise ? s.StrengthPermille != 0 : s.StrengthPermille < 1 || s.StrengthPermille > 1000) return "A stroke's strength is out of range.";
+            bool target = s.Kind == BrushKind.Flatten || s.Kind == BrushKind.Slope;
+            if (target ? s.TargetMm < -elevation || s.TargetMm > elevation : s.TargetMm != 0) return "A stroke's target elevation is out of range.";
+            bool slope = s.Kind == BrushKind.Slope;
+            if (slope ? s.StartMm < -elevation || s.StartMm > elevation : s.StartMm != 0) return "A stroke's start elevation is out of range.";
+            if (slope ? s.GradePermille < 1 || s.GradePermille > TerrainBrush.GradeMaxPermille : s.GradePermille != 0) return "A stroke's grade is out of range.";
+            if (dabs == null || dabs.Count == 0) return "A stroke needs at least one dab.";
+            if (dabs.Count > MaxDabsPerStroke) return $"A stroke holds at most {MaxDabsPerStroke} dabs.";
+            foreach (var d in dabs)
+            {
+                if (Math.Abs((long)d.At.X) > DesignUnits.CoordinateLimitMm || Math.Abs((long)d.At.Y) > DesignUnits.CoordinateLimitMm)
+                    return "A dab is out of range.";
+                if (d.WeightPermille < 1 || d.WeightPermille > 1000) return "A dab's weight is out of range.";
+            }
+            return null;
+        }
+
         internal static string DocumentProblem(DesignDocument doc)
         {
             if (doc.NextOrdinal < 1) return "The ID counter is invalid.";
@@ -178,6 +213,15 @@ namespace MountainPlanner.Domain.Design
                 if (p != null) return p;
                 if (!seen.Add(doc.Lifts[i].Id.Value)) return "Two entities share an ID.";
                 foreach (var tower in doc.Lifts[i].Towers) if (!seen.Add(tower.Id.Value)) return "Two entities share an ID.";
+            }
+            if (doc.Strokes.Count > MaxStrokes) return "The design holds too many terrain strokes.";
+            for (int i = 0; i < doc.Strokes.Count; i++)
+            {
+                var k = doc.Strokes[i];
+                if (k.Id.IsNone) return "A terrain stroke has no ID.";
+                string p = StrokeProblem(k.Settings, k.Dabs);
+                if (p != null) return p;
+                if (!seen.Add(k.Id.Value)) return "Two entities share an ID.";
             }
             return null;
         }
