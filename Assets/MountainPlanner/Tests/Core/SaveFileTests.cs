@@ -158,7 +158,7 @@ namespace MountainPlanner.Tests.Core
                 new StrokePainting(BrushSettings.RaiseOrLower(true, 6096, 40), new[] { D(-8_000, 22_000), D(-8_000, 24_286) }),
                 new StrokePainting(BrushSettings.Flatten(12192, 175, 2_034_118), new[] { D(30_000, 30_000, 700), D(32_286, 30_000, 700) }),
                 new StrokePainting(BrushSettings.Smooth(15240, 350), new[] { D(-30_000, -5_000) }),
-                new StrokePainting(BrushSettings.Slope(7620, 350, 2_041_000, 2_029_000, 120), new[] { D(0, 0), D(1_905, 0), D(3_810, -12), D(5_715, -40) }),
+                new StrokePainting(BrushSettings.Slope(7620, 350, new PointMm(0, 0), 2_041_000, new PointMm(100_000, -2_000), 2_029_000), new[] { D(0, 0), D(1_905, 0), D(3_810, -12), D(5_715, -40) }),
             };
             var r = new AddTerrainStrokes(1, strokes).Apply(save.Design);
             Assert.That(r.Accepted, Is.True, r.Reason);

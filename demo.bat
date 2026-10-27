@@ -986,8 +986,9 @@ echo   B Raise/Lower: hold left to raise, right to lower; the ground moves as yo
 echo     count up while you drag. [ ] diameter, , . strength.
 echo   L Flatten: right-click takes the target elevation under the pointer; left paints toward it ^(PgUp/PgDn +-1 ft^).
 echo   O Smooth: left smooths under the brush.
-echo   G Slope: right-click sets the target; drag with left to ramp to it. Pick the grade by rating; Shift+, / Shift+. +-1%%.
-echo   Ctrl+Z takes back the last stroke. Enter opens Break ground: cut, fill, trees, towers re-heighted, held places;
+echo   G Slope: right-click sets the target point; drag with left from the start: the ground ramps evenly between the two.
+echo     The pane shows the ramp's length and grade. Going over it again keeps the same ramp.
+echo   Switching brushes keeps your pending strokes. Ctrl+Z takes back the last stroke. Enter opens Break ground: cut, fill, trees, towers re-heighted, held places;
 echo     Enter again confirms ^(one undo step^). Esc with strokes pending asks, then puts the ground back.
 echo   Contours come on while a brush is armed: zoom in close for 20 ft and 10 ft lines.
 echo   Near a lift ^(build one on the Lifts tab first^): the brush stops at the pad, the chairs' clearance and a tower's limits.

@@ -170,7 +170,8 @@
         "StrengthPermille": 350,
         "TargetMm": 0,
         "StartMm": 0,
-        "GradePermille": 0,
+        "StartAt": [0, 0],
+        "TargetAt": [0, 0],
         "LimitMm": 12192,
         "Dabs": [-30000, -5000, 1000]
       },
@@ -183,7 +184,8 @@
         "StrengthPermille": 350,
         "TargetMm": 2029000,
         "StartMm": 2041000,
-        "GradePermille": 120,
+        "StartAt": [0, 0],
+        "TargetAt": [100000, -2000],
         "LimitMm": 12192,
         "Dabs": [0, 0, 1000, 1905, 0, 1000, 1905, -12, 1000, 1905, -28, 1000]
       },
@@ -196,7 +198,8 @@
         "StrengthPermille": 175,
         "TargetMm": 2034118,
         "StartMm": 0,
-        "GradePermille": 0,
+        "StartAt": [0, 0],
+        "TargetAt": [0, 0],
         "LimitMm": 12192,
         "Dabs": [30000, 30000, 700, 2286, 0, 700]
       },
@@ -209,7 +212,8 @@
         "StrengthPermille": 0,
         "TargetMm": 0,
         "StartMm": 0,
-        "GradePermille": 0,
+        "StartAt": [0, 0],
+        "TargetAt": [0, 0],
         "LimitMm": 12192,
         "Dabs": [-8000, 22000, 1000, 0, 2286, 1000]
       },
@@ -222,7 +226,8 @@
         "StrengthPermille": 0,
         "TargetMm": 0,
         "StartMm": 0,
-        "GradePermille": 0,
+        "StartAt": [0, 0],
+        "TargetAt": [0, 0],
         "LimitMm": 12192,
         "Dabs": [12000, -40000, 1000, 1500, -250, 1000, 0, 0, 1000, 1500, -250, 500]
       }

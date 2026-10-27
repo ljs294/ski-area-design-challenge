@@ -18,7 +18,7 @@ namespace MountainPlanner.UI.Tools
     public enum TerrainToolMode { RaiseLower, Flatten, Smooth, Slope }
 
     /// <summary>
-    /// The Terrain tab's brushes (task 15; TB-01 to TB-14, owner BR1–BR13), one class in four modes, Cities: Skylines 2's set.
+    /// The Terrain tab's brushes (task 15; TB-01 to TB-14, owner BR1–BR16), one class in four modes, Cities: Skylines 2's set.
     ///
     /// <b>Paint:</b> the left button paints (Raise/Lower: the right lowers; Flatten and Slope: a right click takes the target
     /// elevation under the pointer). A stroke lays dabs 30 times a second at the pointer, filled in along a fast move
@@ -29,17 +29,14 @@ namespace MountainPlanner.UI.Tools
     /// as one <see cref="AddTerrainStrokes"/>, one undo step (BR7). Esc or ✕ with strokes pending asks, then puts the ground
     /// back. The Contours layer is on while a brush is armed (BR13).
     /// </summary>
-    public class TerrainBrushTool : IDesignTool, IOwnsRightButton
+    public class TerrainBrushTool : IDesignTool, IOwnsRightButton, ICarriesWork
     {
         static readonly string[] Steps = { "Paint", "Review" };
         const int MinFeet = 10, MaxFeet = 400, StepFeet = 5;
         const float TickSeconds = 1f / TerrainBrush.TicksPerSecond;
 
-        // TB-07: the ratings that pick a slope's band (TD-03), with the grade each starts at.
-        static readonly (string Symbol, string Name, int Low, int High, int Start)[] Bands =
-        {
-            ("●", "Easiest", 1, 24, 12), ("■", "More difficult", 25, 39, 32), ("◆", "Most difficult", 40, 59, 48), ("◆◆", "Experts only", 60, 100, 70),
-        };
+        // TB-07: each rating's symbol (TD-03), to name the grade a slope will make.
+        static readonly string[] BandSymbols = { "●", "■", "◆", "◆◆" };
 
         // The pane's settings carry between brushes for the session (as the trail brush's width does).
         static int _lastFeet = 60, _lastStrength = 50;
@@ -49,8 +46,12 @@ namespace MountainPlanner.UI.Tools
         readonly TerrainToolMode _mode;
         ToolContext _ctx;
         Step _step;
-        int _feet, _strength, _band, _grade;
+        int _feet, _strength;
         int? _targetMm;
+        // Slope (BR16): the target point the right click took, and the stroke's start (the press), kept when a long drag carries on.
+        PointMm? _targetAt;
+        PointMm _startAt;
+        int _startMm;
 
         // The session: strokes painted and not yet confirmed, and the ground with them on it.
         readonly List<StrokePainting> _session = new List<StrokePainting>();
@@ -67,7 +68,6 @@ namespace MountainPlanner.UI.Tools
         bool _rightStroke;
         PointMm _lastDab;
         float _clock;
-        long _pathMm;
         PointRect _liveDirty = PointRect.Empty;
 
         // The review.
@@ -75,9 +75,9 @@ namespace MountainPlanner.UI.Tools
         AddTerrainStrokes _command;
         bool _analysing;
         readonly ReviewModel _review = new ReviewModel();
-        Action<int, string> _setFeet, _setStrength, _setGrade;
-        Action<int> _setBand;
-        UnityEngine.UIElements.Label _targetNote;
+        Action<int, string> _setFeet, _setStrength;
+        UnityEngine.UIElements.Label _targetNote, _rampNote;
+        (int Length, int Percent) _rampShown = (-1, -1);
 
         protected TerrainBrushTool(TerrainToolMode mode) { _mode = mode; }
 
@@ -116,8 +116,13 @@ namespace MountainPlanner.UI.Tools
         /// <summary>Sets the pane's diameter and strength (captures; the player uses the sliders and keys).</summary>
         public void SetBrush(int feet, int strengthPercent) { SetFeet(feet); SetStrength(strengthPercent); }
 
-        /// <summary>Picks a slope's rating band (0 Easiest … 3 Experts only) and grade (captures).</summary>
-        public void SetSlope(int band, int grade) { SetBand(band); SetGrade(grade); }
+        /// <summary>Sets the target as a right click on the ground there would (captures, tests).</summary>
+        public void SetTarget(PointMm at)
+        {
+            _targetMm = GroundMm(at);
+            _targetAt = at;
+            ShowTarget();
+        }
 
         bool UsesTarget => _mode == TerrainToolMode.Flatten || _mode == TerrainToolMode.Slope;
 
@@ -128,24 +133,15 @@ namespace MountainPlanner.UI.Tools
             _ctx.LiveGround?.ContoursWhileArmed(true);   // BR13
             _feet = _lastFeet;
             _strength = _lastStrength;
-            _band = 0;
-            _grade = Bands[0].Start;
             var w = context.Window;
             w.SetName(null);
             _setFeet = w.AddSlider("diameter", "Diameter", MinFeet, MaxFeet, StepFeet, _feet, SetFeet, "TB-02: 10–400 ft, in 5 ft steps");
             _setStrength = w.AddSlider("strength", "Strength", 1, 100, 1, _strength, SetStrength, "TB-02: 1–100%");
             if (UsesTarget) _targetNote = w.AddNote("target", "", "TB-05, TB-07: right-click the ground; Page Up / Page Down 1 ft (Shift 10 ft)");
-            if (_mode == TerrainToolMode.Slope)
-            {
-                var names = new string[Bands.Length];
-                for (int i = 0; i < Bands.Length; i++) names[i] = Bands[i].Symbol;
-                _setBand = w.AddSwitch("rating", "Slope", names, 0, SetBand, "TB-07, TD-03: the rating picks the band");
-                _setGrade = w.AddSlider("grade", "Grade", 1, 100, 1, _grade, SetGrade, "TB-07: a grade inside the band (Shift , and Shift .)");
-            }
+            if (_mode == TerrainToolMode.Slope) _rampNote = w.AddNote("ramp", "", "TB-07, BR16: the grade comes from the distance and the drop between the two points");
             w.SetSteps(Steps);
             SetFeet(_feet);
             SetStrength(_strength);
-            if (_mode == TerrainToolMode.Slope) SetBand(0);
             ShowTarget();
             Go(Step.Paint);
         }
@@ -164,26 +160,32 @@ namespace MountainPlanner.UI.Tools
             _setStrength?.Invoke(_strength, _strength + "%");
         }
 
-        void SetBand(int band)
-        {
-            _band = Mathf.Clamp(band, 0, Bands.Length - 1);
-            _setBand?.Invoke(_band);
-            SetGrade(Bands[_band].Start);
-        }
-
-        void SetGrade(int grade)
-        {
-            var b = Bands[_band];
-            _grade = Mathf.Clamp(grade, b.Low, b.High);
-            _setGrade?.Invoke(_grade, $"{b.Symbol} {_grade}%");
-        }
-
         void ShowTarget()
         {
             if (_targetNote == null) return;
             _targetNote.text = _targetMm.HasValue
                 ? $"Target {UnitFormat.Elevation(_targetMm.Value / 1000.0, DisplayUnits.Current)} · right-click to set"
                 : "Target: right-click the ground to set it";
+        }
+
+        // BR16: the ramp from the pointer (or the stroke's start) to the target: its length and the grade it makes, with the
+        // rating that grade falls in. Redrawn only when a rounded figure changes.
+        void ShowRamp(PointMm from, int fromMm)
+        {
+            if (_rampNote == null) return;
+            if (!_targetAt.HasValue) { SetRamp(-2, -2, "Ramp: set the target first"); return; }
+            double run = Math.Sqrt(from.DistanceSquared(_targetAt.Value)) / 1000.0, rise = (_targetMm.Value - fromMm) / 1000.0;
+            int length = ToolFormat.LengthKey(run), percent = run < 0.5 ? 0 : (int)Math.Round(Math.Abs(rise) / run * 100);
+            if (length == _rampShown.Length && percent == _rampShown.Percent) return;
+            string band = BandSymbols[(int)SlopeBands.Of(percent)];
+            SetRamp(length, percent, run < 0.5 ? "Ramp: the target is here" : $"Ramp {ToolFormat.Length(run)} at {band} {percent}%");
+        }
+
+        void SetRamp(int length, int percent, string text)
+        {
+            if (length == _rampShown.Length && percent == _rampShown.Percent) return;
+            _rampShown = (length, percent);
+            _rampNote.text = text;
         }
 
         int RadiusMm => _feet * DesignUnits.FiveFeetMm / 10;   // half the diameter, in 2½ ft steps
@@ -193,7 +195,7 @@ namespace MountainPlanner.UI.Tools
             TerrainToolMode.RaiseLower => BrushSettings.RaiseOrLower(lower, RadiusMm, TerrainBrush.StepFor(_strength)),
             TerrainToolMode.Flatten => BrushSettings.Flatten(RadiusMm, TerrainBrush.StrengthFor(_strength), _targetMm ?? startMm),
             TerrainToolMode.Smooth => BrushSettings.Smooth(RadiusMm, TerrainBrush.StrengthFor(_strength)),
-            _ => BrushSettings.Slope(RadiusMm, TerrainBrush.StrengthFor(_strength), startMm, _targetMm ?? startMm, _grade * 10),
+            _ => BrushSettings.Slope(RadiusMm, TerrainBrush.StrengthFor(_strength), _startAt, _startMm, _targetAt.Value, _targetMm.Value),
         };
 
         // ---------- steps ----------
@@ -242,7 +244,7 @@ namespace MountainPlanner.UI.Tools
                 TerrainToolMode.RaiseLower => "Left raises, right lowers; hold to keep going.",
                 TerrainToolMode.Flatten => "Right-click takes the target; left flattens to it.",
                 TerrainToolMode.Smooth => "Left smooths the ground under the brush.",
-                _ => "Right-click sets the target; drag from the start to slope to it.",
+                _ => _targetAt.HasValue ? "Drag from the start: the ground ramps evenly to the target." : "Right-click the ground to set the target, then drag from the start.",
             });
             _billKey = null;
             ShowBill();
@@ -313,11 +315,14 @@ namespace MountainPlanner.UI.Tools
                 bool left = input.Click, right = input.RightClick;
                 if (right && UsesTarget && input.HasGround)
                 {
-                    _targetMm = GroundMm(input.Point);   // TB-05, TB-07: the target from the ground under the pointer
-                    ShowTarget();
+                    SetTarget(input.Point);   // TB-05, TB-07: the target from the ground under the pointer (for Slope, where it is too)
+                    PaintStatus();
                 }
+                else if (left && _mode == TerrainToolMode.Slope && !_targetAt.HasValue)
+                    _ctx.Window.SetMessage("Right-click the ground to set the slope's target first.", false);   // BR16: no hidden target
                 else if ((left || (right && _mode == TerrainToolMode.RaiseLower)) && input.HasGround && input.InCore)
                     Begin(input, lower: right);
+                if (_mode == TerrainToolMode.Slope && input.HasGround && _run == null) ShowRamp(input.Point, GroundMm(input.Point));
                 return;
             }
             bool held = _rightStroke ? input.RightDrag : input.Drag;
@@ -330,11 +335,11 @@ namespace MountainPlanner.UI.Tools
                 {
                     bool lower = _rightStroke;
                     Finish();
-                    if (held) Begin(input, lower, _carryStart);   // a long drag carries on as a new stroke (TB-14)
+                    if (held) Begin(input, lower, carryOn: true);   // a long drag carries on as a new stroke, on the same ramp (TB-14)
                 }
                 Live();
                 _billClock += input.DeltaSeconds;
-                if (_run != null && _billClock >= BillSeconds) { _billClock = 0; ShowBill(); }
+                if (_run != null && _billClock >= BillSeconds) { _billClock = 0; ShowBill(); if (_mode == TerrainToolMode.Slope) ShowRamp(_startAt, _startMm); }
             }
             if (!held || (_rightStroke ? input.RightRelease : input.Release)) Finish();
         }
@@ -343,9 +348,8 @@ namespace MountainPlanner.UI.Tools
         {
             if (input.Pressed(ToolKeys.BrushNarrower)) SetFeet(_feet - StepFeet);
             if (input.Pressed(ToolKeys.BrushWider)) SetFeet(_feet + StepFeet);
-            bool grade = input.Shift && _mode == TerrainToolMode.Slope;
-            if (input.Pressed(ToolKeys.BrushWeaker)) { if (grade) SetGrade(_grade - 1); else SetStrength(_strength - 5); }
-            if (input.Pressed(ToolKeys.BrushStronger)) { if (grade) SetGrade(_grade + 1); else SetStrength(_strength + 5); }
+            if (input.Pressed(ToolKeys.BrushWeaker)) SetStrength(_strength - 5);
+            if (input.Pressed(ToolKeys.BrushStronger)) SetStrength(_strength + 5);
             if (UsesTarget && _targetMm.HasValue)
             {
                 int step = input.Shift ? 3048 : 305;
@@ -394,18 +398,18 @@ namespace MountainPlanner.UI.Tools
             return (int)Math.Round(shown.At(g.Value.X, g.Value.Y) * 1000);
         }
 
-        void Begin(in ToolInput input, bool lower, int? carriedStart = null)
+        void Begin(in ToolInput input, bool lower, bool carryOn = false)
         {
             var heights = _ctx.Earthwork.Heights;
-            int startMm = carriedStart ?? GroundMm(input.Point);
-            if (UsesTarget && !_targetMm.HasValue) { _targetMm = startMm; ShowTarget(); }   // no target yet: the press's ground
+            int startMm = GroundMm(input.Point);
+            if (!carryOn) { _startAt = input.Point; _startMm = startMm; }   // BR16: the ramp starts at the press
+            if (_mode == TerrainToolMode.Flatten && !_targetMm.HasValue) { _targetMm = startMm; ShowTarget(); }   // Flatten with no target: the press's ground
             _settings = SettingsFor(lower, startMm);
             _rightStroke = lower && _mode == TerrainToolMode.RaiseLower;
             _run = new BrushRun(_settings, new EditedHeights(heights.Source, heights.Lattice, _pending), _ctx.Earthwork.Earthwork.Site, _fixed);
             _dabs = new List<BrushDab>(256);
             _clock = 0;
             _billClock = 0;
-            _pathMm = 0;
             _lastDab = input.Point;
             Dab(input.Point, 1000);
         }
@@ -422,7 +426,6 @@ namespace MountainPlanner.UI.Tools
                 var p = new PointMm((int)Math.Round(_lastDab.X + (at.X - _lastDab.X) * (double)k / n), (int)Math.Round(_lastDab.Y + (at.Y - _lastDab.Y) * (double)k / n));
                 Dab(p, each);
             }
-            _pathMm += (long)Math.Round(d);
             _lastDab = at;
         }
 
@@ -456,18 +459,10 @@ namespace MountainPlanner.UI.Tools
                 _ctx.LiveGround?.Show(_pending);   // trees, cover and snow catch up (TB-08)
                 _liveDirty = PointRect.Empty;
             }
-            // A slope carried on past 4,096 dabs starts where its ramp has got to.
-            if (_mode == TerrainToolMode.Slope && _targetMm.HasValue)
-            {
-                long gap = _targetMm.Value - _settings.StartMm, rise = Math.Min(_pathMm * _settings.GradePermille / 1000, Math.Abs(gap));
-                _carryStart = (int)(_settings.StartMm + Math.Sign(gap) * rise);
-            }
             _run = null;
             _dabs = null;
             PaintStatus();
         }
-
-        int? _carryStart;
 
         void UndoStroke()
         {
@@ -658,11 +653,36 @@ namespace MountainPlanner.UI.Tools
             Go(Step.Paint);   // the tool stays armed (P3-06 Q4)
         }
 
+        /// <summary>
+        /// BR15: switching to another Terrain brush carries the session on (its strokes, the ground they made, the bill and
+        /// the target), so one Break ground reviews them all. A stroke in hand is dropped and a review goes back to Paint.
+        /// </summary>
+        public bool CarryTo(IDesignTool next)
+        {
+            if (!(next is TerrainBrushTool t) || _base == null) return false;
+            if (_run != null) CancelStroke();
+            _ctx.PendingTerrain = null;
+            t._base = _base;
+            t._pending = _pending;
+            t._fixed = _fixed;
+            t._session.AddRange(_session);
+            t._cut = _cut;
+            t._fill = _fill;
+            t._cleared = _cleared;
+            t._held.UnionWith(_held);
+            t._targetMm = _targetMm;
+            t._targetAt = _targetAt;
+            _carried = true;
+            return true;
+        }
+
+        bool _carried;
+
         public void Disarm()
         {
             if (_run != null) CancelStroke();
-            // Strokes not confirmed: the committed ground again (CF-06).
-            if (_base != null && !ReferenceEquals(_pending, _base)) _ctx.LiveGround?.Show(_ctx.History.Terrain);
+            // Strokes not confirmed: the committed ground again (CF-06), unless the next brush carries them on (BR15).
+            if (!_carried && _base != null && !ReferenceEquals(_pending, _base)) _ctx.LiveGround?.Show(_ctx.History.Terrain);
             _ctx.Paint?.Cursor(Vector2.zero, 0, false, false);
             _ctx.LiveGround?.ContoursWhileArmed(false);
             _session.Clear();

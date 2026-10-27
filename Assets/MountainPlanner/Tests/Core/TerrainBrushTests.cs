@@ -101,11 +101,13 @@ namespace MountainPlanner.Tests
             Assert.That(flat.Preview(TerrainEdits.Empty).IsEmpty, Is.True, "a plane's mean is itself: nothing moves");
         }
 
+        static PointMm P(double x, double y) => PointMm.FromMetres(x, y);
+
         [Test]
-        public void TB07_SlopeRampsAtTheGradeLevelAcrossThenHoldsAtTheTarget()
+        public void TB07_SlopeRampsEvenlyBetweenItsTwoPointsLevelAcrossThenHoldsAtTheTarget()
         {
-            // Start 1,500 m, target 1,490 m, 10%: 100 m of ramp then level at the target.
-            var run = Run(BrushSettings.Slope(9144, 1000, 1_500_000, 1_490_000, 100), new Plane());
+            // BR16: start (0, 0) at 1,500 m, target (100, 0) at 1,490 m: 10% falls out of the two points.
+            var run = Run(BrushSettings.Slope(9144, 1000, P(0, 0), 1_500_000, P(100, 0), 1_490_000), new Plane());
             for (double x = 0; x <= 160; x += 2.25) run.Dab(At(x, 0));
             var g = new EditedHeights(new Plane(), Lattice, run.Preview(TerrainEdits.Empty));
             foreach (double x in new[] { 10.0, 40, 70, 95 })
@@ -115,33 +117,44 @@ namespace MountainPlanner.Tests
                 for (int d = -3; d <= 3; d++)
                     Assert.That(g.AtPoint(Column(x), Row(d)), Is.EqualTo(h).Within(0.0015), "level across (TB-07, GR-01)");
             }
-            Assert.That(g.AtPoint(Column(130), Row(0)), Is.EqualTo(1490).Within(0.001), "holds at the target past the ramp");
+            Assert.That(g.AtPoint(Column(130), Row(0)), Is.EqualTo(1490).Within(0.001), "holds at the target past it");
             // Smooth along: second differences stay at the millimetre.
             for (int c = Column(15); c < Column(90); c++)
                 Assert.That(Math.Abs(g.AtPoint(c - 1, Row(0)) - 2 * g.AtPoint(c, Row(0)) + g.AtPoint(c + 1, Row(0))), Is.LessThanOrEqualTo(0.0021));
         }
 
         [Test]
-        public void TB07_ACurvedSlopeStaysLevelAcrossItsPath()
+        public void TB07_PaintingBackAndForthKeepsTheSameRamp()
         {
-            var run = Run(BrushSettings.Slope(7620, 1000, 1_500_000, 1_480_000, 150), new Plane());
-            var path = new List<(double x, double y)>();
-            for (int i = 0; i <= 60; i++)
+            // BR16: a point's height comes from where it lies between the two points, never from how far the mouse went,
+            // so scrubbing over a ramp to widen it leaves the ramp where it was.
+            var settings = BrushSettings.Slope(7620, 1000, P(0, 0), 1_500_000, P(80, 0), 1_488_000);
+            var once = Run(settings, new Plane());
+            for (double x = 0; x <= 80; x += 1.9) once.Dab(At(x, 0));
+            var scrubbed = Run(settings, new Plane());
+            for (int pass = 0; pass < 4; pass++)
+                for (double x = 0; x <= 80; x += 1.9) scrubbed.Dab(At(pass % 2 == 0 ? x : 80 - x, 0));
+            var g = new EditedHeights(new Plane(), Lattice, scrubbed.Preview(TerrainEdits.Empty));
+            var g1 = new EditedHeights(new Plane(), Lattice, once.Preview(TerrainEdits.Empty));
+            foreach (double x in new[] { 10.0, 30, 50, 70 })
             {
-                double a = i * Math.PI / 120;   // a quarter circle of 60 m radius
-                path.Add((60 * Math.Sin(a), 60 - 60 * Math.Cos(a)));
+                Assert.That(g.AtPoint(Column(x), Row(0)), Is.EqualTo(1500 - 0.15 * x).Within(0.002), $"on the ramp at {x} m");
+                Assert.That(g.AtPoint(Column(x), Row(0)), Is.EqualTo(g1.AtPoint(Column(x), Row(0))).Within(0.002), "the same as one pass");
             }
-            foreach (var p in path) run.Dab(At(p.x, p.y));
-            var g = new EditedHeights(new Plane(), Lattice, run.Preview(TerrainEdits.Empty));
-            for (int i = 10; i <= 50; i += 10)
-            {
-                var (x, y) = path[i];
-                double nx = Math.Sin(i * Math.PI / 120), ny = -Math.Cos(i * Math.PI / 120);   // the path's normal, toward the centre
-                double h0 = g.At(Site.OriginX + x - ny * 0, Site.OriginY + y);
-                double hIn = g.At(Site.OriginX + x + -nx * 2, Site.OriginY + y + -ny * 2), hOut = g.At(Site.OriginX + x + nx * 2, Site.OriginY + y + ny * 2);
-                Assert.That(hIn, Is.EqualTo(h0).Within(0.03), "level across inside the bend");
-                Assert.That(hOut, Is.EqualTo(h0).Within(0.03), "level across outside the bend");
-            }
+        }
+
+        [Test]
+        public void TB07_ASlopeOnTopOfAnEarlierOneJoinsIt()
+        {
+            // BR16: a second stroke starting where the first ramp ended carries it on to a new target.
+            var first = Run(BrushSettings.Slope(7620, 1000, P(0, 0), 1_500_000, P(60, 0), 1_494_000), new Plane());
+            for (double x = 0; x <= 60; x += 1.9) first.Dab(At(x, 0));
+            var after = first.Preview(TerrainEdits.Empty);
+            var second = Run(BrushSettings.Slope(7620, 1000, P(60, 0), 1_494_000, P(120, 0), 1_482_000), new Plane(), after);
+            for (double x = 60; x <= 120; x += 1.9) second.Dab(At(x, 0));
+            var g = new EditedHeights(new Plane(), Lattice, second.Preview(after));
+            Assert.That(g.AtPoint(Column(30), Row(0)), Is.EqualTo(1497).Within(0.01), "the first ramp at 10%");
+            Assert.That(g.AtPoint(Column(90), Row(0)), Is.EqualTo(1488).Within(0.01), "the second at 20%");
         }
 
         [Test]
@@ -348,7 +361,7 @@ namespace MountainPlanner.Tests
                 new StrokePainting(BrushSettings.RaiseOrLower(true, 6096, 40), Enumerable.Range(0, 20).Select(i => At(10, -25 + i)).ToList()),
                 new StrokePainting(BrushSettings.Flatten(12192, 350, 1_502_000), Enumerable.Range(0, 25).Select(i => At(-30 + i, 0, 700)).ToList()),
                 new StrokePainting(BrushSettings.Smooth(15240, 350), Enumerable.Range(0, 15).Select(i => At(5, -15 + i * 0.5)).ToList()),
-                new StrokePainting(BrushSettings.Slope(7620, 350, 1_503_000, 1_496_000, 120), line),
+                new StrokePainting(BrushSettings.Slope(7620, 350, PointMm.FromMetres(-50, 10), 1_503_000, PointMm.FromMetres(47.5, 10), 1_496_000), line),
             };
         }
 
@@ -385,7 +398,8 @@ namespace MountainPlanner.Tests
             Assert.That(Sha(h.Terrain), Is.EqualTo(BrushGolden), "the scripted strokes' heights (a behaviour change re-pins with the owner's OK)");
         }
 
-        const string BrushGolden = "1cc1a2930bfa378b71e1b67c1ea148acc77e61c3294c4307b3c161bb8bcca108";
+        // Re-pinned for BR16 (owner, 2026-10-26: the slope runs between two points), from 1cc1a293….
+        const string BrushGolden = "a60545cac90628b263f8ca515edeb21bb1decda5d305cc47dba50fc718d88fc0";
 
         [Test]
         public void TB14_TheLivePreviewIsWhatTheReplayConfirms()

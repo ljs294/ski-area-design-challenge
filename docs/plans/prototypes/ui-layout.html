@@ -593,7 +593,7 @@ body.solo .frame { border-radius: 0; }
   </div>
   <ul class="try">
     <li><b>Build a lift</b> (Phase 3 tool): Toolbox → Lifts → New opens the lift menu: type, capacity, and towers <b>Automatic</b> or <b>By hand</b>. The whole terminal follows the pointer; click to anchor it, then click far away to place the other terminal, which fixes the line (drawn as a trail map draws a lift, a line with a dot at each end). Automatic puts the towers in as you aim. By hand, the tower in hand slides along the line, green where it fits and red with the reason; Page Up / Page Down change it ±5 ft, a click places it, a click on a tower selects it (drag to slide, Delete to remove), and Fill the rest finishes the line. The profile strip shows the side view, the chairs' height over the ground against 15 ft, the green band where the tower in hand fits, and the line's tension. Review, then Break ground (or Save plan). Every rule number is a P3-02 draft placeholder; hover a readout for its rule ID. States: <code>#solo&amp;demo=liftorigin</code>, <code>liftauto</code>, <code>lift</code>, <code>liftred</code>, <code>liftreview</code>, <code>liftsel</code>.</li>
-    <li><b>Shape the ground</b> (task P3-15): Toolbox → Terrain holds <b>Raise/Lower</b> (B: hold left to raise, right to lower), <b>Flatten</b> (L: right-click takes the target height under the pointer, left paints to it), <b>Smooth</b> (O) and <b>Slope</b> (G: right-click sets the target, then drag from the start; the rating chips and slider set the grade). Every brush has the same pane: <b>Diameter</b> (<b>[ ]</b>, 10–400 ft) and <b>Strength</b> (<b>, .</b>), plus the target (Page Up / Page Down) and the slope where they apply. Strokes stay pending (in the game the ground moves live) until <b>Break ground</b>, whose review gives the cut, fill and net, the trees cleared, the towers re-heighted under their fixed heads and where the brush was held (a terminal's pad and its 1:1, the lift line's clearance, a tower's limit). Ctrl+Z undoes a stroke. States: <code>terrainraise</code>, <code>terrainflatten</code>, <code>terrainsmooth</code>, <code>terrainslope</code>, <code>terrainreview</code>.</li>
+    <li><b>Shape the ground</b> (task P3-15): Toolbox → Terrain holds <b>Raise/Lower</b> (B: hold left to raise, right to lower), <b>Flatten</b> (L: right-click takes the target height under the pointer, left paints to it), <b>Smooth</b> (O) and <b>Slope</b> (G: right-click sets the target point, then drag from the start; the ground ramps evenly between the two, and the pane shows the grade they make). Every brush has the same pane: <b>Diameter</b> (<b>[ ]</b>, 10–400 ft) and <b>Strength</b> (<b>, .</b>), plus the target (Page Up / Page Down) and, for Slope, the ramp it makes. Switching brushes keeps the pending strokes. Strokes stay pending (in the game the ground moves live) until <b>Break ground</b>, whose review gives the cut, fill and net, the trees cleared, the towers re-heighted under their fixed heads and where the brush was held (a terminal's pad and its 1:1, the lift line's clearance, a tower's limit). Ctrl+Z undoes a stroke. States: <code>terrainraise</code>, <code>terrainflatten</code>, <code>terrainsmooth</code>, <code>terrainslope</code>, <code>terrainreview</code>.</li>
     <li><b>Draw a trail</b> (Phase 3 tool): Toolbox → Trails → New opens the trail menu: name, brush width (<b>[ ]</b> or the slider, 25–400 ft) and Graded or Natural. <b>1 Paint:</b> drag on the mountain to paint the trail's area, any widths, leaving holes for islands of trees; Shift-drag erases, Ctrl+Z undoes a stroke, and a separate patch shows red. <b>2 Head and tail:</b> click the top, then the bottom (they join a lift's end or another trail nearby); the centreline, the pending contours (yellow), stretches too steep to grade (red) and the rating appear, with the profile along the bottom. <b>3 Review</b>, then Break ground. Scroll to zoom in first: at this distance 100 ft is about 5 px. States: <code>trailpaint</code>, <code>trailends</code>, <code>trailreview</code>. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking with clicks.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
     <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets one legend card (with contours added to it); its ✕ closes it until you pick another layer. The bar reads the layer under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
@@ -2387,169 +2387,182 @@ body.solo .frame { border-radius: 0; }
   // There's no money on Break ground in Phase 3 (no economy yet, P3-02). The Network row is task 10's NW-12 warnings:
   // until then the game shows a greyed dash there, as it does for any figure with no source yet.
   const netRow = () => `<dt title="NW-12: No way down, No lift serves this, Leads nowhere (task 10)">Network</dt><dd data-ui="review-network">${dash}</dd>`;
-  // ---------- the terrain brush (task P3-15; rules TB-01–TB-14, decisions BR1–BR12) ----------
-  // Raise/Lower, Flatten, Smooth and Slope share one pane: Diameter and Strength, plus the target elevation and the slope
-  // where they apply. Strokes stay pending (in the game the ground moves live as you hold the mouse) until Break ground,
-  // whose review gives the bill. Terminals are fixed, the lift line's clearance is kept, towers follow the ground.
-  const TB = { dMin: 10, dMax: 400, dStep: 5, dDef: 60, sDef: 50 };
-  const TB_BANDS = [['green', 'Easiest', 1, 24], ['blue', 'More difficult', 25, 39], ['black', 'Most difficult', 40, 59], ['double', 'Experts only', 60, 100]];
-  const TB_DEF = { green: 12, blue: 32, black: 48, double: 70 };
-  function newTerrainDraft(t) {
-    return { kind: 'terrain', tool: t.id, brush: t.brush, dia: S.tbDia || TB.dDef, str: S.tbStr || TB.sDef, target: null, rating: 'green', grade: TB_DEF.green,
-      strokes: [], stroke: null, step: 'paint', start: null, armCancel: false };
-  }
-  const tbR = (d) => d.dia / 2 / FT_PX;   // the brush's radius on the capture, px
-  const tbBand = (d) => TB_BANDS.find((b) => b[0] === d.rating);
-  function tbStart(d, p, right) {
-    if (d.step !== 'paint') return;
-    // Flatten and Slope: the right button takes the target from the ground under the pointer (TB-05, TB-07)
-    if (right && (d.brush === 'flatten' || d.brush === 'slope')) { d.target = elevAt(p); d.armCancel = false; render(); return; }
-    if (!right && (d.brush === 'flatten' || d.brush === 'slope') && d.target == null) { d.target = elevAt(p); }
-    const lower = d.brush === 'raise' && right;
-    d.stroke = { dabs: [], lower, start: elevAt(p) };
-    tbDab(d, p);
-    clearInterval(tbTimer);
-    tbTimer = setInterval(() => { if (d.stroke && mouse) { tbDab(d, mouse); refreshTerrain(); } }, 1000 / 15);   // held still, it keeps working (TB-03)
-  }
-  let tbTimer = null;
-  function tbDab(d, p) {
-    const s = d.stroke, last = s.dabs[s.dabs.length - 1];
-    if (last && Math.hypot(p[0] - last[0], p[1] - last[1]) < tbR(d) / 4 && d.brush !== 'raise') return;
-    s.dabs.push([p[0], p[1]]);
-  }
-  function tbEnd(d) {
-    clearInterval(tbTimer); tbTimer = null;
-    if (d.stroke && d.stroke.dabs.length) d.strokes.push(d.stroke);
-    d.stroke = null;
-  }
-  // The bill (TB-09), from the placeholder heights: each dab's area times how far it moves the ground.
-  function tbBill(d) {
-    let cut = 0, fill = 0;
-    const r = d.dia / 2, area = Math.PI * r * r * 0.55, k = d.str / 100;
-    for (const st of d.strokes.concat(d.stroke ? [d.stroke] : [])) {
-      st.dabs.forEach((p, i) => {
-        let dz;   // ft, this dab's mean change over its disc
-        if (d.brush === 'raise') dz = (st.lower ? -1 : 1) * 8 * k / 15;
-        else if (d.brush === 'smooth') dz = (i % 2 ? 1 : -1) * 0.12 * k;
-        else {
-          let tgt = d.target;
-          if (d.brush === 'slope') { const run = st.dabs.slice(0, i + 1).reduce((a, q, j, arr) => a + (j ? Math.hypot(q[0] - arr[j - 1][0], q[1] - arr[j - 1][1]) * FT_PX : 0), 0) / FT; const gap = d.target - st.start; tgt = st.start + Math.sign(gap) * Math.min(Math.abs(gap), run * d.grade / 100); }
-          dz = Math.max(-40, Math.min(40, (tgt - elevAt(p)) * FT)) * 0.35 * k / Math.max(1, i / 6 + 1);
-        }
-        if (dz < 0) cut -= dz * area; else fill += dz * area;
-      });
-    }
-    return { cut, fill, trees: Math.round((cut + fill) / 2200) };
-  }
-  // What the lifts make of the brushed ground (TB-11–TB-13): towers whose base the brush reached are re-heighted under
-  // their fixed heads; a terminal, the line's clearance and a tower's limit hold it.
-  function tbLiftEffects(d) {
-    const towers = [], held = [];
-    const all = d.strokes.concat(d.stroke ? [d.stroke] : []), r = tbR(d);
-    const near = (q, pad) => all.some((st) => st.dabs.some((p) => Math.hypot(p[0] - q[0], p[1] - q[1]) < r + pad));
-    for (const l of S.lifts) {
-      if (!l.built) continue;
-      const len = Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1]), n = Math.max(2, Math.round(len * FT_PX / 280));
-      if (near(l.a, 6) || near(l.b, 6)) held.push(`${l.name}'s ${near(l.a, 6) ? 'bottom' : 'top'} terminal: its pad stays, ground meets it at 1:1`);
-      let line = false;
-      for (let i = 1; i < n; i++) {
-        const q = [l.a[0] + (l.b[0] - l.a[0]) * i / n, l.a[1] + (l.b[1] - l.a[1]) * i / n];
-        if (!near(q, 0)) { const mid = [l.a[0] + (l.b[0] - l.a[0]) * (i + 0.5) / n, l.a[1] + (l.b[1] - l.a[1]) * (i + 0.5) / n]; if (near(mid, 0)) line = true; continue; }
-        const was = 35 + ((i * 7) % 4) * 5, dz = (d.brush === 'raise' ? (all.some((s) => s.lower) ? 1 : -1) : -1) * (5 + (i % 3) * 5);
-        const now = Math.max(25, Math.min(100, was + dz));
-        towers.push(`${l.name}, tower ${i}: ${was} → ${now} ft`);
-        if (now === 25 || now === 100) held.push(`Tower ${i} of ${l.name}: ${now === 25 ? 'its shortest' : 'its tallest'} (${now} ft) under its head`);
-      }
-      if (line && d.brush !== 'smooth') held.push(`${l.name}'s line: the chairs keep 15 ft over the ground`);
-    }
-    return { towers, held };
-  }
-  function drawTerrainDraft(d) {
-    let s = '';
-    const r = tbR(d), all = d.strokes.concat(d.stroke ? [d.stroke] : []);
-    // the brushed ground, style B's blue (one fill per stroke, so overlapping dabs don't stack)
-    for (const st of all) s += `<g opacity=".5">${st.dabs.map((p) => `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${f1(r)}" fill="${st.lower ? '#2f6db5' : '#4d8ad6'}"/>`).join('')}</g>`;
-    if (d.brush === 'slope' && d.stroke) { const p = d.stroke.dabs[0]; s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="3.2" fill="${white}" stroke="#1f5fa8" stroke-width="1.4"/>`; }
-    if (mouse && d.step === 'paint') {
-      // the cursor drawn on the ground: the brush's edge and its full-strength core (the inner half)
-      s += `<circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(r)}" fill="none" stroke="${white}" stroke-width="1.6" opacity=".95"/>`;
-      s += `<circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(r / 2)}" fill="none" stroke="${white}" stroke-width="1" stroke-dasharray="3 3" opacity=".8"/>`;
-    }
-    return s;
-  }
-  function terrainCtx() {
-    const d = S.draft, kv = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`;
-    const bill = tbBill(d), lifts = tbLiftEffects(d), net = bill.fill - bill.cut;
-    let h = '';
-    if (d.step === 'review') {
-      h += `<dl class="kv" style="padding-top:6px">${kv('Cut', `<b>${yd3(bill.cut)}</b>`, 'TB-09')}${kv('Fill', `<b>${yd3(bill.fill)}</b>`, 'TB-09')}${kv(net > 0 ? 'Import' : 'Export', `<b>${yd3(Math.abs(net))}</b>`, 'TB-09: fill − cut, brought in or hauled away')}${kv('Trees cleared', `about <b>${bill.trees.toLocaleString('en-US')}</b>`, 'TB-10: ground moved 1 ft or more')}${kv('Strokes', `<b>${d.strokes.length}</b>`)}</dl>`;
-      if (lifts.towers.length) h += `<div class="rule"></div><div class="lnote" style="padding-top:6px" title="TB-13, TW-02 v4: the heads stay put; the steel follows the ground">Towers re-heighted</div><div style="padding:2px 0 4px">${lifts.towers.map((t) => `<div class="lmsg">${esc(t)}</div>`).join('')}</div>`;
-      if (lifts.held.length) h += `<div class="rule"></div><div style="padding:4px 0">${lifts.held.map((w) => `<div class="lmsg warn" title="TB-11–TB-13">! Held: ${esc(w)}</div>`).join('')}</div>`;
-      h += `<div class="acts"><div class="go" data-act="tbconfirm" data-ui="review-go" title="TB-08: every pending stroke, one undo step"><span>Confirm</span><span class="kbd kbd-go">Enter</span></div><div class="ghost" data-act="tbback" data-ui="review-back">Back<span class="kbd" style="margin-left:8px">Esc</span></div></div>`;
-      return h;
-    }
-    h += `<dl class="kv">${kv('Cut · fill', `${yd3(bill.cut)} · ${yd3(bill.fill)}`, 'TB-09: so far, pending')}${kv('Trees cleared', `about <b>${bill.trees.toLocaleString('en-US')}</b>`, 'TB-10')}</dl>`;
-    if (lifts.held.length) h += `<div class="lmsg warn" title="TB-11–TB-13">! Held ${lifts.held.length === 1 ? 'by ' + esc(lifts.held[0].split(':')[0]) : `in ${lifts.held.length} places`}</div>`;
-    const keys = [['[', ']', 'diameter'], [',', '.', 'strength']];
-    if (d.brush === 'flatten' || d.brush === 'slope') keys.push(['PgUp', 'PgDn', 'target']);
-    if (d.brush === 'slope') keys.push(['Shift ,', 'Shift .', 'grade']);
-    h += `<div class="lkeys">${keys.map(([a, b, w]) => `<span><span class="kbd">${a}</span><span class="kbd">${b}</span> ${w}</span>`).join('')}<span><span class="kbd">Ctrl</span><span class="kbd">Z</span> undoes a stroke</span></div>`;
-    const can = d.strokes.length > 0;
-    h += `<div class="acts"><div class="go${can ? '' : ' dis'}" data-act="${can ? 'tbgo' : ''}" data-ui="review-go" title="TB-08, TB-09: the review, then Confirm"><span>Break ground</span><span class="kbd kbd-go">Enter</span></div></div>`;
-    return h;
-  }
-  function terrainPanel() {
-    const d = S.draft, t = toolById(d.tool), pct = (v, a, b) => (v - a) / (b - a) * 100;
-    const mouseHint = d.brush === 'raise' ? '<b>Left</b> raises · <b>right</b> lowers · hold to keep going'
-      : d.brush === 'smooth' ? '<b>Left</b> smooths the ground under the brush'
-      : d.brush === 'flatten' ? '<b>Right-click</b> takes the target · <b>left</b> flattens to it'
-      : '<b>Right-click</b> sets the target · <b>drag</b> from the start to slope to it';
-    const band = tbBand(d);
-    const target = d.brush === 'flatten' || d.brush === 'slope'
-      ? `<div class="lrow"><span>Target</span><span class="tbv" title="TB-05, TB-07: right-click the ground, Page Up / Page Down 1 ft (Shift 10 ft)">${d.target == null ? '<span style="color:var(--ph)">right-click to set</span>' : `<b>${lenTxt(d.target)}</b> <span style="color:var(--soft)">· right-click to set</span>`}</span></div>` : '';
-    const slope = d.brush === 'slope'
-      ? `<div class="lrow"><span>Slope</span><div class="seg tbchips" title="TB-07, TD-03: the rating picks the band">${TB_BANDS.map(([k, w]) => `<span class="${d.rating === k ? 'on' : ''}" data-act="tbrate" data-v="${k}" title="${w}">${RATING[k]}</span>`).join('')}</div></div>
-         <div class="lrow"><span></span><div class="rng-wrap" style="min-width:0" title="TB-07: a grade inside the band, Shift , / Shift ."><input type="range" class="rng" min="${band[2]}" max="${band[3]}" step="1" value="${d.grade}" data-tb="g" style="--p:${pct(d.grade, band[2], band[3])}%" aria-label="Grade"><span class="rv" id="tbg" style="width:52px"><span class="word">${RATING[d.rating]}</span> ${d.grade}%</span></div></div>` : '';
-    return panelShell(`${g(t.glyph)}${t.name}${d.armCancel ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard the strokes? ✕ again</span>' : ''}`, `
-      <div style="padding:8px 0 4px">
-        <div class="lrow"><span>Diameter</span><div class="rng-wrap" style="min-width:0" title="TB-02: 10–400 ft, in 5 ft steps"><input type="range" class="rng" min="${TB.dMin}" max="${TB.dMax}" step="${TB.dStep}" value="${d.dia}" data-tb="d" style="--p:${pct(d.dia, TB.dMin, TB.dMax)}%" aria-label="Diameter"><span class="rv" id="tbd" style="width:52px">${lenFt(d.dia)}</span></div></div>
-        <div class="lrow"><span>Strength</span><div class="rng-wrap" style="min-width:0" title="TB-02: 1–100%"><input type="range" class="rng" min="1" max="100" step="1" value="${d.str}" data-tb="s" style="--p:${pct(d.str, 1, 100)}%" aria-label="Strength"><span class="rv" id="tbs" style="width:52px">${d.str}%</span></div></div>
-        ${target}${slope}
-        <div class="hint">${mouseHint}</div>
-      </div><div class="rule"></div><div id="terrainctx">${terrainCtx()}</div>`, 344, 'toolwin');
-  }
-  function refreshTerrain() {
-    drawWorld();
-    const cx = document.getElementById('terrainctx'); if (cx && S.draft && S.draft.kind === 'terrain') cx.innerHTML = terrainCtx();
-  }
-  function terrainAct(a, v) {
-    const d = S.draft; d.armCancel = false;
-    switch (a) {
-      case 'tbrate': d.rating = v; d.grade = TB_DEF[v]; break;
-      case 'tbgo': if (d.strokes.length) d.step = 'review'; break;
-      case 'tbback': d.step = 'paint'; break;
-      case 'tbconfirm': log(`<span>${toolById(d.tool).name}: ${d.strokes.length} stroke${d.strokes.length > 1 ? 's' : ''} confirmed</span>`, '#6f675e', true); d.strokes = []; d.step = 'paint'; S.saveDue = true; break;
-    }
-    render();
-  }
-  function terrainKeys(e, k) {
-    const d = S.draft;
-    if ((k === '[' || k === ']') && d.step === 'paint') { d.dia = Math.max(TB.dMin, Math.min(TB.dMax, d.dia + (k === ']' ? 1 : -1) * TB.dStep * (e.shiftKey ? 5 : 1))); S.tbDia = d.dia; render(); return true; }
-    if ((k === ',' || k === '.' || k === '<' || k === '>') && d.step === 'paint') {
-      const up = k === '.' || k === '>';
-      if (e.shiftKey && d.brush === 'slope') { const b = tbBand(d); d.grade = Math.max(b[2], Math.min(b[3], d.grade + (up ? 1 : -1))); }
-      else { d.str = Math.max(1, Math.min(100, d.str + (up ? 5 : -5))); S.tbStr = d.str; }
-      render(); return true;
-    }
-    if ((k === 'pageup' || k === 'pagedown') && d.target != null) { d.target += (k === 'pageup' ? 1 : -1) * (e.shiftKey ? 10 : 1) / FT; render(); return true; }
-    if (k === 'enter') { terrainAct(d.step === 'review' ? 'tbconfirm' : 'tbgo'); return true; }
-    if (k === 'escape') {
-      if (d.step === 'review') { d.step = 'paint'; render(); return true; }
-      if (d.strokes.length && S.set.confirmRemove === 'on' && !d.armCancel) { d.armCancel = true; render(); return true; }
-      return false;
-    }
-    return false;
-  }
+  // ---------- the terrain brush (task P3-15; rules TB-01–TB-14, decisions BR1–BR12) ----------
+  // Raise/Lower, Flatten, Smooth and Slope share one pane: Diameter and Strength, plus the target elevation and the slope
+  // where they apply. Strokes stay pending (in the game the ground moves live as you hold the mouse) until Break ground,
+  // whose review gives the bill. Terminals are fixed, the lift line's clearance is kept, towers follow the ground.
+  const TB = { dMin: 10, dMax: 400, dStep: 5, dDef: 60, sDef: 50 };
+  const TB_BANDS = [['green', 'Easiest', 1, 24], ['blue', 'More difficult', 25, 39], ['black', 'Most difficult', 40, 59], ['double', 'Experts only', 60, 100]];
+  function newTerrainDraft(t) {
+    return { kind: 'terrain', tool: t.id, brush: t.brush, dia: S.tbDia || TB.dDef, str: S.tbStr || TB.sDef, target: null, targetAt: null, needTarget: false,
+      strokes: [], stroke: null, step: 'paint', start: null, armCancel: false };
+  }
+  const tbR = (d) => d.dia / 2 / FT_PX;   // the brush's radius on the capture, px
+  const tbBandOf = (pct) => TB_BANDS.find((b) => pct <= b[3]) || TB_BANDS[TB_BANDS.length - 1];
+  // BR16: the ramp from a point to the target, ft along and the grade it makes (rise over run)
+  const tbRamp = (d, from, fromElev) => { const run = Math.hypot(d.targetAt[0] - from[0], d.targetAt[1] - from[1]) * FT_PX; return { run, grade: run < 1 ? 0 : Math.round(Math.abs(d.target - fromElev) * FT / run * 100) }; };
+  function tbStart(d, p, right) {
+    if (d.step !== 'paint') return;
+    // Flatten and Slope: the right button takes the target from the ground under the pointer (TB-05); Slope's is a point too (BR16)
+    if (right && (d.brush === 'flatten' || d.brush === 'slope')) { d.target = elevAt(p); d.targetAt = p; d.needTarget = false; d.armCancel = false; render(); return; }
+    if (!right && d.brush === 'slope' && d.targetAt == null) { d.needTarget = true; render(); return; }   // no hidden target
+    if (!right && d.brush === 'flatten' && d.target == null) { d.target = elevAt(p); }
+    const lower = d.brush === 'raise' && right;
+    d.stroke = { dabs: [], lower, start: elevAt(p), startAt: p };
+    tbDab(d, p);
+    clearInterval(tbTimer);
+    tbTimer = setInterval(() => { if (d.stroke && mouse) { tbDab(d, mouse); refreshTerrain(); } }, 1000 / 15);   // held still, it keeps working (TB-03)
+  }
+  let tbTimer = null;
+  function tbDab(d, p) {
+    const s = d.stroke, last = s.dabs[s.dabs.length - 1];
+    if (last && Math.hypot(p[0] - last[0], p[1] - last[1]) < tbR(d) / 4 && d.brush !== 'raise') return;
+    s.dabs.push([p[0], p[1]]);
+  }
+  function tbEnd(d) {
+    clearInterval(tbTimer); tbTimer = null;
+    if (d.stroke && d.stroke.dabs.length) d.strokes.push(d.stroke);
+    d.stroke = null;
+  }
+  // The bill (TB-09), from the placeholder heights: each dab's area times how far it moves the ground.
+  function tbBill(d) {
+    let cut = 0, fill = 0;
+    const r = d.dia / 2, area = Math.PI * r * r * 0.55, k = d.str / 100;
+    for (const st of d.strokes.concat(d.stroke ? [d.stroke] : [])) {
+      st.dabs.forEach((p, i) => {
+        let dz;   // ft, this dab's mean change over its disc
+        if (d.brush === 'raise') dz = (st.lower ? -1 : 1) * 8 * k / 15;
+        else if (d.brush === 'smooth') dz = (i % 2 ? 1 : -1) * 0.12 * k;
+        else {
+          let tgt = d.target;
+          if (d.brush === 'slope') {   // BR16: even between the two points, by where the dab falls along the line
+            const a = st.startAt, vx = d.targetAt[0] - a[0], vy = d.targetAt[1] - a[1], l2 = vx * vx + vy * vy;
+            const t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / l2)) : 1;
+            tgt = st.start + (d.target - st.start) * t;
+          }
+          dz = Math.max(-40, Math.min(40, (tgt - elevAt(p)) * FT)) * 0.35 * k / Math.max(1, i / 6 + 1);
+        }
+        if (dz < 0) cut -= dz * area; else fill += dz * area;
+      });
+    }
+    return { cut, fill, trees: Math.round((cut + fill) / 2200) };
+  }
+  // What the lifts make of the brushed ground (TB-11–TB-13): towers whose base the brush reached are re-heighted under
+  // their fixed heads; a terminal, the line's clearance and a tower's limit hold it.
+  function tbLiftEffects(d) {
+    const towers = [], held = [];
+    const all = d.strokes.concat(d.stroke ? [d.stroke] : []), r = tbR(d);
+    const near = (q, pad) => all.some((st) => st.dabs.some((p) => Math.hypot(p[0] - q[0], p[1] - q[1]) < r + pad));
+    for (const l of S.lifts) {
+      if (!l.built) continue;
+      const len = Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1]), n = Math.max(2, Math.round(len * FT_PX / 280));
+      if (near(l.a, 6) || near(l.b, 6)) held.push(`${l.name}'s ${near(l.a, 6) ? 'bottom' : 'top'} terminal: its pad stays, ground meets it at 1:1`);
+      let line = false;
+      for (let i = 1; i < n; i++) {
+        const q = [l.a[0] + (l.b[0] - l.a[0]) * i / n, l.a[1] + (l.b[1] - l.a[1]) * i / n];
+        if (!near(q, 0)) { const mid = [l.a[0] + (l.b[0] - l.a[0]) * (i + 0.5) / n, l.a[1] + (l.b[1] - l.a[1]) * (i + 0.5) / n]; if (near(mid, 0)) line = true; continue; }
+        const was = 35 + ((i * 7) % 4) * 5, dz = (d.brush === 'raise' ? (all.some((s) => s.lower) ? 1 : -1) : -1) * (5 + (i % 3) * 5);
+        const now = Math.max(25, Math.min(100, was + dz));
+        towers.push(`${l.name}, tower ${i}: ${was} → ${now} ft`);
+        if (now === 25 || now === 100) held.push(`Tower ${i} of ${l.name}: ${now === 25 ? 'its shortest' : 'its tallest'} (${now} ft) under its head`);
+      }
+      if (line && d.brush !== 'smooth') held.push(`${l.name}'s line: the chairs keep 15 ft over the ground`);
+    }
+    return { towers, held };
+  }
+  function drawTerrainDraft(d) {
+    let s = '';
+    const r = tbR(d), all = d.strokes.concat(d.stroke ? [d.stroke] : []);
+    // the brushed ground, style B's blue (one fill per stroke, so overlapping dabs don't stack)
+    for (const st of all) s += `<g opacity=".5">${st.dabs.map((p) => `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${f1(r)}" fill="${st.lower ? '#2f6db5' : '#4d8ad6'}"/>`).join('')}</g>`;
+    if (d.brush === 'slope' && d.targetAt) {
+      // BR16: the target point, and a dashed line to it from the stroke's start (or the pointer before the press)
+      const from = d.stroke ? d.stroke.startAt : mouse, t = d.targetAt;
+      if (from) s += `<line x1="${f1(from[0])}" y1="${f1(from[1])}" x2="${f1(t[0])}" y2="${f1(t[1])}" stroke="${white}" stroke-width="1.3" stroke-dasharray="5 4" opacity=".9"/>`;
+      if (d.stroke) s += `<circle cx="${f1(from[0])}" cy="${f1(from[1])}" r="3.2" fill="${white}" stroke="#1f5fa8" stroke-width="1.4"/>`;
+      s += `<circle cx="${f1(t[0])}" cy="${f1(t[1])}" r="4.2" fill="#1f5fa8" stroke="${white}" stroke-width="1.6"/>`;
+    }
+    if (mouse && d.step === 'paint') {
+      // the cursor drawn on the ground: the brush's edge and its full-strength core (the inner half)
+      s += `<circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(r)}" fill="none" stroke="${white}" stroke-width="1.6" opacity=".95"/>`;
+      s += `<circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(r / 2)}" fill="none" stroke="${white}" stroke-width="1" stroke-dasharray="3 3" opacity=".8"/>`;
+    }
+    return s;
+  }
+  function terrainCtx() {
+    const d = S.draft, kv = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`;
+    const bill = tbBill(d), lifts = tbLiftEffects(d), net = bill.fill - bill.cut;
+    let h = '';
+    if (d.step === 'review') {
+      h += `<dl class="kv" style="padding-top:6px">${kv('Cut', `<b>${yd3(bill.cut)}</b>`, 'TB-09')}${kv('Fill', `<b>${yd3(bill.fill)}</b>`, 'TB-09')}${kv(net > 0 ? 'Import' : 'Export', `<b>${yd3(Math.abs(net))}</b>`, 'TB-09: fill − cut, brought in or hauled away')}${kv('Trees cleared', `about <b>${bill.trees.toLocaleString('en-US')}</b>`, 'TB-10: ground moved 1 ft or more')}${kv('Strokes', `<b>${d.strokes.length}</b>`)}</dl>`;
+      if (lifts.towers.length) h += `<div class="rule"></div><div class="lnote" style="padding-top:6px" title="TB-13, TW-02 v4: the heads stay put; the steel follows the ground">Towers re-heighted</div><div style="padding:2px 0 4px">${lifts.towers.map((t) => `<div class="lmsg">${esc(t)}</div>`).join('')}</div>`;
+      if (lifts.held.length) h += `<div class="rule"></div><div style="padding:4px 0">${lifts.held.map((w) => `<div class="lmsg warn" title="TB-11–TB-13">! Held: ${esc(w)}</div>`).join('')}</div>`;
+      h += `<div class="acts"><div class="go" data-act="tbconfirm" data-ui="review-go" title="TB-08: every pending stroke, one undo step"><span>Confirm</span><span class="kbd kbd-go">Enter</span></div><div class="ghost" data-act="tbback" data-ui="review-back">Back<span class="kbd" style="margin-left:8px">Esc</span></div></div>`;
+      return h;
+    }
+    h += `<dl class="kv">${kv('Cut · fill', `${yd3(bill.cut)} · ${yd3(bill.fill)}`, 'TB-09: so far, pending')}${kv('Trees cleared', `about <b>${bill.trees.toLocaleString('en-US')}</b>`, 'TB-10')}</dl>`;
+    if (lifts.held.length) h += `<div class="lmsg warn" title="TB-11–TB-13">! Held ${lifts.held.length === 1 ? 'by ' + esc(lifts.held[0].split(':')[0]) : `in ${lifts.held.length} places`}</div>`;
+    const keys = [['[', ']', 'diameter'], [',', '.', 'strength']];
+    if (d.brush === 'flatten' || d.brush === 'slope') keys.push(['PgUp', 'PgDn', 'target']);
+    h += `<div class="lkeys">${keys.map(([a, b, w]) => `<span><span class="kbd">${a}</span><span class="kbd">${b}</span> ${w}</span>`).join('')}<span><span class="kbd">Ctrl</span><span class="kbd">Z</span> undoes a stroke</span></div>`;
+    const can = d.strokes.length > 0;
+    h += `<div class="acts"><div class="go${can ? '' : ' dis'}" data-act="${can ? 'tbgo' : ''}" data-ui="review-go" title="TB-08, TB-09: the review, then Confirm"><span>Break ground</span><span class="kbd kbd-go">Enter</span></div></div>`;
+    return h;
+  }
+  function terrainPanel() {
+    const d = S.draft, t = toolById(d.tool), pct = (v, a, b) => (v - a) / (b - a) * 100;
+    const mouseHint = d.brush === 'raise' ? '<b>Left</b> raises · <b>right</b> lowers · hold to keep going'
+      : d.brush === 'smooth' ? '<b>Left</b> smooths the ground under the brush'
+      : d.brush === 'flatten' ? '<b>Right-click</b> takes the target · <b>left</b> flattens to it'
+      : d.targetAt ? '<b>Drag</b> from the start: the ground ramps evenly to the target' : '<b>Right-click</b> the ground to set the target, then <b>drag</b> from the start';
+    const target = d.brush === 'flatten' || d.brush === 'slope'
+      ? `<div class="lrow"><span>Target</span><span class="tbv" title="TB-05, TB-07: right-click the ground, Page Up / Page Down 1 ft (Shift 10 ft)">${d.target == null ? '<span style="color:var(--ph)">right-click to set</span>' : `<b>${lenTxt(d.target)}</b> <span style="color:var(--soft)">· right-click to set</span>`}</span></div>` : '';
+    // BR16: no grade control; the pane says what the two points make
+    let slope = '';
+    if (d.brush === 'slope') {
+      const from = d.stroke ? d.stroke.startAt : mouse, fromElev = d.stroke ? d.stroke.start : from && elevAt(from);
+      const r = d.targetAt && from ? tbRamp(d, from, fromElev) : null, b = r && tbBandOf(r.grade);
+      slope = `<div class="lrow"><span>Ramp</span><span class="tbv" title="TB-07, BR16: the grade comes from the distance and the drop between the two points">${r ? `<b>${lenFt(r.run)}</b> at <span class="word">${RATING[b[0]]}</span> <b>${r.grade}%</b>` : '<span style="color:var(--ph)">set the target first</span>'}</span></div>`
+        + (d.needTarget ? '<div class="lmsg warn">! Right-click the ground to set the slope\'s target first</div>' : '');
+    }
+    return panelShell(`${g(t.glyph)}${t.name}${d.armCancel ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard the strokes? ✕ again</span>' : ''}`, `
+      <div style="padding:8px 0 4px">
+        <div class="lrow"><span>Diameter</span><div class="rng-wrap" style="min-width:0" title="TB-02: 10–400 ft, in 5 ft steps"><input type="range" class="rng" min="${TB.dMin}" max="${TB.dMax}" step="${TB.dStep}" value="${d.dia}" data-tb="d" style="--p:${pct(d.dia, TB.dMin, TB.dMax)}%" aria-label="Diameter"><span class="rv" id="tbd" style="width:52px">${lenFt(d.dia)}</span></div></div>
+        <div class="lrow"><span>Strength</span><div class="rng-wrap" style="min-width:0" title="TB-02: 1–100%"><input type="range" class="rng" min="1" max="100" step="1" value="${d.str}" data-tb="s" style="--p:${pct(d.str, 1, 100)}%" aria-label="Strength"><span class="rv" id="tbs" style="width:52px">${d.str}%</span></div></div>
+        ${target}${slope}
+        <div class="hint">${mouseHint}</div>
+      </div><div class="rule"></div><div id="terrainctx">${terrainCtx()}</div>`, 344, 'toolwin');
+  }
+  function refreshTerrain() {
+    drawWorld();
+    const cx = document.getElementById('terrainctx'); if (cx && S.draft && S.draft.kind === 'terrain') cx.innerHTML = terrainCtx();
+  }
+  function terrainAct(a, v) {
+    const d = S.draft; d.armCancel = false;
+    switch (a) {
+      case 'tbgo': if (d.strokes.length) d.step = 'review'; break;
+      case 'tbback': d.step = 'paint'; break;
+      case 'tbconfirm': log(`<span>${toolById(d.tool).name}: ${d.strokes.length} stroke${d.strokes.length > 1 ? 's' : ''} confirmed</span>`, '#6f675e', true); d.strokes = []; d.step = 'paint'; S.saveDue = true; break;
+    }
+    render();
+  }
+  function terrainKeys(e, k) {
+    const d = S.draft;
+    if ((k === '[' || k === ']') && d.step === 'paint') { d.dia = Math.max(TB.dMin, Math.min(TB.dMax, d.dia + (k === ']' ? 1 : -1) * TB.dStep * (e.shiftKey ? 5 : 1))); S.tbDia = d.dia; render(); return true; }
+    if ((k === ',' || k === '.' || k === '<' || k === '>') && d.step === 'paint') {
+      const up = k === '.' || k === '>';
+      d.str = Math.max(1, Math.min(100, d.str + (up ? 5 : -5))); S.tbStr = d.str;
+      render(); return true;
+    }
+    if ((k === 'pageup' || k === 'pagedown') && d.target != null) { d.target += (k === 'pageup' ? 1 : -1) * (e.shiftKey ? 10 : 1) / FT; render(); return true; }
+    if (k === 'enter') { terrainAct(d.step === 'review' ? 'tbconfirm' : 'tbgo'); return true; }
+    if (k === 'escape') {
+      if (d.step === 'review') { d.step = 'paint'; render(); return true; }
+      if (d.strokes.length && S.set.confirmRemove === 'on' && !d.armCancel) { d.armCancel = true; render(); return true; }
+      return false;
+    }
+    return false;
+  }
   function reviewActs(ready, plan, rules) {
     return `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}" data-ui="review-go" title="${rules}"><span>Break ground</span><span class="kbd kbd-go">Ctrl Enter</span></div><div class="ghost${plan ? '' : ' dis'}" data-act="${plan ? 'plan' : ''}" data-ui="review-plan">Save plan</div></div>`;
   }
@@ -3594,7 +3607,6 @@ body.solo .frame { border-radius: 0; }
       const d = S.draft, v = +rg.value; rg.style.setProperty('--p', `${(rg.value - rg.min) / (rg.max - rg.min) * 100}%`);
       if (rg.dataset.tb === 'd') { d.dia = v; S.tbDia = v; document.getElementById('tbd').textContent = lenFt(v); }
       else if (rg.dataset.tb === 's') { d.str = v; S.tbStr = v; document.getElementById('tbs').textContent = `${v}%`; }
-      else { d.grade = v; document.getElementById('tbg').innerHTML = `<span class="word">${RATING[d.rating]}</span> ${v}%`; }
       refreshTerrain(); return;
     }
     if (rg.dataset.trail) { const d = S.draft; d.width = +rg.value; S.trailWidth = d.width; rg.style.setProperty('--p', `${(rg.value - rg.min) / (rg.max - rg.min) * 100}%`); document.getElementById('trailw').textContent = lenFt(d.width); drawWorld(); return; }
@@ -3894,7 +3906,7 @@ body.solo .frame { border-radius: 0; }
       if (which === 'raise') { line([at(.42, 34), at(.47, 34), at(.52, 33), at(.57, 33)], true); line([at(.62, -30), at(.67, -30)], false); mouse = at(.58, 33); }
       if (which === 'flatten') { td.target = elevAt(at(.40, 30)); line([at(.40, 30), at(.44, 32), at(.48, 34), at(.52, 34)], false); mouse = at(.53, 34); }
       if (which === 'smooth') { td.dia = 300; line([at(.55, -36), at(.60, -38), at(.65, -38)], false); mouse = at(.66, -38); }
-      if (which === 'slope') { td.target = elevAt(at(.30, 44)); td.rating = 'green'; td.grade = 14; line([at(.66, 70), at(.60, 66), at(.54, 60), at(.48, 52), at(.42, 46)], false); mouse = at(.41, 45); }
+      if (which === 'slope') { td.targetAt = at(.30, 44); td.target = elevAt(td.targetAt); line([at(.66, 70), at(.60, 66), at(.54, 60), at(.48, 52), at(.42, 46)], false); mouse = at(.41, 45); }
       if (tb === 'terrainreview') { line([at(.40, 16), at(.45, 10), at(.50, 4)], true); line([at(.62, 2), at(.66, 2)], true); td.step = 'review'; }
       clearInterval(tbTimer); tbTimer = null;
     }

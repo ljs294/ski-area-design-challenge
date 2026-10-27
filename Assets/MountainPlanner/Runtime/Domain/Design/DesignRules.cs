@@ -184,7 +184,8 @@ namespace MountainPlanner.Domain.Design
             if (target ? s.TargetMm < -elevation || s.TargetMm > elevation : s.TargetMm != 0) return "A stroke's target elevation is out of range.";
             bool slope = s.Kind == BrushKind.Slope;
             if (slope ? s.StartMm < -elevation || s.StartMm > elevation : s.StartMm != 0) return "A stroke's start elevation is out of range.";
-            if (slope ? s.GradePermille < 1 || s.GradePermille > TerrainBrush.GradeMaxPermille : s.GradePermille != 0) return "A stroke's grade is out of range.";
+            if (slope ? OutOfRange(s.StartAt) || OutOfRange(s.TargetAt) : !s.StartAt.Equals(default(PointMm)) || !s.TargetAt.Equals(default(PointMm)))
+                return "A stroke's start or target point is out of range.";
             if (dabs == null || dabs.Count == 0) return "A stroke needs at least one dab.";
             if (dabs.Count > MaxDabsPerStroke) return $"A stroke holds at most {MaxDabsPerStroke} dabs.";
             foreach (var d in dabs)
@@ -195,6 +196,9 @@ namespace MountainPlanner.Domain.Design
             }
             return null;
         }
+
+        static bool OutOfRange(PointMm p) =>
+            Math.Abs((long)p.X) > DesignUnits.CoordinateLimitMm || Math.Abs((long)p.Y) > DesignUnits.CoordinateLimitMm;
 
         internal static string DocumentProblem(DesignDocument doc)
         {

@@ -28,8 +28,6 @@ namespace MountainPlanner.Domain.Design
         public const int StrengthAtFullPermille = 350;
         /// <summary>TB-10: 40 ft from natural ground.</summary>
         public const int LimitMm = 40 * DesignUnits.FiveFeetMm / 5;
-        /// <summary>TB-07: grades up to 200%.</summary>
-        public const int GradeMaxPermille = 2000;
         /// <summary>TB-10: a cell a stroke moves 1 ft or more is cleared of trees.</summary>
         public const int ClearMm = 305;
 
@@ -81,12 +79,9 @@ namespace MountainPlanner.Domain.Design
         Patch _last;
         PointRect _dirty = PointRect.Empty;
 
-        // The slope's path (TB-07): dab centres (lattice metres) and the distance along to each, whole mm.
-        readonly List<double> _px = new List<double>(), _py = new List<double>();
-        readonly List<long> _along = new List<long>();
-        // Segments of non-zero length: their end dab's index.
-        readonly List<int> _segments = new List<int>();
-        int _firstSegment;
+        int _dabCount;
+        // The slope's line (TB-07, BR16): its start in lattice metres and the run to the target.
+        readonly double _ax, _ay, _vx, _vy, _len2;
 
         // Smooth's scratch (TB-06), grown as needed.
         long[] _box = Array.Empty<long>(), _sum = Array.Empty<long>();
@@ -97,10 +92,18 @@ namespace MountainPlanner.Domain.Design
             _ground = ground ?? throw new ArgumentNullException(nameof(ground));
             _site = site;
             _fixed = fixedGround ?? FixedGround.None(site);
+            if (_s.Kind == BrushKind.Slope)
+            {
+                site.PointOf(_s.StartAt, out _ax, out _ay);
+                site.PointOf(_s.TargetAt, out double bx, out double by);
+                _vx = bx - _ax;
+                _vy = by - _ay;
+                _len2 = _vx * _vx + _vy * _vy;
+            }
         }
 
         public BrushSettings Settings => _s;
-        public int DabCount => _along.Count;
+        public int DabCount => _dabCount;
 
         /// <summary>What held the brush so far (TB-09), as <see cref="FixedGround.Holds"/> indices.</summary>
         public IReadOnlyCollection<ushort> HeldIndices => _held;
@@ -119,7 +122,7 @@ namespace MountainPlanner.Domain.Design
         public void Dab(BrushDab dab)
         {
             _site.PointOf(dab.At, out double cx, out double cy);
-            Track(cx, cy);
+            _dabCount++;
             double radius = _s.RadiusMm / 1000.0;
             var lat = _site.Lattice;
             int c0 = (int)Math.Ceiling(cx - radius - lat.West), c1 = (int)Math.Floor(cx + radius - lat.West);
@@ -233,49 +236,15 @@ namespace MountainPlanner.Domain.Design
             _dirty = _dirty.Include(c, r);
         }
 
-        // TB-07: the ramp's height at a point, from its distance along the path (its projection onto the nearest segment
-        // within 2 radii back), so the ramp is level across.
+        // TB-07 (BR16): the ramp's height at a point, from where it falls along the line from the start to the target, so
+        // the ramp is even between the two points and level across; it holds at the start before it and the target past it.
         long SlopeTarget(double x, double y)
         {
-            long start = _s.StartMm, target = _s.TargetMm;
-            long s = _along[_along.Count - 1];
-            double best = double.MaxValue;
-            for (int g = _firstSegment; g < _segments.Count; g++)
-            {
-                int j = _segments[g];
-                double ax = _px[j - 1], ay = _py[j - 1], bx = _px[j], by = _py[j];
-                double vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy;
-                double t = ((x - ax) * vx + (y - ay) * vy) / len2;
-                t = t < 0 ? 0 : t > 1 ? 1 : t;
-                double qx = ax + vx * t - x, qy = ay + vy * t - y, d2 = qx * qx + qy * qy;
-                if (d2 <= best)
-                {
-                    best = d2;
-                    s = _along[j - 1] + (long)Math.Floor(t * (_along[j] - _along[j - 1]) + 0.5);
-                }
-            }
-            long gap = target - start, run = Math.Abs(gap);
-            long rise = Math.Min(RoundDiv(s * _s.GradePermille, 1000), run);
-            return start + (gap >= 0 ? rise : -rise);
-        }
-
-        void Track(double x, double y)
-        {
-            if (_s.Kind != BrushKind.Slope) { _along.Add(0); return; }
-            int n = _along.Count;
-            long along = 0;
-            if (n > 0)
-            {
-                double dx = x - _px[n - 1], dy = y - _py[n - 1];
-                long step = (long)Math.Floor(Math.Sqrt(dx * dx + dy * dy) * 1000 + 0.5);
-                along = _along[n - 1] + step;
-                if (step > 0) _segments.Add(n);
-            }
-            _px.Add(x);
-            _py.Add(y);
-            _along.Add(along);
-            long window = 2L * _s.RadiusMm;
-            while (_firstSegment < _segments.Count && along - _along[_segments[_firstSegment]] > window) _firstSegment++;
+            long start = _s.StartMm, gap = (long)_s.TargetMm - start;
+            if (_len2 <= 0) return _s.TargetMm;
+            double t = ((x - _ax) * _vx + (y - _ay) * _vy) / _len2;
+            t = t < 0 ? 0 : t > 1 ? 1 : t;
+            return start + (long)Math.Floor(t * gap + 0.5);
         }
 
         Patch PatchAt(int c, int r, out int at)

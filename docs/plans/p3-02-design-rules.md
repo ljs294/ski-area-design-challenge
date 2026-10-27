@@ -376,13 +376,17 @@ ground round lifts.
   toward it by strength × falloff.
 - **TB-06, Smooth:** each dab moves the ground toward its local mean (a 3 × 3 binomial over the dab, read before the
   dab writes) by strength × falloff.
-- **TB-07, Slope:** right click sets the target elevation; the press sets the start (the ground there). Along the drag
-  path the target height runs from the start toward the target at the chosen grade and then holds at the target.
-  Each point takes its distance along the path from its projection onto it, so the ramp is **level across** (the
-  bench doctrine, GR-01). The grade is picked by rating (TD-03 bands: ● under 25%, ■ 25–40%, ◆ 40–60%, ◆◆ 60% and
-  up) and set by a slider inside the band (Shift+, / Shift+. ±1%). A target far from the ground makes a cut or fill
-  as deep as the limits allow, with steep side walls: the brush does what it's told, as CS2's does (BR14).
-- **TB-08, the session:** strokes stay pending while the ground moves live (BR5). Ctrl+Z takes back the last pending
+- **TB-07, Slope (v2, BR16):** right click sets the **target point**: where it is and the ground's elevation there
+  (Page Up / Page Down move the elevation). Slope paints only once a target is set. The press sets the **start
+  point** (the ground there). Each point the brush covers moves toward the even ramp between the two: its height
+  follows where it falls along the line from the start to the target (its projection), so the ramp is **level
+  across** (the bench doctrine, GR-01); before the start it holds at the start, past the target at the target. There
+  is no grade control: the grade is the drop over the distance, and the pane shows it with its rating (TD-03:
+  ● under 25%, ■ 25–40%, ◆ 40–60%, ◆◆ 60% and up). Going over a ramp again keeps the same ramp, and a stroke started
+  where one ended carries it on. A target far from the ground makes a cut or fill as deep as the limits allow, with
+  steep side walls: the brush does what it's told, as CS2's does (BR14).
+- **TB-08, the session:** strokes stay pending while the ground moves live (BR5). The four Terrain brushes share one
+  session: switching between them keeps the pending strokes, the bill and the target (BR15). Ctrl+Z takes back the last pending
   stroke; **Break ground** (Enter) opens the review and its Confirm puts every pending stroke in as one command and
   one undo step. Esc or ✕ with strokes pending asks first (CF-06) and puts the ground back.
 - **TB-09, the review:** cut, fill and the net import or export (yd³; m³ in metric), trees cleared, every tower whose

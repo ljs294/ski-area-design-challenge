@@ -14,7 +14,7 @@ namespace MountainPlanner.Domain.Design
         Flatten = 3,
         /// <summary>TB-06: toward the local mean.</summary>
         Smooth = 4,
-        /// <summary>TB-07: toward a ramp at a grade from the start to the target.</summary>
+        /// <summary>TB-07: toward the even ramp between the start point and the target point.</summary>
         Slope = 5,
     }
 
@@ -38,13 +38,13 @@ namespace MountainPlanner.Domain.Design
         public readonly int TargetMm;
         /// <summary>Slope: the start's elevation (the ground at the press).</summary>
         public readonly int StartMm;
-        /// <summary>Slope: the grade, rise over run, ‰ (320 is 32%).</summary>
-        public readonly int GradePermille;
+        /// <summary>Slope: where the ramp starts (the press) and ends (the right click), in the local frame (TE5, BR16).</summary>
+        public readonly PointMm StartAt, TargetAt;
         /// <summary>TB-10: the most any point may stand from natural ground.</summary>
         public readonly int LimitMm;
 
         public BrushSettings(BrushKind kind, int radiusMm, int falloffPermille, int stepMm, int strengthPermille,
-                             int targetMm, int startMm, int gradePermille, int limitMm)
+                             int targetMm, int startMm, PointMm startAt, PointMm targetAt, int limitMm)
         {
             Kind = kind;
             RadiusMm = radiusMm;
@@ -53,24 +53,25 @@ namespace MountainPlanner.Domain.Design
             StrengthPermille = strengthPermille;
             TargetMm = targetMm;
             StartMm = startMm;
-            GradePermille = gradePermille;
+            StartAt = startAt;
+            TargetAt = targetAt;
             LimitMm = limitMm;
         }
 
         public static BrushSettings RaiseOrLower(bool lower, int radiusMm, int stepMm) =>
-            new BrushSettings(lower ? BrushKind.Lower : BrushKind.Raise, radiusMm, TerrainBrush.FalloffPermille, stepMm, 0, 0, 0, 0, TerrainBrush.LimitMm);
+            new BrushSettings(lower ? BrushKind.Lower : BrushKind.Raise, radiusMm, TerrainBrush.FalloffPermille, stepMm, 0, 0, 0, default, default, TerrainBrush.LimitMm);
 
         public static BrushSettings Flatten(int radiusMm, int strengthPermille, int targetMm) =>
-            new BrushSettings(BrushKind.Flatten, radiusMm, TerrainBrush.FalloffPermille, 0, strengthPermille, targetMm, 0, 0, TerrainBrush.LimitMm);
+            new BrushSettings(BrushKind.Flatten, radiusMm, TerrainBrush.FalloffPermille, 0, strengthPermille, targetMm, 0, default, default, TerrainBrush.LimitMm);
 
         public static BrushSettings Smooth(int radiusMm, int strengthPermille) =>
-            new BrushSettings(BrushKind.Smooth, radiusMm, TerrainBrush.FalloffPermille, 0, strengthPermille, 0, 0, 0, TerrainBrush.LimitMm);
+            new BrushSettings(BrushKind.Smooth, radiusMm, TerrainBrush.FalloffPermille, 0, strengthPermille, 0, 0, default, default, TerrainBrush.LimitMm);
 
-        public static BrushSettings Slope(int radiusMm, int strengthPermille, int startMm, int targetMm, int gradePermille) =>
-            new BrushSettings(BrushKind.Slope, radiusMm, TerrainBrush.FalloffPermille, 0, strengthPermille, targetMm, startMm, gradePermille, TerrainBrush.LimitMm);
+        public static BrushSettings Slope(int radiusMm, int strengthPermille, PointMm startAt, int startMm, PointMm targetAt, int targetMm) =>
+            new BrushSettings(BrushKind.Slope, radiusMm, TerrainBrush.FalloffPermille, 0, strengthPermille, targetMm, startMm, startAt, targetAt, TerrainBrush.LimitMm);
 
         public bool Equals(BrushSettings o) => Kind == o.Kind && RadiusMm == o.RadiusMm && FalloffPermille == o.FalloffPermille && StepMm == o.StepMm
-            && StrengthPermille == o.StrengthPermille && TargetMm == o.TargetMm && StartMm == o.StartMm && GradePermille == o.GradePermille && LimitMm == o.LimitMm;
+            && StrengthPermille == o.StrengthPermille && TargetMm == o.TargetMm && StartMm == o.StartMm && StartAt.Equals(o.StartAt) && TargetAt.Equals(o.TargetAt) && LimitMm == o.LimitMm;
         public override bool Equals(object obj) => obj is BrushSettings o && Equals(o);
         public override int GetHashCode() => ((int)Kind * 397) ^ RadiusMm ^ (TargetMm << 3) ^ (StepMm << 7) ^ StrengthPermille;
     }

@@ -162,6 +162,51 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void BR15_SwitchingBrushesKeepsThePendingStrokes()
+        {
+            string notice = null;
+            _host.Notice += s => notice = s;
+            _host.Choose(TerrainIds.Raise);
+            Stroke(-20, 20, 0, right: false);
+            var raised = ((TerrainBrushTool)_host.Active).PendingGround;
+            _host.Choose(TerrainIds.Smooth);
+            var smooth = (TerrainBrushTool)_host.Active;
+            Assert.That(notice, Is.Null, "nothing discarded");
+            Assert.That(smooth.Pending, Is.EqualTo(1), "the Raise stroke carries on");
+            Assert.That(smooth.PendingGround, Is.SameAs(raised), "and so does the ground it made");
+            Assert.That(DeltaAt(_ground.Shown, 0, 0), Is.GreaterThan(0), "the raised ground stays on the map");
+            Stroke(-20, 20, 0, right: false);
+            Assert.That(smooth.Pending, Is.EqualTo(2));
+            Assert.That(smooth.Bill.Rows[0].Label, Is.EqualTo("Cut · fill"), "one bill for both");
+            _host.Tick(At(0, 0, keys: ToolKeys.UndoStroke));
+            Assert.That(smooth.Pending, Is.EqualTo(1), "Ctrl+Z takes back across brushes");
+            _host.Choose(NewLiftTool.ToolId);
+            Assert.That(notice, Does.Contain("discarded"), "another kind of tool still discards (P3-06 Q8)");
+        }
+
+        [Test]
+        public void BR16_SlopeWaitsForATargetThenRampsBetweenTheTwoPoints()
+        {
+            _host.Choose(TerrainIds.Slope);
+            var tool = (TerrainBrushTool)_host.Active;
+            Stroke(-20, 20, 0, right: false);
+            Assert.That(tool.Pending, Is.EqualTo(0), "no hidden target: nothing paints until the right click");
+            // The target 30 ft above the ground 60 m away: the middle of the ramp comes up about half that.
+            _host.Tick(At(60, 0, right: true, click: true));
+            _host.Tick(At(60, 0, right: true, release: true));
+            var up = At(60, 0);
+            up.Keys = ToolKeys.TargetUp;
+            up.Shift = true;
+            for (int i = 0; i < 3; i++) _host.Tick(up);
+            tool.SetBrush(60, 100);
+            for (int pass = 0; pass < 4; pass++) Stroke(0, 60, 0, right: false, hold: 30);   // going over it again keeps the same ramp
+            Assert.That(tool.Pending, Is.EqualTo(4));
+            int mid = DeltaAt(tool.PendingGround, 30, 0), end = DeltaAt(tool.PendingGround, 60, 0);
+            Assert.That(end, Is.GreaterThan(5000), "the far end rises toward the target");
+            Assert.That(mid, Is.EqualTo(end / 2).Within(end / 5), "the ramp is even between the two points");
+        }
+
+        [Test]
         public void TB08_CtrlZTakesBackTheLastPendingStroke()
         {
             _host.Choose(TerrainIds.Raise);

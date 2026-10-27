@@ -185,11 +185,10 @@ namespace MountainPlanner.App
             _tools.Confirm(WorkStage.Built);
             for (int i = 0; i < 30; i++) yield return BrushFrame();
 
-            // Slope: a cat track down the sidehill to a target near the bottom, Easiest at 12%.
+            // Slope: a cat track down the sidehill to a target near the bottom; the grade follows from the two points (BR16).
             _tools.Choose(TerrainIds.Slope);
             tool = (TerrainBrushTool)_tools.Active;
             tool.SetBrush(60, 100);
-            tool.SetSlope(0, 12);
             var target = new Vector2(330, -760);
             BrushLook(new Vector2(312, -580), 520);
             _tools.Tick(BrushInput(target, right: true, click: true));

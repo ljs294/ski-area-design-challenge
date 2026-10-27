@@ -20,9 +20,9 @@ namespace MountainPlanner.Persistence.Saves
     /// player chose: "auto" (the game's choice; every tower of a v1 or v2 save), "support", "hold-down" or "combination".
     /// The design's "Strokes" (v4, TB-14) are the confirmed terrain brush strokes, in ID order. "Kind" is "raise",
     /// "lower", "flatten", "smooth" or "slope"; "RadiusMm", "StepMm" and "LimitMm" are whole millimetres;
-    /// "FalloffPermille", "StrengthPermille" and "GradePermille" are thousandths; "TargetMm" and "StartMm" are
-    /// <b>absolute</b> elevations in whole millimetres in the package's height datum, like the terminal levels; fields a
-    /// kind doesn't use are 0. "Dabs" is [x0, y0, w0, dx1, dy1, w1, …] on one line: the first dab's point in whole mm from
+    /// "FalloffPermille" and "StrengthPermille" are thousandths; "TargetMm" and "StartMm" are <b>absolute</b> elevations
+    /// in whole millimetres in the package's height datum, like the terminal levels; "StartAt" and "TargetAt" are a
+    /// slope's two ends as site-centred points; fields a kind doesn't use are 0 (or [0, 0]). "Dabs" is [x0, y0, w0, dx1, dy1, w1, …] on one line: the first dab's point in whole mm from
     /// the site's centre (TE5) and each later one's as the change from the one before, each with its weight in thousandths.
     /// <code>
     /// { "Version": 4, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
@@ -30,7 +30,7 @@ namespace MountainPlanner.Persistence.Saves
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
     ///                            "Levels": { "BottomMm", "TopMm" } or null } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
-    ///                              "StartMm", "GradePermille", "LimitMm", "Dabs": [...] } ] },
+    ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "Dabs": [...] } ] },
     ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] } }
     /// </code>
     /// </summary>
@@ -99,7 +99,8 @@ namespace MountainPlanner.Persistence.Saves
             w.WritePropertyName("StrengthPermille"); w.WriteValue(s.StrengthPermille);
             w.WritePropertyName("TargetMm"); w.WriteValue(s.TargetMm);
             w.WritePropertyName("StartMm"); w.WriteValue(s.StartMm);
-            w.WritePropertyName("GradePermille"); w.WriteValue(s.GradePermille);
+            w.WritePropertyName("StartAt"); WritePoint(w, s.StartAt);
+            w.WritePropertyName("TargetAt"); WritePoint(w, s.TargetAt);
             w.WritePropertyName("LimitMm"); w.WriteValue(s.LimitMm);
             // [x0, y0, w0, dx1, dy1, w1, …] on one line: the first point absolute, the rest as changes (a stroke holds
             // hundreds of dabs a few metres apart).
@@ -300,7 +301,7 @@ namespace MountainPlanner.Persistence.Saves
         static TerrainStroke ReadStroke(JObject k)
         {
             var settings = new BrushSettings(Words.Brush(Str(k, "Kind")), Int(k, "RadiusMm"), Int(k, "FalloffPermille"), Int(k, "StepMm"),
-                Int(k, "StrengthPermille"), Int(k, "TargetMm"), Int(k, "StartMm"), Int(k, "GradePermille"), Int(k, "LimitMm"));
+                Int(k, "StrengthPermille"), Int(k, "TargetMm"), Int(k, "StartMm"), Point(k, "StartAt"), Point(k, "TargetAt"), Int(k, "LimitMm"));
             var flat = Arr(k, "Dabs");
             if (flat.Count % 3 != 0) throw new FormatException("a stroke's dabs aren't triples");
             if (flat.Count / 3 > DesignRules.MaxDabsPerStroke) throw new FormatException("a stroke has too many dabs");

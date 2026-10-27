@@ -70,7 +70,7 @@ namespace MountainPlanner.Tests
             AssertFields(typeof(TrailSettings), "Grading", "Kind", "Clearing");
             AssertFields(typeof(Cut), "At", "DirX", "DirY", "KeepAhead");
             AssertProperties(typeof(TerrainStroke), "Id", "Settings", "Dabs");
-            AssertFields(typeof(BrushSettings), "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm", "StartMm", "GradePermille", "LimitMm");
+            AssertFields(typeof(BrushSettings), "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm", "StartMm", "StartAt", "TargetAt", "LimitMm");
             AssertFields(typeof(BrushDab), "At", "WeightPermille");
             Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(4));
         }

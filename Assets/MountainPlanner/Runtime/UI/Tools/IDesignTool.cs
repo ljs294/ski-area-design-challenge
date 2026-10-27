@@ -80,6 +80,16 @@ namespace MountainPlanner.UI.Tools
     /// stops panning on right-drag until it closes.</summary>
     public interface IOwnsRightButton { }
 
+    /// <summary>
+    /// A tool whose unconfirmed work can carry on in the next tool chosen (task 15's Terrain brushes share one session,
+    /// owner BR15). The host asks before disarming; a tool that hands over is disarmed without putting its work back.
+    /// </summary>
+    public interface ICarriesWork
+    {
+        /// <summary>Hands this tool's pending work to <paramref name="next"/> (not yet armed); false when it can't take it.</summary>
+        bool CarryTo(IDesignTool next);
+    }
+
     /// <summary>What Esc did (CF-07): backed out a step, or the tool is at its first step and would close.</summary>
     public enum ToolBackOut { Stepped, Close }
 

@@ -1,6 +1,6 @@
 # Phase 3 task 15: terrain brush, plan (approved 2026-10-26)
 
-**Status:** approved by the owner on 2026-10-26 (rev 3; rev 4 adds close-up contours, BR13). Decisions BR1–BR14 in [phase0-decisions.md](phase0-decisions.md); rules TB-01–TB-14 and TW-02 v4 in [p3-02-design-rules.md](p3-02-design-rules.md).
+**Status:** approved by the owner on 2026-10-26 (rev 3; rev 4 adds close-up contours, BR13). Decisions BR1–BR16 in [phase0-decisions.md](phase0-decisions.md); rules TB-01–TB-14 and TW-02 v4 in [p3-02-design-rules.md](p3-02-design-rules.md).
 
 
 **Status (2026-10-26):** the plan docs (BR1–BR12, TB-01–TB-14, TW-02 v4) are committed. So are PR A (engine and save v4, 4406ff98), the mockup (7e71ec99) and PR B (fixed heads, 37d81677). All are local on `feature/p3-15-terrain-brush`; 647/647 engine-free tests pass and every Unity assembly compiles. Waiting on: your OK of the mockup, and the P3-10 relay about the shared earthwork file. **Rev 4 adds close-up contours (§ Close-up contours), at your request.**
@@ -15,7 +15,7 @@ The owner asked for this as TL14: a Cities: Skylines 2-style terrain tool for ha
   - **Raise/Lower:** hold left to raise, hold right to lower.
   - **Flatten:** right click samples the target elevation under the pointer; left paints toward it.
   - **Smooth.**
-  - **Slope:** right click sets the target; a left drag ramps toward it at a grade picked by rating chips, with a slider inside the band.
+  - **Slope:** right click sets the target; a left drag ramps toward it at a grade picked by rating chips, with a slider inside the band. *Superseded by BR16: the ramp runs evenly between the start and the target point, with no grade control.*
 - Every brush pane looks nearly the same: **Diameter** and **Strength**, plus **Target elevation** and **Slope** where they apply.
 - The tool owns the right mouse button while armed.
 - **The ground moves live and instantly while you hold the mouse.**
@@ -51,7 +51,7 @@ The owner asked for this as TL14: a Cities: Skylines 2-style terrain tool for ha
 - **Pane, the same for all four tools:**
   - **Diameter** 10–400 ft (default 60), **Strength** 1–100% (default 50);
   - **Target elevation** "8,214 ft · right-click to set" (Flatten, Slope);
-  - **Slope** chips plus "■ 32%";
+  - **Slope** chips plus "■ 32%" (*BR16: replaced by a read-only "Ramp 640 ft at ■ 18%"*);
   - the running bill.
 - **Keys:**
   - [ ] diameter, and , . strength (only while claimed);

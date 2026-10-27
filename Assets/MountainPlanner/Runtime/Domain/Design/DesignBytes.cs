@@ -201,7 +201,8 @@ namespace MountainPlanner.Domain.Design
             w.I32(s.StrengthPermille);
             w.I32(s.TargetMm);
             w.I32(s.StartMm);
-            w.I32(s.GradePermille);
+            w.Point(s.StartAt);
+            w.Point(s.TargetAt);
             w.I32(s.LimitMm);
             w.I32(k.Dabs.Count);
             foreach (var d in k.Dabs)
@@ -215,7 +216,7 @@ namespace MountainPlanner.Domain.Design
         {
             var id = new TerrainStrokeId(r.U64());
             var kind = (BrushKind)r.U8();
-            var s = new BrushSettings(kind, r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.I32());
+            var s = new BrushSettings(kind, r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.Point(), r.Point(), r.I32());   // left to right
             var dabs = new BrushDab[r.Count(DesignRules.MaxDabsPerStroke)];
             for (int i = 0; i < dabs.Length; i++) dabs[i] = new BrushDab(r.Point(), r.U16());
             return new TerrainStroke(id, s, dabs);
