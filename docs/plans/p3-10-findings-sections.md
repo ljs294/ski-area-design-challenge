@@ -12,3 +12,4 @@ Run 20 + Run 26 join is in `test-results/p3-10-join-20-26`. Earlier findings are
 | # | Finding | Where | Fix idea | Status |
 |---|---|---|---|---|
 | 1 | After trails have been reworked into different sections, the selection screen still shows the original trails (owner, 2026-10-27) | Toolbox › Trails › Edit, picking a trail (the selection before and in Edit sections); which display shows the old trails (outlines, names or the pane) is to be confirmed | Not planned yet | Recorded |
+| 2 | The trail edit menu offers Graded or Natural as a choice. Make it a checkbox, so a natural trail can be graded after the fact; grading is a permanent decision (owner, 2026-10-27) | Toolbox › Trails › Edit, the trail's pane: the Graded/Natural switch (`TrailTool`) | Not planned yet | Recorded |
