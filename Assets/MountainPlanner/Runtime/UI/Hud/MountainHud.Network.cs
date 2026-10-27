@@ -77,6 +77,7 @@ namespace MountainPlanner.UI
                     Bin = r => L(r).Connected ? "ok" : "warn", Bins = new[] { ("ok", "Connected"), ("warn", "No way down") } },
             }, "network-lifts");
             _network.Add(_networkLifts.Root);
+            WireAreas();   // NW-15: the Areas, between the lifts and the warnings (the mockup's order)
             NetworkTrailRow T(AnalysisList.Row r) => (NetworkTrailRow)r.Data;
             _networkTrails = new AnalysisList("trails", new[]
             {
@@ -117,9 +118,12 @@ namespace MountainPlanner.UI
         }
 
         /// <summary>The lists (rebuilt with the network, never per tick) and the line over them.</summary>
-        public void SetNetwork(IReadOnlyList<NetworkLiftRow> lifts, IReadOnlyList<NetworkTrailRow> warnings, int trails, int junctions, int paths)
+        public void SetNetwork(IReadOnlyList<NetworkLiftRow> lifts, IReadOnlyList<NetworkTrailRow> warnings, int trails, int junctions, int paths,
+                               IReadOnlyList<NetworkAreaRow> areas = null)
         {
             if (_network == null) return;
+            areas ??= Array.Empty<NetworkAreaRow>();
+            SetNetworkAreas(areas);
             var rows = new List<AnalysisList.Row>(lifts.Count);
             int noWay = 0;
             foreach (var l in lifts)
@@ -127,7 +131,7 @@ namespace MountainPlanner.UI
                 rows.Add(new AnalysisList.Row { Id = l.Id, Data = l });
                 if (!l.Connected) noWay++;
             }
-            _networkLifts.SetRows(rows, "A lift is connected when a way down from its top reaches a lift's bottom. A terminal gathers every trail within 100 ft of it, and terminals that close share one area, so you can unload and ride on. Click a lift, a stretch of trail or a node on the map to light everything you can ski to from it; Esc clears it.");
+            _networkLifts.SetRows(rows, "A lift is connected when a way down from its top reaches a lift's bottom. A terminal gathers every trail within 100 ft of it, and terminals that close together share one area, so you can unload and ride on; two or more lifts sharing one make an Area, which you can name. Click a lift, a stretch of trail, a node or an Area on the map to light everything you can ski to from it; Esc clears it.");
             var trows = new List<AnalysisList.Row>(warnings.Count);
             foreach (var t in warnings) trows.Add(new AnalysisList.Row { Id = t.Id, Data = t });
             _networkTrails.SetRows(trows, "");
@@ -137,7 +141,7 @@ namespace MountainPlanner.UI
             if (noWay > 0 && warnings.Count > 0) state = $"{Plural(noWay, "lift")} with no way down · {Plural(warnings.Count, "trail")} to look at";
             else if (noWay > 0) state = $"{Plural(noWay, "lift")} with no way down";
             else if (warnings.Count > 0) state = $"{Plural(warnings.Count, "trail")} to look at";
-            _networkLine.text = $"{Plural(lifts.Count, "lift")} · {Plural(trails, "trail")} · {Plural(junctions, "junction")} · {Plural(paths, "path")}   {state}";
+            _networkLine.text = $"{Plural(lifts.Count, "lift")} · {Plural(trails, "trail")} · {Plural(areas.Count, "area")} · {Plural(junctions, "junction")} · {Plural(paths, "path")}   {state}";
             _networkLine.EnableInClassList("an-network__line--warn", noWay > 0 || warnings.Count > 0);
             _networkLiftCount = lifts.Count;
             _networkTrailCount = trails;
@@ -165,6 +169,7 @@ namespace MountainPlanner.UI
         {
             _networkLifts?.SetFocused(id);
             _networkTrails?.SetFocused(id);
+            _networkAreas?.SetFocused(id);
         }
 
         /// <summary>The tab's lists show on Analysis › Network; the Network view follows the tab.</summary>
@@ -199,7 +204,7 @@ namespace MountainPlanner.UI
                 _legendBody.Add(LegendRow(Hex(0xdfe8ee), false, "Run, going down", ""));
                 _legendBody.Add(LegendRow(Hex(0xf0b43c), false, "No lift serves it, or leads nowhere", ""));
                 _legendBody.Add(LegendRow(Color.white, false, "Junction, or a path between runs", ""));
-                _legendBody.Add(LegendAreaRow("Lift terminal, 100 ft around"));
+                _legendBody.Add(LegendAreaRow("Lift terminals, 100 ft around"));
                 // Game finding 1: "Reachable", its swatch the colours things light in: green, blue, black runs and red lifts.
                 _legendBody.Add(LegendStripeRow(new[] { Hex(0x1f8a4c), Hex(0x2f6bb0), Hex(0x1f1c19), Hex(0xe0483a) }, "Reachable"));
                 _legendBody.Add(Note("Click a lift, a stretch of trail or a node to light everything you can ski to from it. Esc or a click on empty ground clears it."));
@@ -214,7 +219,7 @@ namespace MountainPlanner.UI
             ShowLegend();
         }
 
-        /// <summary>NT15: a station's area, its dark red disc in a light red ring.</summary>
+        /// <summary>NT15, NT17: a station's area, its dark red shape in a light red ring.</summary>
         static VisualElement LegendAreaRow(string word)
         {
             var row = LegendRow(Hex(0x4a2622), false, word, "");
@@ -251,7 +256,7 @@ namespace MountainPlanner.UI
         void FoldLegend()
         {
             if (_legend == null || _legendFold == null) return;
-            bool card = _trailCardId != 0 || _liftCardId != 0;
+            bool card = _trailCardId != 0 || _liftCardId != 0 || _areaCardId != 0;
             bool folded = card && !_legendPeek;
             if (!card) _legendPeek = false;
             _legend.EnableInClassList("legend--folded", folded);

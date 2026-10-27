@@ -303,6 +303,7 @@ namespace MountainPlanner.App
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
             if (_mapLines != null && cam != null) _mapLines.Follow(cam, Camera.Distance, _hoveredId != 0 ? _hoveredId : _heldLiftId);
             _liftLabels?.Update(cam, _resort?.Surface, _liftsShown && _hudShown && !PhotoOpen && (Hud == null || Hud.LabelsOn));
+            _areaLabels?.Update(cam, _resort?.Surface, _liftsShown && _hudShown && !PhotoOpen && (Hud == null || Hud.LabelsOn));   // NW-15: the Areas' names (task P3-10)
             // The Network view picks its own way (MountainViewer.Network.cs, task P3-10).
             bool picking = !_networkOn && (_tools == null || !_tools.Armed || _tools.Active is MountainPlanner.UI.Tools.IPicksLifts || _focusedLiftId != 0);
             bool draft = DraftView != null;

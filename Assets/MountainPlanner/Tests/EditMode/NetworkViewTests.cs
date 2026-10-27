@@ -75,11 +75,11 @@ namespace MountainPlanner.Tests
         [Test]
         public void NW14_NT15_NT16_StationAreasAndTheCatchmentDraw()
         {
-            // NT15: a shared base, two terminals' areas under one station.
+            // NT15, NT17: a shared base, one shape round both terminals; a lone terminal's own.
             var areas = new[]
             {
-                new NetworkView.StationArea { Station = 11, Lift = 1, Centre = Vector3.zero, Rim = Rim(Vector3.zero, 30.48f) },
-                new NetworkView.StationArea { Station = 11, Lift = 2, Centre = new Vector3(40, 0, 0), Rim = Rim(new Vector3(40, 0, 0), 30.48f) },
+                new NetworkView.StationArea { Station = 11, Lifts = new ulong[] { 1, 2 }, Area = true, Centre = new Vector3(20, 0, 0), Rim = Rim(new Vector3(20, 0, 0), 50f) },
+                new NetworkView.StationArea { Station = 12, Lifts = new ulong[] { 3 }, Centre = new Vector3(400, 0, 0), Rim = Rim(new Vector3(400, 0, 0), 30.48f) },
             };
             _view.Set(null, null, null, null, null, areas);
             _view.Visible = true;
@@ -87,12 +87,31 @@ namespace MountainPlanner.Tests
             int plain = _view.VertexCount;
             Assert.That(plain, Is.GreaterThan(2 * 49), "two rims and two fills");
 
-            // NT16: the lift tool's catchment, a terminal in hand and the trail it gathers lit.
+            // NT16, NT20: the lift tool's catchment, the hub a terminal in hand would make, and the trail it gathers lit.
             var candidate = new NetworkView.StationArea { Candidate = true, Centre = new Vector3(0, 0, 200), Rim = Rim(new Vector3(0, 0, 200), 30.48f) };
             var gathered = new[] { new NetworkView.Segment { Edge = 0, Trail = 7, Points = Line(-100, 210, 100, 210, 8), Own = Color.blue, Served = true } };
             _view.SetCatchment(gathered, new[] { areas[0], areas[1], candidate });
             _view.Follow(_cam);
             Assert.That(_view.VertexCount, Is.GreaterThan(plain + 49), "the candidate's area and the lit trail");
+        }
+
+        [Test]
+        public void NW15_AClickInsideAnAreaPicksIt()
+        {
+            _cam.transform.position = new Vector3(0, 400, -400);   // near enough that the shape is many pixels across
+            _cam.transform.LookAt(Vector3.zero);
+            var areas = new[]
+            {
+                new NetworkView.StationArea { Station = 11, Lifts = new ulong[] { 1, 2 }, Area = true, Centre = Vector3.zero, Rim = Rim(Vector3.zero, 50f) },
+                new NetworkView.StationArea { Station = 12, Lifts = new ulong[] { 3 }, Centre = new Vector3(150, 0, 0), Rim = Rim(new Vector3(150, 0, 0), 30.48f) },
+            };
+            var nodes = new[] { new NetworkView.Node { Id = 11, Kind = NetworkView.NodeKind.LiftEnd, Lift = 1, Bottom = true, At = new Vector3(-30, 0, 0) } };
+            _view.Set(null, null, nodes, null, null, areas);
+            var inside = (Vector2)_cam.WorldToScreenPoint(new Vector3(20, 0, 10));
+            Assert.That(_view.Pick(_cam, inside).Area, Is.EqualTo(11UL), "inside the Area's shape");
+            Assert.That(_view.Pick(_cam, (Vector2)_cam.WorldToScreenPoint(new Vector3(-30, 0, 0))).Node, Is.EqualTo(11UL), "its terminal is a node first");
+            Assert.That(_view.Pick(_cam, (Vector2)_cam.WorldToScreenPoint(new Vector3(150, 0, 5))).Any, Is.False, "a one-lift station isn't an Area");
+            Assert.That(_view.Pick(_cam, (Vector2)_cam.WorldToScreenPoint(new Vector3(90, 0, -60))).Any, Is.False, "between them");
         }
 
         [Test]

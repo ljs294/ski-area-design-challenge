@@ -118,7 +118,13 @@ Chair 2 bottoms (157 ft apart) split the mountain in two.
   - Area labels on both maps;
   - the lift tool's growing hub ("Joins … · gathers …").
   - Demos: `net`, `netarea`, `liftbase`, `liftbaseaim` and `liftbasearea`.
-- **Game, after the owner approves the mockup:**
-  - one `NetworkView.StationArea` per station from `DesignStations.Outline`;
-  - the Areas table, the card (`MountainHud.Areas.cs`, the lift card's rename pattern) and the labels;
-  - the catchment drawing the joined hub from `DesignStations.Of(doc, editing, draft ends)`.
+- **Game (owner approved the mockup, 2026-10-26):**
+  - one `NetworkView.StationArea` per station: `DesignStations.Outline`, its straight edges cut every 5 m and draped; a
+    click inside an Area's shape picks it (`Hit.Area`), and a terminal of an Area picks the Area;
+  - an Area pick lights `ReachFromArea` and opens its card (`MountainHud.Areas.cs`: lifts and what each does there,
+    trails here, what it reaches; a click on the name or F2 renames it, one `RenameArea`);
+  - Analysis › Network lists the Areas between the lifts and the warnings; the line counts them;
+  - the Areas' names on the map, with the lift labels (`LandmarkLabelOverlay`);
+  - the lift tool's catchment draws the hub each terminal would make or join from `DesignStations.Of(doc, editing,
+    draft ends)`, the draft's ends one lift; its window line says "Joins <Area>" in an Area's hub;
+  - `-networkshots` adds `7-area`.

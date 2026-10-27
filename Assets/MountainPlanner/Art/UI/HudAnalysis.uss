@@ -41,6 +41,9 @@
 .hud .an-network__line { padding: 6px 12px 2px 12px; font-size: 11.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
 .hud .an-network__line--warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
 .hud .an-network__warnings { margin-top: 8px; }
+/* NW-15 (NT19): the Areas table, and the Area card's kind beside its name */
+.hud .an-network__areas { margin-top: 8px; }
+.hud .an-card__kind { margin: 0 6px 0 0; font-size: 11px; color: var(--soft); -unity-text-outline-color: var(--soft); -unity-text-align: middle-right; }
 .hud .rcol > .an-card--stacked { position: relative; right: 0; top: 0; margin-top: 6px; }
 .hud .legend--folded { padding-bottom: 0; }
 .hud .legend--folded #legend-body { display: none; }

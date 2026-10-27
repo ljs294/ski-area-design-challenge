@@ -56,12 +56,16 @@ namespace MountainPlanner.Presentation.Design
 
         public struct Link { public Vector3 A, B; }
 
-        /// <summary>One terminal's part of a station's area (NW-14, NT15): its station, its lift, the terminal and the
-        /// area's rim draped over the ground (closed: the last point repeats the first).</summary>
+        /// <summary>A station's area (NW-14 v2, NT15, NT17): one rounded shape round all its terminals, its lifts, a
+        /// point inside it and its rim draped over the ground (closed: the last point repeats the first; convex).</summary>
         public struct StationArea
         {
-            public ulong Station, Lift;
-            /// <summary>A terminal being placed (NT16): a blue area in a dashed white ring, lit whatever the pick.</summary>
+            public ulong Station;
+            /// <summary>The lifts with a terminal here: picking one lights the area.</summary>
+            public ulong[] Lifts;
+            /// <summary>NW-15: an Area (two or more lifts): a click inside it picks it.</summary>
+            public bool Area;
+            /// <summary>The hub a terminal being placed would join (NT16, NT20): blue in a dashed white ring, lit whatever the pick.</summary>
             public bool Candidate;
             public Vector3 Centre;
             public Vector3[] Rim;
@@ -70,12 +74,14 @@ namespace MountainPlanner.Presentation.Design
         /// <summary>A dead end's bar: where the run ends, and its direction there.</summary>
         public struct DeadEnd { public Vector3 At, Dir; }
 
-        /// <summary>What's under a point on screen: a node first, else a lift, else a trail segment.</summary>
+        /// <summary>What's under a point on screen: a node first, else a lift, else a trail segment, else an Area's shape.</summary>
         public struct Hit
         {
             public ulong Node, Lift, Trail;
             public int Edge;
-            public bool Any => Node != 0 || Lift != 0 || Edge >= 0;
+            /// <summary>NW-15: the Area (its station) whose shape holds the point.</summary>
+            public ulong Area;
+            public bool Any => Node != 0 || Lift != 0 || Edge >= 0 || Area != 0;
         }
 
         // The mockup's colours (sRGB; turned linear for the vertices).
@@ -226,11 +232,10 @@ namespace MountainPlanner.Presentation.Design
             _right = camera.transform.right;
             _up = camera.transform.up;
 
-            // Station areas (NT15), under everything: every terminal's rim first, then the fills over them, so a shared
-            // base reads as one area with one outline.
+            // Station areas (NT15, NT17), under everything: the rims first, then the fills over them.
             _litAreas.Clear();
             foreach (var a in _areas)
-                if (!_picked || a.Station == _pickNode || _reachNodes.Contains(a.Station) || (a.Lift != 0 && a.Lift == _pickLift)) _litAreas.Add(a.Station);
+                if (!_picked || a.Station == _pickNode || _reachNodes.Contains(a.Station) || Holds(a, _pickLift)) _litAreas.Add(a.Station);
             foreach (var a in _areas)
                 if (!a.Candidate && a.Rim != null && a.Rim.Length > 2) Ribbon(a.Rim, 3.2f, _litAreas.Contains(a.Station) ? AreaRing : AreaRingOff, 0, 0);
             foreach (var a in _areas)
@@ -491,6 +496,13 @@ namespace MountainPlanner.Presentation.Design
 
         /// <summary>What's under <paramref name="screen"/> (pixels): a node within 8 px first, else a lift, else the nearest
         /// trail segment within 8 px. Nothing allocated.</summary>
+        static bool Holds(StationArea a, ulong lift)
+        {
+            if (lift == 0 || a.Lifts == null) return false;
+            foreach (ulong l in a.Lifts) if (l == lift) return true;
+            return false;
+        }
+
         public Hit Pick(Camera camera, Vector2 screen)
         {
             var hit = new Hit { Edge = -1 };
@@ -521,7 +533,26 @@ namespace MountainPlanner.Presentation.Design
                     if (d <= best) { best = d; hit.Edge = s.Edge; hit.Trail = s.Trail; }
                 }
             }
+            if (hit.Edge >= 0) return hit;
+            foreach (var a in _areas)
+                if (a.Area && !a.Candidate && Inside(camera, a.Rim, screen)) { hit.Area = a.Station; break; }
             return hit;
+        }
+
+        /// <summary>Whether a point on screen lies inside a rim's outline as seen (even-odd).</summary>
+        static bool Inside(Camera camera, Vector3[] rim, Vector2 screen)
+        {
+            if (rim == null || rim.Length < 3) return false;
+            bool inside = false;
+            var prev = camera.WorldToScreenPoint(rim[rim.Length - 1]);
+            foreach (var w in rim)
+            {
+                var p = camera.WorldToScreenPoint(w);
+                if (p.z <= 0 || prev.z <= 0) { prev = p; continue; }
+                if ((p.y > screen.y) != (prev.y > screen.y) && screen.x < (prev.x - p.x) * (screen.y - p.y) / (prev.y - p.y) + p.x) inside = !inside;
+                prev = p;
+            }
+            return inside;
         }
 
         static float ScreenDistance(Camera camera, Vector3 a, Vector3 b, Vector2 screen)

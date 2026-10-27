@@ -9,10 +9,11 @@ namespace MountainPlanner.App
 {
     /// <summary>
     /// The lift tool's catchment preview (task P3-10, NW-14, owner NT16: "just like placing service buildings in Cities:
-    /// Skylines 2"): while New lift or Edit lift is armed, each terminal in hand or placed shows its 100 ft area, the
-    /// built terminals theirs fainter, and the built trails it would gather light up in their own colours. The tool's
-    /// window says what the terminal in hand joins (a shared base or a transfer, and the trails). Rebuilt only when a
-    /// terminal moves half a metre or the built work changes, never per frame.
+    /// Skylines 2"; NT20): while New lift or Edit lift is armed, the hub each terminal in hand or placed would make or
+    /// join is drawn as it would be with it, grown before the click; the other stations fainter; the built trails it
+    /// would gather light up in their own colours. The tool's window says what the terminal in hand joins (an Area, a
+    /// shared base or a transfer, and the trails). Rebuilt only when a terminal moves half a metre or the built work
+    /// changes, never per frame.
     /// </summary>
     public sealed partial class MountainViewer
     {
@@ -92,27 +93,39 @@ namespace MountainPlanner.App
                 return new Vector3(x, float.IsNaN(y) ? 0 : y + 2, z);
             }
 
+            // NT20: the stations as they'd be with the terminals in hand, each its own end of one draft lift (so its two
+            // ends never share a station); the hubs they join are drawn grown, the rest faint.
             LiftId? editing = _hiddenLiftId != 0 ? new LiftId(_hiddenLiftId) : (LiftId?)null;
-            var stations = DesignStations.Of(doc, editing);
+            var before = DesignStations.Of(doc, editing);
+            var extra = new List<StationMember>(_catchPoints.Count);
+            for (int i = 0; i < _catchPoints.Count; i++) extra.Add(new StationMember(DraftLift, _catchBottoms[i], DesignFrame.ToDesign(_catchPoints[i])));
+            var after = DesignStations.Of(doc, editing, extra);
             var areas = new List<NetworkView.StationArea>();
-            foreach (var st in stations)
-                foreach (var m in st.Members)
-                    areas.Add(new NetworkView.StationArea { Station = st.Id, Lift = m.Lift.Value, Centre = Drape(site.OriginX + m.At.XMetres, site.OriginY + m.At.YMetres),
-                                                            Rim = StationRim(site.OriginX + m.At.XMetres, site.OriginY + m.At.YMetres, Drape) });
+            var mine = new List<Station>();
+            foreach (var st in after)
+            {
+                bool draft = false;
+                foreach (var m in st.Members) if (m.Lift == DraftLift) draft = true;
+                if (draft) mine.Add(st);
+                else areas.Add(StationShape(st, site, Drape, false));
+            }
+            foreach (var st in mine) areas.Add(StationShape(st, site, Drape, true));
 
-            // The trails each terminal would gather; asked again next frame while a network build holds the geometry.
+            // The trails each grown hub would gather; asked again next frame while a network build holds the geometry.
             _catchmentRetry = false;
             var gathered = new SortedDictionary<ulong, Trail>();
             string note = null;
-            for (int i = 0; i < _catchPoints.Count; i++)
+            var beforeAreas = DesignAreas.Of(doc, before);
+            foreach (var st in mine)
             {
-                var p = _catchPoints[i];
-                areas.Add(new NetworkView.StationArea { Candidate = true, Centre = Drape(site.OriginX + p.x, site.OriginY + p.y),
-                                                        Rim = StationRim(site.OriginX + p.x, site.OriginY + p.y, Drape) });
                 _catchTrails.Clear();
-                if (_netGeometry == null || !_netGeometry.TryTrailsWithin(doc, DesignFrame.ToDesign(p), _catchTrails)) _catchmentRetry = _netGeometry != null;
+                if (_netGeometry == null || !_netGeometry.TryTrailsWithin(doc, st.Hull, _catchTrails)) _catchmentRetry = _netGeometry != null;
                 foreach (var t in _catchTrails) gathered[t.Id.Value] = t;
-                if (i == inHand) note = CatchmentNote(doc, stations, DesignFrame.ToDesign(p), _catchBottoms[i], _catchTrails);
+                if (inHand < 0) continue;
+                var at = DesignFrame.ToDesign(_catchPoints[inHand]);
+                foreach (var m in st.Members)
+                    if (m.Lift == DraftLift && m.Bottom == _catchBottoms[inHand] && m.At.DistanceSquared(at) == 0)
+                        note = CatchmentNote(doc, st, beforeAreas, _catchBottoms[inHand], _catchTrails);
             }
             _catchmentNote = note;
 
@@ -129,26 +142,31 @@ namespace MountainPlanner.App
             _catchment.SetCatchment(segments.ToArray(), areas.ToArray());
         }
 
-        /// <summary>The window's line about the terminal in hand (NT14, NT16): beside another lift's other end it's a transfer,
-        /// beside the same end a shared base or top; then the trails it gathers.</summary>
-        static string CatchmentNote(DesignDocument doc, List<Station> stations, PointMm at, bool bottom, List<Trail> trails)
+        /// <summary>The terminals in hand, as one lift no built lift shares an ID with.</summary>
+        static readonly LiftId DraftLift = new LiftId(ulong.MaxValue);
+
+        /// <summary>
+        /// The window's line about the terminal in hand (NT14, NT16, NT20): in an Area's hub it joins that Area; beside
+        /// another lift's other end it's a transfer, beside the same end a shared base or top; then the trails the hub gathers.
+        /// </summary>
+        static string CatchmentNote(DesignDocument doc, Station hub, List<Area> areas, bool bottom, List<Trail> trails)
         {
             var same = new List<string>();
             var other = new List<string>();
-            long join = 2L * DesignStations.ReachMm;
-            foreach (var st in stations)
+            string area = null;
+            foreach (var m in hub.Members)
             {
-                bool near = false;
-                foreach (var m in st.Members) if (m.At.DistanceSquared(at) <= join * join) near = true;
-                if (!near) continue;
-                foreach (var m in st.Members)
-                {
-                    string name = doc.FindLift(m.Lift)?.Name ?? "a lift";
-                    var list = m.Bottom == bottom ? same : other;
-                    if (!list.Contains(name)) list.Add(name);
-                }
+                if (m.Lift == DraftLift) continue;
+                string name = doc.FindLift(m.Lift)?.Name ?? "a lift";
+                var list = m.Bottom == bottom ? same : other;
+                if (!list.Contains(name)) list.Add(name);
+                if (area != null) continue;
+                foreach (var a in areas)
+                    foreach (var o in a.Station.Members)
+                        if (o.Lift == m.Lift && o.Bottom == m.Bottom) area = a.Name;
             }
-            string joins = other.Count > 0 ? $"Transfer {(bottom ? "from" : "to")} {string.Join(", ", other)}"
+            string joins = area != null ? $"Joins {area}"
+                : other.Count > 0 ? $"Transfer {(bottom ? "from" : "to")} {string.Join(", ", other)}"
                 : same.Count > 0 ? $"Shares a {(bottom ? "base" : "top")} with {string.Join(", ", same)}" : null;
             string gathers = null;
             if (trails.Count > 0)

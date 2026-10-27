@@ -90,6 +90,33 @@ namespace MountainPlanner.Tests
             yield return Frames(2);
             Assert.That(root.Q("legend").ClassListContains("legend--folded"), Is.False);
 
+            // NW-15 (NT19): the Areas table, and an Area's card in the right-hand column renaming it (click or F2).
+            var area = new NetworkAreaRow { Id = 99, Name = "Chair 1 & Chair 2 base", Lifts = new[] { "Chair 1 loads", "Chair 2 loads" }, TrailsHere = 2, TrailsReached = 5, LiftsReached = 2 };
+            hud.SetNetwork(new[] { new NetworkLiftRow { Id = 1, Name = "Chair 1", Reached = 3, Connected = true } }, new NetworkTrailRow[0], 3, 0, 0, new[] { area });
+            yield return Frames(2);
+            Assert.That(root.Q("an-list-network-areas").ClassListContains("hidden"), Is.False, "the Areas table shows with an Area");
+            Assert.That(root.Q<Label>("network-tools").text, Does.Contain("1 area"));
+            var renamed = hud.AreaRenamed;
+            string typed = null;
+            hud.AreaRenamed = (id, name) => { typed = id + ":" + name; return null; };
+            try
+            {
+                hud.OpenAreaCardFor(99);
+                yield return Frames(2);
+                var card = root.Q("network-area-card");
+                Assert.That(card.parent.name, Is.EqualTo("rcol"));
+                Assert.That(card.ClassListContains("hidden"), Is.False);
+                Assert.That(root.Q<Label>("network-area-card-name").text, Is.EqualTo("Chair 1 & Chair 2 base"));
+                Assert.That(card.Query<Label>(className: "tw-hint").First().text, Does.Contain("Click the name to name it"));
+                Assert.That(root.Q("legend").ClassListContains("legend--folded"), Is.True);
+                hud.RenameAreaCardForTest("Village");
+                Assert.That(typed, Is.EqualTo("99:Village"), "the rename goes to the app, one undoable RenameArea");
+                Assert.That(root.Q<Label>("network-area-card-name").text, Is.EqualTo("Village"));
+                Assert.That(hud.CloseAreaCardIfOpen(), Is.True);
+                Assert.That(card.ClassListContains("hidden"), Is.True);
+            }
+            finally { hud.AreaRenamed = renamed; }
+
             // Leaving the tab turns the view off and gives the legend back.
             hud.SetAnalysis(false);
             yield return Frames(2);

@@ -27,8 +27,9 @@ namespace MountainPlanner.App
         bool _networkWired, _networkOn;
         readonly Dictionary<int, (ulong Trail, int StartMm)> _edgeKeys = new Dictionary<int, (ulong, int)>();
 
-        // The pick (findings 2, 7; R2-2): a trail segment (by its trail and start, so it survives a rebuild), a lift or a node.
-        ulong _pickTrail, _pickLift, _pickNode;
+        // The pick (findings 2, 7; R2-2): a trail segment (by its trail and start, so it survives a rebuild), a lift, a node
+        // or an Area (NW-15, by its hub).
+        ulong _pickTrail, _pickLift, _pickNode, _pickArea;
         int _pickStartMm = -1;
         ulong _netRowHover;
         Vector2 _netPress;
@@ -74,8 +75,19 @@ namespace MountainPlanner.App
             Hud.NetworkViewChanged += on => { _networkOn = on; ShowNetworkView(); };
             Hud.NetworkLiftChosen += id => PickNetwork(0, -1, id, 0, true);
             Hud.NetworkTrailChosen += id => PickNetwork(id, -1, 0, 0, true);   // from its head (no point clicked)
+            Hud.NetworkAreaChosen += id => PickNetwork(0, -1, 0, 0, true, id);
+            // NT19: the Area card's rename, one undoable step; a new name keeps the hub's ends now.
+            Hud.AreaRenamed = (id, name) =>
+            {
+                var history = Design;
+                var area = _network?.AreaAt(id)?.Area;
+                if (history == null) return "No design is open";
+                if (area == null) return "That area has changed: pick it again";
+                var r = history.Submit(new RenameArea(history.Revision, area.Record?.Id ?? default, area.Ends(), name));
+                return r.Accepted ? null : r.Reason;
+            };
             Hud.NetworkRowHovered += id => { _netRowHover = id; _networkView?.SetHover(-1, LiftRow(id), 0, LiftRow(id) == 0 ? id : 0); };
-            Hud.CardClosed += () => { if (_pickTrail != 0 || _pickLift != 0) ClearNetworkPick(); };   // NT11: the card's ✕
+            Hud.CardClosed += () => { if (_pickTrail != 0 || _pickLift != 0 || _pickArea != 0) ClearNetworkPick(); };   // NT11: the card's ✕
         }
 
         ulong LiftRow(ulong id) => _network != null && _network.Of(new LiftId(id)) != null ? id : 0;
@@ -152,9 +164,31 @@ namespace MountainPlanner.App
             var pathOwners = new HashSet<ulong>();
             foreach (var e in graph.Edges) if (e.Kind == EdgeKind.Path) pathOwners.Add(e.Owner);
             paths = pathOwners.Count;
+            // NW-15: the Areas, their rows and their names on the map.
+            var areaRows = new List<NetworkAreaRow>();
+            _areaLabelSpots.Clear();
+            foreach (var a in report.Areas)
+            {
+                var what = new List<string>();
+                foreach (var m in a.Area.Station.Members) what.Add($"{doc.FindLift(m.Lift)?.Name ?? "Lift"} {(m.Bottom ? "loads" : "unloads")}");
+                areaRows.Add(new NetworkAreaRow { Id = a.Area.Station.Id, Name = a.Area.Name, Named = a.Area.Named, Lifts = what.ToArray(), TrailsHere = a.TrailsHere.Count,
+                                                  TrailsReached = a.Reach.Trails.Count, LiftsReached = a.Reach.Lifts.Count });
+                if (_resort != null)
+                {
+                    var c = a.Area.Station.Centre;
+                    float cx = (float)c.XMetres, cz = (float)c.YMetres;
+                    _areaLabelSpots.Add((a.Area.Name, new Vector3(cx, _resort.Surface.HeightAt(cx, cz) + 12, cz)));
+                }
+            }
+            if (Hud != null && _resort != null)
+            {
+                _areaLabels ??= new LandmarkLabelOverlay(Hud.ContourLabelLayer);
+                _areaLabels.SetLandmarks(_areaLabelSpots);
+            }
+            if (_pickArea != 0 && report.AreaAt(_pickArea) == null) _pickArea = 0;   // the hub changed: its pick goes
             if (Hud != null)
             {
-                Hud.SetNetwork(liftRows, warnRows, report.Trails.Count, junctions, paths);
+                Hud.SetNetwork(liftRows, warnRows, report.Trails.Count, junctions, paths, areaRows);
                 Hud.SetNetworkCounts(report.Lifts.Count, report.LiftWarnings, report.Trails.Count, report.TrailWarnings);
             }
 
@@ -211,14 +245,12 @@ namespace MountainPlanner.App
             {
                 if (n.Kind == NodeKind.Station)
                 {
-                    // NW-14: a station's terminals are its circles, each picking the station.
+                    // NW-14 v2 (NT17): a station is one rounded shape round its terminals; each terminal picks the station.
                     var station = graph.StationById(n.Id);
                     if (station == null) continue;
+                    areas.Add(StationShape(station, site, Drape, false));
                     foreach (var m in station.Members)
-                    {
-                        areas.Add(new NetworkView.StationArea { Station = n.Id, Lift = m.Lift.Value, Centre = DrapePoint(m.At), Rim = StationRim(site.OriginX + m.At.XMetres, site.OriginY + m.At.YMetres, Drape) });
                         nodes.Add(new NetworkView.Node { Id = n.Id, Kind = NetworkView.NodeKind.LiftEnd, Lift = m.Lift.Value, Bottom = m.Bottom, At = DrapePoint(m.At) });
-                    }
                     continue;
                 }
                 var kind = n.Kind == NodeKind.Junction ? NetworkView.NodeKind.Junction : n.Kind == NodeKind.PathEnd ? NetworkView.NodeKind.PathEnd : NetworkView.NodeKind.RunEnd;
@@ -235,19 +267,35 @@ namespace MountainPlanner.App
             ApplyNetworkPick();
         }
 
-        /// <summary>A station's rim round one terminal (NW-14: 100 ft), every 7.5 degrees, draped; closed.</summary>
-        static Vector3[] StationRim(double cx, double cy, Func<double, double, Vector3> drape)
+        /// <summary>
+        /// A station's shape (NW-14 v2, NT17): its rounded hull's outline (<see cref="DesignStations.Outline"/>), its
+        /// straight edges cut every 5 m so the rim follows the ground, draped; the fan's centre is the hull's.
+        /// </summary>
+        static NetworkView.StationArea StationShape(Station station, EarthworkSite site, Func<double, double, Vector3> drape, bool candidate)
         {
-            const int sides = 48;
-            double r = DesignStations.ReachMm / 1000.0;
-            var rim = new Vector3[sides + 1];
-            for (int k = 0; k <= sides; k++)
+            var outline = DesignStations.Outline(station);
+            var rim = new List<Vector3>(outline.Count);
+            for (int i = 0; i + 1 < outline.Count; i += 2)
             {
-                double a = k * Math.PI * 2 / sides;
-                rim[k] = drape(cx + r * Math.Cos(a), cy + r * Math.Sin(a));
+                double x = outline[i], y = outline[i + 1];
+                if (i >= 2)
+                {
+                    double px = outline[i - 2], py = outline[i - 1];
+                    int steps = (int)Math.Ceiling(Math.Sqrt((x - px) * (x - px) + (y - py) * (y - py)) / 5);
+                    for (int k = 1; k < steps; k++) rim.Add(drape(site.OriginX + px + (x - px) * k / steps, site.OriginY + py + (y - py) * k / steps));
+                }
+                rim.Add(drape(site.OriginX + x, site.OriginY + y));
             }
-            return rim;
+            var lifts = new ulong[station.Lifts.Count];
+            for (int k = 0; k < lifts.Length; k++) lifts[k] = station.Lifts[k].Value;
+            return new NetworkView.StationArea { Station = station.Id, Lifts = lifts, Area = station.IsArea, Candidate = candidate,
+                                                 Centre = drape(site.OriginX + station.Centre.XMetres, site.OriginY + station.Centre.YMetres), Rim = rim.ToArray() };
         }
+
+        // ---------- the Areas' names on the map (NW-15, NT19), with the lift labels ----------
+
+        LandmarkLabelOverlay _areaLabels;
+        readonly List<(string Name, Vector3 At)> _areaLabelSpots = new List<(string, Vector3)>();
 
         /// <summary>The centreline (lattice x, y pairs) between two distances along it, every 15 m or closer, draped.</summary>
         static Vector3[] Stretch(IReadOnlyList<double> line, double from, double to, Func<double, double, Vector3> drape)
@@ -282,10 +330,10 @@ namespace MountainPlanner.App
         }
 
         /// <summary>
-        /// Picks a trail (by <paramref name="edge"/>, or from its head when -1), a lift or a node, or clears with nothing;
-        /// a lift or trail opens its card, a node closes any. A second pick of the same thing clears it.
+        /// Picks a trail (by <paramref name="edge"/>, or from its head when -1), a lift, a node or an Area, or clears with
+        /// nothing; a lift, trail or Area opens its card, a node closes any. A second pick of the same thing clears it.
         /// </summary>
-        void PickNetwork(ulong trail, int edge, ulong lift, ulong node, bool fromList = false)
+        void PickNetwork(ulong trail, int edge, ulong lift, ulong node, bool fromList = false, ulong area = 0)
         {
             if (_network == null) return;
             int startMm = -1;
@@ -298,43 +346,51 @@ namespace MountainPlanner.App
                 }
                 if (edge >= 0) startMm = _network.Graph.Edges[edge].StartMm;
             }
-            bool same = (trail != 0 && trail == _pickTrail && startMm == _pickStartMm) || (lift != 0 && lift == _pickLift) || (node != 0 && node == _pickNode);
+            // NW-15: a terminal of an Area picks the Area, one node where everything interacts.
+            if (node != 0 && _network.AreaAt(node) != null) { area = node; node = 0; }
+            bool same = (trail != 0 && trail == _pickTrail && startMm == _pickStartMm) || (lift != 0 && lift == _pickLift) || (node != 0 && node == _pickNode)
+                        || (area != 0 && area == _pickArea);
             // The cards close first (their CardClosed clears the old pick), then the new pick, then its card.
             Hud?.CloseTrailCardIfOpen();
             Hud?.CloseLiftCardIfOpen();
+            Hud?.CloseAreaCardIfOpen();
             _pickTrail = same ? 0 : trail;
             _pickStartMm = same ? -1 : startMm;
             _pickLift = same ? 0 : lift;
             _pickNode = same ? 0 : node;
+            _pickArea = same ? 0 : area;
             if (_pickTrail != 0) Hud?.OpenTrailCardFor(_pickTrail);
             if (_pickLift != 0) Hud?.OpenLiftCardFor(_pickLift);
+            if (_pickArea != 0) Hud?.OpenAreaCardFor(_pickArea);
             ApplyNetworkPick();
         }
 
         /// <summary>Clears the pick (Esc, empty ground, the card's ✕); true when there was one.</summary>
         bool ClearNetworkPick()
         {
-            if (_pickTrail == 0 && _pickLift == 0 && _pickNode == 0) return false;
-            _pickTrail = _pickLift = _pickNode = 0;
+            if (_pickTrail == 0 && _pickLift == 0 && _pickNode == 0 && _pickArea == 0) return false;
+            _pickTrail = _pickLift = _pickNode = _pickArea = 0;
             _pickStartMm = -1;
             Hud?.CloseTrailCardIfOpen();
             Hud?.CloseLiftCardIfOpen();
+            Hud?.CloseAreaCardIfOpen();
             ApplyNetworkPick();
             return true;
         }
 
         void ApplyNetworkPick()
         {
-            Hud?.SetNetworkFocused(_pickLift != 0 ? _pickLift : _pickTrail);
+            Hud?.SetNetworkFocused(_pickLift != 0 ? _pickLift : _pickArea != 0 ? _pickArea : _pickTrail);
             if (_networkView == null || _network == null) return;
             int edge = PickedEdge();
             NetworkReport.Reach reach = null;
             if (edge >= 0) reach = _network.ReachFromSegment(edge);
             else if (_pickLift != 0) reach = _network.ReachFrom(new LiftId(_pickLift));
             else if (_pickNode != 0) reach = _network.ReachFrom(_pickNode);
+            else if (_pickArea != 0) reach = _network.ReachFromArea(_pickArea);   // NW-15: its lifts ridden too
             var lifts = new List<ulong>();
             if (reach != null) foreach (var l in reach.Lifts) lifts.Add(l.Value);
-            _networkView.SetPick(edge, _pickLift, _pickNode, reach?.Segments, lifts, reach?.Nodes);
+            _networkView.SetPick(edge, _pickLift, _pickNode != 0 ? _pickNode : _pickArea, reach?.Segments, lifts, reach?.Nodes);
         }
 
         void HoverAndClickNetwork(UnityEngine.Camera cam)
@@ -354,7 +410,7 @@ namespace MountainPlanner.App
             _netPressed = false;
             if ((pos - _netPress).sqrMagnitude > 36) return;
             if (!hit.Any) { ClearNetworkPick(); return; }
-            PickNetwork(hit.Trail, hit.Edge, hit.Lift, hit.Node);
+            PickNetwork(hit.Trail, hit.Edge, hit.Lift, hit.Node, false, hit.Area);
         }
 
         // ---------- -networkshots <folder>: the Network view for review (with -styletile, and -extralift for a lift with no way down) ----------
@@ -457,14 +513,33 @@ namespace MountainPlanner.App
                 yield return Shot(dir, "5-hover");
                 _netHoverHeld = false;
             }
-            // NT16: the lift tool's catchment on the trail map, a bottom terminal in hand 25 m beside the first lift's top
-            // (a transfer), as if the pointer held it there.
+            // NW-15 (NT19): the first Area picked from its row: what it reaches lit, its card open.
+            if (_network.Areas.Count > 0)
+            {
+                foreach (var a in _network.Areas)
+                    Debug.Log($"[NetworkShots] area {a.Area.Name}: {a.Area.Station.Lifts.Count} lifts, {a.TrailsHere.Count} trails here, reaches {a.Reach.Trails.Count} trails and {a.Reach.Lifts.Count} lifts");
+                PickNetwork(0, -1, 0, 0, true, _network.Areas[0].Area.Station.Id);
+                yield return Shot(dir, "7-area");
+                ClearNetworkPick();
+            }
+            // NT16, NT20: the lift tool's catchment on the trail map, as if the pointer held a bottom terminal there: 40 m out
+            // past the first Area's farthest terminal (the hub grows to take it in), else 25 m beside the first lift's top
+            // (a transfer).
             if (_network.Lifts.Count > 0 && _networkDoc?.FindLift(_network.Lifts[0].Lift) is Lift first)
             {
                 Hud.SetAnalysis(false);
                 var top = DesignFrame.ToLocal(first.Top);
                 var beside = DesignFrame.ToLocal(first.Bottom) - top;
                 _catchShot = top + new Vector2(-beside.y, beside.x).normalized * 25;
+                if (_network.Areas.Count > 0)
+                {
+                    var hub = _network.Areas[0].Area.Station;
+                    var centre = DesignFrame.ToLocal(hub.Centre);
+                    var far = centre;
+                    foreach (var p in hub.Hull) if ((DesignFrame.ToLocal(p) - centre).sqrMagnitude >= (far - centre).sqrMagnitude) far = DesignFrame.ToLocal(p);
+                    var out_ = far - centre;
+                    _catchShot = far + (out_.sqrMagnitude > 1 ? out_.normalized : Vector2.right) * 40;
+                }
                 for (int k = 0; k < 10; k++) yield return null;
                 yield return Shot(dir, "6-catchment");
                 Debug.Log("[NetworkShots] catchment: " + _catchmentNote);
