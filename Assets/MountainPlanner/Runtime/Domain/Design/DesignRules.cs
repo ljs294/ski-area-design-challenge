@@ -249,7 +249,7 @@ namespace MountainPlanner.Domain.Design
                     if (t == null) return "A trail holds a section that isn't in the design.";
                     if (!inLine.Add(s.Value)) return "A section is in two trails.";
                     if (t.Name != line.Name) return "A section doesn't carry its trail's name.";
-                    if (before != null && !TrailLines.Chains(before, t)) return "A trail's sections don't run end to end.";
+                    if (before != null && !TrailLines.Chains(doc, before, t)) return "A trail's sections don't run end to end.";
                     before = t;
                 }
             }

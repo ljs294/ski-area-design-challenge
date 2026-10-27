@@ -12,7 +12,8 @@ namespace MountainPlanner.Tests
     {
         /// <summary>The scripted design's graph bytes with the stub geometry below. Pinned like the document golden.</summary>
         /// Re-pinned (task P3-10, 2026-10-27) when stations took their own ID tag (13; task 15 took 12); from 5afff60b….
-        const string GoldenGraphSha = "33040ef191947a3ecb5ab5d06aefb3dfd8f7a1231372f3efbeb9c7dae2abc7be";
+        /// Re-pinned (NT42, owner 2026-10-27) when close nodes merged; from 33040ef1….
+        const string GoldenGraphSha = "2ab41a62ee3e1890b5fa48515c7c1920e5529a2071d669d6e98b03018c2665d6";
 
         /// <summary>Straight-line centrelines, plus whatever junctions and paths a test lists (in any order).</summary>
         sealed class StubGeometry : ITrailGeometry
@@ -67,7 +68,8 @@ namespace MountainPlanner.Tests
         {
             var h = new DesignHistory(DesignDocument.Empty(1));
             var lift = AddLift(h, "Chair 1", P(0, 0), P(0, 3000));
-            var near = AddTrail(h, "Near", P(100, 3000), P(0, 99));
+            // Near's head is west of the top, Far's east, so the two heads stay more than 100 ft apart (NT42 would join them).
+            var near = AddTrail(h, "Near", P(-100, 3000), P(0, 99));
             var far = AddTrail(h, "Far", P(101, 3000), P(300, 0));
             var g = DesignNetwork.Build(h.Document);
             var nearEdge = g.Edges.Single(e => e.Owner == near.Value);

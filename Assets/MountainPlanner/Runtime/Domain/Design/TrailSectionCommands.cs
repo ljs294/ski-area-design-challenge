@@ -94,8 +94,8 @@ namespace MountainPlanner.Domain.Design
                         var top = work.FindTrail(members[0]);
                         var bottom = work.FindTrail(members[members.Count - 1]);
                         if (t.Stage != top.Stage) return Invalid(doc, "A trail is all planned or all built (NT32).");
-                        if (TrailLines.Chains(bottom, t)) members.Add(op.Section);
-                        else if (TrailLines.Chains(t, top)) members.Insert(0, op.Section);
+                        if (TrailLines.Chains(work, bottom, t)) members.Add(op.Section);
+                        else if (TrailLines.Chains(work, t, top)) members.Insert(0, op.Section);
                         else return Invalid(doc, $"That section doesn't meet {name}'s top or bottom end to end.");
                         released.Remove(op.Section);
                         break;
@@ -138,13 +138,16 @@ namespace MountainPlanner.Domain.Design
             if (Ops.Count == 0) work = TrailLines.SetLine(work, line.Id, name, members);
 
             // NT27: a section taken out and taken by nothing is a trail of its own, "Run N" unless the player named it.
+            // never a name a trail had when the session opened, so a merged trail's old name isn't handed straight back
             var taken = new List<string>();
+            foreach (var t in doc.Trails) taken.Add(t.Name);
             foreach (var s in released)
             {
                 if (work.FindTrail(s) == null) continue;
                 string own = Names.TryGetValue(s, out var typed) ? typed : TrailLines.NextName(work, taken);
                 taken.Add(own);
-                work = TrailLines.SetLine(work, TrailLineId.Of(work.Seed, s), own, new[] { s });
+                // No ID: a section on its own saves nothing, and its own key may still be the trail it left (if it founded it).
+                work = TrailLines.SetLine(work, default, own, new[] { s });
             }
             work = TrailLines.Normalise(work);
             // NT40: names typed for trails the session made (an Upper or Lower piece, a released section) win.

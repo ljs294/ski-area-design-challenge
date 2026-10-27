@@ -24,6 +24,22 @@ export const STATES = [
   { name: 'tool-trail-edit', mockup: 'trailfix', p3: true },
   { name: 'tool-trail-remove', mockup: 'trailgone', p3: true },
   { name: 'analysis-trails', mockup: 'atrails', p3: true },
+  // Task P3-10 part 2: trails made of sections (owner NT24–NT41): the trail's pane, Edit sections' clicks and their
+  // hovers, Cut, and New trail's Continues. The game's states come with PR B2.
+  { name: 'tool-trail-sections', mockup: 'trailsecs', p3: true },
+  { name: 'tool-sections-route', mockup: 'trailroute', p3: true },
+  { name: 'tool-sections-merge', mockup: 'trailmerge', p3: true },
+  { name: 'tool-sections-takeout', mockup: 'trailtakeout', p3: true },
+  { name: 'tool-sections-middle', mockup: 'trailmiddle', p3: true },
+  { name: 'tool-sections-near', mockup: 'trailnear', p3: true },
+  { name: 'tool-sections-nearjoin', mockup: 'trailnearjoin', p3: true },
+  { name: 'tool-sections-cut', mockup: 'trailcut', p3: true },
+  { name: 'tool-sections-cutbend', mockup: 'trailcutbend', p3: true },
+  { name: 'tool-sections-junction', mockup: 'trailjunction', p3: true },
+  { name: 'tool-sections-reroute', mockup: 'trailreroute', p3: true },
+  { name: 'tool-sections-rerouted', mockup: 'trailrerouted', p3: true },
+  { name: 'tool-sections-esc', mockup: 'trailsecsundo', p3: true },
+  { name: 'tool-trail-continue', mockup: 'trailcontinue', p3: true },
   // Task P3-15: the Terrain tab's four brushes mid-stroke, and Break ground's review.
   { name: 'tray-terrain', mockup: 'terrainraise', p3: true },
   { name: 'tool-terrain-flatten', mockup: 'terrainflatten', p3: true },

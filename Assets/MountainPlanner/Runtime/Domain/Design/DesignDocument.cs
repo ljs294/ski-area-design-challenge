@@ -39,6 +39,7 @@ namespace MountainPlanner.Domain.Design
         readonly AreaRecord[] _areas;
         readonly TrailLine[] _lines;
         Dictionary<ulong, TrailLine> _lineOf;   // section → its saved line, built on first use
+        TrailNodes _nodes;                      // NT42: where sections meet, built on first use
 
         DesignDocument(ulong seed, long nextOrdinal, Trail[] trails, Lift[] lifts, TerrainStroke[] strokes, AreaRecord[] areas, TrailLine[] lines)
         {
@@ -123,6 +124,9 @@ namespace MountainPlanner.Domain.Design
             }
             return map.TryGetValue(section.Value, out var saved) ? saved : TrailLine.Single(this, t);
         }
+
+        /// <summary>NT42: the hidden nodes where the sections' ends meet (built on first use; derived, never saved).</summary>
+        internal TrailNodes Nodes => _nodes ??= TrailNodes.Build(this);   // benign race: every thread builds the same
 
         public TrailLine FindLine(TrailLineId id)
         {

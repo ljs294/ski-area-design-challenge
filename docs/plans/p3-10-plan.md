@@ -144,3 +144,26 @@ two adversarial reviews (play/UI and technical) and settled with the owner; the 
   the whole trail. Only trails of two or more sections are saved; every section keeps carrying its trail's name, so
   readers of a section's name read the trail's and the game needs no change yet. Save v6 / Shape 6: `UpToSix` adds an
   empty `TrailLines`; fixture `v6-save` (`-text`). Design golden re-pinned (fedff97f); graph and network unchanged.
+
+## 8. Close nodes merge (finding S1, NT42, 2026-10-27): done on feature/p3-10-sections-ui
+- **`Domain/Design/TrailNodes.cs`** (derived, cached on the document): section ends within 100 ft are one node,
+  closest first, never both ends of one section, never a plan with a built end; ID = the network's own key for its
+  first end, so a lone end keeps its ID. `TrailLines.Chains(doc, …)` uses it (Normalise, Route, Edit sections, rules).
+- **`DesignNetwork.MergeClose`:** ends merge as `TrailNodes` has them (into a station when one is in it); junctions and
+  path ends join any node within 100 ft, never two end nodes together; stations never merge with each other; a merge
+  that would leave a trail no segment is skipped. Merged nodes are junctions at the mean of their places.
+- **Drawn met:** `TrailMapView` carries a section's line on to its merged node's point; nothing marks or names it.
+- **Goldens:** graph re-pinned to 2ab41a62 (from 33040ef1); network and design unchanged. `NW14_ATrailEndWithin100Ft…`
+  moved its far run's head so the two heads stay more than 100 ft apart (NT42 joins them otherwise, into the station).
+
+## 9. Trails made of segments between nodes (findings S2, S3; NT43–NT46, 2026-10-27): planned
+- **Model:** a painted run (`Trail`) is a piece; its nodes are its ends, every junction (an end landing on it, a
+  crossing, a lift station it passes) and the player's cut points, merged within 100 ft (NT42); a segment is the
+  stretch between two; a trail's sections are segments, top first, and may turn onto another run at a node.
+- **Saved (save v7 / Shape 7):** `Cuts` (points on pieces) and `TrailLines` of spans (piece, from anchor, to anchor);
+  anchors are stable names of a node on the piece (its head or tail, another run's end landing, the k-th crossing
+  with a run, a station, a cut). A span covers every segment between its anchors.
+- **Derived:** `TrailSections.Of(doc, built graph, plan graph)` resolves spans into the trails shown; segments in no
+  saved trail stay with their piece's own trail; gaps show as Upper/Lower; a vanished node gives its stretch to the
+  trail above (NT46). Plan and built graphs are separate; cut points are stops.
+- **Order:** decisions, Master Planner (v7), the mockup and the owner's review, then the engine (B1b), then B2.

@@ -100,6 +100,20 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void NT24_TakingOutTheFoundingSectionNeverSharesAnId()
+        {
+            // Ridge is keyed by A, its first section; taking A out leaves Ridge its ID, so A on its own takes the next one.
+            var (h, a, b, c) = ThreeRuns();
+            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b), SectionOp.Add(c) }, "Ridge"));
+            var ridge = h.Document.LineOf(a).Id;
+            Submit(h, new EditTrailSections(h.Revision, b, new[] { SectionOp.TakeOut(a) }));
+            Assert.That(h.Document.LineOf(b).Id, Is.EqualTo(ridge));
+            Assert.That(h.Document.LineOf(a).Id, Is.Not.EqualTo(ridge));
+            var ids = TrailLines.All(h.Document).Select(l => l.Id).ToList();
+            Assert.That(ids.Distinct().Count(), Is.EqualTo(ids.Count));
+        }
+
+        [Test]
         public void NT28_TakingOutAMiddleSectionMakesUpperAndLower()
         {
             var h = new DesignHistory(DesignDocument.Empty(1));
