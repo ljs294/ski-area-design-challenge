@@ -41,6 +41,12 @@ Saved files from each frozen format version. The rules are in
 **`demo/`** holds files from a future version (format 99), for `demo.bat` 44 and 45. Each has only what the refusal
 reads: a version number, and a name for the greyed library row.
 
+- **`v6-save/Saves/5792676e513f5302/save-001/`** is the same save in format v6 (task P3-10, owner NT24): the design
+  (shape 6) gains `TrailLines`, the trails made of two or more sections. Here "Lower Run 1" is taken back into Run 1 and
+  cut once more, so Run 1 is three sections with a shared cut node. v1 to v5 saves migrate with none: every trail is one
+  section, as it was. `SaveFileTests` checks that the writer reproduces it byte for byte, and that every older fixture
+  opens through v5 → v6 unchanged.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

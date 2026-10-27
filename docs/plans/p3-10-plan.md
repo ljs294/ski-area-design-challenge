@@ -139,3 +139,8 @@ two adversarial reviews (play/UI and technical) and settled with the owner; the 
   editable names. "Continues Run 1" in New trail's review.
 - **Order:** PR A (this branch: network, stations, Areas at v5, labels); then PR B1 (Domain, format, commands,
   tests); the mockup and the owner's review; PR B2 (the game UI), Kearsarge pictures and demo 70k.
+- **PR B1 (engine and format), 2026-10-27:** `TrailLine` and `TrailLines` (`Normalise`, `Route`, `BreakNames`, `NextName`),
+  `EditTrailSections` (add, take out, cut, rejoin; one undo), and Break ground, Remove, Rename and Edit trail acting on
+  the whole trail. Only trails of two or more sections are saved; every section keeps carrying its trail's name, so
+  readers of a section's name read the trail's and the game needs no change yet. Save v6 / Shape 6: `UpToSix` adds an
+  empty `TrailLines`; fixture `v6-save` (`-text`). Design golden re-pinned (fedff97f); graph and network unchanged.

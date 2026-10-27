@@ -871,6 +871,21 @@ only where they touch, cross or share a station. The rules below stay for when p
     lower", renamable), and the footprint is divided by the cross-section there.
   - **Join** two trails where one's tail meets the other's head. They become one trail and keep the upper one's name.
   - Each is one undoable command.
+- **NW-10 v2, trails made of sections (task 10, owner NT24–NT41, 2026-10-27):** supersedes the Split and Join tools.
+  - **Section:** a painted piece between two nodes (its head and tail; a node made by cutting is shared by the two
+    sections either side). **Trail:** a name and an ordered chain of sections, top first; every section is in exactly one
+    trail, and a trail of one section is that section (nothing saved for it).
+  - **One line, one stage:** a trail runs top to bottom with no forks, each section's tail on the next one's head (a
+    shared node, or within TR-05's 30 ft), all planned or all built. Break ground builds a trail whole; Remove trail
+    removes every section.
+  - **Kept whole after every change:** a trail that no longer runs end to end becomes "Upper X" and "Lower X" ("Middle
+    X" between), the top piece keeping its ID; a position already in a name is replaced, never stacked. A trail with no
+    sections goes; a section left on its own keeps the name it was given ("Run N", the next free, when taken out).
+  - **Edit sections** (the trail's pane): Choose (left-click adds the chain needed to reach a section beyond the
+    trail's top or bottom, from any trail, even its middle; right-click takes one out) and Cut (adds a node; a cut node
+    can be rejoined). One session is one undoable step; names shown and editable before Done.
+  - **No ground changes:** membership is naming only, and only a cut can be rejoined, so the ground stays as built (NT2,
+    NT31). A trail is rated over its whole length (NT34).
 - **NW-11, cat tracks:** a cat track is a narrow graded run (TR-06), not a separate network piece. It joins the network
   like any trail.
 - **NW-12, warnings:**

@@ -105,7 +105,7 @@ namespace MountainPlanner.Tests.Core
             SaveStore.Write(folder, FixtureSave());
             var o = JObject.Parse(File.ReadAllText(Path.Combine(folder, SaveFile.FileName)));
             Assert.That(o.Properties().Select(p => p.Name), Is.EqualTo(new[] { "Version", "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256", "Design", "Edits" }));
-            Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas" }),
+            Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "TrailLines" }),
                 "no network, stats, ratings, rope or volumes (SH-05); no undo history (DD1)");
             Assert.That(((JObject)o["Design"]["Lifts"][0]).Properties().Select(p => p.Name),
                 Is.EqualTo(new[] { "Id", "Name", "Stage", "Catalog", "Bottom", "Top", "TowerMode", "Stance", "Towers", "Levels" }),
@@ -178,14 +178,33 @@ namespace MountainPlanner.Tests.Core
             return save;
         }
 
+        /// <summary>
+        /// The save the v6 fixture holds (task P3-10, owner NT24): the v5 fixture's, with "Lower Run 1" taken back into
+        /// Run 1 and cut once more, so Run 1 is a trail of three sections with a shared cut node.
+        /// </summary>
+        static SaveFile FixtureSaveSix()
+        {
+            var save = FixtureSaveFive();
+            var run1 = save.Design.Trails.First(t => t.Name == "Run 1").Id;
+            var lower = save.Design.Trails.First(t => t.Name == "Lower Run 1").Id;
+            var r = new EditTrailSections(0, run1, new[]
+            {
+                SectionOp.Add(lower), SectionOp.Cut(lower, DesignTestKit.P(510, 755), DesignTestKit.Ft(-980), DesignTestKit.Ft(-1490)),
+            }).Apply(save.Design);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            Assert.That(r.Document.LineOf(run1).Sections.Count, Is.EqualTo(3));
+            save.Design = r.Document;
+            return save;
+        }
+
         [Test]
         public void TheWriterReproducesTheFrozenFixtureByteForByte()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v5-save")), "Saves", JacksonHole, "save-001");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v6-save")), "Saves", JacksonHole, "save-001");
             string folder = Path.Combine(_root, "again");
-            SaveStore.Write(folder, FixtureSaveFive());
+            SaveStore.Write(folder, FixtureSaveSix());
             Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveFile.FileName)), Is.EqualTo(File.ReadAllBytes(Path.Combine(fixture, SaveFile.FileName))),
-                "save.json v5 is frozen: a writer change is a format change (0.3 §5)");
+                "save.json v6 is frozen: a writer change is a format change (0.3 §5)");
             foreach (string tile in Directory.GetFiles(Path.Combine(fixture, SaveStore.TilesFolder)))
                 Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveStore.TilesFolder, Path.GetFileName(tile))), Is.EqualTo(File.ReadAllBytes(tile)));
         }
@@ -286,7 +305,7 @@ namespace MountainPlanner.Tests.Core
             byte[] before = File.ReadAllBytes(path);
 
             var e = Assert.Throws<FormatTooNewException>(() => SaveStore.Read(folder));
-            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 6; this version reads up to 5). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 7; this version reads up to 6). Update the game to open it."));
             Assert.That(SaveStore.Write(folder, FixtureSave()), Is.False);
             Assert.That(SaveStore.Rename(folder, "Mine now"), Is.False);
             Assert.That(File.ReadAllBytes(path), Is.EqualTo(before), "nothing is written over a newer save (0.3 §5 rule 3)");
@@ -464,6 +483,46 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
+        public void TheVersionSixFixtureReadsUnchanged()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v6-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture6");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveSix(), back);
+            Assert.That(back.Design.Lines.Count, Is.EqualTo(1));
+            Assert.That(back.Design.Lines[0].Name, Is.EqualTo("Run 1"));
+            Assert.That(back.Design.Lines[0].Sections.Count, Is.EqualTo(3));
+            Assert.That(SaveJson.Summary(File.ReadAllText(Path.Combine(copy, SaveFile.FileName))).Trails, Is.EqualTo(back.Design.Trails.Count - 2),
+                "Load Area counts trails, not sections");
+        }
+
+        [Test]
+        public void EveryOlderSaveMigratesToSixWithEveryTrailOnItsOwn()
+        {
+            // 0.3 §5 (task P3-10, NT24): the v1–v5 fixtures, unedited, open through v5 → v6 with no trail of several
+            // sections, so every trail is the one section it was, and otherwise the same document as their own version read.
+            var expected = new Dictionary<string, SaveFile>
+            {
+                ["v1-save"] = FixtureSave(), ["v2-save"] = FixtureSaveTwo(), ["v3-save"] = FixtureSaveThree(), ["v4-save"] = FixtureSaveFour(),
+                ["v5-save"] = FixtureSaveFive(),
+            };
+            foreach (var kv in expected)
+            {
+                string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", kv.Key)), "Saves", JacksonHole, "save-001");
+                var o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName))), out _);
+                Assert.That((int)o["Version"], Is.EqualTo(6), kv.Key);
+                Assert.That((int)o["Design"]["Shape"], Is.EqualTo(6), kv.Key);
+                Assert.That(((JArray)o["Design"]["TrailLines"]).Count, Is.EqualTo(0), kv.Key);
+                string copy = Path.Combine(_root, "up6-" + kv.Key);
+                CopyFolder(fixture, copy);
+                var back = SaveStore.Read(copy);
+                Assert.That(back.Design.Lines, Is.Empty, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
+            }
+        }
+
+        [Test]
         public void EveryOlderSaveMigratesToFiveWithNoAreasNamed()
         {
             // 0.3 §5 (task P3-10, NW-15): the v1–v4 fixtures, unedited, open through v4 → v5 with no Areas named (their hubs go
@@ -476,8 +535,8 @@ namespace MountainPlanner.Tests.Core
             {
                 string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", kv.Key)), "Saves", JacksonHole, "save-001");
                 var o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName))), out _);
-                Assert.That((int)o["Version"], Is.EqualTo(5), kv.Key);
-                Assert.That((int)o["Design"]["Shape"], Is.EqualTo(5), kv.Key);
+                Assert.That((int)o["Version"], Is.EqualTo(SaveFile.CurrentVersion), kv.Key);
+                Assert.That((int)o["Design"]["Shape"], Is.EqualTo(DesignDocument.ShapeVersion), kv.Key);
                 Assert.That(((JArray)o["Design"]["Areas"]).Count, Is.EqualTo(0), kv.Key);
                 string copy = Path.Combine(_root, "up5-" + kv.Key);
                 CopyFolder(fixture, copy);
@@ -506,6 +565,16 @@ namespace MountainPlanner.Tests.Core
                 Assert.That(back.Design.Strokes, Is.Empty, kv.Key);
                 Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
             }
+        }
+
+        [Test, Explicit("Regenerates the frozen v6 save fixture")]
+        public void WriteTheVersionSixFixture()
+        {
+            string formats = TestData.Folder("formats");
+            string folder = Path.Combine(formats, "v6-save", "Saves", JacksonHole, "save-001");
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+            Assert.That(SaveStore.Write(folder, FixtureSaveSix()), Is.True);
+            File.Delete(Path.Combine(folder, SaveFile.BackupName));
         }
 
         [Test, Explicit("Regenerates the frozen v5 save fixture")]

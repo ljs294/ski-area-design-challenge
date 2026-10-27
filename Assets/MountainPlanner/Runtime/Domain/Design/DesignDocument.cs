@@ -12,8 +12,8 @@ namespace MountainPlanner.Domain.Design
     public sealed class DesignDocument
     {
         /// <summary>The shape of the authored data. Task 04's save file freezes it; a change bumps this. 4 (task 15): the
-        /// terrain strokes. 5 (task P3-10): the named Areas (NW-15).</summary>
-        public const int ShapeVersion = 5;
+        /// terrain strokes. 5 (task P3-10): the named Areas (NW-15). 6 (task P3-10): the trails made of more than one section (NT24).</summary>
+        public const int ShapeVersion = 6;
 
         /// <summary>The design's key seed: every ID is a keyed hash of it (SH-04).</summary>
         public ulong Seed { get; }
@@ -27,12 +27,20 @@ namespace MountainPlanner.Domain.Design
         /// <summary>The Areas the player has named (NW-15, shape 5), by ID.</summary>
         public IReadOnlyList<AreaRecord> Areas => _areas;
 
+        /// <summary>
+        /// The trails made of two or more sections (shape 6, owner NT24), by ID. A section in none of them is a trail on its
+        /// own; see <see cref="LineOf"/>.
+        /// </summary>
+        public IReadOnlyList<TrailLine> Lines => _lines;
+
         readonly Trail[] _trails;
         readonly Lift[] _lifts;
         readonly TerrainStroke[] _strokes;
         readonly AreaRecord[] _areas;
+        readonly TrailLine[] _lines;
+        Dictionary<ulong, TrailLine> _lineOf;   // section → its saved line, built on first use
 
-        DesignDocument(ulong seed, long nextOrdinal, Trail[] trails, Lift[] lifts, TerrainStroke[] strokes, AreaRecord[] areas)
+        DesignDocument(ulong seed, long nextOrdinal, Trail[] trails, Lift[] lifts, TerrainStroke[] strokes, AreaRecord[] areas, TrailLine[] lines)
         {
             Seed = seed;
             NextOrdinal = nextOrdinal;
@@ -40,10 +48,12 @@ namespace MountainPlanner.Domain.Design
             _lifts = lifts;
             _strokes = strokes;
             _areas = areas;
+            _lines = lines;
         }
 
         public static DesignDocument Empty(ulong seed) =>
-            new DesignDocument(seed, 1, Array.Empty<Trail>(), Array.Empty<Lift>(), Array.Empty<TerrainStroke>(), Array.Empty<AreaRecord>());
+            new DesignDocument(seed, 1, Array.Empty<Trail>(), Array.Empty<Lift>(), Array.Empty<TerrainStroke>(), Array.Empty<AreaRecord>(),
+                Array.Empty<TrailLine>());
 
         /// <summary>
         /// A document from stored parts (task 04's reader). Entities are sorted by ID here and checked by the same
@@ -52,9 +62,14 @@ namespace MountainPlanner.Domain.Design
         public static DesignDocument From(ulong seed, long nextOrdinal, IReadOnlyList<Trail> trails, IReadOnlyList<Lift> lifts) =>
             From(seed, nextOrdinal, trails, lifts, null, null);
 
-        /// <summary>A document from stored parts with its terrain strokes (shape 4) and named Areas (shape 5).</summary>
+        /// <summary>
+        /// A document from stored parts with its terrain strokes (shape 4), named Areas (shape 5) and trails of several
+        /// sections (shape 6). A trail that breaks NT24–NT28 (a gap, a fork, a stage mismatch) is repaired by
+        /// <see cref="TrailLines.Normalise"/> as a command would leave it, never refused.
+        /// </summary>
         public static DesignDocument From(ulong seed, long nextOrdinal, IReadOnlyList<Trail> trails, IReadOnlyList<Lift> lifts,
-                                          IReadOnlyList<TerrainStroke> strokes, IReadOnlyList<AreaRecord> areas = null)
+                                          IReadOnlyList<TerrainStroke> strokes, IReadOnlyList<AreaRecord> areas = null,
+                                          IReadOnlyList<TrailLine> lines = null)
         {
             var t = new Trail[trails?.Count ?? 0];
             for (int i = 0; i < t.Length; i++) t[i] = trails[i];
@@ -68,7 +83,10 @@ namespace MountainPlanner.Domain.Design
             var r = new AreaRecord[areas?.Count ?? 0];
             for (int i = 0; i < r.Length; i++) r[i] = areas[i];
             Array.Sort(r, (a, b) => a.Id.CompareTo(b.Id));
-            var doc = new DesignDocument(seed, nextOrdinal, t, l, k, r);
+            var n = new TrailLine[lines?.Count ?? 0];
+            for (int i = 0; i < n.Length; i++) n[i] = lines[i];
+            Array.Sort(n, (a, b) => a.Id.CompareTo(b.Id));
+            var doc = TrailLines.Normalise(new DesignDocument(seed, nextOrdinal, t, l, k, r, n));
             string problem = DesignRules.DocumentProblem(doc);
             if (problem != null) throw new FormatException("Design document: " + problem);
             return doc;
@@ -84,6 +102,32 @@ namespace MountainPlanner.Domain.Design
         {
             int i = LiftIndex(id);
             return i >= 0 ? _lifts[i] : null;
+        }
+
+        /// <summary>
+        /// The trail a section belongs to (NT24): its saved line, or the section as a trail on its own (keyed by itself, so
+        /// it keeps that ID when a second section joins). Null when the section isn't in the design.
+        /// </summary>
+        public TrailLine LineOf(TrailId section)
+        {
+            var t = FindTrail(section);
+            if (t == null) return null;
+            if (_lines.Length == 0) return TrailLine.Single(this, t);
+            var map = _lineOf;
+            if (map == null)
+            {
+                map = new Dictionary<ulong, TrailLine>();
+                foreach (var line in _lines)
+                    foreach (var s in line.Sections) map[s.Value] = line;
+                _lineOf = map;   // benign race: every thread builds the same map
+            }
+            return map.TryGetValue(section.Value, out var saved) ? saved : TrailLine.Single(this, t);
+        }
+
+        public TrailLine FindLine(TrailLineId id)
+        {
+            foreach (var line in _lines) if (line.Id == id) return line;
+            return null;
         }
 
         public AreaRecord FindArea(AreaId id)
@@ -147,13 +191,13 @@ namespace MountainPlanner.Domain.Design
         internal bool IdInUse(ulong value)
         {
             if (TrailIndex(new TrailId(value)) >= 0 || LiftIndex(new LiftId(value)) >= 0 || StrokeIndex(new TerrainStrokeId(value)) >= 0
-                || FindArea(new AreaId(value)) != null) return true;
+                || FindArea(new AreaId(value)) != null || FindLine(new TrailLineId(value)) != null) return true;
             return FindLiftOfTower(new TowerId(value)) != null;
         }
 
         // Copy-on-write edits: each returns a new document sharing every untouched entity.
 
-        internal DesignDocument WithOrdinal(long nextOrdinal) => new DesignDocument(Seed, nextOrdinal, _trails, _lifts, _strokes, _areas);
+        internal DesignDocument WithOrdinal(long nextOrdinal) => new DesignDocument(Seed, nextOrdinal, _trails, _lifts, _strokes, _areas, _lines);
 
         internal DesignDocument PutTrail(Trail trail)
         {
@@ -172,7 +216,7 @@ namespace MountainPlanner.Domain.Design
                 t[i] = trail;
                 Array.Copy(_trails, i, t, i + 1, _trails.Length - i);
             }
-            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas);
+            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas, _lines);
         }
 
         internal DesignDocument RemoveTrail(TrailId id)
@@ -182,7 +226,7 @@ namespace MountainPlanner.Domain.Design
             var t = new Trail[_trails.Length - 1];
             Array.Copy(_trails, 0, t, 0, i);
             Array.Copy(_trails, i + 1, t, i, _trails.Length - i - 1);
-            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas);
+            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas, _lines);
         }
 
         internal DesignDocument PutLift(Lift lift)
@@ -202,7 +246,7 @@ namespace MountainPlanner.Domain.Design
                 l[i] = lift;
                 Array.Copy(_lifts, i, l, i + 1, _lifts.Length - i);
             }
-            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, _areas);
+            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, _areas, _lines);
         }
 
         internal DesignDocument PutStroke(TerrainStroke stroke)
@@ -222,7 +266,7 @@ namespace MountainPlanner.Domain.Design
                 k[i] = stroke;
                 Array.Copy(_strokes, i, k, i + 1, _strokes.Length - i);
             }
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, k, _areas);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, k, _areas, _lines);
         }
 
         /// <summary>Removes a lift, and its ends from every named Area; an Area left with no ends goes too (NW-15).</summary>
@@ -239,8 +283,20 @@ namespace MountainPlanner.Domain.Design
                 var kept = a.WithoutLift(id);
                 if (kept.Ends.Count > 0) areas.Add(kept);
             }
-            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, areas.ToArray());
+            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, areas.ToArray(), _lines);
         }
+
+        /// <summary>The saved lines replaced whole (sorted here); <see cref="TrailLines.Normalise"/> and the line commands.</summary>
+        internal DesignDocument WithLines(IReadOnlyList<TrailLine> lines)
+        {
+            var n = new TrailLine[lines.Count];
+            for (int i = 0; i < n.Length; i++) n[i] = lines[i];
+            Array.Sort(n, (a, b) => a.Id.CompareTo(b.Id));
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, n);
+        }
+
+        /// <summary>Whether a command changed the trails or their lines, so <see cref="TrailLines.Normalise"/> must run.</summary>
+        internal bool TrailsDifferFrom(DesignDocument other) => !ReferenceEquals(_trails, other._trails) || !ReferenceEquals(_lines, other._lines);
 
         internal DesignDocument PutArea(AreaRecord area)
         {
@@ -253,7 +309,7 @@ namespace MountainPlanner.Domain.Design
             }
             if (!replaced) a.Add(area);
             a.Sort((x, y) => x.Id.CompareTo(y.Id));
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, a.ToArray());
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, a.ToArray(), _lines);
         }
     }
 

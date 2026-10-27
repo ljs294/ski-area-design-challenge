@@ -64,6 +64,25 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void NT24_TheGeneratorReachesTrailsOfSeveralSections()
+        {
+            int sessions = 0, saved = 0;
+            for (int seed = 0; seed < Seeds; seed++)
+            {
+                var rng = new TestRng((ulong)seed);
+                var h = new DesignHistory(DesignDocument.Empty((ulong)seed * 977));
+                for (int step = 0; step < Steps; step++)
+                {
+                    var command = RandomCommand(ref rng, h.Document, h.Revision);
+                    if (h.Submit(command).Accepted && command is EditTrailSections) sessions++;
+                    if (h.Document.Lines.Count > 0) saved++;
+                }
+            }
+            Assert.That(sessions, Is.GreaterThan(0), "accepted Edit sections sessions");
+            Assert.That(saved, Is.GreaterThan(0), "steps with a saved trail of several sections");
+        }
+
+        [Test]
         public void SH04_ReplayingTheSameCommandsGivesTheSameBytes([Range(0, 9)] int seed)
         {
             Assert.That(DesignBytes.Same(Play(seed), Play(seed)), Is.True);
@@ -192,10 +211,46 @@ namespace MountainPlanner.Tests
                     return new ReplaceTowers(revision, l.Id, keep, added, rng.Chance(50) ? TowerMode.Automatic : (TowerMode?)null);
                 }
                 case 14:
+                    if (rng.Chance(50) && trails.Count > 0) return RandomSections(ref rng, doc, revision);   // NT24–NT40
                     return new RenameLift(revision, rng.Pick(lifts).Id, $"Chair {rng.Int(1000)}");
                 default:
                     return new DeleteLift(revision, rng.Pick(lifts).Id);
             }
+        }
+
+        /// <summary>An Edit sections session: a routed add, a take-out, a cut or a rejoin, valid or not (owner NT24–NT40).</summary>
+        static DesignCommand RandomSections(ref TestRng rng, DesignDocument doc, long revision)
+        {
+            var t = rng.Pick(doc.Trails);
+            var line = doc.LineOf(t.Id);
+            var ops = new List<SectionOp>();
+            int steps = 1 + rng.Int(3);
+            for (int i = 0; i < steps; i++)
+            {
+                var other = rng.Pick(doc.Trails);
+                switch (rng.Int(4))
+                {
+                    case 0:
+                        var route = TrailLines.Route(doc, line, other.Id);
+                        if (route != null) foreach (var s in route) ops.Add(SectionOp.Add(s));
+                        else ops.Add(SectionOp.Add(other.Id));
+                        break;
+                    case 1:
+                        ops.Add(SectionOp.TakeOut(rng.Pick(line.Sections)));
+                        break;
+                    case 2:
+                        var cutAt = t.Head.HasValue && t.Tail.HasValue
+                            ? new PointMm((int)(((long)t.Head.Value.X + t.Tail.Value.X) / 2), (int)(((long)t.Head.Value.Y + t.Tail.Value.Y) / 2))
+                            : RandomPoint(ref rng);
+                        ops.Add(SectionOp.Cut(t.Id, cutAt, t.HasEnds ? t.Tail.Value.X - t.Head.Value.X : 1, t.HasEnds ? t.Tail.Value.Y - t.Head.Value.Y : 0));
+                        break;
+                    default:
+                        int k = line.Sections.Count > 1 ? rng.Int(line.Sections.Count - 1) : 0;
+                        ops.Add(SectionOp.Rejoin(line.Sections[k], line.Sections[System.Math.Min(k + 1, line.Sections.Count - 1)]));
+                        break;
+                }
+            }
+            return new EditTrailSections(revision, t.Id, ops, rng.Chance(30) ? $"Run {rng.Int(1000)}" : null);
         }
 
         static PointMm RandomPoint(ref TestRng rng) => new PointMm(rng.Range(-Ft(8000), Ft(8000)), rng.Range(-Ft(8000), Ft(8000)));

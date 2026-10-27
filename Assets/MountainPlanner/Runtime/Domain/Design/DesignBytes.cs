@@ -40,6 +40,14 @@ namespace MountainPlanner.Domain.Design
                     w.U8(e.Bottom ? (byte)1 : (byte)0);
                 }
             }
+            w.I32(doc.Lines.Count);   // shape 6 (NT24): the trails of two or more sections
+            foreach (var line in doc.Lines)
+            {
+                w.U64(line.Id.Value);
+                w.Str(line.Name);
+                w.I32(line.Sections.Count);
+                foreach (var s in line.Sections) w.U64(s.Value);
+            }
             return w.ToArray();
         }
 
@@ -85,8 +93,17 @@ namespace MountainPlanner.Domain.Design
                 for (int k = 0; k < ends.Length; k++) ends[k] = new AreaEnd(new LiftId(r.U64()), r.U8() != 0);
                 areas[i] = new AreaRecord(id, name, ends);
             }
+            var lines = new TrailLine[r.Count(1 << 20)];
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var id = new TrailLineId(r.U64());
+                string name = r.Str();
+                var sections = new TrailId[r.Count(1 << 20)];
+                for (int k = 0; k < sections.Length; k++) sections[k] = new TrailId(r.U64());
+                lines[i] = new TrailLine(id, name, sections);
+            }
             if (!r.AtEnd) throw new FormatException("Trailing bytes after the design document.");
-            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas);
+            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines);
             // Canonical means written in order: a reordered file is not this format.
             if (!Same(Encode(doc), bytes)) throw new FormatException("The design document isn't in canonical order.");
             return doc;

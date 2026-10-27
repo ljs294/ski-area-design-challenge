@@ -234,6 +234,25 @@ namespace MountainPlanner.Domain.Design
                 foreach (var e in area.Ends) if (doc.FindLift(e.Lift) == null) return "An area holds a lift that isn't in the design.";
                 if (!seen.Add(area.Id.Value)) return "Two entities share an ID.";
             }
+            // NT24–NT28: a saved trail holds two or more sections, each in one trail only, end to end in one stage, all
+            // carrying its name. Normalise leaves every document like this; a file that isn't is repaired before here.
+            var inLine = new HashSet<ulong>();
+            foreach (var line in doc.Lines)
+            {
+                if (NameProblem(line.Name) is string p) return p;
+                if (line.Sections.Count < 2) return "A saved trail holds at least two sections.";
+                if (!seen.Add(line.Id.Value)) return "Two entities share an ID.";
+                Trail before = null;
+                foreach (var s in line.Sections)
+                {
+                    var t = doc.FindTrail(s);
+                    if (t == null) return "A trail holds a section that isn't in the design.";
+                    if (!inLine.Add(s.Value)) return "A section is in two trails.";
+                    if (t.Name != line.Name) return "A section doesn't carry its trail's name.";
+                    if (before != null && !TrailLines.Chains(before, t)) return "A trail's sections don't run end to end.";
+                    before = t;
+                }
+            }
             return null;
         }
     }
