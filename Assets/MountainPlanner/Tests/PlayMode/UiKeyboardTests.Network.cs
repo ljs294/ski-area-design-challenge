@@ -121,9 +121,70 @@ namespace MountainPlanner.Tests
             hud.SetAnalysis(false);
             yield return Frames(2);
             Assert.That(hud.NetworkViewOn, Is.False);
+
+            yield return NT7_NamesOnTheMapNeverOverlap(hud);
             SceneManager.SetActiveScene(SceneManager.CreateScene("UiKeyboardTests empty"));
             yield return SceneManager.UnloadSceneAsync(viewer.gameObject.scene);
             yield return UnityEngine.Resources.UnloadUnusedAssets();
         }
+
+        /// <summary>
+        /// NT7 (owner, 2026-10-26) in the HUD's real panel: a lift's name always shows, slanted along its line; an Area's
+        /// name on the same spot moves to a nudge; a run's name blocked at its middle takes its next spot; a name with nowhere
+        /// free hides; a still camera places them again without allocating.
+        /// </summary>
+        static IEnumerator NT7_NamesOnTheMapNeverOverlap(MountainHud hud)
+        {
+            var go = new UnityEngine.GameObject("NT7 label camera");
+            var placement = new LabelPlacement();
+            try
+            {
+                var camera = go.AddComponent<UnityEngine.Camera>();
+                camera.enabled = false;
+                go.transform.SetPositionAndRotation(new UnityEngine.Vector3(0, 1500, 0), UnityEngine.Quaternion.Euler(90, 0, 0));
+                UnityEngine.Vector3 p = UnityEngine.Vector3.zero, q = new UnityEngine.Vector3(300, 0, 0);
+                var lifts = new LandmarkLabelOverlay(hud.ContourLabelLayer, placement, LabelPlacement.Lifts, yields: false);
+                var areas = new LandmarkLabelOverlay(hud.ContourLabelLayer, placement, LabelPlacement.Areas,
+                                                     nudges: new[] { UnityEngine.Vector2.zero, new UnityEngine.Vector2(0, -24), new UnityEngine.Vector2(0, 24) });
+                var trails = new LandmarkLabelOverlay(hud.ContourLabelLayer, placement, LabelPlacement.Trails);
+                lifts.SetLabels(new[] { ("NT7 Lift", new[] { new MountainPlanner.Presentation.Design.MapLabelSpot(p, new UnityEngine.Vector3(-100, 0, -30), new UnityEngine.Vector3(100, 0, 30)) }) });
+                areas.SetLandmarks(new[] { ("NT7 Area", p) });
+                trails.SetLabels(new[]
+                {
+                    ("NT7 Long run", new[] { Flat(p), Flat(q) }),
+                    ("NT7 Boxed in", new[] { Flat(p) }),
+                });
+                for (int f = 0; f < 3; f++)
+                {
+                    lifts.Update(camera, null, true);
+                    areas.Update(camera, null, true);
+                    trails.Update(camera, null, true);
+                    placement.Place();
+                    yield return Frames(1);
+                }
+                var root = hud.Document.rootVisualElement;
+                Label Named(string text) => root.Query<Label>(className: "landmark-label").Where(l => l.text == text).First();
+                bool Shown(string text) => Named(text).style.display == DisplayStyle.Flex;
+                Assert.That(placement.Placed, Is.EqualTo(3), "the lift, the Area and the long run");
+                Assert.That(Shown("NT7 Lift") && Shown("NT7 Area") && Shown("NT7 Long run"), Is.True);
+                Assert.That(Shown("NT7 Boxed in"), Is.False, "nowhere free: hidden");
+                float slant = Named("NT7 Lift").style.rotate.value.angle.value;
+                Assert.That(UnityEngine.Mathf.Abs(slant), Is.EqualTo(16.7f).Within(1f), "slanted along the lift's line, reading left to right");
+                Assert.That(Named("NT7 Area").style.translate.value.y.value, Is.Not.EqualTo(Named("NT7 Lift").style.translate.value.y.value).Within(1f),
+                            "the Area's name moved off the lift's");
+                Assert.That(Named("NT7 Long run").style.translate.value.x.value, Is.GreaterThan(Named("NT7 Lift").style.translate.value.x.value + 50),
+                            "the run's name took its second spot");
+                Assert.That((TestDelegate)placement.Place, new NUnit.Framework.Constraints.NotConstraint(new UnityEngine.TestTools.Constraints.AllocatingGCMemoryConstraint()));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+                foreach (var layer in hud.Document.rootVisualElement.Query("landmark-labels").ToList())
+                    if (layer.Q<Label>(className: "landmark-label")?.text.StartsWith("NT7 ") == true) layer.RemoveFromHierarchy();
+            }
+        }
+
+        static MountainPlanner.Presentation.Design.MapLabelSpot Flat(UnityEngine.Vector3 at) =>
+            new MountainPlanner.Presentation.Design.MapLabelSpot(at, at - new UnityEngine.Vector3(20, 0, 0), at + new UnityEngine.Vector3(20, 0, 0));
     }
 }

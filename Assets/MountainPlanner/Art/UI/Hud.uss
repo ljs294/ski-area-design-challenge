@@ -450,6 +450,11 @@
     -unity-text-outline-color: rgb(255, 255, 255);
     text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
 }
+/* A run's or a lift's name, centred on its line and slanted with it (NT7, owner 2026-10-26). */
+.landmark-label--along {
+    -unity-text-align: middle-center;
+    white-space: nowrap;
+}
 .contour-label {
     position: absolute;
     left: 0;

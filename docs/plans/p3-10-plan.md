@@ -54,8 +54,11 @@ regraded the ground at the cut.
   checks the draft's pairs only. Measured with the edit-timing tools against ≤100 ms preview and ≤250 ms commit.
 - **Analysis › Network (NT4):** a lift list (status, trails reachable), then trails with warnings; picking a lift
   highlights what its top reaches, with dashed path links (PA-08) and junction dots.
-- **Labels (NT7):** greedy placement by priority (lifts, then trails by length, then ID); a trail name tries a few spots
-  along its line before it hides; re-placed only after the camera moves.
+- **Labels (NT7, NT7 v2, NT23):** one pass places every set's names (`UI/LabelPlacement`): lifts (always shown), then
+  Areas (centre, just above, just below), then runs longest first (the middle of the line, then 32/68%, then 18/82%), then
+  landmarks; a name with no free spot hides. Boxes are tested slanted (separating axes). Run and lift names are centred on
+  their lines and slanted with them, read left to right, as the mockup sets them (NT23). A still camera places the same
+  names; nothing is allocated per frame.
 
 ## 4. Tests
 

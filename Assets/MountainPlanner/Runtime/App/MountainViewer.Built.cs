@@ -151,21 +151,24 @@ namespace MountainPlanner.App
         // ---------- lift names on the Labels layer (task 09, UI-16) ----------
 
         MountainPlanner.UI.LandmarkLabelOverlay _liftLabels;
-        readonly List<(string Name, Vector3 At)> _liftLabelSpots = new List<(string, Vector3)>();
+        readonly List<(string Name, MapLabelSpot[] Spots)> _liftLabelSpots = new List<(string, MapLabelSpot[])>();
 
-        // Each lift's name at the middle of its line, a little over the ground (rebuilt when the design changes).
+        // Each lift's name centred on its line and slanted with it (NT7), rebuilt when the design changes; lift names
+        // always show (NT7: lift labels win).
         void LabelLifts(DesignDocument doc)
         {
             if (Hud == null || _resort == null) return;
             _liftLabelSpots.Clear();
             foreach (var l in doc.Lifts)
             {
-                var mid = (DesignFrame.ToLocal(l.Bottom) + DesignFrame.ToLocal(l.Top)) / 2;
-                _liftLabelSpots.Add((l.Name, new Vector3(mid.x, _resort.Surface.HeightAt(mid.x, mid.y) + 12, mid.y)));
+                Vector2 a = DesignFrame.ToLocal(l.Bottom), b = DesignFrame.ToLocal(l.Top), mid = (a + b) / 2;
+                _liftLabelSpots.Add((l.Name, new[] { new MapLabelSpot(OnGround(mid), OnGround(a), OnGround(b)) }));
             }
-            _liftLabels ??= new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer);
-            _liftLabels.SetLandmarks(_liftLabelSpots);
+            _liftLabels ??= new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer, _labelPlacement, MountainPlanner.UI.LabelPlacement.Lifts, yields: false);
+            _liftLabels.SetLabels(_liftLabelSpots);
         }
+
+        Vector3 OnGround(Vector2 p) => new Vector3(p.x, _resort.Surface.HeightAt(p.x, p.y), p.y);
 
         // ---------- Analysis › Lifts (task 09) ----------
 

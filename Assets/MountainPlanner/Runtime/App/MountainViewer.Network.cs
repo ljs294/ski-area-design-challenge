@@ -182,7 +182,9 @@ namespace MountainPlanner.App
             }
             if (Hud != null && _resort != null)
             {
-                _areaLabels ??= new LandmarkLabelOverlay(Hud.ContourLabelLayer);
+                // NT7: an Area's name places after the lifts', tried on its centre, then just above, then just below.
+                _areaLabels ??= new LandmarkLabelOverlay(Hud.ContourLabelLayer, _labelPlacement, LabelPlacement.Areas,
+                                                         nudges: new[] { Vector2.zero, new Vector2(0, -24), new Vector2(0, 24) });
                 _areaLabels.SetLandmarks(_areaLabelSpots);
             }
             if (_pickArea != 0 && report.AreaAt(_pickArea) == null) _pickArea = 0;   // the hub changed: its pick goes

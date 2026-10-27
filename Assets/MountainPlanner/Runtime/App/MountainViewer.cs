@@ -74,6 +74,8 @@ namespace MountainPlanner.App
         ViewerOverlay _overlay;
         /// <summary>Landmark names in the HUD's UI Toolkit panel (no IMGUI, so nothing allocates per frame).</summary>
         MountainPlanner.UI.LandmarkLabelOverlay _landmarkLabels;
+        // Lift, Area, run and landmark names placed together so none overlap (NT7); placed each LateUpdate.
+        readonly MountainPlanner.UI.LabelPlacement _labelPlacement = new MountainPlanner.UI.LabelPlacement();
         /// <summary>Map layers (snow, trees) and info layers (slope, exposure, snow depth, contours): keys, the HUD's rows and the F1 panel.</summary>
         readonly MapLayers _layers = new MapLayers();
         /// <summary>Contour elevation labels (task 12b.2), and the label set they show (it changes with the units).</summary>
@@ -515,7 +517,7 @@ namespace MountainPlanner.App
             ViewCamera.PointerBlocked = PointerOverUi;
             ViewCamera.KeysBlocked = UiHasKeyboard;
             _contourLabels = new MountainPlanner.UI.ContourLabelOverlay(Hud.ContourLabelLayer);
-            _landmarkLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer);
+            _landmarkLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer, _labelPlacement, MountainPlanner.UI.LabelPlacement.Landmarks);
             var named = new System.Collections.Generic.List<(string, Vector3)>(_landmarks.Count);
             foreach (var landmark in _landmarks) named.Add((landmark.Name, landmark.LabelAt));
             _landmarkLabels.SetLandmarks(named);
@@ -604,6 +606,7 @@ namespace MountainPlanner.App
             TickTrailLayer(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);   // task 08
             TickNetwork(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);      // task P3-10
             TickCatchment(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);    // task P3-10, NT16
+            _labelPlacement.Place();   // every set's names at once, none overlapping (NT7)
             var set = _resort.ContourLabels[(int)DisplayUnits.Current];
             if (!ReferenceEquals(set, _contourLabelSet))
             {
