@@ -581,6 +581,7 @@ The owner said "Go. Yes to all nine recommendations."
 | NT38 | **"Continues Run 1":** when a new trail's top lands on another's bottom (or its bottom on another's top), New trail's review offers to add it to that trail, ticked by default |
 | NT39 | **Inside Edit sections, Ctrl+Z / Ctrl+Y undo and redo one click;** Esc asks "Discard these changes?" when anything changed; Done (Enter) applies all as one undoable step |
 | NT40 | **Automatic names are shown and editable before Done** and in reviews; cutting "Upper Run 4" gives "Upper Run 4" and "Lower Run 4", never "Upper Upper"; a typed name beats a "Run N" default |
+| NT42 | **Hidden trail nodes** (finding S1, owner 2026-10-27: "plan for some generosity, as with hubs, but these hubs must NOT be shown to the player or have names"): section ends within **100 ft** of each other (NW-14's station reach) are one node, so they meet end to end for a trail's sections. Follow-up (owner: "nodes that are close together automatically merge … could make pathfinding better"): **every network node** within 100 ft merges (section ends, junctions, path ends; lift stations still win), so the graph has no slivers. Under the hood: derived, never saved, never named; the map only **draws the lines meeting** at the merged point (ends and ground stay as built) |
 | NT41 | **A cut node is shared:** Move ends on one section moves both sections; the review shows both |
 
 ## Phase 3 task 15, terrain brush: decided 2026-10-26

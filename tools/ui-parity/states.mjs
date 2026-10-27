@@ -32,6 +32,7 @@ export const STATES = [
   { name: 'tool-sections-takeout', mockup: 'trailtakeout', p3: true },
   { name: 'tool-sections-middle', mockup: 'trailmiddle', p3: true },
   { name: 'tool-sections-near', mockup: 'trailnear', p3: true },
+  { name: 'tool-sections-nearjoin', mockup: 'trailnearjoin', p3: true },
   { name: 'tool-sections-cut', mockup: 'trailcut', p3: true },
   { name: 'tool-sections-cutbad', mockup: 'trailcutbad', p3: true },
   { name: 'tool-sections-esc', mockup: 'trailsecsundo', p3: true },

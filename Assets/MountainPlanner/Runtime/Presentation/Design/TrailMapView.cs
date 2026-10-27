@@ -27,6 +27,7 @@ namespace MountainPlanner.Presentation.Design
             public Trail Trail;
             public TrailFootprint Footprint;
             public Vector2[] Line;   // local x/z metres
+            public Vector2[] Drawn;  // Line, its ends carried to the hidden nodes they're in (NT42)
             public SlopeBands.Band Band;
             public double Rating = double.NaN, Mean = double.NaN, Steepest = double.NaN;
             public double LengthMetres, DropMetres;
@@ -99,6 +100,7 @@ namespace MountainPlanner.Presentation.Design
             _ground.Heights = heights;
             _ground.Frame = frame;
             var seen = new HashSet<TrailId>();
+            var nodes = TrailNodes.Of(doc);
             int slot = CasingSlot + 1;
             _slots.Clear();
             foreach (var t in doc.Trails)
@@ -108,12 +110,13 @@ namespace MountainPlanner.Presentation.Design
                 if (!_shapes.TryGetValue(t.Id, out var s) || !ReferenceEquals(s.Trail, t)) _shapes[t.Id] = s = Build(t, heights, frame, earthwork);
                 Rate(s, heights, earthwork);
                 if (s.Line == null) continue;
+                s.Drawn = Joined(s.Line, nodes, t);
                 _slots.Add((t.Id, slot));
-                _lines.Line(slot++, s.Line, s.Line.Length, InkOf(s));
+                _lines.Line(slot++, s.Drawn, s.Drawn.Length, InkOf(s));
                 if (labels != null)
                 {
                     string symbol = t.Stage == WorkStage.Plan ? "" : Symbol(s.Band) + " ";
-                    labels.Add((symbol + t.Name, LabelSpots(s.Line), s.LengthMetres));
+                    labels.Add((symbol + t.Name, LabelSpots(s.Drawn), s.LengthMetres));
                 }
             }
             _lines.HideFrom(slot);
@@ -138,8 +141,8 @@ namespace MountainPlanner.Presentation.Design
 
         void DrawCasing()
         {
-            if (_focus.IsNone || !_shapes.TryGetValue(_focus, out var s) || s.Line == null) { _lines.Hide(CasingSlot); return; }
-            _lines.Line(CasingSlot, s.Line, s.Line.Length, PreviewInk.Casing);
+            if (_focus.IsNone || !_shapes.TryGetValue(_focus, out var s) || s.Drawn == null) { _lines.Hide(CasingSlot); return; }
+            _lines.Line(CasingSlot, s.Drawn, s.Drawn.Length, PreviewInk.Casing);
             _lines.SetWidth(CasingSlot, 2.4f, behind: true);
         }
 
@@ -149,6 +152,29 @@ namespace MountainPlanner.Presentation.Design
         public World.ITerrainSurface Ground => _ground;
 
         public int VisibleParts => _lines.Visible;
+
+        /// <summary>
+        /// NT42 (owner, 2026-10-27): where a section's end shares a hidden node with others, its line is drawn on to the
+        /// node's point, so lines that meet look met. Only the drawing: the painted ends, the ground and the save stay as
+        /// built, and nothing marks or names the node. The line itself when neither end moves.
+        /// </summary>
+        static Vector2[] Joined(Vector2[] line, TrailNodes nodes, Trail t)
+        {
+            ulong head = nodes.HeadNode(t.Id), tail = nodes.TailNode(t.Id);
+            bool h = head != 0 && nodes.CountOf(head) > 1, k = tail != 0 && nodes.CountOf(tail) > 1;
+            Vector2 Local(ulong node) { var p = nodes.PointOf(node); return new Vector2((float)p.XMetres, (float)p.YMetres); }
+            var from = h ? Local(head) : line[0];
+            var to = k ? Local(tail) : line[line.Length - 1];
+            h &= (from - line[0]).sqrMagnitude > 0.25f;
+            k &= (to - line[line.Length - 1]).sqrMagnitude > 0.25f;
+            if (!h && !k) return line;
+            var drawn = new Vector2[line.Length + (h ? 1 : 0) + (k ? 1 : 0)];
+            int at = 0;
+            if (h) drawn[at++] = from;
+            Array.Copy(line, 0, drawn, at, line.Length);
+            if (k) drawn[drawn.Length - 1] = to;
+            return drawn;
+        }
 
         static PreviewInk InkOf(Shape s)
         {

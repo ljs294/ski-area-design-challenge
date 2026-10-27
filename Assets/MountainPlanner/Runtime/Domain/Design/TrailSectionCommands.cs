@@ -94,8 +94,8 @@ namespace MountainPlanner.Domain.Design
                         var top = work.FindTrail(members[0]);
                         var bottom = work.FindTrail(members[members.Count - 1]);
                         if (t.Stage != top.Stage) return Invalid(doc, "A trail is all planned or all built (NT32).");
-                        if (TrailLines.Chains(bottom, t)) members.Add(op.Section);
-                        else if (TrailLines.Chains(t, top)) members.Insert(0, op.Section);
+                        if (TrailLines.Chains(work, bottom, t)) members.Add(op.Section);
+                        else if (TrailLines.Chains(work, t, top)) members.Insert(0, op.Section);
                         else return Invalid(doc, $"That section doesn't meet {name}'s top or bottom end to end.");
                         released.Remove(op.Section);
                         break;

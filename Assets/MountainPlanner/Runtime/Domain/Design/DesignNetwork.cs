@@ -342,7 +342,8 @@ namespace MountainPlanner.Domain.Design
                         stops[l.Trail.Value].Add(new Stop(Clamp(l.AlongMm, length), l.Station));
             }
 
-            // Segments (NW-08): each trail cut at its stops, from head towards tail.
+            // Ends: an end in a station (NW-14: within 100 ft of a terminal) is that station; an end another trail landed on
+            // is that junction; otherwise the trail has its own end node.
             foreach (var t in trails)
             {
                 int length = lengths[t.Id.Value];
@@ -353,8 +354,6 @@ namespace MountainPlanner.Domain.Design
                     headTaken |= s.AlongMm == 0;
                     tailTaken |= s.AlongMm == length;
                 }
-                // An end in a station (NW-14: within 100 ft of a terminal) is that station; an end another trail landed
-                // on is that junction; otherwise the trail has its own end node.
                 ulong head = DesignStations.At(stations, t.Head.Value)?.Id ?? 0;
                 if (head != 0) list.Add(new Stop(0, head));
                 else if (!headTaken)
@@ -371,6 +370,27 @@ namespace MountainPlanner.Domain.Design
                     AddNode(tail, NodeKind.TrailTail, t.Tail.Value);
                     list.Add(new Stop(length, tail));
                 }
+            }
+
+            // NT42: nodes within 100 ft of each other are one (under the hood: never named, never drawn as a node).
+            var merged = MergeClose(doc, nodes, stops, trails, lengths);
+            ulong Merged(ulong id) => merged.TryGetValue(id, out ulong to) ? to : id;
+            if (merged.Count > 0)
+                for (int i = edges.Count - 1; i >= 0; i--)
+                {
+                    var e = edges[i];
+                    if (e.Kind != EdgeKind.Path) continue;
+                    ulong from = Merged(e.From), to = Merged(e.To);
+                    if (from == to) edges.RemoveAt(i);   // a path whose two ends became one node
+                    else if (from != e.From || to != e.To) edges[i] = new NetworkEdge(from, to, e.Kind, e.Owner, e.StartMm, e.EndMm);
+                }
+
+            // Segments (NW-08): each trail cut at its stops, from head towards tail; a stretch between two stops of one
+            // node is no segment.
+            foreach (var t in trails)
+            {
+                var list = stops[t.Id.Value];
+                for (int i = 0; i < list.Count; i++) list[i] = new Stop(list[i].AlongMm, Merged(list[i].Node));
                 list.Sort((x, y) => x.AlongMm != y.AlongMm ? x.AlongMm.CompareTo(y.AlongMm) : x.Node.CompareTo(y.Node));
                 for (int i = 1; i < list.Count; i++)
                 {
@@ -393,6 +413,122 @@ namespace MountainPlanner.Domain.Design
                 return c;
             });
             return new NetworkGraph(nodeArray, edgeArray, stations);
+        }
+
+        /// <summary>
+        /// NT42 (owner, 2026-10-27): the nodes that are one. Section ends merge as <see cref="TrailNodes"/> has them (the
+        /// rule a trail's sections chain by), into a station when one of them is in it; then junctions and path ends join
+        /// any node within 100 ft, closest first, but never two different end nodes together, so the network and the
+        /// sections agree. Stations never merge with each other, and a merge that would leave a trail no segment is
+        /// skipped. Returns each merged node's new ID (a station's, else the lowest of its members'); the merged nodes are
+        /// replaced in <paramref name="nodes"/>, at the mean of their places, as junctions.
+        /// </summary>
+        static Dictionary<ulong, ulong> MergeClose(DesignDocument doc, Dictionary<ulong, NetworkNode> nodes, Dictionary<ulong, List<Stop>> stops,
+                                                   List<Trail> trails, Dictionary<ulong, int> lengths)
+        {
+            var ids = new List<ulong>(nodes.Keys);
+            ids.Sort();
+            var index = new Dictionary<ulong, int>(ids.Count);
+            for (int i = 0; i < ids.Count; i++) index[ids[i]] = i;
+            int n = ids.Count;
+            var parent = new int[n];
+            var members = new List<List<int>>(n);
+            var cluster = new ulong[n];   // the TrailNodes node a set holds ends of, or 0
+            for (int i = 0; i < n; i++) { parent[i] = i; members.Add(new List<int> { i }); }
+            var trailsAt = new Dictionary<ulong, List<ulong>>();   // node: the trails stopping there
+            foreach (var t in trails)
+                foreach (var st in stops[t.Id.Value])
+                {
+                    if (!trailsAt.TryGetValue(st.Node, out var list)) trailsAt[st.Node] = list = new List<ulong>();
+                    list.Add(t.Id.Value);
+                }
+            bool IsStation(int i) => nodes[ids[i]].Kind == NodeKind.Station;
+            int Find(int i) { while (parent[i] != i) i = parent[i] = parent[parent[i]]; return i; }
+            void Union(int a, int b, bool ends)
+            {
+                int ra = Find(a), rb = Find(b);
+                if (ra == rb) return;
+                bool sa = members[ra].Exists(IsStation), sb = members[rb].Exists(IsStation);
+                if (sa && sb) return;                                                             // stations never merge
+                if (!ends && cluster[ra] != 0 && cluster[rb] != 0 && cluster[ra] != cluster[rb]) return;
+                // a trail whose every stop would be this one node keeps its segment
+                var touched = new HashSet<ulong>();
+                foreach (int m in members[ra]) if (trailsAt.TryGetValue(ids[m], out var ts)) touched.UnionWith(ts);
+                foreach (ulong tr in touched)
+                {
+                    bool all = true;
+                    foreach (var st in stops[tr]) { int r = Find(index[st.Node]); if (r != ra && r != rb) { all = false; break; } }
+                    if (all) return;
+                }
+                int root = sa ? ra : sb ? rb : Math.Min(ra, rb), other = root == ra ? rb : ra;
+                parent[other] = root;
+                members[root].AddRange(members[other]);
+                if (cluster[root] == 0) cluster[root] = cluster[other];
+            }
+
+            // 1. The ends, as TrailNodes merges them (only built trails take part in the network).
+            var nodesOf = TrailNodes.Of(doc);
+            var byCluster = new SortedDictionary<ulong, List<int>>();
+            foreach (var t in trails)
+            {
+                foreach (var st in stops[t.Id.Value])
+                {
+                    bool head = st.AlongMm == 0, tail = st.AlongMm == lengths[t.Id.Value];
+                    if (!head && !tail) continue;
+                    ulong c = head ? nodesOf.HeadNode(t.Id) : nodesOf.TailNode(t.Id);
+                    if (c == 0) continue;
+                    if (!byCluster.TryGetValue(c, out var list)) byCluster[c] = list = new List<int>();
+                    list.Add(index[st.Node]);
+                }
+            }
+            foreach (var kv in byCluster)
+            {
+                var list = kv.Value;
+                list.Sort();
+                foreach (int i in list) if (cluster[Find(i)] == 0) cluster[Find(i)] = kv.Key;
+                for (int i = 1; i < list.Count; i++) Union(list[0], list[i], true);
+            }
+
+            // 2. Junctions and path ends join any node within 100 ft, closest first.
+            long reach2 = (long)TrailNodes.ReachMm * TrailNodes.ReachMm;
+            var pairs = new List<(long d2, int a, int b)>();
+            for (int a = 0; a < n; a++)
+            {
+                var na = nodes[ids[a]];
+                if (na.Kind == NodeKind.Station) continue;
+                for (int b = a + 1; b < n; b++)
+                {
+                    var nb = nodes[ids[b]];
+                    if (nb.Kind == NodeKind.Station) continue;
+                    bool loose = na.Kind == NodeKind.Junction || na.Kind == NodeKind.PathEnd || nb.Kind == NodeKind.Junction || nb.Kind == NodeKind.PathEnd;
+                    if (!loose) continue;
+                    long d2 = na.At.DistanceSquared(nb.At);
+                    if (d2 <= reach2) pairs.Add((d2, a, b));
+                }
+            }
+            pairs.Sort((x, y) => x.d2 != y.d2 ? x.d2.CompareTo(y.d2) : x.a != y.a ? x.a.CompareTo(y.a) : x.b.CompareTo(y.b));
+            foreach (var (_, a, b) in pairs) Union(a, b, false);
+
+            // The merged nodes: a station's ID and place, else the lowest member's ID at the mean of their places.
+            var merged = new Dictionary<ulong, ulong>();
+            for (int r = 0; r < n; r++)
+            {
+                if (Find(r) != r || members[r].Count < 2) continue;
+                int st = -1, low = members[r][0];
+                long x = 0, y = 0;
+                foreach (int m in members[r])
+                {
+                    if (IsStation(m)) st = m;
+                    if (m < low) low = m;
+                    x += nodes[ids[m]].At.X;
+                    y += nodes[ids[m]].At.Y;
+                }
+                ulong rep = ids[st >= 0 ? st : low];
+                var at = st >= 0 ? nodes[rep].At : new PointMm((int)(x / members[r].Count), (int)(y / members[r].Count));
+                foreach (int m in members[r]) if (ids[m] != rep) { merged[ids[m]] = rep; nodes.Remove(ids[m]); }
+                nodes[rep] = new NetworkNode(rep, st >= 0 ? NodeKind.Station : NodeKind.Junction, at);
+            }
+            return merged;
         }
 
         public static ulong LiftBottomNode(ulong seed, LiftId lift) => DesignKey.Hash(seed, DesignKey.LiftBottomTag, lift.Value);

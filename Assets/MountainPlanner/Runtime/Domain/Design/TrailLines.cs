@@ -78,12 +78,16 @@ namespace MountainPlanner.Domain.Design
         }
 
         /// <summary>
-        /// Whether <paramref name="lower"/> carries on from <paramref name="upper"/>: the upper's tail on the lower's head
-        /// (a shared cut node, or within TR-05's 30 ft), both with ends, one stage (NT26, NT32).
+        /// Whether <paramref name="lower"/> carries on from <paramref name="upper"/> in <paramref name="doc"/>: the upper's
+        /// tail and the lower's head in one hidden node (NT42: ends within 100 ft), one stage (NT26, NT32).
         /// </summary>
-        public static bool Chains(Trail upper, Trail lower) =>
-            upper.Tail.HasValue && lower.Head.HasValue && upper.Stage == lower.Stage
-            && upper.Tail.Value.Within(lower.Head.Value, DesignUnits.SnapMm);
+        public static bool Chains(DesignDocument doc, Trail upper, Trail lower)
+        {
+            if (!upper.Tail.HasValue || !lower.Head.HasValue || upper.Stage != lower.Stage) return false;
+            var nodes = doc.Nodes;
+            ulong a = nodes.TailNode(upper.Id);
+            return a != 0 && a == nodes.HeadNode(lower.Id);
+        }
 
         /// <summary>
         /// Puts the document right after a change (NT26–NT28): a saved trail that no longer runs end to end becomes
@@ -114,7 +118,7 @@ namespace MountainPlanner.Domain.Design
                 pieces.Clear();
                 foreach (var t in members)
                 {
-                    if (pieces.Count == 0 || !Chains(pieces[pieces.Count - 1][pieces[pieces.Count - 1].Count - 1], t)) pieces.Add(new List<Trail>());
+                    if (pieces.Count == 0 || !Chains(doc, pieces[pieces.Count - 1][pieces[pieces.Count - 1].Count - 1], t)) pieces.Add(new List<Trail>());
                     pieces[pieces.Count - 1].Add(t);
                 }
                 if (pieces.Count != 1 || members.Count != line.Sections.Count) changed = true;
@@ -221,7 +225,7 @@ namespace MountainPlanner.Domain.Design
                 foreach (var t in doc.Trails)   // ID order: a tie takes the lower ID
                 {
                     if (came.ContainsKey(t.Id.Value) || line.Holds(t.Id)) continue;
-                    if (!(down ? Chains(at, t) : Chains(t, at))) continue;
+                    if (!(down ? Chains(doc, at, t) : Chains(doc, t, at))) continue;
                     came[t.Id.Value] = at.Id.Value;
                     if (t.Id == target)
                     {
