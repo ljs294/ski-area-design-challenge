@@ -145,7 +145,93 @@ namespace MountainPlanner.App
         void StartSectionShots(string[] args)
         {
             int i = Array.IndexOf(args, "-sectionshots");
-            if (i >= 0 && i + 1 < args.Length) StartCoroutine(SectionShots(args[i + 1]));
+            if (i < 0 || i + 1 >= args.Length) return;
+            int j = Array.IndexOf(args, "-sectionjoin");   // -sectionjoin "Run 20" "Run 26": that join instead of the tour
+            if (j >= 0 && j + 2 < args.Length) StartCoroutine(JoinShots(args[i + 1], args[j + 1].Replace('_', ' '), args[j + 2].Replace('_', ' ')));   // Run_20: no quoting through the lanes
+            else StartCoroutine(SectionShots(args[i + 1]));
+        }
+
+        /// <summary>
+        /// -sectionjoin <from> <to> (owner request, 2026-10-27): the network map over both trails, then Edit sections on
+        /// <paramref name="from"/> with a left-click on <paramref name="to"/>'s nearest reachable section (everything on the
+        /// way added), Done, and the network map again; taken back after, so the save is untouched.
+        /// </summary>
+        System.Collections.IEnumerator JoinShots(string dir, string from, string to)
+        {
+            System.IO.Directory.CreateDirectory(dir);
+            while (_resort == null || !_resort.CoverReady.IsCompleted || _edits == null || WorkBusy || _sections == null || NetworkBusy || _tools == null)
+                yield return null;
+            for (int k = 0; k < 30; k++) yield return null;
+            ResolvedTrail a = null, b = null;
+            foreach (var t in _sections.Trails) { if (t.Name == from && a == null) a = t; if (t.Name == to && b == null) b = t; }
+            if (a == null || b == null || !_trailRowLine.ContainsKey(a.Id.Value) || !_trailRowLine.ContainsKey(b.Id.Value))
+            { Debug.LogWarning($"[JoinShots] no trail named {(a == null ? from : to)}"); Application.Quit(); yield break; }
+            Debug.Log($"[JoinShots] {a.Name}: {a.Segments.Count} sections; {b.Name}: {b.Segments.Count} sections");
+            FrameSections(_trailRowLine[a.Id.Value], _trailRowLine[b.Id.Value]);
+            Hud.SetAnalysisTab("network");
+            Hud.SetAnalysis(true);
+            yield return Shot(dir, "1-network-before");
+            Hud.SetAnalysis(false);
+            for (int k = 0; k < 10; k++) yield return null;
+            yield return Shot(dir, "2-map-before");
+
+            _toolScripted = true;
+            ChooseTrailRow(EditTrailTool.ToolId, a.Id.Value);
+            var tool = _tools.Active as TrailTool;
+            for (int f = 0; f < 3000 && tool != null && (tool.PickedTrail == null || tool.SectionsBusy); f++) { _tools.Tick(default); yield return null; }
+            if (tool?.PickedTrail == null) { Debug.LogWarning("[JoinShots] Edit trail picked no trail"); Application.Quit(); yield break; }
+            tool.PressEditSections();
+            var session = tool.Session;
+            // The target trail's sections in the session's own trails: the one a click reaches with the shortest route.
+            Segment target = null;
+            List<Segment> best = null;
+            var bTop = b.Segments[0];
+            var bTrail = session.Sections.TrailOf(session.Sections.SegmentAt(bTop.Piece, bTop.StartMm + 1));
+            if (bTrail != null)
+                foreach (var s in bTrail.Segments)
+                {
+                    var route = TrailSectionsEdit.Route(session.Sections, session.Trail, s);
+                    if (route != null && (best == null || route.Count < best.Count)) { best = route; target = s; }
+                }
+            if (target == null)
+            {
+                if (bTrail != null) tool.HoverSection(bTrail.Segments[0]);
+                Debug.LogWarning($"[JoinShots] no route from {a.Name} to {b.Name}");
+                yield return Shot(dir, "3-no-route");
+                _toolScripted = false;
+                _tools.Close();
+                Application.Quit();
+                yield break;
+            }
+            var names = new List<string>();
+            foreach (var s in best) names.Add($"{Design.Document.FindTrail(s.Piece)?.Name} {s.StartMm / 304.8:0}-{s.EndMm / 304.8:0} ft");
+            Debug.Log($"[JoinShots] a click on {b.Name} adds {best.Count}: {string.Join(", ", names)}");
+            tool.HoverSection(target);
+            yield return Shot(dir, "3-hover-join");
+            tool.ClickSection(target, false);
+            for (int f = 0; f < 3000 && tool.SectionsBusy; f++) { _tools.Tick(default); yield return null; }
+            yield return Shot(dir, "4-joined-session");
+            var joined = session.Trail;
+            Debug.Log($"[JoinShots] {joined?.Name} now {joined?.Segments.Count} sections; was {a.Segments.Count}");
+            var before = _sections;
+            tool.FinishSections();
+            _toolScripted = false;
+            _tools.Close();
+            Hud.SetToolbox(false);
+            for (int f = 0; f < 3000 && (NetworkBusy || WorkBusy || _sections == before); f++) yield return null;
+            foreach (var t in _sections.Trails)
+                if (t.Name == from || t.Name == to || t.Name.EndsWith(" " + to) || t.Name.EndsWith(" " + from))
+                    Debug.Log($"[JoinShots] after: {t.Name}, {t.Segments.Count} sections");
+            yield return Shot(dir, "5-map-after");
+            Hud.SetAnalysisTab("network");
+            Hud.SetAnalysis(true);
+            yield return Shot(dir, "6-network-after");
+            Hud.SetAnalysisTab("trails");
+            yield return Shot(dir, "7-analysis-after");
+            Hud.SetAnalysis(false);
+            Design?.Undo();   // the save stays as it was
+            Debug.Log("[JoinShots] finished");
+            Application.Quit();
         }
 
         // The camera over a trail (and the run a click reaches), clear of the tool window on the left and the profile
