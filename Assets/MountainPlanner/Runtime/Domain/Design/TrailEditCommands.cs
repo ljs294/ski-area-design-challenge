@@ -41,18 +41,17 @@ namespace MountainPlanner.Domain.Design
             if (t.Stage == WorkStage.Built && Stage == WorkStage.Plan) return Invalid(doc, "A built trail stays built; remove it instead.");
             var edited = t.WithName(Name).WithParts(Parts).WithEnds(Head, Tail).WithSettings(Settings).WithStage(Stage);
             if (Same(t, edited)) return Invalid(doc, "Nothing changes.");
-            var next = doc.PutTrail(edited.WithName(t.Name));
-            // NT32: building one section builds its whole trail; NT24: the name is the trail's.
+            var next = doc.PutTrail(edited);
+            // NT32: building one run builds every run of the shaped trails it's in.
             if (Stage == WorkStage.Built && t.Stage == WorkStage.Plan)
-                foreach (var section in doc.LineOf(Trail).Sections)
+                foreach (var piece in TrailLines.PiecesWith(doc, Trail))
                 {
-                    if (section == Trail) continue;
-                    var other = next.FindTrail(section);
+                    if (piece == Trail) continue;
+                    var other = next.FindTrail(piece);
                     if (other.Stage == WorkStage.Built) continue;
                     if (!other.HasEnds) return Invalid(doc, $"{other.Name} needs a head and a tail before it can be built.");
                     next = next.PutTrail(other.WithStage(WorkStage.Built));
                 }
-            if (Name != t.Name) next = TrailLines.Rename(next, Trail, Name);
             return CommandResult.Accept(next);
         }
 

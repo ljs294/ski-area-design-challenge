@@ -26,18 +26,21 @@ namespace MountainPlanner.Persistence.Saves
     /// the site's centre (TE5) and each later one's as the change from the one before, each with its weight in thousandths.
     /// The design's "Areas" (v5, NW-15) are the Areas the player has named: each its ID, name and the lift ends it held
     /// ("End" is "bottom" or "top"); empty in a v1–v4 save.
-    /// The design's "TrailLines" (v6, owner NT24) are the trails made of two or more sections: each its ID, name and its
-    /// sections' trail IDs, top first; every section also carries the name. A section in none is a trail on its own, so
-    /// the list is empty in a v1–v5 save.
+    /// The design's "TrailLines" (v7, owner NT43) are the trails the player shaped: each its ID, name and spans of runs, top
+    /// first. A span is a run ("Piece") between two nodes, each by its anchor ("Kind" "head", "tail", "lands" on "Other"'s
+    /// "End" head or tail, the "K"-th crossing with "Other" as "crosses", a "station" by "Other" lift's "End" bottom or
+    /// top, or a "cut" "At" a point), with "FromMm" and "ToMm" along the run as saved. A v6 save's sections are whole runs.
+    /// The design's "Cuts" (v7, NT45) are the points the player cut on runs, by run then point.
     /// <code>
-    /// { "Version": 6, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 6, "Seed", "NextOrdinal", "Trails": [...],
+    /// { "Version": 7, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 7, "Seed", "NextOrdinal", "Trails": [...],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
     ///                            "Levels": { "BottomMm", "TopMm" } or null } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
     ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "Dabs": [...] } ],
     ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ],
-    ///               "TrailLines": [ { "Id", "Name", "Sections": [ "&lt;trail id&gt;", ... ] } ] },
+    ///               "TrailLines": [ { "Id", "Name", "Spans": [ { "Piece", "From": {...}, "To": {...}, "FromMm", "ToMm" } ] } ],
+    ///               "Cuts": [ { "Piece", "At" } ] },
     ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] } }
     /// </code>
     /// </summary>
@@ -118,14 +121,78 @@ namespace MountainPlanner.Persistence.Saves
                 w.WriteStartObject();
                 w.WritePropertyName("Id"); w.WriteValue(Hex(line.Id.Value));
                 w.WritePropertyName("Name"); w.WriteValue(line.Name);
-                w.WritePropertyName("Sections");
+                w.WritePropertyName("Spans");
                 w.WriteStartArray();
-                foreach (var s in line.Sections) w.WriteValue(Hex(s.Value));
+                foreach (var sp in line.Spans)
+                {
+                    w.WriteStartObject();
+                    w.WritePropertyName("Piece"); w.WriteValue(Hex(sp.Piece.Value));
+                    w.WritePropertyName("From"); WriteAnchor(w, sp.From);
+                    w.WritePropertyName("To"); WriteAnchor(w, sp.To);
+                    w.WritePropertyName("FromMm"); w.WriteValue(sp.FromMm);
+                    w.WritePropertyName("ToMm"); w.WriteValue(sp.ToMm);
+                    w.WriteEndObject();
+                }
                 w.WriteEndArray();
                 w.WriteEndObject();
             }
             w.WriteEndArray();
+            w.WritePropertyName("Cuts");
+            w.WriteStartArray();
+            foreach (var c in d.Cuts)
+            {
+                w.WriteStartObject();
+                w.WritePropertyName("Piece"); w.WriteValue(Hex(c.Piece.Value));
+                w.WritePropertyName("At"); WritePoint(w, c.At);
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
             w.WriteEndObject();
+        }
+
+        // An anchor writes only what its kind uses (NT43).
+        static void WriteAnchor(JsonWriter w, Anchor a)
+        {
+            w.WriteStartObject();
+            w.WritePropertyName("Kind"); w.WriteValue(AnchorWord(a.Kind));
+            if (a.Kind == AnchorKind.Lands || a.Kind == AnchorKind.Crosses || a.Kind == AnchorKind.Station) { w.WritePropertyName("Other"); w.WriteValue(Hex(a.Other)); }
+            if (a.Kind == AnchorKind.Lands) { w.WritePropertyName("End"); w.WriteValue(a.End ? "head" : "tail"); }
+            if (a.Kind == AnchorKind.Station) { w.WritePropertyName("End"); w.WriteValue(a.End ? "bottom" : "top"); }
+            if (a.Kind == AnchorKind.Crosses) { w.WritePropertyName("K"); w.WriteValue(a.K); }
+            if (a.Kind == AnchorKind.Cut) { w.WritePropertyName("At"); WritePoint(w, a.At); }
+            w.WriteEndObject();
+        }
+
+        static string AnchorWord(AnchorKind k) => k switch
+        {
+            AnchorKind.Head => "head", AnchorKind.Tail => "tail", AnchorKind.Lands => "lands",
+            AnchorKind.Crosses => "crosses", AnchorKind.Station => "station", AnchorKind.Cut => "cut",
+            _ => throw new FormatException("an anchor isn't one this build knows"),
+        };
+
+        static Anchor ReadAnchor(JObject o)
+        {
+            string kind = Str(o, "Kind");
+            switch (kind)
+            {
+                case "head": return Anchor.Head;
+                case "tail": return Anchor.Tail;
+                case "lands":
+                {
+                    string end = Str(o, "End");
+                    if (end != "head" && end != "tail") throw new FormatException($"'{end}' isn't a run's end");
+                    return Anchor.Lands(new TrailId(HexValue(Str(o, "Other"))), end == "head");
+                }
+                case "crosses": return Anchor.Crosses(new TrailId(HexValue(Str(o, "Other"))), Int(o, "K"));
+                case "station":
+                {
+                    string end = Str(o, "End");
+                    if (end != "bottom" && end != "top") throw new FormatException($"'{end}' isn't a lift end");
+                    return Anchor.Station(new LiftId(HexValue(Str(o, "Other"))), end == "bottom");
+                }
+                case "cut": return Anchor.Cut(Point(o, "At"));
+                default: throw new FormatException($"'{kind}' isn't an anchor");
+            }
         }
 
         static void WriteStroke(JsonWriter w, TerrainStroke k)
@@ -324,11 +391,21 @@ namespace MountainPlanner.Persistence.Saves
             }
         }
 
-        /// <summary>Trails as the player counts them (NT24): sections, less one for each extra section of a saved trail.</summary>
+        /// <summary>
+        /// Trails as Load Area counts them (NT43): the shaped trails, plus every run in none of them (the leftovers of a run
+        /// partly in one are counted with it; the game's own count comes from the nodes).
+        /// </summary>
         static int TrailCount(JObject d)
         {
-            int n = Arr(d, "Trails").Count;
-            foreach (var line in Arr(d, "TrailLines")) n -= Math.Max(0, Arr(AsObj(line), "Sections").Count - 1);
+            var shaped = new HashSet<string>();
+            int lines = 0;
+            foreach (var line in Arr(d, "TrailLines"))
+            {
+                lines++;
+                foreach (var sp in Arr(AsObj(line), "Spans")) shaped.Add(Str(AsObj(sp), "Piece"));
+            }
+            int n = lines;
+            foreach (var t in Arr(d, "Trails")) if (!shaped.Contains(Str(AsObj(t), "Id"))) n++;
             return n;
         }
 
@@ -362,15 +439,17 @@ namespace MountainPlanner.Persistence.Saves
             foreach (var l in Arr(d, "TrailLines"))
             {
                 var lo = AsObj(l);
-                var sections = new List<TrailId>();
-                foreach (var s in Arr(lo, "Sections"))
+                var spans = new List<Span>();
+                foreach (var s in Arr(lo, "Spans"))
                 {
-                    if (s.Type != JTokenType.String) throw new FormatException("a trail's section isn't an ID");
-                    sections.Add(new TrailId(HexValue((string)s)));
+                    var so = AsObj(s);
+                    spans.Add(new Span(new TrailId(HexValue(Str(so, "Piece"))), ReadAnchor(Obj(so, "From")), ReadAnchor(Obj(so, "To")), Int(so, "FromMm"), Int(so, "ToMm")));
                 }
-                lines.Add(new TrailLine(new TrailLineId(HexValue(Str(lo, "Id"))), Str(lo, "Name"), sections));
+                lines.Add(new TrailLine(new TrailLineId(HexValue(Str(lo, "Id"))), Str(lo, "Name"), spans));
             }
-            return DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines);
+            var cuts = new List<TrailCut>();
+            foreach (var c in Arr(d, "Cuts")) { var co = AsObj(c); cuts.Add(new TrailCut(new TrailId(HexValue(Str(co, "Piece"))), Point(co, "At"))); }
+            return DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts);
         }
 
         static TerrainStroke ReadStroke(JObject k)

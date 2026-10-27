@@ -83,6 +83,10 @@ namespace MountainPlanner.Tests
 
         public static byte[] Bytes(DesignHistory h) => DesignBytes.Encode(h.Document);
 
+        /// <summary>The trails as the player sees them (NT43), with straight runs and no junctions but their ends.</summary>
+        public static TrailSections Sections(DesignDocument doc) =>
+            TrailSections.Of(doc, DesignNetwork.Build(doc, null, WorkStage.Built), DesignNetwork.Build(doc, null, WorkStage.Plan));
+
         public static string Sha(byte[] bytes)
         {
             using var sha = SHA256.Create();

@@ -109,7 +109,7 @@ namespace MountainPlanner.Domain.Design
             if (t == null) return Missing(doc, "That trail");
             if (DesignRules.NameProblem(Name) is string p) return Invalid(doc, p);
             if (t.Name == Name) return Invalid(doc, "That's already its name.");
-            return CommandResult.Accept(TrailLines.Rename(doc, Trail, Name));   // the whole trail (NT24)
+            return CommandResult.Accept(doc.PutTrail(t.WithName(Name)));   // the run's own name (a shaped trail renames by ShapeTrails)
         }
     }
 
@@ -148,10 +148,9 @@ namespace MountainPlanner.Domain.Design
         protected override CommandResult Run(DesignDocument doc)
         {
             if (doc.FindTrail(Trail) == null) return Missing(doc, "That trail");
-            // NT33: the whole trail goes, every section of it.
-            var next = doc;
-            foreach (var s in doc.LineOf(Trail).Sections) next = next.RemoveTrail(s);
-            return CommandResult.Accept(next);
+            // The run goes; its spans in shaped trails go with it (TrailLines.Normalise). Remove trail (NT33) lists every
+            // run wholly in the trail, with a ShapeTrails for the rest.
+            return CommandResult.Accept(doc.RemoveTrail(Trail));
         }
     }
 

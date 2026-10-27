@@ -5,7 +5,7 @@ using System.IO;
 namespace MountainPlanner.Domain.Design
 {
     /// <summary>NW-02. <see cref="Station"/> (task 10, NW-14) stands for lift tops and bottoms since graph format 2.</summary>
-    public enum NodeKind : byte { LiftBottom = 1, LiftTop = 2, TrailHead = 3, TrailTail = 4, Junction = 5, PathEnd = 6, Station = 7 }
+    public enum NodeKind : byte { LiftBottom = 1, LiftTop = 2, TrailHead = 3, TrailTail = 4, Junction = 5, PathEnd = 6, Station = 7, Cut = 8 }
 
     public enum EdgeKind : byte { Lift = 1, TrailSegment = 2, Path = 3 }
 
@@ -113,6 +113,29 @@ namespace MountainPlanner.Domain.Design
         void FindPaths(DesignDocument doc, List<TrailPath> into);
     }
 
+    /// <summary>
+    /// A geometry that also knows planned runs (NT44: plans split among plans) and where a point falls along a run (NT45's
+    /// cut points). Without it, plans have no junctions and a cut falls along the straight line from head to tail.
+    /// </summary>
+    public interface IStagedTrailGeometry
+    {
+        void FindJunctions(DesignDocument doc, WorkStage stage, List<TrailJunction> into);
+        /// <summary>How far along the run's centreline (mm from the head) the point nearest <paramref name="p"/> is.</summary>
+        int AlongOf(Trail trail, PointMm p);
+    }
+
+    /// <summary>
+    /// A node on one run, in order from its head (owner NT43): where the run's segments start and end, what made it (its
+    /// <see cref="Anchor"/>, for a saved trail to find it again), and the network node it is, after NT42's merging.
+    /// </summary>
+    public readonly struct PieceStop
+    {
+        public readonly int AlongMm;
+        public readonly ulong Node;
+        public readonly Anchor Anchor;
+        public PieceStop(int alongMm, ulong node, Anchor anchor) { AlongMm = alongMm; Node = node; Anchor = anchor; }
+    }
+
     /// <summary>The derived ski network (NW-01): rebuilt from the document on every load and edit, never stored.</summary>
     public sealed class NetworkGraph
     {
@@ -126,12 +149,26 @@ namespace MountainPlanner.Domain.Design
         /// <summary>NW-14's stations, by ID; each is a node of kind <see cref="NodeKind.Station"/>.</summary>
         public IReadOnlyList<Station> Stations { get; }
 
-        internal NetworkGraph(NetworkNode[] nodes, NetworkEdge[] edges, IReadOnlyList<Station> stations)
+        /// <summary>The runs it was built for (NT44: plans and built runs have a graph each).</summary>
+        public WorkStage Stage { get; }
+
+        readonly Dictionary<ulong, PieceStop[]> _stops;
+
+        internal NetworkGraph(NetworkNode[] nodes, NetworkEdge[] edges, IReadOnlyList<Station> stations, WorkStage stage = WorkStage.Built,
+                              Dictionary<ulong, PieceStop[]> stops = null)
         {
             Nodes = nodes;
             Edges = edges;
             Stations = stations ?? Array.Empty<Station>();
+            Stage = stage;
+            _stops = stops ?? new Dictionary<ulong, PieceStop[]>();
         }
+
+        /// <summary>
+        /// A run's nodes, from its head (NT43): every stop the run was cut at, with what made it, several to a node where
+        /// NT42 merged them. Empty for a run not in this graph. Not part of <see cref="Encode"/>.
+        /// </summary>
+        public IReadOnlyList<PieceStop> StopsOf(TrailId piece) => _stops.TryGetValue(piece.Value, out var s) ? s : Array.Empty<PieceStop>();
 
         /// <summary>The station node holding a lift's top or bottom; 0 when the lift isn't built.</summary>
         public ulong StationOf(LiftId lift, bool top) => DesignStations.Of(Stations, lift, !top)?.Id ?? 0;
@@ -222,8 +259,10 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         public static readonly bool AutomaticPaths = false;
 
-        public static NetworkGraph Build(DesignDocument doc, ITrailGeometry geometry = null)
+        /// <param name="stage">NT44: built runs (the network) or planned runs (their own graph, for their sections).</param>
+        public static NetworkGraph Build(DesignDocument doc, ITrailGeometry geometry = null, WorkStage stage = WorkStage.Built)
         {
+            var staged = geometry as IStagedTrailGeometry;
             var nodes = new Dictionary<ulong, NetworkNode>(); // lookup only; output is sorted below
             var edges = new List<NetworkEdge>();
 
@@ -248,7 +287,7 @@ namespace MountainPlanner.Domain.Design
             var lengths = new Dictionary<ulong, int>();
             foreach (var t in doc.Trails)
             {
-                if (t.Stage != WorkStage.Built || !t.HasEnds) continue;
+                if (t.Stage != stage || !t.HasEnds) continue;
                 int length = geometry != null
                     ? geometry.CentrelineLengthMm(t)
                     : (int)Math.Min(int.MaxValue, Math.Round(Math.Sqrt(t.Head.Value.DistanceSquared(t.Tail.Value))));
@@ -261,10 +300,12 @@ namespace MountainPlanner.Domain.Design
             foreach (var t in trails) stops.Add(t.Id.Value, new List<Stop>());
 
             // Junctions (NW-07), normalised so A < B and put in a stable order.
-            if (geometry != null)
+            var crossings = new List<(ulong piece, ulong other, int along)>();
+            if (geometry != null && (stage == WorkStage.Built || staged != null))
             {
                 var found = new List<TrailJunction>();
-                geometry.FindJunctions(doc, found);
+                if (staged != null) staged.FindJunctions(doc, stage, found);
+                else geometry.FindJunctions(doc, found);
                 var junctions = new List<TrailJunction>();
                 foreach (var j in found)
                 {
@@ -286,8 +327,11 @@ namespace MountainPlanner.Domain.Design
                     ulong id = JunctionNode(doc.Seed, j.A, j.B, j.At);
                     if (nodes.ContainsKey(id)) continue; // the same junction reported twice
                     AddNode(id, NodeKind.Junction, j.At);
-                    stops[j.A.Value].Add(new Stop(Clamp(j.AlongAMm, lengths[j.A.Value]), id));
-                    stops[j.B.Value].Add(new Stop(Clamp(j.AlongBMm, lengths[j.B.Value]), id));
+                    int la = lengths[j.A.Value], lb = lengths[j.B.Value];
+                    int aa = Clamp(j.AlongAMm, la), ab = Clamp(j.AlongBMm, lb);
+                    stops[j.A.Value].Add(new Stop(aa, id, JunctionAnchor(aa, la, j.B, ab, lb)));
+                    stops[j.B.Value].Add(new Stop(ab, id, JunctionAnchor(ab, lb, j.A, aa, la)));
+                    if (aa > 0 && aa < la && ab > 0 && ab < lb) { crossings.Add((j.A.Value, j.B.Value, aa)); crossings.Add((j.B.Value, j.A.Value, ab)); }
                 }
 
                 // Paths (PA-05, PA-06), likewise; off for now (owner NT22).
@@ -339,7 +383,43 @@ namespace MountainPlanner.Domain.Design
                 links.Sort((x, y) => x.Trail != y.Trail ? x.Trail.CompareTo(y.Trail) : x.Station != y.Station ? x.Station.CompareTo(y.Station) : x.AlongMm.CompareTo(y.AlongMm));
                 foreach (var l in links)
                     if (lengths.TryGetValue(l.Trail.Value, out int length) && nodes.ContainsKey(l.Station))
-                        stops[l.Trail.Value].Add(new Stop(Clamp(l.AlongMm, length), l.Station));
+                    {
+                        Station st = null;
+                        foreach (var x in stations) if (x.Id == l.Station) { st = x; break; }
+                        var m = st != null && st.Members.Count > 0 ? st.Members[0] : default;
+                        stops[l.Trail.Value].Add(new Stop(Clamp(l.AlongMm, length), l.Station, Anchor.Station(m.Lift, m.Bottom)));
+                    }
+            }
+
+            // NT45: the points the player cut are nodes on their runs.
+            foreach (var c in doc.Cuts)
+            {
+                if (!lengths.TryGetValue(c.Piece.Value, out int length)) continue;
+                var t = doc.FindTrail(c.Piece);
+                int along = staged != null ? staged.AlongOf(t, c.At) : StraightAlong(t, c.At, length);
+                if (along <= 0 || along >= length) continue;
+                ulong id = DesignKey.Hash(doc.Seed, DesignKey.TrailHeadTag, c.Piece.Value, PackMetres(c.At) ^ 0x8000_0000_0000_0000UL);
+                AddNode(id, NodeKind.Cut, c.At);
+                stops[c.Piece.Value].Add(new Stop(along, id, Anchor.Cut(c.At)));
+            }
+
+            // Crossings counted along each run, so "the k-th crossing with that run" names one (NT43).
+            if (crossings.Count > 0)
+            {
+                crossings.Sort((x, y) => x.piece != y.piece ? x.piece.CompareTo(y.piece) : x.other != y.other ? x.other.CompareTo(y.other) : x.along.CompareTo(y.along));
+                var kOf = new Dictionary<(ulong, ulong, int), int>();
+                for (int i = 0, k = 0; i < crossings.Count; i++)
+                {
+                    k = i > 0 && crossings[i].piece == crossings[i - 1].piece && crossings[i].other == crossings[i - 1].other ? k + 1 : 0;
+                    kOf[crossings[i]] = k;
+                }
+                foreach (var t in trails)
+                {
+                    var list = stops[t.Id.Value];
+                    for (int i = 0; i < list.Count; i++)
+                        if (list[i].Anchor.Kind == AnchorKind.Crosses && kOf.TryGetValue((t.Id.Value, list[i].Anchor.Other, list[i].AlongMm), out int k))
+                            list[i] = new Stop(list[i].AlongMm, list[i].Node, Anchor.Crosses(new TrailId(list[i].Anchor.Other), k));
+                }
             }
 
             // Ends: an end in a station (NW-14: within 100 ft of a terminal) is that station; an end another trail landed on
@@ -355,20 +435,20 @@ namespace MountainPlanner.Domain.Design
                     tailTaken |= s.AlongMm == length;
                 }
                 ulong head = DesignStations.At(stations, t.Head.Value)?.Id ?? 0;
-                if (head != 0) list.Add(new Stop(0, head));
+                if (head != 0) list.Add(new Stop(0, head, Anchor.Head));
                 else if (!headTaken)
                 {
                     head = DesignKey.Hash(doc.Seed, DesignKey.TrailHeadTag, t.Id.Value);
                     AddNode(head, NodeKind.TrailHead, t.Head.Value);
-                    list.Add(new Stop(0, head));
+                    list.Add(new Stop(0, head, Anchor.Head));
                 }
                 ulong tail = DesignStations.At(stations, t.Tail.Value)?.Id ?? 0;
-                if (tail != 0) list.Add(new Stop(length, tail));
+                if (tail != 0) list.Add(new Stop(length, tail, Anchor.Tail));
                 else if (!tailTaken)
                 {
                     tail = DesignKey.Hash(doc.Seed, DesignKey.TrailTailTag, t.Id.Value);
                     AddNode(tail, NodeKind.TrailTail, t.Tail.Value);
-                    list.Add(new Stop(length, tail));
+                    list.Add(new Stop(length, tail, Anchor.Tail));
                 }
             }
 
@@ -386,12 +466,16 @@ namespace MountainPlanner.Domain.Design
                 }
 
             // Segments (NW-08): each trail cut at its stops, from head towards tail; a stretch between two stops of one
-            // node is no segment.
+            // node is no segment. Each run keeps its stops, with what made them, for its sections (NT43).
+            var pieceStops = new Dictionary<ulong, PieceStop[]>();
             foreach (var t in trails)
             {
                 var list = stops[t.Id.Value];
-                for (int i = 0; i < list.Count; i++) list[i] = new Stop(list[i].AlongMm, Merged(list[i].Node));
-                list.Sort((x, y) => x.AlongMm != y.AlongMm ? x.AlongMm.CompareTo(y.AlongMm) : x.Node.CompareTo(y.Node));
+                for (int i = 0; i < list.Count; i++) list[i] = new Stop(list[i].AlongMm, Merged(list[i].Node), list[i].Anchor);
+                list.Sort((x, y) => x.AlongMm != y.AlongMm ? x.AlongMm.CompareTo(y.AlongMm) : x.Node != y.Node ? x.Node.CompareTo(y.Node) : x.Anchor.Rank.CompareTo(y.Anchor.Rank));
+                var kept = new PieceStop[list.Count];
+                for (int i = 0; i < list.Count; i++) kept[i] = new PieceStop(list[i].AlongMm, list[i].Node, list[i].Anchor);
+                pieceStops.Add(t.Id.Value, kept);
                 for (int i = 1; i < list.Count; i++)
                 {
                     if (list[i].Node == list[i - 1].Node) continue;
@@ -412,7 +496,7 @@ namespace MountainPlanner.Domain.Design
                 if (c == 0) c = x.To.CompareTo(y.To);
                 return c;
             });
-            return new NetworkGraph(nodeArray, edgeArray, stations);
+            return new NetworkGraph(nodeArray, edgeArray, stations, stage, pieceStops);
         }
 
         /// <summary>
@@ -501,7 +585,7 @@ namespace MountainPlanner.Domain.Design
                     var nb = nodes[ids[b]];
                     if (nb.Kind == NodeKind.Station) continue;
                     bool loose = na.Kind == NodeKind.Junction || na.Kind == NodeKind.PathEnd || nb.Kind == NodeKind.Junction || nb.Kind == NodeKind.PathEnd;
-                    if (!loose) continue;
+                    if (!loose || na.Kind == NodeKind.Cut || nb.Kind == NodeKind.Cut) continue;   // a point the player cut stays (NT45)
                     long d2 = na.At.DistanceSquared(nb.At);
                     if (d2 <= reach2) pairs.Add((d2, a, b));
                 }
@@ -550,11 +634,33 @@ namespace MountainPlanner.Domain.Design
 
         static int Clamp(int along, int length) => along < 0 ? 0 : along > length ? length : along;
 
+        /// <summary>
+        /// What a junction is on one run (NT43): its own head or tail; the other run's head or tail landing on it; or a
+        /// crossing (numbered along the run afterwards).
+        /// </summary>
+        static Anchor JunctionAnchor(int along, int length, TrailId other, int otherAlong, int otherLength)
+        {
+            if (along == 0) return Anchor.Head;
+            if (along == length) return Anchor.Tail;
+            if (otherAlong == 0) return Anchor.Lands(other, true);
+            if (otherAlong == otherLength) return Anchor.Lands(other, false);
+            return Anchor.Crosses(other, 0);
+        }
+
+        /// <summary>Where a point falls along a run, on the straight line from its head to its tail (no geometry).</summary>
+        static int StraightAlong(Trail t, PointMm p, int length)
+        {
+            double hx = t.Head.Value.X, hy = t.Head.Value.Y, dx = t.Tail.Value.X - hx, dy = t.Tail.Value.Y - hy, l2 = dx * dx + dy * dy;
+            double f = l2 > 0 ? ((p.X - hx) * dx + (p.Y - hy) * dy) / l2 : 0;
+            return Clamp((int)Math.Round(Math.Max(0, Math.Min(1, f)) * length), length);
+        }
+
         readonly struct Stop
         {
             public readonly int AlongMm;
             public readonly ulong Node;
-            public Stop(int alongMm, ulong node) { AlongMm = alongMm; Node = node; }
+            public readonly Anchor Anchor;
+            public Stop(int alongMm, ulong node, Anchor anchor = default) { AlongMm = alongMm; Node = node; Anchor = anchor; }
         }
     }
 }

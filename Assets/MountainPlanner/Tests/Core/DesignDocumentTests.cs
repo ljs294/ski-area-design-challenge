@@ -19,7 +19,8 @@ namespace MountainPlanner.Tests
         // Shape 4 (task 15, BR12, owner OK with the plan 2026-10-26): the terrain strokes, none here; from 224681ef….
         // Shape 5 (task P3-10, NW-15, Master Planner ruling 2026-10-26): the named Areas, none here; from 0642d8d8….
         // Shape 6 (task P3-10, NT24, owner 2026-10-27): the trails of several sections, none here; from 4f6a0657….
-        const string GoldenSha = "fedff97fbf76a62bb699d4153beab2e4c13ba65cb81401ea6654e53187a7174b";
+        // Shape 7 (task P3-10, NT43–NT46, owner signed off 2026-10-27): spans with anchors and cut points, none here; from fedff97f….
+        const string GoldenSha = "0cae4a87da6f7ed2b99828ae3056733004b8f69634291bb229bf862884ba1b80";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()
@@ -61,8 +62,11 @@ namespace MountainPlanner.Tests
         {
             // The authored shape, property by property (SH-05, NW-06, TW-15). A new property is a format change for
             // task 04 (bump ShapeVersion, migrate, fixture) and must never be derived data.
-            AssertProperties(typeof(DesignDocument), "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "Lines");
-            AssertProperties(typeof(TrailLine), "Id", "Name", "Sections", "Saved", "Top", "Bottom");   // NT24: a trail's sections, top first
+            AssertProperties(typeof(DesignDocument), "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "Lines", "Cuts");
+            AssertProperties(typeof(TrailLine), "Id", "Name", "Spans");   // NT43: a shaped trail, spans of runs top first
+            AssertFields(typeof(Span), "Piece", "From", "To", "FromMm", "ToMm");
+            AssertFields(typeof(Anchor), "Kind", "Other", "End", "K", "At");
+            AssertFields(typeof(TrailCut), "Piece", "At");
             AssertProperties(typeof(AreaRecord), "Id", "Name", "Ends");   // NW-15 (task P3-10): the player's names, not the hubs
             AssertFields(typeof(AreaEnd), "Lift", "Bottom");
             AssertProperties(typeof(Trail), "Id", "Name", "Stage", "Settings", "Parts", "Head", "Tail", "HasEnds");
@@ -77,7 +81,7 @@ namespace MountainPlanner.Tests
             AssertProperties(typeof(TerrainStroke), "Id", "Settings", "Dabs");
             AssertFields(typeof(BrushSettings), "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm", "StartMm", "StartAt", "TargetAt", "LimitMm");
             AssertFields(typeof(BrushDab), "At", "WeightPermille");
-            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(6));
+            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(7));
         }
 
         static void AssertProperties(Type type, params string[] names)
