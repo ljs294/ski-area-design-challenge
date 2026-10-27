@@ -34,7 +34,10 @@ export const STATES = [
   { name: 'tool-sections-near', mockup: 'trailnear', p3: true },
   { name: 'tool-sections-nearjoin', mockup: 'trailnearjoin', p3: true },
   { name: 'tool-sections-cut', mockup: 'trailcut', p3: true },
-  { name: 'tool-sections-cutbad', mockup: 'trailcutbad', p3: true },
+  { name: 'tool-sections-cutbend', mockup: 'trailcutbend', p3: true },
+  { name: 'tool-sections-junction', mockup: 'trailjunction', p3: true },
+  { name: 'tool-sections-reroute', mockup: 'trailreroute', p3: true },
+  { name: 'tool-sections-rerouted', mockup: 'trailrerouted', p3: true },
   { name: 'tool-sections-esc', mockup: 'trailsecsundo', p3: true },
   { name: 'tool-trail-continue', mockup: 'trailcontinue', p3: true },
   // Task P3-15: the Terrain tab's four brushes mid-stroke, and Break ground's review.
