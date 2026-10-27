@@ -11,7 +11,7 @@ namespace MountainPlanner.Tests
     public sealed class DesignNetworkTests
     {
         /// <summary>The scripted design's graph bytes with the stub geometry below. Pinned like the document golden.</summary>
-        const string GoldenGraphSha = "a8a73c5ac7eed37b9eafc58faebeb3bf414fa343c1b4e32a5fe3e5ecd97d7057";
+        const string GoldenGraphSha = "5afff60b5267c580720fb16bd6ca567c728278c49ed24e45a2b1717df63af273";
 
         /// <summary>Straight-line centrelines, plus whatever junctions and paths a test lists (in any order).</summary>
         sealed class StubGeometry : ITrailGeometry
@@ -82,7 +82,7 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void NW08_TrailsAreCutIntoSegmentsAtJunctionsAndPathEnds()
+        public void NW08_TrailsAreCutIntoSegmentsAtJunctions()
         {
             var h = new DesignHistory(DesignDocument.Empty(1));
             var a = AddTrail(h, "A", P(0, 3000), P(0, 0));
@@ -95,20 +95,19 @@ namespace MountainPlanner.Tests
             var graph = DesignNetwork.Build(h.Document, g);
 
             var aSegments = graph.Edges.Where(e => e.Owner == a.Value).OrderBy(e => e.StartMm).ToArray();
-            Assert.That(aSegments.Select(e => (e.StartMm, e.EndMm)), Is.EqualTo(new[] { (0, Ft(1500)), (Ft(1500), Ft(2000)), (Ft(2000), Ft(3000)) }));
+            Assert.That(aSegments.Select(e => (e.StartMm, e.EndMm)), Is.EqualTo(new[] { (0, Ft(2000)), (Ft(2000), Ft(3000)) }), "NT22: no cut at a path's end");
             var junction = DesignNetwork.JunctionNode(1, a, b, P(0, 1000));
-            Assert.That(aSegments[1].To, Is.EqualTo(junction));
+            Assert.That(aSegments[0].To, Is.EqualTo(junction));
             var bSegments = graph.Edges.Where(e => e.Owner == b.Value).ToArray();
             Assert.That(bSegments.Length, Is.EqualTo(1));
             Assert.That(bSegments[0].To, Is.EqualTo(junction), "B's tail is the junction, not a node of its own");
             Assert.That(graph.Nodes.Count(n => n.Kind == NodeKind.TrailTail), Is.EqualTo(2), "A and C keep their tails");
 
-            var paths = graph.Edges.Where(e => e.Kind == EdgeKind.Path).ToArray();
-            Assert.That(paths.Length, Is.EqualTo(2), "PA-06: a level path runs both ways");
-            Assert.That(paths[0].From, Is.EqualTo(paths[1].To));
+            Assert.That(graph.Edges.Any(e => e.Kind == EdgeKind.Path), Is.False, "NT22: automatic paths are off, so the path found adds nothing");
+            Assert.That(graph.Nodes.Any(n => n.Kind == NodeKind.PathEnd), Is.False);
         }
 
-        [Test]
+        [Test, Ignore("NT22: automatic paths are off for now")]
         public void PA06_APathRunsOneWayWhenItsEndsDiffer()
         {
             var h = new DesignHistory(DesignDocument.Empty(1));

@@ -35,7 +35,7 @@ namespace MountainPlanner.Tests
         static void TrailStatusOf(DesignDocument doc, NetworkReport report, string name, out NetworkReport.TrailStatus status) =>
             status = report.Of(doc.Trails.Single(t => t.Name == name).Id);
 
-        [Test]
+        [Test, Ignore("NT22: automatic paths are off for now")]
         public void NW03_ALiftIsConnectedThroughAPath()
         {
             var h = new DesignHistory(DesignDocument.Empty(3));
@@ -178,7 +178,7 @@ namespace MountainPlanner.Tests
             Assert.That(report.ReachFrom(12345UL).Nodes, Is.Empty, "a node not in the graph");
         }
 
-        [Test]
+        [Test, Ignore("NT22: automatic paths are off for now")]
         public void NW13_Finding7_APathEndReachesAcrossThePath()
         {
             var h = new DesignHistory(DesignDocument.Empty(3));

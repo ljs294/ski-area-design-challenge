@@ -764,6 +764,9 @@ uses closed-form stand-ins, all in Domain and deterministic:
 
 Paths are automatic: you never draw one. They connect trails that come close without touching.
 
+**Off for now (owner NT22, 2026-10-26):** PA-05 to PA-08 are switched off; the network adds no paths, and trails meet
+only where they touch, cross or share a station. The rules below stay for when paths come back as a deliberate feature.
+
 - **PA-01 to PA-04:** *retired.* Drawn connector paths are replaced by PA-05 to PA-08.
 - **PA-05, automatic paths:**
   - Where two trails' footprints come within **30 ft (9.1 m)** of each other without touching, the network adds a

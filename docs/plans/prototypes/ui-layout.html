@@ -2454,7 +2454,7 @@ body.solo .frame { border-radius: 0; }
   // their terminals, so the coarse map needs the wider stand-in). v2 (NT17, NT18): a station's area is the rounded hull of
   // its terminals (their convex hull grown by the reach), and stations whose areas touch merge, again and again, so a hub
   // grows as more joins it; a merge that would hold both ends of one lift is skipped.
-  const NET = { reach: 20, line: 30 / FT_PX, path: 6.9 };
+  const NET = { reach: 20, line: 30 / FT_PX, path: 6.9, paths: false };   // NT22 (owner, 2026-10-26): automatic paths off for now
   const cross3 = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
   // The convex hull (monotone chain, counter-clockwise in the map's own x, y); one or two points stay as they are.
   function hullOf(pts) {
@@ -2616,7 +2616,7 @@ body.solo .frame { border-radius: 0; }
     for (let i = 0; i < trails.length; i++) for (let k = i + 1; k < trails.length; k++) {
       const A = trails[i], B = trails[k], xs = crossings(A.pts, B.pts);
       for (const x of xs) junction(x.p, [[A, x.a], [B, x.b]]);
-      if (xs.length || stops[A.id].some((q) => stops[B.id].some((r) => r.n === q.n))) continue;
+      if (!NET.paths || xs.length || stops[A.id].some((q) => stops[B.id].some((r) => r.n === q.n))) continue;   // NT22: paths off for now
       let best = null;
       for (const [F, T] of [[A, B], [B, A]]) for (const p of F.pts) { const r = lineNear(p, T.pts); if (r.d > NET.line && r.d <= NET.path && (!best || r.d < best.d)) best = { d: r.d, from: F, to: T, p, r }; }
       if (!best) continue;
@@ -2697,11 +2697,11 @@ body.solo .frame { border-radius: 0; }
     const acols = 'grid-template-columns:1.9fr 0.55fr 0.85fr 0.9fr';
     const arows = n.areas.map((a) => `<div class="r arow${S.netNode === a.id ? ' on' : ''}" style="${acols}" data-act="netarea" data-v="${a.id}" data-ui="network-area-${a.id}"><span class="nm">${esc(a.name)}</span><span class="n">${a.st.lifts.length}</span><span class="n">${a.here}</span><span class="n">${a.reach.reach.size}</span></div>`).join('');
     const line = lw || warnT.length ? `<span style="color:var(--warn)">${[lw ? `${plural(lw, 'lift')} with no way down` : '', warnT.length ? `${plural(warnT.length, 'trail')} to look at` : ''].filter(Boolean).join(' · ')}</span>` : 'Every lift has a way down';
-    return `<div class="atools" data-ui="network-tools"><span>${plural(n.lifts.length, 'lift')} · ${plural(n.trails.length, 'trail')} · ${plural(n.areas.length, 'area')} · ${plural(n.junctions.length, 'junction')} · ${plural(n.paths.length, 'path')}</span><span style="margin-left:auto">${line}</span></div>
+    return `<div class="atools" data-ui="network-tools"><span>${plural(n.lifts.length, 'lift')} · ${plural(n.trails.length, 'trail')} · ${plural(n.areas.length, 'area')} · ${plural(n.junctions.length, 'junction')}</span><span style="margin-left:auto">${line}</span></div>
       <div class="tbl"><div class="r th" style="${cols}"><span>Lift</span><span class="n">Trails reached</span><span class="n">Status</span></div>${rows}</div>
       ${n.areas.length ? `<div class="tbl" style="margin-top:8px" data-ui="network-areas"><div class="r th" style="${acols}"><span>Area</span><span class="n">Lifts</span><span class="n">Trails here</span><span class="n">Trails reached</span></div>${arows}</div>` : ''}
       ${warnT.length ? `<div class="tbl" style="margin-top:8px"><div class="r th" style="${tcols}"><span>Trail</span><span class="n">Warning</span></div>${trows}</div>` : ''}
-      <div class="tbl"><div class="foot">A lift is connected when a way down from its top reaches a lift's bottom. A terminal gathers every trail within 100 ft of it, and terminals that close together share one area, so you can unload and ride on; two or more lifts sharing one make an Area, which you can name. Click a lift, a trail or a node, here or on the map, to light up everything you can ski to from it (Esc clears it); dashed links are paths between trails that pass within 30 ft.</div></div>`;
+      <div class="tbl"><div class="foot">A lift is connected when a way down from its top reaches a lift's bottom. A terminal gathers every trail within 100 ft of it, and terminals that close together share one area, so you can unload and ride on; two or more lifts sharing one make an Area, which you can name. Click a lift, a trail or a node, here or on the map, to light up everything you can ski to from it (Esc clears it).</div></div>`;
   }
   // The Network view (owner, 2026-10-25: "a more specific layer where the background looks much different"): while
   // Analysis › Network is open the mountain goes to a dark grey relief and the network draws as a diagram, not as the

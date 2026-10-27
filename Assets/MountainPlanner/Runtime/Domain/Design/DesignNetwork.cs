@@ -215,6 +215,13 @@ namespace MountainPlanner.Domain.Design
     /// </summary>
     public static class DesignNetwork
     {
+        /// <summary>
+        /// PA-05 to PA-08, automatic paths between trails that pass within 30 ft: off for now (owner NT22, 2026-10-26: "a
+        /// lot of little paths connecting trails in places where the trees are thin … I do not want this feature yet").
+        /// The geometry still finds them; the network adds none.
+        /// </summary>
+        public static readonly bool AutomaticPaths = false;
+
         public static NetworkGraph Build(DesignDocument doc, ITrailGeometry geometry = null)
         {
             var nodes = new Dictionary<ulong, NetworkNode>(); // lookup only; output is sorted below
@@ -283,9 +290,9 @@ namespace MountainPlanner.Domain.Design
                     stops[j.B.Value].Add(new Stop(Clamp(j.AlongBMm, lengths[j.B.Value]), id));
                 }
 
-                // Paths (PA-05, PA-06), likewise.
+                // Paths (PA-05, PA-06), likewise; off for now (owner NT22).
                 var foundPaths = new List<TrailPath>();
-                geometry.FindPaths(doc, foundPaths);
+                if (AutomaticPaths) geometry.FindPaths(doc, foundPaths);
                 var paths = new List<TrailPath>();
                 foreach (var p in foundPaths)
                 {

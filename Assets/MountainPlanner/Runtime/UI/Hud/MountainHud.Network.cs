@@ -141,7 +141,7 @@ namespace MountainPlanner.UI
             if (noWay > 0 && warnings.Count > 0) state = $"{Plural(noWay, "lift")} with no way down · {Plural(warnings.Count, "trail")} to look at";
             else if (noWay > 0) state = $"{Plural(noWay, "lift")} with no way down";
             else if (warnings.Count > 0) state = $"{Plural(warnings.Count, "trail")} to look at";
-            _networkLine.text = $"{Plural(lifts.Count, "lift")} · {Plural(trails, "trail")} · {Plural(areas.Count, "area")} · {Plural(junctions, "junction")} · {Plural(paths, "path")}   {state}";
+            _networkLine.text = $"{Plural(lifts.Count, "lift")} · {Plural(trails, "trail")} · {Plural(areas.Count, "area")} · {Plural(junctions, "junction")}   {state}";   // NT22: no paths for now
             _networkLine.EnableInClassList("an-network__line--warn", noWay > 0 || warnings.Count > 0);
             _networkLiftCount = lifts.Count;
             _networkTrailCount = trails;
@@ -203,7 +203,7 @@ namespace MountainPlanner.UI
                 _legendBody.Add(LegendRow(Hex(0xe0483a), false, "Lift, going up", ""));
                 _legendBody.Add(LegendRow(Hex(0xdfe8ee), false, "Run, going down", ""));
                 _legendBody.Add(LegendRow(Hex(0xf0b43c), false, "No lift serves it, or leads nowhere", ""));
-                _legendBody.Add(LegendRow(Color.white, false, "Junction, or a path between runs", ""));
+                _legendBody.Add(LegendRow(Color.white, false, "Junction", ""));
                 _legendBody.Add(LegendAreaRow("Lift terminals, 100 ft around"));
                 // Game finding 1: "Reachable", its swatch the colours things light in: green, blue, black runs and red lifts.
                 _legendBody.Add(LegendStripeRow(new[] { Hex(0x1f8a4c), Hex(0x2f6bb0), Hex(0x1f1c19), Hex(0xe0483a) }, "Reachable"));

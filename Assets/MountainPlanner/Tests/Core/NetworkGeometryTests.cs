@@ -123,7 +123,7 @@ namespace MountainPlanner.Tests
             Assert.That(paths.Count, Is.EqualTo(0));
         }
 
-        [Test]
+        [Test, Ignore("NT22: automatic paths are off for now")]
         public void PA06_APathRunsDownhillOrBothWaysWithin3Ft()
         {
             var h = new DesignHistory(DesignDocument.Empty(7));
