@@ -33,6 +33,11 @@ Saved files from each frozen format version. The rules are in
   dabs delta-coded. v1, v2 and v3 saves migrate with no strokes. `SaveFileTests` checks that the writer reproduces it
   byte for byte, and that every older fixture opens through v3 → v4 unchanged.
 
+- **`v5-save/Saves/5792676e513f5302/save-001/`** is the same save in format v5 (task P3-10, NW-15): the design (shape 5)
+  gains `Areas`, the names the player gave Areas, each with the lift ends it held; here one, "Teton Village". v1 to v4
+  saves migrate with no Areas named. `SaveFileTests` checks that the writer reproduces it byte for byte, and that every
+  older fixture opens through v4 → v5 unchanged.
+
 **`demo/`** holds files from a future version (format 99), for `demo.bat` 44 and 45. Each has only what the refusal
 reads: a version number, and a name for the greyed library row.
 

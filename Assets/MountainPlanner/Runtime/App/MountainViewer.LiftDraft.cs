@@ -16,6 +16,7 @@ namespace MountainPlanner.App
         int _draftPart = int.MinValue;   // the draft's part under the pointer (F1), int.MinValue for none
         bool _draftLit, _draftLitShown;  // a part of the draft lit (the selected tower or terminal, UI-15)
         int _draftLitPart = int.MinValue;
+        Lift _draftLift;   // the draft shown now (NT16's catchment rings round its terminals), or null
 
         // The selected part lit white (int.MinValue for none), as a hovered lift is.
         void HighlightDraftPart(int part)
@@ -34,6 +35,7 @@ namespace MountainPlanner.App
         // Redrawn when the tool's draft changes (a placement, an edit), never per frame.
         void ShowDraftLift(Lift lift)
         {
+            _draftLift = null;
             if (lift == null || lift.Towers.Count == 0 || _resort == null || _edits == null || Lifts == null || _liftMaterials == null)
             {
                 if (_draftView != null) _draftView.Root.SetActive(false);
@@ -54,6 +56,7 @@ namespace MountainPlanner.App
                 return;
             }
             _draftView.Root.SetActive(_liftsShown);
+            _draftLift = lift;
             _draftLit = _draftLitPart != int.MinValue;
             _draftView.HighlightPart(_draftLitPart);
             DraftMilliseconds = (System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
@@ -88,6 +91,7 @@ namespace MountainPlanner.App
             _towerGhost = null;
             _hiddenLiftId = 0;
             _draftPart = int.MinValue;
+            _draftLift = null;
         }
     }
 }

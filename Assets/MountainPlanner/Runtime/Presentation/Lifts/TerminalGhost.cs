@@ -34,6 +34,9 @@ namespace MountainPlanner.Presentation.Lifts
         /// <summary>Where it stands now (its origin, at its level) and which way it faces (+Z toward the other terminal).</summary>
         public Vector3 Origin => _instance != null ? _instance.transform.position : Vector3.zero;
         public Quaternion Rotation => _instance != null ? _instance.transform.rotation : Quaternion.identity;
+        /// <summary>The bullwheel point it was last shown at (local metres; NW-14's catchment ring centres on it).</summary>
+        public Vector3 Bullwheel { get; private set; }
+        public bool Shown => _instance != null && _instance.activeSelf;
 
         public TerminalGhost(Transform parent, LiftModelSet models)
         {
@@ -67,6 +70,7 @@ namespace MountainPlanner.Presentation.Lifts
             if (assetId != _model || _instance == null) Make(assetId);
             if (_instance == null) return;
             if (!_instance.activeSelf) _instance.SetActive(true);
+            Bullwheel = bullwheel;
             facing.y = 0;
             var rotation = facing.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(facing.normalized) : Quaternion.identity;
             var origin = bullwheel - rotation * _centre;

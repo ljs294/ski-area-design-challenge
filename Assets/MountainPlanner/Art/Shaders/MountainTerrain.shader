@@ -579,7 +579,8 @@ Shader "MountainPlanner/Terrain"
                 if (_MP_InfoView > 0.5)
                 {
                     float3 info;
-                    if (_MP_InfoView > 3.5) info = SnowDepthColour(SnowDepthMetres(i.positionWS));
+                    if (_MP_InfoView > 4.5) info = NetworkReliefColour;   // task P3-10: the Network view
+                    else if (_MP_InfoView > 3.5) info = SnowDepthColour(SnowDepthMetres(i.positionWS));
                     else
                     {
                         float2 rise = HeightGradient(i.uv);

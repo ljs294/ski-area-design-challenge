@@ -11,6 +11,9 @@ namespace MountainPlanner.Domain.Design
         public Trail Trail { get; internal set; }
         public TrailFootprint Footprint { get; internal set; }
         public TrailCentreline.Result Centreline { get; internal set; }
+        /// <summary>Whether <see cref="Centreline"/> is the trail's own (TR-03 on its own footprint and ends); false for a
+        /// part of a split pair graded as one (NT2), whose line is the pair's, cut at its ends.</summary>
+        public bool CentrelineIsOwn { get; internal set; } = true;
         /// <summary>Null when no centreline joins the ends.</summary>
         public TrailGrader.Graded Grade { get; internal set; }
         /// <summary>What it does to the ground.</summary>
@@ -20,7 +23,7 @@ namespace MountainPlanner.Domain.Design
     /// <summary>
     /// The built trails as earthwork (TL3, task 08): each in creation order, graded over the ground the earlier trails
     /// left (TF-10: it keeps off the points they claim), never within 15 ft of a built lift's tower base or terminal
-    /// (TF-11).
+    /// (TF-11). The parts of a split trail grade as one (NT2, <see cref="TrailChains"/>), so Split changes no ground.
     /// </summary>
     public sealed class TrailEarthwork : IEarthworkContributor
     {
@@ -61,12 +64,18 @@ namespace MountainPlanner.Domain.Design
         {
             Dictionary<ulong, long> order = null;
             List<Keep> rounds = null;
-            foreach (var t in doc.Trails)
+            var built = new List<Trail>();
+            foreach (var t in doc.Trails) if (t.Stage == WorkStage.Built && t.HasEnds) built.Add(t);
+            if (built.Count == 0) return;
+            order = Ordinals(doc);
+            rounds = Rounds(doc, site);
+            foreach (var chain in TrailChains.Of(built))
             {
-                if (t.Stage != WorkStage.Built || !t.HasEnds) continue;
-                order = order ?? Ordinals(doc);
-                rounds = rounds ?? Rounds(doc, site);
-                into.Add(new Item(t, doc.Seed, order.TryGetValue(t.Id.Value, out long o) ? o : long.MaxValue, site, rounds));
+                var top = chain[0];
+                long o = order.TryGetValue(top.Id.Value, out long v) ? v : long.MaxValue;
+                into.Add(chain.Count == 1
+                    ? new Item(top, null, doc.Seed, o, site, rounds)
+                    : new Item(TrailChains.Whole(chain), chain.ToArray(), doc.Seed, o, site, rounds));
             }
         }
 
@@ -108,13 +117,17 @@ namespace MountainPlanner.Domain.Design
         sealed class Item : IEarthworkItem
         {
             readonly Trail _trail;
+            /// <summary>NT2: the parts of a split chain, top first, which <see cref="_trail"/> (the chain as one) grades for;
+            /// null for a trail on its own.</summary>
+            readonly Trail[] _members;
             readonly EarthworkSite _site;
             readonly Keep[] _rounds;
             readonly ulong _seed;
 
-            public Item(Trail trail, ulong seed, long order, EarthworkSite site, List<Keep> rounds)
+            public Item(Trail trail, Trail[] members, ulong seed, long order, EarthworkSite site, List<Keep> rounds)
             {
                 _trail = trail;
+                _members = members;
                 _seed = seed;
                 _site = site;
                 Order = order;
@@ -189,13 +202,24 @@ namespace MountainPlanner.Domain.Design
             public bool SameAs(IEarthworkItem other)
             {
                 if (!(other is Item o)) return false;
-                if (o._seed != _seed) return false;
+                if (o._seed != _seed || !SameMembers(o)) return false;
                 if (ReferenceEquals(o._trail, _trail) && SameRounds(o)) return true;
                 var a = _trail;
                 var b = o._trail;
                 if (!a.Settings.Equals(b.Settings) || a.Head != b.Head || a.Tail != b.Tail || a.Parts.Count != b.Parts.Count) return false;
                 for (int i = 0; i < a.Parts.Count; i++) if (!a.Parts[i].Equals(b.Parts[i])) return false;
                 return SameRounds(o);
+            }
+
+            bool SameMembers(Item o)
+            {
+                if ((_members == null) != (o._members == null)) return false;
+                if (_members == null) return true;
+                if (_members.Length != o._members.Length) return false;
+                for (int i = 0; i < _members.Length; i++)
+                    if (_members[i].Id != o._members[i].Id || _members[i].Head != o._members[i].Head || _members[i].Tail != o._members[i].Tail)
+                        return false;
+                return true;
             }
 
             bool SameRounds(Item o)
@@ -208,7 +232,7 @@ namespace MountainPlanner.Domain.Design
             public EarthworkWrites Build(EditedHeights ground, EarthworkContext context, out object detail)
             {
                 var build = Grade(_trail, ground, _site, _seed, context.ClaimedEarlier, _rounds);
-                detail = build;
+                detail = _members == null ? (object)build : TrailChains.Parts(build, _members, _site);
                 return build.Writes;
             }
         }

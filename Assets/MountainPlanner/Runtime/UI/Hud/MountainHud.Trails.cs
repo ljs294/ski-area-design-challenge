@@ -141,6 +141,7 @@ namespace MountainPlanner.UI
             FillTrailCard();
             _trailCard.RemoveFromClassList("hidden");
             TrailFocused?.Invoke(id);
+            CardsChanged(false);   // task P3-10, NT12
         }
 
         void FillTrailCard()
@@ -176,6 +177,7 @@ namespace MountainPlanner.UI
             _trailsList?.SetFocused(0);
             _trailCard?.AddToClassList("hidden");
             TrailFocused?.Invoke(0);
+            CardsChanged(true);   // task P3-10, NT11/NT12
         }
 
         /// <summary>Whether a trail's card is open (Esc closes it first).</summary>

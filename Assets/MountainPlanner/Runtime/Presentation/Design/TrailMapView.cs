@@ -89,11 +89,11 @@ namespace MountainPlanner.Presentation.Design
         }
 
         /// <summary>
-        /// Redraws every trail in <paramref name="doc"/>; <paramref name="labels"/> gets each one's name and the world
-        /// point its label sits on (the middle of its line).
+        /// Redraws every trail in <paramref name="doc"/>; <paramref name="labels"/> gets each one's name, the spots its
+        /// label may sit on along its line (the middle first, NT7) and the line's length.
         /// </summary>
-        public void Rebuild(DesignDocument doc, EditedHeights heights, LocalFrame frame, DesignEarthwork earthwork, List<(string Name, Vector3 At)> labels,
-                            World.ITerrainSurface surface)
+        public void Rebuild(DesignDocument doc, EditedHeights heights, LocalFrame frame, DesignEarthwork earthwork,
+                            List<(string Name, MapLabelSpot[] Spots, double Length)> labels, World.ITerrainSurface surface)
         {
             labels?.Clear();
             _ground.Heights = heights;
@@ -112,10 +112,8 @@ namespace MountainPlanner.Presentation.Design
                 _lines.Line(slot++, s.Line, s.Line.Length, InkOf(s));
                 if (labels != null)
                 {
-                    var mid = s.Line[s.Line.Length / 2];
-                    float y = _ground.HeightAt(mid.x, mid.y);
                     string symbol = t.Stage == WorkStage.Plan ? "" : Symbol(s.Band) + " ";
-                    labels.Add((symbol + t.Name, new Vector3(mid.x, float.IsNaN(y) ? 0 : y, mid.y)));
+                    labels.Add((symbol + t.Name, LabelSpots(s.Line), s.LengthMetres));
                 }
             }
             _lines.HideFrom(slot);
@@ -156,6 +154,41 @@ namespace MountainPlanner.Presentation.Design
         {
             if (s.Trail.Stage == WorkStage.Plan) return PreviewInk.Plan;
             return s.Band == SlopeBands.Band.Green ? PreviewInk.RatingGreen : s.Band == SlopeBands.Band.Blue ? PreviewInk.RatingBlue : PreviewInk.RatingBlack;
+        }
+
+        // Where a run's name may sit (NT7): the middle of its line first, then further out either way; each slanted along
+        // the line 20 m either side (less on a short run).
+        static readonly float[] LabelAlong = { 0.5f, 0.32f, 0.68f, 0.18f, 0.82f };
+
+        MapLabelSpot[] LabelSpots(Vector2[] line)
+        {
+            if (line.Length < 2)
+            {
+                float y = _ground.HeightAt(line[0].x, line[0].y);
+                return new[] { MapLabelSpot.Upright(new Vector3(line[0].x, float.IsNaN(y) ? 0 : y, line[0].y)) };
+            }
+            var run = new float[line.Length];
+            for (int k = 1; k < line.Length; k++) run[k] = run[k - 1] + Vector2.Distance(line[k - 1], line[k]);
+            float total = run[line.Length - 1], side = Mathf.Min(20, total / 4);
+            var spots = new MapLabelSpot[LabelAlong.Length];
+            for (int k = 0; k < spots.Length; k++)
+            {
+                float at = total * LabelAlong[k];
+                spots[k] = new MapLabelSpot(OnLine(line, run, at), OnLine(line, run, at - side), OnLine(line, run, at + side));
+            }
+            return spots;
+        }
+
+        // The point <paramref name="at"/> metres along the line, on the ground.
+        Vector3 OnLine(Vector2[] line, float[] run, float at)
+        {
+            at = Mathf.Clamp(at, 0, run[run.Length - 1]);
+            int k = 1;
+            while (k < line.Length - 1 && run[k] < at) k++;
+            float span = run[k] - run[k - 1];
+            var p = span > 0 ? Vector2.Lerp(line[k - 1], line[k], (at - run[k - 1]) / span) : line[k];
+            float y = _ground.HeightAt(p.x, p.y);
+            return new Vector3(p.x, float.IsNaN(y) ? 0 : y, p.y);
         }
 
         public static string Symbol(SlopeBands.Band band) =>

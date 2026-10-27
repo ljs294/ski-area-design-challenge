@@ -5,13 +5,16 @@
 #ifndef MP_INFO_LAYERS_INCLUDED
 #define MP_INFO_LAYERS_INCLUDED
 
-float _MP_InfoView;          // 0 none, 2 slope angle, 3 exposure, 4 snow depth (MapLayers.InfoView)
+float _MP_InfoView;          // 0 none, 2 slope angle, 3 exposure, 4 snow depth, 5 the network view's relief (MapLayers.InfoView)
 float _MP_Contours;          // 1: contour lines on
 float _MP_GridConvergence;   // radians from grid north clockwise to true north
 float _MP_ContourInterval;   // metres between contours: 40 ft or 10 m (UnitFormat.ContourIntervalMetres)
 float _MP_ContourFine;       // BR13: 20 ft or 5 m, close up (UnitFormat.ContourFineMetres)
 float _MP_ContourFinest;     // BR13: 10 ft or 2.5 m, closer still
 float _MP_SnowDepthStops[6]; // metres at each snow-depth colour: round numbers in the player's units
+
+// The Network view (task P3-10, owner 2026-10-25): a dark grey relief under the network's diagram, so the lines read.
+static const float3 NetworkReliefColour = float3(0.045, 0.047, 0.05);   // linear: a dark slate once lit
 
 // Slope angle: steepness as a grade in percent (rise over run; 100% is 45°), in the trail-difficulty bands of
 // SlopeBands (green, blue, black; double black is black with white hatching, as two diamonds are on a sign).

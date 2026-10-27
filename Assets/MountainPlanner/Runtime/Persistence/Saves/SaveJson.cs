@@ -24,13 +24,16 @@ namespace MountainPlanner.Persistence.Saves
     /// in whole millimetres in the package's height datum, like the terminal levels; "StartAt" and "TargetAt" are a
     /// slope's two ends as site-centred points; fields a kind doesn't use are 0 (or [0, 0]). "Dabs" is [x0, y0, w0, dx1, dy1, w1, …] on one line: the first dab's point in whole mm from
     /// the site's centre (TE5) and each later one's as the change from the one before, each with its weight in thousandths.
+    /// The design's "Areas" (v5, NW-15) are the Areas the player has named: each its ID, name and the lift ends it held
+    /// ("End" is "bottom" or "top"); empty in a v1–v4 save.
     /// <code>
-    /// { "Version": 4, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 4, "Seed", "NextOrdinal", "Trails": [...],
+    /// { "Version": 5, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 5, "Seed", "NextOrdinal", "Trails": [...],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
     ///                            "Levels": { "BottomMm", "TopMm" } or null } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
-    ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "Dabs": [...] } ] },
+    ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "Dabs": [...] } ],
+    ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ] },
     ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] } }
     /// </code>
     /// </summary>
@@ -83,6 +86,26 @@ namespace MountainPlanner.Persistence.Saves
             w.WritePropertyName("Strokes");
             w.WriteStartArray();
             foreach (var k in d.Strokes) WriteStroke(w, k);
+            w.WriteEndArray();
+            w.WritePropertyName("Areas");
+            w.WriteStartArray();
+            foreach (var a in d.Areas)
+            {
+                w.WriteStartObject();
+                w.WritePropertyName("Id"); w.WriteValue(Hex(a.Id.Value));
+                w.WritePropertyName("Name"); w.WriteValue(a.Name);
+                w.WritePropertyName("Ends");
+                w.WriteStartArray();
+                foreach (var e in a.Ends)
+                {
+                    w.WriteStartObject();
+                    w.WritePropertyName("Lift"); w.WriteValue(Hex(e.Lift.Value));
+                    w.WritePropertyName("End"); w.WriteValue(e.Bottom ? "bottom" : "top");
+                    w.WriteEndObject();
+                }
+                w.WriteEndArray();
+                w.WriteEndObject();
+            }
             w.WriteEndArray();
             w.WriteEndObject();
         }
@@ -293,9 +316,23 @@ namespace MountainPlanner.Persistence.Saves
             foreach (var t in Arr(d, "Trails")) trails.Add(ReadTrail(AsObj(t)));
             var lifts = new List<Lift>();
             foreach (var l in Arr(d, "Lifts")) lifts.Add(ReadLift(AsObj(l)));
+            var areas = new List<AreaRecord>();
+            foreach (var a in Arr(d, "Areas"))
+            {
+                var ao = AsObj(a);
+                var ends = new List<AreaEnd>();
+                foreach (var e in Arr(ao, "Ends"))
+                {
+                    var eo = AsObj(e);
+                    string end = Str(eo, "End");
+                    if (end != "bottom" && end != "top") throw new FormatException($"'{end}' isn't a lift end");
+                    ends.Add(new AreaEnd(new LiftId(HexValue(Str(eo, "Lift"))), end == "bottom"));
+                }
+                areas.Add(new AreaRecord(new AreaId(HexValue(Str(ao, "Id"))), Str(ao, "Name"), ends));
+            }
             var strokes = new List<TerrainStroke>();
             foreach (var k in Arr(d, "Strokes")) strokes.Add(ReadStroke(AsObj(k)));
-            return DesignDocument.From(seed, next, trails, lifts, strokes);
+            return DesignDocument.From(seed, next, trails, lifts, strokes, areas);
         }
 
         static TerrainStroke ReadStroke(JObject k)

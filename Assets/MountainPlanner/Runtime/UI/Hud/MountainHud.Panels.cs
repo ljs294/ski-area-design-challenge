@@ -37,13 +37,14 @@ namespace MountainPlanner.UI
             ("infra", "parking", "Parking", "Parking", "K", "s-parking", null),
         };
         static readonly string[] ToolboxTabs = { "lifts", "trails", "terrain", "snow", "infra" };
-        static readonly string[] AnalysisTabs = { "overview", "lifts", "trails", "guests", "snow", "weather", "amenities", "finances" };
+        static readonly string[] AnalysisTabs = { "overview", "lifts", "trails", "network", "guests", "snow", "weather", "amenities", "finances" };
         /// <summary>Each Analysis tab's line until its phase fills it (the mockup's demo=p2 wording).</summary>
         static readonly string[] AnalysisEmpty =
         {
             "The resort's day (lifts, trails, guests and weather) comes with the simulation in Phase 4.",
             "Lifts come with the building tools in Phase 3.",
             "Trails come with the building tools in Phase 3.",
+            "No lifts or trails yet: build a lift, then a trail down from its top. The network joins them where they meet.",
             "Guests come with the simulation in Phase 4.",
             "Snowmaking comes with the building tools in Phase 3.",
             "Weather comes with the snow simulation in Phase 4.",
@@ -100,7 +101,8 @@ namespace MountainPlanner.UI
 
             // Inert parts keep their tooltips (as the mockup's titles do) but take no clicks or keyboard stops.
             Inert(_trSketch, "sq--dis", null);
-            foreach (string name in new[] { "bar-money", "bar-lifts", "bar-trails", "bar-guests", "bar-save" }) Inert(_root.Q(name), null, null);
+            // The lift and trail counts are live since task P3-10 (MountainHud.Network.cs, NT5).
+            foreach (string name in new[] { "bar-money", "bar-guests", "bar-save" }) Inert(_root.Q(name), null, null);
             foreach (string name in new[] { "menu-save", "menu-rename", "layer-snowmaking", "layer-infrastructure", "layer-conditions" })
                 Inert(_root.Q(name), "row--dis", null);
 
@@ -195,6 +197,7 @@ namespace MountainPlanner.UI
             _analysis.EnableInClassList("hidden", !open);
             _barAnalysis.EnableInClassList("tbtn--on", open);
             _when.EnableInClassList("stat--on", open && _analysisTab == "weather");
+            ShowNetworkTab();   // task P3-10: the Network view follows Analysis › Network
             RetintSoon();
         }
 
@@ -207,6 +210,7 @@ namespace MountainPlanner.UI
             _when?.EnableInClassList("stat--on", _analysisOpen && tab == "weather");
             ShowTrailsTab();   // task 08
             ShowLiftsTab();    // task 09
+            ShowNetworkTab();  // task P3-10
         }
 
         public string AnalysisTab => _analysisTab;

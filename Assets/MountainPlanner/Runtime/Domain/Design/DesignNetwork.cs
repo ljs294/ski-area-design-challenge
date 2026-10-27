@@ -4,7 +4,8 @@ using System.IO;
 
 namespace MountainPlanner.Domain.Design
 {
-    public enum NodeKind : byte { LiftBottom = 1, LiftTop = 2, TrailHead = 3, TrailTail = 4, Junction = 5, PathEnd = 6 }
+    /// <summary>NW-02. <see cref="Station"/> (task 10, NW-14) stands for lift tops and bottoms since graph format 2.</summary>
+    public enum NodeKind : byte { LiftBottom = 1, LiftTop = 2, TrailHead = 3, TrailTail = 4, Junction = 5, PathEnd = 6, Station = 7 }
 
     public enum EdgeKind : byte { Lift = 1, TrailSegment = 2, Path = 3 }
 
@@ -86,6 +87,24 @@ namespace MountainPlanner.Domain.Design
     /// about built trails with a head and a tail; anything it returns about other trails is ignored, and its results
     /// are put in a stable order here, so the graph never depends on the order it found them in (SH-04).
     /// </summary>
+    /// <summary>A trail passing through a station (NW-07 v2, NW-14): cut at <see cref="AlongMm"/> on its centreline.</summary>
+    public readonly struct StationLink
+    {
+        public readonly TrailId Trail;
+        public readonly int AlongMm;
+        public readonly ulong Station;
+        public StationLink(TrailId trail, int alongMm, ulong station) { Trail = trail; AlongMm = alongMm; Station = station; }
+    }
+
+    /// <summary>
+    /// Geometry that finds the trails passing through stations (task 10, NW-14): a footprint within a station's reach of
+    /// one of its terminals, whose ends don't attach. Optional, so a geometry without it joins trails by their ends only.
+    /// </summary>
+    public interface IStationLinks
+    {
+        void FindStationLinks(DesignDocument doc, IReadOnlyList<Station> stations, List<StationLink> into);
+    }
+
     public interface ITrailGeometry
     {
         /// <summary>The trail's centreline length (TR-03), in mm.</summary>
@@ -97,17 +116,31 @@ namespace MountainPlanner.Domain.Design
     /// <summary>The derived ski network (NW-01): rebuilt from the document on every load and edit, never stored.</summary>
     public sealed class NetworkGraph
     {
-        public const int FormatVersion = 1;
+        /// <summary>2 (task 10): lift ends are stations (NW-14), written after the edges.</summary>
+        public const int FormatVersion = 2;
 
         /// <summary>Sorted by ID.</summary>
         public IReadOnlyList<NetworkNode> Nodes { get; }
         /// <summary>Sorted by kind, owner, start, then the end nodes.</summary>
         public IReadOnlyList<NetworkEdge> Edges { get; }
+        /// <summary>NW-14's stations, by ID; each is a node of kind <see cref="NodeKind.Station"/>.</summary>
+        public IReadOnlyList<Station> Stations { get; }
 
-        internal NetworkGraph(NetworkNode[] nodes, NetworkEdge[] edges)
+        internal NetworkGraph(NetworkNode[] nodes, NetworkEdge[] edges, IReadOnlyList<Station> stations)
         {
             Nodes = nodes;
             Edges = edges;
+            Stations = stations ?? Array.Empty<Station>();
+        }
+
+        /// <summary>The station node holding a lift's top or bottom; 0 when the lift isn't built.</summary>
+        public ulong StationOf(LiftId lift, bool top) => DesignStations.Of(Stations, lift, !top)?.Id ?? 0;
+
+        /// <summary>The station with this node ID, or null.</summary>
+        public Station StationById(ulong id)
+        {
+            foreach (var s in Stations) if (s.Id == id) return s;
+            return null;
         }
 
         public bool TryGetNode(ulong id, out NetworkNode node)
@@ -156,20 +189,39 @@ namespace MountainPlanner.Domain.Design
                 w.Write(e.StartMm);
                 w.Write(e.EndMm);
             }
+            w.Write(Stations.Count);
+            foreach (var st in Stations)
+            {
+                w.Write(st.Id);
+                w.Write(st.Members.Count);
+                foreach (var m in st.Members)
+                {
+                    w.Write(m.Lift.Value);
+                    w.Write(m.Bottom);
+                }
+            }
             w.Flush();
             return s.ToArray();
         }
     }
 
     /// <summary>
-    /// Builds the network graph (NW-02, NW-06–NW-08, JN-04) from authored data. Built lifts and built trails with both
-    /// ends take part; plans are left out (NW-02). A trail end within 30 ft of a built lift's top or bottom attaches
-    /// to it (TR-05, owner ruling P3-03 Q3: attachment is derived, never stored). Trail-to-trail junctions and paths
-    /// come from <see cref="ITrailGeometry"/>; without it, each trail is one straight segment from head to tail.
+    /// Builds the network graph (NW-02 v2, NW-06–NW-08, NW-14, JN-04) from authored data. Built lifts and built trails
+    /// with both ends take part; plans are left out (NW-02). Lift ends are stations (NW-14, owner NT13): a trail end
+    /// within 100 ft of a terminal attaches to its station (owner ruling P3-03 Q3: attachment is derived, never stored),
+    /// and a geometry with <see cref="IStationLinks"/> adds the trails passing through one. Trail-to-trail junctions and
+    /// paths come from <see cref="ITrailGeometry"/>; without it, each trail is one straight segment from head to tail.
     /// Node IDs are keyed hashes of what they join, so a reload rebuilds the same ones (JN-04).
     /// </summary>
     public static class DesignNetwork
     {
+        /// <summary>
+        /// PA-05 to PA-08, automatic paths between trails that pass within 30 ft: off for now (owner NT22, 2026-10-26: "a
+        /// lot of little paths connecting trails in places where the trees are thin … I do not want this feature yet").
+        /// The geometry still finds them; the network adds none.
+        /// </summary>
+        public static readonly bool AutomaticPaths = false;
+
         public static NetworkGraph Build(DesignDocument doc, ITrailGeometry geometry = null)
         {
             var nodes = new Dictionary<ulong, NetworkNode>(); // lookup only; output is sorted below
@@ -180,18 +232,15 @@ namespace MountainPlanner.Domain.Design
                 if (!nodes.ContainsKey(id)) nodes.Add(id, new NetworkNode(id, kind, at));
             }
 
-            // Lifts: bottom to top.
-            var liftEnds = new List<NetworkNode>();
+            // Stations (NW-14): every built lift's terminals, merged where their areas overlap; lifts go from the bottom's
+            // station to the top's.
+            var stations = DesignStations.Of(doc);
+            foreach (var st in stations) AddNode(st.Id, NodeKind.Station, st.Centre);
             foreach (var lift in doc.Lifts)
             {
                 if (lift.Stage != WorkStage.Built) continue;
-                var bottom = new NetworkNode(LiftBottomNode(doc.Seed, lift.Id), NodeKind.LiftBottom, lift.Bottom);
-                var top = new NetworkNode(LiftTopNode(doc.Seed, lift.Id), NodeKind.LiftTop, lift.Top);
-                AddNode(bottom.Id, bottom.Kind, bottom.At);
-                AddNode(top.Id, top.Kind, top.At);
-                liftEnds.Add(bottom);
-                liftEnds.Add(top);
-                edges.Add(new NetworkEdge(bottom.Id, top.Id, EdgeKind.Lift, lift.Id.Value, 0, 0));
+                ulong bottom = DesignStations.Of(stations, lift.Id, true).Id, top = DesignStations.Of(stations, lift.Id, false).Id;
+                edges.Add(new NetworkEdge(bottom, top, EdgeKind.Lift, lift.Id.Value, 0, 0));
             }
 
             // Trails that take part, with their centreline lengths.
@@ -241,13 +290,16 @@ namespace MountainPlanner.Domain.Design
                     stops[j.B.Value].Add(new Stop(Clamp(j.AlongBMm, lengths[j.B.Value]), id));
                 }
 
-                // Paths (PA-05, PA-06), likewise.
+                // Paths (PA-05, PA-06), likewise; off for now (owner NT22).
                 var foundPaths = new List<TrailPath>();
-                geometry.FindPaths(doc, foundPaths);
+                if (AutomaticPaths) geometry.FindPaths(doc, foundPaths);
                 var paths = new List<TrailPath>();
                 foreach (var p in foundPaths)
                 {
                     if (p.A == p.B || !lengths.ContainsKey(p.A.Value) || !lengths.ContainsKey(p.B.Value)) continue;
+                    // Both ends in one station (NW-14 v2): the station already joins them, so no path.
+                    var inA = DesignStations.At(stations, p.AtA);
+                    if (inA != null && inA == DesignStations.At(stations, p.AtB)) continue;
                     if (p.A.CompareTo(p.B) < 0) paths.Add(p);
                     else
                     {
@@ -279,6 +331,17 @@ namespace MountainPlanner.Domain.Design
                 }
             }
 
+            // Trails passing through a station (NW-07 v2): cut there, the station their stop.
+            if (geometry is IStationLinks stationLinks && stations.Count > 0)
+            {
+                var links = new List<StationLink>();
+                stationLinks.FindStationLinks(doc, stations, links);
+                links.Sort((x, y) => x.Trail != y.Trail ? x.Trail.CompareTo(y.Trail) : x.Station != y.Station ? x.Station.CompareTo(y.Station) : x.AlongMm.CompareTo(y.AlongMm));
+                foreach (var l in links)
+                    if (lengths.TryGetValue(l.Trail.Value, out int length) && nodes.ContainsKey(l.Station))
+                        stops[l.Trail.Value].Add(new Stop(Clamp(l.AlongMm, length), l.Station));
+            }
+
             // Segments (NW-08): each trail cut at its stops, from head towards tail.
             foreach (var t in trails)
             {
@@ -290,9 +353,9 @@ namespace MountainPlanner.Domain.Design
                     headTaken |= s.AlongMm == 0;
                     tailTaken |= s.AlongMm == length;
                 }
-                // An end snapped to a lift is that lift's node; an end another trail landed on is that junction;
-                // otherwise the trail has its own end node.
-                ulong head = NearestLiftEnd(liftEnds, t.Head.Value);
+                // An end in a station (NW-14: within 100 ft of a terminal) is that station; an end another trail landed
+                // on is that junction; otherwise the trail has its own end node.
+                ulong head = DesignStations.At(stations, t.Head.Value)?.Id ?? 0;
                 if (head != 0) list.Add(new Stop(0, head));
                 else if (!headTaken)
                 {
@@ -300,7 +363,7 @@ namespace MountainPlanner.Domain.Design
                     AddNode(head, NodeKind.TrailHead, t.Head.Value);
                     list.Add(new Stop(0, head));
                 }
-                ulong tail = NearestLiftEnd(liftEnds, t.Tail.Value);
+                ulong tail = DesignStations.At(stations, t.Tail.Value)?.Id ?? 0;
                 if (tail != 0) list.Add(new Stop(length, tail));
                 else if (!tailTaken)
                 {
@@ -329,7 +392,7 @@ namespace MountainPlanner.Domain.Design
                 if (c == 0) c = x.To.CompareTo(y.To);
                 return c;
             });
-            return new NetworkGraph(nodeArray, edgeArray);
+            return new NetworkGraph(nodeArray, edgeArray, stations);
         }
 
         public static ulong LiftBottomNode(ulong seed, LiftId lift) => DesignKey.Hash(seed, DesignKey.LiftBottomTag, lift.Value);
@@ -350,25 +413,6 @@ namespace MountainPlanner.Domain.Design
         static int FloorDiv(int a, int b) => a >= 0 ? a / b : (int)(((long)a - b + 1) / b);
 
         static int Clamp(int along, int length) => along < 0 ? 0 : along > length ? length : along;
-
-        /// <summary>The nearest built lift end within 30 ft (TR-05), ties to the lower ID; 0 if none.</summary>
-        static ulong NearestLiftEnd(List<NetworkNode> liftEnds, PointMm p)
-        {
-            ulong best = 0;
-            long bestD = long.MaxValue;
-            long reach = (long)DesignUnits.SnapMm * DesignUnits.SnapMm;
-            foreach (var end in liftEnds)
-            {
-                long d = end.At.DistanceSquared(p);
-                if (d > reach) continue;
-                if (d < bestD || (d == bestD && end.Id < best))
-                {
-                    best = end.Id;
-                    bestD = d;
-                }
-            }
-            return best;
-        }
 
         readonly struct Stop
         {

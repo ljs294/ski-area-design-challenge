@@ -136,6 +136,7 @@ namespace MountainPlanner.UI
             FillLiftCard();
             _liftCard.RemoveFromClassList("hidden");
             LiftFocused?.Invoke(id);
+            CardsChanged(false);   // task P3-10, NT12
         }
 
         void FillLiftCard()
@@ -218,6 +219,7 @@ namespace MountainPlanner.UI
             _liftsList?.SetFocused(0);
             _liftCard?.AddToClassList("hidden");
             LiftFocused?.Invoke(0);
+            CardsChanged(true);   // task P3-10, NT11/NT12
         }
 
         /// <summary>Esc: closes the card (true when it did).</summary>

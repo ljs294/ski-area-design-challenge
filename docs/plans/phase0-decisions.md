@@ -532,6 +532,57 @@ Release.
 | PR9 | **Opening a report:** `tools/reports/open-report.ps1` (demo.bat 71o; a zip or `-Issue N`) unpacks into a scratch `-data` folder, copies the area in from the owner's library (or names the package to download), opens the save, prints the system info and starts the game with `-reportsettings`: the reported settings for that session only, under their own prefix, never over the owner's |
 | PR10 | **The old backlog stays in the docs;** new findings go to Issues from v0.3.0 |
 
+## Phase 3 task 10, paths, junctions and the network: decided 2026-10-25
+
+**Context:** automatic paths, derived junctions, Split and Join, the derived ski network with its connectivity check and
+warnings, the status bar counts, Analysis › Network and map label collisions. Plan: [p3-10-plan.md](p3-10-plan.md).
+The owner said "Go. Yes to all nine recommendations."
+
+| # | Decision |
+|---|---|
+| NT1 | **Split and Join are buttons in the Edit trail window** (as the mockup), not Toolbox tiles; the tray's letters stay free |
+| NT2 | **A split pair is graded as one trail,** so Split never changes the ground (NW-10); TrailEarthwork grades the two sides of one cut as one centreline |
+| NT3 | **Joining two separately painted Graded trails is allowed:** the seam regrades (within about ±75 ft, GR-01 v3) and undo restores it. Natural trails and a split pair's join change no ground |
+| NT4 | **Analysis › Network is its own tab,** after Trails |
+| NT5 | **The status bar shows built lift and trail counts now;** a count turns amber when anything it counts has an NW-12 warning, its tooltip says what, and a click opens Analysis › Network. Guests stay greyed until Phase 4 |
+| NT6 | **"Leads nowhere" is literal:** a trail whose tail joins no lift bottom, no other trail and no path. "No way down" on the lift covers longer dead ends |
+| NT7 | **Label collisions:** lift names win over trail names; a trail name slides along its line, then hides. Contour labels are unchanged |
+| NT8 | **Timing:** the engine-free work (geometry, connectivity, tests, the network golden) and the mockup start now; the game UI, lift nodes in the game and labels wait for #94 (labels also #97), merging main as each lands |
+| NT9 | **Segment ratings** (NW-08) are computed and tested but not shown; the player sees one rating per trail |
+| NT10 | **A trail's reach stops at the lifts it leads to** (owner, 2026-10-26, finding 5): a lift whose bottom the descent reaches lights as reached, but the highlight doesn't ride it |
+| NT11 | **Clearing a pick** (finding 6): Esc, a click on empty ground, or the card's ✕ |
+| NT12 | **The card and the legend share one right-hand column** (finding 3): the legend on top, folded to its title line while a card is open (▸ unfolds it), the card below |
+| NT13 | **Stations** (owner, 2026-10-26, from Kearsarge: Chair 5 built beside a run's middle, Chair 1 and 2 bottoms 157 ft apart): every terminal has a station reaching 100 ft; overlapping stations merge; a trail joins a station when its end or footprint comes within the reach (NW-14, NW-02/03/07 v2) |
+| NT14 | **A transfer counts:** a lift whose top sits in a station with another lift's bottom has a way down |
+| NT15 | **A station looks like an area ring** in the Network view: a soft circle the size of its reach, the terminal circles inside; mockup first |
+| NT17 | **One rounded shape per hub** (owner, 2026-10-26): a station is drawn as one smooth outline round all its terminals, 100 ft out from them; what's drawn is exactly what catches trails (NW-14 v2) |
+| NT18 | **A hub grows by taking in more**: the reach stays 100 ft; shapes that touch merge, again until none do; buildings will join later |
+| NT19 | **Areas** (owner: "Hubs should be able to be named once they have a certain amount of items in them, right now more than one lift … Base areas should act as a larger node that allows all of them to interact"): a hub with 2+ lifts is an Area with a default name, listed in Analysis › Network, with a card (renamable) and a map label; names saved (save v5, after P3-15's v4: Master Planner, 2026-10-26; NW-15) |
+| NT20 | **Placing a lift shows the hub growing**: the hub the terminal would join is redrawn live as it would be |
+| NT22 | **Automatic paths off for now** (owner, 2026-10-26: "There are a lot of little paths connecting trails in places where the trees are thin. I do not want this feature yet, it is a bit out of control now"): PA-05 to PA-08 switched off (`DesignNetwork.AutomaticPaths`); the code is kept; the Network view, its key and line show no paths; their tests set aside |
+| NT7 v2 | **Labels placed together** (owner, 2026-10-26: go with the plan as recommended): lift, Area, run and landmark names are placed in one pass (`UI/LabelPlacement`), lifts first and always shown, then Areas (centre, then just above or below), runs longest first (five spots along the line), then landmarks; ties by design order; a name with no free spot hides. Contour labels are unchanged |
+| NT23 | **Names along their lines** (owner, 2026-10-26: "trail and lift names should be centered and aligned along the run length like the mockup"): a run's and a lift's name is centred on its line and slanted with it, read left to right; turned straight along the line around the spot, not bent letter by letter; Area and landmark names stay upright |
+| NT21 | **Later (not task 10):** a cost or unlock for the number of base areas, and a skills/unlock tree; to the coordinator's backlog (the economy and buildings come after Phase 3) |
+| NT16 | **The catchment ring while placing a lift** ("just like placing service buildings in Cities: Skylines 2"): the terminals being placed show their 100 ft ring, existing terminals theirs fainter, and the trails it would catch light up; mockup first |
+| NT24 | **A trail is made of sections** (owner, 2026-10-27: "a trail is a collection of segments … allow the user to determine which segments are part of a named trail line"): a trail is a named, ordered chain of sections (a saved `TrailLine`, save v6 / Shape 6); a section is a painted piece between two nodes, and every section is in exactly one trail. Researched against OpenStreetMap route relations (the name on the group, physical tags on the pieces) and Cities: Skylines 2's automatic road names (player complaints): only the player changes membership |
+| NT25 | **Edit sections** in the trail's pane replaces the Split and Join buttons (supersedes NT1), with two modes, **Choose** (default) and **Cut** |
+| NT26 | **A trail is one line, top to bottom:** no forks |
+| NT27 | A section taken out that nothing takes becomes **its own trail** with the next free name ("Run 12") |
+| NT28 | A trail left in two pieces becomes **"Upper <name>"** (the top piece, keeping the trail's ID) and **"Lower <name>"**; with no sections left, it goes away |
+| NT29 | **Natural/Graded and clearing are chosen only at creation;** the Edit pane has no Grading switch (supersedes TF-07's regrade in Edit). Grooming will be per trail (later phase) |
+| NT30 | **Repaint and Move ends stay, one section at a time;** the section clicked to open the pane is preselected |
+| NT31 | **Putting sections in a trail never changes the ground;** only cut nodes can be rejoined, which changes nothing (NT2). Retires NT3's seam regrade |
+| NT32 | **A trail's sections are all planned or all built;** Break ground on a planned trail builds all its sections |
+| NT33 | **Remove trail removes every section;** ground and trees come back (CL-07). Later: the earthwork stays and the trees grow back (coordinator backlog) |
+| NT34 | **A trail is rated over its whole length** (TD-02 on the joined stations), not by its hardest section |
+| NT35 | **Choose: left-click adds, right-click takes out.** A left-click routes: clicking any section beyond the trail's top or bottom adds the whole chain needed to reach it, so a whole other trail merges in one click; the hover previews the result first |
+| NT36 | The player's word is **sections**; "segments" stays the Network view's junction-to-junction stretches (NW-08) |
+| NT37 | Edit sections **may take a section from the middle of another trail;** before Done the window lists every trail it changes ("Run 4 becomes Upper Run 4 and Lower Run 4") with lengths and ratings before and after |
+| NT38 | **"Continues Run 1":** when a new trail's top lands on another's bottom (or its bottom on another's top), New trail's review offers to add it to that trail, ticked by default |
+| NT39 | **Inside Edit sections, Ctrl+Z / Ctrl+Y undo and redo one click;** Esc asks "Discard these changes?" when anything changed; Done (Enter) applies all as one undoable step |
+| NT40 | **Automatic names are shown and editable before Done** and in reviews; cutting "Upper Run 4" gives "Upper Run 4" and "Lower Run 4", never "Upper Upper"; a typed name beats a "Run N" default |
+| NT41 | **A cut node is shared:** Move ends on one section moves both sections; the review shows both |
+
 ## Phase 3 task 15, terrain brush: decided 2026-10-26
 
 **Context:** the owner asked for a Cities: Skylines 2-style terrain tool during task 08 (TL14), for hand-grading cat

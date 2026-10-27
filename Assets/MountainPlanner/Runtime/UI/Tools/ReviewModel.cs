@@ -66,6 +66,18 @@ namespace MountainPlanner.UI.Tools
             return this;
         }
 
+        /// <summary>Fills a reserved row's value (task P3-10 fills the Network slot); nothing when no row has the slot.</summary>
+        public ReviewModel Fill(string slot, string value)
+        {
+            for (int i = 0; i < _rows.Count; i++)
+            {
+                if (_rows[i].Slot != slot) continue;
+                _rows[i] = new Row(_rows[i].Label, value, _rows[i].Rule, false, slot);
+                Version++;
+            }
+            return this;
+        }
+
         public ReviewModel Warn(string text, string rule = null, bool blocks = false)
         {
             _warnings.Add(new Warning(text, rule, blocks));

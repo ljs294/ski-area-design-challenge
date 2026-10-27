@@ -30,7 +30,7 @@ namespace MountainPlanner.Presentation
         public const string CoverMap = "cover";
 
         /// <summary>What recolours the ground: nothing, one info layer, or the developer's cover map. The shader reads the number.</summary>
-        public enum InfoView { None = 0, CoverMap = 1, SlopeAngle = 2, Exposure = 3, SnowDepth = 4 }
+        public enum InfoView { None = 0, CoverMap = 1, SlopeAngle = 2, Exposure = 3, SnowDepth = 4, Network = 5 }
 
         public const string ApplyMarkerName = "MountainPlanner.Layers.Apply";
         /// <summary>Wraps every layer change: one sample in the frame of a switch, none otherwise.</summary>
@@ -42,6 +42,12 @@ namespace MountainPlanner.Presentation
         public bool LiftsOn { get; private set; } = true;
         public bool TrailsOn { get; private set; } = true;
         public bool ContoursOn { get; private set; }
+        /// <summary>
+        /// The Network view (task P3-10): while Analysis › Network is open the ground is a dark grey relief and the trees are
+        /// away, under the network's diagram. It overrides the info layer without changing it, so closing the tab puts back
+        /// what the player had.
+        /// </summary>
+        public bool NetworkViewOn { get; private set; }
         public InfoView Info { get; private set; }
         public bool CoverMapOn => Info == InfoView.CoverMap;
         /// <summary>The info layer that's on, as its id, or null (none, or the developer's cover map).</summary>
@@ -142,6 +148,14 @@ namespace MountainPlanner.Presentation
             Apply();
         }
 
+        /// <summary>The Network view on or off (task P3-10): a shader value and the trees' switch.</summary>
+        public void SetNetworkView(bool on)
+        {
+            if (NetworkViewOn == on) return;
+            NetworkViewOn = on;
+            Apply();
+        }
+
         /// <summary>Pushes the layers to the GPU-side state: a few shader values and a component switch.</summary>
         public void Apply()
         {
@@ -149,15 +163,15 @@ namespace MountainPlanner.Presentation
             {
                 float snow = SnowOn ? 1 : 0;
                 _ground?.SetSnow(SnowOn);
-                _ground?.SetOverlay(Info == InfoView.CoverMap);
-                Shader.SetGlobalFloat(InfoViewId, Info == InfoView.CoverMap ? 0 : (float)Info);
+                _ground?.SetOverlay(Info == InfoView.CoverMap && !NetworkViewOn);
+                Shader.SetGlobalFloat(InfoViewId, NetworkViewOn ? (float)InfoView.Network : Info == InfoView.CoverMap ? 0 : (float)Info);
                 Shader.SetGlobalFloat(ContoursId, ContoursOn ? 1 : 0);
                 ApplyUnits(DisplayUnits.Current);
                 if (_edge != null) _edge.SetFloat(SnowOnId, snow);
                 if (_cliff != null) _cliff.SetFloat(SnowLoadId, snow);
                 if (_forest != null)
                 {
-                    _forest.enabled = TreesOn;
+                    _forest.enabled = TreesOn && !NetworkViewOn;
                     var trees = _forest.Renderer;
                     float load = SnowOn && TreeSnowOn ? 1 : 0;
                     if (trees != null && trees.SnowLoad != load) trees.SetSnowLoad(load);

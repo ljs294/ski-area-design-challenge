@@ -74,6 +74,8 @@ namespace MountainPlanner.App
         ViewerOverlay _overlay;
         /// <summary>Landmark names in the HUD's UI Toolkit panel (no IMGUI, so nothing allocates per frame).</summary>
         MountainPlanner.UI.LandmarkLabelOverlay _landmarkLabels;
+        // Lift, Area, run and landmark names placed together so none overlap (NT7); placed each LateUpdate.
+        readonly MountainPlanner.UI.LabelPlacement _labelPlacement = new MountainPlanner.UI.LabelPlacement();
         /// <summary>Map layers (snow, trees) and info layers (slope, exposure, snow depth, contours): keys, the HUD's rows and the F1 panel.</summary>
         readonly MapLayers _layers = new MapLayers();
         /// <summary>Contour elevation labels (task 12b.2), and the label set they show (it changes with the units).</summary>
@@ -264,6 +266,7 @@ namespace MountainPlanner.App
                 StartTerrainEdits(args);   // -testedit, -testbench, -editbench (MountainViewer.Edits.cs, task P3-05)
                 StartTrailShots(args);     // -trailshots <folder> [-trailspot name] (MountainViewer.Trails.cs, task P3-08)
                 StartTrailBench(args);     // -trailbench <out.json> (MountainViewer.Trails.cs, task P3-08)
+                StartNetworkShots(args);   // -networkshots <folder> (MountainViewer.Network.cs, task P3-10)
                 StartBrushRuns(args);      // -brushtour <folder> [-brushmovie], -brushbench <out.json> (MountainViewer.Brush.cs, task P3-15)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
@@ -416,6 +419,7 @@ namespace MountainPlanner.App
                 else if (_photo) SetPhoto(false);   // photo mode (MountainViewer.Photo.cs) puts everything back
                 else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
                 else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
+                else if (_resort != null && ClearNetworkPick()) { }   // the Network view's pick and its card (task P3-10, NT11)
                 else if (Hud != null && _resort != null && Hud.CloseTrailCardIfOpen()) { }   // a trail's focus card (task 08)
                 else if (Hud != null && _resort != null && Hud.CloseLiftCardIfOpen()) { }    // a lift's focus card (task 09)
                 else if (_resort != null && EscapeTool()) { }   // the armed tool backs out a step (CF-07, P3-06)
@@ -514,7 +518,7 @@ namespace MountainPlanner.App
             ViewCamera.PointerBlocked = PointerOverUi;
             ViewCamera.KeysBlocked = UiHasKeyboard;
             _contourLabels = new MountainPlanner.UI.ContourLabelOverlay(Hud.ContourLabelLayer);
-            _landmarkLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer);
+            _landmarkLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer, _labelPlacement, MountainPlanner.UI.LabelPlacement.Landmarks);
             var named = new System.Collections.Generic.List<(string, Vector3)>(_landmarks.Count);
             foreach (var landmark in _landmarks) named.Add((landmark.Name, landmark.LabelAt));
             _landmarkLabels.SetLandmarks(named);
@@ -601,6 +605,9 @@ namespace MountainPlanner.App
             if (_contourLabels == null || _resort == null) return;
             _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _resort?.Surface, _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
             TickTrailLayer(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);   // task 08
+            TickNetwork(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);      // task P3-10
+            TickCatchment(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);    // task P3-10, NT16
+            _labelPlacement.Place();   // every set's names at once, none overlapping (NT7)
             var set = _resort.ContourLabels[(int)DisplayUnits.Current];
             if (!ReferenceEquals(set, _contourLabelSet))
             {

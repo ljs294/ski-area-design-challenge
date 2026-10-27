@@ -227,6 +227,13 @@ namespace MountainPlanner.Domain.Design
                 if (p != null) return p;
                 if (!seen.Add(k.Id.Value)) return "Two entities share an ID.";
             }
+            foreach (var area in doc.Areas)
+            {
+                if (NameProblem(area.Name) is string p) return p;
+                if (area.Ends.Count == 0) return "An area holds no lift ends.";
+                foreach (var e in area.Ends) if (doc.FindLift(e.Lift) == null) return "An area holds a lift that isn't in the design.";
+                if (!seen.Add(area.Id.Value)) return "Two entities share an ID.";
+            }
             return null;
         }
     }

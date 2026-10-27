@@ -22,7 +22,8 @@ namespace MountainPlanner.App
         EarthworkHost _ground;
         TrailMapView _trailLayer;
         MountainPlanner.UI.LandmarkLabelOverlay _trailLabels;
-        readonly List<(string Name, Vector3 At)> _trailLabelSpots = new List<(string, Vector3)>();
+        readonly List<(string Name, MapLabelSpot[] Spots, double Length)> _trailLabelSpots = new List<(string, MapLabelSpot[], double)>();
+        readonly List<(string Name, MapLabelSpot[] Spots)> _trailLabelOrder = new List<(string, MapLabelSpot[])>();
 
         /// <summary>The Trails map layer (task 08, TL6), once the ground's session is up.</summary>
         internal TrailMapView TrailLayer => _trailLayer;
@@ -33,8 +34,15 @@ namespace MountainPlanner.App
             if (_resort == null) return;
             _trailLayer ??= new TrailMapView(_resort.Root.transform, _resort.Surface, HighlightMaterial);
             _trailLayer.Rebuild(doc, heights, _resort.Frame, _edits?.Earthwork, _trailLabelSpots, _resort.Surface);
-            if (_trailLabels == null && Hud != null) _trailLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer);
-            _trailLabels?.SetLandmarks(_trailLabelSpots);
+            if (_trailLabels == null && Hud != null)
+                _trailLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer, _labelPlacement, MountainPlanner.UI.LabelPlacement.Trails);
+            // NT7: the longest runs' names place first; equal lengths keep the design's order.
+            _trailLabelOrder.Clear();
+            var byLength = new List<int>(_trailLabelSpots.Count);
+            for (int i = 0; i < _trailLabelSpots.Count; i++) byLength.Add(i);
+            byLength.Sort((a, b) => _trailLabelSpots[a].Length != _trailLabelSpots[b].Length ? _trailLabelSpots[b].Length.CompareTo(_trailLabelSpots[a].Length) : a.CompareTo(b));
+            foreach (int i in byLength) _trailLabelOrder.Add((_trailLabelSpots[i].Name, _trailLabelSpots[i].Spots));
+            _trailLabels?.SetLabels(_trailLabelOrder);
             FillTrailList(doc);
         }
 
@@ -115,7 +123,8 @@ namespace MountainPlanner.App
         {
             if (_trailLayer == null) return;
             bool on = _layers == null || _layers.TrailsOn;
-            if (_trailLayer.Visible != on) _trailLayer.Visible = on;
+            bool lines = on && !_networkOn;   // the Network view's diagram stands in for the run lines (task P3-10)
+            if (_trailLayer.Visible != lines) _trailLayer.Visible = lines;
             if (cam != null) _trailLayer.Follow(cam);
             // The run names' sight test samples the loaded terrain (it carries the edits), as every other label's does: the
             // trail layer's edited heights read the package from disk, a chunk at a time (finding D1, owner 2026-10-23).

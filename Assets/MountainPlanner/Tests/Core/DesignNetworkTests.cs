@@ -11,7 +11,8 @@ namespace MountainPlanner.Tests
     public sealed class DesignNetworkTests
     {
         /// <summary>The scripted design's graph bytes with the stub geometry below. Pinned like the document golden.</summary>
-        const string GoldenGraphSha = "a484062d74eb13945ab5012c571b9ac4a40b4a41f6ddd0ec6943c1d6c7d03266";
+        /// Re-pinned (task P3-10, 2026-10-27) when stations took their own ID tag (13; task 15 took 12); from 5afff60b….
+        const string GoldenGraphSha = "33040ef191947a3ecb5ab5d06aefb3dfd8f7a1231372f3efbeb9c7dae2abc7be";
 
         /// <summary>Straight-line centrelines, plus whatever junctions and paths a test lists (in any order).</summary>
         sealed class StubGeometry : ITrailGeometry
@@ -55,24 +56,25 @@ namespace MountainPlanner.Tests
             Assert.That(g.Edges.Count, Is.EqualTo(1));
             var e = g.Edges[0];
             Assert.That(e.Kind, Is.EqualTo(EdgeKind.Lift));
-            Assert.That(e.From, Is.EqualTo(DesignNetwork.LiftBottomNode(1, built)));
-            Assert.That(e.To, Is.EqualTo(DesignNetwork.LiftTopNode(1, built)));
+            Assert.That(e.From, Is.EqualTo(g.StationOf(built, top: false)), "NW-02 v2: from the bottom's station");
+            Assert.That(e.To, Is.EqualTo(g.StationOf(built, top: true)));
             Assert.That(g.Nodes.Count, Is.EqualTo(2));
+            Assert.That(g.Nodes.All(n => n.Kind == NodeKind.Station), Is.True);
         }
 
         [Test]
-        public void TR05_ATrailEndWithin30FtAttachesToTheLift()
+        public void NW14_ATrailEndWithin100FtAttachesToTheStation()
         {
             var h = new DesignHistory(DesignDocument.Empty(1));
             var lift = AddLift(h, "Chair 1", P(0, 0), P(0, 3000));
-            var near = AddTrail(h, "Near", P(30, 3000), P(0, 29));
-            var far = AddTrail(h, "Far", P(31, 3000), P(200, 0));
+            var near = AddTrail(h, "Near", P(100, 3000), P(0, 99));
+            var far = AddTrail(h, "Far", P(101, 3000), P(300, 0));
             var g = DesignNetwork.Build(h.Document);
             var nearEdge = g.Edges.Single(e => e.Owner == near.Value);
-            Assert.That(nearEdge.From, Is.EqualTo(DesignNetwork.LiftTopNode(1, lift)), "30 ft from the top: attached");
-            Assert.That(nearEdge.To, Is.EqualTo(DesignNetwork.LiftBottomNode(1, lift)));
+            Assert.That(nearEdge.From, Is.EqualTo(g.StationOf(lift, top: true)), "NT13: 100 ft from the top: attached");
+            Assert.That(nearEdge.To, Is.EqualTo(g.StationOf(lift, top: false)));
             var farEdge = g.Edges.Single(e => e.Owner == far.Value);
-            Assert.That(g.TryGetNode(farEdge.From, out var n) && n.Kind == NodeKind.TrailHead, Is.True, "31 ft away: its own head");
+            Assert.That(g.TryGetNode(farEdge.From, out var n) && n.Kind == NodeKind.TrailHead, Is.True, "101 ft away: its own head");
 
             // Moving the lift re-derives the attachment (owner ruling P3-03 Q3): nothing stored needs fixing.
             h.Submit(new DeleteLift(h.Revision, lift));
@@ -81,7 +83,7 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void NW08_TrailsAreCutIntoSegmentsAtJunctionsAndPathEnds()
+        public void NW08_TrailsAreCutIntoSegmentsAtJunctions()
         {
             var h = new DesignHistory(DesignDocument.Empty(1));
             var a = AddTrail(h, "A", P(0, 3000), P(0, 0));
@@ -94,20 +96,19 @@ namespace MountainPlanner.Tests
             var graph = DesignNetwork.Build(h.Document, g);
 
             var aSegments = graph.Edges.Where(e => e.Owner == a.Value).OrderBy(e => e.StartMm).ToArray();
-            Assert.That(aSegments.Select(e => (e.StartMm, e.EndMm)), Is.EqualTo(new[] { (0, Ft(1500)), (Ft(1500), Ft(2000)), (Ft(2000), Ft(3000)) }));
+            Assert.That(aSegments.Select(e => (e.StartMm, e.EndMm)), Is.EqualTo(new[] { (0, Ft(2000)), (Ft(2000), Ft(3000)) }), "NT22: no cut at a path's end");
             var junction = DesignNetwork.JunctionNode(1, a, b, P(0, 1000));
-            Assert.That(aSegments[1].To, Is.EqualTo(junction));
+            Assert.That(aSegments[0].To, Is.EqualTo(junction));
             var bSegments = graph.Edges.Where(e => e.Owner == b.Value).ToArray();
             Assert.That(bSegments.Length, Is.EqualTo(1));
             Assert.That(bSegments[0].To, Is.EqualTo(junction), "B's tail is the junction, not a node of its own");
             Assert.That(graph.Nodes.Count(n => n.Kind == NodeKind.TrailTail), Is.EqualTo(2), "A and C keep their tails");
 
-            var paths = graph.Edges.Where(e => e.Kind == EdgeKind.Path).ToArray();
-            Assert.That(paths.Length, Is.EqualTo(2), "PA-06: a level path runs both ways");
-            Assert.That(paths[0].From, Is.EqualTo(paths[1].To));
+            Assert.That(graph.Edges.Any(e => e.Kind == EdgeKind.Path), Is.False, "NT22: automatic paths are off, so the path found adds nothing");
+            Assert.That(graph.Nodes.Any(n => n.Kind == NodeKind.PathEnd), Is.False);
         }
 
-        [Test]
+        [Test, Ignore("NT22: automatic paths are off for now")]
         public void PA06_APathRunsOneWayWhenItsEndsDiffer()
         {
             var h = new DesignHistory(DesignDocument.Empty(1));

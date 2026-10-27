@@ -1,0 +1,141 @@
+# P3-10 plan: paths, junctions and the network
+
+**Status:** approved by the owner on 2026-10-25 ("Go. Yes to all nine recommendations."): decisions NT1–NT9 in
+[phase0-decisions](phase0-decisions.md). Branch `feature/p3-10-network`, `demo.bat` 70.
+
+**Spec:** [Phase 3 plan](phase2-14-phase3-plan.md) row 10; rules PA, JN and NW in
+[p3-02-design-rules.md](p3-02-design-rules.md) §6–§7.
+
+## 1. Scope
+
+- Automatic paths (PA-05 to PA-08), derived junctions (NW-07), Split and Join in the game (NW-10).
+- The derived network (NW-01, NW-02), connectivity (NW-03) and the warnings (NW-12).
+- The status bar's lift and trail counts (NW-04, NT5), Analysis › Network (NW-13, NT4), mockup first.
+- Map label collisions for lift and trail names (from the #87 mockup backlog, NT7).
+- **No save or format change.** The network is derived and never stored.
+
+Starting point: `DesignNetwork.Build` and the Split/Join commands exist (P3-03), but nothing implemented
+`ITrailGeometry`, so each trail was one straight edge; and the earthwork graded trail by trail, so a split would have
+regraded the ground at the cut.
+
+## 2. Files
+
+| New | Edited (small, additive) |
+|---|---|
+| `Runtime/Domain/Design/Network/**` (geometry, reach, warnings, segment ratings) | `DesignNetwork.cs` (the null-geometry graph and its golden unchanged) |
+| `Tests/Core/Network*Tests.cs` | `TrailEarthwork.cs` (split pairs graded as one, NT2) |
+| `App/MountainViewer.Network.cs` | `TrailTool.cs` (made partial; Split and Join buttons) |
+| `UI/Hud/MountainHud.Network.cs` | `MountainHud.Bar.cs` / `.Panels.cs` (counts, the tab) |
+| `UI/Tools/TrailTool.Network.cs` | `LandmarkLabelOverlay.cs` (one hook) |
+| `Presentation/Design/NetworkOverlay.cs` | `prototypes/ui-layout.html` (Analysis › Network, bar counts) |
+| `UI/LabelPlacement.cs` | `demo.bat` 70 |
+
+## 3. Approach
+
+- **Geometry (`TrailNetworkGeometry : ITrailGeometry`).** Each built trail's footprint and centreline come from the trail
+  alone (the same `TrailFootprint` and `TrailCentreline` code the earthwork runs, so a load and an edit agree), cached
+  by the immutable `Trail` object. Pairs are tested only when their boxes come within 30 ft.
+  - **Junctions (NW-07):** an end within 30 ft of another trail's centreline joins it at the nearest point (TR-05); each
+    separate overlap patch of two footprints gives one junction, on each centreline nearest the patch's middle.
+  - **Paths (PA-05):** where two footprints come within 30 ft without touching, one path at the closest point of each
+    close stretch. **Direction (PA-06)** from the natural (package) ground, so it never races the grading; within
+    3 ft both ways. **PA-07:** a path never crosses a lift terminal's footprint, a lake or a road (blockers passed in).
+- **Graph:** `DesignNetwork.Build` as P3-03, with junctions and paths from the geometry. IDs are keyed hashes (JN-04).
+  Deleting a trail drops only what it joined: everything is rebuilt.
+- **Reach (NW-03):** from each built lift's top, follow trail segments and paths (downhill edges only); connected when
+  it reaches a lift bottom.
+- **Warnings (NW-12):** "No way down" (lift), "No lift serves this" (trail not reached from any lift top), "Leads nowhere"
+  (the tail joins nothing, NT6). They never block Break ground.
+- **Segment ratings (NW-08, NT9):** each segment rated on its own stations (TD-02); tested, not shown.
+- **Split and Join (NW-10, NT1–NT3):** superseded by §7, trails made of sections (NT24–NT41), in PR B.
+- **The game:** the network rebuilds off the main thread after each commit (stamped with the design revision); the review
+  checks the draft's pairs only. Measured with the edit-timing tools against ≤100 ms preview and ≤250 ms commit.
+- **Analysis › Network (NT4):** a lift list (status, trails reachable), then trails with warnings; picking a lift
+  highlights what its top reaches, with dashed path links (PA-08) and junction dots.
+- **Labels (NT7, NT7 v2, NT23):** one pass places every set's names (`UI/LabelPlacement`): lifts (always shown), then
+  Areas (centre, just above, just below), then runs longest first (the middle of the line, then 32/68%, then 18/82%), then
+  landmarks; a name with no free spot hides. Boxes are tested slanted (separating axes). Run and lift names are centred on
+  their lines and slanted with them, read left to right, as the mockup sets them (NT23). A still camera places the same
+  names; nothing is allocated per frame.
+
+## 4. Tests
+
+Every test name cites its rule. The network golden: the same design gives the same graph bytes from commands and from a
+save, in any order. Pruning on delete; a test resort with a disconnected lift; each warning; path directions; split then
+join restores the trail; Split leaves the ground byte-identical. Existing design and graph goldens unchanged. Full
+`dotnet test` with LFS, EditMode, PlayMode (`-force-gfx-mt` for the overlay), repo checks, compile-check.
+
+## 5. Stations (NW-14, owner NT13–NT16, 2026-10-26)
+
+From the owner's Kearsarge area: Chair 5 was built beside a run's middle and showed "No way down", and the Chair 1 and
+Chair 2 bottoms (157 ft apart) split the mountain in two.
+- **Engine:** `Network/DesignStations.cs` gives every built terminal a station reaching 100 ft. Terminals of different
+  lifts within 200 ft merge (union-find in lift ID order). The ID is a keyed hash of the member end keys (JN-04).
+  - Lift edges run station to station.
+  - A trail end within 100 ft attaches.
+  - `TrailNetworkGeometry` (`IStationLinks`) cuts a trail whose footprint passes within the reach.
+  - `NetworkReport` counts every bottom in a station, and another lift's bottom in a lift's top station (a transfer, NT14).
+- **Goldens:** the graph format is 2. The P3-03 graph golden and the network golden are re-pinned for NW-14.
+- **Mockup first:** the Network view draws each station as an area ring (NT15), with a shared base reading as one area
+  (demo `net`: Beaver Double shares Aspen Quad's base, and its top lands beside Bighorn and Catwalk). The lift tool
+  shows the catchment ring round each terminal in hand, the built terminals' rings fainter, and the trails it would
+  gather lit (NT16; demos `liftbase` and `liftbaseaim`).
+- **Game, after the mockup is approved:**
+  - `NetworkView` station rings at world radius;
+  - `Presentation/Design/StationRing.cs` for the lift tool, pooled and rebuilt only when a terminal moves;
+  - the Kearsarge captures from the copy, expecting Chair 5 connected and the Chair 1 + 2 and Chair 3 + 4 bases merged.
+
+
+## 6. Hubs and Areas (NW-14 v2, NW-15; owner NT17–NT21, 2026-10-26)
+
+- **Engine:**
+  - `DesignStations` builds each station's convex hull and merges by hull distance (200 ft), repeatedly, with the
+    own-ends guard. `Outline` gives the rounded outline for drawing.
+  - `TrailNetworkGeometry` measures footprints against the hull: points along its edges every 2 m, or a footprint
+    wholly inside.
+  - A path between two runs ending in one station is dropped.
+- **Areas:**
+  - `DesignAreas` binds the player's `AreaRecord`s (an ID, a name, the lift ends) to hubs with 2+ lifts, by shared ends.
+  - `RenameArea` is one undoable step.
+  - `DeleteLift` drops a lift's ends from the names.
+  - `NetworkReport.Areas` and `ReachFromArea`: the hub's descent plus each lift loading there.
+- **Format:**
+  - Design shape 5 and save v5: the design's "Areas", after P3-15's shape 4 / save v4 ("Strokes"), as Master
+    Planner ruled (2026-10-26). `UpToFive` gives a v1–v4 save none; the fixture is `TestData/formats/v5-save`, and the
+    v1–v4 fixtures are unedited.
+  - Done 2026-10-27: main (with P3-15, #102) merged in, not rebased; stations and Areas took ID tags 13 and 14, since
+    task 15's strokes took 12.
+  - Message Master Planner before merging anything that touches the save.
+  - The design, graph and network goldens are re-pinned (design 4f6a0657, graph 33040ef1, network ec200262).
+- **Mockup:**
+  - the hub shapes;
+  - the Areas table;
+  - the Area card, its name (click or F2);
+  - Area labels on both maps;
+  - the lift tool's growing hub ("Joins … · gathers …").
+  - Demos: `net`, `netarea`, `liftbase`, `liftbaseaim` and `liftbasearea`.
+- **Game (owner approved the mockup, 2026-10-26):**
+  - one `NetworkView.StationArea` per station: `DesignStations.Outline`, its straight edges cut every 5 m and draped; a
+    click inside an Area's shape picks it (`Hit.Area`), and a terminal of an Area picks the Area;
+  - an Area pick lights `ReachFromArea` and opens its card (`MountainHud.Areas.cs`: lifts and what each does there,
+    trails here, what it reaches; a click on the name or F2 renames it, one `RenameArea`);
+  - Analysis › Network lists the Areas between the lifts and the warnings; the line counts them;
+  - the Areas' names on the map, with the lift labels (`LandmarkLabelOverlay`);
+  - the lift tool's catchment draws the hub each terminal would make or join from `DesignStations.Of(doc, editing,
+    draft ends)`, the draft's ends one lift; its window line says "Joins <Area>" in an Area's hub;
+  - `-networkshots` adds `7-area`.
+
+## 7. Trails made of sections (owner NT24–NT41, 2026-10-27): PR B
+
+The owner asked for trails built from sections the player chooses, replacing the Split and Join buttons. Planned in
+two adversarial reviews (play/UI and technical) and settled with the owner; the full plan is in the decisions above.
+- **Model:** a section is today's `Trail` entity (paint, ends, grading, earthwork); a trail is a saved `TrailLine`
+  (ID, name, sections top first): one line, one stage, one label, rated over its whole length (NT34).
+- **Format:** save v6 / Shape 6, ID tag 15, reserved with Master Planner first. Line IDs are keyed hashes of the
+  founding section (no ordinal spent); `UpToSix` gives each old trail its own line; `Normalise` runs in
+  `DesignCommand.Apply` (Upper/Lower, orphans, empty lines) and repairs a broken save on load.
+- **Edit sections:** Choose (left adds by route, right takes out) and Cut (half-plane cut, refused across a
+  switchback; cut nodes rejoin); per-click undo inside, one undo step on Done; every affected trail listed with
+  editable names. "Continues Run 1" in New trail's review.
+- **Order:** PR A (this branch: network, stations, Areas at v5, labels); then PR B1 (Domain, format, commands,
+  tests); the mockup and the owner's review; PR B2 (the game UI), Kearsarge pictures and demo 70k.
