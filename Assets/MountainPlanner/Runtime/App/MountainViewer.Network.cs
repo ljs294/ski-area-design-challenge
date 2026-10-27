@@ -19,7 +19,7 @@ namespace MountainPlanner.App
         NetworkView _networkView;
         TrailNetworkGeometry _netGeometry;
         EarthworkSite _netSite;
-        Task<NetworkReport> _networkJob;
+        Task<(NetworkReport Report, TrailSections Sections)> _networkJob;
         System.Diagnostics.Stopwatch _networkWatch;
         DesignDocument _networkJobDoc, _networkPending;
         NetworkReport _network;
@@ -62,7 +62,12 @@ namespace MountainPlanner.App
             var geometry = _netGeometry;
             _networkJobDoc = doc;
             _networkWatch = System.Diagnostics.Stopwatch.StartNew();
-            _networkJob = Task.Run(() => NetworkReport.Build(doc, geometry));
+            // NT43, NT44: the trails as the player sees them, from the built graph and the plans' own.
+            _networkJob = Task.Run(() =>
+            {
+                var report = NetworkReport.Build(doc, geometry);
+                return (report, TrailSections.Of(doc, report.Graph, DesignNetwork.Build(doc, geometry, WorkStage.Plan)));
+            });
         }
 
         static bool SameSite(EarthworkSite a, EarthworkSite b) =>
@@ -102,10 +107,11 @@ namespace MountainPlanner.App
                 _networkJob = null;
                 if (job.Status == TaskStatus.RanToCompletion)
                 {
-                    var r = job.Result;
+                    var (r, sections) = job.Result;
                     Debug.Log($"[Network] {r.Lifts.Count} lifts, {r.Trails.Count} trails, {r.Graph.Nodes.Count} nodes, {r.Graph.Edges.Count} edges " +
                               $"in {_networkWatch?.Elapsed.TotalMilliseconds:F0} ms off the main thread; {r.LiftWarnings} lift and {r.TrailWarnings} trail warnings");
                     ApplyNetwork(doc, r);
+                    ApplySections(doc, sections);
                 }
                 else Debug.LogException(job.Exception);
                 if (_networkPending != null)
@@ -361,7 +367,7 @@ namespace MountainPlanner.App
             _pickLift = same ? 0 : lift;
             _pickNode = same ? 0 : node;
             _pickArea = same ? 0 : area;
-            if (_pickTrail != 0) Hud?.OpenTrailCardFor(_pickTrail);
+            if (_pickTrail != 0) Hud?.OpenTrailCardFor(TrailRowOf(_pickTrail, _pickStartMm));
             if (_pickLift != 0) Hud?.OpenLiftCardFor(_pickLift);
             if (_pickArea != 0) Hud?.OpenAreaCardFor(_pickArea);
             ApplyNetworkPick();

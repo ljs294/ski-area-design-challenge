@@ -130,9 +130,27 @@ namespace MountainPlanner.Presentation.Design
         /// <summary>A trail in focus (a hovered Analysis row, its focus card) gets a wider white casing under its line (owner, #87).</summary>
         public void Focus(TrailId id)
         {
-            if (id == _focus) return;
+            if (id == _focus && _focusLine == null) return;
             _focus = id;
+            _focusLine = null;
             DrawCasing();
+        }
+
+        /// <summary>A trail made of sections in focus (task P3-10, NT43): the casing under its whole line.</summary>
+        public void FocusLine(Vector2[] line)
+        {
+            _focus = default;
+            _focusLine = line;
+            DrawCasing();
+        }
+
+        Vector2[] _focusLine;
+
+        /// <summary>A run's centreline as drawn (local x/z metres, head first), or false when it has none.</summary>
+        public bool TryGetLine(TrailId id, out Vector2[] line)
+        {
+            line = _shapes.TryGetValue(id, out var s) ? s.Line : null;
+            return line != null && line.Length > 1;
         }
 
         int _used;
@@ -141,8 +159,10 @@ namespace MountainPlanner.Presentation.Design
 
         void DrawCasing()
         {
-            if (_focus.IsNone || !_shapes.TryGetValue(_focus, out var s) || s.Drawn == null) { _lines.Hide(CasingSlot); return; }
-            _lines.Line(CasingSlot, s.Drawn, s.Drawn.Length, PreviewInk.Casing);
+            var line = _focusLine;
+            if (line == null && !_focus.IsNone && _shapes.TryGetValue(_focus, out var s)) line = s.Drawn;
+            if (line == null || line.Length < 2) { _lines.Hide(CasingSlot); return; }
+            _lines.Line(CasingSlot, line, line.Length, PreviewInk.Casing);
             _lines.SetWidth(CasingSlot, 2.4f, behind: true);
         }
 
@@ -186,7 +206,7 @@ namespace MountainPlanner.Presentation.Design
         // the line 20 m either side (less on a short run).
         static readonly float[] LabelAlong = { 0.5f, 0.32f, 0.68f, 0.18f, 0.82f };
 
-        MapLabelSpot[] LabelSpots(Vector2[] line)
+        public MapLabelSpot[] LabelSpots(Vector2[] line)
         {
             if (line.Length < 2)
             {

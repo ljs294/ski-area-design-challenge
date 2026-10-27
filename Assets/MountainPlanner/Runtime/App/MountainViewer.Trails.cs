@@ -37,6 +37,7 @@ namespace MountainPlanner.App
             if (_trailLabels == null && Hud != null)
                 _trailLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer, _labelPlacement, MountainPlanner.UI.LabelPlacement.Trails);
             // NT7: the longest runs' names place first; equal lengths keep the design's order.
+            if (_sections != null) { ApplySections(doc, _sections); return; }   // NT43: names and rows by trail
             _trailLabelOrder.Clear();
             var byLength = new List<int>(_trailLabelSpots.Count);
             for (int i = 0; i < _trailLabelSpots.Count; i++) byLength.Add(i);
@@ -53,13 +54,7 @@ namespace MountainPlanner.App
         void FillTrailList(DesignDocument doc)
         {
             if (Hud == null || _trailLayer == null) return;
-            if (!_trailListWired)
-            {
-                _trailListWired = true;
-                Hud.TrailFocused += id => _trailLayer?.Focus(new TrailId(id));
-                Hud.TrailEditChosen += id => ChooseTrailTool(EditTrailTool.ToolId, id);
-                Hud.TrailRemoveChosen += id => ChooseTrailTool(RemoveTrailTool.ToolId, id);
-            }
+            WireTrailList();
             _trailRows.Clear();
             foreach (var t in doc.Trails)
             {
@@ -72,6 +67,15 @@ namespace MountainPlanner.App
                 });
             }
             Hud.SetTrails(_trailRows);
+        }
+
+        void WireTrailList()
+        {
+            if (_trailListWired || Hud == null) return;
+            _trailListWired = true;
+            Hud.TrailFocused += FocusTrailRow;
+            Hud.TrailEditChosen += id => ChooseTrailRow(EditTrailTool.ToolId, id);
+            Hud.TrailRemoveChosen += id => ChooseTrailRow(RemoveTrailTool.ToolId, id);
         }
 
         /// <summary>For captures: a built trail on the map (New trail by script, then Break ground) if there's none yet.</summary>
@@ -107,7 +111,7 @@ namespace MountainPlanner.App
         }
 
         /// <summary>The card's Edit or Remove (the mockup's fedit, fremove): the Trails tab, that tool, the trail chosen.</summary>
-        void ChooseTrailTool(string toolId, ulong trail)
+        void ChooseTrailTool(string toolId, ulong trail, PointMm? at = null)
         {
             if (_tools == null || Hud == null) return;
             Hud.SetAnalysis(false);
@@ -115,7 +119,7 @@ namespace MountainPlanner.App
             Hud.SetToolbox(true);
             if (_tools.ActiveId != toolId) _tools.Choose(toolId);
             var t = Design.Document.FindTrail(new TrailId(trail));
-            if (_tools.Active is TrailTool tool && t != null) tool.ChooseTrail(t);
+            if (_tools.Active is TrailTool tool && t != null) tool.ChooseTrail(t, at);
         }
 
         /// <summary>Once a frame, after the camera has moved: the layer follows the camera and the names their lines.</summary>
@@ -516,7 +520,7 @@ namespace MountainPlanner.App
             yield return Shot(dir, "6-analysis");
             if (built != null)
             {
-                Hud.OpenTrailCardFor(built.Id.Value);
+                Hud.OpenTrailCardFor(TrailRowOf(built.Id.Value, 0));
                 yield return Shot(dir, "7-card");
                 Hud.CloseTrailCardIfOpen();
                 Hud.SetAnalysis(false);

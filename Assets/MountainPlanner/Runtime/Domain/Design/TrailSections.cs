@@ -103,6 +103,10 @@ namespace MountainPlanner.Domain.Design
             return best;
         }
 
+        /// <summary>The trails of <paramref name="doc"/>, with both stages' graphs built on <paramref name="geometry"/> (NT44).</summary>
+        public static TrailSections Build(DesignDocument doc, ITrailGeometry geometry) =>
+            Of(doc, DesignNetwork.Build(doc, geometry, WorkStage.Built), DesignNetwork.Build(doc, geometry, WorkStage.Plan));
+
         public static TrailSections Of(DesignDocument doc, NetworkGraph built, NetworkGraph plan)
         {
             var ts = new TrailSections();

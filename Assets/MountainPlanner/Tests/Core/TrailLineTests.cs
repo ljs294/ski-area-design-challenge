@@ -247,5 +247,72 @@ namespace MountainPlanner.Tests
             foreach (string n in TrailLines.BreakNames(longName, 2)) Assert.That(DesignRules.NameProblem(n), Is.Null, n);
             Assert.That(TrailLines.NextName(2, new[] { "Run 3" }), Is.EqualTo("Run 4"));
         }
+
+        // B2's session (NT39): clicks change a working copy, Ctrl+Z inside puts one back, Done is one step.
+        static TrailSectionsSession Session(DesignHistory h, StubGeometry g, TrailId piece)
+        {
+            var ts = Sections(h.Document, g);
+            return new TrailSectionsSession(h.Document, ts, ts.TrailOf(piece));
+        }
+
+        static void Keep(TrailSectionsSession s, StubGeometry g, ShapeTrails cmd, Segment top)
+        {
+            var doc = s.Try(cmd, out string problem);
+            Assert.That(doc, Is.Not.Null, problem);
+            s.Accept(doc, Sections(doc, g), top);
+        }
+
+        [Test]
+        public void NT39_ASessionsClicksAreOneStepAndItsDoneMatchesTheWorkingCopy()
+        {
+            var (h, g, cornice, chute, run2) = Cornice();
+            var s = Session(h, g, chute);
+            var add = s.Add(s.Sections.SegmentsOf(cornice)[2], out var top);
+            Assert.That(top, Is.SameAs(s.Trail.Segments[0]), "added below: the top stays");
+            Keep(s, g, add, top);
+            Assert.That(s.Trail.Segments.Count, Is.EqualTo(3));
+            Keep(s, g, TrailSectionsEdit.Cut(0, cornice, P(0, 500)), null);
+            Assert.That(s.Trail.Segments.Count, Is.EqualTo(4), "a cut adds a node: one more section");
+            var cmd = s.Done(h.Revision);
+            Assert.That(cmd.Put.Count, Is.EqualTo(1));
+            Assert.That(cmd.AddCuts.Count, Is.EqualTo(1));
+            Submit(h, cmd);
+            Assert.That(DesignBytes.Same(DesignBytes.Encode(h.Document), DesignBytes.Encode(s.Working)), Is.True, "Done is exactly the clicks");
+            h.Undo();
+            Assert.That(h.Document.Lines, Is.Empty, "one Ctrl+Z takes the whole session back");
+            Assert.That(h.Document.Cuts, Is.Empty);
+        }
+
+        [Test]
+        public void NT39_UndoInsideTheSessionAndNothingLeftIsNoStep()
+        {
+            var (h, g, cornice, chute, _) = Cornice();
+            var s = Session(h, g, chute);
+            var add = s.Add(s.Sections.SegmentsOf(cornice)[2], out var top);
+            Keep(s, g, add, top);
+            Assert.That(s.Undo(), Is.True);
+            Assert.That(s.Trail.Segments.Count, Is.EqualTo(1));
+            Assert.That(s.Done(h.Revision), Is.Null, "back where it started: nothing to submit");
+            Assert.That(s.Redo(), Is.True);
+            Assert.That(s.Trail.Segments.Count, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void NT35_AddingAboveMovesTheTopAndTheSessionFollowsIt()
+        {
+            var (h, g, cornice, _, _) = Cornice();
+            var ts = Sections(h.Document, g);
+            Submit(h, TrailSectionsEdit.TakeOut(h.Document, h.Revision, ts, ts.TrailOf(cornice), ts.SegmentsOf(cornice)[0]));
+            ts = Sections(h.Document, g);
+            var s = new TrailSectionsSession(h.Document, ts, ts.TrailOf(ts.SegmentsOf(cornice)[1]));
+            Assert.That(s.Trail.Segments[0], Is.SameAs(s.Sections.SegmentsOf(cornice)[1]), "Cornice starts at Chute's junction now");
+            var add = s.Add(s.Sections.SegmentsOf(cornice)[0], out var top);
+            Assert.That(top.StartMm, Is.EqualTo(0), "the added segment is the new top");
+            Keep(s, g, add, top);
+            Assert.That(s.Trail.Segments.Count, Is.EqualTo(3));
+            Assert.That(s.Trail.Name, Is.EqualTo("Cornice"));
+            var back = s.TakeOut(s.Trail.Segments[0], out top);
+            Assert.That(top, Is.SameAs(s.Trail.Segments[1]));
+        }
     }
 }

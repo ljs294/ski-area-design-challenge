@@ -273,6 +273,9 @@ namespace MountainPlanner.UI.Tools
             return buttons;
         }
 
+        /// <summary>Shows or hides an option row by its name (Edit sections hides the brush and buttons, P3-10 B2).</summary>
+        public void ShowOption(string name, bool shown) => _opts.Q("toolwin-opt-" + name)?.EnableInClassList("hidden", !shown);
+
         /// <summary>"Discard it? ✕ again" while a second Esc or ✕ would throw drawn work away (CF-07).</summary>
         public void SetAsking(string text)
         {
