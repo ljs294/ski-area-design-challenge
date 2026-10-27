@@ -29,6 +29,11 @@ namespace MountainPlanner.UI.Tools
         AddTower = 16384,
         // P3-09 (LT44): the selected tower's kind turns round.
         TowerKind = 32768,
+        // P3-15 (TB-02, TB-07): a brush's strength (with Shift, a Slope's grade) and its target.
+        BrushWeaker = 65536,
+        BrushStronger = 131072,
+        TargetUp = 262144,
+        TargetDown = 524288,
     }
 
     /// <summary>
@@ -52,6 +57,10 @@ namespace MountainPlanner.UI.Tools
         public bool OverPanel;
         /// <summary>The left button went down on the mountain this frame; is held since a press on the mountain; came up.</summary>
         public bool Click, Drag, Release;
+        /// <summary>The same for the right button, for a tool that owns it (<see cref="IOwnsRightButton"/>, task 15's brushes).</summary>
+        public bool RightClick, RightDrag, RightRelease;
+        /// <summary>Seconds since the last tick (unscaled): a brush lays its dabs by time (TB-03).</summary>
+        public float DeltaSeconds;
         /// <summary>The Erase key is held (Shift by default: Shift-drag erases, TF-02).</summary>
         public bool Erase;
         public ToolKeys Keys;
@@ -66,6 +75,20 @@ namespace MountainPlanner.UI.Tools
     /// <summary>A tool that picks built lifts with the pointer (Edit and Remove lift, task 09): the viewer lights the lift under
     /// the pointer while it's armed, as it does with no tool.</summary>
     public interface IPicksLifts { }
+
+    /// <summary>A tool that owns the right mouse button while it's armed (task 15's Terrain brushes, owner BR4): the camera
+    /// stops panning on right-drag until it closes.</summary>
+    public interface IOwnsRightButton { }
+
+    /// <summary>
+    /// A tool whose unconfirmed work can carry on in the next tool chosen (task 15's Terrain brushes share one session,
+    /// owner BR15). The host asks before disarming; a tool that hands over is disarmed without putting its work back.
+    /// </summary>
+    public interface ICarriesWork
+    {
+        /// <summary>Hands this tool's pending work to <paramref name="next"/> (not yet armed); false when it can't take it.</summary>
+        bool CarryTo(IDesignTool next);
+    }
 
     /// <summary>What Esc did (CF-07): backed out a step, or the tool is at its first step and would close.</summary>
     public enum ToolBackOut { Stepped, Close }

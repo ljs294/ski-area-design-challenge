@@ -102,18 +102,13 @@ Chair 2 bottoms (157 ft apart) split the mountain in two.
   - `DeleteLift` drops a lift's ends from the names.
   - `NetworkReport.Areas` and `ReachFromArea`: the hub's descent plus each lift loading there.
 - **Format:**
-  - Design shape 4 and save v4: the design's "Areas". The migration gives a v3 save none; the fixture is
-    `TestData/formats/v4-save`.
-  - **Master Planner's ruling (2026-10-26):** P3-15's terrain brush keeps save v4 / Shape 4 ("Strokes"), and Areas
-    become **save v5 / Shape 5**:
-    - an `UpToFive` step that adds "Areas" when missing;
-    - a `TestData/formats/v5-save` fixture, the v1–v4 fixtures unedited;
-    - the design golden re-pinned.
-  - Until P3-15's PR A merges, the commits here that hold the v4 numbering stay unpushed, and are rebased and
-    renumbered then.
-  - If this PR is ready first, message Master Planner, who may swap the order.
+  - Design shape 5 and save v5: the design's "Areas", after P3-15's shape 4 / save v4 ("Strokes"), as Master
+    Planner ruled (2026-10-26). `UpToFive` gives a v1–v4 save none; the fixture is `TestData/formats/v5-save`, and the
+    v1–v4 fixtures are unedited.
+  - Done 2026-10-27: main (with P3-15, #102) merged in, not rebased; stations and Areas took ID tags 13 and 14, since
+    task 15's strokes took 12.
   - Message Master Planner before merging anything that touches the save.
-  - The design, graph and network goldens are re-pinned.
+  - The design, graph and network goldens are re-pinned (design 4f6a0657, graph 33040ef1, network ec200262).
 - **Mockup:**
   - the hub shapes;
   - the Areas table;

@@ -10,21 +10,29 @@ using Newtonsoft.Json.Linq;
 namespace MountainPlanner.Persistence.Saves
 {
     /// <summary>
-    /// save.json, version 3 (task P3-04, v1; task P3-09, v2: each lift's terminal levels; v3: each tower's kind, LT44;
-    /// frozen, 0.3 §5). Written by hand in a fixed order, so the same save always gives
+    /// save.json, version 4 (task P3-04, v1; task P3-09, v2: each lift's terminal levels; v3: each tower's kind, LT44;
+    /// task P3-15, v4: the terrain brush strokes; frozen, 0.3 §5). Written by hand in a fixed order, so the same save always gives
     /// the same bytes (SH-04): two-space indents, "\n" line ends, integers only, IDs and the seed as 16-digit hex,
     /// points as [x, y] in whole millimetres from the site's centre on the package grid's axes (TE5; never absolute
     /// EPSG:6350), and every enum as a fixed word that never follows a C# rename. A lift's "Levels" (v2, SK14) are the
     /// terminals' base elevations: <b>absolute</b> elevation in whole millimetres in the package's height datum, unlike
     /// the site-centred points; null where unknown (a lift from a v1 save). A tower's "Kind" (v3) is the head's kind the
     /// player chose: "auto" (the game's choice; every tower of a v1 or v2 save), "support", "hold-down" or "combination".
-    /// The design's "Areas" (v4, NW-15) are the Areas the player has named: each its ID, name and the lift ends it held
-    /// ("End" is "bottom" or "top"); empty in a v1–v3 save.
+    /// The design's "Strokes" (v4, TB-14) are the confirmed terrain brush strokes, in ID order. "Kind" is "raise",
+    /// "lower", "flatten", "smooth" or "slope"; "RadiusMm", "StepMm" and "LimitMm" are whole millimetres;
+    /// "FalloffPermille" and "StrengthPermille" are thousandths; "TargetMm" and "StartMm" are <b>absolute</b> elevations
+    /// in whole millimetres in the package's height datum, like the terminal levels; "StartAt" and "TargetAt" are a
+    /// slope's two ends as site-centred points; fields a kind doesn't use are 0 (or [0, 0]). "Dabs" is [x0, y0, w0, dx1, dy1, w1, …] on one line: the first dab's point in whole mm from
+    /// the site's centre (TE5) and each later one's as the change from the one before, each with its weight in thousandths.
+    /// The design's "Areas" (v5, NW-15) are the Areas the player has named: each its ID, name and the lift ends it held
+    /// ("End" is "bottom" or "top"); empty in a v1–v4 save.
     /// <code>
-    /// { "Version": 4, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 4, "Seed", "NextOrdinal", "Trails": [...],
+    /// { "Version": 5, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 5, "Seed", "NextOrdinal", "Trails": [...],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
     ///                            "Levels": { "BottomMm", "TopMm" } or null } ],
+    ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
+    ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "Dabs": [...] } ],
     ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ] },
     ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] } }
     /// </code>
@@ -75,6 +83,10 @@ namespace MountainPlanner.Persistence.Saves
             w.WriteStartArray();
             foreach (var l in d.Lifts) WriteLift(w, l);
             w.WriteEndArray();
+            w.WritePropertyName("Strokes");
+            w.WriteStartArray();
+            foreach (var k in d.Strokes) WriteStroke(w, k);
+            w.WriteEndArray();
             w.WritePropertyName("Areas");
             w.WriteStartArray();
             foreach (var a in d.Areas)
@@ -95,6 +107,38 @@ namespace MountainPlanner.Persistence.Saves
                 w.WriteEndObject();
             }
             w.WriteEndArray();
+            w.WriteEndObject();
+        }
+
+        static void WriteStroke(JsonWriter w, TerrainStroke k)
+        {
+            var s = k.Settings;
+            w.WriteStartObject();
+            w.WritePropertyName("Id"); w.WriteValue(Hex(k.Id.Value));
+            w.WritePropertyName("Kind"); w.WriteValue(Words.Brush(s.Kind));
+            w.WritePropertyName("RadiusMm"); w.WriteValue(s.RadiusMm);
+            w.WritePropertyName("FalloffPermille"); w.WriteValue(s.FalloffPermille);
+            w.WritePropertyName("StepMm"); w.WriteValue(s.StepMm);
+            w.WritePropertyName("StrengthPermille"); w.WriteValue(s.StrengthPermille);
+            w.WritePropertyName("TargetMm"); w.WriteValue(s.TargetMm);
+            w.WritePropertyName("StartMm"); w.WriteValue(s.StartMm);
+            w.WritePropertyName("StartAt"); WritePoint(w, s.StartAt);
+            w.WritePropertyName("TargetAt"); WritePoint(w, s.TargetAt);
+            w.WritePropertyName("LimitMm"); w.WriteValue(s.LimitMm);
+            // [x0, y0, w0, dx1, dy1, w1, …] on one line: the first point absolute, the rest as changes (a stroke holds
+            // hundreds of dabs a few metres apart).
+            var sb = new StringBuilder("[");
+            PointMm last = default;
+            for (int i = 0; i < k.Dabs.Count; i++)
+            {
+                var d = k.Dabs[i];
+                long x = i == 0 ? d.At.X : (long)d.At.X - last.X, y = i == 0 ? d.At.Y : (long)d.At.Y - last.Y;
+                if (i > 0) sb.Append(", ");
+                sb.Append(x.ToString(CultureInfo.InvariantCulture)).Append(", ").Append(y.ToString(CultureInfo.InvariantCulture))
+                  .Append(", ").Append(d.WeightPermille.ToString(CultureInfo.InvariantCulture));
+                last = d.At;
+            }
+            w.WritePropertyName("Dabs"); w.WriteRawValue(sb.Append(']').ToString());
             w.WriteEndObject();
         }
 
@@ -286,7 +330,27 @@ namespace MountainPlanner.Persistence.Saves
                 }
                 areas.Add(new AreaRecord(new AreaId(HexValue(Str(ao, "Id"))), Str(ao, "Name"), ends));
             }
-            return DesignDocument.From(seed, next, trails, lifts, areas);
+            var strokes = new List<TerrainStroke>();
+            foreach (var k in Arr(d, "Strokes")) strokes.Add(ReadStroke(AsObj(k)));
+            return DesignDocument.From(seed, next, trails, lifts, strokes, areas);
+        }
+
+        static TerrainStroke ReadStroke(JObject k)
+        {
+            var settings = new BrushSettings(Words.Brush(Str(k, "Kind")), Int(k, "RadiusMm"), Int(k, "FalloffPermille"), Int(k, "StepMm"),
+                Int(k, "StrengthPermille"), Int(k, "TargetMm"), Int(k, "StartMm"), Point(k, "StartAt"), Point(k, "TargetAt"), Int(k, "LimitMm"));
+            var flat = Arr(k, "Dabs");
+            if (flat.Count % 3 != 0) throw new FormatException("a stroke's dabs aren't triples");
+            if (flat.Count / 3 > DesignRules.MaxDabsPerStroke) throw new FormatException("a stroke has too many dabs");
+            var dabs = new BrushDab[flat.Count / 3];
+            long x = 0, y = 0;
+            for (int i = 0; i < dabs.Length; i++)
+            {
+                x = i == 0 ? IntOf(flat[0]) : checked(x + IntOf(flat[3 * i]));
+                y = i == 0 ? IntOf(flat[1]) : checked(y + IntOf(flat[3 * i + 1]));
+                dabs[i] = new BrushDab(new PointMm(checked((int)x), checked((int)y)), IntOf(flat[3 * i + 2]));
+            }
+            return new TerrainStroke(new TerrainStrokeId(HexValue(Str(k, "Id"))), settings, dabs);
         }
 
         static Trail ReadTrail(JObject t)
@@ -436,6 +500,17 @@ namespace MountainPlanner.Persistence.Saves
             {
                 "auto" => Domain.Design.TowerKind.Auto, "support" => Domain.Design.TowerKind.Support,
                 "hold-down" => Domain.Design.TowerKind.HoldDown, "combination" => Domain.Design.TowerKind.Combination, _ => throw Unknown(s),
+            };
+
+            public static string Brush(BrushKind v) => v switch
+            {
+                BrushKind.Raise => "raise", BrushKind.Lower => "lower", BrushKind.Flatten => "flatten", BrushKind.Smooth => "smooth",
+                BrushKind.Slope => "slope", _ => throw Bad(v),
+            };
+            public static BrushKind Brush(string s) => s switch
+            {
+                "raise" => BrushKind.Raise, "lower" => BrushKind.Lower, "flatten" => BrushKind.Flatten, "smooth" => BrushKind.Smooth,
+                "slope" => BrushKind.Slope, _ => throw Unknown(s),
             };
 
             static Exception Bad(object v) => new ArgumentException($"{v.GetType().Name} {v} has no saved word.");

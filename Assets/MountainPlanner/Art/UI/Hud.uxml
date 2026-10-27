@@ -17,6 +17,7 @@
             <ui:VisualElement class="tabs">
                 <ui:Button name="toolbox-tab-lifts" class="tab tab--on" text="Lifts" />
                 <ui:Button name="toolbox-tab-trails" class="tab" text="Trails" />
+                <ui:Button name="toolbox-tab-terrain" class="tab" text="Terrain" />
                 <ui:Button name="toolbox-tab-snow" class="tab" text="Snowmaking" />
                 <ui:Button name="toolbox-tab-infra" class="tab" text="Infrastructure" />
             </ui:VisualElement>

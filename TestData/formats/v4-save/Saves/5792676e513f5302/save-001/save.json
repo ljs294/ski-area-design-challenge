@@ -9,7 +9,7 @@
   "Design": {
     "Shape": 4,
     "Seed": "000000005eed2026",
-    "NextOrdinal": 11,
+    "NextOrdinal": 15,
     "Trails": [
       {
         "Id": "6b80dc361d27034d",
@@ -160,20 +160,76 @@
         "Levels": null
       }
     ],
-    "Areas": [
+    "Strokes": [
       {
-        "Id": "35c09691cec6456e",
-        "Name": "Teton Village",
-        "Ends": [
-          {
-            "Lift": "54c7fa883b8f0a87",
-            "End": "bottom"
-          },
-          {
-            "Lift": "729e7dd11af32480",
-            "End": "bottom"
-          }
-        ]
+        "Id": "1bf1866a804ac9e1",
+        "Kind": "smooth",
+        "RadiusMm": 15240,
+        "FalloffPermille": 500,
+        "StepMm": 0,
+        "StrengthPermille": 350,
+        "TargetMm": 0,
+        "StartMm": 0,
+        "StartAt": [0, 0],
+        "TargetAt": [0, 0],
+        "LimitMm": 12192,
+        "Dabs": [-30000, -5000, 1000]
+      },
+      {
+        "Id": "32dc3648e2c20d71",
+        "Kind": "slope",
+        "RadiusMm": 7620,
+        "FalloffPermille": 500,
+        "StepMm": 0,
+        "StrengthPermille": 350,
+        "TargetMm": 2029000,
+        "StartMm": 2041000,
+        "StartAt": [0, 0],
+        "TargetAt": [100000, -2000],
+        "LimitMm": 12192,
+        "Dabs": [0, 0, 1000, 1905, 0, 1000, 1905, -12, 1000, 1905, -28, 1000]
+      },
+      {
+        "Id": "74d167fa1f12718f",
+        "Kind": "flatten",
+        "RadiusMm": 12192,
+        "FalloffPermille": 500,
+        "StepMm": 0,
+        "StrengthPermille": 175,
+        "TargetMm": 2034118,
+        "StartMm": 0,
+        "StartAt": [0, 0],
+        "TargetAt": [0, 0],
+        "LimitMm": 12192,
+        "Dabs": [30000, 30000, 700, 2286, 0, 700]
+      },
+      {
+        "Id": "b5272171afddd99c",
+        "Kind": "lower",
+        "RadiusMm": 6096,
+        "FalloffPermille": 500,
+        "StepMm": 40,
+        "StrengthPermille": 0,
+        "TargetMm": 0,
+        "StartMm": 0,
+        "StartAt": [0, 0],
+        "TargetAt": [0, 0],
+        "LimitMm": 12192,
+        "Dabs": [-8000, 22000, 1000, 0, 2286, 1000]
+      },
+      {
+        "Id": "d3c79289bbe155fc",
+        "Kind": "raise",
+        "RadiusMm": 9144,
+        "FalloffPermille": 500,
+        "StepMm": 81,
+        "StrengthPermille": 0,
+        "TargetMm": 0,
+        "StartMm": 0,
+        "StartAt": [0, 0],
+        "TargetAt": [0, 0],
+        "LimitMm": 12192,
+        "Dabs": [12000, -40000, 1000, 1500, -250, 1000, 0, 0, 1000, 1500, -250, 500]
       }
     ]
   },

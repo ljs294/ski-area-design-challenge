@@ -564,3 +564,30 @@ The owner said "Go. Yes to all nine recommendations."
 | NT23 | **Names along their lines** (owner, 2026-10-26: "trail and lift names should be centered and aligned along the run length like the mockup"): a run's and a lift's name is centred on its line and slanted with it, read left to right; turned straight along the line around the spot, not bent letter by letter; Area and landmark names stay upright |
 | NT21 | **Later (not task 10):** a cost or unlock for the number of base areas, and a skills/unlock tree; to the coordinator's backlog (the economy and buildings come after Phase 3) |
 | NT16 | **The catchment ring while placing a lift** ("just like placing service buildings in Cities: Skylines 2"): the terminals being placed show their 100 ft ring, existing terminals theirs fainter, and the trails it would catch light up; mockup first |
+
+## Phase 3 task 15, terrain brush: decided 2026-10-26
+
+**Context:** the owner asked for a Cities: Skylines 2-style terrain tool during task 08 (TL14), for hand-grading cat
+tracks, junctions and the ground round lifts, and started it on 2026-10-26 ("get the brush going"). The plan went
+through three revisions: five brushes (rev 1), the CS2 set and one pane (rev 2), then a confirmation and fixed
+structures (rev 3, approved). Plan: [p3-15-plan.md](p3-15-plan.md); rules TB-01 to TB-14 in
+[p3-02-design-rules.md §4.6](p3-02-design-rules.md).
+
+| # | Decision |
+|---|---|
+| BR1 | **A Terrain tab in the Toolbox** holds the CS2 set: **Raise/Lower** (hold left to raise, hold right to lower), **Flatten** (right click samples the target elevation under the pointer, left paints toward it), **Smooth**, and **Slope** (right click sets the target elevation; a left drag ramps the ground toward it). Tray letters B, L, O and G |
+| BR2 | **One brush pane for all four,** nearly identical: Diameter and Strength, plus the Target elevation (Flatten, Slope) and the Slope (Slope) where they apply |
+| BR3 | **Slope picks its grade by trail rating:** four chips (● Easiest under 25%, ■ More difficult 25–40%, ◆ Most difficult 40–60%, ◆◆ Experts only 60% and up, from TD-03) choose the band, and a slider sets the grade inside it |
+| BR4 | **The tool owns the right mouse button** while a Terrain tool is armed (right-drag pan comes back when it closes; WASD and the arrows still pan, middle-drag still turns) |
+| BR5 | **The ground moves live and at once:** "when raising or lowering terrain you should see it raise as you hold the mouse" |
+| BR6 | **Strokes replay last,** after every trail and lift (TL3's fold, phase 2): hand grading is the finishing pass. Raise and Lower are relative, so they ride on a regraded trail |
+| BR7 | **A final confirmation:** strokes stay pending until Break ground, whose review gives the cut and fill. The confirmed session is one undo step; Ctrl+Z inside the tool takes back the last pending stroke |
+| BR8 | **The cost is volumes for now:** cut, fill and the net import or export (yd³, m³ in metric), trees cleared and towers re-heighted. A money line joins it with the Phase 4 economy |
+| BR9 | **Terminals, and later every building, are fixed:** the brush never changes the ground of their pads, and the ground may slope into them at **no more than 1:1** |
+| BR10 | **A lift's clearance envelope can't be infringed:** the brush never brings ground closer to the line than the clearance rule allows |
+| BR11 | **Towers follow the ground:** a tower's head (and so the rope) stays where it was, in the same orientation, and the tower's height changes with the ground at its base. Where the tower would pass its height limits, **the brush stops** there ("held by tower 7") |
+| BR12 | **Save v4** (design Shape 4) adds the strokes; the design golden re-pins (owner OK with the plan) |
+| BR13 | **Close-up contours** (owner, 2026-10-26, with the brush): finer contour levels appear as you zoom in, **40 → 20 → 10 ft** (metric 10 → 5 → 2.5 m), each fading in by its on-screen spacing as the 40 ft level already does; the finer levels read the 1 m heightmap per pixel. Labels stay every 200 ft (50 m), the yellow pending contours at 40 ft. **Contours switch on by themselves while a Terrain brush is armed** and go back as they were when it closes |
+| BR14 | **Slope stays literal; the bill counts live** (owner, 2026-10-26, after the in-game review): the Slope brush toward a target far below or above the ground keeps its steep side walls (no automatic 1:1 side faces), as CS2's does. While you drag, the pane's **cut and fill update live** (with trees cleared and holds), about five times a second |
+| BR15 | **The Terrain brushes share one session** (owner, 2026-10-26): switching between Raise/Lower, Flatten, Smooth and Slope keeps the pending strokes, the ground they made, the bill and the target; one Break ground reviews them all and Ctrl+Z works across them. Switching to another kind of tool still discards, with a notice (P3-06 Q8) |
+| BR16 | **Slope runs between two points** (owner, 2026-10-26): no grade control; right click sets the target point (where and how high), the press the start, and the ground ramps evenly between them, level across, by where each point falls along the line. The pane shows the ramp's length and the grade it makes with its rating. Slope paints only once a target is set. Replaces the rating chips and grade slider (BR3's slope part) |

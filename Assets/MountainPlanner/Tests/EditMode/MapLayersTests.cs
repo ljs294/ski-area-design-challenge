@@ -221,9 +221,14 @@ namespace MountainPlanner.Tests
                 DisplayUnits.Set(UnitSystem.Imperial, remember: false);
                 layers.Apply();
                 Assert.That(Shader.GetGlobalFloat("_MP_ContourInterval"), Is.EqualTo(12.192f).Within(1e-4), "contours every 40 ft");
+                Assert.That(Shader.GetGlobalFloat("_MP_ContourFine"), Is.EqualTo(6.096f).Within(1e-4), "20 ft close up (BR13)");
+                Assert.That(Shader.GetGlobalFloat("_MP_ContourFinest"), Is.EqualTo(3.048f).Within(1e-4), "10 ft closer still");
+                Assert.That(InfoLegend.ContoursNote(UnitSystem.Imperial), Does.Contain("down to 10 ft"));
                 DisplayUnits.Set(UnitSystem.Metric, remember: false);
                 layers.Apply();
                 Assert.That(Shader.GetGlobalFloat("_MP_ContourInterval"), Is.EqualTo(10f), "contours every 10 m");
+                Assert.That(Shader.GetGlobalFloat("_MP_ContourFine"), Is.EqualTo(5f));
+                Assert.That(Shader.GetGlobalFloat("_MP_ContourFinest"), Is.EqualTo(2.5f));
                 Assert.That(InfoLegend.SnowDepth(UnitSystem.Imperial).Select(e => e.Figure), Is.EqualTo(new[] { "0 in", "6 in", "1 ft 6 in", "3 ft", "6 ft", "10 ft +" }));
                 Assert.That(InfoLegend.SnowDepth(UnitSystem.Metric).Select(e => e.Figure), Is.EqualTo(new[] { "0 cm", "15 cm", "50 cm", "1 m", "2 m", "3 m +" }));
             }

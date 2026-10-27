@@ -2,6 +2,7 @@ using System;
 using MountainPlanner.Domain.Measure;
 using MountainPlanner.Presentation;
 using MountainPlanner.UI.Hud;
+using MountainPlanner.UI.Tools;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -23,6 +24,11 @@ namespace MountainPlanner.UI
             ("trails", "new-trail", "New", "New trail", "N", "s-trail", "new"),
             ("trails", "edit-trail", "Edit", "Edit trail", "M", "s-trail", "edit"),
             ("trails", "remove-trail", "Remove", "Remove trail", "X", "s-trail", "remove"),
+            // P3-15 (TB-01): the Terrain tab, the Cities: Skylines 2 set.
+            ("terrain", TerrainIds.Raise, "Raise/Lower", "Raise or lower ground", "B", "s-raise", null),
+            ("terrain", TerrainIds.Flatten, "Flatten", "Flatten ground", "L", "s-flatten", null),
+            ("terrain", TerrainIds.Smooth, "Smooth", "Smooth ground", "O", "s-smooth", null),
+            ("terrain", TerrainIds.Slope, "Slope", "Slope ground", "G", "s-slope", null),
             ("snow", "gun", "Snow gun", "Snow gun", "G", "s-gun", null),
             ("snow", "pipe", "Water line", "Water line", "W", "s-pipe", null),
             ("snow", "pump", "Pump house", "Pump house", "P", "s-pump", null),
@@ -30,7 +36,7 @@ namespace MountainPlanner.UI
             ("infra", "road", "Road", "Road", "R", "s-road", null),
             ("infra", "parking", "Parking", "Parking", "K", "s-parking", null),
         };
-        static readonly string[] ToolboxTabs = { "lifts", "trails", "snow", "infra" };
+        static readonly string[] ToolboxTabs = { "lifts", "trails", "terrain", "snow", "infra" };
         static readonly string[] AnalysisTabs = { "overview", "lifts", "trails", "network", "guests", "snow", "weather", "amenities", "finances" };
         /// <summary>Each Analysis tab's line until its phase fills it (the mockup's demo=p2 wording).</summary>
         static readonly string[] AnalysisEmpty =

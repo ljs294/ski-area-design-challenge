@@ -41,6 +41,11 @@ namespace MountainPlanner.Tests
         {
             Assert.That(UnitFormat.ContourIntervalMetres(Ft), Is.EqualTo(12.192).Within(1e-9), "40 ft");
             Assert.That(UnitFormat.ContourIntervalMetres(M), Is.EqualTo(10));
+            // BR13 (task 15): close up, 20 and 10 ft, or 5 and 2.5 m.
+            Assert.That(UnitFormat.ContourFineMetres(Ft), Is.EqualTo(20 * 0.3048).Within(1e-9), "20 ft");
+            Assert.That(UnitFormat.ContourFinestMetres(Ft), Is.EqualTo(10 * 0.3048).Within(1e-9), "10 ft");
+            Assert.That(UnitFormat.ContourFineMetres(M), Is.EqualTo(5));
+            Assert.That(UnitFormat.ContourFinestMetres(M), Is.EqualTo(2.5));
             Assert.That(UnitFormat.ContourLabel(8200 * 0.3048, Ft), Is.EqualTo("8200"));
             Assert.That(UnitFormat.ContourLabel(2500, M), Is.EqualTo("2500"));
         }

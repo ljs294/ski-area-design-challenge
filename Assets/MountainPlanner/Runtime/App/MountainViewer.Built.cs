@@ -28,6 +28,9 @@ namespace MountainPlanner.App
         LiftMaterials _liftMaterials;
         Material _cableMaterial;
         readonly Dictionary<LiftId, (Lift Lift, LiftView View)> _liftViews = new Dictionary<LiftId, (Lift, LiftView)>();
+        // TW-02 v4 (task 15): the ground under each built lift's towers when its view was built; hand grading there rebuilds
+        // the view (its masts follow the ground under fixed heads).
+        readonly Dictionary<LiftId, double[]> _liftGround = new Dictionary<LiftId, double[]>();
         TerrainEditSession _builtFor;
         bool _builtDirty;
         float _liftSnow = -1;
@@ -56,6 +59,43 @@ namespace MountainPlanner.App
 
         void MarkBuiltDirty(DesignSnapshot _) => _builtDirty = true;
 
+        /// <summary>TW-02 v4: each tower's base level from the lift's own earthwork (the ground before hand grading), or null.</summary>
+        static List<double> FixedBases(LiftBuild.Works works, Lift lift)
+        {
+            var rope = works?.Rope;
+            if (rope == null || rope.Towers.Count != lift.Towers.Count) return null;
+            var bases = new List<double>(rope.Towers.Count);
+            foreach (var t in rope.Towers) bases.Add(t.BaseY);
+            return bases;
+        }
+
+        // The ground now at each tower's base (and where a leaned foot may slide), to notice hand grading under a lift.
+        double[] GroundUnderTowers(Lift lift, LiftBuild.Works works, Domain.Edits.IHeightSource heights)
+        {
+            var rope = works?.Rope;
+            if (rope == null || heights == null || _resort == null) return Array.Empty<double>();
+            double len = lift.LengthMetres;
+            if (len <= 0) return Array.Empty<double>();
+            var a = _resort.Frame.ToAlbers((float)lift.Bottom.XMetres, (float)lift.Bottom.YMetres);
+            var b = _resort.Frame.ToAlbers((float)lift.Top.XMetres, (float)lift.Top.YMetres);
+            double ux = (b.X - a.X) / len, uy = (b.Y - a.Y) / len;
+            var g = new double[rope.Towers.Count * 2];
+            for (int i = 0; i < rope.Towers.Count; i++)
+            {
+                var t = rope.Towers[i];
+                g[2 * i] = heights.At(a.X + ux * t.BaseS, a.Y + uy * t.BaseS);
+                g[2 * i + 1] = heights.At(a.X + ux * t.RopeS, a.Y + uy * t.RopeS);
+            }
+            return g;
+        }
+
+        static bool SameGround(double[] a, double[] b)
+        {
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++) if (Math.Abs(a[i] - b[i]) > 1e-4) return false;
+            return true;
+        }
+
         /// <summary>Once the edits are laid, redraws the trail map and any lift that changed. Called every frame; cheap when nothing did.</summary>
         void UpdateBuiltWork()
         {
@@ -80,7 +120,10 @@ namespace MountainPlanner.App
             {
                 if (lift.Stage != WorkStage.Built) continue;
                 keep.Add(lift.Id);
-                if (_liftViews.TryGetValue(lift.Id, out var shown) && ReferenceEquals(shown.Lift, lift)) continue;
+                var works = _edits?.Earthwork?.DetailOf(lift.Id.Value) as LiftBuild.Works;
+                var underTowers = GroundUnderTowers(lift, works, heights);
+                if (_liftViews.TryGetValue(lift.Id, out var shown) && ReferenceEquals(shown.Lift, lift)
+                    && _liftGround.TryGetValue(lift.Id, out var was) && SameGround(was, underTowers)) continue;
                 if (shown.View != null && shown.View == _hovered) _hovered = null;
                 if (shown.View != null && shown.View == _held) _held = null;
                 shown.View?.Dispose();
@@ -95,7 +138,8 @@ namespace MountainPlanner.App
                 var view = new LiftView(_resort.Root.transform, Lifts, _liftMaterials, _cableMaterial, lift.Name);
                 try
                 {
-                    view.Build(lift, heights, _resort.Frame, LiftLivery.For(lift.CatalogId));   // LT41: the type's two colours
+                    // LT41: the type's two colours; TW-02 v4: the heads where the lift's own earthwork left them.
+                    view.Build(lift, heights, _resort.Frame, LiftLivery.For(lift.CatalogId), FixedBases(works, lift));
                 }
                 catch (Exception e)
                 {
@@ -104,6 +148,7 @@ namespace MountainPlanner.App
                     continue;
                 }
                 _liftViews[lift.Id] = (lift, view);
+                _liftGround[lift.Id] = underTowers;
                 var rope = view.Rope;
                 // LT10: the lift's trail-map line, ticks at its towers.
                 if (_mapLines == null) _mapLines = new LiftMapLines(_resort.Root.transform);
@@ -138,6 +183,7 @@ namespace MountainPlanner.App
                 if (_liftViews[id].View == _held) _held = null;
                 _liftViews[id].View.Dispose();
                 _liftViews.Remove(id);
+                _liftGround.Remove(id);
             }
             ShowLifts(_liftsShown, true);   // new views take the layer
             FillLiftList(doc);
@@ -427,6 +473,7 @@ namespace MountainPlanner.App
             FollowBuiltWork(null);
             foreach (var kv in _liftViews) kv.Value.View.Dispose();
             _liftViews.Clear();
+            _liftGround.Clear();
             _trailMap?.Dispose();
             _trailMap = null;
             _liftMaterials?.Dispose();

@@ -37,6 +37,9 @@ namespace MountainPlanner.UI.Tools
         /// <summary>The ground the tools shape (task 08): the terrain edit session and its earthwork; null in tests without one.</summary>
         public IEarthworkHost Earthwork { get; set; }
 
+        /// <summary>The ground a terrain brush moves as it paints (task 15); null in tests without a mountain.</summary>
+        public ILiveGround LiveGround { get; set; }
+
         /// <summary>
         /// The ground as edited now (task 05's heights in the package's frame), for builds that need the real terrain (task 09's
         /// lifts); null while the edit session is still starting.

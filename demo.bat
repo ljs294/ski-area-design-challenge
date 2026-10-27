@@ -227,6 +227,17 @@ echo     71o Open a problem report: the newest one, a zip or a GitHub issue numb
 echo        scratch library (your own settings stay as they are).
 echo     71c The Send feedback captures, both themes, 50-150%% (render lane), into test-results\report-captures.
 echo.
+echo   Phase 3, task 15: the terrain brush (rebuilds the game, about 2 minutes; close the Unity editor first)
+echo     73 The game: Toolbox ^> Terrain (B Raise/Lower, L Flatten, O Smooth, G Slope). Left paints, right lowers or takes
+echo        the target, [ ] diameter, , . strength, PgUp/PgDn target, Enter Break ground, then Enter to Confirm. Contours
+echo        come on while a brush is armed; zoom in and they go down to 10 ft. Try it beside a lift's terminal and under
+echo        its line: the brush stops at the pad, the chairs' clearance and a tower's limits, and towers re-height.
+echo        The pane's cut and fill count up while you drag.
+echo     73b The brush bench: live ground with a 60 ft and a 400 ft brush, the review and the confirm (measure lane).
+echo     73m The brush tour on Jackson Hole 2 km: a quad, then each brush beside and under it, with screenshots and a movie
+echo        (render lane; the movie is encoded after), into test-results\p3-15\tour.
+echo     73c Close-up contours at 3,500 m, 800 m and 150 m (render lane), into test-results\p3-15\contours.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -322,6 +333,10 @@ if /i "%CHOICE%"=="70k" goto networkown
 if /i "%CHOICE%"=="71" goto reports
 if /i "%CHOICE%"=="71o" goto openreport
 if /i "%CHOICE%"=="71c" goto reportcaptures
+if /i "%CHOICE%"=="73" goto brush
+if /i "%CHOICE%"=="73b" goto brushbench
+if /i "%CHOICE%"=="73m" goto brushtour
+if /i "%CHOICE%"=="73c" goto contourcaptures
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -968,6 +983,58 @@ echo Importing the lifts into Unity (about 30 seconds)...
 "%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.LiftImport.Import -quit -logFile "%~dp0test-results\lifts.log" <nul
 if errorlevel 1 (echo   The import failed - see test-results\lifts.log & goto done)
 call :buildliftlab
+goto done
+
+:brush
+rem Task P3-15: the terrain brush in the real game. Always rebuilt, so the brushes on this branch are the ones you try.
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open an area ^(Jackson Hole, the demo, is fine^), then T for the Toolbox and the Terrain tab:
+echo   B Raise/Lower: hold left to raise, right to lower; the ground moves as you hold, and the pane's Cut and fill
+echo     count up while you drag. [ ] diameter, , . strength.
+echo   L Flatten: right-click takes the target elevation under the pointer; left paints toward it ^(PgUp/PgDn +-1 ft^).
+echo   O Smooth: left smooths under the brush.
+echo   G Slope: right-click sets the target point; drag with left from the start: the ground ramps evenly between the two.
+echo     The pane shows the ramp's length and grade. Going over it again keeps the same ramp.
+echo   Switching brushes keeps your pending strokes. Ctrl+Z takes back the last stroke. Enter opens Break ground: cut, fill, trees, towers re-heighted, held places;
+echo     Enter again confirms ^(one undo step^). Esc with strokes pending asks, then puts the ground back.
+echo   Contours come on while a brush is armed: zoom in close for 20 ft and 10 ft lines.
+echo   Near a lift ^(build one on the Lifts tab first^): the brush stops at the pad, the chairs' clearance and a tower's limits.
+start "" "%GAME%"
+goto done
+
+:brushbench
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "JH2=%LOCALAPPDATA%\SkiAreaDesignChallenge-p308\jh2km"
+if not exist "%JH2%\manifest.json" robocopy "%~dp0TestData\jackson-hole-2km" "%JH2%" /e /njh /njs /nfl /ndl >nul
+if not exist "%~dp0test-results\p3-15" mkdir "%~dp0test-results\p3-15"
+%MEASURE% "%GAME%" -package "%JH2%" -notitle -quality high %SCREEN% -brushbench "%~dp0test-results\p3-15\brushbench.json" -logFile "%~dp0test-results\p3-15\brushbench.log" <nul
+findstr /c:"[BrushBench]" "%~dp0test-results\p3-15\brushbench.log"
+goto done
+
+:brushtour
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "JH2=%LOCALAPPDATA%\SkiAreaDesignChallenge-p308\jh2km"
+if not exist "%JH2%\manifest.json" robocopy "%~dp0TestData\jackson-hole-2km" "%JH2%" /e /njh /njs /nfl /ndl >nul
+if not exist "%~dp0test-results\p3-15\tour" mkdir "%~dp0test-results\p3-15\tour"
+%RENDER% "%GAME%" -package "%JH2%" -notitle -quality high %SCREEN% -brushtour "%~dp0test-results\p3-15\tour" -brushmovie -logFile "%~dp0test-results\p3-15\tour\tour.log" <nul
+"%UNITY%" -batchmode -nographics -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.PickerLabSetup.EncodeMovies -movies "%~dp0test-results\p3-15\tour" -quit -logFile "%~dp0test-results\p3-15\tour\encode.log" <nul
+start "" "%~dp0test-results\p3-15\tour"
+goto done
+
+:contourcaptures
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "JH2=%LOCALAPPDATA%\SkiAreaDesignChallenge-p308\jh2km"
+if not exist "%JH2%\manifest.json" robocopy "%~dp0TestData\jackson-hole-2km" "%JH2%" /e /njh /njs /nfl /ndl >nul
+if not exist "%~dp0test-results\p3-15\contours" mkdir "%~dp0test-results\p3-15\contours"
+for %%D in (3500 800 150) do (
+  %RENDER% "%GAME%" -package "%JH2%" -notitle -quality high %SCREEN% -contours -view 230,-545,%%D,250,42 -screenshot "%~dp0test-results\p3-15\contours\z%%D.png" <nul
+)
+start "" "%~dp0test-results\p3-15\contours"
 goto done
 
 :reports

@@ -267,6 +267,7 @@ namespace MountainPlanner.App
                 StartTrailShots(args);     // -trailshots <folder> [-trailspot name] (MountainViewer.Trails.cs, task P3-08)
                 StartTrailBench(args);     // -trailbench <out.json> (MountainViewer.Trails.cs, task P3-08)
                 StartNetworkShots(args);   // -networkshots <folder> (MountainViewer.Network.cs, task P3-10)
+                StartBrushRuns(args);      // -brushtour <folder> [-brushmovie], -brushbench <out.json> (MountainViewer.Brush.cs, task P3-15)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
             }

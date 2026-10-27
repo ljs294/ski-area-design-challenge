@@ -105,7 +105,7 @@ namespace MountainPlanner.Tests.Core
             SaveStore.Write(folder, FixtureSave());
             var o = JObject.Parse(File.ReadAllText(Path.Combine(folder, SaveFile.FileName)));
             Assert.That(o.Properties().Select(p => p.Name), Is.EqualTo(new[] { "Version", "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256", "Design", "Edits" }));
-            Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Areas" }),
+            Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas" }),
                 "no network, stats, ratings, rope or volumes (SH-05); no undo history (DD1)");
             Assert.That(((JObject)o["Design"]["Lifts"][0]).Properties().Select(p => p.Name),
                 Is.EqualTo(new[] { "Id", "Name", "Stage", "Catalog", "Bottom", "Top", "TowerMode", "Stance", "Towers", "Levels" }),
@@ -146,14 +146,34 @@ namespace MountainPlanner.Tests.Core
             return save;
         }
 
-        /// <summary>v4 (task P3-10, NW-15): the v3 save with an Area the player named.</summary>
+        /// <summary>The save the v4 fixture holds (task 15, TB-14): the v3 fixture's, plus a session of one stroke of each
+        /// kind (Raise, Lower, Flatten, Smooth, Slope), so every field and the delta-coded dabs are pinned.</summary>
         static SaveFile FixtureSaveFour()
         {
             var save = FixtureSaveThree();
+            BrushDab D(int x, int y, int w = 1000) => new BrushDab(new PointMm(x, y), w);
+            var strokes = new[]
+            {
+                new StrokePainting(BrushSettings.RaiseOrLower(false, 9144, 81), new[] { D(12_000, -40_000), D(13_500, -40_250), D(13_500, -40_250), D(15_000, -40_500, 500) }),
+                new StrokePainting(BrushSettings.RaiseOrLower(true, 6096, 40), new[] { D(-8_000, 22_000), D(-8_000, 24_286) }),
+                new StrokePainting(BrushSettings.Flatten(12192, 175, 2_034_118), new[] { D(30_000, 30_000, 700), D(32_286, 30_000, 700) }),
+                new StrokePainting(BrushSettings.Smooth(15240, 350), new[] { D(-30_000, -5_000) }),
+                new StrokePainting(BrushSettings.Slope(7620, 350, new PointMm(0, 0), 2_041_000, new PointMm(100_000, -2_000), 2_029_000), new[] { D(0, 0), D(1_905, 0), D(3_810, -12), D(5_715, -40) }),
+            };
+            var r = new AddTerrainStrokes(1, strokes).Apply(save.Design);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            save.Design = r.Document;
+            return save;
+        }
+
+        /// <summary>The save the v5 fixture holds (task P3-10, NW-15): the v4 fixture's, plus an Area the player named.</summary>
+        static SaveFile FixtureSaveFive()
+        {
+            var save = FixtureSaveFour();
             var lifts = save.Design.Lifts;
             var ends = new[] { new AreaEnd(lifts[0].Id, true), new AreaEnd(lifts[lifts.Count - 1].Id, true) };
             var r = new RenameArea(0, new AreaId(0), ends, "Teton Village").Apply(save.Design);
-            Assert.That(r.Accepted, Is.True, r.ToString());
+            Assert.That(r.Accepted, Is.True, r.Reason);
             save.Design = r.Document;
             return save;
         }
@@ -161,11 +181,11 @@ namespace MountainPlanner.Tests.Core
         [Test]
         public void TheWriterReproducesTheFrozenFixtureByteForByte()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v4-save")), "Saves", JacksonHole, "save-001");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v5-save")), "Saves", JacksonHole, "save-001");
             string folder = Path.Combine(_root, "again");
-            SaveStore.Write(folder, FixtureSaveFour());
+            SaveStore.Write(folder, FixtureSaveFive());
             Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveFile.FileName)), Is.EqualTo(File.ReadAllBytes(Path.Combine(fixture, SaveFile.FileName))),
-                "save.json v4 is frozen: a writer change is a format change (0.3 §5)");
+                "save.json v5 is frozen: a writer change is a format change (0.3 §5)");
             foreach (string tile in Directory.GetFiles(Path.Combine(fixture, SaveStore.TilesFolder)))
                 Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveStore.TilesFolder, Path.GetFileName(tile))), Is.EqualTo(File.ReadAllBytes(tile)));
         }
@@ -266,7 +286,7 @@ namespace MountainPlanner.Tests.Core
             byte[] before = File.ReadAllBytes(path);
 
             var e = Assert.Throws<FormatTooNewException>(() => SaveStore.Read(folder));
-            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 5; this version reads up to 4). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 6; this version reads up to 5). Update the game to open it."));
             Assert.That(SaveStore.Write(folder, FixtureSave()), Is.False);
             Assert.That(SaveStore.Rename(folder, "Mine now"), Is.False);
             Assert.That(File.ReadAllBytes(path), Is.EqualTo(before), "nothing is written over a newer save (0.3 §5 rule 3)");
@@ -392,32 +412,13 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
-        public void TheVersionFourFixtureReadsUnchanged()
+        public void TheVersionThreeFixtureReadsUnchanged()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v4-save")), "Saves", JacksonHole, "save-001");
-            string copy = Path.Combine(_root, "fixture4");
-            CopyFolder(fixture, copy);
-            var back = SaveStore.Read(copy);
-            AssertSame(FixtureSaveFour(), back);
-            Assert.That(back.Design.Areas.Select(a => a.Name), Is.EqualTo(new[] { "Teton Village" }));
-            Assert.That(back.Design.Areas[0].Ends.Count, Is.EqualTo(2));
-        }
-
-        [Test]
-        public void AVersionThreeSaveMigratesToFourWithNoAreasNamed()
-        {
-            // 0.3 §5: the v3 fixture, unedited, opens through the migration; its hubs go by their default names, as they did.
             string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v3-save")), "Saves", JacksonHole, "save-001");
-            var o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName))), out int from);
-            Assert.That(from, Is.EqualTo(3));
-            Assert.That((int)o["Version"], Is.EqualTo(4));
-            Assert.That((int)o["Design"]["Shape"], Is.EqualTo(4));
-            Assert.That(((JArray)o["Design"]["Areas"]).Count, Is.EqualTo(0));
-            string copy = Path.Combine(_root, "v3");
+            string copy = Path.Combine(_root, "fixture3");
             CopyFolder(fixture, copy);
             var back = SaveStore.Read(copy);
             AssertSame(FixtureSaveThree(), back);
-            Assert.That(back.Design.Areas, Is.Empty);
             Assert.That(back.Design.Lifts.First(l => l.Towers.Count > 0).Towers.Select(t => t.Kind),
                         Is.EqualTo(new[] { TowerKind.HoldDown, TowerKind.Support, TowerKind.Combination }));
         }
@@ -437,13 +438,103 @@ namespace MountainPlanner.Tests.Core
             Assert.That(SaveStore.Read(copy).Design.Lifts.SelectMany(l => l.Towers).All(t => t.Kind == TowerKind.Auto), Is.True);
         }
 
-        [Test, Explicit("Writes the v4 save fixture; after the first merge it's frozen")]
+        [Test]
+        public void TheVersionFourFixtureReadsUnchanged()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v4-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture4");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveFour(), back);
+            Assert.That(back.Design.Strokes.Select(k => k.Settings.Kind).OrderBy(k => k),
+                        Is.EqualTo(new[] { BrushKind.Raise, BrushKind.Lower, BrushKind.Flatten, BrushKind.Smooth, BrushKind.Slope }));
+        }
+
+        [Test]
+        public void TheVersionFiveFixtureReadsUnchanged()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v5-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture5");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveFive(), back);
+            Assert.That(back.Design.Areas.Select(a => a.Name), Is.EqualTo(new[] { "Teton Village" }));
+            Assert.That(back.Design.Areas[0].Ends.Count, Is.EqualTo(2));
+            Assert.That(back.Design.Strokes.Count, Is.EqualTo(5));
+        }
+
+        [Test]
+        public void EveryOlderSaveMigratesToFiveWithNoAreasNamed()
+        {
+            // 0.3 §5 (task P3-10, NW-15): the v1–v4 fixtures, unedited, open through v4 → v5 with no Areas named (their hubs go
+            // by their default names, as they did) and otherwise the same document as their own version read.
+            var expected = new Dictionary<string, SaveFile>
+            {
+                ["v1-save"] = FixtureSave(), ["v2-save"] = FixtureSaveTwo(), ["v3-save"] = FixtureSaveThree(), ["v4-save"] = FixtureSaveFour(),
+            };
+            foreach (var kv in expected)
+            {
+                string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", kv.Key)), "Saves", JacksonHole, "save-001");
+                var o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName))), out _);
+                Assert.That((int)o["Version"], Is.EqualTo(5), kv.Key);
+                Assert.That((int)o["Design"]["Shape"], Is.EqualTo(5), kv.Key);
+                Assert.That(((JArray)o["Design"]["Areas"]).Count, Is.EqualTo(0), kv.Key);
+                string copy = Path.Combine(_root, "up5-" + kv.Key);
+                CopyFolder(fixture, copy);
+                var back = SaveStore.Read(copy);
+                Assert.That(back.Design.Areas, Is.Empty, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
+            }
+        }
+
+        [Test]
+        public void EveryOlderSaveMigratesToFourWithNoStrokes()
+        {
+            // 0.3 §5: the v1, v2 and v3 fixtures, unedited, open through v3 → v4 with an empty stroke list and otherwise the
+            // same document as their own version read.
+            var expected = new Dictionary<string, SaveFile> { ["v1-save"] = FixtureSave(), ["v2-save"] = FixtureSaveTwo(), ["v3-save"] = FixtureSaveThree() };
+            foreach (var kv in expected)
+            {
+                string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", kv.Key)), "Saves", JacksonHole, "save-001");
+                var o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName))), out _);
+                Assert.That((int)o["Version"], Is.EqualTo(SaveFile.CurrentVersion), kv.Key);
+                Assert.That((int)o["Design"]["Shape"], Is.EqualTo(DesignDocument.ShapeVersion), kv.Key);
+                Assert.That(((JArray)o["Design"]["Strokes"]).Count, Is.EqualTo(0), kv.Key);
+                string copy = Path.Combine(_root, "up-" + kv.Key);
+                CopyFolder(fixture, copy);
+                var back = SaveStore.Read(copy);
+                Assert.That(back.Design.Strokes, Is.Empty, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
+            }
+        }
+
+        [Test, Explicit("Regenerates the frozen v5 save fixture")]
+        public void WriteTheVersionFiveFixture()
+        {
+            string formats = TestData.Folder("formats");
+            string folder = Path.Combine(formats, "v5-save", "Saves", JacksonHole, "save-001");
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+            Assert.That(SaveStore.Write(folder, FixtureSaveFive()), Is.True);
+            File.Delete(Path.Combine(folder, SaveFile.BackupName));
+        }
+
+        [Test, Explicit("Regenerates the frozen v4 save fixture")]
         public void WriteTheVersionFourFixture()
         {
             string formats = TestData.Folder("formats");
             string folder = Path.Combine(formats, "v4-save", "Saves", JacksonHole, "save-001");
             if (Directory.Exists(folder)) Directory.Delete(folder, true);
             Assert.That(SaveStore.Write(folder, FixtureSaveFour()), Is.True);
+            File.Delete(Path.Combine(folder, SaveFile.BackupName));
+        }
+
+        [Test, Explicit("Regenerates the frozen v3 save fixture")]
+        public void WriteTheVersionThreeFixture()
+        {
+            string formats = TestData.Folder("formats");
+            string folder = Path.Combine(formats, "v3-save", "Saves", JacksonHole, "save-001");
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+            Assert.That(SaveStore.Write(folder, FixtureSaveThree()), Is.True);
             File.Delete(Path.Combine(folder, SaveFile.BackupName));
         }
 

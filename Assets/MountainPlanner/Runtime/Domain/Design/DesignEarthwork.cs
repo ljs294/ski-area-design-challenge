@@ -12,7 +12,7 @@ namespace MountainPlanner.Domain.Design
     {
         /// <summary>Unique within the design: the trail's or lift's ID.</summary>
         ulong Key { get; }
-        /// <summary>The fold's order: every trail (0) before every lift (1); within a phase, <see cref="Order"/>.</summary>
+        /// <summary>The fold's order: every trail (0), then every lift (1), then every terrain stroke (2, task 15); within a phase, <see cref="Order"/>.</summary>
         int Phase { get; }
         /// <summary>Creation order within the phase (the document ordinal the ID was minted at).</summary>
         long Order { get; }
@@ -32,7 +32,7 @@ namespace MountainPlanner.Domain.Design
         EarthworkWrites Build(EditedHeights ground, EarthworkContext context, out object detail);
     }
 
-    /// <summary>Gathers a design's built pieces of one kind. Task 08 registers trails; task 09 registers lifts.</summary>
+    /// <summary>Gathers a design's built pieces of one kind. Task 08 registers trails, task 09 lifts, task 15 terrain strokes.</summary>
     public interface IEarthworkContributor
     {
         void Collect(DesignDocument doc, EarthworkSite site, List<IEarthworkItem> into);
@@ -43,7 +43,13 @@ namespace MountainPlanner.Domain.Design
     {
         public readonly EditLattice Lattice;
         public readonly double OriginX, OriginY;
-        public EarthworkSite(EditLattice lattice, double originX, double originY) { Lattice = lattice; OriginX = originX; OriginY = originY; }
+        /// <summary>The area's core box in lattice points (SH-06, TB-10): where brushes may work. Empty: unbounded (tests).</summary>
+        public readonly PointRect Core;
+        public EarthworkSite(EditLattice lattice, double originX, double originY) : this(lattice, originX, originY, PointRect.Empty) { }
+        public EarthworkSite(EditLattice lattice, double originX, double originY, PointRect core)
+        {
+            Lattice = lattice; OriginX = originX; OriginY = originY; Core = core;
+        }
 
         public void PointOf(PointMm p, out double x, out double y) { x = OriginX + p.XMetres; y = OriginY + p.YMetres; }
     }
@@ -52,7 +58,14 @@ namespace MountainPlanner.Domain.Design
     public sealed class EarthworkContext
     {
         readonly Dictionary<EditTileKey, ulong[]> _claims;
-        internal EarthworkContext(Dictionary<EditTileKey, ulong[]> claims) { _claims = claims; }
+        readonly Func<ulong, object> _detail;
+        internal EarthworkContext(Dictionary<EditTileKey, ulong[]> claims, Func<ulong, object> detail = null) { _claims = claims; _detail = detail; }
+
+        /// <summary>
+        /// What an earlier piece's build handed back in this fold (a lift's <see cref="LiftBuild.Works"/> with its rope, for
+        /// task 15's strokes), or null.
+        /// </summary>
+        public object DetailOf(ulong key) => _detail?.Invoke(key);
 
         /// <summary>Whether an earlier trail claims lattice point (column, row) (TF-10: the earlier trail keeps its ground).</summary>
         public bool ClaimedEarlier(int column, int row)
@@ -66,7 +79,7 @@ namespace MountainPlanner.Domain.Design
 
     /// <summary>
     /// The design's earthwork (owner TL3): the terrain edits are every built piece's writes folded in order over the
-    /// source heights, trails by creation, then lifts. After a command, only what can have changed is rebuilt: the tiles
+    /// source heights, trails by creation, then lifts, then terrain strokes (task 15, BR6). After a command, only what can have changed is rebuilt: the tiles
     /// of pieces that are new, changed or gone, and of later pieces whose ground those changed, each later piece
     /// regraded only when the writes under it moved. Points outside the rebuilt tiles keep the committed edits exactly,
     /// so a saved design's ground never shifts unless something on it is edited. Edits no piece explains (a test bench,
@@ -76,7 +89,7 @@ namespace MountainPlanner.Domain.Design
     /// </summary>
     public sealed class DesignEarthwork
     {
-        static readonly List<IEarthworkContributor> Registered = new List<IEarthworkContributor> { new TrailEarthwork(), new LiftEarthwork() };
+        static readonly List<IEarthworkContributor> Registered = new List<IEarthworkContributor> { new TrailEarthwork(), new LiftEarthwork(), new BrushEarthwork() };
 
         /// <summary>Adds a contributor (task 09's lifts). Returns a handle that removes it.</summary>
         public static IDisposable Register(IEarthworkContributor contributor)
@@ -282,7 +295,12 @@ namespace MountainPlanner.Domain.Design
             }
             foreach (var t in new List<EditTileKey>(tiles)) Open(t);
             var done = new List<(IEarthworkItem item, EarthworkWrites writes)>();
-            var context = new EarthworkContext(claims);
+            var context = new EarthworkContext(claims, key => Known(key, overlay)?.Detail);
+            // The ground pieces read: the committed edits with every work tile as folded so far. Only tiles opened or laid
+            // since the last build are rebuilt (task 15: hundreds of small strokes made rebuilding every tile per piece slow);
+            // the content is the same as building them all.
+            var folded = committed;
+            var stale = new SortedSet<EditTileKey>(work.Keys);
 
             foreach (var it in items)
             {
@@ -294,12 +312,17 @@ namespace MountainPlanner.Domain.Design
                     // Everything it reads must be folded up to here.
                     var fresh = new List<EditTileKey>();
                     foreach (var t in it.Tiles)
-                        if (!work.ContainsKey(t)) { Open(t); fresh.Add(t); }
+                        if (!work.ContainsKey(t)) { Open(t); fresh.Add(t); stale.Add(t); }
                     foreach (var t in fresh)
                         foreach (var (pi, pw) in done) Lay(pi, pw, t, work, claims);
-                    var built = new List<TerrainEditTile>(work.Count);
-                    foreach (var b in work.Values) built.Add(b.Build());
-                    var ground = new EditedHeights(_source, _site.Lattice, committed.With(built));
+                    if (stale.Count > 0)
+                    {
+                        var built = new List<TerrainEditTile>(stale.Count);
+                        foreach (var t in stale) built.Add(work[t].Build());
+                        stale.Clear();
+                        folded = folded.With(built);
+                    }
+                    var ground = new EditedHeights(_source, _site.Lattice, folded);
                     writes = it.Build(ground, context, out object detail);
                     changed = changed.Union(EarthworkWrites.Difference(known?.Writes, writes));
                     overlay[it.Key] = new Entry { Item = it, Writes = writes, Detail = detail };
@@ -307,7 +330,7 @@ namespace MountainPlanner.Domain.Design
                 }
                 else writes = known.Writes;
                 foreach (var t in writes.Tiles)
-                    if (work.ContainsKey(t)) Lay(it, writes, t, work, claims);
+                    if (work.ContainsKey(t)) { Lay(it, writes, t, work, claims); stale.Add(t); }
                 done.Add((it, writes));
             }
             var result = new List<TerrainEditTile>(work.Count);

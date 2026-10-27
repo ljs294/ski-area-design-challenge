@@ -228,7 +228,8 @@ namespace MountainPlanner.Tests
         }
 
         /// <summary>The test resort's graph bytes (NW-01). Pinned; re-pin only with the owner's approval.</summary>
-        const string GoldenNetworkSha = "bd9b3855842650b9b78a241761970c74ef46fa8e59706b05cc7c053acf7bdcc5";
+        /// Re-pinned (2026-10-27) when stations took their own ID tag (13; task 15 took 12); from bd9b3855….
+        const string GoldenNetworkSha = "ec20026237ed9943e077fbffe1ec0fd1c73c5e40bca4262c1f69201c8eec64b6";
 
         /// <summary>
         /// The test resort: Chair 1 with a run down it, a spur off the run and a parallel run a path away; Chair 2 whose

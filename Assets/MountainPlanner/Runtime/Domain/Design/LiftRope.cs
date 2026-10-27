@@ -376,14 +376,44 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         public static LiftRope Solve(LiftType type, IHeightSource ground, double bottomX, double bottomY, double topX, double topY,
                                      IReadOnlyList<Tower> towers, TowerStance stance,
-                                     double bottomExitS, double bottomExitY, double topExitBack, double topExitY, LineGround line = null)
+                                     double bottomExitS, double bottomExitY, double topExitBack, double topExitY, LineGround line = null,
+                                     IReadOnlyList<double> baseY = null)
         {
             return new LiftRope(type, ground, bottomX, bottomY, topX, topY, towers, stance, bottomExitS, bottomExitY, topExitBack, topExitY,
-                                line ?? LineGround.Sample(ground, type, bottomX, bottomY, topX, topY));
+                                line ?? LineGround.Sample(ground, type, bottomX, bottomY, topX, topY), baseY);
+        }
+
+        /// <summary>
+        /// TW-02 v4 (task 15, BR11): the rope with each tower's base where its lift's own earthwork left it
+        /// (<paramref name="baseY"/>, from <see cref="LiftBuild.Works.Rope"/>), so hand grading at a base never moves the head:
+        /// the tower's steel follows the ground instead (<see cref="AsBuilt"/>). The clearance is still read over
+        /// <paramref name="ground"/>.
+        /// </summary>
+        public static LiftRope SolveWithBases(LiftType type, IHeightSource ground, double bottomX, double bottomY, double topX, double topY,
+                                              IReadOnlyList<Tower> towers, TowerStance stance, double bottomExitS, double bottomExitY,
+                                              double topExitBack, double topExitY, IReadOnlyList<double> baseY) =>
+            Solve(type, ground, bottomX, bottomY, topX, topY, towers, stance, bottomExitS, bottomExitY, topExitBack, topExitY, null, baseY);
+
+        /// <summary>
+        /// TW-02 v4: the steel and foundation a tower needs to carry its fixed head from ground at <paramref name="groundY"/>:
+        /// 5 ft steps of steel along the mast and up to just under 5 ft of foundation (metres). With the ground the head was
+        /// solved over, it gives the stored height and the solved reveal back.
+        /// </summary>
+        public static void AsBuilt(TowerSolution tower, double groundY, out double steelMetres, out double revealMetres)
+        {
+            double step = DesignUnits.FiveFeetMm / 1000.0, cos = Math.Cos(tower.Lean);
+            double rise = tower.RopeY - groundY;
+            double steel = Math.Floor(rise / cos / step + 1e-6) * step;
+            if (steel < step) steel = step;
+            double reveal = rise - steel * cos;
+            if (reveal < 0) reveal = 0;
+            steelMetres = steel;
+            revealMetres = Math.Min(reveal, MaxReveal);
         }
 
         LiftRope(LiftType type, IHeightSource ground, double bx, double by, double tx, double ty, IReadOnlyList<Tower> towers,
-                 TowerStance stance, double bottomExitS, double bottomExitY, double topExitBack, double topExitY, LineGround line)
+                 TowerStance stance, double bottomExitS, double bottomExitY, double topExitBack, double topExitY, LineGround line,
+                 IReadOnlyList<double> fixedBaseY = null)
         {
             Type = type;
             double dx = tx - bx, dy = ty - by;
@@ -406,7 +436,7 @@ namespace MountainPlanner.Domain.Design
             for (int i = 0; i < n; i++)
             {
                 baseS[i] = towers[i].AlongMm / 1000.0;
-                baseY[i] = GroundAt(baseS[i]);
+                baseY[i] = fixedBaseY != null && i < fixedBaseY.Count ? fixedBaseY[i] : GroundAt(baseS[i]);
             }
             // TW-02 v3: the first and last towers within the station zone (100 ft of their bullwheel) are station towers.
             double zone = DesignUnits.StationZoneMm / 1000.0;

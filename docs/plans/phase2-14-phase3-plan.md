@@ -59,7 +59,8 @@ mountain still opens and renders within budget.
                                                                                                       ▼
                                                     10 Paths, junctions, network ─► 11 Benchmark ─► 12 Tester build ⛳ ─► 13 Exit ⛳
                                                                                                        ▲
-                                                    14 Problem reports + Send feedback (any time) ─────┘
+                                                    14 Problem reports + Send feedback (any time) ─────┤
+                                                    15 Terrain brush (after 08 + 09) ──────────────────┘
 ```
 
 - Task 01 runs first, in parallel with 02. It re-pins the baselines that every later perf comparison uses.
@@ -70,6 +71,7 @@ mountain still opens and renders within budget.
 - Tasks 08 and 09 run in parallel after 07; they share the Toolbox, so 06 defines the tool contract both implement.
 - Task 10 needs both trails and lifts.
 - Task 14 (added by you on 2026-10-18) needs nothing else and lands before 12, so the v0.3.0 testers can send reports.
+- Task 15 (TL14, started 2026-10-26) needs trails and lifts (08, 09) and lands before 12, so the v0.3.0 testers can hand-grade.
 
 ## 3. Tasks
 
@@ -87,6 +89,7 @@ mountain still opens and renders within budget.
 | 10 | **Paths, junctions and the network** | Connector paths; junctions that split trails in one command; the derived ski network; the connectivity check (every base lift reaches a descent), with the status bar's lift and trail counts and an Analysis network view | Network rebuilt identically from any load (golden). Deleting a trail prunes only junctions nothing else uses. Connectivity flags a disconnected lift in a test resort | 1.5 wk |
 | 11 | **Benchmark with a drawn resort** | A committed test design on Jackson Hole 5 km (about 20 trails, 6 lifts); the benchmark path extended over it; edit-timing runs (preview, commit, undo) | Frame budgets met at 1080p High and Medium with the design shown. Preview ≤100 ms and commit ≤250 ms at p95. Results in `docs/perf/` | 0.5 wk |
 | 14 | **Problem reports and Send feedback** (added 2026-10-18; lands before 12) | One Send feedback dialog (Problem or Suggestion) from the error notice, Settings › Data › Logs and the in-game menu, plus a one-time offer on the title after a crash; a report zip (`report.json` "report" v1, error logs, Player.log and Player-prev.log, Unity's crash dump, the open save read only, a screenshot, system info and settings, the player's note; the Windows user name replaced) saved and shown in Explorer, then a pre-filled GitHub issue; GitHub issue forms, labels and a project board; `-openreport` (demo 71) and an intake script that opens an issue's report; release symbols kept per tag outside git | A report holds what the dialog lists and nothing else (test); the save's bytes are unchanged; the user name never appears; the zip stays under GitHub's 25 MB; `-openreport` reopens a report's area, save and settings without touching the owner's settings | 1 wk |
+| 15 | **Terrain brush** (added 2026-10-19 as TL14; started 2026-10-26; lands before 12) | A Toolbox Terrain tab with the Cities: Skylines 2 set (Raise/Lower, Flatten, Smooth, Slope by trail rating), one brush pane, the ground moving live, Break ground with the cut and fill; strokes as authored design data replayed after trails and lifts (save v4, design Shape 4); terminals fixed with 1:1 into them, the lift envelope kept, towers re-heighted to the ground under fixed heads; `-brushbench` and `-brushmovie` (demo 73) | The same strokes give the same heights (golden); undo restores byte-identical heights; no stroke ever infringes a lift's clearance, a pad or a tower's height limits (tests); preview every frame and commit ≤250 ms at p95 | 2 wk |
 | 12 ⛳ | **Tester build (`v0.3.0`)** | A release from a tag; a no-help tester session (E9): download, explore, **photograph**, then draw, save and reload a small resort; a findings list; fixes for anything blocking | The tester finishes without help, or each block is fixed or decided. The clean install still opens the demo offline | 1 wk |
 | 13 ⛳ | **Phase 3 exit** | Exit review against this plan's criteria (§4); velocity; the detailed Phase 4 plan; the `unity-m3` tag and the `archive/unity` fast-forward | All criteria met, or an explicit decision on each miss | 0.5 wk |
 
@@ -120,6 +123,7 @@ From [0.6 §4](phase0-0.6-milestones.md#4-phase-3-drawing-on-the-mountain-iterat
 | 07 ⛳ | The look of a groomed, graded trail and a lift on the mountain |
 | 09 | Tower placement: automatic only, or automatic with manual moves |
 | 14 | How a report is sent (decided: a saved zip and a pre-filled GitHub issue, no email), what it holds, the Send feedback dialog (mockup first) |
+| 15 | The brush set, its pane and keys (mockup first), what's fixed round lifts and buildings, the save v4 change (decided BR1–BR12) |
 | 12 ⛳ | The tester, and whether a finding blocks the release |
 
 ## 6. Test data and hardware

@@ -11,7 +11,8 @@ namespace MountainPlanner.Tests
     public sealed class DesignNetworkTests
     {
         /// <summary>The scripted design's graph bytes with the stub geometry below. Pinned like the document golden.</summary>
-        const string GoldenGraphSha = "5afff60b5267c580720fb16bd6ca567c728278c49ed24e45a2b1717df63af273";
+        /// Re-pinned (task P3-10, 2026-10-27) when stations took their own ID tag (13; task 15 took 12); from 5afff60b….
+        const string GoldenGraphSha = "33040ef191947a3ecb5ab5d06aefb3dfd8f7a1231372f3efbeb9c7dae2abc7be";
 
         /// <summary>Straight-line centrelines, plus whatever junctions and paths a test lists (in any order).</summary>
         sealed class StubGeometry : ITrailGeometry

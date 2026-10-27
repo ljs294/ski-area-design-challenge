@@ -73,7 +73,7 @@ namespace MountainPlanner.Presentation
         public const string SnowDepthNote = "The natural snowpack: deeper up high, thinner on sunny faces, steep rock and under trees.";
 
         public static string ContoursNote(UnitSystem units) => units == UnitSystem.Imperial
-            ? "Contours every 40 ft, labelled every 200 ft."
-            : "Contours every 10 m, labelled every 50 m.";
+            ? "Contours every 40 ft, down to 10 ft up close; labelled every 200 ft."
+            : "Contours every 10 m, down to 2.5 m up close; labelled every 50 m.";
     }
 }
