@@ -14,7 +14,7 @@ namespace MountainPlanner.App
     /// <c>-brushtour &lt;folder&gt;</c> builds a quad, then uses each brush beside and under it (Raise/Lower at the bottom
     /// terminal and under the line, Flatten for a junction, Smooth, Slope for a cat track), shooting each mid-stroke, at its
     /// review and confirmed; with <c>-brushmovie</c> it also saves every frame (15 a second) for
-    /// PickerLabSetup.EncodeMovies. <c>-brushbench &lt;out.json&gt;</c> times the live ground while dragging a 60 ft and a 400 ft
+    /// PickerLabSetup.EncodeMovies; <c>-brushat dx,dz</c> moves the whole tour (metres) to check a second spot. <c>-brushbench &lt;out.json&gt;</c> times the live ground while dragging a 60 ft and a 400 ft
     /// brush, the review and the confirm. Captures never open or save the player's saves (AppFlow CaptureRun).
     /// </summary>
     public sealed partial class MountainViewer
@@ -23,11 +23,21 @@ namespace MountainPlanner.App
         static readonly Vector2 BrushLiftBottom = new Vector2(240, -760), BrushLiftTop = new Vector2(205, -340);
 
         string _brushFrames;
+        Vector2 _brushShift;   // -brushat: the tour's offset, applied wherever its points meet the ground
         int _brushFrame;
 
         void StartBrushRuns(string[] args)
         {
             int tour = Array.IndexOf(args, "-brushtour");
+            int shift = Array.IndexOf(args, "-brushat");
+            if (shift >= 0 && shift + 1 < args.Length)
+            {
+                var parts = args[shift + 1].Split(',');
+                var inv = System.Globalization.CultureInfo.InvariantCulture;
+                if (parts.Length == 2 && float.TryParse(parts[0], System.Globalization.NumberStyles.Float, inv, out float dx)
+                    && float.TryParse(parts[1], System.Globalization.NumberStyles.Float, inv, out float dz))
+                    _brushShift = new Vector2(dx, dz);
+            }
             if (tour >= 0 && tour + 1 < args.Length) { StartCoroutine(BrushTour(args[tour + 1], Array.IndexOf(args, "-brushmovie") >= 0)); return; }
             int bench = Array.IndexOf(args, "-brushbench");
             if (bench >= 0 && bench + 1 < args.Length) StartCoroutine(BrushBench(args[bench + 1]));
@@ -36,6 +46,7 @@ namespace MountainPlanner.App
         // A tick of input for a scripted stroke: a 30th of a second, either button.
         ToolInput BrushInput(Vector2 xz, bool left = false, bool right = false, bool click = false, bool release = false)
         {
+            xz += _brushShift;
             float y = _resort.Surface.HeightAt(xz.x, xz.y);
             var g = new Vector3(xz.x, y, xz.y);
             return new ToolInput
@@ -93,11 +104,12 @@ namespace MountainPlanner.App
         {
             var type = LiftType.Of(LiftCatalogIds.SesselliftFgq4);
             var heights = Ground.Heights;
-            var a = _resort.Frame.ToAlbers(BrushLiftBottom.x, BrushLiftBottom.y);
-            var b = _resort.Frame.ToAlbers(BrushLiftTop.x, BrushLiftTop.y);
+            Vector2 bottom = BrushLiftBottom + _brushShift, top = BrushLiftTop + _brushShift;
+            var a = _resort.Frame.ToAlbers(bottom.x, bottom.y);
+            var b = _resort.Frame.ToAlbers(top.x, top.y);
             var built = LiftBuild.Build(type, heights, a.X, a.Y, b.X, b.Y, TowerStance.Plumb);
             var history = Design;
-            var cmd = new AddLift(history.Revision, "Sidehill Quad", type.CatalogId, DesignFrame.ToDesign(BrushLiftBottom), DesignFrame.ToDesign(BrushLiftTop),
+            var cmd = new AddLift(history.Revision, "Sidehill Quad", type.CatalogId, DesignFrame.ToDesign(bottom), DesignFrame.ToDesign(top),
                                   TowerMode.Automatic, TowerStance.Plumb, built.Towers, WorkStage.Built, built.Levels);
             var after = cmd.Apply(history.Document);
             if (!after.Accepted) { Debug.LogWarning("[BrushTour] the quad: " + after.Reason); return false; }
@@ -110,6 +122,7 @@ namespace MountainPlanner.App
         void BrushLook(Vector2 at, float distance)
         {
             if (Camera == null) return;
+            at += _brushShift;
             Camera.Frame(new Vector3(at.x, _resort.Surface.HeightAt(at.x, at.y), at.y), distance);
             Camera.SetAngles(250, 38);
         }
@@ -133,7 +146,7 @@ namespace MountainPlanner.App
             BrushLook(new Vector2(235, -600), 640);
             Ground.Start();
             while (!Ground.Ready) yield return null;
-            if (!BuildBrushLift()) yield break;
+            if (!BuildBrushLift()) { Debug.LogWarning("[BrushTour] no quad at this spot"); Application.Quit(); yield break; }
             for (int i = 0; i < 30; i++) yield return BrushFrame();
             yield return BrushShot(dir, "0-lift");
             var tower = BrushTowerBase(2);
