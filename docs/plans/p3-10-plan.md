@@ -47,9 +47,7 @@ regraded the ground at the cut.
 - **Warnings (NW-12):** "No way down" (lift), "No lift serves this" (trail not reached from any lift top), "Leads nowhere"
   (the tail joins nothing, NT6). They never block Break ground.
 - **Segment ratings (NW-08, NT9):** each segment rated on its own stations (TD-02); tested, not shown.
-- **Split and Join (NW-10, NT1–NT3):** buttons in Edit trail. Split: hover shows the cut across the centreline,
-  snapping to junctions; click = one `SplitTrail`. Join: the trails meeting this one end to end light up; click = one
-  `JoinTrails`. A split pair is graded as one centreline, so Split never changes the ground.
+- **Split and Join (NW-10, NT1–NT3):** superseded by §7, trails made of sections (NT24–NT41), in PR B.
 - **The game:** the network rebuilds off the main thread after each commit (stamped with the design revision); the review
   checks the draft's pairs only. Measured with the edit-timing tools against ≤100 ms preview and ≤250 ms commit.
 - **Analysis › Network (NT4):** a lift list (status, trails reachable), then trails with warnings; picking a lift
@@ -126,3 +124,18 @@ Chair 2 bottoms (157 ft apart) split the mountain in two.
   - the lift tool's catchment draws the hub each terminal would make or join from `DesignStations.Of(doc, editing,
     draft ends)`, the draft's ends one lift; its window line says "Joins <Area>" in an Area's hub;
   - `-networkshots` adds `7-area`.
+
+## 7. Trails made of sections (owner NT24–NT41, 2026-10-27): PR B
+
+The owner asked for trails built from sections the player chooses, replacing the Split and Join buttons. Planned in
+two adversarial reviews (play/UI and technical) and settled with the owner; the full plan is in the decisions above.
+- **Model:** a section is today's `Trail` entity (paint, ends, grading, earthwork); a trail is a saved `TrailLine`
+  (ID, name, sections top first): one line, one stage, one label, rated over its whole length (NT34).
+- **Format:** save v6 / Shape 6, ID tag 15, reserved with Master Planner first. Line IDs are keyed hashes of the
+  founding section (no ordinal spent); `UpToSix` gives each old trail its own line; `Normalise` runs in
+  `DesignCommand.Apply` (Upper/Lower, orphans, empty lines) and repairs a broken save on load.
+- **Edit sections:** Choose (left adds by route, right takes out) and Cut (half-plane cut, refused across a
+  switchback; cut nodes rejoin); per-click undo inside, one undo step on Done; every affected trail listed with
+  editable names. "Continues Run 1" in New trail's review.
+- **Order:** PR A (this branch: network, stations, Areas at v5, labels); then PR B1 (Domain, format, commands,
+  tests); the mockup and the owner's review; PR B2 (the game UI), Kearsarge pictures and demo 70k.
