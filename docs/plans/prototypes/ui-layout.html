@@ -517,6 +517,9 @@ body.solo .frame { border-radius: 0; }
 .hud .lbtns { display: flex; gap: 6px; padding: 2px 12px 6px; }
 .hud .lbtns .ghost { flex: 1; height: 30px; display: flex; align-items: center; justify-content: center; }
 .hud .lmsg { padding: 2px 12px; font: 600 12px 'DotFix', 'Overpass'; line-height: 1.35; }
+.hud .secchips { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 12px 8px; }
+.hud .secchip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border: 1px solid var(--line); border-radius: 3px; font: 600 11.5px 'Overpass'; }
+.hud .secchip .mono { color: var(--soft); }
 .hud .lmsg.err { color: var(--neg); }
 .hud .lmsg.warn { color: var(--warn); }
 .hud .lstrip { overflow: hidden; }
@@ -606,7 +609,8 @@ body.solo .frame { border-radius: 0; }
   <ul class="try">
     <li><b>Build a lift</b> (Phase 3 tool): Toolbox → Lifts → New opens the lift menu: type, capacity, and towers <b>Automatic</b> or <b>By hand</b>. The whole terminal follows the pointer; click to anchor it, then click far away to place the other terminal, which fixes the line (drawn as a trail map draws a lift, a line with a dot at each end). Automatic puts the towers in as you aim. By hand, the tower in hand slides along the line, green where it fits and red with the reason; Page Up / Page Down change it ±5 ft, a click places it, a click on a tower selects it (drag to slide, Delete to remove), and Fill the rest finishes the line. The profile strip shows the side view, the chairs' height over the ground against 15 ft, the green band where the tower in hand fits, and the line's tension. Review, then Break ground (or Save plan). Every rule number is a P3-02 draft placeholder; hover a readout for its rule ID. States: <code>#solo&amp;demo=liftorigin</code>, <code>liftauto</code>, <code>lift</code>, <code>liftred</code>, <code>liftreview</code>, <code>liftsel</code>. The catchment ring (NW-14, NT16): each terminal in hand shows its 100 ft area, built terminals theirs fainter, and the trails it would gather light up; the readout names a shared base or a transfer: <code>#solo&amp;demo=p2,net,liftbase</code>, <code>liftbaseaim</code>.</li>
     <li><b>Shape the ground</b> (task P3-15): Toolbox → Terrain holds <b>Raise/Lower</b> (B: hold left to raise, right to lower), <b>Flatten</b> (L: right-click takes the target height under the pointer, left paints to it), <b>Smooth</b> (O) and <b>Slope</b> (G: right-click sets the target point, then drag from the start; the ground ramps evenly between the two, and the pane shows the grade they make). Every brush has the same pane: <b>Diameter</b> (<b>[ ]</b>, 10–400 ft) and <b>Strength</b> (<b>, .</b>), plus the target (Page Up / Page Down) and, for Slope, the ramp it makes. Switching brushes keeps the pending strokes. Strokes stay pending (in the game the ground moves live) until <b>Break ground</b>, whose review gives the cut, fill and net, the trees cleared, the towers re-heighted under their fixed heads and where the brush was held (a terminal's pad and its 1:1, the lift line's clearance, a tower's limit). Ctrl+Z undoes a stroke. States: <code>terrainraise</code>, <code>terrainflatten</code>, <code>terrainsmooth</code>, <code>terrainslope</code>, <code>terrainreview</code>.</li>
-    <li><b>Draw a trail</b> (Phase 3 tool): Toolbox → Trails → New opens the trail menu: name, brush width (<b>[ ]</b> or the slider, 25–400 ft) and Graded or Natural. <b>1 Paint:</b> drag on the mountain to paint the trail's area, any widths, leaving holes for islands of trees; Shift-drag erases, Ctrl+Z undoes a stroke, and a separate patch shows red. <b>2 Head and tail:</b> click the top, then the bottom (they join a lift's end or another trail nearby); the centreline, the pending contours (yellow), stretches too steep to grade (red) and the rating appear, with the profile along the bottom. <b>3 Review</b>, then Break ground. Scroll to zoom in first: at this distance 100 ft is about 5 px. States: <code>trailpaint</code>, <code>trailends</code>, <code>trailreview</code>. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking with clicks.</li>
+    <li><b>Draw a trail</b> (Phase 3 tool): Toolbox → Trails → New opens the trail menu: name, brush width (<b>[ ]</b> or the slider, 25–400 ft) and Graded or Natural. <b>1 Paint:</b> drag on the mountain to paint the trail's area, any widths, leaving holes for islands of trees; Shift-drag erases, Ctrl+Z undoes a stroke, and a separate patch shows red. <b>2 Head and tail:</b> click the top, then the bottom (they join a lift's end or another trail nearby); the centreline, the pending contours (yellow), stretches too steep to grade (red) and the rating appear, with the profile along the bottom. <b>3 Review</b>, then Break ground. Scroll to zoom in first: at this distance 100 ft is about 5 px. States: <code>trailpaint</code>, <code>trailends</code>, <code>trailreview</code>, <code>trailcontinue</code> (NT38: "Continues Upper Bowl").</li>
+    <li><b>Trails made of sections</b> (task P3-10, owner NT24–NT41): a trail is a name and its sections, top first. Edit trail opens the trail's pane (rating over its whole length, its sections; Repaint and Move ends change the outlined section). <b>Edit sections</b> goes into network mode: <b>Choose sections</b>, where a left-click on any run beyond the trail's top or bottom adds everything on the way and a right-click takes a section out, and <b>Cut</b>, which cuts a section in two at the pointer (snapping to junctions; refused across a switchback) or rejoins a hollow cut node. The hover shows each click's result, the window lists every trail a session changes with editable names, Ctrl+Z undoes a click and Done (Enter) is one step. A trail left in two pieces becomes Upper and Lower. States: <code>trailsecs</code>, <code>trailroute</code>, <code>trailmerge</code>, <code>trailtakeout</code>, <code>trailmiddle</code>, <code>trailnear</code>, <code>trailcut</code>, <code>trailcutbad</code>, <code>trailsecsundo</code>. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking with clicks.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
     <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets one legend card (with contours added to it); its ✕ closes it until you pick another layer. The bar reads the layer under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
     <li><b>Photo mode</b> (P, or the menu): the HUD gives way to one thin bar. <b>Time</b> moves the sun ([ and ] a quarter hour; the clock stops while you frame), <b>Date</b> its path through the year (Shift [ and ]), <b>Lens</b> is the field of view, <b>Focus</b> is depth of field (Off, Natural or Miniature), <b>Grade</b> the look, and <b>Size</b> saves at the screen's resolution or twice it. Space or F12 captures, H hides the bar, Esc or P leaves and puts the clock, look and lens back. <b>Credits</b> (menu, or the title) list every area's data sources with the areas that use them.</li>
@@ -1026,8 +1030,8 @@ body.solo .frame { border-radius: 0; }
     const d = smooth(t.pts); if (!d) return '';
     let s = '';
     if (o.hi) s += `<path d="${d}" fill="none" stroke="${white}" stroke-width="8" opacity=".95" stroke-linecap="round"/>`;
-    s += `<path d="${d}" fill="none" stroke="${white}" stroke-width="4.4" stroke-linecap="round" opacity=".75"/>`;
-    s += t.built ? `<path d="${d}" fill="none" stroke="${runColour[t.diff]}" stroke-width="2.2" stroke-linecap="round"/>`
+    if (!o.only) s += `<path d="${d}" fill="none" stroke="${white}" stroke-width="4.4" stroke-linecap="round" opacity=".75"/>`;
+    if (!o.only) s += t.built ? `<path d="${d}" fill="none" stroke="${runColour[t.diff]}" stroke-width="2.2" stroke-linecap="round"/>`
       : `<path d="${d}" fill="none" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4" stroke-linecap="round"/>`;
     if (S.layers.labels && !o.noTag && t.pts.length > 1) {
       // the rating symbol and the name set along the line's curve, read left to right, with a white halo
@@ -1059,7 +1063,15 @@ body.solo .frame { border-radius: 0; }
     if (!netOn) S.netKeyClosed = false;   // the key comes back when the Network view opens again
     if (netOn) { worldEl.innerHTML = drawNetwork(netPick, hiId, netPick === S.netLift ? S.netNode : null); return; }
     for (const th of S.things) if (S.layers[toolById(th.kind).layer]) s += drawThing(th);
-    if (S.layers.trails) for (const tr of S.trails) s += drawTrail(tr, { hi: hiId === tr.id });
+    if (S.layers.trails) {
+      // NT24: a trail of several sections is lit whole and named once, along its whole length
+      const hiLine = S.secs ? secsLine() : hiId && lineOf(hiId);
+      for (const tr of S.trails) { const ln = S.tlines.find((l) => l.secs.includes(tr.id)); s += drawTrail(ln ? { ...tr, diff: lineDiff(ln) } : tr, { hi: !!hiLine && hiLine.secs.includes(tr.id), noTag: !!ln }); }   // a trail's sections in its own colour
+      for (const l of S.tlines) s += drawTrail({ id: l.id, name: l.name, diff: lineDiff(l), pts: linePts(l), built: lineBuilt(l) }, { only: true });
+      // NT30: the section Repaint and Move ends would change, outlined
+      if (S.tool === 'edit-trail' && S.sel && !S.secs && lineOf(S.sel) && lineOf(S.sel).secs.length > 1) s += `<path d="${smooth(secOf(S.sel).pts)}" fill="none" stroke="${selC}" stroke-width="2" stroke-dasharray="4 3" stroke-linecap="round"/>`;
+      if (S.secs) s += drawSecs();
+    }
     // a lift open in Edit lift is drawn by its draft instead
     if (S.layers.lifts) for (const l of S.lifts) if (!(S.draft && S.draft.edit === l.id)) s += drawLift(l, { hi: hiId === l.id });
     if (S.layers.lifts && S.layers.labels) s += netLabels(areaLabels(netOf().areas, '#ffffff'));   // NT19: the Areas' names
@@ -1690,7 +1702,8 @@ body.solo .frame { border-radius: 0; }
   function liftUndoLast() {
     const u = S.liftUndo.pop();
     if (!u) return false;
-    if (u.kind === 'edit') { const l = S.lifts.find((x) => x.id === u.id); if (l) { for (const k of Object.keys(l)) delete l[k]; Object.assign(l, u.was); } log(`<span>Undone: the edit of <b>${esc(u.was.name)}</b></span>`, '#6f675e'); }
+    if (u.kind === 'trails') { restoreTrails(u.snap); S.secs = null; log(u.removed ? `<span><b>${esc(u.name)}</b> is back</span>` : `<span>Undone: the change to <b>${esc(u.name)}</b></span>`, '#6f675e'); }
+    else if (u.kind === 'edit') { const l = S.lifts.find((x) => x.id === u.id); if (l) { for (const k of Object.keys(l)) delete l[k]; Object.assign(l, u.was); } log(`<span>Undone: the edit of <b>${esc(u.was.name)}</b></span>`, '#6f675e'); }
     else { S.lifts.splice(Math.min(u.i, S.lifts.length), 0, u.was); if (u.was.built) S.liftsTotal++; log(`<span><b>${esc(u.was.name)}</b> is back</span>`, '#6f675e'); }
     S.saveDue = true; render();
     return true;
@@ -2393,6 +2406,8 @@ body.solo .frame { border-radius: 0; }
       h += `<dl class="kv" style="padding-top:6px">${kv('Length', `<b>${lenFt(r.len)}</b>`, 'TR-03: along the centreline')}${kv('Vertical', `<b>${lenFt(r.drop)}</b>`)}${kv('Rating', rate(r.value), 'TD-02, TD-03')}${kv('Grade', `mean <b>${Math.round(r.mean)}%</b> · steepest <b>${Math.round(r.max)}%</b>`, 'TD-01, TD-02: the steepest 75 ft')}
         ${d.graded ? kv('Cut · fill', `${yd3(r.cut)} · ${yd3(r.fill)}`, 'GR-08') + kv('Balance', `${r.cut >= r.fill ? '' : '−'}${yd3(Math.abs(r.cut - r.fill))}`, 'GR-08: cut − fill') + kv('Too steep to grade', r.ungraded ? `<b style="color:var(--neg)">${lenFt(r.ungraded)}</b>` : 'none', 'GR-07') : kv('Grading', 'natural, none', 'TF-06')}
         ${kv('Trees cleared', `about <b>${r.trees.toLocaleString('en-US')}</b>`, 'CL-01, CL-02')}${netRow(netWarnings({ trail: { id: d.editing || 'draft', pts: r.stations.map((t) => t.p) } }))}</dl>`;
+      const cont = continuesOf(d);   // NT38
+      if (cont) h += `<div class="lrow" style="padding:4px 12px" title="NT38: its ${cont.below ? 'top' : 'bottom'} lands on ${esc(cont.line.name)}'s ${cont.below ? 'bottom' : 'top'}: Break ground adds it to that trail"><span>Continues</span><div class="seg" data-ui="trail-continues">${[[true, esc(cont.line.name)], [false, 'A trail of its own']].map(([v, l]) => `<span class="${(d.cont !== false) === v ? 'on' : ''}" data-act="tcont" data-v="${v ? 'on' : 'off'}">${l}</span>`).join('')}</div></div>`;
       const warn = [];
       if (d.graded && r.ungraded) warn.push(`${lenFt(r.ungraded)} too steep to bench stays natural ground (GR-07)`);
       if (d.graded && Math.abs(r.cut - r.fill) > 0.3 * Math.max(r.cut, r.fill)) warn.push(`Cut and fill don't balance: ${yd3(Math.abs(r.cut - r.fill))} more ${r.cut > r.fill ? 'cut' : 'fill'}`);
@@ -3055,7 +3070,300 @@ body.solo .frame { border-radius: 0; }
       <div class="hint">${hint}</div>
       <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>Build</span><span class="mono">${ready ? short(total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`, 300);
   }
+  // ---------- trails made of sections (task P3-10; owner NT24–NT41, 2026-10-27) ----------
+  // A section is a painted piece (an S.trails entry, its line top first); a trail is a name and its sections, top first.
+  // Only trails of two or more sections are kept (S.tlines); a section in none is a trail on its own. Every section
+  // carries its trail's name. S.tcuts holds the nodes made by cutting (u above, l below): the only ones that rejoin (NT31).
+  S.tlines = []; S.tcuts = []; S.secs = null;
+  const SECSNAP = 30 / FT_PX;   // TR-05: ends within 30 ft meet
+  const secOf = (id) => S.trails.find((t) => t.id === id);
+  const secTop = (t) => t.pts[0], secBot = (t) => t.pts[t.pts.length - 1];
+  const gapPx = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  const secMeet = (u, l) => !!u && !!l && !!u.built === !!l.built && gapPx(secBot(u), secTop(l)) <= SECSNAP;
+  function lineOf(id) {
+    const l = S.tlines.find((x) => x.secs.includes(id)); if (l) return l;
+    const t = secOf(id); if (!t) return null;
+    let lid = 'L' + id; while (S.tlines.some((x) => x.id === lid)) lid += "'";   // its own key is still its old trail's: the next one
+    return { id: lid, name: t.name, secs: [id], single: true };
+  }
+  function allLines() { const out = S.tlines.slice(); for (const t of S.trails) if (!S.tlines.some((l) => l.secs.includes(t.id))) out.push(lineOf(t.id)); return out; }
+  function linePts(line) {
+    const pts = [];
+    for (const id of line.secs) { const t = secOf(id); if (t) for (const p of t.pts) if (!pts.length || gapPx(p, pts[pts.length - 1]) > 0.01) pts.push(p); }
+    return pts;
+  }
+  const lineBuilt = (line) => !!secOf(line.secs[0]).built;
+  // NT34: a trail of several sections is rated over its whole length (its steepest pitch, in TD-02's bands)
+  function lineDiff(line) { if (line.secs.length === 1) return secOf(line.secs[0]).diff; const st = pathStats(linePts(line)); return BANDS.find((b) => st.steep < b[0])[1]; }
+  // What the rows, the card and the panes read for a trail: its top section's ID, its name, its joined line.
+  function lineRec(line) { const top = secOf(line.secs[0]); return { id: top.id, name: line.name, pts: linePts(line), diff: lineDiff(line), graded: top.graded, built: lineBuilt(line), secs: line.secs.length }; }
+  // NT28, NT40: the names of a trail left in k pieces; a position already in the name is replaced, never stacked
+  const stemOf = (n) => n.replace(/^(Upper |Lower |Middle (\d+ )?)(?=\S)/, '');
+  function breakNames(name, k) { const s = stemOf(name); return Array.from({ length: k }, (_, i) => ((i === 0 ? 'Upper ' : i === k - 1 ? 'Lower ' : k === 3 ? 'Middle ' : `Middle ${i} `) + s).slice(0, 28).trim()); }
+  function nextRunName(taken = []) { const used = new Set(S.trails.map((t) => t.name).concat(taken)); let n = allLines().length + 1; while (used.has('Run ' + n)) n++; return 'Run ' + n; }
+  // Keeps every trail whole after a change (NT26–NT28): one that no longer runs end to end becomes Upper and Lower, a
+  // single section left is a trail on its own, an empty one goes; every section takes its trail's name.
+  function normaliseLines() {
+    const claimed = new Set(), kept = [];
+    for (const line of S.tlines) {
+      const mem = line.secs.map(secOf).filter((t) => t && !claimed.has(t.id)); mem.forEach((t) => claimed.add(t.id));
+      const pieces = [];
+      for (const t of mem) { if (!pieces.length || !secMeet(pieces[pieces.length - 1][pieces[pieces.length - 1].length - 1], t)) pieces.push([]); pieces[pieces.length - 1].push(t); }
+      const names = pieces.length > 1 ? breakNames(line.name, pieces.length) : [line.name];
+      pieces.forEach((pc, i) => { pc.forEach((t) => { t.name = names[i]; }); if (pc.length > 1) kept.push({ id: i === 0 ? line.id : 'L' + pc[0].id, name: names[i], secs: pc.map((t) => t.id) }); });
+    }
+    S.tlines = kept;
+    S.tcuts = S.tcuts.filter((c) => secOf(c.u) && secOf(c.l));
+  }
+  // Writes one trail's sections, taking them out of any other trail (which normaliseLines then mends).
+  function setLine(line, mem) {
+    S.tlines = S.tlines.filter((l) => l.id !== line.id).map((l) => ({ ...l, secs: l.secs.filter((x) => !mem.includes(x)) }));
+    if (mem.length > 1) S.tlines.push({ id: line.id, name: line.name, secs: mem });
+    for (const id of mem) secOf(id).name = line.name;
+  }
+  // NT35: the sections a left-click adds, nearest first: down from the bottom or up from the top, end to end, in the
+  // trail's stage; the shorter way wins, down on a tie. Null when none reaches.
+  function routeTo(line, target) {
+    if (line.secs.includes(target)) return null;
+    const go = (from, down) => {
+      const came = new Map([[from, null]]), q = [from];
+      while (q.length) {
+        const at = secOf(q.shift());
+        for (const t of S.trails) {
+          if (came.has(t.id) || line.secs.includes(t.id) || !(down ? secMeet(at, t) : secMeet(t, at))) continue;
+          came.set(t.id, at.id);
+          if (t.id === target) { const path = []; for (let v = t.id; v !== from; v = came.get(v)) path.unshift(v); return path; }
+          q.push(t.id);
+        }
+      }
+      return null;
+    };
+    const dn = go(line.secs[line.secs.length - 1], true), up = go(line.secs[0], false);
+    return !dn ? up : !up ? dn : up.length < dn.length ? up : dn;
+  }
+  // Why a click can't add a section (its greyed hover): the other stage, a near miss, or a fork off the trail.
+  function whyNot(line, t) {
+    if (!!t.built !== lineBuilt(line)) return `${t.built ? 'Built' : 'Planned'}: a trail is all planned or all built`;
+    const top = secOf(line.secs[0]), bot = secOf(line.secs[line.secs.length - 1]);
+    const down = gapPx(secTop(t), secBot(bot)) * FT_PX, up = gapPx(secBot(t), secTop(top)) * FT_PX;
+    if (Math.min(down, up) < 400) return down <= up ? `Its top is ${lenFt(down)} from ${line.name}'s bottom: Move ends to meet it` : `Its bottom is ${lenFt(up)} from ${line.name}'s top: Move ends to meet it`;
+    for (const id of line.secs) { const m = secOf(id); if (secMeet(m, t) || secMeet(t, m)) return `It branches off ${line.name}'s middle: a trail is one line, no forks`; }
+    return `It doesn't meet ${line.name}'s top or bottom`;
+  }
+  function pointAlong(pts, d) {
+    let run = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const L = gapPx(pts[i], pts[i - 1]);
+      if (run + L >= d) { const f = L ? (d - run) / L : 0; return [pts[i - 1][0] + f * (pts[i][0] - pts[i - 1][0]), pts[i - 1][1] + f * (pts[i][1] - pts[i - 1][1])]; }
+      run += L;
+    }
+    return pts[pts.length - 1].slice();
+  }
+
+  // Edit sections (NT25, NT35–NT41): the trail's sections in network mode. Each click changes the design at once and is
+  // kept for Ctrl+Z inside; Done makes the session one step for Ctrl+Z after; Esc asks before throwing it away.
+  const snapTrails = () => ({ trails: S.trails.map((t) => ({ ...t, pts: t.pts.map((p) => p.slice()) })), tlines: S.tlines.map((l) => ({ ...l, secs: l.secs.slice() })), tcuts: S.tcuts.map((c) => ({ ...c })) });
+  const restoreTrails = (s) => { S.trails = s.trails; S.tlines = s.tlines; S.tcuts = s.tcuts; };
+  const linesNow = () => allLines().map((l) => { const r = lineRec(l); return { id: l.id, name: l.name, secs: l.secs.slice(), len: pathStats(r.pts).len * FT, diff: r.diff }; });
+  function secsOpen(id) { const top = lineOf(id).secs[0]; S.secs = { top, first: top, mode: 'choose', base: snapTrails(), before: linesNow(), hist: [], fut: [], typed: {}, armEsc: false }; S.removeArmed = null; }
+  const secsLine = () => S.secs && lineOf(S.secs.top);   // the trail being edited, found by a section it holds
+  function secsStep(fn) {
+    const before = snapTrails();
+    if (fn() === false) { restoreTrails(before); return false; }
+    S.secs.hist.push(before); S.secs.fut = []; S.secs.armEsc = false;
+    normaliseLines(); applyTyped();
+    return true;
+  }
+  // NT40: names typed in the result list win over the automatic ones (by each trail's top section)
+  function applyTyped() {
+    for (const [id, name] of Object.entries(S.secs.typed)) {
+      const l = lineOf(id); if (!l || l.secs[0] !== id || !name.trim()) continue;
+      if (!l.single) l.name = name.trim();
+      for (const s of l.secs) secOf(s).name = name.trim();
+    }
+  }
+  function secsAdd(target) {
+    const line = secsLine(), route = routeTo(line, target); if (!route) return false;
+    return secsStep(() => {
+      const mem = line.secs.slice();
+      for (const id of route) { if (secMeet(secOf(mem[mem.length - 1]), secOf(id))) mem.push(id); else mem.unshift(id); }
+      setLine(line, mem);
+      S.secs.top = mem[0];
+    });
+  }
+  function secsTakeOut(id) {
+    const line = secsLine(); if (!line.secs.includes(id) || line.secs.length < 2) return false;
+    return secsStep(() => {
+      const mem = line.secs.filter((x) => x !== id);
+      setLine(line, mem);   // a middle one leaves a gap: normaliseLines makes Upper and Lower
+      secOf(id).name = nextRunName(S.secs.before.map((x) => x.name));   // never a name a trail had when the session opened
+      if (S.secs.top === id) S.secs.top = mem[0];
+    });
+  }
+  // NT25's Cut: across the run at the pointer, snapped to a junction within 6 px; refused where the straight cut would
+  // also cross another bend of the run (a cut keeps one side of a line, NT24), or too near an end.
+  function cutAt(p) {
+    const line = secsLine(); let best = null;
+    for (const id of line.secs) { const t = secOf(id), r = lineNear(p, t.pts); if (!best || r.d < best.d) best = { id, t, ...r }; }
+    if (!best || best.d > 14 / S.zoom) return null;
+    let q = best.q, snapped = false;
+    for (const o of S.trails) {
+      if (o.id === best.id) continue;
+      const near = [secTop(o), secBot(o)].map((e) => lineNear(e, best.t.pts)).filter((r) => r.d <= SECSNAP).map((r) => r.q);
+      for (const c of near.concat(crossings(best.t.pts, o.pts).map((x) => x.p))) if (gapPx(c, best.q) < 6 / S.zoom) { q = c; snapped = true; }
+    }
+    const L = lineLength(best.t.pts), along = lineNear(q, best.t.pts).along;
+    if (along < 4 || along > L - 4) return { ...best, q, snapped, bad: 'Too near its end: cut between its top and bottom' };
+    const a = pointAlong(best.t.pts, Math.max(0, along - 4)), b = pointAlong(best.t.pts, Math.min(L, along + 4)), dir = [b[0] - a[0], b[1] - a[1]];
+    const side = (pt) => (pt[0] - q[0]) * dir[0] + (pt[1] - q[1]) * dir[1];
+    let n = 0; for (let i = 1; i < best.t.pts.length; i++) if ((side(best.t.pts[i - 1]) < 0) !== (side(best.t.pts[i]) < 0)) n++;
+    return { ...best, q, dir, along, snapped, bad: n > 1 ? 'This cut would also cross another bend: cut where the run is straight across' : null };
+  }
+  function secsCut(p) {
+    const c = cutAt(p); if (!c || c.bad) return false;
+    const line = secsLine();
+    return secsStep(() => {
+      const t = c.t, up = [t.pts[0]], low = [c.q.slice()]; let run = 0;
+      for (let i = 1; i < t.pts.length; i++) { run += gapPx(t.pts[i], t.pts[i - 1]); (run < c.along ? up : low).push(t.pts[i]); }
+      up.push(c.q.slice());
+      const lower = { ...t, id: 't' + (uid++), pts: low };
+      t.pts = up;
+      S.trails.splice(S.trails.indexOf(t) + 1, 0, lower);
+      const mem = line.secs.slice(); mem.splice(mem.indexOf(t.id) + 1, 0, lower.id);
+      setLine(line, mem);
+      S.tcuts.push({ u: t.id, l: lower.id });
+    });
+  }
+  const cutNear = (p) => { const line = secsLine(); return S.tcuts.find((c) => line.secs.includes(c.u) && line.secs.includes(c.l) && gapPx(secBot(secOf(c.u)), p) < 7 / S.zoom); };
+  function secsRejoin(cut) {   // NT31: only a cut's two sides, neighbours in the trail; the ground doesn't change
+    const line = secsLine(), i = line.secs.indexOf(cut.u); if (i < 0 || line.secs[i + 1] !== cut.l) return false;
+    return secsStep(() => {
+      const u = secOf(cut.u), l = secOf(cut.l);
+      u.pts = u.pts.concat(l.pts.slice(1));
+      S.trails = S.trails.filter((x) => x !== l); S.tcuts = S.tcuts.filter((x) => x !== cut);
+      setLine(line, line.secs.filter((x) => x !== cut.l));
+    });
+  }
+  // What a session (or a click, tried and put back) does to the trails around it (NT37): every trail it changes, and
+  // the trails it makes, whose names can be typed over (NT40).
+  function trailChanges(before) {
+    const after = allLines(), edited = secsLine(), out = [], known = new Set(before.map((b) => b.id));
+    for (const b of before) {
+      const into = after.filter((a) => a.secs.some((x) => b.secs.includes(x)));
+      if (into.length === 1 && into[0].id === b.id && into[0].name === b.name && into[0].secs.join() === b.secs.join()) continue;
+      if (edited && b.secs.includes(S.secs.first)) {   // the edited trail itself: only the sections it let go
+        const freed = into.filter((a) => a.id !== edited.id);
+        if (freed.length) out.push({ text: `${freed.map((a) => `<b>${esc(a.name)}</b>`).join(' and ')} taken out of ${esc(b.name)}`, made: freed });
+        continue;
+      }
+      if (edited && into.length === 1 && into[0].id === edited.id) out.push({ text: `<b>${esc(b.name)}</b> goes into ${esc(edited.name)}` });
+      else if (!into.length) out.push({ text: `<b>${esc(b.name)}</b> is gone` });
+      else {
+        const others = into.filter((a) => !edited || a.id !== edited.id);
+        out.push({ text: `<b>${esc(b.name)}</b> becomes ${others.map((a) => esc(a.name)).join(' and ')}`, made: others.filter((a) => !known.has(a.id) || a.name !== b.name) });
+      }
+    }
+    return out;
+  }
+  // The same changes for a click not yet made, for the hover (tried, then put back).
+  function tryChanges(fn) {
+    const keep = snapTrails(), was = { ...S.secs, hist: S.secs.hist.slice(), typed: { ...S.secs.typed } }, before = linesNow();
+    let ch = [];
+    if (fn()) ch = trailChanges(before);
+    restoreTrails(keep); S.secs = was;
+    return ch;
+  }
+  function secsUndo(redo) {
+    const from = redo ? S.secs.fut : S.secs.hist, to = redo ? S.secs.hist : S.secs.fut;
+    if (!from.length) return;
+    to.push(snapTrails()); restoreTrails(from.pop());
+    if (!lineOf(S.secs.top)) S.secs.top = S.secs.first;
+  }
+  function secsDone() {
+    const line = secsLine(), n = S.secs.hist.length;
+    if (n) { S.liftUndo.push({ kind: 'trails', snap: S.secs.base, name: line.name }); S.saveDue = true; log(`<span><b>${esc(line.name)}</b>: ${line.secs.length} section${line.secs.length > 1 ? 's' : ''} <span style="color:var(--soft)">· Ctrl+Z puts it back</span></span>`, '#1a6b3c'); }
+    S.sel = line.secs[0]; S.secs = null;
+  }
+  function secsEsc() {
+    if (S.secs.hist.length && S.set.confirmRemove === 'on' && !S.secs.armEsc) { S.secs.armEsc = true; return; }
+    restoreTrails(S.secs.base); S.secs = null;
+  }
+  // The edited trail lit, the rest as a click would take them: dashed where a left-click adds, greyed where nothing can,
+  // node dots on the trail (cut nodes hollow), and the hovered click's result beside the pointer.
+  function drawSecs() {
+    const line = secsLine(); if (!line) return '';
+    let s = '';
+    for (const t of S.trails) if (!line.secs.includes(t.id) && !routeTo(line, t.id)) s += `<path d="${smooth(t.pts)}" fill="none" stroke="${graphite}" stroke-width="5" opacity=".5" stroke-linecap="round"/>`;
+    const dot = (p) => `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="3" fill="${white}" stroke="${ink}" stroke-width="1.2"/>`;
+    for (const id of line.secs) s += dot(secTop(secOf(id)));
+    s += dot(secBot(secOf(line.secs[line.secs.length - 1])));
+    for (const c of S.tcuts) if (line.secs.includes(c.u)) { const p = secBot(secOf(c.u)); s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="4.6" fill="${graphite}" stroke="${white}" stroke-width="1.8"/>`; }
+    if (!mouse) return s;
+    const tag = (p, lines) => readoutCard(p[0], p[1] + 10, lines);
+    if (S.secs.mode === 'cut') {
+      const node = cutNear(mouse);
+      if (node) { const p = secBot(secOf(node.u)); return s + `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="7" fill="none" stroke="${selC}" stroke-width="2"/>` + tag(p, [['Click: rejoin'], ['the two sections become one', '#cfc7bb']]); }
+      const c = cutAt(mouse); if (!c) return s;
+      const L = c.dir ? Math.hypot(c.dir[0], c.dir[1]) || 1 : 1, nx = c.dir ? -c.dir[1] / L : 0, ny = c.dir ? c.dir[0] / L : 1, col = c.bad ? '#d4513f' : c.snapped ? '#4d8ad6' : white;
+      const seg = `x1="${f1(c.q[0] - nx * 9)}" y1="${f1(c.q[1] - ny * 9)}" x2="${f1(c.q[0] + nx * 9)}" y2="${f1(c.q[1] + ny * 9)}"`;
+      s += `<line ${seg} stroke="${graphite}" stroke-width="5" stroke-linecap="round"/><line ${seg} stroke="${col}" stroke-width="2.4" stroke-linecap="round"/>`;
+      return s + tag(c.q, c.bad ? [[c.bad, '#ffb4a8']] : [[c.snapped ? 'Click: cut at the junction' : 'Click: cut here'], [`both sections stay in ${line.name}`, '#cfc7bb']]);
+    }
+    const id = pickAt(mouse, 'trail'); if (!id) return s;
+    const t = secOf(id), plain = (ch) => ch.map((c) => [c.text.replace(/<[^>]+>/g, ''), '#cfc7bb']);
+    if (line.secs.includes(id)) {
+      if (line.secs.length < 2) return s + tag(mouse, [['Its only section: Remove takes the trail', '#cfc7bb']]);
+      const ch = tryChanges(() => secsTakeOut(id)), i = line.secs.indexOf(id), mid = i > 0 && i < line.secs.length - 1;
+      const what = mid ? `${line.name} becomes ${breakNames(line.name, 2).join(' and ')}` : `it becomes ${nextRunName()}`;
+      return s + `<path d="${smooth(t.pts)}" fill="none" stroke="#d4513f" stroke-width="3" stroke-dasharray="5 4" stroke-linecap="round"/>` + tag(mouse, [['Right-click: take out'], [what, '#cfc7bb'], ...plain(ch.filter((c) => !c.text.includes(esc(line.name))))]);
+    }
+    const route = routeTo(line, id);
+    if (!route) return s + tag(mouse, [[whyNot(line, t), '#cfc7bb']]);
+    for (const r of route) s += `<path d="${smooth(secOf(r).pts)}" fill="none" stroke="${selC}" stroke-width="3" stroke-dasharray="6 4" stroke-linecap="round"/>`;
+    const ch = tryChanges(() => secsAdd(id));
+    return s + tag(mouse, [[`Click: add ${route.length} section${route.length > 1 ? 's' : ''}`], ...plain(ch)]);
+  }
+  // The trail's pane in Edit trail (NT29, NT30): name, rating over its length, its sections; no Grading switch.
+  function trailPane(sec) {
+    const line = lineOf(sec.id), r = lineRec(line), st = pathStats(r.pts), n = line.secs.length;
+    const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px;cursor:text" data-act="trename" title="Rename (F2)">${esc(line.name)}</b> <span style="color:var(--soft)">· ${lenTxt(st.len)} · ${lenTxt(st.drop)} vertical</span></div>`;
+    const facts = `<dl class="kv"><dt>Rating</dt><dd>${RATING[r.diff]} ${BANDS.find((b) => b[1] === r.diff)[2]}</dd><dt title="NT24">Sections</dt><dd><b>${n}</b></dd><dt>Average grade</dt><dd>${Math.round(st.avg)}%</dd><dt>Steepest</dt><dd>${Math.round(st.steep)}%</dd></dl>`;
+    return top + facts + `<div class="lbtns" style="padding:0 12px 8px"><span class="ghost" data-act="secs" data-ui="trail-edit-sections" title="NT25: choose its sections in network mode">Edit sections</span><span class="ghost" data-act="trename" title="F2">Rename</span></div>
+      <div class="lbtns" style="padding:0 12px 8px"><span class="ghost" data-act="tedit" data-v="paint" title="TF-07, NT30: the outlined section's strokes open in Paint">Repaint</span><span class="ghost" data-act="tedit" data-v="ends" title="TF-07, NT30, NT41: a new head and tail for the outlined section">Move ends</span></div>
+      <div class="hint" style="padding-top:0">${n > 1 ? 'Repaint and Move ends change the outlined section; click another section to choose it. ' : ''}The rating comes from the ground along the whole trail.</div>`;
+  }
+  // Edit sections' pane: the mode, the trail's sections top first, and what Done does to every trail it touches.
+  function secsPanel() {
+    const line = secsLine(), r = lineRec(line), st = pathStats(r.pts), was = S.secs.before.find((b) => b.secs.includes(S.secs.first));
+    const changes = trailChanges(S.secs.before);
+    const mode = `<div class="lrow"><span>Click</span><div class="seg" data-ui="sections-mode">${[['choose', 'Choose sections'], ['cut', 'Cut']].map(([v, l]) => `<span class="${S.secs.mode === v ? 'on' : ''}" data-act="secmode" data-v="${v}">${l}</span>`).join('')}</div></div>`;
+    const hint = S.secs.mode === 'cut' ? '<b>Click</b> the trail to cut it into two sections · <b>click</b> a hollow node to rejoin it'
+      : '<b>Left-click</b> any run beyond its top or bottom: everything on the way is added · <b>right-click</b> a section to take it out';
+    const rows = line.secs.map((id, i) => { const t = secOf(id); return `<span class="secchip"><span class="mono">${i + 1}</span>${RATING[t.diff]}${lenTxt(pathStats(t.pts).len)}</span>`; }).join('');
+    const made = [].concat(...changes.map((c) => c.made || []));
+    const list = changes.length ? `<div class="rule"></div><div class="lnote" style="padding-top:6px" title="NT37, NT40">Also changes</div>${changes.map((c) => `<div class="lmsg">${c.text}</div>`).join('')}
+      ${made.map((a) => `<div class="lrow"><span>Name</span><input class="field" style="height:24px;width:100%" maxlength="28" data-secname="${a.secs[0]}" value="${esc(a.name)}" spellcheck="false" autocomplete="off"></div>`).join('')}` : '';
+    const now = `${line.secs.length} section${line.secs.length > 1 ? 's' : ''} · ${lenTxt(st.len)} · ${RATING[r.diff]}`;
+    const then = was ? `${was.secs.length} section${was.secs.length > 1 ? 's' : ''} · ${lenFt(was.len)} · ${RATING[was.diff]}` : '';
+    return panelShell(`${toolGlyph(toolById('edit-trail'))}Edit sections · ${esc(line.name)}${S.secs.armEsc ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard the changes? Esc again</span>' : ''}`, `
+      <div style="padding:8px 0 4px">${mode}<div class="hint">${hint}</div></div><div class="rule"></div>
+      <dl class="kv" style="padding-top:6px"><dt>Now</dt><dd>${now}</dd>${S.secs.hist.length ? `<dt>Was</dt><dd style="color:var(--soft)">${then}</dd>` : ''}</dl>
+      <div class="secchips" title="Its sections, top first">${rows}</div>${list}
+      <div class="lkeys"><span><span class="kbd">Ctrl</span><span class="kbd">Z</span> undoes a click</span><span><span class="kbd">Esc</span> leaves</span></div>
+      <div class="acts"><div class="go" data-act="secdone" data-ui="sections-done" title="NT39: the whole session is one step for Ctrl+Z"><span>Done</span><span class="kbd kbd-go">Enter</span></div><div class="ghost" data-act="seccancel">Cancel</div></div>`, 320, 'toolwin');
+  }
+  // NT38: a new trail whose top lands on another trail's bottom (or its bottom on another's top) can carry it on.
+  function continuesOf(d) {
+    if (d.editing || !d.head || !d.tail) return null;
+    for (const l of allLines()) {
+      const top = secOf(l.secs[0]), bot = secOf(l.secs[l.secs.length - 1]);
+      if (gapPx(d.head.p, secBot(bot)) <= SECSNAP) return { line: l, below: true };
+      if (gapPx(d.tail.p, secTop(top)) <= SECSNAP) return { line: l, below: false };
+    }
+    return null;
+  }
   function pickPanel() {
+    if (S.secs) return secsPanel();   // NT25: Edit sections
     const t = toolById(S.tool), obj = S.sel && (t.target === 'lift' ? S.lifts : S.trails).find((o) => o.id === S.sel);
     const head = `${toolGlyph(t)}${t.name}`;
     if (!obj && t.target === 'lift') return panelShell(head, `<div class="hint">${t.mode === 'edit' ? 'Click a lift on the mountain to open it here: its towers and terminals become yours to move.' : 'Click a lift on the mountain: it lights up, and a second click removes it.'}</div>`, 300);
@@ -3071,13 +3379,9 @@ body.solo .frame { border-radius: 0; }
       const armed = S.removeArmed === obj.id;
       return panelShell(head, top + facts + `<div class="hint">${obj.built ? 'Removes the lift, its pads and its clearing.' : 'Removes the plan.'} Ctrl+Z brings it back.</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>${armed ? 'Click again to remove' : `Remove ${esc(obj.name)}`}</span><span class="mono">${armed ? 'Esc keeps it' : ''}</span></div></div>`, 300);
     }
-    const st = pathStats(obj.pts);
-    const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:var(--soft)">· ${lenTxt(st.len)} · ${lenTxt(st.drop)} vertical</span></div>`;
-    if (t.mode === 'edit') return panelShell(head, top + `<dl class="kv"><dt>Rating</dt><dd>${RATING[obj.diff]} ${BANDS.find((b) => b[1] === obj.diff)[2]}</dd><dt>Average grade</dt><dd>${Math.round(st.avg)}%</dd><dt>Steepest</dt><dd>${Math.round(st.steep)}%</dd></dl>
-      <div style="padding:2px 12px 8px"><div class="lrow"><span>Grading</span><div class="seg" title="TR-06, TF-06: Natural keeps the ground; Graded benches it">${[['n', 'Natural'], ['g', 'Graded']].map(([v, l]) => `<span class="${(obj.graded ? 'g' : 'n') === v ? 'on' : ''}" data-act="tedit" data-v="grade-${v}">${l}</span>`).join('')}</div></div></div>
-      <div class="lbtns" style="padding:0 12px 8px"><span class="ghost" data-act="tedit" data-v="paint" title="TF-07: the trail's strokes open in Paint; add, erase, leave islands">Repaint</span><span class="ghost" data-act="tedit" data-v="ends" title="TF-07: click a new head, then a new tail">Move ends</span></div>
-      <div class="lbtns" style="padding:0 12px 8px"><span class="ghost" data-act="rename" title="TF-07">Rename</span><span class="ghost dis" title="NW-10: Split and Join come with the network (task 10)">Split</span><span class="ghost dis" title="NW-10: Split and Join come with the network (task 10)">Join</span></div>
-      <div class="hint" style="padding-top:0">The rating comes from the ground: regrade or repaint to change it. Grading runs again only where something changed.</div>`, 300);
+    const ln = lineOf(obj.id), st = pathStats(linePts(ln));   // NT33: Remove trail takes every section
+    const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(ln.name)}</b> <span style="color:var(--soft)">· ${ln.secs.length > 1 ? `${ln.secs.length} sections · ` : ''}${lenTxt(st.len)} · ${lenTxt(st.drop)} vertical</span></div>`;
+    if (t.mode === 'edit') return panelShell(head, trailPane(obj), 300);   // NT29, NT30
     return panelShell(head, top + `<div class="hint">${obj.built ? 'Its ground and trees go back to how they were before it was built (CL-07). Ctrl+Z brings it back.' : 'It\'s only a plan: nothing on the ground changes.'}</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>${S.removeArmed === obj.id ? 'Click again to confirm' : `Remove ${esc(obj.name)}`}</span><span class="mono"></span></div></div>`, 300);
   }
   // ---------- Analysis › Lifts and Trails: filters, sortable columns, and rows that light their lift or trail ----------
@@ -3104,7 +3408,7 @@ body.solo .frame { border-radius: 0; }
   const STATUS_LAMP = { open: ['Open', '#5fbf6a'], closed: ['Closed', '#d4513f'], planned: ['Planned', '#ff6a1f'], built: ['Built', '#9aa3a8'] };
   function listTab(tab, open) {
     const f = S.af[tab], lifts = tab === 'lifts';
-    const all = lifts ? S.lifts.map((l) => liftRec(l, open)) : S.trails.map((t, i) => trailRec(t, open, i));
+    const all = lifts ? S.lifts.map((l) => liftRec(l, open)) : allLines().map((l, i) => trailRec(lineRec(l), open, i));   // NT24: a row per trail
     const binOf = (bins, v) => bins.find((b) => v >= b[2] && v < b[3])[0];
     const valOf = (r, k) => (k === 'len' ? binOf(LEN_BINS, r.len) : k === 'vert' ? binOf(VERT_BINS, r.vert) : r[k]);
     const recs = all.filter((r) => Object.keys(f.hide).every((k) => !f.hide[k].includes(valOf(r, k))));
@@ -3135,7 +3439,7 @@ body.solo .frame { border-radius: 0; }
   // The focus card (LF-11, TF-08's simple cards): the lift's or trail's key figures, with Edit and Remove.
   function focusCard() {
     if (S.focus && S.focus.startsWith('area:')) return areaCard(S.focus.slice(5));
-    const id = S.focus, l = S.lifts.find((x) => x.id === id), t = S.trails.find((x) => x.id === id);
+    const id = S.focus, l = S.lifts.find((x) => x.id === id), sec = S.trails.find((x) => x.id === id), t = sec && lineRec(lineOf(sec.id));
     if (!l && !t) return '';
     const open = isOpen(), kv = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
     if (l) {
@@ -3144,7 +3448,7 @@ body.solo .frame { border-radius: 0; }
         <dl class="kv">${kv('Type', esc(liftTypeName(l.model)))}${kv('Capacity', `<b>${r.cap.toLocaleString('en-US')}</b> an hour`)}${kv('Length', `<b>${lenFt(r.len)}</b>`)}${kv('Vertical', `<b>${lenFt(r.vert)}</b>`)}${kv('Ride', fmtTime(r.ride))}${l.towers ? kv('Towers', l.towers.length) : ''}${kv('Wait now', r.wait !== null ? `${r.wait.toFixed(1)} min` : '—')}</dl>
         <div class="acts" style="grid-template-columns:1fr 1fr"><div class="ghost" data-act="fedit" data-v="lift">Edit</div><div class="ghost" data-act="fremove" data-v="lift">Remove</div></div></div>`;
     }
-    const r = trailRec(t, open, S.trails.indexOf(t)), st = STATUS_LAMP[r.status];
+    const r = trailRec(t, open, 0), st = STATUS_LAMP[r.status];
     return `<div class="pn fcard"><div class="hd">${RATING[t.diff]}${esc(t.name)}<span class="nm">${lampHtml(st[1])} ${st[0]}</span><span class="x" data-act="fclose" title="Close (Esc)">✕</span></div>
       <dl class="kv">${kv('Rating', `${DIFFS[t.diff]}`)}${kv('Length', `<b>${lenFt(r.len)}</b>`)}${kv('Vertical', `<b>${lenFt(r.vert)}</b>`)}${kv('Average grade', `${Math.round(r.avg)}%`)}${kv('Steepest', `${Math.round(r.steep)}%`)}${kv('Surface', r.surface)}</dl>
       <div class="acts" style="grid-template-columns:1fr 1fr"><div class="ghost" data-act="fedit" data-v="trail">Edit</div><div class="ghost" data-act="fremove" data-v="trail">Remove</div></div></div>`;
@@ -3484,9 +3788,9 @@ body.solo .frame { border-radius: 0; }
     else if (S.modal && S.modal.stats) h += statsPanel();
     else if (S.modal && S.modal.save) h += saveDialog();
     else if (S.modal && S.modal.fb) h += feedbackPanel();   // task P3-14
-    else if (S.modal && S.modal.input) { const ar = S.modal.area && netOf().areas.find((x) => x.id === S.modal.area); h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">${ar ? 'Name area' : 'Rename resort'}<span class="x" data-act="modal">✕</span></div>
-      <div style="padding:12px 12px 2px"><input id="nameinput" class="field" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(ar ? ar.name : S.name)}"></div>
-      <div class="hint">${ar ? 'Shown on the map, in Analysis › Network and on its card; it stays with the area as it grows.' : 'Shown in the status bar, the menu, Analysis and your saves.'}</div>
+    else if (S.modal && S.modal.input) { const ar = S.modal.area && netOf().areas.find((x) => x.id === S.modal.area), tl = S.modal.trail && lineOf(S.modal.trail); h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">${ar ? 'Name area' : tl ? 'Rename trail' : 'Rename resort'}<span class="x" data-act="modal">✕</span></div>
+      <div style="padding:12px 12px 2px"><input id="nameinput" class="field" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(ar ? ar.name : tl ? tl.name : S.name)}"></div>
+      <div class="hint">${ar ? 'Shown on the map, in Analysis › Network and on its card; it stays with the area as it grows.' : tl ? 'Shown along the whole trail on the map, in Analysis › Trails and on its card.' : 'Shown in the status bar, the menu, Analysis and your saves.'}</div>
       <div class="acts"><div class="go" data-act="renameok"><span>Rename</span><span class="mono">Enter</span></div><div class="ghost" data-act="modal">Cancel</div></div></div></div>`; }
     else if (S.modal) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">${S.modal.title}<span class="x" data-act="modal">✕</span></div><div class="hint" style="padding:12px">${S.modal.body}</div><div class="acts" style="grid-template-columns:1fr"><div class="ghost" data-act="modal">OK</div></div></div></div>`;
     if (S.notice && !S.modal) h += noticeHtml();   // task P3-14: the error notice and the crash offer
@@ -3911,6 +4215,9 @@ body.solo .frame { border-radius: 0; }
       const rec = { id: d.editing || 't' + (uid++), name: d.name, diff: r.band[1], pts, built: !asPlan, graded: d.graded, draft: keep };
       const at = d.editing ? S.trails.findIndex((x) => x.id === d.editing) : -1;
       if (at >= 0) { rec.built = S.trails[at].built || !asPlan; S.trails[at] = rec; } else S.trails.push(rec);
+      const cont = d.cont !== false && continuesOf(d);   // NT38: it carries on the trail it meets, in the same stage
+      if (cont && lineBuilt(cont.line) === rec.built) { const ln = lineOf(cont.line.secs[0]); setLine(ln, cont.below ? ln.secs.concat(rec.id) : [rec.id].concat(ln.secs)); label = ln.name; }
+      normaliseLines();
       cost = trailCost(r); label = d.name; trailSeq++; trailRuns++;
       if (!asPlan) S.trailsTotal++;
     } else if (d.kind === 'line') {
@@ -3968,12 +4275,24 @@ body.solo .frame { border-radius: 0; }
         if (v === 'ends') { d.step = 'ends'; d.head = keep.head; d.tail = keep.tail; setEnds(d); }
         render(); return;
       }
+      case 'secs': { const tr = S.trails.find((x) => x.id === S.sel); if (tr) secsOpen(tr.id); break; }   // NT25
+      case 'secmode': S.secs.mode = v; break;
+      case 'secdone': secsDone(); break;
+      case 'seccancel': secsEsc(); break;
+      case 'trename': S.modal = { input: true, trail: S.sel }; break;
+      case 'tcont': S.draft.cont = v === 'on'; break;   // NT38
       case 'setdiff': { const t = S.trails.find((x) => x.id === S.sel); if (t) { t.diff = v; S.saveDue = true; log(`<span><b>${esc(t.name)}</b> re-rated ${DIFFS[v].toLowerCase()}</span>`); } break; }
       case 'remove': {
         if (S.set.confirmRemove === 'on' && S.removeArmed !== S.sel) { S.removeArmed = S.sel; break; }
         S.removeArmed = null;
         const t = toolById(S.tool), list = t.target === 'lift' ? S.lifts : S.trails, i = list.findIndex((x) => x.id === S.sel);
-        if (i >= 0) {
+        if (i >= 0 && t.target === 'trail') {   // NT33: every section of the trail, one step for Ctrl+Z
+          const ln = lineOf(S.sel), snap = snapTrails();
+          if (lineBuilt(ln)) S.trailsTotal--;
+          S.trails = S.trails.filter((x) => !ln.secs.includes(x.id)); S.tlines = S.tlines.filter((x) => x.id !== ln.id); normaliseLines();
+          S.liftUndo.push({ kind: 'trails', snap, name: ln.name, removed: true }); S.saveDue = true;
+          log(`<span><b>${esc(ln.name)}</b> removed${ln.secs.length > 1 ? ` (${ln.secs.length} sections)` : ''} <span style="color:var(--soft)">· Ctrl+Z brings it back</span></span>`, '#8e2b1f');
+        } else if (i >= 0) {
           const o = list[i]; list.splice(i, 1); if (t.target === 'trail' && o.built) S.trailsTotal--; S.saveDue = true;
           // Remove lift: the lift, its earthwork and its clearing in one undoable command; no money in Phase 3
           if (t.target === 'lift') { if (o.built) S.liftsTotal--; S.liftUndo.push({ kind: 'remove', i, was: o }); log(`<span><b>${esc(o.name)}</b> removed <span style="color:var(--soft)">· Ctrl+Z brings it back</span></span>`, '#8e2b1f'); }
@@ -3990,8 +4309,12 @@ body.solo .frame { border-radius: 0; }
       case 'stats': S.drop = null; S.modal = S.modal && S.modal.stats ? null : { stats: true }; break;
       case 'renameok': {
         const f = document.getElementById('nameinput'), v = f ? f.value.trim().replace(/\s+/g, ' ').slice(0, 28) : '';
-        const area = S.modal && S.modal.area && netOf().areas.find((x) => x.id === S.modal.area);
+        const area = S.modal && S.modal.area && netOf().areas.find((x) => x.id === S.modal.area), tl = S.modal && S.modal.trail && lineOf(S.modal.trail);
         S.modal = null;
+        if (tl) {   // NT24: the trail's name, on every section of it
+          if (v && v !== tl.name) { S.liftUndo.push({ kind: 'trails', snap: snapTrails(), name: tl.name }); if (!tl.single) tl.name = v; for (const id of tl.secs) secOf(id).name = v; S.saveDue = true; log(`<span>Trail renamed <b>${esc(v)}</b></span>`); }
+          render(); return;
+        }
         if (area) {   // NW-15: the name, with the ends the area holds now
           if (v && v !== area.name) { if (area.rec) { area.rec.name = v; area.rec.ends = area.st.members.map(endKey); } else S.areaNames.push({ name: v, ends: area.st.members.map(endKey) }); S.saveDue = true; log(`<span>Area named <b>${esc(v)}</b></span>`); }
           render(); return;
@@ -4122,11 +4445,15 @@ body.solo .frame { border-radius: 0; }
     else if (!S.tool && !S.sketch) { const hv = pickAt(mouse, 'lift') || pickAt(mouse, 'trail'); stage.classList.toggle('pick', !!hv); if (hv !== S.hover) { S.hover = hv; drawWorld(); } }
     if (S.draft || picking) drawWorld();
   });
-  stage.addEventListener('contextmenu', (e) => { if (S.draft && S.draft.kind === 'terrain') e.preventDefault(); });
+  stage.addEventListener('contextmenu', (e) => {
+    if (S.draft && S.draft.kind === 'terrain') e.preventDefault();
+    if (S.secs && !onUi(e)) { e.preventDefault(); if (S.secs.mode === 'choose') { const id = pickAt(toMap(e), 'trail'); if (id) secsTakeOut(id); render(); } }   // NT35: right-click takes out
+  });
   stage.addEventListener('pointerleave', () => { if (liftDrag) return; mouse = null; showElev(); if (S.draft && S.draft.kind === 'lift') { S.draft.hand = null; refreshLift(); } else if (S.draft) drawWorld(); });
   window.addEventListener('pointerup', () => { if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { endStroke(S.draft); render(); } if (S.draft && S.draft.kind === 'terrain' && S.draft.stroke) { tbEnd(S.draft); render(); } if (liftDrag) { const d = S.draft; if (liftDrag.term) d.dropAsk = d.towers.length - towersOn(d).length; if (liftDrag.end) endMove(d, liftDragged); if (d.edit && !liftDragged) d.hist.pop(); liftDrag = null; render(); } });
   stage.addEventListener('input', (e) => {
     if (e.target.id === 'trailname' && S.draft && S.draft.kind === 'trail') { S.draft.name = e.target.value.slice(0, 28); return; }
+    if (e.target.dataset && e.target.dataset.secname && S.secs) { S.secs.typed[e.target.dataset.secname] = e.target.value.slice(0, 28); applyTyped(); drawWorld(); return; }   // NT40
     if ((e.target.id === 'fbtitle' || e.target.id === 'fbnote') && S.modal && S.modal.fb) {   // P3-14: kept across re-renders; Send lights once there's a title
       const fb = S.modal.fb, had = !!fb.title.trim(); if (e.target.id === 'fbtitle') fb.title = e.target.value; else fb.note = e.target.value;
       if (had !== !!fb.title.trim()) document.querySelectorAll('.fb .acts > div:not(:last-child)').forEach((n) => { n.classList.toggle('dis', !fb.title.trim()); n.dataset.act = fb.title.trim() ? 'fb' : ''; });
@@ -4174,6 +4501,11 @@ body.solo .frame { border-radius: 0; }
       else d.pts.push(p);
       render(); return;
     }
+    if (S.secs) {   // NT35: a left-click adds (routed); in Cut, it cuts or rejoins
+      if (S.secs.mode === 'cut') { const c = cutNear(p); if (c) secsRejoin(c); else secsCut(p); }
+      else { const id = pickAt(p, 'trail'); if (id) secsAdd(id); }
+      render(); return;
+    }
     if (S.tool && toolById(S.tool).kind === 'pick') {
       const t = toolById(S.tool), id = pickAt(p, t.target);
       if (t.target === 'lift' && id) {   // Edit lift opens the lift in the tool; Remove lift lights it, and a second click removes it
@@ -4214,6 +4546,11 @@ body.solo .frame { border-radius: 0; }
     // Ctrl+Enter: Break ground from the review step (P3-06), when the window's button is live
     if ((e.ctrlKey || e.metaKey) && k === 'enter') { const go = document.querySelector('[data-ui="review-go"]:not(.dis)'); if (go) { e.preventDefault(); act('build'); } else if (document.querySelector('[data-ui="review-apply"]:not(.dis)')) { e.preventDefault(); liftAct('lapply'); } return; }
     if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); if (!S.modal) act('savegame'); return; }
+    if (S.secs && !S.modal) {   // NT39: Edit sections' own keys
+      if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) { e.preventDefault(); secsUndo(k === 'y'); render(); return; }
+      if (k === 'enter') { e.preventDefault(); secsDone(); render(); return; }
+      if (k === 'escape') { secsEsc(); render(); return; }
+    }
     if ((e.ctrlKey || e.metaKey) && k === 'z' && S.draft && S.draft.kind === 'terrain' && S.draft.step === 'paint') { e.preventDefault(); S.draft.strokes.pop(); render(); return; }   // TB-08
     if ((e.ctrlKey || e.metaKey) && k === 'z' && S.draft && S.draft.kind === 'trail' && S.draft.step === 'paint') { e.preventDefault(); undoStroke(S.draft); render(); return; }   // TF-02
     // Edit lift's own undo inside the tool; outside a tool, the last applied lift edit or removal (one command each)
@@ -4229,6 +4566,7 @@ body.solo .frame { border-radius: 0; }
       return;
     }
     if (k === 'p') { enterPhoto(); return; }
+    if (k === 'f2' && S.tool === 'edit-trail' && S.sel && !S.secs) { e.preventDefault(); act('trename'); render(); return; }
     if (k === 'f2' && S.focus && S.focus.startsWith('area:')) { e.preventDefault(); act('arearename', S.focus.slice(5)); render(); return; }   // NT19
     if (S.draft && S.draft.kind === 'lift' && liftKeys(e, k)) return;
     if (S.draft && S.draft.kind === 'trail' && trailKeys(e, k)) return;
@@ -4492,6 +4830,54 @@ body.solo .frame { border-radius: 0; }
       // Task 08: trailfix (the trail built, then Edit trail on it, TF-07) and trailgone (Remove trail on it).
       const tx = ['trailfix', 'trailgone'].find((x) => d.includes(x));
       if (tx) { td.graded = true; setEnds(td); commit(false); chooseTool(tx === 'trailfix' ? 'edit-trail' : 'remove-trail'); S.sel = S.trails[S.trails.length - 1].id; mouse = [1240, 140]; }
+    }
+    // Trails made of sections (NT24–NT41): Ridge is three sections (a cut node between its lower two), Run 7 two below it,
+    // Chute meets Ridge's first node from the side, Shortcut misses Ridge's bottom by about 110 ft, Ledge is a plan, and
+    // Zigzag switchbacks. trailsecs: Ridge's pane; trailroute: Edit sections, hovering Run 7's far section; trailmerge:
+    // Run 7 taken whole; trailtakeout: right-click on a middle section; trailmiddle: Chute taking Ridge's middle;
+    // trailnear: the near miss; trailcut and trailcutbad: Cut on a straight run and on a switchback; trailsecsundo: Esc
+    // asking after two clicks.
+    const sx = ['trailsecs', 'trailroute', 'trailmerge', 'trailtakeout', 'trailmiddle', 'trailnear', 'trailcut', 'trailcutbad', 'trailsecsundo'].find((x) => d.includes(x));
+    if (sx) {
+      // in the middle of the mountain, away from the windows; the runs and lifts of the other demos go
+      const T = (p) => [p[0] - 330, Math.round((p[1] - 250) * 0.75 + 240)];
+      S.lifts = []; S.trails = [];
+      S.trails.push({ id: 'ra', name: 'Ridge', diff: 'blue', pts: [[1000, 250], [1006, 295], [1004, 340]].map(T), built: true },
+        { id: 'rb', name: 'Ridge', diff: 'black', pts: [[1004, 340], [996, 385], [1000, 430]].map(T), built: true },
+        { id: 'rc', name: 'Ridge', diff: 'blue', pts: [[1000, 430], [1010, 475], [1012, 520]].map(T), built: true },
+        { id: 'rg', name: 'Run 7', diff: 'blue', pts: [[1012, 520], [1024, 550], [1030, 580]].map(T), built: true },
+        { id: 'rh', name: 'Run 7', diff: 'green', pts: [[1030, 580], [1036, 610], [1040, 640]].map(T), built: true },
+        { id: 'rk', name: 'Chute', diff: 'black', pts: [[930, 300], [970, 322], [1004, 340]].map(T), built: true },
+        { id: 'rs', name: 'Shortcut', diff: 'blue', pts: [[1017, 523], [1000, 560], [985, 600]].map(T), built: true },
+        { id: 'rp', name: 'Ledge', diff: 'green', pts: [[1040, 640], [1046, 668], [1048, 695]].map(T), built: false },
+        { id: 'rz', name: 'Zigzag', diff: 'blue', pts: [[1120, 300], [1170, 330], [1120, 360], [1170, 390], [1125, 420]].map(T), built: true });
+      for (const t of S.trails) t.diff = BANDS.find((b) => pathStats(t.pts).steep < b[0])[1];   // each section rated on its own ground
+      S.tlines = [{ id: 'Lra', name: 'Ridge', secs: ['ra', 'rb', 'rc'] }, { id: 'Lrg', name: 'Run 7', secs: ['rg', 'rh'] }];
+      S.tcuts = [{ u: 'rb', l: 'rc' }];
+      S.toolbox = true; S.tab = 'trails'; S.analysis = false; chooseTool('edit-trail'); S.zoom = 1;
+      const edit = sx === 'trailmiddle' ? 'rk' : sx === 'trailcutbad' ? 'rz' : 'rb';
+      S.sel = edit; mouse = [1240, 140];
+      if (sx !== 'trailsecs') {
+        secsOpen(edit);
+        if (sx === 'trailroute') mouse = T([1036, 610]);
+        if (sx === 'trailmerge') secsAdd('rh');
+        if (sx === 'trailtakeout') mouse = T([997, 390]);
+        if (sx === 'trailmiddle') mouse = T([997, 390]);
+        if (sx === 'trailnear') mouse = T([1000, 560]);
+        if (sx === 'trailcut') { S.secs.mode = 'cut'; mouse = T([1006, 296]); }
+        if (sx === 'trailcutbad') { S.secs.mode = 'cut'; mouse = T([1146, 345]); }
+        if (sx === 'trailsecsundo') { secsAdd('rh'); secsTakeOut('ra'); secsEsc(); }
+      }
+    }
+    // trailcontinue (NT38): New trail's review, its head on Upper Bowl's bottom: "Continues Upper Bowl", ticked.
+    if (d.includes('trailcontinue')) {
+      S.trails.push({ id: 'ub', name: 'Upper Bowl', diff: 'blue', pts: [[1010, 220], [1004, 262], [1000, 303]], built: true });
+      S.toolbox = true; S.tab = 'trails'; if (S.tool !== 'new-trail') chooseTool('new-trail');
+      const td = S.draft, paint = (pts, w) => { td.width = w; td.stroke = { idx: [], was: [], erase: false, last: null }; for (const p of pts) strokeTo(td, p); endStroke(td); };
+      S.zoom = 1.3;
+      paint([[1000, 300], [997, 330], [993, 360], [990, 390], [985, 420], [980, 450]], 150);
+      td.width = 100; td.step = 'ends'; td.head = { p: [1000, 303], snap: null }; td.tail = { p: [980, 447], snap: null }; setEnds(td); td.step = 'review';
+      mouse = [1240, 140];
     }
     // liftbase (NT16): a bottom terminal in hand beside Aspen Quad's top (a transfer), its catchment gathering Cornice and
     // Bighorn's heads; liftbaseaim aims its top up the ridge.

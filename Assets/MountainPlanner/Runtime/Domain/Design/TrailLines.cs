@@ -31,7 +31,16 @@ namespace MountainPlanner.Domain.Design
             Saved = saved;
         }
 
-        internal static TrailLine Single(DesignDocument doc, Trail t) => new TrailLine(TrailLineId.Of(doc.Seed, t.Id), t.Name, new[] { t.Id }, false);
+        /// <summary>
+        /// A section on its own as a trail. Its ID is keyed by itself; when a saved trail still holds that ID (it was founded
+        /// on this section, which has since been taken out), the next free one, so no two trails share an ID.
+        /// </summary>
+        internal static TrailLine Single(DesignDocument doc, Trail t)
+        {
+            var id = TrailLineId.Of(doc.Seed, t.Id);
+            for (ulong k = 1; doc.FindLine(id) != null; k++) id = TrailLineId.Of(doc.Seed, t.Id, k);
+            return new TrailLine(id, t.Name, new[] { t.Id }, false);
+        }
 
         public TrailId Top => _sections[0];
         public TrailId Bottom => _sections[_sections.Length - 1];
