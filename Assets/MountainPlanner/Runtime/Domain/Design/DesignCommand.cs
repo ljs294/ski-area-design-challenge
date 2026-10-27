@@ -39,6 +39,7 @@ namespace MountainPlanner.Domain.Design
 
         public static CommandResult Accept(DesignDocument doc, params ulong[] created) => new CommandResult(true, doc, 0, null, created);
         internal static CommandResult Accept(DesignDocument doc, List<ulong> created) => new CommandResult(true, doc, 0, null, created.ToArray());
+        internal static CommandResult Accept(DesignDocument doc, IReadOnlyList<ulong> created) => new CommandResult(true, doc, 0, null, created);
         public static CommandResult Reject(DesignDocument unchanged, RejectionCode code, string reason) => new CommandResult(false, unchanged, code, reason, null);
         public override string ToString() => Accepted ? "accepted" : $"rejected ({Code}): {Reason}";
     }
@@ -65,8 +66,15 @@ namespace MountainPlanner.Domain.Design
         public CommandResult Apply(DesignDocument doc)
         {
             if (doc == null) throw new ArgumentNullException(nameof(doc));
-            return Run(doc);
+            var result = Run(doc);
+            // NT24–NT28: whatever a command did to the trails, they stay whole (TrailLines.Normalise).
+            if (!result.Accepted || !result.Document.TrailsDifferFrom(doc)) return result;
+            var whole = TrailLines.Normalise(result.Document);
+            return ReferenceEquals(whole, result.Document) ? result : CommandResult.Accept(whole, result.Created);
         }
+
+        /// <summary>The command's own change, before the trails are mended: for commands built from other commands.</summary>
+        internal CommandResult Raw(DesignDocument doc) => Run(doc);
 
         protected abstract CommandResult Run(DesignDocument doc);
 
@@ -111,8 +119,20 @@ namespace MountainPlanner.Domain.Design
             foreach (var id in Trails) if (!seen.Add(id.Value)) return Invalid(doc, "A trail is listed twice.");
             foreach (var id in Lifts) if (!seen.Add(id.Value)) return Invalid(doc, "A lift is listed twice.");
 
+            // NT32: a trail is built whole, every section of it.
+            var sections = new List<TrailId>();
+            var listed = new HashSet<ulong>();
+            foreach (var id in Trails)
+                foreach (var s in doc.LineOf(id).Sections)
+                {
+                    if (!listed.Add(s.Value)) continue;
+                    var t = doc.FindTrail(s);
+                    if (t.Stage != WorkStage.Plan) continue;
+                    if (!t.HasEnds) return Invalid(doc, $"{t.Name} needs a head and a tail before it can be built.");
+                    sections.Add(s);
+                }
             var next = doc;
-            foreach (var id in Trails) next = next.PutTrail(next.FindTrail(id).WithStage(WorkStage.Built));
+            foreach (var id in sections) next = next.PutTrail(next.FindTrail(id).WithStage(WorkStage.Built));
             foreach (var id in Lifts) next = next.PutLift(next.FindLift(id).WithStage(WorkStage.Built));
             return CommandResult.Accept(next);
         }

@@ -26,14 +26,18 @@ namespace MountainPlanner.Persistence.Saves
     /// the site's centre (TE5) and each later one's as the change from the one before, each with its weight in thousandths.
     /// The design's "Areas" (v5, NW-15) are the Areas the player has named: each its ID, name and the lift ends it held
     /// ("End" is "bottom" or "top"); empty in a v1–v4 save.
+    /// The design's "TrailLines" (v6, owner NT24) are the trails made of two or more sections: each its ID, name and its
+    /// sections' trail IDs, top first; every section also carries the name. A section in none is a trail on its own, so
+    /// the list is empty in a v1–v5 save.
     /// <code>
-    /// { "Version": 5, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 5, "Seed", "NextOrdinal", "Trails": [...],
+    /// { "Version": 6, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 6, "Seed", "NextOrdinal", "Trails": [...],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
     ///                            "Levels": { "BottomMm", "TopMm" } or null } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
     ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "Dabs": [...] } ],
-    ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ] },
+    ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ],
+    ///               "TrailLines": [ { "Id", "Name", "Sections": [ "&lt;trail id&gt;", ... ] } ] },
     ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] } }
     /// </code>
     /// </summary>
@@ -103,6 +107,20 @@ namespace MountainPlanner.Persistence.Saves
                     w.WritePropertyName("End"); w.WriteValue(e.Bottom ? "bottom" : "top");
                     w.WriteEndObject();
                 }
+                w.WriteEndArray();
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+            w.WritePropertyName("TrailLines");
+            w.WriteStartArray();
+            foreach (var line in d.Lines)
+            {
+                w.WriteStartObject();
+                w.WritePropertyName("Id"); w.WriteValue(Hex(line.Id.Value));
+                w.WritePropertyName("Name"); w.WriteValue(line.Name);
+                w.WritePropertyName("Sections");
+                w.WriteStartArray();
+                foreach (var s in line.Sections) w.WriteValue(Hex(s.Value));
                 w.WriteEndArray();
                 w.WriteEndObject();
             }
@@ -297,13 +315,21 @@ namespace MountainPlanner.Persistence.Saves
                 return new SaveSummary
                 {
                     Name = Str(o, "Name"), Autosave = Bool(o, "Autosave"), SavedUtc = Str(o, "SavedUtc"),
-                    Trails = Arr(d, "Trails").Count, Lifts = Arr(d, "Lifts").Count,
+                    Trails = TrailCount(d), Lifts = Arr(d, "Lifts").Count,
                 };
             }
             catch (Exception e) when (e is FormatException || e is InvalidCastException || e is JsonException)
             {
                 throw new InvalidDataException("The save is damaged: " + e.Message, e);
             }
+        }
+
+        /// <summary>Trails as the player counts them (NT24): sections, less one for each extra section of a saved trail.</summary>
+        static int TrailCount(JObject d)
+        {
+            int n = Arr(d, "Trails").Count;
+            foreach (var line in Arr(d, "TrailLines")) n -= Math.Max(0, Arr(AsObj(line), "Sections").Count - 1);
+            return n;
         }
 
         static DesignDocument ReadDesign(JObject d)
@@ -332,7 +358,19 @@ namespace MountainPlanner.Persistence.Saves
             }
             var strokes = new List<TerrainStroke>();
             foreach (var k in Arr(d, "Strokes")) strokes.Add(ReadStroke(AsObj(k)));
-            return DesignDocument.From(seed, next, trails, lifts, strokes, areas);
+            var lines = new List<TrailLine>();
+            foreach (var l in Arr(d, "TrailLines"))
+            {
+                var lo = AsObj(l);
+                var sections = new List<TrailId>();
+                foreach (var s in Arr(lo, "Sections"))
+                {
+                    if (s.Type != JTokenType.String) throw new FormatException("a trail's section isn't an ID");
+                    sections.Add(new TrailId(HexValue((string)s)));
+                }
+                lines.Add(new TrailLine(new TrailLineId(HexValue(Str(lo, "Id"))), Str(lo, "Name"), sections));
+            }
+            return DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines);
         }
 
         static TerrainStroke ReadStroke(JObject k)

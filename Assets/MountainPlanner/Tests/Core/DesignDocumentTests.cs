@@ -18,7 +18,8 @@ namespace MountainPlanner.Tests
         // Shape 3 (LT44): each tower's kind; the scripted design's towers are all Auto.
         // Shape 4 (task 15, BR12, owner OK with the plan 2026-10-26): the terrain strokes, none here; from 224681ef….
         // Shape 5 (task P3-10, NW-15, Master Planner ruling 2026-10-26): the named Areas, none here; from 0642d8d8….
-        const string GoldenSha = "4f6a0657336691cbc5568bdb43640452978834b4c9f2514c017741e0a0ba0783";
+        // Shape 6 (task P3-10, NT24, owner 2026-10-27): the trails of several sections, none here; from 4f6a0657….
+        const string GoldenSha = "fedff97fbf76a62bb699d4153beab2e4c13ba65cb81401ea6654e53187a7174b";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()
@@ -60,7 +61,8 @@ namespace MountainPlanner.Tests
         {
             // The authored shape, property by property (SH-05, NW-06, TW-15). A new property is a format change for
             // task 04 (bump ShapeVersion, migrate, fixture) and must never be derived data.
-            AssertProperties(typeof(DesignDocument), "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas");
+            AssertProperties(typeof(DesignDocument), "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "Lines");
+            AssertProperties(typeof(TrailLine), "Id", "Name", "Sections", "Saved", "Top", "Bottom");   // NT24: a trail's sections, top first
             AssertProperties(typeof(AreaRecord), "Id", "Name", "Ends");   // NW-15 (task P3-10): the player's names, not the hubs
             AssertFields(typeof(AreaEnd), "Lift", "Bottom");
             AssertProperties(typeof(Trail), "Id", "Name", "Stage", "Settings", "Parts", "Head", "Tail", "HasEnds");
@@ -75,7 +77,7 @@ namespace MountainPlanner.Tests
             AssertProperties(typeof(TerrainStroke), "Id", "Settings", "Dabs");
             AssertFields(typeof(BrushSettings), "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm", "StartMm", "StartAt", "TargetAt", "LimitMm");
             AssertFields(typeof(BrushDab), "At", "WeightPermille");
-            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(5));
+            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(6));
         }
 
         static void AssertProperties(Type type, params string[] names)

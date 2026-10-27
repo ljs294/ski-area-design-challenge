@@ -28,6 +28,8 @@ namespace MountainPlanner.Domain.Design
         public const ulong StationTag = 13;
         /// <summary>NW-15's named Areas (task 10, owner NT19).</summary>
         public const ulong AreaTag = 14;
+        /// <summary>A trail made of sections (task 10, owner NT24): keyed by its founding section, never by an ordinal.</summary>
+        public const ulong TrailLineTag = 15;
 
         public static ulong Hash(ulong seed, ulong tag, ulong a) => Hash(seed, tag, a, 0);
 
@@ -66,6 +68,25 @@ namespace MountainPlanner.Domain.Design
         public static bool operator ==(TrailId a, TrailId b) => a.Value == b.Value;
         public static bool operator !=(TrailId a, TrailId b) => a.Value != b.Value;
         public override string ToString() => "trail:" + Value.ToString("x16");
+    }
+
+    /// <summary>
+    /// A trail's ID as the player knows it (owner NT24): a keyed hash of the section it was founded on, so a one-section
+    /// trail has it without saving anything, and keeps it when a second section joins. <c>k</c> rises only on a collision.
+    /// </summary>
+    public readonly struct TrailLineId : IEquatable<TrailLineId>, IComparable<TrailLineId>
+    {
+        public readonly ulong Value;
+        public TrailLineId(ulong value) { Value = value; }
+        public static TrailLineId Of(ulong seed, TrailId founding, ulong k = 0) => new TrailLineId(DesignKey.Hash(seed, DesignKey.TrailLineTag, founding.Value, k));
+        public bool IsNone => Value == 0;
+        public bool Equals(TrailLineId other) => Value == other.Value;
+        public override bool Equals(object obj) => obj is TrailLineId o && Equals(o);
+        public override int GetHashCode() => Value.GetHashCode();
+        public int CompareTo(TrailLineId other) => Value.CompareTo(other.Value);
+        public static bool operator ==(TrailLineId a, TrailLineId b) => a.Value == b.Value;
+        public static bool operator !=(TrailLineId a, TrailLineId b) => a.Value != b.Value;
+        public override string ToString() => "line:" + Value.ToString("x16");
     }
 
     /// <summary>A lift's ID, keyed like <see cref="TrailId"/>.</summary>

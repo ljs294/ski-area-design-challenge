@@ -109,7 +109,7 @@ namespace MountainPlanner.Domain.Design
             if (t == null) return Missing(doc, "That trail");
             if (DesignRules.NameProblem(Name) is string p) return Invalid(doc, p);
             if (t.Name == Name) return Invalid(doc, "That's already its name.");
-            return CommandResult.Accept(doc.PutTrail(t.WithName(Name)));
+            return CommandResult.Accept(TrailLines.Rename(doc, Trail, Name));   // the whole trail (NT24)
         }
     }
 
@@ -148,7 +148,10 @@ namespace MountainPlanner.Domain.Design
         protected override CommandResult Run(DesignDocument doc)
         {
             if (doc.FindTrail(Trail) == null) return Missing(doc, "That trail");
-            return CommandResult.Accept(doc.RemoveTrail(Trail));
+            // NT33: the whole trail goes, every section of it.
+            var next = doc;
+            foreach (var s in doc.LineOf(Trail).Sections) next = next.RemoveTrail(s);
+            return CommandResult.Accept(next);
         }
     }
 
