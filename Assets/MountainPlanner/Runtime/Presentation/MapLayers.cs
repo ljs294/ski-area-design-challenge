@@ -169,6 +169,8 @@ namespace MountainPlanner.Presentation
         static void ApplyUnits(UnitSystem units)
         {
             Shader.SetGlobalFloat(ContourIntervalId, (float)UnitFormat.ContourIntervalMetres(units));
+            Shader.SetGlobalFloat(ContourFineId, (float)UnitFormat.ContourFineMetres(units));       // BR13: close up
+            Shader.SetGlobalFloat(ContourFinestId, (float)UnitFormat.ContourFinestMetres(units));
             double[] stops = units == UnitSystem.Imperial ? ImperialStops : MetricStops;
             for (int k = 0; k < Stops.Length; k++) Stops[k] = (float)stops[k];
             Shader.SetGlobalFloatArray(SnowDepthStopsId, Stops);
@@ -177,6 +179,8 @@ namespace MountainPlanner.Presentation
         static readonly double[] ImperialStops = UnitFormat.SnowDepthStops(UnitSystem.Imperial), MetricStops = UnitFormat.SnowDepthStops(UnitSystem.Metric);
         static readonly float[] Stops = new float[6];
         static readonly int ContourIntervalId = Shader.PropertyToID("_MP_ContourInterval");
+        static readonly int ContourFineId = Shader.PropertyToID("_MP_ContourFine");
+        static readonly int ContourFinestId = Shader.PropertyToID("_MP_ContourFinest");
         static readonly int SnowDepthStopsId = Shader.PropertyToID("_MP_SnowDepthStops");
         static readonly int SnowOnId = Shader.PropertyToID("_SnowOn");
         static readonly int SnowLoadId = Shader.PropertyToID("_SnowLoad");

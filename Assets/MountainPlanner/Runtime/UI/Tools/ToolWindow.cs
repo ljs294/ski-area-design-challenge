@@ -651,6 +651,9 @@ namespace MountainPlanner.UI.Tools
             _plan.text = plan;
         }
 
+        /// <summary>Shows or hides the second commit button (task 15: a terrain brush has Back only in its review).</summary>
+        public void SetPlanShown(bool shown) => _plan.EnableInClassList("hidden", !shown);
+
         /// <summary>Whether the second commit button takes clicks even with nothing to commit (Edit lift's Cancel).</summary>
         public void SetPlanAlwaysLive(bool on) => _planAlways = on;
         bool _planAlways;

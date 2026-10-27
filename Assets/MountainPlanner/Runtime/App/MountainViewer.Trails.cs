@@ -677,7 +677,7 @@ namespace MountainPlanner.App
             Application.Quit();
         }
 
-        sealed class EarthworkHost : IEarthworkHost
+        sealed class EarthworkHost : IEarthworkHost, ILiveGround
         {
             readonly MountainViewer _viewer;
             public EarthworkHost(MountainViewer viewer) { _viewer = viewer; }
@@ -689,6 +689,33 @@ namespace MountainPlanner.App
             public void ShowPending(List<double> segments) => _viewer._edits?.ShowPending(segments);
             public void ClearPending() => _viewer._edits?.ClearPreview();
             public double ContourInterval => UnitFormat.ContourIntervalMetres(DisplayUnits.Current);
+
+            // ---------- task 15: the live ground and contours while brushing ----------
+            public void Live(TerrainEdits preview, PointRect dirty) => _viewer._edits?.Pipeline.ApplyLive(preview, dirty);
+            public void Show(TerrainEdits edits)
+            {
+                var edits0 = _viewer._edits;
+                if (edits0 != null && edits != null) edits0.Show(edits);
+                _viewer._builtDirty = true;   // towers re-height under their fixed heads as the pending ground lands (TW-02 v4)
+            }
+            public double LastLiveMs => _viewer._edits?.Pipeline.LastLiveMs ?? 0;
+
+            bool? _contoursBefore;
+            public void ContoursWhileArmed(bool armed)
+            {
+                var layers = _viewer._layers;
+                if (layers == null) return;
+                if (armed)
+                {
+                    _contoursBefore ??= layers.ContoursOn;
+                    if (!layers.ContoursOn) _viewer.ToggleLayer(MapLayers.Contours);
+                }
+                else if (_contoursBefore.HasValue)
+                {
+                    if (layers.ContoursOn != _contoursBefore.Value) _viewer.ToggleLayer(MapLayers.Contours);
+                    _contoursBefore = null;
+                }
+            }
         }
     }
 

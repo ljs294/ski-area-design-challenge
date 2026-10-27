@@ -359,6 +359,53 @@ ruled differently. No archived code is copied; the rules are stated here as pros
   - *v2 (task 07 round 3):* a lift's own pads and envelope (LF-12, GR-11 v2) are part of the lift and exempt, except
     the 15 ft round each line tower's base. No trail may fill a lift's envelope.
 
+### 4.6 Terrain brush (TB)
+
+Task 15 (owner TL14, decisions BR1–BR12): Cities: Skylines 2-style hand grading for cat tracks, junctions and the
+ground round lifts.
+
+- **TB-01, the tools:** the Toolbox's **Terrain** tab holds **Raise/Lower** (B), **Flatten** (L), **Smooth** (O) and
+  **Slope** (G). While one is armed it owns the right mouse button (right-drag pan returns when it closes).
+- **TB-02, the pane:** every tool shows **Diameter** (10–400 ft, default 60, **[ / ]**) and **Strength** (1–100%,
+  default 50, **, / .**), plus **Target elevation** (Flatten, Slope; Page Up / Page Down ±1 ft, Shift ±10 ft) and
+  **Slope** (Slope only). The falloff is one fixed soft edge.
+- **TB-03, dabs:** a stroke is a list of dabs, 30 a second at the pointer; a fast move fills dabs in at a quarter of
+  the radius apart that share the tick's weight, so the pointer's speed doesn't change how fast the ground moves.
+- **TB-04, Raise/Lower:** hold left to raise, right to lower, by time; at 100% the centre moves about 8 ft a second.
+- **TB-05, Flatten:** right click takes the target from the ground under the pointer; each dab moves the ground
+  toward it by strength × falloff.
+- **TB-06, Smooth:** each dab moves the ground toward its local mean (a 3 × 3 binomial over the dab, read before the
+  dab writes) by strength × falloff.
+- **TB-07, Slope (v2, BR16):** right click sets the **target point**: where it is and the ground's elevation there
+  (Page Up / Page Down move the elevation). Slope paints only once a target is set. The press sets the **start
+  point** (the ground there). Each point the brush covers moves toward the even ramp between the two: its height
+  follows where it falls along the line from the start to the target (its projection), so the ramp is **level
+  across** (the bench doctrine, GR-01); before the start it holds at the start, past the target at the target. There
+  is no grade control: the grade is the drop over the distance, and the pane shows it with its rating (TD-03:
+  ● under 25%, ■ 25–40%, ◆ 40–60%, ◆◆ 60% and up). Going over a ramp again keeps the same ramp, and a stroke started
+  where one ended carries it on. A target far from the ground makes a cut or fill as deep as the limits allow, with
+  steep side walls: the brush does what it's told, as CS2's does (BR14).
+- **TB-08, the session:** strokes stay pending while the ground moves live (BR5). The four Terrain brushes share one
+  session: switching between them keeps the pending strokes, the bill and the target (BR15). Ctrl+Z takes back the last pending
+  stroke; **Break ground** (Enter) opens the review and its Confirm puts every pending stroke in as one command and
+  one undo step. Esc or ✕ with strokes pending asks first (CF-06) and puts the ground back.
+- **TB-09, the review:** cut, fill and the net import or export (yd³; m³ in metric), trees cleared, every tower whose
+  height changes ("Tower 7: 45 → 52 ft"), and where the brush was held (TB-11 to TB-13). No money until Phase 4.
+  While painting, the pane's running bill counts the stroke in hand too: cut, fill, trees cleared and holds update
+  about five times a second as you drag (BR14).
+- **TB-10, limits:** brushes work only inside the area's core; no point moves more than **40 ft (12.2 m)** from
+  natural ground, and a deeper existing cut is never pulled back; a cell a stroke moves **1 ft or more** is cleared of
+  trees. Snow, slope and contours follow the new ground; there is no separate brushed look.
+- **TB-11, buildings are fixed:** the brush never changes a terminal's pad (its footprint plus LF-12's 5 ft), and
+  later every building's; round them the ground may slope **at most 1:1** toward the pad's level.
+- **TB-12, the lift envelope:** the brush never raises ground above the line's clearance floor (TW-01: the rope less
+  the chair drop less the clearance, across the chairs' width, low zones included).
+- **TB-13, towers follow the ground:** a tower's head stays put (TW-02 v4); the brush stops where a tower's height
+  would pass TW-02's limits.
+- **TB-14, replay:** strokes are authored data (save v4) folded after every trail and lift (TL3, phase 2) in creation
+  order. Each stores every number it was painted with, so a later change to a default never moves saved ground; the
+  limits of TB-10 to TB-13 are applied on every dab and never make a point worse than it was before the stroke.
+
 ## 5. Lifts
 
 Phase 3 builds fixed-grip chairlifts only (E13), using the Sessellift FGQ-4 and Monta FG4 assets. Every name is a code
@@ -591,6 +638,9 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     need shows a red terminal angle.
   - The kit builds the mast from that height. The 1 m mast sections take up the remainder at the base, as the Lift
     Lab does.
+  - **v4, the head stays put** (owner, task 15, BR11): a built lift's heads and rope stand on the ground as it is
+    **before hand grading** (TB-14's strokes). The tower's as-built height is the head less the final ground at its
+    base: steel in 5 ft steps plus a foundation up to just under 5 ft, on every tower. The stored height is unchanged.
 - **TW-03 v2, spacing and siting:**
   - towers at least **50 ft (15.2 m)** apart, and from a terminal;
   - except a **station tower** (SK18), which may stand from **15 ft (4.6 m)** past its terminal's front, at least

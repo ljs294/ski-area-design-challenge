@@ -193,7 +193,10 @@ namespace MountainPlanner.World
             block.SetFloat("_TileSize", data.size.x);   // metres per splat uv: the shader finds lake shores by distance
             // The heightmap Unity already holds on the GPU, for the slope and exposure info layers (task 12b).
             block.SetTexture("_Heightmap", data.heightmapTexture);
-            block.SetVector("_HeightmapParams", HeightmapParams(data));
+            // w: the tile's base elevation, so a heightmap sample is an elevation (BR13's close-up contours).
+            var hp = HeightmapParams(data);
+            hp.w = terrain.GetPosition().y;
+            block.SetVector("_HeightmapParams", hp);
             terrain.SetSplatMaterialPropertyBlock(block);
         }
 

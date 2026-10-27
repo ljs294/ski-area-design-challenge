@@ -28,6 +28,18 @@ namespace MountainPlanner.Domain.Design
             }
         }
 
+        /// <summary>Whether two lifts do the same earthwork (and hang the same rope): type, ends, stance, levels and towers.</summary>
+        public static bool SameWork(Lift a, Lift b)
+        {
+            if (ReferenceEquals(a, b)) return true;
+            if (a == null || b == null) return false;
+            if (a.CatalogId != b.CatalogId || !a.Bottom.Equals(b.Bottom) || !a.Top.Equals(b.Top) || a.Stance != b.Stance
+                || a.Stage != b.Stage || !Nullable.Equals(a.Levels, b.Levels) || a.Towers.Count != b.Towers.Count) return false;
+            for (int i = 0; i < a.Towers.Count; i++)
+                if (a.Towers[i].AlongMm != b.Towers[i].AlongMm || a.Towers[i].HeightMm != b.Towers[i].HeightMm) return false;
+            return true;
+        }
+
         // Creation order: IDs are keyed hashes of the ordinal they were minted at (SH-04).
         static Dictionary<ulong, long> Ordinals(DesignDocument doc)
         {
@@ -71,18 +83,7 @@ namespace MountainPlanner.Domain.Design
             public PointRect Reads { get; }
             public IReadOnlyCollection<EditTileKey> Tiles { get; }
 
-            public bool SameAs(IEarthworkItem other)
-            {
-                if (!(other is Item o)) return false;
-                if (ReferenceEquals(o._lift, _lift)) return true;
-                var a = _lift;
-                var b = o._lift;
-                if (a.CatalogId != b.CatalogId || !a.Bottom.Equals(b.Bottom) || !a.Top.Equals(b.Top) || a.Stance != b.Stance
-                    || !Nullable.Equals(a.Levels, b.Levels) || a.Towers.Count != b.Towers.Count) return false;
-                for (int i = 0; i < a.Towers.Count; i++)
-                    if (a.Towers[i].AlongMm != b.Towers[i].AlongMm || a.Towers[i].HeightMm != b.Towers[i].HeightMm) return false;
-                return true;
-            }
+            public bool SameAs(IEarthworkItem other) => other is Item o && SameWork(_lift, o._lift);
 
             public EarthworkWrites Build(EditedHeights ground, EarthworkContext context, out object detail)
             {

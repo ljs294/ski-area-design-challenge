@@ -24,4 +24,20 @@ namespace MountainPlanner.UI.Tools
         /// <summary>The contour interval the pending contours use, metres (the display units' interval).</summary>
         double ContourInterval { get; }
     }
+
+    /// <summary>
+    /// The ground a terrain brush moves as it paints (task 15, owner BR5): heights under the brush every frame, then the
+    /// whole pending ground (trees, cover, snow) when a stroke ends, and back to the committed ground on cancel.
+    /// </summary>
+    public interface ILiveGround
+    {
+        /// <summary>This frame's heights over <paramref name="dirty"/> (lattice points) from <paramref name="preview"/>.</summary>
+        void Live(TerrainEdits preview, PointRect dirty);
+        /// <summary>Lays <paramref name="edits"/> over the mountain in full (a finished stroke, or the committed ground again).</summary>
+        void Show(TerrainEdits edits);
+        /// <summary>BR13: the Contours layer on while a brush is armed; off puts back what the player had.</summary>
+        void ContoursWhileArmed(bool armed);
+        /// <summary>How long the last live upload took, ms (the brush bench).</summary>
+        double LastLiveMs { get; }
+    }
 }

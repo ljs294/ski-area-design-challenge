@@ -150,7 +150,8 @@ namespace MountainPlanner.UI
             icon.AddToClassList("cl__icon");
             icon.generateVisualContent += DrawContourIcon;
             line.Add(icon);
-            line.Add(Text(imperial ? "Contours every 40 ft,\nlabelled every 200 ft" : "Contours every 10 m,\nlabelled every 50 m", "cl__text"));
+            // BR13 (task 15): finer lines fade in close up.
+            line.Add(Text(imperial ? "Contours every 40 ft, to 10 ft\nclose up; labelled every 200 ft" : "Contours every 10 m, to 2.5 m\nclose up; labelled every 50 m", "cl__text"));
             _legendBody.Add(line);
         }
 

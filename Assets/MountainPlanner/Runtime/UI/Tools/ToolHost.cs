@@ -53,12 +53,14 @@ namespace MountainPlanner.UI.Tools
         {
             if (Active != null && Active.Id == id) { Close(); return false; }
             if (!ToolCatalog.Find(id, out var entry)) return false;
+            var tool = entry.Make();
             if (Active != null)
             {
-                if (Active.HasWork) Notice?.Invoke(Active.Name + " discarded");
+                // The Terrain brushes pass their pending strokes on (BR15); any other switch discards, with a notice.
+                bool carried = Active.HasWork && Active is ICarriesWork carrier && carrier.CarryTo(tool);
+                if (Active.HasWork && !carried) Notice?.Invoke(Active.Name + " discarded");
                 Disarm();
             }
-            var tool = entry.Make();
             _ctx = _context(tool);
             _ctx.Notice = s => Notice?.Invoke(s);
             _ctx.Submit = SubmitNow;
@@ -70,6 +72,7 @@ namespace MountainPlanner.UI.Tools
             window.Window.CloseRequested = AllowClose;
             Active = tool;
             _asking = false;
+            ViewCamera.RightButtonClaimed = tool is IOwnsRightButton;
             // Tab hands the tool window the keyboard while a tool is armed, instead of opening Analysis (P3-06 Q7).
             KeyBindings.Claim(GameAction.ToolWindowKeys, true);
             tool.Arm(_ctx);
@@ -97,6 +100,7 @@ namespace MountainPlanner.UI.Tools
             try { tool.Disarm(); }
             finally
             {
+                ViewCamera.RightButtonClaimed = false;
                 ctx.Disarmed();
                 KeyBindings.ClearClaims();
                 ctx.Preview.Clear();
