@@ -25,15 +25,29 @@ jobs:
 
   dotnet-tests:
     runs-on: ubuntu-latest
+    env:
+      # Only the small fixtures: the test terrain's heights (TestData/jackson-hole-2km, ~35 MB) are tested
+      # locally, to stay inside GitHub's free Git LFS bandwidth (P5). Its canopy, cover and lidar truth
+      # (< 1 MB) come along so the D4 forest-rule gate (task 07) runs on every PR.
+      LFS_FIXTURES: "tools/data-spike/tests/DataSpike.Tests/fixtures/*,TestData/s1m-fixture/*,TestData/jackson-hole-2km/canopy-core.grid,TestData/jackson-hole-2km/cover.grid,TestData/jackson-hole-2km/forest-truth.bin"
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: false
-      # Only the small fixtures: the test terrain's heights (TestData/jackson-hole-2km, ~35 MB) are tested
-      # locally, to stay inside GitHub's free Git LFS bandwidth (P5). Its canopy, cover and lidar truth
-      # (< 1 MB) come along so the D4 forest-rule gate (task 07) runs on every PR.
+      # The fixtures' LFS objects come from the free Actions cache while they're unchanged, so most runs download
+      # nothing from LFS and its allowance stays for the game's assets.
+      - name: List the small LFS fixtures
+        id: lfs
+        run: |
+          git lfs ls-files --long --include="$LFS_FIXTURES" > "$RUNNER_TEMP/lfs-fixtures.txt"
+          cat "$RUNNER_TEMP/lfs-fixtures.txt"
+          echo "key=lfs-fixtures-$(sha256sum "$RUNNER_TEMP/lfs-fixtures.txt" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .git/lfs/objects
+          key: ${{ steps.lfs.outputs.key }}
       - name: Fetch small LFS fixtures
-        run: git lfs pull --include="tools/data-spike/tests/DataSpike.Tests/fixtures/*,TestData/s1m-fixture/*,TestData/jackson-hole-2km/canopy-core.grid,TestData/jackson-hole-2km/cover.grid,TestData/jackson-hole-2km/forest-truth.bin"
+        run: git lfs pull --include="$LFS_FIXTURES"
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x

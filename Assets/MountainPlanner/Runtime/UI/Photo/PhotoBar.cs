@@ -81,6 +81,8 @@ namespace MountainPlanner.UI.Photo
             _size1 = _root.Q<Button>("photo-size-1");
             _size2 = _root.Q<Button>("photo-size-2");
 
+            SliderWheel.Attach(_time, 1, () => _timeValue.text);   // BR20: 5 minutes a notch
+            SliderWheel.Attach(_lens, 1, () => _lensValue.text);
             _time.RegisterValueChangedCallback(e => { if (!_quiet) TimeChosen?.Invoke(Mathf.RoundToInt(e.newValue) * TimeStep); });
             _lens.RegisterValueChangedCallback(e => { if (!_quiet) LensChosen?.Invoke(Mathf.RoundToInt(e.newValue)); });
             _dateBack.clicked += () => DayStepped?.Invoke(-1);

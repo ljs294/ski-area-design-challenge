@@ -90,6 +90,16 @@ namespace MountainPlanner.UI.Tools
         bool CarryTo(IDesignTool next);
     }
 
+    /// <summary>
+    /// A tool whose work is on the map until it's confirmed (task 15's Terrain brushes, owner BR17, BR18): closing it, or
+    /// choosing another kind of tool, with work asks Confirm / Revert / Keep painting instead of discarding (CF-06).
+    /// </summary>
+    public interface IKeepsWork
+    {
+        /// <summary>Shows the ask; <paramref name="then"/> runs once the work is confirmed or reverted (close, or arm the next tool).</summary>
+        void AskBeforeLeaving(System.Action then);
+    }
+
     /// <summary>What Esc did (CF-07): backed out a step, or the tool is at its first step and would close.</summary>
     public enum ToolBackOut { Stepped, Close }
 

@@ -51,13 +51,15 @@ namespace MountainPlanner.UI.Tools
         /// </summary>
         public bool Choose(string id)
         {
-            if (Active != null && Active.Id == id) { Close(); return false; }
+            if (Active != null && Active.Id == id) { if (!AskFirst(Close)) Close(); return false; }
             if (!ToolCatalog.Find(id, out var entry)) return false;
             var tool = entry.Make();
             if (Active != null)
             {
-                // The Terrain brushes pass their pending strokes on (BR15); any other switch discards, with a notice.
+                // The Terrain brushes pass their session on (BR15), or ask Confirm / Revert first (BR18); any other switch
+                // discards, with a notice.
                 bool carried = Active.HasWork && Active is ICarriesWork carrier && carrier.CarryTo(tool);
+                if (!carried && AskFirst(() => Choose(id))) return false;
                 if (Active.HasWork && !carried) Notice?.Invoke(Active.Name + " discarded");
                 Disarm();
             }
@@ -109,10 +111,19 @@ namespace MountainPlanner.UI.Tools
             }
         }
 
+        // BR18: work already on the map asks Confirm / Revert / Keep painting; then is what happens after it.
+        bool AskFirst(Action then)
+        {
+            if (!(Active is IKeepsWork keeps) || !Active.HasWork) return false;
+            keeps.AskBeforeLeaving(then);
+            return true;
+        }
+
         // ✕ and Esc at the first step: drawn work asks once ("Discard it? ✕ again"), then goes (CF-06, CF-07).
         bool AllowClose()
         {
             if (Active == null) return true;
+            if (AskFirst(Close)) return false;
             if (Active.HasWork && !_asking)
             {
                 _asking = true;

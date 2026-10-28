@@ -22,6 +22,13 @@ try {
     Write-Host 'Scripts parse'
     foreach ($f in 'release.ps1', 'compile-check.ps1', 'release-lib.ps1') { Check (Parses (Join-Path $PSScriptRoot $f)) $f }
 
+    Write-Host 'Invoke-Unity waits for its process only'
+    # A stand-in for Unity that leaves a child running (as Unity leaves VBCSCompiler) and exits 5.
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $code = Invoke-Unity 'powershell' @('-NoProfile', '-Command', "Start-Process powershell -ArgumentList '-NoProfile -Command Start-Sleep 20' -WindowStyle Hidden; exit 5")
+    Check ($code -eq 5) "the exit code comes back ($code)"
+    Check ($sw.Elapsed.TotalSeconds -lt 12) "returned in $([int]$sw.Elapsed.TotalSeconds) s, without waiting for the leftover child (20 s)"
+
     Write-Host 'Versions and names'
     Check (Test-ReleaseVersion '0.2.0') '0.2.0 is a release'
     Check (-not (Test-ReleaseVersion '0.2.0+dev.7.abc1234')) 'a preview is not'

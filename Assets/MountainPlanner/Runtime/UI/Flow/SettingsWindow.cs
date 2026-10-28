@@ -704,6 +704,7 @@ namespace MountainPlanner.UI.Flow
             value.AddToClassList("mono");
             wrap.Add(slider);
             wrap.Add(value);
+            SliderWheel.Attach(slider, step, () => value.text);   // BR20
             slider.RegisterValueChangedCallback(e =>
             {
                 int snapped = Mathf.Clamp(Mathf.RoundToInt(e.newValue / (float)step) * step, min, max);

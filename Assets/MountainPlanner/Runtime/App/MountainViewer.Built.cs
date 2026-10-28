@@ -97,6 +97,9 @@ namespace MountainPlanner.App
         }
 
         /// <summary>Once the edits are laid, redraws the trail map and any lift that changed. Called every frame; cheap when nothing did.</summary>
+        /// <summary>How long the last rebuild of the built lifts and trail lines took on the main thread, ms (the brush bench).</summary>
+        public double LastBuiltMs { get; private set; }
+
         void UpdateBuiltWork()
         {
             if (_builtFor == null || _resort == null) return;
@@ -110,6 +113,7 @@ namespace MountainPlanner.App
             ShowLifts(_layers == null || _layers.LiftsOn, false);
             if (!_builtDirty || EditsBusy) return;
             _builtDirty = false;
+            var builtWatch = System.Diagnostics.Stopwatch.StartNew();
             if (_designOverlay != null) _designOverlay.ShowBuilt = !ReferenceEquals(_designOverlay.History, _builtFor.History);
             var doc = _builtFor.History.Document;
             var heights = _builtFor.Pipeline.Heights;
@@ -122,8 +126,13 @@ namespace MountainPlanner.App
                 keep.Add(lift.Id);
                 var works = _edits?.Earthwork?.DetailOf(lift.Id.Value) as LiftBuild.Works;
                 var underTowers = GroundUnderTowers(lift, works, heights);
-                if (_liftViews.TryGetValue(lift.Id, out var shown) && ReferenceEquals(shown.Lift, lift)
-                    && _liftGround.TryGetValue(lift.Id, out var was) && SameGround(was, underTowers)) continue;
+                if (_liftViews.TryGetValue(lift.Id, out var shown) && ReferenceEquals(shown.Lift, lift) && _liftGround.TryGetValue(lift.Id, out var was))
+                {
+                    if (SameGround(was, underTowers)) continue;
+                    // BR21: only the ground under its towers moved (a confirmed brush session): the towers re-height in place,
+                    // under their fixed heads, with no rebuild of the terminals, rope and chairs.
+                    if (shown.View.Reheight(lift, heights, _resort.Frame)) { _liftGround[lift.Id] = underTowers; continue; }
+                }
                 if (shown.View != null && shown.View == _hovered) _hovered = null;
                 if (shown.View != null && shown.View == _held) _held = null;
                 shown.View?.Dispose();
@@ -191,7 +200,8 @@ namespace MountainPlanner.App
             RequestNetwork(doc);   // the ski network, off the main thread (MountainViewer.Network.cs, task P3-10)
             int chairs = 0;
             foreach (var kv in _liftViews) chairs += kv.Value.View != null ? kv.Value.View.ChairCount : 0;
-            if (trails > 0 || _liftViews.Count > 0) Debug.Log($"[Built] {trails} trails, {_liftViews.Count} lifts drawn, {chairs} chairs");
+            LastBuiltMs = builtWatch.Elapsed.TotalMilliseconds;
+            if (trails > 0 || _liftViews.Count > 0) Debug.Log($"[Built] {trails} trails, {_liftViews.Count} lifts drawn, {chairs} chairs ({LastBuiltMs:F1} ms)");
         }
 
         // ---------- lift names on the Labels layer (task 09, UI-16) ----------

@@ -365,6 +365,9 @@ function Invoke-Run {
         $psi.Arguments = $argString
         $psi.UseShellExecute = $false
         $psi.WorkingDirectory = (Get-Location).ProviderPath
+        # The command can tell whether it has the GPU alone (measure) or shares it (render): timing tests judge a
+        # player's budget only when alone.
+        $psi.EnvironmentVariables['MP_GPU_LANE'] = $Lane
         try {
             $child = [System.Diagnostics.Process]::Start($psi)
         } catch {

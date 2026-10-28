@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Edits;
 using MountainPlanner.Domain.Measure;
@@ -18,20 +20,23 @@ namespace MountainPlanner.UI.Tools
     public enum TerrainToolMode { RaiseLower, Flatten, Smooth, Slope }
 
     /// <summary>
-    /// The Terrain tab's brushes (task 15; TB-01 to TB-14, owner BR1–BR16), one class in four modes, Cities: Skylines 2's set.
+    /// The Terrain tab's brushes (task 15; TB-01 to TB-14, owner BR1–BR19), one class in four modes, Cities: Skylines 2's set.
     ///
     /// <b>Paint:</b> the left button paints (Raise/Lower: the right lowers; Flatten and Slope: a right click takes the target
     /// elevation under the pointer). A stroke lays dabs 30 times a second at the pointer, filled in along a fast move
     /// (TB-03), through <see cref="BrushRun"/>, the replay's own code, so the ground moves live under the brush (BR5) and
-    /// what's confirmed is what was seen. Strokes stay pending; Ctrl+Z takes one back. <b>Review</b> (Next or Enter): the
-    /// session folded through the design's earthwork after trails and lifts, with its cut and fill, trees cleared, towers
-    /// re-heighted under their fixed heads and where the brush was held (TB-09); <b>Confirm</b> puts every pending stroke in
-    /// as one <see cref="AddTerrainStrokes"/>, one undo step (BR7). Esc or ✕ with strokes pending asks, then puts the ground
-    /// back. The Contours layer is on while a brush is armed (BR13).
+    /// what's confirmed is what was seen. <b>The session</b> (BR17) runs from opening a brush to closing it, across all four
+    /// (BR15): Ctrl+Z takes back the last press-to-release, never past the session's start; the pane counts its cut and
+    /// fill as you paint (BR14, BR19). <b>Confirm</b> (or Enter) folds the session through the design's earthwork after
+    /// trails and lifts and puts it in as one <see cref="AddTerrainStrokes"/>, one undo step, with no review page; that's when
+    /// the player is charged (<see cref="IEarthworkCharges"/>). <b>Revert</b> puts the session's ground back. Esc, ✕ or
+    /// another kind of tool with ground not yet confirmed asks Confirm / Revert / Keep painting (BR18). The Contours layer is
+    /// on while a brush is armed (BR13). <b>On screen</b> (BR21): the cover, the trees' footing and the snow catch up with the
+    /// stroke a few times a second as you paint, so letting go changes nothing; trees come out and towers re-height only at
+    /// Confirm.
     /// </summary>
-    public class TerrainBrushTool : IDesignTool, IOwnsRightButton, ICarriesWork
+    public class TerrainBrushTool : IDesignTool, IOwnsRightButton, ICarriesWork, IKeepsWork
     {
-        static readonly string[] Steps = { "Paint", "Review" };
         const int MinFeet = 10, MaxFeet = 400, StepFeet = 5;
         const float TickSeconds = 1f / TerrainBrush.TicksPerSecond;
 
@@ -41,11 +46,8 @@ namespace MountainPlanner.UI.Tools
         // The pane's settings carry between brushes for the session (as the trail brush's width does).
         static int _lastFeet = 60, _lastStrength = 50;
 
-        enum Step { Paint, Review }
-
         readonly TerrainToolMode _mode;
         ToolContext _ctx;
-        Step _step;
         int _feet, _strength;
         int? _targetMm;
         // Slope (BR16): the target point the right click took, and the stroke's start (the press), kept when a long drag carries on.
@@ -53,13 +55,30 @@ namespace MountainPlanner.UI.Tools
         PointMm _startAt;
         int _startMm;
 
-        // The session: strokes painted and not yet confirmed, and the ground with them on it.
+        // The session (BR17): strokes painted and not yet confirmed, and the ground with them on it.
         readonly List<StrokePainting> _session = new List<StrokePainting>();
         TerrainEdits _base, _pending;
         FixedGround _fixed;
         double _cut, _fill;
         int _cleared;
         readonly HashSet<Hold> _held = new HashSet<Hold>();
+
+        // One press-to-release (Ctrl+Z's step): where its strokes start in the session, and the ground and bill before it,
+        // so taking it back is the same bytes as before it, with nothing replayed.
+        readonly struct Press
+        {
+            public readonly int Start, Cleared;
+            public readonly TerrainEdits Before;
+            public readonly double Cut, Fill;
+            public readonly Hold[] Held;
+            public Press(int start, TerrainEdits before, double cut, double fill, int cleared, Hold[] held)
+            {
+                Start = start; Before = before; Cut = cut; Fill = fill; Cleared = cleared; Held = held;
+            }
+        }
+
+        readonly List<Press> _presses = new List<Press>();
+        bool _pressOpen;
 
         // The stroke in hand.
         BrushRun _run;
@@ -70,10 +89,19 @@ namespace MountainPlanner.UI.Tools
         float _clock;
         PointRect _liveDirty = PointRect.Empty;
 
-        // The review.
-        DesignEarthwork.Result _rebuild;
-        AddTerrainStrokes _command;
-        bool _analysing;
+        // BR21: the last catch-up asked for (cover, trees' footing and snow following the stroke), and the last ground change
+        // with heights (Ctrl+Z, Revert) still landing, which a new press waits for; the press waiting (1 left, 2 right).
+        Task _catchUp = Task.CompletedTask, _settling = Task.CompletedTask;
+        float _catchUpClock;
+        int _heldPress;
+
+        /// <summary>How often the cover, the trees' footing and the snow catch up while you drag (BR21): bounded, never per frame.</summary>
+        const float CatchUpSeconds = 0.2f;
+
+        // Confirm (BR17): the session folded off the main thread, then submitted; and the close ask (BR18).
+        bool _confirming, _landed, _asking;
+        Action _afterConfirm, _afterAsk, _thenNext;
+
         readonly ReviewModel _review = new ReviewModel();
         Action<int, string> _setFeet, _setStrength;
         UnityEngine.UIElements.Label _targetNote, _rampNote;
@@ -95,20 +123,20 @@ namespace MountainPlanner.UI.Tools
 
         public bool HasWork => _session.Count > 0 || _run != null;
 
-        /// <summary>The strokes pending (tests).</summary>
+        /// <summary>The strokes of the session not yet confirmed (tests).</summary>
         public int Pending => _session.Count;
 
-        /// <summary>The ground with the pending strokes on it (tests).</summary>
+        /// <summary>The ground with the session's strokes on it (tests).</summary>
         public TerrainEdits PendingGround => _pending;
 
-        /// <summary>The pane's running bill, or the review once Break ground opens it (tests, captures).</summary>
+        /// <summary>The pane's running bill (tests, captures).</summary>
         public ReviewModel Bill => _review;
 
-        /// <summary>The review is being worked out (tests, captures).</summary>
-        public bool Analysing => _analysing;
+        /// <summary>A Confirm is being folded and submitted (tests, captures).</summary>
+        public bool Confirming => _confirming;
 
-        /// <summary>The review is ready to confirm (tests, captures).</summary>
-        public bool ReviewReady => _step == Step.Review && !_analysing && _rebuild != null;
+        /// <summary>The close ask is showing (BR18; tests, captures).</summary>
+        public bool Asking => _asking;
 
         /// <summary>The pane's diameter, feet (tests, captures).</summary>
         public int BrushFeet => _feet;
@@ -135,15 +163,27 @@ namespace MountainPlanner.UI.Tools
             _strength = _lastStrength;
             var w = context.Window;
             w.SetName(null);
-            _setFeet = w.AddSlider("diameter", "Diameter", MinFeet, MaxFeet, StepFeet, _feet, SetFeet, "TB-02: 10–400 ft, in 5 ft steps");
-            _setStrength = w.AddSlider("strength", "Strength", 1, 100, 1, _strength, SetStrength, "TB-02: 1–100%");
+            _setFeet = w.AddSlider("diameter", "Diameter", MinFeet, MaxFeet, StepFeet, _feet, SetFeet, "TB-02: 10–400 ft, in 5 ft steps", StepFeet);
+            _setStrength = w.AddSlider("strength", "Strength", 1, 100, 1, _strength, SetStrength, "TB-02: 1–100%", 5);   // the wheel, as , and . (BR20)
             if (UsesTarget) _targetNote = w.AddNote("target", "", "TB-05, TB-07: right-click the ground; Page Up / Page Down 1 ft (Shift 10 ft)");
             if (_mode == TerrainToolMode.Slope) _rampNote = w.AddNote("ramp", "", "TB-07, BR16: the grade comes from the distance and the drop between the two points");
-            w.SetSteps(Steps);
+            w.SetSteps(Array.Empty<string>());   // one step: paint, then Confirm or Revert (BR17)
             SetFeet(_feet);
             SetStrength(_strength);
             ShowTarget();
-            Go(Step.Paint);
+            foreach (var a in new[] { GameAction.BrushNarrower, GameAction.BrushWider, GameAction.BrushWeaker, GameAction.BrushStronger, GameAction.UndoStroke })
+                _ctx.Claim(a, true);
+            _ctx.Claim(GameAction.TargetUp, UsesTarget);
+            _ctx.Claim(GameAction.TargetDown, UsesTarget);
+            var keys = new List<(GameAction, string)> { (GameAction.BrushNarrower, ""), (GameAction.BrushWider, "diameter"), (GameAction.BrushWeaker, ""), (GameAction.BrushStronger, "strength") };
+            if (UsesTarget) { keys.Add((GameAction.TargetUp, "")); keys.Add((GameAction.TargetDown, "target")); }
+            keys.Add((GameAction.UndoStroke, "undoes a stroke"));
+            w.SetKeys(keys.ToArray());
+            w.SetCommitText("Confirm", "Revert");
+            w.SetPlanShown(true);
+            w.SetPlanAlwaysLive(false);
+            w.SetNext(false, false);
+            PaintStatus();
         }
 
         // ---------- the pane ----------
@@ -198,44 +238,6 @@ namespace MountainPlanner.UI.Tools
             _ => BrushSettings.Slope(RadiusMm, TerrainBrush.StrengthFor(_strength), _startAt, _startMm, _targetAt.Value, _targetMm.Value),
         };
 
-        // ---------- steps ----------
-
-        void Go(Step step)
-        {
-            _step = step;
-            var w = _ctx.Window;
-            w.SetStep((int)step);
-            bool painting = step == Step.Paint;
-            _ctx.Claim(GameAction.BrushNarrower, painting);
-            _ctx.Claim(GameAction.BrushWider, painting);
-            _ctx.Claim(GameAction.BrushWeaker, painting);
-            _ctx.Claim(GameAction.BrushStronger, painting);
-            _ctx.Claim(GameAction.UndoStroke, painting);
-            _ctx.Claim(GameAction.TargetUp, painting && UsesTarget);
-            _ctx.Claim(GameAction.TargetDown, painting && UsesTarget);
-            if (painting)
-            {
-                var keys = new List<(GameAction, string)> { (GameAction.BrushNarrower, ""), (GameAction.BrushWider, "diameter"), (GameAction.BrushWeaker, ""), (GameAction.BrushStronger, "strength") };
-                if (UsesTarget) { keys.Add((GameAction.TargetUp, "")); keys.Add((GameAction.TargetDown, "target")); }
-                keys.Add((GameAction.UndoStroke, "undoes a stroke"));
-                w.SetKeys(keys.ToArray());
-                w.SetGoLabel(null);
-                w.SetCommitText("Break ground", "Back");
-                w.SetPlanShown(false);
-                w.SetNext(false, false);
-                PaintStatus();
-            }
-            else
-            {
-                w.SetHint(null);
-                w.SetKeys();
-                w.SetCommitText("Confirm", "Back");
-                w.SetPlanShown(true);
-                w.SetPlanAlwaysLive(true);
-                Review();
-            }
-        }
-
         void PaintStatus()
         {
             var w = _ctx.Window;
@@ -248,8 +250,8 @@ namespace MountainPlanner.UI.Tools
             });
             _billKey = null;
             ShowBill();
-            w.SetPlanAlwaysLive(false);
-            if (_ctx.Earthwork != null && !_ctx.Earthwork.Ready) w.SetMessage("Getting the ground ready…", true);
+            if (_confirming) w.SetMessage("Confirming…", true);
+            else if (_ctx.Earthwork != null && !_ctx.Earthwork.Ready) w.SetMessage("Getting the ground ready…", true);
             else w.SetMessage(null);
         }
 
@@ -260,8 +262,9 @@ namespace MountainPlanner.UI.Tools
         readonly HashSet<Hold> _billHeld = new HashSet<Hold>();
 
         /// <summary>
-        /// The running bill (TB-09): the pending strokes plus the one being painted, so cut and fill count up as you drag
-        /// (BR14). Redrawn only when a figure it shows changes.
+        /// The session's bill (TB-09 v2, BR19): every stroke of the session plus the one being painted, so cut and fill
+        /// count up as you drag (BR14). Confirm and Revert go live once a stroke is down. Redrawn only when a figure it
+        /// shows changes.
         /// </summary>
         void ShowBill()
         {
@@ -277,20 +280,21 @@ namespace MountainPlanner.UI.Tools
                 cleared += _run.ClearedCount;
                 foreach (var h in _run.Held()) _billHeld.Add(h);
             }
-            bool any = _session.Count > 0 || _run != null;
-            string volumes = $"{ToolFormat.Volume(cut)} · {ToolFormat.Volume(fill)}", area = ToolFormat.Area(cleared);
+            bool any = _session.Count > 0 || _run != null, can = _session.Count > 0 && !_confirming;
+            string volumes = $"{ToolFormat.Volume(cut)} · {ToolFormat.Volume(fill)}", net = ToolFormat.Volume(Math.Abs(fill - cut)), area = ToolFormat.Area(cleared);
             string held = _billHeld.Count > 0 ? HeldWords(_billHeld) : null;
-            string key = any ? volumes + "|" + area + "|" + held + "|" + _session.Count : "";
+            string key = any ? volumes + "|" + net + "|" + area + "|" + held + "|" + can : "|" + can;
             if (key == _billKey) return;
             _billKey = key;
             _review.Clear();
             if (any)
             {
-                _review.Add("Cut · fill", volumes, "TB-09: so far, pending")
+                _review.Add("Cut · fill", volumes, "TB-09 v2: this session, counted as you paint; Confirm is when it's paid for (BR19)")
+                       .Add(fill >= cut ? "Import" : "Export", net, "TB-09: fill − cut, brought in or hauled away")
                        .Add("Cleared of trees", area, "TB-10: ground moved 1 ft or more");
                 if (held != null) _review.Warn($"Held {held}", "TB-10 to TB-13");
             }
-            _review.Ready(_session.Count > 0, false);
+            _review.Ready(can, can);
             _ctx.Window.ShowReview(_review);
         }
 
@@ -298,12 +302,29 @@ namespace MountainPlanner.UI.Tools
 
         public void Tick(in ToolInput input)
         {
-            if (_step == Step.Review)
+            if (_thenNext != null)
             {
-                if (input.Pressed(ToolKeys.Next)) ConfirmNow();   // Enter confirms, as Break ground's button does
+                // What the close ask's Confirm was for (close, or the next tool), run here rather than inside the fold's hand-over.
+                var then = _thenNext;
+                _thenNext = null;
+                then();
+                return;
+            }
+            if (_confirming)
+            {
+                // The confirm's fold is running; a design change meanwhile drops it (CF-03), and the session stays to confirm again.
+                if (!_landed && _ctx.Running == 0)
+                {
+                    _confirming = false;
+                    _afterConfirm = null;
+                    PaintStatus();
+                    _ctx.Window.SetMessage("The design changed; Confirm again.", true);
+                }
+                Cursor(input, false);
                 return;
             }
             Keys(input);
+            if (_confirming) { Cursor(input, false); return; }
             bool ready = _ctx.Earthwork == null || _ctx.Earthwork.Ready;
             if (!ready) { if (!_waiting) { _waiting = true; PaintStatus(); } Cursor(input, false); return; }
             if (_waiting) { _waiting = false; PaintStatus(); }
@@ -312,7 +333,22 @@ namespace MountainPlanner.UI.Tools
 
             if (_run == null)
             {
+                if (!_settling.IsCompleted)
+                {
+                    // BR21: a Ctrl+Z or Revert is still landing its heights; a press waits for it (a frame or two).
+                    if (input.Click) _heldPress = 1;
+                    else if (input.RightClick && _mode == TerrainToolMode.RaiseLower) _heldPress = 2;
+                    return;
+                }
+                if (_heldPress != 0)
+                {
+                    bool lower = _heldPress == 2;
+                    _heldPress = 0;
+                    if ((lower ? input.RightDrag : input.Drag) && input.HasGround && input.InCore) Begin(input, lower);
+                    return;
+                }
                 bool left = input.Click, right = input.RightClick;
+                if ((left || right) && _asking) KeepPainting();   // painting again answers the close ask (BR18)
                 if (right && UsesTarget && input.HasGround)
                 {
                     SetTarget(input.Point);   // TB-05, TB-07: the target from the ground under the pointer (for Slope, where it is too)
@@ -326,11 +362,14 @@ namespace MountainPlanner.UI.Tools
                 return;
             }
             bool held = _rightStroke ? input.RightDrag : input.Drag;
+            _lastTick = default;
             if (input.HasGround)
             {
+                long t0 = Stopwatch.GetTimestamp();
                 _clock += Mathf.Min(input.DeltaSeconds, 0.25f);
                 int ticks = 0;
                 while (_clock >= TickSeconds && ticks++ < 8) { _clock -= TickSeconds; Lay(input.Point); }
+                _lastTick.Dabs = Ms(t0);
                 if (_dabs != null && _dabs.Count >= DesignRules.MaxDabsPerStroke)
                 {
                     bool lower = _rightStroke;
@@ -338,8 +377,12 @@ namespace MountainPlanner.UI.Tools
                     if (held) Begin(input, lower, carryOn: true);   // a long drag carries on as a new stroke, on the same ramp (TB-14)
                 }
                 Live();
+                _catchUpClock += input.DeltaSeconds;
+                if (_run != null && _catchUpClock >= CatchUpSeconds && _catchUp.IsCompleted) { _catchUpClock = 0; CatchUp(_run.Preview(_pending)); }
                 _billClock += input.DeltaSeconds;
+                long t1 = Stopwatch.GetTimestamp();
                 if (_run != null && _billClock >= BillSeconds) { _billClock = 0; ShowBill(); if (_mode == TerrainToolMode.Slope) ShowRamp(_startAt, _startMm); }
+                _lastTick.Bill = Ms(t1);
             }
             if (!held || (_rightStroke ? input.RightRelease : input.Release)) Finish();
         }
@@ -356,8 +399,8 @@ namespace MountainPlanner.UI.Tools
                 if (input.Pressed(ToolKeys.TargetUp)) { _targetMm += step; ShowTarget(); }
                 if (input.Pressed(ToolKeys.TargetDown)) { _targetMm -= step; ShowTarget(); }
             }
-            if (input.Pressed(ToolKeys.UndoStroke) && _run == null && _session.Count > 0) UndoStroke();
-            if (input.Pressed(ToolKeys.Next) && _session.Count > 0 && _run == null) Go(Step.Review);
+            if (input.Pressed(ToolKeys.UndoStroke) && _run == null && _presses.Count > 0) UndoStroke();
+            if (input.Pressed(ToolKeys.Next) && _run == null) Confirm(_asking ? TakeAsk() : null);   // Enter confirms (BR17)
         }
 
         void Cursor(in ToolInput input, bool shown)
@@ -383,6 +426,7 @@ namespace MountainPlanner.UI.Tools
             var earthwork = _ctx.Earthwork.Earthwork;
             _fixed = FixedGround.For(_ctx.History.Document, earthwork.Site, id => earthwork.DetailOf(id.Value) as LiftBuild.Works);
             _session.Clear();
+            _presses.Clear();
             _cut = _fill = 0;
             _cleared = 0;
             _held.Clear();
@@ -393,7 +437,7 @@ namespace MountainPlanner.UI.Tools
             var g = _ctx.ToGround?.Invoke(p);
             var heights = _ctx.Earthwork?.Heights;
             if (g == null || heights == null) return 0;
-            // The pending ground, as the player sees it.
+            // The session's ground, as the player sees it.
             var shown = new EditedHeights(heights.Source, heights.Lattice, _pending ?? heights.Edits);
             return (int)Math.Round(shown.At(g.Value.X, g.Value.Y) * 1000);
         }
@@ -402,7 +446,7 @@ namespace MountainPlanner.UI.Tools
         {
             var heights = _ctx.Earthwork.Heights;
             int startMm = GroundMm(input.Point);
-            if (!carryOn) { _startAt = input.Point; _startMm = startMm; }   // BR16: the ramp starts at the press
+            if (!carryOn) { _startAt = input.Point; _startMm = startMm; _pressOpen = false; }   // BR16: the ramp starts at the press
             if (_mode == TerrainToolMode.Flatten && !_targetMm.HasValue) { _targetMm = startMm; ShowTarget(); }   // Flatten with no target: the press's ground
             _settings = SettingsFor(lower, startMm);
             _rightStroke = lower && _mode == TerrainToolMode.RaiseLower;
@@ -441,106 +485,164 @@ namespace MountainPlanner.UI.Tools
             var dirty = _run.TakeDirty();
             if (dirty.IsEmpty || _ctx.LiveGround == null) return;
             _liveDirty = _liveDirty.Union(dirty);
-            _ctx.LiveGround.Live(_run.Preview(_pending), dirty);
+            _ctx.LiveGround.Live(_run.Live, dirty);   // the stroke as it stands, read point by point: no tiles built a frame
         }
+
+        /// <summary>The last painting tick's time in its parts, ms (the brush bench, demo 75).</summary>
+        public struct TickTimings { public double Dabs, Bill; }
+
+        TickTimings _lastTick;
+
+        /// <summary>The last painting tick's time in its parts (the brush bench).</summary>
+        public TickTimings LastTick => _lastTick;
+
+        /// <summary>How long the last stroke's end took on the main thread, ms: its tiles built and the ground handed over (the brush bench).</summary>
+        public double LastFinishMs { get; private set; }
+
+        /// <summary>The part of <see cref="LastFinishMs"/> that built the stroke's tiles, ms.</summary>
+        public double LastFinishPreviewMs { get; private set; }
+
+        static double Ms(long from) => (Stopwatch.GetTimestamp() - from) * 1000.0 / Stopwatch.Frequency;
 
         void Finish()
         {
             if (_run == null) return;
+            long t0 = Stopwatch.GetTimestamp();
             if (_dabs.Count > 0)
             {
+                if (!_pressOpen)
+                {
+                    _presses.Add(new Press(_session.Count, _pending, _cut, _fill, _cleared, new List<Hold>(_held).ToArray()));
+                    _pressOpen = true;
+                }
                 _session.Add(new StrokePainting(_settings, _dabs));
+                long tp = Stopwatch.GetTimestamp();
                 _pending = _run.Preview(_pending);
+                LastFinishPreviewMs = Ms(tp);
                 _run.Volumes(out double cut, out double fill);
                 _cut += cut;
                 _fill += fill;
                 _cleared += _run.ClearedCount;
                 foreach (var h in _run.Held()) _held.Add(h);
-                _ctx.LiveGround?.Show(_pending);   // trees, cover and snow catch up (TB-08)
+                CatchUp(_pending);   // BR21: only what moved since the last catch-up; nothing on screen changes
                 _liveDirty = PointRect.Empty;
             }
             _run = null;
             _dabs = null;
+            LastFinishMs = Ms(t0);
             PaintStatus();
         }
 
+        // BR21: the cover, the trees' footing and the snow follow the ground whose heights the live upload put up; the session's
+        // clearing stays the committed one until Confirm.
+        void CatchUp(TerrainEdits ground)
+        {
+            if (_ctx.LiveGround == null || _base == null) return;
+            _catchUp = _ctx.LiveGround.CatchUp(ground, _base);
+        }
+
+        // Ctrl+Z (TB-08 v2): the last press-to-release comes back off, to the very ground and bill before it.
         void UndoStroke()
         {
-            _session.RemoveAt(_session.Count - 1);
-            // Replay what's left over the committed ground: the same runs, so the same bytes as before the stroke.
-            var heights = _ctx.Earthwork.Heights;
-            var ground = _base;
-            _cut = _fill = 0;
-            _cleared = 0;
+            var press = _presses[_presses.Count - 1];
+            _presses.RemoveAt(_presses.Count - 1);
+            _session.RemoveRange(press.Start, _session.Count - press.Start);
+            _pending = press.Before;
+            _cut = press.Cut;
+            _fill = press.Fill;
+            _cleared = press.Cleared;
             _held.Clear();
-            foreach (var s in _session)
-            {
-                var run = new BrushRun(s.Settings, new EditedHeights(heights.Source, heights.Lattice, ground), _ctx.Earthwork.Earthwork.Site, _fixed);
-                run.Dabs(s.Dabs);
-                ground = run.Preview(ground);
-                run.Volumes(out double cut, out double fill);
-                _cut += cut;
-                _fill += fill;
-                _cleared += run.ClearedCount;
-                foreach (var h in run.Held()) _held.Add(h);
-            }
-            _pending = ground;
-            _ctx.LiveGround?.Show(_pending);
+            _held.UnionWith(press.Held);
+            if (_ctx.LiveGround != null) _settling = _ctx.LiveGround.ShowGround(_pending, _base);
             PaintStatus();
         }
 
-        // ---------- the review ----------
+        // ---------- Confirm and Revert (BR17) ----------
 
-        void Review()
+        /// <summary>
+        /// Confirm: the session folded through the design's earthwork off the main thread (after trails and lifts, BR6), then
+        /// put in as one command and one undo step. The ground the player painted is the ground confirmed (TB14), so the
+        /// same set goes in and nothing on the map moves. <paramref name="then"/> runs once it's in (the close ask's Confirm).
+        /// </summary>
+        void Confirm(Action then)
         {
-            var w = _ctx.Window;
-            _review.Clear().Add("Working it out…", "", "TB-09");
-            _review.Ready(false, true);
-            w.ShowReview(_review);
+            if (_confirming || _run != null || _session.Count == 0) { if (!_confirming && _session.Count == 0) then?.Invoke(); return; }
+            _confirming = true;
+            _landed = false;
+            _afterConfirm = then;
             var doc = _ctx.History.Document;
             long revision = _ctx.History.Revision;
             var committed = _ctx.History.Terrain;
             var command = new AddTerrainStrokes(revision, new List<StrokePainting>(_session));
             var earthwork = _ctx.Earthwork.Earthwork;
-            _analysing = true;
+            PaintStatus();
             _ctx.Analyse(() =>
             {
                 var after = command.Apply(doc);
                 return after.Accepted ? (after, earthwork.Rebuild(after.Document, committed)) : (after, null);
-            }, r =>
-            {
-                _analysing = false;
-                if (!r.after.Accepted) { w.SetMessage(r.after.Reason); return; }
-                _command = command;
-                _rebuild = r.Item2;
-                _ctx.PendingTerrain = _rebuild.Edits;
-                BuildReview(r.after.Document, committed);
-            });
+            }, r => Landed(command, committed, r.after, r.Item2));
         }
 
-        void BuildReview(DesignDocument after, TerrainEdits committed)
+        void Landed(AddTerrainStrokes command, TerrainEdits committed, CommandResult after, DesignEarthwork.Result rebuild)
         {
-            double cut = 0, fill = 0;
-            int cleared = 0;
-            var held = new HashSet<Hold>();
-            foreach (var k in after.Strokes)
-                if (_rebuild.DetailOf(k.Id.Value) is StrokeBuild b)
-                {
-                    cut += b.CutCubicMetres;
-                    fill += b.FillCubicMetres;
-                    cleared += b.ClearedCells;
-                    foreach (var h in b.Held) held.Add(h);
-                }
-            _review.Clear()
-                .Add("Cut", ToolFormat.Volume(cut), "TB-09")
-                .Add("Fill", ToolFormat.Volume(fill), "TB-09")
-                .Add(fill >= cut ? "Import" : "Export", ToolFormat.Volume(Math.Abs(fill - cut)), "TB-09: fill − cut, brought in or hauled away")
-                .Add("Cleared of trees", ToolFormat.Area(cleared), "TB-10: ground moved 1 ft or more")
-                .Add("Strokes", _session.Count.ToString(), "TB-08: one undo step");
-            foreach (var line in TowersReheighted(after, committed, _rebuild.Edits)) _review.Add(line.Label, line.Value, "TB-13, TW-02 v4: the heads stay put; the steel follows the ground");
-            if (held.Count > 0) _review.Warn($"Held {HeldWords(held)}", "TB-10 to TB-13");
-            _review.Ready(true, true);
-            _ctx.Window.ShowReview(_review);
+            _landed = true;
+            _confirming = false;
+            if (!after.Accepted) { _afterConfirm = null; PaintStatus(); _ctx.Window.SetMessage(after.Reason); return; }
+            long t0 = Stopwatch.GetTimestamp();
+            var edits = rebuild.Edits;
+            if (TerrainEdits.Changed(_pending, edits).Count == 0) edits = _pending;   // the same set the map shows: nothing applies again
+            else UnityEngine.Debug.LogError("[TerrainBrush] the confirmed ground differs from the ground painted (TB14); confirming the fold's");
+            double compare = Ms(t0);
+            long t1 = Stopwatch.GetTimestamp();
+            var towers = TowersReheighted(after.Document, committed, edits);
+            double towersMs = Ms(t1);
+            long t2 = Stopwatch.GetTimestamp();
+            var result = _ctx.Submit?.Invoke(new AddTerrainStrokes(_ctx.History.Revision, command.Strokes), edits);
+            double submit = Ms(t2);
+            if (result == null || !result.Accepted) { _afterConfirm = null; PaintStatus(); return; }
+            long t3 = Stopwatch.GetTimestamp();
+            _ctx.Earthwork?.Earthwork?.Accept(rebuild);
+            double accept = Ms(t3);
+            // BR19: Confirm is when the player is charged; Phase 4's economy prices the volumes.
+            _ctx.Charges?.Charge(new EarthworkBill(_cut, _fill, _cleared, _session.Count));
+            string what = $"{_session.Count} stroke{(_session.Count == 1 ? "" : "s")} confirmed";
+            if (towers.Count > 0) what += "; " + (towers.Count == 1 ? $"{towers[0].Label} {towers[0].Value}" : $"{towers.Count} towers re-heighted");
+            long t4 = Stopwatch.GetTimestamp();
+            _ctx.Notice?.Invoke(what);
+            EndSession();
+            PaintStatus();
+            UnityEngine.Debug.Log($"[TerrainBrush] confirm landed: compare {compare:F1} ms, towers {towersMs:F1}, submit {submit:F1}, accept {accept:F1}, notice and pane {Ms(t4):F1}");
+            _thenNext = _afterConfirm;
+            _afterConfirm = null;
+        }
+
+        /// <summary>Revert (BR17): the session's ground goes back; nothing reaches the design or the bill.</summary>
+        void Revert()
+        {
+            if (_run != null) CancelStroke();
+            if (_session.Count == 0 || _confirming) return;
+            long t0 = Stopwatch.GetTimestamp();
+            if (!ReferenceEquals(_pending, _base) && _ctx.LiveGround != null) _settling = _ctx.LiveGround.ShowGround(_base, _base);
+            double show = Ms(t0);
+            long t1 = Stopwatch.GetTimestamp();
+            _ctx.Notice?.Invoke("Ground reverted");
+            double notice = Ms(t1);
+            long t2 = Stopwatch.GetTimestamp();
+            EndSession();
+            PaintStatus();
+            UnityEngine.Debug.Log($"[TerrainBrush] revert: ground {show:F1} ms, notice {notice:F1}, pane {Ms(t2):F1}");
+        }
+
+        // The tool stays open on a fresh session (P3-06 Q4); the next press starts it from the committed ground.
+        void EndSession()
+        {
+            _base = null;
+            _session.Clear();
+            _presses.Clear();
+            _cut = _fill = 0;
+            _cleared = 0;
+            _held.Clear();
+            _liveDirty = PointRect.Empty;
         }
 
         // TB-09: each tower whose steel the strokes change, under its fixed head (TW-02 v4).
@@ -597,75 +699,87 @@ namespace MountainPlanner.UI.Tools
             return parts.Count <= 2 ? string.Join(" and ", parts) : $"{parts[0]}, {parts[1]} and {parts.Count - 2} more";
         }
 
+        // ---------- the close ask (BR18) ----------
+
+        /// <summary>
+        /// BR18: Esc, ✕ or another kind of tool with ground not yet confirmed: Confirm / Revert / Keep painting.
+        /// <paramref name="then"/> (close, or arm the next tool) runs once the ground is confirmed or reverted.
+        /// </summary>
+        public void AskBeforeLeaving(Action then)
+        {
+            if (_confirming) { _afterConfirm = then; return; }   // Confirm is already on its way: go once it's in
+            if (_run != null) CancelStroke();
+            if (_session.Count == 0) { then?.Invoke(); return; }
+            _asking = true;
+            _afterAsk = then;
+            var w = _ctx.Window;
+            w.SetAsking("This ground isn't confirmed yet");
+            w.SetButtons(("ask-confirm", "Confirm", () => Confirm(TakeAsk())),
+                         ("ask-revert", "Revert", () => { var next = TakeAsk(); Revert(); next?.Invoke(); }),
+                         ("ask-keep", "Keep painting", KeepPainting));
+        }
+
+        void KeepPainting() => TakeAsk();
+
+        // Ends the ask and hands back what was to happen after it.
+        Action TakeAsk()
+        {
+            var then = _afterAsk;
+            _asking = false;
+            _afterAsk = null;
+            _ctx.Window.SetAsking(null);
+            _ctx.Window.SetButtons();
+            return then;
+        }
+
         // ---------- the contract ----------
 
         public ToolBackOut Escape()
         {
+            if (_asking) { KeepPainting(); return ToolBackOut.Stepped; }   // Esc on the ask: keep painting
             if (_run != null) { CancelStroke(); return ToolBackOut.Stepped; }
-            if (_step == Step.Review) { BackToPaint(); return ToolBackOut.Stepped; }
-            return ToolBackOut.Close;
-        }
-
-        void BackToPaint()
-        {
-            _ctx.PendingTerrain = null;
-            _rebuild = null;
-            _command = null;
-            Go(Step.Paint);
+            return ToolBackOut.Close;   // the host asks first when there's ground to confirm (BR18)
         }
 
         void CancelStroke()
         {
             _run = null;
             _dabs = null;
-            if (!_liveDirty.IsEmpty) _ctx.LiveGround?.Live(_pending, _liveDirty);   // the ground as it was before the stroke
+            if (!_liveDirty.IsEmpty)
+            {
+                _ctx.LiveGround?.Live(_pending, _liveDirty);   // the ground as it was before the stroke
+                CatchUp(_pending);                             // and its cover, trees' footing and snow (BR21)
+            }
             _liveDirty = PointRect.Empty;
             PaintStatus();
         }
 
-        // Enter in the review: the same as Confirm.
-        void ConfirmNow()
-        {
-            if (_analysing || _rebuild == null || _command == null) return;
-            var result = _ctx.Submit?.Invoke(new AddTerrainStrokes(_ctx.History.Revision, _command.Strokes), _rebuild.Edits);
-            if (result == null || !result.Accepted) return;
-            _ctx.PendingTerrain = null;
-            Committed(result);
-        }
-
+        /// <summary>The pane's buttons: Confirm (Built, as Break ground's place) and Revert (the second button). Both work here and return no command.</summary>
         public DesignCommand Commit(WorkStage stage, long baseRevision)
         {
-            if (stage == WorkStage.Plan) { if (_step == Step.Review) BackToPaint(); return null; }   // "Back"
-            if (_step == Step.Paint) { if (_session.Count > 0 && _run == null) Go(Step.Review); return null; }   // Break ground opens the review
-            if (_analysing || _rebuild == null || _command == null) return null;
-            return new AddTerrainStrokes(baseRevision, _command.Strokes);
+            var then = _asking ? TakeAsk() : null;   // while the close ask shows, they answer it (BR18)
+            if (stage == WorkStage.Plan) { Revert(); then?.Invoke(); }
+            else Confirm(then);
+            return null;
         }
 
-        public void Committed(CommandResult result)
-        {
-            _ctx.Earthwork?.Earthwork?.Accept(_rebuild);
-            _ctx.Notice?.Invoke($"{_session.Count} stroke{(_session.Count == 1 ? "" : "s")} confirmed");
-            _rebuild = null;
-            _command = null;
-            _base = null;
-            _session.Clear();
-            _liveDirty = PointRect.Empty;
-            Go(Step.Paint);   // the tool stays armed (P3-06 Q4)
-        }
+        /// <summary>Not used: Confirm submits its own command once the fold lands (<see cref="ToolContext.Submit"/>).</summary>
+        public void Committed(CommandResult result) { }
 
         /// <summary>
-        /// BR15: switching to another Terrain brush carries the session on (its strokes, the ground they made, the bill and
-        /// the target), so one Break ground reviews them all. A stroke in hand is dropped and a review goes back to Paint.
+        /// BR15: switching to another Terrain brush carries the session on (its strokes, the ground they made, the bill, Ctrl+Z
+        /// and the target), so one Confirm takes them all. A stroke in hand is dropped.
         /// </summary>
         public bool CarryTo(IDesignTool next)
         {
-            if (!(next is TerrainBrushTool t) || _base == null) return false;
+            if (!(next is TerrainBrushTool t) || _base == null || _confirming) return false;
             if (_run != null) CancelStroke();
-            _ctx.PendingTerrain = null;
+            if (_asking) TakeAsk();
             t._base = _base;
             t._pending = _pending;
             t._fixed = _fixed;
             t._session.AddRange(_session);
+            t._presses.AddRange(_presses);
             t._cut = _cut;
             t._fill = _fill;
             t._cleared = _cleared;
@@ -681,8 +795,13 @@ namespace MountainPlanner.UI.Tools
         public void Disarm()
         {
             if (_run != null) CancelStroke();
-            // Strokes not confirmed: the committed ground again (CF-06), unless the next brush carries them on (BR15).
-            if (!_carried && _base != null && !ReferenceEquals(_pending, _base)) _ctx.LiveGround?.Show(_ctx.History.Terrain);
+            // Closed without the ask (photo mode, the title, the Toolbox closing; BR18): the committed ground again, with a
+            // notice, unless the next brush carries the session on (BR15).
+            if (!_carried && _base != null && !ReferenceEquals(_pending, _base))
+            {
+                _ctx.LiveGround?.Show(_ctx.History.Terrain);
+                if (_session.Count > 0) _ctx.Notice?.Invoke("Ground not confirmed: reverted");
+            }
             _ctx.Paint?.Cursor(Vector2.zero, 0, false, false);
             _ctx.LiveGround?.ContoursWhileArmed(false);
             _session.Clear();

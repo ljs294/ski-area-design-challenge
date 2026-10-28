@@ -88,16 +88,21 @@ namespace MountainPlanner.Tests
 
                 // Two clicks on the mountain: the bottom terminal, then the top.
                 var ctx = viewer.Tools.Context;
-                bool found = FindLiftLine(viewer, cam, ctx, out var bottom, out var top);
+                // The line must be one the tool's own build passes (a red line keeps Break ground off), so the search builds
+                // on the edited ground the tool builds on; asking for it starts the ground's edit session.
+                for (float until = Time.realtimeSinceStartup + 60; Time.realtimeSinceStartup < until && ctx.EditedGround?.Invoke() == null;) yield return null;
+                Assert.That(ctx.EditedGround?.Invoke(), Is.Not.Null, "the ground's edit session started");
+                string catalogId = ((NewLiftTool)viewer.Tools.Active).CatalogId;
+                bool found = FindLiftLine(viewer, cam, ctx, catalogId, out var bottom, out var top);
                 if (!found)
                 {
                     // A small screen at 150%: the window covers the left half, so drag it aside as a player would.
                     var window = (UI.Hud.HudWindow)hud.Q("toolwin");
                     window.MoveTo(new Vector2(hud.panel.visualTree.worldBound.width, 0));
                     yield return Frames(3);
-                    found = FindLiftLine(viewer, cam, ctx, out bottom, out top);
+                    found = FindLiftLine(viewer, cam, ctx, catalogId, out bottom, out top);
                 }
-                Assert.That(found, Is.True, "a visible bottom and top that can sit");
+                Assert.That(found, Is.True, "a visible bottom and top that can sit, on a line that builds within the rules");
                 yield return Click(ScreenOf(cam, bottom, ctx));
                 var lift = (NewLiftTool)viewer.Tools.Active;
                 Assert.That(lift.CurrentStep, Is.EqualTo(1), $"the bottom terminal anchored ({lift.Problem})");
@@ -271,26 +276,53 @@ namespace MountainPlanner.Tests
         /// A bottom and a top terminal the camera can see and that can sit (LF-08: inside the core, the ground within
         /// 10 ft under each), 110–450 m apart with the top higher, neither under a HUD panel.
         /// </summary>
-        static bool FindLiftLine(MountainViewer viewer, Camera cam, ToolContext ctx, out Vector2 bottom, out Vector2 top)
+        static bool FindLiftLine(MountainViewer viewer, Camera cam, ToolContext ctx, string catalogId, out Vector2 bottom, out Vector2 top)
         {
             bottom = top = default;
             var core = ctx.Core;
+            int builds = 0;
             for (float x = core.xMin + 30; x < core.xMax - 30; x += 20)
                 for (float z = core.yMin + 30; z < core.yMax - 30; z += 20)
                 {
                     var b = new Vector2(x, z);
                     if (!Sits(viewer, cam, ctx, b)) continue;
-                    for (int dir = 0; dir < 32; dir++)
+                    int red = 0;
+                    for (int dir = 0; dir < 32 && red < 4; dir++)
                         for (float d = 110; d <= 450; d += 20)
                         {
                             var t = b + d * new Vector2(Mathf.Cos(dir * Mathf.PI / 16), Mathf.Sin(dir * Mathf.PI / 16));
                             if (ctx.HeightAt(t) < ctx.HeightAt(b) + 10 || !Sits(viewer, cam, ctx, t)) continue;
+                            // Green as the tool builds it from where the clicks land (#94/#97 picked a red line: TW-01, LT34);
+                            // a red one tries the next direction, four red ones the next bottom. A few seconds at most.
+                            if (++builds > 40) return false;
+                            if (!BuildsGreen(viewer, cam, ctx, catalogId, b, t)) { red++; break; }
                             bottom = b;
                             top = t;
                             return true;
                         }
                 }
             return false;
+        }
+
+        /// <summary>Whether the lift the tool would build between clicks at these points is within the rules, as the tool builds
+        /// it with its defaults (automatic towers, plumb, no levels set by hand).</summary>
+        static bool BuildsGreen(MountainViewer viewer, Camera cam, ToolContext ctx, string catalogId, Vector2 bottom, Vector2 top)
+        {
+            var ground = ctx.EditedGround?.Invoke();
+            if (ground == null || ctx.ToGround == null) return false;
+            var b = ctx.ToGround(DesignFrame.ToDesign(Landing(viewer, cam, ctx, bottom)));
+            var t = ctx.ToGround(DesignFrame.ToDesign(Landing(viewer, cam, ctx, top)));
+            return LiftBuild.Build(LiftType.Of(catalogId), ground, b.X, b.Y, t.X, t.Y, TowerStance.Plumb, null, 0, 0, suggest: false).Ok;
+        }
+
+        /// <summary>Where a click aimed at <paramref name="at"/> meets the ground (within 3 m of it, as <see cref="Sits"/> checks).</summary>
+        static Vector2 Landing(MountainViewer viewer, Camera cam, ToolContext ctx, Vector2 at)
+        {
+            var ray = cam.ScreenPointToRay(ScreenOf(cam, at, ctx));
+            float hit = viewer.Camera.GroundAlong(ray, 30000);
+            if (float.IsNaN(hit)) return at;
+            var g = ray.GetPoint(hit);
+            return new Vector2(g.x, g.z);
         }
 
         static bool Sits(MountainViewer viewer, Camera cam, ToolContext ctx, Vector2 at)
