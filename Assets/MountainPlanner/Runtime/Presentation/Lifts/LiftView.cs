@@ -149,6 +149,9 @@ namespace MountainPlanner.Presentation.Lifts
         /// <remarks>Each terminal stands at the lift's stored level (SK14, save v2): a raised terminal stands on its pier
         /// above the ground (LF-12 v3, pads only cut). A lift without levels (from a v1 save) stands at its origins' ground.</remarks>
         readonly List<float> _asBuilt = new List<float>();
+        // What Build stood the lift from, so Reheight can stand its towers again (BR21).
+        Lift _builtFrom;
+        LiftLivery _livery;
 
         /// <summary>TW-02 v4: each tower's steel as built over the ground it stands on now, metres (its stored height until hand
         /// grading moves the ground at its base).</summary>
@@ -164,6 +167,8 @@ namespace MountainPlanner.Presentation.Lifts
         {
             Clear();
             _asBuilt.Clear();
+            _builtFrom = lift;
+            _livery = livery;
             (double Bottom, double Top)? levels = lift.Levels is LiftLevels v ? (v.BottomMetres, v.TopMetres) : ((double, double)?)null;
             var type = LiftTypes.Measured(LiftType.Of(lift.CatalogId), _models);
             _kit = type.TowerKit;
@@ -793,6 +798,55 @@ namespace MountainPlanner.Presentation.Lifts
                         Graphics.RenderMeshInstanced(rp, part.Mesh, sub, part.Matrices, part.Count);
                     }
                 }
+        }
+
+        /// <summary>
+        /// The towers stood again on <paramref name="ground"/> under their fixed heads (TW-02 v4; owner BR21: a confirmed brush
+        /// session): only the towers whose steel or footing changed are rebuilt, as <see cref="Build"/> stands one, and the
+        /// terminals, the rope and the chairs stay as they are, since the heads don't move. False when the lift isn't the one
+        /// built (the caller builds it again).
+        /// </summary>
+        public bool Reheight(Lift lift, IHeightSource ground, LocalFrame frame)
+        {
+            if (Rope == null || !ReferenceEquals(lift, _builtFrom) || Rope.Towers.Count != _asBuilt.Count || _heads.Count != _asBuilt.Count) return false;
+            var bottom = new Vector3((float)lift.Bottom.XMetres, 0, (float)lift.Bottom.YMetres);
+            var top = new Vector3((float)lift.Top.XMetres, 0, (float)lift.Top.YMetres);
+            var dir = (top - bottom).normalized;
+            double Height(Vector3 p)
+            {
+                var a = frame.ToAlbers(p.x, p.z);
+                return ground.At(a.X, a.Y);
+            }
+            var parts = new List<GameObject>();
+            for (int i = 0; i < Rope.Towers.Count; i++)
+            {
+                // As Build stands it (TW-02 v4, the leaned foot sliding along the line).
+                var sol = Rope.Towers[i];
+                var at = bottom + dir * (float)sol.BaseS;
+                double groundY = Height(at);
+                double steel = lift.Towers[i].HeightMm / 1000.0, reveal = sol.Reveal;
+                if (Math.Abs(groundY - sol.BaseY) > 1e-4) LiftRope.AsBuilt(sol, groundY, out steel, out reveal);
+                if (Math.Abs(groundY - sol.BaseY) > 1e-4 && Math.Abs(sol.Lean) > 1e-9)
+                    for (int pass = 0; pass < 2; pass++)
+                    {
+                        at = bottom + dir * (float)(sol.RopeS + steel * Math.Sin(sol.Lean));
+                        groundY = Height(at);
+                        LiftRope.AsBuilt(sol, groundY, out steel, out reveal);
+                    }
+                if ((float)steel == _asBuilt[i]) continue;
+                parts.Clear();
+                foreach (var kv in _partOf) if (kv.Value == i) parts.Add(kv.Key);
+                foreach (var go in parts) { _partOf.Remove(go); Gone(go); }
+                at.y = (float)groundY;
+                var facing = Quaternion.LookRotation(-dir);
+                var lean = Quaternion.AngleAxis((float)(sol.Lean * Mathf.Rad2Deg), Vector3.Cross(Vector3.up, -dir));
+                _spawning = i;
+                SpawnTower(_heads[i], at, facing, lean, (float)steel, (float)reveal, _livery);
+                _asBuilt[i] = (float)steel;
+            }
+            _spawning = PartRope;
+            ForgetPick();
+            return true;
         }
 
         void Clear()

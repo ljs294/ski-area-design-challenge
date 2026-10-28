@@ -28,6 +28,10 @@ namespace MountainPlanner.Presentation.Edits
     /// The cache on disk stays as the package built it, so every save of an area shares it (no cache version change).
     /// Moving between any two edit sets (an edit, undo, redo, a load) gives the same result as opening with the later one,
     /// so undo restores byte-identical heights and the same trees. Changes apply one at a time, in the order asked.
+    /// <b>Shown and committed</b> (task 15, owner BR21): what's on screen (<see cref="ShownGround"/>, <see cref="ShownClearing"/>)
+    /// can run ahead of <see cref="Current"/>, which every rule reads: a terrain brush's session shows its ground, cover and
+    /// snow live with the committed clearing, and its trees come out only once it's confirmed. Each change moves from what's
+    /// shown, so only what differs is rebuilt, and its main-thread part spreads over frames (<see cref="FrameBudgetMs"/>).
     /// </summary>
     public sealed partial class TerrainEditPipeline : IDisposable
     {
@@ -52,6 +56,13 @@ namespace MountainPlanner.Presentation.Edits
         Task _queue = Task.CompletedTask;
 
         public TerrainEdits Current { get; private set; } = TerrainEdits.Empty;
+        /// <summary>The ground on screen: heights, cover, the trees' footing and the snow (BR21). <see cref="Current"/> once settled.</summary>
+        public TerrainEdits ShownGround { get; private set; } = TerrainEdits.Empty;
+        /// <summary>The clearing on screen: which trees are out, and the cleared cover (BR21).</summary>
+        public TerrainEdits ShownClearing { get; private set; } = TerrainEdits.Empty;
+
+        /// <summary>Main-thread work an apply does in one frame before the rest waits for the next (BR21: never a hitch).</summary>
+        public const double FrameBudgetMs = 6;
         /// <summary>The heights every rule and readout reads (SH-02): the package's plus <see cref="Current"/>.</summary>
         public EditedHeights Heights { get; private set; }
         public Report Last { get; private set; }
@@ -130,78 +141,119 @@ namespace MountainPlanner.Presentation.Edits
         }
 
         /// <summary>
-        /// Moves the mountain to <paramref name="to"/>: plans on worker threads, then applies on the main thread. Call
-        /// from the main thread; changes queue behind any still applying.
+        /// Moves the mountain to <paramref name="to"/> and commits it (ground and clearing, the rules' <see cref="Current"/>):
+        /// plans on worker threads, then applies on the main thread. Call from the main thread; changes queue behind any
+        /// still applying.
         /// </summary>
-        public Task ApplyAsync(TerrainEdits to, CancellationToken ct = default)
+        public Task ApplyAsync(TerrainEdits to, CancellationToken ct = default) => Enqueue(to, to, true, false, ct);
+
+        /// <summary>
+        /// Shows <paramref name="ground"/> (heights, cover, the trees' footing, snow) with <paramref name="clearing"/>'s trees out,
+        /// leaving <see cref="Current"/> as it is (BR21: a brush session's live ground). <paramref name="heightsAlreadyUp"/>:
+        /// the tiles hold the ground's heights already (<see cref="ApplyLive"/>), so none upload.
+        /// </summary>
+        public Task ShowAsync(TerrainEdits ground, TerrainEdits clearing, bool heightsAlreadyUp, CancellationToken ct = default) =>
+            Enqueue(ground, clearing, false, heightsAlreadyUp, ct);
+
+        Task Enqueue(TerrainEdits ground, TerrainEdits clearing, bool commit, bool heightsUp, CancellationToken ct)
         {
-            if (to == null) throw new ArgumentNullException(nameof(to));
-            var next = _queue.ContinueWith(_ => ApplyOneAsync(to, ct), CancellationToken.None, TaskContinuationOptions.None,
+            if (ground == null) throw new ArgumentNullException(nameof(ground));
+            if (clearing == null) throw new ArgumentNullException(nameof(clearing));
+            var next = _queue.ContinueWith(_ => ApplyOneAsync(ground, clearing, commit, heightsUp, ct), CancellationToken.None, TaskContinuationOptions.None,
                                            TaskScheduler.FromCurrentSynchronizationContext()).Unwrap();
             _queue = next;
             return next;
         }
 
-        async Task ApplyOneAsync(TerrainEdits to, CancellationToken ct)
+        async Task ApplyOneAsync(TerrainEdits ground, TerrainEdits clearing, bool commit, bool heightsUp, CancellationToken ct)
         {
-            var from = Current;
-            if (ReferenceEquals(from, to)) return;
+            var fromGround = ShownGround;
+            var fromClearing = ShownClearing;
+            var heights = new EditedHeights(_source, _lattice, ground);
+            if (ReferenceEquals(fromGround, ground) && ReferenceEquals(fromClearing, clearing))
+            {
+                if (commit && !ReferenceEquals(Current, ground)) { Current = ground; Heights = heights; }
+                return;
+            }
             var total = Stopwatch.StartNew();
             var report = new Report();
-            var heights = new EditedHeights(_source, _lattice, to);
             var trees = _trees;
             var ranges = _ranges;
             List<Patch> patches;
+            var touched = new List<EditTileKey>();
             (patches, report) = await Task.Run(() =>
             {
                 var r = new Report();
-                var list = Plan(from, to, heights, trees, ranges, ref r);
+                // BR21: a brush session's shown changes plan on few threads, so the frame drawing meanwhile keeps the CPU: a live
+                // catch-up on one, Ctrl+Z and Revert on two; a commit (undo, redo, load, Confirm) on all the workers, as before.
+                var list = Plan(fromGround, ground, fromClearing, clearing, heights, heightsUp, commit ? 0 : heightsUp ? 1 : 2, trees, ranges, touched, ref r);
                 return (list, r);
             }, ct);
+            _touched.UnionWith(touched);
             report.PlanMs = total.Elapsed.TotalMilliseconds;
 
-            // Main thread: heights, then splat, then trees, each by rectangle.
-            var part = Stopwatch.StartNew();
-            var synced = new HashSet<(int, int)>();
-            foreach (var p in patches)
-                if (p.Heights != null && _tiles.TryGetValue(p.Tile, out var terrain))
-                {
-                    terrain.terrainData.SetHeightsDelayLOD(p.HeightX, p.HeightY, p.Heights);
-                    synced.Add(p.Tile);
-                }
-            foreach (var key in synced)
+            // Main thread: heights a tile at a time, then splat, then trees, each by rectangle; past the frame's budget the
+            // rest waits for the next frame (BR21), so a big change lands over a few frames instead of in one long one.
+            var slice = Stopwatch.StartNew();
+            var part = new Stopwatch();
+            async Task Breathe(bool always = false)
             {
-                _tiles[key].terrainData.SyncHeightmap();
-                // The sync can hand the tile a new GPU heightmap: rebind it, or the slope and exposure layers read a stale one.
-                TerrainTiles.BindSplat(_tiles[key]);
+                if (!always && slice.Elapsed.TotalMilliseconds < FrameBudgetMs) return;
+                await Task.Yield();
+                slice.Restart();
             }
-            report.HeightsMs = part.Elapsed.TotalMilliseconds;
-            part.Restart();
+            var tilesWithHeights = new List<(int, int)>();
+            foreach (var p in patches)
+                if (p.Heights != null && !tilesWithHeights.Contains(p.Tile)) tilesWithHeights.Add(p.Tile);
+            foreach (var key in tilesWithHeights)
+            {
+                if (!_tiles.TryGetValue(key, out var terrain)) continue;
+                part.Restart();
+                foreach (var p in patches)
+                    if (p.Tile == key && p.Heights != null) terrain.terrainData.SetHeightsDelayLOD(p.HeightX, p.HeightY, p.Heights);
+                terrain.terrainData.SyncHeightmap();
+                // The sync can hand the tile a new GPU heightmap: rebind it, or the slope and exposure layers read a stale one.
+                TerrainTiles.BindSplat(terrain);
+                report.HeightsMs += part.Elapsed.TotalMilliseconds;
+                await Breathe(always: true);   // a tile's sync is the biggest single step: one a frame
+            }
             foreach (var p in patches)
                 if (p.Splat != null && _tiles.TryGetValue(p.Tile, out var terrain) && terrain.terrainData.alphamapResolution == p.Splat.Resolution)
+                {
+                    part.Restart();
                     TerrainTiles.ApplySplatRegion(terrain.terrainData, p.Splat, p.SplatX, p.SplatY);
-            report.SplatMs = part.Elapsed.TotalMilliseconds;
-            part.Restart();
-            bool treesChanged = false;
+                    report.SplatMs += part.Elapsed.TotalMilliseconds;
+                    await Breathe();
+                }
+            bool flagsChanged = false;
             if (_forest != null && trees != null)
             {
                 foreach (var p in patches)
                 {
                     if (p.TreeIndex == null || p.TreeIndex.Count == 0) continue;
+                    part.Restart();
                     int lo = int.MaxValue, hi = -1;
                     for (int k = 0; k < p.TreeIndex.Count; k++)
                     {
                         int i = p.TreeIndex[k];
+                        if (trees[i].Flags != p.TreeValue[k].Flags) flagsChanged = true;
                         trees[i] = p.TreeValue[k];
                         lo = Math.Min(lo, i);
                         hi = Math.Max(hi, i);
                     }
                     _forest.UpdateTrees(trees, lo, hi - lo + 1);
-                    treesChanged = true;
+                    report.TreesMs += part.Elapsed.TotalMilliseconds;
+                    await Breathe();
                 }
-                if (treesChanged) _forest.RedrawCrownCore();
+                // The crown map follows the clearing only (CL-05): trees that only moved with the ground leave it as it is.
+                if (flagsChanged)
+                {
+                    part.Restart();
+                    _forest.RedrawCrownCore();
+                    report.TreesMs += part.Elapsed.TotalMilliseconds;
+                    await Breathe();
+                }
             }
-            report.TreesMs = part.Elapsed.TotalMilliseconds;
             if (_cliffs != null)
             {
                 var trimmed = new HashSet<(int, int)>();
@@ -212,18 +264,24 @@ namespace MountainPlanner.Presentation.Edits
                     {
                         var a = _frame.ToAlbers(x, z);
                         int c = (int)Math.Round(a.X - _lattice.West), r = (int)Math.Round(_lattice.North - a.Y);
-                        return Math.Abs(to.DeltaMmAt(c, r)) > CliffTrimMm;
+                        return Math.Abs(ground.DeltaMmAt(c, r)) > CliffTrimMm;
                     });
                 }
             }
-            Current = to;
-            Heights = heights;
+            ShownGround = ground;
+            ShownClearing = clearing;
+            if (commit)
+            {
+                Current = ground;
+                Heights = heights;
+            }
             report.TotalMs = total.Elapsed.TotalMilliseconds;
             Last = report;
-            UnityEngine.Debug.Log($"[TerrainEdits] {report.Patches} patches over {report.CacheTiles} tiles: {report.Posts:N0} posts, {report.Texels:N0} texels, " +
+            UnityEngine.Debug.Log($"[TerrainEdits] frame {Time.frameCount}: {report.Patches} patches over {report.CacheTiles} tiles: {report.Posts:N0} posts, {report.Texels:N0} texels, " +
                                   $"{report.Trees:N0} trees ({report.Cleared:N0} cleared); plan {report.PlanMs:F1} ms, heights {report.HeightsMs:F1}, " +
-                                  $"splat {report.SplatMs:F1}, trees {report.TreesMs:F1}, total {report.TotalMs:F1} ms (worker: posts {report.PostsWorkMs:F0}, cover {report.CoverWorkMs:F0}, tree plan {report.TreesPlanMs:F0})");
-            if (_states != null) RebuildSnow(patches, ct);
+                                  $"splat {report.SplatMs:F1}, trees {report.TreesMs:F1}, total {report.TotalMs:F1} ms{(commit ? "" : heightsUp ? " (shown, heights live)" : " (shown)")} " +
+                                  $"(worker: posts {report.PostsWorkMs:F0}, cover {report.CoverWorkMs:F0}, tree plan {report.TreesPlanMs:F0})");
+            if (_states != null) RebuildSnow(patches, heights, ct);
         }
 
         /// <summary>One rectangle of one cache tile to rebuild.</summary>
@@ -240,45 +298,59 @@ namespace MountainPlanner.Presentation.Edits
             public List<ForestInstance> TreeValue;
         }
 
-        List<Patch> Plan(TerrainEdits from, TerrainEdits to, EditedHeights heights, ForestInstance[] trees,
-                         Dictionary<(int, int), (int Start, int Count)> ranges, ref Report report)
+        List<Patch> Plan(TerrainEdits fromGround, TerrainEdits toGround, TerrainEdits fromClearing, TerrainEdits toClearing, EditedHeights heights,
+                         bool heightsUp, int threads, ForestInstance[] trees, Dictionary<(int, int), (int Start, int Count)> ranges, List<EditTileKey> touched, ref Report report)
         {
-            var changed = TerrainEdits.Changed(from, to);
-            // Each changed edit tile's changed points and cells, as a box of lattice points.
+            var changed = new SortedSet<EditTileKey>(TerrainEdits.Changed(fromGround, toGround));
+            changed.UnionWith(TerrainEdits.Changed(fromClearing, toClearing));
+            touched.AddRange(changed);
+            var clearing = new EditedHeights(_source, _lattice, toClearing);
+            // Each changed edit tile's changed points and cells, as a box of lattice points, and whether its ground moved.
             var areas = new List<(int C0, int R0, int C1, int R1)>();
+            var moved = new List<bool>();
             foreach (var key in changed)
             {
-                var a = from.Get(key);
-                var b = to.Get(key);
+                var a = fromGround.Get(key);
+                var b = toGround.Get(key);
+                var ca = fromClearing.Get(key);
+                var cb = toClearing.Get(key);
                 int c0 = int.MaxValue, r0 = int.MaxValue, c1 = int.MinValue, r1 = int.MinValue;
+                bool groundMoved = false;
                 for (int j = 0; j < EditTileKey.Side; j++)
                     for (int i = 0; i < EditTileKey.Side; i++)
-                        if (a.DeltaMm(i, j) != b.DeltaMm(i, j) || a.IsCleared(i, j) != b.IsCleared(i, j))
+                    {
+                        bool ground = a.DeltaMm(i, j) != b.DeltaMm(i, j);
+                        if (ground || ca.IsCleared(i, j) != cb.IsCleared(i, j))
                         {
+                            groundMoved |= ground;
                             c0 = Math.Min(c0, i); c1 = Math.Max(c1, i);
                             r0 = Math.Min(r0, j); r1 = Math.Max(r1, j);
                         }
+                    }
                 if (c1 < 0) continue;
                 // A cell reaches one point further east and south than the point that names it.
                 areas.Add((key.FirstColumn + c0, key.FirstRow + r0, key.FirstColumn + c1 + 1, key.FirstRow + r1 + 1));
+                moved.Add(groundMoved && !heightsUp);
             }
 
             // Every core cache tile each area's posts fall in (an edge post belongs to two, a corner to four).
-            var jobs = new List<(CacheTile Tile, (int C0, int R0, int C1, int R1) Area)>();
-            foreach (var area in areas)
+            var jobs = new List<(CacheTile Tile, (int C0, int R0, int C1, int R1) Area, bool Heights)>();
+            for (int n = 0; n < areas.Count; n++)
             {
+                var area = areas[n];
                 int tc0 = FloorDiv(area.C0 - 1, 1024), tc1 = FloorDiv(area.C1 + 1, 1024), tr0 = FloorDiv(area.R0 - 1, 1024), tr1 = FloorDiv(area.R1 + 1, 1024);
                 for (int tr = tr0; tr <= tr1; tr++)
                     for (int tc = tc0; tc <= tc1; tc++)
-                        if (_cacheTiles.TryGetValue((tc, tr), out var tile) && tile.Core && tile.Resolution == TerrainTiles.Resolution) jobs.Add((tile, area));
+                        if (_cacheTiles.TryGetValue((tc, tr), out var tile) && tile.Core && tile.Resolution == TerrainTiles.Resolution) jobs.Add((tile, area, moved[n]));
             }
             // The patches are independent, so they plan in parallel; each lands in its own slot, so the order is fixed.
             var planned = new Patch[jobs.Count];
             var counts = new Report[jobs.Count];
-            Parallel.For(0, jobs.Count, WorkerLimits.Options(CancellationToken.None), k =>
+            var options = threads > 0 ? new ParallelOptions { MaxDegreeOfParallelism = threads } : WorkerLimits.Options(CancellationToken.None);
+            Parallel.For(0, jobs.Count, options, k =>
             {
                 var r = new Report();
-                planned[k] = PlanPatch(jobs[k].Tile, jobs[k].Area, heights, ref r);
+                planned[k] = PlanPatch(jobs[k].Tile, jobs[k].Area, heights, clearing, jobs[k].Heights, ref r);
                 counts[k] = r;
             });
             var patches = new List<Patch>();
@@ -319,7 +391,7 @@ namespace MountainPlanner.Presentation.Edits
                             double x = b.West + fx * tileMetres, y = b.North - tileMetres + fz * tileMetres;
                             if (x < p.West - 1 || x > p.East + 1 || y < p.South - 1 || y > p.North + 1) continue;
                             var t = trees[range.Start + i];
-                            t.Flags = ForestField.IsCleared(packed, i, b.West, b.North, tileMetres, heights.Edits, _lattice) ? ForestInstance.Cleared : 0;
+                            t.Flags = ForestField.IsCleared(packed, i, b.West, b.North, tileMetres, toClearing, _lattice) ? ForestInstance.Cleared : 0;
                             t.Position.y = GroundY(tile, b, heights, fx, fz);
                             p.TreeIndex.Add(range.Start + i);
                             p.TreeValue.Add(t);
@@ -332,8 +404,12 @@ namespace MountainPlanner.Presentation.Edits
             return patches;
         }
 
-        /// <summary>The heights and splat of one area within one tile, or null if it misses the tile.</summary>
-        Patch PlanPatch(CacheTile tile, (int C0, int R0, int C1, int R1) area, EditedHeights heights, ref Report report)
+        /// <summary>
+        /// The heights (when <paramref name="withHeights"/>: the ground moved and the tiles don't hold it yet) and splat of one
+        /// area within one tile, or null if it misses the tile. The cover reads the ground's heights and
+        /// <paramref name="clearing"/>'s cleared cells.
+        /// </summary>
+        Patch PlanPatch(CacheTile tile, (int C0, int R0, int C1, int R1) area, EditedHeights heights, EditedHeights clearing, bool withHeights, ref Report report)
         {
             var b = _grid.Bounds(new TileKey(tile.Column, tile.Row));
             int gc = tile.Column * 1024, gr = tile.Row * 1024;
@@ -349,14 +425,17 @@ namespace MountainPlanner.Presentation.Edits
             };
             int w = i1 - i0 + 1, h = j1 - j0 + 1;
             var watch = Stopwatch.StartNew();
-            var hm = new float[h, w];   // [z, x], south row first
-            for (int j = j0; j <= j1; j++)
-                for (int i = i0; i <= i1; i++)
-                    hm[j1 - j, i - i0] = Normalised(b, heights, gc, gr, i, j);
-            patch.Heights = hm;
-            patch.HeightX = i0;
-            patch.HeightY = 1024 - j1;
-            report.Posts += w * h;
+            if (withHeights)
+            {
+                var hm = new float[h, w];   // [z, x], south row first
+                for (int j = j0; j <= j1; j++)
+                    for (int i = i0; i <= i1; i++)
+                        hm[j1 - j, i - i0] = Normalised(b, heights, gc, gr, i, j);
+                patch.Heights = hm;
+                patch.HeightX = i0;
+                patch.HeightY = 1024 - j1;
+                report.Posts += w * h;
+            }
             report.PostsWorkMs += watch.Elapsed.TotalMilliseconds;
             watch.Restart();
 
@@ -371,7 +450,7 @@ namespace MountainPlanner.Presentation.Edits
                 int wi0 = Math.Max(0, ti0 - reach), wi1 = Math.Min(n, ti1 + reach), wj0 = Math.Max(0, tj0 - reach), wj1 = Math.Min(n, tj1 + reach);
                 int ww = wi1 - wi0, wh = wj1 - wj0;
                 var cover = new byte[ww * wh * TerrainCache.CoverBands];
-                _cover.BuildRegion(b, n, wi0, wj0, wi1, wj1, heights, heights.IsCleared, cover);
+                _cover.BuildRegion(b, n, wi0, wj0, wi1, wj1, heights, clearing.IsCleared, cover);
                 var inner = new RectInt(ti0, tj0, ti1 - ti0, tj1 - tj0);
                 patch.Splat = SplatTexels.ComposeWindow(cover, n, wi0, wj0, ww, wh, ww, inner);
                 patch.SplatX = ti0;
@@ -406,17 +485,24 @@ namespace MountainPlanner.Presentation.Edits
         bool RingEdge(CacheTile tile, int dc, int dr) =>
             _cacheTiles.TryGetValue((tile.Column + dc, tile.Row + dr), out var other) && !other.Core;
 
-        int _snowGeneration;
+        /// <summary>
+        /// At most this often the snowpack is worked out again (BR21): a brush's catch-ups come five times a second, and each
+        /// snowpack reads the whole ring; the last change's always lands.
+        /// </summary>
+        const float SnowSeconds = 0.5f;
+        bool _snowDue, _snowRunning;
+        readonly Stopwatch _snowSince = new Stopwatch();
+        // The snowpack's inputs as the worker reads them and its output, kept and reused (no garbage a change).
+        float[] _snowElevation, _snowCanopy, _snowResult;
 
         /// <summary>
         /// The snowpack and contour labels over the edited ground: the changed cells' elevation and canopy (as the opener
-        /// samples them), then the whole snowpack again off the main thread (its elevation bands are site-wide); only the
-        /// cells whose depth changed upload. A newer change supersedes an older one still computing (CF-03), so the last
-        /// change's snow is the one that lands, whatever the timing.
+        /// samples them) at once, then the whole snowpack again off the main thread (its elevation bands are site-wide), at most
+        /// every <see cref="SnowSeconds"/>; only the cells whose depth changed upload. One works at a time, always from the
+        /// latest inputs, so the last change's snow is the one that lands, whatever the timing.
         /// </summary>
-        async void RebuildSnow(List<Patch> patches, CancellationToken ct)
+        void RebuildSnow(List<Patch> patches, EditedHeights heights, CancellationToken ct)
         {
-            int generation = ++_snowGeneration;
             var watch = Stopwatch.StartNew();
             const float cell = SurfaceStates.CellMetres;
             int width = _states.Snow.Width, depth = _states.Snow.Height;
@@ -438,7 +524,7 @@ namespace MountainPlanner.Presentation.Edits
                         float u = (_ring.xMin + (i + 0.5f) * cell - (float)ox) / tileMetres, v = (_ring.yMin + (j + 0.5f) * cell - (float)oz) / tileMetres;
                         if (u < 0 || u > 1 || v < 0 || v > 1) continue;
                         int col = Mathf.Clamp(Mathf.RoundToInt(u * (res - 1)), 0, res - 1), row = Mathf.Clamp(Mathf.RoundToInt(v * (res - 1)), 0, res - 1);
-                        float hn = Normalised(b, Heights, gc, gr, col, 1024 - row);
+                        float hn = Normalised(b, heights, gc, gr, col, 1024 - row);
                         _elevation[j * width + i] = (float)(_cache.HeightMin + hn * _cache.HeightRange);
                         if (p.Splat != null)
                         {
@@ -450,39 +536,87 @@ namespace MountainPlanner.Presentation.Edits
                         }
                     }
             }
-            float[] elevation = (float[])_elevation.Clone(), canopy = (float[])_canopy.Clone();
-            double convergence = _convergence;
-            var ring = _ring;
-            float[] result;
-            ContourLabel[][] labels;
+            _snowDue = true;
+            if (!_snowRunning) RunSnow(watch, ct);
+        }
+
+        async void RunSnow(Stopwatch watch, CancellationToken ct)
+        {
+            _snowRunning = true;
             try
             {
-                (result, labels) = await Task.Run(() =>
-            {
-                var r = new float[width * depth];
-                Snowpack.Compute(width, depth, cell, elevation, canopy, convergence, r);
-                var l = new ContourLabel[2][];
-                foreach (var units in new[] { UnitSystem.Imperial, UnitSystem.Metric })
-                    l[(int)units] = ContourLabels.Place(width, depth, cell, ring.xMin, ring.yMin, elevation, units);
-                return (r, l);
-            }, ct);
-            }
-            catch (OperationCanceledException) { return; }
-            if (_states == null || generation != _snowGeneration) return;
-            int x0 = int.MaxValue, y0 = int.MaxValue, x1 = -1, y1 = -1;
-            for (int j = 0; j < depth; j++)
-                for (int i = 0; i < width; i++)
-                    if (result[j * width + i] != _depth[j * width + i])
+                int width = _states.Snow.Width, depth = _states.Snow.Height;
+                while (_snowDue && _states != null)
+                {
+                    if (_snowSince.IsRunning && _snowSince.Elapsed.TotalSeconds < SnowSeconds)
+                        await Task.Delay(TimeSpan.FromSeconds(SnowSeconds - _snowSince.Elapsed.TotalSeconds), ct);
+                    _snowDue = false;
+                    _snowSince.Restart();
+                    if (_snowElevation == null || _snowElevation.Length != _elevation.Length)
                     {
-                        x0 = Math.Min(x0, i); x1 = Math.Max(x1, i);
-                        y0 = Math.Min(y0, j); y1 = Math.Max(y1, j);
+                        _snowElevation = new float[_elevation.Length];
+                        _snowCanopy = new float[_canopy.Length];
+                        _snowResult = new float[width * depth];
                     }
-            if (x1 >= 0) _states.Snow.CopyRect(result, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
-            _depth = result;
-            LabelsChanged?.Invoke(labels);
-            var report = Last;
-            report.SnowMs = watch.Elapsed.TotalMilliseconds;
-            Last = report;
+                    Array.Copy(_elevation, _snowElevation, _elevation.Length);
+                    Array.Copy(_canopy, _snowCanopy, _canopy.Length);
+                    float[] elevation = _snowElevation, canopy = _snowCanopy, result = _snowResult;
+                    double convergence = _convergence;
+                    var ring = _ring;
+                    const float cell = SurfaceStates.CellMetres;
+                    // The depths on screen only change here, between computes, so the worker can find what changed too.
+                    var shown = _depth;
+                    var (labels, x0, y0, x1, y1) = await Task.Run(() =>
+                    {
+                        Snowpack.Compute(width, depth, cell, elevation, canopy, convergence, result);
+                        var l = new ContourLabel[2][];
+                        foreach (var units in new[] { UnitSystem.Imperial, UnitSystem.Metric })
+                            l[(int)units] = ContourLabels.Place(width, depth, cell, ring.xMin, ring.yMin, elevation, units);
+                        int a0 = int.MaxValue, b0 = int.MaxValue, a1 = -1, b1 = -1;
+                        for (int j = 0; j < depth; j++)
+                            for (int i = 0; i < width; i++)
+                                if (result[j * width + i] != shown[j * width + i])
+                                {
+                                    a0 = Math.Min(a0, i); a1 = Math.Max(a1, i);
+                                    b0 = Math.Min(b0, j); b1 = Math.Max(b1, j);
+                                }
+                        return (l, a0, b0, a1, b1);
+                    }, ct);
+                    if (_states == null) return;
+                    var main = Stopwatch.StartNew();
+                    double compareMs = 0;
+                    if (x1 >= 0) _states.Snow.CopyRect(result, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+                    double copyMs = main.Elapsed.TotalMilliseconds - compareMs;
+                    _snowResult = _depth;   // the old depths become the next result's buffer
+                    _depth = result;
+                    bool relabel = !SameLabels(_labels, labels);
+                    if (relabel) { _labels = labels; LabelsChanged?.Invoke(labels); }   // BR21: the overlay rebuilds only for a real change
+                    UnityEngine.Debug.Log($"[TerrainEdits] frame {Time.frameCount}: snow {width}x{depth} on the main thread: compare {compareMs:F1} ms, upload {copyMs:F1} ({(x1 >= 0 ? (x1 - x0 + 1) * (y1 - y0 + 1) : 0)} cells), labels {(relabel ? (main.Elapsed.TotalMilliseconds - compareMs - copyMs).ToString("F1") + " ms" : "unchanged")}");
+                    var report = Last;
+                    report.SnowMs = watch.Elapsed.TotalMilliseconds;
+                    Last = report;
+                }
+            }
+            catch (OperationCanceledException) { }
+            finally { _snowRunning = false; }
+        }
+
+        ContourLabel[][] _labels;
+
+        static bool SameLabels(ContourLabel[][] a, ContourLabel[][] b)
+        {
+            if (a == null || b == null || a.Length != b.Length) return false;
+            for (int u = 0; u < a.Length; u++)
+            {
+                if (a[u] == null || b[u] == null || a[u].Length != b[u].Length) return false;
+                for (int i = 0; i < a[u].Length; i++)
+                {
+                    var x = a[u][i];
+                    var y = b[u][i];
+                    if (x.X != y.X || x.Z != y.Z || x.Elevation != y.Elevation || x.Angle != y.Angle || x.Rise != y.Rise || x.Major != y.Major || x.Text != y.Text) return false;
+                }
+            }
+            return true;
         }
 
         static int FloorDiv(int a, int b) => a >= 0 ? a / b : -((-a + b - 1) / b);

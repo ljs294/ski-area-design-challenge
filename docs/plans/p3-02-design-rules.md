@@ -392,6 +392,9 @@ ground round lifts.
   one command and one undo step, with no review page, and the tool stays open on a fresh session; **Revert** puts the
   session's ground back. Esc, ✕ or another kind of tool with ground not yet confirmed asks **Confirm / Revert / Keep
   painting**; closes the game makes on its own (photo mode, the title, the Toolbox closing) revert, with a notice.
+  **v3 (BR21):** what's on screen while painting is the session's ground, cover and snow (they catch up a few times a
+  second), with the trees riding it; letting go changes nothing. Trees come out, towers re-height and trail lines
+  re-drape only at Confirm. Revert, Confirm and letting go never hitch.
 - **TB-09, the bill (v2, BR19):** the pane counts the session's cut, fill and the net import or export (yd³; m³ in
   metric), trees cleared and where the brush was held (TB-11 to TB-13), with the stroke in hand, about five times a
   second as you drag (BR14). Confirm names every tower whose height changed ("Tower 7: 45 → 52 ft") in its notice,

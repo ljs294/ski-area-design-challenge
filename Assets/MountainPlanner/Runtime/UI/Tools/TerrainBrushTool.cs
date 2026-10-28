@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Edits;
 using MountainPlanner.Domain.Measure;
@@ -30,7 +31,9 @@ namespace MountainPlanner.UI.Tools
     /// trails and lifts and puts it in as one <see cref="AddTerrainStrokes"/>, one undo step, with no review page; that's when
     /// the player is charged (<see cref="IEarthworkCharges"/>). <b>Revert</b> puts the session's ground back. Esc, ✕ or
     /// another kind of tool with ground not yet confirmed asks Confirm / Revert / Keep painting (BR18). The Contours layer is
-    /// on while a brush is armed (BR13).
+    /// on while a brush is armed (BR13). <b>On screen</b> (BR21): the cover, the trees' footing and the snow catch up with the
+    /// stroke a few times a second as you paint, so letting go changes nothing; trees come out and towers re-height only at
+    /// Confirm.
     /// </summary>
     public class TerrainBrushTool : IDesignTool, IOwnsRightButton, ICarriesWork, IKeepsWork
     {
@@ -85,6 +88,15 @@ namespace MountainPlanner.UI.Tools
         PointMm _lastDab;
         float _clock;
         PointRect _liveDirty = PointRect.Empty;
+
+        // BR21: the last catch-up asked for (cover, trees' footing and snow following the stroke), and the last ground change
+        // with heights (Ctrl+Z, Revert) still landing, which a new press waits for; the press waiting (1 left, 2 right).
+        Task _catchUp = Task.CompletedTask, _settling = Task.CompletedTask;
+        float _catchUpClock;
+        int _heldPress;
+
+        /// <summary>How often the cover, the trees' footing and the snow catch up while you drag (BR21): bounded, never per frame.</summary>
+        const float CatchUpSeconds = 0.2f;
 
         // Confirm (BR17): the session folded off the main thread, then submitted; and the close ask (BR18).
         bool _confirming, _landed, _asking;
@@ -321,6 +333,20 @@ namespace MountainPlanner.UI.Tools
 
             if (_run == null)
             {
+                if (!_settling.IsCompleted)
+                {
+                    // BR21: a Ctrl+Z or Revert is still landing its heights; a press waits for it (a frame or two).
+                    if (input.Click) _heldPress = 1;
+                    else if (input.RightClick && _mode == TerrainToolMode.RaiseLower) _heldPress = 2;
+                    return;
+                }
+                if (_heldPress != 0)
+                {
+                    bool lower = _heldPress == 2;
+                    _heldPress = 0;
+                    if ((lower ? input.RightDrag : input.Drag) && input.HasGround && input.InCore) Begin(input, lower);
+                    return;
+                }
                 bool left = input.Click, right = input.RightClick;
                 if ((left || right) && _asking) KeepPainting();   // painting again answers the close ask (BR18)
                 if (right && UsesTarget && input.HasGround)
@@ -351,6 +377,8 @@ namespace MountainPlanner.UI.Tools
                     if (held) Begin(input, lower, carryOn: true);   // a long drag carries on as a new stroke, on the same ramp (TB-14)
                 }
                 Live();
+                _catchUpClock += input.DeltaSeconds;
+                if (_run != null && _catchUpClock >= CatchUpSeconds && _catchUp.IsCompleted) { _catchUpClock = 0; CatchUp(_run.Preview(_pending)); }
                 _billClock += input.DeltaSeconds;
                 long t1 = Stopwatch.GetTimestamp();
                 if (_run != null && _billClock >= BillSeconds) { _billClock = 0; ShowBill(); if (_mode == TerrainToolMode.Slope) ShowRamp(_startAt, _startMm); }
@@ -496,13 +524,21 @@ namespace MountainPlanner.UI.Tools
                 _fill += fill;
                 _cleared += _run.ClearedCount;
                 foreach (var h in _run.Held()) _held.Add(h);
-                _ctx.LiveGround?.Show(_pending);   // trees, cover and snow catch up (TB-08)
+                CatchUp(_pending);   // BR21: only what moved since the last catch-up; nothing on screen changes
                 _liveDirty = PointRect.Empty;
             }
             _run = null;
             _dabs = null;
             LastFinishMs = Ms(t0);
             PaintStatus();
+        }
+
+        // BR21: the cover, the trees' footing and the snow follow the ground whose heights the live upload put up; the session's
+        // clearing stays the committed one until Confirm.
+        void CatchUp(TerrainEdits ground)
+        {
+            if (_ctx.LiveGround == null || _base == null) return;
+            _catchUp = _ctx.LiveGround.CatchUp(ground, _base);
         }
 
         // Ctrl+Z (TB-08 v2): the last press-to-release comes back off, to the very ground and bill before it.
@@ -517,7 +553,7 @@ namespace MountainPlanner.UI.Tools
             _cleared = press.Cleared;
             _held.Clear();
             _held.UnionWith(press.Held);
-            _ctx.LiveGround?.Show(_pending);
+            if (_ctx.LiveGround != null) _settling = _ctx.LiveGround.ShowGround(_pending, _base);
             PaintStatus();
         }
 
@@ -552,20 +588,30 @@ namespace MountainPlanner.UI.Tools
             _landed = true;
             _confirming = false;
             if (!after.Accepted) { _afterConfirm = null; PaintStatus(); _ctx.Window.SetMessage(after.Reason); return; }
+            long t0 = Stopwatch.GetTimestamp();
             var edits = rebuild.Edits;
             if (TerrainEdits.Changed(_pending, edits).Count == 0) edits = _pending;   // the same set the map shows: nothing applies again
             else UnityEngine.Debug.LogError("[TerrainBrush] the confirmed ground differs from the ground painted (TB14); confirming the fold's");
+            double compare = Ms(t0);
+            long t1 = Stopwatch.GetTimestamp();
             var towers = TowersReheighted(after.Document, committed, edits);
+            double towersMs = Ms(t1);
+            long t2 = Stopwatch.GetTimestamp();
             var result = _ctx.Submit?.Invoke(new AddTerrainStrokes(_ctx.History.Revision, command.Strokes), edits);
+            double submit = Ms(t2);
             if (result == null || !result.Accepted) { _afterConfirm = null; PaintStatus(); return; }
+            long t3 = Stopwatch.GetTimestamp();
             _ctx.Earthwork?.Earthwork?.Accept(rebuild);
+            double accept = Ms(t3);
             // BR19: Confirm is when the player is charged; Phase 4's economy prices the volumes.
             _ctx.Charges?.Charge(new EarthworkBill(_cut, _fill, _cleared, _session.Count));
             string what = $"{_session.Count} stroke{(_session.Count == 1 ? "" : "s")} confirmed";
             if (towers.Count > 0) what += "; " + (towers.Count == 1 ? $"{towers[0].Label} {towers[0].Value}" : $"{towers.Count} towers re-heighted");
+            long t4 = Stopwatch.GetTimestamp();
             _ctx.Notice?.Invoke(what);
             EndSession();
             PaintStatus();
+            UnityEngine.Debug.Log($"[TerrainBrush] confirm landed: compare {compare:F1} ms, towers {towersMs:F1}, submit {submit:F1}, accept {accept:F1}, notice and pane {Ms(t4):F1}");
             _thenNext = _afterConfirm;
             _afterConfirm = null;
         }
@@ -575,10 +621,16 @@ namespace MountainPlanner.UI.Tools
         {
             if (_run != null) CancelStroke();
             if (_session.Count == 0 || _confirming) return;
-            if (!ReferenceEquals(_pending, _base)) _ctx.LiveGround?.Show(_base);
+            long t0 = Stopwatch.GetTimestamp();
+            if (!ReferenceEquals(_pending, _base) && _ctx.LiveGround != null) _settling = _ctx.LiveGround.ShowGround(_base, _base);
+            double show = Ms(t0);
+            long t1 = Stopwatch.GetTimestamp();
             _ctx.Notice?.Invoke("Ground reverted");
+            double notice = Ms(t1);
+            long t2 = Stopwatch.GetTimestamp();
             EndSession();
             PaintStatus();
+            UnityEngine.Debug.Log($"[TerrainBrush] revert: ground {show:F1} ms, notice {notice:F1}, pane {Ms(t2):F1}");
         }
 
         // The tool stays open on a fresh session (P3-06 Q4); the next press starts it from the committed ground.
@@ -693,7 +745,11 @@ namespace MountainPlanner.UI.Tools
         {
             _run = null;
             _dabs = null;
-            if (!_liveDirty.IsEmpty) _ctx.LiveGround?.Live(_pending, _liveDirty);   // the ground as it was before the stroke
+            if (!_liveDirty.IsEmpty)
+            {
+                _ctx.LiveGround?.Live(_pending, _liveDirty);   // the ground as it was before the stroke
+                CatchUp(_pending);                             // and its cover, trees' footing and snow (BR21)
+            }
             _liveDirty = PointRect.Empty;
             PaintStatus();
         }

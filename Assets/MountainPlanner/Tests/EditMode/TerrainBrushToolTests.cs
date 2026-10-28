@@ -58,11 +58,13 @@ namespace MountainPlanner.Tests
             public void ShowPending(List<double> segments) { }
             public void ClearPending() { }
             public double ContourInterval => 12.192;
-            public int LiveCalls, ShowCalls;
-            public TerrainEdits Shown;
+            public int LiveCalls, ShowCalls, CatchUps, GroundShows;
+            public TerrainEdits Shown, Clearing;
             public bool? Contours;
             public void Live(IPointDeltas ground, PointRect dirty) { LiveCalls++; }
-            public void Show(TerrainEdits edits) { ShowCalls++; Shown = edits; }
+            public void Show(TerrainEdits edits) { ShowCalls++; Shown = edits; Clearing = edits; }
+            public System.Threading.Tasks.Task CatchUp(TerrainEdits ground, TerrainEdits clearing) { CatchUps++; Shown = ground; Clearing = clearing; return System.Threading.Tasks.Task.CompletedTask; }
+            public System.Threading.Tasks.Task ShowGround(TerrainEdits ground, TerrainEdits clearing) { GroundShows++; Shown = ground; Clearing = clearing; return System.Threading.Tasks.Task.CompletedTask; }
             public void ContoursWhileArmed(bool armed) => Contours = armed;
             public double LastLiveMs => 0;
         }
@@ -134,7 +136,10 @@ namespace MountainPlanner.Tests
             Stroke(-20, 20, 0, right: false);
             Assert.That(_ground.LiveCalls, Is.GreaterThan(10), "BR5: the ground moves every tick while held");
             Assert.That(tool.Pending, Is.EqualTo(1));
-            Assert.That(_ground.ShowCalls, Is.EqualTo(1), "trees, cover and snow catch up when the stroke ends");
+            Assert.That(_ground.ShowCalls, Is.EqualTo(0), "BR21: no full apply when the stroke ends");
+            Assert.That(_ground.CatchUps, Is.GreaterThan(1), "the cover, trees' footing and snow caught up while it was held");
+            Assert.That(_ground.Shown, Is.SameAs(tool.PendingGround), "and once more to the ground let go, so nothing changes after");
+            Assert.That(_ground.Clearing, Is.SameAs(_history.Terrain), "trees stay in until Confirm (BR21)");
             Assert.That(DeltaAt(tool.PendingGround, 0, 0), Is.GreaterThan(0), "left raised");
             Stroke(-20, 20, 60, right: true);
             Assert.That(DeltaAt(tool.PendingGround, 0, 60), Is.LessThan(0), "right lowered");

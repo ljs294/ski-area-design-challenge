@@ -119,6 +119,7 @@ Live while a tool is armed, which happens only with the tray open. All rebindabl
 | Right-click / right-drag | Terrain brushes own the right button while armed (owner BR4): Raise/Lower lowers, Flatten and Slope take the target under the pointer; WASD, the arrows and middle-drag still move the view |
 | Enter | Terrain brushes: Confirm the session's ground (TB-08 v2, BR17) |
 | Ctrl+Z | Terrain brushes: take back the last press-to-release of the session, never past its start (TB-08 v2) |
+| Wheel over a slider | Moves it a step a notch, up is more (the brush's: 5 ft, 5%); its value shows over the thumb (BR20) |
 
 ## Removed from the keyboard
 

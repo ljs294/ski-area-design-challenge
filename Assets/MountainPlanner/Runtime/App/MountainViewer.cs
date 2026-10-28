@@ -614,7 +614,9 @@ namespace MountainPlanner.App
             if (!ReferenceEquals(set, _contourLabelSet))
             {
                 _contourLabelSet = set;
+                var labelWatch = System.Diagnostics.Stopwatch.StartNew();
                 _contourLabels.SetLabels(set, DisplayUnits.Current);
+                if (_brushBenching) Debug.Log($"[BrushBench] frame {Time.frameCount}: contour labels set again, {labelWatch.Elapsed.TotalMilliseconds:F1} ms");
             }
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
             _contourLabels.Update(cam, _resort.Surface, _layers.ContoursOn && _hudShown);

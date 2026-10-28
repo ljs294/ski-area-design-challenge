@@ -235,6 +235,9 @@ namespace MountainPlanner.App
             public Timing confirmFrames, revertFrames;
             /// <summary>The built lifts and trail lines rebuilt after Confirm, ms on the main thread.</summary>
             public double confirmBuiltMs;
+            /// <summary>BR21: values on screen that differ from a fresh apply of the committed ground, after Confirm and after Revert (0 = none).</summary>
+            public int shownDiffersAfterConfirm = -1, shownDiffersAfterRevert = -1;
+            public string shownNote;
             public bool pass;
         }
 
@@ -260,8 +263,11 @@ namespace MountainPlanner.App
             return new Timing { p50 = ms[ms.Count / 2], p95 = ms[Math.Min(ms.Count - 1, (int)Math.Ceiling(ms.Count * 0.95) - 1)], max = ms[ms.Count - 1], n = ms.Count };
         }
 
+        bool _brushBenching;
+
         IEnumerator BrushBench(string outPath)
         {
+            _brushBenching = true;
             while (_resort == null || !_resort.CoverReady.IsCompleted || WorkBusy || _tools == null) yield return null;
             if (Camera != null)
             {
@@ -333,7 +339,9 @@ namespace MountainPlanner.App
             report.measuredUtc = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
             report.gpu = SystemInfo.graphicsDeviceName;
             report.cpu = SystemInfo.processorType;
-            report.pass = report.brush400.frame.p95 <= 20 && report.brush60.live.p95 <= 8 && report.brush400.live.p95 <= 16 && report.toCommittedMs <= 250;
+            report.pass = report.brush400.frame.p95 <= 20 && report.brush60.live.p95 <= 8 && report.brush400.live.p95 <= 16 && report.toCommittedMs <= 250
+                          && report.brush400.release.max <= 20 && report.confirmFrames.max <= 20 && report.revertFrames.max <= 20
+                          && report.shownDiffersAfterConfirm == 0 && report.shownDiffersAfterRevert == 0;
             File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             foreach (var p in new[] { report.brush60, report.brush400 })
@@ -341,8 +349,9 @@ namespace MountainPlanner.App
                     "[BrushBench] {0} ft: frame p95 {1:F1} ms (GPU {2:F1}); live {3:F1} = sample {4:F1} + set {5:F1} + sync {6:F1}; dabs {7:F1}; preview {8:F1}; bill p95 {9:F1} max {10:F1}; release frame p95 {11:F1} max {12:F1} (finish {16:F1}, tiles {17:F1}); GC {13} B/frame in {14} frames, {15} collections",
                     p.feet, p.frame.p95, p.gpu.p95, p.live.p95, p.sample.p95, p.set.p95, p.sync.p95, p.dabs.p95, p.preview.p95, p.bill.p95, p.bill.max,
                     p.release.p95, p.release.max, p.gcBytesPerFrame, p.gcFramesWithAllocations, p.gcCollections, p.finishMs, p.finishPreviewMs));
-            Debug.Log(string.Format(inv, "[BrushBench] confirm frames p95 {0:F1} max {1:F1} (built {2:F1} ms); revert frames p95 {3:F1} max {4:F1}",
-                report.confirmFrames.p95, report.confirmFrames.max, report.confirmBuiltMs, report.revertFrames.p95, report.revertFrames.max));
+            Debug.Log(string.Format(inv, "[BrushBench] confirm frames p95 {0:F1} max {1:F1} (built {2:F1} ms); revert frames p95 {3:F1} max {4:F1}; shown vs fresh: {5} after Confirm, {6} after Revert{7}",
+                report.confirmFrames.p95, report.confirmFrames.max, report.confirmBuiltMs, report.revertFrames.p95, report.revertFrames.max,
+                report.shownDiffersAfterConfirm, report.shownDiffersAfterRevert, report.shownNote != null ? " (" + report.shownNote + ")" : ""));
             Debug.Log(string.Format(inv, "[BrushBench] to committed {0:F0} ms (review {1:F0}, confirm {2:F0}); {3}",
                 report.toCommittedMs, report.reviewMs, report.confirmMs, report.pass ? "PASS" : "FAIL"));
             _toolScripted = false;
@@ -361,6 +370,7 @@ namespace MountainPlanner.App
             for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); }
             report.confirmFrames = Summarise(frames);
             report.confirmBuiltMs = LastBuiltMs;
+            if (_edits != null) { report.shownDiffersAfterConfirm = _edits.Pipeline.CheckShown(out string note); report.shownNote ??= note; }
 
             var a = new Vector2(140, -360);
             var b = new Vector2(320, -360);
@@ -370,9 +380,20 @@ namespace MountainPlanner.App
             _tools.Tick(BrushInput(b, left: true, release: true));
             for (int i = 0; i < 60; i++) { _tools.Tick(default); yield return null; }
             frames.Clear();
+            Debug.Log($"[BrushBench] frame {Time.frameCount}: Revert");
             _tools.Confirm(WorkStage.Plan);   // Revert
-            for (int i = 0; i < 30 || EditsBusy; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); if (i > 600) break; }
+            for (int i = 0; i < 30 || EditsBusy; i++)
+            {
+                _tools.Tick(default);
+                yield return null;
+                float ms = Time.unscaledDeltaTime * 1000;
+                frames.Add(ms);
+                if (ms > 16) Debug.Log($"[BrushBench] frame {Time.frameCount - 1}: {ms:F1} ms after Revert");
+                if (i > 600) break;
+            }
             report.revertFrames = Summarise(frames);
+            while (EditsBusy) yield return null;
+            if (_edits != null) { report.shownDiffersAfterRevert = _edits.Pipeline.CheckShown(out string note); report.shownNote ??= note; }
         }
     }
 }

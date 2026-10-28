@@ -126,8 +126,13 @@ namespace MountainPlanner.App
                 keep.Add(lift.Id);
                 var works = _edits?.Earthwork?.DetailOf(lift.Id.Value) as LiftBuild.Works;
                 var underTowers = GroundUnderTowers(lift, works, heights);
-                if (_liftViews.TryGetValue(lift.Id, out var shown) && ReferenceEquals(shown.Lift, lift)
-                    && _liftGround.TryGetValue(lift.Id, out var was) && SameGround(was, underTowers)) continue;
+                if (_liftViews.TryGetValue(lift.Id, out var shown) && ReferenceEquals(shown.Lift, lift) && _liftGround.TryGetValue(lift.Id, out var was))
+                {
+                    if (SameGround(was, underTowers)) continue;
+                    // BR21: only the ground under its towers moved (a confirmed brush session): the towers re-height in place,
+                    // under their fixed heads, with no rebuild of the terminals, rope and chairs.
+                    if (shown.View.Reheight(lift, heights, _resort.Frame)) { _liftGround[lift.Id] = underTowers; continue; }
+                }
                 if (shown.View != null && shown.View == _hovered) _hovered = null;
                 if (shown.View != null && shown.View == _held) _held = null;
                 shown.View?.Dispose();

@@ -144,6 +144,12 @@ namespace MountainPlanner.App.Edits
         /// </summary>
         public void Show(TerrainEdits edits) => Applying = Pipeline.ApplyAsync(edits);
 
+        /// <summary>
+        /// Shows a brush session's ground with <paramref name="clearing"/>'s trees out, leaving the committed ground as it is
+        /// (owner BR21); <paramref name="heightsUp"/>: the live upload put its heights on the tiles already.
+        /// </summary>
+        public Task ShowGround(TerrainEdits ground, TerrainEdits clearing, bool heightsUp) => Applying = Pipeline.ShowAsync(ground, clearing, heightsUp);
+
         public void ClearPreview()
         {
             _pending = null;
