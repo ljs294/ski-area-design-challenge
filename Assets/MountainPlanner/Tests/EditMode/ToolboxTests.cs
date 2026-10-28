@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Presentation;
 using MountainPlanner.Presentation.Design;
+using MountainPlanner.UI;
 using MountainPlanner.UI.Tools;
 using MountainPlanner.World;
 using NUnit.Framework;
@@ -938,6 +939,10 @@ namespace MountainPlanner.Tests
             var w = _host.Context.Window;
             w.BeginRename();
             Assert.That(w.Renaming, Is.True, "a click on the name (or F2) types a new one");
+            var field = w.Window.Q<TextField>("toolwin-name-field");
+            Assert.That(field.ClassListContains(InlineName.FieldClass), Is.True, "sections finding 8: typed in place, not in a box");
+            Assert.That(w.Window.Q<Label>("toolwin-name").ClassListContains("hidden"), Is.True, "the field takes the name's spot");
+            Assert.That(field.parent, Is.SameAs(w.Window.Q<Label>("toolwin-name").parent));
             w.Window.Q<TextField>("toolwin-name-field").value = " ";
             w.EndRename(true);
             Assert.That(lift.LiftName, Is.EqualTo("Chair 1"), "a bad name isn't kept");

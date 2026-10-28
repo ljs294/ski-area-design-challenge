@@ -206,7 +206,6 @@ namespace MountainPlanner.UI.Tools
             if (_nameField == null)
             {
                 _nameField = new TextField { name = "toolwin-name-field", maxLength = Domain.Design.DesignRules.NameMaxLength, isDelayed = false };
-                _nameField.AddToClassList("tw__namefield");
                 _nameField.RegisterCallback<KeyDownEvent>(e =>
                 {
                     if (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter) { EndRename(true); e.StopPropagation(); }
@@ -215,8 +214,7 @@ namespace MountainPlanner.UI.Tools
                 _nameField.RegisterCallback<FocusOutEvent>(_ => { if (_renaming) EndRename(true); });
             }
             _nameField.SetValueWithoutNotify(_name.text);
-            Window.Head.Insert(Window.Head.IndexOf(_name) + 1, _nameField);
-            _name.AddToClassList("hidden");
+            InlineName.Open(_name, _nameField);
             _nameField.schedule.Execute(() => { _nameField.Focus(); _nameField.SelectAll(); });
         }
 

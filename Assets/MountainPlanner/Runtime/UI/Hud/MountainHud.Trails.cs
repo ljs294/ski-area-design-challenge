@@ -25,7 +25,7 @@ namespace MountainPlanner.UI
     {
         AnalysisList _trailsList;
         VisualElement _trailCard;
-        Label _trailCardName;
+        Label _trailCardName, _trailCardSymbol;
         VisualElement _trailCardKv;
         ulong _trailCardId;
         readonly Dictionary<ulong, TrailRow> _trailRows = new Dictionary<ulong, TrailRow>();
@@ -79,6 +79,11 @@ namespace MountainPlanner.UI
             _trailCard.AddToClassList("hidden");
             var head = new VisualElement();
             head.AddToClassList("mp-head");
+            // The rating's symbol stands apart from the name, so the name renames in place beside it (sections finding 8).
+            _trailCardSymbol = new Label { name = "trail-card-symbol" };
+            _trailCardSymbol.AddToClassList("mp-title");
+            _trailCardSymbol.style.marginRight = 6;
+            head.Add(_trailCardSymbol);
             _trailCardName = new Label { name = "trail-card-name", tooltip = "Rename (F2)" };
             _trailCardName.AddToClassList("mp-title");
             _trailCardName.AddToClassList("tw__name--edit");
@@ -151,15 +156,14 @@ namespace MountainPlanner.UI
         public Func<ulong, string, string> TrailRenamed;
         TextField _trailCardField;
 
-        // Sections finding 3: the card's name becomes a text field (the name alone, without its symbol); Enter or a click
-        // elsewhere keeps it, Esc puts the old one back.
+        // Sections finding 3: the card's name becomes a text field in its place (finding 8), its symbol kept beside it; Enter
+        // or a click elsewhere keeps it, Esc puts the old one back.
         void RenameTrailCard()
         {
             if (_trailCardId == 0 || TrailRenamed == null || !_trailRows.TryGetValue(_trailCardId, out var row)) return;
             if (_trailCardField == null)
             {
                 _trailCardField = new TextField { name = "trail-card-name-field", maxLength = Domain.Design.DesignRules.NameMaxLength };
-                _trailCardField.AddToClassList("tw__namefield");
                 _trailCardField.RegisterCallback<KeyDownEvent>(e =>
                 {
                     if (e.keyCode == UnityEngine.KeyCode.Return || e.keyCode == UnityEngine.KeyCode.KeypadEnter) { EndRenameTrailCard(true); e.StopPropagation(); }
@@ -169,8 +173,7 @@ namespace MountainPlanner.UI
             }
             if (_trailCardField.parent != null) return;
             _trailCardField.SetValueWithoutNotify(row.Name);
-            _trailCardName.parent.Insert(_trailCardName.parent.IndexOf(_trailCardName) + 1, _trailCardField);
-            _trailCardName.AddToClassList("hidden");
+            InlineName.Open(_trailCardName, _trailCardField);
             _trailCardField.schedule.Execute(() => { _trailCardField.Focus(); _trailCardField.SelectAll(); });
         }
 
@@ -193,7 +196,9 @@ namespace MountainPlanner.UI
         void FillTrailCard()
         {
             if (!_trailRows.TryGetValue(_trailCardId, out var t)) return;
-            _trailCardName.text = $"{SymbolOf(t.RatingPercent)}  {t.Name}";
+            _trailCardSymbol.text = SymbolOf(t.RatingPercent);
+            _trailCardSymbol.EnableInClassList("hidden", _trailCardSymbol.text.Length == 0);
+            _trailCardName.text = t.Name;
             _trailCardKv.Clear();
             void Kv(string k, string v)
             {
