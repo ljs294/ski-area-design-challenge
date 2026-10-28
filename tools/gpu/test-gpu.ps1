@@ -184,13 +184,9 @@ try {
     Write-Host 'Ctrl+C stops the command and frees the slot'
     # Its own (hidden) console, as a run in a terminal window has; a helper attaches to that console and sends the
     # keyboard's Ctrl+C to everything on it (task P3-01; the hand check #76 left).
-    $a = Get-GpuArgs 'run' @('-Lane', 'measure', '-Name', 'ctrl-c', '--', 'ping.exe', '-n', '120', '127.0.0.1')
-    $cc = Start-Process -FilePath 'powershell' -ArgumentList $a -PassThru -WindowStyle Hidden
-    $script:Launched += $cc
-    [void](Wait-For { param($s) @($s.holders | Where-Object { $_.name -eq 'ctrl-c' -and $_.childPid }).Count -gt 0 } 'ctrl-c child started')
-    $ccChild = [int]@((Get-State).holders | Where-Object { $_.name -eq 'ctrl-c' })[0].childPid
-    $sender = Join-Path $Root 'send-ctrl-c.ps1'
-    Set-Content -Path $sender -Encoding UTF8 -Value @'
+    # Windows hands "Ctrl+C ignored" down to child processes, and agent shells start with it set (a terminal doesn't):
+    # the run is started through a wrapper that clears it first, as a terminal window would have it.
+    $console32 = @'
 Add-Type -TypeDefinition @"
 using System; using System.Runtime.InteropServices;
 public static class Console32 {
@@ -200,19 +196,37 @@ public static class Console32 {
   [DllImport("kernel32.dll")] public static extern bool GenerateConsoleCtrlEvent(uint ev, uint group);
 }
 "@
+
+'@
+    $terminal = Join-Path $Root 'as-terminal.ps1'
+    Set-Content -Path $terminal -Encoding UTF8 -Value ($console32 + @'
+[Console32]::SetConsoleCtrlHandler([IntPtr]::Zero, $false) | Out-Null
+$rest = @($args | Select-Object -Skip 1)
+& $args[0] @rest
+exit $LASTEXITCODE
+'@)
+    $a = (Get-GpuArgs 'run' @('-Lane', 'measure', '-Name', 'ctrl-c', '--', 'ping.exe', '-n', '120', '127.0.0.1')) -replace '-File ', ('-File ' + (Quote $terminal) + ' ')
+    $cc = Start-Process -FilePath 'powershell' -ArgumentList $a -PassThru -WindowStyle Hidden
+    $script:Launched += $cc
+    [void](Wait-For { param($s) @($s.holders | Where-Object { $_.name -eq 'ctrl-c' -and $_.childPid }).Count -gt 0 } 'ctrl-c child started')
+    $ccChild = [int]@((Get-State).holders | Where-Object { $_.name -eq 'ctrl-c' })[0].childPid
+    $sender = Join-Path $Root 'send-ctrl-c.ps1'
+    Set-Content -Path $sender -Encoding UTF8 -Value ($console32 + @'
 [Console32]::FreeConsole() | Out-Null
 if (-not [Console32]::AttachConsole([uint32]$args[0])) { exit 3 }
 [Console32]::SetConsoleCtrlHandler([IntPtr]::Zero, $true) | Out-Null   # the helper itself ignores it
 if (-not [Console32]::GenerateConsoleCtrlEvent(0, 0)) { exit 4 }
 Start-Sleep -Milliseconds 500
 exit 0
-'@
+'@)
     $send = Start-Process powershell -PassThru -Wait -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $sender, $cc.Id)
     Check ($send.ExitCode -eq 0) "Ctrl+C sent to the run's console (helper exit $($send.ExitCode))"
     $ccDone = $cc.WaitForExit(10000)
     Check $ccDone 'the run ends on Ctrl+C'
     Check (-not (Get-Process -Id $ccChild -ErrorAction SilentlyContinue)) 'its command stopped too'
     Check (@((Get-State).holders | Where-Object { $_.name -eq 'ctrl-c' }).Count -eq 0) 'and its slot is free'
+    # A run that missed its Ctrl+C would hold the measure slot and fail every check after it.
+    if (-not $ccDone) { & taskkill.exe /T /F /PID $cc.Id 2>$null | Out-Null; [void]$cc.WaitForExit(5000) }
 
     Write-Host 'Timeout while waiting'
     $hold = Start-Run 'measure' 'hold' 6000
@@ -237,7 +251,7 @@ exit 0
     Check ($r.code -eq 0) 'an old owner.txt with none of the processes running is ignored'
     Check (Test-Path $Legacy) 'the old lock folder is left alone'
 } finally {
-    foreach ($p in $script:Launched) { if (-not $p.HasExited) { & taskkill.exe /T /F /PID $p.Id 2>$null | Out-Null } }
+    foreach ($p in $script:Launched) { if (-not $p.HasExited) { try { & taskkill.exe /T /F /PID $p.Id 2>$null | Out-Null } catch { } } }   # it may exit meanwhile
     Start-Sleep -Milliseconds 300
     Remove-Item -Recurse -Force $Root -ErrorAction SilentlyContinue
 }
