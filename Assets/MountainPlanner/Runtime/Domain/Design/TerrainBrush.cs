@@ -80,6 +80,13 @@ namespace MountainPlanner.Domain.Design
         PointRect _dirty = PointRect.Empty;
 
         int _dabCount;
+        // The running bill (TB-09, BR14), kept as each point moves so the pane never rescans the stroke: cut and fill
+        // against the ground before the stroke, whole mm over 1 m² points, and the cells it clears (TB-10), each cell
+        // holding how many of its corners moved a foot or more.
+        long _cutMm, _fillMm;
+        int _clearedCells;
+        readonly Dictionary<EditTileKey, byte[]> _cellCorners = new Dictionary<EditTileKey, byte[]>();
+        LiveView _live;
         // The slope's line (TB-07, BR16): its start in lattice metres and the run to the target.
         readonly double _ax, _ay, _vx, _vy, _len2;
 
@@ -230,7 +237,13 @@ namespace MountainPlanner.Domain.Design
             if (h > high) { h = high; _held.Add(p.HighHold[at]); }
             else if (h < low) { h = low; _held.Add(p.LowHold[at]); }
             int nd = checked((int)(h - s));
-            if (nd == p.D[at]) return;
+            int od = p.D[at];
+            if (nd == od) return;
+            long was = (long)od - p.D0[at], now = (long)nd - p.D0[at];
+            _cutMm += Math.Max(0, -now) - Math.Max(0, -was);
+            _fillMm += Math.Max(0, now) - Math.Max(0, was);
+            bool clearedWas = Math.Abs(was) >= TerrainBrush.ClearMm, clearedNow = Math.Abs(now) >= TerrainBrush.ClearMm;
+            if (clearedWas != clearedNow) Corners(c, r, clearedNow ? 1 : -1);
             p.D[at] = nd;
             p.Dirty = true;
             _dirty = _dirty.Include(c, r);
@@ -322,7 +335,6 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         public TerrainEdits Preview(TerrainEdits under)
         {
-            var cleared = ClearedCells();
             var builders = new SortedDictionary<EditTileKey, TerrainEditTile.Builder>();
             TerrainEditTile.Builder For(EditTileKey key)
             {
@@ -335,10 +347,14 @@ namespace MountainPlanner.Domain.Design
                 for (int at = 0; at < Count; at++)
                     if (p.D[at] != p.D0[at]) (b ??= For(p.Key)).SetDeltaMm(at % Side, at / Side, p.D[at]);
             }
-            foreach (var (c, r) in cleared)
+            // TB-10: the cells ClearedCells lists, read from the running corner counts (a cell counts while any corner has
+            // moved a foot, never one cleared already), so letting go doesn't rescan the stroke.
+            foreach (var kv in _cellCorners)
             {
-                var key = EditTileKey.Of(c, r);
-                For(key).SetCleared(c - key.FirstColumn, r - key.FirstRow, true);
+                var counts = kv.Value;
+                TerrainEditTile.Builder b = null;
+                for (int at = 0; at < Count; at++)
+                    if (counts[at] != 0) (b ??= For(kv.Key)).SetCleared(at % Side, at / Side, true);
             }
             var tiles = new List<TerrainEditTile>(builders.Count);
             foreach (var b in builders.Values) tiles.Add(b.Build());
@@ -348,38 +364,54 @@ namespace MountainPlanner.Domain.Design
         /// <summary>TB-09: the stroke's cut and fill against the ground before it, m³ (1 m² a lattice point).</summary>
         public void Volumes(out double cutCubicMetres, out double fillCubicMetres)
         {
-            long cut = 0, fill = 0;
-            foreach (var p in _patches.Values)
-                for (int at = 0; at < Count; at++)
-                {
-                    long d = (long)p.D[at] - p.D0[at];
-                    if (d < 0) cut -= d; else fill += d;
-                }
-            cutCubicMetres = cut / 1000.0;
-            fillCubicMetres = fill / 1000.0;
+            cutCubicMetres = _cutMm / 1000.0;
+            fillCubicMetres = _fillMm / 1000.0;
         }
 
-        /// <summary>TB-09: how many cells the stroke clears.</summary>
-        public int ClearedCount
+        /// <summary>TB-09: how many cells the stroke clears (the cells of <see cref="Writes"/>' clearing, counted as it goes).</summary>
+        public int ClearedCount => _clearedCells;
+
+        // A point's move crossed TB-10's foot: the four cells it's a corner of gain or lose a corner, and a cell not cleared
+        // already counts while any of its corners has.
+        void Corners(int c, int r, int step)
         {
-            get
+            for (int dr = -1; dr <= 0; dr++)
+                for (int dc = -1; dc <= 0; dc++)
+                {
+                    int cc = c + dc, cr = r + dr;
+                    if (_ground.Edits.IsClearedAt(cc, cr)) continue;
+                    var key = EditTileKey.Of(cc, cr);
+                    if (!_cellCorners.TryGetValue(key, out var counts)) _cellCorners[key] = counts = new byte[Count];
+                    int at = (cr - key.FirstRow) * Side + (cc - key.FirstColumn);
+                    int was = counts[at];
+                    counts[at] = (byte)(was + step);
+                    if (was == 0) _clearedCells++;
+                    else if (was + step == 0) _clearedCells--;
+                }
+        }
+
+        /// <summary>
+        /// The ground with this stroke on it so far, point by point (the live upload, TB-08): at every lattice point exactly
+        /// <c>Preview(under)</c>'s change, where <c>under</c> is the ground this run was given, with no tiles built.
+        /// Reads the run as it stands; valid until the next dab. Same thread as the dabs.
+        /// </summary>
+        public IPointDeltas Live => _live ??= new LiveView(this);
+
+        sealed class LiveView : IPointDeltas
+        {
+            readonly BrushRun _run;
+            Patch _last;
+
+            public LiveView(BrushRun run) { _run = run; }
+
+            public int DeltaMmAt(int pointColumn, int pointRow)
             {
-                // The same cells as ClearedCells, counted into one reused set: the running bill asks for it while you drag.
-                _countCells.Clear();
-                foreach (var p in _patches.Values)
-                    for (int at = 0; at < Count; at++)
-                    {
-                        if (Math.Abs((long)p.D[at] - p.D0[at]) < TerrainBrush.ClearMm) continue;
-                        int c = p.Key.FirstColumn + at % Side, r = p.Key.FirstRow + at / Side;
-                        for (int dr = -1; dr <= 0; dr++)
-                            for (int dc = -1; dc <= 0; dc++)
-                                if (!_ground.Edits.IsClearedAt(c + dc, r + dr)) _countCells.Add(((long)(r + dr) << 32) | (uint)(c + dc));
-                    }
-                return _countCells.Count;
+                var key = EditTileKey.Of(pointColumn, pointRow);
+                if (_last == null || _last.Key != key) _run._patches.TryGetValue(key, out _last);
+                if (_last == null || _last.Key != key) return _run._ground.Edits.DeltaMmAt(pointColumn, pointRow);
+                return _last.D[(pointRow - key.FirstRow) * Side + (pointColumn - key.FirstColumn)];
             }
         }
-
-        readonly HashSet<long> _countCells = new HashSet<long>();
 
         /// <summary>Rounds n / d half away from zero (d &gt; 0).</summary>
         internal static long RoundDiv(long n, long d) => n >= 0 ? (n + d / 2) / d : -((-n + d / 2) / d);

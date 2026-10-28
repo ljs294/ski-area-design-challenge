@@ -385,14 +385,18 @@ ground round lifts.
   ● under 25%, ■ 25–40%, ◆ 40–60%, ◆◆ 60% and up). Going over a ramp again keeps the same ramp, and a stroke started
   where one ended carries it on. A target far from the ground makes a cut or fill as deep as the limits allow, with
   steep side walls: the brush does what it's told, as CS2's does (BR14).
-- **TB-08, the session:** strokes stay pending while the ground moves live (BR5). The four Terrain brushes share one
-  session: switching between them keeps the pending strokes, the bill and the target (BR15). Ctrl+Z takes back the last pending
-  stroke; **Break ground** (Enter) opens the review and its Confirm puts every pending stroke in as one command and
-  one undo step. Esc or ✕ with strokes pending asks first (CF-06) and puts the ground back.
-- **TB-09, the review:** cut, fill and the net import or export (yd³; m³ in metric), trees cleared, every tower whose
-  height changes ("Tower 7: 45 → 52 ft"), and where the brush was held (TB-11 to TB-13). No money until Phase 4.
-  While painting, the pane's running bill counts the stroke in hand too: cut, fill, trees cleared and holds update
-  about five times a second as you drag (BR14).
+- **TB-08, the session (v2, BR17, BR18):** a session runs from opening a Terrain brush to closing it; the ground moves
+  live (BR5) and what you see is the edit. The four Terrain brushes share the session: switching between them keeps
+  its strokes, the bill and the target (BR15). Ctrl+Z takes back the last press-to-release (a long drag stored as
+  several strokes is one), never past the session's start. **Confirm** (Enter) puts every stroke of the session in as
+  one command and one undo step, with no review page, and the tool stays open on a fresh session; **Revert** puts the
+  session's ground back. Esc, ✕ or another kind of tool with ground not yet confirmed asks **Confirm / Revert / Keep
+  painting**; closes the game makes on its own (photo mode, the title, the Toolbox closing) revert, with a notice.
+- **TB-09, the bill (v2, BR19):** the pane counts the session's cut, fill and the net import or export (yd³; m³ in
+  metric), trees cleared and where the brush was held (TB-11 to TB-13), with the stroke in hand, about five times a
+  second as you drag (BR14). Confirm names every tower whose height changed ("Tower 7: 45 → 52 ft") in its notice,
+  and is when the player is charged: the session's volumes go to one charge point that the Phase 4 economy prices.
+  No money until Phase 4.
 - **TB-10, limits:** brushes work only inside the area's core; no point moves more than **40 ft (12.2 m)** from
   natural ground, and a deeper existing cut is never pulled back; a cell a stroke moves **1 ft or more** is cleared of
   trees. Snow, slope and contours follow the new ground; there is no separate brushed look.

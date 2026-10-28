@@ -706,7 +706,7 @@ namespace MountainPlanner.App
             public double ContourInterval => UnitFormat.ContourIntervalMetres(DisplayUnits.Current);
 
             // ---------- task 15: the live ground and contours while brushing ----------
-            public void Live(TerrainEdits preview, PointRect dirty) => _viewer._edits?.Pipeline.ApplyLive(preview, dirty);
+            public void Live(IPointDeltas ground, PointRect dirty) => _viewer._edits?.Pipeline.ApplyLive(ground, dirty);
             public void Show(TerrainEdits edits)
             {
                 var edits0 = _viewer._edits;

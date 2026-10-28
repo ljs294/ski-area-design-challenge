@@ -31,8 +31,11 @@ namespace MountainPlanner.UI.Tools
     /// </summary>
     public interface ILiveGround
     {
-        /// <summary>This frame's heights over <paramref name="dirty"/> (lattice points) from <paramref name="preview"/>.</summary>
-        void Live(TerrainEdits preview, PointRect dirty);
+        /// <summary>
+        /// This frame's heights over <paramref name="dirty"/> (lattice points) from <paramref name="ground"/>: the stroke in
+        /// hand (<see cref="BrushRun.Live"/>), or a set of edits to put back.
+        /// </summary>
+        void Live(IPointDeltas ground, PointRect dirty);
         /// <summary>Lays <paramref name="edits"/> over the mountain in full (a finished stroke, or the committed ground again).</summary>
         void Show(TerrainEdits edits);
         /// <summary>BR13: the Contours layer on while a brush is armed; off puts back what the player had.</summary>

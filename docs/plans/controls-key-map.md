@@ -117,8 +117,8 @@ Live while a tool is armed, which happens only with the tray open. All rebindabl
 | , / . | Terrain brushes: strength 5% weaker / stronger (TB-02) |
 | Page Up / Page Down (Shift: 10 ft) | Flatten and Slope: the target elevation up or down 1 ft (TB-05, TB-07) |
 | Right-click / right-drag | Terrain brushes own the right button while armed (owner BR4): Raise/Lower lowers, Flatten and Slope take the target under the pointer; WASD, the arrows and middle-drag still move the view |
-| Enter | Terrain brushes: Break ground opens the review; in the review, Confirm (TB-08) |
-| Ctrl+Z | Terrain brushes: take back the last pending stroke (TB-08) |
+| Enter | Terrain brushes: Confirm the session's ground (TB-08 v2, BR17) |
+| Ctrl+Z | Terrain brushes: take back the last press-to-release of the session, never past its start (TB-08 v2) |
 
 ## Removed from the keyboard
 

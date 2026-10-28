@@ -15,9 +15,10 @@ using UnityEngine.TestTools;
 namespace MountainPlanner.Tests
 {
     /// <summary>
-    /// The Terrain tab's brushes (task 15, TB-01 to TB-14) through the real tool host, over a fake ground: the right button,
-    /// the live ground and its catch-up, the pending session, the review folded through the earthwork, Confirm as one undo
-    /// step, and the contours while armed (BR13). The local frame's origin is the lattice's site centre.
+    /// The Terrain tab's brushes (task 15, TB-01 to TB-14, BR17 to BR19) through the real tool host, over a fake ground: the
+    /// right button, the live ground and its catch-up, the session with Ctrl+Z, Confirm folded through the earthwork as one
+    /// undo step and charged, Revert, the close ask, and the contours while armed (BR13). The local frame's origin is the
+    /// lattice's site centre.
     /// </summary>
     public sealed class TerrainBrushToolTests
     {
@@ -60,7 +61,7 @@ namespace MountainPlanner.Tests
             public int LiveCalls, ShowCalls;
             public TerrainEdits Shown;
             public bool? Contours;
-            public void Live(TerrainEdits preview, PointRect dirty) { LiveCalls++; }
+            public void Live(IPointDeltas ground, PointRect dirty) { LiveCalls++; }
             public void Show(TerrainEdits edits) { ShowCalls++; Shown = edits; }
             public void ContoursWhileArmed(bool armed) => Contours = armed;
             public double LastLiveMs => 0;
@@ -137,7 +138,7 @@ namespace MountainPlanner.Tests
             Assert.That(DeltaAt(tool.PendingGround, 0, 0), Is.GreaterThan(0), "left raised");
             Stroke(-20, 20, 60, right: true);
             Assert.That(DeltaAt(tool.PendingGround, 0, 60), Is.LessThan(0), "right lowered");
-            Assert.That(_history.Document.Strokes, Is.Empty, "nothing goes in before Confirm (BR7)");
+            Assert.That(_history.Document.Strokes, Is.Empty, "nothing goes in before Confirm (BR17)");
         }
 
         [Test]
@@ -146,6 +147,7 @@ namespace MountainPlanner.Tests
             _host.Choose(TerrainIds.Raise);
             var tool = (TerrainBrushTool)_host.Active;
             Assert.That(tool.Bill.Rows, Is.Empty, "no bill before the first stroke");
+            Assert.That(tool.Bill.CanBreakGround, Is.False, "Confirm waits for a stroke");
             _host.Tick(At(0, 0, left: true, click: true));
             var seen = new List<string>();
             for (int t = 0; t < 45; t++)
@@ -154,15 +156,16 @@ namespace MountainPlanner.Tests
                 string v = tool.Bill.Rows.Count > 0 ? tool.Bill.Rows[0].Value : null;
                 if (v != null && (seen.Count == 0 || seen[seen.Count - 1] != v)) seen.Add(v);
             }
-            Assert.That(tool.Pending, Is.EqualTo(0), "still held: nothing pending yet");
+            Assert.That(tool.Pending, Is.EqualTo(0), "still held: nothing in the session yet");
             Assert.That(seen.Count, Is.GreaterThanOrEqualTo(3), "the cut · fill figure moves several times mid-drag: " + string.Join(", ", seen));
             _host.Tick(At(0, 0, left: true, release: true));
             Assert.That(tool.Pending, Is.EqualTo(1));
-            Assert.That(tool.Bill.Rows[0].Label, Is.EqualTo("Cut · fill"), "the bill stays once the stroke is pending");
+            Assert.That(tool.Bill.Rows[0].Label, Is.EqualTo("Cut · fill"), "the bill stays once the stroke is down");
+            Assert.That(tool.Bill.CanBreakGround && tool.Bill.CanSavePlan, Is.True, "BR17: Confirm and Revert go live");
         }
 
         [Test]
-        public void BR15_SwitchingBrushesKeepsThePendingStrokes()
+        public void BR15_SwitchingBrushesKeepsTheSession()
         {
             string notice = null;
             _host.Notice += s => notice = s;
@@ -180,8 +183,6 @@ namespace MountainPlanner.Tests
             Assert.That(smooth.Bill.Rows[0].Label, Is.EqualTo("Cut · fill"), "one bill for both");
             _host.Tick(At(0, 0, keys: ToolKeys.UndoStroke));
             Assert.That(smooth.Pending, Is.EqualTo(1), "Ctrl+Z takes back across brushes");
-            _host.Choose(NewLiftTool.ToolId);
-            Assert.That(notice, Does.Contain("discarded"), "another kind of tool still discards (P3-06 Q8)");
         }
 
         [Test]
@@ -207,37 +208,84 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void TB08_CtrlZTakesBackTheLastPendingStroke()
+        public void TB08_CtrlZTakesBackOnePressAndStopsAtTheSessionStart()
         {
             _host.Choose(TerrainIds.Raise);
             var tool = (TerrainBrushTool)_host.Active;
+            var bill0 = tool.Bill.Rows.Count;
             Stroke(-20, 20, 0, right: false);
             var one = tool.PendingGround;
+            string billOne = tool.Bill.Rows[0].Value;
             Stroke(-20, 20, 0, right: false);
             _host.Tick(At(0, 0, keys: ToolKeys.UndoStroke));
             Assert.That(tool.Pending, Is.EqualTo(1));
-            Assert.That(TerrainEdits.Changed(one, tool.PendingGround), Is.Empty, "the same bytes as before the second stroke");
+            Assert.That(tool.PendingGround, Is.SameAs(one), "the very ground before the second press");
+            Assert.That(_ground.Shown, Is.SameAs(one), "and it's what the map shows");
+            Assert.That(tool.Bill.Rows[0].Value, Is.EqualTo(billOne), "the bill goes back too");
+            _host.Tick(At(0, 0, keys: ToolKeys.UndoStroke));
+            Assert.That(tool.Pending, Is.EqualTo(0));
+            Assert.That(_ground.Shown, Is.SameAs(_history.Terrain), "back to the session's start");
+            long revision = _history.Revision;
+            _host.Tick(At(0, 0, keys: ToolKeys.UndoStroke));
+            Assert.That(_history.Revision, Is.EqualTo(revision), "never past the session's start (BR17)");
+            Assert.That(tool.Bill.Rows.Count, Is.EqualTo(bill0));
+        }
+
+        [Test]
+        public void TB08_ALongDragIsOneCtrlZ()
+        {
+            _host.Choose(TerrainIds.Raise);
+            var tool = (TerrainBrushTool)_host.Active;
+            tool.SetBrush(10, 50);
+            // A drag long enough to carry on as several strokes (TB-14), then one Ctrl+Z.
+            _host.Tick(At(-40, 0, left: true, click: true));
+            int ticks = DesignRules.MaxDabsPerStroke + 40;
+            for (int t = 1; t <= ticks; t++) _host.Tick(At(-40 + 80f * t / ticks, 0, left: true));
+            _host.Tick(At(40, 0, left: true, release: true));
+            Assert.That(tool.Pending, Is.GreaterThan(1), "stored as several strokes");
+            _host.Tick(At(0, 0, keys: ToolKeys.UndoStroke));
+            Assert.That(tool.Pending, Is.EqualTo(0), "one press, one Ctrl+Z");
+        }
+
+        sealed class Charges : IEarthworkCharges
+        {
+            public readonly List<EarthworkBill> Bills = new List<EarthworkBill>();
+            public void Charge(in EarthworkBill bill) => Bills.Add(bill);
+        }
+
+        IEnumerator WhileConfirming(TerrainBrushTool tool)
+        {
+            var started = System.Diagnostics.Stopwatch.StartNew();   // the fold runs off the main thread
+            while (tool.Confirming && started.Elapsed.TotalSeconds < 60) { _host.Tick(default); yield return null; }
+            _host.Tick(default);
+            Assert.That(tool.Confirming, Is.False, "Confirm landed");
         }
 
         [UnityTest]
-        public IEnumerator TB08_ConfirmPutsTheSessionInAsOneStepWithTheGroundThePlayerSaw()
+        public IEnumerator BR17_ConfirmPutsTheSessionInAsOneStepAndChargesForIt()
         {
             _host.Choose(TerrainIds.Flatten);
             var tool = (TerrainBrushTool)_host.Active;
+            var charges = new Charges();
+            _host.Context.Charges = charges;
             _host.Tick(At(0, 50, right: true, click: true));   // the target: the ground 50 m north
             _host.Tick(At(0, 50, right: true, release: true));
             Stroke(-30, 30, 0, right: false, hold: 40);
             Stroke(-30, 30, 20, right: false, hold: 40);
             var seen = tool.PendingGround;
-            _host.Tick(At(0, 0, keys: ToolKeys.Next));
-            var started = System.Diagnostics.Stopwatch.StartNew();   // the review works off the main thread
-            while (!tool.ReviewReady && started.Elapsed.TotalSeconds < 60) { _host.Tick(default); yield return null; }
-            Assert.That(tool.ReviewReady, Is.True, "the review worked out");
+            int shows = _ground.ShowCalls;
             long revision = _history.Revision;
-            var result = _host.Confirm(WorkStage.Built);
-            Assert.That(result != null && result.Accepted, Is.True, result?.Reason);
+            _host.Tick(At(0, 0, keys: ToolKeys.Next));   // Enter: Confirm, no review page
+            Assert.That(tool.Confirming, Is.True);
+            yield return WhileConfirming(tool);
             Assert.That(_history.Document.Strokes.Count, Is.EqualTo(2));
-            Assert.That(TerrainEdits.Changed(seen, _history.Terrain), Is.Empty, "TB-14: confirmed is what was seen");
+            Assert.That(_history.Terrain, Is.SameAs(seen), "TB-14: what was seen is what's confirmed, the very set, so nothing re-applies");
+            Assert.That(_ground.ShowCalls, Is.EqualTo(shows), "the map doesn't move");
+            Assert.That(charges.Bills.Count, Is.EqualTo(1), "BR19: charged once, at Confirm");
+            Assert.That(charges.Bills[0].Strokes, Is.EqualTo(2));
+            Assert.That(charges.Bills[0].CutCubicMetres + charges.Bills[0].FillCubicMetres, Is.GreaterThan(0));
+            Assert.That(tool.Pending, Is.EqualTo(0), "a fresh session");
+            Assert.That(_host.Armed, Is.True, "the tool stays open (P3-06 Q4)");
             Assert.That(_history.Undo(), Is.True);
             Assert.That(_history.Document.Strokes, Is.Empty, "one undo takes the whole session back");
             Assert.That(_history.Terrain.IsEmpty, Is.True);
@@ -245,14 +293,86 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void CF06_ClosingWithStrokesPendingPutsTheCommittedGroundBack()
+        public void BR17_RevertPutsTheSessionsGroundBack()
         {
+            _host.Choose(TerrainIds.Raise);
+            var tool = (TerrainBrushTool)_host.Active;
+            var charges = new Charges();
+            _host.Context.Charges = charges;
+            Stroke(-20, 20, 0, right: false);
+            Stroke(-20, 20, 30, right: true);
+            long revision = _history.Revision;
+            _host.Confirm(WorkStage.Plan);   // the pane's second button: Revert
+            Assert.That(tool.Pending, Is.EqualTo(0));
+            Assert.That(_ground.Shown, Is.SameAs(_history.Terrain), "the ground before the session");
+            Assert.That(_history.Revision, Is.EqualTo(revision), "nothing reaches the design");
+            Assert.That(charges.Bills, Is.Empty, "or the bill");
+            Assert.That(_host.Armed, Is.True);
+        }
+
+        [Test]
+        public void BR18_ClosingAsksAndEscKeepsPainting()
+        {
+            _host.Choose(TerrainIds.Raise);
+            var tool = (TerrainBrushTool)_host.Active;
+            Stroke(-20, 20, 0, right: false);
+            Assert.That(_host.Escape(), Is.True);
+            Assert.That(tool.Asking, Is.True, "Esc with ground not confirmed asks");
+            Assert.That(_host.Armed, Is.True);
+            _host.Escape();
+            Assert.That(tool.Asking, Is.False, "Esc again: keep painting");
+            Assert.That(_host.Armed, Is.True);
+            Assert.That(tool.Pending, Is.EqualTo(1), "nothing lost");
+            _host.Choose(TerrainIds.Raise);   // its own tile again closes: asks too
+            Assert.That(tool.Asking && _host.Armed, Is.True);
+            Stroke(-20, 20, 40, right: false);
+            Assert.That(tool.Asking, Is.False, "painting again answers it");
+            Assert.That(tool.Pending, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void BR18_RevertOnTheAskThenGoes()
+        {
+            string notice = null;
+            _host.Notice += s => notice = s;
+            _host.Choose(TerrainIds.Raise);
+            Stroke(-20, 20, 0, right: false);
+            Assert.That(_host.Choose(NewLiftTool.ToolId), Is.False, "another kind of tool asks first");
+            Assert.That(((TerrainBrushTool)_host.Active).Asking, Is.True);
+            Assert.That(notice, Is.Null, "nothing discarded");
+            _host.Confirm(WorkStage.Plan);   // Revert
+            Assert.That(_host.ActiveId, Is.EqualTo(NewLiftTool.ToolId), "then the lift tool opens");
+            Assert.That(_ground.Shown, Is.SameAs(_history.Terrain), "on the ground as it was");
+            Assert.That(_history.Document.Strokes, Is.Empty);
+        }
+
+        [UnityTest]
+        public IEnumerator BR18_ConfirmOnTheAskThenCloses()
+        {
+            _host.Choose(TerrainIds.Raise);
+            var tool = (TerrainBrushTool)_host.Active;
+            Stroke(-20, 20, 0, right: false);
+            _host.Escape();
+            Assert.That(tool.Asking, Is.True);
+            _host.Tick(At(0, 0, keys: ToolKeys.Next));   // Enter: Confirm
+            var started = System.Diagnostics.Stopwatch.StartNew();
+            while (_host.Armed && started.Elapsed.TotalSeconds < 60) { _host.Tick(default); yield return null; }
+            Assert.That(_host.Armed, Is.False, "closed once the ground went in");
+            Assert.That(_history.Document.Strokes.Count, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BR18_AClosingTheGameMakesRevertsWithANotice()
+        {
+            string notice = null;
+            _host.Notice += s => notice = s;
             _host.Choose(TerrainIds.Raise);
             Stroke(-20, 20, 0, right: false);
             int shows = _ground.ShowCalls;
-            _host.Close();
+            _host.Close();   // photo mode, the title, the Toolbox closing
             Assert.That(_ground.ShowCalls, Is.EqualTo(shows + 1));
             Assert.That(_ground.Shown, Is.SameAs(_history.Terrain), "back to the committed ground");
+            Assert.That(notice, Does.Contain("reverted"));
         }
     }
 }

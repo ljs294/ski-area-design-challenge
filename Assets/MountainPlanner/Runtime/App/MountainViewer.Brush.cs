@@ -12,10 +12,10 @@ namespace MountainPlanner.App
     /// <summary>
     /// The terrain brush's captures and bench (task 15, demo.bat 73b and 73m), on Jackson Hole 2 km's sidehill:
     /// <c>-brushtour &lt;folder&gt;</c> builds a quad, then uses each brush beside and under it (Raise/Lower at the bottom
-    /// terminal and under the line, Flatten for a junction, Smooth, Slope for a cat track), shooting each mid-stroke, at its
-    /// review and confirmed; with <c>-brushmovie</c> it also saves every frame (15 a second) for
+    /// terminal and under the line, Flatten for a junction, Smooth with a Revert, Slope for a cat track closed through the
+    /// Confirm / Revert ask; BR17, BR18), shooting each mid-stroke, pending and confirmed; with <c>-brushmovie</c> it also saves every frame (15 a second) for
     /// PickerLabSetup.EncodeMovies; <c>-brushat dx,dz</c> moves the whole tour (metres) to check a second spot. <c>-brushbench &lt;out.json&gt;</c> times the live ground while dragging a 60 ft and a 400 ft
-    /// brush, the review and the confirm. Captures never open or save the player's saves (AppFlow CaptureRun).
+    /// brush, each frame in its parts (demo 75), the frames after letting go and the confirm. Captures never open or save the player's saves (AppFlow CaptureRun).
     /// </summary>
     public sealed partial class MountainViewer
     {
@@ -94,9 +94,11 @@ namespace MountainPlanner.App
             Debug.Log("[BrushTour] " + path);
         }
 
-        IEnumerator BrushWaitReview(TerrainBrushTool tool)
+        // Confirm (BR17): the session folds and goes in; no review page.
+        IEnumerator BrushConfirm(TerrainBrushTool tool)
         {
-            for (int i = 0; i < 3000 && !tool.ReviewReady; i++) { _tools.Tick(default); yield return BrushFrame(); }
+            _tools.Confirm(WorkStage.Built);
+            for (int i = 0; i < 3000 && (tool.Confirming || EditsBusy); i++) { _tools.Tick(default); yield return BrushFrame(); }
         }
 
         // The quad the brushes work round, built through the history and the earthwork as the lift tool builds one.
@@ -166,10 +168,8 @@ namespace MountainPlanner.App
             BrushLook(new Vector2(228, -560), 260);
             yield return BrushDrag(new Vector2(190, -560), new Vector2(265, -560), right: false, 0.8f, 30, dir, "2-raise-live");
             yield return BrushShot(dir, "3-raise-pending");
-            _tools.Tick(new ToolInput { Keys = ToolKeys.Next });
-            yield return BrushWaitReview(tool);
-            yield return BrushShot(dir, "4-raise-review");
-            _tools.Confirm(WorkStage.Built);
+            yield return BrushConfirm(tool);
+            yield return BrushShot(dir, "4-raise-confirmed");
             for (int i = 0; i < 30; i++) yield return BrushFrame();
 
             // Flatten: a junction's pad at the ground's height there.
@@ -181,10 +181,8 @@ namespace MountainPlanner.App
             _tools.Tick(BrushInput(at, right: true, click: true));
             _tools.Tick(BrushInput(at, right: true, release: true));
             yield return BrushDrag(new Vector2(290, -640), new Vector2(335, -600), right: false, 0.6f, 20, dir, "5-flatten-live");
-            _tools.Tick(new ToolInput { Keys = ToolKeys.Next });
-            yield return BrushWaitReview(tool);
-            yield return BrushShot(dir, "6-flatten-review");
-            _tools.Confirm(WorkStage.Built);
+            yield return BrushShot(dir, "6-flatten-pending");
+            yield return BrushConfirm(tool);
             for (int i = 0; i < 30; i++) yield return BrushFrame();
 
             // Smooth.
@@ -193,9 +191,12 @@ namespace MountainPlanner.App
             tool.SetBrush(200, 100);
             BrushLook(new Vector2(168, -480), 260);
             yield return BrushDrag(new Vector2(150, -500), new Vector2(185, -460), right: false, 0.5f, 30, dir, "7-smooth-live");
-            _tools.Tick(new ToolInput { Keys = ToolKeys.Next });
-            yield return BrushWaitReview(tool);
-            _tools.Confirm(WorkStage.Built);
+            // Revert (BR17): the session's ground goes back; then smooth again and confirm.
+            _tools.Confirm(WorkStage.Plan);
+            for (int i = 0; i < 20; i++) yield return BrushFrame();
+            yield return BrushShot(dir, "7b-smooth-reverted");
+            yield return BrushDrag(new Vector2(150, -500), new Vector2(185, -460), right: false, 0.5f, 30);
+            yield return BrushConfirm(tool);
             for (int i = 0; i < 30; i++) yield return BrushFrame();
 
             // Slope: a cat track down the sidehill to a target near the bottom; the grade follows from the two points (BR16).
@@ -207,13 +208,13 @@ namespace MountainPlanner.App
             _tools.Tick(BrushInput(target, right: true, click: true));
             _tools.Tick(BrushInput(target, right: true, release: true));
             yield return BrushDrag(new Vector2(300, -420), new Vector2(325, -720), right: false, 1.2f, 0, dir, "8-slope-live");
+            // BR18: closing with the slope not confirmed asks Confirm / Revert / Keep painting; Enter confirms, and the tool closes.
+            _tools.Escape();
+            yield return BrushShot(dir, "9-slope-ask");
             _tools.Tick(new ToolInput { Keys = ToolKeys.Next });
-            yield return BrushWaitReview(tool);
-            yield return BrushShot(dir, "9-slope-review");
-            _tools.Confirm(WorkStage.Built);
+            for (int i = 0; i < 3000 && _tools.Armed; i++) { _tools.Tick(default); yield return BrushFrame(); }
             for (int i = 0; i < 45; i++) yield return BrushFrame();
             _toolScripted = false;
-            _tools.Close();
             Hud.SetToolbox(false);
             BrushLook(new Vector2(235, -600), 640);
             yield return BrushShot(dir, "10-done");
@@ -225,11 +226,24 @@ namespace MountainPlanner.App
         [Serializable]
         public sealed class BrushBenchReport
         {
-            public string schema = "mountain-planner-brush-benchmark/1";
-            public string commit, measuredUtc, gpu, cpu;
-            public Timing live60, live400, frame60, frame400;
-            public double reviewMs, confirmMs;
+            public string schema = "mountain-planner-brush-benchmark/2";
+            public string commit, measuredUtc, gpu, cpu, site;
+            public BrushPass brush60, brush400;
+            /// <summary>From asking to confirm to the ground committed, ms (before BR17: Break ground's review, then Confirm).</summary>
+            public double reviewMs, confirmMs, toCommittedMs;
             public bool pass;
+        }
+
+        /// <summary>One drag (demo 75): the frame and each part of it, ms, and the frames just after letting go.</summary>
+        [Serializable]
+        public sealed class BrushPass
+        {
+            public int feet;
+            public Timing frame, gpu, live, dabs, preview, bill, sample, set, sync, release;
+            public long gcBytesPerFrame, gcBytesMaxFrame, gcFramesWithAllocations, heapGrowthBytes;
+            public int gcCollections;
+            /// <summary>Letting go: the stroke's tiles built and handed over on the main thread, ms.</summary>
+            public double finishMs, finishPreviewMs;
         }
 
         [Serializable]
@@ -248,7 +262,7 @@ namespace MountainPlanner.App
             if (Camera != null)
             {
                 Camera.InputEnabled = false;
-                var focus = new Vector2(240, -580);
+                var focus = new Vector2(240, -580) + _brushShift;
                 Camera.Frame(new Vector3(focus.x, _resort.Surface.HeightAt(focus.x, focus.y), focus.y), 900);
                 Camera.SetAngles(250, 45);
             }
@@ -260,51 +274,82 @@ namespace MountainPlanner.App
             _toolScripted = true;
             _tools.Choose(TerrainIds.Raise);
             var tool = (TerrainBrushTool)_tools.Active;
-            var live = Ground as ILiveGround;
-            var report = new BrushBenchReport();
+            var pipeline = _edits?.Pipeline;
+            var report = new BrushBenchReport { site = _brushShift == Vector2.zero ? "jh2km" : $"jh2km {_brushShift.x:F0},{_brushShift.y:F0}" };
+            var stats = new FrameStats(4096);
             for (int pass = 0; pass < 2; pass++)
             {
                 int feet = pass == 0 ? 60 : 400;
                 tool.SetBrush(feet, 60);
                 for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; }
-                var liveMs = new List<double>();
-                var frameMs = new List<double>();
+                var parts = new List<double>[9];
+                for (int k = 0; k < parts.Length; k++) parts[k] = new List<double>(256);
                 var a = new Vector2(120, -450 - pass * 150);
                 var b = new Vector2(360, -450 - pass * 150);
                 _tools.Tick(BrushInput(a, left: true, click: true));
                 yield return null;
+                stats.Reset();
                 int steps = 120;   // 4 s at 30 a second, 2 m a tick
                 for (int t = 1; t <= steps; t++)
                 {
                     _tools.Tick(BrushInput(Vector2.Lerp(a, b, t / (float)steps), left: true));
-                    liveMs.Add(live?.LastLiveMs ?? 0);
+                    var tick = tool.LastTick;
+                    parts[0].Add(pipeline?.LastLiveMs ?? 0);
+                    parts[1].Add(tick.Dabs);
+                    parts[2].Add(0);   // no Preview a frame since BrushRun.Live
+                    parts[3].Add(tick.Bill);
+                    parts[4].Add(pipeline?.LastLiveSampleMs ?? 0);
+                    parts[5].Add(pipeline?.LastLiveSetMs ?? 0);
+                    parts[6].Add(pipeline?.LastLiveSyncMs ?? 0);
                     yield return null;
-                    frameMs.Add(Time.unscaledDeltaTime * 1000);
+                    float gpu = FrameStats.SampleGpuMs();
+                    stats.Record(Time.unscaledDeltaTime, gpu);
+                    parts[7].Add(Time.unscaledDeltaTime * 1000);
+                    if (gpu > 0) parts[8].Add(gpu);
                 }
+                stats.Stop();
+                var release = new List<double>(30);
                 _tools.Tick(BrushInput(b, left: true, release: true));
-                for (int i = 0; i < 30; i++) yield return null;
-                if (pass == 0) { report.live60 = Summarise(liveMs); report.frame60 = Summarise(frameMs); }
-                else { report.live400 = Summarise(liveMs); report.frame400 = Summarise(frameMs); }
+                double finishMs = tool.LastFinishMs, finishPreviewMs = tool.LastFinishPreviewMs;
+                for (int i = 0; i < 30; i++) { yield return null; release.Add(Time.unscaledDeltaTime * 1000); }
+                var sum = stats.Summarise();
+                var bp = new BrushPass
+                {
+                    feet = feet, live = Summarise(parts[0]), dabs = Summarise(parts[1]), preview = Summarise(parts[2]), bill = Summarise(parts[3]),
+                    sample = Summarise(parts[4]), set = Summarise(parts[5]), sync = Summarise(parts[6]), frame = Summarise(parts[7]), gpu = Summarise(parts[8]),
+                    release = Summarise(release),
+                    gcBytesPerFrame = sum.gcBytesPerFrame, gcBytesMaxFrame = sum.gcBytesMaxFrame, gcFramesWithAllocations = sum.gcFramesWithAllocations,
+                    heapGrowthBytes = sum.heapGrowthBytes, gcCollections = sum.gcCollections, finishMs = finishMs, finishPreviewMs = finishPreviewMs,
+                };
+                if (pass == 0) report.brush60 = bp; else report.brush400 = bp;
             }
-            var watch = System.Diagnostics.Stopwatch.StartNew();
-            _tools.Tick(new ToolInput { Keys = ToolKeys.Next });
-            while (!tool.ReviewReady) { _tools.Tick(default); yield return null; }
-            report.reviewMs = watch.Elapsed.TotalMilliseconds;
-            watch.Restart();
-            _tools.Confirm(WorkStage.Built);
-            while (EditsBusy) yield return null;
-            report.confirmMs = watch.Elapsed.TotalMilliseconds;
+            stats.Dispose();
+            yield return BenchConfirm(tool, report);
             report.commit = BuildInfo.Current.commit;
             report.measuredUtc = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
             report.gpu = SystemInfo.graphicsDeviceName;
             report.cpu = SystemInfo.processorType;
-            report.pass = report.live60.p95 <= 8 && report.live400.p95 <= 16 && report.confirmMs <= 250;
+            report.pass = report.brush400.frame.p95 <= 20 && report.brush60.live.p95 <= 8 && report.brush400.live.p95 <= 16 && report.toCommittedMs <= 250;
             File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
-            Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                "[BrushBench] live 60 ft p95 {0:F1} ms (frame p95 {1:F1}), 400 ft p95 {2:F1} ms (frame p95 {3:F1}); review {4:F0} ms; confirm {5:F0} ms; {6}",
-                report.live60.p95, report.frame60.p95, report.live400.p95, report.frame400.p95, report.reviewMs, report.confirmMs, report.pass ? "PASS" : "FAIL"));
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            foreach (var p in new[] { report.brush60, report.brush400 })
+                Debug.Log(string.Format(inv,
+                    "[BrushBench] {0} ft: frame p95 {1:F1} ms (GPU {2:F1}); live {3:F1} = sample {4:F1} + set {5:F1} + sync {6:F1}; dabs {7:F1}; preview {8:F1}; bill p95 {9:F1} max {10:F1}; release frame p95 {11:F1} max {12:F1} (finish {16:F1}, tiles {17:F1}); GC {13} B/frame in {14} frames, {15} collections",
+                    p.feet, p.frame.p95, p.gpu.p95, p.live.p95, p.sample.p95, p.set.p95, p.sync.p95, p.dabs.p95, p.preview.p95, p.bill.p95, p.bill.max,
+                    p.release.p95, p.release.max, p.gcBytesPerFrame, p.gcFramesWithAllocations, p.gcCollections, p.finishMs, p.finishPreviewMs));
+            Debug.Log(string.Format(inv, "[BrushBench] to committed {0:F0} ms (review {1:F0}, confirm {2:F0}); {3}",
+                report.toCommittedMs, report.reviewMs, report.confirmMs, report.pass ? "PASS" : "FAIL"));
             _toolScripted = false;
             Application.Quit();
+        }
+
+        // From Confirm to the ground committed (BR17: no review page, so reviewMs stays 0).
+        IEnumerator BenchConfirm(TerrainBrushTool tool, BrushBenchReport report)
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            _tools.Confirm(WorkStage.Built);
+            while (tool.Confirming || EditsBusy) { _tools.Tick(default); yield return null; }
+            report.confirmMs = report.toCommittedMs = watch.Elapsed.TotalMilliseconds;
         }
     }
 }
