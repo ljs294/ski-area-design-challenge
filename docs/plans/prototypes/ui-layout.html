@@ -356,6 +356,8 @@ body.solo .frame { border-radius: 0; }
 .hud .rng::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 18px; border-radius: 3px; background: var(--on-bg); border: 1px solid var(--hair2); box-shadow: 0 1px 3px var(--shadow-sm); }
 .hud .rng::-moz-range-thumb { width: 12px; height: 18px; border-radius: 3px; background: var(--on-bg); border: 1px solid var(--hair2); }
 .hud .rng-wrap .rv { width: 40px; text-align: right; font: 600 12.5px 'Overpass Mono', monospace; }
+/* BR20: a slider's value over its thumb while hovered, dragged or wheeled (the game's SliderWheel) */
+.hud .rngtip { position: absolute; z-index: 60; pointer-events: none; transform: translate(-50%, -100%); padding: 2px 6px; border: 1px solid var(--hair2); border-radius: 3px; background: var(--panel); color: var(--strong); font: 600 11.5px 'Overpass Mono', monospace; white-space: nowrap; display: none; }
 /* keys on the Controls page */
 .hud .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
 .hud .keys > div { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 1px solid var(--row); font: 600 12.5px 'DotFix', 'Overpass'; color: var(--muted); }
@@ -608,7 +610,7 @@ body.solo .frame { border-radius: 0; }
   </div>
   <ul class="try">
     <li><b>Build a lift</b> (Phase 3 tool): Toolbox → Lifts → New opens the lift menu: type, capacity, and towers <b>Automatic</b> or <b>By hand</b>. The whole terminal follows the pointer; click to anchor it, then click far away to place the other terminal, which fixes the line (drawn as a trail map draws a lift, a line with a dot at each end). Automatic puts the towers in as you aim. By hand, the tower in hand slides along the line, green where it fits and red with the reason; Page Up / Page Down change it ±5 ft, a click places it, a click on a tower selects it (drag to slide, Delete to remove), and Fill the rest finishes the line. The profile strip shows the side view, the chairs' height over the ground against 15 ft, the green band where the tower in hand fits, and the line's tension. Review, then Break ground (or Save plan). Every rule number is a P3-02 draft placeholder; hover a readout for its rule ID. States: <code>#solo&amp;demo=liftorigin</code>, <code>liftauto</code>, <code>lift</code>, <code>liftred</code>, <code>liftreview</code>, <code>liftsel</code>. The catchment ring (NW-14, NT16): each terminal in hand shows its 100 ft area, built terminals theirs fainter, and the trails it would gather light up; the readout names a shared base or a transfer: <code>#solo&amp;demo=p2,net,liftbase</code>, <code>liftbaseaim</code>.</li>
-    <li><b>Shape the ground</b> (task P3-15): Toolbox → Terrain holds <b>Raise/Lower</b> (B: hold left to raise, right to lower), <b>Flatten</b> (L: right-click takes the target height under the pointer, left paints to it), <b>Smooth</b> (O) and <b>Slope</b> (G: right-click sets the target point, then drag from the start; the ground ramps evenly between the two, and the pane shows the grade they make). Every brush has the same pane: <b>Diameter</b> (<b>[ ]</b>, 10–400 ft) and <b>Strength</b> (<b>, .</b>), plus the target (Page Up / Page Down) and, for Slope, the ramp it makes. A session runs from opening a brush to closing it, and switching brushes keeps it (BR15, BR17): what you paint is the edit (in the game the ground moves live), and the pane counts its cut, fill and net, the trees cleared and where the brush was held (a terminal's pad and its 1:1, the lift line's clearance, a tower's limit) as you paint. <b>Confirm</b> (Enter) puts the session in as one undo step and is when it's paid for (BR19); <b>Revert</b> puts its ground back; Ctrl+Z undoes one press, never past the session's start. Closing with ground not confirmed asks <b>Confirm / Revert / Keep painting</b> (BR18). States: <code>terrainraise</code>, <code>terrainflatten</code>, <code>terrainsmooth</code>, <code>terrainslope</code>, <code>terrainask</code>.</li>
+    <li><b>Shape the ground</b> (task P3-15): Toolbox → Terrain holds <b>Raise/Lower</b> (B: hold left to raise, right to lower), <b>Flatten</b> (L: right-click takes the target height under the pointer, left paints to it), <b>Smooth</b> (O) and <b>Slope</b> (G: right-click sets the target point, then drag from the start; the ground ramps evenly between the two, and the pane shows the grade they make). Every brush has the same pane: <b>Diameter</b> (<b>[ ]</b>, 10–400 ft) and <b>Strength</b> (<b>, .</b>), plus the target (Page Up / Page Down) and, for Slope, the ramp it makes. A session runs from opening a brush to closing it, and switching brushes keeps it (BR15, BR17): what you paint is the edit (in the game the ground moves live), and the pane counts its cut, fill and net, the trees cleared and where the brush was held (a terminal's pad and its 1:1, the lift line's clearance, a tower's limit) as you paint. <b>Confirm</b> (Enter) puts the session in as one undo step and is when it's paid for (BR19); <b>Revert</b> puts its ground back; Ctrl+Z undoes one press, never past the session's start. Closing with ground not confirmed asks <b>Confirm / Revert / Keep painting</b> (BR18). The wheel over any slider moves it a step a notch, with its value in a bubble over the thumb (BR20). States: <code>terrainraise</code>, <code>terrainflatten</code>, <code>terrainsmooth</code>, <code>terrainslope</code>, <code>terrainask</code>, and <code>terrainraise,sliderhover</code>.</li>
     <li><b>Draw a trail</b> (Phase 3 tool): Toolbox → Trails → New opens the trail menu: name, brush width (<b>[ ]</b> or the slider, 25–400 ft) and Graded or Natural. <b>1 Paint:</b> drag on the mountain to paint the trail's area, any widths, leaving holes for islands of trees; Shift-drag erases, Ctrl+Z undoes a stroke, and a separate patch shows red. <b>2 Head and tail:</b> click the top, then the bottom (they join a lift's end or another trail nearby); the centreline, the pending contours (yellow), stretches too steep to grade (red) and the rating appear, with the profile along the bottom. <b>3 Review</b>, then Break ground. Scroll to zoom in first: at this distance 100 ft is about 5 px. States: <code>trailpaint</code>, <code>trailends</code>, <code>trailreview</code>, <code>trailcontinue</code> (NT38: "Continues Upper Bowl").</li>
     <li><b>Trails made of sections</b> (task P3-10, owner NT24–NT41): a trail is a name and its sections, top first. Edit trail opens the trail's pane (rating over its whole length, its sections; Repaint and Move ends change the outlined section). <b>Edit sections</b> goes into network mode: <b>Choose sections</b>, where a left-click on any run beyond the trail's top or bottom adds everything on the way and a right-click takes a section out, and <b>Cut</b>, which cuts a section in two at the pointer (snapping to junctions; refused across a switchback) or rejoins a hollow cut node. The hover shows each click's result, the window lists every trail a session changes with editable names, Ctrl+Z undoes a click and Done (Enter) is one step. A trail left in two pieces becomes Upper and Lower. States: <code>trailsecs</code>, <code>trailroute</code>, <code>trailmerge</code>, <code>trailtakeout</code>, <code>trailmiddle</code>, <code>trailnear</code>, <code>trailnearjoin</code> (NT42: ends within 100 ft meet, drawn met, nothing shown), <code>trailcut</code>, <code>trailcutbend</code> (NT45: a cut on a bend), <code>trailsecsundo</code>. Junctions (NT43–NT45): a run splits wherever another run lands on it or crosses it, at a lift it passes and where you cut it; a trail is the segments between, and may turn at a junction: <code>trailjunction</code>, <code>trailreroute</code>, <code>trailrerouted</code>. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking with clicks.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
@@ -3054,7 +3056,7 @@ body.solo .frame { border-radius: 0; }
     return panelShell(`${g(t.glyph)}${t.name}`, `
       <div style="padding:8px 0 4px">
         <div class="lrow"><span>Diameter</span><div class="rng-wrap" style="min-width:0" title="TB-02: 10–400 ft, in 5 ft steps"><input type="range" class="rng" min="${TB.dMin}" max="${TB.dMax}" step="${TB.dStep}" value="${d.dia}" data-tb="d" style="--p:${pct(d.dia, TB.dMin, TB.dMax)}%" aria-label="Diameter"><span class="rv" id="tbd" style="width:52px">${lenFt(d.dia)}</span></div></div>
-        <div class="lrow"><span>Strength</span><div class="rng-wrap" style="min-width:0" title="TB-02: 1–100%"><input type="range" class="rng" min="1" max="100" step="1" value="${d.str}" data-tb="s" style="--p:${pct(d.str, 1, 100)}%" aria-label="Strength"><span class="rv" id="tbs" style="width:52px">${d.str}%</span></div></div>
+        <div class="lrow"><span>Strength</span><div class="rng-wrap" style="min-width:0" title="TB-02: 1–100%"><input type="range" class="rng" min="1" max="100" step="1" value="${d.str}" data-tb="s" data-wheel="5" style="--p:${pct(d.str, 1, 100)}%" aria-label="Strength"><span class="rv" id="tbs" style="width:52px">${d.str}%</span></div></div>
         ${target}${slope}
         <div class="hint">${mouseHint}</div>
       </div><div class="rule"></div><div id="terrainctx">${terrainCtx()}</div>`, 344, 'toolwin');
@@ -4599,6 +4601,45 @@ body.solo .frame { border-radius: 0; }
   });
   stage.addEventListener('pointerleave', () => { if (liftDrag) return; mouse = null; showElev(); if (S.draft && S.draft.kind === 'lift') { S.draft.hand = null; refreshLift(); } else if (S.draft) drawWorld(); });
   window.addEventListener('pointerup', () => { if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { endStroke(S.draft); render(); } if (S.draft && S.draft.kind === 'terrain' && S.draft.stroke) { tbEnd(S.draft); render(); } if (liftDrag) { const d = S.draft; if (liftDrag.term) d.dropAsk = d.towers.length - towersOn(d).length; if (liftDrag.end) endMove(d, liftDragged); if (d.edit && !liftDragged) d.hist.pop(); liftDrag = null; render(); } });
+  // BR20: the wheel over any slider moves it a step a notch (up is more) and never scrolls the panel or zooms; a bubble
+  // over the thumb shows its value while hovered, dragged or wheeled.
+  let rngTipEl = null, rngTipFor = null, rngTipHide = null, rngDrag = null, rngPinned = false;
+  function rngCaption(rg) {
+    const rv = rg.parentElement && rg.parentElement.querySelector('.rv');
+    if (rv) return rv.textContent;
+    const ph = rg.dataset.ph && document.getElementById(rg.dataset.ph === 'time' ? 'phclock' : 'phfov');
+    return ph ? ph.textContent : rg.value;
+  }
+  function rngTip(rg, on) {
+    // On the HUD's stage (its colours, its scale): the thumb's place in the stage's own, unscaled pixels.
+    const st = rg.closest('.stage') || stage;
+    if (!rngTipEl || rngTipEl.parentElement !== st) { rngTipEl = rngTipEl || document.createElement('div'); rngTipEl.className = 'rngtip mono'; st.appendChild(rngTipEl); }
+    if (!on && rngPinned) return;   // the sliderhover demo state keeps it up
+    rngTipFor = on ? rg : null;
+    if (!on || !rg.isConnected) { rngTipEl.style.display = 'none'; return; }
+    const r = rg.getBoundingClientRect(), sr = st.getBoundingClientRect(), k = sr.width / (st.offsetWidth || sr.width), f = (rg.value - rg.min) / (rg.max - rg.min || 1);
+    rngTipEl.textContent = rngCaption(rg);
+    rngTipEl.style.left = `${(r.left + 6 + f * (r.width - 12) - sr.left) / k}px`;
+    rngTipEl.style.top = `${(r.top - 10 - sr.top) / k}px`;
+    rngTipEl.style.display = 'block';
+  }
+  document.addEventListener('wheel', (e) => {
+    const rg = e.target.closest && e.target.closest('input.rng'); if (!rg) return;
+    e.preventDefault(); e.stopPropagation();
+    const dir = e.deltaY < 0 ? 1 : e.deltaY > 0 ? -1 : 0; if (!dir) return;
+    const step = +(rg.dataset.wheel || rg.step || 1), lo = +rg.min, hi = +rg.max;
+    const v = Math.max(lo, Math.min(hi, lo + Math.round((+rg.value - lo) / step) * step + dir * step));
+    if (v === +rg.value) return;
+    rg.value = v; rg.dispatchEvent(new Event('input', { bubbles: true }));
+    const now = document.querySelector(`input.rng[data-tb="${rg.dataset.tb}"]`) && rg.dataset.tb ? document.querySelector(`input.rng[data-tb="${rg.dataset.tb}"]`) : rg;
+    rngTip(now, true);
+    clearTimeout(rngTipHide); rngTipHide = setTimeout(() => { if (!now.matches(':hover') && rngDrag !== now) rngTip(now, false); }, 800);
+  }, { passive: false, capture: true });
+  document.addEventListener('pointerover', (e) => { const rg = e.target.closest && e.target.closest('input.rng'); if (rg) rngTip(rg, true); });
+  document.addEventListener('pointerout', (e) => { const rg = e.target.closest && e.target.closest('input.rng'); if (rg && rngDrag !== rg) { clearTimeout(rngTipHide); rngTipHide = setTimeout(() => { if (!rg.matches(':hover') && rngDrag !== rg) rngTip(rg, false); }, 60); } });
+  document.addEventListener('pointerdown', (e) => { const rg = e.target.closest && e.target.closest('input.rng'); if (rg) { rngDrag = rg; rngTip(rg, true); } });
+  window.addEventListener('pointerup', () => { const rg = rngDrag; rngDrag = null; if (rg && !rg.matches(':hover')) rngTip(rg, false); });
+  stage.addEventListener('input', (e) => { const rg = e.target.closest && e.target.closest('input.rng'); if (rg && rngTipFor) setTimeout(() => rngTip(rg, true), 0); });
   stage.addEventListener('input', (e) => {
     if (e.target.id === 'trailname' && S.draft && S.draft.kind === 'trail') { S.draft.name = e.target.value.slice(0, 28); return; }
     if (e.target.dataset && e.target.dataset.secname && S.secs) { S.secs.typed[e.target.dataset.secname] = e.target.value.slice(0, 28); applyTyped(); drawWorld(); return; }   // NT40
@@ -4958,6 +4999,7 @@ body.solo .frame { border-radius: 0; }
       if (which === 'slope') { td.targetAt = at(.30, 44); td.target = elevAt(td.targetAt); line([at(.66, 70), at(.60, 66), at(.54, 60), at(.48, 52), at(.42, 46)], false); mouse = at(.41, 45); }
       if (tb === 'terrainask') { line([at(.40, 16), at(.45, 10), at(.50, 4)], true); line([at(.62, 2), at(.66, 2)], true); td.ask = { then: () => closeTool() }; }
       clearInterval(tbTimer); tbTimer = null;
+      if (d.includes('sliderhover')) { rngPinned = true; setInterval(() => { const rg = document.querySelector('input.rng[data-tb="d"]'); if (rg) rngTip(rg, true); }, 200); }   // BR20
     }
     // The trail tool (Phase 3): trailpaint (painted, with an island and a stray patch), trailends (head and tail set),
     // trailreview (its review); zoomed in, as you would to paint. trail is the review too.

@@ -467,8 +467,11 @@ namespace MountainPlanner.UI.Tools
             return any;
         }
 
-        /// <summary>A slider row (the brush). Returns a setter for the value and its caption.</summary>
-        public Action<int, string> AddSlider(string name, string label, int min, int max, int step, int value, Action<int> moved, string tooltip = null)
+        /// <summary>
+        /// A slider row (the brush). Returns a setter for the value and its caption. The wheel over it moves it
+        /// <paramref name="wheelStep"/> a notch (the slider's step when 0), with its value in a bubble over the thumb (BR20).
+        /// </summary>
+        public Action<int, string> AddSlider(string name, string label, int min, int max, int step, int value, Action<int> moved, string tooltip = null, int wheelStep = 0)
         {
             var row = Part("toolwin-opt-" + name, "tw-row");
             if (tooltip != null) row.tooltip = tooltip;
@@ -490,6 +493,7 @@ namespace MountainPlanner.UI.Tools
             row.Add(slider);
             row.Add(caption);
             _opts.Add(row);
+            SliderWheel.Attach(slider, wheelStep > 0 ? wheelStep : step, () => caption.text);
             return (v, text) =>
             {
                 quiet = true;

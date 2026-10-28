@@ -151,8 +151,8 @@ namespace MountainPlanner.UI.Tools
             _strength = _lastStrength;
             var w = context.Window;
             w.SetName(null);
-            _setFeet = w.AddSlider("diameter", "Diameter", MinFeet, MaxFeet, StepFeet, _feet, SetFeet, "TB-02: 10–400 ft, in 5 ft steps");
-            _setStrength = w.AddSlider("strength", "Strength", 1, 100, 1, _strength, SetStrength, "TB-02: 1–100%");
+            _setFeet = w.AddSlider("diameter", "Diameter", MinFeet, MaxFeet, StepFeet, _feet, SetFeet, "TB-02: 10–400 ft, in 5 ft steps", StepFeet);
+            _setStrength = w.AddSlider("strength", "Strength", 1, 100, 1, _strength, SetStrength, "TB-02: 1–100%", 5);   // the wheel, as , and . (BR20)
             if (UsesTarget) _targetNote = w.AddNote("target", "", "TB-05, TB-07: right-click the ground; Page Up / Page Down 1 ft (Shift 10 ft)");
             if (_mode == TerrainToolMode.Slope) _rampNote = w.AddNote("ramp", "", "TB-07, BR16: the grade comes from the distance and the drop between the two points");
             w.SetSteps(Array.Empty<string>());   // one step: paint, then Confirm or Revert (BR17)

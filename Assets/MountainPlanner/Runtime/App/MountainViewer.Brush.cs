@@ -231,6 +231,10 @@ namespace MountainPlanner.App
             public BrushPass brush60, brush400;
             /// <summary>From asking to confirm to the ground committed, ms (before BR17: Break ground's review, then Confirm).</summary>
             public double reviewMs, confirmMs, toCommittedMs;
+            /// <summary>BR21: the frames from Confirm until it has landed and settled, and from Revert on (30 frames), ms.</summary>
+            public Timing confirmFrames, revertFrames;
+            /// <summary>The built lifts and trail lines rebuilt after Confirm, ms on the main thread.</summary>
+            public double confirmBuiltMs;
             public bool pass;
         }
 
@@ -337,19 +341,38 @@ namespace MountainPlanner.App
                     "[BrushBench] {0} ft: frame p95 {1:F1} ms (GPU {2:F1}); live {3:F1} = sample {4:F1} + set {5:F1} + sync {6:F1}; dabs {7:F1}; preview {8:F1}; bill p95 {9:F1} max {10:F1}; release frame p95 {11:F1} max {12:F1} (finish {16:F1}, tiles {17:F1}); GC {13} B/frame in {14} frames, {15} collections",
                     p.feet, p.frame.p95, p.gpu.p95, p.live.p95, p.sample.p95, p.set.p95, p.sync.p95, p.dabs.p95, p.preview.p95, p.bill.p95, p.bill.max,
                     p.release.p95, p.release.max, p.gcBytesPerFrame, p.gcFramesWithAllocations, p.gcCollections, p.finishMs, p.finishPreviewMs));
+            Debug.Log(string.Format(inv, "[BrushBench] confirm frames p95 {0:F1} max {1:F1} (built {2:F1} ms); revert frames p95 {3:F1} max {4:F1}",
+                report.confirmFrames.p95, report.confirmFrames.max, report.confirmBuiltMs, report.revertFrames.p95, report.revertFrames.max));
             Debug.Log(string.Format(inv, "[BrushBench] to committed {0:F0} ms (review {1:F0}, confirm {2:F0}); {3}",
                 report.toCommittedMs, report.reviewMs, report.confirmMs, report.pass ? "PASS" : "FAIL"));
             _toolScripted = false;
             Application.Quit();
         }
 
-        // From Confirm to the ground committed (BR17: no review page, so reviewMs stays 0).
+        // From Confirm to the ground committed (BR17: no review page, so reviewMs stays 0), with every frame until 30 after it
+        // has landed (BR21: no hitch); then a 400 ft stroke and Revert, with the 30 frames after.
         IEnumerator BenchConfirm(TerrainBrushTool tool, BrushBenchReport report)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
+            var frames = new List<double>(256);
             _tools.Confirm(WorkStage.Built);
-            while (tool.Confirming || EditsBusy) { _tools.Tick(default); yield return null; }
+            while (tool.Confirming || EditsBusy) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); }
             report.confirmMs = report.toCommittedMs = watch.Elapsed.TotalMilliseconds;
+            for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); }
+            report.confirmFrames = Summarise(frames);
+            report.confirmBuiltMs = LastBuiltMs;
+
+            var a = new Vector2(140, -360);
+            var b = new Vector2(320, -360);
+            _tools.Tick(BrushInput(a, left: true, click: true));
+            yield return null;
+            for (int t = 1; t <= 90; t++) { _tools.Tick(BrushInput(Vector2.Lerp(a, b, t / 90f), left: true)); yield return null; }
+            _tools.Tick(BrushInput(b, left: true, release: true));
+            for (int i = 0; i < 60; i++) { _tools.Tick(default); yield return null; }
+            frames.Clear();
+            _tools.Confirm(WorkStage.Plan);   // Revert
+            for (int i = 0; i < 30 || EditsBusy; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); if (i > 600) break; }
+            report.revertFrames = Summarise(frames);
         }
     }
 }
