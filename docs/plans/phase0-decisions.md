@@ -616,3 +616,21 @@ structures (rev 3, approved). Plan: [p3-15-plan.md](p3-15-plan.md); rules TB-01 
 | BR14 | **Slope stays literal; the bill counts live** (owner, 2026-10-26, after the in-game review): the Slope brush toward a target far below or above the ground keeps its steep side walls (no automatic 1:1 side faces), as CS2's does. While you drag, the pane's **cut and fill update live** (with trees cleared and holds), about five times a second |
 | BR15 | **The Terrain brushes share one session** (owner, 2026-10-26): switching between Raise/Lower, Flatten, Smooth and Slope keeps the pending strokes, the ground they made, the bill and the target; one Break ground reviews them all and Ctrl+Z works across them. Switching to another kind of tool still discards, with a notice (P3-06 Q8) |
 | BR16 | **Slope runs between two points** (owner, 2026-10-26): no grade control; right click sets the target point (where and how high), the press the start, and the ground ramps evenly between them, level across, by where each point falls along the line. The pane shows the ramp's length and the grade it makes with its rating. Slope paints only once a target is set. Replaces the rating chips and grade slider (BR3's slope part) |
+
+## Phase 3 task 11, benchmark with a drawn resort: decided 2026-10-28
+
+**Context:** the evidence for Phase 3's exit criteria 2 and 3: a drawn resort on Jackson Hole 5 km, the benchmark
+flown over it, and the edit budgets timed with it loaded. The plan was posted on 2026-10-26, held by the owner until
+task 10 was complete (2026-10-27), re-posted for save v8 and approved on 2026-10-28 ("It is your time"), with every
+recommendation taken. Plan: [p3-11-plan.md](p3-11-plan.md).
+
+| # | Decision |
+|---|---|
+| DB1 | **The test design is frozen lines in code, built by commands on every run** (as the style tile is): trail strokes and lift ends in local metres, built through `TrailShape.FromStrokes` and AddTrail, and through LiftBuild, so it follows the engine and every save version; no save fixture, no format change |
+| DB2 | **Layout: six lift pods**, about three runs off each lift's top, plus two cat tracks joining pods; the owner approves screenshots before timing |
+| DB3 | **Lifts:** two Sessellift FGQ-4, two Monta FG4 and two Sessellift D6 |
+| DB4 | **Trails:** ten graded and ten natural, 60–200 ft wide, two with tree islands, plus two graded 40 ft cat tracks |
+| DB5 | **The eight baselines stay as they are:** the new legs fly only with `-drawnresort`, and the drawn runs get files of their own |
+| DB6 | **Lift edits are timed and reported, not gated:** CF-09's budgets cover grading |
+| DB7 | **The measured view includes task 10's network** (overlay, labels, stations), on main before the first run |
+| DB8 | **A missed budget is reported with its numbers and goes to the owner;** no fix in this task without the owner's OK |
