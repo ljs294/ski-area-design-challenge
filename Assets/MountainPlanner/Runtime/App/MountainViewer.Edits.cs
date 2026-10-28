@@ -56,6 +56,9 @@ namespace MountainPlanner.App
         /// same save always regrades the same way; in memory only (<see cref="OpenDesign.Regraded"/>), so the file is left
         /// as it was until the player saves. Skipped if the player changes the design first.
         /// </summary>
+        /// <summary>The older save's notice has shown (captures).</summary>
+        internal bool RegradeNoticeShown;
+
         IEnumerator RegradeOlderSave(OpenDesign open)
         {
             var doc = open.History.Document;
@@ -76,9 +79,11 @@ namespace MountainPlanner.App
             int trails = doc.Trails.Count(t => t.Stage == WorkStage.Built);
             Debug.Log($"[Saves] regraded an older save (v{open.MigratedFrom}): {trails} built trails, {points} points moved, " +
                       $"{cubicMetres:F1} m³ of cut and fill changed, {cells} cleared cells changed; the file is unchanged until saved");
+            while (WorkBusy) yield return null;   // the notice once the area has settled, so it isn't missed behind the loading
             Hud?.Toast(points == 0 && cells == 0
                 ? "Opened a save from an earlier version: nothing on the ground changes. Save to keep it in this version's format."
                 : $"Opened a save from an earlier version: its trails were regraded ({points:N0} points moved). Save to keep it.");
+            RegradeNoticeShown = true;
         }
 
         // How far two edit sets differ: lattice points whose height differs, the cut and fill between them, cleared cells.

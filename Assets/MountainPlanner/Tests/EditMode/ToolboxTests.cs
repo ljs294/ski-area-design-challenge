@@ -412,13 +412,15 @@ namespace MountainPlanner.Tests
 
         IEnumerator Analysed(NewTrailTool trail)
         {
-            // The work runs on a worker thread; the host hands the result over on its next tick (CF-03).
-            for (int i = 0; i < 600 && trail.Analysing; i++)
+            // The work runs on a worker thread; the host hands the result over on its next tick (CF-03). Batch-mode frames are
+            // short, so the wait is by time, not frames.
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            while (trail.Analysing && watch.Elapsed.TotalSeconds < 30)
             {
                 yield return null;
                 _host.Tick(default);
             }
-            Assert.That(trail.Analysing, Is.False, "the area was worked out off the main thread");
+            Assert.That(trail.Analysing, Is.False, $"the area was worked out off the main thread ({_host.Context.Running} still running)");
         }
 
         /// <summary>Counts what the trail tool asks of the paint on the ground.</summary>
@@ -588,14 +590,17 @@ namespace MountainPlanner.Tests
             Assert.That(tool.Strokes, Is.EqualTo(0), "the picked trail brings no strokes");
             tool.RepaintForCapture();   // the Repaint button
             Assert.That(tool.CurrentStep, Is.EqualTo(0).Or.EqualTo(1));
-            // Rub out an island in the middle: an erase first, on the trail's own clearing.
+            // Rub out an island in the middle with a 25 ft brush: an erase first, on the trail's own clearing.
+            for (int k = 0; k < 15; k++) _host.Tick(new ToolInput { Keys = ToolKeys.BrushNarrower });
+            Assert.That(tool.BrushFeet, Is.EqualTo(25));
             var rub = At(0, 0, click: true);
             rub.Erase = true;
             _host.Tick(rub);
             var up = At(0, 0);
             up.Release = true;
             _host.Tick(up);
-            // And paint a spur onto it.
+            // And paint a spur onto it, 100 ft wide again.
+            for (int k = 0; k < 15; k++) _host.Tick(new ToolInput { Keys = ToolKeys.BrushWider });
             var spur = At(0, 100, click: true);
             spur.Drag = true;
             _host.Tick(spur);
@@ -604,13 +609,18 @@ namespace MountainPlanner.Tests
             end.Release = true;
             _host.Tick(end);
             Assert.That(tool.Strokes, Is.EqualTo(2));
-            for (int i = 0; i < 600 && tool.Analysing; i++) { yield return null; _host.Tick(default); }
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            while (tool.Analysing && watch.Elapsed.TotalSeconds < 30) { yield return null; _host.Tick(default); }
             Assert.That(tool.Raster.Contains(DesignFrame.ToDesign(new Vector2(0, 0))), Is.False, "the island is rubbed out");
             Assert.That(tool.Raster.Contains(DesignFrame.ToDesign(new Vector2(100, 100))), Is.True, "the spur is painted on");
             Assert.That(tool.Raster.Contains(DesignFrame.ToDesign(new Vector2(0, -200))), Is.True, "the rest of the clearing stays");
             _host.Tick(new ToolInput { Keys = ToolKeys.Next });
-            _host.Tick(new ToolInput { Keys = ToolKeys.Next });
-            for (int i = 0; i < 600 && tool.CurrentStep != 3; i++) { yield return null; _host.Tick(new ToolInput { Keys = ToolKeys.Next }); }
+            Assert.That(tool.CurrentStep, Is.EqualTo(2), "head and tail again");
+            _host.Tick(At(0, 280, click: true));
+            _host.Tick(At(0, -280, click: true));
+            watch.Restart();
+            while (tool.CurrentStep != 3 && watch.Elapsed.TotalSeconds < 30) { yield return null; _host.Tick(new ToolInput { Keys = ToolKeys.Next }); }
+            Assert.That(tool.CurrentStep, Is.EqualTo(3), "review");
             Assert.That(_host.Confirm(WorkStage.Built).Accepted, Is.True);
             var after = _design.Document.FindTrail(id).Shape;
             Assert.That(after.Equals(before), Is.False);

@@ -352,19 +352,24 @@ namespace MountainPlanner.App
         System.Collections.IEnumerator ShapeShots(string dir)
         {
             System.IO.Directory.CreateDirectory(dir);
-            while (_resort == null || !_resort.CoverReady.IsCompleted || _edits == null || WorkBusy || _sections == null || NetworkBusy || _tools == null)
-                yield return null;
+            // The older save's regrade comes as soon as the ground's session is ready: its notice, before the rest settles.
             var open = Persistence.Saves.OpenDesign.Current;
-            for (int k = 0; k < 3000 && open != null && open.NeedsRegrade; k++) yield return null;
-            while (!_edits.Applying.IsCompleted) yield return null;
-            for (int k = 0; k < 20; k++) yield return null;
+            while (_edits == null) yield return null;
+            for (int k = 0; k < 6000 && open != null && open.NeedsRegrade; k++) yield return null;
+            for (int k = 0; k < 3; k++) yield return null;
             Debug.Log($"[ShapeShots] opened v{open?.MigratedFrom}: regrade {(open != null && !open.NeedsRegrade ? "done" : "not needed or pending")}, dirty {open?.Dirty}");
+            for (int k = 0; k < 6000 && !RegradeNoticeShown; k++) yield return null;
+            for (int k = 0; k < 4; k++) yield return null;
+            ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(dir, "1-opened-older-save.png"));   // its notice showing
+            yield return null;
+            yield return null;
+            while (_resort == null || !_resort.CoverReady.IsCompleted || WorkBusy || _sections == null || NetworkBusy || _tools == null)
+                yield return null;
             ResolvedTrail run = null;
             foreach (var t in _sections.Trails) if (t.Name == "Run 30" && _trailRowLine.ContainsKey(t.Id.Value)) run = t;
             foreach (var t in _sections.Trails) if (run == null && _trailRowLine.ContainsKey(t.Id.Value)) run = t;
             if (run == null) { Debug.LogWarning("[ShapeShots] no trails"); Application.Quit(); yield break; }
             FrameSections(_trailRowLine[run.Id.Value], null);
-            yield return Shot(dir, "1-opened-older-save");
             _toolScripted = true;
             ChooseTrailRow(EditTrailTool.ToolId, run.Id.Value);
             var tool = _tools.Active as TrailTool;
@@ -375,12 +380,20 @@ namespace MountainPlanner.App
             tool?.RepaintForCapture();
             for (int f = 0; f < 3000 && tool != null && tool.Analysing; f++) { _tools.Tick(default); yield return null; }
             for (int k = 0; k < 10; k++) { _tools.Tick(default); yield return null; }
-            Debug.Log($"[ShapeShots] repaint: {tool?.Strokes} strokes, clearing {tool?.Raster?.Cells} cells");
+            int painted = PaintedBytes();
+            Debug.Log($"[ShapeShots] repaint: step {tool?.CurrentStep}, {tool?.Strokes} strokes, clearing {tool?.Raster?.Cells} cells, {painted} paint bytes");
             yield return Shot(dir, "3-repaint-own-clearing");
             _toolScripted = false;
             _tools.Close();
             Debug.Log("[ShapeShots] finished");
             Application.Quit();
+        }
+
+        int PaintedBytes()
+        {
+            int n = 0;
+            if (_trailPaint != null) foreach (byte v in _trailPaint.CpuBytes) if (v != 0) n++;
+            return n;
         }
 
         /// <summary>

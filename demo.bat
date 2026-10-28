@@ -222,6 +222,7 @@ echo     70s Trails made of sections: your own areas; Toolbox ^> Trails ^> Edit,
 echo        adds sections through a junction, right-click takes one out, Cut adds a node; Ctrl+Z, Enter Done, Esc asks.
 echo     70sc The Edit sections captures on a copy of Kearsarge (render lane), into test-results\p3-10-sections.
 echo     70sf The sections findings 1-6 fixes captured on a copy of Kearsarge, into test-results\p3-10-findings-fixes.
+echo     70sv Finding 7 (save v8): a v7 Kearsarge copy opened (its one-time regrade), Edit trail and Repaint, into test-results\p3-10-shape.
 echo.
 echo   Phase 3, task 14: problem reports and Send feedback (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     71 The game with a forced error: "A log was saved" shows with Send logs. Try it, the menu's Send feedback and
@@ -337,6 +338,7 @@ if /i "%CHOICE%"=="70k" goto networkown
 if /i "%CHOICE%"=="70s" goto sectionsown
 if /i "%CHOICE%"=="70sc" goto sectionscaptures
 if /i "%CHOICE%"=="70sf" goto sectionsfindings
+if /i "%CHOICE%"=="70sv" goto sectionsshape
 if /i "%CHOICE%"=="71" goto reports
 if /i "%CHOICE%"=="71o" goto openreport
 if /i "%CHOICE%"=="71c" goto reportcaptures
@@ -1132,6 +1134,19 @@ for %%T in (dark light) do (
   %RENDER% "%GAME%" -benchres 1920x1080 -data "%KS%" -package "%KS%\Resorts\bbc9f6d2e978b8bc" -opensave "%KS%\save" -view 614,9,2700,200,52 -theme %%T -sectionshots "%~dp0test-results\p3-10-findings-fixes\%%T" -findingshots -logFile "%~dp0test-results\p3-10-findings-fixes\%%T.log" <nul
 )
 start "" "%~dp0test-results\p3-10-findings-fixes"
+goto done
+
+:sectionsshape
+rem Task P3-10 sections finding 7: trails keep their clearing's shape (save v8). Opening never writes the save.
+set "KS=D:\skiAreaDesignChallenge\p310-ks"
+if not exist "%KS%\save\save.json" echo No Kearsarge copy at %KS% & goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+for %%T in (dark light) do (
+  if not exist "%~dp0test-results\p3-10-shape\%%T" mkdir "%~dp0test-results\p3-10-shape\%%T"
+  %RENDER% "%GAME%" -benchres 1920x1080 -data "%KS%" -package "%KS%\Resorts\bbc9f6d2e978b8bc" -opensave "%KS%\save" -view 614,9,2700,200,52 -theme %%T -sectionshots "%~dp0test-results\p3-10-shape\%%T" -shapeshots -logFile "%~dp0test-results\p3-10-shape\%%T.log" <nul
+)
+start "" "%~dp0test-results\p3-10-shape"
 goto done
 
 :sixpack

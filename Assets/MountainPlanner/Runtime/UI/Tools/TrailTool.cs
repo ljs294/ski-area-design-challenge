@@ -233,6 +233,9 @@ namespace MountainPlanner.UI.Tools
                     w.SetKeys((GameAction.BrushNarrower, ""), (GameAction.BrushWider, "width"), (GameAction.Erase, "erases"), (GameAction.UndoStroke, "undoes a stroke"));
                     w.ShowReview(null);
                     w.SetCommit(false, false);
+                    // Repaint shows the trail's own clearing as paint at once (the pick cleared it, finding 1).
+                    if (_raster != null && !_analysing) ShowPaint();
+                    else if (HasPaint && !_analysing) Restroke();
                     PaintStatus();
                     break;
                 case Step.Ends:
