@@ -127,6 +127,35 @@ namespace MountainPlanner.Presentation.Design
             foreach (var id in stale) _shapes.Remove(id);
         }
 
+        /// <summary>
+        /// Trails made of sections (task P3-10, sections finding 5): one line per trail instead of one per run, so a run
+        /// shared by two trails no longer reads as one line. <paramref name="covered"/> holds the runs those lines draw;
+        /// any other run keeps its own line. Redrawn when the trails are worked out, never per frame.
+        /// </summary>
+        public void SetTrailLines(IReadOnlyList<(Vector2[] Line, PreviewInk Ink)> trails, ICollection<TrailId> covered)
+        {
+            int slot = CasingSlot + 1;
+            foreach (var (line, ink) in trails)
+            {
+                if (line == null || line.Length < 2) continue;
+                _lines.Line(slot++, line, line.Length, ink);
+            }
+            foreach (var (id, _) in _slots)
+                if (!covered.Contains(id) && _shapes.TryGetValue(id, out var s) && s.Drawn != null)
+                    _lines.Line(slot++, s.Drawn, s.Drawn.Length, InkOf(s));
+            _lines.HideFrom(slot);
+            _used = slot;
+            DrawCasing();
+        }
+
+        /// <summary>A trail's ink: orange while planned (CF-06), else its rating's colour (TD-03).</summary>
+        public static PreviewInk InkOf(bool built, double rating)
+        {
+            if (!built) return PreviewInk.Plan;
+            var band = double.IsNaN(rating) ? SlopeBands.Band.Green : SlopeBands.Of(rating);
+            return band == SlopeBands.Band.Green ? PreviewInk.RatingGreen : band == SlopeBands.Band.Blue ? PreviewInk.RatingBlue : PreviewInk.RatingBlack;
+        }
+
         /// <summary>A trail in focus (a hovered Analysis row, its focus card) gets a wider white casing under its line (owner, #87).</summary>
         public void Focus(TrailId id)
         {

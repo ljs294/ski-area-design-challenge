@@ -230,6 +230,7 @@ namespace MountainPlanner.UI.Tools
             }
             DrawEnds();
             if (step != Step.Pick && _mode != TrailToolMode.New) DrawTarget();
+            else if (step == Step.Pick) { _ctx.Paint?.Clear(); DrawLit(PickedLit(), true); }
         }
 
         void PickStatus()
@@ -315,7 +316,7 @@ namespace MountainPlanner.UI.Tools
 
         public void Tick(in ToolInput input)
         {
-            if (_mode == TrailToolMode.Edit && (_step == Step.Pick || _session != null)) TickSections();
+            if ((_mode == TrailToolMode.Edit && (_step == Step.Pick || _session != null)) || _mode == TrailToolMode.Remove) TickSections();
             if (_session != null) { TickSession(input); return; }
             if (_wantAnalysis && !_analysing) Analyse();
             if (_step == Step.Pick) TickPick(input);
@@ -342,28 +343,12 @@ namespace MountainPlanner.UI.Tools
         {
             if (!input.HasGround) return;
             var t = TrailAt(input.Point);
-            if (t != _hover)
-            {
-                _hover = t;
-                DrawOutline(t ?? _target);
-            }
+            _hover = t;
+            // Finding 1: the hover lights the trail a click picks (Remove: the run it removes), else the picked one.
+            var lit = t != null ? LitAt(t, DesignFrame.ToLocal(input.Point)) : PickedLit();
+            if (!ReferenceEquals(lit, _litSegs)) DrawLit(lit);
             if (input.Click && t != null) { _pickedAt = input.Point; Select(t); }
             if (input.Pressed(ToolKeys.Delete) && _mode == TrailToolMode.Remove && _target != null) Go(Step.Review);
-        }
-
-        void DrawOutline(Trail t)
-        {
-            var preview = _ctx.Preview;
-            int slot = StrokeSlots;
-            if (t != null)
-                foreach (var part in t.Parts)
-                    foreach (var s in part.Strokes)
-                    {
-                        if (slot + 1 >= RedSlots) break;
-                        DrawStroke(slot, s.Points, s.WidthMm / DesignUnits.FiveFeetMm * 5, s.Erase);
-                        slot += 2;
-                    }
-            for (int k = slot; k < RedSlots; k++) preview.Hide(k);
         }
 
         void Select(Trail t)
@@ -387,8 +372,8 @@ namespace MountainPlanner.UI.Tools
             }
             _analysis = null;
             Restroke();
-            DrawOutline(t);
             if (_mode == TrailToolMode.Edit) TrailFromPick();
+            DrawLit(PickedLit());
             if (_mode == TrailToolMode.Remove) Go(Step.Review);
             else PickStatus();
         }
@@ -525,19 +510,25 @@ namespace MountainPlanner.UI.Tools
                 // The painted ground, exactly as the trail will store it: a patch apart red (TF-02). Style C tints it with
                 // the live estimate's difficulty (TD-06). Not while a new stroke is painting: the redraw replays only the
                 // finished strokes and would wipe the live one's paint (findings 2026-10-20, #3); its own let-go redraws.
-                if (_mode != TrailToolMode.Remove && !_painting)
-                {
-                    _ctx.Paint?.Redraw(Parts(), p.Footprint);
-                    if (!double.IsNaN(p.Estimate)) _ctx.Paint?.Tint(BandTint(SlopeBands.Of(p.Estimate)));
-                }
+                if (_mode != TrailToolMode.Remove && !_painting) ShowPaint();
                 if (_step == Step.Paint) PaintStatus();
             });
         }
 
+        // The painted ground, exactly as the trail will store it; not while picking, where the pick lights the trail
+        // itself rather than the run's paint (finding 1).
+        void ShowPaint()
+        {
+            if (_step == Step.Pick || _raster == null) { if (_step == Step.Pick) _ctx.Paint?.Clear(); return; }
+            _ctx.Paint?.Redraw(Parts(), _raster);
+            if (!double.IsNaN(_estimate)) _ctx.Paint?.Tint(BandTint(SlopeBands.Of(_estimate)));
+        }
+
         void DrawStrokes()
         {
+            ClearLit();
             int slot = StrokeSlots;
-            if (_ctx.Paint != null && _mode != TrailToolMode.Remove)
+            if (_ctx.Paint != null || _mode == TrailToolMode.Remove)
             {
                 // The paint on the ground shows the strokes (TrailPaintMap): no edge lines.
                 for (int k = slot; k < RedSlots; k++) _ctx.Preview.Hide(k);
@@ -552,7 +543,12 @@ namespace MountainPlanner.UI.Tools
             for (int k = slot; k < RedSlots; k++) _ctx.Preview.Hide(k);
         }
 
-        void DrawTarget() => DrawStrokes();
+        void DrawTarget()
+        {
+            if (_mode == TrailToolMode.Remove) { DrawLit(PickedLit()); return; }   // the run it removes, along its centreline
+            DrawStrokes();
+            if (!_painting && !_analysing) ShowPaint();
+        }
 
         // The footprint as the trail will store it: its original parts while unrepainted (a split trail keeps its cuts),
         // or one part of the strokes as painted.
@@ -843,7 +839,7 @@ namespace MountainPlanner.UI.Tools
                     if (_mode == TrailToolMode.Edit) { Select(_target); Go(Step.Pick); return ToolBackOut.Stepped; }
                     return ToolBackOut.Close;
                 default:
-                    if (_target != null) { _target = null; _trail = null; _hover = null; DrawOutline(null); PickStatus(); return ToolBackOut.Stepped; }
+                    if (_target != null) { _target = null; _trail = null; _hover = null; ClearLit(); PickStatus(); return ToolBackOut.Stepped; }
                     return ToolBackOut.Close;
             }
         }

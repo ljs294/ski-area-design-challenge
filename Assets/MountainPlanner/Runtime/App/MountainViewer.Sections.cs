@@ -32,9 +32,13 @@ namespace MountainPlanner.App
             _trailRowAt.Clear();
             _trailRowLine.Clear();
             var ground = _trailLayer.Ground;
+            var lines = new List<(Vector2[] Line, PreviewInk Ink)>();
+            var covered = new HashSet<TrailId>();
             foreach (var t in ts.Trails)
             {
                 var pts = new List<Vector2>();
+                var joins = new List<int>();
+                TrailId last = default;
                 double metres = 0, rating = double.NaN, steepest = double.NaN, meanSum = 0, meanLength = 0;
                 bool graded = false, any = false;
                 foreach (var s in t.Segments)
@@ -44,6 +48,9 @@ namespace MountainPlanner.App
                     if (piece == null || own.Count == 0 || !_trailLayer.TryGetLine(s.Piece, out var line)) continue;
                     int length = own[own.Count - 1].EndMm;
                     if (length <= 0) continue;
+                    if (pts.Count > 0 && s.Piece != last) joins.Add(pts.Count - 1);   // the trail turns onto another run here
+                    last = s.Piece;
+                    covered.Add(s.Piece);
                     Sub(line, (double)s.StartMm / length, (double)s.EndMm / length, pts);
                     double m = (s.EndMm - s.StartMm) / 1000.0;
                     metres += m;
@@ -58,8 +65,11 @@ namespace MountainPlanner.App
                     }
                 }
                 if (!any || pts.Count < 2) continue;
-                var drawn = pts.ToArray();
-                float top = ground.HeightAt(drawn[0].x, drawn[0].y), bottom = ground.HeightAt(drawn[drawn.Length - 1].x, drawn[drawn.Length - 1].y);
+                var whole = pts.ToArray();
+                float top = ground.HeightAt(whole[0].x, whole[0].y), bottom = ground.HeightAt(whole[whole.Length - 1].x, whole[whole.Length - 1].y);
+                // Findings 5 and 6: its turns onto other runs rounded, and stopped 50 ft short of its top and bottom.
+                var drawn = TrailLineShape.Trim(TrailLineShape.RoundJoins(whole, joins));
+                lines.Add((drawn, TrailMapView.InkOf(t.Built, rating)));
                 ulong id = t.Id.Value;
                 _trailRowAt[id] = (t.Segments[0].Piece, t.Segments[0].StartMm);
                 _trailRowLine[id] = drawn;
@@ -72,6 +82,7 @@ namespace MountainPlanner.App
                     Graded = graded, Built = t.Built,
                 });
             }
+            _trailLayer.SetTrailLines(lines, covered);
             // NT7: the longest trails' names place first; equal lengths keep the trails' order.
             _trailLabelOrder.Clear();
             var byLength = new List<int>(_trailLabelSpots.Count);

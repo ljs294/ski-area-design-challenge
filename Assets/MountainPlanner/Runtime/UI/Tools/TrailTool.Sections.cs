@@ -150,9 +150,63 @@ namespace MountainPlanner.UI.Tools
                     SessionStatus();
                     return;
                 }
-                if (r.Doc == _ctx.History.Document) { _resolved = r; TrailFromPick(); }
+                if (r.Doc == _ctx.History.Document)
+                {
+                    _resolved = r;
+                    TrailFromPick();
+                    if (_step == Step.Pick || _mode == TrailToolMode.Remove) DrawLit(PickedLit(), true);   // a hover finds its own next frame
+                }
             }
-            if (_session == null && _target != null && (_resolved == null || _resolved.Doc != _ctx.History.Document)) StartResolve(_ctx.History.Document, false, null);
+            if (_session == null && (_target != null || _step == Step.Pick) && (_resolved == null || _resolved.Doc != _ctx.History.Document))
+                StartResolve(_ctx.History.Document, false, null);
+        }
+
+        // ---------- what a pick lights (finding 1) ----------
+
+        IReadOnlyList<Segment> _litSegs;
+        int _litCount;
+
+        // The trail holding the run's segment nearest the pointer (Edit), or the run itself (Remove removes the run).
+        IReadOnlyList<Segment> LitAt(Trail run, Vector2 at)
+        {
+            if (_resolved == null || _resolved.Doc != _ctx.History.Document) return null;
+            var ts = _resolved.Sections;
+            var own = ts.SegmentsOf(run.Id);
+            if (_mode == TrailToolMode.Remove || own.Count == 0) return own.Count > 0 ? own : null;
+            var s = own.Count == 1 ? own[0] : Nearest(own, at, 1000, out _, out _) ?? own[0];
+            return ts.TrailOf(s)?.Segments;
+        }
+
+        IReadOnlyList<Segment> PickedLit()
+        {
+            if (_target == null || _resolved == null) return null;
+            if (_mode == TrailToolMode.Remove) { var own = _resolved.Sections.SegmentsOf(_target.Id); return own.Count > 0 ? own : null; }
+            return _trail?.Segments;
+        }
+
+        // The segments lit along their centrelines, as Edit sections lights its trail; nothing of the run's paint.
+        void DrawLit(IReadOnlyList<Segment> segs, bool force = false)
+        {
+            if (!force && ReferenceEquals(segs, _litSegs)) return;
+            var p = _ctx.Preview;
+            int slot = StrokeSlots;
+            if (segs != null && _resolved?.Lines != null)
+                foreach (var s in segs)
+                {
+                    if (slot >= RedSlots) break;
+                    if (!_resolved.Lines.TryGetValue(s, out var l) || l.Length < 2) continue;
+                    p.Line(slot, l, l.Length, PreviewInk.Snap);
+                    Wide(slot++, 2f);
+                }
+            for (int k = slot; k < StrokeSlots + _litCount; k++) { p.Hide(k); Wide(k, 1); }
+            _litCount = slot - StrokeSlots;
+            _litSegs = segs;
+        }
+
+        void ClearLit()
+        {
+            if (_litCount == 0) { _litSegs = null; return; }
+            DrawLit(null, true);
         }
 
         // The picked trail: the one holding the clicked segment (or the run's top, without a click point).
@@ -183,7 +237,7 @@ namespace MountainPlanner.UI.Tools
             double metres = 0;
             foreach (var s in _trail.Segments) metres += (s.EndMm - s.StartMm) / 1000.0;
             string more = _trail.Segments[0].Piece != _target.Id || _trail.Segments[n - 1].Piece != _target.Id
-                ? $" Repaint and Move ends change the outlined run ({_target.Name})." : "";
+                ? $" Repaint and Move ends change {_target.Name} only." : "";
             string who = _trail.Name == _target.Name ? "" : $"In {_trail.Name}: ";
             return $" {who}{n} section{(n > 1 ? "s" : "")}, {ToolFormat.Length(metres)} along its runs.{more}";
         }
@@ -218,6 +272,8 @@ namespace MountainPlanner.UI.Tools
             ViewCamera.RightButtonClaimed = true;   // right-click takes a section out
             _ctx.Paint?.Clear();
             _ctx.Preview.HideFrom(StrokeSlots);
+            _litSegs = null;
+            _litCount = 0;   // the session's lines take these slots
             _strip?.ShowWaiting("Edit sections: the trail's profile shows again when you're done.");
             _hoverKind = -1;
             DrawSession();
