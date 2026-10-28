@@ -609,7 +609,7 @@ namespace MountainPlanner.Tests.Core
             // rule or the outline's writer shows here (0.3 §5).
             string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v7-save")), "Saves", JacksonHole, "save-001");
             var back = SaveJson.Read(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName)), out _);
-            string sha = BitConverter.ToString(System.Security.Cryptography.SHA256.HashData(DesignBytes.Encode(back.Design))).Replace("-", "").ToLowerInvariant();
+            string sha = BitConverter.ToString(System.Security.Cryptography.SHA256.Create().ComputeHash(DesignBytes.Encode(back.Design))).Replace("-", "").ToLowerInvariant();
             Assert.That(sha, Is.EqualTo(ConvertedSevenSha), "the v7 fixture converted to v8");
         }
 

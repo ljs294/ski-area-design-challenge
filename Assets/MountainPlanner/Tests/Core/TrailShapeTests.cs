@@ -118,6 +118,19 @@ namespace MountainPlanner.Tests
             Assert.That(shape.Mask.Cells, Is.EqualTo(whole.Clip(cut).Mask.Cells + TrailShape.FromStrokes(null, new[] { parts[1].Strokes[0] }).Mask.Cells));
         }
 
+        [Test, Explicit("timing")]
+        public void TS99_Timing()
+        {
+            var pts = new List<PointMm>();
+            for (int z = 600; z >= -600; z -= 10) pts.Add(new PointMm(0, z * 1000));
+            var w = System.Diagnostics.Stopwatch.StartNew();
+            var mask = TrailShape.FromStrokes(null, new[] { new Stroke(60_960, false, pts.ToArray()) });
+            TestContext.Progress.WriteLine($"FromStrokes {w.ElapsedMilliseconds} ms, {mask.Points} points");
+            w.Restart();
+            var again = TrailShape.FromRings(mask.Rings);
+            TestContext.Progress.WriteLine($"FromRings {w.ElapsedMilliseconds} ms");
+        }
+
         [Test]
         public void TS06_ARunsOutlineStaysSmall([Values(0, 5, 10, 15, 20, 25, 30, 35, 40, 45)] int degrees)
         {

@@ -463,7 +463,7 @@ namespace MountainPlanner.App
             var side = new Vector2(along.y, -along.x) * 6.1f;
             var head = DesignFrame.ToDesign(t - along * 6.1f + side);
             var tail = DesignFrame.ToDesign(b + along * 6.1f + side);
-            var parts = new[] { new FootprintPart(new[] { new Stroke(DesignUnits.FeetToMm(60), false, new[] { head, tail }) }) };
+            var parts = TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(60), false, new[] { head, tail }) });
             var history = _edits.History;
             var cmd = new AddTrail(history.Revision, "Lift Line", TrailSettings.NaturalRun, parts, head, tail, WorkStage.Built);
             var after = cmd.Apply(history.Document);

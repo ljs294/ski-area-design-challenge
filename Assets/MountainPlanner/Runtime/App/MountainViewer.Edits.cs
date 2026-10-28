@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using MountainPlanner.App.Edits;
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Edits;
 using MountainPlanner.Persistence.Saves;
 using MountainPlanner.Presentation;
 using UnityEngine;
@@ -49,6 +50,55 @@ namespace MountainPlanner.App
             StartCoroutine(StartEditsWhenReady(args, bench, timing));
         }
 
+        /// <summary>
+        /// Save v8 (sections finding 7): an older save's built work graded once more, as this build grades it (its trails were
+        /// graded from strokes, now from their clearings' cells). Off the main thread, from the untouched ground, so the
+        /// same save always regrades the same way; in memory only (<see cref="OpenDesign.Regraded"/>), so the file is left
+        /// as it was until the player saves. Skipped if the player changes the design first.
+        /// </summary>
+        IEnumerator RegradeOlderSave(OpenDesign open)
+        {
+            var doc = open.History.Document;
+            var old = open.History.Terrain;
+            var site = _edits.Earthwork.Site;
+            var source = _edits.Pipeline.Heights.Source;
+            var work = System.Threading.Tasks.Task.Run(() => DesignEarthwork.Regrade(source, site, doc));
+            while (!work.IsCompleted) yield return null;
+            if (work.IsFaulted) { Debug.LogException(work.Exception); yield break; }
+            if (OpenDesign.Current != open || !ReferenceEquals(open.History.Document, doc) || !ReferenceEquals(open.History.Terrain, old))
+            {
+                Debug.Log("[Saves] the older save's regrade was skipped: the design changed first");
+                yield break;
+            }
+            var fresh = work.Result;
+            Compare(old, fresh, out int points, out double cubicMetres, out int cells);
+            open.Regraded(fresh);
+            int trails = doc.Trails.Count(t => t.Stage == WorkStage.Built);
+            Debug.Log($"[Saves] regraded an older save (v{open.MigratedFrom}): {trails} built trails, {points} points moved, " +
+                      $"{cubicMetres:F1} m³ of cut and fill changed, {cells} cleared cells changed; the file is unchanged until saved");
+            Hud?.Toast(points == 0 && cells == 0
+                ? "Opened a save from an earlier version: nothing on the ground changes. Save to keep it in this version's format."
+                : $"Opened a save from an earlier version: its trails were regraded ({points:N0} points moved). Save to keep it.");
+        }
+
+        // How far two edit sets differ: lattice points whose height differs, the cut and fill between them, cleared cells.
+        static void Compare(TerrainEdits a, TerrainEdits b, out int points, out double cubicMetres, out int cells)
+        {
+            points = 0; cells = 0; cubicMetres = 0;
+            var keys = new SortedSet<EditTileKey>();
+            foreach (var t in a.Tiles) keys.Add(t.Key);
+            foreach (var t in b.Tiles) keys.Add(t.Key);
+            foreach (var k in keys)
+                for (int j = 0; j < EditTileKey.Side; j++)
+                    for (int i = 0; i < EditTileKey.Side; i++)
+                    {
+                        int c = k.FirstColumn + i, r = k.FirstRow + j;
+                        int d = b.DeltaMmAt(c, r) - a.DeltaMmAt(c, r);
+                        if (d != 0) { points++; cubicMetres += Math.Abs(d) / 1000.0; }
+                        if (b.IsClearedAt(c, r) != a.IsClearedAt(c, r)) cells++;
+                    }
+        }
+
         IEnumerator StartEditsWhenReady(string[] args, int bench, int timing)
         {
             // The open area's design (its save's edits come with it), or a fresh one in a run without the game's flow.
@@ -67,6 +117,8 @@ namespace MountainPlanner.App
             if (_preview != null) _preview.Cleared += _edits.ClearPreview;   // a tool's preview clearing takes the yellow contours with it (CF-08)
             Debug.Log("[TerrainEdits] ready" + (_editKeys ? ": F6 preview a bench at the pointer, F7 break ground, F8 cancel, Ctrl+Z / Ctrl+Y" : ""));
             if (Array.IndexOf(args, "-regrade") >= 0) _edits.RegradeForCapture();   // captures: a save graded as this build grades
+            else if (OpenDesign.Current is OpenDesign open && open.NeedsRegrade && ReferenceEquals(open.History, _edits.History))
+                StartCoroutine(RegradeOlderSave(open));
             if (bench >= 0 && bench + 1 < args.Length)
             {
                 var v = args[bench + 1].Split(',').Select(t => float.Parse(t, CultureInfo.InvariantCulture)).ToArray();

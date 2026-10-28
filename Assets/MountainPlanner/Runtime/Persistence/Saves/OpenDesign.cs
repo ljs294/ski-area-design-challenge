@@ -81,7 +81,7 @@ namespace MountainPlanner.Persistence.Saves
                 throw new InvalidDataException("This save was made on different terrain for this area, so its edits can't be laid over it.");
             var open = new OpenDesign(dataRoot, packageId, heightsSha256, save.Design, save.Edits)
             {
-                LoadedEdits = save.Edits, Recovered = save.Recovered,
+                LoadedEdits = save.Edits, Recovered = save.Recovered, MigratedFrom = save.MigratedFrom,
             };
             if (!save.Autosave)   // opening the autosave slot leaves Ctrl+S to ask for a name (SV1)
             {
@@ -89,6 +89,30 @@ namespace MountainPlanner.Persistence.Saves
                 open.SaveName = save.Name;
             }
             return open;
+        }
+
+        /// <summary>The format version the save had when read (<see cref="SaveFile.CurrentVersion"/> for a new design).</summary>
+        public int MigratedFrom { get; private set; } = SaveFile.CurrentVersion;
+
+        /// <summary>
+        /// An older save (before v8, sections finding 7) whose built work should be graded once more as this build grades it:
+        /// its trails were graded from strokes, and now from their clearings' cells.
+        /// </summary>
+        public bool NeedsRegrade => MigratedFrom < 8 && !History.Terrain.IsEmpty && !_regraded;
+        bool _regraded;
+
+        /// <summary>
+        /// Takes the regraded edits (<see cref="NeedsRegrade"/>) in place of the loaded ones, in memory only: the history
+        /// starts from them, and the design stays clean, so nothing (an autosave included) writes the file until the
+        /// player saves. Opening the save again regrades it again, the same way.
+        /// </summary>
+        public void Regraded(TerrainEdits edits)
+        {
+            if (edits == null) throw new ArgumentNullException(nameof(edits));
+            _regraded = true;
+            History.Load(History.Document, edits);
+            _savedTerrain = History.Terrain;
+            DirtyChanged?.Invoke();
         }
 
         /// <summary>Anything changed since the last save or autosave: the bar's save symbol is white, leaving asks (SV2).</summary>

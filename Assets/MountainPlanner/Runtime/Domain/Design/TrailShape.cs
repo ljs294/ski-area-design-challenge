@@ -15,29 +15,46 @@ namespace MountainPlanner.Domain.Design
     public sealed class TrailShape : IEquatable<TrailShape>
     {
         public TrailMask Mask { get; }
-        /// <summary>Outer rings anticlockwise and holes clockwise (the clearing on the left), each from its lowest point.</summary>
-        public IReadOnlyList<PointMm[]> Rings { get; }
 
-        public static readonly TrailShape Empty = new TrailShape(TrailMask.Empty, Array.Empty<PointMm[]>());
-
-        TrailShape(TrailMask mask, PointMm[][] rings)
+        /// <summary>
+        /// Outer rings anticlockwise and holes clockwise (the clearing on the left), each from its lowest point. Worked out
+        /// the first time they're read (once, whichever thread reads them): painting needs only the cells.
+        /// </summary>
+        public IReadOnlyList<PointMm[]> Rings
         {
-            Mask = mask;
-            Rings = rings;
-            int n = 0;
-            foreach (var r in rings) n += r.Length;
-            Points = n;
+            get
+            {
+                lock (_gate)
+                {
+                    if (_rings == null)
+                    {
+                        _rings = Mask.IsEmpty ? Array.Empty<PointMm[]>() : Outline(Mask);
+                        int n = 0;
+                        foreach (var r in _rings) n += r.Length;
+                        _points = n;
+                    }
+                    return _rings;
+                }
+            }
         }
+
+        readonly object _gate = new object();
+        PointMm[][] _rings;
+        int _points;
+
+        public static readonly TrailShape Empty = new TrailShape(TrailMask.Empty);
+
+        TrailShape(TrailMask mask) { Mask = mask; }
 
         public bool IsEmpty => Mask.IsEmpty;
         /// <summary>Every ring's points.</summary>
-        public int Points { get; }
+        public int Points { get { _ = Rings; return _points; } }
 
         public bool Equals(TrailShape o) => o is object && Mask.Equals(o.Mask);
         public override bool Equals(object obj) => obj is TrailShape o && Equals(o);
         public override int GetHashCode() => Mask.GetHashCode();
 
-        public static TrailShape Of(TrailMask mask) => mask.IsEmpty ? Empty : new TrailShape(mask, Outline(mask));
+        public static TrailShape Of(TrailMask mask) => mask.IsEmpty ? Empty : new TrailShape(mask);
 
         /// <summary>Strokes painted (and erased) in order onto <paramref name="baseShape"/> (null for a new trail).</summary>
         public static TrailShape FromStrokes(TrailShape baseShape, IReadOnlyList<Stroke> strokes)

@@ -52,7 +52,7 @@ namespace MountainPlanner.Presentation.Design
                 }
                 if (!_shapes.TryGetValue(t.Id, out shape) || !ReferenceEquals(shape.trail, t))
                 {
-                    var fp = TrailFootprint.Build(t.Parts, edited.Lattice, frame.Origin.X, frame.Origin.Y);
+                    var fp = TrailFootprint.Build(t.Shape, edited.Lattice, frame.Origin.X, frame.Origin.Y);
                     var head = frame.ToAlbers(t.Head.Value.XMetres, t.Head.Value.YMetres);
                     var tail = frame.ToAlbers(t.Tail.Value.XMetres, t.Tail.Value.YMetres);
                     var c = TrailCentreline.Find(fp, head.X, head.Y, tail.X, tail.Y);

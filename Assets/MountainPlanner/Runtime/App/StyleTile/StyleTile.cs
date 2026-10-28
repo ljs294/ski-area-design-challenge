@@ -79,7 +79,7 @@ namespace MountainPlanner.App
             int width = DesignUnits.FeetToMm(TrailWidthFeet);
             var id = TrailId.Make(history.Document.Seed, history.Document.NextOrdinal);
             var graded = TrailGrader.Grade(heights, line, width / 1000.0, true, history.Document.Seed, id);
-            var parts = new[] { new FootprintPart(new[] { new Stroke(width, false, points) }, Array.Empty<Cut>()) };
+            var parts = TrailShape.FromStrokes(null, new[] { new Stroke(width, false, points) });
             var trail = new AddTrail(history.Revision, TrailName, TrailSettings.GradedRun, parts, points[0], points[points.Length - 1], WorkStage.Built);
             var r1 = history.Submit(trail, graded.Edits);
             report.AppendFormat(CultureInfo.InvariantCulture,

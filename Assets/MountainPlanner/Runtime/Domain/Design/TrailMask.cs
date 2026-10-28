@@ -202,14 +202,53 @@ namespace MountainPlanner.Domain.Design
                 for (int j = j0; j <= j1; j++)
                 {
                     long cy = CentreMm(j);
-                    // The capsule is convex, so its cells in a row are one run: its first and last cell from either end.
-                    int lo = i0;
-                    while (lo <= i1 && !InCapsule(CentreMm(lo), cy, a, b, w)) lo++;
-                    if (lo > i1) continue;
-                    int hi = i1;
+                    // The capsule is convex, so its cells in a row are one run. Its ends are worked out from the shape, then
+                    // settled cell by cell with the exact test (a cell or two either way), so the run is the test's own.
+                    if (!RowSpan(cy, a, b, w / 2.0, out double x0, out double x1)) continue;
+                    int lo = Math.Max(i0, (int)Math.Floor(x0 / CellMm) - 1), hi = Math.Min(i1, (int)Math.Ceiling(x1 / CellMm) + 1);
+                    while (lo <= hi && !InCapsule(CentreMm(lo), cy, a, b, w)) lo++;
+                    if (lo > hi) continue;
                     while (hi > lo && !InCapsule(CentreMm(hi), cy, a, b, w)) hi--;
+                    while (lo > i0 && InCapsule(CentreMm(lo - 1), cy, a, b, w)) lo--;
+                    while (hi < i1 && InCapsule(CentreMm(hi + 1), cy, a, b, w)) hi++;
                     Set(j, lo, hi + 1, paint);
                 }
+            }
+
+            // Where the line y = cy crosses the capsule of radius r round ab: the union of the two end discs and the band
+            // between them (one interval, the capsule being convex). False when it misses.
+            static bool RowSpan(long cy, PointMm a, PointMm b, double r, out double x0, out double x1)
+            {
+                x0 = double.MaxValue; x1 = double.MinValue;
+                foreach (var c in new[] { a, b })
+                {
+                    double dy = cy - c.Y;
+                    if (Math.Abs(dy) > r) continue;
+                    double h = Math.Sqrt(r * r - dy * dy);
+                    x0 = Math.Min(x0, c.X - h);
+                    x1 = Math.Max(x1, c.X + h);
+                }
+                double dx = (double)b.X - a.X, dyy = (double)b.Y - a.Y, l2 = dx * dx + dyy * dyy, py = cy - a.Y;
+                if (l2 > 0)
+                {
+                    double lo = double.MinValue, hi = double.MaxValue, rl = r * Math.Sqrt(l2);
+                    // Within r of the line: |(x − ax)·dy − py·dx| ≤ r·L.
+                    if (dyy != 0)
+                    {
+                        double u = a.X + (py * dx - rl) / dyy, v = a.X + (py * dx + rl) / dyy;
+                        lo = Math.Max(lo, Math.Min(u, v)); hi = Math.Min(hi, Math.Max(u, v));
+                    }
+                    else if (Math.Abs(py * dx) > rl) lo = hi + 1;
+                    // Between the ends: 0 ≤ (x − ax)·dx + py·dy ≤ L².
+                    if (dx != 0)
+                    {
+                        double u = a.X + (0 - py * dyy) / dx, v = a.X + (l2 - py * dyy) / dx;
+                        lo = Math.Max(lo, Math.Min(u, v)); hi = Math.Min(hi, Math.Max(u, v));
+                    }
+                    else if (py * dyy < 0 || py * dyy > l2) lo = hi + 1;
+                    if (lo <= hi) { x0 = Math.Min(x0, lo); x1 = Math.Max(x1, hi); }
+                }
+                return x0 <= x1;
             }
 
             /// <summary>

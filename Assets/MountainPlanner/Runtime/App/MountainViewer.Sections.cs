@@ -253,6 +253,7 @@ namespace MountainPlanner.App
         {
             int i = Array.IndexOf(args, "-sectionshots");
             if (i < 0 || i + 1 >= args.Length) return;
+            if (Array.IndexOf(args, "-shapeshots") >= 0) { StartCoroutine(ShapeShots(args[i + 1])); return; }   // finding 7
             int f = Array.IndexOf(args, "-findingshots");   // -findingshots: the sections findings round's fixes instead
             if (f >= 0) { StartCoroutine(FindingShots(args[i + 1])); return; }
             int j = Array.IndexOf(args, "-sectionjoin");   // -sectionjoin "Run 20" "Run 26": that join instead of the tour
@@ -340,6 +341,45 @@ namespace MountainPlanner.App
             Hud.SetAnalysis(false);
             Design?.Undo();   // the save stays as it was
             Debug.Log("[JoinShots] finished");
+            Application.Quit();
+        }
+
+        /// <summary>
+        /// -sectionshots &lt;dir&gt; -shapeshots (sections finding 7, save v8): an older save opened (its one-time regrade and
+        /// notice), Edit trail picking a trail (no strokes), and Repaint showing the trail's own clearing as paint. Nothing
+        /// is saved.
+        /// </summary>
+        System.Collections.IEnumerator ShapeShots(string dir)
+        {
+            System.IO.Directory.CreateDirectory(dir);
+            while (_resort == null || !_resort.CoverReady.IsCompleted || _edits == null || WorkBusy || _sections == null || NetworkBusy || _tools == null)
+                yield return null;
+            var open = Persistence.Saves.OpenDesign.Current;
+            for (int k = 0; k < 3000 && open != null && open.NeedsRegrade; k++) yield return null;
+            while (!_edits.Applying.IsCompleted) yield return null;
+            for (int k = 0; k < 20; k++) yield return null;
+            Debug.Log($"[ShapeShots] opened v{open?.MigratedFrom}: regrade {(open != null && !open.NeedsRegrade ? "done" : "not needed or pending")}, dirty {open?.Dirty}");
+            ResolvedTrail run = null;
+            foreach (var t in _sections.Trails) if (t.Name == "Run 30" && _trailRowLine.ContainsKey(t.Id.Value)) run = t;
+            foreach (var t in _sections.Trails) if (run == null && _trailRowLine.ContainsKey(t.Id.Value)) run = t;
+            if (run == null) { Debug.LogWarning("[ShapeShots] no trails"); Application.Quit(); yield break; }
+            FrameSections(_trailRowLine[run.Id.Value], null);
+            yield return Shot(dir, "1-opened-older-save");
+            _toolScripted = true;
+            ChooseTrailRow(EditTrailTool.ToolId, run.Id.Value);
+            var tool = _tools.Active as TrailTool;
+            for (int f = 0; f < 3000 && tool != null && (tool.PickedTrail == null || tool.SectionsBusy); f++) { _tools.Tick(default); yield return null; }
+            for (int k = 0; k < 10; k++) { _tools.Tick(default); yield return null; }
+            Debug.Log($"[ShapeShots] picked {run.Name}: {tool?.Strokes} strokes held");
+            yield return Shot(dir, "2-edit-pick");
+            tool?.RepaintForCapture();
+            for (int f = 0; f < 3000 && tool != null && tool.Analysing; f++) { _tools.Tick(default); yield return null; }
+            for (int k = 0; k < 10; k++) { _tools.Tick(default); yield return null; }
+            Debug.Log($"[ShapeShots] repaint: {tool?.Strokes} strokes, clearing {tool?.Raster?.Cells} cells");
+            yield return Shot(dir, "3-repaint-own-clearing");
+            _toolScripted = false;
+            _tools.Close();
+            Debug.Log("[ShapeShots] finished");
             Application.Quit();
         }
 
