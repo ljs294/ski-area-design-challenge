@@ -487,7 +487,7 @@ namespace MountainPlanner.Tests
             var g = new Rolling();
             var (h, work) = Session(g);
             var a = Add(h, work, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300));
-            var b = Add(h, work, Strip(80, (-120, -80), (140, -220)), M(-120, -80), M(140, -220));
+            var b = Add(h, work, Strip(80, (-120, -80), (140, -220)), M(-120, -80), M(140, -220), graded: false);
             Add(h, work, Strip(90, (100, 50), (120, -260)), M(100, 50), M(120, -260));
             Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True, "incremental adds");
             // Repaint the first: the second (which crosses it) must follow.
@@ -495,12 +495,12 @@ namespace MountainPlanner.Tests
             Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True, "after a repaint");
             Commit(h, work, new DeleteTrail(h.Revision, a));
             Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True, "after a delete");
-            Commit(h, work, new SetTrailSettings(h.Revision, b, TrailSettings.NaturalRun));
-            Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True, "after Natural");
+            Commit(h, work, new SetTrailSettings(h.Revision, b, TrailSettings.GradedRun));   // NT47: grading only goes one way once built
+            Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True, "after Graded");
             // Undo restores exactly; the next edit after an undo still matches a fresh build.
             h.Undo();
             h.Undo();
-            Commit(h, work, new SetTrailSettings(h.Revision, b, TrailSettings.NaturalRun));
+            Commit(h, work, new SetTrailSettings(h.Revision, b, TrailSettings.GradedRun));
             Assert.That(Same(h.Terrain, Fresh(g, h.Document)), Is.True, "an edit after undoing two");
         }
 

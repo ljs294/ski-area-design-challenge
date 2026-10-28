@@ -586,6 +586,7 @@ The owner said "Go. Yes to all nine recommendations."
 | NT44 | **Every junction is a node** (S2: "whenever a trail ends or crosses should create a split node"): an end landing on a run, a crossing, a lift station passed through; each run splits there on its own, with no save, and stays one trail ("Still one trail"). Plans split among plans, built among built |
 | NT45 | **Cut is a point on the run** (S3): it adds a node there, works on any bend, and never touches paint, footprint or ground; Rejoin removes a cut point only |
 | NT46 | **A node that disappears** leaves one longer segment; if the stretches either side were in different trails, it stays with the trail above |
+| NT47 | **Grading is permanent once built** (sections finding 2, 2026-10-27): Grading is a "Graded" checkbox. A plan ticks and unticks freely; a built natural trail can be graded later; a built graded trail stays graded (the box is ticked and locked, and the commands refuse it) |
 | NT41 | **A cut node is shared:** Move ends on one section moves both sections; the review shows both |
 
 ## Phase 3 task 15, terrain brush: decided 2026-10-26

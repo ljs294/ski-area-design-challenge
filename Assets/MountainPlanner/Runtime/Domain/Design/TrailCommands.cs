@@ -133,6 +133,7 @@ namespace MountainPlanner.Domain.Design
             if (t == null) return Missing(doc, "That trail");
             if (DesignRules.SettingsProblem(Settings) is string p) return CommandResult.Reject(doc, RejectionCode.NotAvailable, p);
             if (t.Settings.Equals(Settings)) return Invalid(doc, "Nothing changes.");
+            if (DesignRules.GradingProblem(t, Settings, t.Stage) is string g) return Invalid(doc, g);
             return CommandResult.Accept(doc.PutTrail(t.WithSettings(Settings)));
         }
     }

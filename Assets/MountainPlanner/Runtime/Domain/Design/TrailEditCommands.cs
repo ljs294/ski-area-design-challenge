@@ -39,6 +39,7 @@ namespace MountainPlanner.Domain.Design
             if (problem != null) return Invalid(doc, problem);
             if (DesignRules.SettingsProblem(Settings) is string s) return CommandResult.Reject(doc, RejectionCode.NotAvailable, s);
             if (t.Stage == WorkStage.Built && Stage == WorkStage.Plan) return Invalid(doc, "A built trail stays built; remove it instead.");
+            if (DesignRules.GradingProblem(t, Settings, Stage) is string g) return Invalid(doc, g);
             var edited = t.WithName(Name).WithParts(Parts).WithEnds(Head, Tail).WithSettings(Settings).WithStage(Stage);
             if (Same(t, edited)) return Invalid(doc, "Nothing changes.");
             var next = doc.PutTrail(edited);

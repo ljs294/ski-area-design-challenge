@@ -131,10 +131,29 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void NT47_GradingIsPermanentOnceBuilt()
+        {
+            var h = new DesignHistory(DesignDocument.Empty(1));
+            var plan = AddTrail(h, "Run 1", P(0, 1000), P(0, 0), WorkStage.Plan);
+            Assert.That(h.Submit(new SetTrailSettings(h.Revision, plan, TrailSettings.NaturalRun)).Accepted, Is.True, "a plan switches freely");
+            Assert.That(h.Submit(new SetTrailSettings(h.Revision, plan, TrailSettings.GradedRun)).Accepted, Is.True, "and back");
+            var built = AddTrail(h, "Run 2", P(500, 1000), P(500, 0));
+            var back = h.Submit(new SetTrailSettings(h.Revision, built, TrailSettings.NaturalRun));
+            Assert.That(back.Accepted, Is.False);
+            Assert.That(back.ToString(), Does.Contain("permanent"));
+            var t = h.Document.FindTrail(built);
+            var edit = h.Submit(new EditTrail(h.Revision, built, t.Name, t.Parts, t.Head.Value, t.Tail.Value, TrailSettings.NaturalRun, WorkStage.Built));
+            Assert.That(edit.Accepted, Is.False, "Edit trail can't ungrade a built trail either");
+            var natural = h.Submit(new AddTrail(h.Revision, "Run 3", TrailSettings.NaturalRun, Straight(P(900, 1000), P(900, 0)), P(900, 1000), P(900, 0), WorkStage.Built));
+            var id = new TrailId(natural.Created[0]);
+            Assert.That(h.Submit(new SetTrailSettings(h.Revision, id, TrailSettings.GradedRun)).Accepted, Is.True, "a built natural trail can be graded later");
+        }
+
+        [Test]
         public void TR06_SettingsAreHeldButOnlyPhase3OnesCanBeChosen()
         {
             var h = new DesignHistory(DesignDocument.Empty(1));
-            var run = AddTrail(h, "Run 1", P(0, 1000), P(0, 0));
+            var run = AddTrail(h, "Run 1", P(0, 1000), P(0, 0), WorkStage.Plan);
             Assert.That(h.Submit(new SetTrailSettings(h.Revision, run, TrailSettings.NaturalRun)).Accepted, Is.True);
             var glade = h.Submit(new SetTrailSettings(h.Revision, run, new TrailSettings(TrailGrading.Natural, TrailKind.Glade)));
             Assert.That(glade.Code, Is.EqualTo(RejectionCode.NotAvailable));

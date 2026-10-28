@@ -111,6 +111,12 @@ namespace MountainPlanner.Domain.Design
             return null;
         }
 
+        /// <summary>NT47 (finding 2): grading is permanent once built. A built graded trail stays graded; a natural one may be
+        /// graded later, and a plan may switch either way.</summary>
+        public static string GradingProblem(Trail trail, TrailSettings next, WorkStage nextStage) =>
+            trail.Stage == WorkStage.Built && trail.Settings.Grading == TrailGrading.Graded && nextStage == WorkStage.Built
+            && next.Grading != TrailGrading.Graded ? "Grading is permanent once built." : null;
+
         public static string StageProblem(WorkStage stage) =>
             stage == WorkStage.Plan || stage == WorkStage.Built ? null : "Unknown stage.";
 
