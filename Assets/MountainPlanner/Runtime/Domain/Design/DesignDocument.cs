@@ -14,7 +14,7 @@ namespace MountainPlanner.Domain.Design
         /// <summary>The shape of the authored data. Task 04's save file freezes it; a change bumps this. 4 (task 15): the
         /// terrain strokes. 5 (task P3-10): the named Areas (NW-15). 6 (task P3-10): the trails made of more than one section (NT24). 7 (task P3-10): trails as spans of runs between nodes, and the
         /// player's cut points (NT43–NT46).</summary>
-        public const int ShapeVersion = 7;
+        public const int ShapeVersion = 8;
 
         /// <summary>The design's key seed: every ID is a keyed hash of it (SH-04).</summary>
         public ulong Seed { get; }

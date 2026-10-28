@@ -41,6 +41,7 @@ namespace MountainPlanner.UI.Tools
         /// <summary>A painted footprint and what step 1 shows.</summary>
         sealed class Paint
         {
+            public TrailShape Shape;
             public TrailFootprint Footprint;
             public double Estimate = double.NaN;
         }
@@ -64,7 +65,9 @@ namespace MountainPlanner.UI.Tools
         bool _graded;
         string _name;
         Trail _target;
-        bool _repaintable;
+        // Sections finding 7: a trail keeps its clearing's shape; strokes live only here, while painting. Edit paints onto
+        // the picked trail's shape (_base), New onto nothing; _shape is the worked-out result the commands send.
+        TrailShape _base, _shape;
         readonly List<Stroke> _strokes = new List<Stroke>();
         readonly List<PointMm> _live = new List<PointMm>();
         bool _painting, _liveErase;
@@ -194,7 +197,7 @@ namespace MountainPlanner.UI.Tools
             if (_target == null) return;
             switch (i)
             {
-                case 0: if (_repaintable) Go(Step.Paint); break;
+                case 0: Go(Step.Paint); break;
                 case 1: _hasHead = _hasTail = false; Go(Step.Ends); break;
             }
         }
@@ -230,6 +233,9 @@ namespace MountainPlanner.UI.Tools
                     w.SetKeys((GameAction.BrushNarrower, ""), (GameAction.BrushWider, "width"), (GameAction.Erase, "erases"), (GameAction.UndoStroke, "undoes a stroke"));
                     w.ShowReview(null);
                     w.SetCommit(false, false);
+                    // Repaint shows the trail's own clearing as paint at once (the pick cleared it, finding 1).
+                    if (_raster != null && !_analysing) ShowPaint();
+                    else if (HasPaint && !_analysing) Restroke();
                     PaintStatus();
                     break;
                 case Step.Ends:
@@ -269,14 +275,14 @@ namespace MountainPlanner.UI.Tools
             string facts = Facts(_target);
             w.SetHint(edit ? $"{facts}{TrailFacts()} The rating comes from the ground: regrade or repaint to change it. Grading runs again only where something changes."
                            : facts);
-            w.SetMessage(edit && !_repaintable ? "This trail was split or joined: Repaint waits for the network tools (task 10)" : null);
+            w.SetMessage(null);
             SetEditButtons(true);
         }
 
         void SetEditButtons(bool on)
         {
             if (_editButtons == null) return;
-            _editButtons[0].SetEnabled(on && _repaintable);
+            _editButtons[0].SetEnabled(on);
             _editButtons[1].SetEnabled(on);
             if (_mode == TrailToolMode.Edit) _ctx.Window.SetRenamable(on && _session == null ? Rename : null);
             SetSectionsButton();
@@ -355,7 +361,7 @@ namespace MountainPlanner.UI.Tools
             foreach (var t in _ctx.History.Document.Trails)
             {
                 if (!_picks.TryGetValue(t.Id, out var e) || !ReferenceEquals(e.trail, t))
-                    _picks[t.Id] = e = (t, TrailFootprint.Build(t.Parts, site.Lattice, site.OriginX, site.OriginY));
+                    _picks[t.Id] = e = (t, TrailFootprint.Build(t.Shape, site.Lattice, site.OriginX, site.OriginY));
                 if (e.fp.Contains(p)) return t;
             }
             return null;
@@ -381,9 +387,8 @@ namespace MountainPlanner.UI.Tools
             _graded = t.Settings.Grading == TrailGrading.Graded;
             _grading.Set?.Invoke(_graded);
             LockGrading(_graded && t.Stage == WorkStage.Built);
-            _repaintable = t.Parts.Count == 1 && t.Parts[0].Cuts.Count == 0;
+            _base = t.Shape;
             _strokes.Clear();
-            foreach (var part in t.Parts) _strokes.AddRange(part.Strokes);
             if (t.HasEnds)
             {
                 _head = SnapHit.None(t.Head.Value);
@@ -425,16 +430,16 @@ namespace MountainPlanner.UI.Tools
             {
                 var at = DesignFrame.ToLocal(input.Point);   // the point as the stroke stores it, so the paint is the footprint's
                 bool inside = _ctx.InCore(at);
-                bool rubbing = _painting ? _liveErase : input.Erase && _strokes.Count > 0;
+                bool rubbing = _painting ? _liveErase : input.Erase && HasPaint;
                 // The brush on the ground: the paint shader draws it (a soft disc in a crisp ring, red to rub out); the
                 // preview's ring only without a paint map (tests).
                 if (paint != null) { paint.Cursor(at, radius, rubbing || !inside, true); preview.Hide(0); }
                 else preview.Ring(0, at, radius, !inside ? PreviewInk.Bad : rubbing ? PreviewInk.Bad : PreviewInk.Brush);
                 if (input.Click && inside && !_painting)
                 {
-                    // A footprint starts with paint (the design's rule), so the very first stroke can't erase.
+                    // A new trail starts with paint, so its very first stroke can't erase; an edit can rub out its own.
                     _painting = true;
-                    _liveErase = input.Erase && _strokes.Count > 0;
+                    _liveErase = input.Erase && HasPaint;
                     _live.Clear();
                     _live.Add(input.Point);
                     _lastXz = at;
@@ -491,8 +496,11 @@ namespace MountainPlanner.UI.Tools
             if (key.Equals(_paintSite)) return;
             _paintSite = key;
             paint.Align(site.Lattice, site.OriginX, site.OriginY);
-            if (_strokes.Count > 0 && !_painting) Restroke();
+            if (HasPaint && !_painting) Restroke();
         }
+
+        /// <summary>Something to show or rub out: a stroke painted, or the picked trail's own clearing.</summary>
+        bool HasPaint => _strokes.Count > 0 || _base != null;
 
         EarthworkSite Site => _ctx.Earthwork?.Earthwork?.Site ?? new EarthworkSite(new EditLattice(0, 0), 0, 0);
 
@@ -504,7 +512,8 @@ namespace MountainPlanner.UI.Tools
             _ => new Color(0.22f, 0.24f, 0.30f),   // black runs: a dark slate that still reads as paint
         };
 
-        // Redraws every stroke's edges and works out the footprint again (after a stroke, an undo, or a step back).
+        // Works out the clearing and its footprint again (after a stroke, an undo, or a step back): the strokes painted onto
+        // the picked trail's shape, off the main thread.
         void Restroke()
         {
             var preview = _ctx.Preview;
@@ -512,21 +521,28 @@ namespace MountainPlanner.UI.Tools
             preview.Hide(2);
             DrawStrokes();
             _raster = null;
+            _shape = null;
             _estimate = double.NaN;
-            if (_strokes.Count == 0) { _analysing = false; _ctx.Paint?.Clear(); PaintStatus(); return; }
+            if (!HasPaint) { _analysing = false; _ctx.Paint?.Clear(); PaintStatus(); return; }
             _analysing = true;
             if (_step == Step.Paint) PaintStatus();
-            var parts = Parts();
+            var baseShape = _base;
+            var strokes = _strokes.ToArray();
             var site = Site;
             var heights = _ctx.Earthwork != null && _ctx.Earthwork.Ready ? _ctx.Earthwork.Heights : null;
             _ctx.Analyse(() =>
             {
-                var p = new Paint { Footprint = TrailFootprint.Build(parts, site.Lattice, site.OriginX, site.OriginY) };
+                var shape = TrailShape.FromStrokes(baseShape, strokes);
+                var p = new Paint { Shape = shape, Footprint = TrailFootprint.Build(shape, site.Lattice, site.OriginX, site.OriginY) };
                 if (heights != null) p.Estimate = TrailRating.Estimate(heights, p.Footprint);
                 return p;
             }, p =>
             {
                 _raster = p.Footprint;
+                _shape = p.Shape;
+                // Its outline, which the commands and the save send, worked out off the main thread ahead of a commit.
+                var shape = p.Shape;
+                System.Threading.Tasks.Task.Run(() => shape.Rings);
                 _estimate = p.Estimate;
                 _analysing = false;
                 // The painted ground, exactly as the trail will store it: a patch apart red (TF-02). Style C tints it with
@@ -542,7 +558,7 @@ namespace MountainPlanner.UI.Tools
         void ShowPaint()
         {
             if (_step == Step.Pick || _raster == null) { if (_step == Step.Pick) _ctx.Paint?.Clear(); return; }
-            _ctx.Paint?.Redraw(Parts(), _raster);
+            _ctx.Paint?.Redraw(_base, _strokes, _raster);
             if (!double.IsNaN(_estimate)) _ctx.Paint?.Tint(BandTint(SlopeBands.Of(_estimate)));
         }
 
@@ -572,10 +588,8 @@ namespace MountainPlanner.UI.Tools
             if (!_painting && !_analysing) ShowPaint();
         }
 
-        // The footprint as the trail will store it: its original parts while unrepainted (a split trail keeps its cuts),
-        // or one part of the strokes as painted.
-        IReadOnlyList<FootprintPart> Parts() =>
-            _target != null && !_repaintable ? _target.Parts : new[] { new FootprintPart(_strokes.ToArray()) };
+        // The clearing as the trail will store it: worked out by Restroke, or the picked trail's own while nothing is painted.
+        TrailShape Shape() => _shape ?? (_strokes.Count == 0 ? _base : TrailShape.FromStrokes(_base, _strokes));
 
         // A stroke drawn as its two edges, half the brush either side of its path (the mockup's dashed edge).
         void DrawStroke(int slot, IReadOnlyList<PointMm> points, int feet, bool erase)
@@ -636,10 +650,10 @@ namespace MountainPlanner.UI.Tools
             var settings = _graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun;
             switch (_mode)
             {
-                case TrailToolMode.New: return new AddTrail(revision, _name, settings, Parts(), _head.At, _tail.At, stage);
+                case TrailToolMode.New: return new AddTrail(revision, _name, settings, Shape(), _head.At, _tail.At, stage);
                 case TrailToolMode.Edit:
                     // A shaped trail's name is the trail's (NT43): the run keeps its own.
-                    return new EditTrail(revision, _target.Id, _trail?.Line != null ? _target.Name : _name, Parts(), _head.At, _tail.At, settings,
+                    return new EditTrail(revision, _target.Id, _trail?.Line != null ? _target.Name : _name, Shape(), _head.At, _tail.At, settings,
                                          stage == WorkStage.Built || _target.Stage == WorkStage.Built ? WorkStage.Built : WorkStage.Plan);
                 default: return new DeleteTrail(revision, _target.Id);
             }
@@ -845,8 +859,7 @@ namespace MountainPlanner.UI.Tools
                 case Step.Ends:
                     if (_hasTail) { _hasTail = false; DropAnalysis(); }
                     else if (_hasHead) _hasHead = false;
-                    else if (_mode == TrailToolMode.New || _repaintable) { Go(Step.Paint); return ToolBackOut.Stepped; }
-                    else { Go(Step.Pick); return ToolBackOut.Stepped; }
+                    else { Go(Step.Paint); return ToolBackOut.Stepped; }
                     EndsStatus();
                     DrawEnds();
                     return ToolBackOut.Stepped;
@@ -880,6 +893,7 @@ namespace MountainPlanner.UI.Tools
             _ctx.Preview.HideFrom(0);
             _analysis = null;
             _strokes.Clear();
+            _base = _shape = null;
             _raster = null;
             if (_mode == TrailToolMode.New)
             {
@@ -908,6 +922,9 @@ namespace MountainPlanner.UI.Tools
 
         /// <summary>Picks Natural or Graded as the window's switch does (tests and captures).</summary>
         public void ChooseGraded(bool graded) => SetGraded(graded);
+
+        /// <summary>Repaint, as its button does (captures).</summary>
+        public void RepaintForCapture() => EditAction(0);
 
         /// <summary>Opens the window's name for typing, or puts it back (captures).</summary>
         public void RenameTitleForCapture(bool open) { if (open) _ctx?.Window.BeginRename(); else _ctx?.Window.EndRename(false); }

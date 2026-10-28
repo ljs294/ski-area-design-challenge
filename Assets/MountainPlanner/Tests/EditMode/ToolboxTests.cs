@@ -412,13 +412,15 @@ namespace MountainPlanner.Tests
 
         IEnumerator Analysed(NewTrailTool trail)
         {
-            // The work runs on a worker thread; the host hands the result over on its next tick (CF-03).
-            for (int i = 0; i < 600 && trail.Analysing; i++)
+            // The work runs on a worker thread; the host hands the result over on its next tick (CF-03). Batch-mode frames are
+            // short, so the wait is by time, not frames.
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            while (trail.Analysing && watch.Elapsed.TotalSeconds < 30)
             {
                 yield return null;
                 _host.Tick(default);
             }
-            Assert.That(trail.Analysing, Is.False, "the area was worked out off the main thread");
+            Assert.That(trail.Analysing, Is.False, $"the area was worked out off the main thread ({_host.Context.Running} still running)");
         }
 
         /// <summary>Counts what the trail tool asks of the paint on the ground.</summary>
@@ -427,7 +429,7 @@ namespace MountainPlanner.Tests
             public int Redraws, Stamps;
             public void Align(MountainPlanner.Domain.Edits.EditLattice lattice, double originX, double originY) { }
             public void Stamp(Vector2 a, Vector2 b, float radius, bool erase) => Stamps++;
-            public void Redraw(IReadOnlyList<FootprintPart> parts, TrailFootprint footprint) => Redraws++;
+            public void Redraw(TrailShape baseShape, IReadOnlyList<Stroke> strokes, TrailFootprint footprint) => Redraws++;
             public void Clear() { }
             public void Cursor(Vector2 xz, float radius, bool erase, bool shown) { }
             public void Tint(Color colour) { }
@@ -532,7 +534,7 @@ namespace MountainPlanner.Tests
             var built = _design.Document.Trails[0];
             Assert.That(built.Name, Is.EqualTo("Run 1"));
             Assert.That(built.HasEnds, Is.True);
-            Assert.That(built.Parts[0].Strokes.Count, Is.EqualTo(1));
+            Assert.That(built.Shape.Rings.Count, Is.EqualTo(1), "the trail keeps its clearing's outline, not the stroke (finding 7)");
             Assert.That(trail.CurrentStep, Is.EqualTo(0), "ready for the next trail");
         }
 
@@ -540,7 +542,7 @@ namespace MountainPlanner.Tests
 
         TrailId BuiltTrail()
         {
-            var parts = new[] { new FootprintPart(new[] { new Stroke(DesignUnits.FeetToMm(100), false, new[] { DesignFrame.ToDesign(new Vector2(0, 300)), DesignFrame.ToDesign(new Vector2(0, -300)) }) }) };
+            var parts = TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(100), false, new[] { DesignFrame.ToDesign(new Vector2(0, 300)), DesignFrame.ToDesign(new Vector2(0, -300)) }) });
             var r = _design.Submit(new AddTrail(_design.Revision, "Run 1", TrailSettings.NaturalRun, parts,
                 DesignFrame.ToDesign(new Vector2(0, 280)), DesignFrame.ToDesign(new Vector2(0, -280)), WorkStage.Built));
             Assert.That(r.Accepted, Is.True, r.ToString());
@@ -572,6 +574,59 @@ namespace MountainPlanner.Tests
             _host.Close();
             _design.Undo();
             Assert.That(_design.Document.FindTrail(id).Settings.Grading, Is.EqualTo(TrailGrading.Natural), "one undo puts it back");
+        }
+
+        [UnityTest]
+        public IEnumerator TF07_RepaintPaintsOntoTheTrailsOwnClearing()
+        {
+            // Sections finding 7: the trail keeps its clearing, not strokes; Repaint paints onto it (and may rub out of it
+            // from the first stroke), and Apply sends the new clearing in one undo.
+            var id = BuiltTrail();
+            var before = _design.Document.FindTrail(id).Shape;
+            _host.Choose(EditTrailTool.ToolId);
+            var tool = (EditTrailTool)_host.Active;
+            _host.Tick(At(5, 0, click: true));
+            Assert.That(tool.Target?.Id, Is.EqualTo(id));
+            Assert.That(tool.Strokes, Is.EqualTo(0), "the picked trail brings no strokes");
+            tool.RepaintForCapture();   // the Repaint button
+            Assert.That(tool.CurrentStep, Is.EqualTo(0).Or.EqualTo(1));
+            // Rub out an island in the middle with a 25 ft brush: an erase first, on the trail's own clearing.
+            for (int k = 0; k < 15; k++) _host.Tick(new ToolInput { Keys = ToolKeys.BrushNarrower });
+            Assert.That(tool.BrushFeet, Is.EqualTo(25));
+            var rub = At(0, 0, click: true);
+            rub.Erase = true;
+            _host.Tick(rub);
+            var up = At(0, 0);
+            up.Release = true;
+            _host.Tick(up);
+            // And paint a spur onto it, 100 ft wide again.
+            for (int k = 0; k < 15; k++) _host.Tick(new ToolInput { Keys = ToolKeys.BrushWider });
+            var spur = At(0, 100, click: true);
+            spur.Drag = true;
+            _host.Tick(spur);
+            for (int x = 10; x <= 120; x += 10) { var d = At(x, 100); d.Drag = true; _host.Tick(d); }
+            var end = At(120, 100);
+            end.Release = true;
+            _host.Tick(end);
+            Assert.That(tool.Strokes, Is.EqualTo(2));
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            while (tool.Analysing && watch.Elapsed.TotalSeconds < 30) { yield return null; _host.Tick(default); }
+            Assert.That(tool.Raster.Contains(DesignFrame.ToDesign(new Vector2(0, 0))), Is.False, "the island is rubbed out");
+            Assert.That(tool.Raster.Contains(DesignFrame.ToDesign(new Vector2(100, 100))), Is.True, "the spur is painted on");
+            Assert.That(tool.Raster.Contains(DesignFrame.ToDesign(new Vector2(0, -200))), Is.True, "the rest of the clearing stays");
+            _host.Tick(new ToolInput { Keys = ToolKeys.Next });
+            Assert.That(tool.CurrentStep, Is.EqualTo(2), "head and tail again");
+            _host.Tick(At(0, 280, click: true));
+            _host.Tick(At(0, -280, click: true));
+            watch.Restart();
+            while (tool.CurrentStep != 3 && watch.Elapsed.TotalSeconds < 30) { yield return null; _host.Tick(new ToolInput { Keys = ToolKeys.Next }); }
+            Assert.That(tool.CurrentStep, Is.EqualTo(3), "review");
+            Assert.That(_host.Confirm(WorkStage.Built).Accepted, Is.True);
+            var after = _design.Document.FindTrail(id).Shape;
+            Assert.That(after.Equals(before), Is.False);
+            Assert.That(after.Rings.Count, Is.EqualTo(2), "an outer ring and the island's hole");
+            _design.Undo();
+            Assert.That(_design.Document.FindTrail(id).Shape, Is.EqualTo(before), "one undo puts the clearing back");
         }
 
         [Test]

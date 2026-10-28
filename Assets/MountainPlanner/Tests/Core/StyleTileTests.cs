@@ -355,7 +355,7 @@ namespace MountainPlanner.Tests
             var graded = Grade(natural);
             var points = Enumerable.Range(0, Curve().Length / 2)
                 .Select(i => PointMm.FromMetres(Curve()[2 * i] - West - 2500, Curve()[2 * i + 1] - North + 2500)).ToArray();
-            var parts = new[] { new FootprintPart(new[] { new Stroke(DesignUnits.FeetToMm(100), false, points) }, Array.Empty<Cut>()) };
+            var parts = TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(100), false, points) });
             Assert.That(history.Submit(new AddTrail(history.Revision, "Style Tile Run", TrailSettings.GradedRun, parts, points[0], points[points.Length - 1], WorkStage.Built),
                                        graded.Edits).Accepted, Is.True);
             var corridor = LiftClearing.Corridor(history.Terrain, Lattice, West + 100, North - 500, West + 100, North - 100, out _);

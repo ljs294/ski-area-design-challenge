@@ -1,3 +1,4 @@
+using System;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Edits;
 using Newtonsoft.Json.Linq;
@@ -12,13 +13,13 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 7;
+        public const int CurrentVersion = 8;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight);
 
         /// <summary>
         /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
@@ -110,6 +111,27 @@ namespace MountainPlanner.Persistence.Saves
             if (design["Cuts"] == null) design["Cuts"] = new JArray();
         }
 
+        /// <summary>
+        /// v7 → v8 (task P3-10, sections finding 7): the design's shape 7 → 8, where a trail keeps its clearing's outline
+        /// instead of the strokes it was painted with. Each trail's parts are read as v7 did (damage refuses the save),
+        /// rasterised once to the clearing's 250 mm cells (<see cref="TrailShape.FromParts"/>) and written as rings; the
+        /// conversion is frozen with the format (a pinned hash in the tests).
+        /// </summary>
+        static void UpToEight(JObject o)
+        {
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 8;
+            if (!(design["Trails"] is JArray trails)) return;
+            foreach (var t in trails)
+            {
+                if (!(t is JObject trail) || trail["Outline"] != null) continue;
+                var parts = SaveJson.ReadParts(trail);
+                if (DesignRules.PartsProblem(parts) is string problem) throw new FormatException(problem);
+                trail["Outline"] = SaveJson.OutlineJson(TrailShape.FromParts(parts));
+                trail.Remove("Parts");
+            }
+        }
+
         /// <summary>The player's name for it ("Autosave" for the autosave slot).</summary>
         public string Name { get; set; } = "";
         /// <summary>The area's one autosave slot (SV1); it never replaces a named save.</summary>
@@ -126,6 +148,11 @@ namespace MountainPlanner.Persistence.Saves
         /// <summary>The committed terrain edits over the package (task 05's 64 m tiles, TE1): heights and clearing.</summary>
         public TerrainEdits Edits { get; set; } = TerrainEdits.Empty;
 
+        /// <summary>
+        /// The format version the file had when read (<see cref="CurrentVersion"/> for a new save). Never written. An older
+        /// save's built trails are graded once more when it opens (save v8, sections finding 7).
+        /// </summary>
+        public int MigratedFrom { get; internal set; } = CurrentVersion;
         /// <summary>Set by a read that had to use save.json.bak: why save.json couldn't be read. Never written.</summary>
         public string Recovered { get; internal set; } = "";
     }

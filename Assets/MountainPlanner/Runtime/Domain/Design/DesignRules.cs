@@ -15,6 +15,9 @@ namespace MountainPlanner.Domain.Design
         public const int MaxStrokesPerPart = 10_000;
         public const int MaxPartsPerTrail = 256;
         public const int MaxCutsPerPart = 256;
+        /// <summary>Shape 8's clearing: at most this many rings and points (a 600 m run takes about a thousand).</summary>
+        public const int MaxShapeRings = 100_000;
+        public const int MaxShapePoints = 2_000_000;
         public const int MaxTowersPerLift = 400;
         /// <summary>TB-14: a stroke holds at most 4,096 dabs (about 2 minutes held); a longer drag carries on as a new stroke.</summary>
         public const int MaxDabsPerStroke = 4096;
@@ -57,6 +60,17 @@ namespace MountainPlanner.Domain.Design
             return alongMm <= DesignUnits.StationZoneMm || length - alongMm <= DesignUnits.StationZoneMm;
         }
 
+        /// <summary>Shape 8: a trail's clearing (sections finding 7).</summary>
+        public static string ShapeProblem(TrailShape shape)
+        {
+            if (shape == null || shape.IsEmpty) return "A trail needs a painted footprint.";
+            if (shape.Rings.Count > MaxShapeRings || shape.Points > MaxShapePoints) return "A trail's clearing is too detailed.";
+            shape.Bounds(out int x0, out int y0, out int x1, out int y1);
+            if (!new PointMm(x0, y0).InRange || !new PointMm(x1, y1).InRange) return "A trail is outside the area.";
+            return null;
+        }
+
+        /// <summary>A legacy footprint's parts (saves before v8, read once to convert them).</summary>
         public static string PartsProblem(IReadOnlyList<FootprintPart> parts)
         {
             if (parts == null || parts.Count == 0) return "A trail needs a painted footprint.";
@@ -159,7 +173,7 @@ namespace MountainPlanner.Domain.Design
         internal static string TrailProblem(Trail t, bool settingsMustBeAvailable)
         {
             if (t.Id.IsNone) return "A trail needs an ID.";
-            return NameProblem(t.Name) ?? StageProblem(t.Stage) ?? PartsProblem(t.Parts) ?? EndsProblem(t.Head, t.Tail)
+            return NameProblem(t.Name) ?? StageProblem(t.Stage) ?? ShapeProblem(t.Shape) ?? EndsProblem(t.Head, t.Tail)
                 ?? (settingsMustBeAvailable ? SettingsProblem(t.Settings) : (t.Settings.Defined ? null : "Unknown trail settings."));
         }
 

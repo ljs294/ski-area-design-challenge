@@ -5,9 +5,8 @@ using MountainPlanner.Domain.Edits;
 namespace MountainPlanner.Domain.Design
 {
     /// <summary>
-    /// A trail's painted footprint on the edit lattice's 1 m cells (TR-02, task 08): each part's strokes stamped in order
-    /// (paint sets a cell, erase clears it), clipped by the part's cuts, the parts unioned. A cell is in when its centre
-    /// lies within a stroke's half width of the stroke's path. Unpainted holes are islands (TR-02, CL-08).
+    /// A trail's painted footprint on the edit lattice's 1 m cells (TR-02, task 08): its clearing's shape (Shape 8,
+    /// <see cref="TrailShape"/>) read at each cell's centre. Unpainted holes are islands (TR-02, CL-08).
     ///
     /// Also holds what the rules read from the footprint: how many separate patches it makes (TF-02), each cell's
     /// clearance (the distance from its centre to the nearest cell outside, islands included, less half a cell: about
@@ -101,80 +100,39 @@ namespace MountainPlanner.Domain.Design
         public double CellY(int row) => Lattice.North - row - 0.5;
 
         /// <summary>
-        /// Rasterises a trail's parts (TR-02). <paramref name="originX"/>, <paramref name="originY"/> place the design's
-        /// local frame in the lattice's (the site's centre, TE5).
+        /// A trail's clearing on the lattice (sections finding 7, Shape 8): a 1 m cell is in when the clearing's 250 mm cell
+        /// under its centre is. <paramref name="originX"/>, <paramref name="originY"/> place the design's local frame in the
+        /// lattice's (the site's centre, TE5).
         /// </summary>
-        public static TrailFootprint Build(IReadOnlyList<FootprintPart> parts, EditLattice lattice, double originX, double originY)
+        public static TrailFootprint Build(TrailShape shape, EditLattice lattice, double originX, double originY)
         {
-            if (parts == null) throw new ArgumentNullException(nameof(parts));
-            double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
-            foreach (var p0 in parts)
-                foreach (var s in p0.Strokes)
-                {
-                    if (s.Erase) continue;
-                    double r = s.WidthMm / 2000.0;
-                    foreach (var p in s.Points)
-                    {
-                        double x = originX + p.XMetres, y = originY + p.YMetres;
-                        minX = Math.Min(minX, x - r); maxX = Math.Max(maxX, x + r);
-                        minY = Math.Min(minY, y - r); maxY = Math.Max(maxY, y + r);
-                    }
-                }
-            if (minX > maxX) return new TrailFootprint(lattice, originX, originY, 0, 0, 1, 1, new bool[1]);
-            lattice.CellAt(minX, maxY, out int c0, out int r0);
-            lattice.CellAt(maxX, minY, out int c1, out int r1);
+            if (shape == null) throw new ArgumentNullException(nameof(shape));
+            if (shape.IsEmpty) return new TrailFootprint(lattice, originX, originY, 0, 0, 1, 1, new bool[1]);
+            shape.Bounds(out int x0, out int y0, out int x1, out int y1);
+            lattice.CellAt(originX + x0 / 1000.0, originY + y1 / 1000.0, out int c0, out int r0);
+            lattice.CellAt(originX + x1 / 1000.0, originY + y0 / 1000.0, out int c1, out int r1);
             c0 -= 1; r0 -= 1; c1 += 1; r1 += 1;   // a cell of margin, so every painted cell has an outside neighbour in the box
             int w = c1 - c0 + 1, h = r1 - r0 + 1;
             if ((long)w * h > 64_000_000) throw new ArgumentException("The footprint is too large.");
             var on = new bool[w * h];
-            var part = new bool[w * h];
-            foreach (var fp in parts)
+            var mask = shape.Mask;
+            const double PerMetre = 1000.0 / TrailMask.CellMm;
+            for (int j = 0; j < h; j++)
             {
-                Array.Clear(part, 0, part.Length);
-                foreach (var s in fp.Strokes)
+                double ly = lattice.North - (r0 + j) - 0.5 - originY;
+                var runs = mask.Row((int)Math.Floor(ly * PerMetre + 0.5));
+                if (runs.Count == 0) continue;
+                int s = 0;
+                for (int i = 0; i < w; i++)
                 {
-                    double r = s.WidthMm / 2000.0;
-                    var pts = s.Points;
-                    if (pts.Count == 0) continue;
-                    for (int k = 0; k < Math.Max(1, pts.Count - 1); k++)
-                    {
-                        var a = pts[k];
-                        var b = pts[Math.Min(k + 1, pts.Count - 1)];
-                        Capsule(part, w, h, lattice, c0, r0, originX + a.XMetres, originY + a.YMetres, originX + b.XMetres, originY + b.YMetres, r, !s.Erase);
-                    }
+                    double lx = lattice.West + c0 + i + 0.5 - originX;
+                    int fi = (int)Math.Floor(lx * PerMetre + 0.5);
+                    while (s < runs.Count && runs[s + 1] <= fi) s += 2;
+                    if (s >= runs.Count) break;
+                    if (fi >= runs[s]) on[j * w + i] = true;
                 }
-                foreach (var cut in fp.Cuts)
-                    for (int j = 0; j < h; j++)
-                        for (int i = 0; i < w; i++)
-                        {
-                            int at = j * w + i;
-                            if (!part[at]) continue;
-                            double lx = lattice.West + c0 + i + 0.5 - originX, ly = lattice.North - (r0 + j) - 0.5 - originY;
-                            if (!cut.Keeps(lx, ly)) part[at] = false;
-                        }
-                for (int k = 0; k < on.Length; k++) on[k] |= part[k];
             }
             return new TrailFootprint(lattice, originX, originY, c0, r0, w, h, on);
-        }
-
-        static void Capsule(bool[] on, int w, int h, EditLattice lattice, int c0, int r0, double ax, double ay, double bx, double by, double r, bool paint)
-        {
-            int i0 = Math.Max(0, (int)Math.Floor(Math.Min(ax, bx) - r - lattice.West) - c0 - 1);
-            int i1 = Math.Min(w - 1, (int)Math.Ceiling(Math.Max(ax, bx) + r - lattice.West) - c0 + 1);
-            int j0 = Math.Max(0, (int)Math.Floor(lattice.North - Math.Max(ay, by) - r) - r0 - 1);
-            int j1 = Math.Min(h - 1, (int)Math.Ceiling(lattice.North - Math.Min(ay, by) + r) - r0 + 1);
-            double dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy, r2 = r * r;
-            for (int j = j0; j <= j1; j++)
-            {
-                double y = lattice.North - (r0 + j) - 0.5;
-                for (int i = i0; i <= i1; i++)
-                {
-                    double x = lattice.West + c0 + i + 0.5;
-                    double t = len2 == 0 ? 0 : Math.Max(0, Math.Min(1, ((x - ax) * dx + (y - ay) * dy) / len2));
-                    double ex = ax + t * dx - x, ey = ay + t * dy - y;
-                    if (ex * ex + ey * ey <= r2) on[j * w + i] = paint;
-                }
-            }
         }
 
         /// <summary>

@@ -10,7 +10,7 @@ using Newtonsoft.Json.Linq;
 namespace MountainPlanner.Persistence.Saves
 {
     /// <summary>
-    /// save.json, version 4 (task P3-04, v1; task P3-09, v2: each lift's terminal levels; v3: each tower's kind, LT44;
+    /// save.json, version 8 (task P3-04, v1; task P3-09, v2: each lift's terminal levels; v3: each tower's kind, LT44;
     /// task P3-15, v4: the terrain brush strokes; frozen, 0.3 §5). Written by hand in a fixed order, so the same save always gives
     /// the same bytes (SH-04): two-space indents, "\n" line ends, integers only, IDs and the seed as 16-digit hex,
     /// points as [x, y] in whole millimetres from the site's centre on the package grid's axes (TE5; never absolute
@@ -31,9 +31,16 @@ namespace MountainPlanner.Persistence.Saves
     /// "End" head or tail, the "K"-th crossing with "Other" as "crosses", a "station" by "Other" lift's "End" bottom or
     /// top, or a "cut" "At" a point), with "FromMm" and "ToMm" along the run as saved. A v6 save's sections are whole runs.
     /// The design's "Cuts" (v7, NT45) are the points the player cut on runs, by run then point.
+    /// A trail's "Outline" (v8, sections finding 7) replaces its "Parts" (the strokes it was painted with): its clearing's
+    /// rings, each [x0, y0, dx1, dy1, …] on one line, the first point in whole mm from the site's centre (TE5) and each
+    /// later one as the change from the one before. A 250 mm cell of the design's frame (cell (i, j) from 250·i to
+    /// 250·(i + 1) mm) is cleared when its centre lies inside the rings by the even-odd rule. Outer rings run
+    /// anticlockwise and holes clockwise, each from its lowest point; the writer straightens the cells' outline wherever
+    /// that keeps every cell, so the same clearing always gives the same rings.
     /// <code>
-    /// { "Version": 7, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 7, "Seed", "NextOrdinal", "Trails": [...],
+    /// { "Version": 8, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 8, "Seed", "NextOrdinal",
+    ///               "Trails": [ { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Outline": [ [...] ] } ],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
     ///                            "Levels": { "BottomMm", "TopMm" } or null } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
@@ -238,44 +245,35 @@ namespace MountainPlanner.Persistence.Saves
             w.WritePropertyName("Clearing"); w.WriteValue(Words.Clearing(t.Settings.Clearing));
             w.WritePropertyName("Head"); WriteOptPoint(w, t.Head);
             w.WritePropertyName("Tail"); WriteOptPoint(w, t.Tail);
-            w.WritePropertyName("Parts");
+            // v8 (sections finding 7): the clearing's rings, each [x0, y0, dx1, dy1, …] on one line, deltas from the point before.
+            w.WritePropertyName("Outline");
             w.WriteStartArray();
-            foreach (var part in t.Parts)
-            {
-                w.WriteStartObject();
-                w.WritePropertyName("Strokes");
-                w.WriteStartArray();
-                foreach (var s in part.Strokes)
-                {
-                    w.WriteStartObject();
-                    w.WritePropertyName("WidthMm"); w.WriteValue(s.WidthMm);
-                    w.WritePropertyName("Erase"); w.WriteValue(s.Erase);
-                    // [x0, y0, x1, y1, …] on one line: a stroke has hundreds of points.
-                    var sb = new StringBuilder("[");
-                    for (int i = 0; i < s.Points.Count; i++)
-                    {
-                        if (i > 0) sb.Append(", ");
-                        sb.Append(s.Points[i].X.ToString(CultureInfo.InvariantCulture)).Append(", ").Append(s.Points[i].Y.ToString(CultureInfo.InvariantCulture));
-                    }
-                    w.WritePropertyName("Points"); w.WriteRawValue(sb.Append(']').ToString());
-                    w.WriteEndObject();
-                }
-                w.WriteEndArray();
-                w.WritePropertyName("Cuts");
-                w.WriteStartArray();
-                foreach (var c in part.Cuts)
-                {
-                    w.WriteStartObject();
-                    w.WritePropertyName("At"); WritePoint(w, c.At);
-                    w.WritePropertyName("Dir"); w.WriteRawValue(Pair(c.DirX, c.DirY));
-                    w.WritePropertyName("KeepAhead"); w.WriteValue(c.KeepAhead);
-                    w.WriteEndObject();
-                }
-                w.WriteEndArray();
-                w.WriteEndObject();
-            }
+            foreach (var ring in t.Shape.Rings) w.WriteRawValue(RingText(ring));
             w.WriteEndArray();
             w.WriteEndObject();
+        }
+
+        static string RingText(PointMm[] ring)
+        {
+            var sb = new StringBuilder("[");
+            long x = 0, y = 0;
+            for (int i = 0; i < ring.Length; i++)
+            {
+                if (i > 0) sb.Append(", ");
+                long dx = ring[i].X - x, dy = ring[i].Y - y;
+                sb.Append(dx.ToString(CultureInfo.InvariantCulture)).Append(", ").Append(dy.ToString(CultureInfo.InvariantCulture));
+                x = ring[i].X;
+                y = ring[i].Y;
+            }
+            return sb.Append(']').ToString();
+        }
+
+        /// <summary>A clearing as v8 writes it, for the v7 → v8 step.</summary>
+        internal static JArray OutlineJson(TrailShape shape)
+        {
+            var rings = new JArray();
+            foreach (var ring in shape.Rings) rings.Add(JArray.Parse(RingText(ring)));
+            return rings;
         }
 
         static void WriteLift(JsonWriter w, Lift l)
@@ -351,12 +349,18 @@ namespace MountainPlanner.Persistence.Saves
         public static SaveFile Read(string json, out List<TileRef> edits)
         {
             JObject o;
-            try { o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(json), out _); }
+            int from;
+            try { o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(json), out from); }
             catch (JsonException e) { throw new InvalidDataException("The save isn't readable JSON: " + e.Message, e); }
+            catch (Exception e) when (e is FormatException || e is ArgumentException || e is InvalidCastException || e is OverflowException)
+            {
+                throw new InvalidDataException("The save is damaged: " + e.Message, e);
+            }
             try
             {
                 var save = new SaveFile
                 {
+                    MigratedFrom = from,
                     Name = Str(o, "Name"), Autosave = Bool(o, "Autosave"), SavedUtc = Str(o, "SavedUtc"),
                     GameVersion = Str(o, "GameVersion"), PackageId = Str(o, "PackageId"), HeightsSha256 = Str(o, "HeightsSha256"),
                     Design = ReadDesign(Obj(o, "Design")),
@@ -374,7 +378,8 @@ namespace MountainPlanner.Persistence.Saves
         public static SaveSummary Summary(string json)
         {
             JObject o;
-            try { o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(json), out _); }
+            // Up to v7 only: the counts need no v8 outline, and converting every trail's strokes would slow the list.
+            try { o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(json), out _, 7); }
             catch (JsonException e) { throw new InvalidDataException("The save isn't readable JSON: " + e.Message, e); }
             try
             {
@@ -472,6 +477,30 @@ namespace MountainPlanner.Persistence.Saves
 
         static Trail ReadTrail(JObject t)
         {
+            var rings = new List<PointMm[]>();
+            foreach (var r in Arr(t, "Outline"))
+            {
+                if (!(r is JArray flat)) throw new FormatException("a ring isn't a list of numbers");
+                if (flat.Count % 2 != 0) throw new FormatException("a ring has an odd number of coordinates");
+                if (flat.Count / 2 > DesignRules.MaxShapePoints || rings.Count >= DesignRules.MaxShapeRings) throw new FormatException("a trail's outline is too detailed");
+                var ring = new PointMm[flat.Count / 2];
+                long x = 0, y = 0;
+                for (int i = 0; i < ring.Length; i++)
+                {
+                    x = checked(x + IntOf(flat[2 * i]));
+                    y = checked(y + IntOf(flat[2 * i + 1]));
+                    ring[i] = new PointMm(checked((int)x), checked((int)y));
+                }
+                rings.Add(ring);
+            }
+            var settings = new TrailSettings(Words.Grading(Str(t, "Grading")), Words.Kind(Str(t, "Kind")), Words.Clearing(Str(t, "Clearing")));
+            return new Trail(new TrailId(HexValue(Str(t, "Id"))), Str(t, "Name"), Words.Stage(Str(t, "Stage")), settings, TrailShape.FromRings(rings),
+                OptPoint(t, "Head"), OptPoint(t, "Tail"));
+        }
+
+        /// <summary>A v7 trail's "Parts" (strokes and cuts), read once by the v7 → v8 step.</summary>
+        internal static List<FootprintPart> ReadParts(JObject t)
+        {
             var parts = new List<FootprintPart>();
             foreach (var p in Arr(t, "Parts"))
             {
@@ -496,9 +525,7 @@ namespace MountainPlanner.Persistence.Saves
                 }
                 parts.Add(new FootprintPart(strokes, cuts));
             }
-            var settings = new TrailSettings(Words.Grading(Str(t, "Grading")), Words.Kind(Str(t, "Kind")), Words.Clearing(Str(t, "Clearing")));
-            return new Trail(new TrailId(HexValue(Str(t, "Id"))), Str(t, "Name"), Words.Stage(Str(t, "Stage")), settings, parts,
-                OptPoint(t, "Head"), OptPoint(t, "Tail"));
+            return parts;
         }
 
         static Lift ReadLift(JObject l)

@@ -118,7 +118,8 @@ namespace MountainPlanner.Tests
                     bool ends = rng.Chance(85);
                     var stage = ends && rng.Chance(70) ? WorkStage.Built : WorkStage.Plan;
                     int width = rng.Chance(95) ? Ft(25 + 5 * rng.Int(76)) : Ft(410); // some too wide
-                    var parts = new[] { new FootprintPart(new[] { new Stroke(width, false, new[] { head, tail }) }) };
+                    // A too-wide stroke paints a clearing as wide; the commands check the clearing, not the brush (Shape 8).
+                    var parts = TrailShape.FromStrokes(null, new[] { new Stroke(width, false, new[] { head, tail }) });
                     return new AddTrail(revision, $"Run {rng.Int(1000)}", TrailSettings.GradedRun, parts, ends ? head : (PointMm?)null, ends ? tail : (PointMm?)null, stage);
                 }
                 case 2:
@@ -156,11 +157,7 @@ namespace MountainPlanner.Tests
                     var t = rng.Pick(trails);
                     var p = t.Head ?? RandomPoint(ref rng);
                     var stroke = new Stroke(Ft(25 + 5 * rng.Int(20)), true, new[] { p });
-                    var parts = new List<FootprintPart>(t.Parts);
-                    var first = parts[0];
-                    var strokes = new List<Stroke>(first.Strokes) { stroke };
-                    parts[0] = new FootprintPart(strokes, first.Cuts);
-                    return new RepaintTrail(revision, t.Id, parts);
+                    return new RepaintTrail(revision, t.Id, TrailShape.FromStrokes(t.Shape, new[] { stroke }));
                 }
                 case 7:
                     return new DeleteTrail(revision, rng.Pick(trails).Id);

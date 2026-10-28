@@ -152,6 +152,18 @@ namespace MountainPlanner.Domain.Design
         }
 
         /// <summary>
+        /// Every built piece of <paramref name="doc"/> graded afresh from the untouched ground, in order (save v8, sections
+        /// finding 7: an older save's trails once more, as this build grades them). It reads nothing of any earlier edits, so
+        /// the same design on the same ground always gives the same edits.
+        /// </summary>
+        public static TerrainEdits Regrade(IHeightSource source, EarthworkSite site, DesignDocument doc)
+        {
+            var fresh = new DesignEarthwork(source, site);
+            fresh.Prime(DesignDocument.Empty(doc.Seed), TerrainEdits.Empty);
+            return fresh.Rebuild(doc, TerrainEdits.Empty).Edits;
+        }
+
+        /// <summary>
         /// Learns a design and its committed edits (a load or a new session): grades every built piece in order from the
         /// source. Changes no edits.
         /// </summary>

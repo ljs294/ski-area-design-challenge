@@ -52,14 +52,14 @@ namespace MountainPlanner.Tests
 
         static PointMm M(double x, double y) => PointMm.FromMetres(x, y);
 
-        static FootprintPart[] Strip(double widthFt, params (double x, double y)[] pts) =>
-            new[] { new FootprintPart(new[] { new Stroke(Ft((int)widthFt), false, pts.Select(p => M(p.x, p.y)).ToArray()) }) };
+        static TrailShape Strip(double widthFt, params (double x, double y)[] pts) =>
+            TrailShape.FromStrokes(null, new[] { new Stroke(Ft((int)widthFt), false, pts.Select(p => M(p.x, p.y)).ToArray()) });
 
-        static TrailFootprint Footprint(FootprintPart[] parts) => TrailFootprint.Build(parts, Lattice, Site.OriginX, Site.OriginY);
+        static TrailFootprint Footprint(TrailShape parts) => TrailFootprint.Build(parts, Lattice, Site.OriginX, Site.OriginY);
 
         /// <summary>A straight trail down the y axis, head at y = 0, tail at y = −length.</summary>
         static (TrailFootprint fp, TrailBuild build) Straight(EditedHeights ground, double length = 300, int widthFt = 100, bool graded = true,
-                                                             FootprintPart[] parts = null)
+                                                             TrailShape parts = null)
         {
             parts = parts ?? Strip(widthFt, (0, 0), (0, -length));
             var trail = new Trail(Id, "Run 1", WorkStage.Built, graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun, parts, M(0, 0), M(0, -length));
@@ -90,12 +90,12 @@ namespace MountainPlanner.Tests
         {
             var paint = new Stroke(Ft(100), false, new[] { M(0, 0), M(0, -200) });
             var hole = new Stroke(Ft(30), true, new[] { M(0, -100) });
-            var fp = Footprint(new[] { new FootprintPart(new[] { paint, hole }) });
+            var fp = Footprint(TrailShape.FromStrokes(null, new[] { paint, hole }));
             Assert.That(fp.Patches, Is.EqualTo(1), "an island leaves one piece");
             Assert.That(fp.Contains(M(0, -100)), Is.False, "the island is unpainted");
             Assert.That(fp.Contains(M(10, -100)), Is.True);
             Assert.That(fp.Cells, Is.EqualTo(30.48 * 200 + Math.PI * 15.24 * 15.24 - Math.PI * 4.572 * 4.572).Within(150), "area to within a cell row");
-            var two = Footprint(new[] { new FootprintPart(new[] { paint, new Stroke(Ft(50), false, new[] { M(200, 0), M(200, -50) }) }) });
+            var two = Footprint(TrailShape.FromStrokes(null, new[] { paint, new Stroke(Ft(50), false, new[] { M(200, 0), M(200, -50) }) }));
             Assert.That(two.Patches, Is.EqualTo(2), "TF-02: a second patch");
         }
 
@@ -121,7 +121,7 @@ namespace MountainPlanner.Tests
             // A 200 ft trail with a 60 ft island set 20 ft east of the axis: the west channel is wider.
             var paint = new Stroke(Ft(200), false, new[] { M(0, 0), M(0, -300) });
             var hole = new Stroke(Ft(60), true, new[] { M(6.1, -150) });
-            var fp = Footprint(new[] { new FootprintPart(new[] { paint, hole }) });
+            var fp = Footprint(TrailShape.FromStrokes(null, new[] { paint, hole }));
             Site.PointOf(M(0, 0), out double hx, out double hy);
             Site.PointOf(M(0, -300), out double tx, out double ty);
             var line = TrailCentreline.Find(fp, hx, hy, tx, ty);
@@ -259,7 +259,7 @@ namespace MountainPlanner.Tests
             var paint = new Stroke(Ft(120), false, new[] { M(0, 0), M(20, -150), M(-10, -300) });
             var wide = new Stroke(Ft(250), false, new[] { M(15, -120), M(10, -180) });
             var hole = new Stroke(Ft(40), true, new[] { M(-5, -220) });
-            var parts = new[] { new FootprintPart(new[] { paint, wide, hole }) };
+            var parts = TrailShape.FromStrokes(null, new[] { paint, wide, hole });
             var (fp, build) = Straight(ground, 300, 100, true, parts);
             var h = Apply(ground, build.Writes);
             int changed = 0;
@@ -281,7 +281,7 @@ namespace MountainPlanner.Tests
             var paint = new Stroke(Ft(100), false, new[] { M(0, 0), M(25, -150), M(-15, -300) });
             var wide = new Stroke(Ft(220), false, new[] { M(20, -110), M(15, -170) });
             var hole = new Stroke(Ft(35), true, new[] { M(18, -140) });
-            var (fp, build) = Straight(ground, 300, 100, true, new[] { new FootprintPart(new[] { paint, wide, hole }) });
+            var (fp, build) = Straight(ground, 300, 100, true, TrailShape.FromStrokes(null, new[] { paint, wide, hole }));
             var h = Apply(ground, build.Writes);
             int edges = 0;
             for (int r = fp.Row0; r <= fp.LastRow; r++)
@@ -338,7 +338,7 @@ namespace MountainPlanner.Tests
             var ground = Natural(new Plane(0.2, 0));
             var paint = new Stroke(Ft(150), false, new[] { M(0, 0), M(0, -300) });
             var hole = new Stroke(Ft(40), true, new[] { M(0, -150) });
-            var (fp, build) = Straight(ground, 300, 100, true, new[] { new FootprintPart(new[] { paint, hole }) });
+            var (fp, build) = Straight(ground, 300, 100, true, TrailShape.FromStrokes(null, new[] { paint, hole }));
             int band = 0, bandCleared = 0;
             for (int r = fp.Row0; r < fp.Row0 + fp.Height; r++)
                 for (int c = fp.Column0; c < fp.Column0 + fp.Width; c++)
@@ -383,7 +383,7 @@ namespace MountainPlanner.Tests
             return (h, work);
         }
 
-        static TrailId Add(DesignHistory h, DesignEarthwork work, FootprintPart[] parts, PointMm head, PointMm tail, bool graded = true)
+        static TrailId Add(DesignHistory h, DesignEarthwork work, TrailShape parts, PointMm head, PointMm tail, bool graded = true)
         {
             var cmd = new AddTrail(h.Revision, "Run " + (h.Document.Trails.Count + 1), graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun,
                                    parts, head, tail, WorkStage.Built);
@@ -418,11 +418,11 @@ namespace MountainPlanner.Tests
         public void TF02_PatchLabelsNameTheTrailAndAnyPatchApart()
         {
             // Painting shows the trail orange and a patch apart red (owner, 2026-10-19): the larger patch is the trail.
-            var parts = new[] { new FootprintPart(new[]
+            var parts = TrailShape.FromStrokes(null, new[]
             {
                 new Stroke(Ft(100), false, new[] { M(0, 0), M(0, -300) }),
                 new Stroke(Ft(50), false, new[] { M(200, 0), M(200, -40) }),
-            }) };
+            });
             var fp = Footprint(parts);
             Assert.That(fp.Patches, Is.EqualTo(2));
             var labels = fp.PatchLabels(out int main);

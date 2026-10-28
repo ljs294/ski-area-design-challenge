@@ -94,7 +94,7 @@ namespace MountainPlanner.Tests
             var strokes = new List<Stroke>();
             foreach (var (w, erase, pts) in f.Strokes) strokes.Add(new Stroke(w, erase, pts));
             return new Trail(TrailId.Make(Seed, 1), f.Name, WorkStage.Built, graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun,
-                             new[] { new FootprintPart(strokes.ToArray()) }, f.Head, f.Tail);
+                             TrailShape.FromStrokes(null, strokes), f.Head, f.Tail);
         }
 
         static Dictionary<string, string> Measure(Fixture f, IHeightSource heights)

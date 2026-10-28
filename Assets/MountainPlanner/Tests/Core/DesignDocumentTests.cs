@@ -20,7 +20,7 @@ namespace MountainPlanner.Tests
         // Shape 5 (task P3-10, NW-15, Master Planner ruling 2026-10-26): the named Areas, none here; from 0642d8d8….
         // Shape 6 (task P3-10, NT24, owner 2026-10-27): the trails of several sections, none here; from 4f6a0657….
         // Shape 7 (task P3-10, NT43–NT46, owner signed off 2026-10-27): spans with anchors and cut points, none here; from fedff97f….
-        const string GoldenSha = "0cae4a87da6f7ed2b99828ae3056733004b8f69634291bb229bf862884ba1b80";
+        const string GoldenSha = "315f1a244f4dc874cd68e1fc30b06655a85050a56c3ccf75ba597fe3903286bf";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()
@@ -69,7 +69,7 @@ namespace MountainPlanner.Tests
             AssertFields(typeof(TrailCut), "Piece", "At");
             AssertProperties(typeof(AreaRecord), "Id", "Name", "Ends");   // NW-15 (task P3-10): the player's names, not the hubs
             AssertFields(typeof(AreaEnd), "Lift", "Bottom");
-            AssertProperties(typeof(Trail), "Id", "Name", "Stage", "Settings", "Parts", "Head", "Tail", "HasEnds");
+            AssertProperties(typeof(Trail), "Id", "Name", "Stage", "Settings", "Shape", "Head", "Tail", "HasEnds");
             AssertProperties(typeof(FootprintPart), "Strokes", "Cuts");
             AssertProperties(typeof(Stroke), "WidthMm", "Erase", "Points");
             AssertProperties(typeof(Lift), "Id", "Name", "Stage", "CatalogId", "Bottom", "Top", "TowerMode", "Stance", "Towers",
@@ -81,7 +81,7 @@ namespace MountainPlanner.Tests
             AssertProperties(typeof(TerrainStroke), "Id", "Settings", "Dabs");
             AssertFields(typeof(BrushSettings), "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm", "StartMm", "StartAt", "TargetAt", "LimitMm");
             AssertFields(typeof(BrushDab), "At", "WeightPermille");
-            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(7));
+            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(8));
         }
 
         static void AssertProperties(Type type, params string[] names)
@@ -142,7 +142,7 @@ namespace MountainPlanner.Tests
             Assert.That(back.Accepted, Is.False);
             Assert.That(back.ToString(), Does.Contain("permanent"));
             var t = h.Document.FindTrail(built);
-            var edit = h.Submit(new EditTrail(h.Revision, built, t.Name, t.Parts, t.Head.Value, t.Tail.Value, TrailSettings.NaturalRun, WorkStage.Built));
+            var edit = h.Submit(new EditTrail(h.Revision, built, t.Name, t.Shape, t.Head.Value, t.Tail.Value, TrailSettings.NaturalRun, WorkStage.Built));
             Assert.That(edit.Accepted, Is.False, "Edit trail can't ungrade a built trail either");
             var natural = h.Submit(new AddTrail(h.Revision, "Run 3", TrailSettings.NaturalRun, Straight(P(900, 1000), P(900, 0)), P(900, 1000), P(900, 0), WorkStage.Built));
             var id = new TrailId(natural.Created[0]);

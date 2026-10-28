@@ -168,7 +168,7 @@ namespace MountainPlanner.Tests
             var head = PointMm.FromMetres(s.Path[0], s.Path[1]);
             var tail = PointMm.FromMetres(s.Path[2 * n - 2], s.Path[2 * n - 1]);
             var trail = new Trail(TrailId.Make(1, 1), s.Name, WorkStage.Built, graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun,
-                                  new[] { new FootprintPart(strokes.ToArray()) }, head, tail);
+                                  TrailShape.FromStrokes(null, strokes), head, tail);
             return DrawTrail(h, site, trail, graded, file);
         }
 
@@ -285,7 +285,7 @@ namespace MountainPlanner.Tests
                 var strokes = new List<Stroke>();
                 for (int k = 0; k + 1 < s.Path.Length / 2; k++)
                     strokes.Add(new Stroke(DesignUnits.FeetToMm(s.WidthsFt[k]), false, new[] { PointMm.FromMetres(s.Path[2 * k], s.Path[2 * k + 1]), PointMm.FromMetres(s.Path[2 * k + 2], s.Path[2 * k + 3]) }));
-                var parts = new[] { new FootprintPart(strokes.ToArray()) };
+                var parts = TrailShape.FromStrokes(null, strokes);
                 var ground = new EditedHeights(h, site.Lattice, TerrainEdits.Empty);
                 for (int run = 0; run < 3; run++)
                 {
@@ -320,9 +320,9 @@ namespace MountainPlanner.Tests
                     x -= 25 * gx / g; y -= 25 * gy / g;
                 }
                 var trail = new Trail(TrailId.Make(1, 1), "Bench", WorkStage.Built, TrailSettings.GradedRun,
-                                      new[] { new FootprintPart(new[] { new Stroke(DesignUnits.FeetToMm(100), false, pts.ToArray()) }) }, pts[0], pts[pts.Count - 1]);
+                                      TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(100), false, pts.ToArray()) }), pts[0], pts[pts.Count - 1]);
                 var doc = DesignDocument.Empty(1);
-                var r = new AddTrail(1, "Bench", TrailSettings.GradedRun, trail.Parts, trail.Head, trail.Tail, WorkStage.Built).Apply(doc);
+                var r = new AddTrail(1, "Bench", TrailSettings.GradedRun, trail.Shape, trail.Head, trail.Tail, WorkStage.Built).Apply(doc);
                 var micro = System.Diagnostics.Stopwatch.StartNew();
                 double sum = 0;
                 for (int q = 0; q < 100000; q++) sum += h.At(site.OriginX + 300 + (q % 300), site.OriginY + 600 - q / 300);
@@ -343,7 +343,7 @@ namespace MountainPlanner.Tests
                     TrailRating.Rate(pending, build.Footprint, build.Grade);
                     double c = w.Elapsed.TotalMilliseconds;
                     w.Restart();
-                    var fp = TrailFootprint.Build(trail.Parts, site.Lattice, site.OriginX, site.OriginY);
+                    var fp = TrailFootprint.Build(trail.Shape, site.Lattice, site.OriginX, site.OriginY);
                     double f1 = w.Elapsed.TotalMilliseconds;
                     site.PointOf(trail.Head.Value, out double hx, out double hy);
                     site.PointOf(trail.Tail.Value, out double tx, out double ty);
@@ -478,7 +478,7 @@ namespace MountainPlanner.Tests
                         strokes.Add(new Stroke(DesignUnits.FeetToMm(ft), false, new[] { PointMm.FromMetres(sp.Path[2 * k], sp.Path[2 * k + 1]), PointMm.FromMetres(sp.Path[2 * k + 2], sp.Path[2 * k + 3]) }));
                     }
                     foreach (var (x, y, ft) in sp.Islands) strokes.Add(new Stroke(DesignUnits.FeetToMm(ft), true, new[] { PointMm.FromMetres(x, y) }));
-                    var trail = new Trail(TrailId.Make(1, 1), sp.Name, WorkStage.Built, TrailSettings.GradedRun, new[] { new FootprintPart(strokes.ToArray()) },
+                    var trail = new Trail(TrailId.Make(1, 1), sp.Name, WorkStage.Built, TrailSettings.GradedRun, TrailShape.FromStrokes(null, strokes),
                                           PointMm.FromMetres(sp.Path[0], sp.Path[1]), PointMm.FromMetres(sp.Path[2 * n - 2], sp.Path[2 * n - 1]));
                     lines.Add(Audit(ph, psite, trail, "audit-" + kv.Key));
                 }

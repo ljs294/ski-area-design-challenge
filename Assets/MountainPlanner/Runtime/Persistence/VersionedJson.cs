@@ -92,11 +92,17 @@ namespace MountainPlanner.Persistence
         }
 
         /// <summary>Brings <paramref name="o"/> up to <see cref="Current"/> in place; <paramref name="from"/> is the version it had.</summary>
-        public JObject Upgrade(JObject o, out int from)
+        public JObject Upgrade(JObject o, out int from) => Upgrade(o, out from, Current);
+
+        /// <summary>
+        /// Brings <paramref name="o"/> up to <paramref name="upTo"/> only (at most <see cref="Current"/>): a reader that needs
+        /// no later field skips the later steps' work (save v8's outlines for Load Area's counts).
+        /// </summary>
+        public JObject Upgrade(JObject o, out int from, int upTo)
         {
             from = VersionOf(o);
             if (from > Current) throw new FormatTooNewException(Format, from, Current);
-            for (int v = from; v < Current; v++)
+            for (int v = from; v < Math.Min(upTo, Current); v++)
             {
                 _steps[v - FirstVersion](o);
                 o[VersionField] = v + 1;
