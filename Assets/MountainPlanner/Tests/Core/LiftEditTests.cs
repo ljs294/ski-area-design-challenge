@@ -166,9 +166,8 @@ namespace MountainPlanner.Tests
             }
             moves.Sort();
             bands.Sort();
-            TestContext.Progress.WriteLine($"TW-10 on an 800 m line: a move {moves[4]:F2} ms, the band {bands[4]:F2} ms (medians)");
-            Assert.That(moves[4], Is.LessThanOrEqualTo(2.0), "a tower move (0.5 ms on the reference PC; CI machines are slower)");
-            Assert.That(bands[4], Is.LessThanOrEqualTo(8.0), "the band (2 ms on the reference PC)");
+            Budget.AtMost(moves[4], 2.0, "TW-10 on an 800 m line: a tower move (median; 0.5 ms on the reference PC)");
+            Budget.AtMost(bands[4], 8.0, "TW-10 on an 800 m line: the band (median; 2 ms on the reference PC)");
         }
 
         [Test]

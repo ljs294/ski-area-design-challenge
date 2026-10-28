@@ -348,8 +348,7 @@ namespace MountainPlanner.Tests
                 times.Add(sw.Elapsed.TotalMilliseconds);
             }
             times.Sort();
-            TestContext.Progress.WriteLine($"TW-12, a 1-mile line: median {times[2]:F1} ms");
-            Assert.That(times[2], Is.LessThanOrEqualTo(50));
+            Budget.AtMost(times[2], 50, "TW-12, a 1-mile line (median)");
         }
 
         // Finding D2 (owner, 2026-10-23): a 7,227 ft D6's review sat on "Towers placing…". A long line's build on the package
@@ -399,8 +398,8 @@ namespace MountainPlanner.Tests
                 TestContext.Progress.WriteLine($"D2 {catalogId}{(realGround ? " (package)" : "")}, {length / Ft:F0} ft: one placement {placeMs:F0} ms ({placed.Towers.Count} towers), " +
                                                $"as placed {quickMs:F0} ms{(quick.LevelsPending ? " (levels pending)" : "")}, with the level search {buildMs:F0} ms " +
                                                $"({attempts} attempts, {b.Hints.Count} hints, {(b.Ok ? "ok" : "not ok")})");
-                Assert.That(quickMs, Is.LessThan(1500), "the review's figures within about a second");
-                Assert.That(buildMs, Is.LessThan(5000), "the hints a few seconds later");
+                Budget.AtMost(quickMs, 1500, "D2: the review's figures within about a second");
+                Budget.AtMost(buildMs, 5000, "D2: the hints a few seconds later");
                 if (!quick.LevelsPending) Assert.That(b.Hints.Count + b.Unplaced.Count, Is.EqualTo(0), "a line within the rules as placed needs no hints");
                 Assert.That(b.LevelsPending, Is.False);
                 Assert.That(quick.Towers.Select(t => (t.AlongMm, t.HeightMm)), Is.EqualTo(b.Towers.Select(t => (t.AlongMm, t.HeightMm))), "the same towers");
