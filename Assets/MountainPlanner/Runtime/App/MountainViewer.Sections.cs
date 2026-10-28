@@ -374,6 +374,17 @@ namespace MountainPlanner.App
             var lineA = _trailRowLine[a.Id.Value];
             FrameSections(lineA, b != null ? _trailRowLine[b.Id.Value] : null);
             yield return Shot(dir, "1-map-lines");
+            // Close over where the two come nearest (the owner's picture for finding 5), and the rest from there.
+            if (b != null)
+            {
+                var lineB = _trailRowLine[b.Id.Value];
+                Vector2 near = lineA[0];
+                float best = float.MaxValue;
+                foreach (var p in lineA) foreach (var q in lineB) { float d = (p - q).sqrMagnitude; if (d < best) { best = d; near = (p + q) / 2; } }
+                Camera.Frame(new Vector3(near.x, _resort.Surface.HeightAt(near.x, near.y), near.y), 750);
+                Camera.SetAngles(200, 70);
+                yield return Shot(dir, "1b-map-close");
+            }
 
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             var mid = lineA[lineA.Length / 2];

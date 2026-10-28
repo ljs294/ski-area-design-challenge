@@ -196,7 +196,7 @@ namespace MountainPlanner.UI.Tools
                     if (slot >= RedSlots) break;
                     if (!_resolved.Lines.TryGetValue(s, out var l) || l.Length < 2) continue;
                     p.Line(slot, l, l.Length, PreviewInk.Snap);
-                    Wide(slot++, 2f);
+                    Wide(slot++, 2.6f);
                 }
             for (int k = slot; k < StrokeSlots + _litCount; k++) { p.Hide(k); Wide(k, 1); }
             _litCount = slot - StrokeSlots;
