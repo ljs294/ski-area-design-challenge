@@ -224,14 +224,30 @@ namespace MountainPlanner.Tests.Core
             return save;
         }
 
+        /// <summary>
+        /// The save the v8 fixture holds (task P3-10, sections finding 7): the v7 fixture's, with Run 2 repainted round an
+        /// unpainted island, so a clearing with a hole (a clockwise ring inside its outer one) is pinned.
+        /// </summary>
+        static SaveFile FixtureSaveEight()
+        {
+            var save = FixtureSaveSeven();
+            var run2 = save.Design.Trails.First(t => t.Name == "Run 2");
+            var mid = new PointMm((run2.Head.Value.X + run2.Tail.Value.X) / 2, (run2.Head.Value.Y + run2.Tail.Value.Y) / 2);
+            var island = new Stroke(DesignUnits.FeetToMm(40), true, new[] { mid });
+            var r = new RepaintTrail(0, run2.Id, TrailShape.FromStrokes(run2.Shape, new[] { island })).Apply(save.Design);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            save.Design = r.Document;
+            return save;
+        }
+
         [Test]
         public void TheWriterReproducesTheFrozenFixtureByteForByte()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v7-save")), "Saves", JacksonHole, "save-001");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v8-save")), "Saves", JacksonHole, "save-001");
             string folder = Path.Combine(_root, "again");
-            SaveStore.Write(folder, FixtureSaveSeven());
+            SaveStore.Write(folder, FixtureSaveEight());
             Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveFile.FileName)), Is.EqualTo(File.ReadAllBytes(Path.Combine(fixture, SaveFile.FileName))),
-                "save.json v7 is frozen: a writer change is a format change (0.3 §5)");
+                "save.json v8 is frozen: a writer change is a format change (0.3 §5)");
             foreach (string tile in Directory.GetFiles(Path.Combine(fixture, SaveStore.TilesFolder)))
                 Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveStore.TilesFolder, Path.GetFileName(tile))), Is.EqualTo(File.ReadAllBytes(tile)));
         }
@@ -332,7 +348,7 @@ namespace MountainPlanner.Tests.Core
             byte[] before = File.ReadAllBytes(path);
 
             var e = Assert.Throws<FormatTooNewException>(() => SaveStore.Read(folder));
-            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 8; this version reads up to 7). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 9; this version reads up to 8). Update the game to open it."));
             Assert.That(SaveStore.Write(folder, FixtureSave()), Is.False);
             Assert.That(SaveStore.Rename(folder, "Mine now"), Is.False);
             Assert.That(File.ReadAllBytes(path), Is.EqualTo(before), "nothing is written over a newer save (0.3 §5 rule 3)");
@@ -540,6 +556,75 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
+        public void TheVersionEightFixtureReadsUnchanged()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v8-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture8");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveEight(), back);
+            Assert.That(back.MigratedFrom, Is.EqualTo(8), "a v8 save isn't regraded when it opens");
+            var run2 = back.Design.Trails.First(t => t.Name == "Run 2");
+            Assert.That(run2.Shape.Rings.Count, Is.EqualTo(2), "the island is a hole");
+            var trail = (JObject)JObject.Parse(File.ReadAllText(Path.Combine(copy, SaveFile.FileName)))["Design"]["Trails"][0];
+            Assert.That(trail.Properties().Select(q => q.Name), Is.EqualTo(new[] { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Outline" }),
+                "the clearing's outline, not the strokes it was painted with (finding 7)");
+        }
+
+        [Test]
+        public void EveryOlderSaveMigratesToEightWithOutlines()
+        {
+            // 0.3 §5 (task P3-10, sections finding 7): the v1–v7 fixtures, unedited, open through v7 → v8: every trail's
+            // strokes become its clearing's outline, and the document is the one its own version's builder makes (whose
+            // trails are painted with the same strokes), so the conversion keeps every cell.
+            var expected = new Dictionary<string, SaveFile>
+            {
+                ["v1-save"] = FixtureSave(), ["v2-save"] = FixtureSaveTwo(), ["v3-save"] = FixtureSaveThree(), ["v4-save"] = FixtureSaveFour(),
+                ["v5-save"] = FixtureSaveFive(), ["v6-save"] = FixtureSaveSix(), ["v7-save"] = FixtureSaveSeven(),
+            };
+            foreach (var kv in expected)
+            {
+                string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", kv.Key)), "Saves", JacksonHole, "save-001");
+                var o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName))), out int from);
+                Assert.That(from, Is.LessThan(8), kv.Key);
+                Assert.That((int)o["Version"], Is.EqualTo(SaveFile.CurrentVersion), kv.Key);
+                Assert.That((int)o["Design"]["Shape"], Is.EqualTo(DesignDocument.ShapeVersion), kv.Key);
+                foreach (JObject t in (JArray)o["Design"]["Trails"])
+                {
+                    Assert.That(t["Parts"], Is.Null, kv.Key);
+                    Assert.That(((JArray)t["Outline"]).Count, Is.GreaterThan(0), kv.Key);
+                }
+                string copy = Path.Combine(_root, "up8-" + kv.Key);
+                CopyFolder(fixture, copy);
+                var back = SaveStore.Read(copy);
+                Assert.That(back.MigratedFrom, Is.EqualTo(from), kv.Key + ": an older save is regraded once when it opens");
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
+            }
+        }
+
+        [Test]
+        public void TheVersionSevenConversionIsFrozen()
+        {
+            // The v7 → v8 step rasterises strokes once; its result is frozen with the format, so a change to the strokes'
+            // rule or the outline's writer shows here (0.3 §5).
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v7-save")), "Saves", JacksonHole, "save-001");
+            var back = SaveJson.Read(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName)), out _);
+            string sha = BitConverter.ToString(System.Security.Cryptography.SHA256.Create().ComputeHash(DesignBytes.Encode(back.Design))).Replace("-", "").ToLowerInvariant();
+            Assert.That(sha, Is.EqualTo(ConvertedSevenSha), "the v7 fixture converted to v8");
+        }
+
+        const string ConvertedSevenSha = "8debdb8b23b7e52db05e33f72d5da6a97d09e03101bea69ecd4c6ed6f174f768";
+
+        [Test]
+        public void ADamagedOlderTrailRefusesTheSave()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v7-save")), "Saves", JacksonHole, "save-001");
+            var o = JObject.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName)));
+            ((JObject)o["Design"]["Trails"][0]["Parts"][0]["Strokes"][0])["WidthMm"] = 1;
+            Assert.Throws<InvalidDataException>(() => SaveJson.Read(o.ToString(), out _), "a v7 stroke the rules refuse is damage, not a clearing");
+        }
+
+        [Test]
         public void EveryOlderSaveMigratesToSevenWithWholeRunSpans()
         {
             // 0.3 §5 (task P3-10, NT43): the v1–v6 fixtures, unedited, open through v6 → v7: no cut points, and a v6
@@ -553,8 +638,8 @@ namespace MountainPlanner.Tests.Core
             {
                 string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", kv.Key)), "Saves", JacksonHole, "save-001");
                 var o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName))), out _);
-                Assert.That((int)o["Version"], Is.EqualTo(7), kv.Key);
-                Assert.That((int)o["Design"]["Shape"], Is.EqualTo(7), kv.Key);
+                Assert.That((int)o["Version"], Is.EqualTo(SaveFile.CurrentVersion), kv.Key);
+                Assert.That((int)o["Design"]["Shape"], Is.EqualTo(DesignDocument.ShapeVersion), kv.Key);
                 Assert.That(((JArray)o["Design"]["Cuts"]).Count, Is.EqualTo(0), kv.Key);
                 string copy = Path.Combine(_root, "up7-" + kv.Key);
                 CopyFolder(fixture, copy);
@@ -631,6 +716,16 @@ namespace MountainPlanner.Tests.Core
                 Assert.That(back.Design.Strokes, Is.Empty, kv.Key);
                 Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
             }
+        }
+
+        [Test, Explicit("Regenerates the frozen v8 save fixture")]
+        public void WriteTheVersionEightFixture()
+        {
+            string formats = TestData.Folder("formats");
+            string folder = Path.Combine(formats, "v8-save", "Saves", JacksonHole, "save-001");
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+            Assert.That(SaveStore.Write(folder, FixtureSaveEight()), Is.True);
+            File.Delete(Path.Combine(folder, SaveFile.BackupName));
         }
 
         [Test, Explicit("Regenerates the frozen v7 save fixture")]

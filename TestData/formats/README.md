@@ -53,6 +53,12 @@ reads: a version number, and a name for the greyed library row.
   spans, and a second trail, "Teton Ridge", ends at every kind of anchor, with one cut point. v1 to v6 saves migrate with
   no cut points and a v6 trail's sections as whole runs.
 
+- **`v8-save/Saves/5792676e513f5302/save-001/`** is the same save in format v8 (task P3-10, sections finding 7): a
+  trail keeps its clearing's `Outline` (rings of points, the 250 mm cells inside them by the even-odd rule) instead of
+  the `Parts` it was painted with. Here Run 2 is repainted round an unpainted island, so one clearing has a hole. v1 to
+  v7 saves migrate by rasterising each trail's strokes once; `SaveFileTests` pins the converted v7 fixture's hash, and a
+  game opening an older save grades its built trails once more.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

@@ -18,10 +18,11 @@ namespace MountainPlanner.Presentation.Design
         /// </summary>
         void Stamp(Vector2 a, Vector2 b, float radius, bool erase);
         /// <summary>
-        /// Shows the strokes as painted (the same stamps, replayed in order, so nothing changes when a stroke ends) and the
-        /// worked-out footprint's patches apart in red.
+        /// Shows the clearing as painted: <paramref name="baseShape"/> (the trail's own, when editing; null for a new one),
+        /// then the strokes painted onto it (the same stamps, replayed in order, so nothing changes when a stroke ends), and
+        /// the worked-out footprint's patches apart in red. Sections finding 7: a built trail keeps no strokes.
         /// </summary>
-        void Redraw(IReadOnlyList<FootprintPart> parts, TrailFootprint footprint);
+        void Redraw(TrailShape baseShape, IReadOnlyList<Stroke> strokes, TrailFootprint footprint);
         /// <summary>Takes all the paint off the ground.</summary>
         void Clear();
         /// <summary>The brush under the pointer (local x/z), drawn on the ground; hidden when <paramref name="shown"/> is false.</summary>
@@ -123,14 +124,15 @@ namespace MountainPlanner.Presentation.Design
             Touch(Math.Max(cMin, _c0) - _c0, Math.Max(rMin, _r0) - _r0, Math.Min(cMax, _c0 + _w - 1) - _c0, Math.Min(rMax, _r0 + _h - 1) - _r0);
         }
 
-        public void Redraw(IReadOnlyList<FootprintPart> parts, TrailFootprint fp)
+        public void Redraw(TrailShape baseShape, IReadOnlyList<Stroke> strokes, TrailFootprint fp)
         {
             if (!_aligned) return;
             ClearCpu();
-            if (parts == null) return;
+            if (baseShape == null && (strokes == null || strokes.Count == 0)) return;
             if (fp != null && !Cover(fp.Column0 - 2, fp.Row0 - 2, fp.Column0 + fp.Width + 1, fp.Row0 + fp.Height + 1)) return;
-            foreach (var part in parts)
-                foreach (var s in part.Strokes)
+            if (baseShape != null && !baseShape.IsEmpty) Fill(baseShape);
+            if (strokes != null)
+                foreach (var s in strokes)
                 {
                     float r = s.WidthMm / 2000f;
                     var pts = s.Points;
@@ -152,6 +154,32 @@ namespace MountainPlanner.Presentation.Design
                     _cpu[at + 1] = _cpu[at];
                     _cpu[at] = 0;
                 }
+        }
+
+        // The clearing's cells into the paint: each 1 m cell as much as its sixteen 250 mm cells are cleared, so its edge
+        // is soft where the clearing crosses it, as a brush's is.
+        void Fill(TrailShape shape)
+        {
+            shape.Bounds(out int x0, out int y0, out int x1, out int y1);
+            int cMin = (int)Math.Floor(_originX + x0 / 1000.0 - _lattice.West), cMax = (int)Math.Ceiling(_originX + x1 / 1000.0 - _lattice.West);
+            int rMin = (int)Math.Floor(_lattice.North - (_originY + y1 / 1000.0)), rMax = (int)Math.Ceiling(_lattice.North - (_originY + y0 / 1000.0));
+            if (!Cover(cMin - 2, rMin - 2, cMax + 2, rMax + 2)) return;
+            var mask = shape.Mask;
+            for (int row = rMin; row <= rMax; row++)
+                for (int col = cMin; col <= cMax; col++)
+                {
+                    double x = _lattice.West + col - _originX, y = _lattice.North - row - 1 - _originY;
+                    int n = 0;
+                    for (int b = 0; b < 4; b++)
+                        for (int a = 0; a < 4; a++)
+                            if (mask.ContainsAt(x + 0.125 + 0.25 * a, y + 0.125 + 0.25 * b)) n++;
+                    if (n == 0) continue;
+                    int at = Index(col, row);
+                    byte v = (byte)(n * 255 / 16);
+                    if (_cpu[at] < v) _cpu[at] = v;
+                    _cpu[at + 1] = 0;
+                }
+            Touch(Math.Max(cMin, _c0) - _c0, Math.Max(rMin, _r0) - _r0, Math.Min(cMax, _c0 + _w - 1) - _c0, Math.Min(rMax, _r0 + _h - 1) - _r0);
         }
 
         static int Label(int[] labels, TrailFootprint fp, int i, int j) =>

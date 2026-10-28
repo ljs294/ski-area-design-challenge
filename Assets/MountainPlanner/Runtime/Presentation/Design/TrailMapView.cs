@@ -283,7 +283,7 @@ namespace MountainPlanner.Presentation.Design
             }
             else
             {
-                s.Footprint = TrailFootprint.Build(t.Parts, heights.Lattice, frame.Origin.X, frame.Origin.Y);
+                s.Footprint = TrailFootprint.Build(t.Shape, heights.Lattice, frame.Origin.X, frame.Origin.Y);
                 c = TrailCentreline.Find(s.Footprint, head.X, head.Y, tail.X, tail.Y);
             }
             if (!c.Found) return s;

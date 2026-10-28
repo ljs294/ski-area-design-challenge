@@ -234,8 +234,8 @@ namespace MountainPlanner.App.Flow
                 new[] { new TowerSpec(DesignUnits.FeetToMm(900), DesignUnits.FeetToMm(35)), new TowerSpec(DesignUnits.FeetToMm(1800), DesignUnits.FeetToMm(40)) }, WorkStage.Built));
             var head = PointMm.FromMetres(cx + 170, cy + 400);
             var tail = PointMm.FromMetres(cx - 130, cy - 400);
-            var part = new FootprintPart(new[] { new Stroke(DesignUnits.FeetToMm(100), false, new[] { head, PointMm.FromMetres(cx + 260, cy), tail }) });
-            var trail = h.Submit(new AddTrail(h.Revision, $"Sample Run {n}", TrailSettings.GradedRun, new[] { part }, head, tail, WorkStage.Plan));
+            var shape = TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(100), false, new[] { head, PointMm.FromMetres(cx + 260, cy), tail }) });
+            var trail = h.Submit(new AddTrail(h.Revision, $"Sample Run {n}", TrailSettings.GradedRun, shape, head, tail, WorkStage.Plan));
             Debug.Log($"[Saves] Sample design: lift {lift}, trail {trail}");
             _saveHud?.Toast(lift.Accepted && trail.Accepted ? $"Added Sample Chair {n} and Sample Run {n} (a plan)" : $"The sample design was refused: {lift} / {trail}");
         }

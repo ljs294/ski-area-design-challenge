@@ -61,9 +61,9 @@ namespace MountainPlanner.Tests
 
         public static PointMm P(int xFt, int yFt) => new PointMm(Ft(xFt), Ft(yFt));
 
-        /// <summary>One painted part: a straight stroke between two points, 100 ft wide by default.</summary>
-        public static FootprintPart[] Straight(PointMm a, PointMm b, int widthFt = 100) =>
-            new[] { new FootprintPart(new[] { new Stroke(Ft(widthFt), false, new[] { a, b }) }) };
+        /// <summary>One painted clearing: a straight stroke between two points, 100 ft wide by default.</summary>
+        public static TrailShape Straight(PointMm a, PointMm b, int widthFt = 100) =>
+            TrailShape.FromStrokes(null, new[] { new Stroke(Ft(widthFt), false, new[] { a, b }) });
 
         public static TrailId AddTrail(DesignHistory h, string name, PointMm head, PointMm tail, WorkStage stage = WorkStage.Built)
         {

@@ -628,7 +628,7 @@ namespace MountainPlanner.App
                         strokes.Add(new Stroke(DesignUnits.FeetToMm(40), true, new[] { path[12] }));
                     }
                     // The mixed run goes in Natural, so its edit can grade it (NT47: a built graded trail can't go back).
-                    var add = new AddTrail(history.Revision, "Bench " + s, mixed ? TrailSettings.NaturalRun : TrailSettings.GradedRun, new[] { new FootprintPart(strokes.ToArray()) },
+                    var add = new AddTrail(history.Revision, "Bench " + s, mixed ? TrailSettings.NaturalRun : TrailSettings.GradedRun, TrailShape.FromStrokes(null, strokes),
                                            path[0], path[path.Count - 1], WorkStage.Built);
                     var rebuilt = AnalyseForBench(add, out double ms);
                     if (counted) previewList.Add(ms);
@@ -646,7 +646,7 @@ namespace MountainPlanner.App
                         // An edit (Graded, then back by undo): the earthwork rebuilds only what the trail touches.
                         var id = new TrailId(r.Created[0]);
                         var t = history.Document.FindTrail(id);
-                        var change = new EditTrail(history.Revision, id, t.Name, t.Parts, t.Head.Value, t.Tail.Value, TrailSettings.GradedRun, WorkStage.Built);
+                        var change = new EditTrail(history.Revision, id, t.Name, t.Shape, t.Head.Value, t.Tail.Value, TrailSettings.GradedRun, WorkStage.Built);
                         var re = AnalyseForBench(change, out double ems);
                         if (counted) edit.Add(ems);
                         history.Submit(change, re.Edits);

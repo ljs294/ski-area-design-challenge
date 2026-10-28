@@ -40,6 +40,52 @@ namespace MountainPlanner.Tests.Core
             Assert.That(d.Dirty, Is.False, "undoing back to the saved document leaves nothing to save");
         }
 
+        sealed class Rolling : IHeightSource
+        {
+            public double At(double x, double y) => 2000 + 0.25 * (y - 4_200_000) + 6 * Math.Sin(x / 37.0) * Math.Cos(y / 53.0);
+        }
+
+        [Test]
+        public void AnOlderSaveIsRegradedOnceTheSameWayAndOnlyWrittenWhenSaved()
+        {
+            // Save v8 (sections finding 7; Master Planner's conditions): opening a v7 save grades its built work afresh
+            // from the ground, deterministically; nothing is written until the player saves; the v8 save then opens as is.
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v7-save")), "Saves", Area, "save-001");
+            string copy = Path.Combine(_root, "Saves", Area, "save-001");
+            foreach (string f in Directory.GetFiles(fixture, "*", SearchOption.AllDirectories))
+            {
+                string to = Path.Combine(copy, Path.GetRelativePath(fixture, f));
+                Directory.CreateDirectory(Path.GetDirectoryName(to));
+                File.Copy(f, to);
+            }
+            byte[] before = File.ReadAllBytes(Path.Combine(copy, SaveFile.FileName));
+            var lattice = new EditLattice(500_000, 4_200_000);
+            var site = new EarthworkSite(lattice, 503_000, 4_197_000);
+
+            var first = OpenDesign.Load(_root, copy, Area, "");
+            var second = OpenDesign.Load(_root, copy, Area, "");
+            Assert.That(first.MigratedFrom, Is.EqualTo(7));
+            Assert.That(first.NeedsRegrade, Is.True);
+            var a = DesignEarthwork.Regrade(new Rolling(), site, first.History.Document);
+            var b = DesignEarthwork.Regrade(new Rolling(), site, second.History.Document);
+            Assert.That(TerrainEditBytes.Encode(b), Is.EqualTo(TerrainEditBytes.Encode(a)), "the same save regrades to the same heights, byte for byte");
+            Assert.That(a.IsEmpty, Is.False);
+
+            first.Regraded(a);
+            Assert.That(first.NeedsRegrade, Is.False, "once");
+            Assert.That(first.History.Terrain, Is.SameAs(a));
+            Assert.That(first.Dirty, Is.False, "an autosave writes nothing for it");
+            Assert.That(first.Autosave("2026-10-28T10:00:00Z", "0.3.0"), Is.False);
+            Assert.That(File.ReadAllBytes(Path.Combine(copy, SaveFile.FileName)), Is.EqualTo(before), "the old file is untouched until the player saves");
+
+            Assert.That(first.Save("2026-10-28T10:05:00Z", "0.3.0"), Is.True);
+            var again = OpenDesign.Load(_root, copy, Area, "");
+            Assert.That(again.MigratedFrom, Is.EqualTo(SaveFile.CurrentVersion));
+            Assert.That(again.NeedsRegrade, Is.False, "saved as v8, it opens with no further regrade");
+            Assert.That(TerrainEditBytes.Encode(again.History.Terrain), Is.EqualTo(TerrainEditBytes.Encode(a)));
+            Assert.That(DesignBytes.Same(DesignBytes.Encode(again.History.Document), DesignBytes.Encode(first.History.Document)), Is.True);
+        }
+
         [Test]
         public void SaveAsThenSaveWritesOneNamedSave()
         {
@@ -103,7 +149,7 @@ namespace MountainPlanner.Tests.Core
             var d = OpenDesign.New(_root, Area, Heights);
             var edits = TerrainEdits.From(new[] { new TerrainEditTile.Builder(new EditTileKey(2, 2)).SetDeltaMm(1, 1, 700).Build() });
             var add = new AddTrail(d.History.Revision, "Bench", TrailSettings.GradedRun,
-                                   new[] { new FootprintPart(new[] { new Stroke(DesignUnits.FeetToMm(100), false, new[] { new PointMm(0, 0), new PointMm(0, -300_000) }) }, Array.Empty<Cut>()) },
+                                   TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(100), false, new[] { new PointMm(0, 0), new PointMm(0, -300_000) }) }),
                                    new PointMm(0, 0), new PointMm(0, -300_000), WorkStage.Built);
             Assert.That(d.History.Submit(add, edits).Accepted, Is.True);
             Assert.That(d.Dirty, Is.True);

@@ -31,7 +31,7 @@ namespace MountainPlanner.Tests
         /// <summary>A built, graded trail painted as one stroke through <paramref name="through"/> (head to tail).</summary>
         static TrailId Painted(DesignHistory h, string name, int widthFt, params PointMm[] through)
         {
-            var parts = new[] { new FootprintPart(new[] { new Stroke(Ft(widthFt), false, through) }) };
+            var parts = TrailShape.FromStrokes(null, new[] { new Stroke(Ft(widthFt), false, through) });
             var r = h.Submit(new AddTrail(h.Revision, name, TrailSettings.GradedRun, parts, through[0], through[through.Length - 1], WorkStage.Built));
             Assert.That(r.Accepted, Is.True, r.ToString());
             return new TrailId(r.Created[0]);

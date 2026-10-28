@@ -25,8 +25,8 @@ namespace MountainPlanner.Tests
 
         static PointMm M(double x, double y) => PointMm.FromMetres(x, y);
 
-        static FootprintPart[] Strip(int widthFt, params (double x, double y)[] pts) =>
-            new[] { new FootprintPart(new[] { new Stroke(Ft(widthFt), false, pts.Select(p => M(p.x, p.y)).ToArray()) }) };
+        static TrailShape Strip(int widthFt, params (double x, double y)[] pts) =>
+            TrailShape.FromStrokes(null, new[] { new Stroke(Ft(widthFt), false, pts.Select(p => M(p.x, p.y)).ToArray()) });
 
         static (DesignHistory h, DesignEarthwork work) Session(IHeightSource g)
         {
@@ -47,7 +47,7 @@ namespace MountainPlanner.Tests
             return r;
         }
 
-        static TrailId Add(DesignHistory h, DesignEarthwork work, FootprintPart[] parts, PointMm head, PointMm tail, bool graded = true) =>
+        static TrailId Add(DesignHistory h, DesignEarthwork work, TrailShape parts, PointMm head, PointMm tail, bool graded = true) =>
             new TrailId(Commit(h, work, new AddTrail(h.Revision, "Run " + (h.Document.Trails.Count + 1),
                 graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun, parts, head, tail, WorkStage.Built)).Created[0]);
 
@@ -84,7 +84,7 @@ namespace MountainPlanner.Tests
             Assert.That(part.Trail.Id, Is.EqualTo(lower));
             Assert.That(part.CentrelineIsOwn, Is.False);
             Assert.That(whole.Grade.LengthMetres + part.Grade.LengthMetres, Is.EqualTo(TrailCentreline.Find(
-                TrailFootprint.Build(TrailChains.Whole(new[] { h.Document.FindTrail(run), h.Document.FindTrail(lower) }).Parts, Lattice, Site.OriginX, Site.OriginY),
+                TrailFootprint.Build(TrailChains.Whole(new[] { h.Document.FindTrail(run), h.Document.FindTrail(lower) }).Shape, Lattice, Site.OriginX, Site.OriginY),
                 Site.OriginX, Site.OriginY, Site.OriginX - 20, Site.OriginY - 420).LengthMetres).Within(0.01));
             Assert.That(part.Grade.Along[0], Is.LessThan(TrailGrader.StationMetres), "the part's stations start at its head");
         }

@@ -69,18 +69,15 @@ namespace MountainPlanner.Presentation.Design
             {
                 if (!_showBuilt && trail.Stage == WorkStage.Built) continue;
                 var ink = trail.Stage == WorkStage.Plan ? PreviewInk.Plan : PreviewInk.Paint;
-                foreach (var part in trail.Parts)
-                    foreach (var stroke in part.Strokes)
-                    {
-                        if (stroke.Erase) continue;   // the outline of what was painted; erased holes come with task 08's footprint
-                        int n = stroke.Points.Count;
-                        if (_left.Length < n) { _left = new Vector2[n * 2]; _right = new Vector2[n * 2]; }
-                        float r = stroke.WidthMm / 2000f;
-                        if (n == 1) { _lines.Ring(slot++, DesignFrame.ToLocal(stroke.Points[0]), r, ink); continue; }
-                        DesignFrame.Edges(stroke.Points, r, _left, _right);
-                        _lines.Line(slot++, _left, n, ink);
-                        _lines.Line(slot++, _right, n, ink);
-                    }
+                // The clearing's outline, holes included (sections finding 7: a trail keeps its shape, not its strokes).
+                foreach (var ring in trail.Shape.Rings)
+                {
+                    int n = ring.Length;
+                    if (_left.Length < n + 1) { _left = new Vector2[(n + 1) * 2]; _right = new Vector2[(n + 1) * 2]; }
+                    for (int k = 0; k < n; k++) _left[k] = DesignFrame.ToLocal(ring[k]);
+                    _left[n] = _left[0];
+                    _lines.Line(slot++, _left, n + 1, ink);
+                }
                 if (trail.HasEnds)
                 {
                     _lines.Dot(slot++, DesignFrame.ToLocal(trail.Head.Value), ink);

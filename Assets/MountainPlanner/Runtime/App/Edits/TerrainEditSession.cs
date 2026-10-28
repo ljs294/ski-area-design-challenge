@@ -164,7 +164,7 @@ namespace MountainPlanner.App.Edits
             var head = PointMm.FromMetres(a.x, a.y);
             var tail = PointMm.FromMetres(b.x, b.y);
             int width = DesignUnits.FeetToMm(100);
-            var parts = new[] { new FootprintPart(new[] { new Stroke(width, false, new[] { head, tail }) }, Array.Empty<Cut>()) };
+            var parts = TrailShape.FromStrokes(null, new[] { new Stroke(width, false, new[] { head, tail }) });
             var command = new AddTrail(History.Revision, name ?? $"Test bench {History.Document.Trails.Count + 1}", TrailSettings.GradedRun,
                                        parts, head, tail, WorkStage.Built);
             var r = History.Submit(command, result.Edits);

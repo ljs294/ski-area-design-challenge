@@ -11,8 +11,8 @@ namespace MountainPlanner.Domain.Design
 
     /// <summary>
     /// NT2 (owner, 2026-10-25): the parts of a split trail are graded as one, so Split changes no ground (NW-10). Two
-    /// built trails are one chain's neighbours when the upper's tail is the lower's head, their settings match and a
-    /// part of each has the same strokes, one with a cut and the other its complement. The chain is graded as one
+    /// built trails are one chain's neighbours when the upper's tail is the lower's head, their settings match and their
+    /// clearings touch without sharing a cell (Shape 8: a split's two sides). The chain is graded as one
     /// trail, <see cref="Whole"/>: the trail before the splits, so the ground is the same byte for byte. Where parts branch (two below one) or
     /// anything else breaks the chain, each trail grades on its own.
     /// </summary>
@@ -64,63 +64,28 @@ namespace MountainPlanner.Domain.Design
             return chains;
         }
 
-        /// <summary>Whether <paramref name="upper"/>'s tail is <paramref name="lower"/>'s head across a cut: a part of each
-        /// with the same strokes, one holding a cut and the other its complement.</summary>
+        /// <summary>Whether <paramref name="upper"/>'s tail is <paramref name="lower"/>'s head across a split (Shape 8): the
+        /// same settings, and clearings that share no cell but touch, as a split's two sides do.</summary>
         static bool Above(Trail upper, Trail lower)
         {
             if (!upper.Tail.HasValue || !lower.Head.HasValue || upper.Tail.Value != lower.Head.Value) return false;
             if (!upper.Settings.Equals(lower.Settings)) return false;
-            foreach (var u in upper.Parts)
-                foreach (var l in lower.Parts)
-                {
-                    if (!SameStrokes(u, l)) continue;
-                    foreach (var cu in u.Cuts)
-                        foreach (var cl in l.Cuts)
-                            if (cu.IsComplementOf(cl)) return true;
-                }
-            return false;
-        }
-
-        static bool SameStrokes(FootprintPart a, FootprintPart b)
-        {
-            if (a.Strokes.Count != b.Strokes.Count) return false;
-            for (int i = 0; i < a.Strokes.Count; i++) if (!a.Strokes[i].Equals(b.Strokes[i])) return false;
-            return true;
+            var a = upper.Shape.Mask;
+            var b = lower.Shape.Mask;
+            return a.Touches(b) && a.Union(b).Cells == a.Cells + b.Cells;
         }
 
         /// <summary>
-        /// The chain as one trail: the top part's ID, name, settings and head, the bottom part's tail, and each painted part
-        /// once, keeping only the cuts every side of it shares. The splits' cuts divide a part's ground exactly between its
-        /// sides, so this is the trail as it was before them, however many times and in whatever order it was split.
+        /// The chain as one trail: the top part's ID, name, settings and head, the bottom part's tail, and every part's
+        /// clearing together. A split's sides divide the clearing's cells exactly, so this is the trail as it was before
+        /// the splits, however many times and in whatever order it was split.
         /// </summary>
         public static Trail Whole(IReadOnlyList<Trail> chain)
         {
-            var strokes = new List<FootprintPart>();
-            var cuts = new List<List<Cut>>();
-            foreach (var t in chain)
-                foreach (var p in t.Parts)
-                {
-                    int g = strokes.FindIndex(q => SameStrokes(q, p));
-                    if (g < 0)
-                    {
-                        strokes.Add(p);
-                        cuts.Add(new List<Cut>(p.Cuts));
-                        continue;
-                    }
-                    var shared = new List<Cut>();
-                    foreach (var c in cuts[g]) if (Contains(p.Cuts, c)) shared.Add(c);
-                    cuts[g] = shared;
-                }
-            var parts = new FootprintPart[strokes.Count];
-            for (int i = 0; i < parts.Length; i++) parts[i] = new FootprintPart(strokes[i].Strokes, cuts[i]);
+            var shape = chain[0].Shape;
+            for (int i = 1; i < chain.Count; i++) shape = shape.Union(chain[i].Shape);
             var top = chain[0];
-            return new Trail(top.Id, top.Name, top.Stage, top.Settings, parts, top.Head, chain[chain.Count - 1].Tail);
-        }
-
-        static bool Contains(IReadOnlyList<Cut> list, Cut c)
-        {
-            foreach (var x in list) if (x.Equals(c)) return true;
-            return false;
+            return new Trail(top.Id, top.Name, top.Stage, top.Settings, shape, top.Head, chain[chain.Count - 1].Tail);
         }
 
         /// <summary>The chain's grade, with each part's share of it: its own footprint, and the chain's centreline and
@@ -142,7 +107,7 @@ namespace MountainPlanner.Domain.Design
                 var b = new TrailBuild
                 {
                     Trail = m,
-                    Footprint = TrailFootprint.Build(m.Parts, site.Lattice, site.OriginX, site.OriginY),
+                    Footprint = TrailFootprint.Build(m.Shape, site.Lattice, site.OriginX, site.OriginY),
                     CentrelineIsOwn = false,
                     Writes = whole.Writes,
                 };
