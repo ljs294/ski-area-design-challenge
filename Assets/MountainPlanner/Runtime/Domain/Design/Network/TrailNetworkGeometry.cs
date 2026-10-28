@@ -177,7 +177,7 @@ namespace MountainPlanner.Domain.Design
             {
                 Trail = t;
                 bool reuse = known != null && ReferenceEquals(known.Trail, t);
-                Footprint = reuse && known.Footprint != null ? known.Footprint : TrailFootprint.Build(t.Parts, site.Lattice, site.OriginX, site.OriginY);
+                Footprint = reuse && known.Footprint != null ? known.Footprint : TrailFootprint.Build(t.Shape, site.Lattice, site.OriginX, site.OriginY);
                 site.PointOf(t.Head.Value, out HeadX, out HeadY);
                 site.PointOf(t.Tail.Value, out TailX, out TailY);
                 TrailCentreline.Result c = reuse && known.CentrelineIsOwn ? known.Centreline : null;

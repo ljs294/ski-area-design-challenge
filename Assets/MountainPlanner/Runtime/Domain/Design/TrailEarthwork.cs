@@ -151,51 +151,42 @@ namespace MountainPlanner.Domain.Design
             public PointRect Reads { get; }
             public IReadOnlyCollection<EditTileKey> Tiles { get; }
 
-            /// <summary>The tiles each stroke's capsule reaches, 3 m wider than the brush (inside <see cref="Reads"/>).</summary>
+            /// <summary>The tiles the clearing's rows reach, 3 m wider than it and the grader's 16 m reach (inside <see cref="Reads"/>).</summary>
             static IReadOnlyCollection<EditTileKey> TilesOf(Trail t, EarthworkSite site)
             {
                 var keys = new SortedSet<EditTileKey>();
                 var lat = site.Lattice;
-                foreach (var part in t.Parts)
-                    foreach (var s in part.Strokes)
+                var mask = t.Shape.Mask;
+                const double Cell = TrailMask.CellMm / 1000.0, Reach = 3 + 16;
+                // Every run of every row, widened by the reach, as a box: a wide box would swallow the gap between two arms.
+                for (int j = mask.Row0; j < mask.RowEnd; j++)
+                {
                     {
-                        if (s.Erase) continue;
-                        double r = s.WidthMm / 2000.0 + 3;
-                        var pts = s.Points;
-                        for (int k = 0; k < Math.Max(1, pts.Count - 1); k++)
+                        var r = mask.Row(j);
+                        for (int k = 0; k < r.Count; k += 2)
                         {
-                            site.PointOf(pts[k], out double ax, out double ay);
-                            site.PointOf(pts[Math.Min(k + 1, pts.Count - 1)], out double bx, out double by);
-                            double len = Math.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
-                            int steps = Math.Max(1, (int)Math.Ceiling(len / 16));
-                            for (int q = 0; q <= steps; q++)
-                            {
-                                double x = ax + (bx - ax) * q / steps, y = ay + (by - ay) * q / steps, reach = r + 16;
-                                var box = new PointRect((int)Math.Floor(x - reach - lat.West), (int)Math.Floor(lat.North - y - reach),
-                                                        (int)Math.Ceiling(x + reach - lat.West), (int)Math.Ceiling(lat.North - y + reach));
-                                foreach (var key in box.TileKeys()) keys.Add(key);
-                            }
+                            site.PointOf(new PointMm((int)TrailMask.EdgeMm(r[k]), (int)TrailMask.EdgeMm(j)), out double ax, out double ay);
+                            double bx = ax + (r[k + 1] - r[k]) * Cell, by = ay + Cell;
+                            var box = new PointRect((int)Math.Floor(ax - Reach - lat.West), (int)Math.Floor(lat.North - by - Reach),
+                                                    (int)Math.Ceiling(bx + Reach - lat.West), (int)Math.Ceiling(lat.North - ay + Reach));
+                            foreach (var key in box.TileKeys()) keys.Add(key);
                         }
                     }
+                }
                 return keys;
             }
 
             static PointRect ReadsOf(Trail t, EarthworkSite site)
             {
-                var rect = PointRect.Empty;
                 var lat = site.Lattice;
-                foreach (var part in t.Parts)
-                    foreach (var s in part.Strokes)
-                    {
-                        if (s.Erase) continue;
-                        double r = s.WidthMm / 2000.0 + 3;
-                        foreach (var p in s.Points)
-                        {
-                            site.PointOf(p, out double x, out double y);
-                            rect = rect.Include((int)Math.Floor(x - r - lat.West), (int)Math.Floor(lat.North - y - r));
-                            rect = rect.Include((int)Math.Ceiling(x + r - lat.West), (int)Math.Ceiling(lat.North - y + r));
-                        }
-                    }
+                if (t.Shape.IsEmpty) return PointRect.Empty;
+                t.Shape.Bounds(out int x0, out int y0, out int x1, out int y1);
+                site.PointOf(new PointMm(x0, y0), out double ax, out double ay);
+                site.PointOf(new PointMm(x1, y1), out double bx, out double by);
+                const double R = 3;
+                var rect = PointRect.Empty;
+                rect = rect.Include((int)Math.Floor(ax - R - lat.West), (int)Math.Floor(lat.North - by - R));
+                rect = rect.Include((int)Math.Ceiling(bx + R - lat.West), (int)Math.Ceiling(lat.North - ay + R));
                 return rect;
             }
 
@@ -206,8 +197,7 @@ namespace MountainPlanner.Domain.Design
                 if (ReferenceEquals(o._trail, _trail) && SameRounds(o)) return true;
                 var a = _trail;
                 var b = o._trail;
-                if (!a.Settings.Equals(b.Settings) || a.Head != b.Head || a.Tail != b.Tail || a.Parts.Count != b.Parts.Count) return false;
-                for (int i = 0; i < a.Parts.Count; i++) if (!a.Parts[i].Equals(b.Parts[i])) return false;
+                if (!a.Settings.Equals(b.Settings) || a.Head != b.Head || a.Tail != b.Tail || !a.Shape.Equals(b.Shape)) return false;
                 return SameRounds(o);
             }
 
@@ -245,7 +235,7 @@ namespace MountainPlanner.Domain.Design
         public static TrailBuild Grade(Trail trail, EditedHeights ground, EarthworkSite site, ulong seed, Func<int, int, bool> claimed,
                                        IReadOnlyList<Keep> rounds, TrailGrader.Options options = null)
         {
-            var fp = TrailFootprint.Build(trail.Parts, site.Lattice, site.OriginX, site.OriginY);
+            var fp = TrailFootprint.Build(trail.Shape, site.Lattice, site.OriginX, site.OriginY);
             var build = new TrailBuild { Footprint = fp, Trail = trail };
             var lat = site.Lattice;
             Func<int, int, bool> isFixed = (c, r) =>

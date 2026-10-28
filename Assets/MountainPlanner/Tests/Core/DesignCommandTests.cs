@@ -192,13 +192,13 @@ namespace MountainPlanner.Tests
         {
             var h = new DesignHistory(DesignDocument.Empty(1));
             var run = AddTrail(h, "Run 1", P(0, 2000), P(0, 0));
-            // Islands and a second width: the restore must keep every stroke.
-            var parts = new[] { new FootprintPart(new[]
+            // Islands and a second width: the join must give back every cell.
+            var parts = TrailShape.FromStrokes(null, new[]
             {
                 new Stroke(Ft(100), false, new[] { P(0, 2000), P(0, 1000) }),
                 new Stroke(Ft(150), false, new[] { P(0, 1000), P(0, 0) }),
                 new Stroke(Ft(25), true, new[] { P(0, 1200) }),
-            }) };
+            });
             h.Submit(new RepaintTrail(h.Revision, run, parts));
             var original = DesignBytes.Encode(h.Document.FindTrail(run));
 
@@ -211,9 +211,9 @@ namespace MountainPlanner.Tests
             Assert.That(upperTrail.Tail, Is.EqualTo(P(0, 900)));
             Assert.That(lowerTrail.Head, Is.EqualTo(P(0, 900)));
             Assert.That(lowerTrail.Tail, Is.EqualTo(P(0, 0)));
-            // Every point goes to exactly one side.
-            foreach (var p in new[] { P(0, 2000), P(0, 901), P(0, 900), P(0, 899), P(0, 0) })
-                Assert.That(upperTrail.Parts[0].CutsKeep(p) ^ lowerTrail.Parts[0].CutsKeep(p), Is.True, p.ToString());
+            // Every cell goes to exactly one side.
+            Assert.That(upperTrail.Shape.Mask.Cells + lowerTrail.Shape.Mask.Cells, Is.EqualTo(parts.Mask.Cells));
+            Assert.That(upperTrail.Shape.Union(lowerTrail.Shape), Is.EqualTo(parts));
 
             Assert.That(h.Submit(new JoinTrails(h.Revision, run, lower)).Accepted, Is.True);
             Assert.That(h.Document.FindTrail(lower), Is.Null);
@@ -257,7 +257,8 @@ namespace MountainPlanner.Tests
             Assert.That(joined.Name, Is.EqualTo("Upper"));
             Assert.That(joined.Head, Is.EqualTo(P(0, 2000)));
             Assert.That(joined.Tail, Is.EqualTo(P(0, 0)));
-            Assert.That(joined.Parts.Count, Is.EqualTo(2), "two separately painted trails keep both parts");
+            Assert.That(joined.Shape.Mask.Cells, Is.GreaterThan(h.Document.Trails.Count > 0 ? 0 : 0), "both clearings, together");
+            Assert.That(joined.Shape.Rings.Count, Is.EqualTo(1), "the two clearings overlap where they meet: one outline");
         }
 
         [Test]

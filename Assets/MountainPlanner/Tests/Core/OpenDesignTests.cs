@@ -103,7 +103,7 @@ namespace MountainPlanner.Tests.Core
             var d = OpenDesign.New(_root, Area, Heights);
             var edits = TerrainEdits.From(new[] { new TerrainEditTile.Builder(new EditTileKey(2, 2)).SetDeltaMm(1, 1, 700).Build() });
             var add = new AddTrail(d.History.Revision, "Bench", TrailSettings.GradedRun,
-                                   new[] { new FootprintPart(new[] { new Stroke(DesignUnits.FeetToMm(100), false, new[] { new PointMm(0, 0), new PointMm(0, -300_000) }) }, Array.Empty<Cut>()) },
+                                   TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(100), false, new[] { new PointMm(0, 0), new PointMm(0, -300_000) }) }),
                                    new PointMm(0, 0), new PointMm(0, -300_000), WorkStage.Built);
             Assert.That(d.History.Submit(add, edits).Accepted, Is.True);
             Assert.That(d.Dirty, Is.True);

@@ -158,25 +158,12 @@ namespace MountainPlanner.Domain.Design
             w.U8((byte)t.Settings.Clearing);
             w.OptPoint(t.Head);
             w.OptPoint(t.Tail);
-            w.I32(t.Parts.Count);
-            foreach (var part in t.Parts)
+            // Shape 8 (sections finding 7): the clearing's rings, each its points in order.
+            w.I32(t.Shape.Rings.Count);
+            foreach (var ring in t.Shape.Rings)
             {
-                w.I32(part.Strokes.Count);
-                foreach (var s in part.Strokes)
-                {
-                    w.I32(s.WidthMm);
-                    w.U8(s.Erase ? (byte)1 : (byte)0);
-                    w.I32(s.Points.Count);
-                    foreach (var p in s.Points) w.Point(p);
-                }
-                w.I32(part.Cuts.Count);
-                foreach (var c in part.Cuts)
-                {
-                    w.Point(c.At);
-                    w.I32(c.DirX);
-                    w.I32(c.DirY);
-                    w.U8(c.KeepAhead ? (byte)1 : (byte)0);
-                }
+                w.I32(ring.Length);
+                foreach (var p in ring) w.Point(p);
             }
         }
 
@@ -188,23 +175,14 @@ namespace MountainPlanner.Domain.Design
             var settings = new TrailSettings((TrailGrading)r.U8(), (TrailKind)r.U8(), (TrailClearing)r.U8());
             PointMm? head = r.OptPoint();
             PointMm? tail = r.OptPoint();
-            var parts = new FootprintPart[r.Count(DesignRules.MaxPartsPerTrail)];
-            for (int i = 0; i < parts.Length; i++)
+            var rings = new PointMm[r.Count(DesignRules.MaxShapeRings)][];
+            for (int i = 0; i < rings.Length; i++)
             {
-                var strokes = new Stroke[r.Count(DesignRules.MaxStrokesPerPart)];
-                for (int k = 0; k < strokes.Length; k++)
-                {
-                    int width = r.I32();
-                    bool erase = r.Bool();
-                    var points = new PointMm[r.Count(DesignRules.MaxPointsPerStroke)];
-                    for (int p = 0; p < points.Length; p++) points[p] = r.Point();
-                    strokes[k] = new Stroke(width, erase, points);
-                }
-                var cuts = new Cut[r.Count(DesignRules.MaxCutsPerPart)];
-                for (int k = 0; k < cuts.Length; k++) cuts[k] = new Cut(r.Point(), r.I32(), r.I32(), r.Bool());
-                parts[i] = new FootprintPart(strokes, cuts);
+                var ring = new PointMm[r.Count(DesignRules.MaxShapePoints)];
+                for (int k = 0; k < ring.Length; k++) ring[k] = r.Point();
+                rings[i] = ring;
             }
-            return new Trail(id, name, stage, settings, parts, head, tail);
+            return new Trail(id, name, stage, settings, TrailShape.FromRings(rings), head, tail);
         }
 
         static void WriteLift(Writer w, Lift l)

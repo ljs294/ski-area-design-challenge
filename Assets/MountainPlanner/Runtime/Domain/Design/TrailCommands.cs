@@ -8,17 +8,17 @@ namespace MountainPlanner.Domain.Design
     {
         public string Name { get; }
         public TrailSettings Settings { get; }
-        public IReadOnlyList<FootprintPart> Parts { get; }
+        public TrailShape Shape { get; }
         public PointMm? Head { get; }
         public PointMm? Tail { get; }
         public WorkStage Stage { get; }
 
-        public AddTrail(long baseRevision, string name, TrailSettings settings, IReadOnlyList<FootprintPart> parts, PointMm? head, PointMm? tail, WorkStage stage)
+        public AddTrail(long baseRevision, string name, TrailSettings settings, TrailShape shape, PointMm? head, PointMm? tail, WorkStage stage)
             : base(baseRevision)
         {
             Name = name;
             Settings = settings;
-            Parts = parts;
+            Shape = shape;
             Head = head;
             Tail = tail;
             Stage = stage;
@@ -28,7 +28,7 @@ namespace MountainPlanner.Domain.Design
 
         protected override CommandResult Run(DesignDocument doc)
         {
-            string problem = DesignRules.NameProblem(Name) ?? DesignRules.StageProblem(Stage) ?? DesignRules.PartsProblem(Parts)
+            string problem = DesignRules.NameProblem(Name) ?? DesignRules.StageProblem(Stage) ?? DesignRules.ShapeProblem(Shape)
                 ?? DesignRules.EndsProblem(Head, Tail);
             if (problem != null) return Invalid(doc, problem);
             if (DesignRules.SettingsProblem(Settings) is string s) return CommandResult.Reject(doc, RejectionCode.NotAvailable, s);
@@ -36,21 +36,21 @@ namespace MountainPlanner.Domain.Design
 
             var mint = new IdMint(doc);
             var id = mint.Trail();
-            var trail = new Trail(id, Name, Stage, Settings, Parts, Head, Tail);
+            var trail = new Trail(id, Name, Stage, Settings, Shape, Head, Tail);
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutTrail(trail), id.Value);
         }
     }
 
-    /// <summary>Replaces a trail's footprint (TF-07's repaint and islands). The tool sends the whole new footprint.</summary>
+    /// <summary>Replaces a trail's clearing (TF-07's repaint and islands). The tool sends the whole new shape.</summary>
     public sealed class RepaintTrail : DesignCommand
     {
         public TrailId Trail { get; }
-        public IReadOnlyList<FootprintPart> Parts { get; }
+        public TrailShape Shape { get; }
 
-        public RepaintTrail(long baseRevision, TrailId trail, IReadOnlyList<FootprintPart> parts) : base(baseRevision)
+        public RepaintTrail(long baseRevision, TrailId trail, TrailShape shape) : base(baseRevision)
         {
             Trail = trail;
-            Parts = parts;
+            Shape = shape;
         }
 
         public override string Label => "Repaint trail";
@@ -59,8 +59,9 @@ namespace MountainPlanner.Domain.Design
         {
             var t = doc.FindTrail(Trail);
             if (t == null) return Missing(doc, "That trail");
-            if (DesignRules.PartsProblem(Parts) is string p) return Invalid(doc, p);
-            return CommandResult.Accept(doc.PutTrail(t.WithParts(Parts)));
+            if (DesignRules.ShapeProblem(Shape) is string p) return Invalid(doc, p);
+            if (t.Shape.Equals(Shape)) return Invalid(doc, "Nothing changes.");
+            return CommandResult.Accept(doc.PutTrail(t.WithShape(Shape)));
         }
     }
 
@@ -201,28 +202,22 @@ namespace MountainPlanner.Domain.Design
                 return Invalid(doc, "Split between the head and the tail.");
             string lowerName = LowerName ?? DefaultLowerName(t.Name);
             if (DesignRules.NameProblem(lowerName) is string n) return Invalid(doc, n);
-            foreach (var part in t.Parts)
-                if (part.Cuts.Count >= DesignRules.MaxCutsPerPart) return Invalid(doc, "This trail has been split too many times.");
-
-            var upperParts = new FootprintPart[t.Parts.Count];
-            var lowerParts = new FootprintPart[t.Parts.Count];
-            for (int i = 0; i < t.Parts.Count; i++)
-            {
-                upperParts[i] = t.Parts[i].WithCut(behind);
-                lowerParts[i] = t.Parts[i].WithCut(behind.Opposite);
-            }
+            // Shape 8: the clearing's cells go to one side or the other of the line, so the two sides make the whole.
+            var upperShape = t.Shape.Clip(behind);
+            var lowerShape = t.Shape.Clip(behind.Opposite);
+            if (upperShape.IsEmpty || lowerShape.IsEmpty) return Invalid(doc, "Split where the trail is painted on both sides.");
             var mint = new IdMint(doc);
             var lowerId = mint.Trail();
-            var upper = t.WithParts(upperParts).WithEnds(t.Head, At);
-            var lower = new Trail(lowerId, lowerName, t.Stage, t.Settings, lowerParts, At, t.Tail);
+            var upper = t.WithShape(upperShape).WithEnds(t.Head, At);
+            var lower = new Trail(lowerId, lowerName, t.Stage, t.Settings, lowerShape, At, t.Tail);
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutTrail(upper).PutTrail(lower), lowerId.Value);
         }
     }
 
     /// <summary>
     /// NW-10's Join: where the upper trail's tail meets the lower trail's head (within 30 ft, TR-05), the two become
-    /// one. It keeps the upper trail's ID, name and settings, its head and the lower trail's tail. Parts that are the
-    /// two sides of one split merge back, removing the cut; others are kept side by side.
+    /// one. It keeps the upper trail's ID, name and settings, its head and the lower trail's tail; its clearing is both
+    /// clearings together (Shape 8), so the two sides of a split join back to the whole.
     /// </summary>
     public sealed class JoinTrails : DesignCommand
     {
@@ -249,23 +244,8 @@ namespace MountainPlanner.Domain.Design
                 return Invalid(doc, $"{up.Name}'s tail must meet {low.Name}'s head.");
             if (up.Head.Value == low.Tail.Value) return Invalid(doc, "The joined trail would start where it ends.");
 
-            var parts = new List<FootprintPart>();
-            var used = new bool[low.Parts.Count];
-            foreach (var u in up.Parts)
-            {
-                FootprintPart merged = null;
-                for (int k = 0; k < low.Parts.Count && merged == null; k++)
-                {
-                    if (used[k]) continue;
-                    merged = u.RejoinWith(low.Parts[k]);
-                    if (merged != null) used[k] = true;
-                }
-                parts.Add(merged ?? u);
-            }
-            for (int k = 0; k < low.Parts.Count; k++) if (!used[k]) parts.Add(low.Parts[k]);
-            if (parts.Count > DesignRules.MaxPartsPerTrail) return Invalid(doc, "The joined trail would have too many parts.");
-
-            var joined = up.WithParts(parts).WithEnds(up.Head, low.Tail);
+            var joined = up.WithShape(up.Shape.Union(low.Shape)).WithEnds(up.Head, low.Tail);
+            if (DesignRules.ShapeProblem(joined.Shape) is string p) return Invalid(doc, p);
             return CommandResult.Accept(doc.RemoveTrail(Lower).PutTrail(joined));
         }
     }
