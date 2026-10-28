@@ -90,6 +90,9 @@ namespace MountainPlanner.UI.Tools
         /// <summary>A one-line notice in the HUD's toasts ("New trail discarded").</summary>
         public Action<string> Notice { get; set; }
 
+        /// <summary>Where confirmed earthwork is paid for (BR19): the Phase 4 economy; null until then, so nothing is charged.</summary>
+        public IEarthworkCharges Charges { get; set; }
+
         long _input;
 
         public ToolContext(DesignHistory history, IToolPreview preview, ITerrainSurface surface, Rect core)

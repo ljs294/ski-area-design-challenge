@@ -234,14 +234,20 @@ echo     71c The Send feedback captures, both themes, 50-150%% (render lane), in
 echo.
 echo   Phase 3, task 15: the terrain brush (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     73 The game: Toolbox ^> Terrain (B Raise/Lower, L Flatten, O Smooth, G Slope). Left paints, right lowers or takes
-echo        the target, [ ] diameter, , . strength, PgUp/PgDn target, Enter Break ground, then Enter to Confirm. Contours
-echo        come on while a brush is armed; zoom in and they go down to 10 ft. Try it beside a lift's terminal and under
-echo        its line: the brush stops at the pad, the chairs' clearance and a tower's limits, and towers re-height.
-echo        The pane's cut and fill count up while you drag.
-echo     73b The brush bench: live ground with a 60 ft and a 400 ft brush, the review and the confirm (measure lane).
+echo        the target, [ ] diameter, , . strength, PgUp/PgDn target. What you paint is the edit: Confirm (Enter) puts
+echo        the session in, Revert puts it back, Ctrl+Z undoes one press; Esc with ground not confirmed asks Confirm /
+echo        Revert / Keep painting. Contours come on while a brush is armed; zoom in and they go down to 10 ft. Try it
+echo        beside a lift's terminal and under its line: the brush stops at the pad, the chairs' clearance and a tower's
+echo        limits, and towers re-height. The pane's cut and fill count up while you drag.
+echo     73b The brush bench: live ground with a 60 ft and a 400 ft brush, and the confirm (measure lane).
 echo     73m The brush tour on Jackson Hole 2 km: a quad, then each brush beside and under it, with screenshots and a movie
 echo        (render lane; the movie is encoded after), into test-results\p3-15\tour.
 echo     73c Close-up contours at 3,500 m, 800 m and 150 m (render lane), into test-results\p3-15\contours.
+echo.
+echo   Brush speed (perf/brush-drag; rebuilds the game and the Development game, close the Unity editor first)
+echo     75 The brush drag timing: a 60 ft and a 400 ft drag, each frame in its parts (dabs, preview, upload, bill,
+echo        GC), the frames after letting go and the confirm; Jackson Hole, a second spot (-brushat -500,700) and
+echo        the Development game for exact garbage (measure lane), into test-results\brush-perf.
 echo.
 echo     Q  Quit
 echo.
@@ -346,6 +352,7 @@ if /i "%CHOICE%"=="73" goto brush
 if /i "%CHOICE%"=="73b" goto brushbench
 if /i "%CHOICE%"=="73m" goto brushtour
 if /i "%CHOICE%"=="73c" goto contourcaptures
+if /i "%CHOICE%"=="75" goto brushperf
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -1025,6 +1032,23 @@ if not exist "%JH2%\manifest.json" robocopy "%~dp0TestData\jackson-hole-2km" "%J
 if not exist "%~dp0test-results\p3-15" mkdir "%~dp0test-results\p3-15"
 %MEASURE% "%GAME%" -package "%JH2%" -notitle -quality high %SCREEN% -brushbench "%~dp0test-results\p3-15\brushbench.json" -logFile "%~dp0test-results\p3-15\brushbench.log" <nul
 findstr /c:"[BrushBench]" "%~dp0test-results\p3-15\brushbench.log"
+goto done
+
+:brushperf
+call :buildplayer
+if not exist "%GAME%" goto done
+call :builddev
+set "JH2=%LOCALAPPDATA%\SkiAreaDesignChallenge-p308\jh2km"
+if not exist "%JH2%\manifest.json" robocopy "%~dp0TestData\jackson-hole-2km" "%JH2%" /e /njh /njs /nfl /ndl >nul
+set "BP=%~dp0test-results\brush-perf"
+if not exist "%BP%" mkdir "%BP%"
+%MEASURE% "%GAME%" -package "%JH2%" -notitle -quality high %SCREEN% -brushbench "%BP%\release.json" -logFile "%BP%\release.log" <nul
+%MEASURE% "%GAME%" -package "%JH2%" -notitle -quality high %SCREEN% -brushat -500,700 -brushbench "%BP%\release-site2.json" -logFile "%BP%\release-site2.log" <nul
+if exist "%GAMEDEV%" %MEASURE% "%GAMEDEV%" -package "%JH2%" -notitle -quality high %SCREEN% -brushbench "%BP%\dev.json" -logFile "%BP%\dev.log" <nul
+for %%L in (release release-site2 dev) do (
+  echo   %%L:
+  findstr /c:"[BrushBench]" "%BP%\%%L.log"
+)
 goto done
 
 :brushtour

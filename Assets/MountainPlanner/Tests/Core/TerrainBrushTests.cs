@@ -486,6 +486,92 @@ namespace MountainPlanner.Tests
             Assert.That(r.Regraded, Is.LessThan(40), "one stroke regrades only the strokes after it that it meets");
         }
 
+        // Brush speed (BR17, demo 75): the live ground is read point by point from the stroke in hand, and the bill is kept as
+        // it goes; both must be exactly what the tiles built at the end say.
+        static IEnumerable<(string Name, BrushSettings Settings, IHeightSource Ground)> Strokes()
+        {
+            const int r = 18288;   // 120 ft across
+            yield return ("raise", BrushSettings.RaiseOrLower(false, r, 81), new Tilted());
+            yield return ("lower", BrushSettings.RaiseOrLower(true, r, 81), new Tilted());
+            yield return ("flatten", BrushSettings.Flatten(r, 350, 1_480_000), new Tilted());
+            yield return ("smooth", BrushSettings.Smooth(r, 350), new Bumpy());
+            yield return ("slope", BrushSettings.Slope(r, 350, PointMm.FromMetres(10, 0), 1_500_000, PointMm.FromMetres(45, 5), 1_470_000), new Tilted());
+        }
+
+        // The ground before the stroke: an earlier one across the same tiles, so some cells are cleared already.
+        static TerrainEdits Earlier(IHeightSource ground)
+        {
+            var first = Run(BrushSettings.RaiseOrLower(false, 18288, 81), ground);
+            for (int i = 0; i < 12; i++) first.Dab(At(20 + i, -6));
+            return first.Preview(TerrainEdits.Empty);
+        }
+
+        // The stroke crosses the 64 m tile edge at x = 24 m (lattice column 1024) and back.
+        static IEnumerable<BrushDab> Across()
+        {
+            for (int i = 0; i <= 30; i++) yield return At(8 + i * 1.2, 2 + (i % 5) * 0.7);
+            for (int i = 0; i <= 10; i++) yield return At(44 - i * 2.5, 4, 600);
+        }
+
+        [Test]
+        public void BR17_TheLiveGroundIsThePreviewPointByPoint()
+        {
+            foreach (var (name, settings, ground) in Strokes())
+            {
+                var under = Earlier(ground);
+                var run = Run(settings, ground, under);
+                int c0 = Column(-20), c1 = Column(80), r0 = Row(40), r1 = Row(-40);
+                int dabs = 0;
+                foreach (var d in Across())
+                {
+                    run.Dab(d);
+                    if (++dabs % 4 != 1) continue;
+                    var preview = run.Preview(under);
+                    for (int r = r0; r <= r1; r++)
+                        for (int c = c0; c <= c1; c++)
+                            if (run.Live.DeltaMmAt(c, r) != preview.DeltaMmAt(c, r))
+                                Assert.Fail($"{name}: point ({c}, {r}) after dab {dabs}: live {run.Live.DeltaMmAt(c, r)}, tiles {preview.DeltaMmAt(c, r)}");
+                }
+            }
+        }
+
+        [Test]
+        public void BR14_TheRunningBillIsTheFullCount()
+        {
+            foreach (var (name, settings, ground) in Strokes())
+            {
+                var under = Earlier(ground);
+                var run = Run(settings, ground, under);
+                int c0 = Column(-20), c1 = Column(80), r0 = Row(40), r1 = Row(-40);
+                int dabs = 0;
+                foreach (var d in Across())
+                {
+                    run.Dab(d);
+                    if (++dabs % 3 != 0) continue;
+                    var preview = run.Preview(under);
+                    long cut = 0, fill = 0;
+                    int cleared = 0;
+                    bool Moved(int c, int r) => Math.Abs((long)preview.DeltaMmAt(c, r) - under.DeltaMmAt(c, r)) >= TerrainBrush.ClearMm;
+                    for (int r = r0; r <= r1; r++)
+                        for (int c = c0; c <= c1; c++)
+                        {
+                            long change = (long)preview.DeltaMmAt(c, r) - under.DeltaMmAt(c, r);
+                            if (change < 0) cut -= change; else fill += change;
+                            // TB-10, from the heights alone: a cell not cleared before with a corner moved a foot or more.
+                            bool clears = !under.IsClearedAt(c, r) && (Moved(c, r) || Moved(c + 1, r) || Moved(c, r + 1) || Moved(c + 1, r + 1));
+                            if (clears) cleared++;
+                            Assert.That(preview.IsClearedAt(c, r), Is.EqualTo(clears || under.IsClearedAt(c, r)), $"{name}: cell ({c}, {r}) cleared after dab {dabs}");
+                        }
+                    run.Volumes(out double runCut, out double runFill);
+                    Assert.That(runCut, Is.EqualTo(cut / 1000.0), $"{name}: cut after dab {dabs}");
+                    Assert.That(runFill, Is.EqualTo(fill / 1000.0), $"{name}: fill after dab {dabs}");
+                    Assert.That(run.ClearedCount, Is.EqualTo(cleared), $"{name}: cells cleared after dab {dabs}");
+                }
+                run.Volumes(out double finalCut, out double finalFill);
+                Assert.That(finalCut + finalFill, Is.GreaterThan(0), $"{name} moved the ground");
+            }
+        }
+
         [Test]
         public void TB02_BadStrokesAreTurnedAway()
         {

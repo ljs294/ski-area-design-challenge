@@ -202,3 +202,14 @@ I'll ask you before each push, PR and merge.
 - **For your phone:** captures and a short movie per brush (`-brushmovie`), including towers growing under Lower and the brush held at the envelope.
 - **Contours:** EditMode `MapLayersTests` (the new globals in both unit systems) and three zoom captures with `-contours` in both themes, compared before and after; plus a contours-on timing view before and after.
 - **demo.bat:** 73, 73b (`-brushbench`), 73m (movie), 73c (the contour zoom captures).
+
+## Follow-up: brush speed and the session (2026-10-28, perf/brush-drag)
+- **Speed:** the 400 ft drag's frame p95 went from 34.4 ms to 16.0 ms. The live ground now reads the stroke point by
+  point instead of building tiles every frame, and the bill is kept as the stroke goes. The heights are byte-identical.
+  Numbers are in [docs/perf/brush-drag.md](../perf/brush-drag.md), from `demo.bat` 75.
+- **The session (owner BR17–BR19):**
+  - Break ground's review page is gone. The pane has **Confirm** and **Revert**, and Ctrl+Z takes back one press,
+    never past the session's start.
+  - Closing with ground not yet confirmed asks Confirm / Revert / Keep painting.
+  - Confirm hands the session's volumes to `IEarthworkCharges`, which the Phase 4 economy will implement.
+  - TB-08 and TB-09 are now v2 (p3-02 §4.6). The mockup's `terrainreview` state is now `terrainask`.

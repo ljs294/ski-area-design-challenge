@@ -40,12 +40,12 @@ export const STATES = [
   { name: 'tool-sections-rerouted', mockup: 'trailrerouted', p3: true },
   { name: 'tool-sections-esc', mockup: 'trailsecsundo', p3: true },
   { name: 'tool-trail-continue', mockup: 'trailcontinue', p3: true },
-  // Task P3-15: the Terrain tab's four brushes mid-stroke, and Break ground's review.
+  // Task P3-15: the Terrain tab's four brushes mid-stroke, and the close ask (BR18).
   { name: 'tray-terrain', mockup: 'terrainraise', p3: true },
   { name: 'tool-terrain-flatten', mockup: 'terrainflatten', p3: true },
   { name: 'tool-terrain-smooth', mockup: 'terrainsmooth', p3: true },
   { name: 'tool-terrain-slope', mockup: 'terrainslope', p3: true },
-  { name: 'tool-terrain-review', mockup: 'terrainreview', p3: true },
+  { name: 'tool-terrain-ask', mockup: 'terrainask', p3: true },
   { name: 'analysis', mockup: 'aoverview' },
   { name: 'analysis-lifts', mockup: 'alifts' },
   { name: 'analysis-weather', mockup: 'aweather' },

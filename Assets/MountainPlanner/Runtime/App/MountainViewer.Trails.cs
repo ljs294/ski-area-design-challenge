@@ -706,13 +706,13 @@ namespace MountainPlanner.App
             public double ContourInterval => UnitFormat.ContourIntervalMetres(DisplayUnits.Current);
 
             // ---------- task 15: the live ground and contours while brushing ----------
-            public void Live(TerrainEdits preview, PointRect dirty) => _viewer._edits?.Pipeline.ApplyLive(preview, dirty);
-            public void Show(TerrainEdits edits)
-            {
-                var edits0 = _viewer._edits;
-                if (edits0 != null && edits != null) edits0.Show(edits);
-                _viewer._builtDirty = true;   // towers re-height under their fixed heads as the pending ground lands (TW-02 v4)
-            }
+            public void Live(IPointDeltas ground, PointRect dirty) => _viewer._edits?.Pipeline.ApplyLive(ground, dirty);
+            // The committed ground again (a forced close): the towers never moved, since they re-height only at Confirm (BR21).
+            public void Show(TerrainEdits edits) { if (edits != null) _viewer._edits?.Show(edits); }
+            public System.Threading.Tasks.Task CatchUp(TerrainEdits ground, TerrainEdits clearing) =>
+                _viewer._edits?.ShowGround(ground, clearing, true) ?? System.Threading.Tasks.Task.CompletedTask;
+            public System.Threading.Tasks.Task ShowGround(TerrainEdits ground, TerrainEdits clearing) =>
+                _viewer._edits?.ShowGround(ground, clearing, false) ?? System.Threading.Tasks.Task.CompletedTask;
             public double LastLiveMs => _viewer._edits?.Pipeline.LastLiveMs ?? 0;
 
             bool? _contoursBefore;

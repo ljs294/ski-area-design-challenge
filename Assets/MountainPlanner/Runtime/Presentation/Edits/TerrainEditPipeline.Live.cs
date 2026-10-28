@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Edits;
 using MountainPlanner.Domain.Geo;
+using MountainPlanner.Persistence;
 using MountainPlanner.World;
 
 namespace MountainPlanner.Presentation.Edits
@@ -24,15 +25,21 @@ namespace MountainPlanner.Presentation.Edits
         /// <summary>Time the last live upload took, ms (the brush bench).</summary>
         public double LastLiveMs { get; private set; }
 
+        /// <summary>The last live upload's parts, ms (the brush bench, demo 75): reading heights, SetHeights, then sync and rebind.</summary>
+        public double LastLiveSampleMs { get; private set; }
+        public double LastLiveSetMs { get; private set; }
+        public double LastLiveSyncMs { get; private set; }
+
         /// <summary>
-        /// Puts <paramref name="preview"/>'s heights into the tiles over <paramref name="dirty"/> (lattice points) and nowhere
-        /// else; heights only. Main thread.
+        /// Puts <paramref name="ground"/>'s heights into the tiles over <paramref name="dirty"/> (lattice points) and nowhere
+        /// else; heights only, each the source plus the point's change, as <see cref="Normalised"/> makes them. Reading the
+        /// stroke in hand point by point (<see cref="BrushRun.Live"/>) builds no edit tiles. Main thread.
         /// </summary>
-        public void ApplyLive(TerrainEdits preview, PointRect dirty)
+        public void ApplyLive(IPointDeltas ground, PointRect dirty)
         {
-            if (preview == null || dirty.IsEmpty) return;
+            if (ground == null || dirty.IsEmpty) return;
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            var heights = new EditedHeights(_source, _lattice, preview);
+            double sample = 0, set = 0;
             _liveTouched.Clear();
             int tc0 = FloorDiv(dirty.MinColumn - 1, 1024), tc1 = FloorDiv(dirty.MaxColumn + 1, 1024);
             int tr0 = FloorDiv(dirty.MinRow - 1, 1024), tr1 = FloorDiv(dirty.MaxRow + 1, 1024);
@@ -55,18 +62,33 @@ namespace MountainPlanner.Presentation.Edits
                     j1 = j0 + h - 1;
                     if (!_liveBlocks.TryGetValue((w, h), out var hm)) _liveBlocks[(w, h)] = hm = new float[h, w];
                     var b = _grid.Bounds(new TileKey(tc, tr));
+                    double t0 = watch.Elapsed.TotalMilliseconds;
                     for (int j = j0; j <= j1; j++)
                         for (int i = i0; i <= i1; i++)
-                            hm[j1 - j, i - i0] = Normalised(b, heights, gc, gr, i, j);
+                            hm[j1 - j, i - i0] = Normalised(b, ground, gc, gr, i, j);
+                    double t1 = watch.Elapsed.TotalMilliseconds;
                     terrain.terrainData.SetHeightsDelayLOD(i0, 1024 - j1, hm);
+                    sample += t1 - t0;
+                    set += watch.Elapsed.TotalMilliseconds - t1;
                     _liveTouched.Add((tc, tr));
                 }
+            double sync0 = watch.Elapsed.TotalMilliseconds;
             foreach (var key in _liveTouched)
             {
                 _tiles[key].terrainData.SyncHeightmap();
                 TerrainTiles.BindSplat(_tiles[key]);   // the sync can hand the tile a new GPU heightmap (P3-05)
             }
             LastLiveMs = watch.Elapsed.TotalMilliseconds;
+            LastLiveSampleMs = sample;
+            LastLiveSetMs = set;
+            LastLiveSyncMs = LastLiveMs - sync0;
+        }
+
+        // Normalised's sum with the change read from any ground: the same doubles, so the same quantised height.
+        float Normalised(AlbersBox b, IPointDeltas ground, int gc, int gr, int i, int j)
+        {
+            double h = _source.At(b.West + i, b.North - j) + ground.DeltaMmAt(gc + i, gr + j) / 1000.0;
+            return TerrainCache.Quantize(h, _cache.HeightMin, _cache.HeightRange) * (1f / TerrainCache.MaxValue);
         }
 
         static int RoundUp(int n) => (n + LiveRound - 1) / LiveRound * LiveRound;

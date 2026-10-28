@@ -105,6 +105,7 @@ namespace MountainPlanner.UI.Picker
             _size.highValue = (float)SiteSquare.MaxSizeKm;
             _size.RegisterValueChangedCallback(e => { if (!_rendering) { Model.SetSize(e.newValue); RequestDetails(suggestName: false); } });
             _size.RegisterCallback<KeyDownEvent>(OnSizeKey, TrickleDown.TrickleDown);
+            SliderWheel.Attach(_size, (float)SiteSquare.SizeStepKm, () => Model.SizeLabel);   // BR20
             _sliderFill = new VisualElement { pickingMode = PickingMode.Ignore };
             _sliderFill.AddToClassList("picker-slider__fill");
             _size.Q(className: "unity-base-slider__tracker")?.Add(_sliderFill);

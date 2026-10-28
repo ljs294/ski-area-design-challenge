@@ -31,10 +31,20 @@ namespace MountainPlanner.UI.Tools
     /// </summary>
     public interface ILiveGround
     {
-        /// <summary>This frame's heights over <paramref name="dirty"/> (lattice points) from <paramref name="preview"/>.</summary>
-        void Live(TerrainEdits preview, PointRect dirty);
-        /// <summary>Lays <paramref name="edits"/> over the mountain in full (a finished stroke, or the committed ground again).</summary>
+        /// <summary>
+        /// This frame's heights over <paramref name="dirty"/> (lattice points) from <paramref name="ground"/>: the stroke in
+        /// hand (<see cref="BrushRun.Live"/>), or a set of edits to put back.
+        /// </summary>
+        void Live(IPointDeltas ground, PointRect dirty);
+        /// <summary>Lays <paramref name="edits"/> over the mountain in full, trees and all (the committed ground again on a forced close).</summary>
         void Show(TerrainEdits edits);
+        /// <summary>
+        /// BR21: the cover, the trees' footing and the snow catch up with <paramref name="ground"/>, whose heights the live upload
+        /// put on the tiles already; <paramref name="clearing"/>'s trees are the ones out. Done when the task is.
+        /// </summary>
+        System.Threading.Tasks.Task CatchUp(TerrainEdits ground, TerrainEdits clearing);
+        /// <summary>BR21: <paramref name="ground"/> on screen, heights too (Ctrl+Z, Revert), with <paramref name="clearing"/>'s trees out.</summary>
+        System.Threading.Tasks.Task ShowGround(TerrainEdits ground, TerrainEdits clearing);
         /// <summary>BR13: the Contours layer on while a brush is armed; off puts back what the player had.</summary>
         void ContoursWhileArmed(bool armed);
         /// <summary>How long the last live upload took, ms (the brush bench).</summary>
