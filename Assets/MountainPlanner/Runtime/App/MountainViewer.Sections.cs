@@ -19,6 +19,7 @@ namespace MountainPlanner.App
         TrailSections _sections;
         readonly Dictionary<ulong, (TrailId Piece, int StartMm)> _trailRowAt = new Dictionary<ulong, (TrailId, int)>();
         readonly Dictionary<ulong, Vector2[]> _trailRowLine = new Dictionary<ulong, Vector2[]>();
+        readonly Dictionary<ulong, Rect> _trailRowBounds = new Dictionary<ulong, Rect>();
 
         /// <summary>The trails last worked out (tests and captures); null until the first network build.</summary>
         internal TrailSections Sections => _sections;
@@ -31,6 +32,7 @@ namespace MountainPlanner.App
             _trailRows.Clear();
             _trailRowAt.Clear();
             _trailRowLine.Clear();
+            _trailRowBounds.Clear();
             var ground = _trailLayer.Ground;
             var lines = new List<(Vector2[] Line, PreviewInk Ink)>();
             var covered = new HashSet<TrailId>();
@@ -73,6 +75,7 @@ namespace MountainPlanner.App
                 ulong id = t.Id.Value;
                 _trailRowAt[id] = (t.Segments[0].Piece, t.Segments[0].StartMm);
                 _trailRowLine[id] = drawn;
+                _trailRowBounds[id] = BoundsOf(drawn);
                 string symbol = t.Built && !double.IsNaN(rating) ? TrailMapView.Symbol(SlopeBands.Of(rating)) + " " : "";
                 _trailLabelSpots.Add((symbol + t.Name, _trailLayer.LabelSpots(drawn), metres));
                 _trailRows.Add(new MountainPlanner.UI.TrailRow
@@ -119,6 +122,84 @@ namespace MountainPlanner.App
             }
         }
 
+        static Rect BoundsOf(Vector2[] line)
+        {
+            Vector2 lo = line[0], hi = line[0];
+            foreach (var p in line) { lo = Vector2.Min(lo, p); hi = Vector2.Max(hi, p); }
+            return Rect.MinMaxRect(lo.x, lo.y, hi.x, hi.y);
+        }
+
+        // ---------- trails from the map (sections finding 4) ----------
+
+        ulong _hoveredTrailRow, _focusedTrailRow, _trailPressId;
+        Vector2 _trailPress;
+        bool _trailPressed;
+
+        /// <summary>The trail under the pointer (its row ID), or 0 (tests and captures).</summary>
+        internal ulong HoveredTrail => _hoveredTrailRow;
+        /// <summary>For captures: the pointer for the trail hover (screen pixels), or null for the mouse.</summary>
+        internal Vector2? TrailPointerForCapture;
+
+        // Every frame: with no tool armed, the pointer off the panels, out of photo mode and the Network view, and no lift
+        // under it (lifts first), the trail line nearest the pointer within 8 pixels lights its whole trail; a click (not a
+        // drag) opens its card, as a lift's does (F6). Allocates nothing.
+        void UpdateTrailHover()
+        {
+            var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            Vector2? at = TrailPointerForCapture ?? (mouse != null ? mouse.position.ReadValue() : (Vector2?)null);
+            bool picking = Hud != null && cam != null && at.HasValue && !_networkOn && !PhotoOpen && (_tools == null || !_tools.Armed)
+                           && _trailLayer != null && _trailLayer.Visible && _hoveredId == 0;
+            ulong hit = 0;
+            Vector2 pos = at ?? default;
+            if (picking && !PointerOverUi(pos)) hit = TrailUnder(cam, pos);
+            if (hit != _hoveredTrailRow)
+            {
+                _hoveredTrailRow = hit;
+                FocusTrailRow(hit != 0 ? hit : _focusedTrailRow);
+            }
+            if (!picking || mouse == null) { _trailPressed = false; return; }
+            if (mouse.leftButton.wasPressedThisFrame && !PointerOverUi(pos))
+            {
+                _trailPressed = hit != 0;
+                _trailPress = pos;
+                _trailPressId = hit;
+            }
+            if (!_trailPressed || !mouse.leftButton.wasReleasedThisFrame) return;
+            _trailPressed = false;
+            if ((pos - _trailPress).sqrMagnitude <= 36 && hit == _trailPressId) Hud.OpenTrailCardFor(hit);
+        }
+
+        // The trail whose drawn line passes within 8 pixels of the pointer on the ground (5 m at least), nearest first.
+        ulong TrailUnder(UnityEngine.Camera cam, Vector2 screen)
+        {
+            if (_trailRowLine.Count == 0) return 0;
+            var ray = cam.ScreenPointToRay(screen);
+            float along = Camera.GroundAlong(ray, 30000);
+            if (float.IsNaN(along)) return 0;
+            var g = ray.GetPoint(along);
+            var p = new Vector2(g.x, g.z);
+            float reach = Mathf.Max(5f, 8 * along * 2 * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, cam.pixelHeight));
+            float best = reach * reach;
+            ulong hit = 0;
+            foreach (var kv in _trailRowLine)
+            {
+                if (!_trailRowBounds.TryGetValue(kv.Key, out var box)) continue;
+                if (p.x < box.xMin - reach || p.x > box.xMax + reach || p.y < box.yMin - reach || p.y > box.yMax + reach) continue;
+                var line = kv.Value;
+                for (int k = 1; k < line.Length; k++)
+                {
+                    var a = line[k - 1];
+                    var d = line[k] - a;
+                    float l2 = d.sqrMagnitude;
+                    float f = l2 > 0 ? Mathf.Clamp01(Vector2.Dot(p - a, d) / l2) : 0;
+                    float dd = (a + d * f - p).sqrMagnitude;
+                    if (dd < best) { best = dd; hit = kv.Key; }
+                }
+            }
+            return hit;
+        }
+
         /// <summary>The row (trail) holding a run's stretch from <paramref name="startMm"/>; the run's own ID before the trails are in.</summary>
         ulong TrailRowOf(ulong piece, int startMm)
         {
@@ -126,6 +207,21 @@ namespace MountainPlanner.App
             var s = _sections.SegmentAt(new TrailId(piece), Math.Max(0, startMm) + 1);
             var t = s != null ? _sections.TrailOf(s) : _sections.TrailOf(new TrailId(piece));
             return t != null && _trailRowAt.ContainsKey(t.Id.Value) ? t.Id.Value : piece;
+        }
+
+        // The trail card's rename, one undoable step that leaves the ground as it is: a shaped trail as a trail (NT43), a
+        // run's own trail as the run.
+        string RenameTrailRow(ulong id, string name)
+        {
+            var history = Design;
+            if (history == null) return "No design is open";
+            ResolvedTrail trail = null;
+            if (_sections != null) foreach (var t in _sections.Trails) if (t.Id.Value == id) { trail = t; break; }
+            DesignCommand cmd = trail?.Line != null
+                ? TrailSectionsEdit.Rename(history.Document, history.Revision, _sections, trail, name)
+                : new RenameTrail(history.Revision, trail != null ? trail.Segments[0].Piece : new TrailId(id), name);
+            var r = history.Submit(cmd);
+            return r.Accepted ? null : r.Reason;
         }
 
         void FocusTrailRow(ulong id)
@@ -157,6 +253,8 @@ namespace MountainPlanner.App
         {
             int i = Array.IndexOf(args, "-sectionshots");
             if (i < 0 || i + 1 >= args.Length) return;
+            int f = Array.IndexOf(args, "-findingshots");   // -findingshots: the sections findings round's fixes instead
+            if (f >= 0) { StartCoroutine(FindingShots(args[i + 1])); return; }
             int j = Array.IndexOf(args, "-sectionjoin");   // -sectionjoin "Run 20" "Run 26": that join instead of the tour
             if (j >= 0 && j + 2 < args.Length) StartCoroutine(JoinShots(args[i + 1], args[j + 1].Replace('_', ' '), args[j + 2].Replace('_', ' ')));   // Run_20: no quoting through the lanes
             else StartCoroutine(SectionShots(args[i + 1]));
@@ -242,6 +340,93 @@ namespace MountainPlanner.App
             Hud.SetAnalysis(false);
             Design?.Undo();   // the save stays as it was
             Debug.Log("[JoinShots] finished");
+            Application.Quit();
+        }
+
+        /// <summary>
+        /// -sectionshots &lt;dir&gt; -findingshots (sections findings 1-6, 2026-10-27): over an opened save, the trail lines by
+        /// trail; a trail hovered on the main screen and its card (its name open for typing); Edit trail on it (the trail
+        /// lit, the Graded box, no Rename button) with its title open for typing; and a built graded trail's locked box.
+        /// Nothing is changed, so the save is untouched.
+        /// </summary>
+        System.Collections.IEnumerator FindingShots(string dir)
+        {
+            System.IO.Directory.CreateDirectory(dir);
+            while (_resort == null || !_resort.CoverReady.IsCompleted || _edits == null || WorkBusy || _sections == null || NetworkBusy || _tools == null)
+                yield return null;
+            for (int k = 0; k < 30; k++) yield return null;
+            ResolvedTrail Named(string name)
+            {
+                foreach (var t in _sections.Trails) if (t.Name == name && _trailRowLine.ContainsKey(t.Id.Value)) return t;
+                return null;
+            }
+            // The owner's two (finding 5), else the first trail holding more than one run and the next with a line.
+            var a = Named("Run 30");
+            var b = Named("Upper Run 6");
+            foreach (var t in _sections.Trails)
+            {
+                if (!_trailRowLine.ContainsKey(t.Id.Value)) continue;
+                if (a == null && t.Line != null) a = t;
+                else if (b == null && t != a) b = t;
+            }
+            if (a == null) { Debug.LogWarning("[FindingShots] no trails"); Application.Quit(); yield break; }
+            Debug.Log($"[FindingShots] {_sections.Trails.Count} trails; over {a.Name} and {b?.Name}");
+            var lineA = _trailRowLine[a.Id.Value];
+            FrameSections(lineA, b != null ? _trailRowLine[b.Id.Value] : null);
+            yield return Shot(dir, "1-map-lines");
+
+            var cam = Camera.GetComponent<UnityEngine.Camera>();
+            var mid = lineA[lineA.Length / 2];
+            var screen = cam.WorldToScreenPoint(new Vector3(mid.x, _trailLayer.Ground.HeightAt(mid.x, mid.y), mid.y));
+            TrailPointerForCapture = new Vector2(screen.x, screen.y);
+            for (int k = 0; k < 5; k++) yield return null;
+            Debug.Log($"[FindingShots] hover over {a.Name}: {(_hoveredTrailRow == a.Id.Value ? "lit" : "missed " + _hoveredTrailRow)}");
+            yield return Shot(dir, "2-hover-trail");
+            Hud.OpenTrailCardFor(_hoveredTrailRow != 0 ? _hoveredTrailRow : a.Id.Value);
+            TrailPointerForCapture = null;
+            yield return Shot(dir, "3-trail-card");
+            Hud.RenameTrailCardForCapture(true);
+            yield return Shot(dir, "4-card-rename");
+            Hud.RenameTrailCardForCapture(false);
+            Hud.CloseTrailCardForCapture();
+
+            _toolScripted = true;
+            ChooseTrailRow(EditTrailTool.ToolId, a.Id.Value);
+            var tool = _tools.Active as TrailTool;
+            for (int f = 0; f < 3000 && tool != null && (tool.PickedTrail == null || tool.SectionsBusy); f++) { _tools.Tick(default); yield return null; }
+            for (int k = 0; k < 10; k++) { _tools.Tick(default); yield return null; }
+            yield return Shot(dir, "5-edit-pick");
+            tool?.RenameTitleForCapture(true);
+            yield return Shot(dir, "6-title-rename");
+            tool?.RenameTitleForCapture(false);
+            _toolScripted = false;
+            _tools.Close();
+
+            // A built graded trail: its box ticked and locked (NT47).
+            ResolvedTrail graded = null;
+            foreach (var t in _sections.Trails)
+            {
+                if (!t.Built || !_trailRowLine.ContainsKey(t.Id.Value)) continue;
+                var piece = Design.Document.FindTrail(t.Segments[0].Piece);
+                if (piece?.Settings.Grading == TrailGrading.Graded) { graded = t; break; }
+            }
+            if (graded != null)
+            {
+                FrameSections(_trailRowLine[graded.Id.Value], null);
+                _toolScripted = true;
+                ChooseTrailRow(EditTrailTool.ToolId, graded.Id.Value);
+                tool = _tools.Active as TrailTool;
+                for (int f = 0; f < 3000 && tool != null && (tool.PickedTrail == null || tool.SectionsBusy); f++) { _tools.Tick(default); yield return null; }
+                tool?.ChooseGraded(false);   // NT47: does nothing
+                for (int k = 0; k < 10; k++) { _tools.Tick(default); yield return null; }
+                Debug.Log($"[FindingShots] {graded.Name} graded and built; unticking left it {(tool != null && tool.Graded ? "graded" : "NATURAL")}");
+                yield return Shot(dir, "7-graded-locked");
+                _toolScripted = false;
+                _tools.Close();
+            }
+            else Debug.Log("[FindingShots] no built graded trail");
+            Hud.SetToolbox(false);
+            Debug.Log("[FindingShots] finished");
             Application.Quit();
         }
 

@@ -37,6 +37,17 @@
 .hud .tw-row > .mp-seg { flex-grow: 1; }
 .hud .tw-row__value { width: 52px; margin: 0 0 0 8px; padding: 0; font-size: 12.5px; -unity-text-align: middle-right; color: var(--text); -unity-text-outline-color: var(--text); }
 .hud .tw-row > .tw-slider { flex-grow: 1; margin: 0; }
+/* a checkbox (Edit trail's Graded, P3-10 sections finding 2): a hairline box, filled and ticked when on */
+.hud .tw-check { flex-grow: 1; flex-direction: row; align-items: center; margin: 0; padding: 4px 0; border-width: 0; background-color: rgba(0, 0, 0, 0); }
+.hud .tw-check__box { width: 16px; height: 16px; margin-right: 8px; border-width: 1px; border-color: var(--hair2); border-radius: 3px; align-items: center; justify-content: center; }
+.hud .tw-check__tick { width: 8px; height: 8px; border-radius: 1px; background-color: var(--on-fg); display: none; }
+.hud .tw-check--on .tw-check__box { background-color: var(--on-bg); border-color: var(--on-bg); }
+.hud .tw-check--on .tw-check__tick { display: flex; }
+.hud .tw-check__text { font-size: 12.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw-check:hover .tw-check__text { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .tw-check:disabled { opacity: 1; }
+.hud .tw-check:disabled .tw-check__text { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .tw-check:disabled .tw-check__box { opacity: 0.6; }
 /* the name field (the mockup's .field) */
 .hud .tw-field { flex-grow: 1; margin: 0; }
 .hud .tw-field > .unity-text-field__input {

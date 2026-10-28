@@ -21,7 +21,7 @@ namespace MountainPlanner.Presentation.Design
         /// The line rounded round each join (a point index where the trail changes run): the stretch within
         /// <paramref name="reach"/> metres either side is cut by Chaikin's corner cutting, its own ends kept.
         /// </summary>
-        public static Vector2[] RoundJoins(Vector2[] line, IReadOnlyList<int> joins, float reach = JoinReachMetres, int passes = 3)
+        public static Vector2[] RoundJoins(Vector2[] line, IReadOnlyList<int> joins, float reach = JoinReachMetres, int passes = 4)
         {
             if (line == null || line.Length < 3 || joins == null || joins.Count == 0) return line;
             var points = new List<Vector2>(line);
@@ -36,9 +36,9 @@ namespace MountainPlanner.Presentation.Design
                 float back = 0, ahead = 0;
                 while (a > 0 && back < reach) { back += Vector2.Distance(points[a - 1], points[a]); a--; }
                 while (b < points.Count - 1 && ahead < reach) { ahead += Vector2.Distance(points[b], points[b + 1]); b++; }
-                var stretch = points.GetRange(a, b - a + 1);
-                // Short sides get points of their own, so the cut stays within reach of the corner.
-                stretch = Densify(stretch, reach / 4);
+                // The corner and the points a reach either side, cut down to a smooth curve between them (a quadratic's
+                // shape: it passes a quarter of the way from the corner to the chord), so the turn reads as a curve.
+                var stretch = new List<Vector2> { points[a], points[at], points[b] };
                 for (int p = 0; p < passes; p++) stretch = Chaikin(stretch);
                 points.RemoveRange(a, b - a + 1);
                 points.InsertRange(a, stretch);
@@ -82,18 +82,6 @@ namespace MountainPlanner.Presentation.Design
                 q.Add(Vector2.Lerp(p[k], p[k + 1], 0.75f));
             }
             q.Add(p[p.Count - 1]);
-            return q;
-        }
-
-        static List<Vector2> Densify(List<Vector2> p, float step)
-        {
-            var q = new List<Vector2>(p.Count * 2) { p[0] };
-            for (int k = 1; k < p.Count; k++)
-            {
-                float len = Vector2.Distance(p[k - 1], p[k]);
-                int n = Math.Max(1, (int)Math.Ceiling(len / step));
-                for (int i = 1; i <= n; i++) q.Add(Vector2.Lerp(p[k - 1], p[k], (float)i / n));
-            }
             return q;
         }
     }

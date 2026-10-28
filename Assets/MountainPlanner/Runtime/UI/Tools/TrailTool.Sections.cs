@@ -220,7 +220,6 @@ namespace MountainPlanner.UI.Tools
             if (_trail != null && _mode == TrailToolMode.Edit && _step == Step.Pick)
             {
                 _ctx.Window.SetName(_trail.Name);
-                _nameField?.SetValueWithoutNotify(_trail.Name);
                 _name = _trail.Name;
                 PickStatus();
             }
@@ -242,16 +241,16 @@ namespace MountainPlanner.UI.Tools
             return $" {who}{n} section{(n > 1 ? "s" : "")}, {ToolFormat.Length(metres)} along its runs.{more}";
         }
 
-        /// <summary>Rename for a shaped trail (one holding more than its run, or renamed before): the trail, one step.</summary>
-        bool RenameTrail()
+        /// <summary>
+        /// Renames the picked trail, one step (sections finding 3): a shaped trail (one holding more than its run, or renamed
+        /// before) as a trail; a run's own trail as the run (<see cref="RenameTrail"/>).
+        /// </summary>
+        CommandResult RenamePicked(string name)
         {
-            if (_trail?.Line == null || _resolved == null) return false;   // a run's own trail: EditTrail renames the run
-            if (_name == _trail.Name) return true;
-            var cmd = TrailSectionsEdit.Rename(_ctx.History.Document, _ctx.History.Revision, _resolved.Sections, _trail, _name);
-            var r = _ctx.Submit?.Invoke(cmd, null);
-            if (r != null && r.Accepted) _ctx.Notice?.Invoke(_name + ": renamed");
-            else _ctx.Window.SetMessage(r?.Reason ?? "Can't rename it now", true);
-            return true;
+            DesignCommand cmd = _trail?.Line != null && _resolved != null && _resolved.Doc == _ctx.History.Document
+                ? TrailSectionsEdit.Rename(_ctx.History.Document, _ctx.History.Revision, _resolved.Sections, _trail, name)
+                : new RenameTrail(_ctx.History.Revision, _target.Id, name);
+            return _ctx.Submit?.Invoke(cmd, null);
         }
 
         // ---------- the session ----------
@@ -264,7 +263,8 @@ namespace MountainPlanner.UI.Tools
             _cutMode = _armEsc = false;
             _setSecMode?.Invoke(0);
             var w = _ctx.Window;
-            foreach (var row in new[] { "name", "brush", "grading", "edit", "network" }) w.ShowOption(row, false);
+            foreach (var row in new[] { "brush", "grading", "edit", "network" }) w.ShowOption(row, false);
+            w.SetRenamable(null);
             w.ShowOption("sections", true);
             w.SetButtons(("secdone", "Done", (System.Action)SessionDone), ("seccancel", "Cancel", (System.Action)(() => CloseSession(false))));
             w.SetKeys((GameAction.ToolNext, "done"), (GameAction.UndoStroke, "undoes a click"));
@@ -289,7 +289,7 @@ namespace MountainPlanner.UI.Tools
             ViewCamera.RightButtonClaimed = false;
             _ctx.Claim(GameAction.UndoStroke, false);
             var w = _ctx.Window;
-            foreach (var row in new[] { "name", "brush", "grading", "edit", "network" }) w.ShowOption(row, true);
+            foreach (var row in new[] { "brush", "grading", "edit", "network" }) w.ShowOption(row, true);
             w.ShowOption("sections", false);
             w.SetButtons();
             w.SetKeys();
@@ -331,7 +331,6 @@ namespace MountainPlanner.UI.Tools
         {
             if (_trail == null) return;
             _ctx.Window.SetName(_trail.Name);
-            _nameField?.SetValueWithoutNotify(_trail.Name);
             _name = _trail.Name;
             PickStatus();
             SetSectionsButton();

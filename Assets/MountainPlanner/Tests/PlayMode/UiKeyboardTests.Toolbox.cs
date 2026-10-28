@@ -199,7 +199,10 @@ namespace MountainPlanner.Tests
                 // Typing in a field is the field's alone (owner, 2026-10-19): a click puts the caret in the trail's name, and
                 // WASD, the tray's letters, T and Space then do nothing in the game (the test's virtual keyboard sends no
                 // text to UI Toolkit, so what the field types isn't checked here). A click on the map gives the keys back.
-                var nameField = hud.Q<TextField>("toolwin-opt-name-field");
+                // Sections finding 3: the name is the window's title, opened for typing by a click on it.
+                yield return ClickElement(hud.Q<Label>("toolwin-name"));
+                yield return Frames(2);
+                var nameField = hud.Q<TextField>("toolwin-name-field");
                 Assert.That(nameField, Is.Not.Null, "the trail window's name field");
                 yield return ClickElement(nameField.Q(TextField.textInputUssName) ?? nameField);
                 Assert.That(viewer.Hud.Typing, Is.True, $"a click put the caret in the name (focused {Name(Focused(hud))})");

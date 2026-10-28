@@ -561,6 +561,14 @@ namespace MountainPlanner.Tests
             Assert.That(_host.Confirm(WorkStage.Built).Accepted, Is.True);
             Assert.That(_design.Document.FindTrail(id).Settings.Grading, Is.EqualTo(TrailGrading.Graded));
             Assert.That(_design.UndoLabel, Is.EqualTo("Edit trail"));
+            // NT47: picked again, its Graded box is ticked and locked; unticking does nothing.
+            _host.Tick(At(5, 0, click: true));
+            Assert.That(tool.Target?.Id, Is.EqualTo(id));
+            Assert.That(tool.Graded, Is.True);
+            tool.ChooseGraded(false);
+            Assert.That(tool.Graded, Is.True, "grading is permanent once built");
+            Assert.That(tool.CurrentStep, Is.EqualTo(0), "and nothing goes to review");
+            _host.Close();
             _design.Undo();
             Assert.That(_design.Document.FindTrail(id).Settings.Grading, Is.EqualTo(TrailGrading.Natural), "one undo puts it back");
         }

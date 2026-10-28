@@ -360,6 +360,7 @@ namespace MountainPlanner.App
             }
             UpdateBuiltWork();   // built trails and lifts (MountainViewer.Built.cs)
             UpdateLiftHover();   // the lift under the pointer glows (task 09, LT23)
+            UpdateTrailHover();  // and a trail lights and opens its card (task P3-10, sections finding 4)
             _resort?.States?.Sync();
             RunClock();
             // The Auto theme follows this sun on every screen (task P2-01); nothing happens unless sunrise or sunset passed.

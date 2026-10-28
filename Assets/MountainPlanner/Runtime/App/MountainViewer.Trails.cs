@@ -73,9 +73,10 @@ namespace MountainPlanner.App
         {
             if (_trailListWired || Hud == null) return;
             _trailListWired = true;
-            Hud.TrailFocused += FocusTrailRow;
+            Hud.TrailFocused += id => { _focusedTrailRow = id; FocusTrailRow(id); };
             Hud.TrailEditChosen += id => ChooseTrailRow(EditTrailTool.ToolId, id);
             Hud.TrailRemoveChosen += id => ChooseTrailRow(RemoveTrailTool.ToolId, id);
+            Hud.TrailRenamed = RenameTrailRow;   // sections finding 3: the card's name, as the lift card's
         }
 
         /// <summary>For captures: a built trail on the map (New trail by script, then Break ground) if there's none yet.</summary>
@@ -626,7 +627,8 @@ namespace MountainPlanner.App
                         }
                         strokes.Add(new Stroke(DesignUnits.FeetToMm(40), true, new[] { path[12] }));
                     }
-                    var add = new AddTrail(history.Revision, "Bench " + s, TrailSettings.GradedRun, new[] { new FootprintPart(strokes.ToArray()) },
+                    // The mixed run goes in Natural, so its edit can grade it (NT47: a built graded trail can't go back).
+                    var add = new AddTrail(history.Revision, "Bench " + s, mixed ? TrailSettings.NaturalRun : TrailSettings.GradedRun, new[] { new FootprintPart(strokes.ToArray()) },
                                            path[0], path[path.Count - 1], WorkStage.Built);
                     var rebuilt = AnalyseForBench(add, out double ms);
                     if (counted) previewList.Add(ms);
@@ -641,10 +643,10 @@ namespace MountainPlanner.App
                     for (int i = 0; i < 60; i++) yield return null;   // the snow rebuild after an edit settles, as it would while a player paints
                     if (mixed && r.Accepted)
                     {
-                        // An edit (Natural, then back): the earthwork rebuilds only what the trail touches.
+                        // An edit (Graded, then back by undo): the earthwork rebuilds only what the trail touches.
                         var id = new TrailId(r.Created[0]);
                         var t = history.Document.FindTrail(id);
-                        var change = new EditTrail(history.Revision, id, t.Name, t.Parts, t.Head.Value, t.Tail.Value, TrailSettings.NaturalRun, WorkStage.Built);
+                        var change = new EditTrail(history.Revision, id, t.Name, t.Parts, t.Head.Value, t.Tail.Value, TrailSettings.GradedRun, WorkStage.Built);
                         var re = AnalyseForBench(change, out double ems);
                         if (counted) edit.Add(ems);
                         history.Submit(change, re.Edits);
