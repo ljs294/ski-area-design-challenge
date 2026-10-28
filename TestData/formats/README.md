@@ -47,6 +47,12 @@ reads: a version number, and a name for the greyed library row.
   section, as it was. `SaveFileTests` checks that the writer reproduces it byte for byte, and that every older fixture
   opens through v5 → v6 unchanged.
 
+- **`v7-save/Saves/5792676e513f5302/save-001/`** is the same save in format v7 (task P3-10, owner NT43–NT46): a shaped
+  trail holds spans of runs between nodes, each end by its anchor (head, tail, a run landing, a crossing, a lift
+  station, a cut) and its place along the run, and the design gains `Cuts`. Here the v6 trail's sections are whole-run
+  spans, and a second trail, "Teton Ridge", ends at every kind of anchor, with one cut point. v1 to v6 saves migrate with
+  no cut points and a v6 trail's sections as whole runs.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

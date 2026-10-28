@@ -83,6 +83,10 @@ namespace MountainPlanner.Tests
 
         public static byte[] Bytes(DesignHistory h) => DesignBytes.Encode(h.Document);
 
+        /// <summary>The trails as the player sees them (NT43), with straight runs and no junctions but their ends.</summary>
+        public static TrailSections Sections(DesignDocument doc) =>
+            TrailSections.Of(doc, DesignNetwork.Build(doc, null, WorkStage.Built), DesignNetwork.Build(doc, null, WorkStage.Plan));
+
         public static string Sha(byte[] bytes)
         {
             using var sha = SHA256.Create();
@@ -102,7 +106,7 @@ namespace MountainPlanner.Tests
             var chair1 = AddLift(h, "Chair 1", P(0, 0), P(2000, 3000), WorkStage.Built, Tower(400, 35), Tower(900, 40), Tower(1500, 30));
             var chair2 = AddLift(h, "Chair 2", P(2400, -200), P(4000, 2600), WorkStage.Plan);
             var run1 = AddTrail(h, "Run 1", P(2030, 3000), P(20, 10));
-            var run2 = AddTrail(h, "Run 2", P(1990, 2980), P(2400, -180));
+            var run2 = AddTrail(h, "Run 2", P(1990, 2980), P(2400, -180), WorkStage.Plan);   // NT47: Natural while planned
             var split = h.Submit(new SplitTrail(h.Revision, run1, P(1000, 1500), Ft(-2010), Ft(-2990)));
             Assert.That(split.Accepted, Is.True, split.ToString());
             var lower = new TrailId(split.Created[0]);
@@ -115,7 +119,7 @@ namespace MountainPlanner.Tests
             h.Submit(new EditTower(h.Revision, tower, Ft(950), Ft(45)));
             h.Submit(new SetTowerStance(h.Revision, chair1, TowerStance.Leaned));
             h.Submit(new SetTrailSettings(h.Revision, run2, TrailSettings.NaturalRun));
-            h.Submit(new BreakGround(h.Revision, null, new[] { chair2 }));
+            h.Submit(new BreakGround(h.Revision, new[] { run2 }, new[] { chair2 }));
             return h;
         }
     }

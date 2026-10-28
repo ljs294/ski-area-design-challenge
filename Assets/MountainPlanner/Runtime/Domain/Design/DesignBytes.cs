@@ -40,16 +40,40 @@ namespace MountainPlanner.Domain.Design
                     w.U8(e.Bottom ? (byte)1 : (byte)0);
                 }
             }
-            w.I32(doc.Lines.Count);   // shape 6 (NT24): the trails of two or more sections
+            w.I32(doc.Lines.Count);   // shape 7 (NT43): the trails the player shaped, as spans of runs
             foreach (var line in doc.Lines)
             {
                 w.U64(line.Id.Value);
                 w.Str(line.Name);
-                w.I32(line.Sections.Count);
-                foreach (var s in line.Sections) w.U64(s.Value);
+                w.I32(line.Spans.Count);
+                foreach (var sp in line.Spans)
+                {
+                    w.U64(sp.Piece.Value);
+                    WriteAnchor(w, sp.From);
+                    WriteAnchor(w, sp.To);
+                    w.I32(sp.FromMm);
+                    w.I32(sp.ToMm);
+                }
+            }
+            w.I32(doc.Cuts.Count);    // shape 7 (NT45): the points cut on runs
+            foreach (var c in doc.Cuts)
+            {
+                w.U64(c.Piece.Value);
+                w.Point(c.At);
             }
             return w.ToArray();
         }
+
+        static void WriteAnchor(Writer w, Anchor a)
+        {
+            w.U8((byte)a.Kind);
+            w.U64(a.Other);
+            w.U8(a.End ? (byte)1 : (byte)0);
+            w.I32(a.K);
+            w.Point(a.At);
+        }
+
+        static Anchor ReadAnchor(Reader r) => Anchor.Of((AnchorKind)r.U8(), r.U64(), r.Bool(), r.I32(), r.Point());   // left to right
 
         /// <summary>One trail's bytes, for comparing trails (NW-10's split-then-join test).</summary>
         public static byte[] Encode(Trail trail)
@@ -98,12 +122,20 @@ namespace MountainPlanner.Domain.Design
             {
                 var id = new TrailLineId(r.U64());
                 string name = r.Str();
-                var sections = new TrailId[r.Count(1 << 20)];
-                for (int k = 0; k < sections.Length; k++) sections[k] = new TrailId(r.U64());
-                lines[i] = new TrailLine(id, name, sections);
+                var spans = new Span[r.Count(4096)];
+                for (int k = 0; k < spans.Length; k++)
+                {
+                    var piece = new TrailId(r.U64());
+                    var from = ReadAnchor(r);
+                    var to = ReadAnchor(r);
+                    spans[k] = new Span(piece, from, to, r.I32(), r.I32());
+                }
+                lines[i] = new TrailLine(id, name, spans);
             }
+            var cuts = new TrailCut[r.Count(1 << 20)];
+            for (int i = 0; i < cuts.Length; i++) cuts[i] = new TrailCut(new TrailId(r.U64()), r.Point());
             if (!r.AtEnd) throw new FormatException("Trailing bytes after the design document.");
-            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines);
+            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts);
             // Canonical means written in order: a reordered file is not this format.
             if (!Same(Encode(doc), bytes)) throw new FormatException("The design document isn't in canonical order.");
             return doc;

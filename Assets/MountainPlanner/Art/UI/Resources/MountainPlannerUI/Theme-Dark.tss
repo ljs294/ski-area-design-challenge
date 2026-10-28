@@ -67,3 +67,10 @@
     --unity-cursor-color: #ffffff;
     --unity-selection-color: rgba(207, 199, 187, 0.35);
 }
+
+/* Sections finding 8: Unity's own theme gives a text input a pale blue selection, which hid a name being renamed
+   in place; the in-place name field (HudTools.uss .mp-inline-name) takes this theme's. */
+.mp-inline-name > .unity-text-field__input {
+    --unity-cursor-color: #ffffff;
+    --unity-selection-color: rgba(207, 199, 187, 0.35);
+}

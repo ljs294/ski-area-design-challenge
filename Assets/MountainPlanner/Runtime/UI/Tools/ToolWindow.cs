@@ -206,7 +206,6 @@ namespace MountainPlanner.UI.Tools
             if (_nameField == null)
             {
                 _nameField = new TextField { name = "toolwin-name-field", maxLength = Domain.Design.DesignRules.NameMaxLength, isDelayed = false };
-                _nameField.AddToClassList("tw__namefield");
                 _nameField.RegisterCallback<KeyDownEvent>(e =>
                 {
                     if (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter) { EndRename(true); e.StopPropagation(); }
@@ -215,8 +214,7 @@ namespace MountainPlanner.UI.Tools
                 _nameField.RegisterCallback<FocusOutEvent>(_ => { if (_renaming) EndRename(true); });
             }
             _nameField.SetValueWithoutNotify(_name.text);
-            Window.Head.Insert(Window.Head.IndexOf(_name) + 1, _nameField);
-            _name.AddToClassList("hidden");
+            InlineName.Open(_name, _nameField);
             _nameField.schedule.Execute(() => { _nameField.Focus(); _nameField.SelectAll(); });
         }
 
@@ -273,6 +271,9 @@ namespace MountainPlanner.UI.Tools
             return buttons;
         }
 
+        /// <summary>Shows or hides an option row by its name (Edit sections hides the brush and buttons, P3-10 B2).</summary>
+        public void ShowOption(string name, bool shown) => _opts.Q("toolwin-opt-" + name)?.EnableInClassList("hidden", !shown);
+
         /// <summary>"Discard it? ✕ again" while a second Esc or ✕ would throw drawn work away (CF-07).</summary>
         public void SetAsking(string text)
         {
@@ -309,6 +310,41 @@ namespace MountainPlanner.UI.Tools
             }
             Set(chosen);
             return Set;
+        }
+
+        /// <summary>
+        /// A checkbox row (Edit trail's Graded, task P3-10 sections finding 2): the box and its words in one button. A click
+        /// asks <paramref name="changed"/> for the other state; the tool moves the box with the setter it gets back. The
+        /// button is returned so a tool can lock it (greyed, with its own tooltip).
+        /// </summary>
+        public (Action<bool> Set, Button Box) AddCheck(string name, string label, string text, bool on, Action<bool> changed, string tooltip = null)
+        {
+            var row = Part("toolwin-opt-" + name, "tw-row");
+            var l = new Label(label) { pickingMode = PickingMode.Ignore };
+            l.AddToClassList("tw-row__label");
+            row.Add(l);
+            bool state = on;
+            var b = new Button(() => changed(!state)) { name = $"toolwin-opt-{name}-box" };
+            b.AddToClassList("tw-check");
+            if (tooltip != null) b.tooltip = tooltip;
+            var box = Part(null, "tw-check__box");
+            box.pickingMode = PickingMode.Ignore;
+            var tick = Part(null, "tw-check__tick");
+            tick.pickingMode = PickingMode.Ignore;
+            box.Add(tick);
+            b.Add(box);
+            var words = new Label(text) { pickingMode = PickingMode.Ignore };
+            words.AddToClassList("tw-check__text");
+            b.Add(words);
+            row.Add(b);
+            _opts.Add(row);
+            void Set(bool v)
+            {
+                state = v;
+                b.EnableInClassList("tw-check--on", v);
+            }
+            Set(on);
+            return (Set, b);
         }
 
         readonly List<ToolDropdown> _dropdowns = new List<ToolDropdown>();

@@ -267,6 +267,7 @@ namespace MountainPlanner.App
                 StartTrailShots(args);     // -trailshots <folder> [-trailspot name] (MountainViewer.Trails.cs, task P3-08)
                 StartTrailBench(args);     // -trailbench <out.json> (MountainViewer.Trails.cs, task P3-08)
                 StartNetworkShots(args);   // -networkshots <folder> (MountainViewer.Network.cs, task P3-10)
+                StartSectionShots(args);   // -sectionshots <folder> (MountainViewer.Sections.cs, task P3-10 B2)
                 StartBrushRuns(args);      // -brushtour <folder> [-brushmovie], -brushbench <out.json> (MountainViewer.Brush.cs, task P3-15)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
@@ -359,6 +360,7 @@ namespace MountainPlanner.App
             }
             UpdateBuiltWork();   // built trails and lifts (MountainViewer.Built.cs)
             UpdateLiftHover();   // the lift under the pointer glows (task 09, LT23)
+            UpdateTrailHover();  // and a trail lights and opens its card (task P3-10, sections finding 4)
             _resort?.States?.Sync();
             RunClock();
             // The Auto theme follows this sun on every screen (task P2-01); nothing happens unless sunrise or sunset passed.

@@ -27,7 +27,7 @@ namespace MountainPlanner.Domain.Design
     /// Cells are visited in row order and ties go to the lower trail ID, then the lower row and column (SH-04).
     /// Thread-safe: calls take a lock.
     /// </summary>
-    public sealed class TrailNetworkGeometry : ITrailGeometry, IStationLinks
+    public sealed class TrailNetworkGeometry : ITrailGeometry, IStationLinks, IStagedTrailGeometry
     {
         /// <summary>TR-05, PA-05: 30 ft.</summary>
         public const double SnapMetres = DesignUnits.SnapMm / 1000.0;
@@ -79,11 +79,14 @@ namespace MountainPlanner.Domain.Design
             }
         }
 
-        public void FindJunctions(DesignDocument doc, List<TrailJunction> into)
+        public void FindJunctions(DesignDocument doc, List<TrailJunction> into) => FindJunctions(doc, WorkStage.Built, into);
+
+        /// <summary>NT44: the junctions among one stage's runs (plans among plans, built among built).</summary>
+        public void FindJunctions(DesignDocument doc, WorkStage stage, List<TrailJunction> into)
         {
             lock (_gate)
             {
-                var shapes = Prepare(doc);
+                var shapes = Prepare(doc, stage);
                 var liftEnds = LiftEnds(doc);
                 var ends = EndJunctions(shapes, liftEnds);
                 into.AddRange(ends);
@@ -93,11 +96,22 @@ namespace MountainPlanner.Domain.Design
             }
         }
 
+        /// <summary>NT45: how far along the run's centreline (mm from its head) the point nearest <paramref name="p"/> is.</summary>
+        public int AlongOf(Trail trail, PointMm p)
+        {
+            lock (_gate)
+            {
+                _site.PointOf(p, out double x, out double y);
+                ShapeOf(trail).Nearest(x, y, out _, out _, out double along, out _);
+                return (int)Math.Round(along * 1000);
+            }
+        }
+
         public void FindPaths(DesignDocument doc, List<TrailPath> into)
         {
             lock (_gate)
             {
-                var shapes = Prepare(doc);
+                var shapes = Prepare(doc, WorkStage.Built);
                 var liftEnds = LiftEnds(doc);
                 var ends = EndJunctions(shapes, liftEnds);
                 var joins = new List<TrailJunction>(ends);
@@ -113,16 +127,16 @@ namespace MountainPlanner.Domain.Design
 
         // ---- shapes ----
 
-        /// <summary>The trails the network asks about (built, with both ends), by ID; drops shapes of trails gone.</summary>
-        List<Shape> Prepare(DesignDocument doc)
+        /// <summary>The trails the network asks about (one stage, with both ends), by ID; drops shapes of trails gone.</summary>
+        List<Shape> Prepare(DesignDocument doc, WorkStage stage)
         {
             var list = new List<Shape>();
             var keep = new HashSet<Trail>();
             foreach (var t in doc.Trails)
             {
-                if (t.Stage != WorkStage.Built || !t.HasEnds) continue;
+                if (!t.HasEnds) continue;
                 keep.Add(t);
-                list.Add(ShapeOf(t));
+                if (t.Stage == stage) list.Add(ShapeOf(t));
             }
             if (_shapes.Count > keep.Count)
             {
@@ -451,7 +465,7 @@ namespace MountainPlanner.Domain.Design
         {
             lock (_gate)
             {
-                var shapes = Prepare(doc);
+                var shapes = Prepare(doc, WorkStage.Built);
                 foreach (var station in stations)
                 {
                     var samples = HullSamples(station.Hull);
@@ -499,7 +513,7 @@ namespace MountainPlanner.Domain.Design
             if (!System.Threading.Monitor.TryEnter(_gate)) return false;
             try
             {
-                var shapes = Prepare(doc);
+                var shapes = Prepare(doc, WorkStage.Built);
                 var samples = HullSamples(hull);
                 foreach (var s in shapes)
                     if (!s.Empty && NearHull(s, hull, samples, out _, out _)) into.Add(s.Trail);

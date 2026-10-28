@@ -67,7 +67,7 @@ namespace MountainPlanner.Domain.Design
         {
             if (doc == null) throw new ArgumentNullException(nameof(doc));
             var result = Run(doc);
-            // NT24–NT28: whatever a command did to the trails, they stay whole (TrailLines.Normalise).
+            // NT43: whatever a command did to the runs, the shaped trails keep only what's there (TrailLines.Normalise).
             if (!result.Accepted || !result.Document.TrailsDifferFrom(doc)) return result;
             var whole = TrailLines.Normalise(result.Document);
             return ReferenceEquals(whole, result.Document) ? result : CommandResult.Accept(whole, result.Created);
@@ -119,11 +119,11 @@ namespace MountainPlanner.Domain.Design
             foreach (var id in Trails) if (!seen.Add(id.Value)) return Invalid(doc, "A trail is listed twice.");
             foreach (var id in Lifts) if (!seen.Add(id.Value)) return Invalid(doc, "A lift is listed twice.");
 
-            // NT32: a trail is built whole, every section of it.
+            // NT32: a trail is built whole: every run of the shaped trails a listed run is in.
             var sections = new List<TrailId>();
             var listed = new HashSet<ulong>();
             foreach (var id in Trails)
-                foreach (var s in doc.LineOf(id).Sections)
+                foreach (var s in TrailLines.PiecesWith(doc, id))
                 {
                     if (!listed.Add(s.Value)) continue;
                     var t = doc.FindTrail(s);

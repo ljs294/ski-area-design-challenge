@@ -6,7 +6,7 @@ namespace MountainPlanner.Domain.Design
     /// <summary>
     /// NT42 (owner, 2026-10-27, finding S1): the hidden nodes where sections meet. Section ends within 100 ft of each other
     /// (NW-14's station reach) are one node, so ends painted a little apart still meet end to end, for a trail's sections
-    /// (<see cref="TrailLines.Chains"/>) and for the network (<see cref="DesignNetwork"/>). Derived from the document
+    /// (<see cref="TrailSections"/>) and for the network (<see cref="DesignNetwork"/>). Derived from the document
     /// alone, never saved, never drawn as a node and never named; the map only draws the lines meeting at
     /// <see cref="PointOf"/>.
     /// <para>Ends merge transitively, closest pairs first (then by trail ID, the head before the tail), but never both ends

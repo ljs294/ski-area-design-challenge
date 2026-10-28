@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Presentation;
 using MountainPlanner.Presentation.Design;
+using MountainPlanner.UI;
 using MountainPlanner.UI.Tools;
 using MountainPlanner.World;
 using NUnit.Framework;
@@ -561,6 +562,14 @@ namespace MountainPlanner.Tests
             Assert.That(_host.Confirm(WorkStage.Built).Accepted, Is.True);
             Assert.That(_design.Document.FindTrail(id).Settings.Grading, Is.EqualTo(TrailGrading.Graded));
             Assert.That(_design.UndoLabel, Is.EqualTo("Edit trail"));
+            // NT47: picked again, its Graded box is ticked and locked; unticking does nothing.
+            _host.Tick(At(5, 0, click: true));
+            Assert.That(tool.Target?.Id, Is.EqualTo(id));
+            Assert.That(tool.Graded, Is.True);
+            tool.ChooseGraded(false);
+            Assert.That(tool.Graded, Is.True, "grading is permanent once built");
+            Assert.That(tool.CurrentStep, Is.EqualTo(0), "and nothing goes to review");
+            _host.Close();
             _design.Undo();
             Assert.That(_design.Document.FindTrail(id).Settings.Grading, Is.EqualTo(TrailGrading.Natural), "one undo puts it back");
         }
@@ -930,6 +939,10 @@ namespace MountainPlanner.Tests
             var w = _host.Context.Window;
             w.BeginRename();
             Assert.That(w.Renaming, Is.True, "a click on the name (or F2) types a new one");
+            var field = w.Window.Q<TextField>("toolwin-name-field");
+            Assert.That(field.ClassListContains(InlineName.FieldClass), Is.True, "sections finding 8: typed in place, not in a box");
+            Assert.That(w.Window.Q<Label>("toolwin-name").ClassListContains("hidden"), Is.True, "the field takes the name's spot");
+            Assert.That(field.parent, Is.SameAs(w.Window.Q<Label>("toolwin-name").parent));
             w.Window.Q<TextField>("toolwin-name-field").value = " ";
             w.EndRename(true);
             Assert.That(lift.LiftName, Is.EqualTo("Chair 1"), "a bad name isn't kept");

@@ -26,7 +26,7 @@ namespace MountainPlanner.UI.Tools
     /// changed (TL3). The trail keeps its setting (GR-14). <b>Remove</b>: click a trail; its review restores the ground and
     /// trees (CL-07) with <see cref="DeleteTrail"/>.
     /// </summary>
-    public class TrailTool : IDesignTool
+    public partial class TrailTool : IDesignTool
     {
         static readonly string[] NewSteps = { "Paint", "Head and tail", "Review" };
         static readonly string[] EditSteps = { "Pick", "Paint", "Head and tail", "Review" };
@@ -81,8 +81,7 @@ namespace MountainPlanner.UI.Tools
         readonly Vector2[] _pair = new Vector2[2];
         Vector2[] _line = new Vector2[64];
         System.Action<int, string> _setWidth;
-        System.Action<int> _setGrading;
-        UnityEngine.UIElements.TextField _nameField;
+        (System.Action<bool> Set, UnityEngine.UIElements.Button Box) _grading;
         UnityEngine.UIElements.Button[] _editButtons;
         TrailProfileStrip _strip;
         // Footprints of the design's trails, for picking (Edit, Remove); kept while each trail is unchanged.
@@ -96,7 +95,7 @@ namespace MountainPlanner.UI.Tools
 
         public string Id => _mode == TrailToolMode.New ? NewTrailTool.ToolId : _mode == TrailToolMode.Edit ? EditTrailTool.ToolId : RemoveTrailTool.ToolId;
         public string Name => _mode == TrailToolMode.New ? "New trail" : _mode == TrailToolMode.Edit ? "Edit trail" : "Remove trail";
-        public bool HasWork => _mode == TrailToolMode.New ? _strokes.Count > 0 || _painting : _target != null && _step != Step.Pick;
+        public bool HasWork => _mode == TrailToolMode.New ? _strokes.Count > 0 || _painting : (_target != null && _step != Step.Pick) || _session?.Changed == true;
 
         public void Arm(ToolContext context)
         {
@@ -109,7 +108,7 @@ namespace MountainPlanner.UI.Tools
             {
                 _name = NextName(context.History.Document);
                 w.SetName(_name);
-                _nameField = w.AddText("name", "Name", _name, DesignRules.NameMaxLength, Rename);
+                w.SetRenamable(Rename);   // sections finding 3: the name is renamed by clicking it (or F2)
                 AddBrushAndGrading(w);
                 w.AddNote("kind", "Run · trees cleared", "TR-06: Glades and Zones, and Thin or no clearing, come later");
                 w.AddStrip(_strip = new TrailProfileStrip());
@@ -121,13 +120,11 @@ namespace MountainPlanner.UI.Tools
             w.SetName(null);
             if (_mode == TrailToolMode.Edit)
             {
-                _nameField = w.AddText("name", "Name", "", DesignRules.NameMaxLength, Rename);
                 AddBrushAndGrading(w);
-                var change = w.AddButtons("edit", new[] { "Repaint", "Move ends", "Rename" }, EditAction,
-                    new[] { "TF-07: the trail's strokes open in Paint", "TF-07: click a new head, then a new tail", "TF-07: keep the name typed above" });
-                var network = w.AddButtons("network", new[] { "Split", "Join" }, _ => { },
-                    new[] { "NW-10: Split and Join come with the network (task 10)", "NW-10: Split and Join come with the network (task 10)" });
-                _editButtons = new[] { change[0], change[1], change[2], network[0], network[1] };
+                var change = w.AddButtons("edit", new[] { "Repaint", "Move ends" }, EditAction,
+                    new[] { "TF-07: the trail's strokes open in Paint", "TF-07: click a new head, then a new tail" });
+                AddSectionsControls(w);   // NT25: Edit sections (P3-10 B2)
+                _editButtons = new[] { change[0], change[1] };
                 w.AddStrip(_strip = new TrailProfileStrip());
                 w.SetSteps(EditSteps);
                 SetFeet(_feet);
@@ -139,18 +136,39 @@ namespace MountainPlanner.UI.Tools
         void AddBrushAndGrading(ToolWindow w)
         {
             _setWidth = w.AddSlider("brush", "Brush", MinFeet, MaxFeet, StepFeet, _feet, SetFeet, "TR-01: 25–400 ft, in 5 ft steps; one trail can mix widths");
-            _setGrading = w.AddSwitch("grading", "Grading", new[] { "Natural", "Graded" }, 0, i => { _setGrading(i); SetGraded(i == 1); },
-                "TR-06, TF-06, GR-14: Natural keeps the ground and clears the trees; Graded benches the trail level across");
+            _grading = w.AddCheck("grading", "Grading", "Graded", false, SetGraded, GradingTip);
+        }
+
+        const string GradingTip = "TR-06, GR-14: unticked keeps the ground and clears the trees; Graded benches the trail level across. NT47: permanent once built";
+
+        // NT47: a built graded trail stays graded, so its box is ticked and locked.
+        void LockGrading(bool locked)
+        {
+            if (_grading.Box == null) return;
+            _grading.Box.SetEnabled(!locked);
+            _grading.Box.tooltip = locked ? "Grading is permanent once built (NT47)" : GradingTip;
         }
 
         static string NextName(DesignDocument doc) => "Run " + (doc.Trails.Count + 1);
 
-        void Rename(string name)
+        // The name clicked and typed (sections finding 3). New trail keeps it for its Break ground; Edit trail renames the
+        // picked trail at once, one undo step: a shaped trail as a trail (NT43), a run's own trail as the run.
+        string Rename(string name)
         {
             string trimmed = name?.Trim();
-            if (string.IsNullOrEmpty(trimmed) || DesignRules.NameProblem(trimmed) != null) return;
+            if (string.IsNullOrEmpty(trimmed)) return "A trail needs a name.";
+            if (DesignRules.NameProblem(trimmed) is string problem) return problem;
+            if (_mode == TrailToolMode.New) { _name = trimmed; return null; }
+            if (_target == null || _session != null) return "Pick a trail first.";
+            if (trimmed == _name) return null;
+            var r = RenamePicked(trimmed);
+            if (r == null || !r.Accepted) return r?.Reason ?? "Can't rename it now.";
             _name = trimmed;
-            _ctx.Window.SetName(_name);
+            _ctx.Notice?.Invoke(trimmed + ": renamed");
+            if (_ctx.History.Document.FindTrail(_target.Id) is Trail now) _target = now;
+            _ctx.Window.SetName(trimmed);
+            if (_step == Step.Pick) PickStatus();
+            return null;
         }
 
         void SetFeet(int feet)
@@ -162,12 +180,15 @@ namespace MountainPlanner.UI.Tools
         void SetGraded(bool graded)
         {
             if (_graded == graded) return;
+            if (!graded && _target != null && _target.Stage == WorkStage.Built && _target.Settings.Grading == TrailGrading.Graded) return;   // NT47
             _graded = graded;
+            _grading.Set?.Invoke(graded);
             if (_mode == TrailToolMode.Edit && _target != null && _step == Step.Pick) { Go(Step.Review); return; }
             if (_step != Step.Paint && _hasHead && _hasTail) Analyse();
         }
 
-        // Edit's buttons (TF-07): Repaint, Move ends, Rename; Split and Join wait for task 10.
+        // Edit's buttons (TF-07): Repaint, Move ends; the name renames by a click on it (sections finding 3); Edit sections
+        // is its own row (TrailTool.Sections).
         void EditAction(int i)
         {
             if (_target == null) return;
@@ -175,7 +196,6 @@ namespace MountainPlanner.UI.Tools
             {
                 case 0: if (_repaintable) Go(Step.Paint); break;
                 case 1: _hasHead = _hasTail = false; Go(Step.Ends); break;
-                case 2: Go(Step.Review); break;
             }
         }
 
@@ -186,6 +206,7 @@ namespace MountainPlanner.UI.Tools
             _step = step;
             var w = _ctx.Window;
             w.SetStep(WindowStep);
+            if (_mode == TrailToolMode.Edit) SetSectionsButton();
             bool painting = step == Step.Paint;
             _ctx.Claim(GameAction.BrushNarrower, painting);
             _ctx.Claim(GameAction.BrushWider, painting);
@@ -230,6 +251,7 @@ namespace MountainPlanner.UI.Tools
             }
             DrawEnds();
             if (step != Step.Pick && _mode != TrailToolMode.New) DrawTarget();
+            else if (step == Step.Pick) { _ctx.Paint?.Clear(); DrawLit(PickedLit(), true); }
         }
 
         void PickStatus()
@@ -238,13 +260,14 @@ namespace MountainPlanner.UI.Tools
             bool edit = _mode == TrailToolMode.Edit;
             if (_target == null)
             {
+                LockGrading(false);
                 w.SetHint(edit ? "Click a trail to edit it." : "Click the trail to remove.");
                 w.SetMessage(null);
                 SetEditButtons(false);
                 return;
             }
             string facts = Facts(_target);
-            w.SetHint(edit ? $"{facts} The rating comes from the ground: regrade or repaint to change it. Grading runs again only where something changes."
+            w.SetHint(edit ? $"{facts}{TrailFacts()} The rating comes from the ground: regrade or repaint to change it. Grading runs again only where something changes."
                            : facts);
             w.SetMessage(edit && !_repaintable ? "This trail was split or joined: Repaint waits for the network tools (task 10)" : null);
             SetEditButtons(true);
@@ -255,9 +278,8 @@ namespace MountainPlanner.UI.Tools
             if (_editButtons == null) return;
             _editButtons[0].SetEnabled(on && _repaintable);
             _editButtons[1].SetEnabled(on);
-            _editButtons[2].SetEnabled(on);
-            _editButtons[3].SetEnabled(false);
-            _editButtons[4].SetEnabled(false);
+            if (_mode == TrailToolMode.Edit) _ctx.Window.SetRenamable(on && _session == null ? Rename : null);
+            SetSectionsButton();
         }
 
         // A built trail's card line (TF-08): length, vertical and rating, from its last grade; its profile in the strip.
@@ -316,6 +338,8 @@ namespace MountainPlanner.UI.Tools
 
         public void Tick(in ToolInput input)
         {
+            if ((_mode == TrailToolMode.Edit && (_step == Step.Pick || _session != null)) || _mode == TrailToolMode.Remove) TickSections();
+            if (_session != null) { TickSession(input); return; }
             if (_wantAnalysis && !_analysing) Analyse();
             if (_step == Step.Pick) TickPick(input);
             else if (_step == Step.Paint) TickPaint(input);
@@ -341,28 +365,12 @@ namespace MountainPlanner.UI.Tools
         {
             if (!input.HasGround) return;
             var t = TrailAt(input.Point);
-            if (t != _hover)
-            {
-                _hover = t;
-                DrawOutline(t ?? _target);
-            }
-            if (input.Click && t != null) Select(t);
+            _hover = t;
+            // Finding 1: the hover lights the trail a click picks (Remove: the run it removes), else the picked one.
+            var lit = t != null ? LitAt(t, DesignFrame.ToLocal(input.Point)) : PickedLit();
+            if (!ReferenceEquals(lit, _litSegs)) DrawLit(lit);
+            if (input.Click && t != null) { _pickedAt = input.Point; Select(t); }
             if (input.Pressed(ToolKeys.Delete) && _mode == TrailToolMode.Remove && _target != null) Go(Step.Review);
-        }
-
-        void DrawOutline(Trail t)
-        {
-            var preview = _ctx.Preview;
-            int slot = StrokeSlots;
-            if (t != null)
-                foreach (var part in t.Parts)
-                    foreach (var s in part.Strokes)
-                    {
-                        if (slot + 1 >= RedSlots) break;
-                        DrawStroke(slot, s.Points, s.WidthMm / DesignUnits.FiveFeetMm * 5, s.Erase);
-                        slot += 2;
-                    }
-            for (int k = slot; k < RedSlots; k++) preview.Hide(k);
         }
 
         void Select(Trail t)
@@ -370,9 +378,9 @@ namespace MountainPlanner.UI.Tools
             _target = t;
             _name = t.Name;
             _ctx.Window.SetName(t.Name);
-            _nameField?.SetValueWithoutNotify(t.Name);
             _graded = t.Settings.Grading == TrailGrading.Graded;
-            _setGrading?.Invoke(_graded ? 1 : 0);
+            _grading.Set?.Invoke(_graded);
+            LockGrading(_graded && t.Stage == WorkStage.Built);
             _repaintable = t.Parts.Count == 1 && t.Parts[0].Cuts.Count == 0;
             _strokes.Clear();
             foreach (var part in t.Parts) _strokes.AddRange(part.Strokes);
@@ -386,7 +394,8 @@ namespace MountainPlanner.UI.Tools
             }
             _analysis = null;
             Restroke();
-            DrawOutline(t);
+            if (_mode == TrailToolMode.Edit) TrailFromPick();
+            DrawLit(PickedLit());
             if (_mode == TrailToolMode.Remove) Go(Step.Review);
             else PickStatus();
         }
@@ -523,19 +532,25 @@ namespace MountainPlanner.UI.Tools
                 // The painted ground, exactly as the trail will store it: a patch apart red (TF-02). Style C tints it with
                 // the live estimate's difficulty (TD-06). Not while a new stroke is painting: the redraw replays only the
                 // finished strokes and would wipe the live one's paint (findings 2026-10-20, #3); its own let-go redraws.
-                if (_mode != TrailToolMode.Remove && !_painting)
-                {
-                    _ctx.Paint?.Redraw(Parts(), p.Footprint);
-                    if (!double.IsNaN(p.Estimate)) _ctx.Paint?.Tint(BandTint(SlopeBands.Of(p.Estimate)));
-                }
+                if (_mode != TrailToolMode.Remove && !_painting) ShowPaint();
                 if (_step == Step.Paint) PaintStatus();
             });
         }
 
+        // The painted ground, exactly as the trail will store it; not while picking, where the pick lights the trail
+        // itself rather than the run's paint (finding 1).
+        void ShowPaint()
+        {
+            if (_step == Step.Pick || _raster == null) { if (_step == Step.Pick) _ctx.Paint?.Clear(); return; }
+            _ctx.Paint?.Redraw(Parts(), _raster);
+            if (!double.IsNaN(_estimate)) _ctx.Paint?.Tint(BandTint(SlopeBands.Of(_estimate)));
+        }
+
         void DrawStrokes()
         {
+            ClearLit();
             int slot = StrokeSlots;
-            if (_ctx.Paint != null && _mode != TrailToolMode.Remove)
+            if (_ctx.Paint != null || _mode == TrailToolMode.Remove)
             {
                 // The paint on the ground shows the strokes (TrailPaintMap): no edge lines.
                 for (int k = slot; k < RedSlots; k++) _ctx.Preview.Hide(k);
@@ -550,7 +565,12 @@ namespace MountainPlanner.UI.Tools
             for (int k = slot; k < RedSlots; k++) _ctx.Preview.Hide(k);
         }
 
-        void DrawTarget() => DrawStrokes();
+        void DrawTarget()
+        {
+            if (_mode == TrailToolMode.Remove) { DrawLit(PickedLit()); return; }   // the run it removes, along its centreline
+            DrawStrokes();
+            if (!_painting && !_analysing) ShowPaint();
+        }
 
         // The footprint as the trail will store it: its original parts while unrepainted (a split trail keeps its cuts),
         // or one part of the strokes as painted.
@@ -618,7 +638,8 @@ namespace MountainPlanner.UI.Tools
             {
                 case TrailToolMode.New: return new AddTrail(revision, _name, settings, Parts(), _head.At, _tail.At, stage);
                 case TrailToolMode.Edit:
-                    return new EditTrail(revision, _target.Id, _name, Parts(), _head.At, _tail.At, settings,
+                    // A shaped trail's name is the trail's (NT43): the run keeps its own.
+                    return new EditTrail(revision, _target.Id, _trail?.Line != null ? _target.Name : _name, Parts(), _head.At, _tail.At, settings,
                                          stage == WorkStage.Built || _target.Stage == WorkStage.Built ? WorkStage.Built : WorkStage.Plan);
                 default: return new DeleteTrail(revision, _target.Id);
             }
@@ -813,6 +834,7 @@ namespace MountainPlanner.UI.Tools
 
         public ToolBackOut Escape()
         {
+            if (_session != null) return SessionEscape();
             switch (_step)
             {
                 case Step.Review:
@@ -839,7 +861,7 @@ namespace MountainPlanner.UI.Tools
                     if (_mode == TrailToolMode.Edit) { Select(_target); Go(Step.Pick); return ToolBackOut.Stepped; }
                     return ToolBackOut.Close;
                 default:
-                    if (_target != null) { _target = null; _hover = null; DrawOutline(null); PickStatus(); return ToolBackOut.Stepped; }
+                    if (_target != null) { _target = null; _trail = null; _hover = null; ClearLit(); PickStatus(); return ToolBackOut.Stepped; }
                     return ToolBackOut.Close;
             }
         }
@@ -865,12 +887,12 @@ namespace MountainPlanner.UI.Tools
                 _ctx.Notice?.Invoke(_name + (trail?.Stage == WorkStage.Built ? ": ground broken" : ": saved as a plan"));
                 _name = NextName(result.Document);
                 _ctx.Window.SetName(_name);
-                _nameField.SetValueWithoutNotify(_name);
                 Go(Step.Paint);
                 return;
             }
             _ctx.Notice?.Invoke(_mode == TrailToolMode.Remove ? _target.Name + " removed" : _name + ": changed");
             _target = null;
+            _trail = null;
             _hover = null;
             _ctx.Window.SetName(null);
             Go(Step.Pick);
@@ -878,22 +900,22 @@ namespace MountainPlanner.UI.Tools
 
         public void Disarm()
         {
+            if (_session != null) { _session = null; ViewCamera.RightButtonClaimed = false; }
             _painting = false;
             _ctx?.Earthwork?.ClearPending();
             _ctx = null;
         }
 
         /// <summary>Picks Natural or Graded as the window's switch does (tests and captures).</summary>
-        public void ChooseGraded(bool graded)
-        {
-            _setGrading?.Invoke(graded ? 1 : 0);
-            SetGraded(graded);
-        }
+        public void ChooseGraded(bool graded) => SetGraded(graded);
+
+        /// <summary>Opens the window's name for typing, or puts it back (captures).</summary>
+        public void RenameTitleForCapture(bool open) { if (open) _ctx?.Window.BeginRename(); else _ctx?.Window.EndRename(false); }
 
         /// <summary>Selects a trail as a click on it does (Edit, Remove; tests and captures).</summary>
-        public void ChooseTrail(Trail t) { if (_step == Step.Pick && t != null) Select(t); }
+        public void ChooseTrail(Trail t, PointMm? at = null) { if (_step == Step.Pick && _session == null && t != null) { _pickedAt = at; Select(t); } }
 
-        /// <summary>Edit's buttons by index (0 Repaint, 1 Move ends, 2 Rename; tests and captures).</summary>
+        /// <summary>Edit's buttons by index (0 Repaint, 1 Move ends; tests and captures).</summary>
         public void PressEdit(int i) => EditAction(i);
 
         // For tests and captures.

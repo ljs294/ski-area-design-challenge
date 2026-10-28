@@ -218,6 +218,10 @@ echo     70 The Network view on the style tile and a second lift: Tab, then Netw
 echo        Click a stretch of trail, a lift or a node to light what you can ski to from it; hover lights a stretch; Esc clears.
 echo     70c The Network view captures, dark and light (render lane), into test-results\p3-10-network.
 echo     70k Your own areas: this build at the title; Continue or Load Area (Kearsarge Mountain), then Tab, Network.
+echo     70s Trails made of sections: your own areas; Toolbox ^> Trails ^> Edit, click a trail, Edit sections. Left-click
+echo        adds sections through a junction, right-click takes one out, Cut adds a node; Ctrl+Z, Enter Done, Esc asks.
+echo     70sc The Edit sections captures on a copy of Kearsarge (render lane), into test-results\p3-10-sections.
+echo     70sf The sections findings 1-6 fixes captured on a copy of Kearsarge, into test-results\p3-10-findings-fixes.
 echo.
 echo   Phase 3, task 14: problem reports and Send feedback (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     71 The game with a forced error: "A log was saved" shows with Send logs. Try it, the menu's Send feedback and
@@ -330,6 +334,9 @@ if /i "%CHOICE%"=="69" goto sixpack
 if /i "%CHOICE%"=="70" goto network
 if /i "%CHOICE%"=="70c" goto networkcaptures
 if /i "%CHOICE%"=="70k" goto networkown
+if /i "%CHOICE%"=="70s" goto sectionsown
+if /i "%CHOICE%"=="70sc" goto sectionscaptures
+if /i "%CHOICE%"=="70sf" goto sectionsfindings
 if /i "%CHOICE%"=="71" goto reports
 if /i "%CHOICE%"=="71o" goto openreport
 if /i "%CHOICE%"=="71c" goto reportcaptures
@@ -1091,6 +1098,40 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 echo At the title, Continue (your latest save) or Load Area, Kearsarge Mountain. Then Tab and choose Network.
 "%GAME%" <nul
+goto done
+
+:sectionsown
+rem Task P3-10 B2 (NT43-NT46): Edit sections on your own areas, from the title, no flags.
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo At the title, Continue or Load Area, Kearsarge Mountain. Toolbox, Trails, Edit; click a trail; Edit sections.
+"%GAME%" <nul
+goto done
+
+:sectionscaptures
+rem Task P3-10 B2: Edit sections scripted over a copy of the Kearsarge save (every click undone after), both themes.
+set "KS=D:\skiAreaDesignChallenge\p310-ks"
+if not exist "%KS%\save\save.json" echo No Kearsarge copy at %KS% & goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+for %%T in (dark light) do (
+  if not exist "%~dp0test-results\p3-10-sections\%%T" mkdir "%~dp0test-results\p3-10-sections\%%T"
+  %RENDER% "%GAME%" -benchres 1920x1080 -data "%KS%" -package "%KS%\Resorts\bbc9f6d2e978b8bc" -opensave "%KS%\save" -view 614,9,2700,200,52 -theme %%T -sectionshots "%~dp0test-results\p3-10-sections\%%T" -logFile "%~dp0test-results\p3-10-sections\%%T.log" <nul
+)
+start "" "%~dp0test-results\p3-10-sections"
+goto done
+
+:sectionsfindings
+rem Task P3-10 sections findings 1-6: lines by trail, the pick, Graded, rename, trails from the map; nothing changed.
+set "KS=D:\skiAreaDesignChallenge\p310-ks"
+if not exist "%KS%\save\save.json" echo No Kearsarge copy at %KS% & goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+for %%T in (dark light) do (
+  if not exist "%~dp0test-results\p3-10-findings-fixes\%%T" mkdir "%~dp0test-results\p3-10-findings-fixes\%%T"
+  %RENDER% "%GAME%" -benchres 1920x1080 -data "%KS%" -package "%KS%\Resorts\bbc9f6d2e978b8bc" -opensave "%KS%\save" -view 614,9,2700,200,52 -theme %%T -sectionshots "%~dp0test-results\p3-10-findings-fixes\%%T" -findingshots -logFile "%~dp0test-results\p3-10-findings-fixes\%%T.log" <nul
+)
+start "" "%~dp0test-results\p3-10-findings-fixes"
 goto done
 
 :sixpack

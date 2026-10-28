@@ -30,9 +30,13 @@ namespace MountainPlanner.Tests
             Assert.That(nodes.TailNode(a), Is.EqualTo(nodes.HeadNode(b)));
             Assert.That(nodes.CountOf(nodes.TailNode(a)), Is.EqualTo(2));
             Assert.That(nodes.PointOf(nodes.TailNode(a)), Is.EqualTo(P(0, 1955)), "drawn at the mean of its ends");
-            var r = h.Submit(new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b) }));
+            var ts = Sections(h.Document);
+            var route = TrailSectionsEdit.Route(ts, ts.TrailOf(a), ts.SegmentsOf(b)[0]);
+            Assert.That(route, Is.Not.Null, "B carries on from A at the shared node");
+            var r = h.Submit(TrailSectionsEdit.Add(h.Document, h.Revision, ts, ts.TrailOf(a), route));
             Assert.That(r.Accepted, Is.True, r.ToString());
-            Assert.That(h.Document.LineOf(a).Sections, Is.EqualTo(new[] { a, b }));
+            ts = Sections(h.Document);
+            Assert.That(ts.TrailOf(b), Is.SameAs(ts.TrailOf(a)));
         }
 
         [Test]
@@ -43,7 +47,8 @@ namespace MountainPlanner.Tests
             var b = AddTrail(h, "B", P(0, 1890), P(0, 1000));   // 110 ft
             var nodes = TrailNodes.Of(h.Document);
             Assert.That(nodes.TailNode(a), Is.Not.EqualTo(nodes.HeadNode(b)));
-            Assert.That(h.Submit(new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b) })).Accepted, Is.False);
+            var ts = Sections(h.Document);
+            Assert.That(TrailSectionsEdit.Route(ts, ts.TrailOf(a), ts.SegmentsOf(b)[0]), Is.Null);
         }
 
         [Test]
@@ -93,10 +98,14 @@ namespace MountainPlanner.Tests
             var h = New();
             var a = AddTrail(h, "A", P(0, 3000), P(0, 2000));
             var b = AddTrail(h, "B", P(0, 1920), P(0, 1000));
-            Assert.That(h.Submit(new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b) }, "Ridge")).Accepted, Is.True);
+            var ts = Sections(h.Document);
+            Assert.That(h.Submit(TrailSectionsEdit.Add(h.Document, h.Revision, ts, ts.TrailOf(a), TrailSectionsEdit.Route(ts, ts.TrailOf(a), ts.SegmentsOf(b)[0]))).Accepted, Is.True);
+            ts = Sections(h.Document);
+            Assert.That(h.Submit(TrailSectionsEdit.Rename(h.Document, h.Revision, ts, ts.TrailOf(a), "Ridge")).Accepted, Is.True);
             var back = DesignBytes.Decode(DesignBytes.Encode(h.Document));
-            Assert.That(back.Lines.Single().Sections, Is.EqualTo(new[] { a, b }));
-            Assert.That(back.FindTrail(a).Name, Is.EqualTo("Ridge"), "not Upper and Lower");
+            var bt = Sections(back).TrailOf(a);
+            Assert.That(bt.Segments.Select(s => s.Piece), Is.EqualTo(new[] { a, b }));
+            Assert.That(bt.Name, Is.EqualTo("Ridge"), "one trail, not Upper and Lower");
         }
 
         [Test]

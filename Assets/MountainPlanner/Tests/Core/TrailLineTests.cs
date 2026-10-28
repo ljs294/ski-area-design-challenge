@@ -6,147 +6,235 @@ using static MountainPlanner.Tests.DesignTestKit;
 
 namespace MountainPlanner.Tests
 {
-    // Task P3-10, owner decisions NT24–NT41 (2026-10-27): a trail is a named chain of sections, chosen in Edit sections.
+    // Task P3-10, owner decisions NT24–NT46 (2026-10-27): a trail is made of segments, the stretches of runs between
+    // nodes (their ends, every junction, the lift stations they pass, the points the player cut).
     public sealed class TrailLineTests
     {
-        // Three runs end to end down a fall line: A (top) → B → C (bottom), each a trail on its own to start.
-        static (DesignHistory h, TrailId a, TrailId b, TrailId c) ThreeRuns(WorkStage stage = WorkStage.Built)
+        /// <summary>Straight runs and the junctions a test lists, by stage (NT44), and where a point falls along a run.</summary>
+        sealed class StubGeometry : ITrailGeometry, IStagedTrailGeometry
         {
-            var h = new DesignHistory(DesignDocument.Empty(0x5EED_2026));
-            var a = AddTrail(h, "Run 1", P(0, 3000), P(0, 2000), stage);
-            var b = AddTrail(h, "Run 2", P(0, 2000), P(0, 1000), stage);
-            var c = AddTrail(h, "Run 3", P(0, 1000), P(0, 0), stage);
-            return (h, a, b, c);
+            public readonly List<TrailJunction> Junctions = new List<TrailJunction>();
+            public int CentrelineLengthMm(Trail t) => (int)System.Math.Round(System.Math.Sqrt(t.Head.Value.DistanceSquared(t.Tail.Value)));
+            public void FindJunctions(DesignDocument doc, List<TrailJunction> into) => FindJunctions(doc, WorkStage.Built, into);
+            public void FindJunctions(DesignDocument doc, WorkStage stage, List<TrailJunction> into)
+            {
+                foreach (var j in Junctions)
+                {
+                    var a = doc.FindTrail(j.A);
+                    var b = doc.FindTrail(j.B);
+                    if (a != null && b != null && a.Stage == stage && b.Stage == stage) into.Add(j);
+                }
+            }
+            public void FindPaths(DesignDocument doc, List<TrailPath> into) { }
+            public int AlongOf(Trail t, PointMm p)
+            {
+                double hx = t.Head.Value.X, hy = t.Head.Value.Y, dx = t.Tail.Value.X - hx, dy = t.Tail.Value.Y - hy, l2 = dx * dx + dy * dy;
+                double f = System.Math.Max(0, System.Math.Min(1, ((p.X - hx) * dx + (p.Y - hy) * dy) / l2));
+                return (int)System.Math.Round(f * System.Math.Sqrt(l2));
+            }
         }
+
+        static TrailSections Sections(DesignDocument doc, StubGeometry g) =>
+            TrailSections.Of(doc, DesignNetwork.Build(doc, g, WorkStage.Built), DesignNetwork.Build(doc, g, WorkStage.Plan));
 
         static CommandResult Submit(DesignHistory h, DesignCommand cmd)
         {
+            Assert.That(cmd, Is.Not.Null, "a click that does something");
             var r = h.Submit(cmd);
             Assert.That(r.Accepted, Is.True, r.ToString());
             return r;
         }
 
-        static string[] Names(DesignDocument doc) => TrailLines.All(doc).Select(l => l.Name).OrderBy(n => n, System.StringComparer.Ordinal).ToArray();
+        // Cornice runs straight down 3,000 ft; Chute's tail lands on it 1,000 ft down; Run 2 crosses it 2,000 ft down.
+        static (DesignHistory h, StubGeometry g, TrailId cornice, TrailId chute, TrailId run2) Cornice(WorkStage stage = WorkStage.Built)
+        {
+            var h = new DesignHistory(DesignDocument.Empty(0x5EED_2026));
+            var g = new StubGeometry();
+            var cornice = AddTrail(h, "Cornice", P(0, 3000), P(0, 0), stage);
+            var chute = AddTrail(h, "Chute", P(600, 2600), P(0, 2000), stage);
+            var run2 = AddTrail(h, "Run 2", P(-500, 1200), P(500, 800), stage);
+            int chuteLength = g.CentrelineLengthMm(h.Document.FindTrail(chute)), run2Length = g.CentrelineLengthMm(h.Document.FindTrail(run2));
+            g.Junctions.Add(new TrailJunction(cornice, Ft(1000), chute, chuteLength, P(0, 2000)));
+            g.Junctions.Add(new TrailJunction(cornice, Ft(2000), run2, run2Length / 2, P(0, 1000)));
+            return (h, g, cornice, chute, run2);
+        }
 
         [Test]
-        public void NT24_ASectionOnItsOwnIsATrailWithNothingSaved()
+        public void NT44_EveryJunctionSplitsARunAndItStaysOneTrail()
         {
-            var (h, a, _, _) = ThreeRuns();
-            var line = h.Document.LineOf(a);
-            Assert.That(line.Saved, Is.False);
-            Assert.That(line.Sections, Is.EqualTo(new[] { a }));
-            Assert.That(line.Id, Is.EqualTo(TrailLineId.Of(h.Document.Seed, a)));
+            var (h, g, cornice, chute, run2) = Cornice();
+            var ts = Sections(h.Document, g);
+            Assert.That(ts.SegmentsOf(cornice).Count, Is.EqualTo(3), "where Chute lands, and where Run 2 crosses");
+            Assert.That(ts.SegmentsOf(run2).Count, Is.EqualTo(2), "Run 2 is split where it crosses Cornice too");
+            var trail = ts.TrailOf(cornice);
+            Assert.That(trail.Name, Is.EqualTo("Cornice"));
+            Assert.That(trail.Segments.Count, Is.EqualTo(3), "S2: still one trail, in three sections");
+            Assert.That(trail.Line, Is.Null, "nothing saved for it");
             Assert.That(h.Document.Lines, Is.Empty);
-            Assert.That(TrailLines.All(h.Document).Count, Is.EqualTo(3));
         }
 
         [Test]
-        public void NT35_AddingASectionAtTheBottomMakesOneTrailThatKeepsItsId()
+        public void NT44_PlansSplitAmongPlansNeverAcrossStages()
         {
-            var (h, a, b, _) = ThreeRuns();
-            var before = h.Document.LineOf(a).Id;
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b) }));
-            var line = h.Document.LineOf(b);
-            Assert.That(line.Saved, Is.True);
-            Assert.That(line.Id, Is.EqualTo(before), "the trail keeps the ID it had as one section");
-            Assert.That(line.Sections, Is.EqualTo(new[] { a, b }));
-            Assert.That(h.Document.FindTrail(b).Name, Is.EqualTo("Run 1"), "every section carries its trail's name");
-            Assert.That(Names(h.Document), Is.EqualTo(new[] { "Run 1", "Run 3" }), "Run 2 was taken over whole, so it went (NT28)");
+            var (h, g, cornice, _, _) = Cornice();
+            var plan = AddTrail(h, "Planned", P(-300, 2600), P(300, 2400), WorkStage.Plan);
+            g.Junctions.Add(new TrailJunction(cornice, Ft(500), plan, Ft(300), P(0, 2500)));
+            var ts = Sections(h.Document, g);
+            Assert.That(ts.SegmentsOf(cornice).Count, Is.EqualTo(3), "a plan crossing a built run doesn't split it");
+            Assert.That(ts.SegmentsOf(plan).Count, Is.EqualTo(1));
+            Assert.That(ts.TrailOf(plan).Built, Is.False);
         }
 
         [Test]
-        public void NT35_ARoutedClickAddsTheWholeChainNearestFirst()
+        public void NT35_AClickReroutesAtAJunctionAndTheRestStaysTheTrailAbove()
         {
-            var (h, a, b, c) = ThreeRuns();
-            var route = TrailLines.Route(h.Document, h.Document.LineOf(a), c);
-            Assert.That(route, Is.EqualTo(new[] { b, c }));
-            Submit(h, new EditTrailSections(h.Revision, a, route.Select(SectionOp.Add).ToArray()));
-            Assert.That(h.Document.LineOf(c).Sections, Is.EqualTo(new[] { a, b, c }));
-            Assert.That(TrailLines.Route(h.Document, h.Document.LineOf(c), a), Is.Null, "already part of it");
-            // Going up works the same way: from C, A is two sections above.
+            var (h, g, cornice, chute, _) = Cornice();
+            var ts = Sections(h.Document, g);
+            var chuteTrail = ts.TrailOf(chute);
+            var bottom = ts.SegmentsOf(cornice)[2];
+            var route = TrailSectionsEdit.Route(ts, chuteTrail, bottom);
+            Assert.That(route, Is.EqualTo(new[] { ts.SegmentsOf(cornice)[1], bottom }), "down Cornice from the junction, nearest first");
+            Submit(h, TrailSectionsEdit.Add(h.Document, h.Revision, ts, chuteTrail, route));
+            ts = Sections(h.Document, g);
+            Assert.That(ts.TrailOf(chute).Segments.Count, Is.EqualTo(3));
+            Assert.That(ts.TrailOf(chute).Name, Is.EqualTo("Chute"));
+            Assert.That(ts.TrailOf(chute).Id, Is.EqualTo(chuteTrail.Id), "the trail keeps its ID when it's first shaped");
+            var top = ts.TrailOf(cornice);
+            Assert.That(top.Segments, Is.EqualTo(new[] { ts.SegmentsOf(cornice)[0] }));
+            Assert.That(top.Name, Is.EqualTo("Cornice"), "what's left of Cornice is still Cornice: it runs end to end");
+            Assert.That(ts.TrailOf(ts.SegmentsOf(cornice)[2]), Is.SameAs(ts.TrailOf(chute)));
+        }
+
+        [Test]
+        public void NT35_NoRouteForkingOffTheMiddle()
+        {
+            var (h, g, cornice, chute, run2) = Cornice();
+            var ts = Sections(h.Document, g);
+            var corniceTrail = ts.TrailOf(cornice);
+            Assert.That(TrailSectionsEdit.Route(ts, corniceTrail, ts.SegmentsOf(chute)[0]), Is.Null, "Chute meets Cornice partway down: a fork");
+        }
+
+        [Test]
+        public void NT27_ATakenOutSegmentIsATrailOfItsOwnNamedRunN()
+        {
+            var (h, g, cornice, _, _) = Cornice();
+            var ts = Sections(h.Document, g);
+            var trail = ts.TrailOf(cornice);
+            Submit(h, TrailSectionsEdit.TakeOut(h.Document, h.Revision, ts, trail, ts.SegmentsOf(cornice)[2]));
+            ts = Sections(h.Document, g);
+            Assert.That(ts.TrailOf(cornice).Segments.Count, Is.EqualTo(2));
+            Assert.That(ts.TrailOf(ts.SegmentsOf(cornice)[2]).Name, Does.StartWith("Run "));
+        }
+
+        [Test]
+        public void NT28_TakingOutAMiddleSegmentShowsUpperAndLower()
+        {
+            var (h, g, cornice, _, _) = Cornice();
+            var ts = Sections(h.Document, g);
+            Submit(h, TrailSectionsEdit.Rename(h.Document, h.Revision, ts, ts.TrailOf(cornice), "Ridge"));
+            ts = Sections(h.Document, g);
+            Submit(h, TrailSectionsEdit.TakeOut(h.Document, h.Revision, ts, ts.TrailOf(cornice), ts.SegmentsOf(cornice)[1]));
+            ts = Sections(h.Document, g);
+            var segs = ts.SegmentsOf(cornice);
+            Assert.That(ts.TrailOf(segs[0]).Name, Is.EqualTo("Upper Ridge"));
+            Assert.That(ts.TrailOf(segs[2]).Name, Is.EqualTo("Lower Ridge"));
+            Assert.That(ts.TrailOf(segs[1]).Name, Does.StartWith("Run "));
+            Assert.That(ts.TrailOf(segs[0]).Id, Is.Not.EqualTo(ts.TrailOf(segs[2]).Id));
+        }
+
+        [Test]
+        public void NT45_ACutPointAddsANodeAndNeverTouchesTheRun()
+        {
+            var (h, g, cornice, _, _) = Cornice();
+            var paint = DesignBytes.Encode(h.Document.FindTrail(cornice));
+            Submit(h, TrailSectionsEdit.Cut(h.Revision, cornice, P(0, 2500)));
+            var ts = Sections(h.Document, g);
+            Assert.That(ts.SegmentsOf(cornice).Count, Is.EqualTo(4));
+            Assert.That(ts.TrailOf(cornice).Segments.Count, Is.EqualTo(4), "both pieces stay in the trail");
+            Assert.That(DesignBytes.Same(DesignBytes.Encode(h.Document.FindTrail(cornice)), paint), Is.True, "the paint is untouched");
+            Submit(h, TrailSectionsEdit.Rejoin(h.Revision, h.Document.Cuts[0]));
+            Assert.That(Sections(h.Document, g).SegmentsOf(cornice).Count, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void NT46_ANodeThatGoesLeavesItsStretchWithTheTrailAbove()
+        {
+            // Chute takes Cornice below the junction; then Chute is removed, so the junction goes and Cornice's top and
+            // middle are one segment: it stays with Cornice (the trail above), and the shaped trail keeps the bottom.
+            var (h, g, cornice, chute, _) = Cornice();
+            var ts = Sections(h.Document, g);
+            var chuteTrail = ts.TrailOf(chute);
+            Submit(h, TrailSectionsEdit.Add(h.Document, h.Revision, ts, chuteTrail, TrailSectionsEdit.Route(ts, chuteTrail, ts.SegmentsOf(cornice)[2])));
+            Submit(h, new DeleteTrail(h.Revision, chute));
+            g.Junctions.RemoveAt(0);
+            ts = Sections(h.Document, g);
+            var segs = ts.SegmentsOf(cornice);
+            Assert.That(segs.Count, Is.EqualTo(2));
+            Assert.That(ts.TrailOf(segs[0]).Name, Is.EqualTo("Cornice"));
+            Assert.That(ts.TrailOf(segs[1]).Name, Is.EqualTo("Chute"), "the bottom stays in the shaped trail, named as it was");
+        }
+
+        [Test]
+        public void NT43_ACrossingAnchorFollowsItsRunOrFallsBackToWhereItWas()
+        {
+            // Master Planner's note: a span ending at "the k-th crossing with Run 2" survives Run 2 being repainted.
+            var (h, g, cornice, chute, run2) = Cornice();
+            var ts = Sections(h.Document, g);
+            var chuteTrail = ts.TrailOf(chute);
+            Submit(h, TrailSectionsEdit.Add(h.Document, h.Revision, ts, chuteTrail, TrailSectionsEdit.Route(ts, chuteTrail, ts.SegmentsOf(cornice)[1])));
+            var before = DesignBytes.Encode(h.Document);
+            Assert.That(h.Document.Lines.Single().Spans.Last().To.Kind, Is.EqualTo(AnchorKind.Crosses));
+            // Run 2 moves 50 ft down: the crossing moves with it, and Chute still ends there.
+            g.Junctions[1] = new TrailJunction(cornice, Ft(2050), run2, g.Junctions[1].AlongBMm, P(0, 950));
+            ts = Sections(h.Document, g);
+            Assert.That(ts.TrailOf(chute).Segments.Last().EndMm, Is.EqualTo(Ft(2050)));
+            // Run 2 moves 1,000 ft away (over 100 m): the span ends where it was saved instead.
+            g.Junctions[1] = new TrailJunction(cornice, Ft(2800), run2, g.Junctions[1].AlongBMm, P(0, 200));
+            ts = Sections(h.Document, g);
+            Assert.That(ts.TrailOf(chute).Segments.Last().EndMm, Is.EqualTo(Ft(2800)), "the segment holding its last top still goes to Chute");
+            // An edit and its undo give the same bytes.
+            Submit(h, new RenameTrail(h.Revision, run2, "Run 2b"));
             h.Undo();
-            Assert.That(TrailLines.Route(h.Document, h.Document.LineOf(c), a), Is.EqualTo(new[] { b, a }));
+            Assert.That(DesignBytes.Same(DesignBytes.Encode(h.Document), before), Is.True);
         }
 
         [Test]
-        public void NT26_ASectionThatDoesntMeetAnEndIsRefused()
+        public void NT43_ShapedTrailsAndCutsRoundTripThroughTheBytes()
         {
-            var (h, a, _, c) = ThreeRuns();
-            var r = h.Submit(new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(c) }));
-            Assert.That(r.Accepted, Is.False);
-            StringAssert.Contains("top or bottom", r.Reason);
+            var (h, g, cornice, chute, _) = Cornice();
+            var ts = Sections(h.Document, g);
+            var chuteTrail = ts.TrailOf(chute);
+            Submit(h, TrailSectionsEdit.Add(h.Document, h.Revision, ts, chuteTrail, TrailSectionsEdit.Route(ts, chuteTrail, ts.SegmentsOf(cornice)[2])));
+            Submit(h, TrailSectionsEdit.Cut(h.Revision, cornice, P(0, 2500)));
+            var bytes = DesignBytes.Encode(h.Document);
+            var back = DesignBytes.Decode(bytes);
+            Assert.That(back.Cuts.Count, Is.EqualTo(1));
+            Assert.That(back.Lines.Single().Spans.Count, Is.EqualTo(2));
+            Assert.That(DesignBytes.Same(DesignBytes.Encode(back), bytes), Is.True);
         }
 
         [Test]
-        public void NT32_APlanAndABuiltSectionNeverShareATrail()
+        public void NT33_RemovingARunDropsItsSpansAndCuts()
         {
-            var h = new DesignHistory(DesignDocument.Empty(1));
-            var a = AddTrail(h, "Run 1", P(0, 3000), P(0, 2000));
-            var b = AddTrail(h, "Run 2", P(0, 2000), P(0, 1000), WorkStage.Plan);
-            var r = h.Submit(new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b) }));
-            Assert.That(r.Accepted, Is.False);
-            StringAssert.Contains("planned or all built", r.Reason);
+            var (h, g, cornice, chute, _) = Cornice();
+            var ts = Sections(h.Document, g);
+            var chuteTrail = ts.TrailOf(chute);
+            Submit(h, TrailSectionsEdit.Add(h.Document, h.Revision, ts, chuteTrail, TrailSectionsEdit.Route(ts, chuteTrail, ts.SegmentsOf(cornice)[2])));
+            Submit(h, TrailSectionsEdit.Cut(h.Revision, cornice, P(0, 2500)));
+            Submit(h, new DeleteTrail(h.Revision, cornice));
+            Assert.That(h.Document.Cuts, Is.Empty);
+            Assert.That(h.Document.Lines.Single().Spans.Select(s => s.Piece), Is.EqualTo(new[] { chute }));
         }
 
         [Test]
-        public void NT27_ATakenOutEndSectionIsATrailOfItsOwnWithTheNextFreeName()
+        public void NT32_BreakGroundBuildsEveryRunOfTheShapedTrail()
         {
-            var (h, a, b, c) = ThreeRuns();
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b), SectionOp.Add(c) }));
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.TakeOut(c) }));
-            Assert.That(h.Document.LineOf(a).Sections, Is.EqualTo(new[] { a, b }));
-            Assert.That(h.Document.LineOf(c).Saved, Is.False);
-            Assert.That(h.Document.FindTrail(c).Name, Is.EqualTo("Run 3"), "two trails, so the next free name is Run 3");
-        }
-
-        [Test]
-        public void NT24_TakingOutTheFoundingSectionNeverSharesAnId()
-        {
-            // Ridge is keyed by A, its first section; taking A out leaves Ridge its ID, so A on its own takes the next one.
-            var (h, a, b, c) = ThreeRuns();
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b), SectionOp.Add(c) }, "Ridge"));
-            var ridge = h.Document.LineOf(a).Id;
-            Submit(h, new EditTrailSections(h.Revision, b, new[] { SectionOp.TakeOut(a) }));
-            Assert.That(h.Document.LineOf(b).Id, Is.EqualTo(ridge));
-            Assert.That(h.Document.LineOf(a).Id, Is.Not.EqualTo(ridge));
-            var ids = TrailLines.All(h.Document).Select(l => l.Id).ToList();
-            Assert.That(ids.Distinct().Count(), Is.EqualTo(ids.Count));
-        }
-
-        [Test]
-        public void NT28_TakingOutAMiddleSectionMakesUpperAndLower()
-        {
-            var h = new DesignHistory(DesignDocument.Empty(1));
-            var ids = new List<TrailId>();
-            for (int i = 0; i < 4; i++) ids.Add(AddTrail(h, "Run " + (i + 1), P(0, 4000 - 1000 * i), P(0, 3000 - 1000 * i)));
-            Submit(h, new EditTrailSections(h.Revision, ids[0], ids.Skip(1).Select(SectionOp.Add).ToArray(), "Ridge"));
-            var id = h.Document.LineOf(ids[0]).Id;
-            Submit(h, new EditTrailSections(h.Revision, ids[0], new[] { SectionOp.TakeOut(ids[1]) }));
-            var doc = h.Document;
-            Assert.That(doc.FindTrail(ids[0]).Name, Is.EqualTo("Upper Ridge"));
-            Assert.That(doc.LineOf(ids[0]).Saved, Is.False, "one section left at the top is a trail on its own");
-            Assert.That(doc.LineOf(ids[2]).Sections, Is.EqualTo(new[] { ids[2], ids[3] }));
-            Assert.That(doc.LineOf(ids[2]).Name, Is.EqualTo("Lower Ridge"));
-            Assert.That(doc.LineOf(ids[2]).Id, Is.Not.EqualTo(id));
-            Assert.That(doc.FindTrail(ids[1]).Name, Does.StartWith("Run "));
-        }
-
-        [Test]
-        public void NT28_ATrailTakenOverFromTheMiddleOfAnotherBreaksThatOne()
-        {
-            // NT37: Ridge is A → B → C. Chute ends where B starts, so it can take B, Ridge's middle section; Ridge is left
-            // as Upper Ridge (A) and Lower Ridge (C). Spur, which also starts there, is untouched.
-            var (h, a, b, c) = ThreeRuns();
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b), SectionOp.Add(c) }, "Ridge"));
-            var spur = AddTrail(h, "Spur", P(0, 2000), P(800, 1200));
-            var chute = AddTrail(h, "Chute", P(-600, 2600), P(0, 2000));
-            Submit(h, new EditTrailSections(h.Revision, chute, new[] { SectionOp.Add(b) }));
-            var doc = h.Document;
-            Assert.That(doc.LineOf(chute).Sections, Is.EqualTo(new[] { chute, b }));
-            Assert.That(doc.FindTrail(b).Name, Is.EqualTo("Chute"));
-            Assert.That(doc.FindTrail(a).Name, Is.EqualTo("Upper Ridge"));
-            Assert.That(doc.FindTrail(c).Name, Is.EqualTo("Lower Ridge"));
-            Assert.That(doc.FindTrail(spur).Name, Is.EqualTo("Spur"));
+            var (h, g, cornice, chute, _) = Cornice(WorkStage.Plan);
+            var ts = Sections(h.Document, g);
+            var chuteTrail = ts.TrailOf(chute);
+            Submit(h, TrailSectionsEdit.Add(h.Document, h.Revision, ts, chuteTrail, TrailSectionsEdit.Route(ts, chuteTrail, ts.SegmentsOf(cornice)[2])));
+            Submit(h, new BreakGround(h.Revision, new[] { chute }, null));
+            Assert.That(h.Document.FindTrail(cornice).Stage, Is.EqualTo(WorkStage.Built));
         }
 
         [Test]
@@ -157,135 +245,74 @@ namespace MountainPlanner.Tests
             Assert.That(TrailLines.BreakNames("Run 4", 4), Is.EqualTo(new[] { "Upper Run 4", "Middle 1 Run 4", "Middle 2 Run 4", "Lower Run 4" }));
             string longName = new string('x', DesignRules.NameMaxLength);
             foreach (string n in TrailLines.BreakNames(longName, 2)) Assert.That(DesignRules.NameProblem(n), Is.Null, n);
-            Assert.That(TrailLines.Stem("Upper"), Is.EqualTo("Upper"), "a bare word isn't a position");
+            Assert.That(TrailLines.NextName(2, new[] { "Run 3" }), Is.EqualTo("Run 4"));
+        }
+
+        // B2's session (NT39): clicks change a working copy, Ctrl+Z inside puts one back, Done is one step.
+        static TrailSectionsSession Session(DesignHistory h, StubGeometry g, TrailId piece)
+        {
+            var ts = Sections(h.Document, g);
+            return new TrailSectionsSession(h.Document, ts, ts.TrailOf(piece));
+        }
+
+        static void Keep(TrailSectionsSession s, StubGeometry g, ShapeTrails cmd, Segment top)
+        {
+            var doc = s.Try(cmd, out string problem);
+            Assert.That(doc, Is.Not.Null, problem);
+            s.Accept(doc, Sections(doc, g), top);
         }
 
         [Test]
-        public void NT40_ATypedNameBeatsTheAutomaticOne()
+        public void NT39_ASessionsClicksAreOneStepAndItsDoneMatchesTheWorkingCopy()
         {
-            var (h, a, b, c) = ThreeRuns();
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b), SectionOp.Add(c) }, "Ridge"));
-            var names = new Dictionary<TrailId, string> { [a] = "Summit Pitch", [b] = "Glades" };
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.TakeOut(b) }, null, names));
-            Assert.That(h.Document.FindTrail(a).Name, Is.EqualTo("Summit Pitch"));
-            Assert.That(h.Document.FindTrail(b).Name, Is.EqualTo("Glades"));
-            Assert.That(h.Document.FindTrail(c).Name, Is.EqualTo("Lower Ridge"));
-        }
-
-        [Test]
-        public void NT27_NextNameSkipsNamesInUse()
-        {
-            var h = new DesignHistory(DesignDocument.Empty(1));
-            AddTrail(h, "Run 2", P(0, 3000), P(0, 2000));
-            Assert.That(TrailLines.NextName(h.Document), Is.EqualTo("Run 3"));
-            Assert.That(TrailLines.NextName(h.Document, new[] { "Run 3" }), Is.EqualTo("Run 4"));
-        }
-
-        [Test]
-        public void NT31_CutThenRejoinGivesTheSameBytesAndNeverMovesGround()
-        {
-            var (h, a, _, _) = ThreeRuns();
-            var before = DesignBytes.Encode(h.Document.FindTrail(a));
-            var cut = Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Cut(a, P(0, 2500), 0, -Ft(10)) }));
-            var lower = new TrailId(cut.Created[0]);
-            Assert.That(h.Document.LineOf(a).Sections, Is.EqualTo(new[] { a, lower }), "a cut adds a node; both pieces stay in the trail");
-            Assert.That(h.Document.FindTrail(lower).Name, Is.EqualTo("Run 1"));
-            Assert.That(TrailChains.Of(h.Document.Trails).Any(ch => ch.Count == 2), Is.True, "the two sides grade as one (NT2)");
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Rejoin(a, lower) }));
-            Assert.That(DesignBytes.Same(DesignBytes.Encode(h.Document.FindTrail(a)), before), Is.True, "the trail as it was painted");
-            Assert.That(h.Document.FindTrail(lower), Is.Null);
-            Assert.That(h.Document.Lines, Is.Empty);
-        }
-
-        [Test]
-        public void NT31_OnlyACutCanBeRejoined()
-        {
-            var (h, a, b, _) = ThreeRuns();
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b) }));
-            var r = h.Submit(new EditTrailSections(h.Revision, a, new[] { SectionOp.Rejoin(a, b) }));
-            Assert.That(r.Accepted, Is.False);
-            StringAssert.Contains("painted apart", r.Reason);
-        }
-
-        [Test]
-        public void NT39_ASessionIsOneUndoStep()
-        {
-            var (h, a, b, c) = ThreeRuns();
-            var before = DesignBytes.Encode(h.Document);
-            Submit(h, new EditTrailSections(h.Revision, a, new[]
-            {
-                SectionOp.Add(b), SectionOp.Add(c), SectionOp.Cut(b, P(0, 1500), 0, -Ft(10)), SectionOp.TakeOut(c),
-            }, "Ridge"));
-            Assert.That(h.Document.LineOf(a).Sections.Count, Is.EqualTo(3));
+            var (h, g, cornice, chute, run2) = Cornice();
+            var s = Session(h, g, chute);
+            var add = s.Add(s.Sections.SegmentsOf(cornice)[2], out var top);
+            Assert.That(top, Is.SameAs(s.Trail.Segments[0]), "added below: the top stays");
+            Keep(s, g, add, top);
+            Assert.That(s.Trail.Segments.Count, Is.EqualTo(3));
+            Keep(s, g, TrailSectionsEdit.Cut(0, cornice, P(0, 500)), null);
+            Assert.That(s.Trail.Segments.Count, Is.EqualTo(4), "a cut adds a node: one more section");
+            var cmd = s.Done(h.Revision);
+            Assert.That(cmd.Put.Count, Is.EqualTo(1));
+            Assert.That(cmd.AddCuts.Count, Is.EqualTo(1));
+            Submit(h, cmd);
+            Assert.That(DesignBytes.Same(DesignBytes.Encode(h.Document), DesignBytes.Encode(s.Working)), Is.True, "Done is exactly the clicks");
             h.Undo();
-            Assert.That(DesignBytes.Same(DesignBytes.Encode(h.Document), before), Is.True);
+            Assert.That(h.Document.Lines, Is.Empty, "one Ctrl+Z takes the whole session back");
+            Assert.That(h.Document.Cuts, Is.Empty);
         }
 
         [Test]
-        public void NT32_BreakGroundBuildsTheWholeTrail()
+        public void NT39_UndoInsideTheSessionAndNothingLeftIsNoStep()
         {
-            var (h, a, b, _) = ThreeRuns(WorkStage.Plan);
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b) }));
-            Submit(h, new BreakGround(h.Revision, new[] { a }, null));
-            Assert.That(h.Document.FindTrail(b).Stage, Is.EqualTo(WorkStage.Built));
-            Assert.That(h.Document.LineOf(a).Sections.Count, Is.EqualTo(2), "still one trail");
+            var (h, g, cornice, chute, _) = Cornice();
+            var s = Session(h, g, chute);
+            var add = s.Add(s.Sections.SegmentsOf(cornice)[2], out var top);
+            Keep(s, g, add, top);
+            Assert.That(s.Undo(), Is.True);
+            Assert.That(s.Trail.Segments.Count, Is.EqualTo(1));
+            Assert.That(s.Done(h.Revision), Is.Null, "back where it started: nothing to submit");
+            Assert.That(s.Redo(), Is.True);
+            Assert.That(s.Trail.Segments.Count, Is.EqualTo(3));
         }
 
         [Test]
-        public void NT33_RemoveTrailRemovesEverySection()
+        public void NT35_AddingAboveMovesTheTopAndTheSessionFollowsIt()
         {
-            var (h, a, b, c) = ThreeRuns();
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b) }));
-            Submit(h, new DeleteTrail(h.Revision, b));
-            Assert.That(h.Document.Trails.Select(t => t.Id), Is.EqualTo(new[] { c }));
-            Assert.That(h.Document.Lines, Is.Empty);
-        }
-
-        [Test]
-        public void NT24_RenamingASectionRenamesItsTrail()
-        {
-            var (h, a, b, _) = ThreeRuns();
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b) }));
-            Submit(h, new RenameTrail(h.Revision, b, "Ridge"));
-            Assert.That(h.Document.FindTrail(a).Name, Is.EqualTo("Ridge"));
-            Assert.That(h.Document.LineOf(a).Name, Is.EqualTo("Ridge"));
-        }
-
-        [Test]
-        public void NT28_MovingASectionsEndsSoItNoLongerMeetsBreaksTheTrail()
-        {
-            var (h, a, b, c) = ThreeRuns();
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b), SectionOp.Add(c) }, "Ridge"));
-            Submit(h, new SetTrailEnds(h.Revision, c, P(400, 900), P(400, 0)));
-            Assert.That(h.Document.LineOf(a).Sections, Is.EqualTo(new[] { a, b }));
-            Assert.That(h.Document.LineOf(a).Name, Is.EqualTo("Upper Ridge"));
-            Assert.That(h.Document.FindTrail(c).Name, Is.EqualTo("Lower Ridge"));
-        }
-
-        [Test]
-        public void NT24_ABrokenFileIsRepairedOnLoadNotRefused()
-        {
-            var (h, a, b, c) = ThreeRuns();
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b), SectionOp.Add(c) }, "Ridge"));
-            var doc = h.Document;
-            // A hand-edited file: B left out of the middle, so the saved trail no longer runs end to end.
-            var broken = new[] { new TrailLine(doc.Lines[0].Id, "Ridge", new[] { a, c }) };
-            var read = DesignDocument.From(doc.Seed, doc.NextOrdinal, doc.Trails, doc.Lifts, doc.Strokes, doc.Areas, broken);
-            Assert.That(read.Lines, Is.Empty);
-            Assert.That(read.FindTrail(a).Name, Is.EqualTo("Upper Ridge"));
-            Assert.That(read.FindTrail(c).Name, Is.EqualTo("Lower Ridge"));
-            Assert.That(read.FindTrail(b).Name, Is.EqualTo("Ridge"));
-        }
-
-        [Test]
-        public void NT24_LinesRoundTripThroughTheCanonicalBytes()
-        {
-            var (h, a, b, c) = ThreeRuns();
-            Submit(h, new EditTrailSections(h.Revision, a, new[] { SectionOp.Add(b), SectionOp.Add(c) }, "Ridge"));
-            var bytes = DesignBytes.Encode(h.Document);
-            var back = DesignBytes.Decode(bytes);
-            Assert.That(back.Lines.Single().Sections, Is.EqualTo(new[] { a, b, c }));
-            Assert.That(DesignBytes.Same(DesignBytes.Encode(back), bytes), Is.True);
+            var (h, g, cornice, _, _) = Cornice();
+            var ts = Sections(h.Document, g);
+            Submit(h, TrailSectionsEdit.TakeOut(h.Document, h.Revision, ts, ts.TrailOf(cornice), ts.SegmentsOf(cornice)[0]));
+            ts = Sections(h.Document, g);
+            var s = new TrailSectionsSession(h.Document, ts, ts.TrailOf(ts.SegmentsOf(cornice)[1]));
+            Assert.That(s.Trail.Segments[0], Is.SameAs(s.Sections.SegmentsOf(cornice)[1]), "Cornice starts at Chute's junction now");
+            var add = s.Add(s.Sections.SegmentsOf(cornice)[0], out var top);
+            Assert.That(top.StartMm, Is.EqualTo(0), "the added segment is the new top");
+            Keep(s, g, add, top);
+            Assert.That(s.Trail.Segments.Count, Is.EqualTo(3));
+            Assert.That(s.Trail.Name, Is.EqualTo("Cornice"));
+            var back = s.TakeOut(s.Trail.Segments[0], out top);
+            Assert.That(top, Is.SameAs(s.Trail.Segments[1]));
         }
     }
 }

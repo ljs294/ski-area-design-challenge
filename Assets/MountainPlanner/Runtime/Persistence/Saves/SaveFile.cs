@@ -12,13 +12,13 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 6;
+        public const int CurrentVersion = 7;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven);
 
         /// <summary>
         /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
@@ -79,6 +79,35 @@ namespace MountainPlanner.Persistence.Saves
             if (!(o["Design"] is JObject design)) return;
             design["Shape"] = 6;
             if (design["TrailLines"] == null) design["TrailLines"] = new JArray();
+        }
+
+        /// <summary>
+        /// v6 → v7 (task P3-10, owner NT43–NT46): the design's shape 6 → 7, where a shaped trail holds spans of runs between
+        /// nodes, and the player's cut points are kept. A v6 trail's sections were whole runs, so each becomes the span from
+        /// its head to its tail; there were no cut points.
+        /// </summary>
+        static void UpToSeven(JObject o)
+        {
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 7;
+            if (design["TrailLines"] is JArray lines)
+                foreach (var l in lines)
+                {
+                    if (!(l is JObject line) || !(line["Sections"] is JArray sections)) continue;
+                    var spans = new JArray();
+                    foreach (var s in sections)
+                        spans.Add(new JObject
+                        {
+                            ["Piece"] = s.DeepClone(),
+                            ["From"] = new JObject { ["Kind"] = "head" },
+                            ["To"] = new JObject { ["Kind"] = "tail" },
+                            ["FromMm"] = 0,
+                            ["ToMm"] = 0,
+                        });
+                    line.Remove("Sections");
+                    line["Spans"] = spans;
+                }
+            if (design["Cuts"] == null) design["Cuts"] = new JArray();
         }
 
         /// <summary>The player's name for it ("Autosave" for the autosave slot).</summary>

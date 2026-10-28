@@ -111,6 +111,12 @@ namespace MountainPlanner.Domain.Design
             return null;
         }
 
+        /// <summary>NT47 (finding 2): grading is permanent once built. A built graded trail stays graded; a natural one may be
+        /// graded later, and a plan may switch either way.</summary>
+        public static string GradingProblem(Trail trail, TrailSettings next, WorkStage nextStage) =>
+            trail.Stage == WorkStage.Built && trail.Settings.Grading == TrailGrading.Graded && nextStage == WorkStage.Built
+            && next.Grading != TrailGrading.Graded ? "Grading is permanent once built." : null;
+
         public static string StageProblem(WorkStage stage) =>
             stage == WorkStage.Plan || stage == WorkStage.Built ? null : "Unknown stage.";
 
@@ -234,26 +240,55 @@ namespace MountainPlanner.Domain.Design
                 foreach (var e in area.Ends) if (doc.FindLift(e.Lift) == null) return "An area holds a lift that isn't in the design.";
                 if (!seen.Add(area.Id.Value)) return "Two entities share an ID.";
             }
-            // NT24–NT28: a saved trail holds two or more sections, each in one trail only, end to end in one stage, all
-            // carrying its name. Normalise leaves every document like this; a file that isn't is repaired before here.
-            var inLine = new HashSet<ulong>();
+            // NT43: a shaped trail is named and holds spans of runs in the design; a cut point is on a run in the design.
+            // Which segments the spans hold, and their order, are the nodes' business (TrailSections).
             foreach (var line in doc.Lines)
             {
-                if (NameProblem(line.Name) is string p) return p;
-                if (line.Sections.Count < 2) return "A saved trail holds at least two sections.";
+                if (LineProblem(doc, line) is string p) return p;
                 if (!seen.Add(line.Id.Value)) return "Two entities share an ID.";
-                Trail before = null;
-                foreach (var s in line.Sections)
-                {
-                    var t = doc.FindTrail(s);
-                    if (t == null) return "A trail holds a section that isn't in the design.";
-                    if (!inLine.Add(s.Value)) return "A section is in two trails.";
-                    if (t.Name != line.Name) return "A section doesn't carry its trail's name.";
-                    if (before != null && !TrailLines.Chains(doc, before, t)) return "A trail's sections don't run end to end.";
-                    before = t;
-                }
+            }
+            foreach (var c in doc.Cuts)
+            {
+                if (doc.FindTrail(c.Piece) == null) return "A cut is on a run that isn't in the design.";
+                if (PointProblem(c.At) is string p) return p;
             }
             return null;
         }
+
+        /// <summary>NT43: a shaped trail's name and spans: at least one, each on a run in the design, its anchors well formed.</summary>
+        public static string LineProblem(DesignDocument doc, TrailLine line)
+        {
+            if (line.Id.IsNone) return "A trail needs an ID.";
+            if (NameProblem(line.Name) is string p) return p;
+            if (line.Spans.Count == 0) return "A trail holds at least one section.";
+            if (line.Spans.Count > 4096) return "A trail holds too many sections.";
+            foreach (var sp in line.Spans)
+            {
+                if (doc.FindTrail(sp.Piece) == null) return "A trail holds a run that isn't in the design.";
+                if ((AnchorProblem(sp.From) ?? AnchorProblem(sp.To)) is string a) return a;
+                if (sp.FromMm < 0 || sp.ToMm < 0) return "A section's place along its run is out of range.";
+            }
+            return null;
+        }
+
+        static string AnchorProblem(Anchor a)
+        {
+            switch (a.Kind)
+            {
+                case AnchorKind.Head: case AnchorKind.Tail:
+                    return a.Other == 0 && !a.End && a.K == 0 && a.At.Equals(default(PointMm)) ? null : "A section's end is malformed.";
+                case AnchorKind.Lands: case AnchorKind.Station:
+                    return a.Other != 0 && a.K == 0 && a.At.Equals(default(PointMm)) ? null : "A section's end is malformed.";
+                case AnchorKind.Crosses:
+                    return a.Other != 0 && !a.End && a.K >= 0 && a.K < 1024 && a.At.Equals(default(PointMm)) ? null : "A section's end is malformed.";
+                case AnchorKind.Cut:
+                    return a.Other == 0 && !a.End && a.K == 0 ? PointProblem(a.At) : "A section's end is malformed.";
+                default:
+                    return "A section's end isn't one this build knows.";
+            }
+        }
+
+        /// <summary>A site-centred point within the design's range.</summary>
+        public static string PointProblem(PointMm p) => OutOfRange(p) ? "A point is out of range." : null;
     }
 }

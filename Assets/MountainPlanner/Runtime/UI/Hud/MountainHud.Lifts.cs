@@ -176,7 +176,6 @@ namespace MountainPlanner.UI
             if (_liftCardField == null)
             {
                 _liftCardField = new TextField { name = "lift-card-name-field", maxLength = Domain.Design.DesignRules.NameMaxLength };
-                _liftCardField.AddToClassList("tw__namefield");
                 _liftCardField.RegisterCallback<KeyDownEvent>(e =>
                 {
                     if (e.keyCode == UnityEngine.KeyCode.Return || e.keyCode == UnityEngine.KeyCode.KeypadEnter) { EndRenameLiftCard(true); e.StopPropagation(); }
@@ -186,8 +185,7 @@ namespace MountainPlanner.UI
             }
             if (_liftCardField.parent != null) return;
             _liftCardField.SetValueWithoutNotify(_liftCardName.text);
-            _liftCardName.parent.Insert(_liftCardName.parent.IndexOf(_liftCardName) + 1, _liftCardField);
-            _liftCardName.AddToClassList("hidden");
+            InlineName.Open(_liftCardName, _liftCardField);
             _liftCardField.schedule.Execute(() => { _liftCardField.Focus(); _liftCardField.SelectAll(); });
         }
 

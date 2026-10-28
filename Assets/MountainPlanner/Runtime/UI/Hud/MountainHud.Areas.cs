@@ -144,7 +144,6 @@ namespace MountainPlanner.UI
             if (_areaCardField == null)
             {
                 _areaCardField = new TextField { name = "network-area-card-name-field", maxLength = Domain.Design.DesignRules.NameMaxLength };
-                _areaCardField.AddToClassList("tw__namefield");
                 _areaCardField.RegisterCallback<KeyDownEvent>(e =>
                 {
                     if (e.keyCode == UnityEngine.KeyCode.Return || e.keyCode == UnityEngine.KeyCode.KeypadEnter) { EndRenameAreaCard(true); e.StopPropagation(); }
@@ -154,8 +153,7 @@ namespace MountainPlanner.UI
             }
             if (_areaCardField.parent != null) return;
             _areaCardField.SetValueWithoutNotify(_areaCardName.text);
-            _areaCardName.parent.Insert(_areaCardName.parent.IndexOf(_areaCardName) + 1, _areaCardField);
-            _areaCardName.AddToClassList("hidden");
+            InlineName.Open(_areaCardName, _areaCardField);
             _areaCardField.schedule.Execute(() => { _areaCardField.Focus(); _areaCardField.SelectAll(); });
         }
 
