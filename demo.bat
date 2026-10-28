@@ -58,7 +58,7 @@ echo.
 echo   Phase 1, task 02: code modules
 echo     8  Engine-free tests in plain .NET (no Unity, a few seconds)
 echo     9  Repository checks, including the banned-API guard
-echo     10 Unity tests, EditMode and PlayMode (close the Unity editor first; a few minutes)
+echo     10 Unity tests, EditMode and PlayMode (close the Unity editor first; a few minutes; PlayMode waits for the GPU alone)
 echo.
 echo   Phase 1, tasks 04-05: download a mountain into your library
 echo     11 Jackson Hole, 2 km (S1M lidar; about 10 seconds the first time)
@@ -387,13 +387,17 @@ if not errorlevel 1 (
   goto done
 )
 if not exist "%~dp0test-results" mkdir "%~dp0test-results"
+set "UNITYGPU="
 call :unityrun EditMode
+rem PlayMode times the demo mountain's open against a player's 10 s budget, so it has the GPU alone (measure lane).
+set "UNITYGPU=%MEASURE% "
 call :unityrun PlayMode
+set "UNITYGPU="
 goto done
 
 :unityrun
 echo Running %1 tests...
-"%UNITY%" -batchmode -projectPath "%~dp0." -runTests -testPlatform %1 -testResults "%~dp0test-results\%1.xml" -logFile "%~dp0test-results\%1.log" <nul
+%UNITYGPU%"%UNITY%" -batchmode -projectPath "%~dp0." -runTests -testPlatform %1 -testResults "%~dp0test-results\%1.xml" -logFile "%~dp0test-results\%1.log" <nul
 if errorlevel 1 (
   echo   %1: FAILED - see test-results\%1.xml
 ) else (

@@ -24,6 +24,9 @@ hold a slot while waiting for the owner: the slot lasts exactly as long as the c
 | `render` | Up to 2 at once, none during a measure run | Players with `-screenshot`, `-uicapture` or `-lineup`; PlayMode runs that open site caches; Blender Cycles renders; Lift Lab captures |
 | none | Run directly | Builds, EditMode tests, `-nographics` runs, dotnet tests |
 
+The command runs with `MP_GPU_LANE` set to its lane. A timing test judges a player's budget only when it has the GPU
+alone (`measure`, or no lane); in `render` it reports the time instead of failing on it.
+
 Waiting runs take numbered tickets and start strictly in ticket order. A waiting measure run therefore
 blocks render runs that queued after it, so it can't starve.
 
@@ -69,6 +72,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/gpu/test-gpu.ps1
 The tests take about a minute and need no GPU. They use a scratch state folder and dummy PowerShell children
 that log their start and end times. They check:
 - exit codes pass through;
+- the command sees its lane in `MP_GPU_LANE`;
 - render allows 2 at once while a third waits;
 - measure excludes everything;
 - a queued measure blocks later renders;

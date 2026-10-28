@@ -103,6 +103,12 @@ try {
     $r = Invoke-Gpu 'run' @('-Lane', 'bogus', '-Name', 'x', '--', 'cmd', '/c', 'exit 0')
     Check ($r.code -eq 64) 'a bad lane is a usage error (64)'
 
+    Write-Host 'The command is told its lane (MP_GPU_LANE)'
+    $r = Invoke-Gpu 'run' @('-Lane', 'render', '-Name', 'lane-r', '--', 'powershell', '-NoProfile', '-Command', 'if ($env:MP_GPU_LANE -eq ''render'') { exit 0 } else { exit 3 }')
+    Check ($r.code -eq 0) "a render run sees MP_GPU_LANE=render (exit $($r.code))"
+    $r = Invoke-Gpu 'run' @('-Lane', 'measure', '-Name', 'lane-m', '--', 'powershell', '-NoProfile', '-Command', 'if ($env:MP_GPU_LANE -eq ''measure'') { exit 0 } else { exit 3 }')
+    Check ($r.code -eq 0) "a measure run sees MP_GPU_LANE=measure (exit $($r.code))"
+
     Write-Host 'Render allows 2 at once and a third waits'
     $p = @()
     foreach ($n in 'r1', 'r2', 'r3') { $p += Start-Run 'render' $n 3000; Wait-Entry $n }

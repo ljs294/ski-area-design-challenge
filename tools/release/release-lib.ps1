@@ -21,7 +21,11 @@ function Test-EditorOpen([string]$project) {
 # Runs Unity and waits; the exit code. Arguments with spaces are quoted.
 function Invoke-Unity([string]$exe, [string[]]$arguments) {
     $quoted = $arguments | ForEach-Object { if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } }
-    $p = Start-Process -FilePath $exe -ArgumentList ($quoted -join ' ') -Wait -PassThru -NoNewWindow
+    # Not Start-Process -Wait: that waits for every process Unity started too, and Unity leaves the VBCSCompiler server
+    # running for minutes after it quits (compile-check hung on it). Wait for Unity alone; the handle keeps its exit code.
+    $p = Start-Process -FilePath $exe -ArgumentList ($quoted -join ' ') -PassThru -NoNewWindow
+    $null = $p.Handle
+    $p.WaitForExit()
     return $p.ExitCode
 }
 

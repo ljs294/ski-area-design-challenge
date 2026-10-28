@@ -200,8 +200,12 @@ namespace MountainPlanner.Tests
             try
             {
                 Assert.That(open.Result.Tiles.Count, Is.EqualTo(121));
-                Assert.That(open.Result.Seconds, Is.LessThanOrEqualTo(10.0), $"opened in {open.Result.Seconds:F1} s");
                 TestContext.WriteLine($"Jackson Hole 5 km opened in {open.Result.Seconds:F2} s; ground cover painted by {open.Result.CoverSeconds:F2} s");
+                // The 10 s is a player's budget, and a player's GPU isn't shared: in tools/gpu's shared render lane the open
+                // reports its time; alone (the measure lane, or no lane) it must make it.
+                if (System.Environment.GetEnvironmentVariable("MP_GPU_LANE") == "render" && open.Result.Seconds > 10.0)
+                    Assert.Inconclusive($"opened in {open.Result.Seconds:F1} s with the GPU shared (render lane); run alone (measure lane, demo.bat 10) to judge the 10 s budget");
+                Assert.That(open.Result.Seconds, Is.LessThanOrEqualTo(10.0), $"opened in {open.Result.Seconds:F1} s");
             }
             finally
             {
