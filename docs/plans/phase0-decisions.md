@@ -632,7 +632,7 @@ recommendation taken. Plan: [p3-11-plan.md](p3-11-plan.md).
 | # | Decision |
 |---|---|
 | DB1 | **The test design is frozen lines in code, built by commands on every run** (as the style tile is): trail strokes and lift ends in local metres, built through `TrailShape.FromStrokes` and AddTrail, and through LiftBuild, so it follows the engine and every save version; no save fixture, no format change |
-| DB2 | **Layout: six lift pods**, about three runs off each lift's top, plus two cat tracks joining pods; the owner approves screenshots before timing |
+| DB2 | **Layout: six lift pods**, about three runs off each lift's top, plus two cat tracks joining pods; the owner approves screenshots before timing (approved 2026-10-28 from the six benchmark views) |
 | DB3 | **Lifts:** two Sessellift FGQ-4, two Monta FG4 and two Sessellift D6 |
 | DB4 | **Trails:** ten graded and ten natural, 60–200 ft wide, two with tree islands, plus two graded 40 ft cat tracks |
 | DB5 | **The eight baselines stay as they are:** the new legs fly only with `-drawnresort`, and the drawn runs get files of their own |

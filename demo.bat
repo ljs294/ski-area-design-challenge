@@ -232,6 +232,13 @@ echo     71o Open a problem report: the newest one, a zip or a GitHub issue numb
 echo        scratch library (your own settings stay as they are).
 echo     71c The Send feedback captures, both themes, 50-150%% (render lane), into test-results\report-captures.
 echo.
+echo   Phase 3, task 11: benchmark with a drawn resort (rebuilds the game, about 2 minutes; close the Unity editor first)
+echo     72 The game with the drawn resort on Jackson Hole 5 km: six lifts and twenty trails, built by command as you open it
+echo        (about 10 seconds after the mountain). Fly round; Tab, Network shows them joined. Nothing is saved.
+echo     72b The frame benchmark with the drawn resort, High and Medium, and the same path over the bare mountain (measure
+echo        lane, about 20 minutes), then compare.mjs against docs\perf, into test-results\p3-11.
+echo     72c The edit timing with the drawn resort loaded: new trails, grading a run, removing one, a new lift (measure lane).
+echo.
 echo   Phase 3, task 15: the terrain brush (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     73 The game: Toolbox ^> Terrain (B Raise/Lower, L Flatten, O Smooth, G Slope). Left paints, right lowers or takes
 echo        the target, [ ] diameter, , . strength, PgUp/PgDn target. What you paint is the edit: Confirm (Enter) puts
@@ -348,6 +355,9 @@ if /i "%CHOICE%"=="70sv" goto sectionsshape
 if /i "%CHOICE%"=="71" goto reports
 if /i "%CHOICE%"=="71o" goto openreport
 if /i "%CHOICE%"=="71c" goto reportcaptures
+if /i "%CHOICE%"=="72" goto drawnresort
+if /i "%CHOICE%"=="72b" goto drawnbench
+if /i "%CHOICE%"=="72c" goto drawnedits
 if /i "%CHOICE%"=="73" goto brush
 if /i "%CHOICE%"=="73b" goto brushbench
 if /i "%CHOICE%"=="73m" goto brushtour
@@ -921,6 +931,44 @@ rem Task P3-08: the trail tools in the real game. Always rebuilt, so the tools o
 call :buildplayer
 if not exist "%GAME%" goto done
 "%GAME%" <nul
+goto done
+
+:drawnresort
+call :buildplayer
+if not exist "%GAME%" goto done
+"%GAME%" -notitle -drawnresort
+goto done
+
+:drawnbench
+call :buildplayer
+if not exist "%GAME%" goto done
+call :builddev
+if not exist "%GAMEDEV%" goto done
+set "DRAWN=%~dp0test-results\p3-11"
+if not exist "%DRAWN%" mkdir "%DRAWN%"
+for %%Q in (high medium) do (
+  echo The drawn resort at %%Q, the release game ^(about 5 minutes^)...
+  %MEASURE% "%GAME%" %SCREEN% -quality %%Q -drawnresort -benchmark "%DRAWN%\%%Q-drawn.json" -logFile "%DRAWN%\%%Q-drawn.log" <nul
+  echo The same path over the bare mountain at %%Q ^(about 5 minutes^)...
+  %MEASURE% "%GAME%" %SCREEN% -quality %%Q -drawnpathonly -benchmark "%DRAWN%\%%Q-bare.json" -logFile "%DRAWN%\%%Q-bare.log" <nul
+)
+echo The drawn resort at high, the Development game: garbage and memory ^(about 3 minutes^)...
+%MEASURE% "%GAMEDEV%" %SCREEN% -quality high -laps 1 -drawnresort -benchmark "%DRAWN%\high-dev-drawn.json" -logFile "%DRAWN%\high-dev-drawn.log" <nul
+echo.
+findstr /c:"[DrawnResort]" "%DRAWN%\high-drawn.log"
+for %%R in (high-drawn high-bare medium-drawn medium-bare high-dev-drawn) do findstr /l /c:" at 1920x1080" "%DRAWN%\%%R.log"
+echo.
+for %%R in (high medium) do node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-%%R-drawn.json" "%DRAWN%\%%R-drawn.json"
+node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-high-dev-drawn.json" "%DRAWN%\high-dev-drawn.json"
+start "" "%DRAWN%"
+goto done
+
+:drawnedits
+call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\p3-11" mkdir "%~dp0test-results\p3-11"
+%MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -designbench "%~dp0test-results\p3-11\designbench.json" -logFile "%~dp0test-results\p3-11\designbench.log" <nul
+findstr /c:"[DrawnResort]" /c:"[DesignBench]" "%~dp0test-results\p3-11\designbench.log"
 goto done
 
 :trailbench
