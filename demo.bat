@@ -246,7 +246,8 @@ echo     73c Close-up contours at 3,500 m, 800 m and 150 m (render lane), into t
 echo.
 echo   Brush speed (perf/brush-drag; rebuilds the game and the Development game, close the Unity editor first)
 echo     75 The brush drag timing: a 60 ft and a 400 ft drag, each frame in its parts (dabs, preview, upload, bill,
-echo        GC), the frames after letting go and the confirm; Jackson Hole, a second spot (-brushat -500,700) and
+echo        GC), the frames after letting go, Revert and Confirm (after a pause and on the let-go, with its parts:
+echo        fold, queue, apply); Jackson Hole, a second spot (-brushat -500,700) and
 echo        the Development game for exact garbage (measure lane), into test-results\brush-perf.
 echo.
 echo     Q  Quit

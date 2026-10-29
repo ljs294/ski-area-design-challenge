@@ -213,3 +213,10 @@ I'll ask you before each push, PR and merge.
   - Closing with ground not yet confirmed asks Confirm / Revert / Keep painting.
   - Confirm hands the session's volumes to `IEarthworkCharges`, which the Phase 4 economy will implement.
   - TB-08 and TB-09 are now v2 (p3-02 §4.6). The mockup's `terrainreview` state is now `terrainask`.
+
+## Follow-up: Confirm time, the close ask and drag garbage (2026-10-28, perf/brush-followups)
+- **Confirm lands in about 120 ms** a second after letting go; it was about 260 ms. The session's fold starts when a
+  press ends, and Confirm uses it if nothing changed since. On the very frame of letting go it's about 220 ms.
+- **The close ask** shows only its own row (Confirm, Revert, Keep painting), as in the mockup's `terrainask`.
+- **Garbage while dragging 400 ft** is down from about 546 KB to 167 KB a frame, with 3 collections instead of 7–9.
+- Numbers are in [docs/perf/brush-drag.md](../perf/brush-drag.md) round 3, from `demo.bat` 75.

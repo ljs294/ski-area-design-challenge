@@ -79,3 +79,59 @@ of the committed ground.
   compute. Nothing on screen waits for it: the trees come out when it lands.
 - **Garbage while dragging 400 ft** is up from 22 KB to about 0.5 MB a frame (the catch-ups' tiles and cover), with 7–9
   collections and no frame over budget from them.
+
+## Round 3: Confirm time, the close ask and drag garbage (perf/brush-followups, 2026-10-28)
+
+Round 2 left three follow-ups. Confirm took 255–265 ms to land. The close ask showed the pane's Confirm and Revert under
+its own row. The 400 ft drag made about 0.5 MB of garbage a frame. The bench now has two Confirm cases: a second after
+letting go, as a player would click, and the frame after letting go. It also splits Confirm into its parts (the fold,
+the queue wait and the apply).
+
+| 400 ft, Jackson Hole (ms) | Round 2 | Round 3 |
+| --- | --- | --- |
+| Confirm to committed, a second after letting go | 259 | 116 |
+| Confirm to committed, the frame after letting go | not measured | 221 |
+| Of which: the fold (the session's Apply + earthwork Rebuild) | about 200, started at the click | about 200, started when the press ends |
+| The commit apply (trees out, cover) | 41, on all workers | 104, on two |
+| Frames after let-go / Confirm / Revert (max) | 17.6 / 17.7 / 7.3 | 14.8 / 9.9 / 7.3 |
+| Drag frame p95 | 16.7 | 17.2 |
+| Garbage while dragging, Development game | 546 KB a frame, 7–9 collections | 167–173 KB a frame, 3 collections |
+| Shown vs fresh after Confirm / Revert | 0 / 0 | 0 / 0 |
+
+- **Second site:** Confirm in 121 ms after a pause and 226 ms on the let-go. The worst frames are 12.2 after letting
+  go, 11.8 after Confirm and 8.9 after Revert. The drag p95 is 18.7.
+- **With `-force-gfx-mt`, three runs:** Confirm takes 114–127 ms after a pause and 219–238 ms on the let-go. The worst
+  frame after Confirm is 11.2–13.6.
+  - Before the commit's threads were capped, two of four such runs had one 21–25 ms frame just after the click. The
+    commit's planning, on every worker, started right then and fought the render thread for the CPU. That is the
+    same lesson as round 2's Revert, so the commit now plans on two threads when the ground is already shown.
+- **Development game:** Confirm takes 126 ms after a pause and 255 ms on the let-go. That second number is 5 ms over its
+  target; the build is always slower, and release is 221. The worst frame after Confirm is 10.8 ms, and garbage while
+  dragging 400 ft is 173 KB a frame with 3 collections.
+
+### What changed
+- **The fold runs ahead.** When a press ends, once its catch-up has landed, the session is folded in the background:
+  the same command Apply and earthwork Rebuild, on the same inputs. Confirm uses that fold if the session's strokes and
+  the design's revision are still the ones it folded. Otherwise it folds again, as before. Ctrl+Z also starts a new
+  fold.
+- **Two main-thread stalls removed.** Both came from the earthwork lock, which a fold holds for about 200 ms:
+  - The tool's per-frame "earthwork ready" check took the lock, so the frame after a fold started froze for up to
+    175 ms. The check now reads a lock-free flag.
+  - `DetailOf` and `WritesOf` took the lock too, and a new session reads them. That gave a 45 ms frame after Revert.
+    They now read a copy of the cache published at each prime and accept. The fold's own reads still go through the
+    lock, so its output is unchanged.
+- **Garbage:**
+  - The snowpack keeps its working tables (about 12 MB a pass on the 1,000-cell ring, twice a second while painting).
+  - The pipeline keeps each tile's packed trees instead of rereading the file on every catch-up.
+  - The splat's shade, its row sums and the cover windows come from a pool.
+  - The stroke's preview rebuilds only the tiles changed since the last one.
+  - Tests prove each gives the same bytes: Core `KeptScratchGivesTheSameSnowAsNewTables` and
+    `BR21_APreviewRebuiltOnlyWhereItChangedIsTheFullPreview`. EditMode `SplatRegionTests` now runs on reused arrays.
+- **The close ask** takes the pane's foot (`ToolWindow.SetAskRow`): Confirm (Enter), Revert and Keep painting, with
+  the keys row and the normal Confirm and Revert hidden until it's answered, as in the mockup's `terrainask`.
+
+### Left as it is
+- **Garbage while dragging 400 ft is still about 167 KB a frame** (the target was 64 KB). Whole-heap counters put most
+  of it in planning each catch-up's patches, but they can't separate a worker's allocations from the main thread's,
+  so the rest wasn't pinned down. It causes 3 collections in the 4 s drag and no frame over budget.
+- **Confirm on the very frame of letting go** still waits for the fold: about 220 ms, within its 250 ms target.

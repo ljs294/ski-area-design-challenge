@@ -115,8 +115,11 @@ namespace MountainPlanner.Domain.Design
         readonly IHeightSource _source;
         readonly EarthworkSite _site;
         readonly Dictionary<ulong, Entry> _cache = new Dictionary<ulong, Entry>();
+        // The cache as last primed or accepted, for readers outside the lock (a tool asks every frame, and a rebuild holds the
+        // lock for its whole fold): replaced whole, never changed, so a read needs no lock.
+        volatile Dictionary<ulong, Entry> _published = new Dictionary<ulong, Entry>();
         readonly object _gate = new object();
-        bool _primed;
+        volatile bool _primed;   // read without the lock: a tool asks every frame, and a rebuild holds the lock for its whole fold
         long _version;
 
         public DesignEarthwork(IHeightSource source, EarthworkSite site)
@@ -126,7 +129,7 @@ namespace MountainPlanner.Domain.Design
         }
 
         public EarthworkSite Site => _site;
-        public bool Primed { get { lock (_gate) return _primed; } }
+        public bool Primed => _primed;
 
         /// <summary>
         /// The result of a rebuild. Its pieces' new writes are remembered only once <see cref="Accept"/> takes it (the
@@ -180,6 +183,7 @@ namespace MountainPlanner.Domain.Design
                 var overlay = new Dictionary<ulong, Entry>();
                 Fold(items, committed ?? TerrainEdits.Empty, tiles, new HashSet<ulong>(), PointRect.Empty, overlay, foreign: false, out _);
                 foreach (var kv in overlay) _cache[kv.Key] = kv.Value;
+                _published = new Dictionary<ulong, Entry>(_cache);
                 _version++;
                 _primed = true;
             }
@@ -245,16 +249,14 @@ namespace MountainPlanner.Domain.Design
                     if (kv.Value == null) _cache.Remove(kv.Key);
                     else _cache[kv.Key] = kv.Value;
                 }
+                _published = new Dictionary<ulong, Entry>(_cache);
                 _version++;
                 return true;
             }
         }
 
         /// <summary>What a piece's last accepted grade handed back, or null.</summary>
-        public object DetailOf(ulong key)
-        {
-            lock (_gate) return Find(_cache, key);
-        }
+        public object DetailOf(ulong key) => Find(_published, key);
 
         /// <summary>A piece's detail, or its share of a grouped one (NT2: a split chain graded under its top part's key).</summary>
         static object Find(Dictionary<ulong, Entry> entries, ulong key)
@@ -269,7 +271,7 @@ namespace MountainPlanner.Domain.Design
         /// <summary>A piece's last accepted writes, or null (tests, the trail map).</summary>
         public EarthworkWrites WritesOf(ulong key)
         {
-            lock (_gate) return _cache.TryGetValue(key, out var e) ? e.Writes : null;
+            return _published.TryGetValue(key, out var e) ? e.Writes : null;
         }
 
         List<IEarthworkItem> Collect(DesignDocument doc)

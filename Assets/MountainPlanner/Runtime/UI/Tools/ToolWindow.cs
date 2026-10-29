@@ -17,7 +17,9 @@ namespace MountainPlanner.UI.Tools
     {
         public readonly HudWindow Window;
         readonly Label _name, _ask, _hint, _msg;
-        readonly VisualElement _opts, _steps, _keys, _kv, _btns, _acts, _msgs, _extra;
+        readonly VisualElement _opts, _steps, _keys, _kv, _btns, _acts, _msgs, _extra, _askActs;
+        Label _askKbd;
+        GameAction _askKey;
         string _extraKey;
         readonly Button _next, _go, _plan;
         readonly Label _goKbd, _nextKbd, _goLabel;
@@ -100,6 +102,8 @@ namespace MountainPlanner.UI.Tools
             _plan.AddToClassList("mp-ghost");
             _acts.Add(_go);
             _acts.Add(_plan);
+            Window.Body.Add(_askActs = Part("toolwin-askacts", "tw-acts"));
+            _askActs.AddToClassList("hidden");
             SetCommit(false, false);
             _kv.AddToClassList("hidden");
             _keys.AddToClassList("hidden");
@@ -163,6 +167,7 @@ namespace MountainPlanner.UI.Tools
         {
             _nextKbd.text = KeyBindings.Caption(GameAction.ToolNext);
             _goKbd.text = KeyBindings.Caption(GameAction.BreakGround);
+            if (_askKbd != null) _askKbd.text = KeyBindings.Caption(_askKey);
             if (_keyItems != null) SetKeys(_keyItems);
         }
 
@@ -607,7 +612,7 @@ namespace MountainPlanner.UI.Tools
                 item.Add(t);
                 _keys.Add(item);
             }
-            _keys.EnableInClassList("hidden", items.Length == 0);
+            _keys.EnableInClassList("hidden", items.Length == 0 || Asking);
         }
 
         // ---------- review and buttons ----------
@@ -670,6 +675,49 @@ namespace MountainPlanner.UI.Tools
                 _extra.Add(button);
             }
         }
+
+        /// <summary>
+        /// A question that takes over the pane's foot (BR18, the mockup's <c>terrainask</c>): <paramref name="text"/> in the
+        /// head and its own buttons in place of the keys and the commit buttons, the first one the main button with
+        /// <paramref name="key"/>'s caption. A null text puts the keys and the commit buttons back.
+        /// </summary>
+        public void SetAskRow(string text, GameAction key, params (string Name, string Text, Action Click)[] buttons)
+        {
+            bool asking = !string.IsNullOrEmpty(text);
+            SetAsking(text);
+            _askActs.Clear();
+            _askKbd = null;
+            if (asking)
+                for (int i = 0; i < buttons.Length; i++)
+                {
+                    var click = buttons[i].Click;
+                    var button = new Button(() => click?.Invoke()) { name = "toolwin-btn-" + buttons[i].Name };
+                    if (i == 0)
+                    {
+                        button.AddToClassList("mp-go");
+                        var label = new Label(buttons[i].Text) { pickingMode = PickingMode.Ignore };
+                        label.AddToClassList("tw-go__label");
+                        button.Add(label);
+                        _askKey = key;
+                        _askKbd = new Label(KeyBindings.Caption(key)) { pickingMode = PickingMode.Ignore };
+                        _askKbd.AddToClassList("tw-go__kbd");
+                        button.Add(_askKbd);
+                    }
+                    else
+                    {
+                        button.AddToClassList("mp-ghost");
+                        button.text = buttons[i].Text;
+                    }
+                    _askActs.Add(button);
+                }
+            Asking = asking;
+            _askActs.EnableInClassList("hidden", !asking);
+            _acts.EnableInClassList("hidden", asking);
+            _keys.EnableInClassList("hidden", asking || _keyItems == null || _keyItems.Length == 0);
+        }
+
+        /// <summary>Whether <see cref="SetAskRow"/>'s question holds the pane's foot.</summary>
+        public bool Asking { get; private set; }
 
         /// <summary>The Next button (with its key): shown before the review step, live once the step is done.</summary>
         public void SetNext(bool shown, bool live)

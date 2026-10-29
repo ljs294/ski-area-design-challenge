@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -39,6 +40,8 @@ namespace MountainPlanner.Presentation.Edits
         public struct Report
         {
             public double PlanMs, HeightsMs, SplatMs, TreesMs, TotalMs, SnowMs;
+            /// <summary>How long the change waited behind the ones before it in the queue, ms.</summary>
+            public double QueuedMs;
             /// <summary>Task 08's breakdown of the plan: worker time on posts, on cover and on trees (summed over threads).</summary>
             public double PostsWorkMs, CoverWorkMs, TreesPlanMs;
             public int CacheTiles, Patches, Posts, Texels, Trees, Cleared;
@@ -159,14 +162,16 @@ namespace MountainPlanner.Presentation.Edits
         {
             if (ground == null) throw new ArgumentNullException(nameof(ground));
             if (clearing == null) throw new ArgumentNullException(nameof(clearing));
-            var next = _queue.ContinueWith(_ => ApplyOneAsync(ground, clearing, commit, heightsUp, ct), CancellationToken.None, TaskContinuationOptions.None,
+            long queued = Stopwatch.GetTimestamp();
+            var next = _queue.ContinueWith(_ => ApplyOneAsync(ground, clearing, commit, heightsUp, queued, ct), CancellationToken.None, TaskContinuationOptions.None,
                                            TaskScheduler.FromCurrentSynchronizationContext()).Unwrap();
             _queue = next;
             return next;
         }
 
-        async Task ApplyOneAsync(TerrainEdits ground, TerrainEdits clearing, bool commit, bool heightsUp, CancellationToken ct)
+        async Task ApplyOneAsync(TerrainEdits ground, TerrainEdits clearing, bool commit, bool heightsUp, long queued, CancellationToken ct)
         {
+            double queuedMs = (Stopwatch.GetTimestamp() - queued) * 1000.0 / Stopwatch.Frequency;
             var fromGround = ShownGround;
             var fromClearing = ShownClearing;
             var heights = new EditedHeights(_source, _lattice, ground);
@@ -181,16 +186,19 @@ namespace MountainPlanner.Presentation.Edits
             var ranges = _ranges;
             List<Patch> patches;
             var touched = new List<EditTileKey>();
+            // BR21: a brush session's shown changes plan on few threads, so the frame drawing meanwhile keeps the CPU: a live
+            // catch-up on one, Ctrl+Z and Revert on two, and so does a commit of the ground already shown (Confirm: only the
+            // clearing moves, right at the click); other commits (undo, redo, load) on all the workers, as before.
+            int threads = commit ? (ReferenceEquals(fromGround, ground) ? 2 : 0) : heightsUp ? 1 : 2;
             (patches, report) = await Task.Run(() =>
             {
                 var r = new Report();
-                // BR21: a brush session's shown changes plan on few threads, so the frame drawing meanwhile keeps the CPU: a live
-                // catch-up on one, Ctrl+Z and Revert on two; a commit (undo, redo, load, Confirm) on all the workers, as before.
-                var list = Plan(fromGround, ground, fromClearing, clearing, heights, heightsUp, commit ? 0 : heightsUp ? 1 : 2, trees, ranges, touched, ref r);
+                var list = Plan(fromGround, ground, fromClearing, clearing, heights, heightsUp, threads, trees, ranges, touched, ref r);
                 return (list, r);
             }, ct);
             _touched.UnionWith(touched);
             report.PlanMs = total.Elapsed.TotalMilliseconds;
+            report.QueuedMs = queuedMs;
 
             // Main thread: heights a tile at a time, then splat, then trees, each by rectangle; past the frame's budget the
             // rest waits for the next frame (BR21), so a big change lands over a few frames instead of in one long one.
@@ -279,7 +287,7 @@ namespace MountainPlanner.Presentation.Edits
             Last = report;
             UnityEngine.Debug.Log($"[TerrainEdits] frame {Time.frameCount}: {report.Patches} patches over {report.CacheTiles} tiles: {report.Posts:N0} posts, {report.Texels:N0} texels, " +
                                   $"{report.Trees:N0} trees ({report.Cleared:N0} cleared); plan {report.PlanMs:F1} ms, heights {report.HeightsMs:F1}, " +
-                                  $"splat {report.SplatMs:F1}, trees {report.TreesMs:F1}, total {report.TotalMs:F1} ms{(commit ? "" : heightsUp ? " (shown, heights live)" : " (shown)")} " +
+                                  $"splat {report.SplatMs:F1}, trees {report.TreesMs:F1}, total {report.TotalMs:F1} ms, queued {report.QueuedMs:F1}{(commit ? "" : heightsUp ? " (shown, heights live)" : " (shown)")} " +
                                   $"(worker: posts {report.PostsWorkMs:F0}, cover {report.CoverWorkMs:F0}, tree plan {report.TreesPlanMs:F0})");
             if (_states != null) RebuildSnow(patches, heights, ct);
         }
@@ -375,7 +383,7 @@ namespace MountainPlanner.Presentation.Edits
                 {
                     if (!ranges.TryGetValue(key, out var range) || range.Count == 0) continue;
                     var tile = _cacheTiles[key];
-                    byte[] packed = TerrainCache.ReadTrees(_folder, tile);
+                    byte[] packed = PackedTrees(key, tile);
                     int count = packed.Length / ForestField.BytesPerTree;
                     if (count != range.Count) throw new InvalidOperationException($"Tile {key} has {count} trees in the cache and {range.Count} on screen.");
                     var b = _grid.Bounds(new TileKey(key.Item1, key.Item2));
@@ -402,6 +410,19 @@ namespace MountainPlanner.Presentation.Edits
                 }
             report.TreesPlanMs = treeWatch.Elapsed.TotalMilliseconds;
             return patches;
+        }
+
+        // Each tile's packed trees as the cache holds them (they never change while the mountain is open), read and checked
+        // once instead of on every catch-up.
+        readonly Dictionary<(int, int), byte[]> _packedTrees = new Dictionary<(int, int), byte[]>();
+
+        byte[] PackedTrees((int, int) key, CacheTile tile)
+        {
+            lock (_packedTrees)
+            {
+                if (!_packedTrees.TryGetValue(key, out var packed)) _packedTrees[key] = packed = TerrainCache.ReadTrees(_folder, tile);
+                return packed;
+            }
         }
 
         /// <summary>
@@ -449,10 +470,11 @@ namespace MountainPlanner.Presentation.Edits
                 int reach = SplatTexels.ShadeReach(n);
                 int wi0 = Math.Max(0, ti0 - reach), wi1 = Math.Min(n, ti1 + reach), wj0 = Math.Max(0, tj0 - reach), wj1 = Math.Min(n, tj1 + reach);
                 int ww = wi1 - wi0, wh = wj1 - wj0;
-                var cover = new byte[ww * wh * TerrainCache.CoverBands];
+                var cover = ArrayPool<byte>.Shared.Rent(ww * wh * TerrainCache.CoverBands);   // scratch: composed, then handed back
                 _cover.BuildRegion(b, n, wi0, wj0, wi1, wj1, heights, clearing.IsCleared, cover);
                 var inner = new RectInt(ti0, tj0, ti1 - ti0, tj1 - tj0);
                 patch.Splat = SplatTexels.ComposeWindow(cover, n, wi0, wj0, ww, wh, ww, inner);
+                ArrayPool<byte>.Shared.Return(cover);
                 patch.SplatX = ti0;
                 patch.SplatY = n - tj1;
                 report.Texels += inner.width * inner.height;
@@ -494,6 +516,7 @@ namespace MountainPlanner.Presentation.Edits
         readonly Stopwatch _snowSince = new Stopwatch();
         // The snowpack's inputs as the worker reads them and its output, kept and reused (no garbage a change).
         float[] _snowElevation, _snowCanopy, _snowResult;
+        readonly Snowpack.Scratch _snowScratch = new Snowpack.Scratch();   // one snowpack works at a time
 
         /// <summary>
         /// The snowpack and contour labels over the edited ground: the changed cells' elevation and canopy (as the opener
@@ -568,7 +591,7 @@ namespace MountainPlanner.Presentation.Edits
                     var shown = _depth;
                     var (labels, x0, y0, x1, y1) = await Task.Run(() =>
                     {
-                        Snowpack.Compute(width, depth, cell, elevation, canopy, convergence, result);
+                        Snowpack.Compute(width, depth, cell, elevation, canopy, convergence, result, _snowScratch);
                         var l = new ContourLabel[2][];
                         foreach (var units in new[] { UnitSystem.Imperial, UnitSystem.Metric })
                             l[(int)units] = ContourLabels.Place(width, depth, cell, ring.xMin, ring.yMin, elevation, units);

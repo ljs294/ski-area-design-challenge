@@ -536,6 +536,30 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void BR21_APreviewRebuiltOnlyWhereItChangedIsTheFullPreview()
+        {
+            // A brush's catch-ups preview a few times a second, rebuilding only the tiles changed since the last one; each must
+            // equal a fresh run's preview of the same dabs, tile for tile (heights and cleared cells).
+            foreach (var (name, settings, ground) in Strokes())
+            {
+                var under = Earlier(ground);
+                var run = Run(settings, ground, under);
+                var laid = new List<BrushDab>();
+                foreach (var d in Across())
+                {
+                    run.Dab(d);
+                    laid.Add(d);
+                    if (laid.Count % 5 != 2) continue;
+                    var fresh = Run(settings, ground, under);
+                    foreach (var f in laid) fresh.Dab(f);
+                    var kept = run.Preview(under);
+                    Assert.That(TerrainEdits.Changed(fresh.Preview(under), kept), Is.Empty, $"{name}: after dab {laid.Count}");
+                }
+                Assert.That(TerrainEdits.Changed(run.Preview(Earlier(ground)), run.Preview(under)), Is.Empty, $"{name}: over a new set, built whole");
+            }
+        }
+
+        [Test]
         public void BR14_TheRunningBillIsTheFullCount()
         {
             foreach (var (name, settings, ground) in Strokes())
