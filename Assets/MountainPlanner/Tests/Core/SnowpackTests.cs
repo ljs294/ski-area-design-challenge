@@ -99,6 +99,38 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void KeptScratchGivesTheSameSnowAsNewTables()
+        {
+            // A brush's snowpacks reuse one scratch (no garbage a call): each call's depths equal a fresh call's, on any terrain.
+            var scratch = new Snowpack.Scratch();
+            for (int k = 0; k < 3; k++)
+            {
+                int w = 80, h = 70;
+                var e = new float[w * h];
+                var c = new float[w * h];
+                for (int y = 0; y < h; y++)
+                    for (int x = 0; x < w; x++)
+                    {
+                        e[y * w + x] = (float)(1800 + 120 * Math.Sin(x * 0.11 * (k + 1)) * Math.Cos(y * 0.07) + 3 * x - 40 * k);
+                        c[y * w + x] = (x * 7 + y * 3 + k) % 10 / 10f;
+                    }
+                if (k == 1) e[5 * w + 5] = float.NaN;   // a hole in the data too
+                var fresh = new float[w * h];
+                var kept = new float[w * h];
+                Snowpack.Compute(w, h, Cell, e, c, 8.95, fresh);
+                Snowpack.Compute(w, h, Cell, e, c, 8.95, kept, scratch);
+                Assert.That(kept, Is.EqualTo(fresh), $"call {k}");
+            }
+            var small = new float[20 * 10];
+            var smallFresh = new float[20 * 10];
+            var flat = Enumerable.Repeat(1500f, 200).ToArray();
+            var none = new float[200];
+            Snowpack.Compute(20, 10, Cell, flat, none, 0, smallFresh);
+            Snowpack.Compute(20, 10, Cell, flat, none, 0, small, scratch);   // another size: its own tables
+            Assert.That(small, Is.EqualTo(smallFresh));
+        }
+
+        [Test]
         public void TheFieldTakesAWholeModelAndMarksItAllChanged()
         {
             var field = new SnowDepthField(4, 3, 8);

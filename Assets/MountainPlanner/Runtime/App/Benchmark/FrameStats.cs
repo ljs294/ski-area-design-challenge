@@ -21,7 +21,7 @@ namespace MountainPlanner.App
         long _heapStart, _heapEnd = -1;
         int _collectionsStart, _collectionsEnd;
         /// <summary>The first frames that allocated: when (seconds into the measurement) and how much, to find the source.</summary>
-        const int MaxGcEvents = 16;
+        const int MaxGcEvents = 64;
         readonly float[] _gcEventSeconds = new float[MaxGcEvents];
         readonly long[] _gcEventBytes = new long[MaxGcEvents];
         int _gcEvents;
@@ -206,7 +206,7 @@ namespace MountainPlanner.App
             /// <summary>Peak graphics memory and peak memory Unity tracks for the process (MB; -1 where not recorded).</summary>
             public float gfxMemoryMBMax, totalMemoryMBMax;
             /// <summary>The managed heap's growth and the garbage collections between Reset and Stop (-1 without Stop): the release player's garbage check.</summary>
-            /// <summary>The first frames that allocated (up to 16): seconds into the measurement, and bytes.</summary>
+            /// <summary>The first frames that allocated (up to 64): seconds into the measurement, and bytes.</summary>
             public float[] gcEventSeconds;
             public long[] gcEventBytes;
             public long heapGrowthBytes;

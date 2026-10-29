@@ -226,7 +226,7 @@ namespace MountainPlanner.App
         [Serializable]
         public sealed class BrushBenchReport
         {
-            public string schema = "mountain-planner-brush-benchmark/2";
+            public string schema = "mountain-planner-brush-benchmark/3";
             public string commit, measuredUtc, gpu, cpu, site;
             public BrushPass brush60, brush400;
             /// <summary>From asking to confirm to the ground committed, ms (before BR17: Break ground's review, then Confirm).</summary>
@@ -235,6 +235,13 @@ namespace MountainPlanner.App
             public Timing confirmFrames, revertFrames;
             /// <summary>The built lifts and trail lines rebuilt after Confirm, ms on the main thread.</summary>
             public double confirmBuiltMs;
+            /// <summary>Confirm's parts, ms: the fold's Apply and Rebuild, the click to the fold landing, and the commit apply's wait in the queue and its own time.</summary>
+            public double confirmFoldApplyMs, confirmFoldRebuildMs, confirmLandedMs, confirmQueuedMs, confirmApplyMs;
+            /// <summary>Confirm clicked the frame after letting go of a 400 ft stroke (its fold has only just started), ms to committed, and the frames until then.</summary>
+            public double toCommittedOnLetGoMs;
+            public Timing confirmOnLetGoFrames;
+            /// <summary>BR22: towers the brush moved live over the whole bench, and towers Confirm then moved (0: the brush had moved them).</summary>
+            public int towersMovedLive, towersMovedAtConfirm = -1;
             /// <summary>BR21: values on screen that differ from a fresh apply of the committed ground, after Confirm and after Revert (0 = none).</summary>
             public int shownDiffersAfterConfirm = -1, shownDiffersAfterRevert = -1;
             public string shownNote;
@@ -246,15 +253,25 @@ namespace MountainPlanner.App
         public sealed class BrushPass
         {
             public int feet;
-            public Timing frame, gpu, live, dabs, preview, bill, sample, set, sync, release;
+            public Timing frame, gpu, live, dabs, preview, bill, sample, set, sync, release, trees, towers;
+            /// <summary>BR22: trees stood again or taken out live over the drag.</summary>
+            public long treesMovedLive;
+            /// <summary>Drag frames longer than one 60 Hz refresh (16.7 ms): each one is a dropped frame (round 4's target is none).</summary>
+            public int framesOverRefresh;
             public long gcBytesPerFrame, gcBytesMaxFrame, gcFramesWithAllocations, heapGrowthBytes;
             public int gcCollections;
+            /// <summary>The first drag frames that allocated (Development game): seconds into the drag, and bytes, to find the source.</summary>
+            public float[] gcEventSeconds;
+            public long[] gcEventBytes;
             /// <summary>Letting go: the stroke's tiles built and handed over on the main thread, ms.</summary>
             public double finishMs, finishPreviewMs;
         }
 
         [Serializable]
         public struct Timing { public double p50, p95, max; public int n; }
+
+        /// <summary>One refresh of the owner's 60 Hz monitor, ms: a frame longer than this is a dropped frame.</summary>
+        public const double RefreshMs = 1000.0 / 60;
 
         static Timing Summarise(List<double> ms)
         {
@@ -279,12 +296,14 @@ namespace MountainPlanner.App
             Ground.Start();
             while (!Ground.Ready) yield return null;
             if (!BuildBrushLift()) yield break;
+            LiveTowersMoved = 0;
             Hud.SetToolboxTab("terrain");
             Hud.SetToolbox(true);
             _toolScripted = true;
             _tools.Choose(TerrainIds.Raise);
             var tool = (TerrainBrushTool)_tools.Active;
             var pipeline = _edits?.Pipeline;
+            Presentation.Edits.TerrainEditPipeline.Verbose = true;   // every apply in the log, to read the frames against
             var report = new BrushBenchReport { site = _brushShift == Vector2.zero ? "jh2km" : $"jh2km {_brushShift.x:F0},{_brushShift.y:F0}" };
             var stats = new FrameStats(4096);
             for (int pass = 0; pass < 2; pass++)
@@ -292,13 +311,14 @@ namespace MountainPlanner.App
                 int feet = pass == 0 ? 60 : 400;
                 tool.SetBrush(feet, 60);
                 for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; }
-                var parts = new List<double>[9];
+                var parts = new List<double>[11];
                 for (int k = 0; k < parts.Length; k++) parts[k] = new List<double>(256);
                 var a = new Vector2(120, -450 - pass * 150);
                 var b = new Vector2(360, -450 - pass * 150);
                 _tools.Tick(BrushInput(a, left: true, click: true));
                 yield return null;
                 stats.Reset();
+                long treesMoved = 0;
                 int steps = 120;   // 4 s at 30 a second, 2 m a tick
                 for (int t = 1; t <= steps; t++)
                 {
@@ -306,22 +326,36 @@ namespace MountainPlanner.App
                     var tick = tool.LastTick;
                     parts[0].Add(pipeline?.LastLiveMs ?? 0);
                     parts[1].Add(tick.Dabs);
-                    parts[2].Add(0);   // no Preview a frame since BrushRun.Live
+                    parts[2].Add(tick.CatchUp);   // the catch-up's main-thread start (its Preview and enqueue), every 0.2 s
                     parts[3].Add(tick.Bill);
                     parts[4].Add(pipeline?.LastLiveSampleMs ?? 0);
                     parts[5].Add(pipeline?.LastLiveSetMs ?? 0);
                     parts[6].Add(pipeline?.LastLiveSyncMs ?? 0);
+                    parts[9].Add(pipeline?.LastLiveTreesMs ?? 0);
+                    parts[10].Add(LastLiveTowersMs);
+                    treesMoved += pipeline?.LastLiveTrees ?? 0;
                     yield return null;
                     float gpu = FrameStats.SampleGpuMs();
                     stats.Record(Time.unscaledDeltaTime, gpu);
-                    parts[7].Add(Time.unscaledDeltaTime * 1000);
+                    float frameMs = Time.unscaledDeltaTime * 1000;
+                    parts[7].Add(frameMs);
                     if (gpu > 0) parts[8].Add(gpu);
+                    if (frameMs > RefreshMs)
+                        Debug.Log($"[BrushBench] frame {Time.frameCount - 1}: {frameMs:F1} ms while painting {feet} ft, tick {t} (live {pipeline?.LastLiveMs ?? 0:F1}, dabs {tick.Dabs:F1}, catch-up {tick.CatchUp:F1}, bill {tick.Bill:F1}, GPU {gpu:F1}, unsynced {pipeline?.LiveUnsynced ?? 0})");
                 }
                 stats.Stop();
                 var release = new List<double>(30);
                 _tools.Tick(BrushInput(b, left: true, release: true));
                 double finishMs = tool.LastFinishMs, finishPreviewMs = tool.LastFinishPreviewMs;
-                for (int i = 0; i < 30; i++) { yield return null; release.Add(Time.unscaledDeltaTime * 1000); }
+                for (int i = 0; i < 30; i++)
+                {
+                    int gcBefore = GC.CollectionCount(0);
+                    _tools.Tick(default);   // as a frame of the game: the tool keeps ticking after the let-go
+                    yield return null;
+                    float ms = Time.unscaledDeltaTime * 1000;
+                    release.Add(ms);
+                    if (ms > 20) Debug.Log($"[BrushBench] frame {Time.frameCount - 1}: {ms:F1} ms after letting go ({GC.CollectionCount(0) - gcBefore} collections, {GC.CollectionCount(0)} so far)");
+                }
                 var sum = stats.Summarise();
                 var bp = new BrushPass
                 {
@@ -330,7 +364,10 @@ namespace MountainPlanner.App
                     release = Summarise(release),
                     gcBytesPerFrame = sum.gcBytesPerFrame, gcBytesMaxFrame = sum.gcBytesMaxFrame, gcFramesWithAllocations = sum.gcFramesWithAllocations,
                     heapGrowthBytes = sum.heapGrowthBytes, gcCollections = sum.gcCollections, finishMs = finishMs, finishPreviewMs = finishPreviewMs,
+                    gcEventSeconds = sum.gcEventSeconds, gcEventBytes = sum.gcEventBytes,
+                    trees = Summarise(parts[9]), towers = Summarise(parts[10]), treesMovedLive = treesMoved,
                 };
+                foreach (double ms in parts[7]) if (ms > RefreshMs) bp.framesOverRefresh++;
                 if (pass == 0) report.brush60 = bp; else report.brush400 = bp;
             }
             stats.Dispose();
@@ -339,37 +376,58 @@ namespace MountainPlanner.App
             report.measuredUtc = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
             report.gpu = SystemInfo.graphicsDeviceName;
             report.cpu = SystemInfo.processorType;
-            report.pass = report.brush400.frame.p95 <= 20 && report.brush60.live.p95 <= 8 && report.brush400.live.p95 <= 16 && report.toCommittedMs <= 250
-                          && report.brush400.release.max <= 20 && report.confirmFrames.max <= 20 && report.revertFrames.max <= 20
+            // Round 4 (owner, 2026-10-29: a brush like Cities Skylines 2's on a 60 Hz monitor): the 400 ft drag at 12 ms p95 with no frame
+            // over a refresh, and none after letting go, Confirm or Revert. The garbage is reported beside it (docs/perf/brush-drag.md
+            // round 4: about 80 KB a frame and 2 collections in the Development game, neither costing a frame; the catch-ups' tiles and lists).
+            report.pass = report.brush400.frame.p95 <= 12 && report.brush400.framesOverRefresh == 0 && report.brush60.live.p95 <= 8 && report.brush400.live.p95 <= 8
+                          && report.toCommittedMs <= 150 && report.toCommittedOnLetGoMs <= 250 && report.confirmOnLetGoFrames.max <= RefreshMs
+                          && report.brush400.release.max <= RefreshMs && report.confirmFrames.max <= RefreshMs && report.revertFrames.max <= RefreshMs
                           && report.shownDiffersAfterConfirm == 0 && report.shownDiffersAfterRevert == 0;
             File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             foreach (var p in new[] { report.brush60, report.brush400 })
                 Debug.Log(string.Format(inv,
-                    "[BrushBench] {0} ft: frame p95 {1:F1} ms (GPU {2:F1}); live {3:F1} = sample {4:F1} + set {5:F1} + sync {6:F1}; dabs {7:F1}; preview {8:F1}; bill p95 {9:F1} max {10:F1}; release frame p95 {11:F1} max {12:F1} (finish {16:F1}, tiles {17:F1}); GC {13} B/frame in {14} frames, {15} collections",
-                    p.feet, p.frame.p95, p.gpu.p95, p.live.p95, p.sample.p95, p.set.p95, p.sync.p95, p.dabs.p95, p.preview.p95, p.bill.p95, p.bill.max,
-                    p.release.p95, p.release.max, p.gcBytesPerFrame, p.gcFramesWithAllocations, p.gcCollections, p.finishMs, p.finishPreviewMs));
-            Debug.Log(string.Format(inv, "[BrushBench] confirm frames p95 {0:F1} max {1:F1} (built {2:F1} ms); revert frames p95 {3:F1} max {4:F1}; shown vs fresh: {5} after Confirm, {6} after Revert{7}",
+                    "[BrushBench] {0} ft: frame p95 {1:F1} max {18:F1} ms, {19} over a refresh (GPU {2:F1}); live {3:F1} = sample {4:F1} + set {5:F1} + sync {6:F1} + trees {20:F1} ({22:N0} moved); towers p95 {21:F1}; dabs {7:F1}; catch-up max {8:F1}; bill p95 {9:F1} max {10:F1}; release frame p95 {11:F1} max {12:F1} (finish {16:F1}, tiles {17:F1}); GC {13} B/frame in {14} frames, {15} collections",
+                    p.feet, p.frame.p95, p.gpu.p95, p.live.p95, p.sample.p95, p.set.p95, p.sync.p95, p.dabs.p95, p.preview.max, p.bill.p95, p.bill.max,
+                    p.release.p95, p.release.max, p.gcBytesPerFrame, p.gcFramesWithAllocations, p.gcCollections, p.finishMs, p.finishPreviewMs, p.frame.max, p.framesOverRefresh,
+                    p.trees.p95, p.towers.p95, p.treesMovedLive));
+            Debug.Log(string.Format(inv, "[BrushBench] confirm frames p95 {0:F1} max {1:F1} (built {2:F1} ms, {8} towers moved; {9} moved live); revert frames p95 {3:F1} max {4:F1}; shown vs fresh: {5} after Confirm, {6} after Revert{7}",
                 report.confirmFrames.p95, report.confirmFrames.max, report.confirmBuiltMs, report.revertFrames.p95, report.revertFrames.max,
-                report.shownDiffersAfterConfirm, report.shownDiffersAfterRevert, report.shownNote != null ? " (" + report.shownNote + ")" : ""));
-            Debug.Log(string.Format(inv, "[BrushBench] to committed {0:F0} ms (review {1:F0}, confirm {2:F0}); {3}",
-                report.toCommittedMs, report.reviewMs, report.confirmMs, report.pass ? "PASS" : "FAIL"));
+                report.shownDiffersAfterConfirm, report.shownDiffersAfterRevert, report.shownNote != null ? " (" + report.shownNote + ")" : "",
+                report.towersMovedAtConfirm, report.towersMovedLive));
+            Debug.Log(string.Format(inv, "[BrushBench] to committed {0:F0} ms (fold landed at {1:F0}: apply {2:F0}, rebuild {3:F0}; commit apply queued {4:F0}, took {5:F0}); on let-go {6:F0} ms (frames max {7:F1}); {8}",
+                report.toCommittedMs, report.confirmLandedMs, report.confirmFoldApplyMs, report.confirmFoldRebuildMs, report.confirmQueuedMs,
+                report.confirmApplyMs, report.toCommittedOnLetGoMs, report.confirmOnLetGoFrames.max, report.pass ? "PASS" : "FAIL"));
             _toolScripted = false;
             Application.Quit();
         }
 
-        // From Confirm to the ground committed (BR17: no review page, so reviewMs stays 0), with every frame until 30 after it
+        // From Confirm, a second after letting go, to the ground committed (BR17: no review page, so reviewMs stays 0), with every frame until 30 after it
         // has landed (BR21: no hitch); then a 400 ft stroke and Revert, with the 30 frames after.
+        static void SlowAfter(string what)
+        {
+            float ms = Time.unscaledDeltaTime * 1000;
+            if (ms > 16) Debug.Log($"[BrushBench] frame {Time.frameCount - 1}: {ms:F1} ms after {what}");
+        }
+
         IEnumerator BenchConfirm(TerrainBrushTool tool, BrushBenchReport report)
         {
+            // A player's pause between letting go and clicking Confirm: a second, the tool ticking as in the game.
             var watch = System.Diagnostics.Stopwatch.StartNew();
+            while (watch.Elapsed.TotalSeconds < 1) { _tools.Tick(default); yield return null; }
+            watch.Restart();
             var frames = new List<double>(256);
             _tools.Confirm(WorkStage.Built);
-            while (tool.Confirming || EditsBusy) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); }
+            while (tool.Confirming || EditsBusy) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); SlowAfter("Confirm"); }
             report.confirmMs = report.toCommittedMs = watch.Elapsed.TotalMilliseconds;
-            for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); }
+            (report.confirmFoldApplyMs, report.confirmFoldRebuildMs) = tool.LastFold;
+            report.confirmLandedMs = tool.LastConfirmToLandedMs;
+            if (_edits != null) { var last = _edits.Pipeline.Last; report.confirmQueuedMs = last.QueuedMs; report.confirmApplyMs = last.TotalMs; }
+            for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); SlowAfter("Confirm"); }
             report.confirmFrames = Summarise(frames);
             report.confirmBuiltMs = LastBuiltMs;
+            report.towersMovedAtConfirm = LastBuiltTowersMoved;
+            report.towersMovedLive = LiveTowersMoved;
             if (_edits != null) { report.shownDiffersAfterConfirm = _edits.Pipeline.CheckShown(out string note); report.shownNote ??= note; }
 
             var a = new Vector2(140, -360);
@@ -394,6 +452,22 @@ namespace MountainPlanner.App
             report.revertFrames = Summarise(frames);
             while (EditsBusy) yield return null;
             if (_edits != null) { report.shownDiffersAfterRevert = _edits.Pipeline.CheckShown(out string note); report.shownNote ??= note; }
+
+            // Confirm the frame after letting go: the fold started at the let-go has barely begun, so this is the slowest case.
+            _tools.Tick(BrushInput(a, left: true, click: true));
+            yield return null;
+            for (int t = 1; t <= 90; t++) { _tools.Tick(BrushInput(Vector2.Lerp(a, b, t / 90f), left: true)); yield return null; }
+            _tools.Tick(BrushInput(b, left: true, release: true));
+            yield return null;
+            frames.Clear();
+            Debug.Log($"[BrushBench] frame {Time.frameCount}: Confirm on let-go");
+            watch.Restart();
+            _tools.Confirm(WorkStage.Built);
+            while (tool.Confirming || EditsBusy) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); if (watch.Elapsed.TotalSeconds > 20) break; }
+            report.toCommittedOnLetGoMs = watch.Elapsed.TotalMilliseconds;
+            for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); }
+            report.confirmOnLetGoFrames = Summarise(frames);
+            if (_edits != null && report.shownDiffersAfterConfirm == 0) { report.shownDiffersAfterConfirm = _edits.Pipeline.CheckShown(out string note); report.shownNote ??= note; }
         }
     }
 }

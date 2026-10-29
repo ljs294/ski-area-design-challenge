@@ -144,6 +144,16 @@ namespace MountainPlanner.UI.Tools
             _pending.Add(new Pending<T>(Task.Run(work), NextStamp(), done, this));
         }
 
+        /// <summary>
+        /// As <see cref="Analyse{T}"/>, for work already running (a terrain brush's fold, started when a press ended): its
+        /// result reaches <paramref name="done"/> only if nothing moved on since this call.
+        /// </summary>
+        public void Await<T>(Task<T> work, Action<T> done)
+        {
+            if (_disarmed) return;
+            _pending.Add(new Pending<T>(work, NextStamp(), done, this));
+        }
+
         interface IPending { bool Finish(); }
 
         sealed class Pending<T> : IPending

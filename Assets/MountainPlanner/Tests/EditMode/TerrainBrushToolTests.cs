@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
@@ -11,6 +12,7 @@ using MountainPlanner.World;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.UIElements;
 
 namespace MountainPlanner.Tests
 {
@@ -67,6 +69,10 @@ namespace MountainPlanner.Tests
             public System.Threading.Tasks.Task ShowGround(TerrainEdits ground, TerrainEdits clearing) { GroundShows++; Shown = ground; Clearing = clearing; return System.Threading.Tasks.Task.CompletedTask; }
             public void ContoursWhileArmed(bool armed) => Contours = armed;
             public double LastLiveMs => 0;
+            public bool? Held;
+            public void Painting(bool held) => Held = held;
+            public int Settles;
+            public bool Settle() { Settles++; return false; }
         }
 
         DesignHistory _history;
@@ -139,11 +145,34 @@ namespace MountainPlanner.Tests
             Assert.That(_ground.ShowCalls, Is.EqualTo(0), "BR21: no full apply when the stroke ends");
             Assert.That(_ground.CatchUps, Is.GreaterThan(1), "the cover, trees' footing and snow caught up while it was held");
             Assert.That(_ground.Shown, Is.SameAs(tool.PendingGround), "and once more to the ground let go, so nothing changes after");
-            Assert.That(_ground.Clearing, Is.SameAs(_history.Terrain), "trees stay in until Confirm (BR21)");
+            Assert.That(_ground.Clearing, Is.SameAs(tool.PendingGround), "BR22: the trees come out with the ground, not at Confirm");
             Assert.That(DeltaAt(tool.PendingGround, 0, 0), Is.GreaterThan(0), "left raised");
             Stroke(-20, 20, 60, right: true);
             Assert.That(DeltaAt(tool.PendingGround, 0, 60), Is.LessThan(0), "right lowered");
             Assert.That(_history.Document.Strokes, Is.Empty, "nothing goes in before Confirm (BR17)");
+        }
+
+        [Test]
+        public void BR22_ClearTreesIsTheStrokesOwnAndRemembered()
+        {
+            _host.Choose(TerrainIds.Raise);
+            var tool = (TerrainBrushTool)_host.Active;
+            Assert.That(tool.ClearsTrees, Is.True, "on by default: a stroke clears what it moves a foot (TB-10)");
+            tool.SetClear(false);
+            Stroke(-20, 20, 0, right: false);
+            Assert.That(_ground.Clearing, Is.SameAs(tool.PendingGround));
+            Assert.That(tool.PendingGround.Tiles.Any(t => t.HasClearing), Is.False, "off: nothing cleared, the trees ride the ground");
+            tool.SetClear(true);
+            Stroke(-20, 20, 0, right: false);
+            Assert.That(tool.PendingGround.Tiles.Any(t => t.HasClearing), Is.True, "on again: the next stroke clears");
+            _host.Close();
+            _host.Choose(TerrainIds.Flatten);
+            Assert.That(((TerrainBrushTool)_host.Active).ClearsTrees, Is.True, "remembered across brushes");
+            ((TerrainBrushTool)_host.Active).SetClear(false);
+            _host.Close();
+            _host.Choose(TerrainIds.Raise);
+            Assert.That(((TerrainBrushTool)_host.Active).ClearsTrees, Is.False, "off stays off");
+            ((TerrainBrushTool)_host.Active).SetClear(true);
         }
 
         [Test]
@@ -297,6 +326,41 @@ namespace MountainPlanner.Tests
             Assert.That(revision, Is.LessThan(_history.Revision));
         }
 
+        [UnityTest]
+        public IEnumerator BR17_ConfirmUsesTheFoldStartedWhenThePressEnded()
+        {
+            _host.Choose(TerrainIds.Raise);
+            var tool = (TerrainBrushTool)_host.Active;
+            Stroke(-20, 20, 0, right: false);
+            Stroke(-20, 20, 30, right: false);
+            var started = System.Diagnostics.Stopwatch.StartNew();
+            // The fold starts once the let-go's catch-up has landed, on a later tick.
+            while (!tool.FoldDone && started.Elapsed.TotalSeconds < 60) { _host.Tick(default); yield return null; }
+            Assert.That(tool.FoldDone, Is.True, "letting go folds the session ahead of Confirm");
+            var seen = tool.PendingGround;
+            _host.Confirm(WorkStage.Built);
+            _host.Tick(default);   // the fold is done: Confirm lands on the next tick
+            Assert.That(tool.Confirming, Is.False);
+            Assert.That(tool.FoldWasAhead, Is.True);
+            Assert.That(_history.Document.Strokes.Count, Is.EqualTo(2));
+            Assert.That(_history.Terrain, Is.SameAs(seen), "TB-14: the same set, so nothing re-applies");
+        }
+
+        [UnityTest]
+        public IEnumerator BR17_CtrlZAfterLettingGoFoldsTheSessionAgain()
+        {
+            _host.Choose(TerrainIds.Raise);
+            var tool = (TerrainBrushTool)_host.Active;
+            Stroke(-20, 20, 0, right: false);
+            var one = tool.PendingGround;
+            Stroke(-20, 20, 30, right: false);
+            _host.Tick(At(0, 0, keys: ToolKeys.UndoStroke));
+            _host.Confirm(WorkStage.Built);
+            yield return WhileConfirming(tool);
+            Assert.That(_history.Document.Strokes.Count, Is.EqualTo(1), "the second stroke's fold isn't the one that goes in");
+            Assert.That(_history.Terrain, Is.SameAs(one));
+        }
+
         [Test]
         public void BR17_RevertPutsTheSessionsGroundBack()
         {
@@ -324,9 +388,18 @@ namespace MountainPlanner.Tests
             Assert.That(_host.Escape(), Is.True);
             Assert.That(tool.Asking, Is.True, "Esc with ground not confirmed asks");
             Assert.That(_host.Armed, Is.True);
+            var pane = _host.Context.Window.Window;
+            bool Hidden(string name) => pane.Q(name).ClassListContains("hidden");
+            Assert.That(Hidden("toolwin-acts") && Hidden("toolwin-keys"), Is.True, "the ask's row takes the foot: no second Confirm and Revert (terrainask)");
+            Assert.That(Hidden("toolwin-askacts"), Is.False);
+            Assert.That(pane.Q("toolwin-btn-ask-confirm").ClassListContains("mp-go"), Is.True, "Confirm is the main button");
+            Assert.That(pane.Q("toolwin-btn-ask-revert"), Is.Not.Null);
+            Assert.That(pane.Q("toolwin-btn-ask-keep"), Is.Not.Null);
             _host.Escape();
             Assert.That(tool.Asking, Is.False, "Esc again: keep painting");
             Assert.That(_host.Armed, Is.True);
+            Assert.That(Hidden("toolwin-acts") || Hidden("toolwin-keys"), Is.False, "the keys and the pane's Confirm and Revert come back");
+            Assert.That(Hidden("toolwin-askacts"), Is.True);
             Assert.That(tool.Pending, Is.EqualTo(1), "nothing lost");
             _host.Choose(TerrainIds.Raise);   // its own tile again closes: asks too
             Assert.That(tool.Asking && _host.Armed, Is.True);

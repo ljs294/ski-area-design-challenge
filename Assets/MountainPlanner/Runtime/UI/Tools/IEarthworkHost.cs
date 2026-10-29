@@ -47,6 +47,13 @@ namespace MountainPlanner.UI.Tools
         System.Threading.Tasks.Task ShowGround(TerrainEdits ground, TerrainEdits clearing);
         /// <summary>BR13: the Contours layer on while a brush is armed; off puts back what the player had.</summary>
         void ContoursWhileArmed(bool armed);
+        /// <summary>Round 4: a press is held, so the frame carries the live upload and the catch-ups' slices shrink to fit beside it.</summary>
+        void Painting(bool held);
+        /// <summary>
+        /// Round 4: brings one tile the live upload wrote up to date in Unity (its patch LOD and bounds, a few ms), if any:
+        /// called a frame at a time between presses, and once per catch-up while painting. True if a tile was done.
+        /// </summary>
+        bool Settle();
         /// <summary>How long the last live upload took, ms (the brush bench).</summary>
         double LastLiveMs { get; }
     }

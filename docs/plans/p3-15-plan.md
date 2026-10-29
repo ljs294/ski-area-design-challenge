@@ -213,3 +213,37 @@ I'll ask you before each push, PR and merge.
   - Closing with ground not yet confirmed asks Confirm / Revert / Keep painting.
   - Confirm hands the session's volumes to `IEarthworkCharges`, which the Phase 4 economy will implement.
   - TB-08 and TB-09 are now v2 (p3-02 §4.6). The mockup's `terrainreview` state is now `terrainask`.
+
+## Follow-up: Confirm time, the close ask and drag garbage (2026-10-28, perf/brush-followups)
+- **Confirm lands in about 120 ms** a second after letting go; it was about 260 ms. The session's fold starts when a
+  press ends, and Confirm uses it if nothing changed since. On the very frame of letting go it's about 220 ms.
+- **The close ask** shows only its own row (Confirm, Revert, Keep painting), as in the mockup's `terrainask`.
+- **Garbage while dragging 400 ft** is down from about 546 KB to 167 KB a frame, with 3 collections instead of 7–9.
+- Numbers are in [docs/perf/brush-drag.md](../perf/brush-drag.md) round 3, from `demo.bat` 75.
+
+## Follow-up: a drag like Cities Skylines 2's (2026-10-29, perf/brush-smooth; PR A of three)
+- **Owner, 2026-10-29:** the brush performs like Cities Skylines 2's on a 60 Hz monitor: the ground, the trees and the
+  lift towers move with the mouse every frame, with no dropped frame. Three PRs: **A** the drag itself and its garbage
+  (this one); **B** live trees and towers with a per-stroke **Clear trees** checkbox (BR22, superseding BR21's removal
+  at Confirm; save v9); **C** the instant Confirm (a seeded fold).
+- **The 400 ft drag's frame p95 went from 17–19 ms to 10–12**, with no frame over a refresh (16.7 ms) on either site,
+  with `-force-gfx-mt`, or in the Development game. The package's heights under the brush are memoised, and Unity's
+  whole-tile `SyncHeightmap` no longer runs on dab frames (a PlayMode probe showed `SetHeightsDelayLOD` alone reaches
+  the GPU heightmap); the sync runs once per catch-up and at the let-go, a tile a frame. The heights are byte-identical.
+- **Garbage while dragging** is about 80 KB a frame with 2 collections in the Development game (round 3: 167 KB, 3); neither
+  collection costs a frame. The bench's pass line is now the frames; the garbage prints beside it.
+- Numbers are in [docs/perf/brush-drag.md](../perf/brush-drag.md) round 4, from `demo.bat` 75, which now also runs
+  `-force-gfx-mt`.
+
+## Follow-up: trees and towers live, Clear trees (2026-10-29, feature/brush-live-objects; PR B of three)
+- **BR22 (owner):** the trees stand on the moving ground and come out as it moves, and the towers re-height under their
+  fixed heads, every frame; a **Clear trees** checkbox (TB-10 v2) says whether a stroke clears at all, kept with the
+  stroke in **save v9** (`ClearMm`; design shape 9; v1–v8 strokes migrate to 305 mm, so old saves replay with the same
+  trees; fixture `TestData/formats/v9-save`).
+- **Towers:** a re-height moves the tower's pieces and shows or hides mast sections instead of building it again, so the
+  heads (and their trains' pose) never move. This fixed a bug: a second re-height of the same lift left the old tower
+  standing beside a new one, and tower picking broke after the first.
+- **Trees:** the live upload stands the trees of the 64 m squares under the dabs on the new ground and takes out those in
+  cleared cells, by the same rule an apply uses; the catch-ups no longer touch trees, and the crown map is redrawn once
+  a press is let go.
+- Numbers are in [docs/perf/brush-drag.md](../perf/brush-drag.md) round 5.

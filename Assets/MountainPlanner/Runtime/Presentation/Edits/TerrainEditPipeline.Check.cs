@@ -43,7 +43,7 @@ namespace MountainPlanner.Presentation.Edits
                         for (int j = j0; j <= j1; j++)
                             for (int i = i0; i <= i1; i++)
                             {
-                                float want = Normalised(b, heights, gc, gr, i, j), have = got[j1 - j, i - i0];
+                                float want = Normalised(heights.Edits, gc, gr, i, j), have = got[j1 - j, i - i0];
                                 if (want == have) continue;
                                 if (bad++ == 0) first = $"height at tile ({tc}, {tr}) post ({i}, {j}): {have} on the tile, {want} fresh";
                             }
@@ -61,7 +61,7 @@ namespace MountainPlanner.Presentation.Edits
                     ForestField.Decode(packed, i, out float fx, out float fz, out _, out _, out _, out _);
                     var t = _trees[range.Start + i];
                     uint flags = ForestField.IsCleared(packed, i, b.West, b.North, _cache.TileMetres, Current, _lattice) ? ForestInstance.Cleared : 0u;
-                    float y = GroundY(tile, b, heights, fx, fz);
+                    float y = GroundY(tile, b, heights.Edits, fx, fz);
                     if (t.Flags == flags && t.Position.y == y) continue;
                     // A tree on its tile's outermost posts that no edit ever moved keeps the footing it was planted with, which
                     // samples the tile's edge its own way (a few cm, from before task 15): not what this checks.

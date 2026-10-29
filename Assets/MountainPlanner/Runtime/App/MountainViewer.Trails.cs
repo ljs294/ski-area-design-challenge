@@ -721,14 +721,36 @@ namespace MountainPlanner.App
             public double ContourInterval => UnitFormat.ContourIntervalMetres(DisplayUnits.Current);
 
             // ---------- task 15: the live ground and contours while brushing ----------
-            public void Live(IPointDeltas ground, PointRect dirty) => _viewer._edits?.Pipeline.ApplyLive(ground, dirty);
-            // The committed ground again (a forced close): the towers never moved, since they re-height only at Confirm (BR21).
-            public void Show(TerrainEdits edits) { if (edits != null) _viewer._edits?.Show(edits); }
+            // BR22 (round 4): the heights and trees under this frame's dabs, and the towers standing on them.
+            public void Live(IPointDeltas ground, PointRect dirty)
+            {
+                _viewer._edits?.Pipeline.ApplyLive(ground, dirty);
+                _viewer.LiveTowers(ground, dirty);
+            }
+            // The committed ground again (a forced close), with the towers back on it.
+            public void Show(TerrainEdits edits)
+            {
+                if (edits == null) return;
+                _viewer._edits?.Show(edits);
+                _viewer.LiveTowers(edits, null);
+            }
             public System.Threading.Tasks.Task CatchUp(TerrainEdits ground, TerrainEdits clearing) =>
                 _viewer._edits?.ShowGround(ground, clearing, true) ?? System.Threading.Tasks.Task.CompletedTask;
-            public System.Threading.Tasks.Task ShowGround(TerrainEdits ground, TerrainEdits clearing) =>
-                _viewer._edits?.ShowGround(ground, clearing, false) ?? System.Threading.Tasks.Task.CompletedTask;
+            // Ctrl+Z and Revert: the ground, its trees, and the towers on it (BR22).
+            public System.Threading.Tasks.Task ShowGround(TerrainEdits ground, TerrainEdits clearing)
+            {
+                _viewer.LiveTowers(ground, null);
+                return _viewer._edits?.ShowGround(ground, clearing, false) ?? System.Threading.Tasks.Task.CompletedTask;
+            }
             public double LastLiveMs => _viewer._edits?.Pipeline.LastLiveMs ?? 0;
+            public bool Settle() => _viewer._edits?.Pipeline.SyncLiveTileNow() ?? false;
+            public void Painting(bool held)
+            {
+                var pipeline = _viewer._edits?.Pipeline;
+                if (pipeline == null) return;
+                pipeline.FrameBudgetMs = held ? Presentation.Edits.TerrainEditPipeline.PaintingFrameBudgetMs : Presentation.Edits.TerrainEditPipeline.DefaultFrameBudgetMs;
+                pipeline.Painting = held;
+            }
 
             bool? _contoursBefore;
             public void ContoursWhileArmed(bool armed)

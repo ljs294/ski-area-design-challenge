@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using MountainPlanner.App.Edits;
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Geo;
 using MountainPlanner.Presentation;
 using MountainPlanner.Presentation.Design;
 using MountainPlanner.Presentation.Lifts;
@@ -101,6 +102,44 @@ namespace MountainPlanner.App
             return true;
         }
 
+        // BR22 (round 4): the heights the towers read while a brush paints, its changes swapped in each frame (one, so no garbage).
+        Domain.Edits.DeltaHeights _liveTowerGround;
+        /// <summary>The towers re-heighted live in the last call, and its time, ms (the brush bench).</summary>
+        public double LastLiveTowersMs { get; private set; }
+        /// <summary>Towers moved live since the bench last cleared it, and by the last rebuild of the built work (Confirm: none, BR22).</summary>
+        public int LiveTowersMoved { get; set; }
+        public int LastBuiltTowersMoved { get; private set; }
+
+        /// <summary>
+        /// BR22 (round 4): each built lift's towers stood on <paramref name="ground"/> (a stroke in hand, or a set of edits)
+        /// under their fixed heads, as Confirm will stand them (the same heights: <see cref="Domain.Edits.EditedHeights.At(Domain.Edits.IHeightSource, Domain.Edits.EditLattice, Domain.Edits.IPointDeltas, double, double)"/>):
+        /// only the towers whose foot is near <paramref name="dirty"/> (lattice points; null for all), only those whose steel
+        /// changes move, and nothing is built or destroyed.
+        /// </summary>
+        void LiveTowers(Domain.Edits.IPointDeltas ground, PointRect? dirty)
+        {
+            if (_liftViews.Count == 0 || _resort == null || _edits == null || ground == null) return;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var heights = _edits.Pipeline.Heights;
+            if (_liveTowerGround == null || !ReferenceEquals(_liveTowerGround.Source, heights.Source))
+                _liveTowerGround = new Domain.Edits.DeltaHeights(heights.Source, heights.Lattice, ground);
+            _liveTowerGround.Deltas = ground;
+            Rect? near = null;
+            if (dirty is PointRect d)
+            {
+                // A tower's foot reads the ground a metre round it, and a leaned foot slides along the line: a few metres' margin.
+                const float margin = 4;
+                var lat = heights.Lattice;
+                var (x0, z0) = _resort.Frame.ToLocal(new AlbersPoint(lat.X(d.MinColumn), lat.Y(d.MaxRow)));
+                var (x1, z1) = _resort.Frame.ToLocal(new AlbersPoint(lat.X(d.MaxColumn), lat.Y(d.MinRow)));
+                near = Rect.MinMaxRect((float)x0 - margin, (float)z0 - margin, (float)x1 + margin, (float)z1 + margin);
+            }
+            foreach (var kv in _liftViews)
+                if (kv.Value.View != null && kv.Value.View.Reheight(kv.Value.Lift, _liveTowerGround, _resort.Frame, near)) LiveTowersMoved += kv.Value.View.LastReheightMoved;
+            _liveTowerGround.Deltas = null;   // the stroke in hand isn't kept past the frame
+            LastLiveTowersMs = watch.Elapsed.TotalMilliseconds;
+        }
+
         /// <summary>Once the edits are laid, redraws the trail map and any lift that changed. Called every frame; cheap when nothing did.</summary>
         /// <summary>How long the last rebuild of the built lifts and trail lines took on the main thread, ms (the brush bench).</summary>
         public double LastBuiltMs { get; private set; }
@@ -144,6 +183,7 @@ namespace MountainPlanner.App
             if (_builtJob != null && !_builtJob.IsCompleted) return;   // BuiltBusy stays true until it's taken
             _builtDirty = false;
             var builtWatch = System.Diagnostics.Stopwatch.StartNew();
+            LastBuiltTowersMoved = 0;
             if (_designOverlay != null) _designOverlay.ShowBuilt = !ReferenceEquals(_designOverlay.History, _builtFor.History);
             var doc = _builtFor.History.Document;
             var heights = _builtFor.Pipeline.Heights;
@@ -178,7 +218,7 @@ namespace MountainPlanner.App
                     if (SameGround(was, underTowers)) continue;
                     // BR21: only the ground under its towers moved (a confirmed brush session): the towers re-height in place,
                     // under their fixed heads, with no rebuild of the terminals, rope and chairs.
-                    if (shown.View.Reheight(lift, heights, _resort.Frame)) { _liftGround[lift.Id] = underTowers; continue; }
+                    if (shown.View.Reheight(lift, heights, _resort.Frame)) { _liftGround[lift.Id] = underTowers; LastBuiltTowersMoved += shown.View.LastReheightMoved; continue; }
                 }
                 if (shown.View != null && shown.View == _hovered) _hovered = null;
                 if (shown.View != null && shown.View == _held) _held = null;

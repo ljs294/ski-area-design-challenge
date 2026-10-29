@@ -31,9 +31,9 @@ namespace MountainPlanner.UI.Tools
     /// trails and lifts and puts it in as one <see cref="AddTerrainStrokes"/>, one undo step, with no review page; that's when
     /// the player is charged (<see cref="IEarthworkCharges"/>). <b>Revert</b> puts the session's ground back. Esc, ✕ or
     /// another kind of tool with ground not yet confirmed asks Confirm / Revert / Keep painting (BR18). The Contours layer is
-    /// on while a brush is armed (BR13). <b>On screen</b> (BR21): the cover, the trees' footing and the snow catch up with the
-    /// stroke a few times a second as you paint, so letting go changes nothing; trees come out and towers re-height only at
-    /// Confirm.
+    /// on while a brush is armed (BR13). <b>On screen</b> (BR21, BR22): the ground, the trees and the lift towers follow the
+    /// brush every frame (trees out where the stroke clears, with Clear trees on; towers re-heighted under their fixed heads),
+    /// and the cover and the snow catch up a few times a second, so letting go and Confirm change nothing on screen.
     /// </summary>
     public class TerrainBrushTool : IDesignTool, IOwnsRightButton, ICarriesWork, IKeepsWork
     {
@@ -45,6 +45,13 @@ namespace MountainPlanner.UI.Tools
 
         // The pane's settings carry between brushes for the session (as the trail brush's width does).
         static int _lastFeet = 60, _lastStrength = 50;
+        // BR22: the pane's Clear trees, remembered like the diameter; on, a stroke clears the cells it moves 1 ft or more
+        // the moment the ground moves (TB-10 v2); off, the trees ride the new ground.
+        static bool _lastClear = true;
+        bool _clear = true;
+        Action<bool> _setClear;
+        /// <summary>Patches pooled before the first stroke (round 4): a 400 ft drag across a few tiles, 100 KB each.</summary>
+        const int WarmPatches = 48;
 
         readonly TerrainToolMode _mode;
         ToolContext _ctx;
@@ -159,12 +166,16 @@ namespace MountainPlanner.UI.Tools
             _ctx = context;
             _ctx.Earthwork?.Start();
             _ctx.LiveGround?.ContoursWhileArmed(true);   // BR13
+            BrushRun.Warm(WarmPatches);                  // round 4: the first stroke's patches, allocated here and not a frame
             _feet = _lastFeet;
             _strength = _lastStrength;
             var w = context.Window;
             w.SetName(null);
             _setFeet = w.AddSlider("diameter", "Diameter", MinFeet, MaxFeet, StepFeet, _feet, SetFeet, "TB-02: 10–400 ft, in 5 ft steps", StepFeet);
             _setStrength = w.AddSlider("strength", "Strength", 1, 100, 1, _strength, SetStrength, "TB-02: 1–100%", 5);   // the wheel, as , and . (BR20)
+            _clear = _lastClear;
+            _setClear = w.AddCheck("clear", "Trees", "Clear trees", _clear, SetClear,
+                "TB-10 v2 (BR22): on, the trees come out where the ground moves 1 ft or more, as it moves; off, they stand on the new ground").Set;
             if (UsesTarget) _targetNote = w.AddNote("target", "", "TB-05, TB-07: right-click the ground; Page Up / Page Down 1 ft (Shift 10 ft)");
             if (_mode == TerrainToolMode.Slope) _rampNote = w.AddNote("ramp", "", "TB-07, BR16: the grade comes from the distance and the drop between the two points");
             w.SetSteps(Array.Empty<string>());   // one step: paint, then Confirm or Revert (BR17)
@@ -193,6 +204,15 @@ namespace MountainPlanner.UI.Tools
             _feet = _lastFeet = Mathf.Clamp((feet + StepFeet / 2) / StepFeet * StepFeet, MinFeet, MaxFeet);
             _setFeet?.Invoke(_feet, ToolFormat.Feet(_feet));
         }
+
+        /// <summary>BR22: whether the next stroke clears the trees where it moves the ground (the pane's Clear trees).</summary>
+        public void SetClear(bool clear)
+        {
+            _clear = _lastClear = clear;
+            _setClear?.Invoke(clear);
+        }
+
+        public bool ClearsTrees => _clear;
 
         void SetStrength(int percent)
         {
@@ -230,13 +250,13 @@ namespace MountainPlanner.UI.Tools
 
         int RadiusMm => _feet * DesignUnits.FiveFeetMm / 10;   // half the diameter, in 2½ ft steps
 
-        BrushSettings SettingsFor(bool lower, int startMm) => _mode switch
+        BrushSettings SettingsFor(bool lower, int startMm) => (_mode switch
         {
             TerrainToolMode.RaiseLower => BrushSettings.RaiseOrLower(lower, RadiusMm, TerrainBrush.StepFor(_strength)),
             TerrainToolMode.Flatten => BrushSettings.Flatten(RadiusMm, TerrainBrush.StrengthFor(_strength), _targetMm ?? startMm),
             TerrainToolMode.Smooth => BrushSettings.Smooth(RadiusMm, TerrainBrush.StrengthFor(_strength)),
             _ => BrushSettings.Slope(RadiusMm, TerrainBrush.StrengthFor(_strength), _startAt, _startMm, _targetAt.Value, _targetMm.Value),
-        };
+        }).WithClearing(_clear);   // TB-10 v2: stored with the stroke, so a replay clears exactly what the player saw
 
         void PaintStatus()
         {
@@ -259,7 +279,9 @@ namespace MountainPlanner.UI.Tools
         const float BillSeconds = 0.2f;
         float _billClock;
         string _billKey;
-        readonly HashSet<Hold> _billHeld = new HashSet<Hold>();
+        bool _syncDue;   // round 4: a catch-up just started; the next tick syncs one tile
+        readonly HashSet<Hold> _billHeld = new HashSet<Hold>(), _billShown = new HashSet<Hold>();
+        (bool, bool, double, double, int, int) _billFigures = (false, false, -1, -1, -1, -1);
 
         /// <summary>
         /// The session's bill (TB-09 v2, BR19): every stroke of the session plus the one being painted, so cut and fill
@@ -278,9 +300,16 @@ namespace MountainPlanner.UI.Tools
                 cut += c;
                 fill += f;
                 cleared += _run.ClearedCount;
-                foreach (var h in _run.Held()) _billHeld.Add(h);
+                foreach (var i in _run.HeldIndices) _billHeld.Add(_run.Holds[i]);
             }
             bool any = _session.Count > 0 || _run != null, can = _session.Count > 0 && !_confirming;
+            // The figures first (round 4: five times a second while painting, so no strings unless one changed): the volumes
+            // and the area to the metre, which is finer than any unit the pane shows, so an unchanged figure is a repeat.
+            var figures = (any, can, any ? Math.Round(cut) : 0, any ? Math.Round(fill) : 0, any ? cleared : 0, any ? _billHeld.Count : 0);
+            if (figures == _billFigures && (!any || _billHeld.SetEquals(_billShown))) return;
+            _billFigures = figures;
+            _billShown.Clear();
+            _billShown.UnionWith(_billHeld);
             string volumes = $"{ToolFormat.Volume(cut)} · {ToolFormat.Volume(fill)}", net = ToolFormat.Volume(Math.Abs(fill - cut)), area = ToolFormat.Area(cleared);
             string held = _billHeld.Count > 0 ? HeldWords(_billHeld) : null;
             string key = any ? volumes + "|" + net + "|" + area + "|" + held + "|" + can : "|" + can;
@@ -302,6 +331,10 @@ namespace MountainPlanner.UI.Tools
 
         public void Tick(in ToolInput input)
         {
+            // The fold ahead waits for the let-go's catch-up to land, so the two don't share the CPU.
+            if (_foldDue && _run == null && !_confirming && _catchUp.IsCompleted) { _foldDue = false; FoldAhead(); }
+            // Round 4: between presses, the tiles the live upload wrote are brought up to date in Unity one a frame.
+            if (_run == null || _syncDue) { _syncDue = false; _ctx.LiveGround?.Settle(); }
             if (_thenNext != null)
             {
                 // What the close ask's Confirm was for (close, or the next tool), run here rather than inside the fold's hand-over.
@@ -373,12 +406,19 @@ namespace MountainPlanner.UI.Tools
                 if (_dabs != null && _dabs.Count >= DesignRules.MaxDabsPerStroke)
                 {
                     bool lower = _rightStroke;
-                    Finish();
+                    Finish(released: !held);
                     if (held) Begin(input, lower, carryOn: true);   // a long drag carries on as a new stroke, on the same ramp (TB-14)
                 }
                 Live();
                 _catchUpClock += input.DeltaSeconds;
-                if (_run != null && _catchUpClock >= CatchUpSeconds && _catchUp.IsCompleted) { _catchUpClock = 0; CatchUp(_run.Preview(_pending)); }
+                if (_run != null && _catchUpClock >= CatchUpSeconds && _catchUp.IsCompleted)
+                {
+                    long tc = Stopwatch.GetTimestamp();
+                    _catchUpClock = 0;
+                    CatchUp(_run.Preview(_pending));
+                    _lastTick.CatchUp = Ms(tc);
+                    _syncDue = true;   // one tile's Unity sync on the next tick, not this one (the catch-up's start is here)
+                }
                 _billClock += input.DeltaSeconds;
                 long t1 = Stopwatch.GetTimestamp();
                 if (_run != null && _billClock >= BillSeconds) { _billClock = 0; ShowBill(); if (_mode == TerrainToolMode.Slope) ShowRamp(_startAt, _startMm); }
@@ -451,6 +491,7 @@ namespace MountainPlanner.UI.Tools
             _settings = SettingsFor(lower, startMm);
             _rightStroke = lower && _mode == TerrainToolMode.RaiseLower;
             _run = new BrushRun(_settings, new EditedHeights(heights.Source, heights.Lattice, _pending), _ctx.Earthwork.Earthwork.Site, _fixed);
+            if (!carryOn) _ctx.LiveGround?.Painting(true);
             _dabs = new List<BrushDab>(256);
             _clock = 0;
             _billClock = 0;
@@ -489,7 +530,7 @@ namespace MountainPlanner.UI.Tools
         }
 
         /// <summary>The last painting tick's time in its parts, ms (the brush bench, demo 75).</summary>
-        public struct TickTimings { public double Dabs, Bill; }
+        public struct TickTimings { public double Dabs, Bill, CatchUp; }
 
         TickTimings _lastTick;
 
@@ -504,7 +545,7 @@ namespace MountainPlanner.UI.Tools
 
         static double Ms(long from) => (Stopwatch.GetTimestamp() - from) * 1000.0 / Stopwatch.Frequency;
 
-        void Finish()
+        void Finish(bool released = true)
         {
             if (_run == null) return;
             long t0 = Stopwatch.GetTimestamp();
@@ -523,22 +564,26 @@ namespace MountainPlanner.UI.Tools
                 _cut += cut;
                 _fill += fill;
                 _cleared += _run.ClearedCount;
-                foreach (var h in _run.Held()) _held.Add(h);
+                foreach (var i in _run.HeldIndices) _held.Add(_run.Holds[i]);
                 CatchUp(_pending);   // BR21: only what moved since the last catch-up; nothing on screen changes
                 _liveDirty = PointRect.Empty;
+                if (released) { _fold = null; _foldDue = true; }   // Confirm's fold, ahead of the click
             }
+            _run.Release();   // its tiles are built and handed over; the patches serve the next stroke (round 4)
             _run = null;
             _dabs = null;
+            if (released) _ctx.LiveGround?.Painting(false);
             LastFinishMs = Ms(t0);
             PaintStatus();
         }
 
         // BR21: the cover, the trees' footing and the snow follow the ground whose heights the live upload put up; the session's
         // clearing stays the committed one until Confirm.
+        // BR22: the ground's own clearing comes out with it (the session's cleared cells), as the trees did every frame.
         void CatchUp(TerrainEdits ground)
         {
             if (_ctx.LiveGround == null || _base == null) return;
-            _catchUp = _ctx.LiveGround.CatchUp(ground, _base);
+            _catchUp = _ctx.LiveGround.CatchUp(ground, ground);
         }
 
         // Ctrl+Z (TB-08 v2): the last press-to-release comes back off, to the very ground and bill before it.
@@ -553,7 +598,9 @@ namespace MountainPlanner.UI.Tools
             _cleared = press.Cleared;
             _held.Clear();
             _held.UnionWith(press.Held);
-            if (_ctx.LiveGround != null) _settling = _ctx.LiveGround.ShowGround(_pending, _base);
+            if (_ctx.LiveGround != null) _settling = _ctx.LiveGround.ShowGround(_pending, _pending);   // BR22: its trees back too
+            _fold = null;
+            _foldDue = true;
             PaintStatus();
         }
 
@@ -570,23 +617,108 @@ namespace MountainPlanner.UI.Tools
             _confirming = true;
             _landed = false;
             _afterConfirm = then;
+            PaintStatus();
+            _confirmClicked = Stopwatch.GetTimestamp();
+            // Usually the fold started when the last press ended is done or nearly done; if the session or the design moved
+            // since, it folds now, as before.
+            string why = _fold == null ? "none" : $"revision {_fold.Revision} vs {_ctx.History.Revision}, strokes {_fold.Command.Strokes.Count} vs {_session.Count}";
+            var fold = _fold != null && _fold.Matches(_ctx.History.Revision, _session) ? _fold : (_fold = StartFold());
+            _foldDue = false;
+            FoldWasAhead = fold.Started < _confirmClicked;
+            UnityEngine.Debug.Log($"[TerrainBrush] frame {Time.frameCount}: Confirm {(FoldWasAhead ? fold.Work.IsCompleted ? "found its fold done" : "waits for its fold" : "folds now")} ({why})");
+            _ctx.Await(fold.Work, r =>
+            {
+                LastFold = (r.ApplyMs, r.RebuildMs);
+                Landed(fold.Command, fold.Committed, r.After, r.Rebuild);
+            });
+        }
+
+        long _confirmClicked;
+
+        // ---------- the fold ahead (Confirm's work, started when a press ends) ----------
+
+        /// <summary>
+        /// The session folded through the design's earthwork (the command's Apply, then the earthwork's Rebuild), off the main
+        /// thread: the very work Confirm needs, on the very inputs (the design, the committed ground and the strokes as they stand),
+        /// so its result is the same whenever it runs. It's used only while the session's strokes and the design's revision are
+        /// still those it folded.
+        /// </summary>
+        sealed class Fold
+        {
+            public long Revision, Started;
+            public TerrainEdits Committed;
+            public AddTerrainStrokes Command;
+            public Task<FoldResult> Work;
+
+            public bool Matches(long revision, List<StrokePainting> session)
+            {
+                if (revision != Revision || Command.Strokes.Count != session.Count) return false;
+                // A stroke is a struct: the same stroke is the same dab list (each press makes its own) with the same settings.
+                for (int i = 0; i < session.Count; i++)
+                    if (!ReferenceEquals(Command.Strokes[i].Dabs, session[i].Dabs) || !Command.Strokes[i].Settings.Equals(session[i].Settings)) return false;
+                return true;
+            }
+        }
+
+        struct FoldResult
+        {
+            public CommandResult After;
+            public DesignEarthwork.Result Rebuild;
+            public double ApplyMs, RebuildMs;
+        }
+
+        Fold _fold;
+        bool _foldDue;
+
+        Fold StartFold()
+        {
             var doc = _ctx.History.Document;
             long revision = _ctx.History.Revision;
             var committed = _ctx.History.Terrain;
             var command = new AddTerrainStrokes(revision, new List<StrokePainting>(_session));
             var earthwork = _ctx.Earthwork.Earthwork;
-            PaintStatus();
-            _ctx.Analyse(() =>
+            return new Fold
             {
-                var after = command.Apply(doc);
-                return after.Accepted ? (after, earthwork.Rebuild(after.Document, committed)) : (after, null);
-            }, r => Landed(command, committed, r.after, r.Item2));
+                Revision = revision, Started = Stopwatch.GetTimestamp(), Committed = committed, Command = command,
+                Work = Task.Run(() =>
+                {
+                    long f0 = Stopwatch.GetTimestamp();
+                    var after = command.Apply(doc);
+                    double apply = Ms(f0);
+                    long f1 = Stopwatch.GetTimestamp();
+                    var rebuild = after.Accepted ? earthwork.Rebuild(after.Document, committed) : null;
+                    return new FoldResult { After = after, Rebuild = rebuild, ApplyMs = apply, RebuildMs = Ms(f1) };
+                }),
+            };
         }
+
+        // A press ended (or Ctrl+Z took one back): fold the session as it now stands, so Confirm finds it done. One at a time on
+        // one worker; a newer one replaces it (the older one's result goes unused).
+        void FoldAhead()
+        {
+            if (_session.Count == 0 || _ctx.Earthwork?.Earthwork == null || _ctx.History == null) { _fold = null; return; }
+            long t0 = Stopwatch.GetTimestamp();
+            _fold = StartFold();
+            UnityEngine.Debug.Log($"[TerrainBrush] frame {Time.frameCount}: folding the session's {_session.Count} strokes ahead of Confirm ({Ms(t0):F1} ms here)");
+        }
+
+        /// <summary>Whether the session's fold, started when the last press ended, has finished (tests).</summary>
+        public bool FoldDone => _fold != null && _fold.Work.IsCompleted;
+
+        /// <summary>Whether the last Confirm found its fold already started (the bench).</summary>
+        public bool FoldWasAhead { get; private set; }
+
+        /// <summary>The last Confirm's fold off the main thread: the command's Apply and the earthwork's Rebuild, ms (the bench).</summary>
+        public (double Apply, double Rebuild) LastFold { get; private set; }
+
+        /// <summary>From the last Confirm's click to its fold landing on the main thread, ms (the bench).</summary>
+        public double LastConfirmToLandedMs { get; private set; }
 
         void Landed(AddTerrainStrokes command, TerrainEdits committed, CommandResult after, DesignEarthwork.Result rebuild)
         {
             _landed = true;
             _confirming = false;
+            LastConfirmToLandedMs = Ms(_confirmClicked);
             if (!after.Accepted) { _afterConfirm = null; PaintStatus(); _ctx.Window.SetMessage(after.Reason); return; }
             long t0 = Stopwatch.GetTimestamp();
             var edits = rebuild.Edits;
@@ -643,6 +775,9 @@ namespace MountainPlanner.UI.Tools
             _cleared = 0;
             _held.Clear();
             _liveDirty = PointRect.Empty;
+            _fold = null;
+            _foldDue = false;
+            _ctx.LiveGround?.Painting(false);
         }
 
         // TB-09: each tower whose steel the strokes change, under its fixed head (TW-02 v4).
@@ -712,11 +847,11 @@ namespace MountainPlanner.UI.Tools
             if (_session.Count == 0) { then?.Invoke(); return; }
             _asking = true;
             _afterAsk = then;
-            var w = _ctx.Window;
-            w.SetAsking("This ground isn't confirmed yet");
-            w.SetButtons(("ask-confirm", "Confirm", () => Confirm(TakeAsk())),
-                         ("ask-revert", "Revert", () => { var next = TakeAsk(); Revert(); next?.Invoke(); }),
-                         ("ask-keep", "Keep painting", KeepPainting));
+            // The ask's row takes the pane's foot, as the mockup's terrainask: no second Confirm and Revert under it.
+            _ctx.Window.SetAskRow("This ground isn't confirmed yet", GameAction.ToolNext,
+                ("ask-confirm", "Confirm", () => Confirm(TakeAsk())),
+                ("ask-revert", "Revert", () => { var next = TakeAsk(); Revert(); next?.Invoke(); }),
+                ("ask-keep", "Keep painting", KeepPainting));
         }
 
         void KeepPainting() => TakeAsk();
@@ -727,8 +862,7 @@ namespace MountainPlanner.UI.Tools
             var then = _afterAsk;
             _asking = false;
             _afterAsk = null;
-            _ctx.Window.SetAsking(null);
-            _ctx.Window.SetButtons();
+            _ctx.Window.SetAskRow(null, GameAction.ToolNext);
             return then;
         }
 
@@ -743,8 +877,10 @@ namespace MountainPlanner.UI.Tools
 
         void CancelStroke()
         {
+            _run?.Release();
             _run = null;
             _dabs = null;
+            _ctx.LiveGround?.Painting(false);
             if (!_liveDirty.IsEmpty)
             {
                 _ctx.LiveGround?.Live(_pending, _liveDirty);   // the ground as it was before the stroke
@@ -786,6 +922,8 @@ namespace MountainPlanner.UI.Tools
             t._held.UnionWith(_held);
             t._targetMm = _targetMm;
             t._targetAt = _targetAt;
+            t._fold = _fold;
+            t._foldDue = _foldDue;
             _carried = true;
             return true;
         }

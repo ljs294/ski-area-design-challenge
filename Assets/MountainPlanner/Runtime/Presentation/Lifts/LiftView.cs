@@ -462,20 +462,64 @@ namespace MountainPlanner.Presentation.Lifts
             int tenths = Mathf.RoundToInt(degrees / 2.5f) * 25;
             var foundation = (tenths > 0 ? Prefab($"tower_base_l{tenths:000}") : null) ?? Prefab("tower_base");
             if (head == null || mast == null || foundation == null) return null;
-            bool leanedBase = !foundation.name.EndsWith("tower_base", StringComparison.Ordinal);
-            var footLocal = foundation.GetComponent<LiftRig>().Socket("mast_foot").localPosition;
-            float foot = footLocal.y;
-            float ropeOnHead = head.GetComponent<LiftRig>().Socket("rope_right").localPosition.y;
-            int sections = Mathf.Max(1, Mathf.RoundToInt(steel - foot - ropeOnHead));
-            float rise = steel - (foot + sections + ropeOnHead) + reveal;
+            var parts = new TowerParts
+            {
+                Mast = mast,
+                LeanedBase = !foundation.name.EndsWith("tower_base", StringComparison.Ordinal),
+                FootLocal = foundation.GetComponent<LiftRig>().Socket("mast_foot").localPosition,
+                RopeOnHead = head.GetComponent<LiftRig>().Socket("rope_right").localPosition.y,
+                Facing = facing,
+                Lean = lean,
+            };
+            parts.Base = Spawn(foundation, position, facing, livery);
+            parts.Head = Spawn(head, position, lean * facing, livery);
+            Stand(parts, position, steel, reveal, livery);
+            if (_spawning >= 0)
+            {
+                while (_towerParts.Count <= _spawning) _towerParts.Add(null);
+                _towerParts[_spawning] = parts;
+            }
+            return parts.Head;
+        }
+
+        /// <summary>
+        /// A tower's pieces as <see cref="SpawnTower"/> stood them (task 15 round 4): kept so a re-height moves them, showing
+        /// or hiding mast sections, instead of building the tower again. The head never moves (TW-02 v4: the steel and the
+        /// foundation take up the ground), so the trains' pose on it stays.
+        /// </summary>
+        sealed class TowerParts
+        {
+            public GameObject Base, Head, Mast;
+            public readonly List<GameObject> Sections = new List<GameObject>();
+            public bool LeanedBase;
+            public Vector3 FootLocal;
+            public float RopeOnHead;
+            public Quaternion Facing, Lean;
+        }
+
+        readonly List<TowerParts> _towerParts = new List<TowerParts>();
+
+        // A tower's base on the ground at position, as many 1 m sections as fit under the head and the head on top (SpawnTower's
+        // arithmetic). Sections beyond those it needs are hidden, and a taller tower gets new ones (the only Instantiate).
+        void Stand(TowerParts parts, Vector3 position, float steel, float reveal, LiftLivery livery)
+        {
+            float foot = parts.FootLocal.y;
+            int sections = Mathf.Max(1, Mathf.RoundToInt(steel - foot - parts.RopeOnHead));
+            float rise = steel - (foot + sections + parts.RopeOnHead) + reveal;
             var basePos = position + Vector3.up * rise;
-            Spawn(foundation, basePos, facing, livery);
-            var axis = lean * Vector3.up;
-            var turned = lean * facing;
-            var mastFoot = leanedBase ? basePos + facing * footLocal : basePos + Vector3.up * foot;
-            for (int i = 0; i < sections; i++)
-                Spawn(mast, mastFoot + axis * i, turned, livery);
-            return Spawn(head, mastFoot + axis * sections, turned, livery);
+            parts.Base.transform.SetPositionAndRotation(basePos, parts.Facing);
+            var axis = parts.Lean * Vector3.up;
+            var turned = parts.Lean * parts.Facing;
+            var mastFoot = parts.LeanedBase ? basePos + parts.Facing * parts.FootLocal : basePos + Vector3.up * foot;
+            while (parts.Sections.Count < sections) parts.Sections.Add(Spawn(parts.Mast, mastFoot, turned, livery));
+            for (int i = 0; i < parts.Sections.Count; i++)
+            {
+                var s = parts.Sections[i];
+                bool shown = i < sections;
+                if (shown) s.transform.SetPositionAndRotation(mastFoot + axis * i, turned);
+                if (s.activeSelf != shown) s.SetActive(shown);
+            }
+            parts.Head.transform.SetPositionAndRotation(mastFoot + axis * sections, turned);
         }
 
         /// <summary>
@@ -802,13 +846,18 @@ namespace MountainPlanner.Presentation.Lifts
 
         /// <summary>
         /// The towers stood again on <paramref name="ground"/> under their fixed heads (TW-02 v4; owner BR21: a confirmed brush
-        /// session): only the towers whose steel or footing changed are rebuilt, as <see cref="Build"/> stands one, and the
-        /// terminals, the rope and the chairs stay as they are, since the heads don't move. False when the lift isn't the one
-        /// built (the caller builds it again).
+        /// session; round 4: every frame of a brush near the lift): only the towers whose steel or footing changed move, their
+        /// pieces moved and mast sections shown or hidden (<see cref="Stand"/>), and the terminals, the rope and the chairs
+        /// stay as they are, since the heads don't move. <paramref name="near"/>: only towers whose foot is within this box
+        /// (local x, z) are looked at; null for all. False when the lift isn't the one built (the caller builds it again).
         /// </summary>
-        public bool Reheight(Lift lift, IHeightSource ground, LocalFrame frame)
+        /// <summary>How many towers the last <see cref="Reheight"/> moved (the brush bench: none at Confirm, since the brush moved them live).</summary>
+        public int LastReheightMoved { get; private set; }
+
+        public bool Reheight(Lift lift, IHeightSource ground, LocalFrame frame, Rect? near = null)
         {
-            if (Rope == null || !ReferenceEquals(lift, _builtFrom) || Rope.Towers.Count != _asBuilt.Count || _heads.Count != _asBuilt.Count) return false;
+            if (Rope == null || !ReferenceEquals(lift, _builtFrom) || Rope.Towers.Count != _asBuilt.Count || _heads.Count != _asBuilt.Count
+                || _towerParts.Count != _asBuilt.Count) return false;
             var bottom = new Vector3((float)lift.Bottom.XMetres, 0, (float)lift.Bottom.YMetres);
             var top = new Vector3((float)lift.Top.XMetres, 0, (float)lift.Top.YMetres);
             var dir = (top - bottom).normalized;
@@ -817,12 +866,15 @@ namespace MountainPlanner.Presentation.Lifts
                 var a = frame.ToAlbers(p.x, p.z);
                 return ground.At(a.X, a.Y);
             }
-            var parts = new List<GameObject>();
+            bool moved = false;
+            LastReheightMoved = 0;
             for (int i = 0; i < Rope.Towers.Count; i++)
             {
                 // As Build stands it (TW-02 v4, the leaned foot sliding along the line).
                 var sol = Rope.Towers[i];
                 var at = bottom + dir * (float)sol.BaseS;
+                if (near is Rect box && !box.Contains(new Vector2(at.x, at.z)) && !box.Contains(new Vector2(bottom.x + dir.x * (float)sol.RopeS, bottom.z + dir.z * (float)sol.RopeS)))
+                    continue;
                 double groundY = Height(at);
                 double steel = lift.Towers[i].HeightMm / 1000.0, reveal = sol.Reveal;
                 if (Math.Abs(groundY - sol.BaseY) > 1e-4) LiftRope.AsBuilt(sol, groundY, out steel, out reveal);
@@ -834,18 +886,16 @@ namespace MountainPlanner.Presentation.Lifts
                         LiftRope.AsBuilt(sol, groundY, out steel, out reveal);
                     }
                 if ((float)steel == _asBuilt[i]) continue;
-                parts.Clear();
-                foreach (var kv in _partOf) if (kv.Value == i) parts.Add(kv.Key);
-                foreach (var go in parts) { _partOf.Remove(go); Gone(go); }
                 at.y = (float)groundY;
-                var facing = Quaternion.LookRotation(-dir);
-                var lean = Quaternion.AngleAxis((float)(sol.Lean * Mathf.Rad2Deg), Vector3.Cross(Vector3.up, -dir));
                 _spawning = i;
-                SpawnTower(_heads[i], at, facing, lean, (float)steel, (float)reveal, _livery);
+                Stand(_towerParts[i], at, (float)steel, (float)reveal, _livery);
                 _asBuilt[i] = (float)steel;
+                moved = true;
+                LastReheightMoved++;
             }
             _spawning = PartRope;
-            ForgetPick();
+            // The pieces keep their parts (_partOf); the boxes the pointer hits are made again at the next pick.
+            if (moved) ForgetPick();
             return true;
         }
 
@@ -862,7 +912,10 @@ namespace MountainPlanner.Presentation.Lifts
             PoseError = 0;
             _chairLods = Array.Empty<ChairLod>();
             _chairCount = 0;
+            _towerParts.Clear();
+            _highlighted = false;   // the pieces are going: nothing to relight
             ForgetPick();
+            _partOf.Clear();
         }
 
         // Destroy in play, at once outside it (EditMode tests and editor tools build lifts too).

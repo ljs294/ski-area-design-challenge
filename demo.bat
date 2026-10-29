@@ -245,16 +245,21 @@ echo        the target, [ ] diameter, , . strength, PgUp/PgDn target. What you p
 echo        the session in, Revert puts it back, Ctrl+Z undoes one press; Esc with ground not confirmed asks Confirm /
 echo        Revert / Keep painting. Contours come on while a brush is armed; zoom in and they go down to 10 ft. Try it
 echo        beside a lift's terminal and under its line: the brush stops at the pad, the chairs' clearance and a tower's
-echo        limits, and towers re-height. The pane's cut and fill count up while you drag.
+echo        limits. The pane's cut and fill count up while you drag. BR22: paint through trees and they sink, rise and come
+echo        out as the ground moves; untick Clear trees and they ride the new ground instead. Paint under a lift and its
+echo        towers grow or shorten as you go; Confirm then changes nothing, and Revert or Ctrl+Z brings it all back.
 echo     73b The brush bench: live ground with a 60 ft and a 400 ft brush, and the confirm (measure lane).
 echo     73m The brush tour on Jackson Hole 2 km: a quad, then each brush beside and under it, with screenshots and a movie
 echo        (render lane; the movie is encoded after), into test-results\p3-15\tour.
 echo     73c Close-up contours at 3,500 m, 800 m and 150 m (render lane), into test-results\p3-15\contours.
 echo.
-echo   Brush speed (perf/brush-drag; rebuilds the game and the Development game, close the Unity editor first)
+echo   Brush speed (perf/brush-drag, round 4 perf/brush-smooth; rebuilds the game and the Development game, close the Unity editor first)
 echo     75 The brush drag timing: a 60 ft and a 400 ft drag, each frame in its parts (dabs, preview, upload, bill,
-echo        GC), the frames after letting go and the confirm; Jackson Hole, a second spot (-brushat -500,700) and
-echo        the Development game for exact garbage (measure lane), into test-results\brush-perf.
+echo        GC), the frames after letting go, Revert and Confirm (after a pause and on the let-go, with its parts:
+echo        fold, queue, apply); Jackson Hole, a second spot (-brushat -500,700), -force-gfx-mt, and the Development
+echo        game for exact garbage (measure lane), into test-results\brush-perf. PASS = the 400 ft drag at 12 ms p95
+echo        with no frame over a 60 Hz refresh (16.7 ms), and none after letting go, Confirm or Revert (round 4,
+echo        owner: a brush like Cities Skylines 2's); the garbage figures print beside it.
 echo.
 echo     Q  Quit
 echo.
@@ -1092,8 +1097,9 @@ set "BP=%~dp0test-results\brush-perf"
 if not exist "%BP%" mkdir "%BP%"
 %MEASURE% "%GAME%" -package "%JH2%" -notitle -quality high %SCREEN% -brushbench "%BP%\release.json" -logFile "%BP%\release.log" <nul
 %MEASURE% "%GAME%" -package "%JH2%" -notitle -quality high %SCREEN% -brushat -500,700 -brushbench "%BP%\release-site2.json" -logFile "%BP%\release-site2.log" <nul
+%MEASURE% "%GAME%" -package "%JH2%" -notitle -quality high %SCREEN% -force-gfx-mt -brushbench "%BP%\release-gfxmt.json" -logFile "%BP%\release-gfxmt.log" <nul
 if exist "%GAMEDEV%" %MEASURE% "%GAMEDEV%" -package "%JH2%" -notitle -quality high %SCREEN% -brushbench "%BP%\dev.json" -logFile "%BP%\dev.log" <nul
-for %%L in (release release-site2 dev) do (
+for %%L in (release release-site2 release-gfxmt dev) do (
   echo   %%L:
   findstr /c:"[BrushBench]" "%BP%\%%L.log"
 )

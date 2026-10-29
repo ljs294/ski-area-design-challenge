@@ -1,3 +1,4 @@
+using System.Buffers;
 using MountainPlanner.Domain.Cover;
 using MountainPlanner.Persistence;
 using UnityEngine;
@@ -57,10 +58,14 @@ namespace MountainPlanner.World
                                                 RectInt inner)
         {
             const int bands = TerrainCache.CoverBands;
-            var shade = StandShade(cover, windowWidth, windowHeight, stride, resolution);
+            // The shade and its row sums are scratch for this call only: rented, every entry written, and handed back (a
+            // brush's catch-ups compose a few windows a second).
+            var shade = ArrayPool<byte>.Shared.Rent(windowWidth * windowHeight);
+            var rows = ArrayPool<int>.Shared.Rent(windowWidth * windowHeight);
+            StandShade(cover, windowWidth, windowHeight, stride, resolution, shade, rows);
             int w = inner.width, h = inner.height;
-            var t0 = new byte[w * h * 4];
-            var t1 = new byte[w * h * 4];
+            var t0 = Rent(w * h * 4);
+            var t1 = Rent(w * h * 4);
             for (int j = inner.yMin; j < inner.yMax; j++)
             {
                 int wj = j - windowY;
@@ -93,19 +98,53 @@ namespace MountainPlanner.World
                     t1[dst + 3] = (byte)unpaved;
                 }
             }
+            ArrayPool<byte>.Shared.Return(shade);
+            ArrayPool<int>.Shared.Return(rows);
             return new SplatTexels { Resolution = resolution, Width = w, Height = h, Textures = new[] { t0, t1 } };
+        }
+
+        /// <summary>
+        /// Hands the textures' bytes back for the next compose of the same size (round 4: a brush's catch-ups compose a few
+        /// windows a second, 130 KB each). Only once they're uploaded and read; the texels are unusable after.
+        /// </summary>
+        public void Release()
+        {
+            var textures = Textures;
+            Textures = null;
+            if (textures == null) return;
+            foreach (var t in textures) Return(t);
+        }
+
+        // Exact-size byte arrays (Texture2D.SetPixelData wants the texture's size, not a pooled array's), a few per size.
+        static readonly System.Collections.Generic.Dictionary<int, System.Collections.Generic.Stack<byte[]>> Pool =
+            new System.Collections.Generic.Dictionary<int, System.Collections.Generic.Stack<byte[]>>();
+        const int MaxPooledPerSize = 8;
+
+        static byte[] Rent(int bytes)
+        {
+            lock (Pool)
+                if (Pool.TryGetValue(bytes, out var stack) && stack.Count > 0) return stack.Pop();
+            return new byte[bytes];
+        }
+
+        static void Return(byte[] array)
+        {
+            if (array == null) return;
+            lock (Pool)
+            {
+                if (!Pool.TryGetValue(array.Length, out var stack)) Pool[array.Length] = stack = new System.Collections.Generic.Stack<byte[]>();
+                if (stack.Count < MaxPooledPerSize) stack.Push(array);
+            }
         }
 
         /// <summary>
         /// Shade per texel (0–<see cref="ForestShade"/>): the forest-floor weight averaged over
         /// <see cref="ShadeRadiusMetres"/> (separable box, clipped at the window), eased so only real stands get it.
         /// </summary>
-        static byte[] StandShade(byte[] cover, int ww, int wh, int stride, int resolution)
+        static void StandShade(byte[] cover, int ww, int wh, int stride, int resolution, byte[] shade, int[] rows)
         {
-            var shade = new byte[ww * wh];
             const int bands = TerrainCache.CoverBands;
             int r = ShadeReach(resolution);
-            var rows = new int[ww * wh];
             for (int j = 0; j < wh; j++)
             {
                 int sum = 0;
@@ -133,7 +172,6 @@ namespace MountainPlanner.World
                     if (drop >= 0) sum -= rows[drop * ww + i];
                 }
             }
-            return shade;
         }
 
         public static SplatTexels Load(string packageFolder, CacheTile tile) =>

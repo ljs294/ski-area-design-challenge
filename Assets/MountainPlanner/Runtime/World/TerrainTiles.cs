@@ -185,20 +185,26 @@ namespace MountainPlanner.World
         {
             if (!UsesMountainShader(terrain.materialTemplate)) return;
             var data = terrain.terrainData;
-            var textures = data.alphamapTextures;
-            var block = new MaterialPropertyBlock();
-            block.SetTexture("_Control0", textures.Length > 0 ? textures[0] : Texture2D.redTexture);
-            block.SetTexture("_Control1", textures.Length > 1 ? textures[1] : Texture2D.blackTexture);
-            block.SetFloat("_ControlRes", data.alphamapResolution);
-            block.SetFloat("_TileSize", data.size.x);   // metres per splat uv: the shader finds lake shores by distance
+            int textures = data.alphamapTextureCount;   // alphamapTextures would hand back a new array each bind
+            // The terrain keeps its own copy of the block, so one is filled for every bind (a brush binds every frame, round 4).
+            var block = SplatBlock ??= new MaterialPropertyBlock();
+            block.Clear();
+            block.SetTexture(Control0, textures > 0 ? data.GetAlphamapTexture(0) : Texture2D.redTexture);
+            block.SetTexture(Control1, textures > 1 ? data.GetAlphamapTexture(1) : Texture2D.blackTexture);
+            block.SetFloat(ControlRes, data.alphamapResolution);
+            block.SetFloat(TileSize, data.size.x);   // metres per splat uv: the shader finds lake shores by distance
             // The heightmap Unity already holds on the GPU, for the slope and exposure info layers (task 12b).
-            block.SetTexture("_Heightmap", data.heightmapTexture);
+            block.SetTexture(Heightmap, data.heightmapTexture);
             // w: the tile's base elevation, so a heightmap sample is an elevation (BR13's close-up contours).
             var hp = HeightmapParams(data);
             hp.w = terrain.GetPosition().y;
-            block.SetVector("_HeightmapParams", hp);
+            block.SetVector(HeightmapParamsId, hp);
             terrain.SetSplatMaterialPropertyBlock(block);
         }
+
+        static MaterialPropertyBlock SplatBlock;
+        static readonly int Control0 = Shader.PropertyToID("_Control0"), Control1 = Shader.PropertyToID("_Control1"), ControlRes = Shader.PropertyToID("_ControlRes"),
+                            TileSize = Shader.PropertyToID("_TileSize"), Heightmap = Shader.PropertyToID("_Heightmap"), HeightmapParamsId = Shader.PropertyToID("_HeightmapParams");
 
         /// <summary>One sample per splat upload; the map-layer test (task 12) proves a layer switch makes none.</summary>
         public const string ApplySplatMarkerName = "MountainPlanner.Terrain.ApplySplat";
@@ -266,7 +272,18 @@ namespace MountainPlanner.World
         {
             using var marker = ApplySplatMarker.Auto();
             int w = part.Width, h = part.Height;
-            var staging = new Texture2D(w, h, TextureFormat.RGBA32, false, true) { name = "SplatRegion", filterMode = FilterMode.Point };
+            // Staging textures by size, kept (a brush's catch-ups paint the same few sizes several times a second, round 4);
+            // a long session over many sizes drops them all and starts again.
+            if (!RegionStaging.TryGetValue((w, h), out var staging))
+            {
+                if (RegionStaging.Count >= MaxRegionStaging)
+                {
+                    foreach (var t in RegionStaging.Values) UnityEngine.Object.Destroy(t);
+                    RegionStaging.Clear();
+                }
+                staging = new Texture2D(w, h, TextureFormat.RGBA32, false, true) { name = "SplatRegion", filterMode = FilterMode.Point };
+                RegionStaging[(w, h)] = staging;
+            }
             var previous = RenderTexture.active;
             var rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
             try
@@ -284,10 +301,12 @@ namespace MountainPlanner.World
             {
                 RenderTexture.active = previous;
                 RenderTexture.ReleaseTemporary(rt);
-                UnityEngine.Object.Destroy(staging);
             }
             data.SetBaseMapDirty();
         }
+
+        static readonly Dictionary<(int, int), Texture2D> RegionStaging = new Dictionary<(int, int), Texture2D>();
+        const int MaxRegionStaging = 64;   // 64 KB each at most (128² RGBA32)
 
         public static TerrainCollider AddCollider(Terrain terrain)
         {

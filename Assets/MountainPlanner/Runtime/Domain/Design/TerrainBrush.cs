@@ -58,15 +58,54 @@ namespace MountainPlanner.Domain.Design
 
         sealed class Patch
         {
-            public readonly EditTileKey Key;
+            public EditTileKey Key;
             public readonly int[] S = new int[Count];      // the source, whole mm
             public readonly int[] D = new int[Count];      // the change now (absolute over the source)
             public readonly int[] D0 = new int[Count];     // the change before the stroke
             public readonly int[] Low = new int[Count], High = new int[Count];
             public readonly bool[] Locked = new bool[Count];
             public readonly ushort[] LowHold = new ushort[Count], HighHold = new ushort[Count];
-            public bool Dirty;
+            public bool Dirty;   // changed since the last Preview
             public Patch(EditTileKey key) { Key = key; }
+        }
+
+        // Patches pooled across runs (round 4): a stroke's patches, 100 KB a tile, go back when the tool drops the run
+        // (Release), and the next stroke's Load writes every entry, so nothing is cleared and nothing is left over.
+        static readonly Stack<Patch> PatchPool = new Stack<Patch>();
+        const int MaxPooledPatches = 64;   // 6.4 MB
+
+        static Patch NewPatch(EditTileKey key)
+        {
+            lock (PatchPool)
+                if (PatchPool.Count > 0)
+                {
+                    var p = PatchPool.Pop();
+                    p.Key = key;
+                    p.Dirty = false;
+                    return p;
+                }
+            return new Patch(key);
+        }
+
+        /// <summary>
+        /// Fills the pool ahead of the first stroke (the tool arming), so even a 400 ft stroke's first drag over fresh
+        /// tiles allocates nothing a frame: <paramref name="count"/> patches at most, 100 KB each.
+        /// </summary>
+        public static void Warm(int count)
+        {
+            count = Math.Min(count, MaxPooledPatches);
+            lock (PatchPool)
+                while (PatchPool.Count < count) PatchPool.Push(new Patch(default));
+        }
+
+        /// <summary>Hands the run's patches back for the next run; the run is unusable after (its live view and previews included).</summary>
+        public void Release()
+        {
+            lock (PatchPool)
+                foreach (var p in _patches.Values)
+                    if (PatchPool.Count < MaxPooledPatches) PatchPool.Push(p);
+            _patches.Clear();
+            _last = null;
         }
 
         readonly BrushSettings _s;
@@ -86,6 +125,11 @@ namespace MountainPlanner.Domain.Design
         long _cutMm, _fillMm;
         int _clearedCells;
         readonly Dictionary<EditTileKey, byte[]> _cellCorners = new Dictionary<EditTileKey, byte[]>();
+        // The last Preview's tiles over the ground it was given, kept so the next one rebuilds only the tiles changed since
+        // (a brush's catch-ups ask a few times a second); and the tiles whose cleared cells changed since.
+        TerrainEdits _previewUnder;
+        readonly SortedDictionary<EditTileKey, TerrainEditTile> _previewTiles = new SortedDictionary<EditTileKey, TerrainEditTile>();
+        readonly HashSet<EditTileKey> _cornersDirty = new HashSet<EditTileKey>();
         LiveView _live;
         // The slope's line (TB-07, BR16): its start in lattice metres and the run to the target.
         readonly double _ax, _ay, _vx, _vy, _len2;
@@ -114,6 +158,9 @@ namespace MountainPlanner.Domain.Design
 
         /// <summary>What held the brush so far (TB-09), as <see cref="FixedGround.Holds"/> indices.</summary>
         public IReadOnlyCollection<ushort> HeldIndices => _held;
+
+        /// <summary>The holds <see cref="HeldIndices"/> index: the fixed ground's.</summary>
+        public IReadOnlyList<Hold> Holds => _fixed.Holds;
 
         /// <summary>What held the brush so far.</summary>
         public List<Hold> Held()
@@ -242,7 +289,7 @@ namespace MountainPlanner.Domain.Design
             long was = (long)od - p.D0[at], now = (long)nd - p.D0[at];
             _cutMm += Math.Max(0, -now) - Math.Max(0, -was);
             _fillMm += Math.Max(0, now) - Math.Max(0, was);
-            bool clearedWas = Math.Abs(was) >= TerrainBrush.ClearMm, clearedNow = Math.Abs(now) >= TerrainBrush.ClearMm;
+            bool clearedWas = _s.ClearsTrees && Math.Abs(was) >= _s.ClearMm, clearedNow = _s.ClearsTrees && Math.Abs(now) >= _s.ClearMm;   // TB-10 v2
             if (clearedWas != clearedNow) Corners(c, r, clearedNow ? 1 : -1);
             p.D[at] = nd;
             p.Dirty = true;
@@ -272,7 +319,7 @@ namespace MountainPlanner.Domain.Design
 
         Patch Load(EditTileKey key)
         {
-            var p = new Patch(key);
+            var p = NewPatch(key);
             var lat = _site.Lattice;
             var edits = _ground.Edits.Get(key);
             for (int j = 0; j < Side; j++)
@@ -318,7 +365,7 @@ namespace MountainPlanner.Domain.Design
             foreach (var p in _patches.Values)
                 for (int at = 0; at < Count; at++)
                 {
-                    if (Math.Abs((long)p.D[at] - p.D0[at]) < TerrainBrush.ClearMm) continue;
+                    if (!_s.ClearsTrees || Math.Abs((long)p.D[at] - p.D0[at]) < _s.ClearMm) continue;   // TB-10 v2: Clear trees off clears none
                     int c = p.Key.FirstColumn + at % Side, r = p.Key.FirstRow + at / Side;
                     for (int dr = -1; dr <= 0; dr++)
                         for (int dc = -1; dc <= 0; dc++)
@@ -335,30 +382,41 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         public TerrainEdits Preview(TerrainEdits under)
         {
-            var builders = new SortedDictionary<EditTileKey, TerrainEditTile.Builder>();
-            TerrainEditTile.Builder For(EditTileKey key)
-            {
-                if (!builders.TryGetValue(key, out var b)) builders[key] = b = under.Get(key).Edit();
-                return b;
-            }
+            // Over another ground than last time, every tile is built again; over the same, only the tiles changed since.
+            bool all = !ReferenceEquals(under, _previewUnder);
+            if (all) { _previewTiles.Clear(); _previewUnder = under; }
             foreach (var p in _patches.Values)
-            {
-                TerrainEditTile.Builder b = null;
+                if (all || p.Dirty) { Rebuild(p.Key, under); p.Dirty = false; }
+            foreach (var key in _cellCorners.Keys)
+                if (all || _cornersDirty.Contains(key)) Rebuild(key, under);
+            _cornersDirty.Clear();
+            return _previewTiles.Count == 0 ? under : under.With(_previewTiles.Values);
+        }
+
+        // One tile of the preview: under's tile with the stroke's changes (TB-08) and the cells it clears (TB-10: read from the
+        // running corner counts, a cell counting while any corner has moved a foot, never one cleared already), or none.
+        void Rebuild(EditTileKey key, TerrainEdits under)
+        {
+            TerrainEditTile.Builder b = null;
+            if (_patches.TryGetValue(key, out var p))
                 for (int at = 0; at < Count; at++)
-                    if (p.D[at] != p.D0[at]) (b ??= For(p.Key)).SetDeltaMm(at % Side, at / Side, p.D[at]);
-            }
-            // TB-10: the cells ClearedCells lists, read from the running corner counts (a cell counts while any corner has
-            // moved a foot, never one cleared already), so letting go doesn't rescan the stroke.
-            foreach (var kv in _cellCorners)
-            {
-                var counts = kv.Value;
-                TerrainEditTile.Builder b = null;
+                    if (p.D[at] != p.D0[at]) (b ??= Builder(key, under)).SetDeltaMm(at % Side, at / Side, p.D[at]);
+            if (_cellCorners.TryGetValue(key, out var counts))
                 for (int at = 0; at < Count; at++)
-                    if (counts[at] != 0) (b ??= For(kv.Key)).SetCleared(at % Side, at / Side, true);
-            }
-            var tiles = new List<TerrainEditTile>(builders.Count);
-            foreach (var b in builders.Values) tiles.Add(b.Build());
-            return tiles.Count == 0 ? under : under.With(tiles);
+                    if (counts[at] != 0) (b ??= Builder(key, under)).SetCleared(at % Side, at / Side, true);
+            if (b == null) _previewTiles.Remove(key);
+            else _previewTiles[key] = b.BuildTaking();
+        }
+
+        // One builder a tile, started again from under's tile each time (round 4: a tile is rebuilt a few times a second
+        // while painting, so the builder's arrays are reused and the built tile takes them rather than copies).
+        readonly Dictionary<EditTileKey, TerrainEditTile.Builder> _builders = new Dictionary<EditTileKey, TerrainEditTile.Builder>();
+
+        TerrainEditTile.Builder Builder(EditTileKey key, TerrainEdits under)
+        {
+            if (!_builders.TryGetValue(key, out var b)) _builders[key] = b = new TerrainEditTile.Builder(key);
+            under.TryGet(key, out var from);
+            return b.Reset(key, from);
         }
 
         /// <summary>TB-09: the stroke's cut and fill against the ground before it, m³ (1 m² a lattice point).</summary>
@@ -383,6 +441,7 @@ namespace MountainPlanner.Domain.Design
                     var key = EditTileKey.Of(cc, cr);
                     if (!_cellCorners.TryGetValue(key, out var counts)) _cellCorners[key] = counts = new byte[Count];
                     int at = (cr - key.FirstRow) * Side + (cc - key.FirstColumn);
+                    _cornersDirty.Add(key);
                     int was = counts[at];
                     counts[at] = (byte)(was + step);
                     if (was == 0) _clearedCells++;
@@ -395,14 +454,29 @@ namespace MountainPlanner.Domain.Design
         /// <c>Preview(under)</c>'s change, where <c>under</c> is the ground this run was given, with no tiles built.
         /// Reads the run as it stands; valid until the next dab. Same thread as the dabs.
         /// </summary>
+        /// <remarks>It's an <see cref="ICellClearing"/> too (BR22): the cells cleared with the stroke as it stands.</remarks>
         public IPointDeltas Live => _live ??= new LiveView(this);
 
-        sealed class LiveView : IPointDeltas
+        sealed class LiveView : IPointDeltas, ICellClearing
         {
             readonly BrushRun _run;
             Patch _last;
+            EditTileKey _countsKey = new EditTileKey(int.MinValue, int.MinValue);
+            byte[] _counts;
 
             public LiveView(BrushRun run) { _run = run; }
+
+            /// <summary>
+            /// BR22: whether a cell is cleared with the stroke as it stands: <c>Preview</c>'s rule, cleared under it already or
+            /// a corner moved the stroke's clearing depth (TB-10 v2), with no tiles built.
+            /// </summary>
+            public bool IsClearedAt(int cellColumn, int cellRow)
+            {
+                if (_run._ground.Edits.IsClearedAt(cellColumn, cellRow)) return true;
+                var key = EditTileKey.Of(cellColumn, cellRow);
+                if (key != _countsKey || _counts == null) { _countsKey = key; _run._cellCorners.TryGetValue(key, out _counts); }   // a tile's counts appear as the stroke reaches it
+                return _counts != null && _counts[(cellRow - key.FirstRow) * Side + (cellColumn - key.FirstColumn)] != 0;
+            }
 
             public int DeltaMmAt(int pointColumn, int pointRow)
             {

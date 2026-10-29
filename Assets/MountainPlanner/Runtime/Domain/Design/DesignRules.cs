@@ -197,6 +197,7 @@ namespace MountainPlanner.Domain.Design
                 return "A brush is 10–400 ft across, in 5 ft steps.";
             if (s.FalloffPermille < 0 || s.FalloffPermille > 1000) return "A brush's soft edge is out of range.";
             if (s.LimitMm < 1 || s.LimitMm > TerrainBrush.LimitMm) return "A stroke's depth limit is out of range.";
+            if (s.ClearMm != 0 && s.ClearMm != TerrainBrush.ClearMm) return "A stroke clears trees at 1 ft or not at all.";   // TB-10 v2
             bool raise = s.Kind == BrushKind.Raise || s.Kind == BrushKind.Lower;
             if (raise ? s.StepMm < 1 || s.StepMm > TerrainBrush.StepMaxMm : s.StepMm != 0) return "A stroke's step is out of range.";
             if (raise ? s.StrengthPermille != 0 : s.StrengthPermille < 1 || s.StrengthPermille > 1000) return "A stroke's strength is out of range.";
