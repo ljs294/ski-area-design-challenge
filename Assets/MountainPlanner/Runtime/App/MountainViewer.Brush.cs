@@ -235,6 +235,11 @@ namespace MountainPlanner.App
             public Timing confirmFrames, revertFrames;
             /// <summary>The built lifts and trail lines rebuilt after Confirm, ms on the main thread.</summary>
             public double confirmBuiltMs;
+            /// <summary>Confirm's parts, ms: the fold's Apply and Rebuild, the click to the fold landing, and the commit apply's wait in the queue and its own time.</summary>
+            public double confirmFoldApplyMs, confirmFoldRebuildMs, confirmLandedMs, confirmQueuedMs, confirmApplyMs;
+            /// <summary>Confirm clicked the frame after letting go of a 400 ft stroke (its fold has only just started), ms to committed, and the frames until then.</summary>
+            public double toCommittedOnLetGoMs;
+            public Timing confirmOnLetGoFrames;
             /// <summary>BR21: values on screen that differ from a fresh apply of the committed ground, after Confirm and after Revert (0 = none).</summary>
             public int shownDiffersAfterConfirm = -1, shownDiffersAfterRevert = -1;
             public string shownNote;
@@ -321,7 +326,15 @@ namespace MountainPlanner.App
                 var release = new List<double>(30);
                 _tools.Tick(BrushInput(b, left: true, release: true));
                 double finishMs = tool.LastFinishMs, finishPreviewMs = tool.LastFinishPreviewMs;
-                for (int i = 0; i < 30; i++) { yield return null; release.Add(Time.unscaledDeltaTime * 1000); }
+                for (int i = 0; i < 30; i++)
+                {
+                    int gcBefore = GC.CollectionCount(0);
+                    _tools.Tick(default);   // as a frame of the game: the tool keeps ticking after the let-go
+                    yield return null;
+                    float ms = Time.unscaledDeltaTime * 1000;
+                    release.Add(ms);
+                    if (ms > 20) Debug.Log($"[BrushBench] frame {Time.frameCount - 1}: {ms:F1} ms after letting go ({GC.CollectionCount(0) - gcBefore} collections, {GC.CollectionCount(0)} so far)");
+                }
                 var sum = stats.Summarise();
                 var bp = new BrushPass
                 {
@@ -339,7 +352,8 @@ namespace MountainPlanner.App
             report.measuredUtc = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
             report.gpu = SystemInfo.graphicsDeviceName;
             report.cpu = SystemInfo.processorType;
-            report.pass = report.brush400.frame.p95 <= 20 && report.brush60.live.p95 <= 8 && report.brush400.live.p95 <= 16 && report.toCommittedMs <= 250
+            report.pass = report.brush400.frame.p95 <= 20 && report.brush60.live.p95 <= 8 && report.brush400.live.p95 <= 16 && report.toCommittedMs <= 150
+                          && report.toCommittedOnLetGoMs <= 250 && report.confirmOnLetGoFrames.max <= 20
                           && report.brush400.release.max <= 20 && report.confirmFrames.max <= 20 && report.revertFrames.max <= 20
                           && report.shownDiffersAfterConfirm == 0 && report.shownDiffersAfterRevert == 0;
             File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
@@ -352,22 +366,35 @@ namespace MountainPlanner.App
             Debug.Log(string.Format(inv, "[BrushBench] confirm frames p95 {0:F1} max {1:F1} (built {2:F1} ms); revert frames p95 {3:F1} max {4:F1}; shown vs fresh: {5} after Confirm, {6} after Revert{7}",
                 report.confirmFrames.p95, report.confirmFrames.max, report.confirmBuiltMs, report.revertFrames.p95, report.revertFrames.max,
                 report.shownDiffersAfterConfirm, report.shownDiffersAfterRevert, report.shownNote != null ? " (" + report.shownNote + ")" : ""));
-            Debug.Log(string.Format(inv, "[BrushBench] to committed {0:F0} ms (review {1:F0}, confirm {2:F0}); {3}",
-                report.toCommittedMs, report.reviewMs, report.confirmMs, report.pass ? "PASS" : "FAIL"));
+            Debug.Log(string.Format(inv, "[BrushBench] to committed {0:F0} ms (fold landed at {1:F0}: apply {2:F0}, rebuild {3:F0}; commit apply queued {4:F0}, took {5:F0}); on let-go {6:F0} ms (frames max {7:F1}); {8}",
+                report.toCommittedMs, report.confirmLandedMs, report.confirmFoldApplyMs, report.confirmFoldRebuildMs, report.confirmQueuedMs,
+                report.confirmApplyMs, report.toCommittedOnLetGoMs, report.confirmOnLetGoFrames.max, report.pass ? "PASS" : "FAIL"));
             _toolScripted = false;
             Application.Quit();
         }
 
-        // From Confirm to the ground committed (BR17: no review page, so reviewMs stays 0), with every frame until 30 after it
+        // From Confirm, a second after letting go, to the ground committed (BR17: no review page, so reviewMs stays 0), with every frame until 30 after it
         // has landed (BR21: no hitch); then a 400 ft stroke and Revert, with the 30 frames after.
+        static void SlowAfter(string what)
+        {
+            float ms = Time.unscaledDeltaTime * 1000;
+            if (ms > 16) Debug.Log($"[BrushBench] frame {Time.frameCount - 1}: {ms:F1} ms after {what}");
+        }
+
         IEnumerator BenchConfirm(TerrainBrushTool tool, BrushBenchReport report)
         {
+            // A player's pause between letting go and clicking Confirm: a second, the tool ticking as in the game.
             var watch = System.Diagnostics.Stopwatch.StartNew();
+            while (watch.Elapsed.TotalSeconds < 1) { _tools.Tick(default); yield return null; }
+            watch.Restart();
             var frames = new List<double>(256);
             _tools.Confirm(WorkStage.Built);
-            while (tool.Confirming || EditsBusy) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); }
+            while (tool.Confirming || EditsBusy) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); SlowAfter("Confirm"); }
             report.confirmMs = report.toCommittedMs = watch.Elapsed.TotalMilliseconds;
-            for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); }
+            (report.confirmFoldApplyMs, report.confirmFoldRebuildMs) = tool.LastFold;
+            report.confirmLandedMs = tool.LastConfirmToLandedMs;
+            if (_edits != null) { var last = _edits.Pipeline.Last; report.confirmQueuedMs = last.QueuedMs; report.confirmApplyMs = last.TotalMs; }
+            for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); SlowAfter("Confirm"); }
             report.confirmFrames = Summarise(frames);
             report.confirmBuiltMs = LastBuiltMs;
             if (_edits != null) { report.shownDiffersAfterConfirm = _edits.Pipeline.CheckShown(out string note); report.shownNote ??= note; }
@@ -394,6 +421,22 @@ namespace MountainPlanner.App
             report.revertFrames = Summarise(frames);
             while (EditsBusy) yield return null;
             if (_edits != null) { report.shownDiffersAfterRevert = _edits.Pipeline.CheckShown(out string note); report.shownNote ??= note; }
+
+            // Confirm the frame after letting go: the fold started at the let-go has barely begun, so this is the slowest case.
+            _tools.Tick(BrushInput(a, left: true, click: true));
+            yield return null;
+            for (int t = 1; t <= 90; t++) { _tools.Tick(BrushInput(Vector2.Lerp(a, b, t / 90f), left: true)); yield return null; }
+            _tools.Tick(BrushInput(b, left: true, release: true));
+            yield return null;
+            frames.Clear();
+            Debug.Log($"[BrushBench] frame {Time.frameCount}: Confirm on let-go");
+            watch.Restart();
+            _tools.Confirm(WorkStage.Built);
+            while (tool.Confirming || EditsBusy) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); if (watch.Elapsed.TotalSeconds > 20) break; }
+            report.toCommittedOnLetGoMs = watch.Elapsed.TotalMilliseconds;
+            for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); }
+            report.confirmOnLetGoFrames = Summarise(frames);
+            if (_edits != null && report.shownDiffersAfterConfirm == 0) { report.shownDiffersAfterConfirm = _edits.Pipeline.CheckShown(out string note); report.shownNote ??= note; }
         }
     }
 }

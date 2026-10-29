@@ -41,7 +41,24 @@ namespace MountainPlanner.Domain.Snow
         /// <paramref name="gridConvergenceDegrees"/> is the angle from grid north clockwise to true north.
         /// </summary>
         public static void Compute(int width, int height, double cellMetres, float[] elevation, float[] canopy,
-                                   double gridConvergenceDegrees, float[] depth)
+                                   double gridConvergenceDegrees, float[] depth) =>
+            Compute(width, height, cellMetres, elevation, canopy, gridConvergenceDegrees, depth, null);
+
+        /// <summary>
+        /// The working tables <see cref="Compute(int, int, double, float[], float[], double, float[], Scratch)"/> can keep from
+        /// one call to the next, so a brush's repeated snowpacks make no garbage (about 12 MB a call on a 1,000-cell ring). Not
+        /// shared between threads.
+        /// </summary>
+        public sealed class Scratch
+        {
+            internal double[] Sums;
+            internal int[] Counts;
+            internal readonly long[] Histogram = new long[HistogramBins];
+        }
+
+        /// <summary>As the overload without it, reusing <paramref name="scratch"/>'s tables (null: new ones); the depths are the same.</summary>
+        public static void Compute(int width, int height, double cellMetres, float[] elevation, float[] canopy,
+                                   double gridConvergenceDegrees, float[] depth, Scratch scratch)
         {
             if (width < 1 || height < 1) throw new ArgumentOutOfRangeException(nameof(width));
             if (!(cellMetres > 0)) throw new ArgumentOutOfRangeException(nameof(cellMetres));
@@ -50,9 +67,10 @@ namespace MountainPlanner.Domain.Snow
             if (canopy == null || canopy.Length != n) throw new ArgumentException("One canopy share per cell.", nameof(canopy));
             if (depth == null || depth.Length != n) throw new ArgumentException("One depth per cell.", nameof(depth));
 
-            var (low, high) = Percentiles(elevation, 0.05, 0.95);
+            scratch ??= new Scratch();
+            var (low, high) = Percentiles(elevation, 0.05, 0.95, scratch.Histogram);
             double span = high - low;
-            double[] sums = SummedArea(elevation, width, height, out int[] counts);
+            double[] sums = SummedArea(elevation, width, height, scratch, out int[] counts);
             double gamma = gridConvergenceDegrees * Math.PI / 180;
 
             for (int y = 0; y < height; y++)
@@ -91,7 +109,9 @@ namespace MountainPlanner.Domain.Snow
         }
 
         /// <summary>The p-th elevation percentiles (NaN cells skipped), from a 4,096-bin histogram: exact to a fraction of a metre.</summary>
-        static (double Low, double High) Percentiles(float[] values, double pLow, double pHigh)
+        const int HistogramBins = 4096;
+
+        static (double Low, double High) Percentiles(float[] values, double pLow, double pHigh, long[] histogram)
         {
             double min = double.MaxValue, max = double.MinValue;
             long count = 0;
@@ -104,8 +124,8 @@ namespace MountainPlanner.Domain.Snow
             }
             if (count == 0) return (0, 0);
             if (max - min < 1e-6) return (min, max);
-            const int bins = 4096;
-            var histogram = new long[bins];
+            const int bins = HistogramBins;
+            Array.Clear(histogram, 0, bins);
             double scale = (bins - 1) / (max - min);
             foreach (float v in values)
                 if (!float.IsNaN(v)) histogram[(int)((v - min) * scale)]++;
@@ -136,11 +156,17 @@ namespace MountainPlanner.Domain.Snow
         }
 
         /// <summary>Summed-area tables of elevation and of cells with data, (width + 1) × (height + 1).</summary>
-        static double[] SummedArea(float[] e, int width, int height, out int[] counts)
+        static double[] SummedArea(float[] e, int width, int height, Scratch scratch, out int[] counts)
         {
             int w = width + 1;
-            var sums = new double[w * (height + 1)];
-            counts = new int[w * (height + 1)];
+            // Every entry but the first row and column is written below; those stay 0 from when the tables were made.
+            if (scratch.Sums == null || scratch.Sums.Length != w * (height + 1))
+            {
+                scratch.Sums = new double[w * (height + 1)];
+                scratch.Counts = new int[w * (height + 1)];
+            }
+            var sums = scratch.Sums;
+            counts = scratch.Counts;
             for (int y = 0; y < height; y++)
             {
                 double row = 0;

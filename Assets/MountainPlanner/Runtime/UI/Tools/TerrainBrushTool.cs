@@ -302,6 +302,8 @@ namespace MountainPlanner.UI.Tools
 
         public void Tick(in ToolInput input)
         {
+            // The fold ahead waits for the let-go's catch-up to land, so the two don't share the CPU.
+            if (_foldDue && _run == null && !_confirming && _catchUp.IsCompleted) { _foldDue = false; FoldAhead(); }
             if (_thenNext != null)
             {
                 // What the close ask's Confirm was for (close, or the next tool), run here rather than inside the fold's hand-over.
@@ -373,7 +375,7 @@ namespace MountainPlanner.UI.Tools
                 if (_dabs != null && _dabs.Count >= DesignRules.MaxDabsPerStroke)
                 {
                     bool lower = _rightStroke;
-                    Finish();
+                    Finish(released: !held);
                     if (held) Begin(input, lower, carryOn: true);   // a long drag carries on as a new stroke, on the same ramp (TB-14)
                 }
                 Live();
@@ -504,7 +506,7 @@ namespace MountainPlanner.UI.Tools
 
         static double Ms(long from) => (Stopwatch.GetTimestamp() - from) * 1000.0 / Stopwatch.Frequency;
 
-        void Finish()
+        void Finish(bool released = true)
         {
             if (_run == null) return;
             long t0 = Stopwatch.GetTimestamp();
@@ -526,6 +528,7 @@ namespace MountainPlanner.UI.Tools
                 foreach (var h in _run.Held()) _held.Add(h);
                 CatchUp(_pending);   // BR21: only what moved since the last catch-up; nothing on screen changes
                 _liveDirty = PointRect.Empty;
+                if (released) { _fold = null; _foldDue = true; }   // Confirm's fold, ahead of the click
             }
             _run = null;
             _dabs = null;
@@ -554,6 +557,8 @@ namespace MountainPlanner.UI.Tools
             _held.Clear();
             _held.UnionWith(press.Held);
             if (_ctx.LiveGround != null) _settling = _ctx.LiveGround.ShowGround(_pending, _base);
+            _fold = null;
+            _foldDue = true;
             PaintStatus();
         }
 
@@ -570,23 +575,108 @@ namespace MountainPlanner.UI.Tools
             _confirming = true;
             _landed = false;
             _afterConfirm = then;
+            PaintStatus();
+            _confirmClicked = Stopwatch.GetTimestamp();
+            // Usually the fold started when the last press ended is done or nearly done; if the session or the design moved
+            // since, it folds now, as before.
+            string why = _fold == null ? "none" : $"revision {_fold.Revision} vs {_ctx.History.Revision}, strokes {_fold.Command.Strokes.Count} vs {_session.Count}";
+            var fold = _fold != null && _fold.Matches(_ctx.History.Revision, _session) ? _fold : (_fold = StartFold());
+            _foldDue = false;
+            FoldWasAhead = fold.Started < _confirmClicked;
+            UnityEngine.Debug.Log($"[TerrainBrush] frame {Time.frameCount}: Confirm {(FoldWasAhead ? fold.Work.IsCompleted ? "found its fold done" : "waits for its fold" : "folds now")} ({why})");
+            _ctx.Await(fold.Work, r =>
+            {
+                LastFold = (r.ApplyMs, r.RebuildMs);
+                Landed(fold.Command, fold.Committed, r.After, r.Rebuild);
+            });
+        }
+
+        long _confirmClicked;
+
+        // ---------- the fold ahead (Confirm's work, started when a press ends) ----------
+
+        /// <summary>
+        /// The session folded through the design's earthwork (the command's Apply, then the earthwork's Rebuild), off the main
+        /// thread: the very work Confirm needs, on the very inputs (the design, the committed ground and the strokes as they stand),
+        /// so its result is the same whenever it runs. It's used only while the session's strokes and the design's revision are
+        /// still those it folded.
+        /// </summary>
+        sealed class Fold
+        {
+            public long Revision, Started;
+            public TerrainEdits Committed;
+            public AddTerrainStrokes Command;
+            public Task<FoldResult> Work;
+
+            public bool Matches(long revision, List<StrokePainting> session)
+            {
+                if (revision != Revision || Command.Strokes.Count != session.Count) return false;
+                // A stroke is a struct: the same stroke is the same dab list (each press makes its own) with the same settings.
+                for (int i = 0; i < session.Count; i++)
+                    if (!ReferenceEquals(Command.Strokes[i].Dabs, session[i].Dabs) || !Command.Strokes[i].Settings.Equals(session[i].Settings)) return false;
+                return true;
+            }
+        }
+
+        struct FoldResult
+        {
+            public CommandResult After;
+            public DesignEarthwork.Result Rebuild;
+            public double ApplyMs, RebuildMs;
+        }
+
+        Fold _fold;
+        bool _foldDue;
+
+        Fold StartFold()
+        {
             var doc = _ctx.History.Document;
             long revision = _ctx.History.Revision;
             var committed = _ctx.History.Terrain;
             var command = new AddTerrainStrokes(revision, new List<StrokePainting>(_session));
             var earthwork = _ctx.Earthwork.Earthwork;
-            PaintStatus();
-            _ctx.Analyse(() =>
+            return new Fold
             {
-                var after = command.Apply(doc);
-                return after.Accepted ? (after, earthwork.Rebuild(after.Document, committed)) : (after, null);
-            }, r => Landed(command, committed, r.after, r.Item2));
+                Revision = revision, Started = Stopwatch.GetTimestamp(), Committed = committed, Command = command,
+                Work = Task.Run(() =>
+                {
+                    long f0 = Stopwatch.GetTimestamp();
+                    var after = command.Apply(doc);
+                    double apply = Ms(f0);
+                    long f1 = Stopwatch.GetTimestamp();
+                    var rebuild = after.Accepted ? earthwork.Rebuild(after.Document, committed) : null;
+                    return new FoldResult { After = after, Rebuild = rebuild, ApplyMs = apply, RebuildMs = Ms(f1) };
+                }),
+            };
         }
+
+        // A press ended (or Ctrl+Z took one back): fold the session as it now stands, so Confirm finds it done. One at a time on
+        // one worker; a newer one replaces it (the older one's result goes unused).
+        void FoldAhead()
+        {
+            if (_session.Count == 0 || _ctx.Earthwork?.Earthwork == null || _ctx.History == null) { _fold = null; return; }
+            long t0 = Stopwatch.GetTimestamp();
+            _fold = StartFold();
+            UnityEngine.Debug.Log($"[TerrainBrush] frame {Time.frameCount}: folding the session's {_session.Count} strokes ahead of Confirm ({Ms(t0):F1} ms here)");
+        }
+
+        /// <summary>Whether the session's fold, started when the last press ended, has finished (tests).</summary>
+        public bool FoldDone => _fold != null && _fold.Work.IsCompleted;
+
+        /// <summary>Whether the last Confirm found its fold already started (the bench).</summary>
+        public bool FoldWasAhead { get; private set; }
+
+        /// <summary>The last Confirm's fold off the main thread: the command's Apply and the earthwork's Rebuild, ms (the bench).</summary>
+        public (double Apply, double Rebuild) LastFold { get; private set; }
+
+        /// <summary>From the last Confirm's click to its fold landing on the main thread, ms (the bench).</summary>
+        public double LastConfirmToLandedMs { get; private set; }
 
         void Landed(AddTerrainStrokes command, TerrainEdits committed, CommandResult after, DesignEarthwork.Result rebuild)
         {
             _landed = true;
             _confirming = false;
+            LastConfirmToLandedMs = Ms(_confirmClicked);
             if (!after.Accepted) { _afterConfirm = null; PaintStatus(); _ctx.Window.SetMessage(after.Reason); return; }
             long t0 = Stopwatch.GetTimestamp();
             var edits = rebuild.Edits;
@@ -643,6 +733,8 @@ namespace MountainPlanner.UI.Tools
             _cleared = 0;
             _held.Clear();
             _liveDirty = PointRect.Empty;
+            _fold = null;
+            _foldDue = false;
         }
 
         // TB-09: each tower whose steel the strokes change, under its fixed head (TW-02 v4).
@@ -712,11 +804,11 @@ namespace MountainPlanner.UI.Tools
             if (_session.Count == 0) { then?.Invoke(); return; }
             _asking = true;
             _afterAsk = then;
-            var w = _ctx.Window;
-            w.SetAsking("This ground isn't confirmed yet");
-            w.SetButtons(("ask-confirm", "Confirm", () => Confirm(TakeAsk())),
-                         ("ask-revert", "Revert", () => { var next = TakeAsk(); Revert(); next?.Invoke(); }),
-                         ("ask-keep", "Keep painting", KeepPainting));
+            // The ask's row takes the pane's foot, as the mockup's terrainask: no second Confirm and Revert under it.
+            _ctx.Window.SetAskRow("This ground isn't confirmed yet", GameAction.ToolNext,
+                ("ask-confirm", "Confirm", () => Confirm(TakeAsk())),
+                ("ask-revert", "Revert", () => { var next = TakeAsk(); Revert(); next?.Invoke(); }),
+                ("ask-keep", "Keep painting", KeepPainting));
         }
 
         void KeepPainting() => TakeAsk();
@@ -727,8 +819,7 @@ namespace MountainPlanner.UI.Tools
             var then = _afterAsk;
             _asking = false;
             _afterAsk = null;
-            _ctx.Window.SetAsking(null);
-            _ctx.Window.SetButtons();
+            _ctx.Window.SetAskRow(null, GameAction.ToolNext);
             return then;
         }
 
@@ -786,6 +877,8 @@ namespace MountainPlanner.UI.Tools
             t._held.UnionWith(_held);
             t._targetMm = _targetMm;
             t._targetAt = _targetAt;
+            t._fold = _fold;
+            t._foldDue = _foldDue;
             _carried = true;
             return true;
         }
