@@ -601,7 +601,7 @@ namespace MountainPlanner.UI.Tools
             double submit = Ms(t2);
             if (result == null || !result.Accepted) { _afterConfirm = null; PaintStatus(); return; }
             long t3 = Stopwatch.GetTimestamp();
-            _ctx.Earthwork?.Earthwork?.Accept(rebuild);
+            _ctx.Earthwork?.Earthwork?.Accept(rebuild, edits);   // the set the history now holds (the map's, the same ground)
             double accept = Ms(t3);
             // BR19: Confirm is when the player is charged; Phase 4's economy prices the volumes.
             _ctx.Charges?.Charge(new EarthworkBill(_cut, _fill, _cleared, _session.Count));

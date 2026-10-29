@@ -33,6 +33,11 @@ namespace MountainPlanner.App
         readonly Dictionary<LiftId, double[]> _liftGround = new Dictionary<LiftId, double[]>();
         TerrainEditSession _builtFor;
         bool _builtDirty;
+        // Task P3-11: the engine-free part of the built work (the trail look's numbers, the trails' shapes and ratings) runs
+        // on a worker while the ground lands, for the design and edits it was started with.
+        System.Threading.Tasks.Task<TrailMapView.Prepared> _builtJob;
+        DesignDocument _builtJobDoc;
+        Domain.Edits.TerrainEdits _builtJobTerrain;
         float _liftSnow = -1;
         double _chairSeconds;
 
@@ -111,14 +116,56 @@ namespace MountainPlanner.App
             }
             if (_clock != null && !_clock.Paused) _chairSeconds += Time.unscaledDeltaTime;
             ShowLifts(_layers == null || _layers.LiftsOn, false);
-            if (!_builtDirty || EditsBusy) return;
+            if (!_builtDirty) return;
+            if (EditsBusy)
+            {
+                // While the ground lands: the numbers behind the trail look and the trails' shapes and ratings, off the main
+                // thread, over the committed edits (what the ground will show) and the earthwork as accepted.
+                if (_builtJob == null && _edits != null && _trailLayer != null)
+                {
+                    var jobDoc = _builtFor.History.Document;
+                    var jobTerrain = _builtFor.History.Terrain;
+                    var shown = _builtFor.Pipeline.Heights;
+                    var jobHeights = new Domain.Edits.EditedHeights(shown.Source, shown.Lattice, jobTerrain);
+                    var frame = _resort.Frame;
+                    var earthwork = _edits.Earthwork;
+                    var map = _trailMap;
+                    var layer = _trailLayer;
+                    _builtJobDoc = jobDoc;
+                    _builtJobTerrain = jobTerrain;
+                    _builtJob = System.Threading.Tasks.Task.Run(() =>
+                    {
+                        map.Prepare(jobDoc, jobHeights, frame, t => earthwork.DetailOf(t.Id.Value) as TrailBuild);
+                        return layer.Prepare(jobDoc, jobHeights, frame, earthwork);
+                    });
+                }
+                return;
+            }
+            if (_builtJob != null && !_builtJob.IsCompleted) return;   // BuiltBusy stays true until it's taken
             _builtDirty = false;
             var builtWatch = System.Diagnostics.Stopwatch.StartNew();
             if (_designOverlay != null) _designOverlay.ShowBuilt = !ReferenceEquals(_designOverlay.History, _builtFor.History);
             var doc = _builtFor.History.Document;
             var heights = _builtFor.Pipeline.Heights;
-            int trails = _trailMap.Rebuild(doc, heights, _resort.Frame, t => _edits?.Earthwork?.DetailOf(t.Id.Value) as TrailBuild);
-            RebuildTrailLayer(doc, heights);   // the Trails map layer (MountainViewer.Trails.cs, task 08)
+            // The job's result counts only for the design and ground now shown; else everything is worked out here.
+            TrailMapView.Prepared prepared = null;
+            bool mapPrepared = false;
+            if (_builtJob != null)
+            {
+                if (_builtJob.Status == System.Threading.Tasks.TaskStatus.RanToCompletion && ReferenceEquals(_builtJobDoc, doc) && ReferenceEquals(_builtJobTerrain, heights.Edits))
+                {
+                    prepared = _builtJob.Result;
+                    mapPrepared = true;
+                }
+                else if (_builtJob.IsFaulted) Debug.LogException(_builtJob.Exception);
+                _builtJob = null;
+                _builtJobDoc = null;
+                _builtJobTerrain = null;
+            }
+            int trails = mapPrepared ? _trailMap.Upload() : _trailMap.Rebuild(doc, heights, _resort.Frame, t => _edits?.Earthwork?.DetailOf(t.Id.Value) as TrailBuild);
+            double mapMs = builtWatch.Elapsed.TotalMilliseconds;
+            RebuildTrailLayer(doc, heights, prepared);   // the Trails map layer (MountainViewer.Trails.cs, task 08)
+            double layerMs = builtWatch.Elapsed.TotalMilliseconds - mapMs;
             var keep = new HashSet<LiftId>();
             foreach (var lift in doc.Lifts)
             {
@@ -178,6 +225,7 @@ namespace MountainPlanner.App
                               ? $"station foundations {rope.Towers[0].Reveal / 0.3048:F1} / {rope.Towers[rope.Towers.Count - 1].Reveal / 0.3048:F1} ft"
                               : "no towers yet"));
             }
+            double liftsMs = builtWatch.Elapsed.TotalMilliseconds - mapMs - layerMs;
             var gone = new List<LiftId>();
             foreach (var kv in _liftViews) if (!keep.Contains(kv.Key)) gone.Add(kv.Key);
             if (_mapLines != null)
@@ -201,7 +249,10 @@ namespace MountainPlanner.App
             int chairs = 0;
             foreach (var kv in _liftViews) chairs += kv.Value.View != null ? kv.Value.View.ChairCount : 0;
             LastBuiltMs = builtWatch.Elapsed.TotalMilliseconds;
-            if (trails > 0 || _liftViews.Count > 0) Debug.Log($"[Built] {trails} trails, {_liftViews.Count} lifts drawn, {chairs} chairs ({LastBuiltMs:F1} ms)");
+            // The split (task P3-11): the trail look (its own stages), the Trails layer, the lifts, and the lists and labels.
+            if (trails > 0 || _liftViews.Count > 0)
+                Debug.Log($"[Built] {trails} trails, {_liftViews.Count} lifts drawn, {chairs} chairs ({LastBuiltMs:F1} ms{(mapPrepared ? ", prepared while the ground landed" : "")}: trail look {mapMs:F1} ({_trailMap.LastSplit}), " +
+                          $"trail layer {layerMs:F1} ({_trailLayer?.LastSplit}; sections {_lastSectionsMs:F1}), lifts {liftsMs:F1}, lists and labels {LastBuiltMs - mapMs - layerMs - liftsMs:F1})");
         }
 
         // ---------- lift names on the Labels layer (task 09, UI-16) ----------
@@ -472,6 +523,9 @@ namespace MountainPlanner.App
 
         void ReleaseBuiltWork()
         {
+            _builtJob = null;
+            _builtJobDoc = null;
+            _builtJobTerrain = null;
             _hovered = null;
             _hoveredId = 0;
             _held = null;

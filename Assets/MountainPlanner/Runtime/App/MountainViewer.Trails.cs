@@ -21,6 +21,7 @@ namespace MountainPlanner.App
     {
         EarthworkHost _ground;
         TrailMapView _trailLayer;
+        double _lastSectionsMs;
         MountainPlanner.UI.LandmarkLabelOverlay _trailLabels;
         readonly List<(string Name, MapLabelSpot[] Spots, double Length)> _trailLabelSpots = new List<(string, MapLabelSpot[], double)>();
         readonly List<(string Name, MapLabelSpot[] Spots)> _trailLabelOrder = new List<(string, MapLabelSpot[])>();
@@ -29,15 +30,21 @@ namespace MountainPlanner.App
         internal TrailMapView TrailLayer => _trailLayer;
 
         /// <summary>Redraws the Trails layer with the built work (from UpdateBuiltWork, once the edits are laid).</summary>
-        void RebuildTrailLayer(DesignDocument doc, EditedHeights heights)
+        void RebuildTrailLayer(DesignDocument doc, EditedHeights heights, TrailMapView.Prepared prepared = null)
         {
             if (_resort == null) return;
             _trailLayer ??= new TrailMapView(_resort.Root.transform, _resort.Surface, HighlightMaterial);
-            _trailLayer.Rebuild(doc, heights, _resort.Frame, _edits?.Earthwork, _trailLabelSpots, _resort.Surface);
+            _trailLayer.Rebuild(doc, heights, _resort.Frame, _edits?.Earthwork, _trailLabelSpots, _resort.Surface, prepared);
             if (_trailLabels == null && Hud != null)
                 _trailLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer, _labelPlacement, MountainPlanner.UI.LabelPlacement.Trails);
             // NT7: the longest runs' names place first; equal lengths keep the design's order.
-            if (_sections != null) { ApplySections(doc, _sections); return; }   // NT43: names and rows by trail
+            if (_sections != null)
+            {
+                long s0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                ApplySections(doc, _sections);   // NT43: names and rows by trail
+                _lastSectionsMs = (System.Diagnostics.Stopwatch.GetTimestamp() - s0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                return;
+            }
             _trailLabelOrder.Clear();
             var byLength = new List<int>(_trailLabelSpots.Count);
             for (int i = 0; i < _trailLabelSpots.Count; i++) byLength.Add(i);
@@ -565,17 +572,25 @@ namespace MountainPlanner.App
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var history = _edits.History;
             var after = cmd.Apply(history.Document);
+            double applyMs = watch.Elapsed.TotalMilliseconds;
             var rebuilt = _edits.Earthwork.Rebuild(after.Document, history.Terrain);
+            double rebuildMs = watch.Elapsed.TotalMilliseconds - applyMs;
             var heights = _edits.Pipeline.Heights;
             var pending = new EditedHeights(heights.Source, heights.Lattice, rebuilt.Edits);
             // As the tool runs it: the contours across threads while the rating runs here.
             var contours = System.Threading.Tasks.Task.Run(() => TrailTool.Contours(heights, pending, rebuilt.Changed, UnitFormat.ContourIntervalMetres(DisplayUnits.Current)));
             if (after.Created.Count > 0 && rebuilt.DetailOf(after.Created[0]) is TrailBuild b && b.Grade != null)
                 TrailRating.Rate(pending, b.Footprint, b.Grade);
+            double ratingMs = watch.Elapsed.TotalMilliseconds - applyMs - rebuildMs;
             contours.Wait();
             ms = watch.Elapsed.TotalMilliseconds;
+            LastAnalyseSplit = string.Format(System.Globalization.CultureInfo.InvariantCulture, "apply {0:F1}, rebuild {1:F1}, rating {2:F1}, contours wait {3:F1} over {4} tiles",
+                                             applyMs, rebuildMs, ratingMs, ms - applyMs - rebuildMs - ratingMs, rebuilt.Changed.Count);
             return rebuilt;
         }
+
+        /// <summary>The last analysis's stages, ms (the edit bench's split, task P3-11).</summary>
+        string LastAnalyseSplit = "";
 
         IEnumerator RunTrailBench(string outPath)
         {

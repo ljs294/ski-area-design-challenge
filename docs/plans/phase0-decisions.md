@@ -638,4 +638,4 @@ recommendation taken. Plan: [p3-11-plan.md](p3-11-plan.md).
 | DB5 | **The eight baselines stay as they are:** the new legs fly only with `-drawnresort`, and the drawn runs get files of their own |
 | DB6 | **Lift edits are timed and reported, not gated:** CF-09's budgets cover grading |
 | DB7 | **The measured view includes task 10's network** (overlay, labels, stations), on main before the first run |
-| DB8 | **A missed budget is reported with its numbers and goes to the owner;** no fix in this task without the owner's OK |
+| DB8 | **A missed budget is reported with its numbers and goes to the owner;** no fix in this task without the owner's OK. The first timing (2026-10-29) missed the edit budgets 5–20× with the resort loaded; the owner chose to fix it here and approved the fix plan, reviewed adversarially first ([p3-11-plan.md](p3-11-plan.md) §5); any budget still missed after it comes back with its split before a deeper change |

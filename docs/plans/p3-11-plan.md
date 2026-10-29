@@ -50,3 +50,32 @@ Branch `feature/p3-11-drawn-benchmark`, `demo.bat` 72.
 `docs/perf/`: the drawn High, Medium and Development reports, the edit report, and a README section with the commands,
 the numbers, and the design's cost against the bare path. A missed budget goes to the owner with its numbers (DB8).
 Demo 72 (the drawn resort in the game), 72b (the frame benchmark and compare), 72c (the edit timing).
+
+## 5. The edit-timing fix (DB8, approved 2026-10-29)
+
+The first timing passed the frame budgets (High 9.1 ms, Medium 5.5 ms p95) but missed the edit budgets 5–20×: previews
+0.2–2.3 s, commits and undo 1.7–2.0 s at p95. The causes, from the code and the run's log:
+
+- **Commit and undo:** after every change the trail look (`TrailSurfaceMap`) was redrawn whole, with five full-size
+  arrays per trail (about 3.4 GB a commit), every trail was rated again, and new or edited trails worked out their
+  footprints a second time (the history applies the command again, so a reference check never matched). The ground
+  pass itself is 100–230 ms. The lift models were already kept.
+- **Preview:** the design's earthwork graded far more than an edit could reach: one growing box of change, a removed
+  piece's box regrading the pieces before it, lifts tested by the box round their whole line, and a memory that undo
+  and redo never moved, which also let `Foreign` lay a deleted-then-restored lift's old trench back over new work.
+
+The fix, each step measured in the player before and after, with byte-identity tests on synthetic ground in CI:
+
+1. **Measure:** split timings for the built work, the ground pass and the network; `-designbench`'s commit timer
+   ends when the ground and built work are in, with the settled time and the slowest frame reported; five rounds.
+2. **The earthwork's memory follows undo and redo,** keyed by the history's own edits, taken only from a matching
+   accept, re-learnt in the background when nothing matches; reads never wait behind a fold.
+3. **A build matches its trail by value** (and a split part's slice of line is never taken for its own).
+4. **The trail look and ratings update only where something changed**, over the same window as before.
+5. **The fold regrades only what can have changed:** tiles, not boxes; a removed piece counts from its own place in
+   the order; a stroke follows its lift.
+6. **Gate:** a budget still missed comes back to the owner with its split (the ground pass, a lift's regrade, the
+   run's own grade) before any deeper change.
+
+Not fixed here: the trail look's 2048 m window leaves about the south-east half of the resort without it; recorded
+as a follow-up.

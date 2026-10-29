@@ -50,6 +50,7 @@ namespace MountainPlanner.Presentation.Edits
         readonly LocalFrame _frame;
         readonly Dictionary<(int, int), Terrain> _tiles;
         readonly Dictionary<(int, int), CacheTile> _cacheTiles = new Dictionary<(int, int), CacheTile>();
+        readonly Dictionary<(int, int), byte[]> _treesPacked = new Dictionary<(int, int), byte[]>();
         readonly PackageHeights _source;
         readonly CoverField _cover;
         readonly EditLattice _lattice;
@@ -215,7 +216,9 @@ namespace MountainPlanner.Presentation.Edits
                 // The sync can hand the tile a new GPU heightmap: rebind it, or the slope and exposure layers read a stale one.
                 TerrainTiles.BindSplat(terrain);
                 report.HeightsMs += part.Elapsed.TotalMilliseconds;
-                await Breathe(always: true);   // a tile's sync is the biggest single step: one a frame
+                // A tile's sync is the biggest single step: one a frame while a brush session shows its ground (BR21); a commit
+                // takes the frame's budget as the rest does (task P3-11: a forced wait a tile was 20-60 ms of every commit).
+                await Breathe(always: !commit);
             }
             foreach (var p in patches)
                 if (p.Splat != null && _tiles.TryGetValue(p.Tile, out var terrain) && terrain.terrainData.alphamapResolution == p.Splat.Resolution)
@@ -375,7 +378,8 @@ namespace MountainPlanner.Presentation.Edits
                 {
                     if (!ranges.TryGetValue(key, out var range) || range.Count == 0) continue;
                     var tile = _cacheTiles[key];
-                    byte[] packed = TerrainCache.ReadTrees(_folder, tile);
+                    // Read and checked once (task P3-11: every commit re-read and re-hashed each touched tile's file).
+                    if (!_treesPacked.TryGetValue(key, out byte[] packed)) _treesPacked[key] = packed = TerrainCache.ReadTrees(_folder, tile);
                     int count = packed.Length / ForestField.BytesPerTree;
                     if (count != range.Count) throw new InvalidOperationException($"Tile {key} has {count} trees in the cache and {range.Count} on screen.");
                     var b = _grid.Bounds(new TileKey(key.Item1, key.Item2));

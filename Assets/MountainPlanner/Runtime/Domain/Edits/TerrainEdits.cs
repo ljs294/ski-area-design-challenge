@@ -62,20 +62,32 @@ namespace MountainPlanner.Domain.Edits
         public TerrainEdits With(IEnumerable<TerrainEditTile> replacements)
         {
             if (replacements == null) throw new ArgumentNullException(nameof(replacements));
-            var byKey = new SortedDictionary<EditTileKey, TerrainEditTile>();
-            foreach (var t in _tiles) byKey[t.Key] = t;
-            var seen = new HashSet<EditTileKey>();
+            // The replacements in key order, then one merge over the sorted tiles (task P3-11: a fold calls this for every
+            // piece it grades, and a lift's build several times, over a resort's thousand tiles).
+            var sorted = new List<TerrainEditTile>();
             foreach (var r in replacements)
             {
                 if (r == null) throw new ArgumentException("A null tile.", nameof(replacements));
-                if (!seen.Add(r.Key)) throw new ArgumentException($"Tile {r.Key} appears twice.", nameof(replacements));
-                if (r.IsEmpty) byKey.Remove(r.Key);
-                else byKey[r.Key] = r;
+                sorted.Add(r);
             }
-            if (byKey.Count == 0) return Empty;
-            var tiles = new TerrainEditTile[byKey.Count];
-            byKey.Values.CopyTo(tiles, 0);
-            return new TerrainEdits(tiles);
+            sorted.Sort((a, b) => a.Key.CompareTo(b.Key));
+            for (int i = 1; i < sorted.Count; i++)
+                if (sorted[i].Key.Equals(sorted[i - 1].Key)) throw new ArgumentException($"Tile {sorted[i].Key} appears twice.", nameof(replacements));
+            if (sorted.Count == 0) return this;
+            var merged = new List<TerrainEditTile>(_tiles.Length + sorted.Count);
+            int k = 0, m = 0;
+            while (k < _tiles.Length || m < sorted.Count)
+            {
+                int cmp = k >= _tiles.Length ? 1 : m >= sorted.Count ? -1 : _tiles[k].Key.CompareTo(sorted[m].Key);
+                if (cmp < 0) merged.Add(_tiles[k++]);
+                else
+                {
+                    var r = sorted[m++];
+                    if (cmp == 0) k++;
+                    if (!r.IsEmpty) merged.Add(r);
+                }
+            }
+            return merged.Count == 0 ? Empty : new TerrainEdits(merged.ToArray());
         }
 
         /// <summary>

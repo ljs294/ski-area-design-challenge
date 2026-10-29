@@ -176,7 +176,7 @@ namespace MountainPlanner.Domain.Design
             public Shape(Trail t, EarthworkSite site, TrailBuild known)
             {
                 Trail = t;
-                bool reuse = known != null && ReferenceEquals(known.Trail, t);
+                bool reuse = known != null && known.IsFor(t);   // by value: an edited trail is never the object graded (task P3-11)
                 Footprint = reuse && known.Footprint != null ? known.Footprint : TrailFootprint.Build(t.Shape, site.Lattice, site.OriginX, site.OriginY);
                 site.PointOf(t.Head.Value, out HeadX, out HeadY);
                 site.PointOf(t.Tail.Value, out TailX, out TailY);

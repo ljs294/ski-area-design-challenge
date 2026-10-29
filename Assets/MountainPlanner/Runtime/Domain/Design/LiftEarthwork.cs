@@ -41,14 +41,10 @@ namespace MountainPlanner.Domain.Design
         }
 
         // Creation order: IDs are keyed hashes of the ordinal they were minted at (SH-04).
-        static Dictionary<ulong, long> Ordinals(DesignDocument doc)
-        {
-            var map = new Dictionary<ulong, long>();
-            for (long o = 0; o < doc.NextOrdinal; o++) map[LiftId.Make(doc.Seed, o).Value] = o;
-            return map;
-        }
+        static Dictionary<ulong, long> Ordinals(DesignDocument doc) =>
+            EarthworkGeometry.OrdinalsOf("lift", doc, (seed, o) => LiftId.Make(seed, o).Value);
 
-        sealed class Item : IEarthworkItem
+        sealed class Item : IEarthworkItem, IReachTiles
         {
             readonly Lift _lift;
             readonly EarthworkSite _site;
@@ -58,6 +54,15 @@ namespace MountainPlanner.Domain.Design
                 _lift = lift;
                 _site = site;
                 Order = order;
+                // Kept with the lift object (task P3-11): worked out once, not on every preview.
+                var geometry = EarthworkGeometry.Of(lift, site, () => Geometry(lift, site));
+                Reads = geometry.Item1;
+                Tiles = geometry.Item2;
+                ReachTiles = geometry.Item3;
+            }
+
+            static Tuple<PointRect, IReadOnlyCollection<EditTileKey>, IReadOnlyCollection<EditTileKey>> Geometry(Lift lift, EarthworkSite site)
+            {
                 var lat = site.Lattice;
                 site.PointOf(lift.Bottom, out double bx, out double by);
                 site.PointOf(lift.Top, out double tx, out double ty);
@@ -73,8 +78,73 @@ namespace MountainPlanner.Domain.Design
                     rect = rect.Union(box);
                     foreach (var key in box.TileKeys()) keys.Add(key);
                 }
-                Reads = rect;
-                Tiles = keys;
+                return Tuple.Create(rect, (IReadOnlyCollection<EditTileKey>)keys, ReachOf(lift, site, bx, by, tx, ty, len));
+            }
+
+            /// <summary>
+            /// The tiles the lift's earthwork reads (task P3-11), from its stored towers and its type's measures, never
+            /// hard-coded: a band along the line (the corridor's clearing, the rope's samples, the envelope's band and
+            /// faces), a disc round each bullwheel (the pad's faces and CL-09's clearing, whichever reaches further), and
+            /// the trench's box (its loop reads the whole box across the line). Anything wider is <see cref="Tiles"/>.
+            /// </summary>
+            static IReadOnlyCollection<EditTileKey> ReachOf(Lift lift, EarthworkSite site, double bx, double by, double tx, double ty, double len)
+            {
+                var lat = site.Lattice;
+                var keys = new SortedSet<EditTileKey>();
+                var type = LiftType.Of(lift.CatalogId);
+                if (len <= 0) return keys;
+                double ux = (tx - bx) / len, uy = (ty - by) / len;
+                void Box(double x0, double y0, double x1, double y1)
+                {
+                    var box = new PointRect((int)Math.Floor(Math.Min(x0, x1) - lat.West), (int)Math.Floor(lat.North - Math.Max(y0, y1)),
+                                            (int)Math.Ceiling(Math.Max(x0, x1) - lat.West), (int)Math.Ceiling(lat.North - Math.Min(y0, y1)));
+                    foreach (var key in box.TileKeys()) keys.Add(key);
+                }
+                // The band: the corridor (CL-03), or the chairs' paths with the envelope's margin, faces and reads, 2 m to spare.
+                double band = Math.Max(LiftClearing.CorridorMetres / 2,
+                                       type.GaugeMetres / 2 + type.ChairHalfWidthMetres + LiftLineEnvelope.MarginMetres + LiftLineEnvelope.CapMetres + 2) + 2;
+                int steps = Math.Max(1, (int)Math.Ceiling(len / 16));
+                for (int q = 0; q < steps; q++)
+                {
+                    double ax = bx + (tx - bx) * q / steps, ay = by + (ty - by) * q / steps;
+                    double cx = bx + (tx - bx) * (q + 1) / steps, cy = by + (ty - by) * (q + 1) / steps;
+                    Box(Math.Min(ax, cx) - band, Math.Min(ay, cy) - band, Math.Max(ax, cx) + band, Math.Max(ay, cy) + band);
+                }
+                // A disc round each bullwheel: the pad's faces (TerminalPad) or the terminal's clearing (CL-09), plus 1 m.
+                void Disc(double x, double y, TerminalEnd end)
+                {
+                    double a = end.Ahead + TerminalPad.MarginMetres, b = end.Behind + TerminalPad.MarginMetres, w = end.HalfWidth + TerminalPad.MarginMetres;
+                    double pad = Math.Sqrt(Math.Max(a, b) * Math.Max(a, b) + w * w) + TerminalPad.FaceReachMetres + 2;
+                    double ca = end.Ahead + LiftClearing.TerminalMarginMetres + LiftClearing.StationZoneMetres, cb = end.Behind + LiftClearing.TerminalMarginMetres,
+                           cw = end.HalfWidth + LiftClearing.TerminalMarginMetres;
+                    double clearing = Math.Sqrt(Math.Max(ca, cb) * Math.Max(ca, cb) + cw * cw) + 1;
+                    double reach = Math.Max(pad, clearing) + 1;
+                    Box(x - reach, y - reach, x + reach, y + reach);
+                }
+                Disc(bx, by, type.Bottom);
+                Disc(tx, ty, type.Top);
+                // The trench's box: from the bottom pad's edge (or the station tower's pit) to 15 ft short of the first line
+                // tower, with the envelope's reach along and across, as its loop reads it (an axis-aligned box over that run).
+                LiftRope.Zones(type, len, out double front, out _, out _, out double end);
+                double stationS = type.Bottom.OwnStation ? type.Bottom.ExitAlong : lift.Towers.Count > 0 ? lift.Towers[0].AlongMm / 1000.0 : 0;
+                foreach (var tower in lift.Towers)
+                {
+                    double s = tower.AlongMm / 1000.0;
+                    if (s > stationS + 1) { end = Math.Min(end, s - LiftLineEnvelope.TowerKeepMetres); break; }
+                }
+                end += 5;   // a leaned tower's foot can slide a little from where it's stored
+                double half = type.GaugeMetres / 2 + type.ChairHalfWidthMetres + LiftLineEnvelope.MarginMetres;
+                double reachT = LiftLineEnvelope.CapMetres + 2;
+                double s0 = Math.Min(front, stationS - LiftLineEnvelope.PitHalfMetres) - 1.5 - reachT, s1 = end + 1.5 + reachT;
+                double minX = double.MaxValue, maxX = double.MinValue, minY = double.MaxValue, maxY = double.MinValue;
+                foreach (double s in new[] { s0, s1 })
+                    foreach (double d in new[] { -half - reachT, half + reachT })
+                    {
+                        double x = bx + ux * s + uy * d, y = by + uy * s - ux * d;
+                        minX = Math.Min(minX, x); maxX = Math.Max(maxX, x); minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
+                    }
+                Box(minX - 1, minY - 1, maxX + 1, maxY + 1);
+                return keys;
             }
 
             public ulong Key => _lift.Id.Value;
@@ -82,6 +152,7 @@ namespace MountainPlanner.Domain.Design
             public long Order { get; }
             public PointRect Reads { get; }
             public IReadOnlyCollection<EditTileKey> Tiles { get; }
+            public IReadOnlyCollection<EditTileKey> ReachTiles { get; }
 
             public bool SameAs(IEarthworkItem other) => other is Item o && SameWork(_lift, o._lift);
 

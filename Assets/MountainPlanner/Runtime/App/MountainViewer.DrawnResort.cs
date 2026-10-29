@@ -146,36 +146,92 @@ namespace MountainPlanner.App
             var undo = new List<double>();
             int rejected = 0;
 
-            // Commits a previewed command as Break ground does, timed to the frame that shows it; undo is timed the same way.
+            var settled = new List<double>();
+            var slowest = new List<double>();
+            // Timed from the command going in to the frame that shows it: its ground and the built work redrawn (WorkBusy, the
+            // gated figure). Then, reported: settled once the network and sections land too, and the slowest frame from the
+            // command until a second after it settled, so nothing hides by moving off the main thread.
+            IEnumerator Landed(System.Diagnostics.Stopwatch watch, List<double> into, bool counted)
+            {
+                double worst = 0;
+                while (WorkBusy) { yield return null; worst = Math.Max(worst, Time.unscaledDeltaTime * 1000.0); }
+                yield return null;
+                worst = Math.Max(worst, Time.unscaledDeltaTime * 1000.0);
+                if (counted) into.Add(watch.Elapsed.TotalMilliseconds);
+                while (NetworkBusy || WorkBusy) { yield return null; worst = Math.Max(worst, Time.unscaledDeltaTime * 1000.0); }
+                if (counted) settled.Add(watch.Elapsed.TotalMilliseconds);
+                // The snow rebuild after an edit settles, as it would while a player works.
+                for (int i = 0; i < 60; i++) { yield return null; worst = Math.Max(worst, Time.unscaledDeltaTime * 1000.0); }
+                if (counted) slowest.Add(worst);
+            }
+
+            // Commits a previewed command as Break ground does; undo is timed the same way.
             IEnumerator Commit(DesignCommand cmd, DesignEarthwork.Result rebuilt, List<double> into, bool counted, Action<CommandResult> done)
             {
                 var watch = System.Diagnostics.Stopwatch.StartNew();
                 var r = history.Submit(cmd, rebuilt.Edits);
                 if (r.Accepted) _edits.Earthwork.Accept(rebuilt);
-                while (!_edits.Applying.IsCompleted) yield return null;
-                yield return null;
-                if (counted) into.Add(watch.Elapsed.TotalMilliseconds);
                 if (!r.Accepted) { rejected++; Debug.LogWarning("[DesignBench] rejected: " + r); }
                 done?.Invoke(r);
-                for (int i = 0; i < 60; i++) yield return null;   // the snow rebuild after an edit settles, as it would while a player works
+                yield return Landed(watch, into, counted && r.Accepted);
             }
             IEnumerator Undo(bool counted)
             {
                 var watch = System.Diagnostics.Stopwatch.StartNew();
                 history.Undo();
-                while (!_edits.Applying.IsCompleted) yield return null;
-                yield return null;
-                if (counted) undo.Add(watch.Elapsed.TotalMilliseconds);
-                for (int i = 0; i < 60; i++) yield return null;
+                yield return Landed(watch, undo, counted);
             }
 
-            const int spots = 10, rounds = 2;
+            // Five rounds over the ten spots (100 of each edit, so p95 isn't simply the second slowest), after a warm-up
+            // round at every spot (the code's first runs, the ground's first reads there).
+            const int spots = 10;
+            var argv = Environment.GetCommandLineArgs();
+            int ri = Array.IndexOf(argv, "-benchrounds");
+            int rounds = ri >= 0 && ri + 1 < argv.Length && int.TryParse(argv[ri + 1], out int asked) ? Math.Max(1, asked) : 5;   // fewer for a quick look
+            // The preview's split (the gate's evidence, DB8): time grading trails and lifts, and the rest of the fold.
+            long graded0 = 0;
+            var gradedTicks = new long[3];
+            var gradedCount = new int[3];
+            _edits.Earthwork.Grading = (key, phase, start) =>
+            {
+                if (start) graded0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                else { gradedTicks[Math.Min(phase, 2)] += System.Diagnostics.Stopwatch.GetTimestamp() - graded0; gradedCount[Math.Min(phase, 2)]++; }
+            };
+            // And the fold's own stages (collect, scan, open, fold, with, changed) and garbage collections, for the gate.
+            var stageTicks = new Dictionary<string, long>();
+            long stage0 = 0;
+            _edits.Earthwork.Stage = name =>
+            {
+                long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                stageTicks[name] = now - stage0;
+                stage0 = now;
+            };
+            int gc0 = 0;
+            var split = new System.Text.StringBuilder();
+            void Split(string what, double ms, bool counted)
+            {
+                double Ms(long t) => t * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                if (counted)
+                {
+                    var stages = new System.Text.StringBuilder();
+                    foreach (var name in new[] { "collect", "scan", "open", "fold", "with", "changed" })
+                        if (stageTicks.TryGetValue(name, out long t)) stages.Append(string.Format(System.Globalization.CultureInfo.InvariantCulture, " {0} {1:F1}", name, Ms(t)));
+                    split.AppendLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        "[DesignBench] preview {0}: {1:F1} ms; {2} trails graded {3:F1} ms, {4} lifts {5:F1} ms, {6} strokes {7:F1} ms, the rest {8:F1} ms ({9}; stages{10}; {11} GCs)",
+                        what, ms, gradedCount[0], Ms(gradedTicks[0]), gradedCount[1], Ms(gradedTicks[1]), gradedCount[2], Ms(gradedTicks[2]),
+                        ms - Ms(gradedTicks[0] + gradedTicks[1] + gradedTicks[2]), LastAnalyseSplit, stages, GC.CollectionCount(0) - gc0));
+                }
+                Array.Clear(gradedTicks, 0, 3);
+                Array.Clear(gradedCount, 0, 3);
+                stageTicks.Clear();
+                stage0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                gc0 = GC.CollectionCount(0);
+            }
             var natural = history.Document.Trails.Where(t => t.Settings.Grading == TrailGrading.Natural).Select(t => t.Id).ToList();
             var builtTrails = history.Document.Trails.Select(t => t.Id).ToList();
-            // Pass -1 is a warm-up (the code's first run, the ground's first reads), as -trailbench's.
-            for (int pass = -1; pass < spots * rounds; pass++)
+            for (int pass = -spots; pass < spots * rounds; pass++)
             {
-                int s = pass < 0 ? 0 : pass % spots;
+                int s = (pass + spots) % spots;
                 bool counted = pass >= 0;
                 float angle = s * Mathf.PI * 2 / spots;
                 var head = new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * 600f;
@@ -186,7 +242,9 @@ namespace MountainPlanner.App
                     var path = FallLine(head, length);
                     var shape = TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(100), false, path.ToArray()) });
                     var add = new AddTrail(history.Revision, "Bench " + s, TrailSettings.GradedRun, shape, path[0], path[path.Count - 1], WorkStage.Built);
+                    Split("", 0, false);
                     var rebuilt = AnalyseForBench(add, out double ms);
+                    Split(length < 500 ? "1,000 ft" : "1 km", ms, counted);
                     if (counted) previewList.Add(ms);
                     yield return null;
                     CommandResult added = null;
@@ -198,7 +256,9 @@ namespace MountainPlanner.App
                 {
                     var t = history.Document.FindTrail(natural[s % natural.Count]);
                     var grade = new EditTrail(history.Revision, t.Id, t.Name, t.Shape, t.Head.Value, t.Tail.Value, TrailSettings.GradedRun, WorkStage.Built);
+                    Split("", 0, false);
                     var rebuilt = AnalyseForBench(grade, out double ms);
+                    Split("grade " + t.Name, ms, counted);
                     if (counted) gradePreview.Add(ms);
                     yield return null;
                     CommandResult graded = null;
@@ -208,8 +268,10 @@ namespace MountainPlanner.App
 
                 // Removing a run (reported): the earthwork without it, then undo.
                 {
-                    var remove = new DeleteTrail(history.Revision, builtTrails[(s * 2 + pass / spots) % builtTrails.Count]);
+                    var remove = new DeleteTrail(history.Revision, builtTrails[(s * 2 + (pass + spots) / spots) % builtTrails.Count]);
+                    Split("", 0, false);
                     var rebuilt = AnalyseForBench(remove, out double ms);
+                    Split("remove", ms, counted);
                     if (counted) removePreview.Add(ms);
                     yield return null;
                     CommandResult removed = null;
@@ -265,18 +327,32 @@ namespace MountainPlanner.App
             report.liftPreview = Stat.Of(liftPreview);
             report.liftCommit = Stat.Of(liftCommit);
             report.undo = Stat.Of(undo);
+            report.settled = Stat.Of(settled);
+            report.slowestFrame = Stat.Of(slowest);
+            report.quality = QualitySettings.names[QualitySettings.GetQualityLevel()];
+            // The bench's spots the trail look's window covers (its 2048 m cap leaves part of a big resort out: a follow-up).
+            for (int k = 0; k < spots; k++)
+            {
+                float a = k * Mathf.PI * 2 / spots;
+                if (_trailMap != null && _trailMap.Covers(Mathf.Sin(a) * 600f, Mathf.Cos(a) * 600f)) report.spotsInTrailMap++;
+            }
             bool Within(Stat preview, Stat commit) => preview.p95 <= report.previewBudgetMs && commit.p95 <= report.commitBudgetMs;
             report.shortPass = Within(report.shortPreview, report.shortCommit);
             report.longPass = Within(report.longPreview, report.longCommit);
             report.gradePass = Within(report.gradePreview, report.gradeCommit);
             report.pass = report.shortPass && report.longPass && report.gradePass && rejected == 0;
+            _edits.Earthwork.Grading = null;
+            _edits.Earthwork.Stage = null;
+            Debug.Log(split.ToString());
             File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
             Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture,
                 "[DesignBench] with {0} trails and {1} lifts: 1,000 ft preview p95 {2:F1} / commit {3:F1} ms; 1 km {4:F1} / {5:F1} ms; " +
-                "grade a run {6:F1} / {7:F1} ms; remove a run {8:F1} / {9:F1} ms; new lift {10:F1} / {11:F1} ms; undo p95 {12:F1} ms; {13} rejected; {14}",
+                "grade a run {6:F1} / {7:F1} ms; remove a run {8:F1} / {9:F1} ms; new lift {10:F1} / {11:F1} ms; undo p95 {12:F1} ms; {13} rejected; {14}; " +
+                "settled p95 {15:F1} ms, slowest frame p95 {16:F1} ms, at {17}, {18} of {19} spots in the trail look's window",
                 report.trails, report.lifts, report.shortPreview.p95, report.shortCommit.p95, report.longPreview.p95, report.longCommit.p95,
                 report.gradePreview.p95, report.gradeCommit.p95, report.removePreview.p95, report.removeCommit.p95, report.liftPreview.p95,
-                report.liftCommit.p95, report.undo.p95, rejected, report.pass ? "PASS" : "FAIL"));
+                report.liftCommit.p95, report.undo.p95, rejected, report.pass ? "PASS" : "FAIL",
+                report.settled.p95, report.slowestFrame.p95, report.quality, report.spotsInTrailMap, spots));
             Application.Quit();
         }
     }
@@ -285,12 +361,14 @@ namespace MountainPlanner.App
     [Serializable]
     public sealed class DesignBenchReport
     {
-        public string schema = "mountain-planner-design-edit-benchmark/1";
-        public string commit, measuredUtc, gpu, cpu, site, screen;
+        public string schema = "mountain-planner-design-edit-benchmark/2";
+        public string commit, measuredUtc, gpu, cpu, site, screen, quality;
         public bool commitDirty, development, pass, shortPass, longPass, gradePass;
-        public int trails, lifts, spots, rounds, rejected;
+        public int trails, lifts, spots, rounds, rejected, spotsInTrailMap;
         public Stat shortPreview, shortCommit, longPreview, longCommit, gradePreview, gradeCommit;
         public Stat removePreview, removeCommit, liftPreview, liftCommit, undo;
+        /// <summary>Every commit and undo until the network and sections landed too, and the slowest frame until a second after (reported).</summary>
+        public Stat settled, slowestFrame;
         public float previewBudgetMs = 100, commitBudgetMs = 250;
     }
 }

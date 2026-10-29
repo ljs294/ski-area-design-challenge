@@ -34,12 +34,8 @@ namespace MountainPlanner.Domain.Design
                 into.Add(new Item(k, doc, order.TryGetValue(k.Id.Value, out long o) ? o : long.MaxValue, site));
         }
 
-        static Dictionary<ulong, long> Ordinals(DesignDocument doc)
-        {
-            var map = new Dictionary<ulong, long>();
-            for (long o = 0; o < doc.NextOrdinal; o++) map[TerrainStrokeId.Make(doc.Seed, o).Value] = o;
-            return map;
-        }
+        static Dictionary<ulong, long> Ordinals(DesignDocument doc) =>
+            EarthworkGeometry.OrdinalsOf("stroke", doc, (seed, o) => TerrainStrokeId.Make(seed, o).Value);
 
         /// <summary>
         /// The lattice points a stroke can read or write: every dab's disc, grown by Smooth's box and a cell for clearing
@@ -66,7 +62,7 @@ namespace MountainPlanner.Domain.Design
             return rect;
         }
 
-        sealed class Item : IEarthworkItem
+        sealed class Item : IEarthworkItem, IReadsDetails
         {
             readonly TerrainStroke _stroke;
             readonly DesignDocument _doc;
@@ -94,6 +90,12 @@ namespace MountainPlanner.Domain.Design
             public long Order { get; }
             public PointRect Reads { get; }
             public IReadOnlyCollection<EditTileKey> Tiles { get; }
+
+            /// <summary>Its lifts: their ropes fix its ground (FixedGround), so a lift graded again grades it again.</summary>
+            public IEnumerable<ulong> DetailsRead
+            {
+                get { foreach (var l in _lifts) yield return l.Id.Value; }
+            }
 
             public bool SameAs(IEarthworkItem other)
             {
