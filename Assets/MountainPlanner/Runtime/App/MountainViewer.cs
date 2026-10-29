@@ -266,6 +266,7 @@ namespace MountainPlanner.App
                 StartTerrainEdits(args);   // -testedit, -testbench, -editbench (MountainViewer.Edits.cs, task P3-05)
                 StartTrailShots(args);     // -trailshots <folder> [-trailspot name] (MountainViewer.Trails.cs, task P3-08)
                 StartTrailBench(args);     // -trailbench <out.json> (MountainViewer.Trails.cs, task P3-08)
+                StartDesignBench(args);    // -designbench <out.json> with -drawnresort (MountainViewer.DrawnResort.cs, task P3-11)
                 StartNetworkShots(args);   // -networkshots <folder> (MountainViewer.Network.cs, task P3-10)
                 StartSectionShots(args);   // -sectionshots <folder> (MountainViewer.Sections.cs, task P3-10 B2)
                 StartBrushRuns(args);      // -brushtour <folder> [-brushmovie], -brushbench <out.json> (MountainViewer.Brush.cs, task P3-15)

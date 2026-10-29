@@ -18,6 +18,18 @@ namespace MountainPlanner.Domain.Design
         public TrailGrader.Graded Grade { get; internal set; }
         /// <summary>What it does to the ground.</summary>
         public EarthworkWrites Writes { get; internal set; }
+
+        /// <summary>
+        /// Whether this build was made for <paramref name="t"/>: the same object, or the same trail by value (task P3-11:
+        /// the history applies a command again, so the trail it keeps is never the object the earthwork graded).
+        /// </summary>
+        public bool IsFor(Trail t) =>
+            t != null && Trail != null && (ReferenceEquals(Trail, t) ||
+                Trail.Id == t.Id && Trail.Stage == t.Stage && Trail.Head == t.Head && Trail.Tail == t.Tail &&
+                Trail.Settings.Equals(t.Settings) && Trail.Shape.Equals(t.Shape));
+
+        /// <summary>The build's centreline when it's <paramref name="t"/>'s own (never a split part's slice of its pair's, NT2), else null.</summary>
+        public TrailCentreline.Result OwnLineFor(Trail t) => IsFor(t) && CentrelineIsOwn ? Centreline : null;
     }
 
     /// <summary>
@@ -83,12 +95,8 @@ namespace MountainPlanner.Domain.Design
         /// Creation order: IDs are keyed hashes of the document ordinal they were minted at (SH-04), so the ordinal is found
         /// by hashing each one.
         /// </summary>
-        static Dictionary<ulong, long> Ordinals(DesignDocument doc)
-        {
-            var map = new Dictionary<ulong, long>();
-            for (long o = 0; o < doc.NextOrdinal; o++) map[TrailId.Make(doc.Seed, o).Value] = o;
-            return map;
-        }
+        static Dictionary<ulong, long> Ordinals(DesignDocument doc) =>
+            EarthworkGeometry.OrdinalsOf("trail", doc, (seed, o) => TrailId.Make(seed, o).Value);
 
         /// <summary>TF-11's places: each built lift's terminals (their measured footprints) and tower bases.</summary>
         static List<Keep> Rounds(DesignDocument doc, EarthworkSite site)
@@ -131,8 +139,10 @@ namespace MountainPlanner.Domain.Design
                 _seed = seed;
                 _site = site;
                 Order = order;
-                Reads = ReadsOf(trail, site);
-                Tiles = TilesOf(trail, site);
+                // Kept with the trail object (task P3-11): the mask's rows are walked once, not on every preview.
+                var geometry = EarthworkGeometry.Of(trail, site, () => Tuple.Create(ReadsOf(trail, site), TilesOf(trail, site)));
+                Reads = geometry.Item1;
+                Tiles = geometry.Item2;
                 var mine = new List<Keep>();
                 var lat = site.Lattice;
                 foreach (var k in rounds)

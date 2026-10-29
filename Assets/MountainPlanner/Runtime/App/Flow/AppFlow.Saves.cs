@@ -135,6 +135,7 @@ namespace MountainPlanner.App.Flow
             "-uicapture", "-flowcapture", "-trailshots", "-trailbench", "-paintbench", "-paintmovie", "-paintcheck", "-screenshot", "-benchmark", "-benchmark-views", "-pathmovie", "-lineup",
             "-lodtransitions", "-clip", "-titleshots", "-titlemovie", "-photoshot", "-styletile", "-testbench", "-editbench", "-smoketest",
             "-liftbench", "-hoverlift",   // task 09
+            "-drawnresort", "-designbench",   // task P3-11: the drawn resort never goes into a player's save
         };
 
         void UpdateSaves(Keyboard keys)

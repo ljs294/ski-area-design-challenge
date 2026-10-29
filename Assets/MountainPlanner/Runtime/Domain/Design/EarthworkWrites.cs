@@ -203,6 +203,34 @@ namespace MountainPlanner.Domain.Design
             return rect;
         }
 
+        /// <summary>
+        /// Adds to <paramref name="into"/> every tile where two sets of writes differ (claims, heights or clearing), stopping
+        /// at a tile's first difference (task P3-11: the fold's change, by tile).
+        /// </summary>
+        public static void DifferentTiles(EarthworkWrites a, EarthworkWrites b, HashSet<EditTileKey> into)
+        {
+            if (ReferenceEquals(a, b)) return;
+            void Check(EditTileKey key)
+            {
+                if (into.Contains(key)) return;
+                Tile ta = null, tb = null;
+                a?._tiles.TryGetValue(key, out ta);
+                b?._tiles.TryGetValue(key, out tb);
+                if (ReferenceEquals(ta, tb)) return;
+                for (int at = 0; at < EditTileKey.Count; at++)
+                {
+                    int w = at >> 6;
+                    ulong bit = 1UL << (at & 63);
+                    bool ca = ta != null && (ta.Claimed[w] & bit) != 0, cb = tb != null && (tb.Claimed[w] & bit) != 0;
+                    bool wa = ta != null && (ta.Written[w] & bit) != 0, wb = tb != null && (tb.Written[w] & bit) != 0;
+                    bool xa = ta != null && (ta.Cleared[w] & bit) != 0, xb = tb != null && (tb.Cleared[w] & bit) != 0;
+                    if (ca != cb || wa != wb || xa != xb || wa && ta.Delta[at] != tb.Delta[at]) { into.Add(key); return; }
+                }
+            }
+            if (a != null) foreach (var key in a._tiles.Keys) Check(key);
+            if (b != null) foreach (var key in b._tiles.Keys) Check(key);
+        }
+
         static int TrailingZeros(ulong v)
         {
             int n = 0;

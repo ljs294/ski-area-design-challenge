@@ -99,6 +99,7 @@ namespace MountainPlanner.App.Edits
         void OnChanged(DesignSnapshot snapshot)
         {
             if (History.Loads != _loads) Prime();   // a loaded save: learn its design again
+            else Earthwork.Follow(snapshot.Document, snapshot.Terrain);   // undo and redo put back the state those edits had (task P3-11)
             ClearPreview();
             Applying = Pipeline.ApplyAsync(snapshot.Terrain);
         }

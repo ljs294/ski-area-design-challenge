@@ -235,7 +235,9 @@ namespace MountainPlanner.Presentation.Edits
                 TerrainTiles.BindSplat(terrain);
                 report.HeightsMs += part.Elapsed.TotalMilliseconds;
                 _liveUnsynced.Remove(key);
-                await Breathe(always: true);   // a tile's sync is the biggest single step: one a frame
+                // A tile's sync is the biggest single step: one a frame while a brush session shows its ground (BR21); a commit
+                // takes the frame's budget as the rest does (task P3-11: a forced wait a tile was 20-60 ms of every commit).
+                await Breathe(always: !commit);
             }
             foreach (var p in patches)
                 if (p.Splat != null && _tiles.TryGetValue(p.Tile, out var terrain) && terrain.terrainData.alphamapResolution == p.Splat.Resolution)

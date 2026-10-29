@@ -108,10 +108,12 @@ namespace MountainPlanner.App
                 if (job.Status == TaskStatus.RanToCompletion)
                 {
                     var (r, sections) = job.Result;
-                    Debug.Log($"[Network] {r.Lifts.Count} lifts, {r.Trails.Count} trails, {r.Graph.Nodes.Count} nodes, {r.Graph.Edges.Count} edges " +
-                              $"in {_networkWatch?.Elapsed.TotalMilliseconds:F0} ms off the main thread; {r.LiftWarnings} lift and {r.TrailWarnings} trail warnings");
+                    double offThread = _networkWatch?.Elapsed.TotalMilliseconds ?? 0;
+                    var landing = System.Diagnostics.Stopwatch.StartNew();
                     ApplyNetwork(doc, r);
                     ApplySections(doc, sections);
+                    Debug.Log($"[Network] {r.Lifts.Count} lifts, {r.Trails.Count} trails, {r.Graph.Nodes.Count} nodes, {r.Graph.Edges.Count} edges " +
+                              $"in {offThread:F0} ms off the main thread, {landing.Elapsed.TotalMilliseconds:F1} ms landing on it; {r.LiftWarnings} lift and {r.TrailWarnings} trail warnings");
                 }
                 else Debug.LogException(job.Exception);
                 if (_networkPending != null)

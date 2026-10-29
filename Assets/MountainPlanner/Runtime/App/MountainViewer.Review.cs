@@ -151,6 +151,8 @@ namespace MountainPlanner.App
                 else target = new Vector3(v.X, _resort.Surface.HeightAt(v.X, v.Z), v.Z);
                 legs[i] = new BenchmarkPath.Leg(v.Name, target, distance, v.Yaw, v.Pitch);
             }
+            // -drawnresort (or -drawnpathonly, the same legs over the bare mountain): six more legs over the drawn resort (task P3-11, DB5).
+            if (DrawnLegsWanted(Environment.GetCommandLineArgs())) return legs.Concat(DrawnLegs()).ToArray();
             return legs;
         }
 

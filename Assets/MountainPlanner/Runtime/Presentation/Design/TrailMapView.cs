@@ -22,7 +22,7 @@ namespace MountainPlanner.Presentation.Design
         readonly List<(TrailId id, int slot)> _slots = new List<(TrailId, int)>();
         TrailId _focus;
 
-        sealed class Shape
+        internal sealed class Shape
         {
             public Trail Trail;
             public TrailFootprint Footprint;
@@ -31,7 +31,53 @@ namespace MountainPlanner.Presentation.Design
             public SlopeBands.Band Band;
             public double Rating = double.NaN, Mean = double.NaN, Steepest = double.NaN;
             public double LengthMetres, DropMetres;
+            // Task P3-11: the rating stands while its build is the same and no ground under the footprint moved.
+            public bool Rated;
+            public TrailBuild RatedBuild;
+            public HashSet<EditTileKey> FootprintTiles;   // the edit tiles its painted cells touch
+
+            public Shape Clone() => (Shape)MemberwiseClone();
         }
+
+        /// <summary>The shapes and ratings for one design over one ground, worked out off the main thread (task P3-11).</summary>
+        public sealed class Prepared
+        {
+            internal DesignDocument Doc;
+            internal TerrainEdits Over;
+            internal Dictionary<TrailId, Shape> Shapes;
+            internal int Built, Rated;
+            internal double Ms;
+        }
+
+        /// <summary>
+        /// Works out every trail's shape and rating for <paramref name="doc"/> over <paramref name="heights"/>, on any thread
+        /// (the shapes here are copies: nothing drawn changes until <see cref="Rebuild"/> takes the result on the main thread).
+        /// </summary>
+        public Prepared Prepare(DesignDocument doc, EditedHeights heights, LocalFrame frame, DesignEarthwork earthwork)
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var p = new Prepared { Doc = doc, Over = heights.Edits, Shapes = new Dictionary<TrailId, Shape>() };
+            var moved = new HashSet<EditTileKey>(_ratedOver == null ? new List<EditTileKey>() : TerrainEdits.Changed(_ratedOver, heights.Edits));
+            bool all = _ratedOver == null;
+            foreach (var t in doc.Trails)
+            {
+                if (!t.HasEnds) continue;
+                Shape s;
+                if (!_shapes.TryGetValue(t.Id, out var was) || !SameTrail(was.Trail, t)) { s = Build(t, heights, frame, earthwork); p.Built++; }
+                else { s = was.Clone(); s.Trail = t; }
+                if (all || Meets(s, moved)) s.Rated = false;
+                if (!s.Rated) p.Rated++;
+                Rate(s, heights, earthwork);
+                p.Shapes[t.Id] = s;
+            }
+            p.Ms = watch.Elapsed.TotalMilliseconds;
+            return p;
+        }
+
+        TerrainEdits _ratedOver;
+
+        /// <summary>The last redraw's stages, ms (the [Built] log, task P3-11).</summary>
+        public string LastSplit { get; private set; } = "";
 
         public TrailMapView(Transform parent, World.ITerrainSurface surface, Material lineMaterial)
         {
@@ -94,8 +140,13 @@ namespace MountainPlanner.Presentation.Design
         /// label may sit on along its line (the middle first, NT7) and the line's length.
         /// </summary>
         public void Rebuild(DesignDocument doc, EditedHeights heights, LocalFrame frame, DesignEarthwork earthwork,
-                            List<(string Name, MapLabelSpot[] Spots, double Length)> labels, World.ITerrainSurface surface)
+                            List<(string Name, MapLabelSpot[] Spots, double Length)> labels, World.ITerrainSurface surface, Prepared prepared = null)
         {
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp(), build = 0, rate = 0, lines = 0, labelled = 0;
+            int built = 0, rated = 0;
+            // Prepared for this very design and ground (task P3-11): its shapes and ratings are taken as they are.
+            if (prepared != null && (!ReferenceEquals(prepared.Doc, doc) || !ReferenceEquals(prepared.Over, heights.Edits))) prepared = null;
+            if (prepared != null) { built = prepared.Built; rated = prepared.Rated; }
             labels?.Clear();
             _ground.Heights = heights;
             _ground.Frame = frame;
@@ -103,23 +154,55 @@ namespace MountainPlanner.Presentation.Design
             var nodes = TrailNodes.Of(doc);
             int slot = CasingSlot + 1;
             _slots.Clear();
+            // The ground that moved since the last redraw: a rating whose footprint it meets is worked out again.
+            var moved = new HashSet<EditTileKey>(_ratedOver == null ? new List<EditTileKey>() : TerrainEdits.Changed(_ratedOver, heights.Edits));
+            bool all = _ratedOver == null;
+            _ratedOver = heights.Edits;
             foreach (var t in doc.Trails)
             {
                 if (!t.HasEnds) continue;
                 seen.Add(t.Id);
-                if (!_shapes.TryGetValue(t.Id, out var s) || !ReferenceEquals(s.Trail, t)) _shapes[t.Id] = s = Build(t, heights, frame, earthwork);
-                Rate(s, heights, earthwork);
+                // The same trail by value keeps its shape (the history applies a command again, so an edited trail is never
+                // the object graded, task P3-11); its stage too, which colours and rates it.
+                long a = System.Diagnostics.Stopwatch.GetTimestamp();
+                Shape s;
+                long b, c;
+                if (prepared != null && prepared.Shapes.TryGetValue(t.Id, out s))
+                {
+                    _shapes[t.Id] = s;
+                    b = c = System.Diagnostics.Stopwatch.GetTimestamp();
+                }
+                else
+                {
+                    if (!_shapes.TryGetValue(t.Id, out s) || !SameTrail(s.Trail, t)) { _shapes[t.Id] = s = Build(t, heights, frame, earthwork); built++; }
+                    else s.Trail = t;
+                    b = System.Diagnostics.Stopwatch.GetTimestamp();
+                    if (all || Meets(s, moved)) s.Rated = false;
+                    if (!s.Rated) rated++;
+                    Rate(s, heights, earthwork);
+                    c = System.Diagnostics.Stopwatch.GetTimestamp();
+                }
+                build += b - a;
+                rate += c - b;
                 if (s.Line == null) continue;
                 s.Drawn = Joined(s.Line, nodes, t);
                 _slots.Add((t.Id, slot));
                 _lines.Line(slot++, s.Drawn, s.Drawn.Length, InkOf(s));
+                long d = System.Diagnostics.Stopwatch.GetTimestamp();
+                lines += d - c;
                 if (labels != null)
                 {
                     string symbol = t.Stage == WorkStage.Plan ? "" : Symbol(s.Band) + " ";
                     labels.Add((symbol + t.Name, LabelSpots(s.Drawn), s.LengthMetres));
                 }
+                labelled += System.Diagnostics.Stopwatch.GetTimestamp() - d;
             }
             _lines.HideFrom(slot);
+            double Ms(long ticks) => ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            LastSplit = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "shapes {0:F1} ({1} built), ratings {2:F1} ({3} rated){7}, lines {4:F1}, labels {5:F1}, the rest {6:F1}",
+                Ms(build), built, Ms(rate), rated, Ms(lines), Ms(labelled), Ms(System.Diagnostics.Stopwatch.GetTimestamp() - t0 - build - rate - lines - labelled),
+                prepared != null ? $" (prepared off the main thread in {prepared.Ms:F1})" : "");
             _used = slot;
             DrawCasing();
             var stale = new List<TrailId>();
@@ -276,14 +359,17 @@ namespace MountainPlanner.Presentation.Design
             var tail = frame.ToAlbers(t.Tail.Value.XMetres, t.Tail.Value.YMetres);
             // The earthwork's own footprint and centreline for this very trail when it has them (task 08).
             TrailCentreline.Result c;
-            if (earthwork?.DetailOf(t.Id.Value) is TrailBuild b && ReferenceEquals(b.Trail, t) && b.Centreline != null)
+            // (a split part's line is its pair's, cut (NT2): it works out its own, as the network does).
+            var b = earthwork?.DetailOf(t.Id.Value) as TrailBuild;
+            var own = b?.OwnLineFor(t);
+            if (own != null)
             {
                 s.Footprint = b.Footprint;
-                c = b.Centreline;
+                c = own;
             }
             else
             {
-                s.Footprint = TrailFootprint.Build(t.Shape, heights.Lattice, frame.Origin.X, frame.Origin.Y);
+                s.Footprint = b != null && b.IsFor(t) ? b.Footprint : TrailFootprint.Build(t.Shape, heights.Lattice, frame.Origin.X, frame.Origin.Y);
                 c = TrailCentreline.Find(s.Footprint, head.X, head.Y, tail.X, tail.Y);
             }
             if (!c.Found) return s;
@@ -299,9 +385,36 @@ namespace MountainPlanner.Presentation.Design
             return s;
         }
 
+        static bool SameTrail(Trail a, Trail b) =>
+            ReferenceEquals(a, b) || a.Id == b.Id && a.Stage == b.Stage && a.Head == b.Head && a.Tail == b.Tail && a.Settings.Equals(b.Settings) && a.Shape.Equals(b.Shape);
+
+        // Whether ground moved on any tile a shape's painted cells touch (worked out once per shape).
+        static bool Meets(Shape s, HashSet<EditTileKey> tiles)
+        {
+            var fp = s.Footprint;
+            if (fp == null || tiles.Count == 0) return false;
+            if (s.FootprintTiles == null)
+            {
+                s.FootprintTiles = new HashSet<EditTileKey>();
+                for (int r = fp.Row0; r < fp.Row0 + fp.Height; r++)
+                    for (int c = fp.Column0; c < fp.Column0 + fp.Width; c++)
+                        if (fp.Contains(c, r))
+                        {
+                            s.FootprintTiles.Add(EditTileKey.Of(c, r));
+                            s.FootprintTiles.Add(EditTileKey.Of(c + 1, r + 1));
+                        }
+            }
+            foreach (var k in tiles) if (s.FootprintTiles.Contains(k)) return true;
+            return false;
+        }
+
         static void Rate(Shape s, EditedHeights heights, DesignEarthwork earthwork)
         {
             var build = earthwork?.DetailOf(s.Trail.Id.Value) as TrailBuild;
+            if (build != null && !build.IsFor(s.Trail)) build = null;   // a build of another version of the trail never rates it
+            if (s.Rated && ReferenceEquals(s.RatedBuild, build)) return;
+            s.Rated = true;
+            s.RatedBuild = build;
             if (build?.Grade != null && s.Trail.Stage == WorkStage.Built)
             {
                 var r = TrailRating.Rate(heights, build.Footprint, build.Grade);
@@ -311,7 +424,7 @@ namespace MountainPlanner.Presentation.Design
                 s.LengthMetres = build.Grade.LengthMetres;
                 s.DropMetres = r.DropMetres;
             }
-            else if (double.IsNaN(s.Rating)) s.Rating = TrailRating.Estimate(heights, s.Footprint);
+            else s.Rating = TrailRating.Estimate(heights, s.Footprint);   // again whenever the ground under it moves (task P3-11)
             s.Band = double.IsNaN(s.Rating) ? SlopeBands.Band.Green : SlopeBands.Of(s.Rating);
         }
 

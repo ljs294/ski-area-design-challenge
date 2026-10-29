@@ -622,3 +622,21 @@ structures (rev 3, approved). Plan: [p3-15-plan.md](p3-15-plan.md); rules TB-01 
 | BR20 | **Sliders follow the wheel** (owner, 2026-10-28): over any slider (the tool panes, Settings, the photo bar, the site picker) the wheel moves it a step a notch, up is more, without scrolling the panel or zooming the camera; the brush pane steps as its keys do (5 ft, 5%). A small plate over the thumb shows the slider's value while it's hovered, dragged or wheeled |
 | BR22 | **Trees and towers follow the brush, with Clear trees** (owner, 2026-10-29: "perform identical to Cities Skylines brushes"): while a brush paints, the trees stand on the moving ground and come out the moment it moves a foot or more, and the lifts' towers re-height under their fixed heads, every frame; Revert and Ctrl+Z bring them back. A **Clear trees** checkbox in the pane (on by default, remembered) says whether the next stroke clears at all; it's kept with the stroke (TB-10 v2, save v9 `ClearMm`, older strokes 305 mm). Supersedes BR21's "trees come out and towers re-height only at Confirm" |
 | BR21 | **Letting go changes nothing on screen** (owner, 2026-10-28): while a brush paints, the ground, its cover and its snow follow it live (the cover and snow catch up a few times a second) and trees ride the ground; **trees come out and lifts' towers re-height only at Confirm**, and trail lines re-drape then too. Letting go, Revert and Confirm never hitch: their work spreads over frames within the 20 ms budget |
+
+## Phase 3 task 11, benchmark with a drawn resort: decided 2026-10-28
+
+**Context:** the evidence for Phase 3's exit criteria 2 and 3: a drawn resort on Jackson Hole 5 km, the benchmark
+flown over it, and the edit budgets timed with it loaded. The plan was posted on 2026-10-26, held by the owner until
+task 10 was complete (2026-10-27), re-posted for save v8 and approved on 2026-10-28 ("It is your time"), with every
+recommendation taken. Plan: [p3-11-plan.md](p3-11-plan.md).
+
+| # | Decision |
+|---|---|
+| DB1 | **The test design is frozen lines in code, built by commands on every run** (as the style tile is): trail strokes and lift ends in local metres, built through `TrailShape.FromStrokes` and AddTrail, and through LiftBuild, so it follows the engine and every save version; no save fixture, no format change |
+| DB2 | **Layout: six lift pods**, about three runs off each lift's top, plus two cat tracks joining pods; the owner approves screenshots before timing (approved 2026-10-28 from the six benchmark views) |
+| DB3 | **Lifts:** two Sessellift FGQ-4, two Monta FG4 and two Sessellift D6 |
+| DB4 | **Trails:** ten graded and ten natural, 60–200 ft wide, two with tree islands, plus two graded 40 ft cat tracks |
+| DB5 | **The eight baselines stay as they are:** the new legs fly only with `-drawnresort`, and the drawn runs get files of their own |
+| DB6 | **Lift edits are timed and reported, not gated:** CF-09's budgets cover grading |
+| DB7 | **The measured view includes task 10's network** (overlay, labels, stations), on main before the first run |
+| DB8 | **A missed budget is reported with its numbers and goes to the owner;** no fix in this task without the owner's OK. The first timing (2026-10-29) missed the edit budgets 5–20× with the resort loaded; the owner chose to fix it here and approved the fix plan, reviewed adversarially first ([p3-11-plan.md](p3-11-plan.md) §5); any budget still missed after it comes back with its split before a deeper change. After the fix (0b6a5bf3, five rounds): the 1,000 ft trail passes (65 / 141 ms), the 1 km trail misses narrowly (139 / 259 ms) and grading a run misses (1023 / 383 ms), down from 0.2–2.3 s; [edit-timing.md](../perf/edit-timing.md) |

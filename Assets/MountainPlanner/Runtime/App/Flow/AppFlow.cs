@@ -34,7 +34,7 @@ namespace MountainPlanner.App.Flow
         /// <summary>Command-line switches that mean "no title screen": captures, benchmarks and explicit mountains.</summary>
         static readonly string[] SkipTitle =
         {
-            "-notitle", "-package", "-site", "-screenshot", "-trailshots", "-trailbench", "-paintbench", "-paintmovie", "-paintcheck", "-benchmark", "-benchmark-views", "-pathmovie", "-lineup", "-lodtransitions", "-view", "-landmark", "-clip",
+            "-notitle", "-package", "-site", "-screenshot", "-trailshots", "-trailbench", "-paintbench", "-paintmovie", "-paintcheck", "-designbench", "-benchmark", "-benchmark-views", "-pathmovie", "-lineup", "-lodtransitions", "-view", "-landmark", "-clip",
         };
 
         public static AppFlow Instance { get; private set; }
