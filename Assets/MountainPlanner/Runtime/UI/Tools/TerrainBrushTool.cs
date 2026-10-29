@@ -45,6 +45,8 @@ namespace MountainPlanner.UI.Tools
 
         // The pane's settings carry between brushes for the session (as the trail brush's width does).
         static int _lastFeet = 60, _lastStrength = 50;
+        /// <summary>Patches pooled before the first stroke (round 4): a 400 ft drag across a few tiles, 100 KB each.</summary>
+        const int WarmPatches = 48;
 
         readonly TerrainToolMode _mode;
         ToolContext _ctx;
@@ -159,6 +161,7 @@ namespace MountainPlanner.UI.Tools
             _ctx = context;
             _ctx.Earthwork?.Start();
             _ctx.LiveGround?.ContoursWhileArmed(true);   // BR13
+            BrushRun.Warm(WarmPatches);                  // round 4: the first stroke's patches, allocated here and not a frame
             _feet = _lastFeet;
             _strength = _lastStrength;
             var w = context.Window;
@@ -259,7 +262,9 @@ namespace MountainPlanner.UI.Tools
         const float BillSeconds = 0.2f;
         float _billClock;
         string _billKey;
-        readonly HashSet<Hold> _billHeld = new HashSet<Hold>();
+        bool _syncDue;   // round 4: a catch-up just started; the next tick syncs one tile
+        readonly HashSet<Hold> _billHeld = new HashSet<Hold>(), _billShown = new HashSet<Hold>();
+        (bool, bool, double, double, int, int) _billFigures = (false, false, -1, -1, -1, -1);
 
         /// <summary>
         /// The session's bill (TB-09 v2, BR19): every stroke of the session plus the one being painted, so cut and fill
@@ -278,9 +283,16 @@ namespace MountainPlanner.UI.Tools
                 cut += c;
                 fill += f;
                 cleared += _run.ClearedCount;
-                foreach (var h in _run.Held()) _billHeld.Add(h);
+                foreach (var i in _run.HeldIndices) _billHeld.Add(_run.Holds[i]);
             }
             bool any = _session.Count > 0 || _run != null, can = _session.Count > 0 && !_confirming;
+            // The figures first (round 4: five times a second while painting, so no strings unless one changed): the volumes
+            // and the area to the metre, which is finer than any unit the pane shows, so an unchanged figure is a repeat.
+            var figures = (any, can, any ? Math.Round(cut) : 0, any ? Math.Round(fill) : 0, any ? cleared : 0, any ? _billHeld.Count : 0);
+            if (figures == _billFigures && (!any || _billHeld.SetEquals(_billShown))) return;
+            _billFigures = figures;
+            _billShown.Clear();
+            _billShown.UnionWith(_billHeld);
             string volumes = $"{ToolFormat.Volume(cut)} · {ToolFormat.Volume(fill)}", net = ToolFormat.Volume(Math.Abs(fill - cut)), area = ToolFormat.Area(cleared);
             string held = _billHeld.Count > 0 ? HeldWords(_billHeld) : null;
             string key = any ? volumes + "|" + net + "|" + area + "|" + held + "|" + can : "|" + can;
@@ -304,6 +316,8 @@ namespace MountainPlanner.UI.Tools
         {
             // The fold ahead waits for the let-go's catch-up to land, so the two don't share the CPU.
             if (_foldDue && _run == null && !_confirming && _catchUp.IsCompleted) { _foldDue = false; FoldAhead(); }
+            // Round 4: between presses, the tiles the live upload wrote are brought up to date in Unity one a frame.
+            if (_run == null || _syncDue) { _syncDue = false; _ctx.LiveGround?.Settle(); }
             if (_thenNext != null)
             {
                 // What the close ask's Confirm was for (close, or the next tool), run here rather than inside the fold's hand-over.
@@ -380,7 +394,14 @@ namespace MountainPlanner.UI.Tools
                 }
                 Live();
                 _catchUpClock += input.DeltaSeconds;
-                if (_run != null && _catchUpClock >= CatchUpSeconds && _catchUp.IsCompleted) { _catchUpClock = 0; CatchUp(_run.Preview(_pending)); }
+                if (_run != null && _catchUpClock >= CatchUpSeconds && _catchUp.IsCompleted)
+                {
+                    long tc = Stopwatch.GetTimestamp();
+                    _catchUpClock = 0;
+                    CatchUp(_run.Preview(_pending));
+                    _lastTick.CatchUp = Ms(tc);
+                    _syncDue = true;   // one tile's Unity sync on the next tick, not this one (the catch-up's start is here)
+                }
                 _billClock += input.DeltaSeconds;
                 long t1 = Stopwatch.GetTimestamp();
                 if (_run != null && _billClock >= BillSeconds) { _billClock = 0; ShowBill(); if (_mode == TerrainToolMode.Slope) ShowRamp(_startAt, _startMm); }
@@ -453,6 +474,7 @@ namespace MountainPlanner.UI.Tools
             _settings = SettingsFor(lower, startMm);
             _rightStroke = lower && _mode == TerrainToolMode.RaiseLower;
             _run = new BrushRun(_settings, new EditedHeights(heights.Source, heights.Lattice, _pending), _ctx.Earthwork.Earthwork.Site, _fixed);
+            if (!carryOn) _ctx.LiveGround?.Painting(true);
             _dabs = new List<BrushDab>(256);
             _clock = 0;
             _billClock = 0;
@@ -491,7 +513,7 @@ namespace MountainPlanner.UI.Tools
         }
 
         /// <summary>The last painting tick's time in its parts, ms (the brush bench, demo 75).</summary>
-        public struct TickTimings { public double Dabs, Bill; }
+        public struct TickTimings { public double Dabs, Bill, CatchUp; }
 
         TickTimings _lastTick;
 
@@ -525,13 +547,15 @@ namespace MountainPlanner.UI.Tools
                 _cut += cut;
                 _fill += fill;
                 _cleared += _run.ClearedCount;
-                foreach (var h in _run.Held()) _held.Add(h);
+                foreach (var i in _run.HeldIndices) _held.Add(_run.Holds[i]);
                 CatchUp(_pending);   // BR21: only what moved since the last catch-up; nothing on screen changes
                 _liveDirty = PointRect.Empty;
                 if (released) { _fold = null; _foldDue = true; }   // Confirm's fold, ahead of the click
             }
+            _run.Release();   // its tiles are built and handed over; the patches serve the next stroke (round 4)
             _run = null;
             _dabs = null;
+            if (released) _ctx.LiveGround?.Painting(false);
             LastFinishMs = Ms(t0);
             PaintStatus();
         }
@@ -735,6 +759,7 @@ namespace MountainPlanner.UI.Tools
             _liveDirty = PointRect.Empty;
             _fold = null;
             _foldDue = false;
+            _ctx.LiveGround?.Painting(false);
         }
 
         // TB-09: each tower whose steel the strokes change, under its fixed head (TW-02 v4).
@@ -834,8 +859,10 @@ namespace MountainPlanner.UI.Tools
 
         void CancelStroke()
         {
+            _run?.Release();
             _run = null;
             _dabs = null;
+            _ctx.LiveGround?.Painting(false);
             if (!_liveDirty.IsEmpty)
             {
                 _ctx.LiveGround?.Live(_pending, _liveDirty);   // the ground as it was before the stroke

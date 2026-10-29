@@ -99,11 +99,42 @@ namespace MountainPlanner.Domain.Edits
         /// </summary>
         public sealed class Builder
         {
-            readonly EditTileKey _key;
-            readonly int[] _deltaMm = new int[EditTileKey.Count];
-            readonly ulong[] _cleared = new ulong[ClearingWords];
+            EditTileKey _key;
+            int[] _deltaMm = new int[EditTileKey.Count];
+            ulong[] _cleared = new ulong[ClearingWords];
 
             public Builder(EditTileKey key) => _key = key;
+
+            /// <summary>
+            /// Starts again from a tile's content (or empty, for null), reusing this builder's arrays where
+            /// <see cref="BuildTaking"/> hasn't taken them: no copy of the tile and no new arrays (round 4).
+            /// </summary>
+            internal Builder Reset(EditTileKey key, TerrainEditTile from)
+            {
+                _key = key;
+                _deltaMm ??= new int[EditTileKey.Count];
+                _cleared ??= new ulong[ClearingWords];
+                if (from?._deltaMm != null) Array.Copy(from._deltaMm, _deltaMm, _deltaMm.Length);
+                else Array.Clear(_deltaMm, 0, _deltaMm.Length);
+                if (from?._cleared != null) Array.Copy(from._cleared, _cleared, _cleared.Length);
+                else Array.Clear(_cleared, 0, _cleared.Length);
+                return this;
+            }
+
+            /// <summary>
+            /// <see cref="Build"/> without the copies: the tile takes the arrays it needs, and the builder makes new ones on
+            /// its next <see cref="Reset"/>. The same tile, byte for byte.
+            /// </summary>
+            internal TerrainEditTile BuildTaking()
+            {
+                int[] d = null;
+                for (int k = 0; k < _deltaMm.Length; k++)
+                    if (_deltaMm[k] != 0) { d = _deltaMm; _deltaMm = null; break; }
+                ulong[] c = null;
+                for (int k = 0; k < _cleared.Length; k++)
+                    if (_cleared[k] != 0) { c = _cleared; _cleared = null; break; }
+                return new TerrainEditTile(_key, d, c);
+            }
 
             internal Builder(EditTileKey key, int[] deltaMm, ulong[] cleared)
             {

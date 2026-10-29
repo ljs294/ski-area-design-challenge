@@ -714,6 +714,12 @@ namespace MountainPlanner.App
             public System.Threading.Tasks.Task ShowGround(TerrainEdits ground, TerrainEdits clearing) =>
                 _viewer._edits?.ShowGround(ground, clearing, false) ?? System.Threading.Tasks.Task.CompletedTask;
             public double LastLiveMs => _viewer._edits?.Pipeline.LastLiveMs ?? 0;
+            public bool Settle() => _viewer._edits?.Pipeline.SyncLiveTileNow() ?? false;
+            public void Painting(bool held)
+            {
+                var pipeline = _viewer._edits?.Pipeline;
+                if (pipeline != null) pipeline.FrameBudgetMs = held ? Presentation.Edits.TerrainEditPipeline.PaintingFrameBudgetMs : Presentation.Edits.TerrainEditPipeline.DefaultFrameBudgetMs;
+            }
 
             bool? _contoursBefore;
             public void ContoursWhileArmed(bool armed)

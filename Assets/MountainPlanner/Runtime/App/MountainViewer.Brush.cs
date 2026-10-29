@@ -226,7 +226,7 @@ namespace MountainPlanner.App
         [Serializable]
         public sealed class BrushBenchReport
         {
-            public string schema = "mountain-planner-brush-benchmark/2";
+            public string schema = "mountain-planner-brush-benchmark/3";
             public string commit, measuredUtc, gpu, cpu, site;
             public BrushPass brush60, brush400;
             /// <summary>From asking to confirm to the ground committed, ms (before BR17: Break ground's review, then Confirm).</summary>
@@ -252,14 +252,22 @@ namespace MountainPlanner.App
         {
             public int feet;
             public Timing frame, gpu, live, dabs, preview, bill, sample, set, sync, release;
+            /// <summary>Drag frames longer than one 60 Hz refresh (16.7 ms): each one is a dropped frame (round 4's target is none).</summary>
+            public int framesOverRefresh;
             public long gcBytesPerFrame, gcBytesMaxFrame, gcFramesWithAllocations, heapGrowthBytes;
             public int gcCollections;
+            /// <summary>The first drag frames that allocated (Development game): seconds into the drag, and bytes, to find the source.</summary>
+            public float[] gcEventSeconds;
+            public long[] gcEventBytes;
             /// <summary>Letting go: the stroke's tiles built and handed over on the main thread, ms.</summary>
             public double finishMs, finishPreviewMs;
         }
 
         [Serializable]
         public struct Timing { public double p50, p95, max; public int n; }
+
+        /// <summary>One refresh of the owner's 60 Hz monitor, ms: a frame longer than this is a dropped frame.</summary>
+        public const double RefreshMs = 1000.0 / 60;
 
         static Timing Summarise(List<double> ms)
         {
@@ -290,6 +298,7 @@ namespace MountainPlanner.App
             _tools.Choose(TerrainIds.Raise);
             var tool = (TerrainBrushTool)_tools.Active;
             var pipeline = _edits?.Pipeline;
+            Presentation.Edits.TerrainEditPipeline.Verbose = true;   // every apply in the log, to read the frames against
             var report = new BrushBenchReport { site = _brushShift == Vector2.zero ? "jh2km" : $"jh2km {_brushShift.x:F0},{_brushShift.y:F0}" };
             var stats = new FrameStats(4096);
             for (int pass = 0; pass < 2; pass++)
@@ -311,7 +320,7 @@ namespace MountainPlanner.App
                     var tick = tool.LastTick;
                     parts[0].Add(pipeline?.LastLiveMs ?? 0);
                     parts[1].Add(tick.Dabs);
-                    parts[2].Add(0);   // no Preview a frame since BrushRun.Live
+                    parts[2].Add(tick.CatchUp);   // the catch-up's main-thread start (its Preview and enqueue), every 0.2 s
                     parts[3].Add(tick.Bill);
                     parts[4].Add(pipeline?.LastLiveSampleMs ?? 0);
                     parts[5].Add(pipeline?.LastLiveSetMs ?? 0);
@@ -319,8 +328,11 @@ namespace MountainPlanner.App
                     yield return null;
                     float gpu = FrameStats.SampleGpuMs();
                     stats.Record(Time.unscaledDeltaTime, gpu);
-                    parts[7].Add(Time.unscaledDeltaTime * 1000);
+                    float frameMs = Time.unscaledDeltaTime * 1000;
+                    parts[7].Add(frameMs);
                     if (gpu > 0) parts[8].Add(gpu);
+                    if (frameMs > RefreshMs)
+                        Debug.Log($"[BrushBench] frame {Time.frameCount - 1}: {frameMs:F1} ms while painting {feet} ft, tick {t} (live {pipeline?.LastLiveMs ?? 0:F1}, dabs {tick.Dabs:F1}, catch-up {tick.CatchUp:F1}, bill {tick.Bill:F1}, GPU {gpu:F1}, unsynced {pipeline?.LiveUnsynced ?? 0})");
                 }
                 stats.Stop();
                 var release = new List<double>(30);
@@ -343,7 +355,9 @@ namespace MountainPlanner.App
                     release = Summarise(release),
                     gcBytesPerFrame = sum.gcBytesPerFrame, gcBytesMaxFrame = sum.gcBytesMaxFrame, gcFramesWithAllocations = sum.gcFramesWithAllocations,
                     heapGrowthBytes = sum.heapGrowthBytes, gcCollections = sum.gcCollections, finishMs = finishMs, finishPreviewMs = finishPreviewMs,
+                    gcEventSeconds = sum.gcEventSeconds, gcEventBytes = sum.gcEventBytes,
                 };
+                foreach (double ms in parts[7]) if (ms > RefreshMs) bp.framesOverRefresh++;
                 if (pass == 0) report.brush60 = bp; else report.brush400 = bp;
             }
             stats.Dispose();
@@ -352,17 +366,20 @@ namespace MountainPlanner.App
             report.measuredUtc = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
             report.gpu = SystemInfo.graphicsDeviceName;
             report.cpu = SystemInfo.processorType;
-            report.pass = report.brush400.frame.p95 <= 20 && report.brush60.live.p95 <= 8 && report.brush400.live.p95 <= 16 && report.toCommittedMs <= 150
-                          && report.toCommittedOnLetGoMs <= 250 && report.confirmOnLetGoFrames.max <= 20
-                          && report.brush400.release.max <= 20 && report.confirmFrames.max <= 20 && report.revertFrames.max <= 20
+            // Round 4 (owner, 2026-10-29: a brush like Cities Skylines 2's on a 60 Hz monitor): the 400 ft drag at 12 ms p95 with no frame
+            // over a refresh, and none after letting go, Confirm or Revert. The garbage is reported beside it (docs/perf/brush-drag.md
+            // round 4: about 80 KB a frame and 2 collections in the Development game, neither costing a frame; the catch-ups' tiles and lists).
+            report.pass = report.brush400.frame.p95 <= 12 && report.brush400.framesOverRefresh == 0 && report.brush60.live.p95 <= 8 && report.brush400.live.p95 <= 8
+                          && report.toCommittedMs <= 150 && report.toCommittedOnLetGoMs <= 250 && report.confirmOnLetGoFrames.max <= RefreshMs
+                          && report.brush400.release.max <= RefreshMs && report.confirmFrames.max <= RefreshMs && report.revertFrames.max <= RefreshMs
                           && report.shownDiffersAfterConfirm == 0 && report.shownDiffersAfterRevert == 0;
             File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             foreach (var p in new[] { report.brush60, report.brush400 })
                 Debug.Log(string.Format(inv,
-                    "[BrushBench] {0} ft: frame p95 {1:F1} ms (GPU {2:F1}); live {3:F1} = sample {4:F1} + set {5:F1} + sync {6:F1}; dabs {7:F1}; preview {8:F1}; bill p95 {9:F1} max {10:F1}; release frame p95 {11:F1} max {12:F1} (finish {16:F1}, tiles {17:F1}); GC {13} B/frame in {14} frames, {15} collections",
-                    p.feet, p.frame.p95, p.gpu.p95, p.live.p95, p.sample.p95, p.set.p95, p.sync.p95, p.dabs.p95, p.preview.p95, p.bill.p95, p.bill.max,
-                    p.release.p95, p.release.max, p.gcBytesPerFrame, p.gcFramesWithAllocations, p.gcCollections, p.finishMs, p.finishPreviewMs));
+                    "[BrushBench] {0} ft: frame p95 {1:F1} max {18:F1} ms, {19} over a refresh (GPU {2:F1}); live {3:F1} = sample {4:F1} + set {5:F1} + sync {6:F1}; dabs {7:F1}; catch-up max {8:F1}; bill p95 {9:F1} max {10:F1}; release frame p95 {11:F1} max {12:F1} (finish {16:F1}, tiles {17:F1}); GC {13} B/frame in {14} frames, {15} collections",
+                    p.feet, p.frame.p95, p.gpu.p95, p.live.p95, p.sample.p95, p.set.p95, p.sync.p95, p.dabs.p95, p.preview.max, p.bill.p95, p.bill.max,
+                    p.release.p95, p.release.max, p.gcBytesPerFrame, p.gcFramesWithAllocations, p.gcCollections, p.finishMs, p.finishPreviewMs, p.frame.max, p.framesOverRefresh));
             Debug.Log(string.Format(inv, "[BrushBench] confirm frames p95 {0:F1} max {1:F1} (built {2:F1} ms); revert frames p95 {3:F1} max {4:F1}; shown vs fresh: {5} after Confirm, {6} after Revert{7}",
                 report.confirmFrames.p95, report.confirmFrames.max, report.confirmBuiltMs, report.revertFrames.p95, report.revertFrames.max,
                 report.shownDiffersAfterConfirm, report.shownDiffersAfterRevert, report.shownNote != null ? " (" + report.shownNote + ")" : ""));

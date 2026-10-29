@@ -43,7 +43,7 @@ namespace MountainPlanner.Presentation.Edits
                         for (int j = j0; j <= j1; j++)
                             for (int i = i0; i <= i1; i++)
                             {
-                                float want = Normalised(b, heights, gc, gr, i, j), have = got[j1 - j, i - i0];
+                                float want = Normalised(heights.Edits, gc, gr, i, j), have = got[j1 - j, i - i0];
                                 if (want == have) continue;
                                 if (bad++ == 0) first = $"height at tile ({tc}, {tr}) post ({i}, {j}): {have} on the tile, {want} fresh";
                             }

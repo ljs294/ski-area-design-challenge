@@ -68,6 +68,10 @@ namespace MountainPlanner.Tests
             public System.Threading.Tasks.Task ShowGround(TerrainEdits ground, TerrainEdits clearing) { GroundShows++; Shown = ground; Clearing = clearing; return System.Threading.Tasks.Task.CompletedTask; }
             public void ContoursWhileArmed(bool armed) => Contours = armed;
             public double LastLiveMs => 0;
+            public bool? Held;
+            public void Painting(bool held) => Held = held;
+            public int Settles;
+            public bool Settle() { Settles++; return false; }
         }
 
         DesignHistory _history;

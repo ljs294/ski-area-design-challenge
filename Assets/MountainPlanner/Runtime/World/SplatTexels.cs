@@ -64,8 +64,8 @@ namespace MountainPlanner.World
             var rows = ArrayPool<int>.Shared.Rent(windowWidth * windowHeight);
             StandShade(cover, windowWidth, windowHeight, stride, resolution, shade, rows);
             int w = inner.width, h = inner.height;
-            var t0 = new byte[w * h * 4];
-            var t1 = new byte[w * h * 4];
+            var t0 = Rent(w * h * 4);
+            var t1 = Rent(w * h * 4);
             for (int j = inner.yMin; j < inner.yMax; j++)
             {
                 int wj = j - windowY;
@@ -101,6 +101,40 @@ namespace MountainPlanner.World
             ArrayPool<byte>.Shared.Return(shade);
             ArrayPool<int>.Shared.Return(rows);
             return new SplatTexels { Resolution = resolution, Width = w, Height = h, Textures = new[] { t0, t1 } };
+        }
+
+        /// <summary>
+        /// Hands the textures' bytes back for the next compose of the same size (round 4: a brush's catch-ups compose a few
+        /// windows a second, 130 KB each). Only once they're uploaded and read; the texels are unusable after.
+        /// </summary>
+        public void Release()
+        {
+            var textures = Textures;
+            Textures = null;
+            if (textures == null) return;
+            foreach (var t in textures) Return(t);
+        }
+
+        // Exact-size byte arrays (Texture2D.SetPixelData wants the texture's size, not a pooled array's), a few per size.
+        static readonly System.Collections.Generic.Dictionary<int, System.Collections.Generic.Stack<byte[]>> Pool =
+            new System.Collections.Generic.Dictionary<int, System.Collections.Generic.Stack<byte[]>>();
+        const int MaxPooledPerSize = 8;
+
+        static byte[] Rent(int bytes)
+        {
+            lock (Pool)
+                if (Pool.TryGetValue(bytes, out var stack) && stack.Count > 0) return stack.Pop();
+            return new byte[bytes];
+        }
+
+        static void Return(byte[] array)
+        {
+            if (array == null) return;
+            lock (Pool)
+            {
+                if (!Pool.TryGetValue(array.Length, out var stack)) Pool[array.Length] = stack = new System.Collections.Generic.Stack<byte[]>();
+                if (stack.Count < MaxPooledPerSize) stack.Push(array);
+            }
         }
 
         /// <summary>

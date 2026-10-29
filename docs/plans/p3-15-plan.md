@@ -220,3 +220,17 @@ I'll ask you before each push, PR and merge.
 - **The close ask** shows only its own row (Confirm, Revert, Keep painting), as in the mockup's `terrainask`.
 - **Garbage while dragging 400 ft** is down from about 546 KB to 167 KB a frame, with 3 collections instead of 7–9.
 - Numbers are in [docs/perf/brush-drag.md](../perf/brush-drag.md) round 3, from `demo.bat` 75.
+
+## Follow-up: a drag like Cities Skylines 2's (2026-10-29, perf/brush-smooth; PR A of three)
+- **Owner, 2026-10-29:** the brush performs like Cities Skylines 2's on a 60 Hz monitor: the ground, the trees and the
+  lift towers move with the mouse every frame, with no dropped frame. Three PRs: **A** the drag itself and its garbage
+  (this one); **B** live trees and towers with a per-stroke **Clear trees** checkbox (BR22, superseding BR21's removal
+  at Confirm; save v9); **C** the instant Confirm (a seeded fold).
+- **The 400 ft drag's frame p95 went from 17–19 ms to 10–12**, with no frame over a refresh (16.7 ms) on either site,
+  with `-force-gfx-mt`, or in the Development game. The package's heights under the brush are memoised, and Unity's
+  whole-tile `SyncHeightmap` no longer runs on dab frames (a PlayMode probe showed `SetHeightsDelayLOD` alone reaches
+  the GPU heightmap); the sync runs once per catch-up and at the let-go, a tile a frame. The heights are byte-identical.
+- **Garbage while dragging** is about 80 KB a frame with 2 collections in the Development game (round 3: 167 KB, 3); neither
+  collection costs a frame. The bench's pass line is now the frames; the garbage prints beside it.
+- Numbers are in [docs/perf/brush-drag.md](../perf/brush-drag.md) round 4, from `demo.bat` 75, which now also runs
+  `-force-gfx-mt`.
