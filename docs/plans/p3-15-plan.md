@@ -247,3 +247,10 @@ I'll ask you before each push, PR and merge.
   cleared cells, by the same rule an apply uses; the catch-ups no longer touch trees, and the crown map is redrawn once
   a press is let go.
 - Numbers are in [docs/perf/brush-drag.md](../perf/brush-drag.md) round 5.
+
+## Follow-up: Confirm folds only the last press (2026-10-29, perf/brush-fold; PR C of three)
+- Each fold of the session is seeded with the one before (`DesignEarthwork.Rebuild`'s optional seed, valid only from the
+  same committed edits and accepted state), so a session of three 400 ft presses confirmed on the last let-go commits in
+  123–162 ms instead of 421–474. A single press confirmed on its let-go is unchanged (about 150 ms). Byte-identical to the
+  fold from scratch (Core `PR_C_ASeededFoldIsTheFoldFromScratch`). Numbers in
+  [docs/perf/brush-drag.md](../perf/brush-drag.md) round 6.

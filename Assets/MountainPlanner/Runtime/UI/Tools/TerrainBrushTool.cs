@@ -567,7 +567,7 @@ namespace MountainPlanner.UI.Tools
                 foreach (var i in _run.HeldIndices) _held.Add(_run.Holds[i]);
                 CatchUp(_pending);   // BR21: only what moved since the last catch-up; nothing on screen changes
                 _liveDirty = PointRect.Empty;
-                if (released) { _fold = null; _foldDue = true; }   // Confirm's fold, ahead of the click
+                if (released) { _seedFold = _fold ?? _seedFold; _fold = null; _foldDue = true; }   // Confirm's fold, ahead of the click (PR C: the last one seeds it)
             }
             _run.Release();   // its tiles are built and handed over; the patches serve the next stroke (round 4)
             _run = null;
@@ -599,6 +599,7 @@ namespace MountainPlanner.UI.Tools
             _held.Clear();
             _held.UnionWith(press.Held);
             if (_ctx.LiveGround != null) _settling = _ctx.LiveGround.ShowGround(_pending, _pending);   // BR22: its trees back too
+            _seedFold = _fold ?? _seedFold;   // PR C: its strokes before the one taken back still seed the next fold
             _fold = null;
             _foldDue = true;
             PaintStatus();
@@ -669,6 +670,22 @@ namespace MountainPlanner.UI.Tools
 
         Fold _fold;
         bool _foldDue;
+        // PR C: the last fold the session made, kept as the next one's seed (DesignEarthwork.Rebuild lays its strokes still the
+        // same instead of grading them again), so a fold after a press grades only that press.
+        Fold _seedFold;
+
+        /// <summary>Whether folds are seeded (PR C); off only for the bench's before-and-after (<c>-noseed</c>).</summary>
+        public static bool SeedFolds = true;
+
+        DesignEarthwork.Result Seed()
+        {
+            if (!SeedFolds) return null;
+            foreach (var f in new[] { _fold, _seedFold })
+                if (f != null && f.Work.IsCompleted && !f.Work.IsFaulted && f.Work.Result.Rebuild != null && f.Revision == _ctx.History.Revision
+                    && ReferenceEquals(f.Committed, _ctx.History.Terrain))
+                    return f.Work.Result.Rebuild;
+            return null;
+        }
 
         Fold StartFold()
         {
@@ -677,6 +694,7 @@ namespace MountainPlanner.UI.Tools
             var committed = _ctx.History.Terrain;
             var command = new AddTerrainStrokes(revision, new List<StrokePainting>(_session));
             var earthwork = _ctx.Earthwork.Earthwork;
+            var seed = Seed();
             return new Fold
             {
                 Revision = revision, Started = Stopwatch.GetTimestamp(), Committed = committed, Command = command,
@@ -686,7 +704,7 @@ namespace MountainPlanner.UI.Tools
                     var after = command.Apply(doc);
                     double apply = Ms(f0);
                     long f1 = Stopwatch.GetTimestamp();
-                    var rebuild = after.Accepted ? earthwork.Rebuild(after.Document, committed) : null;
+                    var rebuild = after.Accepted ? earthwork.Rebuild(after.Document, committed, seed) : null;
                     return new FoldResult { After = after, Rebuild = rebuild, ApplyMs = apply, RebuildMs = Ms(f1) };
                 }),
             };
@@ -776,6 +794,7 @@ namespace MountainPlanner.UI.Tools
             _held.Clear();
             _liveDirty = PointRect.Empty;
             _fold = null;
+            _seedFold = null;
             _foldDue = false;
             _ctx.LiveGround?.Painting(false);
         }

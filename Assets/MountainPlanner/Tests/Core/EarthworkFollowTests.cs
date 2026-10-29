@@ -196,6 +196,45 @@ namespace MountainPlanner.Tests
             AssertFresh(h, "a stroke by the bottom terminal after the lift's edit was undone");
         }
 
+        [Test]
+        public void FW10_ASeedStaysExactWhenPiecesBeforeTheStrokesChange()
+        {
+            // Brush PR C on the tile fold: a seed stands in for the remembered pieces, so a change ahead of the strokes since
+            // the seed (a repainted trail, a deleted lift) re-grades by the same tile rule and the fold equals one from scratch.
+            var (h, work) = Session();
+            var lift = AddLift(h, work, 0, -300, 400);
+            var run = AddTrail(h, work, Strip(120, (-150, -250), (150, -330)), M(-150, -250), M(150, -330));
+            StrokePainting Press(double y, bool raise) =>
+                new StrokePainting(BrushSettings.RaiseOrLower(raise, 6096, 40), Enumerable.Range(0, 10).Select(i => new BrushDab(M(-25 + i * 5, y), 1000)).ToList());
+            var first = new AddTerrainStrokes(h.Revision, new[] { Press(-290, true) }).Apply(h.Document).Document;
+            var seed = work.Rebuild(first, h.Terrain);
+
+            void Same(DesignDocument doc, string what, DesignEarthwork.Result from = null)
+            {
+                var seeded = work.Rebuild(doc, h.Terrain, from ?? seed);
+                var fresh = work.Rebuild(doc, h.Terrain);
+                Assert.That(TerrainEditBytes.Encode(seeded.Edits), Is.EqualTo(TerrainEditBytes.Encode(fresh.Edits)), what);
+                Assert.That(TerrainEdits.Changed(seeded.Edits, Fresh(doc)), Is.Empty, what + ": equals a fresh fold");
+            }
+
+            var two = new[] { Press(-290, true), Press(-300, false) };
+            Same(new AddTerrainStrokes(h.Revision, two).Apply(h.Document).Document, "a second press");
+            var repainted = new RepaintTrail(h.Revision, run, Strip(150, (-150, -260), (150, -320))).Apply(h.Document).Document;
+            Same(new AddTerrainStrokes(h.Revision, two).Apply(repainted).Document, "the trail under the strokes repainted");
+            var deleted = new DeleteLift(h.Revision, lift).Apply(h.Document).Document;
+            Same(new AddTerrainStrokes(h.Revision, two).Apply(deleted).Document, "the lift the strokes read deleted");
+            Same(h.Document, "every press undone");
+            // A seed that graded the trail again itself: its old writes, which the committed edits still hold, come off.
+            var reseed = work.Rebuild(new AddTerrainStrokes(h.Revision, new[] { Press(-290, true) }).Apply(repainted).Document, h.Terrain);
+            Same(new AddTerrainStrokes(h.Revision, two).Apply(repainted).Document, "seeded after the repaint", reseed);
+            Same(h.Document, "the repaint undone, seeded after it", reseed);
+            // A seed with a trail the committed state never had, under the press: gone again, the press is graded once more.
+            var added = new AddTrail(h.Revision, "Run 9", TrailSettings.GradedRun, Strip(150, (-150, -200), (150, -380)), M(-150, -200), M(150, -380), WorkStage.Built)
+                .Apply(h.Document).Document;
+            var withRun = work.Rebuild(new AddTerrainStrokes(h.Revision, new[] { Press(-290, true) }).Apply(added).Document, h.Terrain);
+            Same(new AddTerrainStrokes(h.Revision, new[] { Press(-290, true) }).Apply(h.Document).Document, "a seed's own trail gone", withRun);
+        }
+
         // The ground, noting every lattice tile a read lands in.
         sealed class Recording : IHeightSource
         {

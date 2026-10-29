@@ -278,6 +278,7 @@ namespace MountainPlanner.Domain.Design
             internal Dictionary<ulong, Entry> Overlay;
             internal long Version;
             internal State Base;
+            internal TerrainEdits From;   // the committed edits it was rebuilt from (a seed's validity, round 4 PR C)
 
             /// <summary>What a piece's grade handed back in this rebuild (a trail's stations and volumes), or null. A part
             /// of a split chain (NT2) gets its share of the chain's detail.</summary>
@@ -325,8 +326,12 @@ namespace MountainPlanner.Domain.Design
         /// The terrain edits for <paramref name="doc"/>, from <paramref name="committed"/> (the history's current edits):
         /// rebuilds the tiles that can have changed. What the committed edits hold there that no piece explains (work from
         /// before a contributor existed) is kept as it is, laid last.
+        /// <paramref name="seed"/> (task 15 round 4, PR C: a brush session folded again after each press): an earlier,
+        /// unaccepted rebuild from the same committed edits and the same accepted state; its pieces still the same here are
+        /// laid from it instead of graded again, so only what changed since is folded. The result is the same as without it.
+        /// A seed from another state or other committed edits is ignored.
         /// </summary>
-        public Result Rebuild(DesignDocument doc, TerrainEdits committed)
+        public Result Rebuild(DesignDocument doc, TerrainEdits committed, Result seed = null)
         {
             if (doc == null) throw new ArgumentNullException(nameof(doc));
             committed = committed ?? TerrainEdits.Empty;
@@ -341,9 +346,24 @@ namespace MountainPlanner.Domain.Design
                 var tiles = new HashSet<EditTileKey>();
                 var dirty = new HashSet<ulong>();
                 var overlay = new Dictionary<ulong, Entry>();
-                // Gone: their old writes come off (a change from their own place in the order on).
+                // The seed (PR C): an earlier rebuild from this state and these committed edits. Its pieces are what that fold
+                // laid, so they stand in for the remembered ones (Known reads the overlay first) and the fold re-grades from
+                // there by the same tile rule. Its tiles open, since the committed edits hold the remembered writes, not its own.
+                bool seeded = seed?.Overlay != null && ReferenceEquals(seed.Base, state) && ReferenceEquals(seed.From, committed);
+                if (seeded)
+                    foreach (var kv in seed.Overlay)
+                    {
+                        overlay[kv.Key] = kv.Value;
+                        if (kv.Value != null) foreach (var t in kv.Value.Writes.Tiles) tiles.Add(t);
+                        if (cache.TryGetValue(kv.Key, out var was)) foreach (var t in was.Writes.Tiles) tiles.Add(t);
+                    }
+                // Gone: their old writes come off (a change from their own place in the order on), the seed's as well.
                 var gone = new List<Entry>();
                 foreach (var kv in cache) if (!present.Contains(kv.Key)) gone.Add(kv.Value);
+                if (seeded)
+                    foreach (var kv in seed.Overlay)
+                        if (kv.Value != null && !present.Contains(kv.Key) && !(cache.TryGetValue(kv.Key, out var was) && ReferenceEquals(was, kv.Value)))
+                            gone.Add(kv.Value);
                 gone.Sort((a, b) => FoldOrder(a.Item, b.Item));
                 foreach (var e in gone)
                 {
@@ -353,7 +373,8 @@ namespace MountainPlanner.Domain.Design
                 // New or changed: their old writes and everything they read.
                 foreach (var it in items)
                 {
-                    if (cache.TryGetValue(it.Key, out var e) && e.Item.SameAs(it)) continue;
+                    var e = Known(it.Key, overlay, cache);
+                    if (e != null && e.Item.SameAs(it)) continue;
                     dirty.Add(it.Key);
                     if (e != null) foreach (var t in e.Writes.Tiles) tiles.Add(t);
                     foreach (var t in it.Tiles) tiles.Add(t);
@@ -364,7 +385,7 @@ namespace MountainPlanner.Domain.Design
                 list.Sort();
                 var changedTiles = TerrainEdits.Changed(committed, edits);
                 Stage?.Invoke("changed");
-                return new Result { Edits = edits, Tiles = list, Changed = changedTiles, Regraded = regraded, Overlay = overlay, Version = state.Version, Base = state };
+                return new Result { Edits = edits, Tiles = list, Changed = changedTiles, Regraded = regraded, Overlay = overlay, Version = state.Version, Base = state, From = committed };
             }
         }
 
