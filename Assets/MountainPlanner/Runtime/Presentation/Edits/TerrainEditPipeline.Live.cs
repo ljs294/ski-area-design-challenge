@@ -20,7 +20,35 @@ namespace MountainPlanner.Presentation.Edits
         // Reused height blocks, by size rounded up to 16 posts, so painting allocates nothing per frame once warm.
         readonly Dictionary<(int, int), float[,]> _liveBlocks = new Dictionary<(int, int), float[,]>();
         readonly HashSet<(int, int)> _liveTouched = new HashSet<(int, int)>();
+        // Tiles the live upload wrote since their last SyncHeightmap (round 4): synced one a frame by the next apply.
+        readonly HashSet<(int, int)> _liveUnsynced = new HashSet<(int, int)>();
         const int LiveRound = 16;
+
+        /// <summary>Tiles the live upload wrote whose patch LOD and bounds Unity hasn't rebuilt yet (the bench).</summary>
+        public int LiveUnsynced => _liveUnsynced.Count;
+
+        /// <summary>
+        /// Syncs one tile the live upload wrote (<see cref="ApplyLive"/>), if any: Unity rebuilds its patch LOD and bounds
+        /// over the whole tile (3–7 ms), which is why the tool asks for one a frame, between presses and once per catch-up
+        /// while painting, and never inside an apply (an apply waiting on it held up the next one, and Confirm with it).
+        /// True if a tile was synced. Main thread.
+        /// </summary>
+        public bool SyncLiveTileNow()
+        {
+            foreach (var key in _liveUnsynced) return SyncLiveTile(key);
+            return false;
+        }
+
+        bool SyncLiveTile((int, int) key)
+        {
+            if (!_liveUnsynced.Remove(key)) return false;
+            if (!_tiles.TryGetValue(key, out var terrain)) return false;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            terrain.terrainData.SyncHeightmap();
+            TerrainTiles.BindSplat(terrain);
+            if (Verbose) UnityEngine.Debug.Log($"[TerrainEdits] frame {UnityEngine.Time.frameCount}: live tile {key} synced in {watch.Elapsed.TotalMilliseconds:F1} ms ({_liveUnsynced.Count} to go)");
+            return true;
+        }
 
         /// <summary>Time the last live upload took, ms (the brush bench).</summary>
         public double LastLiveMs { get; private set; }
@@ -61,11 +89,19 @@ namespace MountainPlanner.Presentation.Edits
                     i1 = i0 + w - 1;
                     j1 = j0 + h - 1;
                     if (!_liveBlocks.TryGetValue((w, h), out var hm)) _liveBlocks[(w, h)] = hm = new float[h, w];
-                    var b = _grid.Bounds(new TileKey(tc, tr));
                     double t0 = watch.Elapsed.TotalMilliseconds;
+                    // By 64-post block of memoised source heights (round 4): a row's posts in one block read it once.
                     for (int j = j0; j <= j1; j++)
-                        for (int i = i0; i <= i1; i++)
-                            hm[j1 - j, i - i0] = Normalised(b, ground, gc, gr, i, j);
+                    {
+                        int bj = j >> 6, jr = (j & 63) * SourceBlock, row = gr + j;
+                        for (int bi = i0 >> 6; bi <= i1 >> 6; bi++)
+                        {
+                            var source = SourceRow(SourceBlockAt(tc, tr, bi, bj), tc, tr, bi, j);
+                            int ia = Math.Max(i0, bi << 6), ib = Math.Min(i1, (bi << 6) + SourceBlock - 1);
+                            for (int i = ia; i <= ib; i++)
+                                hm[j1 - j, i - i0] = Normalised(source[jr + (i & 63)], ground, gc + i, row);
+                        }
+                    }
                     double t1 = watch.Elapsed.TotalMilliseconds;
                     terrain.terrainData.SetHeightsDelayLOD(i0, 1024 - j1, hm);
                     sample += t1 - t0;
@@ -75,20 +111,17 @@ namespace MountainPlanner.Presentation.Edits
             double sync0 = watch.Elapsed.TotalMilliseconds;
             foreach (var key in _liveTouched)
             {
-                _tiles[key].terrainData.SyncHeightmap();
-                TerrainTiles.BindSplat(_tiles[key]);   // the sync can hand the tile a new GPU heightmap (P3-05)
+                // Round 4: SetHeightsDelayLOD alone puts the heights on the GPU heightmap the shader draws from (the PlayMode
+                // probe, LiveHeightmapProbeTests), so the whole-tile SyncHeightmap (7 ms at 400 ft) waits for the next
+                // catch-up or the let-go (SyncLiveTile), which brings Unity's patch LOD and bounds up to date. Every set
+                // hands the tile a new heightmap texture, so the info layers' _Heightmap is rebound here, every frame.
+                TerrainTiles.BindSplat(_tiles[key]);
+                _liveUnsynced.Add(key);
             }
             LastLiveMs = watch.Elapsed.TotalMilliseconds;
             LastLiveSampleMs = sample;
             LastLiveSetMs = set;
             LastLiveSyncMs = LastLiveMs - sync0;
-        }
-
-        // Normalised's sum with the change read from any ground: the same doubles, so the same quantised height.
-        float Normalised(AlbersBox b, IPointDeltas ground, int gc, int gr, int i, int j)
-        {
-            double h = _source.At(b.West + i, b.North - j) + ground.DeltaMmAt(gc + i, gr + j) / 1000.0;
-            return TerrainCache.Quantize(h, _cache.HeightMin, _cache.HeightRange) * (1f / TerrainCache.MaxValue);
         }
 
         static int RoundUp(int n) => (n + LiveRound - 1) / LiveRound * LiveRound;

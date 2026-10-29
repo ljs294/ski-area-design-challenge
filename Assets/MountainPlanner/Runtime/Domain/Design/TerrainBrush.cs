@@ -58,7 +58,7 @@ namespace MountainPlanner.Domain.Design
 
         sealed class Patch
         {
-            public readonly EditTileKey Key;
+            public EditTileKey Key;
             public readonly int[] S = new int[Count];      // the source, whole mm
             public readonly int[] D = new int[Count];      // the change now (absolute over the source)
             public readonly int[] D0 = new int[Count];     // the change before the stroke
@@ -67,6 +67,45 @@ namespace MountainPlanner.Domain.Design
             public readonly ushort[] LowHold = new ushort[Count], HighHold = new ushort[Count];
             public bool Dirty;   // changed since the last Preview
             public Patch(EditTileKey key) { Key = key; }
+        }
+
+        // Patches pooled across runs (round 4): a stroke's patches, 100 KB a tile, go back when the tool drops the run
+        // (Release), and the next stroke's Load writes every entry, so nothing is cleared and nothing is left over.
+        static readonly Stack<Patch> PatchPool = new Stack<Patch>();
+        const int MaxPooledPatches = 64;   // 6.4 MB
+
+        static Patch NewPatch(EditTileKey key)
+        {
+            lock (PatchPool)
+                if (PatchPool.Count > 0)
+                {
+                    var p = PatchPool.Pop();
+                    p.Key = key;
+                    p.Dirty = false;
+                    return p;
+                }
+            return new Patch(key);
+        }
+
+        /// <summary>
+        /// Fills the pool ahead of the first stroke (the tool arming), so even a 400 ft stroke's first drag over fresh
+        /// tiles allocates nothing a frame: <paramref name="count"/> patches at most, 100 KB each.
+        /// </summary>
+        public static void Warm(int count)
+        {
+            count = Math.Min(count, MaxPooledPatches);
+            lock (PatchPool)
+                while (PatchPool.Count < count) PatchPool.Push(new Patch(default));
+        }
+
+        /// <summary>Hands the run's patches back for the next run; the run is unusable after (its live view and previews included).</summary>
+        public void Release()
+        {
+            lock (PatchPool)
+                foreach (var p in _patches.Values)
+                    if (PatchPool.Count < MaxPooledPatches) PatchPool.Push(p);
+            _patches.Clear();
+            _last = null;
         }
 
         readonly BrushSettings _s;
@@ -119,6 +158,9 @@ namespace MountainPlanner.Domain.Design
 
         /// <summary>What held the brush so far (TB-09), as <see cref="FixedGround.Holds"/> indices.</summary>
         public IReadOnlyCollection<ushort> HeldIndices => _held;
+
+        /// <summary>The holds <see cref="HeldIndices"/> index: the fixed ground's.</summary>
+        public IReadOnlyList<Hold> Holds => _fixed.Holds;
 
         /// <summary>What held the brush so far.</summary>
         public List<Hold> Held()
@@ -277,7 +319,7 @@ namespace MountainPlanner.Domain.Design
 
         Patch Load(EditTileKey key)
         {
-            var p = new Patch(key);
+            var p = NewPatch(key);
             var lat = _site.Lattice;
             var edits = _ground.Edits.Get(key);
             for (int j = 0; j < Side; j++)
@@ -358,12 +400,23 @@ namespace MountainPlanner.Domain.Design
             TerrainEditTile.Builder b = null;
             if (_patches.TryGetValue(key, out var p))
                 for (int at = 0; at < Count; at++)
-                    if (p.D[at] != p.D0[at]) (b ??= under.Get(key).Edit()).SetDeltaMm(at % Side, at / Side, p.D[at]);
+                    if (p.D[at] != p.D0[at]) (b ??= Builder(key, under)).SetDeltaMm(at % Side, at / Side, p.D[at]);
             if (_cellCorners.TryGetValue(key, out var counts))
                 for (int at = 0; at < Count; at++)
-                    if (counts[at] != 0) (b ??= under.Get(key).Edit()).SetCleared(at % Side, at / Side, true);
+                    if (counts[at] != 0) (b ??= Builder(key, under)).SetCleared(at % Side, at / Side, true);
             if (b == null) _previewTiles.Remove(key);
-            else _previewTiles[key] = b.Build();
+            else _previewTiles[key] = b.BuildTaking();
+        }
+
+        // One builder a tile, started again from under's tile each time (round 4: a tile is rebuilt a few times a second
+        // while painting, so the builder's arrays are reused and the built tile takes them rather than copies).
+        readonly Dictionary<EditTileKey, TerrainEditTile.Builder> _builders = new Dictionary<EditTileKey, TerrainEditTile.Builder>();
+
+        TerrainEditTile.Builder Builder(EditTileKey key, TerrainEdits under)
+        {
+            if (!_builders.TryGetValue(key, out var b)) _builders[key] = b = new TerrainEditTile.Builder(key);
+            under.TryGet(key, out var from);
+            return b.Reset(key, from);
         }
 
         /// <summary>TB-09: the stroke's cut and fill against the ground before it, m³ (1 m² a lattice point).</summary>

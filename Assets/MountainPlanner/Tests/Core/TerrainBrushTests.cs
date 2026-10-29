@@ -560,6 +560,26 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void R4_AReusedBuilderGivesTheSameTileAsAFreshOne()
+        {
+            // Round 4: the preview's builders are reused and the built tile takes their arrays; the tile is the same as
+            // Edit().Build() gives, and the builder starts clean afterwards.
+            var key = new EditTileKey(3, 5);
+            var from = new TerrainEditTile.Builder(key).SetDeltaMm(1, 2, 300).SetCleared(4, 4, true).Build();
+            var want = from.Edit().SetDeltaMm(10, 10, -500).SetCleared(20, 20, true).Build();
+            var b = new TerrainEditTile.Builder(key);
+            var got = b.Reset(key, from).SetDeltaMm(10, 10, -500).SetCleared(20, 20, true).BuildTaking();
+            Assert.That(got, Is.EqualTo(want));
+            Assert.That(b.Reset(key, null).BuildTaking().IsEmpty, "the next reset starts empty");
+            Assert.That(got, Is.EqualTo(want), "the built tile kept its content");
+            var heights = b.Reset(key, null).SetDeltaMm(0, 0, 1).BuildTaking();
+            Assert.That(heights.HasHeights && !heights.HasClearing, "heights only");
+            var cleared = b.Reset(key, null).SetCleared(1, 1, true).BuildTaking();
+            Assert.That(!cleared.HasHeights && cleared.HasClearing && !cleared.IsCleared(0, 0) && cleared.IsCleared(1, 1), "clearing only, from a clean word");
+            Assert.That(b.Reset(key, from).BuildTaking(), Is.EqualTo(from), "from a tile again, after both arrays were taken");
+        }
+
+        [Test]
         public void BR14_TheRunningBillIsTheFullCount()
         {
             foreach (var (name, settings, ground) in Strokes())

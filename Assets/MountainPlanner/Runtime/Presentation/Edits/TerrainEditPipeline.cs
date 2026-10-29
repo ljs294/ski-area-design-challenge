@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -64,8 +65,14 @@ namespace MountainPlanner.Presentation.Edits
         /// <summary>The clearing on screen: which trees are out, and the cleared cover (BR21).</summary>
         public TerrainEdits ShownClearing { get; private set; } = TerrainEdits.Empty;
 
-        /// <summary>Main-thread work an apply does in one frame before the rest waits for the next (BR21: never a hitch).</summary>
-        public const double FrameBudgetMs = 6;
+        /// <summary>
+        /// Main-thread work an apply does in one frame before the rest waits for the next (BR21: never a hitch): the usual
+        /// budget, and the one while a brush is held (round 4: the frame already carries the live upload).
+        /// </summary>
+        public const double DefaultFrameBudgetMs = 6, PaintingFrameBudgetMs = 2;
+        public double FrameBudgetMs { get; set; } = DefaultFrameBudgetMs;
+        /// <summary>Log every apply and snow compute (off: only commits; a Development build keeps a stack trace per log).</summary>
+        public static bool Verbose;
         /// <summary>The heights every rule and readout reads (SH-02): the package's plus <see cref="Current"/>.</summary>
         public EditedHeights Heights { get; private set; }
         public Report Last { get; private set; }
@@ -223,6 +230,7 @@ namespace MountainPlanner.Presentation.Edits
                 // The sync can hand the tile a new GPU heightmap: rebind it, or the slope and exposure layers read a stale one.
                 TerrainTiles.BindSplat(terrain);
                 report.HeightsMs += part.Elapsed.TotalMilliseconds;
+                _liveUnsynced.Remove(key);
                 await Breathe(always: true);   // a tile's sync is the biggest single step: one a frame
             }
             foreach (var p in patches)
@@ -285,11 +293,13 @@ namespace MountainPlanner.Presentation.Edits
             }
             report.TotalMs = total.Elapsed.TotalMilliseconds;
             Last = report;
-            UnityEngine.Debug.Log($"[TerrainEdits] frame {Time.frameCount}: {report.Patches} patches over {report.CacheTiles} tiles: {report.Posts:N0} posts, {report.Texels:N0} texels, " +
-                                  $"{report.Trees:N0} trees ({report.Cleared:N0} cleared); plan {report.PlanMs:F1} ms, heights {report.HeightsMs:F1}, " +
-                                  $"splat {report.SplatMs:F1}, trees {report.TreesMs:F1}, total {report.TotalMs:F1} ms, queued {report.QueuedMs:F1}{(commit ? "" : heightsUp ? " (shown, heights live)" : " (shown)")} " +
-                                  $"(worker: posts {report.PostsWorkMs:F0}, cover {report.CoverWorkMs:F0}, tree plan {report.TreesPlanMs:F0})");
+            if (Verbose || commit)
+                UnityEngine.Debug.Log($"[TerrainEdits] frame {Time.frameCount}: {report.Patches} patches over {report.CacheTiles} tiles: {report.Posts:N0} posts, {report.Texels:N0} texels, " +
+                                      $"{report.Trees:N0} trees ({report.Cleared:N0} cleared); plan {report.PlanMs:F1} ms, heights {report.HeightsMs:F1}, " +
+                                      $"splat {report.SplatMs:F1}, trees {report.TreesMs:F1}, total {report.TotalMs:F1} ms, queued {report.QueuedMs:F1}{(commit ? "" : heightsUp ? " (shown, heights live)" : " (shown)")} " +
+                                      $"(worker: posts {report.PostsWorkMs:F0}, cover {report.CoverWorkMs:F0}, tree plan {report.TreesPlanMs:F0})");
             if (_states != null) RebuildSnow(patches, heights, ct);
+            foreach (var p in patches) p.Splat?.Release();   // the splat bytes are uploaded and the snow has read its canopy
         }
 
         /// <summary>One rectangle of one cache tile to rebuild.</summary>
@@ -354,13 +364,14 @@ namespace MountainPlanner.Presentation.Edits
             // The patches are independent, so they plan in parallel; each lands in its own slot, so the order is fixed.
             var planned = new Patch[jobs.Count];
             var counts = new Report[jobs.Count];
-            var options = threads > 0 ? new ParallelOptions { MaxDegreeOfParallelism = threads } : WorkerLimits.Options(CancellationToken.None);
-            Parallel.For(0, jobs.Count, options, k =>
+            void PlanOne(int k)
             {
                 var r = new Report();
                 planned[k] = PlanPatch(jobs[k].Tile, jobs[k].Area, heights, clearing, jobs[k].Heights, ref r);
                 counts[k] = r;
-            });
+            }
+            if (threads == 1) for (int k = 0; k < jobs.Count; k++) PlanOne(k);   // a live catch-up: no Parallel.For to set up and collect
+            else Parallel.For(0, jobs.Count, threads > 0 ? new ParallelOptions { MaxDegreeOfParallelism = threads } : WorkerLimits.Options(CancellationToken.None), PlanOne);
             var patches = new List<Patch>();
             var tilesTouched = new HashSet<(int, int)>();
             for (int k = 0; k < planned.Length; k++)
@@ -451,7 +462,7 @@ namespace MountainPlanner.Presentation.Edits
                 var hm = new float[h, w];   // [z, x], south row first
                 for (int j = j0; j <= j1; j++)
                     for (int i = i0; i <= i1; i++)
-                        hm[j1 - j, i - i0] = Normalised(b, heights, gc, gr, i, j);
+                        hm[j1 - j, i - i0] = Normalised(heights.Edits, gc, gr, i, j);
                 patch.Heights = hm;
                 patch.HeightX = i0;
                 patch.HeightY = 1024 - j1;
@@ -483,11 +494,56 @@ namespace MountainPlanner.Presentation.Edits
             return patch;
         }
 
-        /// <summary>A post's height as the tile holds it: the cache's quantising of the edited height (LoadHeights' scale).</summary>
-        float Normalised(AlbersBox b, EditedHeights heights, int gc, int gr, int i, int j)
+        /// <summary>
+        /// A post's height as the tile holds it: the cache's quantising of the edited height (LoadHeights' scale), the
+        /// package's height at the post (<see cref="SourceAt"/>) plus the point's change from any ground.
+        /// </summary>
+        float Normalised(IPointDeltas ground, int gc, int gr, int i, int j) =>
+            Normalised(SourceAt(gc >> 10, gr >> 10, i, j), ground, gc + i, gr + j);
+
+        float Normalised(double source, IPointDeltas ground, int column, int row)
         {
-            double h = heights.AtPost(b.West + i, b.North - j, gc + i, gr + j);
+            double h = source + ground.DeltaMmAt(column, row) / 1000.0;
             return TerrainCache.Quantize(h, _cache.HeightMin, _cache.HeightRange) * (1f / TerrainCache.MaxValue);
+        }
+
+        // The package's heights at a core tile's posts, memoised by 64-post block (round 4): the cache's own sample, the
+        // tile's West + i and North − j, read once per row with PackageHeights.AtRow (the same doubles as At, so the same
+        // quantised heights), where a live frame used to blend them again for every post. A block fills a row at a time,
+        // as the brush reaches it, so no frame reads more rows than it uploads. The blocks are dropped and refilled when
+        // there are many (a long session over a big site), so they never hold more than 16 MB.
+        readonly ConcurrentDictionary<long, SourceRows> _sourceBlocks = new ConcurrentDictionary<long, SourceRows>();
+        const int SourceBlock = 64, MaxSourceBlocks = 512;
+
+        sealed class SourceRows
+        {
+            public readonly double[] Heights = new double[SourceBlock * SourceBlock];
+            public ulong Filled;   // bit j: row j is read
+        }
+
+        /// <summary>The package's height at post (i, j) of core cache tile (tc, tr): exactly what the cache quantised at open.</summary>
+        double SourceAt(int tc, int tr, int i, int j) => SourceRow(SourceBlockAt(tc, tr, i >> 6, j >> 6), tc, tr, i >> 6, j)[(j & 63) * SourceBlock + (i & 63)];
+
+        SourceRows SourceBlockAt(int tc, int tr, int bi, int bj)
+        {
+            long key = ((long)(tc + 0x8000) << 40) | ((long)(tr + 0x8000) << 16) | (long)(bi << 8) | (long)bj;
+            if (_sourceBlocks.TryGetValue(key, out var block)) return block;
+            if (_sourceBlocks.Count >= MaxSourceBlocks) _sourceBlocks.Clear();
+            return _sourceBlocks.GetOrAdd(key, _ => new SourceRows());
+        }
+
+        /// <summary>The block's heights with tile row <paramref name="j"/> read (a row read twice by two threads reads the same doubles).</summary>
+        double[] SourceRow(SourceRows block, int tc, int tr, int bi, int j)
+        {
+            ulong bit = 1UL << (j & 63);
+            if ((Volatile.Read(ref block.Filled) & bit) == 0)
+            {
+                var b = _grid.Bounds(new TileKey(tc, tr));
+                int i0 = bi * SourceBlock, count = Math.Min(SourceBlock, TerrainTiles.Resolution - i0);
+                _source.AtRow(b.North - j, b.West, i0, count, block.Heights, (j & 63) * SourceBlock);
+                lock (block) block.Filled |= bit;
+            }
+            return block.Heights;
         }
 
         /// <summary>Where a tree stands on the edited ground: <see cref="ForestInstance.Decode"/>'s sampling of the tile's posts.</summary>
@@ -498,8 +554,9 @@ namespace MountainPlanner.Presentation.Edits
             int x0 = Mathf.Min((int)gx, res - 2), z0 = Mathf.Min((int)gz, res - 2);
             float tx = gx - x0, tz = gz - z0;
             // Unity row z is cache row 1024 − z.
-            float h00 = Normalised(b, heights, gc, gr, x0, 1024 - z0), h10 = Normalised(b, heights, gc, gr, x0 + 1, 1024 - z0);
-            float h01 = Normalised(b, heights, gc, gr, x0, 1024 - z0 - 1), h11 = Normalised(b, heights, gc, gr, x0 + 1, 1024 - z0 - 1);
+            var ground = heights.Edits;
+            float h00 = Normalised(ground, gc, gr, x0, 1024 - z0), h10 = Normalised(ground, gc, gr, x0 + 1, 1024 - z0);
+            float h01 = Normalised(ground, gc, gr, x0, 1024 - z0 - 1), h11 = Normalised(ground, gc, gr, x0 + 1, 1024 - z0 - 1);
             float h = ForestInstance.Ground(h00, h10, h01, h11, tx, tz);
             return (float)_cache.HeightMin + h * (float)_cache.HeightRange;
         }
@@ -537,7 +594,6 @@ namespace MountainPlanner.Presentation.Edits
                 int cj0 = Math.Max(0, (int)Math.Floor((ls - 1 - _ring.yMin) / cell)), cj1 = Math.Min(depth - 1, (int)Math.Ceiling((ln + 1 - _ring.yMin) / cell));
                 var tile = _cacheTiles[p.Tile];
                 var (ox, oz) = _frame.ToLocal(new AlbersPoint(tile.West, tile.North - _cache.TileMetres));
-                var b = _grid.Bounds(new TileKey(tile.Column, tile.Row));
                 int res = TerrainTiles.Resolution, gc = tile.Column * 1024, gr = tile.Row * 1024;
                 float tileMetres = (float)_cache.TileMetres;
                 for (int j = cj0; j <= cj1; j++)
@@ -547,7 +603,7 @@ namespace MountainPlanner.Presentation.Edits
                         float u = (_ring.xMin + (i + 0.5f) * cell - (float)ox) / tileMetres, v = (_ring.yMin + (j + 0.5f) * cell - (float)oz) / tileMetres;
                         if (u < 0 || u > 1 || v < 0 || v > 1) continue;
                         int col = Mathf.Clamp(Mathf.RoundToInt(u * (res - 1)), 0, res - 1), row = Mathf.Clamp(Mathf.RoundToInt(v * (res - 1)), 0, res - 1);
-                        float hn = Normalised(b, heights, gc, gr, col, 1024 - row);
+                        float hn = Normalised(heights.Edits, gc, gr, col, 1024 - row);
                         _elevation[j * width + i] = (float)(_cache.HeightMin + hn * _cache.HeightRange);
                         if (p.Splat != null)
                         {
@@ -614,7 +670,8 @@ namespace MountainPlanner.Presentation.Edits
                     _depth = result;
                     bool relabel = !SameLabels(_labels, labels);
                     if (relabel) { _labels = labels; LabelsChanged?.Invoke(labels); }   // BR21: the overlay rebuilds only for a real change
-                    UnityEngine.Debug.Log($"[TerrainEdits] frame {Time.frameCount}: snow {width}x{depth} on the main thread: compare {compareMs:F1} ms, upload {copyMs:F1} ({(x1 >= 0 ? (x1 - x0 + 1) * (y1 - y0 + 1) : 0)} cells), labels {(relabel ? (main.Elapsed.TotalMilliseconds - compareMs - copyMs).ToString("F1") + " ms" : "unchanged")}");
+                    if (Verbose)
+                        UnityEngine.Debug.Log($"[TerrainEdits] frame {Time.frameCount}: snow {width}x{depth} on the main thread: compare {compareMs:F1} ms, upload {copyMs:F1} ({(x1 >= 0 ? (x1 - x0 + 1) * (y1 - y0 + 1) : 0)} cells), labels {(relabel ? (main.Elapsed.TotalMilliseconds - compareMs - copyMs).ToString("F1") + " ms" : "unchanged")}");
                     var report = Last;
                     report.SnowMs = watch.Elapsed.TotalMilliseconds;
                     Last = report;

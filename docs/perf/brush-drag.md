@@ -135,3 +135,66 @@ the queue wait and the apply).
   of it in planning each catch-up's patches, but they can't separate a worker's allocations from the main thread's,
   so the rest wasn't pinned down. It causes 3 collections in the 4 s drag and no frame over budget.
 - **Confirm on the very frame of letting go** still waits for the fold: about 220 ms, within its 250 ms target.
+
+## Round 4: a drag like Cities Skylines 2's (perf/brush-smooth, 2026-10-29)
+
+The owner asked for a brush that performs like Cities Skylines 2's: the ground moving with the mouse every frame with no
+hitch, on a 60 Hz monitor. Round 3's 400 ft drag ran at 17–19 ms a frame (about 55 fps), and nearly all of it was
+main-thread C#: re-sampling the package's heights point by point for every post under the brush (5.5 ms), and Unity's
+whole-tile `SyncHeightmap` on every dab frame (7.5 ms). This round is the drag itself; live trees and towers are the
+next PR, and the instant Confirm the one after.
+
+The bench now counts drag frames over a 60 Hz refresh (16.7 ms), reports the longest frame, keeps the first 64
+allocating frames, and times the catch-up's main-thread start. Its pass line is the 400 ft drag at 12 ms p95 with no
+frame over a refresh, and none after letting go, Confirm or Revert; the garbage prints beside it.
+
+| 400 ft, Jackson Hole, release (ms) | Round 3 | Round 4 |
+| --- | --- | --- |
+| Drag frame p95 | 17.2 | **9.7** |
+| Longest drag frame | 23.4 | **15.3**, none over a refresh |
+| Of which: live upload (reading heights, SetHeights, sync) | 13.0 = 5.4 + 1.0 + 7.6 | 3.2 = 1.5 + 1.2 + 0.6 |
+| Dabs | 2.2 | 2.1 |
+| Frames after let-go (max) | 14.8 | 11.2 |
+| Frames after Confirm / Revert (max) | 9.9 / 7.3 | 10.5 / 8.1 |
+| Confirm to committed, a second after letting go | 116 | 119 |
+| Confirm to committed, the frame after letting go | 221 | 240 |
+| Garbage while dragging, Development game | 167 KB a frame, 3 collections | 81 KB a frame, 2 collections |
+| Shown vs fresh after Confirm / Revert | 0 / 0 | 0 / 0 |
+
+- **Second site** (`-brushat -500,700`): drag p95 11.8, longest frame 14.1, none over a refresh; Confirm 118 after a
+  pause and 228 on the let-go.
+- **With `-force-gfx-mt`:** drag p95 9.6, longest frame 13.6, none over a refresh; Confirm 116 and 214.
+- **Development game:** drag p95 10.8, longest frame 16.4, none over a refresh; Confirm 133 and 256 (the let-go case 6 ms
+  over its 250 ms target in this slower build, as in round 3).
+- Across the four earlier runs of this round the 400 ft p95 was 9.6–12.3 and the longest frame 12.9–16.4.
+
+### What changed
+- **The package's heights are memoised** per 64-post block of each core tile, a row at a time as the brush reaches it,
+  read with `PackageHeights.AtRow` (the same doubles as `At`). The live upload adds the point's change and quantises,
+  as before, so the heights are the same bytes; the commit path, the trees' footing, the snow and `CheckShown` read the
+  same memo. 5.5 ms a frame became 1.5. The blocks are dropped and refilled when there are more than 512 (16 MB).
+- **No whole-tile sync on a dab frame.** A PlayMode probe (`LiveHeightmapProbeTests`) showed that `SetHeightsDelayLOD`
+  alone puts the heights on the GPU heightmap the terrain shader draws from, and that every set hands the tile a new
+  heightmap texture. So the live upload sets heights and rebinds the info layers' heightmap, and `SyncHeightmap`
+  (Unity's patch LOD and bounds, 3–7 ms a tile) is asked for by the tool (`ILiveGround.Settle`): one tile a frame
+  between presses, and once per catch-up while painting, on the tick after the catch-up starts. It never runs inside an
+  apply: an early version drained the tiles inside each catch-up, which synced a tile the brush kept writing every
+  frame and never finished, and held Confirm behind it.
+- **The catch-ups' main-thread slices shrink to 2 ms while a press is held** (`ILiveGround.Painting`), 6 otherwise.
+- **Garbage:** the stroke's patches (100 KB a tile) are pooled across strokes and 48 of them allocated when the tool
+  arms; the preview's tile builders are reused and the built tile takes their arrays (Core
+  `R4_AReusedBuilderGivesTheSameTileAsAFreshOne`); the splat's texels and the staging textures of `ApplySplatRegion`
+  come from pools; `BindSplat` fills one property block and reads no array-returning property; a live catch-up plans
+  without `Parallel.For`; the bill compares its figures before it builds a string; the per-apply and snow logs are off
+  unless `TerrainEditPipeline.Verbose` (a Development build keeps a stack trace per log).
+
+### Left as it is
+- **Garbage while dragging 400 ft is about 80 KB a frame with 2 collections** in the Development game, against a 64 KB,
+  no-collection target. Round 3's 167 KB had the same sources; what is left is each catch-up's immutable preview tiles
+  (16 KB a changed tile, up to nine a catch-up, five a second) and the planning's tree lists. Neither collection cost a
+  frame: the longest drag frame is under a refresh in every run. The bench's pass line is the frames; the garbage
+  figures print beside it.
+- **The session's first catch-up** is one 25–33 ms frame (the 60 ft pass's longest), as in round 3 (27.8). Its own
+  main-thread part is under 5 ms; the rest is first-time cost (code compiled on first use). Once a session.
+- **Confirm on the frame of letting go** is 214–240 ms in release, within its 250 ms target, and 256 in the Development
+  game. The next PR's seeded fold takes it under 150.
