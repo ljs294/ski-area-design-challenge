@@ -243,3 +243,35 @@ new ground and takes out those in cleared cells, and the towers near the dabs re
 - One frame over a refresh in the `-force-gfx-mt` and Development runs (16.7 and 19.9 ms), each once in the 4 s drag.
 - The session's first catch-up is still one 25–32 ms frame (first-use cost), as in round 4.
 - Confirm on the frame of letting go waits for the fold (152–182 ms); PR C's seeded fold is next.
+
+## Round 6: Confirm folds only the last press (perf/brush-fold, 2026-10-29)
+
+Confirm waits for the session's fold: every stroke replayed through the earthwork (about 190 ms for one 400 ft press).
+Round 3 started that fold when a press ends, but each fold replayed the whole session again, so a session of several
+presses confirmed on the let-go waited for all of them. Now each fold is seeded with the one before
+(`DesignEarthwork.Rebuild(doc, committed, seed)`): the strokes still the same are laid from it, and only the new press is
+graded. The bench gained a case for this: three presses, Confirm the frame after the third let-go (`-noseed` turns the
+seed off for the before).
+
+| 400 ft, Jackson Hole (ms) | Not seeded | Seeded |
+| --- | --- | --- |
+| Three presses, Confirm on the last let-go, release | 421 (fold 415) | **137** (fold 128) |
+| The same, Development game | 474 (fold 468) | **142** (fold 136) |
+| Second site / `-force-gfx-mt` (release) | — | 162 / 123 |
+| One press, Confirm on its let-go (nothing to seed) | 152 | 148–157 (Development 176) |
+| Confirm a second after letting go | 11 | 11–12 |
+
+The drag, the frames after letting go, Confirm and Revert, and shown-vs-fresh (0 / 0) are unchanged from round 5.
+
+### What changed
+- `DesignEarthwork.Rebuild` takes an optional seed: an earlier, unaccepted rebuild from the **same committed edits and
+  the same accepted state** (`Result.Version` and `Result.From`). Its pieces still `SameAs` the new design's are put in
+  the new overlay as they are (so `Accept` learns them) and their tiles opened, plus the tiles of any older writes they
+  replace; everything else folds as before. A seed from another state is ignored. Core
+  `PR_C_ASeededFoldIsTheFoldFromScratch` checks the edits byte for byte, each stroke's writes and detail, and what
+  `Accept` then knows, press by press, after Ctrl+Z, after a different press and with a stale seed.
+- The brush keeps its last fold as the next one's seed across presses and Ctrl+Z, and drops it when the session ends.
+
+### Left as it is
+- **One press confirmed on its own let-go** still waits for that press's replay (about 150 ms in release, 176 in the
+  Development game): the replay is the stroke's own cost, the same work as painting it.

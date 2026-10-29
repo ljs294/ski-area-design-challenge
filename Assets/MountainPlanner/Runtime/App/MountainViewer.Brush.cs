@@ -39,6 +39,7 @@ namespace MountainPlanner.App
                     _brushShift = new Vector2(dx, dz);
             }
             if (tour >= 0 && tour + 1 < args.Length) { StartCoroutine(BrushTour(args[tour + 1], Array.IndexOf(args, "-brushmovie") >= 0)); return; }
+            if (Array.IndexOf(args, "-noseed") >= 0) TerrainBrushTool.SeedFolds = false;   // PR C's before: every fold from scratch
             int bench = Array.IndexOf(args, "-brushbench");
             if (bench >= 0 && bench + 1 < args.Length) StartCoroutine(BrushBench(args[bench + 1]));
         }
@@ -240,6 +241,9 @@ namespace MountainPlanner.App
             /// <summary>Confirm clicked the frame after letting go of a 400 ft stroke (its fold has only just started), ms to committed, and the frames until then.</summary>
             public double toCommittedOnLetGoMs;
             public Timing confirmOnLetGoFrames;
+            /// <summary>PR C: Confirm the frame after the third press of a session, ms to committed, its fold's parts and the frames.</summary>
+            public double toCommittedThreePressesMs, threePressFoldApplyMs, threePressFoldRebuildMs;
+            public Timing confirmThreePressesFrames;
             /// <summary>BR22: towers the brush moved live over the whole bench, and towers Confirm then moved (0: the brush had moved them).</summary>
             public int towersMovedLive, towersMovedAtConfirm = -1;
             /// <summary>BR21: values on screen that differ from a fresh apply of the committed ground, after Confirm and after Revert (0 = none).</summary>
@@ -381,6 +385,7 @@ namespace MountainPlanner.App
             // round 4: about 80 KB a frame and 2 collections in the Development game, neither costing a frame; the catch-ups' tiles and lists).
             report.pass = report.brush400.frame.p95 <= 12 && report.brush400.framesOverRefresh == 0 && report.brush60.live.p95 <= 8 && report.brush400.live.p95 <= 8
                           && report.toCommittedMs <= 150 && report.toCommittedOnLetGoMs <= 250 && report.confirmOnLetGoFrames.max <= RefreshMs
+                          && report.toCommittedThreePressesMs <= 250 && report.confirmThreePressesFrames.max <= RefreshMs
                           && report.brush400.release.max <= RefreshMs && report.confirmFrames.max <= RefreshMs && report.revertFrames.max <= RefreshMs
                           && report.shownDiffersAfterConfirm == 0 && report.shownDiffersAfterRevert == 0;
             File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
@@ -398,6 +403,8 @@ namespace MountainPlanner.App
             Debug.Log(string.Format(inv, "[BrushBench] to committed {0:F0} ms (fold landed at {1:F0}: apply {2:F0}, rebuild {3:F0}; commit apply queued {4:F0}, took {5:F0}); on let-go {6:F0} ms (frames max {7:F1}); {8}",
                 report.toCommittedMs, report.confirmLandedMs, report.confirmFoldApplyMs, report.confirmFoldRebuildMs, report.confirmQueuedMs,
                 report.confirmApplyMs, report.toCommittedOnLetGoMs, report.confirmOnLetGoFrames.max, report.pass ? "PASS" : "FAIL"));
+            Debug.Log(string.Format(inv, "[BrushBench] three presses, Confirm on the last let-go: {0:F0} ms to committed (its fold: apply {1:F0}, rebuild {2:F0}); frames max {3:F1}",
+                report.toCommittedThreePressesMs, report.threePressFoldApplyMs, report.threePressFoldRebuildMs, report.confirmThreePressesFrames.max));
             _toolScripted = false;
             Application.Quit();
         }
@@ -467,6 +474,30 @@ namespace MountainPlanner.App
             report.toCommittedOnLetGoMs = watch.Elapsed.TotalMilliseconds;
             for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); }
             report.confirmOnLetGoFrames = Summarise(frames);
+            if (_edits != null && report.shownDiffersAfterConfirm == 0) { report.shownDiffersAfterConfirm = _edits.Pipeline.CheckShown(out string note); report.shownNote ??= note; }
+
+            // PR C: a session of three presses, Confirm the frame after the last: the fold after each press is seeded with the one
+            // before, so the last fold grades only the last press (it used to grade all three).
+            for (int k = 0; k < 3; k++)
+            {
+                var from = new Vector2(140, -330 + 20 * k);
+                var to = new Vector2(320, -330 + 20 * k);
+                _tools.Tick(BrushInput(from, left: true, click: true));
+                yield return null;
+                for (int t = 1; t <= 90; t++) { _tools.Tick(BrushInput(Vector2.Lerp(from, to, t / 90f), left: true)); yield return null; }
+                _tools.Tick(BrushInput(to, left: true, release: true));
+                yield return null;
+                if (k < 2) for (int i = 0; i < 60; i++) { _tools.Tick(default); yield return null; }   // a breath between presses: each press's fold lands
+            }
+            frames.Clear();
+            Debug.Log($"[BrushBench] frame {Time.frameCount}: Confirm on the third press's let-go");
+            watch.Restart();
+            _tools.Confirm(WorkStage.Built);
+            while (tool.Confirming || EditsBusy) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); if (watch.Elapsed.TotalSeconds > 20) break; }
+            report.toCommittedThreePressesMs = watch.Elapsed.TotalMilliseconds;
+            (report.threePressFoldApplyMs, report.threePressFoldRebuildMs) = tool.LastFold;
+            for (int i = 0; i < 30; i++) { _tools.Tick(default); yield return null; frames.Add(Time.unscaledDeltaTime * 1000); }
+            report.confirmThreePressesFrames = Summarise(frames);
             if (_edits != null && report.shownDiffersAfterConfirm == 0) { report.shownDiffersAfterConfirm = _edits.Pipeline.CheckShown(out string note); report.shownNote ??= note; }
         }
     }

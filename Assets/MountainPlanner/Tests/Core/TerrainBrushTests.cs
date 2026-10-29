@@ -421,6 +421,61 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void PR_C_ASeededFoldIsTheFoldFromScratch()
+        {
+            // Round 4 PR C: a session folded again after each press, seeded with the fold before, gives exactly the fold of the
+            // whole session from scratch: the edits byte for byte, each stroke's writes and detail, and what Accept then knows.
+            // Beside a lift (strokes read its rope) and over a committed stroke; then after a Ctrl+Z, a changed stroke, and a
+            // seed from before an Accept (ignored).
+            var (h, fold, _) = Lifted();
+            Confirm(h, fold, BrushSettings.RaiseOrLower(false, 9144, 81), Enumerable.Range(0, 10).Select(i => At(i * 2.0, 30)));
+            var strokes = Scripted().Concat(new[] { new StrokePainting(BrushSettings.RaiseOrLower(true, 9144, 120).WithClearing(false), Enumerable.Range(0, 12).Select(i => At(-5 + i, -280)).ToList()) }).ToList();
+
+            DesignEarthwork.Result Fold(IList<StrokePainting> session, DesignEarthwork.Result seed) =>
+                fold.Rebuild(new AddTerrainStrokes(h.Revision, session.ToList()).Apply(h.Document).Document, h.Terrain, seed);
+
+            void Same(DesignEarthwork.Result seeded, IList<StrokePainting> session, string what)
+            {
+                var doc = new AddTerrainStrokes(h.Revision, session.ToList()).Apply(h.Document).Document;
+                var fresh = fold.Rebuild(doc, h.Terrain);
+                Assert.That(TerrainEditBytes.Encode(seeded.Edits), Is.EqualTo(TerrainEditBytes.Encode(fresh.Edits)), what + ": the edits");
+                foreach (var k in doc.Strokes)
+                {
+                    Assert.That(seeded.WritesOf(k.Id.Value)?.CanonicalBytes(), Is.EqualTo(fresh.WritesOf(k.Id.Value)?.CanonicalBytes()), what + ": a stroke's writes");
+                    var a = seeded.DetailOf(k.Id.Value) as StrokeBuild;
+                    var b = fresh.DetailOf(k.Id.Value) as StrokeBuild;
+                    Assert.That((a?.CutCubicMetres, a?.FillCubicMetres, a?.ClearedCells), Is.EqualTo((b?.CutCubicMetres, b?.FillCubicMetres, b?.ClearedCells)), what + ": a stroke's detail");
+                }
+            }
+
+            DesignEarthwork.Result last = null;
+            for (int n = 1; n <= strokes.Count; n++)
+            {
+                var session = strokes.Take(n).ToList();
+                var seeded = Fold(session, last);
+                Same(seeded, session, $"after press {n}");
+                if (last != null) Assert.That(seeded.Regraded, Is.LessThan(Fold(session, null).Regraded), $"press {n}: only the new stroke graded");
+                last = seeded;
+            }
+            // Ctrl+Z: the session one shorter, seeded with the longer fold.
+            var undone = strokes.Take(strokes.Count - 1).ToList();
+            Same(Fold(undone, last), undone, "after Ctrl+Z");
+            // A different last stroke (Ctrl+Z, then another press).
+            var other = undone.Concat(new[] { new StrokePainting(BrushSettings.Smooth(12192, 500), Enumerable.Range(0, 8).Select(i => At(i, 5)).ToList()) }).ToList();
+            var otherFold = Fold(other, last);
+            Same(otherFold, other, "after a different press");
+            // Confirmed: the seeded result is what Accept learns, so the next rebuild of the same design grades nothing.
+            var cmd = new AddTerrainStrokes(h.Revision, other);
+            Assert.That(h.Submit(cmd, otherFold.Edits).Accepted, Is.True);
+            Assert.That(fold.Accept(otherFold), Is.True);
+            Assert.That(fold.Rebuild(h.Document, h.Terrain).Regraded, Is.Zero, "everything the seeded fold laid is known after Accept");
+            // A seed from before that Accept is ignored: the fold is the one from scratch.
+            var next = new[] { new StrokePainting(BrushSettings.RaiseOrLower(false, 6096, 60), Enumerable.Range(0, 6).Select(i => At(20 + i, 20)).ToList()) };
+            var stale = fold.Rebuild(new AddTerrainStrokes(h.Revision, next).Apply(h.Document).Document, h.Terrain, last);
+            Same(stale, next, "a stale seed");
+        }
+
+        [Test]
         public void TB08_UndoAndRedoGiveByteIdenticalHeights()
         {
             var h = new DesignHistory(DesignDocument.Empty(5));

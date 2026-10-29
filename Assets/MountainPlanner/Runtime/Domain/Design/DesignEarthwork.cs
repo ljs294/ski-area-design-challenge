@@ -146,6 +146,7 @@ namespace MountainPlanner.Domain.Design
             public int Regraded { get; internal set; }
             internal Dictionary<ulong, Entry> Overlay;
             internal long Version;
+            internal TerrainEdits From;   // the committed edits it was rebuilt from (a seed's validity, round 4 PR C)
 
             /// <summary>What a piece's grade handed back in this rebuild (a trail's stations and volumes), or null. A part
             /// of a split chain (NT2) gets its share of the chain's detail.</summary>
@@ -193,8 +194,12 @@ namespace MountainPlanner.Domain.Design
         /// The terrain edits for <paramref name="doc"/>, from <paramref name="committed"/> (the history's current edits):
         /// rebuilds the tiles that can have changed. What the committed edits hold there that no piece explains (work from
         /// before a contributor existed) is kept as it is, laid last.
+        /// <paramref name="seed"/> (task 15 round 4, PR C: a brush session folded again after each press): an earlier,
+        /// unaccepted rebuild from the same committed edits and the same accepted state; its pieces still the same here are
+        /// laid from it instead of graded again, so only what changed since is folded. The result is the same as without it.
+        /// A seed from another state or other committed edits is ignored.
         /// </summary>
-        public Result Rebuild(DesignDocument doc, TerrainEdits committed)
+        public Result Rebuild(DesignDocument doc, TerrainEdits committed, Result seed = null)
         {
             if (doc == null) throw new ArgumentNullException(nameof(doc));
             committed = committed ?? TerrainEdits.Empty;
@@ -219,9 +224,19 @@ namespace MountainPlanner.Domain.Design
                     changed = changed.Union(old.Bounds);
                     overlay[k] = null;
                 }
+                // The seed's pieces still the same (PR C): known from it, so laid rather than graded, and their tiles opened, since
+                // the committed edits don't hold their writes (and do hold any older ones they replace).
+                bool seeded = seed?.Overlay != null && seed.Version == _version && ReferenceEquals(seed.From, committed);
                 // New or changed: their old writes and everything they read.
                 foreach (var it in items)
                 {
+                    if (seeded && seed.Overlay.TryGetValue(it.Key, out var s) && s != null && s.Item.SameAs(it))
+                    {
+                        overlay[it.Key] = s;
+                        foreach (var t in s.Writes.Tiles) tiles.Add(t);
+                        if (_cache.TryGetValue(it.Key, out var was)) foreach (var t in was.Writes.Tiles) tiles.Add(t);
+                        continue;
+                    }
                     if (_cache.TryGetValue(it.Key, out var e) && e.Item.SameAs(it)) continue;
                     dirty.Add(it.Key);
                     if (e != null) foreach (var t in e.Writes.Tiles) tiles.Add(t);
@@ -230,7 +245,7 @@ namespace MountainPlanner.Domain.Design
                 var edits = Fold(items, committed, tiles, dirty, changed, overlay, foreign: true, out int regraded);
                 var list = new List<EditTileKey>(tiles);
                 list.Sort();
-                return new Result { Edits = edits, Tiles = list, Changed = TerrainEdits.Changed(committed, edits), Regraded = regraded, Overlay = overlay, Version = _version };
+                return new Result { Edits = edits, Tiles = list, Changed = TerrainEdits.Changed(committed, edits), Regraded = regraded, Overlay = overlay, Version = _version, From = committed };
             }
         }
 
