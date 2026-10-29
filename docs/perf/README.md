@@ -33,6 +33,26 @@ p95 2.05–2.13 ms throughout. The pinned 2.87 ms is from the fast end, so a Low
 regression until an A/B on the same machine, run back to back, says so. High, Medium and Ultra are GPU-bound and
 steady (High p95 within 4% across runs).
 
+## The drawn resort (Phase 3 task 11)
+
+The same path with a resort built on it (`-drawnresort`: 20 trails, 2 cat tracks, 6 lifts, built by command as it
+opens), and the same path, with its extra legs, over the bare mountain (`-drawnpathonly`), so the design's own cost
+is the difference. These aren't baselines for `compare.mjs` against the eight above (the path has three more legs);
+they're the reference for later drawn runs. Built at 0b6a5bf3, clean, one run after another under one measure slot.
+
+| File | Player | Command | Frame p95 | GPU p95 |
+| --- | --- | --- | --- | --- |
+| `jackson-hole-5km-high-drawn.json` | Release | `-quality high -drawnresort` | 8.76 ms | 8.65 ms |
+| `jackson-hole-5km-high-drawnpath.json` | Release | `-quality high -drawnpathonly` | 8.56 ms | 8.40 ms |
+| `jackson-hole-5km-medium-drawn.json` | Release | `-quality medium -drawnresort` | 5.17 ms | 5.08 ms |
+| `jackson-hole-5km-medium-drawnpath.json` | Release | `-quality medium -drawnpathonly` | 5.05 ms | 4.90 ms |
+| `jackson-hole-5km-high-dev-drawn.json` | Development | `-quality high -laps 1 -drawnresort` (0 B garbage, 1,627 MB graphics memory) | 8.90 ms | 8.93 ms |
+
+The resort costs +0.20 ms at High and +0.12 ms at Medium. `jackson-hole-5km-design-edits.json` is the edit timing
+with the resort loaded (`-designbench`, five rounds); [edit-timing.md](edit-timing.md) has its tables, what changed
+and what still misses. `demo.bat` 72 opens the resort, 72b runs the frame benchmark, 72c the edit timing; each writes
+under `test-results\p3-11\` beside `demo.bat` itself, whichever folder it is started from.
+
 ## History
 
 - **2026-10-05, task 15** (commit 19d5e37): the first baselines, lit by the scene's default lighting preset (the clock didn't run yet).
@@ -51,3 +71,4 @@ light, its site), and say why here. Build both players from a clean commit (the 
 tree was dirty), run all eight in a row under one measure slot, confirm with a second High and Medium run, and replace
 the files in the same PR as the change.
 - **2026-10-20, Phase 3 task 09** (commit after a314b7c): `jackson-hole-5km-high-lifts40.json` added. 40 lifts built by `-liftbench 40` (a grid of fixed-grip quads 600 m up the fall line, the game's own build path) cost +0.38 ms p95 at High against the same build with none (7.42 ms); chairs are 0.44 ms a frame of main-thread work with 0 B garbage, so the planned Burst chair job waits (LT29).
+- **2026-10-29, Phase 3 task 11** (commit 0b6a5bf3): the drawn resort's five reports and its edit timing added (section above); the eight baselines are unchanged (DB5).

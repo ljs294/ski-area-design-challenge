@@ -79,3 +79,24 @@ The fix, each step measured in the player before and after, with byte-identity t
 
 Not fixed here: the trail look's 2048 m window leaves about the south-east half of the resort without it; recorded
 as a follow-up.
+
+### Results (2026-10-29, 0b6a5bf3, with brush PR C #114)
+
+Frames still pass: the resort costs +0.20 ms at High (8.76 against 8.56 ms p95 on the same path) and +0.12 ms at
+Medium; the Development player sees 0 B garbage. Edits, five rounds, p95 preview / commit ms
+([docs/perf/edit-timing.md](../perf/edit-timing.md)):
+
+| Edit | Before | After | Budget |
+|---|---|---|---|
+| New 1,000 ft trail | 1428 / 1685 | 65 / 141 | pass |
+| New 1 km trail | 235 / 1747 | 139 / 259 | miss (39 / 9 ms over) |
+| Grading a run | 2347 / 2049 | 1023 / 383 | miss |
+| Removing a run (reported) | 2148 / 1738 | 911 / 288 | — |
+| New lift (reported) | 1768 / 1694 | 1497 / 179 | — |
+| Undo (reported) | 1916 | 312 | — |
+
+Every probe preview equals a fold from scratch. On a second site (Olympic Valley 4 km) `-trailbench` passes and its
+1 km commit falls from 179 to 105 ms against main; the brush is unchanged within noise on both sites. What still
+misses is the trail's own grade with a lift re-check (1 km preview), the ground pass (1 km commit) and the runs below
+a graded run (grading), so it goes to the owner under DB8.
+
