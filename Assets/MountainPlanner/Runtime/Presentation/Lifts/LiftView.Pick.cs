@@ -34,15 +34,18 @@ namespace MountainPlanner.Presentation.Lifts
         public Vector3 RopePoint(float fraction) =>
             _loop.Length == 0 ? Vector3.zero : _loop[Mathf.Clamp((int)(fraction * (_loop.Length - 1)), 0, _loop.Length - 1)] - new Vector3(0, 1, 0);
 
+        // The boxes and renderers the pointer and the highlight use, made again at the next pick (after a build or a re-height).
+        // Which part each piece belongs to (_partOf) stays: only Clear forgets that, with the pieces. A lit lift stays lit.
         void ForgetPick()
         {
+            bool lit = _highlighted;
+            if (lit) ApplyHighlight(false);
             _pickReady = false;
-            _highlighted = false;
             _boxes = System.Array.Empty<Bounds>();
             _boxParts = System.Array.Empty<int>();
             _boxToLocal = System.Array.Empty<Matrix4x4>();
-            _partOf.Clear();
             _renderers = System.Array.Empty<Renderer>();
+            if (lit) PreparePick();   // relights the pieces as they are now
         }
 
         void PreparePick()

@@ -536,6 +536,74 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void BR22_TheLiveClearingIsThePreviewsCellByCell()
+        {
+            // The trees come out every frame (round 4): the stroke in hand's cleared cells, read cell by cell, are exactly its
+            // preview's, over a ground with cells cleared already, with Clear trees on and off.
+            foreach (bool clear in new[] { true, false })
+                foreach (var (name, settings, ground) in Strokes())
+                {
+                    var under = Earlier(ground);
+                    var run = Run(settings.WithClearing(clear), ground, under);
+                    var live = (ICellClearing)run.Live;
+                    int c0 = Column(-20), c1 = Column(80), r0 = Row(40), r1 = Row(-40), dabs = 0;
+                    foreach (var d in Across())
+                    {
+                        run.Dab(d);
+                        if (++dabs % 4 != 1) continue;
+                        var preview = run.Preview(under);
+                        for (int r = r0; r <= r1; r++)
+                            for (int c = c0; c <= c1; c++)
+                                if (live.IsClearedAt(c, r) != preview.IsClearedAt(c, r))
+                                    Assert.Fail($"{name}, clear {clear}: cell ({c}, {r}) after dab {dabs}: live {live.IsClearedAt(c, r)}, tiles {preview.IsClearedAt(c, r)}");
+                    }
+                    if (!clear) Assert.That(run.ClearedCount, Is.Zero, $"{name}: Clear trees off clears nothing (TB-10 v2)");
+                }
+        }
+
+        [Test]
+        public void BR22_ClearTreesOffReplaysWithNoClearing()
+        {
+            // TB-10 v2: a stroke painted with Clear trees off writes heights and no cleared cells, and replays so.
+            int cleared = 0;
+            foreach (var (name, settings, ground) in Strokes())
+            {
+                var off = Run(settings.WithClearing(false), ground);
+                var on = Run(settings, ground);
+                foreach (var d in Across()) { off.Dab(d); on.Dab(d); }
+                var w = off.Writes();
+                Assert.That(off.ClearedCount, Is.Zero, name);
+                for (int r = Row(40); r <= Row(-40); r++)
+                    for (int c = Column(-20); c <= Column(80); c++)
+                        if (w.Clears(c, r)) Assert.Fail($"{name}: cell ({c}, {r}) cleared with Clear trees off");
+                Assert.That(off.Preview(TerrainEdits.Empty).Tiles.Any(t => t.HasClearing), Is.False, name);
+                if (on.ClearedCount > 0) { cleared++; Assert.That(TerrainEdits.Changed(off.Preview(TerrainEdits.Empty), on.Preview(TerrainEdits.Empty)).Count, Is.GreaterThan(0), name + ": on clears"); }
+                foreach (var k in on.Preview(TerrainEdits.Empty).Tiles.Select(t => t.Key))
+                    for (int j = 0; j < 64; j++)
+                        for (int i = 0; i < 64; i++)
+                            Assert.That(off.Preview(TerrainEdits.Empty).Get(k).DeltaMm(i, j), Is.EqualTo(on.Preview(TerrainEdits.Empty).Get(k).DeltaMm(i, j)), $"{name}: the same heights either way");
+            }
+            Assert.That(cleared, Is.GreaterThan(0), "some of the strokes clear with Clear trees on");
+        }
+
+        [Test]
+        public void R4_DeltaHeightsAreTheEditedHeights()
+        {
+            // The towers under a stroke in hand read DeltaHeights; at Confirm they read EditedHeights: the same doubles.
+            var ground = new Tilted();
+            var run = Run(BrushSettings.RaiseOrLower(false, 18288, 200), ground);
+            foreach (var d in Across()) run.Dab(d);
+            var edited = new EditedHeights(ground, Lattice, run.Preview(TerrainEdits.Empty));
+            var live = new DeltaHeights(ground, Lattice, run.Live);
+            for (double y = -40.3; y <= 40; y += 3.7)
+                for (double x = -20.1; x <= 80; x += 2.9)
+                {
+                    double ax = West + 1000 + x, ay = North - 1000 + y;
+                    Assert.That(live.At(ax, ay), Is.EqualTo(edited.At(ax, ay)), $"({x}, {y})");
+                }
+        }
+
+        [Test]
         public void BR21_APreviewRebuiltOnlyWhereItChangedIsTheFullPreview()
         {
             // A brush's catch-ups preview a few times a second, rebuilding only the tiles changed since the last one; each must

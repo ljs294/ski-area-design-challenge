@@ -402,7 +402,10 @@ ground round lifts.
   No money until Phase 4.
 - **TB-10, limits:** brushes work only inside the area's core; no point moves more than **40 ft (12.2 m)** from
   natural ground, and a deeper existing cut is never pulled back; a cell a stroke moves **1 ft or more** is cleared of
-  trees. Snow, slope and contours follow the new ground; there is no separate brushed look.
+  trees. Snow, slope and contours follow the new ground; there is no separate brushed look. *v2 (owner BR22,
+  2026-10-29):* clearing is the pane's **Clear trees**, kept with each stroke (save v9's `ClearMm`: 305 mm, or 0 with it
+  off, when the stroke clears nothing and the trees stand on the new ground); the trees come out the moment the ground
+  moves, not at Confirm. Strokes saved before v9 cleared at 1 ft and replay so.
 - **TB-11, buildings are fixed:** the brush never changes a terminal's pad (its footprint plus LF-12's 5 ft), and
   later every building's; round them the ground may slope **at most 1:1** toward the pad's level.
 - **TB-12, the lift envelope:** the brush never raises ground above the line's clearance floor (TW-01: the rope less

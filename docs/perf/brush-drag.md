@@ -198,3 +198,48 @@ frame over a refresh, and none after letting go, Confirm or Revert; the garbage 
   main-thread part is under 5 ms; the rest is first-time cost (code compiled on first use). Once a session.
 - **Confirm on the frame of letting go** is 214–240 ms in release, within its 250 ms target, and 256 in the Development
   game. The next PR's seeded fold takes it under 150.
+
+## Round 5: trees and towers follow the brush, Clear trees (feature/brush-live-objects, 2026-10-29)
+
+Owner BR22: the trees and the lifts' towers move with the brush every frame, like Cities Skylines 2's, with a **Clear
+trees** checkbox (TB-10 v2, save v9). The live upload now also stands the trees of the 64 m squares under the dabs on the
+new ground and takes out those in cleared cells, and the towers near the dabs re-height under their fixed heads.
+
+| 400 ft, Jackson Hole, release (ms) | Round 4 | Round 5 |
+| --- | --- | --- |
+| Drag frame p95 | 9.7 | 10.2 |
+| Longest drag frame | 15.3 | 13.8, none over a refresh |
+| Of which: the trees (6,752 stood again or taken out over the drag) | not live | 0.3 |
+| Of which: the towers (3 re-heighted live) | not live | under 0.1 (p95) |
+| Confirm to committed, a second after letting go | 119 | **11** |
+| Confirm to committed, the frame after letting go | 240 | **162** |
+| Towers Confirm moved | all it re-heighted | 0 (the brush had) |
+| Frames after Confirm / Revert (max) | 10.5 / 8.1 | 10.0 / 7.4 |
+| Shown vs fresh after Confirm / Revert | 0 / 0 | 0 / 0 |
+
+- **With `-force-gfx-mt`:** drag p95 11.6, one frame at 16.7 (tick 54: 4.8 ms of dabs); Confirm 12 and 152.
+- **Development game:** drag p95 12.3, one frame of 19.9 (tick 12; its measured parts add to 5 ms, so most likely one of
+  its 2 garbage collections); Confirm 12 and 182. Garbage 91 KB a frame.
+- **Second site** (the run before the tree index moved to a worker): drag p95 11.7, longest 13.7; Confirm 12 and 160.
+
+### What changed
+- **Trees:** each core tile's trees are indexed by 64 m square on a worker once the forest is planted. Each live frame
+  stands the trees of the squares the dabs reach with the apply's own rule (the tile's quantised posts round the trunk)
+  and the stroke's clearing read cell by cell (`ICellClearing`, the same cells its preview would clear), uploading each
+  square's run. The catch-ups leave the trees alone (their values would land a few frames old), and the crown map is
+  redrawn once a press is let go. CheckShown after Confirm and Revert compares every tree's height and flag with a fresh
+  apply: 0 differences.
+- **Clear trees** (TB-10 v2): each stroke keeps `ClearMm` (305 or 0); with 0 it clears nothing and its bill counts no
+  trees. Catch-ups and Ctrl+Z show the session's own clearing, so trees come out as the ground moves and come back with
+  Revert or Ctrl+Z.
+- **Towers:** a re-height moves a tower's pieces and shows or hides mast sections (adding one only when a tower grows past
+  every section it has), so nothing is built or destroyed during a drag and the head, with its trains' pose, stays. The
+  towers near the dabs read the stroke's heights (`DeltaHeights`, the same arithmetic as the committed heights), so
+  Confirm finds them already right. This also fixed a bug: a second re-height of a lift left its old tower standing
+  beside a new one, and tower picking broke after the first (EditMode `TowerReheightTests`).
+- **Confirm** commits in about 11 ms: the trees are already out, so the commit apply has nothing on screen to change.
+
+### Left as it is
+- One frame over a refresh in the `-force-gfx-mt` and Development runs (16.7 and 19.9 ms), each once in the 4 s drag.
+- The session's first catch-up is still one 25–32 ms frame (first-use cost), as in round 4.
+- Confirm on the frame of letting go waits for the fold (152–182 ms); PR C's seeded fold is next.

@@ -30,10 +30,11 @@ namespace MountainPlanner.Presentation.Edits
     /// The cache on disk stays as the package built it, so every save of an area shares it (no cache version change).
     /// Moving between any two edit sets (an edit, undo, redo, a load) gives the same result as opening with the later one,
     /// so undo restores byte-identical heights and the same trees. Changes apply one at a time, in the order asked.
-    /// <b>Shown and committed</b> (task 15, owner BR21): what's on screen (<see cref="ShownGround"/>, <see cref="ShownClearing"/>)
-    /// can run ahead of <see cref="Current"/>, which every rule reads: a terrain brush's session shows its ground, cover and
-    /// snow live with the committed clearing, and its trees come out only once it's confirmed. Each change moves from what's
-    /// shown, so only what differs is rebuilt, and its main-thread part spreads over frames (<see cref="FrameBudgetMs"/>).
+    /// <b>Shown and committed</b> (task 15, owner BR21, BR22): what's on screen (<see cref="ShownGround"/>, <see cref="ShownClearing"/>)
+    /// can run ahead of <see cref="Current"/>, which every rule reads: a terrain brush's session shows its ground, trees,
+    /// cover and snow live, the trees every frame (<see cref="ApplyLive"/>) and the cover and snow as it catches up. Each
+    /// change moves from what's shown, so only what differs is rebuilt, and its main-thread part spreads over frames
+    /// (<see cref="FrameBudgetMs"/>).
     /// </summary>
     public sealed partial class TerrainEditPipeline : IDisposable
     {
@@ -71,6 +72,8 @@ namespace MountainPlanner.Presentation.Edits
         /// </summary>
         public const double DefaultFrameBudgetMs = 6, PaintingFrameBudgetMs = 2;
         public double FrameBudgetMs { get; set; } = DefaultFrameBudgetMs;
+        /// <summary>A brush press is held (round 4): the trees' crown map waits for the let-go (<see cref="SyncLiveTileNow"/>).</summary>
+        public bool Painting { get; set; }
         /// <summary>Log every apply and snow compute (off: only commits; a Development build keeps a stack trace per log).</summary>
         public static bool Verbose;
         /// <summary>The heights every rule and readout reads (SH-02): the package's plus <see cref="Current"/>.</summary>
@@ -121,6 +124,7 @@ namespace MountainPlanner.Presentation.Edits
             _forest = forest;
             _trees = trees;
             _ranges = ranges;
+            if (trees != null && ranges != null) PrepareTreeSquares();   // BR22: the live trees' index, off the main thread
         }
 
         /// <summary>The cliff shells by cache tile: hidden where an edit moves the ground under them.</summary>
@@ -262,8 +266,9 @@ namespace MountainPlanner.Presentation.Edits
                     await Breathe();
                 }
                 // The crown map follows the clearing only (CL-05): trees that only moved with the ground leave it as it is.
-                if (flagsChanged)
+                if (flagsChanged || (_crownDue && !Painting))
                 {
+                    _crownDue = false;
                     part.Restart();
                     _forest.RedrawCrownCore();
                     report.TreesMs += part.Elapsed.TotalMilliseconds;
@@ -388,8 +393,10 @@ namespace MountainPlanner.Presentation.Edits
             report.CacheTiles = tilesTouched.Count;
 
             // Trees: each touched tile's packed trees, read once; the ones in a patch stand on the new ground, cleared or not.
+            // A brush's catch-up leaves them alone (BR22): the live upload stood them every frame on the same ground, by the
+            // same rule (ApplyLive), and this plan's values would land a few frames old over them.
             var treeWatch = Stopwatch.StartNew();
-            if (trees != null && ranges != null)
+            if (trees != null && ranges != null && !heightsUp)
                 foreach (var key in tilesTouched)
                 {
                     if (!ranges.TryGetValue(key, out var range) || range.Count == 0) continue;
@@ -411,7 +418,7 @@ namespace MountainPlanner.Presentation.Edits
                             if (x < p.West - 1 || x > p.East + 1 || y < p.South - 1 || y > p.North + 1) continue;
                             var t = trees[range.Start + i];
                             t.Flags = ForestField.IsCleared(packed, i, b.West, b.North, tileMetres, toClearing, _lattice) ? ForestInstance.Cleared : 0;
-                            t.Position.y = GroundY(tile, b, heights, fx, fz);
+                            t.Position.y = GroundY(tile, b, heights.Edits, fx, fz);
                             p.TreeIndex.Add(range.Start + i);
                             p.TreeValue.Add(t);
                             report.Trees++;
@@ -547,14 +554,13 @@ namespace MountainPlanner.Presentation.Edits
         }
 
         /// <summary>Where a tree stands on the edited ground: <see cref="ForestInstance.Decode"/>'s sampling of the tile's posts.</summary>
-        float GroundY(CacheTile tile, AlbersBox b, EditedHeights heights, float fx, float fz)
+        float GroundY(CacheTile tile, AlbersBox b, IPointDeltas ground, float fx, float fz)
         {
             int res = TerrainTiles.Resolution, gc = tile.Column * 1024, gr = tile.Row * 1024;
             float gx = fx * (res - 1), gz = fz * (res - 1);
             int x0 = Mathf.Min((int)gx, res - 2), z0 = Mathf.Min((int)gz, res - 2);
             float tx = gx - x0, tz = gz - z0;
             // Unity row z is cache row 1024 − z.
-            var ground = heights.Edits;
             float h00 = Normalised(ground, gc, gr, x0, 1024 - z0), h10 = Normalised(ground, gc, gr, x0 + 1, 1024 - z0);
             float h01 = Normalised(ground, gc, gr, x0, 1024 - z0 - 1), h11 = Normalised(ground, gc, gr, x0 + 1, 1024 - z0 - 1);
             float h = ForestInstance.Ground(h00, h10, h01, h11, tx, tz);

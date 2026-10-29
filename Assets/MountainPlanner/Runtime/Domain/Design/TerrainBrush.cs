@@ -289,7 +289,7 @@ namespace MountainPlanner.Domain.Design
             long was = (long)od - p.D0[at], now = (long)nd - p.D0[at];
             _cutMm += Math.Max(0, -now) - Math.Max(0, -was);
             _fillMm += Math.Max(0, now) - Math.Max(0, was);
-            bool clearedWas = Math.Abs(was) >= TerrainBrush.ClearMm, clearedNow = Math.Abs(now) >= TerrainBrush.ClearMm;
+            bool clearedWas = _s.ClearsTrees && Math.Abs(was) >= _s.ClearMm, clearedNow = _s.ClearsTrees && Math.Abs(now) >= _s.ClearMm;   // TB-10 v2
             if (clearedWas != clearedNow) Corners(c, r, clearedNow ? 1 : -1);
             p.D[at] = nd;
             p.Dirty = true;
@@ -365,7 +365,7 @@ namespace MountainPlanner.Domain.Design
             foreach (var p in _patches.Values)
                 for (int at = 0; at < Count; at++)
                 {
-                    if (Math.Abs((long)p.D[at] - p.D0[at]) < TerrainBrush.ClearMm) continue;
+                    if (!_s.ClearsTrees || Math.Abs((long)p.D[at] - p.D0[at]) < _s.ClearMm) continue;   // TB-10 v2: Clear trees off clears none
                     int c = p.Key.FirstColumn + at % Side, r = p.Key.FirstRow + at / Side;
                     for (int dr = -1; dr <= 0; dr++)
                         for (int dc = -1; dc <= 0; dc++)
@@ -454,14 +454,29 @@ namespace MountainPlanner.Domain.Design
         /// <c>Preview(under)</c>'s change, where <c>under</c> is the ground this run was given, with no tiles built.
         /// Reads the run as it stands; valid until the next dab. Same thread as the dabs.
         /// </summary>
+        /// <remarks>It's an <see cref="ICellClearing"/> too (BR22): the cells cleared with the stroke as it stands.</remarks>
         public IPointDeltas Live => _live ??= new LiveView(this);
 
-        sealed class LiveView : IPointDeltas
+        sealed class LiveView : IPointDeltas, ICellClearing
         {
             readonly BrushRun _run;
             Patch _last;
+            EditTileKey _countsKey = new EditTileKey(int.MinValue, int.MinValue);
+            byte[] _counts;
 
             public LiveView(BrushRun run) { _run = run; }
+
+            /// <summary>
+            /// BR22: whether a cell is cleared with the stroke as it stands: <c>Preview</c>'s rule, cleared under it already or
+            /// a corner moved the stroke's clearing depth (TB-10 v2), with no tiles built.
+            /// </summary>
+            public bool IsClearedAt(int cellColumn, int cellRow)
+            {
+                if (_run._ground.Edits.IsClearedAt(cellColumn, cellRow)) return true;
+                var key = EditTileKey.Of(cellColumn, cellRow);
+                if (key != _countsKey || _counts == null) { _countsKey = key; _run._cellCorners.TryGetValue(key, out _counts); }   // a tile's counts appear as the stroke reaches it
+                return _counts != null && _counts[(cellRow - key.FirstRow) * Side + (cellColumn - key.FirstColumn)] != 0;
+            }
 
             public int DeltaMmAt(int pointColumn, int pointRow)
             {

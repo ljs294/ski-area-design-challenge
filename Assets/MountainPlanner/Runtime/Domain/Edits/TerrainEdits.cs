@@ -10,12 +10,21 @@ namespace MountainPlanner.Domain.Edits
     }
 
     /// <summary>
+    /// Whether a global 1 m lattice cell is cleared of trees (CL-05): a set of edits, or a brush stroke in hand over one
+    /// (task 15 round 4: the trees come out live, BR22).
+    /// </summary>
+    public interface ICellClearing
+    {
+        bool IsClearedAt(int cellColumn, int cellRow);
+    }
+
+    /// <summary>
     /// Every committed terrain edit of a design: a sparse, immutable set of 64 m <see cref="TerrainEditTile"/>s over the
     /// immutable package (GR-09). A change makes a new set that shares every tile it didn't touch, so an undo step
     /// costs only the tiles it changed (owner ruling P3-05 Q2), and undo restores byte-identical heights and trees by
     /// switching back to the earlier set (CF-05, CL-07). Tiles iterate in key order (SH-04); empty tiles are never held.
     /// </summary>
-    public sealed class TerrainEdits : IPointDeltas
+    public sealed class TerrainEdits : IPointDeltas, ICellClearing
     {
         public static readonly TerrainEdits Empty = new TerrainEdits(Array.Empty<TerrainEditTile>());
 

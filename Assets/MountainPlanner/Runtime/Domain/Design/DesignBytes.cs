@@ -25,7 +25,7 @@ namespace MountainPlanner.Domain.Design
             foreach (var t in doc.Trails) WriteTrail(w, t);
             w.I32(doc.Lifts.Count);
             foreach (var l in doc.Lifts) WriteLift(w, l);
-            // Shape 4 (task 15): the terrain strokes.
+            // Shape 4 (task 15): the terrain strokes; shape 9 (BR22) adds each one's clearing depth.
             w.I32(doc.Strokes.Count);
             foreach (var k in doc.Strokes) WriteStroke(w, k);
             w.I32(doc.Areas.Count);   // shape 5 (NW-15)
@@ -252,6 +252,7 @@ namespace MountainPlanner.Domain.Design
             w.Point(s.StartAt);
             w.Point(s.TargetAt);
             w.I32(s.LimitMm);
+            w.I32(s.ClearMm);   // shape 9 (BR22)
             w.I32(k.Dabs.Count);
             foreach (var d in k.Dabs)
             {
@@ -264,7 +265,7 @@ namespace MountainPlanner.Domain.Design
         {
             var id = new TerrainStrokeId(r.U64());
             var kind = (BrushKind)r.U8();
-            var s = new BrushSettings(kind, r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.Point(), r.Point(), r.I32());   // left to right
+            var s = new BrushSettings(kind, r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.I32(), r.Point(), r.Point(), r.I32(), r.I32());   // left to right
             var dabs = new BrushDab[r.Count(DesignRules.MaxDabsPerStroke)];
             for (int i = 0; i < dabs.Length; i++) dabs[i] = new BrushDab(r.Point(), r.U16());
             return new TerrainStroke(id, s, dabs);

@@ -59,6 +59,11 @@ reads: a version number, and a name for the greyed library row.
   v7 saves migrate by rasterising each trail's strokes once; `SaveFileTests` pins the converted v7 fixture's hash, and a
   game opening an older save grades its built trails once more.
 
+- **`v9-save/Saves/5792676e513f5302/save-001/`** is the same save in format v9 (task P3-15 round 4, owner BR22): the
+  design (shape 9) gives each terrain stroke its clearing depth (TB-10 v2, `ClearMm`): the v8 fixture's five strokes clear
+  at 1 ft (305), and a sixth, painted with Clear trees off, clears nothing (0). v1 to v8 saves migrate with every stroke at
+  305, so they replay with the trees they had. `SaveFileTests` checks that the writer reproduces it byte for byte.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

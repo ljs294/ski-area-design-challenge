@@ -20,7 +20,10 @@ namespace MountainPlanner.Tests
         // Shape 5 (task P3-10, NW-15, Master Planner ruling 2026-10-26): the named Areas, none here; from 0642d8d8….
         // Shape 6 (task P3-10, NT24, owner 2026-10-27): the trails of several sections, none here; from 4f6a0657….
         // Shape 7 (task P3-10, NT43–NT46, owner signed off 2026-10-27): spans with anchors and cut points, none here; from fedff97f….
-        const string GoldenSha = "315f1a244f4dc874cd68e1fc30b06655a85050a56c3ccf75ba597fe3903286bf";
+        // Shape 8 (task P3-10, sections finding 7): the trails' clearing outlines; from 315f1a24… (its last pin).
+        // Shape 9 (task 15 round 4, owner BR22 2026-10-29; save v9 reserved by the Master Planner): each stroke's clearing depth,
+        // none here, so only the shape number moved; from 315f1a24….
+        const string GoldenSha = "f455bf992b83c7016b077ee6f4ef8ccde1cc419cbed1c0414de818cc96df01f3";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()
@@ -79,9 +82,9 @@ namespace MountainPlanner.Tests
             AssertFields(typeof(TrailSettings), "Grading", "Kind", "Clearing");
             AssertFields(typeof(Cut), "At", "DirX", "DirY", "KeepAhead");
             AssertProperties(typeof(TerrainStroke), "Id", "Settings", "Dabs");
-            AssertFields(typeof(BrushSettings), "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm", "StartMm", "StartAt", "TargetAt", "LimitMm");
+            AssertFields(typeof(BrushSettings), "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm", "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm");
             AssertFields(typeof(BrushDab), "At", "WeightPermille");
-            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(8));
+            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(9));
         }
 
         static void AssertProperties(Type type, params string[] names)
