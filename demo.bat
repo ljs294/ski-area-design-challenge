@@ -253,6 +253,7 @@ echo        fold, queue, apply); Jackson Hole, a second spot (-brushat -500,700)
 echo        game for exact garbage (measure lane), into test-results\brush-perf. PASS = the 400 ft drag at 12 ms p95
 echo        with no frame over a 60 Hz refresh (16.7 ms), and none after letting go, Confirm or Revert (round 4,
 echo        owner: a brush like Cities Skylines 2's); the garbage figures print beside it.
+echo        Round 6 adds three presses confirmed on the last let-go (each fold seeded with the one before).
 echo.
 echo     Q  Quit
 echo.
