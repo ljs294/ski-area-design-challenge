@@ -340,7 +340,8 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
   each lift's terminal levels, SK14, which are **absolute** elevations in whole millimetres, null for a v1 lift; since v4
   the confirmed terrain brush strokes, TB-14, their dabs site-centred like the points and their target and start
   elevations absolute like the levels; since v8 each trail's clearing as outline rings, its 250 mm cells inside them by
-  the even-odd rule, instead of the strokes it was painted with), `save.json.bak` (the previous good one) and `tiles/<sha256>.tile`. Saves sit outside the package,
+  the even-odd rule, instead of the strokes it was painted with; since v9 each stroke's clearing depth, TB-10 v2, 305 mm
+  with Clear trees on and 0 with it off, every older stroke 305), `save.json.bak` (the previous good one) and `tiles/<sha256>.tile`. Saves sit outside the package,
   so the read-only demo saves too and Rename never touches them. A save commits with one `File.Replace`, so a crash
   leaves the old save or the new one. A new folder moves nothing, so the library layout stays v1. Deleting an area
   deletes its saves.
@@ -359,7 +360,7 @@ frozen format ships with a migration and a fixture test.
 | Recently opened list | `<data>/recent.json` | `Version` | 1 | `…/v1-library/recent.json` |
 | View state | `<package>/view.json` | `Version` | 2 | v1: `…/v1-library/Resorts/5792676e513f5302/view.json`; v2 (adds `Name`, task P2-04): `TestData/formats/v2-view/view.json` |
 | Paused download | `<data>/Downloads/<id>/download.json` | `Version` | 1 | `…/v1-library/Downloads/*/download.json` |
-| Save (task P3-04; v2 and v3 task P3-09; v4 task P3-15; v5 to v8 task P3-10) | `<data>/Saves/<packageId>/<saveId>/save.json` + `tiles/<sha256>.tile` | `Version` | 8 | `TestData/formats/v1-save` to `v8-save` |
+| Save (task P3-04; v2 and v3 task P3-09; v4 and v9 task P3-15; v5 to v8 task P3-10) | `<data>/Saves/<packageId>/<saveId>/save.json` + `tiles/<sha256>.tile` | `Version` | 9 | `TestData/formats/v1-save` to `v9-save` |
 
 **The rules:**
 1. **Every file is read through its format's `VersionedJson`** (`Persistence/VersionedJson.cs`). The version comes from

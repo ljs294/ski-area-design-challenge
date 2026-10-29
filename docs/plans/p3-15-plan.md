@@ -234,3 +234,16 @@ I'll ask you before each push, PR and merge.
   collection costs a frame. The bench's pass line is now the frames; the garbage prints beside it.
 - Numbers are in [docs/perf/brush-drag.md](../perf/brush-drag.md) round 4, from `demo.bat` 75, which now also runs
   `-force-gfx-mt`.
+
+## Follow-up: trees and towers live, Clear trees (2026-10-29, feature/brush-live-objects; PR B of three)
+- **BR22 (owner):** the trees stand on the moving ground and come out as it moves, and the towers re-height under their
+  fixed heads, every frame; a **Clear trees** checkbox (TB-10 v2) says whether a stroke clears at all, kept with the
+  stroke in **save v9** (`ClearMm`; design shape 9; v1–v8 strokes migrate to 305 mm, so old saves replay with the same
+  trees; fixture `TestData/formats/v9-save`).
+- **Towers:** a re-height moves the tower's pieces and shows or hides mast sections instead of building it again, so the
+  heads (and their trains' pose) never move. This fixed a bug: a second re-height of the same lift left the old tower
+  standing beside a new one, and tower picking broke after the first.
+- **Trees:** the live upload stands the trees of the 64 m squares under the dabs on the new ground and takes out those in
+  cleared cells, by the same rule an apply uses; the catch-ups no longer touch trees, and the crown map is redrawn once
+  a press is let go.
+- Numbers are in [docs/perf/brush-drag.md](../perf/brush-drag.md) round 5.

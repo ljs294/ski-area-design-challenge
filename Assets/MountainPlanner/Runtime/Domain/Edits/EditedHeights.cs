@@ -84,14 +84,20 @@ namespace MountainPlanner.Domain.Edits
         /// </summary>
         public double AtPost(double x, double y, int column, int row) => Source.At(x, y) + Edits.DeltaMmAt(column, row) / 1000.0;
 
-        public double At(double x, double y)
+        public double At(double x, double y) => Edits.IsEmpty ? Source.At(x, y) : At(Source, Lattice, Edits, x, y);
+
+        /// <summary>
+        /// The height at (x, y) of <paramref name="source"/> with <paramref name="deltas"/>' changes bilinear between lattice
+        /// points: <see cref="At(double, double)"/>'s arithmetic for any changes (task 15 round 4: a stroke in hand gives its
+        /// towers exactly the heights its edits will).
+        /// </summary>
+        public static double At(IHeightSource source, EditLattice lattice, IPointDeltas deltas, double x, double y)
         {
-            double h = Source.At(x, y);
-            if (Edits.IsEmpty) return h;
-            double fx = x - Lattice.West, fy = Lattice.North - y;
+            double h = source.At(x, y);
+            double fx = x - lattice.West, fy = lattice.North - y;
             int c = (int)Math.Floor(fx), r = (int)Math.Floor(fy);
             double tx = fx - c, ty = fy - r;
-            int d00 = Edits.DeltaMmAt(c, r), d10 = Edits.DeltaMmAt(c + 1, r), d01 = Edits.DeltaMmAt(c, r + 1), d11 = Edits.DeltaMmAt(c + 1, r + 1);
+            int d00 = deltas.DeltaMmAt(c, r), d10 = deltas.DeltaMmAt(c + 1, r), d01 = deltas.DeltaMmAt(c, r + 1), d11 = deltas.DeltaMmAt(c + 1, r + 1);
             if ((d00 | d10 | d01 | d11) == 0) return h;
             double top = d00 + (d10 - d00) * tx, bottom = d01 + (d11 - d01) * tx;
             return h + (top + (bottom - top) * ty) / 1000.0;
@@ -103,5 +109,25 @@ namespace MountainPlanner.Domain.Edits
             Lattice.CellAt(x, y, out int c, out int r);
             return Edits.IsClearedAt(c, r);
         }
+    }
+
+    /// <summary>
+    /// Heights over any changes (task 15 round 4): the source plus <see cref="Deltas"/> as <see cref="EditedHeights"/> lays
+    /// them, for the towers under a stroke in hand. <see cref="Deltas"/> can be swapped, so one serves every frame.
+    /// </summary>
+    public sealed class DeltaHeights : IHeightSource
+    {
+        public IHeightSource Source { get; }
+        public EditLattice Lattice { get; }
+        public IPointDeltas Deltas { get; set; }
+
+        public DeltaHeights(IHeightSource source, EditLattice lattice, IPointDeltas deltas)
+        {
+            Source = source ?? throw new ArgumentNullException(nameof(source));
+            Lattice = lattice;
+            Deltas = deltas;
+        }
+
+        public double At(double x, double y) => Deltas == null ? Source.At(x, y) : EditedHeights.At(Source, Lattice, Deltas, x, y);
     }
 }

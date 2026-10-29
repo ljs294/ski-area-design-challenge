@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
@@ -144,11 +145,34 @@ namespace MountainPlanner.Tests
             Assert.That(_ground.ShowCalls, Is.EqualTo(0), "BR21: no full apply when the stroke ends");
             Assert.That(_ground.CatchUps, Is.GreaterThan(1), "the cover, trees' footing and snow caught up while it was held");
             Assert.That(_ground.Shown, Is.SameAs(tool.PendingGround), "and once more to the ground let go, so nothing changes after");
-            Assert.That(_ground.Clearing, Is.SameAs(_history.Terrain), "trees stay in until Confirm (BR21)");
+            Assert.That(_ground.Clearing, Is.SameAs(tool.PendingGround), "BR22: the trees come out with the ground, not at Confirm");
             Assert.That(DeltaAt(tool.PendingGround, 0, 0), Is.GreaterThan(0), "left raised");
             Stroke(-20, 20, 60, right: true);
             Assert.That(DeltaAt(tool.PendingGround, 0, 60), Is.LessThan(0), "right lowered");
             Assert.That(_history.Document.Strokes, Is.Empty, "nothing goes in before Confirm (BR17)");
+        }
+
+        [Test]
+        public void BR22_ClearTreesIsTheStrokesOwnAndRemembered()
+        {
+            _host.Choose(TerrainIds.Raise);
+            var tool = (TerrainBrushTool)_host.Active;
+            Assert.That(tool.ClearsTrees, Is.True, "on by default: a stroke clears what it moves a foot (TB-10)");
+            tool.SetClear(false);
+            Stroke(-20, 20, 0, right: false);
+            Assert.That(_ground.Clearing, Is.SameAs(tool.PendingGround));
+            Assert.That(tool.PendingGround.Tiles.Any(t => t.HasClearing), Is.False, "off: nothing cleared, the trees ride the ground");
+            tool.SetClear(true);
+            Stroke(-20, 20, 0, right: false);
+            Assert.That(tool.PendingGround.Tiles.Any(t => t.HasClearing), Is.True, "on again: the next stroke clears");
+            _host.Close();
+            _host.Choose(TerrainIds.Flatten);
+            Assert.That(((TerrainBrushTool)_host.Active).ClearsTrees, Is.True, "remembered across brushes");
+            ((TerrainBrushTool)_host.Active).SetClear(false);
+            _host.Close();
+            _host.Choose(TerrainIds.Raise);
+            Assert.That(((TerrainBrushTool)_host.Active).ClearsTrees, Is.False, "off stays off");
+            ((TerrainBrushTool)_host.Active).SetClear(true);
         }
 
         [Test]

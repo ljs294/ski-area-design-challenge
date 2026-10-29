@@ -22,7 +22,8 @@ namespace MountainPlanner.Persistence.Saves
     /// "lower", "flatten", "smooth" or "slope"; "RadiusMm", "StepMm" and "LimitMm" are whole millimetres;
     /// "FalloffPermille" and "StrengthPermille" are thousandths; "TargetMm" and "StartMm" are <b>absolute</b> elevations
     /// in whole millimetres in the package's height datum, like the terminal levels; "StartAt" and "TargetAt" are a
-    /// slope's two ends as site-centred points; fields a kind doesn't use are 0 (or [0, 0]). "Dabs" is [x0, y0, w0, dx1, dy1, w1, …] on one line: the first dab's point in whole mm from
+    /// slope's two ends as site-centred points; fields a kind doesn't use are 0 (or [0, 0]). "ClearMm" (v9, TB-10 v2) is how
+    /// far a cell must move to lose its trees: 305 (1 ft, the pane's Clear trees; every stroke of a v4–v8 save) or 0 (none). "Dabs" is [x0, y0, w0, dx1, dy1, w1, …] on one line: the first dab's point in whole mm from
     /// the site's centre (TE5) and each later one's as the change from the one before, each with its weight in thousandths.
     /// The design's "Areas" (v5, NW-15) are the Areas the player has named: each its ID, name and the lift ends it held
     /// ("End" is "bottom" or "top"); empty in a v1–v4 save.
@@ -38,13 +39,13 @@ namespace MountainPlanner.Persistence.Saves
     /// anticlockwise and holes clockwise, each from its lowest point; the writer straightens the cells' outline wherever
     /// that keeps every cell, so the same clearing always gives the same rings.
     /// <code>
-    /// { "Version": 8, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 8, "Seed", "NextOrdinal",
+    /// { "Version": 9, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 9, "Seed", "NextOrdinal",
     ///               "Trails": [ { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Outline": [ [...] ] } ],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
     ///                            "Levels": { "BottomMm", "TopMm" } or null } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
-    ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "Dabs": [...] } ],
+    ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm", "Dabs": [...] } ],
     ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ],
     ///               "TrailLines": [ { "Id", "Name", "Spans": [ { "Piece", "From": {...}, "To": {...}, "FromMm", "ToMm" } ] } ],
     ///               "Cuts": [ { "Piece", "At" } ] },
@@ -217,6 +218,7 @@ namespace MountainPlanner.Persistence.Saves
             w.WritePropertyName("StartAt"); WritePoint(w, s.StartAt);
             w.WritePropertyName("TargetAt"); WritePoint(w, s.TargetAt);
             w.WritePropertyName("LimitMm"); w.WriteValue(s.LimitMm);
+            w.WritePropertyName("ClearMm"); w.WriteValue(s.ClearMm);
             // [x0, y0, w0, dx1, dy1, w1, …] on one line: the first point absolute, the rest as changes (a stroke holds
             // hundreds of dabs a few metres apart).
             var sb = new StringBuilder("[");
@@ -460,7 +462,7 @@ namespace MountainPlanner.Persistence.Saves
         static TerrainStroke ReadStroke(JObject k)
         {
             var settings = new BrushSettings(Words.Brush(Str(k, "Kind")), Int(k, "RadiusMm"), Int(k, "FalloffPermille"), Int(k, "StepMm"),
-                Int(k, "StrengthPermille"), Int(k, "TargetMm"), Int(k, "StartMm"), Point(k, "StartAt"), Point(k, "TargetAt"), Int(k, "LimitMm"));
+                Int(k, "StrengthPermille"), Int(k, "TargetMm"), Int(k, "StartMm"), Point(k, "StartAt"), Point(k, "TargetAt"), Int(k, "LimitMm"), Int(k, "ClearMm"));
             var flat = Arr(k, "Dabs");
             if (flat.Count % 3 != 0) throw new FormatException("a stroke's dabs aren't triples");
             if (flat.Count / 3 > DesignRules.MaxDabsPerStroke) throw new FormatException("a stroke has too many dabs");

@@ -238,7 +238,9 @@ echo        the target, [ ] diameter, , . strength, PgUp/PgDn target. What you p
 echo        the session in, Revert puts it back, Ctrl+Z undoes one press; Esc with ground not confirmed asks Confirm /
 echo        Revert / Keep painting. Contours come on while a brush is armed; zoom in and they go down to 10 ft. Try it
 echo        beside a lift's terminal and under its line: the brush stops at the pad, the chairs' clearance and a tower's
-echo        limits, and towers re-height. The pane's cut and fill count up while you drag.
+echo        limits. The pane's cut and fill count up while you drag. BR22: paint through trees and they sink, rise and come
+echo        out as the ground moves; untick Clear trees and they ride the new ground instead. Paint under a lift and its
+echo        towers grow or shorten as you go; Confirm then changes nothing, and Revert or Ctrl+Z brings it all back.
 echo     73b The brush bench: live ground with a 60 ft and a 400 ft brush, and the confirm (measure lane).
 echo     73m The brush tour on Jackson Hole 2 km: a quad, then each brush beside and under it, with screenshots and a movie
 echo        (render lane; the movie is encoded after), into test-results\p3-15\tour.

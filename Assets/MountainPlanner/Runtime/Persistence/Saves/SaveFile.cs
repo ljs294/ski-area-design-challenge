@@ -13,13 +13,13 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 8;
+        public const int CurrentVersion = 9;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine);
 
         /// <summary>
         /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
@@ -130,6 +130,20 @@ namespace MountainPlanner.Persistence.Saves
                 trail["Outline"] = SaveJson.OutlineJson(TrailShape.FromParts(parts));
                 trail.Remove("Parts");
             }
+        }
+
+        /// <summary>
+        /// v8 → v9 (task 15 round 4, owner BR22): the design's shape 8 → 9, where each stroke keeps whether it clears trees
+        /// (TB-10 v2, the pane's Clear trees). Every stroke before v9 cleared the cells it moved 1 ft or more, so each gets
+        /// 1 ft (305 mm): it replays with exactly the trees it had.
+        /// </summary>
+        static void UpToNine(JObject o)
+        {
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 9;
+            if (design["Strokes"] is JArray strokes)
+                foreach (var k in strokes)
+                    if (k is JObject stroke && stroke["ClearMm"] == null) stroke["ClearMm"] = TerrainBrush.ClearMm;
         }
 
         /// <summary>The player's name for it ("Autosave" for the autosave slot).</summary>

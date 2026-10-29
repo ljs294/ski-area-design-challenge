@@ -681,9 +681,12 @@ namespace MountainPlanner.Persistence
         /// the same position the game draws it (the packed 16-bit fractions). Clearing filters the forest the package
         /// grows; it never regrows it, so trees outside cleared cells are exactly the ones the cache holds (CL-07).
         /// </summary>
-        public static bool IsCleared(byte[] packed, int i, double tileWest, double tileNorth, double tileMetres, TerrainEdits edits, EditLattice lattice)
+        public static bool IsCleared(byte[] packed, int i, double tileWest, double tileNorth, double tileMetres, TerrainEdits edits, EditLattice lattice) =>
+            !edits.IsEmpty && IsCleared(packed, i, tileWest, tileNorth, tileMetres, (ICellClearing)edits, lattice);
+
+        /// <summary>As above, against any clearing (task 15 round 4: a brush stroke in hand, BR22), by the same trunk cell.</summary>
+        public static bool IsCleared(byte[] packed, int i, double tileWest, double tileNorth, double tileMetres, ICellClearing edits, EditLattice lattice)
         {
-            if (edits.IsEmpty) return false;
             int o = i * BytesPerTree;
             float fx = (packed[o] | packed[o + 1] << 8) / 65535f, fz = (packed[o + 2] | packed[o + 3] << 8) / 65535f;
             lattice.CellAt(tileWest + fx * tileMetres, tileNorth - tileMetres + fz * tileMetres, out int c, out int r);

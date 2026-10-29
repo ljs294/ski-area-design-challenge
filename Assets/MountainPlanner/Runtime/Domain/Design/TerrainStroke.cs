@@ -42,9 +42,15 @@ namespace MountainPlanner.Domain.Design
         public readonly PointMm StartAt, TargetAt;
         /// <summary>TB-10: the most any point may stand from natural ground.</summary>
         public readonly int LimitMm;
+        /// <summary>
+        /// TB-10 v2 (owner BR22, shape 9): a cell the stroke moves this far or more loses its trees, the moment the ground
+        /// moves; <see cref="TerrainBrush.ClearMm"/> (1 ft) with the pane's Clear trees on, 0 with it off (the stroke clears
+        /// nothing and the trees ride the new ground). Strokes from before shape 9 cleared at 1 ft.
+        /// </summary>
+        public readonly int ClearMm;
 
         public BrushSettings(BrushKind kind, int radiusMm, int falloffPermille, int stepMm, int strengthPermille,
-                             int targetMm, int startMm, PointMm startAt, PointMm targetAt, int limitMm)
+                             int targetMm, int startMm, PointMm startAt, PointMm targetAt, int limitMm, int clearMm = TerrainBrush.ClearMm)
         {
             Kind = kind;
             RadiusMm = radiusMm;
@@ -56,7 +62,15 @@ namespace MountainPlanner.Domain.Design
             StartAt = startAt;
             TargetAt = targetAt;
             LimitMm = limitMm;
+            ClearMm = clearMm;
         }
+
+        /// <summary>Whether the stroke clears trees (TB-10 v2): the pane's Clear trees.</summary>
+        public bool ClearsTrees => ClearMm > 0;
+
+        /// <summary>The same settings with Clear trees on or off (BR22).</summary>
+        public BrushSettings WithClearing(bool clear) =>
+            new BrushSettings(Kind, RadiusMm, FalloffPermille, StepMm, StrengthPermille, TargetMm, StartMm, StartAt, TargetAt, LimitMm, clear ? TerrainBrush.ClearMm : 0);
 
         public static BrushSettings RaiseOrLower(bool lower, int radiusMm, int stepMm) =>
             new BrushSettings(lower ? BrushKind.Lower : BrushKind.Raise, radiusMm, TerrainBrush.FalloffPermille, stepMm, 0, 0, 0, default, default, TerrainBrush.LimitMm);
@@ -71,7 +85,7 @@ namespace MountainPlanner.Domain.Design
             new BrushSettings(BrushKind.Slope, radiusMm, TerrainBrush.FalloffPermille, 0, strengthPermille, targetMm, startMm, startAt, targetAt, TerrainBrush.LimitMm);
 
         public bool Equals(BrushSettings o) => Kind == o.Kind && RadiusMm == o.RadiusMm && FalloffPermille == o.FalloffPermille && StepMm == o.StepMm
-            && StrengthPermille == o.StrengthPermille && TargetMm == o.TargetMm && StartMm == o.StartMm && StartAt.Equals(o.StartAt) && TargetAt.Equals(o.TargetAt) && LimitMm == o.LimitMm;
+            && StrengthPermille == o.StrengthPermille && TargetMm == o.TargetMm && StartMm == o.StartMm && StartAt.Equals(o.StartAt) && TargetAt.Equals(o.TargetAt) && LimitMm == o.LimitMm && ClearMm == o.ClearMm;
         public override bool Equals(object obj) => obj is BrushSettings o && Equals(o);
         public override int GetHashCode() => ((int)Kind * 397) ^ RadiusMm ^ (TargetMm << 3) ^ (StepMm << 7) ^ StrengthPermille;
     }
