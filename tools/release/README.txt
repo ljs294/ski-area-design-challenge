@@ -16,8 +16,17 @@ If Windows still says "Windows protected your PC", click "More info", then "Run 
 The game opens on the title over Jackson Hole, which is built in and works offline. New Area downloads another
 mountain, which needs an internet connection; downloads go to %LOCALAPPDATA%\SkiAreaDesignChallenge.
 
-To uninstall, delete this folder. Your downloaded areas and the error logs stay in
+To uninstall, delete this folder. Your downloaded areas, saves and error logs stay in
 %LOCALAPPDATA%\SkiAreaDesignChallenge until you delete that folder too.
+
+
+BUILDING AND SAVING
+
+Press T for the Toolbox: draw a lift by clicking its bottom, then its top; paint trails down the slope; reshape the
+ground with the terrain brushes. Ctrl+Z undoes and Ctrl+Y redoes.
+
+Ctrl+S saves under a name; the game also autosaves every 10 minutes (Settings > Gameplay changes it). Load Area on
+the title opens an area and its saves again. Saves are kept in %LOCALAPPDATA%\SkiAreaDesignChallenge\Saves.
 
 
 WHAT YOU NEED

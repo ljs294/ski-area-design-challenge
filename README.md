@@ -40,6 +40,10 @@ The game opens on its title screen over **Jackson Hole**, which is built in and 
 - Press **P** for photo mode. Drag the time slider, change the date and lens, then press **Space** to save a picture to `Pictures\Ski Area Design Challenge`.
 - Turn on **Slope angle** (**Shift+7**) to see which slopes are steep enough to ski, and **Contours** (**Shift+6**).
 - Download a mountain you know, and check whether its trees and cliffs look right.
+- Open the **Toolbox** (**T**) to build: draw a lift from its bottom to its top, paint trails down the slope, and
+  reshape the ground with the terrain brushes.
+- Save with **Ctrl+S**; the game also autosaves every 10 minutes. **Load Area** on the title opens the area and its
+  saves again.
 
 Each release's notes say what's new in that version.
 
@@ -58,6 +62,9 @@ Each release's notes say what's new in that version.
 | Hide all the on-screen panels | H |
 | Pause, game speed | Space, 1–4 |
 | Analysis | Tab |
+| Toolbox (lifts, trails, terrain) | T |
+| Save | Ctrl+S |
+| Undo, redo | Ctrl+Z, Ctrl+Y |
 | Feet or metres | U |
 | Menu, or back one step | Esc |
 
@@ -67,10 +74,10 @@ Each release's notes say what's new in that version.
 
 We'd love to hear what you think, especially what was confusing, slow or broken.
 
-- Tell the person who sent you the link, or [open an issue](https://github.com/ljs294/ski-area-design-challenge/issues) on GitHub.
-- When something goes wrong, the game saves an error log and shows "A log was saved". To send it, open **Settings › Data › Logs**, click **Copy report** and paste the report into your message. The logs are in `%LOCALAPPDATA%\SkiAreaDesignChallenge\Logs`.
-- Each report starts with the game's version and your computer's details (Windows, processor, graphics card, screen and settings). It holds nothing else about you.
-- Please include the version, shown at the bottom left of the title screen, and what you were doing.
+- In the game, use **Send feedback**: in the menu (top right), on the "A log was saved" notice, or in **Settings › Data › Logs**. Pick **Problem** or **Suggestion**, say what happened, and choose what goes in: a screenshot, the logs, your save and your computer's details (Windows, processor, graphics card, screen and settings).
+- **Save and open GitHub** saves one zip, shows it in a folder and opens a [GitHub issue](https://github.com/ljs294/ski-area-design-challenge/issues) with the title and version filled in: drag the zip into the issue and submit it. This needs a free GitHub account, and issues are public.
+- Without a GitHub account, send the zip (in `%LOCALAPPDATA%\SkiAreaDesignChallenge\Reports`) to the person who sent you the link.
+- The game never sends anything by itself, and your Windows user name is taken out of the logs. If the game closed by itself, the next start offers a report.
 
 ## Credits
 

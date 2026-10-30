@@ -167,7 +167,7 @@ echo   Phase 2, task 10: build and release (close the Unity editor first; needs 
 echo     58 Build the release zip (checks, EditMode tests, build, smoke test, zip; about 15 minutes), then start the
 echo        unzipped game with a forced error: the version is bottom left, "A log was saved" opens the Logs folder.
 echo.
-echo   Phase 2, task 12: tester build (the v0.2.0 zip from 58, or D:\skiAreaDesignChallenge\releases)
+echo   Phase 2 and 3, task 12: tester build (the newest zip from 58, or D:\skiAreaDesignChallenge\releases)
 echo     59 Tester kit: unzip the release and play it as a first-time player (an empty library, your settings kept),
 echo        with the tester sheet open; when the game closes, the Logs, Player.log and Pictures folders open to collect.
 echo.
@@ -796,7 +796,7 @@ goto done
 :testerkit
 rem Task P2-12: the tester kit. Unzips the newest release zip into test-results\tester and starts it on an empty data
 rem folder (-data), so the library, recent list and download cache start empty like a fresh install. Settings and the
-rem error logs stay in their usual places. The tester sheet is docs\plans\p2-12-tester-sheet.md.
+rem error logs stay in their usual places. The tester sheet is docs\plans\p3-12-tester-sheet.md (v0.3.0, task P3-12).
 set "TKZIP="
 for %%Z in ("%~dp0..\releases\SkiAreaDesignChallenge-*-win64.zip") do set "TKZIP=%%~fZ"
 for %%Z in ("%~dp0Builds\Release\SkiAreaDesignChallenge-*-win64.zip") do set "TKZIP=%%~fZ"
@@ -812,7 +812,7 @@ echo Unzipping %TKZIP%...
 set "TKGAME="
 for /d %%D in ("%TK%\game\SkiAreaDesignChallenge-*") do set "TKGAME=%%~fD\SkiAreaDesignChallenge.exe"
 if not defined TKGAME goto done
-start "" "%~dp0docs\plans\p2-12-tester-sheet.md"
+start "" "%~dp0docs\plans\p3-12-tester-sheet.md"
 echo Playing as a first-time player. Follow the tester sheet; close the game when you are done.
 "%TKGAME%" -data "%TK%\data" <nul
 if not exist "%LOCALAPPDATA%\SkiAreaDesignChallenge\Logs" mkdir "%LOCALAPPDATA%\SkiAreaDesignChallenge\Logs"

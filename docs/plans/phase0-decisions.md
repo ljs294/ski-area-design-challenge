@@ -640,3 +640,11 @@ recommendation taken. Plan: [p3-11-plan.md](p3-11-plan.md).
 | DB6 | **Lift edits are timed and reported, not gated:** CF-09's budgets cover grading |
 | DB7 | **The measured view includes task 10's network** (overlay, labels, stations), on main before the first run |
 | DB8 | **A missed budget is reported with its numbers and goes to the owner;** no fix in this task without the owner's OK. The first timing (2026-10-29) missed the edit budgets 5–20× with the resort loaded; the owner chose to fix it here and approved the fix plan, reviewed adversarially first ([p3-11-plan.md](p3-11-plan.md) §5); any budget still missed after it comes back with its split before a deeper change. After the fix (0b6a5bf3, five rounds): the 1,000 ft trail passes (65 / 141 ms), the 1 km trail misses narrowly (139 / 259 ms) and grading a run misses (1023 / 383 ms), down from 0.2–2.3 s; [edit-timing.md](../perf/edit-timing.md) |
+
+## Phase 3 task 12, tester build v0.3.0: decided 2026-10-29
+
+**Context:** the Phase 3 tester build (E9). The owner asked for a release the same night and approved the plan with
+its recommendations. The decisions (TR1–TR7: a full Release marked Latest as an early unsigned test build, friends as
+the no-help testers, the owner's hands-on before publishing, the P3-11 follow-ups not blocking, v0.3.1 for a blocking
+fix) and the findings are in [phase3-tester-findings.md](phase3-tester-findings.md); the tester sheet is
+[p3-12-tester-sheet.md](p3-12-tester-sheet.md).
