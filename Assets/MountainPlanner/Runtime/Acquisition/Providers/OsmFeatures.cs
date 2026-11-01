@@ -31,6 +31,16 @@ namespace MountainPlanner.Acquisition.Providers
     }
 
     /// <summary>
+    /// No Overpass server gave a result, though the network is up (busy, slow, an error page or remark). The layer is
+    /// optional, so the download goes on without it (task P3-16). Deliberately carries no inner exception, so nothing
+    /// mistakes it for a lost connection.
+    /// </summary>
+    public sealed class OsmUnavailableException : InvalidOperationException
+    {
+        public OsmUnavailableException(string message) : base(message) { }
+    }
+
+    /// <summary>
     /// Water and developed land from OpenStreetMap (0.3 §4.4), via the Overpass API: lakes, rivers and
     /// streams; buildings, roads, parking and built-up land use. One query per site; the response is
     /// cached on disk, so a resumed or repeated download gives the same package. The same response also gives the
@@ -64,19 +74,35 @@ namespace MountainPlanner.Acquisition.Providers
             ["river"] = 14, ["canal"] = 6, ["stream"] = 2.5,
         };
 
+        /// <summary>
+        /// How long one mirror gets to answer, body included (task P3-16). One try each: Overpass is optional, so a
+        /// slow or busy mirror costs at most this before the next is tried, and the step at most three times it.
+        /// </summary>
+        public static readonly TimeSpan MirrorTimeout = TimeSpan.FromSeconds(75);
+
+        /// <summary>Test only (the -overpass flag): one server in place of <see cref="Servers"/>, e.g. one that never answers.</summary>
+        public static string? ServerOverride;
+
+        /// <summary>Fetches one Overpass URL. Tests replace it; the game's makes one attempt within <see cref="MirrorTimeout"/>.</summary>
+        internal delegate Task<byte[]> Fetch(string url, CancellationToken ct);
+
         readonly DiskCache _cache;
         readonly TransferMeter _meter;
+        readonly Fetch _fetch;
 
-        public OsmFeatures(DiskCache cache, TransferMeter meter)
+        public OsmFeatures(DiskCache cache, TransferMeter meter) : this(cache, meter, null) { }
+
+        internal OsmFeatures(DiskCache cache, TransferMeter meter, Fetch? fetch)
         {
             _cache = cache;
             _meter = meter;
+            _fetch = fetch ?? ((url, ct) => Http.GetBytesAsync(() => new HttpRequestMessage(HttpMethod.Get, url), meter, ct, attempts: 1, timeout: MirrorTimeout));
         }
 
         public static string Query(double south, double west, double north, double east)
         {
             string b = string.Format(CultureInfo.InvariantCulture, "({0:F5},{1:F5},{2:F5},{3:F5})", south, west, north, east);
-            return "[out:json][timeout:180];(" +
+            return "[out:json][timeout:60];(" +
                    $"way[natural=water]{b};relation[natural=water]{b};" +
                    $"way[waterway~\"^(riverbank|dock)$\"]{b};" +
                    $"way[landuse~\"^(reservoir|basin)$\"]{b};relation[landuse~\"^(reservoir|basin)$\"]{b};" +
@@ -89,7 +115,12 @@ namespace MountainPlanner.Acquisition.Providers
                    ");out geom;";
         }
 
-        /// <summary>The Overpass response for a box (cached), trying each server in turn.</summary>
+        /// <summary>
+        /// The Overpass response for a box (cached), trying each server in turn. When none gives a result it throws
+        /// <see cref="OsmUnavailableException"/>, and the package is built without the layer; only when every server
+        /// failed to connect does it throw a connection failure, so the download waits for the network (task P3-16: a
+        /// slow or busy Overpass used to look like a lost connection, and the download waited for it for ever).
+        /// </summary>
         public async Task<byte[]> DownloadAsync(AlbersBox box, CancellationToken ct)
         {
             var corners = new[] { new AlbersPoint(box.West, box.South), new AlbersPoint(box.West, box.North), new AlbersPoint(box.East, box.South), new AlbersPoint(box.East, box.North) }
@@ -97,24 +128,36 @@ namespace MountainPlanner.Acquisition.Providers
             double pad = 0.001;
             string query = Query(corners.Min(p => p.Latitude) - pad, corners.Min(p => p.Longitude) - pad,
                                  corners.Max(p => p.Latitude) + pad, corners.Max(p => p.Longitude) + pad);
-            return await _cache.GetOrAddAsync("osm-overpass:" + query, async () =>
+            return await _cache.GetOrAddAsync("osm-overpass:" + query, () => FirstResultAsync(query, ct), _meter).ConfigureAwait(false);
+        }
+
+        async Task<byte[]> FirstResultAsync(string query, CancellationToken ct)
+        {
+            var failures = new List<string>();
+            Exception? connection = null;
+            bool allFailedToConnect = true;
+            foreach (string server in ServerOverride != null ? new[] { ServerOverride } : Servers)
             {
-                Exception? last = null;
-                foreach (string server in Servers)
+                string host = new Uri(server).Host;
+                try
                 {
-                    try
-                    {
-                        string url = server + "?data=" + Uri.EscapeDataString(query);
-                        byte[] body = await Http.GetBytesAsync(() => new HttpRequestMessage(HttpMethod.Get, url), _meter, ct).ConfigureAwait(false);
-                        // Overpass answers errors with 200 and an HTML or "remark" body: only accept real results.
-                        var json = JObject.Parse(Encoding.UTF8.GetString(body));
-                        if (json["elements"] is JArray && json["remark"] == null) return body;
-                        last = new InvalidOperationException("Overpass: " + (string?)json["remark"]);
-                    }
-                    catch (Exception ex) when (!(ex is OperationCanceledException) && !NetworkFailure.IsOfflineMode(ex)) { last = ex; }
+                    byte[] body = await _fetch(server + "?data=" + Uri.EscapeDataString(query), ct).ConfigureAwait(false);
+                    // Overpass answers errors with 200 and an HTML or "remark" body: only accept real results.
+                    var json = JObject.Parse(Encoding.UTF8.GetString(body));
+                    if (json["elements"] is JArray && json["remark"] == null) return body;
+                    allFailedToConnect = false;
+                    failures.Add(host + ": " + (string?)json["remark"]);
                 }
-                throw new InvalidOperationException("OpenStreetMap (Overpass) is unavailable.", last);
-            }, _meter).ConfigureAwait(false);
+                catch (Exception ex) when (!(ex is OperationCanceledException) && !NetworkFailure.IsOfflineMode(ex))
+                {
+                    // It answered, or connected and then ran out of time: Overpass's trouble, not the player's network.
+                    if (NetworkFailure.IsNoConnection(ex) && !NetworkFailure.IsTimeout(ex)) connection ??= ex;
+                    else allFailedToConnect = false;
+                    failures.Add(host + ": " + ex.GetBaseException().Message);
+                }
+            }
+            if (allFailedToConnect && connection != null) throw new InvalidOperationException("OpenStreetMap (Overpass) is unavailable.", connection);
+            throw new OsmUnavailableException("OpenStreetMap (Overpass) is unavailable (" + string.Join("; ", failures) + ").");
         }
 
         /// <summary>

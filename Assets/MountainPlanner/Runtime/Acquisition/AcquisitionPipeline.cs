@@ -272,10 +272,12 @@ namespace MountainPlanner.Acquisition
             {
                 response = await osm.DownloadAsync(site.Ring, ct).ConfigureAwait(false);
             }
-            // Overpass being down is a missing optional layer; the connection going (or offline mode) is not: the
-            // download waits for it rather than build a package without water and roads (task P2-06).
-            catch (InvalidOperationException ex) when (!ct.IsCancellationRequested && !NetworkFailure.IsOfflineMode(ex) && !NetworkFailure.IsNoConnection(ex))
+            // Overpass being down, busy or slow is a missing optional layer (task P3-16); the connection going (or offline
+            // mode) is not: OsmFeatures lets that through, and the download waits for it rather than build a package
+            // without water and roads (task P2-06).
+            catch (OsmUnavailableException ex) when (!ct.IsCancellationRequested)
             {
+                tracker.BeginStep("map features unavailable · skipped, satellite land cover used instead", 3, 3, () => 1);
                 return new OsmResult { Failure = ex.Message };
             }
             var shapes = OsmFeatures.Parse(response);

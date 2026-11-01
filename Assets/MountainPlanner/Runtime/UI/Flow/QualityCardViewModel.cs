@@ -25,6 +25,11 @@ namespace MountainPlanner.UI.Flow
         public string Title { get; private set; } = "";
         public string Place { get; private set; } = "";
         public readonly List<QualityLine> Lines = new List<QualityLine>();
+        /// <summary>Unscored notes under the lines, such as a layer the download had to leave out.</summary>
+        public readonly List<string> Notes = new List<string>();
+
+        /// <summary>Said when OpenStreetMap couldn't be reached and the area was built without it (task P3-16).</summary>
+        public const string NoOsmNote = "Water and roads: OpenStreetMap was unavailable, so satellite land cover stands in for them.";
 
         public static QualityCardViewModel From(PackageManifest m, bool justDownloaded)
         {
@@ -39,6 +44,8 @@ namespace MountainPlanner.UI.Flow
             // ── Further quality lines go here ──────────────────────────────────────────────────────────
             // Add a Line(...) per new scored part of the manifest; the card lays out whatever is in Lines.
             // (A forest-calibration line was planned here and dropped in the 2026-10-02 scope cut.)
+            // The pipeline records a skipped OpenStreetMap step as a provenance entry with no layer.
+            if (m.Provenance.Exists(p => p.Layer == "(none)" && p.Provider == "OpenStreetMap contributors")) vm.Notes.Add(NoOsmNote);
             return vm;
         }
 

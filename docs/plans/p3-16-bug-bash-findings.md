@@ -11,9 +11,9 @@ Each finding is recorded first; the owner sets the severity and decides what get
 
 | # | Source | What happened | Expected | Sev | Decision |
 | --- | --- | --- | --- | --- | --- |
-| BB1 | Owner screenshot, v0.3.0 | A new-area download hangs at 87%: "Resuming: Water and roads: downloading map features 1 of 3 · 0% · waiting for OpenStreetMap (Overpass) (66 s)". It never finishes | Water and roads are optional: if Overpass is down or slow, the area finishes without them | B | Plan below, waiting for the owner's go |
-| BB2 | Owner request, 2026-10-31 | On lifts whose bullwheels are visible (today the Monta C4 and the SSL C4, in the owner's words), the bullwheels stand still | The visible bullwheels spin with the rope | | |
-| BB3 | Owner request, 2026-10-31 | The chairs look great but move stiffly along the line | More swing along the line, and a slight side-to-side sway every so often. Only at minimal cost (frame time, garbage) | | |
+| BB1 | Owner screenshot, v0.3.0 | A new-area download hangs at 87%: "Resuming: Water and roads: downloading map features 1 of 3 · 0% · waiting for OpenStreetMap (Overpass) (66 s)". It never finishes | Water and roads are optional: if Overpass is down or slow, the area finishes without them | B | **Fix (owner, 2026-11-01): A1, B1, C1, D2.** PR A. Skip the layer unless every mirror failed to connect; one 75 s try per mirror; a line on the quality card; backfill later |
+| BB2 | Owner request, 2026-10-31 | On lifts whose bullwheels are visible (today the Monta C4 and the SSL C4, in the owner's words), the bullwheels stand still | The visible bullwheels spin with the rope | B | **Fix in v0.3.1 (owner, 2026-11-01):** PR B. Only lifts whose wheel shows (Sessellift FGQ-4, Monta FG4; not the D6's tub), by a catalog flag. Bullwheels only, sheaves stay still |
+| BB3 | Owner request, 2026-10-31 | The chairs look great but move stiffly along the line | More swing along the line, and a slight side-to-side sway every so often. Only at minimal cost (frame time, garbage) | B | **Fix in v0.3.1 (owner, 2026-11-01):** PR B, very lightweight. Swing along the direction of travel when the rope changes direction over a tower's sheaves; slight side sway. The owner sees a demo build (presets) before it goes into the game |
 
 ## BB1: the download hangs on OpenStreetMap (Overpass)
 
@@ -36,7 +36,7 @@ The rest of the design is already in place: the manifest records a missing OSM l
 this download; WorldCover water and built-up used instead"), so a package without the layer opens normally. No
 `download.json` or save format change is needed.
 
-### Options (owner to choose)
+### Options (owner chose A1, B1, C1 and D2 on 2026-11-01)
 
 | Area | Option | What it does |
 | --- | --- | --- |
