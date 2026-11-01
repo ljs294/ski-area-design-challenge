@@ -169,6 +169,18 @@ namespace MountainPlanner.Tests
             Assert.That(vm.Lines[1].Word, Is.EqualTo("Good"));
             Assert.That(QualityCardViewModel.WithoutScore("Terrain quality 30/100: 100% 3DEP 10 m"), Is.EqualTo("100% 3DEP 10 m"), "the score isn't said twice");
             Assert.That(vm.Lines[1].Caveat, Is.Empty);
+            Assert.That(vm.Notes, Is.Empty, "nothing was left out");
+        }
+
+        /// <summary>Task P3-16: an area built without OpenStreetMap (Overpass unavailable) says so on its card.</summary>
+        [Test]
+        public void TheCardSaysWhenWaterAndRoadsWereLeftOut()
+        {
+            var m = Manifest(71, 80);
+            m.Provenance.Add(new ProvenanceInfo { Layer = "(none)", Provider = "OpenStreetMap contributors", Product = "Unavailable during this download" });
+            var vm = QualityCardViewModel.From(m, justDownloaded: true);
+            Assert.That(vm.Notes, Is.EqualTo(new[] { QualityCardViewModel.NoOsmNote }));
+            Assert.That(vm.Lines, Has.Count.EqualTo(2), "the scored lines are unchanged");
         }
 
         [Test]
@@ -677,6 +689,9 @@ namespace MountainPlanner.Tests
             Assert.That(DownloadErrors.Classify(new InvalidOperationException("OpenStreetMap (Overpass) is unavailable.",
                 new IOException("The request failed after 4 attempts.", new System.Net.Http.HttpRequestException("x", new IOException("reset"))))), Is.EqualTo(ProblemKind.NoConnection));
             Assert.That(DownloadErrors.Classify(new IOException("timeout", new TaskCanceledException())), Is.EqualTo(ProblemKind.NoConnection));
+            // Task P3-16: Overpass busy or slow while the network is up leaves the layer out; it is never a reason to wait.
+            Assert.That(DownloadProblem.Of(DownloadErrors.Classify(new MountainPlanner.Acquisition.Providers.OsmUnavailableException(
+                "OpenStreetMap (Overpass) is unavailable (overpass-api.de: No answer within 75 s.)."))).Waits, Is.False);
             Assert.That(DownloadErrors.Classify(new IOException("There is not enough space on the disk.", unchecked((int)0x80070070))), Is.EqualTo(ProblemKind.DiskFull));
             Assert.That(DownloadErrors.Classify(new UnauthorizedAccessException("denied")), Is.EqualTo(ProblemKind.AccessDenied));
             Assert.That(DownloadErrors.Classify(new InvalidDataException("Not a TIFF file")), Is.EqualTo(ProblemKind.ServerError));
