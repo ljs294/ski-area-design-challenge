@@ -13,6 +13,7 @@ Each finding is recorded first; the owner sets the severity and decides what get
 | --- | --- | --- | --- | --- | --- |
 | BB1 | Owner screenshot, v0.3.0 | A new-area download hangs at 87%: "Resuming: Water and roads: downloading map features 1 of 3 · 0% · waiting for OpenStreetMap (Overpass) (66 s)". It never finishes | Water and roads are optional: if Overpass is down or slow, the area finishes without them | B | Plan below, waiting for the owner's go |
 | BB2 | Owner request, 2026-10-31 | On lifts whose bullwheels are visible (today the Monta C4 and the SSL C4, in the owner's words), the bullwheels stand still | The visible bullwheels spin with the rope | | |
+| BB3 | Owner request, 2026-10-31 | The chairs look great but move stiffly along the line | More swing along the line, and a slight side-to-side sway every so often. Only at minimal cost (frame time, garbage) | | |
 
 ## BB1: the download hangs on OpenStreetMap (Overpass)
 
