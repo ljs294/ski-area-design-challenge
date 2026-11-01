@@ -406,8 +406,12 @@ namespace MountainPlanner.App
             if (_liftViews.Count == 0 || Camera == null || !_liftsShown) return;
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             long start = System.Diagnostics.Stopwatch.GetTimestamp();
+            // The chairs sway in the forest's wind (task P3-16, BB3); no forest, no wind.
+            var wind = Forest?.Wind;
+            float strength = wind != null ? wind.Strength : 0;
+            var toward = wind != null ? wind.Direction : Vector2.zero;
             using (ChairsMarker.Auto())
-                foreach (var kv in _liftViews) if (!LiftHidden(kv.Key)) kv.Value.View.DrawChairs(cam, _chairSeconds);
+                foreach (var kv in _liftViews) if (!LiftHidden(kv.Key)) kv.Value.View.DrawChairs(cam, _chairSeconds, strength, toward);
             _chairTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
             _chairFrames++;
         }
