@@ -44,7 +44,7 @@ namespace MountainPlanner.App
             string text = $"Chair swing: {look.Name} (F7) · side sway: {look.Sway} (F8) · wind: developer panel (F1) · Space runs the chairs";
             var style = new GUIStyle(GUI.skin.box) { fontSize = 16, alignment = TextAnchor.MiddleLeft };
             style.normal.textColor = Color.white;
-            GUI.Box(new Rect(20, Screen.height - 60, 900, 36), text, style);
+            GUI.Box(new Rect(20, Screen.height - 130, 900, 36), text, style);
         }
     }
 }
