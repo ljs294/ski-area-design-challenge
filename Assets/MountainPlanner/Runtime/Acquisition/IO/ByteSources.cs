@@ -52,40 +52,57 @@ namespace MountainPlanner.Acquisition.IO
         /// </summary>
         public static bool NetworkDisabled;
 
-        /// <summary>A request with up to four attempts and exponential backoff; non-success statuses retry too.</summary>
-        public static async Task<byte[]> GetBytesAsync(Func<HttpRequestMessage> build, TransferMeter? meter, CancellationToken ct)
+        /// <summary>
+        /// A request with up to <paramref name="attempts"/> attempts (four by default) and exponential backoff; non-success
+        /// statuses retry too. A <paramref name="timeout"/> bounds each attempt, body included, and fails it with a
+        /// <see cref="TimeoutException"/>, so a slow server is never mistaken for the player cancelling (task P3-16).
+        /// </summary>
+        public static async Task<byte[]> GetBytesAsync(Func<HttpRequestMessage> build, TransferMeter? meter, CancellationToken ct,
+                                                       int attempts = 4, TimeSpan? timeout = null)
         {
             if (NetworkDisabled) throw new NetworkDisabledException();
             Exception? last = null;
-            for (int attempt = 0; attempt < 4; attempt++)
+            for (int attempt = 0; attempt < attempts; attempt++)
             {
                 if (attempt > 0) await Task.Delay(500 * (1 << attempt), ct).ConfigureAwait(false);
-                try
+                using (var limit = timeout.HasValue ? CancellationTokenSource.CreateLinkedTokenSource(ct) : null)
                 {
-                    using (var request = build())
-                    using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false))
+                    limit?.CancelAfter(timeout!.Value);
+                    var token = limit?.Token ?? ct;
+                    try
                     {
-                        response.EnsureSuccessStatusCode();
-                        // Count bytes as they stream in, so progress moves during large transfers (U6).
-                        using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
-                        using (var body = new MemoryStream())
+                        using (var request = build())
+                        using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
+                        // Some runtimes' response streams ignore the token; closing the response ends a stalled read.
+                        using (limit != null ? token.Register(response.Dispose) : default(CancellationTokenRegistration))
                         {
-                            var buffer = new byte[81920];
-                            int n;
-                            while ((n = await stream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false)) > 0)
+                            response.EnsureSuccessStatusCode();
+                            // Count bytes as they stream in, so progress moves during large transfers (U6).
+                            using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+                            using (var body = new MemoryStream())
                             {
-                                body.Write(buffer, 0, n);
-                                meter?.AddStreamed(n);
+                                var buffer = new byte[81920];
+                                int n;
+                                while ((n = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false)) > 0)
+                                {
+                                    body.Write(buffer, 0, n);
+                                    meter?.AddStreamed(n);
+                                }
+                                token.ThrowIfCancellationRequested();
+                                meter?.CompleteRequest();
+                                return body.ToArray();
                             }
-                            meter?.CompleteRequest();
-                            return body.ToArray();
                         }
                     }
+                    catch (Exception) when (limit != null && limit.IsCancellationRequested && !ct.IsCancellationRequested)
+                    {
+                        last = new TimeoutException($"No answer within {timeout!.Value.TotalSeconds:F0} s.");
+                    }
+                    catch (HttpRequestException ex) { last = ex; }
+                    catch (TaskCanceledException ex) when (!ct.IsCancellationRequested) { last = ex; }
                 }
-                catch (HttpRequestException ex) { last = ex; }
-                catch (TaskCanceledException ex) when (!ct.IsCancellationRequested) { last = ex; }
             }
-            throw new IOException("The request failed after 4 attempts.", last);
+            throw new IOException(attempts == 1 ? "The request failed." : $"The request failed after {attempts} attempts.", last);
         }
     }
 
@@ -154,6 +171,19 @@ namespace MountainPlanner.Acquisition.IO
                     await delay(TimeSpan.FromSeconds(seconds), ct).ConfigureAwait(false);
                 }
             }
+        }
+
+        /// <summary>
+        /// The request ran out of time: our own per-attempt limit (<see cref="TimeoutException"/>), HttpClient's
+        /// (<see cref="TaskCanceledException"/>) or the socket's. The server may simply be slow, so this alone says
+        /// nothing about the player's connection (task P3-16).
+        /// </summary>
+        public static bool IsTimeout(Exception? e)
+        {
+            for (; e != null; e = e.InnerException)
+                if (e is TimeoutException || e is TaskCanceledException
+                    || e is System.Net.WebException w && w.Status == System.Net.WebExceptionStatus.Timeout) return true;
+            return false;
         }
 
         /// <summary>

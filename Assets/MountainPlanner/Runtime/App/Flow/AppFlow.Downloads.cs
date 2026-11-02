@@ -41,6 +41,10 @@ namespace MountainPlanner.App.Flow
                 && double.TryParse(args[i + 4], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double km))
                 _downloadArg = DownloadService.Request(PickedSite.Create(args[i + 1], Albers6350.Forward(new GeoPoint(lat, lon)), km, false, default),
                                                        DownloadService.UtcStamp(DateTime.UtcNow));
+            // -overpass <url>: one OpenStreetMap server in place of the mirrors, e.g. one that never answers, to show a
+            // download finishing without water and roads (task P3-16's demo).
+            int o = Array.IndexOf(args, "-overpass");
+            if (o >= 0 && o + 1 < args.Length) MountainPlanner.Acquisition.Providers.OsmFeatures.ServerOverride = args[o + 1];
 
             Screens.ResumeChosen += r => StartDownload(r.Pending);
             Screens.DiscardChosen += r =>

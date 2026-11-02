@@ -601,6 +601,13 @@ namespace MountainPlanner.UI.Flow
                 if (line.Detail.Length > 0) block.Add(Text(line.Detail, "qc-detail"));
                 _qcLines.Add(block);
             }
+            foreach (string note in vm.Notes)
+            {
+                var block = new VisualElement();
+                block.AddToClassList("qc-line");
+                block.Add(Text(note, "qc-caveat"));
+                _qcLines.Add(block);
+            }
         }
 
         // ---------- S8 and S9 ----------

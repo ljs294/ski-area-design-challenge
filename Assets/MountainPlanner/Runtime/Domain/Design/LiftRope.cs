@@ -83,6 +83,11 @@ namespace MountainPlanner.Domain.Design
         /// <summary>The prefix of its tower parts (G2): heads from its own kit, the mast and bases from the quad's where it
         /// has none.</summary>
         public string TowerKit { get; private set; } = "sessellift_fgq4_";
+        /// <summary>
+        /// Task P3-16 (BB2): the terminals' bullwheels show, so the view spins them with the rope. The fixed-grip quads'
+        /// stand open or under a raised hood; the D6's sit inside its tub (glimpses from above only), so they stay still.
+        /// </summary>
+        public bool BullwheelVisible { get; private set; } = true;
 
         /// <summary>LT41: whether a player can build it (<see cref="LiftCatalogIds.Buildable"/>).</summary>
         public bool Buildable => LiftCatalogIds.Buildable(CatalogId);
@@ -186,7 +191,7 @@ namespace MountainPlanner.Domain.Design
                                  1300 * Lb, 170 * Lb, 3.27, 5.6, 0.0508)
             {
                 Name = "Detachable six", RiseLimitMetres = placeholder.RiseLimitMetres, Detachable = true, _interval = interval,
-                ChairHalfWidthMetres = 1.5, Heads = TowerForces.HeadKit.Wide, TowerKit = "sessellift_d6_",
+                ChairHalfWidthMetres = 1.5, Heads = TowerForces.HeadKit.Wide, TowerKit = "sessellift_d6_", BullwheelVisible = false,
             };
             double level = TowerForces.SheaveBendLimit;
             // LT42: a detachable's pads end at the hood's middle (LF-12 v5).
