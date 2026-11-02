@@ -4,6 +4,14 @@ by Alpine Labs
 A ski resort designer on real mountains, built from U.S. Geological Survey lidar.
 
 
+NEW IN 0.3.1
+
+- Downloads no longer hang at "waiting for OpenStreetMap (Overpass)". If the OpenStreetMap servers don't answer,
+  the download skips map features after about a minute and finishes anyway: satellite land cover stands in for
+  water and roads, and the area's quality card says so.
+- The bullwheels in the lift terminals now turn with the rope.
+
+
 RUNNING THE GAME
 
 1. Before unzipping, right-click the zip file, choose Properties, tick "Unblock" at the bottom and click OK.
