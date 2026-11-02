@@ -124,7 +124,7 @@ namespace MountainPlanner.UI.Tools
             // By hand, no towers yet: the review waits for them (LF-04).
             if (step == Step.Review && _mode == TowerMode.ByHand && _placed.Count == 0 && _ctx.EditedGround != null && _ctx.ToGround != null)
             {
-                w.SetMessage("Place the towers first, or Fill the rest");
+                w.SetMessage("Place the towers first, or Auto-place the rest");
                 if (_step == Step.Towers) return;
                 step = Step.Towers;
             }

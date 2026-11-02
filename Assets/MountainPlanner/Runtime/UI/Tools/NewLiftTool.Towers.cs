@@ -13,9 +13,9 @@ namespace MountainPlanner.UI.Tools
     // slide it 5 ft, Shift 50 ft), Page Up / Page Down set its height 5 ft at a time, and a click (or Enter) places it where
     // it's green; red says why. The green band shows where a tower that tall can stand. Every placed tower stays editable
     // (<see cref="LiftDraftEditor"/>): click it to change its height, slide, drag or remove it; a click on the line where no
-    // tower is adds one. Delete takes the last tower back; Fill the rest finishes the line automatically; Revert to auto
-    // places them all automatically (asking first). Automatic shows the towers the build placed; Edit towers (or any
-    // change to one) opens them by hand. In the review a terminal can be clicked for its level (Page Up / Page Down, LT34's
+    // tower is adds one. Delete takes the last tower back; Auto-place finishes the line automatically, or once it's carried
+    // places them all again (asking first; LD3). Automatic shows the towers the build placed; any change to one makes the
+    // lift By hand, keeping them. A tower dragged (in 3D or on the profile) moves the rope with it, live (LD3). In the review a terminal can be clicked for its level (Page Up / Page Down, LT34's
     // "raise it 6 ft"). Enter with the line finished goes on to the review.
     public sealed partial class NewLiftTool
     {
@@ -50,7 +50,7 @@ namespace MountainPlanner.UI.Tools
             {
                 Change = ChangeTowers,
                 DragBegan = () => { },
-                Dragged = change => { ByHandNow(); change(_placed); AfterChange(false); },
+                Dragged = change => { ByHandNow(); change(_placed); AfterChange(false); LiveRope(); },
                 DragEnded = () => AfterChange(true),
                 HandFor = HandFor,
                 KeepAdding = true,
@@ -83,6 +83,33 @@ namespace MountainPlanner.UI.Tools
         }
 
         // F3: a change to an automatic line's tower opens it by hand, the build's towers its own.
+        // LD3 (tower editing "much smoother", feedback lag): while a tower is dragged the rope, its heads and the chairs'
+        // clearance follow it, solved over the ground the last build left (its pads and trench) a few times a second; the
+        // whole build (earthwork, the review) follows when the drag ends.
+        float _liveAt = -1;
+        void LiveRope()
+        {
+            float now = Time.realtimeSinceStartup;
+            if (now - _liveAt < 0.1f || _ctx.ToGround == null || _placed.Count == 0) return;
+            var ground = _ctx.EditedGround?.Invoke();
+            if (ground == null) return;
+            _liveAt = now;
+            IHeightSource under = _built != null ? new EditedHeights(ground.Source, ground.Lattice, _built.Edits) : ground;
+            var levels = _built?.Levels ?? _hand?.Levels ?? LiftLevels.FromMetres(_bottomZ, _topZ);
+            var b = _ctx.ToGround(_bottom);
+            var t = _ctx.ToGround(_top);
+            var type = Type;
+            try
+            {
+                var rope = LiftRope.Solve(type, under, b.X, b.Y, t.X, t.Y, _placed, _stance, type.Bottom.ExitAlong, levels.BottomMetres + type.Bottom.ExitRise,
+                                          type.Top.ExitAlong, levels.TopMetres + type.Top.ExitRise);
+                if (_editor != null) _editor.Rope = rope;
+                ShowProfile(rope, under, levels);
+            }
+            catch (System.Exception e) { Debug.LogWarning("[NewLift] live rope: " + e.Message); }
+            ShowDraft();
+        }
+
         void ByHandNow()
         {
             if (_mode == TowerMode.ByHand) return;
@@ -342,12 +369,14 @@ namespace MountainPlanner.UI.Tools
             w.SetKeys((GameAction.TowerSlideBack, "slide"), (GameAction.TowerSlideOn, "slide"), (GameAction.TowerUp, "taller"),
                       (GameAction.TowerDown, "shorter"), (GameAction.ToolNext, _editor != null && _editor.Adding ? "place" : "review"),
                       (GameAction.DeleteSelected, _editor != null && _editor.Selected >= 0 ? "remove" : "take back"), (GameAction.TowerAdd, "add"), (GameAction.TowerKind, "kind"));
+            // LD3 (one tower editor): Auto-place finishes the line from your towers while it isn't carried to the top, and
+            // places every tower again once it is (asking first: yours go).
             w.SetButtons(
-                ("fill", "Fill the rest", _filling || _hand == null || complete ? null : (System.Action)FillTheRest),
+                ("auto", complete ? (_armReplace ? "Again: re-place yours" : "Auto-place") : "Auto-place the rest",
+                    _filling || (!complete && _hand == null) ? null : complete ? (System.Action)RevertToAuto : FillTheRest),
                 ("add", "Add tower", _filling || _hand == null || _editor == null || _editor.Adding ? null : (System.Action)(() => _editor.StartAdding())),
-                ("replace", _armReplace ? "Again: revert yours" : "Revert to auto", _filling ? null : (System.Action)RevertToAuto),
                 ("review", "Review", () => Go(Step.Review)));
-            w.SetAsking(_armReplace ? "Your towers go: Revert to auto again" : null);
+            w.SetAsking(_armReplace ? "Your towers go: Auto-place again" : null);
         }
 
         // The window over an automatic line's towers (the Towers step) or the review's: the selection, if any.
@@ -361,7 +390,7 @@ namespace MountainPlanner.UI.Tools
             {
                 if (line != null) w.SetHint(line);
                 else TowersPlacedHint();
-                w.SetButtons(("edit", "Edit towers", _built != null ? (System.Action)EditTowers : null), ("review", "Review", () => Go(Step.Review)));
+                w.SetButtons(("review", "Review", () => Go(Step.Review)));   // LD3: click a tower to change it; no separate mode
             }
             else
             {
@@ -385,9 +414,8 @@ namespace MountainPlanner.UI.Tools
             w.SetButtons(
                 ("levels", "Use suggested levels", suggests ? (System.Action)UseSuggestedLevels : null),
                 ("add", "Add tower", _editor == null || _editor.Adding || _built == null ? null : (System.Action)(() => { EnsureEditor(); _editor.KeepAdding = false; _editor.StartAdding(); })),
-                ("replace", _armReplace ? "Again: revert yours" : _mode == TowerMode.ByHand ? "Revert to auto" : "Edit towers",
-                    _mode == TowerMode.ByHand ? (System.Action)RevertToAuto : _built != null ? (System.Action)EditTowers : null));
-            w.SetAsking(_armReplace ? "Your towers go: Revert to auto again" : null);
+                ("auto", _armReplace ? "Again: re-place yours" : "Auto-place", _mode == TowerMode.ByHand ? (System.Action)RevertToAuto : null));
+            w.SetAsking(_armReplace ? "Your towers go: Auto-place again" : null);
         }
 
         // The towers on the map: the placed ones (or the build's, in Automatic) as dots on the line, the tower in hand green

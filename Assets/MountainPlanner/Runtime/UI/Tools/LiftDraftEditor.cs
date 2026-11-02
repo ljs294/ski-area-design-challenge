@@ -137,7 +137,7 @@ namespace MountainPlanner.UI.Tools
             _ctx.HighlightDraftPart?.Invoke(None);
             _lit = None;
             _ctx.Window?.Strip?.SetSelected(-1);
-            if (_hooked != null) { _hooked.TowerClicked -= OnStripTower; _hooked = null; }
+            if (_hooked != null) { _hooked.TowerClicked -= OnStripTower; _hooked.TowerDragged -= OnStripDrag; _hooked = null; }
             ClaimAll(false);
         }
 
@@ -183,11 +183,12 @@ namespace MountainPlanner.UI.Tools
         {
             var strip = _ctx.Window?.Strip;
             if (strip == _hooked) return;
-            if (_hooked != null) _hooked.TowerClicked -= OnStripTower;
+            if (_hooked != null) { _hooked.TowerClicked -= OnStripTower; _hooked.TowerDragged -= OnStripDrag; }
             _hooked = strip;
             if (strip != null)
             {
                 strip.TowerClicked += OnStripTower;
+                strip.TowerDragged += OnStripDrag;
                 strip.SetSelected(!Adding && Selected >= 0 ? Selected : -1);
             }
         }
@@ -195,6 +196,29 @@ namespace MountainPlanner.UI.Tools
         void OnStripTower(int index)
         {
             if (index >= 0 && index < Towers.Count) Select(index);
+        }
+
+        // LD3: a tower dragged on the profile: along the line by the sideways move, its height by the move up or down, both
+        // on the 5 ft grid; one step of the host's undo for the whole drag, as a drag in 3D is.
+        int _stripAlongMm = -1, _stripHeightMm = -1;
+        void OnStripDrag(int index, double along, double up, bool done)
+        {
+            if (index < 0 || index >= Towers.Count) return;
+            if (_stripAlongMm < 0)
+            {
+                _stripAlongMm = Towers[index].AlongMm;
+                _stripHeightMm = Towers[index].HeightMm;
+                Dragging = true;
+                DragBegan?.Invoke();
+            }
+            SetAlong(index, _stripAlongMm / 1000.0 + along, record: false);
+            int max = LiftCatalogIds.TowerMaxMm(Type.CatalogId);
+            int h = Mathf.Clamp(_stripHeightMm + (int)Math.Round(up * 1000 / DesignUnits.FiveFeetMm) * DesignUnits.FiveFeetMm, DesignUnits.StationTowerMinMm, max);
+            if (h != Towers[index].HeightMm) Dragged?.Invoke(list => list[index] = list[index].WithHeight(h));
+            if (!done) return;
+            _stripAlongMm = _stripHeightMm = -1;
+            Dragging = false;
+            DragEnded?.Invoke();
         }
 
         /// <summary>Lights the selection again after the host redrew the draft (its pieces are new).</summary>

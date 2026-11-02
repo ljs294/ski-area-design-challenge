@@ -40,6 +40,13 @@ namespace MountainPlanner.UI.Tools
         public int Selected { get; private set; } = -1;
         /// <summary>A click on the side view near a tower: its index (LD3, the one tower editor's select).</summary>
         public event Action<int> TowerClicked;
+        /// <summary>
+        /// LD3: a tower dragged on the side view: its index, how far it has moved along the line and up since the press
+        /// (metres, by the chart's scales), and whether the drag has ended. Sideways moves it, up and down sets its height.
+        /// </summary>
+        public event Action<int, double, double, bool> TowerDragged;
+        int _dragTower = -1;
+        Vector2 _dragFrom;
         const float ClickPixels = 10;
 
         public LiftProfileStrip()
@@ -92,9 +99,24 @@ namespace MountainPlanner.UI.Tools
             _chart.RegisterCallback<PointerDownEvent>(e =>
             {
                 int i = TowerNear(e.localPosition.x);
-                if (i < 0) return;
+                if (i < 0 || e.button != 0) return;
                 TowerClicked?.Invoke(i);
+                _dragTower = i;
+                _dragFrom = e.localPosition;
+                _chart.CapturePointer(e.pointerId);
                 e.StopPropagation();
+            });
+            _chart.RegisterCallback<PointerMoveEvent>(e =>
+            {
+                if (_dragTower < 0 || !_chart.HasPointerCapture(e.pointerId) || !Scale()) return;
+                TowerDragged?.Invoke(_dragTower, (e.localPosition.x - _dragFrom.x) / _fx, (_dragFrom.y - e.localPosition.y) / _fy, false);
+            });
+            _chart.RegisterCallback<PointerUpEvent>(e =>
+            {
+                if (_dragTower < 0) return;
+                if (_chart.HasPointerCapture(e.pointerId)) _chart.ReleasePointer(e.pointerId);
+                if (Scale()) TowerDragged?.Invoke(_dragTower, (e.localPosition.x - _dragFrom.x) / _fx, (_dragFrom.y - e.localPosition.y) / _fy, true);
+                _dragTower = -1;
             });
             _labels = new VisualElement { pickingMode = PickingMode.Ignore };
             _labels.AddToClassList("tw-strip__labels");
