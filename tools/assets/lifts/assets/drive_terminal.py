@@ -5,12 +5,16 @@ lifting portal toward the line.
 Loaded chairs arrive on the left rope (v-) and unload over the pier; the bullwheel turns counter-clockwise
 seen from above. Dimensions: sessellift_fgq4.json "drive" and "common" (millimetres), checked against the
 source elevations by the adversarial review (review record, Gate 1).
+
+Drive at either end (owner, 2026-11-02; liftkit/swap.py): the entry head with its support trains is the top head;
+the bottom head is the return's lifting frame with its hold-down assemblies (the integrated hold-down tower), its
+legs cut down onto the entry beams, so the drive can stand at the bottom with riders loading over the pier.
 """
 import math
 
 from mathutils import Vector
 
-from liftkit import heads, parts, prims
+from liftkit import heads, parts, prims, swap
 from liftkit.export import Asset
 from liftkit.mesh import GLASS, MeshBuilder, Style
 from liftkit.prims import U, V, W
@@ -224,12 +228,13 @@ def end_openings(mb, h, half, st, lod):
 
 
 # -- entry end -------------------------------------------------------------------------------------
-def build_entry(mb, d, lod, st):
-    """The entry head (integrated first tower) and the walkways: the chamfered crossbeam at rope height with its
-    foot plates, tied to the entry beams by the drawn link (end plates, rods with tabs, a member against the
-    crossbeam); the lifting portal (152 mm square legs cut level at both ends, top beam with through-bolts,
-    25 mm lug plates with eyes, J-handrails); the upper walkway with its railings and tube gate; the lower
-    entry platform with its end member, U hoop and struts; the ladder."""
+def entry_head(mb, d, lod, st, seat=None):
+    """The entry head (integrated first tower): the chamfered crossbeam at rope height with its foot plates, tied to
+    the entry beams by the drawn link (end plates, rods with tabs, a member against the crossbeam); the lifting
+    portal (152 mm square legs cut level at both ends, top beam with through-bolts, 25 mm lug plates with eyes,
+    J-handrails); the lower entry platform with its end member, U hoop and struts. seat: (bottom, v) in mm, the
+    end plates reaching down to that height on that centre line (the return's rails, when it is the return's top
+    head; liftkit/swap.py)."""
     heads.crossbeam(mb, d["crossbeam"], lod, st)
     # link to the terminal: end plates on the entry beams, a member against the crossbeam, rods with tabs
     lk, eb = d["link"], d["entryBeams"]
@@ -237,9 +242,10 @@ def build_entry(mb, d, lod, st):
     prims.box(mb, (m(mem["u"][0]), -m(mem["v"]), m(mem["w"][0])), (m(mem["u"][1]), m(mem["v"]), m(mem["w"][1])), st["steel"])
     if lod <= 2:
         pl = lk["plates"]
+        w0 = m(pl["w"][0]) if seat is None else m(seat[0])
         for s in (-1, 1):
-            vc = s * (m(eb["vIn"]) + m(eb["vOut"])) / 2
-            prims.box(mb, (m(pl["u"][0]), vc - m(pl["thick"]) / 2, m(pl["w"][0])), (m(pl["u"][1]), vc + m(pl["thick"]) / 2, m(pl["w"][1])), st["steel"])
+            vc = s * ((m(eb["vIn"]) + m(eb["vOut"])) / 2 if seat is None else m(seat[1]))
+            prims.box(mb, (m(pl["u"][0]), vc - m(pl["thick"]) / 2, w0), (m(pl["u"][1]), vc + m(pl["thick"]) / 2, m(pl["w"][1])), st["steel"])
     if lod <= 1:
         rd, tb, lw = lk["rods"], lk["tab"], lk["lower"]
         for s in (-1, 1):
@@ -249,6 +255,47 @@ def build_entry(mb, d, lod, st):
             prims.box(mb, (m(tb["u"][0]), vr - m(tb["width"]) / 2, m(tb["w"][0])), (m(tb["u"][1]), vr + m(tb["width"]) / 2, m(tb["w"][1])), st["steel"])
             prims.box(mb, (m(lw["u"][0]), vr - m(lw["width"]) / 2, m(lw["w"][0])), (m(lw["u"][1]), vr + m(lw["width"]) / 2, m(lw["w"][1])), st["steel"])
     heads.portal(mb, d["portal"], lod, st)
+    # lower entry platform beyond the crossbeam: end member on the crossbeam face, U hoop across its end, struts
+    heads.entry_platform(mb, d["entryPlatform"], d["crossbeam"], lod, st)
+
+
+def support_trains(mb, a, c, d, lod, st):
+    """The support trains on both ropes at the entry frame (rope on top; from photos, see spec common.sheaveTrain),
+    hung from plates bolted to the crossbeam ends. Returns the u where the rope leaves over the outermost sheave."""
+    rope, hg, rope_r = m(c["ropeElevation"]), m(c["lineGauge"]) / 2, m(c["ropeDiameter"]) / 2
+    et, tr = d["entryTrains"], c["sheaveTrain"]
+    train = {"n": tr["n"], "pitch": m(tr["pitch"]), "rocker": m(tr["rocker"]), "beam": m(tr["beam"])}
+    pl = et["plate"]
+    plate = {"v": (m(pl["v"][0]), m(pl["v"][1])), "top": m(pl["top"]), "width": m(pl["width"]), "pin": m(pl["pin"])}
+    for side, name in ((-1, "l"), (1, "r")):
+        parts.sheave_train(mb, a, name, m(et["u"]), side * hg, rope, rope_r, m(c["guideSheave"]["dia"]), m(c["guideSheave"]["width"]),
+                           train, et["mode"], None, lod, st, plate=plate, stops=et.get("pinStops"))
+    return m(et["u"]) + (tr["n"] - 1) / 2 * m(tr["pitch"])   # the rope leaves over the outermost train sheave
+
+
+def bottom_head(a, body, spec, lod):
+    """The return's lifting frame and hold-down assemblies (return_terminal.lifting_frame, entry_trains), grafted on
+    as the bottom head: the legs cut level on the entry beams' top and set back so they stand on the beams' line
+    end. The rope runs level from the bullwheel past the pier, where riders load, and leaves climbing."""
+    import return_terminal
+    c, d, r = spec["common"], spec["drive"], spec["return"]
+    rope, hg = m(c["ropeElevation"]), m(c["lineGauge"]) / 2
+    eb, lf = d["entryBeams"], r["liftingFrame"]
+    _, back = return_terminal.leg_span(lf, eb["top"])
+    du = m(eb["uTo"] - back)
+    src, smb = Asset("bottom"), MeshBuilder()
+    rst = return_terminal.styles()
+    return_terminal.lifting_frame(smb, lf, lod, rst, floor=(eb["top"], eb["vIn"], eb["vOut"]))
+    u_hold, (u_out, w_out), exit_angle = return_terminal.entry_trains(smb, src, spec, r, lod, rst)
+    src.sockets = {"rope_left_hold": (u_hold, -hg, rope), "rope_right_hold": (u_hold, hg, rope),
+                   "rope_left_out": (u_out, -hg, w_out), "rope_right_out": (u_out, hg, w_out)}
+    swap.graft(a, body, src, smb, "bottom", (du, 0.0, 0.0), (m(lf["u"]), 0.0, rope),
+               dims={"ropeExitDeg": round(math.degrees(exit_angle), 2), "liftingFrameU": round(lf["u"] + du * 1000)},
+               sockets={"chair_load": (0.0, hg, rope)})   # riders sit down over the pier, as at the return
+
+
+def build_entry(mb, d, lod, st):
+    """The walkways: the upper walkway with its railings and tube gate; the ladder and its landing plate."""
     # upper walkway on the +v longitudinal beam, with the hood wing and the ladder landing
     wk = d["walkway"]
     deck, t = m(wk["deck"]), 0.05
@@ -281,8 +328,6 @@ def build_entry(mb, d, lod, st):
         if lod == 0:
             gm = (gv0 + gv1) / 2
             prims.cylinder(mb, (gu, gm, gb), (gu, gm, gt), gr * 0.8, 6, st["yellow"], caps=(False, False))
-    # lower entry platform beyond the crossbeam: end member on the crossbeam face, U hoop across its end, struts
-    heads.entry_platform(mb, d["entryPlatform"], d["crossbeam"], lod, st)
     # ladder from the landing plate up to the walkway; handrails rise with it to capped ends (no return leg)
     ld = d["ladder"]
     foot = Vector((m(ld["foot"][0]), m(ld["foot"][1]), m(ld["foot"][2])))
@@ -345,15 +390,11 @@ def build(spec, lod, stage):
         prims.cylinder(body, tuple(m(x) for x in ds["from"]), tuple(m(x) for x in ds["to"]), m(ds["dia"]) / 2, 8 if lod == 0 else 5, st["trim"])
 
     build_entry(body, d, lod, st)
-    # support trains on both ropes at the entry frame (rope on top; from photos, see spec common.sheaveTrain)
-    et, tr = d["entryTrains"], c["sheaveTrain"]
-    train = {"n": tr["n"], "pitch": m(tr["pitch"]), "rocker": m(tr["rocker"]), "beam": m(tr["beam"])}
-    pl = et["plate"]   # hung from plates bolted to the crossbeam ends
-    plate = {"v": (m(pl["v"][0]), m(pl["v"][1])), "top": m(pl["top"]), "width": m(pl["width"]), "pin": m(pl["pin"])}
-    for side, name in ((-1, "l"), (1, "r")):
-        parts.sheave_train(body, a, name, m(et["u"]), side * hg, rope, rope_r, m(c["guideSheave"]["dia"]), m(c["guideSheave"]["width"]),
-                           train, et["mode"], None, lod, st, plate=plate, stops=et.get("pinStops"))
-    u_out = m(et["u"]) + (tr["n"] - 1) / 2 * m(tr["pitch"])   # the rope leaves over the outermost train sheave
+    # the top head (its own): the entry head and its support trains; the bottom head: the return's (liftkit/swap.py)
+    with swap.head(a, body, "top", (m(d["portal"]["u"]), 0.0, rope), owns=("rope_left_out", "rope_right_out", "chair_unload")):
+        entry_head(body, d, lod, st)
+        u_out = support_trains(body, a, c, d, lod, st)
+    bottom_head(a, body, spec, lod)
 
     # guide sheaves between the pier and the bullwheel (rope rides on top), hung inboard from the base frame
     gs = c["guideSheave"]
@@ -380,13 +421,13 @@ def build(spec, lod, stage):
 
     a.body = body
     cbm = d["crossbeam"]
-    a.sockets = {
+    a.sockets.update({
         "line": (0.0, 0.0, 0.0),
         "rope_left_bw": (u_bw, -hg, rope), "rope_right_bw": (u_bw, hg, rope),
         "rope_left_out": (u_out, -hg, rope), "rope_right_out": (u_out, hg, rope),
         "chair_unload": (0.0, -hg, rope),
         "pier_top": (0.0, 0.0, m(pi["top"])),   # the pier's top centre, under the steel pier head
-    }
+    })
     a.dims.update({"bullwheelU": round(u_bw * 1000), "guideSheaveU": d["guideSheaves"]["u"], "columnU": pi["u"],
                    "columnV": pi["v"], "columnTop": pi["top"], "platformEnd": d["entryPlatform"]["uTo"], "entryU": d["portal"]["u"]})
     return a

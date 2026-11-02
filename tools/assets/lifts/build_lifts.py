@@ -21,11 +21,11 @@ import bpy
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "assets"))
-from liftkit import ao, clash, export, fit, frame, gauge, materials, palette, textures  # noqa: E402
+from liftkit import ao, clash, export, fit, frame, gauge, materials, palette, swap, textures  # noqa: E402
 
 MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "chair", "sle_ground_gun": "sle_ground_gun",
            "terminal_footing": "terminal_footing",
-           "monta_drive": "monta_drive", "monta_return": "monta_return",
+           "monta_drive": "monta_drive", "monta_return": "monta_return", "monta_return_bottom": "monta_return_bottom",
            # name -> (module, variant): the stick gun's lance in feet of pipe
            "sle_stick_gun_10": ("sle_stick_gun", 10), "sle_stick_gun_20": ("sle_stick_gun", 20),
            "sle_stick_gun_30": ("sle_stick_gun", 30),
@@ -46,7 +46,8 @@ for model in ("fgd2", "fgt3"):
     OVERLAY.update({f"{model}_tower_{h}": ("tower", over, h) for h in ("s4", "s6", "b8", "d8", "c8")})
 for model in ("fg2", "fg3"):
     OVERLAY.update({f"monta_{model}_drive": ("monta_drive", f"monta_{model}.json", None),
-                    f"monta_{model}_return": ("monta_return", f"monta_{model}.json", None)})
+                    f"monta_{model}_return": ("monta_return", f"monta_{model}.json", None),
+                    f"monta_{model}_return_bottom": ("monta_return_bottom", f"monta_{model}.json", None)})
 # the chairs an overlay's terminals send round their bullwheels: its own Sessellift chair and the Chairworks one (by seats)
 FIT_CHAIRS = {2: ("sessellift_fgd2.json", "chairworks_chair:double_fixed"), 3: ("sessellift_fgt3.json", "chairworks_chair:triple_fixed")}
 # the D6's wide heads (assets/tower_wide.py): one per Sessellift head type, at the D6's gauge
@@ -57,7 +58,7 @@ TOWER = {"tower_s4": "s4", "tower_s6": "s6", "tower_b8": "b8", "tower_d8": "d8",
 # TW-14's leaned bases (task P3-07): every 2.5 degrees to 15
 TOWER.update({f"tower_base_l{d:03d}": f"base_l{d:03d}" for d in range(25, 151, 25)})
 SLE = ("sle_stick_gun_10", "sle_stick_gun_20", "sle_stick_gun_30", "sle_ground_gun")
-MONTA = ("monta_drive", "monta_return")
+MONTA = ("monta_drive", "monta_return", "monta_return_bottom")
 CHAIRWORKS = ("chairworks_chair_detach", "chairworks_chair_fixed", "chairworks_chair_double_fixed", "chairworks_chair_triple_fixed")
 D6 = ("d6_drive", "d6_return", "d6_chair") + tuple(f"d6_tower_{h}" for h in ("s4", "s6", "s10", "b10", "d10", "c8"))
 ALL = ("drive,return,terminal_footing,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA) + "," + ",".join(CHAIRWORKS)
@@ -89,15 +90,51 @@ def ao_options(kind, assets):
     return ground, (assets[0].sockets["top"][2] if kind == "tower_mast" else None)
 
 
+def views(a):
+    """(end, asset as that head shows it) for each of a terminal's heads (liftkit/swap.py), or (None, a) without heads."""
+    return [(end, swap.view(a, end)) for end in swap.ENDS if end in a.heads] or [(None, a)]
+
+
+def head_totals(a, report):
+    """A terminal with two heads draws one at a time: per LOD, the triangles shown with each head (the body, the
+    parts of neither head and that head's), and the larger as the LOD's shown total (liftkit/swap.py)."""
+    for e in report["lods"]:
+        e["shown"] = e["total"]
+        if a.heads:
+            e["heads"] = {end: e["total"] - sum(t for k, t in e["parts"].items() if k in swap.other_parts(a, end))
+                          for end in a.heads}
+            e["shown"] = max(e["heads"].values())
+
+
+def sweep_heads(a):
+    """The clash sweep (liftkit/clash.py) with each head shown in turn; a pivot both views hold (the bullwheel, the
+    carriage) keeps the narrower range of the two."""
+    out = {}
+    for _, v in views(a):
+        for k, r in (clash.sweep(v) if v.pivots else {}).items():
+            if k not in out:
+                out[k] = r
+            else:
+                lo, hi = out[k]["range"]
+                by = list(out[k]["by"])
+                if r["range"][0] > lo:
+                    lo, by[0] = r["range"][0], r["by"][0]
+                if r["range"][1] < hi:
+                    hi, by[1] = r["range"][1], r["by"][1]
+                out[k] = {"range": [lo, hi], "by": by}
+    return out
+
+
 def check_asset(kind, assets, report, budgets, spec, split=None):
     problems = []
     caps = budgets[kind]["lods"]
     if len(assets) != len(caps):
         problems.append(f"{len(assets)} LODs built, budget lists {len(caps)}")
-    totals = [e["total"] for e in report["lods"]]
+    head_totals(assets[0], report)
+    totals = [e["shown"] for e in report["lods"]]
     for e, cap in zip(report["lods"], caps):
-        if e["total"] > cap["maxTris"]:
-            problems.append(f"LOD{e['lod']}: {e['total']:,} tris > {cap['maxTris']:,}")
+        if e["shown"] > cap["maxTris"]:
+            problems.append(f"LOD{e['lod']}: {e['shown']:,} tris shown > {cap['maxTris']:,}")
     for a, b in zip(totals, totals[1:]):
         if b >= a:
             problems.append(f"LOD totals must decrease: {totals}")
@@ -110,24 +147,25 @@ def check_asset(kind, assets, report, budgets, spec, split=None):
             parent = assets[0].pivots[name].get("parent")
             if parent and parent not in assets[0].pivots:
                 problems.append(f"LOD{lod}: {name}'s parent {parent} has no pivot")
-    if kind in ("terminal", "terminal_detach"):
+    for end, a in (views(assets[0]) if kind in ("terminal", "terminal_detach") else []):
         c = spec["common"]
-        line_v = assets[0].sockets.get("line", (0, 0, 0))[1]
-        rope = assets[0].dims.get("rope", c.get("ropeElevation", 0)) / 1000   # a terminal's own rope height, if it has one
-        for name, p in assets[0].sockets.items():
+        at = f" ({end} head)" if end else ""
+        line_v = a.sockets.get("line", (0, 0, 0))[1]
+        rope = a.dims.get("rope", c.get("ropeElevation", 0)) / 1000   # a terminal's own rope height, if it has one
+        for name, p in a.sockets.items():
             if name.startswith("rope_"):
                 # on the line gauge; level at the rope elevation, except where the rope leaves a row levelled at
                 # its first sheave (the out sockets of a terminal with hold sockets): climbing out of a bottom
                 # station or arriving from below at a top one, within a metre and a half
                 off_gauge = abs(abs(p[1] - line_v) - c["lineGauge"] / 2000) > 0.001
-                if name.endswith("_out") and f"{name[:-4]}_hold" in assets[0].sockets:
+                if name.endswith("_out") and f"{name[:-4]}_hold" in a.sockets:
                     off_height = not (0.001 < abs(p[2] - rope) < 1.5)
-                elif name.endswith("_bw") and "bullwheelW" in assets[0].dims:   # a lowered, tilted wheel (the D6)
-                    off_height = abs(p[2] - assets[0].dims["bullwheelW"] / 1000) > 0.001
+                elif name.endswith("_bw") and "bullwheelW" in a.dims:   # a lowered, tilted wheel (the D6)
+                    off_height = abs(p[2] - a.dims["bullwheelW"] / 1000) > 0.001
                 else:
                     off_height = abs(p[2] - rope) > 0.001
                 if off_gauge or off_height:
-                    problems.append(f"socket {name} at {p} is off the rope")
+                    problems.append(f"socket {name}{at} at {p} is off the rope")
     if kind in ("tower_head", "tower_head_wide"):   # ropes at the line gauge, level with each other, at the head's declared height
         g = spec["common"]["lineGauge"] / 2000
         rope = assets[0].dims["rope"] / 1000
@@ -200,7 +238,7 @@ def main():
         bpy.context.scene.collection.children.link(coll)
         mats = [chair_mat] if kind in ("chair", "chair_detach") else [structure, glass]
         objs, rep, split = export.make_objects(assets, mats, coll)
-        sweep = clash.sweep(assets[0]) if assets[0].pivots else {}
+        sweep = sweep_heads(assets[0]) if assets[0].pivots else {}
         tiling = None
         if opts.get("ao", "on") != "off":
             t_ao = time.time()
@@ -209,10 +247,20 @@ def main():
             # the identity and they get baked where their pivots' origins are (as the shipped sheaves were, before P3-07)
             bpy.context.view_layer.update()
             ao_stats = []
+            heads = assets[0].heads
             for lod in range(len(assets)):
                 lod_objs = [o for o in objs if o.type == "MESH" and o.name.endswith(f"_LOD{lod}")]
-                ao_stats.append(ao.bake(lod_objs, rays=32 if lod == 0 else 16, ground=ground,
-                                        ghosts=(-section, section) if section else ()))
+                if not heads:
+                    ao_stats.append(ao.bake(lod_objs, rays=32 if lod == 0 else 16, ground=ground,
+                                            ghosts=(-section, section) if section else ()))
+                    continue
+                # two heads: each baked with only itself shown; the body and the shared parts with the default head
+                part = {o: o.name[len(aid) + 1:-len(f"_LOD{lod}")] for o in lod_objs}
+                for end in sorted(heads, key=lambda e: not heads[e]["default"]):
+                    hidden = swap.other_parts(assets[0], end)
+                    shown = [o for o in lod_objs if part[o] not in hidden]
+                    targets = shown if heads[end]["default"] else [o for o in shown if part[o] in swap.owned(assets[0], end)]
+                    ao_stats.append(ao.bake(shown, rays=32 if lod == 0 else 16, ground=ground, targets=targets))
                 if section:
                     worst = ao.tiling_error(lod_objs, section)
                     tiling = max(tiling or 0.0, worst)
@@ -242,8 +290,9 @@ def main():
                 else:
                     check = fit.station if getattr(assets[0], "paths", {}).get("chairs") else fit.fixed   # fixed grips: round the wheel
                     for lod in range(min(len(assets), 3 if check is fit.station else 2)):   # every LOD chairs pass up close
-                        lp, _ = check(assets[lod], cmod.build(cspec, lod, stage, *cargs))
-                        fp += [f"{tag}LOD{lod} {p}" for p in lp]
+                        for end, v in views(assets[lod]):   # with each head (liftkit/swap.py)
+                            lp, _ = check(v, cmod.build(cspec, lod, stage, *cargs))
+                            fp += [f"{tag}LOD{lod}{' ' + end if end else ''} {p}" for p in lp]
             problems += fp
             print(f"{aid}: fit in {time.time() - t_fit:.1f} s: " + ("clear" if not fp else f"{len(fp)} problems"), flush=True)
         if name in OVERLAY and kind == "tower_head":   # a double's or triple's head: its chair past it on both ropes
@@ -284,6 +333,9 @@ def main():
             "paths": {k: [[round(x, 4) for x in frame.unity(p)] for p in pts] for k, pts in getattr(a0, "paths", {}).items()},
             "bounds": [[round(x, 3) for x in frame.unity(b)] for b in a0.body.bounds_lift()],
             "dims": a0.dims,
+            # a fixed-grip terminal's two heads, one shown at a time (liftkit/swap.py): its pivots and sockets
+            **({"heads": {e: {"default": h["default"], "prefix": h["prefix"], "pivots": h["pivots"],
+                              "sockets": h["sockets"], "dims": h["dims"]} for e, h in a0.heads.items()}} if a0.heads else {}),
             "partTris": a0.part_tris,
             "partTargets": a0.budget_targets,
             "problems": problems,
@@ -295,7 +347,9 @@ def main():
             result["assets"][aid]["catalog"] = {"maker": cat["maker"], "model": model, "name": shown}
         built[name] = {"assets": assets, "objects": objs, "collection": coll, "spec": own,
                        "ranges": {k: v["range"] for k, v in result["assets"][aid]["pivots"].items()}}   # Unity degrees
-        print(f"{aid}: tris per LOD {[e['total'] for e in rep['lods']]}" + (f"  PROBLEMS: {problems}" if problems else ""), flush=True)
+        print(f"{aid}: tris per LOD {[e['shown'] for e in rep['lods']]}"
+              + "".join(f", {end} head {[e['heads'][end] for e in rep['lods']]}" for end in a0.heads)
+              + (f"  PROBLEMS: {problems}" if problems else ""), flush=True)
         failures += [f"{aid}: {p}" for p in problems]
     result["failures"] = failures
     result["buildSeconds"] = round(time.time() - t0, 1)

@@ -102,6 +102,9 @@ def sweep(a, limit=60.0, step=1.0, tol=0.1, flush=0.001):
     pcs = pieces(a)
     result = {}
     for name, piv in a.pivots.items():
+        if piv.get("fixed"):   # a terminal head's steel (liftkit/swap.py): shown or hidden, never turned
+            result[name] = {"range": [0.0, 0.0], "by": ["fixed", "fixed"]}
+            continue
         if export.spins(name, piv):
             result[name] = {"range": [-180.0, 180.0], "by": ["spins", "spins"]}
             continue

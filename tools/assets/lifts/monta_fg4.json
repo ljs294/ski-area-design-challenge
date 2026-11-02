@@ -4889,7 +4889,16 @@
     ]
    ]
   },
-  "loadU": 3200
+  "loadU": 3200,
+  "topTrains": {
+   "_note": "drive at either end (owner, 2026-11-02): at the top the rope comes in over a support (breakover) train of four sheaves per rope, the Sessellift's kit train at the Monta's own 520 mm row pitch (its 470 mm sheaves), its beam on a hanger from the front cross tube inboard of the rope; the hold-down tree is the other head",
+   "u": 7428,
+   "n": 4,
+   "pitch": 520,
+   "rocker": 160,
+   "beam": 300,
+   "pinStops": {"beam": 10, "rocker": 5}
+  }
  },
  "return": {
   "ropeElevation": 3039.0,
@@ -5624,12 +5633,26 @@
   ],
   "unloadU": 1000
  },
+ "returnBottom": {
+  "_about": "drive at either end (owner, 2026-11-02): the return for a lift driven from the top, from the owner's photos of the type and the Monta's kit. One box column leaning back from a pad under a flat frame; on the frame the return's carriage and exposed wheel; a spine of constant depth rising from the frame over the drive's front cross tube (shortened past its clamps), the drive's exit trees hung from it as at the drive. Proportions from the photos, sizes from the kit; millimetres, origin on the wheel's axle at grade.",
+  "ropeElevation": 3039.0,
+  "pad": {"lo": [2281.6, -750.0, -2500.0], "hi": [3781.6, 750.0, 200.2]},
+  "basePlate": {"lo": [2500.0, -380.0, 200.2], "hi": [3600.0, 380.0, 225.2]},
+  "column": {"profile": [[2600.0, 225.2], [3500.0, 225.2], [2200.0, 2150.0], [1200.0, 2150.0]], "halfV": 300},
+  "frame": {"lo": [-600.0, -950.0, 2150.0], "hi": [3100.0, 950.0, 2597.7]},
+  "carriageBoxes": ["bottomPlate", "topPlate", "backBlock", "backPlate", "frontPiece"],
+  "spine": {"halfV": 300, "depth": 450,
+            "path": [[2400.0, 2373.9], [4000.0, 2700.0], [5300.0, 3350.0], [6400.0, 4050.0], [7428.3, 4685.5], [8300.0, 4840.0]]},
+  "tube": {"u": 7428.3, "w": 4300.5, "dia": 320.0, "reach": 2850.0},
+  "loadU": 3200
+ },
  "catalog": {
   "maker": "Monta",
   "name": "Monta FG4",
   "parts": {
    "monta_drive": "Drive terminal",
-   "monta_return": "Return terminal"
+   "monta_return": "Return terminal",
+   "monta_return_bottom": "Bottom return terminal"
   }
  }
 }

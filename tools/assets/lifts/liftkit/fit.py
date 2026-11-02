@@ -27,6 +27,14 @@ CONTACTS = {"#rail": "wheels", "#tyres": "tyre plate", "#openrail": "top roller"
 TOUCH = 0.003   # a contact zone must come within this of its piece somewhere, and never sink deeper into it (m)
 THUMP = 0.050   # how far a passing grip may ride into a line sheave: real grips lift it as they pass (round 3, P5-14)
 TRAIN = ("sheave_", "rocker_", "yoke_", "eq_", "link_", "block_")   # a head's sheave trains: built to pass grips closely
+HEADS = ("bottom_", "top_")   # a terminal's gained head prefixes its trains (liftkit/swap.py)
+
+
+def bare(name):
+    """A part's name without a terminal head's prefix (bottom_sheave_l2 -> sheave_l2)."""
+    return name.partition("_")[2] if name.startswith(HEADS) else name
+
+
 # pieces built to guide a passing grip closely: these zones may come near them (no `clear` needed) but never into them
 GUIDES = {"#horns": ("guide roller", "grip and arm"), "#bend_sheaves": ("grip and arm", "wheels"),
           "#tyres": ("grip and arm",), "#openrail": ("grip and arm",), "#openrail_hangers": ("top roller", "grip and arm"),
@@ -267,10 +275,10 @@ def tower(asset, chair, rope_r, sheave_r, clear=CLEAR, step=STEP, reach=3.0, res
                 for name, (tree, blo, bhi, centres) in trees.items():
                     if (hi < blo).any() or (lo > bhi).any():
                         continue
-                    sheave = name.startswith("sheave_")
+                    sheave = bare(name).startswith("sheave_")
                     if ct is None:
                         ct = _tree(x, cf)
-                    train = name.startswith(TRAIN)
+                    train = bare(name).startswith(TRAIN)
                     bad = [(i_, j) for i_, j in ct.overlap(tree) if not (sheave and fzone[i_] in ("grip and arm", "wheels"))]
                     if bad:
                         k2 = (name.rstrip("0123456789"), ", ".join(sorted({fzone[i_] for i_, _ in bad})))
@@ -377,7 +385,7 @@ def fixed(asset, chair, clear=CLEAR, step=STEP, arc_step=math.radians(3.0)):
                 continue
             if name == "#chairguide":   # rails built to steer the passing hangers: the chair may run against them
                 continue
-            rides = name == "bullwheel" or name.startswith(TRAIN)
+            rides = name == "bullwheel" or bare(name).startswith(TRAIN)
             if ct is None:
                 ct = _tree(x, cf)
             bad = [(i, j) for i, j in ct.overlap(tree) if not (fgrip[i] and rides)]

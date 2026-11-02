@@ -13,6 +13,9 @@ checked by the Gate 1 review):
 
 Loaded chairs leave on the right rope (v+); the bullwheel turns counter-clockwise seen from above. The carriage
 is shown as drawn, at the near end of its 2.44 m travel (bullwheel centre 1.99 m behind the pier).
+Drive at either end (owner, 2026-11-02; liftkit/swap.py): the lifting frame with its hold-down assemblies is the
+bottom head; the top head is the drive's entry head with its support trains, its link plates reaching down to the
+rails' line end, so the return can stand at the top with riders unloading over the pier.
 Dimensions: sessellift_fgq4.json "return" and "common" (millimetres); carriage and catwalk positions are
 measured from the bullwheel axis, bullwheel heights from the rope.
 """
@@ -20,7 +23,7 @@ import math
 
 from mathutils import Vector
 
-from liftkit import parts, prims
+from liftkit import parts, prims, swap
 from liftkit.export import Asset
 from liftkit.mesh import MeshBuilder, Style
 from liftkit.prims import U, V, W
@@ -316,14 +319,35 @@ def guides(mb, a, c, r, lod, st):
         prims.box(mb, (m(bm["uFrom"]), m(bm["v"][0]), o_lo), (m(bm["uTo"]), m(bm["v"][1]), o_hi), st["steel"])
 
 
-def lifting_frame(mb, lf, lod, st):
+def clip_up(poly, floor):
+    """The part of polygon poly ((u, w) points) at or above w = floor (Sutherland-Hodgman, one edge)."""
+    out = []
+    for i, p in enumerate(poly):
+        q = poly[(i + 1) % len(poly)]
+        if p[1] >= floor:
+            out.append(p)
+        if (p[1] - floor) * (q[1] - floor) < 0:
+            t = (floor - p[1]) / (q[1] - p[1])
+            out.append((p[0] + t * (q[0] - p[0]), floor))
+    return out
+
+
+def leg_span(lf, floor):
+    """The lifting frame's legs at height floor (mm): (u from, u to) where a level cut there meets them."""
+    lg = lf["legs"]
+    pts = [p for p in clip_up([tuple(p) for p in lg["edgeA"] + lg["edgeB"]], floor) if abs(p[1] - floor) < 1e-6]
+    return min(p[0] for p in pts), max(p[0] for p in pts)
+
+
+def lifting_frame(mb, lf, lod, st, floor=None):
     """The lifting frame at the entry (the integrated first tower): two curved plate legs from the rails up to a
     flat top under a plate, seated on a joint plate against the crossbeam; the adjusting rods through the leg-top
     plates and the rod plates on the crossbeam; the crossbeam with narrower end stubs closed by plates with a V
     pendant and a ring boss; the portal (legs cut level on bolted foot plates and under the beam, end lug plates,
     small U-lugs, ring bosses on the beam ends); and the platform (channel frame with grating, brackets and an
     inner-end plate at the crossbeam, flat-bar knee braces to the hoop posts, the railing hoop across its outer
-    end with a centre post)."""
+    end with a centre post). floor: (w, v in, v out) in mm, the legs cut level there and stood on seat plates across
+    beams between v in and v out (the drive's entry beams, when it is the drive's bottom head; liftkit/swap.py)."""
     cb = lf["crossbeam"]
     cu0, cu1, cb0, cb1 = m(cb["uFrom"]), m(cb["uTo"]), m(cb["bottom"]), m(cb["top"])
     half = m(cb["v"]) / 2
@@ -360,8 +384,14 @@ def lifting_frame(mb, lf, lod, st):
         edge_b = edge_b if lod == 1 else [edge_b[0], edge_b[1], edge_b[-1]]
     vlo, vhi = m(lg["vCentre"]) - m(lg["thick"]) / 2, m(lg["vCentre"]) + m(lg["thick"]) / 2
     tp, jp = lg["topPlate"], lg["jointPlate"]
+    outline = edge_a + edge_b if floor is None else clip_up(edge_a + edge_b, m(floor[0]))
+    if floor is not None:   # seat plates under the cut legs, across the beams they stand on
+        f0, f1 = (m(x) for x in leg_span(lf, floor[0]))
+        for s in (-1, 1):
+            v0, v1 = sorted((s * min(vlo, m(floor[1])), s * max(vhi, m(floor[2]))))
+            prims.box(mb, (f0 - 0.04, v0, m(floor[0])), (f1 + 0.04, v1, m(floor[0]) + 0.025), st["steel"])
     for s in (-1, 1):   # curved upper edge A to a flat top, vertical back edge, straight 60-degree lower edge B
-        prims.prism(mb, edge_a + edge_b, (0, s * m(lg["vCentre"]) - m(lg["thick"]) / 2, 0), U, W, V, m(lg["thick"]), st["steel"])
+        prims.prism(mb, outline, (0, s * m(lg["vCentre"]) - m(lg["thick"]) / 2, 0), U, W, V, m(lg["thick"]), st["steel"])
         if lod <= 2:
             v0, v1 = sorted((s * m(tp["v"][0]), s * m(tp["v"][1])))
             prims.box(mb, (m(tp["u"][0]), v0, m(tp["w"][0])), (m(tp["u"][1]), v1, m(tp["w"][1])), st["steel"])
@@ -499,6 +529,25 @@ def entry_trains(mb, a, spec, r, lod, st):
     return u_first, (u0 + axles[-1][0], rope), 0.0   # a level rope leaves over the outermost sheave
 
 
+def top_head(a, body, spec, lod):
+    """The drive's entry head and support trains (drive_terminal.entry_head, support_trains), grafted on as the top
+    head: moved so the link plates meet the rails' line end as they meet the drive's entry beams, and deepened to
+    the rails' underside on the rails' centre line. The rope arrives over the trains and runs level to the wheel."""
+    import drive_terminal
+    c, d, r = spec["common"], spec["drive"], spec["return"]
+    rope, hg = m(c["ropeElevation"]), m(c["lineGauge"]) / 2
+    rl = r["rails"]
+    du = m(rl["uTo"] - d["entryBeams"]["uTo"])
+    src, smb = Asset("top"), MeshBuilder()
+    dst = drive_terminal.styles(lod)
+    drive_terminal.entry_head(smb, d, lod, dst, seat=(rl["bottom"], (rl["vIn"] + rl["vOut"]) / 2))
+    u_out = drive_terminal.support_trains(smb, src, c, d, lod, dst)
+    src.sockets = {"rope_left_out": (u_out, -hg, rope), "rope_right_out": (u_out, hg, rope)}
+    swap.graft(a, body, src, smb, "top", (du, 0.0, 0.0), (m(d["portal"]["u"]), 0.0, rope),
+               dims={"entryU": round(d["portal"]["u"] + du * 1000)},
+               sockets={"chair_unload": (0.0, -hg, rope)})   # riders get off over the pier, as at the drive
+
+
 def bullwheel(mb, centre, pitch, bw, lod, st):
     """The exposed bullwheel: rim channel with the rope groove and a spacer ring, the top ring plate, eight spokes
     whose undersides rise from the hub to the rim (I-sections up close), the hub drum and bearing cap, and hook
@@ -576,8 +625,12 @@ def build(spec, lod, stage):
     carriage(body, r, u_bw, rope, lod, st)
     catwalk(body, r["catwalk"], u_bw, lod, st)
     guides(body, a, c, r, lod, st)
-    lifting_frame(body, r["liftingFrame"], lod, st)
-    u_hold, (u_out, w_out), exit_angle = entry_trains(body, a, spec, r, lod, st)
+    # the bottom head (its own): the lifting frame and its hold-down assemblies; the top head: the drive's (liftkit/swap.py)
+    with swap.head(a, body, "bottom", (m(r["liftingFrame"]["u"]), 0.0, rope),
+                   owns=("rope_left_hold", "rope_right_hold", "rope_left_out", "rope_right_out", "chair_load")):
+        lifting_frame(body, r["liftingFrame"], lod, st)
+        u_hold, (u_out, w_out), exit_angle = entry_trains(body, a, spec, r, lod, st)
+    top_head(a, body, spec, lod)
 
     centre = Vector((u_bw, 0.0, rope))
     if lod <= 2:
@@ -590,14 +643,14 @@ def build(spec, lod, stage):
 
     lf = r["liftingFrame"]
     a.body = body
-    a.sockets = {   # the rope: level from the bullwheel to the hold-down row (hold), leaving it climbing (out)
+    a.sockets.update({   # the rope: level from the bullwheel to the hold-down row (hold), leaving it climbing (out)
         "line": (0.0, 0.0, 0.0),
         "rope_left_bw": (u_bw, -hg, rope), "rope_right_bw": (u_bw, hg, rope),
         "rope_left_hold": (u_hold, -hg, rope), "rope_right_hold": (u_hold, hg, rope),
         "rope_left_out": (u_out, -hg, w_out), "rope_right_out": (u_out, hg, w_out),
         "chair_load": (0.0, hg, rope),   # riders sit down over the pier, along the chair guide
         "pier_top": (0.0, 0.0, m(r["pedestal"]["top"])),   # the pier's top centre, under the steel head
-    }
+    })
     a.dims.update({"bullwheelU": round(u_bw * 1000), "guideSheaveU": r["guideSheaves"]["u"], "liftingFrameU": lf["u"],
                    "railsEnd": r["rails"]["uTo"], "pedestalTop": r["pedestal"]["top"], "portalTop": lf["portal"]["top"],
                    "catwalkTop": r["catwalk"]["top"], "hubDia": r["bullwheel"]["hubDia"],

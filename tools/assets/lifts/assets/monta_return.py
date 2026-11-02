@@ -89,28 +89,7 @@ def build(spec, lod, stage):
         for p in r["bolts"]:
             prims.cylinder(body, mv((p[0], p[1], p[2] - 30)), mv((p[0], p[1], p[2] + 40)), 0.012, 6, st["rod"])
 
-    # the wheel carriage's C-frames and its hub
-    car = r["carriage"]
-    if lod <= 2:
-        cframes(body, car["cframes"], st, lod)
-    else:   # far out: the C-frames as one block
-        lo_ = [min(cf["lo"][i] for cf in car["cframes"]) for i in range(3)]
-        hi_ = [max(cf["hi"][i] for cf in car["cframes"]) for i in range(3)]
-        prims.box(body, mv(lo_), mv(hi_), st["steel"])
-    hb = car["hub"]
-    if lod <= 2:
-        prims.cylinder(body, (0.0, 0.0, m(hb["bottom"])), (0.0, 0.0, m(hb["top"])), m(hb["dia"]) / 2, parts.sides(lod, 20, 12, 8, 6), st["rod"],
-                       fan_caps=True)
-
-    # the bullwheel on its axle at rope elevation
-    centre = Vector((0.0, 0.0, rope))
-    if lod <= 2:
-        wb = MeshBuilder()
-        wheel(wb, centre, gauge_wheel(c), hg, lod, st, m(c["ropeDiameter"]) / 2)
-        a.parts["bullwheel"] = wb
-        a.pivots["bullwheel"] = {"pos": tuple(centre), "axis": (0.0, 0.0, 1.0)}
-    else:
-        wheel(body, centre, gauge_wheel(c), hg, lod, st, m(c["ropeDiameter"]) / 2)
+    carriage_wheel(a, body, c, r, lod, st, rope, hg)
 
     # deflection sheaves at the arm's ends (the rope rides on top; a single sheave is first and last: red)
     for dfl in r["deflection"]:
@@ -134,3 +113,29 @@ def build(spec, lod, stage):
     a.sockets.update(pier_sockets(pier_tops))
     a.dims.update({"rope": r["ropeElevation"], "deflectionU": r["deflection"][0]["u"]})
     return a
+
+
+def carriage_wheel(a, body, c, r, lod, st, rope, hg):
+    """The wheel carriage's C-frames and its hub, and the exposed bullwheel on its axle at rope elevation (shared with
+    the bottom return, assets/monta_return_bottom.py)."""
+    car = r["carriage"]
+    if lod <= 2:
+        cframes(body, car["cframes"], st, lod)
+    else:   # far out: the C-frames as one block
+        lo_ = [min(cf["lo"][i] for cf in car["cframes"]) for i in range(3)]
+        hi_ = [max(cf["hi"][i] for cf in car["cframes"]) for i in range(3)]
+        prims.box(body, mv(lo_), mv(hi_), st["steel"])
+    hb = car["hub"]
+    if lod <= 2:
+        prims.cylinder(body, (0.0, 0.0, m(hb["bottom"])), (0.0, 0.0, m(hb["top"])), m(hb["dia"]) / 2, parts.sides(lod, 20, 12, 8, 6), st["rod"],
+                       fan_caps=True)
+
+    # the bullwheel on its axle at rope elevation
+    centre = Vector((0.0, 0.0, rope))
+    if lod <= 2:
+        wb = MeshBuilder()
+        wheel(wb, centre, gauge_wheel(c), hg, lod, st, m(c["ropeDiameter"]) / 2)
+        a.parts["bullwheel"] = wb
+        a.pivots["bullwheel"] = {"pos": tuple(centre), "axis": (0.0, 0.0, 1.0)}
+    else:
+        wheel(body, centre, gauge_wheel(c), hg, lod, st, m(c["ropeDiameter"]) / 2)

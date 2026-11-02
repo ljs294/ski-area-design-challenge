@@ -19,7 +19,7 @@ import os
 import bpy
 from mathutils import Matrix, Vector
 
-from liftkit import frame, materials
+from liftkit import frame, materials, swap
 from liftkit import pose as lk_pose
 
 MM_PER_PX = 8.0
@@ -38,6 +38,7 @@ ORTHO = {
     "sle_ground_gun": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "monta_drive": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "monta_return": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
+    "monta_return_bottom": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     # the Sessellift D6, as its layouts draw it (seen through the deliberate mirror, Gate 0)
     "d6_chair": [("front", "-v", "+w"), ("side", "+u", "+w")],
     "d6_drive": [("side", "-u", "+w"), ("end", "+v", "+w"), ("plan", "-u", "-v")],
@@ -49,8 +50,9 @@ ORTHO.update({k: [("front", "-v", "+w"), ("side", "+u", "+w")]
 # the fixed-grip doubles' and triples' terminals (v0.3.2): build keys, and the quad terminal each is drawn like
 NARROW_TERMINALS = {f"{p}_{end}": (end if p.startswith("fg") else f"monta_{end}")
                     for p in ("fgd2", "fgt3", "monta_fg2", "monta_fg3") for end in ("drive", "return")}
+NARROW_TERMINALS.update({f"monta_{p}_return_bottom": "monta_return_bottom" for p in ("fg2", "fg3")})   # drive at either end
 ORTHO.update({k: ORTHO[like] for k, like in NARROW_TERMINALS.items()})
-TERMINALS = ("drive", "return", "monta_drive", "monta_return", "d6_drive", "d6_return") + tuple(NARROW_TERMINALS)
+TERMINALS = ("drive", "return", "monta_drive", "monta_return", "monta_return_bottom", "d6_drive", "d6_return") + tuple(NARROW_TERMINALS)
 CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed", "d6_chair",
           "fgd2_chair", "fgt3_chair", "chairworks_chair_double_fixed", "chairworks_chair_triple_fixed")
 # the chairs of each fixed-grip family side by side: quad, triple, double (v0.3.2)
@@ -111,8 +113,15 @@ def show_only(objs):
         o.hide_viewport = hide
 
 
-def lod_objects(built, lod):
-    return [o for o in built["objects"] if o.type == "MESH" and o.name.endswith(f"_LOD{lod}")]
+def lod_objects(built, lod, end=None):
+    """An asset's meshes at a LOD; a terminal with two heads (liftkit/swap.py) shows one, its default unless end."""
+    objs = [o for o in built["objects"] if o.type == "MESH" and o.name.endswith(f"_LOD{lod}")]
+    a = built["assets"][0]
+    if not a.heads:
+        return objs
+    end = end or next(e for e, h in a.heads.items() if h["default"])
+    hidden = swap.other_parts(a, end)
+    return [o for o in objs if o.name[len(a.id) + 1:-len(f"_LOD{lod}")] not in hidden]
 
 
 def camera(name="ReviewCam"):
@@ -714,7 +723,8 @@ def chair_lineup(name, chairs, spec, out_dir, mats, gap=3.0):
 
 
 TERMINAL_LINEUPS = {"monta_drive": ("monta_drive", "monta_fg3_drive", "monta_fg2_drive"),   # v0.3.2: quad, triple,
-                    "monta_return": ("monta_return", "monta_fg3_return", "monta_fg2_return")}   # double
+                    "monta_return": ("monta_return", "monta_fg3_return", "monta_fg2_return"),   # double
+                    "monta_return_bottom": ("monta_return_bottom", "monta_fg3_return_bottom", "monta_fg2_return_bottom")}
 
 
 def terminal_lineup(name, terms, out_dir, gap=16.0):
@@ -842,16 +852,17 @@ def _w_on(path, u, rope_w):
     return path[-1][1]
 
 
-def terminal_photos(key, built, spec, out_dir, mats, chairs):
+def terminal_photos(key, built, spec, out_dir, mats, chairs, end=None):
     """Cycles "photos" of a terminal on snow: the haul rope looped round the bullwheel with chairs on it
     (13.8 m apart) and a 1.8 m figure; hero, back, side, approach and high views, close-ups of the bullwheel and
     the entry, one after snowfall and, for the drive, the hood in other livery colours. At the return, the line
     leaves the station climbing: the rope bends up under the hold-down rows and runs up a hillside, and a
-    close-up looks at the hold-down row from the side."""
+    close-up looks at the hold-down row from the side. end: the head a two-headed terminal shows (liftkit/swap.py),
+    its gained head's shots named <key>_as_<end>."""
     sc, sun = _photo_scene()
     c = spec["common"]
-    objs = lod_objects(built, 0)
-    a0 = built["assets"][0]
+    objs = lod_objects(built, 0, end)
+    a0 = swap.view(built["assets"][0], end) if end else built["assets"][0]
     rope_w = (a0.dims["rope"] if "rope" in a0.dims else c["ropeElevation"]) / 1000   # a terminal's own rope
     hg = c["lineGauge"] / 2000
     u_bw = a0.pivots["bullwheel"]["pos"][0]
@@ -881,14 +892,15 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
         pos += [(u, hg, _w_on(path, u, rope_w)) for u in (u_bw + 3.0 + 13.8 * k for k in range(4))]
         pos += [(u, -hg, _w_on(path, u, rope_w)) for u in (u_bw + 9.9 + 13.8 * k for k in range(4))]
         hung = hang_chairs(chairs, [(p, _yaw_for(p, u_bw)) for p in pos])
-    fig = _photo_figure((1.2, hg + 1.4, 0.0) if key.endswith("return") else (1.5, -(hg + 1.4), 0.0))
+    loading = key.endswith(("return", "return_bottom")) if end is None else end == "bottom"   # riders get on (v+) or off (v-)
+    fig = _photo_figure((1.2, hg + 1.4, 0.0) if loading else (1.5, -(hg + 1.4), 0.0))
     show_only(objs + extras + hung + [fig])
     restore_uv(objs)
     lo, hi = bounds_lift(objs)
     lo.z = max(lo.z, 0.0)
     centre = (lo + hi) / 2
     radius = (hi - lo).length / 2
-    shoot_at = _shooter(key, out_dir)
+    shoot_at = _shooter(key if end is None else f"{key}_as_{end}", out_dir)
 
     def shoot(name, target, az, el, dist, lens=50):   # up the line, lift the camera clear of the hillside
         while climbing and el < 60:
@@ -923,7 +935,7 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
     materials.set_snow(mats, 1.0)
     shoot("snowfall", tuple(centre), 35, 12, radius * 2.3, lens=40)
     materials.set_snow(mats, 0.0)
-    if key.endswith("drive"):
+    if key.endswith("drive") and end is None:
         for name, rgb in (("blue", (0.08, 0.25, 0.62)), ("green", (0.08, 0.40, 0.18)), ("yellow", (0.85, 0.62, 0.08))):
             materials.set_livery(mats, rgb)
             shoot(f"livery_{name}", tuple(centre), 35, 12, radius * 2.3, lens=40)
@@ -1618,6 +1630,9 @@ def render_all(built, spec, out_dir, shots, mats):
                 d6_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs_for(key))
             elif key in TERMINALS:
                 terminal_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs_for(key))
+                for end, h in built[key]["assets"][0].heads.items():   # the gained head, the terminal at its other end
+                    if not h["default"]:
+                        terminal_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs_for(key), end)
     for name, keys in CHAIR_LINEUPS.items():
         if "photos" in shots and all(k in built for k in keys):
             chair_lineup(name, [built[k] for k in keys], spec, out_dir, mats)

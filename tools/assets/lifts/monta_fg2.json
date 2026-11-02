@@ -17,7 +17,8 @@
     "name": "Monta FG2",
     "parts": {
       "monta_fg2_drive": "Drive terminal",
-      "monta_fg2_return": "Return terminal"
+      "monta_fg2_return": "Return terminal",
+      "monta_fg2_return_bottom": "Bottom return terminal"
     }
   }
 }
