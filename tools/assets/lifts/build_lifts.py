@@ -145,7 +145,12 @@ def main():
     tex_dir = os.path.join(out_dir, "textures")
     os.makedirs(tex_dir, exist_ok=True)
     stage = opts.get("stage", "detail")
-    names = opts.get("assets", ALL).split(",")
+    # the doubles' and triples' Sessellift assets go by their short names (fgd2_chair) or their ids (sessellift_fgd2_chair)
+    names = [n[len("sessellift_"):] if n.startswith("sessellift_fg") and n[len("sessellift_"):] in OVERLAY else n
+             for n in opts.get("assets", ALL).split(",")]
+    unknown = [n for n in names if n not in TOWER and n not in OVERLAY and n not in MODULES]
+    if unknown:
+        raise SystemExit(f"build_lifts: no asset named {', '.join(unknown)}")
     spec = json.load(open(os.path.join(HERE, "sessellift_fgq4.json"), encoding="utf-8"))
     specs = {"sessellift_fgq4.json": spec}
 
@@ -243,11 +248,11 @@ def main():
             print(f"{aid}: fit in {time.time() - t_fit:.1f} s: " + ("clear" if not fp else f"{len(fp)} problems"), flush=True)
         if name in OVERLAY and kind == "tower_head":   # a double's or triple's head: its chair past it on both ropes
             ls = __import__("liftkit.parts", fromlist=["line_spec"]).line_spec(own)
-            lp, _ = fit.tower(assets[0], importlib.import_module("chair").build(own, 0, stage), ls["ropeR"], ls["sheave"]["dia"] / 2)
             # the quad's approved heads seat their equalisers (a combination's block) flush on the lug plates at rest,
             # so fit.tower's at-rest contact check (written for the D6's wide heads) is reported, not failed
-            rest = [p for p in lp if p.endswith("meets the head's structure")]
-            lp = [p for p in lp if p not in rest]
+            lp, info = fit.tower(assets[0], importlib.import_module("chair").build(own, 0, stage), ls["ropeR"], ls["sheave"]["dia"] / 2,
+                                 rest_ok=True)
+            rest = info["atRest"]
             problems += lp
             print(f"{aid}: chair past the head: " + ("clear" if not lp else f"{len(lp)} problems")
                   + (f" (at rest, as the quad's heads: {', '.join(rest)})" if rest else ""), flush=True)
@@ -286,7 +291,8 @@ def main():
         cat = own.get("catalog", {})   # the name the game shows, when the spec names this asset
         shown = cat.get("parts", {}).get(aid) or cat.get("parts", {}).get(name)
         if shown:
-            result["assets"][aid]["catalog"] = {"maker": cat["maker"], "model": cat["name"], "name": shown}
+            model = cat.get("models", {}).get(aid, cat["name"])   # a family's other models (the Chairworks double, triple)
+            result["assets"][aid]["catalog"] = {"maker": cat["maker"], "model": model, "name": shown}
         built[name] = {"assets": assets, "objects": objs, "collection": coll, "spec": own,
                        "ranges": {k: v["range"] for k, v in result["assets"][aid]["pivots"].items()}}   # Unity degrees
         print(f"{aid}: tris per LOD {[e['total'] for e in rep['lods']]}" + (f"  PROBLEMS: {problems}" if problems else ""), flush=True)

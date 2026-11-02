@@ -15,7 +15,7 @@ axis (where the grip's arm reaches across to the rope), with no geometry added. 
 v = axisV (the drawn chair sits 32 mm inboard of the rope).
 
 The double and triple (the spec's model.seats, v0.3.2) are the quad narrowed by rule (derive): the support steel keeps
-its sizes and the top bar shortens.
+its sizes, the side frames' bow scales with the seats and the top bar shortens to meet them.
 """
 import copy
 import math
@@ -34,39 +34,64 @@ def m(x):
     return x / 1000.0
 
 
-SEAT = 243   # half a rider's width on the bench (mm): the quad's bench is four seats of 486
+LOD2_FRAME = 1080   # the quad's LOD2 side-frame boxes (half-width, mm)
 
 
 def derive(quad, seats):
-    """A narrower chair from the quad's spec (owner, 2026-11-01): the same seat per rider, so every half-width outside
-    the top bar (the side frames and edge rails, the bench, bottom member and backrest, the safety bar's rail, legs and
-    rod) moves in by (4 - seats) x SEAT, its shape unchanged; the top bar shortens by as much, and what sits on it (the
-    safety bar's sleeves, arms and handles, the web plate) is spaced along the shorter bar from the clamp out, as the D6
-    widens it (d6_chair.derive). Tubes, hanger, clamp and grip keep the quad's sizes; nothing hangs lower."""
-    dw = (seats - 4) * SEAT
+    """A narrower chair from the quad's spec (owner, 2026-11-01/02): the same seat per rider (the quad's bench over its
+    four seats), so the bench, bottom member, backrest and the safety bar's rail and rod move in by dw = (4 - seats)
+    half-seats a side. The side frames keep their side profile and tube and the gap to the bench at seat level (their last point,
+    b), and their bow across the rope (the top bar's corner in, the bulge out past the seat) scales by seats / 4: one
+    rule from the double (half the quad's bow) to the quad. The top bar ends at the frames' new top; what sits on it
+    (the safety bar's sleeves, arms and handles) is spaced along it from the clamp out, as the D6 widens it
+    (d6_chair.derive), and the web plate's lens wings move in with the bar's end, cut at the clamp. The safety bar's
+    footrests hang from the middle (D3): one leg on a double, two either side of the middle seat on a triple, in place
+    of the quad's end legs. Tubes, hanger, clamp and grip keep the quad's sizes; nothing hangs lower."""
+    seat = 2 * quad["bench"]["halfWidth"] / 4   # a rider's width (486)
+    dw = (seats - 4) * seat / 2                  # per side
+    f = seats / 4
+    b = quad["sideFrame"][-1][1]
+
+    def bow(hw):   # a side-frame half-width: the seat-level line moves in by dw, the bow about it scales by f
+        return b + dw + (hw - b) * f
+
     c0, c1 = quad["clamp"]["halfWidth"], quad["topBar"]["halfLength"]
-    k = (c1 + dw - c0) / (c1 - c0)
+    top = bow(c1)
+    k = (top - c0) / (c1 - c0)
 
     def on_bar(x):   # a half-width on the top bar, from the clamp to the bar's end
         return x if x <= c0 else c0 + (x - c0) * k
 
     ch = copy.deepcopy(quad)
     ch["seats"] = seats
-    ch["topBar"]["halfLength"] = c1 + dw
-    ch["web"]["lower"] = [[on_bar(hw), w] for hw, w in quad["web"]["lower"]]
+    ch["topBar"]["halfLength"] = top
+    ch["web"]["lower"] = web_wings(quad["web"]["lower"], top - c1, c0)
     ch["sleeves"].update({"from": on_bar(quad["sleeves"]["from"]), "to": on_bar(quad["sleeves"]["to"])})
-    ch["sideFrame"] = [[u, hw + dw, w] for u, hw, w in quad["sideFrame"]]
-    ch["edgeRail"] = [[u, hw + dw, w] for u, hw, w in quad["edgeRail"]]
-    b = ch["bar"]
-    b["armHalfWidth"] = on_bar(b["armHalfWidth"])
-    b["handle"]["halfWidth"] = on_bar(b["handle"]["halfWidth"])
-    b["rail"]["halfWidth"] += dw
-    b["leg"] = [[u, hw + dw, w] for u, hw, w in b["leg"]]
-    b["rod"]["halfWidth"] += dw
+    ch["sideFrame"] = [[u, bow(hw), w] for u, hw, w in quad["sideFrame"]]
+    ch["edgeRail"] = [[u, bow(hw), w] for u, hw, w in quad["edgeRail"]]
+    bar = ch["bar"]
+    bar["armHalfWidth"] = on_bar(bar["armHalfWidth"])
+    bar["handle"]["halfWidth"] = on_bar(bar["handle"]["halfWidth"])
+    bar["rail"]["halfWidth"] += dw
+    bar["leg"] = [[u, hw + dw, w] for u, hw, w in bar["leg"]]
+    bar["rod"]["halfWidth"] = bar["rail"]["halfWidth"]   # the footrest bar across, as wide as the rail
+    bar["footLegs"] = [(i - (seats - 2) / 2) * seat for i in range(seats - 1)] if seats < 4 else None
     for key in ("bench", "bottomMember", "backrest"):
         ch[key]["halfWidth"] += dw
-    ch["lod2Frame"] = 1080 + dw
+    ch["lod2Frame"] = bow(LOD2_FRAME)
     return ch
+
+
+def web_wings(lower, d, clamp):
+    """The web plate's lower edge with its lens wings moved d along the bar (in, d < 0), cut where they meet the
+    clamp's face (inside the clamp the plate is hidden)."""
+    pts = [[hw + d, w] for hw, w in lower if hw > 0]
+    out = [p for p in pts if p[0] > clamp]
+    inside = [p for p in pts if p[0] <= clamp]
+    if inside and out:   # the cut: on the edge between the last point inside and the first one out
+        (h0, w0), (h1, w1) = inside[-1], out[0]
+        out.insert(0, [clamp, w0 + (w1 - w0) * (clamp - h0) / (h1 - h0)])
+    return [[0, lower[0][1]]] + out
 
 
 def build(spec, lod, stage):
@@ -88,14 +113,15 @@ def build(spec, lod, stage):
     if lod == 3:   # a speck out to 800 m (polish: chairs vanished at 300 m while the towers stayed): seat and back as one
         us = [p[0] for p in bench["profile"]] + [ch["backrest"]["top"][0], ch["backrest"]["bottom"][0]]   # block, the
         ws = [p[1] for p in bench["profile"]] + [ch["backrest"]["top"][1]]                                  # top bar, hanger
-        prims.box(mb, (m(min(us)), ax - m(bench["halfWidth"]), m(min(ws))), (m(max(us)), ax + m(bench["halfWidth"]), m(max(ws))), seat, skip=("-2",))
+        hw = m(ch.get("lod2Frame", bench["halfWidth"]))   # a double or triple: as wide as its LOD2 frames
+        prims.box(mb, (m(min(us)), ax - hw, m(min(ws))), (m(max(us)), ax + hw, m(max(ws))), seat, skip=("-2",))
         prims.box(mb, (-0.03, ax - m(top["halfLength"]), m(top["w"]) - 0.03), (0.03, ax + m(top["halfLength"]), m(top["w"]) + 0.03), steel, skip=("-2",))
-        prims.box(mb, (-0.04, -0.04, m(top["w"])), (0.04, 0.3, 0.0), steel, skip=("-2",))
+        prims.box(mb, (-0.04, -0.04, m(top["w"])), (0.04, min(0.3, ax + m(top["halfLength"])), 0.0), steel, skip=("-2",))
         return finish(a, mb, ch)
     if lod == 2:   # distant stand-in: hanger, top bar, side frames, bench and backrest as boxes
         prims.box(mb, (-0.04, -0.04, m(top["w"])), (0.04, 0.3, 0.0), steel)
         prims.box(mb, (-0.03, ax - m(top["halfLength"]) - 0.25, m(top["w"]) - 0.03), (0.03, ax + m(top["halfLength"]) + 0.25, m(top["w"]) + 0.03), steel)
-        fr = ch.get("lod2Frame", 1080)
+        fr = ch.get("lod2Frame", LOD2_FRAME)
         for s in (-1, 1):
             prims.box(mb, (-0.30, ax + s * m(fr) - 0.03, m(-2600)), (0.0, ax + s * m(fr) + 0.03, m(top["w"])), steel)
         us = [p[0] for p in bench["profile"]]

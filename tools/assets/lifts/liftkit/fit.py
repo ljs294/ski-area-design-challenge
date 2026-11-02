@@ -196,12 +196,14 @@ def station(asset, chair, clear=CLEAR, step=STEP):
     return problems, {"poses": len(poses), "clashes": len(clashes), "tight": len(near)}
 
 
-def tower(asset, chair, rope_r, sheave_r, clear=CLEAR, step=STEP, reach=3.0):
+def tower(asset, chair, rope_r, sheave_r, clear=CLEAR, step=STEP, reach=3.0, rest_ok=False):
     """Problems found sending `chair` (an Asset at LOD0) past a line tower head (an Asset at LOD0) on both ropes. The
     rope is laid as the head's trains lay it: over each support sheave (under each hold-down one) and straight on for
     `reach` past the row's ends. The grip pitches with the rope, the hanger hangs plumb from its hinge (contract M3).
     The sheaves are contacts for the grip (it rides over them; a real grip lifts a sheave by a few millimetres: it may
-    not sink deeper than TOUCH); everything else needs `clear`."""
+    not sink deeper than TOUCH); everything else needs `clear`. The moving parts' contacts with the head's own steel at
+    rest are problems, or with rest_ok (the quad's heads seat their equalisers flush on the lug plates) returned in the
+    report's "atRest"."""
     body, pieces = asset.body.split(pieces=True)
     groups = {"structure": body, **pieces}
     trees = {}
@@ -294,13 +296,14 @@ def tower(asset, chair, rope_r, sheave_r, clear=CLEAR, step=STEP, reach=3.0):
     for (name, z), (d, c) in sorted(near.items()):
         problems.append(f"fit: chair ({z}) passes {name} {d * 1000:.1f} mm away (< {clear * 1000:.0f}) at "
                         f"u {c[0] * 1000:.0f}, v {c[1] * 1000:.0f}, w {c[2] * 1000:.0f}")
-    for name, (tree, *_r) in trees.items():   # every moving part clear of the head's own steel at rest (Gate 1, review T1)
-        if name != "structure" and "#" not in name and "structure" in trees and trees["structure"][0].overlap(tree):
-            problems.append(f"fit: {name} meets the head's structure")
+    at_rest = [name for name, (tree, *_r) in trees.items()   # every moving part clear of the head's own steel at rest
+               if name != "structure" and "#" not in name and "structure" in trees and trees["structure"][0].overlap(tree)]
+    if not rest_ok:   # (Gate 1, review T1)
+        problems += [f"fit: {name} meets the head's structure" for name in at_rest]
     deep = min(touch.values(), default=0.0)
     if deep < -THUMP:
         problems.append(f"fit: the grip rides {-deep * 1000:.1f} mm into a sheave (> {THUMP * 1000:.0f})")
-    return problems, {"clashes": len(clashes), "tight": len(near), "thump": round(-deep * 1000, 1)}
+    return problems, {"clashes": len(clashes), "tight": len(near), "thump": round(-deep * 1000, 1), "atRest": at_rest}
 
 
 GRIP_ZONE = 0.25   # a fixed grip and the hanger's top bend ride this far under the rope, round wheels and under sheaves (m)

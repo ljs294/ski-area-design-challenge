@@ -619,12 +619,31 @@ def restraint_sleeves(mb, sl, r, place, style):
 def restraint_bar(mb, bar, radii, place, near, sides, style, handle_style):
     """The Sessellift chair's safety bar, raised behind the seat: arms from the pivot sleeves (up close), the rail,
     the legs with their footrest stubs, and up close the rod and the handles. place as for restraint_sleeves; radii:
-    the bar, rod and handle tubes (m)."""
+    the bar, rod and handle tubes (m). A double's or triple's bar (bar["footLegs"], v0.3.2) hangs its footrest legs
+    from the middle of the rail at those half-widths instead of at its ends, whose corners turn down short."""
     rail = bar["rail"]
     for s in ((-1, 1) if near else ()):
         prims.tube_path(mb, [place(u, bar["armHalfWidth"], w, s) for u, w in bar["arm"]], radii["bar"], sides, style)
     leg = bar["leg"]
     c = rail["corner"]
+    if bar.get("footLegs"):
+        ends = [place(leg[0][0], leg[0][1], leg[0][2], 1)]
+        path = ends + [place(rail["u"], rail["halfWidth"] + c * 0.5, rail["w"] - c * 0.5, 1), place(rail["u"], rail["halfWidth"], rail["w"], 1),
+                       place(rail["u"], rail["halfWidth"], rail["w"], -1), place(rail["u"], rail["halfWidth"] + c * 0.5, rail["w"] - c * 0.5, -1)]
+        path += [place(leg[0][0], leg[0][1], leg[0][2], -1)]
+        prims.tube_path(mb, path, radii["bar"], sides, style)
+        down = [leg[i] for i in (1, 2, 3, 4)] if near else [leg[3], leg[4]]
+        for hw in bar["footLegs"]:
+            prims.tube_path(mb, [place(rail["u"], hw, rail["w"], 1)] + [place(u, hw, w, 1) for u, _, w in down], radii["bar"], sides, style)
+        if near:
+            rod = bar["rod"]
+            prims.cylinder(mb, place(rod["u"], -rod["halfWidth"], rod["w"], 1), place(rod["u"], rod["halfWidth"], rod["w"], 1), radii["rod"], 3,
+                           style)
+            hd = bar["handle"]
+            for s in (-1, 1):
+                prims.cylinder(mb, place(hd["from"][0], hd["halfWidth"], hd["from"][1], s), place(hd["to"][0], hd["halfWidth"], hd["to"][1], s),
+                               radii["handle"], 4, handle_style, caps=(False, False))
+        return
     right = [leg[i] for i in (4, 3, 2, 1, 0)] if near else [leg[4], leg[3], leg[0]]
     path = [place(u, hw, w, 1) for u, hw, w in right]
     path += [place(rail["u"], rail["halfWidth"] + c * 0.5, rail["w"] - c * 0.5, 1), place(rail["u"], rail["halfWidth"], rail["w"], 1),

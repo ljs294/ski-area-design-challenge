@@ -554,9 +554,13 @@ def _shooter(prefix, out_dir):
 
     only = [s for s in os.environ.get("LIFT_PHOTOS", "").split(",") if s]   # optional subset, e.g. "hero,back"
 
-    def shoot(name, target, az, el, dist, lens=50):
+    def shoot(name, target, az, el, dist, lens=50, ortho=None):
+        """ortho: an orthographic view this many metres across (a line-up's true front)."""
         if only and name not in only:
             return
+        cam.data.type = "ORTHO" if ortho else "PERSP"
+        if ortho:
+            cam.data.ortho_scale = ortho
         a, e = math.radians(az), math.radians(el)
         d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
         eye = Vector(target) + d * dist
@@ -701,7 +705,7 @@ def chair_lineup(name, chairs, spec, out_dir, mats, gap=3.0):
     restore_uv(objs)
     shoot = _shooter(f"{name}_lineup", out_dir)
     mid = (0.0, 0.0, -1.4)
-    shoot("front", mid, 0, 4, 13.0, lens=40)
+    shoot("front", mid, 0, 0, 20.0, ortho=len(chairs) * gap + 1.0)
     shoot("threequarter", mid, 30, 10, 13.5, lens=40)
     shoot("above", mid, 15, 40, 13.0, lens=40)
     for i, built in enumerate(chairs):

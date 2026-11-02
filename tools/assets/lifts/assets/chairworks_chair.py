@@ -150,23 +150,22 @@ def detach_grip(mb, g, st, rubber, dark, metal):
 
 
 def narrow(quad, seats):
-    """A narrower chair from the quad's spec (owner, 2026-11-01): the same seat per rider, so the bench, its rear rails
-    and end loops and the backrest shorten about the chair's axis; the top bar shortens and the side frames, which stand
-    inside the bench, keep their bent shape and move in whole: spaced by the bench as on the quad, but never so close
-    that the clamp reaches the top bar's corners (30 mm clear). Tubes, hanger, clamp and grip keep the quad's sizes."""
-    ax = quad["axisV"]
+    """A narrower chair from the quad's spec (owner, 2026-11-01/02): the same seat per rider, so the bench, its rear
+    rails and end loops and the backrest shorten about the chair's axis. The side frames (the rear supports) and the
+    top bar between them stay the quad's on every chair. Where the end loops would come within a frame tube of the
+    frames (the double), they run on the frames' line and the bench and backrest keep their quad's inset from them.
+    Tubes, hanger, clamp and grip keep the quad's sizes."""
     b0, b1 = quad["bench"]["v"]
     dw = (seats - quad["seats"]) * (b1 - b0) / quad["seats"] / 2   # per side (negative)
+    loops = (quad["endLoops"]["v"][1] - quad["endLoops"]["v"][0]) / 2
+    frames = (quad["sideFrames"]["v"][1] - quad["sideFrames"]["v"][0]) / 2
+    if abs(loops + dw - frames) < quad["tube"]["frame"]:
+        dw = frames - loops
     ch = copy.deepcopy(quad)
     ch["seats"] = seats
     for key in ("rearRails", "endLoops", "bench", "backrest"):
         v0, v1 = quad[key]["v"]
         ch[key]["v"] = [v0 - dw, v1 + dw]
-    sf = quad["sideFrames"]
-    half = (sf["v"][1] - sf["v"][0]) / 2
-    clamp = (quad["clamp"]["hi"][1] - quad["clamp"]["lo"][1]) / 2
-    half = max(half * ((b1 - b0) / 2 + dw) / ((b1 - b0) / 2), clamp + sf["cornerRadius"] + 30.0)
-    ch["sideFrames"]["v"] = [ax - half, ax + half]
     return ch
 
 
