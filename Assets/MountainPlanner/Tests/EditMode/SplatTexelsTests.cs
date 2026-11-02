@@ -80,6 +80,28 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void AClearingInsideAStandKeepsItsFullSnow()
+        {
+            // Finding F2 (owner, 2026-11-02): a narrow clearing (a lift line, a trail) inside forest used to take the stand's
+            // shade from the trees round it, so its snow thinned into dark patches. Now only texels with forest floor of
+            // their own take it. 129 texels a side: 8 m each, so the shade's reach is one texel either way.
+            const int n = 129, mid = 64;
+            var cover = new byte[n * n * Bands];
+            for (int j = 0; j < n; j++)
+                for (int i = 0; i < n; i++)
+                {
+                    int o = (j * n + i) * Bands;
+                    if (i == mid) cover[o + 1] = 255;   // the cleared column: grass, no forest floor
+                    else cover[o] = 255;                // forest floor
+                    cover[o + MountainPlanner.Domain.Cover.GroundCover.Layers] = 255;
+                }
+            var splat = SplatTexels.Compose(cover, n);
+            int row = n / 2 * n;
+            Assert.That(Texel(splat, row + mid).Snow, Is.EqualTo(255), "the clearing keeps its full snow");
+            Assert.That(Texel(splat, row + 10).Snow, Is.EqualTo(255 - SplatTexels.ForestShade), "the stand is shaded as before");
+        }
+
+        [Test]
         public void RoadsFillTheSecondTexturesSpareChannels()
         {
             // Task 12d: cover band 5 paved road and 6 unpaved road become texture 1's blue and alpha.
