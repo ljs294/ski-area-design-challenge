@@ -62,10 +62,7 @@ namespace MountainPlanner.Presentation.Lifts
         Vector3 _hinge;
         bool _splitChair;
 
-        sealed class ChairLod { public ChairPart[] Parts; public bool HasHanger; }
-
-        /// <summary>How the chairs swing and sway (task P3-16, BB3), built from the track.</summary>
-        ChairSwing _swing;
+        sealed class ChairLod { public ChairPart[] Parts; }
 
         /// <summary>A terminal's bullwheel, spun with the rope (task P3-16, BB2).</summary>
         struct Wheel
@@ -825,18 +822,14 @@ namespace MountainPlanner.Presentation.Lifts
                             Matrices = new Matrix4x4[_chairCount], Hanger = hanger,
                         });
                     }
-                    _chairLods[i] = new ChairLod { Parts = parts.ToArray(), HasHanger = parts.Exists(x => x.Hanger) };
+                    _chairLods[i] = new ChairLod { Parts = parts.ToArray() };
                     // Distance at which the chair's screen height falls below this LOD's threshold (60° view, lod bias).
                     float h = Mathf.Max(lods[i].screenRelativeTransitionHeight, 1e-4f);
                     _lodDistances[i] = size / (2f * Mathf.Tan(30f * Mathf.Deg2Rad) * h) * QualitySettings.lodBias;
                 }
             }
             Gone(instance);
-            _swing = ChairSwing.For(track, (float)type.ChairDropMetres);
         }
-
-        /// <summary>How this lift's chairs swing (tests and the demo).</summary>
-        public ChairSwing Swing => _swing;
 
         readonly List<Material> _instanced = new List<Material>();
 
@@ -858,16 +851,14 @@ namespace MountainPlanner.Presentation.Lifts
         }
 
         /// <summary>
-        /// Draws the chairs for this frame: each at (index × spacing + speed × time) round the loop (RP-07), hanging from
-        /// its grip and facing the way it travels, at the LOD its distance from the camera calls for; near chairs swing and
-        /// sway (<see cref="ChairSwing"/>, BB3) in the forest's wind (<paramref name="windStrength"/> 0-1, blowing toward
-        /// <paramref name="windToward"/> in world xz). Spins the bullwheels too (BB2). No allocation.
+        /// Draws the chairs for this frame: each at (index × spacing + speed × time) round the loop (RP-07), hanging plumb
+        /// from its grip and facing the way it travels, at the LOD its distance from the camera calls for. Spins the
+        /// bullwheels too (task P3-16, BB2). No allocation.
         /// </summary>
-        public void DrawChairs(Camera camera, double seconds, float windStrength = 0, Vector2 windToward = default)
+        public void DrawChairs(Camera camera, double seconds)
         {
             SpinWheels(seconds);
             if (_chairCount == 0 || _chairLods.Length == 0 || camera == null) return;
-            var look = ChairSwing.Current;
             foreach (var lod in _chairLods)
                 foreach (var p in lod.Parts) p.Count = 0;
             var eye = camera.transform.position;
@@ -899,15 +890,7 @@ namespace MountainPlanner.Presentation.Lifts
                     var along = b - a;
                     var gripRot = along.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(along) : rotation;
                     grip = Matrix4x4.TRS(p, gripRot, Vector3.one);
-                    var hangRot = rotation;
-                    if (_swing != null && _chairLods[level].HasHanger)
-                    {
-                        float pitch = _swing.Pitch(t, seconds, k, look);
-                        float across = flat.sqrMagnitude > 1e-8f ? Mathf.Abs(flat.x * windToward.y - flat.z * windToward.x) / flat.magnitude : 0;
-                        float roll = _swing.Roll(seconds, d, k, windStrength, across, look);
-                        if (pitch != 0 || roll != 0) hangRot = rotation * Quaternion.Euler(pitch, 0, roll);
-                    }
-                    hang = Matrix4x4.TRS(p + gripRot * _hinge, hangRot, Vector3.one);
+                    hang = Matrix4x4.TRS(p + gripRot * _hinge, rotation, Vector3.one);
                 }
                 foreach (var part in _chairLods[level].Parts)
                     part.Matrices[part.Count++] = (part.Hanger ? hang : grip) * part.Local;
@@ -994,7 +977,6 @@ namespace MountainPlanner.Presentation.Lifts
             PoseError = 0;
             _chairLods = Array.Empty<ChairLod>();
             _chairCount = 0;
-            _swing = null;
             _wheels = Array.Empty<Wheel>();
             _towerParts.Clear();
             _highlighted = false;   // the pieces are going: nothing to relight
