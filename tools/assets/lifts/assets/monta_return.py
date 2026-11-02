@@ -31,7 +31,7 @@ def styles(lod):
 def build(spec, lod, stage):
     c, r = spec["common"], spec["return"]
     st = styles(lod)
-    a = Asset("monta_fg4_return")
+    a = Asset(spec.get("idPrefix", "monta_fg4") + "_return")
     body = MeshBuilder()
     rope = m(r["ropeElevation"])
     hg = m(c["lineGauge"]) / 2

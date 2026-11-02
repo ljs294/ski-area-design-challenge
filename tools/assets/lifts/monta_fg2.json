@@ -1,0 +1,20 @@
+{
+  "_about": "Monta FG2 fixed-grip double terminals (v0.3.2, owner LD1, LD5): the Monta FG4's at a 11 ft line gauge through its own gauge rule (monta_drive.gauge_shift, gauge_wheel): the terminals keep the FG4's size; the bullwheel's rim and the sheaves with their mounts follow the gauge (owner photo). They carry the Sessellift narrow chairs (Q4). Rope sockets and sheaves keep the 1 3/4 in rope (LD7). Millimetres.",
+  "base": "monta_fg4.json",
+  "idPrefix": "monta_fg2",
+  "model": {
+    "seats": 2
+  },
+  "common": {
+    "ropeElevation": 3039,
+    "lineGauge": 3353
+  },
+  "catalog": {
+    "maker": "Monta",
+    "name": "Monta FG2",
+    "parts": {
+      "monta_fg2_drive": "Drive terminal",
+      "monta_fg2_return": "Return terminal"
+    }
+  }
+}

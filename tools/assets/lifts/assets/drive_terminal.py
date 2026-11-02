@@ -304,7 +304,7 @@ def build_entry(mb, d, lod, st):
 def build(spec, lod, stage):
     c, d = spec["common"], spec["drive"]
     st = styles(lod)
-    a = Asset("sessellift_fgq4_drive")
+    a = Asset(spec.get("idPrefix", "sessellift_fgq4") + "_drive")
     body = MeshBuilder()
     rope = m(c["ropeElevation"])
     hg = m(c["lineGauge"]) / 2

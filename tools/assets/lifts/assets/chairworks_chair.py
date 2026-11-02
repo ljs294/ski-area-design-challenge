@@ -7,11 +7,13 @@ front and a low backrest. No safety bar yet (the owner).
 One chair body, two grips (variant): "detach", the reference's detachable grip part by part (the jaw block; the
 carriage with its arched top plate, holed webs, axle bar and two running wheels; two coil springs on guide rods
 between seat discs; the lever and its disc; the dogleg arm; the roller), and "fixed", the fixed grip every
-fixed-grip chair carries (fixed_grip.json), its hanger coming straight out of the grip's boot.
+fixed-grip chair carries (fixed_grip.json), its hanger coming straight out of the grip's boot. "double_fixed" and
+"triple_fixed" are the fixed-grip chair narrowed by rule (narrow; v0.3.2).
 
 The origin is the grip on the rope. Chair frame (the lift frame's axes, reused): u = direction of travel, v =
 outboard (away from the bullwheel), w = up.
 """
+import copy
 import math
 
 from mathutils import Vector
@@ -24,7 +26,8 @@ from liftkit.prims import U, V, W
 KIND = "chair"
 LODS = 4
 SPEC = "chairworks_chair.json"
-VARIANTS = ("detach", "fixed")
+VARIANTS = ("detach", "fixed", "double_fixed", "triple_fixed")
+NARROW = {"double_fixed": 2, "triple_fixed": 3}   # the narrowed chairs' seats; they carry the fixed grip
 
 
 def m(x):
@@ -146,14 +149,38 @@ def detach_grip(mb, g, st, rubber, dark, metal):
                    m(ro["hub"]["dia"]) / 2, 6, metal, caps=(False, True))
 
 
+def narrow(quad, seats):
+    """A narrower chair from the quad's spec (owner, 2026-11-01): the same seat per rider, so the bench, its rear rails
+    and end loops and the backrest shorten about the chair's axis; the top bar shortens and the side frames, which stand
+    inside the bench, keep their bent shape and move in whole: spaced by the bench as on the quad, but never so close
+    that the clamp reaches the top bar's corners (30 mm clear). Tubes, hanger, clamp and grip keep the quad's sizes."""
+    ax = quad["axisV"]
+    b0, b1 = quad["bench"]["v"]
+    dw = (seats - quad["seats"]) * (b1 - b0) / quad["seats"] / 2   # per side (negative)
+    ch = copy.deepcopy(quad)
+    ch["seats"] = seats
+    for key in ("rearRails", "endLoops", "bench", "backrest"):
+        v0, v1 = quad[key]["v"]
+        ch[key]["v"] = [v0 - dw, v1 + dw]
+    sf = quad["sideFrames"]
+    half = (sf["v"][1] - sf["v"][0]) / 2
+    clamp = (quad["clamp"]["hi"][1] - quad["clamp"]["lo"][1]) / 2
+    half = max(half * ((b1 - b0) / 2 + dw) / ((b1 - b0) / 2), clamp + sf["cornerRadius"] + 30.0)
+    ch["sideFrames"]["v"] = [ax - half, ax + half]
+    return ch
+
+
 def build(spec, lod, stage, grip="detach"):
     ch = spec
+    aid = f"chairworks_chair_{grip}"
+    if grip in NARROW:
+        ch, grip = narrow(spec, NARROW[grip]), "fixed"
     steel = Style("chair_steel", snow=0.1)   # the D6's lessons (polish): seats and grips take no snow, steel a little
     seat = Style("seat_pad")
     grip_st = Style("grip")
     grip_steel = Style("chair_steel")          # the fixed grip runs through the bullwheel's liner: no snow
     wheel_st = Style("rubber")
-    a = Asset(f"chairworks_chair_{grip}")
+    a = Asset(aid)
     mb = MeshBuilder()
     tube = {k: m(d) / 2 for k, d in ch["tube"].items()}   # radii: the Sessellift chair's hanger, frame and seat rails
     r = tube["hanger"]

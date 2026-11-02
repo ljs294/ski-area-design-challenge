@@ -43,8 +43,19 @@ ORTHO = {
     "d6_drive": [("side", "-u", "+w"), ("end", "+v", "+w"), ("plan", "-u", "-v")],
     "d6_return": [("side", "+u", "+w"), ("end", "-v", "+w"), ("plan", "+u", "+v")],
 }
-TERMINALS = ("drive", "return", "monta_drive", "monta_return", "d6_drive", "d6_return")
-CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed", "d6_chair")
+# the fixed-grip doubles' and triples' chairs (v0.3.2), as the quads'
+ORTHO.update({k: [("front", "-v", "+w"), ("side", "+u", "+w")]
+              for k in ("fgd2_chair", "fgt3_chair", "chairworks_chair_double_fixed", "chairworks_chair_triple_fixed")})
+# the fixed-grip doubles' and triples' terminals (v0.3.2): build keys, and the quad terminal each is drawn like
+NARROW_TERMINALS = {f"{p}_{end}": (end if p.startswith("fg") else f"monta_{end}")
+                    for p in ("fgd2", "fgt3", "monta_fg2", "monta_fg3") for end in ("drive", "return")}
+ORTHO.update({k: ORTHO[like] for k, like in NARROW_TERMINALS.items()})
+TERMINALS = ("drive", "return", "monta_drive", "monta_return", "d6_drive", "d6_return") + tuple(NARROW_TERMINALS)
+CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed", "d6_chair",
+          "fgd2_chair", "fgt3_chair", "chairworks_chair_double_fixed", "chairworks_chair_triple_fixed")
+# the chairs of each fixed-grip family side by side: quad, triple, double (v0.3.2)
+CHAIR_LINEUPS = {"sessellift": ("chair", "fgt3_chair", "fgd2_chair"),
+                 "chairworks": ("chairworks_chair_fixed", "chairworks_chair_triple_fixed", "chairworks_chair_double_fixed")}
 
 
 def chair_rope(built):
@@ -406,7 +417,7 @@ def lod_lineup(built_all, out_dir):
         n = len(built["assets"])
         objs = []
         lo, hi = bounds_lift(lod_objects(built, 0))
-        span = (hi.y - lo.y) + 1.5 if key != "chair" else 3.0
+        span = (hi.y - lo.y) + 1.5 if key not in CHAIRS else 3.0
         placed = []
         for lod in range(n):
             group = [o for o in built["objects"] if o.type == "MESH" and o.name.endswith(f"_LOD{lod}")]
@@ -665,6 +676,36 @@ def gun_photos(key, built, out_dir, mats):
     else:
         shoot("snowfall", whole, 35, 10, nozzle.z * 1.55 + 2.0, lens=35)
     materials.set_snow(mats, 0.0)
+    _photo_end(sc, extras + [fig])
+
+
+def chair_lineup(name, chairs, spec, out_dir, mats, gap=3.0):
+    """A family's chairs side by side, each on its own rope stub over the snow at the load level with a 1.8 m figure,
+    from the front, three-quarter and above (v0.3.2: the quad, triple and double at one scale)."""
+    sc, sun = _photo_scene()
+    load = spec["common"]["ropeElevation"] / 1000
+    extras = [_snow_plane(-load), sun]
+    objs = []
+    for i, built in enumerate(chairs):
+        dv = (i - (len(chairs) - 1) / 2) * gap
+        _move(built, (0.0, dv, 0.0))
+        objs += lod_objects(built, 0)
+        bpy.ops.mesh.primitive_cylinder_add(radius=spec["common"]["ropeDiameter"] / 2000, depth=12, vertices=12,
+                                            location=frame.b((0.0, dv, 0.0)), rotation=(math.pi / 2, 0, 0))
+        rope = bpy.context.active_object
+        rope.name = f"PhotoRope{i}"
+        rope.data.materials.append(_rope_material())
+        extras.append(rope)
+    fig = _photo_figure((0.9, -(len(chairs) + 1) / 2 * gap + 0.6, -load))
+    show_only(objs + extras + [fig])
+    restore_uv(objs)
+    shoot = _shooter(f"{name}_lineup", out_dir)
+    mid = (0.0, 0.0, -1.4)
+    shoot("front", mid, 0, 4, 13.0, lens=40)
+    shoot("threequarter", mid, 30, 10, 13.5, lens=40)
+    shoot("above", mid, 15, 40, 13.0, lens=40)
+    for i, built in enumerate(chairs):
+        _move(built, (0.0, -(i - (len(chairs) - 1) / 2) * gap, 0.0))
     _photo_end(sc, extras + [fig])
 
 
@@ -1495,8 +1536,18 @@ def render_all(built, spec, out_dir, shots, mats):
     chairs = lod_objects(built["chair"], 0) if "chair" in built else None
     d6_chairs = lod_objects(built["d6_chair"], 0) if "d6_chair" in built else None   # the D6 terminals hang their own
 
+    narrow = {seats: lod_objects(built[f"{model}_chair"], 0) for seats, model in ((2, "fgd2"), (3, "fgt3"))
+              if f"{model}_chair" in built}
+
     def chairs_for(key):
-        return d6_chairs if key.startswith("d6_") else chairs
+        """The chair a terminal or head hangs: the D6's own, a double's or triple's narrow Sessellift chair (the
+        Monta's too, Q4), else the quad's."""
+        if key.startswith("d6_"):
+            return d6_chairs
+        for seats, tags in ((2, ("fgd2_", "monta_fg2_")), (3, ("fgt3_", "monta_fg3_"))):
+            if key.startswith(tags):
+                return narrow.get(seats)
+        return chairs
     packed = bpy.data.images["lift_palette"]
     materials.use_palette(mats, materials.opaque_copy(packed, os.environ.get("LIFT_LIVERY")))   # e.g. "#202326"
     if "gate1" in shots:
@@ -1512,7 +1563,7 @@ def render_all(built, spec, out_dir, shots, mats):
             if key.startswith("sle_"):
                 sle_views(key, built[key], out_dir)
     if "lods" in shots:
-        lod_lineup({k: v for k, v in built.items() if k in ("drive", "return", "chair") or k.startswith("d6_")}, out_dir)
+        lod_lineup({k: v for k, v in built.items() if k in ("drive", "return") + CHAIRS or k.startswith("d6_")}, out_dir)
     if "data" in shots:
         for key in built:
             data_views(key, built[key], out_dir)
@@ -1535,7 +1586,10 @@ def render_all(built, spec, out_dir, shots, mats):
             elif key in ("d6_drive", "d6_return"):
                 d6_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs_for(key))
             elif key in TERMINALS:
-                terminal_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs)
+                terminal_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs_for(key))
+    for name, keys in CHAIR_LINEUPS.items():
+        if "photos" in shots and all(k in built for k in keys):
+            chair_lineup(name, [built[k] for k in keys], spec, out_dir, mats)
     if "photos" in shots and all(k in built for k, _ in SLE_LINEUP):
         sle_lineup(built, out_dir, mats)
         sle_heads(built, out_dir, mats)
@@ -1551,4 +1605,10 @@ def render_all(built, spec, out_dir, shots, mats):
             kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}
             kit.update({k[3:]: built[k] for k in wide})
             tower_photos(kit, built[wide[0]]["spec"], out_dir, mats, chairs_for("d6_"), out="d6_tower_")
+        for model in ("fgd2", "fgt3"):   # the doubles' and triples' heads on the kit's mast, with their chair on the line
+            heads = [k for k in built if k.startswith(f"{model}_tower_")]
+            if heads:
+                kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}
+                kit.update({k[len(model) + 1:]: built[k] for k in heads})
+                tower_photos(kit, built[heads[0]]["spec"], out_dir, mats, chairs_for(model + "_"), out=f"{model}_tower_")
     print(f"Review renders in {out_dir}", flush=True)

@@ -13,7 +13,11 @@ grip clamps along the rope, and the hanger with everything under it hangs plumb,
 axis (where the grip's arm reaches across to the rope), with no geometry added. Chair frame (the lift frame's axes, reused): u = direction of travel
 (Unity +Z), v = outboard, away from the bullwheel (Unity +X), w = up. The chair is symmetric about
 v = axisV (the drawn chair sits 32 mm inboard of the rope).
+
+The double and triple (the spec's model.seats, v0.3.2) are the quad narrowed by rule (derive): the support steel keeps
+its sizes and the top bar shortens.
 """
+import copy
 import math
 
 from mathutils import Vector
@@ -30,13 +34,51 @@ def m(x):
     return x / 1000.0
 
 
+SEAT = 243   # half a rider's width on the bench (mm): the quad's bench is four seats of 486
+
+
+def derive(quad, seats):
+    """A narrower chair from the quad's spec (owner, 2026-11-01): the same seat per rider, so every half-width outside
+    the top bar (the side frames and edge rails, the bench, bottom member and backrest, the safety bar's rail, legs and
+    rod) moves in by (4 - seats) x SEAT, its shape unchanged; the top bar shortens by as much, and what sits on it (the
+    safety bar's sleeves, arms and handles, the web plate) is spaced along the shorter bar from the clamp out, as the D6
+    widens it (d6_chair.derive). Tubes, hanger, clamp and grip keep the quad's sizes; nothing hangs lower."""
+    dw = (seats - 4) * SEAT
+    c0, c1 = quad["clamp"]["halfWidth"], quad["topBar"]["halfLength"]
+    k = (c1 + dw - c0) / (c1 - c0)
+
+    def on_bar(x):   # a half-width on the top bar, from the clamp to the bar's end
+        return x if x <= c0 else c0 + (x - c0) * k
+
+    ch = copy.deepcopy(quad)
+    ch["seats"] = seats
+    ch["topBar"]["halfLength"] = c1 + dw
+    ch["web"]["lower"] = [[on_bar(hw), w] for hw, w in quad["web"]["lower"]]
+    ch["sleeves"].update({"from": on_bar(quad["sleeves"]["from"]), "to": on_bar(quad["sleeves"]["to"])})
+    ch["sideFrame"] = [[u, hw + dw, w] for u, hw, w in quad["sideFrame"]]
+    ch["edgeRail"] = [[u, hw + dw, w] for u, hw, w in quad["edgeRail"]]
+    b = ch["bar"]
+    b["armHalfWidth"] = on_bar(b["armHalfWidth"])
+    b["handle"]["halfWidth"] = on_bar(b["handle"]["halfWidth"])
+    b["rail"]["halfWidth"] += dw
+    b["leg"] = [[u, hw + dw, w] for u, hw, w in b["leg"]]
+    b["rod"]["halfWidth"] += dw
+    for key in ("bench", "bottomMember", "backrest"):
+        ch[key]["halfWidth"] += dw
+    ch["lod2Frame"] = 1080 + dw
+    return ch
+
+
 def build(spec, lod, stage):
     ch = spec["chair"]
+    seats = spec.get("model", {}).get("seats")
+    if seats:   # a double or triple (an overlay spec, liftkit/gauge.py)
+        ch = derive(ch, seats)
     steel = Style("chair_steel", snow=0.1)   # the D6's lessons (polish): seats and grips take no snow, steel a little
     seat = Style("seat_pad")
     grip_st = Style("grip")
     grip_steel = Style("chair_steel")          # the grip runs through the bullwheel's liner: no snow
-    a = Asset("sessellift_fgq4_chair")
+    a = Asset(spec.get("idPrefix", "sessellift_fgq4") + "_chair")
     mb = MeshBuilder()
     ax = m(ch["axisV"])
     tube = {k: m(v) / 2 for k, v in ch["tube"].items()}   # radii
@@ -53,8 +95,9 @@ def build(spec, lod, stage):
     if lod == 2:   # distant stand-in: hanger, top bar, side frames, bench and backrest as boxes
         prims.box(mb, (-0.04, -0.04, m(top["w"])), (0.04, 0.3, 0.0), steel)
         prims.box(mb, (-0.03, ax - m(top["halfLength"]) - 0.25, m(top["w"]) - 0.03), (0.03, ax + m(top["halfLength"]) + 0.25, m(top["w"]) + 0.03), steel)
+        fr = ch.get("lod2Frame", 1080)
         for s in (-1, 1):
-            prims.box(mb, (-0.30, ax + s * m(1080) - 0.03, m(-2600)), (0.0, ax + s * m(1080) + 0.03, m(top["w"])), steel)
+            prims.box(mb, (-0.30, ax + s * m(fr) - 0.03, m(-2600)), (0.0, ax + s * m(fr) + 0.03, m(top["w"])), steel)
         us = [p[0] for p in bench["profile"]]
         ws = [p[1] for p in bench["profile"]]
         prims.box(mb, (m(min(us)), ax - m(bench["halfWidth"]), m(min(ws))), (m(max(us)), ax + m(bench["halfWidth"]), m(max(ws))), seat)

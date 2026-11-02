@@ -422,7 +422,7 @@ def exit_pins(mb, tree, lod, st):
 def build(spec, lod, stage):
     c, d = spec["common"], spec["drive"]
     st = styles(lod)
-    a = Asset("monta_fg4_drive")
+    a = Asset(spec.get("idPrefix", "monta_fg4") + "_drive")
     body = MeshBuilder()
     rope = m(d["ropeElevation"])
     hg = m(c["lineGauge"]) / 2

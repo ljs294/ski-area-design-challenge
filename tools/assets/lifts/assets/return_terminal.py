@@ -566,7 +566,7 @@ def bullwheel(mb, centre, pitch, bw, lod, st):
 def build(spec, lod, stage):
     c, r = spec["common"], spec["return"]
     st = styles()
-    a = Asset("sessellift_fgq4_return")
+    a = Asset(spec.get("idPrefix", "sessellift_fgq4") + "_return")
     body = MeshBuilder()
     rope = m(c["ropeElevation"])
     hg = m(c["lineGauge"]) / 2
