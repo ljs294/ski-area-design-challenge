@@ -282,6 +282,14 @@ ruled differently. No archived code is copied; the rules are stated here as pros
   - The treeline reads natural, and nothing outside the footprint changes.
 - **CL-03, lifts:** a built lift clears a **55 ft (16.8 m)** corridor centred on its line, from terminal to terminal,
   with straight edges.
+  - **v2** (owner, 2026-11-02, after an A/B on Gilford): the corridor is **70 ft (21.3 m)**. It applies when a lift's
+    ground is built or rebuilt; lifts in older saves keep 55 ft until then.
+- **CL-10, crowns off the chairs** (owner, 2026-11-02, finding F1: crowns from outside the corridor reached the chairs):
+  a tree whose crown reaches a lift's chair lane is cut too, after ANSI B77.1 (2006 §3.1.1.4: vegetation at least
+  **5 ft** from the rope and carriers, and no contact with a carrier swinging in wind). The lane runs bullwheel to
+  bullwheel: half the gauge, half a chair, the chair swung **15°** on its hanger, and 5 ft (about **17½ ft** either side
+  for the quad). A crown's reach is its model's branch spread at the tree's width scale. The view works it out from the
+  built lifts; nothing is saved, and lifts already built follow it.
 - **CL-09, round terminals** (owner, task 07, decision SK14): a built lift also clears round each terminal, for loading
   and unloading: the terminal's footprint (from its model) plus **20 ft (6.1 m)** all round, and **50 ft (15.2 m)**
   more along the line in front of it *(tuned at 07)*.
