@@ -119,7 +119,7 @@ def lod_objects(built, lod, end=None):
     a = built["assets"][0]
     if not a.heads:
         return objs
-    end = end or next(e for e, h in a.heads.items() if h["default"])
+    end = end or swap.keys(a)[0]
     hidden = swap.other_parts(a, end)
     return [o for o in objs if o.name[len(a.id) + 1:-len(f"_LOD{lod}")] not in hidden]
 
@@ -535,9 +535,19 @@ def _photo_end(sc, extras):
     sc.render.engine = "BLENDER_WORKBENCH"
 
 
-def _snow_plane(w):
-    bpy.ops.mesh.primitive_plane_add(size=600, location=frame.b((0.0, 0.0, w)))
-    snow = bpy.context.active_object
+def _snow_plane(w, to_u=None):
+    """Flat snow at w; to_u: only back to there along the line (where the ground falls away past a top terminal)."""
+    if to_u is None:
+        bpy.ops.mesh.primitive_plane_add(size=600, location=frame.b((0.0, 0.0, w)))
+        snow = bpy.context.active_object
+    else:
+        mesh = bpy.data.meshes.new("PhotoSnowCut")
+        mesh.from_pydata([frame.b(p) for p in ((-300.0, -300.0, w), (to_u, -300.0, w), (to_u, 300.0, w), (-300.0, 300.0, w))],
+                         [], [(0, 1, 2, 3)])
+        if mesh.polygons[0].normal.z < 0:
+            mesh.flip_normals()
+        snow = bpy.data.objects.new("PhotoSnowCut", mesh)
+        bpy.context.scene.collection.objects.link(snow)
     snow.name = "PhotoSnow"
     snow.data.materials.append(_photo_material("PhotoSnowMat", (0.88, 0.91, 0.95), 0.55))
     return snow
@@ -795,16 +805,17 @@ def sle_heads(built_all, out_dir, mats, stick="sle_stick_gun_20"):
 HILL_FROM, HILL_SLOPE = 12.0, math.radians(12.0)   # where the ground starts rising past the return, and how steeply
 
 
-def _hill_w(u):
-    """Ground height up the line from the return terminal (flat to HILL_FROM, then HILL_SLOPE)."""
-    return max(0.0, u - HILL_FROM) * math.tan(HILL_SLOPE)
+def _hill_w(u, slope=HILL_SLOPE, start=HILL_FROM):
+    """Ground height along the line from the terminal (flat to start, then slope: up past a bottom terminal, down
+    past a top one)."""
+    return max(0.0, u - start) * math.tan(slope)
 
 
-def _hillside():
-    """The slope the line climbs past the return terminal: a snow sheet from HILL_FROM up the line."""
-    u0, u1, half = HILL_FROM, 300.0, 300.0
+def _hillside(slope=HILL_SLOPE, start=HILL_FROM):
+    """The slope the line climbs past a bottom terminal (or falls away past a top one): a snow sheet from start."""
+    u0, u1, half = start, 300.0, 300.0
     mesh = bpy.data.meshes.new("PhotoHill")
-    corners = [(u0, -half, 0.0), (u1, -half, _hill_w(u1)), (u1, half, _hill_w(u1)), (u0, half, 0.0)]
+    corners = [(u0, -half, 0.0), (u1, -half, _hill_w(u1, slope, start)), (u1, half, _hill_w(u1, slope, start)), (u0, half, 0.0)]
     mesh.from_pydata([frame.b(p) for p in corners], [], [(0, 1, 2, 3)])
     if mesh.polygons[0].normal.z < 0:
         mesh.flip_normals()
@@ -814,11 +825,20 @@ def _hillside():
     return hill
 
 
-def _rope_out_path(spec, a0, rope_w, far):
-    """The rope from the bullwheel up the line, as (u, w): level to the hold-down row when the terminal has one
-    (the return), round its arc and then climbing at the exit angle; otherwise level."""
+def _rope_out_path(spec, a0, rope_w, far, mode="hold"):
+    """The rope from the bullwheel out along the line, as (u, w): level to the first sheave of the row when the
+    terminal has one levelled there, round its arc and on at the exit angle (climbing under a hold-down row, mode
+    "hold"; descending over a support row, "support"); otherwise level."""
     if "rope_right_hold" not in a0.sockets:
         return [(far, rope_w)]
+    if "arc" in a0.dims:   # a kit row on lug plates (liftkit/heads.py hung_assembly): its arc and size in the head's dims
+        from liftkit import parts as lk_parts
+        asm = lk_parts.line_spec(spec)
+        arc, theta = lk_parts.hold_rope(asm, a0.dims["sheaves"], asm["arcs"][a0.dims["arc"]], a0.sockets["rope_right_hold"][0],
+                                        rope_w, mode=mode)
+        sl = theta if mode == "hold" else -theta
+        eu, ew = arc[-1]
+        return arc + [(far, ew + (far - eu) * math.tan(sl))]
     if "entryTrains" not in spec.get("return", {}):   # a terminal without the Sessellift's return arc (Monta): level
         u_hold = a0.sockets["rope_right_hold"][0]      # to the first sheave, straight to where the rope leaves the
         u_out, w_out = a0.sockets["rope_right_out"][0], a0.sockets["rope_right_out"][2]   # last one, then on up
@@ -857,8 +877,8 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs, end=None):
     (13.8 m apart) and a 1.8 m figure; hero, back, side, approach and high views, close-ups of the bullwheel and
     the entry, one after snowfall and, for the drive, the hood in other livery colours. At the return, the line
     leaves the station climbing: the rope bends up under the hold-down rows and runs up a hillside, and a
-    close-up looks at the hold-down row from the side. end: the head a two-headed terminal shows (liftkit/swap.py),
-    its gained head's shots named <key>_as_<end>."""
+    close-up looks at the hold-down row from the side. end: the head key a terminal with heads shows (liftkit/swap.py),
+    its other heads' shots named <key>_as_<head key>."""
     sc, sun = _photo_scene()
     c = spec["common"]
     objs = lod_objects(built, 0, end)
@@ -867,10 +887,14 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs, end=None):
     hg = c["lineGauge"] / 2000
     u_bw = a0.pivots["bullwheel"]["pos"][0]
     u_out = a0.sockets["rope_right_out"][0]
-    climbing = "rope_right_hold" in a0.sockets
+    a = built["assets"][0]
+    loading = (a.heads[end or swap.keys(a)[0]]["end"] == "bottom" if a.heads
+               else key.endswith(("return", "return_bottom")))   # riders get on (v+) or off (v-) at the pier
+    climbing = loading and "rope_right_hold" in a0.sockets   # the line leaves a bottom terminal up a hillside
+    falling = not loading and "rope_right_hold" in a0.sockets   # and a top one over a breakover row, down one
     # rope loop: in along the left rope, round the back of the wheel, out along the right rope
     far = 400.0 if climbing else 90.0
-    path = _rope_out_path(spec, a0, rope_w, far)
+    path = _rope_out_path(spec, a0, rope_w, far, "hold" if loading else "support")
     pts = ([(u, -hg, w) for u, w in reversed(path)]
            + [(u_bw - hg * math.sin(t), -hg * math.cos(t), rope_w) for t in (math.pi * k / 24 for k in range(25))]
            + [(u, hg, w) for u, w in path])
@@ -885,14 +909,17 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs, end=None):
     rope = bpy.data.objects.new("PhotoRope" + key, curve)
     sc.collection.objects.link(rope)
     rope.data.materials.append(_rope_material())
-    extras = [rope, _snow_plane(0.0), sun] + ([_hillside()] if climbing else [])
+    # past a top terminal the ground breaks at the row's first sheave and falls a little steeper than the rope so
+    # the chairs on the line clear it
+    drop = (math.radians(a0.dims["ropeExitDeg"] - 6.0), a0.sockets["rope_right_hold"][0]) if falling else None
+    extras = [rope, _snow_plane(0.0, drop and drop[1]), sun] + ([_hillside()] if climbing else
+                                                               [_hillside(*drop)] if falling else [])
     hung = []
     if chairs:
         pos = [(u_bw - hg, 0.0, rope_w)]
         pos += [(u, hg, _w_on(path, u, rope_w)) for u in (u_bw + 3.0 + 13.8 * k for k in range(4))]
         pos += [(u, -hg, _w_on(path, u, rope_w)) for u in (u_bw + 9.9 + 13.8 * k for k in range(4))]
         hung = hang_chairs(chairs, [(p, _yaw_for(p, u_bw)) for p in pos])
-    loading = key.endswith(("return", "return_bottom")) if end is None else end == "bottom"   # riders get on (v+) or off (v-)
     fig = _photo_figure((1.2, hg + 1.4, 0.0) if loading else (1.5, -(hg + 1.4), 0.0))
     show_only(objs + extras + hung + [fig])
     restore_uv(objs)
@@ -918,12 +945,12 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs, end=None):
     shoot("high", tuple(centre), 60, 45, radius * 2.4, lens=40)
     if climbing:   # the hold-down row from outboard of the right rope, and the line leaving up the hill
         u_hold = a0.sockets["rope_right_hold"][0]
-        if key.startswith("monta_"):   # the Monta's booms run outboard of the trains: look out at them from between the ropes
+        if key.startswith("monta_") and "drive" in key:   # the Monta's booms run outboard of the trains: look out at them from between the ropes
             shoot("holddown", ((u_hold + u_out) / 2, hg, rope_w + 0.3), -90, 4, 3.5, lens=30)
         else:
             shoot("holddown", ((u_hold + u_out) / 2, hg, rope_w + 0.3), 90, -2, 6.5, lens=40)
         shoot("leaving", (u_out + 10.0, 0.0, _w_on(path, u_out + 10.0, rope_w) - 1.0), 200, 6, 32.0, lens=40)
-        if key.startswith("monta_"):   # the exit row on the right rope: from outboard over the boom, and from inboard below
+        if key.startswith("monta_") and "drive" in key:   # the exit row on the right rope: from outboard over the boom, and from inboard below
             mid = ((u_hold + u_out) / 2, hg, rope_w + 0.45)
             shoot("trains", mid, 75, 12, 8.0, lens=40)
             shoot("trains_inboard", mid, -100, -12, 3.5, lens=24)

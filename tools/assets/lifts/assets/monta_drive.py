@@ -16,7 +16,7 @@ import math
 
 from mathutils import Vector
 
-from liftkit import parts, prims, swap
+from liftkit import heads, parts, prims, swap
 from liftkit.export import Asset
 from liftkit.mesh import GLASS, MeshBuilder, Style
 from liftkit.prims import U, V, W
@@ -594,7 +594,8 @@ def build(spec, lod, stage):
     with swap.head(a, body, "bottom", (m(tube["from"][0]), 0.0, rope),
                    owns=("rope_left_hold", "rope_right_hold", "rope_left_out", "rope_right_out", "chair_load")):
         u_hold, out, exit_deg = exit_trees(a, body, c, d, lod, st, hg, gs, sv, sheave_sides)
-    top_head(a, body, c, d, lod, st, rope, hg, tube)
+    for key, combo in d["topTrains"]["combos"].items():
+        top_head(a, body, spec, lod, st, key, combo, tube)
 
     a.body = body
     a.sockets.update({
@@ -610,25 +611,28 @@ def build(spec, lod, stage):
     return a
 
 
-def top_head(a, body, c, d, lod, st, rope, hg, tube):
-    """The top head (drive at either end, owner 2026-11-02; liftkit/swap.py): a support (breakover) train of four on
-    each rope, the rope on top, the Sessellift's kit train (parts.sheave_train) with the Monta's sheaves, its beam's pin
-    through a hanger plate from the front cross tube just inboard of the beam, so grips pass outboard and only the pin
-    stops limit the beam. The rope comes in climbing, levels
-    over the train and runs on level to the wheel; riders get off over the load point on the left rope."""
+def top_head(a, body, spec, lod, st, key, combo, tube):
+    """A top head (drive at either end, owner 2026-11-02, findings 3-4; liftkit/swap.py): on each rope the line towers'
+    kit support row of combo's count on combo's arc (parts.line_assembly, the shared tower.assembly), levelled at its
+    first sheave so the rope runs level from the wheel and bends down over the row toward the line; its main pin under
+    the front cross tube, carried by two heavy lug plates that reach up into the tube (heads.hung_assembly), inboard
+    of the rope so grips pass outboard. Riders get off over the load point on the left rope."""
+    c, d = spec["common"], spec["drive"]
+    rope, hg = m(d["ropeElevation"]), m(c["lineGauge"]) / 2
     tt = d["topTrains"]
-    src, smb = Asset("top"), MeshBuilder()
-    train = {"n": tt["n"], "pitch": m(tt["pitch"]), "rocker": m(tt["rocker"]), "beam": m(tt["beam"])}
-    u_c, w_tube = m(tt["u"]), m(tube["from"][2])
-    dia, width = m(c["sheave"]["dia"]), m(c["sheave"]["width"])
-    pv = hg - (width / 2 + 0.03)   # |v| of the train's side-plate line; its beam lies 10-110 mm inboard (parts.sheave_train)
-    plate = {"v": (pv - 0.14, pv - 0.11), "top": w_tube, "width": 0.16, "pin": 0.06}
+    asm = parts.line_spec(spec)
+    src, smb = Asset(key), MeshBuilder()
+    u_c = m(tt["u"])
+    sockets = {}
     for side, name in ((-1, "l"), (1, "r")):
-        parts.sheave_train(smb, src, name, u_c, side * hg, rope, m(c["ropeDiameter"]) / 2, dia, width, train, "support",
-                           None, lod, st, plate=plate, stops=tt.get("pinStops"))
-    u_out = u_c + (tt["n"] - 1) / 2 * train["pitch"]   # the rope leaves over the outermost train sheave
-    src.sockets = {"rope_left_out": (u_out, -hg, rope), "rope_right_out": (u_out, hg, rope)}
-    swap.graft(a, body, src, smb, "top", (0.0, 0.0, 0.0), (u_c, 0.0, rope),
+        u_first, (u_out, w_out), theta, _ = heads.hung_assembly(smb, src, name, side, hg, rope, u_c, asm, combo["count"],
+                                                                "support", asm["arcs"][combo["arc"]], lod, st,
+                                                                m(tube["from"][2]), tt["lugs"], both=True)
+        sd = "left" if side < 0 else "right"
+        sockets.update({f"rope_{sd}_hold": (u_first, side * hg, rope), f"rope_{sd}_out": (u_out, side * hg, w_out)})
+    src.sockets = sockets
+    swap.graft(a, body, src, smb, key, (0.0, 0.0, 0.0), (u_c, 0.0, rope), end="top",
+               dims={"sheaves": combo["count"], "arc": combo["arc"], "ropeExitDeg": -round(math.degrees(theta), 2)},
                sockets={"chair_unload": (m(d["loadU"]), -hg, rope)})
 
 

@@ -23,7 +23,7 @@ import math
 
 from mathutils import Vector
 
-from liftkit import parts, prims, swap
+from liftkit import heads, parts, prims, swap
 from liftkit.export import Asset
 from liftkit.mesh import MeshBuilder, Style
 from liftkit.prims import U, V, W
@@ -498,35 +498,13 @@ def entry_trains(mb, a, spec, r, lod, st):
     the rope's exit point (u, w) over the last sheave and its exit angle above level (radians)."""
     c, et = spec["common"], r["entryTrains"]
     asm = parts.line_spec(spec)
-    radius = asm["arcs"][et["arc"]]
-    level = et.get("level", "apex")
     hg, rope = m(c["lineGauge"]) / 2, m(c["ropeElevation"])
     cb0 = m(r["liftingFrame"]["crossbeam"]["bottom"])
-    lg, X = et["lugs"], asm["x"]
-    # a row levelled at its first sheave tilts, which moves its main pin along the line: a trial at full detail
-    # finds that offset, so the pin lands under the crossbeam (et.u) at every LOD
-    pin_off, _ = parts.line_assembly(MeshBuilder(), Asset("trial"), "t", 0.0, hg, rope, asm, et["count"], "hold", 0, st,
-                                     radius, level=level)
-    u0 = m(et["u"]) - pin_off
-    for side, name in ((-1, "l"), (1, "r")):
-        v_rope = side * hg
-        pin_u, pin_w = parts.line_assembly(mb, a, name, u0, v_rope, rope, asm, et["count"], "hold", lod, st, radius,
-                                           first=2, level=level)
-        b_in, b_out = v_rope - side * X["beam"][1], v_rope - side * X["beam"][0]
-        lt = m(lg["thick"])
-        if lod <= 2:   # lug plates either side of the equaliser, from the crossbeam's underside down past the pin
-            for va, vb in (sorted((b_in, b_in - side * lt)), sorted((b_out, b_out + side * lt))):
-                prims.box(mb, (pin_u - m(lg["halfU"]), va, pin_w - m(lg["past"])), (pin_u + m(lg["halfU"]), vb, cb0), st["steel"])
-        if lod <= 1:   # the main pin (its own piece for the clash sweep, liftkit/clash.py)
-            with mb.grouped("#pin"):
-                prims.cylinder(mb, (pin_u, b_in - side * (lt + 0.012), pin_w), (pin_u, b_out + side * (lt + 0.012), pin_w),
-                               asm["mainPin"] / 2, 12 if lod == 0 else 8, st["rod"])
-    axles = parts.arc_axles(asm, et["count"], radius, level)
-    u_first = u0 + axles[0][0]
-    if level == "first":
-        path, theta = parts.hold_rope(asm, et["count"], radius, u_first, rope)
-        return u_first, path[-1], theta
-    return u_first, (u0 + axles[-1][0], rope), 0.0   # a level rope leaves over the outermost sheave
+    for side, name in ((-1, "l"), (1, "r")):   # the kit mounting (liftkit/heads.py), pinned under the crossbeam (et.u)
+        u_first, out, theta, _ = heads.hung_assembly(mb, a, name, side, hg, rope, m(et["u"]), asm, et["count"], "hold",
+                                                     asm["arcs"][et["arc"]], lod, st, cb0, et["lugs"],
+                                                     level=et.get("level", "apex"), both=True)
+    return u_first, out, theta
 
 
 def top_head(a, body, spec, lod):
@@ -544,8 +522,10 @@ def top_head(a, body, spec, lod):
     u_out = drive_terminal.support_trains(smb, src, c, d, lod, dst)
     src.sockets = {"rope_left_out": (u_out, -hg, rope), "rope_right_out": (u_out, hg, rope)}
     swap.graft(a, body, src, smb, "top", (du, 0.0, 0.0), (m(d["portal"]["u"]), 0.0, rope),
-               dims={"entryU": round(d["portal"]["u"] + du * 1000)},
+               dims={"entryU": round(d["portal"]["u"] + du * 1000), "sheaves": c["sheaveTrain"]["n"]},
                sockets={"chair_unload": (0.0, -hg, rope)})   # riders get off over the pier, as at the drive
+    for key, combo in d["topCombos"]["variants"].items():   # the drive's bigger support rows, on the same seat
+        drive_terminal.top_variant(a, body, spec, lod, key, combo, du, seat=(rl["bottom"], (rl["vIn"] + rl["vOut"]) / 2))
 
 
 def bullwheel(mb, centre, pitch, bw, lod, st):

@@ -273,6 +273,34 @@ def support_trains(mb, a, c, d, lod, st):
     return m(et["u"]) + (tr["n"] - 1) / 2 * m(tr["pitch"])   # the rope leaves over the outermost train sheave
 
 
+def top_variant(a, body, spec, lod, key, combo, du=0.0, seat=None):
+    """A top head with a bigger support row (spec drive.topCombos; owner 2026-11-02): the entry head (entry_head, seat
+    as there) with the line towers' kit assembly of combo's count on combo's arc on each rope, levelled at its first
+    sheave so the rope runs level from the bullwheel and bends down over the row toward the line, its main pin under
+    the crossbeam end on two lug plates (heads.hung_assembly), as the line towers' heads carry theirs. Grafted on as
+    head `key` (liftkit/swap.py), moved by du along the line (the return's seat)."""
+    c, d = spec["common"], spec["drive"]
+    rope, hg = m(c["ropeElevation"]), m(c["lineGauge"]) / 2
+    st = styles(lod)
+    tc, cb = d["topCombos"], d["crossbeam"]
+    asm = parts.line_spec(spec)
+    src, smb = Asset(key), MeshBuilder()
+    entry_head(smb, d, lod, st, seat=seat)
+    pin_u = m(cb["uFrom"] + cb["uTo"]) / 2
+    sockets = {}
+    for side, name in ((-1, "l"), (1, "r")):
+        u_first, (u_out, w_out), theta, _ = heads.hung_assembly(smb, src, name, side, hg, rope, pin_u, asm, combo["count"],
+                                                                "support", asm["arcs"][combo["arc"]], lod, st, m(cb["bottom"]),
+                                                                tc["lugs"])
+        sd = "left" if side < 0 else "right"
+        sockets.update({f"rope_{sd}_hold": (u_first, side * hg, rope), f"rope_{sd}_out": (u_out, side * hg, w_out)})
+    src.sockets = sockets
+    swap.graft(a, body, src, smb, key, (du, 0.0, 0.0), (m(d["portal"]["u"]), 0.0, rope), end="top",
+               dims={"sheaves": combo["count"], "arc": combo["arc"], "ropeExitDeg": -round(math.degrees(theta), 2),
+                     "entryU": round(d["portal"]["u"] + du * 1000)},
+               sockets={"chair_unload": (0.0, -hg, rope)})   # riders get off over the pier
+
+
 def bottom_head(a, body, spec, lod):
     """The return's lifting frame and hold-down assemblies (return_terminal.lifting_frame, entry_trains), grafted on
     as the bottom head: the legs cut level on the entry beams' top and set back so they stand on the beams' line
@@ -391,10 +419,13 @@ def build(spec, lod, stage):
 
     build_entry(body, d, lod, st)
     # the top head (its own): the entry head and its support trains; the bottom head: the return's (liftkit/swap.py)
-    with swap.head(a, body, "top", (m(d["portal"]["u"]), 0.0, rope), owns=("rope_left_out", "rope_right_out", "chair_unload")):
+    with swap.head(a, body, "top", (m(d["portal"]["u"]), 0.0, rope), owns=("rope_left_out", "rope_right_out", "chair_unload"),
+                   dims={"sheaves": c["sheaveTrain"]["n"]}):
         entry_head(body, d, lod, st)
         u_out = support_trains(body, a, c, d, lod, st)
     bottom_head(a, body, spec, lod)
+    for key, combo in d["topCombos"]["variants"].items():   # bigger support rows for a sharper summit breakover
+        top_variant(a, body, spec, lod, key, combo)
 
     # guide sheaves between the pier and the bullwheel (rope rides on top), hung inboard from the base frame
     gs = c["guideSheave"]

@@ -91,8 +91,9 @@ def ao_options(kind, assets):
 
 
 def views(a):
-    """(end, asset as that head shows it) for each of a terminal's heads (liftkit/swap.py), or (None, a) without heads."""
-    return [(end, swap.view(a, end)) for end in swap.ENDS if end in a.heads] or [(None, a)]
+    """(head key, asset as that head shows it) for each of a terminal's heads, its default first (liftkit/swap.py), or
+    (None, a) without heads."""
+    return [(k, swap.view(a, k)) for k in swap.keys(a)] or [(None, a)]
 
 
 def head_totals(a, report):
@@ -334,8 +335,9 @@ def main():
             "bounds": [[round(x, 3) for x in frame.unity(b)] for b in a0.body.bounds_lift()],
             "dims": a0.dims,
             # a fixed-grip terminal's two heads, one shown at a time (liftkit/swap.py): its pivots and sockets
-            **({"heads": {e: {"default": h["default"], "prefix": h["prefix"], "pivots": h["pivots"],
-                              "sockets": h["sockets"], "dims": h["dims"]} for e, h in a0.heads.items()}} if a0.heads else {}),
+            **({"heads": {k: {"end": a0.heads[k]["end"], "default": a0.heads[k]["default"], "prefix": a0.heads[k]["prefix"],
+                              "pivots": a0.heads[k]["pivots"], "sockets": a0.heads[k]["sockets"], "dims": a0.heads[k]["dims"]}
+                          for k in swap.keys(a0)}} if a0.heads else {}),
             "partTris": a0.part_tris,
             "partTargets": a0.budget_targets,
             "problems": problems,
@@ -348,7 +350,7 @@ def main():
         built[name] = {"assets": assets, "objects": objs, "collection": coll, "spec": own,
                        "ranges": {k: v["range"] for k, v in result["assets"][aid]["pivots"].items()}}   # Unity degrees
         print(f"{aid}: tris per LOD {[e['shown'] for e in rep['lods']]}"
-              + "".join(f", {end} head {[e['heads'][end] for e in rep['lods']]}" for end in a0.heads)
+              + "".join(f", {k} head {[e['heads'][k] for e in rep['lods']]}" for k in swap.keys(a0))
               + (f"  PROBLEMS: {problems}" if problems else ""), flush=True)
         failures += [f"{aid}: {p}" for p in problems]
     result["failures"] = failures

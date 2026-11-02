@@ -12,6 +12,8 @@ import math
 from mathutils import Vector
 
 from . import parts, prims
+from .export import Asset
+from .mesh import MeshBuilder
 from .prims import U, V, W
 
 
@@ -115,3 +117,43 @@ def entry_platform(mb, ep, cb, lod, st, off=(0.0, 0.0, 0.0), half_v=None, hatch=
             for s in (-1, 1):
                 vs_ = s * m(sr["v"]) + ov
                 prims.beam(mb, (m(sf[0]) + ou, vs_, m(sf[1]) + ow), (m(stt[0]) + ou, vs_, m(stt[1]) + ow), sz, sz, st["steel"])
+
+
+def hung_assembly(mb, a, name, side, hg, rope, u, asm, count, mode, radius, lod, st, face_w, lugs, level="first",
+                  both=None, at_first=False):
+    """A kit line assembly (parts.line_assembly, the line towers' sheaves, rockers, yokes and equaliser) on one rope
+    (side -1 left, +1 right) of a terminal head, held as the towers and the return's integrated tower hold theirs: two
+    lug plates either side of the equaliser (the inboard one alone on a short row, as on the towers, unless both) carry
+    its main pin and reach the structure's face at height face_w, above the pin or below it. u: where the main pin
+    lands along the line (at_first: where the first axle does). level "first": the row levelled at its first sheave,
+    so the rope runs level from the bullwheel to the row and bends through it (up under a hold-down row, down over a
+    support row). lugs: {"halfU", "thick", "past"} in mm. Returns (the first axle's u, the rope's exit point (u, w),
+    its exit angle (radians, >= 0), the main pin (u, w))."""
+    X = asm["x"]
+    # a row levelled at its first sheave tilts, which moves its main pin along the line: a trial at full detail
+    # finds that offset, so the pin lands at u at every LOD
+    pin_off, _ = parts.line_assembly(MeshBuilder(), Asset("trial"), "t", 0.0, hg, rope, asm, count, mode, 0, st, radius,
+                                     level=level)
+    axles = parts.arc_axles(asm, count, radius, level)
+    u0 = (u - axles[0][0]) if at_first else (u - pin_off)
+    v_rope = side * hg
+    pin_u, pin_w = parts.line_assembly(mb, a, name, u0, v_rope, rope, asm, count, mode, lod, st, radius, first=2, level=level)
+    b_in, b_out = v_rope - side * X["beam"][1], v_rope - side * X["beam"][0]
+    lt = m(lugs["thick"])
+    plates = [sorted((b_in, b_in - side * lt))]
+    if (count > 4) if both is None else both:
+        plates.append(sorted((b_out, b_out + side * lt)))
+    w_lo, w_hi = (pin_w - m(lugs["past"]), face_w) if face_w > pin_w else (face_w, pin_w + m(lugs["past"]))
+    if lod <= 2:   # lug plates either side of the equaliser, from the structure's face past the pin
+        for va, vb in plates:
+            prims.box(mb, (pin_u - m(lugs["halfU"]), va, w_lo), (pin_u + m(lugs["halfU"]), vb, w_hi), st["steel"])
+    if lod <= 1:   # the main pin (its own piece for the clash sweep, liftkit/clash.py)
+        p_out = b_out + side * (lt + 0.012) if len(plates) > 1 else b_out
+        with mb.grouped("#pin"):
+            prims.cylinder(mb, (pin_u, b_in - side * (lt + 0.012), pin_w), (pin_u, p_out, pin_w),
+                           asm["mainPin"] / 2, 12 if lod == 0 else 8, st["rod"])
+    u_first = u0 + axles[0][0]
+    if level == "first":
+        path, theta = parts.hold_rope(asm, count, radius, u_first, rope, mode=mode)
+        return u_first, path[-1], theta, (pin_u, pin_w)
+    return u_first, (u0 + axles[-1][0], rope), 0.0, (pin_u, pin_w)   # a level rope leaves over the outermost sheave

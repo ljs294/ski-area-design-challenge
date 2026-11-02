@@ -13,6 +13,7 @@ one spoke pitch (45 degrees) against everything static.
 Lift frame (u, v, w) metres throughout; chair frame: u travel, v outboard, w up, origin the grip on the rope.
 """
 import math
+import re
 
 import numpy as np
 from mathutils import Matrix, Vector
@@ -27,12 +28,13 @@ CONTACTS = {"#rail": "wheels", "#tyres": "tyre plate", "#openrail": "top roller"
 TOUCH = 0.003   # a contact zone must come within this of its piece somewhere, and never sink deeper into it (m)
 THUMP = 0.050   # how far a passing grip may ride into a line sheave: real grips lift it as they pass (round 3, P5-14)
 TRAIN = ("sheave_", "rocker_", "yoke_", "eq_", "link_", "block_")   # a head's sheave trains: built to pass grips closely
-HEADS = ("bottom_", "top_")   # a terminal's gained head prefixes its trains (liftkit/swap.py)
+HEADS = re.compile(r"(bottom|top)\d*_")   # a terminal's other heads prefix their trains (liftkit/swap.py)
 
 
 def bare(name):
-    """A part's name without a terminal head's prefix (bottom_sheave_l2 -> sheave_l2)."""
-    return name.partition("_")[2] if name.startswith(HEADS) else name
+    """A part's name without a terminal head's prefix (bottom_sheave_l2 -> sheave_l2, top8_eq_l -> eq_l)."""
+    h = HEADS.match(name)
+    return name[h.end():] if h else name
 
 
 # pieces built to guide a passing grip closely: these zones may come near them (no `clear` needed) but never into them
