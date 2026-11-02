@@ -64,6 +64,20 @@ namespace MountainPlanner.Presentation.Lifts
 
         sealed class ChairLod { public ChairPart[] Parts; }
 
+        /// <summary>A terminal's bullwheel, spun with the rope (task P3-16, BB2).</summary>
+        struct Wheel
+        {
+            public Transform Pivot;
+            public Quaternion Rest;
+            public Vector3 Axis;
+            /// <summary>+1 or -1: the way round the rope runs, about the pivot's own axis.</summary>
+            public float Sign;
+        }
+
+        Wheel[] _wheels = Array.Empty<Wheel>();
+        /// <summary>The bullwheels' turn rate, radians a second: rope speed over the pitch radius.</summary>
+        float _wheelRate;
+
         public LiftView(Transform parent, LiftModelSet models, LiftMaterials materials, Material cableMaterial, string name)
         {
             _models = models;
@@ -239,6 +253,8 @@ namespace MountainPlanner.Presentation.Lifts
                 var h = SpawnTower(head, at, facing, lean, (float)steel, (float)reveal, livery);
                 heads.Add(h != null ? h.GetComponent<LiftRig>() : null);
             }
+
+            if (type.BullwheelVisible) KeepWheels(type, retRig, driveRig);
 
             _spawning = PartRope;
             // Posable models (the model contract): each train rocks to the rope and the rope runs over its sheaves.
@@ -592,12 +608,59 @@ namespace MountainPlanner.Presentation.Lifts
         {
             var centre = (from + to) / 2;
             var r = from - centre;
-            var back = -rig.transform.forward;
-            float sign = Vector3.Dot(Vector3.Cross(r, back), Vector3.up) >= 0 ? 1 : -1;
+            float sign = TurnSign(rig, from, to);
             const int steps = 24;
             for (int k = 1; k < steps; k++)
                 loop.Add(centre + Quaternion.AngleAxis(sign * 180f * k / steps, Vector3.up) * r);
         }
+
+        /// <summary>Which way round world up the rope turns behind a bullwheel, going from <paramref name="from"/> to <paramref name="to"/>.</summary>
+        static float TurnSign(LiftRig rig, Vector3 from, Vector3 to)
+        {
+            var r = from - (from + to) / 2;
+            return Vector3.Dot(Vector3.Cross(r, -rig.transform.forward), Vector3.up) >= 0 ? 1 : -1;
+        }
+
+        /// <summary>
+        /// BB2 (task P3-16): keeps each terminal's bullwheel pivot, to spin it with the rope. The rope runs onto every
+        /// bullwheel at its left socket and off at its right (the loop's travel order), so the wheel turns the way the rope
+        /// goes round it (<see cref="AddWheel"/>); the pivot's own axis may point either way, or lean (the model's).
+        /// </summary>
+        void KeepWheels(LiftType type, params LiftRig[] rigs)
+        {
+            var wheels = new List<Wheel>(2);
+            foreach (var rig in rigs)
+            {
+                var pivot = rig != null ? rig.Pivot("bullwheel") : null;
+                var l = rig != null ? rig.Socket("rope_left_bw") : null;
+                var r = rig != null ? rig.Socket("rope_right_bw") : null;
+                if (pivot == null || l == null || r == null) continue;
+                int index = Array.IndexOf(rig.Pivots, pivot);
+                var axis = rig.PivotAxes != null && index >= 0 && index < rig.PivotAxes.Length ? rig.PivotAxes[index].normalized : Vector3.up;
+                var rest = pivot.localRotation;
+                var worldAxis = (pivot.parent != null ? pivot.parent.rotation : Quaternion.identity) * rest * axis;
+                // AddWheel's sign turns the rope with Quaternion.AngleAxis about world up; match it about the pivot's own axis.
+                float sign = TurnSign(rig, l.position, r.position) * Mathf.Sign(Vector3.Dot(worldAxis, Vector3.up));
+                wheels.Add(new Wheel { Pivot = pivot, Rest = rest, Axis = axis, Sign = sign });
+            }
+            _wheels = wheels.ToArray();
+            _wheelRate = (float)(type.SpeedMetresPerSecond / (type.GaugeMetres / 2));
+        }
+
+        /// <summary>The bullwheels at <paramref name="seconds"/> on the chairs' clock (BB2). No allocation.</summary>
+        void SpinWheels(double seconds)
+        {
+            if (_wheels.Length == 0) return;
+            float degrees = (float)((seconds * _wheelRate) % (2 * Math.PI)) * Mathf.Rad2Deg;
+            foreach (var w in _wheels)
+                if (w.Pivot != null) w.Pivot.localRotation = w.Rest * Quaternion.AngleAxis(w.Sign * degrees, w.Axis);
+        }
+
+        /// <summary>The bullwheels this lift spins (tests).</summary>
+        public int WheelCount => _wheels.Length;
+
+        /// <summary>Bullwheel <paramref name="i"/>'s pivot (tests).</summary>
+        public Transform WheelPivot(int i) => i < _wheels.Length ? _wheels[i].Pivot : null;
 
         void SetLoop(List<Vector3> loop)
         {
@@ -789,10 +852,12 @@ namespace MountainPlanner.Presentation.Lifts
 
         /// <summary>
         /// Draws the chairs for this frame: each at (index × spacing + speed × time) round the loop (RP-07), hanging plumb
-        /// from its grip and facing the way it travels, at the LOD its distance from the camera calls for. No allocation.
+        /// from its grip and facing the way it travels, at the LOD its distance from the camera calls for. Spins the
+        /// bullwheels too (task P3-16, BB2). No allocation.
         /// </summary>
         public void DrawChairs(Camera camera, double seconds)
         {
+            SpinWheels(seconds);
             if (_chairCount == 0 || _chairLods.Length == 0 || camera == null) return;
             foreach (var lod in _chairLods)
                 foreach (var p in lod.Parts) p.Count = 0;
@@ -912,6 +977,7 @@ namespace MountainPlanner.Presentation.Lifts
             PoseError = 0;
             _chairLods = Array.Empty<ChairLod>();
             _chairCount = 0;
+            _wheels = Array.Empty<Wheel>();
             _towerParts.Clear();
             _highlighted = false;   // the pieces are going: nothing to relight
             ForgetPick();
