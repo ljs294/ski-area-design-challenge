@@ -5,6 +5,9 @@
   "model": {
     "seats": 3
   },
+  "drive": {
+    "panelsOut": 1
+  },
   "common": {
     "ropeElevation": 3039,
     "lineGauge": 3658

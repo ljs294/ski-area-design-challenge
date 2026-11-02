@@ -39,14 +39,14 @@ LOD2_FRAME = 1080   # the quad's LOD2 side-frame boxes (half-width, mm)
 
 def derive(quad, seats):
     """A narrower chair from the quad's spec (owner, 2026-11-01/02): the same seat per rider (the quad's bench over its
-    four seats), so the bench, bottom member, backrest and the safety bar's rail and rod move in by dw = (4 - seats)
-    half-seats a side. The side frames keep their side profile and tube and the gap to the bench at seat level (their last point,
+    four seats), so the bench, bottom member, backrest and the safety bar's rail move in by dw = (4 - seats) half-seats
+    a side. The side frames keep their side profile and tube and the gap to the bench at seat level (their last point,
     b), and their bow across the rope (the top bar's corner in, the bulge out past the seat) scales by seats / 4: one
     rule from the double (half the quad's bow) to the quad. The top bar ends at the frames' new top; what sits on it
     (the safety bar's sleeves, arms and handles) is spaced along it from the clamp out, as the D6 widens it
     (d6_chair.derive), and the web plate's lens wings move in with the bar's end, cut at the clamp. The safety bar's
-    footrests hang from the middle (D3): one leg on a double, two either side of the middle seat on a triple, in place
-    of the quad's end legs. Tubes, hanger, clamp and grip keep the quad's sizes; nothing hangs lower."""
+    footrests hang from the middle (D3): one post on a double, two either side of the middle seat on a triple, in place
+    of the quad's end legs, with one footrest across their feet. Tubes, hanger, clamp and grip keep the quad's sizes; nothing hangs lower."""
     seat = 2 * quad["bench"]["halfWidth"] / 4   # a rider's width (486)
     dw = (seats - 4) * seat / 2                  # per side
     f = seats / 4
@@ -74,7 +74,6 @@ def derive(quad, seats):
     bar["handle"]["halfWidth"] = on_bar(bar["handle"]["halfWidth"])
     bar["rail"]["halfWidth"] += dw
     bar["leg"] = [[u, hw + dw, w] for u, hw, w in bar["leg"]]
-    bar["rod"]["halfWidth"] = bar["rail"]["halfWidth"]   # the footrest bar across, as wide as the rail
     bar["footLegs"] = [(i - (seats - 2) / 2) * seat for i in range(seats - 1)] if seats < 4 else None
     for key in ("bench", "bottomMember", "backrest"):
         ch[key]["halfWidth"] += dw
