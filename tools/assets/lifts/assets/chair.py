@@ -43,10 +43,12 @@ def derive(quad, seats):
     a side. The side frames keep their side profile and tube and the gap to the bench at seat level (their last point,
     b), and their bow across the rope (the top bar's corner in, the bulge out past the seat) scales by seats / 4: one
     rule from the double (half the quad's bow) to the quad. The top bar ends at the frames' new top; what sits on it
-    (the safety bar's sleeves, arms and handles) is spaced along it from the clamp out, as the D6 widens it
-    (d6_chair.derive), and the web plate's lens wings move in with the bar's end, cut at the clamp. The safety bar's
-    footrests hang from the middle (D3): one post on a double, two either side of the middle seat on a triple, in place
-    of the quad's end legs, with one footrest across their feet. Tubes, hanger, clamp and grip keep the quad's sizes; nothing hangs lower."""
+    (the safety bar's sleeves) is spaced along it from the clamp out, as the D6 widens it (d6_chair.derive), and the
+    web plate's lens wings move in with the bar's end, cut at the clamp. The safety bar's footrests (its arms and their
+    pads) sit by the riders (D3): one in the middle of a double, two either side of a triple's middle seat (the quad's
+    two between its seat pairs); one in the middle drops in front of the clamp before it turns back, and the pivot
+    sleeves run across to it. The counterweight (the bar's legs and rod) moves in with the rail. Tubes, hanger, clamp
+    and grip keep the quad's sizes; nothing hangs lower."""
     seat = 2 * quad["bench"]["halfWidth"] / 4   # a rider's width (486)
     dw = (seats - 4) * seat / 2                  # per side
     f = seats / 4
@@ -67,14 +69,23 @@ def derive(quad, seats):
     ch["topBar"]["halfLength"] = top
     ch["web"]["lower"] = web_wings(quad["web"]["lower"], top - c1, c0)
     ch["sleeves"].update({"from": on_bar(quad["sleeves"]["from"]), "to": on_bar(quad["sleeves"]["to"])})
+    bar = ch["bar"]
+    arm = bar["arm"]
+    cl = quad["clamp"]
+    clear = c0 + quad["tube"]["bar"] + 30   # an arm nearer the middle than this would run through the clamp
+    arms = []
+    for i in range(seats // 2 if seats % 2 == 0 else seats - 1):   # 1 on a double, 2 on a triple
+        hw = 0.0 if seats == 2 else (i - 0.5) * seat
+        path = arm if abs(hw) >= clear else [arm[0], [arm[0][0], cl["wTo"] - 40], arm[-1]]
+        arms.append((hw, path))
+    bar["arms"] = arms
+    if min(abs(hw) for hw, _ in arms) < ch["sleeves"]["from"]:   # the sleeves run across to a middle arm
+        ch["sleeves"]["from"] = 0.0
     ch["sideFrame"] = [[u, bow(hw), w] for u, hw, w in quad["sideFrame"]]
     ch["edgeRail"] = [[u, bow(hw), w] for u, hw, w in quad["edgeRail"]]
-    bar = ch["bar"]
-    bar["armHalfWidth"] = on_bar(bar["armHalfWidth"])
-    bar["handle"]["halfWidth"] = on_bar(bar["handle"]["halfWidth"])
     bar["rail"]["halfWidth"] += dw
     bar["leg"] = [[u, hw + dw, w] for u, hw, w in bar["leg"]]
-    bar["footLegs"] = [(i - (seats - 2) / 2) * seat for i in range(seats - 1)] if seats < 4 else None
+    bar["rod"]["halfWidth"] += dw
     for key in ("bench", "bottomMember", "backrest"):
         ch[key]["halfWidth"] += dw
     ch["lod2Frame"] = bow(LOD2_FRAME)

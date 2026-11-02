@@ -713,6 +713,33 @@ def chair_lineup(name, chairs, spec, out_dir, mats, gap=3.0):
     _photo_end(sc, extras + [fig])
 
 
+TERMINAL_LINEUPS = {"monta_drive": ("monta_drive", "monta_fg3_drive", "monta_fg2_drive"),   # v0.3.2: quad, triple,
+                    "monta_return": ("monta_return", "monta_fg3_return", "monta_fg2_return")}   # double
+
+
+def terminal_lineup(name, terms, out_dir, gap=16.0):
+    """A family's terminals side by side across the line on snow at grade with a 1.8 m figure, from the line (a true
+    orthographic front), from above and from three-quarter (v0.3.2: the quad's, triple's and double's widths)."""
+    sc, sun = _photo_scene()
+    extras = [_snow_plane(0.0), sun]
+    objs = []
+    for i, built in enumerate(terms):
+        dv = (i - (len(terms) - 1) / 2) * gap
+        _move(built, (0.0, dv, 0.0))
+        objs += lod_objects(built, 0)
+    fig = _photo_figure((9.0, 0.0, 0.0))
+    show_only(objs + extras + [fig])
+    restore_uv(objs)
+    shoot = _shooter(f"{name}_lineup", out_dir)
+    across = len(terms) * gap
+    shoot("front", (0.0, 0.0, 3.0), 0, 0, 60.0, ortho=across)
+    shoot("above", (1.5, 0.0, 0.0), 0, 89.5, 60.0, ortho=across)
+    shoot("threequarter", (1.5, 0.0, 2.5), 35, 22, 62.0, lens=40)
+    for i, built in enumerate(terms):
+        _move(built, (0.0, -(i - (len(terms) - 1) / 2) * gap, 0.0))
+    _photo_end(sc, extras + [fig])
+
+
 SLE_LINEUP = (("sle_ground_gun", -2.6), ("sle_stick_gun_10", 0.0), ("sle_stick_gun_20", 2.6), ("sle_stick_gun_30", 6.2))
 
 
@@ -1594,6 +1621,9 @@ def render_all(built, spec, out_dir, shots, mats):
     for name, keys in CHAIR_LINEUPS.items():
         if "photos" in shots and all(k in built for k in keys):
             chair_lineup(name, [built[k] for k in keys], spec, out_dir, mats)
+    for name, keys in TERMINAL_LINEUPS.items():
+        if ("photos" in shots or "lineups" in shots) and all(k in built for k in keys):
+            terminal_lineup(name, [built[k] for k in keys], out_dir)
     if "photos" in shots and all(k in built for k, _ in SLE_LINEUP):
         sle_lineup(built, out_dir, mats)
         sle_heads(built, out_dir, mats)
