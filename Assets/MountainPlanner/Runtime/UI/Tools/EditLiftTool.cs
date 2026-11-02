@@ -546,7 +546,9 @@ namespace MountainPlanner.UI.Tools
             }
             var rope = _built.Rope;
             _review.Add("Length", $"{ToolFormat.Length(run)} across", "LF-06")
-                .Add("Towers", $"{_built.Towers.Count}", "TW-02, TW-12")
+                .Add("Ride", LiftSummary.Ride(rope.Type, run, rope.RiseMetres), "LC-04")
+                .Add("Capacity", LiftSummary.Capacity(rope.Type), "LC-03")
+                .Add("Towers", LiftSummary.Towers(_built.Towers, rope, run), "TW-02, TW-12; LD3: tallest, longest span and heads")
                 .Add("Lowest chairs", $"{ToolFormat.Length(rope.LowestClearance)} over the ground", "TW-01: 15 ft at least");
             foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
             _review.Ready(changes > 0 && !blocked && _applyEdits != null, true);

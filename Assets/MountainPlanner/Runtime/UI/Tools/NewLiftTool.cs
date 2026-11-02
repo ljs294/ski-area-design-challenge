@@ -541,9 +541,9 @@ namespace MountainPlanner.UI.Tools
             _review.Clear()
                 .Add("Length", $"{ToolFormat.Length(slope)} slope · {ToolFormat.Length(run)} across", "LF-06")
                 .Add("Rise", $"{ToolFormat.Length(rise)} · {ToolFormat.Grade(rise, run)}")
-                .Add("Ride", $"{ToolFormat.Duration(Type.RideSeconds(slope))} at {Type.SpeedMetresPerSecond * 196.850394:#,0} ft/min",
+                .Add("Ride", LiftSummary.Ride(Type, run, rise),
                      Type.Detachable ? "LC-04: slope length over the rope speed, plus the ramps out of and into the stations (LT41)" : "LC-04: slope length over the rope speed")
-                .Add("Capacity", Type.Detachable ? $"{Type.Capacity:#,0} an hour · a chair every {Type.IntervalSeconds:0.#} s" : $"{Type.Capacity:#,0} an hour",
+                .Add("Capacity", LiftSummary.Capacity(Type),
                      Type.Detachable ? "LC-03 v2: seats × 3,600 ÷ the loading interval (LT41)" : "LC-03")
                 .Reserved("Network", "NW-12: No way down", ReviewModel.NetworkSlot);
             // NW-04: the lift as if built, in the network of everything else (task P3-10); a first lift alone has no way down.
@@ -555,7 +555,7 @@ namespace MountainPlanner.UI.Tools
                 return;
             }
             var rope = _built.Rope;
-            _review.Add("Towers", $"{_built.Towers.Count} towers", "TW-02, TW-12")
+            _review.Add("Towers", LiftSummary.Towers(_built.Towers, rope, run), "TW-02, TW-12; LD3: tallest, longest span and heads")
                 .Add("Lowest chairs", $"{ToolFormat.Length(rope.LowestClearance)} over the ground", "TW-01: 15 ft at least")
                 .Add("Rise allowed", $"{ToolFormat.Length(rope.RiseMetres)} of {(double.IsInfinity(rope.Type.RiseLimitMetres) ? "no limit" : ToolFormat.Length(rope.Type.RiseLimitMetres))}", "LC-07");
             foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);

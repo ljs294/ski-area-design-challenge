@@ -499,6 +499,17 @@ namespace MountainPlanner.Presentation.Lifts
 
         readonly List<TowerParts> _towerParts = new List<TowerParts>();
 
+        /// <summary>How many towers it stands (LD3's numbers).</summary>
+        public int TowerCount => _towerParts.Count;
+
+        /// <summary>Tower <paramref name="index"/>'s head, in world space (LD3: its number stands over it); false if it has none.</summary>
+        public bool TowerTop(int index, out Vector3 at)
+        {
+            var parts = index >= 0 && index < _towerParts.Count ? _towerParts[index] : null;
+            at = parts != null && parts.Head != null ? parts.Head.transform.position : default;
+            return parts != null && parts.Head != null && parts.Head.activeInHierarchy;
+        }
+
         // A tower's base on the ground at position, as many 1 m sections as fit under the head and the head on top (SpawnTower's
         // arithmetic). Sections beyond those it needs are hidden, and a taller tower gets new ones (the only Instantiate).
         void Stand(TowerParts parts, Vector3 position, float steel, float reveal, LiftLivery livery)

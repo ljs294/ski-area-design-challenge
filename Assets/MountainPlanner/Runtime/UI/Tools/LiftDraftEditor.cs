@@ -136,6 +136,8 @@ namespace MountainPlanner.UI.Tools
             Dragging = false;
             _ctx.HighlightDraftPart?.Invoke(None);
             _lit = None;
+            _ctx.Window?.Strip?.SetSelected(-1);
+            if (_hooked != null) { _hooked.TowerClicked -= OnStripTower; _hooked = null; }
             ClaimAll(false);
         }
 
@@ -168,9 +170,31 @@ namespace MountainPlanner.UI.Tools
         void Light()
         {
             int part = Adding ? None : Selected;
+            _ctx.Window?.Strip?.SetSelected(part >= 0 ? part : -1);
             if (part == _lit) return;
             _lit = part;
             _ctx.HighlightDraftPart?.Invoke(part);
+        }
+
+        // LD3: a click on the profile strip near a tower selects it, as a click on it in 3D does. The strip is made on first
+        // use, so the editor hooks whichever strip the window has now.
+        LiftProfileStrip _hooked;
+        void HookStrip()
+        {
+            var strip = _ctx.Window?.Strip;
+            if (strip == _hooked) return;
+            if (_hooked != null) _hooked.TowerClicked -= OnStripTower;
+            _hooked = strip;
+            if (strip != null)
+            {
+                strip.TowerClicked += OnStripTower;
+                strip.SetSelected(!Adding && Selected >= 0 ? Selected : -1);
+            }
+        }
+
+        void OnStripTower(int index)
+        {
+            if (index >= 0 && index < Towers.Count) Select(index);
         }
 
         /// <summary>Lights the selection again after the host redrew the draft (its pieces are new).</summary>
@@ -186,6 +210,7 @@ namespace MountainPlanner.UI.Tools
         /// </summary>
         public bool Tick(in ToolInput input)
         {
+            HookStrip();
             if (input.Pressed(ToolKeys.BrushWider)) Step(+1);
             if (input.Pressed(ToolKeys.BrushNarrower)) Step(-1);
             if (input.Pressed(ToolKeys.AddTower) && !Adding) StartAdding(input.HasGround ? Project(input) : double.NaN);
