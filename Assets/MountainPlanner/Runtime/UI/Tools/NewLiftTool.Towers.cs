@@ -129,6 +129,15 @@ namespace MountainPlanner.UI.Tools
             ShowDraft();
         }
 
+        // LT34's hints applied: each terminal raised (or lowered) by the feet the review suggests, within LT19's range.
+        void UseSuggestedLevels()
+        {
+            if (_built == null) return;
+            int up = (int)System.Math.Round(_built.SuggestedBottomMetres / 0.3048), top = (int)System.Math.Round(_built.SuggestedTopMetres / 0.3048);
+            if (up != 0) TerminalLevel(true, up);
+            if (top != 0) TerminalLevel(false, top);
+        }
+
         // In the review: the selected terminal's level, 1 ft (LT19's range), and the lift worked out again.
         void TerminalLevel(bool bottom, int feet)
         {
@@ -370,7 +379,11 @@ namespace MountainPlanner.UI.Tools
         {
             var w = _ctx.Window;
             if (_step != Step.Review) return;
+            // LT34 with LD3 (smarter siting): the levels the review suggests ("raise it N ft") in one click; the terminals still
+            // stand where the player puts them until then (no automatic raise).
+            bool suggests = _built != null && !_built.LevelsPending && (System.Math.Abs(_built.SuggestedBottomMetres) > 0.1 || System.Math.Abs(_built.SuggestedTopMetres) > 0.1);
             w.SetButtons(
+                ("levels", "Use suggested levels", suggests ? (System.Action)UseSuggestedLevels : null),
                 ("add", "Add tower", _editor == null || _editor.Adding || _built == null ? null : (System.Action)(() => { EnsureEditor(); _editor.KeepAdding = false; _editor.StartAdding(); })),
                 ("replace", _armReplace ? "Again: revert yours" : _mode == TowerMode.ByHand ? "Revert to auto" : "Edit towers",
                     _mode == TowerMode.ByHand ? (System.Action)RevertToAuto : _built != null ? (System.Action)EditTowers : null));
