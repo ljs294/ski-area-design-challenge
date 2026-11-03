@@ -18,8 +18,8 @@ BB7 and BB8 (PR F, its own session) ship in v0.3.2.
 | BB4 | v0.3.1 thread, 2026-11-02 | `demo.bat`'s player build, Development build and Unity tests refuse to run while Unity Hub is open: the check matches any `Unity.exe`, and the Hub runs `unity.exe serve` | Only an editor with this project open blocks them | B | **Fix in PR C (owner, 2026-11-02):** use the existing `:projectfree` check (`Temp\UnityLockfile` held open) in `:buildplayer`, `:builddev` and `:unitytests` |
 | BB5 | Owner request, 2026-11-02 | When a server holds a download up, the player isn't told which one; a stalled USGS, AWS or USDA server shows as "No connection"; it waits for ever, and the only choices are Try now and Cancel | Players are alerted when a server holds the download up and get choices | N | **Fix in v0.3.2 (owner, 2026-11-02):** PRs D0 and D. Alert after **2 minutes** held up (a toast naming the server, an amber "Held up" pill, the card says how long and how many tries); a server that stalls or is down is told apart from a lost connection; choices Try now, Pause for later, Cancel, and Skip water and roads when that is the step held up (the only layer with a stand-in) |
 | BB6 | Owner request, 2026-11-02 | An area downloaded while OpenStreetMap was unavailable (or skipped) has no water and roads, and there's no way to get them later | A way to get water and roads later | N | **Build now, v0.3.2 (owner, 2026-11-02):** PR E. "Get water and roads" in Manage Areas; the area's id changes, so its saves and recent entry move to the new id with it, crash-safely; `tools/acquire refresh-osm` uses the same code (it adds only roads today) |
-| BB7 | P3-16 benchmarks, 2026-11-01 | The player crashes as it quits: an access violation in `D3D12Core.dll`, 213 times since about Oct 23 in every build (the shipped v0.3.0 too), after the log and the crash marker have ended, so nobody is told; Windows keeps a dump of about 43 MB each time | Quitting exits cleanly | N | **Fix in v0.3.2 (owner, 2026-11-02):** PR F, its own session: a stack from a dump, a repro matrix, a bisect of the P3-09 lift commits, then a general fix; a project-setting fix goes back to the owner with numbers. Covers the `-brushbench` quit crash below |
-| BB8 | P3-16 benchmarks, 2026-11-01 | `docs/perf/jackson-hole-5km-high-lifts40.json` is stale: `-liftbench 40` now mixes FGQ-4, D6 and Monta lifts (main p95 8.74 ms against the pinned 7.80 ms) | A baseline that matches the benchmark | N | **Fix in v0.3.2 (owner, 2026-11-02):** PR F re-pins it after the crash fix, by the `docs/perf/README.md` rules (the P3-09 plan asked for this) |
+| BB7 | P3-16 benchmarks, 2026-11-01 | The player crashes as it quits: an access violation in `D3D12Core.dll`, 213 times since about Oct 23 in every build (the shipped v0.3.0 too), after the log and the crash marker have ended, so nobody is told; Windows keeps a dump of about 43 MB each time | Quitting exits cleanly | N | **Fix in v0.3.2 (owner, 2026-11-02):** PR F, its own session: a stack from a dump, a repro matrix, a bisect of the P3-09 lift commits, then a general fix; a project-setting fix goes back to the owner with numbers. Covers the `-brushbench` quit crash below. **PR F:** the lift shader's accent colour (LT41) sat in the middle of its material block; it now sits at the end, and every quit is clean (section below) |
+| BB8 | P3-16 benchmarks, 2026-11-01 | `docs/perf/jackson-hole-5km-high-lifts40.json` is stale: `-liftbench 40` now mixes FGQ-4, D6 and Monta lifts (main p95 8.74 ms against the pinned 7.80 ms) | A baseline that matches the benchmark | N | **Fix in v0.3.2 (owner, 2026-11-02):** PR F re-pins it after the crash fix, by the `docs/perf/README.md` rules (the P3-09 plan asked for this). **PR F:** re-pinned at 92ac93f4: 8.34 / 8.38 ms p95 frame / GPU, two confirming runs passed (`docs/perf/README.md` history) |
 | BB2 | Owner request, 2026-10-31 | On lifts whose bullwheels are visible (today the Monta C4 and the SSL C4, in the owner's words), the bullwheels stand still | The visible bullwheels spin with the rope | B | **Fix in v0.3.1 (owner, 2026-11-01):** PR B. Only lifts whose wheel shows (Sessellift FGQ-4, Monta FG4; not the D6's tub), by a catalog flag. Bullwheels only, sheaves stay still |
 | BB3 | Owner request, 2026-10-31 | The chairs look great but move stiffly along the line | More swing along the line, and a slight side-to-side sway every so often. Only at minimal cost (frame time, garbage) | B | **Fix in v0.3.1 (owner, 2026-11-01):** PR B, very lightweight. Swing along the direction of travel when the rope changes direction over a tower's sheaves; slight side sway. The owner sees a demo build (presets) before it goes into the game. **Held (owner, 2026-11-01, after the demo):** it doesn't add much, so it stays out of the game; BB2 ships alone in PR B. The demo's code (kicks at towers and ramps, gust sway, Off/Subtle/Medium presets) is kept on branch `held/p3-16-chair-swing` (c707c912) for a later look |
 
@@ -72,11 +72,45 @@ Every option is general: it holds for any area, mirror or network, with no site 
 `Acquisition/Providers/OsmFeatures.cs`, `Acquisition/AcquisitionPipeline.cs` (`OsmAsync`), `Acquisition/IO/ByteSources.cs`
 (a small seam only), tests in `Tests/Core`.
 
+## BB7: the crash on quit
+
+### Cause
+
+Every dump has the same stack: Unity's `DoQuit` → `DestroyGfxDevice` → `~GfxDeviceD3D12` → `D3D12Core.dll` 1.618, the
+D3D12 runtime (Agility SDK) Unity ships in `Builds/Windows/D3D12/`. It runs after every script is gone, so no game code
+is on the stack. What it takes to crash, from repro runs (exit code `-1073741819` against `0`):
+
+- Only a `-benchmark` run with built lifts on D3D12 crashes (2/2 every time). Quitting from the title, after opening an
+  area, after a screenshot of 40 lifts, a benchmark with no lifts and `-force-d3d11` are all clean.
+- Any lift type crashes it on its own (all FGQ-4, all D6, all Monta). Not drawing the chairs, or leaving vsync on,
+  still crashes.
+- Without the bundled runtime (Windows' own D3D12) it is clean, so it is a fault in that runtime or in how Unity tears
+  the device down, set off by something we draw.
+- Bisect of the P3-09 lift commits: `76080f61` and `7ade5719` clean, `f5e4d922` (LT41, two lift colours) crashes. With
+  only `LiftStructure.shader` put back to `7ade5719`, `f5e4d922` is clean. On main, `_AccentColor` moved to the end of
+  the `UnityPerMaterial` block is clean, and so is the accent declared but unused.
+
+### Fix
+
+`_AccentColor` sits at the end of `LiftStructure.shader`'s material block, with a comment: new properties go after the
+existing ones. The look is unchanged (same property, same blend). `PendingContourView.Clear` and `Dispose` also skip a
+mesh or object Unity already destroyed on quit (the `-brushbench` note in the backlog). No project setting changed:
+the bundled runtime and D3D12-first stay.
+
+### Verified (release build with the fix)
+
+26 quits, all exit 0, no new dump or Application Error event: 5 from the title (`-smoketest` on an empty library),
+5 after opening an area (`-screenshot`), 6 `-quality high -liftbench 40 -benchmark`, 4 `-brushbench`, 2 each with
+`-force-d3d11` and `-force-d3d12`, and 2 from the Development build. Five more 2-lap lifts benchmarks for BB8 were clean
+too. Frame time: unchanged (BB8 re-pin in `docs/perf/README.md`). Demo: `demo.bat` 77.
+
+Not fixed here: the runtime fault itself. A future shader or material change could set it off again; `demo.bat` 77
+and the benchmark's exit code show it at once.
 ## Candidates from the backlog (not yet in scope)
 
 Offered to the owner for this bug bash, in no particular order; each becomes a finding row if the owner picks it.
 
-- The `-brushbench` access violation on quit (`PendingContourView.Clear` from `MountainViewer.OnDestroy`, after the
+- (Taken as BB7, fixed in PR F.) The `-brushbench` access violation on quit (`PendingContourView.Clear` from `MountainViewer.OnDestroy`, after the
   report is written).
 - Remove trail removes only the clicked run (P3-10 #106 follow-up).
 - Brush drag garbage, about 170 KB per frame against a 64 KB target (#111).
