@@ -103,10 +103,11 @@
         "toc": -950
       },
       "integratedTower": {
-        "_about": "The bottom's integrated tower (DQ5), measured on the bottom's layout (w: the D6's heights, the sheet's +100, DQ9): on each rope the quad kit's hold-down row of eight (liftkit/heads.py hung_assembly) pinned under a crossbeam over both ropes; a mast from the crossbeam's middle; a railed deck from the hood's nose under the ropes' inside; a railed walkway inboard of each row out to its far end, hung from the crossbeam; two arms from a yoke on the hood's roof out past its nose, on posts down to the deck. The row is drawn nearly level: the kit's flat arc (40 m).",
+        "_about": "The bottom's integrated tower (DQ5), measured on the bottom's layout (w: the D6's heights, the sheet's +100, DQ9): on each rope the quad kit's hold-down row of eight (liftkit/heads.py hung_assembly) pinned under a crossbeam over both ropes; a mast from the crossbeam's middle; a railed deck from the hood's nose under the ropes' inside; a railed walkway inboard of each row out to its far end, hung from the crossbeam; two arms from a yoke on the hood's roof out past its nose, on posts down to the deck. The row on a 24 m arc (see _radius).",
         "pinU": 13030,
         "count": 8,
-        "arc": "flat",
+        "radius": 24000,
+        "_radius": "owner, Gate 1: allow exits up to 16 deg. The sheet draws the row nearly level (the kit's flat 40 m arc: 5 deg at rest, posable 3-9); 24 m is the flattest arc whose trains pose to 16 (posable 5-16, 8.6 at rest)",
         "outerYoke": false,
         "_outerYoke": "owner option A (Gate 1): the kit rows' inboard yokes only, so the detachable grip's tyre plate passes outboard (the kit's outboard yokes stand in it)",
         "lugs": {"halfU": 120, "thick": 30, "past": 90},

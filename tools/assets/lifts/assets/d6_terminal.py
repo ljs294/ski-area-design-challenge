@@ -1155,7 +1155,7 @@ def integrated_tower(mb, a, spec, t, end, lod, st):
     kst = dict(st, steel=st["galv"], rubber=st["tyre"])   # the rows galvanised, as on the line towers
     for side, name in ((-1, "l"), (1, "r")):
         u_first, out, theta, _ = heads.hung_assembly(mb, a, name, side, hg, rope, m(it["pinU"]), asm, it["count"], "hold",
-                                                     asm["arcs"][it["arc"]], lod, kst, m(cb["w"][0]), it["lugs"],
+                                                     m(it["radius"]), lod, kst, m(cb["w"][0]), it["lugs"],
                                                      level="first", both=True, outer_yoke=it.get("outerYoke", True))
     steel, galv = st["steel"], st["galv"]
     (cu0, cu1), cw = cb["u"], cb["w"]
