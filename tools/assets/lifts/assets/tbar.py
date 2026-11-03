@@ -14,16 +14,17 @@ centre (dims "footOffsetPerSection", base dims "footOffset").
          on the stub's top, along the leaned axis.
   mast   one 1 m section of the round mast, upright, with a two-stile ladder on its +u face (rungs mirror-symmetric
          about mid-height, so sections stack without an AO band, contract M5). Origin at the section's foot; socket top.
-  head   two levels (W1): a sleeve over the mast top flaring into a flange under a deep ribbed box crossarm whose heavy
-         end plates carry the trains on end pins (octagonal pin covers); two posts up to a top bar with the white number
-         plate under it (D4), the wire's hooked eye on it and the cables clipped along it (D9); a grating platform round
-         the mast under the arm. Origin on the mast top (on the leaned axis); the frame is level. Sockets mast_top,
-         rope_left, rope_right, number_plate, wire.
+  head   two levels (W1): a sleeve over the mast top rising in a tall cone to a flange under a deep gusseted box crossarm
+         whose heavy end plates carry the trains on end pins (octagonal pin covers); two posts and a diagonal strut up
+         to a top bar with the white number plate under it (D4), curled hook brackets for the wire at its ends and the
+         cables clipped along it (D9); a square grating ring round the mast 1.15 m down, braced to the arm's ends.
+         Origin on the mast top (on the leaned axis); the frame is level. Sockets mast_top, rope_left, rope_right,
+         number_plate, wire_left, wire_right.
 
-Trains (train()): sheaves in pairs on rockers (cheek plates both sides), rockers on a pentagonal equaliser on the end
-pin. Support trains stand on the pin with the rope on top; hold-down trains hang inverted from the same pins, the rope
-at the arm. The first and last sheave of each row are red (D3). A black catcher tube runs out from each end of each
-train, inside the carrier hanger's D, so a swinging hanger can't reach the sheaves.
+Trains (train()): sheaves in pairs on rockers (a cast web inboard, a cheek plate outboard), rockers on a pentagonal
+equaliser on the end pin. Support trains stand on the pin with the rope on top; hold-down trains hang inverted from the
+same pins, the rope at the arm. The first and last sheave of each row are red (D3). A black catcher tube sweeps out and
+down from each end of each train, inside the carrier hanger's D, so a swinging hanger can't reach the sheaves.
 
 Head types ("heads"): support with 4 or 6 sheaves a rope (s4, s6), hold-down with 4 (d4).
 Tower frame: the lift frame's axes, u along the line uphill, v right, w up; ropes at v = +-lineGauge/2, the loaded one
@@ -126,10 +127,11 @@ def base(t, lod, st):
     if lod <= 2:
         prims.cylinder(lm, (0, 0, plt if lod <= 1 else 0.0), (0, 0, stub), r, n, st["galv"], caps=(False, False))
     pr = r + m(pad["thick"])
-    prims.cylinder(lm, (0, 0, m(pad["from"]) if lod <= 2 else 0.0), (0, 0, stub), pr, n, st["pad"], caps=(lod <= 2, lod <= 2))
+    cap = m(pad["cap"]) if lod <= 1 else 0.0
+    prims.cylinder(lm, (0, 0, m(pad["from"]) if lod <= 2 else 0.0), (0, 0, stub - cap), pr, n, st["pad"], caps=(lod <= 2, lod <= 2 and not cap))
+    if cap:   # the pad's light cap ring at its top (R6)
+        prims.cylinder(lm, (0, 0, stub - cap), (0, 0, stub), pr + 0.004, n, st["galv"], caps=(False, True))
     if lod == 0:
-        for sw in pad["straps"]:   # the pad's straps
-            prims.cylinder(lm, (0, 0, m(sw) - 0.02), (0, 0, m(sw) + 0.02), pr + 0.004, n, st["black"], caps=(False, False))
         bo = b["bolts"]
         for i in range(bo["count"]):
             ang = 2 * math.pi * (i + 0.5) / bo["count"]
@@ -216,13 +218,13 @@ def axles_u(T, count):
 
 
 def train_v(T, v_rope):
-    """The v planes of a train on the rope at v_rope: inner and outer cheek plates, the equaliser, the end plate's
-    inboard face (the crossarm's end), all from the sheave's hub outward-in."""
+    """The v planes of a train on the rope at v_rope: the inner rocker web and outer cheek plate, the equaliser, the
+    end plate's inboard face (the crossarm's end), all from the sheave's hub outward-in."""
     out = 1.0 if v_rope > 0 else -1.0
     inb = -out
-    ci = v_rope + inb * (T["hubHalf"] + T["cheekGap"] + T["cheekThick"] / 2)
+    ci = v_rope + inb * (T["hubHalf"] + T["cheekGap"] + T["rockerThick"] / 2)
     co = v_rope + out * (T["hubHalf"] + T["cheekGap"] + T["cheekThick"] / 2)
-    eq = ci + inb * (T["cheekThick"] / 2 + T["eqGap"] + T["eqThick"] / 2)
+    eq = ci + inb * (T["rockerThick"] / 2 + T["eqGap"] + T["eqThick"] / 2)
     ep = eq + inb * (T["eqThick"] / 2 + T["endGap"])   # the end plate's outboard face
     return out, inb, ci, co, eq, ep
 
@@ -248,7 +250,7 @@ def train(mb, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, u_c=0.0, ends=(
     axles = [Vector((u, v_rope, rope + sg * (Rc + u * u / (2 * T["arcR"])))) for u in us]
     tname = f"train_{tag}"
     a.pivots[tname] = {"pos": (0.0, v_eq, w_pin), "axis": (0.0, 1.0, 0.0), "hinge": True}
-    ct, pt2 = T["cheekThick"], T["cheekThick"] / 2
+    pt2, wt2 = T["cheekThick"] / 2, T["rockerThick"] / 2
     pins = []
     for i in range(n // 2):
         a0, a1 = axles[2 * i], axles[2 * i + 1]
@@ -259,11 +261,14 @@ def train(mb, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, u_c=0.0, ends=(
         pins.append(pin)
         rocker_tag = rname if lod <= 1 else tname
         if lod <= 1:
-            with mb.grouped(rocker_tag):   # the rocker: a cheek plate each side of the pair
-                lo = min(a0.z, a1.z, pin.z) - 0.045
+            with mb.grouped(rocker_tag):   # the rocker: a cast web inboard (wide at the axles, narrow at its pin, R2),
+                lo = min(a0.z, a1.z, pin.z) - 0.045   # a thin cheek plate outboard
                 hi = max(a0.z, a1.z, pin.z) + 0.045
-                for vc in (v_ci, v_co):
-                    prims.box(mb, (a0.x - 0.075, vc - pt2, lo), (a1.x + 0.075, vc + pt2, hi), st["galv"])
+                wide = (a0.z + a1.z) / 2 - sg * 0.045
+                narrow = pin.z + sg * 0.055
+                web = [(a0.x - 0.09, wide), (a1.x + 0.09, wide), (pin.x + 0.07, narrow), (pin.x - 0.07, narrow)]
+                prims.prism(mb, web, (0.0, v_ci - wt2, 0.0), U, W, V, 2 * wt2, st["galv"])
+                prims.box(mb, (a0.x - 0.075, v_co - pt2, lo), (a1.x + 0.075, v_co + pt2, hi), st["galv"])
             if lod == 0:   # the rocker's pin from the equaliser into the inner cheek, its own piece for the clash sweep
                 with mb.grouped(f"{rocker_tag}#pin"):
                     prims.cylinder(mb, Vector((pin.x, v_eq, pin.z)), Vector((pin.x, v_ci, pin.z)), T["rockerPinDia"] / 2, 8, st["rod"])
@@ -311,28 +316,30 @@ def train(mb, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, u_c=0.0, ends=(
                       (axles[-1].x + R, v_rope + hw, max(p.z for p in axles) + R), parts.row_face(0, 2, st), skip=("-2",))
 
     # the catchers: from each end of the equaliser a bracket out along u, across under the rope, and the black tube out
-    # past the train, flaring outboard and down at its tip
+    # past the train in one smooth sweep outboard and down (R29), longer on the drag (+v) side
     c = hd["catcher"]
     end_u = max(us) + s["dia"] / 2
     u0 = end_u + m(c["gap"])
     w_c = rope - m(c["below"])
     v_c = v_rope + out * m(c["out"])
     cr = m(c["dia"]) / 2
+    Lc = m(c["lengthDrag"] if out > 0 else c["length"])
+    so, sd = m(c["sweep"][0]), m(c["sweep"][1])
     if lod <= 2:
         with mb.grouped(tname):
             for e in ends:
                 if lod <= 1:
                     prims.beam(mb, (e * (L - 0.04), v_eq, flat), (e * u0, v_eq, w_c), 0.05, T["eqThick"], st["galv"], up=V)
                     prims.beam(mb, (e * u0, v_eq, w_c), (e * u0, v_c, w_c), 0.05, 0.04, st["galv"])
-                    flare = c["flare"]
-                    tip_p = Vector((e * (u0 + m(c["length"])), v_c + out * m(flare[1]), w_c - m(flare[2])))
-                    bend = Vector((e * (u0 + m(c["length"]) - m(flare[0])), v_c, w_c))
-                    pts = [Vector((e * u0, v_c, w_c)), bend, tip_p]
-                    pts = [Vector(p) for p in prims.fillet(pts, 1, 0.25, 3 if lod == 0 else 1)]
+                    pts = [Vector((e * u0, v_c, w_c)), Vector((e * (u0 + Lc * 0.45), v_c + out * so * 0.3, w_c - sd * 0.3)),
+                           Vector((e * (u0 + Lc * 0.8), v_c + out * so * 0.72, w_c - sd * 0.72)),
+                           Vector((e * (u0 + Lc), v_c + out * so, w_c - sd))]   # a t^1.5 droop: no kink at the tip
+                    if lod == 1:
+                        pts = [pts[0], pts[2], pts[3]]
                     prims.tube_path(mb, pts, cr, parts.sides(lod, 8, 5), st["black"], caps=True)
                 else:
-                    prims.beam(mb, (e * u0, v_c, w_c), (e * (u0 + m(c["length"])), v_c, w_c), 2 * cr, 2 * cr, st["black"],
-                               skip_ends=True)
+                    prims.beam(mb, (e * u0, v_c, w_c), (e * (u0 + Lc), v_c + out * so * 0.5, w_c - sd * 0.5), 2 * cr, 2 * cr,
+                               st["black"], skip_ends=True)
     return rope
 
 
@@ -368,14 +375,14 @@ def head(spec, t, variant, lod, st):
     hv = v_ep - m(ep["thick"])        # the arm's end: the end plate's inboard face
     au, ad = m(arm["halfU"]), m(arm["depth"])
     prims.box(mb, (-au, -hv, 0.0), (au, hv, ad), st["galv"], skip=("-1", "+1") if lod <= 2 else ())
-    if lod == 0:
+    if lod == 0:   # triangular gussets on both faces (R7): wide at the arm's foot, to a point at its top
         k = int(hv // m(arm["ribs"]))
+        ro, rt = m(arm["ribOut"]), m(arm["ribThick"])
         for i in range(-k, k + 1):
             for su in (-1, 1):
                 v0 = i * m(arm["ribs"])
-                prims.box(mb, (su * au - (0.0 if su > 0 else m(arm["ribOut"])), v0 - m(arm["ribThick"]) / 2, 0.0),
-                          (su * au + (m(arm["ribOut"]) if su > 0 else 0.0), v0 + m(arm["ribThick"]) / 2, ad), st["galv"],
-                          skip=("-2", "+2"))
+                gusset = [(su * au, 0.0), (su * (au + ro), 0.0), (su * au, ad)]
+                prims.prism(mb, gusset, (0.0, v0 - rt / 2, 0.0), U, W, V, rt, st["galv"])
     w_pin = ad + m(hd["ropeAboveArm"]) - (T["eqDrop"] + T["rockerDrop"] + s["grooveBottom"] / 2 + T["ropeR"])
 
     # the end plates with the end pins and their octagonal covers
@@ -385,8 +392,8 @@ def head(spec, t, variant, lod, st):
             prims.box(mb, (-m(ep["halfU"]), lo_v, 0.0), (m(ep["halfU"]), hi_v, w_pin + m(ep["above"])), st["galv"])
         if lod == 0:
             pc = hd["pinCover"]
-            prims.cylinder(mb, (0.0, sv * hv, w_pin), (0.0, sv * (hv - m(pc["length"])), w_pin), m(pc["dia"]) / 2, 8,
-                           st["galv"], caps=(False, True), phase=math.pi / 8, smooth=False)
+            prims.cylinder(mb, (0.0, sv * v_ep, w_pin), (0.0, sv * (v_ep + m(pc["length"])), w_pin), m(pc["dia"]) / 2, 8,
+                           st["galv"], caps=(False, True), phase=math.pi / 8, smooth=False)   # on the plate's outer face
         if lod == 0:
             with mb.grouped("#pin"):
                 prims.cylinder(mb, (0.0, sv * (hv - 0.01), w_pin), (0.0, sv * (v_eq + T["eqThick"] / 2 + 0.006), w_pin),
@@ -415,15 +422,22 @@ def head(spec, t, variant, lod, st):
                 prims.box(mb, (-0.006, sv * m(npl["halfV"]) * 0.7 - 0.012, nw - 0.02), (0.006, sv * m(npl["halfV"]) * 0.7 + 0.012, tw),
                           st["galv"], skip=("-2", "+2"))
     a.sockets["number_plate"] = (-m(npl["thick"]) / 2, 0.0, nw - h2 / 2)
+    if lod <= 1:   # the diagonal strut from the -v end plate up to the top bar beside the plate (R27)
+        sr = m(hd["strut"]["dia"]) / 2
+        prims.cylinder(mb, (ps + sr + 0.02, -hv + 0.1, w_pin + m(ep["above"])), (ps + sr + 0.02, -m(npl["halfV"]) - 0.05, tw),
+                       sr, parts.sides(lod, 8, 5), st["galv"], caps=(True, True))
     hk = hd["hook"]
     eye_r = m(hk["dia"]) / 2
-    for sv, name in ((-1, "wire_left"), (1, "wire_right")):   # a hooked eye at each end of the top bar
-        eye_c = Vector((0.0, sv * (pv - 0.02), tw + td + m(hk["post"]) + eye_r))
+    curl = m(hk["curl"])
+    for sv, name in ((-1, "wire_left"), (1, "wire_right")):   # a curled hook bracket at each end of the top bar (R27)
+        p0 = Vector((0.0, sv * (pv - 0.02), tw + td))
+        p1 = p0 + W * (m(hk["post"]) + eye_r)
+        p2 = p1 + V * sv * curl
+        p3 = p2 - W * eye_r * 1.6
         if lod == 0:
-            prims.cylinder(mb, Vector((0.0, eye_c.y, tw + td)), eye_c - W * eye_r * 0.6, m(hk["rod"]), 6, st["galv"], caps=(False, True))
-            ring = [eye_c + (U * math.cos(2 * math.pi * k / 8) + W * math.sin(2 * math.pi * k / 8)) * eye_r for k in range(8)]
-            prims.tube_path(mb, [Vector(p) for p in ring], m(hk["rod"]) * 0.8, 6, st["galv"], caps=False, closed=True)
-        a.sockets[name] = tuple(eye_c - W * eye_r)
+            pts = prims.fillet(prims.fillet([p0, p1, p2, p3], 2, 0.05, 2), 1, 0.05, 2)
+            prims.tube_path(mb, [Vector(p) for p in pts], m(hk["rod"]), 6, st["galv"], caps=True)
+        a.sockets[name] = tuple(p1 + V * sv * curl * 0.5 - W * m(hk["rod"]))
 
     # the cables (D9): along the top bar's +u face and down both posts to the end plates, held by clips
     if lod == 0:
@@ -440,38 +454,44 @@ def head(spec, t, variant, lod, st):
             p = Vector(p)
             prims.box(mb, p - Vector((cr + 0.006, 0.015, cr + 0.006)), p + Vector((cr + 0.006, 0.015, cr + 0.006)), st["galv"])
 
-    # the platform round the mast under the arm: grating with a slot for the ladder, toe boards, railing stubs, struts
+    # the platform: a square grating ring round the mast well down from the arm (R4, R26), a hole for the mast and a
+    # slot for the ladder on +u, toe boards, hooped railing stubs at its v ends, braces up to the arm's end plates
     pf = hd["platform"]
     pw = m(pf["w"])
     vc = pw * math.tan(lean)                   # the mast's axis at the platform
-    pu, pv_, slot, su = m(pf["halfU"]), m(pf["halfV"]), m(pf["slot"]), m(pf["slotU"])
+    ph, hole, slot = m(pf["half"]), m(pf["hole"]), m(pf["slot"])
     th = m(pf["thick"])
     if lod <= 2:
         g = st["grating"]
         if lod <= 1:
-            prims.box(mb, (-pu, vc - pv_, pw - th), (pu, vc - slot, pw), g)
-            prims.box(mb, (-pu, vc + slot, pw - th), (pu, vc + pv_, pw), g)
-            prims.box(mb, (-pu, vc - slot, pw - th), (su, vc + slot, pw), g)
+            prims.box(mb, (-ph, vc - ph, pw - th), (ph, vc - hole, pw), g)
+            prims.box(mb, (-ph, vc + hole, pw - th), (ph, vc + ph, pw), g)
+            prims.box(mb, (-ph, vc - hole, pw - th), (-hole, vc + hole, pw), g)
+            prims.box(mb, (hole, vc - hole, pw - th), (ph, vc - slot, pw), g)
+            prims.box(mb, (hole, vc + slot, pw - th), (ph, vc + hole, pw), g)
         else:
-            prims.box(mb, (-pu, vc - pv_, pw - th), (pu, vc + pv_, pw), g, skip=("-2",))
+            prims.box(mb, (-ph, vc - ph, pw - th), (ph, vc + ph, pw), g, skip=("-2",))
     if lod <= 1:
         toe = m(pf["toe"])
-        edges = [((-pu, -pv_), (-pu, pv_)), ((-pu, -pv_), (pu, -pv_)), ((-pu, pv_), (pu, pv_)),
-                 ((pu, -pv_), (pu, -slot)), ((pu, slot), (pu, pv_))]
+        edges = [((-ph, -ph), (-ph, ph)), ((-ph, -ph), (ph, -ph)), ((-ph, ph), (ph, ph)),
+                 ((ph, -ph), (ph, -slot)), ((ph, slot), (ph, ph))]
         for (u0, v0), (u1, v1) in edges:
             prims.box(mb, (min(u0, u1) - 0.004, vc + min(v0, v1) - 0.004, pw), (max(u0, u1) + 0.004, vc + max(v0, v1) + 0.004, pw + toe),
                       st["galv"], skip=("-2",))
-        stubs = [(-pu, -pv_), (-pu, pv_), (pu, -pv_), (pu, pv_)] if lod == 0 else []
-        for pu_, pvv in stubs:   # railing stubs at the platform's ends, rising toward the arm
-            prims.cylinder(mb, (pu_ * 0.94, vc + pvv * 0.97, pw), (pu_ * 0.94, vc + pvv * 0.97, pw + m(pf["stub"])), 0.024,
-                           6, st["galv"], caps=(False, True))
-        if lod == 0:
+        if lod == 0:   # hooped railing stubs along the platform's v edges
+            sh = m(pf["stub"])
             for sv in (-1, 1):
-                prims.cylinder(mb, (-pu * 0.94, vc + sv * pv_ * 0.97, pw + m(pf["stub"])), (pu * 0.94, vc + sv * pv_ * 0.97, pw + m(pf["stub"])),
-                               0.024, 6, st["galv"])
+                hoop = [Vector((-ph * 0.9, vc + sv * ph * 0.97, pw)), Vector((-ph * 0.9, vc + sv * ph * 0.97, pw + sh)),
+                        Vector((ph * 0.9, vc + sv * ph * 0.97, pw + sh)), Vector((ph * 0.9, vc + sv * ph * 0.97, pw))]
+                hoop = prims.fillet(prims.fillet(hoop, 2, 0.1, 2), 1, 0.1, 2)
+                prims.tube_path(mb, [Vector(p) for p in hoop], 0.024, 6, st["galv"], caps=False)
+        br = m(pf["brace"]) / 2
+        for sv in (-1, 1):   # braces from the platform's v edges up to the arm's end plates
+            prims.cylinder(mb, (0.0, vc + sv * (ph - 0.08), pw), (0.0, sv * (hv - 0.08), w_pin + m(ep["above"]) - 0.02), br,
+                           parts.sides(lod, 6, 4), st["galv"], caps=(False, False))
         for cu, cv in ((-1, -1), (-1, 1), (1, -1), (1, 1)):   # struts from the sleeve out under the platform's corners
             p0 = lean_point((cu * rs * 0.7, cv * rs * 0.7, m(sl["from"]) + 0.08), lean)
-            p1 = Vector((cu * (pu - 0.1), vc + cv * (pv_ - 0.1), pw - th))
+            p1 = Vector((cu * (ph - 0.1), vc + cv * (ph - 0.1), pw - th))
             prims.beam(mb, p0, p1, 0.05, 0.05, st["galv"], skip_ends=True)
 
     a.body = mb

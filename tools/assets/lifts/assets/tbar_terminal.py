@@ -3,15 +3,19 @@
 D2, D8, D9, kept outside the repo).
 
   drive   the BOTTOM station (D1: surface lifts always drive at the bottom): one box column, its lower part a cabinet,
-          on a concrete block, carrying a head frame of two girders along the line. Behind the column the bullwheel
-          hangs under a railed grating deck with the enclosed machinery house on it; toward the line the girders carry a
-          railed walkway and two hold-down trains, 8 sheaves on the leaving (loaded) rope and 4 on the arriving one,
-          black hanger guides at their line ends. The loading hoop hangs on an outboard bracket at the girders' end,
-          steadying the bar where riders take it; a ladder climbs between the ropes to the walkway. Rope at 3.4 m (D8).
-  return  the TOP station: one box column leaning back toward the wheel and a plumb strut, on a flat pad, carrying the
-          same girders; the bullwheel cantilevered behind, 8-sheave hold-down trains on both ropes toward the line, a
-          railed walkway with a ladder up the column, and the A-frame for the wire (D9). Tension is hidden (D2). Rope
-          at 4.5 m.
+          gusseted at its foot on a concrete block, carrying a head frame of two girders along the line. Behind the
+          column the bullwheel hangs under a hoop-railed grating deck that ends over its centre (the wheel's back half in
+          the open) with the enclosed machinery house on it; toward the line a separate narrower platform a step down
+          over two hold-down trains, 8 sheaves on the leaving (loaded) rope and 4 on the arriving one, black hanger
+          guides at their line ends. The loading hoop hangs just under the leaving train on a short rod from a bracket
+          off its girder, outboard of the bars, where the operator steadies them. No ladder on this station. Rope at
+          3.4 m (D8).
+  return  the TOP station: one tapered box column leaning back toward the wheel, hinged at its foot, and a plumb box
+          strut, on a flat pad, carrying bare girders with two hoop-railed platforms (over the trains, round the
+          bearing); the bullwheel cantilevered behind with a thin guard rail round it and along the trains, 8-sheave
+          hold-down trains on both ropes toward the line, a galvanised ladder up the column's line face to the trains'
+          platform (its railing open at the ladder's head), and the box-section gallows for the wire (D9). Tension is
+          hidden (D2). Rope at 4.5 m.
   hut     the red operator hut (D9, Q3): its own asset, placed by the game beside the bottom station.
 
 The loaded rope is on the right going up: it leaves the drive on v+ and arrives at the return on v-. The lift frame's
@@ -175,8 +179,8 @@ def rope_sockets(a, hg, rope, u_out, sk, load):
 
 
 def house(mb, h, top, lod, st):
-    """The machinery house on the drive's deck: a box with rounded top edges, louvres at both ends, a band of dark
-    window panels down both sides."""
+    """The machinery house on the drive's deck: a box with rounded top edges, louvres on its back (-u) end, a band of
+    dark window panels down its -v side (R14)."""
     u0, u1, hv, ht, rc = m(h["uFrom"]), m(h["uTo"]), m(h["halfV"]), m(h["height"]), m(h["corner"])
     steps = (4, 2, 0, 0)[lod]
     if steps:
@@ -194,17 +198,14 @@ def house(mb, h, top, lod, st):
         return
     win = h["windows"]
     pw = (u1 - u0 - 0.3) / win
-    for k in range(win):   # the window panels, both sides
+    for k in range(win):   # the window panels on the -v side
         a0 = u0 + 0.15 + k * pw + 0.06
-        for s in (-1, 1):
-            prims.box(mb, (a0, s * hv - 0.006, top + m(h["windowFrom"])), (a0 + pw - 0.12, s * hv + 0.006, top + m(h["windowTo"])),
-                      st["dark"], skip=("-1", "+1") if lod else ())
-    if lod == 0:   # louvres at both ends
-        for e, u in ((-1, u0), (1, u1)):
-            for k in range(h["louvres"]):
-                w = top + 0.45 + k * 0.12
-                prims.box(mb, (u + e * 0.002 - (0.03 if e < 0 else 0.0), -hv * 0.6, w), (u + e * 0.002 + (0.03 if e > 0 else 0.0), hv * 0.6, w + 0.04),
-                          st["paint"])
+        prims.box(mb, (a0, -hv - 0.006, top + m(h["windowFrom"])), (a0 + pw - 0.12, -hv + 0.006, top + m(h["windowTo"])),
+                  st["dark"], skip=("-1", "+1") if lod else ())
+    if lod == 0:   # louvres on the back end
+        for k in range(h["louvres"]):
+            w = top + 0.45 + k * 0.12
+            prims.box(mb, (u0 - 0.032, -hv * 0.6, w), (u0 - 0.002, hv * 0.6, w + 0.04), st["paint"])
 
 
 def hook(mb, a, at, lod, st, rod=0.012, dia=0.07):
@@ -230,7 +231,7 @@ def drive(spec, lod):
     col = d["column"]
     cu, chu, chv = m(col["u"]), m(col["halfU"]), m(col["halfV"])
 
-    # the block and the column, its lower part the cabinet with its door, a side cabinet and conduits
+    # the block and the column, its lower part the cabinet with its door, a slim side cabinet, conduits, foot gussets
     bl = d["block"]
     block(body, cu - m(bl["half"]), cu + m(bl["half"]), m(bl["half"]), m(bl["top"]), m(d["pierBottom"]), st)
     base = m(bl["top"])
@@ -243,18 +244,22 @@ def drive(spec, lod):
         sc = cab["side"]
         prims.box(body, (cu - m(sc["halfU"]), -chv - m(sc["depth"]), base + m(sc["from"])), (cu + m(sc["halfU"]), -chv, base + m(sc["to"])),
                   st["paint"])
+        gu = col["gusset"]
+        gh, go, gt = m(gu["height"]), m(gu["out"]), m(gu["thick"])
+        prims.box(body, (cu - chu - go, -chv - go, base), (cu + chu + go, chv + go, base + 0.03), st["paint"], skip=("-2",))
+        for axis, half, en in ((U, chu, V), (V, chv, U)):   # a gusset on each face (R15)
+            for sgn in (-1, 1):
+                gusset = [(sgn * half, 0.03), (sgn * (half + go), 0.03), (sgn * half, gh)]
+                origin = Vector((cu, 0.0, base)) - en * gt / 2
+                prims.prism(body, gusset, origin, axis, W, en, gt, st["paint"])
     if lod == 0:
         for k in range(2):   # conduits from the ground into the side cabinet
             p = Vector((cu - 0.12 + 0.24 * k, -chv - 0.06, base))
-            prims.cylinder(body, p, p + W * (m(d["cabinet"]["side"]["from"]) + 0.02), 0.03, 8, st["dark"], caps=(False, False))
-    if lod <= 2:   # braces from the column up to the girders under the trains' cantilever
-        br = d["braces"]
-        for s in (-1, 1):
-            prims.beam(body, (cu + chu - 0.05, s * m(br["v"]), base + m(br["footW"])), (m(br["topU"]), s * m(br["v"]), gb),
-                       0.14, 0.14, st["paint"], up=V, skip_ends=True)
+            prims.cylinder(body, p, p + W * (m(d["cabinet"]["side"]["from"]) + 0.02), 0.02, 8, st["dark"], caps=(False, False))
 
-    # the head frame: girders from behind the wheel to past the trains, cross girders over the column and the shaft
-    u_from, u_to = -m(d["deck"]["half"]), m(g["uTo"])
+    # the head frame: girders from the deck's back end to past the trains, cross girders over the column and the shaft
+    dk = d["deck"]
+    u_from, u_to = m(dk["uFrom"]), m(g["uTo"])
     top = girders(body, g, u_from, u_to, lod, st)
     cross(body, g, cu, chu, lod, st)
     if lod <= 2:
@@ -262,22 +267,45 @@ def drive(spec, lod):
             cross(body, g, u, 0.1, lod, st)
         cross(body, g, u_from + 0.1, 0.1, lod, st)
         cross(body, g, u_to - 0.1, 0.1, lod, st)
-    # the wheel under the deck on its shaft, the bearing box between the cross girders
+    # the wheel on its shaft under the deck's back end (its back half in the open, R8), the bearing box between the
+    # cross girders
     hub_top = wheel(a, body, c, rope, lod, st)
     if lod <= 2:
         sh = m(c["bullwheel"]["shaftDia"]) / 2
         prims.cylinder(body, (0, 0, hub_top - 0.02), (0, 0, gb - 0.15), sh, parts.sides(lod, 16, 10, 8), st["paint"], caps=(False, False))
         prims.box(body, (-0.25, -0.35, gb - 0.15), (0.25, 0.35, gb), st["paint"], skip=("+2",))
-    # deck over the wheel and the walkway on to the line end, railings; the house on the deck
-    dh = m(d["deck"]["half"])
-    walkway(body, g, u_from, dh, top, lod, st, deck_v=dh, rail=m(d["rail"]), open_ends=(1,))
-    walkway(body, g, dh, u_to, top, lod, st, rail=m(d["rail"]), open_ends=(-1,))
-    if lod <= 2:   # the deck's railing closes in to the walkway's
-        wv = m(g["halfV"]) + m(g["width"]) / 2 - 0.03
+    # the deck: thin grating over the girders with edge channels (R25), hooped railings (R13), the house on it
+    dh, du1, ch = m(dk["halfV"]), m(dk["uTo"]), m(dk["channel"])
+    prims.box(body, (u_from, -dh, top), (du1, dh, top + 0.04), st["grating"], skip=("-2",) if lod >= 2 else ())
+    if lod <= 1:
         for sv in (-1, 1):
-            parts.railing(body, [(dh - 0.03, sv * wv, top + 0.04), (dh - 0.03, sv * (dh - 0.03), top + 0.04)], m(d["rail"]), lod,
-                          st["steel"], posts_every=1.4)
+            prims.box(body, (u_from, sv * dh - (0.05 if sv > 0 else 0.0), top - ch), (du1, sv * dh + (0.05 if sv < 0 else 0.0), top),
+                      st["steel"], skip=("+2",))
+        prims.box(body, (u_from, -dh, top - ch), (u_from + 0.05, dh, top), st["steel"], skip=("+2",))
+    t_rail, rail = top + 0.04, m(d["rail"])
+    r = dh - 0.03
+    td = d["trainDeck"]
+    tu0, tu1, th = m(td["uFrom"]), m(td["uTo"]), m(td["halfV"])
+    if lod <= 2:
+        parts.railing_hoops(body, [(du1 - 0.03, -r, t_rail), (u_from + 0.03, -r, t_rail), (u_from + 0.03, r, t_rail), (du1 - 0.03, r, t_rail)],
+                            rail, lod, st["steel"])
+        for sv in (-1, 1):
+            parts.railing_hoops(body, [(du1 - 0.03, sv * r, t_rail), (du1 - 0.03, sv * (th + 0.03), t_rail)], rail, lod, st["steel"])
     house(body, d["house"], top + 0.04, lod, st)
+    # the separate narrower platform over the trains, a step down from the deck (R9): grating on two cross beams hung
+    # under the girders, its own hoop railing open toward the deck
+    tt = top - m(td["drop"])
+    prims.box(body, (tu0, -th, tt), (tu1, th, tt + 0.04), st["grating"], skip=("-2",) if lod >= 2 else ())
+    if lod <= 2:
+        hv_w = m(g["halfV"]) + m(g["width"]) / 2
+        for u in (tu0 + 0.15, tu1 - 0.15):
+            prims.box(body, (u - 0.05, -hv_w, tt - 0.1), (u + 0.05, hv_w, tt), st["steel"])
+            if lod <= 1:
+                for sv in (-1, 1):
+                    prims.box(body, (u - 0.05, sv * hv_w - (0.1 if sv > 0 else 0.0), tt), (u + 0.05, sv * hv_w + (0.1 if sv < 0 else 0.0), gb),
+                              st["steel"], skip=("-2", "+2"))
+        parts.railing_hoops(body, [(tu0 + 0.03, -th + 0.03, tt + 0.04), (tu1 - 0.03, -th + 0.03, tt + 0.04), (tu1 - 0.03, th - 0.03, tt + 0.04),
+                                   (tu0 + 0.03, th - 0.03, tt + 0.04)], rail, lod, st["steel"])
 
     # the trains under the girders: 8 sheaves on the leaving (loaded) rope, 4 on the arriving one
     T = parts.metres(spec["train"])
@@ -286,25 +314,17 @@ def drive(spec, lod):
     tr = d["trains"]
     ends = trains(body, a, spec, rope, w_pin, [("r", 1, tr["leave"], tr["leaveU"]), ("l", -1, tr["arrive"], tr["arriveU"])], g, lod, st)
 
-    # the ladder between the ropes, behind the column, up through the deck
-    if lod <= 2:
-        ld = d["ladder"]
-        parts.ladder(body, (m(ld["footU"]), 0.0, base), (m(ld["topU"]), 0.0, top + 0.04), m(ld["width"]), lod, st["steel"])
-
-    # the loading hoop: a black ring round the retracted bar's stem, on a bracket from the loaded girder out past the
-    # carriers' hangers and down
+    # the loading hoop (R12): a black ring in the u-w plane, outboard of the bars' path, on a rod from a bracket off
+    # the loaded girder
     hp = d["hoop"]
     if lod <= 1:
-        cr = spec["carrier"]
-        vc = hg + m(cr["box"]["centreV"])
         hu, hr, ht = m(hp["u"]), m(hp["dia"]) / 2, m(hp["tube"]) / 2
-        hc = Vector((hu, vc, m(hp["w"])))
-        ring = [hc + (V * math.cos(2 * math.pi * k / 16) + W * math.sin(2 * math.pi * k / 16)) * hr for k in range(16 if lod == 0 else 8)]
+        hc = Vector((hu, m(hp["v"]), m(hp["w"])))
+        ring = [hc + (U * math.cos(2 * math.pi * k / 16) + W * math.sin(2 * math.pi * k / 16)) * hr for k in range(16 if lod == 0 else 8)]
         prims.tube_path(body, [Vector(p) for p in ring], ht, parts.sides(lod, 8, 5), st["black"], caps=False, closed=True)
-        vo = m(hp["out"])
-        pts = [Vector((hu, m(g["halfV"]), gb + 0.02)), Vector((hu, vo, gb + 0.02)), Vector((hu, vo, hc.z)), Vector((hu, vc + hr, hc.z))]
-        prims.tube_path(body, [Vector(p) for p in prims.fillet(prims.fillet(pts, 2, 0.15, 2), 1, 0.15, 2)], 0.03,
-                        parts.sides(lod, 8, 5), st["steel"], caps=True)
+        gv = m(g["halfV"]) + m(g["width"]) / 2
+        prims.beam(body, (hu, gv - 0.02, gb + 0.1), (hu, hc.y, gb + 0.1), 0.05, 0.05, st["steel"])
+        prims.cylinder(body, (hu, hc.y, gb + 0.1), hc + W * hr, m(hp["rod"]) / 2, 6, st["steel"], caps=(False, False))
 
     a.body = body
     rope_sockets(a, hg, rope, max(ends), spec["sockets"], load=True)
@@ -323,29 +343,42 @@ def ret(spec, lod):
     rope = m(r["rope"])
     g = r["girders"]
 
-    # the pad, the leaning column and the plumb strut
+    # the pad, the hinge block, the tapered leaning column (R19, R31) and the plumb box strut
     pd = r["pad"]
     block(body, m(pd["uFrom"]), m(pd["uTo"]), m(pd["halfV"]), m(pd["top"]), m(r["pierBottom"]), st)
     base = m(pd["top"])
     gb = m(g["bottom"])
     col = r["column"]
     foot, head_u = m(col["footU"]), m(col["topU"])
-    hu, hv = m(col["halfU"]), m(col["halfV"])
-    axis = Vector((head_u - foot, 0.0, gb - base))
+    hu_t, hv = m(col["top"]["halfU"]), m(col["top"]["halfV"])
+    hu_f = m(col["foot"]["halfU"])
+    hg_ = r["hinge"]
+    hh = m(hg_["height"])
+    if lod <= 1:   # the base plate and the hinge block with its pin
+        prims.box(body, (foot - m(hg_["lengthU"]) / 2 - 0.15, -m(hg_["halfV"]) - 0.15, base), (foot + m(hg_["lengthU"]) / 2 + 0.15, m(hg_["halfV"]) + 0.15, base + 0.03),
+                  st["steel"], skip=("-2",))
+        prims.box(body, (foot - m(hg_["lengthU"]) / 2, -m(hg_["halfV"]), base + 0.03), (foot + m(hg_["lengthU"]) / 2, m(hg_["halfV"]), base + hh),
+                  st["paint"], skip=("-2",))
+        pr_ = m(hg_["pinDia"]) / 2
+        prims.cylinder(body, (foot, -m(hg_["halfV"]) - 0.04, base + hh / 2), (foot, m(hg_["halfV"]) + 0.04, base + hh / 2), pr_, 10, st["rod"])
+    else:
+        prims.box(body, (foot - m(hg_["lengthU"]) / 2, -m(hg_["halfV"]), base), (foot + m(hg_["lengthU"]) / 2, m(hg_["halfV"]), base + hh),
+                  st["paint"], skip=("-2",))
+    foot_pt, head_pt = Vector((foot, 0.0, base + hh)), Vector((head_u, 0.0, gb))
+    axis = head_pt - foot_pt
     lean = math.atan2(axis.x, axis.z)
-    prims.obox(body, (Vector((foot, 0.0, base)) + Vector((head_u, 0.0, gb))) / 2,
-               (axis.normalized(), V, Vector((math.cos(lean), 0.0, -math.sin(lean)))),
-               (axis.length / 2, hv, hu), st["paint"], skip=("-0", "+0"))
-    if lod <= 1:   # the column's base plate
-        prims.box(body, (foot - hu - 0.12, -hv - 0.12, base), (foot + hu + 0.12, hv + 0.12, base + 0.03), st["steel"], skip=("-2",))
+    ad = axis.normalized()
+    n = Vector((math.cos(lean), 0.0, -math.sin(lean)))   # the column's line face normal
+    taper = [(0.0, -hu_f), (0.0, hu_f), (axis.length, hu_t), (axis.length, -hu_t)]
+    prims.prism(body, taper, foot_pt - V * hv, ad, n, V, 2 * hv, st["paint"], caps=(False, False))
     sr = r["strut"]
-    prims.cylinder(body, (m(sr["u"]), 0.0, base), (m(sr["u"]), 0.0, gb), m(sr["dia"]) / 2, parts.sides(lod, 16, 10, 6, 4), st["paint"],
-                   caps=(False, False))
+    prims.box(body, (m(sr["u"]) - m(sr["halfU"]), -m(sr["halfV"]), base), (m(sr["u"]) + m(sr["halfU"]), m(sr["halfV"]), gb), st["paint"],
+              skip=("-2", "+2"))
 
-    # the head frame: girders from the wheel's shaft to past the trains, cross girders
+    # the head frame: bare girders from the wheel's shaft to past the trains, cross girders
     u_from, u_to = m(g["uFrom"]), m(g["uTo"])
     top = girders(body, g, u_from, u_to, lod, st)
-    cross(body, g, head_u, hu, lod, st)
+    cross(body, g, head_u, hu_t, lod, st)
     if lod <= 2:
         cross(body, g, m(sr["u"]), 0.12, lod, st)
         for u in (u_from + 0.1, 0.35, u_to - 0.1):
@@ -357,7 +390,22 @@ def ret(spec, lod):
         bh = r["bearing"]
         prims.box(body, (-m(bh["halfU"]), -m(bh["halfV"]), gb - 0.15), (m(bh["halfU"]), m(bh["halfV"]), top + m(bh["above"])), st["paint"],
                   skip=("-2",) if lod else ())
-    walkway(body, g, m(r["walkFrom"]), u_to, top, lod, st, rail=m(r["rail"]))
+    # two separate hoop-railed platforms (R16): over the trains, and round the bearing beside the wheel
+    pf = r["platforms"]
+    hv_w = m(g["halfV"]) + m(g["width"]) / 2
+    rail, t_rail = m(r["rail"]), top + 0.04
+    for key, (u0, u1) in (("trains", pf["trains"]), ("wheel", pf["wheel"])):
+        u0, u1 = m(u0), m(u1)
+        prims.box(body, (u0, -hv_w, top), (u1, hv_w, top + 0.04), st["grating"], skip=("-2",) if lod >= 2 else ())
+        if lod <= 2:
+            rv = hv_w - 0.03
+            loop = [(u0 + 0.03, -rv, t_rail), (u1 - 0.03, -rv, t_rail), (u1 - 0.03, rv, t_rail), (u0 + 0.03, rv, t_rail)]
+            if key == "trains":   # its back side open at the ladder's head
+                gap = m(r["ladderWidth"]) / 2 + 0.15
+                parts.railing_hoops(body, loop + [(u0 + 0.03, gap, t_rail)], rail, lod, st["steel"])
+                parts.railing_hoops(body, [(u0 + 0.03, -gap, t_rail), (u0 + 0.03, -rv, t_rail)], rail, lod, st["steel"])
+            else:
+                parts.railing_hoops(body, loop + [(u0 + 0.03, -rv, t_rail)], rail, lod, st["steel"])
 
     # the trains: 8 sheaves on both ropes
     T = parts.metres(spec["train"])
@@ -366,28 +414,57 @@ def ret(spec, lod):
     tr = r["trains"]
     ends = trains(body, a, spec, rope, w_pin, [("l", -1, tr["arrive"], tr["u"]), ("r", 1, tr["leave"], tr["u"])], g, lod, st)
 
-    # the ladder up the column's line face to the walkway
+    # the galvanised ladder up the column's line face to the trains' platform (R20)
     if lod <= 2:
-        n = Vector((math.cos(lean), 0.0, -math.sin(lean)))
-        off = n * (hu + 0.14)
-        parts.ladder(body, Vector((foot, 0.0, base)) + off, Vector((head_u, 0.0, top + 0.04)) + off, m(r["ladderWidth"]), lod, st["steel"],
-                     handrails=False)
+        parts.ladder(body, foot_pt + n * (hu_f + 0.1), Vector((head_u, 0.0, top + 0.04)) + n * (hu_t + 0.1), m(r["ladderWidth"]), lod,
+                     st["steel"], handrails=False, rung_style=st["steel"])
 
-    # the A-frame for the wire over the walkway (D9)
+    # the box-section gallows for the wire (D9, R17): two legs leaning back over the wheel, a cross strut, braces back
+    # to the girders, the hook at its head
     af = r["aFrame"]
+    w0 = top + 0.04
+    h_af = m(af["height"])
+    apex = Vector((m(af["u"]) - h_af * math.tan(math.radians(af["lean"])), 0.0, w0 + h_af))
     if lod <= 2:
-        w0 = top + 0.04
-        apex = Vector((m(af["u"]), 0.0, w0 + m(af["height"])))
+        sz = m(af["size"])
+        feet, tips = [], []
         for s_ in (-1, 1):
+            p0 = Vector((m(af["u"]), s_ * m(af["footHalf"]), w0))
             tip = apex + V * s_ * m(af["topHalf"])
-            for du in (-m(af["spread"]), m(af["spread"])):
-                p0 = Vector((m(af["u"]) + du, s_ * m(af["footHalf"]), w0))
-                prims.cylinder(body, p0, tip, m(af["dia"]) / 2, parts.sides(lod, 8, 6, 4), st["steel"], caps=(False, True))
-        prims.cylinder(body, apex - V * m(af["topHalf"]), apex + V * m(af["topHalf"]), m(af["dia"]) / 2, parts.sides(lod, 8, 6, 4),
-                       st["steel"])
-        hook(body, a, apex + W * m(af["dia"]) / 2, lod, st)
+            prims.beam(body, p0, tip, sz, sz, st["steel"], up=U)
+            feet.append(p0)
+            tips.append(tip)
+        prims.beam(body, tips[0] - V * sz / 2, tips[1] + V * sz / 2, sz, sz, st["steel"], up=U)
+        if lod <= 1:
+            k = af["strutAt"]
+            prims.beam(body, feet[0] + (tips[0] - feet[0]) * k, feet[1] + (tips[1] - feet[1]) * k, m(af["strut"]), m(af["strut"]), st["steel"],
+                       up=U, skip_ends=True)
+            for s_, tip in zip((-1, 1), tips):
+                prims.cylinder(body, tip - W * 0.1, Vector((m(af["braceU"]), s_ * m(af["footHalf"]), w0)), m(af["braceDia"]) / 2,
+                               parts.sides(lod, 8, 5), st["steel"], caps=(False, False))
+        hook(body, a, apex + W * sz / 2, lod, st)
     else:
-        a.sockets["wire"] = (m(af["u"]), 0.0, top + 0.04 + m(af["height"]) + 0.08)
+        a.sockets["wire"] = tuple(apex + W * 0.15)
+
+    # the guard rail round the wheel's back half at rope level and along the outside of both trains (R18)
+    gd = r["guard"]
+    if lod <= 2:
+        w_g = rope + m(gd["above"])
+        R_g = hg + m(gd["out"])
+        u_end = max(ends)
+        arc = [Vector((R_g * math.cos(math.radians(th)), R_g * math.sin(math.radians(th)), w_g)) for th in range(90, 271, 15 if lod == 0 else 30)]
+        path = [Vector((u_end, R_g, w_g))] + arc + [Vector((u_end, -R_g, w_g))]
+        prims.tube_path(body, path, m(gd["dia"]) / 2, parts.sides(lod, 8, 5, 4), st["steel"], caps=True)
+        if lod <= 1:   # brackets from the girders out to the guard
+            br = m(gd["bracketDia"]) / 2
+            u = 0.3
+            while u < u_end - 0.3:
+                for sv in (-1, 1):
+                    prims.cylinder(body, (u, sv * hv_w, gb + 0.02), (u, sv * R_g, w_g), br, 6, st["steel"], caps=(False, False))
+                u += m(gd["bracketEvery"])
+            for th in (135, 180, 225):
+                p = Vector((R_g * math.cos(math.radians(th)), R_g * math.sin(math.radians(th)), w_g))
+                prims.cylinder(body, (u_from + 0.1, p.y * 0.5, gb + 0.02), p, br, 6, st["steel"], caps=(False, False))
 
     a.body = body
     rope_sockets(a, hg, rope, max(ends), spec["sockets"], load=False)

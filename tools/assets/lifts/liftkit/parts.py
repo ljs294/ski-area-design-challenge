@@ -556,6 +556,32 @@ def railing(mb, points, height, lod, style, posts_every=1.2, toe=True, closed=Fa
             prims.beam(mb, a + W * 0.05, b + W * 0.05, 0.008, 0.10, style)
 
 
+def railing_hoops(mb, points, height, lod, style, bay=1.0, corner=0.12, toe=True, post_r=0.024):
+    """A handrail of hooped panels along a polyline on a deck (surface lifts, R13): an inverted U of tube per bay with
+    its top corners rounded, one knee rail along the run, a toe board. Far out the plain railing."""
+    if lod >= 2:
+        railing(mb, points, height, lod, style, toe=toe, post_r=post_r)
+        return
+    pts = [vec(p) for p in points]
+    for a, b in zip(pts, pts[1:]):
+        seg = b - a
+        length = seg.length
+        if length < 1e-6:
+            continue
+        d = seg / length
+        n = max(1, round(length / (bay if lod == 0 else 2 * bay)))
+        for i in range(n):
+            p0 = a + d * (length * i / n + 0.03)
+            p1 = a + d * (length * (i + 1) / n - 0.03)
+            hoop = [p0, p0 + W * height, p1 + W * height, p1]
+            if lod == 0:
+                hoop = prims.fillet(prims.fillet(hoop, 2, corner, 2), 1, corner, 2)
+            prims.tube_path(mb, [vec(p) for p in hoop], post_r, 6 if lod == 0 else 4, style, caps=False)
+        prims.cylinder(mb, a + W * (height * 0.5), b + W * (height * 0.5), post_r * 0.8, 6 if lod == 0 else 4, style)
+        if toe:
+            prims.beam(mb, a + W * 0.05, b + W * 0.05, 0.008, 0.10, style)
+
+
 def ladder(mb, bottom, top, width, lod, style, rung_every=0.28, handrails=True, rung_style=None, stringer=0.15):
     """A ship's ladder (stringers and rungs) from bottom to top, width across. Rungs are safety yellow up close
     unless rung_style is given. stringer: the stringers' depth (m)."""
