@@ -13,6 +13,7 @@ one spoke pitch (45 degrees) against everything static.
 Lift frame (u, v, w) metres throughout; chair frame: u travel, v outboard, w up, origin the grip on the rope.
 """
 import math
+import re
 
 import numpy as np
 from mathutils import Matrix, Vector
@@ -27,6 +28,15 @@ CONTACTS = {"#rail": "wheels", "#tyres": "tyre plate", "#openrail": "top roller"
 TOUCH = 0.003   # a contact zone must come within this of its piece somewhere, and never sink deeper into it (m)
 THUMP = 0.050   # how far a passing grip may ride into a line sheave: real grips lift it as they pass (round 3, P5-14)
 TRAIN = ("sheave_", "rocker_", "yoke_", "eq_", "link_", "block_")   # a head's sheave trains: built to pass grips closely
+HEADS = re.compile(r"(bottom|top)\d*_")   # a terminal's other heads prefix their trains (liftkit/swap.py)
+
+
+def bare(name):
+    """A part's name without a terminal head's prefix (bottom_sheave_l2 -> sheave_l2, top8_eq_l -> eq_l)."""
+    h = HEADS.match(name)
+    return name[h.end():] if h else name
+
+
 # pieces built to guide a passing grip closely: these zones may come near them (no `clear` needed) but never into them
 GUIDES = {"#horns": ("guide roller", "grip and arm"), "#bend_sheaves": ("grip and arm", "wheels"),
           "#tyres": ("grip and arm",), "#openrail": ("grip and arm",), "#openrail_hangers": ("top roller", "grip and arm"),
@@ -196,12 +206,14 @@ def station(asset, chair, clear=CLEAR, step=STEP):
     return problems, {"poses": len(poses), "clashes": len(clashes), "tight": len(near)}
 
 
-def tower(asset, chair, rope_r, sheave_r, clear=CLEAR, step=STEP, reach=3.0):
+def tower(asset, chair, rope_r, sheave_r, clear=CLEAR, step=STEP, reach=3.0, rest_ok=False):
     """Problems found sending `chair` (an Asset at LOD0) past a line tower head (an Asset at LOD0) on both ropes. The
     rope is laid as the head's trains lay it: over each support sheave (under each hold-down one) and straight on for
     `reach` past the row's ends. The grip pitches with the rope, the hanger hangs plumb from its hinge (contract M3).
     The sheaves are contacts for the grip (it rides over them; a real grip lifts a sheave by a few millimetres: it may
-    not sink deeper than TOUCH); everything else needs `clear`."""
+    not sink deeper than TOUCH); everything else needs `clear`. The moving parts' contacts with the head's own steel at
+    rest are problems, or with rest_ok (the quad's heads seat their equalisers flush on the lug plates) returned in the
+    report's "atRest"."""
     body, pieces = asset.body.split(pieces=True)
     groups = {"structure": body, **pieces}
     trees = {}
@@ -265,10 +277,10 @@ def tower(asset, chair, rope_r, sheave_r, clear=CLEAR, step=STEP, reach=3.0):
                 for name, (tree, blo, bhi, centres) in trees.items():
                     if (hi < blo).any() or (lo > bhi).any():
                         continue
-                    sheave = name.startswith("sheave_")
+                    sheave = bare(name).startswith("sheave_")
                     if ct is None:
                         ct = _tree(x, cf)
-                    train = name.startswith(TRAIN)
+                    train = bare(name).startswith(TRAIN)
                     bad = [(i_, j) for i_, j in ct.overlap(tree) if not (sheave and fzone[i_] in ("grip and arm", "wheels"))]
                     if bad:
                         k2 = (name.rstrip("0123456789"), ", ".join(sorted({fzone[i_] for i_, _ in bad})))
@@ -294,13 +306,14 @@ def tower(asset, chair, rope_r, sheave_r, clear=CLEAR, step=STEP, reach=3.0):
     for (name, z), (d, c) in sorted(near.items()):
         problems.append(f"fit: chair ({z}) passes {name} {d * 1000:.1f} mm away (< {clear * 1000:.0f}) at "
                         f"u {c[0] * 1000:.0f}, v {c[1] * 1000:.0f}, w {c[2] * 1000:.0f}")
-    for name, (tree, *_r) in trees.items():   # every moving part clear of the head's own steel at rest (Gate 1, review T1)
-        if name != "structure" and "#" not in name and "structure" in trees and trees["structure"][0].overlap(tree):
-            problems.append(f"fit: {name} meets the head's structure")
+    at_rest = [name for name, (tree, *_r) in trees.items()   # every moving part clear of the head's own steel at rest
+               if name != "structure" and "#" not in name and "structure" in trees and trees["structure"][0].overlap(tree)]
+    if not rest_ok:   # (Gate 1, review T1)
+        problems += [f"fit: {name} meets the head's structure" for name in at_rest]
     deep = min(touch.values(), default=0.0)
     if deep < -THUMP:
         problems.append(f"fit: the grip rides {-deep * 1000:.1f} mm into a sheave (> {THUMP * 1000:.0f})")
-    return problems, {"clashes": len(clashes), "tight": len(near), "thump": round(-deep * 1000, 1)}
+    return problems, {"clashes": len(clashes), "tight": len(near), "thump": round(-deep * 1000, 1), "atRest": at_rest}
 
 
 GRIP_ZONE = 0.25   # a fixed grip and the hanger's top bend ride this far under the rope, round wheels and under sheaves (m)
@@ -374,7 +387,7 @@ def fixed(asset, chair, clear=CLEAR, step=STEP, arc_step=math.radians(3.0)):
                 continue
             if name == "#chairguide":   # rails built to steer the passing hangers: the chair may run against them
                 continue
-            rides = name == "bullwheel" or name.startswith(TRAIN)
+            rides = name == "bullwheel" or bare(name).startswith(TRAIN)
             if ct is None:
                 ct = _tree(x, cf)
             bad = [(i, j) for i, j in ct.overlap(tree) if not (fgrip[i] and rides)]
