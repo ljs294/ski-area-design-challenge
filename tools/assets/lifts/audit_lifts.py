@@ -92,7 +92,8 @@ def audit(aid, info, fbx):
         wheel = name == "bullwheel" or name.startswith("sheave_")
         if wheel and (lo, hi) != (-180.0, 180.0):
             problems.append(f"pivot {name}: a wheel limited to {lo}..{hi}")
-        if not wheel and lo == hi == 0 and not name.startswith("yoke_") and "_" in name:
+        # a terminal head's mount (liftkit/swap.py) is fixed on purpose: the head shows or hides, it never turns
+        if not wheel and lo == hi == 0 and not name.startswith("yoke_") and "_" in name and p.get("rangeBy") != ["fixed", "fixed"]:
             problems.append(f"pivot {name}: can't turn at all")
     if info.get("aoTiling") is not None and info["aoTiling"] > 0.01:
         problems.append(f"AO tiling {info['aoTiling']:.3f} > 0.01")

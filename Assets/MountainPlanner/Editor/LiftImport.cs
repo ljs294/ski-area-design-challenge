@@ -253,11 +253,44 @@ namespace MountainPlanner.Editor
             // The FBX round trip must keep every pivot and socket where the build put it.
             for (int i = 0; i < pivots.Count; i++) Expect(id, rig.Pivots[i], ToVector((JArray)pivots[i].Value["pos"]), go.transform);
             for (int i = 0; i < sockets.Count; i++) Expect(id, rig.Sockets[i], ToVector((JArray)sockets[i].Value), go.transform);
+            ReadHeads(rig, info, names);
 
             string path = $"{Root}/Prefabs/{id}.prefab";
             var prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
             Object.DestroyImmediate(go);
             return prefab;
+        }
+
+        /// <summary>
+        /// Drive at either end (owner, 2026-11-02): a fixed-grip terminal's heads, the default first, and only the default
+        /// shown; every other head's pivots (its steel and trains) left inactive in the prefab.
+        /// </summary>
+        static void ReadHeads(LiftRig rig, JObject info, List<string> pivotNames)
+        {
+            var heads = info["heads"] is JObject h ? h.Properties().OrderBy(p => (bool)p.Value["default"] ? 0 : 1).ToList() : new List<JProperty>();
+            rig.Heads = heads.Select(p =>
+            {
+                var dims = p.Value["dims"] as JObject ?? new JObject();
+                return new LiftHead
+                {
+                    Key = p.Name,
+                    End = (string)p.Value["end"],
+                    Default = (bool)p.Value["default"],
+                    Prefix = (string)p.Value["prefix"],
+                    Pivots = ((JArray)p.Value["pivots"]).Select(n =>
+                    {
+                        int i = pivotNames.IndexOf((string)n);
+                        return i >= 0 ? i : throw new System.InvalidOperationException($"{rig.AssetId}: head {p.Name}'s pivot {n} is not a pivot");
+                    }).ToArray(),
+                    Sockets = ((JArray)p.Value["sockets"]).Select(s => (string)s).ToArray(),
+                    Sheaves = (int?)dims["sheaves"] ?? 0,
+                    Arc = (string)dims["arc"] ?? "",
+                    RopeExitDeg = (float?)dims["ropeExitDeg"] ?? float.NaN,
+                };
+            }).ToArray();
+            rig.ShownHead = -1;
+            if (rig.Heads.Length > 0 && (!rig.Heads[0].Default || !rig.ShowHead(rig.Heads[0].Key)))
+                throw new System.InvalidOperationException($"{rig.AssetId}: no default head to show");
         }
 
         /// <summary>LT41, G8: the asset's paths (a detachable station's rail) and the pivots that follow another.</summary>
