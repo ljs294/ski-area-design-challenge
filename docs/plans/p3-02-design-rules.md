@@ -727,7 +727,7 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     the line red.
   - The preview updates at least **10 times a second** while you aim, off the main thread, with stale results
     dropped (CF-03).
-  - The final placement of a 1-mile (1.6 km) line takes **≤50 ms**.
+  - The final placement of a 1-mile (1.6 km) line takes **≤50 ms** (**≤60 ms** since v3, below).
   - **v2, the line planned** (owner, task 09, LT45; findings E2–E4, 2026-10-23):
     - **The towers between the station towers are chosen together:** the fewest towers whose spans keep the loaded
       chairs 15 ft up (TW-01 v2; the low zones are the trench's and the unload ramp's) and whose every head carries
@@ -741,8 +741,9 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - **v3, fewer and taller** (owner, 2026-11-01, LD3): the plan's spans reach **300 ft (91.4 m)** (250 ft before), so
     where the ground allows it takes fewer, taller towers; the first span out of the bottom station keeps 250 ft, so the
     chairs climbing out of the load zone aren't left to the trench. Over the 33-line Jackson Hole fan and its three
-    types: 1,061 → 979 towers (8% fewer), 44 → 46 ft on average, one fewer head past its bend; a 1-mile line still places
-    within 50 ms (each spot's heights are tried tallest first, and none lower once one can't clear).
+    types: 1,061 → 979 towers (8% fewer), 44 → 46 ft on average, one fewer head past its bend. The final placement of a
+    1-mile line may take **≤60 ms** (owner, 2026-11-02; 50 ms before): 45–58 ms on the owner's PC while other jobs ran,
+    against 33–47 ms with 250 ft spans. Each spot's heights are tried tallest first, and none lower once one can't clear.
     - **The first span's shortfall** up to 15 ft short of the first line tower is the trench's (GR-11 v2, at most
       10 ft), as Break ground digs it; no tower is squeezed in there.
     - **Where nothing fits** (a steep pitch running right up to a level top, say), the plan is the line whose heads
