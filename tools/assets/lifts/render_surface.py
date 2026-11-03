@@ -1,16 +1,19 @@
 """Review renders for the surface lifts (loaded by build_lifts.py --render DIR --shots surface_gate1,surface_photos).
 
   surface_gate1   Workbench orthographic views of every Monta T-bar asset (side, end, plan; <name>_meta.json beside
-                  each, as render_review's gate1), and clay views of a short line: the drive at the bottom, two
-                  leaning towers and the return at the top, the rope round both wheels, T-bars every carrier spacing
-                  (ridden up the loaded rope by 1.8 m figures, retracted coming down and round both wheels), the
-                  operator hut; plus the three heads side by side.
+                  each, as render_review's gate1), the terminals with the rope at rest through them; the return's
+                  breakover rows posed for other rope angles (tbar_return_pose_NN.png, tbar_return_pose.json with
+                  the band of exits they hold); and clay views of a short line up a hill (level loading and unloading
+                  areas, scene_grade): the drive at the bottom, two leaning towers and the return at the top, the
+                  rope round both wheels, T-bars every carrier spacing (ridden up the loaded rope by 1.8 m figures,
+                  retracted coming down and round both wheels), the operator hut; plus the three heads side by side.
   surface_photos  the same line in Cycles on snow: hero, each terminal, a tower head, the carriers close up, and a short
                   J-bar line beside it (one carrier kind per line, D7).
 
 The scene copies the built LOD0 objects and hides everything else; render_review's helpers do the cameras, materials
 and rope curves.
 """
+import json
 import math
 import os
 
@@ -18,7 +21,9 @@ import bpy
 from mathutils import Matrix, Vector
 
 import render_review as rr
+import surface_fit
 from liftkit import frame, materials
+from liftkit import pose as lk_pose
 
 T = "monta_tbar_"
 VIEWS = {   # (view, image right, image up), as render_review.ORTHO
@@ -28,6 +33,9 @@ VIEWS = {   # (view, image right, image up), as render_review.ORTHO
 }
 U_TOP = 90.0       # the return's u
 TOWERS = ((30.0, "tower_s6", 5.4), (60.0, "tower_s4", 5.3))
+FLAT_BOTTOM = 12.0  # the level loading area, from the drive's axle (v3.1: the line climbs a hill between)
+FLAT_TOP = 8.0      # the level unloading area below the return's axle
+POSE_EXITS = (-6.0, -12.0, -18.0)   # the return rows' posed exits (degrees along its +u; rest: dims ropeExitDeg)
 
 
 def _yaw(deg):
@@ -76,9 +84,9 @@ def _world(at, yaw, p):
     return Vector((at[0] + p[0] * math.cos(a) - p[1] * math.sin(a), at[1] + p[0] * math.sin(a) + p[1] * math.cos(a), at[2] + p[2]))
 
 
-def tower(built, head, u, rope_target):
-    """A leaning tower whose head stands on the line centre at u: the base off to the return side (-v), mast sections
-    up the leaned axis, the head. Returns (objects, rope height)."""
+def _tower_geometry(built, head, rope_target):
+    """A leaning tower aimed at rope_target over its grade: (lean, mast foot, one section along the axis, sections,
+    head top from the pier, rope height over grade)."""
     base, mast, hd = built[T + "base"], built[T + "mast"], built[head]
     lean = math.radians(base["assets"][0].dims["leanDeg"])
     sec = _socket(mast, "top").z
@@ -87,12 +95,123 @@ def tower(built, head, u, rope_target):
     rope_rel = _socket(hd, "rope_right").z
     n = max(1, round((rope_target - rope_rel - foot.z) / axis.z))
     top = foot + axis * n
-    at = Vector((u, -top.y, 0.0))      # the pier, so the head lands on v = 0
-    objs = place(base, tuple(at))
+    return lean, foot, axis, n, top, top.z + rope_rel
+
+
+def tower(built, head, u, rope_target, grade=0.0):
+    """A leaning tower whose head stands on the line centre at u, on ground at `grade`: the base off to the return side
+    (-v), mast sections up the leaned axis, the head. Returns (objects, rope height)."""
+    lean, foot, axis, n, top, above = _tower_geometry(built, head, rope_target)
+    at = Vector((u, -top.y, grade))    # the pier, so the head lands on v = 0
+    objs = place(built[T + "base"], tuple(at))
     for k in range(n):
-        objs += place(mast, tuple(at + foot + axis * k), 0.0, _lean(lean))
-    objs += place(hd, tuple(at + top))
-    return objs, at.z + top.z + rope_rel
+        objs += place(built[T + "mast"], tuple(at + foot + axis * k), 0.0, _lean(lean))
+    objs += place(built[head], tuple(at + top))
+    return objs, grade + above
+
+
+def scene_grade(built):
+    """The line scene's ground (v3.1): level loading and unloading areas (FLAT_BOTTOM from the drive, FLAT_TOP below
+    the return) and a straight hill between, steep enough that the rope comes up from the last tower into the return
+    at its breakover rows' rest exit angle, as on a real top station. Returns grade(u)."""
+    rt = built[T + "return"]["assets"][0]
+    out = rt.sockets["rope_left_out"]
+    e = math.tan(math.radians(-rt.dims.get("ropeExitDeg", 0.0)))
+    u_t, head, target = TOWERS[-1]
+    above = _tower_geometry(built, T + head, target)[-1]
+    u0, u1 = FLAT_BOTTOM, U_TOP - FLAT_TOP
+    g = (e * (U_TOP - out[0] - u_t) + above - out[2]) / (u1 - u_t)   # top + out.z = g (u_t - u0) + above + e (u_o - u_t)
+
+    def grade(u):
+        return g * (min(max(u, u0), u1) - u0)
+    grade.slope = g
+    return grade
+
+
+def hill(grade, name, mat, half=160.0):
+    """The scene's ground as a mesh: level, the hill, level again (grade from scene_grade)."""
+    us = [-half, FLAT_BOTTOM, U_TOP - FLAT_TOP, U_TOP + half]
+    verts = [tuple(frame.b((u, v, grade(u)))) for u in us for v in (-half, half)]
+    faces = [(2 * i, 2 * i + 1, 2 * i + 3, 2 * i + 2) for i in range(len(us) - 1)]
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(verts, [], faces)
+    me.update()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    o.data.materials.append(mat)
+    return o
+
+
+def terminal_rope(b, past=1.0):
+    """A rope stub through a terminal at rest for its orthographic views (v3.1): in along -v over or under its rows,
+    round the back of the wheel, out along +v, `past` metres beyond the out sockets (surface_fit.rope_profile)."""
+    a0 = b["assets"][0]
+    c = b["spec"]["common"]
+    hg, R = c["lineGauge"] / 2000, c["bullwheel"]["pitch"] / 2000
+    rope = a0.sockets["rope_right_bw"][2]
+    u_far = max(a0.sockets["rope_left_out"][0], a0.sockets["rope_right_out"][0]) + past
+    wl, wr = surface_fit.rope_profile(a0, "left"), surface_fit.rope_profile(a0, "right")
+    us = [u_far * k / 80 for k in range(81)]
+    pts = [(u, hg, wr(u)) for u in reversed(us)]
+    pts += [(R * math.cos(math.radians(th)), R * math.sin(math.radians(th)), rope) for th in range(95, 270, 5)]
+    pts += [(u, -hg, wl(u)) for u in us]
+    o = rr._rope_curve(f"TerminalRope{len(bpy.data.curves)}", pts, c["ropeDiameter"])
+    o.data.materials[0].diffuse_color = (0.05, 0.05, 0.05, 1.0)
+    return o
+
+
+def return_poses(built, out_dir):
+    """The return's breakover rows posed as the game poses them (liftkit/pose.py, v3.1): the rope in level from the
+    wheel, the first sheave held at its rest height, out at each of POSE_EXITS; a side view per pose with the rope over
+    the posed sheaves, and tbar_return_pose.json with the band of exits that keeps every sheave on the rope inside the
+    pivots' clash ranges."""
+    b = built[T + "return"]
+    a0 = b["assets"][0]
+    c = b["spec"]["common"]
+    rho = c["sheave"]["grooveBottom"] / 2000 + c["ropeDiameter"] / 2000   # axle to the rope's centre
+    hg, R = c["lineGauge"] / 2000, c["bullwheel"]["pitch"] / 2000
+    rope = a0.sockets["rope_right_bw"][2]
+    empties = rr._nest(b)
+    objs = rr.lod_objects(b, 0)
+    rows = {}
+    log = {"restExitDeg": a0.dims["ropeExitDeg"], "band": {}, "poses": {}}
+    for side in "lr":
+        top = f"eq_{side}"
+        row = sorted((k for k in lk_pose.subtree(a0.pivots, top) if k.startswith("sheave_")), key=lambda k: a0.pivots[k]["pos"][0])
+        anchor = (row[0], a0.pivots[row[0]]["pos"][2])
+        rows[side] = (top, row, anchor)
+        log["band"][side] = lk_pose.band(a0.pivots, top, row, 0.0, anchor, outs=range(0, -31, -1), ranges=b.get("ranges"))
+    cam = rr.camera()
+    for deg in POSE_EXITS:
+        s_out = math.radians(deg)
+        angles, sides, errs = {}, {}, []
+        for side, (top, row, anchor) in rows.items():
+            ang, err = lk_pose.solve(a0.pivots, top, [row], 0.0, s_out, anchor=anchor)
+            angles.update(ang)
+            errs.append(err)
+            path = [(float(u), float(w)) for u, w in lk_pose.rope_path(a0.pivots, ang, row, rho, 0.0, s_out, 1.0, far=1.0)]
+            sides[side] = [(0.0, path[1][1])] + path[1:]   # level back to the wheel's tangent point
+        log["poses"][f"{deg:+.0f}"] = {"anchorErrorMm": round(max(errs) * 1000, 3),
+                                       "unityDeg": {k: round(-math.degrees(x), 2) for k, x in sorted(angles.items()) if abs(x) > 1e-6}}
+        rr._turn(empties, angles)
+        pts = [(u, hg, w) for u, w in reversed(sides["r"])]
+        pts += [(R * math.cos(math.radians(th)), R * math.sin(math.radians(th)), rope) for th in range(95, 270, 5)]
+        pts += [(u, -hg, w) for u, w in sides["l"]]
+        line = rr._rope_curve(f"PoseRope{len(bpy.data.curves)}", pts, c["ropeDiameter"] * 2)
+        line.data.materials[0].diffuse_color = (0.05, 0.05, 0.05, 1.0)
+        rr.show_only(objs + [line])
+        rr.use_palette_uv(objs)
+        lo, hi = rr.bounds_lift(objs + [line])
+        lo -= Vector((0.3, 0.3, 0.3))
+        hi += Vector((0.3, 0.3, 0.3))
+        rr.place_ortho(cam, (1.0, 0.0, 0.0), (0.0, 0.0, 1.0), ((lo.x + hi.x) / 2, 0.0, (lo.z + hi.z) / 2), hi.x - lo.x, hi.z - lo.z)
+        rr.render(os.path.join(out_dir, f"tbar_return_pose_{abs(round(deg)):02d}.png"))
+        rr._turn(empties, {})
+        bpy.data.objects.remove(line)
+    rr.restore_uv(objs)
+    with open(os.path.join(out_dir, "tbar_return_pose.json"), "w") as f:
+        json.dump(log, f, indent=2)
+    print(f"Return breakover band: {log['band']}", flush=True)
 
 
 def carrier(built, bar, at, yaw, retracted=True, seat=None):
@@ -123,26 +242,29 @@ def carrier(built, bar, at, yaw, retracted=True, seat=None):
 
 
 def line_scene(built, kind="bar_t"):
-    """The short line: the drive (bottom) at u 0, towers at 30 m (s6) and 60 m (s4), the return (top) at U_TOP facing
-    back; the rope round both wheels; carriers every spacing and round both wheels; the hut. Returns (objects,
-    figures)."""
+    """The short line up the scene's hill (scene_grade): the drive (bottom) at u 0, towers at 30 m (s6) and 60 m (s4),
+    the return (top) at U_TOP facing back, the rope over its breakover rows; the rope round both wheels; carriers
+    every spacing and round both wheels; the hut. Returns (objects, figures)."""
     spec = built[T + "return"]["spec"]
     c = spec["common"]
     hg = c["lineGauge"] / 2000
     gap = c["carrierSpacing"] / 1000
+    grade = scene_grade(built)
+    top = grade(U_TOP)
     dv, rt = built[T + "drive"], built[T + "return"]
-    r0, r1 = dv["assets"][0].dims["rope"] / 1000, rt["assets"][0].dims["rope"] / 1000
+    r0, r1 = dv["assets"][0].dims["rope"] / 1000, top + rt["assets"][0].dims["rope"] / 1000
     out0 = _socket(dv, "rope_right_out").x
     out1 = _socket(rt, "rope_left_out").x
+    w_ret = surface_fit.rope_profile(rt["assets"][0], "left")   # the arriving loaded rope over the return's rows
     objs = place(dv, (0.0, 0.0, 0.0))
-    objs += place(rt, (U_TOP, 0.0, 0.0), 180.0)
-    objs += place(built[T + "hut"], (2.0, 4.6, 0.0), 90.0)
+    objs += place(rt, (U_TOP, 0.0, top), 180.0)
+    objs += place(built[T + "hut"], (2.0, 4.6, grade(2.0)), 90.0)
     stations = [(0.0, r0), (out0, r0)]
     for u, head, target in TOWERS:
-        o, rw = tower(built, T + head, u, target)
+        o, rw = tower(built, T + head, u, target, grade(u))
         objs += o
         stations.append((u, rw))
-    stations += [(U_TOP - out1, r1), (U_TOP, r1)]
+    stations += [(U_TOP - x, top + w_ret(x)) for x in [out1 * k / 24 for k in range(24, 0, -1)]] + [(U_TOP, r1)]
 
     def rope_w(u):
         for (u0, w0), (u1, w1) in zip(stations, stations[1:]):
@@ -166,12 +288,12 @@ def line_scene(built, kind="bar_t"):
         w = rope_w(u)
         # uphill: ridden, travel +u, outboard +v; the rider 0.7 m over the snow, trailing the box
         at = (u, hg, w)
-        seat = Vector((u - 2.3, hg + _socket(built[T + "springbox"], "cord").y, 0.70))
+        seat = Vector((u - 2.3, hg + _socket(built[T + "springbox"], "cord").y, grade(u - 2.3) + 0.70))
         o, _ = carrier(built, bar, at, 0.0, retracted=False, seat=seat)
         objs += o
         fig = rr.figure((0.0, 0.0, 0.0)).copy()
         sy = _socket(bar, "seat_1").y
-        fig.location = frame.b((seat.x - 0.3, seat.y + sy, 0.0)) + Vector((0, 0, (rr.FIGURE_H - 0.3) / 2))
+        fig.location = frame.b((seat.x - 0.3, seat.y + sy, grade(seat.x - 0.3))) + Vector((0, 0, (rr.FIGURE_H - 0.3) / 2))
         bpy.context.scene.collection.objects.link(fig)
         figures.append(fig)
         u += gap
@@ -194,19 +316,21 @@ def line_scene(built, kind="bar_t"):
 
 
 def jbar_line(built, v0=16.0):
-    """A rope stub beside the line with J bars: retracted, and one ridden, for the J-bar's photo (one kind per line)."""
+    """A rope stub beside the line with J bars, 5 m over the hill: retracted, and one ridden, for the J-bar's photo
+    (one kind per line)."""
     c = built[T + "return"]["spec"]["common"]
-    objs = [rr._rope_curve("JRope", [(0.0, v0, 5.0), (40.0, v0, 5.0)], c["ropeDiameter"])]
+    grade = scene_grade(built)
+    objs = [rr._rope_curve("JRope", [(u, v0, 5.0 + grade(u)) for u in (0.0, FLAT_BOTTOM, 40.0)], c["ropeDiameter"])]
     figs = []
     bar = built[T + "bar_j"]
     for u in (8.0, 23.0):
-        o, _ = carrier(built, bar, (u, v0, 5.0), 0.0)
+        o, _ = carrier(built, bar, (u, v0, 5.0 + grade(u)), 0.0)
         objs += o
-    seat = Vector((15.5 - 2.3, v0 + _socket(built[T + "springbox"], "cord").y, 0.70))
-    o, _ = carrier(built, bar, (15.5, v0, 5.0), 0.0, retracted=False, seat=seat)
+    seat = Vector((15.5 - 2.3, v0 + _socket(built[T + "springbox"], "cord").y, grade(15.5 - 2.3) + 0.70))
+    o, _ = carrier(built, bar, (15.5, v0, 5.0 + grade(15.5)), 0.0, retracted=False, seat=seat)
     objs += o
     fig = rr.figure((0.0, 0.0, 0.0)).copy()
-    fig.location = frame.b((seat.x - 0.3, seat.y + _socket(bar, "seat_1").y, 0.0)) + Vector((0, 0, (rr.FIGURE_H - 0.3) / 2))
+    fig.location = frame.b((seat.x - 0.3, seat.y + _socket(bar, "seat_1").y, grade(seat.x - 0.3))) + Vector((0, 0, (rr.FIGURE_H - 0.3) / 2))
     bpy.context.scene.collection.objects.link(fig)
     figs.append(fig)
     return objs, figs
@@ -234,14 +358,22 @@ def gate1(built, out_dir):
             VIEWS["carrier"] if name in ("springbox", "bar_t", "bar_j") else VIEWS["tower"]
         rr.ORTHO[key] = views
         rr.scene_setup()
-        rr.ortho_views(key, b, out_dir)
-    # clay: the line, from the side and three-quarter; the heads
+        extras = [terminal_rope(b)] if name in ("drive", "return") else []   # the rope at rest through the station
+        rr.ortho_views(key, b, out_dir, extras)
+        for o in extras:
+            bpy.data.objects.remove(o)
+    if T + "return" in built:   # the return's breakover rows posed for other rope angles (v3.1)
+        rr.scene_setup()
+        return_poses(built, out_dir)
+    # clay: the line up its hill, from the side and three-quarter; the heads on level ground
     sc = rr.scene_setup()
     sc.display.shading.show_shadows = True
     sc.render.film_transparent = False
     objs, figs = line_scene(built)
     gnd = rr.ground(size=300.0)
-    rr.show_only(objs + figs + [gnd])
+    grade = scene_grade(built)
+    slope = hill(grade, "SurfaceHill", gnd.data.materials[0])
+    rr.show_only(objs + figs + [slope])
     rr.use_palette_uv(objs)
     cam = rr.camera()
     cam.data.type = "PERSP"
@@ -249,9 +381,10 @@ def gate1(built, out_dir):
     cam.data.clip_start, cam.data.clip_end = 0.1, 600
     sc.render.resolution_x, sc.render.resolution_y = 1800, 900
 
-    def look(name, eye, target):
-        cam.location = frame.b(eye)
-        cam.rotation_euler = (frame.b(target) - cam.location).to_track_quat("-Z", "Y").to_euler()
+    def look(name, eye, target, g=grade):   # eye and target stand over the hill
+        cam.location = frame.b((eye[0], eye[1], eye[2] + g(eye[0])))
+        tgt = frame.b((target[0], target[1], target[2] + g(target[0])))
+        cam.rotation_euler = (tgt - cam.location).to_track_quat("-Z", "Y").to_euler()
         rr.render(os.path.join(out_dir, f"tbar_{name}.png"))
     look("line_clay", (-16.0, 22.0, 9.0), (40.0, 0.0, 3.0))
     look("line_clay_up", (-14.0, 2.0, 2.2), (60.0, 0.0, 4.5))
@@ -262,13 +395,14 @@ def gate1(built, out_dir):
     look("return_clay_back", (U_TOP + 9.0, 8.0, 6.5), (U_TOP - 1.0, 0.0, 4.0))
     look("carriers_clay", (14.0, 7.0, 3.0), (20.0, 1.6, 2.6))
     look("tower_clay", (34.0, 8.0, 3.0), (30.0, 0.0, 4.0))
-    for o in objs + figs:
+    for o in objs + figs + [slope]:
         bpy.data.objects.remove(o)
     heads = head_lineup(built)
     rr.show_only(heads + [gnd])
     rr.use_palette_uv(heads)
-    look("heads_clay", (-5.0, -9.0, 8.5), (6.0, 0.0, 5.6))
-    look("heads_clay_front", (-12.0, 0.5, 5.8), (6.0, 0.0, 5.0))
+    level = lambda u: 0.0
+    look("heads_clay", (-5.0, -9.0, 8.5), (6.0, 0.0, 5.6), level)
+    look("heads_clay_front", (-12.0, 0.5, 5.8), (6.0, 0.0, 5.0), level)
     for o in heads:
         bpy.data.objects.remove(o)
 
@@ -282,10 +416,14 @@ def photos(built, out_dir, mats):
     for f in figs:
         f.data.materials.clear()
         f.data.materials.append(rr._photo_material("PhotoFigureMat", (0.12, 0.28, 0.62), 0.6))
-    snow = rr._snow_plane(0.0)
+    grade = scene_grade(built)
+    snow = hill(grade, "PhotoHill", rr._photo_material("PhotoSnowMat", (0.88, 0.91, 0.95), 0.55))
     rr.show_only(objs + figs + [snow, sun])
     rr.restore_uv(objs)
-    shoot = rr._shooter("tbar", out_dir)
+    _shoot = rr._shooter("tbar", out_dir)
+
+    def shoot(name, target, az, el, dist, lens=50):   # targets stand over the hill
+        _shoot(name, (target[0], target[1], target[2] + grade(target[0])), az, el, dist, lens=lens)
     shoot("hero", (45.0, 0.0, 3.0), 205, 10, 40.0, lens=35)
     shoot("line_up", (30.0, 0.0, 4.0), 182, 4, 45.0, lens=40)
     shoot("drive", (1.5, 0.0, 3.0), 35, 16, 12.0)

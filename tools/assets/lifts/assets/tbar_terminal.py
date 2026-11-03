@@ -10,12 +10,17 @@ D2, D8, D9, kept outside the repo).
           guides at their line ends. The loading hoop hangs just under the leaving train on a short rod from a bracket
           off its girder, outboard of the bars, where the operator steadies them. No ladder on this station. Rope at
           3.4 m (D8).
-  return  the TOP station: one tapered box column leaning back toward the wheel, hinged at its foot, and a plumb box
-          strut, on a flat pad, carrying bare girders with two hoop-railed platforms (over the trains, round the
-          bearing); the bullwheel cantilevered behind with a thin guard rail round it and along the trains, 8-sheave
-          hold-down trains on both ropes toward the line, a galvanised ladder up the column's line face to the trains'
-          platform (its railing open at the ladder's head), and the box-section gallows for the wire (D9). Tension is
-          hidden (D2). Rope at 4.5 m.
+  return  the TOP station: one wide tapered box diagonal leaning back toward the wheel, hinged at its foot, the main
+          support, and a slim plumb prop from the pad to a clevis at the diagonal's middle (owner, v3.1), on a flat pad,
+          carrying bare girders with two hoop-railed platforms (over the trains, round the bearing); the bullwheel
+          cantilevered behind with a thin guard rail round it and along the rows; toward the line an 8-sheave
+          breakover row on each rope (owner, v3.1): support trains hung below the girders on drop plates, their
+          rockers in pairs on two yokes, turned so the rope runs level from the wheel onto the first sheave and bends
+          down over the rest toward the line, 12 deg at rest (posable: the game re-poses them for the line's angle, the
+          first sheave held, for exits of about 7 to 22 deg; tbar.breakover); a galvanised
+          ladder up the diagonal's line face to the trains' platform (its railing open at the ladder's head), and the
+          box-section gallows for the wire (D9). Tension is hidden (D2). Rope at 4.5 m at the wheel; sockets
+          rope_*_hold where the level rope meets the rows, rope_*_out where it leaves them (dims ropeExitDeg).
   hut     the red operator hut (D9, Q3): its own asset, placed by the game beside the bottom station.
 
 The loaded rope is on the right going up: it leaves the drive on v+ and arrives at the return on v-. The lift frame's
@@ -148,30 +153,77 @@ def trains(mb, a, spec, rope, w_pin, rows, g, lod, st):
     for tag, side, n, uc in rows:
         v_rope = side * hg
         r = tbar.train(mb, a, tag, v_rope, "hold", n, T, s, hd, lod, st, w_pin, m(uc), ends=(1,))
-        _, inb, _, _, v_eq, v_ep = tbar.train_v(T, v_rope)
-        v0, v1 = sorted((v_ep, v_ep + inb * 0.03))
-        if lod <= 2:   # the hanger plate from the girder down past the end pin
-            prims.box(mb, (m(uc) - 0.18, v0, w_pin - 0.08), (m(uc) + 0.18, v1, gb + 0.01), st["steel"])
-        if lod == 0:
-            with mb.grouped("#pin"):
-                prims.cylinder(mb, (m(uc), v_ep + inb * 0.04, w_pin), (m(uc), v_eq - inb * (T["eqThick"] / 2 + 0.006), w_pin),
-                               T["pinDia"] / 2, 10, st["rod"])
+        pin_plate(mb, T, v_rope, m(uc), w_pin, gb, lod, st)
         us = tbar.axles_u(T, n)
         ends.append(m(uc) + max(us) + s["dia"] / 2)
         assert abs(r - rope) < 1e-6
     return ends
 
 
+def pin_plate(mb, T, v_rope, u, w_pin, gb, lod, st):
+    """The plate from a girder's underside down past a train's end pin, inboard of the rope, the pin through it."""
+    _, inb, _, _, v_eq, v_ep = tbar.train_v(T, v_rope)
+    v0, v1 = sorted((v_ep, v_ep + inb * 0.03))
+    if lod <= 2:
+        prims.box(mb, (u - 0.18, v0, w_pin - 0.08), (u + 0.18, v1, gb + 0.01), st["steel"])
+    if lod == 0:
+        with mb.grouped("#pin"):
+            prims.cylinder(mb, (u, v_ep + inb * 0.04, w_pin), (u, v_eq - inb * (T["eqThick"] / 2 + 0.006), w_pin), T["pinDia"] / 2, 10,
+                           st["rod"])
+
+
+def breakovers(mb, a, spec, rope, rows, g, lod, st, tr):
+    """The return's breakover rows (owner, v3.1): rows = [(tag, v side, sheaves)] centred at tr["u"], each a support
+    train on the station arc (tbar.breakover: the rope level from the wheel onto its first sheave at `rope`, bending
+    down toward the line), its rockers in pairs on yokes (tr["yokeDrop"], tr["eqDrop"]: the band of line angles it
+    can take), hung below its girder on a drop plate. Returns {tag: tbar.breakover's result}."""
+    c = spec["common"]
+    T = parts.metres(spec["train"])
+    T["ropeR"] = c["ropeDiameter"] / 2000.0
+    T["arcR"] = m(tr["arcR"])
+    T["eqDrop"], T["yokeDrop"] = m(tr["eqDrop"]), m(tr["yokeDrop"])   # rockers in pairs on yokes (the band, v3.1)
+    s = parts.metres(c["sheave"])
+    hd = spec["tower"]["head"]
+    hg = m(c["lineGauge"]) / 2
+    uc = m(tr["u"])
+    out = {}
+    for tag, side, n in rows:
+        info = tbar.breakover(mb, a, tag, side * hg, n, T, s, hd, lod, st, rope, uc)
+        pin_plate(mb, T, side * hg, uc, info["pin"][1], m(g["bottom"]), lod, st)
+        out[tag] = info
+    return out
+
+
+def rope_profile(info, beyond):
+    """The rest rope along a breakover row, (u, w) along +u: level from the wheel's axle to the first sheave, over each
+    sheave, then on at the exit angle for `beyond` metres past the last."""
+    pts = info["rope"]
+    last = pts[-1]
+    return [(0.0, pts[0][1])] + pts + [(last[0] + beyond * math.cos(info["exit"]), last[1] + beyond * math.sin(info["exit"]))]
+
+
+def w_at(profile, u):
+    """The height of a rope profile (from rope_profile) at u, straight between its points."""
+    for (u0, w0), (u1, w1) in zip(profile, profile[1:]):
+        if u <= u1:
+            return w0 + (w1 - w0) * (u - u0) / (u1 - u0) if u1 > u0 else w0
+    return profile[-1][1]
+
+
 def block(mb, lo_u, hi_u, half_v, top, bottom, st):
     prims.box(mb, (lo_u, -half_v, bottom), (hi_u, half_v, top), st["concrete"], skip=("-2",))
 
 
-def rope_sockets(a, hg, rope, u_out, sk, load):
+def rope_sockets(a, hg, rope, outs, sk, load, holds=None):
+    """outs: the rope's (u, w) where it leaves the station toward the line, left and right; holds: where the level rope
+    from the wheel meets a breakover row's first sheave, left and right (u), as on the chairlift returns."""
     a.sockets.update({
         "line": (0.0, 0.0, 0.0),
         "rope_left_bw": (0.0, -hg, rope), "rope_right_bw": (0.0, hg, rope),
-        "rope_left_out": (u_out, -hg, rope), "rope_right_out": (u_out, hg, rope),
     })
+    if holds:
+        a.sockets.update({"rope_left_hold": (holds[0], -hg, rope), "rope_right_hold": (holds[1], hg, rope)})
+    a.sockets.update({"rope_left_out": (outs[0][0], -hg, outs[0][1]), "rope_right_out": (outs[1][0], hg, outs[1][1])})
     if load:   # riders take a bar under the leaving loaded rope (v+)
         a.sockets["carrier_load"] = (m(sk["loadU"]), hg, 0.0)
     else:      # and let go of it before the wheel under the arriving one (v-)
@@ -327,7 +379,7 @@ def drive(spec, lod):
         prims.cylinder(body, (hu, hc.y, gb + 0.1), hc + W * hr, m(hp["rod"]) / 2, 6, st["steel"], caps=(False, False))
 
     a.body = body
-    rope_sockets(a, hg, rope, max(ends), spec["sockets"], load=True)
+    rope_sockets(a, hg, rope, [(max(ends), rope)] * 2, spec["sockets"], load=True)
     a.dims.update({"rope": d["rope"], "deck": round(top * 1000), "houseTop": round((top + 0.04 + m(d["house"]["height"])) * 1000),
                    "girderEnd": g["uTo"], "trains": [tr["leave"], tr["arrive"]]})
     return a
@@ -370,17 +422,38 @@ def ret(spec, lod):
     ad = axis.normalized()
     n = Vector((math.cos(lean), 0.0, -math.sin(lean)))   # the column's line face normal
     taper = [(0.0, -hu_f), (0.0, hu_f), (axis.length, hu_t), (axis.length, -hu_t)]
-    prims.prism(body, taper, foot_pt - V * hv, ad, n, V, 2 * hv, st["paint"], caps=(False, False))
-    sr = r["strut"]
-    prims.box(body, (m(sr["u"]) - m(sr["halfU"]), -m(sr["halfV"]), base), (m(sr["u"]) + m(sr["halfU"]), m(sr["halfV"]), gb), st["paint"],
-              skip=("-2", "+2"))
+    prims.prism(body, taper, foot_pt - V * hv, ad, n, V, 2 * hv, st["paint"])   # with its v faces (v3.1: it was see-through)
+
+    # the plumb prop (owner, v3.1): from a base plate on the pad up to the diagonal's wheel-side face at `at` of its
+    # length, where a clevis of two plates on the face takes its top and a pin
+    pp = r["prop"]
+    f0, f1 = foot_pt - n * hu_f, head_pt - n * hu_t   # the wheel-side face's line, foot to head
+
+    def face_w(u):
+        return f0.z + (f1.z - f0.z) * (u - f0.x) / (f1.x - f0.x)
+
+    fk = f0 + (f1 - f0) * pp["at"]
+    phu, phv = m(pp["halfU"]), m(pp["halfV"])
+    pu = fk.x - phu                                   # its +u face meets the diagonal at fk
+    p_top = fk.z
+    prims.box(body, (pu - phu, -phv, base), (pu + phu, phv, p_top), st["paint"], skip=("-2",))
+    if lod <= 1:
+        pl, cl = pp["plate"], pp["clevis"]
+        ph, ct = m(pl["half"]), m(cl["thick"])
+        prims.box(body, (pu - ph, -ph, base), (pu + ph, ph, base + m(pl["thick"])), st["steel"], skip=("-2",))
+        lo_w = p_top - m(cl["length"]) * 0.5
+        clevis = [(pu - phu, lo_w), (pu + phu, lo_w), (pu + phu, face_w(pu + phu) + 0.03), (pu - phu, face_w(pu - phu) + 0.03)]
+        for sv in (-1, 1):
+            prims.prism(body, clevis, (0.0, phv if sv > 0 else -phv - ct, 0.0), U, W, V, ct, st["paint"])
+        if lod == 0:
+            pr_ = m(cl["pinDia"]) / 2
+            prims.cylinder(body, (pu, -phv - ct - 0.02, p_top + 0.04), (pu, phv + ct + 0.02, p_top + 0.04), pr_, 10, st["rod"])
 
     # the head frame: bare girders from the wheel's shaft to past the trains, cross girders
     u_from, u_to = m(g["uFrom"]), m(g["uTo"])
     top = girders(body, g, u_from, u_to, lod, st)
     cross(body, g, head_u, hu_t, lod, st)
     if lod <= 2:
-        cross(body, g, m(sr["u"]), 0.12, lod, st)
         for u in (u_from + 0.1, 0.35, u_to - 0.1):
             cross(body, g, u, 0.1, lod, st)
     hub_top = wheel(a, body, c, rope, lod, st)
@@ -407,12 +480,12 @@ def ret(spec, lod):
             else:
                 parts.railing_hoops(body, loop + [(u0 + 0.03, -rv, t_rail)], rail, lod, st["steel"])
 
-    # the trains: 8 sheaves on both ropes
-    T = parts.metres(spec["train"])
-    s = parts.metres(c["sheave"])
-    w_pin = rope + T["eqDrop"] + T["rockerDrop"] + s["grooveBottom"] / 2 + c["ropeDiameter"] / 2000.0
+    # the breakover rows: 8 sheaves on both ropes, the rope level from the wheel onto the first, down to the line
     tr = r["trains"]
-    ends = trains(body, a, spec, rope, w_pin, [("l", -1, tr["arrive"], tr["u"]), ("r", 1, tr["leave"], tr["u"])], g, lod, st)
+    rows = breakovers(body, a, spec, rope, [("l", -1, tr["arrive"]), ("r", 1, tr["leave"])], g, lod, st, tr)
+    s_dia = m(c["sheave"]["dia"])
+    profile = rope_profile(rows["r"], s_dia / 2 + 0.05)   # both rows alike: one profile for the guard
+    u_end = profile[-1][0]
 
     # the galvanised ladder up the column's line face to the trains' platform (R20)
     if lod <= 2:
@@ -446,30 +519,37 @@ def ret(spec, lod):
     else:
         a.sockets["wire"] = tuple(apex + W * 0.15)
 
-    # the guard rail round the wheel's back half at rope level and along the outside of both trains (R18)
+    # the guard rail round the wheel's back half and along the outside of both rows, `above` over the rope, following
+    # it down over the breakovers (R18)
     gd = r["guard"]
     if lod <= 2:
-        w_g = rope + m(gd["above"])
+        above = m(gd["above"])
+        w_g = rope + above
         R_g = hg + m(gd["out"])
-        u_end = max(ends)
         arc = [Vector((R_g * math.cos(math.radians(th)), R_g * math.sin(math.radians(th)), w_g)) for th in range(90, 271, 15 if lod == 0 else 30)]
-        path = [Vector((u_end, R_g, w_g))] + arc + [Vector((u_end, -R_g, w_g))]
+        along = profile[1:] if lod == 0 else [profile[1], profile[len(profile) // 2], profile[-1]] if lod == 1 else [profile[1], profile[-1]]
+        run = [(u, w + above) for u, w in along]
+        path = [Vector((u, R_g, w)) for u, w in reversed(run)] + arc + [Vector((u, -R_g, w)) for u, w in run]
         prims.tube_path(body, path, m(gd["dia"]) / 2, parts.sides(lod, 8, 5, 4), st["steel"], caps=True)
         if lod <= 1:   # brackets from the girders out to the guard
             br = m(gd["bracketDia"]) / 2
             u = 0.3
             while u < u_end - 0.3:
                 for sv in (-1, 1):
-                    prims.cylinder(body, (u, sv * hv_w, gb + 0.02), (u, sv * R_g, w_g), br, 6, st["steel"], caps=(False, False))
+                    prims.cylinder(body, (u, sv * hv_w, gb + 0.02), (u, sv * R_g, w_at(profile, u) + above), br, 6, st["steel"],
+                                   caps=(False, False))
                 u += m(gd["bracketEvery"])
             for th in (135, 180, 225):
                 p = Vector((R_g * math.cos(math.radians(th)), R_g * math.sin(math.radians(th)), w_g))
                 prims.cylinder(body, (u_from + 0.1, p.y * 0.5, gb + 0.02), p, br, 6, st["steel"], caps=(False, False))
 
     a.body = body
-    rope_sockets(a, hg, rope, max(ends), spec["sockets"], load=False)
+    lt, rt = rows["l"]["rope"], rows["r"]["rope"]
+    rope_sockets(a, hg, rope, [lt[-1], rt[-1]], spec["sockets"], load=False, holds=[lt[0][0], rt[0][0]])
     a.dims.update({"rope": r["rope"], "deck": round(top * 1000), "columnLeanDeg": round(math.degrees(lean), 1),
-                   "girderEnd": g["uTo"], "trains": [tr["arrive"], tr["leave"]]})
+                   "girderEnd": g["uTo"], "trains": [tr["arrive"], tr["leave"]], "trainsArcR": tr["arcR"],
+                   "ropeExitDeg": round(math.degrees(rows["r"]["exit"]), 2), "ropeOut": round(rt[-1][1] * 1000),
+                   "propTop": round(p_top * 1000)})
     return a
 
 

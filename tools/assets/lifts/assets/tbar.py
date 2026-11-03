@@ -225,40 +225,59 @@ def train_v(T, v_rope):
     ci = v_rope + inb * (T["hubHalf"] + T["cheekGap"] + T["rockerThick"] / 2)
     co = v_rope + out * (T["hubHalf"] + T["cheekGap"] + T["cheekThick"] / 2)
     eq = ci + inb * (T["rockerThick"] / 2 + T["eqGap"] + T["eqThick"] / 2)
+    if T.get("yokeDrop"):   # a row on yokes: the yokes take that plane, the main equaliser one plate further inboard
+        eq += inb * (T["eqThick"] + T["eqGap"])
     ep = eq + inb * (T["eqThick"] / 2 + T["endGap"])   # the end plate's outboard face
     return out, inb, ci, co, eq, ep
 
 
-def train(mb, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, u_c=0.0, ends=(-1, 1)):
+def train(mb, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, u_c=0.0, ends=(-1, 1), follow=False):
     """A sheave train on the rope at v_rope, on the end pin at (u_c, w_pin): n sheaves in pairs on rockers (cheek
     plates both sides), the rockers on a pentagonal equaliser, black catchers out from its ends (`ends`: -1 the -u
-    end, +1 the +u end). Returns the rope's height. Pivots: train_<tag> on the end pin (the whole train follows the
-    rope's angle), rocker_<tag><i> under it, sheave_<tag><k> under its rocker."""
+    end, +1 the +u end). Returns the rope's height. Pivots (the model contract's names): eq_<tag> on the end pin (the
+    whole train follows the rope's angle), rocker_<tag><i> under it, sheave_<tag><k> under its rocker. With
+    T["yokeDrop"] (a terminal's long row, sheaves in fours) each pair of rockers hangs on a yoke, yoke_<tag><j>, its pin
+    yokeDrop under theirs, and the yokes on the main equaliser, as real long rows are built. `follow` (a support row only): the
+    catchers keep their place under the rope as it leaves the end sheave down the arc's tangent, not under a level
+    rope (a terminal's breakover row, v3.1)."""
     if u_c:   # built about u = 0, then moved along the line with its pivots
         tmp, before = MeshBuilder(), set(a.pivots)
-        rope = train(tmp, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, 0.0, ends)
+        rope = train(tmp, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, 0.0, ends, follow)
         mb.merge(tmp.translated((u_c, 0.0, 0.0)))
         for k in set(a.pivots) - before:
             p = a.pivots[k]["pos"]
             a.pivots[k]["pos"] = (p[0] + u_c, p[1], p[2])
         return rope
     out, inb, v_ci, v_co, v_eq, v_ep = train_v(T, v_rope)
+    yd = T.get("yokeDrop")
+    v_y = v_eq - inb * (T["eqThick"] + T["eqGap"]) if yd else v_eq   # the rockers' pins end in this plane
     sg = -1.0 if mode == "support" else 1.0          # the structure is below a support row, above a hold-down
     Rc = s["grooveBottom"] / 2 + T["ropeR"]
     rope = w_pin - sg * (T["eqDrop"] + T["rockerDrop"] + Rc)
     us = axles_u(T, n)
     axles = [Vector((u, v_rope, rope + sg * (Rc + u * u / (2 * T["arcR"])))) for u in us]
-    tname = f"train_{tag}"
+    tname = f"eq_{tag}"
     a.pivots[tname] = {"pos": (0.0, v_eq, w_pin), "axis": (0.0, 1.0, 0.0), "hinge": True}
     pt2, wt2 = T["cheekThick"] / 2, T["rockerThick"] / 2
     pins = []
     for i in range(n // 2):
-        a0, a1 = axles[2 * i], axles[2 * i + 1]
-        pin = (a0 + a1) / 2 + W * sg * T["rockerDrop"]
-        pin.y = v_eq
-        rname = f"rocker_{tag}{i + 1}"
-        a.pivots[rname] = {"pos": tuple(pin), "axis": (0.0, 1.0, 0.0), "parent": tname, "hinge": True}
+        pin = (axles[2 * i] + axles[2 * i + 1]) / 2 + W * sg * T["rockerDrop"]
+        pin.y = v_y
         pins.append(pin)
+    ypins = []
+    if yd:
+        assert n % 4 == 0, "yokes take the rockers in pairs"
+        for j in range(n // 4):
+            yp = (pins[2 * j] + pins[2 * j + 1]) / 2 + W * sg * yd
+            yp.y = v_y
+            a.pivots[f"yoke_{tag}{j + 1}"] = {"pos": tuple(yp), "axis": (0.0, 1.0, 0.0), "parent": tname, "hinge": True}
+            ypins.append(yp)
+    for i in range(n // 2):
+        a0, a1 = axles[2 * i], axles[2 * i + 1]
+        pin = pins[i]
+        rname = f"rocker_{tag}{i + 1}"
+        a.pivots[rname] = {"pos": tuple(pin), "axis": (0.0, 1.0, 0.0), "parent": f"yoke_{tag}{i // 2 + 1}" if yd else tname,
+                           "hinge": True}
         rocker_tag = rname if lod <= 1 else tname
         if lod <= 1:
             with mb.grouped(rocker_tag):   # the rocker: a cast web inboard (wide at the axles, narrow at its pin, R2),
@@ -271,7 +290,7 @@ def train(mb, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, u_c=0.0, ends=(
                 prims.box(mb, (a0.x - 0.075, v_co - pt2, lo), (a1.x + 0.075, v_co + pt2, hi), st["galv"])
             if lod == 0:   # the rocker's pin from the equaliser into the inner cheek, its own piece for the clash sweep
                 with mb.grouped(f"{rocker_tag}#pin"):
-                    prims.cylinder(mb, Vector((pin.x, v_eq, pin.z)), Vector((pin.x, v_ci, pin.z)), T["rockerPinDia"] / 2, 8, st["rod"])
+                    prims.cylinder(mb, Vector((pin.x, v_y, pin.z)), Vector((pin.x, v_ci, pin.z)), T["rockerPinDia"] / 2, 8, st["rod"])
         if lod == 2:   # far out: the pair as one block
             with mb.grouped(tname):
                 R, hw = s["dia"] / 2, s["width"] / 2
@@ -297,10 +316,28 @@ def train(mb, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, u_c=0.0, ends=(
                 a.pivots.setdefault(f"sheave_{tag}{k + 1}", {"pos": tuple(axles[k]), "axis": (0.0, 1.0, 0.0),
                                                              "parent": f"rocker_{tag}{i + 1}"})
 
-    # the equaliser: a pentagon, its flat edge through the rocker pins, its point on the end pin
-    L = max(abs(p.x) for p in pins) + 0.08
-    far = max(p.z for p in pins) if sg < 0 else min(p.z for p in pins)
-    near = min(p.z for p in pins) if sg < 0 else max(p.z for p in pins)
+    # the yokes: pentagons like the equaliser, each through its two rocker pins, its point on its own pin
+    for j, yp in enumerate(ypins):
+        yname = f"yoke_{tag}{j + 1}"
+        p0, p1 = pins[2 * j], pins[2 * j + 1]
+        if lod <= 1:
+            yl = abs(p1.x - p0.x) / 2 + 0.08
+            yf = (max(p0.z, p1.z) if sg < 0 else min(p0.z, p1.z)) - sg * 0.045
+            ys = (min(p0.z, p1.z) if sg < 0 else max(p0.z, p1.z)) + sg * 0.05
+            poly = [(yp.x - yl, yf), (yp.x + yl, yf), (yp.x + yl, ys), (yp.x, yp.z + sg * 0.055), (yp.x - yl, ys)]
+            with mb.grouped(yname):
+                prims.prism(mb, poly, (0.0, v_y - T["eqThick"] / 2, 0.0), U, W, V, T["eqThick"], st["galv"])
+        if lod == 0:   # the yoke's pin into the main equaliser
+            with mb.grouped(f"{yname}#pin"):
+                prims.cylinder(mb, Vector((yp.x, v_y - inb * T["eqThick"] / 2, yp.z)),
+                               Vector((yp.x, v_eq + inb * (T["eqThick"] / 2 + 0.006), yp.z)), T["rockerPinDia"] / 2, 8, st["rod"])
+
+    # the equaliser: a pentagon, its flat edge through the rocker pins (the yoke pins on a row with yokes), its point on
+    # the end pin
+    tops = ypins or pins
+    L = max(abs(p.x) for p in tops) + 0.08
+    far = max(p.z for p in tops) if sg < 0 else min(p.z for p in tops)
+    near = min(p.z for p in tops) if sg < 0 else max(p.z for p in tops)
     flat = far - sg * 0.045
     shoulder = near + sg * 0.05
     tip = w_pin + sg * 0.055
@@ -316,31 +353,84 @@ def train(mb, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, u_c=0.0, ends=(
                       (axles[-1].x + R, v_rope + hw, max(p.z for p in axles) + R), parts.row_face(0, 2, st), skip=("-2",))
 
     # the catchers: from each end of the equaliser a bracket out along u, across under the rope, and the black tube out
-    # past the train in one smooth sweep outboard and down (R29), longer on the drag (+v) side
+    # past the train in one smooth sweep outboard and down (R29), the same on both ropes (owner, v3.1)
     c = hd["catcher"]
     end_u = max(us) + s["dia"] / 2
     u0 = end_u + m(c["gap"])
     w_c = rope - m(c["below"])
     v_c = v_rope + out * m(c["out"])
     cr = m(c["dia"]) / 2
-    Lc = m(c["lengthDrag"] if out > 0 else c["length"])
+    Lc = m(c["length"])
     so, sd = m(c["sweep"][0]), m(c["sweep"][1])
+
+    def drop(e, x):   # how far the rope leaving end e has fallen below `rope` at x past the train's middle
+        if not follow:
+            return 0.0
+        ue = us[-1] if e > 0 else us[0]
+        al = math.atan(-ue / T["arcR"])   # the rope's slope over the end sheave, kept past it
+        cu, cw = ue - Rc * math.sin(al), rope - Rc - ue * ue / (2 * T["arcR"]) + Rc * math.cos(al)
+        return cw + (e * x - cu) * math.tan(al) - rope
+
     if lod <= 2:
         with mb.grouped(tname):
             for e in ends:
+                d0, d45, d80, d1 = (drop(e, u0 + Lc * f) for f in (0.0, 0.45, 0.8, 1.0))
                 if lod <= 1:
-                    prims.beam(mb, (e * (L - 0.04), v_eq, flat), (e * u0, v_eq, w_c), 0.05, T["eqThick"], st["galv"], up=V)
-                    prims.beam(mb, (e * u0, v_eq, w_c), (e * u0, v_c, w_c), 0.05, 0.04, st["galv"])
-                    pts = [Vector((e * u0, v_c, w_c)), Vector((e * (u0 + Lc * 0.45), v_c + out * so * 0.3, w_c - sd * 0.3)),
-                           Vector((e * (u0 + Lc * 0.8), v_c + out * so * 0.72, w_c - sd * 0.72)),
-                           Vector((e * (u0 + Lc), v_c + out * so, w_c - sd))]   # a t^1.5 droop: no kink at the tip
+                    prims.beam(mb, (e * (L - 0.04), v_eq, flat), (e * u0, v_eq, w_c + d0), 0.05, T["eqThick"], st["galv"], up=V)
+                    prims.beam(mb, (e * u0, v_eq, w_c + d0), (e * u0, v_c, w_c + d0), 0.05, 0.04, st["galv"])
+                    pts = [Vector((e * u0, v_c, w_c + d0)),
+                           Vector((e * (u0 + Lc * 0.45), v_c + out * so * 0.3, w_c + d45 - sd * 0.3)),
+                           Vector((e * (u0 + Lc * 0.8), v_c + out * so * 0.72, w_c + d80 - sd * 0.72)),
+                           Vector((e * (u0 + Lc), v_c + out * so, w_c + d1 - sd))]   # a t^1.5 droop: no kink at the tip
                     if lod == 1:
                         pts = [pts[0], pts[2], pts[3]]
                     prims.tube_path(mb, pts, cr, parts.sides(lod, 8, 5), st["black"], caps=True)
                 else:
-                    prims.beam(mb, (e * u0, v_c, w_c), (e * (u0 + Lc), v_c + out * so * 0.5, w_c - sd * 0.5), 2 * cr, 2 * cr,
-                               st["black"], skip_ends=True)
+                    prims.beam(mb, (e * u0, v_c, w_c + d0), (e * (u0 + Lc), v_c + out * so * 0.5, w_c + d1 - sd * 0.5),
+                               2 * cr, 2 * cr, st["black"], skip_ends=True)
     return rope
+
+
+def breakover(mb, a, tag, v_rope, n, T, s, hd, lod, st, rope, u_c, ends=(1,)):
+    """A breakover row at a terminal (owner, Gate 1 v3.1): a support train on the station arc T["arcR"], turned about
+    its end pin so the rope runs level from the bullwheel onto its first (-u) sheave at `rope` and bends down over the
+    rest toward the line. The turn is the rest pose (the pivots turn with it); the rocker angles stay zero. The game
+    re-poses the row for the line's own angle (eq_<tag> on the end pin, yoke_<tag>j when T["yokeDrop"], rocker_<tag>i),
+    holding the first sheave, so the rope always reaches the wheel level. Returns {"pin": (u, w), "rope": [(u, w) of the rope over each
+    sheave, along +u], "exit": the rope's angle past the last sheave (radians, negative: down toward +u)}."""
+    R = T["arcR"]
+    Rc = s["grooveBottom"] / 2 + T["ropeR"]
+    us = axles_u(T, n)
+    phi = math.atan(us[0] / R)   # levels the first sheave's tangent (us[0] < 0, so the +u end goes down)
+    cp, sp = math.cos(phi), math.sin(phi)
+    # the first axle from the pin before the turn (train(): axles at w_pin + eqDrop + rockerDrop - u^2 / 2R), then
+    # the pin's height that puts the rope over that axle at `rope` once turned
+    lift_f = T["eqDrop"] + T["rockerDrop"] - us[0] ** 2 / (2 * R)
+    w_pin = rope - Rc - (us[0] * sp + lift_f * cp)
+    tmp, before = MeshBuilder(), set(a.pivots)
+    train(tmp, a, tag, v_rope, "support", n, T, s, hd, lod, st, w_pin, 0.0, ends, follow=True)
+
+    def turn(u, w):
+        dw = w - w_pin
+        return u * cp - dw * sp + u_c, w_pin + u * sp + dw * cp
+
+    verts = []
+    for p in tmp.verts:
+        u, v, w = frame.lift(p)
+        tu, tw = turn(u, w)
+        verts.append(frame.b((tu, v, tw)))
+    tmp.verts = verts
+    mb.merge(tmp)
+    for k in set(a.pivots) - before:
+        p = a.pivots[k]["pos"]
+        tu, tw = turn(p[0], p[2])
+        a.pivots[k]["pos"] = (tu, p[1], tw)
+    rope_pts = []
+    for u in us:
+        tu, tw = turn(u, w_pin + T["eqDrop"] + T["rockerDrop"] - u * u / (2 * R))
+        al = math.atan(-u / R) + phi   # the rope's slope over this sheave
+        rope_pts.append((tu - Rc * math.sin(al), tw + Rc * math.cos(al)))
+    return {"pin": (u_c, w_pin), "rope": rope_pts, "exit": math.atan(-us[-1] / R) + phi}
 
 
 def head(spec, t, variant, lod, st):

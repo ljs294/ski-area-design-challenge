@@ -100,6 +100,8 @@ The game poses the lift's moving parts once, at build, from the rope (the model 
 | `c8` | `block_r` (rigid with both triangular frames) → `yoke_sup_r`, `yoke_hold_r` (overlapping the frames: range 0) → `rocker_rs1/2`, `rocker_rh1/2` → `sheave_rs1..4`, `sheave_rh1..4` |
 | the drive's row | `beam_r` (the beam's pin through the plate) → `rocker_r1`, `rocker_r2` → `sheave_r2..5` |
 | the Monta drive's exit row | `eq_l` (the long carrier, on the pin through its clamp under the front cross tube) → `yoke_l1` (on a hanger block) and `eq_l2` (the link bar, on the other block) → `yoke_l2`, `yoke_l3` → `rocker_l1..6` → `sheave_l1..12`; on the right rope the reference has it end for end: `eq_r` → `yoke_r3` and `eq_r2` → `yoke_r1`, `yoke_r2` |
+| Monta T-bar heads, the T-bar drive's rows | `eq_l`, `eq_r` (the end pin) → `rocker_<s>1..` → `sheave_<s>1..` |
+| the Monta T-bar return's breakover rows | `eq_<s>` (the end pin through the drop plate) → `yoke_<s>1`, `yoke_<s>2` → `rocker_<s>1..4` → `sheave_<s>1..8` |
 
   The drive's row equalises a little (owner): stops of ±10° on `beam_r` and ±5° on its rockers (spec
   `drive.entryTrains.pinStops`; the build clamps the clash range to them). Sharing the turn equally up to the row's
@@ -114,6 +116,9 @@ The game poses the lift's moving parts once, at build, from the rope (the model 
   inside the clash ranges. Its plates are spread across the rope's plane so the parts can turn. Its guide sheaves and
   the return's deflection sheaves stay single fixed wheels (owner, confirmed at P3-09): the return is a fixed row,
   which the game takes as rigid (LT33).
+  The Monta T-bar return's breakover rows rest on their station arc with the rope level from the bullwheel onto the
+  first sheave and leaving at 12° (`ropeExitDeg`, `rope_<side>_hold`); their yokes let them keep that level entry,
+  the first sheave held, for exits of 7° to 22° (`pose.band`, inside the clash ranges).
   Sheaves are their own parts at LOD0 and ride in their rocker at LOD1; at LOD2-3 each side's whole train is one
   part under its top pivot, never the body. The main pin and the lug plates stay in the body.
 - **The Sessellift chair:** `grip` (the origin, on the rope) → `hanger`, which turns about the grip's own stack axis
