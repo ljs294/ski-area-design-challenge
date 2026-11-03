@@ -191,8 +191,10 @@ def head(spec, t, variant, lod, st):
     hd = t["head"]
     cfg = t["heads"][variant]
     asm = parts.line_spec(spec)
-    radius = asm["arcs"][cfg["arc"]]
-    a = Asset(f"sessellift_fgq4_tower_{variant}")
+    # radius (mm) and level: a head on another arc, levelled at its first sheave (the D4's integrated tower)
+    radius = m(cfg["radius"]) if "radius" in cfg else asm["arcs"][cfg["arc"]]
+    level = cfg.get("level", "apex")
+    a = Asset(spec.get("idPrefix", "sessellift_fgq4") + f"_tower_{variant}")
     mb = MeshBuilder()
     hg = m(c["lineGauge"]) / 2
     r = m(t["mast"]["dia"]) / 2
@@ -228,7 +230,8 @@ def head(spec, t, variant, lod, st):
         rope = pin_target                                 # a combination's pivot is at rope level
     else:
         mode = "support" if "support" in cfg else "hold"
-        _, trial_w = parts.line_assembly(MeshBuilder(), Asset("trial"), "t", 0.0, hg, 0.0, asm, cfg[mode], mode, lod, st, radius)
+        _, trial_w = parts.line_assembly(MeshBuilder(), Asset("trial"), "t", 0.0, hg, 0.0, asm, cfg[mode], mode, lod, st, radius,
+                                         level=level)
         rope = pin_target - trial_w
 
     for side, tag in ((-1, "l"), (1, "r")):
@@ -236,7 +239,11 @@ def head(spec, t, variant, lod, st):
         if "combo" in cfg:
             pin_u, pin_w = parts.combo_assembly(mb, a, tag, v_rope, rope, asm, cfg["combo"], lod, st, radius)
         else:
-            pin_u, pin_w = parts.line_assembly(mb, a, tag, 0.0, v_rope, rope, asm, cfg[mode], mode, lod, st, radius)
+            # a detachable's hold-down rows keep their inboard yokes only (the D4, owner option A: the grip's tyre plate
+            # passes outboard above the rope, where the outboard yoke stands)
+            outer = mode != "hold" or t.get("holdOuterYoke", True)
+            pin_u, pin_w = parts.line_assembly(mb, a, tag, 0.0, v_rope, rope, asm, cfg[mode], mode, lod, st, radius, level=level,
+                                               outer_yoke=outer)
         w_lo, w_hi = pin_w - m(lg["past"]), cb0        # from under the crossbeam end down past the pin
         # lug plates either side of the equaliser (or block) on the crossbeam end, and the pin through them
         b_in, b_out = v_rope - side * X["beam"][1], v_rope - side * X["beam"][0]

@@ -24,7 +24,13 @@ namespace MountainPlanner.Domain.Design
 
         /// <summary>LT41 (owner, 2026-10-23): the types a player can build, the ones with their own models. Every other
         /// entry stays in the menu as a placeholder (greyed) until its models exist.</summary>
-        public static bool Buildable(string id) => id == SesselliftFgq4 || id == MontaFg4 || id == SesselliftD6;
+        public static bool Buildable(string id) => id == SesselliftFgq4 || id == MontaFg4 || id == SesselliftD6
+            || id == SesselliftFgd2 || id == SesselliftFgt3 || id == MontaFg2 || id == MontaFg3 || id == SesselliftD4;
+        /// <summary>The Sessellift D4 detachable quad (v0.3.2, the D4 model thread).</summary>
+        public const string SesselliftD4 = "detach-quad:sessellift";
+        /// <summary>The fixed-grip doubles and triples (v0.3.2, owner LD1): Sessellift FGD-2 / FGT-3 and Monta FG2 / FG3.</summary>
+        public const string SesselliftFgd2 = "fixed-double:sessellift", SesselliftFgt3 = "fixed-triple:sessellift",
+                            MontaFg2 = "fixed-double:monta", MontaFg3 = "fixed-triple:monta";
 
         /// <summary>The carriers other than the fixed quad, in menu order (LC-08).</summary>
         public static readonly string[] Carriers =

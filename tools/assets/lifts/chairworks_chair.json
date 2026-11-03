@@ -618,7 +618,13 @@
   "name": "Chairworks quad chair",
   "parts": {
    "chairworks_chair_detach": "Quad chair, detachable grip",
-   "chairworks_chair_fixed": "Quad chair, fixed grip"
+   "chairworks_chair_fixed": "Quad chair, fixed grip",
+   "chairworks_chair_double_fixed": "Double chair, fixed grip",
+   "chairworks_chair_triple_fixed": "Triple chair, fixed grip"
+  },
+  "models": {
+   "chairworks_chair_double_fixed": "Chairworks double chair",
+   "chairworks_chair_triple_fixed": "Chairworks triple chair"
   }
  }
 }

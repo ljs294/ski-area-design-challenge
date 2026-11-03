@@ -185,6 +185,10 @@ MonoBehaviour:
   - {fileID: 8914026376450920979}
   - {fileID: 971484549343753817}
   LiveryRenderers: []
+  PivotFollows: 
+  Paths: []
+  Heads: []
+  ShownHead: -1
 --- !u!1 &1856970909702929426
 GameObject:
   m_ObjectHideFlags: 0

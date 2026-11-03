@@ -1,0 +1,140 @@
+{
+  "_about": "Sessellift D4 detachable quad (v0.3.2, owner DQ1-DQ9): the D6 (sessellift_d6.json) at a 4.8 m line gauge, built by the D6's builders from the station family's quad layouts. The quad's station is the six-pack's with one 3,200 mm portal bay taken out of its line-end straight; the D6's heights are kept (DQ9). The chair is the Sessellift quad chair on the D6's hanger at the D6's drop, on the detachable grip (DQ3); the rope is the quad kit's 1 3/4 in (DQ4). Millimetres.",
+  "base": "sessellift_d6.json",
+  "kit": "sessellift_fgq4.json",
+  "_kit": "the integrated tower's hold-down rows are the quad kit's line assembly (tower.assembly, DQ2)",
+  "idPrefix": "sessellift_d4",
+  "common": {
+    "lineGauge": 4800,
+    "ropeDiameter": 44.45,
+    "loadedRope": "right when looking uphill: v+ at the bottom terminal, v- at the top terminal",
+    "driveEnd": "bottom",
+    "tensioning": "top (the top terminal carries the tension carriage)"
+  },
+  "chair": {
+    "_about": "The Sessellift quad chair (sessellift_fgq4.json chair) by the D6 chair's rules at widen 0 (assets/d6_chair.py derive): its own body (body quad) hung at the D6's drop on the D6's hanger, clamp and top bar, so it loads at the D6's height (DQ9).",
+    "seats": 4,
+    "widen": {
+      "frames": 0,
+      "bench": 0
+    },
+    "body": "quad"
+  },
+  "stations": {
+    "_about": "Each end from a D6 end section with one 3,200 mm bay taken out of the line-end straight and moved shift mm along the line (liftkit/gauge.py quad_station; Gate 0: hood, front mast, bend sheaves, belly and rear mast within 20 mm of the layouts). The bottom is drawn as the drive, the top as the return with the tension carriage (DQ6). load: the end riders board at.",
+    "bottom": {
+      "from": "drive",
+      "shift": 80,
+      "load": true
+    },
+    "top": {
+      "from": "return",
+      "shift": 100,
+      "load": false
+    }
+  },
+  "terminal": {
+    "hood": {
+      "halfWidth": 4188,
+      "roofKit": {
+        "lifelines": false,
+        "_lifelines": "owner, Gate 1: no lifeline tripods (the small A-frames) or cable on the roof"
+      }
+    },
+    "belly": {
+      "joints": [
+        -3156,
+        -2087,
+        -1024,
+        43,
+        1110,
+        2176
+      ]
+    },
+    "bottom": {
+      "_about": "Measured on the bottom's layout: the chair rail's back turn (tighter than the D6 drive's, which cannot narrow 400 mm; its centre at v 657, measured 645, so the turn meets the straight at the gauge rule's rail v 2,534), the rail's back for the riders; the front mast as the D6 return's (top of concrete, head and the ladder on the line side).",
+      "rail": {
+        "corner": [
+          -4337,
+          657
+        ],
+        "radius": 1877
+      },
+      "riders": [
+        -6080,
+        0
+      ],
+      "frontMast": {
+        "toc": -950,
+        "head": {
+          "half": [
+            569,
+            586
+          ],
+          "w": [
+            2735,
+            2957
+          ],
+          "gusset": 250
+        },
+        "ladder": {
+          "bottom": [
+            1330,
+            -937
+          ],
+          "top": [
+            2609,
+            3054
+          ],
+          "width": 735,
+          "rail": [
+            [
+              1330,
+              -37
+            ],
+            [
+              2714,
+              4565
+            ]
+          ],
+          "hatch": [
+            2250,
+            2900
+          ]
+        }
+      },
+      "pierFront": {
+        "toc": -950
+      },
+      "integratedTower": {
+        "_about": "The bottom's integrated tower (DQ5), owner Gate 1: the D4's own hold-down tower head (sessellift_d4_towers.json d8: the quad kit's head at 4.8 m, inboard yokes, DQ10) on the kit's mast and base, standing on the line where the bottom's layout draws its sheave trains' pin (u 13,030); the base's pier top at the front mast's (toc). Its rows on a 24 m arc levelled at their first sheave (DQ11): the rope leaves the station level and its trains pose to exits of 5-16 deg (8.6 at rest; the layout's near-level row, the kit's flat 40 m arc, poses only 3-9).",
+        "towers": "sessellift_d4_towers.json",
+        "head": "d8",
+        "u": 13030,
+        "radius": 24000,
+        "toc": -950
+      }
+    },
+    "top": {
+      "rail": {
+        "corner": [
+          -4594,
+          600
+        ]
+      },
+      "riders": [
+        -2900,
+        -2400
+      ]
+    }
+  },
+  "catalog": {
+    "maker": "Sessellift",
+    "name": "D4",
+    "parts": {
+      "sessellift_d4_bottom": "Bottom terminal",
+      "sessellift_d4_top": "Top terminal",
+      "sessellift_d4_chair": "Quad chair"
+    }
+  }
+}

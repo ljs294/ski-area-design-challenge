@@ -894,3 +894,7 @@ MonoBehaviour:
   - {fileID: 1959028741246935545}
   - {fileID: 6751192198320345049}
   LiveryRenderers: []
+  PivotFollows: ffffffff
+  Paths: []
+  Heads: []
+  ShownHead: -1

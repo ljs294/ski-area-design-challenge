@@ -17,6 +17,7 @@ which carry the Sessellift chair; and the **Chairworks quad chair** with either 
 | `sle_guns.json` | The snow guns' dimensions (`stickGun`, `groundGun`, `tripod`) and their `catalog` names; an asset module names its spec with `SPEC` |
 | `monta_fg4.json` | The Monta terminals' dimensions (`common`, `drive`, `return`) and their `catalog` |
 | `chairworks_chair.json` | The Chairworks chair's dimensions (the body, both grips) and its `catalog` |
+| `sessellift_d4.json`, `sessellift_d4_towers.json` | The Sessellift D4 detachable quad: an overlay on `sessellift_d6.json` (its station one bay shorter, at a 4.8 m gauge) and its tower heads, the quad kit's at that gauge (see Sessellift D4 below) |
 | `fixed_grip.json` | The fixed grip every fixed-grip chair carries (LP22) |
 | `budgets.json` | Triangle budgets per LOD and LOD switch distances. The build and the Unity tests both read it |
 | `build_lifts.py` | Builds every asset and LOD, bakes AO, sweeps the pivots for clashes, exports one FBX per asset plus the textures, and checks budgets, pivots, sockets and AO tiling |
@@ -132,6 +133,28 @@ The game poses the lift's moving parts once, at build, from the rope (the model 
   a cast-only ghost section above and one below, with every ray also cast mirrored, so its top and bottom corners
   agree (the build fails above 0.01). The scene is updated before the bake, so parts are baked where they hang.
 
+## Terminal heads: drive at either end
+
+The player chooses which end of a fixed-grip lift drives (owner, 2026-11-02), so every fixed-grip terminal (the
+Sessellift quad, triple and double drive and return, the Monta drives) carries a head for each end, and the game shows
+one (`liftkit/swap.py`). The bottom head holds the rope down: it runs level through loading and leaves climbing. The top
+head takes it in over a support row, in three sizes for a gentler or sharper summit: 4, 6 and 8 sheaves (`top`, `top6`
+flat, `top8` on the breakover arc), the kit rows of the line towers on heavy lug plates (`heads.hung_assembly`). The
+Monta's bottom return has one head: the kit 8-sheave hold-down on the station arc.
+
+- **Names:** the head a terminal was built with (its default) keeps plain names; every other head prefixes all its
+  pivots and sockets with its key (`bottom_eq_l`, `top6_rope_right_out`, `top8_chair_unload`). Each head's steel is a
+  part on a fixed pivot `<key>_head` (range 0, `rangeBy` fixed).
+- **`lifts.json` `heads`:** per key its `end`, `default`, `prefix`, `pivots`, `sockets` and `dims` (`sheaves`, `arc`,
+  `ropeExitDeg`, the rope's rest angle leaving the row).
+- **Budgets:** a LOD's `shown` total is the body with its heaviest head (one head at a time); `heads` lists each.
+- **Checks per head:** the clash sweep, the chair's fit, the rope sockets and the ambient occlusion run once per head
+  (`swap.view`), and the review renders show each.
+- **In Unity:** LiftImport records the heads on `LiftRig.Heads` (default first) and leaves only the default head's
+  pivots active; `LiftRig.ShowHead(key)` swaps them and `HeadSocket(name)` finds the shown head's socket by its plain
+  name. `LiftRig.Socket` and `Pivot` match by suffix, so a prefixed head never answers for a plain name. The Lift Lab's
+  fixed-grip view (M, demo.bat 69f) steps every terminal through its heads with V.
+
 ## Line towers (LP11)
 
 The tower kit is modular, so the game can build a tower of any height in 1 m steps:
@@ -197,6 +220,20 @@ spin only at LOD0 on towers; from LOD1 a head is one mesh.
 - **Spec:** `monta_fg4.json` is generated locally from the reference; its `_adjust` notes list every deliberate
   change (the lowering, the rope line, every pier carried down to 15 m below grade, `common.pierBottom`, with the
   drive's buried footing slabs left to the game's footing).
+
+## Sessellift D4 detachable quad
+
+| Asset | Origin | What it is |
+|---|---|---|
+| `sessellift_d4_bottom` | grade, on the bullwheel's axle | the D6's drive station one 3,200 mm bay shorter and 400 mm narrower a side, at a 4.8 m gauge, with no roof lifelines; its first tower built in: the D4's `d8` head (inboard yokes) on the kit's mast and base, its rows on a 24 m arc (`terminal.bottom.integratedTower`) |
+| `sessellift_d4_top` | grade, on the bullwheel's axle | the D6's return station, cut the same way, with the tension carriage |
+| `sessellift_d4_chair` | the grip, on the rope | the Sessellift quad chair's body on the D6's hanger, clamp and top bar, at the D6's drop, on the detachable grip with its jaw on a 1 3/4 in rope |
+| `sessellift_d4_tower_{s4,s6,b8,d8,c8}` | the mast top | the quad kit's heads at the 4.8 m gauge (the doubles' and triples' gauge rule); `d8` keeps its inboard yokes only, clear of the detachable grip; on the kit's mast and bases |
+
+- **Sockets:** as the D6's, plus the bottom's `rope_*_hold` (the first sheave of the built-in tower's row, at the
+  rope elevation) and climbing `rope_*_out`; `dims.integratedTowerU` and `dims.ropeExitDeg` (8.6 at rest; the rows
+  pose for exits of 5-16 degrees).
+- **Heights:** the D6's (rope 3,600 mm), so the chair hangs on the D6's hanger unchanged.
 
 ## Chairworks quad chair and the fixed grip (LP21-LP23)
 
