@@ -116,34 +116,45 @@
     "crossFade": true
   },
   "surface_tower_head": {
-    "_about": "A T-bar tower head (owner 2026-11-02): a crossarm and a short sheave train on each rope; a line can have 20 or more.",
+    "_about": "A T-bar tower head (owner 2026-11-02; raised for the two-level head, D10 2026-11-03): crossarm, posts and top bar, a sheave train on each rope with its catchers, platform, cables; a line can have 20 or more.",
     "lods": [
-      {"lod": 0, "maxTris": 4000, "untilM": 12},
-      {"lod": 1, "maxTris": 1500, "untilM": 40},
-      {"lod": 2, "maxTris": 300, "untilM": 130},
-      {"lod": 3, "maxTris": 60, "untilM": 600}
+      {"lod": 0, "maxTris": 6000, "untilM": 12},
+      {"lod": 1, "maxTris": 2000, "untilM": 40},
+      {"lod": 2, "maxTris": 400, "untilM": 130},
+      {"lod": 3, "maxTris": 80, "untilM": 600}
     ],
     "shadowLods": 2,
     "crossFade": true
   },
   "surface_mast": {
-    "_about": "One 1 m section of a T-bar tower's tube mast with its step pegs; stacked to the tower's height.",
+    "_about": "One 1 m section of a T-bar tower's tube mast with its ladder; stacked to the tower's height.",
     "lods": [
-      {"lod": 0, "maxTris": 100, "untilM": 12},
-      {"lod": 1, "maxTris": 60, "untilM": 40},
-      {"lod": 2, "maxTris": 30, "untilM": 130},
+      {"lod": 0, "maxTris": 200, "untilM": 12},
+      {"lod": 1, "maxTris": 120, "untilM": 40},
+      {"lod": 2, "maxTris": 40, "untilM": 130},
       {"lod": 3, "maxTris": 12, "untilM": 600}
     ],
     "shadowLods": 2,
     "crossFade": true
   },
   "surface_base": {
-    "_about": "A T-bar tower's base: footing, pier and base plate.",
+    "_about": "A T-bar tower's base: footing, pier, the leaned base plate and the mast's first 2.2 m in the red tower pad (D5).",
     "lods": [
-      {"lod": 0, "maxTris": 200, "untilM": 12},
-      {"lod": 1, "maxTris": 120, "untilM": 40},
-      {"lod": 2, "maxTris": 40, "untilM": 130},
+      {"lod": 0, "maxTris": 600, "untilM": 12},
+      {"lod": 1, "maxTris": 300, "untilM": 40},
+      {"lod": 2, "maxTris": 60, "untilM": 130},
       {"lod": 3, "maxTris": 20, "untilM": 600}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "surface_hut": {
+    "_about": "A surface lift's operator hut (the Monta T-bar's, D9/Q3 2026-11-03): one beside a bottom station.",
+    "lods": [
+      {"lod": 0, "maxTris": 800, "untilM": 15},
+      {"lod": 1, "maxTris": 300, "untilM": 45},
+      {"lod": 2, "maxTris": 80, "untilM": 150},
+      {"lod": 3, "maxTris": 20, "untilM": 800}
     ],
     "shadowLods": 2,
     "crossFade": true

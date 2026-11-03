@@ -45,8 +45,9 @@ MONTA = ("monta_drive", "monta_return")
 CHAIRWORKS = ("chairworks_chair_detach", "chairworks_chair_fixed")
 D6 = ("d6_drive", "d6_return", "d6_chair") + tuple(f"d6_tower_{h}" for h in ("s4", "s6", "s10", "b10", "d10", "c8"))
 # the Monta T-bar (surface lifts): towers (assets/tbar.py), terminals and carriers; ids monta_tbar_<name>
-MODULES.update({f"monta_tbar_{v}": ("tbar", v) for v in ("tower_s4", "tower_s6", "tower_d4", "tower_c4", "mast", "base")})
+MODULES.update({f"monta_tbar_{v}": ("tbar", v) for v in ("tower_s4", "tower_s6", "tower_d4", "mast", "base")})
 MODULES.update({"monta_tbar_drive": ("tbar_terminal", "drive"), "monta_tbar_return": ("tbar_terminal", "return"),
+                "monta_tbar_hut": ("tbar_terminal", "hut"),
                 "monta_tbar_springbox": ("tbar_carrier", "springbox"), "monta_tbar_bar_t": ("tbar_carrier", "bar_t"),
                 "monta_tbar_bar_j": ("tbar_carrier", "bar_j")})
 TBAR = tuple(k for k in MODULES if k.startswith("monta_tbar_"))
@@ -200,6 +201,12 @@ def main():
         export.export_fbx(objs, path)
         own = spec if name in TOWER else spec_for(mod)
         problems = check_asset(kind, assets, rep, budgets, own, split)
+        if kind in ("surface_terminal", "surface_tower_head"):   # retracted carriers past the trains and round the wheel (T6)
+            import surface_fit
+            cmod = importlib.import_module("tbar_carrier")
+            box = cmod.build(own, 0, stage, "springbox")
+            for bar in ("bar_t", "bar_j"):
+                problems += [f"{bar}: {p}" for p in surface_fit.check(assets[0], kind, own, box, cmod.build(own, 0, stage, bar))]
         if getattr(mod, "CHAIR", None):   # a terminal or a wide head: send its chair through (liftkit/fit.py)
             t_fit = time.time()
             cname, _, cvar = mod.CHAIR.partition(":")   # "module" or "module:variant" (the Chairworks fixed chair)

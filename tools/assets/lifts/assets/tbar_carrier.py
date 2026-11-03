@@ -1,15 +1,21 @@
-"""Monta T-bar carriers (monta_tbar.json "carrier"; surface lifts, owner 2026-11-02: one lift, two carriers).
+"""Monta T-bar carriers (monta_tbar.json "carrier"; surface lifts, owner 2026-11-02: one lift, two carriers; rebuilt to
+the owner's reference installation, review findings C1-C19, kept outside the repo).
 
-  springbox  the fixed grip clamped on the rope with an arm out and down, and the recoil box (a drum housing, its
-             axle across the line, with rim lips and the cord's outlet underneath) hung from the arm's pin. Origin on
+  springbox  the grip, a small dark clamp on the rope's outboard side; the hanger, one tube that leaves the grip
+             outboard and sweeps down in a half ellipse back in toward the rope (with the rope, a D); and the recoil
+             box, a pale rounded housing hung on a pin through its upper part (the pin's boss on its outboard face, the
+             hanger's end on the boss), swinging fore and aft. The cord leaves a collar at the box's bottom. Origin on
              the rope at the grip; u the way the carrier travels, +v outboard (away from the wheel's centre: the
              carrier's right on a lift whose loaded rope is on the right going up), w up. The box is a hinged part
-             (pivot "box", on the arm's pin, swinging fore and aft); socket "cord" at its outlet.
-  bar_t      the T bar: an eye where the cord ends, a damper tube, the stem and the crossbar with two pads, one rider
-             each side of the stem. Origin at the eye; sockets eye, seat_1 and seat_2 (on the pads' tops).
-  bar_j      the J bar: the same stem with the bar to one side (-v) and a short upturned tip; one rider (seat_1).
+             (pivot "box", axis v); socket "cord" at the collar's foot.
+  bar_t      the T bar: a yellow stem with a plain socket at its top (where the cord ends) and one continuous black
+             padded crossbar, a rider each side of the stem. Origin at the eye (the socket's top); sockets eye,
+             seat_1 and seat_2 (on the pad's top).
+  bar_j      the J bar: the same stem bending in one yellow curve into a seat to one side (-v), padded black, with a
+             rounded upturned tip; one rider (seat_1).
 
-The cord itself is drawn by the game from "cord" to the bar's "eye", like the rope.
+The cord itself is drawn by the game from "cord" to the bar's "eye", like the rope; retracted, the eye hangs cordGap
+under the cord socket.
 """
 import math
 
@@ -31,14 +37,11 @@ def m(x):
 
 def styles():
     return {
-        "grip": Style("grip", snow=0.2),
-        "steel": Style("galvanised", snow=0.2),
-        "box": Style("white", snow=0.6),
-        "rim": Style("paint_dark", snow=0.3),
-        "rod": Style("machined"),
-        "pad": Style("seat_pad", snow=0.0),
-        "stem": Style("aluminium", snow=0.1),
-        "damper": Style("paint_dark", snow=0.1),
+        "grip": Style("paint_dark", snow=0.1),
+        "steel": Style("galvanised", snow=0.3),
+        "box": Style("white", snow=0.5),
+        "pad": Style("seat_pad", snow=0.1),
+        "stem": Style("safety_yellow", snow=0.1),
     }
 
 
@@ -48,59 +51,82 @@ def build(spec, lod, stage, variant):
     return bar(spec, lod, variant)
 
 
+def rounded_rect(hu, hw, r, steps):
+    """A rectangle 2hu x 2hw with corners of radius r (steps segments each, 0: square), counter-clockwise."""
+    if steps == 0:
+        return [(-hu, -hw), (hu, -hw), (hu, hw), (-hu, hw)]
+    pts = []
+    for cu, cw, a0 in ((hu - r, -hw + r, -90), (hu - r, hw - r, 0), (-hu + r, hw - r, 90), (-hu + r, -hw + r, 180)):
+        for k in range(steps + 1):
+            a = math.radians(a0 + 90 * k / steps)
+            pts.append((cu + r * math.cos(a), cw + r * math.sin(a)))
+    return pts
+
+
+def hanger_points(g, h, v_end, w_end, n):
+    """The hanger's centreline in the v-w plane, n segments: from the grip's outboard face, level and outboard, round
+    a half ellipse (outmost at outV) and back in, level, to the boss on the box's outboard face."""
+    v0, w0 = m(g["vOut"]), m(h["w"])
+    amp = m(h["outV"]) - (v0 + v_end) / 2
+    out = []
+    for k in range(n + 1):
+        t = math.pi * k / n
+        out.append(Vector((0.0, v0 + (v_end - v0) * t / math.pi + amp * math.sin(t), w0 + (w_end - w0) * (1 - math.cos(t)) / 2)))
+    return out
+
+
 def springbox(spec, lod):
     cr = spec["carrier"]
-    g, b = cr["grip"], cr["box"]
+    g, h, b = cr["grip"], cr["hanger"], cr["box"]
     st = styles()
     a = Asset("monta_tbar_springbox")
     body = MeshBuilder()
     box = MeshBuilder()
-    rope_r = spec["common"]["ropeDiameter"] / 2000.0
-    gl, gh, gw = m(g["length"]), m(g["height"]), m(g["width"])
-    out = m(g["armOut"])
-    ar = m(g["armDia"]) / 2
-    centre_w = -m(b["centreBelow"])
-    R, bw = m(b["dia"]) / 2, m(b["width"])
-    pin = Vector((0.0, out, centre_w + R + 0.07))         # the box hangs from the arm's end on this pin
+    hu, hv, hh = m(b["lengthU"]) / 2, m(b["widthV"]) / 2, m(b["height"]) / 2
+    vc, top = m(b["centreV"]), m(b["top"])
+    wc = top - hh
+    pin_w = top - m(b["pinBelowTop"])
+    v_face = vc + hv                          # the box's outboard face
+    v_boss = v_face + m(b["bossOut"])         # the boss's face, where the hanger ends
+    hr = m(h["dia"]) / 2
 
-    # the grip: a clamp block round the rope (its jaws closed on it), with the arm leaving it outboard and turning down
+    # the grip: a small dark clamp outboard of the sheaves' faces, its thin jaw reaching in to the rope
     if lod <= 1:
-        prims.box(body, (-gl / 2, -gw / 2, -gh / 2), (gl / 2, gw / 2 + rope_r, gh / 2), st["grip"])
-    if lod <= 1:
-        bend = Vector((0.0, out, 0.0))
-        prims.tube_path(body, [Vector((0.0, gw / 2, 0.0)), bend + V * -0.06, bend + W * -0.06, pin + W * 0.02],
-                        ar, parts.sides(lod, 8, 4), st["steel"], caps=True)
-        with body.grouped("#pin"):   # the pin through the arm's end and the box's lugs
-            prims.cylinder(body, pin - V * 0.05, pin + V * 0.05, 0.014, 6, st["rod"])
-    elif lod == 2:
-        prims.beam(body, (0.0, gw / 2, 0.0), (0.0, out, 0.0), 2 * ar, 2 * ar, st["steel"])
-        prims.beam(body, (0.0, out, 0.0), pin, 2 * ar, 2 * ar, st["steel"], up=U)
-
-    # the recoil box: lugs up to the pin, the drum housing, its rim lips, the cord's outlet underneath
-    c = Vector((0.0, out, centre_w))
-    if lod <= 2:
-        n = parts.sides(lod, 18, 10, 6)
-        prims.cylinder(box, c - V * bw / 2, c + V * bw / 2, R, n, st["box"], caps=(lod <= 1, lod <= 1))
-    else:
-        prims.box(box, c - Vector((R, bw / 2, R)), c + Vector((R, bw / 2, R)), st["box"])
+        prims.box(body, (-m(g["halfU"]), m(g["vIn"]), m(g["wLow"])), (m(g["halfU"]), m(g["vOut"]), m(g["wHigh"])), st["grip"])
     if lod == 0:
-        rr, rw = m(b["rimDia"]) / 2, m(b["rimWidth"])
-        for s in (-1, 1):
-            prims.cylinder(box, c + V * s * (bw / 2 - rw), c + V * s * (bw / 2 + 0.002), rr, 18, st["rim"])
-            prims.cylinder(box, c + V * s * (bw / 2 + 0.002), c + V * s * (bw / 2 + 0.03), 0.04, 8, st["rod"])   # the drum's hub
+        prims.box(body, (-m(g["jawHalfU"]), m(g["jawIn"]), -m(g["jawHalf"])), (m(g["jawHalfU"]), m(g["vIn"]) + 0.002, m(g["jawHalf"])),
+                  st["grip"], skip=("+1",))
+    # the hanger: one tube round the half ellipse
     if lod <= 1:
-        for s in (-1, 1):   # the lugs from the housing up to the pin
-            prims.box(box, (-0.035, out + s * 0.035 - 0.006, pin.z - 0.03), (0.035, out + s * 0.035 + 0.006, c.z + R - 0.02), st["steel"])
-        cord_top = c.z - R + 0.01
-        prims.cylinder(box, (0.0, out, cord_top), (0.0, out, -m(b["cordBelow"])), 0.03, parts.sides(lod, 8, 6), st["rim"],
-                       caps=(False, True))
-    a.parts["box"] = box
-    a.pivots["box"] = {"pos": tuple(pin), "axis": (0.0, 1.0, 0.0), "hinge": True}
+        pts = hanger_points(g, h, v_boss, pin_w, 14 if lod == 0 else 5)
+        prims.tube_path(body, pts, hr, parts.sides(lod, 10, 5), st["steel"], caps=True)
+    elif lod == 2:
+        pts = hanger_points(g, h, v_boss, pin_w, 3)
+        for p0, p1 in zip(pts, pts[1:]):
+            prims.beam(body, p0, p1, 2 * hr, 2 * hr, st["steel"], up=U, skip_ends=True)
 
+    # the recoil box: a rounded housing (its profile in the u-w plane, the drum's axle across the line), the pin's
+    # boss on its outboard face, the cord's collar under it
+    if lod <= 2:
+        prof = rounded_rect(hu, hh, m(b["corner"]), (4, 1, 0, 0)[lod])
+        prims.prism(box, [(pu, pw + wc) for pu, pw in prof], (0.0, vc - hv, 0.0), U, W, V, 2 * hv, st["box"])
+    else:
+        prims.box(box, (-hu, vc - hv, wc - hh), (hu, vc + hv, wc + hh), st["box"], skip=("-2",))
+    if lod <= 1:
+        br = m(b["bossDia"]) / 2
+        prims.cylinder(box, (0.0, v_face - 0.005, pin_w), (0.0, v_boss, pin_w), br, parts.sides(lod, 12, 5), st["box"], caps=(False, True))
+        cr_ = m(b["collarDia"]) / 2
+        prims.cylinder(box, (0.0, vc, wc - hh + 0.01), (0.0, vc, wc - hh - m(b["collarLength"])), cr_, parts.sides(lod, 10, 6),
+                       st["box"], caps=(False, True))
+    a.parts["box"] = box
+    a.pivots["box"] = {"pos": (0.0, vc, pin_w), "axis": (0.0, 1.0, 0.0), "hinge": True}
+
+    cord_w = wc - hh - m(b["collarLength"])
     a.body = body
-    a.sockets = {"grip": (0.0, 0.0, 0.0), "cord": (0.0, out, -m(b["cordBelow"]))}
+    a.sockets = {"grip": (0.0, 0.0, 0.0), "cord": (0.0, vc, cord_w)}
     a.socket_parents = {"cord": "box"}
-    a.dims.update({"cordBelow": b["cordBelow"], "boxOut": g["armOut"], "boxDia": b["dia"]})
+    a.dims.update({"cordBelow": round(-cord_w * 1000), "boxOut": b["centreV"], "boxHeight": b["height"],
+                   "hangerOut": h["outV"], "boxTopBelow": round(-top * 1000)})
     return a
 
 
@@ -111,52 +137,64 @@ def bar(spec, lod, variant):
     a = Asset("monta_tbar_" + variant)
     mb = MeshBuilder()
     L = m(sm["length"])
-    sr, dl, dr = m(sm["dia"]) / 2, m(sm["damperLength"]), m(sm["damperDia"]) / 2
-    er = m(sm["eyeDia"]) / 2
-    if lod <= 1:
-        # the eye: a ring across the line (the cord's thimble passes through it), then the damper tube and the stem
-        prims.lathe(mb, Vector((0.0, 0.0, -er)), V, [(er - 0.008, -0.006), (er, -0.006), (er, 0.006), (er - 0.008, 0.006)],
-                    parts.sides(lod, 10, 6), st["rod"])
-        prims.cylinder(mb, (0, 0, -2 * er + 0.005), (0, 0, -2 * er - dl), dr, parts.sides(lod, 8, 6), st["damper"])
-        prims.cylinder(mb, (0, 0, -2 * er - dl), (0, 0, -L), sr, parts.sides(lod, 8, 5), st["stem"], caps=(False, False))
-    elif lod == 2:
-        prims.beam(mb, (0, 0, 0), (0, 0, -L), 2 * sr, 2 * sr, st["stem"], up=U)
-    else:
-        prims.cylinder(mb, (0, 0, 0), (0, 0, -L), sr * 1.4, 3, st["stem"], caps=(False, False))
+    sr = m(sm["dia"]) / 2
+    kr, kl = m(sm["socketDia"]) / 2, m(sm["socketLength"])
 
     seats = {}
     if variant == "bar_t":
         t = cr["tBar"]
-        hw, br, ph, pr = m(t["halfWidth"]), m(t["dia"]) / 2, m(t["padHalf"]), m(t["padDia"]) / 2
-        z = -L - br
+        half, br = m(t["length"]) / 2, m(t["dia"]) / 2
+        z = -L
+        # the stem: the socket at its top, then the plain tube down into the bar (fat far out, to stay a yellow stroke)
         if lod <= 1:
-            prims.cylinder(mb, (0, -hw, z), (0, hw, z), br, parts.sides(lod, 8, 5), st["stem"])
-            for s in (-1, 1):   # a pad each side of the stem
-                prims.cylinder(mb, (0, s * 0.06, z), (0, s * (0.06 + ph), z), pr, parts.sides(lod, 10, 6), st["pad"])
-            if lod == 0:   # the T's welded crown
-                prims.cylinder(mb, (0, 0, -L + 0.06), (0, 0, z), sr * 1.6, 8, st["stem"], r1=br * 1.3)
+            prims.cylinder(mb, (0, 0, 0), (0, 0, -kl), kr, parts.sides(lod, 10, 6), st["stem"], caps=(True, False))
+            prims.cylinder(mb, (0, 0, -kl + 0.01), (0, 0, z), sr, parts.sides(lod, 10, 6), st["stem"], caps=(False, False))
         elif lod == 2:
-            prims.beam(mb, (0, -hw, z), (0, hw, z), 2 * pr, 2 * pr, st["pad"])
+            prims.beam(mb, (0, 0, 0), (0, 0, z), 0.06, 0.06, st["stem"], up=U, skip_ends=True)
         else:
-            prims.cylinder(mb, (0, -hw, z), (0, hw, z), pr, 3, st["pad"], caps=(False, False))
-        seats = {"seat_1": (0.0, -(0.06 + ph / 2), z + pr), "seat_2": (0.0, 0.06 + ph / 2, z + pr)}
-        a.dims.update({"barWidth": round(2 * hw * 1000), "barBelowEye": round(-z * 1000)})
+            prims.cylinder(mb, (0, 0, 0), (0, 0, z), 0.045, 3, st["stem"], caps=(False, False))
+        # the crossbar: one continuous black pad, rounded ends
+        if lod <= 1:
+            e = 0.035
+            prof = [(0.0, -half), (br * 0.55, -half + e * 0.15), (br * 0.88, -half + e * 0.5), (br, -half + e),
+                    (br, half - e), (br * 0.88, half - e * 0.5), (br * 0.55, half - e * 0.15), (0.0, half)]
+            if lod == 1:
+                prof = [prof[0], prof[2], prof[3], prof[4], prof[5], prof[7]]
+            prims.lathe(mb, Vector((0.0, 0.0, z)), V, prof, parts.sides(lod, 12, 8), st["pad"])
+        elif lod == 2:
+            prims.beam(mb, (0, -half, z), (0, half, z), 2 * br, 2 * br, st["pad"])
+        else:
+            prims.cylinder(mb, (0, -half, z), (0, half, z), br * 1.2, 3, st["pad"], caps=(False, False))
+        so = m(t["seatOffset"])
+        seats = {"seat_1": (0.0, -so, z + br), "seat_2": (0.0, so, z + br)}
+        a.dims.update({"barWidth": t["length"], "barBelowEye": sm["length"]})
     else:
         j = cr["jBar"]
-        reach, br, pr, up = m(j["reach"]), m(j["dia"]) / 2, m(j["padDia"]) / 2, m(j["upturn"])
-        z = -L - br
+        reach, jr, bend = m(j["reach"]), m(j["dia"]) / 2, m(j["bend"])
+        pr, rise = m(j["padDia"]) / 2, m(j["tipRise"])
+        z = -L
+        # one yellow curve: the stem, a bend into the seat toward -v, the seat, a rounded upturned tip
         if lod <= 1:
-            n = parts.sides(lod, 8, 5)
-            # the stem bends into the bar toward -v, which runs out and turns up at its tip
-            prims.tube_path(mb, [Vector((0, 0, -L + 0.05)), Vector((0, -0.05, z)), Vector((0, -reach, z)), Vector((0, -reach - 0.04, z + up))],
-                            br, n, st["stem"], caps=True)
-            prims.cylinder(mb, (0, -0.08, z), (0, -reach + 0.04, z), pr, parts.sides(lod, 10, 6), st["pad"])
+            raw = [Vector((0, 0, 0)), Vector((0, 0, z)), Vector((0, -reach, z)), Vector((0, -reach, z + rise))]
+            pts = prims.fillet(raw, 2, rise * 0.6, 4 if lod == 0 else 1)
+            pts = prims.fillet(pts, 1, bend, 6 if lod == 0 else 2)
+            pts = [Vector(p) for p in pts]
+            prims.cylinder(mb, (0, 0, 0), (0, 0, -kl), kr, parts.sides(lod, 10, 6), st["stem"], caps=(True, False))
+            prims.tube_path(mb, [Vector((0, 0, -kl + 0.01))] + pts[1:], jr, parts.sides(lod, 10, 5), st["stem"], caps=True)
+            e = 0.02
+            p0, p1 = m(j["padFrom"]), m(j["padTo"])
+            prof = [(0.0, -p1), (pr * 0.8, -p1 + e * 0.4), (pr, -p1 + e), (pr, -p0 - e), (pr * 0.8, -p0 - e * 0.4), (0.0, -p0)]
+            if lod == 1:
+                prof = [prof[0], prof[2], prof[3], prof[5]]
+            prims.lathe(mb, Vector((0.0, 0.0, z)), V, prof, parts.sides(lod, 12, 6), st["pad"])
         elif lod == 2:
+            prims.beam(mb, (0, 0, 0), (0, 0, z), 0.06, 0.06, st["stem"], up=U, skip_ends=True)
             prims.beam(mb, (0, 0.0, z), (0, -reach, z), 2 * pr, 2 * pr, st["pad"])
         else:
-            prims.cylinder(mb, (0, 0.0, z), (0, -reach, z), pr, 3, st["pad"], caps=(False, False))
-        seats = {"seat_1": (0.0, -(0.08 + reach) / 2, z + pr)}
-        a.dims.update({"barReach": j["reach"], "barBelowEye": round(-z * 1000)})
+            prims.cylinder(mb, (0, 0, 0), (0, 0, z), 0.045, 3, st["stem"], caps=(False, False))
+            prims.cylinder(mb, (0, 0.0, z), (0, -reach, z), pr * 1.2, 3, st["pad"], caps=(False, False))
+        seats = {"seat_1": (0.0, -(m(j["padFrom"]) + m(j["padTo"])) / 2, z + pr)}
+        a.dims.update({"barReach": j["reach"], "barBelowEye": sm["length"]})
 
     a.body = mb
     a.sockets = {"eye": (0.0, 0.0, 0.0), **seats}
