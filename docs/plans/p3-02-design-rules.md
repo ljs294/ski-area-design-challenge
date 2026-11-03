@@ -738,6 +738,11 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
       are gone.
     - **Among plans with as many towers,** heights nearest a modest 35 ft, then spans nearest even. Each tower then
       comes down in 5 ft steps while everything still fits.
+  - **v3, fewer and taller** (owner, 2026-11-01, LD3): the plan's spans reach **300 ft (91.4 m)** (250 ft before), so
+    where the ground allows it takes fewer, taller towers; the first span out of the bottom station keeps 250 ft, so the
+    chairs climbing out of the load zone aren't left to the trench. Over the 33-line Jackson Hole fan and its three
+    types: 1,061 → 979 towers (8% fewer), 44 → 46 ft on average, one fewer head past its bend; a 1-mile line still places
+    within 50 ms (each spot's heights are tried tallest first, and none lower once one can't clear).
     - **The first span's shortfall** up to 15 ft short of the first line tower is the trench's (GR-11 v2, at most
       10 ft), as Break ground digs it; no tower is squeezed in there.
     - **Where nothing fits** (a steep pitch running right up to a level top, say), the plan is the line whose heads
