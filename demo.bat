@@ -404,11 +404,8 @@ if not exist "%UNITY%" (
   echo Unity 6000.3.25f1 was not found at "%UNITY%".
   goto done
 )
-tasklist /fi "imagename eq Unity.exe" | find /i "Unity.exe" >nul
-if not errorlevel 1 (
-  echo The Unity editor is open. Close it first, then try again.
-  goto done
-)
+rem Only an editor with this project open gets in the way, not Unity Hub (it runs "unity.exe serve").
+call :projectfree || goto done
 if not exist "%~dp0test-results" mkdir "%~dp0test-results"
 set "UNITYGPU="
 call :unityrun EditMode
@@ -1305,11 +1302,8 @@ if not exist "%UNITY%" (
   echo Unity 6000.3.25f1 was not found at "%UNITY%".
   exit /b 1
 )
-tasklist /fi "imagename eq Unity.exe" | find /i "Unity.exe" >nul
-if not errorlevel 1 (
-  echo The Unity editor is open. Close it first, then try again.
-  exit /b 1
-)
+rem Only an editor with this project open gets in the way, not Unity Hub (it runs "unity.exe serve").
+call :projectfree || exit /b 1
 if not exist "%~dp0test-results" mkdir "%~dp0test-results"
 echo Building the Development game (about 2 minutes)...
 "%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.ViewerSetup.BuildWindowsDev -logFile "%~dp0test-results\build-dev.log" <nul
@@ -1321,11 +1315,8 @@ if not exist "%UNITY%" (
   echo Unity 6000.3.25f1 was not found at "%UNITY%".
   exit /b 1
 )
-tasklist /fi "imagename eq Unity.exe" | find /i "Unity.exe" >nul
-if not errorlevel 1 (
-  echo The Unity editor is open. Close it first, then try again.
-  exit /b 1
-)
+rem Only an editor with this project open gets in the way, not Unity Hub (it runs "unity.exe serve").
+call :projectfree || exit /b 1
 echo Building the game player (about 2 minutes; it also bundles the Jackson Hole demo from 12)...
 "%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.ViewerSetup.BuildWindows -logFile "%~dp0test-results\build.log" <nul
 if errorlevel 1 (echo   The build failed - see test-results\build.log) else (echo   Built %GAME%)
