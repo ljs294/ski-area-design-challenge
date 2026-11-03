@@ -236,7 +236,10 @@ def head(spec, t, variant, lod, st):
         if "combo" in cfg:
             pin_u, pin_w = parts.combo_assembly(mb, a, tag, v_rope, rope, asm, cfg["combo"], lod, st, radius)
         else:
-            pin_u, pin_w = parts.line_assembly(mb, a, tag, 0.0, v_rope, rope, asm, cfg[mode], mode, lod, st, radius)
+            # a detachable's hold-down rows keep their inboard yokes only (the D4, owner option A: the grip's tyre plate
+            # passes outboard above the rope, where the outboard yoke stands)
+            outer = mode != "hold" or t.get("holdOuterYoke", True)
+            pin_u, pin_w = parts.line_assembly(mb, a, tag, 0.0, v_rope, rope, asm, cfg[mode], mode, lod, st, radius, outer_yoke=outer)
         w_lo, w_hi = pin_w - m(lg["past"]), cb0        # from under the crossbeam end down past the pin
         # lug plates either side of the equaliser (or block) on the crossbeam end, and the pin through them
         b_in, b_out = v_rope - side * X["beam"][1], v_rope - side * X["beam"][0]

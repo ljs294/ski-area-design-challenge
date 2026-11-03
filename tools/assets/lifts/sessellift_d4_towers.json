@@ -1,0 +1,23 @@
+{
+  "_about": "Sessellift D4 detachable quad (v0.3.2, owner DQ2): its line tower heads are the quad kit's (s4, s6, b8, d8, c8 on the kit's mast and bases) rebuilt at the D4's 4.8 m line gauge by the doubles' and triples' gauge rule (liftkit/gauge.py), with the kit's 1 3/4 in rope (DQ4). The terminals and the chair are in sessellift_d4.json. Millimetres.",
+  "base": "sessellift_fgq4.json",
+  "idPrefix": "sessellift_d4",
+  "common": {
+    "lineGauge": 4800
+  },
+  "tower": {
+    "holdOuterYoke": false,
+    "_holdOuterYoke": "owner option A (Gate 1): hold-down rows keep their inboard yokes only, so the detachable grip's tyre plate passes outboard above the rope, as on the D6's trains"
+  },
+  "catalog": {
+    "maker": "Sessellift",
+    "name": "D4",
+    "parts": {
+      "sessellift_d4_tower_s4": "Line tower head, support 4",
+      "sessellift_d4_tower_s6": "Line tower head, support 6",
+      "sessellift_d4_tower_b8": "Line tower head, breakover 8",
+      "sessellift_d4_tower_d8": "Line tower head, hold-down 8",
+      "sessellift_d4_tower_c8": "Line tower head, combination 4/4"
+    }
+  }
+}

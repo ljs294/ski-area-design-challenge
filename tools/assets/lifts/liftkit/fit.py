@@ -116,9 +116,11 @@ def station(asset, chair, clear=CLEAR, step=STEP):
     """Problems found sending `chair` (an Asset at LOD0) through `asset` (a detachable terminal at LOD0), and a summary."""
     body, pieces = asset.body.split(pieces=True)
     groups = {"structure": body, **pieces, **asset.parts}   # moving parts (the bullwheel) where they rest
+    s = asset.sockets
+    holds = [k for k in s if k.startswith("rope_") and k.endswith("_hold")]
     trees = {}
     for name, mb in groups.items():
-        if not mb.faces:
+        if not mb.faces or (holds and bare(name).startswith(TRAIN)):   # an integrated tower's rows: see tower()
             continue
         pts = _lift_points(mb)
         trees[name] = (_tree(pts, [list(f) for f in mb.faces]), pts.min(0) - clear, pts.max(0) + clear,
@@ -127,10 +129,10 @@ def station(asset, chair, clear=CLEAR, step=STEP):
     cf = [list(f) for f in chair.body.faces]
     fzone = [zone(cv[f].mean(0)) for f in cf]
     vzone = [zone(p) for p in cv]
-    s = asset.sockets
-    outs = [k for k in s if k.startswith("rope_") and k.endswith("_out")]
+    # the chair is followed out along the level rope: past the hood, or to an integrated tower's row (its hold)
+    outs = holds or [k for k in s if k.startswith("rope_") and k.endswith("_out")]
     rope_w = s[outs[0]][2]
-    u_out = max(s[k][0] for k in outs) + OUT
+    u_out = max(s[k][0] for k in outs) + (0.0 if holds else OUT)
     poses = _samples(_route(asset.paths["chairs"], rope_w, u_out), step)
 
     clashes, near = {}, {}

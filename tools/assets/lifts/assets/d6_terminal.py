@@ -18,6 +18,9 @@ deliberate mirror (Gate 0, LM7): loaded chairs leave the bottom on the right rop
 
 Variants: "drive" (top) and "return" (bottom). Origin on the bullwheel's axle at the load or unload level 0.00; u
 toward the line, v right looking along u, w up.
+
+The D4 (sessellift_d4.json, v0.3.2) builds its "bottom" and "top" here from the D6's end sections one bay shorter, at
+its gauge (liftkit/gauge.py quad_station); its ids and the end riders board at come from the spec.
 """
 import math
 
@@ -37,6 +40,11 @@ VARIANTS = ("drive", "return")
 
 def m(x):
     return x / 1000.0
+
+
+def kind_of(variant):
+    """Every end is a detachable terminal (an overlay's variants, build_lifts.py)."""
+    return KIND
 
 
 def styles(lod):
@@ -1132,6 +1140,73 @@ def pier(mb, pr, depth, lod, st):
     return (m((u0 + u1) / 2), 0.0, m(top))
 
 
+def integrated_tower(mb, a, spec, t, end, lod, st):
+    """The D4 bottom's integrated tower (end "integratedTower", DQ5): on each rope the quad kit's hold-down row
+    (heads.hung_assembly, the line towers' assembly), its equaliser pinned under the crossbeam's end through two lug
+    plates and levelled at its first sheave, so the rope runs level out of the station and bends up under the row; the
+    crossbeam on two posts from the deck, the mast on it; the deck under the ropes' inside with its railings; a walkway
+    inboard of each row, hung from the crossbeam; the roof arms from their yoke out past the hood's nose, on posts to
+    the deck. Returns the first axle's u, the rope's exit point (u, w) and its exit angle (radians), in metres."""
+    from liftkit import heads
+    it = end["integratedTower"]
+    asm = parts.line_spec(spec)
+    hg, rope = m(t["gauge"]) / 2, m(spec["common"]["ropeElevation"])
+    cb = it["crossbeam"]
+    kst = dict(st, steel=st["galv"], rubber=st["tyre"])   # the rows galvanised, as on the line towers
+    for side, name in ((-1, "l"), (1, "r")):
+        u_first, out, theta, _ = heads.hung_assembly(mb, a, name, side, hg, rope, m(it["pinU"]), asm, it["count"], "hold",
+                                                     asm["arcs"][it["arc"]], lod, kst, m(cb["w"][0]), it["lugs"],
+                                                     level="first", both=True, outer_yoke=it.get("outerYoke", True))
+    steel, galv = st["steel"], st["galv"]
+    (cu0, cu1), cw = cb["u"], cb["w"]
+    prims.box(mb, (m(cu0), m(-cb["halfV"]), m(cw[0])), (m(cu1), m(cb["halfV"]), m(cw[1])), steel)
+    dk = it["deck"]
+    (du0, du1), dv = dk["u"], dk["halfV"]
+    if lod <= 2:   # the deck: a plate on a pan whose far end slopes up to it
+        parts.deck(mb, (m(du0), m(-dv), m(dk["top"] - 40)), (m(du1), m(dv), m(dk["top"])), lod, st["grating"], channels=False)
+        prims.box(mb, (m(du0), m(-dv), m(dk["pan"])), (m(du1 - dk["nose"]), m(dv), m(dk["top"] - 40)), steel)
+        if lod <= 1:
+            nose = [(m(du1 - dk["nose"]), m(dk["pan"])), (m(du1), m(dk["top"] - 40)), (m(du1 - dk["nose"]), m(dk["top"] - 40))]
+            prims.prism(mb, nose, (0.0, m(-dv), 0.0), U, W, V, m(2 * dv), steel)
+    (pu0, pu1), (pv0, pv1) = it["posts"]["u"], it["posts"]["v"]
+    for s in (-1, 1) if lod <= 2 else ():   # the crossbeam's posts from the deck (LOD3: the deck and posts left out)
+        v0, v1 = sorted((s * pv0, s * pv1))
+        prims.box(mb, (m(pu0), m(v0), m(dk["pan"])), (m(pu1), m(v1), m(cw[0])), steel)
+    ms = it["mast"]
+    mc, hs = (cu0 + cu1) / 2, ms["size"] / 2
+    hd = ms["head"]
+    prims.box(mb, (m(mc - hs), m(-hs), m(cw[1])), (m(mc + hs), m(hs), m(ms["top"] - (hd["depth"] if lod <= 2 else 0))), galv)
+    if lod <= 2:
+        prims.box(mb, (m(mc - hd["halfU"]), m(-hd["halfV"]), m(ms["top"] - hd["depth"])), (m(mc + hd["halfU"]), m(hd["halfV"]), m(ms["top"])), galv)
+    if lod <= 1:   # the head's cross arm
+        prims.cylinder(mb, (m(mc), m(-ms["arm"]), m(ms["top"] - hd["depth"] / 2)), (m(mc), m(ms["arm"]), m(ms["top"] - hd["depth"] / 2)),
+                       0.03, 6, galv)
+    ra = it["roofArms"]
+    (ru0, ru1), rv, rw = ra["u"], ra["v"], ra["w"]
+    for s in (-1, 1):   # the roof arms, on posts down to the deck
+        prims.box(mb, (m(ru0), m(s * rv - ra["width"] / 2), m(rw[0])), (m(ru1), m(s * rv + ra["width"] / 2), m(rw[1])), steel)
+        if lod <= 2:
+            q0, q1 = ra["postU"]
+            prims.box(mb, (m(q0), m(s * rv - 60), m(dk["top"])), (m(q1), m(s * rv + 60), m(rw[0])), steel)
+    yk = ra["yoke"]
+    if lod <= 2:
+        prims.box(mb, (m(yk["u"][0]), m(-yk["halfV"]), m(rw[1])), (m(yk["u"][1]), m(yk["halfV"]), m(yk["top"])), steel)
+    rl, wk = it["railing"], it["walkways"]
+    (wu0, wu1), (wv0, wv1) = wk["u"], wk["v"]
+    for s in (-1, 1):
+        if lod <= 2:   # the walkway inboard of the row, its tie up to the crossbeam's top
+            va, vb = sorted((s * wv0, s * wv1))
+            parts.deck(mb, (m(wu0), m(va), m(wk["top"] - 40)), (m(wu1), m(vb), m(wk["top"])), lod, st["grating"])
+            prims.cylinder(mb, (m(wu1 - 50), m(s * (wv0 + wv1) / 2), m(wk["top"])), (m(cu1), m(s * (wv0 + wv1) / 2), m(cw[1])), 0.02,
+                           6 if lod == 0 else 4, steel)
+        ring = [(m(wu0), m(s * wv1), m(wk["top"])), (m(wu1), m(s * wv1), m(wk["top"])), (m(wu1), m(s * wv0), m(wk["top"])),
+                (m(wu0), m(s * wv0), m(wk["top"]))]
+        parts.railing(mb, ring, m(wk["height"]), lod, galv, toe=False)
+        parts.railing(mb, [(m(rl["u"][0]), m(s * dv), m(dk["top"])), (m(rl["u"][1]), m(s * dv), m(dk["top"]))], m(rl["height"]), lod,
+                      galv, toe=False)
+    return u_first, out, theta
+
+
 def tilted(mb, angle_deg, centre_lift):
     """Turns every vertex of mb by angle about the lift frame's v axis (u toward w), then moves it to centre."""
     a = math.radians(angle_deg)
@@ -1151,7 +1226,7 @@ def build(spec, lod, stage, variant="return"):
     t = dict(spec["terminal"], gauge=c["lineGauge"], ropeDia=c["ropeDiameter"])
     end = dict(t[variant], name=variant)
     st = styles(lod)
-    a = Asset(f"sessellift_d6_{variant}")
+    a = Asset(f"{spec.get('idPrefix', 'sessellift_d6')}_{variant}")
     body = MeshBuilder()
     rope = c["ropeElevation"]
     hg = c["lineGauge"] / 2
@@ -1179,6 +1254,10 @@ def build(spec, lod, stage, variant="return"):
     with body.grouped("#piers"):
         p1 = pier(body, end["pierFront"], t["pierDepth"], lod, st)
         p2 = pier(body, end["pierRear"], t["pierDepth"], lod, st)
+    hold = None
+    if "integratedTower" in end:
+        with body.grouped("#integrated_tower"):
+            hold = integrated_tower(body, a, spec, t, end, lod, st)
 
     tilt = t["bullwheel"]["tilt"]
     bw_w = t["bullwheel"]["w"][variant]
@@ -1202,8 +1281,13 @@ def build(spec, lod, stage, variant="return"):
         "rope_left_out": (m(E1), -m(hg), m(rope)), "rope_right_out": (m(E1), m(hg), m(rope)),
         "pier_top_1": p1, "pier_top_2": p2,
     }
+    if hold:   # the integrated tower: level from the bend to its row (hold), leaving it climbing (out)
+        u_hold, (u_out, w_out), theta = hold
+        a.sockets.update({"rope_left_hold": (u_hold, -m(hg), m(rope)), "rope_right_hold": (u_hold, m(hg), m(rope)),
+                          "rope_left_out": (u_out, -m(hg), w_out), "rope_right_out": (u_out, m(hg), w_out)})
+        a.dims.update({"integratedTowerU": end["integratedTower"]["pinU"], "ropeExitDeg": round(math.degrees(theta), 2)})
     ru, rv = end["riders"]
-    a.sockets["chair_load" if variant == "return" else "chair_unload"] = (m(ru), m(rv), m(grip_w))
+    a.sockets["chair_load" if end.get("load", variant == "return") else "chair_unload"] = (m(ru), m(rv), m(grip_w))
     # the chairs' grips round the station: on the rail, 134 inside its centreline, at the rope's height
     a.paths = {"chairs": [(m(u), m(v), m(grip_w)) for u, v in rail_path(t, end, inset=-rail["grip"][0], steps=8)]}
     a.dims.update({"rope": rope, "gauge": c["lineGauge"], "bullwheelW": bw_w, "bullwheelTilt": tilt,

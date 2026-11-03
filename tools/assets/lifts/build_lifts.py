@@ -15,6 +15,7 @@ import math
 import os
 import sys
 import time
+import types
 
 import bpy
 
@@ -48,6 +49,10 @@ for model in ("fg2", "fg3"):
     OVERLAY.update({f"monta_{model}_drive": ("monta_drive", f"monta_{model}.json", None),
                     f"monta_{model}_return": ("monta_return", f"monta_{model}.json", None),
                     f"monta_{model}_return_bottom": ("monta_return_bottom", f"monta_{model}.json", None)})
+# the Sessellift D4 detachable quad (v0.3.2, owner DQ1-DQ9): the D6's modules built from the D4's overlay spec
+OVERLAY.update({"d4_chair": ("d6_chair", "sessellift_d4.json", None), "d4_bottom": ("d6_terminal", "sessellift_d4.json", "bottom"),
+                "d4_top": ("d6_terminal", "sessellift_d4.json", "top")})
+OVERLAY.update({f"d4_tower_{h}": ("tower", "sessellift_d4_towers.json", h) for h in ("s4", "s6", "b8", "d8", "c8")})   # DQ2
 # the chairs an overlay's terminals send round their bullwheels: its own Sessellift chair and the Chairworks one (by seats)
 FIT_CHAIRS = {2: ("sessellift_fgd2.json", "chairworks_chair:double_fixed"), 3: ("sessellift_fgt3.json", "chairworks_chair:triple_fixed")}
 # the D6's wide heads (assets/tower_wide.py): one per Sessellift head type, at the D6's gauge
@@ -184,8 +189,8 @@ def main():
     tex_dir = os.path.join(out_dir, "textures")
     os.makedirs(tex_dir, exist_ok=True)
     stage = opts.get("stage", "detail")
-    # the doubles' and triples' Sessellift assets go by their short names (fgd2_chair) or their ids (sessellift_fgd2_chair)
-    names = [n[len("sessellift_"):] if n.startswith("sessellift_fg") and n[len("sessellift_"):] in OVERLAY else n
+    # the overlays' Sessellift assets go by their short names (fgd2_chair, d4_chair) or their ids (sessellift_fgd2_chair)
+    names = [n[len("sessellift_"):] if n.startswith("sessellift_") and n[len("sessellift_"):] in OVERLAY else n
              for n in opts.get("assets", ALL).split(",")]
     unknown = [n for n in names if n not in TOWER and n not in OVERLAY and n not in MODULES]
     if unknown:
@@ -283,6 +288,8 @@ def main():
                 cmod = importlib.import_module(cname)
                 cargs = (cvar,) if cvar else ()
                 cspec = spec_for(cmod, chair_spec) if chair_spec and cname == "chair" else spec_for(cmod)   # the narrow Sessellift chair
+                if name in OVERLAY and cname == "d6_chair":   # the D4's terminals send the D4's chair
+                    cspec = spec_for(cmod, OVERLAY[name][1])
                 tag = f"{cname}{':' + cvar if cvar else ''} " if len(chairs) > 1 else ""
                 if kind == "tower_head_wide":   # the chair past the head on both ropes (towers, Gate 1)
                     ls = __import__("liftkit.parts", fromlist=["line_spec"]).line_spec(spec_for(mod))
@@ -294,14 +301,27 @@ def main():
                         for end, v in views(assets[lod]):   # with each head (liftkit/swap.py)
                             lp, _ = check(v, cmod.build(cspec, lod, stage, *cargs))
                             fp += [f"{tag}LOD{lod}{' ' + end if end else ''} {p}" for p in lp]
+                    s0 = assets[0].sockets
+                    if check is fit.station and "rope_right_hold" in s0:   # a detachable's integrated tower (the D4's bottom)
+                        ls = __import__("liftkit.parts", fromlist=["line_spec"]).line_spec(own)
+                        mine = lambda tg: tg is not None and (tg in ("#integrated_tower", "#pin")   # the tower alone: the
+                                                              or fit.bare(tg.split("#")[0]).startswith(fit.TRAIN))   # station's own fit has the rest
+                        row = types.SimpleNamespace(body=assets[0].body.filtered(mine), pivots=assets[0].pivots, sockets={
+                            "rope_left": s0["rope_left_hold"], "rope_right": s0["rope_right_hold"]})
+                        lp, _ = fit.tower(row, cmod.build(cspec, 0, stage), ls["ropeR"], ls["sheave"]["dia"] / 2, reach=1.2)
+                        fp += [f"{tag}integrated tower {p}" for p in lp]
             problems += fp
             print(f"{aid}: fit in {time.time() - t_fit:.1f} s: " + ("clear" if not fp else f"{len(fp)} problems"), flush=True)
         if name in OVERLAY and kind == "tower_head":   # a double's or triple's head: its chair past it on both ropes
             ls = __import__("liftkit.parts", fromlist=["line_spec"]).line_spec(own)
             # the quad's approved heads seat their equalisers (a combination's block) flush on the lug plates at rest,
             # so fit.tower's at-rest contact check (written for the D6's wide heads) is reported, not failed
-            lp, info = fit.tower(assets[0], importlib.import_module("chair").build(own, 0, stage), ls["ropeR"], ls["sheave"]["dia"] / 2,
-                                 rest_ok=True)
+            if name.startswith("d4_"):   # the D4's heads: its detachable chair (sessellift_d4.json)
+                ch = importlib.import_module("d6_chair")
+                rider = ch.build(spec_for(ch, "sessellift_d4.json"), 0, stage)
+            else:
+                rider = importlib.import_module("chair").build(own, 0, stage)
+            lp, info = fit.tower(assets[0], rider, ls["ropeR"], ls["sheave"]["dia"] / 2, rest_ok=True)
             rest = info["atRest"]
             problems += lp
             print(f"{aid}: chair past the head: " + ("clear" if not lp else f"{len(lp)} problems")
