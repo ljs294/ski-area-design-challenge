@@ -139,7 +139,7 @@ def drive_wheel_mesh(mb, centre, bw, lod, st):
     the rim (the rope seated in the groove in its wall), the dished cone from the hub out to the rim (no spokes are
     drawn) and the hub's stacked rings."""
     c = Vector(centre)
-    n = parts.sides(lod, 64, 32, 16, 8)
+    n = parts.sides(lod, 64, 28, 16, 8)
     rim = [(m(r), m(w)) for r, w in bw["rim"]]
     wheel = st["dark"]
     if lod <= 1:
@@ -153,7 +153,7 @@ def drive_wheel_mesh(mb, centre, bw, lod, st):
     cn = bw["cone"]
     (r0, w0), (r1, w1), th = [(m(a), m(b)) for a, b in (cn["from"], cn["to"])] + [m(cn["thick"])]
     prims.lathe(mb, c, W, [(r0, w0), (r1, w1), (r1, w1 + th), (r0, w0 + th)], n, wheel)
-    hs = parts.sides(lod, 24, 16, 8)
+    hs = parts.sides(lod, 24, 12, 8)
     for rg in bw["rings"] if lod <= 1 else bw["rings"][:1]:
         prims.cylinder(mb, c + W * m(rg["bottom"]), c + W * m(rg["top"]), m(rg["dia"]) / 2, hs, wheel, fan_caps=True)
 

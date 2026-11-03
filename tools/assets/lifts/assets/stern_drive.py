@@ -3,7 +3,7 @@
   a portal of 508 pipe at the line end (round legs on piers, a pipe crossbeam on saddles); a 508 pipe frame per side
   outboard of the rope, from the hanger plates at the line end back under the crossbeam and through the hood to a
   transverse pipe on the tapered back column, the rails hung under it; the windowed hood over the tensioning
-  carriage and the exposed bullwheel (static at its drawn position, owner); a tie across the hanger plates carrying
+  carriage and the exposed bullwheel (static at its drawn position, owner), its ends flat and vertical (owner); a tie across the hanger plates carrying
   the hold-down rows and the lifting portal; the ladder up to the frame on the loading side. No conveyor, pit or
   landings (owner; none drawn).
 
@@ -31,23 +31,11 @@ LODS = 4
 SPEC = "sessellift_stern4.json"
 
 
-def end_u(pts, w):
-    """u (mm) of a raked hood end (a polyline of (u, w) from its bottom edge up) at height w (mm)."""
-    if w <= pts[0][1]:
-        return pts[0][0]
-    for (u0, w0), (u1, w1) in zip(pts, pts[1:]):
-        if w0 <= w <= w1 and w1 > w0:
-            return u0 + (u1 - u0) * (w - w0) / (w1 - w0)
-    return pts[-1][0]
-
-
 def hood_half(h, lod):
-    """Half profile (v >= 0, w) in mm from the bottom edge to the crown, with rows at the panes' sill and head and,
-    up close (LOD0), at every break of the two end profiles."""
+    """Half profile (v >= 0, w) in mm from the bottom edge to the crown, with rows at the panes' sill and head."""
     half = [tuple(p) for p in h["profile"]]
     pn = h["panes"]
-    edges = {pn["sill"], pn["head"]} | ({w for _, w in h["lineEnd"] + h["farEnd"]} if lod == 0 else set())
-    for edge in sorted(edges):
+    for edge in (pn["sill"], pn["head"]):
         for i in range(len(half) - 1):
             (v0, w0), (v1, w1) = half[i], half[i + 1]
             if w0 < edge < w1:
@@ -76,17 +64,18 @@ def pane_spans(h, lod):
 
 
 def hood(mb, h, lod, st):
-    """The hood: its end profile swept between the two raked ends, glazed between the sill and head over each pane,
-    floored at its bottom edge; the end walls as strips between matching rows; the trims and roof ribs up close."""
+    """The hood: its end profile swept between the two flat ends (owner, 2026-11-03), glazed between the sill and
+    head over each pane, floored at its bottom edge; each end a rim round a recessed flat wall with its windows; the
+    trims and roof ribs up close."""
     half = hood_half(h, lod)
     ring = half + [(-v, w) for v, w in reversed(half[:-1])]   # up the right side, over the crown, down the left
     spans = pane_spans(h, lod)
     cols = sorted({u for s in spans for u in s})
     glass = {(a, b) for a, b in spans}
     pn = h["panes"]
-    grid = [[mb.vert((m(end_u(h["farEnd"], w)), m(v), m(w)))] + [mb.vert((m(u), m(v), m(w))) for u in cols]
-            + [mb.vert((m(end_u(h["lineEnd"], w)), m(v), m(w)))] for v, w in ring]
-    us = [None] + cols + [None]
+    ends = h["ends"]
+    us = [ends["far"]] + cols + [ends["line"]]
+    grid = [[mb.vert((m(u), m(v), m(w))) for u in us] for v, w in ring]
     n = len(ring)
     mid_w = (ring[0][1] + max(w for _, w in ring)) / 2
     for i in range(n):
@@ -102,8 +91,8 @@ def hood(mb, h, lod, st):
                 style = st["hood"]
             out = (0.0, 0.0, -1.0) if floor else (0.0, (v0 + v1) / 2, (w0 + w1) / 2 - mid_w)
             mb.face([grid[i][k], grid[i][k + 1], grid[i1][k + 1], grid[i1][k]], style, out)
-    for pts, sign in ((h["farEnd"], -1), (h["lineEnd"], 1)):
-        end_wall(mb, h, half, pts, sign, lod, st)
+    for u_end, sign in ((ends["far"], -1), (ends["line"], 1)):
+        end_cap(mb, h, half, u_end, sign, lod, st)
     if lod <= 1:
         lining(mb, h, half, st)
         trims(mb, h, half, lod, st)
@@ -117,37 +106,106 @@ def hood(mb, h, lod, st):
                       st["hood"])
 
 
-def end_wall(mb, h, half, pts, sign, lod, st):
-    """One end wall: strips between the half profile's rows, and a band of panes on the axis between the sides' sill
-    and head (spec hood.endPanes; the owner's, not drawn). The panes' rows are the sill, the head and, up close
-    (LOD0), the end profile's breaks between them, so they follow the rake; the strips beside them meet their edge."""
-    pn, ep = h["panes"], h["endPanes"]
-    lo, hi = pn["sill"], pn["head"]
-    vp = (ep["n"] * ep["width"] + (ep["n"] - 1) * pn["mullion"]) / 2
-    band = sorted({lo, hi} | ({w for _, w in pts if lo < w < hi} if lod == 0 else set()))
-    edge = [(end_u(pts, w), w) for w in band]   # the panes' edge: the rake through the band's rows only
+def inset(pts, d, closed=True):
+    """A ccw outline of (v, w) points moved in by d along its edges' inward normals (each point along the mean of
+    its two edges'; an open outline's ends along their one edge's)."""
+    n = len(pts)
+    out = []
+    for i, (v, w) in enumerate(pts):
+        nv = nw = 0.0
+        pairs = [(pts[i - 1], pts[i]), (pts[i], pts[(i + 1) % n])]
+        if not closed:
+            pairs = pairs[1:] if i == 0 else pairs[:1] if i == n - 1 else pairs
+        for a, b in pairs:
+            dv, dw = b[0] - a[0], b[1] - a[1]
+            ln = math.hypot(dv, dw) or 1.0
+            nv, nw = nv - dw / ln, nw + dv / ln
+        ln = math.hypot(nv, nw) or 1.0
+        out.append((v + nv / ln * d, w + nw / ln * d))
+    return out
 
-    def pair(u, v, w):
-        left = mb.vert((m(u), -m(v), m(w)))
-        return left, left if v < 1e-6 else mb.vert((m(u), m(v), m(w)))
 
-    out = (sign, 0, 0)
-    rows = [(w, pair(end_u(pts, w), v, w)) for v, w in half]
-    for (wa, (la, ra)), (wb, (lb, rb)) in zip(rows, rows[1:]):
-        if lo <= wa and wb <= hi:   # beside the panes: a strip each side, out to the panes' edge
-            li, ri = pair(end_u(edge, wa), vp, wa)
-            lj, rj = pair(end_u(edge, wb), vp, wb)
-            mb.face([la, li, lj, lb], st["hood"], out)
-            mb.face([ri, ra, rb, rj], st["hood"], out)
-        else:
-            mb.face([la, ra, rb, lb] if rb != lb else [la, ra, rb], st["hood"], out)
-    cols = [-vp]
-    for i in range(ep["n"]):
-        cols += [cols[-1] + ep["width"]] + ([cols[-1] + ep["width"] + pn["mullion"]] if i < ep["n"] - 1 else [])
-    grid = [[mb.vert((m(end_u(edge, w)), m(v), m(w))) for v in cols] for w in band]
-    for r0, r1 in zip(grid, grid[1:]):
-        for k in range(len(cols) - 1):
-            mb.face([r0[k], r0[k + 1], r1[k + 1], r1[k]], st["glass"] if k % 2 == 0 else st["hood"], out)
+def rim(half, d):
+    """The hood's outline from the right foot over the crown to the left foot (mm), and that outline inset by d with
+    its feet kept on the bottom edge."""
+    outline = half + [(-v, w) for v, w in reversed(half[:-1])]
+    inner = inset(outline, d, closed=False)
+    w_foot = outline[0][1]
+    for i, j in ((0, 1), (-1, -2)):   # each foot slid along its edge back down to the bottom edge
+        (va, wa), (vb, wb) = inner[i], inner[j]
+        inner[i] = (va + (vb - va) * (w_foot - wa) / (wb - wa), w_foot)
+    return outline, inner
+
+
+def end_cap(mb, h, half, u_end, sign, lod, st):
+    """One flat end (owner, 2026-11-03: vertical and plane, as the D6's): the rim, the hood's shell turned in at u_end
+    (spec hood.ring), its soffit back to the wall recessed inside it, and the wall with its window: three panes
+    (spec hood.endPanes, the sides' pane size from their sill; the owner's, not drawn) in a frame a hand
+    deep, the glass set back behind the mullions. sign: +1 the line end, -1 the far end."""
+    rg, pn, ep = h["ring"], h["panes"], h["endPanes"]
+    out = (sign, 0.0, 0.0)
+    gv = (ep["n"] * ep["width"] + (ep["n"] - 1) * pn["mullion"]) / 2
+    gw0, gw1 = pn["sill"], ep["head"]
+    pane = [(-gv, gw0), (gv, gw0), (gv, gw1), (-gv, gw1)]
+
+    def face(u, poly, style):
+        mb.face(mb.verts_lift([(m(u), m(v), m(w)) for v, w in poly]), style, out)
+
+    def mirror(pts):
+        return [(-v, w) for v, w in reversed(pts)]
+
+    if lod >= 3:   # far out: the end flush, the glass on it
+        face(u_end, half + mirror(half[:-1]), st["hood"])
+        face(u_end + sign * 10, pane, st["glass"])
+        return
+    outline, inner = rim(half, h["ring"]["width"])
+    u_wall = u_end - sign * rg["recess"]
+    for a, b, c, d in zip(outline, outline[1:], inner, inner[1:]):   # the rim's face
+        face(u_end, [a, b, d, c], st["hood"])
+    for a, b in zip(inner, inner[1:]):   # its soffit, facing the opening
+        mb.face(mb.verts_lift([(m(u_end), m(a[0]), m(a[1])), (m(u_end), m(b[0]), m(b[1])), (m(u_wall), m(b[0]), m(b[1])),
+                               (m(u_wall), m(a[0]), m(a[1]))]), st["hood"], (0.0, -(b[1] - a[1]), b[0] - a[0]))
+    right = inner[:len(half)]   # the inner outline's right half, foot to crown
+    if lod == 2:   # the wall whole, the glass on it
+        face(u_wall, right + mirror(right[:-1]), st["hood"])
+        face(u_wall + sign * 10, pane, st["glass"])
+        return
+
+    def v_at(w):
+        return side_v(right, w)
+
+    def between(w0, w1):
+        return [p for p in right if w0 < p[1] < w1]
+
+    fr = ep["frame"]
+    fv, fw0, fw1 = gv + fr, gw0 - fr, gw1 + fr
+    top = [(v_at(fw1), fw1)] + between(fw1, 1e9)
+    face(u_wall, top + mirror(top[:-1]), st["hood"])                                    # above the window
+    low = [right[0]] + between(right[0][1], fw0) + [(v_at(fw0), fw0)]
+    face(u_wall, low + mirror(low), st["hood"])                                         # below it
+    for s in (1, -1):                                                                   # beside it
+        pts = [(fv, fw0), (v_at(fw0), fw0)] + between(fw0, fw1) + [(v_at(fw1), fw1), (fv, fw1)]
+        face(u_wall, [(s * v, w) for v, w in pts], st["hood"])
+    dp = ep["depth"]
+    if lod == 1:   # the frame as the opening's four reveals, the mullions as strips in front of the glass
+        u_in = u_wall - sign * dp
+        rim_pts = [(-fv, fw0), (fv, fw0), (fv, fw1), (-fv, fw1)]
+        for (va, wa), (vb, wb) in zip(rim_pts, rim_pts[1:] + rim_pts[:1]):
+            mb.face(mb.verts_lift([(m(u_wall), m(va), m(wa)), (m(u_wall), m(vb), m(wb)), (m(u_in), m(vb), m(wb)), (m(u_in), m(va), m(wa))]),
+                    st["trim"], (0.0, -(wb - wa), vb - va))
+        face(u_in, rim_pts, st["glass"])
+        for k in range(1, ep["n"]):
+            vc, hw = -gv + k * ep["width"] + (k - 0.5) * pn["mullion"], pn["mullion"] / 2
+            face(u_in + sign * 10, [(vc - hw, gw0), (vc + hw, gw0), (vc + hw, gw1), (vc - hw, gw1)], st["trim"])
+        return
+    ua, ub = sorted((m(u_wall), m(u_wall - sign * dp)))   # the frame, lining the opening a hand deep
+    for (v0, w0), (v1, w1) in (((-fv, fw0), (-gv, fw1)), ((gv, fw0), (fv, fw1)), ((-gv, fw0), (gv, gw0)), ((-gv, gw1), (gv, fw1))):
+        prims.box(mb, (ua, m(v0), m(w0)), (ub, m(v1), m(w1)), st["trim"])
+    face(u_wall - sign * dp, pane, st["glass"])
+    ua, ub = sorted((m(u_wall - sign * dp * 0.3), m(u_wall - sign * dp)))   # the mullions, in front of the glass
+    for k in range(1, ep["n"]):
+        vc = -gv + k * ep["width"] + (k - 0.5) * pn["mullion"]
+        prims.box(mb, (ua, m(vc - pn["mullion"] / 2), m(gw0)), (ub, m(vc + pn["mullion"] / 2), m(gw1)), st["trim"])
 
 
 def side_v(half, w):
@@ -159,38 +217,26 @@ def side_v(half, w):
 
 
 def trims(mb, h, half, lod, st):
-    """The sill rail under the windows and the head trim over them, standing proud of each side between the ends and
-    across each end wall."""
+    """The sill rail under the windows and the head trim over them, standing proud of each side between the ends."""
+    u0, u1 = h["ends"]["far"], h["ends"]["line"]
     for key in ("sillRail", "headTrim"):
         t = h[key]
         lo, hi = t["bottom"], t["top"]
         v_in = max(side_v(half, lo), side_v(half, hi))
-        u0, u1 = end_u(h["farEnd"], hi), end_u(h["lineEnd"], hi)
         for s in (-1, 1):
             v0, v1 = sorted((s * m(v_in - 10), s * m(v_in + t["proud"])))
             prims.box(mb, (m(u0), v0, m(lo)), (m(u1), v1, m(hi)), st["trim"])
-        for u, s in ((u0, -1), (u1, 1)):
-            a, b = sorted((m(u - s * 10), m(u + s * t["proud"])))
-            prims.box(mb, (a, -m(v_in + t["proud"]), m(lo)), (b, m(v_in + t["proud"]), m(hi)), st["trim"])
 
 
 def lining(mb, h, half, st):
-    """A dark shell just inside the hood, facing in, closed at both ends: in game the hood's own faces are culled
-    from inside, so without it the windows would show straight through the hood (as the FGQ-4's,
+    """A dark shell just inside the hood, facing in, closed behind the end walls' glass: in game the hood's own faces
+    are culled from inside, so without it the windows would show straight through the hood (as the FGQ-4's,
     drive_terminal.interior_lining)."""
-    inset = m(h["lining"])
-    ring = [(m(v), m(w)) for v, w in half] + [(-m(v), m(w)) for v, w in reversed(half[:-1])]
-    n = len(ring)
-    inner = []
-    for i, (v, w) in enumerate(ring):   # each point moved in along its two edges' inward normals (ccw ring)
-        nv = nw = 0.0
-        for a, b in ((ring[i - 1], ring[i]), (ring[i], ring[(i + 1) % n])):
-            dv, dw = b[0] - a[0], b[1] - a[1]
-            ln = math.hypot(dv, dw) or 1.0
-            nv, nw = nv - dw / ln, nw + dv / ln
-        ln = math.hypot(nv, nw) or 1.0
-        inner.append((v + nv / ln * inset, w + nw / ln * inset))
-    u_a, u_b = m(max(u for u, _ in h["farEnd"])) + 0.05, m(min(u for u, _ in h["lineEnd"])) - 0.05
+    ring = half + [(-v, w) for v, w in reversed(half[:-1])]
+    inner = [(m(v), m(w)) for v, w in inset(ring, h["lining"])]
+    n = len(inner)
+    back = h["ring"]["recess"] + h["endPanes"]["depth"] + 50
+    u_a, u_b = m(h["ends"]["far"] + back), m(h["ends"]["line"] - back)
     dark = st["interior"].but(smooth=False)
     for i in range(n):
         (v0, w0), (v1, w1) = inner[i], inner[(i + 1) % n]
@@ -341,7 +387,7 @@ def build(spec, lod, stage):
         "chair_load": (m(d["chairLoadU"]), hg, rope),
         "pier_top": column_top, "pier_top_2": leg_tops[0], "pier_top_3": leg_tops[1],
     })
-    a.dims.update({"bullwheelU": 0, "portalU": d["portal"]["legs"]["u"], "hoodFarEnd": min(u for u, _ in h["farEnd"]),
+    a.dims.update({"bullwheelU": 0, "portalU": d["portal"]["legs"]["u"], "hoodFarEnd": h["ends"]["far"],
                    "hoodCrown": max(w for _, w in h["profile"]), "pinU": d["heads"]["bottom"]["pinU"],
                    "ropeExitDeg": round(math.degrees(exit_angle), 2)})
     return a
