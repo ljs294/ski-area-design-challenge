@@ -352,6 +352,8 @@ namespace MountainPlanner.App.Flow
             ("dl", false, (h, v, on) => h.SetDownload(on ? "Downloading · 41%" : null, "Crystal Mountain", 0.41f, "")),
             ("dlwait", false, (h, v, on) => h.SetDownload(on ? "Waiting for connection · 41%" : null, "Crystal Mountain", 0.41f, "pill--waiting")),
             ("dlfail", false, (h, v, on) => h.SetDownload(on ? "Download stopped · 41%" : null, "Crystal Mountain", 0.41f, "pill--failed")),
+            // Task P3-16, BB5: held up for two minutes by one server.
+            ("dlheld", false, (h, v, on) => h.SetDownload(on ? "Held up · USGS elevation · 41%" : null, "Crystal Mountain", 0.41f, "pill--held")),
         };
 
         /// <summary>Photo mode's states (task P2-07): the mockup's #demo=p2,photo flags.</summary>

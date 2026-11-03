@@ -398,6 +398,8 @@
 .pill--paused .pill-fill { background-color: var(--soft); }
 .pill--failed .pill-fill { background-color: var(--neg); }
 .pill--failed .pill-text { color: var(--neg); -unity-text-outline-color: var(--neg); }
+.pill--held .pill-fill { background-color: var(--warn); }
+.pill--held .pill-text { color: var(--warn); -unity-text-outline-color: var(--warn); }
 
 /* Ghost buttons (Cancel, Retry): a hairline frame, no fill. */
 .ghost {

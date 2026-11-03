@@ -198,6 +198,17 @@
                 <ui:Button name="dl-trynow" text="Try now" class="mp-go" />
                 <ui:Button name="dl-wait-cancel" text="Cancel" class="mp-ghost" />
             </ui:VisualElement>
+            <!-- Task P3-16, BB5: held up for two minutes; what's holding it, and the choices. -->
+            <ui:VisualElement name="dl-held" class="dl-held hidden">
+                <ui:Label name="dl-held-line" text="" class="dl-held-line" />
+                <ui:VisualElement class="panel-foot">
+                    <ui:VisualElement class="spacer" />
+                    <ui:Button name="dl-held-skip" text="Skip water and roads" class="mp-ghost" tooltip="Finish without OpenStreetMap; satellite land cover stands in" />
+                    <ui:Button name="dl-held-pause" text="Pause for later" class="mp-ghost" tooltip="Keep what arrived and resume it from Manage Areas" />
+                    <ui:Button name="dl-held-trynow" text="Try now" class="mp-go" />
+                    <ui:Button name="dl-held-cancel" text="Cancel" class="mp-ghost" />
+                </ui:VisualElement>
+            </ui:VisualElement>
             <ui:VisualElement name="dl-failed" class="panel-foot hidden">
                 <ui:VisualElement class="spacer" />
                 <ui:Button name="dl-retry" text="Retry" class="mp-go" />

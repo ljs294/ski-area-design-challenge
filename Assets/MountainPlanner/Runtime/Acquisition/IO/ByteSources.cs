@@ -52,17 +52,23 @@ namespace MountainPlanner.Acquisition.IO
         /// </summary>
         public static bool NetworkDisabled;
 
+        /// <summary>How long a response body may send nothing before the attempt fails (task P3-16, BB5).</summary>
+        public static TimeSpan StallLimit = TimeSpan.FromSeconds(60);
+
         /// <summary>
         /// A request with up to <paramref name="attempts"/> attempts (four by default) and exponential backoff; non-success
         /// statuses retry too. A <paramref name="timeout"/> bounds each attempt, body included, and fails it with a
         /// <see cref="TimeoutException"/>, so a slow server is never mistaken for the player cancelling (task P3-16).
+        /// Once the headers are in, a body that sends nothing for <paramref name="stall"/> (<see cref="StallLimit"/> by
+        /// default) fails the attempt the same way: a server that stops mid-transfer never holds a download for ever.
         /// </summary>
         public static async Task<byte[]> GetBytesAsync(Func<HttpRequestMessage> build, TransferMeter? meter, CancellationToken ct,
-                                                       int attempts = 4, TimeSpan? timeout = null)
+                                                       int attempts = 4, TimeSpan? timeout = null, TimeSpan? stall = null)
         {
             if (NetworkDisabled) throw new NetworkDisabledException();
             Exception? last = null;
             string? host = null;
+            var quietLimit = stall ?? StallLimit;
             for (int attempt = 0; attempt < attempts; attempt++)
             {
                 if (attempt > 0) await Task.Delay(500 * (1 << attempt), ct).ConfigureAwait(false);
@@ -70,28 +76,35 @@ namespace MountainPlanner.Acquisition.IO
                 {
                     limit?.CancelAfter(timeout!.Value);
                     var token = limit?.Token ?? ct;
+                    CancellationTokenSource? quiet = null;
                     try
                     {
                         using (var request = build())
                         using (var response = await SendAsync(request, token, h => host = h).ConfigureAwait(false))
-                        // Some runtimes' response streams ignore the token; closing the response ends a stalled read.
-                        using (limit != null ? token.Register(response.Dispose) : default(CancellationTokenRegistration))
                         {
-                            response.EnsureSuccessStatusCode();
-                            // Count bytes as they stream in, so progress moves during large transfers (U6).
-                            using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
-                            using (var body = new MemoryStream())
+                            // Re-armed on every read; some runtimes' response streams ignore the token, so closing the
+                            // response is what ends a stalled read.
+                            quiet = CancellationTokenSource.CreateLinkedTokenSource(token);
+                            quiet.CancelAfter(quietLimit);
+                            using (quiet.Token.Register(response.Dispose))
                             {
-                                var buffer = new byte[81920];
-                                int n;
-                                while ((n = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false)) > 0)
+                                response.EnsureSuccessStatusCode();
+                                // Count bytes as they stream in, so progress moves during large transfers (U6).
+                                using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+                                using (var body = new MemoryStream())
                                 {
-                                    body.Write(buffer, 0, n);
-                                    meter?.AddStreamed(n);
+                                    var buffer = new byte[81920];
+                                    int n;
+                                    while ((n = await stream.ReadAsync(buffer, 0, buffer.Length, quiet.Token).ConfigureAwait(false)) > 0)
+                                    {
+                                        quiet.CancelAfter(quietLimit);
+                                        body.Write(buffer, 0, n);
+                                        meter?.AddStreamed(n);
+                                    }
+                                    quiet.Token.ThrowIfCancellationRequested();
+                                    meter?.CompleteRequest();
+                                    return body.ToArray();
                                 }
-                                token.ThrowIfCancellationRequested();
-                                meter?.CompleteRequest();
-                                return body.ToArray();
                             }
                         }
                     }
@@ -99,8 +112,13 @@ namespace MountainPlanner.Acquisition.IO
                     {
                         last = new TimeoutException($"No answer within {timeout!.Value.TotalSeconds:F0} s.");
                     }
+                    catch (Exception) when (quiet != null && quiet.IsCancellationRequested && !ct.IsCancellationRequested)
+                    {
+                        last = new TimeoutException($"No data for {quietLimit.TotalSeconds:F0} s.");
+                    }
                     catch (HttpRequestException ex) { last = ex; }
                     catch (TaskCanceledException ex) when (!ct.IsCancellationRequested) { last = ex; }
+                    finally { quiet?.Dispose(); }
                 }
             }
             var failed = new IOException(attempts == 1 ? "The request failed." : $"The request failed after {attempts} attempts.", last);
@@ -112,6 +130,25 @@ namespace MountainPlanner.Acquisition.IO
         {
             if (request.RequestUri != null) asking(request.RequestUri.Host);
             return Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+        }
+    }
+
+    /// <summary>
+    /// One map service isn't answering while the others do (task P3-16, BB5): the player's connection is fine, and the
+    /// download waits for that server rather than for the network. It carries no inner exception, so it never reads as a
+    /// lost connection.
+    /// </summary>
+    public sealed class ServerUnavailableException : Exception
+    {
+        /// <summary>The <see cref="Servers"/> name of the server, or null when the failure didn't say which.</summary>
+        public string? Server { get; }
+        public string? Host { get; }
+
+        public ServerUnavailableException(string? server, string? host)
+            : base((server ?? "A map service") + " isn't answering, though other map services do.")
+        {
+            Server = server;
+            Host = host;
         }
     }
 
@@ -166,7 +203,32 @@ namespace MountainPlanner.Acquisition.IO
         /// so it's worth waiting; offline mode and every other failure aren't (−1).
         /// </summary>
         public static double RetryAfter(Exception? e) =>
-            IsOfflineMode(e) ? -1 : IsServiceBusy(e) ? BusyWaitSeconds : IsNoConnection(e) ? NoConnectionWaitSeconds : -1;
+            IsOfflineMode(e) ? -1 : IsServiceBusy(e) || IsServerDown(e) ? BusyWaitSeconds : IsNoConnection(e) || IsTimeout(e) ? NoConnectionWaitSeconds : -1;
+
+        /// <summary>A <see cref="ServerUnavailableException"/> somewhere in the chain.</summary>
+        public static bool IsServerDown(Exception? e)
+        {
+            for (; e != null; e = e.InnerException)
+                if (e is ServerUnavailableException) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Tells a server that is down or stalled from a lost connection (task P3-16, BB5). For a failure that couldn't
+        /// connect or ran out of time, asks <paramref name="othersAnswer"/> (given the failing host, to leave out) whether
+        /// the other map services answer: if they do, the failure becomes a <see cref="ServerUnavailableException"/>
+        /// naming the server; otherwise, and for any other failure, <paramref name="e"/> comes back as it is.
+        /// Cancelling <paramref name="ct"/> throws.
+        /// </summary>
+        public static async Task<Exception> DiagnoseAsync(Exception e, Func<string?, CancellationToken, Task<bool>> othersAnswer, CancellationToken ct)
+        {
+            if (IsOfflineMode(e) || IsServerDown(e) || !(IsNoConnection(e) || IsTimeout(e))) return e;
+            string? host = HostOf(e);
+            bool up;
+            try { up = await othersAnswer(host, ct).ConfigureAwait(false); }
+            catch (Exception) when (!ct.IsCancellationRequested) { return e; }
+            return up ? new ServerUnavailableException(host != null ? Servers.NameOf(host) : null, host) : e;
+        }
 
         /// <summary>
         /// Runs <paramref name="run"/> until it finishes, waiting out a busy service or a lost connection between tries

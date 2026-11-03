@@ -97,6 +97,123 @@ namespace MountainPlanner.Tests
             Assert.That(NetworkFailure.HostOf(null), Is.Null);
         }
 
+        /// <summary>PR D: a server that sends its headers and then nothing ends the attempt at the stall limit.</summary>
+        [Test]
+        public void ABodyThatStopsArrivingEndsTheAttempt()
+        {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var held = new System.Collections.Generic.List<TcpClient>();
+            var serving = System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    var client = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
+                    lock (held) held.Add(client);
+                    var stream = client.GetStream();
+                    await stream.ReadAsync(new byte[4096], 0, 4096).ConfigureAwait(false);
+                    byte[] start = System.Text.Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Length: 100000\r\n\r\nfirst bytes");
+                    await stream.WriteAsync(start, 0, start.Length).ConfigureAwait(false);
+                    // ...and nothing more: the connection stays open.
+                }
+                catch (Exception) { /* stopped */ }
+            });
+            string url = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/";
+            var meter = new TransferMeter();
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            Exception failure = null;
+            try
+            {
+                Http.GetBytesAsync(() => new HttpRequestMessage(HttpMethod.Get, url), meter, CancellationToken.None, attempts: 1, stall: TimeSpan.FromSeconds(1))
+                    .GetAwaiter().GetResult();
+            }
+            catch (Exception e) { failure = e; }
+            finally
+            {
+                listener.Stop();
+                lock (held) foreach (var c in held) c.Dispose();
+            }
+            Assert.That(failure, Is.InstanceOf<IOException>());
+            Assert.That(failure.InnerException, Is.InstanceOf<TimeoutException>().With.Message.Contains("No data for 1 s"));
+            Assert.That(NetworkFailure.IsTimeout(failure), Is.True);
+            Assert.That(clock.Elapsed.TotalSeconds, Is.LessThan(10), "the stall limit, not the 5 min request limit");
+            Assert.That(meter.Bytes, Is.GreaterThan(0), "the first bytes arrived");
+        }
+
+        [Test]
+        public void AServerThatFailsWhileOthersAnswerIsDownNotTheConnection()
+        {
+            var refused = new IOException("The request failed.", new HttpRequestException("refused", new SocketException((int)SocketError.ConnectionRefused)));
+            refused.Data[NetworkFailure.HostKey] = new Uri(Dep3Service.Service).Host;
+            string left = "none";
+            Exception Diagnose(Exception e, bool up)
+            {
+                left = "none";
+                return NetworkFailure.DiagnoseAsync(e, (host, ct) => { left = host; return System.Threading.Tasks.Task.FromResult(up); }, CancellationToken.None)
+                    .GetAwaiter().GetResult();
+            }
+
+            var down = Diagnose(refused, true);
+            Assert.That(down, Is.InstanceOf<ServerUnavailableException>());
+            Assert.That(((ServerUnavailableException)down).Server, Is.EqualTo(Servers.UsgsElevation));
+            Assert.That(left, Is.EqualTo(new Uri(Dep3Service.Service).Host), "the failing server itself isn't asked");
+            Assert.That(NetworkFailure.IsNoConnection(down), Is.False, "never read as a lost connection");
+            Assert.That(NetworkFailure.RetryAfter(down), Is.EqualTo(NetworkFailure.BusyWaitSeconds));
+
+            Assert.That(Diagnose(refused, false), Is.SameAs(refused), "nothing answers: the connection");
+            var stalled = new IOException("The request failed.", new TimeoutException("No data for 60 s."));
+            Assert.That(Diagnose(stalled, true), Is.InstanceOf<ServerUnavailableException>(), "a stall is diagnosed too");
+            Assert.That(((ServerUnavailableException)Diagnose(stalled, true)).Server, Is.Null, "no host recorded");
+            Assert.That(NetworkFailure.RetryAfter(stalled), Is.EqualTo(NetworkFailure.NoConnectionWaitSeconds), "the CLI waits out a stall");
+
+            // Failures that aren't about reaching a server are never diagnosed.
+            var notFound = new IOException("The request failed.", new HttpRequestException("404 (Not Found)"));
+            Assert.That(Diagnose(notFound, true), Is.SameAs(notFound));
+            Assert.That(left, Is.EqualTo("none"), "not even asked");
+            var offline = new NetworkDisabledException();
+            Assert.That(Diagnose(offline, true), Is.SameAs(offline));
+
+            using (var cancelled = new CancellationTokenSource())
+            {
+                cancelled.Cancel();
+                Assert.That(() => NetworkFailure.DiagnoseAsync(refused, (h, ct) => System.Threading.Tasks.Task.FromCanceled<bool>(ct), cancelled.Token).GetAwaiter().GetResult(),
+                            Throws.InstanceOf<OperationCanceledException>());
+            }
+        }
+
+        [Test]
+        public void SkippingWaterAndRoadsLeavesThemOutWithoutTheNetwork()
+        {
+            var site = SiteSquare.Create(new AlbersPoint(-1188828, 2381976), 2);
+            int fetches = 0;
+            string cache = Path.Combine(Path.GetTempPath(), "mp-osm-skip-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var osm = new OsmFeatures(new DiskCache(cache), new TransferMeter(), (url, ct) =>
+                {
+                    Interlocked.Increment(ref fetches);
+                    return System.Threading.Tasks.Task.Delay(Timeout.Infinite, ct).ContinueWith<byte[]>(t => throw new OperationCanceledException(ct), System.Threading.Tasks.TaskScheduler.Default);
+                });
+                using (var skip = new CancellationTokenSource())
+                {
+                    skip.Cancel();
+                    var already = OsmLayers.FetchAsync(osm, site, null, new TransferMeter(), CancellationToken.None, skip.Token).GetAwaiter().GetResult();
+                    Assert.That(already.Failure, Is.EqualTo(OsmLayers.SkippedReason));
+                    Assert.That(fetches, Is.Zero, "skipped before it began: no request");
+                }
+                using (var skip = new CancellationTokenSource())
+                {
+                    var running = System.Threading.Tasks.Task.Run(() => OsmLayers.FetchAsync(osm, site, null, new TransferMeter(), CancellationToken.None, skip.Token));
+                    for (int i = 0; i < 500 && Volatile.Read(ref fetches) == 0; i++) Thread.Sleep(10);
+                    skip.Cancel();
+                    var result = running.GetAwaiter().GetResult();
+                    Assert.That(result.Failure, Is.EqualTo(OsmLayers.SkippedReason), "a skip while it waits on Overpass");
+                    Assert.That(result.Core, Is.Null);
+                }
+            }
+            finally { if (Directory.Exists(cache)) Directory.Delete(cache, true); }
+        }
+
         [Test]
         public void TheManifestIsReplacedWholeAndLeavesNoTemporaryFile()
         {

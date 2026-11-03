@@ -25,6 +25,8 @@ namespace MountainPlanner.Acquisition
         public const string Attribution = "Water and roads: © OpenStreetMap contributors (ODbL).";
         /// <summary>The provenance layer recorded when water and roads couldn't be had.</summary>
         public const string NoneLayer = "(none)";
+        /// <summary>The provenance reason when the player chose Skip water and roads (task P3-16, BB5).</summary>
+        public const string SkippedReason = "Skipped by the player while OpenStreetMap was holding the download up.";
 
         internal sealed class Result
         {
@@ -37,16 +39,25 @@ namespace MountainPlanner.Acquisition
         /// <summary>
         /// OpenStreetMap water and developed land. Optional: if Overpass is down, the package is built without it and
         /// WorldCover's water and built-up classes stand in (recorded in provenance). <paramref name="tracker"/> may be null.
+        /// Cancelling <paramref name="skipOptional"/> (the player's Skip water and roads) leaves the layer out the same way,
+        /// without touching the network if it was already cancelled.
         /// </summary>
-        public static async Task<Result> FetchAsync(OsmFeatures osm, SiteSquare site, ProgressTracker? tracker, TransferMeter meter, CancellationToken ct)
+        public static async Task<Result> FetchAsync(OsmFeatures osm, SiteSquare site, ProgressTracker? tracker, TransferMeter meter, CancellationToken ct,
+                                                    CancellationToken skipOptional = default)
         {
+            if (skipOptional.IsCancellationRequested) return Skipped(tracker);
             long start = meter.Bytes;
             double rasterized = 0;
             tracker?.BeginStep("downloading map features", 1, 3, () => Math.Min(0.95, (meter.Bytes - start) / 4e6), Servers.OpenStreetMap);
             byte[] response;
             try
             {
-                response = await osm.DownloadAsync(site.Ring, ct, host => tracker?.SetServer(Servers.NameOf(host))).ConfigureAwait(false);
+                using (var either = CancellationTokenSource.CreateLinkedTokenSource(ct, skipOptional))
+                    response = await osm.DownloadAsync(site.Ring, either.Token, host => tracker?.SetServer(Servers.NameOf(host))).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (skipOptional.IsCancellationRequested && !ct.IsCancellationRequested)
+            {
+                return Skipped(tracker);
             }
             // Overpass being down, busy or slow is a missing optional layer (task P3-16); the connection going (or offline
             // mode) is not: OsmFeatures lets that through, and the download waits for it rather than build a package
@@ -63,6 +74,12 @@ namespace MountainPlanner.Acquisition
             tracker?.BeginStep($"drawing {shapes.Count:N0} map features, surroundings at 2 m", 3, 3, () => 0.5);
             var (rw, rd) = OsmFeatures.Rasterize(shapes, site.RingGrid);
             return new Result { Core = OsmFeatures.Interleave(cw, cd), Ring = OsmFeatures.Interleave(rw, rd), Shapes = shapes.Count, Roads = OsmFeatures.ParseRoads(response) };
+        }
+
+        static Result Skipped(ProgressTracker? tracker)
+        {
+            tracker?.BeginStep("map features skipped · satellite land cover used instead", 3, 3, () => 1);
+            return new Result { Failure = SkippedReason };
         }
 
         /// <summary>
