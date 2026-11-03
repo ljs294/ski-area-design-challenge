@@ -122,7 +122,7 @@ namespace MountainPlanner.Presentation.Lifts
             float minZ = float.MaxValue, maxZ = float.MinValue, maxX = 0;
             foreach (var mf in prefab.GetComponentsInChildren<MeshFilter>(true))
             {
-                if (mf.sharedMesh == null) continue;
+                if (mf.sharedMesh == null || !Shown(mf.transform, prefab.transform)) continue;   // a hidden head's steel
                 var b = mf.sharedMesh.bounds;
                 var m = root * mf.transform.localToWorldMatrix;
                 for (int i = 0; i < 8; i++)
@@ -138,6 +138,15 @@ namespace MountainPlanner.Presentation.Lifts
             behind = bw - minZ;
             ahead = maxZ - bw;
             halfWidth = maxX;
+            return true;
+        }
+
+        /// <summary>Whether t and every parent up to root are active (a prefab asset isn't in a scene, so
+        /// activeInHierarchy doesn't say): a terminal's hidden heads (drive at either end) are inactive.</summary>
+        static bool Shown(Transform t, Transform root)
+        {
+            for (; t != null && t != root; t = t.parent)
+                if (!t.gameObject.activeSelf) return false;
             return true;
         }
 

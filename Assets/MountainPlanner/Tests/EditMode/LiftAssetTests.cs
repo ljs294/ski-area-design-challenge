@@ -15,14 +15,16 @@ namespace MountainPlanner.Tests
     // per LOD from budgets.json, shadows only on the near LODs, moving parts centred on their axles, sockets
     // on the rope (each terminal against its own maker's spec), the mesh channels the lift shader reads, the lift
     // frame's handedness, snow guns standing at grade on a hinge, and our naming; and the posable parts (task P3-07):
-    // nested pivots that round-trip through the FBX, parents that carry their children rigidly, and safe ranges.
+    // nested pivots that round-trip through the FBX, parents that carry their children rigidly, and safe ranges; and a
+    // fixed-grip terminal's heads (drive at either end): one shown at a time, each within budget and on the rope.
     public sealed class LiftAssetTests
     {
         const string SetPath = "Assets/MountainPlanner/Art/Lifts/LiftModels.asset";
         const string ArtRoot = "Assets/MountainPlanner/Art/Lifts";
         const float Mm = 0.001f;
         /// <summary>Our makers' code names, as asset id prefixes (decision LP3).</summary>
-        static readonly string[] Makers = { "sessellift_fgq4_", "sessellift_d6_", "sle_", "monta_fg4_", "chairworks_chair_" };
+        static readonly string[] Makers = { "sessellift_fgq4_", "sessellift_fgd2_", "sessellift_fgt3_", "sessellift_d6_", "sle_",
+            "monta_fg4_", "monta_fg3_", "monta_fg2_", "chairworks_chair_" };
 
         [Serializable] sealed class LodBudget { public int lod; public int maxTris; public float untilM; }
         [Serializable] sealed class KindBudget { public LodBudget[] lods; public int shadowLods; public bool crossFade; }
@@ -34,11 +36,24 @@ namespace MountainPlanner.Tests
         static string RepoPath(string relative) => Path.Combine(Path.GetDirectoryName(Application.dataPath), relative);
 
         static Budgets LoadBudgets() => JsonUtility.FromJson<Budgets>(File.ReadAllText(RepoPath("tools/assets/lifts/budgets.json")));
-        /// <summary>The spec an asset was built from: its maker's (the Sessellift's unless another maker's prefix).</summary>
-        static Spec LoadSpec(string assetId) => JsonUtility.FromJson<Spec>(File.ReadAllText(RepoPath(
-            assetId.StartsWith("monta_fg4_", StringComparison.Ordinal) ? "tools/assets/lifts/monta_fg4.json"
-            : assetId.StartsWith("sessellift_d6_", StringComparison.Ordinal) ? "tools/assets/lifts/sessellift_d6.json"
-            : "tools/assets/lifts/sessellift_fgq4.json")));
+        /// <summary>The spec an asset was built from: its model's, named by the id's first two words (monta_fg3_drive:
+        /// monta_fg3.json) when that spec has a common block, else the Sessellift quad's; an overlay's common values over
+        /// its base's.</summary>
+        static Spec LoadSpec(string assetId)
+        {
+            var words = assetId.Split('_');
+            string own = words.Length > 2 ? RepoPath($"tools/assets/lifts/{words[0]}_{words[1]}.json") : null;
+            var spec = own != null && File.Exists(own) ? JObject.Parse(File.ReadAllText(own)) : null;
+            if (spec?["common"] == null) spec = JObject.Parse(File.ReadAllText(RepoPath("tools/assets/lifts/sessellift_fgq4.json")));
+            var common = (JObject)spec["common"];
+            if (spec["base"] != null)
+            {
+                var merged = (JObject)JObject.Parse(File.ReadAllText(RepoPath($"tools/assets/lifts/{spec["base"]}")))["common"];
+                merged.Merge(common);
+                common = merged;
+            }
+            return new Spec { common = new Common { ropeElevation = (float)common["ropeElevation"], lineGauge = (float)common["lineGauge"] } };
+        }
 
         static KindBudget BudgetFor(Budgets b, string kind) => kind switch
         {
@@ -64,6 +79,20 @@ namespace MountainPlanner.Tests
 
         static IEnumerable<TestCaseData> Cases() => Prefabs().Select(p => new TestCaseData(p).SetName("{m}(" + p.name + ")"));
 
+        /// <summary>Each way an asset can show: a fixed-grip terminal's head indices (<see cref="LiftRig.Heads"/>), else
+        /// -1 (the whole asset).</summary>
+        static int[] Views(LiftRig rig) => rig.Heads == null || rig.Heads.Length == 0 ? new[] { -1 } : Enumerable.Range(0, rig.Heads.Length).ToArray();
+
+        /// <summary>The pivots of every head but the one shown in <paramref name="view"/>: what the view leaves out.</summary>
+        static Transform[] Hidden(LiftRig rig, int view) => rig.Heads == null ? new Transform[0]
+            : rig.Heads.Where((h, i) => i != view).SelectMany(h => h.Pivots.Select(p => rig.Pivots[p])).ToArray();
+
+        static bool Shows(Component c, Transform[] hidden) => !hidden.Any(c.transform.IsChildOf);
+
+        static string Prefix(LiftRig rig, int view) => view < 0 ? "" : rig.Heads[view].Prefix;
+
+        static string ViewName(LiftRig rig, int view) => view < 0 ? "" : $" ({rig.Heads[view].Key} head)";
+
         static int Triangles(Renderer r)
         {
             var mesh = r.GetComponent<MeshFilter>().sharedMesh;
@@ -88,15 +117,21 @@ namespace MountainPlanner.Tests
             var budget = BudgetFor(LoadBudgets(), rig.Kind);
             var lods = prefab.GetComponent<LODGroup>().GetLODs();
             Assert.That(lods.Length, Is.EqualTo(budget.lods.Length));
-            int previous = int.MaxValue;
-            for (int i = 0; i < lods.Length; i++)
+            // a terminal with heads draws one at a time: the budget holds for the body with each head
+            foreach (int view in Views(rig))
             {
-                int tris = lods[i].renderers.Sum(Triangles);
-                Assert.That(tris, Is.LessThanOrEqualTo(budget.lods[i].maxTris), $"LOD{i}");
-                Assert.That(tris, Is.LessThan(previous), $"LOD{i} must have fewer triangles than LOD{i - 1}");
-                previous = tris;
-                if (i > 0) Assert.That(lods[i].screenRelativeTransitionHeight, Is.LessThan(lods[i - 1].screenRelativeTransitionHeight));
+                var hidden = Hidden(rig, view);
+                int previous = int.MaxValue;
+                for (int i = 0; i < lods.Length; i++)
+                {
+                    int tris = lods[i].renderers.Where(r => Shows(r, hidden)).Sum(Triangles);
+                    Assert.That(tris, Is.LessThanOrEqualTo(budget.lods[i].maxTris), $"LOD{i}{ViewName(rig, view)}");
+                    Assert.That(tris, Is.LessThan(previous), $"LOD{i} must have fewer triangles than LOD{i - 1}{ViewName(rig, view)}");
+                    previous = tris;
+                }
             }
+            for (int i = 1; i < lods.Length; i++)
+                Assert.That(lods[i].screenRelativeTransitionHeight, Is.LessThan(lods[i - 1].screenRelativeTransitionHeight));
         }
 
         [TestCaseSource(nameof(Cases))]
@@ -192,24 +227,30 @@ namespace MountainPlanner.Tests
             }
             var line = rig.Socket("line");
             Assert.That(line, Is.Not.Null, "socket_line");
-            var rope = rig.Sockets.Where(s => s.name.Contains("_socket_rope_")).ToArray();
+            // the rope sockets, every head's (top6_rope_right_out)
+            var rope = rig.Sockets.Where(s => Views(rig).Any(v => s.name.Contains("_socket_" + Prefix(rig, v) + "rope_"))).ToArray();
             Assert.That(rope, Is.Not.Empty);
             foreach (var s in rope)
             {
                 var p = prefab.transform.InverseTransformPoint(s.position);
                 var l = prefab.transform.InverseTransformPoint(line.position);
                 Assert.That(Mathf.Abs(Mathf.Abs(p.x - l.x) - common.lineGauge * Mm / 2), Is.LessThan(2 * Mm), s.name);
-                // level at the rope elevation, except where the rope leaves a hold-down row climbing (the return's
-                // out sockets, owner): above it by less than a metre and a half, further up the line than the row
+                // level at the rope elevation, except where the rope leaves a row levelled at its first sheave: up out
+                // of a bottom head's hold-down row (the return's out sockets, owner), down over a top head's support
+                // row (drive at either end), by less than a metre and a half, further up the line than the row
                 string name = s.name.Substring(s.name.IndexOf("_socket_", StringComparison.Ordinal) + "_socket_".Length);
                 var hold = name.EndsWith("_out", StringComparison.Ordinal) ? rig.Socket(name.Substring(0, name.Length - 4) + "_hold") : null;
+                bool top = rig.Heads != null && rig.Heads.Any(h => h.End == "top" && h.Sockets.Contains(name));
                 if (rig.Kind == "terminal_detach" && name.EndsWith("_bw", StringComparison.Ordinal))
                     // a detachable's bullwheel is lowered (and tilted) under the station rope: the rope comes off it
                     // up to a metre below the rope elevation, never above it
                     Assert.That(p.y, Is.GreaterThan(common.ropeElevation * Mm - 1f).And.LessThanOrEqualTo(common.ropeElevation * Mm + Mm), s.name);
                 else if (hold != null)
                 {
-                    Assert.That(p.y, Is.GreaterThan(common.ropeElevation * Mm + Mm).And.LessThan(common.ropeElevation * Mm + 1.5f), s.name);
+                    if (top)
+                        Assert.That(p.y, Is.LessThan(common.ropeElevation * Mm - Mm).And.GreaterThan(common.ropeElevation * Mm - 1.5f), s.name);
+                    else
+                        Assert.That(p.y, Is.GreaterThan(common.ropeElevation * Mm + Mm).And.LessThan(common.ropeElevation * Mm + 1.5f), s.name);
                     Assert.That(p.z, Is.GreaterThan(prefab.transform.InverseTransformPoint(hold.position).z), s.name);
                 }
                 else
@@ -286,13 +327,15 @@ namespace MountainPlanner.Tests
             Assert.That(bullwheel, Is.Not.Null);
             Assert.That(bullwheel.localPosition.z, Is.LessThanOrEqualTo(Mm), "the bullwheel must be on or behind the origin (-Z)");
             Assert.That(Mathf.Abs(bullwheel.localPosition.x), Is.LessThan(Mm), "the bullwheel is on the line centre");
-            foreach (string side in new[] { "left", "right" })
-            {
-                var outgoing = rig.Socket($"rope_{side}_out");
-                var atWheel = rig.Socket($"rope_{side}_bw");
-                Assert.That(outgoing.localPosition.z, Is.GreaterThan(atWheel.localPosition.z), $"{side} rope must run toward the line (+Z)");
-                Assert.That(Mathf.Sign(outgoing.localPosition.x), Is.EqualTo(side == "left" ? -1f : 1f), $"{side} rope must be on the {side} (X)");
-            }
+            foreach (int view in Views(rig))
+                foreach (string side in new[] { "left", "right" })
+                {
+                    var outgoing = rig.Socket($"{Prefix(rig, view)}rope_{side}_out");
+                    var atWheel = rig.Socket($"rope_{side}_bw");
+                    Assert.That(outgoing, Is.Not.Null, $"{side} rope's way out{ViewName(rig, view)}");
+                    Assert.That(outgoing.localPosition.z, Is.GreaterThan(atWheel.localPosition.z), $"{side} rope must run toward the line (+Z){ViewName(rig, view)}");
+                    Assert.That(Mathf.Sign(outgoing.localPosition.x), Is.EqualTo(side == "left" ? -1f : 1f), $"{side} rope must be on the {side} (X){ViewName(rig, view)}");
+                }
             if (rig.Socket("pier_top") != null)
             {
                 // the Sessellift's really tall piers (task P3-07): the footing is its own prefab; the pier runs on far
@@ -305,10 +348,21 @@ namespace MountainPlanner.Tests
             }
             else
                 Assert.That(rig.Socket("foundation_base").localPosition.y, Is.LessThan(-2f), "foundations reach at least 2 m below grade (LP7)");
-            var loadOrUnload = rig.Socket("chair_load") ?? rig.Socket("chair_unload");
-            Assert.That(loadOrUnload, Is.Not.Null, "a terminal marks where riders load or unload");
             // Loaded chairs ride up on the right rope (counter-clockwise from above): +X at the bottom, -X at the top.
-            Assert.That(Mathf.Sign(loadOrUnload.localPosition.x), Is.EqualTo(rig.Socket("chair_load") != null ? 1f : -1f));
+            if (rig.Heads == null || rig.Heads.Length == 0)
+            {
+                var loadOrUnload = rig.Socket("chair_load") ?? rig.Socket("chair_unload");
+                Assert.That(loadOrUnload, Is.Not.Null, "a terminal marks where riders load or unload");
+                Assert.That(Mathf.Sign(loadOrUnload.localPosition.x), Is.EqualTo(rig.Socket("chair_load") != null ? 1f : -1f));
+            }
+            else
+                foreach (var head in rig.Heads)
+                {
+                    bool bottom = head.End == "bottom";
+                    var chair = rig.Socket(head.Prefix + (bottom ? "chair_load" : "chair_unload"));
+                    Assert.That(chair, Is.Not.Null, $"the {head.Key} head marks where riders {(bottom ? "load" : "unload")}");
+                    Assert.That(Mathf.Sign(chair.localPosition.x), Is.EqualTo(bottom ? 1f : -1f), $"{head.Key} head's riders");
+                }
         }
 
         [TestCaseSource(nameof(Cases))]
@@ -412,16 +466,75 @@ namespace MountainPlanner.Tests
         {
             // Contract P3-07 M2: up close every train level is its own part on its pin; far out each side's whole train
             // is one part under that side's top pivot, never folded into the body, so it turns with the train.
+            // A terminal with heads: per head, its own trains (prefixed, top6_eq_l) or the body's.
             var rig = prefab.GetComponent<LiftRig>();
-            string[] topKinds = { "_pivot_eq_", "_pivot_yoke_", "_pivot_block_", "_pivot_beam_" };
-            var tops = Enumerable.Range(0, rig.Pivots.Length).Where(i => rig.PivotParents != null && rig.PivotParents[i] < 0)
-                .Select(i => rig.Pivots[i]).Where(p => topKinds.Any(p.name.Contains)).ToArray();
-            if (tops.Length == 0) Assert.Ignore("No posable sheave trains.");
-            Assert.That(tops.Length, Is.EqualTo(2), "one train top pivot per rope");
+            string[] topKinds = { "eq_", "yoke_", "block_", "beam_" };
             int lods = prefab.GetComponent<LODGroup>().lodCount;
-            foreach (var top in tops)
-                for (int lod = 0; lod < lods; lod++)
-                    Assert.That(top.GetComponentsInChildren<MeshFilter>(true).Any(f => f.name.EndsWith("_LOD" + lod)), $"{top.name} carries a LOD{lod} part");
+            bool any = false;
+            foreach (int view in Views(rig))
+            {
+                var hidden = Hidden(rig, view);
+                string pivot = prefab.name + "_pivot_", prefix = Prefix(rig, view);
+                string Bare(Transform p)
+                {
+                    string n = p.name.Substring(pivot.Length);
+                    return prefix.Length > 0 && n.StartsWith(prefix, StringComparison.Ordinal) ? n.Substring(prefix.Length) : n;
+                }
+                var tops = Enumerable.Range(0, rig.Pivots.Length).Where(i => rig.PivotParents != null && rig.PivotParents[i] < 0)
+                    .Select(i => rig.Pivots[i]).Where(p => !hidden.Contains(p) && topKinds.Any(Bare(p).StartsWith)).ToArray();
+                if (tops.Length == 0) continue;
+                any = true;
+                Assert.That(tops.Length, Is.EqualTo(2), $"one train top pivot per rope{ViewName(rig, view)}");
+                foreach (var top in tops)
+                    for (int lod = 0; lod < lods; lod++)
+                        Assert.That(top.GetComponentsInChildren<MeshFilter>(true).Any(f => f.name.EndsWith("_LOD" + lod)), $"{top.name} carries a LOD{lod} part");
+            }
+            if (!any) Assert.Ignore("No posable sheave trains.");
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void ATerminalShowsOneHeadAtATime(GameObject prefab)
+        {
+            // Drive at either end (owner, 2026-11-02): a fixed-grip terminal carries a head for each end (a top head in
+            // 4, 6 and 8 sheave rows); the prefab shows its default head, plain-named, and ShowHead swaps them.
+            var rig = prefab.GetComponent<LiftRig>();
+            if (rig.Heads == null || rig.Heads.Length == 0) Assert.Ignore("One head.");
+            Assert.That(rig.Heads[0].Default, "the default head first");
+            Assert.That(rig.Heads.Count(h => h.Default), Is.EqualTo(1), "one default head");
+            Assert.That(rig.ShownHead, Is.EqualTo(0), "the prefab shows its default head");
+            // most carry a head for each end; a style that only drives at one end carries just its own end's (owner)
+            Assert.That(rig.Heads.All(h => h.End == "bottom" || h.End == "top"), "each head serves an end");
+            foreach (var head in rig.Heads)
+            {
+                Assert.That(head.Prefix, Is.EqualTo(head.Default ? "" : head.Key + "_"), head.Key);
+                Assert.That(head.Pivots.Select(p => rig.Pivots[p].name), Has.Member($"{prefab.name}_pivot_{head.Key}_head"), head.Key + "'s steel");
+                foreach (int p in head.Pivots)
+                {
+                    Assert.That(rig.Pivots[p].gameObject.activeSelf, Is.EqualTo(head.Default), rig.Pivots[p].name);
+                    if (!head.Default) Assert.That(rig.Pivots[p].name, Does.StartWith($"{prefab.name}_pivot_{head.Prefix}"));
+                }
+                foreach (string s in head.Sockets) Assert.That(rig.Socket(s), Is.Not.Null, $"{head.Key}: socket {s}");
+                if (head.End == "top" && head.Sheaves > 0) Assert.That(new[] { head.Sheaves }, Is.SubsetOf(new[] { 4, 6, 8 }), head.Key);
+            }
+            var go = UnityEngine.Object.Instantiate(prefab);
+            try
+            {
+                var r = go.GetComponent<LiftRig>();
+                Assert.That(r.ShowHead("no such head"), Is.False);
+                for (int h = 0; h < r.Heads.Length; h++)
+                {
+                    Assert.That(r.ShowHead(r.Heads[h].Key), r.Heads[h].Key);
+                    Assert.That(r.ShownHead, Is.EqualTo(h));
+                    for (int o = 0; o < r.Heads.Length; o++)
+                        foreach (int p in r.Heads[o].Pivots)
+                            Assert.That(r.Pivots[p].gameObject.activeInHierarchy, Is.EqualTo(o == h), $"{r.Pivots[p].name} with the {r.Heads[h].Key} head shown");
+                    Assert.That(r.HeadSocket("rope_right_out"), Is.SameAs(r.Socket(r.Heads[h].Prefix + "rope_right_out")), r.Heads[h].Key);
+                }
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
         }
 
         [TestCaseSource(nameof(Cases))]
