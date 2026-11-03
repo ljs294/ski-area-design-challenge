@@ -155,7 +155,7 @@ def bar(spec, lod, variant):
             prims.cylinder(mb, (0, 0, 0), (0, 0, -kl), kr, parts.sides(lod, 10, 6), st["stem"], caps=(True, False))
             prims.cylinder(mb, (0, 0, -kl + 0.01), (0, 0, z), sr, parts.sides(lod, 10, 6), st["stem"], caps=(False, False))
         elif lod == 2:
-            prims.beam(mb, (0, 0, 0), (0, 0, z), 0.06, 0.06, st["stem"], up=U, skip_ends=True)
+            prims.beam(mb, (0, 0, 0), (0, 0, z), 0.06, 0.06, st["stem"], up=U)   # its top end shows from above
         else:
             prims.cylinder(mb, (0, 0, 0), (0, 0, z), 0.045, 3, st["stem"], caps=(False, False))
         # the crossbar: one continuous black pad in a shallow arch, its ends turned up (R21)

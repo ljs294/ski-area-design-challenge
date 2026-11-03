@@ -24,6 +24,7 @@ which carry the Sessellift chair; and the **Chairworks quad chair** with either 
 | `assets/*.py` | One module per asset: `drive_terminal`, `return_terminal`, `chair`, `tower` (the line tower kit, see below), `sle_stick_gun` (three lance lengths from one module), `sle_ground_gun`, `monta_drive`, `monta_return`, `chairworks_chair` (two grips from one module) and `terminal_footing` |
 | `liftkit/` | The shared kit: `frame` (lift frame to Blender), `prims` (boxes, beams, cylinders, prisms, lathes), `parts` (sheaves, sheave trains, line assemblies, railings, ladders), `heads` (the entry head shared by the drive terminal and the towers), `mesh` (MeshBuilder, per-face data and part tags, flush-face separation), `palette`, `textures` (detail atlas), `ao`, `materials`, `export`, `clash` (the pivots' safe ranges), `pose` (posing for the review photos) |
 | `render_review.py` | Review renders: orthographic views with dimensions (`gate1`), LOD lineup (`lods`), shader data (`data`), Cycles photos on snow (`photos`, `terminal_photos`, `tower_photos`; the snow guns' photos, line-up and both heads at one scale come with `photos`), leaned bases (`lean_photos`), posed heads, chair and raised terminals (`pose_photos`), the tower kit in clay (`towers`) |
+| `render_surface.py` | The surface lifts' review (`--shots surface_gate1,surface_photos,surface_audit,surface_gate2`): orthographic views, the return's posed rows and a clay line (`surface_gate1`); Cycles photos (`surface_photos`); the holes the game would show where it culls back faces (`surface_audit`, `tbar_audit.json`, no images); Gate 2 photos as the game draws the models: back faces culled, the game's LODs at its camera's distances, snowfall, each model's LODs side by side (`surface_gate2`) |
 | `build-lifts.bat` | Double-click: builds everything and opens the photos |
 
 ```sh
@@ -252,7 +253,12 @@ if a rope socket is off the rope, or if a mast section's AO doesn't tile.
 ## Modelling rules learned in the pilot
 
 - **Orient faces explicitly.** `MeshBuilder.face` takes an outward direction; prisms and lathes use the
-  outline's winding (shoelace sign), because a centroid test fails on concave outlines.
+  outline's winding (shoelace sign), because a centroid test fails on concave outlines. An open lathe profile (one
+  surface, not a section) still falls back on the centroid test: give a concave one `side=` (the T-bar's dished
+  sheaves faced inward without it, invisible in Cycles, see-through in the game).
+- **Check what the game culls.** Unity draws front faces only; Cycles draws both, so a hole or an inward face never
+  shows in the review photos. `--shots surface_audit` casts rays at every LOD (and the towers as stacked) and lists
+  the parts where a ray first meets a back face; `materials.cull_backfaces` makes a photo cull as the game does.
 - **Flush parts are fine.** Parts are overlapping solids, so where two meet flush, two faces share a plane.
   `MeshBuilder.separate_flush` pulls the smaller face 2 mm into its own part (repeated until stable). Without
   it, those faces z-fight in Unity and render black in Cycles.

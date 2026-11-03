@@ -193,12 +193,14 @@ def sheave(mb, c, s, out, lod, face, st):
         prims.cylinder(mb, c - V * hw, c + V * hw, R, 6, face)
         return
     o = out
-    if lod == 0:   # the dished wheel, inboard and outboard faces
-        prims.lathe(mb, c, V, [(0.03, -o * 0.045), (0.07, -o * 0.045), (rim, -o * 0.03)], n, face, closed=False)
-        prims.lathe(mb, c, V, [(rim, o * 0.03), (0.075, o * 0.015), (0.03, o * 0.045)], n, face, closed=False)
+    # the dished wheel, inboard and outboard faces, each facing away from the wheel (Gate 2: the outboard face's dish
+    # and a -v sheave's LOD1 faces had faced in, so the game, culling back faces, showed through the wheel)
+    if lod == 0:
+        prims.lathe(mb, c, V, [(0.03, -o * 0.045), (0.07, -o * 0.045), (rim, -o * 0.03)], n, face, closed=False, side=-o)
+        prims.lathe(mb, c, V, [(rim, o * 0.03), (0.075, o * 0.015), (0.03, o * 0.045)], n, face, closed=False, side=o)
     else:
-        prims.lathe(mb, c, V, [(0.03, -o * 0.04), (rim, -o * 0.03)], n, face, closed=False)
-        prims.lathe(mb, c, V, [(rim, o * 0.03), (0.03, o * 0.04)], n, face, closed=False)
+        prims.lathe(mb, c, V, [(0.03, -o * 0.04), (rim, -o * 0.03)], n, face, closed=False, side=-o)
+        prims.lathe(mb, c, V, [(rim, o * 0.03), (0.03, o * 0.04)], n, face, closed=False, side=o)
     liner = [(rim, -o * hw), (R, -o * hw), (R, -o * (hw - s["flange"])), (rg, 0.0), (rl, o * hw), (rim, o * hw)]
     if lod == 1:
         liner = [(rim, -o * hw), (R, -o * hw), (rg, o * hw * 0.3), (rim, o * hw)]
@@ -291,11 +293,12 @@ def train(mb, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, u_c=0.0, ends=(
             if lod == 0:   # the rocker's pin from the equaliser into the inner cheek, its own piece for the clash sweep
                 with mb.grouped(f"{rocker_tag}#pin"):
                     prims.cylinder(mb, Vector((pin.x, v_y, pin.z)), Vector((pin.x, v_ci, pin.z)), T["rockerPinDia"] / 2, 8, st["rod"])
-        if lod == 2:   # far out: the pair as one block
+        if lod == 2:   # far out: a block per sheave, coloured as its sheave (Gate 2: a block per pair turned rows red)
             with mb.grouped(tname):
                 R, hw = s["dia"] / 2, s["width"] / 2
-                prims.box(mb, (a0.x - R, v_rope - hw, min(a0.z, a1.z) - R), (a1.x + R, v_rope + hw, max(a0.z, a1.z) + R),
-                          parts.row_face(0, 2, st))
+                for j, ax in enumerate((a0, a1)):
+                    prims.box(mb, (ax.x - R, v_rope - hw, ax.z - R), (ax.x + R, v_rope + hw, ax.z + R),
+                              parts.row_face(2 * i + j, n, st))
         if lod >= 2:
             continue
         for j, ax in enumerate((a0, a1)):
@@ -347,10 +350,10 @@ def train(mb, a, tag, v_rope, mode, n, T, s, hd, lod, st, w_pin, u_c=0.0, ends=(
             prims.prism(mb, poly, (0.0, v_eq - T["eqThick"] / 2, 0.0), U, W, V, T["eqThick"], st["galv"])
         elif lod == 2:
             prims.box(mb, (-L, v_eq - T["eqThick"] / 2, min(flat, tip)), (L, v_eq + T["eqThick"] / 2, max(flat, tip)), st["galv"])
-        else:   # the whole row as one block
+        else:   # the whole row as one block, galvanised as the row reads from afar (Gate 2: a red block popped)
             R, hw = s["dia"] / 2, s["width"] / 2
             prims.box(mb, (axles[0].x - R, v_rope - hw, min(p.z for p in axles) - R),
-                      (axles[-1].x + R, v_rope + hw, max(p.z for p in axles) + R), parts.row_face(0, 2, st), skip=("-2",))
+                      (axles[-1].x + R, v_rope + hw, max(p.z for p in axles) + R), st["galv"], skip=("-2",))
 
     # the catchers: from each end of the equaliser a bracket out along u, across under the rope, and the black tube out
     # past the train in one smooth sweep outboard and down (R29), the same on both ropes (owner, v3.1)
@@ -500,7 +503,7 @@ def head(spec, t, variant, lod, st):
     pv, ps = m(po["v"]), m(po["size"]) / 2
     tw, td, tu = m(tb["w"]), m(tb["depth"]), m(tb["width"]) / 2
     for sv in (-1, 1):
-        prims.box(mb, (-ps, sv * pv - ps, ad), (ps, sv * pv + ps, tw), st["galv"], skip=("-2", "+2"))
+        prims.box(mb, (-ps, sv * pv - ps, ad), (ps, sv * pv + ps, tw), st["galv"], skip=("-2",))   # topped: wider than the bar
     prims.box(mb, (-tu, -pv - ps, tw), (tu, pv + ps, tw + td), st["galv"])
     npl = hd["numberPlate"]
     h2 = m(npl["height"])
@@ -560,7 +563,7 @@ def head(spec, t, variant, lod, st):
             prims.box(mb, (hole, vc - hole, pw - th), (ph, vc - slot, pw), g)
             prims.box(mb, (hole, vc + slot, pw - th), (ph, vc + hole, pw), g)
         else:
-            prims.box(mb, (-ph, vc - ph, pw - th), (ph, vc + ph, pw), g, skip=("-2",))
+            prims.box(mb, (-ph, vc - ph, pw - th), (ph, vc + ph, pw), g)   # its underside too: seen from below
     if lod <= 1:
         toe = m(pf["toe"])
         edges = [((-ph, -ph), (-ph, ph)), ((-ph, -ph), (ph, -ph)), ((-ph, ph), (ph, ph)),

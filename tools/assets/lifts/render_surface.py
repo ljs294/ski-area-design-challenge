@@ -9,9 +9,13 @@
                   retracted coming down and round both wheels), the operator hut; plus the three heads side by side.
   surface_photos  the same line in Cycles on snow: hero, each terminal, a tower head, the carriers close up, and a short
                   J-bar line beside it (one carrier kind per line, D7).
+  surface_audit   no images: the holes the game would show where it culls back faces (tbar_audit.json, Gate 2).
+  surface_gate2   Gate 2, as the game draws the models (back faces culled): hero, each terminal, a tower, the J bars,
+                  the line after snowfall; the game's camera far and mid with each model at the LOD the game picks at
+                  its distance (Low quality, lodBias 1); each model's LODs side by side (tbar_lods_<row>.png).
 
-The scene copies the built LOD0 objects and hides everything else; render_review's helpers do the cameras, materials
-and rope curves.
+The scene copies the built objects (LOD0, or the game's LOD for Gate 2's game views) and hides everything else;
+render_review's helpers do the cameras, materials and rope curves.
 """
 import json
 import math
@@ -19,6 +23,7 @@ import os
 
 import bpy
 from mathutils import Matrix, Vector
+from mathutils.bvhtree import BVHTree
 
 import render_review as rr
 import surface_fit
@@ -36,6 +41,13 @@ TOWERS = ((30.0, "tower_s6", 5.4), (60.0, "tower_s4", 5.3))
 FLAT_BOTTOM = 12.0  # the level loading area, from the drive's axle (v3.1: the line climbs a hill between)
 FLAT_TOP = 8.0      # the level unloading area below the return's axle
 POSE_EXITS = (-6.0, -12.0, -18.0)   # the return rows' posed exits (degrees along its +u; rest: dims ropeExitDeg)
+KINDS = {"drive": "surface_terminal", "return": "surface_terminal", "hut": "surface_hut", "tower_s4": "surface_tower_head",
+         "tower_s6": "surface_tower_head", "tower_d4": "surface_tower_head", "mast": "surface_mast", "base": "surface_base",
+         "springbox": "surface_carrier", "bar_t": "surface_carrier", "bar_j": "surface_carrier"}   # budgets.json kinds
+GRADED = ("drive", "return", "hut", "base")   # standing on grade: nothing under it is ever seen
+AUDIT_DIRS = [(az, el) for el in (60, 30, 10, -15) for az in range(0, 360, 30)] + [(0, 90)]   # views (deg), -15 looks up
+GAME_FOV = 60.0     # the game's default vertical field of view, also LiftImport's ReferenceFov
+_LOD = None         # Gate 2's game views: f(asset id, lift point) -> the LOD to place there (None: LOD0)
 
 
 def _yaw(deg):
@@ -53,20 +65,26 @@ def _lean(rad):
     return Matrix.Rotation(-rad, 4, "Y")
 
 
+def _aid(built):
+    """A built asset's id (its body object is <id>_LOD0)."""
+    return min((o.name for o in rr.lod_objects(built, 0)), key=len)[:-len("_LOD0")]
+
+
 def place(built, at, yaw=0.0, extra=None, poses=None):
-    """LOD0 copies of one built asset at lift point `at`, turned `yaw` degrees about w; poses: {part: matrix} turns a
-    part about its pivot (a part object's origin is its pivot)."""
+    """Copies of one built asset (LOD0, or the LOD _LOD picks) at lift point `at`, turned `yaw` degrees about w; poses:
+    {part: matrix} turns a part about its pivot (a part object's origin is its pivot)."""
+    lod = _LOD(_aid(built), at) if _LOD else 0
     m = Matrix.Translation(frame.b(at)) @ _yaw(yaw)
     if extra is not None:
         m = m @ extra
     made = []
     bpy.context.view_layer.update()
-    for src in rr.lod_objects(built, 0):
+    for src in rr.lod_objects(built, lod):
         o = src.copy()
         o.parent = None
         mw = m @ src.matrix_world
         for part, rot in (poses or {}).items():
-            if src.name.endswith(f"_{part}_LOD0"):
+            if src.name.endswith(f"_{part}_LOD{lod}"):
                 mw = mw @ rot
         o.matrix_world = mw
         bpy.context.scene.collection.objects.link(o)
@@ -440,6 +458,226 @@ def photos(built, out_dir, mats):
         bpy.data.objects.remove(o)
 
 
+def holes(objs, graded, lod):
+    """Rays on a grid over `objs` from every AUDIT_DIRS view (the step from their size and LOD): where the first surface
+    a ray meets faces away from it, the game shows a hole. A graded set gets the snow at grade as an occluder, so nothing
+    counts that only shows from under the ground (no ray starts below grade). Returns (step, rays that hit,
+    {(part, u, v, w) 0.25 m cell: [hits, a face there (centre, normal, lift frame)]})."""
+    verts, polys, owner = [], [], []
+    for o in objs:
+        if o.type != "MESH":
+            continue
+        base = len(verts)
+        verts += [o.matrix_world @ v.co for v in o.data.vertices]
+        for f in o.data.polygons:
+            polys.append([base + i for i in f.vertices])
+            owner.append(o.name)
+    c = sum(verts, Vector()) / len(verts)
+    r = max((v - c).length for v in verts)
+    own = list(verts)   # the model, without the snow
+    if graded:   # the snow, facing up
+        g = len(verts)
+        verts += [Vector((c.x + sx * (r + 2.0), c.y + sy * (r + 2.0), 0.0)) for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        polys.append([g, g + 1, g + 2, g + 3])
+        owner.append(None)
+    tree = BVHTree.FromPolygons(verts, polys)
+    step = max(0.01, r / 250.0) * 2 ** lod
+    rays, back = 0, {}
+    for az, el in AUDIT_DIRS:
+        a, e = math.radians(az), math.radians(el)
+        d = frame.b((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))   # toward the eye
+        e1 = d.orthogonal().normalized()
+        e2 = d.cross(e1)
+        xs, ys = [(v - c).dot(e1) for v in own], [(v - c).dot(e2) for v in own]
+        for i in range(int(min(xs) / step) - 1, int(max(xs) / step) + 2):
+            for j in range(int(min(ys) / step) - 1, int(max(ys) / step) + 2):
+                o = c + d * (r + 1.0) + e1 * (i * step) + e2 * (j * step)
+                if graded and o.z < 0.02:   # no eye under the snow
+                    continue
+                hit, n, idx, _ = tree.ray_cast(o, -d, 2 * r + 2.0)
+                if hit is None or owner[idx] is None:
+                    continue
+                rays += 1
+                if n.dot(d) < -0.05:
+                    u, v, w = frame.lift(hit)
+                    cell = (owner[idx], round(u * 4) / 4, round(v * 4) / 4, round(w * 4) / 4)
+                    if cell not in back:
+                        f = polys[idx]
+                        fc = sum((verts[k] for k in f), Vector()) / len(f)
+                        back[cell] = [0, [round(x, 3) for x in frame.lift(fc)], [round(x, 2) for x in frame.lift(n)]]
+                    back[cell][0] += 1
+    return step, rays, back
+
+
+def audit(built, out_dir):
+    """The holes the game would show (Gate 2): Unity culls back faces, so wherever the first surface a view ray meets
+    faces away from it the game draws what is behind it (an open box, a skipped face in view, a flipped face). Every
+    asset's LODs, then each tower head on its mast and base as the game stacks them (a mast section's open ends meet
+    its neighbours there); hits grouped by part and 0.25 m cell (lift frame) into tbar_audit.json."""
+    global _LOD
+    report = {}
+
+    def record(name, objs, graded, lod):
+        step, rays, back = holes(objs, graded, lod)
+        cells = sorted(((k, n) for k, n in back.items() if n[0] >= 3), key=lambda kn: -kn[1][0])
+        total = sum(n[0] for n in back.values())
+        report[name] = {"stepMm": round(step * 1000), "raysHit": rays, "backHits": total,
+                        "cells": [{"part": k[0], "uvw": k[1:], "hits": n[0], "face": n[1], "normal": n[2]} for k, n in cells[:40]]}
+        print(f"Audit {name}: {total} back-face hits of {rays}"
+              + (f", worst {cells[0][0][0]} at {cells[0][0][1:]} ({cells[0][1][0]})" if cells else ""), flush=True)
+
+    for key, b in sorted(built.items()):
+        if key.startswith(T):
+            for lod in range(len(b["assets"])):
+                record(f"{key} LOD{lod}", rr.lod_objects(b, lod), key[len(T):] in GRADED, lod)
+    for head in ("tower_s4", "tower_s6", "tower_d4"):
+        for lod in range(4):
+            _LOD = lambda aid, at, k=lod: k
+            objs, _ = tower(built, T + head, 0.0, 5.4)
+            _LOD = None
+            record(f"{T}{head} on its mast LOD{lod}", objs, True, lod)
+            for o in objs:
+                bpy.data.objects.remove(o)
+    with open(os.path.join(out_dir, "tbar_audit.json"), "w") as f:
+        json.dump(report, f, indent=1)
+
+
+def game_lods(eye, bias=1.0):
+    """An _LOD for a game camera at lift point `eye` (a GAME_FOV view) with QualitySettings.lodBias `bias`: LiftImport
+    puts each switch at its budgets.json distance for that view at bias 1."""
+    budgets = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "budgets.json"), encoding="utf-8"))
+    until = {T + n: [l["untilM"] for l in budgets[k]["lods"]] for n, k in KINDS.items()}
+
+    def pick(aid, at):
+        d = (Vector(at) - eye).length / bias
+        return next((k for k, m in enumerate(until[aid]) if d <= m), len(until[aid]) - 1)
+    return pick
+
+
+def _eye(target, az, el, dist):
+    a, e = math.radians(az), math.radians(el)
+    return Vector(target) + Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e))) * dist
+
+
+def lod_row(name, at_lod, out_dir, keep, az=235.0, el=22.0):
+    """One model's LODs side by side (LOD0 on the left of the image, so laid out from LOD3 up along u), with `keep` (the
+    snow and the sun), in an orthographic view framing what stands above the snow: at_lod(lod, u) places one copy and
+    returns its objects."""
+    global _LOD
+    objs, u = [], -150.0
+    for lod in (3, 2, 1, 0):
+        _LOD = lambda aid, at, k=lod: k
+        made = at_lod(lod, u)
+        _LOD = None
+        bpy.context.view_layer.update()
+        lo, hi = rr.bounds_lift(made)
+        for o in made:   # each copy starts 2 m past the last
+            o.matrix_world = Matrix.Translation(frame.b((u - lo.x, 0.0, 0.0))) @ o.matrix_world
+        objs += made
+        u += hi.x - lo.x + 2.0
+    rr.show_only(objs + keep)
+    rr.restore_uv(objs)
+    bpy.context.view_layer.update()
+    lo, hi = rr.bounds_lift(objs)
+    lo.z = max(lo.z, -0.3)   # not the terminals' piers under the snow
+    centre = (lo + hi) / 2
+    d = _eye((0.0, 0.0, 0.0), az, el, 1.0)
+    right = Vector((-d.y, d.x, 0.0)).normalized()
+    up = d.cross(right)
+    pts = [Vector((x, y, z)) for x in (lo.x, hi.x) for y in (lo.y, hi.y) for z in (lo.z, hi.z)]
+    wx = max(abs((p - centre).dot(right)) for p in pts) * 2
+    wy = max(abs((p - centre).dot(up)) for p in pts) * 2
+    sc = bpy.context.scene
+    rx, ry = 2000, 700
+    sc.render.resolution_x, sc.render.resolution_y = rx, ry
+    cam = rr.camera("LodRowCam")
+    cam.data.type = "ORTHO"
+    cam.data.ortho_scale = max(wx, wy * rx / ry) * 1.08
+    cam.data.clip_start, cam.data.clip_end = 0.1, 400
+    cam.location = frame.b(tuple(centre + d * 100.0))
+    cam.rotation_euler = (frame.b(tuple(centre)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+    rr.render(os.path.join(out_dir, f"tbar_lods_{name}.png"))
+    sc.render.resolution_x, sc.render.resolution_y = 1600, 1066
+    for o in objs:
+        bpy.data.objects.remove(o)
+
+
+def gate2(built, out_dir, mats):
+    """Gate 2: the line as the game draws it (back faces culled, the game's LODs at its distances), after snowfall,
+    and each model's LODs side by side."""
+    materials.cull_backfaces(mats)
+    sc, sun = rr._photo_scene()
+    grade = scene_grade(built)
+    snow = hill(grade, "PhotoHill", rr._photo_material("PhotoSnowMat", (0.88, 0.91, 0.95), 0.55), half=1500.0)
+    fig_mat = rr._photo_material("PhotoFigureMat", (0.12, 0.28, 0.62), 0.6)
+    _shoot = rr._shooter("tbar", out_dir)
+    cam = bpy.data.objects["PhotoCam"]
+
+    def scene(pick=None):
+        global _LOD
+        _LOD = pick
+        objs, figs = line_scene(built)
+        jo, jf = jbar_line(built)
+        _LOD = None
+        for f in figs + jf:
+            f.data.materials.clear()
+            f.data.materials.append(fig_mat)
+        made = objs + jo + figs + jf
+        rr.show_only(made + [snow, sun])
+        rr.restore_uv(made)
+        return made
+
+    def over(target):   # targets stand over the hill
+        return (target[0], target[1], target[2] + grade(target[0]))
+
+    made = scene()
+    for name, target, az, el, dist, lens in (
+            ("hero", (45.0, 0.0, 3.0), 205, 10, 40.0, 35), ("drive", (1.5, 0.0, 3.0), 35, 16, 12.0, 50),
+            ("return", (U_TOP - 1.5, 0.0, 4.0), 215, 16, 12.0, 50), ("tower", (30.0, 0.0, 5.6), 130, 10, 6.0, 50),
+            ("jbar", (15.5, 16.0, 2.5), 140, 8, 7.0, 40)):
+        _shoot(name, over(target), az, el, dist, lens=lens)
+    materials.set_snow(mats, 1.0)   # framed as "drive", to compare
+    _shoot("snowfall", over((1.5, 0.0, 3.0)), 35, 16, 12.0)
+    materials.set_snow(mats, 0.0)
+    for o in made:
+        bpy.data.objects.remove(o)
+
+    # the game's camera: a GAME_FOV tall view, each model at the LOD Low quality shows at its distance
+    cam.data.sensor_fit, cam.data.sensor_height = "VERTICAL", 24.0
+    lens = 12.0 / math.tan(math.radians(GAME_FOV / 2))
+    for name, target, az, el, dist in (("game_far", (45.0, 0.0, 3.0), 232, 35, 150.0),
+                                       ("game_mid", (12.0, 0.0, 3.0), 215, 30, 50.0)):
+        made = scene(game_lods(_eye(over(target), az, el, dist)))
+        _shoot(name, over(target), az, el, dist, lens=lens)
+        for o in made:
+            bpy.data.objects.remove(o)
+    cam.data.sensor_fit = "AUTO"
+
+    # each model's LODs side by side on level snow (rope stubs through the towers and the carriers' grips)
+    snow.hide_render = True
+    snow = rr._snow_plane(0.0)
+    c = built[T + "return"]["spec"]["common"]
+    hg, rope_d = c["lineGauge"] / 2000, c["ropeDiameter"]
+
+    def stub(u, v, w, half=1.0):
+        return rr._rope_curve(f"LodRope{len(bpy.data.curves)}", [(u - half, v, w), (u + half, v, w)], rope_d)
+
+    lod_row("drive", lambda lod, u: place(built[T + "drive"], (u, 0.0, 0.0)), out_dir, [snow, sun])
+    lod_row("return", lambda lod, u: place(built[T + "return"], (u, 0.0, 0.0)), out_dir, [snow, sun])
+
+    def tower_at(lod, u):
+        o, rw = tower(built, T + "tower_s6", u, 5.4)
+        return o + [stub(u, s * hg, rw) for s in (-1, 1)]
+    lod_row("tower", tower_at, out_dir, [snow, sun])
+
+    def carriers_at(lod, u):
+        o, _ = carrier(built, built[T + "bar_t"], (u, 0.0, 4.5), 0.0)
+        oj, _ = carrier(built, built[T + "bar_j"], (u + 1.2, 0.0, 4.5), 0.0)
+        return o + oj + [stub(u + 0.6, 0.0, 4.5, 1.2)]
+    lod_row("carriers", carriers_at, out_dir, [snow, sun], el=12.0)
+    rr._photo_end(sc, [snow])
+
+
 def render_all(built, out_dir, shots, mats):
     out_dir = os.path.abspath(out_dir)
     os.makedirs(out_dir, exist_ok=True)
@@ -453,4 +691,8 @@ def render_all(built, out_dir, shots, mats):
         materials.use_palette(mats, packed)
     if "surface_photos" in shots:
         photos(built, out_dir, mats)
+    if "surface_audit" in shots:
+        audit(built, out_dir)
+    if "surface_gate2" in shots:
+        gate2(built, out_dir, mats)
     print(f"Surface lift renders in {out_dir}", flush=True)
