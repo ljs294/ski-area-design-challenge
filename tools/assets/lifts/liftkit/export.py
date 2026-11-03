@@ -20,6 +20,8 @@ class Asset:
         self.dims = {}              # named model measurements (mm) for the dimension check
         self.budget_targets = {}    # part -> LOD0 triangle target (warnings only)
         self.part_tris = {}         # part -> triangles (filled by the builder, optional)
+        # a fixed-grip terminal's heads (liftkit/swap.py): end -> {"default", "prefix", "pivots", "sockets", "dims"}
+        self.heads = {}
 
 
 def pivot_order(pivots):

@@ -192,7 +192,7 @@ def head(spec, t, variant, lod, st):
     cfg = t["heads"][variant]
     asm = parts.line_spec(spec)
     radius = asm["arcs"][cfg["arc"]]
-    a = Asset(f"sessellift_fgq4_tower_{variant}")
+    a = Asset(spec.get("idPrefix", "sessellift_fgq4") + f"_tower_{variant}")
     mb = MeshBuilder()
     hg = m(c["lineGauge"]) / 2
     r = m(t["mast"]["dia"]) / 2
