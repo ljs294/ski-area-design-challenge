@@ -11,11 +11,12 @@ Posable (task P3-07, the Monta's trains): each rope's exit row is the reference'
 the clamp's pin over a train and the link bar, the link bar over the other two trains (exit_pivots), so the game can
 pose the row to the rope. The guide sheaves stay single wheels.
 """
+import copy
 import math
 
 from mathutils import Vector
 
-from liftkit import parts, prims
+from liftkit import heads, parts, prims, swap
 from liftkit.export import Asset
 from liftkit.mesh import GLASS, MeshBuilder, Style
 from liftkit.prims import U, V, W
@@ -47,6 +48,51 @@ def gauge_wheel(c):
     hub, spokes, thickness and flanges as measured."""
     k = c["lineGauge"] / c.get("referenceGauge", c["lineGauge"])
     return dict(c["wheel"], **{key: c["wheel"][key] * k for key in ("outer", "web", "inner")})
+
+
+FRAME_V = 3000.0   # mm: beyond this from the centreline stands the base frame (booms, legs, piers, struts, cylinders)
+POINT_KEYS = ("c", "lo", "hi", "centre", "from", "to")
+
+
+def narrow_frame(d, panels):
+    """The drive narrowed by taking `panels` of the hood's window panels out of its middle (owner, 2026-11-02: the
+    double and triple drives as narrow as they can be, the triple one panel, the double two): the hood keeps its
+    outer panels and ribs, and the whole base frame under it (every point beyond FRAME_V: booms, legs, piers,
+    struts, cylinders, brackets and the cross tubes' ends) moves in by half the panels' width a side; the cross beams
+    shorten by as much. The bullwheel, sheaves and trains follow the rope gauge as before (gauge_shift)."""
+    if not panels:
+        return d
+    ribs = d["hood"]["ribs"]
+    s = panels * (ribs[1] - ribs[0]) / 2
+
+    def inward(v):
+        return v - s if v > 0 else v + s
+
+    def walk(x):
+        if isinstance(x, dict):
+            for k, v in x.items():
+                if k in POINT_KEYS and isinstance(v, list) and len(v) in (2, 3) and abs(v[1]) >= FRAME_V:
+                    x[k] = [v[0], inward(v[1])] + v[2:]
+                elif k == "v" and isinstance(v, (int, float)) and abs(v) >= FRAME_V:
+                    x[k] = inward(v)
+                elif k == "saddle":   # loft levels (w, u0, u1, v0, v1)
+                    x[k] = [[w, u0, u1, inward(v0), inward(v1)] for w, u0, u1, v0, v1 in v]
+                elif k != "hood":
+                    walk(v)
+            ax, h, c = x.get("ax"), x.get("h"), x.get("c")
+            if ax and h and c and abs(c[1]) < FRAME_V and abs(ax[0][1]) > 0.99 and h[0] >= FRAME_V:   # a cross beam
+                x["h"] = [h[0] - s] + h[1:]
+        elif isinstance(x, list):
+            for y in x:
+                walk(y)
+
+    d = copy.deepcopy(d)
+    walk(d)
+    h = d["hood"]
+    h["halfV"] -= s
+    h["band"]["halfV"] -= s
+    h["ribs"] = sorted({r + s for r in ribs if r < 0} | {r - s for r in ribs if r > 0})
+    return d
 
 
 def pier_sockets(tops):
@@ -371,6 +417,7 @@ def settle_rows(a, mb, deg, lod):
     moves with its parents; then the faces' tags fold into the LOD's parts: sheaves ride in their rocker at LOD1, and
     at LOD2-3 each side's whole tree is one part under eq_<s>."""
     from liftkit import frame, pose
+    tree = pose.subtree(a.pivots, "eq_l") | pose.subtree(a.pivots, "eq_r")   # not the head's steel (liftkit/swap.py)
     angles = {}
     for sd in "lr":
         row = sorted((k for k in pose.subtree(a.pivots, f"eq_{sd}") if k.startswith("sheave_")), key=lambda k: a.pivots[k]["pos"][0])
@@ -381,7 +428,7 @@ def settle_rows(a, mb, deg, lod):
     done = {}
     for f, tag in zip(mb.faces, mb.tags):
         part = (tag or "").split("#")[0]
-        if part not in a.pivots:
+        if part not in tree:
             continue
         for i in f:
             if i in done:
@@ -398,6 +445,8 @@ def settle_rows(a, mb, deg, lod):
         a.pivots[k]["pos"] = (float(pu), p[1], float(pw))
 
     def fold(part):
+        if part not in tree:
+            return part
         if lod >= 2:
             return f"eq_{part.split('_')[1][0]}"
         if lod == 1 and part.startswith("sheave_"):
@@ -421,8 +470,9 @@ def exit_pins(mb, tree, lod, st):
 # -- the build -------------------------------------------------------------------------------------
 def build(spec, lod, stage):
     c, d = spec["common"], spec["drive"]
+    d = narrow_frame(d, d.get("panelsOut", 0))   # a double's or triple's narrower drive (overlay spec)
     st = styles(lod)
-    a = Asset("monta_fg4_drive")
+    a = Asset(spec.get("idPrefix", "monta_fg4") + "_drive")
     body = MeshBuilder()
     rope = m(d["ropeElevation"])
     hg = m(c["lineGauge"]) / 2
@@ -539,7 +589,57 @@ def build(spec, lod, stage):
     a.dims.update({"hoodLength": round((hi[1] - lo[1]) * 1000), "hoodDepth": round((hi[0] - lo[0]) * 1000), "hoodTop": round(hi[2] * 1000)})
     body.merge(hb_)
 
-    # exit trains: three trains of four per rope under a carrier beam and a link hung from the front cross tube
+    # the bottom head (its own): the exit trees hung from the front cross tube; the top head: support trains (top_head)
+    tube = next(t for t in d["tubes"] if t["name"] == "frontTube")
+    with swap.head(a, body, "bottom", (m(tube["from"][0]), 0.0, rope),
+                   owns=("rope_left_hold", "rope_right_hold", "rope_left_out", "rope_right_out", "chair_load")):
+        u_hold, out, exit_deg = exit_trees(a, body, c, d, lod, st, hg, gs, sv, sheave_sides)
+    for key, combo in d["topTrains"]["combos"].items():
+        top_head(a, body, spec, lod, st, key, combo, tube)
+
+    a.body = body
+    a.sockets.update({
+        "line": (0.0, 0.0, 0.0),
+        "rope_left_bw": (0.0, -hg, rope), "rope_right_bw": (0.0, hg, rope),
+        "rope_left_hold": (u_hold, -hg, rope), "rope_right_hold": (u_hold, hg, rope),
+        "rope_left_out": out["l"], "rope_right_out": out["r"],
+        "chair_load": (m(d["loadU"]), hg, rope),
+    })
+    a.sockets.update(pier_sockets(pier_tops))
+    a.dims.update({"rope": d["ropeElevation"], "ropeExitDeg": exit_deg, "exitSheaves": sum(len(t) for t in d["exit"]["trains"]["left"]["sheaves"]),
+                   "boomSpacing": round(d["booms"][1]["v"] - d["booms"][0]["v"])})
+    return a
+
+
+def top_head(a, body, spec, lod, st, key, combo, tube):
+    """A top head (drive at either end, owner 2026-11-02, findings 3-4; liftkit/swap.py): on each rope the line towers'
+    kit support row of combo's count on combo's arc (parts.line_assembly, the shared tower.assembly), levelled at its
+    first sheave so the rope runs level from the wheel and bends down over the row toward the line; its main pin under
+    the front cross tube, carried by two heavy lug plates that reach up into the tube (heads.hung_assembly), inboard
+    of the rope so grips pass outboard. Riders get off over the load point on the left rope."""
+    c, d = spec["common"], spec["drive"]
+    rope, hg = m(d["ropeElevation"]), m(c["lineGauge"]) / 2
+    tt = d["topTrains"]
+    asm = parts.line_spec(spec)
+    src, smb = Asset(key), MeshBuilder()
+    u_c = m(tt["u"])
+    sockets = {}
+    for side, name in ((-1, "l"), (1, "r")):
+        u_first, (u_out, w_out), theta, _ = heads.hung_assembly(smb, src, name, side, hg, rope, u_c, asm, combo["count"],
+                                                                "support", asm["arcs"][combo["arc"]], lod, st,
+                                                                m(tube["from"][2]), tt["lugs"], both=True)
+        sd = "left" if side < 0 else "right"
+        sockets.update({f"rope_{sd}_hold": (u_first, side * hg, rope), f"rope_{sd}_out": (u_out, side * hg, w_out)})
+    src.sockets = sockets
+    swap.graft(a, body, src, smb, key, (0.0, 0.0, 0.0), (u_c, 0.0, rope), end="top",
+               dims={"sheaves": combo["count"], "arc": combo["arc"], "ropeExitDeg": -round(math.degrees(theta), 2)},
+               sockets={"chair_unload": (m(d["loadU"]), -hg, rope)})
+
+
+def exit_trees(a, body, c, d, lod, st, hg, gs, sv, sheave_sides):
+    """The exit trains: three trains of four per rope under a carrier beam and a link hung from the front cross tube,
+    settled to the rope's exit angle. Returns (u where the rope meets the first sheave, the out sockets by side, the
+    exit angle in degrees)."""
     ex = d["exit"]
     left = ex["trains"]["left"]
     rows = [s for tr in left["sheaves"] for s in tr]
@@ -593,20 +693,8 @@ def build(spec, lod, stage):
     # rows are settled to
     rr = m(c["sheave"]["grooveBottom"]) / 2 + m(c["ropeDiameter"]) / 2
     ang = math.radians(exit_deg)
-    u_hold = m(rows[0][0])
     out = {}
     for sd in "lr":
         u_b, v_b, w_b = a.pivots[f"sheave_{sd}{n_row}"]["pos"]
         out[sd] = (u_b + rr * math.sin(ang), v_b, w_b - rr * math.cos(ang))
-    a.body = body
-    a.sockets = {
-        "line": (0.0, 0.0, 0.0),
-        "rope_left_bw": (0.0, -hg, rope), "rope_right_bw": (0.0, hg, rope),
-        "rope_left_hold": (u_hold, -hg, rope), "rope_right_hold": (u_hold, hg, rope),
-        "rope_left_out": out["l"], "rope_right_out": out["r"],
-        "chair_load": (m(d["loadU"]), hg, rope),
-    }
-    a.sockets.update(pier_sockets(pier_tops))
-    a.dims.update({"rope": d["ropeElevation"], "ropeExitDeg": exit_deg, "exitSheaves": n_row,
-                   "boomSpacing": round(d["booms"][1]["v"] - d["booms"][0]["v"])})
-    return a
+    return m(rows[0][0]), out, exit_deg

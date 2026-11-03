@@ -95,7 +95,10 @@ class MeshBuilder:
     def grouped(self, tag):
         """Faces added inside are tagged `tag`: a moving part's name, optionally with "#piece" (a pin or tube the
         clash sweep treats on its own; liftkit/clash.py). split() later cuts the tagged faces out into parts, after
-        separate_flush has run on the whole merged mesh."""
+        separate_flush has run on the whole merged mesh. A bare "#piece" inside another group is a piece of that
+        group's part (a pin through a terminal head's lug plates rides with the head, liftkit/swap.py)."""
+        if tag is not None and tag.startswith("#") and self.group:
+            tag = self.group.split("#")[0] + tag
         prev, self.group = self.group, tag
         try:
             yield self
@@ -134,6 +137,18 @@ class MeshBuilder:
         self.uv0.extend(other.uv0)
         self.tags.extend(t if t is not None else self.group for t in other.tags)
         return self
+
+    def filtered(self, keep):
+        """A copy with only the faces whose tag passes keep(tag) (vertices kept whole; unused ones are harmless)."""
+        m = MeshBuilder()
+        m.verts = [v.copy() for v in self.verts]
+        for fi, f in enumerate(self.faces):
+            if keep(self.tags[fi]):
+                m.faces.append(f)
+                m.style.append(self.style[fi])
+                m.uv0.append(self.uv0[fi])
+                m.tags.append(self.tags[fi])
+        return m
 
     def translated(self, d_lift):
         """A copy moved by d_lift (lift frame)."""

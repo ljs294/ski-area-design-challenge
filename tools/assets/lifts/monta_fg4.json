@@ -4889,7 +4889,13 @@
     ]
    ]
   },
-  "loadU": 3200
+  "loadU": 3200,
+  "topTrains": {
+   "_note": "drive at either end (owner, 2026-11-02, findings 3-4): at the top the rope comes in over a support row of 4, 6 or 8 sheaves per rope, the line towers' kit assembly (tower.assembly) levelled at its first sheave, its main pin under the front cross tube on two heavy lug plates that reach up into the tube (heads.hung_assembly); one head per row size, the game picks it from the line's arrival angle; the hold-down tree is the bottom head",
+   "u": 7428,
+   "lugs": {"halfU": 160, "thick": 40, "past": 110},
+   "combos": {"top": {"count": 4, "arc": "flat"}, "top6": {"count": 6, "arc": "flat"}, "top8": {"count": 8, "arc": "breakover"}}
+  }
  },
  "return": {
   "ropeElevation": 3039.0,
@@ -5624,12 +5630,27 @@
   ],
   "unloadU": 1000
  },
+ "returnBottom": {
+  "_about": "drive at either end (owner, 2026-11-02; findings 1-2): the return for a lift driven from the top, from the owner's photos of the type and the Monta's kit. One oval column (the Monta's legs) leaning back from a pad under a long flat frame of rounded section; on the frame the return's carriage and exposed wheel; toward the line a cross beam on the frame carrying, on each rope, the kit 8-sheave depression assembly the Sessellift's bottom return uses (tower.assembly, station arc, levelled at its first sheave), its main pin on two lug plates rising from the cross beam: held from below, nothing overhead. Proportions from the photos, sizes from the kit; millimetres, origin on the wheel's axle at grade.",
+  "ropeElevation": 3039.0,
+  "pad": {"lo": [3400.0, -750.0, -2500.0], "hi": [5000.0, 750.0, 200.2]},
+  "basePlate": {"lo": [3650.0, -380.0, 200.2], "hi": [4750.0, 380.0, 225.2]},
+  "column": {"base": [4200.0, 225.2], "top": [3000.0, 2150.0], "a1": 300, "a2": 400},
+  "frame": {"lo": [-600.0, -950.0, 2150.0], "hi": [null, 950.0, 2597.7], "_note": "runs on to the cross beam's far side"},
+  "corner": 60,
+  "firstU": 4470,
+  "holdDown": {"count": 8, "arc": "station", "lugs": {"halfU": 160, "thick": 40, "past": 110},
+               "crossBeam": {"halfU": 200, "depth": 250, "past": 60}},
+  "carriageBoxes": ["bottomPlate", "topPlate", "backBlock", "backPlate", "frontPiece"],
+  "loadU": 3200
+ },
  "catalog": {
   "maker": "Monta",
   "name": "Monta FG4",
   "parts": {
    "monta_drive": "Drive terminal",
-   "monta_return": "Return terminal"
+   "monta_return": "Return terminal",
+   "monta_return_bottom": "Bottom return terminal"
   }
  }
 }
