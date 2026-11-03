@@ -81,7 +81,8 @@ echo     21 Benchmark at High: the fixed camera path over Jackson Hole, frame an
 echo.
 echo   Lift assets: Sessellift FGQ-4 chairlift and SLE snow guns
 echo     22 Rebuild the lifts, chairs and snow guns in Blender, import them into Unity and build the Lift Lab (about 4 minutes)
-echo     23 Open the Lift Lab: terminals, chair, towers (6), snow guns (7, 8), Monta (9), chairs (0), LODs, snow, benchmark (B)
+echo     23 Open the Lift Lab: terminals, chair, towers (6), snow guns (7, 8), Monta (9), chairs (0), six-pack (X),
+echo        fixed-grip terminals (M) and their heads (V), LODs, snow, benchmark (B)
 echo.
 echo   Phase 1, task 09: forest at scale
 echo     24 Crystal Mountain, 5 km: download it into your library (Cascades species; about 3 minutes)
@@ -212,6 +213,11 @@ echo.
 echo   Lift models 2: the Sessellift D6 six-pack (rebuilds the Lift Lab, a few minutes; close the Unity editor first)
 echo     69 The Lift Lab's six-pack: the D6 terminals, its six-seat chair and its six tower heads on full towers.
 echo        X six-pack, L LOD, N snow, C colour, T turntable, mouse/WASD camera, H help, Esc quit.
+echo     69f Drive at either end: every fixed-grip terminal (Sessellift quad, triple, double; Monta 4, 3, 2) in the Lift
+echo        Lab, a model to a row. V steps every terminal through its heads: its own, bottom, top with 4, 6 and 8 sheaves
+echo        (a terminal without that head keeps its own); the overlay names the shown head and its triangles.
+echo     69q The Sessellift D4 detachable quad in the Lift Lab: bottom terminal with its first tower, top terminal,
+echo        the quad chair on the detachable grip and its five tower heads on full towers. J back to this view.
 echo.
 echo   Phase 3, task 10: the ski network (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     70 The Network view on the style tile and a second lift: Tab, then Network (or click the bar's lift or trail count).
@@ -351,6 +357,8 @@ if /i "%CHOICE%"=="67" goto trails
 if /i "%CHOICE%"=="67b" goto trailbench
 if /i "%CHOICE%"=="67c" goto trailcaptures
 if /i "%CHOICE%"=="69" goto sixpack
+if /i "%CHOICE%"=="69f" goto fixedgrip
+if /i "%CHOICE%"=="69q" goto quaddetach
 if /i "%CHOICE%"=="70" goto network
 if /i "%CHOICE%"=="70c" goto networkcaptures
 if /i "%CHOICE%"=="70k" goto networkown
@@ -1236,10 +1244,24 @@ echo Starting the Lift Lab on the Sessellift D6 six-pack. X six-pack, L LOD, N s
 start "" "%LIFTLAB%" -mode sixpack
 goto menu
 
+:fixedgrip
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the fixed-grip terminals. V next head, M back to this view, L LOD, N snow, C colour, H help, Esc quit.
+start "" "%LIFTLAB%" -mode fixedgrip
+goto menu
+
+:quaddetach
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the Sessellift D4 detachable quad. J this view, L LOD, N snow, C colour, T turntable, H help, Esc quit.
+start "" "%LIFTLAB%" -mode d4
+goto menu
+
 :liftlab
 if not exist "%LIFTLAB%" call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto done
-echo Starting the Lift Lab. 1-8 drive/return/chair/line-up/stress/towers/snow guns/gun field, Tab next, L LOD, N snow, C colour, T turntable, B benchmark, H help, Esc quit.
+echo Starting the Lift Lab. 1-8 drive/return/chair/line-up/stress/towers/snow guns/gun field, M fixed-grip, V head, Tab next, L LOD, N snow, C colour, T turntable, B benchmark, H help, Esc quit.
 start "" "%LIFTLAB%"
 goto menu
 
