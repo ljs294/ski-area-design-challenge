@@ -1,0 +1,114 @@
+{
+  "_about": "Monta T-bar (surface lift, modern): drive (top) and return with tensioning (bottom) terminals, a tower kit (heads, 1 m mast sections, base) and the carriers (recoil box on its grip, T bar and J bar). Millimetres in the lift frame: origin on the bullwheel's axle (a terminal) or the mast centreline (a tower) at grade, u toward the line, v right, w up. Built from public research and the kit, no reference drawing (owner, 2026-11-02). The loaded (uphill) rope is on the right going up: v+ at the bottom terminal, v- at the top one.",
+  "catalog": {
+    "maker": "Monta",
+    "name": "Monta T-bar",
+    "parts": {
+      "monta_tbar_drive": "Drive terminal",
+      "monta_tbar_return": "Return terminal",
+      "monta_tbar_tower_s4": "Support tower, 4 sheaves",
+      "monta_tbar_tower_s6": "Support tower, 6 sheaves",
+      "monta_tbar_tower_d4": "Hold-down tower, 4 sheaves",
+      "monta_tbar_tower_c4": "Combination tower",
+      "monta_tbar_mast": "Mast section",
+      "monta_tbar_base": "Tower base",
+      "monta_tbar_springbox": "Recoil box",
+      "monta_tbar_bar_t": "T-bar",
+      "monta_tbar_bar_j": "J-bar"
+    }
+  },
+  "common": {
+    "lineGauge": 3000,
+    "ropeDiameter": 20,
+    "ropeElevation": 4500,
+    "speedMps": 2.5,
+    "carrierSpacing": 15000,
+    "trackWidth": 1500,
+    "sheave": {"dia": 300, "width": 70, "flange": 14, "recess": 220, "recessDepth": 8, "grooveTop": 270, "grooveBottom": 240, "hub": 70},
+    "bullwheel": {"pitch": 3000, "rimTop": 90, "rimBottom": -90, "plateOuter": 3060, "plateInner": 2700, "plateThick": 12,
+                  "hubDia": 380, "hubBottom": -260, "hubTop": 160, "spokes": 6, "spokeWidth": 110, "spokeDepth": 150}
+  },
+  "train": {
+    "_about": "A sheave train on one rope: sheaves in pairs on rockers (twin plates inboard of the sheaves), rockers on a beam pinned at its middle; the hanger plate runs from the crossarm end to that pin, inboard of the rope, so the grips and recoil boxes pass outboard. Support trains carry the rope on top, hold-down trains press it from above; the axles sit on an arc of radius arcR about the rope's bend.",
+    "pitch": 380,
+    "rockerGap": 480,
+    "arcR": 25000,
+    "plateGap": 30,
+    "plateThick": 12,
+    "rockerDepth": 90,
+    "beamDepth": 120,
+    "beamWidth": 80,
+    "pinDia": 50,
+    "axleBelow": 210,
+    "hangerWidth": 160,
+    "hangerThick": 16
+  },
+  "tower": {
+    "mast": {"dia": 324, "section": 1000, "sides": [16, 10, 8, 6]},
+    "steps": {"pitch": 250, "reach": 160, "dia": 22, "rise": 60},
+    "base": {
+      "footing": {"half": 900, "bottom": -1800, "top": -400},
+      "pier": {"half": 300, "top": 150},
+      "plate": {"half": 280, "thick": 25},
+      "bolts": {"count": 6, "radius": 225, "dia": 30, "height": 45}
+    },
+    "head": {
+      "cap": {"half": 230, "thick": 20},
+      "crossarm": {"halfV": 1800, "size": 200},
+      "_rope": "rope height under the crossarm's underside: support heads carry it level just under the arm, hold-down and combination rows hang lower",
+      "ropeBelowArm": {"support": 260, "hold": 640, "combo": 640},
+      "numberPlate": {"halfV": 160, "height": 220, "thick": 6, "standoff": 15},
+      "grabRail": 900
+    },
+    "heads": {
+      "s4": {"support": 4},
+      "s6": {"support": 6},
+      "d4": {"hold": 4},
+      "c4": {"combo": 2, "_combo": "2 hold-down sheaves over 2 support sheaves on each rope"}
+    }
+  },
+  "drive": {
+    "_about": "The top station: the bullwheel on a gearbox under it, the motor beside, on a steel deck carried by a tubular column and a rear strut; a small electrical cabinet; the stop gate on the arriving (loaded, v-) side before the wheel.",
+    "column": {"dia": 508, "top": 3700},
+    "strut": {"dia": 273, "footU": -2600},
+    "deck": {"uFrom": -1300, "uTo": 900, "halfV": 900, "top": 3880, "thick": 180},
+    "gearbox": {"lo": [-450, -400, 3880], "hi": [450, 400, 4250]},
+    "motor": {"u": -900, "v": 0, "dia": 420, "length": 700, "w": 4080},
+    "cabinet": {"lo": [-600, -1250, 0], "hi": [-200, -850, 1800]},
+    "stopGate": {"u": 4200, "postV": 2700, "postHeight": 1800, "armW": 1300, "armToV": 1600, "postDia": 114, "armDia": 42},
+    "pad": {"half": 900, "top": 150},
+    "ladderSide": -1,
+    "pierBottom": -15000
+  },
+  "guide": {
+    "_about": "Both terminals: a guide ring round the back of the bullwheel at the hanging bars' middle height, outboard of them, so the bars can't swing out as they turn; straight runs carry it a little way toward the line; posts down to grade.",
+    "radius": 1980,
+    "w": 2700,
+    "dia": 60,
+    "straightU": 1200,
+    "posts": 7,
+    "postDia": 76
+  },
+  "return": {
+    "_about": "The bottom station: the bullwheel on a carriage that slides along u on two rails, pulled back (-u) by a cable over a sheave to a hanging concrete counterweight in a tubular frame behind the wheel; the rails on a portal of two columns; the loading guide rail on the loaded (v+) side.",
+    "portal": {"columnU": -400, "halfV": 1250, "dia": 273, "top": 4100},
+    "rails": {"uFrom": -2400, "uTo": 900, "halfV": 380, "depth": 200, "width": 120},
+    "carriage": {"halfU": 700, "halfV": 520, "thick": 100},
+    "weightFrame": {"u": -2900, "half": 450, "dia": 168},
+    "weight": {"half": 380, "height": 1100, "bottom": 1500},
+    "cableSheave": {"u": -2600, "dia": 500, "width": 80},
+    "cableDia": 22,
+    "padHalf": 550,
+    "padTop": 150,
+    "pierBottom": -15000
+  },
+  "sockets": {"loadU": 1800, "unloadU": 6000},
+  "carrier": {
+    "_about": "Carriers: a fixed grip clamped on the rope with an arm out and down (outboard, so it passes the sheaves), a recoil box (a drum housing with its axle across the line) under the arm, and the bar on the cord. Grip origin on the rope; the bars' origin at their eye, where the cord ends.",
+    "grip": {"length": 170, "height": 80, "width": 60, "armOut": 230, "armDia": 40},
+    "box": {"dia": 340, "width": 170, "centreBelow": 470, "rimDia": 360, "rimWidth": 20, "cordBelow": 650},
+    "stem": {"length": 1450, "dia": 34, "damperLength": 380, "damperDia": 46, "eyeDia": 70},
+    "tBar": {"halfWidth": 520, "dia": 42, "padHalf": 380, "padDia": 64},
+    "jBar": {"reach": 480, "dia": 42, "padDia": 64, "upturn": 90}
+  }
+}
