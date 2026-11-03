@@ -74,6 +74,7 @@
              "farEnd": [[-5148, 3302], [-5148, 3886], [-5148, 4005], [-5165, 4470], [-5207, 4928], [-5292, 5385], [-5402, 5842], [-5538, 6282], [-5546, 6299],
                         [-5538, 6359], [-5504, 6401], [-5453, 6426], [-5182, 6435], [-5030, 6443]],
              "panes": {"sill": 4106, "head": 6206, "mullion": 123, "runs": [[1753, -4521, 8]]},
+             "endPanes": {"_note": "Owner addition 2026-11-03 (not drawn): a band of panes on each end, the sides' pane size, between the sill and head.", "n": 3, "width": 677},
              "sillRail": {"bottom": 3996, "top": 4106, "proud": 20},
              "headTrim": {"bottom": 6206, "top": 6232, "proud": 10},
              "ribs": {"u": [-4276, 1508], "n": 19, "width": 233, "halfV": 1134, "height": 25},

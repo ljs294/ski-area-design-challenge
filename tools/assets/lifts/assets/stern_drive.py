@@ -102,14 +102,8 @@ def hood(mb, h, lod, st):
                 style = st["hood"]
             out = (0.0, 0.0, -1.0) if floor else (0.0, (v0 + v1) / 2, (w0 + w1) / 2 - mid_w)
             mb.face([grid[i][k], grid[i][k + 1], grid[i1][k + 1], grid[i1][k]], style, out)
-    for pts, sign in ((h["farEnd"], -1), (h["lineEnd"], 1)):   # end walls, strips sharing their rows' vertices
-        rows = []
-        for v, w in half:
-            u = m(end_u(pts, w))
-            left = mb.vert((u, -m(v), m(w)))
-            rows.append((left, left if v < 1e-6 else mb.vert((u, m(v), m(w)))))
-        for (la, ra), (lb, rb) in zip(rows, rows[1:]):
-            mb.face([la, ra, rb, lb] if rb != lb else [la, ra, rb], st["hood"], (sign, 0, 0))
+    for pts, sign in ((h["farEnd"], -1), (h["lineEnd"], 1)):
+        end_wall(mb, h, half, pts, sign, lod, st)
     if lod <= 1:
         lining(mb, h, half, st)
         trims(mb, h, half, lod, st)
@@ -123,6 +117,39 @@ def hood(mb, h, lod, st):
                       st["hood"])
 
 
+def end_wall(mb, h, half, pts, sign, lod, st):
+    """One end wall: strips between the half profile's rows, and a band of panes on the axis between the sides' sill
+    and head (spec hood.endPanes; the owner's, not drawn). The panes' rows are the sill, the head and, up close
+    (LOD0), the end profile's breaks between them, so they follow the rake; the strips beside them meet their edge."""
+    pn, ep = h["panes"], h["endPanes"]
+    lo, hi = pn["sill"], pn["head"]
+    vp = (ep["n"] * ep["width"] + (ep["n"] - 1) * pn["mullion"]) / 2
+    band = sorted({lo, hi} | ({w for _, w in pts if lo < w < hi} if lod == 0 else set()))
+    edge = [(end_u(pts, w), w) for w in band]   # the panes' edge: the rake through the band's rows only
+
+    def pair(u, v, w):
+        left = mb.vert((m(u), -m(v), m(w)))
+        return left, left if v < 1e-6 else mb.vert((m(u), m(v), m(w)))
+
+    out = (sign, 0, 0)
+    rows = [(w, pair(end_u(pts, w), v, w)) for v, w in half]
+    for (wa, (la, ra)), (wb, (lb, rb)) in zip(rows, rows[1:]):
+        if lo <= wa and wb <= hi:   # beside the panes: a strip each side, out to the panes' edge
+            li, ri = pair(end_u(edge, wa), vp, wa)
+            lj, rj = pair(end_u(edge, wb), vp, wb)
+            mb.face([la, li, lj, lb], st["hood"], out)
+            mb.face([ri, ra, rb, rj], st["hood"], out)
+        else:
+            mb.face([la, ra, rb, lb] if rb != lb else [la, ra, rb], st["hood"], out)
+    cols = [-vp]
+    for i in range(ep["n"]):
+        cols += [cols[-1] + ep["width"]] + ([cols[-1] + ep["width"] + pn["mullion"]] if i < ep["n"] - 1 else [])
+    grid = [[mb.vert((m(end_u(edge, w)), m(v), m(w))) for v in cols] for w in band]
+    for r0, r1 in zip(grid, grid[1:]):
+        for k in range(len(cols) - 1):
+            mb.face([r0[k], r0[k + 1], r1[k + 1], r1[k]], st["glass"] if k % 2 == 0 else st["hood"], out)
+
+
 def side_v(half, w):
     """v (mm) of the hood's side at height w (mm), from the half profile."""
     for (v0, w0), (v1, w1) in zip(half, half[1:]):
@@ -132,7 +159,8 @@ def side_v(half, w):
 
 
 def trims(mb, h, half, lod, st):
-    """The sill rail under the windows and the head trim over them, standing proud of each side between the ends."""
+    """The sill rail under the windows and the head trim over them, standing proud of each side between the ends and
+    across each end wall."""
     for key in ("sillRail", "headTrim"):
         t = h[key]
         lo, hi = t["bottom"], t["top"]
@@ -141,6 +169,9 @@ def trims(mb, h, half, lod, st):
         for s in (-1, 1):
             v0, v1 = sorted((s * m(v_in - 10), s * m(v_in + t["proud"])))
             prims.box(mb, (m(u0), v0, m(lo)), (m(u1), v1, m(hi)), st["trim"])
+        for u, s in ((u0, -1), (u1, 1)):
+            a, b = sorted((m(u - s * 10), m(u + s * t["proud"])))
+            prims.box(mb, (a, -m(v_in + t["proud"]), m(lo)), (b, m(v_in + t["proud"]), m(hi)), st["trim"])
 
 
 def lining(mb, h, half, st):
