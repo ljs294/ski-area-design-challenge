@@ -1668,6 +1668,11 @@ def render_all(built, spec, out_dir, shots, mats):
         kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}
         kit.update({k[3:]: built[k] for k in wide})
         tower_views(kit, spec, out_dir, out="d6_tower_")
+    d4 = [k for k in built if k.startswith("d4_tower_")]
+    if "towers" in shots and d4 and "tower_base" in built and "tower_mast" in built:   # the D4's heads on the kit's mast
+        kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}
+        kit.update({k[3:]: built[k] for k in d4})
+        tower_views(kit, spec, out_dir, out="d4_tower_")
     materials.use_palette(mats, packed)
     if "photos" in shots or "terminal_photos" in shots:
         for key in built:
@@ -1704,7 +1709,7 @@ def render_all(built, spec, out_dir, shots, mats):
             kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}
             kit.update({k[3:]: built[k] for k in wide})
             tower_photos(kit, built[wide[0]]["spec"], out_dir, mats, chairs_for("d6_"), out="d6_tower_")
-        for model in ("fgd2", "fgt3"):   # the doubles' and triples' heads on the kit's mast, with their chair on the line
+        for model in ("fgd2", "fgt3", "d4"):   # the doubles', triples' and D4's heads on the kit's mast, their chair on the line
             heads = [k for k in built if k.startswith(f"{model}_tower_")]
             if heads:
                 kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}

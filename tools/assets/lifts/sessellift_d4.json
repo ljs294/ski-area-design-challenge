@@ -35,7 +35,11 @@
   },
   "terminal": {
     "hood": {
-      "halfWidth": 4188
+      "halfWidth": 4188,
+      "roofKit": {
+        "lifelines": false,
+        "_lifelines": "owner, Gate 1: no lifeline tripods (the small A-frames) or cable on the roof"
+      }
     },
     "belly": {
       "joints": [
@@ -103,22 +107,12 @@
         "toc": -950
       },
       "integratedTower": {
-        "_about": "The bottom's integrated tower (DQ5), measured on the bottom's layout (w: the D6's heights, the sheet's +100, DQ9): on each rope the quad kit's hold-down row of eight (liftkit/heads.py hung_assembly) pinned under a crossbeam over both ropes; a mast from the crossbeam's middle; a railed deck from the hood's nose under the ropes' inside; a railed walkway inboard of each row out to its far end, hung from the crossbeam; two arms from a yoke on the hood's roof out past its nose, on posts down to the deck. The row on a 24 m arc (see _radius).",
-        "pinU": 13030,
-        "count": 8,
+        "_about": "The bottom's integrated tower (DQ5), owner Gate 1: the D4's own hold-down tower head (sessellift_d4_towers.json d8: the quad kit's head at 4.8 m, inboard yokes, DQ10) on the kit's mast and base, standing on the line where the bottom's layout draws its sheave trains' pin (u 13,030); the base's pier top at the front mast's (toc). Its rows on a 24 m arc levelled at their first sheave (DQ11): the rope leaves the station level and its trains pose to exits of 5-16 deg (8.6 at rest; the layout's near-level row, the kit's flat 40 m arc, poses only 3-9).",
+        "towers": "sessellift_d4_towers.json",
+        "head": "d8",
+        "u": 13030,
         "radius": 24000,
-        "_radius": "owner, Gate 1: allow exits up to 16 deg. The sheet draws the row nearly level (the kit's flat 40 m arc: 5 deg at rest, posable 3-9); 24 m is the flattest arc whose trains pose to 16 (posable 5-16, 8.6 at rest)",
-        "outerYoke": false,
-        "_outerYoke": "owner option A (Gate 1): the kit rows' inboard yokes only, so the detachable grip's tyre plate passes outboard (the kit's outboard yokes stand in it)",
-        "lugs": {"halfU": 120, "thick": 30, "past": 90},
-        "crossbeam": {"u": [12880, 13180], "halfV": 2800, "w": [4720, 5020]},
-        "posts": {"u": [12950, 13110], "v": [1540, 1700]},
-        "mast": {"size": 200, "top": 6816, "head": {"halfU": 200, "halfV": 200, "depth": 300}, "arm": 650},
-        "deck": {"u": [9660, 12940], "halfV": 1920, "top": 3310, "pan": 2950, "nose": 150},
-        "railing": {"height": 1300, "u": [10100, 12880]},
-        "walkways": {"u": [13300, 15100], "v": [1440, 1940], "top": 3700, "height": 1260},
-        "roofArms": {"u": [7806, 10950], "v": 1248, "width": 200, "w": [6124, 6454], "postU": [10830, 10950],
-                     "yoke": {"u": [8600, 8900], "halfV": 1400, "top": 6886}}
+        "toc": -950
       }
     },
     "top": {

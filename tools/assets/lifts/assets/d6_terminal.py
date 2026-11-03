@@ -447,14 +447,15 @@ def fittings(mb, t, end, lod, st):
     E0, E1 = end["hood"]
     ph = rk["postHeight"]
     posts = (E0 + rk["postIn"], E1 - rk["postIn"])
-    for pu in posts:
+    lifelines = rk.get("lifelines", True)   # the D4 leaves the tripods and their cable off (owner, Gate 1)
+    for pu in posts if lifelines else ():
         if lod <= 1:
             for du, dv in ((-300, -250), (-300, 250), (300, 0)):
                 prims.cylinder(mb, (m(pu + du), m(dv), m(top)), (m(pu), 0.0, m(top + ph)), 0.02, 6 if lod == 0 else 4, st["galv"],
                                caps=(False, False))
         else:
             prims.box(mb, (m(pu - 30), -0.03, m(top)), (m(pu + 30), 0.03, m(top + ph)), st["galv"])
-    if lod == 0:
+    if lod == 0 and lifelines:
         prims.cylinder(mb, (m(posts[0]), 0.0, m(top + ph)), (m(posts[1]), 0.0, m(top + ph)), 0.004, 4, st["galv"], caps=(False, False))
     bx = rk["box"]
     bu0 = E1 - bx["from"]
@@ -1141,70 +1142,51 @@ def pier(mb, pr, depth, lod, st):
 
 
 def integrated_tower(mb, a, spec, t, end, lod, st):
-    """The D4 bottom's integrated tower (end "integratedTower", DQ5): on each rope the quad kit's hold-down row
-    (heads.hung_assembly, the line towers' assembly), its equaliser pinned under the crossbeam's end through two lug
-    plates and levelled at its first sheave, so the rope runs level out of the station and bends up under the row; the
-    crossbeam on two posts from the deck, the mast on it; the deck under the ropes' inside with its railings; a walkway
-    inboard of each row, hung from the crossbeam; the roof arms from their yoke out past the hood's nose, on posts to
-    the deck. Returns the first axle's u, the rope's exit point (u, w) and its exit angle (radians), in metres."""
-    from liftkit import heads
+    """The D4 bottom's integrated tower (end "integratedTower", DQ5; owner, Gate 1: a typical tower, not a custom
+    frame): the D4's own line tower (its towers spec, e.g. sessellift_d4_towers.json: the quad kit's head at the D4's
+    gauge with its hold-down rows on inboard yokes) on the kit's mast and base, standing at u on the line. Its rows lie
+    on their own arc (radius), levelled at the first sheave, so the rope runs level out of the station and bends up under
+    them. The base's pier runs down as deep as the terminal's (the game buries what it needs). Returns the first axle's
+    u, the rope's exit point (u, w) and its exit angle (radians), in metres."""
+    import copy
+    import os
+    import tower
+    from liftkit import gauge
     it = end["integratedTower"]
-    asm = parts.line_spec(spec)
-    hg, rope = m(t["gauge"]) / 2, m(spec["common"]["ropeElevation"])
-    cb = it["crossbeam"]
-    kst = dict(st, steel=st["galv"], rubber=st["tyre"])   # the rows galvanised, as on the line towers
-    for side, name in ((-1, "l"), (1, "r")):
-        u_first, out, theta, _ = heads.hung_assembly(mb, a, name, side, hg, rope, m(it["pinU"]), asm, it["count"], "hold",
-                                                     m(it["radius"]), lod, kst, m(cb["w"][0]), it["lugs"],
-                                                     level="first", both=True, outer_yoke=it.get("outerYoke", True))
-    steel, galv = st["steel"], st["galv"]
-    (cu0, cu1), cw = cb["u"], cb["w"]
-    prims.box(mb, (m(cu0), m(-cb["halfV"]), m(cw[0])), (m(cu1), m(cb["halfV"]), m(cw[1])), steel)
-    dk = it["deck"]
-    (du0, du1), dv = dk["u"], dk["halfV"]
-    if lod <= 2:   # the deck: a plate on a pan whose far end slopes up to it
-        parts.deck(mb, (m(du0), m(-dv), m(dk["top"] - 40)), (m(du1), m(dv), m(dk["top"])), lod, st["grating"], channels=False)
-        prims.box(mb, (m(du0), m(-dv), m(dk["pan"])), (m(du1 - dk["nose"]), m(dv), m(dk["top"] - 40)), steel)
-        if lod <= 1:
-            nose = [(m(du1 - dk["nose"]), m(dk["pan"])), (m(du1), m(dk["top"] - 40)), (m(du1 - dk["nose"]), m(dk["top"] - 40))]
-            prims.prism(mb, nose, (0.0, m(-dv), 0.0), U, W, V, m(2 * dv), steel)
-    (pu0, pu1), (pv0, pv1) = it["posts"]["u"], it["posts"]["v"]
-    for s in (-1, 1) if lod <= 2 else ():   # the crossbeam's posts from the deck (LOD3: the deck and posts left out)
-        v0, v1 = sorted((s * pv0, s * pv1))
-        prims.box(mb, (m(pu0), m(v0), m(dk["pan"])), (m(pu1), m(v1), m(cw[0])), steel)
-    ms = it["mast"]
-    mc, hs = (cu0 + cu1) / 2, ms["size"] / 2
-    hd = ms["head"]
-    prims.box(mb, (m(mc - hs), m(-hs), m(cw[1])), (m(mc + hs), m(hs), m(ms["top"] - (hd["depth"] if lod <= 2 else 0))), galv)
+    ts = copy.deepcopy(gauge.load(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), it["towers"]))
+    kit = ts["tower"]
+    cfg = dict(kit["heads"][it["head"]], radius=it["radius"], level="first")
+    kit["heads"][it["head"]] = cfg
+    kst = tower.styles()
+    head = tower.head(ts, kit, it["head"], lod, kst)
+    rope = m(spec["common"]["ropeElevation"])
+    off = (m(it["u"]), 0.0, rope - head.sockets["rope_right"][2])   # the head's mast top, the rope at the station's
+    mb.merge(head.body.translated(off))
+    for name, part in head.parts.items():
+        a.parts[name] = part.translated(off)
+    for name, piv in head.pivots.items():
+        a.pivots[name] = dict(piv, pos=tuple(p + o for p, o in zip(piv["pos"], off)))
+    # the mast from the base's plate up to the head, its ladder on it; the base with its pier down to the piers' depth
+    b = copy.deepcopy(kit["base"])
+    toc = it["toc"]
+    b["footing"] = {"half": b["pier"]["half"], "bottom": -t["pierDepth"], "top": -t["pierDepth"] + 10}
+    b["pier"]["top"] = 0
+    foot = tower.base(dict(kit, base=b), lod, kst)
+    if lod <= 2:   # LOD3: the mast alone, a three-sided shaft (the terminal's 600 triangles)
+        mb.merge(foot.body.translated((m(it["u"]), 0.0, m(toc))))
+    w0, w1 = m(toc) + foot.sockets["mast_foot"][2], off[2]
+    shaft = MeshBuilder()
+    r = m(kit["mast"]["dia"]) / 2
+    sides = parts.sides(lod, *kit["mast"]["sides"]) if lod <= 2 else 3
+    prims.cylinder(shaft, (0.0, 0.0, w0), (0.0, 0.0, w1), r, sides, kst["galv"], caps=(False, False))
     if lod <= 2:
-        prims.box(mb, (m(mc - hd["halfU"]), m(-hd["halfV"]), m(ms["top"] - hd["depth"])), (m(mc + hd["halfU"]), m(hd["halfV"]), m(ms["top"])), galv)
-    if lod <= 1:   # the head's cross arm
-        prims.cylinder(mb, (m(mc), m(-ms["arm"]), m(ms["top"] - hd["depth"] / 2)), (m(mc), m(ms["arm"]), m(ms["top"] - hd["depth"] / 2)),
-                       0.03, 6, galv)
-    ra = it["roofArms"]
-    (ru0, ru1), rv, rw = ra["u"], ra["v"], ra["w"]
-    for s in (-1, 1):   # the roof arms, on posts down to the deck
-        prims.box(mb, (m(ru0), m(s * rv - ra["width"] / 2), m(rw[0])), (m(ru1), m(s * rv + ra["width"] / 2), m(rw[1])), steel)
-        if lod <= 2:
-            q0, q1 = ra["postU"]
-            prims.box(mb, (m(q0), m(s * rv - 60), m(dk["top"])), (m(q1), m(s * rv + 60), m(rw[0])), steel)
-    yk = ra["yoke"]
-    if lod <= 2:
-        prims.box(mb, (m(yk["u"][0]), m(-yk["halfV"]), m(rw[1])), (m(yk["u"][1]), m(yk["halfV"]), m(yk["top"])), steel)
-    rl, wk = it["railing"], it["walkways"]
-    (wu0, wu1), (wv0, wv1) = wk["u"], wk["v"]
-    for s in (-1, 1):
-        if lod <= 2:   # the walkway inboard of the row, its tie up to the crossbeam's top
-            va, vb = sorted((s * wv0, s * wv1))
-            parts.deck(mb, (m(wu0), m(va), m(wk["top"] - 40)), (m(wu1), m(vb), m(wk["top"])), lod, st["grating"])
-            prims.cylinder(mb, (m(wu1 - 50), m(s * (wv0 + wv1) / 2), m(wk["top"])), (m(cu1), m(s * (wv0 + wv1) / 2), m(cw[1])), 0.02,
-                           6 if lod == 0 else 4, steel)
-        ring = [(m(wu0), m(s * wv1), m(wk["top"])), (m(wu1), m(s * wv1), m(wk["top"])), (m(wu1), m(s * wv0), m(wk["top"])),
-                (m(wu0), m(s * wv0), m(wk["top"]))]
-        parts.railing(mb, ring, m(wk["height"]), lod, galv, toe=False)
-        parts.railing(mb, [(m(rl["u"][0]), m(s * dv), m(dk["top"])), (m(rl["u"][1]), m(s * dv), m(dk["top"]))], m(rl["height"]), lod,
-                      galv, toe=False)
-    return u_first, out, theta
+        tower.ladder_segment(shaft, kit, w0, w1, lod, kst)
+    mb.merge(shaft.translated((m(it["u"]), 0.0, 0.0)))
+    asm = parts.line_spec(ts)
+    n = cfg["hold"]
+    u_first = off[0] + parts.arc_axles(asm, n, m(it["radius"]), "first")[0][0]
+    path, theta = parts.hold_rope(asm, n, m(it["radius"]), u_first, rope, mode="hold")
+    return u_first, path[-1], theta
 
 
 def tilted(mb, angle_deg, centre_lift):
@@ -1285,7 +1267,7 @@ def build(spec, lod, stage, variant="return"):
         u_hold, (u_out, w_out), theta = hold
         a.sockets.update({"rope_left_hold": (u_hold, -m(hg), m(rope)), "rope_right_hold": (u_hold, m(hg), m(rope)),
                           "rope_left_out": (u_out, -m(hg), w_out), "rope_right_out": (u_out, m(hg), w_out)})
-        a.dims.update({"integratedTowerU": end["integratedTower"]["pinU"], "ropeExitDeg": round(math.degrees(theta), 2)})
+        a.dims.update({"integratedTowerU": end["integratedTower"]["u"], "ropeExitDeg": round(math.degrees(theta), 2)})
     ru, rv = end["riders"]
     a.sockets["chair_load" if end.get("load", variant == "return") else "chair_unload"] = (m(ru), m(rv), m(grip_w))
     # the chairs' grips round the station: on the rail, 134 inside its centreline, at the rope's height
