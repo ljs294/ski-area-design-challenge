@@ -89,14 +89,21 @@ namespace MountainPlanner.Acquisition.Providers
         readonly DiskCache _cache;
         readonly TransferMeter _meter;
         readonly Fetch _fetch;
+        readonly Func<CancellationToken, Task<bool>> _othersAnswer;
 
         public OsmFeatures(DiskCache cache, TransferMeter meter) : this(cache, meter, null) { }
 
-        internal OsmFeatures(DiskCache cache, TransferMeter meter, Fetch? fetch)
+        /// <summary>
+        /// Tests pass <paramref name="fetch"/>, and <paramref name="othersAnswer"/> for whether the other map services
+        /// answer (<see cref="Reachability"/>); a fake fetch without it treats them as unreachable, so tests never touch
+        /// the network.
+        /// </summary>
+        internal OsmFeatures(DiskCache cache, TransferMeter meter, Fetch? fetch, Func<CancellationToken, Task<bool>>? othersAnswer = null)
         {
             _cache = cache;
             _meter = meter;
             _fetch = fetch ?? ((url, ct) => Http.GetBytesAsync(() => new HttpRequestMessage(HttpMethod.Get, url), meter, ct, attempts: 1, timeout: MirrorTimeout));
+            _othersAnswer = othersAnswer ?? (fetch == null ? (Func<CancellationToken, Task<bool>>)(ct => Reachability.OthersAnswerAsync(ct)) : _ => Task.FromResult(false));
         }
 
         public static string Query(double south, double west, double north, double east)
@@ -118,8 +125,9 @@ namespace MountainPlanner.Acquisition.Providers
         /// <summary>
         /// The Overpass response for a box (cached), trying each server in turn. When none gives a result it throws
         /// <see cref="OsmUnavailableException"/>, and the package is built without the layer; only when every server
-        /// failed to connect does it throw a connection failure, so the download waits for the network (task P3-16: a
-        /// slow or busy Overpass used to look like a lost connection, and the download waited for it for ever).
+        /// failed to connect and the other map services don't answer either does it throw a connection failure, so the
+        /// download waits for the network (task P3-16: a slow, busy or blocked Overpass used to look like a lost
+        /// connection, and the download waited for it for ever).
         /// </summary>
         public async Task<byte[]> DownloadAsync(AlbersBox box, CancellationToken ct)
         {
@@ -153,12 +161,26 @@ namespace MountainPlanner.Acquisition.Providers
                     // It answered, or connected and then ran out of time: Overpass's trouble, not the player's network.
                     if (NetworkFailure.IsNoConnection(ex) && !NetworkFailure.IsTimeout(ex)) connection ??= ex;
                     else allFailedToConnect = false;
-                    failures.Add(host + ": " + ex.GetBaseException().Message);
+                    failures.Add(host + ": " + Tidy(ex.GetBaseException().Message));
                 }
             }
-            if (allFailedToConnect && connection != null) throw new InvalidOperationException("OpenStreetMap (Overpass) is unavailable.", connection);
+            if (allFailedToConnect && connection != null)
+            {
+                // Not one mirror could be reached. That's a lost connection only if the other map services are gone too;
+                // if they answer, Overpass itself is blocked or down, and the layer is left out (the owner's A1).
+                if (!await _othersAnswer(ct).ConfigureAwait(false)) throw new InvalidOperationException("OpenStreetMap (Overpass) is unavailable.", connection);
+                failures.Add("couldn't connect to any server, though other map services answered");
+            }
             throw new OsmUnavailableException("OpenStreetMap (Overpass) is unavailable (" + string.Join("; ", failures) + ").");
         }
+
+        /// <summary>
+        /// An error message fit for the provenance and the quality card: Windows pads socket errors with a line break and
+        /// NUL characters, so control characters go and the spaces they leave collapse.
+        /// </summary>
+        internal static string Tidy(string message) =>
+            string.Join(" ", new string(message.Select(c => char.IsControl(c) ? ' ' : c).ToArray())
+                .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
 
         /// <summary>
         /// The roads in an Overpass response (task 12d): every highway way <see cref="RoadRules.IsRoad"/> keeps, above
