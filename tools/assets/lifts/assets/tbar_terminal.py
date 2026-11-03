@@ -10,8 +10,9 @@ D2, D8, D9, kept outside the repo).
           guides at their line ends. The loading hoop hangs just under the leaving train on a short rod from a bracket
           off its girder, outboard of the bars, where the operator steadies them. No ladder on this station. Rope at
           3.4 m (D8).
-  return  the TOP station: one wide tapered box diagonal leaning back toward the wheel, hinged at its foot, the main
-          support, and a slim plumb prop from the pad to a clevis at the diagonal's middle (owner, v3.1), on a flat pad,
+  return  the TOP station: one rectangular HSS diagonal leaning back toward the wheel, the main support (owner, v3.1),
+          on a base flange bolted to the pad and bolted up under a matching flange on the head's cross girder (owner,
+          v3.2), and a slim plumb prop from the pad to a clevis at the diagonal's middle (owner, v3.1), on a flat pad,
           carrying bare girders with two hoop-railed platforms (over the trains, round the bearing); the bullwheel
           cantilevered behind with a thin guard rail round it and along the rows; toward the line an 8-sheave
           breakover row on each rope (owner, v3.1): support trains hung below the girders on drop plates, their
@@ -386,6 +387,63 @@ def drive(spec, lod):
 
 
 # -- the top station ------------------------------------------------------------------------------------------------
+def hss(mb, p0, ad, n, hd, hb, rad, w0, w1, lod, style):
+    """A rectangular hollow section along `ad` through p0: 2 hd along n, 2 hb along v, corners rounded to `rad` (two
+    facets at LOD0, one at LOD1, square beyond), its ends cut level at heights w0 and w1."""
+    seg = 2 if lod == 0 else (1 if lod == 1 else 0)
+    prof = []   # counter-clockwise in (n, v)
+    for cu, cv, a0 in ((hd, hb, 0.0), (-hd, hb, 90.0), (-hd, -hb, 180.0), (hd, -hb, 270.0)):
+        if not seg:
+            prof.append((cu, cv))
+            continue
+        ou, ov = cu - math.copysign(rad, cu), cv - math.copysign(rad, cv)
+        for k in range(seg + 1):
+            t = math.radians(a0 + 90.0 * k / seg)
+            prof.append((ou + rad * math.cos(t), ov + rad * math.sin(t)))
+
+    def cut(a, b, w):
+        p = p0 + n * a + V * b
+        return tuple(p + ad * ((w - p.z) / ad.z))
+    lo, hi = [cut(a, b, w0) for a, b in prof], [cut(a, b, w1) for a, b in prof]
+    li, hi_i = mb.verts_lift(lo), mb.verts_lift(hi)
+    k = len(prof)
+    for i in range(k):
+        j = (i + 1) % k
+        (a0_, b0_), (a1_, b1_) = prof[i], prof[j]
+        mb.face([li[i], li[j], hi_i[j], hi_i[i]], style, tuple(n * (b1_ - b0_) - V * (a1_ - a0_)))
+    mb.face(mb.verts_lift(lo), style.but(smooth=False), (0.0, 0.0, -1.0))
+    mb.face(mb.verts_lift(hi), style.but(smooth=False), (0.0, 0.0, 1.0))
+
+
+def flanges(mb, fl, foot, base, head_u, gb, lod, st):
+    """The diagonal's bolted connections (owner, v3.2): its base flange on the pad held by anchor bolts (nuts and
+    thread ends on top); at its head its own flange bolted up under a matching flange on the cross girder (nuts and
+    thread ends underneath). Bolt positions mirror about the flange's centre."""
+    bt = fl["bolt"]
+    nut_r = m(bt["nut"]) / math.sqrt(3.0)   # across the corners of a hex nut
+    nh, stub, br = m(bt["nutHeight"]), m(bt["stub"]), m(bt["dia"]) / 2
+    for key, cu, w_face, down in (("base", foot, base, False), ("head", head_u, gb, True)):
+        f = fl[key]
+        hu, hv, t = m(f["halfU"]), m(f["halfV"]), m(f["thick"])
+        if down:   # the girder's flange (a step wider, so the joint reads), then the column's under it
+            e = m(f["girderStep"])
+            prims.box(mb, (cu - hu - e, -hv - e, gb - t), (cu + hu + e, hv + e, gb), st["steel"], skip=("+2",))
+            prims.box(mb, (cu - hu, -hv, gb - 2 * t), (cu + hu, hv, gb - t), st["steel"], skip=("+2",))
+            w_nut = gb - 2 * t
+        else:
+            prims.box(mb, (cu - hu, -hv, base), (cu + hu, hv, base + t), st["steel"], skip=("-2",))
+            w_nut = base + t
+        if lod >= 2:
+            continue
+        s = -1.0 if down else 1.0
+        spots = sorted({(su * m(u), sv * m(v)) for u, v in f["bolts"] for su in (-1, 1) for sv in (-1, 1)})
+        for du, dv in spots:
+            p = Vector((cu + du, dv, w_nut))
+            prims.cylinder(mb, p, p + W * (s * nh), nut_r, 6, st["rod"], phase=math.pi / 6)
+            if lod == 0:
+                prims.cylinder(mb, p + W * (s * nh), p + W * (s * (nh + stub)), br, 8, st["rod"], caps=(False, True))
+
+
 def ret(spec, lod):
     c, r = spec["common"], spec["return"]
     st = styles()
@@ -395,39 +453,34 @@ def ret(spec, lod):
     rope = m(r["rope"])
     g = r["girders"]
 
-    # the pad, the hinge block, the tapered leaning column (R19, R31) and the plumb box strut
+    # the pad and the leaning diagonal, the main support (owner, v3.1): a rectangular HSS (owner, v3.2), its ends cut
+    # level, standing on a base flange bolted to the pad and up to its head flange bolted under a matching flange on the
+    # head's cross girder; the plumb prop to its middle
     pd = r["pad"]
     block(body, m(pd["uFrom"]), m(pd["uTo"]), m(pd["halfV"]), m(pd["top"]), m(r["pierBottom"]), st)
     base = m(pd["top"])
     gb = m(g["bottom"])
     col = r["column"]
     foot, head_u = m(col["footU"]), m(col["topU"])
-    hu_t, hv = m(col["top"]["halfU"]), m(col["top"]["halfV"])
-    hu_f = m(col["foot"]["halfU"])
-    hg_ = r["hinge"]
-    hh = m(hg_["height"])
-    if lod <= 1:   # the base plate and the hinge block with its pin
-        prims.box(body, (foot - m(hg_["lengthU"]) / 2 - 0.15, -m(hg_["halfV"]) - 0.15, base), (foot + m(hg_["lengthU"]) / 2 + 0.15, m(hg_["halfV"]) + 0.15, base + 0.03),
-                  st["steel"], skip=("-2",))
-        prims.box(body, (foot - m(hg_["lengthU"]) / 2, -m(hg_["halfV"]), base + 0.03), (foot + m(hg_["lengthU"]) / 2, m(hg_["halfV"]), base + hh),
-                  st["paint"], skip=("-2",))
-        pr_ = m(hg_["pinDia"]) / 2
-        prims.cylinder(body, (foot, -m(hg_["halfV"]) - 0.04, base + hh / 2), (foot, m(hg_["halfV"]) + 0.04, base + hh / 2), pr_, 10, st["rod"])
-    else:
-        prims.box(body, (foot - m(hg_["lengthU"]) / 2, -m(hg_["halfV"]), base), (foot + m(hg_["lengthU"]) / 2, m(hg_["halfV"]), base + hh),
-                  st["paint"], skip=("-2",))
-    foot_pt, head_pt = Vector((foot, 0.0, base + hh)), Vector((head_u, 0.0, gb))
+    hs = col["hss"]
+    hd, hb = m(hs["depth"]) / 2, m(hs["width"]) / 2   # half the section along the line face's normal, and across
+    fl = r["flanges"]
+    fb, fh = fl["base"], fl["head"]
+    w_foot, w_head = base + m(fb["thick"]), gb - 2 * m(fh["thick"])   # on the base flange; under the column's head flange
+    foot_pt, head_pt = Vector((foot, 0.0, w_foot)), Vector((head_u, 0.0, w_head))
     axis = head_pt - foot_pt
     lean = math.atan2(axis.x, axis.z)
     ad = axis.normalized()
     n = Vector((math.cos(lean), 0.0, -math.sin(lean)))   # the column's line face normal
-    taper = [(0.0, -hu_f), (0.0, hu_f), (axis.length, hu_t), (axis.length, -hu_t)]
-    prims.prism(body, taper, foot_pt - V * hv, ad, n, V, 2 * hv, st["paint"])   # with its v faces (v3.1: it was see-through)
+    hss(body, foot_pt, ad, n, hd, hb, m(hs["radius"]), base if lod >= 3 else w_foot, gb if lod >= 3 else w_head, lod,
+        st["paint"])
+    if lod <= 2:
+        flanges(body, fl, foot, base, head_u, gb, lod, st)
 
     # the plumb prop (owner, v3.1): from a base plate on the pad up to the diagonal's wheel-side face at `at` of its
     # length, where a clevis of two plates on the face takes its top and a pin
     pp = r["prop"]
-    f0, f1 = foot_pt - n * hu_f, head_pt - n * hu_t   # the wheel-side face's line, foot to head
+    f0, f1 = foot_pt - n * hd, head_pt - n * hd   # the wheel-side face's line, foot to head
 
     def face_w(u):
         return f0.z + (f1.z - f0.z) * (u - f0.x) / (f1.x - f0.x)
@@ -452,7 +505,7 @@ def ret(spec, lod):
     # the head frame: bare girders from the wheel's shaft to past the trains, cross girders
     u_from, u_to = m(g["uFrom"]), m(g["uTo"])
     top = girders(body, g, u_from, u_to, lod, st)
-    cross(body, g, head_u, hu_t, lod, st)
+    cross(body, g, head_u, m(fh["halfU"]), lod, st)   # the head flanges hang under it
     if lod <= 2:
         for u in (u_from + 0.1, 0.35, u_to - 0.1):
             cross(body, g, u, 0.1, lod, st)
@@ -488,9 +541,14 @@ def ret(spec, lod):
     u_end = profile[-1][0]
 
     # the galvanised ladder up the column's line face to the trains' platform (R20)
-    if lod <= 2:
-        parts.ladder(body, foot_pt + n * (hu_f + 0.1), Vector((head_u, 0.0, top + 0.04)) + n * (hu_t + 0.1), m(r["ladderWidth"]), lod,
-                     st["steel"], handrails=False, rung_style=st["steel"])
+    if lod <= 2:   # parallel to the diagonal, ladderOff off its line face (clear space behind the rungs), its feet on the
+        # pad beyond the base flange, its head at the trains' platform
+        l0 = foot_pt + n * (hd + m(r["ladderOff"]))
+
+        def on(w):
+            return l0 + ad * ((w - l0.z) / ad.z)
+        parts.ladder(body, on(base - 0.025), on(top + 0.04), m(r["ladderWidth"]), lod, st["steel"], handrails=False,
+                     rung_style=st["steel"])
 
     # the box-section gallows for the wire (D9, R17): two legs leaning back over the wheel, a cross strut, braces back
     # to the girders, the hook at its head
@@ -547,6 +605,7 @@ def ret(spec, lod):
     lt, rt = rows["l"]["rope"], rows["r"]["rope"]
     rope_sockets(a, hg, rope, [lt[-1], rt[-1]], spec["sockets"], load=False, holds=[lt[0][0], rt[0][0]])
     a.dims.update({"rope": r["rope"], "deck": round(top * 1000), "columnLeanDeg": round(math.degrees(lean), 1),
+                   "columnHss": [hs["depth"], hs["width"]],
                    "girderEnd": g["uTo"], "trains": [tr["arrive"], tr["leave"]], "trainsArcR": tr["arcR"],
                    "ropeExitDeg": round(math.degrees(rows["r"]["exit"]), 2), "ropeOut": round(rt[-1][1] * 1000),
                    "propTop": round(p_top * 1000)})

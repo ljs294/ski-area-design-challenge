@@ -129,11 +129,13 @@
     "pierBottom": -15000
   },
   "return": {
-    "_about": "The top station: one wide tapered box diagonal leaning back toward the wheel, hinged at its foot, the main support, and a slim plumb box prop from the pad up to the diagonal's middle (owner, v3.1), carrying the girders bare (R16): a hoop-railed grating platform over the trains and another round the bearing beside the wheel, the box-section gallows for the wire between them (R17); the bullwheel cantilevered behind on its shaft from a bearing housing (the tensioning hidden inside, D2); toward the line an 8-sheave breakover row on each rope (owner, v3.1): support trains hung below the girders on drop plates, on the station arc, their rockers in pairs on two yokes under the main equaliser (yokeDrop; eqDrop from the rocker pins to the end pin), turned so the rope runs level from the wheel onto the first sheave and breaks over toward the line (restExit at rest; posable, the game re-poses them for the line's angle with the first sheave held); a thin guard rail round the wheel and along the rows, following the rope (R18); a galvanised ladder up the diagonal's line face to the trains' platform, whose railing opens at its head. Rope at 4.5 m at the wheel (Q4).",
+    "_about": "The top station: one rectangular HSS diagonal leaning back toward the wheel, the main support (owner, v3.1), on a bolted base flange on the pad and bolted flanges under the head's cross girder (owner, v3.2), and a slim plumb box prop from the pad up to the diagonal's middle (owner, v3.1), carrying the girders bare (R16): a hoop-railed grating platform over the trains and another round the bearing beside the wheel, the box-section gallows for the wire between them (R17); the bullwheel cantilevered behind on its shaft from a bearing housing (the tensioning hidden inside, D2); toward the line an 8-sheave breakover row on each rope (owner, v3.1): support trains hung below the girders on drop plates, on the station arc, their rockers in pairs on two yokes under the main equaliser (yokeDrop; eqDrop from the rocker pins to the end pin), turned so the rope runs level from the wheel onto the first sheave and breaks over toward the line (restExit at rest; posable, the game re-poses them for the line's angle with the first sheave held); a thin guard rail round the wheel and along the rows, following the rope (R18); a galvanised ladder up the diagonal's line face to the trains' platform, whose railing opens at its head. Rope at 4.5 m at the wheel (Q4).",
     "rope": 4500,
     "pad": {"uFrom": 1000, "uTo": 4600, "halfV": 900, "top": 150},
-    "column": {"footU": 3400, "topU": 2000, "top": {"halfU": 400, "halfV": 350}, "foot": {"halfU": 275, "halfV": 350}},
-    "hinge": {"lengthU": 650, "halfV": 380, "height": 300, "pinDia": 80},
+    "_column": "the diagonal (owner, v3.2): a rectangular HSS 508 x 305 (depth along the line face's normal, width across), corners rounded, its ends cut level; footU and topU where its axis meets the base flange and the head flanges",
+    "column": {"footU": 3400, "topU": 2000, "hss": {"depth": 508, "width": 305, "radius": 32}},
+    "_flanges": "the diagonal's bolted connections (owner, v3.2): its base flange on the pad on anchor bolts, nuts on top; at its head its own flange bolted up under a matching flange on the cross girder (girderStep wider all round), nuts underneath; bolts in mm from the flange's centre, mirrored both ways",
+    "flanges": {"base": {"halfU": 420, "halfV": 300, "thick": 40, "bolts": [[350, 230], [350, 0], [0, 230]]}, "head": {"halfU": 400, "halfV": 300, "thick": 30, "girderStep": 25, "bolts": [[330, 230], [330, 0], [0, 230]]}, "bolt": {"dia": 30, "nut": 46, "nutHeight": 24, "stub": 20}},
     "_prop": "the plumb prop (owner, v3.1): from a base plate on the pad up to the diagonal's wheel-side face at `at` of its length, a clevis of two plates and a pin there",
     "prop": {"at": 0.5, "halfU": 125, "halfV": 125, "plate": {"half": 230, "thick": 30}, "clevis": {"length": 320, "thick": 20, "pinDia": 60}},
     "girders": {"halfV": 1350, "width": 150, "depth": 250, "bottom": 4950, "uFrom": -400, "uTo": 6000},
@@ -142,6 +144,7 @@
     "rail": 1100,
     "trains": {"arrive": 8, "leave": 8, "u": 3950, "mode": "support", "arcR": 15000, "level": "first", "eqDrop": 220, "yokeDrop": 100},
     "ladderWidth": 500,
+    "ladderOff": 220,
     "aFrame": {"u": 1500, "height": 2600, "lean": 20, "footHalf": 650, "topHalf": 250, "size": 150, "strutAt": 0.6, "strut": 120, "braceU": 2400, "braceDia": 60},
     "guard": {"dia": 40, "above": 250, "out": 230, "bracketDia": 25, "bracketEvery": 1500},
     "pierBottom": -15000
