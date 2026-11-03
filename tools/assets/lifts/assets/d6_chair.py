@@ -15,6 +15,10 @@ top bar; end brackets and black armrests at the bench's ends; the clamp a square
 the seats and grips (round 3: the game's Snow layer turned the line white). The origin is the grip on the rope; up close
 the grip and the hanger are moving parts (contract M3). Chair frame as the quad's: u = travel, v = outboard, w = up.
 LOD2 keeps the backrest; LOD3 is a 30-triangle speck so a line reads out to the towers' last LOD (800 m).
+
+The D4's quad chair (sessellift_d4.json, owner DQ3, DQ9) is the same rules at widen 0 and four seats with "body": "quad":
+the quad's own body (chair.body) on the D6's hanger, clamp and top bar at the D6's drop, on the detachable grip, its jaw
+and rope guards on the D4's 1 3/4 in rope (parts.detach_grip_on).
 """
 import copy
 import json
@@ -23,6 +27,7 @@ import os
 
 from mathutils import Vector
 
+import chair
 from liftkit import parts, prims
 from liftkit.export import Asset
 from liftkit.mesh import MeshBuilder, Style
@@ -99,9 +104,13 @@ def seat_centres(ch):
 def build(spec, lod, stage):
     d6 = spec["chair"]
     ch = derive(d6)
+    quad = d6.get("body") == "quad"
     st = styles()
+    if quad:   # the quad's backrest is padded both sides: LOD2's back face too
+        st["pan"] = st["seat"]
     gst = grip_styles()
-    a = Asset("sessellift_d6_chair")
+    g = parts.detach_grip_on(spec["common"]["ropeDiameter"])
+    a = Asset(spec.get("idPrefix", "sessellift_d6") + "_chair")
     mb = MeshBuilder()
     tube = {k: m(v) / 2 for k, v in ch["tube"].items()}
     if lod == 3:
@@ -115,12 +124,15 @@ def build(spec, lod, stage):
     # the hanger: its arm under the grip (the arm's inboard section turns inside the grip's body: its own piece for the
     # clash sweep), and the tube from the socket under the arm's head down round the belly and into the clamp
     mb.group = "hanger"
-    parts.detach_grip_arm(mb, lod, gst, socket_group="hanger#socket")
+    parts.detach_grip_arm(mb, lod, gst, g, socket_group="hanger#socket")
     pts = d6["hanger"] if near else [d6["hanger"][i] for i in d6["hangerFar"]]
     prims.tube_path(mb, [(0.0, m(v), m(w)) for v, w in pts], tube["hanger"], n_hanger, st["steel"], caps=False, smooth=True)
     with mb.grouped("grip"):
-        parts.detach_grip(mb, lod, gst)
-    body(mb, ch, d6, near, n_frame, n_thin, tube, st)
+        parts.detach_grip(mb, lod, gst, g)
+    if quad:
+        chair.body(mb, ch, near, n_frame, n_thin, tube, st["steel"], Style("seat_pad"), Style("grip"))
+    else:
+        body(mb, ch, d6, near, n_frame, n_thin, tube, st)
     return finish(a, mb, ch, d6)
 
 

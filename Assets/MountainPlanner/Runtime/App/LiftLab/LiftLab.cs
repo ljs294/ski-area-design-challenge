@@ -24,11 +24,12 @@ namespace MountainPlanner.App
     ///   9 Monta FG4 (its drive as the bottom station, the rope climbing out with Sessellift chairs; the return beside)
     ///   0 chairs (the Sessellift chair and the Chairworks chair with either grip, side by side on the rope)
     ///   X six-pack (the Sessellift D6: both terminals, its chair, and its six tower heads on full towers with ropes)
+    ///   J detachable quad (the Sessellift D4: bottom with its first tower, top, its chair, and its five tower heads)
     ///   M fixed-grip terminals (the Sessellift quad, triple and double and the Monta 4, 3 and 2: every terminal)
     ///   V terminal head: every fixed-grip terminal shows its next head (drive at either end: bottom, top 4, 6, 8)
     ///   Tab next asset · L LOD auto/0/1/2/3 · N snow · C livery colour · T turntable · G ground on/off
     ///   B benchmark · P screenshot · H help · Esc quit (camera: ViewCamera's keys)
-    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs|sixpack|fixedgrip, -lod n,
+    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs|sixpack|fixedgrip|d4, -lod n,
     /// -snow 0..1, -head bottom|top|top6|top8 (the head every fixed-grip terminal shows; else its own),
     /// -view yaw,pitch,distance, -screenshot file.png (captures once settled, then quits), -benchmark file.json (runs,
     /// writes, quits).
@@ -54,7 +55,7 @@ namespace MountainPlanner.App
             new Color(0.72f, 0.12f, 0.09f), new Color(0.10f, 0.26f, 0.62f), new Color(0.11f, 0.42f, 0.22f), new Color(0.93f, 0.70f, 0.10f),
             new Color(0.12f, 0.12f, 0.13f), new Color(0.90f, 0.90f, 0.88f), new Color(0.90f, 0.42f, 0.08f), new Color(0.05f, 0.47f, 0.50f),
         };
-        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers", "guns", "gunfield", "monta", "chairs", "sixpack", "fixedgrip" };
+        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers", "guns", "gunfield", "monta", "chairs", "sixpack", "fixedgrip", "d4" };
         /// <summary>The fixed-grip mode's rows, front to back: each model's terminals, left to right.</summary>
         static readonly string[][] FixedGrip =
         {
@@ -83,9 +84,12 @@ namespace MountainPlanner.App
         /// <summary>The Sessellift D6 six-pack's tower heads, in the six-pack mode's order.</summary>
         static readonly string[] SixPackHeads =
             { "sessellift_d6_tower_s4", "sessellift_d6_tower_s6", "sessellift_d6_tower_s10", "sessellift_d6_tower_b10", "sessellift_d6_tower_d10", "sessellift_d6_tower_c8" };
+        /// <summary>The Sessellift D4 detachable quad's tower heads (the quad's kit at its gauge), in the D4 mode's order.</summary>
+        static readonly string[] QuadHeads =
+            { "sessellift_d4_tower_s4", "sessellift_d4_tower_s6", "sessellift_d4_tower_b8", "sessellift_d4_tower_d8", "sessellift_d4_tower_c8" };
         const float LineShown = 100f;                // how far up the line the return mode draws the rope
 
-        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField, Monta, Chairs, SixPack, FixedGrip }
+        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField, Monta, Chairs, SixPack, FixedGrip, Quad }
 
         readonly List<GameObject> _spawned = new List<GameObject>();
         readonly Dictionary<GameObject, int[]> _lodTriangles = new Dictionary<GameObject, int[]>();
@@ -343,6 +347,33 @@ namespace MountainPlanner.App
                     if (_focus != null) FrameOn(_focus, 38f, 205f, 14f);
                     break;
                 }
+                case Mode.Quad:
+                {
+                    // the D4's top and bottom facing up the line (the bottom's first tower ahead of it), a chair on the
+                    // rope between them, and its tower heads on full kit towers further up, each with its ropes
+                    var chair = Asset("sessellift_d4_chair");
+                    var top = Asset("sessellift_d4_top");
+                    var bottom = Asset("sessellift_d4_bottom");
+                    if (top != null) Spawn(top, new Vector3(-12f, 0, 0), Quaternion.identity, livery);
+                    if (bottom != null) Spawn(bottom, new Vector3(12f, 0, 0), Quaternion.identity, livery);
+                    var rig = top != null ? top.GetComponent<LiftRig>() : null;
+                    var bend = rig != null ? rig.Socket("rope_right_bend") : null;
+                    if (chair != null) Spawn(chair, new Vector3(0, bend != null ? bend.localPosition.y : 3.6f, 0), Quaternion.identity, livery);
+                    for (int i = 0; i < QuadHeads.Length; i++)
+                    {
+                        var head = SpawnTower(QuadHeads[i], new Vector3((i - (QuadHeads.Length - 1) / 2f) * 11f, 0, 45f), Quaternion.identity, TowerRope, livery);
+                        if (head == null) continue;
+                        if (QuadHeads[i] == "sessellift_d4_tower_b8") _focus = head;
+                        var hr = head.GetComponent<LiftRig>();
+                        foreach (string side in new[] { "left", "right" })
+                        {
+                            var p = hr.Socket("rope_" + side).position;
+                            AddRope(p + Vector3.back * 16f, p + Vector3.forward * 16f, side == "right" ? chair : null, livery, true);
+                        }
+                    }
+                    if (_focus != null) FrameOn(_focus, 38f, 205f, 14f);
+                    break;
+                }
                 case Mode.FixedGrip:
                     // every fixed-grip terminal facing up the line (+Z), a model to a row
                     for (int row = 0; row < FixedGrip.Length; row++)
@@ -588,6 +619,7 @@ namespace MountainPlanner.App
                 if (keys.digit0Key.wasPressedThisFrame) Show(Mode.Chairs);
                 if (keys.xKey.wasPressedThisFrame) Show(Mode.SixPack);
                 if (keys.mKey.wasPressedThisFrame) Show(Mode.FixedGrip);
+                if (keys.jKey.wasPressedThisFrame) Show(Mode.Quad);
                 if (keys.vKey.wasPressedThisFrame) { _head = (_head + 1) % HeadKeys.Length; Show(_mode); }
                 if (keys.tabKey.wasPressedThisFrame) Show(_mode < Mode.Chair ? _mode + 1 : Mode.Drive);
                 if (keys.lKey.wasPressedThisFrame) CycleLod();
@@ -670,7 +702,7 @@ namespace MountainPlanner.App
             }
             _text.Append("Snow ").Append((_snow * 100).ToString("F0")).Append("% · livery ").Append(_livery % Liveries.Length + 1).Append('/').Append(Liveries.Length);
             if (Help)
-                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · 9 Monta · 0 chairs · X six-pack · M fixed-grip · V head (")
+                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · 9 Monta · 0 chairs · X six-pack · J D4 quad · M fixed-grip · V head (")
                      .Append(HeadKeys[_head] ?? "own").Append(") · Tab next · L LOD · N snow · C colour · T turntable · G ground · B benchmark · P screenshot · H help · Esc quit")
                      .Append("\nWASD move · Q/E rotate · R/F tilt · wheel zoom · middle-drag rotate · right-drag move · Shift faster");
             return _text.ToString();

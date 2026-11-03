@@ -216,6 +216,8 @@ echo        X six-pack, L LOD, N snow, C colour, T turntable, mouse/WASD camera,
 echo     69f Drive at either end: every fixed-grip terminal (Sessellift quad, triple, double; Monta 4, 3, 2) in the Lift
 echo        Lab, a model to a row. V steps every terminal through its heads: its own, bottom, top with 4, 6 and 8 sheaves
 echo        (a terminal without that head keeps its own); the overlay names the shown head and its triangles.
+echo     69q The Sessellift D4 detachable quad in the Lift Lab: bottom terminal with its first tower, top terminal,
+echo        the quad chair on the detachable grip and its five tower heads on full towers. J back to this view.
 echo.
 echo   Phase 3, task 10: the ski network (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     70 The Network view on the style tile and a second lift: Tab, then Network (or click the bar's lift or trail count).
@@ -365,6 +367,7 @@ if /i "%CHOICE%"=="67b" goto trailbench
 if /i "%CHOICE%"=="67c" goto trailcaptures
 if /i "%CHOICE%"=="69" goto sixpack
 if /i "%CHOICE%"=="69f" goto fixedgrip
+if /i "%CHOICE%"=="69q" goto quaddetach
 if /i "%CHOICE%"=="70" goto network
 if /i "%CHOICE%"=="70c" goto networkcaptures
 if /i "%CHOICE%"=="70k" goto networkown
@@ -1290,6 +1293,13 @@ call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto done
 echo Starting the Lift Lab on the fixed-grip terminals. V next head, M back to this view, L LOD, N snow, C colour, H help, Esc quit.
 start "" "%LIFTLAB%" -mode fixedgrip
+goto menu
+
+:quaddetach
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the Sessellift D4 detachable quad. J this view, L LOD, N snow, C colour, T turntable, H help, Esc quit.
+start "" "%LIFTLAB%" -mode d4
 goto menu
 
 :liftlab
