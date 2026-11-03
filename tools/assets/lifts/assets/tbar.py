@@ -19,8 +19,9 @@ centre (dims "footOffsetPerSection", base dims "footOffset").
          tower's lifting frame in miniature (owner, 2026-11-03: liftkit.heads.portal on the chair's numbers scaled to
          the gauge): two legs leaning out from foot plates on the arm to a bolted lifting beam, lug plates with eyes over
          each rope, J-handrails, a black number plate on the beam's face toward the bottom station; curled hook brackets
-         for the wire on the beam and the cables clipped along it (D9); a square grating ring round the mast 1.15 m
-         down, braced to the arm's ends.
+         for the wire on the beam and the cables clipped along it (D9); the chair towers' catwalk beside the arm on the
+         ladder's side (owner, 2026-11-03: liftkit.heads.entry_platform, at walking size), its grated deck level with
+         the arm's top, a hoop rail and struts, the mast ladder climbing on through its hatch to grab rails.
          Origin on the mast top (on the leaned axis); the frame is level. Sockets mast_top, rope_left, rope_right,
          number_plate, wire_left, wire_right.
 
@@ -87,11 +88,6 @@ def leaned(src, lean, about=(0.0, 0.0, 0.0)):
         p = Vector(frame.lift(vb)) - c
         out.verts[i] = frame.b(tuple(c + Vector((p.x, p.y * cs + p.z * sn, -p.y * sn + p.z * cs))))
     return out
-
-
-def lean_point(p, lean):
-    u, v, w = p
-    return Vector((u, v * math.cos(lean) + w * math.sin(lean), -v * math.sin(lean) + w * math.cos(lean)))
 
 
 def build(spec, lod, stage, variant):
@@ -172,6 +168,33 @@ def ladder(mb, t, h, lod, st):
     for k in range(n):
         w = h * (k + 0.5) / n
         prims.cylinder(mb, (uo, -hw, w), (uo, hw, w), m(ld["rungDia"]) / 2, 6 if lod == 0 else 4, st["galv"], caps=(False, False))
+
+
+def ladder_top(t, cw, lean, lod, st):
+    """The ladder's last stretch, on the head: on from the mast top along the leaned axis up through the catwalk's
+    hatch on the sections' rung pitch, the stiles capped at the deck, grab rails on 1 m above it (as on the chair
+    towers). Built upright, for the caller to lean."""
+    ld = t["ladder"]
+    mb = MeshBuilder()
+    r = m(t["mast"]["dia"]) / 2
+    uo, hw = r + m(ld["standoff"]), m(ld["halfWidth"])
+    sw, sd = m(ld["stile"][0]), m(ld["stile"][1])
+    h = m(cw["deck"]) / math.cos(lean)   # along the axis to the deck's top
+    if lod == 2:
+        prims.box(mb, (uo - sd, -hw, 0.0), (uo + sd, hw, h), st["galv"], skip=("-2",))
+    if lod >= 2:
+        return mb
+    for sv in (-1, 1):
+        prims.box(mb, (uo - sw / 2, sv * hw - sd / 2, 0.0), (uo + sw / 2, sv * hw + sd / 2, h), st["galv"], skip=("-2",))
+        prims.cylinder(mb, (uo, sv * hw, h), (uo, sv * hw, h + m(cw["grabRail"])), 0.021, 6 if lod == 0 else 4, st["galv"],
+                       caps=(False, True))
+    pitch = m(t["mast"]["section"]) / ld["rungs"]
+    k = 0
+    while (k + 0.5) * pitch < h - 0.05:
+        prims.cylinder(mb, (uo, -hw, (k + 0.5) * pitch), (uo, hw, (k + 0.5) * pitch), m(ld["rungDia"]) / 2, 6 if lod == 0 else 4,
+                       st["galv"], caps=(False, False))
+        k += 1
+    return mb
 
 
 def mast_section(t, lod, st):
@@ -474,12 +497,15 @@ def head(spec, t, variant, lod, st):
     hv = v_ep - m(ep["thick"])        # the arm's end: the end plate's inboard face
     au, ad = m(arm["halfU"]), m(arm["depth"])
     prims.box(mb, (-au, -hv, 0.0), (au, hv, ad), st["galv"], skip=("-1", "+1") if lod <= 2 else ())
+    cw = hd["catwalk"]
     if lod == 0:   # triangular gussets on both faces (R7): wide at the arm's foot, to a point at its top
         k = int(hv // m(arm["ribs"]))
         ro, rt = m(arm["ribOut"]), m(arm["ribThick"])
         for i in range(-k, k + 1):
             for su in (-1, 1):
                 v0 = i * m(arm["ribs"])
+                if su > 0 and abs(v0) < m(cw["v"]) / 2:   # inside the catwalk's end member on the +u face
+                    continue
                 gusset = [(su * au, 0.0), (su * (au + ro), 0.0), (su * au, ad)]
                 prims.prism(mb, gusset, (0.0, v0 - rt / 2, 0.0), U, W, V, rt, st["galv"])
     w_pin = ad + m(hd["ropeAboveArm"]) - (T["eqDrop"] + T["rockerDrop"] + s["grooveBottom"] / 2 + T["ropeR"])
@@ -558,51 +584,20 @@ def head(spec, t, variant, lod, st):
             p = Vector(p)
             prims.box(mb, p - Vector((cr + 0.006, 0.015, cr + 0.006)), p + Vector((cr + 0.006, 0.015, cr + 0.006)), st["galv"])
 
-    # the platform: a square grating ring round the mast well down from the arm (R4, R26), a hole for the mast and a
-    # slot for the ladder on +u, toe boards, hooped railing stubs at its v ends, braces up to the arm's end plates
-    pf = hd["platform"]
-    pw = m(pf["w"])
-    vc = pw * math.tan(lean)                   # the mast's axis at the platform
-    ph, hole, slot = m(pf["half"]), m(pf["hole"]), m(pf["slot"])
-    th = m(pf["thick"])
-    if lod <= 2:
-        g = st["grating"]
-        if lod <= 1:
-            prims.box(mb, (-ph, vc - ph, pw - th), (ph, vc - hole, pw), g)
-            prims.box(mb, (-ph, vc + hole, pw - th), (ph, vc + ph, pw), g)
-            prims.box(mb, (-ph, vc - hole, pw - th), (-hole, vc + hole, pw), g)
-            prims.box(mb, (hole, vc - hole, pw - th), (ph, vc - slot, pw), g)
-            prims.box(mb, (hole, vc + slot, pw - th), (ph, vc + hole, pw), g)
-        else:
-            prims.box(mb, (-ph, vc - ph, pw - th), (ph, vc + ph, pw), g)   # its underside too: seen from below
+    # the catwalk (owner, 2026-11-03): the chair towers' head platform beside the arm on the ladder's side, its hatch
+    # centred where the leaned ladder meets the deck; far out one slab, the hatch, hoop and struts under a pixel
+    vc = m(cw["deck"]) * math.tan(lean)
     if lod <= 1:
-        toe = m(pf["toe"])
-        edges = [((-ph, -ph), (-ph, ph)), ((-ph, -ph), (ph, -ph)), ((-ph, ph), (ph, ph)),
-                 ((ph, -ph), (ph, -slot)), ((ph, slot), (ph, ph))]
-        for (u0, v0), (u1, v1) in edges:
-            prims.box(mb, (min(u0, u1) - 0.004, vc + min(v0, v1) - 0.004, pw), (max(u0, u1) + 0.004, vc + max(v0, v1) + 0.004, pw + toe),
-                      st["galv"], skip=("-2",))
-        if lod == 0:   # hooped railing stubs along the platform's v edges
-            sh = m(pf["stub"])
-            for sv in (-1, 1):
-                hoop = [Vector((-ph * 0.9, vc + sv * ph * 0.97, pw)), Vector((-ph * 0.9, vc + sv * ph * 0.97, pw + sh)),
-                        Vector((ph * 0.9, vc + sv * ph * 0.97, pw + sh)), Vector((ph * 0.9, vc + sv * ph * 0.97, pw))]
-                hoop = prims.fillet(prims.fillet(hoop, 2, 0.1, 2), 1, 0.1, 2)
-                prims.tube_path(mb, [Vector(p) for p in hoop], 0.024, 6, st["galv"], caps=False)
-        br = m(pf["brace"]) / 2
-        for sv in (-1, 1):   # braces from the platform's v edges into the arm's end plates, capped (Gate 2 v2: the
-            # posts used to hide their open tops)
-            prims.cylinder(mb, (0.0, vc + sv * (ph - 0.08), pw), (0.0, sv * (hv + 0.005), w_pin + m(ep["above"]) - 0.02), br,
-                           parts.sides(lod, 6, 4), st["galv"], caps=(False, True))
-        for cu, cv in ((-1, -1), (-1, 1), (1, -1), (1, 1)):   # struts from the sleeve out under the platform's corners
-            p0 = lean_point((cu * rs * 0.7, cv * rs * 0.7, m(sl["from"]) + 0.08), lean)
-            p1 = Vector((cu * (ph - 0.1), vc + cv * (ph - 0.1), pw - th))
-            prims.beam(mb, p0, p1, 0.05, 0.05, st["galv"], skip_ends=True)
+        heads.entry_platform(mb, cw, {"bottom": 0, "top": arm["depth"]}, lod, st, hatch=(vc - m(cw["hatch"]), vc + m(cw["hatch"])))
+    elif lod == 2:
+        parts.deck(mb, (m(cw["endMember"][0]), -m(cw["v"]) / 2, m(cw["under"])), (m(cw["uTo"]), m(cw["v"]) / 2, m(cw["deck"])),
+                   lod, st["galv"])
+    mb.merge(leaned(ladder_top(t, cw, lean, lod, st), lean))
 
     a.body = mb
     a.sockets.update({"mast_top": (0.0, 0.0, 0.0), "rope_left": (0.0, -hg, rope), "rope_right": (0.0, hg, rope)})
     n_sheaves = cfg[mode]
     a.dims.update({"rope": round(rope * 1000), "armTop": round(ad * 1000), "sheaves": 2 * n_sheaves, "leanDeg": t["lean"],
-                   "portalTop": bm["top"], "platform": round(pw * 1000),
+                   "portalTop": bm["top"], "catwalk": cw["deck"],
                    "footOffsetPerSection": round(m(t["mast"]["section"]) * math.sin(lean) * 1000, 1)})
     return a

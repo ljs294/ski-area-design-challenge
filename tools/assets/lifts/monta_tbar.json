@@ -74,7 +74,7 @@
       "pad": {"from": 200, "thick": 60, "cap": 60}
     },
     "head": {
-      "_v3": "R3 one tall cone from the sleeve to the flange; R4/R26 a square platform ring 1.15 m down the mast with braces to the arm ends; R7 triangular gussets; R27 curled hook brackets for the wire (now on the lifting beam); R29 smooth catchers, longer on the drag (+v) side; R32 octagonal pin covers the arm's depth",
+      "_v3": "R3 one tall cone from the sleeve to the flange; R4/R26 the platform (now the catwalk on the head, owner 2026-11-03); R7 triangular gussets; R27 curled hook brackets for the wire (now on the lifting beam); R29 smooth catchers, longer on the drag (+v) side; R32 octagonal pin covers the arm's depth",
       "sleeve": {"from": -700, "to": -500, "gap": 12},
       "cone": {"top": -20, "dia": 650},
       "flange": {"half": 340, "thick": 60},
@@ -95,7 +95,10 @@
       "numberPlate": {"halfV": 146, "height": 189, "thick": 8, "standoff": 20},
       "hook": {"v": 1180, "dia": 70, "rod": 12, "post": 60, "curl": 180},
       "cable": {"dia": 16},
-      "platform": {"w": -1150, "half": 650, "hole": 270, "slot": 220, "thick": 40, "toe": 100, "stub": 450, "brace": 40},
+      "_catwalk": "the catwalk on the head (owner, 2026-11-03: replaces the platform ring round the mast): the chair towers' head platform, drawn by the same liftkit.heads.entry_platform in its own format, beside the arm on the ladder's side (+u) with its deck level with the arm's top, at walking size (not scaled with the gauge): a grated deck 600 deep in two halves either side of the ladder hatch, the end member on the arm's face, a U hoop rail 1.06 m high with a mid rail across its outer edge, two struts back down to the arm's foot; 2.1 m wide (v), its ends 0.45 m inside the ropes as on the chair's line towers; the mast ladder climbs on through the hatch (centred on the leaned ladder where it meets the deck), grab rails 1 m above the deck",
+      "catwalk": {"deck": 320, "under": 250, "uFrom": 165, "uTo": 765, "v": 2100, "hatch": 300, "grabRail": 1000,
+                  "hoop": {"u": 747, "top": 1382, "mid": 885, "corner": 150},
+                  "strut": {"from": [710, 250], "to": [175, 0], "v": 600, "size": 25}, "endMember": [120, 170]},
       "_catcher": "black tube out from each end of each train, inside the carrier hanger's D (out of v, below the rope), so a swinging hanger can't reach the sheaves: a smooth sweep outboard and down, the same on both ropes (owner, v3.1)",
       "catcher": {"dia": 40, "length": 2000, "out": 100, "below": 120, "gap": 200, "sweep": [90, 400]}
     },

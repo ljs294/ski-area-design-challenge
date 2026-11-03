@@ -116,7 +116,7 @@
     "crossFade": true
   },
   "surface_tower_head": {
-    "_about": "A T-bar tower head (owner 2026-11-02; raised for the two-level head, D10 2026-11-03, and for the chair tower's lifting frame in miniature, 2026-11-03): crossarm, lifting frame, a sheave train on each rope with its catchers, platform, cables; a line can have 20 or more.",
+    "_about": "A T-bar tower head (owner 2026-11-02; raised for the two-level head, D10 2026-11-03, and for the chair tower's lifting frame in miniature, 2026-11-03): crossarm, lifting frame, a sheave train on each rope with its catchers, the catwalk, cables; a line can have 20 or more.",
     "lods": [
       {"lod": 0, "maxTris": 6600, "untilM": 12},
       {"lod": 1, "maxTris": 2200, "untilM": 40},

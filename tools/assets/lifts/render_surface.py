@@ -10,11 +10,12 @@
   surface_photos  the same line in Cycles on snow: hero, each terminal, a tower head, the carriers close up, and a short
                   J-bar line beside it (one carrier kind per line, D7).
   surface_audit   no images: the holes the game would show where it culls back faces (tbar_audit.json, Gate 2).
-  surface_gate2   Gate 2, as the game draws the models (back faces culled): hero, each terminal, a tower, the J bars,
-                  the line after snowfall; the game's camera far and mid with each model at the LOD the game picks at
+  surface_gate2   Gate 2, as the game draws the models (back faces culled): hero, each terminal, a tower and its
+                  catwalk, the J bars, the line after snowfall; the game's camera far and mid with each model at the LOD the game picks at
                   its distance (Low quality, lodBias 1); each model's LODs side by side (tbar_lods_<row>.png).
   surface_heads   the T-bar's s4 head beside the fixed-grip chair tower's (build tower_s4, tower_mast and tower_base
-                  too), whose lifting frame it carries in miniature: a front view at one scale and a photo.
+                  too), whose lifting frame and catwalk it carries: a front view at one scale and photos from down
+                  and up the line.
 
 The scene copies the built objects (LOD0, or the game's LOD for Gate 2's game views) and hides everything else;
 render_review's helpers do the cameras, materials and rope curves.
@@ -636,6 +637,7 @@ def gate2(built, out_dir, mats):
     for name, target, az, el, dist, lens in (
             ("hero", (45.0, 0.0, 3.0), 205, 10, 40.0, 35), ("drive", (1.5, 0.0, 3.0), 35, 16, 12.0, 50),
             ("return", (U_TOP - 1.5, 0.0, 4.0), 215, 16, 12.0, 50), ("tower", (30.0, 0.0, 5.6), 130, 10, 6.0, 50),
+            ("catwalk", (30.0, 0.0, 5.2), 35, 20, 6.0, 40),
             ("jbar", (15.5, 16.0, 2.5), 140, 8, 7.0, 40)):
         _shoot(name, over(target), az, el, dist, lens=lens)
     materials.set_snow(mats, 1.0)   # framed as "drive", to compare
@@ -683,8 +685,8 @@ def gate2(built, out_dir, mats):
 def heads_compare(built, out_dir, mats):
     """The T-bar's s4 head beside the fixed-grip chair tower's s4 head, whose lifting frame it carries in miniature
     (owner, 2026-11-03; the chair's built as tower_s4 with tower_mast and tower_base): each on its tower on level snow,
-    ropes through both, back faces culled. A front view from down the line (orthographic, one scale for both) and a
-    three-quarter photo."""
+    ropes through both, back faces culled. A front view from down the line (orthographic, one scale for both) and two
+    three-quarter photos, from down the line and from up it (the catwalks)."""
     materials.cull_backfaces(mats)
     sc, sun = rr._photo_scene()
     snow = rr._snow_plane(0.0)
@@ -717,7 +719,9 @@ def heads_compare(built, out_dir, mats):
     cam.rotation_euler = (frame.b(tuple(centre)) - cam.location).to_track_quat("-Z", "Y").to_euler()
     rr.render(os.path.join(out_dir, "tbar_heads_front.png"))
     sc.render.resolution_x, sc.render.resolution_y = 1600, 1066
-    rr._shooter("tbar", out_dir)("heads", tuple(centre), 160, 12, 13.0, lens=35)
+    shoot = rr._shooter("tbar", out_dir)
+    shoot("heads", tuple(centre), 160, 12, 13.0, lens=35)
+    shoot("heads_catwalk", tuple(centre), 25, 14, 13.0, lens=35)   # from uphill: both catwalks on the ladder side
     rr._photo_end(sc, [snow] + curves)
     for ob in objs + curves:
         bpy.data.objects.remove(ob)
