@@ -60,7 +60,7 @@ namespace MountainPlanner.Presentation.Edits
                 {
                     ForestField.Decode(packed, i, out float fx, out float fz, out _, out _, out _, out _);
                     var t = _trees[range.Start + i];
-                    uint flags = ForestField.IsCleared(packed, i, b.West, b.North, _cache.TileMetres, Current, _lattice) ? ForestInstance.Cleared : 0u;
+                    uint flags = TreeCleared(packed, i, b.West, b.North, _cache.TileMetres, Current) ? ForestInstance.Cleared : 0u;
                     float y = GroundY(tile, b, heights.Edits, fx, fz);
                     if (t.Flags == flags && t.Position.y == y) continue;
                     // A tree on its tile's outermost posts that no edit ever moved keeps the footing it was planted with, which

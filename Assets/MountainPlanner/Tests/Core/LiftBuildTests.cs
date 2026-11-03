@@ -335,7 +335,7 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void TW12_AOneMileLinePlacesWithinFiftyMilliseconds()
+        public void TW12_AOneMileLinePlacesWithinSixtyMilliseconds()
         {
             var ground = new EditedHeights(new Profile(s => 0.3 * s + 6 * Math.Sin(s / 60)), Lattice, TerrainEdits.Empty);
             double bx = West + 100, by = North - 1700, ty = by + 1609;
@@ -348,7 +348,7 @@ namespace MountainPlanner.Tests
                 times.Add(sw.Elapsed.TotalMilliseconds);
             }
             times.Sort();
-            Budget.AtMost(times[2], 50, "TW-12, a 1-mile line (median)");
+            Budget.AtMost(times[2], 60, "TW-12, a 1-mile line (median)");   // TW-12 v3 (owner, 2026-11-02): 60 ms with 300 ft spans
         }
 
         // Finding D2 (owner, 2026-10-23): a 7,227 ft D6's review sat on "Towers placing…". A long line's build on the package
