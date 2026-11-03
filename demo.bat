@@ -264,7 +264,7 @@ echo        Round 6 adds three presses confirmed on the last let-go (each fold s
 echo.
 echo   Phase 3, bug bash (v0.3.1; rebuilds the game, close the Unity editor first; needs the network)
 echo     76 A new-area download with OpenStreetMap down: Jackson Hole 2 km into an empty library, with the map
-echo        features server pointed at an address that never answers. After about 75 s the step reads "map features
+echo        features server pointed at an address that never answers. After about 30 s the step reads "map features
 echo        unavailable - skipped", the download finishes, and the quality card says land cover stands in for water and roads.
 echo.
 echo     Q  Quit
@@ -458,14 +458,15 @@ start "" "%GAME%" -data "%SCRATCH%" -offline
 goto menu
 
 :overpassskip
-rem Task P3-16 BB1: each OpenStreetMap (Overpass) mirror gets one 75 s try, then the step is skipped. -overpass swaps the
-rem mirrors for one unroutable address, so the try always times out. The build is fresh so it has the fix.
+rem Task P3-16 BB1: when no OpenStreetMap (Overpass) mirror answers and the other map services do, the step is skipped.
+rem -overpass swaps the mirrors for one unroutable address: about 21 s to fail to connect, up to 10 s to ask the others.
+rem The build is fresh so it has the fix.
 call :buildplayer
 if not exist "%GAME%" goto done
 set "OVERPASSRUN=%LOCALAPPDATA%\SkiAreaDesignChallenge-overpass"
 if exist "%OVERPASSRUN%" rmdir /s /q "%OVERPASSRUN%"
 echo Starting the game with an empty library %OVERPASSRUN%: Jackson Hole 2 km starts downloading by itself.
-echo   It waits on "OpenStreetMap (Overpass)" for about 75 s, then shows "map features unavailable - skipped" and goes on.
+echo   It waits on "OpenStreetMap (Overpass)" for about 30 s, then shows "map features unavailable - skipped" and goes on.
 echo   When it finishes, the quality card reads: "Water and roads: OpenStreetMap was unavailable, so satellite land
 echo   cover stands in for them." Open the area to check it, then quit the game.
 start "" /wait "%GAME%" -data "%OVERPASSRUN%" -download "Jackson Hole" 43.593 -110.848 2 -overpass http://10.255.255.1/api/interpreter

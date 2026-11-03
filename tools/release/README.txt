@@ -7,8 +7,8 @@ A ski resort designer on real mountains, built from U.S. Geological Survey lidar
 NEW IN 0.3.1
 
 - Downloads no longer hang at "waiting for OpenStreetMap (Overpass)". If the OpenStreetMap servers don't answer,
-  the download skips map features after about a minute and finishes anyway: satellite land cover stands in for
-  water and roads, and the area's quality card says so.
+  the download skips map features after a few minutes at most and finishes anyway: satellite land cover stands in
+  for water and roads, and the area's quality card says so.
 - The bullwheels in the lift terminals now turn with the rope.
 
 
