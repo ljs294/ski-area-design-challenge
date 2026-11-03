@@ -53,6 +53,10 @@ NARROW_TERMINALS = {f"{p}_{end}": (end if p.startswith("fg") else f"monta_{end}"
 NARROW_TERMINALS.update({f"monta_{p}_return_bottom": "monta_return_bottom" for p in ("fg2", "fg3")})   # drive at either end
 ORTHO.update({k: ORTHO[like] for k, like in NARROW_TERMINALS.items()})
 TERMINALS = ("drive", "return", "monta_drive", "monta_return", "monta_return_bottom", "d6_drive", "d6_return") + tuple(NARROW_TERMINALS)
+# the Sessellift Stern's terminals, as its layouts draw them (seen through the deliberate mirror, Gate 0)
+STERN_TERMINALS = tuple(f"stern{n}_{end}" for n in (4, 3, 2) for end in ("drive", "return"))
+ORTHO.update({k: [("side", "-u", "+w"), ("end", "+v", "+w"), ("plan", "-u", "-v")] for k in STERN_TERMINALS})
+TERMINALS += STERN_TERMINALS
 CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed", "d6_chair",
           "fgd2_chair", "fgt3_chair", "chairworks_chair_double_fixed", "chairworks_chair_triple_fixed")
 # the chairs of each fixed-grip family side by side: quad, triple, double (v0.3.2)
@@ -734,7 +738,9 @@ def chair_lineup(name, chairs, spec, out_dir, mats, gap=3.0):
 
 TERMINAL_LINEUPS = {"monta_drive": ("monta_drive", "monta_fg3_drive", "monta_fg2_drive"),   # v0.3.2: quad, triple,
                     "monta_return": ("monta_return", "monta_fg3_return", "monta_fg2_return"),   # double
-                    "monta_return_bottom": ("monta_return_bottom", "monta_fg3_return_bottom", "monta_fg2_return_bottom")}
+                    "monta_return_bottom": ("monta_return_bottom", "monta_fg3_return_bottom", "monta_fg2_return_bottom"),
+                    "stern_drive": ("stern4_drive", "stern3_drive", "stern2_drive"),
+                    "stern_return": ("stern4_return", "stern3_return", "stern2_return")}
 
 
 def terminal_lineup(name, terms, out_dir, gap=16.0):
@@ -1614,7 +1620,7 @@ def render_all(built, spec, out_dir, shots, mats):
         Monta's too, Q4), else the quad's."""
         if key.startswith("d6_"):
             return d6_chairs
-        for seats, tags in ((2, ("fgd2_", "monta_fg2_")), (3, ("fgt3_", "monta_fg3_"))):
+        for seats, tags in ((2, ("fgd2_", "monta_fg2_", "stern2_")), (3, ("fgt3_", "monta_fg3_", "stern3_"))):
             if key.startswith(tags):
                 return narrow.get(seats)
         return chairs

@@ -1,0 +1,19 @@
+{
+  "_about": "Sessellift Stern T-3 fixed-grip triple: the Stern Q-4 at a 12 ft line gauge (owner, 2026-11-02, as the FGQ-4's doubles and triples, LD5). The hood, piers, column, boom and decks keep the quad's size; the arms, crossbeams, lifting portals, sheave rows and bullwheel plates follow the gauge (assets/stern_heads.py). The chairs are the FGQ-4 family's. Millimetres.",
+  "base": "sessellift_stern4.json",
+  "idPrefix": "sessellift_stern3",
+  "model": {
+    "seats": 3
+  },
+  "common": {
+    "lineGauge": 3658
+  },
+  "catalog": {
+    "maker": "Sessellift",
+    "name": "Sessellift Stern T-3",
+    "parts": {
+      "sessellift_stern3_drive": "Drive terminal",
+      "sessellift_stern3_return": "Return terminal"
+    }
+  }
+}
