@@ -4,8 +4,8 @@
   outboard of the rope, from the hanger plates at the line end back under the crossbeam and through the hood to a
   transverse pipe on the tapered back column, the rails hung under it; the windowed hood over the tensioning
   carriage and the exposed bullwheel (static at its drawn position, owner), its ends flat and vertical (owner); a tie across the hanger plates carrying
-  the hold-down rows and the lifting portal; the ladder up to the frame on the loading side. No conveyor, pit or
-  landings (owner; none drawn).
+  the hold-down rows and the lifting portal; the ladder up to the frame on the loading side and the catwalk across the
+  line end to the engine room's door (owner). No conveyor or pit (owner; none drawn).
 
 Loaded chairs leave on the right rope (v+), loading at chairLoadU; the bullwheel turns counter-clockwise seen from
 above. Bottom drive only (owner, 2026-11-02): the hold-down rows are the terminal's one head (liftkit/swap.py), and
@@ -141,12 +141,19 @@ def end_cap(mb, h, half, u_end, sign, lod, st):
     """One flat end (owner, 2026-11-03: vertical and plane, as the D6's): the rim, the hood's shell turned in at u_end
     (spec hood.ring), its soffit back to the wall recessed inside it, and the wall with its window: three panes
     (spec hood.endPanes, the sides' pane size from their sill; the owner's, not drawn) in a frame a hand
-    deep, the glass set back behind the mullions. sign: +1 the line end, -1 the far end."""
+    deep, the glass set back behind the mullions; at the line end the middle pane is the door onto the catwalk
+    (endPanes.door, owner 2026-11-03: a kick panel over its lower glass and a pull handle). sign: +1 the line end, -1
+    the far end."""
     rg, pn, ep = h["ring"], h["panes"], h["endPanes"]
     out = (sign, 0.0, 0.0)
     gv = (ep["n"] * ep["width"] + (ep["n"] - 1) * pn["mullion"]) / 2
     gw0, gw1 = pn["sill"], ep["head"]
     pane = [(-gv, gw0), (gv, gw0), (gv, gw1), (-gv, gw1)]
+    door = ep.get("door") if sign > 0 else None
+    if door:   # the middle pane's span and its kick panel's top
+        dv0 = -gv + (ep["n"] // 2) * (ep["width"] + pn["mullion"])
+        dv1, dw = dv0 + ep["width"], gw0 + door["panel"]
+        kick = [(dv0, gw0), (dv1, gw0), (dv1, dw), (dv0, dw)]
 
     def face(u, poly, style):
         mb.face(mb.verts_lift([(m(u), m(v), m(w)) for v, w in poly]), style, out)
@@ -157,6 +164,8 @@ def end_cap(mb, h, half, u_end, sign, lod, st):
     if lod >= 3:   # far out: the end flush, the glass on it
         face(u_end, half + mirror(half[:-1]), st["hood"])
         face(u_end + sign * 10, pane, st["glass"])
+        if door:
+            face(u_end + sign * 12, kick, st["hood"])
         return
     outline, inner = rim(half, h["ring"]["width"])
     u_wall = u_end - sign * rg["recess"]
@@ -169,6 +178,8 @@ def end_cap(mb, h, half, u_end, sign, lod, st):
     if lod == 2:   # the wall whole, the glass on it
         face(u_wall, right + mirror(right[:-1]), st["hood"])
         face(u_wall + sign * 10, pane, st["glass"])
+        if door:
+            face(u_wall + sign * 12, kick, st["hood"])
         return
 
     def v_at(w):
@@ -197,6 +208,8 @@ def end_cap(mb, h, half, u_end, sign, lod, st):
         for k in range(1, ep["n"]):
             vc, hw = -gv + k * ep["width"] + (k - 0.5) * pn["mullion"], pn["mullion"] / 2
             face(u_in + sign * 10, [(vc - hw, gw0), (vc + hw, gw0), (vc + hw, gw1), (vc - hw, gw1)], st["trim"])
+        if door:
+            face(u_in + sign * 5, kick, st["hood"])
         return
     ua, ub = sorted((m(u_wall), m(u_wall - sign * dp)))   # the frame, lining the opening a hand deep
     for (v0, w0), (v1, w1) in (((-fv, fw0), (-gv, fw1)), ((gv, fw0), (fv, fw1)), ((-gv, fw0), (gv, gw0)), ((-gv, gw1), (gv, fw1))):
@@ -206,6 +219,14 @@ def end_cap(mb, h, half, u_end, sign, lod, st):
     for k in range(1, ep["n"]):
         vc = -gv + k * ep["width"] + (k - 0.5) * pn["mullion"]
         prims.box(mb, (ua, m(vc - pn["mullion"] / 2), m(gw0)), (ub, m(vc + pn["mullion"] / 2), m(gw1)), st["trim"])
+    if door:   # the kick panel on the glass, the pull handle on the glass above it near the door's edge
+        u_gl = u_wall - sign * dp
+        ua, ub = sorted((m(u_gl), m(u_gl + sign * 20)))
+        prims.box(mb, (ua, m(dv0), m(gw0)), (ub, m(dv1), m(dw)), st["hood"])
+        hd = door["handle"]
+        vh = dv1 - hd["in"]
+        ua, ub = sorted((m(u_gl), m(u_gl + sign * hd["proud"])))
+        prims.box(mb, (ua, m(vh - hd["width"] / 2), m(hd["w"][0])), (ub, m(vh + hd["width"] / 2), m(hd["w"][1])), st["trim"])
 
 
 def side_v(half, w):
@@ -288,26 +309,61 @@ def frame(mb, d, hg, lod, st):
 
 
 def ladder(mb, d, hg, lod, st):
-    """The ladder on the loading side (+v), climbing across the line to the frame pipe, its stringers carried on up
-    the slope, and its two bent grab hoops with their mid bars."""
+    """The ladder on the loading side (+v), climbing across the line to the catwalk's edge, and at its sides two bent
+    grab hoops, walk-through onto the deck (owner, 2026-11-03), with their mid bars."""
     la = d["ladder"]
     uc, width = m(sum(la["u"])) / 2, m(la["u"][1] - la["u"][0]) - m(51)
     foot = (uc, hg + m(la["foot"][0]), m(la["foot"][1]))
     head = (uc, hg + m(la["head"][0]), m(la["head"][1]))
-    stern_heads.ladder(mb, foot, head, width, m(la["rungRise"]), lod, st["galv"], st["yellow"], stringer=m(la["stringer"]),
-                       extend=m(la["extend"]))
+    stern_heads.ladder(mb, foot, head, width, m(la["rungRise"]), lod, st["galv"], st["yellow"], stringer=m(la["stringer"]))
     hp = la["hoops"]
     if lod >= 2:
         return
     vi, vo = hg + m(hp["v"][0]), hg + m(hp["v"][1])
-    top = m(hp["top"])
+    foot, top = m(hp["foot"]), m(hp["top"])
     for u in hp["u"]:
-        stern_heads.tube(mb, [(m(u), vi, m(hp["foot"])), (m(u), vi, top), (m(u), vo, top), (m(u), vo, m(hp["outerFoot"]))], m(hp["dia"]), lod,
-                         st["galv"], corner=m(hp["corner"]))
+        stern_heads.tube(mb, [(m(u), vi, foot), (m(u), vi, top), (m(u), vo, top), (m(u), vo, foot)], m(hp["dia"]), lod, st["galv"],
+                         corner=m(hp["corner"]))
         if lod == 0:
-            mid = hp["mid"]
-            stern_heads.pipe(mb, (m(u), hg + m(mid["v"][0]), m(mid["w"])), (m(u), hg + m(mid["v"][1]), m(mid["w"])), m(hp["dia"]), lod,
-                             st["galv"], sides=(8, 6), caps=(False, False))
+            stern_heads.pipe(mb, (m(u), vi, m(hp["mid"])), (m(u), vo, m(hp["mid"])), m(hp["dia"]), lod, st["galv"], sides=(8, 6),
+                             caps=(False, False))
+
+
+def catwalk(mb, d, h, hg, lod, st):
+    """The catwalk across the line end (owner, 2026-11-03; spec "catwalk"): grating on two cross beams between the
+    frame pipes, from the recessed end wall (the door, end_cap) to the drawn rail's line; the railing, a bent tube
+    up from the deck at the rim's face, along the -v end and the line edge and down at the +v corner, its mid rail,
+    posts and toe plate. The ladder's hoops guard the +v edge."""
+    cw = d["catwalk"]
+    u0, u1 = m(h["ends"]["line"] - h["ring"]["recess"]), m(cw["to"])
+    v0, v1 = -(hg + m(cw["v"][0])), hg + m(cw["v"][1])
+    top = m(cw["top"])
+    bottom = top - m(cw["thick"])
+    parts.deck(mb, (u0, v0, bottom), (u1, v1, top), lod, st["galv"], channels=False)
+    if lod <= 1:
+        bm = cw["beams"]
+        vb = hg + m(d["frame"]["v"])
+        for a, b in bm["u"]:
+            prims.box(mb, (m(a), -vb, bottom - m(bm["depth"])), (m(b), vb, bottom), st["galv"])
+    if lod >= 3:
+        return
+    rl = cw["railing"]
+    e, dia = m(rl["edge"]), m(rl["dia"])
+    ua, ub, va, vb = m(h["ends"]["line"]) + e, u1 - e, v0 + e, v1 - e
+    rail, mid = top + m(rl["top"]), top + m(rl["mid"])
+    sides = (8, 4, 4)
+    pts = [Vector(p) for p in ((ua, va, top), (ua, va, rail), (ub, va, rail), (ub, vb, rail), (ub, vb, top))]
+    for i in (3, 1):   # the bends at its ends rounded, the corner left square over its post
+        pts = prims.fillet(pts, i, m(rl["corner"]), 3 if lod == 0 else 1)
+    stern_heads.tube(mb, pts, dia, lod, st["galv"], sides=sides)
+    n = max(1, round((vb - va) / m(rl["posts"])))
+    for k in range(n):   # the corner's post and the line edge's between the ends
+        v = va + (vb - va) * k / n
+        stern_heads.pipe(mb, (ub, v, top), (ub, v, rail), dia, lod, st["galv"], sides=sides, caps=(False, False))
+    if lod <= 1:
+        stern_heads.tube(mb, [(ua, va, mid), (ub, va, mid), (ub, vb, mid)], dia, lod, st["galv"], sides=sides)
+        t = m(rl["toeThick"]) / 2
+        stern_heads.rect_path(mb, [(ua, v0 + t), (u1 - t, v0 + t), (u1 - t, v1)], t, top, top + m(rl["toe"]), st["galv"])
 
 
 def guides(mb, a, c, d, hg, lod, st):
@@ -363,6 +419,7 @@ def build(spec, lod, stage):
         mc = d["machinery"]
         prims.box(body, (m(mc["u"][0]), -m(mc["v"]) / 2, m(mc["bottom"])), (m(mc["u"][1]), m(mc["v"]) / 2, m(mc["top"])), st["interior"])
     ladder(body, d, hg, lod, st)
+    catwalk(body, d, h, hg, lod, st)
     guides(body, a, c, d, hg, lod, st)
     with swap.head(a, body, "bottom", (m(d["heads"]["bottom"]["pinU"]), 0.0, rope),
                    owns=("rope_left_hold", "rope_right_hold", "rope_left_out", "rope_right_out", "chair_load"),

@@ -102,21 +102,14 @@ def railing(mb, posts, heights, lod, style, post_dia=0.034, rail_dia=0.042, toe=
             prims.beam(mb, a + W * (toe / 2), b + W * (toe / 2), 0.008, toe, style)
 
 
-def ladder(mb, foot, head, width, rung_rise, lod, style, rung_style, stringer=0.15, extend=None):
+def ladder(mb, foot, head, width, rung_rise, lod, style, rung_style, stringer=0.15):
     """A ship's ladder from foot to head (lift points, m), its rungs every rung_rise (m) of height as drawn
-    (parts.ladder spaces them along the stringer), and the stringers carried on up the slope past the head as 42 mm
-    tubes to `extend` (m, w) where drawn."""
+    (parts.ladder spaces them along the stringer)."""
     foot, head = Vector(foot), Vector(head)
     rise = head.z - foot.z
     along = (head - foot).length
     parts.ladder(mb, foot, head, width, lod, style, rung_every=rung_rise * along / rise, handrails=False, rung_style=rung_style,
                  stringer=stringer)
-    if extend and lod <= 2:
-        d = (head - foot).normalized()
-        _, y, _ = prims.basis_along(d, W)
-        for s in (-1, 1):
-            p = head + y * (s * width / 2)
-            pipe(mb, p, p + d * ((extend - head.z) / d.z), 0.042, lod, style, sides=(8, 6, 4))
 
 
 def shift(c):
