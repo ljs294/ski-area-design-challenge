@@ -73,6 +73,11 @@ namespace MountainPlanner.Domain.Design
             OriginAlong = originAlong;
         }
 
+        /// <summary>The same end on another model of the same family (a double's or triple's terminal, built from the quad's by
+        /// rule: the same housing and row, LD5); the view measures its exit and footprint again.</summary>
+        public TerminalEnd WithModel(string model) =>
+            new TerminalEnd(model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, ExitAlong, ExitRise, OriginAlong, Sheaves, OwnStation, PadToMiddle);
+
         /// <summary>The same end with the rope exit measured on its model.</summary>
         public TerminalEnd WithExit(double along, double rise) =>
             new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, along, rise, OriginAlong, Sheaves, OwnStation, PadToMiddle);

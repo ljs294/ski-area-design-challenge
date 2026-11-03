@@ -45,12 +45,18 @@ namespace MountainPlanner.UI.Tools
         /// <summary>A type's model as the lists name it: "Sessellift FGQ-4", or its maker and type ("Monta gondola, 8 person").</summary>
         public static string ModelName(string catalogId)
         {
-            if (catalogId == LiftCatalogIds.SesselliftD6) return "Sessellift D6";
+            if (OwnName(catalogId) is string own) return own;
             if (catalogId == LiftCatalogIds.SesselliftFgq4) return QuadModels[0];
             if (catalogId == LiftCatalogIds.MontaFg4) return QuadModels[1];
             int m = Array.IndexOf(LiftCatalogIds.Makers, LiftCatalogIds.Maker(catalogId));
             return (m >= 0 ? MakerNames[m] + " " : "") + LiftType.Of(catalogId).Name.ToLowerInvariant();
         }
+
+        // The types with models of their own, by their model names (the D6, LT41; the doubles and triples, LD1).
+        static string OwnName(string id) =>
+            id == LiftCatalogIds.SesselliftD6 ? "Sessellift D6"
+            : id == LiftCatalogIds.SesselliftFgd2 ? "Sessellift FGD-2" : id == LiftCatalogIds.SesselliftFgt3 ? "Sessellift FGT-3"
+            : id == LiftCatalogIds.MontaFg2 ? "Monta FG2" : id == LiftCatalogIds.MontaFg3 ? "Monta FG3" : null;
 
         /// <summary>Adds the three rows; <paramref name="changed"/> runs after a pick changes the type.</summary>
         public LiftTypeMenu(ToolWindow window, string catalogId, Action changed, string kindTip)
@@ -162,9 +168,9 @@ namespace MountainPlanner.UI.Tools
                 {
                     string id = LiftCatalogIds.Of(carrier, LiftCatalogIds.Makers[i]);
                     off[i] = !LiftCatalogIds.Buildable(id);
-                    names[i] = id == LiftCatalogIds.SesselliftD6 ? "Sessellift D6" : MakerNames[i] + (off[i] ? " (comes later)" : "");
+                    names[i] = OwnName(id) ?? MakerNames[i] + (off[i] ? " (comes later)" : "");
                 }
-                Model.Set(names, m, off, CatalogId == LiftCatalogIds.SesselliftD6 ? "Sessellift D6" : MakerNames[m] + " " + Type.Name.ToLowerInvariant());
+                Model.Set(names, m, off, OwnName(CatalogId) ?? MakerNames[m] + " " + Type.Name.ToLowerInvariant());
             }
             if (_note == null) return;
             string spacing = k == 3 ? "two cabins" : $"{(k == 2 ? "cabins" : "chairs")} {ToolFormat.Length(Type.ChairSpacingMetres)} apart";
