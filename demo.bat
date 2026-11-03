@@ -262,6 +262,11 @@ echo        with no frame over a 60 Hz refresh (16.7 ms), and none after letting
 echo        owner: a brush like Cities Skylines 2's); the garbage figures print beside it.
 echo        Round 6 adds three presses confirmed on the last let-go (each fold seeded with the one before).
 echo.
+echo   Phase 3, bug bash (v0.3.1; rebuilds the game, close the Unity editor first; needs the network)
+echo     76 A new-area download with OpenStreetMap down: Jackson Hole 2 km into an empty library, with the map
+echo        features server pointed at an address that never answers. After about 30 s the step reads "map features
+echo        unavailable - skipped", the download finishes, and the quality card says land cover stands in for water and roads.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -369,6 +374,7 @@ if /i "%CHOICE%"=="73b" goto brushbench
 if /i "%CHOICE%"=="73m" goto brushtour
 if /i "%CHOICE%"=="73c" goto contourcaptures
 if /i "%CHOICE%"=="75" goto brushperf
+if /i "%CHOICE%"=="76" goto overpassskip
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -404,11 +410,8 @@ if not exist "%UNITY%" (
   echo Unity 6000.3.25f1 was not found at "%UNITY%".
   goto done
 )
-tasklist /fi "imagename eq Unity.exe" | find /i "Unity.exe" >nul
-if not errorlevel 1 (
-  echo The Unity editor is open. Close it first, then try again.
-  goto done
-)
+rem Only an editor with this project open gets in the way, not Unity Hub (it runs "unity.exe serve").
+call :projectfree || goto done
 if not exist "%~dp0test-results" mkdir "%~dp0test-results"
 set "UNITYGPU="
 call :unityrun EditMode
@@ -453,6 +456,22 @@ call :seedscratch
 echo Starting the game with the network off ^(-offline^): Load Area, then open any area. New Area says why it can't go on.
 start "" "%GAME%" -data "%SCRATCH%" -offline
 goto menu
+
+:overpassskip
+rem Task P3-16 BB1: when no OpenStreetMap (Overpass) mirror answers and the other map services do, the step is skipped.
+rem -overpass swaps the mirrors for one unroutable address: about 21 s to fail to connect, up to 10 s to ask the others.
+rem The build is fresh so it has the fix.
+call :buildplayer
+if not exist "%GAME%" goto done
+set "OVERPASSRUN=%LOCALAPPDATA%\SkiAreaDesignChallenge-overpass"
+if exist "%OVERPASSRUN%" rmdir /s /q "%OVERPASSRUN%"
+echo Starting the game with an empty library %OVERPASSRUN%: Jackson Hole 2 km starts downloading by itself.
+echo   It waits on "OpenStreetMap (Overpass)" for about 30 s, then shows "map features unavailable - skipped" and goes on.
+echo   When it finishes, the quality card reads: "Water and roads: OpenStreetMap was unavailable, so satellite land
+echo   cover stands in for them." Open the area to check it, then quit the game.
+start "" /wait "%GAME%" -data "%OVERPASSRUN%" -download "Jackson Hole" 43.593 -110.848 2 -overpass http://10.255.255.1/api/interpreter
+findstr /i /c:"overpass" /c:"map features" "%PLAYERLOG%"
+goto done
 
 :firstrun
 rem A build without the bundled demo (older, or built before 12 was downloaded) is rebuilt first.
@@ -1305,11 +1324,8 @@ if not exist "%UNITY%" (
   echo Unity 6000.3.25f1 was not found at "%UNITY%".
   exit /b 1
 )
-tasklist /fi "imagename eq Unity.exe" | find /i "Unity.exe" >nul
-if not errorlevel 1 (
-  echo The Unity editor is open. Close it first, then try again.
-  exit /b 1
-)
+rem Only an editor with this project open gets in the way, not Unity Hub (it runs "unity.exe serve").
+call :projectfree || exit /b 1
 if not exist "%~dp0test-results" mkdir "%~dp0test-results"
 echo Building the Development game (about 2 minutes)...
 "%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.ViewerSetup.BuildWindowsDev -logFile "%~dp0test-results\build-dev.log" <nul
@@ -1321,11 +1337,8 @@ if not exist "%UNITY%" (
   echo Unity 6000.3.25f1 was not found at "%UNITY%".
   exit /b 1
 )
-tasklist /fi "imagename eq Unity.exe" | find /i "Unity.exe" >nul
-if not errorlevel 1 (
-  echo The Unity editor is open. Close it first, then try again.
-  exit /b 1
-)
+rem Only an editor with this project open gets in the way, not Unity Hub (it runs "unity.exe serve").
+call :projectfree || exit /b 1
 echo Building the game player (about 2 minutes; it also bundles the Jackson Hole demo from 12)...
 "%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.ViewerSetup.BuildWindows -logFile "%~dp0test-results\build.log" <nul
 if errorlevel 1 (echo   The build failed - see test-results\build.log) else (echo   Built %GAME%)

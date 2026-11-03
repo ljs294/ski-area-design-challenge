@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -16,8 +17,9 @@ namespace MountainPlanner.Tests
 {
     /// <summary>
     /// Task P3-16 (BB1): a download hung at 87% because a slow or refusing Overpass mirror looked like a lost connection,
-    /// so the optional water-and-roads step made the whole download wait and resume for ever. Now only "every mirror
-    /// failed to connect" waits; anything else leaves the layer out, and each mirror gets one bounded try.
+    /// so the optional water-and-roads step made the whole download wait and resume for ever. Now only a real lost
+    /// connection waits: every mirror failed to connect and the other map services don't answer either. Anything else
+    /// leaves the layer out, and each mirror gets one bounded try.
     /// </summary>
     public sealed class OsmDownloadTests
     {
@@ -39,19 +41,27 @@ namespace MountainPlanner.Tests
             if (Directory.Exists(_cache)) Directory.Delete(_cache, true);
         }
 
-        OsmFeatures With(Func<int, Task<byte[]>> answer, List<string> asked = null)
+        OsmFeatures With(Func<int, Task<byte[]>> answer, List<string> asked = null, Func<CancellationToken, Task<bool>> othersAnswer = null)
         {
             int call = 0;
             return new OsmFeatures(new DiskCache(_cache), new TransferMeter(), (url, ct) =>
             {
                 asked?.Add(new Uri(url).Host);
                 return answer(call++);
-            });
+            }, othersAnswer);
         }
 
         static Task<byte[]> Fail(Exception e) => Task.FromException<byte[]>(e);
         static Exception TimedOut() => new IOException("The request failed.", new TimeoutException("No answer within 75 s."));
         static Exception Refused() => new IOException("The request failed.", new HttpRequestException("refused", new SocketException()));
+
+        /// <summary>What Windows reports after about 21 s when a host never accepts the connection (blocked or unroutable).</summary>
+        static Exception NeverConnected() => new IOException("The request failed.",
+            new HttpRequestException("A connection attempt failed because the connected party did not properly respond after a period of time.\r\n\0\0\0",
+                                     new SocketException((int)SocketError.TimedOut)));
+
+        /// <summary>A reachability check that answers <paramref name="up"/> and counts how often it was asked.</summary>
+        static Func<CancellationToken, Task<bool>> Others(bool up, int[] asked) => _ => { asked[0]++; return Task.FromResult(up); };
 
         [Test]
         public void MirrorsThatTimeOutLeaveTheLayerOutRatherThanWait()
@@ -79,16 +89,52 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void OnlyEveryMirrorFailingToConnectWaitsForTheNetwork()
+        public void OnlyALostConnectionWaitsForTheNetwork()
         {
-            var osm = With(_ => Fail(Refused()));
+            var checks = new int[1];
+            var osm = With(_ => Fail(Refused()), othersAnswer: Others(false, checks));
             var e = Assert.ThrowsAsync<InvalidOperationException>(() => osm.DownloadAsync(Box, CancellationToken.None));
             Assert.That(e, Is.Not.InstanceOf<OsmUnavailableException>());
             Assert.That(NetworkFailure.IsNoConnection(e), Is.True, "a lost connection waits (P2-06)");
+            Assert.That(checks[0], Is.EqualTo(1), "the other map services were asked once");
 
-            // One mirror that connected and timed out means the network is up: leave the layer out.
-            var mixed = With(i => Fail(i == 0 ? TimedOut() : Refused()));
-            Assert.ThrowsAsync<OsmUnavailableException>(() => mixed.DownloadAsync(Box, CancellationToken.None));
+            // A fake fetch without a check counts the other services as unreachable, so tests never touch the network.
+            Assert.That(NetworkFailure.IsNoConnection(Assert.ThrowsAsync<InvalidOperationException>(
+                () => With(_ => Fail(Refused())).DownloadAsync(Box, CancellationToken.None))), Is.True);
+        }
+
+        /// <summary>
+        /// The v0.3.1 hold (2026-11-02): Overpass blocked or unroutable, so no mirror ever accepts the connection, while the
+        /// other map services work. That used to wait and resume at 87% for ever; now the layer is left out.
+        /// </summary>
+        [Test]
+        public void MirrorsThatNeverConnectWhileOtherServicesAnswerLeaveTheLayerOut()
+        {
+            var checks = new int[1];
+            var asked = new List<string>();
+            var osm = With(_ => Fail(NeverConnected()), asked, Others(true, checks));
+            var e = Assert.ThrowsAsync<OsmUnavailableException>(() => osm.DownloadAsync(Box, CancellationToken.None));
+            Assert.That(asked, Has.Count.EqualTo(OsmFeatures.Servers.Length), "every mirror was tried");
+            Assert.That(checks[0], Is.EqualTo(1));
+            Assert.That(NetworkFailure.IsNoConnection(e), Is.False, "not a lost connection: the download goes on");
+            Assert.That(e.Message, Does.Contain("other map services answered"), "the provenance says why");
+            Assert.That(e.Message.Any(char.IsControl), Is.False, "Windows' NUL padding stays out of the provenance");
+
+            // The -overpass demo's unroutable address, the same way.
+            OsmFeatures.ServerOverride = "http://10.255.255.1/api/interpreter";
+            Assert.ThrowsAsync<OsmUnavailableException>(() => With(_ => Fail(NeverConnected()), null, Others(true, checks)).DownloadAsync(Box, CancellationToken.None));
+        }
+
+        [Test]
+        public void TheOtherServicesAreOnlyAskedWhenNoMirrorCouldBeReached()
+        {
+            // One mirror that connected and timed out, or answered with a remark, means the network is up: no need to ask.
+            var checks = new int[1];
+            Assert.ThrowsAsync<OsmUnavailableException>(() => With(i => Fail(i == 0 ? TimedOut() : Refused()), null, Others(false, checks)).DownloadAsync(Box, CancellationToken.None));
+            Assert.ThrowsAsync<OsmUnavailableException>(() => With(i => i == 0
+                ? Task.FromResult(Encoding.UTF8.GetBytes("{\"elements\":[],\"remark\":\"runtime error\"}"))
+                : Fail(NeverConnected()), null, Others(false, checks)).DownloadAsync(Box, CancellationToken.None));
+            Assert.That(checks[0], Is.Zero);
         }
 
         [Test]
@@ -133,6 +179,74 @@ namespace MountainPlanner.Tests
         {
             Assert.That(OsmFeatures.Query(43, -110, 43.1, -109.9), Does.StartWith("[out:json][timeout:60];"));
             Assert.That(OsmFeatures.MirrorTimeout.TotalSeconds, Is.GreaterThan(60).And.LessThanOrEqualTo(90));
+        }
+
+        /// <summary>
+        /// Synchronous on purpose: Unity runs tests on its main thread, so awaiting there, or an async lambda inside
+        /// Assert.That, can wait on that thread for ever. <see cref="Reachability"/> never comes back to the caller's
+        /// thread, so blocking on it is safe in both runners.
+        /// </summary>
+        [Test]
+        public void AnyAnswerFromAnotherServiceMeansTheNetworkIsUp()
+        {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var serving = Task.Run(async () =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        using (var client = await listener.AcceptTcpClientAsync().ConfigureAwait(false))
+                        using (var stream = client.GetStream())
+                        {
+                            await stream.ReadAsync(new byte[4096], 0, 4096).ConfigureAwait(false);
+                            byte[] reply = Encoding.ASCII.GetBytes("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                            await stream.WriteAsync(reply, 0, reply.Length).ConfigureAwait(false);
+                        }
+                    }
+                }
+                catch (Exception) { /* stopped */ }
+            });
+            // A port nothing listens on: refused straight away.
+            var closed = new TcpListener(IPAddress.Loopback, 0);
+            closed.Start();
+            string nobody = $"http://127.0.0.1:{((IPEndPoint)closed.LocalEndpoint).Port}/";
+            closed.Stop();
+            try
+            {
+                string answers = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/";
+                var limit = TimeSpan.FromSeconds(5);
+                bool Ask(string except, params string[] services) =>
+                    Reachability.OthersAnswerAsync(CancellationToken.None, except, services, limit).GetAwaiter().GetResult();
+                Assert.That(Ask(null, nobody, answers), Is.True, "an error status still came over the network");
+                Assert.That(Ask(null, nobody), Is.False);
+                Assert.That(Ask("127.0.0.1", answers), Is.False,
+                            "the failing server's own host doesn't count");
+                Assert.That(Reachability.Services, Has.Length.GreaterThanOrEqualTo(3), "two are left after leaving one out");
+
+                using (var cancelled = new CancellationTokenSource())
+                {
+                    cancelled.Cancel();
+                    Assert.That(Caught(Reachability.OthersAnswerAsync(cancelled.Token, services: new[] { answers }, limit: limit)),
+                                Is.InstanceOf<OperationCanceledException>(), "pausing isn't 'unreachable'");
+                }
+                Http.NetworkDisabled = true;
+                Assert.That(Caught(Reachability.OthersAnswerAsync(CancellationToken.None, services: new[] { answers }, limit: limit)),
+                            Is.InstanceOf<NetworkDisabledException>(), "offline mode stays offline mode");
+            }
+            finally
+            {
+                Http.NetworkDisabled = false;
+                listener.Stop();
+            }
+        }
+
+        /// <summary>What a task ended with, waited for without an async lambda (see above).</summary>
+        static Exception Caught(Task task)
+        {
+            try { task.GetAwaiter().GetResult(); return null; }
+            catch (Exception e) { return e; }
         }
 
         /// <summary>A server that accepts the connection and never answers: the per-attempt limit ends each try.</summary>
