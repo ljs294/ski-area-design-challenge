@@ -732,7 +732,9 @@ def chair_lineup(name, chairs, spec, out_dir, mats, gap=3.0):
     _photo_end(sc, extras + [fig])
 
 
-TERMINAL_LINEUPS = {"monta_drive": ("monta_drive", "monta_fg3_drive", "monta_fg2_drive"),   # v0.3.2: quad, triple,
+TERMINAL_LINEUPS = {"sessellift_drive": ("drive", "fgt3_drive", "fgd2_drive"),   # v0.3.2: quad, triple, double
+                    "sessellift_return": ("return", "fgt3_return", "fgd2_return"),
+                    "monta_drive": ("monta_drive", "monta_fg3_drive", "monta_fg2_drive"),   # v0.3.2: quad, triple,
                     "monta_return": ("monta_return", "monta_fg3_return", "monta_fg2_return"),   # double
                     "monta_return_bottom": ("monta_return_bottom", "monta_fg3_return_bottom", "monta_fg2_return_bottom")}
 
