@@ -1,14 +1,17 @@
-"""Sessellift Stern return terminal (top station; sessellift_stern4.json "return"), from the owner's layout (Gate 0):
+"""Sessellift Stern return terminal (top station; sessellift_stern4.json "return"), from the owner's layout:
 
-  a steel column on its pier, a boom from it back to the hub under the exposed bullwheel, a railed deck on the
-  column over the wheel's inner half with a ladder up to it, guide sheaves on a cross member through the boom, and
-  the line frame ahead of the column: a truss out to a crossbeam with the 4-sheave support trains on
-  plates at its ends and a lifting portal over them.
+  a chamfered box column standing in the ground, its narrower upper section up to the walkway; a flanged box boom
+  from it back past the axle, the exposed bullwheel turning on a pedestal on the boom's nose; a narrow walkway on the
+  axis over the column and boom, railed on the departing side only; guide sheaves on pedestals at the ends of a cross
+  member ahead of the wheel, a rope guard outboard of the arriving rope braced back to that cross member; and the
+  line frame ahead of the column: a box girder out to a square tube crossbeam with the support rows hanging from its
+  ends and a lifting portal standing on it.
 
 Loaded chairs arrive on the left rope (v-) and unload over the column (chairUnloadU); the bullwheel turns
 counter-clockwise seen from above. Bottom drive only (owner, 2026-11-02): the support rows are the terminal's one
 head, the top (liftkit/swap.py), with the 6 and 8 sheave rows as its variants (as the other fixed grips' top heads);
-it gains no bottom head. Dimensions: millimetres; the origin on the bullwheel axle at the loading level.
+it gains no bottom head. Most of the drawn steel is data (spec "steel", stern_heads.members). Dimensions:
+millimetres; the origin on the bullwheel axle at the loading level.
 """
 import math
 
@@ -36,82 +39,81 @@ def styles(lod):
     return st
 
 
+def chamfered(mb, u, hv, lo, hi, ch, style):
+    """A box u[0]..u[1] by +-hv (m) from lo to hi with its four vertical edges chamfered by ch (m)."""
+    u0, u1 = u
+    plan = [(u0 + ch, -hv), (u1 - ch, -hv), (u1, -hv + ch), (u1, hv - ch), (u1 - ch, hv), (u0 + ch, hv), (u0, hv - ch), (u0, -hv + ch)]
+    prims.prism(mb, plan, (0, 0, lo), U, V, W, hi - lo, style)
+
+
 def column(mb, r, lod, st):
-    """The column on its base plate and pier, its upper section up to the deck, and the boom back to the hub.
-    Returns the pier top."""
+    """The column standing in the ground on its pier (no base plate is drawn) and the narrower upper section up to
+    the walkway, both with chamfered edges. Returns the pier top."""
     co, pr = r["column"], r["pier"]
     hv = m(co["v"]) / 2
     u0, u1 = co["u"]
-    foot = co["bottom"] - co["basePlate"]
-    top = stern_heads.pier(mb, (u0, -co["v"] / 2), (u1, co["v"] / 2), foot, pr["bottom"], pr["margin"], st)
-    if lod <= 2:
-        prims.box(mb, (m(u0 - 80), -hv - 0.08, m(foot)), (m(u1 + 80), hv + 0.08, m(co["bottom"])), st["steel"])
-    prims.box(mb, (m(u0), -hv, m(co["bottom"])), (m(u1), hv, m(co["top"])), st["steel"], skip=("+2",))
+    top = stern_heads.pier(mb, (u0, -co["v"] / 2), (u1, co["v"] / 2), co["bottom"], pr["bottom"], pr["margin"], st)
+    ch = m(co["chamfer"]) if lod <= 1 else 0.0
+    chamfered(mb, (m(u0), m(u1)), hv, m(co["bottom"]), m(co["top"]), ch, st["steel"])
     up = co["upper"]
-    prims.box(mb, (m(up["u"][0]), -hv, m(co["top"])), (m(up["u"][1]), hv, m(up["top"])), st["steel"])
-    bm = r["boom"]   # the boom: level top, its underside rising from the column to the hub
-    b0, b1 = bm["bottom"]
-    prof = [(m(bm["u"][0]), m(b0)), (m(bm["u"][1]), m(b1)), (m(bm["u"][1]), m(bm["top"])), (m(bm["u"][0]), m(bm["top"]))]
-    prims.prism(mb, prof, (0, -m(bm["v"]) / 2, 0), U, W, V, m(bm["v"]), st["steel"])
-    hb = r["hub"]
-    prims.cylinder(mb, (0.0, 0.0, m(hb["bottom"])), (0.0, 0.0, m(hb["top"])), m(hb["dia"]) / 2, parts.sides(lod, 20, 12, 8, 6), st["steel"],
-                   fan_caps=True)
+    chamfered(mb, (m(up["u"][0]), m(up["u"][1])), hv, m(co["top"]), m(up["top"]), ch, st["steel"])
     return top
 
 
 def deck(mb, r, lod, st):
-    """The deck on the column over the wheel's inner half, railed round, open at the line end where the ladder
-    comes up past its end; the ladder from the snow, beside the line frame."""
+    """The walkway on the axis over the column and the boom: grating flush with the top of its frame of 102 mm
+    channels (the toe band), on a stringer of two channels; the railing on the departing side only, as two bent
+    hoops of pipe with posts and a mid rail between their ends."""
     dk = r["deck"]
-    u0, u1, hv, top = m(dk["u"][0]), m(dk["u"][1]), m(dk["v"]), m(dk["top"])
-    parts.deck(mb, (u0, -hv, m(dk["bottom"])), (u1, hv, top), lod, st["galv"])
-    rail = m(dk["rail"])
-    e = 0.03
-    parts.railing(mb, [(u1 - e, -hv + e, top), (u0 + e, -hv + e, top), (u0 + e, hv - e, top), (u1 - e, hv - e, top)], rail, lod, st["galv"])
-    la = r["ladder"]
-    lu, lv = m(la["u"]), m(la["v"])
-    parts.ladder(mb, (lu + m(la["lean"]), lv, 0.0), (lu, lv, top), 2 * m(la["halfWidth"]), lod, st["galv"], rung_every=m(la["rungs"]),
-                 handrails=False)   # between the line frame and the leaving chairs: no room for side rails
+    u0, u1, hv = m(dk["u"][0]), m(dk["u"][1]), m(dk["v"]) / 2
+    top, fr = m(dk["top"]), m(dk["frame"])
+    parts.deck(mb, (u0, -hv, top - m(dk["thick"])), (u1, hv, top), lod, st["galv"], channels=False)
+    if lod <= 2:   # the frame's channels round the grating
+        e = m(dk["edge"])
+        for lo, hi in (((u0, -hv, top - fr), (u1, -hv + e, top)), ((u0, hv - e, top - fr), (u1, hv, top)),
+                       ((u0, -hv, top - fr), (u0 + e, hv, top)), ((u1 - e, -hv, top - fr), (u1, hv, top))):
+            prims.box(mb, lo, hi, st["galv"])
+    rl = dk["railing"]
+    if lod >= 3:
+        return
+    v_r = m(rl["v"])
+    foot, rail, mid = m(rl["foot"]), m(rl["top"]), m(rl["mid"])
+    for hp in rl["hoops"]:   # each hoop: up the end posts, rounded corners, the top rail; posts and the mid rail between
+        a, b = m(hp[0]), m(hp[-1])
+        stern_heads.tube(mb, [(a, v_r, foot), (a, v_r, rail), (b, v_r, rail), (b, v_r, foot)], m(rl["dia"]), lod, st["galv"],
+                         corner=m(rl["corner"]))
+        if lod <= 1:
+            for p in hp[1:-1]:
+                stern_heads.pipe(mb, (m(p), v_r, foot), (m(p), v_r, rail), m(rl["dia"]), lod, st["galv"], sides=(8, 6))
+            stern_heads.pipe(mb, (a, v_r, mid), (b, v_r, mid), m(rl["dia"]), lod, st["galv"], sides=(8, 6), caps=(False, False))
 
 
 def guides(mb, a, c, r, hg, lod, st):
-    """The guide sheaves (rope on top) on brackets inboard of them, on a cross member through the boom."""
+    """The guide sheaves (rope on top), each on its axle from the hanger plates inboard of it (their steel: spec
+    "steel")."""
     rope, rope_r = m(c["ropeElevation"]), m(c["ropeDiameter"]) / 2
-    gs, gp = c["guideSheave"], r["guideSheaves"]
-    cr = gp["cross"]
-    reach = hg + m(cr["in"])
-    prims.box(mb, (m(cr["u"][0]), -reach, m(cr["bottom"])), (m(cr["u"][1]), reach, m(cr["top"])), st["steel"])
+    gp = r["guideSheaves"]
     for side, name in ((-1, "l1"), (1, "r1")):
-        centre = Vector((m(gp["u"]), side * hg, rope - rope_r - m(gs["dia"]) / 2))
+        centre = Vector((m(gp["u"]), side * hg, rope - rope_r - m(gp["dia"]) / 2))
         target = MeshBuilder() if lod <= 1 else mb
         if lod <= 2:
-            parts.sheave(target, centre, V, m(gs["dia"]), m(gs["width"]), lod, st["red"], st["rubber"])
-            parts.sheave_bracket(mb, centre, m(gs["width"]), m(cr["top"]), lod, st["steel"])
+            parts.sheave(target, centre, V, m(gp["dia"]), m(gp["width"]), lod, st["red"], st["rubber"])
         if lod <= 1:
+            prims.cylinder(mb, (centre.x, side * (hg + m(gp["axleFrom"])), centre.z), (centre.x, side * (hg - m(gp["width"]) / 2), centre.z),
+                           m(gp["axle"]) / 2, parts.sides(lod, 10, 6), st["rod"])
             a.parts[f"sheave_{name}"] = target
             a.pivots[f"sheave_{name}"] = {"pos": tuple(centre), "axis": (0.0, 1.0, 0.0)}
 
 
-def line_frame(mb, r, lod, st):
-    """The line frame, a truss on the axis: brackets on the column's line face, an upper member and a lower strut
-    from them out to a post under the head's crossbeam."""
-    lf = r["lineFrame"]
-    up, sr, po, br = lf["upper"], lf["strut"], lf["post"], lf["brackets"]
-    prims.beam(mb, (m(up["from"][0]), 0.0, m(up["from"][1])), (m(up["to"][0]), 0.0, m(up["to"][1])), m(up["v"]), m(up["depth"]), st["steel"])
-    prims.box(mb, (m(po["u"][0]), -m(po["v"]) / 2, m(po["bottom"])), (m(po["u"][1]), m(po["v"]) / 2, m(r["heads"]["top"]["crossbeam"]["bottom"])),
-              st["steel"])
-    if lod <= 2:
-        prims.beam(mb, (m(sr["from"][0]), 0.0, m(sr["from"][1])), (m(sr["to"][0]), 0.0, m(sr["to"][1])), m(sr["v"]), m(sr["depth"]), st["steel"])
-        prims.box(mb, (m(br["u"][0]), -m(br["v"]) / 2, m(br["bottom"])), (m(br["u"][1]), m(br["v"]) / 2, m(br["top"])), st["steel"])
-
-
 def head_steel(mb, r, hg, lod, st):
-    """A top head's steel: the crossbeam (inboard of the ropes, so the grips pass) and the lifting portal on it."""
+    """A top head's steel: the square tube crossbeam across the line frame's end (its ends inboard of the ropes, so
+    the grips pass), the drawn plates on it (spec heads.top.steel) and the lifting portal standing on it."""
     hd = r["heads"]["top"]
     cb = hd["crossbeam"]
-    reach = hg + m(cb["in"])
+    reach = hg + m(cb["out"])
     prims.box(mb, (m(cb["u"][0]), -reach, m(cb["bottom"])), (m(cb["u"][1]), reach, m(cb["top"])), st["steel"])
-    stern_heads.lifting_portal(mb, hd["liftingPortal"], hg, lod, st, cb["top"])
+    stern_heads.members(mb, hd["steel"], hg, lod, st)
+    stern_heads.lifting_portal(mb, hd["liftingPortal"], hg, lod, st)
 
 
 def support_trains(mb, a, c, r, hg, lod, st):
@@ -124,7 +126,7 @@ def support_trains(mb, a, c, r, hg, lod, st):
     train = {"n": st_["n"], "pitch": m(st_["pitch"]), "rocker": m(st_["rocker"]), "beam": m(st_["beam"])}
     pl = tr["plate"]
     plate = {"v": (hg + m(pl["v"][0]), hg + m(pl["v"][1])), "top": m(cb["top"]), "width": m(pl["width"]), "pin": m(pl["pin"])}
-    u_c = m(sum(cb["u"]) / 2)
+    u_c = m(hd["pinU"])
     for side, name in ((-1, "l"), (1, "r")):
         parts.sheave_train(mb, a, name, u_c, side * hg, rope, rope_r, m(c["guideSheave"]["dia"]), m(c["guideSheave"]["width"]),
                            train, tr["mode"], None, lod, st, plate=plate, stops=tr.get("pinStops"))
@@ -133,21 +135,20 @@ def support_trains(mb, a, c, r, hg, lod, st):
 
 def variant(a, body, spec, lod, key, combo):
     """A top head with a bigger support row (6 or 8 sheaves; the line towers' kit assembly, heads.hung_assembly),
-    levelled at its first sheave and pinned under the crossbeam end on two lug plates, its own crossbeam and portal:
-    grafted on as head `key` of the top end (liftkit/swap.py), as the FGQ-4 drive's top_variant."""
+    levelled at its first sheave and pinned on two lug plates up to the crossbeam, with its own head steel: grafted on
+    as head `key` of the top end (liftkit/swap.py), as the FGQ-4 drive's top_variant."""
     c, r = spec["common"], spec["return"]
     rope, hg = m(c["ropeElevation"]), m(c["lineGauge"]) / 2
     st = styles(lod)
     hd = r["heads"]["top"]
-    cb = hd["crossbeam"]
     asm = parts.line_spec(spec)
     src, smb = Asset(key), MeshBuilder()
     head_steel(smb, r, hg, lod, st)
-    pin_u = m(sum(cb["u"]) / 2)
+    pin_u = m(hd["pinU"])
     sockets = {}
     for side, name in ((-1, "l"), (1, "r")):
         u_first, (u_out, w_out), theta, _ = heads.hung_assembly(smb, src, name, side, hg, rope, pin_u, asm, combo["count"], "support",
-                                                                asm["arcs"][combo["arc"]], lod, st, m(cb["bottom"]), hd["lugs"])
+                                                                asm["arcs"][combo["arc"]], lod, st, m(hd["faceW"]), hd["lugs"])
         sd = "left" if side < 0 else "right"
         sockets.update({f"rope_{sd}_hold": (u_first, side * hg, rope), f"rope_{sd}_out": (u_out, side * hg, w_out)})
     src.sockets = sockets
@@ -164,26 +165,24 @@ def build(spec, lod, stage):
     rope, hg = m(c["ropeElevation"]), m(c["lineGauge"]) / 2
 
     pier_top = column(body, r, lod, st)
+    stern_heads.members(body, r["steel"], hg, lod, st)
     deck(body, r, lod, st)
     guides(body, a, c, r, hg, lod, st)
-    line_frame(body, r, lod, st)
-    cb = r["heads"]["top"]["crossbeam"]
-    with swap.head(a, body, "top", (m(sum(cb["u"]) / 2), 0.0, rope), owns=("rope_left_out", "rope_right_out", "chair_unload"),
+    hd = r["heads"]["top"]
+    with swap.head(a, body, "top", (m(hd["pinU"]), 0.0, rope), owns=("rope_left_out", "rope_right_out", "chair_unload"),
                    dims={"sheaves": c["sheaveTrain"]["n"]}):
         head_steel(body, r, hg, lod, st)
         u_out = support_trains(body, a, c, r, hg, lod, st)
-    for key, combo in r["heads"]["top"]["variants"].items():
+    for key, combo in hd["variants"].items():
         variant(a, body, spec, lod, key, combo)
 
     centre = Vector((0.0, 0.0, rope))
     bw = stern_heads.return_wheel(c, r["bullwheel"])
+    wheel = MeshBuilder() if lod <= 2 else body
+    stern_heads.return_wheel_mesh(wheel, centre, bw, lod, st)
     if lod <= 2:
-        wheel = MeshBuilder()
-        return_terminal.bullwheel(wheel, centre, c["lineGauge"], bw, lod, st)
         a.parts["bullwheel"] = wheel
         a.pivots["bullwheel"] = {"pos": tuple(centre), "axis": (0.0, 0.0, 1.0)}
-    else:
-        return_terminal.bullwheel(body, centre, c["lineGauge"], bw, lod, st)
 
     a.body = body
     a.sockets.update({   # the rope runs level from the wheel over the guide sheaves and the support trains
@@ -194,5 +193,5 @@ def build(spec, lod, stage):
         "pier_top": pier_top,
     })
     a.dims.update({"bullwheelU": 0, "columnU": round(sum(r["column"]["u"]) / 2), "deckTop": r["deck"]["top"],
-                   "guideSheaveU": r["guideSheaves"]["u"], "headU": round(sum(cb["u"]) / 2)})
+                   "guideSheaveU": r["guideSheaves"]["u"], "headU": hd["pinU"]})
     return a

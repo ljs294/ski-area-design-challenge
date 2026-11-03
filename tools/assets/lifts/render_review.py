@@ -53,9 +53,11 @@ NARROW_TERMINALS = {f"{p}_{end}": (end if p.startswith("fg") else f"monta_{end}"
 NARROW_TERMINALS.update({f"monta_{p}_return_bottom": "monta_return_bottom" for p in ("fg2", "fg3")})   # drive at either end
 ORTHO.update({k: ORTHO[like] for k, like in NARROW_TERMINALS.items()})
 TERMINALS = ("drive", "return", "monta_drive", "monta_return", "monta_return_bottom", "d6_drive", "d6_return") + tuple(NARROW_TERMINALS)
-# the Sessellift Stern's terminals, as its layouts draw them (seen through the deliberate mirror, Gate 0)
+# the Sessellift Stern's terminals, as its layouts draw them (seen through the deliberate mirror, Gate 0; the
+# return's end view from behind its wheel)
 STERN_TERMINALS = tuple(f"stern{n}_{end}" for n in (4, 3, 2) for end in ("drive", "return"))
-ORTHO.update({k: [("side", "-u", "+w"), ("end", "+v", "+w"), ("plan", "-u", "-v")] for k in STERN_TERMINALS})
+ORTHO.update({k: [("side", "-u", "+w"), ("end", "-v" if k.endswith("return") else "+v", "+w"), ("plan", "-u", "-v")]
+              for k in STERN_TERMINALS})
 TERMINALS += STERN_TERMINALS
 CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed", "d6_chair",
           "fgd2_chair", "fgt3_chair", "chairworks_chair_double_fixed", "chairworks_chair_triple_fixed")
@@ -351,7 +353,7 @@ def clay_views(key, built, spec, out_dir, chairs):
     cam.data.lens = 35
     cam.data.clip_end = 500
     sc.render.resolution_x, sc.render.resolution_y = 1600, 1000
-    if key.startswith("sle_stick") or key in ("d6_drive", "d6_return"):   # frame what stands above the snow (the
+    if key.startswith(("sle_stick", "stern")) or key in ("d6_drive", "d6_return"):   # frame what stands above the snow (the
         lo = Vector((lo.x, lo.y, max(lo.z, 0.0)))                          # D6's piers run 15 m down)
         centre, radius = (lo + hi) / 2, (hi - lo).length / 2
     dist = 3.0 if key.startswith("sle_stick") else 2.4
