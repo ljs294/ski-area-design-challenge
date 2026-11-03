@@ -19,23 +19,56 @@ namespace MountainPlanner.App.Flow
     }
 
     /// <summary>
+    /// A downloader that can leave out its optional layer (water and roads) when the player asks (task P3-16, BB5). Only
+    /// the real pipeline is one; the test fakes stay plain <see cref="ISiteDownloader"/>s.
+    /// </summary>
+    public interface ISkippingDownloader : ISiteDownloader
+    {
+        /// <summary>As <see cref="ISiteDownloader.DownloadAsync"/>; cancelling <paramref name="skipOptional"/> leaves water and roads out.</summary>
+        Task<string> DownloadAsync(PendingDownload download, string buildFolder, IProgress<DownloadStatus> progress, CancellationToken ct,
+                                   CancellationToken skipOptional);
+    }
+
+    /// <summary>
     /// The acquisition pipeline (tasks 04 and 05) behind <see cref="ISiteDownloader"/>. It shares the
     /// download cache with tools/acquire (&lt;data&gt;/download-cache), so a download stopped in either one resumes in the other.
     /// </summary>
-    public sealed class PipelineDownloader : ISiteDownloader
+    public sealed class PipelineDownloader : ISkippingDownloader
     {
         readonly string _dataRoot;
+        readonly Func<string, CancellationToken, Task<bool>> _othersAnswer;
 
-        public PipelineDownloader(string dataRoot) => _dataRoot = dataRoot;
+        /// <param name="othersAnswer">Whether the other map services answer, leaving out the given host (tests pass their own).</param>
+        public PipelineDownloader(string dataRoot, Func<string, CancellationToken, Task<bool>> othersAnswer = null)
+        {
+            _dataRoot = dataRoot;
+            _othersAnswer = othersAnswer ?? ((host, ct) => Reachability.OthersAnswerAsync(ct, host));
+        }
 
         public static string CacheFolder(string dataRoot) => Path.Combine(dataRoot, "download-cache");
 
-        public async Task<string> DownloadAsync(PendingDownload d, string buildFolder, IProgress<DownloadStatus> progress, CancellationToken ct)
+        public Task<string> DownloadAsync(PendingDownload d, string buildFolder, IProgress<DownloadStatus> progress, CancellationToken ct) =>
+            DownloadAsync(d, buildFolder, progress, ct, default);
+
+        public async Task<string> DownloadAsync(PendingDownload d, string buildFolder, IProgress<DownloadStatus> progress, CancellationToken ct,
+                                                CancellationToken skipOptional)
         {
             var request = new SiteRequest { Name = d.Name, Centre = new GeoPoint(d.Latitude, d.Longitude), SizeKm = d.SizeKm };
             var sink = new Relay(progress, d);
-            await new AcquisitionPipeline(CacheFolder(_dataRoot)).RunAsync(request, buildFolder, sink, ct).ConfigureAwait(false);
-            return ResortLibrary.Add(_dataRoot, buildFolder);
+            Exception diagnosed;
+            try
+            {
+                await new AcquisitionPipeline(CacheFolder(_dataRoot)).RunAsync(request, buildFolder, sink, ct, skipOptional).ConfigureAwait(false);
+                return ResortLibrary.Add(_dataRoot, buildFolder);
+            }
+            // A server that couldn't be reached or stopped answering: if the other map services answer, it's that server,
+            // not the player's connection (task P3-16, BB5), and the download says which.
+            catch (Exception e) when (!ct.IsCancellationRequested)
+            {
+                diagnosed = await NetworkFailure.DiagnoseAsync(e, _othersAnswer, ct).ConfigureAwait(false);
+                if (diagnosed == e) throw;
+            }
+            throw diagnosed;
         }
 
         /// <summary>The pipeline's progress, copied into the UI's own type (UI doesn't reference Acquisition).</summary>
@@ -57,7 +90,7 @@ namespace MountainPlanner.App.Flow
         {
             Name = name, SizeKm = sizeKm, Stages = p.Stages, StageIndex = p.StageIndex, StageCount = p.StageCount, Stage = p.Stage,
             Overall = p.Overall, Bytes = p.Bytes, BytesPerSecond = p.BytesPerSecond, SecondsRemaining = p.SecondsRemaining,
-            Detail = p.Detail, Finished = p.Finished, Downloaded = p.DownloadedBytes,
+            Detail = p.Detail, Finished = p.Finished, Downloaded = p.DownloadedBytes, Server = p.Server, QuietSeconds = p.QuietSeconds,
         };
     }
 
@@ -69,9 +102,20 @@ namespace MountainPlanner.App.Flow
     /// Task P2-06: a lost connection doesn't stop it. It waits (<see cref="DownloadPhase.Waiting"/>) and tries again
     /// every <see cref="RetrySeconds"/>, or, with offline mode on, until <see cref="TryNow"/> is called when that's
     /// turned off; the download cache keeps everything that arrived. Any other failure stops it with the problem in words.
+    ///
+    /// Task P3-16, BB5: a download held up for <see cref="HeldUpSeconds"/> (waiting, or a server sending nothing for
+    /// <see cref="QuietCountsAfterSeconds"/> or more) raises <see cref="HeldUp"/> once, and the card offers Try now, Pause
+    /// for later, Cancel and, when water and roads are the step held up, Skip water and roads.
     /// </summary>
     public sealed class DownloadService
     {
+        /// <summary>How long a download is held up before the player is told (owner, 2026-11-02: 2 minutes).</summary>
+        public const double HeldUpSeconds = 120;
+        /// <summary>A running step whose server has sent nothing for this long counts as held up.</summary>
+        public const double QuietCountsAfterSeconds = 10;
+        /// <summary>The waits after a server that isn't answering, one after another in a held-up spell, then the last again.</summary>
+        public static readonly double[] ServerDownWaits = { 60, 120, 300 };
+
         /// <summary>How often the paused-at line in the record is refreshed, in Pump calls' seconds.</summary>
         public const double RecordEverySeconds = 2;
         /// <summary>How long it waits for the connection before trying again.</summary>
@@ -92,6 +136,15 @@ namespace MountainPlanner.App.Flow
         double _retryIn = -1;
         long _downloaded;
         string _loggedStage = "";
+        /// <summary>The newest snapshot applied; kept across tries, so a wait knows the step it stopped at.</summary>
+        DownloadStatus _last;
+        /// <summary>Cancelled by Skip water and roads; one per download, so a skip pressed while waiting holds for the next try.</summary>
+        CancellationTokenSource _skip;
+        bool _restart;
+        // The held-up spell: seconds held up, tries in it, the furthest share reached, whether the player was told.
+        double _held, _high;
+        int _tries, _downWaits, _heldMinute = -1;
+        bool _heldRaised;
 
         public readonly DownloadViewModel View = new DownloadViewModel();
         public PendingDownload Current { get; private set; }
@@ -111,6 +164,10 @@ namespace MountainPlanner.App.Flow
         public event Action<bool> Stopped;
         /// <summary>It began waiting for the connection, or for offline mode to be turned off.</summary>
         public event Action<DownloadProblem> WaitStarted;
+        /// <summary>Held up for <see cref="HeldUpSeconds"/>: the alert to show, once per held-up spell.</summary>
+        public event Action<string> HeldUp;
+        /// <summary>Seconds held up in the current spell (0 once it moves again).</summary>
+        public double HeldSeconds => _held;
 
         public DownloadService(string dataRoot, ISiteDownloader downloader, Func<string> utcNow)
         {
@@ -146,12 +203,31 @@ namespace MountainPlanner.App.Flow
             PendingDownloads.Save(_dataRoot, d);
             if (d.LastOverall > 0) View.Resume(d.Name, d.SizeKm, d.LastStage ?? "", d.LastOverall);
             else View.Start(d.Name, d.SizeKm);
+            _skip?.Dispose();
+            _skip = new CancellationTokenSource();
+            _last = null;
+            _restart = false;
+            ResetHeld(d.LastOverall);
+            _tries = 0;
             Run(d);
             return true;
         }
 
+        /// <summary>The download moved (or began): a new held-up spell starts from here.</summary>
+        void ResetHeld(double high)
+        {
+            _held = 0;
+            _high = high;
+            _tries = 1;
+            _downWaits = 0;
+            _heldMinute = -1;
+            _heldRaised = false;
+            View.ClearHeld();
+        }
+
         void Run(PendingDownload d)
         {
+            _tries++;
             _discard = false;
             _sinceRecord = 0;
             _retryIn = -1;
@@ -160,19 +236,44 @@ namespace MountainPlanner.App.Flow
             lock (_gate) _latest = null;
             _cts = new CancellationTokenSource();
             var ct = _cts.Token;
+            var skip = _skip?.Token ?? default;
             var progress = new Latest(this);
             string build = PendingDownloads.BuildFolder(_dataRoot, d);
             _task = Task.Run(() =>
             {
                 // Half the cores for the download's own parallel work (owner, 2026-10-09): the game keeps its frame rate.
                 WorkerLimits.LimitThisFlow(WorkerLimits.Background);
-                return _downloader.DownloadAsync(d, build, progress, ct);
+                return _downloader is ISkippingDownloader skipping
+                    ? skipping.DownloadAsync(d, build, progress, ct, skip)
+                    : _downloader.DownloadAsync(d, build, progress, ct);
             }, ct);
         }
 
-        /// <summary>While waiting: try again now (Try now, or offline mode was turned off).</summary>
+        /// <summary>
+        /// Try again now: while waiting (Try now, or offline mode was turned off), and while a held-up step is running
+        /// (task P3-16): that try stops and a new one starts, reading back what already arrived.
+        /// </summary>
         public void TryNow()
         {
+            if (Waiting) Run(Current);
+            else if (Running && !_cts.IsCancellationRequested)
+            {
+                _restart = true;
+                _cts.Cancel();
+            }
+        }
+
+        /// <summary>Water and roads are the step held up: the player can leave them out (task P3-16, BB5).</summary>
+        public bool CanSkipOptional => Active && _downloader is ISkippingDownloader && _skip != null && !_skip.IsCancellationRequested
+                                       && _last != null && _last.Stage == AcquisitionPipeline.StageOsm;
+
+        /// <summary>Skip water and roads: the download goes on without them (now, if it was waiting).</summary>
+        public void SkipOptional()
+        {
+            if (!CanSkipOptional) return;
+            UnityEngine.Debug.Log($"[Downloads] {Current.Name}: water and roads skipped by the player");
+            _skip.Cancel();
+            View.ClearHeld();
             if (Waiting) Run(Current);
         }
 
@@ -209,6 +310,8 @@ namespace MountainPlanner.App.Flow
         {
             if (Waiting)
             {
+                // Offline mode is the player's own choice: it never counts as held up.
+                if (View.Problem?.Kind != ProblemKind.OfflineMode) CountHeld(deltaSeconds, View.Problem?.Server, View.Problem?.Kind == ProblemKind.NoConnection);
                 if (_retryIn >= 0)
                 {
                     _retryIn -= deltaSeconds;
@@ -225,6 +328,9 @@ namespace MountainPlanner.App.Flow
             }
             if (s != null)
             {
+                _last = s;
+                // It moved: new bytes, or past the furthest point of this spell (a retry replays what arrived in seconds).
+                if (s.Downloaded > _downloaded || s.Overall > _high + 0.0005) ResetHeld(Math.Max(_high, s.Overall));
                 View.Apply(s);
                 if (s.Stage != _loggedStage && s.Stage.Length > 0 && Current != null)
                 {
@@ -238,6 +344,9 @@ namespace MountainPlanner.App.Flow
                 }
             }
             if (_task == null) return;
+            // A step whose server has gone quiet; building and preparing name no server, so they never count.
+            if (_last != null && _last.Server != null && _last.QuietSeconds >= QuietCountsAfterSeconds && !_cts.IsCancellationRequested)
+                CountHeld(deltaSeconds, _last.Server, false);
 
             _sinceRecord += deltaSeconds;
             // Every 2 s, and at once when a stage begins, so a kill just after it still resumes there.
@@ -268,6 +377,12 @@ namespace MountainPlanner.App.Flow
             }
             else if (task.IsCanceled || task.Exception?.GetBaseException() is OperationCanceledException)
             {
+                if (_restart)
+                {
+                    _restart = false;   // Try now on a held-up step: straight into the next try
+                    Run(d);
+                    return;
+                }
                 if (_discard) PendingDownloads.Remove(_dataRoot, d);
                 else TrySave(d);
                 View.Paused();
@@ -277,13 +392,16 @@ namespace MountainPlanner.App.Flow
             else
             {
                 Exception error = task.Exception?.InnerExceptions.Count == 1 ? task.Exception.InnerExceptions[0] : task.Exception;
-                var problem = DownloadProblem.Of(DownloadErrors.Classify(error));
+                var problem = DownloadProblem.Of(DownloadErrors.Classify(error), 0, DownloadErrors.ServerOf(error));
                 TrySave(d);
                 if (problem.Waits)
                 {
                     UnityEngine.Debug.Log($"[Downloads] {d.Name}: waiting ({problem.Kind}): {error?.GetBaseException().Message}");
                     if (problem.Kind == ProblemKind.NoConnection) OfflineState.ReportConnection(false);
-                    _retryIn = problem.Kind == ProblemKind.NoConnection ? RetrySeconds : problem.Kind == ProblemKind.ServiceBusy ? BusyRetrySeconds : -1;
+                    _retryIn = problem.Kind == ProblemKind.NoConnection ? RetrySeconds
+                             : problem.Kind == ProblemKind.ServiceBusy ? BusyRetrySeconds
+                             : problem.Kind == ProblemKind.ServerDown ? ServerDownWaits[Math.Min(_downWaits++, ServerDownWaits.Length - 1)]
+                             : -1;
                     View.Waiting(problem, _retryIn);
                     WaitStarted?.Invoke(problem);
                 }
@@ -294,6 +412,26 @@ namespace MountainPlanner.App.Flow
                     Failed?.Invoke(problem);
                 }
             }
+        }
+
+        /// <summary>
+        /// Adds <paramref name="seconds"/> to the held-up spell. At <see cref="HeldUpSeconds"/> the player is told once;
+        /// the card's line changes only when the whole minute does, so a held-up Pump allocates nothing in between.
+        /// </summary>
+        void CountHeld(double seconds, string server, bool connectionLost)
+        {
+            _held += seconds;
+            if (_held < HeldUpSeconds || Current == null) return;
+            int minute = (int)(_held / 60);
+            if (minute == _heldMinute && View.Held) return;
+            _heldMinute = minute;
+            bool connectionFine = View.Problem?.Kind == ProblemKind.ServerDown;
+            View.SetHeld(server, minute, _tries, connectionLost, connectionFine, CanSkipOptional);
+            if (_heldRaised) return;
+            _heldRaised = true;
+            string what = connectionLost ? "your internet connection seems to be down" : $"{server ?? "a map service"} isn't answering";
+            UnityEngine.Debug.Log($"[Downloads] {Current.Name}: held up for {_held:F0} s ({what}, {_tries} tries)");
+            HeldUp?.Invoke($"{Current.Name}'s download is held up: {what}. It keeps trying. Open the download for choices.");
         }
 
         void TrySave(PendingDownload d)
@@ -326,7 +464,9 @@ namespace MountainPlanner.App.Flow
         {
             if (e == null) return ProblemKind.Unknown;
             if (NetworkFailure.IsOfflineMode(e)) return ProblemKind.OfflineMode;
-            if (NetworkFailure.IsNoConnection(e)) return ProblemKind.NoConnection;
+            if (NetworkFailure.IsServerDown(e)) return ProblemKind.ServerDown;
+            // Ran out of time with no other service answering either (DiagnoseAsync): the connection, most likely.
+            if (NetworkFailure.IsNoConnection(e) || NetworkFailure.IsTimeout(e)) return ProblemKind.NoConnection;
             if (NetworkFailure.IsServiceBusy(e)) return ProblemKind.ServiceBusy;
             for (var x = e; x != null; x = x.InnerException)
             {
@@ -337,6 +477,15 @@ namespace MountainPlanner.App.Flow
             for (var x = e; x != null; x = x.InnerException)
                 if (x is System.Net.Http.HttpRequestException || x is InvalidDataException) return ProblemKind.ServerError;
             return ProblemKind.Unknown;
+        }
+
+        /// <summary>The failing server in the player's words, if the failure says which (task P3-16, BB5).</summary>
+        public static string ServerOf(Exception e)
+        {
+            for (var x = e; x != null; x = x.InnerException)
+                if (x is ServerUnavailableException down && down.Server != null) return down.Server;
+            string host = NetworkFailure.HostOf(e);
+            return host != null ? Servers.NameOf(host) : null;
         }
     }
 }

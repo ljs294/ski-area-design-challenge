@@ -33,6 +33,10 @@ namespace MountainPlanner.UI.Flow
         public event Action MinimiseChosen, RestoreChosen, RetryChosen, CloseChosen;
         /// <summary>Try now, while the download waits for the connection (task P2-06).</summary>
         public event Action TryNowChosen;
+        /// <summary>Held up: Pause for later (keep it for resuming, in one click).</summary>
+        public event Action PauseChosen;
+        /// <summary>Held up at water and roads: leave them out and finish.</summary>
+        public event Action SkipChosen;
         /// <summary>Cancel confirmed: true keeps the partial download for resuming.</summary>
         public event Action<bool> CancelConfirmed;
         public event Action QualityOpenChosen, QualityLibraryChosen;
@@ -54,7 +58,9 @@ namespace MountainPlanner.UI.Flow
         Action<string> _promptAction;
         LibraryViewModel _libraryVm;
         readonly List<Label> _rowDisks = new List<Label>();
-        VisualElement _dlActions, _dlConfirm, _dlFailed, _dlWaiting, _confirmPanel, _pillFill;
+        VisualElement _dlActions, _dlConfirm, _dlFailed, _dlWaiting, _dlHeld, _confirmPanel, _pillFill;
+        Label _dlHeldLine;
+        Button _dlHeldSkip;
         Label _confirmTitle, _pillText;
         Button _confirmAlt, _confirmCancel, _confirmOk;
         Action _altAction;
@@ -119,6 +125,9 @@ namespace MountainPlanner.UI.Flow
             _dlConfirm = _root.Q("dl-confirm");
             _dlFailed = _root.Q("dl-failed");
             _dlWaiting = _root.Q("dl-waiting");
+            _dlHeld = _root.Q("dl-held");
+            _dlHeldLine = _root.Q<Label>("dl-held-line");
+            _dlHeldSkip = _root.Q<Button>("dl-held-skip");
             _confirmPanel = _root.Q("confirm-panel");
             _confirmTitle = _root.Q<Label>("confirm-title");
             _confirmAlt = _root.Q<Button>("confirm-alt");
@@ -186,6 +195,10 @@ namespace MountainPlanner.UI.Flow
             _root.Q<Button>("dl-close").clicked += () => CloseChosen?.Invoke();
             _root.Q<Button>("dl-trynow").clicked += () => TryNowChosen?.Invoke();
             _root.Q<Button>("dl-wait-cancel").clicked += () => ShowCancelConfirm(true);
+            _root.Q<Button>("dl-held-trynow").clicked += () => TryNowChosen?.Invoke();
+            _root.Q<Button>("dl-held-pause").clicked += () => PauseChosen?.Invoke();
+            _dlHeldSkip.clicked += () => SkipChosen?.Invoke();
+            _root.Q<Button>("dl-held-cancel").clicked += () => ShowCancelConfirm(true);
             _pill.clicked += () => RestoreChosen?.Invoke();
             _root.Q<Button>("qc-open").clicked += () => QualityOpenChosen?.Invoke();
             _root.Q<Button>("qc-library").clicked += () => QualityLibraryChosen?.Invoke();
@@ -519,6 +532,12 @@ namespace MountainPlanner.UI.Flow
         public static string PillState(DownloadPhase phase) =>
             phase == DownloadPhase.Waiting ? "pill--waiting" : phase == DownloadPhase.Paused ? "pill--paused" : phase == DownloadPhase.Failed ? "pill--failed" : "";
 
+        /// <summary>The pill's class for a download: held up (task P3-16, BB5) is amber whether it runs or waits.</summary>
+        public static string PillState(DownloadViewModel vm) =>
+            vm.Held && (vm.Phase == DownloadPhase.Running || vm.Phase == DownloadPhase.Waiting) ? "pill--held" : PillState(vm.Phase);
+
+        static readonly string[] PillStates = { "pill--waiting", "pill--paused", "pill--failed", "pill--held" };
+
         /// <summary>Draws the card and pill; only when the view model has changed (at most 4 times a second while it runs).</summary>
         public void RenderDownload(DownloadViewModel vm)
         {
@@ -558,26 +577,32 @@ namespace MountainPlanner.UI.Flow
             SetText(_pillText, vm.Pill);
             _barFill.style.width = Length.Percent(vm.Fraction * 100f);
             _pillFill.style.width = Length.Percent(vm.Fraction * 100f);
-            foreach (string c in new[] { "pill--waiting", "pill--paused", "pill--failed" }) _pill.EnableInClassList(c, c == PillState(vm.Phase));
-            bool failed = vm.Phase == DownloadPhase.Failed, waiting = vm.Phase == DownloadPhase.Waiting;
+            string pillState = PillState(vm);
+            foreach (string c in PillStates) _pill.EnableInClassList(c, c == pillState);
+            bool failed = vm.Phase == DownloadPhase.Failed, held = vm.Held && !failed, waiting = vm.Phase == DownloadPhase.Waiting && !held;
             bool confirming = !_dlConfirm.ClassListContains("hidden");
+            SetText(_dlHeldLine, vm.HeldLine);
+            Show(_dlHeldSkip, vm.CanSkip);
             Show(_dlFailed, failed);
+            Show(_dlHeld, held && !confirming);
             Show(_dlWaiting, waiting && !confirming);
             if (failed) Show(_dlConfirm, false);
-            Show(_dlActions, !failed && !waiting && !confirming);
+            Show(_dlActions, !failed && !waiting && !held && !confirming);
             _download.EnableInClassList("download--waiting", waiting);
+            _download.EnableInClassList("download--held", held);
         }
 
         /// <summary>Forces the next <see cref="RenderDownload"/> to draw (a new card, a theme change).</summary>
-        public void InvalidateDownload() => _dlVersion = -1;
+        public void InvalidateDownload() => _dlVersion = _stagesVersion = _statesVersion = -1;
 
         void ShowCancelConfirm(bool show)
         {
             if (_dlConfirm == null) return;
-            bool waiting = _download.ClassListContains("download--waiting");
+            bool waiting = _download.ClassListContains("download--waiting"), held = _download.ClassListContains("download--held");
             Show(_dlConfirm, show);
-            Show(_dlActions, !show && !waiting);
+            Show(_dlActions, !show && !waiting && !held);
             Show(_dlWaiting, !show && waiting);
+            Show(_dlHeld, !show && held);
         }
 
         // ---------- S5 ----------

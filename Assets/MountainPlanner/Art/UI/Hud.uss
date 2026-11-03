@@ -148,6 +148,8 @@
 .hud .dl--wait .dl__fill { background-color: var(--warn); }
 .hud .dl--fail .dl__fill { background-color: var(--neg); }
 .hud .dl--fail .dl__lab { color: var(--neg); -unity-text-outline-color: var(--neg); }
+.hud .dl--held .dl__fill { background-color: var(--warn); }
+.hud .dl--held .dl__lab { color: var(--warn); -unity-text-outline-color: var(--warn); }
 .hud .cash__icon { width: 22px; height: 22px; margin-right: 6px; color: var(--pos); -unity-text-outline-color: var(--pos); }
 .hud .stat--dis .cash__icon { color: var(--faint); -unity-text-outline-color: var(--faint); }
 .hud .money { align-items: flex-end; }

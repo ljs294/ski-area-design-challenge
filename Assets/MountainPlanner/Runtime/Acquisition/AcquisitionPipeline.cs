@@ -64,7 +64,8 @@ namespace MountainPlanner.Acquisition
             _cache = new DiskCache(cacheFolder);
         }
 
-        public async Task<PackageManifest> RunAsync(SiteRequest request, string packageFolder, IProgress<AcquisitionProgress>? progress, CancellationToken ct)
+        public async Task<PackageManifest> RunAsync(SiteRequest request, string packageFolder, IProgress<AcquisitionProgress>? progress, CancellationToken ct,
+                                                   CancellationToken skipOptional = default)
         {
             var site = SiteSquare.Create(request.Centre, request.SizeKm);
             var meter = new TransferMeter();
@@ -123,7 +124,7 @@ namespace MountainPlanner.Acquisition
                 tracker.BeginStage(StageSpecies);
                 var species = await covers.SpeciesAsync(speciesGrid, speciesLayers, tracker, ct).ConfigureAwait(false);
                 tracker.BeginStage(StageOsm);
-                var osm = await OsmLayers.FetchAsync(new OsmFeatures(_cache, meter), site, tracker, meter, ct).ConfigureAwait(false);
+                var osm = await OsmLayers.FetchAsync(new OsmFeatures(_cache, meter), site, tracker, meter, ct, skipOptional).ConfigureAwait(false);
 
                 tracker.BeginStage(StageBuild);
                 var manifest = Build(request, site, corePlan, core, ringPlan, ring, packageFolder, tracker);

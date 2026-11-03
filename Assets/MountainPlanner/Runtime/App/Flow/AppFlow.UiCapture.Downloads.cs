@@ -7,7 +7,8 @@ namespace MountainPlanner.App.Flow
     /// <summary>
     /// -uicapture's task P2-06 states, each a made-up download drawn by the real card, pill and dialogs (nothing is
     /// fetched): resuming, waiting for the connection, stopped; the pill waiting and stopped; the S11 error, offline
-    /// and one-at-a-time dialogs; the picker with a download running, and the picker with no connection.
+    /// and one-at-a-time dialogs; the picker with a download running, and the picker with no connection. Task P3-16, BB5:
+    /// held up by a server, by OpenStreetMap at water and roads (with Skip), and by a lost connection; the pill held up.
     /// </summary>
     public sealed partial class AppFlow
     {
@@ -56,6 +57,40 @@ namespace MountainPlanner.App.Flow
                 if (Wanted("s4-waiting")) yield return EachLook(folder, "s4-waiting");
                 yield return DrawDownload(vm, false);
                 if (Wanted("s4-pill-waiting")) yield return EachLook(folder, "s4-pill-waiting");
+            }
+            if (Wanted("s4-heldup") || Wanted("s4-pill-heldup"))
+            {
+                var vm = CaptureDownload();
+                vm.Apply(new DownloadStatus
+                {
+                    Name = "Crystal Mountain", SizeKm = 2, Stages = CaptureStages, StageIndex = 1, StageCount = CaptureStages.Length, Stage = CaptureStages[0],
+                    Overall = 0.41, Bytes = 182_400_000, Detail = "Terrain: downloading sector 7 of 19 · 20% · waiting for USGS elevation (184 s)",
+                });
+                vm.SetHeld(Servers.UsgsElevation, 3, 2, false, true, false);
+                yield return DrawDownload(vm, true);
+                if (Wanted("s4-heldup")) yield return EachLook(folder, "s4-heldup");
+                yield return DrawDownload(vm, false);
+                if (Wanted("s4-pill-heldup")) yield return EachLook(folder, "s4-pill-heldup");
+            }
+            if (Wanted("s4-heldup-osm"))
+            {
+                var vm = CaptureDownload();
+                vm.Apply(new DownloadStatus
+                {
+                    Name = "Crystal Mountain", SizeKm = 2, Stages = CaptureStages, StageIndex = 6, StageCount = CaptureStages.Length, Stage = CaptureStages[5],
+                    Overall = 0.87, Bytes = 196_600_000, Detail = "Water and roads: downloading map features 1 of 3 · 0% · waiting for OpenStreetMap (128 s)",
+                });
+                vm.SetHeld(Servers.OpenStreetMap, 2, 1, false, false, true);
+                yield return DrawDownload(vm, true);
+                yield return EachLook(folder, "s4-heldup-osm");
+            }
+            if (Wanted("s4-heldup-offline"))
+            {
+                var vm = CaptureDownload();
+                vm.Waiting(DownloadProblem.Of(ProblemKind.NoConnection), 9);
+                vm.SetHeld(null, 4, 9, true, false, false);
+                yield return DrawDownload(vm, true);
+                yield return EachLook(folder, "s4-heldup-offline");
             }
             if (Wanted("s4-failed") || Wanted("s4-pill-failed") || Wanted("s11-error"))
             {
