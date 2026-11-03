@@ -90,7 +90,7 @@ namespace MountainPlanner.Acquisition
         {
             var result = new byte[plan.Grid.CellCount];
             long missing = 0;
-            await ResampleAsync(plan, progress, "downloading canopy, band", ToMercator, (i, v) =>
+            await ResampleAsync(plan, progress, "downloading canopy, band", Servers.MetaCanopy, ToMercator, (i, v) =>
             {
                 if (float.IsNaN(v)) missing++;
                 else result[i] = EncodeCanopy(v);
@@ -165,7 +165,7 @@ namespace MountainPlanner.Acquisition
         public async Task<byte[]> CoverAsync(CoverPlan plan, ProgressTracker progress, CancellationToken ct)
         {
             var result = new byte[plan.Grid.CellCount];
-            await ResampleAsync(plan, progress, "downloading land cover, band", ToLonLat, (i, v) =>
+            await ResampleAsync(plan, progress, "downloading land cover, band", Servers.EsaLandCover, ToLonLat, (i, v) =>
             {
                 if (!float.IsNaN(v)) result[i] = (byte)Math.Max(0, Math.Min(255, v));
             }, ct).ConfigureAwait(false);
@@ -220,7 +220,7 @@ namespace MountainPlanner.Acquisition
             }
         }
 
-        async Task ResampleAsync(CoverPlan plan, ProgressTracker progress, string verb, Func<AlbersPoint, (double X, double Y)> transform,
+        async Task ResampleAsync(CoverPlan plan, ProgressTracker progress, string verb, string server, Func<AlbersPoint, (double X, double Y)> transform,
                                  Action<long, float> store, CancellationToken ct)
         {
             var grid = plan.Grid;
@@ -228,7 +228,7 @@ namespace MountainPlanner.Acquisition
             {
                 var (r0, rows, windows) = plan.Bands[b];
                 long start = _meter.Bytes, expected = Math.Max(1, windows.Sum(w => w.Bytes));
-                progress.BeginStep(verb, b + 1, plan.Bands.Count, () => (_meter.Bytes - start) / (double)expected, "AWS");
+                progress.BeginStep(verb, b + 1, plan.Bands.Count, () => (_meter.Bytes - start) / (double)expected, server);
                 var data = new List<float[]>();
                 foreach (var w in windows) data.Add(await w.Image.ReadWindowAsync(0, w.X0, w.Y0, w.Width, w.Height, ct).ConfigureAwait(false));
                 var projector = new GridReprojector(grid, r0, rows, transform);
@@ -280,7 +280,7 @@ namespace MountainPlanner.Acquisition
         public async Task<SpeciesResult> SpeciesAsync(GridSpec grid, List<BigmapService.Layer> layers, ProgressTracker progress, CancellationToken ct)
         {
             var box = grid.Bounds;
-            const string Server = "the USDA Forest Service";
+            const string Server = Servers.UsdaSpecies;
 
             var points = new List<AlbersPoint>();
             for (int j = 0; j < SpeciesSampleGrid; j++)

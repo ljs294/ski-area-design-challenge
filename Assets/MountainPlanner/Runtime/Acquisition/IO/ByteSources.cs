@@ -62,6 +62,7 @@ namespace MountainPlanner.Acquisition.IO
         {
             if (NetworkDisabled) throw new NetworkDisabledException();
             Exception? last = null;
+            string? host = null;
             for (int attempt = 0; attempt < attempts; attempt++)
             {
                 if (attempt > 0) await Task.Delay(500 * (1 << attempt), ct).ConfigureAwait(false);
@@ -72,7 +73,7 @@ namespace MountainPlanner.Acquisition.IO
                     try
                     {
                         using (var request = build())
-                        using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
+                        using (var response = await SendAsync(request, token, h => host = h).ConfigureAwait(false))
                         // Some runtimes' response streams ignore the token; closing the response ends a stalled read.
                         using (limit != null ? token.Register(response.Dispose) : default(CancellationTokenRegistration))
                         {
@@ -102,7 +103,15 @@ namespace MountainPlanner.Acquisition.IO
                     catch (TaskCanceledException ex) when (!ct.IsCancellationRequested) { last = ex; }
                 }
             }
-            throw new IOException(attempts == 1 ? "The request failed." : $"The request failed after {attempts} attempts.", last);
+            var failed = new IOException(attempts == 1 ? "The request failed." : $"The request failed after {attempts} attempts.", last);
+            if (host != null) failed.Data[NetworkFailure.HostKey] = host;   // which server it was (task P3-16, BB5)
+            throw failed;
+        }
+
+        static Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token, Action<string> asking)
+        {
+            if (request.RequestUri != null) asking(request.RequestUri.Host);
+            return Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
         }
     }
 
@@ -115,6 +124,17 @@ namespace MountainPlanner.Acquisition.IO
     /// <summary>What kind of network failure an exception is (task P2-06): the download waits out a lost connection but stops on anything else.</summary>
     public static class NetworkFailure
     {
+        /// <summary>The <see cref="Exception.Data"/> key under which a failed request records its server's host.</summary>
+        public const string HostKey = "Host";
+
+        /// <summary>The host of the server that failed, if any exception in the chain recorded it.</summary>
+        public static string? HostOf(Exception? e)
+        {
+            for (; e != null; e = e.InnerException)
+                if (e.Data[HostKey] is string host) return host;
+            return null;
+        }
+
         /// <summary>Offline mode refused the request somewhere in the chain.</summary>
         public static bool IsOfflineMode(Exception? e)
         {

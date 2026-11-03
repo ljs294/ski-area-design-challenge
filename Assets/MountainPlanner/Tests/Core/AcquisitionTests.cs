@@ -539,16 +539,7 @@ namespace MountainPlanner.Tests
             }
         }
 
-        [Test]
-        public void TheWaitingHintNamesTheServer()
-        {
-            var tracker = new ProgressTracker(null, new TransferMeter());
-            tracker.DefineStage("Tree species", 1);
-            tracker.BeginStage("Tree species");
-            tracker.BeginStep("sampling species, batch", 1, 4, () => 0, "the USDA Forest Service");
-            Thread.Sleep(2300);
-            Assert.That(tracker.Snapshot().Detail, Does.Contain("waiting for the USDA Forest Service"));
-        }
+        // The waiting hint: DownloadPrepTests.TheWaitingHintNamesTheServerAndCountsFromTheLastByte (fake clock, no sleep).
     }
 }
 
