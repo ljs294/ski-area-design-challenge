@@ -36,6 +36,10 @@ namespace MountainPlanner.Acquisition
         /// <summary>A ready-made status line for the current step.</summary>
         public string Detail { get; set; } = "";
         public bool Finished { get; set; }
+        /// <summary>The server the current step is waiting on (a <see cref="Servers"/> name), or null when it uses no network.</summary>
+        public string? Server { get; set; }
+        /// <summary>Seconds since the last byte arrived (or since the step began, if none has).</summary>
+        public double QuietSeconds { get; set; }
     }
 
     /// <summary>
@@ -49,24 +53,33 @@ namespace MountainPlanner.Acquisition
         readonly IProgress<AcquisitionProgress>? _sink;
         readonly TransferMeter _meter;
         readonly List<(string Name, double Weight)> _stages = new List<(string, double)>();
-        readonly Stopwatch _clock = Stopwatch.StartNew();
+        readonly Func<double> _now;
         readonly Timer? _timer;
         readonly object _gate = new object();
         readonly Queue<(double Seconds, long Bytes)> _window = new Queue<(double, long)>();
 
         int _stage = -1, _step, _stepCount;
         string _verb = "";
-        string _server = "the server";
+        string? _server;
         Func<double> _stepFraction = () => 0;
         double _completedWeight;
-        double _stepStarted;
+        double _lastByteAt;
         double _spanStart, _spanEnd = 1;
-        long _stepBytes;
+        long _lastBytes;
 
-        public ProgressTracker(IProgress<AcquisitionProgress>? sink, TransferMeter meter)
+        public ProgressTracker(IProgress<AcquisitionProgress>? sink, TransferMeter meter) : this(sink, meter, null) { }
+
+        /// <summary><paramref name="now"/> gives seconds on a steady clock (tests pass their own; default a stopwatch).</summary>
+        internal ProgressTracker(IProgress<AcquisitionProgress>? sink, TransferMeter meter, Func<double>? now)
         {
             _sink = sink;
             _meter = meter;
+            if (now == null)
+            {
+                var clock = Stopwatch.StartNew();
+                now = () => clock.Elapsed.TotalSeconds;
+            }
+            _now = now;
             if (sink != null) _timer = new Timer(_ => Publish(), null, IntervalMilliseconds, IntervalMilliseconds);
         }
 
@@ -114,9 +127,10 @@ namespace MountainPlanner.Acquisition
 
         /// <summary>
         /// Starts step <paramref name="step"/> of <paramref name="count"/>, e.g. ("downloading sector", 5, 19).
-        /// <paramref name="fraction"/> reports the step's own progress when polled.
+        /// <paramref name="fraction"/> reports the step's own progress when polled. <paramref name="server"/> is the
+        /// <see cref="Servers"/> name of the server the step downloads from; leave it null for steps that use no network.
         /// </summary>
-        public void BeginStep(string verb, int step, int count, Func<double> fraction, string server = "the server")
+        public void BeginStep(string verb, int step, int count, Func<double> fraction, string? server = null)
         {
             lock (_gate)
             {
@@ -125,8 +139,20 @@ namespace MountainPlanner.Acquisition
                 _step = step;
                 _stepCount = count;
                 _stepFraction = fraction;
-                _stepStarted = _clock.Elapsed.TotalSeconds;
-                _stepBytes = _meter.Bytes;
+                _lastByteAt = _now();
+                _lastBytes = _meter.Bytes;
+            }
+            Publish();
+        }
+
+        /// <summary>Names the server the current step is now asking (e.g. the next OpenStreetMap mirror).</summary>
+        public void SetServer(string? server)
+        {
+            lock (_gate)
+            {
+                _server = server;
+                _lastByteAt = _now();
+                _lastBytes = _meter.Bytes;
             }
             Publish();
         }
@@ -154,8 +180,13 @@ namespace MountainPlanner.Acquisition
                 double current = _stage >= 0 && _stage < _stages.Count ? _stages[_stage].Weight * Clamp01(stageFraction) : 0;
                 double overall = finished ? 1 : Clamp01((_completedWeight + current) / Math.Max(total, 1e-9));
 
-                double now = _clock.Elapsed.TotalSeconds;
+                double now = _now();
                 long bytes = _meter.Bytes;
+                if (bytes != _lastBytes)
+                {
+                    _lastBytes = bytes;
+                    _lastByteAt = now;
+                }
                 _window.Enqueue((now, _meter.DownloadedBytes));
                 while (_window.Count > 2 && now - _window.Peek().Seconds > 5) _window.Dequeue();
                 var first = _window.Peek();
@@ -163,9 +194,10 @@ namespace MountainPlanner.Acquisition
                 double? remaining = overall > 0.02 && !finished ? now / overall * (1 - overall) : (double?)null;
 
                 string stage = _stage >= 0 && _stage < _stages.Count ? _stages[_stage].Name : finished ? "Done" : "";
-                // A server preparing a response sends nothing for a while; say so rather than sit at 0%.
-                double quiet = now - _stepStarted;
-                string waiting = !finished && _stepCount > 0 && _meter.Bytes == _stepBytes && quiet > 2
+                // A server preparing a response, or stalled mid-transfer, sends nothing for a while; say so rather than
+                // sit still. Steps that use no network (planning, building, preparing) never wait on a server.
+                double quiet = now - _lastByteAt;
+                string waiting = !finished && _server != null && _stepCount > 0 && quiet > 2
                     ? $" · waiting for {_server} ({quiet:F0} s)" : "";
                 string detail = finished ? "Finished"
                     : _stepCount > 0 ? $"{stage}: {_verb} {_step} of {_stepCount} · {Pct(stepFraction)}{waiting}"
@@ -178,6 +210,7 @@ namespace MountainPlanner.Acquisition
                     Step = _step, StepCount = _stepCount, StepFraction = stepFraction, Overall = overall,
                     Bytes = bytes, DownloadedBytes = _meter.DownloadedBytes, BytesPerSecond = rate,
                     SecondsRemaining = remaining, Detail = detail, Finished = finished,
+                    Server = finished ? null : _server, QuietSeconds = quiet,
                 };
             }
         }

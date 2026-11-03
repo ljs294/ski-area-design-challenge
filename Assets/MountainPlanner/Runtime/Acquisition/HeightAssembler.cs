@@ -141,7 +141,7 @@ namespace MountainPlanner.Acquisition
                 var sector = plan.Sectors[s];
                 long start = _meter.Bytes;
                 long expected = Math.Max(1, sector.Bytes);
-                progress.BeginStep("downloading sector", s + 1, plan.Sectors.Count, () => (_meter.Bytes - start) / (double)expected, "USGS");
+                progress.BeginStep("downloading sector", s + 1, plan.Sectors.Count, () => (_meter.Bytes - start) / (double)expected, Servers.UsgsElevation);
                 foreach (var w in sector.Windows)
                 {
                     float[] block = await w.Tile.ReadWindowAsync(plan.Level, w.X0, w.Y0, w.Width, w.Height, ct).ConfigureAwait(false);
@@ -175,7 +175,7 @@ namespace MountainPlanner.Acquisition
             long perSector = (long)SectorCells * SectorCells * 4;
             long batchStart = _meter.Bytes;
             progress.BeginStep("filling from 3DEP, sector", 1, fallbackSectors.Count,
-                () => (_meter.Bytes - batchStart) / (double)(perSector * Math.Min(4, fallbackSectors.Count)), "USGS");
+                () => (_meter.Bytes - batchStart) / (double)(perSector * Math.Min(4, fallbackSectors.Count)), Servers.UsgsElevation);
             var fetched = new float[fallbackSectors.Count][];
             var identified = new (string Source, double CellSize)?[fallbackSectors.Count];
             var gaps = fallbackSectors.Select(sec =>
@@ -201,7 +201,7 @@ namespace MountainPlanner.Acquisition
                         long doneBytes = _meter.Bytes;
                         if (d < fallbackSectors.Count)
                             progress.BeginStep("filling from 3DEP, sector", d + 1, fallbackSectors.Count,
-                                () => (_meter.Bytes - doneBytes) / (double)(perSector * Math.Min(4, fallbackSectors.Count - d)), "USGS");
+                                () => (_meter.Bytes - doneBytes) / (double)(perSector * Math.Min(4, fallbackSectors.Count - d)), Servers.UsgsElevation);
                     }
                     finally { gate.Release(); }
                 })).ConfigureAwait(false);

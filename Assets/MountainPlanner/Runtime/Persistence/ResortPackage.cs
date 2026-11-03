@@ -204,11 +204,17 @@ namespace MountainPlanner.Persistence
             }
         }
 
+        /// <summary>
+        /// Writes manifest.json whole: to a flushed temporary file, then replaced over the old one in one step (task P3-16),
+        /// so a crash leaves the old manifest or the new one, never half of either. It is the package's commit point.
+        /// </summary>
         public static void WriteManifest(string folder, PackageManifest manifest)
         {
             manifest.PackageId = ComputeId(manifest);
             manifest.Layers.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
-            File.WriteAllText(Path.Combine(folder, ManifestFile), JsonConvert.SerializeObject(manifest, Json) + "\n", new UTF8Encoding(false));
+            string path = Path.Combine(folder, ManifestFile), temp = path + ".tmp";
+            Saves.SaveStore.WriteFlushed(temp, new UTF8Encoding(false).GetBytes(JsonConvert.SerializeObject(manifest, Json) + "\n"));
+            Saves.SaveStore.Commit(temp, path, null);
         }
 
         /// <summary>

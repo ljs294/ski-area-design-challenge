@@ -127,19 +127,20 @@ namespace MountainPlanner.Acquisition.Providers
         /// <see cref="OsmUnavailableException"/>, and the package is built without the layer; only when every server
         /// failed to connect and the other map services don't answer either does it throw a connection failure, so the
         /// download waits for the network (task P3-16: a slow, busy or blocked Overpass used to look like a lost
-        /// connection, and the download waited for it for ever).
+        /// connection, and the download waited for it for ever). <paramref name="asking"/> hears each mirror's host as it
+        /// is tried.
         /// </summary>
-        public async Task<byte[]> DownloadAsync(AlbersBox box, CancellationToken ct)
+        public async Task<byte[]> DownloadAsync(AlbersBox box, CancellationToken ct, Action<string>? asking = null)
         {
             var corners = new[] { new AlbersPoint(box.West, box.South), new AlbersPoint(box.West, box.North), new AlbersPoint(box.East, box.South), new AlbersPoint(box.East, box.North) }
                 .Select(Albers6350.Inverse).ToList();
             double pad = 0.001;
             string query = Query(corners.Min(p => p.Latitude) - pad, corners.Min(p => p.Longitude) - pad,
                                  corners.Max(p => p.Latitude) + pad, corners.Max(p => p.Longitude) + pad);
-            return await _cache.GetOrAddAsync("osm-overpass:" + query, () => FirstResultAsync(query, ct), _meter).ConfigureAwait(false);
+            return await _cache.GetOrAddAsync("osm-overpass:" + query, () => FirstResultAsync(query, asking, ct), _meter).ConfigureAwait(false);
         }
 
-        async Task<byte[]> FirstResultAsync(string query, CancellationToken ct)
+        async Task<byte[]> FirstResultAsync(string query, Action<string>? asking, CancellationToken ct)
         {
             var failures = new List<string>();
             Exception? connection = null;
@@ -147,6 +148,7 @@ namespace MountainPlanner.Acquisition.Providers
             foreach (string server in ServerOverride != null ? new[] { ServerOverride } : Servers)
             {
                 string host = new Uri(server).Host;
+                asking?.Invoke(host);
                 try
                 {
                     byte[] body = await _fetch(server + "?data=" + Uri.EscapeDataString(query), ct).ConfigureAwait(false);
