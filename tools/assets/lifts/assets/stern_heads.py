@@ -34,9 +34,11 @@ def members(mb, items, hg, lod, st):
     with "sym": true to repeat it mirrored across the axis (v -> -v) or "on": -1 / 1 for one side only (v values then
     given on that side, outboard +), "rope": true when its v values are measured outboard (+) of the rope rather than
     from the axis (so it follows the gauge; implies sym unless "on"), or a list of the indices of the values (points)
-    that are, "lod": the last LOD that draws it (default 2) and "style" (default "steel")."""
+    that are, "lod": the last LOD that draws it (default 2), "from": the first (default 0) and "style" (default
+    "steel"). A side outline may carry an "eye" ({"u": [a, b], "w": [a, b]}, a slot with round ends) cut through it
+    at LOD0."""
     for it in items:
-        if lod > it.get("lod", 2):
+        if lod > it.get("lod", 2) or lod < it.get("from", 0):
             continue
         style = st[it.get("style", "steel")]
         rope = it.get("rope", False)
@@ -50,7 +52,8 @@ def members(mb, items, hg, lod, st):
                 prims.box(mb, (m(b["u"][0]), v0, m(b["w"][0])), (m(b["u"][1]), v1, m(b["w"][1])), style)
             elif "side" in it:
                 v0, v1 = sorted(vv(x, i) for i, x in enumerate(it["v"]))
-                prims.prism(mb, [(m(u), m(w)) for u, w in it["side"]], (0, v0, 0), U, W, V, v1 - v0, style)
+                for poly in eyed(it["side"], it["eye"]) if "eye" in it and lod == 0 else (it["side"],):
+                    prims.prism(mb, [(m(u), m(w)) for u, w in poly], (0, v0, 0), U, W, V, v1 - v0, style)
             elif "end" in it:
                 poly = [(vv(v, i), m(w)) for i, (v, w) in enumerate(it["end"])]
                 prims.prism(mb, poly, (m(it["u"][0]), 0, 0), V, W, U, m(it["u"][1] - it["u"][0]), style)
@@ -64,6 +67,37 @@ def members(mb, items, hg, lod, st):
                 (ua, va, wa), (ub, vb, wb) = it["pipe"]
                 pipe(mb, (m(ua), vv(va, 0), m(wa)), (m(ub), vv(vb, 1), m(wb)), m(it["dia"]), lod, style,
                      sides=tuple(it.get("sides", (16, 12, 8, 6))))
+
+
+def eyed(outline, eye, steps=2):
+    """A side outline (u, w; mm) with a slot eye through it (round ends, `steps` segments a quarter) as two simple
+    polygons either side of the eye's centre line, since a prism's caps can't hold a hole. The outline crosses that
+    line twice, above and below the eye."""
+    (e0, e1), (f0, f1) = eye["u"], eye["w"]
+    uc, r = (e0 + e1) / 2, (e1 - e0) / 2
+    area = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(outline, outline[1:] + outline[:1]))
+    poly = list(outline) if area > 0 else list(reversed(outline))   # counter-clockwise
+    pts = []
+    for p, q in zip(poly, poly[1:] + poly[:1]):
+        pts.append(tuple(p))
+        if (p[0] - uc) * (q[0] - uc) < 0:
+            pts.append((uc, p[1] + (q[1] - p[1]) * (uc - p[0]) / (q[0] - p[0])))
+    on = sorted((i for i, p in enumerate(pts) if p[0] == uc), key=lambda i: pts[i][1])
+    assert len(on) == 2, ("the outline must cross the eye's centre line twice", on)
+    bottom, top = on
+
+    def walk(a, b):   # the outline counter-clockwise from point a to point b
+        out = [pts[a]]
+        while a != b:
+            a = (a + 1) % len(pts)
+            out.append(pts[a])
+        return out
+
+    def edge(spans):   # the eye's edge, clockwise round the hole
+        return [(uc + r * math.cos(math.radians(a0 + (a1 - a0) * k / steps)), wc + r * math.sin(math.radians(a0 + (a1 - a0) * k / steps)))
+                for wc, a0, a1 in spans for k in range(steps + 1)]
+    return [walk(top, bottom) + edge(((f0 + r, 270, 180), (f1 - r, 180, 90))),
+            walk(bottom, top) + edge(((f1 - r, 90, 0), (f0 + r, 0, -90)))]
 
 
 def rect_path(mb, pts, half_w, lo, hi, style):
@@ -149,6 +183,8 @@ def drive_wheel_mesh(mb, centre, bw, lod, st):
     hs = parts.sides(lod, 24, 12, 8)
     for rg in bw["rings"] if lod <= 1 else bw["rings"][:1]:
         prims.cylinder(mb, c + W * m(rg["bottom"]), c + W * m(rg["top"]), m(rg["dia"]) / 2, hs, wheel, fan_caps=True)
+    sh = bw["shaft"]   # its ends are buried in the hub and the carriage plate
+    prims.cylinder(mb, c + W * m(sh["bottom"]), c + W * m(sh["top"]), m(sh["dia"]) / 2, hs, wheel, caps=(False, False))
 
 
 def return_wheel(c, bw):
@@ -182,8 +218,15 @@ def return_wheel_mesh(mb, centre, bw, lod, st):
         prims.lathe(mb, c, W, [(pi_, p_lo), (po, p_lo), (po, p_hi), (pi_, p_hi)], n, plate)
     elif lod == 2:
         prims.lathe(mb, c, W, [(r_lo, bot), (r_hi, bot), (r_hi, p_lo), (po, p_lo), (po, p_hi), (pi_, p_hi), (pi_, p_lo), (r_lo, p_lo)], n, plate)
-    else:
+    else:   # far out the spokes are four flat bars across the hub and the hub a plain drum on the spigot (the ring floated)
         prims.lathe(mb, c, W, [(r_lo, bot), (po, bot), (po, p_hi), (pi_, p_hi)], n, plate)
+        sw, hb = m(bw["spokes"]["width"]), bw["hub"]
+        for i in range(4):
+            ang = math.pi * i / 4
+            d = U * math.cos(ang) + V * math.sin(ang)
+            p = W.cross(d).normalized()
+            prims.prism(mb, [(-r_lo, bot), (r_lo, bot), (r_lo, p_hi), (-r_lo, p_hi)], c - p * (sw / 2), d, W, p, sw, wheel)
+        prims.cylinder(mb, c + W * m(hb["flange"]["bottom"]), c + W * m(hb["top"]), m(hb["dia"]) / 2, 8, wheel, fan_caps=True)
         return
     sp, hb = bw["spokes"], bw["hub"]
     (r0, w0), (r1, w1) = [(m(r), m(w)) for r, w in sp["under"]]
@@ -227,23 +270,25 @@ def lifting_portal(mb, lp, hg, lod, st):
     top beam (square, or round where "dia" is given), and where drawn the beam's end caps and bent tubes from under the beam down to clamps on the legs; its
     plates (feet, lugs, hangers) are drawn steel in lp "steel" (members). Everything across the line that follows the
     rope is given against it (+ outboard), so it follows the gauge."""
+    if lod >= 3:   # far out none of it (its beam alone hung in the air)
+        return
     lg, bm = lp["legs"], lp["beam"]
     u0, u1 = m(lg["u"][0]), m(lg["u"][1])
     bu0, bu1 = (m(x) for x in bm.get("u", lg["u"]))
     b_lo, b_hi = m(bm["bottom"]), m(bm["top"])
     hb = hg + m(bm["out"])
     uc, wc = (bu0 + bu1) / 2, (b_lo + b_hi) / 2
-    if "dia" in bm:   # a round beam
+    leg_top = b_lo
+    if "dia" in bm:   # a round beam, the legs up to its lowest facet
         pipe(mb, (uc, -hb, wc), (uc, hb, wc), m(bm["dia"]), lod, st["steel"])
+        leg_top += m(bm["dia"]) / 2 * (1 - math.cos(math.pi / parts.sides(lod, 16, 12, 8, 6)))
     else:
         prims.box(mb, (bu0, -hb, b_lo), (bu1, hb, b_hi), st["steel"])
-    if lod >= 3:
-        return
     foot_w = m(lg["footW"])
     for s in (-1, 1):   # legs square in u, leaning out in v, cut level on the foot and under the beam
         f0, f1 = sorted((s * (hg + m(lg["foot"][0])), s * (hg + m(lg["foot"][1]))))
         h0, h1 = sorted((s * (hg + m(lg["head"][0])), s * (hg + m(lg["head"][1]))))
-        prims.prism(mb, [(f0, foot_w), (f1, foot_w), (h1, b_lo), (h0, b_lo)], (u0, 0, 0), V, W, U, u1 - u0, st["steel"])
+        prims.prism(mb, [(f0, foot_w), (f1, foot_w), (h1, leg_top), (h0, leg_top)], (u0, 0, 0), V, W, U, u1 - u0, st["steel"])
         cap = bm.get("caps")
         if cap and lod <= 1 and "dia" in cap:   # a round beam's end caps
             pipe(mb, (uc, s * hb, wc), (uc, s * (hb + m(cap["thick"])), wc), m(cap["dia"]), lod, st["steel"])

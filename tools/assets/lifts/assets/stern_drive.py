@@ -91,6 +91,9 @@ def hood(mb, h, lod, st):
                 style = st["hood"]
             out = (0.0, 0.0, -1.0) if floor else (0.0, (v0 + v1) / 2, (w0 + w1) / 2 - mid_w)
             mb.face([grid[i][k], grid[i][k + 1], grid[i1][k + 1], grid[i1][k]], style, out)
+            if floor and k in (0, len(us) - 2):   # the end bays' floor from above too: it shows through the end windows
+                top = [mb.vert((m(u), m(v), m(w) + 0.002)) for u, (v, w) in ((us[k], ring[i]), (us[k + 1], ring[i]), (us[k + 1], ring[i1]), (us[k], ring[i1]))]
+                mb.face(top, style, (0.0, 0.0, 1.0))
     for u_end, sign in ((ends["far"], -1), (ends["line"], 1)):
         end_cap(mb, h, half, u_end, sign, lod, st)
     if lod <= 1:
@@ -374,11 +377,11 @@ def guides(mb, a, c, d, hg, lod, st):
     for side, name in ((-1, "l1"), (1, "r1")):
         centre = Vector((m(gs["u"]), side * hg, rope - rope_r - m(gs["dia"]) / 2))
         target = MeshBuilder() if lod <= 1 else mb
-        if lod <= 2:
+        if lod <= 2:   # the axle at LOD2 too, or the sheave floats clear of its pendant plate
             parts.sheave(target, centre, V, m(gs["dia"]), m(gs["width"]), lod, st["red"], st["rubber"])
-        if lod <= 1:
             prims.cylinder(mb, (centre.x, side * (hg + m(gs["axleFrom"])), centre.z), (centre.x, side * (hg + m(gs["width"]) / 2), centre.z),
                            m(gs["axle"]) / 2, parts.sides(lod, 10, 6), st["rod"])
+        if lod <= 1:
             a.parts[f"sheave_{name}"] = target
             a.pivots[f"sheave_{name}"] = {"pos": tuple(centre), "axis": (0.0, 1.0, 0.0)}
 

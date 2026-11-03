@@ -46,6 +46,13 @@ def chamfered(mb, u, hv, lo, hi, ch, style):
     prims.prism(mb, plan, (0, 0, lo), U, V, W, hi - lo, style)
 
 
+def rounded(lo, hi, r, steps):
+    """A rectangle lo..hi (2D, m) counter-clockwise with its corners rounded to r in `steps` segments."""
+    return [(ca + r * math.cos(math.radians(t0 + 90 * k / steps)), cb + r * math.sin(math.radians(t0 + 90 * k / steps)))
+            for ca, cb, t0 in ((hi[0] - r, lo[1] + r, -90), (hi[0] - r, hi[1] - r, 0), (lo[0] + r, hi[1] - r, 90), (lo[0] + r, lo[1] + r, 180))
+            for k in range(steps + 1)]
+
+
 def column(mb, r, lod, st):
     """The column standing in the ground on its pier (no base plate is drawn) and the narrower upper section up to
     the walkway, both with chamfered edges. Returns the pier top."""
@@ -61,13 +68,13 @@ def column(mb, r, lod, st):
 
 
 def deck(mb, r, lod, st):
-    """The walkway on the axis over the column and the boom: grating flush with the top of its frame of 102 mm
-    channels (the toe band), on a stringer of two channels; the railing on the departing side only, as two bent
-    hoops of pipe with posts and a mid rail between their ends."""
+    """The walkway on the axis over the column and the boom: grating on a stringer of two channels, its frame of
+    102 mm channels standing above it as toe boards; the railing on the departing side only, as two bent hoops of
+    pipe with posts and a mid rail between their ends."""
     dk = r["deck"]
     u0, u1, hv = m(dk["u"][0]), m(dk["u"][1]), m(dk["v"]) / 2
-    top, fr = m(dk["top"]), m(dk["frame"])
-    parts.deck(mb, (u0, -hv, top - m(dk["thick"])), (u1, hv, top), lod, st["galv"], channels=False)
+    top, fr, walk = m(dk["top"]), m(dk["frame"]), m(dk["walk"])
+    parts.deck(mb, (u0, -hv, walk - m(dk["thick"])), (u1, hv, walk), lod, st["galv"], channels=False)
     if lod <= 2:   # the frame's channels round the grating
         e = m(dk["edge"])
         for lo, hi in (((u0, -hv, top - fr), (u1, -hv + e, top)), ((u0, hv - e, top - fr), (u1, hv, top)),
@@ -111,7 +118,11 @@ def head_steel(mb, r, hg, lod, st):
     hd = r["heads"]["top"]
     cb = hd["crossbeam"]
     reach = hg + m(cb["out"])
-    prims.box(mb, (m(cb["u"][0]), -reach, m(cb["bottom"])), (m(cb["u"][1]), reach, m(cb["top"])), st["steel"])
+    lo, hi = (m(cb["u"][0]), m(cb["bottom"])), (m(cb["u"][1]), m(cb["top"]))
+    if lod <= 1:   # the tube's rounded corners
+        prims.prism(mb, rounded(lo, hi, m(cb["corner"]), 2 - lod), (0, -reach, 0), U, W, V, 2 * reach, st["steel"])
+    else:
+        prims.box(mb, (lo[0], -reach, lo[1]), (hi[0], reach, hi[1]), st["steel"])
     stern_heads.members(mb, hd["steel"], hg, lod, st)
     stern_heads.lifting_portal(mb, hd["liftingPortal"], hg, lod, st)
 
@@ -192,6 +203,6 @@ def build(spec, lod, stage):
         "chair_unload": (m(r["chairUnloadU"]), -hg, rope),
         "pier_top": pier_top,
     })
-    a.dims.update({"bullwheelU": 0, "columnU": round(sum(r["column"]["u"]) / 2), "deckTop": r["deck"]["top"],
+    a.dims.update({"bullwheelU": 0, "columnU": round(sum(r["column"]["u"]) / 2), "deckTop": r["deck"]["walk"],
                    "guideSheaveU": r["guideSheaves"]["u"], "headU": hd["pinU"]})
     return a
