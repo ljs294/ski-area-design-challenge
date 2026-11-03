@@ -25,6 +25,8 @@ namespace MountainPlanner.UI.Flow
         public event Action ContinueChosen, NewResortChosen, LoadChosen, ManageChosen, CreditsChosen, QuitChosen;
         public event Action LibraryClosed, DataFolderChosen;
         public event Action<LibraryRow> OpenChosen, ResumeChosen, DiscardChosen, DeleteConfirmed;
+        /// <summary>Get water and roads on an area's row (Manage Areas, task P3-16, BB6).</summary>
+        public event Action<LibraryRow> WaterAndRoadsChosen;
         /// <summary>Rename confirmed in its dialog (Manage Areas, task P2-04): the row and the name as typed.</summary>
         public event Action<LibraryRow, string> RenameConfirmed;
         /// <summary>Free space confirmed (Manage Areas, task P2-04).</summary>
@@ -58,6 +60,8 @@ namespace MountainPlanner.UI.Flow
         Action<string> _promptAction;
         LibraryViewModel _libraryVm;
         readonly List<Label> _rowDisks = new List<Label>();
+        /// <summary>Each area's Get water and roads status line, by folder (task P3-16, BB6).</summary>
+        readonly Dictionary<string, Label> _rowJobs = new Dictionary<string, Label>();
         VisualElement _dlActions, _dlConfirm, _dlFailed, _dlWaiting, _dlHeld, _confirmPanel, _pillFill;
         Label _dlHeldLine;
         Button _dlHeldSkip;
@@ -306,6 +310,7 @@ namespace MountainPlanner.UI.Flow
             _rowElements.Clear();
             _rowData.Clear();
             _rowDisks.Clear();
+            _rowJobs.Clear();
             foreach (var row in vm.Rows)
             {
                 if (row.IsPaused && !manage) continue;   // paused downloads are managed, not loaded
@@ -353,9 +358,20 @@ namespace MountainPlanner.UI.Flow
                     el.Add(DiskCell(r));
                     el.Add(Text(r.Opened, "lib-cell", "lib-cell--when"));
                     if (!manage) AddSaveCount(el, r);   // "3 saves" (task P3-04)
-                    var spacer = new VisualElement();
-                    spacer.AddToClassList("spacer");
-                    el.Add(spacer);
+                    if (manage && r.NeedsWaterAndRoads)
+                    {
+                        // Task P3-16, BB6: the status takes the spacer's place; it reads the job's progress while it runs.
+                        var status = Text(r.Busy ? r.WaterAndRoadsText : LibraryViewModel.NoWaterAndRoads, "lib-paused", "lib-status");
+                        status.tooltip = "Downloaded without OpenStreetMap water and roads: satellite land cover stands in for them.";
+                        _rowJobs[r.Entry.Folder] = status;
+                        el.Add(status);
+                    }
+                    else
+                    {
+                        var spacer = new VisualElement();
+                        spacer.AddToClassList("spacer");
+                        el.Add(spacer);
+                    }
                     var actions = new VisualElement();
                     actions.AddToClassList("lib-actions");
                     if (manage && r.IsBuiltIn)
@@ -367,13 +383,26 @@ namespace MountainPlanner.UI.Flow
                     }
                     else if (manage)
                     {
+                        if (r.NeedsWaterAndRoads && !r.Busy)   // while it runs, the status line shows its progress instead
+                        {
+                            var get = Btn(LibraryViewModel.GetWaterAndRoads, "btn--ghost", () => WaterAndRoadsChosen?.Invoke(r));
+                            get.tooltip = "Downloads this area's OpenStreetMap water and roads (a few MB). Its saves come with it.";
+                            actions.Add(get);
+                        }
                         var rename = Btn("Rename", "btn--ghost", () => OpenRename(r));
-                        rename.SetEnabled(r.CanRename);
+                        rename.SetEnabled(r.CanRename && !r.Busy);
                         if (!r.CanRename) rename.tooltip = r.Entry.RenameRefusal;
                         actions.Add(rename);
-                        actions.Add(Btn("Delete", "btn--ghost", () => ConfirmDelete(r)));
+                        var delete = Btn("Delete", "btn--ghost", () => ConfirmDelete(r));
+                        delete.SetEnabled(!r.Busy);
+                        actions.Add(delete);
                     }
-                    else actions.Add(Btn("Open", "btn--go", () => OpenChosen?.Invoke(r)));
+                    else
+                    {
+                        var open = Btn("Open", "btn--go", () => OpenChosen?.Invoke(r));
+                        open.SetEnabled(!r.Busy);
+                        actions.Add(open);
+                    }
                     el.Add(actions);
                     el.RegisterCallback<ClickEvent>(e =>
                     {
@@ -388,6 +417,7 @@ namespace MountainPlanner.UI.Flow
                     {
                         if (e.target != el) return;
                         if (!manage) { SaveKeys(e, r); return; }   // → and ← show and hide the area's saves (task P3-04)
+                        if (r.Busy) return;   // Get water and roads is running on it (task P3-16, BB6)
                         if (e.keyCode == KeyCode.Delete && r.CanDelete) ConfirmDelete(r);
                         else if (e.keyCode == KeyCode.F2) OpenRename(r);
                     });
@@ -431,6 +461,12 @@ namespace MountainPlanner.UI.Flow
         /// Disk use measured off the main thread arrived (task P2-04): the sizes change in place, so the list,
         /// the selection and the keyboard focus stay as they are. <paramref name="vm"/> has the same rows.
         /// </summary>
+        /// <summary>A running Get water and roads' progress on its row, without redrawing the list (task P3-16, BB6).</summary>
+        public void UpdateWaterAndRoads(string folder, string text)
+        {
+            if (folder != null && _rowJobs.TryGetValue(folder, out var label)) SetText(label, text);
+        }
+
         public void UpdateLibrarySizes(LibraryViewModel vm)
         {
             if (_libraryVm == null || vm.Rows.Count != _libraryVm.Rows.Count) { RenderLibrary(vm, Mode); return; }

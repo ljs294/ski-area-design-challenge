@@ -47,6 +47,15 @@ namespace MountainPlanner.UI.Flow
         public bool IsBuiltIn => Entry != null && Entry.Bundled;
         /// <summary>Delete (Manage Areas): any downloaded area, including a newer game's; never the built-in demo.</summary>
         public bool CanDelete => Entry != null && !IsBuiltIn;
+        /// <summary>
+        /// Get water and roads (Manage Areas, task P3-16, BB6): an area of the player's that lacks them. Never the demo,
+        /// which is read-only, nor a newer game's area.
+        /// </summary>
+        public bool NeedsWaterAndRoads => Entry != null && Entry.NeedsWaterAndRoads && !IsBuiltIn && !IsNewer && Entry.Refusal.Length == 0;
+        /// <summary>Get water and roads is running on this area: it can't be opened, renamed or deleted until it's done.</summary>
+        public bool Busy;
+        /// <summary>The status line: "No water and roads", or the running job's progress.</summary>
+        public string WaterAndRoadsText = LibraryViewModel.NoWaterAndRoads;
     }
 
     /// <summary>
@@ -146,6 +155,8 @@ namespace MountainPlanner.UI.Flow
             $"{s.Trails} {(s.Trails == 1 ? "trail" : "trails")} · {s.Lifts} {(s.Lifts == 1 ? "lift" : "lifts")}";
 
         public const string NewerVersion = "Made by a newer version of Mountain Planner. Update the game to open it.";
+        public const string NoWaterAndRoads = "No water and roads";
+        public const string GetWaterAndRoads = "Get water and roads";
         public const string Measuring = "…";
 
         public const string BuiltIn = "Built in";

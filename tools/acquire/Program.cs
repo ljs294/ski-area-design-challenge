@@ -21,8 +21,8 @@ using MountainPlanner.Persistence;
 //                                                 draw the prepared ground cover (whole ring at 4 m, or the core tiles at 1 m)
 //   acquire forest-info [--package <folder>]      grow a package's forest (or every downloaded one's) and report trees, species, treeline
 //   acquire refresh-osm [--package <folder>] [--cache <folder>] [--no-prepare]
-//                                                 adds the roads (task 12d) to a package made before them (or to every such
-//                                                 mountain in the library), then re-prepares it
+//                                                 adds the missing water and roads (task P3-16) to a package (or to every
+//                                                 mountain in the library that lacks them), moves its saves, then re-prepares it
 //   acquire forest-dump --package <folder> --out <dir>
 //                                                 grow a package's forest and write its trees and 10 m cells (forest-structure report, NE8)
 //   acquire species-survey --areas <ski_areas.geojson> --out <survey.jsonl> [--km 5] [--limit N]
@@ -150,25 +150,24 @@ switch (command)
 
     case "refresh-osm":
     {
-        // Packages made before task 12d have no roads: fetch the site's OpenStreetMap features (the same Overpass query
-        // a download makes now) and add the roads layer. The package id changes, so its terrain cache is prepared again.
-        // --package <folder> for one; otherwise every mountain in the library that has no roads yet.
+        // Get water and roads (task P3-16, BB6), as Manage Areas does it: OpenStreetMap water, developed land and roads for a
+        // package that lacks any of them (made before them, or downloaded while OpenStreetMap was down or skipped). Only the
+        // missing layers are written; the package id changes, and its saves and recent entry move with it.
+        // --package <folder> for one; otherwise every mountain in the library that needs them.
         var folders = opts.TryGetValue("package", out string? one) ? new List<string> { one }
-            : ResortLibrary.Scan(dataRoot).Select(e => e.Folder).Where(f => !RoadsFile.Has(ResortPackage.ReadManifest(f))).ToList();
-        if (folders.Count == 0) Console.WriteLine("Every mountain already has its roads.");
+            : ResortLibrary.Scan(dataRoot).Where(e => e.NeedsWaterAndRoads).Select(e => e.Folder).ToList();
+        if (folders.Count == 0) Console.WriteLine("Every mountain already has its water and roads.");
         string cache = opts.GetValueOrDefault("cache", Path.Combine(dataRoot, "download-cache"));
         foreach (string folder in folders)
         {
+            string before = ResortPackage.ReadManifest(folder).PackageId;
+            string after = await OsmBackfill.RunAsync(dataRoot, folder, cache, null, CancellationToken.None);
             var manifest = ResortPackage.ReadManifest(folder);
-            var site = SiteSquare.Create(new AlbersPoint(manifest.Site.CentreX, manifest.Site.CentreY), manifest.Site.SizeMetres / 1000.0);
-            var response = await new OsmFeatures(new DiskCache(cache), new TransferMeter()).DownloadAsync(site.Ring, CancellationToken.None);
-            var roads = OsmFeatures.ParseRoads(response);
-            RoadsFile.Add(folder, manifest, roads);
-            if (!manifest.Attribution.Any(a => a.Contains("OpenStreetMap"))) manifest.Attribution.Add("Water and roads: © OpenStreetMap contributors (ODbL).");
-            ResortPackage.WriteManifest(folder, manifest);
-            Console.WriteLine($"{manifest.Site.Name}: {roads.Count:N0} roads ({roads.Count(r => r.Surface == RoadSurface.Paved):N0} paved, " +
-                              $"{roads.Count(r => r.Surface == RoadSurface.Unpaved):N0} unpaved)");
-            if (!args.Contains("--no-prepare"))   // --no-prepare: test packages, which keep no cache
+            var roads = RoadsFile.Read(folder, manifest);
+            Console.WriteLine(after == before ? $"{manifest.Site.Name}: already had its water and roads."
+                : $"{manifest.Site.Name}: water and roads added, {roads.Count:N0} roads ({roads.Count(r => r.Surface == RoadSurface.Paved):N0} paved, " +
+                  $"{roads.Count(r => r.Surface == RoadSurface.Unpaved):N0} unpaved); id {before} -> {after}");
+            if (after != before && !args.Contains("--no-prepare"))   // --no-prepare: test packages, which keep no cache
             {
                 Console.WriteLine("  preparing its terrain...");
                 TerrainCache.Build(folder, manifest, null, CancellationToken.None);

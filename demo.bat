@@ -270,6 +270,9 @@ echo.
 echo   Phase 3, bug bash (v0.3.2; rebuilds the game, close the Unity editor first)
 echo     77 The quit crash (BB7): the 40-lift benchmark at High (measure lane, about 3 minutes), then the game quits by
 echo        itself. It used to crash in D3D12Core.dll here; now it prints "exit 0" and no new crash dump.
+echo     78 Get water and roads later (BB6; needs the network; run 76 first): the game opens on 76's library, where
+echo        Jackson Hole has no water and roads. Manage Areas shows "No water and roads" and a Get water and roads
+echo        button; it runs on the row, then the toast says it's done. Open the area: lakes and roads are back.
 echo.
 echo     Q  Quit
 echo.
@@ -380,6 +383,7 @@ if /i "%CHOICE%"=="73c" goto contourcaptures
 if /i "%CHOICE%"=="75" goto brushperf
 if /i "%CHOICE%"=="76" goto overpassskip
 if /i "%CHOICE%"=="77" goto quitcrash
+if /i "%CHOICE%"=="78" goto waterroads
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -476,6 +480,20 @@ echo   When it finishes, the quality card reads: "Water and roads: OpenStreetMap
 echo   cover stands in for them." Open the area to check it, then quit the game.
 start "" /wait "%GAME%" -data "%OVERPASSRUN%" -download "Jackson Hole" 43.593 -110.848 2 -overpass http://10.255.255.1/api/interpreter
 findstr /i /c:"overpass" /c:"map features" "%PLAYERLOG%"
+goto done
+
+:waterroads
+rem Task P3-16 BB6: Manage Areas gets the water and roads of an area downloaded without them. 76 makes one; this opens
+rem the game on the same library (a fresh build, so it has the button).
+set "OVERPASSRUN=%LOCALAPPDATA%\SkiAreaDesignChallenge-overpass"
+if not exist "%OVERPASSRUN%\Resorts" (echo   Run 76 first: it downloads Jackson Hole without water and roads into %OVERPASSRUN%. & goto done)
+call :buildplayer
+if not exist "%GAME%" goto done
+echo Starting the game on %OVERPASSRUN%. Choose Manage Areas: Jackson Hole reads "No water and roads".
+echo   Press Get water and roads: the row counts up, then the toast says it's done and the button goes away.
+echo   Open Jackson Hole: its terrain is prepared again, and lakes and roads are on the map. Quit the game when done.
+start "" /wait "%GAME%" -data "%OVERPASSRUN%"
+findstr /i /c:"water and roads" "%PLAYERLOG%"
 goto done
 
 :quitcrash
