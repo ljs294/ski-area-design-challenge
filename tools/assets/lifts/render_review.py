@@ -663,7 +663,7 @@ def chair_photos(built, spec, out_dir, mats, key="chair"):
         bpy.data.objects.remove(o)
     show_only(objs + extras)
     materials.set_snow(mats, 1.0)
-    if key.startswith("d6_"):   # the detachable grip: bigger, so further out, and from every side
+    if key.startswith(("d6_", "d4_")):   # the detachable grip: bigger, so further out, and from every side
         for name, az, el in (("grip_front", 0, 8), ("grip_outboard", 90, 6), ("grip_top", 60, 55), ("grip_from_below", 125, -32),
                              ("grip_end_on", 178, 12), ("grip_inboard", -90, 10)):
             shoot(name, (0.0, 0.25, 0.08), az, el, 2.1, lens=45)
@@ -742,7 +742,10 @@ def chair_lineup(name, chairs, spec, out_dir, mats, gap=3.0):
 
 TERMINAL_LINEUPS = {"monta_drive": ("monta_drive", "monta_fg3_drive", "monta_fg2_drive"),   # v0.3.2: quad, triple,
                     "monta_return": ("monta_return", "monta_fg3_return", "monta_fg2_return"),   # double
-                    "monta_return_bottom": ("monta_return_bottom", "monta_fg3_return_bottom", "monta_fg2_return_bottom")}
+                    "monta_return_bottom": ("monta_return_bottom", "monta_fg3_return_bottom", "monta_fg2_return_bottom"),
+                    # the Sessellift D4 between the fixed quad and the D6, for scale
+                    "sessellift_bottom": ("drive", "d4_bottom", "d6_drive"),
+                    "sessellift_top": ("return", "d4_top", "d6_return")}
 
 
 def terminal_lineup(name, terms, out_dir, gap=16.0):
@@ -1058,7 +1061,10 @@ def d6_photos(key, built, spec, out_dir, mats, chairs):
     restore_uv(objs)
     lo, hi = bounds_lift(objs)
     lo.z = max(lo.z, 0.0)
-    hi.x = min(hi.x, a0.dims["hoodFront"] / 1000 + 1.6)
+    front = a0.dims["hoodFront"] / 1000 + 1.6
+    if "integratedTowerU" in a0.dims:   # the D4's bottom: its first tower stands past the hood, in every wide view
+        front = max(front, a0.dims["integratedTowerU"] / 1000 + 4.0)
+    hi.x = min(hi.x, front)
     centre = (lo + hi) / 2
     radius = (hi - lo).length / 2
     shoot = _shooter(key, out_dir)
@@ -1083,6 +1089,11 @@ def d6_photos(key, built, spec, out_dir, mats, chairs):
     shoot("m_line_quarter", (E1 - 3.0, 0.0, 3.6), 28, 2, 26.0, lens=35)  # the line end, three-quarter
     shoot("m_high_far", (mid, 0.0, 3.0), 215, 11, 48.0, lens=40)        # from far off and above, behind
     shoot("bullwheel", (0.0, 0.0, bw), 40, -8, 7.5, lens=30)
+    if "integratedTowerU" in a0.dims:   # the first tower: whole, its rows with a chair leaving, from under the rope
+        ut = a0.dims["integratedTowerU"] / 1000
+        shoot("tower", (ut - 2.0, 0.0, rope / 2), 55, 8, 22.0, lens=35)
+        shoot("tower_rows", (ut, hg, rope), 30, 10, 7.0, lens=35)
+        shoot("tower_under", (ut, hg, rope - 0.4), 150, -18, 6.0, lens=28)
     if snow < 1.0:
         materials.set_snow(mats, 1.0)
         shoot("snowfall", tuple(centre), 35, 12, radius * 2.2, lens=40)
