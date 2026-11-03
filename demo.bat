@@ -213,11 +213,13 @@ echo.
 echo   Lift models 2: the Sessellift D6 six-pack (rebuilds the Lift Lab, a few minutes; close the Unity editor first)
 echo     69 The Lift Lab's six-pack: the D6 terminals, its six-seat chair and its six tower heads on full towers.
 echo        X six-pack, L LOD, N snow, C colour, T turntable, mouse/WASD camera, H help, Esc quit.
-echo     69f Drive at either end: every fixed-grip terminal (Sessellift quad, triple, double; Monta 4, 3, 2) in the Lift
+echo     69f Drive at either end: every fixed-grip terminal (Sessellift quad, triple, double; Monta 4, 3, 2; Stern) in the Lift
 echo        Lab, a model to a row. V steps every terminal through its heads: its own, bottom, top with 4, 6 and 8 sheaves
 echo        (a terminal without that head keeps its own); the overlay names the shown head and its triangles.
 echo     69q The Sessellift D4 detachable quad in the Lift Lab: bottom terminal with its first tower, top terminal,
 echo        the quad chair on the detachable grip and its five tower heads on full towers. J back to this view.
+echo     69s The Sessellift Stern in the Lift Lab: its quad, triple and double, return and drive facing up the
+echo        line with a chair between each pair (bottom drive only). V steps the returns' top rows. K back to this view.
 echo.
 echo   Phase 3, task 10: the ski network (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     70 The Network view on the style tile and a second lift: Tab, then Network (or click the bar's lift or trail count).
@@ -359,6 +361,7 @@ if /i "%CHOICE%"=="67c" goto trailcaptures
 if /i "%CHOICE%"=="69" goto sixpack
 if /i "%CHOICE%"=="69f" goto fixedgrip
 if /i "%CHOICE%"=="69q" goto quaddetach
+if /i "%CHOICE%"=="69s" goto stern
 if /i "%CHOICE%"=="70" goto network
 if /i "%CHOICE%"=="70c" goto networkcaptures
 if /i "%CHOICE%"=="70k" goto networkown
@@ -1256,6 +1259,13 @@ call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto done
 echo Starting the Lift Lab on the Sessellift D4 detachable quad. J this view, L LOD, N snow, C colour, T turntable, H help, Esc quit.
 start "" "%LIFTLAB%" -mode d4
+goto menu
+
+:stern
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the Sessellift Stern. K this view, V top rows, L LOD, N snow, C colour, T turntable, H help, Esc quit.
+start "" "%LIFTLAB%" -mode stern
 goto menu
 
 :liftlab

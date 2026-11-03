@@ -23,7 +23,7 @@ namespace MountainPlanner.Tests
         const string ArtRoot = "Assets/MountainPlanner/Art/Lifts";
         const float Mm = 0.001f;
         /// <summary>Our makers' code names, as asset id prefixes (decision LP3).</summary>
-        static readonly string[] Makers = { "sessellift_fgq4_", "sessellift_fgd2_", "sessellift_fgt3_", "sessellift_d6_", "sessellift_d4_", "sle_",
+        static readonly string[] Makers = { "sessellift_fgq4_", "sessellift_fgd2_", "sessellift_fgt3_", "sessellift_d6_", "sessellift_d4_", "sessellift_stern", "sle_",
             "monta_fg4_", "monta_fg3_", "monta_fg2_", "chairworks_chair_" };
 
         [Serializable] sealed class LodBudget { public int lod; public int maxTris; public float untilM; }
