@@ -329,6 +329,8 @@ MonoBehaviour:
     - {x: -2.7654, y: 3.6, z: -5.0452}
     - {x: -2.8, y: 3.6, z: -4.694}
     - {x: -2.8, y: 3.6, z: 11.87}
+  Heads: []
+  ShownHead: -1
 --- !u!1 &3597572583930514753
 GameObject:
   m_ObjectHideFlags: 0

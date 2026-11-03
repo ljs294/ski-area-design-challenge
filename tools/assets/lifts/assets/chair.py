@@ -181,8 +181,10 @@ def body(mb, ch, near, n_frame, n_thin, tube, steel, seat, grip_st):
     cl = ch["clamp"]
     prims.box(mb, (-m(cl["u"]) / 2, ax - m(cl["halfWidth"]), m(cl["wTo"])), (m(cl["u"]) / 2, ax + m(cl["halfWidth"]), m(cl["wFrom"])), grip_st)
 
-    # top bar, the web plate under it and the safety bar's pivot sleeves on it
-    prims.cylinder(mb, sym(0, -top["halfLength"], top["w"]), sym(0, top["halfLength"], top["w"]), tube["frame"], n_frame, steel, caps=(False, False))
+    # top bar (the frames' tube, or the D4's own on the D6's clamp), the web plate under it and the safety bar's pivot
+    # sleeves on it
+    prims.cylinder(mb, sym(0, -top["halfLength"], top["w"]), sym(0, top["halfLength"], top["w"]), tube.get("topBar", tube["frame"]), n_frame,
+                   steel, caps=(False, False))
     if near:
         web = ch["web"]
         lower = web["lower"]

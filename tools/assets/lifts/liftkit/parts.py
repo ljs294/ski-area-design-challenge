@@ -1,4 +1,5 @@
 """Lift parts built from primitives, in the lift frame. Detail follows an LOD level (0 = nearest)."""
+import copy
 import json
 import math
 import os
@@ -794,6 +795,20 @@ def detach_grip_spec():
         with open(path, encoding="utf-8") as f:
             _DETACH_GRIP = json.load(f)
     return _DETACH_GRIP
+
+
+def detach_grip_on(rope_dia):
+    """The detachable grip's spec on a rope of rope_dia mm (opt-in, the D4's 1 3/4 in, DQ4): the jaw's underside (its
+    outline below the rope's axis) and the rope guards follow the rope's radius, so they sit on it as on the drawn
+    2 in rope; at the drawn 50.8 mm it is the spec itself."""
+    g = detach_grip_spec()
+    dr = (rope_dia - g["rope"]["dia"]) / 2
+    if not dr:
+        return g
+    g = copy.deepcopy(g)
+    g["rope"]["dia"] = rope_dia
+    g["jaw"]["outline"] = [[v, w - dr if w < 0 else w] for v, w in g["jaw"]["outline"]]
+    return g
 
 
 def _mm(*xs):

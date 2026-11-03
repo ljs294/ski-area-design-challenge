@@ -282,6 +282,14 @@ ruled differently. No archived code is copied; the rules are stated here as pros
   - The treeline reads natural, and nothing outside the footprint changes.
 - **CL-03, lifts:** a built lift clears a **55 ft (16.8 m)** corridor centred on its line, from terminal to terminal,
   with straight edges.
+  - **v2** (owner, 2026-11-02, after an A/B on Gilford): the corridor is **70 ft (21.3 m)**. It applies when a lift's
+    ground is built or rebuilt; lifts in older saves keep 55 ft until then.
+- **CL-10, crowns off the chairs** (owner, 2026-11-02, finding F1: crowns from outside the corridor reached the chairs):
+  a tree whose crown reaches a lift's chair lane is cut too, after ANSI B77.1 (2006 §3.1.1.4: vegetation at least
+  **5 ft** from the rope and carriers, and no contact with a carrier swinging in wind). The lane runs bullwheel to
+  bullwheel: half the gauge, half a chair, the chair swung **15°** on its hanger, and 5 ft (about **17½ ft** either side
+  for the quad). A crown's reach is its model's branch spread at the tree's width scale. The view works it out from the
+  built lifts; nothing is saved, and lifts already built follow it.
 - **CL-09, round terminals** (owner, task 07, decision SK14): a built lift also clears round each terminal, for loading
   and unloading: the terminal's footprint (from its model) plus **20 ft (6.1 m)** all round, and **50 ft (15.2 m)**
   more along the line in front of it *(tuned at 07)*.
@@ -719,7 +727,7 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     the line red.
   - The preview updates at least **10 times a second** while you aim, off the main thread, with stale results
     dropped (CF-03).
-  - The final placement of a 1-mile (1.6 km) line takes **≤50 ms**.
+  - The final placement of a 1-mile (1.6 km) line takes **≤50 ms** (**≤60 ms** since v3, below).
   - **v2, the line planned** (owner, task 09, LT45; findings E2–E4, 2026-10-23):
     - **The towers between the station towers are chosen together:** the fewest towers whose spans keep the loaded
       chairs 15 ft up (TW-01 v2; the low zones are the trench's and the unload ramp's) and whose every head carries
@@ -730,6 +738,12 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
       are gone.
     - **Among plans with as many towers,** heights nearest a modest 35 ft, then spans nearest even. Each tower then
       comes down in 5 ft steps while everything still fits.
+  - **v3, fewer and taller** (owner, 2026-11-01, LD3): the plan's spans reach **300 ft (91.4 m)** (250 ft before), so
+    where the ground allows it takes fewer, taller towers; the first span out of the bottom station keeps 250 ft, so the
+    chairs climbing out of the load zone aren't left to the trench. Over the 33-line Jackson Hole fan and its three
+    types: 1,061 → 979 towers (8% fewer), 44 → 46 ft on average, one fewer head past its bend. The final placement of a
+    1-mile line may take **≤60 ms** (owner, 2026-11-02; 50 ms before): 45–58 ms on the owner's PC while other jobs ran,
+    against 33–47 ms with 250 ft spans. Each spot's heights are tried tallest first, and none lower once one can't clear.
     - **The first span's shortfall** up to 15 ft short of the first line tower is the trench's (GR-11 v2, at most
       10 ft), as Break ground digs it; no tower is squeezed in there.
     - **Where nothing fits** (a steep pitch running right up to a level top, say), the plan is the line whose heads

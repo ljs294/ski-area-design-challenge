@@ -508,20 +508,17 @@ def build(spec, lod, stage):
         slanted_tube(body, m(bm["v"]), m(bm["w"]), m(bm["dia"]) / 2, (m(bm["rear"][0]), m(bm["rear"][1])),
                      (m(bm["front"][0]), m(bm["front"][1])), ntube, st["steel"].but(smooth=True))
 
-    # struts: round, cut level at both ends (the same cut tube as the legs)
-    for sr in d["struts"]:
-        oval_leg(body, sr, parts.sides(lod, 16, 10, 8, 6), st["steel"].but(smooth=True))
-
-    # cross tubes and pins; plates, rails, ledges, cross beams and connectors
+    # cross tubes and pins; plates, rails, ledges, cross beams and connectors (the struts, the front cross tube and its
+    # strut plates are the heads': struts_and_tube)
     small = {"topGusset", "strutPlate", "rearBracket", "boomLedge"}
     for t in d["tubes"]:
-        if t["name"] == "pin" and lod >= 2:
+        if (t["name"] == "pin" and lod >= 2) or t["name"] == "frontTube":
             continue
         tube_from(body, t, st, parts.sides(lod, 16, 10, 8, 6) if t["name"] != "pin" else parts.sides(lod, 10, 8))
     for b in d["boxes"]:
         if (b["name"] in small and lod >= 2) or (lod >= 3 and b["name"] != "crossBeam"):
             continue
-        if b["name"] == "topGusset" and lod >= 1:
+        if (b["name"] == "topGusset" and lod >= 1) or b["name"] == "strutPlate":
             continue
         box_from(body, b, st)
     if lod <= 1:   # vertical pins on bases
@@ -589,13 +586,15 @@ def build(spec, lod, stage):
     a.dims.update({"hoodLength": round((hi[1] - lo[1]) * 1000), "hoodDepth": round((hi[0] - lo[0]) * 1000), "hoodTop": round(hi[2] * 1000)})
     body.merge(hb_)
 
-    # the bottom head (its own): the exit trees hung from the front cross tube; the top head: support trains (top_head)
+    # the bottom head (its own): the struts up to the high front cross tube and the exit trees hung from it; the top
+    # heads: the struts cut off at a low cross tube and the support rows on it (top_head)
     tube = next(t for t in d["tubes"] if t["name"] == "frontTube")
     with swap.head(a, body, "bottom", (m(tube["from"][0]), 0.0, rope),
                    owns=("rope_left_hold", "rope_right_hold", "rope_left_out", "rope_right_out", "chair_load")):
+        struts_and_tube(body, d, lod, st, tube)
         u_hold, out, exit_deg = exit_trees(a, body, c, d, lod, st, hg, gs, sv, sheave_sides)
     for key, combo in d["topTrains"]["combos"].items():
-        top_head(a, body, spec, lod, st, key, combo, tube)
+        top_head(a, body, spec, d, lod, st, key, combo, tube)
 
     a.body = body
     a.sockets.update({
@@ -611,23 +610,44 @@ def build(spec, lod, stage):
     return a
 
 
-def top_head(a, body, spec, lod, st, key, combo, tube):
-    """A top head (drive at either end, owner 2026-11-02, findings 3-4; liftkit/swap.py): on each rope the line towers'
-    kit support row of combo's count on combo's arc (parts.line_assembly, the shared tower.assembly), levelled at its
-    first sheave so the rope runs level from the wheel and bends down over the row toward the line; its main pin under
-    the front cross tube, carried by two heavy lug plates that reach up into the tube (heads.hung_assembly), inboard
-    of the rope so grips pass outboard. Riders get off over the load point on the left rope."""
-    c, d = spec["common"], spec["drive"]
+def struts_and_tube(mb, d, lod, st, tube, bar=None):
+    """The struts from the booms (round, cut level at both ends: the same cut tube as the legs) and the front cross
+    tube on them; bar: a low cross tube instead, {"w", "dia"} in mm, the struts cut off at its top (owner, finding 6).
+    The high tube's strut plates come with it."""
+    top = None if bar is None else bar["w"] + bar["dia"] / 2
+    for sr in d["struts"]:
+        oval_leg(mb, sr if top is None else dict(sr, topW=top), parts.sides(lod, 16, 10, 8, 6), st["steel"].but(smooth=True))
+    n = parts.sides(lod, 16, 10, 8, 6)
+    if bar is None:
+        tube_from(mb, tube, st, n)
+        if lod <= 1:
+            for b in d["boxes"]:
+                if b["name"] == "strutPlate":
+                    box_from(mb, b, st)
+    else:
+        tube_from(mb, dict(tube, dia=bar["dia"], **{"from": [tube["from"][0], tube["from"][1], bar["w"]],
+                                                    "to": [tube["to"][0], tube["to"][1], bar["w"]]}), st, n)
+
+
+def top_head(a, body, spec, d, lod, st, key, combo, tube):
+    """A top head (drive at either end, owner 2026-11-02, findings 3-4 and 6; liftkit/swap.py): on each rope the line
+    towers' kit support row of combo's count on combo's arc (parts.line_assembly, the shared tower.assembly), levelled
+    at its first sheave so the rope runs level from the wheel and bends down over the row toward the line; its main pin
+    on two heavy lug plates that reach up into a low cross tube between the struts, just above the grips
+    (heads.hung_assembly), inboard of the rope so grips pass outboard; the struts end at the low tube. d: the drive's
+    spec as built (a double's or triple's narrowed). Riders get off over the load point on the left rope."""
+    c = spec["common"]
     rope, hg = m(d["ropeElevation"]), m(c["lineGauge"]) / 2
     tt = d["topTrains"]
     asm = parts.line_spec(spec)
     src, smb = Asset(key), MeshBuilder()
+    struts_and_tube(smb, d, lod, st, tube, bar=tt["bar"])
     u_c = m(tt["u"])
     sockets = {}
     for side, name in ((-1, "l"), (1, "r")):
         u_first, (u_out, w_out), theta, _ = heads.hung_assembly(smb, src, name, side, hg, rope, u_c, asm, combo["count"],
                                                                 "support", asm["arcs"][combo["arc"]], lod, st,
-                                                                m(tube["from"][2]), tt["lugs"], both=True)
+                                                                m(tt["bar"]["w"]), tt["lugs"], both=True)
         sd = "left" if side < 0 else "right"
         sockets.update({f"rope_{sd}_hold": (u_first, side * hg, rope), f"rope_{sd}_out": (u_out, side * hg, w_out)})
     src.sockets = sockets

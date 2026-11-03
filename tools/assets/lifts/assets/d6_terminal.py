@@ -18,6 +18,9 @@ deliberate mirror (Gate 0, LM7): loaded chairs leave the bottom on the right rop
 
 Variants: "drive" (top) and "return" (bottom). Origin on the bullwheel's axle at the load or unload level 0.00; u
 toward the line, v right looking along u, w up.
+
+The D4 (sessellift_d4.json, v0.3.2) builds its "bottom" and "top" here from the D6's end sections one bay shorter, at
+its gauge (liftkit/gauge.py quad_station); its ids and the end riders board at come from the spec.
 """
 import math
 
@@ -37,6 +40,11 @@ VARIANTS = ("drive", "return")
 
 def m(x):
     return x / 1000.0
+
+
+def kind_of(variant):
+    """Every end is a detachable terminal (an overlay's variants, build_lifts.py)."""
+    return KIND
 
 
 def styles(lod):
@@ -439,14 +447,15 @@ def fittings(mb, t, end, lod, st):
     E0, E1 = end["hood"]
     ph = rk["postHeight"]
     posts = (E0 + rk["postIn"], E1 - rk["postIn"])
-    for pu in posts:
+    lifelines = rk.get("lifelines", True)   # the D4 leaves the tripods and their cable off (owner, Gate 1)
+    for pu in posts if lifelines else ():
         if lod <= 1:
             for du, dv in ((-300, -250), (-300, 250), (300, 0)):
                 prims.cylinder(mb, (m(pu + du), m(dv), m(top)), (m(pu), 0.0, m(top + ph)), 0.02, 6 if lod == 0 else 4, st["galv"],
                                caps=(False, False))
         else:
             prims.box(mb, (m(pu - 30), -0.03, m(top)), (m(pu + 30), 0.03, m(top + ph)), st["galv"])
-    if lod == 0:
+    if lod == 0 and lifelines:
         prims.cylinder(mb, (m(posts[0]), 0.0, m(top + ph)), (m(posts[1]), 0.0, m(top + ph)), 0.004, 4, st["galv"], caps=(False, False))
     bx = rk["box"]
     bu0 = E1 - bx["from"]
@@ -1132,6 +1141,54 @@ def pier(mb, pr, depth, lod, st):
     return (m((u0 + u1) / 2), 0.0, m(top))
 
 
+def integrated_tower(mb, a, spec, t, end, lod, st):
+    """The D4 bottom's integrated tower (end "integratedTower", DQ5; owner, Gate 1: a typical tower, not a custom
+    frame): the D4's own line tower (its towers spec, e.g. sessellift_d4_towers.json: the quad kit's head at the D4's
+    gauge with its hold-down rows on inboard yokes) on the kit's mast and base, standing at u on the line. Its rows lie
+    on their own arc (radius), levelled at the first sheave, so the rope runs level out of the station and bends up under
+    them. The base's pier runs down as deep as the terminal's (the game buries what it needs). Returns the first axle's
+    u, the rope's exit point (u, w) and its exit angle (radians), in metres."""
+    import copy
+    import os
+    import tower
+    from liftkit import gauge
+    it = end["integratedTower"]
+    ts = copy.deepcopy(gauge.load(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), it["towers"]))
+    kit = ts["tower"]
+    cfg = dict(kit["heads"][it["head"]], radius=it["radius"], level="first")
+    kit["heads"][it["head"]] = cfg
+    kst = tower.styles()
+    head = tower.head(ts, kit, it["head"], lod, kst)
+    rope = m(spec["common"]["ropeElevation"])
+    off = (m(it["u"]), 0.0, rope - head.sockets["rope_right"][2])   # the head's mast top, the rope at the station's
+    mb.merge(head.body.translated(off))
+    for name, part in head.parts.items():
+        a.parts[name] = part.translated(off)
+    for name, piv in head.pivots.items():
+        a.pivots[name] = dict(piv, pos=tuple(p + o for p, o in zip(piv["pos"], off)))
+    # the mast from the base's plate up to the head, its ladder on it; the base with its pier down to the piers' depth
+    b = copy.deepcopy(kit["base"])
+    toc = it["toc"]
+    b["footing"] = {"half": b["pier"]["half"], "bottom": -t["pierDepth"], "top": -t["pierDepth"] + 10}
+    b["pier"]["top"] = 0
+    foot = tower.base(dict(kit, base=b), lod, kst)
+    if lod <= 2:   # LOD3: the mast alone, a three-sided shaft (the terminal's 600 triangles)
+        mb.merge(foot.body.translated((m(it["u"]), 0.0, m(toc))))
+    w0, w1 = m(toc) + foot.sockets["mast_foot"][2], off[2]
+    shaft = MeshBuilder()
+    r = m(kit["mast"]["dia"]) / 2
+    sides = parts.sides(lod, *kit["mast"]["sides"]) if lod <= 2 else 3
+    prims.cylinder(shaft, (0.0, 0.0, w0), (0.0, 0.0, w1), r, sides, kst["galv"], caps=(False, False))
+    if lod <= 2:
+        tower.ladder_segment(shaft, kit, w0, w1, lod, kst)
+    mb.merge(shaft.translated((m(it["u"]), 0.0, 0.0)))
+    asm = parts.line_spec(ts)
+    n = cfg["hold"]
+    u_first = off[0] + parts.arc_axles(asm, n, m(it["radius"]), "first")[0][0]
+    path, theta = parts.hold_rope(asm, n, m(it["radius"]), u_first, rope, mode="hold")
+    return u_first, path[-1], theta
+
+
 def tilted(mb, angle_deg, centre_lift):
     """Turns every vertex of mb by angle about the lift frame's v axis (u toward w), then moves it to centre."""
     a = math.radians(angle_deg)
@@ -1151,7 +1208,7 @@ def build(spec, lod, stage, variant="return"):
     t = dict(spec["terminal"], gauge=c["lineGauge"], ropeDia=c["ropeDiameter"])
     end = dict(t[variant], name=variant)
     st = styles(lod)
-    a = Asset(f"sessellift_d6_{variant}")
+    a = Asset(f"{spec.get('idPrefix', 'sessellift_d6')}_{variant}")
     body = MeshBuilder()
     rope = c["ropeElevation"]
     hg = c["lineGauge"] / 2
@@ -1179,6 +1236,10 @@ def build(spec, lod, stage, variant="return"):
     with body.grouped("#piers"):
         p1 = pier(body, end["pierFront"], t["pierDepth"], lod, st)
         p2 = pier(body, end["pierRear"], t["pierDepth"], lod, st)
+    hold = None
+    if "integratedTower" in end:
+        with body.grouped("#integrated_tower"):
+            hold = integrated_tower(body, a, spec, t, end, lod, st)
 
     tilt = t["bullwheel"]["tilt"]
     bw_w = t["bullwheel"]["w"][variant]
@@ -1202,8 +1263,13 @@ def build(spec, lod, stage, variant="return"):
         "rope_left_out": (m(E1), -m(hg), m(rope)), "rope_right_out": (m(E1), m(hg), m(rope)),
         "pier_top_1": p1, "pier_top_2": p2,
     }
+    if hold:   # the integrated tower: level from the bend to its row (hold), leaving it climbing (out)
+        u_hold, (u_out, w_out), theta = hold
+        a.sockets.update({"rope_left_hold": (u_hold, -m(hg), m(rope)), "rope_right_hold": (u_hold, m(hg), m(rope)),
+                          "rope_left_out": (u_out, -m(hg), w_out), "rope_right_out": (u_out, m(hg), w_out)})
+        a.dims.update({"integratedTowerU": end["integratedTower"]["u"], "ropeExitDeg": round(math.degrees(theta), 2)})
     ru, rv = end["riders"]
-    a.sockets["chair_load" if variant == "return" else "chair_unload"] = (m(ru), m(rv), m(grip_w))
+    a.sockets["chair_load" if end.get("load", variant == "return") else "chair_unload"] = (m(ru), m(rv), m(grip_w))
     # the chairs' grips round the station: on the rail, 134 inside its centreline, at the rope's height
     a.paths = {"chairs": [(m(u), m(v), m(grip_w)) for u, v in rail_path(t, end, inset=-rail["grip"][0], steps=8)]}
     a.dims.update({"rope": rope, "gauge": c["lineGauge"], "bullwheelW": bw_w, "bullwheelTilt": tilt,

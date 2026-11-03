@@ -5,12 +5,13 @@ using MountainPlanner.Domain.Edits;
 namespace MountainPlanner.Domain.Design
 {
     /// <summary>
-    /// CL-03: a built lift clears a 55 ft (16.8 m) corridor centred on its line, from bullwheel to bullwheel, with
-    /// straight edges: every cell whose centre lies within half the width of the segment.
+    /// CL-03 v2 (owner, 2026-11-02, after the Gilford A/B): a built lift clears a 70 ft (21.3 m) corridor centred on its
+    /// line, from bullwheel to bullwheel, with straight edges: every cell whose centre lies within half the width of the
+    /// segment (55 ft before). Crowns reaching the chairs from outside it go too (<see cref="LiftLanes"/>).
     /// </summary>
     public static class LiftClearing
     {
-        public const double CorridorMetres = 16.764;
+        public const double CorridorMetres = 21.336;
         /// <summary>CL-09 (owner, task 07): clear ground round a terminal, 20 ft beyond its footprint (tuned at 07).</summary>
         public const double TerminalMarginMetres = 6.096;
         /// <summary>CL-09: and 50 ft more along the line in front of it, where chairs are loaded or unloaded (tuned at 07).</summary>

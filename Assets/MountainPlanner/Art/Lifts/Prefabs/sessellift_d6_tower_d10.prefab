@@ -3605,6 +3605,8 @@ MonoBehaviour:
   LiveryRenderers: []
   PivotFollows: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000013000000
   Paths: []
+  Heads: []
+  ShownHead: -1
 --- !u!1 &3526929319506848286
 GameObject:
   m_ObjectHideFlags: 0

@@ -74,6 +74,7 @@ namespace MountainPlanner.App.Edits
             if (resort.SnowElevation != null)
                 pipeline.AttachSnow(resort.States, resort.SnowElevation, resort.SnowCanopy, resort.Manifest.Crs.GridConvergenceDegrees, resort.Ring);
             var session = new TerrainEditSession(resort, history, pipeline);
+            pipeline.TreeLanes = LiftLanes.Of(history.Document, session.Earthwork.Site);
             if (!history.Terrain.IsEmpty) await (session.Applying = pipeline.ApplyAsync(history.Terrain, ct));
             return session;
         }
@@ -101,6 +102,7 @@ namespace MountainPlanner.App.Edits
             if (History.Loads != _loads) Prime();   // a loaded save: learn its design again
             else Earthwork.Follow(snapshot.Document, snapshot.Terrain);   // undo and redo put back the state those edits had (task P3-11)
             ClearPreview();
+            Pipeline.TreeLanes = LiftLanes.Of(snapshot.Document, Earthwork.Site);
             Applying = Pipeline.ApplyAsync(snapshot.Terrain);
         }
 

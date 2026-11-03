@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Edits;
 using MountainPlanner.Domain.Geo;
 using MountainPlanner.Domain.Measure;
@@ -61,6 +62,24 @@ namespace MountainPlanner.Presentation.Edits
         Task _queue = Task.CompletedTask;
 
         public TerrainEdits Current { get; private set; } = TerrainEdits.Empty;
+
+        /// <summary>
+        /// CL-10 (<see cref="LiftLanes"/>): the built lifts' chair lanes, whose reach cuts a tree by its crown as well as by its
+        /// trunk's cell; null for the trunk alone. Set before the edits it goes with are applied.
+        /// </summary>
+        public LiftLanes TreeLanes { get; set; }
+
+        // Whether tree i of a tile is cut: its trunk's cell cleared (CL-05), or its crown reaching a lift's chair lane (CL-10).
+        bool TreeCleared(byte[] packed, int i, double tileWest, double tileNorth, double tileMetres, ICellClearing clearing)
+        {
+            if (ForestField.IsCleared(packed, i, tileWest, tileNorth, tileMetres, clearing, _lattice)) return true;
+            var lanes = TreeLanes;
+            if (lanes == null || lanes.Count == 0) return false;
+            // The crown's reach: the model's branch spread (metres) at the tree's own width scale.
+            ForestField.Decode(packed, i, out float fx, out float fz, out _, out int prototype, out _, out float widthScale);
+            float reach = (_forest?.BranchReach(prototype) ?? 0) * widthScale;
+            return reach > 0 && lanes.Reaches(tileWest + fx * tileMetres, tileNorth - tileMetres + fz * tileMetres, reach);
+        }
         /// <summary>The ground on screen: heights, cover, the trees' footing and the snow (BR21). <see cref="Current"/> once settled.</summary>
         public TerrainEdits ShownGround { get; private set; } = TerrainEdits.Empty;
         /// <summary>The clearing on screen: which trees are out, and the cleared cover (BR21).</summary>
@@ -321,6 +340,8 @@ namespace MountainPlanner.Presentation.Edits
             public double West, South, East, North;
             public List<int> TreeIndex;
             public List<ForestInstance> TreeValue;
+            /// <summary>Trees only (the lift lanes' pass): no heights, splat or snow to rebuild.</summary>
+            public bool TreesOnly;
         }
 
         List<Patch> Plan(TerrainEdits fromGround, TerrainEdits toGround, TerrainEdits fromClearing, TerrainEdits toClearing, EditedHeights heights,
@@ -419,7 +440,7 @@ namespace MountainPlanner.Presentation.Edits
                             double x = b.West + fx * tileMetres, y = b.North - tileMetres + fz * tileMetres;
                             if (x < p.West - 1 || x > p.East + 1 || y < p.South - 1 || y > p.North + 1) continue;
                             var t = trees[range.Start + i];
-                            t.Flags = ForestField.IsCleared(packed, i, b.West, b.North, tileMetres, toClearing, _lattice) ? ForestInstance.Cleared : 0;
+                            t.Flags = TreeCleared(packed, i, b.West, b.North, tileMetres, toClearing) ? ForestInstance.Cleared : 0;
                             t.Position.y = GroundY(tile, b, heights.Edits, fx, fz);
                             p.TreeIndex.Add(range.Start + i);
                             p.TreeValue.Add(t);
@@ -428,8 +449,53 @@ namespace MountainPlanner.Presentation.Edits
                         }
                     }
                 }
+            if (trees != null && ranges != null && !heightsUp) PlanLaneTrees(trees, ranges, toClearing, patches, ref report);
             report.TreesPlanMs = treeWatch.Elapsed.TotalMilliseconds;
             return patches;
+        }
+
+        // The lanes the trees were last flagged by: a change (a lift built, moved or removed, a save opened) re-checks every tree
+        // near any lane, not just those in the tiles this edit touched, since a crown can reach a lane from a tile no edit touches.
+        LiftLanes _lanesPlanned;
+
+        void PlanLaneTrees(ForestInstance[] trees, Dictionary<(int, int), (int Start, int Count)> ranges, TerrainEdits toClearing,
+                           List<Patch> patches, ref Report report)
+        {
+            var lanes = TreeLanes;
+            if (LiftLanes.Same(lanes, _lanesPlanned)) return;
+            var previous = _lanesPlanned;
+            _lanesPlanned = lanes;
+            float grow = _forest?.MaxBranchReach * 2 ?? 0;   // width scales run to about 2
+            var inPatch = new HashSet<int>();
+            foreach (var p in patches) if (p.TreeIndex != null) inPatch.UnionWith(p.TreeIndex);
+            double tileMetres = _cache.TileMetres;
+            foreach (var kv in ranges)
+            {
+                var key = kv.Key;
+                var range = kv.Value;
+                if (range.Count == 0 || !_cacheTiles.TryGetValue(key, out var tile) || !tile.Core) continue;
+                var b = _grid.Bounds(new TileKey(key.Item1, key.Item2));
+                bool near = (lanes != null && lanes.Near(b.West, b.North - tileMetres, b.West + tileMetres, b.North, grow))
+                            || (previous != null && previous.Near(b.West, b.North - tileMetres, b.West + tileMetres, b.North, grow));
+                if (!near) continue;
+                byte[] packed = PackedTrees(key, tile);
+                Patch patch = null;
+                for (int i = 0; i < range.Count; i++)
+                {
+                    int at = range.Start + i;
+                    if (inPatch.Contains(at)) continue;
+                    var t = trees[at];
+                    uint flags = TreeCleared(packed, i, b.West, b.North, tileMetres, toClearing) ? ForestInstance.Cleared : 0u;
+                    if (flags == t.Flags) continue;
+                    t.Flags = flags;
+                    patch ??= new Patch { Tile = key, TreesOnly = true, TreeIndex = new List<int>(), TreeValue = new List<ForestInstance>() };
+                    patch.TreeIndex.Add(at);
+                    patch.TreeValue.Add(t);
+                    report.Trees++;
+                    if (flags != 0) report.Cleared++;
+                }
+                if (patch != null) patches.Add(patch);
+            }
         }
 
         // Each tile's packed trees as the cache holds them (they never change while the mountain is open), read and checked
@@ -596,6 +662,7 @@ namespace MountainPlanner.Presentation.Edits
             int width = _states.Snow.Width, depth = _states.Snow.Height;
             foreach (var p in patches)
             {
+                if (p.TreesOnly) continue;
                 var (lw, ls) = _frame.ToLocal(new AlbersPoint(p.West, p.South));
                 var (le, ln) = _frame.ToLocal(new AlbersPoint(p.East, p.North));
                 int ci0 = Math.Max(0, (int)Math.Floor((lw - 1 - _ring.xMin) / cell)), ci1 = Math.Min(width - 1, (int)Math.Ceiling((le + 1 - _ring.xMin) / cell));

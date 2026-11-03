@@ -221,9 +221,10 @@ namespace MountainPlanner.Tests
         {
             var edits = LiftClearing.Corridor(TerrainEdits.Empty, Lattice, West + 100, North - 500, West + 100, North - 100, out int cleared);
             Assert.That(edits.IsClearedAt(100, 300), Is.True);
-            Assert.That(edits.IsClearedAt(107, 300), Is.True, "8 m off the line, inside the 8.38 m half-width");
-            Assert.That(edits.IsClearedAt(109, 300), Is.False);
-            Assert.That(cleared, Is.EqualTo(17 * 400).Within(400), "16.8 m × 400 m");
+            // CL-03 v2 (owner, 2026-11-02): 70 ft, 10.67 m either side.
+            Assert.That(edits.IsClearedAt(109, 300), Is.True, "10 m off the line, inside the 10.67 m half-width");
+            Assert.That(edits.IsClearedAt(111, 300), Is.False);
+            Assert.That(cleared, Is.EqualTo(21 * 400).Within(400), "21.3 m × 400 m");
         }
 
         [Test]

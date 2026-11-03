@@ -136,7 +136,7 @@ namespace MountainPlanner.Presentation.Lifts
             float minZ = float.MaxValue, maxZ = float.MinValue, maxX = 0;
             foreach (var mf in prefab.GetComponentsInChildren<MeshFilter>(true))
             {
-                if (mf.sharedMesh == null) continue;
+                if (mf.sharedMesh == null || !Shown(mf.transform, prefab.transform)) continue;   // a hidden head's steel
                 var b = mf.sharedMesh.bounds;
                 var m = root * mf.transform.localToWorldMatrix;
                 for (int i = 0; i < 8; i++)
@@ -152,6 +152,15 @@ namespace MountainPlanner.Presentation.Lifts
             behind = bw - minZ;
             ahead = maxZ - bw;
             halfWidth = maxX;
+            return true;
+        }
+
+        /// <summary>Whether t and every parent up to root are active (a prefab asset isn't in a scene, so
+        /// activeInHierarchy doesn't say): a terminal's hidden heads (drive at either end) are inactive.</summary>
+        static bool Shown(Transform t, Transform root)
+        {
+            for (; t != null && t != root; t = t.parent)
+                if (!t.gameObject.activeSelf) return false;
             return true;
         }
 
@@ -514,6 +523,17 @@ namespace MountainPlanner.Presentation.Lifts
         }
 
         readonly List<TowerParts> _towerParts = new List<TowerParts>();
+
+        /// <summary>How many towers it stands (LD3's numbers).</summary>
+        public int TowerCount => _towerParts.Count;
+
+        /// <summary>Tower <paramref name="index"/>'s head, in world space (LD3: its number stands over it); false if it has none.</summary>
+        public bool TowerTop(int index, out Vector3 at)
+        {
+            var parts = index >= 0 && index < _towerParts.Count ? _towerParts[index] : null;
+            at = parts != null && parts.Head != null ? parts.Head.transform.position : default;
+            return parts != null && parts.Head != null && parts.Head.activeInHierarchy;
+        }
 
         // A tower's base on the ground at position, as many 1 m sections as fit under the head and the head on top (SpawnTower's
         // arithmetic). Sections beyond those it needs are hidden, and a taller tower gets new ones (the only Instantiate).

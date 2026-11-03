@@ -23,7 +23,9 @@ namespace MountainPlanner.UI.Tools
         const float TerminalRadius = 8f;        // the ghost's footprint around the bullwheel, metres
         const float SitingReliefMetres = 3.048f;   // LF-08: the ground varies by no more than 10 ft under a terminal
         const float MinApartMetres = 91.44f;       // LF-08: the terminals stand at least 300 ft apart
-        static readonly string[] Steps = { "First terminal", "Other terminal", "Towers", "Review" };
+        // LD3 (owner, 2026-11-01: fewer steps): towers and the review are one Build step; Automatic goes there straight from
+        // the second click, By hand places its towers there first.
+        static readonly string[] Steps = { "First terminal", "Other terminal", "Build" };
         // The switch remembers the last choice for the session (LF-01: Automatic the first time).
         static TowerMode _lastMode = TowerMode.Automatic;
 
@@ -91,7 +93,8 @@ namespace MountainPlanner.UI.Tools
         {
             _mode = _lastMode = i == 0 ? TowerMode.Automatic : TowerMode.ByHand;
             _modeDd.Set(new[] { "Automatic", "By hand" }, i);
-            if (_step == Step.Towers) Go(Step.Towers);
+            // LD3: the Build step shows the towers as they stand: Automatic's in the review, By hand's placed one at a time.
+            if (_step == Step.Towers || _step == Step.Review) Go(_mode == TowerMode.Automatic ? Step.Review : Step.Towers);
         }
 
         void PickStance(int i)
@@ -121,12 +124,12 @@ namespace MountainPlanner.UI.Tools
             // By hand, no towers yet: the review waits for them (LF-04).
             if (step == Step.Review && _mode == TowerMode.ByHand && _placed.Count == 0 && _ctx.EditedGround != null && _ctx.ToGround != null)
             {
-                w.SetMessage("Place the towers first, or Fill the rest");
+                w.SetMessage("Place the towers first, or Auto-place the rest");
                 if (_step == Step.Towers) return;
                 step = Step.Towers;
             }
             _step = step;
-            w.SetStep((int)step);
+            w.SetStep(System.Math.Min((int)step, Steps.Length - 1));
             _editorKey = long.MinValue;
             // F1–F4: the line's towers stay editable in step 3 and the review; before that there's no line.
             if (step != Step.Towers && step != Step.Review) { _editor?.Release(); _ctx.ShowDraftLift?.Invoke(null); }
@@ -248,7 +251,7 @@ namespace MountainPlanner.UI.Tools
                         _topXz = at;
                         _topZ = z;
                         _topGround = ground;
-                        Go(Step.Towers);
+                        Go(_mode == TowerMode.Automatic ? Step.Review : Step.Towers);
                     }
                     break;
                 }
@@ -541,9 +544,9 @@ namespace MountainPlanner.UI.Tools
             _review.Clear()
                 .Add("Length", $"{ToolFormat.Length(slope)} slope · {ToolFormat.Length(run)} across", "LF-06")
                 .Add("Rise", $"{ToolFormat.Length(rise)} · {ToolFormat.Grade(rise, run)}")
-                .Add("Ride", $"{ToolFormat.Duration(Type.RideSeconds(slope))} at {Type.SpeedMetresPerSecond * 196.850394:#,0} ft/min",
+                .Add("Ride", LiftSummary.Ride(Type, run, rise),
                      Type.Detachable ? "LC-04: slope length over the rope speed, plus the ramps out of and into the stations (LT41)" : "LC-04: slope length over the rope speed")
-                .Add("Capacity", Type.Detachable ? $"{Type.Capacity:#,0} an hour · a chair every {Type.IntervalSeconds:0.#} s" : $"{Type.Capacity:#,0} an hour",
+                .Add("Capacity", LiftSummary.Capacity(Type),
                      Type.Detachable ? "LC-03 v2: seats × 3,600 ÷ the loading interval (LT41)" : "LC-03")
                 .Reserved("Network", "NW-12: No way down", ReviewModel.NetworkSlot);
             // NW-04: the lift as if built, in the network of everything else (task P3-10); a first lift alone has no way down.
@@ -555,7 +558,7 @@ namespace MountainPlanner.UI.Tools
                 return;
             }
             var rope = _built.Rope;
-            _review.Add("Towers", $"{_built.Towers.Count} towers", "TW-02, TW-12")
+            _review.Add("Towers", LiftSummary.Towers(_built.Towers, rope, run), "TW-02, TW-12; LD3: tallest, longest span and heads")
                 .Add("Lowest chairs", $"{ToolFormat.Length(rope.LowestClearance)} over the ground", "TW-01: 15 ft at least")
                 .Add("Rise allowed", $"{ToolFormat.Length(rope.RiseMetres)} of {(double.IsInfinity(rope.Type.RiseLimitMetres) ? "no limit" : ToolFormat.Length(rope.Type.RiseLimitMetres))}", "LC-07");
             foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
@@ -569,7 +572,13 @@ namespace MountainPlanner.UI.Tools
             {
                 case Step.Review:
                     if (_editor != null && _editor.Escape()) { _editorKey = long.MinValue; return ToolBackOut.Stepped; }
-                    Go(Step.Towers);
+                    if (_mode == TowerMode.Automatic)
+                    {
+                        // LD3: Automatic has no towers step of its own: back to aiming the line.
+                        ClearTowers();
+                        Go(Step.Other);
+                    }
+                    else Go(Step.Towers);
                     return ToolBackOut.Stepped;
                 case Step.Towers:
                     if (_editor != null && _editor.Escape()) { _hintKey2 = _editorKey = long.MinValue; return ToolBackOut.Stepped; }

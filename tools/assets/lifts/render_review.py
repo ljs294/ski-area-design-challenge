@@ -43,6 +43,10 @@ ORTHO = {
     "d6_chair": [("front", "-v", "+w"), ("side", "+u", "+w")],
     "d6_drive": [("side", "-u", "+w"), ("end", "+v", "+w"), ("plan", "-u", "-v")],
     "d6_return": [("side", "+u", "+w"), ("end", "-v", "+w"), ("plan", "+u", "+v")],
+    "d4_bottom": [("side", "-u", "+w"), ("end", "+v", "+w"), ("plan", "-u", "-v")],   # as the D6's drive and return
+    "d4_top": [("side", "+u", "+w"), ("end", "-v", "+w"), ("plan", "+u", "+v")],
+    # the Sessellift D4 detachable quad (v0.3.2), as the D6
+    "d4_chair": [("front", "-v", "+w"), ("side", "+u", "+w")],
 }
 # the fixed-grip doubles' and triples' chairs (v0.3.2), as the quads'
 ORTHO.update({k: [("front", "-v", "+w"), ("side", "+u", "+w")]
@@ -52,18 +56,21 @@ NARROW_TERMINALS = {f"{p}_{end}": (end if p.startswith("fg") else f"monta_{end}"
                     for p in ("fgd2", "fgt3", "monta_fg2", "monta_fg3") for end in ("drive", "return")}
 NARROW_TERMINALS.update({f"monta_{p}_return_bottom": "monta_return_bottom" for p in ("fg2", "fg3")})   # drive at either end
 ORTHO.update({k: ORTHO[like] for k, like in NARROW_TERMINALS.items()})
-TERMINALS = ("drive", "return", "monta_drive", "monta_return", "monta_return_bottom", "d6_drive", "d6_return") + tuple(NARROW_TERMINALS)
+D6_STATIONS = ("d6_drive", "d6_return", "d4_bottom", "d4_top")   # the D6's stations and the D4's, one bay shorter
+TERMINALS = ("drive", "return", "monta_drive", "monta_return", "monta_return_bottom") + D6_STATIONS + tuple(NARROW_TERMINALS)
 # the Sessellift Stern's terminals, as its layouts draw them (seen through the deliberate mirror, Gate 0; the
 # return's end view from behind its wheel)
 STERN_TERMINALS = tuple(f"stern{n}_{end}" for n in (4, 3, 2) for end in ("drive", "return"))
 ORTHO.update({k: [("side", "-u", "+w"), ("end", "-v" if k.endswith("return") else "+v", "+w"), ("plan", "-u", "-v")]
               for k in STERN_TERMINALS})
 TERMINALS += STERN_TERMINALS
-CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed", "d6_chair",
+CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed", "d6_chair", "d4_chair",
           "fgd2_chair", "fgt3_chair", "chairworks_chair_double_fixed", "chairworks_chair_triple_fixed")
 # the chairs of each fixed-grip family side by side: quad, triple, double (v0.3.2)
 CHAIR_LINEUPS = {"sessellift": ("chair", "fgt3_chair", "fgd2_chair"),
-                 "chairworks": ("chairworks_chair_fixed", "chairworks_chair_triple_fixed", "chairworks_chair_double_fixed")}
+                 "chairworks": ("chairworks_chair_fixed", "chairworks_chair_triple_fixed", "chairworks_chair_double_fixed"),
+                 # the Sessellift detachables beside the fixed quad (the D4's body, DQ3)
+                 "sessellift_detach": ("chair", "d4_chair", "d6_chair")}
 
 
 def chair_rope(built):
@@ -336,7 +343,8 @@ def clay_views(key, built, spec, out_dir, chairs):
             pos = [((u_bw + 4.0, hg, gw), 0.0), ((u_bw + 4.0, -hg, gw), math.pi), ((min(p[0] for p in path), 0.0, gw), math.pi / 2)]
         # chair frame: +u travel, +v outboard. In Blender, lift +u = -y; yaw rotates about z.
         extras = hang_chairs(chairs, [(p, _yaw_for(p, u_bw)) for p, _ in pos])
-        extras.append(figure((1.5 if key.endswith("drive") else 2.5, 3.2 if key.endswith("drive") else -2.6, 0.0)))
+        drive = key.endswith(("drive", "d4_bottom"))   # the D4's bottom is drawn as the drive
+        extras.append(figure((1.5 if drive else 2.5, 3.2 if drive else -2.6, 0.0)))
     elif key in CHAIRS:   # the snow under the chair: its rope's height below the grip
         extras.append(figure((0.0, 1.6, -chair_rope(built))))
     elif key.startswith("sle_stick"):   # beside the post, clear of the lance's lean (the ground gun's close views
@@ -353,12 +361,12 @@ def clay_views(key, built, spec, out_dir, chairs):
     cam.data.lens = 35
     cam.data.clip_end = 500
     sc.render.resolution_x, sc.render.resolution_y = 1600, 1000
-    if key.startswith(("sle_stick", "stern")) or key in ("d6_drive", "d6_return"):   # frame what stands above the snow (the
+    if key.startswith(("sle_stick", "stern")) or key in D6_STATIONS:   # frame what stands above the snow (the
         lo = Vector((lo.x, lo.y, max(lo.z, 0.0)))                          # D6's piers run 15 m down)
         centre, radius = (lo + hi) / 2, (hi - lo).length / 2
     dist = 3.0 if key.startswith("sle_stick") else 2.4
     views = {"threequarter_line": (35, 18), "threequarter_back": (215, 22), "low": (120, 6)}
-    if key in ("d6_drive", "d6_return"):   # and the angles of the photos it is compared with
+    if key in D6_STATIONS:   # and the angles of the photos it is compared with
         views.update({"end_line": (2, 4), "side_line": (55, 6), "end_back": (182, 4)})
     for name, (az, el) in views.items():
         a, e = math.radians(az), math.radians(el)
@@ -661,7 +669,7 @@ def chair_photos(built, spec, out_dir, mats, key="chair"):
         bpy.data.objects.remove(o)
     show_only(objs + extras)
     materials.set_snow(mats, 1.0)
-    if key.startswith("d6_"):   # the detachable grip: bigger, so further out, and from every side
+    if key.startswith(("d6_", "d4_")):   # the detachable grip: bigger, so further out, and from every side
         for name, az, el in (("grip_front", 0, 8), ("grip_outboard", 90, 6), ("grip_top", 60, 55), ("grip_from_below", 125, -32),
                              ("grip_end_on", 178, 12), ("grip_inboard", -90, 10)):
             shoot(name, (0.0, 0.25, 0.08), az, el, 2.1, lens=45)
@@ -738,9 +746,14 @@ def chair_lineup(name, chairs, spec, out_dir, mats, gap=3.0):
     _photo_end(sc, extras + [fig])
 
 
-TERMINAL_LINEUPS = {"monta_drive": ("monta_drive", "monta_fg3_drive", "monta_fg2_drive"),   # v0.3.2: quad, triple,
+TERMINAL_LINEUPS = {"sessellift_drive": ("drive", "fgt3_drive", "fgd2_drive"),   # v0.3.2: quad, triple, double
+                    "sessellift_return": ("return", "fgt3_return", "fgd2_return"),
+                    "monta_drive": ("monta_drive", "monta_fg3_drive", "monta_fg2_drive"),   # v0.3.2: quad, triple,
                     "monta_return": ("monta_return", "monta_fg3_return", "monta_fg2_return"),   # double
                     "monta_return_bottom": ("monta_return_bottom", "monta_fg3_return_bottom", "monta_fg2_return_bottom"),
+                    # the Sessellift D4 between the fixed quad and the D6, for scale
+                    "sessellift_bottom": ("drive", "d4_bottom", "d6_drive"),
+                    "sessellift_top": ("return", "d4_top", "d6_return"),
                     "stern_drive": ("stern4_drive", "stern3_drive", "stern2_drive"),
                     "stern_return": ("stern4_return", "stern3_return", "stern2_return")}
 
@@ -999,6 +1012,17 @@ def d6_photos(key, built, spec, out_dir, mats, chairs):
     u_climb = (rope - bw) / math.tan(tilt)            # where the climbing rope reaches the line's height
     far = 80.0
     side_pts = [(far, rope), (bend, rope), (u_climb, rope)]
+    s0 = a0.sockets
+    if "rope_right_hold" in s0:   # an integrated tower (the D4's bottom): level to its row, leaving it climbing
+        (u_h, _, _), (u_o, _, w_o) = s0["rope_right_hold"], s0["rope_right_out"]
+        rise = math.tan(math.radians(a0.dims["ropeExitDeg"]))
+        side_pts = [(far, w_o + (far - u_o) * rise), (u_o, w_o), (u_h, rope), (bend, rope), (u_climb, rope)]
+
+    def line_w(u):   # the rope's height on the line
+        for (ua, wa), (ub, wb) in zip(side_pts, side_pts[1:]):
+            if ub <= u <= ua:
+                return wb + (wa - wb) * (u - ub) / (ua - ub)
+        return rope
     pts = [(u, hg, w) for u, w in side_pts] + [(0.0, hg, bw)]
     for k in range(1, 24):                             # round the back of the tilted wheel, right rope to left
         th = math.pi / 2 + math.pi * k / 24
@@ -1035,7 +1059,7 @@ def d6_photos(key, built, spec, out_dir, mats, chairs):
             pos.append((tuple(p), math.atan2(tb.y, tb.x) - math.atan2(-1.0, 0.0)))
         for u in (22.0, 50.0):                          # on the line, both ropes
             for s in (1, -1):
-                q = (u, s * hg, rope)
+                q = (u, s * hg, line_w(u))
                 pos.append((q, _yaw_for(q, 0.0)))
         hung = hang_chairs(chairs, pos)
     fig = _photo_figure((-6.0, -4.6, 0.0))
@@ -1047,7 +1071,10 @@ def d6_photos(key, built, spec, out_dir, mats, chairs):
     restore_uv(objs)
     lo, hi = bounds_lift(objs)
     lo.z = max(lo.z, 0.0)
-    hi.x = min(hi.x, a0.dims["hoodFront"] / 1000 + 1.6)
+    front = a0.dims["hoodFront"] / 1000 + 1.6
+    if "integratedTowerU" in a0.dims:   # the D4's bottom: its first tower stands past the hood, in every wide view
+        front = max(front, a0.dims["integratedTowerU"] / 1000 + 4.0)
+    hi.x = min(hi.x, front)
     centre = (lo + hi) / 2
     radius = (hi - lo).length / 2
     shoot = _shooter(key, out_dir)
@@ -1072,6 +1099,11 @@ def d6_photos(key, built, spec, out_dir, mats, chairs):
     shoot("m_line_quarter", (E1 - 3.0, 0.0, 3.6), 28, 2, 26.0, lens=35)  # the line end, three-quarter
     shoot("m_high_far", (mid, 0.0, 3.0), 215, 11, 48.0, lens=40)        # from far off and above, behind
     shoot("bullwheel", (0.0, 0.0, bw), 40, -8, 7.5, lens=30)
+    if "integratedTowerU" in a0.dims:   # the first tower: whole, its rows with a chair leaving, from under the rope
+        ut = a0.dims["integratedTowerU"] / 1000
+        shoot("tower", (ut - 2.0, 0.0, rope / 2), 55, 8, 22.0, lens=35)
+        shoot("tower_rows", (ut, hg, rope), 30, 10, 7.0, lens=35)
+        shoot("tower_under", (ut, hg, rope - 0.4), 150, -18, 6.0, lens=28)
     if snow < 1.0:
         materials.set_snow(mats, 1.0)
         shoot("snowfall", tuple(centre), 35, 12, radius * 2.2, lens=40)
@@ -1613,6 +1645,7 @@ def render_all(built, spec, out_dir, shots, mats):
     shots = (shots or "gate1,lods").split(",")
     chairs = lod_objects(built["chair"], 0) if "chair" in built else None
     d6_chairs = lod_objects(built["d6_chair"], 0) if "d6_chair" in built else None   # the D6 terminals hang their own
+    d4_chairs = lod_objects(built["d4_chair"], 0) if "d4_chair" in built else None   # and the D4's
 
     narrow = {seats: lod_objects(built[f"{model}_chair"], 0) for seats, model in ((2, "fgd2"), (3, "fgt3"))
               if f"{model}_chair" in built}
@@ -1622,6 +1655,8 @@ def render_all(built, spec, out_dir, shots, mats):
         Monta's too, Q4), else the quad's."""
         if key.startswith("d6_"):
             return d6_chairs
+        if key.startswith("d4_"):
+            return d4_chairs
         for seats, tags in ((2, ("fgd2_", "monta_fg2_", "stern2_")), (3, ("fgt3_", "monta_fg3_", "stern3_"))):
             if key.startswith(tags):
                 return narrow.get(seats)
@@ -1641,7 +1676,7 @@ def render_all(built, spec, out_dir, shots, mats):
             if key.startswith("sle_"):
                 sle_views(key, built[key], out_dir)
     if "lods" in shots:
-        lod_lineup({k: v for k, v in built.items() if k in ("drive", "return") + CHAIRS or k.startswith("d6_")}, out_dir)
+        lod_lineup({k: v for k, v in built.items() if k in ("drive", "return") + CHAIRS or k.startswith(("d6_", "d4_"))}, out_dir)
     if "data" in shots:
         for key in built:
             data_views(key, built[key], out_dir)
@@ -1654,6 +1689,11 @@ def render_all(built, spec, out_dir, shots, mats):
         kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}
         kit.update({k[3:]: built[k] for k in wide})
         tower_views(kit, spec, out_dir, out="d6_tower_")
+    d4 = [k for k in built if k.startswith("d4_tower_")]
+    if "towers" in shots and d4 and "tower_base" in built and "tower_mast" in built:   # the D4's heads on the kit's mast
+        kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}
+        kit.update({k[3:]: built[k] for k in d4})
+        tower_views(kit, spec, out_dir, out="d4_tower_")
     materials.use_palette(mats, packed)
     if "photos" in shots or "terminal_photos" in shots:
         for key in built:
@@ -1661,7 +1701,7 @@ def render_all(built, spec, out_dir, shots, mats):
                 chair_photos(built[key], built[key].get("spec", spec), out_dir, mats, key)
             elif key.startswith("sle_") and "photos" in shots:
                 gun_photos(key, built[key], out_dir, mats)
-            elif key in ("d6_drive", "d6_return"):
+            elif key in D6_STATIONS:
                 d6_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs_for(key))
             elif key in TERMINALS:
                 terminal_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs_for(key))
@@ -1670,7 +1710,8 @@ def render_all(built, spec, out_dir, shots, mats):
                         terminal_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs_for(key), end)
     for name, keys in CHAIR_LINEUPS.items():
         if "photos" in shots and all(k in built for k in keys):
-            chair_lineup(name, [built[k] for k in keys], spec, out_dir, mats)
+            # the detachables over their own load level (their ropes are higher)
+            chair_lineup(name, [built[k] for k in keys], built[keys[1]]["spec"] if name == "sessellift_detach" else spec, out_dir, mats)
     for name, keys in TERMINAL_LINEUPS.items():
         if ("photos" in shots or "lineups" in shots) and all(k in built for k in keys):
             terminal_lineup(name, [built[k] for k in keys], out_dir)
@@ -1689,7 +1730,7 @@ def render_all(built, spec, out_dir, shots, mats):
             kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}
             kit.update({k[3:]: built[k] for k in wide})
             tower_photos(kit, built[wide[0]]["spec"], out_dir, mats, chairs_for("d6_"), out="d6_tower_")
-        for model in ("fgd2", "fgt3"):   # the doubles' and triples' heads on the kit's mast, with their chair on the line
+        for model in ("fgd2", "fgt3", "d4"):   # the doubles', triples' and D4's heads on the kit's mast, their chair on the line
             heads = [k for k in built if k.startswith(f"{model}_tower_")]
             if heads:
                 kit = {"tower_base": built["tower_base"], "tower_mast": built["tower_mast"]}

@@ -118,6 +118,14 @@ namespace MountainPlanner.Presentation
                 reach[p] = Mathf.Max(new Vector2(b.min.x, b.min.z).magnitude, new Vector2(b.max.x, b.max.z).magnitude,
                                      new Vector2(b.min.x, b.max.z).magnitude, new Vector2(b.max.x, b.min.z).magnitude);
             }
+            // How far each prototype's branches spread from the trunk across either axis (LOD0 bounds, not the box's corner):
+            // the lift-line foliage rule cuts by it (LiftLanes, ANSI B77.1's 5 ft from the chairs).
+            _branchReach = new float[prototypes];
+            for (int p = 0; p < prototypes; p++)
+            {
+                var b = set.Prefabs[p].GetComponent<LODGroup>().GetLODs()[0].renderers[0].GetComponent<MeshFilter>().sharedMesh.bounds;
+                _branchReach[p] = Mathf.Max(Mathf.Max(-b.min.x, b.max.x), Mathf.Max(-b.min.z, b.max.z));
+            }
             _reach = new GraphicsBuffer(GraphicsBuffer.Target.Structured, prototypes, sizeof(float));
             _reach.SetData(reach);
             // Crown radii for the crown map: the impostor's crown cylinder (TreeImport), where the model has one.
@@ -243,6 +251,13 @@ namespace MountainPlanner.Presentation
                                    CrownRectCoreId = Shader.PropertyToID("_CrownRectCore"), CrownRectRingId = Shader.PropertyToID("_CrownRectRing"),
                                    CrownParamsId = Shader.PropertyToID("_CrownParams");
         readonly float[] _crownRadius;
+        readonly float[] _branchReach;
+
+        /// <summary>How far a prototype's branches reach from its trunk at width scale 1, metres (LOD0 bounds).</summary>
+        public float BranchReach(int prototype) => prototype >= 0 && prototype < _branchReach.Length ? _branchReach[prototype] : 0;
+
+        /// <summary>The widest any prototype reaches at width scale 1, metres.</summary>
+        public float MaxBranchReach { get { float m = 0; foreach (float r in _branchReach) m = Mathf.Max(m, r); return m; } }
         RenderTexture _crownCore, _crownRing;
 
         /// <summary>

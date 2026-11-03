@@ -120,7 +120,7 @@ def entry_platform(mb, ep, cb, lod, st, off=(0.0, 0.0, 0.0), half_v=None, hatch=
 
 
 def hung_assembly(mb, a, name, side, hg, rope, u, asm, count, mode, radius, lod, st, face_w, lugs, level="first",
-                  both=None, at_first=False):
+                  both=None, at_first=False, outer_yoke=True):
     """A kit line assembly (parts.line_assembly, the line towers' sheaves, rockers, yokes and equaliser) on one rope
     (side -1 left, +1 right) of a terminal head, held as the towers and the return's integrated tower hold theirs: two
     lug plates either side of the equaliser (the inboard one alone on a short row, as on the towers, unless both) carry
@@ -128,7 +128,8 @@ def hung_assembly(mb, a, name, side, hg, rope, u, asm, count, mode, radius, lod,
     lands along the line (at_first: where the first axle does). level "first": the row levelled at its first sheave,
     so the rope runs level from the bullwheel to the row and bends through it (up under a hold-down row, down over a
     support row). lugs: {"halfU", "thick", "past"} in mm. Returns (the first axle's u, the rope's exit point (u, w),
-    its exit angle (radians, >= 0), the main pin (u, w))."""
+    its exit angle (radians, >= 0), the main pin (u, w)). outer_yoke False: the inboard yoke alone (parts._row), so a
+    detachable grip's tyre plate passes outboard."""
     X = asm["x"]
     # a row levelled at its first sheave tilts, which moves its main pin along the line: a trial at full detail
     # finds that offset, so the pin lands at u at every LOD
@@ -137,7 +138,8 @@ def hung_assembly(mb, a, name, side, hg, rope, u, asm, count, mode, radius, lod,
     axles = parts.arc_axles(asm, count, radius, level)
     u0 = (u - axles[0][0]) if at_first else (u - pin_off)
     v_rope = side * hg
-    pin_u, pin_w = parts.line_assembly(mb, a, name, u0, v_rope, rope, asm, count, mode, lod, st, radius, first=2, level=level)
+    pin_u, pin_w = parts.line_assembly(mb, a, name, u0, v_rope, rope, asm, count, mode, lod, st, radius, first=2, level=level,
+                                       outer_yoke=outer_yoke)
     b_in, b_out = v_rope - side * X["beam"][1], v_rope - side * X["beam"][0]
     lt = m(lugs["thick"])
     plates = [sorted((b_in, b_in - side * lt))]

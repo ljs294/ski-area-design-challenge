@@ -438,7 +438,10 @@ namespace MountainPlanner.Domain.Design
         /// <summary>The plan keeps each head within this share of what its kit's largest head carries (the solve's leans and
         /// catenaries differ a little from the plan's parabolas).</summary>
         const double PlanMargin = 0.9;
-
+        /// <summary>TW-12 v3 (owner, 2026-11-01, LD3: "fewer, taller" automatic towers): the plan's longest span, 300 ft (was
+        /// 250 ft, still the first span's and the fallback's). The chairs' 15 ft (TW-01) and the heads' bends (TW-05) still decide where it
+        /// fits, so longer spans come with the taller towers they need; the 1,000 a tower keeps the count first.</summary>
+        const double PlanMaxSpan = 91.44;
         /// <summary>
         /// TW-12 v2: the line towers between the station towers, chosen together as the fewest towers whose spans keep the
         /// loaded chairs 15 ft up (TW-01 v2; the low zones are the trench's and the unload ramp's) and whose every head, the
@@ -541,7 +544,7 @@ namespace MountainPlanner.Domain.Design
                 return worst;
             }
             var dug = new List<double>();   // each span's trench, metres (it costs: the plan digs no more than it must)
-            double ideal = (st - (ownB ? exitS : sb)) / Math.Max(1, Math.Ceiling((st - (ownB ? exitS : sb)) / MaxSpan - 1e-9));
+            double ideal = (st - (ownB ? exitS : sb)) / Math.Max(1, Math.Ceiling((st - (ownB ? exitS : sb)) / PlanMaxSpan - 1e-9));
             // A span's cost: the tower it reaches (a thousand; its height's distance from a modest 35 ft), the span's distance
             // from even, and its trench.
             double Cost(int v, double len, double trench)
@@ -559,12 +562,16 @@ namespace MountainPlanner.Domain.Design
             var outOf = new List<int>[n];
             var into = new List<int>[n];
             for (int i = 0; i < n; i++) { outOf[i] = new List<int>(); into[i] = new List<int>(); }
-            void Span(int u, int v)
+            // How far a span may reach from node u: TW-12 v3's 300 ft, but the first span out of the bottom station keeps the old
+            // 250 ft, so the chairs climbing out of the load zone aren't left to the trench (flat ground digs none).
+            double Reach(int u) => u == 0 ? MaxSpan : PlanMaxSpan;
+            // Whether the span was added: false where it's out of range or its chairs can't clear.
+            bool Span(int u, int v)
             {
                 double len = ns[v] - ns[u];
-                if (len < MinGap - 1e-6 && !(ownB && u == 0) || len > MaxSpan + 1e-6 || len <= 0) return;
+                if (len < MinGap - 1e-6 && !(ownB && u == 0) || len > Reach(u) + 1e-6 || len <= 0) return false;
                 double shortBy = Short(ns[u], ny[u], ns[v], ny[v], u == 0);
-                if (double.IsNaN(shortBy)) return;
+                if (double.IsNaN(shortBy)) return false;
                 int e = from.Count;
                 dug.Add(shortBy);
                 from.Add(u);
@@ -573,12 +580,19 @@ namespace MountainPlanner.Domain.Design
                 length.Add(len);
                 outOf[u].Add(e);
                 into[v].Add(e);
+                return true;
             }
-            for (int v = 1; v < end; v++) Span(0, v);
-            Span(0, end);
-            for (int u = 1; u < end; u++)
+            // From each node, the spans to every position in reach, each position's heights tallest first: a lower tower at the
+            // same spot only lowers the rope there, so once its chairs can't clear, no shorter one's can (TW-12 v3: with the
+            // longer spans this keeps the search within its 50 ms a mile). The spans kept are the same as trying them all.
+            for (int u = 0; u < end; u++)
             {
-                for (int v = u + 1; v < end; v++) { if (ns[v] - ns[u] > MaxSpan + 1e-6) break; Span(u, v); }
+                int p0 = u == 0 ? 0 : (u - 1) / nh + 1;
+                for (int p = p0; p < ps.Count; p++)
+                {
+                    if (ps[p] - ns[u] > Reach(u) + 1e-6) break;
+                    for (int k = nh - 1; k >= 0; k--) if (!Span(u, 1 + p * nh + k) && ps[p] - ns[u] >= MinGap - 1e-6) break;
+                }
                 Span(u, end);
             }
             // The fixed spans either side: from the bottom terminal's exit to its station tower, and on from the top's.

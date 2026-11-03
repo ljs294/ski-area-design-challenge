@@ -230,6 +230,8 @@
 .hud .tw-strip__empty { position: absolute; left: 12px; top: 10px; margin: 0; padding: 0; font-size: 11.5px; color: var(--muted); -unity-text-outline-color: var(--muted); }
 .hud .tw-strip__label { position: absolute; margin: 0; padding: 0; font-size: 9px; white-space: nowrap; color: var(--chart-label); -unity-text-outline-color: var(--chart-label); }
 .hud .tw-strip__label--tower { font-size: 9px; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .tw-strip__label--num { font-size: 9px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw-strip__label--sel { font-size: 10px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
 .hud .tw-strip__label--bad { font-size: 9.5px; color: var(--neg); -unity-text-outline-color: var(--neg); }
 .hud .tw-strip__label--side { font-size: 10px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
 .hud .tw-strip__label--side2 { font-size: 9.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
