@@ -33,7 +33,7 @@ namespace MountainPlanner.Tests
                 {
                     string id = LiftCatalogIds.Of(carrier, maker);
                     Assert.That(LiftCatalogIds.Known(id), Is.True, id);
-                    if (id == LiftCatalogIds.SesselliftD6) continue;   // its own models (LT41, below)
+                    if (id == LiftCatalogIds.SesselliftD6 || id == LiftCatalogIds.SesselliftD4) continue;   // their own models (LT41, D4)
                     if (carrier == "fixed-double" || carrier == "fixed-triple") continue;   // their own models (LD1, below)
                     var type = LiftType.Of(id);
                     Assert.That(type.Bottom.Model, Does.StartWith(maker == "monta" ? "monta_fg4_" : "sessellift_fgq4_"), "drawn with the maker's quad");
@@ -74,6 +74,16 @@ namespace MountainPlanner.Tests
                 Assert.That(t.Bottom.Row, Is.EqualTo(LiftType.Of(c.Id.EndsWith("monta") ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4).Bottom.Row));
             }
             Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgd2).RiseLimitMetres / 0.3048, Is.EqualTo(2800).Within(0.01), "LT13");
+            // The Sessellift D4 detachable quad (the D4 model thread): 2,400 an hour at 6 s, its own models, a hold-down bottom.
+            var d4 = LiftType.Of(LiftCatalogIds.SesselliftD4);
+            Assert.That(LiftCatalogIds.Buildable(LiftCatalogIds.SesselliftD4), Is.True);
+            Assert.That(d4.Detachable, Is.True);
+            Assert.That(d4.Capacity, Is.EqualTo(2400).Within(1));
+            Assert.That(d4.GaugeMetres, Is.EqualTo(4.8));
+            Assert.That(d4.TowerKit, Is.EqualTo("sessellift_d4_"));
+            Assert.That((d4.Bottom.Model, d4.Top.Model), Is.EqualTo(("sessellift_d4_bottom", "sessellift_d4_top")));
+            Assert.That(d4.Bottom.Row, Is.EqualTo(TerminalRow.HoldDown));
+            Assert.That(d4.Bottom.OwnStation, Is.True, "DQ5: the first tower is built into the bottom station");
             Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgt3).RiseLimitMetres / 0.3048, Is.EqualTo(2500).Within(0.01), "LT13");
         }
 

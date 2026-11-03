@@ -54,7 +54,7 @@ namespace MountainPlanner.UI.Tools
 
         // The types with models of their own, by their model names (the D6, LT41; the doubles and triples, LD1).
         static string OwnName(string id) =>
-            id == LiftCatalogIds.SesselliftD6 ? "Sessellift D6"
+            id == LiftCatalogIds.SesselliftD6 ? "Sessellift D6" : id == LiftCatalogIds.SesselliftD4 ? "Sessellift D4"
             : id == LiftCatalogIds.SesselliftFgd2 ? "Sessellift FGD-2" : id == LiftCatalogIds.SesselliftFgt3 ? "Sessellift FGT-3"
             : id == LiftCatalogIds.MontaFg2 ? "Monta FG2" : id == LiftCatalogIds.MontaFg3 ? "Monta FG3" : null;
 

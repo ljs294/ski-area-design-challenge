@@ -158,6 +158,7 @@ namespace MountainPlanner.Domain.Design
             // fixed row, its range a sheave's 4.5°). Both tension at the bottom (LT11, RP-03). Footprints, exits and origins
             // are the models' (the view measures them again: LiftTypes.Measured).
             if (catalogId == LiftCatalogIds.SesselliftD6) return D6(type);
+            if (catalogId == LiftCatalogIds.SesselliftD4) return D4(type);
             if (monta)
             {
                 type.Bottom = new TerminalEnd("monta_fg4_drive", TerminalRow.HoldDown, MontaExitMin, MontaExitMax, 0.9 * MontaExitMax,
@@ -226,6 +227,31 @@ namespace MountainPlanner.Domain.Design
             // LT42: a detachable's pads end at the hood's middle (LF-12 v5).
             t.Bottom = new TerminalEnd("sessellift_d6_return", TerminalRow.Support, -level, 0, 0, 9.108, 12.816, 4.45, 12.816, 3.6, 0, 3, padToMiddle: true);
             t.Top = new TerminalEnd("sessellift_d6_drive", TerminalRow.Support, -level, 0, 0, 8.784, 13.137, 4.45, 13.137, 3.6, 0, 3, padToMiddle: true);
+            return t;
+        }
+
+        /// <summary>
+        /// The Sessellift D4 detachable quad (owner, 2026-11-02, the D4 model thread's DQ rulings): 1,000 fpm at a 6 s interval
+        /// (2,400 an hour, 100 ft apart on the line), a 4.8 m gauge, the quad chair on the D6's hanger (3.27 m drop, 1.16 m
+        /// either side of the rope), 900 lb; a 1⅝ in (41.3 mm) design rope (LD7, physics only; quads mostly 38–42 mm), its
+        /// weight and rating scaled from the D6's 2 in by diameter². Unlike the D6 its bottom station holds the rope down: the
+        /// first tower is built into it (DQ5), its hold-down rows posing for exits of 5–16° (DQ11), so no station tower stands
+        /// after it. The top is a level support exit as the D6's. Heads from the quad's kit at 4.8 m (s4–c8, not the wide ones).
+        /// </summary>
+        static LiftType D4(LiftType placeholder)
+        {
+            const double Lb = 0.45359237, Deg = Math.PI / 180;
+            double speed = 1000 * 0.3048 / 60, interval = 6, rope = 0.041275, r2 = rope / 0.0508 * (rope / 0.0508);
+            var t = new LiftType(LiftCatalogIds.SesselliftD4, 4, speed, speed * interval, 10.0 * r2, 444_000 * r2, placeholder.CounterweightNewtons,
+                                 900 * Lb, 170 * Lb, 3.272, 4.8, rope)
+            {
+                Name = "Detachable quad", RiseLimitMetres = placeholder.RiseLimitMetres, Detachable = true, _interval = interval,
+                ChairHalfWidthMetres = 1.158, Heads = TowerForces.HeadKit.Quad, TowerKit = "sessellift_d4_", BullwheelVisible = false,
+            };
+            double level = TowerForces.SheaveBendLimit;
+            t.Bottom = new TerminalEnd("sessellift_d4_bottom", TerminalRow.HoldDown, 5 * Deg, 16 * Deg, 0.9 * 16 * Deg, 6.0, 14.858, 4.45, 14.858, 3.872, 0, 8,
+                                       ownStation: true, padToMiddle: true);
+            t.Top = new TerminalEnd("sessellift_d4_top", TerminalRow.Support, -level, 0, 0, 6.0, 9.716, 4.45, 9.716, 3.6, 0, 3, padToMiddle: true);
             return t;
         }
 
