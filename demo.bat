@@ -267,6 +267,10 @@ echo     76 A new-area download with OpenStreetMap down: Jackson Hole 2 km into 
 echo        features server pointed at an address that never answers. After about 30 s the step reads "map features
 echo        unavailable - skipped", the download finishes, and the quality card says land cover stands in for water and roads.
 echo.
+echo   Phase 3, bug bash (v0.3.2; rebuilds the game, close the Unity editor first)
+echo     77 The quit crash (BB7): the 40-lift benchmark at High (measure lane, about 3 minutes), then the game quits by
+echo        itself. It used to crash in D3D12Core.dll here; now it prints "exit 0" and no new crash dump.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -375,6 +379,7 @@ if /i "%CHOICE%"=="73m" goto brushtour
 if /i "%CHOICE%"=="73c" goto contourcaptures
 if /i "%CHOICE%"=="75" goto brushperf
 if /i "%CHOICE%"=="76" goto overpassskip
+if /i "%CHOICE%"=="77" goto quitcrash
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -471,6 +476,23 @@ echo   When it finishes, the quality card reads: "Water and roads: OpenStreetMap
 echo   cover stands in for them." Open the area to check it, then quit the game.
 start "" /wait "%GAME%" -data "%OVERPASSRUN%" -download "Jackson Hole" 43.593 -110.848 2 -overpass http://10.255.255.1/api/interpreter
 findstr /i /c:"overpass" /c:"map features" "%PLAYERLOG%"
+goto done
+
+:quitcrash
+rem Task P3-16 BB7: the lift shader's accent colour in the middle of its material block crashed the bundled D3D12
+rem runtime as Unity tore the device down on quit after a lifts benchmark. The build is fresh so it has the fix.
+call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\p3-16" mkdir "%~dp0test-results\p3-16"
+set "DUMPS=%LOCALAPPDATA%\CrashDumps"
+set "DUMPSBEFORE=0"
+for /f %%n in ('dir /b "%DUMPS%\SkiAreaDesignChallenge*" 2^>nul ^| find /c /v ""') do set "DUMPSBEFORE=%%n"
+echo Running the 40-lift benchmark at High with one lap; the game quits by itself when it finishes.
+%MEASURE% "%GAME%" -notitle -quality high -liftbench 40 -laps 1 %SCREEN% -benchmark "%~dp0test-results\p3-16\quitcrash.json" -logFile "%~dp0test-results\p3-16\quitcrash.log" <nul
+echo   The game exited with code %ERRORLEVEL% (0 is clean; -1073741819 was the crash).
+set "DUMPSAFTER=0"
+for /f %%n in ('dir /b "%DUMPS%\SkiAreaDesignChallenge*" 2^>nul ^| find /c /v ""') do set "DUMPSAFTER=%%n"
+echo   Crash dumps in %DUMPS%: %DUMPSBEFORE% before, %DUMPSAFTER% after.
 goto done
 
 :firstrun

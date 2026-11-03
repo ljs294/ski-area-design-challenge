@@ -21,7 +21,7 @@ node tools/perf/compare.mjs docs/perf/jackson-hole-5km-high.json <run.json>
 | `jackson-hole-5km-high-dev.json` | Development | `-quality high -laps 1` (exact garbage and memory) | 8.19 ms | 7.86 ms |
 | `jackson-hole-5km-medium-dev.json` | Development | `-quality medium -laps 1` | 4.83 ms | 4.56 ms |
 | `jackson-hole-5km-high-dev-hud.json` | Development | `-quality high -laps 1 -withhud` | 8.02 ms | 7.83 ms |
-| `jackson-hole-5km-high-lifts40.json` | Release | `-quality high -liftbench 40` (40 built quads, 3,898 chairs; the log's `[Chairs]` line gives their main-thread cost, 0.44 ms) | 7.80 ms | 7.57 ms |
+| `jackson-hole-5km-high-lifts40.json` | Release | `-quality high -liftbench 40` (40 built lifts: 14 Sessellift FGQ-4, 13 D6, 13 Monta FG4; the log's `[Chairs]` line gives their main-thread cost, 0.81 ms) | 8.34 ms | 8.38 ms |
 
 `demo.bat` 41 runs High and Medium (Release and Development) and High with the HUD, and compares each with its file;
 `demo.bat` 42 runs one preset. Run every benchmark through the GPU's measure lane (`tools/gpu/gpu.ps1 run -Lane
@@ -72,3 +72,4 @@ tree was dirty), run all eight in a row under one measure slot, confirm with a s
 the files in the same PR as the change.
 - **2026-10-20, Phase 3 task 09** (commit after a314b7c): `jackson-hole-5km-high-lifts40.json` added. 40 lifts built by `-liftbench 40` (a grid of fixed-grip quads 600 m up the fall line, the game's own build path) cost +0.38 ms p95 at High against the same build with none (7.42 ms); chairs are 0.44 ms a frame of main-thread work with 0 B garbage, so the planned Burst chair job waits (LT29).
 - **2026-10-29, Phase 3 task 11** (commit 0b6a5bf3): the drawn resort's five reports and its edit timing added (section above); the eight baselines are unchanged (DB5).
+- **2026-11-03, Phase 3 task 16 BB8** (commit 92ac93f4, clean): `jackson-hole-5km-high-lifts40.json` re-pinned. Since P3-09 PR C (#97) `-liftbench 40` builds every third lift as each type, 14 Sessellift FGQ-4, 13 D6 and 13 Monta FG4, not 40 quads; the planned re-pin was never done, so main measured 8.74 / 8.60 ms p95 frame / GPU on 2026-11-01 against the pinned 7.80 / 7.57. New: 8.34 / 8.38 ms; two confirming runs in the same measure session passed `compare.mjs` (8.27 / 8.36, 8.24 / 8.35). The BB7 quit-crash fix in the same PR (the lift shader's accent colour moved to the end of its material block) costs nothing: main as it was (34a11eb8, crashing on quit both times) measured 9.10 / 8.48 and 8.24 / 8.37 in the same session, and main with the pre-LT41 shader 8.26 / 8.36 and 8.17 / 8.34.
