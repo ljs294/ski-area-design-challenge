@@ -83,6 +83,17 @@ namespace MountainPlanner.App
             if (_draftView.Pick(ray, ground + 2, slack, out _, out int part)) _draftPart = part;
         }
 
+        MountainPlanner.UI.Tools.TowerNumberOverlay _towerNumbers;
+
+        // LD3 (owner, 2026-11-01): the draft's towers numbered in 3D, the selected one strong; every frame, allocating nothing.
+        void UpdateTowerNumbers(UnityEngine.Camera cam)
+        {
+            var view = DraftView;
+            if (view == null && _towerNumbers == null) return;
+            if (_towerNumbers == null && Hud != null) _towerNumbers = new MountainPlanner.UI.Tools.TowerNumberOverlay(Hud.ContourLabelLayer);
+            _towerNumbers?.Update(cam, view, _draftLitPart, _liftsShown && _hudShown && !PhotoOpen);
+        }
+
         void DisposeLiftDraft()
         {
             _draftView?.Dispose();

@@ -21,7 +21,8 @@ namespace MountainPlanner.World
     {
         /// <summary>
         /// Under a full forest canopy, this share of the snow gives way to the forest floor: shaded snow
-        /// and needle litter, so a stand reads as a dark mass from a distance instead of trees on white.
+        /// and needle litter, so a stand reads as a dark mass from a distance instead of trees on white. Only texels with
+        /// forest floor of their own take it, so a clearing inside a stand keeps its full snow.
         /// </summary>
         public const int ForestShade = 115; // of 255 (45%)
         /// <summary>Forest density is judged over this many metres, so lone trees and specks cast no stand shade.</summary>
@@ -75,8 +76,12 @@ namespace MountainPlanner.World
                     // Snow lies on the land; water keeps its weight under snow, so the terrain shader knows
                     // where the frozen lakes are and draws snow on ice there (MountainTerrain.shader).
                     int w4 = cover[src + 4], land = 255 - w4;
-                    int s = cover[src + GroundCover.Layers] * (255 - shade[wj * windowWidth + (i - windowX)]) / 255 * land / 255;
                     int f = cover[src], g = cover[src + 1], r = cover[src + 2], d = cover[src + 3];
+                    // A texel takes the stand's shade only as far as it has forest floor of its own (full from a quarter up;
+                    // owner, 2026-11-02, finding F2): cleared ground (a lift line, a trail, the brush's Clear) has none, so
+                    // the forest round a narrow clearing no longer thins its snow into dark patches.
+                    int sh = shade[wj * windowWidth + (i - windowX)] * System.Math.Min(255, f * 4) / 255;
+                    int s = cover[src + GroundCover.Layers] * (255 - sh) / 255 * land / 255;
                     int paved = cover[src + 5], unpaved = cover[src + 6];
                     // Rounding leftovers go to the largest ground layer.
                     int rest = 255 - f - g - r - d - w4 - paved - unpaved;

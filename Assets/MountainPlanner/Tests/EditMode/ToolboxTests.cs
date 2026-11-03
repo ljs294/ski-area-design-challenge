@@ -299,11 +299,7 @@ namespace MountainPlanner.Tests
             Assert.That(lift.Problem, Does.Contain("300 ft"), "LF-08: 300 ft apart");
             Assert.That(lift.CurrentStep, Is.EqualTo(1), "a red ghost doesn't place");
             _host.Tick(At(0, 600, click: true));
-            Assert.That(lift.CurrentStep, Is.EqualTo(2), "the line is fixed: towers");
-
-            Assert.That(_host.Confirm(WorkStage.Built), Is.Null, "nothing to break ground on before the review");
-            _host.Tick(new ToolInput { Keys = ToolKeys.Next });
-            Assert.That(lift.CurrentStep, Is.EqualTo(3));
+            Assert.That(lift.CurrentStep, Is.EqualTo(3), "LD3: the line is fixed and Automatic goes straight to Build (the review)");
             _host.Tick(new ToolInput { Keys = ToolKeys.BreakGround });   // Ctrl+Enter
             Assert.That(_design.Document.Lifts.Count, Is.EqualTo(1));
             var built = _design.Document.Lifts[0];

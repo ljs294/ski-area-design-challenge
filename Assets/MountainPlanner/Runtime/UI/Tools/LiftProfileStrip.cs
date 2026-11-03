@@ -36,6 +36,19 @@ namespace MountainPlanner.UI.Tools
 
         public LiftProfile Profile => _profile;
 
+        /// <summary>The selected tower (its index up the line, T1 = 0), drawn and labelled strong; -1 for none (LD3).</summary>
+        public int Selected { get; private set; } = -1;
+        /// <summary>A click on the side view near a tower: its index (LD3, the one tower editor's select).</summary>
+        public event Action<int> TowerClicked;
+        /// <summary>
+        /// LD3: a tower dragged on the side view: its index, how far it has moved along the line and up since the press
+        /// (metres, by the chart's scales), and whether the drag has ended. Sideways moves it, up and down sets its height.
+        /// </summary>
+        public event Action<int, double, double, bool> TowerDragged;
+        int _dragTower = -1;
+        Vector2 _dragFrom;
+        const float ClickPixels = 10;
+
         public LiftProfileStrip()
         {
             name = "liftstrip";
@@ -79,10 +92,32 @@ namespace MountainPlanner.UI.Tools
             rise.Add(_riseOf);
             head.Add(rise);
             Add(head);
-            _chart = new VisualElement { name = "liftstrip-chart", pickingMode = PickingMode.Ignore };
+            _chart = new VisualElement { name = "liftstrip-chart" };
             _chart.AddToClassList("tw-strip__chart");
             _chart.style.height = ChartHeight;
             _chart.generateVisualContent += Draw;
+            _chart.RegisterCallback<PointerDownEvent>(e =>
+            {
+                int i = TowerNear(e.localPosition.x);
+                if (i < 0 || e.button != 0) return;
+                TowerClicked?.Invoke(i);
+                _dragTower = i;
+                _dragFrom = e.localPosition;
+                _chart.CapturePointer(e.pointerId);
+                e.StopPropagation();
+            });
+            _chart.RegisterCallback<PointerMoveEvent>(e =>
+            {
+                if (_dragTower < 0 || !_chart.HasPointerCapture(e.pointerId) || !Scale()) return;
+                TowerDragged?.Invoke(_dragTower, (e.localPosition.x - _dragFrom.x) / _fx, (_dragFrom.y - e.localPosition.y) / _fy, false);
+            });
+            _chart.RegisterCallback<PointerUpEvent>(e =>
+            {
+                if (_dragTower < 0) return;
+                if (_chart.HasPointerCapture(e.pointerId)) _chart.ReleasePointer(e.pointerId);
+                if (Scale()) TowerDragged?.Invoke(_dragTower, (e.localPosition.x - _dragFrom.x) / _fx, (_dragFrom.y - e.localPosition.y) / _fy, true);
+                _dragTower = -1;
+            });
             _labels = new VisualElement { pickingMode = PickingMode.Ignore };
             _labels.AddToClassList("tw-strip__labels");
             _chart.Add(_labels);
@@ -140,6 +175,30 @@ namespace MountainPlanner.UI.Tools
             _chart.MarkDirtyRepaint();
             _riseBar.MarkDirtyRepaint();
             Relabel();
+        }
+
+        /// <summary>Lights tower <paramref name="index"/> (-1: none): its mast and labels strong.</summary>
+        public void SetSelected(int index)
+        {
+            if (index == Selected) return;
+            Selected = index;
+            _chart.MarkDirtyRepaint();
+            Relabel();
+        }
+
+        // The tower whose mast is nearest x on the chart, within ClickPixels, or -1.
+        int TowerNear(float x)
+        {
+            if (_profile == null || !Scale()) return -1;
+            int best = -1;
+            float bestD = ClickPixels;
+            var towers = _profile.Rope.Towers;
+            for (int i = 0; i < towers.Count; i++)
+            {
+                float d = Mathf.Abs(X(towers[i].RopeS) - x);
+                if (d < bestD) { bestD = d; best = i; }
+            }
+            return best;
         }
 
         /// <summary>The tower in hand moved or changed (no new profile): only the drawing changes.</summary>
@@ -230,12 +289,13 @@ namespace MountainPlanner.UI.Tools
             }
 
             // Towers: the mast from its base to the rope, and its head's sheaves (over, under or both).
-            foreach (var t in p.Rope.Towers)
+            for (int ti = 0; ti < p.Rope.Towers.Count; ti++)
             {
+                var t = p.Rope.Towers[ti];
                 float xb = X(t.BaseS), x = X(t.RopeS), yt = Y(t.RopeY), yg = Y(t.BaseY);
-                Color c = t.Head == LiftRope.Head.TooSharp ? neg : text;
+                Color c = t.Head == LiftRope.Head.TooSharp ? neg : ti == Selected ? strong : text;
                 g.strokeColor = c;
-                g.lineWidth = 1.6f;
+                g.lineWidth = ti == Selected ? 2.8f : 1.6f;
                 Seg(g, xb, yg, x, yt);
                 void Dots(float dy) { Dot(g, x - 2.2f, yt + dy, 1.25f, c); Dot(g, x + 2.2f, yt + dy, 1.25f, c); }
                 if (TowerForces.IsHoldDown(t.Head)) Dots(2.6f);
@@ -424,11 +484,23 @@ namespace MountainPlanner.UI.Tools
                 float gstep = Imperial ? ((Base - Top) / _fy > 183 ? 60.96f : 30.48f) : 50f;
                 for (float z = Mathf.Ceil(_zl / gstep) * gstep; Y(z) >= Top - 0.5f; z += gstep)
                     Next(Imperial ? $"{Math.Round(z / UnitFormat.MetresPerFoot):#,0}" : $"{Math.Round(z):#,0}", PadL - 4, Y(z), "tw-strip__label--axis", 1);
-                foreach (var t in p.Rope.Towers)
+                // LD3: every tower numbered at its foot (T1 at the bottom, as hints and problems count them); its height over its
+                // head where there's room beside its neighbours' (always for the selected one).
+                var towers = p.Rope.Towers;
+                for (int i = 0; i < towers.Count; i++)
                 {
+                    var t = towers[i];
+                    float x = X(t.RopeS);
+                    bool bad = t.Head == LiftRope.Head.TooSharp, sel = i == Selected;
+                    float room = Mathf.Min(i > 0 ? x - X(towers[i - 1].RopeS) : float.MaxValue,
+                                           i + 1 < towers.Count ? X(towers[i + 1].RopeS) - x : float.MaxValue);
+                    string state = bad ? "tw-strip__label--bad" : sel ? "tw-strip__label--sel" : null;
+                    if (room >= 14 || sel)
+                        Next("T" + (i + 1), X(t.BaseS), Mathf.Min(Base - 5, Y(t.BaseY) + 8), state ?? "tw-strip__label--num", 0.5f);
+                    if (room < 22 && !sel) continue;
                     double h = t.RopeY - t.BaseY;   // rope over the base: the label the mockup shows is the authored height; near enough here
-                    Next(Imperial ? $"{Math.Round(h / UnitFormat.MetresPerFoot):0}" : $"{h:0.0}", X(t.RopeS), Mathf.Max(6, Y(t.RopeY) - 9),
-                         t.Head == LiftRope.Head.TooSharp ? "tw-strip__label--bad" : "tw-strip__label--tower", 0.5f);
+                    Next(Imperial ? $"{Math.Round(h / UnitFormat.MetresPerFoot):0}" : $"{h:0.0}", x, Mathf.Max(6, Y(t.RopeY) - 9),
+                         state ?? "tw-strip__label--tower", 0.5f);
                 }
                 if (!double.IsNaN(p.OpenFrom)) Next("needs towers", X((p.OpenFrom + p.TopS) / 2), Y((GroundAt(p, p.OpenFrom) + p.TopZ) / 2) - 14, "tw-strip__label--side", 0.5f);
                 Next("Chairs", 6, T0 + 5, "tw-strip__label--side", 0);

@@ -176,7 +176,7 @@ namespace MountainPlanner.Presentation.Edits
                                 var t = _trees[at];
                                 float y = GroundY(tile, b, ground, fx, fz);
                                 uint flags = clearing == null ? t.Flags
-                                    : ForestField.IsCleared(packed, i, b.West, b.North, tileMetres, clearing, _lattice) ? ForestInstance.Cleared : 0;
+                                    : TreeCleared(packed, i, b.West, b.North, tileMetres, clearing) ? ForestInstance.Cleared : 0;
                                 if (y == t.Position.y && flags == t.Flags) continue;
                                 if (flags != t.Flags) _crownDue = true;
                                 t.Position.y = y;

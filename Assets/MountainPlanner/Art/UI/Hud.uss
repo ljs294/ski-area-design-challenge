@@ -470,3 +470,26 @@
     -unity-text-outline-width: 1px;
     -unity-text-outline-color: rgba(255, 255, 255, 0.85);
 }
+
+/* LD3: T1…Tn over the towers of the lift being built or edited (TowerNumberOverlay). */
+.tower-number {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 48px;
+    height: 20px;
+    margin: 0;
+    padding: 0;
+    font-size: 13px;
+    -unity-font-style: bold;
+    -unity-text-align: lower-center;
+    color: rgba(255, 255, 255, 0.78);
+    -unity-text-outline-color: rgba(255, 255, 255, 0.78);
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.7);
+}
+/* The selected tower's number: no new colour (UI-15: highlights are white), just bigger and full white. */
+.tower-number--sel {
+    font-size: 17px;
+    color: rgb(255, 255, 255);
+    -unity-text-outline-color: rgb(255, 255, 255);
+}

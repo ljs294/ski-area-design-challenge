@@ -1,0 +1,26 @@
+{
+  "_about": "Sessellift FGT-3 fixed-grip triple (v0.3.2, owner LD1): the FGQ-4 at an 12 ft line gauge, by rule (liftkit/gauge.py). The terminals' hood, piers and housing keep the quad's size; the crossbeams, lifting portals, bullwheels and sheave rows follow the gauge (owner LD5, Q1). The chair is the quad's narrowed to three seats (assets/chair.py derive). Rope sockets and sheaves keep the quad's 1 3/4 in rope (LD7). Millimetres.",
+  "base": "sessellift_fgq4.json",
+  "idPrefix": "sessellift_fgt3",
+  "model": {
+    "seats": 3
+  },
+  "common": {
+    "ropeElevation": 3039,
+    "lineGauge": 3658
+  },
+  "catalog": {
+    "maker": "Sessellift",
+    "name": "Sessellift FGT-3",
+    "parts": {
+      "sessellift_fgt3_chair": "Triple chair",
+      "sessellift_fgt3_drive": "Drive terminal",
+      "sessellift_fgt3_return": "Return terminal",
+      "sessellift_fgt3_tower_s4": "Line tower head, support 4",
+      "sessellift_fgt3_tower_s6": "Line tower head, support 6",
+      "sessellift_fgt3_tower_b8": "Line tower head, breakover 8",
+      "sessellift_fgt3_tower_d8": "Line tower head, hold-down 8",
+      "sessellift_fgt3_tower_c8": "Line tower head, combination 4/4"
+    }
+  }
+}

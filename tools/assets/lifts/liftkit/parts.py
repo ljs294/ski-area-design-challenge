@@ -1,4 +1,5 @@
 """Lift parts built from primitives, in the lift frame. Detail follows an LOD level (0 = nearest)."""
+import copy
 import json
 import math
 import os
@@ -645,9 +646,15 @@ def restraint_sleeves(mb, sl, r, place, style):
 def restraint_bar(mb, bar, radii, place, near, sides, style, handle_style):
     """The Sessellift chair's safety bar, raised behind the seat: arms from the pivot sleeves (up close), the rail,
     the legs with their footrest stubs, and up close the rod and the handles. place as for restraint_sleeves; radii:
-    the bar, rod and handle tubes (m)."""
+    the bar, rod and handle tubes (m). The arms carry the footrests (the handles): two on the quad, or a double's or
+    triple's own (bar["arms"], v0.3.2, owner D3: (half-width, (u, w) path) each, one in the middle of a double, two
+    either side of a triple's middle seat); the legs and the rod behind the seat are the counterweight."""
     rail = bar["rail"]
-    for s in ((-1, 1) if near else ()):
+    arms = bar.get("arms")
+    if near and arms:
+        for hw, arm in arms:
+            prims.tube_path(mb, [place(u, hw, w, 1) for u, w in arm], radii["bar"], sides, style)
+    for s in ((-1, 1) if near and not arms else ()):
         prims.tube_path(mb, [place(u, bar["armHalfWidth"], w, s) for u, w in bar["arm"]], radii["bar"], sides, style)
     leg = bar["leg"]
     c = rail["corner"]
@@ -662,8 +669,9 @@ def restraint_bar(mb, bar, radii, place, near, sides, style, handle_style):
         prims.cylinder(mb, place(rod["u"], -rod["halfWidth"], rod["w"], 1), place(rod["u"], rod["halfWidth"], rod["w"], 1), radii["rod"], 3,
                        style, caps=(False, False))
         hd = bar["handle"]
-        for s in (-1, 1):
-            prims.cylinder(mb, place(hd["from"][0], hd["halfWidth"], hd["from"][1], s), place(hd["to"][0], hd["halfWidth"], hd["to"][1], s),
+        at = [(hw, 1) for hw, _ in arms] if arms else [(hd["halfWidth"], s) for s in (-1, 1)]
+        for hw, s in at:
+            prims.cylinder(mb, place(hd["from"][0], hw, hd["from"][1], s), place(hd["to"][0], hw, hd["to"][1], s),
                            radii["handle"], 4, handle_style, caps=(False, False))
 
 
@@ -813,6 +821,20 @@ def detach_grip_spec():
         with open(path, encoding="utf-8") as f:
             _DETACH_GRIP = json.load(f)
     return _DETACH_GRIP
+
+
+def detach_grip_on(rope_dia):
+    """The detachable grip's spec on a rope of rope_dia mm (opt-in, the D4's 1 3/4 in, DQ4): the jaw's underside (its
+    outline below the rope's axis) and the rope guards follow the rope's radius, so they sit on it as on the drawn
+    2 in rope; at the drawn 50.8 mm it is the spec itself."""
+    g = detach_grip_spec()
+    dr = (rope_dia - g["rope"]["dia"]) / 2
+    if not dr:
+        return g
+    g = copy.deepcopy(g)
+    g["rope"]["dia"] = rope_dia
+    g["jaw"]["outline"] = [[v, w - dr if w < 0 else w] for v, w in g["jaw"]["outline"]]
+    return g
 
 
 def _mm(*xs):

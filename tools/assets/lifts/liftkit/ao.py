@@ -34,8 +34,9 @@ def frame_to(n):
     return b1, b2, n
 
 
-def bake(objects, rays=32, reach=1.0, ground=True, strength=0.8, floor=0.25, ghosts=()):
-    """Bakes AO for every mesh object in `objects` (one LOD of one asset, world transforms applied). ghosts: heights
+def bake(objects, rays=32, reach=1.0, ground=True, strength=0.8, floor=0.25, ghosts=(), targets=None):
+    """Bakes AO for every mesh object in `objects` (one LOD of one asset, world transforms applied), or only for
+    `targets` among them, the rest only occluding (a terminal's other head, liftkit/swap.py). ghosts: heights
     (m) at which a cast-only copy of the whole LOD also occludes, as for a mast section stacked between two others;
     then every ray is also cast mirrored top to bottom, so a corner at the section's foot and its twin at the top
     sample mirrored directions and agree (the spiral itself isn't symmetric)."""
@@ -55,7 +56,7 @@ def bake(objects, rays=32, reach=1.0, ground=True, strength=0.8, floor=0.25, gho
     tree = BVHTree.FromPolygons(verts, polys, epsilon=0.0)
     dirs = hemisphere(rays)
     stats = []
-    for o in objects:
+    for o in (objects if targets is None else targets):
         mesh = o.data
         mw = o.matrix_world
         nm = mw.to_3x3().inverted().transposed()

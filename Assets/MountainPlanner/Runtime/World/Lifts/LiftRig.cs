@@ -11,6 +11,36 @@ namespace MountainPlanner.World.Lifts
     }
 
     /// <summary>
+    /// One head of a fixed-grip terminal (<see cref="LiftRig.Heads"/>): the player chooses which end of the lift drives,
+    /// so every fixed-grip terminal carries a head for each end, and a top head comes with a 4, 6 or 8 sheave row for a
+    /// gentler or sharper summit. The game shows one head at a time (<see cref="LiftRig.ShowHead"/>).
+    /// </summary>
+    [System.Serializable]
+    public struct LiftHead
+    {
+        /// <summary>"bottom", "top", "top6" or "top8".</summary>
+        public string Key;
+        /// <summary>The end it serves: "bottom" (riders get on, the rope held down) or "top" (riders get off).</summary>
+        public string End;
+        /// <summary>The head the terminal was built with: shown on import, its pivots and sockets under plain names.</summary>
+        public bool Default;
+        /// <summary>"" for the default head, else the key and an underscore (top6_) on every one of its pivots and
+        /// sockets (top6_eq_l, top6_rope_right_out).</summary>
+        public string Prefix;
+        /// <summary>Indices into <see cref="LiftRig.Pivots"/> of the head's pivots (its steel's fixed <c>&lt;key&gt;_head</c>
+        /// pivot and its trains').</summary>
+        public int[] Pivots;
+        /// <summary>The sockets the head sets, by full name (the default head's plain: rope exits, chair socket).</summary>
+        public string[] Sockets;
+        /// <summary>Sheaves per rope in its row, or 0 where the build doesn't say.</summary>
+        public int Sheaves;
+        /// <summary>The row's arc ("flat", "breakover", "station"), or empty.</summary>
+        public string Arc;
+        /// <summary>The rope's angle leaving the row at rest, degrees (up +), or NaN where the build doesn't say.</summary>
+        public float RopeExitDeg;
+    }
+
+    /// <summary>
     /// The attachment points of an imported lift asset (terminal, chair, tower piece or snow gun), filled by Mountain
     /// Planner ▸ Import Lifts. The prefab's local frame is the lift frame: +Z along the line toward the other
     /// terminal, +X to the right looking along +Z, +Y up; the origin is the mast centreline at the 0.00
@@ -57,6 +87,37 @@ namespace MountainPlanner.World.Lifts
         /// carrier's grip runs round the station on its rail, from where it leaves the rope to where it rejoins it.
         /// </summary>
         public LiftPath[] Paths;
+        /// <summary>A fixed-grip terminal's heads (drive at either end), the default first; empty for every other asset.
+        /// Only the shown head's pivots are active.</summary>
+        public LiftHead[] Heads;
+
+        /// <summary>The head shown now: its index into <see cref="Heads"/>, or -1 (no heads).</summary>
+        public int ShownHead = -1;
+
+        /// <summary>Shows the head <paramref name="key"/> and hides every other (their pivots inactive); false, and nothing
+        /// changed, when the asset has no such head.</summary>
+        public bool ShowHead(string key)
+        {
+            int shown = Heads == null ? -1 : System.Array.FindIndex(Heads, h => h.Key == key);
+            if (shown < 0) return false;
+            for (int h = 0; h < Heads.Length; h++)
+                if (h != shown) foreach (int p in Heads[h].Pivots) Pivots[p].gameObject.SetActive(false);
+            foreach (int p in Heads[shown].Pivots) Pivots[p].gameObject.SetActive(true);
+            ShownHead = shown;
+            return true;
+        }
+
+        /// <summary>A socket as the shown head has it, by its plain name (rope_right_out): the head's own, else the body's
+        /// (rope_right_bw); null where only a hidden head has one (the default head's rope_right_hold).</summary>
+        public Transform HeadSocket(string name)
+        {
+            if (ShownHead < 0 || Heads[ShownHead].Default) return Socket(name);
+            var own = Socket(Heads[ShownHead].Prefix + name);
+            if (own != null) return own;
+            foreach (var h in Heads)
+                if (h.Default && System.Array.IndexOf(h.Sockets, name) >= 0) return null;
+            return Socket(name);
+        }
 
         /// <summary>A named path's points, or null.</summary>
         public Vector3[] Path(string name)

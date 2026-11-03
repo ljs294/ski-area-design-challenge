@@ -81,7 +81,7 @@ namespace MountainPlanner.UI.Tools
             {
                 Change = change => Change(d => { change(d.Towers); ByHand(d); }),
                 DragBegan = () => _undo.Add(_draft.Copy()),
-                Dragged = change => { change(_draft.Towers); ByHand(_draft); Refresh(); },
+                Dragged = change => { change(_draft.Towers); ByHand(_draft); Refresh(); LiveRope(); },
                 DragEnded = DragEnded,
                 Level = Level,
                 HandFor = HandFor,
@@ -186,6 +186,33 @@ namespace MountainPlanner.UI.Tools
             var t = _ctx.ToGround(_draft.Top);
             var levels = _draft.Levels ?? LiftBuild.GroundLevels(type, _without, b.X, b.Y, t.X, t.Y);
             return new TowerInHand(type, _without, b.X, b.Y, t.X, t.Y, levels, below, _draft.Stance);
+        }
+
+        // LD3: while a tower is dragged the rope and the chairs' clearance follow it a few times a second, over the ground the
+        // last analysis left; the whole analysis (earthwork, Apply's figures) follows when the drag ends.
+        float _liveAt = -1;
+        void LiveRope()
+        {
+            float now = Time.realtimeSinceStartup;
+            if (now - _liveAt < 0.1f || _without == null || _ctx.ToGround == null || _draft.Towers.Count == 0) return;
+            _liveAt = now;
+            IHeightSource under = _built != null ? new EditedHeights(_without.Source, _without.Lattice, _built.Edits) : _without;
+            var type = LiftType.Of(_draft.CatalogId);
+            var b = _ctx.ToGround(_draft.Bottom);
+            var t = _ctx.ToGround(_draft.Top);
+            var levels = _draft.Levels ?? LiftBuild.GroundLevels(type, under, b.X, b.Y, t.X, t.Y);
+            var towers = new List<Tower>(_draft.Towers.Count);
+            for (int i = 0; i < _draft.Towers.Count; i++) towers.Add(_draft.Towers[i].WithId(TowerId.Make(7, i)));
+            try
+            {
+                var rope = LiftRope.Solve(type, under, b.X, b.Y, t.X, t.Y, towers, _draft.Stance, type.Bottom.ExitAlong, levels.BottomMetres + type.Bottom.ExitRise,
+                                          type.Top.ExitAlong, levels.TopMetres + type.Top.ExitRise);
+                _editor.Rope = rope;
+                _ctx.Window.ShowStrip(LiftProfile.From(rope, under, b.X, b.Y, t.X, t.Y, levels));
+            }
+            catch (System.Exception e) { Debug.LogWarning("[EditLift] live rope: " + e.Message); }
+            _ctx.ShowDraftLift?.Invoke(new Lift(_lift.Id, _draft.Name, WorkStage.Built, _draft.CatalogId, _draft.Bottom, _draft.Top, _draft.Mode, _draft.Stance, towers, levels));
+            _editor.Relight();
         }
 
         void DragEnded()
@@ -529,9 +556,9 @@ namespace MountainPlanner.UI.Tools
             bool revertable = _draft.Mode == TowerMode.ByHand;
             w.SetButtons(
                 ("add", "Add tower", _editor.Adding ? null : (System.Action)(() => { _editor.StartAdding(); Refresh(); })),
-                ("revert", _armReplace ? "Again: revert yours" : "Revert to auto", revertable ? (System.Action)RevertToAuto : null),
+                ("revert", _armReplace ? "Again: re-place yours" : "Auto-place", revertable ? (System.Action)RevertToAuto : null),
                 ("undo", "Undo", changes > 0 ? (System.Action)Undo : null));
-            w.SetAsking(_armCancel ? "Discard the changes? Cancel again" : _armReplace ? "Your towers go: Revert to auto again" : null);
+            w.SetAsking(_armCancel ? "Discard the changes? Cancel again" : _armReplace ? "Your towers go: Auto-place again" : null);
         }
 
         void BuildReview(int changes, bool blocked)
@@ -546,7 +573,9 @@ namespace MountainPlanner.UI.Tools
             }
             var rope = _built.Rope;
             _review.Add("Length", $"{ToolFormat.Length(run)} across", "LF-06")
-                .Add("Towers", $"{_built.Towers.Count}", "TW-02, TW-12")
+                .Add("Ride", LiftSummary.Ride(rope.Type, run, rope.RiseMetres), "LC-04")
+                .Add("Capacity", LiftSummary.Capacity(rope.Type), "LC-03")
+                .Add("Towers", LiftSummary.Towers(_built.Towers, rope, run), "TW-02, TW-12; LD3: tallest, longest span and heads")
                 .Add("Lowest chairs", $"{ToolFormat.Length(rope.LowestClearance)} over the ground", "TW-01: 15 ft at least");
             foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
             _review.Ready(changes > 0 && !blocked && _applyEdits != null, true);
