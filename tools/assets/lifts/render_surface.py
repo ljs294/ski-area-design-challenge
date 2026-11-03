@@ -13,6 +13,8 @@
   surface_gate2   Gate 2, as the game draws the models (back faces culled): hero, each terminal, a tower, the J bars,
                   the line after snowfall; the game's camera far and mid with each model at the LOD the game picks at
                   its distance (Low quality, lodBias 1); each model's LODs side by side (tbar_lods_<row>.png).
+  surface_heads   the T-bar's s4 head beside the fixed-grip chair tower's (build tower_s4, tower_mast and tower_base
+                  too), whose lifting frame it carries in miniature: a front view at one scale and a photo.
 
 The scene copies the built objects (LOD0, or the game's LOD for Gate 2's game views) and hides everything else;
 render_review's helpers do the cameras, materials and rope curves.
@@ -678,6 +680,49 @@ def gate2(built, out_dir, mats):
     rr._photo_end(sc, [snow])
 
 
+def heads_compare(built, out_dir, mats):
+    """The T-bar's s4 head beside the fixed-grip chair tower's s4 head, whose lifting frame it carries in miniature
+    (owner, 2026-11-03; the chair's built as tower_s4 with tower_mast and tower_base): each on its tower on level snow,
+    ropes through both, back faces culled. A front view from down the line (orthographic, one scale for both) and a
+    three-quarter photo."""
+    materials.cull_backfaces(mats)
+    sc, sun = rr._photo_scene()
+    snow = rr._snow_plane(0.0)
+    rope, v_chair = 5.5, -6.0
+    objs, rw = tower(built, T + "tower_s4", 0.0, rope)
+    c = built[T + "tower_s4"]["spec"]["common"]
+    ropes = [((0.0, s * c["lineGauge"] / 2000, rw), c["ropeDiameter"]) for s in (-1, 1)]
+    base, mast, hd = built["tower_base"], built["tower_mast"], built["tower_s4"]
+    foot, sec = _socket(base, "mast_foot"), _socket(mast, "top").z
+    n = max(1, round((rope - _socket(hd, "rope_right").z - foot.z) / sec))
+    at = Vector((0.0, v_chair, 0.0))
+    objs += place(base, tuple(at))
+    for k in range(n):
+        objs += place(mast, tuple(at + foot + Vector((0.0, 0.0, sec * k))))
+    objs += place(hd, tuple(at + foot + Vector((0.0, 0.0, sec * n))))
+    cc = hd["spec"]["common"]
+    rc = foot.z + sec * n + _socket(hd, "rope_right").z
+    ropes += [((0.0, v_chair + s * cc["lineGauge"] / 2000, rc), cc["ropeDiameter"]) for s in (-1, 1)]
+    curves = [rr._rope_curve(f"CompareRope{i}", [(p[0] - 3.0, p[1], p[2]), (p[0] + 3.0, p[1], p[2])], d)
+              for i, (p, d) in enumerate(ropes)]
+    rr.show_only(objs + curves + [snow, sun])
+    rr.restore_uv(objs)
+    centre = Vector((0.0, v_chair / 2 + 0.25, 5.6))
+    cam = rr.camera("CompareCam")
+    cam.data.type = "ORTHO"
+    sc.render.resolution_x, sc.render.resolution_y = 2000, 900
+    cam.data.ortho_scale = 11.5
+    cam.data.clip_start, cam.data.clip_end = 0.1, 400
+    cam.location = frame.b(tuple(centre - Vector((100.0, 0.0, 0.0))))
+    cam.rotation_euler = (frame.b(tuple(centre)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+    rr.render(os.path.join(out_dir, "tbar_heads_front.png"))
+    sc.render.resolution_x, sc.render.resolution_y = 1600, 1066
+    rr._shooter("tbar", out_dir)("heads", tuple(centre), 160, 12, 13.0, lens=35)
+    rr._photo_end(sc, [snow] + curves)
+    for ob in objs + curves:
+        bpy.data.objects.remove(ob)
+
+
 def render_all(built, out_dir, shots, mats):
     out_dir = os.path.abspath(out_dir)
     os.makedirs(out_dir, exist_ok=True)
@@ -693,6 +738,8 @@ def render_all(built, out_dir, shots, mats):
         photos(built, out_dir, mats)
     if "surface_audit" in shots:
         audit(built, out_dir)
+    if "surface_heads" in shots:
+        heads_compare(built, out_dir, mats)
     if "surface_gate2" in shots:
         gate2(built, out_dir, mats)
     print(f"Surface lift renders in {out_dir}", flush=True)

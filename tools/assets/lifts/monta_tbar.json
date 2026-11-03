@@ -74,7 +74,7 @@
       "pad": {"from": 200, "thick": 60, "cap": 60}
     },
     "head": {
-      "_v3": "R3 one tall cone from the sleeve to the flange; R4/R26 a square platform ring 1.15 m down the mast with braces to the arm ends; R7 triangular gussets; R27 a diagonal strut to the top bar and curled hook brackets; R29 smooth catchers, longer on the drag (+v) side; R32 octagonal pin covers the arm's depth",
+      "_v3": "R3 one tall cone from the sleeve to the flange; R4/R26 a square platform ring 1.15 m down the mast with braces to the arm ends; R7 triangular gussets; R27 curled hook brackets for the wire (now on the lifting beam); R29 smooth catchers, longer on the drag (+v) side; R32 octagonal pin covers the arm's depth",
       "sleeve": {"from": -700, "to": -500, "gap": 12},
       "cone": {"top": -20, "dia": 650},
       "flange": {"half": 340, "thick": 60},
@@ -82,11 +82,18 @@
       "endPlate": {"halfU": 180, "thick": 30, "above": 120},
       "pinCover": {"dia": 280, "length": 40},
       "ropeAboveArm": 380,
-      "posts": {"v": 1200, "size": 130},
-      "topBar": {"w": 1350, "depth": 120, "width": 100},
-      "strut": {"dia": 60},
-      "numberPlate": {"halfV": 170, "height": 230, "thick": 8, "gap": 30},
-      "hook": {"dia": 70, "rod": 12, "post": 60, "curl": 180},
+      "_portal": "the lifting frame (owner, 2026-11-03: a mini fixed-grip head): the Sessellift FGQ-4 tower's lifting portal (sessellift_fgq4.json drive.portal, crossbeam.footPlates) scaled by the gauge ratio 3000/4120, so its lifting eyes sit over the T-bar's ropes as the chair's sit over its own; centred on the head (u 0) and standing on the arm's top (w 320). Two legs leaning out from foot plates to a bolted lifting beam, lug plates with eyes at its ends, J-handrails; read by liftkit.heads.portal",
+      "footPlates": {"uFrom": -178, "uTo": 178, "v": 824, "halfWidth": 74, "top": 378},
+      "portal": {
+        "u": 0,
+        "leg": {"uFrom": -56, "uTo": 56, "footW": 378, "footV": [772, 885], "headW": 1482, "headV": [1046, 1159]},
+        "beam": {"uFrom": -56, "uTo": 56, "v": 3268, "bottom": 1482, "top": 1593, "bolts": {"v": [-335, 0, 335], "w": 1540, "dia": 33}},
+        "lugs": {"v": [1497, 1608], "thick": 18, "top": [-81, 81], "neck": [-56, 56], "neckW": 1430, "bottom": 1359, "corner": 29, "eye": [0, 1434], "boss": 67},
+        "jRails": {"v": 240, "drop": 1205, "bend": 135, "w": 1070, "to": 942, "dia": 35}
+      },
+      "_numberPlate": "as on the chair towers: a black plate stood off the lifting beam's face toward the bottom station (-u), where riders come from, scaled with the frame (the chair's 400 x 260 x 0.728); stood off past the kit's 15 mm bolt heads",
+      "numberPlate": {"halfV": 146, "height": 189, "thick": 8, "standoff": 20},
+      "hook": {"v": 1180, "dia": 70, "rod": 12, "post": 60, "curl": 180},
       "cable": {"dia": 16},
       "platform": {"w": -1150, "half": 650, "hole": 270, "slot": 220, "thick": 40, "toe": 100, "stub": 450, "brace": 40},
       "_catcher": "black tube out from each end of each train, inside the carrier hanger's D (out of v, below the rope), so a swinging hanger can't reach the sheaves: a smooth sweep outboard and down, the same on both ropes (owner, v3.1)",

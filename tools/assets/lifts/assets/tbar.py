@@ -15,9 +15,12 @@ centre (dims "footOffsetPerSection", base dims "footOffset").
   mast   one 1 m section of the round mast, upright, with a two-stile ladder on its +u face (rungs mirror-symmetric
          about mid-height, so sections stack without an AO band, contract M5). Origin at the section's foot; socket top.
   head   two levels (W1): a sleeve over the mast top rising in a tall cone to a flange under a deep gusseted box crossarm
-         whose heavy end plates carry the trains on end pins (octagonal pin covers); two posts and a diagonal strut up
-         to a top bar with the white number plate under it (D4), curled hook brackets for the wire at its ends and the
-         cables clipped along it (D9); a square grating ring round the mast 1.15 m down, braced to the arm's ends.
+         whose heavy end plates carry the trains on end pins (octagonal pin covers); above it the fixed-grip chair
+         tower's lifting frame in miniature (owner, 2026-11-03: liftkit.heads.portal on the chair's numbers scaled to
+         the gauge): two legs leaning out from foot plates on the arm to a bolted lifting beam, lug plates with eyes over
+         each rope, J-handrails, a black number plate on the beam's face toward the bottom station; curled hook brackets
+         for the wire on the beam and the cables clipped along it (D9); a square grating ring round the mast 1.15 m
+         down, braced to the arm's ends.
          Origin on the mast top (on the leaned axis); the frame is level. Sockets mast_top, rope_left, rope_right,
          number_plate, wire_left, wire_right.
 
@@ -34,7 +37,7 @@ import math
 
 from mathutils import Vector
 
-from liftkit import frame, parts, prims
+from liftkit import frame, heads, parts, prims
 from liftkit.export import Asset
 from liftkit.mesh import MeshBuilder, Style
 from liftkit.prims import U, V, W
@@ -58,17 +61,20 @@ def _head_type(variant):
 
 def styles():
     """Galvanised throughout, as the chairlift towers (owner rule); red and galvanised sheaves by parts.row_face; the
-    red pad, the white number plate, black catchers and cables."""
+    red pad, the black number plate (as on the chair towers), black catchers and cables. "steel" and "yellow" are what
+    liftkit.heads draws the lifting frame with: galvanised, as on the chair towers."""
     galv = Style("galvanised", snow=0.5)
     return {
         "concrete": Style("concrete", snow=0.9),
         "galv": galv,
+        "steel": galv,
+        "yellow": galv,
+        "sign": Style("sign_black", snow=0.3),
         "grating": Style("grating", snow=0.8),
         "red": Style("sheave_red"),
         "pad": Style("sheave_red", snow=0.3),
         "rubber": Style("rubber"),
         "rod": Style("machined"),
-        "plate": Style("white", snow=0.2),
         "black": Style("trim_dark", snow=0.3),
     }
 
@@ -498,32 +504,34 @@ def head(spec, t, variant, lod, st):
     for side, tag in ((-1, "l"), (1, "r")):
         rope = train(mb, a, tag, side * hg, mode, cfg[mode], T, s, hd, lod, st, w_pin)
 
-    # the upper level: two posts from the arm to the top bar, the number plate under the bar, the wire's hooked eye on it
-    po, tb = hd["posts"], hd["topBar"]
-    pv, ps = m(po["v"]), m(po["size"]) / 2
-    tw, td, tu = m(tb["w"]), m(tb["depth"]), m(tb["width"]) / 2
-    for sv in (-1, 1):
-        prims.box(mb, (-ps, sv * pv - ps, ad), (ps, sv * pv + ps, tw), st["galv"], skip=("-2",))   # topped: wider than the bar
-    prims.box(mb, (-tu, -pv - ps, tw), (tu, pv + ps, tw + td), st["galv"])
+    # the upper level (owner, 2026-11-03): the fixed-grip chair tower's lifting frame in miniature (spec "portal", the
+    # chair's own numbers scaled to the gauge, read by the kit's portal), its legs on foot plates on the arm's top
+    po, fp, lg, bm = hd["portal"], hd["footPlates"], hd["portal"]["leg"], hd["portal"]["beam"]
+    bt, bu0, bu1 = m(bm["top"]), m(bm["uFrom"]), m(bm["uTo"])
+    if lod <= 2:
+        for sv in (-1, 1):
+            prims.box(mb, (m(fp["uFrom"]), sv * m(fp["v"]) - m(fp["halfWidth"]), ad), (m(fp["uTo"]), sv * m(fp["v"]) + m(fp["halfWidth"]), m(fp["top"])),
+                      st["galv"])
+        heads.portal(mb, po, lod, st)
+    else:   # far out: the legs and the beam as blocks (the kit's portal draws nothing at LOD3)
+        for sv in (-1, 1):
+            f0, f1 = sorted((sv * m(lg["footV"][0]), sv * m(lg["footV"][1])))
+            h0, h1 = sorted((sv * m(lg["headV"][0]), sv * m(lg["headV"][1])))
+            prims.prism(mb, [(f0, ad), (f1, ad), (h1, m(lg["headW"])), (h0, m(lg["headW"]))], (m(lg["uFrom"]), 0, 0), V, W, U,
+                        m(lg["uTo"]) - m(lg["uFrom"]), st["galv"])
+        prims.box(mb, (bu0, -m(bm["v"]) / 2, m(bm["bottom"])), (bu1, m(bm["v"]) / 2, bt), st["galv"])
+    # the number plate as on the chair towers: on the beam's face toward the bottom station, stood off past the bolt heads
     npl = hd["numberPlate"]
-    h2 = m(npl["height"])
-    nw = tw - m(npl["gap"])
+    nu = bu0 - m(npl["standoff"])
+    wc, h2 = (m(bm["bottom"]) + bt) / 2, m(npl["height"]) / 2
     if lod <= 1:
-        prims.box(mb, (-m(npl["thick"]) / 2, -m(npl["halfV"]), nw - h2), (m(npl["thick"]) / 2, m(npl["halfV"]), nw), st["plate"])
-        if lod == 0:   # its two hangers
-            for sv in (-1, 1):
-                prims.box(mb, (-0.006, sv * m(npl["halfV"]) * 0.7 - 0.012, nw - 0.02), (0.006, sv * m(npl["halfV"]) * 0.7 + 0.012, tw),
-                          st["galv"], skip=("-2", "+2"))
-    a.sockets["number_plate"] = (-m(npl["thick"]) / 2, 0.0, nw - h2 / 2)
-    if lod <= 1:   # the diagonal strut from the -v end plate up to the top bar beside the plate (R27)
-        sr = m(hd["strut"]["dia"]) / 2
-        prims.cylinder(mb, (ps + sr + 0.02, -hv + 0.1, w_pin + m(ep["above"])), (ps + sr + 0.02, -m(npl["halfV"]) - 0.05, tw),
-                       sr, parts.sides(lod, 8, 5), st["galv"], caps=(True, True))
+        prims.box(mb, (nu - m(npl["thick"]), -m(npl["halfV"]), wc - h2), (nu, m(npl["halfV"]), wc + h2), st["sign"])
+    a.sockets["number_plate"] = (nu - m(npl["thick"]), 0.0, wc)
     hk = hd["hook"]
     eye_r = m(hk["dia"]) / 2
     curl = m(hk["curl"])
-    for sv, name in ((-1, "wire_left"), (1, "wire_right")):   # a curled hook bracket at each end of the top bar (R27)
-        p0 = Vector((0.0, sv * (pv - 0.02), tw + td))
+    for sv, name in ((-1, "wire_left"), (1, "wire_right")):   # a curled hook bracket on the beam's top each side (R27)
+        p0 = Vector((0.0, sv * m(hk["v"]), bt))
         p1 = p0 + W * (m(hk["post"]) + eye_r)
         p2 = p1 + V * sv * curl
         p3 = p2 - W * eye_r * 1.6
@@ -532,17 +540,20 @@ def head(spec, t, variant, lod, st):
             prims.tube_path(mb, [Vector(p) for p in pts], m(hk["rod"]), 6, st["galv"], caps=True)
         a.sockets[name] = tuple(p1 + V * sv * curl * 0.5 - W * m(hk["rod"]))
 
-    # the cables (D9): along the top bar's +u face and down both posts to the end plates, held by clips
+    # the cables (D9): along the beam's +u face below the bolt heads, down each leg's outer edge, over the arm's top to
+    # its +u face by the end plates, held by clips clear of the bolts
     if lod == 0:
         cab = hd["cable"]
         cr = m(cab["dia"]) / 2
-        uf = tu + cr
+        uf = bu1 + cr
+        wb = m(bm["bottom"]) + 0.025
         for sv in (-1, 1):
-            pts = [Vector((uf, 0.0, tw + td / 2)), Vector((uf, sv * (pv - ps - 0.03), tw + td / 2)),
-                   Vector((ps + cr, sv * (pv - ps - 0.03), tw - 0.05)), Vector((ps + cr, sv * (pv - ps - 0.03), ad + 0.04)),
+            top_v, foot_v = sv * (m(lg["headV"][1]) - 0.03), sv * (m(lg["footV"][1]) - 0.03)
+            pts = [Vector((uf, 0.0, wb)), Vector((uf, top_v, wb)), Vector((m(lg["uTo"]) + cr, top_v, m(lg["headW"]) - 0.05)),
+                   Vector((m(lg["uTo"]) + cr, foot_v, m(lg["footW"]) + 0.04)), Vector((au + cr, sv * (hv - 0.12), ad + cr)),
                    Vector((au + cr, sv * (hv - 0.04), ad - 0.03))]
             prims.tube_path(mb, pts, cr, 4, st["black"], caps=True)
-        clips = [(uf, sv * x, tw + td / 2) for sv in (-1, 1) for x in (0.35, 0.85)] + [(uf, 0.0, tw + td / 2)]
+        clips = [(uf, sv * x, wb) for sv in (-1, 1) for x in (0.18, 0.62, 1.0)]
         for p in clips:
             p = Vector(p)
             prims.box(mb, p - Vector((cr + 0.006, 0.015, cr + 0.006)), p + Vector((cr + 0.006, 0.015, cr + 0.006)), st["galv"])
@@ -579,9 +590,10 @@ def head(spec, t, variant, lod, st):
                 hoop = prims.fillet(prims.fillet(hoop, 2, 0.1, 2), 1, 0.1, 2)
                 prims.tube_path(mb, [Vector(p) for p in hoop], 0.024, 6, st["galv"], caps=False)
         br = m(pf["brace"]) / 2
-        for sv in (-1, 1):   # braces from the platform's v edges up to the arm's end plates
-            prims.cylinder(mb, (0.0, vc + sv * (ph - 0.08), pw), (0.0, sv * (hv - 0.08), w_pin + m(ep["above"]) - 0.02), br,
-                           parts.sides(lod, 6, 4), st["galv"], caps=(False, False))
+        for sv in (-1, 1):   # braces from the platform's v edges into the arm's end plates, capped (Gate 2 v2: the
+            # posts used to hide their open tops)
+            prims.cylinder(mb, (0.0, vc + sv * (ph - 0.08), pw), (0.0, sv * (hv + 0.005), w_pin + m(ep["above"]) - 0.02), br,
+                           parts.sides(lod, 6, 4), st["galv"], caps=(False, True))
         for cu, cv in ((-1, -1), (-1, 1), (1, -1), (1, 1)):   # struts from the sleeve out under the platform's corners
             p0 = lean_point((cu * rs * 0.7, cv * rs * 0.7, m(sl["from"]) + 0.08), lean)
             p1 = Vector((cu * (ph - 0.1), vc + cv * (ph - 0.1), pw - th))
@@ -591,6 +603,6 @@ def head(spec, t, variant, lod, st):
     a.sockets.update({"mast_top": (0.0, 0.0, 0.0), "rope_left": (0.0, -hg, rope), "rope_right": (0.0, hg, rope)})
     n_sheaves = cfg[mode]
     a.dims.update({"rope": round(rope * 1000), "armTop": round(ad * 1000), "sheaves": 2 * n_sheaves, "leanDeg": t["lean"],
-                   "topBar": round((tw + td) * 1000), "platform": round(pw * 1000),
+                   "portalTop": bm["top"], "platform": round(pw * 1000),
                    "footOffsetPerSection": round(m(t["mast"]["section"]) * math.sin(lean) * 1000, 1)})
     return a
