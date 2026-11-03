@@ -293,8 +293,8 @@ def photos(built, out_dir, mats):
     shoot("return", (U_TOP - 1.5, 0.0, 4.0), 215, 16, 12.0)
     shoot("return_back", (U_TOP, 0.0, 4.0), 20, 20, 11.0)
     shoot("tower", (30.0, 0.0, 5.6), 130, 10, 6.0)
-    shoot("carriers", (19.0, 1.7, 2.8), 60, 8, 6.5)
-    shoot("springbox", (36.0, 1.7, 4.6), 70, -10, 2.4, lens=50)
+    shoot("carriers", (21.8, 0.2, 3.6), 110, 5, 8.0, lens=40)     # ridden (+v) and retracted (-v) side by side
+    shoot("springbox", (36.8, 1.75, 4.75), 55, 4, 3.4, lens=50)
     shoot("rider", (21.0, 1.7, 1.2), 160, 6, 4.5, lens=40)
     shoot("jbar", (15.5, 16.0, 2.5), 140, 8, 7.0, lens=40)
     rr._photo_end(sc, [snow] + figs)
