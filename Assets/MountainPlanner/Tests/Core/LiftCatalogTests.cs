@@ -33,13 +33,58 @@ namespace MountainPlanner.Tests
                 {
                     string id = LiftCatalogIds.Of(carrier, maker);
                     Assert.That(LiftCatalogIds.Known(id), Is.True, id);
-                    if (id == LiftCatalogIds.SesselliftD6) continue;   // its own models (LT41, below)
+                    if (id == LiftCatalogIds.SesselliftD6 || id == LiftCatalogIds.SesselliftD4) continue;   // their own models (LT41, D4)
+                    if (carrier == "fixed-double" || carrier == "fixed-triple") continue;   // their own models (LD1, below)
                     var type = LiftType.Of(id);
                     Assert.That(type.Bottom.Model, Does.StartWith(maker == "monta" ? "monta_fg4_" : "sessellift_fgq4_"), "drawn with the maker's quad");
                     Assert.That(type.GaugeMetres, Is.EqualTo(4.12), "the models' gauge (LT12)");
                 }
             Assert.That(LiftCatalogIds.Known("detach-quad:acme"), Is.False);
             Assert.That(LiftCatalogIds.Known("chair-lift"), Is.False);
+        }
+
+        [Test]
+        public void LD1_DoublesAndTriplesAreBuildableWithTheirOwnModels()
+        {
+            // Owner, 2026-11-01 (LD1, LD2, LD5, LD7): Sessellift FGD-2 / FGT-3 and Monta FG2 / FG3, 450 fpm at 6 s, the quad's
+            // family at 11 ft and 12 ft gauges, the design rope 1¼ in and 1⅜ in (physics only).
+            var cases = new[]
+            {
+                (Id: LiftCatalogIds.SesselliftFgd2, Seats: 2, Pph: 1200.0, Gauge: 3.353, Rope: 0.03175, Kit: "sessellift_fgd2_", Bottom: "sessellift_fgd2_return", Top: "sessellift_fgd2_drive"),
+                (Id: LiftCatalogIds.SesselliftFgt3, Seats: 3, Pph: 1800.0, Gauge: 3.658, Rope: 0.034925, Kit: "sessellift_fgt3_", Bottom: "sessellift_fgt3_return", Top: "sessellift_fgt3_drive"),
+                (Id: LiftCatalogIds.MontaFg2, Seats: 2, Pph: 1200.0, Gauge: 3.353, Rope: 0.03175, Kit: "sessellift_fgd2_", Bottom: "monta_fg2_drive", Top: "monta_fg2_return"),
+                (Id: LiftCatalogIds.MontaFg3, Seats: 3, Pph: 1800.0, Gauge: 3.658, Rope: 0.034925, Kit: "sessellift_fgt3_", Bottom: "monta_fg3_drive", Top: "monta_fg3_return"),
+            };
+            var quad = LiftType.Of(LiftCatalogIds.SesselliftFgq4);
+            foreach (var c in cases)
+            {
+                Assert.That(LiftCatalogIds.Buildable(c.Id), Is.True, c.Id);
+                var t = LiftType.Of(c.Id);
+                Assert.That(t.Seats, Is.EqualTo(c.Seats), c.Id);
+                Assert.That(t.Capacity, Is.EqualTo(c.Pph).Within(1), c.Id);
+                Assert.That(t.SpeedMetresPerSecond, Is.EqualTo(quad.SpeedMetresPerSecond), "LD2: 450 fpm");
+                Assert.That(t.IntervalSeconds, Is.EqualTo(6).Within(0.01), "LD2: 6 s");
+                Assert.That(t.GaugeMetres, Is.EqualTo(c.Gauge), c.Id);
+                Assert.That(t.RopeDiameterMetres, Is.EqualTo(c.Rope), c.Id);
+                Assert.That(t.RopeKgPerMetre, Is.LessThan(quad.RopeKgPerMetre), "a lighter design rope than the quad's");
+                Assert.That(t.ChairHalfWidthMetres, Is.LessThan(quad.ChairHalfWidthMetres));
+                Assert.That(t.TowerKit, Is.EqualTo(c.Kit), "Q4: the Monta shares the Sessellift's narrow kit");
+                Assert.That(t.Bottom.Model, Is.EqualTo(c.Bottom), c.Id);
+                Assert.That(t.Top.Model, Is.EqualTo(c.Top), c.Id);
+                Assert.That(t.Bottom.Row, Is.EqualTo(LiftType.Of(c.Id.EndsWith("monta") ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4).Bottom.Row));
+            }
+            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgd2).RiseLimitMetres / 0.3048, Is.EqualTo(2800).Within(0.01), "LT13");
+            // The Sessellift D4 detachable quad (the D4 model thread): 2,400 an hour at 6 s, its own models, a hold-down bottom.
+            var d4 = LiftType.Of(LiftCatalogIds.SesselliftD4);
+            Assert.That(LiftCatalogIds.Buildable(LiftCatalogIds.SesselliftD4), Is.True);
+            Assert.That(d4.Detachable, Is.True);
+            Assert.That(d4.Capacity, Is.EqualTo(2400).Within(1));
+            Assert.That(d4.GaugeMetres, Is.EqualTo(4.8));
+            Assert.That(d4.TowerKit, Is.EqualTo("sessellift_d4_"));
+            Assert.That((d4.Bottom.Model, d4.Top.Model), Is.EqualTo(("sessellift_d4_bottom", "sessellift_d4_top")));
+            Assert.That(d4.Bottom.Row, Is.EqualTo(TerminalRow.HoldDown));
+            Assert.That(d4.Bottom.OwnStation, Is.True, "DQ5: the first tower is built into the bottom station");
+            Assert.That(LiftType.Of(LiftCatalogIds.SesselliftFgt3).RiseLimitMetres / 0.3048, Is.EqualTo(2500).Within(0.01), "LT13");
         }
 
         [Test]

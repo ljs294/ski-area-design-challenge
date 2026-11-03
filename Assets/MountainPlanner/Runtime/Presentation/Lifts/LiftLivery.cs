@@ -17,6 +17,6 @@ namespace MountainPlanner.Presentation.Lifts
 
         /// <summary>The type's defaults: the fixed-grip quads red with a dark accent, the D6 black with white.</summary>
         public static LiftLivery For(string catalogId) =>
-            catalogId == LiftCatalogIds.SesselliftD6 ? new LiftLivery(Black, White) : new LiftLivery(Red, DarkAccent);
+            catalogId == LiftCatalogIds.SesselliftD6 || catalogId == LiftCatalogIds.SesselliftD4 ? new LiftLivery(Black, White) : new LiftLivery(Red, DarkAccent);
     }
 }

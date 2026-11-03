@@ -149,10 +149,13 @@ namespace MountainPlanner.App
                 {
                     var v = args[extra + 1].Split(',').Select(t => float.Parse(t, CultureInfo.InvariantCulture)).ToArray();
                     // -extramonta: a Monta FG4 instead, its drive at the bottom (task 09); -extrad6: the Sessellift D6 (LT41).
+                    // -extratype <catalog id>: any buildable type (the doubles and triples, v0.3.2).
                     bool monta = Array.IndexOf(args, "-extramonta") >= 0, d6 = Array.IndexOf(args, "-extrad6") >= 0;
+                    int typeAt = Array.IndexOf(args, "-extratype");
+                    string extraType = typeAt >= 0 && typeAt + 1 < args.Length && LiftCatalogIds.Buildable(args[typeAt + 1]) ? args[typeAt + 1]
+                        : d6 ? LiftCatalogIds.SesselliftD6 : monta ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4;
                     Debug.Log("[StyleTile] extra " + StyleTile.BuildUphill(_edits, _resort.Frame, Lifts, v[0], v[1], v.Length > 2 ? v[2] : 650,
-                                                                          d6 ? "Check D6" : monta ? "Check Monta" : "Check Quad",
-                                                                          d6 ? LiftCatalogIds.SesselliftD6 : monta ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4));
+                                                                          "Check " + extraType, extraType));
                 }
                 while (!_edits.Applying.IsCompleted) yield return null;
             }

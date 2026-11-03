@@ -1437,6 +1437,10 @@ MonoBehaviour:
   - {fileID: 6207096093499952129}
   - {fileID: 8606166927780222662}
   - {fileID: 1280329109842847879}
+  PivotFollows: ffffffffffffffffffffffff
+  Paths: []
+  Heads: []
+  ShownHead: -1
 --- !u!1 &9145649116132318803
 GameObject:
   m_ObjectHideFlags: 0
