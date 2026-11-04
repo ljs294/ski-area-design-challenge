@@ -1,0 +1,19 @@
+{
+  "_about": "Sessellift Stern D-2 fixed-grip double: the Stern Q-4 at an 11 ft line gauge (owner, 2026-11-02, as the FGQ-4's doubles and triples, LD5). The hood, piers, column, boom and decks keep the quad's size; the arms, crossbeams, lifting portals, sheave rows and bullwheel plates follow the gauge (assets/stern_heads.py). The chairs are the FGQ-4 family's. Millimetres.",
+  "base": "sessellift_stern4.json",
+  "idPrefix": "sessellift_stern2",
+  "model": {
+    "seats": 2
+  },
+  "common": {
+    "lineGauge": 3353
+  },
+  "catalog": {
+    "maker": "Sessellift",
+    "name": "Sessellift Stern D-2",
+    "parts": {
+      "sessellift_stern2_drive": "Drive terminal",
+      "sessellift_stern2_return": "Return terminal"
+    }
+  }
+}

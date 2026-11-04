@@ -18,6 +18,7 @@ which carry the Sessellift chair; and the **Chairworks quad chair** with either 
 | `monta_fg4.json` | The Monta terminals' dimensions (`common`, `drive`, `return`) and their `catalog` |
 | `chairworks_chair.json` | The Chairworks chair's dimensions (the body, both grips) and its `catalog` |
 | `sessellift_d4.json`, `sessellift_d4_towers.json` | The Sessellift D4 detachable quad: an overlay on `sessellift_d6.json` (its station one bay shorter, at a 4.8 m gauge) and its tower heads, the quad kit's at that gauge (see Sessellift D4 below) |
+| `sessellift_stern4.json`, `sessellift_stern3.json`, `sessellift_stern2.json` | The Sessellift Stern, the second Sessellift fixed-grip style: the quad's terminals, and the triple and double as overlays on it at their gauges (see Sessellift Stern below) |
 | `fixed_grip.json` | The fixed grip every fixed-grip chair carries (LP22) |
 | `budgets.json` | Triangle budgets per LOD and LOD switch distances. The build and the Unity tests both read it |
 | `build_lifts.py` | Builds every asset and LOD, bakes AO, sweeps the pivots for clashes, exports one FBX per asset plus the textures, and checks budgets, pivots, sockets and AO tiling |
@@ -258,10 +259,24 @@ Built from `monta_tbar.json` by `assets/tbar.py` (towers), `tbar_terminal.py` an
 | `monta_tbar_bar_t`, `monta_tbar_bar_j` | `surface_carrier` | the eye | the T and J bars; `seat_*` where riders sit |
 
 - **Towers:** stack the base, sections up the leaned axis from `mast_foot`, and the head level on top; the pier stands
-  off to -X by `dims.footOffsetPerSection` per section (the Lift Lab's T-bar mode, K, does this).
+  off to -X by `dims.footOffsetPerSection` per section (the Lift Lab's T-bar mode, U, does this).
 - **Sockets:** terminals `line`, `rope_*_bw`, `rope_*_out` (the return's also `rope_*_hold`, its `out` below it, and
   `wire`), `carrier_load` / `carrier_unload`; heads `rope_left/right`, `wire_left/right`, `number_plate`, `mast_top`.
 - **Rope heights** are each terminal's own (`dims.rope`), not a line-wide `ropeElevation`.
+
+## Sessellift Stern (second fixed-grip style)
+
+| Asset | Origin | What it is |
+|---|---|---|
+| `sessellift_stern{4,3,2}_drive` | grade, on the bullwheel's axle | the bottom drive and tension station: a 508 pipe portal at the line end, a pipe frame per side back to a tapered column, the hood with flat glazed ends, the catwalk and door at the line end; its one head is `bottom` (8-sheave hold-down rows on a fixed mount) |
+| `sessellift_stern{4,3,2}_return` | grade, on the bullwheel's axle | the fixed top return: a column and boom to the wheel's pedestal, a railed walkway, guide sheaves and a box girder to the crossbeam; head `top` (4-sheave support trains), with `top6` and `top8` |
+
+- **Bottom drive only:** each terminal carries only its own end's head, so the game offers no drive-end swap for
+  this style. Modules `assets/stern_drive.py`, `stern_return.py` and `stern_heads.py` (spec items may carry `from`,
+  the first LOD drawn, and an `eye` slot cut at LOD0).
+- **Gauges:** the quad's 4,120, the triple's 3,658, the double's 3,353, rope 3,039 above grade; the hood, column,
+  boom and decks keep the quad's size, the arms, crossbeams, portals, rows and wheel plates follow the gauge.
+- **Chairs:** the FGQ-4 family's (the Sessellift quad, triple and double chairs, and the Chairworks fixed chairs).
 
 ## Chairworks quad chair and the fixed grip (LP21-LP23)
 
