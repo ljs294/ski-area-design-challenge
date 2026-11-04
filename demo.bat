@@ -218,6 +218,8 @@ echo        Lab, a model to a row. V steps every terminal through its heads: its
 echo        (a terminal without that head keeps its own); the overlay names the shown head and its triangles.
 echo     69q The Sessellift D4 detachable quad in the Lift Lab: bottom terminal with its first tower, top terminal,
 echo        the quad chair on the detachable grip and its five tower heads on full towers. J back to this view.
+echo     69t The Monta T-bar in the Lift Lab: bottom drive and operator hut, the three heads on leaning towers,
+echo        the top station, T bars on both ropes and a J bar beside the drive. K back to this view.
 echo.
 echo   Phase 3, task 10: the ski network (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     70 The Network view on the style tile and a second lift: Tab, then Network (or click the bar's lift or trail count).
@@ -359,6 +361,7 @@ if /i "%CHOICE%"=="67c" goto trailcaptures
 if /i "%CHOICE%"=="69" goto sixpack
 if /i "%CHOICE%"=="69f" goto fixedgrip
 if /i "%CHOICE%"=="69q" goto quaddetach
+if /i "%CHOICE%"=="69t" goto tbar
 if /i "%CHOICE%"=="70" goto network
 if /i "%CHOICE%"=="70c" goto networkcaptures
 if /i "%CHOICE%"=="70k" goto networkown
@@ -1256,6 +1259,13 @@ call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto done
 echo Starting the Lift Lab on the Sessellift D4 detachable quad. J this view, L LOD, N snow, C colour, T turntable, H help, Esc quit.
 start "" "%LIFTLAB%" -mode d4
+goto menu
+
+:tbar
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the Monta T-bar. K this view, L LOD, N snow, T turntable, H help, Esc quit.
+start "" "%LIFTLAB%" -mode tbar
 goto menu
 
 :liftlab

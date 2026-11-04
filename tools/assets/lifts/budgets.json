@@ -105,9 +105,9 @@
     "crossFade": true
   },
   "surface_terminal": {
-    "_about": "A surface lift's terminal (the Monta T-bar's drive and return, the rope tow's and the carpet's ends; surface lifts, owner 2026-11-02): one bullwheel and a small frame, about half a chairlift terminal.",
+    "_about": "A surface lift's terminal (the Monta T-bar's drive and return, the rope tow's and the carpet's ends; surface lifts, owner 2026-11-02): one bullwheel and a small frame, about half a chairlift terminal. LOD0 holds to 20 m, as a chairlift terminal's (Gate 3, 2026-11-03): the T-bar's stations are 18-20 m across, too big to hand over at 15 m.",
     "lods": [
-      {"lod": 0, "maxTris": 12000, "untilM": 15},
+      {"lod": 0, "maxTris": 12000, "untilM": 20},
       {"lod": 1, "maxTris": 5000, "untilM": 45},
       {"lod": 2, "maxTris": 1200, "untilM": 150},
       {"lod": 3, "maxTris": 250, "untilM": 800}

@@ -16,7 +16,8 @@ namespace MountainPlanner.Tests
     // on the rope (each terminal against its own maker's spec), the mesh channels the lift shader reads, the lift
     // frame's handedness, snow guns standing at grade on a hinge, and our naming; and the posable parts (task P3-07):
     // nested pivots that round-trip through the FBX, parents that carry their children rigidly, and safe ranges; and a
-    // fixed-grip terminal's heads (drive at either end): one shown at a time, each within budget and on the rope.
+    // fixed-grip terminal's heads (drive at either end): one shown at a time, each within budget and on the rope; and the
+    // surface lifts (the Monta T-bar): their own kinds and budgets, each terminal's ropes at its own height.
     public sealed class LiftAssetTests
     {
         const string SetPath = "Assets/MountainPlanner/Art/Lifts/LiftModels.asset";
@@ -24,12 +25,14 @@ namespace MountainPlanner.Tests
         const float Mm = 0.001f;
         /// <summary>Our makers' code names, as asset id prefixes (decision LP3).</summary>
         static readonly string[] Makers = { "sessellift_fgq4_", "sessellift_fgd2_", "sessellift_fgt3_", "sessellift_d6_", "sessellift_d4_", "sle_",
-            "monta_fg4_", "monta_fg3_", "monta_fg2_", "chairworks_chair_" };
+            "monta_fg4_", "monta_fg3_", "monta_fg2_", "monta_tbar_", "chairworks_chair_" };
 
         [Serializable] sealed class LodBudget { public int lod; public int maxTris; public float untilM; }
         [Serializable] sealed class KindBudget { public LodBudget[] lods; public int shadowLods; public bool crossFade; }
         [Serializable] sealed class Budgets { public KindBudget terminal; public KindBudget terminal_footing; public KindBudget chair; public KindBudget tower_head; public KindBudget tower_mast; public KindBudget tower_base; public KindBudget snowgun;
-            public KindBudget terminal_detach; public KindBudget chair_detach; public KindBudget tower_head_wide; }
+            public KindBudget terminal_detach; public KindBudget chair_detach; public KindBudget tower_head_wide;
+            public KindBudget surface_terminal; public KindBudget surface_tower_head; public KindBudget surface_mast; public KindBudget surface_base;
+            public KindBudget surface_hut; public KindBudget surface_carrier; }
         [Serializable] sealed class Common { public float ropeElevation; public float lineGauge; }
         [Serializable] sealed class Spec { public Common common; }
 
@@ -52,7 +55,8 @@ namespace MountainPlanner.Tests
                 merged.Merge(common);
                 common = merged;
             }
-            return new Spec { common = new Common { ropeElevation = (float)common["ropeElevation"], lineGauge = (float)common["lineGauge"] } };
+            // a surface lift's spec has no line-wide rope elevation: each terminal carries its own
+            return new Spec { common = new Common { ropeElevation = (float?)common["ropeElevation"] ?? 0f, lineGauge = (float)common["lineGauge"] } };
         }
 
         static KindBudget BudgetFor(Budgets b, string kind) => kind switch
@@ -67,6 +71,12 @@ namespace MountainPlanner.Tests
             "terminal_detach" => b.terminal_detach,
             "chair_detach" => b.chair_detach,
             "tower_head_wide" => b.tower_head_wide,
+            "surface_terminal" => b.surface_terminal,
+            "surface_tower_head" => b.surface_tower_head,
+            "surface_mast" => b.surface_mast,
+            "surface_base" => b.surface_base,
+            "surface_hut" => b.surface_hut,
+            "surface_carrier" => b.surface_carrier,
             _ => throw new ArgumentException(kind),
         };
 
@@ -207,12 +217,14 @@ namespace MountainPlanner.Tests
         public void RopeSocketsAreOnTheRope(GameObject prefab)
         {
             var rig = prefab.GetComponent<LiftRig>();
-            if (rig.Kind == "chair" || rig.Kind == "chair_detach") Assert.Ignore("Chairs hang from the rope; no rope sockets.");
-            if (rig.Kind == "tower_mast" || rig.Kind == "tower_base") Assert.Ignore("Mast sections and bases carry no rope.");
+            if (rig.Kind == "chair" || rig.Kind == "chair_detach" || rig.Kind == "surface_carrier") Assert.Ignore("Chairs and carriers hang from the rope; no rope sockets.");
+            if (rig.Kind == "tower_mast" || rig.Kind == "tower_base" || rig.Kind == "surface_mast" || rig.Kind == "surface_base")
+                Assert.Ignore("Mast sections and bases carry no rope.");
+            if (rig.Kind == "surface_hut") Assert.Ignore("The operator hut carries no rope.");
             if (rig.Kind == "snowgun") Assert.Ignore("Snow guns carry no rope.");
             if (rig.Kind == "terminal_footing") Assert.Ignore("A terminal's footing carries no rope.");
             var common = LoadSpec(prefab.name).common;
-            if (rig.Kind == "tower_head" || rig.Kind == "tower_head_wide")
+            if (rig.Kind == "tower_head" || rig.Kind == "tower_head_wide" || rig.Kind == "surface_tower_head")
             {
                 // a tower head carries both ropes at the line gauge, level with each other, at the height its type
                 // puts them (support over the crossbeam, hold-down below it)
@@ -230,6 +242,10 @@ namespace MountainPlanner.Tests
             // the rope sockets, every head's (top6_rope_right_out)
             var rope = rig.Sockets.Where(s => Views(rig).Any(v => s.name.Contains("_socket_" + Prefix(rig, v) + "rope_"))).ToArray();
             Assert.That(rope, Is.Not.Empty);
+            // a surface lift's terminals carry their own rope heights (the T-bar's 3.4 m bottom, 4.5 m top: D8, Q4), at
+            // the bullwheel; its top station's breakover rows lead the rope down to the line
+            bool surface = rig.Kind == "surface_terminal";
+            float ropeY = surface ? rig.Socket("rope_right_bw").localPosition.y : common.ropeElevation * Mm;
             foreach (var s in rope)
             {
                 var p = prefab.transform.InverseTransformPoint(s.position);
@@ -240,21 +256,22 @@ namespace MountainPlanner.Tests
                 // row (drive at either end), by less than a metre and a half, further up the line than the row
                 string name = s.name.Substring(s.name.IndexOf("_socket_", StringComparison.Ordinal) + "_socket_".Length);
                 var hold = name.EndsWith("_out", StringComparison.Ordinal) ? rig.Socket(name.Substring(0, name.Length - 4) + "_hold") : null;
-                bool top = rig.Heads != null && rig.Heads.Any(h => h.End == "top" && h.Sockets.Contains(name));
+                bool top = rig.Heads != null && rig.Heads.Any(h => h.End == "top" && h.Sockets.Contains(name))
+                    || surface && rig.Socket("carrier_unload") != null;
                 if (rig.Kind == "terminal_detach" && name.EndsWith("_bw", StringComparison.Ordinal))
                     // a detachable's bullwheel is lowered (and tilted) under the station rope: the rope comes off it
                     // up to a metre below the rope elevation, never above it
-                    Assert.That(p.y, Is.GreaterThan(common.ropeElevation * Mm - 1f).And.LessThanOrEqualTo(common.ropeElevation * Mm + Mm), s.name);
+                    Assert.That(p.y, Is.GreaterThan(ropeY - 1f).And.LessThanOrEqualTo(ropeY + Mm), s.name);
                 else if (hold != null)
                 {
                     if (top)
-                        Assert.That(p.y, Is.LessThan(common.ropeElevation * Mm - Mm).And.GreaterThan(common.ropeElevation * Mm - 1.5f), s.name);
+                        Assert.That(p.y, Is.LessThan(ropeY - Mm).And.GreaterThan(ropeY - 1.5f), s.name);
                     else
-                        Assert.That(p.y, Is.GreaterThan(common.ropeElevation * Mm + Mm).And.LessThan(common.ropeElevation * Mm + 1.5f), s.name);
+                        Assert.That(p.y, Is.GreaterThan(ropeY + Mm).And.LessThan(ropeY + 1.5f), s.name);
                     Assert.That(p.z, Is.GreaterThan(prefab.transform.InverseTransformPoint(hold.position).z), s.name);
                 }
                 else
-                    Assert.That(Mathf.Abs(p.y - common.ropeElevation * Mm), Is.LessThan(2 * Mm), s.name);
+                    Assert.That(Mathf.Abs(p.y - ropeY), Is.LessThan(2 * Mm), s.name);
                 Assert.That(s.localRotation, Is.EqualTo(Quaternion.identity), s.name);
             }
         }

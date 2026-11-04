@@ -241,6 +241,28 @@ spin only at LOD0 on towers; from LOD1 a head is one mesh.
   pose for exits of 5-16 degrees).
 - **Heights:** the D6's (rope 3,600 mm), so the chair hangs on the D6's hanger unchanged.
 
+## Monta T-bar (surface lifts)
+
+Built from `monta_tbar.json` by `assets/tbar.py` (towers), `tbar_terminal.py` and `tbar_carrier.py`; kinds
+`surface_*` in `budgets.json`. Always a bottom drive (no drive-end swap). Gauge 3 m, the loaded track on +X.
+
+| Asset | Kind | Origin | What it is |
+|---|---|---|---|
+| `monta_tbar_drive` | `surface_terminal` | grade, on the bullwheel's axle | the bottom station: box columns, the wheel under a railed grating deck, the machinery house, hold-down rows; rope 3,400 mm |
+| `monta_tbar_return` | `surface_terminal` | grade, on the bullwheel's axle | the top station on its HSS diagonal and prop, tension hidden, breakover rows that pose for the line; rope 4,500 mm at the wheel |
+| `monta_tbar_hut` | `surface_hut` | grade | the red operator hut; `door` |
+| `monta_tbar_tower_{s4,s6,d4}` | `surface_tower_head` | the mast top, on the leaned axis | level heads: cone sleeve, gusseted crossarm, trains on end pins with catchers, the chair towers' lifting frame in miniature and their catwalk beside the arm |
+| `monta_tbar_mast` | `surface_mast` | the section's foot | one 1 m section, built upright: the game tilts it by `dims.leanDeg` (8) toward +X about Z |
+| `monta_tbar_base` | `surface_base` | grade, on the pier | footing, pier, leaned stub in the red pad; `mast_foot` along the leaned axis |
+| `monta_tbar_springbox` | `surface_carrier` | the grip, on the rope | the recoil box, hinged on its pin; `cord` is the outlet |
+| `monta_tbar_bar_t`, `monta_tbar_bar_j` | `surface_carrier` | the eye | the T and J bars; `seat_*` where riders sit |
+
+- **Towers:** stack the base, sections up the leaned axis from `mast_foot`, and the head level on top; the pier stands
+  off to -X by `dims.footOffsetPerSection` per section (the Lift Lab's T-bar mode, K, does this).
+- **Sockets:** terminals `line`, `rope_*_bw`, `rope_*_out` (the return's also `rope_*_hold`, its `out` below it, and
+  `wire`), `carrier_load` / `carrier_unload`; heads `rope_left/right`, `wire_left/right`, `number_plate`, `mast_top`.
+- **Rope heights** are each terminal's own (`dims.rope`), not a line-wide `ropeElevation`.
+
 ## Chairworks quad chair and the fixed grip (LP21-LP23)
 
 | Asset | Origin | What it is |
