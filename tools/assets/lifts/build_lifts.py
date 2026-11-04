@@ -36,7 +36,9 @@ MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "cha
            "d6_chair": "d6_chair", "d6_drive": ("d6_terminal", "drive"), "d6_return": ("d6_terminal", "return"),
            # the narrowed Chairworks chairs for the fixed-grip doubles and triples (v0.3.2)
            "chairworks_chair_double_fixed": ("chairworks_chair", "double_fixed"),
-           "chairworks_chair_triple_fixed": ("chairworks_chair", "triple_fixed")}
+           "chairworks_chair_triple_fixed": ("chairworks_chair", "triple_fixed"),
+           # the Sessellift Stern, the second fixed-grip style: bottom drive, top return (owner, 2026-11-02)
+           "stern4_drive": "stern_drive", "stern4_return": "stern_return"}
 # the fixed-grip doubles and triples (v0.3.2): the quads' modules built from an overlay spec (liftkit/gauge.py):
 # name -> (module, spec, variant or None)
 OVERLAY = {}
@@ -49,6 +51,9 @@ for model in ("fg2", "fg3"):
     OVERLAY.update({f"monta_{model}_drive": ("monta_drive", f"monta_{model}.json", None),
                     f"monta_{model}_return": ("monta_return", f"monta_{model}.json", None),
                     f"monta_{model}_return_bottom": ("monta_return_bottom", f"monta_{model}.json", None)})
+for model in ("stern3", "stern2"):   # the Stern's triple and double, its own gauge rule (assets/stern_heads.py)
+    OVERLAY.update({f"{model}_drive": ("stern_drive", f"sessellift_{model}.json", None),
+                    f"{model}_return": ("stern_return", f"sessellift_{model}.json", None)})
 # the Sessellift D4 detachable quad (v0.3.2, owner DQ1-DQ9): the D6's modules built from the D4's overlay spec
 OVERLAY.update({"d4_chair": ("d6_chair", "sessellift_d4.json", None), "d4_bottom": ("d6_terminal", "sessellift_d4.json", "bottom"),
                 "d4_top": ("d6_terminal", "sessellift_d4.json", "top")})
@@ -65,9 +70,10 @@ TOWER.update({f"tower_base_l{d:03d}": f"base_l{d:03d}" for d in range(25, 151, 2
 SLE = ("sle_stick_gun_10", "sle_stick_gun_20", "sle_stick_gun_30", "sle_ground_gun")
 MONTA = ("monta_drive", "monta_return", "monta_return_bottom")
 CHAIRWORKS = ("chairworks_chair_detach", "chairworks_chair_fixed", "chairworks_chair_double_fixed", "chairworks_chair_triple_fixed")
+STERN = ("stern4_drive", "stern4_return")
 D6 = ("d6_drive", "d6_return", "d6_chair") + tuple(f"d6_tower_{h}" for h in ("s4", "s6", "s10", "b10", "d10", "c8"))
 ALL = ("drive,return,terminal_footing,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA) + "," + ",".join(CHAIRWORKS)
-       + "," + ",".join(D6) + "," + ",".join(OVERLAY))
+       + "," + ",".join(D6) + "," + ",".join(STERN) + "," + ",".join(OVERLAY))
 
 
 def clear_scene():
