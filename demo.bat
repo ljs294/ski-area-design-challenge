@@ -218,6 +218,8 @@ echo        Lab, a model to a row. V steps every terminal through its heads: its
 echo        (a terminal without that head keeps its own); the overlay names the shown head and its triangles.
 echo     69q The Sessellift D4 detachable quad in the Lift Lab: bottom terminal with its first tower, top terminal,
 echo        the quad chair on the detachable grip and its five tower heads on full towers. J back to this view.
+echo     69t The Monta T-bar in the Lift Lab: bottom drive and operator hut, the three heads on leaning towers,
+echo        the top station, T bars on both ropes and a J bar beside the drive. U back to this view.
 echo     69s The Sessellift Stern in the Lift Lab: its quad, triple and double, return and drive facing up the
 echo        line with a chair between each pair (bottom drive only). V steps the returns' top rows. K back to this view.
 echo.
@@ -361,6 +363,7 @@ if /i "%CHOICE%"=="67c" goto trailcaptures
 if /i "%CHOICE%"=="69" goto sixpack
 if /i "%CHOICE%"=="69f" goto fixedgrip
 if /i "%CHOICE%"=="69q" goto quaddetach
+if /i "%CHOICE%"=="69t" goto tbar
 if /i "%CHOICE%"=="69s" goto stern
 if /i "%CHOICE%"=="70" goto network
 if /i "%CHOICE%"=="70c" goto networkcaptures
@@ -1259,6 +1262,13 @@ call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto done
 echo Starting the Lift Lab on the Sessellift D4 detachable quad. J this view, L LOD, N snow, C colour, T turntable, H help, Esc quit.
 start "" "%LIFTLAB%" -mode d4
+goto menu
+
+:tbar
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the Monta T-bar. U this view, L LOD, N snow, T turntable, H help, Esc quit.
+start "" "%LIFTLAB%" -mode tbar
 goto menu
 
 :stern

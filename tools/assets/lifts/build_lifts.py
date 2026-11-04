@@ -72,8 +72,15 @@ MONTA = ("monta_drive", "monta_return", "monta_return_bottom")
 CHAIRWORKS = ("chairworks_chair_detach", "chairworks_chair_fixed", "chairworks_chair_double_fixed", "chairworks_chair_triple_fixed")
 STERN = ("stern4_drive", "stern4_return")
 D6 = ("d6_drive", "d6_return", "d6_chair") + tuple(f"d6_tower_{h}" for h in ("s4", "s6", "s10", "b10", "d10", "c8"))
+# the Monta T-bar (surface lifts): towers (assets/tbar.py), terminals and carriers; ids monta_tbar_<name>
+MODULES.update({f"monta_tbar_{v}": ("tbar", v) for v in ("tower_s4", "tower_s6", "tower_d4", "mast", "base")})
+MODULES.update({"monta_tbar_drive": ("tbar_terminal", "drive"), "monta_tbar_return": ("tbar_terminal", "return"),
+                "monta_tbar_hut": ("tbar_terminal", "hut"),
+                "monta_tbar_springbox": ("tbar_carrier", "springbox"), "monta_tbar_bar_t": ("tbar_carrier", "bar_t"),
+                "monta_tbar_bar_j": ("tbar_carrier", "bar_j")})
+TBAR = tuple(k for k in MODULES if k.startswith("monta_tbar_"))
 ALL = ("drive,return,terminal_footing,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA) + "," + ",".join(CHAIRWORKS)
-       + "," + ",".join(D6) + "," + ",".join(STERN) + "," + ",".join(OVERLAY))
+       + "," + ",".join(D6) + "," + ",".join(STERN) + "," + ",".join(OVERLAY) + "," + ",".join(TBAR))
 
 
 def clear_scene():
@@ -97,8 +104,9 @@ def ao_options(kind, assets):
     stands on it at its own 0.00 (contract M5, finding #9): heads sit on a mast, the D6's terminals on piers of any
     height (the FGQ-4's are baked at their standard grade, polish 2026-10-23); a mast section is baked between its neighbours (a cast-only ghost section above and one below, so
     both ends get the same light)."""
-    ground = kind not in ("tower_head", "tower_head_wide", "tower_mast", "chair", "chair_detach", "terminal_footing")         and not (kind == "terminal_detach" and "pier_top_1" in assets[0].sockets)
-    return ground, (assets[0].sockets["top"][2] if kind == "tower_mast" else None)
+    ground = kind not in ("tower_head", "tower_head_wide", "tower_mast", "chair", "chair_detach", "terminal_footing",
+                          "surface_tower_head", "surface_mast", "surface_carrier")         and not (kind == "terminal_detach" and "pier_top_1" in assets[0].sockets)
+    return ground, (assets[0].sockets["top"][2] if kind in ("tower_mast", "surface_mast") else None)
 
 
 def views(a):
@@ -159,7 +167,7 @@ def check_asset(kind, assets, report, budgets, spec, split=None):
             parent = assets[0].pivots[name].get("parent")
             if parent and parent not in assets[0].pivots:
                 problems.append(f"LOD{lod}: {name}'s parent {parent} has no pivot")
-    for end, a in (views(assets[0]) if kind in ("terminal", "terminal_detach") else []):
+    for end, a in (views(assets[0]) if kind in ("terminal", "terminal_detach", "surface_terminal") else []):
         c = spec["common"]
         at = f" ({end} head)" if end else ""
         line_v = a.sockets.get("line", (0, 0, 0))[1]
@@ -178,7 +186,7 @@ def check_asset(kind, assets, report, budgets, spec, split=None):
                     off_height = abs(p[2] - rope) > 0.001
                 if off_gauge or off_height:
                     problems.append(f"socket {name}{at} at {p} is off the rope")
-    if kind in ("tower_head", "tower_head_wide"):   # ropes at the line gauge, level with each other, at the head's declared height
+    if kind in ("tower_head", "tower_head_wide", "surface_tower_head"):   # ropes at the line gauge, level with each other, at the head's declared height
         g = spec["common"]["lineGauge"] / 2000
         rope = assets[0].dims["rope"] / 1000
         for name in ("rope_left", "rope_right"):
@@ -241,7 +249,7 @@ def main():
             entry = MODULES[name]
             modname, variant = entry if isinstance(entry, tuple) else (entry, None)
             mod = importlib.import_module(modname)
-            kind = mod.KIND
+            kind = mod.kind_of(variant) if hasattr(mod, "kind_of") else mod.KIND   # a module of several kinds (the T-bar's)
             extra = () if variant is None else (variant,)
             assets = [mod.build(spec_for(mod), lod, stage, *extra) for lod in range(mod.LODS)]
         aid = assets[0].id
@@ -281,6 +289,12 @@ def main():
         path = os.path.join(out_dir, f"{aid}.fbx")
         export.export_fbx(objs, path)
         problems = check_asset(kind, assets, rep, budgets, own, split)
+        if kind in ("surface_terminal", "surface_tower_head"):   # retracted carriers past the trains and round the wheel (T6)
+            import surface_fit
+            cmod = importlib.import_module("tbar_carrier")
+            box = cmod.build(own, 0, stage, "springbox")
+            for bar in ("bar_t", "bar_j"):
+                problems += [f"{bar}: {p}" for p in surface_fit.check(assets[0], kind, own, box, cmod.build(own, 0, stage, bar))]
         if getattr(mod, "CHAIR", None):   # a terminal or a wide head: send its chair through (liftkit/fit.py)
             t_fit = time.time()
             chairs = [mod.CHAIR]
@@ -390,6 +404,9 @@ def main():
     if "render" in opts:
         import render_review
         render_review.render_all(built, spec, opts["render"], opts.get("shots"), [structure, glass, chair_mat])
+        if "surface_" in (opts.get("shots") or ""):   # the surface lifts' own review (render_surface.py)
+            import render_surface
+            render_surface.render_all(built, opts["render"], opts.get("shots"), [structure, glass, chair_mat])
     return failures
 
 

@@ -103,5 +103,71 @@
     ],
     "shadowLods": 2,
     "crossFade": true
+  },
+  "surface_terminal": {
+    "_about": "A surface lift's terminal (the Monta T-bar's drive and return, the rope tow's and the carpet's ends; surface lifts, owner 2026-11-02): one bullwheel and a small frame, about half a chairlift terminal. LOD0 holds to 20 m, as a chairlift terminal's (Gate 3, 2026-11-03): the T-bar's stations are 18-20 m across, too big to hand over at 15 m.",
+    "lods": [
+      {"lod": 0, "maxTris": 12000, "untilM": 20},
+      {"lod": 1, "maxTris": 5000, "untilM": 45},
+      {"lod": 2, "maxTris": 1200, "untilM": 150},
+      {"lod": 3, "maxTris": 250, "untilM": 800}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "surface_tower_head": {
+    "_about": "A T-bar tower head (owner 2026-11-02; raised for the two-level head, D10 2026-11-03, and for the chair tower's lifting frame in miniature, 2026-11-03): crossarm, lifting frame, a sheave train on each rope with its catchers, the catwalk, cables; a line can have 20 or more.",
+    "lods": [
+      {"lod": 0, "maxTris": 6600, "untilM": 12},
+      {"lod": 1, "maxTris": 2200, "untilM": 40},
+      {"lod": 2, "maxTris": 400, "untilM": 130},
+      {"lod": 3, "maxTris": 80, "untilM": 600}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "surface_mast": {
+    "_about": "One 1 m section of a T-bar tower's tube mast with its ladder; stacked to the tower's height.",
+    "lods": [
+      {"lod": 0, "maxTris": 200, "untilM": 12},
+      {"lod": 1, "maxTris": 120, "untilM": 40},
+      {"lod": 2, "maxTris": 40, "untilM": 130},
+      {"lod": 3, "maxTris": 12, "untilM": 600}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "surface_base": {
+    "_about": "A T-bar tower's base: footing, pier, the leaned base plate and the mast's first 2.2 m in the red tower pad (D5).",
+    "lods": [
+      {"lod": 0, "maxTris": 600, "untilM": 12},
+      {"lod": 1, "maxTris": 300, "untilM": 40},
+      {"lod": 2, "maxTris": 60, "untilM": 130},
+      {"lod": 3, "maxTris": 20, "untilM": 600}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "surface_hut": {
+    "_about": "A surface lift's operator hut (the Monta T-bar's, D9/Q3 2026-11-03): one beside a bottom station.",
+    "lods": [
+      {"lod": 0, "maxTris": 800, "untilM": 15},
+      {"lod": 1, "maxTris": 300, "untilM": 45},
+      {"lod": 2, "maxTris": 80, "untilM": 150},
+      {"lod": 3, "maxTris": 20, "untilM": 800}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "surface_carrier": {
+    "_about": "A surface lift's carrier (the T-bar's recoil box on its grip, the T bar and the J bar): up to a hundred on a line, so small and early.",
+    "lods": [
+      {"lod": 0, "maxTris": 600, "untilM": 8},
+      {"lod": 1, "maxTris": 150, "untilM": 30},
+      {"lod": 2, "maxTris": 40, "untilM": 120},
+      {"lod": 3, "maxTris": 12, "untilM": 400}
+    ],
+    "shadowLods": 1,
+    "crossFade": false
   }
 }
