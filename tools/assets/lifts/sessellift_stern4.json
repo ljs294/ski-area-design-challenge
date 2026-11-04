@@ -25,7 +25,7 @@
   "drive": {
     "_note": "The bottom drive as measured (Gate 1 review, 2026-11-02), the hood at its drawn tensioning position A (static, owner D4): a portal of 508 pipe (round legs on base plates, cap plates and saddles under a 508 pipe crossbeam); a 508 pipe frame per side outboard of the rope, from the hanger plates at the line end back under the crossbeam and through the hood to a 508 transverse pipe on the tapered back column (mitred corners); the rails hung under the frame pipes; the hood (flat vertical ends with recessed windowed walls, owner; one run of 8 panes each side) over the carriage's plates and the exposed bullwheel; a 305 square tie across the hanger plates carrying the head's rows and the lifting portal; the ladder (+v) up to the frame pipe; the catwalk across the line end from the ladder to the engine room's door (owner, 2026-11-03: only its landing plates and one rail are drawn). 'steel' items: stern_heads.members; values with rope: true are outboard (+) of the rope, which the layout draws at 2,057.",
     "pier": {"bottom": -15000, "margin": 150},
-    "portal": {"legs": {"u": 3708, "v": 4775, "dia": 508, "bottom": 126, "top": 4030}, "basePlate": {"size": 838, "thick": 26},
+    "portal": {"legs": {"u": 3708, "v": 4775, "dia": 508, "bottom": 331, "top": 4030}, "basePlate": {"size": 838, "thick": 26},
                "capPlate": {"size": 686, "top": 4072}},
     "frame": {"_note": "the 508 pipe per side, its axis outboard of the rope, from the hanger plates back to the transverse pipe's axis on the back column", "dia": 508, "v": 508, "w": 3751, "front": 6232, "back": -8763, "corner": 300},
     "steel": [
@@ -39,7 +39,7 @@
       {"side": [[3378, 4005], [3378, 4301], [3404, 4403], [3454, 4487], [3962, 4487], [4012, 4403], [4039, 4301], [4039, 4005]], "v": [754, 771], "rope": true},
       {"pipe": [[3378, 508, 3751], [3454, 508, 3751]], "dia": 690, "rope": true, "sides": [24, 16, 8], "lod": 1},
       {"pipe": [[3962, 508, 3751], [4056, 508, 3751]], "dia": 690, "rope": true, "sides": [24, 16, 8], "lod": 1},
-      {"box": {"u": [3640, 3776], "v": [4495, 4521], "w": [176, 583]}, "on": -1, "lod": 0},
+      {"box": {"u": [3640, 3776], "v": [4495, 4521], "w": [381, 788]}, "on": -1, "lod": 0},
       {"_": "the rails under the frame pipes, from their end blocks at the column head to the line end, hung from the pipes on plates (Gate 2: they hung 57 below the pipe, N-D3; behind and ahead of the hood only, where they show); the column's front block; the transverse pipe's splice flanges; the tension anchor bracket and the rod (drawn from the anchor to 8,128; carried on to the hood's far end, inferred: the cylinder is not drawn)",
        "box": {"u": [-7866, 3370], "v": [144, 347], "w": [3429, 3497]}, "rope": true},
       {"box": {"u": [-7950, -7866], "v": [144, 347], "w": [3404, 3497]}, "rope": true, "lod": 1},
@@ -84,7 +84,7 @@
              "ribs": {"u": [-4276, 1508], "n": 19, "width": 233, "halfV": 1134, "height": 25},
              "lining": 80},
     "machinery": {"u": [-3600, 1200], "v": 1400, "bottom": 3302, "top": 4500},
-    "backColumn": {"profile": [[-7629, 151], [-9017, 151], [-9017, 3531], [-8416, 3497]], "v": 610,
+    "backColumn": {"profile": [[-7629, 356], [-9017, 356], [-9017, 3531], [-8416, 3497]], "v": 610,
                    "basePlate": {"u": [-9119, -7544], "v": 754, "thick": 51}},
     "ladder": {"_note": "+v only, climbing across the line to the catwalk's edge (v outboard of the rope); its width along u; two bent grab hoops at its sides, walk-through onto the deck (owner, 2026-11-03: the drawn stringer extensions and hoops replaced), their legs on the deck and the stringers' heads, the mid bar across",
                "u": [2523, 3175], "foot": [3477, 0], "head": [847, 4047], "rungRise": 271, "stringer": 55,
@@ -132,7 +132,7 @@
   "return": {
     "_note": "The fixed top return as measured (Gate 1 review, 2026-11-02): a chamfered box column 1,831 x 610 standing in the ground (no base plate drawn) and its upper section to the walkway; a flanged box boom past the axle with the wheel's pedestal on its nose; a 472 wide walkway on the axis railed on +v only; guide sheaves on pedestals at the ends of a cross member; a rope guard outboard of the arriving rope (v-), braced to the cross member; a box girder line frame out to a 304 square tube crossbeam, the support rows on its ends, a lifting portal standing on it. 'steel' items: stern_heads.members; values with rope: true are outboard (+) of the rope, which the layout draws at 2,057.",
     "pier": {"bottom": -15000, "margin": 150},
-    "column": {"u": [2498, 4329], "v": 610, "bottom": 100, "top": 2023, "chamfer": 20, "upper": {"u": [2651, 4176], "top": 3243}},
+    "column": {"u": [2498, 4329], "v": 610, "bottom": 305, "top": 2023, "chamfer": 20, "upper": {"u": [2651, 4176], "top": 3243}},
     "steel": [
       {"_": "boom: web, top flange (to the nose), bottom flange; nose bar; end plate, pad and tabs on the upper section; the boss on the web",
        "side": [[-254, 2457], [364, 2457], [2568, 2168], [2568, 2768], [-254, 2768]], "v": [-254, 254]},
