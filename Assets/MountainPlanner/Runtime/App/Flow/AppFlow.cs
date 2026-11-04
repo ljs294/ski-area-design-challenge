@@ -179,6 +179,7 @@ namespace MountainPlanner.App.Flow
             };
             Screens.FreeSpaceConfirmed += FreeSpace;
             Screens.OpenChosen += r => { if (r.CanOpen) Controller.Open(r.Entry.Folder); };
+            Screens.WaterAndRoadsChosen += GetWaterAndRoads;   // task P3-16, BB6 (AppFlow.WaterAndRoads.cs)
             Screens.DeleteConfirmed += Delete;
             WireSaveList();   // Load Area's saves: open, rename, delete (AppFlow.Saves.cs, task P3-04)
             if (Picker != null)
@@ -401,6 +402,7 @@ namespace MountainPlanner.App.Flow
 
         public void OpenMountain(string packageFolder)
         {
+            if (WaterAndRoadsBusy(packageFolder)) return;   // its files are changing (task P3-16, BB6)
             if (!PrepareDesign(packageFolder)) return;   // the save to open (task P3-04): refused ones say why and open nothing
             // Keyed by package id, as the library is (the folder name needn't match it).
             try
@@ -474,8 +476,8 @@ namespace MountainPlanner.App.Flow
         {
             string refusal = LibraryIndex.Refusal(DataRoot);
             return refusal != null ? LibraryViewModel.Refused(refusal, _sort)
-                                   : LibraryViewModel.Build(_entries, _pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow, _newer, _leftovers,
-                                                            e => SaveStore.List(DataRoot, e.PackageId));   // each area's saves (task P3-04)
+                                   : MarkWaterAndRoads(LibraryViewModel.Build(_entries, _pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow, _newer, _leftovers,
+                                                            e => SaveStore.List(DataRoot, e.PackageId)));   // each area's saves (task P3-04)
         }
 
         async void MeasureLibrary()
@@ -511,6 +513,7 @@ namespace MountainPlanner.App.Flow
         /// </summary>
         void Delete(LibraryRow r)
         {
+            if (WaterAndRoadsBusy(r.Entry.Folder)) return;
             bool backdrop = _viewer != null && MountainViewer.TitleMode && SameFolder(_viewer.OpenPackage ?? MountainViewer.RequestedPackage, r.Entry.Folder);
             if (backdrop && (_viewer.OpenPackage == null || !_viewer.ReleaseCache()))
             {

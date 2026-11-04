@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MountainPlanner.Acquisition.IO;
@@ -19,14 +20,14 @@ namespace MountainPlanner.Acquisition
     internal static class OsmLayers
     {
         /// <summary>The OSM layers a package has once water and roads are in it.</summary>
-        public static readonly string[] LayerIds = { AcquisitionPipeline.OsmCoreLayer, AcquisitionPipeline.OsmRingLayer, RoadsFile.LayerId };
+        public static readonly string[] LayerIds = WaterAndRoads.LayerIds;
 
-        public const string Provider = "OpenStreetMap contributors";
+        public const string Provider = WaterAndRoads.Provider;
         public const string Attribution = "Water and roads: © OpenStreetMap contributors (ODbL).";
         /// <summary>The provenance layer recorded when water and roads couldn't be had.</summary>
-        public const string NoneLayer = "(none)";
+        public const string NoneLayer = WaterAndRoads.NoneLayer;
         /// <summary>The provenance reason when the player chose Skip water and roads (task P3-16, BB5).</summary>
-        public const string SkippedReason = "Skipped by the player while OpenStreetMap was holding the download up.";
+        public const string SkippedReason = WaterAndRoads.SkippedReason;
 
         internal sealed class Result
         {
@@ -85,10 +86,12 @@ namespace MountainPlanner.Acquisition
         /// <summary>
         /// Adds <paramref name="osm"/> to the manifest: the layers, roads, provenance and attribution, or the
         /// "unavailable" provenance entry. Any earlier OpenStreetMap provenance entry is replaced, and the attribution is
-        /// added once. The caller writes the manifest.
+        /// added once. The caller writes the manifest. With <paramref name="onlyMissing"/> (Get water and roads, task P3-16,
+        /// BB6), a layer the manifest already lists is left exactly as it is, file and all.
         /// </summary>
-        public static void Add(PackageManifest manifest, string folder, SiteSquare site, Result osm)
+        public static void Add(PackageManifest manifest, string folder, SiteSquare site, Result osm, bool onlyMissing = false)
         {
+            bool Write(string id) => !onlyMissing || manifest.Layers.All(l => l.Id != id);
             manifest.Provenance.RemoveAll(p => p.Provider == Provider);
             if (osm.Core == null || osm.Ring == null)
             {
@@ -101,16 +104,18 @@ namespace MountainPlanner.Acquisition
             }
             const string units = "OpenStreetMap coverage 0-255, bands: water, developed";
             var cg = site.CoreGrid;
-            ResortPackage.AddLayer(folder, manifest, AcquisitionPipeline.OsmCoreLayer, new GridHeader(GridValueType.UInt8, cg.Columns * 2, cg.Rows, cg.West, cg.North, cg.CellSize), osm.Core, 2, units);
+            if (Write(AcquisitionPipeline.OsmCoreLayer))
+                ResortPackage.AddLayer(folder, manifest, AcquisitionPipeline.OsmCoreLayer, new GridHeader(GridValueType.UInt8, cg.Columns * 2, cg.Rows, cg.West, cg.North, cg.CellSize), osm.Core, 2, units);
             var rg = site.RingGrid;
-            ResortPackage.AddLayer(folder, manifest, AcquisitionPipeline.OsmRingLayer, new GridHeader(GridValueType.UInt8, rg.Columns * 2, rg.Rows, rg.West, rg.North, rg.CellSize), osm.Ring, 2, units);
+            if (Write(AcquisitionPipeline.OsmRingLayer))
+                ResortPackage.AddLayer(folder, manifest, AcquisitionPipeline.OsmRingLayer, new GridHeader(GridValueType.UInt8, rg.Columns * 2, rg.Rows, rg.West, rg.North, rg.CellSize), osm.Ring, 2, units);
             manifest.Provenance.Add(new ProvenanceInfo
             {
                 Layer = AcquisitionPipeline.OsmCoreLayer + ", " + AcquisitionPipeline.OsmRingLayer, Provider = Provider,
                 Product = "Water, roads, buildings and built-up land use via the Overpass API",
                 Items = new List<string> { $"{osm.Shapes} features" },
             });
-            if (osm.Roads != null) RoadsFile.Add(folder, manifest, osm.Roads);   // the roads themselves (task 12d)
+            if (osm.Roads != null && Write(RoadsFile.LayerId)) RoadsFile.Add(folder, manifest, osm.Roads);   // the roads themselves (task 12d)
             if (!manifest.Attribution.Contains(Attribution)) manifest.Attribution.Add(Attribution);
         }
     }

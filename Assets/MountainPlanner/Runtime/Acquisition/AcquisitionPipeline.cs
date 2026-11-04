@@ -39,8 +39,8 @@ namespace MountainPlanner.Acquisition
         public const string SpeciesIdsLayer = "species-ids";
         public const string SpeciesWeightsLayer = "species-weights";
         /// <summary>OpenStreetMap coverage, two bands (water, developed), 0–255: 1 m over the core, 2 m over the ring.</summary>
-        public const string OsmCoreLayer = "osm-core";
-        public const string OsmRingLayer = "osm-ring";
+        public const string OsmCoreLayer = WaterAndRoads.CoreLayer;
+        public const string OsmRingLayer = WaterAndRoads.RingLayer;
 
         public const string StageCore = "Terrain";
         public const string StageRing = "Terrain surroundings";

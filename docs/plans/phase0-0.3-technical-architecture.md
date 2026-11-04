@@ -139,6 +139,11 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
   - The cache rasterises the roads per tile into two more cover bands, **paved road** and **unpaved road**, so cover texels hold eight bytes. Paved roads come out of the developed land that already covered them. The water and developed rasters, and the forest, are unchanged.
   - The terrain draws paved roads in asphalt and unpaved roads in gravel worked into dirt.
   - Packages made before 12d have no roads layer and open as before. `acquire refresh-osm` (demo.bat 34) adds it.
+  - Get water and roads (task P3-16, BB6; Manage Areas and `acquire refresh-osm`) adds whichever of `osm-core`, `osm-ring`
+    and `roads` a package lacks, never rewriting a listed layer. The id changes, so `AreaRekey` copies the saves to
+    `Saves/<new id>` (only each save's top-level PackageId changes; its Version stays) and adds the new id to recent.json,
+    then writes the manifest as the commit point, then removes the old id's saves and entry. The package folder keeps its
+    name; the library and `ResortLibrary.Add` find a package by its manifest's id.
 - **Size:** a 5 km site in an 11 km square makes 121 tiles: 25 core and 96 ring.
 
 **④ Load.**

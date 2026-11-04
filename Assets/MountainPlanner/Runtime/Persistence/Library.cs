@@ -103,6 +103,11 @@ namespace MountainPlanner.Persistence
         /// deleted or freed. In memory only; nothing on disk records it.
         /// </summary>
         public bool Bundled { get; set; }
+        /// <summary>
+        /// It has no OpenStreetMap water and roads, or only some of them (<see cref="WaterAndRoads.Needed"/>): Manage Areas
+        /// offers Get water and roads (task P3-16, BB6).
+        /// </summary>
+        public bool NeedsWaterAndRoads { get; set; }
     }
 
     /// <summary>
@@ -218,6 +223,7 @@ namespace MountainPlanner.Persistence
                     Folder = folder, Latitude = m.Site.Latitude, Longitude = m.Site.Longitude,
                     SizeKm = m.Site.SizeMetres / 1000.0, TerrainScore = m.Quality.Score, FloraScore = m.Flora.Score,
                     CreatedUtc = m.CreatedUtc, CacheReady = TerrainCache.IsCurrent(folder, m), RenameRefusal = view.Refusal,
+                    NeedsWaterAndRoads = WaterAndRoads.Needed(m),
                 });
             }
             newer?.Sort((a, b) => string.CompareOrdinal(a.Folder, b.Folder));
@@ -339,8 +345,30 @@ namespace MountainPlanner.Persistence
         }
 
         /// <summary>
+        /// The package folder in <paramref name="resorts"/> whose manifest has <paramref name="packageId"/>, other than
+        /// <paramref name="except"/>, or null. Its own name first (as downloads are filed), then any other: an area that got
+        /// water and roads later keeps its folder under its old id (task P3-16, BB6).
+        /// </summary>
+        public static string FolderWithId(string resorts, string packageId, string except = null)
+        {
+            if (!Directory.Exists(resorts)) return null;
+            string named = Path.Combine(resorts, packageId);
+            foreach (string folder in new[] { named }.Concat(Directory.GetDirectories(resorts).Where(f => !SameFolder(f, named))))
+            {
+                if (SameFolder(folder, except) || SafeFolder.IsTrash(folder) || !File.Exists(Path.Combine(folder, ResortPackage.ManifestFile))) continue;
+                try { if (ResortPackage.ReadManifest(folder).PackageId == packageId) return folder; }
+                catch (Exception e) when (e is IOException || e is InvalidDataException || e is JsonException || e is UnauthorizedAccessException) { }
+            }
+            return null;
+        }
+
+        static bool SameFolder(string a, string b) =>
+            !string.IsNullOrEmpty(a) && !string.IsNullOrEmpty(b) &&
+            string.Equals(Path.GetFullPath(a).TrimEnd('\\', '/'), Path.GetFullPath(b).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
         /// Moves a freshly built package into the library as &lt;data&gt;/Resorts/&lt;packageId&gt;. If that
-        /// package is already there (same id = same content), the new copy is discarded.
+        /// package is already there (same id = same content, in any folder), the new copy is discarded.
         /// </summary>
         public static string Add(string dataRoot, string builtFolder)
         {
@@ -353,6 +381,13 @@ namespace MountainPlanner.Persistence
             // A folder there without a manifest isn't the package (a stub left by an interrupted delete): replace it.
             if (Directory.Exists(target) && !File.Exists(Path.Combine(target, ResortPackage.ManifestFile)) && SafeFolder.TryMoveToTrash(target, out string stub) && stub != null)
                 SafeFolder.SweepTrash(ResortsFolder(dataRoot));
+            // The same package filed under another name (task P3-16, BB6): that one is the library's copy.
+            string elsewhere = Directory.Exists(target) ? null : FolderWithId(ResortsFolder(dataRoot), m.PackageId, except: builtFolder);
+            if (elsewhere != null)
+            {
+                Directory.Delete(builtFolder, true);
+                return elsewhere;
+            }
             if (Directory.Exists(target))
             {
                 if (!string.Equals(Path.GetFullPath(builtFolder).TrimEnd('\\', '/'), Path.GetFullPath(target).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MountainPlanner.Acquisition;
@@ -181,6 +182,33 @@ namespace MountainPlanner.Tests
             var vm = QualityCardViewModel.From(m, justDownloaded: true);
             Assert.That(vm.Notes, Is.EqualTo(new[] { QualityCardViewModel.NoOsmNote }));
             Assert.That(vm.Lines, Has.Count.EqualTo(2), "the scored lines are unchanged");
+        }
+
+        /// <summary>Task P3-16, BB5/BB6: a skipped OpenStreetMap step says the player skipped it, and both say where to get them.</summary>
+        [Test]
+        public void TheCardSaysWhenWaterAndRoadsWereSkippedAndWhereToGetThem()
+        {
+            var m = Manifest(71, 80);
+            m.Provenance.Add(new ProvenanceInfo { Layer = WaterAndRoads.NoneLayer, Provider = WaterAndRoads.Provider, Items = new List<string> { WaterAndRoads.SkippedReason } });
+            Assert.That(QualityCardViewModel.From(m, justDownloaded: true).Notes, Is.EqualTo(new[] { QualityCardViewModel.SkippedOsmNote }));
+            Assert.That(QualityCardViewModel.NoOsmNote, Does.EndWith("You can get them later in Manage Areas."));
+            Assert.That(QualityCardViewModel.SkippedOsmNote, Does.EndWith("You can get them later in Manage Areas."));
+        }
+
+        /// <summary>Task P3-16, BB6: Manage Areas offers Get water and roads on the player's own areas that lack them.</summary>
+        [Test]
+        public void GetWaterAndRoadsIsOfferedOnlyOnThePlayersAreasThatLackThem()
+        {
+            var entries = new List<LibraryEntry>
+            {
+                new LibraryEntry { PackageId = "a", Name = "Without", Folder = "A", NeedsWaterAndRoads = true },
+                new LibraryEntry { PackageId = "b", Name = "With", Folder = "B" },
+                new LibraryEntry { PackageId = "c", Name = "Demo", Folder = "C", NeedsWaterAndRoads = true, Bundled = true },
+                new LibraryEntry { PackageId = "d", Name = "Newer", Folder = "D", NeedsWaterAndRoads = true, Refusal = "newer" },
+            };
+            var vm = LibraryViewModel.Build(entries, new List<PendingDownload>(), new RecentResorts(), LibrarySort.Name, new DateTime(2026, 11, 3));
+            Assert.That(vm.Rows.Where(r => r.NeedsWaterAndRoads).Select(r => r.Name), Is.EqualTo(new[] { "Without" }), "not the demo (read-only), nor one it can't read");
+            Assert.That(vm.Rows.Single(r => r.Name == "Without").WaterAndRoadsText, Is.EqualTo(LibraryViewModel.NoWaterAndRoads));
         }
 
         [Test]

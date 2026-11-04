@@ -226,7 +226,8 @@ namespace MountainPlanner.App.Flow
         }
 
         /// <summary>Why the download cache can't be cleared now, or null.</summary>
-        string CacheLocked() => Downloads.Active ? "Wait for the download to finish, or cancel it, to clear it." : null;
+        string CacheLocked() => Downloads.Active ? "Wait for the download to finish, or cancel it, to clear it."
+                                : _waterAndRoads != null ? "Wait for Get water and roads to finish, to clear it." : null;
 
         bool _clearing;
 

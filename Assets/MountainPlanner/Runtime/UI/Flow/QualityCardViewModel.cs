@@ -29,7 +29,9 @@ namespace MountainPlanner.UI.Flow
         public readonly List<string> Notes = new List<string>();
 
         /// <summary>Said when OpenStreetMap couldn't be reached and the area was built without it (task P3-16).</summary>
-        public const string NoOsmNote = "Water and roads: OpenStreetMap was unavailable, so satellite land cover stands in for them.";
+        public const string NoOsmNote = "Water and roads: OpenStreetMap was unavailable, so satellite land cover stands in for them. You can get them later in Manage Areas.";
+        /// <summary>Said when the player chose Skip water and roads during the download (task P3-16, BB5).</summary>
+        public const string SkippedOsmNote = "Water and roads: you skipped them, so satellite land cover stands in for them. You can get them later in Manage Areas.";
 
         public static QualityCardViewModel From(PackageManifest m, bool justDownloaded)
         {
@@ -45,7 +47,8 @@ namespace MountainPlanner.UI.Flow
             // Add a Line(...) per new scored part of the manifest; the card lays out whatever is in Lines.
             // (A forest-calibration line was planned here and dropped in the 2026-10-02 scope cut.)
             // The pipeline records a skipped OpenStreetMap step as a provenance entry with no layer.
-            if (m.Provenance.Exists(p => p.Layer == "(none)" && p.Provider == "OpenStreetMap contributors")) vm.Notes.Add(NoOsmNote);
+            var none = m.Provenance.Find(p => p.Layer == WaterAndRoads.NoneLayer && p.Provider == WaterAndRoads.Provider);
+            if (none != null) vm.Notes.Add(none.Items.Contains(WaterAndRoads.SkippedReason) ? SkippedOsmNote : NoOsmNote);
             return vm;
         }
 
