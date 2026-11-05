@@ -79,8 +79,18 @@ MODULES.update({"monta_tbar_drive": ("tbar_terminal", "drive"), "monta_tbar_retu
                 "monta_tbar_springbox": ("tbar_carrier", "springbox"), "monta_tbar_bar_t": ("tbar_carrier", "bar_t"),
                 "monta_tbar_bar_j": ("tbar_carrier", "bar_j")})
 TBAR = tuple(k for k in MODULES if k.startswith("monta_tbar_"))
+# the Glidepath magic carpet (surface lifts, owner C1-C11 2026-11-04): belt modules, rails, gallery, stations, single
+# (assets/carpet.py, carpet_station.py; ids glidepath_carpet_<name>) and double (its overlay, glidepath_carpet2_<name>);
+# the control post and the hut are shared
+CARPET_LINE = ("segment", "segment_1m", "rail", "gallery", "gallery_exit", "portal")
+MODULES.update({f"glidepath_carpet_{v}": ("carpet", v) for v in CARPET_LINE + ("post", "hut")})
+MODULES.update({f"glidepath_carpet_{v}": ("carpet_station", v) for v in ("top", "bottom")})
+CARPET2 = {f"glidepath_carpet2_{v}": ("carpet", "glidepath_carpet2.json", v) for v in CARPET_LINE}
+CARPET2.update({f"glidepath_carpet2_{v}": ("carpet_station", "glidepath_carpet2.json", v) for v in ("top", "bottom")})
+CARPET = tuple(k for k in MODULES if k.startswith("glidepath_carpet_")) + tuple(CARPET2)
 ALL = ("drive,return,terminal_footing,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA) + "," + ",".join(CHAIRWORKS)
-       + "," + ",".join(D6) + "," + ",".join(STERN) + "," + ",".join(OVERLAY) + "," + ",".join(TBAR))
+       + "," + ",".join(D6) + "," + ",".join(STERN) + "," + ",".join(OVERLAY) + "," + ",".join(TBAR) + "," + ",".join(CARPET))
+OVERLAY.update(CARPET2)
 
 
 def clear_scene():
@@ -107,6 +117,14 @@ def ao_options(kind, assets):
     ground = kind not in ("tower_head", "tower_head_wide", "tower_mast", "chair", "chair_detach", "terminal_footing",
                           "surface_tower_head", "surface_mast", "surface_carrier")         and not (kind == "terminal_detach" and "pier_top_1" in assets[0].sockets)
     return ground, (assets[0].sockets["top"][2] if kind in ("tower_mast", "surface_mast") else None)
+
+
+def carpet_tile(kind, assets):
+    """A carpet's module (belt module, rails, gallery bay) repeats along u: its length, for the AO bake between ghost
+    neighbours (liftkit/ao.py axis 1); None for anything else."""
+    if kind in ("carpet_segment", "carpet_gallery") and "front" in assets[0].sockets:
+        return assets[0].sockets["front"][0]
+    return None
 
 
 def views(a):
@@ -260,6 +278,7 @@ def main():
         objs, rep, split = export.make_objects(assets, mats, coll)
         sweep = sweep_heads(assets[0]) if assets[0].pivots else {}
         tiling = None
+        tile = carpet_tile(kind, assets)
         if opts.get("ao", "on") != "off":
             t_ao = time.time()
             ground, section = ao_options(kind, assets)
@@ -270,6 +289,11 @@ def main():
             heads = assets[0].heads
             for lod in range(len(assets)):
                 lod_objs = [o for o in objs if o.type == "MESH" and o.name.endswith(f"_LOD{lod}")]
+                if tile:   # a carpet's module between its neighbours along u (Blender -y); the belt modules' ends agree
+                    ao_stats.append(ao.bake(lod_objs, rays=32 if lod == 0 else 16, ground=ground, ghosts=(-tile, tile), axis=1))
+                    if kind == "carpet_segment":
+                        tiling = max(tiling or 0.0, ao.tiling_error(lod_objs, -tile, axis=1))
+                    continue
                 if not heads:
                     ao_stats.append(ao.bake(lod_objs, rays=32 if lod == 0 else 16, ground=ground,
                                             ghosts=(-section, section) if section else ()))
@@ -295,6 +319,9 @@ def main():
             box = cmod.build(own, 0, stage, "springbox")
             for bar in ("bar_t", "bar_j"):
                 problems += [f"{bar}: {p}" for p in surface_fit.check(assets[0], kind, own, box, cmod.build(own, 0, stage, bar))]
+        if kind in ("carpet_segment", "carpet_station", "carpet_gallery"):   # modules join, stations meet them (carpet_fit.py)
+            import carpet_fit
+            problems += carpet_fit.check(assets, kind, own, stage)
         if getattr(mod, "CHAIR", None):   # a terminal or a wide head: send its chair through (liftkit/fit.py)
             t_fit = time.time()
             chairs = [mod.CHAIR]
@@ -347,7 +374,8 @@ def main():
             print(f"{aid}: chair past the head: " + ("clear" if not lp else f"{len(lp)} problems")
                   + (f" (at rest, as the quad's heads: {', '.join(rest)})" if rest else ""), flush=True)
         if tiling is not None and tiling > 0.01:
-            problems.append(f"mast section AO differs by {tiling:.3f} between its top and bottom (> 0.01)")
+            problems.append(f"module AO differs by {tiling:.3f} between its back and front ends (> 0.01)" if tile else
+                            f"mast section AO differs by {tiling:.3f} between its top and bottom (> 0.01)")
         a0 = assets[0]
         result["assets"][aid] = {
             "kind": kind,
@@ -407,6 +435,9 @@ def main():
         if "surface_" in (opts.get("shots") or ""):   # the surface lifts' own review (render_surface.py)
             import render_surface
             render_surface.render_all(built, opts["render"], opts.get("shots"), [structure, glass, chair_mat])
+        if "carpet_" in (opts.get("shots") or ""):   # the carpet's own review (render_carpet.py)
+            import render_carpet
+            render_carpet.render_all(built, opts["render"], opts.get("shots"), [structure, glass, chair_mat])
     return failures
 
 

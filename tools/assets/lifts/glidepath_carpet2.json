@@ -1,0 +1,41 @@
+{
+  "_about": "Glidepath double carpet (C9): two 750 mm belts side by side, a walking deck between them, the single's section, stations widened to carry both drums, and its own gallery (white rounded-rectangle arches standing on brackets off the skirts, flat panels). Merged onto glidepath_carpet.json (liftkit/gauge.py); the control post and the hut are the single's.",
+  "base": "glidepath_carpet.json",
+  "idPrefix": "glidepath_carpet2",
+  "catalog": {
+    "maker": "Glidepath",
+    "name": "Glidepath double carpet",
+    "parts": {
+      "glidepath_carpet2_top": "Drive station (top)",
+      "glidepath_carpet2_bottom": "Tension station (bottom)",
+      "glidepath_carpet2_segment": "Belt module, 2 m",
+      "glidepath_carpet2_segment_1m": "Belt module, 1 m",
+      "glidepath_carpet2_rail": "Side rails, 2 m",
+      "glidepath_carpet2_gallery": "Gallery bay, 2 m",
+      "glidepath_carpet2_gallery_exit": "Gallery bay with exits, 2 m",
+      "glidepath_carpet2_portal": "Gallery portal"
+    }
+  },
+  "common": {"lineGauge": 1450},
+  "belts": [-725, 725],
+  "gallery": {
+    "_about": "double: rounded-rectangle arches (white), legs on steel brackets off the skirts, the panes on the arches' centre line",
+    "shape": "box",
+    "archClass": "white",
+    "halfV": 1660,
+    "roof": 2850,
+    "corner": 600,
+    "cornerSteps": [4, 2, 1, 1],
+    "arch": {"width": 100, "depth": 80},
+    "footW": 250,
+    "bracket": {"from": 1490, "to": 1730, "bottom": 170, "top": 250, "along": 120},
+    "exitDoor": {"from": 550, "to": 1450, "top": 2150, "frame": 50}
+  },
+  "portal": {
+    "halfV": 1900,
+    "top": 3450,
+    "sign": {"from": 2980, "to": 3450, "thick": 220},
+    "opening": {"halfV": 1715, "top": 2905, "corner": 600}
+  },
+  "top": {"cabinet": {"u": -400, "v": -2450, "size": [500, 300, 1100], "stand": 500}}
+}
