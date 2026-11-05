@@ -23,6 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "assets"))
 from liftkit import ao, clash, export, fit, frame, gauge, materials, palette, swap, textures  # noqa: E402
+from liftkit.mesh import GLASS_CLEAR  # noqa: E402
 
 MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "chair", "sle_ground_gun": "sle_ground_gun",
            "terminal_footing": "terminal_footing",
@@ -125,6 +126,11 @@ def carpet_tile(kind, assets):
     if kind in ("carpet_segment", "carpet_gallery") and "front" in assets[0].sockets:
         return assets[0].sockets["front"][0]
     return None
+
+
+def uses_slot(assets, slot):
+    """Whether any face of any LOD (its body or a moving part) is on material slot `slot`."""
+    return any(s.slot == slot for a in assets for mb in [a.body, *a.parts.values()] if mb is not None for s in mb.style)
 
 
 def views(a):
@@ -249,6 +255,8 @@ def main():
         trim = None
     structure = materials.make("LiftStructure", pal, detail_img=trim)
     glass = materials.make("LiftGlass", pal, glass=True, detail_img=trim)
+    glass_clear = materials.make(materials.GLASS_CLEAR, pal, glass=True, detail_img=trim,
+                                 glass_alpha=materials.GLASS_CLEAR_ALPHA)   # owner C17: only assets that use it
     chair_mat = materials.make("LiftChair", pal, detail_img=trim)
 
     result, failures, built = {"stage": stage, "budgets": budgets, "assets": {}}, [], {}
@@ -275,6 +283,8 @@ def main():
         coll = bpy.data.collections.new(aid)
         bpy.context.scene.collection.children.link(coll)
         mats = [chair_mat] if kind in ("chair", "chair_detach") else [structure, glass]
+        if uses_slot(assets, GLASS_CLEAR):   # a third slot only where it is used: every other FBX keeps its two
+            mats = [structure, glass, glass_clear]
         objs, rep, split = export.make_objects(assets, mats, coll)
         sweep = sweep_heads(assets[0]) if assets[0].pivots else {}
         tiling = None
@@ -437,7 +447,7 @@ def main():
             render_surface.render_all(built, opts["render"], opts.get("shots"), [structure, glass, chair_mat])
         if "carpet_" in (opts.get("shots") or ""):   # the carpet's own review (render_carpet.py)
             import render_carpet
-            render_carpet.render_all(built, opts["render"], opts.get("shots"), [structure, glass, chair_mat])
+            render_carpet.render_all(built, opts["render"], opts.get("shots"), [structure, glass, chair_mat, glass_clear])
     return failures
 
 

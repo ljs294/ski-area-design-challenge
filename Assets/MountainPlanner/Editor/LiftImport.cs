@@ -105,11 +105,16 @@ namespace MountainPlanner.Editor
             {
                 ["LiftStructure"] = MakeMaterial("LiftStructure", shader, palette, trim, false),
                 ["LiftGlass"] = MakeMaterial("LiftGlass", shader, palette, trim, true),
+                // the clearer glass (the carpet's gallery, owner C17): the same glass, less opaque face-on
+                ["LiftGlassClear"] = MakeMaterial("LiftGlassClear", shader, palette, trim, true, GlassClearAlpha),
                 ["LiftChair"] = MakeMaterial("LiftChair", shader, palette, chairDetail != null ? chairDetail : trim, false),
             };
         }
 
-        static Material MakeMaterial(string name, Shader shader, Texture2D palette, Texture2D detail, bool glass)
+        /// <summary>LiftGlass's face-on opacity (LiftStructure.shader's default) and LiftGlassClear's.</summary>
+        public const float GlassAlpha = 0.75f, GlassClearAlpha = 0.45f;
+
+        static Material MakeMaterial(string name, Shader shader, Texture2D palette, Texture2D detail, bool glass, float glassAlpha = GlassAlpha)
         {
             string path = $"{Root}/Materials/{name}.mat";
             var m = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -129,6 +134,7 @@ namespace MountainPlanner.Editor
             if (glass) m.EnableKeyword("_LIFT_GLASS"); else m.DisableKeyword("_LIFT_GLASS");
             if (glass)
             {
+                if (m.HasProperty("_GlassAlpha")) m.SetFloat("_GlassAlpha", glassAlpha);
                 m.SetOverrideTag("RenderType", "Transparent");
                 if (m.HasProperty("_SrcBlend")) m.SetFloat("_SrcBlend", (float)BlendMode.One);   // premultiplied (shader)
                 if (m.HasProperty("_DstBlend")) m.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);

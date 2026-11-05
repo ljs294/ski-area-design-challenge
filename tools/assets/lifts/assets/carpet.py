@@ -34,7 +34,7 @@ import math
 
 from liftkit import prims
 from liftkit.export import Asset
-from liftkit.mesh import GLASS, MeshBuilder, Style
+from liftkit.mesh import GLASS_CLEAR, MeshBuilder, Style
 from liftkit.prims import U, V, W
 
 KIND = "carpet_segment"
@@ -69,7 +69,8 @@ def styles(spec):
         "foot": Style("galvanised", snow=0.3),
         "rail": Style("galvanised", snow=0.5),
         "arch": Style(arch, snow=0.5),
-        "glass": Style("glass_accent", livery=2.0, slot=GLASS),   # tinted by the lift's accent colour (owner C16)
+        # tinted by the lift's accent colour (owner C16), on the clearer glass (LiftGlassClear, 45 % face-on, owner C17)
+        "glass": Style("glass_accent", livery=2.0, slot=GLASS_CLEAR),
         "door": Style("trim_dark", snow=0.3),
         "portal": Style("paint_dark", snow=0.5),
         "sign": Style("livery", livery=1.0, trim="plain"),

@@ -732,22 +732,15 @@ def pop_audit(built, out_dir, views=8, el=20.0):
         json.dump(report, f, indent=1)
 
 
-def glass_opacity(mats, face_on):
-    """The preview glass's face-on opacity (materials.make: face_on + f^4 (0.97 - face_on); the game's is 0.75)."""
+def glass_opacity(mats, face_on=None):
+    """The preview glasses' face-on opacity (materials.make: face_on + f^4 (0.97 - face_on)); None puts each glass back
+    to its own (LiftGlass 0.75, LiftGlassClear 0.45: the game's)."""
     for m in mats:
-        if not m.name.startswith("LiftGlass"):
+        if "glassAlpha" not in m or m.node_tree.nodes.get("GlassFaceOn") is None:
             continue
-        for n in m.node_tree.nodes:
-            if n.type != "MATH":
-                continue
-            if n.name == "GlassFaceOn" or (n.operation == "ADD" and not n.inputs[0].is_linked
-                                           and abs(n.inputs[0].default_value - 0.75) < 1e-6):
-                n.name = "GlassFaceOn"
-                n.inputs[0].default_value = face_on
-            elif n.name == "GlassGrazing" or (n.operation == "MULTIPLY" and not n.inputs[1].is_linked
-                                              and abs(n.inputs[1].default_value - 0.22) < 1e-6):
-                n.name = "GlassGrazing"
-                n.inputs[1].default_value = 0.97 - face_on
+        a = m["glassAlpha"] if face_on is None else face_on
+        m.node_tree.nodes["GlassFaceOn"].inputs[0].default_value = a
+        m.node_tree.nodes["GlassGrazing"].inputs[1].default_value = 0.97 - a
 
 
 def gate2(built, out_dir, mats):
@@ -798,7 +791,7 @@ def gate2(built, out_dir, mats):
         glass_opacity(mats, face_on)
         shot(f"glass_{name}", jg + Vector((-1.5, -6.0, 1.3)), jg + Vector((2.5, 3.0, 0.6)), lens=30)
     materials.set_accent(mats, ACCENT_DARK)
-    glass_opacity(mats, 0.75)
+    glass_opacity(mats)
     for o in made:
         bpy.data.objects.remove(o)
 

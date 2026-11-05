@@ -27,12 +27,16 @@ namespace MountainPlanner.App
     ///   J detachable quad (the Sessellift D4: bottom with its first tower, top, its chair, and its five tower heads)
     ///   K Sessellift Stern (its quad, triple and double: return and drive facing up the line, a chair between each pair)
     ///   U T-bar (the Monta T-bar: drive, hut, its three heads on leaning towers, return, T bars and a J bar)
+    ///   Y carpets (the Glidepath magic carpets on their snow approaches: the uncovered single with side rails, the
+    ///     covered single with an exit bay, the covered double; stations, portals, control posts and the hut)
     ///   M fixed-grip terminals (the Sessellift quad, triple and double, the Monta 4, 3 and 2 and the Stern: every terminal)
     ///   V terminal head: every fixed-grip terminal shows its next head (drive at either end: bottom, top 4, 6, 8)
-    ///   Tab next asset · L LOD auto/0/1/2/3 · N snow · C livery colour · T turntable · G ground on/off
+    ///   Tab next asset · L LOD auto/0/1/2/3 · N snow · C livery colour · I accent colour (the carpet glass's tint, C16)
+    ///   T turntable · G ground on/off
     ///   B benchmark · P screenshot · H help · Esc quit (camera: ViewCamera's keys)
-    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs|sixpack|fixedgrip|d4|stern|tbar, -lod n,
-    /// -snow 0..1, -head bottom|top|top6|top8 (the head every fixed-grip terminal shows; else its own),
+    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs|sixpack|fixedgrip|d4|stern|tbar|carpet, -lod n,
+    /// -snow 0..1, -livery n and -accent n (the colours C and I step to, from 0),
+    /// -head bottom|top|top6|top8 (the head every fixed-grip terminal shows; else its own),
     /// -view yaw,pitch,distance, -screenshot file.png (captures once settled, then quits), -benchmark file.json (runs,
     /// writes, quits).
     /// </summary>
@@ -57,7 +61,9 @@ namespace MountainPlanner.App
             new Color(0.72f, 0.12f, 0.09f), new Color(0.10f, 0.26f, 0.62f), new Color(0.11f, 0.42f, 0.22f), new Color(0.93f, 0.70f, 0.10f),
             new Color(0.12f, 0.12f, 0.13f), new Color(0.90f, 0.90f, 0.88f), new Color(0.90f, 0.42f, 0.08f), new Color(0.05f, 0.47f, 0.50f),
         };
-        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers", "guns", "gunfield", "monta", "chairs", "sixpack", "fixedgrip", "d4", "stern", "tbar" };
+        /// <summary>The accents I cycles (LT41): the default dark, a light blue and red; the carpet galleries' glass takes it (C16).</summary>
+        static readonly Color[] Accents = { LiftLivery.DarkAccent, new Color(0.61f, 0.78f, 0.91f), LiftLivery.Red };
+        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers", "guns", "gunfield", "monta", "chairs", "sixpack", "fixedgrip", "d4", "stern", "tbar", "carpet" };
         /// <summary>The fixed-grip mode's rows, front to back: each model's terminals, left to right.</summary>
         static readonly string[][] FixedGrip =
         {
@@ -104,10 +110,22 @@ namespace MountainPlanner.App
         const float TbarLean = 8f;                   // the masts' lean toward +X (monta_tbar.json tower.lean)
         const float TbarSpacing = 12f;               // between carriers (monta_tbar.json common.carrierSpacing)
         const float TbarCordGap = 0.05f;             // a retracted bar's eye under the box's outlet (carrier.cordGap)
+        /// <summary>The carpet mode's lines across the view: their ids, where each stands along +X (m), covered or with side
+        /// rails, and the deck's half width (glidepath_carpet.json section.deckOut past the outer belt).</summary>
+        static readonly (string prefix, float x, bool covered, float deck)[] Carpets =
+            { ("glidepath_carpet_", -7f, false, 0.805f), ("glidepath_carpet_", 0f, true, 0.805f), ("glidepath_carpet2_", 7.5f, true, 1.53f) };
+        const int CarpetModules = 8;                 // 2 m modules a line: 16 m (52 ft) of belt between the stations
+        const int CarpetExitBay = 4;                 // the covered lines' bay with the exit doors
+        // the earth the game grades at each station's plate, under the snow (glidepath_carpet.json top and bottom
+        // "approach", owner C13): level with the plate top past its edge (the top's run-off falling first), easing down
+        // to natural ground, wider than the deck each side
+        const float CarpetPlateTop = 0.372f, CarpetBottomPlate = -0.6f, CarpetTopPlate = -1.0f;
+        const float CarpetFlat = 4.9f, CarpetEase = 0.10f, CarpetMargin = 1.0f, CarpetRunOff = 2.0f, CarpetRunOffFall = 0.05f;
 
-        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField, Monta, Chairs, SixPack, FixedGrip, Quad, Stern, Tbar }
+        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField, Monta, Chairs, SixPack, FixedGrip, Quad, Stern, Tbar, Carpet }
 
         readonly List<GameObject> _spawned = new List<GameObject>();
+        readonly List<Mesh> _meshes = new List<Mesh>();   // the carpet approaches, made per scene
         readonly Dictionary<GameObject, int[]> _lodTriangles = new Dictionary<GameObject, int[]>();
         LiftMaterials _materials;
         Mode _mode = Mode.Drive;
@@ -115,6 +133,7 @@ namespace MountainPlanner.App
         int _forcedLod = -1;
         float _snow = 1f;
         int _livery;
+        int _accent;                                 // index into Accents
         int _head;                                   // index into HeadKeys
         bool _turntable;
         GameObject _ground;
@@ -141,6 +160,8 @@ namespace MountainPlanner.App
             if (mode != null && Array.IndexOf(ModeNames, mode) >= 0) _mode = (Mode)Array.IndexOf(ModeNames, mode);
             if (float.TryParse(Arg(args, "-snow"), NumberStyles.Float, CultureInfo.InvariantCulture, out float snow)) _snow = snow;
             if (int.TryParse(Arg(args, "-lod"), out int lod)) _forcedLod = lod;
+            if (int.TryParse(Arg(args, "-livery"), out int livery)) _livery = Mathf.Max(0, livery);
+            if (int.TryParse(Arg(args, "-accent"), out int accent)) _accent = Mathf.Max(0, accent);
             string head = Arg(args, "-head");
             if (head != null && Array.IndexOf(HeadKeys, head) > 0) _head = Array.IndexOf(HeadKeys, head);
             Show(_mode);
@@ -195,10 +216,16 @@ namespace MountainPlanner.App
         {
             foreach (var go in _spawned) Destroy(go);
             _spawned.Clear();
+            foreach (var m in _meshes) Destroy(m);
+            _meshes.Clear();
             _focus = null;
         }
 
-        GameObject Spawn(GameObject prefab, Vector3 position, Quaternion rotation, Color livery)
+        /// <summary>A lift asset in a livery colour and the accent I picks (the default dark, as before).</summary>
+        GameObject Spawn(GameObject prefab, Vector3 position, Quaternion rotation, Color livery) =>
+            Spawn(prefab, position, rotation, new LiftLivery(livery, Accents[_accent % Accents.Length]));
+
+        GameObject Spawn(GameObject prefab, Vector3 position, Quaternion rotation, LiftLivery livery)
         {
             var go = Instantiate(prefab, position, rotation);
             var rig = go.GetComponent<LiftRig>();
@@ -434,6 +461,24 @@ namespace MountainPlanner.App
                     if (_focus != null) FrameOn(_focus, 22f, 215f, 14f);
                     break;
                 }
+                case Mode.Carpet:
+                {
+                    // the three Glidepath carpets side by side on level ground, each on its snow approaches; the hut
+                    // beside the uncovered single's bottom station (clear of its approach), its door toward the carpet
+                    var bottomPads = new List<(float edge, float dir, float x, float half, float runOff)>();
+                    var topPads = new List<(float edge, float dir, float x, float half, float runOff)>();
+                    foreach (var (prefix, x, covered, deck) in Carpets)
+                    {
+                        var bay = BuildCarpet(prefix, x, covered, deck, livery, bottomPads, topPads);
+                        if (covered && x == 0f) _focus = bay;
+                    }
+                    var hut = Asset("glidepath_carpet_hut");
+                    if (hut != null) Spawn(hut, new Vector3(-13.6f, 0, -1.6f), Quaternion.Euler(0, -90f, 0), livery);
+                    AddApproach(bottomPads);
+                    AddApproach(topPads);
+                    if (_focus != null) FrameOn(_focus, 26f, 215f, 18f);
+                    break;
+                }
                 case Mode.Stern:
                     // each Stern model's return and drive facing up the line, its chair on the rope between them; the
                     // Stern is a bottom drive only, so V steps just the return through its top rows
@@ -465,6 +510,145 @@ namespace MountainPlanner.App
                     break;
             }
             _materials.SetSnowLoad(_snow);
+        }
+
+        /// <summary>A prefab's socket in its own frame (sockets are under the root, which is at its origin).</summary>
+        static Vector3 SocketIn(GameObject prefab, string name)
+        {
+            var rig = prefab.GetComponent<LiftRig>();
+            var s = rig != null ? rig.Socket(name) : null;
+            return s != null ? rig.transform.InverseTransformPoint(s.position) : Vector3.zero;
+        }
+
+        /// <summary>One Glidepath carpet up +Z from (x, 0, 0), as the game chains it: the bottom (tension) station facing up
+        /// the line, CarpetModules belt modules each hung on the last one's front socket from the station's belt_out, the top
+        /// (drive) station turned round on the last front socket by its belt_in. Covered: a gallery bay on every module (the
+        /// exit bay at CarpetExitBay) and a portal at each end; else side rails on all but the end modules (riders step on
+        /// and off clear of them). The control posts where the stations' post sockets say, on the approach. Adds each end's
+        /// approach pad; returns the middle gallery bay (null if uncovered).</summary>
+        GameObject BuildCarpet(string prefix, float x, bool covered, float deck, Color livery,
+                               List<(float edge, float dir, float x, float half, float runOff)> bottomPads,
+                               List<(float edge, float dir, float x, float half, float runOff)> topPads)
+        {
+            var bottom = Asset(prefix + "bottom");
+            var top = Asset(prefix + "top");
+            var module = Asset(prefix + "segment");
+            if (bottom == null || top == null || module == null) return null;
+            var start = new Vector3(x, 0, 0);
+            Spawn(bottom, start, Quaternion.identity, livery);
+            var p = start + SocketIn(bottom, "belt_out");
+            var first = p;
+            var back = SocketIn(module, "back");
+            var step = SocketIn(module, "front") - back;
+            GameObject middle = null;
+            for (int k = 0; k < CarpetModules; k++)
+            {
+                var at = p - back;
+                Spawn(module, at, Quaternion.identity, livery);
+                var extra = covered ? Asset(prefix + (k == CarpetExitBay ? "gallery_exit" : "gallery"))
+                    : k > 0 && k < CarpetModules - 1 ? Asset(prefix + "rail") : null;
+                if (extra != null)
+                {
+                    var e = Spawn(extra, at, Quaternion.identity, livery);
+                    if (covered && k == CarpetModules / 2 - 1) middle = e;
+                }
+                p += step;
+            }
+            var turned = Quaternion.Euler(0, 180f, 0);
+            var topAt = p - turned * SocketIn(top, "belt_in");
+            Spawn(top, topAt, turned, livery);
+            var portal = covered ? Asset(prefix + "portal") : null;
+            if (portal != null)
+            {
+                var g = SocketIn(portal, "gallery");
+                Spawn(portal, first - g, Quaternion.identity, livery);
+                Spawn(portal, p - turned * g, turned, livery);
+            }
+            var post = Asset("glidepath_carpet_post");
+            if (post != null)
+            {
+                Spawn(post, start + SocketIn(bottom, "post"), Quaternion.identity, livery);
+                Spawn(post, topAt + turned * SocketIn(top, "post"), turned, livery);
+            }
+            float half = deck + CarpetMargin;
+            bottomPads.Add((start.z + CarpetBottomPlate, -1f, x, half, 0f));
+            topPads.Add((topAt.z - CarpetTopPlate, 1f, x, half, CarpetRunOff));
+            return middle;
+        }
+
+        /// <summary>The snow over the earth the game grades at one end of the carpets (owner C13): each station's pad level
+        /// with its plate top past the plate's edge for CarpetFlat (the top's run-off falling first), easing down to the
+        /// Lab's level ground at CarpetEase, CarpetMargin wider than the deck each side, banked 1:1 back along the station's
+        /// sides; one heightfield for all the lines at that end (the highest pad wins), drawn where it stands above the
+        /// ground, 2 mm proud of it.</summary>
+        void AddApproach(List<(float edge, float dir, float x, float half, float runOff)> pads)
+        {
+            if (pads.Count == 0) return;
+            const float step = 0.25f;
+            float reach = 1f + CarpetPlateTop / CarpetEase;
+            float u0 = float.MaxValue, u1 = float.MinValue, v0 = float.MaxValue, v1 = float.MinValue;
+            foreach (var pad in pads)
+            {
+                float far = pad.edge + pad.dir * (pad.runOff + CarpetFlat);
+                u0 = Mathf.Min(u0, Mathf.Min(pad.edge, far));
+                u1 = Mathf.Max(u1, Mathf.Max(pad.edge, far));
+                v0 = Mathf.Min(v0, pad.x - pad.half);
+                v1 = Mathf.Max(v1, pad.x + pad.half);
+            }
+            u0 -= reach; u1 += reach; v0 -= reach; v1 += reach;
+            int nu = Mathf.CeilToInt((u1 - u0) / step) + 1, nv = Mathf.CeilToInt((v1 - v0) / step) + 1;
+            var height = new float[nu, nv];
+            for (int i = 0; i < nu; i++)
+                for (int k = 0; k < nv; k++)
+                {
+                    float u = u0 + i * step, v = v0 + k * step, best = float.MinValue;
+                    foreach (var pad in pads)
+                    {
+                        float s = (u - pad.edge) * pad.dir;   // past the plate's edge, away from the line
+                        float level = CarpetPlateTop - Mathf.Clamp(s, 0f, pad.runOff) * CarpetRunOffFall;
+                        float side = Mathf.Max(0f, Mathf.Abs(v - pad.x) - pad.half);
+                        float drop = s < 0f ? -s + side * CarpetEase   // beside the station: a 1:1 bank
+                            : new Vector2(Mathf.Max(0f, s - pad.runOff - CarpetFlat), side).magnitude * CarpetEase;
+                        best = Mathf.Max(best, level - drop);
+                    }
+                    height[i, k] = best;
+                }
+            var verts = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var tris = new List<int>();
+            var index = new int[nu, nv];
+            for (int i = 0; i < nu; i++) for (int k = 0; k < nv; k++) index[i, k] = -1;
+            int Vertex(int i, int k)
+            {
+                if (index[i, k] >= 0) return index[i, k];
+                var at = new Vector3(v0 + k * step, Mathf.Max(0.002f, height[i, k]), u0 + i * step);
+                index[i, k] = verts.Count;
+                verts.Add(at);
+                uvs.Add(new Vector2(at.x, at.z) * 0.1f);
+                return index[i, k];
+            }
+            for (int i = 0; i < nu - 1; i++)
+                for (int k = 0; k < nv - 1; k++)
+                {
+                    if (height[i, k] <= 0f && height[i + 1, k] <= 0f && height[i + 1, k + 1] <= 0f && height[i, k + 1] <= 0f) continue;
+                    int a = Vertex(i, k), b = Vertex(i + 1, k), c = Vertex(i + 1, k + 1), d = Vertex(i, k + 1);
+                    tris.Add(a); tris.Add(b); tris.Add(c);   // clockwise seen from above: facing up
+                    tris.Add(a); tris.Add(c); tris.Add(d);
+                }
+            if (tris.Count == 0) return;
+            var mesh = new Mesh { name = "CarpetApproach", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+            mesh.SetVertices(verts);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            _meshes.Add(mesh);
+            var go = new GameObject("CarpetApproach");
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = GroundMaterial;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            _spawned.Add(go);
         }
 
         /// <summary>A line tower of the given head type, its rope at ropeHeight above position: the base, as many 1 m mast
@@ -748,11 +932,13 @@ namespace MountainPlanner.App
                 if (keys.jKey.wasPressedThisFrame) Show(Mode.Quad);
                 if (keys.kKey.wasPressedThisFrame) Show(Mode.Stern);
                 if (keys.uKey.wasPressedThisFrame) Show(Mode.Tbar);
+                if (keys.yKey.wasPressedThisFrame) Show(Mode.Carpet);
                 if (keys.vKey.wasPressedThisFrame) { _head = (_head + 1) % HeadKeys.Length; Show(_mode); }
                 if (keys.tabKey.wasPressedThisFrame) Show(_mode < Mode.Chair ? _mode + 1 : Mode.Drive);
                 if (keys.lKey.wasPressedThisFrame) CycleLod();
                 if (keys.nKey.wasPressedThisFrame) { _snow = _snow > 0.75f ? 0f : _snow + 0.5f; _materials.SetSnowLoad(_snow); }
                 if (keys.cKey.wasPressedThisFrame) { _livery++; Show(_mode); }
+                if (keys.iKey.wasPressedThisFrame) { _accent++; Show(_mode); }
                 if (keys.tKey.wasPressedThisFrame) _turntable = !_turntable;
                 if (keys.gKey.wasPressedThisFrame) _ground.SetActive(!_ground.activeSelf);
                 if (keys.bKey.wasPressedThisFrame) StartCoroutine(Benchmark(null, false));
@@ -828,10 +1014,11 @@ namespace MountainPlanner.App
                     _text.Append(" (lodBias ").Append(QualitySettings.lodBias.ToString("0.#")).Append(")\n");
                 }
             }
-            _text.Append("Snow ").Append((_snow * 100).ToString("F0")).Append("% · livery ").Append(_livery % Liveries.Length + 1).Append('/').Append(Liveries.Length);
+            _text.Append("Snow ").Append((_snow * 100).ToString("F0")).Append("% · livery ").Append(_livery % Liveries.Length + 1).Append('/').Append(Liveries.Length)
+                 .Append(" · accent ").Append(_accent % Accents.Length + 1).Append('/').Append(Accents.Length);
             if (Help)
-                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · 9 Monta · 0 chairs · X six-pack · J D4 quad · K Stern · U T-bar · M fixed-grip · V head (")
-                     .Append(HeadKeys[_head] ?? "own").Append(") · Tab next · L LOD · N snow · C colour · T turntable · G ground · B benchmark · P screenshot · H help · Esc quit")
+                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · 9 Monta · 0 chairs · X six-pack · J D4 quad · K Stern · U T-bar · Y carpets · M fixed-grip · V head (")
+                     .Append(HeadKeys[_head] ?? "own").Append(") · Tab next · L LOD · N snow · C colour · I accent · T turntable · G ground · B benchmark · P screenshot · H help · Esc quit")
                      .Append("\nWASD move · Q/E rotate · R/F tilt · wheel zoom · middle-drag rotate · right-drag move · Shift faster");
             return _text.ToString();
         }

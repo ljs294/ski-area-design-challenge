@@ -8,7 +8,10 @@ its own materials (LiftImport.cs).
 import bpy
 
 SLOTS = ("LiftStructure", "LiftGlass")
+GLASS_CLEAR = "LiftGlassClear"   # the third slot (mesh.GLASS_CLEAR), only on assets that use it (owner C17)
 CHAIR = "LiftChair"
+GLASS_ALPHA = 0.75         # LiftStructure.shader's _GlassAlpha, face-on (LiftGlass)
+GLASS_CLEAR_ALPHA = 0.45   # LiftGlassClear's (LiftImport.cs)
 SNOW_RGB = (0.93, 0.95, 0.98)
 ACCENT_RGB = (0.13, 0.14, 0.15)   # LiftStructure.shader's default _AccentColor (LiftLivery.DarkAccent)
 
@@ -31,8 +34,10 @@ def linear(rgb):
     return tuple(c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in rgb)
 
 
-def make(name, palette_img, livery_rgb=(0.72, 0.12, 0.09), snow=0.0, glass=False, detail_img=None):
+def make(name, palette_img, livery_rgb=(0.72, 0.12, 0.09), snow=0.0, glass=False, detail_img=None, glass_alpha=GLASS_ALPHA):
+    """glass_alpha: a glass's face-on opacity (rising to 0.97 at grazing angles, as the shader's _GlassAlpha)."""
     m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    m["glassAlpha"] = glass_alpha
     nt = _nodes(m)
     N, L = nt.nodes.new, nt.links.new
     out = N("ShaderNodeOutputMaterial")
@@ -178,11 +183,15 @@ def make(name, palette_img, livery_rgb=(0.72, 0.12, 0.09), snow=0.0, glass=False
     lv.name = "Livery"
     lv.outputs[0].default_value = (*linear(livery_rgb), 1.0)
     L(lv.outputs[0], livery.inputs["B"])
-    if glass:   # as LiftStructure.shader: opacity 0.75 face-on to 0.97 grazing, the mirror reflection kept whole
+    if glass:   # as LiftStructure.shader: opacity glass_alpha face-on to 0.97 grazing, the mirror reflection kept whole
         lw = N("ShaderNodeLayerWeight")
         lw.inputs["Blend"].default_value = 0.5
         f2 = math("MULTIPLY", lw.outputs["Facing"], lw.outputs["Facing"])
-        L(math("ADD", 0.75, math("MULTIPLY", math("MULTIPLY", f2, f2), 0.22)), bsdf.inputs["Alpha"])
+        grazing = math("MULTIPLY", math("MULTIPLY", f2, f2), 0.97 - glass_alpha)
+        grazing.node.name = "GlassGrazing"
+        face_on = math("ADD", glass_alpha, grazing)
+        face_on.node.name = "GlassFaceOn"
+        L(face_on, bsdf.inputs["Alpha"])
         bsdf.inputs["Specular IOR Level"].default_value = 0.0
         fres = N("ShaderNodeFresnel")
         fres.inputs["IOR"].default_value = 2.2   # coated station glass: a stronger mirror than plain glass
