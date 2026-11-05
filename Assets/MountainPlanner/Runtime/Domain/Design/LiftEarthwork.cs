@@ -34,7 +34,7 @@ namespace MountainPlanner.Domain.Design
             if (ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
             if (a.CatalogId != b.CatalogId || !a.Bottom.Equals(b.Bottom) || !a.Top.Equals(b.Top) || a.Stance != b.Stance
-                || a.Stage != b.Stage || !Nullable.Equals(a.Levels, b.Levels) || a.Towers.Count != b.Towers.Count) return false;
+                || a.Stage != b.Stage || !Nullable.Equals(a.Levels, b.Levels) || a.Drive != b.Drive || a.Towers.Count != b.Towers.Count) return false;
             for (int i = 0; i < a.Towers.Count; i++)
                 if (a.Towers[i].AlongMm != b.Towers[i].AlongMm || a.Towers[i].HeightMm != b.Towers[i].HeightMm) return false;
             return true;
@@ -91,7 +91,7 @@ namespace MountainPlanner.Domain.Design
             {
                 var lat = site.Lattice;
                 var keys = new SortedSet<EditTileKey>();
-                var type = LiftType.Of(lift.CatalogId);
+                var type = LiftType.Of(lift);
                 if (len <= 0) return keys;
                 double ux = (tx - bx) / len, uy = (ty - by) / len;
                 void Box(double x0, double y0, double x1, double y1)
@@ -160,7 +160,7 @@ namespace MountainPlanner.Domain.Design
             {
                 _site.PointOf(_lift.Bottom, out double bx, out double by);
                 _site.PointOf(_lift.Top, out double tx, out double ty);
-                var works = LiftBuild.Earthwork(LiftType.Of(_lift.CatalogId), ground, bx, by, tx, ty, _lift.Towers, _lift.Levels.Value, _lift.Stance);
+                var works = LiftBuild.Earthwork(LiftType.Of(_lift), ground, bx, by, tx, ty, _lift.Towers, _lift.Levels.Value, _lift.Stance);
                 detail = works;
                 var writes = new EarthworkWrites();
                 foreach (var key in TerrainEdits.Changed(ground.Edits, works.Edits))

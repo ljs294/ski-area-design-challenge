@@ -10,6 +10,13 @@ namespace MountainPlanner.Domain.Design
     public enum TowerStance : byte { Plumb = 1, Leaned = 2 }
 
     /// <summary>
+    /// LD9 (owner, 2026-11-02, drive at either end; save v10): which end of a fixed-grip lift holds the drive. Every fixed-grip
+    /// terminal carries a head for each end, so the choice swaps which model stands where and which head it shows. Values are
+    /// saved: never renumber.
+    /// </summary>
+    public enum LiftDrive : byte { Top = 1, Bottom = 2 }
+
+    /// <summary>
     /// The catalog entries a lift can name (LC-01; LC-08, owner, task 09, LT15). Code names only (A2). The document stores
     /// just the ID: the fixed-grip quads by model (<see cref="SesselliftFgq4"/>, <see cref="MontaFg4"/>), every other type as
     /// <c>&lt;carrier&gt;:&lt;maker&gt;</c>, e.g. <c>detach-six:monta</c>. Only the fixed quads have their own models; the
@@ -25,7 +32,18 @@ namespace MountainPlanner.Domain.Design
         /// <summary>LT41 (owner, 2026-10-23): the types a player can build, the ones with their own models. Every other
         /// entry stays in the menu as a placeholder (greyed) until its models exist.</summary>
         public static bool Buildable(string id) => id == SesselliftFgq4 || id == MontaFg4 || id == SesselliftD6
-            || id == SesselliftFgd2 || id == SesselliftFgt3 || id == MontaFg2 || id == MontaFg3 || id == SesselliftD4;
+            || id == SesselliftFgd2 || id == SesselliftFgt3 || id == MontaFg2 || id == MontaFg3 || id == SesselliftD4 || IsStern(id);
+        /// <summary>The Sessellift Stern, the second Sessellift fixed-grip style (v0.3.2, owner): quad, triple and double, a
+        /// bottom drive-and-tension station and a fixed top return, ids by model as the fixed quads' are (save v10).</summary>
+        public const string SesselliftStern4 = "sessellift-stern4", SesselliftStern3 = "sessellift-stern3", SesselliftStern2 = "sessellift-stern2";
+        public static bool IsStern(string id) => id == SesselliftStern4 || id == SesselliftStern3 || id == SesselliftStern2;
+        /// <summary>LD9: whether the player chooses the drive end. The fixed grips with a head for each end do; the Stern (bottom
+        /// drive only), the detachables and the placeholders don't.</summary>
+        public static bool DriveChoice(string id) => id == SesselliftFgq4 || id == MontaFg4 || id == SesselliftFgd2 || id == SesselliftFgt3
+            || id == MontaFg2 || id == MontaFg3;
+        /// <summary>LD9: the end that drives unless the player chooses: the Sessellift's top (as built since task 07), the Monta's
+        /// and the Stern's bottom. The v10 migration gives every older lift this.</summary>
+        public static LiftDrive DefaultDrive(string id) => Maker(id) == "monta" || IsStern(id) ? LiftDrive.Bottom : LiftDrive.Top;
         /// <summary>The Sessellift D4 detachable quad (v0.3.2, the D4 model thread).</summary>
         public const string SesselliftD4 = "detach-quad:sessellift";
         /// <summary>The fixed-grip doubles and triples (v0.3.2, owner LD1): Sessellift FGD-2 / FGT-3 and Monta FG2 / FG3.</summary>
@@ -45,7 +63,7 @@ namespace MountainPlanner.Domain.Design
 
         public static bool Known(string id)
         {
-            if (id == SesselliftFgq4 || id == MontaFg4) return true;
+            if (id == SesselliftFgq4 || id == MontaFg4 || IsStern(id)) return true;
             if (id == null) return false;
             int colon = id.IndexOf(':');
             if (colon < 0) return false;
@@ -55,7 +73,9 @@ namespace MountainPlanner.Domain.Design
         /// <summary>The carrier part ("fixed-quad" for the two models).</summary>
         public static string Carrier(string id)
         {
-            if (id == SesselliftFgq4 || id == MontaFg4) return "fixed-quad";
+            if (id == SesselliftFgq4 || id == MontaFg4 || id == SesselliftStern4) return "fixed-quad";
+            if (id == SesselliftStern3) return "fixed-triple";
+            if (id == SesselliftStern2) return "fixed-double";
             int colon = id?.IndexOf(':') ?? -1;
             return colon < 0 ? id : id.Substring(0, colon);
         }
@@ -64,7 +84,7 @@ namespace MountainPlanner.Domain.Design
         public static string Maker(string id)
         {
             if (id == MontaFg4) return "monta";
-            if (id == SesselliftFgq4) return "sessellift";
+            if (id == SesselliftFgq4 || IsStern(id)) return "sessellift";
             int colon = id?.IndexOf(':') ?? -1;
             return colon < 0 ? "sessellift" : id.Substring(colon + 1);
         }
@@ -173,13 +193,17 @@ namespace MountainPlanner.Domain.Design
         /// <summary>The terminals' levels (save v2); null where they aren't known (a v1 save's lift: derived from the
         /// ground when it opens, as before).</summary>
         public LiftLevels? Levels { get; }
+        /// <summary>LD9 (save v10): the end that drives; always the type's own end where the player doesn't choose
+        /// (<see cref="LiftCatalogIds.DriveChoice"/>).</summary>
+        public LiftDrive Drive { get; }
 
         readonly Tower[] _towers;
 
         public Lift(LiftId id, string name, WorkStage stage, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance, IReadOnlyList<Tower> towers,
-                    LiftLevels? levels = null)
+                    LiftLevels? levels = null, LiftDrive? drive = null)
         {
             Levels = levels;
+            Drive = LiftCatalogIds.DriveChoice(catalogId) && drive.HasValue ? drive.Value : LiftCatalogIds.DefaultDrive(catalogId);
             Id = id;
             Name = name;
             Stage = stage;
@@ -203,11 +227,12 @@ namespace MountainPlanner.Domain.Design
             return -1;
         }
 
-        public Lift WithName(string name) => new Lift(Id, name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels);
-        public Lift WithStage(WorkStage stage) => new Lift(Id, Name, stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels);
-        public Lift WithTowerMode(TowerMode mode) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, mode, Stance, _towers, Levels);
-        public Lift WithStance(TowerStance stance) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, stance, _towers, Levels);
-        public Lift WithLevels(LiftLevels? levels) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, levels);
-        public Lift WithTowers(IReadOnlyList<Tower> towers) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels);
+        public Lift WithName(string name) => new Lift(Id, name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels, Drive);
+        public Lift WithStage(WorkStage stage) => new Lift(Id, Name, stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels, Drive);
+        public Lift WithTowerMode(TowerMode mode) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, mode, Stance, _towers, Levels, Drive);
+        public Lift WithStance(TowerStance stance) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, stance, _towers, Levels, Drive);
+        public Lift WithLevels(LiftLevels? levels) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, levels, Drive);
+        public Lift WithTowers(IReadOnlyList<Tower> towers) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels, Drive);
+        public Lift WithDrive(LiftDrive drive) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels, drive);
     }
 }

@@ -78,6 +78,8 @@ namespace MountainPlanner.UI.Tools
                 text.Append(sep).Append(counts[(int)h]).Append(' ').Append(HeadCode(h));
                 sep = ", ";
             }
+            // LD9: the top terminal's row where it has a choice (4, 6 or 8 sheaves a side, picked from the summit).
+            if (rope.Type.TopTrains != null) text.Append(" · top row ").Append(rope.Type.Top.Sheaves).Append(" sheaves");
             return text.ToString();
         }
     }

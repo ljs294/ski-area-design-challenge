@@ -98,8 +98,8 @@ namespace MountainPlanner.Presentation.Lifts
         {
             var prefab = models != null ? models.Find(assetId) : null;
             var rig = prefab != null ? prefab.GetComponent<LiftRig>() : null;
-            var l = rig != null ? rig.Socket("rope_left_bw") : null;
-            var r = rig != null ? rig.Socket("rope_right_bw") : null;
+            var l = rig != null ? rig.HeadSocket("rope_left_bw") : null;
+            var r = rig != null ? rig.HeadSocket("rope_right_bw") : null;
             if (l == null || r == null) return 0;
             return -(l.localPosition.z + r.localPosition.z) / 2;
         }
@@ -108,13 +108,17 @@ namespace MountainPlanner.Presentation.Lifts
         /// Where a terminal's rope leaves it toward the line (TW-16): how far along the line from the bullwheel, and how
         /// high above the terminal's origin (on the ground), from its rope_right_bw and rope_right_out sockets.
         /// </summary>
-        public static bool RopeExit(LiftModelSet models, string assetId, out float along, out float rise)
+        public static bool RopeExit(LiftModelSet models, string assetId, out float along, out float rise) => RopeExit(models, assetId, null, out along, out rise);
+
+        /// <summary>The same for the model's head <paramref name="head"/> (LD9; null: as built).</summary>
+        public static bool RopeExit(LiftModelSet models, string assetId, string head, out float along, out float rise)
         {
             along = rise = 0;
             var prefab = models != null ? models.Find(assetId) : null;
             var rig = prefab != null ? prefab.GetComponent<LiftRig>() : null;
-            var bw = rig != null ? rig.Socket("rope_right_bw") : null;
-            var exit = rig != null ? rig.Socket("rope_right_out") : null;
+            int h = rig != null ? rig.HeadIndex(head) : -1;
+            var bw = rig != null ? rig.HeadSocket("rope_right_bw") : null;
+            var exit = rig != null ? rig.HeadSocket(h, "rope_right_out") : null;
             if (bw == null || exit == null) return false;
             along = exit.localPosition.z - bw.localPosition.z;
             rise = exit.localPosition.y;
@@ -125,18 +129,31 @@ namespace MountainPlanner.Presentation.Lifts
         /// A terminal's footprint from its model (CL-09): how far it reaches behind its bullwheel (away from the line) and
         /// in front, and its half width, in metres, from its meshes' bounds in its own frame (+Z toward the other terminal).
         /// </summary>
-        public static bool TerminalExtent(LiftModelSet models, string assetId, out float behind, out float ahead, out float halfWidth)
+        public static bool TerminalExtent(LiftModelSet models, string assetId, out float behind, out float ahead, out float halfWidth) =>
+            TerminalExtent(models, assetId, null, out behind, out ahead, out halfWidth);
+
+        /// <summary>The same with the model's head <paramref name="head"/> shown (LD9; null: as built).</summary>
+        public static bool TerminalExtent(LiftModelSet models, string assetId, string head, out float behind, out float ahead, out float halfWidth)
         {
             behind = ahead = halfWidth = 0;
             var prefab = models != null ? models.Find(assetId) : null;
             var rig = prefab != null ? prefab.GetComponent<LiftRig>() : null;
-            if (rig == null || rig.Socket("rope_left_bw") == null || rig.Socket("rope_right_bw") == null) return false;
-            float bw = (rig.Socket("rope_left_bw").localPosition.z + rig.Socket("rope_right_bw").localPosition.z) / 2;
+            int shown = rig != null ? rig.HeadIndex(head) : -1;
+            HashSet<Transform> showing = null, hiding = null;
+            if (shown >= 0)
+            {
+                showing = new HashSet<Transform>();
+                hiding = new HashSet<Transform>();
+                for (int k = 0; k < rig.Heads.Length; k++)
+                    foreach (int p in rig.Heads[k].Pivots) (k == shown ? showing : hiding).Add(rig.Pivots[p]);
+            }
+            if (rig == null || rig.HeadSocket("rope_left_bw") == null || rig.HeadSocket("rope_right_bw") == null) return false;
+            float bw = (rig.HeadSocket("rope_left_bw").localPosition.z + rig.HeadSocket("rope_right_bw").localPosition.z) / 2;
             var root = prefab.transform.worldToLocalMatrix;
             float minZ = float.MaxValue, maxZ = float.MinValue, maxX = 0;
             foreach (var mf in prefab.GetComponentsInChildren<MeshFilter>(true))
             {
-                if (mf.sharedMesh == null || !Shown(mf.transform, prefab.transform)) continue;   // a hidden head's steel
+                if (mf.sharedMesh == null || !Shown(mf.transform, prefab.transform, showing, hiding)) continue;   // a hidden head's steel
                 var b = mf.sharedMesh.bounds;
                 var m = root * mf.transform.localToWorldMatrix;
                 for (int i = 0; i < 8; i++)
@@ -157,10 +174,14 @@ namespace MountainPlanner.Presentation.Lifts
 
         /// <summary>Whether t and every parent up to root are active (a prefab asset isn't in a scene, so
         /// activeInHierarchy doesn't say): a terminal's hidden heads (drive at either end) are inactive.</summary>
-        static bool Shown(Transform t, Transform root)
+        static bool Shown(Transform t, Transform root, HashSet<Transform> showing = null, HashSet<Transform> hiding = null)
         {
             for (; t != null && t != root; t = t.parent)
+            {
+                if (hiding != null && hiding.Contains(t)) return false;
+                if (showing != null && showing.Contains(t)) continue;   // LD9: the head measured, shown or not in the prefab
                 if (!t.gameObject.activeSelf) return false;
+            }
             return true;
         }
 
@@ -193,7 +214,7 @@ namespace MountainPlanner.Presentation.Lifts
             _builtFrom = lift;
             _livery = livery;
             (double Bottom, double Top)? levels = lift.Levels is LiftLevels v ? (v.BottomMetres, v.TopMetres) : ((double, double)?)null;
-            var type = LiftTypes.Measured(LiftType.Of(lift.CatalogId), _models);
+            var type = LiftTypes.Measured(LiftType.Of(lift), _models);
             _kit = type.TowerKit;
             var bottom = new Vector3((float)lift.Bottom.XMetres, 0, (float)lift.Bottom.YMetres);
             var top = new Vector3((float)lift.Top.XMetres, 0, (float)lift.Top.YMetres);
@@ -213,6 +234,9 @@ namespace MountainPlanner.Presentation.Lifts
             var drive = PlaceTerminal(Model(type.Top.Model), top, Quaternion.LookRotation(-dir), Height, livery, levels?.Top);
             var retRig = ret != null ? ret.GetComponent<LiftRig>() : null;
             var driveRig = drive != null ? drive.GetComponent<LiftRig>() : null;
+            // LD9: each terminal shows the head for its end (drive at either end); the top's first row until the rope picks.
+            if (type.Bottom.Head != null) retRig?.ShowHead(type.Bottom.Head);
+            if (type.Top.Head != null) driveRig?.ShowHead(type.Top.Head);
             // Each terminal's pier runs about 15 m below its 0.00 level, buried in the pad; its footing stands at grade under
             // the pier (the model contract, owner: piers simply tall, no stacking). Models without one skip it.
             _spawning = PartBottom;
@@ -222,8 +246,8 @@ namespace MountainPlanner.Presentation.Lifts
 
             // Where the rope leaves each station, along the line and in elevation.
             float S(Vector3 p) => Vector3.Dot(p - bottom, dir);
-            var bExit = retRig != null ? retRig.Socket("rope_right_out").position : bottom + dir * 6 + Vector3.up * (float)(Height(bottom) + 3.5);
-            var tExit = driveRig != null ? driveRig.Socket("rope_left_out").position : top - dir * 4 + Vector3.up * (float)(Height(top) + 3.04);
+            var bExit = retRig != null ? retRig.HeadSocket("rope_right_out").position : bottom + dir * 6 + Vector3.up * (float)(Height(bottom) + 3.5);
+            var tExit = driveRig != null ? driveRig.HeadSocket("rope_left_out").position : top - dir * 4 + Vector3.up * (float)(Height(top) + 3.04);
             float length = Vector3.Distance(Flat(bottom), Flat(top));
             var b = frame.ToAlbers(bottom.x, bottom.z);
             var t = frame.ToAlbers(top.x, top.z);
@@ -232,6 +256,9 @@ namespace MountainPlanner.Presentation.Lifts
             Rope = fixedBases != null && fixedBases.Count == lift.Towers.Count
                 ? LiftRope.SolveWithBases(type, ground, b.X, b.Y, t.X, t.Y, lift.Towers, lift.Stance, S(bExit), bExit.y, length - S(tExit), tExit.y, fixedBases)
                 : LiftRope.Solve(type, ground, b.X, b.Y, t.X, t.Y, lift.Towers, lift.Stance, S(bExit), bExit.y, length - S(tExit), tExit.y);
+            // LD9: the top row the rope picked (its exit already the solve's), shown in place of the first.
+            if (Rope.Type.Top.Head != null && Rope.Type.Top.Head != type.Top.Head) driveRig?.ShowHead(Rope.Type.Top.Head);
+            type = Rope.Type;
 
             // Towers: the base level on its pier, the mast sections and head along the mast's axis (leaned down the line
             // by the rope's lean, TW-14), the rope at the head's sockets.
@@ -279,7 +306,7 @@ namespace MountainPlanner.Presentation.Lifts
                 var down = StationRope(driveRig, "left");
                 down.Reverse();
                 loop.AddRange(down);
-                AddWheel(loop, driveRig, driveRig.Socket("rope_left_bw").position, driveRig.Socket("rope_right_bw").position);
+                AddWheel(loop, driveRig, driveRig.HeadSocket("rope_left_bw").position, driveRig.HeadSocket("rope_right_bw").position);
                 loop.AddRange(StationRope(driveRig, "right"));
             }
             AddSpans(loop, Rope.Empty, bottom, dir, -right * half, S(bExit), S(tExit), false);
@@ -288,7 +315,7 @@ namespace MountainPlanner.Presentation.Lifts
                 var back = StationRope(retRig, "left");
                 back.Reverse();
                 loop.AddRange(back);
-                AddWheel(loop, retRig, retRig.Socket("rope_left_bw").position, retRig.Socket("rope_right_bw").position);
+                AddWheel(loop, retRig, retRig.HeadSocket("rope_left_bw").position, retRig.HeadSocket("rope_right_bw").position);
             }
             SetLoop(loop);
             BuildCable((float)type.RopeDiameterMetres / 2);
@@ -376,25 +403,25 @@ namespace MountainPlanner.Presentation.Lifts
                     }
                 }
                 // A detachable's station rope climbs to its bend sheaves before it runs level out (G2).
-                void Bend(LiftRig rig, string sideName) { var b = rig.Socket($"rope_{sideName}_bend"); if (b != null) loop.Add(b.position); }
+                void Bend(LiftRig rig, string sideName) { var b = rig.HeadSocket($"rope_{sideName}_bend"); if (b != null) loop.Add(b.position); }
                 if (side == 0)
                 {
-                    loop.Add(retRig.Socket("rope_right_bw").position);
+                    loop.Add(retRig.HeadSocket("rope_right_bw").position);
                     Bend(retRig, "right");
                     loop.AddRange(points);
                     Bend(driveRig, "left");
-                    loop.Add(driveRig.Socket("rope_left_bw").position);
-                    AddWheel(loop, driveRig, driveRig.Socket("rope_left_bw").position, driveRig.Socket("rope_right_bw").position);
+                    loop.Add(driveRig.HeadSocket("rope_left_bw").position);
+                    AddWheel(loop, driveRig, driveRig.HeadSocket("rope_left_bw").position, driveRig.HeadSocket("rope_right_bw").position);
                 }
                 else
                 {
-                    loop.Add(driveRig.Socket("rope_right_bw").position);
+                    loop.Add(driveRig.HeadSocket("rope_right_bw").position);
                     Bend(driveRig, "right");
                     points.Reverse();
                     loop.AddRange(points);
                     Bend(retRig, "left");
-                    loop.Add(retRig.Socket("rope_left_bw").position);
-                    AddWheel(loop, retRig, retRig.Socket("rope_left_bw").position, retRig.Socket("rope_right_bw").position);
+                    loop.Add(retRig.HeadSocket("rope_left_bw").position);
+                    AddWheel(loop, retRig, retRig.HeadSocket("rope_left_bw").position, retRig.HeadSocket("rope_right_bw").position);
                 }
             }
             // G8: a pivot marked to follow another (the D6's walkways, pinned to their crossarm's hanger) takes that pivot's
@@ -440,8 +467,8 @@ namespace MountainPlanner.Presentation.Lifts
         {
             if (prefab == null) return null;
             var rig = prefab.GetComponent<LiftRig>();
-            var l = rig != null ? rig.Socket("rope_left_bw") : null;
-            var r = rig != null ? rig.Socket("rope_right_bw") : null;
+            var l = rig != null ? rig.HeadSocket("rope_left_bw") : null;
+            var r = rig != null ? rig.HeadSocket("rope_right_bw") : null;
             var centre = l != null && r != null ? (l.localPosition + r.localPosition) / 2 : Vector3.zero;
             centre.y = 0;
             var origin = bullwheel - rotation * centre;
@@ -582,9 +609,9 @@ namespace MountainPlanner.Presentation.Lifts
         static List<Vector3> StationRope(LiftRig rig, string side)
         {
             var along = rig.transform.forward;
-            var exit = rig.Socket($"rope_{side}_out").position;
-            var hold = rig.Socket($"rope_{side}_hold");
-            var points = new List<Vector3> { rig.Socket($"rope_{side}_bw").position };
+            var exit = rig.HeadSocket($"rope_{side}_out").position;
+            var hold = rig.HeadSocket($"rope_{side}_hold");
+            var points = new List<Vector3> { rig.HeadSocket($"rope_{side}_bw").position };
             if (hold != null)
             {
                 var h0 = hold.position;
@@ -602,7 +629,7 @@ namespace MountainPlanner.Presentation.Lifts
                 }
             }
             // A detachable's station (G2): the rope climbs in the wheel's plane to its bend sheaves, then runs level out.
-            var bend = rig.Socket($"rope_{side}_bend");
+            var bend = rig.HeadSocket($"rope_{side}_bend");
             if (hold == null && bend != null) points.Add(bend.position);
             points.Add(exit);
             return points;
@@ -652,8 +679,8 @@ namespace MountainPlanner.Presentation.Lifts
             foreach (var rig in rigs)
             {
                 var pivot = rig != null ? rig.Pivot("bullwheel") : null;
-                var l = rig != null ? rig.Socket("rope_left_bw") : null;
-                var r = rig != null ? rig.Socket("rope_right_bw") : null;
+                var l = rig != null ? rig.HeadSocket("rope_left_bw") : null;
+                var r = rig != null ? rig.HeadSocket("rope_right_bw") : null;
                 if (pivot == null || l == null || r == null) continue;
                 int index = Array.IndexOf(rig.Pivots, pivot);
                 var axis = rig.PivotAxes != null && index >= 0 && index < rig.PivotAxes.Length ? rig.PivotAxes[index].normalized : Vector3.up;

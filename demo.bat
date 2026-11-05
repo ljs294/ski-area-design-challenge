@@ -213,11 +213,15 @@ echo.
 echo   Lift models 2: the Sessellift D6 six-pack (rebuilds the Lift Lab, a few minutes; close the Unity editor first)
 echo     69 The Lift Lab's six-pack: the D6 terminals, its six-seat chair and its six tower heads on full towers.
 echo        X six-pack, L LOD, N snow, C colour, T turntable, mouse/WASD camera, H help, Esc quit.
-echo     69f Drive at either end: every fixed-grip terminal (Sessellift quad, triple, double; Monta 4, 3, 2) in the Lift
+echo     69f Drive at either end: every fixed-grip terminal (Sessellift quad, triple, double; Monta 4, 3, 2; Stern) in the Lift
 echo        Lab, a model to a row. V steps every terminal through its heads: its own, bottom, top with 4, 6 and 8 sheaves
 echo        (a terminal without that head keeps its own); the overlay names the shown head and its triangles.
 echo     69q The Sessellift D4 detachable quad in the Lift Lab: bottom terminal with its first tower, top terminal,
 echo        the quad chair on the detachable grip and its five tower heads on full towers. J back to this view.
+echo     69t The Monta T-bar in the Lift Lab: bottom drive and operator hut, the three heads on leaning towers,
+echo        the top station, T bars on both ropes and a J bar beside the drive. U back to this view.
+echo     69s The Sessellift Stern in the Lift Lab: its quad, triple and double, return and drive facing up the
+echo        line with a chair between each pair (bottom drive only). V steps the returns' top rows. K back to this view.
 echo.
 echo   Phase 3, task 10: the ski network (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     70 The Network view on the style tile and a second lift: Tab, then Network (or click the bar's lift or trail count).
@@ -279,6 +283,10 @@ echo        itself. It used to crash in D3D12Core.dll here; now it prints "exit 
 echo     78 Get water and roads later (BB6; needs the network; run 76 first): the game opens on 76's library, where
 echo        Jackson Hole has no water and roads. Manage Areas shows "No water and roads" and a Get water and roads
 echo        button; it runs on the row, then the toast says it's done. Open the area: lakes and roads are back.
+echo.
+echo   Lift overhaul B2: drive at either end and the Sessellift Stern (rebuilds the game; close the Unity editor first)
+echo     79 New lift and Edit lift with the Drive row (Top / Bottom) on every fixed grip, the top's 4, 6 or 8-sheave row
+echo        picked from the summit, and the Sessellift Stern Q-4, T-3 and D-2 in the Model menu (bottom drive only).
 echo.
 echo     Q  Quit
 echo.
@@ -371,6 +379,8 @@ if /i "%CHOICE%"=="67c" goto trailcaptures
 if /i "%CHOICE%"=="69" goto sixpack
 if /i "%CHOICE%"=="69f" goto fixedgrip
 if /i "%CHOICE%"=="69q" goto quaddetach
+if /i "%CHOICE%"=="69t" goto tbar
+if /i "%CHOICE%"=="69s" goto stern
 if /i "%CHOICE%"=="70" goto network
 if /i "%CHOICE%"=="70c" goto networkcaptures
 if /i "%CHOICE%"=="70k" goto networkown
@@ -392,6 +402,7 @@ if /i "%CHOICE%"=="75" goto brushperf
 if /i "%CHOICE%"=="76" goto overpassskip
 if /i "%CHOICE%"=="77" goto quitcrash
 if /i "%CHOICE%"=="78" goto waterroads
+if /i "%CHOICE%"=="79" goto driveend
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -488,6 +499,28 @@ echo   When it finishes, the quality card reads: "Water and roads: OpenStreetMap
 echo   cover stands in for them." Open the area to check it, then quit the game.
 start "" /wait "%GAME%" -data "%OVERPASSRUN%" -download "Jackson Hole" 43.593 -110.848 2 -overpass http://10.255.255.1/api/interpreter
 findstr /i /c:"overpass" /c:"map features" "%PLAYERLOG%"
+goto done
+
+:driveend
+rem Lift overhaul B2 (LD9, save v10): the drive end per fixed-grip lift and the Sessellift Stern. Always rebuilt.
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open Jackson Hole, then T for the Toolbox, the Lifts tab, N for New lift:
+echo   1 Chair, Fixed-grip quad, Model Sessellift FGQ-4: the Drive row reads Top. Place a line up a gentle slope: the
+echo     big drive house stands at the top, the bottom is the return with its hold-down sheaves.
+echo   2 Drive Bottom: the drive house moves to the bottom terminal (its own hold-down head) and the return stands
+echo     at the top. Build it.
+echo   3 A line whose top comes in steep (the top of a steep pitch onto a flat summit): the top terminal's sheave row
+echo     grows from 4 to 6 or 8 a side as the rope arrives steeper; the ghost shows the row it will get. Lines that
+echo     were red for a steep top arrival now build.
+echo   4 Model Monta FG4: Drive reads Bottom; pick Top and the Monta drive stands at the top with its own rows.
+echo   5 Model Sessellift Stern Q-4 (also T-3 and D-2 for the triple and double): no Drive row, it drives at the
+echo     bottom only; its return at the top picks its row the same way.
+echo   6 Edit lift (M), click a lift, change Drive: one step, "Change drive end"; Ctrl+Z puts it back.
+echo   7 Save, quit, open the save again: every lift keeps its drive end. An older save opens with the Sessellift
+echo     driven at the top and the Monta at the bottom, as before.
+start "" "%GAME%"
 goto done
 
 :waterroads
@@ -1318,6 +1351,20 @@ call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto done
 echo Starting the Lift Lab on the Sessellift D4 detachable quad. J this view, L LOD, N snow, C colour, T turntable, H help, Esc quit.
 start "" "%LIFTLAB%" -mode d4
+goto menu
+
+:tbar
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the Monta T-bar. U this view, L LOD, N snow, T turntable, H help, Esc quit.
+start "" "%LIFTLAB%" -mode tbar
+goto menu
+
+:stern
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the Sessellift Stern. K this view, V top rows, L LOD, N snow, C colour, T turntable, H help, Esc quit.
+start "" "%LIFTLAB%" -mode stern
 goto menu
 
 :liftlab
