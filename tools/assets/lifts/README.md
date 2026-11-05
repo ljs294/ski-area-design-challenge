@@ -392,6 +392,11 @@ if a rope socket is off the rope, or if a mast section's AO doesn't tile.
   texture default must be `linearGrey`, not `grey`, which samples 0.21.
 - **Review in photos, not just drawings.** The Cycles photo set (`--shots photos`) catches what orthographic
   views hide: colours, occlusion, glass and flush-face artefacts.
+- **Check the glass in Unity, not only in the photos.** For two weeks `LiftStructure.shader`'s glass variant didn't
+  compile: its `_ALPHAPREMULTIPLY_ON` define had no value, and URP tests it with `#if`. Unity then drew every pane
+  with the opaque variant, solid and near black, while the Cycles photos showed clear glass. Only the build log
+  said so. `LiftMaterialsTests.TheGlassVariantsCompile` now catches it. In the Lift Lab, `-glass a` sets every glass
+  to one face-on opacity, and `-focus id` (with `-view`) frames one terminal, to compare glass settings by eye.
 
 ## Adding a lift
 

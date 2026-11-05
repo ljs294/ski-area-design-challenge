@@ -37,8 +37,9 @@ namespace MountainPlanner.App
     /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs|sixpack|fixedgrip|d4|stern|tbar|carpet, -lod n,
     /// -snow 0..1, -livery n and -accent n (the colours C and I step to, from 0),
     /// -head bottom|top|top6|top8 (the head every fixed-grip terminal shows; else its own),
-    /// -view yaw,pitch,distance, -screenshot file.png (captures once settled, then quits), -benchmark file.json (runs,
-    /// writes, quits).
+    /// -view yaw,pitch,distance, -focus id (with -view: frame the first placed asset whose id starts so, at its hood),
+    /// -glass a (every glass's face-on opacity, 0..1, for review), -screenshot file.png (captures once settled, then
+    /// quits), -benchmark file.json (runs, writes, quits).
     /// </summary>
     public sealed class LiftLab : MonoBehaviour
     {
@@ -134,6 +135,7 @@ namespace MountainPlanner.App
         float _snow = 1f;
         int _livery;
         int _accent;                                 // index into Accents
+        float _glassAlpha = -1f;                     // -glass: every glass's face-on opacity (review); below 0 keeps each own
         int _head;                                   // index into HeadKeys
         bool _turntable;
         GameObject _ground;
@@ -162,6 +164,8 @@ namespace MountainPlanner.App
             if (int.TryParse(Arg(args, "-lod"), out int lod)) _forcedLod = lod;
             if (int.TryParse(Arg(args, "-livery"), out int livery)) _livery = Mathf.Max(0, livery);
             if (int.TryParse(Arg(args, "-accent"), out int accent)) _accent = Mathf.Max(0, accent);
+            if (float.TryParse(Arg(args, "-glass"), NumberStyles.Float, CultureInfo.InvariantCulture, out float glass))
+                _glassAlpha = Mathf.Clamp01(glass);
             string head = Arg(args, "-head");
             if (head != null && Array.IndexOf(HeadKeys, head) > 0) _head = Array.IndexOf(HeadKeys, head);
             Show(_mode);
@@ -171,6 +175,8 @@ namespace MountainPlanner.App
                 var v = view.Split(',').Select(t => float.Parse(t, CultureInfo.InvariantCulture)).ToArray();
                 Camera.SetAngles(v[0], v[1]);
                 Camera.Frame(Camera.Target, v[2]);
+                string focus = Arg(args, "-focus");
+                if (focus != null) FocusOn(focus, v[0], v[1], v[2]);
             }
             string bench = Arg(args, "-benchmark");
             if (bench != null) StartCoroutine(Benchmark(bench, true));
@@ -510,6 +516,35 @@ namespace MountainPlanner.App
                     break;
             }
             _materials.SetSnowLoad(_snow);
+            if (_glassAlpha >= 0f) SetGlassAlpha(_glassAlpha);
+        }
+
+        /// <summary>Review only (-glass a): every placed glass copy, the hoods' and the carpet gallery's, at one face-on opacity.</summary>
+        void SetGlassAlpha(float alpha)
+        {
+            var seen = new HashSet<Material>();
+            int set = 0;
+            foreach (var go in _spawned)
+                foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                    foreach (var m in r.sharedMaterials)
+                        if (m != null && seen.Add(m) && m.name.StartsWith("LiftGlass", StringComparison.Ordinal))
+                        {
+                            m.SetFloat("_GlassAlpha", alpha);
+                            set++;
+                        }
+            Debug.Log($"[LiftLab] -glass: {set} glass materials at {alpha:0.00} face-on");
+        }
+
+        /// <summary>Review only (-focus id): orbit the first placed asset whose name starts with id, aimed at its hood.</summary>
+        void FocusOn(string id, float yaw, float pitch, float distance)
+        {
+            var go = _spawned.FirstOrDefault(s => s != null && s.name.StartsWith(id, StringComparison.Ordinal));
+            if (go == null || Camera == null) { Debug.LogWarning($"[LiftLab] -focus: no '{id}' placed"); return; }
+            var b = Bounds(go);
+            var look = new Vector3(b.center.x, b.max.y - 2.5f, b.center.z);   // the hood, under the roof (the footings sink the centre)
+            Camera.MinDistance = 1.5f;
+            Camera.Frame(look, distance);
+            Camera.SetAngles(yaw, pitch);
         }
 
         /// <summary>A prefab's socket in its own frame (sockets are under the root, which is at its origin).</summary>

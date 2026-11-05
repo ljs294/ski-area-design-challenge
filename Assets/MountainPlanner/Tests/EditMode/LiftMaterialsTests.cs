@@ -1,14 +1,17 @@
+using System.Linq;
 using MountainPlanner.Presentation.Lifts;
 using MountainPlanner.World.Lifts;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.Rendering;
 using UnityEngine;
 
 namespace MountainPlanner.Tests
 {
     // The lift glasses (owner C16, C17): LiftGlass (75 % face-on) and the carpet gallery's clearer LiftGlassClear (45 %)
     // as LiftImport makes them, and LiftMaterials' runtime copies: one per glass and accent colour, the accent set on
-    // each, shared by lifts in the same accent; the structure copies as before.
+    // each, shared by lifts in the same accent; the structure copies as before. And the glass variant of the shader
+    // compiles, which for two weeks it did not.
     public sealed class LiftMaterialsTests
     {
         const string Materials = "Assets/MountainPlanner/Art/Lifts/Materials";
@@ -44,6 +47,29 @@ namespace MountainPlanner.Tests
                 Assert.That(m.IsKeywordEnabled("_LIFT_GLASS"), Is.True, m.name);
                 Assert.That(m.renderQueue, Is.EqualTo((int)UnityEngine.Rendering.RenderQueue.Transparent), m.name);
                 Assert.That(m.shader, Is.EqualTo(_structure.shader), m.name);
+            }
+        }
+
+        // The glass is a keyword variant of LiftStructure's lit pass. Its _ALPHAPREMULTIPLY_ON define once had no value,
+        // URP's "#if _ALPHAPREMULTIPLY_ON" failed on it, and every glass variant failed to compile. Unity then drew the
+        // glass with the opaque variant: no opacity, near-black panes (owner: "way too dark", 2026-11-05). Only the build
+        // log said so. Compile the plain variant, the glass and the glass with the game's lighting keywords.
+        [Test]
+        public void TheGlassVariantsCompile()
+        {
+            var shader = ShaderUtil.GetShaderData(_structure.shader).ActiveSubshader;
+            var lit = Enumerable.Range(0, shader.PassCount).Select(shader.GetPass).FirstOrDefault(p => p.Name == "ForwardLit");
+            Assert.That(lit, Is.Not.Null, "LiftStructure's ForwardLit pass");
+            foreach (var keywords in new[]
+            {
+                new string[0],
+                new[] { "_LIFT_GLASS" },
+                new[] { "_LIFT_GLASS", "_MAIN_LIGHT_SHADOWS_CASCADE", "_SHADOWS_SOFT", "_REFLECTION_PROBE_BLENDING", "_CLUSTER_LIGHT_LOOP", "LOD_FADE_CROSSFADE" },
+            })
+            {
+                var info = lit.CompileVariant(ShaderType.Fragment, keywords, ShaderCompilerPlatform.D3D, BuildTarget.StandaloneWindows64);
+                var errors = info.Messages.Where(m => m.severity == ShaderCompilerMessageSeverity.Error).Select(m => $"{m.message} ({m.file}:{m.line})");
+                Assert.That(info.Success, Is.True, $"[{string.Join(" ", keywords)}] {string.Join("; ", errors)}");
             }
         }
 
