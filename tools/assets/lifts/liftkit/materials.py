@@ -1,6 +1,7 @@
 """Blender preview materials that mirror LiftStructure.shader, for the review renders.
 
-Palette swatch (UV2 "Palette") -> albedo, metallic, smoothness; livery tint where Data.y = 1; snow where
+Palette swatch (UV2 "Palette") -> albedo, metallic, smoothness; livery tint where Data.y = 1, the accent where it is 2
+(LT41); snow where
 Data.x > 0 on up-facing surfaces; vertex AO darkens. The FBX only carries the material names; Unity builds
 its own materials (LiftImport.cs).
 """
@@ -9,6 +10,7 @@ import bpy
 SLOTS = ("LiftStructure", "LiftGlass")
 CHAIR = "LiftChair"
 SNOW_RGB = (0.93, 0.95, 0.98)
+ACCENT_RGB = (0.13, 0.14, 0.15)   # LiftStructure.shader's default _AccentColor (LiftLivery.DarkAccent)
 
 
 def _sock(sockets, name, kind="RGBA"):
@@ -72,7 +74,9 @@ def make(name, palette_img, livery_rgb=(0.72, 0.12, 0.09), snow=0.0, glass=False
     livery.data_type = "RGBA"
     livery.blend_type = "MULTIPLY"
     livery.inputs["B"].default_value = (*linear(livery_rgb), 1.0)
-    L(sep.outputs["Y"], livery.inputs["Factor"])
+    # the shader's two lerps (LT41): mask 1 takes the livery, 2 the accent; for masks 0-1 the factor is Data.y as before
+    to_accent = math("SUBTRACT", sep.outputs["Y"], 1.0, clamp=True)
+    L(math("SUBTRACT", math("MINIMUM", sep.outputs["Y"], 1.0), to_accent), livery.inputs["Factor"])
     base = tex.outputs["Color"]
     cavity = None
     if detail_img is not None:   # detail atlas, sampled like LiftStructure.shader: tile in UV0.x's integer part
@@ -119,7 +123,16 @@ def make(name, palette_img, livery_rgb=(0.72, 0.12, 0.09), snow=0.0, glass=False
     ao_mix.data_type = "RGBA"
     ao_mix.blend_type = "MULTIPLY"
     ao_mix.inputs["Factor"].default_value = 1.0
-    L(livery.outputs["Result"], ao_mix.inputs["A"])
+    accent = N("ShaderNodeMix")
+    accent.data_type = "RGBA"
+    accent.blend_type = "MULTIPLY"
+    L(to_accent, accent.inputs["Factor"])
+    L(livery.outputs["Result"], _sock(accent.inputs, "A"))
+    ac = N("ShaderNodeRGB")
+    ac.name = "Accent"
+    ac.outputs[0].default_value = (*linear(ACCENT_RGB), 1.0)
+    L(ac.outputs[0], _sock(accent.inputs, "B"))
+    L(_sock(accent.outputs, "Result"), ao_mix.inputs["A"])
     if cavity is None:
         L(ao.outputs["Color"], ao_mix.inputs["B"])
     else:
@@ -216,6 +229,14 @@ def set_snow(materials, snow):
 def set_livery(materials, rgb):
     for m in materials:
         n = m.node_tree.nodes.get("Livery")
+        if n:
+            n.outputs[0].default_value = (*linear(rgb), 1.0)
+
+
+def set_accent(materials, rgb):
+    """The accent colour (sRGB), on the parts marked 2 (LT41; the carpet's gallery glass, owner C16)."""
+    for m in materials:
+        n = m.node_tree.nodes.get("Accent")
         if n:
             n.outputs[0].default_value = (*linear(rgb), 1.0)
 

@@ -11,10 +11,11 @@ glidepath_carpet2.json; owner C1-C11, 2026-11-04).
                 (the joints the game hinges the modules about), foot_back and foot_front at grade.
   segment_1m    the 1 m filler, built the same way.
   rail          optional side rails along a 2 m module (C6, default off): posts on the decks' outer edges, top and knee
-                rails running through to the next module.
-  gallery       a 2 m gallery bay (C3, C10): one arch over the module's back joint and glass panes (C7) to the next
-                arch, the panes' last 0.1 m stepped out to lap over the next bay's panes (no gap at a 2 deg crest, no
-                coplanar glass when straight). Single: a near-round tube of aluminium arches on foot plates on the side
+                rails running through to the next module under a sleeve coupler at each joint (Gate 2).
+  gallery       a 2 m gallery bay (C3, C10): one arch over the module's back joint and glass panes (C7; tinted by the
+                lift's accent colour, C16) to the next arch, the panes' last 0.1 m stepped out to lap over the next
+                bay's panes, their end closed past the next arch (no gap at a 2 deg crest, no coplanar glass when
+                straight). Single: a near-round tube of aluminium arches on foot plates on the side
                 decks; double: white arches on brackets off the skirts, a super-ellipse curving all the way up (owner
                 C14, Gate 1 round 2).
   gallery_exit  the same bay with an emergency-exit door each side.
@@ -68,7 +69,7 @@ def styles(spec):
         "foot": Style("galvanised", snow=0.3),
         "rail": Style("galvanised", snow=0.5),
         "arch": Style(arch, snow=0.5),
-        "glass": Style("glass", slot=GLASS),
+        "glass": Style("glass_accent", livery=2.0, slot=GLASS),   # tinted by the lift's accent colour (owner C16)
         "door": Style("trim_dark", snow=0.3),
         "portal": Style("paint_dark", snow=0.5),
         "sign": Style("livery", livery=1.0, trim="plain"),
@@ -280,7 +281,8 @@ def segment(spec, lod, variant):
 
 def rail(spec, lod):
     """Side rails along a 2 m module (C6): galvanised posts on the decks' outer edges at the spec's u, top and knee
-    rails running through both ends (open, so they join the next module's)."""
+    rails running from end to end, each capped at its back end, with a sleeve coupler over its front joint into the next
+    module's (a 2 deg bend parts or crosses the ends by up to 31 mm inside it; LOD0-1, the gap is under a pixel beyond)."""
     st = styles(spec)
     r = spec["rail"]
     L = m(spec["module"]["length"])
@@ -301,8 +303,13 @@ def rail(spec, lod):
                     slab(mb, u - pr, u + pr, v - pr, v + pr, dt, dt + h, st["rail"], ("vmin", "vmax", "umin", "umax"))
         for k, w in enumerate((dt + h, dt + h * 0.5)):
             if lod <= 1:
-                prims.cylinder(mb, (0.0, v, w), (L, v, w), pr * (1 if k == 0 else 0.8), 6 if lod == 0 else 4, st["rail"],
-                               caps=(False, False))
+                scale = 1 if k == 0 else 0.8
+                # the rail, capped at its back end (inside the last module's sleeve), and the sleeve coupler over its
+                # front joint: at a 2 deg bend the rails' ends part or cross by up to 31 mm, inside the sleeve (Gate 2)
+                prims.cylinder(mb, (0.0, v, w), (L, v, w), pr * scale, 6 if lod == 0 else 4, st["rail"],
+                               caps=(True, False))
+                sl, sr = m(r["sleeve"]["length"]) / 2, m(r["sleeve"]["dia"]) / 2 * scale
+                prims.cylinder(mb, (L - sl, v, w), (L + sl, v, w), sr, 8 if lod == 0 else 6, st["rail"])
             elif lod == 2 or k == 0:
                 rr = pr * (1 if k == 0 else 0.8)
                 slab(mb, 0.0, L, v - rr, v + rr, w - rr, w + rr, st["rail"], ("top", "bottom", "vmin", "vmax"))
@@ -315,32 +322,64 @@ def rail(spec, lod):
 
 
 # -- the gallery ----------------------------------------------------------------------------------------------------
-def outline(spec, off, lod):
-    """The gallery's cross-section line offset `off` outward (m) from its panes: (v, w) points from the right foot up,
-    over the top and down to the left foot, as many at every offset. Single ("round"): a circle cut at the deck top;
-    double ("arch"): a super-ellipse |v/a|^n + |h/b|^n = 1 standing on its brackets (a its half width, b from the foot
-    to the crown), sampled at even angles and offset along its normals; "box": a rounded rectangle."""
+def curve(spec, off):
+    """The gallery's true cross-section line offset `off` outward (m) from its panes, as s -> ((v, w), its outward unit
+    normal) for s from 0 (the right foot) to 1 (the left foot). Single ("round"): a circle cut at the deck top; double
+    ("arch"): a super-ellipse |v/a|^n + |h/b|^n = 1 standing on its brackets (a its half width, b from the foot to the
+    crown), run at even angles and offset along its normals."""
     g = spec["gallery"]
     if g["shape"] == "round":
-        R, cw, foot = m(g["radius"]) + off, m(g["centreW"]), m(spec["section"]["deckTop"])
-        t0 = math.asin((foot - cw) / R)
-        t1 = math.pi - t0
-        n = g["facets"][lod]
-        return [(R * math.cos(t0 + (t1 - t0) * k / n), cw + R * math.sin(t0 + (t1 - t0) * k / n)) for k in range(n + 1)]
-    if g["shape"] == "arch":
-        a, fw = m(g["halfV"]), m(g["footW"])
-        b, n, k = m(g["roof"]) - fw, g["n"], g["facets"][lod]
-        pts = []
-        for i in range(k + 1):
-            if i in (0, k):   # the feet, exactly: the normal is level there
-                pts.append((math.copysign(a + off, k / 2 - i), fw))
-                continue
-            c, sn = math.cos(math.pi * i / k), math.sin(math.pi * i / k)
-            v, h = a * math.copysign(abs(c) ** (2 / n), c), b * sn ** (2 / n)
-            nv, nh = math.copysign(abs(v) ** (n - 1), v) / a ** n, h ** (n - 1) / b ** n
-            ln = math.hypot(nv, nh)
-            pts.append((v + off * nv / ln, fw + h + off * nh / ln))
-        return pts
+        return circle(m(g["radius"]) + off, m(g["centreW"]), m(spec["section"]["deckTop"]))
+    a, fw = m(g["halfV"]), m(g["footW"])
+    b, n = m(g["roof"]) - fw, g["n"]
+
+    def at(s):
+        if s <= 0.0 or s >= 1.0:   # the feet, exactly: the normal is level there
+            sg = 1.0 if s <= 0.0 else -1.0
+            return (sg * (a + off), fw), (sg, 0.0)
+        c, sn = math.cos(math.pi * s), math.sin(math.pi * s)
+        v, h = a * math.copysign(abs(c) ** (2 / n), c), b * sn ** (2 / n)
+        nv, nh = math.copysign(abs(v) ** (n - 1), v) / a ** n, h ** (n - 1) / b ** n
+        ln = math.hypot(nv, nh)
+        return (v + off * nv / ln, fw + h + off * nh / ln), (nv / ln, nh / ln)
+    return at
+
+
+def circle(R, cw, foot):
+    """A circle of radius R round (0, cw) cut at w = foot, as curve() gives it."""
+    t0 = math.asin((foot - cw) / R)
+
+    def at(s):
+        t = t0 + (math.pi - 2 * t0) * s
+        return (R * math.cos(t), cw + R * math.sin(t)), (math.cos(t), math.sin(t))
+    return at
+
+
+def facets(at, k):
+    """k facets along a curve() line, its length kept (Gate 2, LOD pops): chords under a curve are shorter than it, so
+    each point but the feet moves out along the normal by a third of its two chords' mean sagitta, the outline
+    averaging out on the curve at every LOD (an LOD with fewer facets no longer shrinks the silhouette)."""
+    pts = [at(i / k) for i in range(k + 1)]
+    sag = []
+    for i in range(k):
+        (p0, _), (p1, _) = pts[i], pts[i + 1]
+        q, nq = at((i + 0.5) / k)
+        sag.append((q[0] - (p0[0] + p1[0]) / 2) * nq[0] + (q[1] - (p0[1] + p1[1]) / 2) * nq[1])
+    out = [pts[0][0]]
+    for i in range(1, k):
+        (v, w), (nv, nw) = pts[i]
+        d = (sag[i - 1] + sag[i]) / 6
+        out.append((v + nv * d, w + nw * d))
+    return out + [pts[-1][0]]
+
+
+def outline(spec, off, lod):
+    """The gallery's cross-section line offset `off` outward (m) from its panes, faceted for the LOD: (v, w) points
+    from the right foot up, over the top and down to the left foot, as many at every offset (curve(), facets());
+    "box": a rounded rectangle."""
+    g = spec["gallery"]
+    if g["shape"] in ("round", "arch"):
+        return facets(curve(spec, off), g["facets"][lod])
     H, top, rc, fw = m(g["halfV"]) + off, m(g["roof"]) + off, m(g["corner"]) + off, m(g["footW"])
     steps = g["cornerSteps"][lod]
     right = [(H, fw), (H, top - rc)] + [(H - rc + rc * math.cos(math.pi / 2 * k / steps),
@@ -356,22 +395,30 @@ def outward(p0, p1):
     return (0.0, tw / n, -tv / n)
 
 
-def ribbon(mb, us, offs, spec, lod, st, gap=0.001):
+def ribbon(mb, us, offs, spec, lod, st, gap=0.001, close_end=False):
     """A pane along u through the outline at each (u, offset) pair (us[i], offs[i]), facet by facet, facing out and,
     `gap` further in, facing in (seen from inside the gallery, and through the near side from outside, at every LOD:
-    the far wall's tint doesn't pop at a LOD switch)."""
+    the far wall's tint doesn't pop at a LOD switch). `close_end`: the pane's edge at the last u, closing the gap
+    between its faces where it ends in the open (the lap past the next arch)."""
+    sides = []
     for off_in, sign in ((0.0, 1), (-gap, -1)):
         lines = [outline(spec, o + off_in, lod) for o in offs]
+        sides.append(lines[-1])
         for k in range(len(lines[0]) - 1):
             nrm = tuple(sign * x for x in outward(lines[0][k], lines[0][k + 1]))
             for i in range(len(us) - 1):
                 prims.quad(mb, [(us[i], *lines[i][k]), (us[i + 1], *lines[i + 1][k]), (us[i + 1], *lines[i + 1][k + 1]),
                                 (us[i], *lines[i][k + 1])], st, nrm)
+    if close_end:
+        (out, inn), u = sides, us[-1]
+        for k in range(len(out) - 1):
+            prims.quad(mb, [(u, *inn[k]), (u, *out[k]), (u, *out[k + 1]), (u, *inn[k + 1])], st, U)
 
 
 def arch(mb, spec, lod, st):
     """The arch over the bay's back joint (u = 0), its width along u, between the outline's inner and outer offsets:
-    outer and inner faces, LOD0-1 the sides too; none at LOD3 (the panes alone). Returns its inner and outer lines."""
+    outer and inner faces, LOD0-1 the sides too; LOD3 the outer face alone (Gate 2: arches that vanish at the switch
+    show as a band moving along the line). Returns its inner and outer lines."""
     g = spec["gallery"]
     hw = m(g["arch"]["width"]) / 2
     if g["shape"] == "round":
@@ -379,9 +426,11 @@ def arch(mb, spec, lod, st):
     else:
         o_in, o_out = -m(g["arch"]["depth"]) / 2, m(g["arch"]["depth"]) / 2
     pin, pout = outline(spec, o_in, lod), outline(spec, o_out, lod)
-    for k in range(len(pin) - 1 if lod <= 2 else 0):
+    for k in range(len(pin) - 1):
         nrm = outward(pout[k], pout[k + 1])
         prims.quad(mb, [(-hw, *pout[k]), (hw, *pout[k]), (hw, *pout[k + 1]), (-hw, *pout[k + 1])], st, nrm)
+        if lod >= 3:
+            continue
         prims.quad(mb, [(-hw, *pin[k]), (hw, *pin[k]), (hw, *pin[k + 1]), (-hw, *pin[k + 1])], st, tuple(-x for x in nrm))
         if lod <= 1:
             for u, d in ((-hw, -U), (hw, U)):
@@ -449,7 +498,7 @@ def gallery(spec, lod, variant):
     pn = g["pane"]
     if lod <= 1:   # the panes from inside this arch to inside the next, the last stretch stepped out over the next bay's
         lf, lt, lo = m(pn["lapFrom"]), m(pn["lapTo"]), m(pn["lapOut"])
-        ribbon(mb, [0.0, lf, lf + 0.02, lt], [0.0, 0.0, lo, lo], spec, lod, st["glass"])
+        ribbon(mb, [0.0, lf, lf + 0.02, lt], [0.0, 0.0, lo, lo], spec, lod, st["glass"], close_end=True)
     else:          # far: joint to joint
         ribbon(mb, [0.0, L], [0.0, 0.0], spec, lod, st["glass"])
     s = spec["section"]
@@ -498,10 +547,7 @@ def portal(spec, lod):
     dt = m(s["deckTop"])
     if g["shape"] == "round":
         R, cw = m(p["opening"]), m(g["centreW"])
-        t0 = math.asin((dt - cw) / R)
-        n = g["facets"][lod]
-        arc = [(R * math.cos(t0 + (math.pi - 2 * t0) * k / n), cw + R * math.sin(t0 + (math.pi - 2 * t0) * k / n))
-               for k in range(n + 1)]
+        arc = facets(circle(R, cw, dt), g["facets"][lod])   # faceted as the gallery's tube
         inner = [(out, 0.0), (out, dt)] + arc + [(-out, dt), (-out, 0.0)]
         c, low = (0.0, cw), cw
     elif g["shape"] == "arch":   # the gallery's outline, clear of the arches, and straight down to the ground
@@ -532,6 +578,11 @@ def portal(spec, lod):
 
     outer = [outer_of(q) for q in inner]
     mid = -d / 2
+    if lod >= 3:   # far: the whole portal as one dark card, both faces (Gate 2: posts and sign alone popped its plate out)
+        foot = [(inner[0][0], -0.3)] + inner[1:-1] + [(inner[-1][0], -0.3)]
+        card = foot + [(-H, -0.3), (-H, top), (H, top), (H, -0.3)]
+        for u, nrm in ((mid - 0.0005, (-1.0, 0.0, 0.0)), (mid + 0.0005, (1.0, 0.0, 0.0))):
+            prims.quad(mb, [(u, *q) for q in card], st["portal"], nrm)
     pair = ((-d, (-1.0, 0.0, 0.0)), (0.0, (1.0, 0.0, 0.0))) if lod <= 1 else \
         ((mid - 0.0005, (-1.0, 0.0, 0.0)), (mid + 0.0005, (1.0, 0.0, 0.0)))
     if lod <= 2:
@@ -562,15 +613,11 @@ def portal(spec, lod):
         if lod <= 2:
             slab(mb, -d - 0.02, 0.02, sg * (H - pw), sg * H, -0.3, sf, st["portal"],
                  (outer_k, "umin", "umax") if lod <= 1 else (outer_k, inner_k, "umin", "umax"))
-        else:
-            slab(mb, mid - 0.0005, mid + 0.0005, sg * (H - pw), sg * H, -0.3, sf, st["portal"], ("umin", "umax"))
     sg_ = p["sign"]
     st_th = m(sg_["thick"])
     s0, s1 = -d / 2 - st_th / 2, -d / 2 + st_th / 2
     if lod <= 2:
         slab(mb, s0, s1, -H - 0.01, H + 0.01, sf, top, st["portal"])
-    else:
-        slab(mb, mid - 0.0005, mid + 0.0005, -H - 0.01, H + 0.01, sf, top, st["portal"], ("umin", "umax"))
     if lod <= 2:   # the livery panels, 3 mm plates on the sign box; LOD0 white lettering 2 mm plates on them
         for base, sgn, nrm in ((s0, -1, "umin"), (s1, 1, "umax")):
             edges = (nrm, "top", "bottom", "vmin", "vmax") if lod <= 1 else (nrm,)
@@ -607,10 +654,11 @@ def post(spec, lod):
         slab(mb, -ps, ps, -ps, ps, 0.0, bw + 2 * bh, st["pad"], ("umin", "umax", "vmin", "vmax", "top"))
     else:
         slab(mb, -pr, pr, -pr, pr, -0.2, h, st["steel"], ("umin", "umax", "vmin", "vmax", "top"))
-    if lod <= 1:   # the padding, round
-        prims.cylinder(mb, (0, 0, pw0), (0, 0, pw1), ps * 1.08, 10 if lod == 0 else 6, st["pad"])
-    elif lod == 2:
-        slab(mb, -ps, ps, -ps, ps, pw0, pw1, st["pad"], ("umin", "umax", "vmin", "vmax", "top"))
+    if lod <= 2:   # the padding, round: LOD1-2's fewer sides as long round as LOD0's ten (Gate 2, LOD pops)
+        sides = (10, 6, 8)[lod]
+        r = ps * 1.08 if lod == 0 else \
+            ps * 1.08 * math.sin(math.pi / 10) / (math.pi / 10) * (math.pi / sides) / math.sin(math.pi / sides)
+        prims.cylinder(mb, (0, 0, pw0), (0, 0, pw1), r, sides, st["pad"], caps=(True, True) if lod <= 1 else (False, True))
     if lod <= 2:
         slab(mb, -bu, bu, -bv, bv, bw, bw + 2 * bh, st["steel"], FACES if lod <= 1 else ("umin", "umax", "vmin", "vmax", "top"))
     if lod <= 1:   # the buttons on the box's -u face: the red stop (a mushroom), LOD0 the others and the key

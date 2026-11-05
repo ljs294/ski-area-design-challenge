@@ -54,7 +54,7 @@
     "plate": 160,
     "plateThick": 12
   },
-  "rail": {"v": 760, "height": 900, "post": 42, "posts": [500, 1500]},
+  "rail": {"v": 760, "height": 900, "post": 42, "posts": [500, 1500], "sleeve": {"_about": "the coupler over each rail at the module's front joint (the knee rail's 0.8 of it): a 2 deg bend parts or crosses the rail ends inside it (Gate 2)", "length": 100, "dia": 60}},
   "gallery": {
     "_about": "single: a near-round tube of aluminium arches, one per bay at its back joint, glass panes between them lapping into the next arch (C7 tinted glass); exitDoor: the exit bay's door each side",
     "shape": "round",
@@ -62,7 +62,7 @@
     "radius": 1255,
     "centreW": 1400,
     "arch": {"width": 100, "inner": 1215, "outer": 1295},
-    "pane": {"thick": 6, "lapFrom": 1960, "lapTo": 2040, "lapOut": 15},
+    "pane": {"_about": "lapTo: 60 mm past the joint, so a 2 deg crest opens no seam under the double's crown; past the next arch (50 mm) its end is closed (Gate 2)", "thick": 6, "lapFrom": 1960, "lapTo": 2060, "lapOut": 15},
     "facets": [20, 12, 8, 5],
     "foot": {"along": 160, "thick": 10},
     "exitDoor": {"from": 550, "to": 1450, "top": 2050, "frame": 50}

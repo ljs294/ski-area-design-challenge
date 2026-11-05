@@ -11,6 +11,19 @@
   carpet_audit  no images: the holes the game would show where it culls back faces (carpet_audit.json): every asset at
                 every LOD as the game puts it (a module between its neighbours, a bay on its module, a station with
                 its first module), counting only the asset's own faces.
+  carpet_joints no images: every joint bent to the hardware's 2 deg, as a crest and a dip (carpet_joints.json, Gate 2):
+                four modules hinged at the middle joint, with rails (the uncovered single) or bays (the covered single
+                and double), at LOD0-2; rays from the back-face audit's views at the joint's band, a leak where a ray
+                that meets the straight line there passes 0.15 m further through the bent one (and so do its four
+                neighbours half a game pixel away, the pixel where that LOD shows), into the inside for a gallery.
+  carpet_pops   no images: each LOD switch as the game's camera sees it (carpet_pops.json, Gate 2): every asset at each
+                switch distance from eight views, one ray per pixel of a 1080-line 60 deg view, the share of the model's
+                pixels whose silhouette changes (and that count per pixel of its outline: how far the outline moves),
+                and of those whose surface turns by more than 30 deg.
+  carpet_gate2  Gate 2 (Cycles, back faces culled as the game draws them): the hero after snowfall, a rail's sleeve
+                coupler, the galleries in three accent colours (C16) and in a clearer glass, the game's camera far
+                and mid with each model at the LOD it picks there, joints bent 2 deg (crest and dip; rails and the
+                double's gallery), and the LOD rows.
 
 The scene copies the built objects (LOD0, or the LOD asked for) and hides everything else; render_review's helpers do
 the cameras and materials. The livery shows as a blue, as in the owner's photos (the player picks it in the game).
@@ -21,6 +34,7 @@ import os
 
 import bpy
 from mathutils import Matrix, Vector
+from mathutils.bvhtree import BVHTree
 
 import render_review as rr
 import render_surface as rs
@@ -235,7 +249,8 @@ def scene(built, lods=None):
         joints[(prefix, covered)] = j
     hut = built.get(C1 + "hut")
     if hut:   # its door toward the carpet
-        objs += place(hut, rot(yaw=-90.0), Vector((-1.6, LINES[0][1] - 6.6, 0.0)))
+        at = Vector((-1.6, LINES[0][1] - 6.6, 0.0))
+        objs += place(hut, rot(yaw=-90.0), at, (lods or (lambda key, a: 0))("hut", at))
     first = next(iter(joints.values()))
     return objs, profile(first), joints
 
@@ -322,16 +337,10 @@ def drawings(built, out_dir):
     rr.MM_PER_PX = scale
 
 
-def photos(built, out_dir, mats):
-    sc, sun = rr._photo_scene()
-    game_materials(mats)
-    materials.set_livery(mats, LIVERY)
-    objs, pts, joints = scene(built)
-    snow_mat = rr._photo_material("PhotoSnowMat", (0.88, 0.91, 0.95), 0.55)
-    snow = ground(pts, mat=snow_mat)
-    pads = [approach_mesh(g, f"CarpetApproach_{end}", snow_mat) for end, g in approaches(built, pts, joints)]
+def riders(joints):
+    """Riders on each line: one boarding, one on the belt, one stepping off."""
     figs = []
-    for (prefix, covered), j in joints.items():   # riders: one boarding, one on the belt, one stepping off
+    for (prefix, covered), j in joints.items():
         v = j[0].y
         for at in ((-0.3, v, 0.37), (j[6].x, v, j[6].z), (j[-1].x + 2.4, v, j[-1].z + 0.02)):
             f = rr.figure(at).copy()   # render_review moves one figure about: a copy each
@@ -341,6 +350,18 @@ def photos(built, out_dir, mats):
             f.data.materials.append(rr._photo_material("PhotoFigureMat", (0.62, 0.16, 0.12), 0.6))
             f.hide_render = False
             figs.append(f)
+    return figs
+
+
+def photos(built, out_dir, mats):
+    sc, sun = rr._photo_scene()
+    game_materials(mats)
+    materials.set_livery(mats, LIVERY)
+    objs, pts, joints = scene(built)
+    snow_mat = rr._photo_material("PhotoSnowMat", (0.88, 0.91, 0.95), 0.55)
+    snow = ground(pts, mat=snow_mat)
+    pads = [approach_mesh(g, f"CarpetApproach_{end}", snow_mat) for end, g in approaches(built, pts, joints)]
+    figs = riders(joints)
     rr.show_only(objs + figs + pads + [snow, sun])
     rr.restore_uv(objs)
     cam = rr.camera("PhotoCam")
@@ -497,6 +518,326 @@ def audit(built, out_dir):
         json.dump(report, f, indent=1)
 
 
+# -- Gate 2 ---------------------------------------------------------------------------------------------------------
+BEND = 2.0          # the hardware's limit per joint (deg); the game's profile rule holds curves to 1 (owner C12)
+BAND = 0.06         # the joint's band (m either side of it): the sleeves, the panes' laps and the arches cover it
+JOINT_LINES = (("rails", C1, False), ("single", C1, True), ("double", C2, True))   # (name, ids, covered)
+KIND = {"top": "carpet_station", "bottom": "carpet_station", "gallery": "carpet_gallery",
+        "gallery_exit": "carpet_gallery", "portal": "carpet_gallery", "post": "surface_hut", "hut": "surface_hut"}
+PIXEL = 2.0 * math.tan(math.radians(rs.GAME_FOV / 2)) / 1080   # a 1080-line game view's pixel, per metre away
+ACCENT_DARK = (0.13, 0.14, 0.15)   # LiftLivery.DarkAccent, the game's default accent
+ACCENTS = (("dark", ACCENT_DARK, 0.75), ("light_blue", (0.61, 0.78, 0.91), 0.75), ("red", (0.72, 0.12, 0.09), 0.75),
+           ("light_blue_clear", (0.61, 0.78, 0.91), 0.45))   # (name, accent sRGB, face-on glass opacity)
+
+
+def _until():
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "budgets.json"), encoding="utf-8") as f:
+        budgets = json.load(f)
+    return {k: [l["untilM"] for l in v["lods"]] for k, v in budgets.items() if isinstance(v, dict) and "lods" in v}
+
+
+def game_pick(eye, bias=1.0):
+    """A scene() lods for a game camera at lift point eye (Low quality, lodBias bias), as render_surface.game_lods: each
+    model at the LOD whose budgets.json distance holds it there."""
+    until = _until()
+
+    def pick(name, at):
+        ds = until[KIND.get(name, "carpet_segment")]
+        d = (Vector(at) - Vector(eye)).length / bias
+        return next((k for k, m in enumerate(ds) if d <= m), len(ds) - 1)
+    return pick
+
+
+def hinged(built, prefix, covered, bend, lod=0):
+    """Four modules hinged about the joint at u = 0 on the belt top (A0, A | B, B0), A's pair climbing at bend/2 and B's
+    at -bend/2 (a crest for bend > 0, a dip below 0, straight at 0), each with its bay (covered) or its rails. Returns
+    (objects, the joints' points from A0's back to B0's front)."""
+    seg = built[prefix + "segment"]
+    extra = built[prefix + ("gallery" if covered else "rail")]
+    back, front = sock(seg, "back"), sock(seg, "front")
+    J = Vector((0.0, 0.0, back.z))
+    objs, pts = [], {0: J}
+    for side, tilt in ((-1, bend / 2), (1, -bend / 2)):
+        R = rot(tilt=tilt)
+        step = R @ (front - back)
+        for k in range(2):
+            t = J - R @ front - step * k if side < 0 else J - R @ back + step * k
+            for b in (seg, extra):
+                objs += place(b, R, t, lod)
+            pts[side * (k + 1)] = t + R @ (back if side < 0 else front)
+    return objs, [pts[k] for k in sorted(pts)]
+
+
+def _tree(objs, ground=None):
+    """A BVH over objs (world space), its vertices and the owner of each face; ground: a square of snow at grade this
+    far round the origin each way (owner None, its four vertices last)."""
+    verts, polys, owner = [], [], []
+    for o in objs:
+        if o.type != "MESH":
+            continue
+        base = len(verts)
+        verts += [o.matrix_world @ v.co for v in o.data.vertices]
+        for f in o.data.polygons:
+            polys.append([base + i for i in f.vertices])
+            owner.append(o.name)
+    if ground:
+        g = len(verts)
+        verts += [Vector((sx * ground, sy * ground, 0.0)) for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        polys.append([g, g + 1, g + 2, g + 3])
+        owner.append(None)
+    return BVHTree.FromPolygons(verts, polys), verts, owner
+
+
+def joint_audit(built, out_dir):
+    """Every joint at the hardware's 2 deg (Gate 2): see carpet_joints in the module's docstring."""
+    until = _until()
+    report, leaks_all = {}, 0
+    for name, prefix, covered in JOINT_LINES:
+        if prefix + "segment" not in built or prefix + ("gallery" if covered else "rail") not in built:
+            continue
+        kind = "carpet_gallery" if covered else "carpet_segment"
+        for lod in range(3):
+            step = max(0.01, PIXEL * (until[kind][lod - 1] if lod else 0.0))
+            straight, _ = hinged(built, prefix, covered, 0.0, lod)
+            ts, verts, owner = _tree(straight, ground=30.0)
+            lift = [frame.lift(v) for v in verts[:-4]]
+            vs, ws = [p[1] for p in lift], [p[2] for p in lift]
+            box = [frame.b((u, v, w)) for u in (-BAND, BAND) for v in (min(vs), max(vs)) for w in (0.0, max(ws))]
+            c = sum(box, Vector()) / 8
+            far = max((p - c).length for p in box) + 9.0
+            bent = {}
+            for label, b in (("crest", BEND), ("dip", -BEND)):
+                objs, _ = hinged(built, prefix, covered, b, lod)
+                bent[label] = _tree(objs, ground=30.0)[0]
+                for o in objs:
+                    bpy.data.objects.remove(o)
+            for o in straight:
+                bpy.data.objects.remove(o)
+
+            def through(tree, o, d):   # the ray passes 0.15 m past where the straight line stops it
+                hs, _, _, ds = ts.ray_cast(o, d, 2 * far)
+                if hs is None:
+                    return False
+                hb, _, _, db = tree.ray_cast(o, d, 2 * far)
+                return hb is None or db > ds + 0.15
+
+            def inside(tree, p):   # p is closed in by the line: four of five rays (up, to each side, up to each side)
+                return sum(tree.ray_cast(p, q, 6.0)[0] is not None
+                           for q in (frame.b(x) for x in ((0, 0, 1), (0, 1, 0), (0, -1, 0), (0, 0.7, 0.7), (0, -0.7, 0.7)))) >= 4
+
+            tested, res = 0, {k: {} for k in bent}
+            for az, el in rs.AUDIT_DIRS:
+                a, e = math.radians(az), math.radians(el)
+                to_eye = frame.b((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
+                e1 = to_eye.orthogonal().normalized()
+                e2 = to_eye.cross(e1)
+                xs, ys = [(p - c).dot(e1) for p in box], [(p - c).dot(e2) for p in box]
+                for i in range(int(min(xs) / step) - 1, int(max(xs) / step) + 2):
+                    for j in range(int(min(ys) / step) - 1, int(max(ys) / step) + 2):
+                        o = c + to_eye * far + e1 * (i * step) + e2 * (j * step)
+                        if o.z < 0.02:   # no eye under the snow
+                            continue
+                        hit, _, idx, ds = ts.ray_cast(o, -to_eye, 2 * far)
+                        if hit is None or owner[idx] is None or abs(frame.lift(hit)[0]) > BAND:
+                            continue
+                        tested += 1
+                        past = o - to_eye * (ds + 0.15)
+                        for label, tb in bent.items():
+                            if not through(tb, o, -to_eye):
+                                continue
+                            # a gallery leaks only where the ray gets inside the bent line (not a grazing ray sliding
+                            # over the glass where an arch moved off it); open rails, wherever a ray gets through
+                            if covered and not inside(tb, past):
+                                continue
+                            if all(through(tb, o + q * (step / 2), -to_eye) for q in (e1, -e1, e2, -e2)):
+                                u, v, w = frame.lift(hit)
+                                cell = (owner[idx].split(".")[0], round(v * 20) / 20, round(w * 20) / 20)
+                                res[label][cell] = res[label].get(cell, 0) + 1
+            for label, cells in res.items():
+                n = sum(cells.values())
+                leaks_all += n
+                worst = sorted(cells.items(), key=lambda kv: -kv[1])
+                report[f"{name} LOD{lod} {label}"] = {
+                    "stepMm": round(step * 1000, 1), "raysAtJoint": tested, "leaks": n,
+                    "cells": [{"part": k[0], "vw": k[1:], "rays": c} for k, c in worst[:20]]}
+                print(f"Joints {name} LOD{lod} {label} {BEND:g} deg: {n} leaks of {tested} rays at the joint"
+                      + (f", worst {worst[0][0]} ({worst[0][1]})" if worst else ""), flush=True)
+    with open(os.path.join(out_dir, "carpet_joints.json"), "w") as f:
+        json.dump(report, f, indent=1)
+    print(f"Joints: {leaks_all} leaks in all", flush=True)
+
+
+def pop_audit(built, out_dir, views=8, el=20.0):
+    """Each LOD switch as the game's camera sees it (Gate 2): see carpet_pops in the module's docstring."""
+    until = _until()
+    report = {}
+    for key in sorted(built):
+        if not key.startswith((C1, C2)):
+            continue
+        name = key[len(C2) if key.startswith(C2) else len(C1):]
+        b = built[key]
+        ds = until[KIND.get(name, "carpet_segment")]
+        trees = []
+        for lod in range(len(b["assets"])):
+            objs = place(b, rot(), Vector(), lod)
+            trees.append(_tree(objs, ground=60.0))
+            for o in objs:
+                bpy.data.objects.remove(o)
+        pts = trees[0][1][:-4]
+        lo = Vector([min(p[i] for p in pts) for i in range(3)])
+        hi = Vector([max(p[i] for p in pts) for i in range(3)])
+        lo.z = max(lo.z, 0.0)
+        c = (lo + hi) / 2
+        corners = [Vector((x, y, z)) for x in (lo.x, hi.x) for y in (lo.y, hi.y) for z in (lo.z, hi.z)]
+        rows = []
+        for k in range(len(trees) - 1):
+            dist = ds[k]
+            flips, shade, shown, shifts = [], [], [], []
+            for vi in range(views):
+                a, e = math.radians(360.0 * vi / views + 15.0), math.radians(el)
+                eye = c + frame.b((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e))) * dist
+                fwd = (c - eye).normalized()
+                right = fwd.cross(Vector((0.0, 0.0, 1.0))).normalized()
+                up = right.cross(fwd)
+                xs = [(p - eye).dot(right) / (p - eye).dot(fwd) / PIXEL for p in corners]
+                ys = [(p - eye).dot(up) / (p - eye).dot(fwd) / PIXEL for p in corners]
+                n_flip = n_shade = 0
+                mask = set()
+                for i in range(math.floor(min(xs)) - 1, math.ceil(max(xs)) + 2):
+                    for j in range(math.floor(min(ys)) - 1, math.ceil(max(ys)) + 2):
+                        d = (fwd + right * (i * PIXEL) + up * (j * PIXEL)).normalized()
+                        hits = []
+                        for tree, _, owner in (trees[k], trees[k + 1]):
+                            h, n, idx, _ = tree.ray_cast(eye, d, dist * 3)
+                            hits.append(n if h is not None and owner[idx] is not None else None)
+                        if hits[0] is not None:
+                            mask.add((i, j))
+                        if (hits[0] is None) != (hits[1] is None):
+                            n_flip += 1
+                        elif hits[0] is not None and hits[0].dot(hits[1]) < math.cos(math.radians(30.0)):
+                            n_shade += 1
+                edge = sum(1 for i, j in mask if any(q not in mask for q in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1))))
+                shown.append(len(mask))
+                flips.append(100.0 * n_flip / max(1, len(mask)))
+                shade.append(100.0 * n_shade / max(1, len(mask)))
+                shifts.append(n_flip / max(1, edge))
+            rows.append({"from": k, "to": k + 1, "atM": dist, "pixels": round(sum(shown) / views),
+                         "silhouettePct": round(max(flips), 1), "silhouetteMeanPct": round(sum(flips) / views, 1),
+                         "surfacePct": round(max(shade), 1), "edgeShiftPx": round(max(shifts), 2)})
+        report[key] = rows
+        print(f"Pops {key}: " + ", ".join(f"{r['from']}->{r['to']} at {r['atM']:g} m ({r['pixels']} px) "
+                                          f"silhouette {r['silhouettePct']} % ({r['edgeShiftPx']} px at the edge), "
+                                          f"surface {r['surfacePct']} %" for r in rows), flush=True)
+    with open(os.path.join(out_dir, "carpet_pops.json"), "w") as f:
+        json.dump(report, f, indent=1)
+
+
+def glass_opacity(mats, face_on):
+    """The preview glass's face-on opacity (materials.make: face_on + f^4 (0.97 - face_on); the game's is 0.75)."""
+    for m in mats:
+        if not m.name.startswith("LiftGlass"):
+            continue
+        for n in m.node_tree.nodes:
+            if n.type != "MATH":
+                continue
+            if n.name == "GlassFaceOn" or (n.operation == "ADD" and not n.inputs[0].is_linked
+                                           and abs(n.inputs[0].default_value - 0.75) < 1e-6):
+                n.name = "GlassFaceOn"
+                n.inputs[0].default_value = face_on
+            elif n.name == "GlassGrazing" or (n.operation == "MULTIPLY" and not n.inputs[1].is_linked
+                                              and abs(n.inputs[1].default_value - 0.22) < 1e-6):
+                n.name = "GlassGrazing"
+                n.inputs[1].default_value = 0.97 - face_on
+
+
+def gate2(built, out_dir, mats):
+    """Gate 2's review renders (carpet_gate2 in the module's docstring)."""
+    sc, sun = rr._photo_scene()
+    game_materials(mats)
+    materials.set_livery(mats, LIVERY)
+    materials.set_accent(mats, ACCENT_DARK)
+    snow_mat = rr._photo_material("PhotoSnowMat", (0.88, 0.91, 0.95), 0.55)
+    cam = rr.camera("PhotoCam")
+    cam.data.type = "PERSP"
+    cam.data.sensor_fit, cam.data.sensor_width = "AUTO", 36
+    cam.data.clip_start, cam.data.clip_end = 0.05, 900
+    only = [s for s in os.environ.get("LIFT_PHOTOS", "").split(",") if s]
+
+    def shot(name, eye, target, lens=35):
+        if only and name not in only:
+            return
+        cam.data.lens = lens
+        cam.location = frame.b(tuple(eye))
+        cam.rotation_euler = (frame.b(tuple(target)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+        rr.render(os.path.join(out_dir, f"carpet_gate2_{name}.png"))
+
+    def dressed(lods=None):
+        objs, pts, joints = scene(built, lods)
+        snow = ground(pts, mat=snow_mat, half=400.0)
+        pads = [approach_mesh(g, f"CarpetApproach_{end}", snow_mat) for end, g in approaches(built, pts, joints)]
+        figs = riders(joints)
+        rr.show_only(objs + figs + pads + [snow, sun])
+        rr.restore_uv(objs)
+        return objs + figs + pads + [snow], pts, joints
+
+    made, pts, joints = dressed()
+
+    def over(u, v, h):
+        return Vector((u, v, grade_at(pts, u) + h))
+    js = joints[(C1, True)]
+    end = js[-1].x
+    materials.set_snow(mats, 1.0)   # after snowfall, framed as Gate 1's hero
+    shot("snowfall", over(-14.0, -24.0, 9.0), over(end * 0.45, 0.5, 1.0), lens=30)
+    materials.set_snow(mats, 0.0)
+    jr = joints[(C1, False)][5]     # a rail joint on the uncovered single (3 deg to 4 deg)
+    rail = jr + Vector((0.0, -0.76, 0.75))
+    shot("sleeve", rail + Vector((-0.9, -1.35, 0.35)), rail, lens=40)
+    jg = js[6]
+    for name, rgb, face_on in ACCENTS:   # the galleries from outside, riders inside, in each accent (C16)
+        materials.set_accent(mats, rgb)
+        glass_opacity(mats, face_on)
+        shot(f"glass_{name}", jg + Vector((-1.5, -6.0, 1.3)), jg + Vector((2.5, 3.0, 0.6)), lens=30)
+    materials.set_accent(mats, ACCENT_DARK)
+    glass_opacity(mats, 0.75)
+    for o in made:
+        bpy.data.objects.remove(o)
+
+    # the game's camera (a GAME_FOV tall view at 1920 x 1080), each model at the LOD the game picks at its distance
+    cam.data.sensor_fit, cam.data.sensor_height = "VERTICAL", 24.0
+    sc.render.resolution_x, sc.render.resolution_y = 1920, 1080
+    aim = Vector((end * 0.45, 0.5, grade_at(pts, end * 0.45) + 1.0))
+    for name, az, el, dist in (("game_far", 232.0, 35.0, 150.0), ("game_mid", 215.0, 30.0, 50.0)):
+        if only and name not in only:
+            continue
+        eye = rs._eye(aim, az, el, dist)
+        made, _, _ = dressed(game_pick(eye))
+        shot(name, eye, aim, lens=12.0 / math.tan(math.radians(rs.GAME_FOV / 2)))
+        for o in made:
+            bpy.data.objects.remove(o)
+    cam.data.sensor_fit = "AUTO"
+    sc.render.resolution_x, sc.render.resolution_y = 1600, 1066
+
+    # joints bent to the hardware's 2 deg: the rails (their sleeves) and the double's gallery, crest and dip
+    for name, prefix, covered, eye, aim in (
+            ("rails", C1, False, Vector((-1.7, -2.5, 1.35)), Vector((0.0, -0.76, 0.62))),
+            ("double", C2, True, Vector((-4.2, -5.0, 3.4)), Vector((0.0, 0.0, 1.5)))):
+        for label, bend in (("crest", BEND), ("dip", -BEND)):
+            if only and f"joint_{name}_{label}" not in only:
+                continue
+            objs, jp = hinged(built, prefix, covered, bend)
+            back = sock(built[prefix + "segment"], "back").z
+            prof = [(-40.0, jp[0].z - back)] + [(p.x, p.z - back) for p in jp] + [(40.0, jp[-1].z - back)]
+            snow = ground(prof, half=40.0, name="JointSnow", mat=snow_mat)
+            rr.show_only(objs + [snow, sun])
+            rr.restore_uv(objs)
+            shot(f"joint_{name}_{label}", jp[2] + eye, jp[2] + aim, lens=35)
+            for o in objs + [snow]:
+                bpy.data.objects.remove(o)
+    rr._photo_end(sc, [])
+    if not only:
+        lod_rows(built, out_dir, mats)
+
+
 def render_all(built, out_dir, shots, mats):
     out_dir = os.path.abspath(out_dir)
     os.makedirs(out_dir, exist_ok=True)
@@ -512,4 +853,10 @@ def render_all(built, out_dir, shots, mats):
         lod_rows(built, out_dir, mats)
     if "carpet_audit" in shots:
         audit(built, out_dir)
+    if "carpet_joints" in shots:
+        joint_audit(built, out_dir)
+    if "carpet_pops" in shots:
+        pop_audit(built, out_dir)
+    if "carpet_gate2" in shots:
+        gate2(built, out_dir, mats)
     print(f"Carpet renders in {out_dir}", flush=True)

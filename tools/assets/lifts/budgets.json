@@ -193,12 +193,12 @@
     "crossFade": false
   },
   "carpet_gallery": {
-    "_about": "A magic carpet's gallery bay (2 m, glass on both faces up close), its exit bay or its portal: one bay per belt module.",
+    "_about": "A magic carpet's gallery bay (2 m, glass on both faces up close), its exit bay or its portal: one bay per belt module. LOD3 keeps the arch's outer face (Gate 2: the arches vanishing at 150 m showed as a band along the line).",
     "lods": [
       {"lod": 0, "maxTris": 700, "untilM": 12},
       {"lod": 1, "maxTris": 350, "untilM": 40},
       {"lod": 2, "maxTris": 80, "untilM": 150},
-      {"lod": 3, "maxTris": 24, "untilM": 600}
+      {"lod": 3, "maxTris": 32, "untilM": 600}
     ],
     "shadowLods": 1,
     "crossFade": false
