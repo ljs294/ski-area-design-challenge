@@ -2,18 +2,23 @@
 owner C1-C11, 2026-11-04). Carpets drive at the top and tension at the bottom (C4, the exception to D1 for carpets).
 
   top     the drive station: the drum under the comb (hidden), the motor and gearbox on the drum's outer end under a
-          livery cover (C8), the ribbed exit plate past the comb with two round marker lights and a hatch, the run-off
-          ramp down to the snow, steel side panels with a white top edge and the type plate, the double light barrier
-          on the decks' edges just before the comb, and the control cabinet standing beside the station.
+          livery cover (C8), the ribbed exit plate past the comb with two round marker lights and a hatch, steel side
+          panels with a white top edge and the type plate, the double light barrier on the decks' edges just before
+          the comb, and the control cabinet standing beside the station.
   bottom  the tension station: the deflection roller under the comb (hidden), the hydraulic tension unit under a
-          cover on the outer side, the entrance plate, the entry ramp, padded livery bumpers at the entry corners (and
-          between a double's belts).
+          cover on the outer side, the entrance plate, padded livery bumpers at the entry corners (and between a
+          double's belts).
 
 Both are as wide as the belt modules and end at "joint" with the deck section of a module (carpet.deck_section, belt
 "belt" scrolling as on the modules) and its joint covers lapping onto the first module; socket belt_in (top) or
 belt_out (bottom) at the belt top there, where the first module's front or back socket goes. The origin is at grade
 under the drum's or roller's axis, u toward the line (downhill at the top, uphill at the bottom); the drive pit and the
 side panels reach below grade ("pit"), as the stations stand in a snow pit.
+
+Each station ends at its plate, closed by an end panel (owner C13, Gate 1 round 2): riders ski on and off over snow,
+not a hard ramp. The game grades the earth approach the spec's "approach" gives (dims "approach": level with the plate
+top for "flat", the top's "runOff" falling "runOffPct" first, then "easePct" down to natural ground, "margin" wider
+than the deck each side) and snow covers it; the control post's socket is at the plate top, on that approach.
 """
 import math
 
@@ -99,20 +104,19 @@ def station(spec, lod, end):
     belts, out, decks = layout(spec)
     edge = out - m(s["deckOut"])
     comb, joint, pf, ptop = m(S["comb"]), m(S["joint"]), m(S["plateFrom"]), m(S["plateTop"])
-    ramp_to, pit = m(S["rampTo"]), m(S["pit"])
+    pit = m(S["pit"])
     top, dt, du = m(s["beltTop"]), m(s["deckTop"]), m(s["deckUnder"])
     bh = m(s["beltHalf"])
     # the approach: a module's deck from the comb to the joint, the belt from under the comb; the joint covers
     carpet.deck_section(mb, spec, comb, joint, lod, st, belt_from=comb - 0.12)
     carpet.joint_covers(mb, spec, joint, lod, st)
-    # the plate over the drum or roller, falling to the belt at the comb, and the ramp to the snow
+    # the plate over the drum or roller, falling to the belt at the comb; the end panel under its front edge
     wedge = 0.06
     slab(mb, pf, comb - wedge, -out, out, du, ptop, st["deck"], ("top",))
     slab(mb, pf, comb - wedge, -out, out, du, ptop, st["skirt"], ("vmin", "vmax"))
     prims.prism(mb, [(comb - wedge, ptop), (comb - wedge, du), (comb, du), (comb, dt)], (0.0, -out, 0.0), U, W, V, 2 * out,
                 st["skirt"], side_style=st["deck"])
-    prims.prism(mb, [(pf, ptop), (pf, -0.05), (ramp_to, -0.05), (ramp_to, 0.0)], (0.0, -out, 0.0), U, W, V, 2 * out,
-                st["skirt"], side_style=st["deck"])
+    slab(mb, pf, pf + 0.006, -out, out, pit, ptop, st["panel"], ("umin",))
     if lod <= 1:   # the comb across each belt
         for c in belts:
             slab(mb, comb - 0.025, comb + 0.004, c - bh + 0.01, c + bh - 0.01, top + 0.001, dt + 0.005, st["joint"],
@@ -120,11 +124,10 @@ def station(spec, lod, end):
     # the side panels under the plate, down into the pit, flush with the modules' skirts; the white top edge
     for sg in (-1, 1):
         outer, inner = side_faces(sg)
-        slab(mb, pf, comb, sg * (edge + m(s["skirtIn"])), sg * (edge + m(s["skirtOut"])), pit, du, st["panel"],
-             (outer, "umin") if lod <= 2 else (outer,))
+        slab(mb, pf, comb, sg * (edge + m(s["skirtIn"])), sg * (edge + m(s["skirtOut"])), pit, du, st["panel"], (outer,))
         if lod <= 2:
             slab(mb, pf, joint, sg * (out - 0.03), sg * (out + 0.006), dt, ptop + 0.008, st["strip"],
-                 ("top", outer, inner, "umin", "umax") if lod <= 1 else ("top", outer))
+                 ("top", outer, inner, "umin", "umax") if lod <= 1 else ("top", outer, inner))
     if lod <= 1:   # the marker lights on the plate, LOD0 the hatch; the type plate on the +v panel
         for c in belts:
             for dv in (-(bh - 0.14), bh - 0.14):
@@ -155,12 +158,12 @@ def station(spec, lod, end):
     a.sockets = {("belt_in" if end == "top" else "belt_out"): (joint, 0.0, top)}
     for i, c in enumerate(belts):
         a.sockets[rider + ("" if len(belts) == 1 else ("_l", "_r")[i])] = (at, c, ptop)
-    a.sockets["post"] = (pf - 0.3, -(out + 0.5), 0.0)
+    a.sockets["post"] = (pf - 0.3, -(out + 0.5), ptop)   # on the approach, level with the plate
     a.pivots = {"belt": {"pos": ((comb + joint) / 2, 0.0, top), "axis": (1.0, 0.0, 0.0), "fixed": True}}
     carpet.line_dims(spec, a, joint - comb)
     a.dims.update({"end": end, "drumDia": S["drumDia"], "comb": S["comb"], "joint": S["joint"], "plateFrom": S["plateFrom"],
-                   "plateTop": S["plateTop"], "rampTo": S["rampTo"], "pit": S["pit"],
-                   "rampGradePct": round(100 * m(S["plateTop"]) / (m(S["plateFrom"]) - m(S["rampTo"])), 1),
+                   "plateTop": S["plateTop"], "pit": S["pit"], "approach": {k: v for k, v in S["approach"].items()
+                                                                             if not k.startswith("_")},
                    "drive": end == "top"})
     del a.dims["module"]
     return a

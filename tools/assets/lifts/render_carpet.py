@@ -2,11 +2,12 @@
 
   carpet_gate1  Gate 1 (about ten images): orthographic end views of a module under its gallery bay (single, double) and
                 side and plan views of the stations (<name>_meta.json beside each, as render_review's gate1, for the
-                local dims sheet); Cycles photos of three carpets side by side up a hill with a crest and a dip (an
-                uncovered single with side rails on part of it, a covered single and a covered double; modules hinged
-                at their joints at up to 2 deg, galleries with exit bays and a portal at each end, the control posts,
-                the hut): the hero, the bottom and top stations, a crest joint, a gallery from outside and from inside
-                (single, double), the post and the hut; and two LOD rows (a station, a module with its bay and rails).
+                local dims sheet); Cycles photos of three carpets side by side up a hill (an uncovered single with side
+                rails on part of it, a covered single and a covered double; modules hinged at their joints, straight
+                runs joined by 1 deg curves, galleries with exit bays and a portal at each end, the control posts, the
+                hut, a snow approach at each end): the hero, the bottom and top stations, a crest joint, a gallery
+                from outside and from inside (single, double), the post and the hut, the bottom in a melt-out; and
+                LOD rows (a station, a module with its bay and rails, the double's module and bay).
   carpet_audit  no images: the holes the game would show where it culls back faces (carpet_audit.json): every asset at
                 every LOD as the game puts it (a module between its neighbours, a bay on its module, a station with
                 its first module), counting only the asset's own faces.
@@ -28,10 +29,12 @@ from liftkit import frame, materials
 C1, C2 = "glidepath_carpet_", "glidepath_carpet2_"
 LIVERY_HEX = "#2457B0"           # the review's livery (a blue, as photographed)
 LIVERY = tuple(int(LIVERY_HEX[k:k + 2], 16) / 255 for k in (1, 3, 5))   # sRGB, for materials.set_livery
-ANGLES = (0, 0, 2, 4, 6, 8, 8, 8, 8, 6, 4, 2, 2, 4, 6, 6, 6, 4, 2, 0, 0)   # each module's grade (deg): up, crest, dip, top
+# each module's grade (deg), as the profile rule asks (owner C12): level ends, straight runs of 6 modules (40 ft) or
+# more at one grade, joined by curves of 1 deg a joint; a sag to 6 deg, a crest to 4 deg, a curve to level
+ANGLES = (0, 0, 1, 2, 3, 4, 5) + (6,) * 6 + (5,) + (4,) * 6 + (3, 2, 1, 0, 0)
 LINES = ((C1, -7.0, False), (C1, 0.0, True), (C2, 7.5, True))   # (ids, v, covered)
 RAILS = range(2, 9)              # the uncovered single's modules with side rails
-EXITS = (7, 15)                  # the bays with exit doors
+EXITS = (8, 17)                  # the bays with exit doors
 B = Matrix(((0.0, -1.0, 0.0), (-1.0, 0.0, 0.0), (0.0, 0.0, 1.0)))   # lift frame <-> Blender (its own inverse)
 TILED = ("segment", "segment_1m", "rail", "gallery", "gallery_exit")
 
@@ -141,9 +144,88 @@ def grade_at(pts, u):
     return pts[-1][1]
 
 
+def approaches(built, pts, joints, step=0.25):
+    """The earth the game grades at each end (the stations' dims "approach", owner C13), one heightfield per end
+    under all the lines: level with each plate's top past its front edge (the top's run-off falling first), then
+    easePct down to the hill, wider than the deck by margin each side, banked 1:1 back along the station. Heights
+    are max(hill, pad), 2 mm proud of the hill where they meet it; faces only where a pad stands above the hill.
+    Returns (u, v, w) grids, one per end."""
+    ends = {"bottom": [], "top": []}
+    for (prefix, covered), j in joints.items():
+        for end in ends:
+            st = built[prefix + end]["assets"][0]
+            dm = st.dims
+            ap, half = dm["approach"], st.dims["deckWidth"] / 2000
+            beltTop = dm["beltTop"] / 1000
+            ptop = dm["plateTop"] / 1000
+            if end == "bottom":   # the station at u = 0, its plate's front edge at plateFrom, away toward -u
+                edge, d, base = dm["plateFrom"] / 1000, -1.0, j[0].z - beltTop
+            else:                 # turned round at the last joint: its plate's edge past it, away toward +u
+                edge, d, base = j[-1].x + (dm["joint"] - dm["plateFrom"]) / 1000, 1.0, j[-1].z - beltTop
+            ends[end].append((edge, d, base + ptop, j[0].y, half + ap["margin"] / 1000, ap))
+    grids = []
+    for end, pads in ends.items():
+        def pad_at(u, v):
+            best = -1e9
+            for edge, d, w0, vc, hw, ap in pads:
+                s_ = (u - edge) * d
+                r, pct = ap.get("runOff", 0) / 1000, ap.get("runOffPct", 0) / 100
+                L = r + ap["flat"] / 1000
+                level = w0 - min(max(s_, 0.0), r) * pct
+                side = max(0.0, abs(v - vc) - hw) * ap["easePct"] / 100
+                if s_ < 0:   # beside the station: a 1:1 bank against its sides, the snow banked at the end only
+                    drop = -s_ + side
+                else:
+                    drop = math.hypot(max(0.0, s_ - L), max(0.0, abs(v - vc) - hw)) * ap["easePct"] / 100
+                best = max(best, level - drop)
+            return best
+        reach = max(1.0 + (w0 - grade_at(pts, edge)) / (ap["easePct"] / 100) for edge, d, w0, vc, hw, ap in pads)
+        u_lo = min(min(e, e + d * (ap.get("runOff", 0) + ap["flat"]) / 1000) for e, d, w0, vc, hw, ap in pads) - reach
+        u_hi = max(max(e, e + d * (ap.get("runOff", 0) + ap["flat"]) / 1000) for e, d, w0, vc, hw, ap in pads) + reach
+        v_lo = min(vc - hw for e, d, w0, vc, hw, ap in pads) - reach
+        v_hi = max(vc + hw for e, d, w0, vc, hw, ap in pads) + reach
+        nu, nv = int((u_hi - u_lo) / step) + 1, int((v_hi - v_lo) / step) + 1
+        us = [u_lo + (u_hi - u_lo) * i / (nu - 1) for i in range(nu)]
+        vs = [v_lo + (v_hi - v_lo) * k / (nv - 1) for k in range(nv)]
+        grid = [[(u, v, grade_at(pts, u), pad_at(u, v)) for v in vs] for u in us]
+        grids.append((end, grid))
+    return grids
+
+
+def approach_mesh(grid, name, mat=None):
+    verts, faces, index = [], [], {}
+    rows = len(grid)
+    cols = len(grid[0])
+    for i in range(rows - 1):
+        for k in range(cols - 1):
+            q = [(i, k), (i + 1, k), (i + 1, k + 1), (i, k + 1)]
+            if all(grid[a][b][3] <= grid[a][b][2] for a, b in q):
+                continue
+            ids = []
+            for a, b in q:
+                if (a, b) not in index:
+                    u, v, nat, pad = grid[a][b]
+                    index[(a, b)] = len(verts)
+                    verts.append(tuple(frame.b((u, v, max(nat + 0.002, pad)))))
+                ids.append(index[(a, b)])
+            faces.append(ids)
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(verts, [], faces)
+    me.update()
+    for poly in me.polygons:
+        if poly.normal.z < 0:
+            poly.flip()
+    me.update()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    if mat:
+        o.data.materials.append(mat)
+    return o
+
+
 def scene(built, lods=None):
-    """The three carpets, the hut beside the uncovered single's bottom station; (objects, ground profile, joints by
-    line)."""
+    """The three carpets, the hut beside the uncovered single's bottom station (clear of its approach); (objects,
+    ground profile, joints by line)."""
     objs, joints = [], {}
     for prefix, v, covered in LINES:
         if prefix + "bottom" not in built:
@@ -153,7 +235,7 @@ def scene(built, lods=None):
         joints[(prefix, covered)] = j
     hut = built.get(C1 + "hut")
     if hut:   # its door toward the carpet
-        objs += place(hut, rot(yaw=-90.0), Vector((-1.6, LINES[0][1] - 3.4, 0.0)))
+        objs += place(hut, rot(yaw=-90.0), Vector((-1.6, LINES[0][1] - 6.6, 0.0)))
     first = next(iter(joints.values()))
     return objs, profile(first), joints
 
@@ -245,7 +327,9 @@ def photos(built, out_dir, mats):
     game_materials(mats)
     materials.set_livery(mats, LIVERY)
     objs, pts, joints = scene(built)
-    snow = ground(pts, mat=rr._photo_material("PhotoSnowMat", (0.88, 0.91, 0.95), 0.55))
+    snow_mat = rr._photo_material("PhotoSnowMat", (0.88, 0.91, 0.95), 0.55)
+    snow = ground(pts, mat=snow_mat)
+    pads = [approach_mesh(g, f"CarpetApproach_{end}", snow_mat) for end, g in approaches(built, pts, joints)]
     figs = []
     for (prefix, covered), j in joints.items():   # riders: one boarding, one on the belt, one stepping off
         v = j[0].y
@@ -257,7 +341,7 @@ def photos(built, out_dir, mats):
             f.data.materials.append(rr._photo_material("PhotoFigureMat", (0.62, 0.16, 0.12), 0.6))
             f.hide_render = False
             figs.append(f)
-    rr.show_only(objs + figs + [snow, sun])
+    rr.show_only(objs + figs + pads + [snow, sun])
     rr.restore_uv(objs)
     cam = rr.camera("PhotoCam")
     cam.data.type = "PERSP"
@@ -281,7 +365,7 @@ def photos(built, out_dir, mats):
     shot("hero", over(-14.0, -24.0, 9.0), over(end * 0.45, 0.5, 1.0), lens=30)
     shot("bottom", over(-7.5, -6.0, 3.2), over(0.6, 1.5, 0.5), lens=30)
     shot("top", over(end + 9.0, 7.0, 3.6), over(end + 1.0, 0.0, 0.4), lens=30)
-    k = 9   # the crest joint between the 8 deg and 6 deg modules, uncovered single
+    k = 13   # the crest joint between the 6 deg and 5 deg modules, uncovered single
     jc = joints[(C1, False)][k]
     shot("crest", jc + Vector((1.6, -2.6, 1.7)), jc + Vector((0.0, 0.0, 0.25)), lens=35)
     jg = js[EXITS[0]] + Vector((1.0, 0.0, 0.0))
@@ -291,8 +375,15 @@ def photos(built, out_dir, mats):
     a2, b2 = j2[3], j2[8]
     shot("double_in", a2 + Vector((0.0, -0.1, 1.15)), b2 + Vector((0.0, 0.3, 0.8)), lens=22)
     shot("double_portal", over(-5.0, j2[0].y + 4.5, 2.0), over(1.6, j2[0].y, 1.4), lens=32)
-    shot("post_hut", over(-6.5, LINES[0][1] - 6.5, 1.9), over(-1.5, LINES[0][1] - 2.0, 1.0), lens=35)
-    rr._photo_end(sc, [snow] + figs)
+    shot("post_hut", over(-8.5, LINES[0][1] - 9.0, 2.2), over(-1.2, LINES[0][1] - 4.0, 0.9), lens=35)
+    # the melt-out (C13): the same bottom view with the hill and the approaches bare, the earth ramps showing
+    dirt = rr._photo_material("PhotoDirtMat", (0.30, 0.24, 0.17), 0.9)
+    for o in [snow] + pads:
+        o.data.materials[0] = dirt
+    shot("meltout", over(-7.5, -6.0, 3.2), over(0.6, 1.5, 0.5), lens=30)
+    for o in [snow] + pads:
+        o.data.materials[0] = snow_mat
+    rr._photo_end(sc, [snow] + pads + figs)
     for o in objs + figs:
         bpy.data.objects.remove(o)
 
@@ -347,6 +438,8 @@ def lod_rows(built, out_dir, mats):
         made += place(built[C1 + "rail"], rot(), Vector((0.0, -2.2, 0.0)), lod)
         return made
     row("module", module, el=18.0)
+    row("double", lambda lod: place(built[C2 + "segment"], rot(), Vector(), lod) +
+        place(built[C2 + "gallery_exit"], rot(), Vector(), lod), el=18.0)
     rr._photo_end(sc, [snow])
 
 

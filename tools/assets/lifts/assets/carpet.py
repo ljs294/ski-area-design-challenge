@@ -15,13 +15,14 @@ glidepath_carpet2.json; owner C1-C11, 2026-11-04).
   gallery       a 2 m gallery bay (C3, C10): one arch over the module's back joint and glass panes (C7) to the next
                 arch, the panes' last 0.1 m stepped out to lap over the next bay's panes (no gap at a 2 deg crest, no
                 coplanar glass when straight). Single: a near-round tube of aluminium arches on foot plates on the side
-                decks; double: white rounded-rectangle arches on brackets off the skirts.
+                decks; double: white arches on brackets off the skirts, a super-ellipse curving all the way up (owner
+                C14, Gate 1 round 2).
   gallery_exit  the same bay with an emergency-exit door each side.
   portal        the dark steel portal at a gallery's end: a face plate round the opening, posts to the ground and the
                 livery sign box over it; origin at grade on the plane where the gallery's first bay starts (socket
                 "gallery" at the belt top), the portal standing on the -u side of it.
   post          the control post at each end (shared by the single and the double): a steel post in a livery pad, the
-                push-button box (red stop, coloured buttons, key) and the rules sign on top; its buttons face -u.
+                push-button box (red stop, coloured buttons, key) on top, no sign (owner C15); its buttons face -u.
   hut           the Glidepath operator hut (shared): a white cabin on skids, glazed on three sides, a livery band under
                 its flat roof; origin at its floor's centre, its door on -u.
 
@@ -316,8 +317,9 @@ def rail(spec, lod):
 # -- the gallery ----------------------------------------------------------------------------------------------------
 def outline(spec, off, lod):
     """The gallery's cross-section line offset `off` outward (m) from its panes: (v, w) points from the right foot up,
-    over the top and down to the left foot. Single: a circle cut at the deck top; double: a rounded rectangle on its
-    brackets."""
+    over the top and down to the left foot, as many at every offset. Single ("round"): a circle cut at the deck top;
+    double ("arch"): a super-ellipse |v/a|^n + |h/b|^n = 1 standing on its brackets (a its half width, b from the foot
+    to the crown), sampled at even angles and offset along its normals; "box": a rounded rectangle."""
     g = spec["gallery"]
     if g["shape"] == "round":
         R, cw, foot = m(g["radius"]) + off, m(g["centreW"]), m(spec["section"]["deckTop"])
@@ -325,6 +327,20 @@ def outline(spec, off, lod):
         t1 = math.pi - t0
         n = g["facets"][lod]
         return [(R * math.cos(t0 + (t1 - t0) * k / n), cw + R * math.sin(t0 + (t1 - t0) * k / n)) for k in range(n + 1)]
+    if g["shape"] == "arch":
+        a, fw = m(g["halfV"]), m(g["footW"])
+        b, n, k = m(g["roof"]) - fw, g["n"], g["facets"][lod]
+        pts = []
+        for i in range(k + 1):
+            if i in (0, k):   # the feet, exactly: the normal is level there
+                pts.append((math.copysign(a + off, k / 2 - i), fw))
+                continue
+            c, sn = math.cos(math.pi * i / k), math.sin(math.pi * i / k)
+            v, h = a * math.copysign(abs(c) ** (2 / n), c), b * sn ** (2 / n)
+            nv, nh = math.copysign(abs(v) ** (n - 1), v) / a ** n, h ** (n - 1) / b ** n
+            ln = math.hypot(nv, nh)
+            pts.append((v + off * nv / ln, fw + h + off * nh / ln))
+        return pts
     H, top, rc, fw = m(g["halfV"]) + off, m(g["roof"]) + off, m(g["corner"]) + off, m(g["footW"])
     steps = g["cornerSteps"][lod]
     right = [(H, fw), (H, top - rc)] + [(H - rc + rc * math.cos(math.pi / 2 * k / steps),
@@ -371,6 +387,13 @@ def arch(mb, spec, lod, st):
             for u, d in ((-hw, -U), (hw, U)):
                 prims.quad(mb, [(u, *pin[k]), (u, *pout[k]), (u, *pout[k + 1]), (u, *pin[k + 1])], st, d)
     return pin, pout
+
+
+def roof_over(pts, v):
+    """The highest point of an outline (or any polyline) over v."""
+    ws = [p0[1] + (p1[1] - p0[1]) * (v - p0[0]) / (p1[0] - p0[0]) for p0, p1 in zip(pts, pts[1:])
+          if p0[0] != p1[0] and min(p0[0], p1[0]) <= v <= max(p0[0], p1[0])]
+    return max(ws)
 
 
 def strip_at(pts, w, wide):
@@ -451,7 +474,9 @@ def gallery(spec, lod, variant):
     a.sockets = {"back": (0.0, 0.0, top), "front": (L, 0.0, top)}
     line_dims(spec, a, L)
     hi = max(w for _, w in pout)
+    edge = max(abs(m(c)) for c in spec["belts"]) + m(s["beltHalf"])   # the outer belt edge: the least headroom
     a.dims.update({"shape": g["shape"], "outerHeight": round(hi * 1000), "outerHalfV": round(max(v for v, _ in pout) * 1000),
+                   "beltEdgeV": round(edge * 1000), "beltEdgeHeadroom": round((roof_over(pin, edge) - top) * 1000),
                    "innerHeight": round((max(w for _, w in pin) - top) * 1000),
                    "innerHalfV": round(max(v for v, _ in pin) * 1000), "archWidth": g["arch"]["width"],
                    "feet": [[round(min(pin[0][0], pout[0][0]) * 1000), round(max(pin[0][0], pout[0][0]) * 1000),
@@ -479,6 +504,10 @@ def portal(spec, lod):
                for k in range(n + 1)]
         inner = [(out, 0.0), (out, dt)] + arc + [(-out, dt), (-out, 0.0)]
         c, low = (0.0, cw), cw
+    elif g["shape"] == "arch":   # the gallery's outline, clear of the arches, and straight down to the ground
+        arc = outline(spec, m(g["arch"]["depth"]) / 2 + m(p["opening"]["clear"]), lod)
+        inner = [(arc[0][0], 0.0)] + arc + [(arc[-1][0], 0.0)]
+        c, low = (0.0, m(g["footW"])), m(g["footW"])
     else:
         o = p["opening"]
         oH, oT, rc = m(o["halfV"]), m(o["top"]), m(o["corner"])
@@ -556,6 +585,9 @@ def portal(spec, lod):
     a.sockets = {"gallery": (0.0, 0.0, m(s["beltTop"]))}
     a.dims.update({"halfV": p["halfV"], "top": p["top"], "depth": p["depth"],
                    "opening": p["opening"] if isinstance(p["opening"], dict) else {"radius": p["opening"], "centreW": g["centreW"]}})
+    if g["shape"] == "arch":
+        a.dims["opening"] = {"clear": p["opening"]["clear"], "halfV": round(max(v for v, _ in inner) * 1000),
+                             "top": round(max(w for _, w in inner) * 1000)}
     return a
 
 
@@ -571,7 +603,7 @@ def post(spec, lod):
     b = p["box"]
     bu, bv, bh = (m(x) / 2 for x in b["size"])
     bw = m(b["w"])
-    if lod >= 3:   # far: the padded post and its box as one block, and the sign
+    if lod >= 3:   # far: the padded post and its box as one block
         slab(mb, -ps, ps, -ps, ps, 0.0, bw + 2 * bh, st["pad"], ("umin", "umax", "vmin", "vmax", "top"))
     else:
         slab(mb, -pr, pr, -pr, pr, -0.2, h, st["steel"], ("umin", "umax", "vmin", "vmax", "top"))
@@ -591,28 +623,9 @@ def post(spec, lod):
             for (v, w), key in (((-0.055, -0.03), "white"), ((0.0, -0.03), "blue"), ((0.055, -0.03), "yellow"),
                                 ((-0.055, -0.09), "black"), ((0.055, -0.09), "key")):
                 prims.cylinder(mb, (fu, v, cz + w), (fu - 0.012, v, cz + w), 0.014, 6, st[key], caps=(False, True))
-    sg = p["sign"]
-    sw, sh, sz = m(sg["width"]) / 2, m(sg["height"]), m(sg["w"])
-    top = bw + 2 * bh
-    if lod <= 2:   # the pole, thinner than the sign it carries, up into it
-        slab(mb, -0.006, 0.006, -0.012, 0.012, top, sz + 0.02, st["steel"], ("umin", "umax", "vmin", "vmax"))
-    if lod <= 2:
-        slab(mb, -0.008, 0.008, -sw, sw, sz, sz + sh, st["white"])
-    else:
-        slab(mb, -0.0005, 0.0005, -sw, sw, sz, sz + sh, st["white"], ("umin", "umax"))
-    if lod <= 1:   # the red border and, LOD0, lines of text: thin plates on the front
-        br = m(sg["border"])
-        for v0, v1, w0, w1 in ((-sw, sw, sz + sh - br, sz + sh), (-sw, sw, sz, sz + br), (-sw, -sw + br, sz + br, sz + sh - br),
-                               (sw - br, sw, sz + br, sz + sh - br)):
-            slab(mb, -0.009, -0.008, v0, v1, w0, w1, st["red"], ("umin", "top", "bottom", "vmin", "vmax"))
-        if lod == 0:
-            for k in range(5):
-                w = sz + sh - br - 0.05 - k * 0.055
-                slab(mb, -0.009, -0.008, -sw + br + 0.04, sw - br - 0.04 - (0.1 if k % 2 else 0.0), w - 0.012, w,
-                     st["black"], ("umin", "top", "bottom", "vmin", "vmax"))
-    a.body = mb
+    a.body = mb   # no rules sign over the box (owner C15)
     a.sockets = {"panel": (-bu, 0.0, bw + bh)}
-    a.dims.update({"height": round((sz + sh) * 1000), "padSize": pad["size"]})
+    a.dims.update({"height": round((bw + 2 * bh) * 1000), "padSize": pad["size"]})
     return a
 
 

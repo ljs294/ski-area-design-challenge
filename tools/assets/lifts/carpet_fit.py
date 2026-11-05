@@ -6,14 +6,17 @@
   stations   the station's end at its joint carries the module's section (every corner of the module's back end at
              that LOD is a corner of a face ending at the joint), and belt_in or belt_out sits there at the belt top.
   gallery    a bay's sockets are the module's; its arch stands on its own deck's side decks (single) or on brackets that
-             reach in under the deck (double), at the deck top or the bracket's top.
-  portal     its opening clears the gallery's arches all round, and its posts stand outside the opening.
+             reach in under the deck (double), at the deck top or the bracket's top; its arches leave at least
+             HEADROOM over the outer belt edges (owner C14).
+  portal     its opening clears the gallery's arches all round and stays under the sign box, and its posts stand
+             outside the opening.
 """
 import importlib
 
 from liftkit import frame
 
 TOL = 1e-5
+HEADROOM = 2100   # mm over the belt at its outer edges, under the arches: 6' 11"
 
 
 def _faces(mb):
@@ -90,18 +93,27 @@ def check(assets, kind, spec, stage):
             if b["from"] / 1000 >= out or abs(w - b["top"]) > 0.5 or not (b["from"] <= v0 and v1 <= b["to"]):
                 problems.append(f"the arch's foot ({v0}-{v1} mm at {w}) is not on its bracket "
                                 f"({b['from']}-{b['to']} at {b['top']}, deck edge {round(out * 1000)})")
+        if a0.dims["beltEdgeHeadroom"] < HEADROOM:
+            problems.append(f"the headroom over the outer belt edges ({a0.dims['beltEdgeHeadroom']} mm) is under {HEADROOM}")
     elif kind == "carpet_gallery":   # the portal
         g, p = spec["gallery"], spec["portal"]
         bay = mod.build(spec, 0, stage, "gallery")
         if g["shape"] == "round":
             if p["opening"] <= g["arch"]["outer"]:
                 problems.append(f"the opening (radius {p['opening']}) doesn't clear the arches ({g['arch']['outer']})")
+        elif g["shape"] == "arch":   # the opening is the outline offset past the arches' outside: check it is clear
+            o = a0.dims["opening"]
+            if p["opening"]["clear"] <= 0 or o["halfV"] <= bay.dims["outerHalfV"] or o["top"] <= bay.dims["outerHeight"]:
+                problems.append(f"the opening ({o['halfV']} x {o['top']}) doesn't clear the arches "
+                                f"({bay.dims['outerHalfV']} x {bay.dims['outerHeight']})")
+            if o["top"] >= p["sign"]["from"]:
+                problems.append(f"the opening's top ({o['top']}) reaches the sign box ({p['sign']['from']})")
         else:
             o = p["opening"]
             if o["halfV"] <= bay.dims["outerHalfV"] or o["top"] <= bay.dims["outerHeight"]:
                 problems.append(f"the opening ({o['halfV']} x {o['top']}) doesn't clear the arches "
                                 f"({bay.dims['outerHalfV']} x {bay.dims['outerHeight']})")
-        reach = p["opening"] if g["shape"] == "round" else p["opening"]["halfV"]
+        reach = p["opening"] if g["shape"] == "round" else a0.dims["opening"]["halfV"]
         if p["halfV"] - p["post"] < reach:
             problems.append(f"the posts ({p['halfV'] - p['post']}-{p['halfV']}) stand in the opening ({reach})")
     return problems

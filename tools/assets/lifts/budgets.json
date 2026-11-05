@@ -171,7 +171,7 @@
     "crossFade": false
   },
   "carpet_station": {
-    "_about": "A magic carpet's station (the Glidepath's drive at the top and tension at the bottom, single or double, owner C1-C11 2026-11-04): a low box about 4 m long with its ramp, motor cover and cabinet; LOD0 to 15 m.",
+    "_about": "A magic carpet's station (the Glidepath's drive at the top and tension at the bottom, single or double, owner C1-C11 2026-11-04): a low box about 4 m long with its motor cover and cabinet, ending at its plate (the snow approach is the game's); LOD0 to 15 m.",
     "lods": [
       {"lod": 0, "maxTris": 10000, "untilM": 15},
       {"lod": 1, "maxTris": 4000, "untilM": 45},

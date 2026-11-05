@@ -1,5 +1,5 @@
 {
-  "_about": "Glidepath double carpet (C9): two 750 mm belts side by side, a walking deck between them, the single's section, stations widened to carry both drums, and its own gallery (white rounded-rectangle arches standing on brackets off the skirts, flat panels). Merged onto glidepath_carpet.json (liftkit/gauge.py); the control post and the hut are the single's.",
+  "_about": "Glidepath double carpet (C9): two 750 mm belts side by side, a walking deck between them, the single's section, stations widened to carry both drums, and its own gallery (white arches curving all the way up, a super-ellipse, standing on brackets off the skirts; owner C14). Merged onto glidepath_carpet.json (liftkit/gauge.py); the control post and the hut are the single's.",
   "base": "glidepath_carpet.json",
   "idPrefix": "glidepath_carpet2",
   "catalog": {
@@ -19,13 +19,13 @@
   "common": {"lineGauge": 1450},
   "belts": [-725, 725],
   "gallery": {
-    "_about": "double: rounded-rectangle arches (white), legs on steel brackets off the skirts, the panes on the arches' centre line",
-    "shape": "box",
+    "_about": "double: white arches, a super-ellipse |v/halfV|^n + |h/(roof - footW)|^n = 1 from the feet over the crown (owner C14, Gate 1 round 2), legs on steel brackets off the skirts, the panes on the arches' centre line; facets per LOD",
+    "shape": "arch",
     "archClass": "white",
     "halfV": 1660,
-    "roof": 2850,
-    "corner": 600,
-    "cornerSteps": [4, 2, 1, 1],
+    "roof": 2960,
+    "n": 2.6,
+    "facets": [16, 10, 7, 5],
     "arch": {"width": 100, "depth": 80},
     "footW": 250,
     "bracket": {"from": 1490, "to": 1730, "bottom": 170, "top": 250, "along": 120},
@@ -33,9 +33,9 @@
   },
   "portal": {
     "halfV": 1900,
-    "top": 3450,
-    "sign": {"from": 2980, "to": 3450, "thick": 220},
-    "opening": {"halfV": 1715, "top": 2905, "corner": 600}
+    "top": 3570,
+    "sign": {"from": 3100, "to": 3570, "thick": 220},
+    "opening": {"_about": "the gallery's outline, clear of the arches by this much", "clear": 15}
   },
   "top": {"cabinet": {"u": -400, "v": -2450, "size": [500, 300, 1100], "stand": 500}}
 }
