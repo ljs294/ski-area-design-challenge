@@ -1,0 +1,125 @@
+{
+  "_about": "Glidepath magic carpet (surface lift, owner C1-C11, 2026-11-04): a 750 mm conveyor belt in a surface-mounted deck of rigid 2 m modules on adjustable feet, a drive station at the top (C4: carpets drive at the top, tension at the bottom) and a tension station at the bottom, each ending at its plate with the game's graded snow approach beyond (C13); optional side rails (C6, default off), an optional gallery of 2 m bays with emergency-exit bays and a portal at each end (C3, C10), a control post at each end and the operator hut (C6). Millimetres in the lift frame: a module's origin at grade under the belt's centre at its back end (u toward the line, uphill on the line, v right, w up), sockets back and front at the belt top; a station's origin at grade under its drum or roller axis, u toward the line. The belt runs at 160 fpm (C11).",
+  "idPrefix": "glidepath_carpet",
+  "catalog": {
+    "maker": "Glidepath",
+    "name": "Glidepath carpet",
+    "parts": {
+      "glidepath_carpet_top": "Drive station (top)",
+      "glidepath_carpet_bottom": "Tension station (bottom)",
+      "glidepath_carpet_segment": "Belt module, 2 m",
+      "glidepath_carpet_segment_1m": "Belt module, 1 m",
+      "glidepath_carpet_rail": "Side rails, 2 m",
+      "glidepath_carpet_gallery": "Gallery bay, 2 m",
+      "glidepath_carpet_gallery_exit": "Gallery bay with exits, 2 m",
+      "glidepath_carpet_portal": "Gallery portal",
+      "glidepath_carpet_post": "Control post",
+      "glidepath_carpet_hut": "Operator hut"
+    }
+  },
+  "common": {
+    "_lineGauge": "belt centre to belt centre (0: one belt)",
+    "lineGauge": 0,
+    "speedFpm": 160,
+    "speedMps": 0.813
+  },
+  "_belts": "each belt's centre (v): one belt, or two side by side with a walking deck between (C9)",
+  "belts": [0],
+  "section": {
+    "_about": "the deck's cross-section, |v| measured from each belt's centre: the belt (beltTop, its half width), the white wear strip over each belt edge and the aluminium cover bar beside it, the livery line along the bar, then the ribbed side deck out to deckOut (from the outermost belt's centre) over a skirt panel that falls to skirtBottom; between two belts the deck runs across",
+    "beltHalf": 375,
+    "beltTop": 350,
+    "beltThick": 12,
+    "strip": {"from": 352, "to": 378, "bottom": 344, "top": 360},
+    "bar": {"from": 376, "to": 428, "bottom": 340, "top": 366},
+    "line": {"from": 396, "to": 410, "top": 368},
+    "deckTop": 352,
+    "deckUnder": 330,
+    "deckOut": 805,
+    "skirtIn": 790,
+    "skirtOut": 803,
+    "skirtBottom": 40,
+    "frameBottom": 150,
+    "jointStrip": 15,
+    "cover": {"_about": "the dark cover strip over each joint on the skirt, lapping the next module (hides a 2 deg bend)", "half": 25, "proud": 3}
+  },
+  "module": {"length": 2000, "filler": 1000},
+  "feet": {
+    "_about": "adjustable screw feet in pairs, a pair per half module; the game stretches each pair (parts feet_back, feet_front) to the ground between min and max",
+    "nominal": 150,
+    "min": 100,
+    "max": 300,
+    "v": 600,
+    "tube": 60,
+    "plate": 160,
+    "plateThick": 12
+  },
+  "rail": {"v": 760, "height": 900, "post": 42, "posts": [500, 1500], "sleeve": {"_about": "the coupler over each rail at the module's front joint (the knee rail's 0.8 of it): a 2 deg bend parts or crosses the rail ends inside it (Gate 2)", "length": 100, "dia": 60}},
+  "gallery": {
+    "_about": "single: a near-round tube of aluminium arches, one per bay at its back joint, glass panes between them lapping into the next arch (C7 tinted glass); exitDoor: the exit bay's door each side",
+    "shape": "round",
+    "archClass": "aluminium",
+    "radius": 1255,
+    "centreW": 1400,
+    "arch": {"width": 100, "inner": 1215, "outer": 1295},
+    "pane": {"_about": "lapTo: 60 mm past the joint, so a 2 deg crest opens no seam under the double's crown; past the next arch (50 mm) its end is closed (Gate 2)", "thick": 6, "lapFrom": 1960, "lapTo": 2060, "lapOut": 15},
+    "facets": [20, 12, 8, 5],
+    "foot": {"along": 160, "thick": 10},
+    "exitDoor": {"from": 550, "to": 1450, "top": 2050, "frame": 50}
+  },
+  "portal": {
+    "_about": "the dark steel portal at each end of a gallery, its opening round the tube, the sign box over it (livery)",
+    "halfV": 1500,
+    "top": 3250,
+    "depth": 150,
+    "post": 140,
+    "sign": {"from": 2780, "to": 3250, "thick": 220},
+    "opening": 1300
+  },
+  "top": {
+    "_about": "the drive station (C4, at the top): the drum under the comb, motor and gearbox on its +v end under a livery cover, the ribbed exit plate past the drum with two marker lights and a hatch, side panels with a white top edge and the type plate, the double light barrier at the deck edges, the control cabinet on -v",
+    "drumDia": 400,
+    "comb": 350,
+    "joint": 1800,
+    "plateFrom": -1000,
+    "plateTop": 372,
+    "pit": -300,
+    "approach": {"_about": "the earth the game grades past the exit plate, under the snow (owner C13): a run-off falling runOffPct, then level, then easePct down to natural ground, margin wider than the deck each side", "runOff": 2000, "runOffPct": 5, "flat": 4900, "easePct": 10, "margin": 1000},
+    "panelTop": 420,
+    "motor": {"v": 1000, "dia": 300, "length": 420, "cover": [560, 520, 560]},
+    "barrier": {"u": 300, "height": 950},
+    "cabinet": {"u": -400, "v": -1450, "size": [500, 300, 1100], "stand": 500}
+  },
+  "bottom": {
+    "_about": "the tension station (at the bottom): the deflection roller under the comb, the hydraulic tension unit under a cover on -v, the adjustable entrance plate, padded bumpers at the entry corners (livery)",
+    "drumDia": 290,
+    "comb": 250,
+    "joint": 1800,
+    "plateFrom": -600,
+    "plateTop": 372,
+    "pit": -250,
+    "approach": {"_about": "the earth the game grades before the entrance plate, under the snow (owner C13): level with the plate top, then easePct down to natural ground, margin wider than the deck each side", "flat": 4900, "easePct": 10, "margin": 1000},
+    "panelTop": 420,
+    "tension": {"v": -1000, "size": [1200, 300, 360]},
+    "bumper": {"u": -600, "size": [260, 220, 620]}
+  },
+  "post": {
+    "_about": "the control post at each end: a steel post in a livery pad, the push-button box (red stop, start, key, coloured buttons) on top; no sign (owner C15)",
+    "post": 90,
+    "height": 1250,
+    "pad": {"from": 150, "to": 1000, "size": 170},
+    "box": {"size": [130, 220, 260], "w": 1000}
+  },
+  "hut": {
+    "_about": "the Glidepath operator hut: a white cabin on skids, glazed on three sides, a livery band, a flat roof with an overhang; its origin at its floor's centre, its door facing -u",
+    "halfU": 1000,
+    "halfV": 850,
+    "skid": 120,
+    "height": 2500,
+    "roofThick": 140,
+    "overhang": 250,
+    "band": [2050, 2280],
+    "window": {"from": 950, "to": 1950},
+    "door": {"width": 800, "height": 2000, "v": -350}
+  }
+}

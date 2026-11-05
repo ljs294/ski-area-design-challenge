@@ -15,6 +15,8 @@ from mathutils import Vector, geometry
 from . import frame, palette, textures
 
 STRUCTURE, GLASS = 0, 1
+GLASS_CLEAR = 2     # the clearer glass (LiftGlassClear, 45 % face-on; the carpet's gallery, owner C17): an asset gets this
+                    # third material slot only when it uses it, so every other asset keeps its two
 TILE_SPAN = 256.0   # UV0.x = tile * TILE_SPAN + metres; the shader splits it back (LiftStructure.shader)
 ORIGIN = 128.0      # keeps box-mapped metres positive
 FLUSH_GAP = 0.002   # how far separate_flush pulls the smaller of two flush faces into its own part (m)

@@ -17,7 +17,9 @@ namespace MountainPlanner.Tests
     // frame's handedness, snow guns standing at grade on a hinge, and our naming; and the posable parts (task P3-07):
     // nested pivots that round-trip through the FBX, parents that carry their children rigidly, and safe ranges; and a
     // fixed-grip terminal's heads (drive at either end): one shown at a time, each within budget and on the rope; and the
-    // surface lifts (the Monta T-bar): their own kinds and budgets, each terminal's ropes at its own height.
+    // surface lifts (the Monta T-bar): their own kinds and budgets, each terminal's ropes at its own height; and the
+    // Glidepath magic carpet: modules that join end to end at belt height, stations that meet them there, gallery
+    // panes on the clearer glass (owner C17), and every LOD group fading as its kind's budget says.
     public sealed class LiftAssetTests
     {
         const string SetPath = "Assets/MountainPlanner/Art/Lifts/LiftModels.asset";
@@ -25,14 +27,17 @@ namespace MountainPlanner.Tests
         const float Mm = 0.001f;
         /// <summary>Our makers' code names, as asset id prefixes (decision LP3).</summary>
         static readonly string[] Makers = { "sessellift_fgq4_", "sessellift_fgd2_", "sessellift_fgt3_", "sessellift_d6_", "sessellift_d4_", "sessellift_stern", "sle_",
-            "monta_fg4_", "monta_fg3_", "monta_fg2_", "monta_tbar_", "chairworks_chair_" };
+            "monta_fg4_", "monta_fg3_", "monta_fg2_", "monta_tbar_", "chairworks_chair_", "glidepath_carpet" };
+        /// <summary>A carpet module's belt top above its origin at grade (glidepath_carpet.json section.beltTop).</summary>
+        const float CarpetBelt = 0.35f;
 
         [Serializable] sealed class LodBudget { public int lod; public int maxTris; public float untilM; }
         [Serializable] sealed class KindBudget { public LodBudget[] lods; public int shadowLods; public bool crossFade; }
         [Serializable] sealed class Budgets { public KindBudget terminal; public KindBudget terminal_footing; public KindBudget chair; public KindBudget tower_head; public KindBudget tower_mast; public KindBudget tower_base; public KindBudget snowgun;
             public KindBudget terminal_detach; public KindBudget chair_detach; public KindBudget tower_head_wide;
             public KindBudget surface_terminal; public KindBudget surface_tower_head; public KindBudget surface_mast; public KindBudget surface_base;
-            public KindBudget surface_hut; public KindBudget surface_carrier; }
+            public KindBudget surface_hut; public KindBudget surface_carrier;
+            public KindBudget carpet_segment; public KindBudget carpet_station; public KindBudget carpet_gallery; }
         [Serializable] sealed class Common { public float ropeElevation; public float lineGauge; }
         [Serializable] sealed class Spec { public Common common; }
 
@@ -77,6 +82,9 @@ namespace MountainPlanner.Tests
             "surface_base" => b.surface_base,
             "surface_hut" => b.surface_hut,
             "surface_carrier" => b.surface_carrier,
+            "carpet_segment" => b.carpet_segment,
+            "carpet_station" => b.carpet_station,
+            "carpet_gallery" => b.carpet_gallery,
             _ => throw new ArgumentException(kind),
         };
 
@@ -223,6 +231,7 @@ namespace MountainPlanner.Tests
             if (rig.Kind == "surface_hut") Assert.Ignore("The operator hut carries no rope.");
             if (rig.Kind == "snowgun") Assert.Ignore("Snow guns carry no rope.");
             if (rig.Kind == "terminal_footing") Assert.Ignore("A terminal's footing carries no rope.");
+            if (rig.Kind.StartsWith("carpet_", StringComparison.Ordinal)) Assert.Ignore("A magic carpet carries no rope.");
             var common = LoadSpec(prefab.name).common;
             if (rig.Kind == "tower_head" || rig.Kind == "tower_head_wide" || rig.Kind == "surface_tower_head")
             {
@@ -292,7 +301,8 @@ namespace MountainPlanner.Tests
                 Assert.That(data.Count, Is.EqualTo(mesh.vertexCount), $"{filter.name} UV1 (snow, livery)");
                 Assert.That(swatch.Count, Is.EqualTo(mesh.vertexCount), $"{filter.name} UV2 (palette)");
                 Assert.That(mesh.colors.Length, Is.EqualTo(mesh.vertexCount), $"{filter.name} vertex colour (AO)");
-                Assert.That(data.All(d => d.x >= 0 && d.x <= 1 && d.y >= 0 && d.y <= 1), $"{filter.name} data out of range");
+                // snow capacity 0-1; livery mask 0-1 (the primary colour), up to 2 for the accent (LT41: the carpet's glass)
+                Assert.That(data.All(d => d.x >= 0 && d.x <= 1 && d.y >= 0 && d.y <= 2), $"{filter.name} data out of range");
             }
         }
 
@@ -551,6 +561,68 @@ namespace MountainPlanner.Tests
             finally
             {
                 UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void LodGroupsFadeAsTheirBudgetSays(GameObject prefab)
+        {
+            // budgets.json crossFade: a carpet's modules and bays switch hard (their neighbours switch with them), its
+            // stations and the lift terminals crossfade
+            var budget = BudgetFor(LoadBudgets(), prefab.GetComponent<LiftRig>().Kind);
+            var group = prefab.GetComponent<LODGroup>();
+            Assert.That(group.fadeMode, Is.EqualTo(budget.crossFade ? LODFadeMode.CrossFade : LODFadeMode.None));
+        }
+
+        static Vector3 Local(GameObject prefab, Transform socket) => prefab.transform.InverseTransformPoint(socket.position);
+
+        [TestCaseSource(nameof(Cases))]
+        public void CarpetModulesJoinEndToEndAtBeltHeight(GameObject prefab)
+        {
+            // a module (2 m, the 1 m filler), its side rails or its gallery bay: back socket at the belt top over the
+            // origin, front socket one module length up the line at the same height, so the next one's back meets it
+            var rig = prefab.GetComponent<LiftRig>();
+            if (rig.Kind != "carpet_segment" && rig.Kind != "carpet_gallery" || rig.Socket("front") == null)
+                Assert.Ignore("Carpet modules, rails and bays only.");
+            var back = Local(prefab, rig.Socket("back"));
+            var front = Local(prefab, rig.Socket("front"));
+            float length = prefab.name.EndsWith("_1m", StringComparison.Ordinal) ? 1f : 2f;
+            Assert.That(Vector3.Distance(back, new Vector3(0f, CarpetBelt, 0f)), Is.LessThan(Mm), "back socket");
+            Assert.That(Vector3.Distance(front, new Vector3(0f, CarpetBelt, length)), Is.LessThan(Mm), "front socket");
+            Assert.That(rig.Socket("back").localRotation, Is.EqualTo(Quaternion.identity));
+            Assert.That(rig.Socket("front").localRotation, Is.EqualTo(Quaternion.identity));
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void CarpetStationsAndPortalsMeetTheModulesAtBeltHeight(GameObject prefab)
+        {
+            // the bottom station's belt_out takes the first module's back socket, the top's belt_in the last module's
+            // front (the top station turned to face back down the line); a portal's gallery socket the first bay's back
+            var rig = prefab.GetComponent<LiftRig>();
+            var joint = rig.Kind == "carpet_station" ? rig.Socket("belt_out") ?? rig.Socket("belt_in")
+                : rig.Kind == "carpet_gallery" && rig.Socket("front") == null ? rig.Socket("gallery") : null;
+            if (joint == null) Assert.Ignore("Carpet stations and portals only.");
+            var p = Local(prefab, joint);
+            Assert.That(Mathf.Abs(p.x), Is.LessThan(Mm), joint.name + " on the centre line");
+            Assert.That(Mathf.Abs(p.y - CarpetBelt), Is.LessThan(Mm), joint.name + " at the belt top");
+            if (rig.Kind == "carpet_station") Assert.That(rig.Socket("post"), Is.Not.Null, "the control post's socket");
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void OnlyTheCarpetGalleryIsOnTheClearGlass(GameObject prefab)
+        {
+            // owner C17: the gallery's panes are on LiftGlassClear (45 % face-on) at every LOD; nothing else uses it
+            var clear = AssetDatabase.LoadAssetAtPath<Material>($"{ArtRoot}/Materials/LiftGlassClear.mat");
+            Assert.That(clear, Is.Not.Null, "LiftImport makes LiftGlassClear.mat");
+            var lods = prefab.GetComponent<LODGroup>().GetLODs();
+            bool bay = prefab.GetComponent<LiftRig>().Kind == "carpet_gallery" && prefab.GetComponent<LiftRig>().Socket("front") != null;
+            for (int i = 0; i < lods.Length; i++)
+            {
+                bool uses = lods[i].renderers.Any(r => r.sharedMaterials.Contains(clear));
+                Assert.That(uses, Is.EqualTo(bay), $"LOD{i}: {(bay ? "a gallery bay's panes are" : "only a gallery bay is")} on the clear glass");
+                if (bay)
+                    Assert.That(lods[i].renderers.Any(r => r.sharedMaterials.Any(m => m != null && m.name == "LiftGlass")), Is.False,
+                        $"LOD{i}: no pane on the hood glass");
             }
         }
 

@@ -20,6 +20,7 @@ which carry the Sessellift chair; and the **Chairworks quad chair** with either 
 | `sessellift_d4.json`, `sessellift_d4_towers.json` | The Sessellift D4 detachable quad: an overlay on `sessellift_d6.json` (its station one bay shorter, at a 4.8 m gauge) and its tower heads, the quad kit's at that gauge (see Sessellift D4 below) |
 | `sessellift_stern4.json`, `sessellift_stern3.json`, `sessellift_stern2.json` | The Sessellift Stern, the second Sessellift fixed-grip style: the quad's terminals, and the triple and double as overlays on it at their gauges (see Sessellift Stern below) |
 | `fixed_grip.json` | The fixed grip every fixed-grip chair carries (LP22) |
+| `glidepath_carpet.json`, `glidepath_carpet2.json` | The Glidepath magic carpet: the single, and the double as an overlay on it (see Glidepath magic carpet below) |
 | `budgets.json` | Triangle budgets per LOD and LOD switch distances. The build and the Unity tests both read it |
 | `build_lifts.py` | Builds every asset and LOD, bakes AO, sweeps the pivots for clashes, exports one FBX per asset plus the textures, and checks budgets, pivots, sockets and AO tiling |
 | `audit_lifts.py` | Game-rule audit before a model review: re-imports each FBX and checks the pivots' places, the nesting LiftImport will build, far trains kept as parts, ranges and AO tiling |
@@ -67,10 +68,10 @@ as `lifts.json` says (see Posable parts). When an asset's spec has a `catalog`,
 |---|---|
 | **UV0** | Detail-atlas coordinates, box-mapped in metres. The atlas tile is in the integer part of x (`tile × 256 + metres + 128`) |
 | **UV1 x** | Snow capacity of the face (the shader adds `_SnowLoad` on up-facing surfaces) |
-| **UV1 y** | Livery mask: 1 on the drive hood panels, which take the player's colour |
+| **UV1 y** | Livery mask: 1 on the drive hood panels and other livery faces, which take the lift's colour (`_LiveryColor`); 2 on accent faces, which take its accent (`_AccentColor`; the carpet's gallery glass, C16) |
 | **UV2** | Palette swatch in `lift_palette.png`: albedo, with metallic and smoothness packed in alpha |
 | **Vertex colour R** | Baked ambient occlusion (ray-cast, deterministic, floor 0.25; the ground plane only under what stands at its own 0.00: bases and snow guns, not heads, Sessellift terminals or mast sections) |
-| **Submesh / slot** | `LiftStructure` (opaque), `LiftGlass` (tinted, drive LOD0-1), `LiftChair` |
+| **Submesh / slot** | `LiftStructure` (opaque), `LiftGlass` (tinted, 75 % face-on: drive LOD0-1), `LiftChair`; `LiftGlassClear` (45 % face-on, the carpet's gallery panes, owner C17) only on the assets that use it, as a third slot, so every other FBX keeps its two |
 
 `lift_trim.png` is the detail atlas: 4 × 4 tiles of 256 px, one metre each. The tiles are plain, paint,
 galvanised, grating, checker plate, concrete formwork, hood panel, rubber and seat vinyl. Its channels are
@@ -278,6 +279,42 @@ Built from `monta_tbar.json` by `assets/tbar.py` (towers), `tbar_terminal.py` an
   boom and decks keep the quad's size, the arms, crossbeams, portals, rows and wheel plates follow the gauge.
 - **Chairs:** the FGQ-4 family's (the Sessellift quad, triple and double chairs, and the Chairworks fixed chairs).
 
+## Glidepath magic carpet (surface lifts)
+
+Built from `glidepath_carpet.json` (the single, one 750 mm belt) and `glidepath_carpet2.json` (the double: two belts at
+a 1,450 mm gauge with a walking deck between them) by `assets/carpet.py` (the line modules, gallery, post and hut) and
+`assets/carpet_station.py`; fit checks in `carpet_fit.py`, review renders in `render_carpet.py`. Kinds `carpet_segment`,
+`carpet_gallery`, `carpet_station` and `surface_hut` in `budgets.json`. A carpet drives at the top and tensions at the
+bottom (C4). Ids are `glidepath_carpet_*` (single) and `glidepath_carpet2_*` (double); the post and the hut are shared.
+
+| Asset | Kind | Origin | What it is |
+|---|---|---|---|
+| `*_segment`, `*_segment_1m` | `carpet_segment` | grade, under the belt's centre at the back joint | a 2 m (6' 6¾") belt module or the 1 m filler: the belt (its own part `belt`), wear strips, the cover bar with the livery line, ribbed decks, skirts, joint covers lapping the next module, screw feet (parts `feet_back`, `feet_front`) |
+| `*_rail` | `carpet_segment` | as the module | optional side rails for one 2 m module; their top and knee rails run through to the next module under a sleeve coupler |
+| `*_gallery`, `*_gallery_exit` | `carpet_gallery` | as the module | a 2 m gallery bay: an arch over the back joint and clear glass to the next arch (the exit bay has a door each side) |
+| `*_portal` | `carpet_gallery` | grade, on the plane where the gallery starts | the dark steel portal at a gallery's end, standing on its -u side; turn it round at the far end |
+| `*_bottom` | `carpet_station` | grade, under the deflection roller's axis | the tension station; u toward the line (uphill) |
+| `*_top` | `carpet_station` | grade, under the drum's axis | the drive station; u toward the line, so it stands turned round at the top |
+| `glidepath_carpet_post` | `surface_hut` | grade, at the post | the control post; its buttons face -u |
+| `glidepath_carpet_hut` | `surface_hut` | grade, at the floor's centre | the operator hut on skids; `door` on -u |
+
+- **Sockets** (lift frame, mm): modules, rails and bays `back` (0, 0, 350) and `front` (length, 0, 350), at the belt top
+  on the centre line, the joints the game hinges about; modules also `foot_back`, `foot_front` at grade. Stations
+  `belt_out` (bottom) or `belt_in` (top) at (1,800, 0, 350), where the first or last module's socket goes;
+  `rider_load` / `rider_unload` (the double's `_l`, `_r`) on the plate; `post`, on the approach at the plate top
+  (372). The portal's `gallery` (0, 0, 350); the post's `panel`; the hut's `door`.
+- **Pivots:** `belt` on the modules and stations (fixed: the game scrolls the belt's UV0, which runs in metres along
+  u, at 160 fpm, C11); `feet_back`, `feet_front` on the modules (stretched to the ground, 100-300 mm; more is cut and
+  fill).
+- **Chaining** (the Lift Lab's carpet mode, Y, does this on level ground): the bottom station; each module on the last
+  socket by its `back`; the top station turned round by its `belt_in` on the last module's `front`; a bay or rails on a
+  module at the module's own place; a portal at the first bay's `back` and one turned round at the last bay's `front`;
+  the posts at the stations' `post` sockets (the top's turned with it).
+- **The earth at each end** is the game's: each station's `dims.approach` (owner C13) gives the pad it grades level
+  with the plate top, the top's run-off first, then the ease down to natural ground and the margin each side.
+- **Glass:** the gallery panes are on `LiftGlassClear` and marked for the accent (UV1 y = 2), so each lift's accent tints
+  them (`LiftMaterials` copies every glass material per accent). Nothing else uses the clear glass.
+
 ## Chairworks quad chair and the fixed grip (LP21-LP23)
 
 | Asset | Origin | What it is |
@@ -323,6 +360,19 @@ if a rope socket is off the rope, or if a mast section's AO doesn't tile.
 | Snow gun budget | 600 | 160 | 40 | 12 |
 | Stick gun (10, 20 or 30 ft) | 598 | 154 | 38 | 8 |
 | Ground gun | 534 | 156 | 30 | 12 |
+| Carpet module budget (`carpet_segment`, hard switch) | 900 | 350 | 80 | 16 |
+| Belt module, single / double (2 m or 1 m) | 268 / 370 | 152 / 222 | 32 / 52 | 10 / 14 |
+| Side rails | 280 | 200 | 64 | 16 |
+| Gallery budget (`carpet_gallery`, hard switch) | 700 | 350 | 80 | 32 |
+| Gallery bay, single / double | 460 / 372 | 284 / 240 | 64 / 56 | 30 |
+| Exit bay, single / double | 580 / 452 | 324 / 272 | 64 / 56 | 30 |
+| Portal, single / double | 228 / 196 | 140 / 120 | 80 / 72 | 24 / 20 |
+| Carpet station budget (`carpet_station`) | 10,000 | 4,000 | 1,000 | 200 |
+| Top station, single / double | 650 / 984 | 368 / 520 | 128 / 172 | 54 / 68 |
+| Bottom station, single / double | 468 / 712 | 250 / 378 | 102 / 146 | 44 / 58 |
+| Hut budget (`surface_hut`) | 800 | 300 | 80 | 20 |
+| Carpet control post | 196 | 78 | 42 | 10 |
+| Glidepath hut | 174 | 100 | 52 | 20 |
 
 ## Modelling rules learned in the pilot
 
@@ -342,6 +392,11 @@ if a rope socket is off the rope, or if a mast section's AO doesn't tile.
   texture default must be `linearGrey`, not `grey`, which samples 0.21.
 - **Review in photos, not just drawings.** The Cycles photo set (`--shots photos`) catches what orthographic
   views hide: colours, occlusion, glass and flush-face artefacts.
+- **Check the glass in Unity, not only in the photos.** For two weeks `LiftStructure.shader`'s glass variant didn't
+  compile: its `_ALPHAPREMULTIPLY_ON` define had no value, and URP tests it with `#if`. Unity then drew every pane
+  with the opaque variant, solid and near black, while the Cycles photos showed clear glass. Only the build log
+  said so. `LiftMaterialsTests.TheGlassVariantsCompile` now catches it. In the Lift Lab, `-glass a` sets every glass
+  to one face-on opacity, and `-focus id` (with `-view`) frames one terminal, to compare glass settings by eye.
 
 ## Adding a lift
 
