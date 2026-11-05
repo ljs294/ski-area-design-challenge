@@ -280,6 +280,10 @@ echo     78 Get water and roads later (BB6; needs the network; run 76 first): th
 echo        Jackson Hole has no water and roads. Manage Areas shows "No water and roads" and a Get water and roads
 echo        button; it runs on the row, then the toast says it's done. Open the area: lakes and roads are back.
 echo.
+echo   Lift costs (2025 dollars from Vermont Act 250 filings; rebuilds the game, close the Unity editor first)
+echo     79 The cost tests and the price table (each family, three typical lines), then the game: draw a lift and
+echo        watch the Cost row in New lift change as you move the top terminal; Edit lift shows it too.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -392,6 +396,7 @@ if /i "%CHOICE%"=="75" goto brushperf
 if /i "%CHOICE%"=="76" goto overpassskip
 if /i "%CHOICE%"=="77" goto quitcrash
 if /i "%CHOICE%"=="78" goto waterroads
+if /i "%CHOICE%"=="79" goto liftcosts
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -503,6 +508,23 @@ echo   Open Jackson Hole: its terrain is prepared again, and lakes and roads are
 start "" /wait "%GAME%" -data "%OVERPASSRUN%"
 findstr /i /c:"water and roads" "%PLAYERLOG%"
 goto done
+
+:liftcosts
+rem Lift costs: Terminals + a x slope length + b x rise, fitted to Act 250 filings in 2025 dollars by CPI.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~LiftCostTests" <nul
+if errorlevel 1 goto done
+dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "FullyQualifiedName~LiftCostTable" --logger "console;verbosity=normal" <nul | findstr /v /c:"Test run for" /c:"A total" /c:"NUnit" /c:"Running selected"
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open an area, then T for the Toolbox, the Lifts tab, N for New lift:
+echo   Place the bottom terminal, then move the top one: the panel's Cost row follows (about $3.1M for a fixed quad
+echo     4,000 ft long and 1,000 ft up). Hover the row for its parts: terminals, length and rise.
+echo   Change the type: a detachable quad or six costs more; gondolas and trams read "no price yet".
+echo   Build it, then Edit lift: the Cost row shows there too. Quit the game when done.
+start "" "%GAME%"
+goto menu
 
 :quitcrash
 rem Task P3-16 BB7: the lift shader's accent colour in the middle of its material block crashed the bundled D3D12
