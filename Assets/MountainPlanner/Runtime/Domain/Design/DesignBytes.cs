@@ -210,6 +210,7 @@ namespace MountainPlanner.Domain.Design
                 w.I32(v.BottomMm);
                 w.I32(v.TopMm);
             }
+            w.U8((byte)l.Drive);   // shape 10 (LD9)
         }
 
         static Lift ReadLift(Reader r)
@@ -235,7 +236,9 @@ namespace MountainPlanner.Domain.Design
             byte has = r.U8();
             if (has > 1) throw new FormatException("A lift's levels flag isn't 0 or 1.");
             if (has == 1) levels = new LiftLevels(r.I32(), r.I32());
-            return new Lift(id, name, stage, catalog, bottom, top, mode, stance, towers, levels);
+            byte drive = r.U8();
+            if (drive != (byte)LiftDrive.Top && drive != (byte)LiftDrive.Bottom) throw new FormatException("A lift's drive end isn't one this build knows.");
+            return new Lift(id, name, stage, catalog, bottom, top, mode, stance, towers, levels, (LiftDrive)drive);
         }
 
         static void WriteStroke(Writer w, TerrainStroke k)

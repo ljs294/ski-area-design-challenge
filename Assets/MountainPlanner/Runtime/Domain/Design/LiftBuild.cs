@@ -209,7 +209,7 @@ namespace MountainPlanner.Domain.Design
             {
                 bottomPad = TerminalPad.Grade(current, bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel + raiseB, type.Bottom.PadAhead);
                 var withBottom = new EditedHeights(current.Source, current.Lattice, bottomPad.Edits);
-                topPad = TerminalPad.Grade(withBottom, tx, ty, -ux, -uy, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, topLevel + raiseT, type.Top.PadAhead);
+                topPad = TerminalPad.Grade(withBottom, tx, ty, -ux, -uy, type.TopFootprint.Behind, type.TopFootprint.Ahead, type.TopFootprint.HalfWidth, topLevel + raiseT, type.TopFootprint.PadAhead);
                 onPads = new EditedHeights(current.Source, current.Lattice, topPad.Edits);
                 placed = TowerPlacement.Place(type, onPads, bx, by, tx, ty, bottomLevel + raiseB, topLevel + raiseT, stance);
                 // The station towers' steel: their rope point is what the terminal needs, so the ground under them changes only
@@ -394,7 +394,7 @@ namespace MountainPlanner.Domain.Design
             // The chairs clear from the bottom pad's edge to a little past the zone (TW-16 v3's old last resort's stretch).
             bool BottomClear(LiftRope r) => r.ShortfallBetween(frontB, edgeB + LiftRope.Clearance * 4, out _) <= LiftRope.ClearanceTolerance;
             bool TopClear(LiftRope r) => r.ShortfallBetween(edgeT, frontT, out _) <= LiftRope.ClearanceTolerance;
-            bool TopTakes(LiftRope r) => type.Top.Takes(-r.TopEntryLoaded) && type.Top.Takes(-r.TopEntryEmpty);
+            bool TopTakes(LiftRope r) => r.Type.Top.Takes(-r.TopEntryLoaded) && r.Type.Top.Takes(-r.TopEntryEmpty);   // the row the rope picked (LD9)
             bool TopOk(LiftRope r) => TopClear(r) && TopTakes(r);
             // Every 3 ft until it fits, then back a foot or two to the least that does: a dozen rope solves, not 30. (Not halved:
             // what fits can be a window, too low and the rope leaves too steeply, too high and too flat.)
@@ -486,7 +486,8 @@ namespace MountainPlanner.Domain.Design
             double bottomLevel = levels.BottomMetres, topLevel = levels.TopMetres;
             var bottomPad = TerminalPad.Grade(current, bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel, type.Bottom.PadAhead);
             var withBottom = new EditedHeights(current.Source, current.Lattice, bottomPad.Edits);
-            var topPad = TerminalPad.Grade(withBottom, tx, ty, -ux, -uy, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, topLevel, type.Top.PadAhead);
+            var topEnd = type.TopFootprint;   // LD9: room for whichever row the rope picks
+            var topPad = TerminalPad.Grade(withBottom, tx, ty, -ux, -uy, topEnd.Behind, topEnd.Ahead, topEnd.HalfWidth, topLevel, topEnd.PadAhead);
             var onPads = new EditedHeights(current.Source, current.Lattice, topPad.Edits);
             LiftRope Solve(EditedHeights g) => LiftRope.Solve(type, g, bx, by, tx, ty, towers, stance,
                                                              type.Bottom.ExitAlong, bottomLevel + type.Bottom.ExitRise,
@@ -522,7 +523,7 @@ namespace MountainPlanner.Domain.Design
             }
             var edits = LiftClearing.Corridor(envelope.Edits, current.Lattice, bx, by, tx, ty, out int cleared);
             edits = LiftClearing.Terminal(edits, current.Lattice, bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, out int aroundB);
-            edits = LiftClearing.Terminal(edits, current.Lattice, tx, ty, -ux, -uy, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth, out int aroundT);
+            edits = LiftClearing.Terminal(edits, current.Lattice, tx, ty, -ux, -uy, topEnd.Behind, topEnd.Ahead, topEnd.HalfWidth, out int aroundT);
             return new Works
             {
                 Edits = edits, Rope = rope, BottomPad = bottomPad, TopPad = topPad, Envelope = envelope,

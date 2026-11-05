@@ -22,6 +22,9 @@ namespace MountainPlanner.Domain.Design
     {
         /// <summary>The terminal's model (asset id).</summary>
         public string Model { get; }
+        /// <summary>LD9 (drive at either end): the head the model shows at this end ("bottom", "top", "top6", "top8"), or null
+        /// for a model with one head.</summary>
+        public string Head { get; }
         public TerminalRow Row { get; }
         /// <summary>The steepest and gentlest rope the row can take, in the end's frame.</summary>
         public double AngleMin { get; }
@@ -55,8 +58,9 @@ namespace MountainPlanner.Domain.Design
 
         public TerminalEnd(string model, TerminalRow row, double angleMin, double angleMax, double aim,
                            double behind, double ahead, double halfWidth, double exitAlong, double exitRise, double originAlong, int sheaves,
-                           bool ownStation = false, bool padToMiddle = false)
+                           bool ownStation = false, bool padToMiddle = false, string head = null)
         {
+            Head = head;
             PadToMiddle = padToMiddle;
             OwnStation = ownStation;
             Sheaves = sheaves;
@@ -76,19 +80,25 @@ namespace MountainPlanner.Domain.Design
         /// <summary>The same end on another model of the same family (a double's or triple's terminal, built from the quad's by
         /// rule: the same housing and row, LD5); the view measures its exit and footprint again.</summary>
         public TerminalEnd WithModel(string model) =>
-            new TerminalEnd(model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, ExitAlong, ExitRise, OriginAlong, Sheaves, OwnStation, PadToMiddle);
+            new TerminalEnd(model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, ExitAlong, ExitRise, OriginAlong, Sheaves, OwnStation, PadToMiddle, Head);
 
         /// <summary>The same end with the rope exit measured on its model.</summary>
         public TerminalEnd WithExit(double along, double rise) =>
-            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, along, rise, OriginAlong, Sheaves, OwnStation, PadToMiddle);
+            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, along, rise, OriginAlong, Sheaves, OwnStation, PadToMiddle, Head);
 
         /// <summary>The same end with its footprint measured on its model.</summary>
         public TerminalEnd WithFootprint(double behind, double ahead, double halfWidth) =>
-            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, behind, ahead, halfWidth, ExitAlong, ExitRise, OriginAlong, Sheaves, OwnStation, PadToMiddle);
+            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, behind, ahead, halfWidth, ExitAlong, ExitRise, OriginAlong, Sheaves, OwnStation, PadToMiddle, Head);
 
         /// <summary>The same end with its origin measured on its model.</summary>
         public TerminalEnd WithOrigin(double along) =>
-            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, ExitAlong, ExitRise, along, Sheaves, OwnStation, PadToMiddle);
+            new TerminalEnd(Model, Row, AngleMin, AngleMax, Aim, Behind, Ahead, HalfWidth, ExitAlong, ExitRise, along, Sheaves, OwnStation, PadToMiddle, Head);
+
+        /// <summary>The same end with another of its model's heads and that head's row (LD9): its sheaves and, for a support row,
+        /// the arriving rope it takes, LC-02's 4.5° a sheave.</summary>
+        public TerminalEnd WithHead(string head, int sheaves) =>
+            new TerminalEnd(Model, Row, Row == TerminalRow.Support ? -sheaves * LiftRope.BendPerSheave : AngleMin, AngleMax, Aim, Behind, Ahead,
+                            HalfWidth, ExitAlong, ExitRise, OriginAlong, sheaves, OwnStation, PadToMiddle, head);
 
         /// <summary>Whether a rope at <paramref name="angle"/> (the end's frame) suits the row.</summary>
         public bool Takes(double angle) => angle >= AngleMin - 1e-9 && angle <= AngleMax + 1e-9;

@@ -108,7 +108,7 @@ namespace MountainPlanner.Tests.Core
             Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "TrailLines", "Cuts" }),
                 "no network, stats, ratings, rope or volumes (SH-05); no undo history (DD1)");
             Assert.That(((JObject)o["Design"]["Lifts"][0]).Properties().Select(p => p.Name),
-                Is.EqualTo(new[] { "Id", "Name", "Stage", "Catalog", "Bottom", "Top", "TowerMode", "Stance", "Towers", "Levels" }),
+                Is.EqualTo(new[] { "Id", "Name", "Stage", "Catalog", "Bottom", "Top", "TowerMode", "Stance", "Towers", "Levels", "Drive" }),
                 "tower positions, heights and stance are authored (SH-05, TW-15), and the terminals' levels (SK14, v2)");
         }
 
@@ -255,14 +255,38 @@ namespace MountainPlanner.Tests.Core
             return save;
         }
 
+        /// <summary>
+        /// The save the v10 fixture holds (lift overhaul B2, owner LD9): the v9 fixture's, with its first Sessellift driven at
+        /// the bottom, its second made a Monta driven at the top, and a Sessellift Stern Q-4 (bottom drive only) added, so both
+        /// drive words and the new catalog id are pinned.
+        /// </summary>
+        static SaveFile FixtureSaveTen()
+        {
+            var save = FixtureSaveNine();
+            var d = save.Design;
+            var first = d.Lifts[0];
+            var r = new EditLift(0, first.Id, first.CatalogId, first.Bottom, first.Top, first.TowerMode, first.Stance, first.Towers, null, first.Levels,
+                                 LiftEdit.DriveEnd, null, LiftDrive.Bottom).Apply(d);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            var second = r.Document.Lifts[1];
+            r = new EditLift(0, second.Id, LiftCatalogIds.MontaFg4, second.Bottom, second.Top, second.TowerMode, second.Stance, second.Towers, null,
+                             second.Levels, LiftEdit.ChangeType, null, LiftDrive.Top).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            r = new AddLift(0, "Stern Chair", LiftCatalogIds.SesselliftStern4, DesignTestKit.P(-600_000, 0), DesignTestKit.P(-300_000, 600_000),
+                            TowerMode.Automatic, TowerStance.Plumb, null, WorkStage.Built, new LiftLevels(2_000_000, 2_150_000)).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            save.Design = r.Document;
+            return save;
+        }
+
         [Test]
         public void TheWriterReproducesTheFrozenFixtureByteForByte()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v9-save")), "Saves", JacksonHole, "save-001");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v10-save")), "Saves", JacksonHole, "save-001");
             string folder = Path.Combine(_root, "again");
-            SaveStore.Write(folder, FixtureSaveNine());
+            SaveStore.Write(folder, FixtureSaveTen());
             Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveFile.FileName)), Is.EqualTo(File.ReadAllBytes(Path.Combine(fixture, SaveFile.FileName))),
-                "save.json v9 is frozen: a writer change is a format change (0.3 §5)");
+                "save.json v10 is frozen: a writer change is a format change (0.3 §5)");
             foreach (string tile in Directory.GetFiles(Path.Combine(fixture, SaveStore.TilesFolder)))
                 Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveStore.TilesFolder, Path.GetFileName(tile))), Is.EqualTo(File.ReadAllBytes(tile)));
         }
@@ -363,7 +387,7 @@ namespace MountainPlanner.Tests.Core
             byte[] before = File.ReadAllBytes(path);
 
             var e = Assert.Throws<FormatTooNewException>(() => SaveStore.Read(folder));
-            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 10; this version reads up to 9). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 11; this version reads up to 10). Update the game to open it."));
             Assert.That(SaveStore.Write(folder, FixtureSave()), Is.False);
             Assert.That(SaveStore.Rename(folder, "Mine now"), Is.False);
             Assert.That(File.ReadAllBytes(path), Is.EqualTo(before), "nothing is written over a newer save (0.3 §5 rule 3)");
@@ -602,6 +626,35 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
+        public void TheVersionTenFixtureReadsUnchanged()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v10-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture10");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveTen(), back);
+            Assert.That(back.MigratedFrom, Is.EqualTo(10));
+            Assert.That(back.Design.Lifts.OrderBy(l => l.CatalogId, StringComparer.Ordinal).Select(l => l.CatalogId + " " + l.Drive),
+                Is.EqualTo(new[] { "monta-fg4 Top", "sessellift-fgq4 Bottom", "sessellift-stern4 Bottom" }), "the player's drive ends, and the Stern's own (LD9)");
+        }
+
+        [Test]
+        public void EveryOlderSaveOpensWithItsTypesOwnDriveEnd()
+        {
+            // v9 → v10 (LD9): before v10 every lift drove at its type's own end, the Sessellift's top and the Monta's bottom.
+            foreach (string version in new[] { "v1-save", "v5-save", "v9-save" })
+            {
+                string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", version)), "Saves", JacksonHole, "save-001");
+                var o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName))), out _);
+                foreach (JObject l in (JArray)o["Design"]["Lifts"])
+                    Assert.That((string)l["Drive"], Is.EqualTo(LiftCatalogIds.Maker((string)l["Catalog"]) == "monta" ? "bottom" : "top"), version);
+            }
+            var monta = JObject.Parse("{ \"Design\": { \"Lifts\": [ { \"Catalog\": \"monta-fg4\" }, { \"Catalog\": \"fixed-triple:monta\" }, { \"Catalog\": \"sessellift-fgq4\" } ] } }");
+            typeof(SaveFile).GetMethod("UpToTen", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).Invoke(null, new object[] { monta });
+            Assert.That(((JArray)monta["Design"]["Lifts"]).Select(l => (string)l["Drive"]), Is.EqualTo(new[] { "bottom", "bottom", "top" }));
+        }
+
+        [Test]
         public void EveryOlderSaveMigratesToEightWithOutlines()
         {
             // 0.3 §5 (task P3-10, sections finding 7): the v1–v7 fixtures, unedited, open through v7 → v8: every trail's
@@ -644,8 +697,8 @@ namespace MountainPlanner.Tests.Core
         }
 
         // Re-pinned for shape 9 (task 15 round 4, BR22): the same outlines, the shape number and each stroke's 1 ft clearing
-        // depth (v8 → v9) in the bytes; from 8debdb8b….
-        const string ConvertedSevenSha = "e7c1fe4e60ae7cf03203b25c1519a60197a656ac0e252273cb3c0a1a9570c156";
+        // depth (v8 → v9) in the bytes; from 8debdb8b…. Shape 10 (LD9): the shape number and each lift's drive end; from e7c1fe4e….
+        const string ConvertedSevenSha = "c7a67ac0c33cccc7dd1730913d724fa515fb8446c90b114a2669a4be9456cd76";
 
         [Test]
         public void ADamagedOlderTrailRefusesTheSave()
@@ -748,6 +801,16 @@ namespace MountainPlanner.Tests.Core
                 Assert.That(back.Design.Strokes, Is.Empty, kv.Key);
                 Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
             }
+        }
+
+        [Test, Explicit("Regenerates the frozen v10 save fixture")]
+        public void WriteTheVersionTenFixture()
+        {
+            string formats = TestData.Folder("formats");
+            string folder = Path.Combine(formats, "v10-save", "Saves", JacksonHole, "save-001");
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+            Assert.That(SaveStore.Write(folder, FixtureSaveTen()), Is.True);
+            File.Delete(Path.Combine(folder, SaveFile.BackupName));
         }
 
         [Test, Explicit("Regenerates the frozen v9 save fixture")]

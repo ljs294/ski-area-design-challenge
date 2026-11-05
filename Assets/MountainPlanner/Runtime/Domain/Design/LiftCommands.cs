@@ -18,10 +18,13 @@ namespace MountainPlanner.Domain.Design
         public WorkStage Stage { get; }
         /// <summary>The terminals' levels as the build settled them (SK14, save v2); null leaves them to the ground.</summary>
         public LiftLevels? Levels { get; }
+        /// <summary>LD9 (save v10): the end that drives; null for the type's own.</summary>
+        public LiftDrive? Drive { get; }
 
         public AddLift(long baseRevision, string name, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance,
-            IReadOnlyList<TowerSpec> towers, WorkStage stage, LiftLevels? levels = null) : base(baseRevision)
+            IReadOnlyList<TowerSpec> towers, WorkStage stage, LiftLevels? levels = null, LiftDrive? drive = null) : base(baseRevision)
         {
+            Drive = drive;
             Levels = levels;
             Name = name;
             CatalogId = catalogId;
@@ -45,7 +48,7 @@ namespace MountainPlanner.Domain.Design
             var id = mint.Lift();
             created.Add(id.Value);
             var towers = LiftTowers.Mint(ref mint, Towers, created);
-            var lift = new Lift(id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels);
+            var lift = new Lift(id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels, Drive);
             if (DesignRules.TowersProblem(lift.LengthSquaredMm, lift.Towers, lift.CatalogId) is string t) return Invalid(doc, t);
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(lift), created);
         }
@@ -262,7 +265,7 @@ namespace MountainPlanner.Domain.Design
     }
 
     /// <summary>What an <see cref="EditLift"/> changes, for its undo label.</summary>
-    public enum LiftEdit : byte { Edit, MoveTerminal, ChangeType, TerminalLevel }
+    public enum LiftEdit : byte { Edit, MoveTerminal, ChangeType, TerminalLevel, DriveEnd }
 
     /// <summary>
     /// Edit lift's Apply (task 09, LT2, LT9): one step that changes a built or planned lift's line, type, mode, stance,
@@ -285,11 +288,15 @@ namespace MountainPlanner.Domain.Design
         public LiftEdit Kind { get; }
         /// <summary>The lift's new name, or null to keep it.</summary>
         public string Name { get; }
+        /// <summary>LD9: the end that drives, or null to keep it (the type's own where the player doesn't choose).</summary>
+        public LiftDrive? Drive { get; }
 
         public EditLift(long baseRevision, LiftId lift, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance,
-                        IReadOnlyList<Tower> kept, IReadOnlyList<TowerSpec> added, LiftLevels? levels, LiftEdit kind = LiftEdit.Edit, string name = null)
+                        IReadOnlyList<Tower> kept, IReadOnlyList<TowerSpec> added, LiftLevels? levels, LiftEdit kind = LiftEdit.Edit, string name = null,
+                        LiftDrive? drive = null)
             : base(baseRevision)
         {
+            Drive = drive;
             Name = name;
             Lift = lift;
             CatalogId = catalogId;
@@ -305,13 +312,14 @@ namespace MountainPlanner.Domain.Design
 
         /// <summary>The lift as it stands, changed only where the caller says: the tool's starting point for a draft.</summary>
         public static EditLift From(long baseRevision, Lift l, LiftEdit kind = LiftEdit.Edit) =>
-            new EditLift(baseRevision, l.Id, l.CatalogId, l.Bottom, l.Top, l.TowerMode, l.Stance, l.Towers, null, l.Levels, kind);
+            new EditLift(baseRevision, l.Id, l.CatalogId, l.Bottom, l.Top, l.TowerMode, l.Stance, l.Towers, null, l.Levels, kind, null, l.Drive);
 
         public override string Label => Kind switch
         {
             LiftEdit.MoveTerminal => "Move terminal",
             LiftEdit.ChangeType => "Change lift type",
             LiftEdit.TerminalLevel => "Change terminal level",
+            LiftEdit.DriveEnd => "Change drive end",
             _ => "Edit lift",
         };
 
@@ -334,7 +342,7 @@ namespace MountainPlanner.Domain.Design
             var mint = new IdMint(doc);
             var created = new List<ulong>();
             towers.AddRange(LiftTowers.Mint(ref mint, Added, created));
-            var next = new Lift(l.Id, Name ?? l.Name, l.Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels);
+            var next = new Lift(l.Id, Name ?? l.Name, l.Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels, Drive ?? l.Drive);
             if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers, next.CatalogId) is string t2) return Invalid(doc, t2);
             if (DesignBytes.Same(l, next)) return Invalid(doc, "Nothing changes.");
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(next), created);

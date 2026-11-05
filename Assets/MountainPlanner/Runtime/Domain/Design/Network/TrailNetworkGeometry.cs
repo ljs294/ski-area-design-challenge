@@ -583,14 +583,14 @@ namespace MountainPlanner.Domain.Design
             foreach (var l in doc.Lifts)
             {
                 if (l.Stage != WorkStage.Built) continue;
-                var type = LiftType.Of(l.CatalogId);
+                var type = LiftType.Of(l);
                 _site.PointOf(l.Bottom, out double bx, out double by);
                 _site.PointOf(l.Top, out double tx, out double ty);
                 double len = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
                 if (len <= 0 || type == null) continue;
                 double ux = (tx - bx) / len, uy = (ty - by) / len;
                 if (type.Bottom != null) list.Add(new Terminal(bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth));
-                if (type.Top != null) list.Add(new Terminal(tx, ty, -ux, -uy, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth));
+                if (type.Top != null) list.Add(new Terminal(tx, ty, -ux, -uy, type.TopFootprint.Behind, type.TopFootprint.Ahead, type.TopFootprint.HalfWidth));
             }
             return list;
         }
