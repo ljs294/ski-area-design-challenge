@@ -559,6 +559,7 @@ namespace MountainPlanner.UI.Tools
                      Type.Detachable ? "LC-04: slope length over the rope speed, plus the ramps out of and into the stations (LT41)" : "LC-04: slope length over the rope speed")
                 .Add("Capacity", LiftSummary.Capacity(Type),
                      Type.Detachable ? "LC-03 v2: seats × 3,600 ÷ the loading interval (LT41)" : "LC-03")
+                .Add("Cost", LiftCostSummary.Cost(Type, run, rise), LiftCostSummary.Rule(Type, run, rise))
                 .Reserved("Network", "NW-12: No way down", ReviewModel.NetworkSlot);
             // NW-04: the lift as if built, in the network of everything else (task P3-10); a first lift alone has no way down.
             NetworkCheck.Fill(_review, NetworkCheck.Warnings(_ctx.History.Document,
