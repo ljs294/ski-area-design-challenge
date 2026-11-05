@@ -18,6 +18,7 @@ which carry the Sessellift chair; and the **Chairworks quad chair** with either 
 | `monta_fg4.json` | The Monta terminals' dimensions (`common`, `drive`, `return`) and their `catalog` |
 | `chairworks_chair.json` | The Chairworks chair's dimensions (the body, both grips) and its `catalog` |
 | `sessellift_d4.json`, `sessellift_d4_towers.json` | The Sessellift D4 detachable quad: an overlay on `sessellift_d6.json` (its station one bay shorter, at a 4.8 m gauge) and its tower heads, the quad kit's at that gauge (see Sessellift D4 below) |
+| `sessellift_stern4.json`, `sessellift_stern3.json`, `sessellift_stern2.json` | The Sessellift Stern, the second Sessellift fixed-grip style: the quad's terminals, and the triple and double as overlays on it at their gauges (see Sessellift Stern below) |
 | `fixed_grip.json` | The fixed grip every fixed-grip chair carries (LP22) |
 | `budgets.json` | Triangle budgets per LOD and LOD switch distances. The build and the Unity tests both read it |
 | `build_lifts.py` | Builds every asset and LOD, bakes AO, sweeps the pivots for clashes, exports one FBX per asset plus the textures, and checks budgets, pivots, sockets and AO tiling |
@@ -25,6 +26,7 @@ which carry the Sessellift chair; and the **Chairworks quad chair** with either 
 | `assets/*.py` | One module per asset: `drive_terminal`, `return_terminal`, `chair`, `tower` (the line tower kit, see below), `sle_stick_gun` (three lance lengths from one module), `sle_ground_gun`, `monta_drive`, `monta_return`, `chairworks_chair` (two grips from one module) and `terminal_footing` |
 | `liftkit/` | The shared kit: `frame` (lift frame to Blender), `prims` (boxes, beams, cylinders, prisms, lathes), `parts` (sheaves, sheave trains, line assemblies, railings, ladders), `heads` (the entry head shared by the drive terminal and the towers), `mesh` (MeshBuilder, per-face data and part tags, flush-face separation), `palette`, `textures` (detail atlas), `ao`, `materials`, `export`, `clash` (the pivots' safe ranges), `pose` (posing for the review photos) |
 | `render_review.py` | Review renders: orthographic views with dimensions (`gate1`), LOD lineup (`lods`), shader data (`data`), Cycles photos on snow (`photos`, `terminal_photos`, `tower_photos`; the snow guns' photos, line-up and both heads at one scale come with `photos`), leaned bases (`lean_photos`), posed heads, chair and raised terminals (`pose_photos`), the tower kit in clay (`towers`) |
+| `render_surface.py` | The surface lifts' review (`--shots surface_gate1,surface_photos,surface_audit,surface_gate2,surface_heads`): orthographic views, the return's posed rows and a clay line (`surface_gate1`); Cycles photos (`surface_photos`); the holes the game would show where it culls back faces (`surface_audit`, `tbar_audit.json`, no images); Gate 2 photos as the game draws the models: back faces culled, the game's LODs at its camera's distances, snowfall, each model's LODs side by side (`surface_gate2`); the T-bar head beside the fixed-grip chair tower's head, whose lifting frame it carries in miniature (`surface_heads`, with `tower_s4`, `tower_mast`, `tower_base`) |
 | `build-lifts.bat` | Double-click: builds everything and opens the photos |
 
 ```sh
@@ -101,6 +103,8 @@ The game poses the lift's moving parts once, at build, from the rope (the model 
 | `c8` | `block_r` (rigid with both triangular frames) → `yoke_sup_r`, `yoke_hold_r` (overlapping the frames: range 0) → `rocker_rs1/2`, `rocker_rh1/2` → `sheave_rs1..4`, `sheave_rh1..4` |
 | the drive's row | `beam_r` (the beam's pin through the plate) → `rocker_r1`, `rocker_r2` → `sheave_r2..5` |
 | the Monta drive's exit row | `eq_l` (the long carrier, on the pin through its clamp under the front cross tube) → `yoke_l1` (on a hanger block) and `eq_l2` (the link bar, on the other block) → `yoke_l2`, `yoke_l3` → `rocker_l1..6` → `sheave_l1..12`; on the right rope the reference has it end for end: `eq_r` → `yoke_r3` and `eq_r2` → `yoke_r1`, `yoke_r2` |
+| Monta T-bar heads, the T-bar drive's rows | `eq_l`, `eq_r` (the end pin) → `rocker_<s>1..` → `sheave_<s>1..` |
+| the Monta T-bar return's breakover rows | `eq_<s>` (the end pin through the drop plate) → `yoke_<s>1`, `yoke_<s>2` → `rocker_<s>1..4` → `sheave_<s>1..8` |
 
   The drive's row equalises a little (owner): stops of ±10° on `beam_r` and ±5° on its rockers (spec
   `drive.entryTrains.pinStops`; the build clamps the clash range to them). Sharing the turn equally up to the row's
@@ -115,6 +119,9 @@ The game poses the lift's moving parts once, at build, from the rope (the model 
   inside the clash ranges. Its plates are spread across the rope's plane so the parts can turn. Its guide sheaves and
   the return's deflection sheaves stay single fixed wheels (owner, confirmed at P3-09): the return is a fixed row,
   which the game takes as rigid (LT33).
+  The Monta T-bar return's breakover rows rest on their station arc with the rope level from the bullwheel onto the
+  first sheave and leaving at 12° (`ropeExitDeg`, `rope_<side>_hold`); their yokes let them keep that level entry,
+  the first sheave held, for exits of 7° to 22° (`pose.band`, inside the clash ranges).
   Sheaves are their own parts at LOD0 and ride in their rocker at LOD1; at LOD2-3 each side's whole train is one
   part under its top pivot, never the body. The main pin and the lug plates stay in the body.
 - **The Sessellift chair:** `grip` (the origin, on the rope) → `hanger`, which turns about the grip's own stack axis
@@ -235,6 +242,42 @@ spin only at LOD0 on towers; from LOD1 a head is one mesh.
   pose for exits of 5-16 degrees).
 - **Heights:** the D6's (rope 3,600 mm), so the chair hangs on the D6's hanger unchanged.
 
+## Monta T-bar (surface lifts)
+
+Built from `monta_tbar.json` by `assets/tbar.py` (towers), `tbar_terminal.py` and `tbar_carrier.py`; kinds
+`surface_*` in `budgets.json`. Always a bottom drive (no drive-end swap). Gauge 3 m, the loaded track on +X.
+
+| Asset | Kind | Origin | What it is |
+|---|---|---|---|
+| `monta_tbar_drive` | `surface_terminal` | grade, on the bullwheel's axle | the bottom station: box columns, the wheel under a railed grating deck, the machinery house, hold-down rows; rope 3,400 mm |
+| `monta_tbar_return` | `surface_terminal` | grade, on the bullwheel's axle | the top station on its HSS diagonal and prop, tension hidden, breakover rows that pose for the line; rope 4,500 mm at the wheel |
+| `monta_tbar_hut` | `surface_hut` | grade | the red operator hut; `door` |
+| `monta_tbar_tower_{s4,s6,d4}` | `surface_tower_head` | the mast top, on the leaned axis | level heads: cone sleeve, gusseted crossarm, trains on end pins with catchers, the chair towers' lifting frame in miniature and their catwalk beside the arm |
+| `monta_tbar_mast` | `surface_mast` | the section's foot | one 1 m section, built upright: the game tilts it by `dims.leanDeg` (8) toward +X about Z |
+| `monta_tbar_base` | `surface_base` | grade, on the pier | footing, pier, leaned stub in the red pad; `mast_foot` along the leaned axis |
+| `monta_tbar_springbox` | `surface_carrier` | the grip, on the rope | the recoil box, hinged on its pin; `cord` is the outlet |
+| `monta_tbar_bar_t`, `monta_tbar_bar_j` | `surface_carrier` | the eye | the T and J bars; `seat_*` where riders sit |
+
+- **Towers:** stack the base, sections up the leaned axis from `mast_foot`, and the head level on top; the pier stands
+  off to -X by `dims.footOffsetPerSection` per section (the Lift Lab's T-bar mode, U, does this).
+- **Sockets:** terminals `line`, `rope_*_bw`, `rope_*_out` (the return's also `rope_*_hold`, its `out` below it, and
+  `wire`), `carrier_load` / `carrier_unload`; heads `rope_left/right`, `wire_left/right`, `number_plate`, `mast_top`.
+- **Rope heights** are each terminal's own (`dims.rope`), not a line-wide `ropeElevation`.
+
+## Sessellift Stern (second fixed-grip style)
+
+| Asset | Origin | What it is |
+|---|---|---|
+| `sessellift_stern{4,3,2}_drive` | grade, on the bullwheel's axle | the bottom drive and tension station: a 508 pipe portal at the line end, a pipe frame per side back to a tapered column, the hood with flat glazed ends, the catwalk and door at the line end; its one head is `bottom` (8-sheave hold-down rows on a fixed mount) |
+| `sessellift_stern{4,3,2}_return` | grade, on the bullwheel's axle | the fixed top return: a column and boom to the wheel's pedestal, a railed walkway, guide sheaves and a box girder to the crossbeam; head `top` (4-sheave support trains), with `top6` and `top8` |
+
+- **Bottom drive only:** each terminal carries only its own end's head, so the game offers no drive-end swap for
+  this style. Modules `assets/stern_drive.py`, `stern_return.py` and `stern_heads.py` (spec items may carry `from`,
+  the first LOD drawn, and an `eye` slot cut at LOD0).
+- **Gauges:** the quad's 4,120, the triple's 3,658, the double's 3,353, rope 3,039 above grade; the hood, column,
+  boom and decks keep the quad's size, the arms, crossbeams, portals, rows and wheel plates follow the gauge.
+- **Chairs:** the FGQ-4 family's (the Sessellift quad, triple and double chairs, and the Chairworks fixed chairs).
+
 ## Chairworks quad chair and the fixed grip (LP21-LP23)
 
 | Asset | Origin | What it is |
@@ -284,7 +327,12 @@ if a rope socket is off the rope, or if a mast section's AO doesn't tile.
 ## Modelling rules learned in the pilot
 
 - **Orient faces explicitly.** `MeshBuilder.face` takes an outward direction; prisms and lathes use the
-  outline's winding (shoelace sign), because a centroid test fails on concave outlines.
+  outline's winding (shoelace sign), because a centroid test fails on concave outlines. An open lathe profile (one
+  surface, not a section) still falls back on the centroid test: give a concave one `side=` (the T-bar's dished
+  sheaves faced inward without it, invisible in Cycles, see-through in the game).
+- **Check what the game culls.** Unity draws front faces only; Cycles draws both, so a hole or an inward face never
+  shows in the review photos. `--shots surface_audit` casts rays at every LOD (and the towers as stacked) and lists
+  the parts where a ray first meets a back face; `materials.cull_backfaces` makes a photo cull as the game does.
 - **Flush parts are fine.** Parts are overlapping solids, so where two meet flush, two faces share a plane.
   `MeshBuilder.separate_flush` pulls the smaller face 2 mm into its own part (repeated until stable). Without
   it, those faces z-fight in Unity and render black in Cycles.

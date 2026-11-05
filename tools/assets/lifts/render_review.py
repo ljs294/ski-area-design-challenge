@@ -58,6 +58,12 @@ NARROW_TERMINALS.update({f"monta_{p}_return_bottom": "monta_return_bottom" for p
 ORTHO.update({k: ORTHO[like] for k, like in NARROW_TERMINALS.items()})
 D6_STATIONS = ("d6_drive", "d6_return", "d4_bottom", "d4_top")   # the D6's stations and the D4's, one bay shorter
 TERMINALS = ("drive", "return", "monta_drive", "monta_return", "monta_return_bottom") + D6_STATIONS + tuple(NARROW_TERMINALS)
+# the Sessellift Stern's terminals, as its layouts draw them (seen through the deliberate mirror, Gate 0; the
+# return's end view from behind its wheel)
+STERN_TERMINALS = tuple(f"stern{n}_{end}" for n in (4, 3, 2) for end in ("drive", "return"))
+ORTHO.update({k: [("side", "-u", "+w"), ("end", "-v" if k.endswith("return") else "+v", "+w"), ("plan", "-u", "-v")]
+              for k in STERN_TERMINALS})
+TERMINALS += STERN_TERMINALS
 CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed", "d6_chair", "d4_chair",
           "fgd2_chair", "fgt3_chair", "chairworks_chair_double_fixed", "chairworks_chair_triple_fixed")
 # the chairs of each fixed-grip family side by side: quad, triple, double (v0.3.2)
@@ -355,7 +361,7 @@ def clay_views(key, built, spec, out_dir, chairs):
     cam.data.lens = 35
     cam.data.clip_end = 500
     sc.render.resolution_x, sc.render.resolution_y = 1600, 1000
-    if key.startswith("sle_stick") or key in D6_STATIONS:   # frame what stands above the snow (the
+    if key.startswith(("sle_stick", "stern")) or key in D6_STATIONS:   # frame what stands above the snow (the
         lo = Vector((lo.x, lo.y, max(lo.z, 0.0)))                          # D6's piers run 15 m down)
         centre, radius = (lo + hi) / 2, (hi - lo).length / 2
     dist = 3.0 if key.startswith("sle_stick") else 2.4
@@ -747,7 +753,9 @@ TERMINAL_LINEUPS = {"sessellift_drive": ("drive", "fgt3_drive", "fgd2_drive"),  
                     "monta_return_bottom": ("monta_return_bottom", "monta_fg3_return_bottom", "monta_fg2_return_bottom"),
                     # the Sessellift D4 between the fixed quad and the D6, for scale
                     "sessellift_bottom": ("drive", "d4_bottom", "d6_drive"),
-                    "sessellift_top": ("return", "d4_top", "d6_return")}
+                    "sessellift_top": ("return", "d4_top", "d6_return"),
+                    "stern_drive": ("stern4_drive", "stern3_drive", "stern2_drive"),
+                    "stern_return": ("stern4_return", "stern3_return", "stern2_return")}
 
 
 def terminal_lineup(name, terms, out_dir, gap=16.0):
@@ -1649,7 +1657,7 @@ def render_all(built, spec, out_dir, shots, mats):
             return d6_chairs
         if key.startswith("d4_"):
             return d4_chairs
-        for seats, tags in ((2, ("fgd2_", "monta_fg2_")), (3, ("fgt3_", "monta_fg3_"))):
+        for seats, tags in ((2, ("fgd2_", "monta_fg2_", "stern2_")), (3, ("fgt3_", "monta_fg3_", "stern3_"))):
             if key.startswith(tags):
                 return narrow.get(seats)
         return chairs

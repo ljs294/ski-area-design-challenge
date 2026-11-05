@@ -195,11 +195,13 @@ def fillet(pts, i, radius, steps):
     return list(pts[:i]) + arc + list(pts[i + 1:])
 
 
-def lathe(mb, center, axis, profile, segments, style, closed=True, smooth=True, phase=0.0, arc=None):
+def lathe(mb, center, axis, profile, segments, style, closed=True, smooth=True, phase=0.0, arc=None, side=None):
     """Revolves a (radius, height) profile about `axis` through `center`.
 
     closed: the profile is a closed section (last point joins the first); faces point away from the
-    section's centroid. arc: (start, end) radians for a partial revolution (no end caps)."""
+    section's centroid. arc: (start, end) radians for a partial revolution (no end caps). side (an open profile only,
+    opt-in): +1 or -1 faces every segment toward +axis or -axis instead of away from the profile's centroid, which a
+    concave profile (a dished wheel face) gets wrong."""
     c, ax = vec(center), vec(axis).normalized()
     _, y, z = basis_along(ax)
     full = arc is None
@@ -222,6 +224,9 @@ def lathe(mb, center, axis, profile, segments, style, closed=True, smooth=True, 
         nr, nh = (h1 - h0), -(r1 - r0)
         if closed:   # outward from the section's winding (right of each edge when counter-clockwise)
             nr, nh = nr * wind, nh * wind
+        elif side is not None:
+            if nh * side < 0:
+                nr, nh = -nr, -nh
         elif nr * ((r0 + r1) / 2 - cr) + nh * ((h0 + h1) / 2 - ch) < 0:
             nr, nh = -nr, -nh
         flat_seg = st if abs(nh) < 0.8 * math.hypot(nr, nh) else st.but(smooth=False)   # discs / annuli stay flat
