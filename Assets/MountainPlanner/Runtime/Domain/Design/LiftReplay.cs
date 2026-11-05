@@ -31,7 +31,7 @@ namespace MountainPlanner.Domain.Design
                 if (lift.Id.Value == skip.Value || lift.Stage != WorkStage.Built || lift.Levels is not LiftLevels levels || lift.Towers.Count == 0) continue;
                 var b = toGround(lift.Bottom);
                 var t = toGround(lift.Top);
-                var works = LiftBuild.Earthwork(LiftType.Of(lift.CatalogId), current, b.X, b.Y, t.X, t.Y, lift.Towers, levels, lift.Stance);
+                var works = LiftBuild.Earthwork(LiftType.Of(lift), current, b.X, b.Y, t.X, t.Y, lift.Towers, levels, lift.Stance);
                 current = new EditedHeights(natural, lattice, works.Edits);
             }
             return current.Edits;

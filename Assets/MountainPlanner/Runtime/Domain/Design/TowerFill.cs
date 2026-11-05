@@ -96,7 +96,7 @@ namespace MountainPlanner.Domain.Design
                 && strung.ShortfallBetween(0, station, out _) <= LiftLineEnvelope.CapMetres
                 // ... and the top terminal's row takes the rope: a top station tower's foundation aims it at Break ground
                 // (TW-16 v3); past a line tower it must already (no terminal raise makes up for it now, LT34).
-                && (TopStation(type, strung, length) || type.Top.Takes(-strung.TopEntryLoaded) && type.Top.Takes(-strung.TopEntryEmpty));
+                && (TopStation(type, strung, length) || strung.Type.Top.Takes(-strung.TopEntryLoaded) && strung.Type.Top.Takes(-strung.TopEntryEmpty));
         }
 
         static bool TopStation(LiftType type, LiftRope strung, double length) =>

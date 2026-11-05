@@ -29,25 +29,45 @@ namespace MountainPlanner.UI.Tools
             new[] { "60 person", "100 person" },
         };
         static readonly int[] KindDefault = { 2, 1, 1, 1 };   // the quad, the detachable six (the D6), 8 person, 100 person
-        static readonly string[] QuadModels = { "Sessellift FGQ-4", "Monta FG4", "Chairworks (comes later)" };
-        static readonly string[] QuadIds = { LiftCatalogIds.SesselliftFgq4, LiftCatalogIds.MontaFg4 };
-        static readonly bool[] QuadOff = { false, false, true };
+        // The fixed grips' models by carrier (v0.3.2): each maker's, with the Sessellift's two styles; Chairworks comes later.
+        static readonly string[] FixedCarriers = { "fixed-double", "fixed-triple", "fixed-quad" };
+        static readonly string[][] FixedModels =
+        {
+            new[] { "Sessellift FGD-2", "Sessellift Stern D-2", "Monta FG2", "Chairworks (comes later)" },
+            new[] { "Sessellift FGT-3", "Sessellift Stern T-3", "Monta FG3", "Chairworks (comes later)" },
+            new[] { "Sessellift FGQ-4", "Sessellift Stern Q-4", "Monta FG4", "Chairworks (comes later)" },
+        };
+        static readonly string[][] FixedIds =
+        {
+            new[] { LiftCatalogIds.SesselliftFgd2, LiftCatalogIds.SesselliftStern2, LiftCatalogIds.MontaFg2 },
+            new[] { LiftCatalogIds.SesselliftFgt3, LiftCatalogIds.SesselliftStern3, LiftCatalogIds.MontaFg3 },
+            new[] { LiftCatalogIds.SesselliftFgq4, LiftCatalogIds.SesselliftStern4, LiftCatalogIds.MontaFg4 },
+        };
+        static readonly bool[] FixedOff = { false, false, false, true };
+        static readonly string[] Drives = { "Top", "Bottom" };
         static readonly string[] MakerNames = { "Sessellift", "Monta", "Chairworks" };
 
         readonly ToolWindow _window;
         readonly Action _changed;
-        public readonly ToolDropdown Kind, Carrier, Model;
+        public readonly ToolDropdown Kind, Carrier, Model, DriveEnd;
         Label _note;
+        // LD9: whether the player picked the drive end (kept across fixed grips that offer it), else the type's own.
+        bool _drivePicked;
 
         public string CatalogId { get; private set; }
+        /// <summary>LD9 (save v10): the end that drives, the player's on a type that offers the choice, else the type's own.</summary>
+        public LiftDrive Drive { get; private set; }
         public LiftType Type { get; private set; }
 
         /// <summary>A type's model as the lists name it: "Sessellift FGQ-4", or its maker and type ("Monta gondola, 8 person").</summary>
         public static string ModelName(string catalogId)
         {
             if (OwnName(catalogId) is string own) return own;
-            if (catalogId == LiftCatalogIds.SesselliftFgq4) return QuadModels[0];
-            if (catalogId == LiftCatalogIds.MontaFg4) return QuadModels[1];
+            for (int c = 0; c < FixedIds.Length; c++)
+            {
+                int i = Array.IndexOf(FixedIds[c], catalogId);
+                if (i >= 0) return FixedModels[c][i];
+            }
             int m = Array.IndexOf(LiftCatalogIds.Makers, LiftCatalogIds.Maker(catalogId));
             return (m >= 0 ? MakerNames[m] + " " : "") + LiftType.Of(catalogId).Name.ToLowerInvariant();
         }
@@ -56,7 +76,9 @@ namespace MountainPlanner.UI.Tools
         static string OwnName(string id) =>
             id == LiftCatalogIds.SesselliftD6 ? "Sessellift D6" : id == LiftCatalogIds.SesselliftD4 ? "Sessellift D4"
             : id == LiftCatalogIds.SesselliftFgd2 ? "Sessellift FGD-2" : id == LiftCatalogIds.SesselliftFgt3 ? "Sessellift FGT-3"
-            : id == LiftCatalogIds.MontaFg2 ? "Monta FG2" : id == LiftCatalogIds.MontaFg3 ? "Monta FG3" : null;
+            : id == LiftCatalogIds.MontaFg2 ? "Monta FG2" : id == LiftCatalogIds.MontaFg3 ? "Monta FG3"
+            : id == LiftCatalogIds.SesselliftStern4 ? "Sessellift Stern Q-4" : id == LiftCatalogIds.SesselliftStern3 ? "Sessellift Stern T-3"
+            : id == LiftCatalogIds.SesselliftStern2 ? "Sessellift Stern D-2" : null;
 
         /// <summary>Adds the three rows; <paramref name="changed"/> runs after a pick changes the type.</summary>
         public LiftTypeMenu(ToolWindow window, string catalogId, Action changed, string kindTip)
@@ -66,8 +88,11 @@ namespace MountainPlanner.UI.Tools
             Kind = window.AddDropdown("kind", "Type", PickKind, kindTip);
             Carrier = window.AddDropdown("carrier", "Chair", PickCarrier, "The carrier size: smaller carriers climb further (LT14)");
             Model = window.AddDropdown("model", "Model", PickModel, "LC-02: its maker; a type without its own models is drawn with the quad's");
+            DriveEnd = window.AddDropdown("drive", "Drive", PickDrive,
+                "LD9: which end holds the drive; each terminal carries a head for either end, and the top's row (4, 6 or 8 sheaves) follows the summit");
             CatalogId = LiftCatalogIds.Known(catalogId) ? catalogId : LiftCatalogIds.SesselliftFgq4;
-            Type = LiftType.Of(CatalogId);
+            Drive = LiftCatalogIds.DefaultDrive(CatalogId);
+            Type = LiftType.Of(CatalogId, Drive);
         }
 
         /// <summary>Adds the note (after the tool's own rows) and shows the type.</summary>
@@ -87,6 +112,19 @@ namespace MountainPlanner.UI.Tools
 
         static string IdFor(string carrier, string maker) =>
             carrier == "fixed-quad" ? (maker == "monta" ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4) : LiftCatalogIds.Of(carrier, maker);
+
+        /// <summary>The same model in another fixed carrier (a Stern stays a Stern), or null.</summary>
+        static string SameModel(string id, string carrier)
+        {
+            int to = Array.IndexOf(FixedCarriers, carrier);
+            if (to < 0) return null;
+            for (int c = 0; c < FixedIds.Length; c++)
+            {
+                int i = Array.IndexOf(FixedIds[c], id);
+                if (i >= 0) return FixedIds[to][i];
+            }
+            return null;
+        }
 
         // LT41: a carrier or kind is offered when one of its makers' types can be built; that maker's is taken.
         static string BuildableFor(string carrier, string preferMaker)
@@ -115,12 +153,14 @@ namespace MountainPlanner.UI.Tools
         void PickCarrier(int c)
         {
             int k = KindOf(CatalogId);
-            if (BuildableFor(KindCarriers[k][c], LiftCatalogIds.Maker(CatalogId)) is string id) Choose(id);
+            if (SameModel(CatalogId, KindCarriers[k][c]) is string same && LiftCatalogIds.Buildable(same)) Choose(same);
+            else if (BuildableFor(KindCarriers[k][c], LiftCatalogIds.Maker(CatalogId)) is string id) Choose(id);
         }
 
         void PickModel(int m)
         {
-            if (LiftCatalogIds.Carrier(CatalogId) == "fixed-quad") { if (m < QuadIds.Length) Choose(QuadIds[m]); }
+            int f = Array.IndexOf(FixedCarriers, LiftCatalogIds.Carrier(CatalogId));
+            if (f >= 0) { if (m < FixedIds[f].Length) Choose(FixedIds[f][m]); }
             else
             {
                 string id = LiftCatalogIds.Of(LiftCatalogIds.Carrier(CatalogId), LiftCatalogIds.Makers[m]);
@@ -136,14 +176,37 @@ namespace MountainPlanner.UI.Tools
             return true;
         }
 
+        /// <summary>Picks the drive end (LD9; the menu, tests and captures); false where the type doesn't offer it or it's
+        /// already chosen.</summary>
+        public bool ChooseDrive(LiftDrive drive)
+        {
+            if (!LiftCatalogIds.DriveChoice(CatalogId) || drive == Drive) return false;
+            _drivePicked = true;
+            SetDrive(drive);
+            _changed?.Invoke();
+            return true;
+        }
+
+        void PickDrive(int i) => ChooseDrive(i == 0 ? LiftDrive.Top : LiftDrive.Bottom);
+
         /// <summary>Shows a type without telling the tool (Edit lift's undo).</summary>
         public bool Set(string catalogId)
         {
             if (!LiftCatalogIds.Known(catalogId) || catalogId == CatalogId) return false;
             CatalogId = catalogId;
-            Type = LiftType.Of(catalogId);
+            // The player's drive end carries over to another fixed grip that offers the choice; else the type's own.
+            Drive = _drivePicked && LiftCatalogIds.DriveChoice(catalogId) ? Drive : LiftCatalogIds.DefaultDrive(catalogId);
+            Type = LiftType.Of(catalogId, Drive);
             Show();
             return true;
+        }
+
+        /// <summary>Shows a drive end without telling the tool (Edit lift's undo, a lift opened for editing).</summary>
+        public void SetDrive(LiftDrive drive)
+        {
+            Drive = LiftCatalogIds.DriveChoice(CatalogId) ? drive : LiftCatalogIds.DefaultDrive(CatalogId);
+            Type = LiftType.Of(CatalogId, Drive);
+            Show();
         }
 
         void Show()
@@ -157,8 +220,8 @@ namespace MountainPlanner.UI.Tools
             for (int i = 0; i < carrierOff.Length; i++) carrierOff[i] = BuildableFor(KindCarriers[k][i], "sessellift") == null;
             Carrier.Set(CarrierNames[k], Array.IndexOf(KindCarriers[k], carrier), carrierOff);
             _window.SetRowLabel("carrier", k >= 2 ? "Cabin" : "Chair");
-            bool quad = carrier == "fixed-quad";
-            if (quad) Model.Set(QuadModels, Array.IndexOf(QuadIds, CatalogId), QuadOff);
+            int f = Array.IndexOf(FixedCarriers, carrier);
+            if (f >= 0) Model.Set(FixedModels[f], Array.IndexOf(FixedIds[f], CatalogId), FixedOff);
             else
             {
                 int m = Array.IndexOf(LiftCatalogIds.Makers, LiftCatalogIds.Maker(CatalogId));
@@ -172,6 +235,9 @@ namespace MountainPlanner.UI.Tools
                 }
                 Model.Set(names, m, off, OwnName(CatalogId) ?? MakerNames[m] + " " + Type.Name.ToLowerInvariant());
             }
+            bool choice = LiftCatalogIds.DriveChoice(CatalogId);
+            _window.ShowOption("drive", choice);
+            if (choice) DriveEnd.Set(Drives, Drive == LiftDrive.Top ? 0 : 1);
             if (_note == null) return;
             string spacing = k == 3 ? "two cabins" : $"{(k == 2 ? "cabins" : "chairs")} {ToolFormat.Length(Type.ChairSpacingMetres)} apart";
             _note.text = $"{Type.Capacity:#,0} an hour · {Type.SpeedMetresPerSecond * 196.850394:#,0} ft/min · {spacing}"

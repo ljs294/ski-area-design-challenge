@@ -25,11 +25,13 @@ namespace MountainPlanner.App
     ///   0 chairs (the Sessellift chair and the Chairworks chair with either grip, side by side on the rope)
     ///   X six-pack (the Sessellift D6: both terminals, its chair, and its six tower heads on full towers with ropes)
     ///   J detachable quad (the Sessellift D4: bottom with its first tower, top, its chair, and its five tower heads)
-    ///   M fixed-grip terminals (the Sessellift quad, triple and double and the Monta 4, 3 and 2: every terminal)
+    ///   K Sessellift Stern (its quad, triple and double: return and drive facing up the line, a chair between each pair)
+    ///   U T-bar (the Monta T-bar: drive, hut, its three heads on leaning towers, return, T bars and a J bar)
+    ///   M fixed-grip terminals (the Sessellift quad, triple and double, the Monta 4, 3 and 2 and the Stern: every terminal)
     ///   V terminal head: every fixed-grip terminal shows its next head (drive at either end: bottom, top 4, 6, 8)
     ///   Tab next asset · L LOD auto/0/1/2/3 · N snow · C livery colour · T turntable · G ground on/off
     ///   B benchmark · P screenshot · H help · Esc quit (camera: ViewCamera's keys)
-    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs|sixpack|fixedgrip|d4, -lod n,
+    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs|sixpack|fixedgrip|d4|stern|tbar, -lod n,
     /// -snow 0..1, -head bottom|top|top6|top8 (the head every fixed-grip terminal shows; else its own),
     /// -view yaw,pitch,distance, -screenshot file.png (captures once settled, then quits), -benchmark file.json (runs,
     /// writes, quits).
@@ -55,7 +57,7 @@ namespace MountainPlanner.App
             new Color(0.72f, 0.12f, 0.09f), new Color(0.10f, 0.26f, 0.62f), new Color(0.11f, 0.42f, 0.22f), new Color(0.93f, 0.70f, 0.10f),
             new Color(0.12f, 0.12f, 0.13f), new Color(0.90f, 0.90f, 0.88f), new Color(0.90f, 0.42f, 0.08f), new Color(0.05f, 0.47f, 0.50f),
         };
-        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers", "guns", "gunfield", "monta", "chairs", "sixpack", "fixedgrip", "d4" };
+        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers", "guns", "gunfield", "monta", "chairs", "sixpack", "fixedgrip", "d4", "stern", "tbar" };
         /// <summary>The fixed-grip mode's rows, front to back: each model's terminals, left to right.</summary>
         static readonly string[][] FixedGrip =
         {
@@ -65,7 +67,13 @@ namespace MountainPlanner.App
             new[] { "monta_fg4_return_bottom", "monta_fg4_drive", "monta_fg4_return" },
             new[] { "monta_fg3_return_bottom", "monta_fg3_drive", "monta_fg3_return" },
             new[] { "monta_fg2_return_bottom", "monta_fg2_drive", "monta_fg2_return" },
+            new[] { "sessellift_stern4_return", "sessellift_stern4_drive" },
+            new[] { "sessellift_stern3_return", "sessellift_stern3_drive" },
+            new[] { "sessellift_stern2_return", "sessellift_stern2_drive" },
         };
+        /// <summary>The Sessellift Stern mode's rows, front to back: quad, triple and double, each with its chair.</summary>
+        static readonly (string model, string chair)[] Stern =
+            { ("sessellift_stern4", "sessellift_fgq4_chair"), ("sessellift_stern3", "sessellift_fgt3_chair"), ("sessellift_stern2", "sessellift_fgd2_chair") };
         /// <summary>The heads V steps through: the terminal's own (null), then each end and top row in turn.</summary>
         static readonly string[] HeadKeys = { null, "bottom", "top", "top6", "top8" };
         /// <summary>The chairs mode's chairs, left to right across the view, and where each hangs along +X (m).</summary>
@@ -88,8 +96,16 @@ namespace MountainPlanner.App
         static readonly string[] QuadHeads =
             { "sessellift_d4_tower_s4", "sessellift_d4_tower_s6", "sessellift_d4_tower_b8", "sessellift_d4_tower_d8", "sessellift_d4_tower_c8" };
         const float LineShown = 100f;                // how far up the line the return mode draws the rope
+        /// <summary>The Monta T-bar line, in the T-bar mode: each tower head and where it stands up the line (m).</summary>
+        static readonly (string id, float z)[] TbarTowers =
+            { ("monta_tbar_tower_s6", 30f), ("monta_tbar_tower_s4", 60f), ("monta_tbar_tower_d4", 90f) };
+        const float TbarReturnZ = 120f;              // the T-bar's top terminal, facing back down the line
+        const float TbarRope = 5f;                   // rope height on the T-bar's line towers (D8, about 5 m)
+        const float TbarLean = 8f;                   // the masts' lean toward +X (monta_tbar.json tower.lean)
+        const float TbarSpacing = 12f;               // between carriers (monta_tbar.json common.carrierSpacing)
+        const float TbarCordGap = 0.05f;             // a retracted bar's eye under the box's outlet (carrier.cordGap)
 
-        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField, Monta, Chairs, SixPack, FixedGrip, Quad }
+        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField, Monta, Chairs, SixPack, FixedGrip, Quad, Stern, Tbar }
 
         readonly List<GameObject> _spawned = new List<GameObject>();
         readonly Dictionary<GameObject, int[]> _lodTriangles = new Dictionary<GameObject, int[]>();
@@ -374,6 +390,67 @@ namespace MountainPlanner.App
                     if (_focus != null) FrameOn(_focus, 38f, 205f, 14f);
                     break;
                 }
+                case Mode.Tbar:
+                {
+                    // the Monta T-bar on level ground: the drive (bottom) facing up the line, its operator hut beside it,
+                    // the three tower heads on leaning towers, the return (top) facing back; T bars retracted every
+                    // carrier spacing on both ropes, and a J bar beside the drive on a rope stub
+                    var drive = Asset("monta_tbar_drive");
+                    var top = Asset("monta_tbar_return");
+                    var box = Asset("monta_tbar_springbox");
+                    var hut = Asset("monta_tbar_hut");
+                    if (drive == null || top == null) break;
+                    var d = Spawn(drive, Vector3.zero, Quaternion.identity, livery);
+                    var r = Spawn(top, new Vector3(0, 0, TbarReturnZ), Quaternion.Euler(0, 180f, 0), livery);
+                    if (hut != null) Spawn(hut, new Vector3(4.6f, 0, 2f), Quaternion.Euler(0, -90f, 0), livery);
+                    var dr = d.GetComponent<LiftRig>();
+                    var rr = r.GetComponent<LiftRig>();
+                    var up = new List<Vector3> { dr.Socket("rope_right_bw").position, dr.Socket("rope_right_out").position };
+                    var down = new List<Vector3> { rr.Socket("rope_left_bw").position, rr.Socket("rope_left_out").position };
+                    var towers = new List<GameObject>();
+                    foreach (var (id, z) in TbarTowers)
+                    {
+                        var head = SpawnTbarTower(id, z, TbarRope, livery);
+                        if (head == null) continue;
+                        towers.Add(head);
+                        if (id == "monta_tbar_tower_s4") _focus = head;
+                    }
+                    foreach (var head in towers) up.Add(head.GetComponent<LiftRig>().Socket("rope_right").position);
+                    for (int i = towers.Count - 1; i >= 0; i--) down.Add(towers[i].GetComponent<LiftRig>().Socket("rope_left").position);
+                    up.Add(rr.Socket("rope_right_out").position);
+                    up.Add(rr.Socket("rope_right_bw").position);
+                    down.Add(dr.Socket("rope_left_out").position);
+                    down.Add(dr.Socket("rope_left_bw").position);
+                    AddRope(up, null, livery);
+                    AddRope(down, null, livery);
+                    if (box != null)
+                    {
+                        SpawnCarriers(up, box, Asset("monta_tbar_bar_t"), livery);
+                        SpawnCarriers(down, box, Asset("monta_tbar_bar_t"), livery);
+                        var stub = new Vector3(-6f, dr.Socket("rope_right_bw").position.y, 4f);
+                        AddRope(stub + Vector3.back * 3f, stub + Vector3.forward * 3f, null, livery, true);
+                        SpawnCarrier(box, Asset("monta_tbar_bar_j"), stub, Quaternion.identity, livery);
+                    }
+                    if (_focus != null) FrameOn(_focus, 22f, 215f, 14f);
+                    break;
+                }
+                case Mode.Stern:
+                    // each Stern model's return and drive facing up the line, its chair on the rope between them; the
+                    // Stern is a bottom drive only, so V steps just the return through its top rows
+                    for (int row = 0; row < Stern.Length; row++)
+                    {
+                        var ret = Asset(Stern[row].model + "_return");
+                        var drive = Asset(Stern[row].model + "_drive");
+                        var chair = Asset(Stern[row].chair);
+                        float z = -row * 28f;
+                        if (ret != null) Spawn(ret, new Vector3(-12f, 0, z), Quaternion.identity, livery);
+                        var d = drive != null ? Spawn(drive, new Vector3(12f, 0, z), Quaternion.identity, livery) : null;
+                        if (row == 0) _focus = d;
+                        var bw = drive != null ? drive.GetComponent<LiftRig>().Socket("rope_right_bw") : null;
+                        if (chair != null) Spawn(chair, new Vector3(0, bw != null ? bw.localPosition.y : 3.04f, z), Quaternion.identity, livery);
+                    }
+                    if (_focus != null) FrameOn(_focus, 34f, 215f, 18f);
+                    break;
                 case Mode.FixedGrip:
                     // every fixed-grip terminal facing up the line (+Z), a model to a row
                     for (int row = 0; row < FixedGrip.Length; row++)
@@ -407,6 +484,55 @@ namespace MountainPlanner.App
             for (int i = 0; i < sections; i++)
                 Spawn(mast, position + rotation * new Vector3(0, lift + foot + i, 0), rotation, livery);
             return Spawn(head, position + rotation * new Vector3(0, lift + foot + sections, 0), rotation, livery);
+        }
+
+        /// <summary>A Monta T-bar line tower whose head stands on the line centre at `z`, its ropes at ropeHeight: the
+        /// base off to the return side (-X), as many 1 m mast sections as fit up the leaned axis (each tilted TbarLean
+        /// toward +X, the head level on top), the base riding up or down by the remainder. Returns the head.</summary>
+        GameObject SpawnTbarTower(string headId, float z, float ropeHeight, Color livery)
+        {
+            var head = Asset(headId);
+            var mast = Asset("monta_tbar_mast");
+            var foundation = Asset("monta_tbar_base");
+            if (head == null || mast == null || foundation == null) return null;
+            var lean = Quaternion.AngleAxis(-TbarLean, Vector3.forward);   // +Y tips toward +X
+            var axis = lean * Vector3.up;
+            var foot = foundation.GetComponent<LiftRig>().Socket("mast_foot").localPosition;
+            float section = mast.GetComponent<LiftRig>().Socket("top").localPosition.y;
+            float ropeOnHead = head.GetComponent<LiftRig>().Socket("rope_right").localPosition.y;
+            int sections = Mathf.Max(1, Mathf.RoundToInt((ropeHeight - foot.y - ropeOnHead) / (axis.y * section)));
+            var top = foot + axis * (section * sections);
+            var at = new Vector3(-top.x, ropeHeight - top.y - ropeOnHead, z);   // the pier, so the head lands on X = 0
+            Spawn(foundation, at, Quaternion.identity, livery);
+            for (int i = 0; i < sections; i++)
+                Spawn(mast, at + foot + axis * (section * i), lean, livery);
+            return Spawn(head, at + top, Quaternion.identity, livery);
+        }
+
+        /// <summary>T-bar carriers every TbarSpacing along a rope, in travel order, retracted: each recoil box on the
+        /// rope facing the way it travels, its bar hanging under it.</summary>
+        void SpawnCarriers(IReadOnlyList<Vector3> points, GameObject box, GameObject bar, Color livery)
+        {
+            float next = TbarSpacing * 0.5f, walked = 0f;
+            for (int i = 1; i < points.Count; i++)
+            {
+                var seg = points[i] - points[i - 1];
+                float len = seg.magnitude;
+                var flat = Vector3.ProjectOnPlane(seg, Vector3.up);
+                if (len < 1e-4f || flat.sqrMagnitude < 1e-8f) { walked += len; continue; }
+                var rotation = Quaternion.LookRotation(flat.normalized, Vector3.up);
+                for (; next <= walked + len; next += TbarSpacing)
+                    SpawnCarrier(box, bar, points[i - 1] + seg * ((next - walked) / len), rotation, livery);
+                walked += len;
+            }
+        }
+
+        void SpawnCarrier(GameObject box, GameObject bar, Vector3 grip, Quaternion rotation, Color livery)
+        {
+            var b = Spawn(box, grip, rotation, livery);
+            if (bar == null) return;
+            var cord = b.GetComponent<LiftRig>().Socket("cord");
+            if (cord != null) Spawn(bar, cord.position + Vector3.down * TbarCordGap, rotation, livery);
         }
 
         float LiftRope()
@@ -620,6 +746,8 @@ namespace MountainPlanner.App
                 if (keys.xKey.wasPressedThisFrame) Show(Mode.SixPack);
                 if (keys.mKey.wasPressedThisFrame) Show(Mode.FixedGrip);
                 if (keys.jKey.wasPressedThisFrame) Show(Mode.Quad);
+                if (keys.kKey.wasPressedThisFrame) Show(Mode.Stern);
+                if (keys.uKey.wasPressedThisFrame) Show(Mode.Tbar);
                 if (keys.vKey.wasPressedThisFrame) { _head = (_head + 1) % HeadKeys.Length; Show(_mode); }
                 if (keys.tabKey.wasPressedThisFrame) Show(_mode < Mode.Chair ? _mode + 1 : Mode.Drive);
                 if (keys.lKey.wasPressedThisFrame) CycleLod();
@@ -702,7 +830,7 @@ namespace MountainPlanner.App
             }
             _text.Append("Snow ").Append((_snow * 100).ToString("F0")).Append("% · livery ").Append(_livery % Liveries.Length + 1).Append('/').Append(Liveries.Length);
             if (Help)
-                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · 9 Monta · 0 chairs · X six-pack · J D4 quad · M fixed-grip · V head (")
+                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · 9 Monta · 0 chairs · X six-pack · J D4 quad · K Stern · U T-bar · M fixed-grip · V head (")
                      .Append(HeadKeys[_head] ?? "own").Append(") · Tab next · L LOD · N snow · C colour · T turntable · G ground · B benchmark · P screenshot · H help · Esc quit")
                      .Append("\nWASD move · Q/E rotate · R/F tilt · wheel zoom · middle-drag rotate · right-drag move · Shift faster");
             return _text.ToString();

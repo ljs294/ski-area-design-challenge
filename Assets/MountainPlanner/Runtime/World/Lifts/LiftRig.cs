@@ -109,10 +109,17 @@ namespace MountainPlanner.World.Lifts
 
         /// <summary>A socket as the shown head has it, by its plain name (rope_right_out): the head's own, else the body's
         /// (rope_right_bw); null where only a hidden head has one (the default head's rope_right_hold).</summary>
-        public Transform HeadSocket(string name)
+        public Transform HeadSocket(string name) => HeadSocket(ShownHead, name);
+
+        /// <summary>The head <paramref name="key"/>'s index into <see cref="Heads"/>, or -1 (no such head, or null).</summary>
+        public int HeadIndex(string key) => key == null || Heads == null ? -1 : System.Array.FindIndex(Heads, h => h.Key == key);
+
+        /// <summary>A socket as head <paramref name="head"/> (an index into <see cref="Heads"/>, -1 for the asset as built) has it,
+        /// shown or not: a prefab's measurements for any of its heads (LD9).</summary>
+        public Transform HeadSocket(int head, string name)
         {
-            if (ShownHead < 0 || Heads[ShownHead].Default) return Socket(name);
-            var own = Socket(Heads[ShownHead].Prefix + name);
+            if (head < 0 || Heads[head].Default) return Socket(name);
+            var own = Socket(Heads[head].Prefix + name);
             if (own != null) return own;
             foreach (var h in Heads)
                 if (h.Default && System.Array.IndexOf(h.Sockets, name) >= 0) return null;

@@ -38,6 +38,7 @@ namespace MountainPlanner.UI.Tools
         float _bottomZ, _topZ;
         LiftTypeMenu _typeMenu;
         string _catalogId => _typeMenu.CatalogId;
+        LiftDrive _drive => _typeMenu.Drive;
         TowerMode _mode;
         TowerStance _stance = TowerStance.Plumb;
         string _name;
@@ -58,6 +59,7 @@ namespace MountainPlanner.UI.Tools
         Vector2 _bottomFacing = Vector2.up;
         LiftType _liftType;
         string _liftTypeOf;
+        LiftDrive _liftTypeDrive;
         const int LevelMinFt = -10, LevelMaxFt = 30;
         const float MaxSitingFeet = 40;   // LC-09: amber past this, still placeable
 
@@ -106,6 +108,9 @@ namespace MountainPlanner.UI.Tools
 
         /// <summary>Picks a lift type by its catalog id (the menu, tests and captures).</summary>
         public void Choose(string catalogId) => _typeMenu.Choose(catalogId);
+
+        /// <summary>Picks the drive end (LD9; tests and captures).</summary>
+        public bool ChooseDrive(LiftDrive drive) => _typeMenu.ChooseDrive(drive);
 
         // A new type or stance while the line is fixed: the review works it out again.
         void Retype()
@@ -235,13 +240,13 @@ namespace MountainPlanner.UI.Tools
                     var up = at - _bottomXz;
                     var along = up.sqrMagnitude > 1e-4f ? up.normalized : _bottomFacing;
                     // LF-02: the anchored bottom swings to face the pointer; the top faces back along the line (LT20).
-                    _ctx.BottomGhost?.Show(Type.Bottom.Model, new Vector3(_bottomXz.x, _bottomZ, _bottomXz.y), _bottomZ, new Vector3(along.x, 0, along.y), GhostTint.Ok);
+                    _ctx.BottomGhost?.Show(Type.Bottom.Model, new Vector3(_bottomXz.x, _bottomZ, _bottomXz.y), _bottomZ, new Vector3(along.x, 0, along.y), GhostTint.Ok, Type.Bottom.Head);
                     var tint = Site(Type.Top, at, -along, out float ground, out float relief);
                     float z = ground + _topLevelFt * 0.3048f;
                     _problem = (tint == GhostTint.Bad ? "A terminal must stand inside the area" : null)
                         ?? (z <= _bottomZ ? "The top terminal must be higher" : null)
                         ?? (Vector2.Distance(at, _bottomXz) < MinApartMetres ? "The terminals stand at least 300 ft apart" : null);
-                    _ctx.TopGhost?.Show(Type.Top.Model, new Vector3(at.x, z, at.y), z, new Vector3(-along.x, 0, -along.y), _problem != null ? GhostTint.Bad : tint);
+                    _ctx.TopGhost?.Show(Type.Top.Model, new Vector3(at.x, z, at.y), z, new Vector3(-along.x, 0, -along.y), _problem != null ? GhostTint.Bad : tint, Type.Top.Head);
                     Draw(at, true);
                     if (_problem != null) { _ctx.Window.SetMessage(_problem); _levelKey = int.MinValue; }
                     else Levelling("Top", z, _topLevelFt, relief, Vector2.Distance(at, _bottomXz), z - _bottomZ);
@@ -274,7 +279,12 @@ namespace MountainPlanner.UI.Tools
         {
             get
             {
-                if (_liftTypeOf != _catalogId) { _liftType = LiftType.Of(_catalogId); _liftTypeOf = _catalogId; }
+                if (_liftTypeOf != _catalogId || _liftTypeDrive != _drive)
+                {
+                    _liftType = LiftType.Of(_catalogId, _drive);
+                    _liftTypeOf = _catalogId;
+                    _liftTypeDrive = _drive;
+                }
                 return _liftType;
             }
         }
@@ -399,7 +409,7 @@ namespace MountainPlanner.UI.Tools
         string _builtFor;
         string BuildKey()
         {
-            var k = new System.Text.StringBuilder().Append(_catalogId).Append('|').Append(_stance).Append('|').Append(_mode)
+            var k = new System.Text.StringBuilder().Append(_catalogId).Append('|').Append(_drive).Append('|').Append(_stance).Append('|').Append(_mode)
                 .Append('|').Append(_bottomLevelFt).Append('|').Append(_topLevelFt);
             if (_mode == TowerMode.ByHand) foreach (var t in _placed) k.Append('|').Append(t.AlongMm).Append('/').Append(t.HeightMm);
             return k.ToString();
@@ -447,7 +457,7 @@ namespace MountainPlanner.UI.Tools
             _building = true;
             var b = _ctx.ToGround(_bottom);
             var t = _ctx.ToGround(_top);
-            var type = LiftType.Of(_catalogId);
+            var type = LiftType.Of(_catalogId, _drive);
             var stance = _stance;
             double bottomHand = _bottomLevelFt * 0.3048, topHand = _topLevelFt * 0.3048;   // LT19: the levels set by hand
             string key = BuildKey();
@@ -463,6 +473,7 @@ namespace MountainPlanner.UI.Tools
             var committed = _ctx.History.Terrain;
             long revision = _ctx.History.Revision;
             string name = _name, catalogId = _catalogId;
+            var drive = _drive;
             var mode = _mode;
             var bottom = _bottom;
             var top = _top;
@@ -479,7 +490,7 @@ namespace MountainPlanner.UI.Tools
                 DesignEarthwork.Result rebuilt = null;
                 if (fold != null)
                 {
-                    var after = new AddLift(revision, name, catalogId, bottom, top, mode, stance, r.Towers, WorkStage.Built, r.Levels).Apply(doc);
+                    var after = new AddLift(revision, name, catalogId, bottom, top, mode, stance, r.Towers, WorkStage.Built, r.Levels, drive).Apply(doc);
                     if (after.Accepted) rebuilt = fold.Rebuild(after.Document, committed);
                 }
                 Debug.Log($"[NewLift] {r.Towers.Count} towers placed in {buildMs} ms, the design's earthwork in {watch.ElapsedMilliseconds - buildMs} ms" +
@@ -552,7 +563,7 @@ namespace MountainPlanner.UI.Tools
                 .Reserved("Network", "NW-12: No way down", ReviewModel.NetworkSlot);
             // NW-04: the lift as if built, in the network of everything else (task P3-10); a first lift alone has no way down.
             NetworkCheck.Fill(_review, NetworkCheck.Warnings(_ctx.History.Document,
-                new AddLift(_ctx.History.Revision, _name, _catalogId, _bottom, _top, _mode, _stance, null, WorkStage.Built), 0, _ctx.Earthwork?.Earthwork, _ctx.Earthwork?.Heights?.Source));
+                new AddLift(_ctx.History.Revision, _name, _catalogId, _bottom, _top, _mode, _stance, null, WorkStage.Built, null, _drive), 0, _ctx.Earthwork?.Earthwork, _ctx.Earthwork?.Heights?.Source));
             if (_built == null)
             {
                 _review.Add("Towers", _building ? "placing…" : "—", "TW-12").Ready(_ctx.EditedGround == null, true);
@@ -597,10 +608,10 @@ namespace MountainPlanner.UI.Tools
             // Break ground carries the built lift's towers and levels (TW-15, SK14); a plan carries the line only (CF-06).
             // Without the game's ground (tests, labs: no EditedGround hook) it breaks ground on the line alone, as P3-06 did.
             if (stage == WorkStage.Built && _built == null && _ctx.EditedGround != null) return null;
-            if (_built == null) return new AddLift(baseRevision, _name, _catalogId, _bottom, _top, _mode, _stance, null, stage);
+            if (_built == null) return new AddLift(baseRevision, _name, _catalogId, _bottom, _top, _mode, _stance, null, stage, null, _drive);
             return stage == WorkStage.Built
-                ? new AddLift(baseRevision, _name, _catalogId, _bottom, _top, _mode, _stance, _built.Towers, stage, _built.Levels)
-                : new AddLift(baseRevision, _name, _catalogId, _bottom, _top, _mode, _stance, null, stage);
+                ? new AddLift(baseRevision, _name, _catalogId, _bottom, _top, _mode, _stance, _built.Towers, stage, _built.Levels, _drive)
+                : new AddLift(baseRevision, _name, _catalogId, _bottom, _top, _mode, _stance, null, stage, null, _drive);
         }
 
         public void Committed(CommandResult result)

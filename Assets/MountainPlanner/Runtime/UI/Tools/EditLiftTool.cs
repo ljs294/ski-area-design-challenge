@@ -37,13 +37,14 @@ namespace MountainPlanner.UI.Tools
             public PointMm Bottom, Top;
             public TowerMode Mode;
             public TowerStance Stance;
+            public LiftDrive Drive;                           // LD9 (save v10)
             public List<Tower> Towers = new List<Tower>();   // an added tower's id is 0
             public LiftLevels? Levels;
             public bool Replace;                              // Automatic: the towers are placed again at the next analysis
             public Draft Copy() => new Draft
             {
                 CatalogId = CatalogId, Name = Name, Bottom = Bottom, Top = Top, Mode = Mode, Stance = Stance, Towers = new List<Tower>(Towers),
-                Levels = Levels, Replace = Replace,
+                Levels = Levels, Replace = Replace, Drive = Drive,
             };
         }
 
@@ -86,7 +87,13 @@ namespace MountainPlanner.UI.Tools
                 Level = Level,
                 HandFor = HandFor,
             };
-            _typeMenu = new LiftTypeMenu(w, LiftCatalogIds.SesselliftFgq4, () => Change(d => { d.CatalogId = _typeMenu.CatalogId; d.Replace = d.Mode == TowerMode.Automatic; }),
+            _typeMenu = new LiftTypeMenu(w, LiftCatalogIds.SesselliftFgq4, () => Change(d =>
+                                         {
+                                             // A new type, or the drive end (LD9): Automatic re-places the towers for the new ends.
+                                             d.CatalogId = _typeMenu.CatalogId;
+                                             d.Drive = _typeMenu.Drive;
+                                             d.Replace = d.Mode == TowerMode.Automatic;
+                                         }),
                                          "SetLiftType: in Automatic the towers re-place for the new type");
             (_modeDd, _stanceDd) = w.AddDropdownPair("towers", "Towers", "mode", PickMode, "stance", PickStance,
                 "LF-01: to By hand keeps the towers; to Automatic re-places them, asking first if you placed any", "TW-14: plumb, or leaned square to the rope (15° at most)");
@@ -140,13 +147,14 @@ namespace MountainPlanner.UI.Tools
             _draft = new Draft
             {
                 CatalogId = lift.CatalogId, Name = lift.Name, Bottom = lift.Bottom, Top = lift.Top, Mode = lift.TowerMode, Stance = lift.Stance,
-                Towers = new List<Tower>(lift.Towers), Levels = lift.Levels,
+                Towers = new List<Tower>(lift.Towers), Levels = lift.Levels, Drive = lift.Drive,
             };
             _undo.Clear();
             _editor.Release();
             _ctx.HoldLift?.Invoke(lift.Id.Value);
             _ctx.HideBuiltLift?.Invoke(lift.Id.Value);   // F4: its draft stands in its place until Apply or Cancel
             _typeMenu.Set(_draft.CatalogId);
+            _typeMenu.SetDrive(_draft.Drive);
             _modeDd.Set(new[] { "Automatic", "By hand" }, _draft.Mode == TowerMode.Automatic ? 0 : 1);
             _stanceDd.Set(new[] { "Plumb", "Leaned" }, _draft.Stance == TowerStance.Plumb ? 0 : 1);
             _ctx.Window.SetName(lift.Name);
@@ -171,7 +179,7 @@ namespace MountainPlanner.UI.Tools
             if (_draft == null) return;
             _editor.BottomXz = BottomXz;
             _editor.TopXz = TopXz;
-            _editor.Type = LiftType.Of(_draft.CatalogId);
+            _editor.Type = LiftType.Of(_draft.CatalogId, _draft.Drive);
             _editor.Stance = _draft.Stance;
             _editor.Towers = _draft.Towers;
             _editor.Rope = _built != null && _built.Towers.Count == _draft.Towers.Count ? _built.Rope : null;
@@ -181,7 +189,7 @@ namespace MountainPlanner.UI.Tools
         TowerInHand HandFor(IReadOnlyList<Tower> below)
         {
             if (_draft == null || _without == null) return null;
-            var type = LiftType.Of(_draft.CatalogId);
+            var type = LiftType.Of(_draft.CatalogId, _draft.Drive);
             var b = _ctx.ToGround(_draft.Bottom);
             var t = _ctx.ToGround(_draft.Top);
             var levels = _draft.Levels ?? LiftBuild.GroundLevels(type, _without, b.X, b.Y, t.X, t.Y);
@@ -197,7 +205,7 @@ namespace MountainPlanner.UI.Tools
             if (now - _liveAt < 0.1f || _without == null || _ctx.ToGround == null || _draft.Towers.Count == 0) return;
             _liveAt = now;
             IHeightSource under = _built != null ? new EditedHeights(_without.Source, _without.Lattice, _built.Edits) : _without;
-            var type = LiftType.Of(_draft.CatalogId);
+            var type = LiftType.Of(_draft.CatalogId, _draft.Drive);
             var b = _ctx.ToGround(_draft.Bottom);
             var t = _ctx.ToGround(_draft.Top);
             var levels = _draft.Levels ?? LiftBuild.GroundLevels(type, under, b.X, b.Y, t.X, t.Y);
@@ -211,7 +219,7 @@ namespace MountainPlanner.UI.Tools
                 _ctx.Window.ShowStrip(LiftProfile.From(rope, under, b.X, b.Y, t.X, t.Y, levels));
             }
             catch (System.Exception e) { Debug.LogWarning("[EditLift] live rope: " + e.Message); }
-            _ctx.ShowDraftLift?.Invoke(new Lift(_lift.Id, _draft.Name, WorkStage.Built, _draft.CatalogId, _draft.Bottom, _draft.Top, _draft.Mode, _draft.Stance, towers, levels));
+            _ctx.ShowDraftLift?.Invoke(new Lift(_lift.Id, _draft.Name, WorkStage.Built, _draft.CatalogId, _draft.Bottom, _draft.Top, _draft.Mode, _draft.Stance, towers, levels, _draft.Drive));
             _editor.Relight();
         }
 
@@ -284,6 +292,7 @@ namespace MountainPlanner.UI.Tools
             _undo.RemoveAt(_undo.Count - 1);
             _ctx.Window.SetName(_draft.Name);
             _typeMenu.Set(_draft.CatalogId);
+            _typeMenu.SetDrive(_draft.Drive);
             _modeDd.Set(new[] { "Automatic", "By hand" }, _draft.Mode == TowerMode.Automatic ? 0 : 1);
             _stanceDd.Set(new[] { "Plumb", "Leaned" }, _draft.Stance == TowerStance.Plumb ? 0 : 1);
             SyncEditor();
@@ -331,7 +340,7 @@ namespace MountainPlanner.UI.Tools
             var ground = _without;
             var b = _ctx.ToGround(d.Bottom);
             var t = _ctx.ToGround(d.Top);
-            var type = LiftType.Of(d.CatalogId);
+            var type = LiftType.Of(d.CatalogId, d.Drive);
             var doc = _ctx.History.Document;
             var committed = _ctx.History.Terrain;
             long revision = _ctx.History.Revision;
@@ -369,7 +378,7 @@ namespace MountainPlanner.UI.Tools
                         return (r, rebuilt.Edits, rebuilt);
                     }
                 }
-                var edited = new Lift(lift.Id, lift.Name, lift.Stage, d.CatalogId, d.Bottom, d.Top, d.Mode, d.Stance, Stored(d, r), r.Levels);
+                var edited = new Lift(lift.Id, lift.Name, lift.Stage, d.CatalogId, d.Bottom, d.Top, d.Mode, d.Stance, Stored(d, r), r.Levels, d.Drive);
                 var edits = LiftReplay.Rebuild(ground.Source, ground.Lattice, doc, p => toGround(p), default, edited);
                 return (r, edits, (DesignEarthwork.Result)null);
             }, done =>
@@ -390,7 +399,7 @@ namespace MountainPlanner.UI.Tools
                 _ctx.PendingTerrain = _applyEdits;
                 // F4: the draft in 3D, as Apply would build it.
                 _ctx.ShowDraftLift?.Invoke(new Lift(_lift.Id, _draft.Name, WorkStage.Built, _draft.CatalogId, _draft.Bottom, _draft.Top, _draft.Mode, _draft.Stance,
-                                                    Stored(_draft, done.r), done.r.Levels));
+                                                    Stored(_draft, done.r), done.r.Levels, _draft.Drive));
                 SyncEditor();
                 _editor.TowersChanged();
                 _editor.Relight();
@@ -474,7 +483,7 @@ namespace MountainPlanner.UI.Tools
             if (_draft == null || !(_draft.Levels is LiftLevels lv) || _without == null) return;
             var b = _ctx.ToGround(_draft.Bottom);
             var t = _ctx.ToGround(_draft.Top);
-            var ground = LiftBuild.GroundLevels(LiftType.Of(_draft.CatalogId), _without, b.X, b.Y, t.X, t.Y);
+            var ground = LiftBuild.GroundLevels(LiftType.Of(_draft.CatalogId, _draft.Drive), _without, b.X, b.Y, t.X, t.Y);
             int stepMm = DesignUnits.FeetToMm(1) * feet;
             int now = bottom ? lv.BottomMm : lv.TopMm;
             int groundMm = bottom ? ground.BottomMm : ground.TopMm;
@@ -631,9 +640,10 @@ namespace MountainPlanner.UI.Tools
                 if (tw.Id.Value != 0 && _lift.IndexOfTower(tw.Id) >= 0) kept.Add(tw);
                 else added.Add(tw.Spec);
             bool moved = _draft.Bottom.X != _lift.Bottom.X || _draft.Bottom.Y != _lift.Bottom.Y || _draft.Top.X != _lift.Top.X || _draft.Top.Y != _lift.Top.Y;
-            var kind = moved ? LiftEdit.MoveTerminal : _draft.CatalogId != _lift.CatalogId ? LiftEdit.ChangeType : LiftEdit.Edit;
+            var kind = moved ? LiftEdit.MoveTerminal : _draft.CatalogId != _lift.CatalogId ? LiftEdit.ChangeType
+                : _draft.Drive != _lift.Drive ? LiftEdit.DriveEnd : LiftEdit.Edit;
             return new EditLift(baseRevision, _lift.Id, _draft.CatalogId, _draft.Bottom, _draft.Top, _draft.Mode, _draft.Stance, kept, added, _draft.Levels, kind,
-                                _draft.Name != _lift.Name ? _draft.Name : null);
+                                _draft.Name != _lift.Name ? _draft.Name : null, _draft.Drive);
         }
 
         // The command a draft makes: towers that are the lift's own keep their IDs; the rest (or a re-place's) are new.
@@ -646,7 +656,8 @@ namespace MountainPlanner.UI.Tools
                     if (tw.Id.Value != 0 && lift.IndexOfTower(tw.Id) >= 0) kept.Add(tw);
                     else added.Add(tw.Spec);
             if (placed != null) added.AddRange(placed);
-            return new EditLift(revision, lift.Id, d.CatalogId, d.Bottom, d.Top, d.Mode, d.Stance, kept, added, levels, LiftEdit.Edit, d.Name != lift.Name ? d.Name : null);
+            return new EditLift(revision, lift.Id, d.CatalogId, d.Bottom, d.Top, d.Mode, d.Stance, kept, added, levels, LiftEdit.Edit, d.Name != lift.Name ? d.Name : null,
+                                d.Drive);
         }
 
         public void Committed(CommandResult result)

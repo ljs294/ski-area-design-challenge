@@ -350,7 +350,7 @@ namespace MountainPlanner.Domain.Design
         {
             if (history == null) throw new ArgumentNullException(nameof(history));
             if (fold == null) throw new ArgumentNullException(nameof(fold));
-            types ??= LiftType.Of;
+            types ??= id => LiftType.Of(id);
             var report = new Report();
             foreach (var line in Lifts) report.Add(BuildLift(history, fold, source, lattice, frame, types(line.CatalogId), line));
             foreach (var run in Trails) report.Add(BuildTrail(history, fold, run));

@@ -36,7 +36,7 @@ namespace MountainPlanner.Domain.Design
             foreach (var lift in doc.Lifts)
             {
                 if (lift.Stage != WorkStage.Built) continue;
-                var type = LiftType.Of(lift.CatalogId);
+                var type = LiftType.Of(lift);
                 site.PointOf(lift.Bottom, out double bx, out double by);
                 site.PointOf(lift.Top, out double tx, out double ty);
                 double dx = tx - bx, dy = ty - by, length = Math.Sqrt(dx * dx + dy * dy);

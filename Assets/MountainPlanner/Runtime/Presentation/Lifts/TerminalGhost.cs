@@ -65,10 +65,13 @@ namespace MountainPlanner.Presentation.Lifts
         /// origin at <paramref name="level"/> (metres) and its line side facing <paramref name="facing"/> (a horizontal
         /// direction toward the other terminal).
         /// </summary>
-        public void Show(string assetId, Vector3 bullwheel, float level, Vector3 facing, GhostTint tint)
+        public void Show(string assetId, Vector3 bullwheel, float level, Vector3 facing, GhostTint tint, string head = null)
         {
             if (assetId != _model || _instance == null) Make(assetId);
             if (_instance == null) return;
+            // LD9: the head for this end (drive at either end); a model with one head keeps it.
+            if (head != null && _instance.GetComponent<LiftRig>() is LiftRig rig && (rig.ShownHead < 0 || rig.Heads[rig.ShownHead].Key != head))
+                rig.ShowHead(head);
             if (!_instance.activeSelf) _instance.SetActive(true);
             Bullwheel = bullwheel;
             facing.y = 0;

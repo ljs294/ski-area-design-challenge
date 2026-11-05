@@ -16,6 +16,9 @@ namespace MountainPlanner.Tests
         {
             yield return LiftCatalogIds.SesselliftFgq4;
             yield return LiftCatalogIds.MontaFg4;
+            yield return LiftCatalogIds.SesselliftStern4;
+            yield return LiftCatalogIds.SesselliftStern3;
+            yield return LiftCatalogIds.SesselliftStern2;
             foreach (string carrier in LiftCatalogIds.Carriers)
                 foreach (string maker in LiftCatalogIds.Makers)
                     yield return LiftCatalogIds.Of(carrier, maker);
@@ -35,7 +38,7 @@ namespace MountainPlanner.Tests
                 Assert.That(cost.TotalUsd, Is.GreaterThan(1_000_000), id);
                 priced++;
             }
-            Assert.That(priced, Is.GreaterThanOrEqualTo(8));
+            Assert.That(priced, Is.GreaterThanOrEqualTo(11));
         }
 
         [Test]
@@ -48,6 +51,12 @@ namespace MountainPlanner.Tests
             Assert.That(LiftPrices.For(LiftType.Of(LiftCatalogIds.SesselliftD4)), Is.SameAs(LiftPrices.DetachQuad));
             Assert.That(LiftPrices.For(LiftType.Of(LiftCatalogIds.SesselliftD6)), Is.SameAs(LiftPrices.DetachSix));
             Assert.That(LiftPrices.For(LiftType.Of(LiftCatalogIds.Of("detach-six", "chairworks"))), Is.SameAs(LiftPrices.DetachSix));
+            // The Sessellift Stern (B2, bottom drive only) prices as its seats say; the drive end does not change the price.
+            Assert.That(LiftPrices.For(LiftType.Of(LiftCatalogIds.SesselliftStern4)), Is.SameAs(LiftPrices.FixedQuad));
+            Assert.That(LiftPrices.For(LiftType.Of(LiftCatalogIds.SesselliftStern3)), Is.SameAs(LiftPrices.FixedTriple));
+            Assert.That(LiftPrices.For(LiftType.Of(LiftCatalogIds.SesselliftStern2)), Is.SameAs(LiftPrices.FixedDouble));
+            Assert.That(LiftCost.Of(LiftType.Of(LiftCatalogIds.SesselliftFgq4, LiftDrive.Bottom), 1200, 300).TotalUsd,
+                        Is.EqualTo(LiftCost.Of(LiftType.Of(LiftCatalogIds.SesselliftFgq4, LiftDrive.Top), 1200, 300).TotalUsd));
         }
 
         [Test]
