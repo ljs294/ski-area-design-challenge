@@ -13,7 +13,8 @@ import numpy as np
 
 N, T = 4, 256
 SIZE = N * T
-TILES = ["plain", "paint", "galvanised", "grating", "checker", "concrete", "panel", "rubber", "seat", "gloss", "roof_rib"]
+TILES = ["plain", "paint", "galvanised", "grating", "checker", "concrete", "panel", "rubber", "seat", "gloss", "roof_rib",
+         "belt", "ribbed"]   # append only: a tile keeps its slot
 TILE = {name: i for i, name in enumerate(TILES)}
 CLASS_TILE = {
     "galvanised": "galvanised", "paint_grey": "paint", "paint_dark": "paint", "machined": "plain",
@@ -90,6 +91,17 @@ def _tile(name):
         d = np.minimum(x % 128, 128 - x % 128)
         rib = np.clip(1 - (d / 5.0) ** 2, 0, 1)
         return rib * 3.0 + _noise("rib_h", 1.5) * 0.08, 1 + rib * 0.06, 1 - (d < 8) * (1 - rib) * 0.3, 0.9
+    if name == "belt":   # a carpet's belt: round perforations every 8 px (31 mm), raised studs every 32 px (0.125 m)
+        hx, hy = (x % 8) - 3.5, (y % 8) - 3.5
+        hole = np.clip(1 - (hx ** 2 + hy ** 2) / 2.6, 0, 1)
+        sx, sy = ((x + 16) % 32) - 15.5, ((y + 16) % 32) - 15.5
+        stud = np.clip(1 - (sx ** 2 + sy ** 2) / 14.0, 0, 1)
+        h = stud * 2.0 - hole * 1.5 + _noise("belt_h", 0.8) * 0.1
+        return h, 1 + stud * 0.6 - hole * 0.55, 1 - hole * 0.5, 0.8
+    if name == "ribbed":   # a carpet's deck plates: fine round ribs every 4 px (16 mm) along x (the carpet's u)
+        d = (y % 4) - 1.5
+        rib = np.clip(1 - (d / 1.6) ** 2, 0, 1)
+        return rib * 1.0 + _noise("ribd_h", 1.5) * 0.06, 1 + rib * 0.06 + _noise("ribd_b", 20) * 0.02, 1 - (1 - rib) * 0.25, 0.8
     raise KeyError(name)
 
 
