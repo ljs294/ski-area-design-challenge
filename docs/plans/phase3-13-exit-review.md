@@ -1,6 +1,6 @@
 # Phase 3 · 13 Exit review: drawing on the mountain
 
-**Audience:** the project owner. **Date:** 2026-11-05. **Status:** draft, for your review (gate ⛳). **Branch:**
+**Audience:** the project owner. **Date:** 2026-11-05. **Status:** decided (gate ⛳): the owner accepted E16–E25 on 2026-11-05. **Branch:**
 `docs/p3-13-exit-review`, from main at eff5a0e9. **Spec:** [Phase 3 plan row 13](phase2-14-phase3-plan.md#3-tasks),
 against the exit criteria in [§4](phase2-14-phase3-plan.md#4-exit-criteria) (from
 [0.6 §4](phase0-0.6-milestones.md#4-phase-3-drawing-on-the-mountain-iteration-2), plus E9). **Next:** the detailed
@@ -152,13 +152,13 @@ gates, as E13 did.
 
 ## 4. Decisions for this gate
 
-E16–E25 are proposed, each with its recommendation; your answers replace them. E26–E31 you decided on 2026-11-05 in
-the Phase 4 planning thread. E16 continues the E-series from the Phase 2 exit (E7–E15).
+The owner accepted E16–E25 as proposed on 2026-11-05, and decided E26–E31 the same day in the Phase 4 planning
+thread. E16 continues the E-series from the Phase 2 exit (E7–E15).
 
 | ID | Decision |
 |---|---|
 | E16 | **Exit 1 is met** by the design document's property and golden tests, the save fixtures v1–v10 with their migrations, the trails, lifts, network and brush tests, and the drawn-resort benchmark design |
-| E17 | **Exit 2 is accepted as partly met** under DB8. The 300 m test edit and the 1,000 ft trail pass; the 1 km trail (139 / 259 ms) and grading a built run (1023 / 383 ms) miss. **A faster grader** (incremental regrade of the runs below, and the trail's own grade without the lift re-check) is a candidate for Phase 4 task 01 (carry-over), or Later; you choose |
+| E17 | **Exit 2 is accepted as partly met** under DB8. The 300 m test edit and the 1,000 ft trail pass; the 1 km trail (139 / 259 ms) and grading a built run (1023 / 383 ms) miss. **A faster grader** (incremental regrade of the runs below, and the trail's own grade without the lift re-check) is a candidate for Phase 4 task 01 (carry-over), picked there or left Later |
 | E18 | **Exit 3 is met** (P3-11: High 8.76 ms p95 with the drawn resort; 40 lifts 8.34 ms; budget 20 ms) |
 | E19 | **Exit 4 is accepted as partly met.** The friends played v0.3.0, liked it, and filed no reports. Which steps they finished isn't recorded, and the owner's hands-on was skipped. **The P3-12 round closes with no tester findings;** BB1 (your screenshot) stands as its one real-world finding. A no-help session with written steps returns at the next tester build, if you want one |
 | E20 | **Exit 5 is met** with §2 and the Phase 4 plan on this branch |
@@ -166,7 +166,7 @@ the Phase 4 planning thread. E16 continues the E-series from the Phase 2 exit (E
 | E22 | **The quit crash stays avoided, not root-fixed.** `demo.bat` 77 and the benchmark's exit code watch for it, and new material properties go last in the block. A root fix, and the Lift Lab's crash on quit, are Later |
 | E23 | **v0.3.2 waits for surface lifts in the game** (owner, 2026-11-05): the T-bar/J-bar and the magic carpet from the Lifts thread, with everything else since v0.3.1. The rope tow comes later, after its model gates |
 | E24 | **The carry-over in §3 goes to the Phase 4 plan:** soil works in the lift cost is Phase 4 task 01, which also takes the backlog items you pick (the trail look's window, brush garbage, the grader); the rest goes to its Later list |
-| E25 | **Milestone:** the merge commit of this PR is tagged `unity-m3`, and `archive/unity` is fast-forwarded to it (fast-forward only, after checking it is an ancestor; never forced) |
+| E25 | **Milestone:** the merge commit of the follow-up PR that records these decisions (and updates AGENTS.md) is tagged `unity-m3`, and `archive/unity` is fast-forwarded to it (fast-forward only, after checking it is an ancestor; never forced) |
 | E26 | **Phase 4 scope includes the full snowmaking system** (owner): water, ponds, dams, pipes, pumps and guns (Phase 4 tasks 14–16). It takes the plan to about 32 task-weeks, over 0.6's 4–6 months |
 | E27 | **Full weather simulation** (owner), with its own design session first (Phase 4 task 04) |
 | E28 | **The clock starts from the MapLibre game's dual clock** (owner), re-specified in `docs/` and built natively, never ported |

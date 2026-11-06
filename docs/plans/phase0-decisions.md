@@ -648,3 +648,28 @@ its recommendations. The decisions (TR1–TR7: a full Release marked Latest as a
 the no-help testers, the owner's hands-on before publishing, the P3-11 follow-ups not blocking, v0.3.1 for a blocking
 fix) and the findings are in [phase3-tester-findings.md](phase3-tester-findings.md); the tester sheet is
 [p3-12-tester-sheet.md](p3-12-tester-sheet.md).
+
+## Phase 3 task 13, Phase 3 exit: decided 2026-11-05
+
+**Context:** the Phase 3 exit gate. Review: [phase3-13-exit-review.md](phase3-13-exit-review.md); the Phase 4 plan:
+[phase3-13-phase4-plan.md](phase3-13-phase4-plan.md). The owner accepted E16–E25 as proposed and decided E26–E31 in
+the Phase 4 planning thread.
+
+| # | Decision |
+|---|---|
+| E16 | **Exit 1 (draw, grade, save, reload, undo) is met** by the design document's property and golden tests, the save fixtures v1–v10, the trails, lifts, network and brush tests, and the drawn-resort design |
+| E17 | **Exit 2 (preview ≤100 ms, commit ≤250 ms) is accepted as partly met** under DB8: the 300 m edit and the 1,000 ft trail pass; the 1 km trail (139 / 259 ms) and grading a run (1023 / 383 ms) miss. A faster grader is a Phase 4 task 01 candidate, or Later |
+| E18 | **Exit 3 (frame budgets with a drawn resort) is met** (High 8.76 ms p95; 40 lifts 8.34 ms) |
+| E19 | **Exit 4 (no-help tester) is accepted as partly met:** friends played v0.3.0, liked it and filed nothing; their steps weren't recorded; the owner's hands-on was skipped. The P3-12 round closes with no tester findings |
+| E20 | **Exit 5 (velocity, Phase 4 plan) is met** |
+| E21 | **Low-preset tree flicker stays Later** |
+| E22 | **The D3D12 quit fault stays avoided, not root-fixed;** demo 77 and the benchmark's exit code watch it; new material properties go last |
+| E23 | **v0.3.2 waits for surface lifts in the game** (T-bar/J-bar and magic carpet, the Lifts thread); the rope tow comes later, after its model gates |
+| E24 | **The carry-over goes to the Phase 4 plan:** soil works in the lift cost is its task 01, with the backlog items picked there; the rest is Later |
+| E25 | **Milestone:** the merge commit of the PR recording these decisions (after #131) is tagged `unity-m3`, and `archive/unity` is fast-forwarded to it |
+| E26 | **Phase 4 includes the full snowmaking system:** water, ponds, dams, pipes, pumps and guns |
+| E27 | **Full weather simulation,** with its own design session first |
+| E28 | **The clock starts from the MapLibre game's dual clock,** re-specified and built natively |
+| E29 | **Guests v1:** 2D dots, no needs, hidden while riding |
+| E30 | **Surface lifts are wired in their own thread,** outside the Phase 4 plan |
+| E31 | **Ideas Inbox:** Racing Academy Parked; Ski Patrol, Ski School, Lodges, Terrain parks, Nordic, Resort Infrastructure and Resort Metrics Later |
