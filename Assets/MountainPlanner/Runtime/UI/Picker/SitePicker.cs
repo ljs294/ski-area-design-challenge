@@ -396,7 +396,7 @@ namespace MountainPlanner.UI.Picker
             if (text == null) return;
             if (_pillText.text != text) _pillText.text = text;
             _pillFill.style.width = Length.Percent(fraction * 100f);
-            foreach (string c in new[] { "pill--waiting", "pill--paused", "pill--failed" }) _pill.EnableInClassList(c, c == stateClass);
+            foreach (string c in new[] { "pill--waiting", "pill--paused", "pill--failed", "pill--held" }) _pill.EnableInClassList(c, c == stateClass);
         }
 
         void Download()

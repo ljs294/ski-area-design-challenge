@@ -17,7 +17,7 @@ namespace MountainPlanner.UI
         Button _dlButton;
         Label _dlLabel, _dlText;
 
-        /// <summary>Shows the download (<paramref name="label"/> null hides it). <paramref name="stateClass"/>: "" running, else pill--waiting, --paused or --failed.</summary>
+        /// <summary>Shows the download (<paramref name="label"/> null hides it). <paramref name="stateClass"/>: "" running, else pill--waiting, --paused, --failed or --held.</summary>
         public void SetDownload(string label, string text, float fraction, string stateClass)
         {
             if (_dlCell == null)
@@ -38,6 +38,7 @@ namespace MountainPlanner.UI
             _dlFill.style.width = UnityEngine.UIElements.Length.Percent(fraction * 100f);
             _dlButton.EnableInClassList("dl--wait", stateClass == "pill--waiting" || stateClass == "pill--paused");
             _dlButton.EnableInClassList("dl--fail", stateClass == "pill--failed");
+            _dlButton.EnableInClassList("dl--held", stateClass == "pill--held");
         }
     }
 }

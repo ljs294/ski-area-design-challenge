@@ -139,6 +139,11 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
   - The cache rasterises the roads per tile into two more cover bands, **paved road** and **unpaved road**, so cover texels hold eight bytes. Paved roads come out of the developed land that already covered them. The water and developed rasters, and the forest, are unchanged.
   - The terrain draws paved roads in asphalt and unpaved roads in gravel worked into dirt.
   - Packages made before 12d have no roads layer and open as before. `acquire refresh-osm` (demo.bat 34) adds it.
+  - Get water and roads (task P3-16, BB6; Manage Areas and `acquire refresh-osm`) adds whichever of `osm-core`, `osm-ring`
+    and `roads` a package lacks, never rewriting a listed layer. The id changes, so `AreaRekey` copies the saves to
+    `Saves/<new id>` (only each save's top-level PackageId changes; its Version stays) and adds the new id to recent.json,
+    then writes the manifest as the commit point, then removes the old id's saves and entry. The package folder keeps its
+    name; the library and `ResortLibrary.Add` find a package by its manifest's id.
 - **Size:** a 5 km site in an 11 km square makes 121 tiles: 25 core and 96 ring.
 
 **④ Load.**
@@ -341,7 +346,8 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
   the confirmed terrain brush strokes, TB-14, their dabs site-centred like the points and their target and start
   elevations absolute like the levels; since v8 each trail's clearing as outline rings, its 250 mm cells inside them by
   the even-odd rule, instead of the strokes it was painted with; since v9 each stroke's clearing depth, TB-10 v2, 305 mm
-  with Clear trees on and 0 with it off, every older stroke 305), `save.json.bak` (the previous good one) and `tiles/<sha256>.tile`. Saves sit outside the package,
+  with Clear trees on and 0 with it off, every older stroke 305; since v10 each lift's drive end, LD9, `top` or `bottom`,
+  every older lift at its type's own end, and the Sessellift Stern's catalog ids), `save.json.bak` (the previous good one) and `tiles/<sha256>.tile`. Saves sit outside the package,
   so the read-only demo saves too and Rename never touches them. A save commits with one `File.Replace`, so a crash
   leaves the old save or the new one. A new folder moves nothing, so the library layout stays v1. Deleting an area
   deletes its saves.
@@ -360,7 +366,7 @@ frozen format ships with a migration and a fixture test.
 | Recently opened list | `<data>/recent.json` | `Version` | 1 | `…/v1-library/recent.json` |
 | View state | `<package>/view.json` | `Version` | 2 | v1: `…/v1-library/Resorts/5792676e513f5302/view.json`; v2 (adds `Name`, task P2-04): `TestData/formats/v2-view/view.json` |
 | Paused download | `<data>/Downloads/<id>/download.json` | `Version` | 1 | `…/v1-library/Downloads/*/download.json` |
-| Save (task P3-04; v2 and v3 task P3-09; v4 and v9 task P3-15; v5 to v8 task P3-10) | `<data>/Saves/<packageId>/<saveId>/save.json` + `tiles/<sha256>.tile` | `Version` | 9 | `TestData/formats/v1-save` to `v9-save` |
+| Save (task P3-04; v2 and v3 task P3-09; v4 and v9 task P3-15; v5 to v8 task P3-10; v10 lift overhaul B2) | `<data>/Saves/<packageId>/<saveId>/save.json` + `tiles/<sha256>.tile` | `Version` | 10 | `TestData/formats/v1-save` to `v10-save` |
 
 **The rules:**
 1. **Every file is read through its format's `VersionedJson`** (`Persistence/VersionedJson.cs`). The version comes from

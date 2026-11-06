@@ -110,9 +110,9 @@ namespace MountainPlanner.Domain.Design
                 double len = l.LengthMetres;
                 if (len <= 0) { keeps.Add(Keep.Round(bx, by)); continue; }
                 double ux = (tx - bx) / len, uy = (ty - by) / len;
-                var type = LiftType.Of(l.CatalogId);
+                var type = LiftType.Of(l);
                 keeps.Add(type?.Bottom != null ? new Keep(bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth) : Keep.Round(bx, by));
-                keeps.Add(type?.Top != null ? new Keep(tx, ty, -ux, -uy, type.Top.Behind, type.Top.Ahead, type.Top.HalfWidth) : Keep.Round(tx, ty));
+                keeps.Add(type?.Top != null ? new Keep(tx, ty, -ux, -uy, type.TopFootprint.Behind, type.TopFootprint.Ahead, type.TopFootprint.HalfWidth) : Keep.Round(tx, ty));
                 foreach (var tw in l.Towers)
                 {
                     double f = tw.AlongMm / 1000.0 / len;

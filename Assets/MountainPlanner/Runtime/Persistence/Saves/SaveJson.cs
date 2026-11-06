@@ -34,16 +34,18 @@ namespace MountainPlanner.Persistence.Saves
     /// The design's "Cuts" (v7, NT45) are the points the player cut on runs, by run then point.
     /// A trail's "Outline" (v8, sections finding 7) replaces its "Parts" (the strokes it was painted with): its clearing's
     /// rings, each [x0, y0, dx1, dy1, …] on one line, the first point in whole mm from the site's centre (TE5) and each
-    /// later one as the change from the one before. A 250 mm cell of the design's frame (cell (i, j) from 250·i to
+    /// later one as the change from the one before. A lift's "Drive" (v10, LD9) is the end that drives, "top" or "bottom":
+    /// the player's choice on a fixed grip with a head for each end, else the type's own end (a v1–v9 lift: the Sessellift's
+    /// top, the Monta's bottom). A 250 mm cell of the design's frame (cell (i, j) from 250·i to
     /// 250·(i + 1) mm) is cleared when its centre lies inside the rings by the even-odd rule. Outer rings run
     /// anticlockwise and holes clockwise, each from its lowest point; the writer straightens the cells' outline wherever
     /// that keeps every cell, so the same clearing always gives the same rings.
     /// <code>
-    /// { "Version": 9, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 9, "Seed", "NextOrdinal",
+    /// { "Version": 10, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 10, "Seed", "NextOrdinal",
     ///               "Trails": [ { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Outline": [ [...] ] } ],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
-    ///                            "Levels": { "BottomMm", "TopMm" } or null } ],
+    ///                            "Levels": { "BottomMm", "TopMm" } or null, "Drive" } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
     ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm", "Dabs": [...] } ],
     ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ],
@@ -310,6 +312,7 @@ namespace MountainPlanner.Persistence.Saves
                 w.WriteEndObject();
             }
             else w.WriteNull();
+            w.WritePropertyName("Drive"); w.WriteValue(Words.Drive(l.Drive));   // v10 (LD9)
             w.WriteEndObject();
         }
 
@@ -539,7 +542,8 @@ namespace MountainPlanner.Persistence.Saves
                 towers.Add(new Tower(new TowerId(HexValue(Str(to, "Id"))), Int(to, "AlongMm"), Int(to, "HeightMm"), Words.TowerKind(Str(to, "Kind"))));
             }
             return new Lift(new LiftId(HexValue(Str(l, "Id"))), Str(l, "Name"), Words.Stage(Str(l, "Stage")), Str(l, "Catalog"),
-                Point(l, "Bottom"), Point(l, "Top"), Words.Mode(Str(l, "TowerMode")), Words.Stance(Str(l, "Stance")), towers, Levels(l));
+                Point(l, "Bottom"), Point(l, "Top"), Words.Mode(Str(l, "TowerMode")), Words.Stance(Str(l, "Stance")), towers, Levels(l),
+                Words.Drive(Str(l, "Drive")));
         }
 
         static LiftLevels? Levels(JObject l)
@@ -635,6 +639,8 @@ namespace MountainPlanner.Persistence.Saves
 
             public static string Mode(TowerMode v) => v == TowerMode.Automatic ? "automatic" : v == TowerMode.ByHand ? "by-hand" : throw Bad(v);
             public static TowerMode Mode(string s) => s == "automatic" ? TowerMode.Automatic : s == "by-hand" ? TowerMode.ByHand : throw Unknown(s);
+            public static string Drive(LiftDrive v) => v == LiftDrive.Top ? "top" : v == LiftDrive.Bottom ? "bottom" : throw Bad(v);
+            public static LiftDrive Drive(string s) => s == "top" ? LiftDrive.Top : s == "bottom" ? LiftDrive.Bottom : throw Unknown(s);
             public static string Stance(TowerStance v) => v == TowerStance.Plumb ? "plumb" : v == TowerStance.Leaned ? "leaned" : throw Bad(v);
             public static TowerStance Stance(string s) => s == "plumb" ? TowerStance.Plumb : s == "leaned" ? TowerStance.Leaned : throw Unknown(s);
             public static string Kind(TowerKind v) => v switch

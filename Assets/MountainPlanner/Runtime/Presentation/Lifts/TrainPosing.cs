@@ -32,10 +32,27 @@ namespace MountainPlanner.Presentation.Lifts
         public static bool Posable(LiftRig rig, string side)
         {
             if (rig == null || rig.Pivots == null) return false;
-            string key = "_pivot_rocker_" + side;
             foreach (var p in rig.Pivots)
-                if (p != null && p.name.Contains(key)) return true;   // rocker_r1…, or a combination's rocker_rs1 / rocker_rh1
+                if (Key(rig, p) is string key && key.StartsWith("rocker_" + side, StringComparison.Ordinal)) return true;   // rocker_r1…, rocker_rs1 / rocker_rh1
             return false;
+        }
+
+        /// <summary>
+        /// A pivot's name after <c>_pivot_</c>, as the shown head has it (LD9, drive at either end): a hidden head's pivots
+        /// (inactive) are none, and the shown head's prefix (top6_) comes off, so its train reads as the default head's would.
+        /// Null for a pivot that isn't one or isn't shown.
+        /// </summary>
+        static string Key(LiftRig rig, Transform p)
+        {
+            if (p == null) return null;
+            int at = p.name.IndexOf("_pivot_", StringComparison.Ordinal);
+            if (at < 0) return null;
+            for (var x = p; x != null && x != rig.transform; x = x.parent)
+                if (!x.gameObject.activeSelf) return null;
+            string key = p.name.Substring(at + 7);
+            if (rig.ShownHead >= 0 && rig.Heads[rig.ShownHead].Prefix is string prefix && prefix.Length > 0
+                && key.StartsWith(prefix, StringComparison.Ordinal)) key = key.Substring(prefix.Length);
+            return key;
         }
 
         /// <summary>
@@ -49,10 +66,8 @@ namespace MountainPlanner.Presentation.Lifts
             var sheaves = new List<Transform>();
             foreach (var p in rig.Pivots)
             {
-                if (p == null) continue;
-                int at = p.name.IndexOf("_pivot_", StringComparison.Ordinal);
-                if (at < 0) continue;
-                string key = p.name.Substring(at + 7);
+                string key = Key(rig, p);
+                if (key == null) continue;
                 if (key.StartsWith("sheave_" + side, StringComparison.Ordinal)) { sheaves.Add(p); continue; }
                 foreach (var prefix in NodePrefixes)
                     if (key.StartsWith(prefix + side, StringComparison.Ordinal) || key == prefix.TrimEnd('_') + "_" + side)
@@ -106,13 +121,13 @@ namespace MountainPlanner.Presentation.Lifts
                 int parent = ParentOf(sheaves[k]);
                 treeSheaves.Add(new SheaveTree.Sheave(parent, S(sheaves[k].position), sheaves[k].position.y - origin.y));
                 for (var x = sheaves[k].parent; x != null && x != rig.transform; x = x.parent)
-                    if (x.name.Contains("_pivot_yoke_hold_") || x.name.Contains("_pivot_rocker_" + side + "h"))
+                    if (Key(rig, x) is string key && (key.StartsWith("yoke_hold_", StringComparison.Ordinal) || key.StartsWith("rocker_" + side + "h", StringComparison.Ordinal)))
                     {
                         hold ??= new bool[sheaves.Count];
                         hold[k] = true;
                     }
             }
-            if (hold == null && rig.Pivot("block_" + side) != null) hold = new bool[sheaves.Count];
+            if (hold == null && Array.Exists(rig.Pivots, p => Key(rig, p) == "block_" + side)) hold = new bool[sheaves.Count];
             float lateral = 0;
             foreach (var s in sheaves) lateral += Vector3.Dot(s.position - origin, right);
             return new Train
@@ -129,7 +144,7 @@ namespace MountainPlanner.Presentation.Lifts
         /// </summary>
         public static Train Fixed(LiftRig rig, string side, bool above, double rho, Vector3 origin, Vector3 dir, Vector3 right)
         {
-            var socket = rig != null ? rig.Socket($"rope_{(side == "r" ? "right" : "left")}_out") : null;
+            var socket = rig != null ? rig.HeadSocket($"rope_{(side == "r" ? "right" : "left")}_out") : null;
             if (socket == null) return null;
             var p = socket.position;
             double s = Vector3.Dot(p - origin, dir), w = p.y - origin.y;

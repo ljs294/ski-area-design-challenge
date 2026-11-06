@@ -23,7 +23,8 @@ namespace MountainPlanner.Tests
         // Shape 8 (task P3-10, sections finding 7): the trails' clearing outlines; from 315f1a24… (its last pin).
         // Shape 9 (task 15 round 4, owner BR22 2026-10-29; save v9 reserved by the Master Planner): each stroke's clearing depth,
         // none here, so only the shape number moved; from 315f1a24….
-        const string GoldenSha = "f455bf992b83c7016b077ee6f4ef8ccde1cc419cbed1c0414de818cc96df01f3";
+        // Shape 10 (lift overhaul B2, owner LD9; save v10 cleared by the Master Planner): each lift's drive end; from f455bf99….
+        const string GoldenSha = "b4e85694aae6d30cddb7912eb0a56e6edbecc83afba10b048ee9ca40905478fd";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()
@@ -76,7 +77,7 @@ namespace MountainPlanner.Tests
             AssertProperties(typeof(FootprintPart), "Strokes", "Cuts");
             AssertProperties(typeof(Stroke), "WidthMm", "Erase", "Points");
             AssertProperties(typeof(Lift), "Id", "Name", "Stage", "CatalogId", "Bottom", "Top", "TowerMode", "Stance", "Towers",
-                "Levels", "LengthSquaredMm", "LengthMetres");
+                "Levels", "Drive", "LengthSquaredMm", "LengthMetres");
             AssertFields(typeof(LiftLevels), "BottomMm", "TopMm");
             AssertFields(typeof(Tower), "Id", "AlongMm", "HeightMm", "Kind");
             AssertFields(typeof(TrailSettings), "Grading", "Kind", "Clearing");
@@ -84,7 +85,7 @@ namespace MountainPlanner.Tests
             AssertProperties(typeof(TerrainStroke), "Id", "Settings", "Dabs");
             AssertFields(typeof(BrushSettings), "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm", "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm");
             AssertFields(typeof(BrushDab), "At", "WeightPermille");
-            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(9));
+            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(10));
         }
 
         static void AssertProperties(Type type, params string[] names)

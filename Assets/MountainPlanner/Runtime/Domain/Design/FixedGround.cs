@@ -121,15 +121,15 @@ namespace MountainPlanner.Domain.Design
             foreach (var l in doc.Lifts)
             {
                 if (l.Stage != WorkStage.Built || l.Levels == null) continue;
-                var type = LiftType.Of(l.CatalogId);
+                var type = LiftType.Of(l);
                 if (type?.Bottom == null || type.Top == null) continue;
                 site.PointOf(l.Bottom, out double bx, out double by);
                 site.PointOf(l.Top, out double tx, out double ty);
                 double len = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
                 if (len <= 0) continue;
                 double ux = (tx - bx) / len, uy = (ty - by) / len;
-                double padReach = Math.Max(Math.Max(type.Bottom.Behind, type.Bottom.Ahead), Math.Max(type.Top.Behind, type.Top.Ahead))
-                                  + Math.Max(type.Bottom.HalfWidth, type.Top.HalfWidth) + TerminalPad.MarginMetres + TerminalReachMetres + 2;
+                double padReach = Math.Max(Math.Max(type.Bottom.Behind, type.Bottom.Ahead), Math.Max(type.TopFootprint.Behind, type.TopFootprint.Ahead))
+                                  + Math.Max(type.Bottom.HalfWidth, type.TopFootprint.HalfWidth) + TerminalPad.MarginMetres + TerminalReachMetres + 2;
                 double reach = Math.Max(padReach, type.GaugeMetres / 2 + type.ChairHalfWidthMetres + BandMargin + 2);
                 var box = new PointRect((int)Math.Floor(Math.Min(bx, tx) - reach - lat.West), (int)Math.Floor(lat.North - Math.Max(by, ty) - reach),
                                         (int)Math.Ceiling(Math.Max(bx, tx) + reach - lat.West), (int)Math.Ceiling(lat.North - Math.Min(by, ty) + reach));
@@ -139,7 +139,7 @@ namespace MountainPlanner.Domain.Design
                 ushort terminal = fg.Add(new Hold(HoldKind.Terminal, l.Id, 0));
                 var levels = l.Levels.Value;
                 lim.Pads.Add(new Pad { X = bx, Y = by, Ux = ux, Uy = uy, Behind = type.Bottom.Behind, Ahead = type.Bottom.Ahead, HalfWidth = type.Bottom.HalfWidth, Level = levels.BottomMetres, Hold = terminal });
-                lim.Pads.Add(new Pad { X = tx, Y = ty, Ux = -ux, Uy = -uy, Behind = type.Top.Behind, Ahead = type.Top.Ahead, HalfWidth = type.Top.HalfWidth, Level = levels.TopMetres, Hold = terminal });
+                lim.Pads.Add(new Pad { X = tx, Y = ty, Ux = -ux, Uy = -uy, Behind = type.TopFootprint.Behind, Ahead = type.TopFootprint.Ahead, HalfWidth = type.TopFootprint.HalfWidth, Level = levels.TopMetres, Hold = terminal });
                 var works = ropeOf?.Invoke(l.Id);
                 var rope = works?.Rope;
                 if (rope != null && rope.Towers.Count == l.Towers.Count)

@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using MountainPlanner.Persistence;
 using MountainPlanner.Presentation;
 using MountainPlanner.UI;
 using MountainPlanner.UI.Flow;
@@ -26,6 +27,18 @@ namespace MountainPlanner.App.Flow
     /// </summary>
     public sealed partial class AppFlow
     {
+        /// <summary>A made-up library row for the review captures: nothing on disk is read or changed.</summary>
+        static LibraryEntry CaptureEntry(string name, string id, double lat, double lon, double km, int terrain, int flora, bool needs)
+        {
+            var e = new LibraryEntry
+            {
+                PackageId = id, Name = name, OriginalName = name, Folder = "capture-" + id, Latitude = lat, Longitude = lon, SizeKm = km,
+                TerrainScore = terrain, FloraScore = flora, NeedsWaterAndRoads = needs,
+            };
+            ResortLibrary.SetDisk(e, new DiskUse { Package = (long)(km * km * 24e6), Cache = (long)(km * km * 14e6) });
+            return e;
+        }
+
         static readonly Vector2Int[] DefaultSizes = { new(1920, 1080), new(2560, 1080), new(3440, 1440), new(5120, 1440) };
 
         string[] _uiOnly;
@@ -119,6 +132,36 @@ namespace MountainPlanner.App.Flow
                     yield return Wait(0.3f);
                     yield return EachLook(folder, "s2-free-space");
                     Screens.CloseConfirm();
+                }
+                Controller.Escape();
+            }
+            // Task P3-16, BB6: Manage Areas with an area downloaded without water and roads, then getting them.
+            if (Wanted("s2-water-roads") || Wanted("s2-water-roads-busy"))
+            {
+                _mode = LibraryMode.Manage;
+                Controller.MyResorts();
+                yield return Wait(1.5f);   // after the sizes are measured, so nothing redraws the list over these
+                var entries = new System.Collections.Generic.List<LibraryEntry>
+                {
+                    CaptureEntry("Crystal Mountain", "c", 46.935, -121.475, 5, 92, 78, true),
+                    CaptureEntry("Jackson Hole", "j", 43.593, -110.848, 2, 100, 83, false),
+                    CaptureEntry("Sugarloaf", "s", 45.031, -70.313, 5, 88, 81, false),
+                };
+                var vm = LibraryViewModel.Build(entries, new System.Collections.Generic.List<PendingDownload>(), new RecentResorts(), LibrarySort.Name, DateTime.UtcNow);
+                if (Wanted("s2-water-roads"))
+                {
+                    Screens.RenderLibrary(vm, LibraryMode.Manage);
+                    yield return Wait(0.3f);
+                    yield return EachLook(folder, "s2-water-roads");
+                }
+                if (Wanted("s2-water-roads-busy"))
+                {
+                    var row = vm.Rows.Find(r => r.NeedsWaterAndRoads);
+                    row.Busy = true;
+                    row.WaterAndRoadsText = "Getting water and roads · 40%";
+                    Screens.RenderLibrary(vm, LibraryMode.Manage);
+                    yield return Wait(0.3f);
+                    yield return EachLook(folder, "s2-water-roads-busy");
                 }
                 Controller.Escape();
             }
@@ -352,6 +395,8 @@ namespace MountainPlanner.App.Flow
             ("dl", false, (h, v, on) => h.SetDownload(on ? "Downloading · 41%" : null, "Crystal Mountain", 0.41f, "")),
             ("dlwait", false, (h, v, on) => h.SetDownload(on ? "Waiting for connection · 41%" : null, "Crystal Mountain", 0.41f, "pill--waiting")),
             ("dlfail", false, (h, v, on) => h.SetDownload(on ? "Download stopped · 41%" : null, "Crystal Mountain", 0.41f, "pill--failed")),
+            // Task P3-16, BB5: held up for two minutes by one server.
+            ("dlheld", false, (h, v, on) => h.SetDownload(on ? "Held up · USGS elevation · 41%" : null, "Crystal Mountain", 0.41f, "pill--held")),
         };
 
         /// <summary>Photo mode's states (task P2-07): the mockup's #demo=p2,photo flags.</summary>

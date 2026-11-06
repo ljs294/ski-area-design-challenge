@@ -143,6 +143,8 @@
 .lib-score--limited { color: var(--neg); -unity-text-outline-color: var(--neg); }
 .lib-paused { flex-grow: 1; color: var(--warn); -unity-text-outline-color: var(--warn); font-size: 13px; }
 .lib-actions { flex-direction: row; flex-shrink: 0; margin-left: auto; padding: 2px 0; }
+/* An area without water and roads (task P3-16, BB6): one line in the spacer's place, never cut short (the row wraps instead). */
+.lib-status { flex-shrink: 0; padding-left: 8px; white-space: nowrap; -unity-text-align: middle-left; }
 /* Manage Areas' rows carry Rename and Delete (task P2-04): a narrower last-opened column keeps them on one line at
    100%; a long name ends in an ellipsis (its tooltip has it all). */
 .lib-cell--when { width: 110px; }
@@ -186,6 +188,13 @@
 .pill--paused .pill-fill { background-color: var(--soft); }
 .pill--failed .pill-fill { background-color: var(--neg); }
 .pill--failed .pill-text { color: var(--neg); -unity-text-outline-color: var(--neg); }
+/* Task P3-16, BB5: held up for two minutes; amber line and text, and the card's held footer. */
+.pill--held .pill-fill { background-color: var(--warn); }
+.pill--held .pill-text { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.dl-held { flex-direction: column; }
+.dl-held-line { margin: 8px 16px 0 16px; padding: 8px 10px; border-left-width: 3px; border-color: var(--warn); background-color: var(--tile);
+    color: var(--text); -unity-text-outline-color: var(--text); font-size: 13px; -unity-font-style: bold; white-space: normal; }
+.download--held .dl-bar-fill { background-color: var(--warn); }
 
 /* ---------- S5 quality card ---------- */
 .quality-panel { width: 520px; }

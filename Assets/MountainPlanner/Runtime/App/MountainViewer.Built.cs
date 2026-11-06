@@ -344,7 +344,7 @@ namespace MountainPlanner.App
             _liftRowList.Clear();
             foreach (var l in doc.Lifts)
             {
-                var type = LiftType.Of(l.CatalogId);
+                var type = LiftType.Of(l);
                 double vertical = l.Levels is LiftLevels lv ? lv.TopMetres - lv.BottomMetres
                     : _resort.Surface.HeightAt((float)l.Top.XMetres, (float)l.Top.YMetres) - _resort.Surface.HeightAt((float)l.Bottom.XMetres, (float)l.Bottom.YMetres);
                 double slope = Math.Sqrt(l.LengthMetres * l.LengthMetres + vertical * vertical);

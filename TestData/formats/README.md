@@ -64,6 +64,12 @@ reads: a version number, and a name for the greyed library row.
   at 1 ft (305), and a sixth, painted with Clear trees off, clears nothing (0). v1 to v8 saves migrate with every stroke at
   305, so they replay with the trees they had. `SaveFileTests` checks that the writer reproduces it byte for byte.
 
+- **`v10-save/Saves/5792676e513f5302/save-001/`** is the same save in format v10 (lift overhaul B2, owner LD9): each lift
+  keeps its `Drive` end, `"top"` or `"bottom"` (design shape 10). Here the first Sessellift FGQ-4 drives at the bottom,
+  the second lift is a Monta FG4 driven at the top, and a Sessellift Stern Q-4 (`sessellift-stern4`, a catalog id new in
+  v10, bottom drive only) is added. v1 to v9 saves migrate with each lift at its type's own end: the Sessellift's top, the
+  Monta's bottom. `SaveFileTests` checks that the writer reproduces it byte for byte.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

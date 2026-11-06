@@ -64,15 +64,16 @@ namespace MountainPlanner.Presentation.Edits
         public void Clear()
         {
             Segments = 0;
-            _mesh.Clear();
-            _go.SetActive(false);
+            // On quit Unity may have destroyed the object and mesh before the viewer's OnDestroy reaches here (BB7).
+            if (_mesh != null) _mesh.Clear();
+            if (_go != null) _go.SetActive(false);
         }
 
         public void Dispose()
         {
             if (_go != null) Object.Destroy(_go);
-            Object.Destroy(_mesh);
-            Object.Destroy(_material);
+            if (_mesh != null) Object.Destroy(_mesh);
+            if (_material != null) Object.Destroy(_material);
         }
     }
 }

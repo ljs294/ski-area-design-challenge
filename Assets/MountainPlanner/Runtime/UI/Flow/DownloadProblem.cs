@@ -1,7 +1,8 @@
 namespace MountainPlanner.UI.Flow
 {
     /// <summary>What kind of failure stopped a download (S11: errors say what happened and what to do, never a raw exception).</summary>
-    public enum ProblemKind { NoConnection, OfflineMode, ServiceBusy, DiskFull, AccessDenied, ServerError, Unknown }
+    /// <remarks>ServerDown (task P3-16, BB5): one map service isn't answering while the others do.</remarks>
+    public enum ProblemKind { NoConnection, OfflineMode, ServiceBusy, DiskFull, AccessDenied, ServerError, Unknown, ServerDown }
 
     /// <summary>A download failure in the player's words. The raw exception goes to the log only.</summary>
     public sealed class DownloadProblem
@@ -11,14 +12,25 @@ namespace MountainPlanner.UI.Flow
         public string Title = "";
         /// <summary>What it means and what to do, one or two sentences.</summary>
         public string Text = "";
+        /// <summary>The server at fault, in the player's words ("USGS elevation"), when it's known.</summary>
+        public string Server;
 
-        /// <summary>The download waits and continues by itself: a lost connection, a busy map service, or offline mode until it's turned off.</summary>
-        public bool Waits => Kind == ProblemKind.NoConnection || Kind == ProblemKind.OfflineMode || Kind == ProblemKind.ServiceBusy;
+        /// <summary>
+        /// The download waits and continues by itself: a lost connection, a busy or silent map service, or offline mode
+        /// until it's turned off.
+        /// </summary>
+        public bool Waits => Kind == ProblemKind.NoConnection || Kind == ProblemKind.OfflineMode || Kind == ProblemKind.ServiceBusy || Kind == ProblemKind.ServerDown;
 
-        public static DownloadProblem Of(ProblemKind kind, long bytesNeeded = 0)
+        public static DownloadProblem Of(ProblemKind kind, long bytesNeeded = 0, string server = null)
         {
             switch (kind)
             {
+                case ProblemKind.ServerDown:
+                    return new DownloadProblem
+                    {
+                        Kind = kind, Server = server, Title = (server ?? "A map service") + " isn't answering",
+                        Text = "Your connection is fine; the other map services answer. The download tries again by itself; what arrived so far is kept.",
+                    };
                 case ProblemKind.NoConnection:
                     return new DownloadProblem { Kind = kind, Title = "No connection", Text = "The download continues by itself when the connection is back. What arrived so far is kept." };
                 case ProblemKind.OfflineMode:

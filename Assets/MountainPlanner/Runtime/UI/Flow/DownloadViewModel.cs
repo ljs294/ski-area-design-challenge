@@ -26,6 +26,10 @@ namespace MountainPlanner.UI.Flow
         public double? SecondsRemaining;
         public string Detail = "";
         public bool Finished;
+        /// <summary>The server the current step waits on, in the player's words, or null for steps that use no network.</summary>
+        public string Server;
+        /// <summary>Seconds since the last byte arrived.</summary>
+        public double QuietSeconds;
     }
 
     public enum StageState { Waiting, Current, Done }
@@ -64,11 +68,24 @@ namespace MountainPlanner.UI.Flow
         public string BarLabel =>
             (Phase == DownloadPhase.Failed ? "Download stopped"
              : Phase == DownloadPhase.Paused ? "Download paused"
-             : Phase == DownloadPhase.Waiting ? (Problem?.Kind == ProblemKind.OfflineMode ? "Paused · offline mode" : Problem?.Kind == ProblemKind.ServiceBusy ? "Waiting for the map service" : "Waiting for connection")
+             : Held ? (HeldConnection ? "Held up · no connection" : "Held up · " + (HeldServer ?? "a map service"))
+             : Phase == DownloadPhase.Waiting ? (Problem?.Kind == ProblemKind.OfflineMode ? "Paused · offline mode"
+                                                 : Problem?.Kind == ProblemKind.ServiceBusy ? "Waiting for the map service"
+                                                 : Problem?.Kind == ProblemKind.ServerDown ? "Waiting for " + (Problem.Server ?? "a map service")
+                                                 : "Waiting for connection")
              : "Downloading") + " · " + Percent;
         public string BarText => Name;
         /// <summary>Why it stopped or waits, in the player's words (S11); null while it runs.</summary>
         public DownloadProblem Problem { get; private set; }
+        /// <summary>Held up for two minutes or more (task P3-16, BB5): the card shows <see cref="HeldLine"/> and the choices.</summary>
+        public bool Held { get; private set; }
+        /// <summary>"USGS elevation hasn't answered for 3 min (4 tries). Your connection is fine."</summary>
+        public string HeldLine { get; private set; } = "";
+        public string HeldServer { get; private set; }
+        /// <summary>Held up by a lost connection rather than by one server.</summary>
+        public bool HeldConnection { get; private set; }
+        /// <summary>Water and roads are the step held up, so Skip water and roads is offered.</summary>
+        public bool CanSkip { get; private set; }
         /// <summary>Bumps on every change, so the screen redraws only then (at most 4 times a second while it runs).</summary>
         public int Version { get; private set; }
         /// <summary>The stage and share a resumed download had reached: the bar holds there until the work passes it.</summary>
@@ -92,8 +109,39 @@ namespace MountainPlanner.UI.Flow
             Title = $"Downloading {name} · {FlowUnits.SiteSize(sizeKm)}";
             Pill = $"Downloading {name} · 0%";
             Problem = null;
+            Held = false;
+            HeldLine = "";
+            CanSkip = false;
             _floor = 0;
             _waitSeconds = -1;
+            Version++;
+        }
+
+        /// <summary>
+        /// Held up for <paramref name="minutes"/> over <paramref name="tries"/> tries: by <paramref name="server"/>, or by a
+        /// lost connection. <paramref name="connectionFine"/> adds that the other services answer (only when that was checked).
+        /// </summary>
+        public void SetHeld(string server, int minutes, int tries, bool connectionLost, bool connectionFine, bool canSkip)
+        {
+            Held = true;
+            HeldServer = server;
+            HeldConnection = connectionLost;
+            CanSkip = canSkip;
+            string count = tries == 1 ? "1 try" : $"{tries} tries";
+            HeldLine = connectionLost ? $"Your internet connection seems to be down: nothing for {minutes} min ({count})."
+                     : $"{server ?? "A map service"} hasn't answered for {minutes} min ({count})." + (connectionFine ? " Your connection is fine." : "");
+            Pill = connectionLost ? $"{Name} · held up · no connection" : $"{Name} · held up · {server ?? "a map service"}";
+            Version++;
+        }
+
+        /// <summary>It moved again (or the player chose): back to the usual card.</summary>
+        public void ClearHeld()
+        {
+            if (!Held) return;
+            Held = false;
+            HeldLine = "";
+            CanSkip = false;
+            if (Phase == DownloadPhase.Running) Pill = $"Downloading {Name} · {Percent}";
             Version++;
         }
 
@@ -135,7 +183,7 @@ namespace MountainPlanner.UI.Flow
             Detail = replaying ? $"Resuming: {s.Detail}" : s.Detail;
             if (!s.Finished && Phase == DownloadPhase.Waiting) { Phase = DownloadPhase.Running; Problem = null; _waitSeconds = -1; }
             Transfer = Megabytes(s.Bytes) + (s.BytesPerSecond > 0 && !s.Finished ? " · " + Megabytes((long)s.BytesPerSecond) + "/s" : "");
-            if (Phase == DownloadPhase.Running) Pill = $"Downloading {Name} · {Percent}";
+            if (Phase == DownloadPhase.Running && !Held) Pill = $"Downloading {Name} · {Percent}";
             if (s.Finished) Phase = DownloadPhase.Finished;   // a late snapshot after a pause or failure keeps that phase
             if (s.Stages.Count == 0 && s.StageCount > 0 && !s.Finished)
                 Title = $"Downloading {Name} · stage {Math.Max(1, s.StageIndex)} of {s.StageCount}";
@@ -144,6 +192,7 @@ namespace MountainPlanner.UI.Flow
 
         public void Paused()
         {
+            Held = false;
             Phase = DownloadPhase.Paused;
             Detail = "Paused. Resume continues where it stopped.";
             Pill = $"{Name} · paused";
@@ -154,6 +203,7 @@ namespace MountainPlanner.UI.Flow
         /// <summary>Stopped for good until Retry: the problem in words; <paramref name="message"/> is the raw one, for the log.</summary>
         public void Failed(DownloadProblem problem, string message = "")
         {
+            Held = false;
             Phase = DownloadPhase.Failed;
             Problem = problem;
             Error = message;
@@ -174,14 +224,16 @@ namespace MountainPlanner.UI.Flow
             Phase = DownloadPhase.Waiting;
             Problem = problem;
             _waitSeconds = whole;
-            bool offline = problem.Kind == ProblemKind.OfflineMode, busy = problem.Kind == ProblemKind.ServiceBusy;
-            string what = busy ? "A map service is busy" : "No connection";
+            bool offline = problem.Kind == ProblemKind.OfflineMode, busy = problem.Kind == ProblemKind.ServiceBusy, down = problem.Kind == ProblemKind.ServerDown;
+            string what = busy ? "A map service is busy" : down ? $"{problem.Server ?? "A map service"} isn't answering" : "No connection";
             Detail = offline ? "Offline mode is on. The download continues when you turn it off."
                    : whole > 0 ? $"{what}. Trying again in {whole} s."
                    : $"{what}. Trying again now.";
             TimeLeft = "";
             Transfer = "";
-            Pill = offline ? $"{Name} · paused · offline mode" : busy ? $"{Name} · waiting for the map service" : $"{Name} · waiting for connection";
+            if (!Held)
+                Pill = offline ? $"{Name} · paused · offline mode" : busy ? $"{Name} · waiting for the map service"
+                     : down ? $"{Name} · waiting for {problem.Server ?? "a map service"}" : $"{Name} · waiting for connection";
             Version++;
         }
 

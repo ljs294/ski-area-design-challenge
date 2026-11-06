@@ -45,7 +45,7 @@ namespace MountainPlanner.Tests
             $"towers [{string.Join(", ", b.Towers.Select(t => $"{t.AlongMm / 304.8:F0}/{t.HeightMm / 304.8:F0}"))}], heads [{string.Join(",", b.Rope.Towers.Select(t => t.Head))}], " +
             $"exit {Deg(b.Rope.BottomExitLoaded):F1}/{Deg(b.Rope.BottomExitEmpty):F1}°, top {Deg(b.Rope.TopEntryLoaded):F2}/{Deg(b.Rope.TopEntryEmpty):F2}°, " +
             $"shortfall {b.Rope.Shortfall / Ft:F2} ft at {b.Rope.ShortfallS / Ft:F0} ft, raise {b.BottomRaise / Ft:F0}/{b.TopRaise / Ft:F0} ft, " +
-            $"trench {b.Envelope.DeepestMetres / Ft:F1} ft, rows {(b.Rope.RowsOk ? "ok" : "OVER")}, top tension {b.Rope.TopTensionShare:P0}";
+            $"trench {b.Envelope.DeepestMetres / Ft:F1} ft, rows {(b.Rope.RowsOk ? "ok" : "OVER")}, top tension {b.Rope.TopTensionShare:P0}, top row {b.Rope.Type.Top.Head}";
 
         /// <summary>Every rule the lift's geometry answers to, and the document's own (TW-02, TW-03). Some made-up grounds put a
         /// terminal on a slope LF-08 forbids (reported, tested on its own below); the rest must hold everywhere.</summary>

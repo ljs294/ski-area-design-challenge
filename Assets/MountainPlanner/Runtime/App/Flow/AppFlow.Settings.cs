@@ -55,6 +55,7 @@ namespace MountainPlanner.App.Flow
         string LibraryLocked() =>
             DataFromCommandLine ? "This run's library was chosen with -data."
             : Downloads.Active ? "Wait for the download to finish, or cancel it."
+            : _waterAndRoads != null ? "Wait for Get water and roads to finish."
             : !MountainViewer.TitleMode ? "Return to the title to move the library."
             : null;
 

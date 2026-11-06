@@ -7,7 +7,7 @@ namespace MountainPlanner.Domain.Design
     /// <summary>A lift type's numbers (LC-01, LC-02 as tuned at task 07, decision SK8; detachables LT41), in SI units.</summary>
     public sealed class LiftType
     {
-        public string CatalogId { get; }
+        public string CatalogId { get; private set; }
         public int Seats { get; }
         public double SpeedMetresPerSecond { get; }
         public double ChairSpacingMetres { get; }
@@ -26,6 +26,14 @@ namespace MountainPlanner.Domain.Design
         /// <summary>The terminal at each end of the line (TW-16 v3): its model, its row and what that row needs.</summary>
         public TerminalEnd Bottom { get; private set; }
         public TerminalEnd Top { get; private set; }
+        /// <summary>LD9 (drive at either end): the end that drives, as the lift chose it or the type's own.</summary>
+        public LiftDrive Drive { get; private set; } = LiftDrive.Top;
+        /// <summary>
+        /// LD9: the top end's rows, fewest sheaves first (4, 6, 8), where its terminal carries a head for each; null where the top
+        /// has one row. Not saved: the rope takes the first whose row carries it (<see cref="LiftRope.Solve"/>), so a steeper
+        /// summit gets a longer row, as tower heads do (TW-04). <see cref="Top"/> is the first until a rope picks another.
+        /// </summary>
+        public IReadOnlyList<TerminalEnd> TopTrains { get; private set; }
         /// <summary>TW-01 v2: half the chair's width across the rope (the Sessellift chair's footrest rods, 1,020 mm).</summary>
         public double ChairHalfWidthMetres { get; private set; } = 1.05;
         /// <summary>LC-08: the type's name in the menu ("Fixed-grip quad", "Detachable six"…) and its rise family.</summary>
@@ -45,7 +53,7 @@ namespace MountainPlanner.Domain.Design
         /// line speed (<see cref="LineSpacing"/>). A fixed grip's is its spacing over its speed.</summary>
         public double IntervalSeconds => _interval ?? ChairSpacingMetres / SpeedMetresPerSecond;
         double? _interval;
-        /// <summary>LT41: station speeds as fractions of the line speed (1.0 and 1.4 m/s at 1,000 fpm; Leitner's boarding
+        /// <summary>LT41: station speeds as fractions of the line speed (1.0 and 1.4 m/s at 1,000 fpm; a maker's published boarding
         /// and deboarding figures), held within realistic bands, so a line-speed slider scales them by itself.</summary>
         public const double BoardFraction = 1.0 / 5.08, AlightFraction = 1.4 / 5.08;
         public const double BoardMin = 0.8, BoardMax = 1.2, AlightMin = 1.1, AlightMax = 1.6;
@@ -124,7 +132,17 @@ namespace MountainPlanner.Domain.Design
         /// riders; the chair hangs 8.7 ft (2.66 m, measured on the model) below the rope; the Sessellift's gauge is 13.5 ft
         /// (4.12 m), and the Monta's the same (owner, task 09, LT12: the Monta was narrowed to it rather than given wider tower heads). RP-05's rise is now (49,600 − 18,000) ÷ 28.0 lb/ft, about 1,130 ft.
         /// </summary>
-        public static LiftType Of(string catalogId)
+        public static LiftType Of(Lift lift) => Of(lift.CatalogId, lift.Drive);
+
+        public static LiftType Of(string catalogId, LiftDrive? drive = null)
+        {
+            if (LiftCatalogIds.IsStern(catalogId)) return Stern(catalogId);
+            var type = Catalog(catalogId);
+            if (!LiftCatalogIds.DriveChoice(catalogId)) return type;
+            return Driven(type, LiftCatalogIds.Maker(catalogId) == "monta", drive ?? LiftCatalogIds.DefaultDrive(catalogId));
+        }
+
+        static LiftType Catalog(string catalogId)
         {
             bool monta = LiftCatalogIds.Maker(catalogId) == "monta";
             double gauge = 4.12;
@@ -158,6 +176,7 @@ namespace MountainPlanner.Domain.Design
             // fixed row, its range a sheave's 4.5°). Both tension at the bottom (LT11, RP-03). Footprints, exits and origins
             // are the models' (the view measures them again: LiftTypes.Measured).
             if (catalogId == LiftCatalogIds.SesselliftD6) return D6(type);
+            if (catalogId == LiftCatalogIds.SesselliftD4) return D4(type);
             if (monta)
             {
                 type.Bottom = new TerminalEnd("monta_fg4_drive", TerminalRow.HoldDown, MontaExitMin, MontaExitMax, 0.9 * MontaExitMax,
@@ -171,7 +190,36 @@ namespace MountainPlanner.Domain.Design
                                               2.332, 8.059, 3.022, 7.880, 3.543, 1.990, 8);
                 type.Top = new TerminalEnd("sessellift_fgq4_drive", TerminalRow.Support, -DriveEntryMax, 0, 0, 2.530, 7.218, 3.328, 7.021, 3.039, 3.230, 4);
             }
+            if (carrier == "fixed-double" || carrier == "fixed-triple") return FixedSmall(type, catalogId, carrier == "fixed-triple", monta);
             return type;
+        }
+
+        /// <summary>
+        /// The fixed-grip double and triple (owner, 2026-11-01, LD1–LD7), Sessellift FGD-2 / FGT-3 and Monta FG2 / FG3: the quad's
+        /// 450 fpm and 6 s (45 ft spacing, LD2: 1,200 and 1,800 an hour); 11 ft (3.35 m) and 12 ft (3.66 m) gauges; the design
+        /// rope (LD7, physics only: every lift draws the same cable) 1¼ in and 1⅜ in, its weight, rating and counterweight
+        /// scaled from the quad's 1¾ in by diameter²; 200 lb and 280 lb chairs (LC-08) hanging as the quad's (one hanger, the
+        /// models' 2,687 mm drop measured at the same point); half a chair across the rope scaled from the quad's 1.05 m by
+        /// the models' widths (1,190 / 923 / 655 mm inboard); LT13's rise limits. The terminals are the quad's family at the
+        /// narrower gauge (LD5, Q1), so their rows and housings are the quad's; towers from the narrow kits, which the Monta
+        /// shares (Q4).
+        /// </summary>
+        static LiftType FixedSmall(LiftType quad, string catalogId, bool triple, bool monta)
+        {
+            const double Lb = 0.45359237, Ft = 0.3048;
+            double rope = triple ? 0.034925 : 0.03175, r2 = rope / 0.04445 * (rope / 0.04445);
+            var t = new LiftType(catalogId, triple ? 3 : 2, 2.286, 13.716, 7.66 * r2, 220_800 * r2, 80_070 * r2, (triple ? 280 : 200) * Lb, 77.1,
+                                 2.66, triple ? 3.658 : 3.353, rope)
+            {
+                Name = triple ? "Fixed-grip triple" : "Fixed-grip double",
+                RiseLimitMetres = (triple ? 2500 : 2800) * Ft,
+                ChairHalfWidthMetres = 1.05 * (triple ? 923.0 : 655.0) / 1190.0,
+                TowerKit = triple ? "sessellift_fgt3_" : "sessellift_fgd2_",
+            };
+            string from = monta ? "monta_fg4_" : "sessellift_fgq4_", to = monta ? (triple ? "monta_fg3_" : "monta_fg2_") : t.TowerKit;
+            t.Bottom = quad.Bottom.WithModel(quad.Bottom.Model.Replace(from, to));
+            t.Top = quad.Top.WithModel(quad.Top.Model.Replace(from, to));
+            return t;
         }
 
         /// <summary>
@@ -198,6 +246,122 @@ namespace MountainPlanner.Domain.Design
             t.Bottom = new TerminalEnd("sessellift_d6_return", TerminalRow.Support, -level, 0, 0, 9.108, 12.816, 4.45, 12.816, 3.6, 0, 3, padToMiddle: true);
             t.Top = new TerminalEnd("sessellift_d6_drive", TerminalRow.Support, -level, 0, 0, 8.784, 13.137, 4.45, 13.137, 3.6, 0, 3, padToMiddle: true);
             return t;
+        }
+
+        /// <summary>
+        /// The Sessellift D4 detachable quad (owner, 2026-11-02, the D4 model thread's DQ rulings): 1,000 fpm at a 6 s interval
+        /// (2,400 an hour, 100 ft apart on the line), a 4.8 m gauge, the quad chair on the D6's hanger (3.27 m drop, 1.16 m
+        /// either side of the rope), 900 lb; a 1⅝ in (41.3 mm) design rope (LD7, physics only; quads mostly 38–42 mm), its
+        /// weight and rating scaled from the D6's 2 in by diameter². Unlike the D6 its bottom station holds the rope down: the
+        /// first tower is built into it (DQ5), its hold-down rows posing for exits of 5–16° (DQ11), so no station tower stands
+        /// after it. The top is a level support exit as the D6's. Heads from the quad's kit at 4.8 m (s4–c8, not the wide ones).
+        /// </summary>
+        static LiftType D4(LiftType placeholder)
+        {
+            const double Lb = 0.45359237, Deg = Math.PI / 180;
+            double speed = 1000 * 0.3048 / 60, interval = 6, rope = 0.041275, r2 = rope / 0.0508 * (rope / 0.0508);
+            var t = new LiftType(LiftCatalogIds.SesselliftD4, 4, speed, speed * interval, 10.0 * r2, 444_000 * r2, placeholder.CounterweightNewtons,
+                                 900 * Lb, 170 * Lb, 3.272, 4.8, rope)
+            {
+                Name = "Detachable quad", RiseLimitMetres = placeholder.RiseLimitMetres, Detachable = true, _interval = interval,
+                ChairHalfWidthMetres = 1.158, Heads = TowerForces.HeadKit.Quad, TowerKit = "sessellift_d4_", BullwheelVisible = false,
+            };
+            double level = TowerForces.SheaveBendLimit;
+            t.Bottom = new TerminalEnd("sessellift_d4_bottom", TerminalRow.HoldDown, 5 * Deg, 16 * Deg, 0.9 * 16 * Deg, 6.0, 14.858, 4.45, 14.858, 3.872, 0, 8,
+                                       ownStation: true, padToMiddle: true);
+            t.Top = new TerminalEnd("sessellift_d4_top", TerminalRow.Support, -level, 0, 0, 6.0, 9.716, 4.45, 9.716, 3.6, 0, 3, padToMiddle: true);
+            return t;
+        }
+
+        /// <summary>The heads a fixed-grip terminal's top end comes with (LD9): 4, 6 and 8 sheaves a side.</summary>
+        static readonly (string Key, int Sheaves)[] TopHeads = { ("top", 4), ("top6", 6), ("top8", 8) };
+
+        /// <summary>
+        /// LD9 (owner, 2026-11-02, drive at either end): the fixed grip with its drive at <paramref name="drive"/>. Each terminal
+        /// carries a head for each end, so the drive end swaps which model stands where and which head it shows:
+        /// - Sessellift, drive at the top (as since task 07): the return's 8-sheave hold-down at the bottom, the drive at the top.
+        /// - Sessellift, drive at the bottom: the drive's own hold-down head at the bottom, the return's top heads at the top.
+        /// - Monta, drive at the bottom (as since task 09): its drive with its exit trees, and its one-sheave top station.
+        /// - Monta, drive at the top: the kit 8-sheave hold-down station (<c>return_bottom</c>) at the bottom, the drive's top
+        ///   heads at the top.
+        /// Every hold-down bottom takes the Sessellift return's exits (TW-16 v2); every top with heads gets its 4, 6 and 8-sheave
+        /// rows (<see cref="TopTrains"/>). The numbers are the models' (the view measures them again).
+        /// </summary>
+        static LiftType Driven(LiftType t, bool monta, LiftDrive drive)
+        {
+            var d = (LiftType)t.MemberwiseClone();
+            d.Drive = drive;
+            if (monta && drive == LiftDrive.Bottom) return d;
+            string family = monta ? t.Bottom.Model.Substring(0, t.Bottom.Model.Length - "drive".Length)
+                                  : t.Bottom.Model.Substring(0, t.Bottom.Model.Length - "return".Length);
+            var heads = TerminalHeads.Of(family);
+            if (!monta && drive == LiftDrive.Top)
+            {
+                d.Bottom = heads.ReturnBottom;
+                d.TopTrains = heads.DriveTop;
+            }
+            else if (!monta)
+            {
+                d.Bottom = heads.DriveBottom;
+                d.TopTrains = heads.ReturnTop;
+            }
+            else
+            {
+                d.Bottom = heads.ReturnBottom;
+                d.TopTrains = heads.DriveTop;
+            }
+            d.Top = d.TopTrains[0];
+            return d;
+        }
+
+        /// <summary>
+        /// The Sessellift Stern (owner, v0.3.2): the second Sessellift fixed-grip style, a bottom drive-and-tension station and a
+        /// fixed top return, never the other way round (no drive-end choice). Quad, triple and double at the FGQ-4 family's
+        /// gauges with its chairs, towers and numbers (LD5: the housing keeps the quad's size); the drive's 8-sheave hold-down
+        /// rows on the station arc take the Sessellift return's exits, and the return's top heads come with 4, 6 and 8 sheaves.
+        /// </summary>
+        static LiftType Stern(string catalogId)
+        {
+            string basis = catalogId == LiftCatalogIds.SesselliftStern4 ? LiftCatalogIds.SesselliftFgq4
+                : catalogId == LiftCatalogIds.SesselliftStern3 ? LiftCatalogIds.SesselliftFgt3 : LiftCatalogIds.SesselliftFgd2;
+            var t = (LiftType)Of(basis, LiftDrive.Top).MemberwiseClone();
+            t.CatalogId = catalogId;
+            t.Drive = LiftDrive.Bottom;
+            var heads = TerminalHeads.Of("sessellift_stern" + catalogId.Substring(catalogId.Length - 1) + "_");
+            t.Bottom = heads.DriveBottom;
+            t.TopTrains = heads.ReturnTop;
+            t.Top = t.TopTrains[0];
+            return t;
+        }
+
+        /// <summary>
+        /// LD9: the top terminal's footprint on the ground, whichever of its rows the rope picks: the station's own, as its
+        /// shortest row stands it (its pad and clearing are graded before the rope is solved). A longer row's extra sheaves
+        /// reach out over the line in the air, above the corridor's clearing, so they neither widen the pad nor move the
+        /// station tower: a gentle summit grades and clears as it did before the heads. Behind and either side, the widest.
+        /// </summary>
+        public TerminalEnd TopFootprint
+        {
+            get
+            {
+                if (TopTrains == null) return Top;
+                double behind = 0, half = 0;
+                foreach (var t in TopTrains)
+                {
+                    behind = Math.Max(behind, t.Behind);
+                    half = Math.Max(half, t.HalfWidth);
+                }
+                var station = TopTrains[0];
+                return station.WithFootprint(behind, station.Ahead, half);
+            }
+        }
+
+        /// <summary>The same type with another of its top rows (LD9; <see cref="LiftRope.Solve"/> picks it).</summary>
+        public LiftType WithTop(TerminalEnd top)
+        {
+            var copy = (LiftType)MemberwiseClone();
+            copy.Top = top;
+            return copy;
         }
 
         /// <summary>One placeholder type (LC-08): menu name, speed (fpm), seats, spacing (ft), rope diameter (cm),
@@ -242,12 +406,13 @@ namespace MountainPlanner.Domain.Design
         public static readonly double DriveEntryMax = 18 * Math.PI / 180;
 
         /// <summary>The same type with its ends (and chair) measured on the real models; the catalog entry is untouched.</summary>
-        public LiftType With(TerminalEnd bottom, TerminalEnd top, double chairHalfWidth)
+        public LiftType With(TerminalEnd bottom, TerminalEnd top, double chairHalfWidth, IReadOnlyList<TerminalEnd> topTrains = null)
         {
             var copy = (LiftType)MemberwiseClone();
             copy.Bottom = bottom;
             copy.Top = top;
             copy.ChairHalfWidthMetres = chairHalfWidth;
+            if (topTrains != null) copy.TopTrains = topTrains;
             return copy;
         }
     }
@@ -384,9 +549,27 @@ namespace MountainPlanner.Domain.Design
                                      double bottomExitS, double bottomExitY, double topExitBack, double topExitY, LineGround line = null,
                                      IReadOnlyList<double> baseY = null)
         {
-            return new LiftRope(type, ground, bottomX, bottomY, topX, topY, towers, stance, bottomExitS, bottomExitY, topExitBack, topExitY,
-                                line ?? LineGround.Sample(ground, type, bottomX, bottomY, topX, topY), baseY);
+            line ??= LineGround.Sample(ground, type, bottomX, bottomY, topX, topY);
+            var trains = type.TopTrains;
+            if (trains == null)
+                return new LiftRope(type, ground, bottomX, bottomY, topX, topY, towers, stance, bottomExitS, bottomExitY, topExitBack, topExitY, line, baseY);
+            // LD9: the top row with the fewest sheaves that carries the rope (TW-04's rule for heads, at the terminal): each row's
+            // exit stands where its head has it, the terminal's level unchanged; the longest row where none does (its problem
+            // then says what the rope needs).
+            LiftRope rope = null;
+            foreach (var train in trains)
+            {
+                var t = ReferenceEquals(train, type.Top) ? type : type.WithTop(train);
+                rope = new LiftRope(t, ground, bottomX, bottomY, topX, topY, towers, stance, bottomExitS, bottomExitY,
+                                    topExitBack - type.Top.ExitAlong + train.ExitAlong, topExitY - type.Top.ExitRise + train.ExitRise, line, baseY);
+                if (rope.TopCarried) break;
+            }
+            return rope;
         }
+
+        /// <summary>LD9: the top row takes the rope in both load cases and every sheave in it carries it (TW-16 v3, TW-05).</summary>
+        public bool TopCarried => Type.Top.Takes(-TopEntryLoaded) && Type.Top.Takes(-TopEntryEmpty) && TopRowOk;
+        bool TopRowOk { get; }
 
         /// <summary>
         /// TW-02 v4 (task 15, BR11): the rope with each tower's base where its lift's own earthwork left it
@@ -558,8 +741,8 @@ namespace MountainPlanner.Domain.Design
             BottomExitEmpty = Math.Atan(_empty[0].Slope(ropeS[0]));
             TopEntryLoaded = Math.Atan(_loaded[n].Slope(ropeS[n + 1]));
             TopEntryEmpty = Math.Atan(_empty[n].Slope(ropeS[n + 1]));
-            RowsOk = TowerForces.RowCarries(type.Bottom, t0, BottomExitLoaded) && TowerForces.RowCarries(type.Bottom, t0, BottomExitEmpty)
-                     && TowerForces.RowCarries(type.Top, TopTensionLoaded, TopEntryLoaded) && TowerForces.RowCarries(type.Top, TopTensionEmpty, TopEntryEmpty);
+            TopRowOk = TowerForces.RowCarries(type.Top, TopTensionLoaded, TopEntryLoaded) && TowerForces.RowCarries(type.Top, TopTensionEmpty, TopEntryEmpty);
+            RowsOk = TowerForces.RowCarries(type.Bottom, t0, BottomExitLoaded) && TowerForces.RowCarries(type.Bottom, t0, BottomExitEmpty) && TopRowOk;
             for (int i = 0; i < n; i++)
                 _towers[i] = new TowerSolution(baseS[i], baseY[i], ropeS[i + 1], ropeY[i + 1], lean[i], bendL[i], bendE[i], heads[i], reveal[i], loads[i]);
 

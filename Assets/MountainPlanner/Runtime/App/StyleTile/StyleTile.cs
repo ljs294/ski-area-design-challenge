@@ -98,7 +98,8 @@ namespace MountainPlanner.App
         /// from a local point, <paramref name="length"/> metres, built exactly as the style tile's own. Returns its report.
         /// </summary>
         public static string BuildUphill(TerrainEditSession session, LocalFrame frame, MountainPlanner.World.Lifts.LiftModelSet models,
-                                         float x, float z, float length, string name, string catalogId = LiftCatalogIds.SesselliftFgq4)
+                                         float x, float z, float length, string name, string catalogId = LiftCatalogIds.SesselliftFgq4,
+                                         LiftDrive? drive = null)
         {
             var heights = session.Pipeline.Heights;
             var a = frame.ToAlbers(x, z);
@@ -107,7 +108,7 @@ namespace MountainPlanner.App
             if (g < 1e-6) return "no slope there";
             // Each end slides along the line (the bottom down, the top on up), 5 ft at a time and at most 150 m, to the nearest
             // spot that passes LF-08, as task 09's terminal ghost shows green only where a terminal can stand (finding r4 #3).
-            var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(catalogId), models);
+            var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(catalogId, drive), models);
             double ux = gx / g, uy = gz / g;
             double Slide(double sx, double sy, double sign, TerminalEnd end)
             {
@@ -125,12 +126,12 @@ namespace MountainPlanner.App
                                (float)Math.Round(x + ux * (length + on), 1), (float)Math.Round(z + uy * (length + on), 1) };
             var report = new StringBuilder();
             report.AppendFormat(CultureInfo.InvariantCulture, "ends slid {0:F0} ft down and {1:F0} ft up to stand (LF-08); ", back / 0.3048, on / 0.3048);
-            BuildLift(session, frame, models, line, name, report, catalogId);
+            BuildLift(session, frame, models, line, name, report, catalogId, drive);
             return report.ToString();
         }
 
         static void BuildLift(TerrainEditSession session, LocalFrame frame, MountainPlanner.World.Lifts.LiftModelSet models, float[] liftLine,
-                              string name, StringBuilder report, string catalogId = LiftCatalogIds.SesselliftFgq4)
+                              string name, StringBuilder report, string catalogId = LiftCatalogIds.SesselliftFgq4, LiftDrive? drive = null)
         {
             var history = session.History;
             var heights = session.Pipeline.Heights;
@@ -140,7 +141,7 @@ namespace MountainPlanner.App
             var b = frame.ToAlbers(liftLine[0], liftLine[1]);
             var t = frame.ToAlbers(liftLine[2], liftLine[3]);
             var after = new EditedHeights(heights.Source, heights.Lattice, history.Terrain);
-            var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(catalogId), models);
+            var type = MountainPlanner.Presentation.Lifts.LiftTypes.Measured(LiftType.Of(catalogId, drive), models);
 
             // The one build path every lift takes (round 3): pads, towers, the envelope, the clearing. The terminals stand at
             // their ground; where the review suggests a level (LT34), it's taken as a player would (Page Up), a few rounds.
@@ -171,13 +172,15 @@ namespace MountainPlanner.App
                     : "none;", built.BottomSteepRaise / 0.3048, built.TopSteepRaise / 0.3048);
             report.AppendFormat(CultureInfo.InvariantCulture,
                 " rope: leaves the bottom at {0:F1}° loaded / {1:F1}° empty, reaches the top at {2:F1}° / {3:F1}° ({4} TW-16), " +
-                "TW-01 v2 {5} (lowest {6:F1} ft at {7:F0} ft, shortfall {8:F1} ft at {9:F0} ft), foundations {10:F1} / {11:F1} ft; ",
+                "TW-01 v2 {5} (lowest {6:F1} ft at {7:F0} ft, shortfall {8:F1} ft at {9:F0} ft), foundations {10:F1} / {11:F1} ft; " +
+                "drive {12}, top row {13} ({14} sheaves, {15}); ",
                 rope.BottomExitLoaded * 180 / Math.PI, rope.BottomExitEmpty * 180 / Math.PI, rope.TopEntryLoaded * 180 / Math.PI,
                 rope.TopEntryEmpty * 180 / Math.PI, rope.TerminalsOk ? "within" : "OVER", rope.ClearanceOk ? "OK" : "SHORT",
                 rope.LowestClearance / 0.3048, rope.LowestClearanceS / 0.3048, rope.Shortfall / 0.3048, rope.ShortfallS / 0.3048,
-                rope.Towers[0].Reveal / 0.3048, rope.Towers[rope.Towers.Count - 1].Reveal / 0.3048);
+                rope.Towers[0].Reveal / 0.3048, rope.Towers[rope.Towers.Count - 1].Reveal / 0.3048,
+                type.Drive, rope.Type.Top.Head ?? "own", rope.Type.Top.Sheaves, rope.TopCarried ? "carried" : "NOT carried");
             var lift = new AddLift(history.Revision, name, catalogId, bottom, top, TowerMode.ByHand, TowerStance.Leaned,
-                                   built.Towers, WorkStage.Built, built.Levels);
+                                   built.Towers, WorkStage.Built, built.Levels, drive);
             var r2 = history.Submit(lift, built.Edits);
             report.AppendFormat(CultureInfo.InvariantCulture, "lift {0}: {1:F0} ft, top tension {2:P0} of rating, {3} towers [{4}], {5} cells cleared",
                 r2.Accepted ? "built" : "REJECTED " + r2, Math.Sqrt(bottom.DistanceSquared(top)) / 304.8, rope.TopTensionShare,

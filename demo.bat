@@ -275,6 +275,26 @@ echo        with no frame over a 60 Hz refresh (16.7 ms), and none after letting
 echo        owner: a brush like Cities Skylines 2's); the garbage figures print beside it.
 echo        Round 6 adds three presses confirmed on the last let-go (each fold seeded with the one before).
 echo.
+echo   Phase 3, bug bash (v0.3.1; rebuilds the game, close the Unity editor first; needs the network)
+echo     76 A new-area download with OpenStreetMap down: Jackson Hole 2 km into an empty library, with the map
+echo        features server pointed at an address that never answers. After about 30 s the step reads "map features
+echo        unavailable - skipped", the download finishes, and the quality card says land cover stands in for water and roads.
+echo.
+echo   Phase 3, bug bash (v0.3.2; rebuilds the game, close the Unity editor first)
+echo     77 The quit crash (BB7): the 40-lift benchmark at High (measure lane, about 3 minutes), then the game quits by
+echo        itself. It used to crash in D3D12Core.dll here; now it prints "exit 0" and no new crash dump.
+echo     78 Get water and roads later (BB6; needs the network; run 76 first): the game opens on 76's library, where
+echo        Jackson Hole has no water and roads. Manage Areas shows "No water and roads" and a Get water and roads
+echo        button; it runs on the row, then the toast says it's done. Open the area: lakes and roads are back.
+echo.
+echo   Lift overhaul B2: drive at either end and the Sessellift Stern (rebuilds the game; close the Unity editor first)
+echo     79 New lift and Edit lift with the Drive row (Top / Bottom) on every fixed grip, the top's 4, 6 or 8-sheave row
+echo        picked from the summit, and the Sessellift Stern Q-4, T-3 and D-2 in the Model menu (bottom drive only).
+echo.
+echo   Lift costs (2025 dollars from Vermont Act 250 filings; rebuilds the game, close the Unity editor first)
+echo     80 The cost tests and the price table (each family, three typical lines), then the game: draw a lift and
+echo        watch the Cost row in New lift change as you move the top terminal; Edit lift shows it too.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -387,6 +407,11 @@ if /i "%CHOICE%"=="73b" goto brushbench
 if /i "%CHOICE%"=="73m" goto brushtour
 if /i "%CHOICE%"=="73c" goto contourcaptures
 if /i "%CHOICE%"=="75" goto brushperf
+if /i "%CHOICE%"=="76" goto overpassskip
+if /i "%CHOICE%"=="77" goto quitcrash
+if /i "%CHOICE%"=="78" goto waterroads
+if /i "%CHOICE%"=="79" goto driveend
+if /i "%CHOICE%"=="80" goto liftcosts
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -468,6 +493,92 @@ call :seedscratch
 echo Starting the game with the network off ^(-offline^): Load Area, then open any area. New Area says why it can't go on.
 start "" "%GAME%" -data "%SCRATCH%" -offline
 goto menu
+
+:overpassskip
+rem Task P3-16 BB1: when no OpenStreetMap (Overpass) mirror answers and the other map services do, the step is skipped.
+rem -overpass swaps the mirrors for one unroutable address: about 21 s to fail to connect, up to 10 s to ask the others.
+rem The build is fresh so it has the fix.
+call :buildplayer
+if not exist "%GAME%" goto done
+set "OVERPASSRUN=%LOCALAPPDATA%\SkiAreaDesignChallenge-overpass"
+if exist "%OVERPASSRUN%" rmdir /s /q "%OVERPASSRUN%"
+echo Starting the game with an empty library %OVERPASSRUN%: Jackson Hole 2 km starts downloading by itself.
+echo   It waits on "OpenStreetMap (Overpass)" for about 30 s, then shows "map features unavailable - skipped" and goes on.
+echo   When it finishes, the quality card reads: "Water and roads: OpenStreetMap was unavailable, so satellite land
+echo   cover stands in for them." Open the area to check it, then quit the game.
+start "" /wait "%GAME%" -data "%OVERPASSRUN%" -download "Jackson Hole" 43.593 -110.848 2 -overpass http://10.255.255.1/api/interpreter
+findstr /i /c:"overpass" /c:"map features" "%PLAYERLOG%"
+goto done
+
+:driveend
+rem Lift overhaul B2 (LD9, save v10): the drive end per fixed-grip lift and the Sessellift Stern. Always rebuilt.
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open Jackson Hole, then T for the Toolbox, the Lifts tab, N for New lift:
+echo   1 Chair, Fixed-grip quad, Model Sessellift FGQ-4: the Drive row reads Top. Place a line up a gentle slope: the
+echo     big drive house stands at the top, the bottom is the return with its hold-down sheaves.
+echo   2 Drive Bottom: the drive house moves to the bottom terminal (its own hold-down head) and the return stands
+echo     at the top. Build it.
+echo   3 A line whose top comes in steep (the top of a steep pitch onto a flat summit): the top terminal's sheave row
+echo     grows from 4 to 6 or 8 a side as the rope arrives steeper; the ghost shows the row it will get. Lines that
+echo     were red for a steep top arrival now build.
+echo   4 Model Monta FG4: Drive reads Bottom; pick Top and the Monta drive stands at the top with its own rows.
+echo   5 Model Sessellift Stern Q-4 (also T-3 and D-2 for the triple and double): no Drive row, it drives at the
+echo     bottom only; its return at the top picks its row the same way.
+echo   6 Edit lift (M), click a lift, change Drive: one step, "Change drive end"; Ctrl+Z puts it back.
+echo   7 Save, quit, open the save again: every lift keeps its drive end. An older save opens with the Sessellift
+echo     driven at the top and the Monta at the bottom, as before.
+start "" "%GAME%"
+goto done
+
+:waterroads
+rem Task P3-16 BB6: Manage Areas gets the water and roads of an area downloaded without them. 76 makes one; this opens
+rem the game on the same library (a fresh build, so it has the button).
+set "OVERPASSRUN=%LOCALAPPDATA%\SkiAreaDesignChallenge-overpass"
+if not exist "%OVERPASSRUN%\Resorts" (echo   Run 76 first: it downloads Jackson Hole without water and roads into %OVERPASSRUN%. & goto done)
+call :buildplayer
+if not exist "%GAME%" goto done
+echo Starting the game on %OVERPASSRUN%. Choose Manage Areas: Jackson Hole reads "No water and roads".
+echo   Press Get water and roads: the row counts up, then the toast says it's done and the button goes away.
+echo   Open Jackson Hole: its terrain is prepared again, and lakes and roads are on the map. Quit the game when done.
+start "" /wait "%GAME%" -data "%OVERPASSRUN%"
+findstr /i /c:"water and roads" "%PLAYERLOG%"
+goto done
+
+:liftcosts
+rem Lift costs: Terminals + a x slope length + b x rise, fitted to Act 250 filings in 2025 dollars by CPI.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~LiftCostTests" <nul
+if errorlevel 1 goto done
+dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "FullyQualifiedName~LiftCostTable" --logger "console;verbosity=normal" <nul | findstr /v /c:"Test run for" /c:"A total" /c:"NUnit" /c:"Running selected"
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open an area, then T for the Toolbox, the Lifts tab, N for New lift:
+echo   Place the bottom terminal, then move the top one: the panel's Cost row follows (about $3.1M for a fixed quad
+echo     4,000 ft long and 1,000 ft up). Hover the row for its parts: terminals, length and rise.
+echo   Change the type: a detachable quad or six costs more; gondolas and trams read "no price yet".
+echo   Build it, then Edit lift: the Cost row shows there too. Quit the game when done.
+start "" "%GAME%"
+goto menu
+
+:quitcrash
+rem Task P3-16 BB7: the lift shader's accent colour in the middle of its material block crashed the bundled D3D12
+rem runtime as Unity tore the device down on quit after a lifts benchmark. The build is fresh so it has the fix.
+call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\p3-16" mkdir "%~dp0test-results\p3-16"
+set "DUMPS=%LOCALAPPDATA%\CrashDumps"
+set "DUMPSBEFORE=0"
+for /f %%n in ('dir /b "%DUMPS%\SkiAreaDesignChallenge*" 2^>nul ^| find /c /v ""') do set "DUMPSBEFORE=%%n"
+echo Running the 40-lift benchmark at High with one lap; the game quits by itself when it finishes.
+%MEASURE% "%GAME%" -notitle -quality high -liftbench 40 -laps 1 %SCREEN% -benchmark "%~dp0test-results\p3-16\quitcrash.json" -logFile "%~dp0test-results\p3-16\quitcrash.log" <nul
+echo   The game exited with code %ERRORLEVEL% (0 is clean; -1073741819 was the crash).
+set "DUMPSAFTER=0"
+for /f %%n in ('dir /b "%DUMPS%\SkiAreaDesignChallenge*" 2^>nul ^| find /c /v ""') do set "DUMPSAFTER=%%n"
+echo   Crash dumps in %DUMPS%: %DUMPSBEFORE% before, %DUMPSAFTER% after.
+goto done
 
 :firstrun
 rem A build without the bundled demo (older, or built before 12 was downloaded) is rebuilt first.

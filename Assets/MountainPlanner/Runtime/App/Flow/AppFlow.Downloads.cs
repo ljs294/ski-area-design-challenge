@@ -58,6 +58,8 @@ namespace MountainPlanner.App.Flow
             Screens.CancelConfirmed += keep => Downloads.Cancel(keep);
             Screens.RetryChosen += Retry;
             Screens.TryNowChosen += Downloads.TryNow;
+            Screens.PauseChosen += () => Downloads.Cancel(true);
+            Screens.SkipChosen += Downloads.SkipOptional;
             Screens.CloseChosen += Later;
             if (Picker != null)
             {
@@ -72,6 +74,7 @@ namespace MountainPlanner.App.Flow
                 if (Controller.Screen == FlowScreen.Library) RefreshLibrary();
             };
             Downloads.Failed += problem => WhenCoverIsDown(() => ShowProblem(problem));
+            Downloads.HeldUp += HeldUpToast;
             OfflineState.Changed += OnOfflineChanged;
             Screens.SettingsClearCacheConfirmed += ClearDownloadCache;
         }
@@ -98,14 +101,14 @@ namespace MountainPlanner.App.Flow
             if (hud != null && key != _hudVersion)
             {
                 _hudVersion = key;
-                if (shown && !MountainViewer.TitleMode) hud.SetDownload(view.BarLabel, view.BarText, view.Fraction, FlowScreens.PillState(view.Phase));
+                if (shown && !MountainViewer.TitleMode) hud.SetDownload(view.BarLabel, view.BarText, view.Fraction, FlowScreens.PillState(view));
                 else hud.SetDownload(null, null, 0, "");
             }
             if (Picker != null && !Picker.IsOpen) _pickerVersion = -2;   // drawn afresh when it opens
             else if (Picker != null && key != _pickerVersion)
             {
                 _pickerVersion = key;
-                Picker.SetPill(shown ? view.Pill : null, view.Fraction, FlowScreens.PillState(view.Phase));
+                Picker.SetPill(shown ? view.Pill : null, view.Fraction, FlowScreens.PillState(view));
                 Picker.SetBusy(Downloads.Active ? "One download at a time: wait for this one, or cancel it." : "");
             }
 
@@ -124,6 +127,14 @@ namespace MountainPlanner.App.Flow
                 d = PendingDownloads.List(DataRoot).FirstOrDefault(p => p.Id == d.Id) ?? d;
                 if (!Downloads.Active) StartDownload(d);
             }
+        }
+
+        /// <summary>Held up for two minutes (task P3-16, BB5): the game's toast in an area, the flow's on the menus.</summary>
+        void HeldUpToast(string text)
+        {
+            var hud = _viewer != null ? _viewer.Hud : null;
+            if (hud != null && !MountainViewer.TitleMode && Controller.Screen == FlowScreen.Game) hud.Toast(text);
+            else Screens.Toast(text, 8);
         }
 
         /// <summary>Owner D1: the oldest paused download continues by itself, as the pill. Offline, it waits there.</summary>
@@ -215,7 +226,8 @@ namespace MountainPlanner.App.Flow
         }
 
         /// <summary>Why the download cache can't be cleared now, or null.</summary>
-        string CacheLocked() => Downloads.Active ? "Wait for the download to finish, or cancel it, to clear it." : null;
+        string CacheLocked() => Downloads.Active ? "Wait for the download to finish, or cancel it, to clear it."
+                                : _waterAndRoads != null ? "Wait for Get water and roads to finish, to clear it." : null;
 
         bool _clearing;
 

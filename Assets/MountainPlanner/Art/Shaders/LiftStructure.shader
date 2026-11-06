@@ -40,13 +40,15 @@ Shader "MountainPlanner/LiftStructure"
             float _DetailDensity;
             float _AOStrength;
             float4 _LiveryColor;
-            float4 _AccentColor;
             float _SnowLoad;
             float4 _SnowColor;
             float _SnowSmoothness;
             float _GlassAlpha;
             float _Glass;
             float4 _DetailMap_TexelSize;
+            // New properties go after the existing ones (BB7): _AccentColor between _LiveryColor and _SnowLoad made the
+            // bundled D3D12 runtime (Agility SDK 1.618) crash in Unity's device teardown on quit after a lifts benchmark.
+            float4 _AccentColor;
         CBUFFER_END
         TEXTURE2D(_PaletteMap);   // sampled with the core library's sampler_PointClamp: flat swatches, no bleeding
         TEXTURE2D(_DetailMap); SAMPLER(sampler_DetailMap);
