@@ -16,6 +16,7 @@ NEW IN 0.3.2
 - A download held up by a server says which one after 2 minutes, with Try now, Pause for later and Cancel.
 - Get water and roads in Manage Areas, for an area downloaded without them.
 - The game no longer crashes as it closes on some DirectX 12 graphics cards.
+- Lift glass is see-through again: the glass on the detachable stations showed solid and dark.
 
 
 RUNNING THE GAME
