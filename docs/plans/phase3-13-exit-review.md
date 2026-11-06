@@ -29,7 +29,7 @@ The tests were re-run today:
 - **Repository checks:** passed.
 - **EditMode:** 2,307 passed, 0 failed, 933 skipped (the lift-asset checks that don't apply to a kind). Unity batch
   mode on c3359cac, the PR #129 head whose tree is main's eff5a0e9; the XML was checked fresh.
-- **`dotnet test tools/domain-tests/Tests` on main:** see the line below the table.
+- **`dotnet test tools/domain-tests/Tests` on main eff5a0e9:** 850 passed, 0 failed, 6 skipped.
 - **Not re-run today:** the benchmarks. No rendering change has landed since the pins, except the glass shader
   define (#129), which only makes lift glass see-through.
 
@@ -41,7 +41,7 @@ The tests were re-run today:
 | 4 | A tester draws, saves and reloads a small resort, and downloads, explores and photographs a mountain, without help | v0.3.0 went to friends as a full GitHub Release with the tester sheet (TR1–TR3). They liked it and sent nothing: no Send feedback reports, and **no GitHub issues** at all (checked today). The owner's own hands-on (TR4) was skipped. Which of the six steps each tester finished isn't recorded, and the v0.3.0 laptop offline check wasn't recorded either. The one real-world finding came from your screenshot, the Overpass hang (BB1), fixed in v0.3.1 | **Partly met: your decision (E19)** |
 | 5 | Velocity is recorded, and the Phase 4 detailed plan is written | §2 below; the Phase 4 plan is in its own thread, joining this branch before the PR | **Met once the plan lands (E20)** |
 
-`dotnet test` on main eff5a0e9: _pending (filled in before the PR)_.
+`dotnet test tools/domain-tests/Tests` on main eff5a0e9: **850 passed, 0 failed, 6 skipped** (the local-only timing and site checks).
 
 ### Known misses and open items brought to this gate
 
