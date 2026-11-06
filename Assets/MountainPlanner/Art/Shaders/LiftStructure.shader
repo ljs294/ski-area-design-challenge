@@ -92,7 +92,9 @@ Shader "MountainPlanner/LiftStructure"
             #pragma fragment Frag
             #pragma shader_feature_local_fragment _LIFT_GLASS
             #if defined(_LIFT_GLASS)
-                #define _ALPHAPREMULTIPLY_ON   // URP scales only the diffuse by alpha; blend One, OneMinusSrcAlpha
+                // URP scales only the diffuse by alpha (blend One, OneMinusSrcAlpha). The 1 matters: URP tests it with
+                // #if, and an empty define failed every glass variant, so the game drew all glass opaque until 2026-11-05.
+                #define _ALPHAPREMULTIPLY_ON 1
             #endif
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
