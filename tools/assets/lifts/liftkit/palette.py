@@ -40,6 +40,9 @@ CLASSES = [
     ("white_smooth", "#E7E8E8", 0, 0.55),   # the white underbody, seam-free
     ("roof_alu", "#B4B9BD", 1, 0.50),       # ribbed aluminium roof band
     ("glass_black", "#0A0D10", 0, 0.92),    # mirror-black station glazing
+    # the Glidepath carpet's gallery panes (owner C16, 2026-11-05): light glass the lift's accent colour tints (mask 2),
+    # so the default dark accent reads as smoked glass and a player's colour as tinted glass
+    ("glass_accent", "#F4F4F2", 0, 0.88),
 ]
 INDEX = {name: i for i, (name, *_) in enumerate(CLASSES)}
 

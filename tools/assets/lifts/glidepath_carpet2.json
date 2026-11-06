@@ -1,0 +1,41 @@
+{
+  "_about": "Glidepath double carpet (C9): two 750 mm belts side by side, a walking deck between them, the single's section, stations widened to carry both drums, and its own gallery (white arches curving all the way up, a super-ellipse, standing on brackets off the skirts; owner C14). Merged onto glidepath_carpet.json (liftkit/gauge.py); the control post and the hut are the single's.",
+  "base": "glidepath_carpet.json",
+  "idPrefix": "glidepath_carpet2",
+  "catalog": {
+    "maker": "Glidepath",
+    "name": "Glidepath double carpet",
+    "parts": {
+      "glidepath_carpet2_top": "Drive station (top)",
+      "glidepath_carpet2_bottom": "Tension station (bottom)",
+      "glidepath_carpet2_segment": "Belt module, 2 m",
+      "glidepath_carpet2_segment_1m": "Belt module, 1 m",
+      "glidepath_carpet2_rail": "Side rails, 2 m",
+      "glidepath_carpet2_gallery": "Gallery bay, 2 m",
+      "glidepath_carpet2_gallery_exit": "Gallery bay with exits, 2 m",
+      "glidepath_carpet2_portal": "Gallery portal"
+    }
+  },
+  "common": {"lineGauge": 1450},
+  "belts": [-725, 725],
+  "gallery": {
+    "_about": "double: white arches, a super-ellipse |v/halfV|^n + |h/(roof - footW)|^n = 1 from the feet over the crown (owner C14, Gate 1 round 2), legs on steel brackets off the skirts, the panes on the arches' centre line; facets per LOD",
+    "shape": "arch",
+    "archClass": "white",
+    "halfV": 1660,
+    "roof": 2960,
+    "n": 2.6,
+    "facets": [16, 10, 7, 5],
+    "arch": {"width": 100, "depth": 80},
+    "footW": 250,
+    "bracket": {"from": 1490, "to": 1730, "bottom": 170, "top": 250, "along": 120},
+    "exitDoor": {"from": 550, "to": 1450, "top": 2150, "frame": 50}
+  },
+  "portal": {
+    "halfV": 1900,
+    "top": 3570,
+    "sign": {"from": 3100, "to": 3570, "thick": 220},
+    "opening": {"_about": "the gallery's outline, clear of the arches by this much", "clear": 15}
+  },
+  "top": {"cabinet": {"u": -400, "v": -2450, "size": [500, 300, 1100], "stand": 500}}
+}

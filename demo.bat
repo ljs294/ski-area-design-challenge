@@ -222,6 +222,9 @@ echo     69t The Monta T-bar in the Lift Lab: bottom drive and operator hut, the
 echo        the top station, T bars on both ropes and a J bar beside the drive. U back to this view.
 echo     69s The Sessellift Stern in the Lift Lab: its quad, triple and double, return and drive facing up the
 echo        line with a chair between each pair (bottom drive only). V steps the returns' top rows. K back to this view.
+echo     69c The Glidepath magic carpets in the Lift Lab: the uncovered single with side rails, the covered single
+echo        with an exit bay and the covered double, on their snow approaches. I accent (the gallery glass's tint),
+echo        C colour, N snow, L LOD. Y back to this view.
 echo.
 echo   Phase 3, task 10: the ski network (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     70 The Network view on the style tile and a second lift: Tab, then Network (or click the bar's lift or trail count).
@@ -385,6 +388,7 @@ if /i "%CHOICE%"=="69f" goto fixedgrip
 if /i "%CHOICE%"=="69q" goto quaddetach
 if /i "%CHOICE%"=="69t" goto tbar
 if /i "%CHOICE%"=="69s" goto stern
+if /i "%CHOICE%"=="69c" goto carpet
 if /i "%CHOICE%"=="70" goto network
 if /i "%CHOICE%"=="70c" goto networkcaptures
 if /i "%CHOICE%"=="70k" goto networkown
@@ -1380,6 +1384,13 @@ call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto done
 echo Starting the Lift Lab on the Monta T-bar. U this view, L LOD, N snow, T turntable, H help, Esc quit.
 start "" "%LIFTLAB%" -mode tbar
+goto menu
+
+:carpet
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the Glidepath carpets. Y this view, I accent, C colour, L LOD, N snow, H help, Esc quit.
+start "" "%LIFTLAB%" -mode carpet
 goto menu
 
 :stern
