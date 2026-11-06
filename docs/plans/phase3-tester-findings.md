@@ -16,6 +16,14 @@ Phase 2 precedent is [phase2-tester-findings.md](phase2-tester-findings.md).
 | TR6 | **Out of this task:** the RTX 2060-class check and code signing (owner chores before a public release); the README and tester sheet cover Unblock and Run anyway |
 | TR7 | **A blocking fix ships as v0.3.1** (tag asked first), through the same build, hands-on and publish steps |
 
+## Close-out (owner, 2026-11-05, E19)
+
+The friends played v0.3.0, liked it and sent no reports: no Send feedback zips and no GitHub issues. Which steps
+each one finished wasn't recorded, and the owner's hands-on (TR4) was skipped. The round closes with **no tester
+findings**. The one real-world finding came from the owner's screenshot: the Overpass hang (BB1), fixed in v0.3.1
+([p3-16-bug-bash-findings.md](p3-16-bug-bash-findings.md)). The exit decision is
+[phase3-13-exit-review.md](phase3-13-exit-review.md) E19.
+
 ## Exit criteria
 
 | Criterion | Evidence | Result |
