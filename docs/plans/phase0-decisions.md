@@ -666,7 +666,7 @@ the Phase 4 planning thread.
 | E22 | **The D3D12 quit fault stays avoided, not root-fixed;** demo 77 and the benchmark's exit code watch it; new material properties go last |
 | E23 | **v0.3.2 waits for surface lifts in the game** (T-bar/J-bar and magic carpet, the Lifts thread); the rope tow comes later, after its model gates |
 | E24 | **The carry-over goes to the Phase 4 plan:** soil works in the lift cost is its task 01, with the backlog items picked there; the rest is Later |
-| E25 | **Milestone:** the exit PR's merge commit is tagged `unity-m3`, and `archive/unity` is fast-forwarded to it |
+| E25 | **Milestone:** the merge commit of the PR recording these decisions (after #131) is tagged `unity-m3`, and `archive/unity` is fast-forwarded to it |
 | E26 | **Phase 4 includes the full snowmaking system:** water, ponds, dams, pipes, pumps and guns |
 | E27 | **Full weather simulation,** with its own design session first |
 | E28 | **The clock starts from the MapLibre game's dual clock,** re-specified and built natively |

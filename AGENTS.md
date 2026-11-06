@@ -7,8 +7,8 @@ a nested `AGENTS.md` needs a same-directory `CLAUDE.md` with the same import.
   editor version is pinned in `ProjectSettings/ProjectVersion.txt`; do not upgrade without approval.
 - The archived MapLibre/TypeScript game (`archive/maplibre`, tag `maplibre-final`) is reference only.
   Never copy, transpile, or embed its code; re-specify behaviour in `docs/` and implement natively.
-- The roadmap is `docs/plans/unity-rebuild-roadmap.md`; phase plans live in `docs/plans/`. Phases 1 and 2 are done
-  (`unity-m1`, `unity-m2`); the current plan is `docs/plans/phase2-14-phase3-plan.md` (Phase 3).
+- The roadmap is `docs/plans/unity-rebuild-roadmap.md`; phase plans live in `docs/plans/`. Phases 1, 2 and 3 are done
+  (`unity-m1`, `unity-m2`, `unity-m3`); the current plan is `docs/plans/phase3-13-phase4-plan.md` (Phase 4).
 
 ## Commands
 - Repo checks: `node tools/repo-checks/check.mjs` (also bans Unity and nondeterministic APIs in

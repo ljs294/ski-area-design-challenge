@@ -166,7 +166,7 @@ thread. E16 continues the E-series from the Phase 2 exit (E7–E15).
 | E22 | **The quit crash stays avoided, not root-fixed.** `demo.bat` 77 and the benchmark's exit code watch for it, and new material properties go last in the block. A root fix, and the Lift Lab's crash on quit, are Later |
 | E23 | **v0.3.2 waits for surface lifts in the game** (owner, 2026-11-05): the T-bar/J-bar and the magic carpet from the Lifts thread, with everything else since v0.3.1. The rope tow comes later, after its model gates |
 | E24 | **The carry-over in §3 goes to the Phase 4 plan:** soil works in the lift cost is Phase 4 task 01, which also takes the backlog items you pick (the trail look's window, brush garbage, the grader); the rest goes to its Later list |
-| E25 | **Milestone:** the merge commit of this PR is tagged `unity-m3`, and `archive/unity` is fast-forwarded to it (fast-forward only, after checking it is an ancestor; never forced) |
+| E25 | **Milestone:** the merge commit of the follow-up PR that records these decisions (and updates AGENTS.md) is tagged `unity-m3`, and `archive/unity` is fast-forwarded to it (fast-forward only, after checking it is an ancestor; never forced) |
 | E26 | **Phase 4 scope includes the full snowmaking system** (owner): water, ponds, dams, pipes, pumps and guns (Phase 4 tasks 14–16). It takes the plan to about 32 task-weeks, over 0.6's 4–6 months |
 | E27 | **Full weather simulation** (owner), with its own design session first (Phase 4 task 04) |
 | E28 | **The clock starts from the MapLibre game's dual clock** (owner), re-specified in `docs/` and built natively, never ported |
