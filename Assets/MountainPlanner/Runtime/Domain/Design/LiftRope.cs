@@ -97,6 +97,30 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         public bool BullwheelVisible { get; private set; } = true;
 
+        // ---------- the line's rules, per type (a surface tow's differ; v0.3.2) ----------
+
+        /// <summary>A surface tow (the T-bar, J-bar): its riders are towed up a track on the snow, so it has no chairs to clear
+        /// the ground; the rope's height over the track is a band (<see cref="ClearanceMetres"/> to <see cref="RopeMaxMetres"/>).</summary>
+        public bool Tow { get; private set; }
+        /// <summary>TW-01: the least height of the carriers' lowest point over the ground under them (the chairs' 15 ft; a
+        /// tow's rope over its track, its retracted bars clear of skiers passing under).</summary>
+        public double ClearanceMetres { get; private set; } = LiftRope.Clearance;
+        /// <summary>A tow's greatest rope height over the track, where its recoil cords still reach a rider; infinite for a
+        /// chair.</summary>
+        public double RopeMaxMetres { get; private set; } = double.PositiveInfinity;
+        /// <summary>TW-02: a line tower's least height and a station tower's least steel (25 and 15 ft; a tow's 15 and 10).</summary>
+        public double TowerMinMetres { get; private set; } = DesignUnits.TowerMinMm / 1000.0;
+        public double StationTowerMinMetres { get; private set; } = DesignUnits.StationTowerMinMm / 1000.0;
+        /// <summary>TW-12 v2: the steel automatic placement tries for a line tower, feet, modest first; and the modest height it
+        /// brings each tower down toward (35 ft; a tow's 20).</summary>
+        public IReadOnlyList<double> PlanFeet { get; private set; } = ChairPlanFeet;
+        public double ModestFeet { get; private set; } = 35;
+        /// <summary>TW-12: the line towers' height where no plan fits (35 ft; a tow's 25).</summary>
+        public double LineHeightMetres { get; private set; } = 10.668;
+        /// <summary>TW-12 v3: the longest span the plan takes (300 ft; a tow's 250, its towers 60–80 m apart).</summary>
+        public double PlanMaxSpanMetres { get; private set; } = 91.44;
+        static readonly double[] ChairPlanFeet = { 35, 45, 60, 80, 100 };
+
         /// <summary>LT41: whether a player can build it (<see cref="LiftCatalogIds.Buildable"/>).</summary>
         public bool Buildable => LiftCatalogIds.Buildable(CatalogId);
 
@@ -137,6 +161,7 @@ namespace MountainPlanner.Domain.Design
         public static LiftType Of(string catalogId, LiftDrive? drive = null)
         {
             if (LiftCatalogIds.IsStern(catalogId)) return Stern(catalogId);
+            if (LiftCatalogIds.IsTow(catalogId)) return TowOf(catalogId);
             var type = Catalog(catalogId);
             if (!LiftCatalogIds.DriveChoice(catalogId)) return type;
             return Driven(type, LiftCatalogIds.Maker(catalogId) == "monta", drive ?? LiftCatalogIds.DefaultDrive(catalogId));
@@ -335,6 +360,48 @@ namespace MountainPlanner.Domain.Design
         }
 
         /// <summary>
+        /// The Monta T-bar and J-bar (surface lifts, v0.3.2; the model thread's D1–D11 and the owner's go on the game wiring,
+        /// 2026-11-05). One 20 mm rope on a 3 m gauge, driven at the bottom (D1, no choice) and tensioned out of sight at the top
+        /// (D2): the drive's hold-down trains turn the rope up out of the loading area at 3.4 m (D8), the return's 8-sheave
+        /// breakover row brings it in at 4.5 m (Q4). 2.5 m/s with a bar every 15 m (owner Q2: 1,200 an hour on a T's two riders,
+        /// 600 on a J's one; real lines carry 600–1,200). Its riders stay on the snow, so the loaded rope carries the pull a
+        /// towed rider puts on it (a third of their weight, a game choice: a rider on a 30 % track) and the 25 kg carriers.
+        /// The rope runs 17–33 ft over the track (5.2–10 m): its retracted bars hang 3.2 m under it (the recoil box, cord gap,
+        /// stem and bar, monta_tbar.json), 2 m clear of a skier; past 10 m the cords no longer reach a rider. Its towers stand
+        /// 15–30 ft on the tow kit's heads (s4, s6, d4; D10), up to 250 ft apart. The rise limit is 400 m (1,300 ft).
+        /// The rope's numbers scale the quad's 1¾ in by diameter², as LD7's do; rated 50 kN, 25 kN counterweight.
+        /// </summary>
+        static LiftType TowOf(string catalogId)
+        {
+            const double Deg = Math.PI / 180, Ft = 0.3048;
+            bool j = catalogId == LiftCatalogIds.MontaJbar;
+            double rope = 0.020, r2 = rope / 0.04445 * (rope / 0.04445);
+            var t = new LiftType(catalogId, j ? 1 : 2, 2.5, 15, 7.66 * r2, 50_000, 25_000, 25, 77.1 / 3, 0, 3.0, rope)
+            {
+                Name = j ? "J-bar" : "T-bar",
+                Tow = true,
+                Drive = LiftDrive.Bottom,
+                RiseLimitMetres = 400,
+                ChairHalfWidthMetres = 0.75,   // the track under the uphill rope, 1.5 m (monta_tbar.json trackWidth)
+                ClearanceMetres = 5.2,
+                RopeMaxMetres = 10.0,
+                TowerMinMetres = DesignUnits.TowTowerMinMm / 1000.0,
+                StationTowerMinMetres = DesignUnits.TowStationTowerMinMm / 1000.0,
+                TowerMaxMetres = DesignUnits.TowTowerMaxMm / 1000.0,
+                PlanFeet = new double[] { 20, 25, 30 },
+                ModestFeet = 20,
+                LineHeightMetres = 25 * Ft,
+                PlanMaxSpanMetres = 250 * Ft,
+                Heads = TowerForces.HeadKit.Tow,
+                TowerKit = "monta_tbar_",
+            };
+            // The view measures footprints, exits and origins again on the models (LiftTypes.Measured).
+            t.Bottom = new TerminalEnd("monta_tbar_drive", TerminalRow.HoldDown, 2 * Deg, 25 * Deg, 10 * Deg, 1.83, 6.4, 1.75, 5.9, 3.4, 0, 8);
+            t.Top = new TerminalEnd("monta_tbar_return", TerminalRow.Support, -8 * LiftRope.BendPerSheave, 0, 0, 1.6, 6.0, 1.6, 5.5, 4.5, 0, 8);
+            return t;
+        }
+
+        /// <summary>
         /// LD9: the top terminal's footprint on the ground, whichever of its rows the rope picks: the station's own, as its
         /// shortest row stands it (its pad and clearing are graded before the rope is solved). A longer row's extra sheaves
         /// reach out over the line in the air, above the corridor's clearing, so they neither widen the pad nor move the
@@ -429,8 +496,9 @@ namespace MountainPlanner.Domain.Design
     /// </summary>
     public sealed class LiftRope
     {
-        /// <summary>A tower's head (TW-04). The wide kit's 10-sheave heads (G6, LT41) come after TooSharp so no value moves.</summary>
-        public enum Head : byte { S4, S6, B8, D8, C8, TooSharp, S10, B10, D10 }
+        /// <summary>A tower's head (TW-04). The wide kit's 10-sheave heads (G6, LT41) come after TooSharp so no value moves; the
+        /// tow kit's 4-sheave hold-down (D4, the T-bar) after them.</summary>
+        public enum Head : byte { S4, S6, B8, D8, C8, TooSharp, S10, B10, D10, D4 }
 
         public readonly struct TowerSolution
         {
@@ -492,6 +560,14 @@ namespace MountainPlanner.Domain.Design
         public double ShortfallS { get; }
         /// <summary>TW-01 v2 holds everywhere, to TW-08's 0.1 ft.</summary>
         public bool ClearanceOk => Shortfall <= ClearanceTolerance;
+        /// <summary>A tow's loaded rope at its highest over the track between the station zones, metres, and where (0 for a
+        /// chair, which has no upper limit).</summary>
+        public double HighestOverTrack { get; }
+        public double HighestOverTrackS { get; }
+        /// <summary>A tow's rope higher over the track than its cords reach, metres (0 when it never is).</summary>
+        public double Overshoot => Type.Tow ? Math.Max(0, HighestOverTrack - Type.RopeMaxMetres) : 0;
+        /// <summary>The rope within the tow's band everywhere (always for a chair).</summary>
+        public bool BandOk => Overshoot <= ClearanceTolerance;
         /// <summary>TW-16: the rope's angle leaving the bottom terminal and arriving at the top one in each load case,
         /// radians, positive climbing up the line; and the steeper of the two (for reports).</summary>
         public double BottomExitLoaded { get; }
@@ -769,23 +845,35 @@ namespace MountainPlanner.Domain.Design
             }
             // The rising line starts from the chairs' height over their terminal's own level (its pad) at the pad's edge.
             double Lower(int k, double s) => Math.Min(_loaded[k].Y(s), _empty[k].Y(s));
-            double cB = count > 0 ? Math.Max(0, Math.Min(Clearance, Lower(0, j0) - drop - (bottomExitY - type.Bottom.ExitRise))) : 0;
-            double cT = count > 0 ? Math.Max(0, Math.Min(Clearance, Lower(n, j0 + count - 1) - drop - (topExitY - type.Top.ExitRise))) : 0;
-            double lowest = double.MaxValue, lowestS = 0, worst = 0, worstS = 0;
+            double clearance = type.ClearanceMetres;
+            double cB = count > 0 ? Math.Max(0, Math.Min(clearance, Lower(0, j0) - drop - (bottomExitY - type.Bottom.ExitRise))) : 0;
+            double cT = count > 0 ? Math.Max(0, Math.Min(clearance, Lower(n, j0 + count - 1) - drop - (topExitY - type.Top.ExitRise))) : 0;
+            double lowest = double.MaxValue, lowestS = 0, worst = 0, worstS = 0, highest = double.MinValue, highestS = 0;
+            kl = 0;
             for (int j = 0; j < count; j++)
             {
                 double s = j0 + j;
-                double need = Clearance;
-                if (s < edgeB) need = Math.Min(need, cB + (Clearance - cB) * Math.Max(0, s - j0) / (edgeB - j0));
-                if (s > edgeT) need = Math.Min(need, cT + (Clearance - cT) * Math.Max(0, j0 + count - 1 - s) / (j0 + count - 1 - edgeT));
+                while (kl < n && s > _loaded[kl].To) kl++;
+                double need = clearance;
+                if (s < edgeB) need = Math.Min(need, cB + (clearance - cB) * Math.Max(0, s - j0) / (edgeB - j0));
+                if (s > edgeT) need = Math.Min(need, cT + (clearance - cT) * Math.Max(0, j0 + count - 1 - s) / (j0 + count - 1 - edgeT));
                 _need[j] = need;
                 if (need - _clear[j] > worst) { worst = need - _clear[j]; worstS = s; }
                 if (s >= edgeB && s <= edgeT && _clear[j] < lowest) { lowest = _clear[j]; lowestS = s; }
+                // A tow's band (v0.3.2): the loaded rope over the riders' track, past the station zones, no higher than its
+                // cords reach.
+                if (type.Tow && s >= edgeB && s <= edgeT)
+                {
+                    double over = _loaded[kl].Y(s) - line.UnderUp[j0 + j];
+                    if (over > highest) { highest = over; highestS = s; }
+                }
             }
-            LowestClearance = lowest == double.MaxValue ? Clearance : lowest;
+            LowestClearance = lowest == double.MaxValue ? clearance : lowest;
             LowestClearanceS = lowestS;
             Shortfall = worst;
             ShortfallS = worstS;
+            HighestOverTrack = highest == double.MinValue ? 0 : highest;
+            HighestOverTrackS = highestS;
         }
 
         /// <summary>

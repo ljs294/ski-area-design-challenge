@@ -43,11 +43,18 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         public sealed class HeadKit
         {
-            public static readonly HeadKit Quad = new HeadKit(false), Wide = new HeadKit(true);
+            /// <summary><see cref="Tow"/> (the Monta T-bar, D10): support s4 and s6, hold-down d4, and no combination or
+            /// breakover (Q2 dropped the combination).</summary>
+            public static readonly HeadKit Quad = new HeadKit(false), Wide = new HeadKit(true), Tow = new HeadKit(false, true);
             public readonly bool Ten;
-            HeadKit(bool ten) { Ten = ten; }
+            public readonly bool Small;
+            HeadKit(bool ten, bool small = false) { Ten = ten; Small = small; }
             /// <summary>The most sheaves a support or hold-down head of this kit carries.</summary>
-            public int MaxSheaves => Ten ? 10 : 8;
+            public int MaxSheaves => Small ? 6 : Ten ? 10 : 8;
+            /// <summary>The most a hold-down head of this kit carries (the tow's d4).</summary>
+            public int MaxHoldDown => Small ? 4 : MaxSheaves;
+            /// <summary>The sheaves each way a combination head carries (none on the tow kit).</summary>
+            public int Combination => Small ? 0 : 4;
         }
 
         /// <summary>What a head carries, in both load cases, and the head that carries it.</summary>
@@ -118,6 +125,21 @@ namespace MountainPlanner.Domain.Design
             double gl = GroupLoad(tensionLoaded, bendLoaded), ge = GroupLoad(tensionEmpty, bendEmpty);
             int need = Math.Max(SheavesFor(tensionLoaded, bendLoaded), SheavesFor(tensionEmpty, bendEmpty));
             bool presses = gl <= -GroupMinimumNewtons && ge <= -GroupMinimumNewtons, pulls = gl >= GroupMinimumNewtons && ge >= GroupMinimumNewtons;
+            if (kit.Small)
+            {
+                // The tow kit: s4, s6 and d4 (D10); no combination.
+                if (kind == TowerKind.Support && !(gl < 0 && ge < 0) || kind == TowerKind.HoldDown && !(gl > 0 && ge > 0) || kind == TowerKind.Combination)
+                {
+                    unsuited = true;
+                    return kind == TowerKind.Support ? LiftRope.Head.S6 : LiftRope.Head.D4;
+                }
+                // The tow's light rope seldom loads a gentle head to the chairs' 750 lbf group minimum, and the kit has no
+                // combination: a head is a support wherever the rope presses down in both cases, a hold-down where it pulls up
+                // in both; only a rope that flips between them can't be carried.
+                if (gl < 0 && ge < 0 || presses) return need <= 4 ? LiftRope.Head.S4 : need <= 6 ? LiftRope.Head.S6 : LiftRope.Head.TooSharp;
+                if (gl > 0 && ge > 0 || pulls) return need <= 4 ? LiftRope.Head.D4 : LiftRope.Head.TooSharp;
+                return LiftRope.Head.TooSharp;
+            }
             if (kind == TowerKind.Support && !presses || kind == TowerKind.HoldDown && !pulls || kind == TowerKind.Combination && need > 4)
             {
                 unsuited = true;
@@ -156,13 +178,13 @@ namespace MountainPlanner.Domain.Design
         {
             LiftRope.Head.D8 => 8,
             LiftRope.Head.D10 => 10,
-            LiftRope.Head.C8 => 4,
+            LiftRope.Head.C8 or LiftRope.Head.D4 => 4,
             _ => 0,
         };
         /// <summary>A support head (sheaves below the rope only).</summary>
         public static bool IsSupport(LiftRope.Head head) => HoldDownSheavesOf(head) == 0 && SupportSheavesOf(head) > 0;
         /// <summary>A hold-down head (sheaves above the rope only).</summary>
-        public static bool IsHoldDown(LiftRope.Head head) => head == LiftRope.Head.D8 || head == LiftRope.Head.D10;
+        public static bool IsHoldDown(LiftRope.Head head) => head == LiftRope.Head.D8 || head == LiftRope.Head.D10 || head == LiftRope.Head.D4;
 
         /// <summary>
         /// TW-05 at a terminal's own row (TW-16 v3): the rope turns from level in the station to <paramref name="angle"/>

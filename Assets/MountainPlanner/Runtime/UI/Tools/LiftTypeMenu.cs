@@ -13,13 +13,16 @@ namespace MountainPlanner.UI.Tools
     /// </summary>
     public sealed class LiftTypeMenu
     {
-        static readonly string[] Kinds = { "Fixed-grip chair", "Detachable chair", "Detachable gondola", "Aerial tram" };
+        static readonly string[] Kinds = { "Fixed-grip chair", "Detachable chair", "Detachable gondola", "Aerial tram", "Surface lift" };
+        /// <summary>The surface lifts' kind (v0.3.2): the Monta T-bar and J-bar; the carpet comes later.</summary>
+        const int SurfaceKind = 4;
         static readonly string[][] KindCarriers =
         {
             new[] { "fixed-double", "fixed-triple", "fixed-quad" },
             new[] { "detach-quad", "detach-six", "detach-eight" },
             new[] { "gondola-6", "gondola-8", "gondola-10" },
             new[] { "tram-60", "tram-100" },
+            new[] { "tbar", "jbar", "carpet" },
         };
         static readonly string[][] CarrierNames =
         {
@@ -27,8 +30,9 @@ namespace MountainPlanner.UI.Tools
             new[] { "Quad", "Six", "Eight" },
             new[] { "6 person", "8 person", "10 person" },
             new[] { "60 person", "100 person" },
+            new[] { "T-bar", "J-bar", "Carpet" },
         };
-        static readonly int[] KindDefault = { 2, 1, 1, 1 };   // the quad, the detachable six (the D6), 8 person, 100 person
+        static readonly int[] KindDefault = { 2, 1, 1, 1, 0 };   // the quad, the detachable six (the D6), 8 person, 100 person, the T-bar
         // The fixed grips' models by carrier (v0.3.2): each maker's, with the Sessellift's two styles; Chairworks comes later.
         static readonly string[] FixedCarriers = { "fixed-double", "fixed-triple", "fixed-quad" };
         static readonly string[][] FixedModels =
@@ -78,7 +82,8 @@ namespace MountainPlanner.UI.Tools
             : id == LiftCatalogIds.SesselliftFgd2 ? "Sessellift FGD-2" : id == LiftCatalogIds.SesselliftFgt3 ? "Sessellift FGT-3"
             : id == LiftCatalogIds.MontaFg2 ? "Monta FG2" : id == LiftCatalogIds.MontaFg3 ? "Monta FG3"
             : id == LiftCatalogIds.SesselliftStern4 ? "Sessellift Stern Q-4" : id == LiftCatalogIds.SesselliftStern3 ? "Sessellift Stern T-3"
-            : id == LiftCatalogIds.SesselliftStern2 ? "Sessellift Stern D-2" : null;
+            : id == LiftCatalogIds.SesselliftStern2 ? "Sessellift Stern D-2"
+            : id == LiftCatalogIds.MontaTbar ? "Monta T-bar" : id == LiftCatalogIds.MontaJbar ? "Monta J-bar" : null;
 
         /// <summary>Adds the three rows; <paramref name="changed"/> runs after a pick changes the type.</summary>
         public LiftTypeMenu(ToolWindow window, string catalogId, Action changed, string kindTip)
@@ -111,7 +116,9 @@ namespace MountainPlanner.UI.Tools
         }
 
         static string IdFor(string carrier, string maker) =>
-            carrier == "fixed-quad" ? (maker == "monta" ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4) : LiftCatalogIds.Of(carrier, maker);
+            carrier == "fixed-quad" ? (maker == "monta" ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4)
+            : carrier == "tbar" ? LiftCatalogIds.MontaTbar : carrier == "jbar" ? LiftCatalogIds.MontaJbar
+            : LiftCatalogIds.Of(carrier, maker);
 
         /// <summary>The same model in another fixed carrier (a Stern stays a Stern), or null.</summary>
         static string SameModel(string id, string carrier)
@@ -159,6 +166,7 @@ namespace MountainPlanner.UI.Tools
 
         void PickModel(int m)
         {
+            if (LiftCatalogIds.IsTow(CatalogId)) return;   // one maker's (the Monta)
             int f = Array.IndexOf(FixedCarriers, LiftCatalogIds.Carrier(CatalogId));
             if (f >= 0) { if (m < FixedIds[f].Length) Choose(FixedIds[f][m]); }
             else
@@ -219,9 +227,10 @@ namespace MountainPlanner.UI.Tools
             var carrierOff = new bool[KindCarriers[k].Length];
             for (int i = 0; i < carrierOff.Length; i++) carrierOff[i] = BuildableFor(KindCarriers[k][i], "sessellift") == null;
             Carrier.Set(CarrierNames[k], Array.IndexOf(KindCarriers[k], carrier), carrierOff);
-            _window.SetRowLabel("carrier", k >= 2 ? "Cabin" : "Chair");
+            _window.SetRowLabel("carrier", k == SurfaceKind ? "Carrier" : k >= 2 ? "Cabin" : "Chair");
             int f = Array.IndexOf(FixedCarriers, carrier);
-            if (f >= 0) Model.Set(FixedModels[f], Array.IndexOf(FixedIds[f], CatalogId), FixedOff);
+            if (LiftCatalogIds.IsTow(CatalogId)) Model.Set(new[] { OwnName(CatalogId) }, 0, new[] { false });
+            else if (f >= 0) Model.Set(FixedModels[f], Array.IndexOf(FixedIds[f], CatalogId), FixedOff);
             else
             {
                 int m = Array.IndexOf(LiftCatalogIds.Makers, LiftCatalogIds.Maker(CatalogId));
@@ -239,7 +248,7 @@ namespace MountainPlanner.UI.Tools
             _window.ShowOption("drive", choice);
             if (choice) DriveEnd.Set(Drives, Drive == LiftDrive.Top ? 0 : 1);
             if (_note == null) return;
-            string spacing = k == 3 ? "two cabins" : $"{(k == 2 ? "cabins" : "chairs")} {ToolFormat.Length(Type.ChairSpacingMetres)} apart";
+            string spacing = k == 3 ? "two cabins" : $"{(k == SurfaceKind ? "bars" : k == 2 ? "cabins" : "chairs")} {ToolFormat.Length(Type.ChairSpacingMetres)} apart";
             _note.text = $"{Type.Capacity:#,0} an hour · {Type.SpeedMetresPerSecond * 196.850394:#,0} ft/min · {spacing}"
                          + (Type.Detachable ? $"\na {(k == 2 ? "cabin" : "chair")} every {Type.IntervalSeconds:0.#} s, slowing to load in the stations" : "");
         }

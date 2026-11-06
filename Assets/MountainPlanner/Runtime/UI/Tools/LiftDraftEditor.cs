@@ -213,7 +213,7 @@ namespace MountainPlanner.UI.Tools
             }
             SetAlong(index, _stripAlongMm / 1000.0 + along, record: false);
             int max = LiftCatalogIds.TowerMaxMm(Type.CatalogId);
-            int h = Mathf.Clamp(_stripHeightMm + (int)Math.Round(up * 1000 / DesignUnits.FiveFeetMm) * DesignUnits.FiveFeetMm, DesignUnits.StationTowerMinMm, max);
+            int h = Mathf.Clamp(_stripHeightMm + (int)Math.Round(up * 1000 / DesignUnits.FiveFeetMm) * DesignUnits.FiveFeetMm, LiftCatalogIds.StationTowerMinMm(Type.CatalogId), max);
             if (h != Towers[index].HeightMm) Dragged?.Invoke(list => list[index] = list[index].WithHeight(h));
             if (!done) return;
             _stripAlongMm = _stripHeightMm = -1;
@@ -295,8 +295,9 @@ namespace MountainPlanner.UI.Tools
         bool TickHand(in ToolInput input)
         {
             int max = LiftCatalogIds.TowerMaxMm(Type.CatalogId);
+            HandMm = Mathf.Min(max, HandMm);   // a tow tops out at 30 ft
             if (input.Pressed(ToolKeys.TowerUp)) HandMm = Mathf.Min(max, HandMm + DesignUnits.FiveFeetMm);
-            if (input.Pressed(ToolKeys.TowerDown)) HandMm = Mathf.Max(DesignUnits.StationTowerMinMm, HandMm - DesignUnits.FiveFeetMm);
+            if (input.Pressed(ToolKeys.TowerDown)) HandMm = Mathf.Max(LiftCatalogIds.StationTowerMinMm(Type.CatalogId), HandMm - DesignUnits.FiveFeetMm);
             double step = input.Shift ? 10 * Slot : Slot;
             if (input.Pressed(ToolKeys.SlideOn)) HandS += step;
             if (input.Pressed(ToolKeys.SlideBack)) HandS -= step;
@@ -386,7 +387,7 @@ namespace MountainPlanner.UI.Tools
         void Height(int i, int steps)
         {
             int max = LiftCatalogIds.TowerMaxMm(Type.CatalogId);
-            int h = Mathf.Clamp(Towers[i].HeightMm + steps * DesignUnits.FiveFeetMm, DesignUnits.StationTowerMinMm, max);
+            int h = Mathf.Clamp(Towers[i].HeightMm + steps * DesignUnits.FiveFeetMm, LiftCatalogIds.StationTowerMinMm(Type.CatalogId), max);
             if (h == Towers[i].HeightMm) return;
             Change?.Invoke(list => list[i] = list[i].WithHeight(h));
         }
@@ -522,6 +523,7 @@ namespace MountainPlanner.UI.Tools
             LiftRope.Head.S10 => "Support, 10 sheaves",
             LiftRope.Head.B10 => "Breakover, 10 sheaves",
             LiftRope.Head.D10 => "Hold-down, 10 sheaves",
+            LiftRope.Head.D4 => "Hold-down, 4 sheaves",
             _ => "Too sharp for one head",
         };
     }

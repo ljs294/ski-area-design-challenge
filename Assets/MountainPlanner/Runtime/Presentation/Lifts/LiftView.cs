@@ -32,6 +32,11 @@ namespace MountainPlanner.Presentation.Lifts
         /// <summary>The type's tower kit (G2, LT41): its parts first, the quad's where it has none.</summary>
         string _kit = Quad;
         const string Quad = "sessellift_fgq4_";
+        /// <summary>The surface tow's kit (the Monta T-bar, v0.3.2): masts leaned across the line, heads level, its own parts.</summary>
+        const string TowKit = "monta_tbar_";
+        /// <summary>D11 (monta_tbar.json tower.lean): every tow mast leans 8° across the line toward the loaded track.</summary>
+        const float TowLeanDegrees = 8f;
+        bool Tow => _kit == TowKit;
         Mesh _cable;
 
         // The rope loop in world space, in travel order, with the distance walked to each point.
@@ -319,7 +324,48 @@ namespace MountainPlanner.Presentation.Lifts
             }
             SetLoop(loop);
             BuildCable((float)type.RopeDiameterMetres / 2);
-            PrepareChairs(Prefab("chair"), livery, type, Track(type, retRig, driveRig, bottom, dir));
+            var carrier = Carrier(type);
+            PrepareChairs(carrier, livery, type, Track(type, retRig, driveRig, bottom, dir));
+            if (type.Tow && carrier != null) Gone(carrier);   // put together for this lift only
+        }
+
+        /// <summary>
+        /// The carrier the lift runs: its chair, or a tow's recoil box with its bar under the cord (the T-bar's or J-bar's;
+        /// monta_tbar.json carrier.cordGap), put together once as one carrier with the bar's levels of detail in the box's
+        /// (the instanced draw takes the parts from its LOD group).
+        /// </summary>
+        GameObject Carrier(LiftType type)
+        {
+            if (!type.Tow) return Prefab("chair");
+            var box = Model(_kit + "springbox");
+            var bar = Model(_kit + (type.CatalogId == LiftCatalogIds.MontaJbar ? "bar_j" : "bar_t"));
+            if (box == null) return null;
+            var carrier = Object.Instantiate(box);
+            carrier.SetActive(false);
+            var cord = carrier.GetComponent<LiftRig>()?.Socket("cord");
+            if (bar != null && cord != null)
+            {
+                var b = Object.Instantiate(bar, carrier.transform);
+                b.transform.SetPositionAndRotation(cord.position + Vector3.down * 0.05f, carrier.transform.rotation);
+                var into = carrier.GetComponent<LODGroup>();
+                var from = b.GetComponent<LODGroup>();
+                if (into != null)
+                {
+                    var lods = into.GetLODs();
+                    var extra = from != null ? from.GetLODs() : new[] { new LOD(0, b.GetComponentsInChildren<Renderer>()) };
+                    for (int i = 0; i < lods.Length; i++)
+                    {
+                        var more = extra[Mathf.Min(i, extra.Length - 1)].renderers;
+                        var all = new Renderer[lods[i].renderers.Length + more.Length];
+                        lods[i].renderers.CopyTo(all, 0);
+                        more.CopyTo(all, lods[i].renderers.Length);
+                        lods[i].renderers = all;
+                    }
+                    into.SetLODs(lods);
+                }
+                if (from != null) Object.DestroyImmediate(from);
+            }
+            return carrier;
         }
 
         /// <summary>
@@ -430,7 +476,9 @@ namespace MountainPlanner.Presentation.Lifts
             Posed = true;
             SetLoop(loop);
             BuildCable((float)type.RopeDiameterMetres / 2);
-            PrepareChairs(Prefab("chair"), livery, type, Track(type, retRig, driveRig, bottom, dir));
+            var carrier = Carrier(type);
+            PrepareChairs(carrier, livery, type, Track(type, retRig, driveRig, bottom, dir));
+            if (type.Tow && carrier != null) Gone(carrier);   // put together for this lift only
             return true;
         }
 
@@ -458,6 +506,7 @@ namespace MountainPlanner.Presentation.Lifts
                 case LiftRope.Head.S10: return "tower_s10";   // the wide kit's (G6, LT41)
                 case LiftRope.Head.B10: return "tower_b10";
                 case LiftRope.Head.D10: return "tower_d10";
+                case LiftRope.Head.D4: return "tower_d4";     // the tow kit's hold-down (the T-bar)
                 default: return "tower_b8";   // B8, and TooSharp drawn as the biggest support until task 09 reports it
             }
         }
@@ -508,23 +557,29 @@ namespace MountainPlanner.Presentation.Lifts
         GameObject SpawnTower(string headId, Vector3 position, Quaternion facing, Quaternion lean, float steel, float reveal, LiftLivery livery)
         {
             var head = Prefab(headId);
-            var mast = Prefab("tower_mast");
+            var mast = (Tow ? Model(_kit + "mast") : null) ?? Prefab("tower_mast");
             // A leaned mast stands on the leaned base for its angle (TW-14: 2.5° steps); until those are imported, the plumb one.
             lean.ToAngleAxis(out float degrees, out _);
             int tenths = Mathf.RoundToInt(degrees / 2.5f) * 25;
-            var foundation = (tenths > 0 ? Prefab($"tower_base_l{tenths:000}") : null) ?? Prefab("tower_base");
+            var foundation = Tow ? Model(_kit + "base") : (tenths > 0 ? Prefab($"tower_base_l{tenths:000}") : null) ?? Prefab("tower_base");
             if (head == null || mast == null || foundation == null) return null;
+            // A tow's mast leans across the line toward the loaded track (D11; the rope on the right looking uphill, and the
+            // tower's +Z faces down the line), its base set off to the other side so the level head stands over the line.
+            if (Tow) lean = Quaternion.AngleAxis(TowLeanDegrees, facing * Vector3.forward);
+            var top = mast.GetComponent<LiftRig>().Socket("top");
             var parts = new TowerParts
             {
                 Mast = mast,
-                LeanedBase = !foundation.name.EndsWith("tower_base", StringComparison.Ordinal),
+                LeanedBase = !Tow && !foundation.name.EndsWith("tower_base", StringComparison.Ordinal),
                 FootLocal = foundation.GetComponent<LiftRig>().Socket("mast_foot").localPosition,
                 RopeOnHead = head.GetComponent<LiftRig>().Socket("rope_right").localPosition.y,
                 Facing = facing,
                 Lean = lean,
+                Tow = Tow,
+                Section = top != null && top.localPosition.y > 0.1f ? top.localPosition.y : 1f,
             };
             parts.Base = Spawn(foundation, position, facing, livery);
-            parts.Head = Spawn(head, position, lean * facing, livery);
+            parts.Head = Spawn(head, position, Tow ? facing : lean * facing, livery);
             Stand(parts, position, steel, reveal, livery);
             if (_spawning >= 0)
             {
@@ -544,6 +599,9 @@ namespace MountainPlanner.Presentation.Lifts
             public GameObject Base, Head, Mast;
             public readonly List<GameObject> Sections = new List<GameObject>();
             public bool LeanedBase;
+            /// <summary>A tow's tower (the T-bar): leaned across the line, its head level and over the line.</summary>
+            public bool Tow;
+            public float Section = 1f;
             public Vector3 FootLocal;
             public float RopeOnHead;
             public Quaternion Facing, Lean;
@@ -566,6 +624,11 @@ namespace MountainPlanner.Presentation.Lifts
         // arithmetic). Sections beyond those it needs are hidden, and a taller tower gets new ones (the only Instantiate).
         void Stand(TowerParts parts, Vector3 position, float steel, float reveal, LiftLivery livery)
         {
+            if (parts.Tow)
+            {
+                StandTow(parts, position, steel + reveal, livery);
+                return;
+            }
             float foot = parts.FootLocal.y;
             int sections = Mathf.Max(1, Mathf.RoundToInt(steel - foot - parts.RopeOnHead));
             float rise = steel - (foot + sections + parts.RopeOnHead) + reveal;
@@ -583,6 +646,31 @@ namespace MountainPlanner.Presentation.Lifts
                 if (s.activeSelf != shown) s.SetActive(shown);
             }
             parts.Head.transform.SetPositionAndRotation(mastFoot + axis * sections, turned);
+        }
+
+        /// <summary>
+        /// A tow's tower (the T-bar; the Lift Lab's arithmetic): as many mast sections as fit up the leaned axis under the
+        /// level head, the base off to the return side so the head lands on the line at <paramref name="position"/>, its rope
+        /// <paramref name="rope"/> over the ground there, the base riding up or down by the remainder.
+        /// </summary>
+        void StandTow(TowerParts parts, Vector3 position, float rope, LiftLivery livery)
+        {
+            var axis = parts.Lean * Vector3.up;
+            var foot = parts.Facing * parts.FootLocal;
+            int sections = Mathf.Max(1, Mathf.RoundToInt((rope - foot.y - parts.RopeOnHead) / (axis.y * parts.Section)));
+            var top = foot + axis * (parts.Section * sections);
+            var at = new Vector3(position.x - top.x, position.y + rope - top.y - parts.RopeOnHead, position.z - top.z);
+            parts.Base.transform.SetPositionAndRotation(at, parts.Facing);
+            var turned = parts.Lean * parts.Facing;
+            while (parts.Sections.Count < sections) parts.Sections.Add(Spawn(parts.Mast, at + foot, turned, livery));
+            for (int i = 0; i < parts.Sections.Count; i++)
+            {
+                var s = parts.Sections[i];
+                bool shown = i < sections;
+                if (shown) s.transform.SetPositionAndRotation(at + foot + axis * (parts.Section * i), turned);
+                if (s.activeSelf != shown) s.SetActive(shown);
+            }
+            parts.Head.transform.SetPositionAndRotation(at + top, parts.Facing);
         }
 
         /// <summary>

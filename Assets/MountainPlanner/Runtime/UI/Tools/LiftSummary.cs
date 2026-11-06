@@ -31,6 +31,7 @@ namespace MountainPlanner.UI.Tools
             LiftRope.Head.B10 => "B10",
             LiftRope.Head.D8 => "D8",
             LiftRope.Head.D10 => "D10",
+            LiftRope.Head.D4 => "D4",
             LiftRope.Head.C8 => "C8",
             _ => "too sharp",
         };
@@ -72,7 +73,7 @@ namespace MountainPlanner.UI.Tools
             foreach (var t in rope.Towers) counts[(int)t.Head]++;
             string sep = " · ";
             foreach (LiftRope.Head h in new[] { LiftRope.Head.S4, LiftRope.Head.S6, LiftRope.Head.S10, LiftRope.Head.B8, LiftRope.Head.B10,
-                                                LiftRope.Head.C8, LiftRope.Head.D8, LiftRope.Head.D10, LiftRope.Head.TooSharp })
+                                                LiftRope.Head.C8, LiftRope.Head.D4, LiftRope.Head.D8, LiftRope.Head.D10, LiftRope.Head.TooSharp })
             {
                 if (counts[(int)h] == 0) continue;
                 text.Append(sep).Append(counts[(int)h]).Append(' ').Append(HeadCode(h));

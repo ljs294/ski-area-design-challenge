@@ -156,7 +156,7 @@ namespace MountainPlanner.Domain.Design
                     {
                         var t = rope.Towers[i];
                         bool station = (t.BaseS <= zone + 1e-9 && !type.Bottom.OwnStation) || (rope.LengthMetres - t.BaseS <= zone + 1e-9 && !type.Top.OwnStation);
-                        double min = (station ? DesignUnits.StationTowerMinMm : DesignUnits.TowerMinMm) / 1000.0;
+                        double min = (station ? LiftCatalogIds.StationTowerMinMm(l.CatalogId) : LiftCatalogIds.TowerMinMm(l.CatalogId)) / 1000.0;
                         double cos = Math.Cos(t.Lean);
                         lim.Towers.Add(new TowerFoot
                         {

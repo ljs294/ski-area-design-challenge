@@ -591,6 +591,8 @@ namespace MountainPlanner.Domain.Design
                 double ux = (tx - bx) / len, uy = (ty - by) / len;
                 if (type.Bottom != null) list.Add(new Terminal(bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth));
                 if (type.Top != null) list.Add(new Terminal(tx, ty, -ux, -uy, type.TopFootprint.Behind, type.TopFootprint.Ahead, type.TopFootprint.HalfWidth));
+                // G1: no path crosses a tow's line; its riders' track and the return side are the line's whole length.
+                if (type.Tow) list.Add(new Terminal(bx, by, ux, uy, 0, len, type.GaugeMetres / 2 + 2 * type.ChairHalfWidthMetres));
             }
             return list;
         }

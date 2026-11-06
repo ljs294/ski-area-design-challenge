@@ -39,7 +39,10 @@ namespace MountainPlanner.Domain.Design
             int kept = towers.Count;
             var line = LineGround.Sample(ground, type, bx, by, tx, ty);
             int maxMm = LiftCatalogIds.TowerMaxMm(type.CatalogId);
-            var modest = new[] { DesignUnits.FeetToMm(35), DesignUnits.FeetToMm(30), DesignUnits.FeetToMm(40) };
+            // Modest heights first (35 ft, then 30 and 40; a tow's 20, 15 and 25), then taller, then the station heights below.
+            int mf = (int)type.ModestFeet;
+            var modest = new[] { DesignUnits.FeetToMm(mf), DesignUnits.FeetToMm(mf - 5), DesignUnits.FeetToMm(mf + 5) };
+            int lineMin = LiftCatalogIds.TowerMinMm(type.CatalogId), stationMin = LiftCatalogIds.StationTowerMinMm(type.CatalogId);
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
             // The automatic lift on the same line (TW-12, with TW-16 v3's station towers and their steel): its next tower past
             // the last placed one is taken whenever it checks out as the tower in hand; the green band decides only where it
@@ -62,8 +65,8 @@ namespace MountainPlanner.Domain.Design
                 double bestS = -1;
                 int bestH = 0;
                 foreach (int h in modest) Furthest(hand, h, ref bestS, ref bestH);
-                for (int h = DesignUnits.FeetToMm(45); bestS < 0 && h <= maxMm; h += DesignUnits.FiveFeetMm) Furthest(hand, h, ref bestS, ref bestH);
-                for (int h = DesignUnits.FeetToMm(25); bestS < 0 && h >= DesignUnits.StationTowerMinMm; h -= DesignUnits.FiveFeetMm) Furthest(hand, h, ref bestS, ref bestH);
+                for (int h = DesignUnits.FeetToMm(mf + 10); bestS < 0 && h <= maxMm; h += DesignUnits.FiveFeetMm) Furthest(hand, h, ref bestS, ref bestH);
+                for (int h = lineMin; bestS < 0 && h >= stationMin; h -= DesignUnits.FiveFeetMm) Furthest(hand, h, ref bestS, ref bestH);
                 if (bestS < 0)
                 {
                     double from = towers.Count > 0 ? towers[towers.Count - 1].AlongMm / 1000.0 : 0;

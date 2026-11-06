@@ -295,6 +295,10 @@ echo   Lift costs (2025 dollars from Vermont Act 250 filings; rebuilds the game,
 echo     80 The cost tests and the price table (each family, three typical lines), then the game: draw a lift and
 echo        watch the Cost row in New lift change as you move the top terminal; Edit lift shows it too.
 echo.
+echo   Surface lifts: the Monta T-bar and J-bar in the game (rebuilds the game; close the Unity editor first)
+echo     81 The tow tests, then the game: New lift, Surface lift, T-bar or J-bar; low towers leaning over the track,
+echo        bars every 15 m, the rope kept 17-33 ft over the track, and no trail path across the line.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -412,6 +416,7 @@ if /i "%CHOICE%"=="77" goto quitcrash
 if /i "%CHOICE%"=="78" goto waterroads
 if /i "%CHOICE%"=="79" goto driveend
 if /i "%CHOICE%"=="80" goto liftcosts
+if /i "%CHOICE%"=="81" goto surfacetows
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -560,6 +565,25 @@ echo   Place the bottom terminal, then move the top one: the panel's Cost row fo
 echo     4,000 ft long and 1,000 ft up). Hover the row for its parts: terminals, length and rise.
 echo   Change the type: a detachable quad or six costs more; gondolas and trams read "no price yet".
 echo   Build it, then Edit lift: the Cost row shows there too. Quit the game when done.
+start "" "%GAME%"
+goto menu
+
+:surfacetows
+rem Surface lifts PR A: the Monta T-bar and J-bar built through the game's own lift path (towers, rope, bars).
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~SurfaceTowTests|FullyQualifiedName~G1_" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open an area (or one of your saves), then T for the Toolbox, the Lifts tab, N for New lift:
+echo   Type: Surface lift. Carrier: T-bar (two riders a bar, 1,200 an hour) or J-bar (one rider, 600 an hour);
+echo     Carpet is greyed until the next PR. The name reads "T-bar 1" and Towers stays Plumb.
+echo   Place the bottom terminal on a gentle slope and the top 1,000-2,000 ft up: Automatic towers stand 15-30 ft
+echo     masts leaning over the track; the review row "Rope over track" shows the band (17 ft up to 33 ft).
+echo   Build it and fly along: springboxes with their bars every 15 m on both sides, the drive hut at the bottom.
+echo   Paint a trail either side of it: no automatic path crosses the line. Save, quit and reload: it comes back.
+echo   Cost reads "no price yet". Quit the game when done.
 start "" "%GAME%"
 goto menu
 

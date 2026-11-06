@@ -105,14 +105,15 @@ namespace MountainPlanner.Domain.Design
             double Snap(double v) => Math.Round(v / Grid) * Grid;
             double Floor5(double v) => Math.Floor(v / Grid + 1e-9) * Grid;
             var line = LineGround.Sample(ground, type, bx, by, tx, ty);
-            double stationMin = DesignUnits.StationTowerMinMm / 1000.0, zone = DesignUnits.StationZoneMm / 1000.0;
+            double stationMin = type.StationTowerMinMetres, zone = DesignUnits.StationZoneMm / 1000.0;
             double t0 = type.CounterweightNewtons, wl = type.LoadedNewtonsPerMetre, we = type.EmptyNewtonsPerMetre;
             double drop = type.ChairDropMetres;
             double exitS = type.Bottom.ExitAlong, exitY = bottomLevel + type.Bottom.ExitRise;
             double topBack = type.Top.ExitAlong, topExitS = length - topBack, topExitY = topLevel + type.Top.ExitRise;
             LiftRope.Zones(type, length, out double frontB, out double edgeB, out double edgeT, out double frontT);
             var result = new Result();
-            double MaxHeight = type.TowerMaxMetres;   // TW-02: 100 ft; a tram's 250 ft (LC-08)
+            double MaxHeight = type.TowerMaxMetres;   // TW-02: 100 ft; a tram's 250 ft (LC-08), a tow's 30 ft
+            double Clearance = type.ClearanceMetres, LineHeight = type.LineHeightMetres;
 
             double Aimed(bool bottom, double s) => AimedY(type, bottom, s, exitS, exitY, topExitS, topExitY);
             // TW-01 v2 along a station span (from the terminal's front to the tower), both load cases: how far the chairs
@@ -125,14 +126,14 @@ namespace MountainPlanner.Domain.Design
                 double Clear(double x) => Math.Min(loaded.Y(x), empty.Y(x)) - drop - line.UnderChairs(x);
                 double start = bottom ? Math.Ceiling(front) : Math.Floor(front);
                 double level = bottom ? exitY - type.Bottom.ExitRise : topExitY - type.Top.ExitRise;
-                double c0 = Math.Max(0, Math.Min(LiftRope.Clearance, Math.Min(loaded.Y(start), empty.Y(start)) - drop - level));
+                double c0 = Math.Max(0, Math.Min(Clearance, Math.Min(loaded.Y(start), empty.Y(start)) - drop - level));
                 double worst = 0;
                 double from = bottom ? start : Math.Ceiling(s), to = bottom ? Math.Floor(s) : start;
                 for (double x = from; x <= to; x += 1)
                 {
-                    double need = LiftRope.Clearance;
+                    double need = Clearance;
                     double f = bottom ? (x - start) / (edge - start) : (start - x) / (start - edge);
-                    if (f < 1) need = Math.Min(need, c0 + (LiftRope.Clearance - c0) * Math.Max(0, f));
+                    if (f < 1) need = Math.Min(need, c0 + (Clearance - c0) * Math.Max(0, f));
                     worst = Math.Max(worst, need - Clear(x));
                 }
                 return worst;
@@ -151,7 +152,7 @@ namespace MountainPlanner.Domain.Design
                 double y = Aimed(true, s), g = GroundAt(s);
                 if (y - g < stationMin) continue;
                 double atTower = y - drop - line.UnderChairs(s);
-                if (atTower >= LiftRope.Clearance && SpanShortfall(true, s, y) <= Tolerance) { sb = s; yb = y; break; }
+                if (atTower >= Clearance && SpanShortfall(true, s, y) <= Tolerance) { sb = s; yb = y; break; }
                 if (atTower > bestClear) { bestClear = atTower; sb = s; yb = y; }
             }
             if (sb < 0)
@@ -273,7 +274,7 @@ namespace MountainPlanner.Domain.Design
                     double steep = Math.Max(rope.BottomExitLoaded, rope.BottomExitEmpty), flat = Math.Min(rope.BottomExitLoaded, rope.BottomExitEmpty);
                     // Lower first (to 15 ft in the station zone, 25 ft past it); then nearer where the ground climbs faster than the
                     // row's aim, further where it doesn't. A line still too steep says so (the terminal's level is the player's, LT34).
-                    double minH = (along[0] <= zone + 1e-9 ? stationMin : DesignUnits.TowerMinMm / 1000.0) - 1e-9;
+                    double minH = (along[0] <= zone + 1e-9 ? stationMin : type.TowerMinMetres) - 1e-9;
                     // Never so low that the chairs passing it fall short of the rule there (its rising line in the zone).
                     if (rope.ClearanceAt(along[0], out _, out double needThere))
                         minH = Math.Max(minH, Math.Ceiling((needThere + drop) / Grid - 1e-9) * Grid - 1e-9);
@@ -298,7 +299,11 @@ namespace MountainPlanner.Domain.Design
                 from = Math.Max(from, bottomLeftTo);
                 to = Math.Min(to, topLeftFrom);
                 double shortfall = abandoned.Count == 0 ? rope.ShortfallBetween(from, to, out double low) : ShortfallOutside(rope, from, to, out low);
-                if (shortfall <= Tolerance && sharp < 0) break;
+                // A tow's rope too high over its track for the cords (v0.3.2): a tower where it's highest brings it down.
+                double peak = rope.HighestOverTrackS;
+                bool high = shortfall <= Tolerance && sharp < 0 && !rope.BandOk && !abandoned.Exists(a => peak >= a.From && peak <= a.To);
+                if (shortfall <= Tolerance && sharp < 0 && !high) break;
+                if (high) low = peak;
                 if (round == Rounds - 1) result.GaveUp.Add(new GiveUp(sharp >= 0 ? rope.Towers[sharp].BaseS : low, GiveUpKind.Rounds));
                 double at = sharp >= 0 ? rope.Towers[sharp].BaseS : low;
                 bool inZone = sharp < 0 && (at < edgeB || at > edgeT);
@@ -307,7 +312,7 @@ namespace MountainPlanner.Domain.Design
                 int prev = next - 1;
                 // A low span between two line towers: raise both, up to TW-02's 100 ft before another tower (LT45; the 60 ft this
                 // stopped at made the lines bunch, finding E3).
-                if (sharp < 0 && !inZone && prev >= 0 && next < along.Count && Raisable(prev) && Raisable(next)
+                if (!high && sharp < 0 && !inZone && prev >= 0 && next < along.Count && Raisable(prev) && Raisable(next)
                     && heights[prev] + Grid <= MaxHeight + 1e-9 && heights[next] + Grid <= MaxHeight + 1e-9)
                 {
                     heights[prev] += Grid;
@@ -349,8 +354,16 @@ namespace MountainPlanner.Domain.Design
                 {
                     along.Insert(ins, put);
                     if (ins < eased.Count) eased.Insert(ins, 0);
-                    double ropeThere = Math.Max(LiftRope.RopeAt(rope.Loaded, put), line.UnderChairs(put) + drop + LiftRope.Clearance);
-                    heights.Insert(ins, Math.Max(DesignUnits.TowerMinMm / 1000.0, Math.Min(MaxHeight, Snap(ropeThere - GroundAt(put)))));
+                    double ropeThere = high ? line.UnderChairs(put) + Clearance + 1.0
+                                            : Math.Max(LiftRope.RopeAt(rope.Loaded, put), line.UnderChairs(put) + drop + Clearance);
+                    heights.Insert(ins, Math.Max(type.TowerMinMetres, Math.Min(MaxHeight, Snap(ropeThere - GroundAt(put)))));
+                    continue;
+                }
+                if (high)
+                {
+                    // No room for a tower where the rope runs too high: left red with the reason.
+                    result.GaveUp.Add(new GiveUp(at, GiveUpKind.TowerLimit));
+                    abandoned.Add((prev >= 0 ? along[prev] : from, next < along.Count ? along[next] : to));
                     continue;
                 }
                 // No room beside a station tower (its height is its terminal's): the line tower on the other side of the
@@ -431,8 +444,6 @@ namespace MountainPlanner.Domain.Design
 
         // ---------- TW-12 v2: the line planned (LT45; the owner's findings E2–E4, 2026-10-23) ----------
 
-        /// <summary>Steel the plan tries for a line tower, feet: modest first, up to TW-02's 100 ft (the repair refines in 5 ft).</summary>
-        static readonly double[] PlanFeet = { 35, 45, 60, 80, 100 };
         /// <summary>Candidates every 25 ft along the line.</summary>
         const double PlanStep = 7.62;
         /// <summary>The plan keeps each head within this share of what its kit's largest head carries (the solve's leans and
@@ -441,7 +452,6 @@ namespace MountainPlanner.Domain.Design
         /// <summary>TW-12 v3 (owner, 2026-11-01, LD3: "fewer, taller" automatic towers): the plan's longest span, 300 ft (was
         /// 250 ft, still the first span's and the fallback's). The chairs' 15 ft (TW-01) and the heads' bends (TW-05) still decide where it
         /// fits, so longer spans come with the taller towers they need; the 1,000 a tower keeps the count first.</summary>
-        const double PlanMaxSpan = 91.44;
         /// <summary>
         /// TW-12 v2: the line towers between the station towers, chosen together as the fewest towers whose spans keep the
         /// loaded chairs 15 ft up (TW-01 v2; the low zones are the trench's and the unload ramp's) and whose every head, the
@@ -449,7 +459,7 @@ namespace MountainPlanner.Domain.Design
         /// kit's largest heads); among those, heights nearest a modest 35 ft and spans nearest even. So a break gets as few
         /// towers as its heads need, taller ones before more (LT45), and a detachable's level end shares its turn with the
         /// towers after it (LT43) instead of one head taking it all. A shortest path over candidates every 25 ft with
-        /// <see cref="PlanFeet"/> of steel; each tower then comes down in 5 ft steps toward 35 ft while it all still fits.
+        /// <see cref="LiftType.PlanFeet"/> of steel; each tower then comes down in 5 ft steps toward 35 ft while it all still fits.
         /// Null where no line fits (the caller spaces them evenly and repairs).
         /// </summary>
         static List<(double S, double H)> PlanLine(LiftType type, LineGround line, Func<double, double> groundAt, double exitS, double exitY,
@@ -459,13 +469,14 @@ namespace MountainPlanner.Domain.Design
             double t0 = type.CounterweightNewtons, wl = type.LoadedNewtonsPerMetre, we = type.EmptyNewtonsPerMetre;
             double drop = type.ChairDropMetres, maxH = Math.Min(type.TowerMaxMetres, 30.48);
             var kit = type.Heads ?? TowerForces.HeadKit.Quad;
-            int maxS = kit.MaxSheaves;
+            int maxS = kit.MaxSheaves, maxD = kit.MaxHoldDown, comb = kit.Combination;
+            double PlanMaxSpan = type.PlanMaxSpanMetres, modestFeet = type.ModestFeet, ropeMax = type.RopeMaxMetres;
             // Candidate positions and nodes: 0 is the bottom station tower (or the exit past a terminal with its own station),
             // then each position × height, then the top station tower.
             var ps = new List<double>();
             for (double s = Math.Ceiling(firstLine / Grid - 1e-9) * Grid; s <= st - MinGap + 1e-9; s += PlanStep) ps.Add(Math.Round(s / Grid) * Grid);
             var hs = new List<double>();
-            foreach (double f in PlanFeet) if (f * 0.3048 <= maxH + 1e-9) hs.Add(f * 0.3048);
+            foreach (double f in type.PlanFeet) if (f * 0.3048 <= maxH + 1e-9) hs.Add(f * 0.3048);
             int nh = hs.Count, n = ps.Count * nh + 2, end = n - 1;
             var ns = new double[n];
             var ny = new double[n];
@@ -485,13 +496,16 @@ namespace MountainPlanner.Domain.Design
             }
             // What a head at each node can carry (TW-05 per sheave: 4.5° or 1,500 lbf; TW-04's group minimum decides the kind).
             double Cap(int sheaves, double t) => Math.Min(sheaves * TowerForces.SheaveBendLimit, 2 * Math.Asin(Math.Min(1, sheaves * TowerForces.SheaveLimitNewtons / (2 * t))));
-            double Floor(double t) => 2 * Math.Asin(Math.Min(1, TowerForces.GroupMinimumNewtons / (2 * t)));
+            // The tow kit carries any load of one sign on a support or a hold-down (TowerForces.Choose), so it has no floor.
+            double Floor(double t) => kit.Small ? 1e-6 : 2 * Math.Asin(Math.Min(1, TowerForces.GroupMinimumNewtons / (2 * t)));
             var tl = new double[n];
             var te = new double[n];
             var capL = new double[n];
             var capE = new double[n];
             var cap4L = new double[n];
             var cap4E = new double[n];
+            var capDL = new double[n];
+            var capDE = new double[n];
             var minL = new double[n];
             var minE = new double[n];
             var sagL = new double[n];   // w / 2T: how much a metre of span beside the head turns the rope down over it
@@ -502,8 +516,10 @@ namespace MountainPlanner.Domain.Design
                 te[i] = Math.Max(t0, t0 + we * (ny[i] - exitY));
                 capL[i] = PlanMargin * Cap(maxS, tl[i]);
                 capE[i] = PlanMargin * Cap(maxS, te[i]);
-                cap4L[i] = PlanMargin * Cap(4, tl[i]);
-                cap4E[i] = PlanMargin * Cap(4, te[i]);
+                cap4L[i] = PlanMargin * Cap(comb, tl[i]);
+                cap4E[i] = PlanMargin * Cap(comb, te[i]);
+                capDL[i] = PlanMargin * Cap(maxD, tl[i]);
+                capDE[i] = PlanMargin * Cap(maxD, te[i]);
                 minL[i] = Floor(tl[i]);
                 minE[i] = Floor(te[i]);
                 sagL[i] = wl / (2 * tl[i]);
@@ -520,7 +536,7 @@ namespace MountainPlanner.Domain.Design
             {
                 double bl = a2 - a1 - sagL[v] * (l1 + l2), be = a2 - a1 - sagE[v] * (l1 + l2);
                 if (bl <= -minL[v] && be <= -minE[v]) return Math.Max(0, Math.Max(-bl - capL[v], -be - capE[v]));   // support
-                if (bl >= minL[v] && be >= minE[v]) return Math.Max(0, Math.Max(bl - capL[v], be - capE[v]));       // hold-down
+                if (bl >= minL[v] && be >= minE[v]) return Math.Max(0, Math.Max(bl - capDL[v], be - capDE[v]));     // hold-down
                 return Math.Max(0, Math.Max(Math.Abs(bl) - cap4L[v], Math.Abs(be) - cap4E[v]));                     // combination
             }
             const double PerDegreeOver = 3000;   // three towers' worth for each degree a head is past what it carries
@@ -531,12 +547,15 @@ namespace MountainPlanner.Domain.Design
             {
                 double len = b - a, slope = (y2 - ya) / len;
                 double k = wl * (1 + slope * slope) / (2 * Math.Max(t0, t0 + wl * (Math.Min(ya, y2) - exitY)));
-                double worst = 0, need = LiftRope.Clearance + 0.05 + drop, keep = b - LiftLineEnvelope.TowerKeepMetres;
+                double worst = 0, need = type.ClearanceMetres + 0.05 + drop, keep = b - LiftLineEnvelope.TowerKeepMetres;
                 // Every 2 m between the low zones, on the metre samples.
                 int j0 = Math.Max(0, (int)Math.Ceiling(Math.Max(a + 1, edgeB))), j1 = Math.Min(under.Length - 1, (int)Math.Floor(Math.Min(b - 1e-9, edgeT)));
                 for (int j = j0; j <= j1; j += 2)
                 {
-                    double gap = need + under[j] - (ya + slope * (j - a) - k * (j - a) * (b - j));
+                    double ropeY = ya + slope * (j - a) - k * (j - a) * (b - j);
+                    // A tow's rope no higher over the track than its cords reach (v0.3.2).
+                    if (ropeY - line.UnderUp[j] > ropeMax - 0.05) return double.NaN;
+                    double gap = need + under[j] - ropeY;
                     if (gap <= 0) continue;
                     if (!trench || j > keep || gap > LiftLineEnvelope.CapMetres - 0.1) return double.NaN;
                     if (gap > worst) worst = gap;
@@ -551,7 +570,7 @@ namespace MountainPlanner.Domain.Design
             {
                 double c = 50 * ((len - ideal) / ideal) * ((len - ideal) / ideal) + 200 * trench;
                 if (v == end) return c;
-                double over = (nH[v] / 0.3048 - 35) / 10;
+                double over = (nH[v] / 0.3048 - modestFeet) / 10;
                 return 1000 + 10 * over * over + c;
             }
             // The spans: every pair 50–250 ft apart that clears, by the node they leave.
@@ -643,7 +662,7 @@ namespace MountainPlanner.Domain.Design
                     inAngle[j] = spanAngle[e];
                     inLength[j] = spanLength[e];
                 }
-                double sL = sagL[v], sE = sagE[v], mL = minL[v], mE = minE[v], cL = capL[v], cE = capE[v], c4L = cap4L[v], c4E = cap4E[v];
+                double sL = sagL[v], sE = sagE[v], mL = minL[v], mE = minE[v], cL = capL[v], cE = capE[v], c4L = cap4L[v], c4E = cap4E[v], dL = capDL[v], dE = capDE[v];
                 for (int k = 0; k < o.Length; k++)
                 {
                     int f = o[k];
@@ -657,7 +676,7 @@ namespace MountainPlanner.Domain.Design
                         double turn = a2 - inAngle[j], run = inLength[j] + l2;
                         double bl = turn - sL * run, be = turn - sE * run, over;
                         if (bl <= -mL && be <= -mE) over = Math.Max(-bl - cL, -be - cE);
-                        else if (bl >= mL && be >= mE) over = Math.Max(bl - cL, be - cE);
+                        else if (bl >= mL && be >= mE) over = Math.Max(bl - dL, be - dE);
                         else over = Math.Max(Math.Abs(bl) - c4L, Math.Abs(be) - c4E);
                         if (over > 0) c += Over(over);
                         if (c >= bf) continue;
@@ -714,12 +733,12 @@ namespace MountainPlanner.Domain.Design
                     double bl = a2 - a1 - wl * (l1 + l2) / (2 * tL), be = a2 - a1 - we * (l1 + l2) / (2 * tE);
                     double mL = Floor(tL), mE = Floor(tE);
                     over += bl <= -mL && be <= -mE ? Math.Max(0, Math.Max(-bl - PlanMargin * Cap(maxS, tL), -be - PlanMargin * Cap(maxS, tE)))
-                          : bl >= mL && be >= mE ? Math.Max(0, Math.Max(bl - PlanMargin * Cap(maxS, tL), be - PlanMargin * Cap(maxS, tE)))
-                          : Math.Max(0, Math.Max(Math.Abs(bl) - PlanMargin * Cap(4, tL), Math.Abs(be) - PlanMargin * Cap(4, tE)));
+                          : bl >= mL && be >= mE ? Math.Max(0, Math.Max(bl - PlanMargin * Cap(maxD, tL), be - PlanMargin * Cap(maxD, tE)))
+                          : Math.Max(0, Math.Max(Math.Abs(bl) - PlanMargin * Cap(comb, tL), Math.Abs(be) - PlanMargin * Cap(comb, tE)));
                 }
                 return over;
             }
-            double lowest = DesignUnits.TowerMinMm / 1000.0, modest = 35 * 0.3048;
+            double lowest = type.TowerMinMetres, modest = modestFeet * 0.3048;
             for (int i = 0; i < s5.Count; i++)
                 while (h5[i] - Grid >= Math.Max(lowest, modest) - 1e-9)
                 {
