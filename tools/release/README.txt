@@ -4,12 +4,18 @@ by Alpine Labs
 A ski resort designer on real mountains, built from U.S. Geological Survey lidar.
 
 
-NEW IN 0.3.1
+NEW IN 0.3.2
 
-- Downloads no longer hang at "waiting for OpenStreetMap (Overpass)". If the OpenStreetMap servers don't answer,
-  the download skips map features after a few minutes at most and finishes anyway: satellite land cover stands in
-  for water and roads, and the area's quality card says so.
-- The bullwheels in the lift terminals now turn with the rope.
+- More lifts: fixed-grip doubles and triples from Sessellift and Monta, the Sessellift D4 detachable quad, and the
+  Sessellift Stern quad, triple and double.
+- Drive at either end: on every fixed-grip chairlift, choose whether the drive sits at the top or the bottom (the
+  Drive row in New lift and Edit lift).
+- Lift prices: New lift and Edit lift show what a chairlift costs. Hover the Cost row to see the parts.
+- Towers are numbered on the profile and over the lift; drag a tower on the profile to move it or change its height.
+- Lift lines are cleared through the forest, and snow lies in the clearings.
+- A download held up by a server says which one after 2 minutes, with Try now, Pause for later and Cancel.
+- Get water and roads in Manage Areas, for an area downloaded without them.
+- The game no longer crashes as it closes on some DirectX 12 graphics cards.
 
 
 RUNNING THE GAME
