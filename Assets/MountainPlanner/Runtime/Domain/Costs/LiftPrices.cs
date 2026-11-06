@@ -57,7 +57,7 @@ namespace MountainPlanner.Domain.Costs
         /// <summary>The price for a type, or null when its family has none yet (gondolas, trams, eights, surface lifts).</summary>
         public static LiftPrice For(LiftType type)
         {
-            if (type == null) return null;
+            if (type == null || type.Tow) return null;   // surface lifts: no price yet (owner Q4, v0.3.2)
             string carrier = LiftCatalogIds.Carrier(type.CatalogId) ?? "";
             if (carrier.StartsWith("gondola-", StringComparison.Ordinal) || carrier.StartsWith("tram-", StringComparison.Ordinal)) return null;
             if (type.Detachable)

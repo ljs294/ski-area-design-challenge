@@ -144,6 +144,31 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void G1_APathNeverCrossesATbarLine()
+        {
+            // Two trails 10 ft apart at the top, 35 ft at the bottom: a T-bar run up the gap's upper part pushes the path
+            // down below its bottom terminal.
+            var h = new DesignHistory(DesignDocument.Empty(7));
+            Painted(h, "A", 100, P(0, 3000), P(0, 0));
+            Painted(h, "B", 100, P(110, 3000), P(135, 0));
+            var free = Paths(h.Document, new TrailNetworkGeometry(Site)).Single();
+            Assert.That(free.AtA.Y, Is.GreaterThan(Ft(2900)), "without the T-bar the path is at the top");
+            var r = h.Submit(new AddLift(h.Revision, "T-bar 1", LiftCatalogIds.MontaTbar, P(55, 1500), P(55, 3600), TowerMode.Automatic,
+                                         TowerStance.Plumb, null, WorkStage.Built));
+            Assert.That(r.Accepted, Is.True, r.ToString());
+            var t = LiftType.Of(LiftCatalogIds.MontaTbar);
+            double half = t.GaugeMetres / 2 + 2 * t.ChairHalfWidthMetres, lx = Ft(55) / 1000.0;
+            foreach (var p in Paths(h.Document, new TrailNetworkGeometry(Site)))
+                for (int q = 0; q <= 100; q++)
+                {
+                    double x = (p.AtA.X + (p.AtB.X - p.AtA.X) * q / 100.0) / 1000.0;
+                    double y = (p.AtA.Y + (p.AtB.Y - p.AtA.Y) * q / 100.0) / 1000.0;
+                    bool on = y >= Ft(1500) / 1000.0 && y <= Ft(3600) / 1000.0 && System.Math.Abs(x - lx) <= half;
+                    Assert.That(on, Is.False, $"a path crosses the T-bar at ({x:F1}, {y:F1})");
+                }
+        }
+
+        [Test]
         public void PA07_APathNeverCrossesABlockerOrALiftTerminal()
         {
             var h = new DesignHistory(DesignDocument.Empty(7));

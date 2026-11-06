@@ -224,7 +224,7 @@ namespace MountainPlanner.Domain.Design
                 {
                     double s = t.AlongMm / 1000.0, g = onPads.At(bx + ux * s, by + uy * s);
                     double steel = Math.Floor((ropeY - g) / Math.Cos(lean) / 1.524 + 1e-6) * 1.524;
-                    steel = Math.Max(DesignUnits.StationTowerMinMm / 1000.0, Math.Min(type.TowerMaxMetres, steel));
+                    steel = Math.Max(type.StationTowerMinMetres, Math.Min(type.TowerMaxMetres, steel));
                     return DesignUnits.FeetToMm((int)Math.Round(steel / 0.3048));
                 }
                 // TW-16 v4: past a terminal with its own station the first tower is a line tower (its height is placement's).
@@ -235,7 +235,7 @@ namespace MountainPlanner.Domain.Design
                 {
                     const double tolerance = 0.1 * Math.PI / 180;
                     int h = specs[i].HeightMm;
-                    if (reveal <= 1e-6 && over > tolerance && h - DesignUnits.FiveFeetMm >= DesignUnits.StationTowerMinMm) return -1;
+                    if (reveal <= 1e-6 && over > tolerance && h - DesignUnits.FiveFeetMm >= type.StationTowerMinMetres * 1000 - 0.5) return -1;
                     if (reveal >= LiftRope.MaxReveal - 1e-3 && over < -tolerance && h + DesignUnits.FiveFeetMm <= type.TowerMaxMetres * 1000 + 0.5) return 1;
                     return 0;
                 }
@@ -382,7 +382,7 @@ namespace MountainPlanner.Domain.Design
             bool stationB = !type.Bottom.OwnStation && n > 0 && towers[0].AlongMm / 1000.0 <= zone + 1e-9;
             bool stationT = !type.Top.OwnStation && n > (stationB ? 1 : 0) && length - towers[n - 1].AlongMm / 1000.0 <= zone + 1e-9;
             var moved = new List<Tower>(towers);
-            Tower Up(Tower w, double m) => w.WithHeight(Math.Max(DesignUnits.StationTowerMinMm, w.HeightMm + (int)Math.Round(m * 1000)));
+            Tower Up(Tower w, double m) => w.WithHeight(Math.Max(LiftCatalogIds.StationTowerMinMm(type.CatalogId), w.HeightMm + (int)Math.Round(m * 1000)));
             LiftRope Solve(double b, double t)
             {
                 if (stationB) moved[0] = Up(towers[0], b);
@@ -503,7 +503,7 @@ namespace MountainPlanner.Domain.Design
                 var t0 = r.Towers[0];
                 double aim = TowerPlacement.AimedY(type, true, t0.BaseS, type.Bottom.ExitAlong, bottomLevel + type.Bottom.ExitRise,
                                                    length - type.Top.ExitAlong, topLevel + type.Top.ExitRise);
-                double pit = t0.BaseY + DesignUnits.StationTowerMinMm / 1000.0 * Math.Cos(t0.Lean) - aim;
+                double pit = t0.BaseY + type.StationTowerMinMetres * Math.Cos(t0.Lean) - aim;
                 return pit > 0.01 ? pit : 0;
             }
             var rope = Solve(onPads);

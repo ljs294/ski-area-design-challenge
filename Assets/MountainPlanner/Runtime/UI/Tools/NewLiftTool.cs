@@ -101,6 +101,7 @@ namespace MountainPlanner.UI.Tools
 
         void PickStance(int i)
         {
+            if (LiftCatalogIds.IsTow(_catalogId)) i = 0;   // a tow's masts lean across the line, always (D11)
             _stance = i == 0 ? TowerStance.Plumb : TowerStance.Leaned;
             _stanceDd.Set(new[] { "Plumb", "Leaned" }, i);
             Retype();
@@ -115,11 +116,18 @@ namespace MountainPlanner.UI.Tools
         // A new type or stance while the line is fixed: the review works it out again.
         void Retype()
         {
+            // A surface tow's masts lean across the line by themselves (D11): no stance to choose, plumb along it.
+            bool tow = LiftCatalogIds.IsTow(_catalogId);
+            if (tow && _stance != TowerStance.Plumb) { _stance = TowerStance.Plumb; _stanceDd.Set(new[] { "Plumb", "Leaned" }, 0); }
+            _stanceDd.Button.SetEnabled(!tow);
+            if (_name == NextName(_ctx.History.Document, _wasTow)) { _name = NextName(_ctx.History.Document, tow); _ctx.Window.SetName(_name); }
+            _wasTow = tow;
             if (_step == Step.Review || (_step == Step.Towers && _mode == TowerMode.Automatic)) Go(_step);
             else if (_step == Step.Towers) { PrepareHand(); _hintKey2 = long.MinValue; SyncEditor(); _editor?.TowersChanged(); ShowDraft(); }
         }
 
-        static string NextName(DesignDocument doc) => "Chair " + (doc.Lifts.Count + 1);
+        static string NextName(DesignDocument doc, bool tow = false) => (tow ? "T-bar " : "Chair ") + (doc.Lifts.Count + 1);
+        bool _wasTow;
 
         void Go(Step step)
         {
@@ -571,7 +579,10 @@ namespace MountainPlanner.UI.Tools
             }
             var rope = _built.Rope;
             _review.Add("Towers", LiftSummary.Towers(_built.Towers, rope, run), "TW-02, TW-12; LD3: tallest, longest span and heads")
-                .Add("Lowest chairs", $"{ToolFormat.Length(rope.LowestClearance)} over the ground", "TW-01: 15 ft at least")
+                .Add(rope.Type.Tow ? "Rope over track" : "Lowest chairs",
+                     rope.Type.Tow ? $"{ToolFormat.Length(rope.LowestClearance)} to {ToolFormat.Length(rope.HighestOverTrack)}"
+                                   : $"{ToolFormat.Length(rope.LowestClearance)} over the ground",
+                     rope.Type.Tow ? $"TW-01: {ToolFormat.Length(rope.Type.ClearanceMetres)} to {ToolFormat.Length(rope.Type.RopeMaxMetres)} for the bars" : "TW-01: 15 ft at least")
                 .Add("Rise allowed", $"{ToolFormat.Length(rope.RiseMetres)} of {(double.IsInfinity(rope.Type.RiseLimitMetres) ? "no limit" : ToolFormat.Length(rope.Type.RiseLimitMetres))}", "LC-07");
             foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
             if (_built.LevelsPending) _review.Add("Levels", _suggesting ? "working out what would fit…" : "—", "LT34");

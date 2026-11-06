@@ -42,13 +42,14 @@ namespace MountainPlanner.Domain.Design
         }
 
         /// <summary>TW-02: 25–100 ft in 5 ft steps; v2, a station tower (within 100 ft of a bullwheel) from 15 ft.</summary>
-        public static string TowerHeightProblem(int heightMm, bool station = false, int maxMm = DesignUnits.TowerMaxMm)
+        public static string TowerHeightProblem(int heightMm, bool station = false, int maxMm = DesignUnits.TowerMaxMm, string catalogId = null)
         {
-            int min = station ? DesignUnits.StationTowerMinMm : DesignUnits.TowerMinMm;
+            // A surface tow's towers are lower (its rope runs low over the snow): 10 ft by a terminal, 15 ft on the line.
+            int min = station ? LiftCatalogIds.StationTowerMinMm(catalogId) : LiftCatalogIds.TowerMinMm(catalogId);
             if (heightMm < min || heightMm > maxMm || heightMm % DesignUnits.FiveFeetMm != 0)
             {
-                int top = maxMm / DesignUnits.FiveFeetMm * 5;
-                return station ? $"A tower by a terminal is 15–{top} ft tall, in 5 ft steps." : $"A tower is 25–{top} ft tall, in 5 ft steps.";
+                int top = maxMm / DesignUnits.FiveFeetMm * 5, low = min / DesignUnits.FiveFeetMm * 5;
+                return station ? $"A tower by a terminal is {low}–{top} ft tall, in 5 ft steps." : $"A tower is {low}–{top} ft tall, in 5 ft steps.";
             }
             return null;
         }
@@ -162,7 +163,7 @@ namespace MountainPlanner.Domain.Design
             for (int i = 0; i < towers.Count; i++)
             {
                 string p = TowerAlongProblem(lineLengthSquaredMm, towers[i].AlongMm)
-                           ?? TowerHeightProblem(towers[i].HeightMm, InStationZone(lineLengthSquaredMm, towers[i].AlongMm), LiftCatalogIds.TowerMaxMm(catalogId));
+                           ?? TowerHeightProblem(towers[i].HeightMm, InStationZone(lineLengthSquaredMm, towers[i].AlongMm), LiftCatalogIds.TowerMaxMm(catalogId), catalogId);
                 if (p != null) return p;
                 if (towers[i].Id.IsNone) return "A tower needs an ID.";
                 if (i > 0 && towers[i].AlongMm == towers[i - 1].AlongMm) return "Two towers can't stand in the same place.";

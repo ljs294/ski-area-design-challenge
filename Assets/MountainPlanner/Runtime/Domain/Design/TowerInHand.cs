@@ -120,7 +120,7 @@ namespace MountainPlanner.Domain.Design
                     double allow = me == 0 || (me == 1 && s < sol.RopeS - LiftLineEnvelope.TowerKeepMetres) ? LiftLineEnvelope.CapMetres : LiftRope.ClearanceTolerance;
                     over = Math.Max(over, need - clear - allow);
                 }
-            status.LowestClearance = lowest == double.MaxValue ? LiftRope.Clearance : lowest;
+            status.LowestClearance = lowest == double.MaxValue ? _type.ClearanceMetres : lowest;
             // A placed tower made too sharp by this one (TW-06), or the bottom terminal's row out of range (TW-16 v3).
             string sharp = null;
             for (int i = 0; i < me; i++)
@@ -133,7 +133,9 @@ namespace MountainPlanner.Domain.Design
             // The first span's shortfall, up to GR-11 v2's 10 ft, is the trench's to dig at Break ground (the lift-line
             // envelope, as on an automatic lift).
             else if (over > 0)
-                status.Problem = new LiftProblem("TW-01", $"The chairs pass {Ft1(LiftRope.Clearance - worst)} over the ground at {Ft(worstS)}; they need 15 ft", worstS);
+                status.Problem = new LiftProblem("TW-01", _type.Tow
+                    ? $"The rope passes {Ft1(_type.ClearanceMetres - worst)} over the track at {Ft(worstS)}; the bars need {Ft(_type.ClearanceMetres)}"
+                    : $"The chairs pass {Ft1(LiftRope.Clearance - worst)} over the ground at {Ft(worstS)}; they need 15 ft", worstS);
             if (sharp != null) status.Warning = new LiftProblem("TW-06", sharp, along, false);
             else if (me == 0 && !rowOk)
                 status.Warning = new LiftProblem("TW-16", "The rope would leave the bottom terminal outside its row's range", 0, false);
@@ -143,7 +145,8 @@ namespace MountainPlanner.Domain.Design
             // "At this height": a station tower's own (from 15 ft) says nothing of the line tower after it, so that reads
             // TW-12's modest 35 ft.
             bool station = DesignRules.InStationZone(lengthSq, alongMm);
-            int nextHeight = station ? DesignUnits.FeetToMm(35) : Math.Max(heightMm, DesignUnits.TowerMinMm);
+            int lineMin = LiftCatalogIds.TowerMinMm(_type.CatalogId);
+            int nextHeight = station ? DesignUnits.FeetToMm((int)_type.ModestFeet) : Math.Max(heightMm, lineMin);
             status.NextReach = Reach(sol, nextHeight / 1000.0, slack, out bool upA);
             status.NextReachTallest = Reach(sol, _type.TowerMaxMetres, slack, out bool upB);
             status.HoldDownsAhead = upA;
@@ -153,7 +156,7 @@ namespace MountainPlanner.Domain.Design
                 int nextMm = (int)Math.Round((along + status.NextReach) * 1000 / DesignUnits.FiveFeetMm) * DesignUnits.FiveFeetMm;
                 if (nextMm > alongMm && nextMm < (long)Math.Round(_length * 1000) - DesignUnits.TowerGapMm)
                 {
-                    var ahead = new List<Tower>(towers) { new Tower(TowerId.Make(2, 1), nextMm, Math.Max(heightMm, DesignUnits.TowerMinMm)) };
+                    var ahead = new List<Tower>(towers) { new Tower(TowerId.Make(2, 1), nextMm, Math.Max(heightMm, lineMin)) };
                     var provisional = Solve(ahead).Towers[me];
                     status.Head = provisional.Head;
                     status.Loads = provisional.Loads;
@@ -259,7 +262,7 @@ namespace MountainPlanner.Domain.Design
         double Need(double s)
         {
             LiftRope.Zones(_type, _length, out double frontB, out double edgeB, out _, out _);
-            return s < edgeB ? LiftRope.Clearance * Math.Max(0, (s - frontB) / (edgeB - frontB)) : LiftRope.Clearance;
+            return s < edgeB ? _type.ClearanceMetres * Math.Max(0, (s - frontB) / (edgeB - frontB)) : _type.ClearanceMetres;
         }
 
         static string Ft(double metres) => (metres / 0.3048).ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + " ft";

@@ -116,7 +116,9 @@ namespace MountainPlanner.Domain.Design
                 {
                     var (sk, fk) = samples[k];
                     best = Math.Min(best, fk + Math.Abs(s - sk) * FaceSlope);
-                    if (k + 1 < samples.Count && samples[k + 1].s - sk <= JoinMetres && s >= sk && s <= samples[k + 1].s)
+                    // Two samples at the same s (a pit's half-metre steps on a clearance sample) are no stretch: 0/0 would make
+                    // the floor NaN, which .NET rounds to no change but Mono to the deepest cut allowed (v0.3.2).
+                    if (k + 1 < samples.Count && samples[k + 1].s > sk && samples[k + 1].s - sk <= JoinMetres && s >= sk && s <= samples[k + 1].s)
                     {
                         double t = (s - sk) / (samples[k + 1].s - sk);
                         best = Math.Min(best, fk + (samples[k + 1].floor - fk) * t);
@@ -156,7 +158,7 @@ namespace MountainPlanner.Domain.Design
                     if (s < from - reach || s > to + reach) continue;
                     double design = FloorAt(s) + Math.Max(0, Math.Abs(d) - half) * FaceSlope;
                     double ground = current.AtPoint(c, r);
-                    if (design >= ground - 1e-4) continue;
+                    if (double.IsNaN(design) || design >= ground - 1e-4) continue;
                     double source = current.Source.At(lattice.X(c), lattice.Y(r));
                     long mm = (long)Math.Round((design - source) * 1000, MidpointRounding.AwayFromZero);
                     mm = Math.Max(-TerrainEditTile.DeltaLimitMm, Math.Min(TerrainEditTile.DeltaLimitMm, mm));

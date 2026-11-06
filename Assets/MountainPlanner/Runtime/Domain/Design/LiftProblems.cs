@@ -46,7 +46,13 @@ namespace MountainPlanner.Domain.Design
                 list.Add(new LiftProblem("LC-07", $"Too much rise for a {type.Name.ToLowerInvariant()}: {Feet(rope.RiseMetres)}, {Feet(type.RiseLimitMetres)} at most", -1));
             // TW-01 v2 blocks.
             if (!rope.ClearanceOk)
-                list.Add(new LiftProblem("TW-01", $"The chairs fall {Feet1(rope.Shortfall)} short of the clearance at {Feet(rope.ShortfallS)}", rope.ShortfallS));
+                list.Add(new LiftProblem("TW-01", type.Tow
+                    ? $"The rope runs {Feet1(rope.Shortfall)} too low over the track at {Feet(rope.ShortfallS)}: the bars need {Feet(type.ClearanceMetres)}"
+                    : $"The chairs fall {Feet1(rope.Shortfall)} short of the clearance at {Feet(rope.ShortfallS)}", rope.ShortfallS));
+            // A tow's band (v0.3.2): past what its cords reach, a rider can't take a bar. Blocks.
+            if (!rope.BandOk)
+                list.Add(new LiftProblem("TW-01", $"The rope runs {Feet(rope.HighestOverTrack)} over the track at {Feet(rope.HighestOverTrackS)}: the bars reach {Feet(type.RopeMaxMetres)} at most; add a tower there or fill the dip",
+                                         rope.HighestOverTrackS));
             // Amber (LC-09): the rope's angle into each station (TW-16 v3).
             double exit = Steepest(rope.BottomExitLoaded, rope.BottomExitEmpty, type.Bottom);
             if (!type.Bottom.Takes(rope.BottomExitLoaded) || !type.Bottom.Takes(rope.BottomExitEmpty))
@@ -159,7 +165,7 @@ namespace MountainPlanner.Domain.Design
                 // A crest the terminal's row can't take the rope over is the reason before any rock beside the line.
                 bool besideFirst = !(crestT && !topTakes) && !(crestB && !bottomTakes);
                 string message;
-                if (besideFirst && beside > LiftRope.Clearance)
+                if (besideFirst && beside > type.ClearanceMetres)
                 {
                     message = $"No towers clear the ground at {Feet(besideS)}: the ground under the chairs stands {Feet(beside)} above the line there; move the line";
                     worstS = besideS;
@@ -178,7 +184,7 @@ namespace MountainPlanner.Domain.Design
                     message = $"The ground {Feet(crestBS)} past the bottom terminal stands {Feet(Centre(crestBS) - bottomLevel)} above it: the rope can't climb out of the terminal (TW-16); move the terminal";
                     worstS = crestBS;
                 }
-                else if (beside > LiftRope.Clearance)
+                else if (beside > type.ClearanceMetres)
                 {
                     message = $"No towers clear the ground at {Feet(besideS)}: the ground under the chairs stands {Feet(beside)} above the line there; move the line";
                     worstS = besideS;

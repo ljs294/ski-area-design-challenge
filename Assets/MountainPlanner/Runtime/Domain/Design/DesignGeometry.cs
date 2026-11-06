@@ -24,6 +24,9 @@ namespace MountainPlanner.Domain.Design
         public const int TramTowerMaxMm = 250 * FiveFeetMm / 5;
         /// <summary>TW-02 v2 (owner, task 07, SK18): a station tower, in a terminal's load or unload zone, from 15 ft.</summary>
         public const int StationTowerMinMm = 15 * FiveFeetMm / 5;
+        /// <summary>A surface tow's towers (the T-bar, v0.3.2): its rope runs 17–33 ft over the track, so line towers stand
+        /// 15–30 ft and station towers from 10 ft (the bottom drive holds the rope at 11 ft).</summary>
+        public const int TowTowerMinMm = 15 * FiveFeetMm / 5, TowTowerMaxMm = 30 * FiveFeetMm / 5, TowStationTowerMinMm = 10 * FiveFeetMm / 5;
         /// <summary>TW-02 v2: the station zone reaches 100 ft from either bullwheel.</summary>
         public const int StationZoneMm = 100 * FiveFeetMm / 5;
 
