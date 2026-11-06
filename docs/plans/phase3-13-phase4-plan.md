@@ -1,6 +1,6 @@
 # Phase 3 · 13 Detailed Phase 4 plan: the resort comes alive
 
-**Audience:** the project owner and coding agents. **Status:** for your review (task 13 ⛳), in one PR with the Phase 3 exit review (`phase3-13-exit-review.md`).
+**Audience:** the project owner and coding agents. **Status:** for your review (task 13 ⛳), in one PR with the [Phase 3 exit review](phase3-13-exit-review.md).
 
 This plan replaces the Phase 4 section of [0.6 §5](phase0-0.6-milestones.md#5-phase-4-simulation-foundations-iteration-3):
 - Its goal and exit criteria are kept.
@@ -94,9 +94,9 @@ This plan replaces the Phase 4 section of [0.6 §5](phase0-0.6-milestones.md#5-p
 - Without the snowmaking tasks (14–16) it is about 25.
 
 **Calendar forecast:**
-- `Phase 3 ran about [RATIO — from the Phase 3 exit review]× faster than its task-week estimate; at that ratio Phase 4's build work is about [32 ÷ RATIO] weeks.`
+- Phases 1, 2 and 3 each ran about **9×** faster than their task-week estimates. Phase 3 took 14 days to its tester build and 20 days in all against 17.5 task-weeks ([exit review §2](phase3-13-exit-review.md#2-velocity)). At that ratio, Phase 4's build work is about **3.5 weeks**.
 - The gates wait on you and don't compress: the rules (02), the weather design (04), the style tile (10), the tester build (19) and the exit (20), plus the mockups and model gates.
-- `Forecast: [placeholder, filled from the ratio] weeks of calendar time.`
+- Simulation is new modelling work with more gates than Phase 3: the weather design session, the snowmaking models and the tester build. **Forecast: 5–8 weeks** of calendar time.
 
 ## 4. Exit criteria
 

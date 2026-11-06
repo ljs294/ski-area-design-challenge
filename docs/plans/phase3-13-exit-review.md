@@ -4,12 +4,12 @@
 `docs/p3-13-exit-review`, from main at eff5a0e9. **Spec:** [Phase 3 plan row 13](phase2-14-phase3-plan.md#3-tasks),
 against the exit criteria in [§4](phase2-14-phase3-plan.md#4-exit-criteria) (from
 [0.6 §4](phase0-0.6-milestones.md#4-phase-3-drawing-on-the-mountain-iteration-2), plus E9). **Next:** the detailed
-Phase 4 plan, [phase3-13-phase4-plan.md](phase3-13-phase4-plan.md), written in its own thread and merged into this
-branch.
+Phase 4 plan, [phase3-13-phase4-plan.md](phase3-13-phase4-plan.md) (approved by the owner in its own thread, 023d5143,
+merged into this branch).
 
 **Result:**
-- **Two of the five criteria are met** (1, drawn, saved and undone; 3, frame budgets with a drawn resort). The fifth,
-  velocity and the Phase 4 plan, is met when the Phase 4 plan joins this branch.
+- **Three of the five criteria are met:** 1 (drawn, saved and undone), 3 (frame budgets with a drawn resort) and 5
+  (velocity and the Phase 4 plan, E20).
 - **Two are put to you as decisions:**
   - Criterion 2: the edit budgets. A 300 m test edit and a 1,000 ft trail pass. The 1 km trail misses narrowly, and
     grading a built run misses (DB8, **E17**).
@@ -39,7 +39,7 @@ The tests were re-run today:
 | 2 | Grading preview ≤100 ms; commit ≤250 ms (reference PC, p95) | P3-05's 300 m graded test edit passes. With the whole drawn resort loaded ([edit-timing.md](../perf/edit-timing.md), 0b6a5bf3, five rounds), p95 preview / commit: **1,000 ft trail 65 / 141 ms (pass)**; **1 km trail 139 / 259 ms** (39 and 9 ms over); **grading a built run 1023 / 383 ms** (miss). Down from 0.2–2.3 s before the P3-11 fix. Recorded under DB8; the owner accepted the result on 2026-10-29 and shipped v0.3.0 with it (TR5) | **Partly met: your decision (E17)** |
 | 3 | Performance budgets still met with a drawn resort shown | P3-11 (#115): High 8.76 ms and Medium p95 within budget with the drawn resort, +0.20 ms and +0.12 ms over the bare path, 0 B garbage in the Development player. The 40-lift baseline was re-pinned at 8.34 ms (#122, BB8). The budget is 20 ms | **Met** |
 | 4 | A tester draws, saves and reloads a small resort, and downloads, explores and photographs a mountain, without help | v0.3.0 went to friends as a full GitHub Release with the tester sheet (TR1–TR3). They liked it and sent nothing: no Send feedback reports, and **no GitHub issues** at all (checked today). The owner's own hands-on (TR4) was skipped. Which of the six steps each tester finished isn't recorded, and the v0.3.0 laptop offline check wasn't recorded either. The one real-world finding came from your screenshot, the Overpass hang (BB1), fixed in v0.3.1 | **Partly met: your decision (E19)** |
-| 5 | Velocity is recorded, and the Phase 4 detailed plan is written | §2 below; the Phase 4 plan is in its own thread, joining this branch before the PR | **Met once the plan lands (E20)** |
+| 5 | Velocity is recorded, and the Phase 4 detailed plan is written | §2 below, and [phase3-13-phase4-plan.md](phase3-13-phase4-plan.md) on this branch | **Met (E20)** |
 
 
 ### Known misses and open items brought to this gate
@@ -152,18 +152,24 @@ gates, as E13 did.
 
 ## 4. Decisions for this gate
 
-These are proposed, each with its recommendation; your answers replace them. E16 continues the E-series from the
-Phase 2 exit (E7–E15).
+E16–E25 are proposed, each with its recommendation; your answers replace them. E26–E31 you decided on 2026-11-05 in
+the Phase 4 planning thread. E16 continues the E-series from the Phase 2 exit (E7–E15).
 
-| ID | Decision (proposed) |
+| ID | Decision |
 |---|---|
 | E16 | **Exit 1 is met** by the design document's property and golden tests, the save fixtures v1–v10 with their migrations, the trails, lifts, network and brush tests, and the drawn-resort benchmark design |
-| E17 | **Exit 2 is accepted as partly met** under DB8. The 300 m test edit and the 1,000 ft trail pass; the 1 km trail (139 / 259 ms) and grading a built run (1023 / 383 ms) miss. **A faster grader** (incremental regrade of the runs below, and the trail's own grade without the lift re-check) is offered to the Phase 4 plan as a candidate task, or Later; you choose |
+| E17 | **Exit 2 is accepted as partly met** under DB8. The 300 m test edit and the 1,000 ft trail pass; the 1 km trail (139 / 259 ms) and grading a built run (1023 / 383 ms) miss. **A faster grader** (incremental regrade of the runs below, and the trail's own grade without the lift re-check) is a candidate for Phase 4 task 01 (carry-over), or Later; you choose |
 | E18 | **Exit 3 is met** (P3-11: High 8.76 ms p95 with the drawn resort; 40 lifts 8.34 ms; budget 20 ms) |
 | E19 | **Exit 4 is accepted as partly met.** The friends played v0.3.0, liked it, and filed no reports. Which steps they finished isn't recorded, and the owner's hands-on was skipped. **The P3-12 round closes with no tester findings;** BB1 (your screenshot) stands as its one real-world finding. A no-help session with written steps returns at the next tester build, if you want one |
 | E20 | **Exit 5 is met** with §2 and the Phase 4 plan on this branch |
 | E21 | **Low-preset tree flicker stays Later** (P3-01). It returns with a quality pass or a minimum-spec check (E8) |
 | E22 | **The quit crash stays avoided, not root-fixed.** `demo.bat` 77 and the benchmark's exit code watch for it, and new material properties go last in the block. A root fix, and the Lift Lab's crash on quit, are Later |
 | E23 | **v0.3.2 waits for surface lifts in the game** (owner, 2026-11-05): the T-bar/J-bar and the magic carpet from the Lifts thread, with everything else since v0.3.1. The rope tow comes later, after its model gates |
-| E24 | **The carry-over in §3 goes to the Phase 4 plan's Later list,** except where a row says otherwise; soil works in the lift cost joins the economy work |
+| E24 | **The carry-over in §3 goes to the Phase 4 plan:** soil works in the lift cost is Phase 4 task 01, which also takes the backlog items you pick (the trail look's window, brush garbage, the grader); the rest goes to its Later list |
 | E25 | **Milestone:** the merge commit of this PR is tagged `unity-m3`, and `archive/unity` is fast-forwarded to it (fast-forward only, after checking it is an ancestor; never forced) |
+| E26 | **Phase 4 scope includes the full snowmaking system** (owner): water, ponds, dams, pipes, pumps and guns (Phase 4 tasks 14–16). It takes the plan to about 32 task-weeks, over 0.6's 4–6 months |
+| E27 | **Full weather simulation** (owner), with its own design session first (Phase 4 task 04) |
+| E28 | **The clock starts from the MapLibre game's dual clock** (owner), re-specified in `docs/` and built natively, never ported |
+| E29 | **Guests v1** (owner): 2D dots, no needs, hidden while riding a lift |
+| E30 | **Surface lifts are wired in their own thread** (the Lifts thread), outside the Phase 4 plan; lift operations (Phase 4 task 11) cover them once merged |
+| E31 | **The ideas-doc Inbox** (owner): Racing Academy is Parked; Ski Patrol, Ski School, Lodges, Terrain parks, Nordic, Resort Infrastructure and Resort Metrics are Later |
