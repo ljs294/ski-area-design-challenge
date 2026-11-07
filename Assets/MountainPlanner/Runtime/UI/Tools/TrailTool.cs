@@ -788,6 +788,21 @@ namespace MountainPlanner.UI.Tools
 
         // ---------- Review ----------
 
+        // Task 4.01: the trail's site works. Its forest is the cells its writes clear that nothing else had cleared: the
+        // committed ground's clearing, less this trail's own when it's being edited (its old writes).
+        Domain.Costs.SiteWorks SiteWorksOf(TrailBuild build, TrailGrader.Graded g)
+        {
+            var host = _ctx.Earthwork;
+            var committed = host?.Heights;
+            if (committed == null) return new Domain.Costs.SiteWorks(g.CutCubicMetres, g.FillCubicMetres, 0);
+            var old = _mode == TrailToolMode.Edit && _target != null ? host.Earthwork?.DetailOf(_target.Id.Value) as TrailBuild : null;
+            var oldWrites = old?.Writes;
+            var edits = committed.Edits;
+            double forest = Domain.Costs.SiteWorks.NewForest(build.Writes ?? g.Writes,
+                (c, r) => edits.IsClearedAt(c, r) && (oldWrites == null || !oldWrites.Clears(c, r)), committed.Lattice, host.Trees);
+            return new Domain.Costs.SiteWorks(g.CutCubicMetres, g.FillCubicMetres, forest);
+        }
+
         void BuildReview()
         {
             _review.Clear();
@@ -831,7 +846,9 @@ namespace MountainPlanner.UI.Tools
                 if (g.UngradedStations > 0) _review.Add("Ungraded", ToolFormat.Length(g.UngradedMetres), "GR-07: too steep to bench, kept natural");
             }
             else _review.Add("Grading", "natural, none", "TF-06, GR-14");
-            _review.Add("Trees cleared", ToolFormat.Area(g.ClearedCells), "CL-01, CL-02: the ragged edge keeps some at the treeline")
+            var works = SiteWorksOf(a.Build, g);
+            _review.Add("Trees cleared", ToolFormat.Area(works.ForestSquareMetres), "CL-01, CL-02: the forest it clears, the ragged edge keeping some at the treeline")
+                .Add("Cost", LiftCostSummary.Trail(works, a.Graded), LiftCostSummary.TrailRule(works, a.Graded))
                 .Reserved("Network", "NW-12: No lift serves this, Leads nowhere", ReviewModel.NetworkSlot);
             // NW-04: the trail as if built, in the network of everything else (task P3-10); warnings never block.
             NetworkCheck.Fill(_review, NetworkCheck.Warnings(_ctx.History.Document, Command(_ctx.History.Revision, WorkStage.Built),
