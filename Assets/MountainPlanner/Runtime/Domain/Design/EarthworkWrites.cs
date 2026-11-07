@@ -146,6 +146,27 @@ namespace MountainPlanner.Domain.Design
             for (int w = 0; w < Words; w++) bits[w] |= t.Cleared[w];
         }
 
+        /// <summary>Every cell it clears, tile by tile in key order, rows then columns (task 4.01: the clearing's price).</summary>
+        public void ForEachCleared(Action<int, int> cell)
+        {
+            foreach (var kv in _tiles)
+            {
+                var bits = kv.Value.Cleared;
+                for (int w = 0; w < Words; w++)
+                {
+                    ulong word = bits[w];
+                    while (word != 0)
+                    {
+                        int b = 0;
+                        while ((word & (1UL << b)) == 0) b++;
+                        word &= ~(1UL << b);
+                        int at = w * 64 + b;
+                        cell(kv.Key.FirstColumn + at % Side, kv.Key.FirstRow + at / Side);
+                    }
+                }
+            }
+        }
+
         /// <summary>Whether it touches the tile at all.</summary>
         public bool Touches(EditTileKey key) => _tiles.ContainsKey(key);
 
@@ -229,6 +250,51 @@ namespace MountainPlanner.Domain.Design
             }
             if (a != null) foreach (var key in a._tiles.Keys) Check(key);
             if (b != null) foreach (var key in b._tiles.Keys) Check(key);
+        }
+
+        /// <summary>Points a side of one block of <see cref="DifferentBlocks"/>: 8, so a 64 m tile has 8 × 8 blocks, one bit each.</summary>
+        public const int BlockSide = 8;
+
+        /// <summary>The bit of the block holding point (column, row) in its tile's block mask (row-major, 8 blocks a row).</summary>
+        public static ulong BlockBit(EditTileKey key, int column, int row) =>
+            1UL << (((row - key.FirstRow) / BlockSide) * (Side / BlockSide) + (column - key.FirstColumn) / BlockSide);
+
+        /// <summary>
+        /// ORs into <paramref name="into"/>, per tile, the 8 m blocks where two sets of writes differ (claims, heights or
+        /// clearing): <see cref="DifferentTiles"/> at block resolution (task P4-01: a later trail sharing a tile with a
+        /// change, but reaching none of its blocks, needs no regrade).
+        /// </summary>
+        public static void DifferentBlocks(EarthworkWrites a, EarthworkWrites b, Dictionary<EditTileKey, ulong> into)
+        {
+            if (ReferenceEquals(a, b)) return;
+            void Check(EditTileKey key, bool fromB)
+            {
+                Tile ta = null, tb = null;
+                a?._tiles.TryGetValue(key, out ta);
+                b?._tiles.TryGetValue(key, out tb);
+                if (ReferenceEquals(ta, tb) || (fromB && ta != null)) return;   // (a tile in both is checked once, from a)
+                ulong mask = 0;
+                for (int row = 0; row < Side; row++)
+                {
+                    ulong ca = ta?.Claimed[row] ?? 0, cb = tb?.Claimed[row] ?? 0;
+                    ulong wa = ta?.Written[row] ?? 0, wb = tb?.Written[row] ?? 0;
+                    ulong xa = ta?.Cleared[row] ?? 0, xb = tb?.Cleared[row] ?? 0;
+                    ulong d = (ca ^ cb) | (wa ^ wb) | (xa ^ xb);
+                    for (ulong both = wa & wb & ~d; both != 0; both &= both - 1)
+                    {
+                        int col = TrailingZeros(both), at = row * Side + col;
+                        if (ta.Delta[at] != tb.Delta[at]) d |= 1UL << col;
+                    }
+                    if (d == 0) continue;
+                    int blockRow = row / BlockSide * (Side / BlockSide);
+                    for (int bx = 0; bx < Side / BlockSide; bx++)
+                        if (((d >> (bx * BlockSide)) & 0xFF) != 0) mask |= 1UL << (blockRow + bx);
+                }
+                if (mask == 0) return;
+                into[key] = into.TryGetValue(key, out ulong had) ? had | mask : mask;
+            }
+            if (a != null) foreach (var key in a._tiles.Keys) Check(key, false);
+            if (b != null) foreach (var key in b._tiles.Keys) Check(key, true);
         }
 
         static int TrailingZeros(ulong v)

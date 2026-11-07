@@ -611,6 +611,16 @@ namespace MountainPlanner.UI.Tools
             w.SetAsking(_armCancel ? "Discard the changes? Cancel again" : _armReplace ? "Your towers go: Auto-place again" : null);
         }
 
+        // Task 4.01: the build's site works (Grading, Clearing), worked out once per build, over the ground it was built on.
+        Domain.Costs.SiteWorks _works;
+        object _worksFor;
+        Domain.Costs.SiteWorks Works(LiftBuild.Result built, Domain.Edits.EditedHeights ground)
+        {
+            if (built == null) return default;
+            if (!ReferenceEquals(_worksFor, built)) { _works = Domain.Costs.SiteCost.OfLift(built, ground, _ctx.Earthwork?.Trees); _worksFor = built; }
+            return _works;
+        }
+
         void BuildReview(int changes, bool blocked)
         {
             _review.Clear();
@@ -621,13 +631,14 @@ namespace MountainPlanner.UI.Tools
                 _review.Add("Towers", _building || _groundWorking ? "working out…" : $"{_draft.Towers.Count}", "TW-12").Ready(false, true);
                 return;
             }
+            var works = Works(_built, _without);
             if (_built.Bed is CarpetBed.Result bed)
             {
                 var type = LiftType.Of(_draft.CatalogId, _draft.Drive);
                 _review.Add("Length", $"{ToolFormat.Length(run)} across", "LF-06")
                     .Add("Ride", LiftSummary.Ride(type, run, bed.RiseMetres), "LC-04")
                     .Add("Capacity", LiftSummary.Capacity(type), "LC-03")
-                    .Add("Cost", LiftCostSummary.Cost(type, run, bed.RiseMetres), LiftCostSummary.Rule(type, run, bed.RiseMetres));
+                    .Add("Cost", LiftCostSummary.Cost(type, run, bed.RiseMetres, works), LiftCostSummary.Rule(type, run, bed.RiseMetres, works));
                 NewLiftTool.BeltReview(_review, bed);
                 foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
                 _review.Ready(changes > 0 && !blocked && _applyEdits != null, true);
@@ -637,9 +648,13 @@ namespace MountainPlanner.UI.Tools
             _review.Add("Length", $"{ToolFormat.Length(run)} across", "LF-06")
                 .Add("Ride", LiftSummary.Ride(rope.Type, run, rope.RiseMetres), "LC-04")
                 .Add("Capacity", LiftSummary.Capacity(rope.Type), "LC-03")
-                .Add("Cost", LiftCostSummary.Cost(rope.Type, run, rope.RiseMetres), LiftCostSummary.Rule(rope.Type, run, rope.RiseMetres))
+                .Add("Cost", LiftCostSummary.Cost(rope.Type, run, rope.RiseMetres, works), LiftCostSummary.Rule(rope.Type, run, rope.RiseMetres, works))
                 .Add("Towers", LiftSummary.Towers(_built.Towers, rope, run), "TW-02, TW-12; LD3: tallest, longest span and heads")
-                .Add("Lowest chairs", $"{ToolFormat.Length(rope.LowestClearance)} over the ground", "TW-01: 15 ft at least");
+                // Task 4.01: a tow's riders are on the snow, so its row is the rope over the track, as New lift shows it.
+                .Add(rope.Type.Tow ? "Rope over track" : "Lowest chairs",
+                     rope.Type.Tow ? $"{ToolFormat.Length(rope.LowestClearance)} to {ToolFormat.Length(rope.HighestOverTrack)}"
+                                   : $"{ToolFormat.Length(rope.LowestClearance)} over the ground",
+                     rope.Type.Tow ? $"TW-01: {ToolFormat.Length(rope.Type.ClearanceMetres)} to {ToolFormat.Length(rope.Type.RopeMaxMetres)} for the bars" : "TW-01: 15 ft at least");
             foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
             _review.Ready(changes > 0 && !blocked && _applyEdits != null, true);
         }

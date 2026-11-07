@@ -239,10 +239,14 @@ namespace MountainPlanner.Tests
         sealed class Recording : IHeightSource
         {
             public readonly System.Collections.Generic.HashSet<EditTileKey> Tiles = new System.Collections.Generic.HashSet<EditTileKey>();
+            /// <summary>Every lattice point a read's bilinear reaches (the four round it).</summary>
+            public readonly System.Collections.Generic.HashSet<(int c, int r)> Points = new System.Collections.Generic.HashSet<(int c, int r)>();
             public double At(double x, double y)
             {
                 Tiles.Add(EditTileKey.Of((int)Math.Floor(x - West), (int)Math.Floor(North - y)));
                 Tiles.Add(EditTileKey.Of((int)Math.Ceiling(x - West), (int)Math.Ceiling(North - y)));
+                int c = (int)Math.Floor(x - West), r = (int)Math.Floor(North - y);
+                Points.Add((c, r)); Points.Add((c + 1, r)); Points.Add((c, r + 1)); Points.Add((c + 1, r + 1));
                 return Ground.At(x, y);
             }
         }
@@ -277,6 +281,17 @@ namespace MountainPlanner.Tests
                 var mine = new System.Collections.Generic.HashSet<EditTileKey>(it.Tiles);
                 Assert.That(reads.Tiles.Where(t => !mine.Contains(t)), Is.Empty, $"{it.GetType().DeclaringType?.Name} {it.Key:x}: reads inside its tiles");
                 Assert.That(writes.Tiles.Where(t => !mine.Contains(t)), Is.Empty, $"{it.GetType().DeclaringType?.Name} {it.Key:x}: writes inside its tiles");
+                // A trail's reach by 8 m block (task P4-01): every point it reads lies in one of its blocks.
+                if (it is IReachBlocks b)
+                {
+                    var outside = reads.Points.Where(p =>
+                    {
+                        var key = EditTileKey.Of(p.c, p.r);
+                        return !b.ReachBlocks.TryGetValue(key, out ulong m) || (m & EarthworkWrites.BlockBit(key, p.c, p.r)) == 0;
+                    }).Take(3).ToList();
+                    Assert.That(outside, Is.Empty, $"trail {it.Key:x}: reads inside its reach blocks");
+                    Assert.That(writes.Tiles.All(t => b.ReachBlocks.ContainsKey(t)), $"trail {it.Key:x}: writes inside its reach");
+                }
                 // A lift's reach (task P3-11): what it reads and writes lies in it, and it's narrower than its tiles.
                 if (it is IReachTiles r)
                 {
@@ -287,6 +302,49 @@ namespace MountainPlanner.Tests
                     Assert.That(reach.Count, Is.LessThan(mine.Count), $"lift {it.Key:x}: the reach is narrower than its tiles");
                 }
             }
+        }
+
+        /// <summary>
+        /// Task P4-01: a later run sharing a 64 m tile with an edit, but reaching none of the 8 m blocks it changed, keeps
+        /// what it wrote without grading again (the drawn resort's probe: most cascaded regrades wrote exactly what they had).
+        /// </summary>
+        [Test]
+        public void FW11_ALaterRunSharingATileButNoBlockOfAChangeIsNotGradedAgain()
+        {
+            var (h, work) = Session();
+            var first = AddTrail(h, work, Strip(100, (0, 300), (0, -300)), M(0, 300), M(0, -300));
+            AddTrail(h, work, Strip(60, (85, 300), (85, -300)), M(85, 300), M(85, -300));
+            var items = new System.Collections.Generic.List<IEarthworkItem>();
+            new TrailEarthwork().Collect(h.Document, Site, items);
+            Assert.That(items[0].Tiles.Intersect(items[1].Tiles), Is.Not.Empty, "the two runs share tiles (the tile rule would grade both)");
+            var edit = Commit(h, work, new RepaintTrail(h.Revision, first, Strip(110, (0, 300), (-4, -300))));
+            Assert.That(edit.Regraded, Is.EqualTo(1), "only the edited run is graded");
+            AssertFresh(h, "after the edit");
+            // And a change that does reach it grades it: widen the first run up to the second.
+            edit = Commit(h, work, new RepaintTrail(h.Revision, first, Strip(350, (0, 300), (10, -300))));
+            Assert.That(edit.Regraded, Is.EqualTo(2), "a change in its blocks grades the later run too");
+            AssertFresh(h, "after the widening");
+        }
+
+        [Test]
+        public void FW12_DifferentBlocksMarksExactlyTheBlocksThatDiffer()
+        {
+            var a = new EarthworkWrites();
+            var b = new EarthworkWrites();
+            for (int c = 0; c < 64; c++) { a.Claim(c, 5); b.Claim(c, 5); a.Write(c, 5, 100); b.Write(c, 5, 100); }
+            var into = new System.Collections.Generic.Dictionary<EditTileKey, ulong>();
+            EarthworkWrites.DifferentBlocks(a, b, into);
+            Assert.That(into, Is.Empty, "the same writes differ nowhere");
+            b.Write(20, 5, 101);    // a height: block (2, 0)
+            b.Clear(70, 9);         // a clearing in the next tile east: its block (0, 1)
+            b.Claim(3, 40);         // a claim: block (0, 5)
+            EarthworkWrites.DifferentBlocks(a, b, into);
+            var k0 = EditTileKey.Of(0, 0);
+            var k1 = EditTileKey.Of(70, 9);
+            Assert.That(into[k0], Is.EqualTo(EarthworkWrites.BlockBit(k0, 20, 5) | EarthworkWrites.BlockBit(k0, 3, 40)));
+            Assert.That(into[k1], Is.EqualTo(EarthworkWrites.BlockBit(k1, 70, 9)));
+            Assert.That(EarthworkWrites.BlockBit(k0, 20, 5), Is.EqualTo(1UL << 2));
+            Assert.That(EarthworkWrites.BlockBit(k0, 3, 40), Is.EqualTo(1UL << 40));
         }
 
         [Test]
