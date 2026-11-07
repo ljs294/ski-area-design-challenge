@@ -566,10 +566,21 @@ namespace MountainPlanner.UI.Tools
             });
         }
 
+        // Task 4.01: the build's site works (Grading, Clearing), worked out once per build, over the ground it was built on.
+        Domain.Costs.SiteWorks _works;
+        object _worksFor;
+        Domain.Costs.SiteWorks Works(LiftBuild.Result built, Domain.Edits.EditedHeights ground)
+        {
+            if (built == null) return default;
+            if (!ReferenceEquals(_worksFor, built)) { _works = Domain.Costs.SiteCost.OfLift(built, ground, _ctx.Earthwork?.Trees); _worksFor = built; }
+            return _works;
+        }
+
         void BuildReview()
         {
             float run = Vector2.Distance(_bottomXz, _topXz), rise = _topZ - _bottomZ;
             double slope = Mathf.Sqrt(run * run + rise * rise);
+            var works = Works(_built, _ctx.EditedGround?.Invoke());
             _review.Clear()
                 .Add("Length", $"{ToolFormat.Length(slope)} slope · {ToolFormat.Length(run)} across", "LF-06")
                 .Add("Rise", $"{ToolFormat.Length(rise)} · {ToolFormat.Grade(rise, run)}")
@@ -577,7 +588,7 @@ namespace MountainPlanner.UI.Tools
                      Type.Detachable ? "LC-04: slope length over the rope speed, plus the ramps out of and into the stations (LT41)" : "LC-04: slope length over the rope speed")
                 .Add("Capacity", LiftSummary.Capacity(Type),
                      Type.Detachable ? "LC-03 v2: seats × 3,600 ÷ the loading interval (LT41)" : "LC-03")
-                .Add("Cost", LiftCostSummary.Cost(Type, run, rise), LiftCostSummary.Rule(Type, run, rise))
+                .Add("Cost", LiftCostSummary.Cost(Type, run, rise, works), LiftCostSummary.Rule(Type, run, rise, works))
                 .Reserved("Network", "NW-12: No way down", ReviewModel.NetworkSlot);
             // NW-04: the lift as if built, in the network of everything else (task P3-10); a first lift alone has no way down.
             NetworkCheck.Fill(_review, NetworkCheck.Warnings(_ctx.History.Document,

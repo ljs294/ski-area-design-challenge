@@ -52,6 +52,9 @@ namespace MountainPlanner.UI
             "Money comes with the simulation in Phase 4.",
         };
 
+        /// <summary>The empty-state line of an Analysis tab (its tooltip while greyed).</summary>
+        internal static string EmptyLine(string tab) => AnalysisEmpty[System.Array.IndexOf(AnalysisTabs, tab)];
+
         VisualElement _toolbox, _analysis, _tools, _rstats, _figs, _gauge, _tip, _toasts;
         Label _toolName, _toolKey, _toolHint, _analysisEmpty, _statsFoot;
         Button _barToolbox, _barAnalysis;
@@ -87,7 +90,9 @@ namespace MountainPlanner.UI
             {
                 string t = tab;
                 var b = _root.Q<Button>("analysis-tab-" + tab);
-                if (tab == "guests") Inert(b, "tab--dis", AnalysisEmpty[3]);   // greyed until the simulation (the spec)
+                // Greyed until the simulation (the spec), with its own line: by its place in AnalysisTabs (task 4.01: it
+                // read the Network line), so the two lists can't drift apart.
+                if (tab == "guests") Inert(b, "tab--dis", EmptyLine(tab));
                 else b.clicked += () => SetAnalysisTab(t);
             }
             _root.Q<Button>("analysis-x").clicked += () => SetAnalysis(false);

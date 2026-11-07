@@ -716,6 +716,7 @@ namespace MountainPlanner.App
             public bool Ready => _viewer._edits != null && _viewer._edits.EarthworkReady && _viewer._edits.History == _viewer.Design;
             public DesignEarthwork Earthwork => _viewer._edits?.Earthwork;
             public EditedHeights Heights => _viewer._edits?.Pipeline.Heights;
+            public MountainPlanner.Domain.Costs.ITreeCover Trees => _viewer._edits?.Pipeline.Trees;
             public void ShowPending(List<double> segments) => _viewer._edits?.ShowPending(segments);
             public void ClearPending() => _viewer._edits?.ClearPreview();
             public double ContourInterval => UnitFormat.ContourIntervalMetres(DisplayUnits.Current);
