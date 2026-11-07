@@ -135,6 +135,8 @@ namespace MountainPlanner.Presentation.Edits
 
         /// <summary>The edit lattice (the tile grid's north-west corner, 1 m).</summary>
         public EditLattice Lattice => _lattice;
+        /// <summary>Task 4.01: the natural tree cover, for the clearing's price.</summary>
+        public MountainPlanner.Domain.Costs.ITreeCover Trees => _cover;
         public TileGrid Grid => _grid;
 
         /// <summary>The forest's instances (one GPU buffer, each tile's trees together) once it's planted.</summary>

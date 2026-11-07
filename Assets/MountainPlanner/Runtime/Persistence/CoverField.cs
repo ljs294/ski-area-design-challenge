@@ -18,7 +18,7 @@ namespace MountainPlanner.Persistence
     ///   noise warp so the 10 m grid never shows as straight edges.
     /// - OpenStreetMap: bilinear on the 1 m (core) or 2 m (ring) coverage rasters.
     /// </summary>
-    public sealed class CoverField
+    public sealed class CoverField : MountainPlanner.Domain.Costs.ITreeCover
     {
         public const int CanopyRadius = 2;
         /// <summary>Canopy is trusted fully this far inside the core, easing to WorldCover at its edge.</summary>
@@ -100,6 +100,13 @@ namespace MountainPlanner.Persistence
         }
 
         public bool HasOsm => _osmCore != null;
+
+        /// <summary>
+        /// Task 4.01: the natural tree share at (x, y), 0 to 1, from the canopy layer (before any design clears it): what a
+        /// clearing's price weighs each cell by. 0 outside the canopy grid or with no canopy layer.
+        /// </summary>
+        public double TreeShare(double x, double y) =>
+            _treeShare == null || InsideDistance(_canopy, x, y) <= 0 ? 0 : Bilinear(_treeShare, _canopy, 1, 0, x, y) / 255.0;
 
         /// <summary>Everything the cover rules need at (x, y).</summary>
         public CoverSample Sample(double x, double y, double slopeStep) => Sample(x, y, slopeStep, _heights, false);

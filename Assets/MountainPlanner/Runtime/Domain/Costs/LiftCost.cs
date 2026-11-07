@@ -13,21 +13,16 @@ namespace MountainPlanner.Domain.Costs
         public override string ToString() => $"{Name} ${Usd:#,0}";
     }
 
-    /// <summary>
-    /// A lift's cost as lines and their total (2025 US dollars). The lift itself is Terminals, Length and Rise; later lines
-    /// (the soil works: its cut, fill and clearing) join with <see cref="With"/> and the total follows.
-    /// </summary>
-    public sealed class LiftCostBreakdown
+    /// <summary>A cost as lines and their total (whole 2025 US dollars): a lift's (<see cref="LiftCostBreakdown"/>) or a trail's.</summary>
+    public class CostBreakdown
     {
         readonly CostLine[] _lines;
 
-        public LiftPrice Price { get; }
         public IReadOnlyList<CostLine> Lines => _lines;
         public long TotalUsd { get; }
 
-        internal LiftCostBreakdown(LiftPrice price, CostLine[] lines)
+        internal CostBreakdown(CostLine[] lines)
         {
-            Price = price;
             _lines = lines;
             long total = 0;
             foreach (var line in lines) total += line.Usd;
@@ -35,12 +30,15 @@ namespace MountainPlanner.Domain.Costs
         }
 
         /// <summary>The same cost with one more line.</summary>
-        public LiftCostBreakdown With(string name, long usd)
+        public CostBreakdown With(string name, long usd) => new CostBreakdown(Plus(name, usd));
+
+        /// <summary>The lines with one more at the end.</summary>
+        protected CostLine[] Plus(string name, long usd)
         {
             var lines = new CostLine[_lines.Length + 1];
             Array.Copy(_lines, lines, _lines.Length);
             lines[_lines.Length] = new CostLine(name, usd);
-            return new LiftCostBreakdown(Price, lines);
+            return lines;
         }
 
         /// <summary>A line's dollars, or 0 when there is no such line.</summary>
@@ -49,6 +47,20 @@ namespace MountainPlanner.Domain.Costs
             foreach (var line in _lines) if (line.Name == name) return line.Usd;
             return 0;
         }
+    }
+
+    /// <summary>
+    /// A lift's cost as lines and their total (2025 US dollars). The lift itself is Terminals, Length and Rise; the site
+    /// works (task 4.01: Grading and Clearing, <see cref="SiteCost"/>) join with <see cref="With"/> and the total follows.
+    /// </summary>
+    public sealed class LiftCostBreakdown : CostBreakdown
+    {
+        public LiftPrice Price { get; }
+
+        internal LiftCostBreakdown(LiftPrice price, CostLine[] lines) : base(lines) { Price = price; }
+
+        /// <summary>The same cost with one more line.</summary>
+        public new LiftCostBreakdown With(string name, long usd) => new LiftCostBreakdown(Price, Plus(name, usd));
     }
 
     /// <summary>
@@ -81,6 +93,6 @@ namespace MountainPlanner.Domain.Costs
         public static LiftCostBreakdown OfLine(LiftType type, double runMetres, double riseMetres) =>
             Of(type, Math.Sqrt(runMetres * runMetres + riseMetres * riseMetres), riseMetres);
 
-        static long Dollars(double usd) => (long)Math.Round(usd, MidpointRounding.AwayFromZero);
+        internal static long Dollars(double usd) => (long)Math.Round(usd, MidpointRounding.AwayFromZero);
     }
 }

@@ -88,6 +88,10 @@ namespace MountainPlanner.Tests
 
         [TestCase(LiftCatalogIds.SesselliftFgq4)]
         [TestCase(LiftCatalogIds.MontaFg4)]
+        // Task 4.01: the tows too. Their hand-set exits differed from their models, so the view hung the rope lower than the
+        // build checked it ("TW-01 v2 SHORT, lowest chair 7.5 ft" on built T-bars).
+        [TestCase(LiftCatalogIds.MontaTbar)]
+        [TestCase(LiftCatalogIds.MontaJbar)]
         public void TW16v3_EachEndIsTheModelStandingThereWithItsRow(string catalogId)
         {
             // Task 09 (the owner's ruling, 2026-10-18: terminals face where their bullwheels are): the Monta drives at the
@@ -101,7 +105,9 @@ namespace MountainPlanner.Tests
                 Assert.That(prefab, Is.Not.Null, end.Model);
                 var rig = prefab.GetComponent<LiftRig>();
                 bool hold = rig.Socket("rope_right_hold") != null && rig.Socket("rope_left_hold") != null;
-                Assert.That(hold, Is.EqualTo(end.Row == TerminalRow.HoldDown), $"{end.Model}: {end.Row}");
+                // The tow models carry no rope_*_hold sockets (their hold-down trains are the drive's own); the row check is
+                // for the chairs' terminals. The exits and footprints below hold for every type (task 4.01).
+                if (!type.Tow) Assert.That(hold, Is.EqualTo(end.Row == TerminalRow.HoldDown), $"{end.Model}: {end.Row}");
                 Assert.That(LiftView.RopeExit(models, end.Model, out float along, out float rise), Is.True, end.Model);
                 LiftView.TerminalExtent(models, end.Model, out float b0, out float a0, out float h0);
                 string measured = $"{end.Model} measures exit {along:F3}/{rise:F3} m, origin {LiftView.OriginAlong(models, end.Model):F3} m, footprint {b0:F3}/{a0:F3}/{h0:F3} m";
@@ -113,7 +119,7 @@ namespace MountainPlanner.Tests
                 Assert.That(end.HalfWidth, Is.EqualTo(h0).Within(0.02), measured);
 
             }
-            Assert.That(type.Bottom.Model, Does.EndWith(catalogId == LiftCatalogIds.MontaFg4 ? "_drive" : "_return"));
+            Assert.That(type.Bottom.Model, Does.EndWith(catalogId == LiftCatalogIds.MontaFg4 || type.Tow ? "_drive" : "_return"));
         }
 
         [Test]

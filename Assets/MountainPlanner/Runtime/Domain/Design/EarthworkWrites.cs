@@ -146,6 +146,27 @@ namespace MountainPlanner.Domain.Design
             for (int w = 0; w < Words; w++) bits[w] |= t.Cleared[w];
         }
 
+        /// <summary>Every cell it clears, tile by tile in key order, rows then columns (task 4.01: the clearing's price).</summary>
+        public void ForEachCleared(Action<int, int> cell)
+        {
+            foreach (var kv in _tiles)
+            {
+                var bits = kv.Value.Cleared;
+                for (int w = 0; w < Words; w++)
+                {
+                    ulong word = bits[w];
+                    while (word != 0)
+                    {
+                        int b = 0;
+                        while ((word & (1UL << b)) == 0) b++;
+                        word &= ~(1UL << b);
+                        int at = w * 64 + b;
+                        cell(kv.Key.FirstColumn + at % Side, kv.Key.FirstRow + at / Side);
+                    }
+                }
+            }
+        }
+
         /// <summary>Whether it touches the tile at all.</summary>
         public bool Touches(EditTileKey key) => _tiles.ContainsKey(key);
 

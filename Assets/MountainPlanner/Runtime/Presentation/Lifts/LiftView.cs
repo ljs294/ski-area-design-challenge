@@ -99,6 +99,8 @@ namespace MountainPlanner.Presentation.Lifts
         }
 
         RopeSheave[] _sheaves = Array.Empty<RopeSheave>();
+        /// <summary>The box round <see cref="_sheaves"/>' contacts, world metres.</summary>
+        Vector3 _sheaveLo, _sheaveHi;
         /// <summary>Sheaves turn only this close to the eye (metres): past it a turning wheel can't be told from a still one.</summary>
         const float SheaveSpinDistance = 300f;
 
@@ -543,6 +545,8 @@ namespace MountainPlanner.Presentation.Lifts
             foreach (var rig in heads) Follow(rig);
             Posed = true;
             _sheaves = spun.ToArray();
+            _sheaveLo = Vector3.positiveInfinity; _sheaveHi = Vector3.negativeInfinity;
+            foreach (var s in _sheaves) { _sheaveLo = Vector3.Min(_sheaveLo, s.Contact); _sheaveHi = Vector3.Max(_sheaveHi, s.Contact); }
             SetLoop(loop);
             BuildCable((float)type.RopeDiameterMetres / 2);
             var carrier = Carrier(type);
@@ -1119,11 +1123,17 @@ namespace MountainPlanner.Presentation.Lifts
         /// allocation; the far ones keep the turn they had.</summary>
         void SpinSheaves(Vector3 eye, double seconds)
         {
+            // v0.3.2 cost 1.6 ms a frame at 40 lifts reading every pivot's world position (4.01). A built lift doesn't move,
+            // so the test uses the contact cached at the pose, within half a metre of the pivot, and a whole lift past the
+            // distance from its sheaves' box is skipped at once.
             const float near = SheaveSpinDistance * SheaveSpinDistance;
+            if (_sheaves.Length == 0) return;
+            Vector3 closest = Vector3.Max(_sheaveLo, Vector3.Min(eye, _sheaveHi));
+            if ((closest - eye).sqrMagnitude > near) return;
             for (int i = 0; i < _sheaves.Length; i++)
             {
-                var s = _sheaves[i];
-                if (s.Pivot == null || (s.Pivot.position - eye).sqrMagnitude > near) continue;
+                ref readonly var s = ref _sheaves[i];
+                if ((s.Contact - eye).sqrMagnitude > near || s.Pivot == null) continue;
                 float degrees = (float)((seconds * s.Rate) % (2 * Math.PI)) * Mathf.Rad2Deg;
                 s.Pivot.localRotation = s.Rest * Quaternion.AngleAxis(degrees, s.Axis);
             }

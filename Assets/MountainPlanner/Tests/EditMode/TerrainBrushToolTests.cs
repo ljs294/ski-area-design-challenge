@@ -60,6 +60,7 @@ namespace MountainPlanner.Tests
             public void ShowPending(List<double> segments) { }
             public void ClearPending() { }
             public double ContourInterval => 12.192;
+            public MountainPlanner.Domain.Costs.ITreeCover Trees => null;
             public int LiveCalls, ShowCalls, CatchUps, GroundShows;
             public TerrainEdits Shown, Clearing;
             public bool? Contours;

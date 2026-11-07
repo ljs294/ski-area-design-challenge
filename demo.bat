@@ -301,6 +301,13 @@ echo        bars every 15 m, the rope kept 17-33 ft over the track, and no trail
 echo     82 The carpet tests, then the game: New lift, Surface lift, Carpet; single or double, open or covered, the
 echo        bed of 2 m modules with the belt 18 in over the ground, filled under, never cut; Edit lift.
 echo.
+echo   Phase 4 task 01: site works in the cost (rebuilds the game; close the Unity editor first)
+echo     83 The cost and site-works tests and the price table (surface lifts, grading and clearing rates), then the
+echo        game: Grading and Clearing in every lift's Cost row, T-bars and carpets priced, a Cost row for trails, and
+echo        the Guests Analysis tab's own tooltip.
+echo   4.01 small fixes (rebuilds the game; close the Unity editor first)
+echo     84 The T-bar and J-bar ends match their models (tests), the GPU queue's -Priority ticket (tests), the
+echo        timing tests that took a median under load, then the game: a T-bar reads TW-01 v2 OK.
 echo   4.01 grader (rebuilds the game; close the Unity editor first)
 echo     85 The fold tests (a run sharing a tile but no block isn't graded again), then the drawn resort's edit
 echo        bench in the GPU's measure lane (about 15 min), then the game: grade a run and watch the preview.
@@ -424,6 +431,8 @@ if /i "%CHOICE%"=="79" goto driveend
 if /i "%CHOICE%"=="80" goto liftcosts
 if /i "%CHOICE%"=="81" goto surfacetows
 if /i "%CHOICE%"=="82" goto carpets
+if /i "%CHOICE%"=="83" goto sitecosts
+if /i "%CHOICE%"=="84" goto smallfixes
 if /i "%CHOICE%"=="85" goto grader
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
@@ -576,6 +585,28 @@ echo   Build it, then Edit lift: the Cost row shows there too. Quit the game whe
 start "" "%GAME%"
 goto menu
 
+:sitecosts
+rem Phase 4 task 01: Grading (cut and fill) and Clearing (forest newly cleared) as cost lines, surface lift prices, trail costs.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~LiftCostTests|FullyQualifiedName~SiteWorksTests" <nul
+if errorlevel 1 goto done
+dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "FullyQualifiedName~LiftCostTable" --logger "console;verbosity=normal" <nul | findstr /v /c:"Test run for" /c:"A total" /c:"NUnit" /c:"Running selected"
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open an area, then T for the Toolbox:
+echo   1 Lifts tab, N: draw a fixed quad up through forest. The Cost row now includes Grading and Clearing; hover it for
+echo     the parts: terminals, length, rise, grading (cut and fill yd3) and clearing (acres of forest).
+echo   2 Draw the same quad across open ground (a meadow or above the trees): the clearing is about $0.
+echo   3 Surface lift: a T-bar, a J-bar and a carpet each show a price now, not "no price yet".
+echo   4 Build a lift, then Edit lift (M): its Cost row still counts its own clearing.
+echo   5 Trails tab: paint a trail through trees. The review has a Cost row (Clearing, and Grading if graded) and
+echo     "Trees cleared" is the forest it clears. A trail across a lift's line doesn't pay for the cleared corridor again.
+echo   6 Tab for Analysis: hover the greyed Guests tab. It reads "Guests come with the simulation in Phase 4."
+echo   The price table printed above is yours to change: say any number and it's one line.
+start "" "%GAME%"
+goto menu
+
 :surfacetows
 rem Surface lifts PR A: the Monta T-bar and J-bar built through the game's own lift path (towers, rope, bars).
 chcp 65001 >nul
@@ -598,6 +629,26 @@ echo   Fly up close to a tower head (any lift): every sheave the rope touches tu
 echo     rope speed; a sheave the rope leaves stands still.
 echo   Paint a trail either side of it: no automatic path crosses the line. Save, quit and reload: it comes back.
 echo   Cost reads "no price yet". Quit the game when done.
+start "" "%GAME%"
+goto menu
+
+:smallfixes
+rem 4.01 PR 2: tow ends from the models, gpu.ps1 -Priority for the release smoke test, fastest-of-runs timing tests.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~TW10_|FullyQualifiedName~TW12_|FullyQualifiedName~SurfaceTowTests" <nul
+if errorlevel 1 goto done
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\gpu\test-gpu.ps1"
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo The GPU tests above include "A -Priority ticket goes to the front": the release smoke test now jumps the
+echo   queue (never stopping a running job) and waits up to 30 minutes, with its own "timed out" message.
+echo Open an area, then T for the Toolbox, the Lifts tab, N for New lift: Surface lift, T-bar.
+echo   Place a line 1,000-2,000 ft up and build it. Edit lift on it: the row reads "Rope over track" (17-33 ft),
+echo   as New lift does. The game's Player.log says "TW-01 v2 OK (rope over the track ...)".
+echo   Do the same with a J-bar. Fly close to a tower head: its sheaves still turn with the rope (they only turn
+echo   within 300 m of the eye, now measured cheaply; v0.3.2's 40-lift frame went 9.40 to 8.69 ms). Quit when done.
 start "" "%GAME%"
 goto menu
 
