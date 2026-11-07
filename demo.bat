@@ -308,6 +308,9 @@ echo        the Guests Analysis tab's own tooltip.
 echo   4.01 small fixes (rebuilds the game; close the Unity editor first)
 echo     84 The T-bar and J-bar ends match their models (tests), the GPU queue's -Priority ticket (tests), the
 echo        timing tests that took a median under load, then the game: a T-bar reads TW-01 v2 OK.
+echo   4.01 grader (rebuilds the game; close the Unity editor first)
+echo     85 The fold tests (a run sharing a tile but no block isn't graded again), then the drawn resort's edit
+echo        bench in the GPU's measure lane (about 15 min), then the game: grade a run and watch the preview.
 echo.
 echo     Q  Quit
 echo.
@@ -430,6 +433,7 @@ if /i "%CHOICE%"=="81" goto surfacetows
 if /i "%CHOICE%"=="82" goto carpets
 if /i "%CHOICE%"=="83" goto sitecosts
 if /i "%CHOICE%"=="84" goto smallfixes
+if /i "%CHOICE%"=="85" goto grader
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -645,6 +649,22 @@ echo   Place a line 1,000-2,000 ft up and build it. Edit lift on it: the row rea
 echo   as New lift does. The game's Player.log says "TW-01 v2 OK (rope over the track ...)".
 echo   Do the same with a J-bar. Fly close to a tower head: its sheaves still turn with the rope (they only turn
 echo   within 300 m of the eye, now measured cheaply; v0.3.2's 40-lift frame went 9.40 to 8.69 ms). Quit when done.
+start "" "%GAME%"
+goto menu
+
+:grader
+rem 4.01 PR 3: trails regrade by 8 m block, the grader reads only the ground it keeps, shapes kept with their trails.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~EarthworkFollowTests|FullyQualifiedName~DrawnResortTests|FullyQualifiedName~TrailGradingTests" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\p4-01" mkdir "%~dp0test-results\p4-01"
+%MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -designbench "%~dp0test-results\p4-01\designbench.json" -benchrounds 5 -logFile "%~dp0test-results\p4-01\designbench.log" <nul
+findstr /c:"[DesignBench] with" "%~dp0test-results\p4-01\designbench.log"
+echo Before (v0.3.2): grade a run 1005 ms, remove a run 946, new lift 1424. docs\perf\edit-timing.md has the rest.
+echo Open the demo area, T for the Toolbox, Trails: pick a natural run, Edit, set Graded: the preview comes faster
+echo   than v0.3.2 (a new lift's preview most of all); the ground and the cost read as before. Quit when done.
 start "" "%GAME%"
 goto menu
 
