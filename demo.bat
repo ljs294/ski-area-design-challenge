@@ -301,6 +301,10 @@ echo        bars every 15 m, the rope kept 17-33 ft over the track, and no trail
 echo     82 The carpet tests, then the game: New lift, Surface lift, Carpet; single or double, open or covered, the
 echo        bed of 2 m modules with the belt 18 in over the ground, filled under, never cut; Edit lift.
 echo.
+echo   4.01 grader (rebuilds the game; close the Unity editor first)
+echo     85 The fold tests (a run sharing a tile but no block isn't graded again), then the drawn resort's edit
+echo        bench in the GPU's measure lane (about 15 min), then the game: grade a run and watch the preview.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -420,6 +424,7 @@ if /i "%CHOICE%"=="79" goto driveend
 if /i "%CHOICE%"=="80" goto liftcosts
 if /i "%CHOICE%"=="81" goto surfacetows
 if /i "%CHOICE%"=="82" goto carpets
+if /i "%CHOICE%"=="85" goto grader
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -593,6 +598,22 @@ echo   Fly up close to a tower head (any lift): every sheave the rope touches tu
 echo     rope speed; a sheave the rope leaves stands still.
 echo   Paint a trail either side of it: no automatic path crosses the line. Save, quit and reload: it comes back.
 echo   Cost reads "no price yet". Quit the game when done.
+start "" "%GAME%"
+goto menu
+
+:grader
+rem 4.01 PR 3: trails regrade by 8 m block, the grader reads only the ground it keeps, shapes kept with their trails.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~EarthworkFollowTests|FullyQualifiedName~DrawnResortTests|FullyQualifiedName~TrailGradingTests" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\p4-01" mkdir "%~dp0test-results\p4-01"
+%MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -designbench "%~dp0test-results\p4-01\designbench.json" -benchrounds 5 -logFile "%~dp0test-results\p4-01\designbench.log" <nul
+findstr /c:"[DesignBench] with" "%~dp0test-results\p4-01\designbench.log"
+echo Before (v0.3.2): grade a run 1005 ms, remove a run 946, new lift 1424. docs\perf\edit-timing.md has the rest.
+echo Open the demo area, T for the Toolbox, Trails: pick a natural run, Edit, set Graded: the preview comes faster
+echo   than v0.3.2 (a new lift's preview most of all); the ground and the cost read as before. Quit when done.
 start "" "%GAME%"
 goto menu
 

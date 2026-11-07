@@ -65,3 +65,32 @@ These go to the owner (DB8) with this split.
 The brush is unchanged within run-to-run noise. Its Olympic Valley FAIL (the 60 ft drag's frames) and an access
 violation when the brush bench quits (`PendingContourView.Clear` from `MountainViewer.OnDestroy`, after the report is
 written) happen on main as well.
+
+## Phase 4 task 01 (2026-11-07, branch `feature/p4-01-grader`)
+
+Same bench, release player, measure lane, five rounds (p95 ms, preview / commit):
+
+| Edit | Before (3643d142 + PR 2) | After | Budget |
+| --- | --- | --- | --- |
+| New graded trail, 1,000 ft | 63.6 / 153.0 | 66.2 / 139.8 | pass |
+| New graded trail, 1 km | 136.7 / 256.6 | 143.2 / 257.3 | miss (unchanged) |
+| Grading a built natural run | 1004.8 / 444.7 | **630.2** / 417.5 | miss |
+| Removing a run (reported) | 946.1 / 283.3 | **423.6** / 300.6 | — |
+| A new fixed-grip quad (reported) | 1424.1 / 196.6 | **674.3** / 203.5 | — |
+| Undo (reported) | 339.0 | 336.3 | — |
+
+What the probe (`DrawnResortTests.Probe_TheResortsEditsThroughTheFold`, which now lists each regraded piece's time and
+the ones that wrote exactly what they had) found, and what changed, each exact against a fresh fold and every golden:
+- **Most cascaded regrades wrote what they had.** A trail now grades again only when a change lands in one of its 8 m
+  blocks (`IReachBlocks`, the same 19 m boxes as its tiles; `EarthworkWrites.DifferentBlocks`), and a lift terminal's
+  keep-out round counts for a trail only where it meets those blocks. A new lift no longer regrades the trails it
+  doesn't touch.
+- **The West Cat Track (3.1 km of switchbacks) took 700 ms a regrade**: the grader read every point of each row's span,
+  west paint to east paint, to keep the few near the paint. It reads only those now (637 → 346 ms), and the chamfer and
+  finish index by row (→ 267 ms).
+- **A trail's footprint and centreline are kept with its shape**: neither reads the ground, and a regrade worked both
+  out again (35–100 ms a trail).
+
+Still missing, and why: a graded run's own grade is 100–300 ms (Sunny Side, Village Way and the cat track are the long
+ones), and the cat track is still pulled in by edits whose changes it does read, though it writes the same. Reaching
+100 ms needs a grader that regrades only the stations a change reaches: a design change, for the owner (DB8).
