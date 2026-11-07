@@ -65,8 +65,16 @@ namespace MountainPlanner.Presentation.Design
         /// <summary>The CPU fields (tests).</summary>
         public TrailSurface Surface => _surface;
 
-        /// <summary>Pages sent to the GPU, and the page capacity (tests, the log).</summary>
+        /// <summary>Pages on the GPU.</summary>
         public int PageCount => _slots.Count;
+
+        /// <summary>The page buffer and the page table (tests).</summary>
+        public GraphicsBuffer PointsBuffer => _points;
+        public GraphicsBuffer PagesBuffer => _pages;
+        /// <summary>The page table's first tile column and row and its size in tiles (tests).</summary>
+        public (int Column, int Row, int Width, int Height) TableBox => (_tableC0, _tableR0, _tableW, _tableH);
+        /// <summary>A tile's page slot (tests).</summary>
+        public bool TrySlot(EditTileKey key, out int slot) => _slots.TryGetValue(key, out slot);
 
         /// <summary>Whether a local point (metres east and north of the frame's origin) is under the map.</summary>
         public bool Covers(float x, float z)

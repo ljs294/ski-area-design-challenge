@@ -330,12 +330,20 @@ namespace MountainPlanner.App
             report.settled = Stat.Of(settled);
             report.slowestFrame = Stat.Of(slowest);
             report.quality = QualitySettings.names[QualitySettings.GetQualityLevel()];
-            // The bench's spots the trail look covers (task 4.01, TL24: every trail, wherever it is; the old 2048 m window left
-            // part of a big resort out).
+            // The bench's spots the trail look covers, and the built trails it draws at both ends (task 4.01, TL24: every
+            // trail, wherever it is; the old 2048 m window left part of a big resort out).
             for (int k = 0; k < spots; k++)
             {
                 float a = k * Mathf.PI * 2 / spots;
                 if (_trailMap != null && _trailMap.Covers(Mathf.Sin(a) * 600f, Mathf.Cos(a) * 600f)) report.spotsInTrailMap++;
+            }
+            foreach (var t in history.Document.Trails)
+            {
+                if (t.Stage != WorkStage.Built || !t.HasEnds) continue;
+                report.builtTrails++;
+                var (head, tail) = (t.Head.Value, t.Tail.Value);
+                if (_trailMap != null && _trailMap.Covers((float)head.XMetres, (float)head.YMetres) && _trailMap.Covers((float)tail.XMetres, (float)tail.YMetres))
+                    report.trailsDrawn++;
             }
             bool Within(Stat preview, Stat commit) => preview.p95 <= report.previewBudgetMs && commit.p95 <= report.commitBudgetMs;
             report.shortPass = Within(report.shortPreview, report.shortCommit);
@@ -349,11 +357,11 @@ namespace MountainPlanner.App
             Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture,
                 "[DesignBench] with {0} trails and {1} lifts: 1,000 ft preview p95 {2:F1} / commit {3:F1} ms; 1 km {4:F1} / {5:F1} ms; " +
                 "grade a run {6:F1} / {7:F1} ms; remove a run {8:F1} / {9:F1} ms; new lift {10:F1} / {11:F1} ms; undo p95 {12:F1} ms; {13} rejected; {14}; " +
-                "settled p95 {15:F1} ms, slowest frame p95 {16:F1} ms, at {17}, {18} of {19} spots in the trail look's window",
+                "settled p95 {15:F1} ms, slowest frame p95 {16:F1} ms, at {17}, {18} of {19} spots in the trail look, {20} of {21} built trails drawn",
                 report.trails, report.lifts, report.shortPreview.p95, report.shortCommit.p95, report.longPreview.p95, report.longCommit.p95,
                 report.gradePreview.p95, report.gradeCommit.p95, report.removePreview.p95, report.removeCommit.p95, report.liftPreview.p95,
                 report.liftCommit.p95, report.undo.p95, rejected, report.pass ? "PASS" : "FAIL",
-                report.settled.p95, report.slowestFrame.p95, report.quality, report.spotsInTrailMap, spots));
+                report.settled.p95, report.slowestFrame.p95, report.quality, report.spotsInTrailMap, spots, report.trailsDrawn, report.builtTrails));
             Application.Quit();
         }
     }
@@ -365,7 +373,7 @@ namespace MountainPlanner.App
         public string schema = "mountain-planner-design-edit-benchmark/2";
         public string commit, measuredUtc, gpu, cpu, site, screen, quality;
         public bool commitDirty, development, pass, shortPass, longPass, gradePass;
-        public int trails, lifts, spots, rounds, rejected, spotsInTrailMap;
+        public int trails, lifts, spots, rounds, rejected, spotsInTrailMap, builtTrails, trailsDrawn;
         public Stat shortPreview, shortCommit, longPreview, longCommit, gradePreview, gradeCommit;
         public Stat removePreview, removeCommit, liftPreview, liftCommit, undo;
         /// <summary>Every commit and undo until the network and sections landed too, and the slowest frame until a second after (reported).</summary>
