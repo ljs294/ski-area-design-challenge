@@ -301,6 +301,11 @@ echo        bars every 15 m, the rope kept 17-33 ft over the track, and no trail
 echo     82 The carpet tests, then the game: New lift, Surface lift, Carpet; single or double, open or covered, the
 echo        bed of 2 m modules with the belt 18 in over the ground, filled under, never cut; Edit lift.
 echo.
+echo   Phase 4 task 01: site works in the cost (rebuilds the game; close the Unity editor first)
+echo     83 The cost and site-works tests and the price table (surface lifts, grading and clearing rates), then the
+echo        game: Grading and Clearing in every lift's Cost row, T-bars and carpets priced, a Cost row for trails, and
+echo        the Guests Analysis tab's own tooltip.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -420,6 +425,7 @@ if /i "%CHOICE%"=="79" goto driveend
 if /i "%CHOICE%"=="80" goto liftcosts
 if /i "%CHOICE%"=="81" goto surfacetows
 if /i "%CHOICE%"=="82" goto carpets
+if /i "%CHOICE%"=="83" goto sitecosts
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -568,6 +574,28 @@ echo   Place the bottom terminal, then move the top one: the panel's Cost row fo
 echo     4,000 ft long and 1,000 ft up). Hover the row for its parts: terminals, length and rise.
 echo   Change the type: a detachable quad or six costs more; gondolas and trams read "no price yet".
 echo   Build it, then Edit lift: the Cost row shows there too. Quit the game when done.
+start "" "%GAME%"
+goto menu
+
+:sitecosts
+rem Phase 4 task 01: Grading (cut and fill) and Clearing (forest newly cleared) as cost lines, surface lift prices, trail costs.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~LiftCostTests|FullyQualifiedName~SiteWorksTests" <nul
+if errorlevel 1 goto done
+dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "FullyQualifiedName~LiftCostTable" --logger "console;verbosity=normal" <nul | findstr /v /c:"Test run for" /c:"A total" /c:"NUnit" /c:"Running selected"
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open an area, then T for the Toolbox:
+echo   1 Lifts tab, N: draw a fixed quad up through forest. The Cost row now includes Grading and Clearing; hover it for
+echo     the parts: terminals, length, rise, grading (cut and fill yd3) and clearing (acres of forest).
+echo   2 Draw the same quad across open ground (a meadow or above the trees): the clearing is about $0.
+echo   3 Surface lift: a T-bar, a J-bar and a carpet each show a price now, not "no price yet".
+echo   4 Build a lift, then Edit lift (M): its Cost row still counts its own clearing.
+echo   5 Trails tab: paint a trail through trees. The review has a Cost row (Clearing, and Grading if graded) and
+echo     "Trees cleared" is the forest it clears. A trail across a lift's line doesn't pay for the cleared corridor again.
+echo   6 Tab for Analysis: hover the greyed Guests tab. It reads "Guests come with the simulation in Phase 4."
+echo   The price table printed above is yours to change: say any number and it's one line.
 start "" "%GAME%"
 goto menu
 

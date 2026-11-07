@@ -21,6 +21,8 @@ namespace MountainPlanner.UI.Tools
         /// <summary>Draws a pending edit's changed contours in yellow (CF-08), segments as from <see cref="PendingContours"/>.</summary>
         void ShowPending(List<double> segments);
         void ClearPending();
+        /// <summary>Task 4.01: the natural tree cover the clearing's price reads; null without one.</summary>
+        Domain.Costs.ITreeCover Trees { get; }
         /// <summary>The contour interval the pending contours use, metres (the display units' interval).</summary>
         double ContourInterval { get; }
     }
