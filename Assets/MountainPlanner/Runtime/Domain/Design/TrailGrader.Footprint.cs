@@ -538,30 +538,55 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         static double[] Finish(double[] change, SpanGrid grid, int h, int passes)
         {
+            // Indexed by row offsets, not SpanGrid.Index per neighbour (task P4-01); the same neighbours, order and sums.
             var a = (double[])change.Clone();
             var b = new double[a.Length];
-            int self = 0;
-            double V(double[] v, int idx) => idx < 0 || double.IsNaN(v[idx]) ? v[self] : v[idx];
             for (int pass = 0; pass < passes; pass++)
             {
                 for (int j = 0; j < h; j++)
-                    for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
+                {
+                    int lo = grid.Lo[j], hi = grid.Hi[j], off = grid.Offset[j] - lo;
+                    for (int i = lo; i <= hi; i++)
                     {
-                        int at = grid.Index(i, j);
-                        self = at;
-                        if (double.IsNaN(a[at])) { b[at] = a[at]; continue; }
-                        b[at] = (V(a, grid.Index(i - 2, j)) + 4 * V(a, grid.Index(i - 1, j)) + 6 * a[at] + 4 * V(a, grid.Index(i + 1, j)) + V(a, grid.Index(i + 2, j))) / 16;
+                        int at = off + i;
+                        double self = a[at];
+                        if (double.IsNaN(self)) { b[at] = self; continue; }
+                        double m2 = Along(a, i - 2, lo, hi, off, self), m1 = Along(a, i - 1, lo, hi, off, self);
+                        double p1 = Along(a, i + 1, lo, hi, off, self), p2 = Along(a, i + 2, lo, hi, off, self);
+                        b[at] = (m2 + 4 * m1 + 6 * self + 4 * p1 + p2) / 16;
                     }
+                }
                 for (int j = 0; j < h; j++)
-                    for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
+                {
+                    int lo = grid.Lo[j], hi = grid.Hi[j], off = grid.Offset[j] - lo;
+                    for (int i = lo; i <= hi; i++)
                     {
-                        int at = grid.Index(i, j);
-                        self = at;
-                        if (double.IsNaN(b[at])) { a[at] = b[at]; continue; }
-                        a[at] = (V(b, grid.Index(i, j - 2)) + 4 * V(b, grid.Index(i, j - 1)) + 6 * b[at] + 4 * V(b, grid.Index(i, j + 1)) + V(b, grid.Index(i, j + 2))) / 16;
+                        int at = off + i;
+                        double self = b[at];
+                        if (double.IsNaN(self)) { a[at] = self; continue; }
+                        double m2 = Across(b, grid, i, j - 2, self), m1 = Across(b, grid, i, j - 1, self);
+                        double p1 = Across(b, grid, i, j + 1, self), p2 = Across(b, grid, i, j + 2, self);
+                        a[at] = (m2 + 4 * m1 + 6 * self + 4 * p1 + p2) / 16;
                     }
+                }
             }
             return a;
+        }
+
+        /// <summary>Point i of a row (lo..hi, at off + i), or <paramref name="self"/> off the row or unread.</summary>
+        static double Along(double[] v, int i, int lo, int hi, int off, double self)
+        {
+            if (i < lo || i > hi) return self;
+            double x = v[off + i];
+            return double.IsNaN(x) ? self : x;
+        }
+
+        /// <summary>Point (i, j) of the grid, or <paramref name="self"/> off it or unread.</summary>
+        static double Across(double[] v, SpanGrid grid, int i, int j, double self)
+        {
+            if (j < 0 || j >= grid.Height || i < grid.Lo[j] || i > grid.Hi[j]) return self;
+            double x = v[grid.Offset[j] + i - grid.Lo[j]];
+            return double.IsNaN(x) ? self : x;
         }
 
         /// <summary>A section's painted extent on the point's side, blended between the stations either side of it.</summary>
@@ -599,29 +624,38 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         static void ChamferSpans(double[] upper, double[] lower, SpanGrid grid, int h, double s)
         {
+            // Indexed by row offsets, not SpanGrid.Index per neighbour (task P4-01); the same neighbours in the same order.
             double a = s, b = s * 1.4142135623730951;
             for (int j = 0; j < h; j++)
-                for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
+            {
+                int lo = grid.Lo[j], hi = grid.Hi[j], off = grid.Offset[j] - lo;
+                int plo = j > 0 ? grid.Lo[j - 1] : 1, phi = j > 0 ? grid.Hi[j - 1] : 0, poff = j > 0 ? grid.Offset[j - 1] - plo : 0;
+                for (int i = lo; i <= hi; i++)
                 {
-                    int at = grid.Index(i, j);
+                    int at = off + i;
                     double u = upper[at], l = lower[at];
-                    Take(upper, lower, grid.Index(i - 1, j), a, ref u, ref l);
-                    Take(upper, lower, grid.Index(i, j - 1), a, ref u, ref l);
-                    Take(upper, lower, grid.Index(i - 1, j - 1), b, ref u, ref l);
-                    Take(upper, lower, grid.Index(i + 1, j - 1), b, ref u, ref l);
+                    if (i - 1 >= lo) Take(upper, lower, at - 1, a, ref u, ref l);
+                    if (i >= plo && i <= phi) Take(upper, lower, poff + i, a, ref u, ref l);
+                    if (i - 1 >= plo && i - 1 <= phi) Take(upper, lower, poff + i - 1, b, ref u, ref l);
+                    if (i + 1 >= plo && i + 1 <= phi) Take(upper, lower, poff + i + 1, b, ref u, ref l);
                     upper[at] = u; lower[at] = l;
                 }
+            }
             for (int j = h - 1; j >= 0; j--)
-                for (int i = grid.Hi[j]; i >= grid.Lo[j]; i--)
+            {
+                int lo = grid.Lo[j], hi = grid.Hi[j], off = grid.Offset[j] - lo;
+                int nlo = j + 1 < h ? grid.Lo[j + 1] : 1, nhi = j + 1 < h ? grid.Hi[j + 1] : 0, noff = j + 1 < h ? grid.Offset[j + 1] - nlo : 0;
+                for (int i = hi; i >= lo; i--)
                 {
-                    int at = grid.Index(i, j);
+                    int at = off + i;
                     double u = upper[at], l = lower[at];
-                    Take(upper, lower, grid.Index(i + 1, j), a, ref u, ref l);
-                    Take(upper, lower, grid.Index(i, j + 1), a, ref u, ref l);
-                    Take(upper, lower, grid.Index(i + 1, j + 1), b, ref u, ref l);
-                    Take(upper, lower, grid.Index(i - 1, j + 1), b, ref u, ref l);
+                    if (i + 1 <= hi) Take(upper, lower, at + 1, a, ref u, ref l);
+                    if (i >= nlo && i <= nhi) Take(upper, lower, noff + i, a, ref u, ref l);
+                    if (i + 1 >= nlo && i + 1 <= nhi) Take(upper, lower, noff + i + 1, b, ref u, ref l);
+                    if (i - 1 >= nlo && i - 1 <= nhi) Take(upper, lower, noff + i - 1, b, ref u, ref l);
                     upper[at] = u; lower[at] = l;
                 }
+            }
         }
 
         static void Take(double[] upper, double[] lower, int from, double step, ref double u, ref double l)
