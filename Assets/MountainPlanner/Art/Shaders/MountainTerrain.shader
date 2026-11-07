@@ -107,20 +107,54 @@ Shader "MountainPlanner/Terrain"
             return saturate(SAMPLE_TEXTURE2D_LOD(_SnowDepthMap, sampler_SnowDepthMap, uv, 0).r / _SnowDepthParams.x);
         }
 
-        // Built trails (task 07, TrailSurfaceMap): a 1 m world map over the trails' bounds. r the footprint, g the height
-        // change (edited − natural, m), b the offset across the trail from its centreline (m), a the edited ground's
-        // slope across the trail (0 on the bench, 1 on a 1:1 face). _TrailParams.x = 0 when there are no built trails.
-        TEXTURE2D(_TrailMap); SAMPLER(sampler_TrailMap);
-        float4 _TrailRect;           // west, south, 1 / width, 1 / depth (world metres, texel corners)
-        float4 _TrailParams;
+        // Built trails (task 07, TrailSurfaceMap; task 4.01, TL24: wherever the trails are): 1 m numbers per lattice point
+        // in 65 × 65 pages, each a 64 m lattice tile and its east and south neighbours' first column and row (so the four
+        // points round any spot sit on one page), found through a page table over the pages' box. Per point: the footprint,
+        // the height change (edited − natural, m), 1 on a graded trail, and the edited ground's slope across the trail
+        // (0 on the bench, 1 on a 1:1 face), as halves; then the offset across the trail at full float precision (finding
+        // #11: half floats and hardware weights can't place 1 in corduroy ridges 100 ft from the centreline). Filtered here
+        // by hand. _TrailParams.x = 0 when there are no built trails.
+        struct TrailPoint { uint footChange; uint gradedAcross; float offset; };
+        StructuredBuffer<TrailPoint> _TrailPoints;
+        StructuredBuffer<int> _TrailPages;
+        float4 _TrailRect;           // local x and z of lattice point (0, 0), then the page table's first tile column and row
+        float4 _TrailParams;         // x on, y and z the page table's width and depth in tiles
 
+        // The north-west of the four points round xz and the weights towards the others; false where no trail reaches.
+        bool TrailCell(float2 xz, out int at, out float2 f)
+        {
+            at = 0;
+            f = 0;
+            UNITY_BRANCH
+            if (_TrailParams.x < 0.5) return false;
+            float2 p = float2(xz.x - _TrailRect.x, _TrailRect.y - xz.y);   // lattice columns east, rows south
+            float2 tile = floor(p / 64);
+            int2 cell = int2(tile) - int2(_TrailRect.zw);
+            int2 size = int2(_TrailParams.yz);
+            if (any(cell < 0) || any(cell >= size)) return false;
+            int slot = _TrailPages[cell.y * size.x + cell.x];
+            if (slot < 0) return false;
+            float2 q = p - tile * 64;
+            int2 i = clamp(int2(q), 0, 63);
+            f = q - i;
+            at = slot * 4225 + i.y * 65 + i.x;
+            return true;
+        }
+
+        float4 TrailUnpack(TrailPoint v)
+        {
+            return float4(f16tof32(v.footChange), f16tof32(v.footChange >> 16), f16tof32(v.gradedAcross), f16tof32(v.gradedAcross >> 16));
+        }
+
+        // r the footprint, g the height change, b graded, a the slope across.
         float4 TrailAt(float2 xz)
         {
-            UNITY_BRANCH
-            if (_TrailParams.x < 0.5) return 0;
-            float2 uv = (xz - _TrailRect.xy) * _TrailRect.zw;
-            if (any(uv <= 0) || any(uv >= 1)) return 0;
-            return SAMPLE_TEXTURE2D_LOD(_TrailMap, sampler_TrailMap, uv, 0);
+            int at;
+            float2 f;
+            if (!TrailCell(xz, at, f)) return 0;
+            float4 a = TrailUnpack(_TrailPoints[at]), b = TrailUnpack(_TrailPoints[at + 1]);
+            float4 c = TrailUnpack(_TrailPoints[at + 65]), d = TrailUnpack(_TrailPoints[at + 66]);
+            return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
         }
 
         // The trail being painted (task 08, TF-02; owner 2026-10-19: paint like a brush; 2026-10-20: make it elegant): the
@@ -176,19 +210,14 @@ Shader "MountainPlanner/Terrain"
             return colour;
         }
 
-        // The offset across the trail (m) at full float precision (task 07, finding #11): half floats and hardware
-        // bilinear weights can't place 1 in corduroy ridges 100 ft from the centreline, so it has its own RFloat map,
-        // filtered here by hand. Texel centres sit on the 1 m lattice points, as in _TrailMap.
-        TEXTURE2D_FLOAT(_TrailOffset);
-
+        // The offset across the trail (m) at full float precision (task 07, finding #11), from the trail pages.
         float TrailOffsetAt(float2 xz)
         {
-            float2 p = xz - _TrailRect.xy - 0.5;
-            float2 f = p - floor(p);
-            int2 size = int2(round(1 / _TrailRect.zw));
-            int2 i0 = clamp(int2(floor(p)), int2(0, 0), size - 1), i1 = clamp(i0 + int2(1, 1), int2(0, 0), size - 1);
-            float a = LOAD_TEXTURE2D(_TrailOffset, i0).r, b = LOAD_TEXTURE2D(_TrailOffset, int2(i1.x, i0.y)).r;
-            float c = LOAD_TEXTURE2D(_TrailOffset, int2(i0.x, i1.y)).r, d = LOAD_TEXTURE2D(_TrailOffset, i1).r;
+            int at;
+            float2 f;
+            if (!TrailCell(xz, at, f)) return 0;
+            float a = _TrailPoints[at].offset, b = _TrailPoints[at + 1].offset;
+            float c = _TrailPoints[at + 65].offset, d = _TrailPoints[at + 66].offset;
             return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
         }
 

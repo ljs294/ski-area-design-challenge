@@ -59,7 +59,6 @@ namespace MountainPlanner.Domain.Design
                                     Offset = new float[Side * Side], Across = new float[Side * Side];
             // Whether a trail located the point (its nearest distance is set): the slope is worked out there too.
             internal readonly bool[] Near = new bool[Side * Side];
-            internal readonly double[] Nearest = new double[Side * Side];
             public Chunk(EditTileKey key) => Key = key;
         }
 
@@ -77,6 +76,8 @@ namespace MountainPlanner.Domain.Design
         readonly Dictionary<EditTileKey, Chunk> _chunks = new Dictionary<EditTileKey, Chunk>();
         readonly List<Shape> _shapes = new List<Shape>();
         readonly List<Block> _redrawn = new List<Block>();
+        // The nearest trail's distance while a block is located (one chunk's points; not kept).
+        readonly double[] _nearest = new double[Side * Side];
         TerrainEdits _drawnOver;
 
         /// <summary>The point's fields: false (and zeros) away from every chunk.</summary>
@@ -285,7 +286,7 @@ namespace MountainPlanner.Domain.Design
                     int at = row + c;
                     chunk.Foot[at] = 0; chunk.Graded[at] = 0; chunk.Change[at] = 0; chunk.Offset[at] = 0; chunk.Across[at] = 0;
                     chunk.Near[at] = false;
-                    chunk.Nearest[at] = double.MaxValue;
+                    _nearest[at] = double.MaxValue;
                 }
             }
             foreach (var s in _shapes)
@@ -310,8 +311,8 @@ namespace MountainPlanner.Domain.Design
                         float cover = (float)Math.Max(0, Math.Min(1, fp.PointClearance(pc, pr)));
                         if (cover > chunk.Foot[at]) chunk.Foot[at] = cover;
                         if (s.Graded && cover > chunk.Graded[at]) chunk.Graded[at] = cover;
-                        if (d >= chunk.Nearest[at]) continue;
-                        chunk.Nearest[at] = d;
+                        if (d >= _nearest[at]) continue;
+                        _nearest[at] = d;
                         chunk.Near[at] = true;
                         chunk.Offset[at] = (float)located.Offset[lj * lw + li];
                     }

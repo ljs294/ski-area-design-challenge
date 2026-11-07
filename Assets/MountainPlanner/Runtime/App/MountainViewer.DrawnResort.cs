@@ -330,7 +330,8 @@ namespace MountainPlanner.App
             report.settled = Stat.Of(settled);
             report.slowestFrame = Stat.Of(slowest);
             report.quality = QualitySettings.names[QualitySettings.GetQualityLevel()];
-            // The bench's spots the trail look's window covers (its 2048 m cap leaves part of a big resort out: a follow-up).
+            // The bench's spots the trail look covers (task 4.01, TL24: every trail, wherever it is; the old 2048 m window left
+            // part of a big resort out).
             for (int k = 0; k < spots; k++)
             {
                 float a = k * Mathf.PI * 2 / spots;

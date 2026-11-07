@@ -275,3 +275,10 @@ The drag, the frames after letting go, Confirm and Revert, and shown-vs-fresh (0
 ### Left as it is
 - **One press confirmed on its own let-go** still waits for that press's replay (about 150 ms in release, 176 in the
   Development game): the replay is the stroke's own cost, the same work as painting it.
+
+## Phase 4 task 01: drag garbage looked at, moved to Later (2026-11-07)
+The engine-free part of a dab is small: the Domain preview allocates 39–56 KB a call and a dab 1–3 KB, about 10 KB of
+the 81–91 KB a frame while dragging. The live path already skips the heightmaps (heights go up with the patch) and the
+splat is pooled, so the rest sits in Unity-side code that only a profiler capture of the Development game can attribute.
+The drag plays well (p95 10.2 ms), so the owner moved the remaining garbage to Later (2026-11-07); a profiler session is
+the next step if it comes back.
