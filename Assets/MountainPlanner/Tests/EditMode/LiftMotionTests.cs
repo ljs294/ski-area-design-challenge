@@ -141,6 +141,29 @@ namespace MountainPlanner.Tests
             }
         }
 
+        /// <summary>
+        /// 4.01 (v0.3.2's 40-lift bench, [Chairs] 2.45 ms against 0.81): a lift whose sheaves are all past the spin distance
+        /// leaves every one as it was, and the near ones still turn once the eye comes back.
+        /// </summary>
+        [Test]
+        public void SheavesPastTheSpinDistanceAreLeftAsTheyWere()
+        {
+            var view = Build(LiftCatalogIds.SesselliftFgq4);
+            Assume.That(view.Posed, "posable models");
+            var pivot = view.SheavePivot(0, out var contact);
+            _camera.transform.position = contact + new Vector3(0, 2000, 0);
+            var rest = new Quaternion[view.SheaveCount];
+            for (int i = 0; i < rest.Length; i++) rest[i] = view.SheavePivot(i, out _).localRotation;
+            view.DrawChairs(_camera, 1.0);
+            view.DrawChairs(_camera, 1.37);
+            for (int i = 0; i < rest.Length; i++)
+                Assert.That(Quaternion.Angle(view.SheavePivot(i, out _).localRotation, rest[i]), Is.LessThan(1e-3f), $"sheave {i} far away");
+            _camera.transform.position = contact + new Vector3(5, 2, 0);
+            var before = pivot.localRotation;
+            view.DrawChairs(_camera, 1.37);
+            Assert.That(Quaternion.Angle(pivot.localRotation, before), Is.GreaterThan(1f), "the near sheave turns again");
+        }
+
         [Test]
         public void BB2_TheSixPacksWheelsInItsTubStayStill()
         {
