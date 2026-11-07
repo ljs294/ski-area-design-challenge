@@ -122,7 +122,7 @@ namespace MountainPlanner.Domain.Design
             return keeps;
         }
 
-        sealed class Item : IEarthworkItem
+        sealed class Item : IEarthworkItem, IReachBlocks
         {
             readonly Trail _trail;
             /// <summary>NT2: the parts of a split chain, top first, which <see cref="_trail"/> (the chain as one) grades for;
@@ -140,9 +140,15 @@ namespace MountainPlanner.Domain.Design
                 _site = site;
                 Order = order;
                 // Kept with the trail object (task P3-11): the mask's rows are walked once, not on every preview.
-                var geometry = EarthworkGeometry.Of(trail, site, () => Tuple.Create(ReadsOf(trail, site), TilesOf(trail, site)));
+                var geometry = EarthworkGeometry.Of(trail, site, () =>
+                {
+                    var blocks = new Dictionary<EditTileKey, ulong>();
+                    var tiles = TilesOf(trail, site, blocks);
+                    return Tuple.Create(ReadsOf(trail, site), tiles, (IReadOnlyDictionary<EditTileKey, ulong>)blocks);
+                });
                 Reads = geometry.Item1;
                 Tiles = geometry.Item2;
+                ReachBlocks = geometry.Item3;
                 var mine = new List<Keep>();
                 var lat = site.Lattice;
                 foreach (var k in rounds)
@@ -150,7 +156,13 @@ namespace MountainPlanner.Domain.Design
                     double reach = k.Reach;
                     var box = new PointRect((int)Math.Floor(k.X - reach - lat.West), (int)Math.Floor(lat.North - k.Y - reach),
                                             (int)Math.Ceiling(k.X + reach - lat.West), (int)Math.Ceiling(lat.North - k.Y + reach));
-                    if (box.Intersects(Reads)) mine.Add(k);
+                    // A round the trail's reach never meets can't fix any point it grades (task P4-01: a new lift's
+                    // rounds in a long trail's box made it grade again for nothing).
+                    // Its whole extent (a corner reaches past Reach), so nothing the box test keeps is dropped wrongly.
+                    double far = Math.Sqrt(Math.Max(k.Behind, k.Ahead) * Math.Max(k.Behind, k.Ahead) + k.HalfWidth * k.HalfWidth) + LiftRoundMetres + 1;
+                    var whole = new PointRect((int)Math.Floor(k.X - far - lat.West), (int)Math.Floor(lat.North - k.Y - far),
+                                              (int)Math.Ceiling(k.X + far - lat.West), (int)Math.Ceiling(lat.North - k.Y + far));
+                    if (box.Intersects(Reads) && Touches(whole, ReachBlocks)) mine.Add(k);
                 }
                 _rounds = mine.ToArray();
             }
@@ -160,9 +172,12 @@ namespace MountainPlanner.Domain.Design
             public long Order { get; }
             public PointRect Reads { get; }
             public IReadOnlyCollection<EditTileKey> Tiles { get; }
+            /// <summary>The same boxes as <see cref="Tiles"/>, by 8 m block (task P4-01).</summary>
+            public IReadOnlyDictionary<EditTileKey, ulong> ReachBlocks { get; }
 
-            /// <summary>The tiles the clearing's rows reach, 3 m wider than it and the grader's 16 m reach (inside <see cref="Reads"/>).</summary>
-            static IReadOnlyCollection<EditTileKey> TilesOf(Trail t, EarthworkSite site)
+            /// <summary>The tiles the clearing's rows reach, 3 m wider than it and the grader's 16 m reach (inside <see cref="Reads"/>),
+            /// and the same boxes' 8 m blocks into <paramref name="blocks"/>.</summary>
+            static IReadOnlyCollection<EditTileKey> TilesOf(Trail t, EarthworkSite site, Dictionary<EditTileKey, ulong> blocks)
             {
                 var keys = new SortedSet<EditTileKey>();
                 var lat = site.Lattice;
@@ -180,10 +195,39 @@ namespace MountainPlanner.Domain.Design
                             var box = new PointRect((int)Math.Floor(ax - Reach - lat.West), (int)Math.Floor(lat.North - by - Reach),
                                                     (int)Math.Ceiling(bx + Reach - lat.West), (int)Math.Ceiling(lat.North - ay + Reach));
                             foreach (var key in box.TileKeys()) keys.Add(key);
+                            AddBlocks(box, blocks);
                         }
                     }
                 }
                 return keys;
+            }
+
+            /// <summary>Whether a box of points touches any of <paramref name="blocks"/>.</summary>
+            static bool Touches(PointRect box, IReadOnlyDictionary<EditTileKey, ulong> blocks)
+            {
+                const int B = EarthworkWrites.BlockSide;
+                for (int br = box.MinRow >> 3; br <= box.MaxRow >> 3; br++)
+                    for (int bc = box.MinColumn >> 3; bc <= box.MaxColumn >> 3; bc++)
+                    {
+                        int c = bc * B, r = br * B;
+                        var key = EditTileKey.Of(c, r);
+                        if (blocks.TryGetValue(key, out ulong m) && (m & EarthworkWrites.BlockBit(key, c, r)) != 0) return true;
+                    }
+                return false;
+            }
+
+            /// <summary>Every 8 m block a box of points touches, ORed into its tile's mask.</summary>
+            static void AddBlocks(PointRect box, Dictionary<EditTileKey, ulong> blocks)
+            {
+                const int B = EarthworkWrites.BlockSide;
+                for (int br = box.MinRow >> 3; br <= box.MaxRow >> 3; br++)
+                    for (int bc = box.MinColumn >> 3; bc <= box.MaxColumn >> 3; bc++)
+                    {
+                        int c = bc * B, r = br * B;
+                        var key = EditTileKey.Of(c, r);
+                        ulong bit = EarthworkWrites.BlockBit(key, c, r);
+                        blocks[key] = blocks.TryGetValue(key, out ulong had) ? had | bit : bit;
+                    }
             }
 
             static PointRect ReadsOf(Trail t, EarthworkSite site)

@@ -155,14 +155,24 @@ namespace MountainPlanner.Domain.Design
             for (int j = 0; j < ph; j++)
             {
                 if (grid.Lo[j] > grid.Hi[j]) continue;
-                // A span's ground in one read (exactly AtPoint each, SH-02), then only the points near the paint keep it.
-                if (graded) current.AtPointsRow(pc0 + grid.Lo[j], pr0 + j, grid.Hi[j] - grid.Lo[j] + 1, ground, grid.Offset[j]);
+                // Only the points near the paint have ground: each run of them in one read (exactly AtPoint each, SH-02).
+                // (Task P4-01: a span runs from a row's westmost paint to its eastmost, so across a switchback cat track
+                // reading every point of the span to keep the few near the paint took 340 of its 637 ms.)
+                if (graded)
+                    for (int i = grid.Lo[j]; i <= grid.Hi[j];)
+                    {
+                        int at = grid.Index(i, j);
+                        if (!near[at]) { ground[at] = double.NaN; i++; continue; }
+                        int e = i + 1;
+                        while (e <= grid.Hi[j] && near[at + e - i]) e++;
+                        current.AtPointsRow(pc0 + i, pr0 + j, e - i, ground, at);
+                        i = e;
+                    }
                 for (int i = grid.Lo[j]; i <= grid.Hi[j]; i++)
                 {
                     int c = pc0 + i, r = pr0 + j, at = grid.Index(i, j);
                     bool mine = fp.Interior(c, r) && (isFixed == null || !isFixed(c, r));
                     if (mine) { writes.Claim(c, r); claim[at] = true; }
-                    if (graded && !near[at]) ground[at] = double.NaN;
                 }
             }
             for (int j = 0; j < ph && graded; j++)
