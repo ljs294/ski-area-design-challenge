@@ -135,8 +135,11 @@ if (-not $NoSmoke) {
     if (Test-Path $smoke) { Remove-Item -Recurse -Force $smoke }
     New-Item -ItemType Directory -Force (Join-Path $smoke 'library'), (Join-Path $smoke 'logs') | Out-Null
     $gpu = Join-Path $root 'tools\gpu\gpu.ps1'
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $gpu run -Lane render -Name release -TimeoutSec 600 -- $exe -smoketest -offline -data (Join-Path $smoke 'library') -errorlogs (Join-Path $smoke 'logs') -logFile (Join-Path $smoke 'player.log')
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $gpu run -Lane render -Name release -Priority -TimeoutSec 1800 -- $exe -smoketest -offline -data (Join-Path $smoke 'library') -errorlogs (Join-Path $smoke 'logs') -logFile (Join-Path $smoke 'player.log')
     $code = $LASTEXITCODE
+    # Task 4.01: a priority ticket (it starts ahead of every waiting run) and 30 minutes, so only a run holding the GPU the
+    # whole time can keep it out; that is its own message, not a failed smoke test.
+    if ($code -eq 124) { Fail "The smoke test timed out waiting 30 minutes for the GPU (exit 124): see tools\gpu\gpu.ps1 status, then run release.bat again." }
     $line = Select-String -Path (Join-Path $smoke 'player.log') -Pattern '\[Smoke\]' -ErrorAction SilentlyContinue | Select-Object -Last 1
     $errorLog = Get-ChildItem (Join-Path $smoke 'logs') -Filter 'errors-*.log' -ErrorAction SilentlyContinue | Select-Object -First 1
     $text = ''

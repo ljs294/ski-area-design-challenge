@@ -373,7 +373,7 @@ namespace MountainPlanner.Domain.Design
         /// The Monta T-bar and J-bar (surface lifts, v0.3.2; the model thread's D1–D11 and the owner's go on the game wiring,
         /// 2026-11-05). One 20 mm rope on a 3 m gauge, driven at the bottom (D1, no choice) and tensioned out of sight at the top
         /// (D2): the drive's hold-down trains turn the rope up out of the loading area at 3.4 m (D8), the return's 8-sheave
-        /// breakover row brings it in at 4.5 m (Q4). 2.5 m/s with a bar every 15 m (owner Q2: 1,200 an hour on a T's two riders,
+        /// breakover row brings it in at 4.17 m (Q4, as modelled). 2.5 m/s with a bar every 15 m (owner Q2: 1,200 an hour on a T's two riders,
         /// 600 on a J's one; real lines carry 600–1,200). Its riders stay on the snow, so the loaded rope carries the pull a
         /// towed rider puts on it (a third of their weight, a game choice: a rider on a 30 % track) and the 25 kg carriers.
         /// The rope runs 17–33 ft over the track (5.2–10 m): its retracted bars hang 3.2 m under it (the recoil box, cord gap,
@@ -405,9 +405,11 @@ namespace MountainPlanner.Domain.Design
                 Heads = TowerForces.HeadKit.Tow,
                 TowerKit = "monta_tbar_",
             };
-            // The view measures footprints, exits and origins again on the models (LiftTypes.Measured).
-            t.Bottom = new TerminalEnd("monta_tbar_drive", TerminalRow.HoldDown, 2 * Deg, 25 * Deg, 10 * Deg, 1.83, 6.4, 1.75, 5.9, 3.4, 0, 8);
-            t.Top = new TerminalEnd("monta_tbar_return", TerminalRow.Support, -8 * LiftRope.BendPerSheave, 0, 0, 1.6, 6.0, 1.6, 5.5, 4.5, 0, 8);
+            // The ends as their models measure them (task 4.01: TW16v3_EachEndIsTheModelStandingThereWithItsRow holds them
+            // within 2 cm), so the build checks the rope the view hangs; the hand-set 5.9/3.4 and 5.5/4.5 m and smaller
+            // footprints let the view solve a different rope ("TW-01 v2 SHORT" on built tows).
+            t.Bottom = new TerminalEnd("monta_tbar_drive", TerminalRow.HoldDown, 2 * Deg, 25 * Deg, 10 * Deg, 1.53, 8.25, 2.265, 6.045, 3.4, 0, 8);
+            t.Top = new TerminalEnd("monta_tbar_return", TerminalRow.Support, -8 * LiftRope.BendPerSheave, 0, 0, 1.751, 7.857, 1.75, 5.564, 4.17, 0, 8);
             return t;
         }
 

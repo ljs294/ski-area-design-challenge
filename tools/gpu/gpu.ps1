@@ -8,13 +8,14 @@
     render   up to renderSlots at once (default 2), none while a measure run holds its slot
              (-screenshot / -uicapture players, PlayMode on site caches, Cycles renders, Lift Lab captures).
   Waiting runs take numbered tickets and start strictly in ticket order, so a waiting measure run
-  blocks render runs queued after it. A holder or waiter whose process (PID plus start time) is
+  blocks render runs queued after it. A -Priority ticket (the release smoke test) goes to the front of
+  the waiting queue, never ahead of a run that already holds its slot. A holder or waiter whose process (PID plus start time) is
   gone is stale and is removed on the next poll. The old D:\skiAreaDesignChallenge\.gpu-lock folder
   counts as a measure hold while its owner.txt is under 2 hours old or a Unity, player or Blender
   process is running.
 
   Usage:
-    powershell -NoProfile -ExecutionPolicy Bypass -File tools/gpu/gpu.ps1 run -Lane measure|render -Name "<thread>" -- <exe> <args...>
+    powershell -NoProfile -ExecutionPolicy Bypass -File tools/gpu/gpu.ps1 run -Lane measure|render -Name "<thread>" [-Priority] -- <exe> <args...>
     powershell -NoProfile -ExecutionPolicy Bypass -File tools/gpu/gpu.ps1 status [-Json]
     powershell -NoProfile -ExecutionPolicy Bypass -File tools/gpu/gpu.ps1 clear-stale
     powershell -NoProfile -ExecutionPolicy Bypass -File tools/gpu/gpu.ps1 release -Name "<thread>"
@@ -39,6 +40,7 @@ $PollSec = 2.0
 $RequireDesktop = ''         # e.g. 1920x1080: fail (or warn with -DesktopWarnOnly) on a smaller desktop
 $DesktopWarnOnly = $false
 $Json = $false
+$Priority = $false           # -Priority: start ahead of every waiting ticket (task 4.01, the release smoke test)
 $Command = @()
 
 $rest = @($args)
@@ -53,6 +55,7 @@ while ($i -lt $rest.Count) {
         $Action = $a.ToLowerInvariant(); $positional = $true; $i++; continue
     }
     if ($flag -eq 'json') { $Json = $true; $i++; continue }
+    if ($flag -eq 'priority') { $Priority = $true; $i++; continue }
     if ($flag -eq 'desktopwarnonly') { $DesktopWarnOnly = $true; $i++; continue }
     if (($i + 1) -ge $rest.Count) { [Console]::Error.WriteLine("[gpu] $a needs a value."); exit 64 }
     $next = [string]$rest[$i + 1]
@@ -279,9 +282,14 @@ function ConvertTo-ArgString([string[]]$items) {
 
 # ---- Scheduling -----------------------------------------------------------------------------
 
+# The waiting queue in start order: -Priority tickets first, then by ticket number.
+function Get-Ordered($queue) {
+    return @($queue | Sort-Object @{ Expression = { if ($_.PSObject.Properties['priority'] -and $_.priority) { 0 } else { 1 } } }, @{ Expression = { [long]$_.ticket } })
+}
+
 # Why the head-of-queue entry can't start yet, or '' when it can.
 function Get-Blocker($state, $entry, [int]$renderSlots, $legacy) {
-    $head = @($state.queue | Sort-Object { [long]$_.ticket })[0]
+    $head = @(Get-Ordered $state.queue)[0]
     if ($head.ticket -ne $entry.ticket) { return "behind ticket $($head.ticket) ($($head.lane), $($head.name))" }
     if ($legacy) { return "old lock $($legacy.path) ($($legacy.owner); $($legacy.reason))" }
     $holders = @($state.holders)
@@ -328,11 +336,11 @@ function Invoke-Run {
             $state.queue = @($state.queue) + [pscustomobject]@{
                 ticket = $t; lane = $Lane; name = $Name; pid = $PID; pidStart = $selfStart
                 childPid = 0; childStart = ''; command = $commandText
-                queued = [DateTime]::UtcNow.ToString('o'); started = ''
+                queued = [DateTime]::UtcNow.ToString('o'); started = ''; priority = [bool]$Priority
             }
             return $t
         }
-        Write-Info "ticket $ticket ($Lane, $Name)"
+        Write-Info "ticket $ticket ($Lane, $Name)$(if ($Priority) { ', priority' } else { '' })"
 
         $deadline = if ($TimeoutSec -gt 0) { [DateTime]::UtcNow.AddSeconds($TimeoutSec) } else { [DateTime]::MaxValue }
         $lastBlocker = $null
@@ -418,7 +426,7 @@ function Invoke-Status {
     $slots = Get-RenderSlots
     $rows = @()
     foreach ($e in @($state.holders)) { $rows += [pscustomobject]@{ kind = 'holder'; entry = $e; stale = -not (Test-EntryAlive $e) } }
-    foreach ($e in @($state.queue | Sort-Object { [long]$_.ticket })) { $rows += [pscustomobject]@{ kind = 'waiting'; entry = $e; stale = -not (Test-EntryAlive $e) } }
+    foreach ($e in @(Get-Ordered $state.queue)) { $rows += [pscustomobject]@{ kind = 'waiting'; entry = $e; stale = -not (Test-EntryAlive $e) } }
     if ($Json) {
         [pscustomobject]@{
             stateDir    = $StateDir

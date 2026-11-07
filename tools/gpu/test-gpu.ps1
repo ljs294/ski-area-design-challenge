@@ -148,6 +148,21 @@ try {
     $started = @($spans | Sort-Object start | ForEach-Object { $_.name })
     Check (($started -join ',') -eq ($order -join ',')) "started in ticket order ($($started -join ','))"
 
+    Write-Host 'A -Priority ticket goes to the front of the waiting queue (task 4.01)'
+    $p = @()
+    $p += Start-Run 'measure' 'p-0' 4000; [void](Wait-For { param($s) @($s.holders | Where-Object { $_.name -eq 'p-0' }).Count -gt 0 } 'p-0 holds')
+    $p += Start-Run 'render' 'p-a' 300; Wait-Entry 'p-a'
+    $p += Start-Run 'measure' 'p-b' 300; Wait-Entry 'p-b'
+    $p += Start-Run 'render' 'p-rel' 300 @('-Priority'); Wait-Entry 'p-rel'
+    Wait-All $p
+    $zero = Get-Span 'p-0'; $rel = Get-Span 'p-rel'
+    $later = @(@('p-a', 'p-b') | ForEach-Object { Get-Span $_ } | Where-Object { $_ })
+    Check ($zero -and $rel -and $later.Count -eq 2) 'all four ran'
+    if ($zero -and $rel -and $later.Count -eq 2) {
+        Check ($rel.start -ge $zero.end) 'the priority ticket never pre-empts the run holding the GPU'
+        Check (@($later | Where-Object { $_.start -lt $rel.start }).Count -eq 0) 'the priority ticket started before the two queued ahead of it'
+    }
+
     Write-Host 'A killed holder is cleaned up'
     $k1 = Start-Run 'render' 'kill-1' 60000
     [void](Wait-For { param($s) @($s.holders | Where-Object { $_.name -eq 'kill-1' -and $_.childPid }).Count -gt 0 } 'kill-1 child started')

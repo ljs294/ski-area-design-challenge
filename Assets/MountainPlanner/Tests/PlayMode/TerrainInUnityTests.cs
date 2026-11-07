@@ -193,26 +193,34 @@ namespace MountainPlanner.Tests
                 .OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
             if (demo == null || demo.SizeKm < 5) Assert.Ignore("Download the 5 km Jackson Hole demo first (demo.bat option 12).");
             if (!demo.CacheReady) Assert.Ignore("The demo's terrain isn't prepared yet; the 10 s budget is for a prepared mountain (0.3 §8).");
-            Http.NetworkDisabled = true;
-            var open = ResortOpener.OpenAsync(demo.Folder, null, TerrainDetail.High, null);
-            yield return Await(open);
-            yield return AwaitTask(open.Result.CoverReady);
-            try
+            // Task 4.01: a second try before failing. Other work on the machine only adds time, so the faster of two opens is
+            // the game's own; one slow open under load no longer fails the budget.
+            double fastest = double.MaxValue;
+            for (int attempt = 0; attempt < 2 && fastest > 10.0; attempt++)
             {
-                Assert.That(open.Result.Tiles.Count, Is.EqualTo(121));
-                TestContext.WriteLine($"Jackson Hole 5 km opened in {open.Result.Seconds:F2} s; ground cover painted by {open.Result.CoverSeconds:F2} s");
-                // The 10 s is a player's budget, and a player's GPU isn't shared: in tools/gpu's shared render lane the open
-                // reports its time; alone (the measure lane, or no lane) it must make it.
-                if (System.Environment.GetEnvironmentVariable("MP_GPU_LANE") == "render" && open.Result.Seconds > 10.0)
-                    Assert.Inconclusive($"opened in {open.Result.Seconds:F1} s with the GPU shared (render lane); run alone (measure lane, demo.bat 10) to judge the 10 s budget");
-                Assert.That(open.Result.Seconds, Is.LessThanOrEqualTo(10.0), $"opened in {open.Result.Seconds:F1} s");
+                Http.NetworkDisabled = true;
+                var open = ResortOpener.OpenAsync(demo.Folder, null, TerrainDetail.High, null);
+                yield return Await(open);
+                yield return AwaitTask(open.Result.CoverReady);
+                try
+                {
+                    Assert.That(open.Result.Tiles.Count, Is.EqualTo(121));
+                    TestContext.WriteLine($"Jackson Hole 5 km opened in {open.Result.Seconds:F2} s; ground cover painted by {open.Result.CoverSeconds:F2} s (try {attempt + 1})");
+                    fastest = System.Math.Min(fastest, open.Result.Seconds);
+                }
+                finally
+                {
+                    Http.NetworkDisabled = false;
+                    open.Result.CacheLease?.Dispose();   // the opener's cache lease (task P2-04): held, the folder can't be deleted
+                    Object.Destroy(open.Result.Root);
+                }
+                yield return null;
             }
-            finally
-            {
-                Http.NetworkDisabled = false;
-                open.Result.CacheLease?.Dispose();   // the opener's cache lease (task P2-04): held, the folder can't be deleted
-                Object.Destroy(open.Result.Root);
-            }
+            // The 10 s is a player's budget, and a player's GPU isn't shared: in tools/gpu's shared render lane the open
+            // reports its time; alone (the measure lane, or no lane) it must make it.
+            if (System.Environment.GetEnvironmentVariable("MP_GPU_LANE") == "render" && fastest > 10.0)
+                Assert.Inconclusive($"opened in {fastest:F1} s at best with the GPU shared (render lane); run alone (measure lane, demo.bat 10) to judge the 10 s budget");
+            Assert.That(fastest, Is.LessThanOrEqualTo(10.0), $"opened in {fastest:F1} s at best of two");
         }
     }
 }

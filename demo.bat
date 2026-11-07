@@ -305,6 +305,9 @@ echo   Phase 4 task 01: site works in the cost (rebuilds the game; close the Uni
 echo     83 The cost and site-works tests and the price table (surface lifts, grading and clearing rates), then the
 echo        game: Grading and Clearing in every lift's Cost row, T-bars and carpets priced, a Cost row for trails, and
 echo        the Guests Analysis tab's own tooltip.
+echo   4.01 small fixes (rebuilds the game; close the Unity editor first)
+echo     84 The T-bar and J-bar ends match their models (tests), the GPU queue's -Priority ticket (tests), the
+echo        timing tests that took a median under load, then the game: a T-bar reads TW-01 v2 OK.
 echo.
 echo     Q  Quit
 echo.
@@ -426,6 +429,7 @@ if /i "%CHOICE%"=="80" goto liftcosts
 if /i "%CHOICE%"=="81" goto surfacetows
 if /i "%CHOICE%"=="82" goto carpets
 if /i "%CHOICE%"=="83" goto sitecosts
+if /i "%CHOICE%"=="84" goto smallfixes
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -621,6 +625,26 @@ echo   Fly up close to a tower head (any lift): every sheave the rope touches tu
 echo     rope speed; a sheave the rope leaves stands still.
 echo   Paint a trail either side of it: no automatic path crosses the line. Save, quit and reload: it comes back.
 echo   Cost reads "no price yet". Quit the game when done.
+start "" "%GAME%"
+goto menu
+
+:smallfixes
+rem 4.01 PR 2: tow ends from the models, gpu.ps1 -Priority for the release smoke test, fastest-of-runs timing tests.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~TW10_|FullyQualifiedName~TW12_|FullyQualifiedName~SurfaceTowTests" <nul
+if errorlevel 1 goto done
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\gpu\test-gpu.ps1"
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo The GPU tests above include "A -Priority ticket goes to the front": the release smoke test now jumps the
+echo   queue (never stopping a running job) and waits up to 30 minutes, with its own "timed out" message.
+echo Open an area, then T for the Toolbox, the Lifts tab, N for New lift: Surface lift, T-bar.
+echo   Place a line 1,000-2,000 ft up and build it. Edit lift on it: the row reads "Rope over track" (17-33 ft),
+echo   as New lift does. The game's Player.log says "TW-01 v2 OK (rope over the track ...)".
+echo   Do the same with a J-bar. Fly close to a tower head: its sheaves still turn with the rope (they only turn
+echo   within 300 m of the eye, now measured cheaply; v0.3.2's 40-lift frame went 9.40 to 8.69 ms). Quit when done.
 start "" "%GAME%"
 goto menu
 
