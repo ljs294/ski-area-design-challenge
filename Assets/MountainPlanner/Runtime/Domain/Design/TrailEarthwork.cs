@@ -281,6 +281,35 @@ namespace MountainPlanner.Domain.Design
             }
         }
 
+        /// <summary>A shape's footprint and, for its ends, its centreline: neither reads the ground.</summary>
+        sealed class ShapeWork
+        {
+            public PointMm? Head, Tail;
+            public TrailFootprint Footprint;
+            public TrailCentreline.Result Centreline;
+        }
+
+        /// <summary>
+        /// The footprint and centreline for <paramref name="trail"/>'s shape and ends, kept with the shape (task P4-01: a
+        /// regrade worked both out again, 35 ms a trail and up to 100 ms, though neither depends on the ground).
+        /// </summary>
+        static ShapeWork ShapeOf(Trail trail, EarthworkSite site)
+        {
+            var kept = EarthworkGeometry.Of(trail.Shape, site, () => new ShapeWork[1]);
+            var w = kept[0];
+            if (w != null && w.Head == trail.Head && w.Tail == trail.Tail) return w;
+            w = new ShapeWork { Head = trail.Head, Tail = trail.Tail };
+            w.Footprint = TrailFootprint.Build(trail.Shape, site.Lattice, site.OriginX, site.OriginY);
+            if (trail.HasEnds && !w.Footprint.IsEmpty)
+            {
+                site.PointOf(trail.Head.Value, out double hx, out double hy);
+                site.PointOf(trail.Tail.Value, out double tx, out double ty);
+                w.Centreline = TrailCentreline.Find(w.Footprint, hx, hy, tx, ty);
+            }
+            kept[0] = w;
+            return w;
+        }
+
         /// <summary>
         /// Grades one trail over <paramref name="ground"/> (the ground as it is before it): footprint, centreline, then the
         /// grade (graded or natural, TL13). <paramref name="claimed"/> and <paramref name="rounds"/> are the points it must
@@ -289,7 +318,8 @@ namespace MountainPlanner.Domain.Design
         public static TrailBuild Grade(Trail trail, EditedHeights ground, EarthworkSite site, ulong seed, Func<int, int, bool> claimed,
                                        IReadOnlyList<Keep> rounds, TrailGrader.Options options = null)
         {
-            var fp = TrailFootprint.Build(trail.Shape, site.Lattice, site.OriginX, site.OriginY);
+            var shape = ShapeOf(trail, site);
+            var fp = shape.Footprint;
             var build = new TrailBuild { Footprint = fp, Trail = trail };
             var lat = site.Lattice;
             Func<int, int, bool> isFixed = (c, r) =>
@@ -300,12 +330,7 @@ namespace MountainPlanner.Domain.Design
                 for (int i = 0; i < rounds.Count; i++) if (rounds[i].Covers(x, y)) return true;
                 return false;
             };
-            if (trail.HasEnds && !fp.IsEmpty)
-            {
-                site.PointOf(trail.Head.Value, out double hx, out double hy);
-                site.PointOf(trail.Tail.Value, out double tx, out double ty);
-                build.Centreline = TrailCentreline.Find(fp, hx, hy, tx, ty);
-            }
+            build.Centreline = shape.Centreline;
             bool graded = trail.Settings.Grading == TrailGrading.Graded;
             if (build.Centreline != null && build.Centreline.Found && build.Centreline.LengthMetres >= 1
                 && build.Centreline.Points.Length / 2 <= TrailGrader.MaxStations * 8)
