@@ -581,7 +581,7 @@ if not exist "%GAME%" goto done
 echo.
 echo Open an area (or one of your saves), then T for the Toolbox, the Lifts tab, N for New lift:
 echo   Type: Surface lift. Carrier: T-bar (two riders a bar, 1,200 an hour) or J-bar (one rider, 600 an hour);
-echo     Carpet is greyed until the next PR. The name reads "T-bar 1" and Towers stays Plumb.
+echo     Carpet is demo 82. The name reads "T-bar 1" and Towers stays Plumb.
 echo   Place the bottom terminal on a gentle slope and the top 1,000-2,000 ft up: Automatic towers stand 15-30 ft
 echo     masts leaning over the track; the review row "Rope over track" shows the band (17 ft up to 33 ft).
 echo   Build it and fly along: springboxes with their bars every 15 m on both sides, the drive hut at the bottom.
