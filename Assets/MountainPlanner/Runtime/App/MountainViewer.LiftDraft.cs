@@ -36,7 +36,7 @@ namespace MountainPlanner.App
         void ShowDraftLift(Lift lift)
         {
             _draftLift = null;
-            if (lift == null || lift.Towers.Count == 0 || _resort == null || _edits == null || Lifts == null || _liftMaterials == null)
+            if (lift == null || (lift.Towers.Count == 0 && !LiftCatalogIds.IsBelt(lift.CatalogId)) || _resort == null || _edits == null || Lifts == null || _liftMaterials == null)
             {
                 if (_draftView != null) _draftView.Root.SetActive(false);
                 _draftPart = int.MinValue;

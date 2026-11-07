@@ -102,6 +102,15 @@ namespace MountainPlanner.Domain.Design
         /// <summary>A surface tow (the T-bar, J-bar): its riders are towed up a track on the snow, so it has no chairs to clear
         /// the ground; the rope's height over the track is a band (<see cref="ClearanceMetres"/> to <see cref="RopeMaxMetres"/>).</summary>
         public bool Tow { get; private set; }
+        /// <summary>A belt lift (the magic carpets): no rope, towers or carriers; its bed instead (<see cref="CarpetBed"/>).</summary>
+        public bool Belt { get; private set; }
+        /// <summary>A carpet under its gallery (C3, C10).</summary>
+        public bool Covered { get; private set; }
+        /// <summary>A carpet's deck, half its width from the line, metres (past the outer belt on a double).</summary>
+        public double DeckHalfWidthMetres { get; private set; }
+        /// <summary>A carpet station's plate top over its base (glidepath_carpet.json top/bottom plateTop).</summary>
+        public double PlateTopMetres { get; private set; } = 0.372;
+
         /// <summary>TW-01: the least height of the carriers' lowest point over the ground under them (the chairs' 15 ft; a
         /// tow's rope over its track, its retracted bars clear of skiers passing under).</summary>
         public double ClearanceMetres { get; private set; } = LiftRope.Clearance;
@@ -162,6 +171,7 @@ namespace MountainPlanner.Domain.Design
         {
             if (LiftCatalogIds.IsStern(catalogId)) return Stern(catalogId);
             if (LiftCatalogIds.IsTow(catalogId)) return TowOf(catalogId);
+            if (LiftCatalogIds.IsBelt(catalogId)) return CarpetOf(catalogId);
             var type = Catalog(catalogId);
             if (!LiftCatalogIds.DriveChoice(catalogId)) return type;
             return Driven(type, LiftCatalogIds.Maker(catalogId) == "monta", drive ?? LiftCatalogIds.DefaultDrive(catalogId));
@@ -398,6 +408,36 @@ namespace MountainPlanner.Domain.Design
             // The view measures footprints, exits and origins again on the models (LiftTypes.Measured).
             t.Bottom = new TerminalEnd("monta_tbar_drive", TerminalRow.HoldDown, 2 * Deg, 25 * Deg, 10 * Deg, 1.83, 6.4, 1.75, 5.9, 3.4, 0, 8);
             t.Top = new TerminalEnd("monta_tbar_return", TerminalRow.Support, -8 * LiftRope.BendPerSheave, 0, 0, 1.6, 6.0, 1.6, 5.5, 4.5, 0, 8);
+            return t;
+        }
+
+        /// <summary>
+        /// The Glidepath carpets (surface lifts PR B; glidepath_carpet.json, glidepath_carpet2.json): a 750 mm belt (two on the
+        /// double, 1,450 mm apart) at 160 fpm (C11), driven at the top (C4), 1,500 riders an hour a belt. No rope, towers or
+        /// carriers (<see cref="Belt"/>): the bed is laid by <see cref="CarpetBed"/>. Each station's footprint: its plate's
+        /// outer edge behind its origin (0.6 m at the bottom, 1 m at the top), its belt joint 1.8 m ahead, its widest part
+        /// (the tension unit, the motor cover) either side.
+        /// </summary>
+        static LiftType CarpetOf(string catalogId)
+        {
+            bool two = LiftCatalogIds.IsDoubleBelt(catalogId), covered = LiftCatalogIds.IsCovered(catalogId);
+            double deck = two ? 1.53 : 0.805;
+            var t = new LiftType(catalogId, two ? 2 : 1, 0.813, 2.0, 0, 0, 0, 0, 77.1, 0, two ? 1.45 : 0, 0)
+            {
+                Name = (two ? "Double carpet" : "Carpet") + (covered ? ", covered" : ""),
+                Belt = true,
+                Covered = covered,
+                Drive = LiftDrive.Top,
+                RiseLimitMetres = CarpetBed.RiseLimitMetres,
+                DeckHalfWidthMetres = deck,
+                ChairHalfWidthMetres = deck,
+                TowerKit = two ? "glidepath_carpet2_" : "glidepath_carpet_",
+                BullwheelVisible = false,
+            };
+            t._capacity = two ? 3000 : 1500;
+            double station = deck + 0.8;
+            t.Bottom = new TerminalEnd((two ? "glidepath_carpet2_" : "glidepath_carpet_") + "bottom", TerminalRow.Support, 0, 0, 0, 0.6, 1.8, station, 1.8, 0, 0, 0);
+            t.Top = new TerminalEnd((two ? "glidepath_carpet2_" : "glidepath_carpet_") + "top", TerminalRow.Support, 0, 0, 0, 1.0, 1.8, station, 1.8, 0, 0, 0);
             return t;
         }
 

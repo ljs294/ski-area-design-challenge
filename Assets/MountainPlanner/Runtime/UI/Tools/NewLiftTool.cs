@@ -23,6 +23,7 @@ namespace MountainPlanner.UI.Tools
         const float TerminalRadius = 8f;        // the ghost's footprint around the bullwheel, metres
         const float SitingReliefMetres = 3.048f;   // LF-08: the ground varies by no more than 10 ft under a terminal
         const float MinApartMetres = 91.44f;       // LF-08: the terminals stand at least 300 ft apart
+        const float MinApartBeltMetres = 9.144f;   // CB-01: a carpet's stations at least 30 ft apart (surface lifts PR B)
         // LD3 (owner, 2026-11-01: fewer steps): towers and the review are one Build step; Automatic goes there straight from
         // the second click, By hand places its towers there first.
         static readonly string[] Steps = { "First terminal", "Other terminal", "Build" };
@@ -101,7 +102,7 @@ namespace MountainPlanner.UI.Tools
 
         void PickStance(int i)
         {
-            if (LiftCatalogIds.IsTow(_catalogId)) i = 0;   // a tow's masts lean across the line, always (D11)
+            if (LiftCatalogIds.IsTow(_catalogId) || LiftCatalogIds.IsBelt(_catalogId)) i = 0;   // a tow's masts lean across the line, always (D11); a carpet has none
             _stance = i == 0 ? TowerStance.Plumb : TowerStance.Leaned;
             _stanceDd.Set(new[] { "Plumb", "Leaned" }, i);
             Retype();
@@ -117,17 +118,23 @@ namespace MountainPlanner.UI.Tools
         void Retype()
         {
             // A surface tow's masts lean across the line by themselves (D11): no stance to choose, plumb along it.
-            bool tow = LiftCatalogIds.IsTow(_catalogId);
-            if (tow && _stance != TowerStance.Plumb) { _stance = TowerStance.Plumb; _stanceDd.Set(new[] { "Plumb", "Leaned" }, 0); }
-            _stanceDd.Button.SetEnabled(!tow);
-            if (_name == NextName(_ctx.History.Document, _wasTow)) { _name = NextName(_ctx.History.Document, tow); _ctx.Window.SetName(_name); }
-            _wasTow = tow;
+            bool tow = LiftCatalogIds.IsTow(_catalogId), belt = LiftCatalogIds.IsBelt(_catalogId);
+            if ((tow || belt) && _stance != TowerStance.Plumb) { _stance = TowerStance.Plumb; _stanceDd.Set(new[] { "Plumb", "Leaned" }, 0); }
+            _stanceDd.Button.SetEnabled(!tow && !belt);
+            // A carpet has no towers (surface lifts PR B): no By hand, its bed laid automatically.
+            if (belt && _mode != TowerMode.Automatic) { ClearTowers(); _mode = TowerMode.Automatic; _modeDd.Set(new[] { "Automatic", "By hand" }, 0); }
+            _modeDd.Button.SetEnabled(!belt);
+            if (belt) _editor?.Release();
+            if (_name == NextName(_ctx.History.Document, _wasKind)) { _name = NextName(_ctx.History.Document, _catalogId); _ctx.Window.SetName(_name); }
+            _wasKind = _catalogId;
+            if (_step == Step.Towers && belt) { Go(Step.Review); return; }
             if (_step == Step.Review || (_step == Step.Towers && _mode == TowerMode.Automatic)) Go(_step);
             else if (_step == Step.Towers) { PrepareHand(); _hintKey2 = long.MinValue; SyncEditor(); _editor?.TowersChanged(); ShowDraft(); }
         }
 
-        static string NextName(DesignDocument doc, bool tow = false) => (tow ? "T-bar " : "Chair ") + (doc.Lifts.Count + 1);
-        bool _wasTow;
+        static string NextName(DesignDocument doc, string catalogId = null) =>
+            (LiftCatalogIds.IsBelt(catalogId) ? "Carpet " : LiftCatalogIds.IsTow(catalogId) ? "T-bar " : "Chair ") + (doc.Lifts.Count + 1);
+        string _wasKind;
 
         void Go(Step step)
         {
@@ -253,7 +260,8 @@ namespace MountainPlanner.UI.Tools
                     float z = ground + _topLevelFt * 0.3048f;
                     _problem = (tint == GhostTint.Bad ? "A terminal must stand inside the area" : null)
                         ?? (z <= _bottomZ ? "The top terminal must be higher" : null)
-                        ?? (Vector2.Distance(at, _bottomXz) < MinApartMetres ? "The terminals stand at least 300 ft apart" : null);
+                        ?? (Vector2.Distance(at, _bottomXz) < (Type.Belt ? MinApartBeltMetres : MinApartMetres)
+                            ? (Type.Belt ? "A carpet's stations stand at least 30 ft apart" : "The terminals stand at least 300 ft apart") : null);
                     _ctx.TopGhost?.Show(Type.Top.Model, new Vector3(at.x, z, at.y), z, new Vector3(-along.x, 0, -along.y), _problem != null ? GhostTint.Bad : tint, Type.Top.Head);
                     Draw(at, true);
                     if (_problem != null) { _ctx.Window.SetMessage(_problem); _levelKey = int.MinValue; }
@@ -272,6 +280,7 @@ namespace MountainPlanner.UI.Tools
                     TowersTick(input);
                     break;
                 case Step.Review:
+                    if (Type.Belt) break;   // a carpet: no towers to edit (its levels were set while placing)
                     // Every tower stays editable (the mockup); a terminal clicked takes its level (LT34's suggestion).
                     EnsureEditor();
                     SyncEditor();
@@ -433,7 +442,8 @@ namespace MountainPlanner.UI.Tools
         // The profile strip (LF-10) from a solved rope over its ground, the terminals at their levels.
         LiftProfile ShowProfile(LiftRope rope, Domain.Edits.IHeightSource ground, LiftLevels levels, double openFrom = double.NaN)
         {
-            if (rope == null || ground == null || _ctx.ToGround == null) return null;
+            if (rope == null) { if (Type.Belt) _ctx.Window.HideStrip(); return null; }   // a carpet has no rope to draw
+            if (ground == null || _ctx.ToGround == null) return null;
             var b = _ctx.ToGround(_bottom);
             var t = _ctx.ToGround(_top);
             var profile = LiftProfile.From(rope, ground, b.X, b.Y, t.X, t.Y, levels, openFrom);
@@ -577,6 +587,13 @@ namespace MountainPlanner.UI.Tools
                 _review.Add("Towers", _building ? "placing…" : "—", "TW-12").Ready(_ctx.EditedGround == null, true);
                 return;
             }
+            if (_built.Bed is CarpetBed.Result bed)
+            {
+                BeltReview(_review, bed);
+                foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
+                _review.Ready(_built.Ok, true);
+                return;
+            }
             var rope = _built.Rope;
             _review.Add("Towers", LiftSummary.Towers(_built.Towers, rope, run), "TW-02, TW-12; LD3: tallest, longest span and heads")
                 .Add(rope.Type.Tow ? "Rope over track" : "Lowest chairs",
@@ -587,6 +604,21 @@ namespace MountainPlanner.UI.Tools
             foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
             if (_built.LevelsPending) _review.Add("Levels", _suggesting ? "working out what would fit…" : "—", "LT34");
             _review.Ready(_built.Ok && !_built.LevelsPending, true);
+        }
+
+        /// <summary>A carpet's review rows (surface lifts PR B): its bed of modules, its grades (CB-04), its stations' pitch
+        /// and the fill under it (owner 2026-11-06: it rides the snow room over the ground, never cutting it).</summary>
+        internal static void BeltReview(ReviewModel review, CarpetBed.Result bed)
+        {
+            int fillers = 0;
+            foreach (double m in bed.Modules) if (m < CarpetBed.ModuleMetres - 0.01) fillers++;
+            string Pitch(double g) => System.Math.Abs(g) < 0.0005 ? "level" : $"{g * 100:F1} %";
+            review.Add("Bed", $"{bed.Modules.Count} modules ({ToolFormat.Length(bed.LengthMetres)} of belt)" + (fillers > 0 ? ", one 1 m filler" : ""), "C12: 2 m modules, a 1 m filler, 1° a joint at most")
+                  .Add("Grade", $"{bed.Grade * 100:F0} % steepest · {bed.AverageGrade * 100:F0} % on average", "CB-04: amber past 23 % (18 % on average), red past 25 %")
+                  .Add("Stations", $"bottom {Pitch(bed.BottomPitch)} · top {Pitch(bed.TopPitch)}",
+                       $"Level where the ground allows, pitched up to {CarpetBed.EndGradeLimit * 100:F0} %")
+                  .Add("Over the ground", $"belt {ToolFormat.Length(CarpetBed.BeltHeightMetres)} up · {bed.FillCubicMetres * 1.30795:F0} yd³ fill, no cut",
+                       bed.MostFillMetres > CarpetBed.DeepFillMetres ? $"CB-05: up to {ToolFormat.Length(bed.MostFillMetres)} of fill under it" : "Filled up under it where the ground is low");
         }
 
         public ToolBackOut Escape()
@@ -637,7 +669,7 @@ namespace MountainPlanner.UI.Tools
             _builtRebuild = null;
             _builtFor = null;
             _ctx.Notice?.Invoke(_name + (result.Document.FindLift(new LiftId(result.Created[0]))?.Stage == WorkStage.Plan ? ": saved as a plan" : ": ground broken"));
-            _name = NextName(result.Document);
+            _name = NextName(result.Document, _catalogId);
             _ctx.Window.SetName(_name);
             Go(Step.First);
         }

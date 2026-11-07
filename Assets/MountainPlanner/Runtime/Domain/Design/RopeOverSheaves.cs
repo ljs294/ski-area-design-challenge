@@ -222,7 +222,20 @@ namespace MountainPlanner.Domain.Design
                                          double rho, double t0, double w, double y0, bool levelEnds = true, int iterations = 3,
                                          IReadOnlyList<int> turn = null)
         {
+            var each = new double[trains.Count];
+            for (int i = 0; i < each.Length; i++) each[i] = rho;
+            return PoseLine(trains, ropeAbove, holdRow, each, t0, w, y0, levelEnds, iterations, turn);
+        }
+
+        /// <summary>As <see cref="PoseLine(IReadOnlyList{SheaveTree}, IReadOnlyList{bool}, IReadOnlyList{bool[]}, double, double,
+        /// double, double, bool, int, IReadOnlyList{int})"/>, each train with its own axle-to-rope distance <paramref name="rho"/>
+        /// (owner finding 2026-11-06: the T-bar's sheaves are smaller than the chairs', and the rope stood off them).</summary>
+        public static PosedSide PoseLine(IReadOnlyList<SheaveTree> trains, IReadOnlyList<bool> ropeAbove, IReadOnlyList<bool[]> holdRow,
+                                         IReadOnlyList<double> rho, double t0, double w, double y0, bool levelEnds = true, int iterations = 3,
+                                         IReadOnlyList<int> turn = null)
+        {
             int n = trains.Count;
+            if (rho == null || rho.Count != n) throw new ArgumentException("One rope radius a train.", nameof(rho));
             if (n < 2) throw new ArgumentException("A line needs at least two trains (its terminals' rows).");
             var phiIn = new double[n];
             var phiOut = new double[n];
@@ -234,7 +247,7 @@ namespace MountainPlanner.Domain.Design
                 var sh = trains[i].Sheaves;
                 double side = ropeAbove[i] ? 1 : -1;
                 midS[i] = (sh[0].AxleS + sh[sh.Count - 1].AxleS) / 2;
-                midW[i] = (sh[0].AxleW + sh[sh.Count - 1].AxleW) / 2 + side * rho;
+                midW[i] = (sh[0].AxleW + sh[sh.Count - 1].AxleW) / 2 + side * rho[i];
             }
             for (int i = 0; i < n; i++)
             {
@@ -258,7 +271,7 @@ namespace MountainPlanner.Domain.Design
                         for (int k = 0; k < touched.Length; k++) touched[k] = holdRow[i][k] == up;
                         above = !up;
                     }
-                    poses[i] = Solve(trains[i], phiIn[i], phiOut[i], above, rho, touched);
+                    poses[i] = Solve(trains[i], phiIn[i], phiOut[i], above, rho[i], touched);
                 }
                 for (int i = 0; i + 1 < n; i++)
                 {

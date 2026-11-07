@@ -298,6 +298,8 @@ echo.
 echo   Surface lifts: the Monta T-bar and J-bar in the game (rebuilds the game; close the Unity editor first)
 echo     81 The tow tests, then the game: New lift, Surface lift, T-bar or J-bar; low towers leaning over the track,
 echo        bars every 15 m, the rope kept 17-33 ft over the track, and no trail path across the line.
+echo     82 The carpet tests, then the game: New lift, Surface lift, Carpet; single or double, open or covered, the
+echo        bed of 2 m modules with the belt 18 in over the ground, filled under, never cut; Edit lift.
 echo.
 echo     Q  Quit
 echo.
@@ -417,6 +419,7 @@ if /i "%CHOICE%"=="78" goto waterroads
 if /i "%CHOICE%"=="79" goto driveend
 if /i "%CHOICE%"=="80" goto liftcosts
 if /i "%CHOICE%"=="81" goto surfacetows
+if /i "%CHOICE%"=="82" goto carpets
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -571,19 +574,49 @@ goto menu
 :surfacetows
 rem Surface lifts PR A: the Monta T-bar and J-bar built through the game's own lift path (towers, rope, bars).
 chcp 65001 >nul
-dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~SurfaceTowTests|FullyQualifiedName~G1_" <nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~SurfaceTowTests|FullyQualifiedName~G1_|FullyQualifiedName~RopeOverSheaves" <nul
 if errorlevel 1 goto done
 call :buildplayer
 if not exist "%GAME%" goto done
 echo.
 echo Open an area (or one of your saves), then T for the Toolbox, the Lifts tab, N for New lift:
 echo   Type: Surface lift. Carrier: T-bar (two riders a bar, 1,200 an hour) or J-bar (one rider, 600 an hour);
-echo     Carpet is greyed until the next PR. The name reads "T-bar 1" and Towers stays Plumb.
+echo     Carpet is demo 82. The name reads "T-bar 1" and Towers stays Plumb.
 echo   Place the bottom terminal on a gentle slope and the top 1,000-2,000 ft up: Automatic towers stand 15-30 ft
 echo     masts leaning over the track; the review row "Rope over track" shows the band (17 ft up to 33 ft).
 echo   Build it and fly along: springboxes with their bars every 15 m on both sides, the drive hut at the bottom.
+echo   Each tower one straight diagonal: pier, red pad, mast and head sleeve in line, the number plate facing down
+echo     the line. The rope runs in the sheaves' grooves at the towers and under the drive's rows (no gap). The
+echo     J-bar is the T with one side cut off, no hooked tip. Chairlifts too: each model's own sheave size, so a
+echo     Sessellift terminal's entry row (smaller wheels) carries its rope on the wheels, not 3 cm off them.
+echo   Fly up close to a tower head (any lift): every sheave the rope touches turns with it, the right way and at
+echo     rope speed; a sheave the rope leaves stands still.
 echo   Paint a trail either side of it: no automatic path crosses the line. Save, quit and reload: it comes back.
 echo   Cost reads "no price yet". Quit the game when done.
+start "" "%GAME%"
+goto menu
+
+:carpets
+rem Surface lifts PR B: the Glidepath magic carpets built through the game's own lift path (the bed, no rope or towers).
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~CarpetBedTests|FullyQualifiedName~LiftCostTests" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open an area (or one of your saves), then T for the Toolbox, the Lifts tab, N for New lift:
+echo   Type: Surface lift. Carrier: Carpet. Model: Glidepath single (1,500 an hour) or double (3,000);
+echo     Cover: Open or Covered. The name reads "Carpet 1"; Towers is greyed (a carpet has none).
+echo   Place the bottom station on a gentle beginner slope, the top 100-400 ft up the hill (30 ft at least, 1,000 at most).
+echo   The review: Bed (modules and the 1 m filler), Grade (amber past 23 %%, red past 25 %%), Stations (level or
+echo     pitched up to 8 %%), Over the ground (the belt 18 in up, the fill under it, no cut).
+echo     Too steep or too short for its rise is red, with the reason.
+echo   Build it and fly along: the deck follows the ground, its belt 18 in up, bending at most 1 degree a joint, its grey
+echo     skirt running down to the ground; low ground filled up under it, nothing cut; the approaches filled to the
+echo     plates less the snow room. Covered: the gallery with exit bays and a portal at each end.
+echo   Edit lift: click a station, drag it, or Page Up / Page Down its level; the bed lays again. Apply.
+echo   Save, quit and reload: it comes back on the same ground. Cost reads "no price yet". The belt doesn't move yet.
+echo   Quit the game when done.
 start "" "%GAME%"
 goto menu
 

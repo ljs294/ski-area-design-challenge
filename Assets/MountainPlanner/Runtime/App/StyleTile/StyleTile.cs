@@ -155,6 +155,22 @@ namespace MountainPlanner.App
             }
             if (handB != 0 || handT != 0)
                 report.AppendFormat(CultureInfo.InvariantCulture, "levels taken from the review: bottom {0:+0;-0} ft, top {1:+0;-0} ft; ", handB / 0.3048, handT / 0.3048);
+            if (built.Bed is CarpetBed.Result bed)
+            {
+                // A carpet (surface lifts PR B): its bed, no rope or towers.
+                report.AppendFormat(CultureInfo.InvariantCulture,
+                    "carpet bed: {0} modules, {1:F0} ft of belt, rise {2:F1} ft, grade {3:P1} steepest / {4:P1} average, ends {10:P1}, cut {5:F0} / fill {6:F0} yd³, " +
+                    "levels {7:F2} / {8:F2} m; problems [{9}]; ",
+                    bed.Modules.Count, bed.LengthMetres / 0.3048, bed.RiseMetres / 0.3048, bed.Grade, bed.AverageGrade,
+                    bed.CutCubicMetres * 1.30795, bed.FillCubicMetres * 1.30795, bed.BottomLevel, bed.TopLevel,
+                    string.Join("; ", System.Linq.Enumerable.Select(built.Problems, p => p.Rule + " " + p.Message)), bed.EndGrade);
+                var carpet = new AddLift(history.Revision, name, catalogId, bottom, top, TowerMode.Automatic, TowerStance.Plumb,
+                                         built.Towers, WorkStage.Built, built.Levels, drive);
+                var rc = history.Submit(carpet, built.Edits);
+                report.AppendFormat(CultureInfo.InvariantCulture, "lift {0}: {1:F0} ft, {2} cells cleared",
+                    rc.Accepted ? "built" : "REJECTED " + rc, Math.Sqrt(bottom.DistanceSquared(top)) / 304.8, built.ClearedCells);
+                return;
+            }
             var rope = built.Rope;
             report.AppendFormat(CultureInfo.InvariantCulture,
                 "ends: bottom {0} ({1:F1}/{2:F1}/{3:F1} m), top {4} ({5:F1}/{6:F1}/{7:F1} m); " +

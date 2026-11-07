@@ -226,7 +226,7 @@ namespace MountainPlanner.App
                 _liftViews.Remove(lift.Id);
                 // A lift built before towers came to the tool (task 09) has none: it can't be drawn until it's edited or
                 // re-placed. One lift that can't be drawn never stops the others.
-                if (lift.Towers.Count == 0)
+                if (lift.Towers.Count == 0 && !LiftCatalogIds.IsBelt(lift.CatalogId))   // a carpet has none (surface lifts PR B)
                 {
                     Debug.LogWarning($"[Built] {lift.Name}: no towers (built before task 09's placement); not drawn until it's edited");
                     continue;
@@ -251,14 +251,21 @@ namespace MountainPlanner.App
                 var b0 = new Vector3((float)lift.Bottom.XMetres, 0, (float)lift.Bottom.YMetres);
                 var t0 = new Vector3((float)lift.Top.XMetres, 0, (float)lift.Top.YMetres);
                 var along = (t0 - b0).normalized;
-                var ticks = new List<Vector3>(rope.Towers.Count);
-                foreach (var tower in rope.Towers) ticks.Add(b0 + along * (float)tower.BaseS);
+                var ticks = new List<Vector3>(rope?.Towers.Count ?? 0);
+                if (rope != null) foreach (var tower in rope.Towers) ticks.Add(b0 + along * (float)tower.BaseS);
                 var surface = _resort.Surface;
                 _mapLines.Set(lift.Id.Value, b0, t0, ticks, (x, z) => surface.HeightAt(x, z));
+                if (rope == null)
+                {
+                    var bed = view.Bed;
+                    Debug.Log($"[Built] {lift.Name}: a carpet, {bed?.Modules.Count ?? 0} modules, {bed?.LengthMetres / 0.3048 ?? 0:F0} ft, " +
+                              $"grade {bed?.Grade ?? 0:P0} ({bed?.AverageGrade ?? 0:P0} on average), rise {bed?.RiseMetres / 0.3048 ?? 0:F1} ft");
+                    continue;
+                }
                 Debug.Log($"[Built] {lift.Name}: {rope.Towers.Count} towers ({string.Join(", ", view.Heads)}), {view.ChairCount} chairs, " +
                           $"TW-01 v2 {(rope.ClearanceOk ? "OK" : "SHORT")} (lowest chair {rope.LowestClearance / 0.3048:F1} ft at {rope.LowestClearanceS / 0.3048:F0} ft, " +
                           $"shortfall {rope.Shortfall / 0.3048:F1} ft at {rope.ShortfallS / 0.3048:F0} ft), top tension {rope.TopTensionShare:P0} of rating, " +
-                          $"trains {(view.Posed ? $"posed{(view.RigidNote.Length > 0 ? $" ({view.RigidNote} fixed: no pivots)" : "")} (tangent within {view.PoseError * 180 / Math.PI:F3}°{(view.SideMismatches > 0 ? $", {view.SideMismatches} head(s) disagree with the rope's bend:{view.MismatchNote}" : "")})" : "not posable (shipped models)")}, " +
+                          $"trains {(view.Posed ? $"posed{(view.RigidNote.Length > 0 ? $" ({view.RigidNote} fixed: no pivots)" : "")} (rope off the axles: {view.RopeRadii} m; {view.SheaveCount} sheaves turn with it; tangent within {view.PoseError * 180 / Math.PI:F3}°{(view.SideMismatches > 0 ? $", {view.SideMismatches} head(s) disagree with the rope's bend:{view.MismatchNote}" : "")})" : "not posable (shipped models)")}, " +
                           $"rope leaves the bottom at {rope.BottomExitLoaded * Mathf.Rad2Deg:F1}° loaded / {rope.BottomExitEmpty * Mathf.Rad2Deg:F1}° empty and reaches the top at " +
                           $"{rope.TopEntryLoaded * Mathf.Rad2Deg:F1}° / {rope.TopEntryEmpty * Mathf.Rad2Deg:F1}° ({(rope.TerminalsOk ? "within" : "OVER")} TW-16), " +
                           (rope.Towers.Count > 0   // a lift built before task 09 places its towers has none
@@ -461,12 +468,14 @@ namespace MountainPlanner.App
             if (!draft) _draftPart = int.MinValue;
             if ((_liftViews.Count > 0 && picking || draft) && cam != null && !PhotoOpen && _liftsShown)
             {
-                // -hoverlift (captures): the pointer on the first built lift's rope, a fifth of the way round.
+                // -hoverlift (captures): the pointer on the first built lift on screen, a fifth of the way round its rope (a
+                // carpet: its middle).
                 if (_hoverFirstLift && HoverPointerForCapture == null)
                     foreach (var kv in _liftViews)
                     {
                         var at = cam.WorldToScreenPoint(kv.Value.View.RopePoint(0.2f));
-                        if (at.z > 0) HoverPointerForCapture = new Vector2(at.x / Screen.width, at.y / Screen.height);
+                        if (at.z <= 0 || at.x < 0 || at.y < 0 || at.x > Screen.width || at.y > Screen.height) continue;
+                        HoverPointerForCapture = new Vector2(at.x / Screen.width, at.y / Screen.height);
                         break;
                     }
                 var mouse = UnityEngine.InputSystem.Mouse.current;

@@ -22,6 +22,8 @@ namespace MountainPlanner.Presentation.Lifts
         Vector3[] _ropeA = System.Array.Empty<Vector3>(), _ropeB = System.Array.Empty<Vector3>();
         Renderer[] _renderers = System.Array.Empty<Renderer>();
         bool _pickReady, _highlighted;
+        /// <summary>A belt lift (a carpet): no rope loop, picked by its pieces' boxes alone.</summary>
+        bool _belt;
 
         /// <summary>The rope's capsules: centred this far below it, this wide, so the chairs under it count.</summary>
         const float ChairDrop = 1.4f, RopeRadius = 1.8f, RopeStep = 5f;
@@ -32,7 +34,7 @@ namespace MountainPlanner.Presentation.Lifts
 
         /// <summary>A point on the rope a fraction of the way round its loop, with a chair's drop (captures and tests).</summary>
         public Vector3 RopePoint(float fraction) =>
-            _loop.Length == 0 ? Vector3.zero : _loop[Mathf.Clamp((int)(fraction * (_loop.Length - 1)), 0, _loop.Length - 1)] - new Vector3(0, 1, 0);
+            _loop.Length == 0 ? (_belt ? _bounds.center : Vector3.zero) : _loop[Mathf.Clamp((int)(fraction * (_loop.Length - 1)), 0, _loop.Length - 1)] - new Vector3(0, 1, 0);
 
         // The boxes and renderers the pointer and the highlight use, made again at the next pick (after a build or a re-height).
         // Which part each piece belongs to (_partOf) stays: only Clear forgets that, with the pieces. A lit lift stays lit.
@@ -115,7 +117,7 @@ namespace MountainPlanner.Presentation.Lifts
         {
             distance = float.MaxValue;
             part = PartRope;
-            if (_loop.Length == 0) return false;
+            if (_loop.Length == 0 && !_belt) return false;
             if (!_pickReady) PreparePick();
             var reach = _bounds;
             reach.Expand(Mathf.Max(20f, reach.size.y));
