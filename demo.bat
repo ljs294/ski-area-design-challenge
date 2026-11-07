@@ -311,6 +311,9 @@ echo        timing tests that took a median under load, then the game: a T-bar r
 echo   4.01 grader (rebuilds the game; close the Unity editor first)
 echo     85 The fold tests (a run sharing a tile but no block isn't graded again), then the drawn resort's edit
 echo        bench in the GPU's measure lane (about 15 min), then the game: grade a run and watch the preview.
+echo   4.01 trail window (rebuilds the game; close the Unity editor first)
+echo     86 The trail look's tests (the pages match the old rule, a run 2.9 km long), then the drawn resort's count of
+echo        built trails drawn, then the game: a trail painted far out, past the old 2048 m window, looks like the rest.
 echo.
 echo     Q  Quit
 echo.
@@ -434,6 +437,7 @@ if /i "%CHOICE%"=="82" goto carpets
 if /i "%CHOICE%"=="83" goto sitecosts
 if /i "%CHOICE%"=="84" goto smallfixes
 if /i "%CHOICE%"=="85" goto grader
+if /i "%CHOICE%"=="86" goto trailwindow
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -665,6 +669,24 @@ findstr /c:"[DesignBench] with" "%~dp0test-results\p4-01\designbench.log"
 echo Before (v0.3.2): grade a run 1005 ms, remove a run 946, new lift 1424. docs\perf\edit-timing.md has the rest.
 echo Open the demo area, T for the Toolbox, Trails: pick a natural run, Edit, set Graded: the preview comes faster
 echo   than v0.3.2 (a new lift's preview most of all); the ground and the cost read as before. Quit when done.
+start "" "%GAME%"
+goto menu
+
+:trailwindow
+rem 4.01 PR 6 (TL24): the trail look in 64 m pages wherever the trails are; no 2048 m window.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~TrailSurfaceTests" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\p4-01" mkdir "%~dp0test-results\p4-01"
+%MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -designbench "%~dp0test-results\p4-01\designbench-trails.json" -benchrounds 1 -logFile "%~dp0test-results\p4-01\designbench-trails.log" <nul
+findstr /c:"built trails drawn" "%~dp0test-results\p4-01\designbench-trails.log"
+echo Every built trail should be drawn at both ends ("N of N built trails drawn").
+echo Open the Jackson Hole demo area, T for the Toolbox, Trails: paint a trail near the area's far west or east edge,
+echo   well away from your other trails, and build it graded. It shows corduroy, earth faces and the groomed bench like
+echo   a trail near the middle (before, a trail more than 2 km from the others' north-west corner showed bare ground).
+echo   Repaint it and Ctrl+Z: the look follows. Quit when done.
 start "" "%GAME%"
 goto menu
 

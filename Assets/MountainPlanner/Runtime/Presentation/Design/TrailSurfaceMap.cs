@@ -56,8 +56,40 @@ namespace MountainPlanner.Presentation.Design
 
         public TrailSurfaceMap() => Hide();
 
-        /// <summary>Draws no trails (the shader reads its buffers only when this is on).</summary>
-        public static void Hide() => Shader.SetGlobalVector(ParamsId, Vector4.zero);
+        /// <summary>
+        /// Draws no trails, with one-point buffers bound in place of the pages: the terrain shader declares the buffers, and
+        /// with none bound it drew the whole ground black before the first trail was built (D3D12, 2026-11-07), though it
+        /// only reads them while a trail is drawn. Bound before the first scene loads and again whenever trails go.
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        public static void Hide()
+        {
+            Shader.SetGlobalVector(ParamsId, Vector4.zero);
+            if (_quit) return;   // a map disposed while the game quits makes no new buffers
+            if (_nonePoints == null || !_nonePoints.IsValid())
+            {
+                _nonePoints = new GraphicsBuffer(GraphicsBuffer.Target.Structured, 1, Marshal.SizeOf<Point>()) { name = "Trail points (none)" };
+                _nonePages = new GraphicsBuffer(GraphicsBuffer.Target.Structured, 1, sizeof(int)) { name = "Trail pages (none)" };
+                _nonePoints.SetData(new Point[1]);
+                _nonePages.SetData(new[] { -1 });
+                // Released as the game quits, never left to the garbage collector.
+                Application.quitting += ReleaseNone;
+            }
+            Shader.SetGlobalBuffer(PointsId, _nonePoints);
+            Shader.SetGlobalBuffer(PagesId, _nonePages);
+        }
+
+        static GraphicsBuffer _nonePoints, _nonePages;
+        static bool _quit;
+
+        static void ReleaseNone()
+        {
+            Application.quitting -= ReleaseNone;
+            _quit = true;
+            _nonePoints?.Release();
+            _nonePages?.Release();
+            _nonePoints = _nonePages = null;
+        }
 
         /// <summary>The last rebuild's stages, ms (the [Built] log, task P3-11).</summary>
         public string LastSplit { get; private set; } = "";
