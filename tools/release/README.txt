@@ -8,6 +8,7 @@ NEW IN 0.3.2
 
 - More lifts: fixed-grip doubles and triples from Sessellift and Monta, the Sessellift D4 detachable quad, and the
   Sessellift Stern quad, triple and double.
+- Surface lifts: the Monta T-bar and J-bar, and the Glidepath magic carpet, single or double, covered or open.
 - Drive at either end: on every fixed-grip chairlift, choose whether the drive sits at the top or the bottom (the
   Drive row in New lift and Edit lift).
 - Lift prices: New lift and Edit lift show what a chairlift costs. Hover the Cost row to see the parts.
@@ -17,6 +18,7 @@ NEW IN 0.3.2
 - Get water and roads in Manage Areas, for an area downloaded without them.
 - The game no longer crashes as it closes on some DirectX 12 graphics cards.
 - Lift glass is see-through again: the glass on the detachable stations showed solid and dark.
+- A lift line over some ground no longer asks for a cut about 1,000 m deep.
 
 
 RUNNING THE GAME
