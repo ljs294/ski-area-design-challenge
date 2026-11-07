@@ -149,6 +149,30 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void EachTrainCarriesTheRopeAtItsOwnSheavesRadius()
+        {
+            // Owner finding 2026-11-06: the T-bar's small sheaves (the rope 0.16 m off the axles) beside a chair-sized row: each
+            // train's contacts sit its own radius from its axles, and one radius for all is the old call's answer.
+            var trains = new List<SheaveTree> { At(Eight(false), 4, 3.5), At(Eight(true), 80, 30), At(Eight(true), 200, 53.5) };
+            var above = new List<bool> { false, true, true };
+            var quad = LiftType.Of(LiftCatalogIds.SesselliftFgq4);
+            var rhos = new[] { 0.16, Rho, 0.16 };
+            var side = RopeOverSheaves.PoseLine(trains, above, null, rhos, quad.CounterweightNewtons, quad.EmptyNewtonsPerMetre, 3.5);
+            for (int i = 0; i < trains.Count; i++)
+            {
+                var p = side.Poses[i];
+                for (int k = 0; k < p.AxleS.Length; k++)
+                {
+                    double d = Math.Sqrt((p.ContactS[k] - p.AxleS[k]) * (p.ContactS[k] - p.AxleS[k]) + (p.ContactW[k] - p.AxleW[k]) * (p.ContactW[k] - p.AxleW[k]));
+                    Assert.That(d, Is.EqualTo(rhos[i]).Within(1e-9), $"train {i} sheave {k}");
+                }
+            }
+            var one = RopeOverSheaves.PoseLine(trains, above, null, Rho, quad.CounterweightNewtons, quad.EmptyNewtonsPerMetre, 3.5);
+            var same = RopeOverSheaves.PoseLine(trains, above, null, new[] { Rho, Rho, Rho }, quad.CounterweightNewtons, quad.EmptyNewtonsPerMetre, 3.5);
+            for (int i = 0; i < trains.Count; i++) Assert.That(same.Poses[i].ContactW, Is.EqualTo(one.Poses[i].ContactW));
+        }
+
+        [Test]
         public void SH04_PosingIsDeterministic()
         {
             var a = RopeOverSheaves.Solve(Eight(true), Deg(7), Deg(-3), true, Rho);

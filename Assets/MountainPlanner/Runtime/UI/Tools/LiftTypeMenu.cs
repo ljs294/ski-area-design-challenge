@@ -14,7 +14,7 @@ namespace MountainPlanner.UI.Tools
     public sealed class LiftTypeMenu
     {
         static readonly string[] Kinds = { "Fixed-grip chair", "Detachable chair", "Detachable gondola", "Aerial tram", "Surface lift" };
-        /// <summary>The surface lifts' kind (v0.3.2): the Monta T-bar and J-bar; the carpet comes later.</summary>
+        /// <summary>The surface lifts' kind (v0.3.2): the Monta T-bar and J-bar, and the Glidepath carpets (surface lifts PR B).</summary>
         const int SurfaceKind = 4;
         static readonly string[][] KindCarriers =
         {
@@ -50,10 +50,17 @@ namespace MountainPlanner.UI.Tools
         static readonly bool[] FixedOff = { false, false, false, true };
         static readonly string[] Drives = { "Top", "Bottom" };
         static readonly string[] MakerNames = { "Sessellift", "Monta", "Chairworks" };
+        // The Glidepath carpets (C3, C9): one belt or two side by side, open or under a gallery; all four in the id (no save bump).
+        static readonly string[] CarpetModels = { "Glidepath single", "Glidepath double" };
+        static readonly string[] Covers = { "Open", "Covered" };
+
+        static string CarpetId(bool two, bool covered) =>
+            two ? (covered ? LiftCatalogIds.GlidepathCarpet2Covered : LiftCatalogIds.GlidepathCarpet2)
+                : (covered ? LiftCatalogIds.GlidepathCarpetCovered : LiftCatalogIds.GlidepathCarpet);
 
         readonly ToolWindow _window;
         readonly Action _changed;
-        public readonly ToolDropdown Kind, Carrier, Model, DriveEnd;
+        public readonly ToolDropdown Kind, Carrier, Model, DriveEnd, Cover;
         Label _note;
         // LD9: whether the player picked the drive end (kept across fixed grips that offer it), else the type's own.
         bool _drivePicked;
@@ -83,7 +90,9 @@ namespace MountainPlanner.UI.Tools
             : id == LiftCatalogIds.MontaFg2 ? "Monta FG2" : id == LiftCatalogIds.MontaFg3 ? "Monta FG3"
             : id == LiftCatalogIds.SesselliftStern4 ? "Sessellift Stern Q-4" : id == LiftCatalogIds.SesselliftStern3 ? "Sessellift Stern T-3"
             : id == LiftCatalogIds.SesselliftStern2 ? "Sessellift Stern D-2"
-            : id == LiftCatalogIds.MontaTbar ? "Monta T-bar" : id == LiftCatalogIds.MontaJbar ? "Monta J-bar" : null;
+            : id == LiftCatalogIds.MontaTbar ? "Monta T-bar" : id == LiftCatalogIds.MontaJbar ? "Monta J-bar"
+            : LiftCatalogIds.IsBelt(id) ? (LiftCatalogIds.IsDoubleBelt(id) ? "Glidepath double carpet" : "Glidepath carpet") + (LiftCatalogIds.IsCovered(id) ? ", covered" : "")
+            : null;
 
         /// <summary>Adds the three rows; <paramref name="changed"/> runs after a pick changes the type.</summary>
         public LiftTypeMenu(ToolWindow window, string catalogId, Action changed, string kindTip)
@@ -95,6 +104,7 @@ namespace MountainPlanner.UI.Tools
             Model = window.AddDropdown("model", "Model", PickModel, "LC-02: its maker; a type without its own models is drawn with the quad's");
             DriveEnd = window.AddDropdown("drive", "Drive", PickDrive,
                 "LD9: which end holds the drive; each terminal carries a head for either end, and the top's row (4, 6 or 8 sheaves) follows the summit");
+            Cover = window.AddDropdown("cover", "Cover", PickCover, "C3: an open belt, or a gallery over it with an exit bay at least every 80 ft");
             CatalogId = LiftCatalogIds.Known(catalogId) ? catalogId : LiftCatalogIds.SesselliftFgq4;
             Drive = LiftCatalogIds.DefaultDrive(CatalogId);
             Type = LiftType.Of(CatalogId, Drive);
@@ -118,6 +128,7 @@ namespace MountainPlanner.UI.Tools
         static string IdFor(string carrier, string maker) =>
             carrier == "fixed-quad" ? (maker == "monta" ? LiftCatalogIds.MontaFg4 : LiftCatalogIds.SesselliftFgq4)
             : carrier == "tbar" ? LiftCatalogIds.MontaTbar : carrier == "jbar" ? LiftCatalogIds.MontaJbar
+            : carrier == "carpet" ? LiftCatalogIds.GlidepathCarpet
             : LiftCatalogIds.Of(carrier, maker);
 
         /// <summary>The same model in another fixed carrier (a Stern stays a Stern), or null.</summary>
@@ -167,6 +178,7 @@ namespace MountainPlanner.UI.Tools
         void PickModel(int m)
         {
             if (LiftCatalogIds.IsTow(CatalogId)) return;   // one maker's (the Monta)
+            if (LiftCatalogIds.IsBelt(CatalogId)) { Choose(CarpetId(m == 1, LiftCatalogIds.IsCovered(CatalogId))); return; }
             int f = Array.IndexOf(FixedCarriers, LiftCatalogIds.Carrier(CatalogId));
             if (f >= 0) { if (m < FixedIds[f].Length) Choose(FixedIds[f][m]); }
             else
@@ -196,6 +208,11 @@ namespace MountainPlanner.UI.Tools
         }
 
         void PickDrive(int i) => ChooseDrive(i == 0 ? LiftDrive.Top : LiftDrive.Bottom);
+
+        void PickCover(int i)
+        {
+            if (LiftCatalogIds.IsBelt(CatalogId)) Choose(CarpetId(LiftCatalogIds.IsDoubleBelt(CatalogId), i == 1));
+        }
 
         /// <summary>Shows a type without telling the tool (Edit lift's undo).</summary>
         public bool Set(string catalogId)
@@ -229,7 +246,9 @@ namespace MountainPlanner.UI.Tools
             Carrier.Set(CarrierNames[k], Array.IndexOf(KindCarriers[k], carrier), carrierOff);
             _window.SetRowLabel("carrier", k == SurfaceKind ? "Carrier" : k >= 2 ? "Cabin" : "Chair");
             int f = Array.IndexOf(FixedCarriers, carrier);
+            bool belt = LiftCatalogIds.IsBelt(CatalogId);
             if (LiftCatalogIds.IsTow(CatalogId)) Model.Set(new[] { OwnName(CatalogId) }, 0, new[] { false });
+            else if (belt) Model.Set(CarpetModels, LiftCatalogIds.IsDoubleBelt(CatalogId) ? 1 : 0, new[] { false, false });
             else if (f >= 0) Model.Set(FixedModels[f], Array.IndexOf(FixedIds[f], CatalogId), FixedOff);
             else
             {
@@ -247,8 +266,11 @@ namespace MountainPlanner.UI.Tools
             bool choice = LiftCatalogIds.DriveChoice(CatalogId);
             _window.ShowOption("drive", choice);
             if (choice) DriveEnd.Set(Drives, Drive == LiftDrive.Top ? 0 : 1);
+            _window.ShowOption("cover", belt);
+            if (belt) Cover.Set(Covers, LiftCatalogIds.IsCovered(CatalogId) ? 1 : 0);
             if (_note == null) return;
-            string spacing = k == 3 ? "two cabins" : $"{(k == SurfaceKind ? "bars" : k == 2 ? "cabins" : "chairs")} {ToolFormat.Length(Type.ChairSpacingMetres)} apart";
+            string spacing = belt ? (LiftCatalogIds.IsDoubleBelt(CatalogId) ? "two belts side by side" : "one belt")
+                : k == 3 ? "two cabins" : $"{(k == SurfaceKind ? "bars" : k == 2 ? "cabins" : "chairs")} {ToolFormat.Length(Type.ChairSpacingMetres)} apart";
             _note.text = $"{Type.Capacity:#,0} an hour · {Type.SpeedMetresPerSecond * 196.850394:#,0} ft/min · {spacing}"
                          + (Type.Detachable ? $"\na {(k == 2 ? "cabin" : "chair")} every {Type.IntervalSeconds:0.#} s, slowing to load in the stations" : "");
         }

@@ -28,6 +28,8 @@ namespace MountainPlanner.Domain.Design
             public TerminalPad.Result BottomPad { get; internal set; }
             public TerminalPad.Result TopPad { get; internal set; }
             public LiftLineEnvelope.Result Envelope { get; internal set; }
+            /// <summary>A belt lift's bed (the magic carpets) in place of a rope over towers; null for every other lift.</summary>
+            public CarpetBed.Result Bed { get; internal set; }
             /// <summary>How much higher each terminal stands than the ground at its origin (metres; 0 almost always).</summary>
             public double BottomRaise { get; internal set; }
             public double TopRaise { get; internal set; }
@@ -45,7 +47,7 @@ namespace MountainPlanner.Domain.Design
 
             /// <summary>Why the lift is red (blocking: TW-01 v2, LC-07) or amber (TW-05, TW-06, TW-16 v3, LF-08, LF-12), each with its
             /// rule (LC-09, owner, LT14); empty when it's neither.</summary>
-            public List<LiftProblem> Problems => _problems ??= With(LiftProblems.For(Rope, BottomPad.ClippedStepMetres, TopPad.ClippedStepMetres,
+            public List<LiftProblem> Problems => _problems ??= Bed != null ? new List<LiftProblem>(Bed.Problems) : With(LiftProblems.For(Rope, BottomPad.ClippedStepMetres, TopPad.ClippedStepMetres,
                                                                                      BottomSiteVariation, TopSiteVariation), Hints, Unplaced);
             /// <summary>LT34: where the line needs a terminal higher or lower than the player set it, by how much (amber).</summary>
             public List<LiftProblem> Hints { get; internal set; } = new List<LiftProblem>();
@@ -141,6 +143,7 @@ namespace MountainPlanner.Domain.Design
                                        IReadOnlyList<TowerSpec> towers, TowerStance stance, double bottomHand = 0, double topHand = 0)
         {
             if (current == null) throw new ArgumentNullException(nameof(current));
+            if (type.Belt) return BuildBelt(type, current, bx, by, tx, ty, BeltLevels(type, current, bx, by, tx, ty, bottomHand, topHand));
             if (towers == null || towers.Count == 0) throw new ArgumentException("Towers by hand need at least one tower.", nameof(towers));
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
             double ux = (tx - bx) / length, uy = (ty - by) / length;
@@ -153,6 +156,7 @@ namespace MountainPlanner.Domain.Design
                                        IReadOnlyList<TowerSpec> towers, TowerStance stance, LiftLevels levels, double steepB = 0, double steepT = 0)
         {
             if (current == null) throw new ArgumentNullException(nameof(current));
+            if (type.Belt) return BuildBelt(type, current, bx, by, tx, ty, levels);
             if (towers == null || towers.Count == 0) throw new ArgumentException("A lift needs at least one tower.", nameof(towers));
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
             double ux = (tx - bx) / length, uy = (ty - by) / length;
@@ -183,6 +187,7 @@ namespace MountainPlanner.Domain.Design
                                    Action<string> log = null, double bottomHand = 0, double topHand = 0, bool suggest = true)
         {
             if (current == null) throw new ArgumentNullException(nameof(current));
+            if (type.Belt) return BuildBelt(type, current, bx, by, tx, ty, BeltLevels(type, current, bx, by, tx, ty, bottomHand, topHand));
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
             double ux = (tx - bx) / length, uy = (ty - by) / length;
             double bottomLevel = current.At(bx + ux * type.Bottom.OriginAlong, by + uy * type.Bottom.OriginAlong) + bottomHand;
@@ -455,6 +460,31 @@ namespace MountainPlanner.Domain.Design
             return hints;
         }
 
+        /// <summary>
+        /// A belt lift (the magic carpets, surface lifts PR B): no towers to place and no rope; its bed laid from each station's
+        /// ground (or the <paramref name="levels"/> stored), with its pads, deck band, approaches and clearing. The stations
+        /// stand where placed (the top up to a metre short, on the bed's last joint).
+        /// </summary>
+        static Result BuildBelt(LiftType type, EditedHeights current, double bx, double by, double tx, double ty, LiftLevels? levels)
+        {
+            var lv = levels ?? BeltLevels(type, current, bx, by, tx, ty);
+            var w = Earthwork(type, current, bx, by, tx, ty, Array.Empty<Tower>(), lv, TowerStance.Plumb);
+            return new Result
+            {
+                Towers = new List<TowerSpec>(), Edits = w.Edits, Bed = w.Bed, BottomPad = w.BottomPad, TopPad = w.TopPad,
+                BottomLevel = lv.BottomMetres, TopLevel = lv.TopMetres, Levels = lv, ClearedCells = w.ClearedCells,
+            };
+        }
+
+        /// <summary>A carpet's levels as placed: the ground at each station's origin (the top's where the bed lands it) plus
+        /// the level set by hand (LT19, metres), whole millimetres.</summary>
+        public static LiftLevels BeltLevels(LiftType type, EditedHeights ground, double bx, double by, double tx, double ty,
+                                            double bottomHand = 0, double topHand = 0)
+        {
+            var bed = CarpetBed.Lay(type, ground, bx, by, tx, ty);
+            return LiftLevels.FromMetres(bed.BottomLevel + bottomHand, bed.TopLevel + topHand);
+        }
+
         /// <summary>A lift's earthwork as built from what's stored.</summary>
         public sealed class Works
         {
@@ -463,6 +493,8 @@ namespace MountainPlanner.Domain.Design
             public TerminalPad.Result BottomPad { get; internal set; }
             public TerminalPad.Result TopPad { get; internal set; }
             public LiftLineEnvelope.Result Envelope { get; internal set; }
+            /// <summary>A belt lift's bed (its pads, deck band and approaches are in its edits); null for a rope lift.</summary>
+            public CarpetBed.Result Bed { get; internal set; }
             public int ClearedCells { get; internal set; }
         }
 
@@ -481,6 +513,12 @@ namespace MountainPlanner.Domain.Design
                                       IReadOnlyList<Tower> towers, LiftLevels levels, TowerStance stance, Action<string> log = null)
         {
             if (current == null) throw new ArgumentNullException(nameof(current));
+            if (type.Belt)
+            {
+                var bed = CarpetBed.Build(type, current, bx, by, tx, ty, levels.BottomMetres, levels.TopMetres);
+                var none = new TerminalPad.Result { Edits = bed.Edits };
+                return new Works { Edits = bed.Edits, Bed = bed, BottomPad = none, TopPad = none, ClearedCells = bed.ClearedCells };
+            }
             double length = Math.Sqrt((tx - bx) * (tx - bx) + (ty - by) * (ty - by));
             double ux = (tx - bx) / length, uy = (ty - by) / length;
             double bottomLevel = levels.BottomMetres, topLevel = levels.TopMetres;

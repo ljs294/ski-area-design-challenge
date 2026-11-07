@@ -90,9 +90,20 @@ namespace MountainPlanner.UI.Tools
             _typeMenu = new LiftTypeMenu(w, LiftCatalogIds.SesselliftFgq4, () => Change(d =>
                                          {
                                              // A new type, or the drive end (LD9): Automatic re-places the towers for the new ends.
+                                             bool wasBelt = LiftCatalogIds.IsBelt(d.CatalogId);
                                              d.CatalogId = _typeMenu.CatalogId;
                                              d.Drive = _typeMenu.Drive;
                                              d.Replace = d.Mode == TowerMode.Automatic;
+                                             // To or from a carpet (surface lifts PR B): no towers carry over, and the ends
+                                             // stand at their ground again (a chair's levels aren't a carpet's).
+                                             if (wasBelt != LiftCatalogIds.IsBelt(d.CatalogId))
+                                             {
+                                                 d.Towers.Clear();
+                                                 d.Levels = null;
+                                                 d.Mode = TowerMode.Automatic;
+                                                 d.Replace = true;
+                                             }
+                                             BeltControls(d.CatalogId);
                                          }),
                                          "SetLiftType: in Automatic the towers re-place for the new type");
             (_modeDd, _stanceDd) = w.AddDropdownPair("towers", "Towers", "mode", PickMode, "stance", PickStance,
@@ -157,6 +168,7 @@ namespace MountainPlanner.UI.Tools
             _typeMenu.SetDrive(_draft.Drive);
             _modeDd.Set(new[] { "Automatic", "By hand" }, _draft.Mode == TowerMode.Automatic ? 0 : 1);
             _stanceDd.Set(new[] { "Plumb", "Leaned" }, _draft.Stance == TowerStance.Plumb ? 0 : 1);
+            BeltControls(_draft.CatalogId);
             _ctx.Window.SetName(lift.Name);
             // F5: renaming is a change of the draft, applied with the rest in Apply's one step.
             _ctx.Window.SetRenamable(n =>
@@ -171,6 +183,15 @@ namespace MountainPlanner.UI.Tools
             _editor.Open();
             WorkOutGround();
             Changed();
+        }
+
+        // A carpet has no towers (surface lifts PR B): no mode or stance to choose.
+        void BeltControls(string catalogId)
+        {
+            bool belt = LiftCatalogIds.IsBelt(catalogId);
+            _modeDd.Button.SetEnabled(!belt);
+            _stanceDd.Button.SetEnabled(!belt && !LiftCatalogIds.IsTow(catalogId));
+            if (belt) { _modeDd.Set(new[] { "Automatic", "By hand" }, 0); _stanceDd.Set(new[] { "Plumb", "Leaned" }, 0); }
         }
 
         // The editor over the draft as it stands.
@@ -352,7 +373,14 @@ namespace MountainPlanner.UI.Tools
             {
                 // Automatic with Replace: TW-12's search, the terminals where they were set (as offsets over this ground).
                 LiftBuild.Result r;
-                if (d.Replace || d.Towers.Count == 0)
+                if (type.Belt)
+                {
+                    // A carpet: its bed on the stored levels, or (an end moved, a new type) at its stations' ground.
+                    d.Towers.Clear();
+                    var levels = d.Levels ?? LiftBuild.BeltLevels(type, ground, b.X, b.Y, t.X, t.Y);
+                    r = LiftBuild.BuildWith(type, ground, b.X, b.Y, t.X, t.Y, System.Array.Empty<TowerSpec>(), d.Stance, levels);
+                }
+                else if (d.Replace || d.Towers.Count == 0)
                 {
                     var start = LiftBuild.GroundLevels(type, ground, b.X, b.Y, t.X, t.Y);
                     double bh = d.Levels is LiftLevels lv ? lv.BottomMetres - start.BottomMetres : 0, th = d.Levels is LiftLevels lv2 ? lv2.TopMetres - start.TopMetres : 0;
@@ -405,7 +433,8 @@ namespace MountainPlanner.UI.Tools
                 _editor.Relight();
                 var b = _ctx.ToGround(_draft.Bottom);
                 var t = _ctx.ToGround(_draft.Top);
-                _ctx.Window.ShowStrip(LiftProfile.From(done.r.Rope, new EditedHeights(_without.Source, _without.Lattice, done.r.Edits), b.X, b.Y, t.X, t.Y, done.r.Levels));
+                if (done.r.Rope == null) _ctx.Window.HideStrip();   // a carpet: no rope to draw
+                else _ctx.Window.ShowStrip(LiftProfile.From(done.r.Rope, new EditedHeights(_without.Source, _without.Lattice, done.r.Edits), b.X, b.Y, t.X, t.Y, done.r.Levels));
                 Refresh();
             });
         }
@@ -431,7 +460,7 @@ namespace MountainPlanner.UI.Tools
                 {
                     ulong under = _ctx.LiftUnderPointer?.Invoke() ?? 0;
                     var lift = under != 0 ? doc.FindLift(new LiftId(under)) : null;
-                    if (lift != null && lift.Stage == WorkStage.Built && lift.Towers.Count > 0) Open(lift);
+                    if (lift != null && lift.Stage == WorkStage.Built && (lift.Towers.Count > 0 || LiftCatalogIds.IsBelt(lift.CatalogId))) Open(lift);
                 }
                 return;
             }
@@ -501,8 +530,9 @@ namespace MountainPlanner.UI.Tools
         void MoveTerminal(bool bottom, PointMm point, Vector2 at)
         {
             var other = bottom ? TopXz : BottomXz;
+            bool belt = LiftCatalogIds.IsBelt(_draft.CatalogId);
             string bad = !_ctx.InCore(at) ? "A terminal must stand inside the area"
-                : Vector2.Distance(at, other) < 91.44f ? "The terminals stand at least 300 ft apart"
+                : Vector2.Distance(at, other) < (belt ? 9.144f : 91.44f) ? (belt ? "A carpet's stations stand at least 30 ft apart" : "The terminals stand at least 300 ft apart")
                 : (bottom ? _ctx.HeightAt(at) >= _ctx.HeightAt(other) : _ctx.HeightAt(at) <= _ctx.HeightAt(other)) ? "The top terminal must be higher" : null;
             _problem = bad;
             if (bad != null) { _ctx.Window.SetMessage(bad); return; }
@@ -547,6 +577,11 @@ namespace MountainPlanner.UI.Tools
                 w.SetHint($"{(bottom ? "Bottom" : "Top")} terminal: level {level}. Drag it anywhere: the line re-aims through the other one.");
                 w.SetKeys((GameAction.TerminalLevelUp, "higher"), (GameAction.TerminalLevelDown, "lower"), (GameAction.BrushWider, "next"));
             }
+            else if (LiftCatalogIds.IsBelt(_draft.CatalogId))
+            {
+                w.SetHint("Click a station to set its level, or drag it anywhere: the carpet re-lays its bed.");
+                w.SetKeys((GameAction.BrushNarrower, "previous"), (GameAction.BrushWider, "next"), (GameAction.UndoStroke, "undo"));
+            }
             else
             {
                 w.SetHint("Click a tower or a terminal, or step through them with [ and ]. A click on the line where there's no tower adds one.");
@@ -563,6 +598,12 @@ namespace MountainPlanner.UI.Tools
         {
             var w = _ctx.Window;
             bool revertable = _draft.Mode == TowerMode.ByHand;
+            if (LiftCatalogIds.IsBelt(_draft.CatalogId))
+            {
+                w.SetButtons(("undo", "Undo", changes > 0 ? (System.Action)Undo : null));
+                w.SetAsking(_armCancel ? "Discard the changes? Cancel again" : null);
+                return;
+            }
             w.SetButtons(
                 ("add", "Add tower", _editor.Adding ? null : (System.Action)(() => { _editor.StartAdding(); Refresh(); })),
                 ("revert", _armReplace ? "Again: re-place yours" : "Auto-place", revertable ? (System.Action)RevertToAuto : null),
@@ -578,6 +619,18 @@ namespace MountainPlanner.UI.Tools
             if (_built == null)
             {
                 _review.Add("Towers", _building || _groundWorking ? "working out…" : $"{_draft.Towers.Count}", "TW-12").Ready(false, true);
+                return;
+            }
+            if (_built.Bed is CarpetBed.Result bed)
+            {
+                var type = LiftType.Of(_draft.CatalogId, _draft.Drive);
+                _review.Add("Length", $"{ToolFormat.Length(run)} across", "LF-06")
+                    .Add("Ride", LiftSummary.Ride(type, run, bed.RiseMetres), "LC-04")
+                    .Add("Capacity", LiftSummary.Capacity(type), "LC-03")
+                    .Add("Cost", LiftCostSummary.Cost(type, run, bed.RiseMetres), LiftCostSummary.Rule(type, run, bed.RiseMetres));
+                NewLiftTool.BeltReview(_review, bed);
+                foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
+                _review.Ready(changes > 0 && !blocked && _applyEdits != null, true);
                 return;
             }
             var rope = _built.Rope;
@@ -682,7 +735,7 @@ namespace MountainPlanner.UI.Tools
         public bool Open(ulong liftId)
         {
             var lift = _ctx?.History.Document.FindLift(new LiftId(liftId));
-            if (lift == null || lift.Stage != WorkStage.Built || lift.Towers.Count == 0) return false;
+            if (lift == null || lift.Stage != WorkStage.Built || (lift.Towers.Count == 0 && !LiftCatalogIds.IsBelt(lift.CatalogId))) return false;
             Open(lift);
             return true;
         }

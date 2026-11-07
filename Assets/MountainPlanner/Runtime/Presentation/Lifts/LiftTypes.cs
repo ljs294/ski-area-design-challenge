@@ -33,6 +33,9 @@ namespace MountainPlanner.Presentation.Lifts
 
         static LiftType Measure(LiftType type, LiftModelSet models)
         {
+            // A carpet's stations are measured into LiftRope.CarpetOf already, and its bed is laid from them (CarpetBed): the
+            // view must lay the same bed the earthwork graded, so its ends are never re-measured.
+            if (type.Belt) return type;
             if (type.TopTrains == null) return type.With(Measure(type.Bottom, models), Measure(type.Top, models), type.ChairHalfWidthMetres);
             // LD9: every top row measured on its head; the first is the top until a rope picks another.
             var trains = new TerminalEnd[type.TopTrains.Count];

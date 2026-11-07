@@ -38,6 +38,7 @@ namespace MountainPlanner.Presentation.Lifts
         const float TowLeanDegrees = 8f;
         bool Tow => _kit == TowKit;
         Mesh _cable;
+        Mesh _apron;   // a carpet's skirts and stations run down to the ground (owner 2026-11-06)
 
         // The rope loop in world space, in travel order, with the distance walked to each point.
         Vector3[] _loop = Array.Empty<Vector3>();
@@ -82,6 +83,24 @@ namespace MountainPlanner.Presentation.Lifts
         Wheel[] _wheels = Array.Empty<Wheel>();
         /// <summary>The bullwheels' turn rate, radians a second: rope speed over the pitch radius.</summary>
         float _wheelRate;
+
+        /// <summary>A sheave the rope runs over, spun with it (owner, 2026-11-06: "ensure the sheaves on the tower are
+        /// rotating properly").</summary>
+        struct RopeSheave
+        {
+            public Transform Pivot;
+            public Quaternion Rest;
+            public Vector3 Axis;
+            /// <summary>Radians a second about <see cref="Axis"/>, signed: rope speed over the groove's radius, the way the
+            /// rope runs over it.</summary>
+            public float Rate;
+            /// <summary>Where the rope touches it, as posed (tests).</summary>
+            public Vector3 Contact;
+        }
+
+        RopeSheave[] _sheaves = Array.Empty<RopeSheave>();
+        /// <summary>Sheaves turn only this close to the eye (metres): past it a turning wheel can't be told from a still one.</summary>
+        const float SheaveSpinDistance = 300f;
 
         public LiftView(Transform parent, LiftModelSet models, LiftMaterials materials, Material cableMaterial, string name)
         {
@@ -218,6 +237,7 @@ namespace MountainPlanner.Presentation.Lifts
             _asBuilt.Clear();
             _builtFrom = lift;
             _livery = livery;
+            Bed = null;
             (double Bottom, double Top)? levels = lift.Levels is LiftLevels v ? (v.BottomMetres, v.TopMetres) : ((double, double)?)null;
             var type = LiftTypes.Measured(LiftType.Of(lift), _models);
             _kit = type.TowerKit;
@@ -230,6 +250,14 @@ namespace MountainPlanner.Presentation.Lifts
             }
             var dir = (top - bottom).normalized;
             var right = Vector3.Cross(Vector3.up, dir);   // the loaded rope is on the right looking uphill (LC-02 models)
+            _belt = false;
+            _sheaves = Array.Empty<RopeSheave>();
+            if (type.Belt)
+            {
+                Rope = null;
+                BuildBelt(type, ground, frame, livery, bottom, top, dir, levels);
+                return;
+            }
 
             // Terminals: each end's model (TW-16 v3: the type says which stands where), facing along the line toward the
             // other end, with its bullwheel's centre on the design point.
@@ -376,11 +404,14 @@ namespace MountainPlanner.Presentation.Lifts
         /// </summary>
         bool TryPosedLoop(LiftType type, LiftRig retRig, LiftRig driveRig, List<LiftRig> heads, Vector3 bottom, Vector3 dir, Vector3 right, LiftLivery livery)
         {
-            // Our right (the loaded, uphill rope) is the return's right, and the towers' and the drive's left: they face down the line.
-            string[] up = { "r", "l", "l" }, down = { "l", "r", "r" };
+            // Our right (the loaded, uphill rope) is the return's right, and the towers' and the drive's left: they face down the
+            // line. A tow's towers face up it (SpawnTower), so its loaded rope is their right.
+            string tower = Tow ? "r" : "l", back = Tow ? "l" : "r";
+            string[] up = { "r", tower, "l" }, down = { "l", back, "r" };
             // Every tower's head must turn; a terminal row that can't (the Monta return's fixed row until its rebuild) is
             // posed round as a fixed sheave at its rope exit (LT33), and said so in the build log.
             RigidNote = "";
+            RopeRadii = "";
             foreach (var sides in new[] { up, down })
                 foreach (var h in heads) if (!TrainPosing.Posable(h, sides[1])) return false;
             double rho = LiftType.SheaveRadiusMetres + type.RopeDiameterMetres / 2;
@@ -391,6 +422,7 @@ namespace MountainPlanner.Presentation.Lifts
                 return TrainPosing.Fixed(rig, side, above, rho, bottom, dir, right);
             }
             var loop = new List<Vector3>(4096);
+            var spun = new List<RopeSheave>(256);
             for (int side = 0; side < 2; side++)
             {
                 var sides = side == 0 ? up : down;
@@ -420,13 +452,49 @@ namespace MountainPlanner.Presentation.Lifts
                 if (trains.Exists(t => t == null)) return false;
                 var trees = trains.ConvertAll(t => t.Tree);
                 var holds = trains.ConvertAll(t => t.HoldRow);
+                // Each train's rope at its own sheaves' radius, as the model was built (owner finding 2026-11-06); the chairs'
+                // where a model doesn't say.
+                var rhos = trains.ConvertAll(t => double.IsNaN(t.Rho) ? rho : t.Rho);
+                for (int i = 0; i < trains.Count; i++)
+                {
+                    var rig = i == 0 ? retRig : i == trains.Count - 1 ? driveRig : heads[i - 1];
+                    string note = $"{(rig != null ? rig.AssetId : "?")} {rhos[i]:F3}{(double.IsNaN(trains[i].Rho) ? "*" : "")}";
+                    if (RopeRadii.IndexOf(note, StringComparison.Ordinal) < 0) RopeRadii += (RopeRadii.Length > 0 ? ", " : "") + note;
+                }
                 double y0 = trees[0].Sheaves[0].AxleW;
                 // RP-08 (owner, round 3): the rope hangs at the load it carries; the chairs are empty, so both sides take the
                 // empty sag. The checks keep both load cases.
                 double w = type.EmptyNewtonsPerMetre;
-                var posed = RopeOverSheaves.PoseLine(trees, above, holds, rho, type.CounterweightNewtons, w, y0, true, 3, turn);
+                var posed = RopeOverSheaves.PoseLine(trees, above, holds, rhos, type.CounterweightNewtons, w, y0, true, 3, turn);
                 for (int i = 0; i < trains.Count; i++) TrainPosing.Apply(trains[i], posed.Poses[i], dir);
                 PoseError = Math.Max(PoseError, posed.TangentError);
+                // The rope runs up this side (the loaded one) and down the other, the loop's travel order: every sheave it
+                // touches turns with it, its rim at rope speed; a sheave it leaves stands still, as a real one does.
+                var travel = side == 0 ? dir : -dir;
+                for (int i = 0; i < trains.Count; i++)
+                {
+                    var rig = i == 0 ? retRig : i == trains.Count - 1 ? driveRig : heads[i - 1];
+                    double groove = rhos[i] - type.RopeDiameterMetres / 2;
+                    if (rig == null || groove <= 0.01) continue;
+                    var pose = posed.Poses[i];
+                    var lateral = right * trains[i].Lateral;
+                    for (int k = 0; k < trains[i].Sheaves.Length && k < pose.Touched.Length; k++)
+                    {
+                        var s = trains[i].Sheaves[k];
+                        int at = Array.IndexOf(rig.Pivots, s);   // a fixed row's socket (LT33) isn't a wheel
+                        if (!pose.Touched[k] || at < 0) continue;
+                        var axis = rig.PivotAxes != null && at < rig.PivotAxes.Length && rig.PivotAxes[at].sqrMagnitude > 0
+                            ? rig.PivotAxes[at].normalized : Vector3.right;
+                        var contact = bottom + dir * (float)pose.ContactS[k] + Vector3.up * (float)pose.ContactW[k] + lateral;
+                        // The rim at the contact moves with the rope: ω × r = v, so ω points along r × v.
+                        float sense = Mathf.Sign(Vector3.Dot(s.rotation * axis, Vector3.Cross(contact - s.position, travel)));
+                        spun.Add(new RopeSheave
+                        {
+                            Pivot = s, Rest = s.localRotation, Axis = axis,
+                            Rate = sense * (float)(type.SpeedMetresPerSecond / groove), Contact = contact,
+                        });
+                    }
+                }
 
                 // The side's rope up the line, in s order: each train's contacts, and the spans between them.
                 var points = new List<Vector3>();
@@ -474,6 +542,7 @@ namespace MountainPlanner.Presentation.Lifts
             // world turn, whatever its own parents do, so the walkway turns with its train.
             foreach (var rig in heads) Follow(rig);
             Posed = true;
+            _sheaves = spun.ToArray();
             SetLoop(loop);
             BuildCable((float)type.RopeDiameterMetres / 2);
             var carrier = Carrier(type);
@@ -486,6 +555,9 @@ namespace MountainPlanner.Presentation.Lifts
         public bool Posed { get; private set; }
         /// <summary>The terminal rows posed as fixed (no pivots, LT33), for the build log; empty when every train turned.</summary>
         public string RigidNote { get; private set; } = "";
+        /// <summary>The axle-to-rope distance each model's trains were posed at, metres (the build log; * where the model
+        /// doesn't say and the chairs' is used).</summary>
+        public string RopeRadii { get; private set; } = "";
         /// <summary>Heads whose type disagrees with the drawn rope's bend over them (or too sharp to carry it): reported.</summary>
         public int SideMismatches { get; private set; }
         public string MismatchNote { get; private set; } = "";
@@ -497,6 +569,8 @@ namespace MountainPlanner.Presentation.Lifts
         {
             // TooSharp is drawn as the kit's biggest support head: the D6's b10, the quads' b8 (until TW-06 is resolved).
             if (head == LiftRope.Head.TooSharp && _kit != Quad && Model(_kit + "tower_b10") != null) return "tower_b10";
+            // The tow kit's biggest support is its s6 (it has no b8: the chairs' head stood on a T-bar mast, 2026-11-06).
+            if (head == LiftRope.Head.TooSharp && Tow) return "tower_s6";
             switch (head)
             {
                 case LiftRope.Head.S4: return "tower_s4";
@@ -508,6 +582,250 @@ namespace MountainPlanner.Presentation.Lifts
                 case LiftRope.Head.D10: return "tower_d10";
                 case LiftRope.Head.D4: return "tower_d4";     // the tow kit's hold-down (the T-bar)
                 default: return "tower_b8";   // B8, and TooSharp drawn as the biggest support until task 09 reports it
+            }
+        }
+
+        /// <summary>A carpet's bed as built (null for a rope lift): the modules' joints the view stood them on.</summary>
+        public CarpetBed.Result Bed { get; private set; }
+
+        /// <summary>C3/C10 (glidepath_carpet.json gallery): a covered line's exit bay comes every this many metres at most.</summary>
+        const float ExitBayEvery = 24f;
+
+        /// <summary>
+        /// A belt lift (the Glidepath carpets, surface lifts PR B): its bed laid from the stored levels (<see cref="CarpetBed.Lay"/>);
+        /// the bottom (tension) station facing up the line at its level, each module hung by its back socket on the joint
+        /// before it and pitched to the next (2 m, the 1 m filler last), its feet stretched to the ground under them; the top
+        /// (drive) station turned round on the last joint by its belt_in. Covered: a gallery bay on every module, an exit bay
+        /// at least every 24 m, a portal at each end; uncovered: no rails (C6's default). The control posts where the stations
+        /// say, on the approaches. No rope, towers or carriers.
+        /// </summary>
+        void BuildBelt(LiftType type, IHeightSource ground, LocalFrame frame, LiftLivery livery, Vector3 bottom, Vector3 top, Vector3 dir,
+                       (double Bottom, double Top)? levels)
+        {
+            double Height(Vector3 p)
+            {
+                var a = frame.ToAlbers(p.x, p.z);
+                return ground.At(a.X, a.Y);
+            }
+            string kit = type.TowerKit;
+            var b = frame.ToAlbers(bottom.x, bottom.z);
+            var t = frame.ToAlbers(top.x, top.z);
+            var bed = CarpetBed.Lay(type, ground, b.X, b.Y, t.X, t.Y, levels?.Bottom, levels?.Top);
+            Bed = bed;
+            var stationB = Model(kit + "bottom");
+            var stationT = Model(kit + "top");
+            var module = Model(kit + "segment");
+            var filler = Model(kit + "segment_1m") ?? module;
+            if (stationB == null || stationT == null || module == null) return;
+            // Each station pitched up the line as the bed says (level when 0): the bottom faces up and the top, turned round,
+            // down the line.
+            float bottomPitch = Mathf.Atan((float)bed.BottomPitch), topPitch = Mathf.Atan((float)bed.TopPitch);
+            var facing = Quaternion.LookRotation(dir * Mathf.Cos(bottomPitch) + Vector3.up * Mathf.Sin(bottomPitch), Vector3.up);
+            var turned = Quaternion.LookRotation(-dir * Mathf.Cos(topPitch) - Vector3.up * Mathf.Sin(topPitch), Vector3.up);
+            var apron = new Apron();
+            _spawning = PartBottom;
+            var origin = bottom;
+            origin.y = (float)bed.BottomLevel;
+            var bottomGo = Spawn(stationB, origin, facing, livery);
+            apron.Station(bottomGo, Height);
+            // The joints from the station's own exit: the bed's (s, y) offsets from its first joint, so the modules meet the
+            // station's socket whatever its model measures.
+            var first = origin + facing * SocketIn(stationB, "belt_out");
+            var back = SocketIn(module, "back");
+            Vector3 JointAt(int k) => first + dir * (float)(bed.Joints[k].s - bed.Joints[0].s) + Vector3.up * (float)(bed.Joints[k].y - bed.Joints[0].y);
+            var gallery = type.Covered ? Model(kit + "gallery") : null;
+            var exitBay = type.Covered ? Model(kit + "gallery_exit") : null;
+            int modules = bed.Modules.Count;
+            // Exit bays (C3): evenly along the gallery, at least one, none on the end modules.
+            int exits = type.Covered && modules > 2 ? Mathf.Max(1, Mathf.CeilToInt(modules * 2f / ExitBayEvery) - 1) : 0;
+            var exitAt = new HashSet<int>();
+            for (int e = 1; e <= exits; e++) exitAt.Add(Mathf.Clamp(Mathf.RoundToInt(modules * e / (exits + 1f)), 1, modules - 2));
+            _spawning = PartRope;
+            for (int k = 0; k < modules; k++)
+            {
+                var a = JointAt(k);
+                var c = JointAt(k + 1);
+                var along = (c - a).normalized;
+                var pitch = Quaternion.LookRotation(along, Vector3.up);
+                var prefab = bed.Modules[k] < CarpetBed.ModuleMetres - 0.01 ? filler : module;
+                var go = Spawn(prefab, a - pitch * back, pitch, livery);
+                StretchFeet(go, Height);
+                apron.Module(go.transform, (float)bed.Modules[k], (float)type.DeckHalfWidthMetres, Height);
+                apron.Material(go);
+                var bay = exitAt.Contains(k) ? exitBay ?? gallery : gallery;
+                if (bay != null && prefab == module) Spawn(bay, a - pitch * back, pitch, livery);
+            }
+            var last = JointAt(modules);
+            _spawning = PartTop;
+            var topAt = last - turned * SocketIn(stationT, "belt_in");
+            var topGo = Spawn(stationT, topAt, turned, livery);
+            apron.Station(topGo, Height);
+            _spawning = PartRope;
+            _apron = apron.Build(Root.transform, out var apronGo);
+            if (apronGo != null) _partOf[apronGo] = PartRope;
+            var portal = type.Covered ? Model(kit + "portal") : null;
+            if (portal != null && modules > 0)
+            {
+                var g = SocketIn(portal, "gallery");
+                Spawn(portal, first - facing * g, facing, livery);
+                Spawn(portal, last - turned * g, turned, livery);
+            }
+            var post = Model("glidepath_carpet_post");
+            if (post != null)
+            {
+                var pb = origin + facing * SocketIn(stationB, "post");
+                pb.y = (float)Height(pb);
+                Spawn(post, pb, facing, livery);
+                var pt = topAt + turned * SocketIn(stationT, "post");
+                pt.y = (float)Height(pt);
+                Spawn(post, pt, turned, livery);
+            }
+            // Owner finding 2026-11-06: a carpet picks (hover, Edit, Remove) by its pieces' boxes; it has no rope loop.
+            _belt = true;
+            _loop = Array.Empty<Vector3>();
+            bool any = false;
+            foreach (var r in Root.GetComponentsInChildren<Renderer>())
+            {
+                if (!any) { _bounds = r.bounds; any = true; }
+                else _bounds.Encapsulate(r.bounds);
+            }
+            if (!any) _bounds = new Bounds(bottom, Vector3.zero);
+        }
+
+        /// <summary>
+        /// Owner 2026-11-06: the carpet runs down to the ground, no legs. One mesh for a whole carpet: each module's skirt
+        /// (glidepath_carpet.json section: 40 mm over the foot, at the deck's outer edge) carried down to the ground either
+        /// side, and each station's footprint walled down from its foot, a metre a panel, both faces, in the skirt's grey.
+        /// </summary>
+        sealed class Apron
+        {
+            const float SkirtBottom = 0.04f, Below = 0.05f, Panel = 1f;
+            readonly List<Vector3> _v = new List<Vector3>();
+            readonly List<Vector3> _n = new List<Vector3>();
+            readonly List<int> _t = new List<int>();
+            Material _material;
+
+            /// <summary>A wall from <paramref name="a"/> to <paramref name="b"/> (its top edge) down to the ground.</summary>
+            void Wall(Vector3 a, Vector3 b, Func<Vector3, double> height)
+            {
+                int panels = Mathf.Max(1, Mathf.CeilToInt(Vector3.Distance(a, b) / Panel));
+                var side = Vector3.Cross(Vector3.up, b - a).normalized;
+                for (int i = 0; i < panels; i++)
+                {
+                    var p0 = Vector3.Lerp(a, b, (float)i / panels);
+                    var p1 = Vector3.Lerp(a, b, (float)(i + 1) / panels);
+                    var q0 = new Vector3(p0.x, Mathf.Min(p0.y, (float)height(p0)) - Below, p0.z);
+                    var q1 = new Vector3(p1.x, Mathf.Min(p1.y, (float)height(p1)) - Below, p1.z);
+                    foreach (float face in new[] { 1f, -1f })
+                    {
+                        int at = _v.Count;
+                        _v.Add(p0); _v.Add(p1); _v.Add(q0); _v.Add(q1);
+                        for (int k = 0; k < 4; k++) _n.Add(side * face);
+                        if (face > 0) { _t.Add(at); _t.Add(at + 2); _t.Add(at + 1); _t.Add(at + 1); _t.Add(at + 2); _t.Add(at + 3); }
+                        else { _t.Add(at); _t.Add(at + 1); _t.Add(at + 2); _t.Add(at + 1); _t.Add(at + 3); _t.Add(at + 2); }
+                    }
+                }
+            }
+
+            /// <summary>A module's skirts, from its back end (its origin, at its foot) <paramref name="length"/> along it.</summary>
+            public void Module(Transform module, float length, float halfWidth, Func<Vector3, double> height)
+            {
+                foreach (float v in new[] { -halfWidth, halfWidth })
+                    Wall(module.TransformPoint(new Vector3(v, SkirtBottom, 0)), module.TransformPoint(new Vector3(v, SkirtBottom, length)), height);
+            }
+
+            /// <summary>A station's footprint (its meshes' extent in its own frame) walled down from its foot.</summary>
+            public void Station(GameObject station, Func<Vector3, double> height)
+            {
+                if (station == null) return;
+                var root = station.transform;
+                float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
+                foreach (var mf in station.GetComponentsInChildren<MeshFilter>())
+                {
+                    if (mf.sharedMesh == null) continue;
+                    var bb = mf.sharedMesh.bounds;
+                    for (int c = 0; c < 8; c++)
+                    {
+                        var corner = new Vector3((c & 1) == 0 ? bb.min.x : bb.max.x, (c & 2) == 0 ? bb.min.y : bb.max.y, (c & 4) == 0 ? bb.min.z : bb.max.z);
+                        var local = root.InverseTransformPoint(mf.transform.TransformPoint(corner));
+                        if (local.y > 0.5f) continue;   // its low parts: the plates and side panels, not a barrier's posts
+                        x0 = Mathf.Min(x0, local.x); x1 = Mathf.Max(x1, local.x);
+                        z0 = Mathf.Min(z0, local.z); z1 = Mathf.Max(z1, local.z);
+                    }
+                }
+                if (x0 > x1) return;
+                var p00 = root.TransformPoint(new Vector3(x0, 0, z0));
+                var p10 = root.TransformPoint(new Vector3(x1, 0, z0));
+                var p11 = root.TransformPoint(new Vector3(x1, 0, z1));
+                var p01 = root.TransformPoint(new Vector3(x0, 0, z1));
+                Wall(p00, p10, height);
+                Wall(p10, p11, height);
+                Wall(p11, p01, height);
+                Wall(p01, p00, height);
+                Material(station);
+            }
+
+            /// <summary>The skirt's grey from the first piece that has it.</summary>
+            public void Material(GameObject piece)
+            {
+                if (_material != null || piece == null) return;
+                Material any = null;
+                foreach (var r in piece.GetComponentsInChildren<Renderer>())
+                    foreach (var m in r.sharedMaterials)
+                    {
+                        if (m == null) continue;
+                        any = any ?? m;
+                        if (m.name.IndexOf("grey", StringComparison.OrdinalIgnoreCase) >= 0) { _material = m; return; }
+                    }
+                _material = any;
+            }
+
+            public Mesh Build(Transform parent, out GameObject go)
+            {
+                go = null;
+                if (_v.Count == 0 || _material == null) return null;
+                var mesh = new Mesh { name = "Carpet apron", indexFormat = IndexFormat.UInt32 };
+                mesh.SetVertices(_v);
+                mesh.SetNormals(_n);
+                mesh.SetTriangles(_t, 0);
+                mesh.RecalculateBounds();
+                go = new GameObject("Carpet apron");
+                go.transform.SetParent(parent, false);
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                go.AddComponent<MeshRenderer>().sharedMaterial = _material;
+                return mesh;
+            }
+        }
+
+        /// <summary>A prefab's socket in its own frame (sockets are under the root, which is at its origin).</summary>
+        static Vector3 SocketIn(GameObject prefab, string name)
+        {
+            var rig = prefab != null ? prefab.GetComponent<LiftRig>() : null;
+            var socket = rig != null ? rig.Socket(name) : null;
+            return socket != null ? rig.transform.InverseTransformPoint(socket.position) : Vector3.zero;
+        }
+
+        /// <summary>
+        /// glidepath_carpet.json feet: each pair (its pivot at the deck, its foot socket at the nominal 150 mm) stretched down
+        /// to the ground under it (the bed rides the snow room over it, owner 2026-11-06), behind the apron.
+        /// </summary>
+        static void StretchFeet(GameObject module, Func<Vector3, double> height)
+        {
+            var rig = module != null ? module.GetComponent<LiftRig>() : null;
+            if (rig == null || rig.Pivots == null) return;
+            foreach (string end in new[] { "front", "back" })
+            {
+                Transform pivot = null;
+                foreach (var pv in rig.Pivots)
+                    if (pv != null && pv.name.EndsWith("pivot_feet_" + end, StringComparison.Ordinal)) { pivot = pv; break; }
+                var foot = rig.Socket("foot_" + end);
+                if (pivot == null || foot == null) continue;
+                float nominal = pivot.position.y - foot.position.y;
+                if (nominal < 0.02f) continue;
+                float want = Mathf.Max(0.10f, pivot.position.y - (float)height(foot.position));
+                var scale = pivot.localScale;
+                scale.y *= want / nominal;
+                pivot.localScale = scale;
             }
         }
 
@@ -563,9 +881,15 @@ namespace MountainPlanner.Presentation.Lifts
             int tenths = Mathf.RoundToInt(degrees / 2.5f) * 25;
             var foundation = Tow ? Model(_kit + "base") : (tenths > 0 ? Prefab($"tower_base_l{tenths:000}") : null) ?? Prefab("tower_base");
             if (head == null || mast == null || foundation == null) return null;
-            // A tow's mast leans across the line toward the loaded track (D11; the rope on the right looking uphill, and the
-            // tower's +Z faces down the line), its base set off to the other side so the level head stands over the line.
-            if (Tow) lean = Quaternion.AngleAxis(TowLeanDegrees, facing * Vector3.forward);
+            // A tow's tower stands in the frame it was modelled in (owner finding 2026-11-06: turned to the chair towers'
+            // down-the-line facing, its pre-leaned base stub and head sleeve leaned against the mast): +Z up the line, +X the
+            // loaded side, the mast leaning 8° toward it (D11) as the Lift Lab stands it, the base off to the return side so
+            // the level head stands over the line.
+            if (Tow)
+            {
+                facing *= Quaternion.Euler(0, 180, 0);
+                lean = Quaternion.AngleAxis(-TowLeanDegrees, facing * Vector3.forward);
+            }
             var top = mast.GetComponent<LiftRig>().Socket("top");
             var parts = new TowerParts
             {
@@ -791,6 +1115,30 @@ namespace MountainPlanner.Presentation.Lifts
                 if (w.Pivot != null) w.Pivot.localRotation = w.Rest * Quaternion.AngleAxis(w.Sign * degrees, w.Axis);
         }
 
+        /// <summary>The rope's sheaves near <paramref name="eye"/> at <paramref name="seconds"/> on the chairs' clock. No
+        /// allocation; the far ones keep the turn they had.</summary>
+        void SpinSheaves(Vector3 eye, double seconds)
+        {
+            const float near = SheaveSpinDistance * SheaveSpinDistance;
+            for (int i = 0; i < _sheaves.Length; i++)
+            {
+                var s = _sheaves[i];
+                if (s.Pivot == null || (s.Pivot.position - eye).sqrMagnitude > near) continue;
+                float degrees = (float)((seconds * s.Rate) % (2 * Math.PI)) * Mathf.Rad2Deg;
+                s.Pivot.localRotation = s.Rest * Quaternion.AngleAxis(degrees, s.Axis);
+            }
+        }
+
+        /// <summary>The rope sheaves this lift spins (tests).</summary>
+        public int SheaveCount => _sheaves.Length;
+
+        /// <summary>Spun sheave <paramref name="i"/>'s pivot and where the rope touches it (tests).</summary>
+        public Transform SheavePivot(int i, out Vector3 contact)
+        {
+            contact = i < _sheaves.Length ? _sheaves[i].Contact : Vector3.zero;
+            return i < _sheaves.Length ? _sheaves[i].Pivot : null;
+        }
+
         /// <summary>The bullwheels this lift spins (tests).</summary>
         public int WheelCount => _wheels.Length;
 
@@ -988,11 +1336,12 @@ namespace MountainPlanner.Presentation.Lifts
         /// <summary>
         /// Draws the chairs for this frame: each at (index × spacing + speed × time) round the loop (RP-07), hanging plumb
         /// from its grip and facing the way it travels, at the LOD its distance from the camera calls for. Spins the
-        /// bullwheels too (task P3-16, BB2). No allocation.
+        /// bullwheels (task P3-16, BB2) and the rope's sheaves near the eye too. No allocation.
         /// </summary>
         public void DrawChairs(Camera camera, double seconds)
         {
             SpinWheels(seconds);
+            if (camera != null) SpinSheaves(camera.transform.position, seconds);
             if (_chairCount == 0 || _chairLods.Length == 0 || camera == null) return;
             foreach (var lod in _chairLods)
                 foreach (var p in lod.Parts) p.Count = 0;
@@ -1105,6 +1454,8 @@ namespace MountainPlanner.Presentation.Lifts
                 for (int i = Root.transform.childCount - 1; i >= 0; i--) Gone(Root.transform.GetChild(i).gameObject);
             if (_cable != null) Gone(_cable);
             _cable = null;
+            if (_apron != null) Gone(_apron);
+            _apron = null;
             foreach (var m in _instanced) Gone(m);
             _instanced.Clear();
             _heads.Clear();

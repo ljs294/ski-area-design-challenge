@@ -101,6 +101,7 @@ namespace MountainPlanner.UI.Tools
         /// <summary>Puts a tower in hand at <paramref name="s"/> metres up the line (or the middle of the widest gap).</summary>
         public void StartAdding(double s = double.NaN)
         {
+            if (Type != null && Type.Belt) return;   // a carpet has no towers (surface lifts PR B)
             Selected = None;
             Adding = true;
             HandS = double.IsNaN(s) ? WidestGapMiddle() : s;

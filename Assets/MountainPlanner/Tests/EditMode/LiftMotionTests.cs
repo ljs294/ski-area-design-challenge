@@ -15,7 +15,8 @@ using Object = UnityEngine.Object;
 namespace MountainPlanner.Tests
 {
     /// <summary>
-    /// Task P3-16, BB2: visible bullwheels spin with the rope, at no per-frame cost.
+    /// Task P3-16, BB2: visible bullwheels spin with the rope, at no per-frame cost; so do the rope's sheaves (owner,
+    /// 2026-11-06).
     /// </summary>
     public sealed class LiftMotionTests
     {
@@ -95,6 +96,48 @@ namespace MountainPlanner.Tests
                 view.DrawChairs(_camera, 0.5);
                 float wheelWay = Mathf.Sign(Vector3.SignedAngle(spoke, pivot.rotation * Vector3.forward, Vector3.up));
                 Assert.That(wheelWay, Is.EqualTo(ropeWay), $"wheel {i} turns the way the rope goes round it");
+            }
+        }
+
+        /// <summary>
+        /// Owner, 2026-11-06 ("ensure the sheaves on the tower are rotating properly"): every sheave the rope touches turns
+        /// with it, its rim at the contact moving the way the loop runs there (up the loaded side, down the other) at rope
+        /// speed.
+        /// </summary>
+        [TestCase(LiftCatalogIds.SesselliftFgq4)]
+        [TestCase(LiftCatalogIds.MontaFg4)]
+        [TestCase(LiftCatalogIds.SesselliftD6)]
+        [TestCase(LiftCatalogIds.MontaTbar)]
+        public void TheRopesSheavesTurnWithIt(string catalogId)
+        {
+            var view = Build(catalogId);
+            var type = LiftType.Of(catalogId);
+            Assume.That(view.Posed, "posable models");
+            Assert.That(view.SheaveCount, Is.GreaterThan(8), "the towers' and terminals' sheaves");
+            const int samples = 4000;
+            var loop = new Vector3[samples + 1];
+            for (int k = 0; k <= samples; k++) loop[k] = view.RopePoint((float)k / samples) + Vector3.up;
+            const double dt = 0.01;
+            for (int i = 0; i < view.SheaveCount; i++)
+            {
+                var pivot = view.SheavePivot(i, out var contact);
+                _camera.transform.position = pivot.position + new Vector3(5, 2, 0);
+                view.DrawChairs(_camera, 1.0);
+                var before = pivot.rotation;
+                view.DrawChairs(_camera, 1.0 + dt);
+                var turn = pivot.rotation * Quaternion.Inverse(before);
+                var rim = (turn * (contact - pivot.position) - (contact - pivot.position)) / (float)dt;
+
+                int near = 0;
+                for (int k = 1; k < samples; k++)
+                    if ((loop[k] - contact).sqrMagnitude < (loop[near] - contact).sqrMagnitude) near = k;
+                var way = (loop[Math.Min(near + 3, samples)] - loop[Math.Max(near - 3, 0)]).normalized;
+                // The loop's points either side of a contact can lie a sheave or two off it, across a head's bend: the same
+                // way, within 60°, and the speed below.
+                Assert.That(Vector3.Dot(rim.normalized, way), Is.GreaterThan(0.5f), $"sheave {i} ({pivot.name}) turns the way the rope runs");
+                // The groove's bottom moves at rope speed; the rope's centreline (the contact) sits a rope radius further out.
+                float r = (contact - pivot.position).magnitude, groove = r - (float)type.RopeDiameterMetres / 2;
+                Assert.That(rim.magnitude * groove / r, Is.EqualTo((float)type.SpeedMetresPerSecond).Within(2).Percent, $"sheave {i}'s rim at rope speed");
             }
         }
 

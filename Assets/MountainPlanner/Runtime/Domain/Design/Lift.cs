@@ -32,12 +32,20 @@ namespace MountainPlanner.Domain.Design
         /// <summary>LT41 (owner, 2026-10-23): the types a player can build, the ones with their own models. Every other
         /// entry stays in the menu as a placeholder (greyed) until its models exist.</summary>
         public static bool Buildable(string id) => id == SesselliftFgq4 || id == MontaFg4 || id == SesselliftD6
-            || id == SesselliftFgd2 || id == SesselliftFgt3 || id == MontaFg2 || id == MontaFg3 || id == SesselliftD4 || IsStern(id) || IsTow(id);
+            || id == SesselliftFgd2 || id == SesselliftFgt3 || id == MontaFg2 || id == MontaFg3 || id == SesselliftD4 || IsStern(id) || IsTow(id) || IsBelt(id);
         /// <summary>The Monta T-bar and J-bar (surface lifts, v0.3.2; the surface-lifts model thread's D1–D11): one rope low over
         /// the snow, riders towed up a track on the ground, a bottom drive. One carrier kind a line (D7), so the bar is in the id.</summary>
         public const string MontaTbar = "monta-tbar", MontaJbar = "monta-jbar";
         /// <summary>A surface tow: the riders stay on the snow (no chair clearance; the rope's height over the track is a band).</summary>
         public static bool IsTow(string id) => id == MontaTbar || id == MontaJbar;
+        /// <summary>The Glidepath magic carpets (surface lifts PR B): single or double belt (C9), uncovered or under a gallery
+        /// (C3, C10), each its own id so the save keeps them with no new field.</summary>
+        public const string GlidepathCarpet = "glidepath-carpet", GlidepathCarpetCovered = "glidepath-carpet-covered",
+                            GlidepathCarpet2 = "glidepath-carpet2", GlidepathCarpet2Covered = "glidepath-carpet2-covered";
+        /// <summary>A belt lift: no rope, towers or carriers; its bed instead (<see cref="CarpetBed"/>).</summary>
+        public static bool IsBelt(string id) => id == GlidepathCarpet || id == GlidepathCarpetCovered || id == GlidepathCarpet2 || id == GlidepathCarpet2Covered;
+        public static bool IsDoubleBelt(string id) => id == GlidepathCarpet2 || id == GlidepathCarpet2Covered;
+        public static bool IsCovered(string id) => id == GlidepathCarpetCovered || id == GlidepathCarpet2Covered;
         /// <summary>The Sessellift Stern, the second Sessellift fixed-grip style (v0.3.2, owner): quad, triple and double, a
         /// bottom drive-and-tension station and a fixed top return, ids by model as the fixed quads' are (save v10).</summary>
         public const string SesselliftStern4 = "sessellift-stern4", SesselliftStern3 = "sessellift-stern3", SesselliftStern2 = "sessellift-stern2";
@@ -68,7 +76,7 @@ namespace MountainPlanner.Domain.Design
 
         public static bool Known(string id)
         {
-            if (id == SesselliftFgq4 || id == MontaFg4 || IsStern(id) || IsTow(id)) return true;
+            if (id == SesselliftFgq4 || id == MontaFg4 || IsStern(id) || IsTow(id) || IsBelt(id)) return true;
             if (id == null) return false;
             int colon = id.IndexOf(':');
             if (colon < 0) return false;
@@ -83,6 +91,7 @@ namespace MountainPlanner.Domain.Design
             if (id == SesselliftStern2) return "fixed-double";
             if (id == MontaTbar) return "tbar";
             if (id == MontaJbar) return "jbar";
+            if (IsBelt(id)) return "carpet";
             int colon = id?.IndexOf(':') ?? -1;
             return colon < 0 ? id : id.Substring(0, colon);
         }
@@ -92,6 +101,7 @@ namespace MountainPlanner.Domain.Design
         {
             if (id == MontaFg4 || IsTow(id)) return "monta";
             if (id == SesselliftFgq4 || IsStern(id)) return "sessellift";
+            if (IsBelt(id)) return "glidepath";
             int colon = id?.IndexOf(':') ?? -1;
             return colon < 0 ? "sessellift" : id.Substring(colon + 1);
         }

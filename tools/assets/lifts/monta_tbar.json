@@ -204,7 +204,7 @@
     },
     "stem": {"length": 1900, "dia": 45, "socketDia": 62, "socketLength": 90},
     "tBar": {"length": 1100, "dia": 66, "seatOffset": 270, "arch": 60},
-    "jBar": {"reach": 520, "dia": 45, "bend": 170, "padDia": 66, "padFrom": 130, "padTo": 450, "tipRise": 110},
+    "jBar": {"_j": "owner 2026-11-06: the T bar with one side cut off (no hooked tip): tBar's stem and pad to -v, stopping this far past the stem", "past": 40},
     "cordGap": 50
   }
 }

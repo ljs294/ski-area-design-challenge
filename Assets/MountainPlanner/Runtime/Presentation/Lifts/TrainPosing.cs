@@ -26,6 +26,9 @@ namespace MountainPlanner.Presentation.Lifts
             public bool[] HoldRow;
             /// <summary>The sheaves' sideways offset from the line (metres, + to the right looking up the line).</summary>
             public float Lateral;
+            /// <summary>From each sheave's axle to the rope's centreline as the model was built (<see cref="RopeRadius"/>), metres;
+            /// NaN where the model doesn't say.</summary>
+            public double Rho = double.NaN;
         }
 
         /// <summary>Whether a placed model has a posable train on that side (at least one rocker pivot).</summary>
@@ -133,8 +136,71 @@ namespace MountainPlanner.Presentation.Lifts
             return new Train
             {
                 Tree = new SheaveTree(treeNodes, treeSheaves), Nodes = nodes.ToArray(), Sheaves = sheaves.ToArray(), HoldRow = hold,
-                Lateral = lateral / sheaves.Count,
+                Lateral = lateral / sheaves.Count, Rho = RopeRadius(rig, side, sheaves, hold),
             };
+        }
+
+        /// <summary>
+        /// Owner finding 2026-11-06 (the T-bar's rope stood about 7 cm off its sheaves): how far the rope's centreline runs from
+        /// the axles on this side, as the model was built. Each builder sizes its own sheaves (the T-bar's grooves are 300 mm,
+        /// the Sessellift chairs' rope rides at their 432 mm rims, their terminals' entry rows at 370 mm), and writes where its
+        /// rope rests: a tower head's <c>rope_right</c> / <c>rope_left</c>, a terminal's <c>rope_*_hold</c> (the level rope
+        /// meeting its row) or else its <c>rope_*_bw</c> (level from the wheel). The radius is that point's gap to the row:
+        /// to its arc where the row is one (see <see cref="Arc"/>), else straight down or up to the nearest axle.
+        /// NaN when the model has no such socket or the distance isn't a sheave's (under 5 cm or over 60 cm).
+        /// </summary>
+        static double RopeRadius(LiftRig rig, string side, List<Transform> sheaves, bool[] hold)
+        {
+            string full = side == "r" ? "right" : side == "l" ? "left" : null;
+            if (full == null) return double.NaN;
+            var rest = rig.HeadSocket($"rope_{full}_hold") ?? rig.HeadSocket($"rope_{full}_bw") ?? rig.HeadSocket($"rope_{full}");
+            if (rest == null) return double.NaN;
+            // In the model's own frame: a head pitched to the line, or leaned (the T-bar's 8°), would otherwise skew the
+            // vertical gap by each sheave's distance along the train.
+            var frame = rig.transform;
+            var r0 = frame.InverseTransformPoint(rest.position);
+            var at = sheaves.ConvertAll(s => frame.InverseTransformPoint(s.position));
+            double best = double.MaxValue;
+            // A row on an arc (a breakover head, a terminal's bend): its axles sit on a circle and the rope rests on the
+            // concentric one, so the radius is the gap between the two; straight up from the nearest axle would read a
+            // few millimetres long. That holds only where the rest point lies along the row (not a wheel's socket short of
+            // it). A combination's two rows aren't one circle; nor is a straight or kinked row (every axle must sit on the
+            // arc within 3 mm).
+            bool oneRow = hold == null || Array.TrueForAll(hold, h => h);
+            var along = Plane(r0, at[0], at[at.Count - 1]).x;
+            bool onRow = along > -0.01f && along < Plane(at[at.Count - 1], at[0], at[at.Count - 1]).x + 0.01f;
+            if (oneRow && onRow && at.Count >= 3 && Arc(at[0], at[at.Count / 2], at[at.Count - 1], out var centre, out double radius)
+                && at.TrueForAll(p => Math.Abs(Vector2.Distance(Plane(p, at[0], at[at.Count - 1]), centre) - radius) < 0.003))
+                best = Math.Abs(Vector2.Distance(Plane(r0, at[0], at[at.Count - 1]), centre) - radius);
+            else
+                foreach (var p in at) best = Math.Min(best, Math.Abs(p.y - r0.y));
+            return best > 0.05 && best < 0.6 ? best : double.NaN;
+        }
+
+        /// <summary>A point in the vertical plane through the row from <paramref name="a"/> to <paramref name="b"/> (model frame):
+        /// along the row, level, and up.</summary>
+        static Vector2 Plane(Vector3 p, Vector3 a, Vector3 b)
+        {
+            var h = new Vector3(b.x - a.x, 0, b.z - a.z).normalized;
+            return new Vector2(Vector3.Dot(p - a, h), p.y - a.y);
+        }
+
+        /// <summary>The circle through a row's first, middle and last axles in the row's plane; false for a straight row
+        /// (the middle axle within a millimetre of the chord).</summary>
+        static bool Arc(Vector3 first, Vector3 mid, Vector3 last, out Vector2 centre, out double radius)
+        {
+            Vector2 a = Plane(first, first, last), b = Plane(mid, first, last), c = Plane(last, first, last);
+            centre = default;
+            radius = 0;
+            double cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+            double chord = Vector2.Distance(a, c);
+            if (chord < 1e-3 || Math.Abs(cross) / chord < 1e-3) return false;
+            double a2 = a.sqrMagnitude, b2 = b.sqrMagnitude, c2 = c.sqrMagnitude, d = 2 * cross;
+            double x = (a2 * (b.y - c.y) + b2 * (c.y - a.y) + c2 * (a.y - b.y)) / d;
+            double y = (a2 * (c.x - b.x) + b2 * (a.x - c.x) + c2 * (b.x - a.x)) / d;
+            centre = new Vector2((float)x, (float)y);
+            radius = Vector2.Distance(centre, a);
+            return true;
         }
 
         /// <summary>

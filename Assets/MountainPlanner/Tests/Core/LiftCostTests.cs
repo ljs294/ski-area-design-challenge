@@ -21,6 +21,8 @@ namespace MountainPlanner.Tests
             yield return LiftCatalogIds.SesselliftStern2;
             yield return LiftCatalogIds.MontaTbar;
             yield return LiftCatalogIds.MontaJbar;
+            yield return LiftCatalogIds.GlidepathCarpet;
+            yield return LiftCatalogIds.GlidepathCarpet2Covered;
             foreach (string carrier in LiftCatalogIds.Carriers)
                 foreach (string maker in LiftCatalogIds.Makers)
                     yield return LiftCatalogIds.Of(carrier, maker);
@@ -36,7 +38,7 @@ namespace MountainPlanner.Tests
             {
                 if (!LiftCatalogIds.Buildable(id)) continue;
                 // Surface lifts have no price yet (owner Q4, v0.3.2): their own task.
-                if (LiftCatalogIds.IsTow(id)) { Assert.That(LiftPrices.For(LiftType.Of(id)), Is.Null, id); continue; }
+                if (LiftCatalogIds.IsTow(id) || LiftCatalogIds.IsBelt(id)) { Assert.That(LiftPrices.For(LiftType.Of(id)), Is.Null, id); continue; }
                 var cost = Cost(id, 4000, 1000);
                 Assert.That(cost, Is.Not.Null, id);
                 Assert.That(cost.TotalUsd, Is.GreaterThan(1_000_000), id);

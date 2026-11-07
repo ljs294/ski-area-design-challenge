@@ -22,7 +22,7 @@ namespace MountainPlanner.Domain.Design
             Dictionary<ulong, long> order = null;
             foreach (var l in doc.Lifts)
             {
-                if (l.Stage != WorkStage.Built || l.Levels == null || l.Towers.Count == 0) continue;
+                if (l.Stage != WorkStage.Built || l.Levels == null || (l.Towers.Count == 0 && !LiftCatalogIds.IsBelt(l.CatalogId))) continue;
                 order ??= Ordinals(doc);
                 into.Add(new Item(l, order.TryGetValue(l.Id.Value, out long o) ? o : long.MaxValue, site));
             }
@@ -99,6 +99,13 @@ namespace MountainPlanner.Domain.Design
                     var box = new PointRect((int)Math.Floor(Math.Min(x0, x1) - lat.West), (int)Math.Floor(lat.North - Math.Max(y0, y1)),
                                             (int)Math.Ceiling(Math.Max(x0, x1) - lat.West), (int)Math.Ceiling(lat.North - Math.Min(y0, y1)));
                     foreach (var key in box.TileKeys()) keys.Add(key);
+                }
+                if (type.Belt)
+                {
+                    // A carpet (surface lifts PR B): its bed's box, approaches and faces, a metre to spare.
+                    CarpetBed.Reach(type, bx, by, ux, uy, len, out double x0, out double y0, out double x1, out double y1);
+                    Box(x0 - 1, y0 - 1, x1 + 1, y1 + 1);
+                    return keys;
                 }
                 // The band: the corridor (CL-03), or the chairs' paths with the envelope's margin, faces and reads, 2 m to spare.
                 double band = Math.Max(LiftClearing.CorridorMetres / 2,

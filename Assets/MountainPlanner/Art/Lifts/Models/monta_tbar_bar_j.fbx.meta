@@ -17,6 +17,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: LiftGlassClear
+    second: {fileID: 2100000, guid: 1085860ea746b1e42a979e035ea3e336, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: LiftStructure
     second: {fileID: 2100000, guid: 69e846a2a29764c4d8eb3a6037092fda, type: 2}
   materials:

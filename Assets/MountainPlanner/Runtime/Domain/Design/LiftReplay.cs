@@ -28,7 +28,7 @@ namespace MountainPlanner.Domain.Design
             foreach (var listed in doc.Lifts)
             {
                 var lift = replace != null && listed.Id.Value == replace.Id.Value ? replace : listed;
-                if (lift.Id.Value == skip.Value || lift.Stage != WorkStage.Built || lift.Levels is not LiftLevels levels || lift.Towers.Count == 0) continue;
+                if (lift.Id.Value == skip.Value || lift.Stage != WorkStage.Built || lift.Levels is not LiftLevels levels || (lift.Towers.Count == 0 && !LiftCatalogIds.IsBelt(lift.CatalogId))) continue;
                 var b = toGround(lift.Bottom);
                 var t = toGround(lift.Top);
                 var works = LiftBuild.Earthwork(LiftType.Of(lift), current, b.X, b.Y, t.X, t.Y, lift.Towers, levels, lift.Stance);

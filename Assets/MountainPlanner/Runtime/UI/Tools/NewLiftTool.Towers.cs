@@ -146,6 +146,7 @@ namespace MountainPlanner.UI.Tools
         // Step 3 opens: the editor over the line, and by hand the next tower in hand where the line isn't carried yet.
         void OpenTowers()
         {
+            if (Type.Belt) { _editor?.Release(); ShowDraft(); return; }   // a carpet: the bed as built, nothing to edit
             EnsureEditor();
             SyncEditor();
             _editor.Open();
@@ -192,6 +193,7 @@ namespace MountainPlanner.UI.Tools
         {
             _hand = null;
             _bandKey = _hintKey2 = long.MinValue;
+            if (Type.Belt) return;   // no towers in hand on a carpet
             var ground = _ctx.EditedGround?.Invoke();
             if (ground == null || _ctx.ToGround == null) return;
             var b = _ctx.ToGround(_bottom);
@@ -213,7 +215,7 @@ namespace MountainPlanner.UI.Tools
             if (_ctx?.ShowDraftLift == null) return;
             bool line = _step == Step.Towers || _step == Step.Review;
             IReadOnlyList<Tower> towers = _mode == TowerMode.ByHand ? (IReadOnlyList<Tower>)_placed : AutoTowers();
-            if (!line || towers.Count == 0) { _ctx.ShowDraftLift(null); return; }
+            if (!line || (towers.Count == 0 && !Type.Belt)) { _ctx.ShowDraftLift(null); return; }
             LiftLevels levels = BuiltIsCurrent() ? _built.Levels : _hand != null ? _hand.Levels
                 : LiftLevels.FromMetres(_bottomZ, _topZ);
             var stored = new List<Tower>(towers.Count);
@@ -408,6 +410,7 @@ namespace MountainPlanner.UI.Tools
         {
             var w = _ctx.Window;
             if (_step != Step.Review) return;
+            if (Type.Belt) { w.SetButtons(); w.SetAsking(null); return; }   // a carpet has no towers to add or re-place
             // LT34 with LD3 (smarter siting): the levels the review suggests ("raise it N ft") in one click; the terminals still
             // stand where the player puts them until then (no automatic raise).
             bool suggests = _built != null && !_built.LevelsPending && (System.Math.Abs(_built.SuggestedBottomMetres) > 0.1 || System.Math.Abs(_built.SuggestedTopMetres) > 0.1);

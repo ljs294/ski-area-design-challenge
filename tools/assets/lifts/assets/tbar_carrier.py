@@ -11,8 +11,8 @@ the owner's reference installation, review findings C1-C19, kept outside the rep
   bar_t      the T bar: a yellow stem with a plain socket at its top (where the cord ends) and one continuous black
              padded crossbar in a shallow arch, a rider each side of the stem. Origin at the eye (the socket's top);
              sockets eye, seat_1 and seat_2 (on the pad's top).
-  bar_j      the J bar: the same stem bending in one yellow curve into a seat to one side (-v), padded black, with a
-             rounded upturned tip; one rider (seat_1).
+  bar_j      the J bar (owner 2026-11-06): the T bar with one side cut off, the same stem and the same padded bar
+             to one side (-v), stopping just past the stem; one rider (seat_1).
 
 The cord itself is drawn by the game from "cord" to the bar's "eye", like the rope; retracted, the eye hangs cordGap
 under the cord socket.
@@ -146,59 +146,39 @@ def bar(spec, lod, variant):
     kr, kl = m(sm["socketDia"]) / 2, m(sm["socketLength"])
 
     seats = {}
-    if variant == "bar_t":
-        t = cr["tBar"]
-        half, br = m(t["length"]) / 2, m(t["dia"]) / 2
-        z = -L
-        # the stem: the socket at its top, then the plain tube down into the bar (fat far out, to stay a yellow stroke)
-        if lod <= 1:
-            prims.cylinder(mb, (0, 0, 0), (0, 0, -kl), kr, parts.sides(lod, 10, 6), st["stem"], caps=(True, False))
-            prims.cylinder(mb, (0, 0, -kl + 0.01), (0, 0, z), sr, parts.sides(lod, 10, 6), st["stem"], caps=(False, False))
-        elif lod == 2:
-            prims.beam(mb, (0, 0, 0), (0, 0, z), 0.06, 0.06, st["stem"], up=U)   # its top end shows from above
-        else:
-            prims.cylinder(mb, (0, 0, 0), (0, 0, z), 0.045, 3, st["stem"], caps=(False, False))
-        # the crossbar: one continuous black pad in a shallow arch, its ends turned up (R21)
-        arch = m(t["arch"])
-        if lod <= 1:
-            n_arc = 6 if lod == 0 else 2
-            pts = [Vector((0.0, -half + 2 * half * k / n_arc, z + arch * ((-half + 2 * half * k / n_arc) / half) ** 2)) for k in range(n_arc + 1)]
-            prims.tube_path(mb, pts, br, parts.sides(lod, 10, 6), st["pad"], caps=True)
-        elif lod == 2:
-            prims.beam(mb, (0, -half, z + arch), (0, half, z + arch), 2 * br, 2 * br, st["pad"])
-        else:
-            prims.cylinder(mb, (0, -half, z), (0, half, z), br * 1.2, 3, st["pad"], caps=(False, False))
-        so = m(t["seatOffset"])
-        ws = z + arch * (so / half) ** 2 + br
-        seats = {"seat_1": (0.0, -so, ws), "seat_2": (0.0, so, ws)}
-        a.dims.update({"barWidth": t["length"], "barBelowEye": sm["length"]})
+    # owner 2026-11-06: the J is the T with one side cut off, not a hooked bar: the same stem straight down into the same
+    # padded bar in the same shallow arch, which on the J stops just past the stem (jBar.past) and carries one rider (-v)
+    t = cr["tBar"]
+    half, br = m(t["length"]) / 2, m(t["dia"]) / 2
+    j = variant == "bar_j"
+    end = m(cr["jBar"]["past"]) if j else half
+    z = -L
+    # the stem: the socket at its top, then the plain tube down into the bar (fat far out, to stay a yellow stroke)
+    if lod <= 1:
+        prims.cylinder(mb, (0, 0, 0), (0, 0, -kl), kr, parts.sides(lod, 10, 6), st["stem"], caps=(True, False))
+        prims.cylinder(mb, (0, 0, -kl + 0.01), (0, 0, z), sr, parts.sides(lod, 10, 6), st["stem"], caps=(False, False))
+    elif lod == 2:
+        prims.beam(mb, (0, 0, 0), (0, 0, z), 0.06, 0.06, st["stem"], up=U)   # its top end shows from above
     else:
-        j = cr["jBar"]
-        reach, jr, bend = m(j["reach"]), m(j["dia"]) / 2, m(j["bend"])
-        pr, rise = m(j["padDia"]) / 2, m(j["tipRise"])
-        z = -L
-        # one yellow curve: the stem, a bend into the seat toward -v, the seat, a rounded upturned tip
-        if lod <= 1:
-            raw = [Vector((0, 0, 0)), Vector((0, 0, z)), Vector((0, -reach, z)), Vector((0, -reach, z + rise))]
-            pts = prims.fillet(raw, 2, rise * 0.6, 4 if lod == 0 else 1)
-            pts = prims.fillet(pts, 1, bend, 6 if lod == 0 else 2)
-            pts = [Vector(p) for p in pts]
-            prims.cylinder(mb, (0, 0, 0), (0, 0, -kl), kr, parts.sides(lod, 10, 6), st["stem"], caps=(True, False))
-            prims.tube_path(mb, [Vector((0, 0, -kl + 0.01))] + pts[1:], jr, parts.sides(lod, 10, 5), st["stem"], caps=True)
-            e = 0.02
-            p0, p1 = m(j["padFrom"]), m(j["padTo"])
-            prof = [(0.0, -p1), (pr * 0.8, -p1 + e * 0.4), (pr, -p1 + e), (pr, -p0 - e), (pr * 0.8, -p0 - e * 0.4), (0.0, -p0)]
-            if lod == 1:
-                prof = [prof[0], prof[2], prof[3], prof[5]]
-            prims.lathe(mb, Vector((0.0, 0.0, z)), V, prof, parts.sides(lod, 12, 6), st["pad"])
-        elif lod == 2:
-            prims.beam(mb, (0, 0, 0), (0, 0, z), 0.06, 0.06, st["stem"], up=U, skip_ends=True)
-            prims.beam(mb, (0, 0.0, z), (0, -reach, z), 2 * pr, 2 * pr, st["pad"])
-        else:
-            prims.cylinder(mb, (0, 0, 0), (0, 0, z), 0.045, 3, st["stem"], caps=(False, False))
-            prims.cylinder(mb, (0, 0.0, z), (0, -reach, z), pr * 1.2, 3, st["pad"], caps=(False, False))
-        seats = {"seat_1": (0.0, -(m(j["padFrom"]) + m(j["padTo"])) / 2, z + pr)}
-        a.dims.update({"barReach": j["reach"], "barBelowEye": sm["length"]})
+        prims.cylinder(mb, (0, 0, 0), (0, 0, z), 0.045, 3, st["stem"], caps=(False, False))
+    # the crossbar: one continuous black pad in a shallow arch, its ends turned up (R21); the J's half of it
+    arch = m(t["arch"])
+    if lod <= 1:
+        n_arc = (6 if lod == 0 else 2) // (2 if j else 1)
+        ys = [-half + (end + half) * k / n_arc for k in range(n_arc + 1)]
+        pts = [Vector((0.0, y, z + arch * (y / half) ** 2)) for y in ys]
+        prims.tube_path(mb, pts, br, parts.sides(lod, 10, 6), st["pad"], caps=True)
+    elif lod == 2:
+        prims.beam(mb, (0, -half, z + arch), (0, end, z + arch), 2 * br, 2 * br, st["pad"])
+    else:
+        prims.cylinder(mb, (0, -half, z), (0, end, z), br * 1.2, 3, st["pad"], caps=(False, False))
+    so = m(t["seatOffset"])
+    ws = z + arch * (so / half) ** 2 + br
+    seats = {"seat_1": (0.0, -so, ws)} if j else {"seat_1": (0.0, -so, ws), "seat_2": (0.0, so, ws)}
+    if j:
+        a.dims.update({"barReach": round((half + end) * 1000), "barBelowEye": sm["length"]})
+    else:
+        a.dims.update({"barWidth": t["length"], "barBelowEye": sm["length"]})
 
     a.body = mb
     a.sockets = {"eye": (0.0, 0.0, 0.0), **seats}
