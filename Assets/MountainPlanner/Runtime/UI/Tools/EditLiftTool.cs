@@ -639,7 +639,11 @@ namespace MountainPlanner.UI.Tools
                 .Add("Capacity", LiftSummary.Capacity(rope.Type), "LC-03")
                 .Add("Cost", LiftCostSummary.Cost(rope.Type, run, rope.RiseMetres), LiftCostSummary.Rule(rope.Type, run, rope.RiseMetres))
                 .Add("Towers", LiftSummary.Towers(_built.Towers, rope, run), "TW-02, TW-12; LD3: tallest, longest span and heads")
-                .Add("Lowest chairs", $"{ToolFormat.Length(rope.LowestClearance)} over the ground", "TW-01: 15 ft at least");
+                // Task 4.01: a tow's riders are on the snow, so its row is the rope over the track, as New lift shows it.
+                .Add(rope.Type.Tow ? "Rope over track" : "Lowest chairs",
+                     rope.Type.Tow ? $"{ToolFormat.Length(rope.LowestClearance)} to {ToolFormat.Length(rope.HighestOverTrack)}"
+                                   : $"{ToolFormat.Length(rope.LowestClearance)} over the ground",
+                     rope.Type.Tow ? $"TW-01: {ToolFormat.Length(rope.Type.ClearanceMetres)} to {ToolFormat.Length(rope.Type.RopeMaxMetres)} for the bars" : "TW-01: 15 ft at least");
             foreach (var p in _built.Problems) _review.Warn(p.Message, p.Rule, p.Blocks);
             _review.Ready(changes > 0 && !blocked && _applyEdits != null, true);
         }
