@@ -10,22 +10,37 @@ namespace MountainPlanner.UI
     {
         public ulong Id;
         public string Name;
-        /// <summary>The rating (TD-02), percent; its band gives the symbol (TD-03).</summary>
+        /// <summary>TD-07: the sign the player posted, which the list and card show (R3); null until posted.</summary>
+        public MountainPlanner.Domain.Measure.SlopeBands.Band? Posted;
+        /// <summary>
+        /// The game's own rating (TD-02 v2 over the trail's own segments, R4; a plan's TD-06 estimate), percent: shown only
+        /// with the dev switch (R6). <see cref="SteepestPercent"/> is the same steepest 150 ft.
+        /// </summary>
         public double RatingPercent, MeanPercent, SteepestPercent;
         public double LengthMetres, VerticalMetres;
         public bool Graded, Built;
+        /// <summary>F1/F4: whether it's open (a placeholder until 4.07/4.17 open trails: Planned or Closed).</summary>
+        public OperatingStatus Status;
+        /// <summary>F1: its snow conditions (SN-20 v2, 4.07); null shows "—" until then.</summary>
+        public string Conditions;
+        /// <summary>F6 (owner 2026-11-08): how popular it is with guests, 0–100; null shows "—" until guests ski (4.12/4.17).</summary>
+        public int? Popularity;
+        /// <summary>F5: what kind of object it is, under the card's name; null reads "Trail" (the only kind so far).</summary>
+        public string Kind;
     }
 
     /// <summary>
     /// Analysis › Trails (task 08, owner TL8, TL16; the mockup's listTab and focus card): the trails in a list with
-    /// Trail, Length, Vertical, Grading and Status, spreadsheet filters, rows that light their trail on the map, and a
-    /// focus card (TF-08: name, rating, length, vertical, average and steepest grade) with Edit and Remove.
+    /// Trail, Length, Vertical, Conditions, Popularity and Status (4.21 findings F1, F4, F6: no Grading), spreadsheet filters, rows that
+    /// light their trail on the map, and a focus card (TF-08: name with its kind under it, F5; posted sign, length,
+    /// vertical, average grade, status) with Edit and Remove. The game's own rating shows only in Edit trail, with the
+    /// dev switch (TD-07, R6, F3).
     /// </summary>
     public sealed partial class MountainHud
     {
         AnalysisList _trailsList;
         VisualElement _trailCard;
-        Label _trailCardName, _trailCardSymbol;
+        Label _trailCardName, _trailCardSymbol, _trailCardKind;
         VisualElement _trailCardKv;
         ulong _trailCardId;
         readonly Dictionary<ulong, TrailRow> _trailRows = new Dictionary<ulong, TrailRow>();
@@ -47,25 +62,28 @@ namespace MountainPlanner.UI
             ("l", "Over " + ToolFormat.Length(edgesFt[1] * Foot)),
         };
 
-        static string BandOf(double percent) => double.IsNaN(percent) ? "green" : percent < 25 ? "green" : percent < 40 ? "blue" : percent < 60 ? "black" : "double";
+        static readonly string[] PostedBins = { "green", "blue", "black", "double" };
 
-        static string SymbolOf(double percent) => double.IsNaN(percent) ? "" : TrailTool.Symbol(MountainPlanner.Domain.Measure.SlopeBands.Of(percent));
+        static string BandOf(MountainPlanner.Domain.Measure.SlopeBands.Band? posted) => posted.HasValue ? PostedBins[(int)posted.Value] : "none";
+
+        static string SymbolOf(MountainPlanner.Domain.Measure.SlopeBands.Band? posted) => posted.HasValue ? TrailTool.Symbol(posted.Value) : "";
 
         void WireTrails()
         {
             TrailRow R(AnalysisList.Row r) => (TrailRow)r.Data;
             _trailsList = new AnalysisList("trails", new[]
             {
-                new AnalysisList.Column { Title = "Trail", Grow = 1.6f, Cell = r => $"{SymbolOf(R(r).RatingPercent)}  {R(r).Name}",
-                    Bin = r => BandOf(R(r).RatingPercent),
-                    Bins = new[] { ("green", "● Easiest"), ("blue", "■ More difficult"), ("black", "◆ Most difficult"), ("double", "◆◆ Experts only") } },
+                new AnalysisList.Column { Title = "Trail", Grow = 1.6f, Cell = r => $"{SymbolOf(R(r).Posted)}  {R(r).Name}",
+                    Bin = r => BandOf(R(r).Posted),
+                    Bins = new[] { ("green", "● Easiest"), ("blue", "■ More difficult"), ("black", "◆ Most difficult"), ("double", "◆◆ Experts only"), ("none", "Not posted") } },
                 new AnalysisList.Column { Title = "Length", Numeric = true, Grow = 0.85f, Cell = r => ToolFormat.Length(R(r).LengthMetres),
                     SortKey = r => R(r).LengthMetres, Bin = r => Bin(R(r).LengthMetres, LengthBinsFt), Bins = BinLabels(LengthBinsFt) },
                 new AnalysisList.Column { Title = "Vertical", Numeric = true, Grow = 0.85f, Cell = r => ToolFormat.Length(R(r).VerticalMetres),
                     SortKey = r => R(r).VerticalMetres, Bin = r => Bin(R(r).VerticalMetres, VerticalBinsFt), Bins = BinLabels(VerticalBinsFt) },
-                new AnalysisList.Column { Title = "Grading", Grow = 0.95f, Cell = r => R(r).Graded ? "Graded" : "Natural" },
-                new AnalysisList.Column { Title = "Status", Grow = 0.8f, Cell = r => R(r).Built ? "Built" : "Planned",
-                    Bin = r => R(r).Built ? "built" : "planned", Bins = new[] { ("built", "Built"), ("planned", "Planned") } },
+                new AnalysisList.Column { Title = "Conditions", Grow = 0.95f, Class = "an-cell--gap", Cell = r => R(r).Conditions ?? "—" },
+                PopularityColumn(r => R(r).Popularity),
+                new AnalysisList.Column { Title = "Status", Grow = 0.8f, Class = "an-cell--gap", Cell = r => OperatingStatusWords.Word(R(r).Status),
+                    Bin = r => R(r).Status.ToString(), Bins = OperatingStatusWords.Bins() },
             });
             _trailsList.Root.AddToClassList("hidden");
             _root.Q("analysis-body").Add(_trailsList.Root);
@@ -79,16 +97,19 @@ namespace MountainPlanner.UI
             _trailCard.AddToClassList("hidden");
             var head = new VisualElement();
             head.AddToClassList("mp-head");
+            head.AddToClassList("mp-head--kind");
+            var (nameLine, kind) = CardTitles(head, "trail-card-kind");
+            _trailCardKind = kind;
             // The rating's symbol stands apart from the name, so the name renames in place beside it (sections finding 8).
             _trailCardSymbol = new Label { name = "trail-card-symbol" };
             _trailCardSymbol.AddToClassList("mp-title");
             _trailCardSymbol.style.marginRight = 6;
-            head.Add(_trailCardSymbol);
+            nameLine.Add(_trailCardSymbol);
             _trailCardName = new Label { name = "trail-card-name", tooltip = "Rename (F2)" };
             _trailCardName.AddToClassList("mp-title");
             _trailCardName.AddToClassList("tw__name--edit");
             _trailCardName.RegisterCallback<ClickEvent>(_ => RenameTrailCard());   // sections finding 3
-            head.Add(_trailCardName);
+            nameLine.Add(_trailCardName);
             _trailCard.RegisterCallback<KeyDownEvent>(e => { if (e.keyCode == UnityEngine.KeyCode.F2 && _trailCardField?.parent == null) { RenameTrailCard(); e.StopPropagation(); } });
             var gap = new VisualElement();
             gap.style.flexGrow = 1;
@@ -196,9 +217,10 @@ namespace MountainPlanner.UI
         void FillTrailCard()
         {
             if (!_trailRows.TryGetValue(_trailCardId, out var t)) return;
-            _trailCardSymbol.text = SymbolOf(t.RatingPercent);
+            _trailCardSymbol.text = SymbolOf(t.Posted);
             _trailCardSymbol.EnableInClassList("hidden", _trailCardSymbol.text.Length == 0);
             _trailCardName.text = t.Name;
+            _trailCardKind.text = t.Kind ?? "Trail";   // F5
             _trailCardKv.Clear();
             void Kv(string k, string v)
             {
@@ -213,13 +235,11 @@ namespace MountainPlanner.UI
                 row.Add(vl);
                 _trailCardKv.Add(row);
             }
-            Kv("Rating", double.IsNaN(t.RatingPercent) ? "—" : TrailTool.Rating(t.RatingPercent));
+            Kv("Posted", TrailTool.Posted(t.Posted));   // TD-07: read only; Edit trail changes it (R2) and shows the game's (F3)
             Kv("Length", ToolFormat.Length(t.LengthMetres));
             Kv("Vertical", ToolFormat.Length(t.VerticalMetres));
             if (!double.IsNaN(t.MeanPercent)) Kv("Average grade", $"{Math.Round(t.MeanPercent):0}%");
-            if (!double.IsNaN(t.SteepestPercent)) Kv("Steepest", $"{Math.Round(t.SteepestPercent):0}%");
-            Kv("Grading", t.Graded ? "Graded" : "Natural");
-            Kv("Status", t.Built ? "Built" : "Planned");
+            Kv("Status", OperatingStatusWords.Word(t.Status));   // F4: no Grading row
         }
 
         void CloseTrailCard()
@@ -242,10 +262,50 @@ namespace MountainPlanner.UI
             return true;
         }
 
+        /// <summary>
+        /// F6 (owner 2026-11-08): a list's Popularity column for trails and lifts, a whole number 0–100 from the guests,
+        /// sortable and filterable by thirds; "—" (sorted last) until the simulation gives one.
+        /// </summary>
+        static AnalysisList.Column PopularityColumn(Func<AnalysisList.Row, int?> of) => new AnalysisList.Column
+        {
+            Title = "Popularity", Numeric = true, Grow = 0.85f,
+            Cell = r => of(r) is int p ? p.ToString() : "—",
+            SortKey = r => of(r) ?? -1,
+            Bin = r => of(r) is int p ? (p >= 67 ? "high" : p >= 34 ? "mid" : "low") : "none",
+            Bins = new[] { ("high", "67–100"), ("mid", "34–66"), ("low", "0–33"), ("none", "Not yet") },
+        };
+
+        /// <summary>
+        /// F5: a card head's titles, the name line over a small line saying what kind of object it is ("Trail", "Detachable
+        /// Six Pack"). Returns the name line (the card adds its symbol and name) and the kind label.
+        /// </summary>
+        static (VisualElement nameLine, Label kind) CardTitles(VisualElement head, string kindName)
+        {
+            var titles = new VisualElement();
+            titles.AddToClassList("mp-head__titles");
+            var line = new VisualElement();
+            line.AddToClassList("mp-head__line");
+            titles.Add(line);
+            var kind = new Label { name = kindName };
+            kind.AddToClassList("mp-head__kind");
+            titles.Add(kind);
+            head.Add(titles);
+            return (line, kind);
+        }
+
         /// <summary>The list (tests and captures).</summary>
         internal AnalysisList TrailsList => _trailsList;
 
         /// <summary>Opens a trail's card (tests and captures).</summary>
         public void OpenTrailCardFor(ulong id) => OpenTrailCard(id);
+
+        /// <summary>Opens the last listed trail's card (captures); false when the list is empty.</summary>
+        public bool OpenLastTrailCardForCapture()
+        {
+            ulong last = 0;
+            foreach (var id in _trailRows.Keys) last = id;
+            if (last != 0) OpenTrailCard(last);
+            return last != 0;
+        }
     }
 }

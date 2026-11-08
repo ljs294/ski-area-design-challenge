@@ -32,6 +32,42 @@ namespace MountainPlanner.Tests
             Assert.That(HudText.Seconds(second), Is.EqualTo(":" + (second % 60).ToString("D2")));
         }
 
+        // 4.21 findings F1, F4: one status word for trails, lifts and later structures; placeholders until 4.07 and 4.11.
+        [Test]
+        public void StatusWordsCoverEveryStateAndPlansReadPlanned()
+        {
+            Assert.That(MountainPlanner.UI.OperatingStatusWords.All.Select(MountainPlanner.UI.OperatingStatusWords.Word),
+                Is.EqualTo(new[] { "Open", "Scheduled", "On hold", "Closed", "Planned" }));
+            Assert.That(MountainPlanner.UI.OperatingStatusWords.Placeholder(false), Is.EqualTo(MountainPlanner.UI.OperatingStatus.Planned));
+            Assert.That(MountainPlanner.UI.OperatingStatusWords.Placeholder(true), Is.EqualTo(MountainPlanner.UI.OperatingStatus.Closed));
+            Assert.That(MountainPlanner.UI.OperatingStatusWords.Bins().Select(b => b.Item2), Is.EqualTo(MountainPlanner.UI.OperatingStatusWords.All.Select(MountainPlanner.UI.OperatingStatusWords.Word)));
+        }
+
+        // 4.21 finding F5: the lift card's subtitle, the type as players say it, for every carrier the menu offers.
+        [TestCase("detach-six:sessellift", "Detachable Six Pack")]
+        [TestCase("detach-quad:sessellift", "Detachable Quad")]
+        [TestCase("sessellift-fgq4", "Fixed-Grip Quad")]
+        [TestCase("monta-fg4", "Fixed-Grip Quad")]
+        [TestCase("sessellift-stern3", "Fixed-Grip Triple")]
+        [TestCase("fixed-double:monta", "Fixed-Grip Double")]
+        [TestCase("monta-tbar", "T-Bar")]
+        [TestCase("monta-jbar", "J-Bar")]
+        [TestCase("glidepath-carpet", "Magic Carpet")]
+        [TestCase("glidepath-carpet-covered", "Magic Carpet")]
+        [TestCase("glidepath-carpet2", "Double Magic Carpet")]
+        [TestCase("gondola-8:monta", "Gondola")]
+        [TestCase("tram-100:monta", "Aerial Tram")]
+        [TestCase("detach-eight:monta", "Detachable Eight")]
+        public void TheLiftCardNamesItsType(string catalogId, string name) =>
+            Assert.That(MountainPlanner.UI.Tools.LiftTypeMenu.TypeName(catalogId), Is.EqualTo(name));
+
+        [Test]
+        public void EveryCarrierHasATypeName()
+        {
+            foreach (var carrier in MountainPlanner.Domain.Design.LiftCatalogIds.Carriers)
+                Assert.That(MountainPlanner.UI.Tools.LiftTypeMenu.TypeName(carrier + ":monta"), Is.Not.EqualTo("Lift"), carrier);
+        }
+
         [Test]
         public void TwentyFourHourClock() => Assert.That(HudText.HoursMinutes(17 * 3600 + 5 * 60, twentyFour: true), Is.EqualTo("17:05"));
 

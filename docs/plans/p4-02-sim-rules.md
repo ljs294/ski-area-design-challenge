@@ -587,6 +587,12 @@ the chairs carry **decorative riders** (LO-05).
   0.05` per lap × a season-phase factor `Pacing.MarginalPhase`: 1 in the first and last `Pacing.ShoulderDays = 6` face
   days of the season (opening early, hanging on late: the owner's "normal"), 2 in between (the white ribbon of death
   in February is a choice the mountain pays for). Both feed reputation later (GU-13 carries them).
+  - *Settled by task 4.21 (owner R1–R6, 2026-11-08; TD-07):* there's **no default**: a trail must be posted before
+    it's built, and the player picks the sign in the build and edit flow. The true rating is hidden from players.
+    The window is the Domain's `TrailRating.SustainedStations = 6`, not a pacing value, so tuning never re-rates a
+    trail. A built trail can be unposted only in an older save the player changed before the game posted it; how
+    guests read one is 4.12's to plan (the suggestion: its true rating for both, with no misrate penalty).
+    `TrailRating.Harder` is the gate's helper.
 - **GU-06 v2, arrivals and the stay (rescaled to the 12-minute day; MapLibre's real-minute constants were inert in
   it).** Skiers arrive at **arrival nodes** (an entity; in Phase 4 one per base station, a lift-bottom station no
   trail leaves downhill, or the lowest lift bottom if none qualifies; parking, lodges and a village add nodes later,

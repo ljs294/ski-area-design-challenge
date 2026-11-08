@@ -134,10 +134,9 @@ namespace MountainPlanner.App
                 foreach (var t in gathered.Values)
                 {
                     var line = _netGeometry.CentrelineOf(t);
-                    double rating = double.NaN;
-                    if (_trailLayer != null && _trailLayer.TryGetFacts(t.Id, out var f)) rating = f.Rating;
+                    var posted = _sections?.TrailOf(t.Id)?.Posted ?? t.Posted;   // R3
                     segments.Add(new NetworkView.Segment { Edge = segments.Count, Trail = t.Id.Value, Points = Stretch(line, 0, double.MaxValue, Drape),
-                                                           Own = NetworkView.RatingColour(rating), Served = true });
+                                                           Own = NetworkView.RatingColour(posted), Served = true });
                 }
             _catchment.SetCatchment(segments.ToArray(), areas.ToArray());
         }

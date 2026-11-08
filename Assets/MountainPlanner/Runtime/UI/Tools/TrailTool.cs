@@ -85,6 +85,9 @@ namespace MountainPlanner.UI.Tools
         Vector2[] _line = new Vector2[64];
         System.Action<int, string> _setWidth;
         (System.Action<bool> Set, UnityEngine.UIElements.Button Box) _grading;
+        // TD-07 (owner R1, R2): the sign the player posts, picked in the window; nothing preselected, and none builds.
+        SlopeBands.Band? _posted;
+        System.Action<int> _setPosted;
         UnityEngine.UIElements.Button[] _editButtons;
         TrailProfileStrip _strip;
         // Footprints of the design's trails, for picking (Edit, Remove); kept while each trail is unchanged.
@@ -106,6 +109,7 @@ namespace MountainPlanner.UI.Tools
             _ctx.Earthwork?.Start();   // the ground's session, if this area hasn't one yet (task 08)
             _feet = _lastFeet;
             _graded = false;           // GR-14: grading only when the player chooses it
+            _posted = null;            // TD-07: nothing preselected
             var w = context.Window;
             if (_mode == TrailToolMode.New)
             {
@@ -140,6 +144,43 @@ namespace MountainPlanner.UI.Tools
         {
             _setWidth = w.AddSlider("brush", "Brush", MinFeet, MaxFeet, StepFeet, _feet, SetFeet, "TR-01: 25–400 ft, in 5 ft steps; one trail can mix widths");
             _grading = w.AddCheck("grading", "Grading", "Graded", false, SetGraded, GradingTip);
+            _setPosted = w.AddSwitch("posted", "Posted", PostedSigns, -1, i => SetPosted((SlopeBands.Band)i), PostedTip);
+        }
+
+        static readonly string[] PostedSigns = { "●", "■", "◆", "◆◆" };
+
+        const string PostedTip = "TD-07: the sign guests read, your call: ● Easiest, ■ More difficult, ◆ Most difficult, ◆◆ Experts only. " +
+                                 "Post one before you break ground; a regrade never changes it";
+
+        void ShowPosted(SlopeBands.Band? posted)
+        {
+            _posted = posted;
+            _setPosted?.Invoke(posted.HasValue ? (int)posted.Value : -1);
+        }
+
+        void SetPosted(SlopeBands.Band band)
+        {
+            if (_posted == band) return;
+            ShowPosted(band);
+            if (_mode == TrailToolMode.Edit && _target != null && _step == Step.Pick) { Go(Step.Review); return; }
+            if (_step == Step.Review) { BuildReview(); _ctx.Window.ShowReview(_review); }
+        }
+
+        /// <summary>A posted sign as the player reads it ("■ More difficult"); "not posted" for none.</summary>
+        public static string Posted(SlopeBands.Band? posted) =>
+            posted.HasValue ? $"{Symbol(posted.Value)} {SlopeBands.Names[(int)posted.Value]}" : "not posted";
+
+        /// <summary>
+        /// The dev switch's line (R6): the game's own rating against the sign, e.g. "◆ Most difficult, 47% (easier on the
+        /// sign than it skis)".
+        /// </summary>
+        public static string GameRates(double percent, SlopeBands.Band? posted)
+        {
+            if (double.IsNaN(percent)) return "—";
+            string s = Rating(percent);
+            if (!posted.HasValue) return s;
+            var band = SlopeBands.Of(percent);
+            return band == posted.Value ? s + " (as posted)" : s + (posted.Value < band ? " (easier on the sign than it skis)" : " (harder on the sign than it skis)");
         }
 
         const string GradingTip = "TR-06, GR-14: unticked keeps the ground and clears the trees; Graded benches the trail level across. NT47: permanent once built";
@@ -273,7 +314,7 @@ namespace MountainPlanner.UI.Tools
                 return;
             }
             string facts = Facts(_target);
-            w.SetHint(edit ? $"{facts}{TrailFacts()} The rating comes from the ground: regrade or repaint to change it. Grading runs again only where something changes."
+            w.SetHint(edit ? $"{facts}{TrailFacts()} Change its posted sign above, or regrade or repaint it. Grading runs again only where something changes."
                            : facts);
             w.SetMessage(null);
             SetEditButtons(true);
@@ -296,7 +337,9 @@ namespace MountainPlanner.UI.Tools
             if (build?.Grade == null || heights == null) return $"{t.Name}.";
             var r = TrailRating.Rate(heights, build.Footprint, build.Grade);
             _strip?.Show(build.Grade, r);
-            return $"{t.Name}: {Rating(r.ValuePercent)}, {ToolFormat.Length(build.Grade.LengthMetres)}, {ToolFormat.Length(System.Math.Abs(r.DropMetres))} vertical.";
+            var posted = _trail != null ? _trail.Posted : t.Posted;
+            string game = TrueRating.Shown ? $" Game rates {t.Name} {GameRates(r.ValuePercent, posted)}." : "";   // R6
+            return $"{t.Name}: posted {Posted(posted)}, {ToolFormat.Length(build.Grade.LengthMetres)}, {ToolFormat.Length(System.Math.Abs(r.DropMetres))} vertical.{game}";
         }
 
         void PaintStatus()
@@ -311,7 +354,7 @@ namespace MountainPlanner.UI.Tools
                 w.SetNext(true, false);
                 return;
             }
-            string rating = double.IsNaN(_estimate) ? "" : $" Estimated {Rating(_estimate)} (TD-06).";
+            string rating = double.IsNaN(_estimate) || !TrueRating.Shown ? "" : $" Game estimates {Rating(_estimate)} (TD-06).";   // R6
             w.SetHint($"Area {ToolFormat.Area(_raster.AreaSquareMetres)}.{rating} Keep painting, or go on to the head and tail.");
             int extra = _raster.Patches - 1;
             w.SetMessage(extra > 0 ? $"{extra} separate patch{(extra > 1 ? "es" : "")}: join or erase {(extra > 1 ? "them" : "it")}" : null);
@@ -387,6 +430,7 @@ namespace MountainPlanner.UI.Tools
             _graded = t.Settings.Grading == TrailGrading.Graded;
             _grading.Set?.Invoke(_graded);
             LockGrading(_graded && t.Stage == WorkStage.Built);
+            ShowPosted(t.Posted);   // the run's own sign until its trail is worked out (TrailFromPick shows a shaped trail's)
             _base = t.Shape;
             _strokes.Clear();
             if (t.HasEnds)
@@ -559,7 +603,7 @@ namespace MountainPlanner.UI.Tools
         {
             if (_step == Step.Pick || _raster == null) { if (_step == Step.Pick) _ctx.Paint?.Clear(); return; }
             _ctx.Paint?.Redraw(_base, _strokes, _raster);
-            if (!double.IsNaN(_estimate)) _ctx.Paint?.Tint(BandTint(SlopeBands.Of(_estimate)));
+            if (!double.IsNaN(_estimate) && TrueRating.Shown) _ctx.Paint?.Tint(BandTint(SlopeBands.Of(_estimate)));   // R6
         }
 
         void DrawStrokes()
@@ -645,16 +689,22 @@ namespace MountainPlanner.UI.Tools
             DrawEnds();
         }
 
-        DesignCommand Command(long revision, WorkStage stage)
+        /// <summary>
+        /// The command the window commits. <paramref name="whatIf"/> is for the analysis and the network check, which build
+        /// the trail before it's posted: an unposted one stands in as ■ there, never in the design (TD-07).
+        /// </summary>
+        DesignCommand Command(long revision, WorkStage stage, bool whatIf = false)
         {
             var settings = _graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun;
+            var posted = _posted ?? (whatIf ? SlopeBands.Band.Blue : (SlopeBands.Band?)null);
             switch (_mode)
             {
-                case TrailToolMode.New: return new AddTrail(revision, _name, settings, Shape(), _head.At, _tail.At, stage);
+                case TrailToolMode.New: return new AddTrail(revision, _name, settings, Shape(), _head.At, _tail.At, stage, posted);
                 case TrailToolMode.Edit:
-                    // A shaped trail's name is the trail's (NT43): the run keeps its own.
+                    // A shaped trail's name is the trail's (NT43): the run keeps its own. So is its sign (TD-07).
                     return new EditTrail(revision, _target.Id, _trail?.Line != null ? _target.Name : _name, Shape(), _head.At, _tail.At, settings,
-                                         stage == WorkStage.Built || _target.Stage == WorkStage.Built ? WorkStage.Built : WorkStage.Plan);
+                                         stage == WorkStage.Built || _target.Stage == WorkStage.Built ? WorkStage.Built : WorkStage.Plan,
+                                         posted, _trail?.Line?.Id);
                 default: return new DeleteTrail(revision, _target.Id);
             }
         }
@@ -674,7 +724,7 @@ namespace MountainPlanner.UI.Tools
             if (_step == Step.Ends) EndsStatus();
             var history = _ctx.History;
             long revision = history.Revision;
-            var cmd = Command(revision, WorkStage.Built);
+            var cmd = Command(revision, WorkStage.Built, whatIf: true);
             ulong key = _target?.Id.Value ?? 0;
             bool remove = _mode == TrailToolMode.Remove;
             var doc = history.Document;
@@ -828,15 +878,19 @@ namespace MountainPlanner.UI.Tools
                     .Reserved("Network", "NW-12: No lift serves this, Leads nowhere (task 10)", ReviewModel.NetworkSlot);
                 if (a?.Problem != null) _review.Warn(a.Problem, "TR-03", blocks: true);
                 if (drop < 0) _review.Warn("The head is lower than the tail: the trail runs uphill", "TR-03");
+                if (!_posted.HasValue && (_mode == TrailToolMode.New || _target?.Stage == WorkStage.Built || _trail?.Built == true))
+                    _review.Warn("Pick its posted rating", "TD-07: a trail is posted before it's built", blocks: true);
                 bool ready = _ctx.Earthwork == null || (a != null && a.Problem == null);
                 _review.Ready(ready, ready && PlanAllowed);
                 return;
             }
             var r = a.Rating;
-            _review.Add("Rating", Rating(r.ValuePercent), "TD-01 v2, TD-02 v1, TD-03")
-                .Add("Length", ToolFormat.Length(g.LengthMetres), "TR-03: along the centreline")
+            _review.Add("Posted", _posted.HasValue ? Posted(_posted) : "— pick one above", "TD-07: your sign, the one guests read");
+            // R6: the game's own rating only with the dev switch; its steepest 150 ft would give it away.
+            if (TrueRating.Shown) _review.Add("Game rates it", GameRates(r.ValuePercent, _posted), "TD-01 v2, TD-02 v2, TD-03 (-truerating)");
+            _review.Add("Length", ToolFormat.Length(g.LengthMetres), "TR-03: along the centreline")
                 .Add("Vertical", ToolFormat.Length(System.Math.Abs(r.DropMetres)))
-                .Add("Mean · steepest", $"{System.Math.Round(r.MeanPercent):0}% · {System.Math.Round(r.MaxPercent):0}%", "TD-02: the steepest 75 ft")
+                .Add("Average grade", $"{System.Math.Round(r.MeanPercent):0}%", "TD-02: the length-weighted mean")
                 .Add("Area", ToolFormat.Area(a.Build.Footprint.AreaSquareMetres), "TR-02");
             if (a.Graded)
             {
@@ -851,12 +905,14 @@ namespace MountainPlanner.UI.Tools
                 .Add("Cost", LiftCostSummary.Trail(works, a.Graded), LiftCostSummary.TrailRule(works, a.Graded))
                 .Reserved("Network", "NW-12: No lift serves this, Leads nowhere", ReviewModel.NetworkSlot);
             // NW-04: the trail as if built, in the network of everything else (task P3-10); warnings never block.
-            NetworkCheck.Fill(_review, NetworkCheck.Warnings(_ctx.History.Document, Command(_ctx.History.Revision, WorkStage.Built),
+            NetworkCheck.Fill(_review, NetworkCheck.Warnings(_ctx.History.Document, Command(_ctx.History.Revision, WorkStage.Built, whatIf: true),
                                                              _mode == TrailToolMode.Edit && _target != null ? _target.Id.Value : 0, _ctx.Earthwork?.Earthwork, _ctx.Earthwork?.Heights?.Source));
             if (a.Graded && g.UngradedStations > 0)
                 _review.Warn($"{ToolFormat.Length(g.UngradedMetres)} is too steep to bench and stays natural (red)", "GR-07");
             if (r.DropMetres < 0) _review.Warn("The head is lower than the tail: the trail runs uphill", "TR-03");
             if (g.LengthMetres < 30.48) _review.Warn("A trail is at least 100 ft long", "TR-04", blocks: true);
+            if (!_posted.HasValue && (_mode == TrailToolMode.New || _target?.Stage == WorkStage.Built || _trail?.Built == true))
+                _review.Warn("Pick its posted rating", "TD-07: a trail is posted before it's built", blocks: true);
             _review.Ready(true, PlanAllowed);
         }
 
@@ -917,6 +973,7 @@ namespace MountainPlanner.UI.Tools
                 var trail = result.Document.FindTrail(new TrailId(result.Created[0]));
                 _ctx.Notice?.Invoke(_name + (trail?.Stage == WorkStage.Built ? ": ground broken" : ": saved as a plan"));
                 _name = NextName(result.Document);
+                ShowPosted(null);   // the next trail starts unposted (R1)
                 _ctx.Window.SetName(_name);
                 Go(Step.Paint);
                 return;
@@ -942,6 +999,9 @@ namespace MountainPlanner.UI.Tools
 
         /// <summary>Repaint, as its button does (captures).</summary>
         public void RepaintForCapture() => EditAction(0);
+
+        /// <summary>Picks a posted sign as a click on its chip would (captures and tests, TD-07).</summary>
+        public void PostForCapture(SlopeBands.Band band) => SetPosted(band);
 
         /// <summary>Opens the window's name for typing, or puts it back (captures).</summary>
         public void RenameTitleForCapture(bool open) { if (open) _ctx?.Window.BeginRename(); else _ctx?.Window.EndRename(false); }

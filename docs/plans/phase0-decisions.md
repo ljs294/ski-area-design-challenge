@@ -440,7 +440,7 @@ questions, and added TL13.
 | TL5 | **TF-11:** task 08 keeps 15 ft round tower bases and terminals and puts no fill in a lift's envelope; the chair-clearance block uses task 09's clearance check when it lands |
 | TL6 | **Trails map layer:** trail-map lines in the rating's colour, name centred, symbol at the head, plans orange; on by default; Shift+4. The graded ground stays visible when the layer is off |
 | TL7 | **Profile:** the TF-04 strip shows in New and Edit trail; the focus card stays simple (TF-08) |
-| TL8 | **Analysis › Trails columns:** Trail, Length, Vertical, Grading, Status (Built or Planned); surface and open or closed wait for the simulation |
+| TL8 | **Analysis › Trails columns:** Trail, Length, Vertical, Grading, Status (Built or Planned); surface and open or closed wait for the simulation. *Replaced by R7 (4.21, 2026-11-08): Conditions and Status (Open, Closed, ...), no Grading* |
 | TL9 | **Shared table:** task 08 writes a generic `AnalysisList` (table, filters, focus-card shell) that task 09 reuses for Lifts; the first to merge lands it |
 | TL10 | **Fixtures:** four crops of the Jackson Hole 2 km package (sidehill, ridge, gully, too-steep face) with golden heights, plus analytic surfaces |
 | TL11 | **Mockup first:** the Edit trail panel follows TF-07, Remove confirms, the review's terrain rows, the live Trails layer row and the Grading column; screenshots in both themes |
@@ -673,3 +673,24 @@ the Phase 4 planning thread.
 | E29 | **Guests v1:** 2D dots, no needs, hidden while riding |
 | E30 | **Surface lifts are wired in their own thread,** outside the Phase 4 plan |
 | E31 | **Ideas Inbox:** Racing Academy Parked; Ski Patrol, Ski School, Lodges, Terrain parks, Nordic, Resort Infrastructure and Resort Metrics Later |
+
+## Phase 4 task 21, trail rating v2: decided 2026-11-08
+
+**Context:** GU-17 ([p4-02-sim-rules.md](p4-02-sim-rules.md)) gives every trail a true rating (TD-02 v2, the steepest
+sustained 150 ft) and a posted one. The owner answered the 4.21 plan's questions in its thread; the rules are TD-02 v2,
+TD-06 v2 and TD-07 in [p3-02-design-rules.md](p3-02-design-rules.md) §4.2.
+
+| # | Decision |
+|---|---|
+| R1 | **No Auto posting:** a trail must be posted before it's built; nothing is preselected; a sign stays through regrades |
+| R2 | **The posting is set in the trail's build and edit flow** (New trail, Edit trail, Edit sections), not on the card |
+| R3 | **Everything shows what the player posted:** map line, label, trail list, card, Network layer |
+| R4 | **The true rating is the game's, over the trail's own segments only:** a cliff band in a green trail makes it a hard trail |
+| R5 | **TD-06 v2:** the painting's estimate is the steepest 150 ft square of the painted cells |
+| R6 | **The true rating is hidden from players** ("users will have to guess and hope that guests like it"); the dev switch `-truerating` shows it, with the steepest number, the 150 ft box and the estimate |
+| R7 | **Demo findings F1, F4: Status is operating, not building.** Trail and lift lists and cards say Open, Closed, On hold, Scheduled (closed but opening soon) or Planned, for every structure later too; built ones read Closed until 4.07/4.11 run them. Analysis › Trails' columns become Trail, Length, Vertical, Conditions ("—" until 4.07) and Status; Grading leaves the list and card (it stays in Edit trail). Replaces TL8's columns |
+| R8 | **Demo finding F3:** "Game rates it" shows only in Edit trail (with `-truerating`), not on the trail card |
+| R9 | **Demo finding F5:** a card's name has a subtitle saying what kind of object it is: "Trail" (the only trail type so far); a lift's type ("Detachable Six Pack", "T-Bar", "Magic Carpet") |
+| R10 | **Demo finding F2:** the list's scroll bar is low-key: a faint thin thumb, no track or arrows, firmer under the pointer |
+| R11 | **Popularity (owner, after the demo):** Analysis › Trails and Lifts get a Popularity column, a whole number 0–100 from the guests; "—" until 4.12/4.17 fill it |
+| R12 | **After the demo:** a column's title opens its sort and filter menu; the Filter toggle became Clear filters, greyed until something is sorted or filtered, and it clears sorts too; every scroll bar in the game shares the one low-key style (Base.uss) |

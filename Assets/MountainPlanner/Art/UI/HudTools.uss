@@ -133,8 +133,9 @@
 /* the review's figures (.kv): a label on the left, the figure right-aligned, the reserved rows greyed */
 .hud .tw-kv { padding: 7px 12px; }
 .hud .tw-kv__row { flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 2px; }
-.hud .tw-kv__k { margin: 0 10px 0 0; padding: 0; font-size: 12.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
-.hud .tw-kv__v { margin: 0; padding: 0; font-size: 12.5px; -unity-text-align: middle-right; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .tw-kv__k { flex-shrink: 0; margin: 0 10px 0 0; padding: 0; font-size: 12.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+/* 4.21 finding F3: a long figure wraps under itself, right-aligned, and never runs into its label */
+.hud .tw-kv__v { flex-shrink: 1; min-width: 0; white-space: normal; margin: 0; padding: 0; font-size: 12.5px; -unity-text-align: middle-right; color: var(--strong); -unity-text-outline-color: var(--strong); }
 .hud .tw-kv__v--pending { color: var(--ph); -unity-text-outline-color: var(--ph); }
 
 /* the step buttons (.lbtns) and the commit buttons (.acts: Break ground fills, Save plan is a ghost) */

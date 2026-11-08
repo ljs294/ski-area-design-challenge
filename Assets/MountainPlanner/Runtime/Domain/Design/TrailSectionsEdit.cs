@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MountainPlanner.Domain.Measure;
 
 namespace MountainPlanner.Domain.Design
 {
@@ -62,7 +63,7 @@ namespace MountainPlanner.Domain.Design
                 if (s.From == segs[segs.Count - 1].To) segs.Add(s);
                 else segs.Insert(0, s);
             }
-            var desired = new Dictionary<ResolvedTrail, (string name, List<Segment> segs)> { [trail] = (trail.Name, segs) };
+            var desired = new Dictionary<ResolvedTrail, (string name, List<Segment> segs, SlopeBands.Band? posted)> { [trail] = (trail.Name, segs, trail.Posted) };
             return Write(doc, revision, ts, desired, null);
         }
 
@@ -74,14 +75,22 @@ namespace MountainPlanner.Domain.Design
             foreach (var x in trail.Segments) if (!ReferenceEquals(x, s)) rest.Add(x);
             var taken = new HashSet<string>(StringComparer.Ordinal);
             foreach (var t in ts.Trails) taken.Add(t.Name);
-            var desired = new Dictionary<ResolvedTrail, (string, List<Segment>)> { [trail] = (trail.Name, rest) };
-            var released = (name ?? TrailLines.NextName(ts.Trails.Count, taken), new List<Segment> { s });
+            var desired = new Dictionary<ResolvedTrail, (string, List<Segment>, SlopeBands.Band?)> { [trail] = (trail.Name, rest, trail.Posted) };
+            // TD-07: a stretch taken out keeps the sign of the trail it leaves until the player posts it again.
+            var released = (name ?? TrailLines.NextName(ts.Trails.Count, taken), new List<Segment> { s }, trail.Posted);
             return Write(doc, revision, ts, desired, released);
         }
 
         /// <summary>Renames a trail; a run's own trail becomes a shaped one holding the same segments.</summary>
         public static ShapeTrails Rename(DesignDocument doc, long revision, TrailSections ts, ResolvedTrail trail, string name) =>
-            Write(doc, revision, ts, new Dictionary<ResolvedTrail, (string, List<Segment>)> { [trail] = (name, new List<Segment>(trail.Segments)) }, null);
+            Write(doc, revision, ts, new Dictionary<ResolvedTrail, (string, List<Segment>, SlopeBands.Band?)> { [trail] = (name, new List<Segment>(trail.Segments), trail.Posted) }, null);
+
+        /// <summary>
+        /// TD-07 (owner R2): posts a trail's rating in Edit sections; a run's own trail becomes a shaped one holding the same
+        /// segments (as a rename does), so the sign is the trail's and not its runs'.
+        /// </summary>
+        public static ShapeTrails Post(DesignDocument doc, long revision, TrailSections ts, ResolvedTrail trail, SlopeBands.Band posted) =>
+            Write(doc, revision, ts, new Dictionary<ResolvedTrail, (string, List<Segment>, SlopeBands.Band?)> { [trail] = (trail.Name, new List<Segment>(trail.Segments), posted) }, null);
 
         /// <summary>NT45: a node at the point on the run (any bend); nothing else changes.</summary>
         public static ShapeTrails Cut(long revision, TrailId piece, PointMm at) => new ShapeTrails(revision, null, null, new[] { new TrailCut(piece, at) });
@@ -94,8 +103,8 @@ namespace MountainPlanner.Domain.Design
         /// becomes a shaped one keeping its ID), every other shaped trail that held any of them without them, and an
         /// optional released stretch as a new trail.
         /// </summary>
-        static ShapeTrails Write(DesignDocument doc, long revision, TrailSections ts, Dictionary<ResolvedTrail, (string name, List<Segment> segs)> desired,
-                                 (string name, List<Segment> segs)? released)
+        static ShapeTrails Write(DesignDocument doc, long revision, TrailSections ts, Dictionary<ResolvedTrail, (string name, List<Segment> segs, SlopeBands.Band? posted)> desired,
+                                 (string name, List<Segment> segs, SlopeBands.Band? posted)? released)
         {
             var claimed = new HashSet<Segment>();
             foreach (var kv in desired) foreach (var s in kv.Value.segs) claimed.Add(s);
@@ -105,7 +114,7 @@ namespace MountainPlanner.Domain.Design
             var ids = new HashSet<ulong>();
             foreach (var kv in desired)
             {
-                put.Add(new TrailLine(kv.Key.Id, kv.Value.name, SpansOf(ts, kv.Value.segs)));
+                put.Add(new TrailLine(kv.Key.Id, kv.Value.name, SpansOf(ts, kv.Value.segs), kv.Value.posted));
                 ids.Add(put[put.Count - 1].Id.Value);
             }
             // Shaped trails that lose segments to this click keep the rest (or go, NT28).
@@ -121,12 +130,12 @@ namespace MountainPlanner.Domain.Design
                 }
                 if (!lost) continue;
                 if (mine.Count == 0) remove.Add(line.Id);
-                else { put.Add(new TrailLine(line.Id, line.Name, SpansOf(ts, mine))); ids.Add(line.Id.Value); }
+                else { put.Add(new TrailLine(line.Id, line.Name, SpansOf(ts, mine), line.Posted)); ids.Add(line.Id.Value); }
             }
             if (released.HasValue)
             {
                 var r = released.Value;
-                put.Add(new TrailLine(TrailLines.FreshId(doc, r.segs[0].Piece, ids), r.name, SpansOf(ts, r.segs)));
+                put.Add(new TrailLine(TrailLines.FreshId(doc, r.segs[0].Piece, ids), r.name, SpansOf(ts, r.segs), r.posted));
             }
             return new ShapeTrails(revision, put, remove);
         }

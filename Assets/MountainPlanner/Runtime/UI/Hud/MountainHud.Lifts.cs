@@ -13,6 +13,12 @@ namespace MountainPlanner.UI
         public double LengthMetres, VerticalMetres, Capacity, RideSeconds;
         public int Towers;
         public bool Built;
+        /// <summary>F4: whether it's running (Open, Closed, On hold, Scheduled; a placeholder until 4.11: Planned or Closed).</summary>
+        public OperatingStatus Status;
+        /// <summary>F6 (owner 2026-11-08): how popular it is with guests, 0–100; null shows "—" until guests ride (4.12/4.17).</summary>
+        public int? Popularity;
+        /// <summary>F5: its type under the card's name ("Detachable Six Pack", <see cref="LiftTypeMenu.TypeName"/>).</summary>
+        public string Kind;
         /// <summary>F6: the towers' heads ("6 s6, 4 s4, 2 b8"), the lowest chairs over the ground and the rise against the
         /// type's limit (metres; the limit infinite for none), from the built lift's rope; null and NaN for a plan.</summary>
         public string Heads;
@@ -21,14 +27,14 @@ namespace MountainPlanner.UI
 
     /// <summary>
     /// Analysis › Lifts (task 09; the approved mockup's listTab and focus card, on P3-08's shared <see cref="AnalysisList"/>):
-    /// the lifts with Lift, Model, Length, Vertical, An hour, Wait (the simulation's, "—" until it runs) and Status,
+    /// the lifts with Lift, Model, Length, Vertical, An hour, Wait and Popularity (the simulation's, "—" until it runs) and Status,
     /// spreadsheet filters, rows that light their lift on the map, and a focus card with Edit and Remove.
     /// </summary>
     public sealed partial class MountainHud
     {
         AnalysisList _liftsList;
         VisualElement _liftCard;
-        Label _liftCardName;
+        Label _liftCardName, _liftCardKind;
         VisualElement _liftCardKv;
         ulong _liftCardId;
         readonly Dictionary<ulong, LiftRow> _liftRows = new Dictionary<ulong, LiftRow>();
@@ -48,16 +54,17 @@ namespace MountainPlanner.UI
             LiftRow R(AnalysisList.Row r) => (LiftRow)r.Data;
             _liftsList = new AnalysisList("lifts", new[]
             {
-                new AnalysisList.Column { Title = "Lift", Grow = 1.6f, Cell = r => R(r).Name },
-                new AnalysisList.Column { Title = "Model", Grow = 1.1f, Cell = r => R(r).Model },
-                new AnalysisList.Column { Title = "Length", Numeric = true, Grow = 0.8f, Cell = r => ToolFormat.Length(R(r).LengthMetres),
+                new AnalysisList.Column { Title = "Lift", Grow = 1.0f, Cell = r => R(r).Name },
+                new AnalysisList.Column { Title = "Model", Grow = 1.5f, Cell = r => R(r).Model },
+                new AnalysisList.Column { Title = "Length", Numeric = true, Grow = 0.95f, Cell = r => ToolFormat.Length(R(r).LengthMetres),
                     SortKey = r => R(r).LengthMetres, Bin = r => Bin(R(r).LengthMetres, LiftLengthBinsFt), Bins = BinLabels(LiftLengthBinsFt) },
-                new AnalysisList.Column { Title = "Vertical", Numeric = true, Grow = 0.8f, Cell = r => ToolFormat.Length(R(r).VerticalMetres),
+                new AnalysisList.Column { Title = "Vertical", Numeric = true, Grow = 0.9f, Cell = r => ToolFormat.Length(R(r).VerticalMetres),
                     SortKey = r => R(r).VerticalMetres, Bin = r => Bin(R(r).VerticalMetres, LiftVerticalBinsFt), Bins = BinLabels(LiftVerticalBinsFt) },
-                new AnalysisList.Column { Title = "An hour", Numeric = true, Grow = 0.7f, Cell = r => $"{R(r).Capacity:#,0}", SortKey = r => R(r).Capacity },
-                new AnalysisList.Column { Title = "Wait", Numeric = true, Grow = 0.55f, Cell = r => "—" },
-                new AnalysisList.Column { Title = "Status", Grow = 0.8f, Cell = r => R(r).Built ? "Built" : "Planned",
-                    Bin = r => R(r).Built ? "built" : "planned", Bins = new[] { ("built", "Built"), ("planned", "Planned") } },
+                new AnalysisList.Column { Title = "An hour", Numeric = true, Grow = 0.75f, Cell = r => $"{R(r).Capacity:#,0}", SortKey = r => R(r).Capacity },
+                new AnalysisList.Column { Title = "Wait", Numeric = true, Grow = 0.5f, Cell = r => "—" },
+                PopularityColumn(r => R(r).Popularity),
+                new AnalysisList.Column { Title = "Status", Grow = 0.8f, Class = "an-cell--gap", Cell = r => OperatingStatusWords.Word(R(r).Status),
+                    Bin = r => R(r).Status.ToString(), Bins = OperatingStatusWords.Bins() },
             });
             _liftsList.Root.AddToClassList("hidden");
             _root.Q("analysis-body").Add(_liftsList.Root);
@@ -70,11 +77,14 @@ namespace MountainPlanner.UI
             _liftCard.AddToClassList("hidden");
             var head = new VisualElement();
             head.AddToClassList("mp-head");
+            head.AddToClassList("mp-head--kind");
+            var (nameLine, kind) = CardTitles(head, "lift-card-kind");
+            _liftCardKind = kind;
             _liftCardName = new Label { name = "lift-card-name", tooltip = "Rename (F2)" };
             _liftCardName.AddToClassList("mp-title");
             _liftCardName.AddToClassList("tw__name--edit");
             _liftCardName.RegisterCallback<ClickEvent>(_ => RenameLiftCard());
-            head.Add(_liftCardName);
+            nameLine.Add(_liftCardName);
             _liftCard.RegisterCallback<KeyDownEvent>(e => { if (e.keyCode == UnityEngine.KeyCode.F2 && _liftCardField?.parent == null) { RenameLiftCard(); e.StopPropagation(); } });
             var gap = new VisualElement();
             gap.style.flexGrow = 1;
@@ -143,6 +153,7 @@ namespace MountainPlanner.UI
         {
             if (!_liftRows.TryGetValue(_liftCardId, out var l)) return;
             _liftCardName.text = l.Name;
+            _liftCardKind.text = l.Kind ?? "Lift";   // F5
             _liftCardKv.Clear();
             void Kv(string k, string v)
             {
@@ -166,7 +177,7 @@ namespace MountainPlanner.UI
             if (l.Built && !double.IsNaN(l.LowestChairsMetres)) Kv("Lowest chairs", $"{ToolFormat.Length(l.LowestChairsMetres)} over the ground");
             if (l.Built && !double.IsNaN(l.RiseMetres))
                 Kv("Rise", $"{ToolFormat.Length(l.RiseMetres)} of {(double.IsInfinity(l.RiseLimitMetres) ? "no limit" : ToolFormat.Length(l.RiseLimitMetres))}");
-            Kv("Status", l.Built ? "Built" : "Planned");
+            Kv("Status", OperatingStatusWords.Word(l.Status));   // F4
         }
 
         // F6 (LT39): the card's name becomes a text field; Enter or a click elsewhere keeps it, Esc puts the old one back.
@@ -233,5 +244,21 @@ namespace MountainPlanner.UI
 
         /// <summary>Opens a lift's card (tests and captures).</summary>
         public void OpenLiftCardFor(ulong id) => OpenLiftCard(id);
+        /// <summary>Opens the last listed lift's card (captures); false when the list is empty.</summary>
+        public bool OpenLastLiftCardForCapture()
+        {
+            ulong last = 0;
+            foreach (var id in _liftRows.Keys) last = id;
+            if (last != 0) OpenLiftCard(last);
+            return last != 0;
+        }
+        /// <summary>A column's menu open in Analysis › Lifts once its titles are laid out (-1 closes it): captures.</summary>
+        public void OpenLiftsMenuForCapture(int menuColumn)
+        {
+            if (menuColumn < 0) { _liftsList.OpenMenuForCapture(-1); return; }
+            _liftsList.Root.schedule.Execute(() => _liftsList.OpenMenuForCapture(menuColumn)).ExecuteLater(150);
+        }
+        /// <summary>Closes the lift card (captures).</summary>
+        public void CloseLiftCardForCapture() => CloseLiftCard();
     }
 }

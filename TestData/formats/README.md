@@ -70,6 +70,12 @@ reads: a version number, and a name for the greyed library row.
   v10, bottom drive only) is added. v1 to v9 saves migrate with each lift at its type's own end: the Sessellift's top, the
   Monta's bottom. `SaveFileTests` checks that the writer reproduces it byte for byte.
 
+- **`v11-save/Saves/5792676e513f5302/save-001/`** is the same save in format v11 (task 4.21, TD-07): each trail and
+  each shaped trail keeps its `Posted` rating, `"green"`, `"blue"`, `"black"`, `"double-black"` or `null` (design shape
+  11). Here the shaped Run 1 is posted blue, Teton Ridge black, Run 2's own trail green and the first Run 1 piece
+  double-black; the plan "Planned glade" stays null. v1 to v10 saves migrate with every one null; the game posts an
+  older save's built trails once when it opens. `SaveFileTests` checks that the writer reproduces it byte for byte.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

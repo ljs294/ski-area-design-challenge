@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 using MountainPlanner.Acquisition.IO;
 using MountainPlanner.App;
 using MountainPlanner.App.Flow;
@@ -81,10 +82,50 @@ namespace MountainPlanner.Tests
             Assert.That(root.Q("legend").ClassListContains("hidden"), Is.False, "the key is back when the view reopens");
 
             // NT12: a card stacks under the legend, and the legend folds while it's open.
-            hud.SetTrails(new[] { new TrailRow { Id = 7, Name = "Test Run", RatingPercent = 30, LengthMetres = 500, VerticalMetres = 150, Built = true } });
+            hud.SetTrails(new[] { new TrailRow { Id = 7, Name = "Test Run", RatingPercent = 30, LengthMetres = 500, VerticalMetres = 150, Built = true, Status = OperatingStatus.Closed } });
             hud.OpenTrailCardFor(7);
             yield return Frames(2);
             Assert.That(root.Q("trail-card").parent.name, Is.EqualTo("rcol"));
+            // 4.21 findings F3–F5: the kind under the name; Status in words; no Grading or game rating on the card.
+            Assert.That(root.Q<Label>("trail-card-kind").text, Is.EqualTo("Trail"));
+            var cardKeys = root.Q("trail-card").Query<Label>(className: "tw-kv__k").ToList().Select(l => l.text).ToList();
+            Assert.That(cardKeys, Does.Not.Contain("Grading").And.Not.Contain("Game rates it"));
+            var status = root.Q("trail-card").Query<Label>(className: "tw-kv__k").Where(l => l.text == "Status").First();
+            Assert.That(status.parent.Q<Label>(className: "tw-kv__v").text, Is.EqualTo("Closed"));
+            // 4.21 (owner): a column's title opens its menu; Clear filters is greyed until something is sorted or filtered.
+            var clear = root.Q<Button>("an-clear-trails");
+            Assert.That(clear.enabledSelf, Is.False, "nothing to clear yet");
+            Assert.That(root.Q<Button>("an-filter-trails"), Is.Null, "no Filter toggle");
+            var lengthTitle = root.Q<Button>("an-head-trails-1");
+            Assert.That(lengthTitle.text, Is.EqualTo("Length"));
+            using (var e = NavigationSubmitEvent.GetPooled())
+            {
+                e.target = lengthTitle;
+                lengthTitle.SendEvent(e);
+            }
+            yield return Frames(2);
+            var menu = root.Q("an-menu-trails");
+            Assert.That(menu.ClassListContains("hidden"), Is.False, "the title opened its menu");
+            var sortUp = menu.Query<Button>(className: "an-mi").Where(b => b.text == "Sort smallest to largest").First();
+            using (var e = NavigationSubmitEvent.GetPooled())
+            {
+                e.target = sortUp;
+                sortUp.SendEvent(e);
+            }
+            yield return Frames(2);
+            Assert.That(root.Q<Button>("an-head-trails-1").text, Is.EqualTo("Length ↑"));
+            Assert.That(clear.enabledSelf, Is.True, "a sort can be cleared");
+            using (var e = NavigationSubmitEvent.GetPooled())
+            {
+                e.target = clear;
+                clear.SendEvent(e);
+            }
+            yield return Frames(2);
+            Assert.That(root.Q<Button>("an-head-trails-1").text, Is.EqualTo("Length"), "Clear filters puts the first order back");
+            Assert.That(clear.enabledSelf, Is.False);
+            var heads = root.Q("an-list-trails")?.Query<TextElement>(className: "an-head").ToList().Select(l => l.text).ToList();   // titles are buttons where they open a menu
+            if (heads != null && heads.Count > 0)
+                Assert.That(heads, Does.Contain("Conditions").And.Contain("Status").And.Not.Contain("Grading"));
             Assert.That(root.Q("legend").ClassListContains("legend--folded"), Is.True);
             hud.CloseTrailCardIfOpen();
             yield return Frames(2);

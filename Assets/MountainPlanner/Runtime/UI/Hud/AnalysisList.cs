@@ -6,7 +6,7 @@ namespace MountainPlanner.UI
 {
     /// <summary>
     /// An Analysis tab's list (task 08, owner TL9; task 09 reuses it for Lifts), ported from the mockup's listTab: a count
-    /// and a Filter button; sortable columns; with Filter on, a ▾ on each filterable column opens a spreadsheet-style menu
+    /// and Clear filters (greyed until something is sorted or filtered); a sortable or filterable column's title opens its spreadsheet-style menu (4.21, owner)
     /// (sort, the values to show, Clear filter); rows that light their thing on the map while hovered and open its card
     /// when chosen (owner, #87). Rows are rebuilt only when the rows or the filters change, never per frame.
     /// </summary>
@@ -23,6 +23,8 @@ namespace MountainPlanner.UI
             /// <summary>Filters by it when set: each row's value, and the values with their labels, in menu order.</summary>
             public Func<Row, string> Bin;
             public (string Value, string Label)[] Bins;
+            /// <summary>A class on its header and cells (e.g. an-cell--gap, a text column after a figure).</summary>
+            public string Class;
         }
 
         public sealed class Row
@@ -40,11 +42,10 @@ namespace MountainPlanner.UI
         readonly string _noun, _id;
         readonly Column[] _cols;
         readonly Label _count, _foot;
-        readonly Button _filter, _clear;
+        readonly Button _clear;
         readonly VisualElement _head, _rows, _menu;
         readonly List<Row> _all = new List<Row>();
         readonly Dictionary<int, HashSet<string>> _hidden = new Dictionary<int, HashSet<string>>();
-        bool _filterOn;
         int _sortCol = -1;
         bool _sortUp;
         int _menuCol = -1;
@@ -68,12 +69,11 @@ namespace MountainPlanner.UI
             var gap = new VisualElement();
             gap.style.flexGrow = 1;
             tools.Add(gap);
-            _clear = new Button(ClearFilters) { name = "an-clear-" + _id, text = "Clear filters" };
+            // 4.21 (owner): a column's title opens its sort and filter menu, so the Filter toggle became Clear filters, greyed
+            // until something is sorted or filtered.
+            _clear = new Button(ClearFilters) { name = "an-clear-" + _id, text = "Clear filters", tooltip = "Show every row in its first order" };
             _clear.AddToClassList("an-tb");
             tools.Add(_clear);
-            _filter = new Button(() => { _filterOn = !_filterOn; _menuCol = -1; Redraw(); }) { name = "an-filter-" + _id, text = "Filter" };
-            _filter.AddToClassList("an-tb");
-            tools.Add(_filter);
             Root.Add(tools);
             _head = new VisualElement();
             _head.AddToClassList("an-row");
@@ -112,6 +112,7 @@ namespace MountainPlanner.UI
         void ClearFilters()
         {
             _hidden.Clear();
+            _sortCol = -1;
             _menuCol = -1;
             Redraw();
         }
@@ -125,7 +126,8 @@ namespace MountainPlanner.UI
 
         void Redraw()
         {
-            // The header: each title (with the sort arrow), and while filtering a ▾ on the filterable and sortable ones.
+            // The header: each title (with the sort arrow). A sortable or filterable column's title is a button that opens its
+            // menu (4.21, owner); it reads stronger while its column is sorted, filtered or its menu is open.
             _head.Clear();
             for (int c = 0; c < _cols.Length; c++)
             {
@@ -133,19 +135,25 @@ namespace MountainPlanner.UI
                 var cell = new VisualElement();
                 cell.AddToClassList("an-cell");
                 if (col.Numeric) cell.AddToClassList("an-cell--n");
+                if (col.Class != null) cell.AddToClassList(col.Class);
                 cell.style.flexGrow = col.Grow;
                 cell.style.flexBasis = 0;
-                string arrow = _sortCol == c ? (_sortUp ? " ↑" : " ↓") : "";
-                var title = new Label(col.Title + arrow);
-                title.AddToClassList("an-head");
-                cell.Add(title);
-                if (_filterOn && (col.Bin != null || col.SortKey != null))
+                string text = col.Title + (_sortCol == c ? (_sortUp ? " ↑" : " ↓") : "");
+                if (col.Bin != null || col.SortKey != null)
                 {
                     int at = c;
-                    var dd = new Button(() => { _menuCol = _menuCol == at ? -1 : at; Redraw(); }) { name = $"an-dd-{_id}-{c}", text = "▾", tooltip = "Filter and sort" };
-                    dd.AddToClassList("an-dd");
-                    dd.EnableInClassList("an-dd--act", _sortCol == c || (_hidden.TryGetValue(c, out var h) && h.Count > 0));
-                    cell.Add(dd);
+                    var title = new Button(() => { _menuCol = _menuCol == at ? -1 : at; Redraw(); })
+                        { name = $"an-head-{_id}-{c}", text = text, tooltip = col.Bin != null ? "Sort and filter" : "Sort" };
+                    title.AddToClassList("an-head");
+                    title.AddToClassList("an-head--btn");
+                    title.EnableInClassList("an-head--act", _menuCol == c || _sortCol == c || (_hidden.TryGetValue(c, out var h) && h.Count > 0));
+                    cell.Add(title);
+                }
+                else
+                {
+                    var title = new Label(text);
+                    title.AddToClassList("an-head");
+                    cell.Add(title);
                 }
                 _head.Add(cell);
             }
@@ -176,6 +184,7 @@ namespace MountainPlanner.UI
                     var l = new Label(_cols[c].Cell(row)) { pickingMode = PickingMode.Ignore };
                     l.AddToClassList("an-cell");
                     if (_cols[c].Numeric) { l.AddToClassList("an-cell--n"); l.AddToClassList("mono"); }
+                    if (_cols[c].Class != null) l.AddToClassList(_cols[c].Class);
                     l.style.flexGrow = _cols[c].Grow;
                     l.style.flexBasis = 0;
                     b.Add(l);
@@ -188,8 +197,7 @@ namespace MountainPlanner.UI
             _count.text = shown.Count == _all.Count ? $"{_all.Count} {noun} on the map" : $"{shown.Count} of {_all.Count} {_noun} on the map";
             int active = 0;
             foreach (var h in _hidden.Values) active += h.Count;
-            _clear.EnableInClassList("hidden", active == 0);
-            _filter.EnableInClassList("an-tb--on", _filterOn);
+            _clear.SetEnabled(active > 0 || _sortCol >= 0);
             _foot.text = shown.Count > 0 ? _footText + " Hover a row to find it on the mountain; click it for its card." : $"No {_noun} match the filters.";
 
             // The open column's menu (the mockup's amenu).
@@ -226,6 +234,17 @@ namespace MountainPlanner.UI
             float total = 0;
             foreach (var c in _cols) total += c.Grow;
             _menu.style.left = new Length(100f * left / total, LengthUnit.Percent);
+            // It hangs just under the titles (laid out already: its title was clicked), else where the stylesheet puts it.
+            float headBottom = _head.layout.yMax;
+            if (!float.IsNaN(headBottom) && headBottom > 0) _menu.style.top = headBottom + 2;
+            else _menu.style.top = StyleKeyword.Null;
+        }
+
+        /// <summary>A column's menu open (-1 closes it): tests and captures.</summary>
+        public void OpenMenuForCapture(int column)
+        {
+            _menuCol = column;
+            Redraw();
         }
 
         Button MenuItem(string text, Action act)

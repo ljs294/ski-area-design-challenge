@@ -175,7 +175,7 @@ namespace MountainPlanner.App.Edits
             int width = DesignUnits.FeetToMm(100);
             var parts = TrailShape.FromStrokes(null, new[] { new Stroke(width, false, new[] { head, tail }) });
             var command = new AddTrail(History.Revision, name ?? $"Test bench {History.Document.Trails.Count + 1}", TrailSettings.GradedRun,
-                                       parts, head, tail, WorkStage.Built);
+                                       parts, head, tail, WorkStage.Built, MountainPlanner.Domain.Measure.SlopeBands.Band.Blue);
             var r = History.Submit(command, result.Edits);
             if (!r.Accepted) UnityEngine.Debug.LogWarning($"[TerrainEdits] the test bench was rejected: {r}");
             return r.Accepted;

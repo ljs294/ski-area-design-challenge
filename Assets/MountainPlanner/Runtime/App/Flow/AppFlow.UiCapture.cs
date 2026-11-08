@@ -234,7 +234,7 @@ namespace MountainPlanner.App.Flow
             }
 
             if ((HudStates.Any(h => Wanted("s6-" + h.Name)) || PhotoStates.Any(p => Wanted("s10-" + p.Name)) || Wanted("s7-menu") || Wanted("s8-settings-game")
-                 || Wanted("s6-tool-lift-menu") || Wanted("s6-tool-lift-byhand")) && demo != null)
+                 || Wanted("s6-tool-lift-menu") || Wanted("s6-tool-lift-byhand") || Wanted("s6-analysis-trail-card") || Wanted("s6-analysis-lift-card")) && demo != null)
             {
                 Controller.Open(demo);
                 yield return Wait(1);
@@ -265,6 +265,44 @@ namespace MountainPlanner.App.Flow
                     yield return EachLook(folder, "s6-tool-lift-menu");
                     _viewer.Tools?.Close(); hud.SetToolbox(false);
                     yield return Wait(0.3f);
+                }
+                // 4.21 findings F3–F5: the trail card (its kind under the name; Posted, no Grading or game rating) and a lift's
+                // (its type under the name, Towers wrapping under itself). The lists fill once the ground lands, so the cards
+                // open after a wait; the lift's towers place over a few frames, so Break ground is tried until it takes.
+                if (hud != null && Wanted("s6-analysis-trail-card"))
+                {
+                    if (_viewer.TrailBuiltForCapture())
+                    {
+                        yield return Wait(2);
+                        hud.SetAnalysisTab("trails"); hud.SetAnalysis(true);
+                        if (!hud.OpenLastTrailCardForCapture()) Debug.LogWarning("[UiCapture] analysis-trail-card: the list is empty");
+                        yield return Wait(0.5f);
+                        yield return EachLook(folder, "s6-analysis-trail-card");
+                        hud.CloseTrailCardForCapture(); hud.SetAnalysis(false);
+                    }
+                    else Debug.LogWarning("[UiCapture] analysis-trail-card: no trail");
+                    _viewer.UndoCaptureTrails();
+                    yield return Wait(1);
+                }
+                if (hud != null && Wanted("s6-analysis-lift-card"))
+                {
+                    hud.SetToolboxTab("lifts"); hud.SetToolbox(true);
+                    bool built = false;
+                    if (!_viewer.LiftReviewForCapture()) Debug.Log("[UiCapture] analysis-lift-card: the review isn't ready yet; trying Break ground until it takes");
+                    for (float t = 0; t < 30 && !(built = _viewer.LiftConfirmForCapture()); t += 0.25f) yield return Wait(0.25f);
+                    _viewer.Tools?.Close(); hud.SetToolbox(false);
+                    if (built)
+                    {
+                        yield return Wait(4);
+                        hud.SetAnalysisTab("lifts"); hud.SetAnalysis(true);
+                        if (!hud.OpenLastLiftCardForCapture()) Debug.LogWarning("[UiCapture] analysis-lift-card: the list is empty");
+                        yield return Wait(0.5f);
+                        yield return EachLook(folder, "s6-analysis-lift-card");
+                        hud.CloseLiftCardForCapture(); hud.SetAnalysis(false);
+                    }
+                    else Debug.LogWarning("[UiCapture] analysis-lift-card: no lift");
+                    _viewer.UndoCaptureTrails();
+                    yield return Wait(1);
                 }
                 if (hud != null && Wanted("s6-tool-lift-byhand"))
                 {
@@ -384,6 +422,58 @@ namespace MountainPlanner.App.Flow
                 if (on && !v.TrailBuiltForCapture()) Debug.LogWarning("[UiCapture] analysis-trails: no trail");
                 if (!on) v.UndoCaptureTrails();
                 h.SetAnalysisTab(on ? "trails" : "overview");
+                h.SetAnalysis(on);
+            }),
+            // F2: a list long enough to scroll, so the scroll bar shows (rows made up for the picture, as the dl states are).
+            ("analysis-trails-many", false, (h, v, on) =>
+            {
+                var rows = new List<MountainPlanner.UI.TrailRow>();
+                if (on)
+                    for (int i = 0; i < 24; i++)
+                        rows.Add(new MountainPlanner.UI.TrailRow
+                        {
+                            Id = (ulong)(9000 + i), Name = "Run " + (i + 1), Posted = (MountainPlanner.Domain.Measure.SlopeBands.Band)(i % 4),
+                            LengthMetres = 400 + 61 * i, VerticalMetres = 120 + 17 * i, Built = i % 3 != 0, Popularity = i % 3 != 0 ? (int?)((i * 37) % 101) : null,
+                            Status = MountainPlanner.UI.OperatingStatusWords.Placeholder(i % 3 != 0), MeanPercent = double.NaN,
+                        });
+                h.SetTrails(rows);
+                h.SetAnalysisTab(on ? "trails" : "overview");
+                h.SetAnalysis(on);
+            }),
+            // 4.21: a column's title opens its menu (Popularity's here); Clear filters greyed until something is sorted or filtered.
+            ("analysis-lifts-filter", false, (h, v, on) =>
+            {
+                string[] ids = { "detach-six:sessellift", "sessellift-fgq4", "monta-tbar", "glidepath-carpet", "fixed-double:monta" };
+                var rows = new List<MountainPlanner.UI.LiftRow>();
+                if (on)
+                    for (int i = 0; i < 14; i++)
+                        rows.Add(new MountainPlanner.UI.LiftRow
+                        {
+                            Id = (ulong)(9100 + i), Name = "Chair " + (i + 1), Model = MountainPlanner.UI.Tools.LiftTypeMenu.ModelName(ids[i % 5]),
+                            Kind = MountainPlanner.UI.Tools.LiftTypeMenu.TypeName(ids[i % 5]), LengthMetres = 300 + 90 * i, VerticalMetres = 80 + 30 * i,
+                            Capacity = 1800 + 100 * (i % 6), Built = i % 4 != 0, Status = MountainPlanner.UI.OperatingStatusWords.Placeholder(i % 4 != 0),
+                            Popularity = i % 4 != 0 ? (int?)((i * 29) % 101) : null, LowestChairsMetres = double.NaN, RiseMetres = double.NaN,
+                        });
+                h.SetLifts(rows);
+                h.SetAnalysisTab(on ? "lifts" : "overview");
+                h.SetAnalysis(on);
+                h.OpenLiftsMenuForCapture(on ? 6 : -1);
+            }),
+            ("analysis-lifts-many", false, (h, v, on) =>
+            {
+                string[] ids = { "detach-six:sessellift", "sessellift-fgq4", "monta-tbar", "glidepath-carpet", "fixed-double:monta" };
+                var rows = new List<MountainPlanner.UI.LiftRow>();
+                if (on)
+                    for (int i = 0; i < 14; i++)
+                        rows.Add(new MountainPlanner.UI.LiftRow
+                        {
+                            Id = (ulong)(9100 + i), Name = "Chair " + (i + 1), Model = MountainPlanner.UI.Tools.LiftTypeMenu.ModelName(ids[i % 5]),
+                            Kind = MountainPlanner.UI.Tools.LiftTypeMenu.TypeName(ids[i % 5]), LengthMetres = 300 + 90 * i, VerticalMetres = 80 + 30 * i,
+                            Capacity = 1800 + 100 * (i % 6), Built = i % 4 != 0, Status = MountainPlanner.UI.OperatingStatusWords.Placeholder(i % 4 != 0),
+                            Popularity = i % 4 != 0 ? (int?)((i * 29) % 101) : null, LowestChairsMetres = double.NaN, RiseMetres = double.NaN,
+                        });
+                h.SetLifts(rows);
+                h.SetAnalysisTab(on ? "lifts" : "overview");
                 h.SetAnalysis(on);
             }),
             ("analysis", false, (h, v, on) => { h.SetAnalysisTab("overview"); h.SetAnalysis(on); }),
