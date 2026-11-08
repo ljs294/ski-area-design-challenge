@@ -150,7 +150,7 @@ namespace MountainPlanner.Domain.Design
 
         static bool Same(TrailLine a, TrailLine b)
         {
-            if (a.Name != b.Name || a.Spans.Count != b.Spans.Count) return false;
+            if (a.Name != b.Name || a.Posted != b.Posted || a.Spans.Count != b.Spans.Count) return false;
             for (int i = 0; i < a.Spans.Count; i++) if (!a.Spans[i].Equals(b.Spans[i])) return false;
             return true;
         }

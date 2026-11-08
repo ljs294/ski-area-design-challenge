@@ -115,6 +115,35 @@ namespace MountainPlanner.Persistence.Saves
             DirtyChanged?.Invoke();
         }
 
+        /// <summary>
+        /// A save from before v11 (task 4.21, TD-07), where nothing was posted, with built trails: they're posted once as
+        /// v0.3 showed them (<see cref="PostedOlder"/>), so none changes colour.
+        /// </summary>
+        public bool NeedsPosting
+        {
+            get
+            {
+                if (MigratedFrom >= 11 || _posted) return false;
+                foreach (var t in History.Document.Trails) if (t.Stage == WorkStage.Built && t.Posted == null) return true;
+                return false;
+            }
+        }
+        bool _posted;
+
+        /// <summary>
+        /// Takes the older save's posted signs (<see cref="NeedsPosting"/>) in place of the loaded document, in memory only,
+        /// as <see cref="Regraded"/> does: not an undo step, and the design stays clean until the player saves.
+        /// </summary>
+        public void PostedOlder(DesignDocument posted)
+        {
+            if (posted == null) throw new ArgumentNullException(nameof(posted));
+            _posted = true;
+            History.Load(posted, History.Terrain);
+            _saved = History.Document;
+            _savedTerrain = History.Terrain;
+            DirtyChanged?.Invoke();
+        }
+
         /// <summary>Anything changed since the last save or autosave: the bar's save symbol is white, leaving asks (SV2).</summary>
         public bool Dirty => !ReferenceEquals(History.Document, _saved) || !ReferenceEquals(History.Terrain, _savedTerrain) || _otherChanges;
 

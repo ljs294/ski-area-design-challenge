@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Measure;
 using NUnit.Framework;
 
 namespace MountainPlanner.Tests
@@ -59,6 +60,22 @@ namespace MountainPlanner.Tests
             return null;
         }
 
+        /// <summary>
+        /// The sign scripted trails are posted with (TD-07: a trail must be posted before it is built). Tests that compare
+        /// against a pre-v11 fixture take <see cref="Unposted"/> of the design.
+        /// </summary>
+        public const SlopeBands.Band Sign = SlopeBands.Band.Blue;
+
+        /// <summary>The same design with every trail and shaped trail unposted, as a v1–v10 save opens.</summary>
+        public static DesignDocument Unposted(DesignDocument doc)
+        {
+            var trails = new List<Trail>();
+            foreach (var t in doc.Trails) trails.Add(t.WithPosted(null));
+            var lines = new List<TrailLine>();
+            foreach (var l in doc.Lines) lines.Add(l.WithPosted(null));
+            return DesignDocument.From(doc.Seed, doc.NextOrdinal, trails, doc.Lifts, doc.Strokes, doc.Areas, lines, doc.Cuts);
+        }
+
         public static PointMm P(int xFt, int yFt) => new PointMm(Ft(xFt), Ft(yFt));
 
         /// <summary>One painted clearing: a straight stroke between two points, 100 ft wide by default.</summary>
@@ -67,7 +84,7 @@ namespace MountainPlanner.Tests
 
         public static TrailId AddTrail(DesignHistory h, string name, PointMm head, PointMm tail, WorkStage stage = WorkStage.Built)
         {
-            var r = h.Submit(new AddTrail(h.Revision, name, TrailSettings.GradedRun, Straight(head, tail), head, tail, stage));
+            var r = h.Submit(new AddTrail(h.Revision, name, TrailSettings.GradedRun, Straight(head, tail), head, tail, stage, DesignTestKit.Sign));
             Assert.That(r.Accepted, Is.True, r.ToString());
             return new TrailId(r.Created[0]);
         }

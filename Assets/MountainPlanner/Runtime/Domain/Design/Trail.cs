@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MountainPlanner.Domain.Measure;
 
 namespace MountainPlanner.Domain.Design
 {
@@ -60,8 +61,15 @@ namespace MountainPlanner.Domain.Design
         public PointMm? Head { get; }
         /// <summary>The bottom end; null until step 2 sets it.</summary>
         public PointMm? Tail { get; }
+        /// <summary>
+        /// TD-07 (owner, 2026-11-08): the rating the player posts for the run's own trail, the sign guests read; null until
+        /// posted. A trail must be posted before it is built (CF-06), and only the player posts it (an older save's built
+        /// trails are posted once, as v0.3 showed them). A shaped trail posts its own (<see cref="TrailLine.Posted"/>).
+        /// </summary>
+        public SlopeBands.Band? Posted { get; }
 
-        public Trail(TrailId id, string name, WorkStage stage, TrailSettings settings, TrailShape shape, PointMm? head, PointMm? tail)
+        public Trail(TrailId id, string name, WorkStage stage, TrailSettings settings, TrailShape shape, PointMm? head, PointMm? tail,
+                     SlopeBands.Band? posted = null)
         {
             Id = id;
             Name = name;
@@ -70,14 +78,16 @@ namespace MountainPlanner.Domain.Design
             Shape = shape ?? TrailShape.Empty;
             Head = head;
             Tail = tail;
+            Posted = posted;
         }
 
         public bool HasEnds => Head.HasValue && Tail.HasValue;
 
-        public Trail WithName(string name) => new Trail(Id, name, Stage, Settings, Shape, Head, Tail);
-        public Trail WithStage(WorkStage stage) => new Trail(Id, Name, stage, Settings, Shape, Head, Tail);
-        public Trail WithSettings(TrailSettings settings) => new Trail(Id, Name, Stage, settings, Shape, Head, Tail);
-        public Trail WithShape(TrailShape shape) => new Trail(Id, Name, Stage, Settings, shape, Head, Tail);
-        public Trail WithEnds(PointMm? head, PointMm? tail) => new Trail(Id, Name, Stage, Settings, Shape, head, tail);
+        public Trail WithName(string name) => new Trail(Id, name, Stage, Settings, Shape, Head, Tail, Posted);
+        public Trail WithStage(WorkStage stage) => new Trail(Id, Name, stage, Settings, Shape, Head, Tail, Posted);
+        public Trail WithSettings(TrailSettings settings) => new Trail(Id, Name, Stage, settings, Shape, Head, Tail, Posted);
+        public Trail WithShape(TrailShape shape) => new Trail(Id, Name, Stage, Settings, shape, Head, Tail, Posted);
+        public Trail WithEnds(PointMm? head, PointMm? tail) => new Trail(Id, Name, Stage, Settings, Shape, head, tail, Posted);
+        public Trail WithPosted(SlopeBands.Band? posted) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, posted);
     }
 }

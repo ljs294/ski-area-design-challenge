@@ -80,7 +80,7 @@ namespace MountainPlanner.App
             var id = TrailId.Make(history.Document.Seed, history.Document.NextOrdinal);
             var graded = TrailGrader.Grade(heights, line, width / 1000.0, true, history.Document.Seed, id);
             var parts = TrailShape.FromStrokes(null, new[] { new Stroke(width, false, points) });
-            var trail = new AddTrail(history.Revision, TrailName, TrailSettings.GradedRun, parts, points[0], points[points.Length - 1], WorkStage.Built);
+            var trail = new AddTrail(history.Revision, TrailName, TrailSettings.GradedRun, parts, points[0], points[points.Length - 1], WorkStage.Built, MountainPlanner.Domain.Measure.SlopeBands.Band.Blue);
             var r1 = history.Submit(trail, graded.Edits);
             report.AppendFormat(CultureInfo.InvariantCulture,
                 "trail {0}: {1:F0} ft, {2} stations ({3} ungraded, {4:F0} ft), cut {5:F0} ydÂ³, fill {6:F0} ydÂ³, {7} cells cleared, edge step {8:F2} m; ",

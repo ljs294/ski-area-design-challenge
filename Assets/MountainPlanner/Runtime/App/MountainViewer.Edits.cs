@@ -87,6 +87,51 @@ namespace MountainPlanner.App
             RegradeNoticeShown = true;
         }
 
+        // An older save, once the ground is up: regraded as this build grades (before v8), then posted as v0.3 showed it
+        // (before v11, TD-07).
+        IEnumerator OpenOlderSave(OpenDesign open)
+        {
+            if (open.NeedsRegrade) yield return RegradeOlderSave(open);
+            if (open.NeedsPosting) yield return PostOlderSave(open);
+        }
+
+        /// <summary>
+        /// TD-07 for a save from before v11 (task 4.21): every built trail is posted with the band v0.3 showed it as (TD-02
+        /// v1), in memory like the regrade, so none changes colour; the file is unchanged until saved. Skipped if the design
+        /// changes first: the trails then stay unposted, drawn plain, and a toast asks the player to post them.
+        /// </summary>
+        IEnumerator PostOlderSave(OpenDesign open)
+        {
+            while (WorkBusy) yield return null;   // the builds as this design's ground has them
+            if (_edits == null) yield break;
+            var doc = open.History.Document;
+            var shown = _edits.Pipeline.Heights;
+            var heights = new EditedHeights(shown.Source, shown.Lattice, open.History.Terrain);
+            var earthwork = _edits.Earthwork;
+            var work = System.Threading.Tasks.Task.Run(() => DesignRules.PostOlderSave(doc, id =>
+            {
+                var t = doc.FindTrail(id);
+                var b = earthwork.DetailOf(id.Value) as TrailBuild;
+                if (t == null || b?.Grade == null || !b.IsFor(t)) return double.NaN;
+                return TrailRating.Rate(heights, b.Footprint, b.Grade).LegacyV1Percent;
+            }));
+            while (!work.IsCompleted) yield return null;
+            if (work.IsFaulted) { Debug.LogException(work.Exception); yield break; }
+            if (OpenDesign.Current != open || !ReferenceEquals(open.History.Document, doc))
+            {
+                Debug.Log("[Saves] the older save's posting was skipped: the design changed first");
+                Hud?.Toast("Some built trails have no posted rating: post them in Edit trail.");
+                yield break;
+            }
+            var posted = work.Result;
+            int signs = 0, left = 0;
+            foreach (var t in posted.Trails)
+                if (t.Stage == WorkStage.Built) { if (t.Posted.HasValue) signs++; else left++; }
+            if (!ReferenceEquals(posted, doc)) open.PostedOlder(posted);
+            Debug.Log($"[Saves] posted an older save's trails (v{open.MigratedFrom}): {signs} built runs as v0.3 showed them, {left} left unposted; the file is unchanged until saved");
+            if (left > 0) Hud?.Toast($"{left} built trail{(left == 1 ? " has" : "s have")} no posted rating: post {(left == 1 ? "it" : "them")} in Edit trail.");
+        }
+
         // How far two edit sets differ: lattice points whose height differs, the cut and fill between them, cleared cells.
         static void Compare(TerrainEdits a, TerrainEdits b, out int points, out double cubicMetres, out int cells)
         {
@@ -123,8 +168,8 @@ namespace MountainPlanner.App
             if (_preview != null) _preview.Cleared += _edits.ClearPreview;   // a tool's preview clearing takes the yellow contours with it (CF-08)
             Debug.Log("[TerrainEdits] ready" + (_editKeys ? ": F6 preview a bench at the pointer, F7 break ground, F8 cancel, Ctrl+Z / Ctrl+Y" : ""));
             if (Array.IndexOf(args, "-regrade") >= 0) _edits.RegradeForCapture();   // captures: a save graded as this build grades
-            else if (OpenDesign.Current is OpenDesign open && open.NeedsRegrade && ReferenceEquals(open.History, _edits.History))
-                StartCoroutine(RegradeOlderSave(open));
+            else if (OpenDesign.Current is OpenDesign open && (open.NeedsRegrade || open.NeedsPosting) && ReferenceEquals(open.History, _edits.History))
+                StartCoroutine(OpenOlderSave(open));
             if (bench >= 0 && bench + 1 < args.Length)
             {
                 var v = args[bench + 1].Split(',').Select(t => float.Parse(t, CultureInfo.InvariantCulture)).ToArray();

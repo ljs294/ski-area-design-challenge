@@ -526,8 +526,16 @@ namespace MountainPlanner.Tests
             _host.Tick(At(0, -280, click: true));
             _host.Tick(new ToolInput { Keys = ToolKeys.Next });
             Assert.That(trail.CurrentStep, Is.EqualTo(2), "review");
+            // TD-07 (R1): nothing is preselected, and an unposted trail isn't built.
+            Assert.That(_host.Confirm(WorkStage.Built)?.Accepted == true, Is.False, "post a rating before building: Break ground is greyed");
+            Assert.That(_host.Context.Window.CanBreakGround, Is.False);
+            Assert.That(_design.Document.Trails, Is.Empty);
+            trail.PostForCapture(MountainPlanner.Domain.Measure.SlopeBands.Band.Black);
+            Assert.That(_host.Context.Window.CanBreakGround, Is.True, "a sign picked lights it");
+            _host.Tick(default);
             Assert.That(_host.Confirm(WorkStage.Built).Accepted, Is.True);
             var built = _design.Document.Trails[0];
+            Assert.That(built.Posted, Is.EqualTo(MountainPlanner.Domain.Measure.SlopeBands.Band.Black), "the sign picked");
             Assert.That(built.Name, Is.EqualTo("Run 1"));
             Assert.That(built.HasEnds, Is.True);
             Assert.That(built.Shape.Rings.Count, Is.EqualTo(1), "the trail keeps its clearing's outline, not the stroke (finding 7)");
@@ -540,7 +548,7 @@ namespace MountainPlanner.Tests
         {
             var parts = TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(100), false, new[] { DesignFrame.ToDesign(new Vector2(0, 300)), DesignFrame.ToDesign(new Vector2(0, -300)) }) });
             var r = _design.Submit(new AddTrail(_design.Revision, "Run 1", TrailSettings.NaturalRun, parts,
-                DesignFrame.ToDesign(new Vector2(0, 280)), DesignFrame.ToDesign(new Vector2(0, -280)), WorkStage.Built));
+                DesignFrame.ToDesign(new Vector2(0, 280)), DesignFrame.ToDesign(new Vector2(0, -280)), WorkStage.Built, MountainPlanner.Domain.Measure.SlopeBands.Band.Blue));
             Assert.That(r.Accepted, Is.True, r.ToString());
             return new TrailId(r.Created[0]);
         }

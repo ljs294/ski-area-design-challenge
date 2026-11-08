@@ -13,8 +13,8 @@ namespace MountainPlanner.Domain.Design
     {
         /// <summary>The shape of the authored data. Task 04's save file freezes it; a change bumps this. 4 (task 15): the
         /// terrain strokes. 5 (task P3-10): the named Areas (NW-15). 6 (task P3-10): the trails made of more than one section (NT24). 7 (task P3-10): trails as spans of runs between nodes, and the
-        /// player's cut points (NT43–NT46).</summary>
-        public const int ShapeVersion = 10;
+        /// player's cut points (NT43–NT46). 10 (LD9): each lift's drive end. 11 (task 4.21, TD-07): each trail's posted rating.</summary>
+        public const int ShapeVersion = 11;
 
         /// <summary>The design's key seed: every ID is a keyed hash of it (SH-04).</summary>
         public ulong Seed { get; }
@@ -280,6 +280,20 @@ namespace MountainPlanner.Domain.Design
         }
 
         /// <summary>The saved lines replaced whole (sorted here); <see cref="TrailLines.Normalise"/> and the line commands.</summary>
+        /// <summary>One shaped trail replaced by ID (TD-07's sign), or added.</summary>
+        internal DesignDocument PutLine(TrailLine line)
+        {
+            var lines = new List<TrailLine>(_lines.Length + 1);
+            bool replaced = false;
+            foreach (var l in _lines)
+            {
+                if (l.Id == line.Id) { lines.Add(line); replaced = true; }
+                else lines.Add(l);
+            }
+            if (!replaced) lines.Add(line);
+            return WithLines(lines);
+        }
+
         internal DesignDocument WithLines(IReadOnlyList<TrailLine> lines)
         {
             var n = new TrailLine[lines.Count];

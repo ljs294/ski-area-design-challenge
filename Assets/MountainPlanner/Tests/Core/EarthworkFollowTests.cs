@@ -61,7 +61,7 @@ namespace MountainPlanner.Tests
         static TrailId AddTrail(DesignHistory h, DesignEarthwork work, TrailShape shape, PointMm head, PointMm tail, bool graded = true)
         {
             var cmd = new AddTrail(h.Revision, "Run " + (h.Document.Trails.Count + 1), graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun,
-                                   shape, head, tail, WorkStage.Built);
+                                   shape, head, tail, WorkStage.Built, DesignTestKit.Sign);
             Commit(h, work, cmd);
             return h.Document.Trails.First(t => t.Shape.Equals(shape)).Id;
         }
@@ -141,11 +141,11 @@ namespace MountainPlanner.Tests
             Assert.That(h.Submit(new RenameTrail(h.Revision, t.Id, "Renamed")).Accepted, Is.True);
             var split = h.Submit(new SplitTrail(h.Revision, t.Id, M(0, -150), 0, -1));
             Assert.That(split.Accepted, Is.True, split.ToString());
-            Commit(h, work, new AddTrail(h.Revision, "Across", TrailSettings.GradedRun, Strip(100, (-150, -100), (150, -200)), M(-150, -100), M(150, -200), WorkStage.Built));
+            Commit(h, work, new AddTrail(h.Revision, "Across", TrailSettings.GradedRun, Strip(100, (-150, -100), (150, -200)), M(-150, -100), M(150, -200), WorkStage.Built, DesignTestKit.Sign));
             AssertFresh(h, "an edit after a rename and a split");
             h.Undo();
             h.Undo();
-            Commit(h, work, new AddTrail(h.Revision, "Again", TrailSettings.NaturalRun, Strip(100, (-150, -100), (150, -200)), M(-150, -100), M(150, -200), WorkStage.Built));
+            Commit(h, work, new AddTrail(h.Revision, "Again", TrailSettings.NaturalRun, Strip(100, (-150, -100), (150, -200)), M(-150, -100), M(150, -200), WorkStage.Built, DesignTestKit.Sign));
             AssertFresh(h, "an edit after undoing the split");
         }
 
@@ -155,7 +155,7 @@ namespace MountainPlanner.Tests
             var (h, work) = Session();
             AddTrail(h, work, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300));
             AddTrail(h, work, Strip(100, (200, 0), (200, -300)), M(200, 0), M(200, -300));
-            var cmd = new AddTrail(h.Revision, "Late", TrailSettings.GradedRun, Strip(100, (-200, 0), (-200, -300)), M(-200, 0), M(-200, -300), WorkStage.Built);
+            var cmd = new AddTrail(h.Revision, "Late", TrailSettings.GradedRun, Strip(100, (-200, 0), (-200, -300)), M(-200, 0), M(-200, -300), WorkStage.Built, DesignTestKit.Sign);
             var stale = work.Rebuild(cmd.Apply(h.Document).Document, h.Terrain);
             h.Undo();
             Assert.That(work.Accept(stale), Is.False, "a preview made before the undo never becomes the state");
@@ -169,7 +169,7 @@ namespace MountainPlanner.Tests
             var (h, work) = Session();
             AddTrail(h, work, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300));
             // Submitted without an accept (a test bench's commit, a tool's refused result): the next rebuild learns the design.
-            var cmd = new AddTrail(h.Revision, "Unaccepted", TrailSettings.GradedRun, Strip(100, (-150, -100), (150, -200)), M(-150, -100), M(150, -200), WorkStage.Built);
+            var cmd = new AddTrail(h.Revision, "Unaccepted", TrailSettings.GradedRun, Strip(100, (-150, -100), (150, -200)), M(-150, -100), M(150, -200), WorkStage.Built, DesignTestKit.Sign);
             var rebuilt = work.Rebuild(cmd.Apply(h.Document).Document, h.Terrain);
             Assert.That(h.Submit(cmd, rebuilt.Edits).Accepted, Is.True);
             AddTrail(h, work, Strip(90, (100, 50), (120, -260)), M(100, 50), M(120, -260));
@@ -229,7 +229,7 @@ namespace MountainPlanner.Tests
             Same(new AddTerrainStrokes(h.Revision, two).Apply(repainted).Document, "seeded after the repaint", reseed);
             Same(h.Document, "the repaint undone, seeded after it", reseed);
             // A seed with a trail the committed state never had, under the press: gone again, the press is graded once more.
-            var added = new AddTrail(h.Revision, "Run 9", TrailSettings.GradedRun, Strip(150, (-150, -200), (150, -380)), M(-150, -200), M(150, -380), WorkStage.Built)
+            var added = new AddTrail(h.Revision, "Run 9", TrailSettings.GradedRun, Strip(150, (-150, -200), (150, -380)), M(-150, -200), M(150, -380), WorkStage.Built, DesignTestKit.Sign)
                 .Apply(h.Document).Document;
             var withRun = work.Rebuild(new AddTerrainStrokes(h.Revision, new[] { Press(-290, true) }).Apply(added).Document, h.Terrain);
             Same(new AddTerrainStrokes(h.Revision, new[] { Press(-290, true) }).Apply(h.Document).Document, "a seed's own trail gone", withRun);

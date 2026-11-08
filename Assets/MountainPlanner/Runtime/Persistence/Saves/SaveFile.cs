@@ -13,13 +13,13 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 10;
+        public const int CurrentVersion = 11;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven);
 
         /// <summary>
         /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
@@ -159,6 +159,21 @@ namespace MountainPlanner.Persistence.Saves
                 foreach (var l in lifts)
                     if (l is JObject lift && lift["Drive"] == null)
                         lift["Drive"] = LiftCatalogIds.DefaultDrive((string)lift["Catalog"] ?? "") == LiftDrive.Bottom ? "bottom" : "top";
+        }
+
+        /// <summary>
+        /// v10 → v11 (task 4.21, TD-07): the design's shape 10 → 11, where each trail and each shaped trail carries the rating
+        /// the player posted. Nothing was posted before v11, so every one opens unposted (null); the game then posts an older
+        /// save's built trails once, as v0.3 rated them (TD-02 v1), so none changes colour (the JSON has no ground to rate on).
+        /// </summary>
+        static void UpToEleven(JObject o)
+        {
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 11;
+            foreach (string list in new[] { "Trails", "TrailLines" })
+                if (design[list] is JArray items)
+                    foreach (var item in items)
+                        if (item is JObject x && x["Posted"] == null) x["Posted"] = JValue.CreateNull();
         }
 
         /// <summary>The player's name for it ("Autosave" for the autosave slot).</summary>

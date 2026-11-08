@@ -131,7 +131,9 @@ namespace MountainPlanner.Domain.Design
                     if (!t.HasEnds) return Invalid(doc, $"{t.Name} needs a head and a tail before it can be built.");
                     sections.Add(s);
                 }
-            var next = doc;
+            // TD-07 (owner R1): every run built here, and every shaped trail holding one, is posted first.
+            var next = DesignRules.PostForBuild(doc, new HashSet<TrailId>(sections), null, out string unposted);
+            if (next == null) return Invalid(doc, unposted);
             foreach (var id in sections) next = next.PutTrail(next.FindTrail(id).WithStage(WorkStage.Built));
             foreach (var id in Lifts) next = next.PutLift(next.FindLift(id).WithStage(WorkStage.Built));
             return CommandResult.Accept(next);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MountainPlanner.Domain.Measure;
 
 namespace MountainPlanner.Domain.Design
 {
@@ -12,8 +13,11 @@ namespace MountainPlanner.Domain.Design
         public PointMm? Head { get; }
         public PointMm? Tail { get; }
         public WorkStage Stage { get; }
+        /// <summary>TD-07: the rating the player posted in the review; a built trail must carry one (owner R1).</summary>
+        public SlopeBands.Band? Posted { get; }
 
-        public AddTrail(long baseRevision, string name, TrailSettings settings, TrailShape shape, PointMm? head, PointMm? tail, WorkStage stage)
+        public AddTrail(long baseRevision, string name, TrailSettings settings, TrailShape shape, PointMm? head, PointMm? tail, WorkStage stage,
+                        SlopeBands.Band? posted = null)
             : base(baseRevision)
         {
             Name = name;
@@ -22,6 +26,7 @@ namespace MountainPlanner.Domain.Design
             Head = head;
             Tail = tail;
             Stage = stage;
+            Posted = posted;
         }
 
         public override string Label => "Add trail";
@@ -29,14 +34,15 @@ namespace MountainPlanner.Domain.Design
         protected override CommandResult Run(DesignDocument doc)
         {
             string problem = DesignRules.NameProblem(Name) ?? DesignRules.StageProblem(Stage) ?? DesignRules.ShapeProblem(Shape)
-                ?? DesignRules.EndsProblem(Head, Tail);
+                ?? DesignRules.EndsProblem(Head, Tail) ?? DesignRules.PostedProblem(Posted);
             if (problem != null) return Invalid(doc, problem);
             if (DesignRules.SettingsProblem(Settings) is string s) return CommandResult.Reject(doc, RejectionCode.NotAvailable, s);
             if (Stage == WorkStage.Built && !(Head.HasValue && Tail.HasValue)) return Invalid(doc, "A trail needs a head and a tail before it can be built.");
+            if (Stage == WorkStage.Built && !Posted.HasValue) return Invalid(doc, DesignRules.UnpostedProblem(Name));
 
             var mint = new IdMint(doc);
             var id = mint.Trail();
-            var trail = new Trail(id, Name, Stage, Settings, Shape, Head, Tail);
+            var trail = new Trail(id, Name, Stage, Settings, Shape, Head, Tail, Posted);
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutTrail(trail), id.Value);
         }
     }

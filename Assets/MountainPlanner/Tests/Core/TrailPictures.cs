@@ -322,7 +322,7 @@ namespace MountainPlanner.Tests
                 var trail = new Trail(TrailId.Make(1, 1), "Bench", WorkStage.Built, TrailSettings.GradedRun,
                                       TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(100), false, pts.ToArray()) }), pts[0], pts[pts.Count - 1]);
                 var doc = DesignDocument.Empty(1);
-                var r = new AddTrail(1, "Bench", TrailSettings.GradedRun, trail.Shape, trail.Head, trail.Tail, WorkStage.Built).Apply(doc);
+                var r = new AddTrail(1, "Bench", TrailSettings.GradedRun, trail.Shape, trail.Head, trail.Tail, WorkStage.Built, DesignTestKit.Sign).Apply(doc);
                 var micro = System.Diagnostics.Stopwatch.StartNew();
                 double sum = 0;
                 for (int q = 0; q < 100000; q++) sum += h.At(site.OriginX + 300 + (q % 300), site.OriginY + 600 - q / 300);

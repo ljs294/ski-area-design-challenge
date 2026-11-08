@@ -22,7 +22,8 @@ namespace MountainPlanner.UI
     {
         public ulong Id;
         public string Name;
-        public double RatingPercent;
+        /// <summary>TD-07: the posted sign (its symbol in the list); null until posted.</summary>
+        public MountainPlanner.Domain.Measure.SlopeBands.Band? Posted;
         /// <summary>"No lift serves this" or "Leads nowhere".</summary>
         public string Warning;
     }
@@ -81,7 +82,7 @@ namespace MountainPlanner.UI
             NetworkTrailRow T(AnalysisList.Row r) => (NetworkTrailRow)r.Data;
             _networkTrails = new AnalysisList("trails", new[]
             {
-                new AnalysisList.Column { Title = "Trail", Grow = 1.7f, Cell = r => $"{SymbolOf(T(r).RatingPercent)}  {T(r).Name}" },
+                new AnalysisList.Column { Title = "Trail", Grow = 1.7f, Cell = r => $"{SymbolOf(T(r).Posted)}  {T(r).Name}" },
                 new AnalysisList.Column { Title = "Warning", Grow = 1.8f, Cell = r => "● " + T(r).Warning },
             }, "network-trails");
             _networkTrails.Root.AddToClassList("an-network__warnings");

@@ -570,9 +570,11 @@ namespace MountainPlanner.Presentation.Design
         static Color Hex(int rgb) => new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f, 1);
         static Color WithAlpha(Color c, float a) { c.a = a; return c; }
 
-        /// <summary>A trail's own colour from its rating (TD-03 bands), as the trail map draws it.</summary>
-        public static Color RatingColour(double percent) =>
-            double.IsNaN(percent) || percent < 25 ? Hex(0x1f8a4c) : percent < 40 ? Hex(0x2f6bb0) : Hex(0x1f1c19);
+        /// <summary>A trail's own colour from its posted sign (TD-07, R3), as the trail map draws it; grey until posted.</summary>
+        public static Color RatingColour(Domain.Measure.SlopeBands.Band? posted) =>
+            !posted.HasValue ? Hex(0x8a8580)
+            : posted.Value == Domain.Measure.SlopeBands.Band.Green ? Hex(0x1f8a4c)
+            : posted.Value == Domain.Measure.SlopeBands.Band.Blue ? Hex(0x2f6bb0) : Hex(0x1f1c19);
 
         public void Dispose()
         {

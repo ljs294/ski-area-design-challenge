@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MountainPlanner.Domain.Measure;
 
 namespace MountainPlanner.Domain.Design
 {
@@ -38,13 +39,19 @@ namespace MountainPlanner.Domain.Design
         /// <summary>Whether it is the saved trail itself (its first piece), not a run's own or a broken-off piece.</summary>
         public bool Saved => Line != null && Line.Id == Id;
         public bool Built => Segments[0].Built;
+        /// <summary>
+        /// TD-07: the rating the player posted, the sign guests read: a shaped trail's own (every piece of one broken in
+        /// two shares it, NT28), else its run's. Null until posted.
+        /// </summary>
+        public SlopeBands.Band? Posted { get; }
 
-        internal ResolvedTrail(TrailLineId id, string name, IReadOnlyList<Segment> segments, TrailLine line)
+        internal ResolvedTrail(TrailLineId id, string name, IReadOnlyList<Segment> segments, TrailLine line, SlopeBands.Band? posted)
         {
             Id = id;
             Name = name;
             Segments = segments;
             Line = line;
+            Posted = posted;
         }
 
         public bool Holds(Segment s)
@@ -198,7 +205,8 @@ namespace MountainPlanner.Domain.Design
             for (int i = 0; i < pieces.Count; i++)
             {
                 var pid = i == 0 ? id : OwnId(doc, pieces[i][0].Piece, used);
-                var trail = new ResolvedTrail(pid, names[i], pieces[i], line);
+                var posted = line != null ? line.Posted : doc.FindTrail(pieces[i][0].Piece)?.Posted;
+                var trail = new ResolvedTrail(pid, names[i], pieces[i], line, posted);
                 _trails.Add(trail);
                 foreach (var s in pieces[i]) _trailOf[s] = trail;
             }

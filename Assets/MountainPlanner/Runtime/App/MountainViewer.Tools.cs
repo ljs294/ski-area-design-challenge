@@ -254,6 +254,21 @@ namespace MountainPlanner.App
         }
 
         /// <summary>
+        /// For captures (4.21 finding F5): Break ground on New lift's review once its towers are placed (they place over a few
+        /// frames, so the capture tries until it takes); taken back with the capture trails (<see cref="UndoCaptureTrails"/>
+        /// undoes every step the captures made).
+        /// </summary>
+        internal bool LiftConfirmForCapture()
+        {
+            if (_tools == null || !(_tools.Active is NewLiftTool lift)) return false;
+            if (lift.CurrentStep == 2) { KeysForCapture(ToolKeys.Next); return false; }   // the top placed: on to the review
+            if (lift.CurrentStep != 3) return false;
+            bool built = _tools.Confirm(WorkStage.Built)?.Accepted == true;
+            if (built) _captureTrails++;
+            return built;
+        }
+
+        /// <summary>
         /// For captures (task 09, LT19–LT22): New lift with the bottom terminal's ghost turned 30° and raised 5 ft over a spot
         /// that can take it; with <paramref name="top"/>, the bottom placed and the top's ghost aimed up the hill, 3 ft up.
         /// </summary>

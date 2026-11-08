@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MountainPlanner.Domain.Measure;
 
 namespace MountainPlanner.Domain.Design
 {
@@ -107,18 +108,22 @@ namespace MountainPlanner.Domain.Design
         public TrailLineId Id { get; }
         public string Name { get; }
         public IReadOnlyList<Span> Spans => _spans;
+        /// <summary>TD-07: the rating the player posts for this trail (shape 11); null until posted.</summary>
+        public SlopeBands.Band? Posted { get; }
 
         readonly Span[] _spans;
 
-        public TrailLine(TrailLineId id, string name, IReadOnlyList<Span> spans)
+        public TrailLine(TrailLineId id, string name, IReadOnlyList<Span> spans, SlopeBands.Band? posted = null)
         {
             Id = id;
             Name = name ?? "";
             _spans = new Span[spans?.Count ?? 0];
             for (int i = 0; i < _spans.Length; i++) _spans[i] = spans[i];
+            Posted = posted;
         }
 
-        public TrailLine WithName(string name) => new TrailLine(Id, name, _spans);
-        public TrailLine WithSpans(IReadOnlyList<Span> spans) => new TrailLine(Id, Name, spans);
+        public TrailLine WithName(string name) => new TrailLine(Id, name, _spans, Posted);
+        public TrailLine WithSpans(IReadOnlyList<Span> spans) => new TrailLine(Id, Name, spans, Posted);
+        public TrailLine WithPosted(SlopeBands.Band? posted) => new TrailLine(Id, Name, _spans, posted);
     }
 }

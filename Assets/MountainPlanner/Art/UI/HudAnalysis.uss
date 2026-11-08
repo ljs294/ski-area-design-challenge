@@ -14,14 +14,21 @@
 /* the rows (.tbl .r): a hairline between rows, the header in small bold soft type */
 .hud .an-row { flex-direction: row; align-items: center; margin: 0; padding: 5px 12px; border-width: 1px 0 0 0; border-color: var(--row); border-radius: 0; background-color: rgba(0, 0, 0, 0); }
 .hud .an-row--head { border-width: 0; padding: 8px 12px 4px 12px; }
+/* 4.21 (owner): a sortable or filterable column's title is the button that opens its menu; stronger under the pointer,
+   while its column is sorted or filtered, or while its menu is open */
+.hud .an-head--btn { margin: 0; padding: 0; border-width: 0; border-radius: 0; background-color: rgba(0, 0, 0, 0); -unity-text-align: middle-left; }
+.hud .an-cell--n > .an-head--btn { -unity-text-align: middle-right; }
+.hud .an-head--btn:hover, .hud .an-head--btn:focus, .hud .an-head--act { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .an-tb:disabled { color: var(--faint); -unity-text-outline-color: var(--faint); border-color: var(--hair); }
 .hud .an-row--item:hover, .hud .an-row--item:focus { background-color: var(--hover); }
 .hud .an-row--on { background-color: var(--hover); border-left-width: 2px; border-left-color: var(--text); }
 .hud .an-rows { max-height: 300px; flex-shrink: 1; }
 .hud .an-cell { flex-direction: row; align-items: center; -unity-text-align: middle-left; margin: 0 8px 0 0; padding: 0; overflow: hidden; font-size: 12.5px; -unity-font-style: bold; white-space: nowrap; color: var(--text); -unity-text-outline-color: var(--text); }
 .hud .an-cell--n { justify-content: flex-end; -unity-text-align: middle-right; -unity-font-style: normal; }
+.hud .an-cell--gap { margin-left: 14px; }   /* 4.21: a text column after a figure (Conditions after Vertical) */
 .hud .an-head { margin: 0; padding: 0; font-size: 11.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
 .hud .an-row--head .an-cell--n { justify-content: flex-end; }
-.hud .an-dd { width: 15px; height: 15px; margin: 0 0 0 3px; padding: 0; border-width: 1px; border-color: var(--hair2); border-radius: 3px; background-color: rgba(0, 0, 0, 0); font-size: 9px; -unity-text-align: middle-center; color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .an-dd { width: 15px; height: 15px; margin: 0 0 0 3px; padding: 0; border-width: 1px; border-color: var(--faint); border-radius: 3px; background-color: rgba(0, 0, 0, 0); font-size: 9px; -unity-text-align: middle-center; color: var(--soft); -unity-text-outline-color: var(--soft); }
 .hud .an-dd:hover, .hud .an-dd--act { border-color: var(--muted); color: var(--strong); -unity-text-outline-color: var(--strong); }
 .hud .an-foot { margin: 0; padding: 7px 12px 4px 12px; border-top-width: 1px; border-color: var(--row); white-space: normal; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); }
 
@@ -34,6 +41,11 @@
 /* the focus card (.pn.fcard): right of the map, under the corner buttons */
 .hud .an-card { position: absolute; right: 10px; top: 56px; width: 300px; }
 .hud .an-card__acts { padding: 4px 12px 10px 12px; }
+/* 4.21 finding F5: the card's head, its name over a small line saying what kind of object it is ("Trail", "T-Bar") */
+.hud .mp-head--kind { height: auto; min-height: 38px; padding-top: 5px; padding-bottom: 5px; }
+.hud .mp-head__titles { flex-direction: column; flex-shrink: 1; min-width: 0; }
+.hud .mp-head__line { flex-direction: row; align-items: center; }
+.hud .mp-head__kind { margin: 1px 0 0 0; padding: 0; font-size: 11px; color: var(--soft); -unity-text-outline-color: var(--soft); }
 
 /* ---------- task P3-10: Analysis › Network, the bar's live counts, cards stacked under the legend (NT5, NT12) ---------- */
 .hud .stat--warn .count { color: var(--warn); -unity-text-outline-color: var(--warn); }

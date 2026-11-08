@@ -31,6 +31,7 @@ namespace MountainPlanner.Presentation.Design
             public SlopeBands.Band Band;
             public double Rating = double.NaN, Mean = double.NaN, Steepest = double.NaN;
             public double LengthMetres, DropMetres;
+            public TrailRating.Result Result;   // a built run's stations, which a trail's own rating reads (R4)
             // Task P3-11: the rating stands while its build is the same and no ground under the footprint moved.
             public bool Rated;
             public TrailBuild RatedBuild;
@@ -117,13 +118,18 @@ namespace MountainPlanner.Presentation.Design
             set => _lines.Root.gameObject.SetActive(value);
         }
 
-        /// <summary>A trail's figures as drawn (Analysis › Trails and its card read these).</summary>
+        /// <summary>
+        /// A run's figures as drawn (Analysis › Trails and its card read these). <see cref="Rating"/> is the game's own
+        /// (TD-02 v2, or TD-06's estimate for a plan), hidden from players (TD-07, R6); <see cref="Result"/> holds a built
+        /// run's stations, null otherwise.
+        /// </summary>
         public readonly struct Facts
         {
             public readonly double Rating, Mean, Steepest, LengthMetres, DropMetres;
-            public Facts(double rating, double mean, double steepest, double length, double drop)
+            public readonly TrailRating.Result Result;
+            public Facts(double rating, double mean, double steepest, double length, double drop, TrailRating.Result result = null)
             {
-                Rating = rating; Mean = mean; Steepest = steepest; LengthMetres = length; DropMetres = drop;
+                Rating = rating; Mean = mean; Steepest = steepest; LengthMetres = length; DropMetres = drop; Result = result;
             }
         }
 
@@ -131,7 +137,7 @@ namespace MountainPlanner.Presentation.Design
         {
             facts = default;
             if (!_shapes.TryGetValue(id, out var s)) return false;
-            facts = new Facts(s.Rating, s.Mean, s.Steepest, s.LengthMetres, s.DropMetres);
+            facts = new Facts(s.Rating, s.Mean, s.Steepest, s.LengthMetres, s.DropMetres, s.Result);
             return true;
         }
 
@@ -192,7 +198,7 @@ namespace MountainPlanner.Presentation.Design
                 lines += d - c;
                 if (labels != null)
                 {
-                    string symbol = t.Stage == WorkStage.Plan ? "" : Symbol(s.Band) + " ";
+                    string symbol = t.Stage == WorkStage.Plan || !t.Posted.HasValue ? "" : Symbol(t.Posted.Value) + " ";   // TD-07: the sign posted
                     labels.Add((symbol + t.Name, LabelSpots(s.Drawn), s.LengthMetres));
                 }
                 labelled += System.Diagnostics.Stopwatch.GetTimestamp() - d;
@@ -231,11 +237,15 @@ namespace MountainPlanner.Presentation.Design
             DrawCasing();
         }
 
-        /// <summary>A trail's ink: orange while planned (CF-06), else its rating's colour (TD-03).</summary>
-        public static PreviewInk InkOf(bool built, double rating)
+        /// <summary>
+        /// A trail's ink: orange while planned (CF-06), else its posted sign's colour (TD-07, R3); a built trail not posted
+        /// yet (an older save opened after a change) is drawn plain until the player posts it.
+        /// </summary>
+        public static PreviewInk InkOf(bool built, SlopeBands.Band? posted)
         {
             if (!built) return PreviewInk.Plan;
-            var band = double.IsNaN(rating) ? SlopeBands.Band.Green : SlopeBands.Of(rating);
+            if (!posted.HasValue) return PreviewInk.Line;
+            var band = posted.Value;
             return band == SlopeBands.Band.Green ? PreviewInk.RatingGreen : band == SlopeBands.Band.Blue ? PreviewInk.RatingBlue : PreviewInk.RatingBlack;
         }
 
@@ -308,11 +318,7 @@ namespace MountainPlanner.Presentation.Design
             return drawn;
         }
 
-        static PreviewInk InkOf(Shape s)
-        {
-            if (s.Trail.Stage == WorkStage.Plan) return PreviewInk.Plan;
-            return s.Band == SlopeBands.Band.Green ? PreviewInk.RatingGreen : s.Band == SlopeBands.Band.Blue ? PreviewInk.RatingBlue : PreviewInk.RatingBlack;
-        }
+        static PreviewInk InkOf(Shape s) => InkOf(s.Trail.Stage == WorkStage.Built, s.Trail.Posted);
 
         // Where a run's name may sit (NT7): the middle of its line first, then further out either way; each slanted along
         // the line 20 m either side (less on a short run).
@@ -418,13 +424,14 @@ namespace MountainPlanner.Presentation.Design
             if (build?.Grade != null && s.Trail.Stage == WorkStage.Built)
             {
                 var r = TrailRating.Rate(heights, build.Footprint, build.Grade);
+                s.Result = r;
                 s.Rating = r.ValuePercent;
                 s.Mean = r.MeanPercent;
                 s.Steepest = r.MaxPercent;
                 s.LengthMetres = build.Grade.LengthMetres;
                 s.DropMetres = r.DropMetres;
             }
-            else s.Rating = TrailRating.Estimate(heights, s.Footprint);   // again whenever the ground under it moves (task P3-11)
+            else { s.Result = null; s.Rating = TrailRating.Estimate(heights, s.Footprint); }   // again whenever the ground under it moves (task P3-11)
             s.Band = double.IsNaN(s.Rating) ? SlopeBands.Band.Green : SlopeBands.Of(s.Rating);
         }
 

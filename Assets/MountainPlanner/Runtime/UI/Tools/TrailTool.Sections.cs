@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Measure;
 using MountainPlanner.Presentation;
 using MountainPlanner.Presentation.Design;
 using UnityEngine;
@@ -61,10 +62,22 @@ namespace MountainPlanner.UI.Tools
             _sectionsButton = b[0];
             _setSecMode = w.AddSwitch("sections", "Click", new[] { "Choose sections", "Cut" }, 0, SetCutMode,
                 "NT35: left-click adds, right-click takes out · NT45: Cut adds a node on any bend, a click on a cut point rejoins it");
+            _setSessionPosted = w.AddSwitch("secposted", "Posted", PostedSigns, -1, i => PostInSession((SlopeBands.Band)i),
+                "TD-07: the trail's sign, part of Done's one step; a trail broken in two keeps it on both (NT28)");
             w.ShowOption("sections", false);
+            w.ShowOption("secposted", false);
         }
 
         UnityEngine.UIElements.Button _sectionsButton;
+        Action<int> _setSessionPosted;
+
+        // TD-07: Edit sections posts the trail's sign in the working copy, so Done keeps it with the sections.
+        void PostInSession(SlopeBands.Band band)
+        {
+            var trail = _session?.Trail;
+            if (trail == null || _job != null || trail.Posted == band) return;
+            Apply(TrailSectionsEdit.Post(_session.Working, 0, _session.Sections, trail, band), trail.Segments[0]);
+        }
 
         // ---------- the trails, worked out off the main thread ----------
 
@@ -221,6 +234,7 @@ namespace MountainPlanner.UI.Tools
             {
                 _ctx.Window.SetName(_trail.Name);
                 _name = _trail.Name;
+                ShowPosted(_trail.Posted);   // TD-07: the trail's sign (a shaped trail's own)
                 PickStatus();
             }
             SetSectionsButton();
@@ -266,6 +280,8 @@ namespace MountainPlanner.UI.Tools
             foreach (var row in new[] { "brush", "grading", "edit", "network" }) w.ShowOption(row, false);
             w.SetRenamable(null);
             w.ShowOption("sections", true);
+            w.ShowOption("secposted", true);
+            foreach (var row in new[] { "posted" }) w.ShowOption(row, false);
             w.SetButtons(("secdone", "Done", (System.Action)SessionDone), ("seccancel", "Cancel", (System.Action)(() => CloseSession(false))));
             w.SetKeys((GameAction.ToolNext, "done"), (GameAction.UndoStroke, "undoes a click"));
             _ctx.Claim(GameAction.UndoStroke, true);
@@ -289,8 +305,9 @@ namespace MountainPlanner.UI.Tools
             ViewCamera.RightButtonClaimed = false;
             _ctx.Claim(GameAction.UndoStroke, false);
             var w = _ctx.Window;
-            foreach (var row in new[] { "brush", "grading", "edit", "network" }) w.ShowOption(row, true);
+            foreach (var row in new[] { "brush", "grading", "edit", "network", "posted" }) w.ShowOption(row, true);
             w.ShowOption("sections", false);
+            w.ShowOption("secposted", false);
             w.SetButtons();
             w.SetKeys();
             w.SetMessage(null);
@@ -525,6 +542,7 @@ namespace MountainPlanner.UI.Tools
             var trail = _session?.Trail;
             if (trail == null) { w.SetHint("Working out the sections…"); return; }
             w.SetName("Edit sections · " + trail.Name);
+            _setSessionPosted?.Invoke(trail.Posted.HasValue ? (int)trail.Posted.Value : -1);
             int n = trail.Segments.Count;
             double metres = 0;
             foreach (var s in trail.Segments) metres += (s.EndMm - s.StartMm) / 1000.0;

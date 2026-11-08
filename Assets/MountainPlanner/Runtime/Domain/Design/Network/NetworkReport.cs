@@ -342,10 +342,10 @@ namespace MountainPlanner.Domain.Design
                                                   || (n.Kind == NodeKind.Station && graph.StationById(node)?.HasBottom == true));
 
         /// <summary>
-        /// NW-08, NT9: a segment's own rating, TD-02 on the stations between <paramref name="startMm"/> and
-        /// <paramref name="endMm"/> along the trail: (3 × the length-weighted mean + the steepest 75 ft) / 4, percent.
-        /// <paramref name="along"/> is each station's distance from the head (the grade's), <paramref name="stationSlope"/>
-        /// the trail's rating's. NaN when no station falls in the segment.
+        /// NW-08, NT9: a segment's own rating, TD-02 v2 on the stations between <paramref name="startMm"/> and
+        /// <paramref name="endMm"/> along the trail: the steepest sustained 150 ft (every station of a shorter segment),
+        /// percent. <paramref name="along"/> is each station's distance from the head (the grade's),
+        /// <paramref name="stationSlope"/> the trail's rating's. NaN when no station falls in the segment.
         /// </summary>
         public static double SegmentRating(IReadOnlyList<double> stationSlope, IReadOnlyList<double> along, int startMm, int endMm)
         {
@@ -359,26 +359,7 @@ namespace MountainPlanner.Domain.Design
                 last = k;
             }
             if (first < 0) return double.NaN;
-            int n = last - first + 1;
-            double sum = 0, weight = 0;
-            for (int k = first; k <= last; k++)
-            {
-                double w = (k < last ? along[k + 1] - along[k] : 0) / 2 + (k > first ? along[k] - along[k - 1] : 0) / 2;
-                if (n == 1) w = 1;
-                sum += stationSlope[k] * w;
-                weight += w;
-            }
-            double mean = weight > 0 ? sum / weight : 0;
-            double max = 0;
-            int win = Math.Min(TrailRating.WindowStations, n);
-            for (int k = first; k + win <= last + 1; k++)
-            {
-                double s = 0;
-                for (int t = 0; t < win; t++) s += stationSlope[k + t];
-                s /= win;
-                if (s > max) max = s;
-            }
-            return (3 * mean + max) / 4;
+            return TrailRating.Steepest(stationSlope, along, first, last - first + 1).Percent;
         }
     }
 }
