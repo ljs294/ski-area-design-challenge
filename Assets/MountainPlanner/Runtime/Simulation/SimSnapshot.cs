@@ -137,8 +137,9 @@ namespace MountainPlanner.Simulation
         public int EventCount;
         public readonly SimEvent[] Events;
 
-        // SI-17's staged tiles: none until PR B moves the snow.
-        public int StagedTileCount;
+        // SI-17: the staging ring's slots written so far (read them up to here), and whether the field has snow yet.
+        public long StagedTiles;
+        public bool SnowSet;
 
         public SimSnapshot(Pacing p)
         {

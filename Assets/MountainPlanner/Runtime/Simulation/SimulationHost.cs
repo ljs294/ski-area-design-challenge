@@ -32,6 +32,8 @@ namespace MountainPlanner.Simulation
         readonly CommandQueue _queue;
         readonly SnapshotBuffers _buffers;
         readonly Wake _wake = new Wake();
+        /// <summary>SI-17: where the worker's snow tiles wait for the screen (the reader's, allocated once).</summary>
+        public readonly TileStagingRing Staging = new TileStagingRing();
         readonly Thread _thread;
         volatile bool _stop;
 
@@ -122,7 +124,11 @@ namespace MountainPlanner.Simulation
                 wait = NextWait();
             }
             UpdateSustained(now);
+            // SI-17: the snow's due tiles to the screen, after the steps (and while paused, so an edit's snow still shows).
+            if (_world.StageSnow(Staging, _paused || _skip != SkipKind.None) > 0) _dirty = true;
             if (_dirty) PublishNow();
+            // Tiles still due (the ring is full, or a tile staged a moment ago): come back soon rather than sleep.
+            if (_world.Snow.TilesDue > 0 && (wait < 0 || wait > 10)) wait = 10;
             return wait;
         }
 
@@ -179,6 +185,9 @@ namespace MountainPlanner.Simulation
                     _world.Events.Add(_world.Tick, SimEventType.SkipStarted, -1, target, (ushort)kind);
                     break;
                 }
+                case SimCommandKind.SaveState:
+                    if (c.Payload is SimStateRequest request) request.Answer(_world);
+                    break;
                 case SimCommandKind.CancelSkip:
                     if (_skip == SkipKind.None) { _world.Reject(c, SimRefusal.NoChange); break; }
                     _world.Events.Add(_world.Tick, SimEventType.SkipCancelled, -1, _world.FaceMs, (ushort)_skip);
@@ -272,6 +281,7 @@ namespace MountainPlanner.Simulation
             long span = _skipTo - _skipFrom;
             s.SkipPermille = _skip == SkipKind.None || span <= 0 ? 0 : (int)Math.Min(1000, (_world.FaceMs - _skipFrom) * 1000 / span);
             s.TicksRun = _ticksRun;
+            s.StagedTiles = Staging.Written;
             Timings(out s.TickMeanMicros, out s.TickP99Micros);
             _buffers.Publish();
             _dirty = false;
@@ -295,6 +305,32 @@ namespace MountainPlanner.Simulation
             _thread?.Join(2000);
             _wake.Dispose();
         }
+    }
+
+    /// <summary>
+    /// SI-12 v2: a save's request for the simulation's state. The worker answers at the next tick boundary (between steps,
+    /// or at once while paused); the caller waits a bounded time and saves without a simulation if it never comes. It's left
+    /// to the collector, never disposed: a late answer must find its signal still there.
+    /// </summary>
+    public sealed class SimStateRequest
+    {
+        readonly ManualResetEventSlim _done = new ManualResetEventSlim(false);
+        public byte[] Bytes { get; private set; }
+        public string Error { get; private set; } = "";
+
+        internal void Answer(SimWorld w)
+        {
+            try
+            {
+                Bytes = w.SaveState();
+                w.Events.Add(w.Tick, SimEventType.StateSaved, -1, Bytes.Length);
+            }
+            catch (Exception e) { Error = e.Message; }
+            _done.Set();
+        }
+
+        /// <summary>Waits up to <paramref name="milliseconds"/> for the state; true when it came.</summary>
+        public bool Wait(int milliseconds) => _done.Wait(milliseconds) && Bytes != null;
     }
 
     /// <summary>

@@ -39,6 +39,10 @@ namespace MountainPlanner.Simulation
         DesignApplied = 16,
         /// <summary>A label year began on October 1. Value: the new season number.</summary>
         SeasonNumberRolled = 17,
+        /// <summary>SI-17: a snowpack (the ground's natural snow) reached the field. Value: the cells it set.</summary>
+        SnowpackApplied = 18,
+        /// <summary>SI-12 v2: the host wrote the state for a save. Value: the sidecar's bytes.</summary>
+        StateSaved = 19,
     }
 
     /// <summary>Why a command was turned away (an event's Detail). Stable numbers.</summary>

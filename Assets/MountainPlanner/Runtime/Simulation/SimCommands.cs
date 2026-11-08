@@ -23,6 +23,8 @@ namespace MountainPlanner.Simulation
         /// <summary>TM-08: in summer, to the next month.</summary>
         SkipToNextMonth = 7,
         CancelSkip = 8,
+        /// <summary>SI-12 v2: the state for a save, at the tick boundary. Payload = a <see cref="SimStateRequest"/>.</summary>
+        SaveState = 9,
         // ---- the world's (stamped and logged) ----
         /// <summary>TM-11 v2: A = 1 Open, 0 Closed.</summary>
         SetMountainOpen = 20,
@@ -31,6 +33,8 @@ namespace MountainPlanner.Simulation
         UnpinSeasonSeed = 22,
         /// <summary>SI-20: Payload = a <see cref="SimDesign"/>.</summary>
         SetDesign = 23,
+        /// <summary>SI-17: Payload = a <see cref="SimSnowpack"/>, the ground's natural snow over a rectangle of the field.</summary>
+        SetSnowpack = 24,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>
@@ -44,7 +48,7 @@ namespace MountainPlanner.Simulation
         public long Tick;
         public long Seq;
 
-        public bool IsHosts => Kind >= SimCommandKind.SetSpeed && Kind <= SimCommandKind.CancelSkip;
+        public bool IsHosts => Kind >= SimCommandKind.SetSpeed && Kind <= SimCommandKind.SaveState;
 
         public static SimCommand Of(SimCommandKind kind, long a = 0, object payload = null, long issuedAgainstTick = -1) =>
             new SimCommand { Kind = kind, A = a, Payload = payload, IssuedAgainstTick = issuedAgainstTick };

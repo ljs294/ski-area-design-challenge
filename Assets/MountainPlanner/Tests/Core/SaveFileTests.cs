@@ -699,10 +699,12 @@ namespace MountainPlanner.Tests.Core
         {
             string folder = SaveStore.NewSaveFolder(_root, JacksonHole);
             var save = FixtureSave();
-            save.Sim = new SimSidecarRef(1, new string('a', 64));
+            // The writer names the sidecar by its bytes' hash (task 4.03 PR B); save.json's name for it is checked on reading.
+            var bytes = new byte[] { 1, 2, 3 };
+            save.SimState = new SimSidecarBytes(bytes, 1);
             Assert.That(SaveStore.Write(folder, save), Is.True);
             string path = Path.Combine(folder, SaveFile.FileName);
-            Assert.That(SaveJson.Read(File.ReadAllText(path), out _).Sim, Is.EqualTo(save.Sim));
+            Assert.That(SaveJson.Read(File.ReadAllText(path), out _).Sim, Is.EqualTo(new SimSidecarRef(1, SaveTileFile.Hash(bytes))));
             var o = JObject.Parse(File.ReadAllText(path));
             o["Sim"]["Sha256"] = "NOT-HEX";
             Assert.That(() => SaveJson.Read(o.ToString(), out _), Throws.Exception);

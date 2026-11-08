@@ -27,6 +27,9 @@ namespace MountainPlanner.Persistence.Saves
     {
         public const string FolderName = "Saves";
         public const string TilesFolder = "tiles";
+        /// <summary>SI-12 v2: the simulation's sidecars, &lt;sha256&gt;.sim, never overwritten (as tiles/).</summary>
+        public const string SimFolder = "sim";
+        public const string SimExtension = ".sim";
         public const string AutosaveId = "autosave";
         const string NamedPrefix = "save-";
 
@@ -63,6 +66,7 @@ namespace MountainPlanner.Persistence.Saves
             Directory.CreateDirectory(tiles);
 
             var edits = PutTiles(tiles, save.Edits ?? TerrainEdits.Empty);
+            save.Sim = PutSim(folder, save.SimState);
             step?.Invoke(SaveStep.TilesWritten);
 
             string temp = path + ".tmp";
@@ -96,6 +100,23 @@ namespace MountainPlanner.Persistence.Saves
             return refs;
         }
 
+        /// <summary>The sidecar into sim/ under its own hash (once: a file already there is the same bytes), or null for none.</summary>
+        static SimSidecarRef? PutSim(string folder, SimSidecarBytes sim)
+        {
+            if (sim == null) return null;
+            string hash = SaveTileFile.Hash(sim.Bytes);
+            string dir = Path.Combine(folder, SimFolder);
+            Directory.CreateDirectory(dir);
+            string file = Path.Combine(dir, hash + SimExtension);
+            if (!File.Exists(file))
+            {
+                string temp = file + ".tmp";
+                WriteFlushed(temp, sim.Bytes);
+                File.Move(temp, file);
+            }
+            return new SimSidecarRef(sim.SidecarVersion, hash);
+        }
+
         /// <summary>Writes a whole file and flushes it through the OS cache, so a power cut can't leave it half on disk.</summary>
         internal static void WriteFlushed(string path, byte[] bytes)
         {
@@ -120,29 +141,40 @@ namespace MountainPlanner.Persistence.Saves
         static void Sweep(string folder)
         {
             var keep = new HashSet<string>(StringComparer.Ordinal);
+            var keepSim = new HashSet<string>(StringComparer.Ordinal);
             foreach (string name in new[] { SaveFile.FileName, SaveFile.BackupName })
-                foreach (string hash in ListedTiles(Path.Combine(folder, name))) keep.Add(hash);
-            string tiles = Path.Combine(folder, TilesFolder);
-            if (!Directory.Exists(tiles)) return;
-            foreach (string file in Directory.GetFiles(tiles))
+            {
+                var (tiles, sim) = Listed(Path.Combine(folder, name));
+                foreach (string hash in tiles) keep.Add(hash);
+                if (sim != null) keepSim.Add(sim);
+            }
+            SweepFolder(Path.Combine(folder, TilesFolder), SaveTileFile.Extension, keep);
+            SweepFolder(Path.Combine(folder, SimFolder), SimExtension, keepSim);
+        }
+
+        static void SweepFolder(string dir, string extension, HashSet<string> keep)
+        {
+            if (!Directory.Exists(dir)) return;
+            foreach (string file in Directory.GetFiles(dir))
             {
                 string name = Path.GetFileName(file);
-                bool listed = name.EndsWith(SaveTileFile.Extension, StringComparison.Ordinal) && keep.Contains(name.Substring(0, name.Length - SaveTileFile.Extension.Length));
+                bool listed = name.EndsWith(extension, StringComparison.Ordinal) && keep.Contains(name.Substring(0, name.Length - extension.Length));
                 if (listed) continue;
                 try { File.Delete(file); }
                 catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { }
             }
         }
 
-        static IEnumerable<string> ListedTiles(string path)
+        /// <summary>The tiles and the sidecar a save.json lists (none when it can't be read: its files then go).</summary>
+        static (List<string> Tiles, string Sim) Listed(string path)
         {
-            if (!File.Exists(path)) return Enumerable.Empty<string>();
+            if (!File.Exists(path)) return (new List<string>(), null);
             try
             {
-                SaveJson.Read(File.ReadAllText(path), out var edits);
-                return edits.Select(t => t.Sha256).ToList();
+                var save = SaveJson.Read(File.ReadAllText(path), out var edits);
+                return (edits.Select(t => t.Sha256).ToList(), save.Sim?.Sha256);
             }
-            catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException) { return Enumerable.Empty<string>(); }
+            catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException) { return (new List<string>(), null); }
         }
 
         // ---------- reading ----------
@@ -180,7 +212,28 @@ namespace MountainPlanner.Persistence.Saves
             if (!File.Exists(path)) throw new FileNotFoundException("save.json is missing.", path);
             var save = SaveJson.Read(File.ReadAllText(path), out var edits);
             save.Edits = ReadTiles(folder, edits);
+            ReadSim(folder, save);
             return save;
+        }
+
+        /// <summary>
+        /// The save's sidecar, checked against its hash. A missing or damaged one doesn't lose the design: the save opens
+        /// without its simulation (the clock starts over) and <see cref="SaveFile.Recovered"/> says so.
+        /// </summary>
+        static void ReadSim(string folder, SaveFile save)
+        {
+            if (!(save.Sim is SimSidecarRef sim)) return;
+            string file = Path.Combine(folder, SimFolder, sim.Sha256 + SimExtension);
+            string why;
+            if (!File.Exists(file)) why = "The simulation's state was missing, so the clock starts over.";
+            else
+            {
+                byte[] bytes = File.ReadAllBytes(file);
+                if (SaveTileFile.Hash(bytes) == sim.Sha256) { save.SimState = new SimSidecarBytes(bytes, sim.SidecarVersion); return; }
+                why = "The simulation's state was damaged, so the clock starts over.";
+            }
+            save.Sim = null;
+            save.Recovered = why;
         }
 
         static TerrainEdits ReadTiles(string folder, List<SaveJson.TileRef> refs)

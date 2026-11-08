@@ -17,7 +17,7 @@ namespace MountainPlanner.Simulation
     /// night rate). A step stops exactly on each boundary: every whole hour, an hour before opening (where Skip to morning
     /// lands), the opening and the stop. The day's work on a boundary happens at the start of the tick that begins there.
     /// </summary>
-    public sealed class SimWorld
+    public sealed partial class SimWorld
     {
         public const long DayMs = 86_400_000;
         public const long HourMs = 3_600_000;
@@ -96,7 +96,23 @@ namespace MountainPlanner.Simulation
 
         SimSnapshot _publishTo;
 
+        /// <summary>SI-17: the snow depths, the worker's own (mm).</summary>
+        public readonly SimSnow Snow = new SimSnow();
+
         public SimWorld(Pacing pacing, SimDesign design, SimSite site, int startYear, ulong? pinnedSeed = null)
+            : this(pacing, design, site, startYear, restoring: false)
+        {
+            FoldDesign(design);
+            SeasonSeed = pinnedSeed ?? DrawSeasonSeed();
+            SeedPinned = pinnedSeed.HasValue;
+            // Owner, 2026-11-08 (plan question 2): a new game starts on October 1 at the resort's opening.
+            BeginFaceDay(0, false);
+            FaceMs = _todayOpen * 1000L;
+            ResetLedger();
+        }
+
+        /// <summary>The fixed parts only; a new game folds the design and starts its day, a sidecar reads the rest (SI-12 v2).</summary>
+        internal SimWorld(Pacing pacing, SimDesign design, SimSite site, int startYear, bool restoring)
         {
             Pacing = pacing ?? throw new ArgumentNullException(nameof(pacing));
             Design = design ?? throw new ArgumentNullException(nameof(design));
@@ -110,13 +126,7 @@ namespace MountainPlanner.Simulation
             int h = pacing.HistoryDays;
             _historyFaceDay = new int[h]; _historySeasonDay = new int[h]; _historyRunMinutes = new int[h]; _historyLiftsRun = new int[h];
             _historyType = new byte[h]; _historyPhase = new byte[h];
-            FoldDesign(design);
-            SeasonSeed = pinnedSeed ?? DrawSeasonSeed();
-            SeedPinned = pinnedSeed.HasValue;
-            // Owner, 2026-11-08 (plan question 2): a new game starts on October 1 at the resort's opening.
-            BeginFaceDay(0, false);
-            FaceMs = _todayOpen * 1000L;
-            ResetLedger();
+            if (restoring) Design = design;
         }
 
         // ================= the step =================
@@ -260,6 +270,10 @@ namespace MountainPlanner.Simulation
                     if (!(c.Payload is SimDesign d)) { Reject(c, SimRefusal.Unknown); return; }
                     FoldDesign(d);
                     Events.Add(Tick, SimEventType.DesignApplied, -1, d.Revision);
+                    break;
+                case SimCommandKind.SetSnowpack:
+                    if (!(c.Payload is SimSnowpack p) || !Snow.Apply(p)) { Reject(c, SimRefusal.Unknown); return; }
+                    Events.Add(Tick, SimEventType.SnowpackApplied, -1, (long)p.Width * p.Height);
                     break;
                 default:
                     Reject(c, SimRefusal.Unknown);
@@ -614,7 +628,7 @@ namespace MountainPlanner.Simulation
                 s.LastDayReport.CopyFrom(_lastReport);
             s.HistoryCount = _historyCount;
             s.FirstEventSeq = Events.CopyNewest(s.Events, out s.EventCount);
-            s.StagedTileCount = 0;
+            s.SnowSet = Snow.Set;
         }
 
         /// <summary>The run time of a lift by ID, ms, or −1 (tests).</summary>
@@ -646,6 +660,8 @@ namespace MountainPlanner.Simulation
             for (int k = 0; k < _historyCount; k++) { h.Add(_historyFaceDay[k]); h.Add(_historyRunMinutes[k]); h.Add(_historyLiftsRun[k]); h.Add(_historyType[k]); }
             h.Add(_lastReport.FaceDay);
             h.Add(_commandSeq);
+            // The snow joined in PR B (SI-17): a world that has never had any hashes as before, so the goldens stand.
+            if (Snow.Set || Snow.Width > 0) Snow.AddTo(ref h);
             return h.Value;
         }
     }

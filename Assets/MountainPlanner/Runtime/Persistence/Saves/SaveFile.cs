@@ -221,9 +221,16 @@ namespace MountainPlanner.Persistence.Saves
         /// <summary>
         /// SI-12 v2 (save v12): the simulation's sidecar file, sim/&lt;sha256&gt;.sim beside tiles/, or null when no simulation
         /// was saved. Persistence stores and checks the file but never reads it: the sidecar's reader lives in Simulation,
-        /// which Persistence may not reference (0.3 §2). Task 4.03's PR B writes it; until then every save writes null.
+        /// which Persistence may not reference (0.3 §2). <see cref="SaveStore.Write"/> sets it from <see cref="SimState"/>.
         /// </summary>
         public SimSidecarRef? Sim { get; set; }
+
+        /// <summary>
+        /// The sidecar's bytes and format version (from Simulation's writer), or null: what <see cref="SaveStore.Write"/> stores
+        /// as sim/&lt;sha256&gt;.sim and <see cref="SaveStore.Read"/> brings back, checked against <see cref="Sim"/>'s hash.
+        /// Never in save.json itself.
+        /// </summary>
+        public SimSidecarBytes SimState { get; set; }
 
         /// <summary>
         /// The format version the file had when read (<see cref="CurrentVersion"/> for a new save). Never written. An older
@@ -243,6 +250,21 @@ namespace MountainPlanner.Persistence.Saves
         public bool Equals(SimSidecarRef o) => SidecarVersion == o.SidecarVersion && Sha256 == o.Sha256;
         public override bool Equals(object obj) => obj is SimSidecarRef o && Equals(o);
         public override int GetHashCode() => SidecarVersion * 397 ^ (Sha256?.GetHashCode() ?? 0);
+    }
+
+    /// <summary>A simulation sidecar as Persistence holds it: opaque bytes and the format version its writer gave them.</summary>
+    public sealed class SimSidecarBytes
+    {
+        public readonly byte[] Bytes;
+        public readonly int SidecarVersion;
+
+        public SimSidecarBytes(byte[] bytes, int sidecarVersion)
+        {
+            if (bytes == null || bytes.Length == 0) throw new ArgumentException("A sidecar has bytes.", nameof(bytes));
+            if (sidecarVersion < 1) throw new ArgumentOutOfRangeException(nameof(sidecarVersion));
+            Bytes = bytes;
+            SidecarVersion = sidecarVersion;
+        }
     }
 
     /// <summary>What Load Area shows for a save, read from save.json without its tiles.</summary>
