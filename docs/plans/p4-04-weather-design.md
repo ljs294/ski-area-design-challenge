@@ -33,6 +33,9 @@ nights), from static gradients worked out once. The player sees weather, never t
 day, a rain-on-snow, a cold snap), a forecast issued each evening with the day report that firms as the day nears,
 a crowd that reads the snow report, and a mountain whose operations can be set to react to the forecast.
 
+![How a game year of weather is made: sources, rows, generator, tables and who reads them](images/p4-04-pipeline.svg)
+
+
 ## 1. Sources and their terms
 
 - **WX-10, the sources.**
@@ -184,7 +187,12 @@ because we compress time, we compress weather events accordingly; it is a tycoon
   task re-versions its rule when it builds it (SN-09 v2, SG-05 v2, …); none is a format change. SM-07's acceptance
   numbers get re-derived by 4.16.
 
+![A real week of weather compressed into about two and a half face days](images/p4-04-compression.svg)
+
+
 ## 5. The generator
+
+![The four hidden states: Fair, Building, Storm, Clearing](images/p4-04-states.svg)
 
 - **WX-01 v2, the states (refines WX-01).** Four states, cycling **Fair → Building → Storm → Clearing → Fair**,
   each held for a duration drawn from its row's quantiles (WX-17) on the synoptic clock. Two shortcuts come from the
@@ -284,6 +292,8 @@ because we compress time, we compress weather events accordingly; it is a tycoon
 
 All of this is the shared pure function `WeatherAt(hourParams, staticCell)` of WX-02, evaluated once per face hour
 into tables, never stored per cell.
+
+![One storm hour across the mountain: lapse, snow line, windward and lee faces, the cold pool](images/p4-04-mountain.svg)
 
 - **WX-35 v1, the static inputs, from the package's terrain only.** Computed once per package (at build, or at
   first open, cached in the terrain cache; engine-free) from the downloaded heights, **never from the player's
@@ -399,6 +409,8 @@ but no event, alert, crowd line or automation reads those.
   refreeze leaves an open trail Icy with the rain's event id and day, and two groomings bring it to MG.
 
 ## 8. The forecast
+
+![The evening sheet: when it is issued, what it holds, and how sure it is by days ahead](images/p4-04-forecast.svg)
 
 - **WX-05 v2, the forecast (refines WX-05; owner Q7 and Q12).** **Issued once a face day at the resort's stop**
   (TM-02 v2, 4:30 by default; on days nobody skis, at 4:30), with the day report (TM-15): one **evening sheet** the

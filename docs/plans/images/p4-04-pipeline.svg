@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" font-family="Segoe UI, system-ui, sans-serif" font-size="14">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a5563"/>
+    </marker>
+    <style>
+      .box{stroke:#4a5563;stroke-width:1.5;rx:8}
+      .t{fill:#1d232a;font-weight:600}
+      .s{fill:#4a5563;font-size:12px}
+      .band{font-size:12px;font-weight:700;letter-spacing:.06em;fill:#6b7480}
+      .ln{stroke:#4a5563;stroke-width:1.5;fill:none;marker-end:url(#a)}
+    </style>
+  </defs>
+  <rect width="960" height="600" fill="#f7f5f0"/>
+  <text x="24" y="34" font-size="20" font-weight="700" fill="#1d232a">How a game year of weather is made</text>
+  <text x="24" y="56" class="s">Left to right: once per package (download), once per season, every face hour. History in, tycoon tuning out.</text>
+
+  <!-- bands -->
+  <rect x="16" y="76" width="300" height="500" fill="#ebe6da" rx="10"/>
+  <rect x="330" y="76" width="250" height="500" fill="#e3ebf2" rx="10"/>
+  <rect x="594" y="76" width="350" height="500" fill="#e6efe4" rx="10"/>
+  <text x="30" y="98" class="band">AT PACKAGE BUILD (4.05, ACQUISITION)</text>
+  <text x="344" y="98" class="band">PER SEASON · PER FACE HOUR</text>
+  <text x="608" y="98" class="band">WHO READS IT (EVERY FACE HOUR)</text>
+
+  <!-- sources -->
+  <rect class="box" x="32" y="114" width="128" height="74" fill="#fff"/>
+  <text x="44" y="136" class="t">Daymet</text>
+  <text x="44" y="154" class="s">daily, 1 km lattice</text>
+  <text x="44" y="170" class="s">totals, max/min, SWE</text>
+  <rect class="box" x="172" y="114" width="128" height="74" fill="#fff"/>
+  <text x="184" y="136" class="t">NASA POWER</text>
+  <text x="184" y="154" class="s">hourly, one point</text>
+  <text x="184" y="170" class="s">timing, wind, sky</text>
+
+  <rect class="box" x="32" y="216" width="268" height="62" fill="#fff"/>
+  <text x="44" y="240" class="t">Blended record (WX-15)</text>
+  <text x="44" y="258" class="s">20 label years · Daymet totals, POWER shape</text>
+  <path class="ln" d="M96,188 V214"/><path class="ln" d="M236,188 V214"/>
+
+  <rect class="box" x="32" y="306" width="268" height="90" fill="#fff8e6"/>
+  <text x="44" y="330" class="t">36 calibration rows (WX-17)</text>
+  <text x="44" y="348" class="s">one per third of a month: storm sizes and</text>
+  <text x="44" y="364" class="s">durations, fair spells, temperatures, wind,</text>
+  <text x="44" y="380" class="s">lapse, storm directions · ~18 KB</text>
+  <path class="ln" d="M166,278 V304"/>
+
+  <rect class="box" x="32" y="414" width="128" height="74" fill="#fff8e6"/>
+  <text x="44" y="436" class="t">Terrain maps</text>
+  <text x="44" y="454" class="s">valley floor, wind</text>
+  <text x="44" y="470" class="s">exposure (WX-35)</text>
+  <rect class="box" x="172" y="414" width="128" height="74" fill="#fff8e6"/>
+  <text x="184" y="436" class="t">20 winters</text>
+  <text x="184" y="454" class="s">lean / big spread</text>
+  <text x="184" y="470" class="s">(WX-19)</text>
+  <path class="ln" d="M236,396 V412"/>
+  <path class="ln" d="M96,488 V506 H330 C338,506 338,506 344,506"/>
+
+  <text x="32" y="540" class="s">Package terrain only, never the player's</text>
+  <text x="32" y="556" class="s">earthwork: building can't move the weather.</text>
+
+  <!-- engine -->
+  <rect class="box" x="346" y="114" width="218" height="72" fill="#fff"/>
+  <text x="358" y="138" class="t">Season seed</text>
+  <text x="358" y="156" class="s">its own each season; picks the</text>
+  <text x="358" y="172" class="s">winter's character (WX-34)</text>
+
+  <rect class="box" x="346" y="214" width="218" height="112" fill="#dce8f5"/>
+  <text x="358" y="238" class="t">The generator (WX-01 v2)</text>
+  <text x="358" y="256" class="s">Fair → Building → Storm →</text>
+  <text x="358" y="272" class="s">Clearing, on the synoptic clock</text>
+  <text x="358" y="288" class="s">(2.88 real hours a face hour)</text>
+  <text x="358" y="306" class="s">integer only · same seed, same year</text>
+  <path class="ln" d="M455,186 V212"/>
+  <path class="ln" d="M300,350 C320,350 320,290 344,290"/>
+  <path class="ln" d="M300,440 C326,440 318,160 344,160"/>
+
+  <rect class="box" x="346" y="354" width="218" height="74" fill="#fff"/>
+  <text x="358" y="378" class="t">The hour's parameters</text>
+  <text x="358" y="396" class="s">~40 bytes, site-wide (WX-30):</text>
+  <text x="358" y="412" class="s">temp, rate, wind, sky, pool …</text>
+  <path class="ln" d="M455,326 V352"/>
+
+  <rect class="box" x="346" y="456" width="218" height="96" fill="#dce8f5"/>
+  <text x="358" y="480" class="t">WeatherAt tables (WX-02 v2)</text>
+  <text x="358" y="498" class="s">once per face hour: elevation ×</text>
+  <text x="358" y="514" class="s">pool band, plus the 500 m storm</text>
+  <text x="358" y="530" class="s">grid · no per-cell weather stored</text>
+  <path class="ln" d="M455,428 V454"/>
+
+  <!-- consumers -->
+  <g>
+    <rect class="box" x="610" y="114" width="156" height="58" fill="#fff"/>
+    <text x="622" y="138" class="t">Snow (4.07)</text>
+    <text x="622" y="156" class="s">fall, melt, ice, types</text>
+    <rect class="box" x="776" y="114" width="156" height="58" fill="#fff"/>
+    <text x="788" y="138" class="t">Guns (4.16)</text>
+    <text x="788" y="156" class="s">wet bulb → stage</text>
+    <rect class="box" x="610" y="184" width="156" height="58" fill="#fff"/>
+    <text x="622" y="208" class="t">Lifts (4.11)</text>
+    <text x="622" y="226" class="s">top gusts → holds</text>
+    <rect class="box" x="776" y="184" width="156" height="58" fill="#fff"/>
+    <text x="788" y="208" class="t">Lakes (4.09)</text>
+    <text x="788" y="226" class="s">freeze and thaw</text>
+  </g>
+  <text x="610" y="266" class="s">Physics reads only the truth (WX-06).</text>
+
+  <rect class="box" x="610" y="284" width="322" height="70" fill="#fdecd9"/>
+  <text x="622" y="308" class="t">Named events (WX-41)</text>
+  <text x="622" y="326" class="s">Powder day · Bluebird · Big storm · Rain · Thaw ·</text>
+  <text x="622" y="342" class="s">Cold snap · Wind event … at fixed base/mid/summit</text>
+
+  <rect class="box" x="610" y="366" width="322" height="70" fill="#fdecd9"/>
+  <text x="622" y="390" class="t">Forecast, the evening sheet (WX-05 v2)</text>
+  <text x="622" y="408" class="s">generator run 7 days ahead + keyed error,</text>
+  <text x="622" y="424" class="s">issued at closing with the day report</text>
+
+  <rect class="box" x="610" y="448" width="156" height="104" fill="#fff"/>
+  <text x="622" y="472" class="t">Crowd (4.12)</text>
+  <text x="622" y="490" class="s">snow report and the</text>
+  <text x="622" y="506" class="s">forecast it saw</text>
+  <text x="622" y="522" class="s">(WX-44)</text>
+  <rect class="box" x="776" y="448" width="156" height="104" fill="#fff"/>
+  <text x="788" y="472" class="t">Player (4.06/4.17)</text>
+  <text x="788" y="490" class="s">HUD bug, Weather</text>
+  <text x="788" y="506" class="s">tab, temp and wind</text>
+  <text x="788" y="522" class="s">layers, the look</text>
+
+  <path class="ln" d="M564,500 C590,500 585,150 608,145"/>
+  <path class="ln" d="M564,391 C585,391 590,320 608,318"/>
+  <path class="ln" d="M564,391 C585,391 590,400 608,400"/>
+  <path class="ln" d="M771,436 V446"/>
+</svg>
