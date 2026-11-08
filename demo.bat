@@ -314,6 +314,9 @@ echo        bench in the GPU's measure lane (about 15 min), then the game: grade
 echo   4.01 trail window (rebuilds the game; close the Unity editor first)
 echo     86 The trail look's tests (the pages match the old rule, a run 2.9 km long), then the drawn resort's count of
 echo        built trails drawn, then the game: a trail painted far out, past the old 2048 m window, looks like the rest.
+echo   4.01 D3D11 (rebuilds the game; close the Unity editor first)
+echo     87 The game on Direct3D 11: ten style-tile screenshot runs that each quit by themselves (the D3D12 quit crash
+echo        was about 2 in 15), then the game to play and quit as usual.
 echo.
 echo     Q  Quit
 echo.
@@ -438,6 +441,7 @@ if /i "%CHOICE%"=="83" goto sitecosts
 if /i "%CHOICE%"=="84" goto smallfixes
 if /i "%CHOICE%"=="85" goto grader
 if /i "%CHOICE%"=="86" goto trailwindow
+if /i "%CHOICE%"=="87" goto d3d11
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -689,6 +693,31 @@ echo   a trail near the middle (before, a trail more than 2 km from the others' 
 echo   Repaint it and Ctrl+Z: the look follows. Quit when done.
 start "" "%GAME%"
 goto menu
+
+:d3d11
+rem 4.01: Direct3D 11 first in the Windows list (D3D12 second, for -force-d3d12): D3D12 crashed as the game quit
+rem (0xC0000005 in D3D12Core.dll, about 2 in 15 quits); D3D11 quit 30 of 30 clean and is no slower.
+call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\p4-01\d3d11-demo" mkdir "%~dp0test-results\p4-01\d3d11-demo"
+set "DUMPS=%LOCALAPPDATA%\CrashDumps"
+set "DUMPSBEFORE=0"
+for /f %%n in ('dir /b "%DUMPS%\SkiAreaDesignChallenge*" 2^>nul ^| find /c /v ""') do set "DUMPSBEFORE=%%n"
+echo Ten style-tile screenshots, each a game that opens, shoots and quits (about 10 minutes)...
+for /l %%i in (1,1,10) do call :d3d11run %%i
+findstr /c:"Direct3D" "%~dp0test-results\p4-01\d3d11-demo\run-1.log"
+set "DUMPSAFTER=0"
+for /f %%n in ('dir /b "%DUMPS%\SkiAreaDesignChallenge*" 2^>nul ^| find /c /v ""') do set "DUMPSAFTER=%%n"
+echo   Crash dumps in %DUMPS%: %DUMPSBEFORE% before, %DUMPSAFTER% after (the same number is clean).
+echo Every run should exit 0, and the log line reads "Direct3D 11". Then play as usual: open an area, build
+echo   a lift and a trail, look round, quit from the menu. It should look as it did and quit cleanly.
+start "" "%GAME%"
+goto menu
+
+:d3d11run
+%RENDER% "%GAME%" %SCREEN% -notitle -styletile -nohud -screenshot "%~dp0test-results\p4-01\d3d11-demo\run-%1.png" -logFile "%~dp0test-results\p4-01\d3d11-demo\run-%1.log" <nul
+echo   run %1 exit %ERRORLEVEL%
+exit /b 0
 
 :carpets
 rem Surface lifts PR B: the Glidepath magic carpets built through the game's own lift path (the bed, no rope or towers).

@@ -108,9 +108,8 @@ namespace MountainPlanner.Tests
                 Assert.That(lift.CurrentStep, Is.EqualTo(1), $"the bottom terminal anchored ({lift.Problem})");
                 var topScreen = ScreenOf(cam, top, ctx);
                 yield return Click(topScreen);
-                Assert.That(lift.CurrentStep, Is.EqualTo(2), $"the top terminal fixed the line ({lift.Problem}); " + Where(viewer, cam, topScreen, top, bottom));
-                yield return Press(Key.Enter);
-                Assert.That(lift.CurrentStep, Is.EqualTo(3), "Enter: the review");
+                // LD3 (lift overhaul U2): Automatic towers have no step of their own, so the top terminal goes straight to the review.
+                Assert.That(lift.CurrentStep, Is.EqualTo(3), $"the top terminal fixed the line and opened the review ({lift.Problem}); " + Where(viewer, cam, topScreen, top, bottom));
                 // Task 09: the review waits for the lift's build (the ground's edit session starting, then LiftBuild off the
                 // main thread); a blocking problem keeps Break ground off, so the test's line must be buildable.
                 for (float until = Time.realtimeSinceStartup + 60; Time.realtimeSinceStartup < until && lift.Built == null;)
