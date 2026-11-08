@@ -51,6 +51,16 @@ namespace MountainPlanner.Domain.Design
         IReadOnlyCollection<EditTileKey> ReachTiles { get; }
     }
 
+    /// <summary>
+    /// A piece whose reach is known by 8 m block (<see cref="EarthworkWrites.BlockBit"/>), inside its tiles: graded again
+    /// only when a change so far lands in one of those blocks (task P4-01; the probe found most cascaded regrades wrote
+    /// exactly what they had). The blocks must hold every point it may read, as its tiles do.
+    /// </summary>
+    public interface IReachBlocks
+    {
+        IReadOnlyDictionary<EditTileKey, ulong> ReachBlocks { get; }
+    }
+
     /// <summary>Gathers a design's built pieces of one kind. Task 08 registers trails, task 09 lifts, task 15 terrain strokes.</summary>
     public interface IEarthworkContributor
     {
@@ -465,6 +475,13 @@ namespace MountainPlanner.Domain.Design
             return false;
         }
 
+        static bool MeetsBlocks(IReadOnlyDictionary<EditTileKey, ulong> reach, Dictionary<EditTileKey, ulong> changed)
+        {
+            if (changed.Count == 0) return false;
+            foreach (var kv in changed) if (reach.TryGetValue(kv.Key, out ulong m) && (m & kv.Value) != 0) return true;
+            return false;
+        }
+
         static bool ReadsGraded(IEarthworkItem it, HashSet<ulong> graded)
         {
             if (graded.Count == 0 || !(it is IReadsDetails reads)) return false;
@@ -484,6 +501,7 @@ namespace MountainPlanner.Domain.Design
         {
             regraded = 0;
             var changed = new HashSet<EditTileKey>();
+            var changedBlocks = new Dictionary<EditTileKey, ulong>();   // the same changes by 8 m block (IReachBlocks)
             var graded = new HashSet<ulong>();
             int g = 0;
             var work = new SortedDictionary<EditTileKey, TerrainEditTile.Builder>();
@@ -508,9 +526,12 @@ namespace MountainPlanner.Domain.Design
 
             foreach (var it in items)
             {
-                for (; g < gone.Count && FoldOrder(gone[g].Item, it) < 0; g++) EarthworkWrites.DifferentTiles(gone[g].Writes, null, changed);
+                for (; g < gone.Count && FoldOrder(gone[g].Item, it) < 0; g++) { EarthworkWrites.DifferentTiles(gone[g].Writes, null, changed); EarthworkWrites.DifferentBlocks(gone[g].Writes, null, changedBlocks); }
                 var known = Known(it.Key, overlay, cache);
-                bool regrade = dirty.Contains(it.Key) || known == null || Meets(it is IReachTiles reach ? reach.ReachTiles : it.Tiles, changed) || ReadsGraded(it, graded);
+                bool regrade = dirty.Contains(it.Key) || known == null
+                              || (it is IReachBlocks blocks ? MeetsBlocks(blocks.ReachBlocks, changedBlocks)
+                                  : Meets(it is IReachTiles reach ? reach.ReachTiles : it.Tiles, changed))
+                              || ReadsGraded(it, graded);
                 EarthworkWrites writes;
                 if (regrade)
                 {
@@ -532,6 +553,7 @@ namespace MountainPlanner.Domain.Design
                     writes = it.Build(ground, context, out object detail);
                     Grading?.Invoke(it.Key, it.Phase, false);
                     EarthworkWrites.DifferentTiles(known?.Writes, writes, changed);
+                    EarthworkWrites.DifferentBlocks(known?.Writes, writes, changedBlocks);
                     overlay[it.Key] = new Entry { Item = it, Writes = writes, Detail = detail };
                     graded.Add(it.Key);
                     regraded++;

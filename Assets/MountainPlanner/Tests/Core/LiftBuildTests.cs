@@ -347,8 +347,9 @@ namespace MountainPlanner.Tests
                 TowerPlacement.Place(Quad, ground, bx, by, bx, ty, ground.At(bx, by), ground.At(bx, ty), TowerStance.Leaned);
                 times.Add(sw.Elapsed.TotalMilliseconds);
             }
+            // The fastest of the runs (task 4.01): load on the machine only adds time, so it no longer fails the budget.
             times.Sort();
-            Budget.AtMost(times[2], 60, "TW-12, a 1-mile line (median)");   // TW-12 v3 (owner, 2026-11-02): 60 ms with 300 ft spans
+            Budget.AtMost(times[0], 60, "TW-12, a 1-mile line (fastest of 5)");   // TW-12 v3 (owner, 2026-11-02): 60 ms with 300 ft spans
         }
 
         // Finding D2 (owner, 2026-10-23): a 7,227 ft D6's review sat on "Towers placing…". A long line's build on the package

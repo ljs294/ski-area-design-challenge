@@ -33,6 +33,8 @@ blocks render runs that queued after it, so it can't starve.
 ## Options
 
 - `-TimeoutSec N`: give up after N seconds of waiting (exit 124).
+- `-Priority`: start ahead of every waiting ticket, never ahead of a run that holds its slot. Only the release smoke
+  test uses it (`release.ps1`, with a 30-minute wait), so a queue of renders can't time out a release.
 - `-RequireDesktop 1920x1080`: fail with exit 125 when the desktop is smaller, as with the 640x480 remote
   desktop on which players misbehave. Add `-DesktopWarnOnly` to only warn.
 - `-StateDir <folder>`: a separate state folder (tests). `MP_GPU_STATE` sets it too.

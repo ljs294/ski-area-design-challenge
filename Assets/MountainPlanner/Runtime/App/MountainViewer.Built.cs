@@ -263,7 +263,7 @@ namespace MountainPlanner.App
                     continue;
                 }
                 Debug.Log($"[Built] {lift.Name}: {rope.Towers.Count} towers ({string.Join(", ", view.Heads)}), {view.ChairCount} chairs, " +
-                          $"TW-01 v2 {(rope.ClearanceOk ? "OK" : "SHORT")} (lowest chair {rope.LowestClearance / 0.3048:F1} ft at {rope.LowestClearanceS / 0.3048:F0} ft, " +
+                          $"TW-01 v2 {(rope.ClearanceOk ? "OK" : "SHORT")} ({(rope.Type.Tow ? "rope over the track" : "lowest chair")} {rope.LowestClearance / 0.3048:F1} ft at {rope.LowestClearanceS / 0.3048:F0} ft, " +
                           $"shortfall {rope.Shortfall / 0.3048:F1} ft at {rope.ShortfallS / 0.3048:F0} ft), top tension {rope.TopTensionShare:P0} of rating, " +
                           $"trains {(view.Posed ? $"posed{(view.RigidNote.Length > 0 ? $" ({view.RigidNote} fixed: no pivots)" : "")} (rope off the axles: {view.RopeRadii} m; {view.SheaveCount} sheaves turn with it; tangent within {view.PoseError * 180 / Math.PI:F3}°{(view.SideMismatches > 0 ? $", {view.SideMismatches} head(s) disagree with the rope's bend:{view.MismatchNote}" : "")})" : "not posable (shipped models)")}, " +
                           $"rope leaves the bottom at {rope.BottomExitLoaded * Mathf.Rad2Deg:F1}° loaded / {rope.BottomExitEmpty * Mathf.Rad2Deg:F1}° empty and reaches the top at " +

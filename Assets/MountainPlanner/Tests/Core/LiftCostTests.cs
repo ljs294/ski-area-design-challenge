@@ -37,8 +37,15 @@ namespace MountainPlanner.Tests
             foreach (string id in CatalogIds())
             {
                 if (!LiftCatalogIds.Buildable(id)) continue;
-                // Surface lifts have no price yet (owner Q4, v0.3.2): their own task.
-                if (LiftCatalogIds.IsTow(id) || LiftCatalogIds.IsBelt(id)) { Assert.That(LiftPrices.For(LiftType.Of(id)), Is.Null, id); continue; }
+                // Surface lifts are priced since task 4.01, on their own scale: a 600 ft line 60 ft up.
+                if (LiftCatalogIds.IsTow(id) || LiftCatalogIds.IsBelt(id))
+                {
+                    var surface = Cost(id, 600, 60);
+                    Assert.That(surface, Is.Not.Null, id);
+                    Assert.That(surface.TotalUsd, Is.InRange(200_000, 2_000_000), id);
+                    priced++;
+                    continue;
+                }
                 var cost = Cost(id, 4000, 1000);
                 Assert.That(cost, Is.Not.Null, id);
                 Assert.That(cost.TotalUsd, Is.GreaterThan(1_000_000), id);
@@ -102,7 +109,9 @@ namespace MountainPlanner.Tests
                 if (LiftPrices.For(LiftType.Of(id)) == null) continue;
                 long baseCost = Cost(id, 3000, 700).TotalUsd;
                 Assert.That(Cost(id, 4000, 700).TotalUsd, Is.GreaterThan(baseCost), id + " longer");
-                Assert.That(Cost(id, 3000, 900).TotalUsd, Is.GreaterThan(baseCost), id + " higher");
+                // A carpet's rise costs nothing extra (115 ft at most, task 4.01).
+                if (LiftCatalogIds.IsBelt(id)) Assert.That(Cost(id, 3000, 900).TotalUsd, Is.EqualTo(baseCost), id + " higher");
+                else Assert.That(Cost(id, 3000, 900).TotalUsd, Is.GreaterThan(baseCost), id + " higher");
             }
         }
 
@@ -177,17 +186,29 @@ namespace MountainPlanner.Tests
                 [LiftFamily.FixedDouble] = LiftCatalogIds.SesselliftFgd2, [LiftFamily.FixedTriple] = LiftCatalogIds.SesselliftFgt3,
                 [LiftFamily.FixedQuad] = LiftCatalogIds.SesselliftFgq4, [LiftFamily.DetachQuad] = LiftCatalogIds.SesselliftD4,
                 [LiftFamily.DetachSix] = LiftCatalogIds.SesselliftD6,
+                [LiftFamily.TBar] = LiftCatalogIds.MontaTbar, [LiftFamily.JBar] = LiftCatalogIds.MontaJbar,
+                [LiftFamily.Carpet] = LiftCatalogIds.GlidepathCarpet, [LiftFamily.CarpetCovered] = LiftCatalogIds.GlidepathCarpetCovered,
+                [LiftFamily.DoubleCarpet] = LiftCatalogIds.GlidepathCarpet2, [LiftFamily.DoubleCarpetCovered] = LiftCatalogIds.GlidepathCarpet2Covered,
             };
             foreach (var price in LiftPrices.All)
             {
                 var type = LiftType.Of(sample[price.Family]);
+                Assert.That(LiftPrices.For(type), Is.SameAs(price), price.Name);
+                bool surface = type.Tow || type.Belt;
+                if (price.Family == LiftFamily.TBar) text.AppendLine("Surface lifts, lines 300x30, 800x80 and 2,000x400 (carpets 2,000x100):");
                 text.Append($"{price.Name,-20}{price.TerminalsUsd,12:#,0}{price.PerFootLengthUsd,9:#,0}{price.PerFootRiseUsd,9:#,0}");
-                foreach (var (len, rise) in lines)
-                    text.Append($"{LiftCost.Of(type, len * 0.3048, rise * 0.3048).TotalUsd / 1e6,11:0.00}M ".PadLeft(len == 2500 ? 12 : 13));
+                var these = !surface ? lines : type.Belt ? new[] { (300.0, 30.0), (800.0, 80.0), (2000.0, 100.0) } : new[] { (300.0, 30.0), (800.0, 80.0), (2000.0, 400.0) };
+                for (int k = 0; k < these.Length; k++)
+                    text.Append($"{LiftCost.Of(type, these[k].Item1 * 0.3048, these[k].Item2 * 0.3048).TotalUsd / 1e6,11:0.00}M ".PadLeft(k == 0 ? 12 : 13));
                 text.AppendLine();
                 text.AppendLine($"  {price.Basis}");
             }
-            text.AppendLine("Lines are slope length x vertical rise, feet. Gondolas, trams, eights and surface lifts: no price yet.");
+            text.AppendLine("Lines are slope length x vertical rise, feet. Gondolas, trams and eights: no price yet.");
+            text.AppendLine($"Site works (task 4.01), {SoilPrices.PrivateShare:0.0} of the public bid: cut ${SoilPrices.CutUsdPerCubicYard:0.00}/yd3, "
+                          + $"fill ${SoilPrices.FillUsdPerCubicYard:0.00}/yd3, clearing ${SoilPrices.ClearingUsdPerAcre:#,0}/acre of forest");
+            text.AppendLine($"  {SoilPrices.CutBasis}");
+            text.AppendLine($"  {SoilPrices.FillBasis}");
+            text.AppendLine($"  {SoilPrices.ClearingBasis}");
             TestContext.Out.Write(text.ToString());
             Assert.Pass();
         }

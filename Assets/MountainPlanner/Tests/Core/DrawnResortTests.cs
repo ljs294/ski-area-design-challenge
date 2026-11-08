@@ -143,6 +143,20 @@ namespace MountainPlanner.Tests
             var natural = history.Document.Trails.Where(t => t.Settings.Grading == TrailGrading.Natural).Select(t => t.Id).ToList();
             var builtTrails = history.Document.Trails.Select(t => t.Id).ToList();
             var log = new System.Text.StringBuilder();
+            foreach (var tr in history.Document.Trails)
+            {
+                var w0 = Stopwatch.StartNew();
+                var fp0 = TrailFootprint.Build(tr.Shape, r.Site.Lattice, r.Site.OriginX, r.Site.OriginY);
+                double f1 = w0.Elapsed.TotalMilliseconds;
+                if (!tr.HasEnds || fp0.IsEmpty) continue;
+                r.Site.PointOf(tr.Head.Value, out double hx0, out double hy0);
+                r.Site.PointOf(tr.Tail.Value, out double tx0, out double ty0);
+                var cl0 = TrailCentreline.Find(fp0, hx0, hy0, tx0, ty0);
+                double f2 = w0.Elapsed.TotalMilliseconds;
+                var g0 = cl0.Found ? TrailGrader.GradeFootprint(new EditedHeights(r.Heights, r.Lattice, history.Terrain), fp0, cl0.Points, tr.Settings.Grading == TrailGrading.Graded, 1, tr.Id) : null;
+                double f3 = w0.Elapsed.TotalMilliseconds;
+                TestContext.Progress.WriteLine($"TRAIL {tr.Name,-18} {tr.Settings.Grading,-7} box {fp0.Width}x{fp0.Height} cells {fp0.Cells} len {cl0.LengthMetres:F0} m: footprint {f1:F0} centreline {f2 - f1:F0} grade {f3 - f2:F0} ms");
+            }
             int inexact = 0;
 
             // A preview as the tools make it, timed, then checked against a fresh fold of the same design.
@@ -150,10 +164,22 @@ namespace MountainPlanner.Tests
             {
                 var after = cmd.Apply(history.Document);
                 Assert.That(after.Accepted, Is.True, what + ": " + after);
+                var per = new List<string>(); var pw = new Stopwatch();
+                r.Fold.Grading = (key, phase, start) => { if (start) pw.Restart(); else per.Add((after.Document.FindTrail(new TrailId(key))?.Name ?? "lift") + " " + pw.Elapsed.TotalMilliseconds.ToString("F0")); };
                 var watch = Stopwatch.StartNew();
                 var rebuilt = r.Fold.Rebuild(after.Document, history.Terrain);
                 double ms = watch.Elapsed.TotalMilliseconds;
                 int trails = 0, lifts = 0, others = 0;
+                int wasted = 0; var wastedNames = new List<string>();
+                foreach (var kv in rebuilt.Overlay)
+                {
+                    if (kv.Value == null) continue;
+                    var before = r.Fold.WritesOf(kv.Key);
+                    if (before == null) continue;
+                    var diff = new HashSet<EditTileKey>();
+                    EarthworkWrites.DifferentTiles(before, kv.Value.Writes, diff);
+                    if (diff.Count == 0) { wasted++; wastedNames.Add(after.Document.FindTrail(new TrailId(kv.Key))?.Name ?? kv.Key.ToString()); }
+                }
                 foreach (var kv in rebuilt.Overlay)
                 {
                     if (kv.Value == null) continue;
@@ -165,8 +191,8 @@ namespace MountainPlanner.Tests
                 int differ = TerrainEdits.Changed(fresh, rebuilt.Edits).Count;
                 if (differ > 0) inexact++;
                 log.AppendLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                    "{0,-34} {1,8:F1} ms  graded again: {2} trails, {3} lifts, {4} other; {5} tiles opened; {6}",
-                    what, ms, trails, lifts, others, rebuilt.Tiles.Count, differ == 0 ? "exact" : $"DIFFERS from a fresh fold on {differ} tiles"));
+                    "{0,-34} {1,8:F1} ms  graded again: {2} trails, {3} lifts, {4} other; {5} tiles opened; {6}; unchanged {7} [{8}]",
+                    what, ms, trails, lifts, others, rebuilt.Tiles.Count, differ == 0 ? "exact" : $"DIFFERS from a fresh fold on {differ} tiles", wasted, string.Join(", ", wastedNames)) + "  {" + string.Join("; ", per) + "}");
                 return rebuilt;
             }
             void CommitAndUndo(DesignCommand cmd, DesignEarthwork.Result rebuilt)
