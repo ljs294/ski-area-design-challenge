@@ -32,7 +32,7 @@ namespace MountainPlanner.UI
             if (_root == null) return;
             SetTip("bar-toolbox", "Toolbox", GameAction.Toolbox);
             SetTip("bar-analysis", "Analysis", GameAction.Analysis);
-            for (int i = 0; i < 4; i++) SetTip("bar-speed-" + (i + 1), "Speed " + (i + 1), GameAction.Speed1 + i);
+            for (int i = 0; i < 4; i++) SetTip("bar-speed-" + (i + 1), "Speed " + (1 << i) + "×", GameAction.Speed1 + i);   // 1×, 2×, 4×, 8× (task 4.03)
             _pauseKey = KeyBindings.Caption(GameAction.Pause);
             _shownPaused = -1;   // the pause tooltip redraws with the next clock update
             foreach (var (row, action) in LayerKeys)

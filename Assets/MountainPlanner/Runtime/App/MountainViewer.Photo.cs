@@ -84,7 +84,7 @@ namespace MountainPlanner.App
             if (on)
             {
                 _backTime = Lighting != null ? Lighting.Clock.Now : default;
-                _backPaused = _clock == null || _clock.Paused;
+                _backPaused = _sim == null || (_sim.Latest?.Paused ?? true);
                 _backStyle = Lighting != null ? Mathf.Max(0, LookStyle.IndexOf(Lighting.Style.Name)) : LookStyle.Default;
                 _backFollowFov = Camera.FollowFovSetting;
                 _backFov = cam.fieldOfView;
@@ -93,7 +93,7 @@ namespace MountainPlanner.App
                 // Info layers are display only, never in a photo; the clock stops so the light holds while you frame.
                 if (_backInfo != null) _layers.Set(_backInfo, false);
                 if (_backContours) _layers.Set(MapLayers.Contours, false);
-                _clock?.SetPaused(true);
+                SendSim(SimCommandKind.Pause);
                 Camera.FollowFovSetting = false;
                 _photoLens = Mathf.RoundToInt(cam.fieldOfView);
                 _photoGrade = Mathf.Max(0, Array.IndexOf(GradeOrder, _backStyle));
@@ -115,8 +115,8 @@ namespace MountainPlanner.App
                     Lighting.SetTime(_backTime);
                     Lighting.SetStyle(_backStyle);
                 }
-                _clock?.Adopt(_backTime);
-                _clock?.SetPaused(_backPaused);
+                // Play again snaps the sun back to the simulation's clock (question 7); paused, the light stays as it was.
+                if (!_backPaused) SendSim(SimCommandKind.Resume);
                 cam.fieldOfView = _backFov;
                 Camera.FollowFovSetting = _backFollowFov;
                 if (_backInfo != null) _layers.Set(_backInfo, true);

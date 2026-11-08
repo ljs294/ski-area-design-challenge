@@ -61,6 +61,7 @@ namespace MountainPlanner.Domain.Design
                 w.U64(c.Piece.Value);
                 w.Point(c.At);
             }
+            WriteHours(w, doc.Hours);   // shape 11 (LO-07 v2): the resort's hours
             return w.ToArray();
         }
 
@@ -134,8 +135,9 @@ namespace MountainPlanner.Domain.Design
             }
             var cuts = new TrailCut[r.Count(1 << 20)];
             for (int i = 0; i < cuts.Length; i++) cuts[i] = new TrailCut(new TrailId(r.U64()), r.Point());
+            var hours = ReadHours(r);   // shape 11
             if (!r.AtEnd) throw new FormatException("Trailing bytes after the design document.");
-            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts);
+            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, hours);
             // Canonical means written in order: a reordered file is not this format.
             if (!Same(Encode(doc), bytes)) throw new FormatException("The design document isn't in canonical order.");
             return doc;
@@ -211,7 +213,19 @@ namespace MountainPlanner.Domain.Design
                 w.I32(v.TopMm);
             }
             w.U8((byte)l.Drive);   // shape 10 (LD9)
+            w.U8((byte)l.Schedule);   // shape 11 (LO-09)
+            w.U8((byte)(l.Hours.HasValue ? 1 : 0));   // shape 11 (LO-07 v2): the lift's own hours, or the resort's
+            if (l.Hours is DayHours h) WriteHours(w, h);
         }
+
+        static void WriteHours(Writer w, DayHours h)
+        {
+            w.I32(h.OpenSecond);
+            w.I32(h.LastChairSecond);
+            w.I32(h.StopSecond);
+        }
+
+        static DayHours ReadHours(Reader r) => new DayHours(r.I32(), r.I32(), r.I32());   // left to right
 
         static Lift ReadLift(Reader r)
         {
@@ -238,7 +252,12 @@ namespace MountainPlanner.Domain.Design
             if (has == 1) levels = new LiftLevels(r.I32(), r.I32());
             byte drive = r.U8();
             if (drive != (byte)LiftDrive.Top && drive != (byte)LiftDrive.Bottom) throw new FormatException("A lift's drive end isn't one this build knows.");
-            return new Lift(id, name, stage, catalog, bottom, top, mode, stance, towers, levels, (LiftDrive)drive);
+            byte schedule = r.U8();
+            if (schedule != (byte)LiftSchedule.Daily && schedule != (byte)LiftSchedule.PeakDays) throw new FormatException("A lift's schedule isn't one this build knows.");
+            byte own = r.U8();
+            if (own > 1) throw new FormatException("A lift's hours flag isn't 0 or 1.");
+            DayHours? hours = own == 1 ? ReadHours(r) : (DayHours?)null;
+            return new Lift(id, name, stage, catalog, bottom, top, mode, stance, towers, levels, (LiftDrive)drive, (LiftSchedule)schedule, hours);
         }
 
         static void WriteStroke(Writer w, TerrainStroke k)

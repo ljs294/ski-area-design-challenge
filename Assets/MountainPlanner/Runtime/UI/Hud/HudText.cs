@@ -41,6 +41,26 @@ namespace MountainPlanner.UI.Hud
 
         public static string AmPm(int secondOfDay) => secondOfDay < 12 * 3600 ? Am : Pm;
 
+        static readonly Dictionary<int, string> SimDates = new Dictionary<int, string>();
+        static readonly string[] ThirdWords = { "", "early", "mid", "late" };
+        static readonly string[] DayTypeWords = { "", "Weekday", "Weekend", "Holiday" };
+        public const string PreSeason = "Pre-season", SummerText = "Summer";
+
+        /// <summary>The bar's day cell from the simulation (TM-08, TM-14): "Day 12" in the season, else "Pre-season" or "Summer".</summary>
+        public static string SimDay(SeasonPhase phase, int seasonDay) =>
+            phase == SeasonPhase.Season ? Day(seasonDay) : phase == SeasonPhase.Summer ? SummerText : PreSeason;
+
+        /// <summary>The bar's date cell from the label calendar (TM-07, TM-09): "mid-Dec · Weekend".</summary>
+        public static string SimDate(int month, MonthThird third, DayType type)
+        {
+            int key = month * 100 + (int)third * 10 + (int)type;
+            if (SimDates.TryGetValue(key, out var text)) return text;
+            int m = Math.Max(1, Math.Min(12, month));
+            text = $"{ThirdWords[(int)third]}-{Months[m - 1]} · {DayTypeWords[(int)type]}";
+            SimDates[key] = text;
+            return text;
+        }
+
         /// <summary>The season's day: 1 on 1 September, counting on through the winter.</summary>
         public static int SeasonDay(int year, int dayOfYear)
         {

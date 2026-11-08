@@ -406,7 +406,7 @@ namespace MountainPlanner.UI.Tools
                         return (r, rebuilt.Edits, rebuilt);
                     }
                 }
-                var edited = new Lift(lift.Id, lift.Name, lift.Stage, d.CatalogId, d.Bottom, d.Top, d.Mode, d.Stance, Stored(d, r), r.Levels, d.Drive);
+                var edited = new Lift(lift.Id, lift.Name, lift.Stage, d.CatalogId, d.Bottom, d.Top, d.Mode, d.Stance, Stored(d, r), r.Levels, d.Drive, lift.Schedule, lift.Hours);
                 var edits = LiftReplay.Rebuild(ground.Source, ground.Lattice, doc, p => toGround(p), default, edited);
                 return (r, edits, (DesignEarthwork.Result)null);
             }, done =>

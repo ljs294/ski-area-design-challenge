@@ -35,7 +35,7 @@ namespace MountainPlanner.App.Flow
         bool _reportBusy, _reportTest;
 
         /// <summary>Runs that aren't the player's own session: a scratch library, an opened report, captures and smoke tests.</summary>
-        static readonly string[] NotAPlayerSession = { "-data", "-reportsettings", "-uicapture", "-flowcapture", "-smoketest", "-titlemovie", "-displaycheck", "-reporttest", "-overpass" };
+        static readonly string[] NotAPlayerSession = { "-data", "-reportsettings", "-uicapture", "-flowcapture", "-smoketest", "-titlemovie", "-displaycheck", "-reporttest", "-overpass", "-simgolden" };
 
         /// <summary>&lt;data&gt;/Reports: the library's own, so a scratch -data run keeps its reports with it.</summary>
         string ReportsFolder => ReportBundle.FolderIn(DataRoot);

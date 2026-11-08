@@ -225,6 +225,7 @@ namespace MountainPlanner.Domain.Design
         internal static string DocumentProblem(DesignDocument doc)
         {
             if (doc.NextOrdinal < 1) return "The ID counter is invalid.";
+            if (doc.Hours.Problem is string hours) return "The resort's hours: " + hours + ".";   // LO-07 v2, shape 11
             var seen = new HashSet<ulong>();
             for (int i = 0; i < doc.Trails.Count; i++)
             {
@@ -237,6 +238,8 @@ namespace MountainPlanner.Domain.Design
             {
                 string p = LiftProblem(doc.Lifts[i]);
                 if (p != null) return p;
+                if (doc.Lifts[i].Schedule != LiftSchedule.Daily && doc.Lifts[i].Schedule != LiftSchedule.PeakDays) return "A lift's schedule isn't one this build knows.";
+                if (doc.Lifts[i].Hours is DayHours own && own.Problem is string lh) return "A lift's hours: " + lh + ".";
                 if (!seen.Add(doc.Lifts[i].Id.Value)) return "Two entities share an ID.";
                 foreach (var tower in doc.Lifts[i].Towers) if (!seen.Add(tower.Id.Value)) return "Two entities share an ID.";
             }

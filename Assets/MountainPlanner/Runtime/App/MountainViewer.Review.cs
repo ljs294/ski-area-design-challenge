@@ -355,7 +355,8 @@ namespace MountainPlanner.App
                 PlaceOnPath(path, k / (float)fps);
                 if (styleTile)
                 {
-                    _chairSeconds = k / (double)fps;
+                    _chairsOverride = true;
+                    _chairOverrideSeconds = k / (double)fps;
                     // From mid-afternoon to after dusk over the lap.
                     if (Lighting != null) Lighting.SetTime(start.WithSecondOfDay(14 * 3600 + (int)(k / (float)count * 6 * 3600)));
                 }

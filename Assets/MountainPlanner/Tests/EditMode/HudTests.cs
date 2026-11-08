@@ -55,6 +55,18 @@ namespace MountainPlanner.Tests
             Assert.That(HudText.Day(42), Is.SameAs(HudText.Day(42)));
         }
 
+        [Test]
+        public void TheSimulationsDayAndDateCells()
+        {
+            // Task 4.03 (TM-07, TM-08, TM-14): "Day 12" in the season, else the phase; the label date is a third of a month.
+            Assert.That(HudText.SimDay(MountainPlanner.Simulation.SeasonPhase.Season, 12), Is.EqualTo("Day 12"));
+            Assert.That(HudText.SimDay(MountainPlanner.Simulation.SeasonPhase.PreSeason, 0), Is.EqualTo("Pre-season"));
+            Assert.That(HudText.SimDay(MountainPlanner.Simulation.SeasonPhase.Summer, 40), Is.EqualTo("Summer"));
+            string date = HudText.SimDate(12, MountainPlanner.Simulation.MonthThird.Mid, MountainPlanner.Simulation.DayType.Weekend);
+            Assert.That(date, Is.EqualTo("mid-Dec · Weekend"));
+            Assert.That(HudText.SimDate(12, MountainPlanner.Simulation.MonthThird.Mid, MountainPlanner.Simulation.DayType.Weekend), Is.SameAs(date));
+        }
+
         /// <summary>Every part the mockup names (data-ui) exists in the HUD with the same name, so the parity check can measure it.</summary>
         [Test]
         public void EveryMockupPartHasItsElement()

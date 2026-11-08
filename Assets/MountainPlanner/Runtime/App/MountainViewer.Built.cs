@@ -40,7 +40,6 @@ namespace MountainPlanner.App
         DesignDocument _builtJobDoc;
         Domain.Edits.TerrainEdits _builtJobTerrain;
         float _liftSnow = -1;
-        double _chairSeconds;
 
         /// <summary>The built lifts' views (captures and tests).</summary>
         public IEnumerable<LiftView> LiftViews
@@ -55,6 +54,7 @@ namespace MountainPlanner.App
         {
             if (_builtFor != null) _builtFor.History.Changed -= MarkBuiltDirty;
             _builtFor = session;
+            FollowDesignForSimulation(session);   // SI-20: the simulation reads each revision too (MountainViewer.Simulation.cs)
             if (session == null) return;
             session.History.Changed += MarkBuiltDirty;
             _trailMap ??= new TrailSurfaceMap();
@@ -153,7 +153,6 @@ namespace MountainPlanner.App
                 _liftSnow = snow;
                 _liftMaterials?.SetSnowLoad(snow);
             }
-            if (_clock != null && !_clock.Paused) _chairSeconds += Time.unscaledDeltaTime;
             ShowLifts(_layers == null || _layers.LiftsOn, false);
             if (!_builtDirty) return;
             if (EditsBusy)
@@ -414,7 +413,7 @@ namespace MountainPlanner.App
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             long start = System.Diagnostics.Stopwatch.GetTimestamp();
             using (ChairsMarker.Auto())
-                foreach (var kv in _liftViews) if (!LiftHidden(kv.Key)) kv.Value.View.DrawChairs(cam, _chairSeconds);
+                foreach (var kv in _liftViews) if (!LiftHidden(kv.Key)) kv.Value.View.DrawChairs(cam, ChairSeconds(kv.Key));
             _chairTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
             _chairFrames++;
         }

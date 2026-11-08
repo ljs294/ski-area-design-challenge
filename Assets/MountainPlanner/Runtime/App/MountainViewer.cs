@@ -65,8 +65,6 @@ namespace MountainPlanner.App
         float _toastUntil;
         bool _hudShown = true;
         float _nextReadout;
-        /// <summary>The bar's clock: pause and speeds 1–4 run the sun (task P2-02). Made when a mountain opens.</summary>
-        ViewClockRunner _clock;
         /// <summary>The view opens paused at 10:30, unless -time or -light chose a time.</summary>
         const int OpeningSecond = 10 * 3600 + 30 * 60;
         FarTerrainShadow _farShadows;
@@ -381,24 +379,6 @@ namespace MountainPlanner.App
         }
 
         /// <summary>
-        /// The bar's clock moves the sun (task P2-02): a time set elsewhere (the F1 slider, -time) is taken first, and the
-        /// sun catches up every 30 game seconds or when the clock stops (ViewClockRunner).
-        /// </summary>
-        void RunClock()
-        {
-            if (_clock == null || Lighting == null || TitleMode) return;
-            _clock.Adopt(Lighting.Clock.Now);
-            int day = _clock.Now.DayOfYear;
-            _clock.Advance(Mathf.Min(0.25f, Time.unscaledDeltaTime));
-            // A new day while the clock runs gets a routine note, as in the mockup (a few words once a game day).
-            if (_clock.Now.DayOfYear != day && Hud != null && _hudShown)
-                Hud.Toast(MountainPlanner.UI.Hud.HudText.Day(MountainPlanner.UI.Hud.HudText.SeasonDay(_clock.Now.Year, _clock.Now.DayOfYear)) + " begins");
-            if (!_clock.SunBehind) return;
-            Lighting.SetTime(_clock.Now);
-            _clock.Pushed();
-        }
-
-        /// <summary>
         /// The view keys (docs/plans/controls-key-map.md; rebindable, <see cref="KeyBindings"/>). The HUD owns T, Tab, U, Space, 1–4, Ctrl+S and Enter;
         /// while its Toolbox tray is open (<see cref="ViewCamera.LettersToTools"/>) letters are tool keys, so P waits until
         /// it closes; the camera's keys (C, Home) work at all times (TL19).
@@ -444,13 +424,14 @@ namespace MountainPlanner.App
             // letter keys are tools, except the Toolbox's own key, which closes it.
             if (Hud != null && KeyBindings.Pressed(keys, GameAction.Toolbox)) Hud.ToggleToolbox();
             HandleToolKeys(keys);   // the tray's letters, the tool window's Tab, and undo (MountainViewer.Tools.cs)
-            if (_clock != null && KeyBindings.Pressed(keys, GameAction.Pause, letters)) _clock.TogglePause();
-            if (_clock != null)
+            // The bar's clock (task 4.03): pause, and 1×, 2×, 4×, 8× (each also starts the clock, as the bar's buttons do).
+            if (_sim != null && KeyBindings.Pressed(keys, GameAction.Pause, letters)) SendSim(SimCommandKind.TogglePause);
+            if (_sim != null)
             {
-                if (KeyBindings.Pressed(keys, GameAction.Speed1, letters)) _clock.SetSpeed(1);
-                if (KeyBindings.Pressed(keys, GameAction.Speed2, letters)) _clock.SetSpeed(2);
-                if (KeyBindings.Pressed(keys, GameAction.Speed3, letters)) _clock.SetSpeed(3);
-                if (KeyBindings.Pressed(keys, GameAction.Speed4, letters)) _clock.SetSpeed(4);
+                if (KeyBindings.Pressed(keys, GameAction.Speed1, letters)) SendSim(SimCommandKind.SetSpeed, 1);
+                if (KeyBindings.Pressed(keys, GameAction.Speed2, letters)) SendSim(SimCommandKind.SetSpeed, 2);
+                if (KeyBindings.Pressed(keys, GameAction.Speed3, letters)) SendSim(SimCommandKind.SetSpeed, 3);
+                if (KeyBindings.Pressed(keys, GameAction.Speed4, letters)) SendSim(SimCommandKind.SetSpeed, 4);
             }
             if (KeyBindings.Pressed(keys, GameAction.HideUi, letters)) _ui = !_ui;
             if (KeyBindings.Pressed(keys, GameAction.PhotoMode, letters)) SetPhoto(true);
@@ -488,9 +469,6 @@ namespace MountainPlanner.App
 
         internal void SetPointerForCapture(Vector2? fraction) => _pointer = fraction;
 
-        /// <summary>The bar's clock (tests).</summary>
-        internal ViewClockRunner Clock => _clock;
-
         static string Coordinates(double lat, double lon) =>
             string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.00}° {1}, {2:0.00}° {3}", Math.Abs(lat), lat >= 0 ? "N" : "S", Math.Abs(lon), lon >= 0 ? "E" : "W");
 
@@ -507,14 +485,19 @@ namespace MountainPlanner.App
             Hud.QuitChosen += Application.Quit;
             if (Lighting != null)
             {
-                // The bar's clock (task P2-02): the view opens paused at 10:30 unless -time or -light chose a time; the
-                // title stands still in a low afternoon sun at 15:30 (owner, task P2-03).
+                // The bar's clock (task 4.03): the simulation opens paused on October 1 at the resort's opening, and a
+                // player's view shows that sun. Captures and benchmarks keep their own scenario's 10:30 (and -time or -light
+                // their time) until the clock runs; the title stands still in a low afternoon sun at 15:30 (task P2-03).
                 var args = Environment.GetCommandLineArgs();
-                if (Array.IndexOf(args, "-time") < 0 && Array.IndexOf(args, "-light") < 0)
+                bool chosen = Array.IndexOf(args, "-time") >= 0 || Array.IndexOf(args, "-light") >= 0;
+                if (!chosen)
                     Lighting.SetTime(Lighting.Clock.Now.WithSecondOfDay(TitleMode ? TitleSecondOfDay : OpeningSecond));
-                _clock = new ViewClockRunner(Lighting.Clock.Now);
-                Hud.PauseChosen += _clock.TogglePause;
-                Hud.SpeedChosen += _clock.SetSpeed;
+                if (!TitleMode)
+                {
+                    StartSimulation(sunFromSimulation: !chosen && !Flow.AppFlow.CaptureRun);
+                    Hud.PauseChosen += () => SendSim(SimCommandKind.TogglePause);
+                    Hud.SpeedChosen += speed => SendSim(SimCommandKind.SetSpeed, speed);
+                }
             }
             Hud.UnitsChosen += DisplayUnits.Toggle;
             WirePhoto();
@@ -585,6 +568,7 @@ namespace MountainPlanner.App
             ReleaseTerrainEdits();
             if (ViewCamera.KeysBlocked == (Func<bool>)UiHasKeyboard) ViewCamera.KeysBlocked = null;
             ReleaseSettings();
+            StopSimulation();
         }
 
         /// <summary>
@@ -655,7 +639,7 @@ namespace MountainPlanner.App
             foreach (string id in MapLayers.MapIds) Hud.SetLayer(id, _layers.IsOn(id));
             foreach (string id in MapLayers.InfoIds) Hud.SetLayer(id, _layers.IsOn(id));
             Hud.SetLegend(_layers.InfoLayerId, _layers.ContoursOn);
-            if (_clock != null) Hud.SetClock(_clock.Now, _clock.Speed, _clock.Paused);
+            SetHudClock();
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             var mouse = Mouse.current;
             float elevation = float.NaN, slope = float.NaN, bearing = 0, snow = float.NaN;
@@ -784,7 +768,7 @@ namespace MountainPlanner.App
         void DrawDeveloperPanel(Rect at)
         {
             const float row = 30, label = 130;
-            var box = new Rect(at.x, at.y, at.width, row * (SampleDesignChosen != null ? 8 : 7) + 16);
+            var box = new Rect(at.x, at.y, at.width, row * ((SampleDesignChosen != null ? 8 : 7) + (_sim != null ? 2 : 0)) + 16);
             GUI.Box(box, GUIContent.none);
             float y = box.y + 8, x0 = box.x + 10 + label, w = 110;
             var caption = new GUIStyle(GUI.skin.label) { fontSize = 14 };
@@ -837,6 +821,12 @@ namespace MountainPlanner.App
             Caption("Saved views");
             if (Button(0, "Home")) HomeView();
             if (_landmarks.Count > 0 && Button(1, _landmarks[0].Name.Length > 14 ? _landmarks[0].Name.Substring(0, 13) + "…" : _landmarks[0].Name)) FlyToLandmark();
+
+            if (_sim != null)
+            {
+                y += row;
+                DrawSimulationRows(ref y, row, x0, w, Caption, Button);
+            }
 
             if (SampleDesignChosen != null)   // task P3-04: something to save before the drawing tools exist
             {

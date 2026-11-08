@@ -99,10 +99,10 @@
             <ui:VisualElement class="cell cell--speed">
                 <ui:VisualElement class="sep" picking-mode="Ignore" />
                 <ui:VisualElement name="bar-speed" class="spd">
-                    <ui:Button name="bar-speed-1" class="spd__b spd__b--on" tooltip="Speed 1"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
-                    <ui:Button name="bar-speed-2" class="spd__b" tooltip="Speed 2"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
-                    <ui:Button name="bar-speed-3" class="spd__b" tooltip="Speed 3"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
-                    <ui:Button name="bar-speed-4" class="spd__b" tooltip="Speed 4"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                    <ui:Button name="bar-speed-1" class="spd__b spd__b--on" tooltip="Speed 1×"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                    <ui:Button name="bar-speed-2" class="spd__b" tooltip="Speed 2×"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                    <ui:Button name="bar-speed-3" class="spd__b" tooltip="Speed 4×"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                    <ui:Button name="bar-speed-4" class="spd__b" tooltip="Speed 8×"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
                 </ui:VisualElement>
             </ui:VisualElement>
             <ui:VisualElement class="grow" picking-mode="Ignore" />

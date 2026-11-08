@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace MountainPlanner.Domain.Design
@@ -226,6 +227,57 @@ namespace MountainPlanner.Domain.Design
         }
     }
 
+    /// <summary>
+    /// LO-07 v2 (owner, 2026-11-08; shape 11): sets the resort's opening, last chair and stop. Whole minutes; the simulation
+    /// trims them to each day's daylight (it never refuses a day for being dark). No player UI before 4.17; the F1 panel and
+    /// tests use it.
+    /// </summary>
+    public sealed class SetResortHours : DesignCommand
+    {
+        public DayHours Hours { get; }
+
+        public SetResortHours(long baseRevision, DayHours hours) : base(baseRevision) { Hours = hours; }
+
+        public override string Label => "Change the resort's hours";
+
+        protected override CommandResult Run(DesignDocument doc)
+        {
+            if (Hours.Problem is string p) return Invalid(doc, char.ToUpperInvariant(p[0]) + p.Substring(1) + ".");
+            if (doc.Hours == Hours) return Invalid(doc, "Those are already the resort's hours.");
+            return CommandResult.Accept(doc.WithHours(Hours));
+        }
+    }
+
+    /// <summary>
+    /// LO-09 (shape 11): a lift's schedule (daily, or peak days only) and its own hours, or none to follow the resort's.
+    /// One undo step. No player UI before 4.11; the F1 panel and tests use it.
+    /// </summary>
+    public sealed class SetLiftSchedule : DesignCommand
+    {
+        public LiftId Lift { get; }
+        public LiftSchedule Schedule { get; }
+        public DayHours? Hours { get; }
+
+        public SetLiftSchedule(long baseRevision, LiftId lift, LiftSchedule schedule, DayHours? hours) : base(baseRevision)
+        {
+            Lift = lift;
+            Schedule = schedule;
+            Hours = hours;
+        }
+
+        public override string Label => "Change lift schedule";
+
+        protected override CommandResult Run(DesignDocument doc)
+        {
+            var l = doc.FindLift(Lift);
+            if (l == null) return Missing(doc, "That lift");
+            if (Schedule != LiftSchedule.Daily && Schedule != LiftSchedule.PeakDays) return Invalid(doc, "That isn't a schedule.");
+            if (Hours is DayHours h && h.Problem is string p) return Invalid(doc, char.ToUpperInvariant(p[0]) + p.Substring(1) + ".");
+            if (l.Schedule == Schedule && Nullable.Equals(l.Hours, Hours)) return Invalid(doc, "Nothing changes.");
+            return CommandResult.Accept(doc.PutLift(l.WithSchedule(Schedule, Hours)));
+        }
+    }
+
     public sealed class RenameLift : DesignCommand
     {
         public LiftId Lift { get; }
@@ -342,7 +394,7 @@ namespace MountainPlanner.Domain.Design
             var mint = new IdMint(doc);
             var created = new List<ulong>();
             towers.AddRange(LiftTowers.Mint(ref mint, Added, created));
-            var next = new Lift(l.Id, Name ?? l.Name, l.Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels, Drive ?? l.Drive);
+            var next = new Lift(l.Id, Name ?? l.Name, l.Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels, Drive ?? l.Drive, l.Schedule, l.Hours);
             if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers, next.CatalogId) is string t2) return Invalid(doc, t2);
             if (DesignBytes.Same(l, next)) return Invalid(doc, "Nothing changes.");
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(next), created);
