@@ -306,12 +306,23 @@ into tables, never stored per cell.
   - per cell, the **exposure class** (8 classes) from the package heights' ridge exposure (SN-01's 7 × 7 rise, on
     the untouched terrain) and `hvf`: valleys sheltered, ridges and summits exposed;
   - on a **coarse 500 m grid over the box and its surround** (WX-02's ≥ 500 m; ≤ 576 cells, 22 × 22 for a 5 km box),
-    per arrival octant, the **orographic factor**: from the upwind terrain within 3 km (the surround buffer), cells
-    the storm climbs into get more (up to +40 %), cells in the lee of a higher ridge less (down to −30 %), then each
-    octant is **normalised so its mean over the Daymet lattice pixels is 1.0**: the elevation gradient (WX-38),
-    regressed on the same pixels, carries "higher gets more", and this factor only moves snow from lee to windward
-    faces, never adds any. This is the windward-face effect the owner asked for. A whole region's snow (a peak that
-    catches every storm off a lake 50 km away) is already in Daymet's totals.
+    per arrival octant, the **orographic factor** (v2, owner 2026-11-08): from the upwind terrain within 3 km (the
+    surround buffer), cells the storm climbs into get more (up to +40 %); the first `Pacing.SpilloverReach = 1 km`
+    past a crest gets **spillover** (snow still falling as it blows over: never below 1.0, up to +10 % just behind
+    the crest); only beyond that, behind a ridge that stands well above the cell, does the **snow shadow** set in
+    (down to −30 %, growing with the barrier's height). Then each octant is **normalised so its mean over the Daymet
+    lattice pixels is 1.0**: the elevation gradient (WX-38), regressed on the same pixels, carries "higher gets
+    more", and this factor only moves snow from far-lee terrain to windward faces, never adds any. This is the
+    windward-face effect the owner asked for. A whole region's snow (a peak that catches every storm off a lake
+    50 km away) is already in Daymet's totals.
+  - **Two scales, two rules.** This factor is where the snow *falls*, at 500 m. Where the wind *puts* it once it is
+    down, at 8 m, is 4.07's drift (SN-07): it strips windward slopes and crests and **loads the lee slopes just
+    below ridges** (cornices, wind-loaded bowls), so the near lee ends up with the most snow on the mountain after a
+    windy storm. The weather gives the drift what it needs each hour: the wind at each cell, its direction and the
+    gust (WX-39). Handed to 4.07 as a recommendation (its rule, its call): **SN-07 v2** moves not only the hour's new
+    snow but also loose recent snow (type P, age under 24 face hours) when the wind is above `DriftWind`, and lets
+    the deposit run further down a lee slope (up to about 100 m, not 40), so a windy clearing after a storm loads
+    the lee bowls the way the owner expects.
 - **WX-36 v1, temperature at a cell.** `T(z) = T(zref) − lapse × (z − zref) − pool`, where the lapse is the row's
   daytime regression by day and its night-time one by night (a well-mixed storm uses the daytime lapse at any hour),
   and `pool = strength × (p(hvf) − p(hvf_ref))` with `p(h) = max(0, 1 − h ÷ Pacing.PoolDepth)` and
@@ -340,8 +351,8 @@ into tables, never stored per cell.
   - So the **snow line** is wherever the wet bulb crosses 30–34 °F on that hour: rain at the base and a foot on top
     is one storm, and investing in snowmaking low and running thinner up high (owner Q6) is the strategy it teaches.
 - **WX-39, wind at a cell.** An integer product per cell: free wind × the exposure class factor (an 8-entry table,
-  0.4 in a deep sheltered valley to 1.6 on an exposed summit; tuned at 4.05) × the coarse grid's lee factor for the
-  hour's direction (lee cells × 0.7) × 0.6 under dense canopy (the canopy's only effect on the air); gust = speed ×
+  0.4 in a deep sheltered valley to 1.6 on an exposed summit; tuned at 4.05) × the coarse grid's shelter factor for
+  the hour's direction (cells behind a crest × 0.7: sheltered air, which is why the drift drops its snow there) × 0.6 under dense canopy (the canopy's only effect on the air); gust = speed ×
   the hour's gust factor. **Top-station gust** for LO-11 is the function sampled at each lift's top station.
   POWER's smoothed wind runs low in mountains; `Pacing.WindScale` (default 1.0) is 4.05's to tune against the
   owner's sense of how often a fixed-grip holds.
@@ -352,7 +363,7 @@ into tables, never stored per cell.
   pool band)** for temperature, dew point, RH, wet bulb and phase share: elevation bins of 10 m over the package's
   real range, up to 256 bins (coarser bins only past 2,560 m of relief), and 16 pool bands (`hvf` 0–500 ft in 32 ft
   steps, plus one for above: the pool is the only way `hvf` touches the air): ≤ 4,096 entries, so Stull runs at most
-  4,096 times an hour. Precipitation and the lee factor come from a per-coarse-cell table (≤ 576 × 2 octants);
+  4,096 times an hour. Precipitation and the shelter factor come from a per-coarse-cell table (≤ 576 × 2 octants);
   wind is WX-39's per-cell product. **Aspect leaves the air tables** (4.02's WX-02 had an aspect octant): aspect
   changes the sun on the snow, not the air, so it enters only through SN-09's sun factor; canopy enters only the
   wind (WX-39) and SN-06/SN-09. Guns, lifts, the HUD and the forecast sample the same function at points.
@@ -384,7 +395,7 @@ but no event, alert, crowd line or automation reads those.
   | **Thaw** | mid-mountain air > 34 °F for ≥ 3 face hours, December to February | weather | Snow goes wet (4.07) |
   | **Refreeze** | after a thaw or rain, mid-mountain < 28 °F for 2 face hours | weather | "Icy" on the report; SN-14 rule 4 |
   | **Cold snap** | the day's `zref` high below the row's 10 % quantile of daily max | weather | Crowd line; guns at full stage |
-  | **Wind event** | summit gust ≥ `Pacing.WindEventGust = 45 mph` | weather | Holds (LO-11); drift (SN-07) |
+  | **Wind event** | summit gust ≥ `Pacing.WindEventGust = 45 mph` | weather | Holds (LO-11); scoured crests, loaded lee slopes (SN-07) |
   | **Inversion** | base colder than mid by ≥ 4 °F | weather | A tag on the hourly strip (WX-46) |
   | **Corn morning** | SN-14 rule 5's spring cycle on a trail | 4.07 | Spring banner |
 

@@ -43,6 +43,10 @@
   <!-- mountain -->
   <path d="M24,472 L120,462 L200,440 L330,330 L440,230 L520,176 L600,214 L700,300 L780,380 L850,420 L936,428 L936,472 Z" fill="#7b6f5e"/>
   <path d="M330,330 L440,230 L520,176 L600,214 L700,300 L680,312 L600,236 L520,200 L446,250 L346,344 Z" fill="#fff" opacity=".9"/>
+  <!-- wind-loaded lee pocket and cornice -->
+  <path d="M522,178 C552,186 586,204 612,228 L646,262 L656,282 L622,290 L596,262 L566,234 L536,206 Z" fill="#eef6ff" stroke="#6f97bf" stroke-width="1.5"/>
+  <path d="M516,176 C528,168 540,170 546,180 C538,178 528,178 520,182 Z" fill="#ffffff" stroke="#c9d2db" stroke-width="1"/>
+  <path d="M430,206 C470,160 510,140 566,170 C596,186 612,204 620,226" stroke="#1d232a" stroke-width="2.5" stroke-dasharray="6 5" fill="none" marker-end="url(#a)"/>
   <!-- valley right -->
   <path d="M780,380 L850,420 L936,428 L936,472 L780,472 Z" fill="#6a604f"/>
   <!-- cold pool -->
@@ -55,17 +59,22 @@
 
   <!-- callouts -->
   <rect class="tag" x="560" y="96" width="0" height="0"/>
-  <rect class="tag" x="530" y="168" width="196" height="36" rx="4"/>
-  <text x="536" y="182" class="s">summit: colder, a foot of snow</text>
-  <text x="536" y="198" class="s">more snow up high (gradient)</text>
+  <rect class="tag" x="300" y="176" width="196" height="36" rx="4"/>
+  <text x="306" y="190" class="s">summit: colder, a foot of snow</text>
+  <text x="306" y="206" class="s">more snow up high (gradient)</text>
 
-  <rect class="tag" x="236" y="260" width="196" height="36" rx="4"/>
+  <rect class="tag" x="236" y="260" width="196" height="52" rx="4"/>
   <text x="242" y="274" class="b">windward face: more</text>
-  <text x="242" y="290" class="s">the storm climbs into it</text>
+  <text x="242" y="290" class="s">the storm climbs into it;</text>
+  <text x="242" y="306" class="s">the crest gets scoured</text>
 
-  <rect class="tag" x="640" y="262" width="184" height="36" rx="4"/>
-  <text x="646" y="276" class="b">lee side: less</text>
-  <text x="646" y="292" class="s">snow shadow (–30 % at most)</text>
+  <rect class="tag" x="660" y="210" width="230" height="52" rx="4"/>
+  <text x="666" y="224" class="b">lee slope: wind-loaded</text>
+  <text x="666" y="240" class="s">the wind drops crest snow just below</text>
+  <text x="666" y="256" class="s">the ridge; cornice on top (drift, 4.07)</text>
+  <rect class="tag" x="700" y="286" width="232" height="36" rx="4"/>
+  <text x="706" y="300" class="b">far lee: snow shadow</text>
+  <text x="706" y="316" class="s">well behind a big ridge, –30 % at most</text>
 
   <rect class="tag" x="160" y="432" width="170" height="34" rx="4"/>
   <text x="166" y="446" class="b">base: rain</text>
@@ -78,6 +87,6 @@
   <!-- legend / footnote -->
   <rect x="24" y="486" width="912" height="62" rx="8" fill="#fff" stroke="#c9c2b3"/>
   <text x="40" y="508" class="s"><tspan font-weight="700">Temperature:</tspan> falls with height by the site's own lapse (day and night differ), minus the cold pool in the valleys.</text>
-  <text x="40" y="526" class="s"><tspan font-weight="700">Snow:</tspan> the hour's rate × more with height × windward/lee for the storm's direction; phase by each cell's wet bulb.</text>
+  <text x="40" y="526" class="s"><tspan font-weight="700">Snow:</tspan> rate × more with height × windward / far-lee; then the wind moves it: crests scoured, lee slopes loaded.</text>
   <text x="40" y="542" class="k">A warm storm over a cold pool gives freezing rain in the valley: the real mechanism, no extra state.</text>
 </svg>
