@@ -10,7 +10,9 @@ namespace MountainPlanner.Tests
     /// <summary>
     /// The trail look's numbers (task P3-11): updating only what a change reaches gives exactly what a whole redraw
     /// gives, through trails added, repainted and removed, ground moved by a stroke and a lift, undo, and the window
-    /// growing; and a whole redraw is exactly the old one (every trail located over the whole window).
+    /// growing; and a whole redraw is exactly the old one (every trail located over the whole window). Task 4.01 (TL24):
+    /// the fields are kept by 64 m tile wherever the trails are, so a resort wider than the old 2048 m window has every
+    /// trail drawn.
     /// </summary>
     public sealed class TrailSurfaceTests
     {
@@ -77,13 +79,21 @@ namespace MountainPlanner.Tests
 
         static void AssertSame(TrailSurface a, TrailSurface b, string when)
         {
-            Assert.That((a.C0, a.R0, a.W, a.H), Is.EqualTo((b.C0, b.R0, b.W, b.H)), when + ": the window");
-            Assert.That(a.Foot, Is.EqualTo(b.Foot), when + ": the footprint");
-            Assert.That(a.Change, Is.EqualTo(b.Change), when + ": the change");
-            Assert.That(a.Graded, Is.EqualTo(b.Graded), when + ": graded");
-            Assert.That(a.Offset, Is.EqualTo(b.Offset), when + ": the offset");
-            Assert.That(a.Across, Is.EqualTo(b.Across), when + ": the slope across");
+            Assert.That(a.Chunks.Keys.OrderBy(k => k), Is.EqualTo(b.Chunks.Keys.OrderBy(k => k)), when + ": the tiles");
+            foreach (var pair in a.Chunks)
+            {
+                var x = pair.Value;
+                var y = b.Chunks[pair.Key];
+                string at = $"{when}, tile {pair.Key}";
+                Assert.That(x.Foot, Is.EqualTo(y.Foot), at + ": the footprint");
+                Assert.That(x.Change, Is.EqualTo(y.Change), at + ": the change");
+                Assert.That(x.Graded, Is.EqualTo(y.Graded), at + ": graded");
+                Assert.That(x.Offset, Is.EqualTo(y.Offset), at + ": the offset");
+                Assert.That(x.Across, Is.EqualTo(y.Across), at + ": the slope across");
+            }
         }
+
+        static long Points(TrailSurface s) => (long)s.Chunks.Count * TrailSurface.Side * TrailSurface.Side;
 
         [Test]
         public void TS1_UpdatingWhatChangedEqualsAWholeRedraw()
@@ -102,8 +112,8 @@ namespace MountainPlanner.Tests
                 var fresh = new TrailSurface();
                 fresh.Update(shapes, edited);
                 AssertSame(kept, fresh, $"step {++step}, {when}");
-                if (step > 1 && !kept.WindowChanged)
-                    Assert.That(kept.PointsRedrawn, Is.LessThan((long)kept.W * kept.H), when + ": only part of the window is worked out again");
+                if (step > 1)
+                    Assert.That(kept.PointsRedrawn, Is.LessThan(Points(kept)), when + ": only part of it is worked out again");
             }
             var a = Add(h, work, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300));
             var b = Add(h, work, Strip(80, (-120, -80), (140, -220)), M(-120, -80), M(140, -220), graded: false);   // crosses a: ties
@@ -131,12 +141,14 @@ namespace MountainPlanner.Tests
             Check("two undone");
             h.Redo();
             Check("one redone");
-            // A long run from the west: the window grows (a whole redraw), past the 2048-point cap.
-            Add(h, work, Strip(100, (-1900, 300), (-1000, 200), (200, 100)), M(-1900, 300), M(200, 100), graded: false);
-            Check("the window grown past its cap");
-            Assert.That(kept.W, Is.EqualTo(TrailSurface.MaxPoints), "capped from the north-west");
+            // A long run from far to the west: past where the old 2048 m window stopped, every point of it drawn.
+            Add(h, work, Strip(100, (-2700, 300), (-1000, 200), (200, 100)), M(-2700, 300), M(200, 100), graded: false);
+            Check("a run 2.9 km long");
+            Assert.That(kept.Covers(Lattice, Site.OriginX - 2690, Site.OriginY + 300), Is.True, "the far end is drawn");
+            Assert.That(kept.TryAt((int)Math.Round(Site.OriginX - 2690 - West), (int)Math.Round(North - (Site.OriginY + 300)), out var far, out int i), Is.True);
+            Assert.That(far.Foot[i], Is.GreaterThan(0.5f), "on the far end's footprint");
             Commit(h, work, new RepaintTrail(h.Revision, a, Strip(100, (0, 0), (0, -300))));
-            Check("a repaint inside a capped window");
+            Check("a repaint with the long run there");
         }
 
         [Test]
@@ -148,16 +160,34 @@ namespace MountainPlanner.Tests
             Add(h, work, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300));
             Add(h, work, Strip(80, (-120, -80), (140, -220)), M(-120, -80), M(140, -220), graded: false);
             Add(h, work, Strip(120, (200, 50), (260, -350)), M(200, 50), M(260, -350));
+            // And one 2.5 km away, past the old window.
+            Add(h, work, Strip(90, (-2500, -100), (-2450, -400)), M(-2500, -100), M(-2450, -400));
             var edited = new EditedHeights(Ground, Lattice, h.Terrain);
             var shapes = Shapes(h.Document, work);
             var now = new TrailSurface();
             now.Update(shapes, edited);
-            var (foot, change, graded, offset, across) = Old(shapes, edited, now.C0, now.R0, now.W, now.H);
-            Assert.That(now.Foot, Is.EqualTo(foot));
-            Assert.That(now.Change, Is.EqualTo(change));
-            Assert.That(now.Graded, Is.EqualTo(graded));
-            Assert.That(now.Offset, Is.EqualTo(offset));
-            Assert.That(now.Across, Is.EqualTo(across));
+            // Each tile against the old rule over a window 2 points round it (the old window's own edges have no slope).
+            const int n = TrailSurface.Side;
+            foreach (var pair in now.Chunks)
+            {
+                var k = pair.Key;
+                int w = n + 4;
+                var (foot, change, graded, offset, across) = Old(shapes, edited, k.FirstColumn - 2, k.FirstRow - 2, w, w);
+                var chunk = pair.Value;
+                for (int j = 0; j < n; j++)
+                    for (int i = 0; i < n; i++)
+                    {
+                        int at = j * n + i, old = (j + 2) * w + i + 2;
+                        string where = $"tile {k} point ({i}, {j})";
+                        Assert.That(chunk.Foot[at], Is.EqualTo(foot[old]), where + ": the footprint");
+                        Assert.That(chunk.Change[at], Is.EqualTo(change[old]), where + ": the change");
+                        Assert.That(chunk.Graded[at], Is.EqualTo(graded[old]), where + ": graded");
+                        Assert.That(chunk.Offset[at], Is.EqualTo(offset[old]), where + ": the offset");
+                        Assert.That(chunk.Across[at], Is.EqualTo(across[old]), where + ": the slope across");
+                    }
+            }
+            // The trail 2.5 km to the west has its tiles.
+            Assert.That(now.Chunks.Keys.Any(k => k.FirstColumn < (int)(Site.OriginX - 2400 - West)), Is.True, "the far trail's tiles");
         }
 
         // The trail map's fields as task 07 worked them out before task P3-11: each trail located over the whole window.

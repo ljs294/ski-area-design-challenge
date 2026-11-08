@@ -1,43 +1,95 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Edits;
 using MountainPlanner.Domain.Geo;
-using Unity.Collections;
 using UnityEngine;
 
 namespace MountainPlanner.Presentation.Design
 {
     /// <summary>
-    /// The look of built trails (task 07, decision SK3): a 1 m world-space map the terrain shader reads, over the
-    /// built trails' bounds. Per lattice point:
-    /// R the footprint (1 inside, fading over the last metre);
-    /// G the height change, edited minus natural, in metres (cut negative, fill positive);
-    /// B 1 on a graded trail, 0 on a natural one (the terrain shader smooths a graded surface's shading; the offset
-    /// across the trail, which corduroy and groomer passes run along, is the full-precision _TrailOffset map);
-    /// A the edited ground's slope across the trail (0 on a level bench, about 1 on a 1:1 face).
+    /// The look of built trails (task 07, decision SK3): 1 m world-space numbers the terrain shader reads round the built
+    /// trails. Per lattice point:
+    /// the footprint (1 inside, fading over the last metre);
+    /// the height change, edited minus natural, in metres (cut negative, fill positive);
+    /// 1 on a graded trail, 0 on a natural one (the terrain shader smooths a graded surface's shading);
+    /// the edited ground's slope across the trail (0 on a level bench, about 1 on a 1:1 face);
+    /// and the offset across the trail, which corduroy and groomer passes run along, at full float precision (finding #11).
     /// It is display data derived from the design and the edited heights, never stored and never read by a rule.
     /// Each trail's painted footprint and automatic centreline come from task 08's TrailFootprint and TrailCentreline;
-    /// the numbers are <see cref="TrailSurface"/>'s, which works out again only what a change can reach (task P3-11),
-    /// and only those blocks are packed into the textures.
+    /// the numbers are <see cref="TrailSurface"/>'s, which works out again only what a change can reach (task P3-11).
+    /// Task 4.01 (TL24): the numbers live in pages, one per 64 m lattice tile a trail reaches, wherever the trails are (the
+    /// old single 2048 m texture left the rest of a big resort's trails undrawn). A page holds its tile's 64 × 64 points and
+    /// the first column and row of its east and south neighbours, so the shader's bilinear read stays in one page. Pages
+    /// sit in one structured buffer, found through a page table over the pages' box; only the pages a change reaches are
+    /// sent again (SetData copies at the call, so the render thread never reads bytes a later update changed).
     /// </summary>
     public sealed class TrailSurfaceMap : IDisposable
     {
-        public const int MaxTexels = TrailSurface.MaxPoints;
+        /// <summary>Points a page side: a tile and one more.</summary>
+        public const int PageSide = TrailSurface.Side + 1;
+        const int PagePoints = PageSide * PageSide;
 
-        static readonly int MapId = Shader.PropertyToID("_TrailMap"), RectId = Shader.PropertyToID("_TrailRect"),
-                            ParamsId = Shader.PropertyToID("_TrailParams"), OffsetId = Shader.PropertyToID("_TrailOffset");
+        static readonly int PointsId = Shader.PropertyToID("_TrailPoints"), PagesId = Shader.PropertyToID("_TrailPages"),
+                            RectId = Shader.PropertyToID("_TrailRect"), ParamsId = Shader.PropertyToID("_TrailParams");
 
-        Texture2D _map;
+        /// <summary>One point as the shader reads it: footprint and change, graded and slope as halves, then the offset.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct Point
+        {
+            public uint FootChange, GradedAcross;
+            public float Offset;
+        }
+
         readonly Dictionary<TrailId, (Trail trail, TrailFootprint fp, double[] line)> _shapes = new Dictionary<TrailId, (Trail, TrailFootprint, double[])>();
         readonly TrailSurface _surface = new TrailSurface();
         readonly List<TrailSurface.Shape> _drawn = new List<TrailSurface.Shape>();
+        readonly Dictionary<EditTileKey, int> _slots = new Dictionary<EditTileKey, int>();
+        readonly Stack<int> _free = new Stack<int>();
+        readonly Point[] _page = new Point[PagePoints];
+        int[] _table = Array.Empty<int>();
+        GraphicsBuffer _points, _pages;
         EditLattice _lattice;
         LocalFrame _frame;
-        /// <summary>The offset across the trail at full float precision (finding #11: 1 in corduroy needs it).</summary>
-        Texture2D _offset;
+        int _tableC0, _tableR0, _tableW, _tableH;
 
-        public TrailSurfaceMap() => Shader.SetGlobalVector(ParamsId, Vector4.zero);
+        public TrailSurfaceMap() => Hide();
+
+        /// <summary>
+        /// Draws no trails, with one-point buffers bound in place of the pages: the terrain shader declares the buffers, and
+        /// with none bound it drew the whole ground black before the first trail was built (D3D12, 2026-11-07), though it
+        /// only reads them while a trail is drawn. Bound before the first scene loads and again whenever trails go.
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        public static void Hide()
+        {
+            Shader.SetGlobalVector(ParamsId, Vector4.zero);
+            if (_quit) return;   // a map disposed while the game quits makes no new buffers
+            if (_nonePoints == null || !_nonePoints.IsValid())
+            {
+                _nonePoints = new GraphicsBuffer(GraphicsBuffer.Target.Structured, 1, Marshal.SizeOf<Point>()) { name = "Trail points (none)" };
+                _nonePages = new GraphicsBuffer(GraphicsBuffer.Target.Structured, 1, sizeof(int)) { name = "Trail pages (none)" };
+                _nonePoints.SetData(new Point[1]);
+                _nonePages.SetData(new[] { -1 });
+                // Released as the game quits, never left to the garbage collector.
+                Application.quitting += ReleaseNone;
+            }
+            Shader.SetGlobalBuffer(PointsId, _nonePoints);
+            Shader.SetGlobalBuffer(PagesId, _nonePages);
+        }
+
+        static GraphicsBuffer _nonePoints, _nonePages;
+        static bool _quit;
+
+        static void ReleaseNone()
+        {
+            Application.quitting -= ReleaseNone;
+            _quit = true;
+            _nonePoints?.Release();
+            _nonePages?.Release();
+            _nonePoints = _nonePages = null;
+        }
 
         /// <summary>The last rebuild's stages, ms (the [Built] log, task P3-11).</summary>
         public string LastSplit { get; private set; } = "";
@@ -45,10 +97,21 @@ namespace MountainPlanner.Presentation.Design
         /// <summary>The CPU fields (tests).</summary>
         public TrailSurface Surface => _surface;
 
+        /// <summary>Pages on the GPU.</summary>
+        public int PageCount => _slots.Count;
+
+        /// <summary>The page buffer and the page table (tests).</summary>
+        public GraphicsBuffer PointsBuffer => _points;
+        public GraphicsBuffer PagesBuffer => _pages;
+        /// <summary>The page table's first tile column and row and its size in tiles (tests).</summary>
+        public (int Column, int Row, int Width, int Height) TableBox => (_tableC0, _tableR0, _tableW, _tableH);
+        /// <summary>A tile's page slot (tests).</summary>
+        public bool TrySlot(EditTileKey key, out int slot) => _slots.TryGetValue(key, out slot);
+
         /// <summary>Whether a local point (metres east and north of the frame's origin) is under the map.</summary>
         public bool Covers(float x, float z)
         {
-            if (_surface.W == 0) return false;
+            if (_surface.Chunks.Count == 0) return false;
             var p = _frame.ToAlbers(x, z);
             return _surface.Covers(_lattice, p.X, p.Y);
         }
@@ -107,100 +170,129 @@ namespace MountainPlanner.Presentation.Design
             _fieldsMs = watch.Elapsed.TotalMilliseconds - _shapesMs;
         }
 
-        /// <summary>Packs what <see cref="Prepare"/> worked out into the textures (main thread). Returns how many trails it drew.</summary>
+        /// <summary>Packs what <see cref="Prepare"/> worked out into the buffers (main thread). Returns how many trails it drew.</summary>
         public int Upload()
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             double shapesMs = _shapesMs, fieldsMs = _fieldsMs;
-            var frame = _frame;
             if (!_show)
             {
-                Shader.SetGlobalVector(ParamsId, Vector4.zero);
+                Hide();
+                _slots.Clear();
+                _free.Clear();
                 LastSplit = $"shapes {shapesMs:F1}, nothing to show";
                 return 0;
             }
-            int w = _surface.W, h = _surface.H;
-            bool fresh = _map == null || _map.width != w || _map.height != h;
-            if (fresh)
+            var chunks = _surface.Chunks;
+            var send = new HashSet<EditTileKey>();
+            bool whole = false;
+            if (_surface.ChunksChanged)
             {
-                Release();
-                _map = new Texture2D(w, h, TextureFormat.RGBAHalf, false, true)
+                var gone = new List<EditTileKey>();
+                foreach (var key in _slots.Keys) if (!chunks.ContainsKey(key)) gone.Add(key);
+                foreach (var key in gone) { _free.Push(_slots[key]); _slots.Remove(key); }
+                foreach (var key in chunks.Keys)
                 {
-                    name = "Trail surface", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp,
-                };
-                _offset = new Texture2D(w, h, TextureFormat.RFloat, false, true)
-                {
-                    name = "Trail offset", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp,
-                };
-            }
-            // Texture rows run north from the south edge; lattice rows run south. Only the blocks worked out again are
-            // packed (a new texture, all of it); one Apply each uploads the CPU copy as it then stands.
-            NativeArray<ushort> pixels = _map.GetPixelData<ushort>(0);
-            NativeArray<float> offsets = _offset.GetPixelData<float>(0);
-            var foot = _surface.Foot;
-            var change = _surface.Change;
-            var graded = _surface.Graded;
-            var across = _surface.Across;
-            var offset = _surface.Offset;
-            void Pack(int i0, int j0, int i1, int j1)
-            {
-                for (int j = j0; j <= j1; j++)
-                {
-                    int row = h - 1 - j;
-                    for (int i = i0; i <= i1; i++)
-                    {
-                        int at = j * w + i, p = (row * w + i) * 4;
-                        pixels[p] = Mathf.FloatToHalf(foot[at]);
-                        pixels[p + 1] = Mathf.FloatToHalf(change[at]);
-                        pixels[p + 2] = Mathf.FloatToHalf(graded[at]);
-                        pixels[p + 3] = Mathf.FloatToHalf(across[at]);
-                        offsets[row * w + i] = offset[at];
-                    }
+                    if (_slots.ContainsKey(key)) continue;
+                    _slots[key] = _free.Count > 0 ? _free.Pop() : _slots.Count + _free.Count;
+                    send.Add(key);
                 }
+                int need = 0;
+                foreach (var slot in _slots.Values) need = Math.Max(need, slot + 1);
+                if (_points == null || _points.count < need * PagePoints)
+                {
+                    // Room for half as many again, so a resort that grows doesn't resize every time.
+                    _points?.Release();
+                    _points = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Math.Max(16, need + need / 2) * PagePoints, Marshal.SizeOf<Point>()) { name = "Trail points" };
+                    whole = true;
+                }
+                Table(chunks);
             }
-            if (fresh) Pack(0, 0, w - 1, h - 1);
-            else foreach (var b in _surface.Redrawn) Pack(b.I0, b.J0, b.I1, b.J1);
-            double packMs = watch.Elapsed.TotalMilliseconds;
-            if (fresh || _surface.Redrawn.Count > 0)
+            // A changed point is on its own page, and on its west and north neighbours' too (their east column and south row).
+            foreach (var b in _surface.Redrawn)
             {
-                _map.Apply(false);
-                _offset.Apply(false);
+                var a = EditTileKey.Of(b.I0 - 1, b.J0 - 1);
+                var z = EditTileKey.Of(b.I1, b.J1);
+                for (int r = a.Row; r <= z.Row; r++)
+                    for (int c = a.Column; c <= z.Column; c++)
+                    {
+                        var k = new EditTileKey(c, r);
+                        if (_slots.ContainsKey(k)) send.Add(k);
+                    }
             }
-            Shader.SetGlobalTexture(OffsetId, _offset);
-            var lattice = _lattice;
-            var (west, north) = frame.ToLocal(new AlbersPoint(lattice.X(_surface.C0), lattice.Y(_surface.R0)));
-            double south = north - (h - 1);
-            // Texel centres sit on lattice points: uv = (p − corner + 0.5) / size.
-            Shader.SetGlobalTexture(MapId, _map);
-            Shader.SetGlobalVector(RectId, new Vector4((float)(west - 0.5), (float)(south - 0.5), 1f / w, 1f / h));
-            Shader.SetGlobalVector(ParamsId, new Vector4(1, 0, 0, 0));
+            if (whole) send.UnionWith(_slots.Keys);
+            foreach (var key in send) Send(key);
+            double packMs = watch.Elapsed.TotalMilliseconds;
+            Shader.SetGlobalBuffer(PointsId, _points);
+            Shader.SetGlobalBuffer(PagesId, _pages);
+            // The local position of lattice point (0, 0): column c is c metres east of it, row r r metres south.
+            var (x0, z0) = _frame.ToLocal(new AlbersPoint(_lattice.X(0), _lattice.Y(0)));
+            Shader.SetGlobalVector(RectId, new Vector4((float)x0, (float)z0, _tableC0, _tableR0));
+            Shader.SetGlobalVector(ParamsId, new Vector4(1, _tableW, _tableH, 0));
             LastSplit = string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                "shapes {0:F1}, fields {1:F1} over {2:N0} points in {3} blocks{4}, pack {5:F1}, upload {6:F1}",
-                shapesMs, fieldsMs, _surface.PointsRedrawn, _surface.Redrawn.Count, _surface.WindowChanged ? " (window moved)" : "",
-                packMs, watch.Elapsed.TotalMilliseconds - packMs);
+                "shapes {0:F1}, fields {1:F1} over {2:N0} points in {3} blocks, {4} of {5} pages sent{6}, pack and send {7:F1}",
+                shapesMs, fieldsMs, _surface.PointsRedrawn, _surface.Redrawn.Count, send.Count, _slots.Count, whole ? " (buffer grown)" : "", packMs);
             return _drawn.Count;
+        }
+
+        // The page table over the pages' box: each tile's slot, -1 where no trail reaches.
+        void Table(IReadOnlyDictionary<EditTileKey, TrailSurface.Chunk> chunks)
+        {
+            int c0 = int.MaxValue, r0 = int.MaxValue, c1 = int.MinValue, r1 = int.MinValue;
+            foreach (var key in chunks.Keys)
+            {
+                c0 = Math.Min(c0, key.Column); c1 = Math.Max(c1, key.Column);
+                r0 = Math.Min(r0, key.Row); r1 = Math.Max(r1, key.Row);
+            }
+            _tableC0 = c0; _tableR0 = r0; _tableW = c1 - c0 + 1; _tableH = r1 - r0 + 1;
+            int n = _tableW * _tableH;
+            if (_table.Length != n) _table = new int[n];
+            for (int i = 0; i < n; i++) _table[i] = -1;
+            foreach (var pair in _slots) _table[(pair.Key.Row - r0) * _tableW + pair.Key.Column - c0] = pair.Value;
+            if (_pages == null || _pages.count < n)
+            {
+                _pages?.Release();
+                _pages = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Math.Max(64, n + n / 2), sizeof(int)) { name = "Trail pages" };
+            }
+            _pages.SetData(_table, 0, 0, n);
+        }
+
+        // One page: its tile's points, then its east neighbour's first column and its south neighbour's first row.
+        void Send(EditTileKey key)
+        {
+            var chunks = _surface.Chunks;
+            for (int dj = 0; dj < 2; dj++)
+                for (int di = 0; di < 2; di++)
+                {
+                    int i0 = di * TrailSurface.Side, j0 = dj * TrailSurface.Side;
+                    int i1 = di == 0 ? TrailSurface.Side - 1 : TrailSurface.Side, j1 = dj == 0 ? TrailSurface.Side - 1 : TrailSurface.Side;
+                    chunks.TryGetValue(new EditTileKey(key.Column + di, key.Row + dj), out var chunk);
+                    for (int j = j0; j <= j1; j++)
+                        for (int i = i0; i <= i1; i++)
+                        {
+                            int at = (j - j0) * TrailSurface.Side + i - i0;
+                            ref var p = ref _page[j * PageSide + i];
+                            if (chunk == null) { p = default; continue; }
+                            p.FootChange = Mathf.FloatToHalf(chunk.Foot[at]) | (uint)Mathf.FloatToHalf(chunk.Change[at]) << 16;
+                            p.GradedAcross = Mathf.FloatToHalf(chunk.Graded[at]) | (uint)Mathf.FloatToHalf(chunk.Across[at]) << 16;
+                            p.Offset = chunk.Offset[at];
+                        }
+                }
+            _points.SetData(_page, 0, _slots[key] * PagePoints, PagePoints);
         }
 
         // The same trail by value: the history applies a command again, so an edited trail is never the object graded.
         static bool Same(Trail a, Trail b) =>
             ReferenceEquals(a, b) || a.Id == b.Id && a.Head == b.Head && a.Tail == b.Tail && a.Settings.Equals(b.Settings) && a.Shape.Equals(b.Shape);
 
-        void Release()
-        {
-            foreach (var t in new[] { _map, _offset })
-            {
-                if (t == null) continue;
-                if (Application.isPlaying) UnityEngine.Object.Destroy(t);
-                else UnityEngine.Object.DestroyImmediate(t);
-            }
-            _map = null;
-            _offset = null;
-        }
-
         public void Dispose()
         {
-            Shader.SetGlobalVector(ParamsId, Vector4.zero);
-            Release();
+            Hide();
+            _points?.Release();
+            _pages?.Release();
+            _points = _pages = null;
+            _slots.Clear();
+            _free.Clear();
         }
     }
 }
