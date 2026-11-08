@@ -320,6 +320,9 @@ echo        was about 2 in 15), then the game to play and quit as usual.
 echo   4.21 trail rating v2 (rebuilds the game; close the Unity editor first)
 echo     88 The rating and posting tests, then the game with the dev switch -truerating: post a trail before you
 echo        build it, a cliff band rates it, Edit trail and Edit sections keep or change the sign, older saves keep colour.
+echo   4.03 simulation core, PR A (rebuilds the game; close the Unity editor first)
+echo     89 The simulation tests and the golden season in the player, then the game: the clock runs from October 1,
+echo        Open / Closed, Day 1, chairs in the resort's hours, the day report at closing, skips, 1x-8x.
 echo.
 echo     Q  Quit
 echo.
@@ -446,6 +449,7 @@ if /i "%CHOICE%"=="85" goto grader
 if /i "%CHOICE%"=="86" goto trailwindow
 if /i "%CHOICE%"=="87" goto d3d11
 if /i "%CHOICE%"=="88" goto trailrating
+if /i "%CHOICE%"=="89" goto simcore
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -753,6 +757,29 @@ echo    shaded box in the profile, no estimate while painting; only your signs.
 echo 7. Repeat 1 and 2 on Crystal Mountain (or any second area).
 echo The game's log (Player.log) has a "[TrueRating]" line for each built trail: its sign and the game's rating.
 start "" "%GAME%" -truerating
+:simcore
+rem 4.03 PR A: the simulation runs on its own thread; the bar's clock, the season, the chairs and the skips read it.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~SimWorldTests|FullyQualifiedName~SimulationHostTests|FullyQualifiedName~SaveFileTests|FullyQualifiedName~DesignDocumentTests" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\p4-03" mkdir "%~dp0test-results\p4-03"
+echo The golden season (two label years, every face hour hashed) in the player, no window...
+"%GAME%" -batchmode -nographics -simgolden "%~dp0test-results\p4-03\simgolden.txt" -logFile "%~dp0test-results\p4-03\simgolden.log" <nul
+type "%~dp0test-results\p4-03\simgolden.txt"
+echo It should read PASS, the same fold as the .NET tests.
+echo.
+echo Then the game. Open the Jackson Hole demo area (or a save with a built lift and a built trail):
+echo   1. The bar reads 08:30, Pre-season, early-Oct, paused. F1 has a Simulation row: Mountain: closed.
+echo   2. Build a lift and a trail if there are none. F1, click Mountain: closed (now open), then Space: Day 1 begins,
+echo      the chairs run. 1 to 4 are 1x, 2x, 4x and 8x (hover the bar's arrows). At 8x an hour takes about 11 s.
+echo   3. At 4:30 a line says the day closed and how long the lifts ran; the clock runs on (no pause) and the chairs stop.
+echo      The night runs six times faster. F1, Skip to morning: it lands at 7:30 the next day, still at your speed.
+echo   4. Pause, move F1's Time slider: the sun moves. Space again: the sun snaps back to the clock.
+echo   5. F1, Mountain: open (now closed): the season is over, Summer. Next month skips; Next third says it can't.
+echo   6. Photo mode (P) pauses; leaving it plays again if it was playing. Quit when done.
+start "" "%GAME%"
 goto menu
 
 :d3d11run

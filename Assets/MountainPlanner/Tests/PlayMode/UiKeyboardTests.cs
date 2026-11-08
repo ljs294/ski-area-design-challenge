@@ -242,15 +242,19 @@ namespace MountainPlanner.Tests
             Assert.That(viewer.Camera.LettersToTools, Is.False);
 
             // The clock runs the sun: Space starts it, 3 picks the speed, Space stops it.
+            // Task 4.03: the keys send commands to the simulation's worker, so each check waits a few frames for its snapshot.
             Assert.That(viewer.Clock.Paused, Is.True, "the view opens paused");
             yield return Press(Key.Space);
+            yield return Frames(3);
             Assert.That(viewer.Clock.Paused, Is.False, "Space starts the clock");
-            yield return Press(Key.Digit3);
-            Assert.That(viewer.Clock.Speed, Is.EqualTo(3));
+            yield return Press(Key.Digit4);
+            yield return Frames(3);
+            Assert.That(viewer.Clock.Speed, Is.EqualTo(4), "4 is 8×");
             var before = viewer.Clock.Now;
-            yield return Frames(20);
+            yield return Frames(30);
             Assert.That(viewer.Clock.Now, Is.Not.EqualTo(before), "the clock runs");
             yield return Press(Key.Space);
+            yield return Frames(3);
             Assert.That(viewer.Clock.Paused, Is.True);
 
             // The menu's quick switches by keyboard alone: Tab reaches them inside the menu, Enter switches.
@@ -406,8 +410,9 @@ namespace MountainPlanner.Tests
                 var t = new MountainPlanner.Simulation.ViewTime(2026, 15, 6 * 3600);
                 for (int i = 0; i < 600; i++)
                 {
-                    t = MountainPlanner.Simulation.ViewClockRunner.Add(t, 180);   // speed 4 at 10 Hz
-                    hud.SetClock(t, 4, false);
+                    t = t.SecondOfDay + 32 < MountainPlanner.Simulation.ViewTime.SecondsPerDay ? t.WithSecondOfDay(t.SecondOfDay + 32) : t.WithSecondOfDay(0);   // 8× at 10 Hz
+                    hud.SetClock(t, 4, false, MountainPlanner.UI.Hud.HudText.SimDay(MountainPlanner.Simulation.SeasonPhase.Season, 1 + i / 100),
+                                 MountainPlanner.UI.Hud.HudText.SimDate(12, MountainPlanner.Simulation.MonthThird.Mid, MountainPlanner.Simulation.DayType.Weekend));
                     hud.SetLayer(MountainPlanner.Presentation.MapLayers.SlopeAngle, true);
                     hud.SetLegend(MountainPlanner.Presentation.MapLayers.SlopeAngle, true);
                     hud.SetElevation(2000 + i * 3.7f);

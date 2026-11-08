@@ -18,8 +18,11 @@ namespace MountainPlanner.UI
         Label _day, _date, _clockHm, _clockS, _clockAmPm, _elevation, _readoutLead, _readoutFigure, _readoutTail;
         Button _pause, _when;
         HudIcon _pauseIcon;
-        readonly Button[] _speeds = new Button[ViewClockRunner.MaxSpeed];
-        int _shownSecond = -1, _shownSeasonDay = -1, _shownSpeed = -1, _shownElevation = int.MinValue;
+        readonly Button[] _speeds = new Button[MaxSpeed];
+        /// <summary>The bar's speeds: 1×, 2×, 4× and 8× (Pacing.Speeds).</summary>
+        public const int MaxSpeed = 4;
+        string _shownDay, _shownDate;
+        int _shownSecond = -1, _shownSpeed = -1, _shownElevation = int.MinValue;
         int _shownPaused = -1;
         long _shownInfo = long.MinValue;
         UnitSystem _shownUnits = (UnitSystem)(-1);
@@ -90,7 +93,11 @@ namespace MountainPlanner.UI
         }
 
         /// <summary>The view time, and the clock's speed (1–4) and whether it's paused. Changes only what the bar shows differently.</summary>
-        public void SetClock(ViewTime now, int speed, bool paused)
+        /// <summary>
+        /// The bar's clock from a simulation snapshot (task 4.03): the face time, the speed (1–4: 1×, 2×, 4×, 8×), pause, and
+        /// the day and date cells (<see cref="HudText.SimDay"/>, <see cref="HudText.SimDate"/>; cached, so nothing allocates).
+        /// </summary>
+        public void SetClock(ViewTime now, int speed, bool paused, string day, string date)
         {
             if (now.SecondOfDay != _shownSecond)
             {
@@ -100,13 +107,8 @@ namespace MountainPlanner.UI
                 _clockS.text = HudText.Seconds(now.SecondOfDay);
                 _clockAmPm.text = HudText.AmPm(now.SecondOfDay);
             }
-            int seasonDay = HudText.SeasonDay(now.Year, now.DayOfYear);
-            if (seasonDay != _shownSeasonDay)
-            {
-                _shownSeasonDay = seasonDay;
-                _day.text = HudText.Day(seasonDay);
-                _date.text = HudText.Date(now.Year, now.DayOfYear);
-            }
+            if (!ReferenceEquals(day, _shownDay)) _day.text = _shownDay = day;
+            if (!ReferenceEquals(date, _shownDate)) _date.text = _shownDate = date;
             int p = paused ? 1 : 0;
             if (speed == _shownSpeed && p == _shownPaused) return;
             _shownSpeed = speed;

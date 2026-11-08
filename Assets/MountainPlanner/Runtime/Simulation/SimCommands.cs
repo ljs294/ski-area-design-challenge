@@ -1,0 +1,106 @@
+using System.Threading;
+
+namespace MountainPlanner.Simulation
+{
+    /// <summary>
+    /// SI-03 v2: what a command asks. The host's own (speed, pause, the skips) change how fast time runs, never a result;
+    /// the world's (from <see cref="SetMountainOpen"/> on) are stamped with their tick and sequence and logged for replay.
+    /// Values are logged: never renumber.
+    /// </summary>
+    public enum SimCommandKind : byte
+    {
+        None = 0,
+        // ---- the host's (never change a result, TM-03) ----
+        /// <summary>A = the speed, 1–4 (1×, 2×, 4×, 8×); also starts the clock, as the bar's buttons do.</summary>
+        SetSpeed = 1,
+        Pause = 2,
+        Resume = 3,
+        TogglePause = 4,
+        /// <summary>TM-06 v2: finish the night, landing an hour before opening.</summary>
+        SkipToMorning = 5,
+        /// <summary>TM-14: before the season, to the next third of the month.</summary>
+        SkipToNextThird = 6,
+        /// <summary>TM-08: in summer, to the next month.</summary>
+        SkipToNextMonth = 7,
+        CancelSkip = 8,
+        // ---- the world's (stamped and logged) ----
+        /// <summary>TM-11 v2: A = 1 Open, 0 Closed.</summary>
+        SetMountainOpen = 20,
+        /// <summary>SI-15: A = the seed (as a long's bits).</summary>
+        PinSeasonSeed = 21,
+        UnpinSeasonSeed = 22,
+        /// <summary>SI-20: Payload = a <see cref="SimDesign"/>.</summary>
+        SetDesign = 23,
+    }
+
+    /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>
+    public struct SimCommand
+    {
+        public SimCommandKind Kind;
+        public long A;
+        /// <summary>The snapshot tick it was issued against, or −1 (no staleness check: the bar's controls, the F1 panel).</summary>
+        public long IssuedAgainstTick;
+        public object Payload;
+        public long Tick;
+        public long Seq;
+
+        public bool IsHosts => Kind >= SimCommandKind.SetSpeed && Kind <= SimCommandKind.CancelSkip;
+
+        public static SimCommand Of(SimCommandKind kind, long a = 0, object payload = null, long issuedAgainstTick = -1) =>
+            new SimCommand { Kind = kind, A = a, Payload = payload, IssuedAgainstTick = issuedAgainstTick };
+    }
+
+    /// <summary>SI-03 v2: the one ordered queue into the worker, allocated once; safe from any thread.</summary>
+    public sealed class CommandQueue
+    {
+        readonly SimCommand[] _items;
+        int _head, _count;
+        readonly object _lock = new object();
+
+        public CommandQueue(int capacity) { _items = new SimCommand[capacity]; }
+
+        /// <summary>False when it's full (the command is refused and nothing waits).</summary>
+        public bool TryAdd(in SimCommand c)
+        {
+            lock (_lock)
+            {
+                if (_count == _items.Length) return false;
+                _items[(_head + _count) % _items.Length] = c;
+                _count++;
+                return true;
+            }
+        }
+
+        public bool TryTake(out SimCommand c)
+        {
+            lock (_lock)
+            {
+                if (_count == 0) { c = default; return false; }
+                c = _items[_head];
+                _items[_head] = default;
+                _head = (_head + 1) % _items.Length;
+                _count--;
+                return true;
+            }
+        }
+
+        public int Count { get { lock (_lock) return _count; } }
+    }
+
+    /// <summary>
+    /// A wait the worker can be woken from (a command, a stop), with no allocation per wait. Wrapping the framework's event
+    /// keeps the host's loop readable and its waits in one place.
+    /// </summary>
+    internal sealed class Wake
+    {
+        readonly ManualResetEventSlim _event = new ManualResetEventSlim(false);
+        public void Set() => _event.Set();
+        /// <summary>Waits up to <paramref name="milliseconds"/> (−1: until woken); clears the signal either way.</summary>
+        public void Wait(int milliseconds)
+        {
+            _event.Wait(milliseconds);
+            _event.Reset();
+        }
+        public void Dispose() => _event.Dispose();
+    }
+}

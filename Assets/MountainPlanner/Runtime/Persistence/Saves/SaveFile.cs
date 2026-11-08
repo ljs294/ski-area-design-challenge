@@ -13,13 +13,13 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 11;
+        public const int CurrentVersion = 12;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven, UpToTwelve);
 
         /// <summary>
         /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
@@ -176,6 +176,33 @@ namespace MountainPlanner.Persistence.Saves
                         if (item is JObject x && x["Posted"] == null) x["Posted"] = JValue.CreateNull();
         }
 
+        /// <summary>
+        /// v11 → v12 (task 4.03, owner 2026-11-08: LO-07 v2, LO-09, SI-12 v2): the design's shape 11 → 12, where the resort keeps
+        /// its hours and each lift its schedule and own hours, and the save names its simulation sidecar. Before v12 the hours
+        /// were always 8:30, 4:15 and 4:30, every lift ran daily on them, and no simulation was saved, so an older save opens
+        /// as it stood, at the clock's start (TM-11).
+        /// </summary>
+        static void UpToTwelve(JObject o)
+        {
+            if (o["Sim"] == null) o["Sim"] = JValue.CreateNull();
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 12;
+            if (design["Hours"] == null)
+                design["Hours"] = new JObject
+                {
+                    ["OpenSecond"] = DayHours.Default.OpenSecond,
+                    ["LastChairSecond"] = DayHours.Default.LastChairSecond,
+                    ["StopSecond"] = DayHours.Default.StopSecond,
+                };
+            if (design["Lifts"] is JArray lifts)
+                foreach (var l in lifts)
+                    if (l is JObject lift)
+                    {
+                        if (lift["Schedule"] == null) lift["Schedule"] = "daily";
+                        if (lift["Hours"] == null) lift["Hours"] = JValue.CreateNull();
+                    }
+        }
+
         /// <summary>The player's name for it ("Autosave" for the autosave slot).</summary>
         public string Name { get; set; } = "";
         /// <summary>The area's one autosave slot (SV1); it never replaces a named save.</summary>
@@ -191,6 +218,12 @@ namespace MountainPlanner.Persistence.Saves
         public DesignDocument Design { get; set; } = DesignDocument.Empty(0);
         /// <summary>The committed terrain edits over the package (task 05's 64 m tiles, TE1): heights and clearing.</summary>
         public TerrainEdits Edits { get; set; } = TerrainEdits.Empty;
+        /// <summary>
+        /// SI-12 v2 (save v12): the simulation's sidecar file, sim/&lt;sha256&gt;.sim beside tiles/, or null when no simulation
+        /// was saved. Persistence stores and checks the file but never reads it: the sidecar's reader lives in Simulation,
+        /// which Persistence may not reference (0.3 §2). Task 4.03's PR B writes it; until then every save writes null.
+        /// </summary>
+        public SimSidecarRef? Sim { get; set; }
 
         /// <summary>
         /// The format version the file had when read (<see cref="CurrentVersion"/> for a new save). Never written. An older
@@ -199,6 +232,17 @@ namespace MountainPlanner.Persistence.Saves
         public int MigratedFrom { get; internal set; } = CurrentVersion;
         /// <summary>Set by a read that had to use save.json.bak: why save.json couldn't be read. Never written.</summary>
         public string Recovered { get; internal set; } = "";
+    }
+
+    /// <summary>save.json's "Sim" (v12): the simulation sidecar's format version and content hash (lowercase hex SHA-256).</summary>
+    public readonly struct SimSidecarRef : IEquatable<SimSidecarRef>
+    {
+        public readonly int SidecarVersion;
+        public readonly string Sha256;
+        public SimSidecarRef(int sidecarVersion, string sha256) { SidecarVersion = sidecarVersion; Sha256 = sha256; }
+        public bool Equals(SimSidecarRef o) => SidecarVersion == o.SidecarVersion && Sha256 == o.Sha256;
+        public override bool Equals(object obj) => obj is SimSidecarRef o && Equals(o);
+        public override int GetHashCode() => SidecarVersion * 397 ^ (Sha256?.GetHashCode() ?? 0);
     }
 
     /// <summary>What Load Area shows for a save, read from save.json without its tiles.</summary>

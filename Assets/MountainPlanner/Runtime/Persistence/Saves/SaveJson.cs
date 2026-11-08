@@ -34,7 +34,12 @@ namespace MountainPlanner.Persistence.Saves
     /// The design's "Cuts" (v7, NT45) are the points the player cut on runs, by run then point.
     /// A trail's "Outline" (v8, sections finding 7) replaces its "Parts" (the strokes it was painted with): its clearing's
     /// rings, each [x0, y0, dx1, dy1, …] on one line, the first point in whole mm from the site's centre (TE5) and each
-    /// later one as the change from the one before. A lift's "Drive" (v10, LD9) is the end that drives, "top" or "bottom":
+    /// later one as the change from the one before. The design's "Hours" (v12, task 4.03, LO-07 v2) are the resort's opening,
+    /// last chair and stop as whole seconds after local midnight on the face clock (whole minutes; 30600, 58500 and 59400 for
+    /// 8:30, 4:15 and 4:30, every v1–v11 save's). A lift's "Schedule" (v12, LO-09) is "daily" or "peak-days" and its "Hours"
+    /// the same three numbers, or null for the resort's (every v1–v11 lift: daily, null). "Sim" (v12, SI-12 v2) names the
+    /// simulation's sidecar, { "SidecarVersion", "Sha256" } of sim/&lt;sha256&gt;.sim beside tiles/, or null: no simulation
+    /// saved (every v1–v10 save, which opens at the clock's start). A lift's "Drive" (v10, LD9) is the end that drives, "top" or "bottom":
     /// the player's choice on a fixed grip with a head for each end, else the type's own end (a v1–v9 lift: the Sessellift's
     /// top, the Monta's bottom). A trail's and a shaped trail's "Posted" (v11, TD-07) is the rating the player posted,
     /// "green", "blue", "black" or "double-black", or null until posted (every trail of a v1–v10 save: the game posts an
@@ -47,13 +52,15 @@ namespace MountainPlanner.Persistence.Saves
     ///   "Design": { "Shape": 11, "Seed", "NextOrdinal",
     ///               "Trails": [ { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Posted", "Outline": [ [...] ] } ],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
-    ///                            "Levels": { "BottomMm", "TopMm" } or null, "Drive" } ],
+    ///                            "Levels": { "BottomMm", "TopMm" } or null, "Drive", "Schedule", "Hours": {...} or null } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
     ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm", "Dabs": [...] } ],
     ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ],
     ///               "TrailLines": [ { "Id", "Name", "Posted", "Spans": [ { "Piece", "From": {...}, "To": {...}, "FromMm", "ToMm" } ] } ],
-    ///               "Cuts": [ { "Piece", "At" } ] },
-    ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] } }
+    ///               "Cuts": [ { "Piece", "At" } ],
+    ///               "Hours": { "OpenSecond", "LastChairSecond", "StopSecond" } },
+    ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] },
+    ///   "Sim": { "SidecarVersion", "Sha256" } or null }
     /// </code>
     /// </summary>
     public static class SaveJson
@@ -83,6 +90,15 @@ namespace MountainPlanner.Persistence.Saves
                 w.WritePropertyName("HeightsSha256"); w.WriteValue(save.HeightsSha256 ?? "");
                 w.WritePropertyName("Design"); WriteDesign(w, save.Design);
                 w.WritePropertyName("Edits"); WriteTiles(w, edits);
+                w.WritePropertyName("Sim");   // v12 (SI-12 v2)
+                if (save.Sim is SimSidecarRef sim)
+                {
+                    w.WriteStartObject();
+                    w.WritePropertyName("SidecarVersion"); w.WriteValue(sim.SidecarVersion);
+                    w.WritePropertyName("Sha256"); w.WriteValue(sim.Sha256);
+                    w.WriteEndObject();
+                }
+                else w.WriteNull();
                 w.WriteEndObject();
             }
             return sw.ToString() + "\n";
@@ -160,8 +176,20 @@ namespace MountainPlanner.Persistence.Saves
                 w.WriteEndObject();
             }
             w.WriteEndArray();
+            w.WritePropertyName("Hours"); WriteHours(w, d.Hours);   // v12 (LO-07 v2)
             w.WriteEndObject();
         }
+
+        static void WriteHours(JsonWriter w, DayHours h)
+        {
+            w.WriteStartObject();
+            w.WritePropertyName("OpenSecond"); w.WriteValue(h.OpenSecond);
+            w.WritePropertyName("LastChairSecond"); w.WriteValue(h.LastChairSecond);
+            w.WritePropertyName("StopSecond"); w.WriteValue(h.StopSecond);
+            w.WriteEndObject();
+        }
+
+        static DayHours ReadHours(JObject h) => new DayHours(Int(h, "OpenSecond"), Int(h, "LastChairSecond"), Int(h, "StopSecond"));
 
         // An anchor writes only what its kind uses (NT43).
         static void WriteAnchor(JsonWriter w, Anchor a)
@@ -331,6 +359,10 @@ namespace MountainPlanner.Persistence.Saves
             }
             else w.WriteNull();
             w.WritePropertyName("Drive"); w.WriteValue(Words.Drive(l.Drive));   // v10 (LD9)
+            w.WritePropertyName("Schedule"); w.WriteValue(Words.Schedule(l.Schedule));   // v12 (LO-09)
+            w.WritePropertyName("Hours");   // v12 (LO-07 v2): the lift's own, or null for the resort's
+            if (l.Hours is DayHours own) WriteHours(w, own);
+            else w.WriteNull();
             w.WriteEndObject();
         }
 
@@ -387,6 +419,7 @@ namespace MountainPlanner.Persistence.Saves
                     Name = Str(o, "Name"), Autosave = Bool(o, "Autosave"), SavedUtc = Str(o, "SavedUtc"),
                     GameVersion = Str(o, "GameVersion"), PackageId = Str(o, "PackageId"), HeightsSha256 = Str(o, "HeightsSha256"),
                     Design = ReadDesign(Obj(o, "Design")),
+                    Sim = ReadSim(Field(o, "Sim")),
                 };
                 edits = ReadTiles(Obj(o, "Edits"));
                 return save;
@@ -477,7 +510,19 @@ namespace MountainPlanner.Persistence.Saves
             }
             var cuts = new List<TrailCut>();
             foreach (var c in Arr(d, "Cuts")) { var co = AsObj(c); cuts.Add(new TrailCut(new TrailId(HexValue(Str(co, "Piece"))), Point(co, "At"))); }
-            return DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts);
+            return DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, ReadHours(Obj(d, "Hours")));
+        }
+
+        static SimSidecarRef? ReadSim(JToken t)
+        {
+            if (t.Type == JTokenType.Null) return null;
+            var o = AsObj(t);
+            int version = Int(o, "SidecarVersion");
+            string sha = Str(o, "Sha256");
+            if (version < 1) throw new FormatException("the simulation sidecar's version isn't valid");
+            if (sha.Length != 64) throw new FormatException("the simulation sidecar's hash isn't a SHA-256");
+            foreach (char c in sha) if (!(c >= '0' && c <= '9' || c >= 'a' && c <= 'f')) throw new FormatException("the simulation sidecar's hash isn't lowercase hex");
+            return new SimSidecarRef(version, sha);
         }
 
         static TerrainStroke ReadStroke(JObject k)
@@ -561,7 +606,13 @@ namespace MountainPlanner.Persistence.Saves
             }
             return new Lift(new LiftId(HexValue(Str(l, "Id"))), Str(l, "Name"), Words.Stage(Str(l, "Stage")), Str(l, "Catalog"),
                 Point(l, "Bottom"), Point(l, "Top"), Words.Mode(Str(l, "TowerMode")), Words.Stance(Str(l, "Stance")), towers, Levels(l),
-                Words.Drive(Str(l, "Drive")));
+                Words.Drive(Str(l, "Drive")), Words.Schedule(Str(l, "Schedule")), OwnHours(l));
+        }
+
+        static DayHours? OwnHours(JObject l)
+        {
+            var t = Field(l, "Hours");
+            return t.Type == JTokenType.Null ? (DayHours?)null : ReadHours(AsObj(t));
         }
 
         static LiftLevels? Levels(JObject l)
@@ -670,6 +721,8 @@ namespace MountainPlanner.Persistence.Saves
             public static TowerMode Mode(string s) => s == "automatic" ? TowerMode.Automatic : s == "by-hand" ? TowerMode.ByHand : throw Unknown(s);
             public static string Drive(LiftDrive v) => v == LiftDrive.Top ? "top" : v == LiftDrive.Bottom ? "bottom" : throw Bad(v);
             public static LiftDrive Drive(string s) => s == "top" ? LiftDrive.Top : s == "bottom" ? LiftDrive.Bottom : throw Unknown(s);
+            public static string Schedule(LiftSchedule v) => v == LiftSchedule.Daily ? "daily" : v == LiftSchedule.PeakDays ? "peak-days" : throw Bad(v);
+            public static LiftSchedule Schedule(string s) => s == "daily" ? LiftSchedule.Daily : s == "peak-days" ? LiftSchedule.PeakDays : throw Unknown(s);
             public static string Stance(TowerStance v) => v == TowerStance.Plumb ? "plumb" : v == TowerStance.Leaned ? "leaned" : throw Bad(v);
             public static TowerStance Stance(string s) => s == "plumb" ? TowerStance.Plumb : s == "leaned" ? TowerStance.Leaned : throw Unknown(s);
             public static string Kind(TowerKind v) => v switch

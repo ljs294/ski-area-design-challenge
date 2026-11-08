@@ -13,8 +13,9 @@ namespace MountainPlanner.Domain.Design
     {
         /// <summary>The shape of the authored data. Task 04's save file freezes it; a change bumps this. 4 (task 15): the
         /// terrain strokes. 5 (task P3-10): the named Areas (NW-15). 6 (task P3-10): the trails made of more than one section (NT24). 7 (task P3-10): trails as spans of runs between nodes, and the
-        /// player's cut points (NT43–NT46). 10 (LD9): each lift's drive end. 11 (task 4.21, TD-07): each trail's posted rating.</summary>
-        public const int ShapeVersion = 11;
+        /// player's cut points (NT43–NT46). 10 (LD9): each lift's drive end. 11 (task 4.21, TD-07): each trail's posted rating. 12 (task 4.03, LO-07 v2 and LO-09):
+        /// the resort's hours, and each lift's schedule and own hours.</summary>
+        public const int ShapeVersion = 12;
 
         /// <summary>The design's key seed: every ID is a keyed hash of it (SH-04).</summary>
         public ulong Seed { get; }
@@ -37,17 +38,25 @@ namespace MountainPlanner.Domain.Design
         /// <summary>The points the player cut on runs (NT45, shape 7), by run then point.</summary>
         public IReadOnlyList<TrailCut> Cuts => _cuts;
 
+        /// <summary>
+        /// LO-07 v2 (owner, 2026-11-08; shape 12): the resort's opening, last chair and stop, the player's to choose within
+        /// daylight. The simulation's day rate runs from opening to stop (TM-02 v2).
+        /// </summary>
+        public DayHours Hours => _hours;
+
         readonly Trail[] _trails;
         readonly Lift[] _lifts;
         readonly TerrainStroke[] _strokes;
         readonly AreaRecord[] _areas;
         readonly TrailLine[] _lines;
         readonly TrailCut[] _cuts;
+        readonly DayHours _hours;
         TrailNodes _nodes;                      // NT42: where sections meet, built on first use
 
         DesignDocument(ulong seed, long nextOrdinal, Trail[] trails, Lift[] lifts, TerrainStroke[] strokes, AreaRecord[] areas, TrailLine[] lines,
-                       TrailCut[] cuts)
+                       TrailCut[] cuts, DayHours hours)
         {
+            _hours = hours;
             Seed = seed;
             NextOrdinal = nextOrdinal;
             _trails = trails;
@@ -60,7 +69,7 @@ namespace MountainPlanner.Domain.Design
 
         public static DesignDocument Empty(ulong seed) =>
             new DesignDocument(seed, 1, Array.Empty<Trail>(), Array.Empty<Lift>(), Array.Empty<TerrainStroke>(), Array.Empty<AreaRecord>(),
-                Array.Empty<TrailLine>(), Array.Empty<TrailCut>());
+                Array.Empty<TrailLine>(), Array.Empty<TrailCut>(), DayHours.Default);
 
         /// <summary>
         /// A document from stored parts (task 04's reader). Entities are sorted by ID here and checked by the same
@@ -76,7 +85,7 @@ namespace MountainPlanner.Domain.Design
         /// </summary>
         public static DesignDocument From(ulong seed, long nextOrdinal, IReadOnlyList<Trail> trails, IReadOnlyList<Lift> lifts,
                                           IReadOnlyList<TerrainStroke> strokes, IReadOnlyList<AreaRecord> areas = null,
-                                          IReadOnlyList<TrailLine> lines = null, IReadOnlyList<TrailCut> cuts = null)
+                                          IReadOnlyList<TrailLine> lines = null, IReadOnlyList<TrailCut> cuts = null, DayHours? hours = null)
         {
             var t = new Trail[trails?.Count ?? 0];
             for (int i = 0; i < t.Length; i++) t[i] = trails[i];
@@ -96,7 +105,7 @@ namespace MountainPlanner.Domain.Design
             var c = new TrailCut[cuts?.Count ?? 0];
             for (int i = 0; i < c.Length; i++) c[i] = cuts[i];
             Array.Sort(c);
-            var doc = TrailLines.Normalise(new DesignDocument(seed, nextOrdinal, t, l, k, r, n, c));
+            var doc = TrailLines.Normalise(new DesignDocument(seed, nextOrdinal, t, l, k, r, n, c, hours ?? DayHours.Default));
             string problem = DesignRules.DocumentProblem(doc);
             if (problem != null) throw new FormatException("Design document: " + problem);
             return doc;
@@ -190,7 +199,7 @@ namespace MountainPlanner.Domain.Design
 
         // Copy-on-write edits: each returns a new document sharing every untouched entity.
 
-        internal DesignDocument WithOrdinal(long nextOrdinal) => new DesignDocument(Seed, nextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts);
+        internal DesignDocument WithOrdinal(long nextOrdinal) => new DesignDocument(Seed, nextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours);
 
         internal DesignDocument PutTrail(Trail trail)
         {
@@ -209,7 +218,7 @@ namespace MountainPlanner.Domain.Design
                 t[i] = trail;
                 Array.Copy(_trails, i, t, i + 1, _trails.Length - i);
             }
-            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas, _lines, _cuts);
+            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas, _lines, _cuts, _hours);
         }
 
         internal DesignDocument RemoveTrail(TrailId id)
@@ -219,7 +228,7 @@ namespace MountainPlanner.Domain.Design
             var t = new Trail[_trails.Length - 1];
             Array.Copy(_trails, 0, t, 0, i);
             Array.Copy(_trails, i + 1, t, i, _trails.Length - i - 1);
-            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas, _lines, _cuts);
+            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas, _lines, _cuts, _hours);
         }
 
         internal DesignDocument PutLift(Lift lift)
@@ -239,7 +248,7 @@ namespace MountainPlanner.Domain.Design
                 l[i] = lift;
                 Array.Copy(_lifts, i, l, i + 1, _lifts.Length - i);
             }
-            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, _areas, _lines, _cuts);
+            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, _areas, _lines, _cuts, _hours);
         }
 
         internal DesignDocument PutStroke(TerrainStroke stroke)
@@ -259,7 +268,7 @@ namespace MountainPlanner.Domain.Design
                 k[i] = stroke;
                 Array.Copy(_strokes, i, k, i + 1, _strokes.Length - i);
             }
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, k, _areas, _lines, _cuts);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, k, _areas, _lines, _cuts, _hours);
         }
 
         /// <summary>Removes a lift, and its ends from every named Area; an Area left with no ends goes too (NW-15).</summary>
@@ -276,7 +285,7 @@ namespace MountainPlanner.Domain.Design
                 var kept = a.WithoutLift(id);
                 if (kept.Ends.Count > 0) areas.Add(kept);
             }
-            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, areas.ToArray(), _lines, _cuts);
+            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, areas.ToArray(), _lines, _cuts, _hours);
         }
 
         /// <summary>The saved lines replaced whole (sorted here); <see cref="TrailLines.Normalise"/> and the line commands.</summary>
@@ -299,7 +308,7 @@ namespace MountainPlanner.Domain.Design
             var n = new TrailLine[lines.Count];
             for (int i = 0; i < n.Length; i++) n[i] = lines[i];
             Array.Sort(n, (a, b) => a.Id.CompareTo(b.Id));
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, n, _cuts);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, n, _cuts, _hours);
         }
 
         /// <summary>The cut points replaced whole (sorted here).</summary>
@@ -308,8 +317,11 @@ namespace MountainPlanner.Domain.Design
             var c = new TrailCut[cuts.Count];
             for (int i = 0; i < c.Length; i++) c[i] = cuts[i];
             Array.Sort(c);
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, c);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, c, _hours);
         }
+
+        /// <summary>The resort's hours replaced (LO-07 v2, shape 12).</summary>
+        internal DesignDocument WithHours(DayHours hours) => new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, hours);
 
         /// <summary>Whether a command changed the trails or their lines, so <see cref="TrailLines.Normalise"/> must run.</summary>
         internal bool TrailsDifferFrom(DesignDocument other) =>
@@ -326,7 +338,7 @@ namespace MountainPlanner.Domain.Design
             }
             if (!replaced) a.Add(area);
             a.Sort((x, y) => x.Id.CompareTo(y.Id));
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, a.ToArray(), _lines, _cuts);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, a.ToArray(), _lines, _cuts, _hours);
         }
     }
 

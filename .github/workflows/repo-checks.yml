@@ -4,12 +4,16 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 9 * * *"   # task 4.03: the nightly season run (sim-nightly)
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   repo-checks:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +28,7 @@ jobs:
         run: node tools/repo-checks/check.mjs
 
   dotnet-tests:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     env:
       # Only the small fixtures: the test terrain's heights (TestData/jackson-hole-2km, ~35 MB) are tested
@@ -57,3 +62,19 @@ jobs:
         run: dotnet build tools/acquire
       - name: Data spike (offline, recorded fixtures)
         run: dotnet test tools/data-spike/tests/DataSpike.Tests
+
+  # Task 4.03 (SI-08, TM-03): ten label years of the golden script, one tick at a time against the idle step, every face
+  # hour's hash compared. Report-only: a red night is a finding for the simulation's thread, never a blocked PR.
+  sim-nightly:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Ten seasons, single ticks against the idle step
+        run: dotnet test tools/domain-tests/Tests --filter "TestCategory=Nightly"

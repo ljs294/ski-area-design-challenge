@@ -25,7 +25,9 @@ namespace MountainPlanner.Tests
         // none here, so only the shape number moved; from 315f1a24….
         // Shape 10 (lift overhaul B2, owner LD9; save v10 cleared by the Master Planner): each lift's drive end; from f455bf99….
         // Shape 11 (task 4.21, TD-07): each trail's and shaped trail's posted byte, the scripted trails posted ■; from b4e85694….
-        const string GoldenSha = "9992c6126da8053083b210832c7ea766ea3295aeb5c1da51177fe8460568eb6a";
+        // Shape 12 (task 4.03, owner 2026-11-08: LO-07 v2, LO-09): the resort's hours and each lift's schedule and own hours,
+        // all at their defaults here; from 9992c612….
+        const string GoldenSha = "be70d92ad3271e90499de259d16937336ace32cf3c6faa3b1213b6eeff472091";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()
@@ -67,7 +69,7 @@ namespace MountainPlanner.Tests
         {
             // The authored shape, property by property (SH-05, NW-06, TW-15). A new property is a format change for
             // task 04 (bump ShapeVersion, migrate, fixture) and must never be derived data.
-            AssertProperties(typeof(DesignDocument), "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "Lines", "Cuts");
+            AssertProperties(typeof(DesignDocument), "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "Lines", "Cuts", "Hours");
             AssertProperties(typeof(TrailLine), "Id", "Name", "Spans", "Posted");   // NT43: a shaped trail, spans of runs top first; TD-07 its sign
             AssertFields(typeof(Span), "Piece", "From", "To", "FromMm", "ToMm");
             AssertFields(typeof(Anchor), "Kind", "Other", "End", "K", "At");
@@ -78,15 +80,16 @@ namespace MountainPlanner.Tests
             AssertProperties(typeof(FootprintPart), "Strokes", "Cuts");
             AssertProperties(typeof(Stroke), "WidthMm", "Erase", "Points");
             AssertProperties(typeof(Lift), "Id", "Name", "Stage", "CatalogId", "Bottom", "Top", "TowerMode", "Stance", "Towers",
-                "Levels", "Drive", "LengthSquaredMm", "LengthMetres");
+                "Levels", "Drive", "Schedule", "Hours", "LengthSquaredMm", "LengthMetres");
             AssertFields(typeof(LiftLevels), "BottomMm", "TopMm");
+            AssertFields(typeof(DayHours), "OpenSecond", "LastChairSecond", "StopSecond");   // shape 11 (LO-07 v2, LO-09)
             AssertFields(typeof(Tower), "Id", "AlongMm", "HeightMm", "Kind");
             AssertFields(typeof(TrailSettings), "Grading", "Kind", "Clearing");
             AssertFields(typeof(Cut), "At", "DirX", "DirY", "KeepAhead");
             AssertProperties(typeof(TerrainStroke), "Id", "Settings", "Dabs");
             AssertFields(typeof(BrushSettings), "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm", "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm");
             AssertFields(typeof(BrushDab), "At", "WeightPermille");
-            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(11));   // 11: TD-07, each trail's posted rating (task 4.21)
+            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(12));   // 11: TD-07, posted ratings (4.21); 12: the hours (4.03)
         }
 
         static void AssertProperties(Type type, params string[] names)

@@ -218,13 +218,19 @@ namespace MountainPlanner.Domain.Design
         /// <summary>LD9 (save v10): the end that drives; always the type's own end where the player doesn't choose
         /// (<see cref="LiftCatalogIds.DriveChoice"/>).</summary>
         public LiftDrive Drive { get; }
+        /// <summary>LO-09 (design shape 12): every operating day, or peak days only. Read from task 4.11.</summary>
+        public LiftSchedule Schedule { get; }
+        /// <summary>LO-07 v2 (design shape 12): this lift's own hours, or null for the resort's. Read from task 4.11.</summary>
+        public DayHours? Hours { get; }
 
         readonly Tower[] _towers;
 
         public Lift(LiftId id, string name, WorkStage stage, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance, IReadOnlyList<Tower> towers,
-                    LiftLevels? levels = null, LiftDrive? drive = null)
+                    LiftLevels? levels = null, LiftDrive? drive = null, LiftSchedule schedule = LiftSchedule.Daily, DayHours? hours = null)
         {
             Levels = levels;
+            Schedule = schedule;
+            Hours = hours;
             Drive = LiftCatalogIds.DriveChoice(catalogId) && drive.HasValue ? drive.Value : LiftCatalogIds.DefaultDrive(catalogId);
             Id = id;
             Name = name;
@@ -249,12 +255,13 @@ namespace MountainPlanner.Domain.Design
             return -1;
         }
 
-        public Lift WithName(string name) => new Lift(Id, name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels, Drive);
-        public Lift WithStage(WorkStage stage) => new Lift(Id, Name, stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels, Drive);
-        public Lift WithTowerMode(TowerMode mode) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, mode, Stance, _towers, Levels, Drive);
-        public Lift WithStance(TowerStance stance) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, stance, _towers, Levels, Drive);
-        public Lift WithLevels(LiftLevels? levels) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, levels, Drive);
-        public Lift WithTowers(IReadOnlyList<Tower> towers) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels, Drive);
-        public Lift WithDrive(LiftDrive drive) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels, drive);
+        public Lift WithName(string name) => new Lift(Id, name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels, Drive, Schedule, Hours);
+        public Lift WithStage(WorkStage stage) => new Lift(Id, Name, stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels, Drive, Schedule, Hours);
+        public Lift WithTowerMode(TowerMode mode) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, mode, Stance, _towers, Levels, Drive, Schedule, Hours);
+        public Lift WithStance(TowerStance stance) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, stance, _towers, Levels, Drive, Schedule, Hours);
+        public Lift WithLevels(LiftLevels? levels) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, levels, Drive, Schedule, Hours);
+        public Lift WithTowers(IReadOnlyList<Tower> towers) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels, Drive, Schedule, Hours);
+        public Lift WithDrive(LiftDrive drive) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels, drive, Schedule, Hours);
+        public Lift WithSchedule(LiftSchedule schedule, DayHours? hours) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers, Levels, Drive, schedule, hours);
     }
 }

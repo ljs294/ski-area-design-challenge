@@ -76,6 +76,14 @@ reads: a version number, and a name for the greyed library row.
   double-black; the plan "Planned glade" stays null. v1 to v10 saves migrate with every one null; the game posts an
   older save's built trails once when it opens. `SaveFileTests` checks that the writer reproduces it byte for byte.
 
+- **`v12-save/Saves/5792676e513f5302/save-001/`** is the same save in format v12 (task 4.03, owner 2026-11-08: LO-07 v2,
+  LO-09, SI-12 v2). The design (shape 12) keeps the resort's `Hours` (`OpenSecond`, `LastChairSecond`, `StopSecond`; here
+  9:00, 3:45 and 4:00), and each lift its `Schedule` (`"daily"` or `"peak-days"`) and its own `Hours` (or null to follow the
+  resort's); here the Stern Chair runs on peak days, 9:30 to 3:15. The save gains a top-level `"Sim"`, the simulation
+  sidecar's `{ SidecarVersion, Sha256 }`, null here (no simulation is saved before task 4.03's PR B). v1 to v11 saves migrate
+  with the old hours (8:30, 4:15, 4:30), every lift daily, and `"Sim"` null. `SaveFileTests` checks that the writer
+  reproduces it byte for byte.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

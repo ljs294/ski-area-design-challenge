@@ -178,6 +178,11 @@ adversarially and dropped: see §10.
 - **TM-02 v1, the day.** At 1×, the **operating day (8:30 AM–4:30 PM on the face) is 12 real minutes**
   (`Pacing.DayMinutes = 12`), so the face runs 40× real by day: one face hour every 90 s. The **night (4:30 PM–8:30 AM)
   is 4 real minutes** (`Pacing.NightMinutes = 4`): one face hour every 15 s. One day-night cycle is 16 real minutes.
+- **TM-02 v2, the day is the resort's hours (owner, 2026-11-08; task 4.03).** The day rate (one face hour every 90 s at
+  1×: 4 face seconds a tick, `Pacing.DayHourRealSeconds = 90`) runs from the resort's opening to its stop on a season day
+  (LO-07 v2); every other face hour runs at the night rate (one every 15 s: 24 face seconds a tick,
+  `Pacing.NightHourRealSeconds = 15`). A step never crosses a whole hour, the opening, the stop or the hour before
+  opening, so every speed and skip gives the same state.
 - **TM-03, speeds.** Presets **pause, 1×, 2×, 4×, 8×** (`Pacing.Speeds`), each a whole number of ticks per real tick.
   A chair leaves every 6 / 3 / 1.5 / 0.75 s. Changing speed never changes any result (SI-08).
 - **TM-04 v1, the motion constants.** Chairs and rope run at the catalog's real speed × `Pacing.ChairSpeedFactor = 1`.
@@ -191,6 +196,12 @@ adversarially and dropped: see §10.
   schedules, building); any command is allowed. "Run the night" plays the night per TM-02 with guns and groomers only
   (no skiers, GU-12); "Skip to morning" is allowed anywhere in it and finishes the night's face hours at full fidelity
   within BG-05.
+- **TM-06 v2, no stop at closing (owner, 2026-11-08; task 4.03).** Nothing pauses at closing: the clock runs on into the
+  night at the night rate, and the player pauses when they want. The day report still arrives at closing (TM-15), and
+  `PauseRequested` is kept for alerts only (TM-12). **Skip to morning lands an hour before opening** (7:30 at the
+  default hours; `Pacing.SkipLandsBeforeOpenMinutes = 60`); it keeps the player's speed, so a paused clock stays paused
+  and a running one plays that hour (15 s at 1×) before the day rate starts. It is refused while the lifts run and
+  between that landing point and the opening.
 - **TM-07, the week.** Three face days make a week: **weekday, weekday, weekend day** (`Pacing.Week = [Weekday,
   Weekday, Weekend]`). Day types drive demand (GU-03) and lift schedules (LO-09).
 - **TM-08 v1, the season and the calendar label.** The baseline season **December 1 to April 1 is 42 face days**
@@ -502,6 +513,11 @@ the chairs carry **decorative riders** (LO-05).
 - **LO-07, hours.** The resort's hours are **8:30 AM open, 4:15 PM last chair, 4:30 PM stop** on the face (the HUD
   mockup, UI-7), with per-lift overrides. At last chair the line closes to new skiers; the line drains and the last
   rider unloads before the lift stops; skiers still on the hill ski to a base (GU-11).
+- **LO-07 v2, the player's hours within daylight (owner, 2026-11-08; question 10; design shape 12).** The resort's
+  hours (opening, last chair, stop; whole minutes; default 8:30, 4:15, 4:30) are the player's, saved in the design, and
+  each lift may keep its own (LO-09). Each face day they are cut to civil daylight at the site on the label date (the
+  sun 6° below the horizon, dawn rounded up and dusk down to the minute): the resort never opens before dawn or runs
+  after dusk, and the day says so (`HoursTrimmed`). Chairs run only while the lifts and the mountain are open.
 - **LO-08, trams.** A tram runs as a jig-back: one cabin each way, departing when full or at the catalog interval,
   capacity per the catalog's own figure (500 / 750 an hour: MapLibre's cabin ÷ (ride + 4 min dwell) is kept as the
   derivation of those placeholders).
@@ -1043,7 +1059,7 @@ the PR:
   the choice weights (4.12); the per-type hold gusts (4.11); the inflow season factors (4.14); the sustained-pitch
   window and whether the Slope tool's chips (BR3) follow TD-02 v2 (the Domain change, see §13).
 
-## 12. Formats to bump (for the coordinator to sequence; next free save is v11)
+## 12. Formats to bump (for the coordinator to sequence; next free save is v13)
 
 | Task | What grows | Format |
 |---|---|---|
@@ -1052,7 +1068,7 @@ the PR:
 | 4.07 | SWE, density and the conditions record at 8 m and in the 1 m fine tiles (SN-03); the trail grooming setting (SN-22) and the Open / Closed / Auto switch (SN-20) | Snow sidecar (binary, not JSON); the design shape |
 | TD-02 v2 (before 4.12) | The posted rating per trail (GU-17); the true rating is derived, so the Domain change alone bumps nothing but the golden ratings | Design shape |
 | 4.09 | Ice and snow per body; body IDs | Save |
-| 4.11 | Lift schedules and hour overrides | Design shape |
+| 4.11 | Lift schedules and hour overrides (the fields came early: design shape 12, save v12, task 4.03) | Design shape |
 | 4.12 | The four band reputations r_b (GU-18), `SeasonHistory` (TM-15); `LocationDraw` per demo package (GU-03) | Sim sidecar; package manifest |
 | 4.14 | Ponds, dams, selected lakes; stream vectors | Design shape; package (WS-08) |
 | 4.15 | Pipes, nodes, pumps, hydrants, guns (each with its `Auto / On / Off` override, SM-02) | Design shape |

@@ -36,7 +36,9 @@ a nested `AGENTS.md` needs a same-directory `CLAUDE.md` with the same import.
 only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architecture.md` §2.
 - Engine-free (`noEngineReferences`): `Domain`, `Simulation`, `Persistence`, `Acquisition`. Their tests
   live in `Tests/Core`, which Unity and `tools/domain-tests` (.NET, CI) both compile: no Unity APIs there.
-- `Simulation` is only a clock placeholder (`IGameClock`, `ManualViewClock`) in iteration 1.
+- `Simulation` (task 4.03): `SimWorld` steps by `SystemsTable` rows on `SimulationHost`'s worker thread; commands in,
+  triple-buffered snapshots out; every number lives in `Pacing`. `SeasonRunner` plays the golden script (Core tests,
+  `-simgolden`); a behaviour change re-pins `SeasonRunner.GoldenFoldValue`, approved.
 - Architecture tests in `Tests/EditMode` enforce the order and allow-lists.
 - Forest placement (`Domain/Cover/PoissonForest`) runs as plain C# and Burst-compiled (`World/BurstForestPlanter`):
   keep it unsafe-pointer, integer-only code with no managed objects, so both give identical bytes.
@@ -71,7 +73,7 @@ only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architec
 | Area | Start here | Main concern |
 | --- | --- | --- |
 | Domain | `Assets/MountainPlanner/Runtime/Domain/` | Georeferencing, grids, determinism |
-| Simulation | `Assets/MountainPlanner/Runtime/Simulation/` | Clock placeholder; future simulation |
+| Simulation | `Assets/MountainPlanner/Runtime/Simulation/` | Worker, clocks, season, snapshots, golden hashes |
 | Persistence | `Assets/MountainPlanner/Runtime/Persistence/` | Package, cache and library formats |
 | Acquisition | `Assets/MountainPlanner/Runtime/Acquisition/` | Providers, COG reader, package builds |
 | World | `Assets/MountainPlanner/Runtime/World/` | Terrain, grading, vegetation, construction |

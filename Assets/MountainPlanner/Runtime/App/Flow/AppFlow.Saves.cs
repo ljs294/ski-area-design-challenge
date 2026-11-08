@@ -128,7 +128,7 @@ namespace MountainPlanner.App.Flow
         }
 
         /// <summary>A capture, benchmark or test run: it never opens or autosaves the player's saves on its own.</summary>
-        static bool CaptureRun => _captureRun ??= Array.Exists(Environment.GetCommandLineArgs(), a => Array.IndexOf(CaptureSwitches, a) >= 0);
+        internal static bool CaptureRun => _captureRun ??= Array.Exists(Environment.GetCommandLineArgs(), a => Array.IndexOf(CaptureSwitches, a) >= 0);
         static bool? _captureRun;
         static readonly string[] CaptureSwitches =
         {
@@ -136,6 +136,7 @@ namespace MountainPlanner.App.Flow
             "-lodtransitions", "-clip", "-titleshots", "-titlemovie", "-photoshot", "-styletile", "-testbench", "-editbench", "-smoketest",
             "-liftbench", "-hoverlift",   // task 09
             "-drawnresort", "-designbench",   // task P3-11: the drawn resort never goes into a player's save
+            "-simgolden",   // task 4.03
         };
 
         void UpdateSaves(Keyboard keys)

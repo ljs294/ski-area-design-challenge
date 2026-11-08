@@ -13,6 +13,8 @@ namespace MountainPlanner.Domain.Sky
         public const int SecondsPerDay = 86400;
         /// <summary>The sun's centre this far below the horizon (geometric) is sunrise or sunset: refraction plus the half disc.</summary>
         public const double HorizonDegrees = -0.833;
+        /// <summary>Civil twilight: the sun's centre 6° below the horizon (geometric). Task 4.03's daylight for the resort's hours.</summary>
+        public const double CivilDegrees = -6.0;
 
         public readonly double Latitude, Longitude;
         public readonly int Year, DayOfYear;
@@ -83,24 +85,30 @@ namespace MountainPlanner.Domain.Sky
         /// <summary>Local seconds of sunset, or NaN when the sun neither rises nor sets that day.</summary>
         public double Sunset() => Crossing(rising: false);
 
-        double Crossing(bool rising)
+        /// <summary>Local seconds of civil dawn (the sun 6° below the horizon, rising), or NaN when it doesn't happen that day.</summary>
+        public double CivilDawn() => Crossing(rising: true, CivilDegrees);
+
+        /// <summary>Local seconds of civil dusk (the sun 6° below the horizon, setting), or NaN when it doesn't happen that day.</summary>
+        public double CivilDusk() => Crossing(rising: false, CivilDegrees);
+
+        double Crossing(bool rising, double horizon = HorizonDegrees)
         {
             double noon = SolarNoon();
             // Search the half-day on the right side of noon, every 10 minutes, then bisect the crossing.
             double from = rising ? Math.Max(0, noon - 43200) : noon, to = rising ? noon : Math.Min(SecondsPerDay - 1, noon + 43200);
             double previous = from;
-            bool previousUp = Above(previous);
+            bool previousUp = Above(previous, horizon);
             for (double s = from + 600; ; s += 600)
             {
                 if (s > to) s = to;
-                bool up = Above(s);
+                bool up = Above(s, horizon);
                 if (up != previousUp && up == rising)
                 {
                     double lo = previous, hi = s;
                     for (int i = 0; i < 40 && hi - lo > 0.5; i++)
                     {
                         double mid = (lo + hi) / 2;
-                        if (Above(mid) == rising) hi = mid; else lo = mid;
+                        if (Above(mid, horizon) == rising) hi = mid; else lo = mid;
                     }
                     return (lo + hi) / 2;
                 }
@@ -110,7 +118,7 @@ namespace MountainPlanner.Domain.Sky
             }
         }
 
-        bool Above(double localSecond) => SunAt(localSecond).GeometricElevation > HorizonDegrees;
+        bool Above(double localSecond, double horizon) => SunAt(localSecond).GeometricElevation > horizon;
 
         static int DaysInYear(int year) => year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) ? 366 : 365;
     }
