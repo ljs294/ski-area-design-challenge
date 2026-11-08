@@ -228,7 +228,7 @@ namespace MountainPlanner.Domain.Design
     }
 
     /// <summary>
-    /// LO-07 v2 (owner, 2026-11-08; shape 11): sets the resort's opening, last chair and stop. Whole minutes; the simulation
+    /// LO-07 v2 (owner, 2026-11-08; shape 12): sets the resort's opening, last chair and stop. Whole minutes; the simulation
     /// trims them to each day's daylight (it never refuses a day for being dark). No player UI before 4.17; the F1 panel and
     /// tests use it.
     /// </summary>
@@ -249,7 +249,7 @@ namespace MountainPlanner.Domain.Design
     }
 
     /// <summary>
-    /// LO-09 (shape 11): a lift's schedule (daily, or peak days only) and its own hours, or none to follow the resort's.
+    /// LO-09 (shape 12): a lift's schedule (daily, or peak days only) and its own hours, or none to follow the resort's.
     /// One undo step. No player UI before 4.11; the F1 panel and tests use it.
     /// </summary>
     public sealed class SetLiftSchedule : DesignCommand

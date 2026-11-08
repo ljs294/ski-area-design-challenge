@@ -176,6 +176,11 @@ namespace MountainPlanner.Tests
                 yield return Click(ScreenOf(cam, bottom + new Vector2(-2, 2), ctx));
                 yield return Press(Key.Enter);
                 Assert.That(trail.CurrentStep, Is.EqualTo(2), "Enter: the review");
+                // TD-07 (4.21, R1): nothing is posted yet, so Ctrl+Enter can't break ground; a click on the ■ chip posts it.
+                yield return Chord(Key.LeftCtrl, Key.Enter);
+                Assert.That(viewer.Design.Document.Trails.Count, Is.EqualTo(0), "an unposted trail can't be built");
+                yield return SubmitOn(hud.Q<Button>("toolwin-opt-posted-1"));
+                yield return Frames(2);
                 yield return Chord(Key.LeftCtrl, Key.Enter);
                 Assert.That(viewer.Design.Document.Trails.Count, Is.EqualTo(1), "Ctrl+Enter broke ground");
                 var run = viewer.Design.Document.Trails[0];
@@ -258,6 +263,12 @@ namespace MountainPlanner.Tests
                 // F6 (LT39): the lift's card (a click on it on the map, or its Analysis row) renames it in one undoable step.
                 for (int i = 0; i < 600 && viewer.Hud.LiftRenamed == null; i++) yield return null;
                 viewer.Hud.OpenLiftCardFor(placed.Id.Value);
+                // 4.21 findings F4, F5: the lift's type under its name, and Status in the operating words.
+                yield return Frames(2);
+                Assert.That(hud.Q<Label>("lift-card-kind").text, Is.EqualTo(MountainPlanner.UI.Tools.LiftTypeMenu.TypeName(placed.CatalogId)));
+                var liftStatus = hud.Q("lift-card").Query<Label>(className: "tw-kv__k").Where(l => l.text == "Status").First();
+                Assert.That(liftStatus.parent.Q<Label>(className: "tw-kv__v").text,
+                    Is.EqualTo(placed.Stage == MountainPlanner.Domain.Design.WorkStage.Built ? "Closed" : "Planned"));
                 viewer.Hud.RenameLiftCardForTest("Summit Quad");
                 Assert.That(viewer.Design.Document.Lifts[0].Name, Is.EqualTo("Summit Quad"), "the card's rename");
                 Assert.That(viewer.Design.Undo(), Is.True);

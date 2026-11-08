@@ -223,3 +223,28 @@
     color: var(--strong);
     -unity-text-outline-color: var(--strong);
 }
+
+/* ---------- Scroll bars (4.21, owner: one low-key style everywhere) ----------
+   Every ScrollView, multiline field and dropdown list in every panel: a thin hairline thumb on no track, no arrows,
+   lighter while the pointer is over its list, a touch wider under the pointer or held; never the accent. */
+.unity-scroller--vertical { width: 6px; margin: 2px 2px 2px 0; border-width: 0; background-color: rgba(0, 0, 0, 0); }
+.unity-scroller--horizontal { height: 6px; margin: 0 2px 2px 2px; border-width: 0; background-color: rgba(0, 0, 0, 0); }
+.unity-scroller .unity-scroller__low-button,
+.unity-scroller .unity-scroller__high-button { display: none; }
+.unity-scroller .unity-scroller__slider { margin: 0; padding: 0; }
+.unity-scroller--vertical .unity-base-slider__drag-container { width: 6px; }
+.unity-scroller--horizontal .unity-base-slider__drag-container { height: 6px; }
+.unity-scroller .unity-base-slider__tracker { border-width: 0; background-color: rgba(0, 0, 0, 0); }
+.unity-scroller--vertical .unity-base-slider__tracker { left: 0; width: 6px; }
+.unity-scroller--horizontal .unity-base-slider__tracker { top: 0; height: 6px; }
+.unity-scroller .unity-base-slider__dragger { border-width: 0; border-radius: 2px; background-color: var(--hair2); opacity: 0.8; }
+.unity-scroller--vertical .unity-base-slider__dragger { left: 2px; width: 3px; }
+.unity-scroller--horizontal .unity-base-slider__dragger { top: 2px; height: 3px; }
+.unity-scroll-view:hover .unity-scroller .unity-base-slider__dragger { opacity: 1; background-color: var(--faint); }
+.unity-scroller .unity-base-slider__dragger:hover,
+.unity-scroller .unity-base-slider__dragger:active { opacity: 1; background-color: var(--faint); }
+.unity-scroller--vertical .unity-base-slider__dragger:hover,
+.unity-scroller--vertical .unity-base-slider__dragger:active { left: 1px; width: 4px; }
+.unity-scroller--horizontal .unity-base-slider__dragger:hover,
+.unity-scroller--horizontal .unity-base-slider__dragger:active { top: 1px; height: 4px; }
+.unity-scroller .unity-base-slider__dragger-border { display: none; }

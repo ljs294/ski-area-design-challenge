@@ -8,8 +8,8 @@ namespace MountainPlanner.UI.Tools
     /// <summary>
     /// The trail profile (TF-04, task 08, owner TL7), ported from the mockup's strip above the status bar: distance along
     /// the centreline against elevation; the natural ground dashed over a light fill, the graded surface solid in each
-    /// stretch's rating colour (TD-03), stretches too steep to bench red (GR-07), and the steepest 75 ft window marked
-    /// (TD-02). Shown while a trail is built or edited; redrawn when its analysis changes, never per frame.
+    /// stretch's rating colour (TD-03), stretches too steep to bench red (GR-07), and, with the dev switch only (TD-07, R6),
+    /// the steepest 150 ft window marked (TD-02 v2). Shown while a trail is built or edited; redrawn when its analysis changes, never per frame.
     /// </summary>
     public sealed class TrailProfileStrip : VisualElement
     {
@@ -92,8 +92,9 @@ namespace MountainPlanner.UI.Tools
             _graded = grade.IsGraded;
             _steepest = rating.SteepestStation;
             _summary.text = $"{ToolFormat.Length(grade.LengthMetres)} · vertical {ToolFormat.Length(System.Math.Abs(rating.DropMetres))} · " +
-                            $"mean {System.Math.Round(rating.MeanPercent):0}% · steepest {System.Math.Round(rating.MaxPercent):0}%";
-            _rating.text = TrailTool.Rating(rating.ValuePercent);
+                            $"mean {System.Math.Round(rating.MeanPercent):0}%" +
+                            (TrueRating.Shown ? $" · steepest 150 ft {System.Math.Round(rating.MaxPercent):0}%" : "");
+            _rating.text = TrueRating.Shown ? TrailTool.Rating(rating.ValuePercent) : "";   // R6: the game's rating is hidden
             double lo = double.MaxValue, hi = double.MinValue;
             for (int i = 0; i < _ground.Length; i++)
             {
@@ -129,13 +130,16 @@ namespace MountainPlanner.UI.Tools
                 float y = top + (bottom - top) * k / 4;
                 p.BeginPath(); p.MoveTo(new Vector2(padL, y)); p.LineTo(new Vector2(r.width - padR, y)); p.Stroke();
             }
-            // The steepest 75 ft (TD-02).
-            int a = Mathf.Clamp(_steepest, 0, n - 1), b = Mathf.Clamp(_steepest + TrailRating.WindowStations - 1, 0, n - 1);
-            p.fillColor = new Color(_text.r, _text.g, _text.b, 0.08f);
-            p.BeginPath();
-            p.MoveTo(new Vector2(X(_along[a]), top - 4)); p.LineTo(new Vector2(Mathf.Max(X(_along[b]), X(_along[a]) + 3), top - 4));
-            p.LineTo(new Vector2(Mathf.Max(X(_along[b]), X(_along[a]) + 3), bottom)); p.LineTo(new Vector2(X(_along[a]), bottom)); p.ClosePath();
-            p.Fill();
+            // The steepest 150 ft (TD-02 v2), with the dev switch only (R6): it would give the rating away.
+            if (TrueRating.Shown)
+            {
+                int a = Mathf.Clamp(_steepest, 0, n - 1), b = Mathf.Clamp(_steepest + TrailRating.SustainedStations - 1, 0, n - 1);
+                p.fillColor = new Color(_text.r, _text.g, _text.b, 0.08f);
+                p.BeginPath();
+                p.MoveTo(new Vector2(X(_along[a]), top - 4)); p.LineTo(new Vector2(Mathf.Max(X(_along[b]), X(_along[a]) + 3), top - 4));
+                p.LineTo(new Vector2(Mathf.Max(X(_along[b]), X(_along[a]) + 3), bottom)); p.LineTo(new Vector2(X(_along[a]), bottom)); p.ClosePath();
+                p.Fill();
+            }
             // The natural ground: a light fill and a dashed line.
             p.fillColor = _fill;
             p.BeginPath();

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MountainPlanner.Domain.Measure;
 
 namespace MountainPlanner.Domain.Design
 {
@@ -135,6 +136,80 @@ namespace MountainPlanner.Domain.Design
         public static string StageProblem(WorkStage stage) =>
             stage == WorkStage.Plan || stage == WorkStage.Built ? null : "Unknown stage.";
 
+        /// <summary>TD-07: a posted rating is one of the four bands, or none yet.</summary>
+        public static string PostedProblem(SlopeBands.Band? posted) =>
+            !posted.HasValue || (posted.Value >= SlopeBands.Band.Green && posted.Value <= SlopeBands.Band.DoubleBlack) ? null : "Unknown posted rating.";
+
+        /// <summary>TD-07 (owner R1, 2026-11-08): a trail is posted before it is built.</summary>
+        public static string UnpostedProblem(string name) => $"Post a rating for {name} before building it.";
+
+        /// <summary>
+        /// TD-07 for a save from before v11, where nothing was posted: each built run without a sign takes the band v0.3
+        /// showed it as (<paramref name="legacyPercent"/>, TD-02 v1; NaN for one not rated, which stays unposted), and each
+        /// unposted shaped trail holding a built run takes the hardest of its runs' (NT34 v1, as v0.3 drew it). Plans stay
+        /// unposted. Returns <paramref name="doc"/> itself when nothing is posted.
+        /// </summary>
+        public static DesignDocument PostOlderSave(DesignDocument doc, Func<TrailId, double> legacyPercent)
+        {
+            if (doc == null) throw new ArgumentNullException(nameof(doc));
+            if (legacyPercent == null) throw new ArgumentNullException(nameof(legacyPercent));
+            var band = new Dictionary<TrailId, SlopeBands.Band>();
+            foreach (var t in doc.Trails)
+            {
+                if (t.Stage != WorkStage.Built) continue;
+                double p = legacyPercent(t.Id);
+                if (!double.IsNaN(p)) band[t.Id] = SlopeBands.Of(p);
+            }
+            var next = doc;
+            foreach (var t in doc.Trails)
+                if (t.Posted == null && band.TryGetValue(t.Id, out var b)) next = next.PutTrail(t.WithPosted(b));
+            foreach (var l in doc.Lines)
+            {
+                if (l.Posted != null) continue;
+                SlopeBands.Band? hardest = null;
+                foreach (var span in l.Spans)
+                    if (band.TryGetValue(span.Piece, out var b) && (!hardest.HasValue || b > hardest.Value)) hardest = b;
+                if (hardest.HasValue) next = next.PutLine(l.WithPosted(hardest));
+            }
+            return next;
+        }
+
+        /// <summary>
+        /// TD-07 (owner R1): before <paramref name="built"/> (runs going from plan to built in one command) are built, every
+        /// one of them and every shaped trail holding one carries a sign. One without takes <paramref name="sign"/> (the
+        /// rating the player picked in the review), else a posted shaped trail's that holds it, in ID order; with neither,
+        /// the build is refused. Returns the document with those signs, or null with <paramref name="problem"/>.
+        /// </summary>
+        internal static DesignDocument PostForBuild(DesignDocument doc, ICollection<TrailId> built, SlopeBands.Band? sign, out string problem)
+        {
+            problem = null;
+            var next = doc;
+            foreach (var line in doc.Lines)
+            {
+                bool holds = false;
+                foreach (var sp in line.Spans) if (built.Contains(sp.Piece)) { holds = true; break; }
+                if (!holds || line.Posted.HasValue) continue;
+                if (!sign.HasValue) { problem = UnpostedProblem(line.Name); return null; }
+                next = next.PutLine(line.WithPosted(sign));
+            }
+            foreach (var id in built)
+            {
+                var t = next.FindTrail(id);
+                if (t == null || t.Posted.HasValue) continue;
+                SlopeBands.Band? take = sign;
+                if (!take.HasValue)
+                    foreach (var line in next.Lines)
+                    {
+                        if (!line.Posted.HasValue) continue;
+                        foreach (var sp in line.Spans) if (sp.Piece == id) { take = line.Posted; break; }
+                        if (take.HasValue) break;
+                    }
+                if (!take.HasValue) { problem = UnpostedProblem(t.Name); return null; }
+                next = next.PutTrail(t.WithPosted(take));
+            }
+            return next;
+        }
+
         /// <summary>LT41: only types with their own models can be added (the rest are in the menu as placeholders). A design
         /// that already holds one (an older save) still loads.</summary>
         public static string BuildableProblem(string catalogId) =>
@@ -174,7 +249,7 @@ namespace MountainPlanner.Domain.Design
         internal static string TrailProblem(Trail t, bool settingsMustBeAvailable)
         {
             if (t.Id.IsNone) return "A trail needs an ID.";
-            return NameProblem(t.Name) ?? StageProblem(t.Stage) ?? ShapeProblem(t.Shape) ?? EndsProblem(t.Head, t.Tail)
+            return NameProblem(t.Name) ?? StageProblem(t.Stage) ?? ShapeProblem(t.Shape) ?? EndsProblem(t.Head, t.Tail) ?? PostedProblem(t.Posted)
                 ?? (settingsMustBeAvailable ? SettingsProblem(t.Settings) : (t.Settings.Defined ? null : "Unknown trail settings."));
         }
 
@@ -225,7 +300,7 @@ namespace MountainPlanner.Domain.Design
         internal static string DocumentProblem(DesignDocument doc)
         {
             if (doc.NextOrdinal < 1) return "The ID counter is invalid.";
-            if (doc.Hours.Problem is string hours) return "The resort's hours: " + hours + ".";   // LO-07 v2, shape 11
+            if (doc.Hours.Problem is string hours) return "The resort's hours: " + hours + ".";   // LO-07 v2, shape 12
             var seen = new HashSet<ulong>();
             for (int i = 0; i < doc.Trails.Count; i++)
             {
@@ -279,6 +354,7 @@ namespace MountainPlanner.Domain.Design
         {
             if (line.Id.IsNone) return "A trail needs an ID.";
             if (NameProblem(line.Name) is string p) return p;
+            if (PostedProblem(line.Posted) is string q) return q;
             if (line.Spans.Count == 0) return "A trail holds at least one section.";
             if (line.Spans.Count > 4096) return "A trail holds too many sections.";
             foreach (var sp in line.Spans)

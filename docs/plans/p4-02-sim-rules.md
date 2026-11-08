@@ -513,7 +513,7 @@ the chairs carry **decorative riders** (LO-05).
 - **LO-07, hours.** The resort's hours are **8:30 AM open, 4:15 PM last chair, 4:30 PM stop** on the face (the HUD
   mockup, UI-7), with per-lift overrides. At last chair the line closes to new skiers; the line drains and the last
   rider unloads before the lift stops; skiers still on the hill ski to a base (GU-11).
-- **LO-07 v2, the player's hours within daylight (owner, 2026-11-08; question 10; design shape 11).** The resort's
+- **LO-07 v2, the player's hours within daylight (owner, 2026-11-08; question 10; design shape 12).** The resort's
   hours (opening, last chair, stop; whole minutes; default 8:30, 4:15, 4:30) are the player's, saved in the design, and
   each lift may keep its own (LO-09). Each face day they are cut to civil daylight at the site on the label date (the
   sun 6° below the horizon, dawn rounded up and dusk down to the minute): the resort never opens before dawn or runs
@@ -603,6 +603,12 @@ the chairs carry **decorative riders** (LO-05).
   0.05` per lap × a season-phase factor `Pacing.MarginalPhase`: 1 in the first and last `Pacing.ShoulderDays = 6` face
   days of the season (opening early, hanging on late: the owner's "normal"), 2 in between (the white ribbon of death
   in February is a choice the mountain pays for). Both feed reputation later (GU-13 carries them).
+  - *Settled by task 4.21 (owner R1–R6, 2026-11-08; TD-07):* there's **no default**: a trail must be posted before
+    it's built, and the player picks the sign in the build and edit flow. The true rating is hidden from players.
+    The window is the Domain's `TrailRating.SustainedStations = 6`, not a pacing value, so tuning never re-rates a
+    trail. A built trail can be unposted only in an older save the player changed before the game posted it; how
+    guests read one is 4.12's to plan (the suggestion: its true rating for both, with no misrate penalty).
+    `TrailRating.Harder` is the gate's helper.
 - **GU-06 v2, arrivals and the stay (rescaled to the 12-minute day; MapLibre's real-minute constants were inert in
   it).** Skiers arrive at **arrival nodes** (an entity; in Phase 4 one per base station, a lift-bottom station no
   trail leaves downhill, or the lowest lift bottom if none qualifies; parking, lodges and a village add nodes later,
@@ -1053,7 +1059,7 @@ the PR:
   the choice weights (4.12); the per-type hold gusts (4.11); the inflow season factors (4.14); the sustained-pitch
   window and whether the Slope tool's chips (BR3) follow TD-02 v2 (the Domain change, see §13).
 
-## 12. Formats to bump (for the coordinator to sequence; next free save is v11)
+## 12. Formats to bump (for the coordinator to sequence; next free save is v13)
 
 | Task | What grows | Format |
 |---|---|---|
@@ -1062,7 +1068,7 @@ the PR:
 | 4.07 | SWE, density and the conditions record at 8 m and in the 1 m fine tiles (SN-03); the trail grooming setting (SN-22) and the Open / Closed / Auto switch (SN-20) | Snow sidecar (binary, not JSON); the design shape |
 | TD-02 v2 (before 4.12) | The posted rating per trail (GU-17); the true rating is derived, so the Domain change alone bumps nothing but the golden ratings | Design shape |
 | 4.09 | Ice and snow per body; body IDs | Save |
-| 4.11 | Lift schedules and hour overrides (the fields came early: design shape 11, save v11, task 4.03) | Design shape |
+| 4.11 | Lift schedules and hour overrides (the fields came early: design shape 12, save v12, task 4.03) | Design shape |
 | 4.12 | The four band reputations r_b (GU-18), `SeasonHistory` (TM-15); `LocationDraw` per demo package (GU-03) | Sim sidecar; package manifest |
 | 4.14 | Ponds, dams, selected lakes; stream vectors | Design shape; package (WS-08) |
 | 4.15 | Pipes, nodes, pumps, hydrants, guns (each with its `Auto / On / Off` override, SM-02) | Design shape |

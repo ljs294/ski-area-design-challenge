@@ -44,7 +44,7 @@ namespace MountainPlanner.Tests
             var bad = h.Submit(new EditTower(h.Revision, tower, Ft(1450), Ft(105)));
             Say($"  bad    Tower to 105 ft: {bad}");
             var plan = h.Submit(new AddTrail(h.Revision, "Back Bowl", TrailSettings.NaturalRun, Straight(P(2000, 3800), P(2600, 600)),
-                P(2000, 3800), P(2600, 600), WorkStage.Plan));
+                P(2000, 3800), P(2600, 600), WorkStage.Plan, Sign));
             State("Save plan: Back Bowl (natural, orange)");
             h.Submit(new BreakGround(h.Revision, new[] { new TrailId(plan.Created[0]) }, null));
             State("Break ground on the plan");
@@ -82,7 +82,7 @@ namespace MountainPlanner.Tests
             h.Redo();
             h.Submit(new EditTower(h.Revision, h.Document.FindLift(chair).Towers[1].Id, Ft(1450), Ft(45)));
             var plan = h.Submit(new AddTrail(h.Revision, "Back Bowl", TrailSettings.NaturalRun, Straight(P(2000, 3800), P(2600, 600)),
-                P(2000, 3800), P(2600, 600), WorkStage.Plan));
+                P(2000, 3800), P(2600, 600), WorkStage.Plan, Sign));
             h.Submit(new BreakGround(h.Revision, new[] { new TrailId(plan.Created[0]) }, null));
             return h;
         }

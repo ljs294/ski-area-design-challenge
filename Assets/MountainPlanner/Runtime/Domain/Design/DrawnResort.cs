@@ -410,7 +410,7 @@ namespace MountainPlanner.Domain.Design
             var strokes = new List<Stroke> { new Stroke(DesignUnits.FeetToMm(run.WidthFeet), false, points) };
             if (run.IslandAt >= 0) strokes.Add(new Stroke(DesignUnits.FeetToMm(IslandFeet), true, new[] { points[run.IslandAt] }));
             return new AddTrail(revision, run.Name, run.Graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun,
-                                TrailShape.FromStrokes(null, strokes), points[0], points[points.Length - 1], WorkStage.Built);
+                                TrailShape.FromStrokes(null, strokes), points[0], points[points.Length - 1], WorkStage.Built, MountainPlanner.Domain.Measure.SlopeBands.Band.Blue);
         }
 
         /// <summary>A command in as Break ground puts it: the fold's ground for the design with it, accepted with the command.</summary>

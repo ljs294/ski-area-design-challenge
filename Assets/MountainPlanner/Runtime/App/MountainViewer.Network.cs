@@ -163,9 +163,8 @@ namespace MountainPlanner.App
             {
                 if (t.Warning == NetworkWarning.None) continue;
                 var trail = doc.FindTrail(t.Trail);
-                double rating = double.NaN;
-                if (_trailLayer != null && _trailLayer.TryGetFacts(t.Trail, out var f)) rating = f.Rating;
-                warnRows.Add(new NetworkTrailRow { Id = t.Trail.Value, Name = trail?.Name ?? "Trail", RatingPercent = rating, Warning = NetworkReport.Text(t.Warning) });
+                var posted = _sections?.TrailOf(t.Trail)?.Posted ?? trail?.Posted;
+                warnRows.Add(new NetworkTrailRow { Id = t.Trail.Value, Name = trail?.Name ?? "Trail", Posted = posted, Warning = NetworkReport.Text(t.Warning) });
             }
             int junctions = 0, paths = 0;
             foreach (var n in graph.Nodes) if (n.Kind == NodeKind.Junction) junctions++;
@@ -226,10 +225,10 @@ namespace MountainPlanner.App
                 if (trail == null) continue;
                 var line = _netGeometry.CentrelineOf(trail);
                 var pts = Stretch(line, e.StartMm / 1000.0, e.EndMm / 1000.0, Drape);
-                double rating = double.NaN;
-                if (_trailLayer != null && _trailLayer.TryGetFacts(trail.Id, out var f)) rating = f.Rating;
+                // R3: the sign of the trail holding this stretch (a shaped trail's own), else the run's.
+                var posted = _sections?.TrailOf(_sections.SegmentAt(trail.Id, (e.StartMm + e.EndMm) / 2))?.Posted ?? trail.Posted;
                 var status = report.Of(trail.Id);
-                segments.Add(new NetworkView.Segment { Edge = i, Trail = e.Owner, Points = pts, Own = NetworkView.RatingColour(rating), Served = status == null || status.Served });
+                segments.Add(new NetworkView.Segment { Edge = i, Trail = e.Owner, Points = pts, Own = NetworkView.RatingColour(posted), Served = status == null || status.Served });
                 if (!lastOf.TryGetValue(e.Owner, out var last) || graph.Edges[last.Edge].EndMm < e.EndMm) lastOf[e.Owner] = (i, pts);
             }
             var lifts = new List<NetworkView.LiftLine>();
@@ -467,7 +466,7 @@ namespace MountainPlanner.App
             var tail = DesignFrame.ToDesign(b + along * 6.1f + side);
             var parts = TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(60), false, new[] { head, tail }) });
             var history = _edits.History;
-            var cmd = new AddTrail(history.Revision, "Lift Line", TrailSettings.NaturalRun, parts, head, tail, WorkStage.Built);
+            var cmd = new AddTrail(history.Revision, "Lift Line", TrailSettings.NaturalRun, parts, head, tail, WorkStage.Built, MountainPlanner.Domain.Measure.SlopeBands.Band.Blue);
             var after = cmd.Apply(history.Document);
             if (!after.Accepted) { Debug.LogWarning("[Network] -networkdemo: " + after); yield break; }
             var rebuilt = _edits.Earthwork.Rebuild(after.Document, history.Terrain);

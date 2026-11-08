@@ -120,7 +120,7 @@ namespace MountainPlanner.Tests
                     int width = rng.Chance(95) ? Ft(25 + 5 * rng.Int(76)) : Ft(410); // some too wide
                     // A too-wide stroke paints a clearing as wide; the commands check the clearing, not the brush (Shape 8).
                     var parts = TrailShape.FromStrokes(null, new[] { new Stroke(width, false, new[] { head, tail }) });
-                    return new AddTrail(revision, $"Run {rng.Int(1000)}", TrailSettings.GradedRun, parts, ends ? head : (PointMm?)null, ends ? tail : (PointMm?)null, stage);
+                    return new AddTrail(revision, $"Run {rng.Int(1000)}", TrailSettings.GradedRun, parts, ends ? head : (PointMm?)null, ends ? tail : (PointMm?)null, stage, Sign);
                 }
                 case 2:
                     return new RenameTrail(revision, rng.Pick(trails).Id, rng.Chance(90) ? $"Run {rng.Int(1000)}" : "");

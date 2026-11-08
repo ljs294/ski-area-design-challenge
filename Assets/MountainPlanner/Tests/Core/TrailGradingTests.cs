@@ -366,6 +366,18 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void TD02_TheLegacyV1BandIsWhatV03Showed()
+        {
+            // An older save's built trails are posted once at open with the band v0.3 showed (TD-02 v1, (3 × mean + max) / 4
+            // over 75 ft): on a plane both read its grade.
+            var ground = Natural(new Plane(0, 0.3));
+            var (fp, build) = Straight(ground);
+            var rating = TrailRating.Rate(Apply(ground, build.Writes), fp, build.Grade);
+            Assert.That(rating.LegacyV1Percent, Is.EqualTo(30).Within(1));
+            Assert.That(SlopeBands.Of(rating.LegacyV1Percent), Is.EqualTo(rating.Band));
+        }
+
+        [Test]
         public void TD06_TheEstimateReadsThePaintedCells()
         {
             var ground = Natural(new Plane(0.45, 0));
@@ -386,7 +398,7 @@ namespace MountainPlanner.Tests
         static TrailId Add(DesignHistory h, DesignEarthwork work, TrailShape parts, PointMm head, PointMm tail, bool graded = true)
         {
             var cmd = new AddTrail(h.Revision, "Run " + (h.Document.Trails.Count + 1), graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun,
-                                   parts, head, tail, WorkStage.Built);
+                                   parts, head, tail, WorkStage.Built, Sign);
             var after = cmd.Apply(h.Document);
             Assert.That(after.Accepted, Is.True, after.ToString());
             var rebuilt = work.Rebuild(after.Document, h.Terrain);
@@ -552,7 +564,7 @@ namespace MountainPlanner.Tests
         public void TF07_EditTrailChangesFootprintEndsAndSettingsInOneCommand()
         {
             var h = new DesignHistory(DesignDocument.Empty(77));
-            var r = h.Submit(new AddTrail(h.Revision, "Run 1", TrailSettings.NaturalRun, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300), WorkStage.Built));
+            var r = h.Submit(new AddTrail(h.Revision, "Run 1", TrailSettings.NaturalRun, Strip(100, (0, 0), (0, -300)), M(0, 0), M(0, -300), WorkStage.Built, Sign));
             var id = new TrailId(r.Created[0]);
             var before = DesignTestKit.Bytes(h);
             var edit = h.Submit(new EditTrail(h.Revision, id, "Upper Run", Strip(150, (0, 0), (10, -300)), M(0, -5), M(10, -295), TrailSettings.GradedRun, WorkStage.Built));

@@ -357,6 +357,8 @@ namespace MountainPlanner.App
                 _liftRowList.Add(new MountainPlanner.UI.LiftRow
                 {
                     Id = l.Id.Value, Name = l.Name, Model = MountainPlanner.UI.Tools.LiftTypeMenu.ModelName(l.CatalogId),
+                    Kind = MountainPlanner.UI.Tools.LiftTypeMenu.TypeName(l.CatalogId),   // F5
+                    Status = MountainPlanner.UI.OperatingStatusWords.Placeholder(l.Stage == WorkStage.Built),   // F4: until 4.11
                     LengthMetres = slope, VerticalMetres = Math.Abs(vertical), Capacity = type.Capacity,
                     RideSeconds = type.SpeedMetresPerSecond > 0 ? type.RideSeconds(slope) : 0,
                     Towers = l.Towers.Count, Built = l.Stage == WorkStage.Built,

@@ -34,27 +34,29 @@ namespace MountainPlanner.Persistence.Saves
     /// The design's "Cuts" (v7, NT45) are the points the player cut on runs, by run then point.
     /// A trail's "Outline" (v8, sections finding 7) replaces its "Parts" (the strokes it was painted with): its clearing's
     /// rings, each [x0, y0, dx1, dy1, …] on one line, the first point in whole mm from the site's centre (TE5) and each
-    /// later one as the change from the one before. The design's "Hours" (v11, task 4.03, LO-07 v2) are the resort's opening,
+    /// later one as the change from the one before. The design's "Hours" (v12, task 4.03, LO-07 v2) are the resort's opening,
     /// last chair and stop as whole seconds after local midnight on the face clock (whole minutes; 30600, 58500 and 59400 for
-    /// 8:30, 4:15 and 4:30, every v1–v10 save's). A lift's "Schedule" (v11, LO-09) is "daily" or "peak-days" and its "Hours"
-    /// the same three numbers, or null for the resort's (every v1–v10 lift: daily, null). "Sim" (v11, SI-12 v2) names the
+    /// 8:30, 4:15 and 4:30, every v1–v11 save's). A lift's "Schedule" (v12, LO-09) is "daily" or "peak-days" and its "Hours"
+    /// the same three numbers, or null for the resort's (every v1–v11 lift: daily, null). "Sim" (v12, SI-12 v2) names the
     /// simulation's sidecar, { "SidecarVersion", "Sha256" } of sim/&lt;sha256&gt;.sim beside tiles/, or null: no simulation
     /// saved (every v1–v10 save, which opens at the clock's start). A lift's "Drive" (v10, LD9) is the end that drives, "top" or "bottom":
     /// the player's choice on a fixed grip with a head for each end, else the type's own end (a v1–v9 lift: the Sessellift's
-    /// top, the Monta's bottom). A 250 mm cell of the design's frame (cell (i, j) from 250·i to
+    /// top, the Monta's bottom). A trail's and a shaped trail's "Posted" (v11, TD-07) is the rating the player posted,
+    /// "green", "blue", "black" or "double-black", or null until posted (every trail of a v1–v10 save: the game posts an
+    /// older save's built trails once when it opens, as v0.3 showed them). A 250 mm cell of the design's frame (cell (i, j) from 250·i to
     /// 250·(i + 1) mm) is cleared when its centre lies inside the rings by the even-odd rule. Outer rings run
     /// anticlockwise and holes clockwise, each from its lowest point; the writer straightens the cells' outline wherever
     /// that keeps every cell, so the same clearing always gives the same rings.
     /// <code>
     /// { "Version": 11, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
     ///   "Design": { "Shape": 11, "Seed", "NextOrdinal",
-    ///               "Trails": [ { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Outline": [ [...] ] } ],
+    ///               "Trails": [ { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Posted", "Outline": [ [...] ] } ],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
     ///                            "Levels": { "BottomMm", "TopMm" } or null, "Drive", "Schedule", "Hours": {...} or null } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
     ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm", "Dabs": [...] } ],
     ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ],
-    ///               "TrailLines": [ { "Id", "Name", "Spans": [ { "Piece", "From": {...}, "To": {...}, "FromMm", "ToMm" } ] } ],
+    ///               "TrailLines": [ { "Id", "Name", "Posted", "Spans": [ { "Piece", "From": {...}, "To": {...}, "FromMm", "ToMm" } ] } ],
     ///               "Cuts": [ { "Piece", "At" } ],
     ///               "Hours": { "OpenSecond", "LastChairSecond", "StopSecond" } },
     ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] },
@@ -88,7 +90,7 @@ namespace MountainPlanner.Persistence.Saves
                 w.WritePropertyName("HeightsSha256"); w.WriteValue(save.HeightsSha256 ?? "");
                 w.WritePropertyName("Design"); WriteDesign(w, save.Design);
                 w.WritePropertyName("Edits"); WriteTiles(w, edits);
-                w.WritePropertyName("Sim");   // v11 (SI-12 v2)
+                w.WritePropertyName("Sim");   // v12 (SI-12 v2)
                 if (save.Sim is SimSidecarRef sim)
                 {
                     w.WriteStartObject();
@@ -147,6 +149,7 @@ namespace MountainPlanner.Persistence.Saves
                 w.WriteStartObject();
                 w.WritePropertyName("Id"); w.WriteValue(Hex(line.Id.Value));
                 w.WritePropertyName("Name"); w.WriteValue(line.Name);
+                w.WritePropertyName("Posted"); WritePosted(w, line.Posted);   // v11 (TD-07)
                 w.WritePropertyName("Spans");
                 w.WriteStartArray();
                 foreach (var sp in line.Spans)
@@ -173,7 +176,7 @@ namespace MountainPlanner.Persistence.Saves
                 w.WriteEndObject();
             }
             w.WriteEndArray();
-            w.WritePropertyName("Hours"); WriteHours(w, d.Hours);   // v11 (LO-07 v2)
+            w.WritePropertyName("Hours"); WriteHours(w, d.Hours);   // v12 (LO-07 v2)
             w.WriteEndObject();
         }
 
@@ -277,12 +280,27 @@ namespace MountainPlanner.Persistence.Saves
             w.WritePropertyName("Clearing"); w.WriteValue(Words.Clearing(t.Settings.Clearing));
             w.WritePropertyName("Head"); WriteOptPoint(w, t.Head);
             w.WritePropertyName("Tail"); WriteOptPoint(w, t.Tail);
+            w.WritePropertyName("Posted"); WritePosted(w, t.Posted);   // v11 (TD-07)
             // v8 (sections finding 7): the clearing's rings, each [x0, y0, dx1, dy1, …] on one line, deltas from the point before.
             w.WritePropertyName("Outline");
             w.WriteStartArray();
             foreach (var ring in t.Shape.Rings) w.WriteRawValue(RingText(ring));
             w.WriteEndArray();
             w.WriteEndObject();
+        }
+
+        static void WritePosted(JsonWriter w, Domain.Measure.SlopeBands.Band? posted)
+        {
+            if (posted.HasValue) w.WriteValue(Words.Posted(posted.Value));
+            else w.WriteNull();
+        }
+
+        static Domain.Measure.SlopeBands.Band? Posted(JObject o)
+        {
+            var t = Field(o, "Posted");
+            if (t.Type == JTokenType.Null) return null;
+            if (t.Type != JTokenType.String) throw new FormatException("'Posted' isn't text");
+            return Words.Posted((string)t);
         }
 
         static string RingText(PointMm[] ring)
@@ -341,8 +359,8 @@ namespace MountainPlanner.Persistence.Saves
             }
             else w.WriteNull();
             w.WritePropertyName("Drive"); w.WriteValue(Words.Drive(l.Drive));   // v10 (LD9)
-            w.WritePropertyName("Schedule"); w.WriteValue(Words.Schedule(l.Schedule));   // v11 (LO-09)
-            w.WritePropertyName("Hours");   // v11 (LO-07 v2): the lift's own, or null for the resort's
+            w.WritePropertyName("Schedule"); w.WriteValue(Words.Schedule(l.Schedule));   // v12 (LO-09)
+            w.WritePropertyName("Hours");   // v12 (LO-07 v2): the lift's own, or null for the resort's
             if (l.Hours is DayHours own) WriteHours(w, own);
             else w.WriteNull();
             w.WriteEndObject();
@@ -488,7 +506,7 @@ namespace MountainPlanner.Persistence.Saves
                     var so = AsObj(s);
                     spans.Add(new Span(new TrailId(HexValue(Str(so, "Piece"))), ReadAnchor(Obj(so, "From")), ReadAnchor(Obj(so, "To")), Int(so, "FromMm"), Int(so, "ToMm")));
                 }
-                lines.Add(new TrailLine(new TrailLineId(HexValue(Str(lo, "Id"))), Str(lo, "Name"), spans));
+                lines.Add(new TrailLine(new TrailLineId(HexValue(Str(lo, "Id"))), Str(lo, "Name"), spans, Posted(lo)));
             }
             var cuts = new List<TrailCut>();
             foreach (var c in Arr(d, "Cuts")) { var co = AsObj(c); cuts.Add(new TrailCut(new TrailId(HexValue(Str(co, "Piece"))), Point(co, "At"))); }
@@ -545,7 +563,7 @@ namespace MountainPlanner.Persistence.Saves
             }
             var settings = new TrailSettings(Words.Grading(Str(t, "Grading")), Words.Kind(Str(t, "Kind")), Words.Clearing(Str(t, "Clearing")));
             return new Trail(new TrailId(HexValue(Str(t, "Id"))), Str(t, "Name"), Words.Stage(Str(t, "Stage")), settings, TrailShape.FromRings(rings),
-                OptPoint(t, "Head"), OptPoint(t, "Tail"));
+                OptPoint(t, "Head"), OptPoint(t, "Tail"), Posted(t));
         }
 
         /// <summary>A v7 trail's "Parts" (strokes and cuts), read once by the v7 → v8 step.</summary>
@@ -684,6 +702,17 @@ namespace MountainPlanner.Persistence.Saves
 
             public static string Kind(TrailKind v) => v switch { TrailKind.Run => "run", TrailKind.Glade => "glade", TrailKind.Zone => "zone", _ => throw Bad(v) };
             public static TrailKind Kind(string s) => s switch { "run" => TrailKind.Run, "glade" => TrailKind.Glade, "zone" => TrailKind.Zone, _ => throw Unknown(s) };
+
+            public static string Posted(Domain.Measure.SlopeBands.Band v) => v switch
+            {
+                Domain.Measure.SlopeBands.Band.Green => "green", Domain.Measure.SlopeBands.Band.Blue => "blue",
+                Domain.Measure.SlopeBands.Band.Black => "black", Domain.Measure.SlopeBands.Band.DoubleBlack => "double-black", _ => throw Bad(v),
+            };
+            public static Domain.Measure.SlopeBands.Band Posted(string s) => s switch
+            {
+                "green" => Domain.Measure.SlopeBands.Band.Green, "blue" => Domain.Measure.SlopeBands.Band.Blue,
+                "black" => Domain.Measure.SlopeBands.Band.Black, "double-black" => Domain.Measure.SlopeBands.Band.DoubleBlack, _ => throw Unknown(s),
+            };
 
             public static string Clearing(TrailClearing v) => v switch { TrailClearing.Clear => "clear", TrailClearing.Thin => "thin", TrailClearing.None => "none", _ => throw Bad(v) };
             public static TrailClearing Clearing(string s) => s switch { "clear" => TrailClearing.Clear, "thin" => TrailClearing.Thin, "none" => TrailClearing.None, _ => throw Unknown(s) };

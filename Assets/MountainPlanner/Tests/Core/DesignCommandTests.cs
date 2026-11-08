@@ -179,11 +179,11 @@ namespace MountainPlanner.Tests
         public void CF06_APlanWithoutEndsCanBeSavedButNotBuilt()
         {
             var h = new DesignHistory(DesignDocument.Empty(1));
-            var r = h.Submit(new AddTrail(h.Revision, "Run 1", TrailSettings.GradedRun, Straight(P(0, 1000), P(0, 0)), null, null, WorkStage.Plan));
+            var r = h.Submit(new AddTrail(h.Revision, "Run 1", TrailSettings.GradedRun, Straight(P(0, 1000), P(0, 0)), null, null, WorkStage.Plan, Sign));
             Assert.That(r.Accepted, Is.True);
             var id = new TrailId(r.Created[0]);
             Assert.That(h.Submit(new BreakGround(h.Revision, new[] { id }, null)).Accepted, Is.False);
-            Assert.That(h.Submit(new AddTrail(h.Revision, "Run 2", TrailSettings.GradedRun, Straight(P(0, 1000), P(0, 0)), null, null, WorkStage.Built)).Accepted,
+            Assert.That(h.Submit(new AddTrail(h.Revision, "Run 2", TrailSettings.GradedRun, Straight(P(0, 1000), P(0, 0)), null, null, WorkStage.Built, Sign)).Accepted,
                 Is.False);
         }
 
@@ -324,8 +324,8 @@ namespace MountainPlanner.Tests
         public void NamesAreCheckedAndUnknownLiftTypesRefused()
         {
             var h = new DesignHistory(DesignDocument.Empty(1));
-            Assert.That(h.Submit(new AddTrail(h.Revision, " ", TrailSettings.GradedRun, Straight(P(0, 1), P(0, 0)), null, null, WorkStage.Plan)).Accepted, Is.False);
-            Assert.That(h.Submit(new AddTrail(h.Revision, new string('x', 65), TrailSettings.GradedRun, Straight(P(0, 1), P(0, 0)), null, null, WorkStage.Plan)).Accepted,
+            Assert.That(h.Submit(new AddTrail(h.Revision, " ", TrailSettings.GradedRun, Straight(P(0, 1), P(0, 0)), null, null, WorkStage.Plan, Sign)).Accepted, Is.False);
+            Assert.That(h.Submit(new AddTrail(h.Revision, new string('x', 65), TrailSettings.GradedRun, Straight(P(0, 1), P(0, 0)), null, null, WorkStage.Plan, Sign)).Accepted,
                 Is.False);
             Assert.That(h.Submit(new AddLift(h.Revision, "Gondola", "gondola-8", P(0, 0), P(0, 1000), TowerMode.Automatic, TowerStance.Plumb, null,
                 WorkStage.Plan)).Accepted, Is.False, "E13: fixed-grip only");

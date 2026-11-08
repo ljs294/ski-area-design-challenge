@@ -128,7 +128,7 @@ namespace MountainPlanner.Tests
             var before = TerrainEditBytes.Encode(h.Terrain);
 
             var bench = Bench(new EditedHeights(natural.Source, Lattice, h.Terrain));
-            var add = new AddTrail(h.Revision, "Bench", TrailSettings.GradedRun, Straight(P(0, 0), P(0, -1000)), P(0, 0), P(0, -1000), WorkStage.Built);
+            var add = new AddTrail(h.Revision, "Bench", TrailSettings.GradedRun, Straight(P(0, 0), P(0, -1000)), P(0, 0), P(0, -1000), WorkStage.Built, Sign);
             Assert.That(h.Submit(add, bench.Edits).Accepted, Is.True);
             long rev1 = h.TerrainRevision;
             Assert.That(rev1, Is.GreaterThan(rev0));

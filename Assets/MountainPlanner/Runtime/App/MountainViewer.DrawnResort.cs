@@ -241,7 +241,7 @@ namespace MountainPlanner.App
                 {
                     var path = FallLine(head, length);
                     var shape = TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(100), false, path.ToArray()) });
-                    var add = new AddTrail(history.Revision, "Bench " + s, TrailSettings.GradedRun, shape, path[0], path[path.Count - 1], WorkStage.Built);
+                    var add = new AddTrail(history.Revision, "Bench " + s, TrailSettings.GradedRun, shape, path[0], path[path.Count - 1], WorkStage.Built, MountainPlanner.Domain.Measure.SlopeBands.Band.Blue);
                     Split("", 0, false);
                     var rebuilt = AnalyseForBench(add, out double ms);
                     Split(length < 500 ? "1,000 ft" : "1 km", ms, counted);

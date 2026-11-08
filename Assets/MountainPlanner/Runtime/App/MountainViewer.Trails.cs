@@ -68,9 +68,10 @@ namespace MountainPlanner.App
                 _trailLayer.TryGetFacts(t.Id, out var f);
                 _trailRows.Add(new MountainPlanner.UI.TrailRow
                 {
-                    Id = t.Id.Value, Name = t.Name, RatingPercent = f.Rating, MeanPercent = f.Mean, SteepestPercent = f.Steepest,
+                    Id = t.Id.Value, Name = t.Name, Posted = t.Posted, RatingPercent = f.Rating, MeanPercent = f.Mean, SteepestPercent = f.Steepest,
                     LengthMetres = f.LengthMetres, VerticalMetres = Math.Abs(f.DropMetres),
                     Graded = t.Settings.Grading == TrailGrading.Graded, Built = t.Stage == WorkStage.Built,
+                    Status = MountainPlanner.UI.OperatingStatusWords.Placeholder(t.Stage == WorkStage.Built),   // F1/F4: until 4.07/4.17
                 });
             }
             Hud.SetTrails(_trailRows);
@@ -94,7 +95,9 @@ namespace MountainPlanner.App
             _captureTrails++;
             Hud.SetToolboxTab("trails");
             Hud.SetToolbox(true);
-            bool built = TrailReviewForCapture() && _tools.Confirm(WorkStage.Built)?.Accepted == true;
+            bool reviewed = TrailReviewForCapture();
+            (_tools.Active as MountainPlanner.UI.Tools.TrailTool)?.PostForCapture(MountainPlanner.Domain.Measure.SlopeBands.Band.Blue);   // TD-07
+            bool built = reviewed && _tools.Confirm(WorkStage.Built)?.Accepted == true;
             _tools.Close();
             Hud.SetToolbox(false);
             return built;
@@ -644,7 +647,7 @@ namespace MountainPlanner.App
                     }
                     // The mixed run goes in Natural, so its edit can grade it (NT47: a built graded trail can't go back).
                     var add = new AddTrail(history.Revision, "Bench " + s, mixed ? TrailSettings.NaturalRun : TrailSettings.GradedRun, TrailShape.FromStrokes(null, strokes),
-                                           path[0], path[path.Count - 1], WorkStage.Built);
+                                           path[0], path[path.Count - 1], WorkStage.Built, MountainPlanner.Domain.Measure.SlopeBands.Band.Blue);
                     var rebuilt = AnalyseForBench(add, out double ms);
                     if (counted) previewList.Add(ms);
                     yield return null;

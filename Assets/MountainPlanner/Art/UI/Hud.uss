@@ -325,7 +325,9 @@
 .hud .tool--dis .tool__glyph, .hud .tool--dis .tool__label { color: var(--faint); -unity-text-outline-color: var(--faint); }
 
 /* ---------- Analysis (.pn.ana) ---------- */
-.hud .ana { position: absolute; left: 10px; bottom: 62px; width: 568px; }
+.hud .ana { position: absolute; left: 10px; bottom: 62px; width: 660px; max-width: 96%; max-height: 86%; }   /* 4.21 F6: 568 -> 660 for the lift list's eight columns */
+/* 4.21: a long list gives way (its rows scroll) before the window runs off the top at large UI scales */
+.hud #analysis-body { flex-shrink: 1; min-height: 0; }
 .hud .hd-icon { width: 18px; height: 18px; margin-right: 8px; color: var(--text); -unity-text-outline-color: var(--text); }
 .hud .empty { padding: 14px 12px 16px 12px; font-size: 12.5px; white-space: normal; color: var(--muted); -unity-text-outline-color: var(--muted); }
 

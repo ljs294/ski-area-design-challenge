@@ -24,9 +24,10 @@ namespace MountainPlanner.Tests
         // Shape 9 (task 15 round 4, owner BR22 2026-10-29; save v9 reserved by the Master Planner): each stroke's clearing depth,
         // none here, so only the shape number moved; from 315f1a24….
         // Shape 10 (lift overhaul B2, owner LD9; save v10 cleared by the Master Planner): each lift's drive end; from f455bf99….
-        // Shape 11 (task 4.03, owner 2026-11-08: LO-07 v2, LO-09): the resort's hours and each lift's schedule and own hours,
-        // all at their defaults here; from b4e85694….
-        const string GoldenSha = "6b95c44af5e4f83fd092dc939dab48b1f0cef9dab3597fa4cf6d5bb22a3c21a5";
+        // Shape 11 (task 4.21, TD-07): each trail's and shaped trail's posted byte, the scripted trails posted ■; from b4e85694….
+        // Shape 12 (task 4.03, owner 2026-11-08: LO-07 v2, LO-09): the resort's hours and each lift's schedule and own hours,
+        // all at their defaults here; from 9992c612….
+        const string GoldenSha = "be70d92ad3271e90499de259d16937336ace32cf3c6faa3b1213b6eeff472091";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()
@@ -69,13 +70,13 @@ namespace MountainPlanner.Tests
             // The authored shape, property by property (SH-05, NW-06, TW-15). A new property is a format change for
             // task 04 (bump ShapeVersion, migrate, fixture) and must never be derived data.
             AssertProperties(typeof(DesignDocument), "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "Lines", "Cuts", "Hours");
-            AssertProperties(typeof(TrailLine), "Id", "Name", "Spans");   // NT43: a shaped trail, spans of runs top first
+            AssertProperties(typeof(TrailLine), "Id", "Name", "Spans", "Posted");   // NT43: a shaped trail, spans of runs top first; TD-07 its sign
             AssertFields(typeof(Span), "Piece", "From", "To", "FromMm", "ToMm");
             AssertFields(typeof(Anchor), "Kind", "Other", "End", "K", "At");
             AssertFields(typeof(TrailCut), "Piece", "At");
             AssertProperties(typeof(AreaRecord), "Id", "Name", "Ends");   // NW-15 (task P3-10): the player's names, not the hubs
             AssertFields(typeof(AreaEnd), "Lift", "Bottom");
-            AssertProperties(typeof(Trail), "Id", "Name", "Stage", "Settings", "Shape", "Head", "Tail", "HasEnds");
+            AssertProperties(typeof(Trail), "Id", "Name", "Stage", "Settings", "Shape", "Head", "Tail", "HasEnds", "Posted");
             AssertProperties(typeof(FootprintPart), "Strokes", "Cuts");
             AssertProperties(typeof(Stroke), "WidthMm", "Erase", "Points");
             AssertProperties(typeof(Lift), "Id", "Name", "Stage", "CatalogId", "Bottom", "Top", "TowerMode", "Stance", "Towers",
@@ -88,7 +89,7 @@ namespace MountainPlanner.Tests
             AssertProperties(typeof(TerrainStroke), "Id", "Settings", "Dabs");
             AssertFields(typeof(BrushSettings), "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm", "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm");
             AssertFields(typeof(BrushDab), "At", "WeightPermille");
-            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(11));
+            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(12));   // 11: TD-07, posted ratings (4.21); 12: the hours (4.03)
         }
 
         static void AssertProperties(Type type, params string[] names)
@@ -151,7 +152,7 @@ namespace MountainPlanner.Tests
             var t = h.Document.FindTrail(built);
             var edit = h.Submit(new EditTrail(h.Revision, built, t.Name, t.Shape, t.Head.Value, t.Tail.Value, TrailSettings.NaturalRun, WorkStage.Built));
             Assert.That(edit.Accepted, Is.False, "Edit trail can't ungrade a built trail either");
-            var natural = h.Submit(new AddTrail(h.Revision, "Run 3", TrailSettings.NaturalRun, Straight(P(900, 1000), P(900, 0)), P(900, 1000), P(900, 0), WorkStage.Built));
+            var natural = h.Submit(new AddTrail(h.Revision, "Run 3", TrailSettings.NaturalRun, Straight(P(900, 1000), P(900, 0)), P(900, 1000), P(900, 0), WorkStage.Built, Sign));
             var id = new TrailId(natural.Created[0]);
             Assert.That(h.Submit(new SetTrailSettings(h.Revision, id, TrailSettings.GradedRun)).Accepted, Is.True, "a built natural trail can be graded later");
         }

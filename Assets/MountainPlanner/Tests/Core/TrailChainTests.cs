@@ -49,7 +49,7 @@ namespace MountainPlanner.Tests
 
         static TrailId Add(DesignHistory h, DesignEarthwork work, TrailShape parts, PointMm head, PointMm tail, bool graded = true) =>
             new TrailId(Commit(h, work, new AddTrail(h.Revision, "Run " + (h.Document.Trails.Count + 1),
-                graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun, parts, head, tail, WorkStage.Built)).Created[0]);
+                graded ? TrailSettings.GradedRun : TrailSettings.NaturalRun, parts, head, tail, WorkStage.Built, Sign)).Created[0]);
 
         static TerrainEdits Fresh(IHeightSource g, DesignDocument doc)
         {

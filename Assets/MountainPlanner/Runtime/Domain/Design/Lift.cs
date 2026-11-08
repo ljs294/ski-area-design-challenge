@@ -218,9 +218,9 @@ namespace MountainPlanner.Domain.Design
         /// <summary>LD9 (save v10): the end that drives; always the type's own end where the player doesn't choose
         /// (<see cref="LiftCatalogIds.DriveChoice"/>).</summary>
         public LiftDrive Drive { get; }
-        /// <summary>LO-09 (design shape 11): every operating day, or peak days only. Read from task 4.11.</summary>
+        /// <summary>LO-09 (design shape 12): every operating day, or peak days only. Read from task 4.11.</summary>
         public LiftSchedule Schedule { get; }
-        /// <summary>LO-07 v2 (design shape 11): this lift's own hours, or null for the resort's. Read from task 4.11.</summary>
+        /// <summary>LO-07 v2 (design shape 12): this lift's own hours, or null for the resort's. Read from task 4.11.</summary>
         public DayHours? Hours { get; }
 
         readonly Tower[] _towers;

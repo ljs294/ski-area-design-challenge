@@ -54,6 +54,7 @@ namespace MountainPlanner.Domain.Design
                     w.I32(sp.FromMm);
                     w.I32(sp.ToMm);
                 }
+                w.U8(PostedByte(line.Posted));   // shape 11 (TD-07)
             }
             w.I32(doc.Cuts.Count);    // shape 7 (NT45): the points cut on runs
             foreach (var c in doc.Cuts)
@@ -61,7 +62,7 @@ namespace MountainPlanner.Domain.Design
                 w.U64(c.Piece.Value);
                 w.Point(c.At);
             }
-            WriteHours(w, doc.Hours);   // shape 11 (LO-07 v2): the resort's hours
+            WriteHours(w, doc.Hours);   // shape 12 (LO-07 v2): the resort's hours
             return w.ToArray();
         }
 
@@ -131,11 +132,11 @@ namespace MountainPlanner.Domain.Design
                     var to = ReadAnchor(r);
                     spans[k] = new Span(piece, from, to, r.I32(), r.I32());
                 }
-                lines[i] = new TrailLine(id, name, spans);
+                lines[i] = new TrailLine(id, name, spans, ReadPosted(r));
             }
             var cuts = new TrailCut[r.Count(1 << 20)];
             for (int i = 0; i < cuts.Length; i++) cuts[i] = new TrailCut(new TrailId(r.U64()), r.Point());
-            var hours = ReadHours(r);   // shape 11
+            var hours = ReadHours(r);   // shape 12
             if (!r.AtEnd) throw new FormatException("Trailing bytes after the design document.");
             var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, hours);
             // Canonical means written in order: a reordered file is not this format.
@@ -167,6 +168,17 @@ namespace MountainPlanner.Domain.Design
                 w.I32(ring.Length);
                 foreach (var p in ring) w.Point(p);
             }
+            w.U8(PostedByte(t.Posted));   // shape 11 (TD-07)
+        }
+
+        // TD-07: 0 not posted, else the band + 1.
+        static byte PostedByte(Measure.SlopeBands.Band? posted) => posted.HasValue ? (byte)((int)posted.Value + 1) : (byte)0;
+
+        static Measure.SlopeBands.Band? ReadPosted(Reader r)
+        {
+            byte b = r.U8();
+            if (b > 4) throw new FormatException("A trail's posted rating isn't one this build knows.");
+            return b == 0 ? (Measure.SlopeBands.Band?)null : (Measure.SlopeBands.Band)(b - 1);
         }
 
         static Trail ReadTrail(Reader r)
@@ -184,7 +196,7 @@ namespace MountainPlanner.Domain.Design
                 for (int k = 0; k < ring.Length; k++) ring[k] = r.Point();
                 rings[i] = ring;
             }
-            return new Trail(id, name, stage, settings, TrailShape.FromRings(rings), head, tail);
+            return new Trail(id, name, stage, settings, TrailShape.FromRings(rings), head, tail, ReadPosted(r));
         }
 
         static void WriteLift(Writer w, Lift l)
@@ -213,8 +225,8 @@ namespace MountainPlanner.Domain.Design
                 w.I32(v.TopMm);
             }
             w.U8((byte)l.Drive);   // shape 10 (LD9)
-            w.U8((byte)l.Schedule);   // shape 11 (LO-09)
-            w.U8((byte)(l.Hours.HasValue ? 1 : 0));   // shape 11 (LO-07 v2): the lift's own hours, or the resort's
+            w.U8((byte)l.Schedule);   // shape 12 (LO-09)
+            w.U8((byte)(l.Hours.HasValue ? 1 : 0));   // shape 12 (LO-07 v2): the lift's own hours, or the resort's
             if (l.Hours is DayHours h) WriteHours(w, h);
         }
 

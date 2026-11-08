@@ -13,13 +13,13 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 11;
+        public const int CurrentVersion = 12;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven, UpToTwelve);
 
         /// <summary>
         /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
@@ -162,16 +162,31 @@ namespace MountainPlanner.Persistence.Saves
         }
 
         /// <summary>
-        /// v10 → v11 (task 4.03, owner 2026-11-08: LO-07 v2, LO-09, SI-12 v2): the design's shape 10 → 11, where the resort keeps
-        /// its hours and each lift its schedule and own hours, and the save names its simulation sidecar. Before v11 the hours
-        /// were always 8:30, 4:15 and 4:30, every lift ran daily on them, and no simulation was saved, so an older save opens
-        /// as it stood, at the clock's start (TM-11).
+        /// v10 → v11 (task 4.21, TD-07): the design's shape 10 → 11, where each trail and each shaped trail carries the rating
+        /// the player posted. Nothing was posted before v11, so every one opens unposted (null); the game then posts an older
+        /// save's built trails once, as v0.3 rated them (TD-02 v1), so none changes colour (the JSON has no ground to rate on).
         /// </summary>
         static void UpToEleven(JObject o)
         {
-            if (o["Sim"] == null) o["Sim"] = JValue.CreateNull();
             if (!(o["Design"] is JObject design)) return;
             design["Shape"] = 11;
+            foreach (string list in new[] { "Trails", "TrailLines" })
+                if (design[list] is JArray items)
+                    foreach (var item in items)
+                        if (item is JObject x && x["Posted"] == null) x["Posted"] = JValue.CreateNull();
+        }
+
+        /// <summary>
+        /// v11 → v12 (task 4.03, owner 2026-11-08: LO-07 v2, LO-09, SI-12 v2): the design's shape 11 → 12, where the resort keeps
+        /// its hours and each lift its schedule and own hours, and the save names its simulation sidecar. Before v12 the hours
+        /// were always 8:30, 4:15 and 4:30, every lift ran daily on them, and no simulation was saved, so an older save opens
+        /// as it stood, at the clock's start (TM-11).
+        /// </summary>
+        static void UpToTwelve(JObject o)
+        {
+            if (o["Sim"] == null) o["Sim"] = JValue.CreateNull();
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 12;
             if (design["Hours"] == null)
                 design["Hours"] = new JObject
                 {
@@ -204,7 +219,7 @@ namespace MountainPlanner.Persistence.Saves
         /// <summary>The committed terrain edits over the package (task 05's 64 m tiles, TE1): heights and clearing.</summary>
         public TerrainEdits Edits { get; set; } = TerrainEdits.Empty;
         /// <summary>
-        /// SI-12 v2 (save v11): the simulation's sidecar file, sim/&lt;sha256&gt;.sim beside tiles/, or null when no simulation
+        /// SI-12 v2 (save v12): the simulation's sidecar file, sim/&lt;sha256&gt;.sim beside tiles/, or null when no simulation
         /// was saved. Persistence stores and checks the file but never reads it: the sidecar's reader lives in Simulation,
         /// which Persistence may not reference (0.3 §2). Task 4.03's PR B writes it; until then every save writes null.
         /// </summary>
@@ -219,7 +234,7 @@ namespace MountainPlanner.Persistence.Saves
         public string Recovered { get; internal set; } = "";
     }
 
-    /// <summary>save.json's "Sim" (v11): the simulation sidecar's format version and content hash (lowercase hex SHA-256).</summary>
+    /// <summary>save.json's "Sim" (v12): the simulation sidecar's format version and content hash (lowercase hex SHA-256).</summary>
     public readonly struct SimSidecarRef : IEquatable<SimSidecarRef>
     {
         public readonly int SidecarVersion;

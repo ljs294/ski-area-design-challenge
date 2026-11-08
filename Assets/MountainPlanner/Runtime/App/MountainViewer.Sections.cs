@@ -41,7 +41,7 @@ namespace MountainPlanner.App
                 var pts = new List<Vector2>();
                 var joins = new List<int>();
                 TrailId last = default;
-                double metres = 0, rating = double.NaN, steepest = double.NaN, meanSum = 0, meanLength = 0;
+                double metres = 0, rating = double.NaN, meanSum = 0, meanLength = 0;
                 bool graded = false, any = false;
                 foreach (var s in t.Segments)
                 {
@@ -58,31 +58,38 @@ namespace MountainPlanner.App
                     metres += m;
                     any = true;
                     graded |= piece.Settings.Grading == TrailGrading.Graded;
-                    // The trail's figures from its runs' (NT34): the hardest run's rating and steepest, a length-weighted mean.
+                    // A length-weighted mean of its runs'; a plan's estimate is its hardest run's (TD-06).
                     if (_trailLayer.TryGetFacts(s.Piece, out var f))
                     {
-                        if (!double.IsNaN(f.Rating) && (double.IsNaN(rating) || f.Rating > rating)) rating = f.Rating;
-                        if (!double.IsNaN(f.Steepest) && (double.IsNaN(steepest) || f.Steepest > steepest)) steepest = f.Steepest;
+                        if (f.Result == null && !double.IsNaN(f.Rating) && (double.IsNaN(rating) || f.Rating > rating)) rating = f.Rating;
                         if (!double.IsNaN(f.Mean)) { meanSum += f.Mean * m; meanLength += m; }
                     }
                 }
                 if (!any || pts.Count < 2) continue;
+                // R4 (owner, 2026-11-08): the game's own rating is the steepest 150 ft of this trail's own segments (TD-02 v2).
+                if (t.Built)
+                {
+                    var pitch = TrailRating.OfTrail(t.Segments, p => _trailLayer.TryGetFacts(p, out var pf) ? pf.Result : null);
+                    rating = pitch.IsNone ? double.NaN : pitch.Percent;
+                }
+                LogTrueRating(t, rating);
                 var whole = pts.ToArray();
                 float top = ground.HeightAt(whole[0].x, whole[0].y), bottom = ground.HeightAt(whole[whole.Length - 1].x, whole[whole.Length - 1].y);
                 // Findings 5 and 6: its turns onto other runs rounded, and stopped 50 ft short of its top and bottom.
                 var drawn = TrailLineShape.Trim(TrailLineShape.RoundJoins(whole, joins));
-                lines.Add((drawn, TrailMapView.InkOf(t.Built, rating)));
+                lines.Add((drawn, TrailMapView.InkOf(t.Built, t.Posted)));   // R3: what the player posted
                 ulong id = t.Id.Value;
                 _trailRowAt[id] = (t.Segments[0].Piece, t.Segments[0].StartMm);
                 _trailRowLine[id] = drawn;
                 _trailRowBounds[id] = BoundsOf(drawn);
-                string symbol = t.Built && !double.IsNaN(rating) ? TrailMapView.Symbol(SlopeBands.Of(rating)) + " " : "";
+                string symbol = t.Built && t.Posted.HasValue ? TrailMapView.Symbol(t.Posted.Value) + " " : "";
                 _trailLabelSpots.Add((symbol + t.Name, _trailLayer.LabelSpots(drawn), metres));
                 _trailRows.Add(new MountainPlanner.UI.TrailRow
                 {
-                    Id = id, Name = t.Name, RatingPercent = rating, MeanPercent = meanLength > 0 ? meanSum / meanLength : double.NaN, SteepestPercent = steepest,
+                    Id = id, Name = t.Name, Posted = t.Posted, RatingPercent = rating, MeanPercent = meanLength > 0 ? meanSum / meanLength : double.NaN, SteepestPercent = rating,
                     LengthMetres = metres, VerticalMetres = float.IsNaN(top) || float.IsNaN(bottom) ? double.NaN : Math.Abs(top - bottom),
                     Graded = graded, Built = t.Built,
+                    Status = MountainPlanner.UI.OperatingStatusWords.Placeholder(t.Built),   // F1/F4: until 4.07/4.17 open trails
                 });
             }
             _trailLayer.SetTrailLines(lines, covered);
@@ -98,6 +105,18 @@ namespace MountainPlanner.App
                 WireTrailList();
                 Hud.SetTrails(_trailRows);
             }
+        }
+
+        readonly Dictionary<ulong, (SlopeBands.Band? Posted, long Tenths)> _trueLogged = new Dictionary<ulong, (SlopeBands.Band?, long)>();
+
+        // The dev switch (TD-07, R6): one log line per built trail whenever its true rating or sign changes.
+        void LogTrueRating(ResolvedTrail t, double rating)
+        {
+            if (!TrueRating.Shown || !t.Built || double.IsNaN(rating)) return;
+            long tenths = (long)Math.Round(rating * 10);
+            if (_trueLogged.TryGetValue(t.Id.Value, out var was) && was.Posted == t.Posted && was.Tenths == tenths) return;
+            _trueLogged[t.Id.Value] = (t.Posted, tenths);
+            Debug.Log($"[TrueRating] {t.Name}: posted {TrailTool.Posted(t.Posted)}; game rates it {TrailTool.GameRates(rating, t.Posted)}");
         }
 
         // The stretch of a drawn line between two fractions of its length, appended (the shared point once).

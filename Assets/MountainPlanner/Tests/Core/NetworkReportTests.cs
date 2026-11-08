@@ -81,7 +81,7 @@ namespace MountainPlanner.Tests
             chair = AddLift(h, "Chair", P(0, 0), P(0, 3000));
             main = AddTrail(h, "Main", P(20, 2990), P(20, 10));
             var r = h.Submit(new AddTrail(h.Revision, "Spur", TrailSettings.GradedRun, Straight(P(1500, 3000), P(25, 1500), 60),
-                                          P(1500, 3000), P(25, 1500), WorkStage.Built));
+                                          P(1500, 3000), P(25, 1500), WorkStage.Built, Sign));
             Assert.That(r.Accepted, Is.True, r.ToString());
             spur = new TrailId(r.Created[0]);
             return h.Document;
@@ -111,7 +111,7 @@ namespace MountainPlanner.Tests
             // 25 ft wide, their heads 56 ft apart and running apart: no overlap and no path between them
             TrailId Narrow(string name, PointMm head, PointMm tail)
             {
-                var r = h.Submit(new AddTrail(h.Revision, name, TrailSettings.GradedRun, Straight(head, tail, 25), head, tail, WorkStage.Built));
+                var r = h.Submit(new AddTrail(h.Revision, name, TrailSettings.GradedRun, Straight(head, tail, 25), head, tail, WorkStage.Built, Sign));
                 Assert.That(r.Accepted, Is.True, r.ToString());
                 return new TrailId(r.Created[0]);
             }
@@ -131,7 +131,7 @@ namespace MountainPlanner.Tests
             var chair = AddLift(h, "Chair", P(0, 0), P(0, 3000));
             var main = AddTrail(h, "Main", P(20, 2990), P(20, 10));
             var r = h.Submit(new AddTrail(h.Revision, "Branch", TrailSettings.GradedRun, Straight(P(25, 1500), P(1500, 0), 60),
-                                          P(25, 1500), P(1500, 0), WorkStage.Built));
+                                          P(25, 1500), P(1500, 0), WorkStage.Built, Sign));
             Assert.That(r.Accepted, Is.True, r.ToString());
             var branch = new TrailId(r.Created[0]);
             var report = NetworkReport.Build(h.Document, new TrailNetworkGeometry(Site));

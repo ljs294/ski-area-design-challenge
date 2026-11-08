@@ -3,7 +3,7 @@ using System;
 namespace MountainPlanner.Domain.Design
 {
     /// <summary>
-    /// LO-07 v2 (owner, 2026-11-08, task 4.03; design shape 11): a day's hours on the face clock, as seconds after local
+    /// LO-07 v2 (owner, 2026-11-08, task 4.03; design shape 12): a day's hours on the face clock, as seconds after local
     /// midnight: the opening, the last chair and the stop. The resort's own hours are the player's to choose, within daylight
     /// (TM-02 v2: the day rate runs from opening to stop, so a longer day plays longer); a lift may carry its own (4.11 reads
     /// them). Whole minutes only, opening before last chair, last chair no later than the stop.
@@ -48,7 +48,7 @@ namespace MountainPlanner.Domain.Design
         static string Clock(int s) => $"{s / 3600:D2}:{s / 60 % 60:D2}";
     }
 
-    /// <summary>LO-09 (owner, 2026-11-07; design shape 11): when a lift runs. Values are saved: never renumber.</summary>
+    /// <summary>LO-09 (owner, 2026-11-07; design shape 12): when a lift runs. Values are saved: never renumber.</summary>
     public enum LiftSchedule : byte
     {
         /// <summary>Every operating day.</summary>

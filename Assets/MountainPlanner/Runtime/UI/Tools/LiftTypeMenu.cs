@@ -83,6 +83,30 @@ namespace MountainPlanner.UI.Tools
             return (m >= 0 ? MakerNames[m] + " " : "") + LiftType.Of(catalogId).Name.ToLowerInvariant();
         }
 
+        /// <summary>
+        /// A type's kind as players say it, the card's subtitle under the lift's name (4.21 finding F5, owner 2026-11-08):
+        /// "Fixed-Grip Quad", "Detachable Six Pack", "T-Bar", "Magic Carpet". The model row names its maker.
+        /// </summary>
+        public static string TypeName(string catalogId)
+        {
+            if (LiftCatalogIds.IsBelt(catalogId)) return LiftCatalogIds.IsDoubleBelt(catalogId) ? "Double Magic Carpet" : "Magic Carpet";
+            string carrier = LiftCatalogIds.Carrier(catalogId) ?? "";
+            switch (carrier)
+            {
+                case "fixed-double": return "Fixed-Grip Double";
+                case "fixed-triple": return "Fixed-Grip Triple";
+                case "fixed-quad": return "Fixed-Grip Quad";
+                case "detach-quad": return "Detachable Quad";
+                case "detach-six": return "Detachable Six Pack";
+                case "detach-eight": return "Detachable Eight";
+                case "tbar": return "T-Bar";
+                case "jbar": return "J-Bar";
+            }
+            if (carrier.StartsWith("gondola-", StringComparison.Ordinal)) return "Gondola";
+            if (carrier.StartsWith("tram-", StringComparison.Ordinal)) return "Aerial Tram";
+            return "Lift";
+        }
+
         // The types with models of their own, by their model names (the D6, LT41; the doubles and triples, LD1).
         static string OwnName(string id) =>
             id == LiftCatalogIds.SesselliftD6 ? "Sessellift D6" : id == LiftCatalogIds.SesselliftD4 ? "Sessellift D4"

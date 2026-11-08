@@ -228,7 +228,7 @@ namespace MountainPlanner.Tests
                 {
                     var path = FallLine(hx, hz, length);
                     var shape = TrailShape.FromStrokes(null, new[] { new Stroke(DesignUnits.FeetToMm(100), false, path.ToArray()) });
-                    var add = new AddTrail(history.Revision, "Bench " + s, TrailSettings.GradedRun, shape, path[0], path[path.Count - 1], WorkStage.Built);
+                    var add = new AddTrail(history.Revision, "Bench " + s, TrailSettings.GradedRun, shape, path[0], path[path.Count - 1], WorkStage.Built, DesignTestKit.Sign);
                     CommitAndUndo(add, Preview($"spot {s}: new {length:F0} m trail", add));
                 }
                 {

@@ -152,10 +152,18 @@ ruled differently. No archived code is copied; the rules are stated here as pros
   - Ungraded stretches read natural ground.
   - **v2** (owner, task 08, TL15): a benched station reads only its bench, the running surface; the 1:1 faces don't
     count, so grading never makes a trail rate harder than its natural ground.
-- **TD-02 v1, rating value:** (3 × mean + max) / 4, in percent.
-  - The mean is the station medians' length-weighted mean.
-  - The max is the steepest 75 ft (23 m) window, three stations averaged, so one bumpy cell can't set the rating.
-  - Sustained pitch counts three times the steepest stretch (0.1 §6.2).
+- **TD-02 v2, the true rating (task 4.21, GU-17; owner 2026-11-07 and R4, 2026-11-08):** the **steepest sustained
+  pitch**, the mean of the steepest 150 ft (46 m) window of the station medians, six 25 ft stations in a row
+  (`TrailRating.SustainedStations`). A trail shorter than 150 ft is rated on all its stations.
+  - It's what the game calculates: a green trail with a 150 ft cliff band in it is a hard trail. A shorter spike is
+    diluted by the window.
+  - A trail is rated **purely on its own segments' stations** (NW-08), joined top first, never on the rest of the runs
+    they're cut from.
+  - It's a Domain constant, not a simulation pacing value, so tuning the simulation never changes a rating.
+  - The length-weighted mean is still worked out and shown as the trail's average grade.
+  - It's **hidden from players** (TD-07); 4.12's gate reads it.
+- *TD-02 v1 (P3-02 to v0.3.2, superseded):* (3 × mean + max) / 4, the max being the steepest 75 ft (three stations).
+  It's kept only to post an older save's trails once, as v0.3 showed them (TD-07).
 - **TD-03, bands:** the slope layer's bands (`SlopeBands`).
 
   | Value | Rating | Symbol |
@@ -165,17 +173,34 @@ ruled differently. No archived code is copied; the rules are stated here as pros
   | 40–60% | Most difficult | ◆ black |
   | 60% and over | Experts only | ◆◆ double black |
 
-- **TD-04, live:** the rating updates with every grading change and is shown in review and in the trail's inspector.
+- **TD-04, live:** the rating updates with every grading change. Since TD-07 it's shown only with the dev switch.
 - **TD-05, not difficulty:** snow conditions, grooming and width don't change the rating. They feed a separate
   conditions rating with the simulation, from the one snow conditions map (Phase 4).
-- **TD-06 v1, the estimate while painting:** before a head and tail exist, there's no centreline.
-  - The estimate reads every 1 m cell in the footprint, on natural ground: **(3 × the mean + the 90th percentile) /
-    4**.
-  - The 90th percentile stands in for the steepest stretch. A plain maximum would jump at a few steep edge cells, and
-    the mean alone would hide a short headwall.
-  - It's kept as a running slope histogram, updated after each stroke over the cells the stroke touched. A 1,000 ×
-    100 ft trail is about 9,300 cells, a fraction of a millisecond.
-  - TD-02 replaces it once the head and tail are set.
+- **TD-06 v2, the estimate while painting (task 4.21, owner R5):** before a head and tail exist, there's no centreline.
+  - The estimate is the mean natural slope of the painted cells in the **steepest 150 ft square** (46 × 46 cells)
+    centred on a painted cell, so it finds a short headwall as TD-02 v2 does.
+  - A square counts only if it holds at least ¾ as many painted cells as the fullest one, so a few steep edge cells
+    can't decide it. A footprint smaller than the square reads its mean.
+  - Sliding column sums over the footprint's box, with pooled buffers: no allocation per stroke.
+  - TD-02 replaces it once the head and tail are set. Like TD-02, it's shown only with the dev switch (TD-07).
+- **TD-07, the posted rating (task 4.21; owner R1–R3, R6, 2026-11-08):** the sign the player posts for each trail,
+  ● ■ ◆ ◆◆, the one guests read.
+  - **There's no Auto.** A trail must be posted before it's built (Break ground refuses an unposted trail). Nothing is
+    preselected; a plan may stay unposted.
+  - It's set in the trail's **build and edit flow**: New trail's window, Edit trail (one undo step with the edit; a
+    regrade never changes it), and Edit sections (part of Done's step). A trail broken in two (NT28) keeps it on both
+    pieces; a stretch taken out keeps the sign of the trail it left. The card is read only.
+  - **Everything shows what the player posted:** the map line and label, the trail list, the card and the Network
+    layer. A built trail with no sign (an older save opened after a change) is drawn plain until posted.
+  - **The true rating (TD-02 v2) is hidden:** players "guess and hope that guests like it". Hidden with it: the
+    steepest 150 ft number and box, the review's and profile's rating, and TD-06's estimate. Still shown: length,
+    vertical, average grade, the profile's ground and per-station slope colours (the Slope angle layer's).
+  - **The dev switch `-truerating`** shows what the game calculates: "Game rates it" on the card and in the review, the
+    profile's steepest 150 ft box and label, TD-06's estimate, and one log line per trail when it changes.
+  - **Saved** in the design shape (11) and save v11: `"Posted": "green" | "blue" | "black" | "double-black" | null`.
+  - **Older saves:** the game posts each built trail once when the save opens, with the band v0.3 showed (TD-02 v1;
+    a shaped trail its hardest run's), in memory, so no trail changes colour; the file is unchanged until saved. If the
+    design changes before that runs, the trails stay unposted and a toast asks the player to post them.
 
 ### 4.3 Grading (GR)
 
@@ -886,8 +911,8 @@ only where they touch, cross or share a station. The rules below stay for when p
     nearest the terminal; the station is that stop. A trail end in a station attaches to it (no 30 ft limit there).
 - **NW-08, segments:**
   - Each trail's centreline is cut at its junctions and path ends into **segments**, the network's edges.
-  - Each segment has its own rating (TD-02 on its stations), kept for guests later. The player sees one rating per
-    trail.
+  - Each segment has its own rating (TD-02 v2 on its own stations), kept for guests later. The player sees one posted
+    sign per trail (TD-07).
 - **NW-09, one trail, one line:** however many segments a trail has, the map draws it as **one line** with one name and
   one symbol.
 - **NW-10, split and join:** two tools that change trail names and boundaries, never ground.
@@ -909,7 +934,7 @@ only where they touch, cross or share a station. The rules below stay for when p
     trail's top or bottom, from any trail, even its middle; right-click takes one out) and Cut (adds a node; a cut node
     can be rejoined). One session is one undoable step; names shown and editable before Done.
   - **No ground changes:** membership is naming only, and only a cut can be rejoined, so the ground stays as built (NT2,
-    NT31). A trail is rated over its whole length (NT34).
+    NT31). A trail is rated over its whole length, on its own segments only (NT34; TD-02 v2, R4).
 - **NW-11, cat tracks:** a cat track is a narrow graded run (TR-06), not a separate network piece. It joins the network
   like any trail.
 - **NW-12, warnings:**

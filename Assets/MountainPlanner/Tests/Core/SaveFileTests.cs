@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Measure;
 using MountainPlanner.Domain.Edits;
 using MountainPlanner.Persistence;
 using MountainPlanner.Persistence.Saves;
@@ -53,7 +54,7 @@ namespace MountainPlanner.Tests.Core
         {
             var h = Scripted();
             AddTrail(h, "Planned glade", P(3000, 2500), P(2600, 100), WorkStage.Plan);
-            return h.Document;
+            return Unposted(h.Document);   // nothing was posted before v11 (TD-07)
         }
 
         static SaveFile FixtureSave() => new SaveFile
@@ -281,13 +282,33 @@ namespace MountainPlanner.Tests.Core
         }
 
         /// <summary>
-        /// The save the v11 fixture holds (task 4.03, owner 2026-11-08: LO-07 v2, LO-09): the v10 fixture's, with the resort's
-        /// hours moved to 9:00, last chair 3:45 and stop 4:00, its first lift on peak days only with its own hours, and no
-        /// simulation sidecar (PR B writes one), so the hours, both schedule words and "Sim": null are pinned.
+        /// The save the v11 fixture holds (task 4.21, TD-07): the v10 fixture's, with every posted word pinned: the shaped
+        /// Run 1 posted blue, Teton Ridge black, Run 2's own trail green and the first Run 1 piece's double-black, and the plan
+        /// "Planned glade" left unposted (null).
         /// </summary>
         static SaveFile FixtureSaveEleven()
         {
             var save = FixtureSaveTen();
+            var d = save.Design;
+            var first = d.Trails.First(t => t.Name == "Run 1").Id;   // a piece of the shaped Run 1: a run's own sign under a line's
+            var trails = d.Trails.Select(t => t.Name == "Run 2" ? t.WithPosted(SlopeBands.Band.Green)
+                                            : t.Id.Equals(first) ? t.WithPosted(SlopeBands.Band.DoubleBlack) : t).ToList();
+            var lines = d.Lines.Select(l => l.Name == "Run 1" ? l.WithPosted(SlopeBands.Band.Blue)
+                                          : l.Name == "Teton Ridge" ? l.WithPosted(SlopeBands.Band.Black) : l).ToList();
+            Assert.That(trails.Count(t => t.Posted.HasValue), Is.EqualTo(2), "two runs' own trails posted");
+            Assert.That(lines.Count(l => l.Posted.HasValue), Is.EqualTo(2), "two shaped trails posted");
+            save.Design = DesignDocument.From(d.Seed, d.NextOrdinal, trails, d.Lifts, d.Strokes, d.Areas, lines, d.Cuts);
+            return save;
+        }
+
+        /// <summary>
+        /// The save the v12 fixture holds (task 4.03, owner 2026-11-08: LO-07 v2, LO-09): the v11 fixture's, with the resort's
+        /// hours moved to 9:00, last chair 3:45 and stop 4:00, its first lift on peak days only with its own hours, and no
+        /// simulation sidecar (PR B writes one), so the hours, both schedule words and "Sim": null are pinned.
+        /// </summary>
+        static SaveFile FixtureSaveTwelve()
+        {
+            var save = FixtureSaveEleven();
             var r = new SetResortHours(0, new DayHours(9 * 3600, 15 * 3600 + 45 * 60, 16 * 3600)).Apply(save.Design);
             Assert.That(r.Accepted, Is.True, r.Reason);
             var first = r.Document.Lifts[0];
@@ -301,11 +322,11 @@ namespace MountainPlanner.Tests.Core
         [Test]
         public void TheWriterReproducesTheFrozenFixtureByteForByte()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v11-save")), "Saves", JacksonHole, "save-001");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v12-save")), "Saves", JacksonHole, "save-001");
             string folder = Path.Combine(_root, "again");
-            SaveStore.Write(folder, FixtureSaveEleven());
+            SaveStore.Write(folder, FixtureSaveTwelve());
             Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveFile.FileName)), Is.EqualTo(File.ReadAllBytes(Path.Combine(fixture, SaveFile.FileName))),
-                "save.json v11 is frozen: a writer change is a format change (0.3 §5)");
+                "save.json v12 is frozen: a writer change is a format change (0.3 §5)");
             foreach (string tile in Directory.GetFiles(Path.Combine(fixture, SaveStore.TilesFolder)))
                 Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveStore.TilesFolder, Path.GetFileName(tile))), Is.EqualTo(File.ReadAllBytes(tile)));
         }
@@ -406,7 +427,7 @@ namespace MountainPlanner.Tests.Core
             byte[] before = File.ReadAllBytes(path);
 
             var e = Assert.Throws<FormatTooNewException>(() => SaveStore.Read(folder));
-            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 12; this version reads up to 11). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 13; this version reads up to 12). Update the game to open it."));
             Assert.That(SaveStore.Write(folder, FixtureSave()), Is.False);
             Assert.That(SaveStore.Rename(folder, "Mine now"), Is.False);
             Assert.That(File.ReadAllBytes(path), Is.EqualTo(before), "nothing is written over a newer save (0.3 §5 rule 3)");
@@ -645,14 +666,14 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
-        public void TheVersionElevenFixtureReadsUnchanged()
+        public void TheVersionTwelveFixtureReadsUnchanged()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v11-save")), "Saves", JacksonHole, "save-001");
-            string copy = Path.Combine(_root, "fixture11");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v12-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture12");
             CopyFolder(fixture, copy);
             var back = SaveStore.Read(copy);
-            AssertSame(FixtureSaveEleven(), back);
-            Assert.That(back.MigratedFrom, Is.EqualTo(11));
+            AssertSame(FixtureSaveTwelve(), back);
+            Assert.That(back.MigratedFrom, Is.EqualTo(12));
             Assert.That(back.Sim, Is.Null, "no simulation saved before PR B");
             Assert.That(back.Design.Hours, Is.EqualTo(new DayHours(9 * 3600, 15 * 3600 + 45 * 60, 16 * 3600)));
             Assert.That(back.Design.Lifts.Select(l => l.Schedule + " " + (l.Hours?.ToString() ?? "-")),
@@ -662,8 +683,8 @@ namespace MountainPlanner.Tests.Core
         [Test]
         public void EveryOlderSaveOpensWithTheOldHoursAndNoSimulation()
         {
-            // v10 → v11 (LO-07 v2, LO-09): before v11 the resort ran 8:30 to 4:30, last chair 4:15, and every lift daily on it.
-            foreach (string version in new[] { "v1-save", "v5-save", "v10-save" })
+            // v11 → v12 (LO-07 v2, LO-09): before v12 the resort ran 8:30 to 4:30, last chair 4:15, and every lift daily on it.
+            foreach (string version in new[] { "v1-save", "v5-save", "v10-save", "v11-save" })
             {
                 string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", version)), "Saves", JacksonHole, "save-001");
                 var back = SaveJson.Read(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName)), out _);
@@ -698,6 +719,48 @@ namespace MountainPlanner.Tests.Core
             Assert.That(back.MigratedFrom, Is.EqualTo(10));
             Assert.That(back.Design.Lifts.OrderBy(l => l.CatalogId, StringComparer.Ordinal).Select(l => l.CatalogId + " " + l.Drive),
                 Is.EqualTo(new[] { "monta-fg4 Top", "sessellift-fgq4 Bottom", "sessellift-stern4 Bottom" }), "the player's drive ends, and the Stern's own (LD9)");
+        }
+
+        [Test]
+        public void TheVersionElevenFixtureReadsUnchanged()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v11-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture11");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveEleven(), back);
+            Assert.That(back.MigratedFrom, Is.EqualTo(11));
+            var o = JObject.Parse(File.ReadAllText(Path.Combine(copy, SaveFile.FileName)));
+            Assert.That(((JArray)o["Design"]["Trails"]).Select(t => (string)t["Posted"]).Where(w => w != null).OrderBy(w => w, StringComparer.Ordinal),
+                Is.EqualTo(new[] { "double-black", "green" }));
+            Assert.That(((JArray)o["Design"]["TrailLines"]).Select(t => (string)t["Posted"]).OrderBy(w => w, StringComparer.Ordinal),
+                Is.EqualTo(new[] { "black", "blue" }));
+        }
+
+        [Test]
+        public void EveryOlderSaveOpensUnposted()
+        {
+            // v10 → v11 (TD-07): nothing was posted before v11, so every trail and shaped trail of the v1–v10 fixtures opens
+            // unposted; the game posts the built ones when it opens (TD-02 v1's band), not the file.
+            foreach (string version in new[] { "v1-save", "v6-save", "v7-save", "v10-save" })
+            {
+                string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", version)), "Saves", JacksonHole, "save-001");
+                var o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName))), out _);
+                Assert.That((int)o["Design"]["Shape"], Is.EqualTo(DesignDocument.ShapeVersion), version);   // on to 12 (task 4.03)
+                foreach (string list in new[] { "Trails", "TrailLines" })
+                    if (o["Design"][list] is JArray items)
+                        foreach (JObject x in items)
+                            Assert.That(x["Posted"]?.Type, Is.EqualTo(JTokenType.Null), version + " " + list);
+                var back = SaveStore.Read(CopyOf(fixture, "unposted-" + version));
+                Assert.That(back.Design.Trails.All(t => t.Posted == null) && back.Design.Lines.All(l => l.Posted == null), Is.True, version);
+            }
+        }
+
+        string CopyOf(string fixture, string name)
+        {
+            string copy = Path.Combine(_root, name);
+            CopyFolder(fixture, copy);
+            return copy;
         }
 
         [Test]
@@ -760,8 +823,10 @@ namespace MountainPlanner.Tests.Core
 
         // Re-pinned for shape 9 (task 15 round 4, BR22): the same outlines, the shape number and each stroke's 1 ft clearing
         // depth (v8 → v9) in the bytes; from 8debdb8b…. Shape 10 (LD9): the shape number and each lift's drive end; from e7c1fe4e….
-        // Shape 11 (task 4.03): the shape number, the resort's default hours and each lift's daily schedule; from c7a67ac0….
-        const string ConvertedSevenSha = "0335f78844a957d1fb6b545d28d35f4fa1ad7a790f0f2ace258702cfdfd9ebe9";
+        // Shape 11 (task 4.21, TD-07): the shape number and a not-posted byte for each trail and shaped trail; from c7a67ac0….
+        // Shape 12 (task 4.03, LO-07 v2, LO-09): the shape number, the resort's default hours and each lift's daily schedule
+        // with no hours of its own; from 1c7c9274….
+        const string ConvertedSevenSha = "f5af52b0ac89afcd461a9e27b67e209f68274bcee5a76a1d64601b447068e658";
 
         [Test]
         public void ADamagedOlderTrailRefusesTheSave()
@@ -864,6 +929,16 @@ namespace MountainPlanner.Tests.Core
                 Assert.That(back.Design.Strokes, Is.Empty, kv.Key);
                 Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
             }
+        }
+
+        [Test, Explicit("Regenerates the frozen v12 save fixture")]
+        public void WriteTheVersionTwelveFixture()
+        {
+            string formats = TestData.Folder("formats");
+            string folder = Path.Combine(formats, "v12-save", "Saves", JacksonHole, "save-001");
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+            Assert.That(SaveStore.Write(folder, FixtureSaveTwelve()), Is.True);
+            File.Delete(Path.Combine(folder, SaveFile.BackupName));
         }
 
         [Test, Explicit("Regenerates the frozen v11 save fixture")]

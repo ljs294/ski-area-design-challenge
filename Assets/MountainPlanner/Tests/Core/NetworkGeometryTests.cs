@@ -32,7 +32,7 @@ namespace MountainPlanner.Tests
         static TrailId Painted(DesignHistory h, string name, int widthFt, params PointMm[] through)
         {
             var parts = TrailShape.FromStrokes(null, new[] { new Stroke(Ft(widthFt), false, through) });
-            var r = h.Submit(new AddTrail(h.Revision, name, TrailSettings.GradedRun, parts, through[0], through[through.Length - 1], WorkStage.Built));
+            var r = h.Submit(new AddTrail(h.Revision, name, TrailSettings.GradedRun, parts, through[0], through[through.Length - 1], WorkStage.Built, Sign));
             Assert.That(r.Accepted, Is.True, r.ToString());
             return new TrailId(r.Created[0]);
         }

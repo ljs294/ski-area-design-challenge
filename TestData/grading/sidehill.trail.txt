@@ -11,12 +11,12 @@ tail 250000 -760000
 golden graded.band Black
 golden graded.cutM3 8720.426
 golden graded.fillM3 6004.954
-golden graded.rating 43.371
+golden graded.rating 47.929
 golden graded.ungradedStations 0
 golden graded.writes c75e0f00c1c4d586b9adf92454b79e0bf029ed8eaaebae73338d7903f37a25b7
-golden natural.band Black
+golden natural.band DoubleBlack
 golden natural.cutM3 0.000
 golden natural.fillM3 0.000
-golden natural.rating 53.014
+golden natural.rating 61.887
 golden natural.ungradedStations 0
 golden natural.writes 3ffaf73574a9f314f81dc2c0075a48f02b39257192abbb0e334b90b6655bdd7b

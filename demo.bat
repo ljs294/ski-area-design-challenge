@@ -317,6 +317,9 @@ echo        built trails drawn, then the game: a trail painted far out, past the
 echo   4.01 D3D11 (rebuilds the game; close the Unity editor first)
 echo     87 The game on Direct3D 11: ten style-tile screenshot runs that each quit by themselves (the D3D12 quit crash
 echo        was about 2 in 15), then the game to play and quit as usual.
+echo   4.21 trail rating v2 (rebuilds the game; close the Unity editor first)
+echo     88 The rating and posting tests, then the game with the dev switch -truerating: post a trail before you
+echo        build it, a cliff band rates it, Edit trail and Edit sections keep or change the sign, older saves keep colour.
 echo   4.03 simulation core, PR A (rebuilds the game; close the Unity editor first)
 echo     89 The simulation tests and the golden season in the player, then the game: the clock runs from October 1,
 echo        Open / Closed, Day 1, chairs in the resort's hours, the day report at closing, skips, 1x-8x.
@@ -445,6 +448,7 @@ if /i "%CHOICE%"=="84" goto smallfixes
 if /i "%CHOICE%"=="85" goto grader
 if /i "%CHOICE%"=="86" goto trailwindow
 if /i "%CHOICE%"=="87" goto d3d11
+if /i "%CHOICE%"=="88" goto trailrating
 if /i "%CHOICE%"=="89" goto simcore
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
@@ -718,6 +722,41 @@ echo   a lift and a trail, look round, quit from the menu. It should look as it 
 start "" "%GAME%"
 goto menu
 
+:trailrating
+rem 4.21: TD-02 v2 (the steepest sustained 150 ft over a trail's own segments), TD-06 v2, TD-07 (the posted sign).
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~TrailRatingTests|FullyQualifiedName~TrailFixtureTests|FullyQualifiedName~TrailGradingTests|FullyQualifiedName~SaveFileTests|FullyQualifiedName~NetworkReportTests" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo 1. Open the Jackson Hole demo area, T for the Toolbox, Trails, New trail. Paint a gentle trail that crosses a short
+echo    steep band, set its head and tail. The window's Posted row has none of its four signs picked, and the review
+echo    shows "Pick its posted rating" with Break ground greyed. The review's "Game rates it" row is the dev switch.
+echo 2. Pick the green circle: Break ground lights. Build it: its map line and label are green. Its card (Analysis, Trails)
+echo    reads "Trail" under its name, then Posted: Easiest, Length, Vertical, Average grade and Status: Closed. There's no
+echo    Grading row and no "Game rates it" (that's only in Edit trail). Edit trail, click it: the review's "Game rates it"
+echo    gives the band of its steepest 150 ft and whether the sign is easier.
+echo    Demo findings: Analysis, Trails has the columns Trail, Length, Vertical, Conditions (a dash until snow comes),
+echo    Popularity (0-100; a dash until guests come; Analysis, Lifts has it too) and
+echo    Status (Closed when built, Planned for a plan; the Status filter lists Open, Scheduled, On hold, Closed, Planned).
+echo    With a dozen trails or more, the list's scroll bar is a faint thin line that firms up under the pointer. Every
+echo    scroll bar in the game now looks like it: open Settings, Credits and Load Area to compare. In Analysis, Lifts
+echo    click a column title (Length, Popularity, Status...) for its sort and filter menu; Clear filters (greyed until
+echo    something is sorted or filtered) puts every row back in its first order.
+echo    Build a lift: its card reads its type under the name (e.g. "Detachable Six Pack", "T-Bar", "Magic Carpet"),
+echo    Status: Closed, and a long Towers line wraps under itself instead of running into its label. Analysis, Lifts
+echo    has the same Status words.
+echo 3. Edit trail, click it, pick the black diamond, Apply: one undo step, no regrade. Ctrl+Z puts the circle back.
+echo 4. Edit trail, Edit sections: take out a middle section so it becomes Upper and Lower. Both keep the sign; the
+echo    Posted row in the session changes it for the whole trail before Done. Each card rates its own stretch.
+echo 5. Save (Ctrl+S), quit, reopen: the signs are kept. Then Load Area and open a save from v0.3 (any from before this
+echo    build): every built trail keeps the colour it had, and the save symbol stays clean until you change something.
+echo 6. Quit, then run the game without the dev switch (demo 1, or the exe): no "Game rates it", no steepest number, no
+echo    shaded box in the profile, no estimate while painting; only your signs.
+echo 7. Repeat 1 and 2 on Crystal Mountain (or any second area).
+echo The game's log (Player.log) has a "[TrueRating]" line for each built trail: its sign and the game's rating.
+start "" "%GAME%" -truerating
 :simcore
 rem 4.03 PR A: the simulation runs on its own thread; the bar's clock, the season, the chairs and the skips read it.
 chcp 65001 >nul
