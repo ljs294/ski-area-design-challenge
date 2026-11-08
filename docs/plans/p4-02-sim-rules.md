@@ -123,6 +123,15 @@ front end that displays it"): they write down the boundary between the worker an
   16 B record, into a presentation-owned **staging ring** (BG-11) and lists it in the snapshot; the main thread
   uploads textures from the staging ring only. `SnowDepthField`'s dirty rectangle becomes that ring; no main-thread
   code ever reads a worker-owned array.
+- **SI-12 v2 and SI-17 as task 4.03 PR B built them.** The sidecar is `SimSidecar` v1 ("MPSM"): the replay header,
+  then the world's fields in a fixed order, then the state hash the reader must reach (checked when the Pacing and the
+  design match the save's). Commands staged for the next tick are applied before the state is taken (they would apply
+  first anyway); the event ring and the command log aren't saved. A missing or damaged sidecar opens the design with the
+  clock started over, said once. Time that passes after a save makes the design ask to be saved. Until 4.07 the snow
+  is the ground's natural snowpack, which the presentation still works out and sends whole (then by changed rectangle)
+  in a `SetSnowpack` command; the worker keeps it in whole mm and hashes it a 64-cell tile at a time. The staging ring's
+  slots carry depth only (8 KB, 64 × 64 × 2 B) until 4.07 adds the type and quality planes. While paused the host still
+  stages, so an edit's snow shows without the clock moving.
 - **SI-18, the event ring.** Every state change a player could care about (boarded, unloaded, hold on/off, trail
   readiness change, gun start/stop/short, source level band, solve failed, skier arrived/left/balked, season opened)
   is appended as a typed event (stable type id, tick, entity, value) to a fixed-size ring in the snapshot. Alerts

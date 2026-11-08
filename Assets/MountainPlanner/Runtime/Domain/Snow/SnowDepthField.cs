@@ -76,6 +76,37 @@ namespace MountainPlanner.Domain.Snow
             }
         }
 
+        /// <summary>
+        /// Sets a rectangle from whole millimetres (<paramref name="cells"/> from <paramref name="offset"/>, row by row,
+        /// <paramref name="width"/> a row) and marks it changed: the simulation's staged tiles (SI-17) reach the screen here.
+        /// </summary>
+        public void CopyMillimetres(ushort[] cells, int offset, int x, int y, int width, int height)
+        {
+            if (cells == null) throw new ArgumentNullException(nameof(cells));
+            if (x < 0 || y < 0 || width < 0 || height < 0 || x + width > Width || y + height > Height || offset < 0 || offset + width * height > cells.Length)
+                throw new ArgumentOutOfRangeException(nameof(x), "The rectangle isn't inside the field.");
+            if (width == 0 || height == 0) return;
+            for (int j = 0; j < height; j++)
+            {
+                int row = (y + j) * Width + x, at = offset + j * width;
+                for (int i = 0; i < width; i++) _depth[row + i] = cells[at + i] * 0.001f;
+            }
+            Mark(x, y, x + width, y + height);
+        }
+
+        void Mark(int x0, int y0, int x1, int y1)
+        {
+            if (IsDirty)
+            {
+                _dirtyX0 = Math.Min(_dirtyX0, x0); _dirtyY0 = Math.Min(_dirtyY0, y0);
+                _dirtyX1 = Math.Max(_dirtyX1, x1); _dirtyY1 = Math.Max(_dirtyY1, y1);
+            }
+            else
+            {
+                _dirtyX0 = x0; _dirtyY0 = y0; _dirtyX1 = x1; _dirtyY1 = y1;
+            }
+        }
+
         /// <summary>Sets a rectangle of cells (clipped to the field) and marks it changed.</summary>
         public void SetRect(int x, int y, int width, int height, float depthMetres)
         {

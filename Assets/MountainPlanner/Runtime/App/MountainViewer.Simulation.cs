@@ -4,7 +4,9 @@ using MountainPlanner.Domain.Design;
 using MountainPlanner.Simulation;
 using MountainPlanner.UI.Hud;
 using MountainPlanner.App.Edits;
+using MountainPlanner.Persistence.Saves;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace MountainPlanner.App
 {
@@ -29,6 +31,16 @@ namespace MountainPlanner.App
         /// <summary>Review movies set the chairs' time themselves (k / fps), never the simulation's.</summary>
         bool _chairsOverride;
         double _chairOverrideSeconds;
+        /// <summary>SI-17: the worker has been sent the whole field once (or brought its own from a save).</summary>
+        bool _simSnowSent;
+        /// <summary>Said once the HUD shows: why a save's simulation didn't come back, or that its pacing differs.</summary>
+        string _simNotice;
+        OpenDesign _simSavesFor;
+        Func<SimSidecarBytes> _simStateForSave;
+        /// <summary>The tick the last save (or the opened one) holds; once the clock moves past it the design needs a save.</summary>
+        long _simTickSaved;
+        bool _simMarkedChanged;
+        long _simTilesShown;
 
         /// <summary>How far the face clock runs ahead of the sun before the sun catches up (an eighth of a degree).</summary>
         const int SunPushSeconds = 30;
@@ -63,9 +75,19 @@ namespace MountainPlanner.App
             var now = Lighting.Clock.Now;
             // The label year whose October 1 the game starts on: this winter's.
             int startYear = now.DayOfYear >= 274 ? now.Year : now.Year - 1;
-            var design = _edits != null ? SimDesign.From(_edits.History.Current) : SimDesign.Empty(0);
-            var world = new SimWorld(pacing, design, new SimSite(site.Latitude, site.Longitude), Math.Max(2, startYear));
+            // The open design's history: the edit session (which shares it) often arrives a few frames later, and a save's
+            // state must be read over the design it was saved with, or its lifts would lose their ropes.
+            var history = _edits?.History ?? OpenDesign.Current?.History;
+            var design = history != null ? SimDesign.From(history.Current) : SimDesign.Empty(0);
+            var simSite = new SimSite(site.Latitude, site.Longitude);
+            var world = RestoredWorld(pacing, design, simSite) ?? new SimWorld(pacing, design, simSite, Math.Max(2, startYear));
+            var mirror = _resort.States?.Snow;
+            _simSnowSent = world.Snow.Set && mirror != null && world.Snow.Width == mirror.Width && world.Snow.Height == mirror.Height;
             _sim = new SimulationHost(world, new StopwatchTime());
+            _simTickSaved = world.Tick;
+            _simMarkedChanged = false;
+            _simTilesShown = 0;
+            FollowSavesForSimulation(OpenDesign.Current);
             _ropes = new RopeClock(pacing);
             _onSimEvent ??= OnSimEvent;
             _simWasPaused = true;
@@ -79,8 +101,62 @@ namespace MountainPlanner.App
             else _sunPushed = Lighting.Clock.Now;
         }
 
+        /// <summary>
+        /// SI-12 v2: the opened save's simulation, if it brought one that reads; else null (a new game starts). A sidecar that
+        /// doesn't read is said once and the clock starts over; the design is never lost over it.
+        /// </summary>
+        SimWorld RestoredWorld(Pacing pacing, SimDesign design, SimSite site)
+        {
+            var saved = OpenDesign.Current?.LoadedSimulation;
+            if (saved == null) return null;
+            try
+            {
+                var w = SimSidecar.Read(saved.Bytes, pacing, design, site, out var header);
+                if (header.PacingHash != pacing.ContentsHash)
+                    _simNotice = "This save's clock ran on another version's pacing; it carries on with this one's.";
+                Debug.Log($"[Simulation] restored the save's state: tick {w.Tick}, face day {w.FaceMs / SimWorld.DayMs}, {saved.Bytes.Length} bytes");
+                return w;
+            }
+            catch (Exception e) when (e is System.IO.InvalidDataException || e is NotSupportedException)
+            {
+                Debug.LogWarning("[Simulation] the save's state didn't read, so the clock starts over: " + e.Message);
+                _simNotice = "The save's clock couldn't be read, so it starts over: " + e.Message;
+                return null;
+            }
+        }
+
+        /// <summary>SI-12 v2: each save asks the worker for its state (Ctrl+S, Save as, the autosave).</summary>
+        void FollowSavesForSimulation(OpenDesign design)
+        {
+            if (_simSavesFor != null && ReferenceEquals(_simSavesFor.Simulation, _simStateForSave)) _simSavesFor.Simulation = null;
+            _simSavesFor = design;
+            if (design == null) return;
+            _simStateForSave ??= SimStateForSave;
+            design.Simulation = _simStateForSave;
+        }
+
+        /// <summary>The worker's state at its next tick boundary, waited for a bounded time; null saves without a simulation.</summary>
+        SimSidecarBytes SimStateForSave()
+        {
+            var host = _sim;
+            if (host == null) return null;
+            var request = new SimStateRequest();
+            if (!host.Send(SimCommandKind.SaveState, 0, request) || !request.Wait(SaveStateWaitMs))
+            {
+                Debug.LogWarning("[Simulation] the worker didn't hand over its state in time; the save goes without it. " + request.Error);
+                return null;
+            }
+            _simTickSaved = SimSidecar.ReadHeader(request.Bytes).Tick;
+            _simMarkedChanged = false;
+            return new SimSidecarBytes(request.Bytes, SimSidecar.Version);
+        }
+
+        /// <summary>How long a save waits for the worker's state (it comes within a tick; a skip batch is 50 ms).</summary>
+        const int SaveStateWaitMs = 2000;
+
         void StopSimulation()
         {
+            FollowSavesForSimulation(null);
             FollowDesignForSimulation(null);
             _sim?.Dispose();
             _sim = null;
@@ -90,11 +166,50 @@ namespace MountainPlanner.App
         /// <summary>SI-20: every design revision (an edit, undo, redo, an opened save) goes to the worker whole.</summary>
         void FollowDesignForSimulation(TerrainEditSession session)
         {
-            if (_simDesignFor != null) _simDesignFor.History.Changed -= SendDesign;
+            if (_simDesignFor != null)
+            {
+                _simDesignFor.History.Changed -= SendDesign;
+                if (_simDesignFor.Pipeline != null) _simDesignFor.Pipeline.SnowChanged = null;
+            }
             _simDesignFor = session;
             if (session == null || _sim == null) return;
             session.History.Changed += SendDesign;
+            if (session.Pipeline != null) session.Pipeline.SnowChanged = _onPipelineSnow ??= SendSnowpack;
             SendDesign(session.History.Current);
+        }
+
+        Action<float[], int, int, int, int> _onPipelineSnow;
+
+        /// <summary>
+        /// SI-17: a new snowpack (the ground's snow after an edit) to the worker, which owns the depths; the screen hears back
+        /// through the staging ring. The first goes whole, so the worker's field never holds only an edit's rectangle.
+        /// </summary>
+        void SendSnowpack(float[] metres, int x, int y, int width, int height)
+        {
+            var mirror = _resort?.States?.Snow;
+            if (_sim == null || mirror == null) return;
+            var p = _simSnowSent
+                ? SimSnowpack.FromMetres(metres, mirror.Width, mirror.Height, x, y, width, height)
+                : SimSnowpack.FromMetres(metres, mirror.Width, mirror.Height, 0, 0, mirror.Width, mirror.Height);
+            _sim.Send(SimCommandKind.SetSnowpack, 0, p);
+            _simSnowSent = true;
+        }
+
+        /// <summary>SI-17: the staged tiles the newest snapshot lists, into the screen's field, then their slots back to the worker.</summary>
+        void DrainSnowTiles(SimSnapshot s)
+        {
+            var ring = _sim.Staging;
+            long from = ring.Released, to = s.StagedTiles;
+            if (to <= from) return;
+            var mirror = _resort?.States?.Snow;
+            for (long n = from; n < to; n++)
+            {
+                ring.Read(n, out int x, out int y, out int w, out int h, out int offset, out ushort[] cells);
+                if (mirror != null && x + w <= mirror.Width && y + h <= mirror.Height) mirror.CopyMillimetres(cells, offset, x, y, w, h);
+            }
+            ring.Release(to);
+            if (_simTilesShown == 0) Debug.Log($"[Simulation] snow from the worker's staging ring: {to - from} tiles in the first frame");
+            _simTilesShown += to - from;
         }
 
         void SendDesign(DesignSnapshot snapshot)
@@ -112,6 +227,17 @@ namespace MountainPlanner.App
             var s = _sim.Latest;
             if (s == null) return;
             _simNow = s;
+            DrainSnowTiles(s);
+            // SI-17: once the opening's snowpack is in, the worker gets the whole field (unless a save brought its own).
+            if (!_simSnowSent && !s.SnowSet && _resort.CoverReady != null && _resort.CoverReady.IsCompleted && _resort.States?.Snow != null)
+            {
+                var mirror = _resort.States.Snow;
+                SendSnowpack(mirror.Cells, 0, 0, mirror.Width, mirror.Height);
+            }
+            if (_simNotice != null && Hud != null && _hudShown) { Hud.Toast(_simNotice); _simNotice = null; }
+            // SI-12 v2: time that has passed since the save is the player's progress, so the design asks to be saved (the bar's
+            // symbol, leaving, the autosave), as an edit does.
+            if (!_simMarkedChanged && s.Tick > _simTickSaved && _simSavesFor != null) { _simSavesFor.MarkChanged(); _simMarkedChanged = true; }
             _ropes.Advance(s, Mathf.Min(0.25f, Time.unscaledDeltaTime), Pacing.Default.TickMs);
             _simEvents.Read(s, _onSimEvent);
             _simClock.Feed(s);

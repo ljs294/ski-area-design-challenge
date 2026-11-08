@@ -646,6 +646,13 @@ namespace MountainPlanner.Presentation.Edits
         /// </summary>
         const float SnowSeconds = 0.5f;
         bool _snowDue, _snowRunning;
+
+        /// <summary>
+        /// SI-17: where a new snowpack goes (the whole field's depths in metres, then the changed rectangle x, y, width,
+        /// height), when a simulation owns the snow; the screen's field is then left to the simulation. Called on the main
+        /// thread; the array is the pipeline's and changes after the call returns, so copy what's needed.
+        /// </summary>
+        public Action<float[], int, int, int, int> SnowChanged { get; set; }
         readonly Stopwatch _snowSince = new Stopwatch();
         // The snowpack's inputs as the worker reads them and its output, kept and reused (no garbage a change).
         float[] _snowElevation, _snowCanopy, _snowResult;
@@ -741,7 +748,12 @@ namespace MountainPlanner.Presentation.Edits
                     if (_states == null) return;
                     var main = Stopwatch.StartNew();
                     double compareMs = 0;
-                    if (x1 >= 0) _states.Snow.CopyRect(result, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+                    if (x1 >= 0)
+                    {
+                        // SI-17: with a simulation the worker owns the depths and the screen hears back through its staging ring.
+                        if (SnowChanged != null) SnowChanged(result, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+                        else _states.Snow.CopyRect(result, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+                    }
                     double copyMs = main.Elapsed.TotalMilliseconds - compareMs;
                     _snowResult = _depth;   // the old depths become the next result's buffer
                     _depth = result;

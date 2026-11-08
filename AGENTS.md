@@ -38,7 +38,9 @@ only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architec
   live in `Tests/Core`, which Unity and `tools/domain-tests` (.NET, CI) both compile: no Unity APIs there.
 - `Simulation` (task 4.03): `SimWorld` steps by `SystemsTable` rows on `SimulationHost`'s worker thread; commands in,
   triple-buffered snapshots out; every number lives in `Pacing`. `SeasonRunner` plays the golden script (Core tests,
-  `-simgolden`); a behaviour change re-pins `SeasonRunner.GoldenFoldValue`, approved.
+  `-simgolden`); a behaviour change re-pins `SeasonRunner.GoldenFoldValue`, approved. The worker owns the snow (whole
+  mm); the screen's `SnowDepthField` fills only from `TileStagingRing`. A save asks for `SimSidecar` bytes (`sim/<sha>.sim`,
+  frozen like save.json: a state change bumps `SimSidecar.Version`, fixture `TestData/formats/v1-sim`).
 - Architecture tests in `Tests/EditMode` enforce the order and allow-lists.
 - Forest placement (`Domain/Cover/PoissonForest`) runs as plain C# and Burst-compiled (`World/BurstForestPlanter`):
   keep it unsafe-pointer, integer-only code with no managed objects, so both give identical bytes.

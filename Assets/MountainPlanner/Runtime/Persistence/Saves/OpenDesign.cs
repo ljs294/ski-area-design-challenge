@@ -38,6 +38,15 @@ namespace MountainPlanner.Persistence.Saves
         /// </summary>
         public Func<TerrainEdits> Edits { get; set; }
 
+        /// <summary>
+        /// SI-12 v2: the simulation's state for a save (the game asks its worker), or null to save none. Unset in tests and
+        /// on the title.
+        /// </summary>
+        public Func<SimSidecarBytes> Simulation { get; set; }
+
+        /// <summary>The simulation state the opened save brought, or null (a new design, an older save, a lost sidecar).</summary>
+        public SimSidecarBytes LoadedSimulation { get; private set; }
+
         /// <summary>Passed to each write's steps (a test or -crashsave stops a save part way).</summary>
         public Action<SaveStep> Step { get; set; }
 
@@ -82,6 +91,7 @@ namespace MountainPlanner.Persistence.Saves
             var open = new OpenDesign(dataRoot, packageId, heightsSha256, save.Design, save.Edits)
             {
                 LoadedEdits = save.Edits, Recovered = save.Recovered, MigratedFrom = save.MigratedFrom,
+                LoadedSimulation = save.SimState,
             };
             if (!save.Autosave)   // opening the autosave slot leaves Ctrl+S to ask for a name (SV1)
             {
@@ -189,6 +199,7 @@ namespace MountainPlanner.Persistence.Saves
                 Name = name, Autosave = autosave, SavedUtc = utc, GameVersion = gameVersion ?? "",
                 PackageId = PackageId, HeightsSha256 = HeightsSha256, Design = doc,
                 Edits = Edits?.Invoke() ?? History.Terrain,
+                SimState = Simulation?.Invoke(),
             };
             var terrain = History.Terrain;
             if (!SaveStore.Write(folder, save, Step)) return false;

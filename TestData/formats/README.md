@@ -84,6 +84,14 @@ reads: a version number, and a name for the greyed library row.
   with the old hours (8:30, 4:15, 4:30), every lift daily, and `"Sim"` null. `SaveFileTests` checks that the writer
   reproduces it byte for byte.
 
+- **`v1-sim/golden.sim`** is a simulation sidecar (task 4.03 PR B, SI-12 v2, `SimSidecar` v1): the golden script's world
+  at 10:00 on Day 4 of its first season, with a 150 × 90 cell snow field, as a save keeps it under `sim/<sha256>.sim`.
+  Its header carries the replay header (SI-22: the Pacing hash, the resort seed, the design's revision hash, the start
+  year and the tick), and its last eight bytes the state hash the reader must reach. `SimSaveTests` checks that the
+  writer reproduces it byte for byte and that it reads back. A change to the sidecar bumps `SimSidecar.Version` and
+  adds a `v2-sim` fixture; a change to `Pacing`'s defaults moves the header's hash, so the fixture is made again only
+  with that change approved.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

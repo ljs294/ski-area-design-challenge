@@ -323,6 +323,9 @@ echo        build it, a cliff band rates it, Edit trail and Edit sections keep o
 echo   4.03 simulation core, PR A (rebuilds the game; close the Unity editor first)
 echo     89 The simulation tests and the golden season in the player, then the game: the clock runs from October 1,
 echo        Open / Closed, Day 1, chairs in the resort's hours, the day report at closing, skips, 1x-8x.
+echo   4.03 simulation core, PR B (rebuilds the game; close the Unity editor first)
+echo     90 The save and snow tests, then the game: a save keeps the clock (day, time, seed, chairs) and opens where it
+echo        left off; the snow comes from the simulation, an edit's snow too.
 echo.
 echo     Q  Quit
 echo.
@@ -450,6 +453,7 @@ if /i "%CHOICE%"=="86" goto trailwindow
 if /i "%CHOICE%"=="87" goto d3d11
 if /i "%CHOICE%"=="88" goto trailrating
 if /i "%CHOICE%"=="89" goto simcore
+if /i "%CHOICE%"=="90" goto simsave
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -779,6 +783,27 @@ echo      The night runs six times faster. F1, Skip to morning: it lands at 7:30
 echo   4. Pause, move F1's Time slider: the sun moves. Space again: the sun snaps back to the clock.
 echo   5. F1, Mountain: open (now closed): the season is over, Summer. Next month skips; Next third says it can't.
 echo   6. Photo mode (P) pauses; leaving it plays again if it was playing. Quit when done.
+start "" "%GAME%"
+goto menu
+
+:simsave
+rem 4.03 PR B: the simulation's state in every save (sim/<sha256>.sim) and the snow owned by the simulation (SI-12 v2, SI-17).
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~SimSaveTests|FullyQualifiedName~SimWorldTests|FullyQualifiedName~SaveFileTests" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open the Jackson Hole demo area (or a save with a built lift and a built trail):
+echo   1. The snow looks as it always has: it now comes from the simulation (the log says "snow from the worker's
+echo      staging ring"). Paint the ground with the Terrain brush: the snow follows the new ground, paused or running.
+echo   2. Build a lift and a trail if there are none. F1, Mountain: closed (now open), then Space and 4 for 8x. Let it
+echo      run to Day 2 or 3 with the chairs going. As the clock moves the bar's save symbol turns white (unsaved).
+echo   3. Pause. Note the bar's day, date and time, F1's seed, and where a chair is. Ctrl+S and give it a name.
+echo   4. Esc, Quit to title, Load Area, open that save: the same day, date and time, the same seed, the chairs where
+echo      they were, still paused. Space: the day carries on.
+echo   5. Let it run a little, then quit to the title without saving: it asks, because the clock moved.
+echo   6. An older save (made before this build) opens at October 1 as before; so does a new design.
 start "" "%GAME%"
 goto menu
 
