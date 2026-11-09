@@ -1,0 +1,18 @@
+/* Ride a lift's bar (task 4.11 PR B): the approved mockup's .bar.ride (.rname, .rword, .rprog, .rkeys) on the photo bar's
+   cells (Photo.uss). Every rule that sets a colour sets the text outline to the same colour (UiThemeTests). */
+
+.photo .rplate { min-width: 19px; height: 19px; padding: 0 3px; margin-right: 7px; border-radius: 3px; font-size: 11.5px; -unity-font-style: bold;
+    -unity-text-align: middle-center; background-color: var(--plate-bg); color: var(--plate-fg); -unity-text-outline-color: var(--plate-fg); }
+.photo .rname { font-size: 13px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); white-space: nowrap; }
+.photo .rlamp { width: 8px; height: 8px; margin-right: 6px; border-radius: 4px; background-color: var(--pos); }
+.photo .rlamp--warn { background-color: var(--warn); }
+.photo .rlamp--off { background-color: var(--soft); }
+.photo .rword { font-size: 12.5px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); white-space: nowrap; }
+.photo .rword--warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.photo .rword--eta { min-width: 84px; }
+.photo .rprog { width: 170px; height: 6px; margin-left: 7px; border-radius: 3px; background-color: var(--hair2); overflow: hidden; }
+.photo .rprog__fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background-color: var(--text); }
+.photo .rkeys { font-size: 12px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); white-space: nowrap; }
+.photo .rkey { margin-right: 4px; padding: 1px 5px 0 5px; border-width: 1px; border-color: var(--hair2); border-radius: 3px; font-size: 11px;
+    color: var(--text); -unity-text-outline-color: var(--text); white-space: nowrap; }
+.photo .rkey--gap { margin-left: 12px; }

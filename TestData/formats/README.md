@@ -84,6 +84,12 @@ reads: a version number, and a name for the greyed library row.
   with the old hours (8:30, 4:15, 4:30), every lift daily, and `"Sim"` null. `SaveFileTests` checks that the writer
   reproduces it byte for byte.
 
+- **`v13-save/Saves/5792676e513f5302/save-001/`** is the same save in format v13 (task 4.11 PR B, owner 2026-11-08): each
+  lift wears a `Plate`, one to three letters or digits shown beside its name (design shape 13). Here the lifts are
+  numbered 1, 2 and 3 in ID order, as the v12 fixture opens, and then the second is given `"A"` and the third `"12"`. v1 to
+  v12 saves migrate with their lifts numbered 1, 2, 3 … in ID order; a new lift takes the lowest free number.
+  `SaveFileTests` checks that the writer reproduces it byte for byte.
+
 - **`v1-sim/golden.sim`** is a simulation sidecar (task 4.03 PR B, SI-12 v2, `SimSidecar` v1): the golden script's world
   at 10:00 on Day 4 of its first season, with a 150 × 90 cell snow field, as a save keeps it under `sim/<sha256>.sim`.
   Its header carries the replay header (SI-22: the Pacing hash, the resort seed, the design's revision hash, the start
@@ -98,6 +104,8 @@ reads: a version number, and a name for the greyed library row.
   the second is on a wind hold. `SimSaveTests` checks that the writer reproduces it byte for byte; `v1-sim` still opens
   (no block: lines and chairs empty, the ledger zero, holds as saved) and plays on. Pacing v2 (the hold gusts, the line
   size) moved the header's hash, so v1's header no longer matches today's Pacing, which v1 tolerates as any older save.
+  Made again once, with the owner's OK (2026-11-08, PR B of task 4.11): LO-11 v2's calm ten minutes (Pacing
+  `HoldResumeFaceMinutes` 10, `HoldRecheckFaceMinutes` 5) moved the header's Pacing hash and the held lift's state.
 
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;

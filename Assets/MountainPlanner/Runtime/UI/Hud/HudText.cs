@@ -32,6 +32,14 @@ namespace MountainPlanner.UI.Hud
             return table[minute];
         }
 
+        /// <summary>Task 4.11 PR B: an hour of the day as the mockup's hhmm writes it, "9:00 AM", "3:45 PM" (or "15:45").</summary>
+        public static string ClockOfDay(int secondOfDay, bool twentyFour = false)
+        {
+            int minute = Math.Max(0, Math.Min(24 * 60 - 1, secondOfDay / 60));
+            int h = minute / 60, m = minute % 60;
+            return twentyFour ? $"{h:D2}:{m:D2}" : $"{(h + 11) % 12 + 1}:{m:D2} {(h < 12 ? Am : Pm)}";
+        }
+
         /// <summary>LO-04 v1: a wait as m:ss ("7:30"), or h:mm:ss past an hour.</summary>
         public static string Clock(double seconds)
         {

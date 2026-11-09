@@ -25,6 +25,8 @@ namespace MountainPlanner.UI
             public (string Value, string Label)[] Bins;
             /// <summary>A class on its header and cells (e.g. an-cell--gap, a text column after a figure).</summary>
             public string Class;
+            /// <summary>Task 4.11 PR B: a small plate before the text (a lift's number or letter), when set.</summary>
+            public Func<Row, string> Lead;
         }
 
         public sealed class Row
@@ -186,6 +188,16 @@ namespace MountainPlanner.UI
                 {
                     var l = new Label(_cols[c].Cell(row)) { pickingMode = PickingMode.Ignore };
                     l.AddToClassList("an-cell");
+                    if (_cols[c].Lead?.Invoke(row) is string lead && lead.Length > 0)
+                    {
+                        // The plate leads the text inside the cell: padding makes its room, so the cell stays one Label.
+                        var plate = new Label(lead) { pickingMode = PickingMode.Ignore };
+                        plate.AddToClassList("mp-plate");
+                        plate.AddToClassList("mp-plate--built");
+                        plate.AddToClassList("an-cell__plate");
+                        l.Add(plate);
+                        l.AddToClassList("an-cell--plated");
+                    }
                     if (_cols[c].Numeric) { l.AddToClassList("an-cell--n"); l.AddToClassList("mono"); }
                     if (_cols[c].Class != null) l.AddToClassList(_cols[c].Class);
                     l.style.flexGrow = _cols[c].Grow;

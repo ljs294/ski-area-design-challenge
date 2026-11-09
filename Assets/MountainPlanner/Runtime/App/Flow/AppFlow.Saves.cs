@@ -137,6 +137,7 @@ namespace MountainPlanner.App.Flow
             "-liftbench", "-hoverlift",   // task 09
             "-drawnresort", "-designbench",   // task P3-11: the drawn resort never goes into a player's save
             "-simgolden",   // task 4.03
+            "-rideshots", "-ridebench",   // task 4.11 PR B
         };
 
         void UpdateSaves(Keyboard keys)

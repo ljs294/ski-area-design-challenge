@@ -1316,6 +1316,23 @@ namespace MountainPlanner.Presentation.Lifts
                         });
                     }
                     _chairLods[i] = new ChairLod { Parts = parts.ToArray() };
+                    if (i == 0)
+                    {
+                        // The ride's seat (task 4.11 PR B): the full-detail carrier's lowest point below where it hangs.
+                        float low = 0;
+                        foreach (var part in parts)
+                        {
+                            var bb = part.Mesh.bounds;
+                            for (int c = 0; c < 8; c++)
+                            {
+                                var corner = bb.center + Vector3.Scale(bb.extents, new Vector3((c & 1) == 0 ? -1 : 1, (c & 2) == 0 ? -1 : 1, (c & 4) == 0 ? -1 : 1));
+                                var q = part.Local.MultiplyPoint3x4(corner);
+                                if (!part.Hanger && _splitChair) q -= _hinge;
+                                low = Mathf.Min(low, q.y);
+                            }
+                        }
+                        CarrierDrop = -low;
+                    }
                     // Distance at which the chair's screen height falls below this LOD's threshold (60° view, lod bias).
                     float h = Mathf.Max(lods[i].screenRelativeTransitionHeight, 1e-4f);
                     _lodDistances[i] = size / (2f * Mathf.Tan(30f * Mathf.Deg2Rad) * h) * QualitySettings.lodBias;
@@ -1343,6 +1360,63 @@ namespace MountainPlanner.Presentation.Lifts
             return copies;
         }
 
+        /// <summary>Task 4.11 PR B: the carrier being ridden (-1 for none): drawn at LOD0 and never culled.</summary>
+        public int RiddenCarrier = -1;
+        /// <summary>How many carriers go round, and the seconds between them round the track (LT41).</summary>
+        public int CarrierCount => _chairCount;
+        public float CarrierInterval => _chairInterval;
+        /// <summary>A surface tow (the riders stand on the snow, towed by the bar).</summary>
+        public bool IsTow => Tow;
+        /// <summary>A magic carpet: no carriers, the riders stand on the belt.</summary>
+        public bool IsBelt => _belt;
+        /// <summary>The lowest point of the carrier's full-detail model below its hang point, metres (a chair's footrest).</summary>
+        public float CarrierDrop { get; private set; }
+
+        /// <summary>
+        /// Carrier <paramref name="k"/> at <paramref name="seconds"/> of rope run, as <see cref="DrawChairs"/> draws it: its grip
+        /// on the rope, the grip's frame (along the rope) and the hanger's (plumb, facing the travel). The ride (task 4.11 PR B)
+        /// puts the eye in the hanger's frame, so it stays locked to the drawn chair.
+        /// </summary>
+        public bool CarrierPose(int k, double seconds, out Vector3 at, out Matrix4x4 hang)
+        {
+            at = default;
+            hang = Matrix4x4.identity;
+            if (_chairCount == 0 || _track == null || k < 0 || k >= _chairCount) return false;
+            int seg = 1;
+            Pose(k, seconds, ref seg, out at, out _, out hang);
+            return true;
+        }
+
+        /// <summary>Where carrier <paramref name="k"/> is round the track, seconds from the track's start (0 to its loop time).</summary>
+        public float CarrierTime(int k, double seconds) =>
+            _track == null || _track.LoopTime <= 0 ? 0 : (float)((_chairInterval * k + seconds % _track.LoopTime) % _track.LoopTime);
+
+        void Pose(int k, double seconds, ref int seg, out Vector3 p, out Matrix4x4 grip, out Matrix4x4 hang)
+        {
+            float loopTime = _track.LoopTime;
+            float t = (_chairInterval * k + (float)(seconds % loopTime)) % loopTime;
+            var points = _track.Points;
+            var walked = _track.Walked;
+            float d = _track.DistanceAt(t, ref seg);
+            float span = walked[seg] - walked[seg - 1];
+            var a = points[seg - 1];
+            var b = points[seg];
+            p = span > 0 ? Vector3.Lerp(a, b, (d - walked[seg - 1]) / span) : a;
+            var flat = new Vector3(b.x - a.x, 0, b.z - a.z);
+            var rotation = flat.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(flat) : Quaternion.identity;
+            var world = Matrix4x4.TRS(p, rotation, Vector3.one);
+            // A split chair (finding #3): the grip lies along the rope; the hanger hangs plumb from its hinge.
+            grip = world;
+            hang = world;
+            if (_splitChair)
+            {
+                var along = b - a;
+                var gripRot = along.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(along) : rotation;
+                grip = Matrix4x4.TRS(p, gripRot, Vector3.one);
+                hang = Matrix4x4.TRS(p + gripRot * _hinge, rotation, Vector3.one);
+            }
+        }
+
         /// <summary>
         /// Draws the chairs for this frame: each at (index × spacing + speed × time) round the loop (RP-07), hanging plumb
         /// from its grip and facing the way it travels, at the LOD its distance from the camera calls for. Spins the
@@ -1356,36 +1430,18 @@ namespace MountainPlanner.Presentation.Lifts
             foreach (var lod in _chairLods)
                 foreach (var p in lod.Parts) p.Count = 0;
             var eye = camera.transform.position;
-            float loopTime = _track.LoopTime;
-            float shift = (float)(seconds % loopTime);
-            var points = _track.Points;
-            var walked = _track.Walked;
             int seg = 1;
             for (int k = 0; k < _chairCount; k++)
             {
-                float t = (_chairInterval * k + shift) % loopTime;
-                float d = _track.DistanceAt(t, ref seg);
-                float span = walked[seg] - walked[seg - 1];
-                var a = points[seg - 1];
-                var b = points[seg];
-                var p = span > 0 ? Vector3.Lerp(a, b, (d - walked[seg - 1]) / span) : a;
-                float dist = Vector3.Distance(eye, p);
+                Pose(k, seconds, ref seg, out var p, out var grip, out var hang);
                 int level = 0;
-                while (level < _lodDistances.Length && dist > _lodDistances[level]) level++;
-                if (level >= _chairLods.Length) continue;   // past the last LOD: culled, as the LODGroup would
-                var flat = new Vector3(b.x - a.x, 0, b.z - a.z);
-                var rotation = flat.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(flat) : Quaternion.identity;
-                var world = Matrix4x4.TRS(p, rotation, Vector3.one);
-                // A split chair (finding #3): the grip lies along the rope; the hanger hangs plumb from its hinge.
-                var grip = world;
-                var hang = world;
-                if (_splitChair)
+                if (k != RiddenCarrier)
                 {
-                    var along = b - a;
-                    var gripRot = along.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(along) : rotation;
-                    grip = Matrix4x4.TRS(p, gripRot, Vector3.one);
-                    hang = Matrix4x4.TRS(p + gripRot * _hinge, rotation, Vector3.one);
+                    float dist = Vector3.Distance(eye, p);
+                    while (level < _lodDistances.Length && dist > _lodDistances[level]) level++;
+                    if (level >= _chairLods.Length) continue;   // past the last LOD: culled, as the LODGroup would
                 }
+                // Task 4.11 PR B: the chair being ridden always draws its full detail and is never culled.
                 foreach (var part in _chairLods[level].Parts)
                     part.Matrices[part.Count++] = (part.Hanger ? hang : grip) * part.Local;
             }

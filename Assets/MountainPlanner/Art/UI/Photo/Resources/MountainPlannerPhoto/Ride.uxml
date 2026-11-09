@@ -1,0 +1,44 @@
+<!-- Ride a lift (task 4.11 PR B): the approved mockup's ride bar (docs/plans/prototypes/ui-layout.html, #demo=ride).
+     One thin bar docked to the bottom while the HUD is away, in the photo bar's style: the video camera, the lift's plate
+     and name, its Status, the time to the top with a progress bar, the keys, then Hide and Leave. Element names are the
+     mockup's data-ui names. RideBar binds it; the viewer wires it. -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:hud="MountainPlanner.UI.Hud">
+    <Style src="Photo.uss" />
+    <Style src="Ride.uss" />
+    <ui:VisualElement name="ride" class="photo" picking-mode="Ignore">
+        <ui:VisualElement name="ride-bar" class="pbar">
+            <ui:VisualElement class="pcell pcell--lead" tooltip="Riding a lift">
+                <hud:HudIcon icon="s-video" class="pcell__icon" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement class="pcell sep">
+                <ui:Label name="ride-plate" text="1" class="rplate" picking-mode="Ignore" />
+                <ui:Label name="ride-name" text="Lift" class="rname" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement class="pcell sep">
+                <ui:VisualElement name="ride-lamp" class="rlamp" picking-mode="Ignore" />
+                <ui:Label name="ride-word" text="Open" class="rword" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement name="ride-top" class="pcell sep">
+                <ui:Label name="ride-eta" text="Top in 6:12" class="rword rword--eta mono" picking-mode="Ignore" />
+                <ui:VisualElement class="rprog" picking-mode="Ignore">
+                    <ui:VisualElement name="ride-progress" class="rprog__fill" picking-mode="Ignore" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="pgrow" picking-mode="Ignore" />
+            <ui:VisualElement class="pcell">
+                <ui:Label text="Mouse" class="rkey" picking-mode="Ignore" />
+                <ui:Label text="to look" class="rkeys" picking-mode="Ignore" />
+                <ui:Label text="Esc" class="rkey rkey--gap" picking-mode="Ignore" />
+                <ui:Label text="leave" class="rkeys" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement class="pcell sep pcell--tight">
+                <ui:Button name="ride-hide" class="pib" tooltip="Hide the bar (H); H again shows it">
+                    <hud:HudIcon icon="s-hide" class="pib__icon" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="pcell sep pcell--tight">
+                <ui:Button name="ride-exit" text="✕" class="pib pib--x" tooltip="Leave the lift (Esc)" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

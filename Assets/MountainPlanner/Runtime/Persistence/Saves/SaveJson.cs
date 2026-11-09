@@ -37,7 +37,8 @@ namespace MountainPlanner.Persistence.Saves
     /// later one as the change from the one before. The design's "Hours" (v12, task 4.03, LO-07 v2) are the resort's opening,
     /// last chair and stop as whole seconds after local midnight on the face clock (whole minutes; 30600, 58500 and 59400 for
     /// 8:30, 4:15 and 4:30, every v1–v11 save's). A lift's "Schedule" (v12, LO-09) is "daily" or "peak-days" and its "Hours"
-    /// the same three numbers, or null for the resort's (every v1–v11 lift: daily, null). "Sim" (v12, SI-12 v2) names the
+    /// the same three numbers, or null for the resort's (every v1–v11 lift: daily, null). A lift's "Plate" (v13, task 4.11) is
+    /// the one to three letters or digits shown beside its name (every v1–v12 lift: numbered 1, 2, 3 … in ID order). "Sim" (v12, SI-12 v2) names the
     /// simulation's sidecar, { "SidecarVersion", "Sha256" } of sim/&lt;sha256&gt;.sim beside tiles/, or null: no simulation
     /// saved (every v1–v10 save, which opens at the clock's start). A lift's "Drive" (v10, LD9) is the end that drives, "top" or "bottom":
     /// the player's choice on a fixed grip with a head for each end, else the type's own end (a v1–v9 lift: the Sessellift's
@@ -48,11 +49,11 @@ namespace MountainPlanner.Persistence.Saves
     /// anticlockwise and holes clockwise, each from its lowest point; the writer straightens the cells' outline wherever
     /// that keeps every cell, so the same clearing always gives the same rings.
     /// <code>
-    /// { "Version": 11, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 11, "Seed", "NextOrdinal",
+    /// { "Version": 13, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 13, "Seed", "NextOrdinal",
     ///               "Trails": [ { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Posted", "Outline": [ [...] ] } ],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
-    ///                            "Levels": { "BottomMm", "TopMm" } or null, "Drive", "Schedule", "Hours": {...} or null } ],
+    ///                            "Levels": { "BottomMm", "TopMm" } or null, "Drive", "Schedule", "Hours": {...} or null, "Plate" } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
     ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm", "Dabs": [...] } ],
     ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ],
@@ -363,6 +364,7 @@ namespace MountainPlanner.Persistence.Saves
             w.WritePropertyName("Hours");   // v12 (LO-07 v2): the lift's own, or null for the resort's
             if (l.Hours is DayHours own) WriteHours(w, own);
             else w.WriteNull();
+            w.WritePropertyName("Plate"); w.WriteValue(l.Plate);   // v13 (task 4.11 PR B)
             w.WriteEndObject();
         }
 
@@ -606,7 +608,7 @@ namespace MountainPlanner.Persistence.Saves
             }
             return new Lift(new LiftId(HexValue(Str(l, "Id"))), Str(l, "Name"), Words.Stage(Str(l, "Stage")), Str(l, "Catalog"),
                 Point(l, "Bottom"), Point(l, "Top"), Words.Mode(Str(l, "TowerMode")), Words.Stance(Str(l, "Stance")), towers, Levels(l),
-                Words.Drive(Str(l, "Drive")), Words.Schedule(Str(l, "Schedule")), OwnHours(l));
+                Words.Drive(Str(l, "Drive")), Words.Schedule(Str(l, "Schedule")), OwnHours(l), Str(l, "Plate"));
         }
 
         static DayHours? OwnHours(JObject l)

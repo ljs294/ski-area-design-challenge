@@ -540,15 +540,15 @@ the chairs carry **decorative riders** (LO-05).
 - **LO-11 v1, wind holds (OQ1, taken as recommended).** Per type, a lift goes on hold when the hour's gust at its top
   station × a keyed per-lift factor (1 ± `Pacing.GustJitter = 0.1`) exceeds the lift's limit, checked at a
   keyed tick offset within the hour per lift (so two lifts of a type don't stop in the same frame), and resumes when
-  the gust has been 10 mph below it for a full face hour (hysteresis; v2 below: half an hour).
+  the gust has been 10 mph below it for a full face hour (hysteresis; v2 below: ten minutes).
   On hold the rope stops (RP-07 v2: a chair's position is a pure function of the rope's travel, which pauses), the line
   waits, riders in the air wait, and an alert fires (TM-12). Maintenance downtime is Later.
   **v2 (owner 2026-11-08, task 4.11):** the limit depends on the type and the carrier's size. Tows, T-bars, J-bars and
   carpets never hold; a fixed grip holds later than a detachable of the same size; a bigger, heavier carrier holds
   later than a smaller one. Limit = `Pacing.HoldGustMph[type]` + `Pacing.HoldGustPerSeatTenths[type]` × seats ÷ 10:
   fixed-grip double 40 mph, triple 43, quad 46; detachable quad 35, six 38, eight 41; gondolas 45; trams 55.
-  A held lift reads the gust every 15 face minutes (`Pacing.HoldRecheckFaceMinutes`), not hourly, and resumes after
-  the gust has been 10 mph below its limit for half a face hour (`Pacing.HoldResumeFaceMinutes = 30`; owner: holds
+  A held lift reads the gust every 5 face minutes (`Pacing.HoldRecheckFaceMinutes`), not hourly, and resumes after
+  the gust has been 10 mph below its limit for ten face minutes (`Pacing.HoldResumeFaceMinutes = 10`; owner: holds
   ended too slowly).
 - **LO-12, the day ledger per lift.** Rides, **utilisation** (rides ÷ (12 min × 60 ÷ interval × seats), the figure
   the player compares, since 2,400 pph beside 480 rides invites a division nobody should do), peak line, mean wait,
@@ -556,6 +556,16 @@ the chairs carry **decorative riders** (LO-05).
   and the later economy.
 - **LO-13, the throughput golden.** A scripted feeder (no guests) joining a quad's line at 20 a minute for a face
   hour gives 2,400 rides and a line that never exceeds 40; 300 queued at once gives a 7:30 wait at 1×.
+- **LO-14, plates (task 4.11 PR B, owner 2026-11-08; save v13, design shape 13).** Every lift wears a plate beside its
+  name: one to three letters or digits, unique among the lifts (letters compared without case). A new lift takes the
+  lowest whole number no lift has; the player changes it on the card like the name (one undo step). An older save's lifts
+  are numbered 1, 2, 3 … in ID order. The plate leads the name on the card, the Lifts list, the ride bar and the map label.
+- **LO-15, ride a lift (task 4.11 PR B, owner 2026-11-08).** Display only: the card's Ride puts the camera on the next
+  carrier to leave the bottom, every built type (a chair or gondola in its seat, a tow standing on the snow under the bar,
+  a carpet standing on the belt), moving with the rope as drawn, so a hold stops it and a pause freezes it. The mouse looks
+  about the seat, first person, the pointer locked and hidden; Esc leaves to the camera as it was; at the top the rider gets off by themself, to the top station with
+  the card open. No riders are drawn and no skier boards. The card also shows the hold as one figure (LO-11 v2) and
+  Today: on hold now, holds likely (4.05's forecast; until then the F1 gust) or none expected.
 
 ## 7. GU · Guests v1
 

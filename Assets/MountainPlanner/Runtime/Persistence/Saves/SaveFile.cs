@@ -13,13 +13,13 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 12;
+        public const int CurrentVersion = 13;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven, UpToTwelve);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven, UpToTwelve, UpToThirteen);
 
         /// <summary>
         /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
@@ -201,6 +201,24 @@ namespace MountainPlanner.Persistence.Saves
                         if (lift["Schedule"] == null) lift["Schedule"] = "daily";
                         if (lift["Hours"] == null) lift["Hours"] = JValue.CreateNull();
                     }
+        }
+
+        /// <summary>
+        /// v12 → v13 (task 4.11 PR B, owner 2026-11-08): the design's shape 12 → 13, where each lift wears a plate beside its
+        /// name. An older save's lifts had none, so they're numbered 1, 2, 3 … in ID order, as a new lift takes the lowest
+        /// free number.
+        /// </summary>
+        static void UpToThirteen(JObject o)
+        {
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 13;
+            if (!(design["Lifts"] is JArray lifts)) return;
+            var order = new System.Collections.Generic.List<JObject>();
+            foreach (var l in lifts) if (l is JObject lift) order.Add(lift);
+            order.Sort((a, b) => ulong.Parse((string)a["Id"], System.Globalization.NumberStyles.HexNumber)
+                .CompareTo(ulong.Parse((string)b["Id"], System.Globalization.NumberStyles.HexNumber)));
+            for (int i = 0; i < order.Count; i++)
+                if (order[i]["Plate"] == null) order[i]["Plate"] = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         /// <summary>The player's name for it ("Autosave" for the autosave slot).</summary>

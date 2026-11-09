@@ -66,3 +66,28 @@
 .hud .lr__sw--stripes { flex-direction: row; overflow: hidden; }
 .hud .lr__part { flex-grow: 1; }
 .hud .lr__sw--area { border-width: 2px; border-color: rgb(255, 143, 128); border-radius: 6px; }
+
+/* ---------- task 4.11 PR B: the lift's plate, Ride, the Wind hold and Today rows, Runs and Hours (the approved mockup's
+   .plate, .ib.ride, .kv dd.warn, .sched, .hrs, .shint) ---------- */
+.hud .mp-plate { min-width: 19px; height: 19px; margin: 0 7px 0 0; padding: 0 3px; border-width: 1.5px; border-color: var(--flag); border-radius: 3px;
+    font-size: 11.5px; -unity-font-style: bold; -unity-text-align: middle-center; color: var(--flag); -unity-text-outline-color: var(--flag); flex-shrink: 0; }
+.hud .mp-plate--built { border-width: 0; background-color: var(--plate-bg); color: var(--plate-fg); -unity-text-outline-color: var(--plate-fg); }
+.hud .lift-card__plate:hover { border-width: 1px; border-color: var(--soft); }
+.hud .lift-card__plate-field { width: 40px; margin-right: 7px; }
+.hud .an-cell--plated { padding-left: 27px; }
+.hud .an-cell__plate { position: absolute; left: 0; top: 50%; translate: 0 -50%; min-width: 19px; height: 17px; margin: 0; font-size: 10px; }
+.hud .lift-card__ride { width: 30px; padding: 4px; margin-right: 2px; }
+.hud .lift-card__ride > .hud-icon { width: 100%; height: 100%; }
+.hud .lift-card__ride:disabled { color: var(--faint); -unity-text-outline-color: var(--faint); opacity: 1; }
+.hud .tw-kv__v--warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.hud .lift-sched { padding: 2px 12px 6px 12px; border-top-width: 1px; border-top-color: var(--row); }
+.hud .lift-sched__row { flex-direction: row; align-items: center; margin-top: 6px; }
+.hud .lift-sched__k { width: 52px; margin: 0; padding: 0; font-size: 12.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .lift-sched__seg { flex-grow: 1; }
+.hud .lift-sched__hrs { flex-direction: row; margin-top: 8px; }
+.hud .lift-sched__hr { flex-grow: 1; flex-basis: 0; margin-right: 6px; }
+.hud .lift-sched__hk { margin: 0 0 3px 0; padding: 0; font-size: 11px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .lift-sched__step { height: 26px; }
+.hud .lift-sched__step > .mp-step__b { width: 20px; font-size: 14px; }
+.hud .lift-sched__step > .mp-step__v { font-size: 11px; white-space: nowrap; }
+.hud .lift-sched__hint { margin: 5px 0 0 0; padding: 0; font-size: 11.5px; color: var(--soft); -unity-text-outline-color: var(--soft); white-space: normal; }
