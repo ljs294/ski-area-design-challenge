@@ -61,10 +61,11 @@ namespace MountainPlanner.UI
                 new AnalysisList.Column { Title = "Vertical", Numeric = true, Grow = 0.9f, Cell = r => ToolFormat.Length(R(r).VerticalMetres),
                     SortKey = r => R(r).VerticalMetres, Bin = r => Bin(R(r).VerticalMetres, LiftVerticalBinsFt), Bins = BinLabels(LiftVerticalBinsFt) },
                 new AnalysisList.Column { Title = "An hour", Numeric = true, Grow = 0.75f, Cell = r => $"{R(r).Capacity:#,0}", SortKey = r => R(r).Capacity },
-                new AnalysisList.Column { Title = "Wait", Numeric = true, Grow = 0.5f, Cell = r => "—" },
+                new AnalysisList.Column { Title = "Wait", Numeric = true, Grow = 0.9f, Cell = r => LiftWaitText(R(r).Id),
+                    SortKey = r => _liftLive.TryGetValue(R(r).Id, out var v) ? v.WaitSeconds : -1 },
                 PopularityColumn(r => R(r).Popularity),
-                new AnalysisList.Column { Title = "Status", Grow = 0.8f, Class = "an-cell--gap", Cell = r => OperatingStatusWords.Word(R(r).Status),
-                    Bin = r => R(r).Status.ToString(), Bins = OperatingStatusWords.Bins() },
+                new AnalysisList.Column { Title = "Status", Grow = 0.8f, Class = "an-cell--gap", Cell = r => OperatingStatusWords.Word(LiftStatus(R(r))),
+                    Bin = r => LiftStatus(R(r)).ToString(), Bins = OperatingStatusWords.Bins() },
             });
             _liftsList.Root.AddToClassList("hidden");
             _root.Q("analysis-body").Add(_liftsList.Root);
@@ -107,6 +108,49 @@ namespace MountainPlanner.UI
             acts.Add(remove);
             _liftCard.Add(acts);
             _root.Q("hud").Add(_liftCard);
+        }
+
+        /// <summary>A lift as the simulation runs it now (task 4.11): its Status, the line and the wait in real seconds.</summary>
+        public readonly struct LiftLive
+        {
+            public readonly OperatingStatus Status;
+            public readonly int Line;
+            /// <summary>LO-04 v1: the wait at the current speed, real seconds.</summary>
+            public readonly double WaitSeconds;
+            public LiftLive(OperatingStatus status, int line, double waitSeconds) { Status = status; Line = line; WaitSeconds = waitSeconds; }
+            public bool Same(LiftLive o) => Status == o.Status && Line == o.Line && (int)WaitSeconds == (int)o.WaitSeconds;
+        }
+
+        readonly Dictionary<ulong, LiftLive> _liftLive = new Dictionary<ulong, LiftLive>();
+        bool _liveDirty;
+
+        OperatingStatus LiftStatus(LiftRow r) => _liftLive.TryGetValue(r.Id, out var v) ? v.Status : r.Status;
+
+        /// <summary>LO-04 v1's readout: "300 in line · 7:30" (the list shows "300 · 7:30"); "—" with no line or no simulation.</summary>
+        string LiftWaitText(ulong id, bool words = false)
+        {
+            if (!_liftLive.TryGetValue(id, out var v) || v.Status == OperatingStatus.Planned) return "—";
+            if (v.Line == 0) return words ? "No line" : "—";
+            return words ? $"{v.Line:#,0} in line · {Hud.HudText.Clock(v.WaitSeconds)}" : $"{v.Line:#,0} · {Hud.HudText.Clock(v.WaitSeconds)}";
+        }
+
+        /// <summary>The simulation's word, line and wait for a lift (the app calls it at a bounded rate, never per tick).</summary>
+        public void SetLiftLive(ulong id, LiftLive live)
+        {
+            if (_liftLive.TryGetValue(id, out var was) && was.Same(live)) return;
+            _liftLive[id] = live;
+            _liveDirty = true;
+        }
+
+        /// <summary>The lists and open cards redraw once after a batch of <see cref="SetLiftLive"/> and <see cref="SetTrailLive"/>.</summary>
+        public void FlushLive()
+        {
+            if (!_liveDirty) return;
+            _liveDirty = false;
+            if (_liftsList != null && _analysisTab == "lifts") _liftsList.Refresh();
+            if (_trailsList != null && _analysisTab == "trails") _trailsList.Refresh();
+            if (_liftCardId != 0) FillLiftCard();
+            if (_trailCardId != 0) FillTrailCard();
         }
 
         /// <summary>The lifts Analysis › Lifts lists (rebuilt when the design changes, never per tick).</summary>
@@ -177,7 +221,8 @@ namespace MountainPlanner.UI
             if (l.Built && !double.IsNaN(l.LowestChairsMetres)) Kv("Lowest chairs", $"{ToolFormat.Length(l.LowestChairsMetres)} over the ground");
             if (l.Built && !double.IsNaN(l.RiseMetres))
                 Kv("Rise", $"{ToolFormat.Length(l.RiseMetres)} of {(double.IsInfinity(l.RiseLimitMetres) ? "no limit" : ToolFormat.Length(l.RiseLimitMetres))}");
-            Kv("Status", OperatingStatusWords.Word(l.Status));   // F4
+            Kv("Status", OperatingStatusWords.Word(LiftStatus(l)));   // F4, 4.11
+            if (l.Built) Kv("Line", LiftWaitText(l.Id, words: true));   // LO-04 v1
         }
 
         // F6 (LT39): the card's name becomes a text field; Enter or a click elsewhere keeps it, Esc puts the old one back.

@@ -32,6 +32,13 @@ namespace MountainPlanner.UI.Hud
             return table[minute];
         }
 
+        /// <summary>LO-04 v1: a wait as m:ss ("7:30"), or h:mm:ss past an hour.</summary>
+        public static string Clock(double seconds)
+        {
+            int s = (int)Math.Max(0, Math.Round(seconds));
+            return s >= 3600 ? $"{s / 3600}:{s / 60 % 60:D2}:{s % 60:D2}" : $"{s / 60}:{s % 60:D2}";
+        }
+
         /// <summary>":47"</summary>
         public static string Seconds(int secondOfDay)
         {

@@ -14,10 +14,11 @@ namespace MountainPlanner.Simulation
     /// u64 the state hash (SI-08) the reader must reach
     /// </code>
     /// A bump adds a step to <see cref="Upgrade"/> and a <c>TestData/formats/v&lt;N&gt;-sim</c> fixture; v1's stays unedited.
+    /// v2 (task 4.11) appends the lift-operations block (lines, riders, carriers, holds, the day's lift ledger, the way down).
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 1;
+        public const int Version = 2;
         public const string Extension = ".sim";
         static readonly byte[] Magic = { (byte)'M', (byte)'P', (byte)'S', (byte)'M' };
 
@@ -105,7 +106,11 @@ namespace MountainPlanner.Simulation
             catch (ArgumentOutOfRangeException e) { throw new InvalidDataException("The simulation's state is damaged: " + e.Message); }
         }
 
-        /// <summary>One step per version bump, oldest first. v1 is the first: nothing to upgrade.</summary>
+        /// <summary>
+        /// One step per version bump, oldest first. v1 → v2: v1 has no lift-operations block, and the reader leaves the lines
+        /// and chairs empty, the lift ledger at zero and the holds as saved (<see cref="SimWorld"/>'s ReadState reads the block
+        /// only from v2), so the bytes need no rewrite.
+        /// </summary>
         static byte[] Upgrade(byte[] bytes)
         {
             int v = VersionOf(bytes);

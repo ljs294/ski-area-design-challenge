@@ -43,6 +43,12 @@ namespace MountainPlanner.Simulation
         SnowpackApplied = 18,
         /// <summary>SI-12 v2: the host wrote the state for a save. Value: the sidecar's bytes.</summary>
         StateSaved = 19,
+        /// <summary>LO-11: a lift stopped for wind. Entity: the lift's index; value: the gust it read, mph.</summary>
+        LiftHeld = 20,
+        /// <summary>LO-11: a held lift runs again. Entity: the lift's index; value: the gust it read, mph.</summary>
+        LiftResumed = 21,
+        /// <summary>LO-10: a lift lost its way down mid-day and downloads. Entity: the lift's index; value: its ID.</summary>
+        LiftDownloading = 22,
     }
 
     /// <summary>Why a command was turned away (an event's Detail). Stable numbers.</summary>

@@ -14,7 +14,7 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 1;
+        public const int Version = 2;   // 2: task 4.11's lift operations (LO-02, LO-11)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -61,6 +61,28 @@ namespace MountainPlanner.Simulation
         public readonly int CloseNudgeSharePercent;
         /// <summary>TM-11 v2: face days after the melt-out nudge with no lift serving a run before the season ends.</summary>
         public readonly int SeasonEndDays;
+
+        // ---- Lift operations (LO-02, LO-11; task 4.11) ----
+
+        /// <summary>LO-11 v2 (owner 2026-11-08): the base of the gust at the top station that holds a lift, mph, by kind:
+        /// fixed-grip chairs, detachable chairs, gondolas, trams (tows and carpets never hold). A lift's limit is this plus
+        /// <see cref="HoldGustPerSeatTenths"/> × its seats.</summary>
+        public readonly int[] HoldGustMph;
+        /// <summary>LO-11 v2: tenths of a mph each seat adds to the limit, by the same kinds (bigger, heavier chairs ride the
+        /// wind better; a fixed grip gains more per seat than a detachable, so it stays ahead at the same size).</summary>
+        public readonly int[] HoldGustPerSeatTenths;
+        /// <summary>LO-11 v1: each lift's keyed gust factor is 1 ± this, in percent.</summary>
+        public readonly int GustJitterPercent;
+        /// <summary>LO-11 v1: a held lift resumes once the gust has been this far below its threshold for a full face hour.</summary>
+        public readonly int HoldResumeMarginMph;
+        /// <summary>LO-11 v2: how long the gust must stay that far below, face minutes (owner 2026-11-08: a half hour).</summary>
+        public readonly int HoldResumeFaceMinutes;
+        /// <summary>LO-11 v2: a held lift reads the gust this often, face minutes (a running lift reads it once an hour).</summary>
+        public readonly int HoldRecheckFaceMinutes;
+        /// <summary>LO-02: the most skiers one lift's line holds (its ring is allocated once per design).</summary>
+        public readonly int MaxLine;
+        /// <summary>SI-16: the most trails a snapshot holds (their open state).</summary>
+        public readonly int MaxTrails;
 
         // ---- The boundary (SI-16–SI-19, BG-02) ----
 
@@ -120,6 +142,17 @@ namespace MountainPlanner.Simulation
             LapsTarget = Int(map, nameof(LapsTarget), 1, 100);
             CloseNudgeSharePercent = Int(map, nameof(CloseNudgeSharePercent), 0, 100);
             SeasonEndDays = Int(map, nameof(SeasonEndDays), 1, 365);
+            HoldGustMph = Ints(map, nameof(HoldGustMph), 1, 500);
+            if (HoldGustMph.Length != 4) throw new FormatException("HoldGustMph needs four entries (fixed grip, detachable, gondola, tram).");
+            HoldGustPerSeatTenths = Ints(map, nameof(HoldGustPerSeatTenths), 0, 1000);
+            if (HoldGustPerSeatTenths.Length != 4) throw new FormatException("HoldGustPerSeatTenths needs four entries (fixed grip, detachable, gondola, tram).");
+            GustJitterPercent = Int(map, nameof(GustJitterPercent), 0, 50);
+            HoldResumeMarginMph = Int(map, nameof(HoldResumeMarginMph), 0, 100);
+            HoldResumeFaceMinutes = Int(map, nameof(HoldResumeFaceMinutes), 1, 24 * 60);
+            HoldRecheckFaceMinutes = Int(map, nameof(HoldRecheckFaceMinutes), 1, 60);
+            if (60 % HoldRecheckFaceMinutes != 0) throw new FormatException("HoldRecheckFaceMinutes must divide the hour.");
+            MaxLine = Int(map, nameof(MaxLine), 16, 1 << 16);
+            MaxTrails = Int(map, nameof(MaxTrails), 1, 8192);
             EventRingSize = Int(map, nameof(EventRingSize), 16, 1 << 20);
             if ((EventRingSize & (EventRingSize - 1)) != 0) throw new FormatException("EventRingSize must be a power of two.");
             SnapshotEvents = Int(map, nameof(SnapshotEvents), 1, EventRingSize);
@@ -190,6 +223,14 @@ namespace MountainPlanner.Simulation
             E(nameof(LapsTarget), "4"),
             E(nameof(CloseNudgeSharePercent), "25"),
             E(nameof(SeasonEndDays), "7"),
+            E(nameof(HoldGustMph), "34, 29, 45, 55"),
+            E(nameof(HoldGustPerSeatTenths), "30, 15, 0, 0"),
+            E(nameof(GustJitterPercent), "10"),
+            E(nameof(HoldResumeMarginMph), "10"),
+            E(nameof(HoldResumeFaceMinutes), "30"),
+            E(nameof(HoldRecheckFaceMinutes), "15"),
+            E(nameof(MaxLine), "2048"),
+            E(nameof(MaxTrails), "1024"),
             E(nameof(EventRingSize), "4096"),
             E(nameof(SnapshotEvents), "512"),
             E(nameof(MaxLifts), "256"),

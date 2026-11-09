@@ -349,33 +349,59 @@ namespace MountainPlanner.Tests
 
         // ---------- the frozen format (0.3 §5) ----------
 
-        /// <summary>The v1 fixture's world: the golden script to 10:00 on Day 4 of its first season, with a small snow field.</summary>
-        static byte[] FixtureOne()
+        /// <summary>The fixtures' world: the golden script to 10:00 on Day 4 of its first season, with a small snow field.</summary>
+        static byte[] FixtureState()
         {
             var w = Played(3 * Day + 10 * SimWorld.HourMs, out _);
             return w.SaveState();
         }
 
-        static string FixtureFile() => Path.Combine(TestData.Folder(Path.Combine("formats", "v1-sim")), "golden.sim");
-
-        [Test]
-        public void TheVersionOneSidecarIsFrozen()
+        /// <summary>v2's world adds lift operations (task 4.11): a line on the first lift, a feeder, a hold on the second.</summary>
+        static byte[] FixtureTwo()
         {
-            byte[] fixture = File.ReadAllBytes(FixtureFile());
-            Assert.That(FixtureOne(), Is.EqualTo(fixture), "the sidecar v1 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
-            var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
-            Assert.That(header.SidecarVersion, Is.EqualTo(1));
-            Assert.That(header.PacingHash, Is.EqualTo(P.ContentsHash), "the fixture was made with this Pacing");
-            Assert.That((w.Phase, w.SeasonDay, w.Snow.Width, w.Snow.Height), Is.EqualTo((SeasonPhase.Season, 4, FieldW, FieldH)));
-            Assert.That(w.RunMsOf(101), Is.GreaterThan(0), "the ropes have run");
+            var w = Played(3 * Day + 9 * SimWorld.HourMs, out _);
+            w.ApplyNow(SimCommand.Of(SimCommandKind.FeedLine, 0, new LiftFeed(101, 120, 20)));
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetGust, 60));
+            while (w.FaceMs < 3 * Day + 10 * SimWorld.HourMs) w.Step(1);
+            return w.SaveState();
         }
 
-        [Test, Explicit("Regenerates the frozen v1 sidecar fixture")]
-        public void WriteTheVersionOneSidecarFixture()
+        static string FixtureFile(int version) => Path.Combine(TestData.Folder(Path.Combine("formats", $"v{version}-sim")), "golden.sim");
+
+        /// <summary>v1 (task 4.03) still opens: the v1 → v2 step leaves the lines and chairs empty and keeps the holds.</summary>
+        [Test]
+        public void TheVersionOneSidecarStillOpens()
         {
-            string folder = Path.Combine(TestData.Folder("formats"), "v1-sim");
+            byte[] fixture = File.ReadAllBytes(FixtureFile(1));
+            Assert.That(SimSidecar.VersionOf(fixture), Is.EqualTo(1));
+            var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
+            Assert.That(header.SidecarVersion, Is.EqualTo(1));
+            Assert.That((w.Phase, w.SeasonDay, w.Snow.Width, w.Snow.Height), Is.EqualTo((SeasonPhase.Season, 4, FieldW, FieldH)));
+            Assert.That(w.RunMsOf(101), Is.GreaterThan(0), "the ropes have run");
+            Assert.That((w.LineOf(101), w.LedgerOf(101).riding), Is.EqualTo((0, 0)), "v1 had no lines");
+            for (int i = 0; i < 1000; i++) w.Step(1);
+            Assert.That(w.StatusOf(101), Is.EqualTo(LiftOpStatus.Open), "and it plays on");
+        }
+
+        [Test]
+        public void TheVersionTwoSidecarIsFrozen()
+        {
+            byte[] fixture = File.ReadAllBytes(FixtureFile(2));
+            Assert.That(FixtureTwo(), Is.EqualTo(fixture), "the sidecar v2 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
+            var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
+            Assert.That(header.SidecarVersion, Is.EqualTo(2));
+            Assert.That(header.PacingHash, Is.EqualTo(P.ContentsHash), "the fixture was made with this Pacing");
+            Assert.That((w.Phase, w.SeasonDay), Is.EqualTo((SeasonPhase.Season, 4)));
+            Assert.That(w.LineOf(101), Is.GreaterThan(0));
+            Assert.That(w.HeldNow(202), Is.True);
+        }
+
+        [Test, Explicit("Regenerates the frozen v2 sidecar fixture")]
+        public void WriteTheVersionTwoSidecarFixture()
+        {
+            string folder = Path.Combine(TestData.Folder("formats"), "v2-sim");
             Directory.CreateDirectory(folder);
-            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), FixtureOne());
+            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), FixtureTwo());
         }
     }
 }

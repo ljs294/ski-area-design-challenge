@@ -82,8 +82,8 @@ namespace MountainPlanner.UI
                     SortKey = r => R(r).VerticalMetres, Bin = r => Bin(R(r).VerticalMetres, VerticalBinsFt), Bins = BinLabels(VerticalBinsFt) },
                 new AnalysisList.Column { Title = "Conditions", Grow = 0.95f, Class = "an-cell--gap", Cell = r => R(r).Conditions ?? "—" },
                 PopularityColumn(r => R(r).Popularity),
-                new AnalysisList.Column { Title = "Status", Grow = 0.8f, Class = "an-cell--gap", Cell = r => OperatingStatusWords.Word(R(r).Status),
-                    Bin = r => R(r).Status.ToString(), Bins = OperatingStatusWords.Bins() },
+                new AnalysisList.Column { Title = "Status", Grow = 0.8f, Class = "an-cell--gap", Cell = r => OperatingStatusWords.Word(TrailStatus(R(r))),
+                    Bin = r => TrailStatus(R(r)).ToString(), Bins = OperatingStatusWords.Bins() },
             });
             _trailsList.Root.AddToClassList("hidden");
             _root.Q("analysis-body").Add(_trailsList.Root);
@@ -132,6 +132,30 @@ namespace MountainPlanner.UI
             acts.Add(remove);
             _trailCard.Add(acts);
             _root.Q("hud").Add(_trailCard);   // in the HUD's layer, as its windows are
+        }
+
+        readonly Dictionary<ulong, OperatingStatus> _trailLive = new Dictionary<ulong, OperatingStatus>();
+
+        OperatingStatus TrailStatus(TrailRow r) => r.Built && _trailLive.TryGetValue(r.Id, out var v) ? v : r.Status;
+
+        /// <summary>
+        /// A built trail's word from the simulation (task 4.11's stand-in for SN-20 until 4.07: Open while an open lift's
+        /// descent runs along it in the resort's hours). The app calls it at a bounded rate; <see cref="FlushLive"/> redraws.
+        /// </summary>
+        public void SetTrailLive(ulong id, OperatingStatus status)
+        {
+            if (_trailLive.TryGetValue(id, out var was) && was == status) return;
+            _trailLive[id] = status;
+            _liveDirty = true;
+        }
+
+        /// <summary>Forgets the simulation's words (a new mountain, or the network not yet known): the placeholders show.</summary>
+        public void ClearLive()
+        {
+            if (_trailLive.Count == 0 && _liftLive.Count == 0) return;
+            _trailLive.Clear();
+            _liftLive.Clear();
+            _liveDirty = true;
         }
 
         /// <summary>The trails Analysis › Trails lists (rebuilt when the design changes, never per tick).</summary>
@@ -239,7 +263,7 @@ namespace MountainPlanner.UI
             Kv("Length", ToolFormat.Length(t.LengthMetres));
             Kv("Vertical", ToolFormat.Length(t.VerticalMetres));
             if (!double.IsNaN(t.MeanPercent)) Kv("Average grade", $"{Math.Round(t.MeanPercent):0}%");
-            Kv("Status", OperatingStatusWords.Word(t.Status));   // F4: no Grading row
+            Kv("Status", OperatingStatusWords.Word(TrailStatus(t)));   // F4: no Grading row; 4.11's stand-in until 4.07
         }
 
         void CloseTrailCard()

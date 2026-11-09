@@ -109,6 +109,7 @@ namespace MountainPlanner.Simulation
             BeginFaceDay(0, false);
             FaceMs = _todayOpen * 1000L;
             ResetLedger();
+            RefreshBoard();
         }
 
         /// <summary>The fixed parts only; a new game folds the design and starts its day, a sidecar reads the rest (SI-12 v2).</summary>
@@ -166,7 +167,7 @@ namespace MountainPlanner.Simulation
             get
             {
                 for (int i = 0; i < _liftCount; i++) if (_running[i]) return false;
-                return true;
+                return !AnyFeeding();
             }
         }
 
@@ -201,28 +202,11 @@ namespace MountainPlanner.Simulation
             int rate = _stepDayRate ? Pacing.DayFaceMsPerTick : Pacing.NightFaceMsPerTick;
             long remaining = NextBoundary(sod) - sod;
             int ticksToBoundary = (int)((remaining + rate - 1) / rate);
-            bool running = _stepDayRate && AnyBuiltLift();
+            bool running = _stepDayRate && AnyBuiltLift() || AnyFeeding();
             int k = running ? 1 : Math.Min(Math.Min(_stepMaxTicks, Pacing.IdleTickFactor), ticksToBoundary);
             if (k < 1) k = 1;
             _stepTicks = k;
             _stepAdvance = Math.Min((long)k * rate, remaining);
-        }
-
-        internal void RunLifts()
-        {
-            long ms = (long)_stepTicks * Pacing.TickMs;
-            for (int i = 0; i < _liftCount; i++)
-            {
-                // 4.03's stand-in for LO-07/LO-09: a built lift's rope runs from opening to stop on a season day (owner,
-                // 2026-11-08: chairs run only when the lifts or the mountain are open). 4.11 adds schedules, holds and lines.
-                bool run = _stepDayRate && _liftBuilt[i] && _liftOpen[i] != 0 && _liftHold[i] == 0;
-                if (run != _running[i])
-                {
-                    _running[i] = run;
-                    Events.Add(Tick, run ? SimEventType.LiftStarted : SimEventType.LiftStopped, i, (long)_liftIds[i]);
-                }
-                if (run) _runMs[i] += ms;
-            }
         }
 
         internal void RunLedgers()
@@ -275,6 +259,10 @@ namespace MountainPlanner.Simulation
                     if (!(c.Payload is SimSnowpack p) || !Snow.Apply(p)) { Reject(c, SimRefusal.Unknown); return; }
                     Events.Add(Tick, SimEventType.SnowpackApplied, -1, (long)p.Width * p.Height);
                     break;
+                case SimCommandKind.SetGust:
+                case SimCommandKind.FeedLine:
+                    if (!ApplyLiftCommand(c)) return;
+                    break;
                 default:
                     Reject(c, SimRefusal.Unknown);
                     return;
@@ -304,6 +292,8 @@ namespace MountainPlanner.Simulation
             // SI-15: a different resort seed (a save opened over the start) draws this season's seed again, unless pinned.
             if (newSeed && !SeedPinned) SeasonSeed = DrawSeasonSeed();
             int n = Math.Min(d.Lifts.Length, Pacing.MaxLifts);
+            var oldIds = _liftIds;
+            int oldCount = _liftCount;
             var ids = new ulong[n];
             var built = new bool[n];
             var runMs = new long[n];
@@ -325,11 +315,14 @@ namespace MountainPlanner.Simulation
                     runFace[i] = _runFaceMs[was];
                     closedFace[i] = _closedFaceMs[was];
                     hold[i] = _liftHold[was];
+                    open[i] = _liftOpen[was];   // LO-10: the board as it was, so a lift that loses its way down mid-day downloads
+                    openNext[i] = _liftOpenNext[was];
                 }
             }
             _liftIds = ids; _liftBuilt = built; _runMs = runMs; _running = running; _runFaceMs = runFace; _closedFaceMs = closedFace;
             _liftOpen = open; _liftOpenNext = openNext; _liftHold = hold;
             _liftCount = n;
+            FoldLiftOps(oldIds, oldCount, ids, n);
             RefreshBoard();
         }
 
@@ -358,6 +351,7 @@ namespace MountainPlanner.Simulation
                 Events.Add(Tick, SimEventType.FaceDayBegan, -1, faceDay);
             }
             HoursFor(faceDay, out _todayOpen, out _todayLastChair, out _todayStop, out _todayTrimmed);
+            LiftHoursToday();
             if (_todayTrimmed && announce) Events.Add(Tick, SimEventType.HoursTrimmed, -1, _todayOpen * 100000L + _todayStop);
             RefreshBoard();
         }
@@ -395,9 +389,10 @@ namespace MountainPlanner.Simulation
             _weatherHour = hour;
             _weatherTenthsF = 230;     // 23 °F, light wind: one fixed hour until 4.05
             _weatherWindMph = 5;
+            Array.Clear(_weatherGustMph, 0, _weatherGustMph.Length);   // LO-11's gust seam: 4.05 writes each lift's top-station gust (WX-39) here
             _hourSliceCursor = 0;
             _trailsReadyNext = Design.BuiltTrails;
-            for (int i = 0; i < _liftCount; i++) _liftOpenNext[i] = (byte)(Phase == SeasonPhase.Season && _liftBuilt[i] ? 1 : 0);
+            BoardLifts(_liftOpenNext);
             FlipBoard();
             HourIndex = hour;
             HourHash = Hash();
@@ -412,7 +407,8 @@ namespace MountainPlanner.Simulation
         /// <summary>The board between hours: an open/close or a new design changes it at once rather than waiting for the hour.</summary>
         void RefreshBoard()
         {
-            for (int i = 0; i < _liftCount; i++) _liftOpen[i] = (byte)(Phase == SeasonPhase.Season && _liftBuilt[i] ? 1 : 0);
+            if (_candidate.Length < _liftCount) return;   // mid-fold: FoldDesign refreshes once the lifts' operations are in
+            BoardLifts(_liftOpen);
             _trailsReady = Design.BuiltTrails;
         }
 
@@ -437,7 +433,7 @@ namespace MountainPlanner.Simulation
             if (land > sod && land < next) next = land;
             if (open > sod && open < next) next = open;
             if (stop > sod && stop < next) next = stop;
-            return next;
+            return LiftBoundary(sod, next);
         }
 
         /// <summary>Owner, 2026-11-08 (plan question 8): Skip to morning lands an hour before opening.</summary>
@@ -486,6 +482,7 @@ namespace MountainPlanner.Simulation
             _ledgerPhase = Phase;
             Array.Clear(_runFaceMs, 0, _runFaceMs.Length);
             Array.Clear(_closedFaceMs, 0, _closedFaceMs.Length);
+            ResetLiftLedger();
         }
 
         /// <summary>TM-15: one report at closing, built from the ledgers; zeros where guests and snow don't exist yet.</summary>
@@ -505,8 +502,8 @@ namespace MountainPlanner.Simulation
             {
                 r.RunMinutes[i] = (int)(_runFaceMs[i] / 60_000);
                 r.ClosedMinutes[i] = (int)(_closedFaceMs[i] / 60_000);
-                r.Rides[i] = 0;
             }
+            WriteLiftReport(r);
             Events.Add(Tick, SimEventType.DayReport, -1, _ledgerDay);
         }
 
@@ -623,6 +620,7 @@ namespace MountainPlanner.Simulation
                 s.LiftStates[i] = !_liftBuilt[i] ? LiftRunState.Planned : _running[i] ? LiftRunState.Running : LiftRunState.Parked;
                 s.LiftOpen[i] = _liftOpen[i];
             }
+            WriteLifts(s, FaceMs % DayMs);
             s.TrailsReady = _trailsReady;
             if (_lastReport.FaceDay != s.LastDayReport.FaceDay || _lastReport.LiftCount != s.LastDayReport.LiftCount)
                 s.LastDayReport.CopyFrom(_lastReport);
@@ -660,6 +658,7 @@ namespace MountainPlanner.Simulation
             for (int k = 0; k < _historyCount; k++) { h.Add(_historyFaceDay[k]); h.Add(_historyRunMinutes[k]); h.Add(_historyLiftsRun[k]); h.Add(_historyType[k]); }
             h.Add(_lastReport.FaceDay);
             h.Add(_commandSeq);
+            HashLifts(ref h);
             // The snow joined in PR B (SI-17): a world that has never had any hashes as before, so the goldens stand.
             if (Snow.Set || Snow.Width > 0) Snow.AddTo(ref h);
             return h.Value;
@@ -672,6 +671,8 @@ namespace MountainPlanner.Simulation
         const ulong Base = 0x5349_4D00_0000_0000UL;   // "SIM"
         /// <summary>SI-15: a season's seed from the resort's seed and the season number.</summary>
         public const ulong SeasonSeedTag = Base + 1;
+        /// <summary>LO-11 v1: a lift's wind check offset within the hour and its gust factor.</summary>
+        public const ulong WindCheckTag = Base + 2;
 
         public static ulong Hash(ulong seed, ulong tag, ulong a) => DesignKey.Hash(seed, tag, a);
         public static ulong Hash(ulong seed, ulong tag, ulong a, ulong b) => DesignKey.Hash(seed, tag, a, b);
