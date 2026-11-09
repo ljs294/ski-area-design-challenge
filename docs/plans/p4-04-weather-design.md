@@ -73,7 +73,7 @@ a crowd that reads the snow report, and a mountain whose operations can be set t
     was obtained from the POWER Project's Hourly 2.x.x version on YYYY/MM/DD"*, with the version the API reports.
   - 4.05 confirms each DOI and version string at fetch and stores what the service returned, never a typed copy.
     POWER *asks* (does not require) to be told of redistribution and publications; whether to email them at release
-    is the owner's call (§15 open question O1).
+    is decided in §15 (O1): yes, at the first public release with weather, and only with the owner's explicit approval of the message.
 - **WX-13, outside Daymet (owner: US first).** Phase 4 serves US sites. A site outside Daymet still opens: its rows
   are built from POWER alone (POWER's daily sums and extremes as the anchor, lapse from WX-36's defaults) and the
   package is flagged **limited**, with one line on the Weather tab. **Later**, a better free anchor for the rest of
@@ -905,6 +905,8 @@ Decided after the draft (owner, 2026-11-08):
   a week, the true weather type in hedged words, precipitation ranges around a mostly-true amount, a two-day window
   for a far storm, rare phantoms, a pattern outlook line (WX-05 v3, WX-54 v2).
 
-Open:
+- **O1 → email the POWER project at the first public release that ships weather** (a courtesy they ask for, not a
+  requirement; WX-12). The owner approves the message and its sending explicitly at the time: no one, here or in
+  any later task, contacts an outside person or organisation without the owner's explicit approval.
 
-- **O1.** Whether to email the POWER project at release (a request, not a requirement; WX-12).
+Open: none.
