@@ -45,6 +45,7 @@ namespace MountainPlanner.UI
         AnalysisList _liftsList;
         VisualElement _liftCard;
         Label _liftCardName, _liftCardKind, _liftCardPlate;
+        string _liftCardPlateValue = "";
         VisualElement _liftCardKv, _liftCardSched;
         Button _liftCardRide;
         ulong _liftCardId;
@@ -241,9 +242,7 @@ namespace MountainPlanner.UI
         {
             if (!_liftRows.TryGetValue(_liftCardId, out var l)) return;
             _liftCardName.text = l.Name;
-            _liftCardPlate.text = l.Plate ?? "";
-            _liftCardPlate.EnableInClassList("hidden", string.IsNullOrEmpty(l.Plate));
-            _liftCardPlate.EnableInClassList("mp-plate--built", l.Built);
+            ShowLiftCardPlate(l.Plate, l.Built);
             _liftCardKind.text = l.Kind ?? "Lift";   // F5
             _liftCardRide.SetEnabled(l.Built);
             _liftCardRide.tooltip = l.Built ? "Ride this lift (R)" : "Build it to ride it";
@@ -399,6 +398,17 @@ namespace MountainPlanner.UI
             return true;
         }
 
+        /// <summary>Plates are optional (owner 2026-11-08): a lift without one shows a faint "#" chip to add one.</summary>
+        void ShowLiftCardPlate(string plate, bool built)
+        {
+            _liftCardPlateValue = plate ?? "";
+            bool none = _liftCardPlateValue.Length == 0;
+            _liftCardPlate.text = none ? "#" : _liftCardPlateValue;
+            _liftCardPlate.tooltip = none ? "Add a plate (Shift+F2)" : "Change the plate (Shift+F2); empty removes it";
+            _liftCardPlate.EnableInClassList("mp-plate--empty", none);
+            _liftCardPlate.EnableInClassList("mp-plate--built", built && !none);
+        }
+
         // Task 4.11 PR B: the plate becomes a short text field, as the name does (Enter keeps it, Esc puts the old one back).
         void EditLiftCardPlate()
         {
@@ -415,7 +425,7 @@ namespace MountainPlanner.UI
                 _liftCardPlateField.RegisterCallback<FocusOutEvent>(_ => EndLiftCardPlate(true));
             }
             if (_liftCardPlateField.parent != null) return;
-            _liftCardPlateField.SetValueWithoutNotify(_liftCardPlate.text);
+            _liftCardPlateField.SetValueWithoutNotify(_liftCardPlateValue);
             InlineName.Open(_liftCardPlate, _liftCardPlateField);
             _liftCardPlateField.schedule.Execute(() => { _liftCardPlateField.Focus(); _liftCardPlateField.SelectAll(); });
         }
@@ -425,11 +435,10 @@ namespace MountainPlanner.UI
             if (_liftCardPlateField?.parent == null) return;
             string typed = _liftCardPlateField.value.Trim().ToUpperInvariant();
             _liftCardPlateField.RemoveFromHierarchy();
-            _liftCardPlate.RemoveFromClassList("hidden");
-            if (!keep || typed == _liftCardPlate.text || LiftPlateChanged == null) return;
+            if (!keep || typed == _liftCardPlateValue || LiftPlateChanged == null) return;
             string problem = LiftPlateChanged(_liftCardId, typed);
             if (problem != null) Toast(problem);
-            else _liftCardPlate.text = typed;
+            else ShowLiftCardPlate(typed, _liftRows.TryGetValue(_liftCardId, out var row) && row.Built);
         }
 
         /// <summary>Types a plate into the card (tests).</summary>

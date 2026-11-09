@@ -29,7 +29,7 @@ namespace MountainPlanner.Tests
         // all at their defaults here; from 9992c612….
         // Shape 13 (task 4.11 PR B, owner 2026-11-08; save v13 cleared by the coordinator): each lift's plate, the scripted
         // lifts taking 1, 2 … as they're built; from be70d92a….
-        const string GoldenSha = "438e692b48ad882e3635e9a020ecb6a1032bae42e99e113aff062ed8992cad39";
+        const string GoldenSha = "a4b01100d7adbc07b7298df279d950ff1b62718c19cf98155111c0e2c48380fe";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()

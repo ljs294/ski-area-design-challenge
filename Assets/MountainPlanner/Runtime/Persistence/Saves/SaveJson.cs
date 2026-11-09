@@ -38,7 +38,7 @@ namespace MountainPlanner.Persistence.Saves
     /// last chair and stop as whole seconds after local midnight on the face clock (whole minutes; 30600, 58500 and 59400 for
     /// 8:30, 4:15 and 4:30, every v1–v11 save's). A lift's "Schedule" (v12, LO-09) is "daily" or "peak-days" and its "Hours"
     /// the same three numbers, or null for the resort's (every v1–v11 lift: daily, null). A lift's "Plate" (v13, task 4.11) is
-    /// the one to three letters or digits shown beside its name (every v1–v12 lift: numbered 1, 2, 3 … in ID order). "Sim" (v12, SI-12 v2) names the
+    /// the one to three letters or digits shown beside its name, or "" for none (every v1–v12 lift: none). "Sim" (v12, SI-12 v2) names the
     /// simulation's sidecar, { "SidecarVersion", "Sha256" } of sim/&lt;sha256&gt;.sim beside tiles/, or null: no simulation
     /// saved (every v1–v10 save, which opens at the clock's start). A lift's "Drive" (v10, LD9) is the end that drives, "top" or "bottom":
     /// the player's choice on a fixed grip with a head for each end, else the type's own end (a v1–v9 lift: the Sessellift's

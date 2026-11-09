@@ -49,6 +49,7 @@ namespace MountainPlanner.UI
         readonly List<Row> _all = new List<Row>();
         readonly Dictionary<int, HashSet<string>> _hidden = new Dictionary<int, HashSet<string>>();
         int _sortCol = -1;
+        bool[] _leadRoom;
         bool _sortUp;
         int _menuCol = -1;
         ulong _focused;
@@ -174,6 +175,16 @@ namespace MountainPlanner.UI
             }
             _rows.Clear();
             _rowButtons.Clear();
+            // A lead (the lift's plate) is optional: once any shown row has one, every row in that column makes its room, so
+            // the names line up.
+            if (_leadRoom == null || _leadRoom.Length != _cols.Length) _leadRoom = new bool[_cols.Length];
+            for (int c = 0; c < _cols.Length; c++)
+            {
+                _leadRoom[c] = false;
+                if (_cols[c].Lead != null)
+                    foreach (var r in shown)
+                        if (_cols[c].Lead(r) is string s && s.Length > 0) { _leadRoom[c] = true; break; }
+            }
             foreach (var r in shown)
             {
                 var row = r;
@@ -196,8 +207,8 @@ namespace MountainPlanner.UI
                         plate.AddToClassList("mp-plate--built");
                         plate.AddToClassList("an-cell__plate");
                         l.Add(plate);
-                        l.AddToClassList("an-cell--plated");
                     }
+                    if (_leadRoom[c]) l.AddToClassList("an-cell--plated");
                     if (_cols[c].Numeric) { l.AddToClassList("an-cell--n"); l.AddToClassList("mono"); }
                     if (_cols[c].Class != null) l.AddToClassList(_cols[c].Class);
                     l.style.flexGrow = _cols[c].Grow;

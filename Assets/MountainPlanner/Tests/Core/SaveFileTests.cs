@@ -67,8 +67,8 @@ namespace MountainPlanner.Tests.Core
         };
 
         /// <summary>
-        /// The design as the v12 → v13 migration leaves it: every lift's plate numbered 1, 2, 3 … in ID order. (A design built
-        /// by commands numbers them as they're built; IDs are keyed hashes, so the two orders differ.)
+        /// The v13 fixture's first plates: its lifts numbered 1, 2, 3 … in ID order (the fixture was pinned this way when the
+        /// migration still numbered them; plates are now optional and older saves open with none).
         /// </summary>
         internal static DesignDocument PlatesInIdOrder(DesignDocument d)
         {
@@ -78,8 +78,7 @@ namespace MountainPlanner.Tests.Core
 
         static void AssertSame(SaveFile a, SaveFile b)
         {
-            var design = b.MigratedFrom < 13 ? PlatesInIdOrder(a.Design) : a.Design;
-            Assert.That(DesignBytes.Same(DesignBytes.Encode(design), DesignBytes.Encode(b.Design)), Is.True, "identical document bytes");
+            Assert.That(DesignBytes.Same(DesignBytes.Encode(a.Design), DesignBytes.Encode(b.Design)), Is.True, "identical document bytes");
             Assert.That(b.Name, Is.EqualTo(a.Name));
             Assert.That(b.Autosave, Is.EqualTo(a.Autosave));
             Assert.That(b.SavedUtc, Is.EqualTo(a.SavedUtc));
@@ -331,15 +330,14 @@ namespace MountainPlanner.Tests.Core
         }
 
         /// <summary>
-        /// The save the v13 fixture holds (task 4.11 PR B, owner 2026-11-08): the v12 fixture's as it opens in v13 (its lifts
-        /// numbered 1, 2 and 3 in ID order), with the second given a letter ("A") and the third two digits ("12"), so both
-        /// kinds of plate are pinned.
+        /// The save the v13 fixture holds (task 4.11 PR B, owner 2026-11-08): the v12 fixture's lifts given plates 1, 2 and 3
+        /// in ID order, then the second a letter ("A") and the third two digits ("12"), so both kinds of plate are pinned.
         /// </summary>
         static SaveFile FixtureSaveThirteen()
         {
             var save = FixtureSaveTwelve();
-            Assert.That(save.Design.Lifts.Select(l => l.Plate).OrderBy(x => x), Is.EqualTo(new[] { "1", "2", "3" }), "built lifts take 1, 2, 3");
-            save.Design = PlatesInIdOrder(save.Design);   // as the save opened from v12 shows them
+            Assert.That(save.Design.Lifts.All(l => l.Plate == ""), Is.True, "built lifts have no plate");
+            save.Design = PlatesInIdOrder(save.Design);
             var r = new SetLiftPlate(0, save.Design.Lifts[1].Id, "A").Apply(save.Design);
             Assert.That(r.Accepted, Is.True, r.Reason);
             r = new SetLiftPlate(0, r.Document.Lifts[2].Id, "12").Apply(r.Document);
@@ -577,7 +575,7 @@ namespace MountainPlanner.Tests.Core
             string copy = Path.Combine(_root, "v1");
             CopyFolder(fixture, copy);
             var back = SaveStore.Read(copy);
-            Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(PlatesInIdOrder(FixtureSave().Design))), Is.True);
+            Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(FixtureSave().Design)), Is.True);
             Assert.That(back.Design.Lifts.All(l => l.Levels == null), Is.True);
         }
 
@@ -722,16 +720,15 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
-        public void EveryOlderSavesLiftsAreNumberedInIdOrder()
+        public void OlderSavesOpenWithNoPlates()
         {
-            // v12 → v13 (task 4.11 PR B): an older save's lifts had no plate; they're numbered 1, 2, 3 … in ID order.
+            // v12 → v13 (task 4.11 PR B; owner 2026-11-08: plates are optional): an older save's lifts open with no plate.
             foreach (string version in new[] { "v1-save", "v2-save", "v10-save", "v12-save" })
             {
                 string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", version)), "Saves", JacksonHole, "save-001");
                 var back = SaveJson.Read(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName)), out _);
-                var ids = back.Design.Lifts.Select(l => l.Id.Value).ToList();
-                Assert.That(ids, Is.Ordered, version);
-                Assert.That(back.Design.Lifts.Select(l => l.Plate), Is.EqualTo(Enumerable.Range(1, ids.Count).Select(n => n.ToString())), version);
+                Assert.That(back.Design.Lifts.Count, Is.GreaterThan(0), version);
+                Assert.That(back.Design.Lifts.All(l => l.Plate == ""), Is.True, version);
             }
         }
 
@@ -740,19 +737,27 @@ namespace MountainPlanner.Tests.Core
         {
             var d = PlatesInIdOrder(FixtureSaveTwelve().Design);
             var first = d.Lifts[0].Id;
-            foreach (string bad in new[] { "", "1234", "A B", "#1", "é" })
+            foreach (string bad in new[] { "1234", "A B", "#1", "é" })
                 Assert.That(new SetLiftPlate(0, first, bad).Apply(d).Accepted, Is.False, bad);
             var taken = new SetLiftPlate(0, first, "2").Apply(d);
             Assert.That(taken.Accepted, Is.False, "another lift already has 2");
             Assert.That(taken.Reason, Does.Contain("already has plate 2"));
             Assert.That(new SetLiftPlate(0, first, "a").Apply(d).Accepted, Is.True);
-            // A new lift takes the lowest free number: with 1 renamed, 1 is free again.
-            var r = new SetLiftPlate(0, first, "Z").Apply(d);
+            // Plates are optional (owner 2026-11-08): an empty plate removes it, and any number of lifts may have none.
+            var cleared = new SetLiftPlate(0, first, "").Apply(d);
+            Assert.That(cleared.Accepted, Is.True, cleared.Reason);
+            Assert.That(cleared.Document.FindLift(first).Plate, Is.EqualTo(""));
+            Assert.That(new SetLiftPlate(0, first, "").Label, Is.EqualTo("Remove lift plate"));
+            Assert.That(new SetLiftPlate(0, first, "").Apply(cleared.Document).Accepted, Is.False, "it already has none");
+            var second = new SetLiftPlate(0, d.Lifts[1].Id, "").Apply(cleared.Document);
+            Assert.That(second.Accepted, Is.True, "two lifts may both have no plate");
+            Assert.That(new SetLiftPlate(0, first, d.Lifts[1].Plate).Apply(second.Document).Accepted, Is.True, "a removed plate is free again");
+            // A new lift has no plate, however many lifts do.
             var l = d.Lifts[0];
             var added = new AddLift(0, "New", l.CatalogId, new PointMm(l.Bottom.X + 2_000_000, l.Bottom.Y), new PointMm(l.Top.X + 2_000_000, l.Top.Y),
-                l.TowerMode, l.Stance, null, WorkStage.Plan).Apply(r.Document);
+                l.TowerMode, l.Stance, null, WorkStage.Plan).Apply(second.Document);
             Assert.That(added.Accepted, Is.True, added.Reason);
-            Assert.That(added.Document.Lifts.Single(x => x.Name == "New").Plate, Is.EqualTo("1"));
+            Assert.That(added.Document.Lifts.Single(x => x.Name == "New").Plate, Is.EqualTo(""));
         }
 
         [Test]
@@ -883,7 +888,7 @@ namespace MountainPlanner.Tests.Core
                 CopyFolder(fixture, copy);
                 var back = SaveStore.Read(copy);
                 Assert.That(back.MigratedFrom, Is.EqualTo(from), kv.Key + ": an older save is regraded once when it opens");
-                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(PlatesInIdOrder(kv.Value.Design))), Is.True, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
             }
         }
 
@@ -903,7 +908,7 @@ namespace MountainPlanner.Tests.Core
         // Shape 11 (task 4.21, TD-07): the shape number and a not-posted byte for each trail and shaped trail; from c7a67ac0….
         // Shape 12 (task 4.03, LO-07 v2, LO-09): the shape number, the resort's default hours and each lift's daily schedule
         // with no hours of its own; from 1c7c9274…. Shape 13 (task 4.11 PR B): each lift's plate, numbered in ID order; from f5af52b0….
-        const string ConvertedSevenSha = "8b704598a67e2dddafa0b420b5b4c59ae88e5a9d6095ecc295384a9fba211628";
+        const string ConvertedSevenSha = "a5a2784512a7211309f6a276714b4f2b68f661e7c49c9f58cf143517b4268245";
 
         [Test]
         public void ADamagedOlderTrailRefusesTheSave()
@@ -934,7 +939,7 @@ namespace MountainPlanner.Tests.Core
                 string copy = Path.Combine(_root, "up7-" + kv.Key);
                 CopyFolder(fixture, copy);
                 var back = SaveStore.Read(copy);
-                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(PlatesInIdOrder(kv.Value.Design))), Is.True, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
             }
         }
 
@@ -959,7 +964,7 @@ namespace MountainPlanner.Tests.Core
                 CopyFolder(fixture, copy);
                 var back = SaveStore.Read(copy);
                 Assert.That(back.Design.Lines, Is.Empty, kv.Key);
-                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(PlatesInIdOrder(kv.Value.Design))), Is.True, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
             }
         }
 
@@ -983,7 +988,7 @@ namespace MountainPlanner.Tests.Core
                 CopyFolder(fixture, copy);
                 var back = SaveStore.Read(copy);
                 Assert.That(back.Design.Areas, Is.Empty, kv.Key);
-                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(PlatesInIdOrder(kv.Value.Design))), Is.True, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
             }
         }
 
@@ -1004,7 +1009,7 @@ namespace MountainPlanner.Tests.Core
                 CopyFolder(fixture, copy);
                 var back = SaveStore.Read(copy);
                 Assert.That(back.Design.Strokes, Is.Empty, kv.Key);
-                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(PlatesInIdOrder(kv.Value.Design))), Is.True, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
             }
         }
 

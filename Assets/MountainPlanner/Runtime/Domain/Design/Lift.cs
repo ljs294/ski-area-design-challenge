@@ -223,8 +223,8 @@ namespace MountainPlanner.Domain.Design
         /// <summary>LO-07 v2 (design shape 12): this lift's own hours, or null for the resort's. Read from task 4.11.</summary>
         public DayHours? Hours { get; }
         /// <summary>Task 4.11 PR B (owner 2026-11-08, design shape 13): the lift's plate, one to three letters or digits shown
-        /// beside its name ("3", "A", "12"). A new lift takes the lowest free number (<see cref="DesignRules.NextPlate"/>); an
-        /// older save's lifts are numbered in ID order. Empty only for a lift made outside a document (tests, drafts).</summary>
+        /// beside its name ("3", "A", "12"), or empty for none. Plates are optional (owner 2026-11-08): a new lift and an older
+        /// save's lifts have none until the player gives one on the lift's card.</summary>
         public string Plate { get; }
 
         readonly Tower[] _towers;

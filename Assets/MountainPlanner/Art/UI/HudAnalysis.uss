@@ -72,6 +72,8 @@
 .hud .mp-plate { min-width: 19px; height: 19px; margin: 0 7px 0 0; padding: 0 3px; border-width: 1.5px; border-color: var(--flag); border-radius: 3px;
     font-size: 11.5px; -unity-font-style: bold; -unity-text-align: middle-center; color: var(--flag); -unity-text-outline-color: var(--flag); flex-shrink: 0; }
 .hud .mp-plate--built { border-width: 0; background-color: var(--plate-bg); color: var(--plate-fg); -unity-text-outline-color: var(--plate-fg); }
+.hud .mp-plate--empty { border-width: 1px; border-color: var(--hair2); color: var(--soft); -unity-text-outline-color: var(--soft);
+    -unity-font-style: normal; }
 .hud .lift-card__plate:hover { border-width: 1px; border-color: var(--soft); }
 .hud .lift-card__plate-field { width: 40px; margin-right: 7px; }
 .hud .an-cell--plated { padding-left: 27px; }

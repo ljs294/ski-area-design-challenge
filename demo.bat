@@ -849,10 +849,9 @@ call :buildplayer
 if not exist "%GAME%" goto done
 echo.
 echo Open a save with built lifts of several types (a fixed grip, a detachable, a T-bar, a carpet), then Tab, Lifts:
-echo   1. Plates: every lift's row and card lead with its plate; an older save's lifts are numbered 1, 2, 3 ... (in the
-echo      order the game keeps them, not always the order you built them). Click the card's plate (or Shift+F2), type A,
-echo      Enter: the row, card and map label read A. A plate another lift has is refused with a toast. Ctrl+Z undoes it.
-echo      A new lift takes the lowest free number.
+echo   1. Plates are optional: an older save's lifts and a new lift have none, and the card shows a faint "#" chip.
+echo      Click it (or Shift+F2), type A, Enter: the row, card and map label read A, and the list's names stay lined up.
+echo      Clear the field and Enter: the plate goes. A plate another lift has is refused with a toast. Ctrl+Z undoes it.
 echo   2. The card: Wind hold reads one figure ("46 mph"; "Never" for a tow or carpet) and Today "No holds expected".
 echo      F1, Gust: 40 mph: Today reads "Holds likely" on the lifts it holds; once one stops, "On hold now".
 echo   3. Runs: Daily / Peak days, and Hours: The resort's / Its own. Its own shows Opens, Last chair and Stops in

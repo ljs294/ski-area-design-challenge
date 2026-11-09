@@ -204,21 +204,16 @@ namespace MountainPlanner.Persistence.Saves
         }
 
         /// <summary>
-        /// v12 → v13 (task 4.11 PR B, owner 2026-11-08): the design's shape 12 → 13, where each lift wears a plate beside its
-        /// name. An older save's lifts had none, so they're numbered 1, 2, 3 … in ID order, as a new lift takes the lowest
-        /// free number.
+        /// v12 → v13 (task 4.11 PR B, owner 2026-11-08): the design's shape 12 → 13, where each lift may wear a plate beside its
+        /// name. Plates are optional and an older save's lifts had none, so each gets "" (no plate).
         /// </summary>
         static void UpToThirteen(JObject o)
         {
             if (!(o["Design"] is JObject design)) return;
             design["Shape"] = 13;
             if (!(design["Lifts"] is JArray lifts)) return;
-            var order = new System.Collections.Generic.List<JObject>();
-            foreach (var l in lifts) if (l is JObject lift) order.Add(lift);
-            order.Sort((a, b) => ulong.Parse((string)a["Id"], System.Globalization.NumberStyles.HexNumber)
-                .CompareTo(ulong.Parse((string)b["Id"], System.Globalization.NumberStyles.HexNumber)));
-            for (int i = 0; i < order.Count; i++)
-                if (order[i]["Plate"] == null) order[i]["Plate"] = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            foreach (var l in lifts)
+                if (l is JObject lift && lift["Plate"] == null) lift["Plate"] = "";   // no plate: plates are optional
         }
 
         /// <summary>The player's name for it ("Autosave" for the autosave slot).</summary>

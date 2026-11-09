@@ -158,6 +158,31 @@ namespace MountainPlanner.Tests
             }
             finally { hud.AreaRenamed = renamed; }
 
+            // Task 4.11 PR B (owner 2026-11-08): plates are optional. A lift without one shows a faint "#" chip on its card;
+            // typing one adds it, and an empty field removes it (each one undoable SetLiftPlate in the app).
+            var plateChanged = hud.LiftPlateChanged;
+            string plateSent = null;
+            hud.LiftPlateChanged = (id, plate) => { plateSent = id + ":" + plate; return null; };
+            try
+            {
+                hud.SetLifts(new[] { new LiftRow { Id = 7, Name = "Bench Chair", Built = true, Plate = "", HoldMph = 46 } });
+                hud.OpenLiftCardFor(7);
+                yield return Frames(2);
+                var chip = root.Q<Label>("lift-card-plate");
+                Assert.That(chip.text, Is.EqualTo("#"));
+                Assert.That(chip.ClassListContains("mp-plate--empty"), Is.True, "no plate: the add chip");
+                Assert.That(chip.tooltip, Does.StartWith("Add a plate"));
+                hud.SetLiftCardPlateForTest("b2");
+                Assert.That(plateSent, Is.EqualTo("7:B2"), "typed plates are upper-cased");
+                Assert.That(chip.text, Is.EqualTo("B2"));
+                Assert.That(chip.ClassListContains("mp-plate--empty"), Is.False);
+                hud.SetLiftCardPlateForTest("");
+                Assert.That(plateSent, Is.EqualTo("7:"), "an empty field removes the plate");
+                Assert.That(chip.text, Is.EqualTo("#"));
+                hud.CloseLiftCardIfOpen();
+            }
+            finally { hud.LiftPlateChanged = plateChanged; }
+
             // Leaving the tab turns the view off and gives the legend back.
             hud.SetAnalysis(false);
             yield return Frames(2);

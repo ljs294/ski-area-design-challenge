@@ -86,8 +86,8 @@ reads: a version number, and a name for the greyed library row.
 
 - **`v13-save/Saves/5792676e513f5302/save-001/`** is the same save in format v13 (task 4.11 PR B, owner 2026-11-08): each
   lift wears a `Plate`, one to three letters or digits shown beside its name (design shape 13). Here the lifts are
-  numbered 1, 2 and 3 in ID order, as the v12 fixture opens, and then the second is given `"A"` and the third `"12"`. v1 to
-  v12 saves migrate with their lifts numbered 1, 2, 3 … in ID order; a new lift takes the lowest free number.
+  given `"1"`, `"A"` and `"12"`. Plates are optional (owner 2026-11-08): `""` is no plate, a new lift has none, and v1 to
+  v12 saves migrate with none.
   `SaveFileTests` checks that the writer reproduces it byte for byte.
 
 - **`v1-sim/golden.sim`** is a simulation sidecar (task 4.03 PR B, SI-12 v2, `SimSidecar` v1): the golden script's world

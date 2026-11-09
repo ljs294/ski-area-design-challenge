@@ -556,10 +556,11 @@ the chairs carry **decorative riders** (LO-05).
   and the later economy.
 - **LO-13, the throughput golden.** A scripted feeder (no guests) joining a quad's line at 20 a minute for a face
   hour gives 2,400 rides and a line that never exceeds 40; 300 queued at once gives a 7:30 wait at 1×.
-- **LO-14, plates (task 4.11 PR B, owner 2026-11-08; save v13, design shape 13).** Every lift wears a plate beside its
-  name: one to three letters or digits, unique among the lifts (letters compared without case). A new lift takes the
-  lowest whole number no lift has; the player changes it on the card like the name (one undo step). An older save's lifts
-  are numbered 1, 2, 3 … in ID order. The plate leads the name on the card, the Lifts list, the ride bar and the map label.
+- **LO-14, plates (task 4.11 PR B, owner 2026-11-08; save v13, design shape 13).** A lift may wear a plate beside its
+  name: one to three letters or digits, unique among the lifts that have one (letters compared without case). Plates are
+  optional: a new lift and an older save's lifts have none. The player adds, changes or removes it on the card like the
+  name (one undo step; an empty field removes it), where a lift with none shows a faint "#" chip to add one. The plate
+  leads the name on the card, the Lifts list, the ride bar and the map label; a lift without one shows its name alone.
 - **LO-15, ride a lift (task 4.11 PR B, owner 2026-11-08).** Display only: the card's Ride puts the camera on the next
   carrier to leave the bottom, every built type (a chair or gondola in its seat, a tow standing on the snow under the bar,
   a carpet standing on the belt), moving with the rope as drawn, so a hold stops it and a pause freezes it. The mouse looks

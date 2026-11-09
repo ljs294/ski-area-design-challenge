@@ -28,26 +28,15 @@ namespace MountainPlanner.Domain.Design
         /// <summary>Task 4.11 PR B (shape 13): a lift's plate is one to three letters or digits.</summary>
         public const int PlateMaxLength = 3;
 
-        /// <summary>A plate as the player typed it: one to three ASCII letters or digits, no spaces.</summary>
+        /// <summary>A plate as the player typed it: none (empty), or one to three ASCII letters or digits, no spaces.</summary>
         public static string PlateProblem(string plate)
         {
-            if (string.IsNullOrEmpty(plate)) return "A plate can't be empty.";
+            if (plate == null) return "A plate can't be missing.";
+            if (plate.Length == 0) return null;   // no plate (owner 2026-11-08: plates are optional)
             if (plate.Length > PlateMaxLength) return $"A plate can be at most {PlateMaxLength} letters or digits.";
             foreach (char c in plate)
                 if (!(c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z')) return "A plate holds only letters and digits.";
             return null;
-        }
-
-        /// <summary>The plate a new lift takes: the lowest whole number from 1 that no lift's plate already is.</summary>
-        public static string NextPlate(DesignDocument doc)
-        {
-            var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var l in doc.Lifts) taken.Add(l.Plate);
-            for (int n = 1; ; n++)
-            {
-                string s = n.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                if (!taken.Contains(s)) return s;
-            }
         }
 
         public static string NameProblem(string name)
