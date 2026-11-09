@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" font-family="Segoe UI, system-ui, sans-serif" font-size="14">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a5563"/>
+    </marker>
+    <style>
+      .t{fill:#1d232a;font-weight:700;font-size:17px}
+      .s{fill:#3e4752;font-size:12.5px}
+      .k{fill:#6b7480;font-size:12px;font-style:italic}
+      .ln{stroke:#4a5563;stroke-width:2;fill:none;marker-end:url(#a)}
+      .dash{stroke:#4a5563;stroke-width:1.5;fill:none;stroke-dasharray:5 4;marker-end:url(#a)}
+    </style>
+  </defs>
+  <rect width="960" height="560" fill="#f7f5f0"/>
+  <text x="24" y="34" font-size="20" font-weight="700" fill="#1d232a">The weather machine: four hidden states (WX-01 v2)</text>
+  <text x="24" y="56" class="s">Each state lasts a duration drawn from this third-of-month's row: the place's own record, compressed 2.88× (WX-21). No quotas.</text>
+
+  <!-- Fair -->
+  <rect x="60" y="110" width="250" height="140" rx="14" fill="#fff4cc" stroke="#c9a33a" stroke-width="2"/>
+  <text x="80" y="140" class="t">☀ Fair</text>
+  <text x="80" y="162" class="s">clear or high cloud, light wind, dry</text>
+  <text x="80" y="180" class="s">calm clear nights build the cold pool</text>
+  <text x="80" y="198" class="s">length = the record's gaps between storms</text>
+  <text x="80" y="216" class="s">(a dry January only where it has them)</text>
+  <text x="80" y="236" class="k">a lean winter stretches these</text>
+
+  <!-- Building -->
+  <rect x="650" y="110" width="250" height="140" rx="14" fill="#e9e6f2" stroke="#7f78a8" stroke-width="2"/>
+  <text x="670" y="140" class="t">☁ Building</text>
+  <text x="670" y="162" class="s">cloud thickening, light going flat</text>
+  <text x="670" y="180" class="s">wind rising and turning to the storm</text>
+  <text x="670" y="198" class="s">a little warmer · the deck lowers</text>
+  <text x="670" y="216" class="s">may be zero hours: a storm out of</text>
+  <text x="670" y="234" class="s">a fair sky</text>
+
+  <!-- Storm -->
+  <rect x="650" y="340" width="250" height="160" rx="14" fill="#dbe7f3" stroke="#4d7fae" stroke-width="2"/>
+  <text x="670" y="370" class="t">❄ Storm</text>
+  <text x="670" y="392" class="s">drawn at its start, all at once:</text>
+  <text x="670" y="410" class="s">· total (real sizes) and duration</text>
+  <text x="670" y="428" class="s">· warm or cold, so rain or snow</text>
+  <text x="670" y="446" class="s">· arrival direction (windward faces)</text>
+  <text x="670" y="464" class="s">· ramp · peak · tail (1 : 2 : 1)</text>
+  <text x="670" y="484" class="k">so the forecast can know it</text>
+
+  <!-- Clearing -->
+  <rect x="60" y="340" width="250" height="160" rx="14" fill="#e3efe6" stroke="#5c9a6c" stroke-width="2"/>
+  <text x="80" y="370" class="t">⛅ Clearing</text>
+  <text x="80" y="392" class="s">deck breaking, shafts of sun</text>
+  <text x="80" y="410" class="s">colder air behind the front</text>
+  <text x="80" y="428" class="s">gusty, snow blowing off ridges</text>
+  <text x="80" y="446" class="s">the record's flurries</text>
+  <text x="80" y="466" class="k">then usually Fair; sometimes straight</text>
+  <text x="80" y="484" class="k">into the next storm (a storm train)</text>
+
+  <path class="ln" d="M312,170 H646"/>
+  <text x="400" y="160" class="s">fair spell ends</text>
+  <path class="ln" d="M775,252 V336"/>
+  <text x="784" y="300" class="s">storm starts</text>
+  <path class="ln" d="M646,430 H314"/>
+  <text x="420" y="420" class="s">storm ends</text>
+  <path class="ln" d="M185,336 V254"/>
+  <text x="194" y="300" class="s">sky clears</text>
+  <path class="dash" d="M312,380 C470,330 520,270 646,232"/>
+  <text x="386" y="350" class="k">back-to-back share</text>
+
+  <!-- side panel: not states -->
+  <rect x="360" y="460" width="250" height="78" rx="10" fill="#fff" stroke="#c9c2b3"/>
+  <text x="374" y="482" class="s" font-weight="700">Not states: they fall out of temperature</text>
+  <text x="374" y="500" class="s">thaw · refreeze · cold snap · rain ·</text>
+  <text x="374" y="518" class="s">freezing rain → named events (WX-41)</text>
+  <text x="374" y="532" class="k">the player never sees a state's name</text>
+</svg>

@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" font-family="Segoe UI, system-ui, sans-serif" font-size="14">
+  <defs>
+    <style>
+      .s{fill:#3e4752;font-size:12.5px}
+      .b{fill:#1d232a;font-weight:700;font-size:14px}
+      .k{fill:#6b7480;font-size:12px;font-style:italic}
+      .ax{stroke:#4a5563;stroke-width:1.2}
+      .g{stroke:#d8d2c4;stroke-width:1}
+    </style>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a5563"/>
+    </marker>
+  </defs>
+  <rect width="960" height="600" fill="#f7f5f0"/>
+  <text x="24" y="34" font-size="20" font-weight="700" fill="#1d232a">The forecast: the evening sheet (WX-05 v3)</text>
+  <text x="24" y="56" class="s">Issued once a face day at closing. It leans toward the truth at every lead, softened toward normal farther out: it firms up, never flips.</text>
+
+  <!-- timeline -->
+  <text x="24" y="96" class="b">A face day</text>
+  <rect x="24" y="108" width="912" height="44" rx="6" fill="#26313d"/>
+  <rect x="24" y="108" width="342" height="44" rx="6" fill="#f2d98b"/>
+  <rect x="366" y="108" width="570" height="44" fill="#26313d"/>
+  <text x="34" y="135" class="b">Lifts open 8:30 → stop 4:30</text>
+  <text x="380" y="128" fill="#fff" font-size="13" font-weight="700">The night: 4 real minutes, guns and groomers</text>
+  <text x="380" y="144" fill="#c9d2db" font-size="12">read the sheet · hold or groom · set gun priority · skip to morning</text>
+  <path d="M366,100 V164" stroke="#c0392b" stroke-width="3"/>
+  <text x="300" y="182" fill="#c0392b" font-size="13" font-weight="700">4:30 the evening sheet</text>
+  <path d="M846,100 V164" stroke="#4d7fae" stroke-width="3"/>
+  <text x="760" y="182" fill="#4d7fae" font-size="13" font-weight="700">7:30 quiet refresh</text>
+  <text x="760" y="198" class="k">snow report read here</text>
+
+  <!-- sheet contents -->
+  <rect x="24" y="214" width="420" height="140" rx="10" fill="#fff" stroke="#c9c2b3"/>
+  <text x="40" y="238" class="b">On the sheet</text>
+  <text x="40" y="260" class="s">· today's results (the day report)</text>
+  <text x="40" y="278" class="s">· tonight, hourly: base, mid, summit, and the gun window</text>
+  <text x="40" y="296" class="s">· tomorrow, hourly: temperature, sky, snow, summit wind</text>
+  <text x="40" y="314" class="s">· 7 days: highs and lows as ranges, chance of snow,</text>
+  <text x="40" y="332" class="s">  snow as ranges, snow line, events · the pattern outlook</text>
+
+  <rect x="24" y="368" width="420" height="104" rx="10" fill="#fff" stroke="#c9c2b3"/>
+  <text x="40" y="392" class="b">Who acts on it (WX-43)</text>
+  <text x="40" y="414" class="s">· grooming: "groom unless it's snowing tonight"</text>
+  <text x="40" y="432" class="s">· guns: trail priority ahead of a thaw or rain</text>
+  <text x="40" y="450" class="s">· the crowd: tomorrow's weather as forecast (WX-44)</text>
+  <text x="40" y="466" class="k">physics never reads it; only automation and guests</text>
+
+  <!-- cone chart -->
+  <text x="476" y="238" class="b">How sure, by days ahead</text>
+  <g transform="translate(500,250)">
+    <line class="g" x1="0" y1="40" x2="420" y2="40"/>
+    <line class="g" x1="0" y1="100" x2="420" y2="100"/>
+    <line class="g" x1="0" y1="160" x2="420" y2="160"/>
+    <!-- temperature cone -->
+    <line x1="0" y1="168" x2="420" y2="168" stroke="#6b7480" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <path d="M0,100 L60,92 L120,90 L180,88 L240,86 L300,84 L360,82 L420,80 L420,140 L360,136 L300,132 L240,128 L180,124 L120,120 L60,108 L0,100 Z" fill="#e8b9a8" opacity=".7"/>
+    <path d="M60,100 L420,110" stroke="#a5452a" stroke-width="2" stroke-dasharray="3 3" fill="none"/>
+    <line x1="0" y1="100" x2="420" y2="100" stroke="#a5452a" stroke-width="2"/>
+    <line class="ax" x1="0" y1="0" x2="0" y2="200"/>
+    <line class="ax" x1="0" y1="200" x2="420" y2="200"/>
+    <g font-size="11" fill="#6b7480">
+      <text x="56" y="216">1</text><text x="116" y="216">2</text><text x="176" y="216">3</text><text x="236" y="216">4</text><text x="296" y="216">5</text><text x="356" y="216">6</text><text x="412" y="216">7</text>
+      <text x="150" y="232">days ahead</text>
+    </g>
+    <text x="64" y="84" font-size="11.5" fill="#a5452a">±2 °F</text>
+    <text x="4" y="94" font-size="11" fill="#a5452a">truth</text>
+    <text x="4" y="184" font-size="11" fill="#6b7480">normal for the date</text>
+    <text x="190" y="28" font-size="11.5" fill="#a5452a">shown: 95 % truth a day out → 65 % at a week</text>
+    <text x="380" y="74" font-size="11.5" fill="#a5452a">±4 °F</text>
+    <line x1="180" y1="0" x2="180" y2="200" stroke="#4d7fae" stroke-dasharray="4 4"/>
+  </g>
+  <rect x="476" y="490" width="460" height="96" rx="10" fill="#fff" stroke="#c9c2b3"/>
+  <text x="492" y="512" class="s"><tspan font-weight="700">Storm's day:</tspan> firm from 3 days out (blue line); before, a 2-day window</text>
+  <text x="492" y="530" class="s"><tspan font-weight="700">Size:</tspan> a range round a mostly-true amount: ±60 % · ±40 % · ±20 %</text>
+  <text x="492" y="548" class="s"><tspan font-weight="700">Type</tspan>: the true weather, hedged: "snow" → "likely" → "possible"</text>
+  <text x="492" y="566" class="s"><tspan font-weight="700">Phantoms</tspan> rare, 5–7 days out, gone by day 4; ~1 in 20 storms busts</text>
+  <text x="492" y="580" class="k">all scaled by ForecastSkill (scenario data only)</text>
+
+  <rect x="24" y="486" width="420" height="100" rx="10" fill="#fff4cc" stroke="#c9a33a"/>
+  <text x="40" y="510" class="b">Drama, on purpose</text>
+  <text x="40" y="532" class="s">The crowd reads the forecast it saw, not the truth:</text>
+  <text x="40" y="550" class="s">a bust can mean an empty mountain under ten inches</text>
+  <text x="40" y="568" class="s">of fresh, or a mob on a day that turned to rain.</text>
+</svg>
