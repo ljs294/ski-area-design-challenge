@@ -15,6 +15,7 @@ namespace MountainPlanner.App
     public sealed partial class MountainViewer
     {
         NetworkGraph _simGraph;
+        INetworkFacts _simFacts;
         DesignDocument _simGraphDoc;
         DesignSnapshot _simSent;
         float _nextLiftLive;
@@ -23,11 +24,16 @@ namespace MountainPlanner.App
         /// <summary>The built network for <paramref name="doc"/>, when it's the one last built (else null: the stand-in way down).</summary>
         NetworkGraph SimGraphFor(DesignDocument doc) => doc != null && ReferenceEquals(doc, _simGraphDoc) ? _simGraph : null;
 
+        /// <summary>SI-21: the trail facts that belong with that graph (GU-07, GU-10), or null.</summary>
+        INetworkFacts SimFactsFor(DesignDocument doc) => doc != null && ReferenceEquals(doc, _simGraphDoc) ? _simFacts : null;
+
         /// <summary>A network build finished: the simulation gets it with the design it belongs to, if that's the one it runs.</summary>
-        void NetworkForSimulation(DesignDocument doc, NetworkGraph graph)
+        void NetworkForSimulation(DesignDocument doc, NetworkGraph graph, INetworkFacts facts = null)
         {
             _simGraph = graph;
+            _simFacts = facts;
             _simGraphDoc = doc;
+            LogGuestNetwork(graph);
             if (_sim != null && _simSent.Document != null && ReferenceEquals(_simSent.Document, doc)) SendDesign(_simSent);
         }
 
@@ -42,8 +48,8 @@ namespace MountainPlanner.App
             int factor = s.Paused || s.Speed < 1 || s.Speed > speeds.Length ? 1 : speeds[s.Speed - 1];
             for (int i = 0; i < s.LiftCount; i++)
                 Hud.SetLiftLive(s.LiftIds[i], new MountainHud.LiftLive(Word(s.LiftStatus[i]), s.LineCount[i], s.WaitMs[i] / 1000.0 / factor));
-            if (s.TrailsKnown)
-                for (int k = 0; k < s.TrailCount; k++) Hud.SetTrailLive(s.TrailIds[k], Word(s.TrailStatus[k]));
+            UpdateTrailLive(s);   // the trails' Status and Popularity, mapped from runs to the player's lines
+            UpdateGuestLive(s);   // task 4.12: the lifts' Popularity cells
             Hud.FlushLive();
         }
 
@@ -60,7 +66,8 @@ namespace MountainPlanner.App
         /// The F1 panel's lift operations rows (demo 91): a lift picker (every built lift, in turn), its line, feeder and
         /// schedule, and the gust with the lifts it holds. Stand-ins until guests (4.12) and weather (4.05) exist.
         /// </summary>
-        void DrawLiftOpsRows(ref float y, float row, float x0, float w, Action<string> caption, Func<int, string, bool> button)
+        void DrawLiftOpsRows(ref float y, float row, float x0, float w, Action<string> caption, Func<int, string, bool> button,
+                             Func<float, int, string, float> note)
         {
             var s = _simNow;
             if (_sim == null || s == null) return;
@@ -81,6 +88,7 @@ namespace MountainPlanner.App
             y += row;
             caption("Lift ops");
             string text;
+            int cols = pick < 0 ? 0 : s.Phase == SeasonPhase.PreSeason ? 1 : 4;   // where the row's buttons end, so the note starts there
             if (pick < 0) text = "Build a lift and a trail down from it";
             else if (s.Phase == SeasonPhase.PreSeason)
             {
@@ -140,7 +148,7 @@ namespace MountainPlanner.App
                 else text = $"{s.LiftStatus[pick]} · {s.LineCount[pick]} in line · " + (limit < 0 ? "never holds for wind" : $"holds at about {limit} mph")
                     + (s.LiftStatus[pick] == LiftOpStatus.Open || s.LiftStatus[pick] == LiftOpStatus.OnHold ? "" : " · lines take skiers only while it's Open");
             }
-            GUI.Label(new Rect(x0 + 4 * (w + 6), y + 4, 6 * w, row), text);
+            y += note(y, cols, text);
 
             // LO-11: the gust at every top station, and which lifts it holds (each checks once a game hour, about 90 s at 1×).
             y += row;
@@ -159,7 +167,7 @@ namespace MountainPlanner.App
                 _heldNames.Add(n);
             }
             string held = _heldNames.Count == 0 ? "No lift on hold" : "On hold: " + string.Join(", ", _heldNames);
-            GUI.Label(new Rect(x0 + w + 6, y + 4, 9 * w, row), held + " · each lift reads the gust once a game hour (about 90 s at 1×); a held lift every 15 game minutes, and it runs again after a calm half hour");
+            y += note(y, 1, held + " · each lift reads the gust once a game hour (about 90 s at 1×); a held lift every 15 game minutes, and it runs again after a calm half hour");
         }
 
         ulong _opsLiftId;

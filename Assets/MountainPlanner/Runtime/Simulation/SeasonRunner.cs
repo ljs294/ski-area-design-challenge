@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MountainPlanner.Domain.Design;
 
 namespace MountainPlanner.Simulation
 {
@@ -53,6 +54,49 @@ namespace MountainPlanner.Simulation
             return new SimDesign(revision, 0x9E37_79B9_7F4A_7C15UL ^ (ulong)revision, 0x5EED_0001UL, Domain.Design.DayHours.Default, lifts, 1);
         }
 
+        /// <summary>
+        /// SI-23, task 4.12: a resort guests can actually ski, for the headless day (<c>-simguests</c>) and for anything
+        /// else that needs a crowd without a package. The golden design above has no network on purpose (its hashes are
+        /// pinned), and without one there are no bases to arrive at, so this is its own small mountain: a base, two tops,
+        /// a quad to each, and a green and a blue home from each top — enough for GU-05's gate and GU-07's choice to
+        /// matter, with a green way down from everywhere so no band is ever stranded.
+        /// </summary>
+        public static SimDesign GuestsDesign(long revision = 1)
+        {
+            const int Base = 0, LowTop = 1, HighTop = 2;
+            var trails = new ulong[] { 11, 12, 13, 14 };
+            var edges = new List<(int from, int to, int trail)>
+            {
+                (LowTop, Base, 0),    // 11: a green
+                (LowTop, Base, 1),    // 12: a blue
+                (HighTop, Base, 2),   // 13: a green, the long way round
+                (HighTop, Base, 3),   // 14: a black
+            };
+            var facts = new List<TrailEdgeFacts>
+            {
+                Facts(0, 120, 1200), Facts(1, 80, 900), Facts(0, 100, 1800), Facts(2, 60, 1000),
+            };
+            var lengths = new List<int> { 1_200_000, 900_000, 1_800_000, 1_000_000 };
+            var net = SimNetwork.Of(3, edges, trails, facts, lengths);
+            var lifts = new[]
+            {
+                new LiftInput(101, true, LiftSchedule.Daily, null, LiftKind.FixedGripChair, 4, 6000, 300_000, LowTop, Base),
+                new LiftInput(202, true, LiftSchedule.Daily, null, LiftKind.FixedGripChair, 4, 6000, 420_000, HighTop, Base),
+            };
+            return new SimDesign(revision, 0x51BE_5700_0000_0001UL ^ (ulong)revision, 0x5EED_0042UL,
+                                 Domain.Design.DayHours.Default, lifts, trails.Length, net);
+        }
+
+        /// <summary>One trail's facts for <see cref="GuestsDesign"/>: its band, its width in feet and its length.</summary>
+        static TrailEdgeFacts Facts(byte band, int widthFeet, int metres)
+        {
+            int tenths = band == 0 ? 130 : band == 1 ? 200 : band == 2 ? 250 : 270;
+            int widthCm = (int)(widthFeet * 30.48);
+            int areaM2 = (int)(metres * (widthFeet * 0.3048));
+            int skiMs = (int)(metres * 10_000L / (tenths * 447L / 100));
+            return new TrailEdgeFacts(band, band, widthCm, areaM2, skiMs);
+        }
+
         public static List<Scripted> GoldenScript(Pacing p)
         {
             // Ticks: a pre-season face hour is 150 ticks, a season one 900 (or 150 outside the hours); the script names ticks
@@ -69,7 +113,7 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>SI-08's pinned fold of the golden script over two label years. A behaviour change re-pins it, approved.</summary>
-        public const ulong GoldenFoldValue = 0x9793FDA75278A627UL;   // re-pinned at 4.11 (lift operations, Pacing v2, LO-11 v2 wind limits; owner OK 2026-11-08)
+        public const ulong GoldenFoldValue = 0xD9FDC7C8113C8058UL;   // re-pinned at 4.12 (guests, Pacing v3, sidecar v4; owner OK 2026-11-09)
 
         /// <summary>One fold of every face-hour hash of the golden run to the given face day (the pinned value).</summary>
         public static ulong GoldenFold(Pacing p, int faceDays, int maxStep = int.MaxValue, SimSite site = default)

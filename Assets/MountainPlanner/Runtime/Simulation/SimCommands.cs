@@ -39,6 +39,10 @@ namespace MountainPlanner.Simulation
         SetGust = 25,
         /// <summary>LO-13's scripted feeder (tests and the demo's <c>-feeder</c>): Payload = a <see cref="LiftFeed"/>.</summary>
         FeedLine = 26,
+        /// <summary>GU-02: watch one skier by serial (0 for none). A view command: it changes no result.</summary>
+        InspectSkier = 27,
+        /// <summary>GU-15: put N skiers of an archetype on the hill (the style tile, the tests, the demo).</summary>
+        SpawnSkiers = 28,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>

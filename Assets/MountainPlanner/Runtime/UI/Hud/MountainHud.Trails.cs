@@ -81,7 +81,7 @@ namespace MountainPlanner.UI
                 new AnalysisList.Column { Title = "Vertical", Numeric = true, Grow = 0.85f, Cell = r => ToolFormat.Length(R(r).VerticalMetres),
                     SortKey = r => R(r).VerticalMetres, Bin = r => Bin(R(r).VerticalMetres, VerticalBinsFt), Bins = BinLabels(VerticalBinsFt) },
                 new AnalysisList.Column { Title = "Conditions", Grow = 0.95f, Class = "an-cell--gap", Cell = r => R(r).Conditions ?? "—" },
-                PopularityColumn(r => R(r).Popularity),
+                PopularityColumn(r => LivePopularity(_trailPop, R(r).Id, R(r).Popularity)),
                 new AnalysisList.Column { Title = "Status", Grow = 0.8f, Class = "an-cell--gap", Cell = r => OperatingStatusWords.Word(TrailStatus(R(r))),
                     Bin = r => TrailStatus(R(r)).ToString(), Bins = OperatingStatusWords.Bins() },
             });
@@ -135,6 +135,8 @@ namespace MountainPlanner.UI
         }
 
         readonly Dictionary<ulong, OperatingStatus> _trailLive = new Dictionary<ulong, OperatingStatus>();
+        readonly Dictionary<ulong, int> _trailPop = new Dictionary<ulong, int>();
+        readonly Dictionary<ulong, int> _liftPop = new Dictionary<ulong, int>();
 
         OperatingStatus TrailStatus(TrailRow r) => r.Built && _trailLive.TryGetValue(r.Id, out var v) ? v : r.Status;
 
@@ -149,12 +151,35 @@ namespace MountainPlanner.UI
             _liveDirty = true;
         }
 
+        /// <summary>
+        /// Task 4.12's Popularity (GU-03's hook F6): a trail's share of the busiest today, 0–100, or −1 for "—" before
+        /// anybody has skied. The app sets it from the newest snapshot at the same bounded rate as the Status cells.
+        /// </summary>
+        public void SetTrailPopularity(ulong id, int share) => SetPopularity(_trailPop, id, share);
+
+        /// <summary>Task 4.12's Popularity for a lift: its share of today's busiest boardings, 0–100, or −1 for "—".</summary>
+        public void SetLiftPopularity(ulong id, int share) => SetPopularity(_liftPop, id, share);
+
+        void SetPopularity(Dictionary<ulong, int> into, ulong id, int share)
+        {
+            if (share < 0) { if (into.Remove(id)) _liveDirty = true; return; }
+            if (into.TryGetValue(id, out int was) && was == share) return;
+            into[id] = share;
+            _liveDirty = true;
+        }
+
+        /// <summary>The simulation's Popularity for an entity, or the row's own when it has none yet.</summary>
+        static int? LivePopularity(Dictionary<ulong, int> live, ulong id, int? fallback) =>
+            live.TryGetValue(id, out int v) ? v : fallback;
+
         /// <summary>Forgets the simulation's words (a new mountain, or the network not yet known): the placeholders show.</summary>
         public void ClearLive()
         {
-            if (_trailLive.Count == 0 && _liftLive.Count == 0) return;
+            if (_trailLive.Count == 0 && _liftLive.Count == 0 && _trailPop.Count == 0 && _liftPop.Count == 0) return;
             _trailLive.Clear();
             _liftLive.Clear();
+            _trailPop.Clear();
+            _liftPop.Clear();
             _liveDirty = true;
         }
 

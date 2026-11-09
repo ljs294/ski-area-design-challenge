@@ -112,7 +112,7 @@ namespace MountainPlanner.App
                     var landing = System.Diagnostics.Stopwatch.StartNew();
                     ApplyNetwork(doc, r);
                     ApplySections(doc, sections);
-                    NetworkForSimulation(doc, r.Graph);   // LO-10: the way down
+                    NetworkForSimulation(doc, r.Graph, FactsFor(doc, sections));   // LO-10 and GU-07's inputs
                     Debug.Log($"[Network] {r.Lifts.Count} lifts, {r.Trails.Count} trails, {r.Graph.Nodes.Count} nodes, {r.Graph.Edges.Count} edges " +
                               $"in {offThread:F0} ms off the main thread, {landing.Elapsed.TotalMilliseconds:F1} ms landing on it; {r.LiftWarnings} lift and {r.TrailWarnings} trail warnings");
                 }

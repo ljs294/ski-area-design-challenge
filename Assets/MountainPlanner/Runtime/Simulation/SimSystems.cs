@@ -35,6 +35,8 @@ namespace MountainPlanner.Simulation
         Events = 1 << 17,
         Ledgers = 1 << 18,
         Snapshot = 1 << 19,
+        /// <summary>SN-24: the hour's passes per segment per lateral band, which the wear pass reads (4.07).</summary>
+        Passes = 1 << 20,
     }
 
     /// <summary>One row of the systems table: a name, what it reads and writes, and its work for one step.</summary>
@@ -64,8 +66,8 @@ namespace MountainPlanner.Simulation
             new LiftsSystem(),
             new Empty("Gun schedules (4.16)", SimColumns.Weather | SimColumns.Hours, SimColumns.GunSchedule),
             new Empty("Gun output (4.15)", SimColumns.GunSchedule | SimColumns.Weather | SimColumns.TickInterval, SimColumns.GunOutput),
-            new Empty("Skiers (4.12)", SimColumns.LiftOpen | SimColumns.LiftRun | SimColumns.TrailReady | SimColumns.TickInterval, SimColumns.Skiers),
-            new Empty("Wear (4.07)", SimColumns.Skiers | SimColumns.TickInterval, SimColumns.Wear),
+            new GuestsSystem(),
+            new Empty("Wear (4.07)", SimColumns.Skiers | SimColumns.Passes | SimColumns.TickInterval, SimColumns.Wear),
             new Empty("Events", SimColumns.Clock, SimColumns.Events),
             new LedgersSystem(),
             new PublishSystem(),
@@ -116,6 +118,20 @@ namespace MountainPlanner.Simulation
             public override SimColumns Reads => SimColumns.LiftOpen | SimColumns.LiftHold | SimColumns.Hours | SimColumns.Season | SimColumns.TickInterval;
             public override SimColumns Writes => SimColumns.LiftRun | SimColumns.Events;
             internal override void Run(SimWorld w) => w.RunLifts();
+        }
+
+        /// <summary>
+        /// Task 4.12's guests (GU-01…GU-18): they arrive, choose, queue, ride, ski and leave. It reads the board the hour
+        /// step and the lifts row wrote, and the riders the lifts row has just let off at the top, and it writes the
+        /// skiers and SN-24's pass counters, which 4.07's wear pass reads next.
+        /// </summary>
+        sealed class GuestsSystem : SimSystem
+        {
+            public override string Name => "Skiers";
+            public override SimColumns Reads => SimColumns.LiftOpen | SimColumns.LiftHold | SimColumns.LiftRun | SimColumns.TrailReady
+                | SimColumns.TickInterval | SimColumns.Hours | SimColumns.Season | SimColumns.Design;
+            public override SimColumns Writes => SimColumns.Skiers | SimColumns.Passes | SimColumns.Events;
+            internal override void Run(SimWorld w) => w.RunGuests();
         }
 
         sealed class LedgersSystem : SimSystem
