@@ -235,11 +235,11 @@ namespace MountainPlanner.Tests
             long rope = w.RunMsOf(20);
             RunTo(w, Day + 10 * Hour + 20 * 60_000);
             Assert.That(w.RunMsOf(20), Is.EqualTo(rope), "RP-07 v2: the chairs stop where they are");
-            // Calm: a held lift reads the gust every 15 face minutes and runs again after half an hour 10 mph below.
+            // Calm: a held lift reads the gust every 5 face minutes and runs again after ten minutes 10 mph below.
             w.ApplyNow(SimCommand.Of(SimCommandKind.SetGust, 0));
-            RunTo(w, Day + 10 * Hour + 35 * 60_000);
-            Assert.That(w.HeldNow(20), Is.True, "one calm reading isn't half an hour");
-            RunTo(w, Day + 11 * Hour + 6 * 60_000);
+            RunTo(w, Day + 10 * Hour + 25 * 60_000);
+            Assert.That(w.HeldNow(20), Is.True, "one calm reading isn't ten minutes");
+            RunTo(w, Day + 10 * Hour + 37 * 60_000);
             Assert.That(w.HeldNow(20), Is.False);
             Assert.That(w.StatusOf(20), Is.EqualTo(LiftOpStatus.Open));
         }

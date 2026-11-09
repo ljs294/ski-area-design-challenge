@@ -25,6 +25,20 @@ namespace MountainPlanner.Domain.Design
         /// <summary>A design holds at most this many strokes (about 3 MB of save.json at full length).</summary>
         public const int MaxStrokes = 50_000;
 
+        /// <summary>Task 4.11 PR B (shape 13): a lift's plate is one to three letters or digits.</summary>
+        public const int PlateMaxLength = 3;
+
+        /// <summary>A plate as the player typed it: none (empty), or one to three ASCII letters or digits, no spaces.</summary>
+        public static string PlateProblem(string plate)
+        {
+            if (plate == null) return "A plate can't be missing.";
+            if (plate.Length == 0) return null;   // no plate (owner 2026-11-08: plates are optional)
+            if (plate.Length > PlateMaxLength) return $"A plate can be at most {PlateMaxLength} letters or digits.";
+            foreach (char c in plate)
+                if (!(c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z')) return "A plate holds only letters and digits.";
+            return null;
+        }
+
         public static string NameProblem(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) return "A name can't be empty.";
@@ -256,7 +270,7 @@ namespace MountainPlanner.Domain.Design
         internal static string LiftProblem(Lift l)
         {
             if (l.Id.IsNone) return "A lift needs an ID.";
-            return NameProblem(l.Name) ?? StageProblem(l.Stage) ?? LiftLineProblem(l.CatalogId, l.Bottom, l.Top, l.TowerMode, l.Stance)
+            return NameProblem(l.Name) ?? (l.Plate.Length == 0 ? null : PlateProblem(l.Plate)) ?? StageProblem(l.Stage) ?? LiftLineProblem(l.CatalogId, l.Bottom, l.Top, l.TowerMode, l.Stance)
                 ?? TowersProblem(l.LengthSquaredMm, l.Towers, l.CatalogId);
         }
 

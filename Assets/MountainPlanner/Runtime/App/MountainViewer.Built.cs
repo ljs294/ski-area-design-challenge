@@ -315,7 +315,8 @@ namespace MountainPlanner.App
             foreach (var l in doc.Lifts)
             {
                 Vector2 a = DesignFrame.ToLocal(l.Bottom), b = DesignFrame.ToLocal(l.Top), mid = (a + b) / 2;
-                _liftLabelSpots.Add((l.Name, new[] { new MapLabelSpot(OnGround(mid), OnGround(a), OnGround(b)) }));
+                // Task 4.11 PR B: the plate leads the name, as the mockup's map labels write it ("3  Summit Quad").
+                _liftLabelSpots.Add((string.IsNullOrEmpty(l.Plate) ? l.Name : l.Plate + "  " + l.Name, new[] { new MapLabelSpot(OnGround(mid), OnGround(a), OnGround(b)) }));
             }
             _liftLabels ??= new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer, _labelPlacement, MountainPlanner.UI.LabelPlacement.Lifts, yields: false);
             _liftLabels.SetLabels(_liftLabelSpots);
@@ -326,6 +327,8 @@ namespace MountainPlanner.App
         // ---------- Analysis › Lifts (task 09) ----------
 
         readonly List<MountainPlanner.UI.LiftRow> _liftRowList = new List<MountainPlanner.UI.LiftRow>();
+        /// <summary>LO-11 v2: each lift's hold gust in mph (-1: never), for the card's Today row.</summary>
+        readonly Dictionary<ulong, int> _holdMph = new Dictionary<ulong, int>();
         bool _liftListWired;
         ulong _focusedLiftId;   // a row under the pointer or a card open: lit like a held lift
 
@@ -346,7 +349,24 @@ namespace MountainPlanner.App
                     var r = history.Submit(new RenameLift(history.Revision, new LiftId(id), name));
                     return r.Accepted ? null : r.Reason;
                 };
+                // Task 4.11 PR B: the plate, and Runs and Hours (LO-09, LO-07 v2), each one undoable step.
+                Hud.LiftPlateChanged = (id, plate) =>
+                {
+                    var history = Design;
+                    if (history == null) return "No design is open";
+                    var r = history.Submit(new SetLiftPlate(history.Revision, new LiftId(id), plate));
+                    return r.Accepted ? null : r.Reason;
+                };
+                Hud.LiftScheduleChanged = (id, peak, hours) =>
+                {
+                    var history = Design;
+                    if (history == null) return "No design is open";
+                    var r = history.Submit(new SetLiftSchedule(history.Revision, new LiftId(id), peak ? LiftSchedule.PeakDays : LiftSchedule.Daily, hours));
+                    return r.Accepted || r.Reason == "Nothing changes." ? null : r.Reason;
+                };
+                Hud.LiftRideChosen += StartRide;
             }
+            _holdMph.Clear();
             _liftRowList.Clear();
             foreach (var l in doc.Lifts)
             {
@@ -354,6 +374,8 @@ namespace MountainPlanner.App
                 double vertical = l.Levels is LiftLevels lv ? lv.TopMetres - lv.BottomMetres
                     : _resort.Surface.HeightAt((float)l.Top.XMetres, (float)l.Top.YMetres) - _resort.Surface.HeightAt((float)l.Bottom.XMetres, (float)l.Bottom.YMetres);
                 double slope = Math.Sqrt(l.LengthMetres * l.LengthMetres + vertical * vertical);
+                int hold = MountainPlanner.Simulation.SimWorld.HoldLimitMph(MountainPlanner.Simulation.Pacing.Default, MountainPlanner.Simulation.SimDesign.Input(l));
+                _holdMph[l.Id.Value] = hold;
                 _liftRowList.Add(new MountainPlanner.UI.LiftRow
                 {
                     Id = l.Id.Value, Name = l.Name, Model = MountainPlanner.UI.Tools.LiftTypeMenu.ModelName(l.CatalogId),
@@ -363,6 +385,7 @@ namespace MountainPlanner.App
                     RideSeconds = type.SpeedMetresPerSecond > 0 ? type.RideSeconds(slope) : 0,
                     Towers = l.Towers.Count, Built = l.Stage == WorkStage.Built,
                     Heads = null, LowestChairsMetres = double.NaN, RiseMetres = double.NaN, RiseLimitMetres = double.PositiveInfinity,
+                    Plate = l.Plate, HoldMph = hold, PeakDays = l.Schedule == LiftSchedule.PeakDays, OwnHours = l.Hours, ResortHours = doc.Hours,
                 });
                 // F6: the built lift's own figures, from its solved rope.
                 if (_liftViews.TryGetValue(l.Id, out var shown) && shown.View?.Rope is LiftRope rope)
@@ -459,7 +482,8 @@ namespace MountainPlanner.App
             LiftView hit = null;
             ulong hitId = 0;
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
-            if (_mapLines != null && cam != null) _mapLines.Follow(cam, Camera.Distance, _hoveredId != 0 ? _hoveredId : _heldLiftId);
+            // Riding (task 4.11 PR B): the eye is on the lift, so the map's lines are as good as gone (fade distance 0).
+            if (_mapLines != null && cam != null) _mapLines.Follow(cam, _riding ? 0f : Camera.Distance, _riding ? 0 : _hoveredId != 0 ? _hoveredId : _heldLiftId);
             _liftLabels?.Update(cam, _resort?.Surface, _liftsShown && _hudShown && !PhotoOpen && (Hud == null || Hud.LabelsOn));
             _areaLabels?.Update(cam, _resort?.Surface, _liftsShown && _hudShown && !PhotoOpen && (Hud == null || Hud.LabelsOn));   // NW-15: the Areas' names (task P3-10)
             UpdateTowerNumbers(cam);   // LD3: T1…Tn over the draft's towers
@@ -467,7 +491,7 @@ namespace MountainPlanner.App
             bool picking = !_networkOn && (_tools == null || !_tools.Armed || _tools.Active is MountainPlanner.UI.Tools.IPicksLifts || _focusedLiftId != 0);
             bool draft = DraftView != null;
             if (!draft) _draftPart = int.MinValue;
-            if ((_liftViews.Count > 0 && picking || draft) && cam != null && !PhotoOpen && _liftsShown)
+            if ((_liftViews.Count > 0 && picking || draft) && cam != null && !PhotoOpen && !_riding && _liftsShown)
             {
                 // -hoverlift (captures): the pointer on the first built lift on screen, a fifth of the way round its rope (a
                 // carpet: its middle).
@@ -504,9 +528,9 @@ namespace MountainPlanner.App
             // A lift a tool holds (Remove lift's first click) stays lit with the hovered one.
             if (_heldLiftId != 0 && !picking) _heldLiftId = 0;
             LiftView held = null;
-            ulong holding = _heldLiftId != 0 ? _heldLiftId : _focusedLiftId;   // a tool's lift, else Analysis' row or card
+            ulong holding = _riding ? 0 : _heldLiftId != 0 ? _heldLiftId : _focusedLiftId;   // a tool's lift, else Analysis' row or card (none while riding)
             if (holding != 0) foreach (var kv in _liftViews) if (kv.Key.Value == holding) { held = kv.Value.View; break; }
-            if (!_networkOn) OpenLiftCardOnClick(cam);
+            if (!_networkOn && !_riding) OpenLiftCardOnClick(cam);
             if (hit == _hovered && held == _held && _draftLit == _draftLitShown) return;
             _draftLitShown = _draftLit;
             _hovered?.SetHighlight(false);

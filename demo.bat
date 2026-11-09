@@ -329,6 +329,9 @@ echo        left off; the snow comes from the simulation, an edit's snow too.
 echo   4.11 lift operations, PR A (rebuilds the game; close the Unity editor first)
 echo     91 The lift operations tests, then the game: lines, waits ("300 in line - 7:30"), Status words for lifts and
 echo        trails, Peak days only, last chair and the stop, wind holds (F1 gust), the day report's rides.
+echo   4.11 lift operations, PR B (rebuilds the game; close the Unity editor first)
+echo     92 The save and plate tests, then the game: ride a lift from its card (every type), lift plates (save v13),
+echo        the card's Wind hold, Today, Runs and Hours.
 echo   4.12 guests v1 (rebuilds the game; close the Unity editor first)
 echo     96 The guest tests and the scale run, then the game: a crowd arrives through the morning, queues, rides, skis
 echo        and goes home; Popularity fills in; F1 shows the demand stack, the reputations and one skier's day.
@@ -461,6 +464,7 @@ if /i "%CHOICE%"=="88" goto trailrating
 if /i "%CHOICE%"=="89" goto simcore
 if /i "%CHOICE%"=="90" goto simsave
 if /i "%CHOICE%"=="91" goto liftops
+if /i "%CHOICE%"=="92" goto ridelift
 if /i "%CHOICE%"=="96" goto guests
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
@@ -873,6 +877,32 @@ echo   8. If nobody skis, F1's Network row says why in words: how many places th
 echo      lift's bottom), and for each colour how much of the mountain it can ski home from. A colour with nothing it
 echo      may ski is turned away at the gate - that is GU-05, not a bug.
 echo   9. Do 1-3 again on a second mountain (another of your saves), to see none of it is tuned to one site.
+start "" "%GAME%"
+goto menu
+
+:ridelift
+rem 4.11 PR B: Ride a lift (owner 2026-11-08, the approved mockup's #demo=ride), lift plates (save v13), the card's controls.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~SaveFileTests|FullyQualifiedName~LiftOpsTests|FullyQualifiedName~DesignDocumentTests" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open a save with built lifts of several types (a fixed grip, a detachable, a T-bar, a carpet), then Tab, Lifts:
+echo   1. Plates are optional: an older save's lifts and a new lift have none, and the card shows a faint "#" chip.
+echo      Click it (or Shift+F2), type A, Enter: the row, card and map label read A, and the list's names stay lined up.
+echo      Clear the field and Enter: the plate goes. A plate another lift has is refused with a toast. Ctrl+Z undoes it.
+echo   2. The card: Wind hold reads one figure ("46 mph"; "Never" for a tow or carpet) and Today "No holds expected".
+echo      F1, Gust: 40 mph: Today reads "Holds likely" on the lifts it holds; once one stops, "On hold now".
+echo   3. Runs: Daily / Peak days, and Hours: The resort's / Its own. Its own shows Opens, Last chair and Stops in
+echo      quarter hours, kept inside the resort's day. Each change is one Ctrl+Z.
+echo   4. The video camera on the card: Ride. You sit on the next chair to leave the bottom; the HUD goes, a thin bar
+echo      shows the plate, name, Status, "Top in m:ss" and progress. Move the mouse to look about (no button; the pointer hides); Space pauses (the
+echo      chair stops, you can still look); 2-4 speed it up. H hides the bar. Esc leaves to the view you had.
+echo   5. Let a ride reach the top: you get off by yourself, framed on the top station, the lift's card open.
+echo   6. Ride a detachable (slows through the stations), a T-bar (standing on the snow), and a carpet (on the belt).
+echo      Put a lift on hold (F1 gust) mid-ride: the chair stops and the bar reads "On hold - wind over N mph".
+echo   7. The chair you ride stays sharp close up (no pop, no clipping at arm's length); every chair rides empty.
 start "" "%GAME%"
 goto menu
 

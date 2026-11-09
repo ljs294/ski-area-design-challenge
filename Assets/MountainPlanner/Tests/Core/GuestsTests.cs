@@ -401,7 +401,7 @@ namespace MountainPlanner.Tests
         }
 
         /// <summary>The pinned fold of a whole day on the fixture: every skier's record and the day's ledgers (SI-08).</summary>
-        const ulong GuestDayFold = 0xEAF3DE686FAB9CABUL;
+        const ulong GuestDayFold = 0xB9C422088A472FAEUL;
 
         [Test]
         public void GU02_WatchingASkierChangesNothing()

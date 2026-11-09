@@ -273,6 +273,7 @@ namespace MountainPlanner.App
                 StartSectionShots(args);   // -sectionshots <folder> (MountainViewer.Sections.cs, task P3-10 B2)
                 StartBrushRuns(args);      // -brushtour <folder> [-brushmovie], -brushbench <out.json> (MountainViewer.Brush.cs, task P3-15)
                 StartGuestShots(args);     // -guestshot <folder> (MountainViewer.Guests.cs, task 4.12)
+                StartCoroutine(RunRideArguments(args));   // -ride <lift> [-rideshots <folder> | -ridebench <out.json>] (task 4.11 PR B)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
             }
@@ -403,7 +404,8 @@ namespace MountainPlanner.App
             {
                 // Esc backs out one step: photo mode, then the HUD's window, dropdown or panel, then a HUD control lets go
                 // of the keyboard; with nothing left to close it opens the menu (Quit is in it, 0.4 S7).
-                if (_photo && _photoBar != null && _photoBar.ReleaseKeyboard()) { }   // the photo bar lets go of the keys first
+                if (_riding) EndRide(false);   // a ride (task 4.11 PR B) leaves to the camera as it was
+                else if (_photo && _photoBar != null && _photoBar.ReleaseKeyboard()) { }   // the photo bar lets go of the keys first
                 else if (_photo) SetPhoto(false);   // photo mode (MountainViewer.Photo.cs) puts everything back
                 else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
                 else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
@@ -417,6 +419,7 @@ namespace MountainPlanner.App
             }
             if (KeyBindings.Pressed(keys, GameAction.DeveloperPanel)) _help = !_help;
             if (_resort == null) return;
+            if (HandleRideKeys(keys, letters)) return;   // riding a lift: only the ride's and the clock's keys
             if (_photo)
             {
                 if (!UiHasKeyboard()) HandlePhotoKeys(keys, letters);
@@ -592,6 +595,7 @@ namespace MountainPlanner.App
         /// <summary>Moves the contour labels with the camera, after it has moved this frame.</summary>
         void LateUpdate()
         {
+            TickRide();     // a ride's seat moves the camera, from this frame's rope time (task 4.11 PR B)
             DrawChairs();   // after the camera has moved, for its LODs
             LogHeightReads();
             if (_contourLabels == null || _resort == null) return;
@@ -637,7 +641,7 @@ namespace MountainPlanner.App
         void UpdateHud()
         {
             if (Hud == null) return;
-            bool show = _resort != null && _hud && _ui && !_photo && !TitleMode;
+            bool show = _resort != null && _hud && _ui && !_photo && !_riding && !TitleMode;
             if (show != _hudShown) Hud.SetVisible(_hudShown = show);
             if (!show || Time.unscaledTime < _nextReadout || Camera == null) return;
             _nextReadout = Time.unscaledTime + 0.1f;
