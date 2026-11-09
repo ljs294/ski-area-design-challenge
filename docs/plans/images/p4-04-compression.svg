@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 470" font-family="Segoe UI, system-ui, sans-serif" font-size="14">
+  <defs>
+    <style>
+      .s{fill:#3e4752;font-size:12.5px}
+      .b{fill:#1d232a;font-weight:700;font-size:14px}
+      .k{fill:#6b7480;font-size:12px;font-style:italic}
+      .fair{fill:#fff4cc;stroke:#c9a33a}
+      .bld{fill:#e9e6f2;stroke:#7f78a8}
+      .stm{fill:#9fc0e0;stroke:#4d7fae}
+      .clr{fill:#e3efe6;stroke:#5c9a6c}
+    </style>
+  </defs>
+  <rect width="960" height="470" fill="#f7f5f0"/>
+  <text x="24" y="34" font-size="20" font-weight="700" fill="#1d232a">Weather compressed like time (WX-21)</text>
+  <text x="24" y="56" class="s">One face day stands for 2.88 calendar days (42 face days for Dec 1 – Apr 1). Storms keep their real size; they come faster and snow harder.</text>
+
+  <!-- real week -->
+  <text x="24" y="100" class="b">The record: one real week</text>
+  <g stroke-width="1.5">
+    <rect class="fair" x="24" y="112" width="200" height="40"/>
+    <rect class="bld" x="224" y="112" width="70" height="40"/>
+    <rect class="stm" x="294" y="112" width="210" height="40"/>
+    <rect class="clr" x="504" y="112" width="120" height="40"/>
+    <rect class="fair" x="624" y="112" width="312" height="40"/>
+  </g>
+  <text x="34" y="137" class="s">fair, 2 days</text>
+  <text x="304" y="131" class="s">storm: 36 hours, 14 in</text>
+  <text x="304" y="146" class="s">≈ 0.4 in an hour</text>
+  <text x="514" y="137" class="s">clearing</text>
+  <text x="634" y="137" class="s">fair, 3 days</text>
+  <g fill="#6b7480" font-size="11">
+    <text x="24" y="170">Mon</text><text x="154" y="170">Tue</text><text x="284" y="170">Wed</text><text x="414" y="170">Thu</text><text x="544" y="170">Fri</text><text x="674" y="170">Sat</text><text x="804" y="170">Sun</text>
+  </g>
+
+  <!-- arrow -->
+  <path d="M480,182 L480,214" stroke="#4a5563" stroke-width="2"/>
+  <path d="M472,206 L480,218 L488,206" fill="none" stroke="#4a5563" stroke-width="2"/>
+  <text x="496" y="204" class="k">÷ 2.88: same sequence, same sizes, a third of the time</text>
+
+  <!-- game -->
+  <text x="24" y="250" class="b">In the game: about 2½ face days, at the same scale</text>
+  <g stroke-width="1.5">
+    <rect class="fair" x="24" y="262" width="69" height="40"/>
+    <rect class="bld" x="93" y="262" width="24" height="40"/>
+    <rect class="stm" x="117" y="262" width="73" height="40"/>
+    <rect class="clr" x="190" y="262" width="42" height="40"/>
+    <rect class="fair" x="232" y="262" width="108" height="40"/>
+  </g>
+  <g fill="#6b7480" font-size="11">
+    <text x="24" y="320">Day 1</text><text x="154" y="320">Day 2</text><text x="284" y="320">Day 3</text>
+  </g>
+  <path d="M190,262 C260,230 330,226 380,236" stroke="#4d7fae" stroke-width="1.2" fill="none"/>
+  <rect x="380" y="222" width="300" height="74" rx="8" fill="#fff" stroke="#4d7fae"/>
+  <text x="394" y="244" class="b">Storm: 12½ face hours, still 14 in</text>
+  <text x="394" y="262" class="s">peaks near 1½ in an hour (ramp · peak · tail)</text>
+  <text x="394" y="280" class="s">a short, wet dump can reach 3 in an hour</text>
+
+  <!-- what scales -->
+  <rect x="24" y="346" width="440" height="108" rx="10" fill="#fff" stroke="#c9c2b3"/>
+  <text x="40" y="370" class="b">Runs on calendar time (× 2.88 a face hour, WX-22)</text>
+  <text x="40" y="392" class="s">snowfall arrivals · settling · melt · ageing · sublimation</text>
+  <text x="40" y="410" class="s">lake ice · stream inflow · gun output, water and energy</text>
+  <text x="40" y="432" class="k">so the season's totals, base depth and melt-out</text>
+  <text x="40" y="447" class="k">come out as the record's</text>
+
+  <rect x="496" y="346" width="440" height="108" rx="10" fill="#fff" stroke="#c9c2b3"/>
+  <text x="512" y="370" class="b">Runs on the face clock (× 1)</text>
+  <text x="512" y="392" class="s">the day and night: one sunrise per face day</text>
+  <text x="512" y="410" class="s">skiers, lifts, wear, moguls, grooming passes</text>
+  <text x="512" y="432" class="k">so a storm can arrive at 2 a.m. and the powder day</text>
+  <text x="512" y="447" class="k">is the next morning, as it should be</text>
+</svg>
