@@ -187,8 +187,18 @@ namespace MountainPlanner.Presentation
             _initialised = true;
         }
 
+        /// <summary>
+        /// Task 4.11 PR B: riding a lift. The rider's seat moves the camera (the viewer sets its pose each frame, after the
+        /// chair's); this camera reads no input and leaves the transform and near plane alone until the ride ends.
+        /// </summary>
+        [System.NonSerialized] public bool Riding;
+
+        /// <summary>The free-fly eye (the ride keeps it, to put the camera back where it was).</summary>
+        public Vector3 FlyEye => _eye;
+
         void LateUpdate()
         {
+            if (Riding) return;
             EnsureInitialised();
             float dt = Time.unscaledDeltaTime;
             if (InputEnabled) ReadInput(dt);

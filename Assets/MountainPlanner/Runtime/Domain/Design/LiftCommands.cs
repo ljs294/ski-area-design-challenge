@@ -21,10 +21,13 @@ namespace MountainPlanner.Domain.Design
         public LiftLevels? Levels { get; }
         /// <summary>LD9 (save v10): the end that drives; null for the type's own.</summary>
         public LiftDrive? Drive { get; }
+        /// <summary>Shape 13: the plate; null or empty for none (plates are optional).</summary>
+        public string Plate { get; }
 
         public AddLift(long baseRevision, string name, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance,
-            IReadOnlyList<TowerSpec> towers, WorkStage stage, LiftLevels? levels = null, LiftDrive? drive = null) : base(baseRevision)
+            IReadOnlyList<TowerSpec> towers, WorkStage stage, LiftLevels? levels = null, LiftDrive? drive = null, string plate = null) : base(baseRevision)
         {
+            Plate = plate;
             Drive = drive;
             Levels = levels;
             Name = name;
@@ -44,14 +47,24 @@ namespace MountainPlanner.Domain.Design
             string problem = DesignRules.NameProblem(Name) ?? DesignRules.StageProblem(Stage)
                 ?? DesignRules.LiftLineProblem(CatalogId, Bottom, Top, TowerMode, Stance) ?? DesignRules.BuildableProblem(CatalogId);
             if (problem != null) return Invalid(doc, problem);
+            if (!string.IsNullOrEmpty(Plate) && (DesignRules.PlateProblem(Plate) ?? PlateTaken(doc, Plate, default)) is string pp) return Invalid(doc, pp);
             var mint = new IdMint(doc);
             var created = new List<ulong>();
             var id = mint.Lift();
             created.Add(id.Value);
             var towers = LiftTowers.Mint(ref mint, Towers, created);
-            var lift = new Lift(id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels, Drive);
+            var lift = new Lift(id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels, Drive, plate: Plate ?? "");
             if (DesignRules.TowersProblem(lift.LengthSquaredMm, lift.Towers, lift.CatalogId) is string t) return Invalid(doc, t);
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(lift), created);
+        }
+
+        /// <summary>Why another lift (not <paramref name="self"/>) already wears <paramref name="plate"/>, or null.</summary>
+        internal static string PlateTaken(DesignDocument doc, string plate, LiftId self)
+        {
+            if (string.IsNullOrEmpty(plate)) return null;   // any number of lifts may have no plate
+            foreach (var l in doc.Lifts)
+                if (l.Id != self && string.Equals(l.Plate, plate, StringComparison.OrdinalIgnoreCase)) return $"{l.Name} already has plate {l.Plate}.";
+            return null;
         }
     }
 
@@ -301,6 +314,34 @@ namespace MountainPlanner.Domain.Design
         }
     }
 
+    /// <summary>
+    /// Task 4.11 PR B (owner 2026-11-08, shape 13): a lift's plate, one to three letters or digits, unique among the lifts
+    /// (letters compared without case). One undo step, like a rename.
+    /// </summary>
+    public sealed class SetLiftPlate : DesignCommand
+    {
+        public LiftId Lift { get; }
+        public string Plate { get; }
+
+        public SetLiftPlate(long baseRevision, LiftId lift, string plate) : base(baseRevision)
+        {
+            Lift = lift;
+            Plate = plate;
+        }
+
+        public override string Label => string.IsNullOrEmpty(Plate) ? "Remove lift plate" : "Change lift plate";
+
+        protected override CommandResult Run(DesignDocument doc)
+        {
+            var l = doc.FindLift(Lift);
+            if (l == null) return Missing(doc, "That lift");
+            if (DesignRules.PlateProblem(Plate) is string p) return Invalid(doc, p);
+            if (l.Plate == Plate) return Invalid(doc, "That's already its plate.");
+            if (AddLift.PlateTaken(doc, Plate, l.Id) is string t) return Invalid(doc, t);
+            return CommandResult.Accept(doc.PutLift(l.WithPlate(Plate)));
+        }
+    }
+
     public sealed class DeleteLift : DesignCommand
     {
         public LiftId Lift { get; }
@@ -394,7 +435,7 @@ namespace MountainPlanner.Domain.Design
             var mint = new IdMint(doc);
             var created = new List<ulong>();
             towers.AddRange(LiftTowers.Mint(ref mint, Added, created));
-            var next = new Lift(l.Id, Name ?? l.Name, l.Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels, Drive ?? l.Drive, l.Schedule, l.Hours);
+            var next = new Lift(l.Id, Name ?? l.Name, l.Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers, Levels, Drive ?? l.Drive, l.Schedule, l.Hours, l.Plate);
             if (DesignRules.TowersProblem(next.LengthSquaredMm, next.Towers, next.CatalogId) is string t2) return Invalid(doc, t2);
             if (DesignBytes.Same(l, next)) return Invalid(doc, "Nothing changes.");
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutLift(next), created);

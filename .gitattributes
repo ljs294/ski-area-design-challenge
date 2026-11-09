@@ -51,5 +51,6 @@ TestData/formats/v9-save/** -text
 TestData/formats/v10-save/** -text
 TestData/formats/v11-save/** -text
 TestData/formats/v12-save/** -text
+TestData/formats/v13-save/** -text
 TestData/formats/v1-sim/** -text
 TestData/formats/v2-sim/** -text

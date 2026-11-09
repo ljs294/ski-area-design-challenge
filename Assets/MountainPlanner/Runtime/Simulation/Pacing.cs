@@ -75,7 +75,7 @@ namespace MountainPlanner.Simulation
         public readonly int GustJitterPercent;
         /// <summary>LO-11 v1: a held lift resumes once the gust has been this far below its threshold for a full face hour.</summary>
         public readonly int HoldResumeMarginMph;
-        /// <summary>LO-11 v2: how long the gust must stay that far below, face minutes (owner 2026-11-08: a half hour).</summary>
+        /// <summary>LO-11 v2: how long the gust must stay that far below, face minutes (owner 2026-11-08: ten minutes).</summary>
         public readonly int HoldResumeFaceMinutes;
         /// <summary>LO-11 v2: a held lift reads the gust this often, face minutes (a running lift reads it once an hour).</summary>
         public readonly int HoldRecheckFaceMinutes;
@@ -227,8 +227,8 @@ namespace MountainPlanner.Simulation
             E(nameof(HoldGustPerSeatTenths), "30, 15, 0, 0"),
             E(nameof(GustJitterPercent), "10"),
             E(nameof(HoldResumeMarginMph), "10"),
-            E(nameof(HoldResumeFaceMinutes), "30"),
-            E(nameof(HoldRecheckFaceMinutes), "15"),
+            E(nameof(HoldResumeFaceMinutes), "10"),
+            E(nameof(HoldRecheckFaceMinutes), "5"),
             E(nameof(MaxLine), "2048"),
             E(nameof(MaxTrails), "1024"),
             E(nameof(EventRingSize), "4096"),

@@ -14,8 +14,8 @@ namespace MountainPlanner.Domain.Design
         /// <summary>The shape of the authored data. Task 04's save file freezes it; a change bumps this. 4 (task 15): the
         /// terrain strokes. 5 (task P3-10): the named Areas (NW-15). 6 (task P3-10): the trails made of more than one section (NT24). 7 (task P3-10): trails as spans of runs between nodes, and the
         /// player's cut points (NT43–NT46). 10 (LD9): each lift's drive end. 11 (task 4.21, TD-07): each trail's posted rating. 12 (task 4.03, LO-07 v2 and LO-09):
-        /// the resort's hours, and each lift's schedule and own hours.</summary>
-        public const int ShapeVersion = 12;
+        /// the resort's hours, and each lift's schedule and own hours. 13 (task 4.11 PR B): each lift's plate.</summary>
+        public const int ShapeVersion = 13;
 
         /// <summary>The design's key seed: every ID is a keyed hash of it (SH-04).</summary>
         public ulong Seed { get; }

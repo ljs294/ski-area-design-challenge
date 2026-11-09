@@ -41,7 +41,11 @@ namespace MountainPlanner.App
             var speeds = Pacing.Default.Speeds;
             int factor = s.Paused || s.Speed < 1 || s.Speed > speeds.Length ? 1 : speeds[s.Speed - 1];
             for (int i = 0; i < s.LiftCount; i++)
-                Hud.SetLiftLive(s.LiftIds[i], new MountainHud.LiftLive(Word(s.LiftStatus[i]), s.LineCount[i], s.WaitMs[i] / 1000.0 / factor));
+            {
+                // The card's Today row: until 4.05's forecast, a hold is likely while the F1 gust is at or over its limit.
+                bool likely = _gustMph >= 0 && _holdMph.TryGetValue(s.LiftIds[i], out int hold) && hold >= 0 && _gustMph >= hold;
+                Hud.SetLiftLive(s.LiftIds[i], new MountainHud.LiftLive(Word(s.LiftStatus[i]), s.LineCount[i], s.WaitMs[i] / 1000.0 / factor, likely));
+            }
             if (s.TrailsKnown)
                 for (int k = 0; k < s.TrailCount; k++) Hud.SetTrailLive(s.TrailIds[k], Word(s.TrailStatus[k]));
             Hud.FlushLive();
@@ -126,7 +130,7 @@ namespace MountainPlanner.App
                         if (feeding) _feeding.Remove(lid); else _feeding.Add(lid);
                         _sim.Send(SimCommand.Of(SimCommandKind.FeedLine, 0, new LiftFeed(lid, 0, feeding ? 0 : 40)));
                     }
-                // LO-09: the schedule (a design edit, undoable) until the lift card has its control (4.11 PR B's mockup).
+                // LO-09: the schedule (a design edit, undoable); the lift card's Runs does the same.
                 if (!_opsAll && lift != null && button(3, lift.Schedule == LiftSchedule.PeakDays ? "Peak days only" : "Daily"))
                     history.Submit(new SetLiftSchedule(history.Revision, lift.Id,
                         lift.Schedule == LiftSchedule.PeakDays ? LiftSchedule.Daily : LiftSchedule.PeakDays, lift.Hours));
@@ -159,7 +163,7 @@ namespace MountainPlanner.App
                 _heldNames.Add(n);
             }
             string held = _heldNames.Count == 0 ? "No lift on hold" : "On hold: " + string.Join(", ", _heldNames);
-            GUI.Label(new Rect(x0 + w + 6, y + 4, 9 * w, row), held + " · each lift reads the gust once a game hour (about 90 s at 1×); a held lift every 15 game minutes, and it runs again after a calm half hour");
+            GUI.Label(new Rect(x0 + w + 6, y + 4, 9 * w, row), held + " · each lift reads the gust once a game hour (about 90 s at 1×); a held lift every 5 game minutes, and it runs again after 10 calm game minutes");
         }
 
         ulong _opsLiftId;
