@@ -69,7 +69,7 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>SI-08's pinned fold of the golden script over two label years. A behaviour change re-pins it, approved.</summary>
-        public const ulong GoldenFoldValue = 0x70F2A53A52947E94UL;
+        public const ulong GoldenFoldValue = 0x9793FDA75278A627UL;   // re-pinned at 4.11 (lift operations, Pacing v2, LO-11 v2 wind limits; owner OK 2026-11-08)
 
         /// <summary>One fold of every face-hour hash of the golden run to the given face day (the pinned value).</summary>
         public static ulong GoldenFold(Pacing p, int faceDays, int maxStep = int.MaxValue, SimSite site = default)

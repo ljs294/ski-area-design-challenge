@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using MountainPlanner.Domain.Design;
 
 namespace MountainPlanner.Simulation
@@ -20,8 +21,12 @@ namespace MountainPlanner.Simulation
         /// <summary>Every lift, in ID order.</summary>
         public readonly LiftInput[] Lifts;
         public readonly int BuiltTrails;
+        /// <summary>LO-10's descent graph, or null before the app's network build arrives: then every built lift has a way down
+        /// (4.03's stand-in) and every built trail counts as reached.</summary>
+        public readonly SimNetwork Network;
 
-        public SimDesign(long revision, ulong revisionHash, ulong resortSeed, DayHours hours, LiftInput[] lifts, int builtTrails)
+        public SimDesign(long revision, ulong revisionHash, ulong resortSeed, DayHours hours, LiftInput[] lifts, int builtTrails,
+                         SimNetwork network = null)
         {
             if (hours.Problem is string p) throw new ArgumentException("The resort's hours: " + p, nameof(hours));
             Revision = revision;
@@ -32,22 +37,77 @@ namespace MountainPlanner.Simulation
             for (int i = 1; i < Lifts.Length; i++)
                 if (Lifts[i - 1].Id >= Lifts[i].Id) throw new ArgumentException("Lifts must be in ID order, each once.", nameof(lifts));
             BuiltTrails = builtTrails;
+            Network = network;
+            if (network != null)
+                foreach (var l in Lifts)
+                    if (l.TopNode >= network.NodeCount || l.BottomNode >= network.NodeCount)
+                        throw new ArgumentException("A lift's station is outside the network.", nameof(lifts));
         }
 
         /// <summary>The design-inputs builder (SI-21): from a design revision, on any thread.</summary>
-        public static SimDesign From(DesignSnapshot snapshot)
+        /// <param name="built">The app's built network for this same document (LO-10), or null while it's still being built.</param>
+        public static SimDesign From(DesignSnapshot snapshot, NetworkGraph built = null)
         {
             var doc = snapshot.Document ?? throw new ArgumentNullException(nameof(snapshot));
-            var lifts = new LiftInput[doc.Lifts.Count];
+            var sorted = new List<Lift>(doc.Lifts);
+            sorted.Sort((a, b) => a.Id.Value.CompareTo(b.Id.Value));
+            var ids = new ulong[sorted.Count];
+            for (int i = 0; i < ids.Length; i++) ids[i] = sorted[i].Id.Value;
+            SimNetwork network = null;
+            int[] tops = null, bottoms = null;
+            if (built != null) network = SimNetwork.From(built, ids, out tops, out bottoms);
+            var lifts = new LiftInput[sorted.Count];
             for (int i = 0; i < lifts.Length; i++)
+                lifts[i] = Input(sorted[i], tops != null ? tops[i] : -1, bottoms != null ? bottoms[i] : -1);
+            int builtTrails = 0;
+            foreach (var t in doc.Trails) if (t.Stage == WorkStage.Built) builtTrails++;
+            return new SimDesign(snapshot.Revision, Pacing.Fnv64(DesignBytes.Encode(doc)), doc.Seed, doc.Hours, lifts, builtTrails, network);
+        }
+
+        /// <summary>
+        /// LO-01, LO-03, LO-06: a lift's catalog numbers as whole milliseconds, worked out here once so the worker never
+        /// touches the catalog's doubles or the line's geometry (SI-21).
+        /// </summary>
+        public static LiftInput Input(Lift l, int topNode = -1, int bottomNode = -1)
+        {
+            var type = LiftType.Of(l);
+            string id = l.CatalogId ?? "";
+            var kind = type.Belt ? LiftKind.Carpet
+                : type.Tow ? LiftKind.Tow
+                : id.StartsWith("tram-", StringComparison.Ordinal) ? LiftKind.Tram
+                : id.StartsWith("gondola-", StringComparison.Ordinal) ? LiftKind.Gondola
+                : type.Detachable ? LiftKind.DetachableChair
+                : LiftKind.FixedGripChair;
+            int seats = Math.Max(1, Math.Min(255, type.Seats));
+            // LO-08: a tram's interval is its catalog capacity's (one cabin each way), not its spacing over its speed.
+            double interval = kind == LiftKind.Tram ? seats * 3600.0 / type.Capacity : type.IntervalSeconds;
+            double rise = l.Levels.HasValue ? l.Levels.Value.TopMetres - l.Levels.Value.BottomMetres : 0;
+            double along = Math.Sqrt(l.LengthMetres * l.LengthMetres + rise * rise);
+            double ride = type.RideSeconds(along);
+            int intervalMs = (int)Math.Max(100, Math.Min(int.MaxValue / 4, Math.Round(interval * 1000)));
+            int rideMs = (int)Math.Max(1000, Math.Min(int.MaxValue / 4, Math.Round(ride * 1000)));
+            return new LiftInput(l.Id.Value, l.Stage == WorkStage.Built, l.Schedule, l.Hours, kind, seats, intervalMs, rideMs, topNode, bottomNode);
+        }
+
+        /// <summary>
+        /// The same design with its lifts lined up with <paramref name="ids"/> (a sidecar's own lifts, SI-20): each found by ID,
+        /// any other on the catalog's defaults. The network goes with it only when every lift is found.
+        /// </summary>
+        internal SimDesign AlignedTo(ulong[] ids, int n)
+        {
+            bool same = n == Lifts.Length;
+            for (int i = 0; same && i < n; i++) same = Lifts[i].Id == ids[i];
+            if (same) return this;
+            var lifts = new LiftInput[n];
+            bool all = true;
+            for (int i = 0; i < n; i++)
             {
-                var l = doc.Lifts[i];
-                lifts[i] = new LiftInput(l.Id.Value, l.Stage == WorkStage.Built, l.Schedule, l.Hours);
+                int at = -1;
+                for (int k = 0; k < Lifts.Length; k++) if (Lifts[k].Id == ids[i]) { at = k; break; }
+                if (at >= 0) lifts[i] = Lifts[at];
+                else { lifts[i] = new LiftInput(ids[i], false); all = false; }
             }
-            Array.Sort(lifts, (a, b) => a.Id.CompareTo(b.Id));
-            int built = 0;
-            foreach (var t in doc.Trails) if (t.Stage == WorkStage.Built) built++;
-            return new SimDesign(snapshot.Revision, Pacing.Fnv64(DesignBytes.Encode(doc)), doc.Seed, doc.Hours, lifts, built);
+            return new SimDesign(Revision, RevisionHash, ResortSeed, Hours, lifts, BuiltTrails, all ? Network : null);
         }
 
         /// <summary>A design with no lifts and no trails (tests, the title).</summary>
@@ -75,14 +135,38 @@ namespace MountainPlanner.Simulation
         public readonly bool Built;
         public readonly LiftSchedule Schedule;
         public readonly DayHours? Hours;
+        public readonly LiftKind Kind;
+        /// <summary>LO-02: the line is this many wide; a carrier takes this many.</summary>
+        public readonly int Seats;
+        /// <summary>LO-01: motion ms between carriers at 1x (before <see cref="Pacing.ChairSpeedFactor"/>).</summary>
+        public readonly int IntervalMs;
+        /// <summary>LO-06: the catalog ride, bottom to top, motion ms (detachables with their ramps).</summary>
+        public readonly int RideMs;
+        /// <summary>LO-10: the lift's top and bottom stations in <see cref="SimDesign.Network"/>, or -1.</summary>
+        public readonly int TopNode, BottomNode;
 
-        public LiftInput(ulong id, bool built, LiftSchedule schedule = LiftSchedule.Daily, DayHours? hours = null)
+        public LiftInput(ulong id, bool built, LiftSchedule schedule = LiftSchedule.Daily, DayHours? hours = null,
+                         LiftKind kind = LiftKind.FixedGripChair, int seats = 4, int intervalMs = 6000, int rideMs = 360_000,
+                         int topNode = -1, int bottomNode = -1)
         {
+            if (seats < 1 || seats > 255) throw new ArgumentOutOfRangeException(nameof(seats));
+            if (intervalMs < 1) throw new ArgumentOutOfRangeException(nameof(intervalMs));
+            if (rideMs < 1) throw new ArgumentOutOfRangeException(nameof(rideMs));
+            if (hours.HasValue && hours.Value.Problem is string p) throw new ArgumentException("The lift's hours: " + p, nameof(hours));
             Id = id;
             Built = built;
             Schedule = schedule;
             Hours = hours;
+            Kind = kind;
+            Seats = seats;
+            IntervalMs = intervalMs;
+            RideMs = rideMs;
+            TopNode = topNode;
+            BottomNode = bottomNode;
         }
+
+        /// <summary>LO-03: rated capacity, people an hour, at 1x.</summary>
+        public int RatedPerHour => (int)(Seats * 3_600_000L / IntervalMs);
     }
 
     /// <summary>Where the mountain is, for the daylight that bounds the resort's hours (owner, 2026-11-08; question 10).</summary>

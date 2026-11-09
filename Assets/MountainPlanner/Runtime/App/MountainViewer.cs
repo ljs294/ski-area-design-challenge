@@ -640,6 +640,7 @@ namespace MountainPlanner.App
             foreach (string id in MapLayers.InfoIds) Hud.SetLayer(id, _layers.IsOn(id));
             Hud.SetLegend(_layers.InfoLayerId, _layers.ContoursOn);
             SetHudClock();
+            UpdateLiftLive();
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             var mouse = Mouse.current;
             float elevation = float.NaN, slope = float.NaN, bearing = 0, snow = float.NaN;
@@ -768,7 +769,7 @@ namespace MountainPlanner.App
         void DrawDeveloperPanel(Rect at)
         {
             const float row = 30, label = 130;
-            var box = new Rect(at.x, at.y, at.width, row * ((SampleDesignChosen != null ? 8 : 7) + (_sim != null ? 2 : 0)) + 16);
+            var box = new Rect(at.x, at.y, at.width, row * ((SampleDesignChosen != null ? 8 : 7) + (_sim != null ? 4 : 0)) + 16);   // 4.11: the lift operations and wind rows
             GUI.Box(box, GUIContent.none);
             float y = box.y + 8, x0 = box.x + 10 + label, w = 110;
             var caption = new GUIStyle(GUI.skin.label) { fontSize = 14 };

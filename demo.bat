@@ -326,6 +326,9 @@ echo        Open / Closed, Day 1, chairs in the resort's hours, the day report a
 echo   4.03 simulation core, PR B (rebuilds the game; close the Unity editor first)
 echo     90 The save and snow tests, then the game: a save keeps the clock (day, time, seed, chairs) and opens where it
 echo        left off; the snow comes from the simulation, an edit's snow too.
+echo   4.11 lift operations, PR A (rebuilds the game; close the Unity editor first)
+echo     91 The lift operations tests, then the game: lines, waits ("300 in line - 7:30"), Status words for lifts and
+echo        trails, Peak days only, last chair and the stop, wind holds (F1 gust), the day report's rides.
 echo.
 echo     Q  Quit
 echo.
@@ -454,6 +457,7 @@ if /i "%CHOICE%"=="87" goto d3d11
 if /i "%CHOICE%"=="88" goto trailrating
 if /i "%CHOICE%"=="89" goto simcore
 if /i "%CHOICE%"=="90" goto simsave
+if /i "%CHOICE%"=="91" goto liftops
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -804,6 +808,31 @@ echo   4. Esc, Quit to title, Load Area, open that save: the same day, date and 
 echo      they were, still paused. Space: the day carries on.
 echo   5. Let it run a little, then quit to the title without saving: it asks, because the clock moved.
 echo   6. An older save (made before this build) opens at October 1 as before; so does a new design.
+start "" "%GAME%"
+goto menu
+
+:liftops
+rem 4.11 PR A: lift operations (p4-02 LO-01..LO-13): lines, boarding, waits, hours, schedules, the way down, wind holds.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~LiftOpsTests|FullyQualifiedName~SimSaveTests|FullyQualifiedName~SimWorldTests" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open the Jackson Hole demo area or a save with two built lifts and a trail down from each (Tab: Analysis, Lifts):
+echo   1. Before Day 1 every built lift reads Closed in Status and Wait reads "-". F1, Mountain: closed (now open), then
+echo      Skip to morning: the next morning the lifts read Scheduled until 8:30, then Open; built trails an open lift
+echo      reaches read Open too (Analysis, Trails). A lift whose top has no trail down stays Closed.
+echo   2. F1, "+300 in line": the first lift's Wait reads "300 - 7:30" at 1x (its card: "300 in line - 7:30").
+echo      Press 2, 3, 4 (2x, 4x, 8x): the wait in real time halves each time. Space: it counts down as chairs load.
+echo   3. F1, Feeder: 40/min (the quad's rated 2,400 an hour): the line stays short all day.
+echo   4. F1, Gust: 40 mph: within the hour a detachable goes On hold and its chairs stop; a fixed grip keeps running.
+echo      Gust: 60 mph holds the fixed grips too. Gust: weather (calm): each runs again after a full calm hour.
+echo   5. F1, Daily (the first lift's schedule) to Peak days only: on a weekday it reads Closed and its chairs stay
+echo      parked; on a weekend day it opens. Ctrl+Z puts it back.
+echo   6. At 4:15 (last chair) no one joins a line; the line keeps boarding until 4:30, when the ropes stop, every lift
+echo      reads Closed and whoever is still in line goes home. The closing toast and F1 show the day's rides.
+echo   7. Save and reopen mid-day: the line, the hold and the wait come back as they were. An older save opens with no lines.
 start "" "%GAME%"
 goto menu
 

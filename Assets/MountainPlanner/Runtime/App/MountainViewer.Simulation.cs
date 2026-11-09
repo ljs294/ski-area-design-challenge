@@ -78,7 +78,9 @@ namespace MountainPlanner.App
             // The open design's history: the edit session (which shares it) often arrives a few frames later, and a save's
             // state must be read over the design it was saved with, or its lifts would lose their ropes.
             var history = _edits?.History ?? OpenDesign.Current?.History;
-            var design = history != null ? SimDesign.From(history.Current) : SimDesign.Empty(0);
+            var design = history != null ? SimDesign.From(history.Current, SimGraphFor(history.Current.Document)) : SimDesign.Empty(0);
+            if (history != null) _simSent = history.Current;
+            Hud?.ClearLive();
             var simSite = new SimSite(site.Latitude, site.Longitude);
             var world = RestoredWorld(pacing, design, simSite) ?? new SimWorld(pacing, design, simSite, Math.Max(2, startYear));
             var mirror = _resort.States?.Snow;
@@ -215,7 +217,8 @@ namespace MountainPlanner.App
         void SendDesign(DesignSnapshot snapshot)
         {
             if (_sim == null || snapshot.Document == null) return;
-            _sim.Send(SimCommandKind.SetDesign, 0, SimDesign.From(snapshot));
+            _simSent = snapshot;
+            _sim.Send(SimCommandKind.SetDesign, 0, SimDesign.From(snapshot, SimGraphFor(snapshot.Document)));
         }
 
         void SendSim(SimCommandKind kind, long a = 0) => _sim?.Send(kind, a);
@@ -309,7 +312,7 @@ namespace MountainPlanner.App
         {
             var s = _simNow;
             if (_sim == null || s == null) return;
-            caption($"Simulation ({(s.Phase == SeasonPhase.PreSeason ? "pre-season" : s.Phase == SeasonPhase.Season ? "day " + s.SeasonDay : "summer")})");
+            caption("Simulation");
             if (button(0, s.Open ? "Mountain: open" : "Mountain: closed")) SendSim(SimCommandKind.SetMountainOpen, s.Open ? 0 : 1);
             if (button(1, "Skip to morning")) SendSim(SimCommandKind.SkipToMorning);
             if (button(2, "Next third")) SendSim(SimCommandKind.SkipToNextThird);
@@ -320,7 +323,8 @@ namespace MountainPlanner.App
             if (button(0, s.SeedPinned ? "Seed: pinned" : "Seed: drawn"))
                 _sim.Send(s.SeedPinned ? SimCommand.Of(SimCommandKind.UnpinSeasonSeed) : SimCommand.Of(SimCommandKind.PinSeasonSeed, unchecked((long)s.SeasonSeed)));
             GUI.Label(new Rect(x0 + w + 6, y + 4, 4 * w, row),
-                $"{s.SeasonSeed:X16} · tick {s.TickMeanMicros} µs (p99 {s.TickP99Micros}) · {s.SustainedPermille / 10}% of speed · {s.OpenSecond / 3600}:{s.OpenSecond / 60 % 60:D2}–{s.StopSecond / 3600}:{s.StopSecond / 60 % 60:D2}{(s.HoursTrimmed ? " (daylight)" : "")}");
+                $"{(s.Phase == SeasonPhase.PreSeason ? "Pre-season" : s.Phase == SeasonPhase.Season ? "Day " + s.SeasonDay : "Summer")} · {s.SeasonSeed:X16} · tick {s.TickMeanMicros} µs (p99 {s.TickP99Micros}) · {s.SustainedPermille / 10}% of speed · {s.OpenSecond / 3600}:{s.OpenSecond / 60 % 60:D2}–{s.StopSecond / 3600}:{s.StopSecond / 60 % 60:D2}{(s.HoursTrimmed ? " (daylight)" : "")}");
+            DrawLiftOpsRows(ref y, row, x0, w, caption, button);
         }
     }
 }

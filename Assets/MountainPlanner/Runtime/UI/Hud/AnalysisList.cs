@@ -100,6 +100,9 @@ namespace MountainPlanner.UI
             Redraw();
         }
 
+        /// <summary>Redraws the rows it has, keeping its sort and filters (live cells: the simulation's words, at a bounded rate).</summary>
+        public void Refresh() => Redraw();
+
         /// <summary>The row whose card is open, marked.</summary>
         public void SetFocused(ulong id)
         {

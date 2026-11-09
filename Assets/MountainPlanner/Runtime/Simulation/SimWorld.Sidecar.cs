@@ -23,7 +23,8 @@ namespace MountainPlanner.Simulation
         public int StageSnow(TileStagingRing ring, bool paused) =>
             Snow.Stage(ring, Tick, Pacing.StageTilesPerTick, Pacing.TileFlushTicks, paused);
 
-        // The field order below is the sidecar's (SimSidecar, v1): append only through a version bump.
+        // The field order below is the sidecar's (SimSidecar, v2: v1's fields, then the lift-operations block, task 4.11):
+        // append only through a version bump.
 
         internal void WriteState(SidecarWriter o)
         {
@@ -56,6 +57,7 @@ namespace MountainPlanner.Simulation
             o.I64(_commandSeq); o.I64(HourIndex); o.U64(HourHash);
             o.Bool(Snow.Set); o.I32(Snow.Width); o.I32(Snow.Height);
             o.U16s(Snow.Cells);
+            WriteLiftState(o);
         }
 
         internal void ReadState(SidecarReader r, SimSidecar.Header header)
@@ -82,6 +84,11 @@ namespace MountainPlanner.Simulation
                 _liftOpen[i] = r.U8(); _liftOpenNext[i] = r.U8(); _liftHold[i] = r.U8();
                 _runFaceMs[i] = r.I64(); _closedFaceMs[i] = r.I64();
             }
+            // The lifts' operations are sized over the design as the state knew its lifts (by ID); a lift the design no longer
+            // has runs on the catalog's defaults until the refold drops it.
+            var real = Design;
+            Design = real.AlignedTo(_liftIds, n);
+            FoldLiftOps(Array.Empty<ulong>(), 0, _liftIds, n);
             _ledgerDay = r.I32(); _ledgerSeasonDay = r.I32();
             _ledgerType = (DayType)r.Enum(0, 3, "The ledger's day type");
             _ledgerPhase = (SeasonPhase)r.Enum(0, 3, "The ledger's phase");
@@ -107,6 +114,9 @@ namespace MountainPlanner.Simulation
             var mm = new ushort[width * height];
             r.U16s(mm);
             Snow.Load(width, height, set, mm);
+            // v1 → v2 (SimSidecar.Upgrade): no lift-operations block; lines and chairs empty, ledger zero, holds as saved.
+            if (header.SidecarVersion >= 2) ReadLiftState(r);
+            Design = real;
         }
 
         /// <summary>

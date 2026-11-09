@@ -46,12 +46,20 @@ namespace MountainPlanner.Simulation
         public readonly int[] RunMinutes;
         public readonly int[] ClosedMinutes;
         public readonly int[] Rides;
+        /// <summary>LO-12: the day's peak line, mean wait (motion ms), minutes on hold, skiers left in line at the stop, and
+        /// utilisation (rides ÷ what the lift could carry in its day, thousandths).</summary>
+        public readonly int[] PeakLine, MeanWaitMs, HoldMinutes, LeftInLine, UtilisationPermille;
 
         public DayReport(int maxLifts)
         {
             RunMinutes = new int[maxLifts];
             ClosedMinutes = new int[maxLifts];
             Rides = new int[maxLifts];
+            PeakLine = new int[maxLifts];
+            MeanWaitMs = new int[maxLifts];
+            HoldMinutes = new int[maxLifts];
+            LeftInLine = new int[maxLifts];
+            UtilisationPermille = new int[maxLifts];
         }
 
         public bool IsValid => FaceDay >= 0;
@@ -65,9 +73,14 @@ namespace MountainPlanner.Simulation
             Array.Copy(o.RunMinutes, RunMinutes, LiftCount);
             Array.Copy(o.ClosedMinutes, ClosedMinutes, LiftCount);
             Array.Copy(o.Rides, Rides, LiftCount);
+            Array.Copy(o.PeakLine, PeakLine, LiftCount);
+            Array.Copy(o.MeanWaitMs, MeanWaitMs, LiftCount);
+            Array.Copy(o.HoldMinutes, HoldMinutes, LiftCount);
+            Array.Copy(o.LeftInLine, LeftInLine, LiftCount);
+            Array.Copy(o.UtilisationPermille, UtilisationPermille, LiftCount);
         }
 
-        internal const int SizeBytesPerLift = 12;
+        internal const int SizeBytesPerLift = 32;
     }
 
     /// <summary>
@@ -127,7 +140,27 @@ namespace MountainPlanner.Simulation
         public readonly LiftRunState[] LiftStates;
         /// <summary>The board's public lift column (SI-19): open today.</summary>
         public readonly byte[] LiftOpen;
+        /// <summary>LO-02: skiers in each lift's line.</summary>
+        public readonly int[] LineCount;
+        /// <summary>LO-04 v1: the wait for a skier joining now, motion ms at 1× (divide by the speed for real time).</summary>
+        public readonly int[] WaitMs;
+        /// <summary>The Status word's source (Planned, Closed, Scheduled, Open, On hold, Downloading).</summary>
+        public readonly LiftOpStatus[] LiftStatus;
+        /// <summary>LO-05: riders on the carriers, and today's rides so far (LO-12).</summary>
+        public readonly int[] Aboard, RidesToday;
+        /// <summary>LO-01: the motion ms between carriers, and the seats a carrier takes (LO-03: rated = seats × 3,600,000 ÷ interval).</summary>
+        public readonly int[] IntervalMs;
+        public readonly byte[] Seats;
+        /// <summary>LO-07 v2: each lift's opening today, seconds of the day (a Scheduled lift says when).</summary>
+        public readonly int[] LiftOpenSecond;
         public int TrailsReady;
+
+        // Per network trail, in ID order (LO-10's stand-in for SN-20 until 4.07: Open when an open lift's descent runs along it)
+        public int TrailCount;
+        /// <summary>False until the app's network has reached the simulation: the trails' words stay placeholders.</summary>
+        public bool TrailsKnown;
+        public readonly ulong[] TrailIds;
+        public readonly LiftOpStatus[] TrailStatus;
 
         public readonly DayReport LastDayReport;
         public int HistoryCount;
@@ -147,6 +180,16 @@ namespace MountainPlanner.Simulation
             RunMs = new long[p.MaxLifts];
             LiftStates = new LiftRunState[p.MaxLifts];
             LiftOpen = new byte[p.MaxLifts];
+            LineCount = new int[p.MaxLifts];
+            WaitMs = new int[p.MaxLifts];
+            LiftStatus = new LiftOpStatus[p.MaxLifts];
+            Aboard = new int[p.MaxLifts];
+            RidesToday = new int[p.MaxLifts];
+            IntervalMs = new int[p.MaxLifts];
+            Seats = new byte[p.MaxLifts];
+            LiftOpenSecond = new int[p.MaxLifts];
+            TrailIds = new ulong[p.MaxTrails];
+            TrailStatus = new LiftOpStatus[p.MaxTrails];
             LastDayReport = new DayReport(p.MaxLifts);
             Events = new SimEvent[p.SnapshotEvents];
         }
@@ -165,7 +208,21 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>SI-16's budget: the bytes this snapshot's arrays and fields take at their full size.</summary>
-        public int SizeBytes => 256 + LiftIds.Length * (8 + 8 + 1 + 1 + DayReport.SizeBytesPerLift) + Events.Length * 24;
+        public int SizeBytes => 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + DayReport.SizeBytesPerLift)
+                                + TrailIds.Length * (8 + 1) + Events.Length * 24;
+
+        /// <summary>The trail's index here, or −1.</summary>
+        public int IndexOfTrail(ulong id)
+        {
+            int lo = 0, hi = TrailCount - 1;
+            while (lo <= hi)
+            {
+                int mid = (lo + hi) >> 1;
+                if (TrailIds[mid] == id) return mid;
+                if (TrailIds[mid] < id) lo = mid + 1; else hi = mid - 1;
+            }
+            return -1;
+        }
     }
 
     /// <summary>

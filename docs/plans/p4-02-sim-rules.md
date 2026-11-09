@@ -538,12 +538,18 @@ the chairs carry **decorative riders** (LO-05).
   loses that mid-day (a trail closes), it closes to boarding and **downloads**: riders may board at the top and ride
   down (chairs and gondolas; not tows or carpets, which just close).
 - **LO-11 v1, wind holds (OQ1, taken as recommended).** Per type, a lift goes on hold when the hour's gust at its top
-  station × a keyed per-lift factor (1 ± `Pacing.GustJitter = 0.1`) exceeds `Pacing.HoldGust[type]` (fixed-grip
-  chairs 45 mph, detachable chairs 35, gondolas 40, trams 50, tows and carpets never: tuned at 4.11), checked at a
+  station × a keyed per-lift factor (1 ± `Pacing.GustJitter = 0.1`) exceeds the lift's limit, checked at a
   keyed tick offset within the hour per lift (so two lifts of a type don't stop in the same frame), and resumes when
-  the gust has been 10 mph below it for a full face hour (hysteresis).
+  the gust has been 10 mph below it for a full face hour (hysteresis; v2 below: half an hour).
   On hold the rope stops (RP-07 v2: a chair's position is a pure function of the rope's travel, which pauses), the line
   waits, riders in the air wait, and an alert fires (TM-12). Maintenance downtime is Later.
+  **v2 (owner 2026-11-08, task 4.11):** the limit depends on the type and the carrier's size. Tows, T-bars, J-bars and
+  carpets never hold; a fixed grip holds later than a detachable of the same size; a bigger, heavier carrier holds
+  later than a smaller one. Limit = `Pacing.HoldGustMph[type]` + `Pacing.HoldGustPerSeatTenths[type]` × seats ÷ 10:
+  fixed-grip double 40 mph, triple 43, quad 46; detachable quad 35, six 38, eight 41; gondolas 45; trams 55.
+  A held lift reads the gust every 15 face minutes (`Pacing.HoldRecheckFaceMinutes`), not hourly, and resumes after
+  the gust has been 10 mph below its limit for half a face hour (`Pacing.HoldResumeFaceMinutes = 30`; owner: holds
+  ended too slowly).
 - **LO-12, the day ledger per lift.** Rides, **utilisation** (rides ÷ (12 min × 60 ÷ interval × seats), the figure
   the player compares, since 2,400 pph beside 480 rides invites a division nobody should do), peak line, mean wait,
   minutes on hold, minutes closed; a consumer of the event ring (SI-18), for the day report (TM-15), the Guests tab

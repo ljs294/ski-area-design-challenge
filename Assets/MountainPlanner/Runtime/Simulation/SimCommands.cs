@@ -35,6 +35,10 @@ namespace MountainPlanner.Simulation
         SetDesign = 23,
         /// <summary>SI-17: Payload = a <see cref="SimSnowpack"/>, the ground's natural snow over a rectangle of the field.</summary>
         SetSnowpack = 24,
+        /// <summary>LO-11's gust seam (until 4.05; tests and the demo's <c>-gust</c>): A = mph at every top station, −1 = the weather's.</summary>
+        SetGust = 25,
+        /// <summary>LO-13's scripted feeder (tests and the demo's <c>-feeder</c>): Payload = a <see cref="LiftFeed"/>.</summary>
+        FeedLine = 26,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>

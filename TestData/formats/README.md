@@ -92,6 +92,13 @@ reads: a version number, and a name for the greyed library row.
   adds a `v2-sim` fixture; a change to `Pacing`'s defaults moves the header's hash, so the fixture is made again only
   with that change approved.
 
+- **`v2-sim/golden.sim`** is the same world in `SimSidecar` v2 (task 4.11, lift operations): v1's fields, then the
+  lift-operations block (each lift's top-station gust, its line with its join ticks, hidden riders, carrier riders, hold and feeder state,
+  today's lift ledger, the way down and the trails an open lift reaches). Here the first lift has a line and a feeder and
+  the second is on a wind hold. `SimSaveTests` checks that the writer reproduces it byte for byte; `v1-sim` still opens
+  (no block: lines and chairs empty, the ledger zero, holds as saved) and plays on. Pacing v2 (the hold gusts, the line
+  size) moved the header's hash, so v1's header no longer matches today's Pacing, which v1 tolerates as any older save.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.
