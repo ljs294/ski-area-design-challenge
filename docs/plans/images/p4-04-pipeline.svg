@@ -39,10 +39,10 @@
   <path class="ln" d="M96,188 V214"/><path class="ln" d="M236,188 V214"/>
 
   <rect class="box" x="32" y="306" width="268" height="90" fill="#fff8e6"/>
-  <text x="44" y="330" class="t">36 calibration rows (WX-17)</text>
+  <text x="44" y="330" class="t">36 calibration rows (WX-17 v2)</text>
   <text x="44" y="348" class="s">one per third of a month: storm sizes and</text>
   <text x="44" y="364" class="s">durations, fair spells, temperatures, wind,</text>
-  <text x="44" y="380" class="s">lapse, storm directions · ~18 KB</text>
+  <text x="44" y="380" class="s">lapse, patterns · pooled tails · ~30 KB</text>
   <path class="ln" d="M166,278 V304"/>
 
   <rect class="box" x="32" y="414" width="128" height="74" fill="#fff8e6"/>
@@ -111,8 +111,8 @@
   <text x="622" y="342" class="s">Cold snap · Wind event … at fixed base/mid/summit</text>
 
   <rect class="box" x="610" y="366" width="322" height="70" fill="#fdecd9"/>
-  <text x="622" y="390" class="t">Forecast, the evening sheet (WX-05 v2)</text>
-  <text x="622" y="408" class="s">generator run 7 days ahead + keyed error,</text>
+  <text x="622" y="390" class="t">Forecast, the evening sheet (WX-05 v3)</text>
+  <text x="622" y="408" class="s">generator run 7 days ahead, leaning on the truth,</text>
   <text x="622" y="424" class="s">issued at closing with the day report</text>
 
   <rect class="box" x="610" y="448" width="156" height="104" fill="#fff"/>

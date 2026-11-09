@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 804" font-family="Segoe UI, system-ui, sans-serif" font-size="14">
+  <defs>
+    <style>
+      .s{fill:#3e4752;font-size:12.5px}
+      .b{fill:#1d232a;font-weight:700;font-size:14px}
+      .k{fill:#6b7480;font-size:12px;font-style:italic}
+      .ln{stroke:#4a5563;stroke-width:1.8;fill:none;marker-end:url(#a)}
+    </style>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a5563"/>
+    </marker>
+    <marker id="w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1d232a"/>
+    </marker>
+  </defs>
+  <rect width="960" height="804" fill="#f7f5f0"/>
+  <text x="24" y="34" font-size="20" font-weight="700" fill="#1d232a">Dynamic storms: the pattern chain and the anatomy of a storm</text>
+  <text x="24" y="56" class="s">One slow layer above the four states makes storms come in streaks (WX-57); each storm evolves inside (WX-24 v2). Every number is from the record.</text>
+  <text x="24" y="86" class="b">The chain: one keyed step per storm cycle</text>
+  <path class="ln" d="M140,237 Q168,238 179,212"/>
+  <path class="ln" d="M170,195 Q142,194 131,220"/>
+  <path class="ln" d="M247,211 Q258,237 286,236"/>
+  <path class="ln" d="M299,221 Q288,195 260,196"/>
+  <path class="ln" d="M142,264 Q213,280 284,264"/>
+  <path class="ln" d="M286,244 Q215,228 144,244"/>
+  <circle cx="96" cy="254" r="44" fill="#f2d98b" stroke="#4a5563" stroke-width="1.5"/>
+  <text x="96" y="252" text-anchor="middle" font-weight="700" font-size="15" fill="#1d232a">Ridge</text>
+  <text x="96" y="269" text-anchor="middle" font-size="10.5" fill="#1d232a">dry, long gaps</text>
+  <circle cx="214" cy="178" r="44" fill="#c9d2db" stroke="#4a5563" stroke-width="1.5"/>
+  <text x="214" y="176" text-anchor="middle" font-weight="700" font-size="15" fill="#1d232a">Zonal</text>
+  <text x="214" y="193" text-anchor="middle" font-size="10.5" fill="#1d232a">normal</text>
+  <circle cx="332" cy="254" r="44" fill="#4d7fae" stroke="#4a5563" stroke-width="1.5"/>
+  <text x="332" y="252" text-anchor="middle" font-weight="700" font-size="15" fill="#fff">Active</text>
+  <text x="332" y="269" text-anchor="middle" font-size="10.5" fill="#fff">storms line up</text>
+  <path class="ln" d="M78,295 C62,336 130,336 115,297"/>
+  <path class="ln" d="M314,295 C298,336 366,336 351,297"/>
+  <path class="ln" d="M196,137 C180,96 248,96 233,135"/>
+  <text x="420" y="86" class="b">The matrix (an example January)</text>
+  <text x="533" y="112" text-anchor="middle" font-size="12" fill="#3e4752">to Ridge</text>
+  <text x="599" y="112" text-anchor="middle" font-size="12" fill="#3e4752">to Zonal</text>
+  <text x="665" y="112" text-anchor="middle" font-size="12" fill="#3e4752">to Active</text>
+  <text x="492" y="146" text-anchor="end" font-size="12" fill="#3e4752">from Ridge</text>
+  <rect x="500" y="120" width="64" height="42" fill="#55789d" rx="3"/>
+  <text x="532" y="147" text-anchor="middle" font-weight="700" font-size="14" fill="#fff">51 %</text>
+  <rect x="566" y="120" width="64" height="42" fill="#99b0c7" rx="3"/>
+  <text x="598" y="147" text-anchor="middle" font-weight="700" font-size="14" fill="#1d232a">32 %</text>
+  <rect x="632" y="120" width="64" height="42" fill="#cfdbe8" rx="3"/>
+  <text x="664" y="147" text-anchor="middle" font-weight="700" font-size="14" fill="#1d232a">17 %</text>
+  <text x="492" y="190" text-anchor="end" font-size="12" fill="#3e4752">from Zonal</text>
+  <rect x="500" y="164" width="64" height="42" fill="#c0d0df" rx="3"/>
+  <text x="532" y="191" text-anchor="middle" font-weight="700" font-size="14" fill="#1d232a">21 %</text>
+  <rect x="566" y="164" width="64" height="42" fill="#2e5884" rx="3"/>
+  <text x="598" y="191" text-anchor="middle" font-weight="700" font-size="14" fill="#fff">62 %</text>
+  <rect x="632" y="164" width="64" height="42" fill="#cfdbe8" rx="3"/>
+  <text x="664" y="191" text-anchor="middle" font-weight="700" font-size="14" fill="#1d232a">17 %</text>
+  <text x="492" y="234" text-anchor="end" font-size="12" fill="#3e4752">from Active</text>
+  <rect x="500" y="208" width="64" height="42" fill="#c0d0df" rx="3"/>
+  <text x="532" y="235" text-anchor="middle" font-weight="700" font-size="14" fill="#1d232a">21 %</text>
+  <rect x="566" y="208" width="64" height="42" fill="#99b0c7" rx="3"/>
+  <text x="598" y="235" text-anchor="middle" font-weight="700" font-size="14" fill="#1d232a">32 %</text>
+  <rect x="632" y="208" width="64" height="42" fill="#6484a5" rx="3"/>
+  <text x="664" y="235" text-anchor="middle" font-weight="700" font-size="14" fill="#fff">47 %</text>
+  <text x="440" y="274" class="s">Built, not counted: this third's mix</text>
+  <text x="440" y="291" class="s">(30 · 45 · 25 %) and one persistence per</text>
+  <text x="440" y="308" class="s">season half (0.3): stay = 0.3 + 0.7 × mix,</text>
+  <text x="440" y="325" class="s">move = 0.7 × mix; every cell ≥ 5 %.</text>
+  <rect x="718" y="70" width="218" height="232" rx="10" fill="#fff" stroke="#c9c2b3"/>
+  <text x="730" y="94" class="b">No runaway (WX-58)</text>
+  <text x="730" y="118" font-size="12" fill="#3e4752" xml:space="preserve">· every move ≥ 5 %: it can't stick</text>
+  <text x="730" y="137" font-size="12" fill="#3e4752" xml:space="preserve">· a dwell cap ends a stuck ridge</text>
+  <text x="730" y="156" font-size="12" fill="#3e4752" xml:space="preserve">· reads only itself and the date:</text>
+  <text x="730" y="175" font-size="12" fill="#3e4752" xml:space="preserve">  never snow, design or player</text>
+  <text x="730" y="194" font-size="12" fill="#3e4752" xml:space="preserve">· factors clamped 0.5–1.6, their</text>
+  <text x="730" y="213" font-size="12" fill="#3e4752" xml:space="preserve">  product with winter 0.4–2.0</text>
+  <text x="730" y="232" font-size="12" fill="#3e4752" xml:space="preserve">· anomaly damped, clamped ±3σ</text>
+  <text x="730" y="251" font-size="12" fill="#3e4752" xml:space="preserve">· tested on 200 seeds: dry spells,</text>
+  <text x="730" y="270" font-size="12" fill="#3e4752" xml:space="preserve">  season totals, streakiness</text>
+  <text x="24" y="366" class="b">A generated January: streaks, never stuck</text>
+  <rect x="24" y="410" width="69" height="26" fill="#c9d2db"/>
+  <rect x="85" y="392" width="7" height="18" fill="#1d4f80"/>
+  <rect x="94" y="410" width="35" height="26" fill="#4d7fae"/>
+  <rect x="121" y="380" width="7" height="30" fill="#1d4f80"/>
+  <rect x="130" y="410" width="29" height="26" fill="#4d7fae"/>
+  <rect x="151" y="384" width="7" height="26" fill="#1d4f80"/>
+  <rect x="160" y="410" width="39" height="26" fill="#4d7fae"/>
+  <rect x="191" y="376" width="7" height="34" fill="#1d4f80"/>
+  <rect x="200" y="410" width="63" height="26" fill="#c9d2db"/>
+  <rect x="255" y="392" width="7" height="18" fill="#1d4f80"/>
+  <rect x="264" y="410" width="119" height="26" fill="#f2d98b"/>
+  <rect x="375" y="402" width="7" height="8" fill="#1d4f80"/>
+  <rect x="384" y="410" width="103" height="26" fill="#f2d98b"/>
+  <rect x="479" y="400" width="7" height="10" fill="#1d4f80"/>
+  <rect x="488" y="410" width="69" height="26" fill="#c9d2db"/>
+  <rect x="549" y="390" width="7" height="20" fill="#1d4f80"/>
+  <rect x="558" y="410" width="37" height="26" fill="#4d7fae"/>
+  <rect x="587" y="382" width="7" height="28" fill="#1d4f80"/>
+  <rect x="596" y="410" width="33" height="26" fill="#4d7fae"/>
+  <rect x="621" y="378" width="7" height="32" fill="#1d4f80"/>
+  <rect x="630" y="410" width="71" height="26" fill="#c9d2db"/>
+  <rect x="693" y="394" width="7" height="16" fill="#1d4f80"/>
+  <rect x="702" y="410" width="109" height="26" fill="#f2d98b"/>
+  <rect x="803" y="401" width="7" height="9" fill="#1d4f80"/>
+  <rect x="812" y="410" width="123" height="26" fill="#c9d2db"/>
+  <rect x="927" y="390" width="7" height="20" fill="#1d4f80"/>
+  <text x="147" y="454" text-anchor="middle" font-size="12" font-weight="700" fill="#1d4f80">Active: three in a row</text>
+  <text x="500" y="454" text-anchor="middle" font-size="12" font-weight="700" fill="#8a6a10">Ridge: dry, clear, cold nights, guns run</text>
+  <text x="24" y="474" class="k">bars: each cycle's storm, sized by its total</text>
+  <text x="934" y="474" text-anchor="end" class="k">the forecast says it in words: "Active pattern: storms lining up through the weekend"</text>
+  <line x1="24" y1="494" x2="936" y2="494" stroke="#d8d2c4"/>
+  <text x="24" y="520" class="b">One storm, hour by hour (WX-24 v2): a 14 in storm from the southwest, 12 face hours</text>
+  <line x1="64" y1="740" x2="626" y2="740" stroke="#4a5563" stroke-width="1.2"/>
+  <rect x="74" y="720" width="38" height="20" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="93" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">1</text>
+  <rect x="120" y="708" width="38" height="32" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="139" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">2</text>
+  <rect x="166" y="718" width="38" height="22" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="185" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">3</text>
+  <rect x="212" y="666" width="38" height="74" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="231" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">4</text>
+  <rect x="258" y="706" width="38" height="34" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="277" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">5</text>
+  <rect x="304" y="681" width="38" height="59" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="323" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">6</text>
+  <rect x="350" y="661" width="38" height="79" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="369" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">7</text>
+  <rect x="396" y="711" width="38" height="29" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="415" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">8</text>
+  <rect x="442" y="686" width="38" height="54" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="461" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">9</text>
+  <rect x="488" y="715" width="38" height="25" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="507" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">10</text>
+  <rect x="534" y="725" width="38" height="15" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="553" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">11</text>
+  <rect x="580" y="706" width="38" height="34" fill="#9fc0e0" stroke="#4d7fae"/>
+  <text x="599" y="755" text-anchor="middle" font-size="10.5" fill="#6b7480">12</text>
+  <text x="346" y="772" text-anchor="middle" font-size="11" fill="#6b7480">face hour</text>
+  <text x="632" y="738" font-size="11" fill="#6b7480">snow</text>
+  <text x="139" y="650" text-anchor="middle" font-size="11.5" fill="#3e4752">ramp</text>
+  <text x="277" y="650" text-anchor="middle" font-size="11.5" fill="#3e4752">peak × 2 · bursts</text>
+  <text x="553" y="650" text-anchor="middle" font-size="11.5" fill="#3e4752">tail</text>
+  <text x="369" y="655" text-anchor="middle" font-size="11" font-weight="700" fill="#1d4f80">2.3 in</text>
+  <line x1="346" y1="530" x2="346" y2="740" stroke="#c0392b" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="352" y="542" fill="#c0392b" font-size="12.5" font-weight="700">the front passes</text>
+  <polyline points="70,596 116,597 162,598 208,599 254,600 300,601 346,602 392,611 438,620 484,629 530,632 576,632 622,632" fill="none" stroke="#a5452a" stroke-width="2.5"/>
+  <text x="70" y="588" font-size="12" fill="#a5452a" font-weight="700">warm sector: rain low, snow up high</text>
+  <text x="356" y="588" font-size="12" fill="#a5452a" font-weight="700">post-frontal: colder, the snow line walks down</text>
+  <text x="632" y="606" font-size="11" fill="#6b7480">temp.</text>
+  <line x1="88.2" y1="568.8" x2="97.8" y2="559.2" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <line x1="133.5" y1="569.5" x2="144.5" y2="558.5" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <line x1="180.1" y1="568.9" x2="189.9" y2="559.1" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <line x1="222.9" y1="572.1" x2="239.1" y2="555.9" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <line x1="271.3" y1="569.7" x2="282.7" y2="558.3" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <line x1="315.8" y1="571.2" x2="330.2" y2="556.8" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <line x1="358.4" y1="569.4" x2="379.6" y2="558.6" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <line x1="407.5" y1="565.2" x2="422.5" y2="562.8" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <line x1="451.4" y1="562.5" x2="470.6" y2="565.5" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <line x1="500.6" y1="560.7" x2="513.4" y2="567.3" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <line x1="548.5" y1="559.5" x2="557.5" y2="568.5" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <line x1="593.3" y1="558.3" x2="604.7" y2="569.7" stroke="#1d232a" stroke-width="1.8" marker-end="url(#w)"/>
+  <text x="632" y="568" font-size="11" fill="#6b7480">wind</text>
+  <rect x="676" y="534" width="260" height="264" rx="10" fill="#fff" stroke="#c9c2b3"/>
+  <text x="690" y="560" class="b">Drawn at the storm's start</text>
+  <text x="690" y="578" class="s">direction first, then size and warmth</text>
+  <text x="690" y="596" class="s">from its compass quarter and pattern</text>
+  <text x="690" y="614" class="s">the drawn total always falls: bursts</text>
+  <text x="690" y="632" class="s">0.5–1.6 × are renormalised to it</text>
+  <text x="690" y="650" class="s">wind and gusts follow the snow rate</text>
+  <text x="690" y="668" class="s">the wind veers after the front (arrows)</text>
+  <text x="690" y="694" class="b">Then the clearing</text>
+  <text x="690" y="712" class="s">colder after a big storm: k × (size −</text>
+  <text x="690" y="730" class="s">median), at most 8 °F: a bluebird</text>
+  <text x="690" y="748" class="s">morning and a long gun night</text>
+  <text x="690" y="766" class="k">rate cap per site: K × its 99.5 % hour</text>
+</svg>
