@@ -121,7 +121,7 @@ describe how this place's weather behaves, and the machine plays dice with them.
   | Temperature anomaly | its persistence per face hour, φ = φ_real^K, and its innovation spread × √(1 − φ²) (both Q16, 1/65,536, precomputed so the game takes no root or power); its stationary spread (0.1 °F, for the October 1 draw) | Daily mean minus the climate **and minus the state offsets** (residuals, so the variance isn't counted twice) |
   | Fair spells | duration quantiles (real hours: 5, 10, 25, 50, 75, 90, 95, 99 %) | Gaps between storms |
   | Building, Clearing | duration quantiles (real hours, same eight) | WX-18 |
-  | Storms | duration quantiles; liquid-total quantiles (0.01 in, same eight); the rank correlation between duration and total (‰); the storm-hour temperature offset (mean and spread, 0.1 °F); the arrival direction as an 8-octant histogram (‰) | WX-18 |
+  | Storms | duration quantiles; liquid-total quantiles (0.01 in, same eight); the rank correlation between duration and total (‰); the storm-hour temperature offset (mean and spread, 0.1 °F); the arrival direction as an 8-octant histogram (‰); **per compass quarter** (storms arriving from N, E, S, W ± 45°): a size factor (‰) and a temperature offset (0.1 °F), from that quarter's storms when the record has at least 30, else the all-storms values | WX-18 |
   | Back-to-back | the share of storms that follow a clearing straight into building again (‰) | WX-18 |
   | Humidity | mean dew-point depression by state (0.1 °F) | Blended record |
   | Wind | mean free wind and its spread by state (0.1 mph); gust factor by state (‰); direction histograms for fair and clearing (‰) | POWER |
@@ -216,10 +216,15 @@ because we compress time, we compress weather events accordingly; it is a tycoon
   site-level generator from that October 1 under the new seed to the current face hour (≈ 3,000 hours × < 0.01 ms),
   so the hour after the change is the hour that seed would have given.
 - **WX-24 v1, a storm.** When Storm starts it draws, at once (so the forecast can know them, WX-05 v2):
+  - **first, its arrival octant** from the row's histogram, and a direction within it: where it comes from is its
+    personality (owner, 2026-11-08: "these give storms character and help users plan");
   - its **duration** and **liquid total** from the row's quantiles, with the row's rank correlation (a long storm is
-    usually a big one), times the season character (WX-34) and `Pacing.WinterScale`;
-  - its **temperature offset** (warm storm, cold storm) from the row's storm offset and spread;
-  - its **arrival octant** from the row's histogram, and a direction within it;
+    usually a big one), times its quarter's size factor, the season character (WX-34) and `Pacing.WinterScale`;
+  - its **temperature offset** (warm storm, cold storm) from its quarter's offset and the row's spread, so at a
+    place where the northwest storms are the cold, light ones, they are here too;
+  - its **veer**: over its last quarter the direction turns toward a clearing direction drawn from the row's
+    clearing histogram (fronts turn: southwest ahead, northwest behind), so the windward face gets the storm and the
+    other side is loaded as it clears (SN-07);
   - its **shape**: the liquid falls over the storm's face hours in a ramp (first quarter), a peak (middle half) and a
     tail (last quarter) in integer weights 1 : 2 : 1 per hour, so the peak is 4/3 of the storm's mean rate; a storm
     of 3 face hours or fewer falls evenly. The face-hour rate is K times the real rate (WX-21), capped at
@@ -241,8 +246,8 @@ because we compress time, we compress weather events accordingly; it is a tycoon
   condensation level, 125 m per °C; a test pins 10 °F → 2,280 ft) so a storm's deck sits on the summit and a clearing
   lifts it; **visibility** (mi) from the precipitation rate
   and phase (heavy snow ¼ mi and under) and fog (WX-29).
-- **WX-28, the free wind.** Speed by state from the row with a keyed hourly draw; direction: a storm's own (WX-24),
-  else the state's histogram (fair days light and variable, clearings from the record's clearing quadrant); the
+- **WX-28, the free wind.** Speed by state from the row with a keyed hourly draw; direction: a storm's own, veering
+  at its end (WX-24), and the Clearing continues from where the storm's veer ended; else the state's histogram (fair days light and variable, clearings from the record's clearing quadrant); the
   **gust factor** by state (stormier is gustier) × a keyed hourly ±10 %.
 - **WX-29, the cold pool.** One number per hour, the **pool strength** (0.1 °F at the valley floor). It builds by
   `Pacing.PoolBuildPerHour` in each night hour that is clear (clearness > 700 ‰) and calm (free wind < 8 mph), up
@@ -315,6 +320,12 @@ into tables, never stored per cell.
     more", and this factor only moves snow from far-lee terrain to windward faces, never adds any. This is the
     windward-face effect the owner asked for. A whole region's snow (a peak that catches every storm off a lake
     50 km away) is already in Daymet's totals.
+  - on a **100 m steering grid over the box and its surround** (≤ 12,100 cells for a 5 km box), per arrival octant,
+    how the terrain bends the wind (owner, 2026-11-08): a **turn** (degrees, 1 byte) toward the axis of a valley or
+    saddle where the ground rises steeply across the wind, and a **speed factor** (‰, 1 byte): faster through gaps,
+    saddles and over crests, slower in bowls and behind ridges. Worked out once from the package heights by a
+    static terrain-following estimate (no flow solver; 4.05 picks the method and tests it on the fixture: arrows
+    run along the valley floor when the wind blows across it). ≤ 200 KB a site; no cost per hour beyond a lookup.
   - **Two scales, two rules.** This factor is where the snow *falls*, at 500 m. Where the wind *puts* it once it is
     down, at 8 m, is 4.07's drift (SN-07): it strips windward slopes and crests and **loads the lee slopes just
     below ridges** (cornices, wind-loaded bowls), so the near lee ends up with the most snow on the mountain after a
@@ -351,9 +362,12 @@ into tables, never stored per cell.
   - So the **snow line** is wherever the wet bulb crosses 30–34 °F on that hour: rain at the base and a foot on top
     is one storm, and investing in snowmaking low and running thinner up high (owner Q6) is the strategy it teaches.
 - **WX-39, wind at a cell.** An integer product per cell: free wind × the exposure class factor (an 8-entry table,
-  0.4 in a deep sheltered valley to 1.6 on an exposed summit; tuned at 4.05) × the coarse grid's shelter factor for
-  the hour's direction (cells behind a crest × 0.7: sheltered air, which is why the drift drops its snow there) × 0.6 under dense canopy (the canopy's only effect on the air); gust = speed ×
-  the hour's gust factor. **Top-station gust** for LO-11 is the function sampled at each lift's top station.
+  0.4 in a deep sheltered valley to 1.6 on an exposed summit; tuned at 4.05) × the steering grid's speed factor for
+  the hour's direction (WX-35: faster through saddles and over crests, × 0.7 in the air behind a crest, which is why
+  the drift drops its snow there) × 0.6 under dense canopy (the canopy's only effect on the air); gust = speed × the
+  hour's gust factor. **Direction at a cell** = the hour's direction + the steering grid's turn, bilinear between
+  the two octants nearest the hour's direction (owner, 2026-11-08): the wind follows valleys and wraps round peaks,
+  and the drift (SN-07), gun plumes and the Wind layer all use the cell's own direction. **Top-station gust** for LO-11 is the function sampled at each lift's top station.
   POWER's smoothed wind runs low in mountains; `Pacing.WindScale` (default 1.0) is 4.05's to tune against the
   owner's sense of how often a fixed-grip holds.
 - **WX-40, shortwave at a cell.** Clear-sky shortwave from the sun's elevation (WX-04, one shared Domain function,
@@ -363,7 +377,7 @@ into tables, never stored per cell.
   pool band)** for temperature, dew point, RH, wet bulb and phase share: elevation bins of 10 m over the package's
   real range, up to 256 bins (coarser bins only past 2,560 m of relief), and 16 pool bands (`hvf` 0–500 ft in 32 ft
   steps, plus one for above: the pool is the only way `hvf` touches the air): ≤ 4,096 entries, so Stull runs at most
-  4,096 times an hour. Precipitation and the shelter factor come from a per-coarse-cell table (≤ 576 × 2 octants);
+  4,096 times an hour. Precipitation comes from a per-coarse-cell table (≤ 576 × 2 octants) and the wind from the steering grid;
   wind is WX-39's per-cell product. **Aspect leaves the air tables** (4.02's WX-02 had an aspect octant): aspect
   changes the sun on the snow, not the air, so it enters only through SN-09's sun factor; canopy enters only the
   wind (WX-39) and SN-06/SN-09. Guns, lifts, the HUD and the forecast sample the same function at points.
@@ -430,7 +444,8 @@ but no event, alert, crowd line or automation reads those.
     wet bulb by elevation band, SM-02's AutoOn);
   - **tomorrow, hourly**: temperature, sky, snow and rain, wind at the summit;
   - **days 1–7**: high and low at base and summit, chance of precipitation, snow at summit and base as a range, the
-    snow line's elevation, wind and gusts, the named events expected.
+    snow line's elevation, wind and gusts, **the storm's direction and its turn** ("from the southwest, turning
+    northwest overnight"; firm with the storm's day), the named events expected.
   - It is **refreshed silently at the morning landing** (TM-06 v2's 7:30) for the HUD; the refresh is the same
     forecast with the lead a little shorter, so it shifts a little, never jumps.
   - "Tonight" is from the stop to the next opening, so it follows the player's hours (LO-07 v2), but nothing the
@@ -505,7 +520,8 @@ but no event, alert, crowd line or automation reads those.
   - The Almanac card (WX-48) in summer; the "limited data" line on a WX-13 site.
 - **WX-47, two weather info layers (owner Q18; 12b's rules: display only, exclusive).** **Temperature**: a heat map
   of the hour's air temperature over the map, its ramp breaking at 32 °F so the freezing line shows by itself.
-  **Wind**: speed as a heat map with direction arrows on a coarse lattice. Both are drawn from the static inputs
+  **Wind**: speed as a heat map with direction arrows on a coarse lattice, each arrow the cell's own steered direction
+  (WX-39), so they curve with the valleys. Both are drawn from the static inputs
   (elevation, `hvf`, exposure, as textures) and the hour's parameter set in a shader, refreshed once per face hour:
   no per-frame CPU and no per-cell weather (WX-02). 4.06 builds them.
 - **WX-48, the Almanac (owner Q16).** Each summer month of the label year, an in-game almanac (a fictional title,
@@ -556,7 +572,7 @@ the simulation steps.
   first slice of the hour step; the forecast issue (168 face hours of the site machine, samples at the 3 reference
   points and, for display only, up to 64 lift tops) < 2 ms once a face day, in the night's first slice; a mid-year
   seed re-run (WX-56) < 50 ms; static inputs (WX-35) < 1 s per package, cached. Memory: rows 18 KB, `hvf` and
-  exposure 1 B each per 8 m cell (≤ 4 MB), the orographic grid 8 × 576 B; 4.05 adds these static inputs to BG-08
+  exposure 1 B each per 8 m cell (≤ 4 MB), the orographic grid 8 × 576 B, the steering grid ≤ 200 KB; 4.05 adds these static inputs to BG-08
   (v3) beside the snow fields. **No per-cell weather is stored.** 0 B allocated per tick or per hour (preallocated tables).
 - **Determinism:** the generator is integer (WX-31) and its golden is cross-runtime (WX-33); the tables and
   everything downstream follow SI-08 (player-build goldens). Weather never reads the design (WX-08), so building
