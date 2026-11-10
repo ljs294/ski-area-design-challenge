@@ -55,7 +55,10 @@ namespace MountainPlanner.App
         OpenedResort _resort;
         string _error;
         float _fps;
-        /// <summary>F1: the developer panel (status, data quality, every key, and the review switches).</summary>
+        /// <summary>
+        /// F1: the developer panel (status, data quality, every key, and the review switches).
+        /// <c>-devpanel</c> starts with it open, for a capture or a hands-on look.
+        /// </summary>
         bool _help;
         /// <summary>The overlay; off for benchmarks and lineups so captures show only the scene.</summary>
         bool _hud = true;
@@ -257,6 +260,7 @@ namespace MountainPlanner.App
                 if (benchViews >= 0 && benchViews + 1 < args.Length) StartCoroutine(RunViewBenchmark(args[benchViews + 1]));
                 int movie = Array.IndexOf(args, "-pathmovie");
                 if (movie >= 0 && movie + 1 < args.Length) StartCoroutine(RecordPathMovie(args[movie + 1]));
+                if (Array.IndexOf(args, "-devpanel") >= 0) _help = true;   // task 4.12: open the panel for a capture
                 int shot = Array.IndexOf(args, "-screenshot");
                 if (shot >= 0 && shot + 1 < args.Length) StartCoroutine(CaptureAndQuit(args[shot + 1]));
                 StartCoroutine(RunPhotoArguments(args));   // -photo, -photoshot (MountainViewer.Photo.cs)
@@ -268,6 +272,8 @@ namespace MountainPlanner.App
                 StartNetworkShots(args);   // -networkshots <folder> (MountainViewer.Network.cs, task P3-10)
                 StartSectionShots(args);   // -sectionshots <folder> (MountainViewer.Sections.cs, task P3-10 B2)
                 StartBrushRuns(args);      // -brushtour <folder> [-brushmovie], -brushbench <out.json> (MountainViewer.Brush.cs, task P3-15)
+                StartGuestShots(args);     // -guestshot <folder> (MountainViewer.Guests.cs, task 4.12)
+                StartCoroutine(RunRideArguments(args));   // -ride <lift> [-rideshots <folder> | -ridebench <out.json>] (task 4.11 PR B)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
             }
@@ -398,7 +404,8 @@ namespace MountainPlanner.App
             {
                 // Esc backs out one step: photo mode, then the HUD's window, dropdown or panel, then a HUD control lets go
                 // of the keyboard; with nothing left to close it opens the menu (Quit is in it, 0.4 S7).
-                if (_photo && _photoBar != null && _photoBar.ReleaseKeyboard()) { }   // the photo bar lets go of the keys first
+                if (_riding) EndRide(false);   // a ride (task 4.11 PR B) leaves to the camera as it was
+                else if (_photo && _photoBar != null && _photoBar.ReleaseKeyboard()) { }   // the photo bar lets go of the keys first
                 else if (_photo) SetPhoto(false);   // photo mode (MountainViewer.Photo.cs) puts everything back
                 else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
                 else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
@@ -412,6 +419,7 @@ namespace MountainPlanner.App
             }
             if (KeyBindings.Pressed(keys, GameAction.DeveloperPanel)) _help = !_help;
             if (_resort == null) return;
+            if (HandleRideKeys(keys, letters)) return;   // riding a lift: only the ride's and the clock's keys
             if (_photo)
             {
                 if (!UiHasKeyboard()) HandlePhotoKeys(keys, letters);
@@ -587,6 +595,7 @@ namespace MountainPlanner.App
         /// <summary>Moves the contour labels with the camera, after it has moved this frame.</summary>
         void LateUpdate()
         {
+            TickRide();     // a ride's seat moves the camera, from this frame's rope time (task 4.11 PR B)
             DrawChairs();   // after the camera has moved, for its LODs
             LogHeightReads();
             if (_contourLabels == null || _resort == null) return;
@@ -632,7 +641,7 @@ namespace MountainPlanner.App
         void UpdateHud()
         {
             if (Hud == null) return;
-            bool show = _resort != null && _hud && _ui && !_photo && !TitleMode;
+            bool show = _resort != null && _hud && _ui && !_photo && !_riding && !TitleMode;
             if (show != _hudShown) Hud.SetVisible(_hudShown = show);
             if (!show || Time.unscaledTime < _nextReadout || Camera == null) return;
             _nextReadout = Time.unscaledTime + 0.1f;
@@ -753,9 +762,12 @@ namespace MountainPlanner.App
                 text += "\nWASD or arrows pan · Q/E rotate · R/F tilt · Wheel, +/− or PgUp/PgDn zoom · Middle-drag rotate · Right-drag pan · Shift faster · " +
                         "Home reset view · C free-fly (W/S fly, Q/E turn, R/F pitch, PgUp/PgDn rise and sink, right-drag look) · " +
                         "Map layers: Shift+1 snow, Shift+3 trees · Info layers: Shift+6 contours, Shift+7 slope angle, Shift+8 slope exposure, Shift+9 snow depth, Shift+0 snow conditions (later) · U feet or metres · H hide UI · P photo mode · F1 this panel · Esc menu · map data © OpenStreetMap contributors";
-                float height = style.CalcHeight(new GUIContent(text), 820);
-                GUI.Box(new Rect(20, 20, 820, height), text, style);
-                DrawDeveloperPanel(new Rect(20, 28 + height, 820, 0));
+                // As wide as the screen allows (the owner's is 2,560 px, a laptop's 1,366): the panel's sentences wrap
+                // inside it, so a wider screen simply reads in fewer lines.
+                float wide = Mathf.Clamp(Screen.width - 40, 520, 1440);
+                float height = style.CalcHeight(new GUIContent(text), wide);
+                GUI.Box(new Rect(20, 20, wide, height), text, style);
+                DrawDeveloperPanel(new Rect(20, 28 + height, wide, 0));
             }
             else GUI.Box(new Rect(20, 20, 820, style.CalcHeight(new GUIContent(text), 820)), text, style);   // sized to the wrapped text
             GUI.backgroundColor = Color.white;
@@ -765,18 +777,46 @@ namespace MountainPlanner.App
         /// <summary>
         /// The review switches that left the keyboard (owner, 2026-10-01): snow, trees, wind, light and time, haze,
         /// lakes, distant shadows and saved views. Plain IMGUI, developer-only, until the settings window (S8).
+        ///
+        /// The rows are laid out twice: once to measure them, which draws nothing, so the box is exactly as tall as
+        /// they need, and once to draw them inside it. Each row's sentence wraps inside the box and pushes the rows
+        /// below it down, so no line runs over its neighbour or off the edge, however long the sentence and however
+        /// narrow the screen (owner, 2026-11-09: "the text still goes off the dashboard").
         /// </summary>
         void DrawDeveloperPanel(Rect at)
         {
+            float height = PanelRows(at, draw: false);
+            GUI.Box(new Rect(at.x, at.y, at.width, height), GUIContent.none);
+            PanelRows(at, draw: true);
+        }
+
+        GUIStyle _panelCaption, _panelNote;
+
+        /// <summary>The panel's rows; returns the height they need, the padding included. <paramref name="draw"/> off measures.</summary>
+        float PanelRows(Rect at, bool draw)
+        {
             const float row = 30, label = 130;
-            var box = new Rect(at.x, at.y, at.width, row * ((SampleDesignChosen != null ? 8 : 7) + (_sim != null ? 4 : 0)) + 16);   // 4.11: the lift operations and wind rows
-            GUI.Box(box, GUIContent.none);
-            float y = box.y + 8, x0 = box.x + 10 + label, w = 110;
-            var caption = new GUIStyle(GUI.skin.label) { fontSize = 14 };
-            caption.normal.textColor = Color.white;
-            GUI.backgroundColor = Color.white;
-            bool Button(int column, string text) => GUI.Button(new Rect(x0 + column * (w + 6), y, w, row - 4), text);
-            void Caption(string text) => GUI.Label(new Rect(box.x + 10, y, label, row), text, caption);
+            float y = at.y + 8, x0 = at.x + 10 + label, w = 110;
+            if (_panelCaption == null)
+            {
+                _panelCaption = new GUIStyle(GUI.skin.label) { fontSize = 14 };
+                _panelCaption.normal.textColor = Color.white;
+                _panelNote = new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true };
+                _panelNote.normal.textColor = Color.white;
+            }
+            if (draw) GUI.backgroundColor = Color.white;
+            bool Button(int column, string text) => draw && GUI.Button(new Rect(x0 + column * (w + 6), y, w, row - 4), text);
+            void Caption(string text) { if (draw) GUI.Label(new Rect(at.x + 10, y, label, row), text, _panelCaption); }
+            // A row's note: what it says, to the right of however many buttons it has, wrapped to the box. It returns
+            // the height it needs past its own row, which the caller adds to y, so the rows below move down.
+            float Note(float atY, int afterColumns, string text)
+            {
+                float nx = x0 + afterColumns * (w + 6);
+                float nw = Mathf.Max(200f, at.xMax - 10 - nx);
+                float h = _panelNote.CalcHeight(new GUIContent(text ?? ""), nw);
+                if (draw) GUI.Label(new Rect(nx, atY + 4, nw, h), text, _panelNote);
+                return Mathf.Max(0f, h - (row - 8));
+            }
 
             Caption("Snow");
             if (Button(0, $"Layer: {(_layers.SnowOn ? "on" : "off")}")) ToggleLayer(MapLayers.Snow);
@@ -796,14 +836,20 @@ namespace MountainPlanner.App
 
                 var now = Lighting.Clock.Now;
                 Caption($"Time {now.SecondOfDay / 3600:D2}:{now.SecondOfDay / 60 % 60:D2}");
-                float hours = GUI.HorizontalSlider(new Rect(x0, y + 8, 4 * w + 18, row), now.SecondOfDay / 3600f, 0, 23.99f);
-                int second = Mathf.Clamp((int)(hours * 3600), 0, ViewTime.SecondsPerDay - 1);
-                if (second / 60 != now.SecondOfDay / 60) Lighting.SetTime(now.WithSecondOfDay(second));
+                if (draw)
+                {
+                    float hours = GUI.HorizontalSlider(new Rect(x0, y + 8, 4 * w + 18, row), now.SecondOfDay / 3600f, 0, 23.99f);
+                    int second = Mathf.Clamp((int)(hours * 3600), 0, ViewTime.SecondsPerDay - 1);
+                    if (second / 60 != now.SecondOfDay / 60) Lighting.SetTime(now.WithSecondOfDay(second));
+                }
                 y += row;
 
                 Caption($"Day {now.DayOfYear} of {now.Year}");
-                float dayOfYear = GUI.HorizontalSlider(new Rect(x0, y + 8, 4 * w + 18, row), now.DayOfYear, 1, ViewTime.DaysInYear(now.Year));
-                if ((int)dayOfYear != now.DayOfYear) Lighting.SetTime(new ViewTime(now.Year, (int)dayOfYear, now.SecondOfDay));
+                if (draw)
+                {
+                    float dayOfYear = GUI.HorizontalSlider(new Rect(x0, y + 8, 4 * w + 18, row), now.DayOfYear, 1, ViewTime.DaysInYear(now.Year));
+                    if ((int)dayOfYear != now.DayOfYear) Lighting.SetTime(new ViewTime(now.Year, (int)dayOfYear, now.SecondOfDay));
+                }
                 y += row;
             }
 
@@ -826,15 +872,16 @@ namespace MountainPlanner.App
             if (_sim != null)
             {
                 y += row;
-                DrawSimulationRows(ref y, row, x0, w, Caption, Button);
+                DrawSimulationRows(ref y, row, x0, w, Caption, Button, Note);
             }
 
             if (SampleDesignChosen != null)   // task P3-04: something to save before the drawing tools exist
             {
                 y += row;
                 Caption("Design");
-                if (GUI.Button(new Rect(x0, y, 2 * w + 6, row - 4), "Add sample design")) SampleDesignChosen();
+                if (draw && GUI.Button(new Rect(x0, y, 2 * w + 6, row - 4), "Add sample design")) SampleDesignChosen();
             }
+            return y - at.y + row + 8;
         }
 
         /// <summary>Set by the app flow (task P3-04): the developer panel's Add sample design, a lift and a planned trail.</summary>

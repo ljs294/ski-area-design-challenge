@@ -66,6 +66,16 @@ namespace MountainPlanner.Tests.Core
             Edits = Edits(Tile(12, 7, 1, clearing: true), Tile(11, 7, -2), Tile(13, 8, 0, heights: false, clearing: true)),
         };
 
+        /// <summary>
+        /// The v13 fixture's first plates: its lifts numbered 1, 2, 3 … in ID order (the fixture was pinned this way when the
+        /// migration still numbered them; plates are now optional and older saves open with none).
+        /// </summary>
+        internal static DesignDocument PlatesInIdOrder(DesignDocument d)
+        {
+            var lifts = d.Lifts.OrderBy(l => l.Id.Value).Select((l, i) => l.WithPlate((i + 1).ToString())).ToList();
+            return DesignDocument.From(d.Seed, d.NextOrdinal, d.Trails, lifts, d.Strokes, d.Areas, d.Lines, d.Cuts, d.Hours);
+        }
+
         static void AssertSame(SaveFile a, SaveFile b)
         {
             Assert.That(DesignBytes.Same(DesignBytes.Encode(a.Design), DesignBytes.Encode(b.Design)), Is.True, "identical document bytes");
@@ -110,7 +120,7 @@ namespace MountainPlanner.Tests.Core
             Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "TrailLines", "Cuts", "Hours" }),
                 "no network, stats, ratings, rope or volumes (SH-05); no undo history (DD1)");
             Assert.That(((JObject)o["Design"]["Lifts"][0]).Properties().Select(p => p.Name),
-                Is.EqualTo(new[] { "Id", "Name", "Stage", "Catalog", "Bottom", "Top", "TowerMode", "Stance", "Towers", "Levels", "Drive", "Schedule", "Hours" }),
+                Is.EqualTo(new[] { "Id", "Name", "Stage", "Catalog", "Bottom", "Top", "TowerMode", "Stance", "Towers", "Levels", "Drive", "Schedule", "Hours", "Plate" }),
                 "tower positions, heights and stance are authored (SH-05, TW-15), and the terminals' levels (SK14, v2)");
         }
 
@@ -319,14 +329,31 @@ namespace MountainPlanner.Tests.Core
             return save;
         }
 
+        /// <summary>
+        /// The save the v13 fixture holds (task 4.11 PR B, owner 2026-11-08): the v12 fixture's lifts given plates 1, 2 and 3
+        /// in ID order, then the second a letter ("A") and the third two digits ("12"), so both kinds of plate are pinned.
+        /// </summary>
+        static SaveFile FixtureSaveThirteen()
+        {
+            var save = FixtureSaveTwelve();
+            Assert.That(save.Design.Lifts.All(l => l.Plate == ""), Is.True, "built lifts have no plate");
+            save.Design = PlatesInIdOrder(save.Design);
+            var r = new SetLiftPlate(0, save.Design.Lifts[1].Id, "A").Apply(save.Design);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            r = new SetLiftPlate(0, r.Document.Lifts[2].Id, "12").Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            save.Design = r.Document;
+            return save;
+        }
+
         [Test]
         public void TheWriterReproducesTheFrozenFixtureByteForByte()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v12-save")), "Saves", JacksonHole, "save-001");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v13-save")), "Saves", JacksonHole, "save-001");
             string folder = Path.Combine(_root, "again");
-            SaveStore.Write(folder, FixtureSaveTwelve());
+            SaveStore.Write(folder, FixtureSaveThirteen());
             Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveFile.FileName)), Is.EqualTo(File.ReadAllBytes(Path.Combine(fixture, SaveFile.FileName))),
-                "save.json v12 is frozen: a writer change is a format change (0.3 §5)");
+                "save.json v13 is frozen: a writer change is a format change (0.3 §5)");
             foreach (string tile in Directory.GetFiles(Path.Combine(fixture, SaveStore.TilesFolder)))
                 Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveStore.TilesFolder, Path.GetFileName(tile))), Is.EqualTo(File.ReadAllBytes(tile)));
         }
@@ -427,7 +454,7 @@ namespace MountainPlanner.Tests.Core
             byte[] before = File.ReadAllBytes(path);
 
             var e = Assert.Throws<FormatTooNewException>(() => SaveStore.Read(folder));
-            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 13; this version reads up to 12). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 14; this version reads up to 13). Update the game to open it."));
             Assert.That(SaveStore.Write(folder, FixtureSave()), Is.False);
             Assert.That(SaveStore.Rename(folder, "Mine now"), Is.False);
             Assert.That(File.ReadAllBytes(path), Is.EqualTo(before), "nothing is written over a newer save (0.3 §5 rule 3)");
@@ -681,6 +708,59 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
+        public void TheVersionThirteenFixtureReadsUnchanged()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v13-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture13");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveThirteen(), back);
+            Assert.That(back.MigratedFrom, Is.EqualTo(13));
+            Assert.That(back.Design.Lifts.Select(l => l.Plate), Is.EqualTo(new[] { "1", "A", "12" }));
+        }
+
+        [Test]
+        public void OlderSavesOpenWithNoPlates()
+        {
+            // v12 → v13 (task 4.11 PR B; owner 2026-11-08: plates are optional): an older save's lifts open with no plate.
+            foreach (string version in new[] { "v1-save", "v2-save", "v10-save", "v12-save" })
+            {
+                string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", version)), "Saves", JacksonHole, "save-001");
+                var back = SaveJson.Read(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName)), out _);
+                Assert.That(back.Design.Lifts.Count, Is.GreaterThan(0), version);
+                Assert.That(back.Design.Lifts.All(l => l.Plate == ""), Is.True, version);
+            }
+        }
+
+        [Test]
+        public void APlateIsOneToThreeLettersOrDigitsAndNoOtherLiftsOwn()
+        {
+            var d = PlatesInIdOrder(FixtureSaveTwelve().Design);
+            var first = d.Lifts[0].Id;
+            foreach (string bad in new[] { "1234", "A B", "#1", "é" })
+                Assert.That(new SetLiftPlate(0, first, bad).Apply(d).Accepted, Is.False, bad);
+            var taken = new SetLiftPlate(0, first, "2").Apply(d);
+            Assert.That(taken.Accepted, Is.False, "another lift already has 2");
+            Assert.That(taken.Reason, Does.Contain("already has plate 2"));
+            Assert.That(new SetLiftPlate(0, first, "a").Apply(d).Accepted, Is.True);
+            // Plates are optional (owner 2026-11-08): an empty plate removes it, and any number of lifts may have none.
+            var cleared = new SetLiftPlate(0, first, "").Apply(d);
+            Assert.That(cleared.Accepted, Is.True, cleared.Reason);
+            Assert.That(cleared.Document.FindLift(first).Plate, Is.EqualTo(""));
+            Assert.That(new SetLiftPlate(0, first, "").Label, Is.EqualTo("Remove lift plate"));
+            Assert.That(new SetLiftPlate(0, first, "").Apply(cleared.Document).Accepted, Is.False, "it already has none");
+            var second = new SetLiftPlate(0, d.Lifts[1].Id, "").Apply(cleared.Document);
+            Assert.That(second.Accepted, Is.True, "two lifts may both have no plate");
+            Assert.That(new SetLiftPlate(0, first, d.Lifts[1].Plate).Apply(second.Document).Accepted, Is.True, "a removed plate is free again");
+            // A new lift has no plate, however many lifts do.
+            var l = d.Lifts[0];
+            var added = new AddLift(0, "New", l.CatalogId, new PointMm(l.Bottom.X + 2_000_000, l.Bottom.Y), new PointMm(l.Top.X + 2_000_000, l.Top.Y),
+                l.TowerMode, l.Stance, null, WorkStage.Plan).Apply(second.Document);
+            Assert.That(added.Accepted, Is.True, added.Reason);
+            Assert.That(added.Document.Lifts.Single(x => x.Name == "New").Plate, Is.EqualTo(""));
+        }
+
+        [Test]
         public void EveryOlderSaveOpensWithTheOldHoursAndNoSimulation()
         {
             // v11 → v12 (LO-07 v2, LO-09): before v12 the resort ran 8:30 to 4:30, last chair 4:15, and every lift daily on it.
@@ -827,8 +907,8 @@ namespace MountainPlanner.Tests.Core
         // depth (v8 → v9) in the bytes; from 8debdb8b…. Shape 10 (LD9): the shape number and each lift's drive end; from e7c1fe4e….
         // Shape 11 (task 4.21, TD-07): the shape number and a not-posted byte for each trail and shaped trail; from c7a67ac0….
         // Shape 12 (task 4.03, LO-07 v2, LO-09): the shape number, the resort's default hours and each lift's daily schedule
-        // with no hours of its own; from 1c7c9274….
-        const string ConvertedSevenSha = "f5af52b0ac89afcd461a9e27b67e209f68274bcee5a76a1d64601b447068e658";
+        // with no hours of its own; from 1c7c9274…. Shape 13 (task 4.11 PR B): each lift's plate, numbered in ID order; from f5af52b0….
+        const string ConvertedSevenSha = "a5a2784512a7211309f6a276714b4f2b68f661e7c49c9f58cf143517b4268245";
 
         [Test]
         public void ADamagedOlderTrailRefusesTheSave()
@@ -931,6 +1011,16 @@ namespace MountainPlanner.Tests.Core
                 Assert.That(back.Design.Strokes, Is.Empty, kv.Key);
                 Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
             }
+        }
+
+        [Test, Explicit("Regenerates the frozen v13 save fixture")]
+        public void WriteTheVersionThirteenFixture()
+        {
+            string formats = TestData.Folder("formats");
+            string folder = Path.Combine(formats, "v13-save", "Saves", JacksonHole, "save-001");
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+            Assert.That(SaveStore.Write(folder, FixtureSaveThirteen()), Is.True);
+            File.Delete(Path.Combine(folder, SaveFile.BackupName));
         }
 
         [Test, Explicit("Regenerates the frozen v12 save fixture")]

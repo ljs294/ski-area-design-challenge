@@ -58,6 +58,7 @@ namespace MountainPlanner.Simulation
             o.Bool(Snow.Set); o.I32(Snow.Width); o.I32(Snow.Height);
             o.U16s(Snow.Cells);
             WriteLiftState(o);
+            WriteGuestState(o);
         }
 
         internal void ReadState(SidecarReader r, SimSidecar.Header header)
@@ -115,8 +116,15 @@ namespace MountainPlanner.Simulation
             r.U16s(mm);
             Snow.Load(width, height, set, mm);
             // v1 → v2 (SimSidecar.Upgrade): no lift-operations block; lines and chairs empty, ledger zero, holds as saved.
-            if (header.SidecarVersion >= 2) ReadLiftState(r);
+            if (header.SidecarVersion >= 2) ReadLiftState(r, header.SidecarVersion);
             Design = real;
+            // v2, v3 → v4: no guest block. The hill opens empty, every reputation at its start, as a new resort does.
+            if (header.SidecarVersion >= 4)
+            {
+                PrepareGuests(Design);
+                ReadGuestState(r);
+            }
+            else ResetGuestsForOlderSave();
         }
 
         /// <summary>

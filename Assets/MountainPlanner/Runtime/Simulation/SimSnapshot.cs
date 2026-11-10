@@ -174,8 +174,12 @@ namespace MountainPlanner.Simulation
         public long StagedTiles;
         public bool SnowSet;
 
+        /// <summary>GU-03, GU-13, GU-18: the crowd as the Guests tab shows it, and the selected skier's day (GU-02).</summary>
+        public readonly GuestView Guests;
+
         public SimSnapshot(Pacing p)
         {
+            Guests = new GuestView(p);
             LiftIds = new ulong[p.MaxLifts];
             RunMs = new long[p.MaxLifts];
             LiftStates = new LiftRunState[p.MaxLifts];
@@ -208,8 +212,9 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>SI-16's budget: the bytes this snapshot's arrays and fields take at their full size.</summary>
-        public int SizeBytes => 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + DayReport.SizeBytesPerLift)
-                                + TrailIds.Length * (8 + 1) + Events.Length * 24;
+        public int SizeBytes => 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + 1 + DayReport.SizeBytesPerLift)
+                                + TrailIds.Length * (8 + 1 + 1) + Events.Length * 24
+                                + Guests.SizeBytes;
 
         /// <summary>The trail's index here, or −1.</summary>
         public int IndexOfTrail(ulong id)

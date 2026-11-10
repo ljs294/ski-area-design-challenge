@@ -39,6 +39,7 @@ namespace MountainPlanner.UI.Hud
             ["s-menu"] = new[] { new Layer("s-menu", false) },
             ["s-flake"] = new[] { new Layer("s-flake", false) },
             ["s-trail"] = new[] { new Layer("s-trail.0", false), new Layer("s-trail.1", true) },
+            ["s-video"] = new[] { new Layer("s-video", false) },
             ["s-camera"] = new[] { new Layer("s-camera.0", false), new Layer("s-camera.1", true), new Layer("s-camera.2", false) },
             ["s-hide"] = new[] { new Layer("s-hide.0", false), new Layer("s-hide.1", true), new Layer("s-hide.2", false), new Layer("s-hide.3", true), new Layer("s-hide.4", false) },
             ["b-new"] = new[] { new Layer("b-new.0", true), new Layer("b-new.1", false), new Layer("b-new.2", true) },

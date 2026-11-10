@@ -14,10 +14,18 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 2;   // 2: task 4.11's lift operations (LO-02, LO-11)
+        public const int Version = 3;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
+
+        /// <summary>GU-05: the four ability bands, which are the four trail colours.</summary>
+        public const int Bands = 4;
+        /// <summary>
+        /// GU-18: the reputations the mountain carries. In Phase 4 an archetype *is* an ability band (GU-05), so there are
+        /// four; families, park rats and powder hounds later are new archetype ids, never a new system.
+        /// </summary>
+        public const int Archetypes = 4;
 
         // ---- The tick and the clocks (SI-04, TM-01–TM-03) ----
 
@@ -75,14 +83,105 @@ namespace MountainPlanner.Simulation
         public readonly int GustJitterPercent;
         /// <summary>LO-11 v1: a held lift resumes once the gust has been this far below its threshold for a full face hour.</summary>
         public readonly int HoldResumeMarginMph;
-        /// <summary>LO-11 v2: how long the gust must stay that far below, face minutes (owner 2026-11-08: a half hour).</summary>
+        /// <summary>LO-11 v2: how long the gust must stay that far below, face minutes (owner 2026-11-08: ten minutes).</summary>
         public readonly int HoldResumeFaceMinutes;
         /// <summary>LO-11 v2: a held lift reads the gust this often, face minutes (a running lift reads it once an hour).</summary>
         public readonly int HoldRecheckFaceMinutes;
-        /// <summary>LO-02: the most skiers one lift's line holds (its ring is allocated once per design).</summary>
-        public readonly int MaxLine;
         /// <summary>SI-16: the most trails a snapshot holds (their open state).</summary>
         public readonly int MaxTrails;
+
+        // ---- Guests: the crowd (GU-03, GU-04, GU-18; task 4.12) ----
+
+        /// <summary>GU-01: the most skiers on the hill at once. Every per-skier array is this long, allocated once.</summary>
+        public readonly int SkierCap;
+        /// <summary>GU-03: the location's draw, the skiers who would come on a peak day to a mountain they love.</summary>
+        public readonly int LocationDraw;
+        /// <summary>GU-05: the share of the crowd each archetype is, permille (v1's archetypes are the four ability bands).</summary>
+        public readonly int[] ArchetypeMix;
+        /// <summary>GU-03: reputation's floor as a demand factor, permille (so a hated mountain still draws a fifth).</summary>
+        public readonly int RepFloor;
+        /// <summary>GU-18: an archetype's reputation at a new resort, thousandths.</summary>
+        public readonly int StartRep;
+        /// <summary>GU-18: how far reputation moves toward the day's verdict, permille.</summary>
+        public readonly int RepRate;
+        /// <summary>GU-18: an archetype needs this many arrivals before its reputation moves at all.</summary>
+        public readonly int RepMinSample;
+        /// <summary>GU-18: the mean satisfaction that maps to a verdict of 0, thousandths.</summary>
+        public readonly int RepSatLow;
+        /// <summary>GU-18: the mean satisfaction that maps to a verdict of 1, thousandths.</summary>
+        public readonly int RepSatHigh;
+        /// <summary>GU-03: the demand factor of a weekday, a weekend day and a holiday, permille.</summary>
+        public readonly int[] DayTypeDemand;
+        /// <summary>WX-44: the most the morning's new snow lifts demand, permille (4.05 sets the day's value).</summary>
+        public readonly int PowderPull;
+        /// <summary>GU-03: how many skiers one open acre carries comfortably (the terrain capacity line).</summary>
+        public readonly int SkiersPerOpenAcre;
+
+        // ---- Guests: arrivals and the stay (GU-06) ----
+
+        /// <summary>GU-06: the share of the day's arrivals in each equal part of the arrival window, permille.</summary>
+        public readonly int[] ArrivalWeights;
+        /// <summary>GU-06: the arrival window closes this many face minutes before last chair.</summary>
+        public readonly int ArrivalEndsBeforeLastChairMinutes;
+        /// <summary>GU-06: the fewest and most laps a skier plans to ski (<see cref="LapsTarget"/> is the mean).</summary>
+        public readonly int StayLapsMin, StayLapsMax;
+        /// <summary>GU-02: the share of parties of one, two, three and four, permille.</summary>
+        public readonly int[] PartyMix;
+
+        // ---- Guests: lines and choosing (GU-07, GU-08, GU-10) ----
+
+        /// <summary>GU-06: a skier who has queued this many real seconds at 1× leaves the line and goes home.</summary>
+        public readonly int LeaveWaitSeconds;
+        /// <summary>GU-08: a lift wait past this many real seconds at 1× sends a skier to another lift if one is offered.</summary>
+        public readonly int BalkWaitSeconds;
+        /// <summary>GU-07: the lowest the fit factor falls, permille, so an expert can still ski a green home.</summary>
+        public readonly int FitFloor;
+        /// <summary>GU-07: what an expert makes of powder and moguls, and a beginner of moguls and ice, permille.</summary>
+        public readonly int TasteExpertPowder, TasteBeginnerMoguls;
+        /// <summary>GU-10: a skier's speed on a green, blue, black and double black, tenths of a mph.</summary>
+        public readonly int[] BandSpeedMphTenths;
+        /// <summary>GU-10: the grade each band's base speed assumes, percent (a station steeper than this slows a skier).</summary>
+        public readonly int[] BandDesignGradePercent;
+        /// <summary>GU-09: walking speed inside an Area, tenths of a mph.</summary>
+        public readonly int WalkMphTenths;
+        /// <summary>GU-10: skiers enter one trail this many ticks apart at the same node.</summary>
+        public readonly int EntrySpacingTicks;
+        /// <summary>GU-07: a skier with nothing to pick waits this many ticks before choosing again.</summary>
+        public readonly int ChoiceRetryTicks;
+
+        // ---- Guests: satisfaction (GU-13, GU-17) ----
+
+        /// <summary>GU-13: satisfaction at the start of a visit, thousandths.</summary>
+        public readonly int StartSatisfaction;
+        /// <summary>GU-13: how much of a lap's snow quality a lap carries into satisfaction, permille.</summary>
+        public readonly int LapQualityWeight;
+        /// <summary>GU-13: satisfaction lost per real minute of a wait over <see cref="WaitFreeMinutes"/>, thousandths.</summary>
+        public readonly int WaitPenaltyPerMinute;
+        /// <summary>GU-13: the first minutes of a wait cost nothing.</summary>
+        public readonly int WaitFreeMinutes;
+        /// <summary>GU-17: what a lap on a trail posted easier than it is costs, thousandths.</summary>
+        public readonly int MisratePenalty;
+        /// <summary>GU-17: what a lap on a trail opened Marginal costs, thousandths (4.07 opens them).</summary>
+        public readonly int MarginalPenalty;
+        /// <summary>GU-17: the Marginal penalty's factor in the season's shoulders and in its middle.</summary>
+        public readonly int[] MarginalPhase;
+        /// <summary>GU-17: face days at each end of the season that count as its shoulder.</summary>
+        public readonly int ShoulderDays;
+        /// <summary>GU-13: what a lap on a segment over its comfortable density costs, thousandths.</summary>
+        public readonly int CrowdPenalty;
+        /// <summary>GU-11: what being stranded by a closing trail costs, thousandths.</summary>
+        public readonly int StrandedPenalty;
+
+        // ---- Guests: the machinery (BG-01, BG-08) ----
+
+        /// <summary>GU-02: segments of a skier's day kept in its day record.</summary>
+        public readonly int RecordSegments;
+        /// <summary>SN-24: lateral bands a segment's wear counters are split across.</summary>
+        public readonly int WearBands;
+        /// <summary>BG-01: buckets in the timing wheel that schedules skiers (a power of two).</summary>
+        public readonly int WheelBuckets;
+        /// <summary>GU-02: the selected skier's record is published at most this often, in ticks.</summary>
+        public readonly int InspectTicks;
 
         // ---- The boundary (SI-16–SI-19, BG-02) ----
 
@@ -151,8 +250,57 @@ namespace MountainPlanner.Simulation
             HoldResumeFaceMinutes = Int(map, nameof(HoldResumeFaceMinutes), 1, 24 * 60);
             HoldRecheckFaceMinutes = Int(map, nameof(HoldRecheckFaceMinutes), 1, 60);
             if (60 % HoldRecheckFaceMinutes != 0) throw new FormatException("HoldRecheckFaceMinutes must divide the hour.");
-            MaxLine = Int(map, nameof(MaxLine), 16, 1 << 16);
             MaxTrails = Int(map, nameof(MaxTrails), 1, 8192);
+            SkierCap = Int(map, nameof(SkierCap), 0, 1 << 20);
+            LocationDraw = Int(map, nameof(LocationDraw), 0, 1 << 20);
+            ArchetypeMix = Ints(map, nameof(ArchetypeMix), 0, 1000);
+            if (ArchetypeMix.Length != Archetypes) throw new FormatException($"ArchetypeMix needs {Archetypes} entries (the ability bands).");
+            RepFloor = Int(map, nameof(RepFloor), 0, 1000);
+            StartRep = Int(map, nameof(StartRep), 0, 1000);
+            RepRate = Int(map, nameof(RepRate), 1, 1000);
+            RepMinSample = Int(map, nameof(RepMinSample), 1, 100_000);
+            RepSatLow = Int(map, nameof(RepSatLow), 0, 1000);
+            RepSatHigh = Int(map, nameof(RepSatHigh), 1, 1000);
+            if (RepSatHigh <= RepSatLow) throw new FormatException("RepSatHigh must be above RepSatLow.");
+            DayTypeDemand = Ints(map, nameof(DayTypeDemand), 0, 10_000);
+            if (DayTypeDemand.Length != 3) throw new FormatException("DayTypeDemand needs three entries (weekday, weekend, holiday).");
+            PowderPull = Int(map, nameof(PowderPull), 1000, 10_000);
+            SkiersPerOpenAcre = Int(map, nameof(SkiersPerOpenAcre), 1, 10_000);
+            ArrivalWeights = Ints(map, nameof(ArrivalWeights), 0, 1000);
+            if (ArrivalWeights.Length < 1) throw new FormatException("ArrivalWeights needs at least one part.");
+            ArrivalEndsBeforeLastChairMinutes = Int(map, nameof(ArrivalEndsBeforeLastChairMinutes), 0, 12 * 60);
+            StayLapsMin = Int(map, nameof(StayLapsMin), 1, 200);
+            StayLapsMax = Int(map, nameof(StayLapsMax), StayLapsMin, 200);
+            PartyMix = Ints(map, nameof(PartyMix), 0, 1000);
+            if (PartyMix.Length < 1) throw new FormatException("PartyMix needs at least one size.");
+            LeaveWaitSeconds = Int(map, nameof(LeaveWaitSeconds), 1, 100_000);
+            BalkWaitSeconds = Int(map, nameof(BalkWaitSeconds), 1, 100_000);
+            FitFloor = Int(map, nameof(FitFloor), 0, 1000);
+            TasteExpertPowder = Int(map, nameof(TasteExpertPowder), 0, 4000);
+            TasteBeginnerMoguls = Int(map, nameof(TasteBeginnerMoguls), 0, 4000);
+            BandSpeedMphTenths = Ints(map, nameof(BandSpeedMphTenths), 1, 2000);
+            if (BandSpeedMphTenths.Length != Bands) throw new FormatException($"BandSpeedMphTenths needs {Bands} entries.");
+            BandDesignGradePercent = Ints(map, nameof(BandDesignGradePercent), 1, 200);
+            if (BandDesignGradePercent.Length != Bands) throw new FormatException($"BandDesignGradePercent needs {Bands} entries.");
+            WalkMphTenths = Int(map, nameof(WalkMphTenths), 1, 2000);
+            EntrySpacingTicks = Int(map, nameof(EntrySpacingTicks), 0, 10_000);
+            ChoiceRetryTicks = Int(map, nameof(ChoiceRetryTicks), 1, 10_000);
+            StartSatisfaction = Int(map, nameof(StartSatisfaction), 0, 1000);
+            LapQualityWeight = Int(map, nameof(LapQualityWeight), 0, 1000);
+            WaitPenaltyPerMinute = Int(map, nameof(WaitPenaltyPerMinute), 0, 1000);
+            WaitFreeMinutes = Int(map, nameof(WaitFreeMinutes), 0, 1000);
+            MisratePenalty = Int(map, nameof(MisratePenalty), 0, 1000);
+            MarginalPenalty = Int(map, nameof(MarginalPenalty), 0, 1000);
+            MarginalPhase = Ints(map, nameof(MarginalPhase), 0, 100);
+            if (MarginalPhase.Length != 2) throw new FormatException("MarginalPhase needs two entries (the shoulders, the middle).");
+            ShoulderDays = Int(map, nameof(ShoulderDays), 0, 365);
+            CrowdPenalty = Int(map, nameof(CrowdPenalty), 0, 1000);
+            StrandedPenalty = Int(map, nameof(StrandedPenalty), 0, 1000);
+            RecordSegments = Int(map, nameof(RecordSegments), 1, 4096);
+            WearBands = Int(map, nameof(WearBands), 1, 256);
+            WheelBuckets = Int(map, nameof(WheelBuckets), 16, 1 << 20);
+            if ((WheelBuckets & (WheelBuckets - 1)) != 0) throw new FormatException("WheelBuckets must be a power of two.");
+            InspectTicks = Int(map, nameof(InspectTicks), 1, 10_000);
             EventRingSize = Int(map, nameof(EventRingSize), 16, 1 << 20);
             if ((EventRingSize & (EventRingSize - 1)) != 0) throw new FormatException("EventRingSize must be a power of two.");
             SnapshotEvents = Int(map, nameof(SnapshotEvents), 1, EventRingSize);
@@ -227,10 +375,55 @@ namespace MountainPlanner.Simulation
             E(nameof(HoldGustPerSeatTenths), "30, 15, 0, 0"),
             E(nameof(GustJitterPercent), "10"),
             E(nameof(HoldResumeMarginMph), "10"),
-            E(nameof(HoldResumeFaceMinutes), "30"),
-            E(nameof(HoldRecheckFaceMinutes), "15"),
-            E(nameof(MaxLine), "2048"),
+            E(nameof(HoldResumeFaceMinutes), "10"),   // 4.11 PR B's values; MaxLine retired by 4.12's line lists
+            E(nameof(HoldRecheckFaceMinutes), "5"),
             E(nameof(MaxTrails), "1024"),
+            // GU-01…GU-18 (task 4.12). The crowd:
+            E(nameof(SkierCap), "3000"),
+            E(nameof(LocationDraw), "800"),
+            E(nameof(ArchetypeMix), "200, 400, 300, 100"),
+            E(nameof(RepFloor), "200"),
+            E(nameof(StartRep), "500"),
+            E(nameof(RepRate), "100"),
+            E(nameof(RepMinSample), "10"),
+            E(nameof(RepSatLow), "500"),
+            E(nameof(RepSatHigh), "900"),
+            E(nameof(DayTypeDemand), "500, 1000, 1200"),
+            E(nameof(PowderPull), "1500"),
+            E(nameof(SkiersPerOpenAcre), "5"),
+            // Arrivals and the stay:
+            E(nameof(ArrivalWeights), "380, 300, 160, 90, 40, 20, 10"),
+            E(nameof(ArrivalEndsBeforeLastChairMinutes), "45"),
+            E(nameof(StayLapsMin), "3"),
+            E(nameof(StayLapsMax), "5"),
+            E(nameof(PartyMix), "400, 350, 150, 100"),
+            // Lines and choosing:
+            E(nameof(LeaveWaitSeconds), "240"),
+            E(nameof(BalkWaitSeconds), "180"),
+            E(nameof(FitFloor), "100"),
+            E(nameof(TasteExpertPowder), "1200"),
+            E(nameof(TasteBeginnerMoguls), "500"),
+            E(nameof(BandSpeedMphTenths), "130, 200, 250, 270"),
+            E(nameof(BandDesignGradePercent), "15, 32, 50, 70"),
+            E(nameof(WalkMphTenths), "30"),
+            E(nameof(EntrySpacingTicks), "10"),
+            E(nameof(ChoiceRetryTicks), "50"),
+            // Satisfaction:
+            E(nameof(StartSatisfaction), "800"),
+            E(nameof(LapQualityWeight), "100"),
+            E(nameof(WaitPenaltyPerMinute), "50"),
+            E(nameof(WaitFreeMinutes), "2"),
+            E(nameof(MisratePenalty), "100"),
+            E(nameof(MarginalPenalty), "50"),
+            E(nameof(MarginalPhase), "1, 2"),
+            E(nameof(ShoulderDays), "6"),
+            E(nameof(CrowdPenalty), "20"),
+            E(nameof(StrandedPenalty), "100"),
+            // The machinery:
+            E(nameof(RecordSegments), "48"),
+            E(nameof(WearBands), "8"),
+            E(nameof(WheelBuckets), "4096"),
+            E(nameof(InspectTicks), "10"),
             E(nameof(EventRingSize), "4096"),
             E(nameof(SnapshotEvents), "512"),
             E(nameof(MaxLifts), "256"),

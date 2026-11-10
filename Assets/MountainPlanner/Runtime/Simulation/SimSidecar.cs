@@ -15,10 +15,13 @@ namespace MountainPlanner.Simulation
     /// </code>
     /// A bump adds a step to <see cref="Upgrade"/> and a <c>TestData/formats/v&lt;N&gt;-sim</c> fixture; v1's stays unedited.
     /// v2 (task 4.11) appends the lift-operations block (lines, riders, carriers, holds, the day's lift ledger, the way down).
+    /// v4 (task 4.12) appends the guests: every skier on the hill, the day's crowd and its ledgers, the reputations per
+    /// archetype (GU-18), SN-24's wear counters and the Popularity cells. v3 is task 4.05's weather; whichever of the two
+    /// merges second takes the next number, as the coordinator sequenced it.
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 2;
+        public const int Version = 4;
         public const string Extension = ".sim";
         static readonly byte[] Magic = { (byte)'M', (byte)'P', (byte)'S', (byte)'M' };
 
@@ -216,6 +219,30 @@ namespace MountainPlanner.Simulation
         {
             Need(into.Length * 2);
             for (int i = 0; i < into.Length; i++) { into[i] = (ushort)(_b[_at] | _b[_at + 1] << 8); _at += 2; }
+        }
+
+        /// <summary>A skier slot, refused outside 0 to <paramref name="cap"/>−1 (GU-01: the lines are chains over slots).</summary>
+        public int Slot(int cap)
+        {
+            int s = I32();
+            if (s < 0 || s >= cap) throw new InvalidDataException($"A skier slot of {s} is out of range (0–{cap - 1}).");
+            return s;
+        }
+
+        /// <summary>A slot, or −1 for "none".</summary>
+        public int SlotOrNone(int cap)
+        {
+            int s = I32();
+            if (s < -1 || s >= cap) throw new InvalidDataException($"A skier slot of {s} is out of range (−1–{cap - 1}).");
+            return s;
+        }
+
+        /// <summary>A whole number, refused outside <paramref name="lo"/> to <paramref name="hi"/>.</summary>
+        public int Ranged(int lo, int hi, string what)
+        {
+            int v = I32();
+            if (v < lo || v > hi) throw new InvalidDataException($"{what} holds {v} (expected {lo}–{hi}).");
+            return v;
         }
 
         /// <summary>An enum byte, refused when it isn't one of <paramref name="lo"/>–<paramref name="hi"/>.</summary>

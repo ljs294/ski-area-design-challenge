@@ -228,6 +228,7 @@ namespace MountainPlanner.Domain.Design
             w.U8((byte)l.Schedule);   // shape 12 (LO-09)
             w.U8((byte)(l.Hours.HasValue ? 1 : 0));   // shape 12 (LO-07 v2): the lift's own hours, or the resort's
             if (l.Hours is DayHours h) WriteHours(w, h);
+            w.Str(l.Plate);   // shape 13 (task 4.11 PR B)
         }
 
         static void WriteHours(Writer w, DayHours h)
@@ -269,7 +270,8 @@ namespace MountainPlanner.Domain.Design
             byte own = r.U8();
             if (own > 1) throw new FormatException("A lift's hours flag isn't 0 or 1.");
             DayHours? hours = own == 1 ? ReadHours(r) : (DayHours?)null;
-            return new Lift(id, name, stage, catalog, bottom, top, mode, stance, towers, levels, (LiftDrive)drive, (LiftSchedule)schedule, hours);
+            string plate = r.Str();
+            return new Lift(id, name, stage, catalog, bottom, top, mode, stance, towers, levels, (LiftDrive)drive, (LiftSchedule)schedule, hours, plate);
         }
 
         static void WriteStroke(Writer w, TerrainStroke k)

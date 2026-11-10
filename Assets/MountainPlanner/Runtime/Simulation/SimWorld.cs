@@ -85,6 +85,8 @@ namespace MountainPlanner.Simulation
         readonly SimCommand[] _staged;
         int _stagedCount;
         long _commandSeq;
+        /// <summary>GU-02: view commands are counted apart from the state's, so watching a skier leaves the hash alone.</summary>
+        long _viewSeq;
         public readonly EventRing Events;
         /// <summary>SI-22's log: every world command with its stamp, in order.</summary>
         public readonly List<SimCommand> Log = new List<SimCommand>();
@@ -127,6 +129,11 @@ namespace MountainPlanner.Simulation
             int h = pacing.HistoryDays;
             _historyFaceDay = new int[h]; _historySeasonDay = new int[h]; _historyRunMinutes = new int[h]; _historyLiftsRun = new int[h];
             _historyType = new byte[h]; _historyPhase = new byte[h];
+            // The skier columns exist before anything is folded or read: a lift's line is a chain over their slots, so
+            // the sidecar's lift block needs them already there (SI-12).
+            _guests = new GuestColumns(pacing);
+            SkierRender = new SkierRenderBuffers(pacing.SkierCap);
+            for (int a = 0; a < Pacing.Archetypes; a++) _rep[a] = pacing.StartRep;
             if (restoring) Design = design;
         }
 
@@ -167,7 +174,7 @@ namespace MountainPlanner.Simulation
             get
             {
                 for (int i = 0; i < _liftCount; i++) if (_running[i]) return false;
-                return !AnyFeeding();
+                return !AnyFeeding() && !AnySkier && !ArrivalsDueToday;
             }
         }
 
@@ -191,6 +198,7 @@ namespace MountainPlanner.Simulation
             _boundaryDoneAt = FaceMs;
             int faceDay = (int)(FaceMs / DayMs);
             if (sod == 0) BeginFaceDay(faceDay, true);
+            if (sod == LandingSecond(_todayOpen) * 1000L) PlanTheDay(faceDay);
             if (sod == _todayOpen * 1000L) AtOpening();
             if (sod % HourMs == 0) HourStep(FaceMs / HourMs);
         }
@@ -202,7 +210,7 @@ namespace MountainPlanner.Simulation
             int rate = _stepDayRate ? Pacing.DayFaceMsPerTick : Pacing.NightFaceMsPerTick;
             long remaining = NextBoundary(sod) - sod;
             int ticksToBoundary = (int)((remaining + rate - 1) / rate);
-            bool running = _stepDayRate && AnyBuiltLift() || AnyFeeding();
+            bool running = _stepDayRate && AnyBuiltLift() || AnyFeeding() || AnySkier || ArrivalsDueToday;
             int k = running ? 1 : Math.Min(Math.Min(_stepMaxTicks, Pacing.IdleTickFactor), ticksToBoundary);
             if (k < 1) k = 1;
             _stepTicks = k;
@@ -225,6 +233,9 @@ namespace MountainPlanner.Simulation
         internal void RunPublish()
         {
             if (_publishTo != null) Write(_publishTo);
+            // GU-16: the skiers' places go over beside the snapshot, by a pointer swap, because at thousands of them the
+            // column is far bigger than SI-16's 64 KB and copying it into the snapshot would cost more than the tick.
+            if (_publishTo != null) PublishSkierRender();
         }
 
         // ================= commands =================
@@ -234,7 +245,8 @@ namespace MountainPlanner.Simulation
             if (c.IssuedAgainstTick >= 0 && Tick - c.IssuedAgainstTick > Pacing.StaleCommandTicks) { Reject(c, SimRefusal.Stale); return; }
             var stamped = c;
             stamped.Tick = Tick;
-            stamped.Seq = _commandSeq++;
+            // GU-02: a view command is stamped from its own sequence, so watching a skier leaves the state's alone.
+            stamped.Seq = c.Kind == SimCommandKind.InspectSkier ? _viewSeq++ : _commandSeq++;
             switch (c.Kind)
             {
                 case SimCommandKind.SetMountainOpen:
@@ -263,6 +275,10 @@ namespace MountainPlanner.Simulation
                 case SimCommandKind.FeedLine:
                     if (!ApplyLiftCommand(c)) return;
                     break;
+                case SimCommandKind.InspectSkier:
+                case SimCommandKind.SpawnSkiers:
+                    if (!ApplyGuestCommand(c)) return;
+                    break;
                 default:
                     Reject(c, SimRefusal.Unknown);
                     return;
@@ -288,6 +304,7 @@ namespace MountainPlanner.Simulation
         void FoldDesign(SimDesign d)
         {
             bool newSeed = Design != null && Design.ResortSeed != d.ResortSeed;
+            var previous = Design;
             Design = d;
             // SI-15: a different resort seed (a save opened over the start) draws this season's seed again, unless pinned.
             if (newSeed && !SeedPinned) SeasonSeed = DrawSeasonSeed();
@@ -322,6 +339,7 @@ namespace MountainPlanner.Simulation
             _liftIds = ids; _liftBuilt = built; _runMs = runMs; _running = running; _runFaceMs = runFace; _closedFaceMs = closedFace;
             _liftOpen = open; _liftOpenNext = openNext; _liftHold = hold;
             _liftCount = n;
+            FoldGuests(previous, d);
             FoldLiftOps(oldIds, oldCount, ids, n);
             RefreshBoard();
         }
@@ -351,6 +369,7 @@ namespace MountainPlanner.Simulation
                 Events.Add(Tick, SimEventType.FaceDayBegan, -1, faceDay);
             }
             HoursFor(faceDay, out _todayOpen, out _todayLastChair, out _todayStop, out _todayTrimmed);
+            _dayStartTick = Tick;
             LiftHoursToday();
             if (_todayTrimmed && announce) Events.Add(Tick, SimEventType.HoursTrimmed, -1, _todayOpen * 100000L + _todayStop);
             RefreshBoard();
@@ -367,6 +386,11 @@ namespace MountainPlanner.Simulation
                 RefreshBoard();
             }
             else if (Phase == SeasonPhase.Season) SeasonDay++;
+            // GU-03: normally the landing an hour before opening planned the day; a game that starts at the opening (and
+            // a save opened there) plans it now, so the first morning has a crowd like any other.
+            int today = (int)(FaceMs / DayMs);
+            if (_demandDay != today) PlanTheDay(today);
+            AnchorArrivals();
             // The ledger's day is the one that opened.
             _ledgerSeasonDay = SeasonDay;
             _ledgerPhase = Phase;
@@ -496,7 +520,12 @@ namespace MountainPlanner.Simulation
             r.OpenSecond = _todayOpen;
             r.StopSecond = _todayStop;
             r.Trimmed = _todayTrimmed;
-            r.Target = r.Arrived = r.TurnedAway = r.WentHome = r.Stranded = 0;
+            var g = GuestLedger();
+            r.Target = g.demand;
+            r.Arrived = g.arrived;
+            r.TurnedAway = g.arrivedClosed + g.capped;
+            r.WentHome = g.wentHome;
+            r.Stranded = g.stranded;
             r.LiftCount = _liftCount;
             for (int i = 0; i < _liftCount; i++)
             {
@@ -625,6 +654,7 @@ namespace MountainPlanner.Simulation
             if (_lastReport.FaceDay != s.LastDayReport.FaceDay || _lastReport.LiftCount != s.LastDayReport.LiftCount)
                 s.LastDayReport.CopyFrom(_lastReport);
             s.HistoryCount = _historyCount;
+            WriteGuests(s);
             s.FirstEventSeq = Events.CopyNewest(s.Events, out s.EventCount);
             s.SnowSet = Snow.Set;
         }
@@ -661,6 +691,7 @@ namespace MountainPlanner.Simulation
             HashLifts(ref h);
             // The snow joined in PR B (SI-17): a world that has never had any hashes as before, so the goldens stand.
             if (Snow.Set || Snow.Width > 0) Snow.AddTo(ref h);
+            HashGuests(ref h);
             return h.Value;
         }
     }
@@ -673,6 +704,20 @@ namespace MountainPlanner.Simulation
         public const ulong SeasonSeedTag = Base + 1;
         /// <summary>LO-11 v1: a lift's wind check offset within the hour and its gust factor.</summary>
         public const ulong WindCheckTag = Base + 2;
+        /// <summary>GU-06: which base a party arrives at.</summary>
+        public const ulong ArrivalTag = Base + 3;
+        /// <summary>GU-05: a skier's ability within its band.</summary>
+        public const ulong AbilityTag = Base + 4;
+        /// <summary>GU-06: how many laps a skier means to ski.</summary>
+        public const ulong StayTag = Base + 5;
+        /// <summary>GU-10: a skier's speed against its band's base.</summary>
+        public const ulong SpeedTag = Base + 6;
+        /// <summary>GU-02: how many skiers a party is.</summary>
+        public const ulong PartyTag = Base + 7;
+        /// <summary>GU-16, SN-24: which lateral band of a trail a skier takes.</summary>
+        public const ulong LaneTag = Base + 8;
+        /// <summary>GU-07: a party's weighted draw between the runs and lifts on offer.</summary>
+        public const ulong ChoiceTag = Base + 9;
 
         public static ulong Hash(ulong seed, ulong tag, ulong a) => DesignKey.Hash(seed, tag, a);
         public static ulong Hash(ulong seed, ulong tag, ulong a, ulong b) => DesignKey.Hash(seed, tag, a, b);

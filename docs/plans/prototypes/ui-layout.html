@@ -566,6 +566,31 @@ body.solo .frame { border-radius: 0; }
 .hud .pn.fcard .hd { cursor: default; }
 .hud .pn.fcard .hd .nm { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
 .hud .pn.fcard .hd .nm + .x { margin-left: 4px; }
+/* Task 4.11: the lift card's Line, wind and schedule rows, its Ride button, and Ride a lift (PR B) */
+.hud .pn.fcard .hd .ib.ride { width: 26px; height: 24px; margin-left: 6px; color: var(--muted); cursor: pointer; }
+.hud .pn.fcard .hd .ib.ride svg.g { width: 17px; height: 17px; }
+.hud .pn.fcard .hd .ib.ride:hover { color: var(--strong); }
+.hud .pn.fcard .hd .ib.ride.dis { color: var(--faint); cursor: default; background: none; }
+.hud .pn.fcard .hd .ib.ride + .x { margin-left: 2px; }
+.hud .pn.fcard .sched { display: grid; grid-template-columns: 62px 1fr; gap: 6px 10px; align-items: center; padding: 2px 12px 8px; border-top: 1px solid var(--hair); padding-top: 8px; }
+.hud .pn.fcard .sched > span { font: 600 12.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .pn.fcard .sched .seg span { padding: 4px 0 3px; }
+.hud .pn.fcard .hrs { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.hud .pn.fcard .hrs label { display: grid; gap: 3px; font: 600 11px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .pn.fcard .hrs .step { min-width: 0; height: 26px; grid-template-columns: 20px 1fr 20px; }
+.hud .pn.fcard .hrs .step b { text-align: center; font: 600 11px 'Overpass Mono', monospace; white-space: nowrap; padding: 0 2px; }
+.hud .pn.fcard .shint { grid-column: 1 / -1; font: 500 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .kv dd.warn { color: var(--warn); }
+.hud .bar.ride .rname { display: inline-flex; align-items: center; gap: 7px; font: 700 13px 'DotFix', 'Overpass'; color: var(--text); white-space: nowrap; }
+.hud .bar.ride .rword { display: inline-flex; align-items: center; gap: 6px; font: 700 12.5px 'DotFix', 'Overpass'; white-space: nowrap; }
+.hud .bar.ride .rword.warn { color: var(--warn); }
+.hud .bar.ride .rprog { position: relative; width: 170px; height: 6px; border-radius: 3px; background: var(--hair2); overflow: hidden; }
+.hud .bar.ride .rprog i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--text); border-radius: 3px; }
+.hud .bar.ride .rkeys { font: 600 12px 'DotFix', 'Overpass'; color: var(--soft); white-space: nowrap; }
+.hud .bar.ride .rkeys b { font: 600 11px 'Overpass Mono', monospace; color: var(--text); border: 1px solid var(--hair2); border-radius: 3px; padding: 1px 5px 0; margin: 0 3px; }
+.map.ride svg, .map.ride canvas { display: none; }
+.map.ride img { transition: transform 0.15s linear; }
+.hud .chairfg { position: absolute; inset: 0; pointer-events: none; }
 </style>
 
 <!-- Symbols: one solid set on a 24 px grid, drawn like trail and road signs: filled shapes, knock-outs in the
@@ -596,6 +621,7 @@ body.solo .frame { border-radius: 0; }
   <symbol id="s-flake" viewBox="0 0 24 24"><g><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="rotate(60 12 12)"><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="rotate(120 12 12)"><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g></symbol>
   <symbol id="s-trail" viewBox="0 0 24 24"><path d="M1.4 20.8L9.3 6.2l3.7 5.6 3-4.2 6.6 13.2z"/><path d="M9.5 9.6c2.3 2.2-2.4 3.7 0 6.2 1.6 1.7 3.8 2 3.3 5.2" fill="none" stroke-width="1.8" stroke-linecap="round" style="stroke:var(--knock)"/></symbol>
   <!-- tool badges, in the lower right of a family glyph -->
+  <symbol id="s-video" viewBox="0 0 24 24"><rect x="1.6" y="6" width="14.6" height="12" rx="2.4"/><path d="M17.4 10.3 22.4 7.1v9.8l-5-3.2z"/></symbol>
   <symbol id="s-camera" viewBox="0 0 24 24"><path d="M8.6 4.2h6.8l1.6 2.6h3.2A1.8 1.8 0 0 1 22 8.6v9.6a1.8 1.8 0 0 1-1.8 1.8H3.8A1.8 1.8 0 0 1 2 18.2V8.6a1.8 1.8 0 0 1 1.8-1.8H7z"/><circle cx="12" cy="13.2" r="4.4" style="fill:var(--knock)"/><circle cx="12" cy="13.2" r="2.7"/></symbol>
   <symbol id="s-hide" viewBox="0 0 24 24"><path d="M1.6 12c2.6-4.4 6.2-6.6 10.4-6.6s7.8 2.2 10.4 6.6c-2.6 4.4-6.2 6.6-10.4 6.6S4.2 16.4 1.6 12z"/><circle cx="12" cy="12" r="3.9" style="fill:var(--knock)"/><circle cx="12" cy="12" r="2.2"/><path d="M4 21L20.6 3" style="stroke:var(--knock)" stroke-width="4.2" stroke-linecap="round"/><path d="M4 21L20.6 3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
   <symbol id="b-new" viewBox="0 0 24 24"><circle cx="18.2" cy="18.2" r="5.9" style="fill:var(--knock)"/><circle cx="18.2" cy="18.2" r="4.6"/><rect x="17.55" y="15.4" width="1.3" height="5.6" style="fill:var(--knock)"/><rect x="15.4" y="17.55" width="5.6" height="1.3" style="fill:var(--knock)"/></symbol>
@@ -615,12 +641,14 @@ body.solo .frame { border-radius: 0; }
     <li><b>Trails made of sections</b> (task P3-10, owner NT24–NT41): a trail is a name and its sections, top first. Edit trail opens the trail's pane (rating over its whole length, its sections; Repaint and Move ends change the outlined section). <b>Edit sections</b> goes into network mode: <b>Choose sections</b>, where a left-click on any run beyond the trail's top or bottom adds everything on the way and a right-click takes a section out, and <b>Cut</b>, which cuts a section in two at the pointer (snapping to junctions; refused across a switchback) or rejoins a hollow cut node. The hover shows each click's result, the window lists every trail a session changes with editable names, Ctrl+Z undoes a click and Done (Enter) is one step. A trail left in two pieces becomes Upper and Lower. States: <code>trailsecs</code>, <code>trailroute</code>, <code>trailmerge</code>, <code>trailtakeout</code>, <code>trailmiddle</code>, <code>trailnear</code>, <code>trailnearjoin</code> (NT42: ends within 100 ft meet, drawn met, nothing shown), <code>trailcut</code>, <code>trailcutbend</code> (NT45: a cut on a bend), <code>trailsecsundo</code>. Junctions (NT43–NT45): a run splits wherever another run lands on it or crosses it, at a lift it passes and where you cut it; a trail is the segments between, and may turn at a junction: <code>trailjunction</code>, <code>trailreroute</code>, <code>trailrerouted</code>. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking with clicks.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
     <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets one legend card (with contours added to it); its ✕ closes it until you pick another layer. The bar reads the layer under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
+    <li><b>Ride a lift</b> (task 4.11 PR B): open a built lift's card (Analysis › Lifts, or click the lift) and press its <b>video camera</b> (or R). The HUD gives way to one thin bar: the lift, its Status, the time to the top and the ride so far. <b>Move the mouse</b> to look round from the seat; <b>Esc</b> leaves to the camera you had. At the top you leave on your own, over the top station. On hold the chair stops where it is; a Closed lift parks you at the bottom. Chairs ride empty (no people yet). The view here is the mountain picture zoomed in, a stand-in for the game's first-person view. The card also has the lift's <b>Line</b>, the gust that <b>holds</b> it, and its <b>Schedule</b> (Daily or Peak days) and <b>Hours</b> (the resort's, or its own: opens, last chair, stops). The switches above the picture show each state.</li>
     <li><b>Photo mode</b> (P, or the menu): the HUD gives way to one thin bar. <b>Time</b> moves the sun ([ and ] a quarter hour; the clock stops while you frame), <b>Date</b> its path through the year (Shift [ and ]), <b>Lens</b> is the field of view, <b>Focus</b> is depth of field (Off, Natural or Miniature), <b>Grade</b> the look, and <b>Size</b> saves at the screen's resolution or twice it. Space or F12 captures, H hides the bar, Esc or P leaves and puts the clock, look and lens back. <b>Credits</b> (menu, or the title) list every area's data sources with the areas that use them.</li>
     <li><b>Send feedback</b> (task P3-14): the menu's <b>Send feedback</b>, Settings › Data › Logs › <b>Send logs…</b>, the error notice (<b>#demo=errnote</b>) and the title's offer after a crash (<b>#demo=crashoffer</b>) open one window. Pick <b>Problem</b> or <b>Suggestion</b>, give it a title and tick what goes in. <b>Save and open GitHub</b> saves one zip, shows it in Explorer and opens a pre-filled GitHub issue; you drag the zip in. The game sends nothing itself. States: <b>#demo=fb</b>, <b>fbsug</b>, <b>fbcrash</b>, <b>fbsent</b>.</li>
     <li><b>Saves</b> (task P3-04): Ctrl+S or the bar's save symbol saves; the first save asks for a name. Autosave (Settings › Gameplay, every 10 minutes by default) keeps one Autosave slot per area. Exit to title with changes asks to save first. <a href="#demo=load" onclick="setTimeout(() => location.reload())">Load Area</a> lists each area's saves: → shows them, Enter opens, F2 renames, Delete removes; a save from a newer version is greyed.</li>
     <li><b>Also live:</b> play/pause and four speeds, save (white when there are changes), Analysis with eight tabs and the sketch pencil. The bar's clock and weather, money, open lifts, open trails and guests open their Analysis tab. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name for the resort's stats), the weather with the next 24 hours' snowfall, and the elevation under the pointer. Figures are imperial until you press U; steepness is always a grade in percent. <b>Keys:</b> T toolbox, Tab analysis, U units, Shift+1 snow, Shift+3 trees, Shift+6 contours, Shift+7–9 info layers, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
   <div class="variants" id="variants"><b>Open or closed, try:</b><button data-style="sub" class="on">A line under the name</button><button data-style="track">An hours track</button><button data-style="word">A word after the name</button></div>
+  <div class="variants" id="ridevariants"><b>Ride a lift (task 4.11), try:</b><button data-ride="run">Riding</button><button data-ride="hold">On hold</button><button data-ride="closed">Closed</button><button data-ride="top">Near the top</button><button data-ride="card">The lift's card</button></div>
   <div class="frame" id="frame"><div class="stage hud" id="stage">
     <div class="map" id="map"><img src="assets/game-bluebird.jpg" alt="The mountain on a bluebird day"><canvas id="info" width="1280" height="720" hidden></canvas><svg id="contours" viewBox="0 0 1280 720"></svg><svg id="world" viewBox="0 0 1280 720"></svg></div>
     <div id="ui"></div><div class="flash" id="flash"></div>
@@ -3535,7 +3563,7 @@ body.solo .frame { border-radius: 0; }
   const LEN_BINS = [['s', 'Under 2,000', 0, 2000], ['m', '2,000–5,000', 2000, 5000], ['l', 'Over 5,000', 5000, Infinity]];
   const VERT_BINS = [['s', 'Under 500', 0, 500], ['m', '500–1,500', 500, 1500], ['l', 'Over 1,500', 1500, Infinity]];
   const binLabel = (b) => (b[2] === 0 ? `Under ${lenFt(b[3])}` : b[3] === Infinity ? `Over ${lenFt(b[2])}` : `${lenFt(b[2]).replace(/ (ft|m)$/, '')}–${lenFt(b[3])}`);
-  const STATUS_OPTS = [['open', 'Open'], ['closed', 'Closed'], ['planned', 'Planned']];
+  const STATUS_OPTS = [['open', 'Open'], ['onhold', 'On hold'], ['scheduled', 'Scheduled'], ['closed', 'Closed'], ['planned', 'Planned']];
   // Filters as a spreadsheet does them: the Filter button puts a ▾ on each column; its menu sorts, and ticks the values
   // to show. hide holds the values unticked.
   S.af = { lifts: { on: false, hide: { status: [], len: [], vert: [] }, sort: null }, trails: { on: false, hide: { status: [], len: [], vert: [], rating: [] }, sort: null } };
@@ -3545,13 +3573,35 @@ body.solo .frame { border-radius: 0; }
   // One record per drawn lift or trail: what the rows, the filters and the focus card read.
   function liftRec(l, open) {
     const st = liftStats(l.a, l.b, l.model, l.cap), wt = waitFor(l);
-    return { id: l.id, kind: 'lift', o: l, name: l.name, len: st.len * FT, vert: Math.abs(st.rise) * FT, cap: st.cap, ride: st.ride, wait: l.built && open ? wt : null, status: !l.built ? 'planned' : open ? 'open' : 'closed' };
+    const runs = l.built && liftRunsToday(l), h = hoursOf(l), hr = S.t / 3600, before = hr < h.open, inHours = hr >= h.open && hr < h.last;
+    const status = !l.built ? 'planned' : !runs ? 'closed' : l.hold && hr < h.stop ? 'onhold' : before ? 'scheduled' : inHours ? 'open' : 'closed';
+    return { id: l.id, kind: 'lift', o: l, name: l.name, len: st.len * FT, vert: Math.abs(st.rise) * FT, cap: st.cap, ride: st.ride, wait: status === 'open' || status === 'onhold' ? wt : null, status };
   }
   function trailRec(t, open, i) {
     const st = pathStats(t.pts);
     return { id: t.id, kind: 'trail', o: t, name: t.name, len: st.len * FT, vert: st.drop * FT, avg: st.avg, steep: st.steep, rating: t.diff, surface: t.graded ? 'Graded' : 'Natural', status: !t.built ? 'planned' : 'built' };
   }
-  const STATUS_LAMP = { open: ['Open', '#5fbf6a'], closed: ['Closed', '#d4513f'], planned: ['Planned', '#ff6a1f'], built: ['Built', '#9aa3a8'] };
+  const STATUS_LAMP = { open: ['Open', '#5fbf6a'], closed: ['Closed', '#d4513f'], planned: ['Planned', '#ff6a1f'], built: ['Built', '#9aa3a8'], onhold: ['On hold', '#f0b43c'], scheduled: ['Scheduled', '#9aa3a8'] };
+  // Task 4.11: a lift's schedule and hours (LO-07 v2, LO-09). Peak days: the weekend days (and holidays, later).
+  const RESORT_HOURS = { open: LIFTS_OPEN, last: LAST_CHAIR, stop: LIFTS_CLOSE };
+  const isPeakDay = () => S.day % 7 === 5 || S.day % 7 === 6;
+  const liftRunsToday = (l) => l.sched !== 'peak' || isPeakDay();
+  const hoursOf = (l) => l.hours || RESORT_HOURS;
+  // LO-11 v2 (owner 2026-11-08): the gust that holds a lift; tows and carpets never hold. Fixed grips hold later than
+  // detachables, and more seats (a bigger, heavier carrier) later still.
+  // Today's forecast gust at a lift's top (4.05's forecast; a placeholder here): the afternoon's peak, higher on the
+  // exposed Ridge Six top than in the Aspen Quad's trees.
+  const TODAY_GUST = { from: '1 PM', to: '3 PM' };
+  const todayGust = (l) => (l.id === 'l3' ? 41 : 33);
+  function holdMph(model) {
+    const t = LIFT_TYPES[model], m = { 'Fixed 4': ['fixed', 4], 'Fixed 2': ['fixed', 2], 'Detach 4': ['detach', 4], 'Detach 6': ['detach', 6] }[model];
+    const kind = t ? t.kind : m ? m[0] : 'fixed', seats = t ? t.seats : m ? m[1] : 4;
+    if (kind === 'fixed') return 34 + Math.floor(seats * 3);
+    if (kind === 'detach') return 29 + Math.floor(seats * 1.5);
+    if (kind === 'gondola') return 45;
+    if (kind === 'tram') return 55;
+    return null;
+  }
   function listTab(tab, open) {
     const f = S.af[tab], lifts = tab === 'lifts';
     const all = lifts ? S.lifts.map((l) => liftRec(l, open)) : allLines().map((l, i) => trailRec(lineRec(l), open, i));   // NT24: a row per trail
@@ -3590,8 +3640,16 @@ body.solo .frame { border-radius: 0; }
     const open = isOpen(), kv = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
     if (l) {
       const r = liftRec(l, open), st = STATUS_LAMP[r.status];
-      return `<div class="pn fcard"><div class="hd"><span class="plate${l.built ? ' built' : ''}">${l.n}</span>${esc(l.name)}<span class="nm">${lampHtml(st[1])} ${st[0]}</span><span class="x" data-act="fclose" title="Close (Esc)">✕</span></div>
-        <dl class="kv">${kv('Type', esc(liftTypeName(l.model)))}${kv('Capacity', `<b>${r.cap.toLocaleString('en-US')}</b> an hour`)}${kv('Length', `<b>${lenFt(r.len)}</b>`)}${kv('Vertical', `<b>${lenFt(r.vert)}</b>`)}${kv('Ride', fmtTime(r.ride))}${l.towers ? kv('Towers', l.towers.length) : ''}${kv('Wait now', r.wait !== null ? `${r.wait.toFixed(1)} min` : '—')}</dl>
+      const hold = holdMph(l.model), line = r.wait !== null ? Math.round(r.wait * r.cap / 60) : 0, h = hoursOf(l), own = !!l.hours;
+      const ride = l.built ? `<span class="ib ride" data-act="ride" data-v="${l.id}" data-ui="lift-card-ride" title="Ride this lift (R)">${g('s-video')}</span>` : `<span class="ib ride dis" title="Build it to ride it">${g('s-video')}</span>`;
+      const seg = (act, cur, opts) => `<div class="seg">${opts.map(([v, lb, tip]) => `<span class="${cur === v ? 'on' : ''}" data-act="${act}" data-v="${v}"${tip ? ` title="${tip}"` : ''}>${lb}</span>`).join('')}</div>`;
+      const stp = (k, lb) => `<label>${lb}<div class="step"><span class="sb" data-act="lhrs" data-v="${k}:-1">‹</span><b>${hhmm(h[k])}</b><span class="sb" data-act="lhrs" data-v="${k}:1">›</span></div></label>`;
+      const lineTxt = r.wait === null ? '—' : line ? `<b>${line.toLocaleString('en-US')}</b> in line · ${fmtTime(r.wait * 60)}` : 'No line';
+      return `<div class="pn fcard" data-ui="lift-card"><div class="hd"><span class="plate${l.built ? ' built' : ''}">${l.n}</span>${esc(l.name)}<span class="nm">${lampHtml(st[1])} ${st[0]}</span>${ride}<span class="x" data-act="fclose" title="Close (Esc)">✕</span></div>
+        <dl class="kv">${kv('Type', esc(liftTypeName(l.model)))}${kv('Capacity', `<b>${r.cap.toLocaleString('en-US')}</b> an hour`)}${kv('Length', `<b>${lenFt(r.len)}</b>`)}${kv('Vertical', `<b>${lenFt(r.vert)}</b>`)}${kv('Ride', fmtTime(r.ride))}${l.towers ? kv('Towers', l.towers.length) : ''}${kv('Line', lineTxt)}${kv('Wind hold', hold ? `<b>${hold}</b> mph` : 'Never')}<dt>Today</dt><dd${l.hold || (hold && todayGust(l) > hold) ? ' class="warn"' : ''}>${!hold ? '—' : l.hold ? 'On hold now' : todayGust(l) > hold ? `Holds likely ${TODAY_GUST.from}–${TODAY_GUST.to}` : 'No holds expected'}</dd></dl>
+        <div class="sched" data-ui="lift-card-schedule"><span>Runs</span>${seg('lsched', l.sched || 'daily', [['daily', 'Daily'], ['peak', 'Peak days', 'Weekends (and holidays, later): a lift for the busy days']])}
+          <span>Hours</span>${seg('lown', own ? 'own' : 'resort', [['resort', "The resort's", `${hhmm(LIFTS_OPEN)} to ${hhmm(LIFTS_CLOSE)}, last chair ${hhmm(LAST_CHAIR)}`], ['own', 'Its own']])}
+          ${own ? `<div class="hrs">${stp('open', 'Opens')}${stp('last', 'Last chair')}${stp('stop', 'Stops')}</div><div class="shint">Inside the resort's day, ${hhmm(LIFTS_OPEN)} to ${hhmm(LIFTS_CLOSE)}.</div>` : ''}</div>
         <div class="acts" style="grid-template-columns:1fr 1fr"><div class="ghost" data-act="fedit" data-v="lift">Edit</div><div class="ghost" data-act="fremove" data-v="lift">Remove</div></div></div>`;
     }
     const r = trailRec(t, open, 0), st = STATUS_LAMP[r.status];
@@ -3840,6 +3898,12 @@ body.solo .frame { border-radius: 0; }
     if (S.set.pauseOnBuild === 'on' && building) { if (!S.buildPauseDone) { S.buildPauseDone = true; if (!S.paused) { S.paused = true; S.autoPaused = true; } } }
     else { S.buildPauseDone = false; if (S.autoPaused) { S.paused = false; S.autoPaused = false; } }
     mapEl.style.transform = `scale(${S.zoom})`;
+    if (S.ride) {   // 4.11 PR B: only the ride bar (unless H hid it), the chair in front, and the toasts
+      ui.innerHTML = chairFg() + (S.ride.hidden ? '' : rideBar()) + `<div class="log" id="log" data-ui="toasts">${logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join('')}</div>`;
+      if (S.set.tooltips === 'off') ui.querySelectorAll('[title]').forEach((n) => n.removeAttribute('title'));
+      applyRide();
+      return;
+    }
     if (S.photo) {   // S10: only the photo bar (unless H hid it) and the toasts
       ui.innerHTML = (S.ph.hidden ? '' : photoBar()) + `<div class="log" id="log" data-ui="toasts">${logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join('')}</div>`;
       if (S.set.tooltips === 'off') ui.querySelectorAll('[title]').forEach((n) => n.removeAttribute('title'));
@@ -4047,6 +4111,68 @@ body.solo .frame { border-radius: 0; }
     S.photo = true; S.paused = true; S.drop = null; S.toolbox = false; S.analysis = false; S.tool = null; S.draft = null; S.sel = null; S.sketch = false;
     S.info = null; S.contours = false;   // info layers are display only: never in a photo
     render();
+  }
+  // Task 4.11 PR B: Ride a lift. The HUD gives way to one bar; the view rides the chair (here: the picture zoomed in on
+  // the chair's place on the line, a stand-in for the game's first-person camera). At the top you leave on your own.
+  const RIDE_MULT = [0, 1, 2, 4, 8];   // the ride runs at the lift's real speed times the clock's speed
+  function enterRide(id) {
+    const l = S.lifts.find((x) => x.id === id);
+    if (!l || !l.built || S.photo) return;
+    if (!S.ride) S.rideBack = { zoom: S.zoom, drop: S.drop, toolbox: S.toolbox, analysis: S.analysis, info: S.info, contours: S.contours, focus: S.focus };
+    S.ride = { id, p: 0.04, lx: 0, ly: 0, hidden: false };
+    S.drop = null; S.toolbox = false; S.analysis = false; S.tool = null; S.draft = null; S.sel = null; S.sketch = false; S.info = null; S.contours = false; S.focus = null;
+    render();
+  }
+  function exitRide(atTop) {
+    if (!S.ride) return;
+    const l = S.lifts.find((x) => x.id === S.ride.id);
+    S.ride = null; Object.assign(S, S.rideBack); S.rideBack = null;
+    mapEl.classList.remove('ride'); mapEl.style.transformOrigin = '';
+    if (atTop && l) { S.focus = l.id; log(`<span>Off <b>${esc(l.name)}</b> at the top</span>`, '#8fcf8a', true); }
+    render();
+  }
+  function rideState() {
+    const l = S.lifts.find((x) => x.id === S.ride.id), r = liftRec(l, isOpen());
+    const h = hoursOf(l), hr = S.t / 3600;   // after last chair, a chair already on the way up still runs to the top
+    return { l, r, word: STATUS_LAMP[r.status], run: r.status === 'open' || (liftRunsToday(l) && hr >= h.last && hr < h.stop && S.ride.p > 0.04) };
+  }
+  function rideBar() {
+    const { l, r, word, run } = rideState(), left = (1 - S.ride.p) * r.ride / RIDE_MULT[Math.max(1, S.speed)];
+    const what = r.status === 'onhold' ? `<span class="rword warn">${lampHtml(word[1])}On hold · wind over ${holdMph(l.model)} mph</span>`
+      : !run ? `<span class="rword">${lampHtml(word[1])}${word[0]} · ${l.built && liftRunsToday(l) && S.t / 3600 < hoursOf(l).open ? 'opens ' + hhmm(hoursOf(l).open) : 'parked at the bottom'}</span>`
+      : `<span class="rword">${lampHtml(word[1])}${word[0]}</span>`;
+    return `<div class="bar docked photo ride" data-ui="ride-bar">
+      <div class="cell" title="Riding (Esc leaves)"><span class="lead">${g('s-video')}</span></div>
+      <div class="cell sep"><span class="rname"><span class="plate built" style="font-size:10px">${l.n}</span>${esc(l.name)}</span></div>
+      <div class="cell sep">${what}</div>
+      <div class="cell sep" title="The ride so far"><span class="pl">Top in</span><span class="pv t" id="ridetime">${run && !S.paused ? fmtTime(left) : r.status === 'onhold' || S.paused ? fmtTime(left) + ' ⏸' : '—'}</span><span class="rprog"><i id="rideprog" style="width:${(S.ride.p * 100).toFixed(1)}%"></i></span></div>
+      <div class="grow"></div>
+      <div class="cell"><span class="rkeys">Mouse to look<b>Esc</b>leave</span></div>
+      <div class="cell sep" style="padding:0 4px"><span class="ib" data-act="ridehide" title="Hide the bar (H); H again shows it">${g('s-hide')}</span></div>
+      <div class="cell sep" style="padding:0 6px"><span class="ib x" data-act="rideexit" data-ui="ride-exit" title="Leave the lift (Esc)">✕</span></div>
+    </div>`;
+  }
+  // The chair's restraint bar and arms, in front of the view (the game draws the real chair at LOD0).
+  const chairFg = () => `<svg class="chairfg" viewBox="0 0 1280 720" preserveAspectRatio="none"><g style="fill:#23272c;opacity:.92"><rect x="250" y="604" width="780" height="11" rx="5.5"/><rect x="292" y="604" width="9" height="130" rx="3"/><rect x="979" y="604" width="9" height="130" rx="3"/><rect x="380" y="676" width="520" height="8" rx="4"/></g></svg>`;
+  function applyRide() {
+    if (!S.ride) return;
+    const l = S.lifts.find((x) => x.id === S.ride.id), p = S.ride.p, x = l.a[0] + (l.b[0] - l.a[0]) * p, y = l.a[1] + (l.b[1] - l.a[1]) * p;
+    mapEl.classList.add('ride');
+    // look: the mouse turns the view (± a third of the frame across, a fifth up and down)
+    const ox = Math.max(0, Math.min(1280, x + S.ride.lx * 420)), oy = Math.max(0, Math.min(720, y - 90 + S.ride.ly * 160));
+    mapEl.style.transformOrigin = `${(ox / 12.8).toFixed(2)}% ${(oy / 7.2).toFixed(2)}%`;
+    mapEl.style.transform = 'scale(3.4)';
+  }
+  function rideTick(dt) {
+    if (!S.ride || S.paused) return;
+    const { r, run } = rideState();
+    if (!run || r.status === 'onhold') return;
+    S.ride.p = Math.min(1, S.ride.p + dt * RIDE_MULT[S.speed] / Math.max(30, r.ride));
+    if (S.ride.p >= 1) { exitRide(true); return; }
+    applyRide();
+    const t = document.getElementById('ridetime'), pr = document.getElementById('rideprog');
+    if (t) t.textContent = fmtTime((1 - S.ride.p) * r.ride / RIDE_MULT[Math.max(1, S.speed)]);
+    if (pr) pr.style.width = `${(S.ride.p * 100).toFixed(1)}%`;
   }
   function exitPhoto() {
     if (!S.photo) return;
@@ -4395,6 +4521,16 @@ body.solo .frame { border-radius: 0; }
       case 'afclr': S.af[S.atab].hide[v] = []; break;
       case 'asortd': S.af[S.atab].sort = S.af[S.atab].sort === v ? null : v; break;
       case 'afocus': S.focus = S.focus === v ? null : v; S.drop = null; break;
+      case 'ride': enterRide(v); return;
+      case 'rideexit': exitRide(false); return;
+      case 'ridehide': S.ride.hidden = !S.ride.hidden; break;
+      case 'lsched': { const l = S.lifts.find((x) => x.id === S.focus); if (l) l.sched = v; break; }   // a design edit: undoable in the game
+      case 'lown': { const l = S.lifts.find((x) => x.id === S.focus); if (l) l.hours = v === 'own' ? { ...RESORT_HOURS } : null; break; }
+      case 'lhrs': { const l = S.lifts.find((x) => x.id === S.focus); if (!l || !l.hours) break; const [k, d] = v.split(':'), h = l.hours, q = 0.25;
+        h[k] = Math.max(LIFTS_OPEN, Math.min(LIFTS_CLOSE, h[k] + q * +d));   // a quarter hour a step, inside the resort's day
+        if (h.last <= h.open) { if (k === 'open') h.open = h.last - q; else h.last = h.open + q; }
+        if (h.stop < h.last) { if (k === 'stop') h.stop = h.last; else h.last = h.stop; }
+        break; }
       case 'netlift': S.netLift = S.netLift === v ? null : v; S.netNode = null; S.netSeg = null; S.focus = S.netLift; break;
       case 'netarea': S.netNode = S.netNode === v ? null : v; S.netLift = null; S.netSeg = null; S.focus = S.netNode ? 'area:' + v : null; break;   // NT19
       case 'arearename': S.drop = null; S.modal = { input: true, area: v }; break;
@@ -4751,6 +4887,13 @@ body.solo .frame { border-radius: 0; }
     if ((e.ctrlKey || e.metaKey) && k === 'z' && !S.draft && !S.modal && S.liftUndo.length) { e.preventDefault(); liftUndoLast(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (S.modal && k !== 'escape') return;   // a window is open: only Esc, which closes it
+    if (S.ride) {   // riding: Esc leaves, H hides the bar, Space pauses; everything else waits until you leave
+      if (k === 'escape') exitRide(false);
+      else if (k === 'h') { S.ride.hidden = !S.ride.hidden; render(); }
+      else if (k === ' ') { e.preventDefault(); S.paused = !S.paused; render(); }
+      return;
+    }
+    if (k === 'r' && S.focus && S.lifts.some((l) => l.id === S.focus && l.built)) { enterRide(S.focus); return; }
     if (S.photo) {   // photo mode's keys; everything else waits until you leave
       if (k === 'escape' || k === 'p') exitPhoto();
       else if (k === ' ' || k === 'f12') { e.preventDefault(); capture(); }
@@ -4821,8 +4964,9 @@ body.solo .frame { border-radius: 0; }
       autosaved();
       log('<span>Autosaved</span>', '#8fcf8a', true);
     }
+    rideTick(dt);
     acc += dt;
-    if (acc > 0.2) { acc = 0; updateBar(); }
+    if (acc > 0.2) { acc = 0; if (!S.ride) updateBar(); }
     requestAnimationFrame(tick);
   }
   // Refresh only the bar's live parts between full renders, so hovering and open panels don't flicker.
@@ -4847,6 +4991,21 @@ body.solo .frame { border-radius: 0; }
     }
     if (S.analysis) set('anabody', analysisBody());
   }
+  // Ride a lift: the mouse looks round from the seat.
+  stage.addEventListener('mousemove', (e) => { if (!S.ride) return; const b = stage.getBoundingClientRect(); S.ride.lx = (e.clientX - b.left) / b.width - 0.5; S.ride.ly = (e.clientY - b.top) / b.height - 0.5; applyRide(); });
+  document.getElementById('ridevariants').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-ride]'); if (!b) return;
+    const v = b.dataset.ride, l = S.lifts.find((x) => x.id === 'l2');
+    if (S.photo) exitPhoto();
+    l.hold = v === 'hold'; l.sched = v === 'closed' ? 'peak' : l.sched === 'peak' ? 'daily' : l.sched;
+    if (v === 'closed' && isPeakDay()) S.day += 7 - (S.day % 7);   // a weekday, so Peak days only parks it
+    if (v === 'card') { if (S.ride) exitRide(false); S.focus = 'l2'; render(); return; }
+    if (S.t / 3600 < LIFTS_OPEN || S.t / 3600 >= LAST_CHAIR) S.t = 11 * 3600;
+    if (!S.ride || S.ride.id !== 'l2') enterRide('l2');
+    S.ride.p = v === 'top' ? 0.985 : v === 'closed' ? 0.04 : Math.max(0.2, Math.min(0.6, S.ride.p));
+    if (v === 'top') S.paused = false;
+    render();
+  });
   const variants = document.getElementById('variants');
   const syncVariants = () => variants.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.style === S.statusStyle));
   variants.addEventListener('click', (e) => { const b = e.target.closest('button[data-style]'); if (!b) return; S.statusStyle = b.dataset.style; syncVariants(); render(); });
@@ -4903,6 +5062,9 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('finseason')) S.finScale = 'season';
     const hv = d.find((x) => /^hov\d+$/.test(x)); if (hv) chartHover = (S.atab === 'finances' ? `fin:${S.finScale}:` : S.atab === 'weather' ? 'wx:' : 'ov:') + hv.slice(3);
     for (const x of d) { const m = x.match(/^(row|focus)([lt]\d+)$/); if (m) { if (m[1] === 'row') S.rowHover = m[2]; else S.focus = m[2]; } }
+    // ride (task 4.11 PR B): riding Aspen Quad at 11:00; ridehold the same on a wind hold; liftcard its card with its own hours.
+    if (d.includes('liftcard')) { const l = S.lifts.find((x) => x.id === 'l2'); if (l) { l.hours = { open: 9, last: 15.75, stop: 16 }; S.focus = 'l2'; S.t = 11 * 3600; } }
+    if (d.includes('ride') || d.includes('ridehold')) { S.t = 11 * 3600; const l = S.lifts.find((x) => x.id === 'l2'); if (l) { l.hold = d.includes('ridehold'); setTimeout(() => { enterRide('l2'); S.ride.p = 0.35; render(); }, 0); } }
     // net (task P3-10): two more lifts: Moose Double, whose run reaches Timberline by a path, and Teton Double with no
     // trail yet (no way down); Catwalk leaves Cornice and crosses Bighorn (junctions); Cornice already leads nowhere. netpick picks Moose Double in Analysis › Network.
     if (['net', 'netpick', 'netpicktrail', 'netcard', 'netnode', 'netseg'].some((x) => d.includes(x))) {

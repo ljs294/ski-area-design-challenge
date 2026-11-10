@@ -27,7 +27,9 @@ namespace MountainPlanner.Tests
         // Shape 11 (task 4.21, TD-07): each trail's and shaped trail's posted byte, the scripted trails posted ■; from b4e85694….
         // Shape 12 (task 4.03, owner 2026-11-08: LO-07 v2, LO-09): the resort's hours and each lift's schedule and own hours,
         // all at their defaults here; from 9992c612….
-        const string GoldenSha = "be70d92ad3271e90499de259d16937336ace32cf3c6faa3b1213b6eeff472091";
+        // Shape 13 (task 4.11 PR B, owner 2026-11-08; save v13 cleared by the coordinator): each lift's plate, the scripted
+        // lifts taking 1, 2 … as they're built; from be70d92a….
+        const string GoldenSha = "a4b01100d7adbc07b7298df279d950ff1b62718c19cf98155111c0e2c48380fe";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()
@@ -80,7 +82,7 @@ namespace MountainPlanner.Tests
             AssertProperties(typeof(FootprintPart), "Strokes", "Cuts");
             AssertProperties(typeof(Stroke), "WidthMm", "Erase", "Points");
             AssertProperties(typeof(Lift), "Id", "Name", "Stage", "CatalogId", "Bottom", "Top", "TowerMode", "Stance", "Towers",
-                "Levels", "Drive", "Schedule", "Hours", "LengthSquaredMm", "LengthMetres");
+                "Levels", "Drive", "Schedule", "Hours", "Plate", "LengthSquaredMm", "LengthMetres");
             AssertFields(typeof(LiftLevels), "BottomMm", "TopMm");
             AssertFields(typeof(DayHours), "OpenSecond", "LastChairSecond", "StopSecond");   // shape 11 (LO-07 v2, LO-09)
             AssertFields(typeof(Tower), "Id", "AlongMm", "HeightMm", "Kind");
@@ -89,7 +91,7 @@ namespace MountainPlanner.Tests
             AssertProperties(typeof(TerrainStroke), "Id", "Settings", "Dabs");
             AssertFields(typeof(BrushSettings), "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm", "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm");
             AssertFields(typeof(BrushDab), "At", "WeightPermille");
-            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(12));   // 11: TD-07, posted ratings (4.21); 12: the hours (4.03)
+            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(13));   // 11: TD-07, posted ratings (4.21); 12: the hours (4.03); 13: lift plates (4.11)
         }
 
         static void AssertProperties(Type type, params string[] names)

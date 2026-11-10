@@ -38,14 +38,11 @@ namespace MountainPlanner.Simulation
         int[] _feedPerMin = Array.Empty<int>();
         long[] _feedAcc = Array.Empty<long>();
         int[] _aboard = Array.Empty<int>();
-        // the line (LO-02): a ring of MaxLine per lift
-        long[] _lineJoin = Array.Empty<long>();
-        int[] _lineSkier = Array.Empty<int>();
-        int[] _lineHead = Array.Empty<int>(), _lineCount = Array.Empty<int>();
-        // hidden riders (LO-06): a ring of MaxLine per lift, released by the rope's run time
-        long[] _rideExit = Array.Empty<long>();
-        int[] _rideSkier = Array.Empty<int>();
-        int[] _rideHead = Array.Empty<int>(), _rideCount = Array.Empty<int>();
+        // The line (LO-02) and the hidden riders (LO-06) are **lists over skier slots**, not rings of their own: the head
+        // and tail per lift, and the chain in GuestColumns.LineNext / RideNext. So a line is bounded only by the skier cap
+        // (a base quad on a holiday wants thousands), costs nothing per lift, and a dump is a walk of the chain.
+        int[] _lineFirst = Array.Empty<int>(), _lineLast = Array.Empty<int>(), _lineCount = Array.Empty<int>();
+        int[] _rideFirst = Array.Empty<int>(), _rideLast = Array.Empty<int>(), _rideCount = Array.Empty<int>();
         // the carriers' riders (LO-05): one byte per carrier slot in flight on the way up
         byte[] _occ = Array.Empty<byte>();
         int[] _occOffset = Array.Empty<int>(), _occSlots = Array.Empty<int>();
@@ -73,12 +70,11 @@ namespace MountainPlanner.Simulation
         /// <summary>Carries each lift's operations over by ID into a new design's arrays (SI-20).</summary>
         void FoldLiftOps(ulong[] oldIds, int oldCount, ulong[] ids, int n)
         {
-            int cap = Pacing.MaxLine;
             var interval = new int[n];
             var downloading = new byte[n]; var wayDown = new byte[n];
             var calm = new long[n]; var gust = new int[n]; var feed = new int[n]; var acc = new long[n]; var aboard = new int[n];
-            var lineJoin = new long[n * cap]; var lineSkier = new int[n * cap]; var lineHead = new int[n]; var lineCount = new int[n];
-            var rideExit = new long[n * cap]; var rideSkier = new int[n * cap]; var rideHead = new int[n]; var rideCount = new int[n];
+            var lineFirst = new int[n]; var lineLast = new int[n]; var lineCount = new int[n];
+            var rideFirst = new int[n]; var rideLast = new int[n]; var rideCount = new int[n];
             var occOffset = new int[n]; var occSlots = new int[n];
             var rides = new int[n]; var peak = new int[n]; var waitCount = new int[n]; var left = new int[n]; var released = new int[n];
             var waitTicks = new long[n]; var holdMs = new long[n];
@@ -97,34 +93,29 @@ namespace MountainPlanner.Simulation
             {
                 calm[i] = -1;
                 wayDown[i] = 1;
+                lineFirst[i] = -1; lineLast[i] = -1; rideFirst[i] = -1; rideLast[i] = -1;
                 int was = Array.BinarySearch(oldIds, 0, oldCount, ids[i]);
                 if (was < 0 || was >= _intervalMs.Length) continue;
                 downloading[i] = _downloading[was]; wayDown[i] = _wayDown[was];
                 calm[i] = _calmSince[was]; gust[i] = _weatherGustMph[was]; feed[i] = _feedPerMin[was]; acc[i] = _feedAcc[was];
                 rides[i] = _rides[was]; peak[i] = _peakLine[was]; waitCount[i] = _waitCount[was]; left[i] = _leftInLine[was];
                 released[i] = _released[was]; waitTicks[i] = _waitTicks[was]; holdMs[i] = _holdFaceMs[was];
-                // The line and the riders keep their order; a lift whose interval changed keeps them too (they ride the new one).
-                lineCount[i] = _lineCount[was];
-                for (int k = 0; k < lineCount[i]; k++)
-                {
-                    int from = was * cap + (_lineHead[was] + k) % cap;
-                    lineJoin[i * cap + k] = _lineJoin[from]; lineSkier[i * cap + k] = _lineSkier[from];
-                }
-                rideCount[i] = _rideCount[was];
-                for (int k = 0; k < rideCount[i]; k++)
-                {
-                    int from = was * cap + (_rideHead[was] + k) % cap;
-                    rideExit[i * cap + k] = _rideExit[from]; rideSkier[i * cap + k] = _rideSkier[from];
-                }
+                // The line and the riders are chains over skier slots, so they carry over by moving their heads: nothing
+                // is copied and no skier changes place. A lift whose interval changed keeps them (they ride the new one).
+                lineFirst[i] = _lineFirst[was]; lineLast[i] = _lineLast[was]; lineCount[i] = _lineCount[was];
+                rideFirst[i] = _rideFirst[was]; rideLast[i] = _rideLast[was]; rideCount[i] = _rideCount[was];
                 if (_occSlots[was] == occSlots[i] && _intervalMs[was] == interval[i])
                 {
                     Buffer.BlockCopy(_occ, _occOffset[was], occ, occOffset[i], occSlots[i]);
                     aboard[i] = _aboard[was];
                 }
             }
+            // SI-13: a lift that is gone takes no one with it — its line chooses again and its riders step off at its
+            // bottom. The guests row is told before this fold runs (FoldGuestsForDesign), so every chain here is live.
             _intervalMs = interval; _downloading = downloading; _wayDown = wayDown; _calmSince = calm; _weatherGustMph = gust; _feedPerMin = feed; _feedAcc = acc;
-            _aboard = aboard; _lineJoin = lineJoin; _lineSkier = lineSkier; _lineHead = lineHead; _lineCount = lineCount;
-            _rideExit = rideExit; _rideSkier = rideSkier; _rideHead = rideHead; _rideCount = rideCount;
+            _aboard = aboard;
+            _lineFirst = lineFirst; _lineLast = lineLast; _lineCount = lineCount;
+            _rideFirst = rideFirst; _rideLast = rideLast; _rideCount = rideCount;
             _occ = occ; _occOffset = occOffset; _occSlots = occSlots;
             _rides = rides; _peakLine = peak; _waitCount = waitCount; _leftInLine = left; _released = released; _waitTicks = waitTicks; _holdFaceMs = holdMs;
             _lOpen = new int[n]; _lLast = new int[n]; _lStop = new int[n];
@@ -204,7 +195,8 @@ namespace MountainPlanner.Simulation
                     {
                         _downloading[i] = 1;
                         _leftInLine[i] += _lineCount[i];
-                        _lineCount[i] = 0; _lineHead[i] = 0;
+                        while (_lineCount[i] > 0) DumpFromLine(i, PopLine(i));
+                        GuestBoardChanged();
                         Events.Add(Tick, SimEventType.LiftDownloading, i, (long)_liftIds[i]);
                     }
                     into[i] = 1;
@@ -340,35 +332,122 @@ namespace MountainPlanner.Simulation
                 _aboard[i] -= _occ[slot];   // a slot's carrier is long gone by the time it comes round (the ring is sized for it)
                 _occ[slot] = 0;
                 if (!boarding) continue;
-                int board = Math.Min(lift.Seats, Math.Min(_lineCount[i], Pacing.MaxLine - _rideCount[i]));
-                long exit = ExitRun(lift, d * iv, iv);
-                for (int k = 0; k < board; k++)
-                {
-                    int at = i * Pacing.MaxLine + _lineHead[i];
-                    long joined = _lineJoin[at];
-                    int skier = _lineSkier[at];
-                    _lineHead[i] = (_lineHead[i] + 1) % Pacing.MaxLine;
-                    _lineCount[i]--;
-                    _waitTicks[i] += Tick - joined;
-                    _waitCount[i]++;
-                    int r = i * Pacing.MaxLine + (_rideHead[i] + _rideCount[i]) % Pacing.MaxLine;
-                    _rideExit[r] = exit;
-                    _rideSkier[r] = skier;
-                    _rideCount[i]++;
-                }
-                if (_lineCount[i] == 0) _lineHead[i] = 0;
+                int board = BoardCarrier(i, lift.Seats, ExitRun(lift, d * iv, iv));
                 _occ[slot] = (byte)board;
                 _aboard[i] += board;
                 _rides[i] += board;
             }
-            // LO-06: hidden riders step off at the top.
-            while (_rideCount[i] > 0 && _rideExit[i * Pacing.MaxLine + _rideHead[i]] <= after)
+            // LO-06: hidden riders step off at the top, oldest first, and go to the guests row (which runs after this one).
+            while (_rideCount[i] > 0 && _guests.RideExitRunMs[_rideFirst[i]] <= after)
             {
-                _rideHead[i] = (_rideHead[i] + 1) % Pacing.MaxLine;
-                _rideCount[i]--;
+                int s = PopRide(i);
                 _released[i]++;
+                ReleaseRider(i, s);
             }
-            if (_rideCount[i] == 0) _rideHead[i] = 0;
+        }
+
+        /// <summary>
+        /// LO-02: one carrier loads from the front of the line. A party boards whole when it fits, so a family rides
+        /// together; a party too big for any carrier (four on a double, anyone on a T-bar) goes in carrier-sized groups on
+        /// consecutive carriers and gathers again at the top. When the front party is too big for the seats *left*, the
+        /// singles behind it fill them rather than the carrier going up half empty. Returns how many boarded.
+        /// </summary>
+        int BoardCarrier(int i, int seats, long exitRun)
+        {
+            int room = seats, boarded = 0;
+            while (room > 0 && _lineCount[i] > 0)
+            {
+                int front = _lineFirst[i];
+                int size = PartyInLine(i, front);
+                if (size > room && size <= seats) break;       // it waits for a carrier of its own; the singles pass fills in
+                int take = size <= room ? size : room;         // a party bigger than the carrier splits across carriers
+                for (int k = 0; k < take; k++) { BoardOne(i, PopLine(i), exitRun); boarded++; }
+                room -= take;
+            }
+            // LO-02: the seats a waiting party can't use go to the singles behind it, within a bounded look down the line.
+            // The walk steps party by party, so it never boards a member out of the middle of one.
+            int prev = -1, s = _lineFirst[i], steps = 0, limit = 4 * seats;
+            while (room > 0 && s >= 0 && steps < limit)
+            {
+                int size = PartyInLine(i, s);
+                if (size == 1)
+                {
+                    int next = _guests.LineNext[s];
+                    RemoveFromLine(i, prev, s);
+                    BoardOne(i, s, exitRun);
+                    boarded++; room--;
+                    s = next; steps++;
+                }
+                else for (int k = 0; k < size && s >= 0; k++) { prev = s; s = _guests.LineNext[s]; steps++; }
+            }
+            return boarded;
+        }
+
+        /// <summary>How many of <paramref name="s"/>'s party stand together at this point in the line (one to four).</summary>
+        int PartyInLine(int i, int s)
+        {
+            int lead = _guests.Lead[s], n = 0;
+            for (int k = s; k >= 0 && _guests.Lead[k] == lead; k = _guests.LineNext[k]) n++;
+            return n;
+        }
+
+        void BoardOne(int i, int s, long exitRun)
+        {
+            _waitTicks[i] += Tick - _guests.JoinTick[s];
+            _waitCount[i]++;
+            _guests.RideExitRunMs[s] = exitRun;
+            _guests.State[s] = (byte)GuestState.Riding;
+            _guests.EntryTick[s] = Tick;
+            PushRide(i, s);
+            OnBoarded(i, s);
+        }
+
+        // ---- the line and the ride, as lists over skier slots ----
+
+        void PushLine(int i, int s)
+        {
+            _guests.LineNext[s] = -1;
+            if (_lineFirst[i] < 0) _lineFirst[i] = s; else _guests.LineNext[_lineLast[i]] = s;
+            _lineLast[i] = s;
+            _lineCount[i]++;
+            if (_lineCount[i] > _peakLine[i]) _peakLine[i] = _lineCount[i];
+        }
+
+        int PopLine(int i)
+        {
+            int s = _lineFirst[i];
+            _lineFirst[i] = _guests.LineNext[s];
+            if (_lineFirst[i] < 0) _lineLast[i] = -1;
+            _guests.LineNext[s] = -1;
+            _lineCount[i]--;
+            return s;
+        }
+
+        void RemoveFromLine(int i, int prev, int s)
+        {
+            int next = _guests.LineNext[s];
+            if (prev < 0) _lineFirst[i] = next; else _guests.LineNext[prev] = next;
+            if (_lineLast[i] == s) _lineLast[i] = prev;
+            _guests.LineNext[s] = -1;
+            _lineCount[i]--;
+        }
+
+        void PushRide(int i, int s)
+        {
+            _guests.RideNext[s] = -1;
+            if (_rideFirst[i] < 0) _rideFirst[i] = s; else _guests.RideNext[_rideLast[i]] = s;
+            _rideLast[i] = s;
+            _rideCount[i]++;
+        }
+
+        int PopRide(int i)
+        {
+            int s = _rideFirst[i];
+            _rideFirst[i] = _guests.RideNext[s];
+            if (_rideFirst[i] < 0) _rideLast[i] = -1;
+            _guests.RideNext[s] = -1;
+            _rideCount[i]--;
+            return s;
         }
 
         /// <summary>
@@ -385,13 +464,15 @@ namespace MountainPlanner.Simulation
             return k * iv + phase;
         }
 
-        /// <summary>LO-07: past the lift's stop the line leaves (counted) and riders still up step off; the chairs come in empty.</summary>
+        /// <summary>
+        /// LO-07: past the lift's stop the line leaves (counted) and riders still up step off; the chairs come in empty.
+        /// Nobody is dropped: every skier goes to the guests row, which sends it home or has it choose again (GU-11).
+        /// </summary>
         void CloseOut(int i)
         {
             _leftInLine[i] += _lineCount[i];
-            _released[i] += _rideCount[i];
-            _lineCount[i] = 0; _lineHead[i] = 0;
-            _rideCount[i] = 0; _rideHead[i] = 0;
+            while (_lineCount[i] > 0) DumpFromLine(i, PopLine(i));
+            while (_rideCount[i] > 0) { _released[i]++; ReleaseRider(i, PopRide(i)); }
             Array.Clear(_occ, _occOffset[i], _occSlots[i]);
             _aboard[i] = 0;
         }
@@ -405,19 +486,34 @@ namespace MountainPlanner.Simulation
             while (_feedAcc[i] >= 60_000)
             {
                 _feedAcc[i] -= 60_000;
-                Join(i, -1);
+                if (!JoinFeeder(i)) break;
             }
         }
 
-        /// <summary>LO-02: a skier joins the back of the line (false when it's full).</summary>
+        /// <summary>
+        /// LO-13: a scripted skier joins the line. It takes a real skier slot marked
+        /// <see cref="GuestColumns.FeederArch"/>, so the line, the boarding and the ride are the ones guests use, but the
+        /// guests row leaves it alone: it rides, steps off and vanishes, and it is in no ledger of the crowd.
+        /// </summary>
+        internal bool JoinFeeder(int i)
+        {
+            int s = _guests.Take();
+            if (s < 0) return false;
+            _guests.Arch[s] = GuestColumns.FeederArch;
+            _guests.Band[s] = 0;
+            _guests.Node[s] = Design.Lifts[i].BottomNode;
+            Join(i, s);
+            return true;
+        }
+
+        /// <summary>LO-02: a skier joins the back of the line. The line is a chain over slots, so it is never full.</summary>
         internal bool Join(int i, int skier)
         {
-            if (_lineCount[i] == Pacing.MaxLine) return false;
-            int at = i * Pacing.MaxLine + (_lineHead[i] + _lineCount[i]) % Pacing.MaxLine;
-            _lineJoin[at] = Tick;
-            _lineSkier[at] = skier;
-            _lineCount[i]++;
-            if (_lineCount[i] > _peakLine[i]) _peakLine[i] = _lineCount[i];
+            _guests.JoinTick[skier] = Tick;
+            _guests.State[skier] = (byte)GuestState.Queued;
+            _guests.Lift[skier] = i;
+            _guests.Edge[skier] = -1;
+            PushLine(i, skier);
             return true;
         }
 
@@ -508,7 +604,7 @@ namespace MountainPlanner.Simulation
                     _feedAcc[i] = 0;
                     long sod = FaceMs % DayMs;
                     if (f.Add > 0 && LineJoinable(i, sod))
-                        for (int k = 0; k < f.Add; k++) if (!Join(i, -1)) break;
+                        for (int k = 0; k < f.Add; k++) if (!JoinFeeder(i)) break;
                     return true;
                 }
                 default:
@@ -634,17 +730,9 @@ namespace MountainPlanner.Simulation
                 h.Add(_weatherGustMph[i]); h.Add(_downloading[i]); h.Add(_wayDown[i]); h.Add(_calmSince[i]); h.Add(_feedPerMin[i]); h.Add(_feedAcc[i]); h.Add(_aboard[i]);
                 h.Add(_rides[i]); h.Add(_peakLine[i]); h.Add(_waitTicks[i]); h.Add(_waitCount[i]); h.Add(_holdFaceMs[i]); h.Add(_leftInLine[i]); h.Add(_released[i]);
                 h.Add(_lineCount[i]);
-                for (int k = 0; k < _lineCount[i]; k++)
-                {
-                    int at = i * Pacing.MaxLine + (_lineHead[i] + k) % Pacing.MaxLine;
-                    h.Add(_lineJoin[at]); h.Add(_lineSkier[at]);
-                }
+                for (int s = _lineFirst[i]; s >= 0; s = _guests.LineNext[s]) h.Add(s);
                 h.Add(_rideCount[i]);
-                for (int k = 0; k < _rideCount[i]; k++)
-                {
-                    int at = i * Pacing.MaxLine + (_rideHead[i] + k) % Pacing.MaxLine;
-                    h.Add(_rideExit[at]); h.Add(_rideSkier[at]);
-                }
+                for (int s = _rideFirst[i]; s >= 0; s = _guests.RideNext[s]) h.Add(s);
                 for (int k = 0; k < _occSlots[i]; k++) h.Add(_occ[_occOffset[i] + k]);
             }
             for (int k = 0; k < _trailReached.Length; k++) h.Add(_trailReached[k]);
@@ -660,18 +748,10 @@ namespace MountainPlanner.Simulation
             {
                 o.I32(_weatherGustMph[i]); o.U8(_downloading[i]); o.U8(_wayDown[i]); o.I64(_calmSince[i]); o.I32(_feedPerMin[i]); o.I64(_feedAcc[i]); o.I32(_aboard[i]);
                 o.I32(_rides[i]); o.I32(_peakLine[i]); o.I64(_waitTicks[i]); o.I32(_waitCount[i]); o.I64(_holdFaceMs[i]); o.I32(_leftInLine[i]); o.I32(_released[i]);
-                o.I32(_lineCount[i]);
-                for (int k = 0; k < _lineCount[i]; k++)
-                {
-                    int at = i * Pacing.MaxLine + (_lineHead[i] + k) % Pacing.MaxLine;
-                    o.I64(_lineJoin[at]); o.I32(_lineSkier[at]);
-                }
-                o.I32(_rideCount[i]);
-                for (int k = 0; k < _rideCount[i]; k++)
-                {
-                    int at = i * Pacing.MaxLine + (_rideHead[i] + k) % Pacing.MaxLine;
-                    o.I64(_rideExit[at]); o.I32(_rideSkier[at]);
-                }
+                // The line and the riders are chains over skier slots, so the block holds only their ends: the chain
+                // itself, the join tick and the step-off time are the skiers' own columns, which the guest block saves.
+                o.I32(_lineCount[i]); o.I32(_lineFirst[i]); o.I32(_lineLast[i]);
+                o.I32(_rideCount[i]); o.I32(_rideFirst[i]); o.I32(_rideLast[i]);
                 o.I32(_occSlots[i]);
                 for (int k = 0; k < _occSlots[i]; k++) o.U8(_occ[_occOffset[i] + k]);
             }
@@ -685,8 +765,16 @@ namespace MountainPlanner.Simulation
             for (int k = 0; k < _trailReached.Length; k++) o.U8(_trailReached[k]);
         }
 
-        /// <summary>Reads v2's block over arrays <see cref="FoldLiftOps"/> just sized for the saved lifts.</summary>
-        void ReadLiftState(SidecarReader r)
+        /// <summary>
+        /// Reads the lift-operations block over arrays <see cref="FoldLiftOps"/> just sized for the saved lifts.
+        ///
+        /// **The v2 and v3 migration.** Those versions wrote each queued skier as (join tick, skier id) and each rider as
+        /// (step-off time, skier id), because a line was a ring of its own. From v4 a line is a chain over skier slots,
+        /// and the times live in the skier's columns, so the old pairs are read and let go: such a save opens with its
+        /// lines and chairs empty, exactly as a v1 save did when v2 added them. Everything else — the day's lift ledger,
+        /// the holds, the carriers, the way down — comes back.
+        /// </summary>
+        void ReadLiftState(SidecarReader r, int sidecarVersion)
         {
             _gustOverrideMph = r.I32();
             if (_gustOverrideMph < -1 || _gustOverrideMph > 500) throw new InvalidDataException("The gust override is out of range.");
@@ -700,12 +788,25 @@ namespace MountainPlanner.Simulation
                 _calmSince[i] = r.I64(); _feedPerMin[i] = r.I32(); _feedAcc[i] = r.I64(); _aboard[i] = r.I32();
                 _rides[i] = r.I32(); _peakLine[i] = r.I32(); _waitTicks[i] = r.I64(); _waitCount[i] = r.I32(); _holdFaceMs[i] = r.I64();
                 _leftInLine[i] = r.I32(); _released[i] = r.I32();
-                _lineHead[i] = 0;
-                _lineCount[i] = r.Count(Pacing.MaxLine);
-                for (int k = 0; k < _lineCount[i]; k++) { _lineJoin[i * Pacing.MaxLine + k] = r.I64(); _lineSkier[i * Pacing.MaxLine + k] = r.I32(); }
-                _rideHead[i] = 0;
-                _rideCount[i] = r.Count(Pacing.MaxLine);
-                for (int k = 0; k < _rideCount[i]; k++) { _rideExit[i * Pacing.MaxLine + k] = r.I64(); _rideSkier[i * Pacing.MaxLine + k] = r.I32(); }
+                _lineFirst[i] = _lineLast[i] = -1;
+                _rideFirst[i] = _rideLast[i] = -1;
+                if (sidecarVersion < 4)
+                {
+                    int oldLine = r.Count(1 << 16);
+                    for (int k = 0; k < oldLine; k++) { r.I64(); r.I32(); }
+                    int oldRiding = r.Count(1 << 16);
+                    for (int k = 0; k < oldRiding; k++) { r.I64(); r.I32(); }
+                    _lineCount[i] = 0; _rideCount[i] = 0;
+                    _leftInLine[i] += oldLine;
+                    _released[i] += oldRiding;
+                }
+                else
+                {
+                    _lineCount[i] = r.Count(Pacing.SkierCap);
+                    _lineFirst[i] = r.SlotOrNone(Pacing.SkierCap); _lineLast[i] = r.SlotOrNone(Pacing.SkierCap);
+                    _rideCount[i] = r.Count(Pacing.SkierCap);
+                    _rideFirst[i] = r.SlotOrNone(Pacing.SkierCap); _rideLast[i] = r.SlotOrNone(Pacing.SkierCap);
+                }
                 int slots = r.Count(1 << 16);
                 if (slots != _occSlots[i]) throw new InvalidDataException("A lift's carriers don't match its design.");
                 for (int k = 0; k < slots; k++) _occ[_occOffset[i] + k] = r.U8();

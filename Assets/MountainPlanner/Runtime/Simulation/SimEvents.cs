@@ -49,6 +49,26 @@ namespace MountainPlanner.Simulation
         LiftResumed = 21,
         /// <summary>LO-10: a lift lost its way down mid-day and downloads. Entity: the lift's index; value: its ID.</summary>
         LiftDownloading = 22,
+        /// <summary>GU-06: a party reached the mountain (the entity is its lead, the value its size, the detail its archetype).</summary>
+        SkierArrived = 23,
+        /// <summary>GU-06: a skier gave up on a line and went home (the value is its serial).</summary>
+        SkierWentHome = 24,
+        /// <summary>GU-11: a trail closed under a skier and it finished on the natural ground.</summary>
+        SkierStranded = 25,
+        /// <summary>GU-08: a party turned away from a long line to another lift (the value is the wait in seconds).</summary>
+        SkierBalked = 26,
+        /// <summary>
+        /// GU-13 v2: the selected skier's satisfaction moved (the detail is the reason, the value thousandths). Only the
+        /// selected skier's deltas go in the ring; the day's sums per archetype and reason are the ledger, so a crowded
+        /// mountain never floods it.
+        /// </summary>
+        SatisfactionDelta = 27,
+        /// <summary>GU-12: the hill was cleared at the stop (the value is how many were still out).</summary>
+        SkiersLeftAtStop = 28,
+        /// <summary>GU-03: the day's demand was worked out at the landing (the value is the whole of it).</summary>
+        DayDemand = 29,
+        /// <summary>GU-06: a skier finished its stay and went home happy or otherwise (the value is its serial).</summary>
+        SkierLeft = 30,
     }
 
     /// <summary>Why a command was turned away (an event's Detail). Stable numbers.</summary>

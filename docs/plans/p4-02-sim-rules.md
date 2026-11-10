@@ -540,15 +540,15 @@ the chairs carry **decorative riders** (LO-05).
 - **LO-11 v1, wind holds (OQ1, taken as recommended).** Per type, a lift goes on hold when the hour's gust at its top
   station × a keyed per-lift factor (1 ± `Pacing.GustJitter = 0.1`) exceeds the lift's limit, checked at a
   keyed tick offset within the hour per lift (so two lifts of a type don't stop in the same frame), and resumes when
-  the gust has been 10 mph below it for a full face hour (hysteresis; v2 below: half an hour).
+  the gust has been 10 mph below it for a full face hour (hysteresis; v2 below: ten minutes).
   On hold the rope stops (RP-07 v2: a chair's position is a pure function of the rope's travel, which pauses), the line
   waits, riders in the air wait, and an alert fires (TM-12). Maintenance downtime is Later.
   **v2 (owner 2026-11-08, task 4.11):** the limit depends on the type and the carrier's size. Tows, T-bars, J-bars and
   carpets never hold; a fixed grip holds later than a detachable of the same size; a bigger, heavier carrier holds
   later than a smaller one. Limit = `Pacing.HoldGustMph[type]` + `Pacing.HoldGustPerSeatTenths[type]` × seats ÷ 10:
   fixed-grip double 40 mph, triple 43, quad 46; detachable quad 35, six 38, eight 41; gondolas 45; trams 55.
-  A held lift reads the gust every 15 face minutes (`Pacing.HoldRecheckFaceMinutes`), not hourly, and resumes after
-  the gust has been 10 mph below its limit for half a face hour (`Pacing.HoldResumeFaceMinutes = 30`; owner: holds
+  A held lift reads the gust every 5 face minutes (`Pacing.HoldRecheckFaceMinutes`), not hourly, and resumes after
+  the gust has been 10 mph below its limit for ten face minutes (`Pacing.HoldResumeFaceMinutes = 10`; owner: holds
   ended too slowly).
 - **LO-12, the day ledger per lift.** Rides, **utilisation** (rides ÷ (12 min × 60 ÷ interval × seats), the figure
   the player compares, since 2,400 pph beside 480 rides invites a division nobody should do), peak line, mean wait,
@@ -556,6 +556,17 @@ the chairs carry **decorative riders** (LO-05).
   and the later economy.
 - **LO-13, the throughput golden.** A scripted feeder (no guests) joining a quad's line at 20 a minute for a face
   hour gives 2,400 rides and a line that never exceeds 40; 300 queued at once gives a 7:30 wait at 1×.
+- **LO-14, plates (task 4.11 PR B, owner 2026-11-08; save v13, design shape 13).** A lift may wear a plate beside its
+  name: one to three letters or digits, unique among the lifts that have one (letters compared without case). Plates are
+  optional: a new lift and an older save's lifts have none. The player adds, changes or removes it on the card like the
+  name (one undo step; an empty field removes it), where a lift with none shows a faint "#" chip to add one. The plate
+  leads the name on the card, the Lifts list, the ride bar and the map label; a lift without one shows its name alone.
+- **LO-15, ride a lift (task 4.11 PR B, owner 2026-11-08).** Display only: the card's Ride puts the camera on the next
+  carrier to leave the bottom, every built type (a chair or gondola in its seat, a tow standing on the snow under the bar,
+  a carpet standing on the belt), moving with the rope as drawn, so a hold stops it and a pause freezes it. The mouse looks
+  about the seat, first person, the pointer locked and hidden; Esc leaves to the camera as it was; at the top the rider gets off by themself, to the top station with
+  the card open. No riders are drawn and no skier boards. The card also shows the hold as one figure (LO-11 v2) and
+  Today: on hold now, holds likely (4.05's forecast; until then the F1 gust) or none expected.
 
 ## 7. GU · Guests v1
 
@@ -687,6 +698,71 @@ the chairs carry **decorative riders** (LO-05).
   at **(newest tick − 1) × the preset's real tick**, interpolating skier progress from entry/exit ticks and rope
   travel between the two; it never extrapolates past the newest snapshot. A hold eases the rope over 0.5 s on screen;
   the simulation's travel stops at once. The same record carries the 3D skiers on snow later (LO-06).
+
+### 7.1 As task 4.12 built them (2026-11-09)
+
+Where the code had to depart from §7 as written, it is written down here rather than left for the next reader to find.
+Each was approved with the task's plan.
+
+- **GU-02's selected skier rides in the snapshot, not the ring.** A record of 48 segments is about 600 B and an event is
+  24 B, so `InspectSkier` publishes that one skier's record as a block of the snapshot, at most every
+  `Pacing.InspectTicks`. The other skiers' records never leave the worker, which is what GU-02 is for. `InspectSkier` is
+  stamped from its own view sequence, so selecting a skier leaves the state hash alone and a test proves it. The block
+  is re-read from the columns at that interval but **carried in every snapshot**: a snapshot is cleared before it is
+  filled and the screen reads whichever one is newest, so publishing it only on the tick it was re-read left the panel
+  saying "nobody" nine readings out of ten. `InspectSkier` with **−1** means "whoever is next" and the worker picks,
+  because only it knows which serials are on the hill: the render column carries serials cut to 16 bits for the dots,
+  and after about 65,000 visits a guess taken from there names the wrong skier or none.
+- **GU-16's render records are their own buffer, beside the snapshot.** SI-16 put them inside it, but 3,000 skiers are
+  48 KB on top of the snapshot's existing 41 KB, and 30,000 are 480 KB: it never fitted. `SkierRenderBuffers` is a triple
+  buffer of packed 16 B records (segment, entry and exit tick, lane, state, band, serial), published by a pointer swap
+  once a tick; the snapshot carries its tick and count. 4.13 reads the array in place. Queued and riding skiers are in it,
+  because LO-02's line and LO-06's ride have to be drawn too.
+- **SI-18 and satisfaction at scale.** A per-skier `SatisfactionDelta` for every lap would be hundreds of events a tick
+  against a ring of 4,096 and a snapshot of 512, so the reader would miss most of them. The day's **sums** per archetype
+  and per reason are the ledger (saved and hashed), and the ring carries the deltas of the selected skier only. The
+  closing sweep is one `SkiersLeftAtStop` event, not one per skier. This is the one place a ledger is not a consumer of
+  the ring; everything a player can act on is still named, by `SatisfactionReason`.
+- **GU-03's cap is on the hill, not on the day.** GU-01 caps the skiers *on the hill at once*; capping the day's demand
+  would have halved it, because a stay is three to five laps. Demand is published uncapped and a party that finds no slot
+  is counted on a **Cap** line. A party that arrives while the mountain is closed or no lift has a way down is **arrived
+  closed**, a separate line: "turned away" stays reserved for the ticket caps and sell-outs GU-03 leaves for later. So
+  SI-10's first equation reads **demand = arrived + arrived closed + capped**.
+- **GU-08's balking happens in the score.** A lift edge's score already carries its wait (1 ÷ (1 + wait ÷ 5 min)), and
+  ski edges compete with it, so a skier turning away from a long line falls out of the scoring rather than needing a
+  reachability search of its own. On top of that, a lift whose wait is past `Pacing.BalkWaitSeconds` is dropped from the
+  draw while anything else is on offer, and a `SkierBalked` event says so; with nothing else, the skier joins and waits.
+  The per-node "lifts reachable without riding" bitset the plan considered is not built: it would be O(edges) per
+  decision, and the emergent version gives the same behaviour.
+- **GU-17's ratings are the trail's, not the segment's.** The gate reads `TrailRating.Harder(posted, true)` of the
+  **trail**, fit reads its sign, the misrate penalty compares the two, and GU-10's base speed uses its band — which is
+  what TD-02 v2 defines. A trail with no sign at all (only possible in a save made before posting was required, R1) is
+  read by its true rating for all of these, with no misrate penalty.
+- **GU-13 and GU-06 pull against each other, and GU-06 wins.** A 7:30 line costs 0.275 of satisfaction by GU-13's
+  formula, but GU-06 sends a skier home after four real minutes, so the most a wait can actually cost is about 0.10. The
+  four minutes are kept: a mountain that queues its guests loses them from the line, which costs it more than the
+  satisfaction would. The formula is tested on its own.
+- **GU-09's walking inside an Area is a time, not an edge.** An Area is a single station node (NW-15), so the network has
+  no edge to walk along. Each lift carries a **walk-in time** from its Area's centre to its own bottom terminal, which a
+  party pays before it joins that lift's line. Path edges are walked as GU-09 says; `DesignNetwork.AutomaticPaths` is off
+  today, so there are none yet.
+- **GU-07's width is a run's mean.** Nothing in the design stores a width, so the submitter sends each run's footprint
+  area over its length, and every segment of that run reads it. A per-station width would be a Domain change.
+- **`Pacing.MaxLine` is retired (LO-02).** A line was a ring of 2,048 per lift, which is 6 MB across 256 lifts and still
+  too small for a base quad on a holiday once the cap rises. A line and a lift's hidden riders are now chains over the
+  skier slots themselves, so a line is bounded only by `Pacing.SkierCap`, costs nothing per lift, and a dump is a walk.
+  The scripted feeder (LO-13) takes real slots marked with a feeder archetype, so the lift code has one path.
+- **The sidecar's v2 and v3 step.** Those versions wrote each queued skier and rider as a pair of numbers inside the lift
+  block. From v4 they are chains over slots, so an older save's lines and chairs are read and let go — counted as having
+  left the line — exactly as v1's absent lines were when v2 added them. Everything else comes back.
+- **The timing wheel is an index, not a rule.** Skiers are woken from a wheel of `Pacing.WheelBuckets` buckets, so a tick
+  costs what is happening rather than what the cap is. A skier due further ahead than the wheel is long shares a bucket
+  with a nearer tick, so each bucket is kept sorted by (due tick, slot): a tick's skiers always come out in the same
+  order, whatever size the wheel is, and a test holds it.
+- **Measured (a test machine, not the reference PC).** At Phase 4's cap the guests cost about **0.007 ms a tick**. A day
+  with an 11,000-skier peak on a fifty-lift mountain costs **0.53 ms a tick** — 42 ms of worker per real second at 8× —
+  and 30,000 skiers take **13 MB**. Ten times the cap with the same crowd costs no more than the small one, which is the
+  property that lets the cap rise.
 
 ## 8. Snowmaking
 
@@ -1135,7 +1211,7 @@ Suggested batching: 03 + 11 together; 14 + 15 + 16 together; 07 + 09 together.
 | 4.09 Lakes | LK-01…09 |
 | 4.11 Lift operations | LO-01…13 |
 | 4.12 Guests | GU-01…15, GU-17, GU-18 (reputation per band), SN-24's passes |
-| 4.13 Guests on screen | GU-16 (the render clock), LO-02's queued records, GU-10's speed table, the skier card from GU-02's `InspectSkier` events, SN-31's Traffic layer |
+| 4.13 Guests on screen | GU-16 (the render clock), LO-02's queued records, GU-10's speed table, the skier card from GU-02's `InspectSkier` events, SN-31's Traffic layer. **Picking and following one is 4.13's to make real** (owner, 2026-11-09, on 4.12's panel: "tracking/following guests is a little hard to do"): click a dot to watch that skier (`InspectSkier` takes its serial; −1 asks the worker for whoever is next), and a camera that keeps the watched one in view as it skis and rides, the way the lift ride does |
 | 4.14 Ponds, dams, water | WS-01…08, PD-01…09 |
 | 4.15 Pipes, pumps, guns | HY-01…10 (HY-08's solve job), SG-01…07 (SG-03's stencils, `GunCatalog`) |
 | 4.16 Making snow | SM-01…08, SN-26…27 |
