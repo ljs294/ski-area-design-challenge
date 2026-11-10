@@ -844,8 +844,8 @@ chcp 65001 >nul
 echo Builds the lab's data (every site's 20 sample seasons, 200 for the range, the real winters), then the page.
 dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~WeatherLabTests" --logger "console;verbosity=normal" <nul | findstr /c:"done" /c:"Weather Lab" /c:"Passed" /c:"Failed" /c:"error"
 node "%~dp0tools\weather-lab\build.mjs"
-if exist "%~dp0Temp\weather-lab\index.html" start "" "%~dp0Temp\weather-lab\index.html"
-echo To compare a later change against this run, keep Temp\weather-lab\baseline.json; to re-pin it, run
+if exist "%~dp0test-results\weather-lab\index.html" start "" "%~dp0test-results\weather-lab\index.html"
+echo To compare a later change against this run, keep test-results\weather-lab\baseline.json; to re-pin it, run
 echo   node tools\weather-lab\build.mjs --pin
 pause
 goto menu

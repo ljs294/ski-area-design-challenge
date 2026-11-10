@@ -65,7 +65,7 @@ namespace MountainPlanner.Tests
         {
             string rowsRoot = TestData.Folder("weather");
             string output = Environment.GetEnvironmentVariable("WEATHER_LAB_OUT");
-            if (string.IsNullOrEmpty(output)) output = Path.Combine(Directory.GetParent(Directory.GetParent(rowsRoot).FullName).FullName, "Temp", "weather-lab", "data.json");
+            if (string.IsNullOrEmpty(output)) output = Path.Combine(Directory.GetParent(Directory.GetParent(rowsRoot).FullName).FullName, "test-results", "weather-lab", "data.json");
             Directory.CreateDirectory(Path.GetDirectoryName(output));
 
             var json = new StringBuilder("{\"sites\":[");

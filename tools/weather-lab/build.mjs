@@ -3,9 +3,9 @@
 // WeatherLabTests.WriteTheLabData wrote, plus a baseline to compare against. See README.md.
 //
 // Usage: node tools/weather-lab/build.mjs [--data <json>] [--out <html>] [--baseline <json>] [--pin]
-//   --data      the lab data (default Temp/weather-lab/data.json)
-//   --out       the page (default Temp/weather-lab/index.html)
-//   --baseline  the run to compare against (default Temp/weather-lab/baseline.json; the first run pins itself)
+//   --data      the lab data (default test-results/weather-lab/data.json)
+//   --out       the page (default test-results/weather-lab/index.html)
+//   --baseline  the run to compare against (default test-results/weather-lab/baseline.json; the first run pins itself)
 //   --pin       make this run the baseline from now on
 import { readFile, writeFile, copyFile, access } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
@@ -16,9 +16,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..', '..');
 const args = process.argv.slice(2);
 const option = (name, fallback) => { const i = args.indexOf(name); return i >= 0 && args[i + 1] ? path.resolve(args[i + 1]) : fallback; };
-const dataPath = option('--data', path.join(root, 'Temp', 'weather-lab', 'data.json'));
-const outPath = option('--out', path.join(root, 'Temp', 'weather-lab', 'index.html'));
-const baselinePath = option('--baseline', path.join(root, 'Temp', 'weather-lab', 'baseline.json'));
+const dataPath = option('--data', path.join(root, 'test-results', 'weather-lab', 'data.json'));
+const outPath = option('--out', path.join(root, 'test-results', 'weather-lab', 'index.html'));
+const baselinePath = option('--baseline', path.join(root, 'test-results', 'weather-lab', 'baseline.json'));
 const exists = async (file) => { try { await access(file); return true; } catch { return false; } };
 
 function git(...rest) {
