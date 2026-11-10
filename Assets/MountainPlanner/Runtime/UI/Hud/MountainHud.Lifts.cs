@@ -81,7 +81,7 @@ namespace MountainPlanner.UI
                 new AnalysisList.Column { Title = "An hour", Numeric = true, Grow = 0.75f, Cell = r => $"{R(r).Capacity:#,0}", SortKey = r => R(r).Capacity },
                 new AnalysisList.Column { Title = "Wait", Numeric = true, Grow = 0.9f, Cell = r => LiftWaitText(R(r).Id),
                     SortKey = r => _liftLive.TryGetValue(R(r).Id, out var v) ? v.WaitSeconds : -1 },
-                PopularityColumn(r => R(r).Popularity),
+                PopularityColumn(r => LivePopularity(_liftPop, R(r).Id, R(r).Popularity)),
                 new AnalysisList.Column { Title = "Status", Grow = 0.8f, Class = "an-cell--gap", Cell = r => OperatingStatusWords.Word(LiftStatus(R(r))),
                     Bin = r => LiftStatus(R(r)).ToString(), Bins = OperatingStatusWords.Bins() },
             });

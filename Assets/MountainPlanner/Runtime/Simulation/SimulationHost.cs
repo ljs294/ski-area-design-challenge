@@ -92,13 +92,35 @@ namespace MountainPlanner.Simulation
         /// <summary>The newest snapshot (the reader's to hold until it asks again).</summary>
         public SimSnapshot Latest => _buffers.Latest;
 
+        /// <summary>
+        /// GU-16: the skiers' places, beside the snapshot. It is its own triple buffer, published by a pointer swap once
+        /// a tick, because at thousands of skiers the column is far larger than SI-16's 64 KB (BG-11).
+        /// </summary>
+        public SkierRenderBuffers SkierRender => _world.SkierRender;
+
+
+        /// <summary>
+        /// What stopped the worker, or null. A thread that throws dies quietly: the clock simply stops, every snapshot
+        /// stays as it was, and nothing says why — which is how a crash on one player's save (Gilford, 2026-11-09)
+        /// looked like a hang for a quarter of an hour. Whoever is driving reads this and says so.
+        /// </summary>
+        public Exception Failure { get; private set; }
+
         void Run()
         {
-            while (!_stop)
+            try
             {
-                int wait = Service();
-                if (_stop) break;
-                _wake.Wait(wait);
+                while (!_stop)
+                {
+                    int wait = Service();
+                    if (_stop) break;
+                    _wake.Wait(wait);
+                }
+            }
+            catch (Exception e)
+            {
+                Failure = e;
+                _stop = true;
             }
         }
 

@@ -332,6 +332,9 @@ echo        trails, Peak days only, last chair and the stop, wind holds (F1 gust
 echo   4.11 lift operations, PR B (rebuilds the game; close the Unity editor first)
 echo     92 The save and plate tests, then the game: ride a lift from its card (every type), lift plates (save v13),
 echo        the card's Wind hold, Today, Runs and Hours.
+echo   4.12 guests v1 (rebuilds the game; close the Unity editor first)
+echo     96 The guest tests and the scale run, then the game: a crowd arrives through the morning, queues, rides, skis
+echo        and goes home; Popularity fills in; F1 shows the demand stack, the reputations and one skier's day.
 echo.
 echo     Q  Quit
 echo.
@@ -462,6 +465,7 @@ if /i "%CHOICE%"=="89" goto simcore
 if /i "%CHOICE%"=="90" goto simsave
 if /i "%CHOICE%"=="91" goto liftops
 if /i "%CHOICE%"=="92" goto ridelift
+if /i "%CHOICE%"=="96" goto guests
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -837,6 +841,42 @@ echo      parked; on a weekend day it opens. Ctrl+Z puts it back.
 echo   6. At 4:15 (last chair) no one joins a line; the line keeps boarding until 4:30, when the ropes stop, every lift
 echo      reads Closed and whoever is still in line goes home. The closing toast and F1 show the day's rides.
 echo   7. Save and reopen mid-day: the line, the hold and the wait come back as they were. An older save opens with no lines.
+start "" "%GAME%"
+goto menu
+
+:guests
+rem 4.12: guests v1 (p4-02 GU-01..GU-18): a crowd that arrives, chooses, queues, rides, skis and goes home.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~GuestsTests|FullyQualifiedName~GuestScaleTests|FullyQualifiedName~LiftOpsTests|FullyQualifiedName~SimSaveTests" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+rem The headless day: the demand stack, the ledger, the reasons, the reputations and the tick's cost.
+"%GAME%" -batchmode -nographics -simguests "%~dp0test-results\p4-12\guests-day.txt" <nul
+if exist "%~dp0test-results\p4-12\guests-day.txt" type "%~dp0test-results\p4-12\guests-day.txt"
+echo.
+echo The game opens on the title: Continue or Load Area opens ANY mountain and ANY save of your own - Mount Katahdin,
+echo Kearsarge, Gilford, the Jackson Hole demo - as long as it has a built lift with a trail down from it. Nothing
+echo below is tuned to one site. Then Tab for Analysis; F1 opens the developer panel, the stand-in until 4.17's tab.
+echo   1. F1, Mountain: closed (now open), then Skip to morning. From 8:30 the crowd arrives: F1's Guests rows count
+echo      them by state (on the way, deciding, in line, riding, skiing) and the Lifts list's Wait fills in on its own.
+echo   2. Analysis, Trails: Popularity reads "-" until the first skier, then fills with each trail's share of the
+echo      busiest (0-100); the Lifts list's Popularity does the same for boardings. Sort and filter by it.
+echo   3. F1's Demand line: the day's crowd archetype by archetype, with every factor that made it (reputation, day
+echo      type, snow, powder, forecast) and the lift and terrain capacity beside it. The weather factors read 1.00
+echo      until 4.05 lands.
+echo   4. F1, "+25 beginner": twenty-five beginners appear at a base. Watch them: they take the green runs and never a
+echo      black, and they never ride a lift whose top has no green way down.
+echo   5. F1, "Watch a skier": its band, ability, party, laps, wait and satisfaction, the factors behind its last
+echo      choice, and the last few segments of its day. "Stop watching" lets it go. Selecting changes nothing.
+echo   6. Draw over a trail with skiers on it and delete it (Ctrl+Z puts it back): nobody vanishes; those on it finish
+echo      on the ground and choose again. F1's arrived / left / went home always add up.
+echo   7. At 4:15 (last chair) nobody joins a line; by 4:30 the hill is clear and the day report counts the day.
+echo      Skip to morning: the reputations have moved and tomorrow's demand with them.
+echo   8. If nobody skis, F1's Network row says why in words: how many places there are to arrive at (every built
+echo      lift's bottom), and for each colour how much of the mountain it can ski home from. A colour with nothing it
+echo      may ski is turned away at the gate - that is GU-05, not a bug.
+echo   9. Do 1-3 again on a second mountain (another of your saves), to see none of it is tuned to one site.
 start "" "%GAME%"
 goto menu
 

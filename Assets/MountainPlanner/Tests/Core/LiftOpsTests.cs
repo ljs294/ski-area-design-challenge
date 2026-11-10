@@ -361,7 +361,7 @@ namespace MountainPlanner.Tests
             RunTo(w, Day + 11 * Hour + 123_000, 1);
             byte[] bytes = w.SaveState();
             var back = SimSidecar.Read(bytes, P, w.Design, SimSite.None, out var header);
-            Assert.That(header.SidecarVersion, Is.EqualTo(2));
+            Assert.That(header.SidecarVersion, Is.EqualTo(SimSidecar.Version));
             Assert.That(back.Hash(), Is.EqualTo(w.Hash()));
             Assert.That((back.LineOf(10), back.LedgerOf(10), back.HeldNow(20)), Is.EqualTo((w.LineOf(10), w.LedgerOf(10), w.HeldNow(20))));
             for (int i = 0; i < 3000; i++) { w.Step(1); back.Step(1); }

@@ -26,6 +26,8 @@ namespace MountainPlanner.App
         SimSnapshot _simNow;
         TerrainEditSession _simDesignFor;
         bool _simWasPaused = true;
+        /// <summary>Whether the worker's failure has been told to the player (once, not every frame).</summary>
+        bool _simFailureShown;
         ViewTime _sunPushed;
         int _shownSimSeasonDay = -1;
         /// <summary>Review movies set the chairs' time themselves (k / fps), never the simulation's.</summary>
@@ -78,7 +80,9 @@ namespace MountainPlanner.App
             // The open design's history: the edit session (which shares it) often arrives a few frames later, and a save's
             // state must be read over the design it was saved with, or its lifts would lose their ropes.
             var history = _edits?.History ?? OpenDesign.Current?.History;
-            var design = history != null ? SimDesign.From(history.Current, SimGraphFor(history.Current.Document)) : SimDesign.Empty(0);
+            var design = history != null
+                ? SimDesign.From(history.Current, SimGraphFor(history.Current.Document), SimFactsFor(history.Current.Document))
+                : SimDesign.Empty(0);
             if (history != null) _simSent = history.Current;
             Hud?.ClearLive();
             var simSite = new SimSite(site.Latitude, site.Longitude);
@@ -218,7 +222,8 @@ namespace MountainPlanner.App
         {
             if (_sim == null || snapshot.Document == null) return;
             _simSent = snapshot;
-            _sim.Send(SimCommandKind.SetDesign, 0, SimDesign.From(snapshot, SimGraphFor(snapshot.Document)));
+            _sim.Send(SimCommandKind.SetDesign, 0,
+                      SimDesign.From(snapshot, SimGraphFor(snapshot.Document), SimFactsFor(snapshot.Document)));
         }
 
         void SendSim(SimCommandKind kind, long a = 0) => _sim?.Send(kind, a);
@@ -227,6 +232,14 @@ namespace MountainPlanner.App
         void RunClock()
         {
             if (_sim == null || Lighting == null || TitleMode) return;
+            // A worker that threw stops the clock and says nothing; say it once, here, where anybody would notice.
+            if (_sim.Failure != null && !_simFailureShown)
+            {
+                _simFailureShown = true;
+                Debug.LogException(_sim.Failure);
+                Toast("The simulation stopped: " + _sim.Failure.Message);
+                Hud?.Toast("The simulation stopped — F1 says what happened");
+            }
             var s = _sim.Latest;
             if (s == null) return;
             _simNow = s;
@@ -308,10 +321,18 @@ namespace MountainPlanner.App
         double ChairSeconds(LiftId id) => _chairsOverride ? _chairOverrideSeconds : _ropes != null ? _ropes.Seconds(id.Value) : 0;
 
         /// <summary>The F1 panel's Simulation rows: open or closed, the skips, the seed and the tick's cost (BG-01).</summary>
-        void DrawSimulationRows(ref float y, float row, float x0, float w, Action<string> caption, Func<int, string, bool> button)
+        void DrawSimulationRows(ref float y, float row, float x0, float w, Action<string> caption, Func<int, string, bool> button,
+                                Func<float, int, string, float> note)
         {
             var s = _simNow;
             if (_sim == null || s == null) return;
+            if (_sim.Failure != null)
+            {
+                caption("Simulation");
+                y += note(y, 0, "STOPPED — the simulation thread threw and the clock has stopped. " + _sim.Failure.Message +
+                                " · the error log in Esc ▸ Problem report has the whole of it");
+                y += row;
+            }
             caption("Simulation");
             if (button(0, s.Open ? "Mountain: open" : "Mountain: closed")) SendSim(SimCommandKind.SetMountainOpen, s.Open ? 0 : 1);
             if (button(1, "Skip to morning")) SendSim(SimCommandKind.SkipToMorning);
@@ -322,9 +343,10 @@ namespace MountainPlanner.App
             caption("Season seed");
             if (button(0, s.SeedPinned ? "Seed: pinned" : "Seed: drawn"))
                 _sim.Send(s.SeedPinned ? SimCommand.Of(SimCommandKind.UnpinSeasonSeed) : SimCommand.Of(SimCommandKind.PinSeasonSeed, unchecked((long)s.SeasonSeed)));
-            GUI.Label(new Rect(x0 + w + 6, y + 4, 4 * w, row),
+            y += note(y, 1,
                 $"{(s.Phase == SeasonPhase.PreSeason ? "Pre-season" : s.Phase == SeasonPhase.Season ? "Day " + s.SeasonDay : "Summer")} · {s.SeasonSeed:X16} · tick {s.TickMeanMicros} µs (p99 {s.TickP99Micros}) · {s.SustainedPermille / 10}% of speed · {s.OpenSecond / 3600}:{s.OpenSecond / 60 % 60:D2}–{s.StopSecond / 3600}:{s.StopSecond / 60 % 60:D2}{(s.HoursTrimmed ? " (daylight)" : "")}");
-            DrawLiftOpsRows(ref y, row, x0, w, caption, button);
+            DrawLiftOpsRows(ref y, row, x0, w, caption, button, note);
+            DrawGuestRows(ref y, row, x0, w, caption, button, note);
         }
     }
 }

@@ -46,7 +46,7 @@ namespace MountainPlanner.Simulation
 
         /// <summary>The design-inputs builder (SI-21): from a design revision, on any thread.</summary>
         /// <param name="built">The app's built network for this same document (LO-10), or null while it's still being built.</param>
-        public static SimDesign From(DesignSnapshot snapshot, NetworkGraph built = null)
+        public static SimDesign From(DesignSnapshot snapshot, NetworkGraph built = null, INetworkFacts facts = null)
         {
             var doc = snapshot.Document ?? throw new ArgumentNullException(nameof(snapshot));
             var sorted = new List<Lift>(doc.Lifts);
@@ -55,10 +55,17 @@ namespace MountainPlanner.Simulation
             for (int i = 0; i < ids.Length; i++) ids[i] = sorted[i].Id.Value;
             SimNetwork network = null;
             int[] tops = null, bottoms = null;
-            if (built != null) network = SimNetwork.From(built, ids, out tops, out bottoms);
+            if (built != null) network = SimNetwork.From(built, ids, out tops, out bottoms, facts);
             var lifts = new LiftInput[sorted.Count];
             for (int i = 0; i < lifts.Length; i++)
-                lifts[i] = Input(sorted[i], tops != null ? tops[i] : -1, bottoms != null ? bottoms[i] : -1);
+            {
+                int bottomNode = bottoms != null ? bottoms[i] : -1;
+                // GU-09: an Area is one station node (NW-15), so the walk in is from that node to this lift's own bottom.
+                int walkMs = 0;
+                if (built != null && bottomNode >= 0)
+                    walkMs = WalkMs(built.Nodes[bottomNode].At, sorted[i].Bottom);
+                lifts[i] = Input(sorted[i], tops != null ? tops[i] : -1, bottomNode, walkMs);
+            }
             int builtTrails = 0;
             foreach (var t in doc.Trails) if (t.Stage == WorkStage.Built) builtTrails++;
             return new SimDesign(snapshot.Revision, Pacing.Fnv64(DesignBytes.Encode(doc)), doc.Seed, doc.Hours, lifts, builtTrails, network);
@@ -68,7 +75,15 @@ namespace MountainPlanner.Simulation
         /// LO-01, LO-03, LO-06: a lift's catalog numbers as whole milliseconds, worked out here once so the worker never
         /// touches the catalog's doubles or the line's geometry (SI-21).
         /// </summary>
-        public static LiftInput Input(Lift l, int topNode = -1, int bottomNode = -1)
+        /// <summary>GU-09: walking <paramref name="from"/> to <paramref name="to"/> at 3 mph, real ms at 1×.</summary>
+        static int WalkMs(PointMm from, PointMm to)
+        {
+            double mm = Math.Sqrt(from.DistanceSquared(to));
+            // 3 mph is 1.341 m/s: ms = mm ÷ 1.341.
+            return (int)Math.Min(int.MaxValue, Math.Round(mm / 1.341));
+        }
+
+        public static LiftInput Input(Lift l, int topNode = -1, int bottomNode = -1, int walkInMs = 0)
         {
             var type = LiftType.Of(l);
             string id = l.CatalogId ?? "";
@@ -86,7 +101,9 @@ namespace MountainPlanner.Simulation
             double ride = type.RideSeconds(along);
             int intervalMs = (int)Math.Max(100, Math.Min(int.MaxValue / 4, Math.Round(interval * 1000)));
             int rideMs = (int)Math.Max(1000, Math.Min(int.MaxValue / 4, Math.Round(ride * 1000)));
-            return new LiftInput(l.Id.Value, l.Stage == WorkStage.Built, l.Schedule, l.Hours, kind, seats, intervalMs, rideMs, topNode, bottomNode);
+            int bottomLevelCm = l.Levels.HasValue ? l.Levels.Value.BottomMm / 10 : 0;
+            return new LiftInput(l.Id.Value, l.Stage == WorkStage.Built, l.Schedule, l.Hours, kind, seats, intervalMs, rideMs,
+                                 topNode, bottomNode, walkInMs, bottomLevelCm);
         }
 
         /// <summary>
@@ -144,10 +161,14 @@ namespace MountainPlanner.Simulation
         public readonly int RideMs;
         /// <summary>LO-10: the lift's top and bottom stations in <see cref="SimDesign.Network"/>, or -1.</summary>
         public readonly int TopNode, BottomNode;
+        /// <summary>GU-09: how long a skier takes to walk across its Area to this lift's bottom, real ms at 1× (0: none).</summary>
+        public readonly int WalkInMs;
+        /// <summary>GU-06: the bottom station's level, centimetres, which picks the lowest base when no station qualifies.</summary>
+        public readonly int BottomLevelCm;
 
         public LiftInput(ulong id, bool built, LiftSchedule schedule = LiftSchedule.Daily, DayHours? hours = null,
                          LiftKind kind = LiftKind.FixedGripChair, int seats = 4, int intervalMs = 6000, int rideMs = 360_000,
-                         int topNode = -1, int bottomNode = -1)
+                         int topNode = -1, int bottomNode = -1, int walkInMs = 0, int bottomLevelCm = 0)
         {
             if (seats < 1 || seats > 255) throw new ArgumentOutOfRangeException(nameof(seats));
             if (intervalMs < 1) throw new ArgumentOutOfRangeException(nameof(intervalMs));
@@ -163,6 +184,8 @@ namespace MountainPlanner.Simulation
             RideMs = rideMs;
             TopNode = topNode;
             BottomNode = bottomNode;
+            WalkInMs = walkInMs < 0 ? 0 : walkInMs;
+            BottomLevelCm = bottomLevelCm;
         }
 
         /// <summary>LO-03: rated capacity, people an hour, at 1x.</summary>

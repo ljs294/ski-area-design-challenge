@@ -383,25 +383,59 @@ namespace MountainPlanner.Tests
             Assert.That(w.StatusOf(101), Is.EqualTo(LiftOpStatus.Open), "and it plays on");
         }
 
+        /// <summary>
+        /// v2 (task 4.11) still opens. Its bytes are untouched, so it carries the Pacing table of its own day and the
+        /// line layout of its own day: from v4 a line is a chain over skier slots, so v2's queued skiers and riders are
+        /// read and let go (counted as having left the line), exactly as v1's absent lines were when v2 added them.
+        /// Everything else comes back: the holds, the carriers, the day's lift ledger, the way down.
+        /// </summary>
         [Test]
-        public void TheVersionTwoSidecarIsFrozen()
+        public void TheVersionTwoSidecarStillOpens()
         {
             byte[] fixture = File.ReadAllBytes(FixtureFile(2));
-            Assert.That(FixtureTwo(), Is.EqualTo(fixture), "the sidecar v2 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
+            Assert.That(SimSidecar.VersionOf(fixture), Is.EqualTo(2));
             var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
             Assert.That(header.SidecarVersion, Is.EqualTo(2));
+            Assert.That((w.Phase, w.SeasonDay), Is.EqualTo((SeasonPhase.Season, 4)));
+            Assert.That(w.HeldNow(202), Is.True, "the hold came back");
+            Assert.That(w.LineOf(101), Is.Zero, "v2's line is read and let go at the v4 step");
+            Assert.That(w.LedgerOf(101).leftInLine, Is.GreaterThan(0), "and those skiers are counted as having left it");
+            Assert.That(w.SkierCount, Is.Zero, "a save from before the guests opens on an empty hill");
+            Assert.That(w.ReputationOf(0), Is.EqualTo(P.StartRep), "with every reputation at its start (GU-18)");
+            for (int i = 0; i < 1000; i++) w.Step(1);
+            Assert.That(w.Phase, Is.EqualTo(SeasonPhase.Season), "and it plays on");
+        }
+
+        /// <summary>v4's world adds the guests (task 4.12): a crowd on the hill, their day, and the reputations.</summary>
+        static byte[] FixtureFour()
+        {
+            var w = Played(3 * Day + 9 * SimWorld.HourMs, out _);
+            w.ApplyNow(SimCommand.Of(SimCommandKind.FeedLine, 0, new LiftFeed(101, 120, 20)));
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetGust, 60));
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SpawnSkiers, 0, new SkierSpawn(1, 40)));
+            while (w.FaceMs < 3 * Day + 10 * SimWorld.HourMs) w.Step(1);
+            return w.SaveState();
+        }
+
+        [Test]
+        public void TheVersionFourSidecarIsFrozen()
+        {
+            byte[] fixture = File.ReadAllBytes(FixtureFile(4));
+            Assert.That(FixtureFour(), Is.EqualTo(fixture), "the sidecar v4 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
+            var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
+            Assert.That(header.SidecarVersion, Is.EqualTo(4));
             Assert.That(header.PacingHash, Is.EqualTo(P.ContentsHash), "the fixture was made with this Pacing");
             Assert.That((w.Phase, w.SeasonDay), Is.EqualTo((SeasonPhase.Season, 4)));
             Assert.That(w.LineOf(101), Is.GreaterThan(0));
             Assert.That(w.HeldNow(202), Is.True);
         }
 
-        [Test, Explicit("Regenerates the frozen v2 sidecar fixture")]
-        public void WriteTheVersionTwoSidecarFixture()
+        [Test, Explicit("Regenerates the frozen v4 sidecar fixture")]
+        public void WriteTheVersionFourSidecarFixture()
         {
-            string folder = Path.Combine(TestData.Folder("formats"), "v2-sim");
+            string folder = Path.Combine(TestData.Folder("formats"), "v4-sim");
             Directory.CreateDirectory(folder);
-            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), FixtureTwo());
+            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), FixtureFour());
         }
     }
 }
