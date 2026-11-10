@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Weather Lab</title>
+<!-- The Weather Lab (task 4.05, owner 2026-11-09). tools/weather-lab/build.mjs fills in the three data constants below. -->
+<style>
+.viz-root{color-scheme:light;
+  --surface-0:#f4f3ef;--surface-1:#fcfcfb;--line:#e3e1da;--grid:#ecebe6;
+  --text-primary:#0b0b0b;--text-secondary:#52514e;--text-muted:#7d7b74;
+  --snow:#2a78d6;--rain:#eb6834;--band:#cde2fb;--band-line:#86b6ef;--before:#0b0b0b;
+  --record:#7d7b74;--warm:#e34948;--season:#eef4fc;--accent:#6250d6;--good:#008300;}
+@media (prefers-color-scheme: dark){:root:where(:not([data-theme="light"])) .viz-root{color-scheme:dark;
+  --surface-0:#121211;--surface-1:#1a1a19;--line:#33322f;--grid:#262624;
+  --text-primary:#f0efec;--text-secondary:#c3c2b7;--text-muted:#8f8d84;
+  --snow:#3987e5;--rain:#d95926;--band:#184f95;--band-line:#3987e5;--before:#f0efec;
+  --record:#8f8d84;--warm:#e66767;--season:#1d2633;--accent:#9085e9;--good:#2fa52f;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface-0)}
+.viz-root{font:14px/1.45 "Segoe UI",system-ui,sans-serif;color:var(--text-primary);background:var(--surface-0);padding:22px 28px 40px;max-width:1280px;margin:0 auto}
+h1{font-size:22px;margin:0 0 2px}
+.sub{color:var(--text-secondary);margin:0 0 16px}
+.card{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 0 14px}
+.controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-start}
+.ctl-label{font-size:12px;color:var(--text-muted);margin:0 0 5px;font-weight:600}
+.seasons{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;min-width:560px}
+.seg{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+button{font:inherit;color:var(--text-primary);background:var(--surface-1);border:1px solid var(--line);border-radius:6px;padding:4px 8px;cursor:pointer}
+.seg button{border:0;border-right:1px solid var(--line);border-radius:0;padding:5px 11px}
+.seg button:last-child{border-right:0}
+button.on{background:var(--text-primary);color:var(--surface-1);border-color:var(--text-primary)}
+.sbtn{display:flex;flex-direction:column;align-items:center;padding:3px 2px 2px;font-size:12px}
+.sbtn svg{display:block;margin-top:2px}
+.tiles{display:grid;grid-template-columns:repeat(8,1fr);gap:10px}
+.tile{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile .k{font-size:12px;color:var(--text-muted);font-weight:600}
+.tile .v{font-size:24px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+.tile .n{font-size:12px;color:var(--text-secondary)}
+.tile .was{font-size:12px;color:var(--text-muted);margin-top:2px}
+h2{font-size:15px;margin:0 0 2px}
+.cap{font-size:12.5px;color:var(--text-secondary);margin:0 0 8px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text-secondary);margin:2px 0 6px}
+.legend i{display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+svg text{fill:var(--text-muted);font-size:11px;font-family:inherit}
+.tip{position:fixed;pointer-events:none;background:var(--surface-1);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;box-shadow:0 4px 18px rgba(0,0,0,.12);display:none;z-index:9;max-width:320px;color:var(--text-primary)}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th{font-size:11.5px;color:var(--text-muted);font-weight:600;text-align:right;padding:5px 6px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface-1)}
+td{padding:5px 6px;border-bottom:1px solid var(--grid);text-align:right;white-space:nowrap}
+td.l,th.l{text-align:left}
+td.rep{text-align:left;white-space:normal;color:var(--text-secondary);min-width:260px}
+tr.pre td,tr.post td{color:var(--text-muted)}
+tr.in td.wk{font-weight:650}
+tr:hover td{background:var(--season)}
+.bar{display:inline-block;height:9px;border-radius:0 3px 3px 0;background:var(--snow);vertical-align:0;margin-left:6px}
+.chip{font-size:11px;border-radius:5px;padding:1px 6px;margin-left:4px;border:1px solid var(--line);color:var(--text-secondary)}
+.note{font-size:12.5px;color:var(--text-secondary)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.stamp{font-size:12px;color:var(--text-muted);margin-top:6px}
+</style>
+</head>
+<body>
+<div class="viz-root">
+<h1 id="title">Weather Lab</h1>
+<p class="sub" id="sub"></p>
+
+<div class="card controls">
+  <div style="flex-basis:100%"><div class="ctl-label">SITE</div><div class="seg" id="sites"></div></div>
+  <div><div class="ctl-label">SEASON (each a different seed; the line under it is its mid-mountain base)</div><div class="seasons" id="seasons"></div></div>
+  <div><div class="ctl-label">ELEVATION</div><div class="seg" id="elev"></div>
+    <div class="note" style="margin-top:8px;max-width:340px">"Reference" is the height of the real record (Daymet's pixel), so only there do the site's real winters show beside the game.</div></div>
+</div>
+
+<div class="tiles" id="tiles"></div>
+
+<div class="card" style="margin-top:14px">
+  <h2>Base depth through the year</h2>
+  <p class="cap" id="capA"></p>
+  <div class="legend" id="legA"></div>
+  <svg id="chartA" width="100%" height="300"></svg>
+</div>
+
+<div class="two">
+<div class="card">
+  <h2>New snow each game week</h2>
+  <p class="cap">Inches of new snow at this elevation; the grey tick marks the typical week (median of 200 seasons). Rain, in inches of water, shows below the axis.</p>
+  <svg id="chartB" width="100%" height="230"></svg>
+</div>
+<div class="card">
+  <h2>Temperatures each game week</h2>
+  <p class="cap">Each bar runs from the week's low to its high, at the base and the summit; the dashed line is 32 °F.</p>
+  <div class="legend"><span><i style="background:var(--warm)"></i>Base</span><span><i style="background:var(--accent)"></i>Summit</span></div>
+  <svg id="chartC" width="100%" height="206"></svg>
+</div>
+</div>
+
+<div class="card">
+  <h2>The weekly report</h2>
+  <p class="cap" id="capT"></p>
+  <div style="max-height:720px;overflow:auto"><table id="tbl"></table></div>
+</div>
+
+<div class="card note">
+  <b>How to read this.</b> The weather is the engine exactly as the game would play it: one seeded season per button, from the site's frozen
+  rows. The base depth is an illustration, not the game's snow (4.07 owns the snowpack): snow water accumulates and melts by the tests'
+  reference model (snowpack temperature, a melt that follows the sun's season), and the depth settles toward a density of 0.30 cold, 0.38 near
+  freezing and 0.45 wet. No grooming, wind loading, skier packing, snowmaking or terrain shade. Gusts are the engine's free air at the
+  reference height during lift hours; exposed summits, lift top stations and wind holds come with the engine in the game (PR B).
+  A game week is three face days (weekday, weekday, weekend), about 8.6 calendar days; the season is Day 1 (Dec 1) to Day 42 (Apr 1).
+  <div class="stamp" id="stamp"></div>
+</div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const LAB = __DATA__;
+const BASE = __BASELINE__;
+const BUILD = __BUILD__;
+const NAMES = {base:'Base',ref:'Reference',mid:'Mid',summit:'Summit'}, EI = {base:0,ref:1,mid:2,summit:3};
+const MON = ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep'], MLEN = [31,30,31,31,28,31,30,31,30,31,31,30];
+const DAY1 = 21, DAY_APR1 = 63;
+let site = 0, S = 9, E = 'mid';
+let D, FH, WEEKS, XMAS, B;   // the chosen site, its face hour, game weeks, Christmas's face day, its baseline (or null)
+const css = n => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(n).trim();
+const f0 = v => Math.round(v).toLocaleString('en-US'), f1 = v => (Math.round(v*10)/10).toFixed(1);
+function cal(x){ let d=Math.floor(x), m=0; while(m<11 && d>=MLEN[m]){ d-=MLEN[m]; m++; } return {m, d:d+1}; }
+const calLabel = x => { const c=cal(x); return MON[c.m]+' '+c.d; };
+function weekDates(w){ const a=cal(3*w*FH), b=cal((3*w+3)*FH-1); return a.m===b.m ? MON[a.m]+' '+a.d+'–'+b.d : MON[a.m]+' '+a.d+' – '+MON[b.m]+' '+b.d; }
+const weekName = w => w<7 ? 'Pre '+(w+1) : w<21 ? 'Week '+(w-6) : 'Spring '+(w-20);
+
+function pick(i){
+  site=i; D=LAB.sites[i]; FH=D.faceHour; WEEKS=Math.floor(D.samples[0].days.length/3); XMAS=Math.round(85/FH);
+  B = BASE ? BASE.sites.find(s=>s.id===D.id) || null : null;
+  if(S>=D.samples.length) S=0;
+}
+function rowOf(src,s,i,e){ const r=src.samples[s].days[i], k=EI[e]*4; return {snow:r[k], rain:r[k+1], depth:r[k+2], swe:r[k+3], bHi:r[16], bLo:r[17], sHi:r[18], sLo:r[19], gust:r[20], cloud:r[21], stormH:r[22]}; }
+const dayRow = (s,i,e) => rowOf(D,s,i,e);
+function weekly(s,e){
+  const out=[];
+  for(let w=0;w<WEEKS;w++){
+    const ds=[0,1,2].map(j=>dayRow(s,3*w+j,e)), prev = w>0 ? dayRow(s,3*w-1,e).depth : 0;
+    out.push({w, prev, days:ds, snow:ds.reduce((a,b)=>a+b.snow,0), rain:ds.reduce((a,b)=>a+b.rain,0), depth:ds[2].depth,
+      bHi:Math.max(...ds.map(d=>d.bHi)), bLo:Math.min(...ds.map(d=>d.bLo)), sHi:Math.max(...ds.map(d=>d.sHi)), sLo:Math.min(...ds.map(d=>d.sLo)),
+      gust:Math.max(...ds.map(d=>d.gust)), powder:ds.filter(d=>d.snow>=6).length, cloud:ds.reduce((a,b)=>a+b.cloud,0)/3});
+  }
+  return out;
+}
+function stats(src,s,e){
+  const days=src.samples[s].days.map((_,i)=>rowOf(src,s,i,e)), inS=days.slice(DAY1,DAY_APR1);
+  let peak=0, peakDay=0; days.forEach((d,i)=>{ if(d.depth>peak){ peak=d.depth; peakDay=i; } });
+  return {day1:days[DAY1-1].depth, xmas:days[XMAS].depth, peak, peakDay, apr1:days[DAY_APR1-1].depth,
+    snow:inS.reduce((a,b)=>a+b.snow,0), powder:inS.filter(d=>d.snow>=6).length, rainDays:inS.filter(d=>d.rain>=0.1).length,
+    gust:Math.max(...inS.map(d=>d.gust))};
+}
+
+// ---------- controls ----------
+function spark(s){
+  const ds=D.samples[s].days.map(r=>r[EI.mid*4+2]), W=46, H=14, mx=Math.max(60,...D.samples.flatMap(x=>x.days.map(r=>r[EI.mid*4+2])));
+  return `<svg width="${W}" height="${H}"><polyline points="${ds.map((v,i)=>(i/(ds.length-1)*W).toFixed(1)+','+(H-v/mx*H).toFixed(1)).join(' ')}" fill="none" stroke="currentColor" stroke-width="1.3" opacity=".75"/></svg>`;
+}
+function controls(){
+  const st=document.getElementById('sites');
+  st.innerHTML=LAB.sites.map((x,i)=>`<button class="${i===site?'on':''}" data-i="${i}">${x.name}</button>`).join('');
+  st.querySelectorAll('button').forEach(b=>b.onclick=()=>{ pick(+b.dataset.i); render(); });
+  const el=document.getElementById('seasons');
+  el.innerHTML=D.samples.map((x,i)=>`<button class="sbtn${i===S?' on':''}" data-s="${i}">${i+1}${spark(i)}</button>`).join('');
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>{ S=+b.dataset.s; render(); });
+  const eg=document.getElementById('elev');
+  eg.innerHTML=['base','ref','mid','summit'].map(e=>`<button class="${e===E?'on':''}" data-e="${e}">${NAMES[e]} <span style="opacity:.7">${f0(D.feet[EI[e]])} ft</span></button>`).join('');
+  eg.querySelectorAll('button').forEach(b=>b.onclick=()=>{ E=b.dataset.e; render(); });
+}
+
+// ---------- tiles ----------
+function tiles(){
+  const st=stats(D,S,E), all=D.samples.map((_,i)=>stats(D,i,E));
+  const was = B && B.samples[S] ? stats(B,S,E) : null;
+  const rank=(k)=>{ const v=st[k], n=all.filter(a=>a[k]<v).length/all.length; return n>=.67?'deeper than most of the 20':n<=.33?'thinner than most of the 20':'about typical of the 20'; };
+  const t=(k,key,v,n,fmt)=>{ let w=''; if(was){ const d=st[key]-was[key]; w=`<div class="was">${Math.abs(d)<0.5?'same as before':'before: '+fmt(was[key])}</div>`; }
+    return `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="n">${n}</div>${w}</div>`; };
+  const inch=v=>f0(v)+' in', num=v=>f0(v), mph=v=>f0(v)+' mph';
+  document.getElementById('tiles').innerHTML=
+    t('Base on Day 1 (Dec 1)','day1',inch(st.day1), st.day1<12?'thin start: rocks showing':st.day1<30?'skiable on groomers':'a solid opening',inch)+
+    t('Christmas base','xmas',inch(st.xmas),rank('xmas'),inch)+
+    t('Peak base','peak',inch(st.peak),'on '+calLabel(st.peakDay*FH),inch)+
+    t('Base on Apr 1 (Day 42)','apr1',inch(st.apr1),rank('apr1'),inch)+
+    t('Season snowfall','snow',inch(st.snow),'Dec 1 – Apr 1, '+NAMES[E].toLowerCase(),inch)+
+    t('Powder days','powder',num(st.powder),'of 42: 6 in or more new',num)+
+    t('Rain days','rainDays',num(st.rainDays),'of 42: 0.1 in of rain or more',num)+
+    t('Strongest gust','gust',mph(st.gust),'free air in lift hours',mph);
+}
+
+// ---------- svg helpers ----------
+const NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){ const n=document.createElementNS(NS,tag); for(const k in attrs) n.setAttribute(k,attrs[k]); if(parent) parent.appendChild(n); return n; }
+const tip=document.getElementById('tip');
+function showTip(ev,html){ tip.innerHTML=html; tip.style.display='block'; tip.style.left=Math.min(ev.clientX+14, innerWidth-tip.offsetWidth-8)+'px'; tip.style.top=Math.min(ev.clientY+14, innerHeight-tip.offsetHeight-8)+'px'; }
+const hideTip=()=>{ tip.style.display='none'; };
+function niceMax(v){ for(const s of [20,40,60,80,100,120,160,200,240,300,400]) if(v<=s) return s; return Math.ceil(v/100)*100; }
+function roundTop(x,y,w,h){ const r=Math.min(4,w/2,h); return `M${x},${y+h}V${y+r}Q${x},${y} ${x+r},${y}H${x+w-r}Q${x+w},${y} ${x+w},${y+r}V${y+h}Z`; }
+function monthTicks(svg,xOfDay,yBase,right){ let acc=0; for(let m=0;m<9;m++){ const x=xOfDay(acc); if(x<right){ el('line',{x1:x,x2:x,y1:yBase,y2:yBase+4,stroke:css('--line')},svg); el('text',{x:x+3,y:yBase+16},svg).textContent=MON[m]; } acc+=MLEN[m]; } }
+
+// ---------- chart A: base depth ----------
+function chartA(){
+  const svg=document.getElementById('chartA'); svg.innerHTML='';
+  const W=svg.clientWidth||1200, H=300, L=46, R=14, T=10, Bm=28;
+  const days=D.samples[S].days.map((_,i)=>dayRow(S,i,E)), band=D.band[E].depth, n=days.length;
+  const before = B && B.samples[S] ? B.samples[S].days.map((_,i)=>rowOf(B,S,i,E)) : null;
+  const xD=i=>L+(i+1)/n*(W-L-R), xw=w=>xD(3*w+2), recs = E==='ref' ? D.record : [];
+  const mx=niceMax(1.05*Math.max(...days.map(d=>d.depth), ...band.map(b=>b[2]), ...recs.flatMap(r=>r.weeks.map(w=>w[0])), ...(before||[]).map(d=>d.depth)));
+  const y=v=>T+(1-v/mx)*(H-T-Bm);
+  el('rect',{x:xD(DAY1-1),y:T,width:xD(DAY_APR1-1)-xD(DAY1-1),height:H-T-Bm,fill:css('--season')},svg);
+  el('text',{x:xD(DAY1-1)+6,y:T+12,style:'font-weight:600'},svg).textContent='The season: Day 1 – Day 42';
+  const step = mx>200?50:mx>100?25:20;
+  for(let g=0; g<=mx; g+=step){ el('line',{x1:L,x2:W-R,y1:y(g),y2:y(g),stroke:css('--grid')},svg); el('text',{x:L-6,y:y(g)+4,'text-anchor':'end'},svg).textContent=g; }
+  el('text',{x:4,y:T+4},svg).textContent='in';
+  monthTicks(svg, d=>L+d/FH/n*(W-L-R), H-Bm, W-R);
+  let p='M'+xw(0)+','+y(band[0][2]); for(let w=1;w<band.length;w++) p+='L'+xw(w)+','+y(band[w][2]);
+  for(let w=band.length-1;w>=0;w--) p+='L'+xw(w)+','+y(band[w][0]);
+  el('path',{d:p+'Z',fill:css('--band'),opacity:.55},svg);
+  let pm=''; band.forEach((b,w)=>{ pm+=(w?'L':'M')+xw(w)+','+y(b[1]); });
+  el('path',{d:pm,fill:'none',stroke:css('--band-line'),'stroke-width':1.5,'stroke-dasharray':'5 4'},svg);
+  recs.forEach(r=>{ let q=''; r.weeks.forEach((w,i)=>{ q+=(i?'L':'M')+xw(i)+','+y(w[0]); }); el('path',{d:q,fill:'none',stroke:css('--record'),'stroke-width':1,opacity:.35},svg); });
+  if(before){ let q=''; before.forEach((d,i)=>{ q+=(i?'L':'M')+xD(i)+','+y(d.depth); }); el('path',{d:q,fill:'none',stroke:css('--before'),'stroke-width':1.5,'stroke-dasharray':'2 3',opacity:.8},svg); }
+  let q=''; days.forEach((d,i)=>{ q+=(i?'L':'M')+xD(i)+','+y(d.depth); });
+  el('path',{d:q,fill:'none',stroke:css('--snow'),'stroke-width':2.4,'stroke-linejoin':'round'},svg);
+  [[DAY1-1,'Day 1'],[DAY_APR1-1,'Apr 1']].forEach(([i,t])=>{
+    el('circle',{cx:xD(i),cy:y(days[i].depth),r:4.5,fill:css('--snow'),stroke:css('--surface-1'),'stroke-width':2},svg);
+    el('text',{x:xD(i)+7,y:y(days[i].depth)-7,style:'fill:'+css('--text-primary')+';font-weight:600'},svg).textContent=t+': '+f0(days[i].depth)+' in';
+  });
+  const cross=el('line',{y1:T,y2:H-Bm,stroke:css('--text-muted'),'stroke-width':1,opacity:0},svg);
+  const dot=el('circle',{r:4,fill:css('--snow'),stroke:css('--surface-1'),'stroke-width':2,opacity:0},svg);
+  const hit=el('rect',{x:L,y:T,width:W-L-R,height:H-T-Bm,fill:'transparent'},svg);
+  hit.onmousemove=ev=>{
+    const bb=svg.getBoundingClientRect(), i=Math.max(0,Math.min(n-1,Math.round((ev.clientX-bb.left-L)/(W-L-R)*n-1))), d=days[i], w=Math.min(band.length-1,Math.floor(i/3));
+    cross.setAttribute('x1',xD(i)); cross.setAttribute('x2',xD(i)); cross.setAttribute('opacity',.6); dot.setAttribute('cx',xD(i)); dot.setAttribute('cy',y(d.depth)); dot.setAttribute('opacity',1);
+    const sd = i>=DAY1-1 && i<DAY_APR1-1 ? ' · Day '+(i-DAY1+2)+' · '+['weekday','weekday','weekend'][i%3] : '';
+    let h=`<b>${calLabel((i+1)*FH)}</b>${sd}<br>Base <b>${f1(d.depth)} in</b> (${f1(d.swe)} in of water)<br>New snow ${f1(d.snow)} in${d.rain>=0.05?' · rain '+d.rain.toFixed(2)+' in':''}<br>Typical this week: ${f0(band[w][1])} in (most seasons ${f0(band[w][0])}–${f0(band[w][2])})`;
+    if(before) h+=`<br>Before: ${f1(before[i].depth)} in`;
+    if(recs.length){ const rv=recs.map(r=>r.weeks[w]?r.weeks[w][0]:0).sort((a,b)=>a-b), lo=rv[Math.floor(rv.length*.1)], hi=rv[Math.ceil(rv.length*.9)-1], md=rv[Math.floor(rv.length/2)]; h+=`<br>Real winters this week: ${f0(lo)}–${f0(hi)} in (median ${f0(md)})`; }
+    showTip(ev,h);
+  };
+  hit.onmouseleave=()=>{ hideTip(); cross.setAttribute('opacity',0); dot.setAttribute('opacity',0); };
+  const yr = recs.length ? recs[0].year+'–'+(recs[recs.length-1].year+1) : '';
+  document.getElementById('legA').innerHTML=`<span><i style="background:var(--snow);height:3px;vertical-align:3px"></i>Season ${S+1}</span>`+
+    (before?`<span><i style="border-top:2px dotted var(--before);height:0;vertical-align:3px"></i>Before (the baseline)</span>`:'')+
+    `<span><i style="background:var(--band)"></i>Most game seasons (10–90 %, 200 seeds)</span><span><i style="border-top:2px dashed var(--band-line);height:0;vertical-align:3px"></i>Typical game season</span>`+
+    (recs.length?`<span><i style="background:var(--record);height:2px;opacity:.6;vertical-align:3px"></i>The ${recs.length} real winters, ${yr}</span>`:'');
+  document.getElementById('capA').textContent=`${D.name}, ${NAMES[E].toLowerCase()} (${f0(D.feet[EI[E]])} ft). Settled snow depth at the end of each day, against the range of 200 game seasons`+(recs.length?' and the real record.':'. Pick Reference to see the real winters.');
+}
+
+// ---------- chart B: weekly snow and rain ----------
+function chartB(wk){
+  const svg=document.getElementById('chartB'); svg.innerHTML='';
+  const W=svg.clientWidth||600, H=230, L=40, R=8, T=8, Bm=24, rainH=40, band=D.band[E].snow;
+  const mx=niceMax(1.05*Math.max(...wk.map(w=>w.snow),...band.map(b=>b[1]))), mr=Math.max(1,Math.ceil(Math.max(...wk.map(w=>w.rain))));
+  const zero=H-Bm-rainH, y=v=>T+(1-v/mx)*(zero-T), yr=v=>zero+v/mr*(rainH-6), bw=(W-L-R)/WEEKS, x=w=>L+w*bw;
+  el('rect',{x:x(7),y:T,width:bw*14,height:H-T-Bm,fill:css('--season')},svg);
+  for(let g=0; g<=mx; g+= mx>100?25:mx>60?20:10){ el('line',{x1:L,x2:W-R,y1:y(g),y2:y(g),stroke:css('--grid')},svg); el('text',{x:L-5,y:y(g)+4,'text-anchor':'end'},svg).textContent=g; }
+  el('text',{x:L-5,y:yr(mr)+3,'text-anchor':'end'},svg).textContent=mr+'"';
+  el('line',{x1:L,x2:W-R,y1:zero,y2:zero,stroke:css('--line')},svg);
+  wk.forEach(w=>{
+    const h=Math.max(0,zero-y(w.snow));
+    if(h>0) el('path',{d:roundTop(x(w.w)+1.5,y(w.snow),bw-3,h),fill:css('--snow')},svg);
+    if(w.rain>0.02) el('rect',{x:x(w.w)+1.5,y:zero+2,width:bw-3,height:Math.max(1.5,yr(w.rain)-zero-2),fill:css('--rain'),rx:1.5},svg);
+    el('line',{x1:x(w.w)+2,x2:x(w.w)+bw-2,y1:y(band[w.w][1]),y2:y(band[w.w][1]),stroke:css('--record'),'stroke-width':2,opacity:.7},svg);
+    if(w.w%4===0) el('text',{x:x(w.w)+1,y:H-6},svg).textContent=weekDates(w.w).split(/[–-]/)[0].trim();
+    const hit=el('rect',{x:x(w.w),y:T,width:bw,height:H-T-Bm,fill:'transparent'},svg);
+    hit.onmousemove=ev=>showTip(ev,`<b>${weekName(w.w)}</b> · ${weekDates(w.w)}<br>New snow <b>${f1(w.snow)} in</b> (typical ${f0(band[w.w][1])})<br>Rain ${w.rain.toFixed(2)} in of water<br>Base at week's end ${f0(w.depth)} in`);
+    hit.onmouseleave=hideTip;
+  });
+}
+
+// ---------- chart C: temperatures ----------
+function chartC(wk){
+  const svg=document.getElementById('chartC'); svg.innerHTML='';
+  const W=svg.clientWidth||600, H=206, L=40, R=8, T=8, Bm=24;
+  const lo=Math.floor(Math.min(...wk.map(w=>w.sLo),...wk.map(w=>w.bLo))/10)*10, hi=Math.ceil(Math.max(...wk.map(w=>w.bHi),...wk.map(w=>w.sHi))/10)*10;
+  const y=v=>T+(1-(v-lo)/(hi-lo))*(H-T-Bm), bw=(W-L-R)/WEEKS, x=w=>L+w*bw;
+  el('rect',{x:x(7),y:T,width:bw*14,height:H-T-Bm,fill:css('--season')},svg);
+  for(let g=lo; g<=hi; g+=10){ el('line',{x1:L,x2:W-R,y1:y(g),y2:y(g),stroke:css('--grid')},svg); el('text',{x:L-5,y:y(g)+4,'text-anchor':'end'},svg).textContent=g+'°'; }
+  el('line',{x1:L,x2:W-R,y1:y(32),y2:y(32),stroke:css('--text-muted'),'stroke-dasharray':'4 4'},svg);
+  wk.forEach(w=>{
+    const q=bw/2-1.5;
+    el('rect',{x:x(w.w)+1,y:y(w.bHi),width:q,height:Math.max(2,y(w.bLo)-y(w.bHi)),rx:2,fill:css('--warm')},svg);
+    el('rect',{x:x(w.w)+2+q,y:y(w.sHi),width:q,height:Math.max(2,y(w.sLo)-y(w.sHi)),rx:2,fill:css('--accent')},svg);
+    if(w.w%4===0) el('text',{x:x(w.w)+1,y:H-6},svg).textContent=weekDates(w.w).split(/[–-]/)[0].trim();
+    const hit=el('rect',{x:x(w.w),y:T,width:bw,height:H-T-Bm,fill:'transparent'},svg);
+    hit.onmousemove=ev=>showTip(ev,`<b>${weekName(w.w)}</b> · ${weekDates(w.w)}<br>Base ${f0(w.bLo)}° to ${f0(w.bHi)}°F<br>Summit ${f0(w.sLo)}° to ${f0(w.sHi)}°F`);
+    hit.onmouseleave=hideTip;
+  });
+}
+
+// ---------- the weekly report ----------
+function report(w){
+  const parts=[], hasBase=w.prev>=1||w.depth>=1;
+  const big=w.days.map((d,j)=>({d,j})).sort((a,b)=>b.d.snow-a.d.snow)[0], when=['the first weekday','the second weekday','the weekend'][big.j];
+  if(w.snow>=30) parts.push(`Big week: ${f0(w.snow)} in, the most on ${when}`);
+  else if(w.snow>=12) parts.push(`${f0(w.snow)} in of new snow`);
+  else if(w.snow>=3) parts.push(`A few inches (${f0(w.snow)})`);
+  else if(w.rain>=0.1) parts.push('Wet week, little snow');
+  else parts.push(w.cloud<45?'Dry and mostly sunny':'Dry and grey');
+  if(w.powder) parts.push(w.powder===1?'a powder day':`${w.powder} powder days`);
+  if(w.rain>=0.5) parts.push(`rain, ${w.rain.toFixed(1)} in of water`+(hasBase?': crust and slush':'')); else if(w.rain>=0.1 && w.snow>=3) parts.push('some rain');
+  if(w.bHi>=40 && w.snow<3 && hasBase) parts.push('warm: spring snow by afternoon');
+  if(w.sLo<=0) parts.push(`cold snap, ${f0(w.sLo)}°F up top`);
+  if(!hasBase) return parts.join(', ')+'. No base yet.';
+  const ch=w.depth-w.prev;
+  parts.push(Math.abs(ch)<0.5 ? 'base holds' : `base ${ch>0?'up':'down'} ${f0(Math.abs(ch))} in`);
+  return parts.join(', ')+'.';
+}
+function table(wk){
+  const mx=Math.max(...wk.map(w=>w.depth),1);
+  let h=`<thead><tr><th class="l">Week</th><th class="l">Dates</th><th>New snow</th><th>Rain</th><th>Base</th><th>Change</th><th>Low / high</th><th>Gust (free air)</th><th>Sky</th><th class="l">Report</th></tr></thead><tbody>`;
+  wk.forEach(w=>{
+    const cls=w.w<7?'pre':w.w<21?'in':'post', ch=w.depth-w.prev, lo=E==='summit'?w.sLo:w.bLo, hi=E==='summit'?w.sHi:w.bHi;
+    h+=`<tr class="${cls}"><td class="l wk">${weekName(w.w)}${w.w===7?'<span class="chip">opening</span>':''}${w.w===9?'<span class="chip">holidays</span>':''}</td><td class="l">${weekDates(w.w)}</td>
+      <td>${w.snow>=0.5?f0(w.snow)+' in':'–'}</td><td>${w.rain>=0.05?w.rain.toFixed(2)+'"':'–'}</td>
+      <td style="text-align:left"><span style="display:inline-block;width:46px;text-align:right">${f0(w.depth)} in</span><span class="bar" style="width:${(w.depth/mx*90).toFixed(0)}px"></span></td>
+      <td style="color:${ch>0.5?'var(--good)':ch<-0.5?'var(--warm)':'var(--text-muted)'}">${Math.abs(ch)<0.5?'–':(ch>0?'+':'−')+f0(Math.abs(ch))}</td>
+      <td>${f0(lo)}° / ${f0(hi)}°</td><td>${f0(w.gust)} mph</td><td>${w.cloud<35?'sunny':w.cloud<65?'mixed':'cloudy'}</td><td class="rep">${report(w)}</td></tr>`;
+  });
+  document.getElementById('tbl').innerHTML=h+'</tbody>';
+  document.getElementById('capT').textContent=`Season ${S+1} at ${D.name}, ${NAMES[E].toLowerCase()} (${f0(D.feet[EI[E]])} ft). Pre-season weeks build the base the opening gets; low/high is ${E==='summit'?'the summit':'the base area'}.`;
+}
+
+function render(){
+  document.getElementById('title').textContent='Weather Lab: '+D.name+', week by week';
+  document.getElementById('sub').textContent=`${D.samples.length} sample seasons from the frozen rows (${D.rows}) · game weeks of 3 days · the season runs Day 1 (Dec 1) to Day 42 (Apr 1)`+(B?' · the dotted line is the baseline':'');
+  document.getElementById('stamp').textContent=`Built ${BUILD.date} from ${BUILD.commit}.`+(BASE?` Baseline: ${BASE.build ? BASE.build.date+' from '+BASE.build.commit : 'pinned earlier'}`+(B && B.rows!==D.rows?` (rows ${B.rows} then)`:' (same rows)')+'.':' No baseline yet.');
+  controls(); tiles(); const wk=weekly(S,E); chartA(); chartB(wk); chartC(wk); table(wk);
+}
+pick(LAB.sites.findIndex(s=>s.id==='stevens-pass-2km')>=0 ? LAB.sites.findIndex(s=>s.id==='stevens-pass-2km') : 0);
+render();
+addEventListener('resize',()=>{ const wk=weekly(S,E); chartA(); chartB(wk); chartC(wk); });
+</script>
+</body>
+</html>

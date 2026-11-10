@@ -29,6 +29,11 @@ tools/data-spike/tests/DataSpike.Tests/fixtures/*.bin filter=lfs diff=lfs merge=
 *.bat text eol=crlf
 TestData/**/*.bin filter=lfs diff=lfs merge=lfs -text
 TestData/**/*.grid filter=lfs diff=lfs merge=lfs -text
+# Recorded weather answers (task 4.05): Daymet, NASA POWER and SNOTEL, gzipped.
+TestData/weather/**/*.gz filter=lfs diff=lfs merge=lfs -text
+# Calibrated weather rows (task 4.05) are binary and verified by their SHA-256: never convert them.
+*.rows -text
+*.rows.sha256 -text
 # Generated texture arrays (Mountain Planner > Generate Ground Textures): large, binary in effect.
 Assets/MountainPlanner/Art/Terrain/Ground*.asset filter=lfs diff=lfs merge=lfs -text
 # UI font assets (Mountain Planner > Build UI Font Assets): baked SDF atlases, binary in effect.
