@@ -34,7 +34,7 @@ jobs:
       # Only the small fixtures: the test terrain's heights (TestData/jackson-hole-2km, ~35 MB) are tested
       # locally, to stay inside GitHub's free Git LFS bandwidth (P5). Its canopy, cover and lidar truth
       # (< 1 MB) come along so the D4 forest-rule gate (task 07) runs on every PR.
-      LFS_FIXTURES: "tools/data-spike/tests/DataSpike.Tests/fixtures/*,TestData/s1m-fixture/*,TestData/jackson-hole-2km/canopy-core.grid,TestData/jackson-hole-2km/cover.grid,TestData/jackson-hole-2km/forest-truth.bin"
+      LFS_FIXTURES: "tools/data-spike/tests/DataSpike.Tests/fixtures/*,TestData/s1m-fixture/*,TestData/jackson-hole-2km/canopy-core.grid,TestData/jackson-hole-2km/cover.grid,TestData/jackson-hole-2km/forest-truth.bin,TestData/weather/**"
     steps:
       - uses: actions/checkout@v4
         with:
