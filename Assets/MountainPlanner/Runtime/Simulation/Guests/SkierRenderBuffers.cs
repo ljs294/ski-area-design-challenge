@@ -4,28 +4,46 @@ using System.Threading;
 namespace MountainPlanner.Simulation
 {
     /// <summary>
-    /// GU-16: where every skier is, packed to 16 bytes, for 4.13 to draw. One entry per skier on the hill.
+    /// GU-16 v2 (task 4.13): where every skier is, packed to 24 bytes, for the screen to draw. One entry per skier on the
+    /// hill, in slot order.
     ///
     /// The segment is an **edge index** into the network the design brought (<see cref="SimNetwork"/>), or a lift index
-    /// with <see cref="GuestColumns.LiftMark"/> set; the ticks say when the skier got on and when it gets off, so the
-    /// renderer interpolates along that segment's centreline itself and needs nothing from the worker in between. The
-    /// same record carries a 3D skier later (LO-06), which is why the lane and the state are in it from the start.
+    /// with <see cref="GuestColumns.LiftMark"/> set. What <see cref="EntryTick"/> and <see cref="ExitTick"/> hold depends
+    /// on the state:
+    /// - **skiing or walking:** the day-relative ticks it got on and gets off (add <see cref="SkierRenderBuffers.Frame.DayStartTick"/>
+    ///   for the absolute tick), so the renderer interpolates along the segment's centreline itself;
+    /// - **queued (LO-02):** entry is the join tick, exit is 0, and <see cref="Rank"/> is its place in the FIFO line (0 is
+    ///   next to board); <see cref="Lane"/> is unused there, because the line's column is the rank modulo the seats;
+    /// - **riding (LO-06):** the rope travel (ms of motion) at boarding and at release, cut to 32 bits; compare them
+    ///   with the snapshot's <c>RunMs</c> by wrap-safe subtraction.
+    /// <see cref="Slot"/> is the worker's skier slot, stable while the skier is on the hill, so a renderer can keep
+    /// per-skier easing state by slot (the column itself is packed and its indices shift whenever someone leaves).
+    /// <see cref="Serial"/> is the whole serial <c>InspectSkier</c> takes. A skier with neither an edge nor a lift (choosing,
+    /// arriving) has <see cref="Segment"/> 0 and <see cref="Node"/> says where it is: read the state before the segment.
     /// </summary>
     public readonly struct SkierRender
     {
+        public readonly uint Serial;
         public readonly ushort Segment;
-        public readonly ushort Serial16;
+        public readonly ushort Rank;
+        public readonly ushort Slot;
+        /// <summary>The network node the skier stands at or last left (<see cref="NoNode"/> for none): where a choosing
+        /// skier waits, and where a walker across an Area (GU-09) set out from.</summary>
+        public readonly ushort Node;
         public readonly uint EntryTick;
         public readonly uint ExitTick;
         public readonly byte Lane;
         public readonly byte State;
         public readonly byte Band;
-        public readonly byte Rank;
+        /// <summary>GU-13's satisfaction, 0–255 for 0–1 (the dots' Satisfaction colour mode).</summary>
+        public readonly byte Satisfaction;
 
-        public SkierRender(ushort segment, ushort serial16, uint entryTick, uint exitTick, byte lane, byte state, byte band, byte rank)
+        public const ushort NoNode = 0xFFFF;
+
+        public SkierRender(uint serial, ushort segment, ushort rank, ushort slot, ushort node, uint entryTick, uint exitTick, byte lane, byte state, byte band, byte satisfaction = 0)
         {
-            Segment = segment; Serial16 = serial16; EntryTick = entryTick; ExitTick = exitTick;
-            Lane = lane; State = state; Band = band; Rank = rank;
+            Serial = serial; Segment = segment; Rank = rank; Slot = slot; Node = node; EntryTick = entryTick; ExitTick = exitTick;
+            Lane = lane; State = state; Band = band; Satisfaction = satisfaction;
         }
 
         /// <summary>Whether <see cref="Segment"/> names a lift rather than a trail segment.</summary>
@@ -36,7 +54,7 @@ namespace MountainPlanner.Simulation
 
     /// <summary>
     /// GU-16, BG-11: the render column, triple-buffered and handed over by a pointer swap once per real tick, *beside*
-    /// the 64 KB snapshot rather than inside it. At 3,000 skiers the column is 48 KB and at 30,000 it is 480 KB, so SI-16
+    /// the 64 KB snapshot rather than inside it. At 3,000 skiers the column is 72 KB and at 30,000 it is 720 KB, so SI-16
     /// could never have carried it; the snapshot carries this buffer's tick and count instead, and the renderer reads the
     /// array in place. Nothing here is written after it is published.
     /// </summary>
@@ -50,6 +68,11 @@ namespace MountainPlanner.Simulation
             public long Tick;
             /// <summary>The design revision the segment indices belong to: a renderer holding an older one must wait.</summary>
             public long Revision;
+            /// <summary>The absolute tick the day's records count from: a skier's entry and exit are relative to it.</summary>
+            public long DayStartTick;
+            /// <summary>SN-31 (view only): per network edge, the skiers on it now, its passes over the rolling face hour and today.</summary>
+            public int[] EdgeOn = Array.Empty<int>(), EdgeLastHour = Array.Empty<int>(), EdgeToday = Array.Empty<int>();
+            public int EdgeCount;
             public Frame(int cap) { Skiers = new SkierRender[cap]; }
         }
 

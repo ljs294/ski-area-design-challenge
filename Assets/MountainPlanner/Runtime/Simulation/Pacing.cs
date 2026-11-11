@@ -14,7 +14,8 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 3;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 4;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+                                        // 4: task 4.13's confidence speed (GU-10 v2)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -64,6 +65,13 @@ namespace MountainPlanner.Simulation
         public readonly int ChairSpeedFactor;
         public readonly int SkierSpeedFactor;
         public readonly int RideCompression;
+        /// <summary>
+        /// GU-10 v2 (owner, 2026-11-09: "an expert on a green should be zooming"): each ability band above the trail's true
+        /// band adds this much to the skier's speed, each band below takes it off, in permille, clamped to Min…Max.
+        /// </summary>
+        public readonly int ConfidenceStepPermille;
+        public readonly int ConfidenceMinPermille;
+        public readonly int ConfidenceMaxPermille;
         public readonly int LapsTarget;
         /// <summary>TM-08: the close nudge, as a percentage of built trails open.</summary>
         public readonly int CloseNudgeSharePercent;
@@ -238,6 +246,9 @@ namespace MountainPlanner.Simulation
             ChairSpeedFactor = Int(map, nameof(ChairSpeedFactor), 1, 100);
             SkierSpeedFactor = Int(map, nameof(SkierSpeedFactor), 1, 100);
             RideCompression = Int(map, nameof(RideCompression), 1, 100);
+            ConfidenceStepPermille = Int(map, nameof(ConfidenceStepPermille), 0, 1000);
+            ConfidenceMinPermille = Int(map, nameof(ConfidenceMinPermille), 100, 1000);
+            ConfidenceMaxPermille = Int(map, nameof(ConfidenceMaxPermille), 1000, 4000);
             LapsTarget = Int(map, nameof(LapsTarget), 1, 100);
             CloseNudgeSharePercent = Int(map, nameof(CloseNudgeSharePercent), 0, 100);
             SeasonEndDays = Int(map, nameof(SeasonEndDays), 1, 365);
@@ -368,6 +379,9 @@ namespace MountainPlanner.Simulation
             E(nameof(ChairSpeedFactor), "1"),
             E(nameof(SkierSpeedFactor), "2"),
             E(nameof(RideCompression), "8"),
+            E(nameof(ConfidenceStepPermille), "200"),
+            E(nameof(ConfidenceMinPermille), "700"),
+            E(nameof(ConfidenceMaxPermille), "1400"),
             E(nameof(LapsTarget), "4"),
             E(nameof(CloseNudgeSharePercent), "25"),
             E(nameof(SeasonEndDays), "7"),

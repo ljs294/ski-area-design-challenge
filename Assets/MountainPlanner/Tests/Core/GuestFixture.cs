@@ -30,7 +30,7 @@ namespace MountainPlanner.Tests
 
         /// <summary>A trail segment's facts: the band it is, the sign on it, and how wide and long it is.</summary>
         static TrailEdgeFacts Facts(byte band, int widthFeet = 100, int metres = 800) =>
-            new TrailEdgeFacts(band, band, (int)(widthFeet * 30.48), metres * (int)(widthFeet * 0.3048), SkiMs(band, metres));
+            TrailEdgeFacts.SteadyPitch(band, band, (int)(widthFeet * 30.48), metres * (int)(widthFeet * 0.3048), SkiMs(band, metres));
 
         /// <summary>A reference skier of the band over <paramref name="metres"/>, real ms at 1× (GU-10's base speeds).</summary>
         static int SkiMs(byte band, int metres)
@@ -116,7 +116,7 @@ namespace MountainPlanner.Tests
                 Facts(Green),
                 // A blue posted green: the gate reads the harder of the two (GU-17), so a beginner still can't take it,
                 // and everyone who skis it loses satisfaction for the sign.
-                new TrailEdgeFacts(Blue, Green, 3048, 24_000, SkiMs(Blue, 800)),
+                TrailEdgeFacts.SteadyPitch(Blue, Green, 3048, 24_000, SkiMs(Blue, 800)),
                 Facts(Blue), Facts(Black, 60), Facts(Double, 40), Facts(Blue),
                 default, default,
             };

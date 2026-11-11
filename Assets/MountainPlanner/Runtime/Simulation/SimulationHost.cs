@@ -294,6 +294,8 @@ namespace MountainPlanner.Simulation
         {
             var s = _buffers.Back;
             _world.Write(s);
+            // GU-16 v2 (4.13): the skiers' places go over with every snapshot, beside it, so the screen draws the same tick.
+            _world.PublishSkierRender();
             s.Seq = ++_published;
             s.Speed = _speed;
             s.TicksPerRealTick = Pacing.Speeds[_speed - 1];
@@ -315,9 +317,29 @@ namespace MountainPlanner.Simulation
             if (_timingCount == 0) return;
             long sum = 0;
             for (int i = 0; i < _timingCount; i++) { _sorted[i] = _timings[i]; sum += _timings[i]; }
-            Array.Sort(_sorted, 0, _timingCount);
             mean = (int)(sum / _timingCount);
-            p99 = _sorted[Math.Min(_timingCount - 1, _timingCount * 99 / 100)];
+            // Selected in place, not sorted: Unity's Mono allocates in Array.Sort (~128 B a publish, task 4.13's garbage).
+            p99 = Select(_sorted, _timingCount, Math.Min(_timingCount - 1, _timingCount * 99 / 100));
+        }
+
+        /// <summary>The <paramref name="k"/>-th smallest of the first <paramref name="n"/> values (Hoare's quickselect, in place).</summary>
+        internal static int Select(int[] a, int n, int k)
+        {
+            int lo = 0, hi = n - 1;
+            while (lo < hi)
+            {
+                int pivot = a[(lo + hi) >> 1], i = lo, j = hi;
+                while (i <= j)
+                {
+                    while (a[i] < pivot) i++;
+                    while (a[j] > pivot) j--;
+                    if (i <= j) { int t = a[i]; a[i] = a[j]; a[j] = t; i++; j--; }
+                }
+                if (k <= j) hi = j;
+                else if (k >= i) lo = i;
+                else break;
+            }
+            return a[k];
         }
 
         public void Dispose()

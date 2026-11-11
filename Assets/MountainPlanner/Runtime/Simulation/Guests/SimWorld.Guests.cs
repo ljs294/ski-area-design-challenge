@@ -94,6 +94,7 @@ namespace MountainPlanner.Simulation
                 _passes = new int[e * Pacing.WearBands];
             }
             else Array.Clear(_onEdge, 0, e);
+            AllocTraffic(e);
             if (_nextEntryTick.Length != n) _nextEntryTick = new long[n];
             for (int k = 0; k < e; k++) _edgeCrowd[k] = net.CapacityOf(k, Pacing.SkiersPerOpenAcre);
             // The counters are rebuilt from the skiers, so a remap or a reshape never leaves them adrift.
@@ -537,7 +538,7 @@ namespace MountainPlanner.Simulation
             if (node >= 0 && node < _nextEntryTick.Length) _nextEntryTick[node] = t + Pacing.EntrySpacingTicks;
             var net = _guestsNetwork;
             bool path = net.EdgeKindOf[edge] == (byte)SimEdgeKind.Path;
-            int ticks = EdgeTicks(edge, _guests.Speed[lead], path);
+            int ticks = EdgeTicks(edge, path ? _guests.Speed[lead] : PartyTrailSpeed(lead, edge), path, _guests.Band[lead]);
             int to = net.EdgeTo[edge];
             for (int s = lead; s >= 0; s = _guests.Member[s])
             {
@@ -556,12 +557,40 @@ namespace MountainPlanner.Simulation
         /// <summary>
         /// GU-10: how many ticks the party takes over the edge: the submitter's reference time for the trail's band, over
         /// the party's speed and <see cref="Pacing.SkierSpeedFactor"/>. Integers only, and never less than one tick.
+        /// GU-10 v3 (Guests Engine v0.1): on a trail the reference time is the party's band's own (a party is one band,
+        /// GU-05), so a beginner holds back on a pitch an expert lets run.
         /// </summary>
-        int EdgeTicks(int edge, int speedPermille, bool path)
+        internal int EdgeTicks(int edge, int speedPermille, bool path, int band)
         {
-            int baseMs = _guestsNetwork.EdgeBaseMs[edge];
-            if (path) return MsToTicks(baseMs, 1000);
-            return MsToTicks(baseMs, speedPermille);
+            var net = _guestsNetwork;
+            if (path) return MsToTicks(net.EdgeBaseMs[edge], 1000);
+            int b = Math.Max(0, Math.Min(Pacing.Bands - 1, band));
+            int ms = net.EdgeBandMs != null && net.EdgeBandMs.Length > edge * Pacing.Bands + b
+                ? net.EdgeBandMs[edge * Pacing.Bands + b] : net.EdgeBaseMs[edge];
+            return MsToTicks(ms, speedPermille);
+        }
+
+        /// <summary>
+        /// GU-10 v2: the party's speed on this trail segment, permille: each member's own speed times its confidence on the
+        /// segment's true band, and the party goes at its slowest member's (GU-02: a party skis together).
+        /// </summary>
+        int PartyTrailSpeed(int lead, int edge)
+        {
+            int trailBand = _guestsNetwork.EdgeTrueBand[edge];
+            int slow = int.MaxValue;
+            for (int s = lead; s >= 0; s = _guests.Member[s])
+            {
+                int v = (int)((long)_guests.Speed[s] * ConfidencePermille(_guests.Band[s], trailBand) / 1000);
+                if (v < slow) slow = v;
+            }
+            return slow == int.MaxValue ? _guests.Speed[lead] : Math.Max(1, slow);
+        }
+
+        /// <summary>GU-10 v2: 1 + step × (own band − the trail's true band), clamped, permille.</summary>
+        internal int ConfidencePermille(int ownBand, int trailBand)
+        {
+            int v = 1000 + Pacing.ConfidenceStepPermille * (ownBand - trailBand);
+            return Math.Max(Pacing.ConfidenceMinPermille, Math.Min(Pacing.ConfidenceMaxPermille, v));
         }
 
         int MsToTicks(int ms, int speedPermille)
@@ -625,6 +654,7 @@ namespace MountainPlanner.Simulation
                 {
                     int lane = _guests.Lane[s];
                     _passes[edge * Pacing.WearBands + lane]++;
+                    CountTraffic(edge);
                     int which = net.EdgeTrail[edge];
                     Metric(SimMetric.Passes, false, which, 1);
                     if (misrated != 0) Metric(SimMetric.MisratePenalty, false, which, 1);
