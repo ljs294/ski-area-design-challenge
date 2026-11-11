@@ -99,6 +99,7 @@ namespace MountainPlanner.App.Flow
                 if (Controller.Screen == FlowScreen.Library) Screens.UpdateWaterAndRoads(folder, _weatherText);
             });
             string toast = null, why = "";
+            bool weatherNew = false;
             Exception error = null;
             var ct = job.Cancel.Token;
             try
@@ -112,6 +113,7 @@ namespace MountainPlanner.App.Flow
                 var w = ResortPackage.ReadManifest(folder).Weather;
                 Debug.Log($"[AppFlow] Weather for {name} ({(manual ? "Get weather" : "on open")}): {(added ? "added" : "already there")}, " +
                           $"{w?.Verdict}, label years {w?.FirstLabelYear}-{w?.LastLabelYear}");
+                weatherNew = added && w != null && w.RowsFile.Length > 0;
                 if (added) toast = w != null && w.RowsFile.Length == 0 ? $"{name} is outside the weather records: it plays a typical mountain's weather."
                                  : $"Weather added for {name}.";
             }
@@ -127,6 +129,8 @@ namespace MountainPlanner.App.Flow
                 _weatherText = "";
             }
             if (this == null) return;
+            // Task 4.05: an open area's simulation takes its own rows at the next October 1.
+            if (weatherNew && _viewer != null) _viewer.WeatherAdded(folder);
             bool cancelled = EndAreaJob(job, error, why);
             if (cancelled) toast = "Get weather cancelled. Nothing was changed.";
             // A failure the player started stays on the card, which says why; the automatic try stays quiet (the next open tries again).

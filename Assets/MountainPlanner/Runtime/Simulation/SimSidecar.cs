@@ -16,12 +16,14 @@ namespace MountainPlanner.Simulation
     /// A bump adds a step to <see cref="Upgrade"/> and a <c>TestData/formats/v&lt;N&gt;-sim</c> fixture; v1's stays unedited.
     /// v2 (task 4.11) appends the lift-operations block (lines, riders, carriers, holds, the day's lift ledger, the way down).
     /// v4 (task 4.12) appends the guests: every skier on the hill, the day's crowd and its ledgers, the reputations per
-    /// archetype (GU-18), SN-24's wear counters and the Popularity cells. v3 is task 4.05's weather; whichever of the two
-    /// merges second takes the next number, as the coordinator sequenced it.
+    /// archetype (GU-18), SN-24's wear counters and the Popularity cells. v3 was held for task 4.05's weather and never
+    /// written (the guests merged first). v5 (task 4.05) appends the weather: the rows playing and any waiting for October 1,
+    /// each with its reference points, and what the generator was reset with and the hour it reached (it is rebuilt by
+    /// re-running from October 1, WX-56); the top-station gusts in the lift block turn from whole mph to tenths.
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 4;
+        public const int Version = 5;
         public const string Extension = ".sim";
         static readonly byte[] Magic = { (byte)'M', (byte)'P', (byte)'S', (byte)'M' };
 
@@ -83,7 +85,9 @@ namespace MountainPlanner.Simulation
         /// <see cref="InvalidDataException"/> when the bytes are damaged or don't add up to the hash they carry, and
         /// <see cref="NotSupportedException"/> for a newer sidecar. <paramref name="header"/> says what it was made with.
         /// </summary>
-        public static SimWorld Read(byte[] bytes, Pacing pacing, SimDesign design, SimSite site, out Header header)
+        /// <param name="weather">The area's weather now (task 4.05): a sidecar from before v5 starts it from October 1 of its
+        /// year; a v5 sidecar keeps the rows it ran with, and different rows here wait for the next October 1 (WX-32 v2).</param>
+        public static SimWorld Read(byte[] bytes, Pacing pacing, SimDesign design, SimSite site, out Header header, SimWeather weather = null)
         {
             if (pacing == null) throw new ArgumentNullException(nameof(pacing));
             if (design == null) throw new ArgumentNullException(nameof(design));
@@ -103,6 +107,9 @@ namespace MountainPlanner.Simulation
                 if (header.PacingHash == pacing.ContentsHash && sameDesign && w.Hash() != expected)
                     throw new InvalidDataException("The simulation's state doesn't add up to its hash.");
                 if (!sameDesign) w.RefoldDesign();
+                // After the hash: the weather the area has now is an input like a new design revision, never the saved state.
+                if (header.SidecarVersion < 5) w.StartWeatherForOlderSave(weather);
+                else w.UseWeatherAtLoad(weather);
                 return w;
             }
             catch (EndOfStreamException) { throw new InvalidDataException("The simulation's state is cut short."); }
@@ -112,7 +119,8 @@ namespace MountainPlanner.Simulation
         /// <summary>
         /// One step per version bump, oldest first. v1 → v2: v1 has no lift-operations block, and the reader leaves the lines
         /// and chairs empty, the lift ledger at zero and the holds as saved (<see cref="SimWorld"/>'s ReadState reads the block
-        /// only from v2), so the bytes need no rewrite.
+        /// only from v2), so the bytes need no rewrite. v4 → v5 likewise: the reader multiplies the saved gusts by ten and
+        /// starts the weather from October 1.
         /// </summary>
         static byte[] Upgrade(byte[] bytes)
         {

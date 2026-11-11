@@ -43,6 +43,8 @@ namespace MountainPlanner.Simulation
         InspectSkier = 27,
         /// <summary>GU-15: put N skiers of an archetype on the hill (the style tile, the tests, the demo).</summary>
         SpawnSkiers = 28,
+        /// <summary>Task 4.05: Payload = a <see cref="SimWeather"/>, the area's weather (new rows wait for October 1, WX-32 v2).</summary>
+        SetWeather = 29,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>

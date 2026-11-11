@@ -366,6 +366,43 @@ A2 packages the v0.1 core; nothing in the game reads the weather until PR B (no 
   build year); demo 95 and the tests use it. `acquire weather-build` and `weather-info` do the same from the
   command line.
 
+## 3c. PR B1: the weather in the world (task 4.05, 2026-11-11)
+
+B1 puts the generator in `SimWorld` (`Simulation/Weather/SimWorld.Weather.cs`), with every format bump and re-pin of
+PR B done once. The weather over the map (WX-35…39's per-cell fields, the batch API, the integer wet bulb) is
+B-fields, with no format change; the snow energy (WX-59…64) is B2. **Nothing on the map changes yet:** the snow model
+that reads these numbers is task 4.07.
+- **The world's hours are the generator's (WX-33).** Each face hour the hour step (first, WX-06) steps the generator
+  from WX-56's October 1 reset under the season's seed. The sim year is `LabelCalendar.YearFaceDays × 24` face hours
+  from October 1; the generator's calendar clamps past hour 3,040, so the v0.1 goldens stay pinned. A seed or year
+  that changes, a load and a new game re-run it from October 1 to the hour (`RunTo`).
+- **WX-32 v2, the save.** Sidecar v5 keeps the rows the world plays (about 31 KB), any rows waiting, each with its
+  reference points and content hash, then the seed, year and hour the generator reached. It doesn't write the
+  generator's state: that state is a pure function of the rows, seed, year and hour, so the reader rebuilds it exactly
+  with `RunTo`. A v1–v4 save starts the area's weather from its October 1, and its saved gusts move to tenths.
+- **Rows that change mid-winter wait for October 1 (WX-32 v2, owner 2026-11-11).** When an area gets its own weather
+  after a game began (Get weather, or a save opened over it), this winter keeps the rows it started with, and the new
+  rows take over at the next October 1. So the season's character never changes under the player, and a 4.07
+  snowpack built by the old weather stays consistent. Reference points that move with the same rows apply at once.
+- **The typical mountain (WX-13 v2).** An area with no rows plays the frozen Jackson Hole 2 km rows (West) or the
+  Jackson, New Hampshire 4 km rows (East, longitude −100° and east), shipped in every build under
+  `StreamingAssets/Weather` (`DemoBundle.AddTypicalWeather`). `WeatherGeneric.MoveTo` gives them the area's sunrise
+  and sunset and flags them limited; zref keeps its height, so the lapse carries the climate to the area's heights.
+  Base and summit are the area's own: the 10th and 95th percentiles of the core's downloaded heights before any
+  earthwork (`WeatherFetch.ReferenceFeet`), the core layer's range until the snowpack lands.
+- **WX-39 (B1's form): the top-station gust.** Each lift's gust = the free wind × the exposure at its top station's
+  height × the hour's gust factor, in 0.1 mph (`Pacing.WindExposure`'s 8 classes, from the sheltered class at the base
+  to the exposed class at the summit). It feeds LO-11's wind checks, which became step boundaries in an idle step (so a
+  skipped night holds and resumes on the same tick as a played one, TM-03). B-fields swaps the height rule for the
+  steered, per-cell exposure through the same inputs.
+- **Pacing v5:** `GustFactorStorm`, `GustFactorFair`, `StormBurst`, `PoolBuildPerHour`, `PoolMax`, `PoolDepthFeet`,
+  `WindScale`, `WindExposure`, the orographic factors, `SpilloverReachMetres`, `WinterLiquid`, `WinterTemp`,
+  `ForecastSkill`. Re-pinned once (owner OK 2026-11-11): `SeasonRunner.GoldenFoldValue` and `GuestsTests.GuestDayFold`.
+  `SimCommandKind.SetWeather = 29`. The snapshot gains the hour, the base, mid and summit samples and each lift's gust.
+- **Demo 94 and the readout:** `-weatherreadout` (and F1's Weather rows) shows the hour, the three samples and each
+  lift's top gust against its hold gust. The wind-hold report (`WeatherHoldReportTests`, `tools/weather-holds`) plays
+  every site's rows for five winters at three `WindScale` values; the owner chose 0.85 after demo 94 (2026-11-11).
+
 ## 4. Weather runs on the calendar, compressed like time
 
 The owner's ruling (Q17, superseding an earlier size-and-frequency split): *storm frequency over duration; use
@@ -689,8 +726,8 @@ into tables, never stored per cell.
   hour's gust factor. **Direction at a cell** = the hour's direction + the steering grid's turn, bilinear between
   the two octants nearest the hour's direction (owner, 2026-11-08): the wind follows valleys and wraps round peaks,
   and the drift (SN-07), gun plumes and the Wind layer all use the cell's own direction. **Top-station gust** for LO-11 is the function sampled at each lift's top station.
-  POWER's smoothed wind runs low in mountains; `Pacing.WindScale` (default 1.0) is 4.05's to tune against the
-  owner's sense of how often a fixed-grip holds.
+  POWER's smoothed wind runs low in mountains; `Pacing.WindScale` (0.85 since 4.05 PR B1, the owner's
+  choice from demo 94's hold report) is 4.05's to tune against the owner's sense of how often a fixed-grip holds.
 - **WX-40, shortwave at a cell.** Clear-sky shortwave from the sun's elevation (WX-04, one shared Domain function,
   float, once per hour) × the hour's clearness, onto a horizontal surface; SN-09's slope factor does the rest. Kept
   out of the integer generator because it has a sine in it.

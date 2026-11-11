@@ -57,13 +57,13 @@ namespace MountainPlanner.Simulation
         /// <summary>Per network trail: 1 when an open lift's descent runs along it today.</summary>
         byte[] _trailReached = Array.Empty<byte>();
 
-        // ---- the gust seam (LO-11, WX-39): per lift, the hour's gust at its top station, mph. 0 until 4.05's weather
-        // writes it in HourStep; SetGust overrides every lift (tests, the demo) ----
-        int[] _weatherGustMph = Array.Empty<int>();
+        // ---- the gust seam (LO-11, WX-39): per lift, the hour's gust at its top station, 0.1 mph, written by the weather's
+        // hour step (task 4.05); SetGust overrides every lift in whole mph (tests, the demo) ----
+        int[] _weatherGustTenths = Array.Empty<int>();
         int _gustOverrideMph = -1;
 
-        /// <summary>LO-11's gust at a lift's top station this hour, mph: the weather's (4.05) or the override.</summary>
-        int GustAtTop(int i) => _gustOverrideMph >= 0 ? _gustOverrideMph : _weatherGustMph[i];
+        /// <summary>LO-11's gust at a lift's top station this hour, 0.1 mph: the weather's (4.05) or the override.</summary>
+        int GustTenthsAtTop(int i) => _gustOverrideMph >= 0 ? _gustOverrideMph * 10 : _weatherGustTenths[i];
 
         // ================= folding =================
 
@@ -97,7 +97,7 @@ namespace MountainPlanner.Simulation
                 int was = Array.BinarySearch(oldIds, 0, oldCount, ids[i]);
                 if (was < 0 || was >= _intervalMs.Length) continue;
                 downloading[i] = _downloading[was]; wayDown[i] = _wayDown[was];
-                calm[i] = _calmSince[was]; gust[i] = _weatherGustMph[was]; feed[i] = _feedPerMin[was]; acc[i] = _feedAcc[was];
+                calm[i] = _calmSince[was]; gust[i] = _weatherGustTenths[was]; feed[i] = _feedPerMin[was]; acc[i] = _feedAcc[was];
                 rides[i] = _rides[was]; peak[i] = _peakLine[was]; waitCount[i] = _waitCount[was]; left[i] = _leftInLine[was];
                 released[i] = _released[was]; waitTicks[i] = _waitTicks[was]; holdMs[i] = _holdFaceMs[was];
                 // The line and the riders are chains over skier slots, so they carry over by moving their heads: nothing
@@ -112,7 +112,7 @@ namespace MountainPlanner.Simulation
             }
             // SI-13: a lift that is gone takes no one with it — its line chooses again and its riders step off at its
             // bottom. The guests row is told before this fold runs (FoldGuestsForDesign), so every chain here is live.
-            _intervalMs = interval; _downloading = downloading; _wayDown = wayDown; _calmSince = calm; _weatherGustMph = gust; _feedPerMin = feed; _feedAcc = acc;
+            _intervalMs = interval; _downloading = downloading; _wayDown = wayDown; _calmSince = calm; _weatherGustTenths = gust; _feedPerMin = feed; _feedAcc = acc;
             _aboard = aboard;
             _lineFirst = lineFirst; _lineLast = lineLast; _lineCount = lineCount;
             _rideFirst = rideFirst; _rideLast = rideLast; _rideCount = rideCount;
@@ -534,22 +534,23 @@ namespace MountainPlanner.Simulation
             if (offset < inHour || offset >= inHour + Math.Max(1, _stepAdvance)) return;
             int j = Pacing.GustJitterPercent;
             int factor = 100 + (int)((key >> 32) % (ulong)(2 * j + 1)) - j;
-            int gust = GustAtTop(i) * factor / 100;
-            int limit = HoldLimitMph(Pacing, lift);
+            // In tenths (task 4.05): the weather's gust is 0.1 mph; the events still say whole mph.
+            int gust = GustTenthsAtTop(i) * factor / 100;
+            int limit = HoldLimitMph(Pacing, lift) * 10;
             if (_liftHold[i] == 0)
             {
                 if (gust <= limit) return;
                 _liftHold[i] = 1;
                 _calmSince[i] = -1;
-                Events.Add(Tick, SimEventType.LiftHeld, i, gust);
+                Events.Add(Tick, SimEventType.LiftHeld, i, gust / 10);
                 return;
             }
-            if (gust > limit - Pacing.HoldResumeMarginMph) { _calmSince[i] = -1; return; }
+            if (gust > limit - Pacing.HoldResumeMarginMph * 10) { _calmSince[i] = -1; return; }
             if (_calmSince[i] < 0) { _calmSince[i] = FaceMs; return; }
             if (FaceMs - _calmSince[i] < Pacing.HoldResumeFaceMinutes * 60_000L) return;
             _liftHold[i] = 0;
             _calmSince[i] = -1;
-            Events.Add(Tick, SimEventType.LiftResumed, i, gust);
+            Events.Add(Tick, SimEventType.LiftResumed, i, gust / 10);
         }
 
         /// <summary>
@@ -573,7 +574,7 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>The next lift-hours boundary after <paramref name="sod"/>, before <paramref name="next"/> (a step never crosses one).</summary>
-        long LiftBoundary(long sod, long next)
+        long LiftBoundary(long sod, long next, bool windChecks)
         {
             for (int i = 0; i < _liftCount; i++)
             {
@@ -581,6 +582,17 @@ namespace MountainPlanner.Simulation
                 if (o > sod && o < next) next = o;
                 if (l > sod && l < next) next = l;
                 if (s > sod && s < next) next = s;
+                // LO-11 v2 with real gusts (task 4.05): in an idle step, each lift's next wind check (hourly, or a held
+                // lift's recheck) is a boundary, so a hold, its calm and its resume fall at the same instant at any step size
+                // (TM-03). A running world steps one tick at a time already, and a cut tick would move its ropes.
+                if (windChecks && Phase == SeasonPhase.Season && _liftBuilt[i] && LiftKinds.HoldIndex(Design.Lifts[i].Kind) >= 0)
+                {
+                    long period = _liftHold[i] != 0 ? Pacing.HoldRecheckFaceMinutes * 60_000L : HourMs;
+                    long offset = (long)(SimKey.Hash(Design.ResortSeed, SimKey.WindCheckTag, _liftIds[i]) % (ulong)period);
+                    long check = sod - sod % period + offset;
+                    if (check <= sod) check += period;
+                    if (check < next) next = check;
+                }
             }
             return next;
         }
@@ -727,7 +739,7 @@ namespace MountainPlanner.Simulation
             h.Add(_gustOverrideMph);
             for (int i = 0; i < _liftCount; i++)
             {
-                h.Add(_weatherGustMph[i]); h.Add(_downloading[i]); h.Add(_wayDown[i]); h.Add(_calmSince[i]); h.Add(_feedPerMin[i]); h.Add(_feedAcc[i]); h.Add(_aboard[i]);
+                h.Add(_weatherGustTenths[i]); h.Add(_downloading[i]); h.Add(_wayDown[i]); h.Add(_calmSince[i]); h.Add(_feedPerMin[i]); h.Add(_feedAcc[i]); h.Add(_aboard[i]);
                 h.Add(_rides[i]); h.Add(_peakLine[i]); h.Add(_waitTicks[i]); h.Add(_waitCount[i]); h.Add(_holdFaceMs[i]); h.Add(_leftInLine[i]); h.Add(_released[i]);
                 h.Add(_lineCount[i]);
                 for (int s = _lineFirst[i]; s >= 0; s = _guests.LineNext[s]) h.Add(s);
@@ -746,7 +758,7 @@ namespace MountainPlanner.Simulation
             o.I32(_liftCount);
             for (int i = 0; i < _liftCount; i++)
             {
-                o.I32(_weatherGustMph[i]); o.U8(_downloading[i]); o.U8(_wayDown[i]); o.I64(_calmSince[i]); o.I32(_feedPerMin[i]); o.I64(_feedAcc[i]); o.I32(_aboard[i]);
+                o.I32(_weatherGustTenths[i]); o.U8(_downloading[i]); o.U8(_wayDown[i]); o.I64(_calmSince[i]); o.I32(_feedPerMin[i]); o.I64(_feedAcc[i]); o.I32(_aboard[i]);
                 o.I32(_rides[i]); o.I32(_peakLine[i]); o.I64(_waitTicks[i]); o.I32(_waitCount[i]); o.I64(_holdFaceMs[i]); o.I32(_leftInLine[i]); o.I32(_released[i]);
                 // The line and the riders are chains over skier slots, so the block holds only their ends: the chain
                 // itself, the join tick and the step-off time are the skiers' own columns, which the guest block saves.
@@ -782,8 +794,10 @@ namespace MountainPlanner.Simulation
             if (n != _liftCount) throw new InvalidDataException("The lift operations don't match the lifts.");
             for (int i = 0; i < n; i++)
             {
-                _weatherGustMph[i] = r.I32();
-                if (_weatherGustMph[i] < 0 || _weatherGustMph[i] > 500) throw new InvalidDataException("A top-station gust is out of range.");
+                // v2–v4 saved whole mph; v5 (task 4.05) saves tenths.
+                int gust = r.I32();
+                if (gust < 0 || gust > (sidecarVersion >= 5 ? 5000 : 500)) throw new InvalidDataException("A top-station gust is out of range.");
+                _weatherGustTenths[i] = sidecarVersion >= 5 ? gust : gust * 10;
                 _downloading[i] = r.Enum(0, 1, "A lift's downloading flag"); _wayDown[i] = r.Enum(0, 1, "A lift's way down");
                 _calmSince[i] = r.I64(); _feedPerMin[i] = r.I32(); _feedAcc[i] = r.I64(); _aboard[i] = r.I32();
                 _rides[i] = r.I32(); _peakLine[i] = r.I32(); _waitTicks[i] = r.I64(); _waitCount[i] = r.I32(); _holdFaceMs[i] = r.I64();

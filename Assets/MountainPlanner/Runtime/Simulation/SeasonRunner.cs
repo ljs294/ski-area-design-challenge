@@ -113,12 +113,17 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>SI-08's pinned fold of the golden script over two label years. A behaviour change re-pins it, approved.</summary>
-        public const ulong GoldenFoldValue = 0x5921F6F22F4F9B46UL;   // re-pinned at 4.13 (GU-10 v2 confidence speed, Pacing v4; owner OK 2026-11-09), over 4.12 0xFEE1DF04B5D4B9ED
+        public const ulong GoldenFoldValue = 0xF3B0438B4C621B3DUL;   // re-pinned at 4.05 PR B1 (the weather plays at WindScale 0.85, real top-station gusts, every wind check a boundary, Pacing v5; owner OK 2026-11-11), over 4.13 0x5921F6F22F4F9B46
 
-        /// <summary>One fold of every face-hour hash of the golden run to the given face day (the pinned value).</summary>
-        public static ulong GoldenFold(Pacing p, int faceDays, int maxStep = int.MaxValue, SimSite site = default)
+        /// <summary>
+        /// One fold of every face-hour hash of the golden run to the given face day (the pinned value). Task 4.05: the golden
+        /// plays weather, the western typical mountain's rows as they ship (<c>generic-west.rows</c>, the frozen Jackson Hole
+        /// rows): the Core tests read them from <c>TestData/weather</c>, the player's <c>-simgolden</c> from its StreamingAssets
+        /// (the Simulation reads no files). Null plays the stand-in hour.
+        /// </summary>
+        public static ulong GoldenFold(Pacing p, int faceDays, int maxStep = int.MaxValue, SimSite site = default, SimWeather weather = null)
         {
-            var w = new SimWorld(p, GoldenDesign(1, false), site, 2026);
+            var w = new SimWorld(p, GoldenDesign(1, false), site, 2026, weather: weather);
             var h = new StateHasher();
             Run(w, GoldenScript(p), faceDays * SimWorld.DayMs, (i, x) => { h.Add(i); h.Add(x); }, maxStep);
             return h.Value;

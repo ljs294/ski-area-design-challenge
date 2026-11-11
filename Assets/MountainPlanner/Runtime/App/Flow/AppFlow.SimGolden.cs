@@ -24,7 +24,7 @@ namespace MountainPlanner.App.Flow
             var p = Pacing.Default;
             int days = 2 * new LabelCalendar(p).YearFaceDays;
             float start = Time.realtimeSinceStartup;
-            ulong fold = SeasonRunner.GoldenFold(p, days);
+            ulong fold = SeasonRunner.GoldenFold(p, days, weather: TypicalWeather.Golden());
             float seconds = Time.realtimeSinceStartup - start;
             bool ok = fold == SeasonRunner.GoldenFoldValue;
             string line = $"{(ok ? "PASS" : "FAIL")} golden season fold 0x{fold:X16} (pinned 0x{SeasonRunner.GoldenFoldValue:X16}), {days} face days in {seconds:F1} s";

@@ -48,7 +48,7 @@ namespace MountainPlanner.Simulation
         bool _todayTrimmed;
         long _boundaryDoneAt = -1;
 
-        // ---- the face-hour step (WX-08's stand-in until 4.05) ----
+        // ---- the face-hour step: the hour's weather at zref (task 4.05, SimWorld.Weather) ----
         long _weatherHour = -1;
         int _weatherTenthsF, _weatherWindMph;
         int _hourSliceCursor;
@@ -101,9 +101,11 @@ namespace MountainPlanner.Simulation
         /// <summary>SI-17: the snow depths, the worker's own (mm).</summary>
         public readonly SimSnow Snow = new SimSnow();
 
-        public SimWorld(Pacing pacing, SimDesign design, SimSite site, int startYear, ulong? pinnedSeed = null)
+        /// <param name="weather">The area's weather (task 4.05), or null for the stand-in hour (tests, the title).</param>
+        public SimWorld(Pacing pacing, SimDesign design, SimSite site, int startYear, ulong? pinnedSeed = null, SimWeather weather = null)
             : this(pacing, design, site, startYear, restoring: false)
         {
+            AdoptWeather(weather);
             FoldDesign(design);
             SeasonSeed = pinnedSeed ?? DrawSeasonSeed();
             SeedPinned = pinnedSeed.HasValue;
@@ -121,6 +123,7 @@ namespace MountainPlanner.Simulation
             Design = design ?? throw new ArgumentNullException(nameof(design));
             if (startYear < 2 || startYear > 9000) throw new ArgumentOutOfRangeException(nameof(startYear));
             Calendar = new LabelCalendar(pacing);
+            _tuning = SimWeather.Tuning(pacing);
             Site = site;
             StartYear = startYear;
             Events = new EventRing(pacing.EventRingSize);
@@ -208,9 +211,10 @@ namespace MountainPlanner.Simulation
             long sod = FaceMs % DayMs;
             _stepDayRate = DayRateAt(sod);
             int rate = _stepDayRate ? Pacing.DayFaceMsPerTick : Pacing.NightFaceMsPerTick;
-            long remaining = NextBoundary(sod) - sod;
-            int ticksToBoundary = (int)((remaining + rate - 1) / rate);
             bool running = _stepDayRate && AnyBuiltLift() || AnyFeeding() || AnySkier || ArrivalsDueToday;
+            // A running world steps one tick at a time, so only an idle step stops at the lifts' wind checks (TM-03).
+            long remaining = NextBoundary(sod, windChecks: !running) - sod;
+            int ticksToBoundary = (int)((remaining + rate - 1) / rate);
             int k = running ? 1 : Math.Min(Math.Min(_stepMaxTicks, Pacing.IdleTickFactor), ticksToBoundary);
             if (k < 1) k = 1;
             _stepTicks = k;
@@ -270,6 +274,9 @@ namespace MountainPlanner.Simulation
                 case SimCommandKind.SetSnowpack:
                     if (!(c.Payload is SimSnowpack p) || !Snow.Apply(p)) { Reject(c, SimRefusal.Unknown); return; }
                     Events.Add(Tick, SimEventType.SnowpackApplied, -1, (long)p.Width * p.Height);
+                    break;
+                case SimCommandKind.SetWeather:
+                    if (!(c.Payload is SimWeather wx) || !ApplyWeather(wx)) { Reject(c, SimRefusal.Unknown); return; }
                     break;
                 case SimCommandKind.SetGust:
                 case SimCommandKind.FeedLine:
@@ -405,16 +412,13 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>
-        /// WX-06 and WX-08's call order: the weather first (4.05; a stand-in of one fixed hour until then), then snow (4.07),
-        /// lakes (4.09) and trail readiness (4.07's stand-in: every built trail is Ready). The board flips once at the end
-        /// (SI-19): the hour's work is one slice today, so it finishes in the tick it starts.
+        /// WX-06 and WX-08's call order: the weather first (4.05: the hour at zref, each lift's top-station gust), then snow
+        /// (4.07), lakes (4.09) and trail readiness (4.07's stand-in: every built trail is Ready). The board flips once at the
+        /// end (SI-19): the hour's work is one slice today, so it finishes in the tick it starts.
         /// </summary>
         void HourStep(long hour)
         {
-            _weatherHour = hour;
-            _weatherTenthsF = 230;     // 23 °F, light wind: one fixed hour until 4.05
-            _weatherWindMph = 5;
-            Array.Clear(_weatherGustMph, 0, _weatherGustMph.Length);   // LO-11's gust seam: 4.05 writes each lift's top-station gust (WX-39) here
+            HourStepWeather(hour);
             _hourSliceCursor = 0;
             _trailsReadyNext = Design.BuiltTrails;
             BoardLifts(_liftOpenNext);
@@ -451,14 +455,14 @@ namespace MountainPlanner.Simulation
             || sod == LandingSecond(_todayOpen) * 1000L;
 
         /// <summary>The next boundary after <paramref name="sod"/> today, in face ms of the day (the next whole hour at the latest).</summary>
-        long NextBoundary(long sod)
+        long NextBoundary(long sod, bool windChecks)
         {
             long next = (sod / HourMs + 1) * HourMs;
             long land = LandingSecond(_todayOpen) * 1000L, open = _todayOpen * 1000L, stop = _todayStop * 1000L;
             if (land > sod && land < next) next = land;
             if (open > sod && open < next) next = open;
             if (stop > sod && stop < next) next = stop;
-            return LiftBoundary(sod, next);
+            return LiftBoundary(sod, next, windChecks);
         }
 
         /// <summary>Owner, 2026-11-08 (plan question 8): Skip to morning lands an hour before opening.</summary>
@@ -658,6 +662,7 @@ namespace MountainPlanner.Simulation
             WriteGuests(s);
             s.FirstEventSeq = Events.CopyNewest(s.Events, out s.EventCount);
             s.SnowSet = Snow.Set;
+            WriteWeather(s);
         }
 
         /// <summary>The run time of a lift by ID, ms, or −1 (tests).</summary>
@@ -690,6 +695,7 @@ namespace MountainPlanner.Simulation
             h.Add(_lastReport.FaceDay);
             h.Add(_commandSeq);
             HashLifts(ref h);
+            HashWeather(ref h);
             // The snow joined in PR B (SI-17): a world that has never had any hashes as before, so the goldens stand.
             if (Snow.Set || Snow.Width > 0) Snow.AddTo(ref h);
             HashGuests(ref h);
