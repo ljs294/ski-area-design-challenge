@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MountainPlanner.Acquisition.IO;
 using MountainPlanner.Acquisition.Providers;
+using MountainPlanner.Acquisition.Weather;
 using MountainPlanner.Domain.Geo;
 using MountainPlanner.Domain.Flora;
 using MountainPlanner.Domain.Terrain;
@@ -49,6 +50,8 @@ namespace MountainPlanner.Acquisition
         public const string StageSpecies = "Tree species";
         public const string StageOsm = "Water and roads";
         public const string StageBuild = "Building";
+        /// <summary>Task 4.05: the site's weather history, calibrated into weather.rows (optional: never holds a download up).</summary>
+        public const string StageWeather = "Weather";
         public const string StagePrepare = "Preparing terrain";
 
         /// <summary>The manifest's Tool. Change it whenever the package this pipeline writes changes, so a resumed download never reuses an older build.</summary>
@@ -58,10 +61,14 @@ namespace MountainPlanner.Acquisition
         public const double SpeciesCellMetres = 30;
 
         readonly DiskCache _cache;
+        readonly IWeatherResponses? _weather;
 
-        public AcquisitionPipeline(string cacheFolder)
+        /// <param name="weather">Where the weather's answers come from; null for the services through the cache (tests and
+        /// <c>-weatherrecording</c> pass a recorded folder).</param>
+        public AcquisitionPipeline(string cacheFolder, IWeatherResponses? weather = null)
         {
             _cache = new DiskCache(cacheFolder);
+            _weather = weather;
         }
 
         public async Task<PackageManifest> RunAsync(SiteRequest request, string packageFolder, IProgress<AcquisitionProgress>? progress, CancellationToken ct,
@@ -78,6 +85,12 @@ namespace MountainPlanner.Acquisition
                     var grid = TileGrid.For(site);
                     double prepare = grid.All().Sum(k => (double)grid.Resolution(k) * grid.Resolution(k)) * 0.4;
                     foreach (string stage in AllStages) tracker.DefineStage(stage, stage == StagePrepare ? prepare : prepare * ResumedShare);
+                    // A build from before the weather (or cut during it) gets it now; offline it finishes without (Get weather later).
+                    if (WeatherBuild.Needed(built) && (!Http.NetworkDisabled || WeatherBuild.ReplayFolder != null))
+                    {
+                        tracker.BeginStage(StageWeather);
+                        await AddWeatherAsync(packageFolder, built, tracker, meter, ct, skipOptional).ConfigureAwait(false);
+                    }
                     tracker.BeginStage(StagePrepare);
                     if (!TerrainCache.IsCurrent(packageFolder, built)) TerrainCache.Build(packageFolder, built, new TileProgress(tracker), ct);
                     tracker.Finish();
@@ -110,6 +123,8 @@ namespace MountainPlanner.Acquisition
                 tracker.SetStageWeight(StageOsm, 8e6 + (site.CoreGrid.CellCount + site.RingGrid.CellCount) * 0.1);
                 // Building takes roughly as long as downloading a few MB; weight it by cells.
                 tracker.SetStageWeight(StageBuild, (site.CoreGrid.CellCount + site.RingGrid.CellCount) * 0.5);
+                // The weather: about 80 answers (some 45 MB) and 20 s of calibration, about as long as a 4 km area's building.
+                tracker.SetStageWeight(StageWeather, 45e6 + 4e6 * 0.5);
                 // Preparing the terrain cache samples every tile vertex once (task 05).
                 var tileGrid = TileGrid.For(site);
                 tracker.SetStageWeight(StagePrepare, tileGrid.All().Sum(k => (double)tileGrid.Resolution(k) * tileGrid.Resolution(k)) * 0.4);
@@ -135,6 +150,9 @@ namespace MountainPlanner.Acquisition
                 tracker.BeginStep("writing manifest", 1, 1, () => 0.9);
                 ResortPackage.WriteManifest(packageFolder, manifest);
 
+                tracker.BeginStage(StageWeather);
+                await AddWeatherAsync(packageFolder, manifest, tracker, meter, ct, skipOptional).ConfigureAwait(false);
+
                 tracker.BeginStage(StagePrepare);
                 TerrainCache.Build(packageFolder, manifest, new TileProgress(tracker), ct);
                 tracker.Finish();
@@ -143,10 +161,45 @@ namespace MountainPlanner.Acquisition
         }
 
         /// <summary>Every stage, in order.</summary>
-        public static readonly string[] AllStages = { StageCore, StageRing, StageForest, StageCover, StageSpecies, StageOsm, StageBuild, StagePrepare };
+        public static readonly string[] AllStages = { StageCore, StageRing, StageForest, StageCover, StageSpecies, StageOsm, StageBuild, StageWeather, StagePrepare };
 
         /// <summary>When a resumed download skips straight to Preparing, each skipped stage weighs this much of Preparing (the bar starts near the end).</summary>
-        const double ResumedShare = 3.0 / 7;
+        const double ResumedShare = 3.0 / 8;
+
+        /// <summary>The step a download shows when it finishes without its weather.</summary>
+        public const string WeatherSkippedStep = "weather unavailable · skipped, the area gets it when you open it online";
+
+        /// <summary>
+        /// The Weather stage (task 4.05, PR A2): builds the weather and writes it into the built package (weather.rows, then
+        /// the manifest again). Optional and never blocking: the services or the connection failing, offline mode, or the
+        /// player's skip leave the area without weather, and opening it online adds it later (Get weather). Only
+        /// <paramref name="ct"/> (the player cancelling the download) stops the download here.
+        /// </summary>
+        async Task AddWeatherAsync(string packageFolder, PackageManifest manifest, ProgressTracker tracker, TransferMeter meter, CancellationToken ct,
+                                   CancellationToken skipOptional)
+        {
+            if (skipOptional.IsCancellationRequested) { tracker.BeginStep(WeatherSkippedStep, 2, 2, () => 1); return; }
+            WeatherBuildResult result;
+            try
+            {
+                var site = WeatherBuild.SiteFor(packageFolder, manifest, _weather != null ? DateTime.UtcNow.Year : WeatherBuild.BuildYearNow());
+                using (var either = CancellationTokenSource.CreateLinkedTokenSource(ct, skipOptional))
+                    result = await WeatherBuild.BuildAsync(_weather ?? WeatherBuild.Source(_cache, meter), site, new WeatherSteps(tracker), either.Token, ToolName)
+                                               .ConfigureAwait(false);
+            }
+            catch (Exception e) when (!ct.IsCancellationRequested && !(e is OutOfMemoryException))
+            {
+                // Logged by the caller's progress; the weather is the one stage a download may finish without.
+                tracker.BeginStep(WeatherSkippedStep, 2, 2, () => 1);
+                LastWeatherFailure = e.GetType().Name + ": " + e.Message;
+                return;
+            }
+            WeatherBuild.AddTo(packageFolder, manifest, result);
+            ResortPackage.WriteManifest(packageFolder, manifest);
+        }
+
+        /// <summary>Why the last download finished without its weather (for the player log), or null.</summary>
+        public string? LastWeatherFailure { get; private set; }
 
         /// <summary>
         /// The package already built in <paramref name="packageFolder"/> for this same request, or null. The manifest is

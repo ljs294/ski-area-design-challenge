@@ -49,6 +49,28 @@ namespace MountainPlanner.App.Flow
                 yield return DrawDownload(vm, true);
                 yield return EachLook(folder, "s4-resuming");
             }
+            // Owner finding F1 (task 4.05, PR A2): Get weather on the card, mid-calibration, its pill, and stopped.
+            if (Wanted("s4-areajob-weather") || Wanted("s4-pill-areajob") || Wanted("s4-areajob-failed"))
+            {
+                var vm = new DownloadViewModel();
+                vm.StartAreaJob("Jackson Hole", LibraryViewModel.GetWeather, "Getting weather", canRetry: true);
+                vm.Apply(new DownloadStatus
+                {
+                    Name = "Jackson Hole", Stages = new[] { "Weather" }, StageIndex = 1, StageCount = 1, Stage = "Weather",
+                    Overall = 0.83, Bytes = 44_600_000, SecondsRemaining = 9, Detail = "Weather: Calibrating the weather 2 of 2 · 43%",
+                });
+                yield return DrawDownload(vm, true);
+                if (Wanted("s4-areajob-weather")) yield return EachLook(folder, "s4-areajob-weather");
+                yield return DrawDownload(vm, false);
+                if (Wanted("s4-pill-areajob")) yield return EachLook(folder, "s4-pill-areajob");
+                vm.Failed(new DownloadProblem
+                {
+                    Kind = ProblemKind.ServerDown, Title = "Get weather stopped",
+                    Text = "The weather services aren't answering just now; try again later. Nothing was changed.",
+                });
+                yield return DrawDownload(vm, true);
+                if (Wanted("s4-areajob-failed")) yield return EachLook(folder, "s4-areajob-failed");
+            }
             if (Wanted("s4-waiting") || Wanted("s4-pill-waiting"))
             {
                 var vm = CaptureDownload();

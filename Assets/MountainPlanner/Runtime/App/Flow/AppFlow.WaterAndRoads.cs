@@ -44,7 +44,8 @@ namespace MountainPlanner.App.Flow
         async void GetWaterAndRoads(LibraryRow r)
         {
             if (r?.Entry == null || !r.NeedsWaterAndRoads) return;
-            if (_waterAndRoads != null) { Screens.Toast("Get water and roads is already running for another area; one at a time."); return; }
+            if (_waterAndRoads != null) { Screens.Toast("Get water and roads is already running for another area; one at a time."); Controller.RestoreDownload(); return; }
+            if (_weatherJob != null) { Screens.Toast("Wait for the weather to finish first: one area job at a time."); Controller.RestoreDownload(); return; }
             if (Downloads.Active) { Screens.Toast("Wait for the download to finish, or cancel it, first.", 5); return; }
             if (OfflineState.Mode == OfflineMode.Setting)
             {
@@ -62,24 +63,27 @@ namespace MountainPlanner.App.Flow
             string folder = r.Entry.Folder, name = r.Name, root = DataRoot;
             _waterAndRoads = folder;
             _waterAndRoadsText = "Getting water and roads…";
+            // On the download card (task 4.05, PR A2, owner finding F1): the player asked, so it opens.
+            var job = BeginAreaJob(name, LibraryViewModel.GetWaterAndRoads, "Getting water and roads", manual: true, retry: () => GetWaterAndRoads(r));
             if (Controller.Screen == FlowScreen.Library) Screens.RenderLibrary(_library = BuildLibrary(), _mode);
-            var progress = new Progress<AcquisitionProgress>(p =>
+            var progress = AreaJobProgress(job, percent =>
             {
-                _waterAndRoadsText = $"Getting water and roads · {(int)Math.Floor(Math.Max(0, Math.Min(1, p.Overall)) * 100)}%";
-                if (this != null && Controller.Screen == FlowScreen.Library) Screens.UpdateWaterAndRoads(folder, _waterAndRoadsText);
+                _waterAndRoadsText = $"Getting water and roads · {percent}%";
+                if (Controller.Screen == FlowScreen.Library) Screens.UpdateWaterAndRoads(folder, _waterAndRoadsText);
             });
-            string toast;
-            bool done = false;
+            string toast = null, why = "";
+            Exception error = null;
+            var ct = job.Cancel.Token;
             try
             {
-                string id = await Task.Run(() => OsmBackfill.RunAsync(root, folder, PipelineDownloader.CacheFolder(root), progress, CancellationToken.None));
+                string id = await Task.Run(() => OsmBackfill.RunAsync(root, folder, PipelineDownloader.CacheFolder(root), progress, ct));
                 Debug.Log($"[AppFlow] Got water and roads for {name}: {r.Entry.PackageId} -> {id}");
                 toast = $"{name} now has its water and roads. Its terrain is prepared again the next time it opens.";
-                done = true;
             }
             catch (Exception e)
             {
-                toast = WhyNot(name, e);
+                error = e;
+                why = WhyNot(name, e);
                 Debug.LogWarning($"[AppFlow] Get water and roads for {name}: {e}");
             }
             finally
@@ -88,8 +92,10 @@ namespace MountainPlanner.App.Flow
                 _waterAndRoadsText = "";
             }
             if (this == null) return;
-            Screens.Toast(toast, done ? 5 : 8);
-            if (backdrop) ReturnToTitle(FlowScreen.Library);   // the title reloads the area, now with its water and roads
+            // A failure stays on the card, which says why and offers Retry.
+            if (EndAreaJob(job, error, why)) toast = "Get water and roads cancelled. Nothing was changed.";
+            if (toast != null) Screens.Toast(toast, 5);
+            if (backdrop) ReturnToTitle(FlowScreen.Library);   // the title reloads the area (it let go of its cache), with its water and roads if they came
             else if (Controller.Screen == FlowScreen.Library) RefreshLibrary();
         }
 

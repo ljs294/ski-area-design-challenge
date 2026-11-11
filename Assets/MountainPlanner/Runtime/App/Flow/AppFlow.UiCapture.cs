@@ -165,6 +165,38 @@ namespace MountainPlanner.App.Flow
                 }
                 Controller.Escape();
             }
+            // Task 4.05, PR A2: Manage Areas with areas downloaded before the weather, then getting it.
+            if (Wanted("s2-weather") || Wanted("s2-weather-busy"))
+            {
+                _mode = LibraryMode.Manage;
+                Controller.MyResorts();
+                yield return Wait(1.5f);
+                var entries = new System.Collections.Generic.List<LibraryEntry>
+                {
+                    CaptureEntry("Crystal Mountain", "c", 46.935, -121.475, 5, 92, 78, true),
+                    CaptureEntry("Jackson Hole", "j", 43.593, -110.848, 2, 100, 83, false),
+                    CaptureEntry("Sugarloaf", "s", 45.031, -70.313, 5, 88, 81, false),
+                };
+                entries[0].NeedsWeather = true;   // both missing: one line, both buttons
+                entries[1].NeedsWeather = true;
+                var vm = LibraryViewModel.Build(entries, new System.Collections.Generic.List<PendingDownload>(), new RecentResorts(), LibrarySort.Name, DateTime.UtcNow);
+                if (Wanted("s2-weather"))
+                {
+                    Screens.RenderLibrary(vm, LibraryMode.Manage);
+                    yield return Wait(0.3f);
+                    yield return EachLook(folder, "s2-weather");
+                }
+                if (Wanted("s2-weather-busy"))
+                {
+                    var row = vm.Rows.Find(r => r.NeedsWeather && !r.NeedsWaterAndRoads);
+                    row.Busy = true;
+                    row.WaterAndRoadsText = "Getting weather · 40%";
+                    Screens.RenderLibrary(vm, LibraryMode.Manage);
+                    yield return Wait(0.3f);
+                    yield return EachLook(folder, "s2-weather-busy");
+                }
+                Controller.Escape();
+            }
 
             // S8: every page (task P2-05); the first keeps its old name. Nothing chosen here is remembered.
             string[] pages = { "s8-settings", "s8-settings-units", "s8-settings-gameplay", "s8-settings-graphics", "s8-settings-display", "s8-settings-controls", "s8-settings-data" };

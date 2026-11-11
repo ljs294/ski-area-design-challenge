@@ -57,6 +57,9 @@ namespace MountainPlanner.Editor
             var manifest = ResortPackage.ReadManifest(source);
             if (manifest.Site.Name != DemoName || Math.Abs(manifest.Site.SizeMetres - DemoSizeMetres) > 1)
                 Debug.LogWarning($"[DemoBundle] Bundling {manifest.Site.Name} ({manifest.Site.SizeMetres / 1000:0.#} km), not {DemoName} 5 km (D1).");
+            // Task 4.05, PR A2: the demo is read-only in the player, so its weather has to come with it.
+            if (manifest.Weather == null)
+                Debug.LogWarning($"[DemoBundle] No weather in the demo: open {source} once online, or Get weather in Manage Areas, then build again.");
 
             string staged = Path.Combine(stagingRoot, manifest.PackageId);
             if (Directory.Exists(staged) && TerrainCache.IsCurrent(staged, manifest) && SameFiles(source, staged, manifest))
@@ -78,9 +81,11 @@ namespace MountainPlanner.Editor
             return staged;
         }
 
-        /// <summary>The package's own files: the manifest and every layer it lists.</summary>
-        static IEnumerable<string> PackageFiles(PackageManifest manifest) =>
-            new[] { ResortPackage.ManifestFile }.Concat(manifest.Layers.Select(l => l.File)).Distinct(StringComparer.OrdinalIgnoreCase);
+        /// <summary>The package's own files: the manifest, every layer it lists and its weather rows (task 4.05, PR A2).</summary>
+        internal static IEnumerable<string> PackageFiles(PackageManifest manifest) =>
+            new[] { ResortPackage.ManifestFile }.Concat(manifest.Layers.Select(l => l.File))
+                .Concat(string.IsNullOrEmpty(manifest.Weather?.RowsFile) ? Array.Empty<string>() : new[] { manifest.Weather.RowsFile })
+                .Distinct(StringComparer.OrdinalIgnoreCase);
 
         static bool SameFiles(string source, string staged, PackageManifest manifest) =>
             PackageFiles(manifest).All(f => File.Exists(Path.Combine(staged, f)) && new FileInfo(Path.Combine(staged, f)).Length == new FileInfo(Path.Combine(source, f)).Length)

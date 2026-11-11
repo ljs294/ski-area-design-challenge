@@ -44,6 +44,7 @@ namespace MountainPlanner.Persistence
             ("USGS", "Geological Survey"),
             ("ESA", "ESA WorldCover"),
             ("Meta", "Meta and World Resources Institute"),
+            ("NASA POWER", "POWER Project"),   // task 4.05: the weather's hours
         };
 
         /// <summary>The provenance layer value for a source a download tried but didn't use.</summary>

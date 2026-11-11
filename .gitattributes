@@ -60,3 +60,4 @@ TestData/formats/v13-save/** -text
 TestData/formats/v1-sim/** -text
 TestData/formats/v2-sim/** -text
 TestData/formats/v4-sim/** -text
+TestData/formats/v2-package/** -text

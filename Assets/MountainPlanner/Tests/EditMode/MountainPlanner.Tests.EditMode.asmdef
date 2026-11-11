@@ -13,6 +13,7 @@
         "MountainPlanner.Presentation",
         "MountainPlanner.UI",
         "MountainPlanner.App",
+        "MountainPlanner.Editor",
         "Unity.InputSystem",
         "Unity.Mathematics",
         "Unity.Collections",

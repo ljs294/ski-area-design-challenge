@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using MountainPlanner.Acquisition.Providers;
+using Weather_ = MountainPlanner.Acquisition.Weather;
 
 namespace MountainPlanner.Acquisition.IO
 {
@@ -16,6 +17,9 @@ namespace MountainPlanner.Acquisition.IO
         public const string MetaCanopy = "Meta forest canopy";
         public const string UsdaSpecies = "USDA tree species";
         public const string OpenStreetMap = "OpenStreetMap";
+        /// <summary>Task 4.05: Daymet, NASA POWER and SNOTEL, one name for the weather step (it asks all three in turn).</summary>
+        public const string Weather = "the weather services";
+        public const string Daymet = "Daymet weather", NasaPower = "NASA POWER weather", Snotel = "USDA SNOTEL";
 
         static readonly Dictionary<string, string> ByHost = Build();
 
@@ -30,6 +34,9 @@ namespace MountainPlanner.Acquisition.IO
                 [Host(BigmapService.Service)] = UsdaSpecies,
             };
             foreach (string mirror in OsmFeatures.Servers) hosts[Host(mirror)] = OpenStreetMap;
+            hosts[Host(Weather_.DaymetClient.Service)] = Daymet;
+            hosts[Host(Weather_.PowerClient.Service)] = NasaPower;
+            hosts[Host(Weather_.SnotelClient.Service)] = Snotel;
             return hosts;
         }
 

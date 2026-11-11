@@ -122,8 +122,12 @@ namespace MountainPlanner.Tests.Core
             var direct = JsonConvert.DeserializeObject<PackageManifest>(File.ReadAllText(path), settings);
             var read = ResortPackage.ReadManifest(Package(folder));
 
+            // Format 2 (task 4.05) adds only the Weather block, absent here: the migration moves the version and nothing else.
+            Assert.That(direct.FormatVersion, Is.EqualTo(1));
+            direct.FormatVersion = 2;
             Assert.That(JsonConvert.SerializeObject(read, settings), Is.EqualTo(JsonConvert.SerializeObject(direct, settings)), "every field reads as it did");
-            Assert.That(read.FormatVersion, Is.EqualTo(1));
+            Assert.That(read.FormatVersion, Is.EqualTo(2));
+            Assert.That(read.Weather, Is.Null, "a Phase 1 area has no weather yet");
             Assert.That(ResortPackage.ComputeId(read), Is.EqualTo(read.PackageId), "package ids don't move");
             Assert.That(read.Attribution, Is.Not.Empty);
             Assert.That(read.Layers.Select(l => l.Id), Does.Contain("heights-core"));
@@ -134,13 +138,13 @@ namespace MountainPlanner.Tests.Core
         {
             string jh = Package(JacksonHole);
             string manifest = Path.Combine(jh, ResortPackage.ManifestFile);
-            SetVersion(manifest, nameof(PackageManifest.FormatVersion), 2);
+            SetVersion(manifest, nameof(PackageManifest.FormatVersion), 3);
             byte[] bytes = File.ReadAllBytes(manifest);
 
             var e = Assert.Throws<FormatTooNewException>(() => ResortPackage.ReadManifest(jh));
-            Assert.That(e.Message, Is.EqualTo("This area package was saved by a newer version of Mountain Planner (format 2; this version reads up to 1). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This area package was saved by a newer version of Mountain Planner (format 3; this version reads up to 2). Update the game to open it."));
             Assert.That(e, Is.InstanceOf<IOException>(), "callers that skip unreadable packages skip this too");
-            Assert.That(e.Found, Is.EqualTo(2));
+            Assert.That(e.Found, Is.EqualTo(3));
             Assert.That(e.Supported, Is.EqualTo(PackageManifest.CurrentFormat));
 
             var newer = new List<LibraryEntry>();
@@ -256,7 +260,8 @@ namespace MountainPlanner.Tests.Core
         {
             // Phase 1's files are v1 of each format. Bumping one means a migration step and a v<N> fixture (0.3 §5).
             // The view state is v2 since task P2-04 (the player's name for the area).
-            Assert.That(PackageManifest.Migrations.Current, Is.EqualTo(1));
+            // The area package is v2 since task 4.05 (the Weather block).
+            Assert.That(PackageManifest.Migrations.Current, Is.EqualTo(2));
             Assert.That(LibraryIndex.Migrations.Current, Is.EqualTo(1));
             Assert.That(RecentResorts.Migrations.Current, Is.EqualTo(1));
             Assert.That(ViewState.Migrations.Current, Is.EqualTo(2));

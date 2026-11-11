@@ -55,7 +55,7 @@ namespace MountainPlanner.App.Flow
             };
             Screens.MinimiseChosen += Controller.MinimiseDownload;
             Screens.RestoreChosen += Controller.RestoreDownload;
-            Screens.CancelConfirmed += keep => Downloads.Cancel(keep);
+            Screens.CancelConfirmed += keep => { if (AreaJobShown) CancelAreaJob(); else Downloads.Cancel(keep); };
             Screens.RetryChosen += Retry;
             Screens.TryNowChosen += Downloads.TryNow;
             Screens.PauseChosen += () => Downloads.Cancel(true);
@@ -85,8 +85,9 @@ namespace MountainPlanner.App.Flow
         void UpdateDownloads()
         {
             Downloads.Pump(Time.unscaledDeltaTime);
-            var view = Downloads.View;
-            bool shown = Downloads.Current != null;
+            // The card shows the download, or else an area job (task 4.05, PR A2): never both, one job at a time.
+            bool shown = Downloads.Current != null || _areaJob != null;
+            var view = Downloads.Current == null && _areaJob != null ? _areaJob.View : Downloads.View;
             if (shown) Screens.RenderDownload(view);
 
             // The game's pill is the HUD bar's (owner D3); the picker's sits in its footer, above the flow's.
@@ -109,7 +110,8 @@ namespace MountainPlanner.App.Flow
             {
                 _pickerVersion = key;
                 Picker.SetPill(shown ? view.Pill : null, view.Fraction, FlowScreens.PillState(view));
-                Picker.SetBusy(Downloads.Active ? "One download at a time: wait for this one, or cancel it." : "");
+                Picker.SetBusy(Downloads.Active ? "One download at a time: wait for this one, or cancel it."
+                               : AreaJobRunning ? "One job at a time: wait for this one, or cancel it." : "");
             }
 
             if (_queuedDialog != null && !Screens.CoverUp && !Screens.ConfirmOpen && !Screens.PromptOpen)
@@ -140,6 +142,7 @@ namespace MountainPlanner.App.Flow
         /// <summary>Owner D1: the oldest paused download continues by itself, as the pill. Offline, it waits there.</summary>
         void ResumeOldest()
         {
+            if (AreaJobRunning) return;   // waits for the area job, then resumes
             ResumeAtLaunch = false;
             if (Downloads.Active || LibraryIndex.Refusal(DataRoot) != null) return;
             var d = PendingDownloads.List(DataRoot).FirstOrDefault();
@@ -174,6 +177,14 @@ namespace MountainPlanner.App.Flow
                 return;
             }
             if (Downloads.Running) return;   // this one, already going
+            if (AreaJobRunning)
+            {
+                Screens.Alert("One job at a time",
+                              $"{_areaJob.View.Title} ({_areaJob.View.Percent}). Wait for it to finish, or cancel it, then start {d.Name}.",
+                              "Show it", Controller.RestoreDownload, "Close", error: false);
+                return;
+            }
+            DismissAreaJob();   // a failed area job's card gives way
             if (OfflineState.Mode == OfflineMode.Setting)
             {
                 ShowOfflineMode($"Downloading {d.Name} needs the internet.", () => StartDownload(d));
@@ -185,6 +196,7 @@ namespace MountainPlanner.App.Flow
 
         void Retry()
         {
+            if (AreaJobShown) { RetryAreaJob(); return; }
             var d = Downloads.Current;
             if (d == null) return;
             if (OfflineState.Mode == OfflineMode.Setting) { ShowOfflineMode($"Downloading {d.Name} needs the internet.", Retry); return; }
@@ -194,6 +206,7 @@ namespace MountainPlanner.App.Flow
         /// <summary>After a failure: put it away; its record stays, so Manage Areas offers Resume.</summary>
         void Later()
         {
+            if (AreaJobShown) { DismissAreaJob(); return; }
             Downloads.Dismiss();
             Controller.DownloadStopped();
             if (Controller.Screen == FlowScreen.Library) RefreshLibrary();
@@ -227,7 +240,8 @@ namespace MountainPlanner.App.Flow
 
         /// <summary>Why the download cache can't be cleared now, or null.</summary>
         string CacheLocked() => Downloads.Active ? "Wait for the download to finish, or cancel it, to clear it."
-                                : _waterAndRoads != null ? "Wait for Get water and roads to finish, to clear it." : null;
+                                : _waterAndRoads != null ? "Wait for Get water and roads to finish, to clear it."
+                                : _weatherJob != null ? "Wait for the weather to finish, to clear it." : null;
 
         bool _clearing;
 
