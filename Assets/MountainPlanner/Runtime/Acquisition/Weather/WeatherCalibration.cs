@@ -68,8 +68,16 @@ namespace MountainPlanner.Acquisition.Weather
         static readonly int[] AllThirds = Enumerable.Range(0, 36).ToArray();
         static readonly int[] WinterThirds = Enumerable.Range(0, 36).Where(Winter).ToArray();
 
+        /// <summary>
+        /// The share of <see cref="Build"/>'s time done after the record fits (index 1) and after each calibration play (2–11),
+        /// for progress bars only. Index 0 is the start. Measured on the Jackson Hole 2 km recording (13.5 s on one core,
+        /// 2026-11-10); the longest wait between two reports is the wet lean's 2.8 s.
+        /// </summary>
+        internal static readonly double[] PlayShares = { 0, 0.05, 0.08, 0.26, 0.31, 0.37, 0.43, 0.56, 0.77, 0.86, 0.99, 1 };
+
         public static (WeatherRows Rows, CalibrationReport Report) Build(BlendedRecord b, WeatherSourceRecord src, ReferencePoints points, WeatherTuning tuning,
-                                                                          int characterSeeds = 200, int powderSeeds = 20, int rateSeeds = 400, int stormSeeds = 120)
+                                                                          int characterSeeds = 200, int powderSeeds = 20, int rateSeeds = 400, int stormSeeds = 120,
+                                                                          Action<double>? progress = null)
         {
             var rows = new WeatherRows();
             var rep = new CalibrationReport();
@@ -479,17 +487,21 @@ namespace MountainPlanner.Acquisition.Weather
             Targets(rows, b, states, tf, years);
 
             // ---- The season character's shrink and PowderDayIn: calibration plays (WX-19 v2, WX-41) ----
-            ShrinkCharacter(rows, rep, b, states, tuning, characterSeeds, years);
-            RateCorrection(rows, rep, tuning, stormRate, rateSeeds);
-            LiquidCorrection(rows, rep, tuning, stormSeeds);
-            NightDepth(rows, rep, states, tf, tuning, stormSeeds);
-            HourWobble(rows, rep, states, tf, tuning, stormSeeds);
-            StormTemperature(rows, rep, b, states, tf, tuning, stormSeeds);
+            // The plays are most of the ~20 s: each reports its share done (PlayShares, measured) so a progress bar keeps moving.
+            int play = 0;
+            void Played() => progress?.Invoke(PlayShares[++play]);
+            Played();
+            ShrinkCharacter(rows, rep, b, states, tuning, characterSeeds, years); Played();
+            RateCorrection(rows, rep, tuning, stormRate, rateSeeds); Played();
+            LiquidCorrection(rows, rep, tuning, stormSeeds); Played();
+            NightDepth(rows, rep, states, tf, tuning, stormSeeds); Played();
+            HourWobble(rows, rep, states, tf, tuning, stormSeeds); Played();
+            StormTemperature(rows, rep, b, states, tf, tuning, stormSeeds); Played();
             // The wet lean is fitted on the finished hours and moves the storms' air, so the storms are fitted again after it.
-            WetLean(rows, rep, b, states, tf, tuning, stormSeeds * 5 / 2);   // 300: the link is a small correlation
-            ColdSide(rows, rep, states, tf, tuning, stormSeeds);
-            StormTemperature(rows, rep, b, states, tf, tuning, stormSeeds);
-            PowderDay(rows, rep, b, states, tf, tuning, powderSeeds);
+            WetLean(rows, rep, b, states, tf, tuning, stormSeeds * 5 / 2); Played();   // 300: the link is a small correlation
+            ColdSide(rows, rep, states, tf, tuning, stormSeeds); Played();
+            StormTemperature(rows, rep, b, states, tf, tuning, stormSeeds); Played();
+            PowderDay(rows, rep, b, states, tf, tuning, powderSeeds); Played();
 
             if (rep.LimitedReasons.Count > 0) rows.Limited = 1;
             return (rows, rep);

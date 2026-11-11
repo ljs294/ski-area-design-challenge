@@ -15,13 +15,16 @@ namespace MountainPlanner.Persistence
     /// </summary>
     public sealed class PackageManifest
     {
-        public const int CurrentFormat = 1;
+        /// <summary>2 since task 4.05 (PR A2): the Weather block, and its weather.rows beside the manifest.</summary>
+        public const int CurrentFormat = 2;
 
         /// <summary>
         /// The frozen manifest format (task 08, 0.3 §5): a newer one is refused, an older one is migrated as it's read.
         /// Each new format adds a step here, and a fixture under TestData/formats.
         /// </summary>
-        public static readonly VersionedJson Migrations = new VersionedJson("area package", nameof(FormatVersion), CurrentFormat);
+        public static readonly VersionedJson Migrations = new VersionedJson("area package", nameof(FormatVersion), CurrentFormat,
+            // 1 -> 2 (task 4.05): nothing to add; a v1 area has no Weather block, which reads as "no weather yet".
+            _ => { });
 
         public int FormatVersion { get; set; } = CurrentFormat;
 
@@ -40,6 +43,13 @@ namespace MountainPlanner.Persistence
         /// <summary>The species the species layers index (1-based; 0 means no tree).</summary>
         public List<SpeciesInfo> Species { get; set; } = new List<SpeciesInfo>();
         public List<string> Attribution { get; set; } = new List<string>();
+
+        /// <summary>
+        /// The weather (format 2, task 4.05): where the calibrated rows came from, how they were screened and checked. Null
+        /// means no weather yet (a v1 area, or one whose download skipped it): Get weather adds it. Not part of the package
+        /// id, so adding it moves no saves.
+        /// </summary>
+        public WeatherInfo Weather { get; set; }
 
         /// <summary>When the package was built. Not part of the package id.</summary>
         public string CreatedUtc { get; set; } = "";

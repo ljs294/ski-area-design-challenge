@@ -341,6 +341,11 @@ echo        record's own noise, the hold-out on unseen winters, and the shared-b
 echo     97 Weather Lab (4.05, no Unity): every site's sample seasons week by week (snow, rain, base depth,
 echo        temperatures), against 200 seasons and the real winters, opened in your browser; later runs show the
 echo        first run as the baseline ("before"). Builds in about a minute.
+echo   4.05 weather PR A2: every area gets its own weather (rebuilds the game; close the Unity editor first)
+echo     95 Get weather: a scratch library with Jackson Hole 2 km from before the weather. Manage Areas reads "No weather
+echo        yet"; Get weather opens the download card (fetching, then calibrating, with Cancel), then a toast; Credits
+echo        lists Daymet and NASA POWER. Then the game reopens offline and the area plays as before, and the tool prints
+echo        the area's weather report.
 echo.
 echo     Q  Quit
 echo.
@@ -471,6 +476,7 @@ if /i "%CHOICE%"=="89" goto simcore
 if /i "%CHOICE%"=="90" goto simsave
 if /i "%CHOICE%"=="91" goto liftops
 if /i "%CHOICE%"=="92" goto ridelift
+if /i "%CHOICE%"=="95" goto getweather
 if /i "%CHOICE%"=="96" goto guests
 if /i "%CHOICE%"=="93" goto weatherreport
 if /i "%CHOICE%"=="97" goto weatherlab
@@ -838,6 +844,46 @@ dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~Weather
 pause
 goto menu
 
+:getweather
+rem 4.05 PR A2: Get weather on an area downloaded before the weather (WeatherBackfill), then the same area offline.
+chcp 65001 >nul
+set "WX95=%LOCALAPPDATA%\SkiAreaDesignChallenge-weather95"
+set "WX95PKG=%WX95%\Resorts\jackson-hole-2km-test"
+call :buildplayer
+if not exist "%GAME%" goto done
+rem A fresh copy each run, so the area has no weather yet.
+if exist "%WX95%" rmdir /s /q "%WX95%"
+robocopy "%~dp0TestData\jackson-hole-2km" "%WX95PKG%" /e /njh /njs /nfl /ndl >nul
+echo.
+echo Where should the weather come from?
+echo   L  live: Daymet, NASA POWER and SNOTEL over the internet (about 80 requests, 1 to 3 minutes)
+echo   R  the recording in TestData\weather (no network needed; the same answers the tests use)
+choice /c LR /n /m "L or R? "
+set "WXREC="
+if errorlevel 2 set "WXREC=-weatherrecording "%~dp0TestData\weather\jackson-hole-2km""
+echo.
+echo   1. Choose Manage Areas: Jackson Hole reads "No weather yet", with a Get weather button.
+echo   2. Press Get weather: the download card opens, "Getting weather for Jackson Hole", with its Weather stage, the
+echo      MB and speed, and the detail line: "Fetching weather history", then "Calibrating the weather" (about 15 s),
+echo      the bar moving all the way. Try Cancel once: a toast says nothing was changed, and the row still reads
+echo      "No weather yet". Press Get weather again and let it finish: the card closes, the toast "Weather added for
+echo      Jackson Hole", and the button goes away. Minimise sends it to the pill and the pill brings it back.
+echo   3. Credits (from the title): the Weather history and Weather hours lines.
+echo   (Or open the area instead of step 2: it opens at once and the weather comes in behind it as the HUD's pill.)
+echo   Quit the game when done.
+start "" /wait "%GAME%" -data "%WX95%" %WXREC%
+findstr /i /c:"[AppFlow] Weather" "%PLAYERLOG%"
+echo.
+echo   4. Now the game opens offline on the same library: open Jackson Hole; it plays as before (nothing in the game
+echo      reads the weather until PR B). Quit the game when done.
+pause
+start "" /wait "%GAME%" -data "%WX95%" -offline
+echo.
+echo   5. The area's weather report:
+dotnet run --project "%~dp0tools\acquire" -- weather-info --package "%WX95PKG%" <nul
+pause
+goto menu
+
 :weatherlab
 rem 4.05 Weather Lab (tools/weather-lab/README.md): sample seasons of every site from the frozen rows, as a web page.
 chcp 65001 >nul
@@ -1152,7 +1198,7 @@ goto menu
 
 :refreshroads
 echo Adding roads (paved and unpaved, from OpenStreetMap) to every downloaded mountain that has none yet, then preparing each again...
-dotnet run --project "%~dp0toolscquire" -- refresh-osm <nul
+dotnet run --project "%~dp0tools\acquire" -- refresh-osm <nul
 goto done
 
 :benchsugarloaf

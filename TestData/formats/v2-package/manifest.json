@@ -1,0 +1,2615 @@
+{
+  "FormatVersion": 2,
+  "PackageId": "5792676e513f5302",
+  "Site": {
+    "Name": "Jackson Hole",
+    "Latitude": 43.593002,
+    "Longitude": -110.848007,
+    "CentreX": -1188828.0,
+    "CentreY": 2381976.0,
+    "SizeMetres": 2000,
+    "RingMetres": 3000
+  },
+  "Crs": {
+    "Epsg": 6350,
+    "VerticalDatum": "NAVD88 (GEOID18), metres",
+    "ScaleParallel": 0.995551262,
+    "ScaleMeridian": 1.004468618,
+    "GridConvergenceDegrees": 8.951904
+  },
+  "Layers": [
+    {
+      "Id": "canopy-core",
+      "File": "canopy-core.grid",
+      "Type": "uint8",
+      "Width": 2000,
+      "Height": 2000,
+      "West": -1189828.0,
+      "North": 2382976.0,
+      "CellSize": 1.0,
+      "Bands": 1,
+      "Units": "canopy height in 0.25 m steps (0 = open, 255 = 63.75 m or more)",
+      "Sha256": "fce891d43af4c9467874b7f97b6407168bacb85c5268c904e0838507c6826585",
+      "Min": 0.0,
+      "Max": 132.0
+    },
+    {
+      "Id": "cover",
+      "File": "cover.grid",
+      "Type": "uint8",
+      "Width": 800,
+      "Height": 800,
+      "West": -1192828.0,
+      "North": 2385976.0,
+      "CellSize": 10.0,
+      "Bands": 1,
+      "Units": "ESA WorldCover 2021 class (10 trees, 20 shrubs, 30 grass, 60 bare, 70 snow and ice, 80 water, 50 built-up)",
+      "Sha256": "94c4eec252c8cbee10b4d51f6e1e0f58e3c10917be63796235a1d2bd80faea7a",
+      "Min": 10.0,
+      "Max": 100.0
+    },
+    {
+      "Id": "heights-core",
+      "File": "heights-core.grid",
+      "Type": "float32",
+      "Width": 2000,
+      "Height": 2000,
+      "West": -1189828.0,
+      "North": 2382976.0,
+      "CellSize": 1.0,
+      "Bands": 1,
+      "Units": "",
+      "Sha256": "9bbcf3bf6eb3246cd13b97c096533edf741e40a2bb17dbf2da81c694df5d6b37",
+      "Min": 1946.408935546875,
+      "Max": 2869.934326171875
+    },
+    {
+      "Id": "heights-ring",
+      "File": "heights-ring.grid",
+      "Type": "float32",
+      "Width": 4000,
+      "Height": 4000,
+      "West": -1192828.0,
+      "North": 2385976.0,
+      "CellSize": 2.0,
+      "Bands": 1,
+      "Units": "",
+      "Sha256": "e11277d4d113290b38ec00f411598c306398f9f0aa5c0b1c9a9840c1d4f38211",
+      "Min": 1899.8375244140625,
+      "Max": 3278.68212890625
+    },
+    {
+      "Id": "roads",
+      "File": "roads.json",
+      "Type": "roads",
+      "Width": 1013,
+      "Height": 0,
+      "West": 0.0,
+      "North": 0.0,
+      "CellSize": 0.0,
+      "Bands": 1,
+      "Units": "OpenStreetMap roads: centre lines (EPSG:6350 m), class, surface, width (m), name",
+      "Sha256": "cd13e8435047548650e0f93576133cd1a7d0a215ae8861c9a749ce6eb1c9be16",
+      "Min": 0.0,
+      "Max": 0.0
+    },
+    {
+      "Id": "species-ids",
+      "File": "species-ids.grid",
+      "Type": "uint8",
+      "Width": 267,
+      "Height": 267,
+      "West": -1192828.0,
+      "North": 2385976.0,
+      "CellSize": 30.0,
+      "Bands": 4,
+      "Units": "top four species per cell, as 1-based indices into Species (0 = none)",
+      "Sha256": "c92fab5219a73c150f88f9f2f8c01bfe451d02d2404a4691d9b68337fe04858a",
+      "Min": 0.0,
+      "Max": 22.0
+    },
+    {
+      "Id": "species-weights",
+      "File": "species-weights.grid",
+      "Type": "uint8",
+      "Width": 267,
+      "Height": 267,
+      "West": -1192828.0,
+      "North": 2385976.0,
+      "CellSize": 30.0,
+      "Bands": 4,
+      "Units": "each top species' share of those four (0–255)",
+      "Sha256": "1552c18ff3750b44dc7adfa8df131c7aaff1a93881cd791f59795c7dbdc1b6eb",
+      "Min": 0.0,
+      "Max": 255.0
+    }
+  ],
+  "Quality": {
+    "Score": 100,
+    "OneLiner": "Terrain quality 100/100: 100% USGS S1M 1 m lidar",
+    "SourceShares": {
+      "USGS S1M 1 m lidar": 1.0
+    }
+  },
+  "Flora": {
+    "Score": 81,
+    "OneLiner": "Flora quality 81/100: canopy 1 m (2017–2020 imagery), species from BIGMAP 30 m, 93% of forest shown as its real species, sources agree on 68% of forest",
+    "Components": {
+      "coverage": 91.9,
+      "agreement": 67.9,
+      "speciesFidelity": 93.3,
+      "recency": 58.0
+    }
+  },
+  "Provenance": [
+    {
+      "Layer": "heights-core, heights-ring",
+      "Provider": "USGS 3DEP",
+      "Product": "Standard 1 m DEM (S1M), 2 m overview for the ring",
+      "Items": [
+        "n2380w1190",
+        "n2380w1200",
+        "n2390w1190",
+        "n2390w1200"
+      ]
+    },
+    {
+      "Layer": "canopy-core",
+      "Provider": "Meta and World Resources Institute",
+      "Product": "High Resolution Canopy Height Maps (v1, 1 m, core only)",
+      "Items": [
+        "021322030"
+      ]
+    },
+    {
+      "Layer": "cover",
+      "Provider": "ESA",
+      "Product": "WorldCover 2021 v200 (10 m)",
+      "Items": [
+        "ESA_WorldCover_10m_2021_v200_N42W111_Map"
+      ]
+    },
+    {
+      "Layer": "species-ids, species-weights",
+      "Provider": "USDA Forest Service",
+      "Product": "FIA BIGMAP 2018 tree species aboveground biomass (30 m)",
+      "Items": [
+        "60 species layers cover the site; 22 present"
+      ]
+    },
+    {
+      "Layer": "weather",
+      "Provider": "Daymet",
+      "Product": "Daymet V4 R1 daily, 1 km",
+      "Items": [
+        "label years 2005-2024"
+      ]
+    },
+    {
+      "Layer": "weather",
+      "Provider": "NASA POWER",
+      "Product": "Hourly point data (MERRA-2, CERES)",
+      "Items": []
+    },
+    {
+      "Layer": "weather",
+      "Provider": "SNOTEL",
+      "Product": "Snow water and precipitation (cross-check only)",
+      "Items": [
+        "689:WY:SNTL"
+      ]
+    }
+  ],
+  "Species": [
+    {
+      "Index": 1,
+      "Spcd": 202,
+      "CommonName": "Douglas-fir",
+      "ShareOfBiomass": 0.2545
+    },
+    {
+      "Index": 2,
+      "Spcd": 93,
+      "CommonName": "Engelmann spruce",
+      "ShareOfBiomass": 0.209
+    },
+    {
+      "Index": 3,
+      "Spcd": 19,
+      "CommonName": "subalpine fir",
+      "ShareOfBiomass": 0.2029
+    },
+    {
+      "Index": 4,
+      "Spcd": 108,
+      "CommonName": "lodgepole pine",
+      "ShareOfBiomass": 0.1395
+    },
+    {
+      "Index": 5,
+      "Spcd": 746,
+      "CommonName": "quaking aspen",
+      "ShareOfBiomass": 0.1275
+    },
+    {
+      "Index": 6,
+      "Spcd": 101,
+      "CommonName": "whitebark pine",
+      "ShareOfBiomass": 0.0247
+    },
+    {
+      "Index": 7,
+      "Spcd": 113,
+      "CommonName": "limber pine",
+      "ShareOfBiomass": 0.0112
+    },
+    {
+      "Index": 8,
+      "Spcd": 122,
+      "CommonName": "ponderosa pine",
+      "ShareOfBiomass": 0.0061
+    },
+    {
+      "Index": 9,
+      "Spcd": 18,
+      "CommonName": "corkbark fir",
+      "ShareOfBiomass": 0.005
+    },
+    {
+      "Index": 10,
+      "Spcd": 15,
+      "CommonName": "white fir",
+      "ShareOfBiomass": 0.0049
+    },
+    {
+      "Index": 11,
+      "Spcd": 814,
+      "CommonName": "Gambel oak",
+      "ShareOfBiomass": 0.0044
+    },
+    {
+      "Index": 12,
+      "Spcd": 322,
+      "CommonName": "bigtooth maple",
+      "ShareOfBiomass": 0.0037
+    },
+    {
+      "Index": 13,
+      "Spcd": 96,
+      "CommonName": "blue spruce",
+      "ShareOfBiomass": 0.0034
+    },
+    {
+      "Index": 14,
+      "Spcd": 102,
+      "CommonName": "Rocky Mountain bristlecone pine",
+      "ShareOfBiomass": 0.001
+    },
+    {
+      "Index": 15,
+      "Spcd": 66,
+      "CommonName": "Rocky Mountain juniper",
+      "ShareOfBiomass": 0.0009
+    },
+    {
+      "Index": 16,
+      "Spcd": 749,
+      "CommonName": "narrowleaf cottonwood",
+      "ShareOfBiomass": 0.0003
+    },
+    {
+      "Index": 17,
+      "Spcd": 475,
+      "CommonName": "curlleaf mountain-mahogany",
+      "ShareOfBiomass": 0.0002
+    },
+    {
+      "Index": 18,
+      "Spcd": 65,
+      "CommonName": "Utah juniper",
+      "ShareOfBiomass": 0.0002
+    },
+    {
+      "Index": 19,
+      "Spcd": 106,
+      "CommonName": "common or two-needle pinyon",
+      "ShareOfBiomass": 0.0002
+    },
+    {
+      "Index": 20,
+      "Spcd": 69,
+      "CommonName": "oneseed juniper",
+      "ShareOfBiomass": 0.0001
+    },
+    {
+      "Index": 21,
+      "Spcd": 114,
+      "CommonName": "southwestern white pine ",
+      "ShareOfBiomass": 0.0001
+    },
+    {
+      "Index": 22,
+      "Spcd": 747,
+      "CommonName": "black cottonwood",
+      "ShareOfBiomass": 0.0001
+    }
+  ],
+  "Attribution": [
+    "Elevation: U.S. Geological Survey, 3D Elevation Program (public domain).",
+    "Canopy height: © Meta and World Resources Institute, High Resolution Canopy Height Maps (CC BY 4.0).",
+    "Land cover: © ESA WorldCover project 2021, contains modified Copernicus Sentinel data (2021) processed by the ESA WorldCover consortium (CC BY 4.0).",
+    "Tree species: USDA Forest Service, Forest Inventory and Analysis, BIGMAP 2018 (public domain).",
+    "Water and roads: © OpenStreetMap contributors (ODbL).",
+    "Weather history: Thornton et al., Daymet Version 4 R1, ORNL DAAC (free to use with citation).",
+    "Weather hours: NASA Langley Research Center POWER Project, funded through the NASA Earth Science Division (free to use with acknowledgement).",
+    "Snow check: USDA NRCS SNOTEL (public domain)."
+  ],
+  "Weather": {
+    "RowsFile": "weather.rows",
+    "RowsSha256": "e20b5c873b7846934503f1ea43b6dd124bed77e81e2c33a6e99d21a4dc4dfcfc",
+    "RowsVersion": 1,
+    "FirstLabelYear": 2005,
+    "LastLabelYear": 2024,
+    "Verdict": "Clean",
+    "Limited": false,
+    "Reasons": [],
+    "ReferenceLatitude": 43.592443,
+    "ReferenceLongitude": -110.852815,
+    "ReferenceElevationMetres": 2520.0,
+    "ObservationLagHours": 6,
+    "Sources": [
+      {
+        "Name": "Daymet",
+        "Service": "https://daymet.ornl.gov/single-pixel/api/data",
+        "Version": "All years; all variables; Daymet Software Version 4.0",
+        "Citation": "Thornton; M.M.; R. Shrestha; Y. Wei; P.E. Thornton; S-C. Kao; and B.E. Wilson. 2022. Daymet: Daily Surface Weather Data on a 1-km Grid for North America; Version 4 R1. ORNL DAAC; Oak Ridge; Tennessee; USA. https://doi.org/10.3334/ORNLDAAC/2129",
+        "AccessedUtc": "2026-11-10"
+      },
+      {
+        "Name": "NASA POWER",
+        "Service": "https://power.larc.nasa.gov/api/temporal/hourly/point",
+        "Version": "v2.10.4",
+        "Citation": "POWER Project's Hourly v2.10.4 version on 2026-11-10",
+        "AccessedUtc": "2026-11-10"
+      },
+      {
+        "Name": "SNOTEL",
+        "Service": "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1",
+        "Version": "AWDB REST v1",
+        "Citation": "USDA NRCS National Water and Climate Center, SNOTEL",
+        "AccessedUtc": "2026-11-10"
+      }
+    ],
+    "Qc": [
+      {
+        "Source": "Daymet",
+        "Test": "ranges",
+        "Checked": 408800,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "tmax ≥ tmin, −60 to 50 °C, prcp 0–500 mm, vp and swe ≥ 0; a failing day is dropped whole"
+      },
+      {
+        "Source": "Daymet",
+        "Test": "georeference",
+        "Checked": 1,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "Reference pixel: Daymet 2520 m, our terrain 2531 m over the same footprint (−11 m)"
+      },
+      {
+        "Source": "Daymet",
+        "Test": "lattice elevations",
+        "Checked": 55,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "largest Daymet minus terrain difference +58 m"
+      },
+      {
+        "Source": "Daymet",
+        "Test": "outlier winters",
+        "Checked": 20,
+        "Rejected": 0,
+        "Outcome": "reported",
+        "Note": "median winter 26.4 in; far from it: 2016–17 46.3 in"
+      },
+      {
+        "Source": "Daymet",
+        "Test": "lattice coherence",
+        "Checked": 56,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "winter liquid +16.8 in per 1,000 m; residual σ 0.2 in; 0 pixel(s) past 3σ"
+      },
+      {
+        "Source": "NASA POWER",
+        "Test": "fill values",
+        "Checked": 2024880,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "the service's −999: missing, never zero"
+      },
+      {
+        "Source": "NASA POWER",
+        "Test": "ranges",
+        "Checked": 2024880,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "each parameter's physical range"
+      },
+      {
+        "Source": "NASA POWER",
+        "Test": "flatlines",
+        "Checked": 368160,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "T2M or WS50M identical for 24 h or more"
+      },
+      {
+        "Source": "NASA POWER",
+        "Test": "against Daymet",
+        "Checked": 3020,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "winter daily temperature anomalies r = 0.92 over 3020 days; POWER wet on 79 % of Daymet's wet days"
+      },
+      {
+        "Source": "SNOTEL",
+        "Test": "flags 689:WY:SNTL",
+        "Checked": 14606,
+        "Rejected": 2,
+        "Outcome": "ok",
+        "Note": "kept NRCS valid (V) and edited (E) values, approved or provisional; dropped suspect, estimated and raw"
+      },
+      {
+        "Source": "SNOTEL",
+        "Test": "PREC accumulator 689:WY:SNTL",
+        "Checked": 7303,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "19 reset(s) read as resets, never as negative rain; spikes over 5 in dropped"
+      },
+      {
+        "Source": "SNOTEL",
+        "Test": "SWE pillow 689:WY:SNTL",
+        "Checked": 7303,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "0 jump(s) without precipitation, 0 midwinter drop(s) in the cold (bridging), 0 stuck day(s)"
+      },
+      {
+        "Source": "SNOTEL",
+        "Test": "winters 689:WY:SNTL",
+        "Checked": 20,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "usable with ≥ 90 % clean days: 20; gauge undercatch (PREC below the SWE gain) in 1"
+      },
+      {
+        "Source": "SNOTEL",
+        "Test": "ratio",
+        "Checked": 1,
+        "Rejected": 0,
+        "Outcome": "ok",
+        "Note": "Daymet ÷ SNOTEL winter precipitation, median over 1 station(s): 0.84"
+      }
+    ],
+    "QcLimits": {
+      "Version": 1.0,
+      "GeoreferenceMetres": 100.0,
+      "LatticeResidualSigma": 3.0,
+      "OutlierWinterMads": 3.0,
+      "PowerFlatlineHours": 24.0,
+      "PowerMinHoursForShape": 20.0,
+      "PowerDaymetMinCorrelation": 0.7,
+      "SnotelResetIn": 1.0,
+      "SnotelSpikeIn": 5.0,
+      "SnotelSweJumpIn": 4.0,
+      "SnotelSweDropIn": 3.0,
+      "SnotelStuckDays": 10.0,
+      "SnotelUndercatchShare": 0.1,
+      "SnotelUsableDayShare": 0.9,
+      "SnotelMinWinters": 10.0,
+      "SnotelRatioLow": 0.7,
+      "SnotelRatioHigh": 1.4
+    },
+    "Stations": [
+      {
+        "Triplet": "689:WY:SNTL",
+        "Name": "Phillips Bench",
+        "DistanceMetres": 9959.0,
+        "ElevationMetres": 2490.0,
+        "GhcnId": "USS0010F23S",
+        "UsableWinters": 20,
+        "MedianRatio": 0.843,
+        "UndercatchWinters": 1,
+        "Note": "Daymet's inputs (GHCN-Daily USS0010F23S) include this station, so agreement is weak evidence."
+      }
+    ],
+    "Checks": [
+      {
+        "Name": "WX-18 storm days / Daymet wet days",
+        "Value": 1.0,
+        "Low": 0.9,
+        "High": Infinity,
+        "Result": "pass",
+        "Note": ""
+      },
+      {
+        "Name": "WX-18 clearing ends in daylight",
+        "Value": 0.25333333333333335,
+        "Low": 0.0,
+        "High": 0.6,
+        "Result": "pass",
+        "Note": ""
+      },
+      {
+        "Name": "WX-31 KS building",
+        "Value": 0.044824352787537713,
+        "Low": 0.0,
+        "High": 0.065095929702216032,
+        "Result": "pass",
+        "Note": "n 627"
+      },
+      {
+        "Name": "WX-31 KS clearing",
+        "Value": 0.042163832138108315,
+        "Low": 0.0,
+        "High": 0.0609585437485514,
+        "Result": "pass",
+        "Note": "n 715"
+      },
+      {
+        "Name": "WX-31 KS fair",
+        "Value": 0.034934968399110311,
+        "Low": 0.0,
+        "High": 0.0629254520732979,
+        "Result": "pass",
+        "Note": "n 671"
+      },
+      {
+        "Name": "WX-31 KS storm",
+        "Value": 0.049668984526498594,
+        "Low": 0.0,
+        "High": 0.057919527943274166,
+        "Result": "pass",
+        "Note": "n 792"
+      },
+      {
+        "Name": "WX-31 KS storm.total",
+        "Value": 0.044836429924087207,
+        "Low": 0.0,
+        "High": 0.057919527943274166,
+        "Result": "pass",
+        "Note": "n 792"
+      },
+      {
+        "Name": "WX-41 powder mornings a season, record",
+        "Value": 6.8,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "WX-41 powder mornings a season, game",
+        "Value": 7.1,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit anomaly.skew",
+        "Value": -0.27503297859047293,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit blend.evenShareDays",
+        "Value": 1.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit blend.humidShareDays",
+        "Value": 1.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit blend.lagHours",
+        "Value": 6.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit building.weibullShape",
+        "Value": 1.4046871575687132,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit character.meanInverseSqrtShare",
+        "Value": 1.0094904882595361,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit character.meanSqrtShare",
+        "Value": 0.99670581866430041,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit character.recordCv",
+        "Value": 0.22769030904273219,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit character.recordTempSd",
+        "Value": 1.1106861294872308,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit character.samplingCv",
+        "Value": 0.15275971702995705,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit character.samplingTempSd",
+        "Value": 1.6432051053107035,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit character.shareShrink",
+        "Value": 0.74153873966154238,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit character.tempShrink",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit clamp.characterShareFloor",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit clamp.characterTempFloor",
+        "Value": 1.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit clamp.nightSpreadFloorThirds",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit clamp.wetLeanBound",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit clamp.wetSpreadFloorThirds",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit clearing.weibullShape",
+        "Value": 1.3936646055168045,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.meanMiss.0",
+        "Value": 0.049554733935474,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.meanMiss.1",
+        "Value": 0.0034822842485364054,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.meanMiss.2",
+        "Value": -0.00043548451082437621,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.miss01.0",
+        "Value": 0.15498576824664045,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.miss01.1",
+        "Value": 0.045396727150750493,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.miss01.2",
+        "Value": 0.022469728343054385,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.miss10.0",
+        "Value": 0.0829394208274763,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.miss10.1",
+        "Value": 0.0050173429053983476,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.miss10.2",
+        "Value": -0.017544503722431326,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.shapeCentre.0",
+        "Value": -49.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.shapeCentre.1",
+        "Value": -3.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.shapeCentre.2",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.thirdMeanShift.0",
+        "Value": 1.7,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.thirdMeanShift.1",
+        "Value": 0.7,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit cold.thirdMeanShift.2",
+        "Value": 0.3,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.0",
+        "Value": 0.92389885583113618,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.1",
+        "Value": 0.9558409656161484,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.10",
+        "Value": 0.96281625292265,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.11",
+        "Value": 1.0641435104079937,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.2",
+        "Value": 0.92834718207111289,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.3",
+        "Value": 0.98127915797691034,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.4",
+        "Value": 0.94168051653384743,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.5",
+        "Value": 0.82741123408851658,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.6",
+        "Value": 0.94076749839724716,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.7",
+        "Value": 0.92954928011009741,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.8",
+        "Value": 1.0467541075163183,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateCorrection.9",
+        "Value": 0.86366307523516062,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.0",
+        "Value": 97.39279085669628,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.1",
+        "Value": 113.13175375455431,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.10",
+        "Value": 74.2357491736097,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.11",
+        "Value": 73.19141938859407,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.12",
+        "Value": 65.185038707772975,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.13",
+        "Value": 59.066496888632969,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.14",
+        "Value": 66.5397423814012,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.15",
+        "Value": 64.412144551497917,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.16",
+        "Value": 74.242031872509941,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.17",
+        "Value": 55.77677401663567,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.18",
+        "Value": 70.616368214226881,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.19",
+        "Value": 63.563995616563396,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.2",
+        "Value": 90.034137356814838,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.20",
+        "Value": 58.972713095397225,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.21",
+        "Value": 90.7283163803655,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.22",
+        "Value": 81.567339373970356,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.23",
+        "Value": 81.7507704185029,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.24",
+        "Value": 107.56319567252677,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.25",
+        "Value": 105.11600477754558,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.26",
+        "Value": 133.33761040558949,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.27",
+        "Value": 120.53327987169207,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.28",
+        "Value": 129.69374571001737,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.29",
+        "Value": 112.72579098753594,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.3",
+        "Value": 88.190336224818992,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.30",
+        "Value": 101.26093110415097,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.31",
+        "Value": 138.86859591508866,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.32",
+        "Value": 106.13834349921348,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.33",
+        "Value": 171.35544099560951,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.34",
+        "Value": 136.16710745750717,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.35",
+        "Value": 153.40714980639245,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.4",
+        "Value": 83.640493557956276,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.5",
+        "Value": 61.416458961739963,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.6",
+        "Value": 69.502896871378923,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.7",
+        "Value": 50.49148946640134,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.8",
+        "Value": 51.60608155968562,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.rateGap.9",
+        "Value": 52.476958859989558,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit fair.weibullShape",
+        "Value": 0.88407535560971517,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit night.depthSpread",
+        "Value": 6.4834798013535346,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit night.excessMiss.0",
+        "Value": 33.5832208717856,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit night.excessMiss.1",
+        "Value": 8.45228946277367,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit night.recordExcess",
+        "Value": 31.643881081049969,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit pattern.gap.0",
+        "Value": 1.1600686193318965,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit pattern.gap.1",
+        "Value": 1.024678383532285,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit pattern.gap.2",
+        "Value": 0.820914261506716,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit pattern.lag1.0",
+        "Value": 0.023275957849695245,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit pattern.lag1.1",
+        "Value": 0.14000526680503811,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit pattern.persistence.0",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit pattern.persistence.1",
+        "Value": 0.11564091280568299,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit pattern.size.0",
+        "Value": 0.80600466535371407,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit pattern.size.1",
+        "Value": 1.0450033736667175,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit pattern.size.2",
+        "Value": 1.0355784125933816,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit postStorm.slopeFPerIn",
+        "Value": -0.53847709192060222,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit quarter.size.0",
+        "Value": 0.96175371258226672,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit quarter.size.1",
+        "Value": 0.5,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit quarter.size.2",
+        "Value": 0.99205700629645632,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit quarter.size.3",
+        "Value": 1.0352332915734055,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit rate.q995MmPerHour",
+        "Value": 2.777202891609865,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.0",
+        "Value": 1.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.1",
+        "Value": 0.86961548415776568,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.10",
+        "Value": 1.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.11",
+        "Value": 1.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.2",
+        "Value": 0.92407326921594368,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.3",
+        "Value": 0.87837819975973885,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.4",
+        "Value": 0.7837945122879818,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.5",
+        "Value": 0.74694377285534241,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.6",
+        "Value": 0.68800415033078144,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.7",
+        "Value": 0.74541792971387555,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.8",
+        "Value": 1.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.anomalyWeight.9",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.copulaRho",
+        "Value": 0.88879806602807687,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.intensityWarmF",
+        "Value": 5.007690095327046,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.0",
+        "Value": 0.96505348098362465,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.1",
+        "Value": 1.0187689262461554,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.10",
+        "Value": 1.1866388739700677,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.11",
+        "Value": 0.95049132816389825,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.2",
+        "Value": 1.1292382686611502,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.3",
+        "Value": 0.93382823016836625,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.4",
+        "Value": 0.97631010929154716,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.5",
+        "Value": 0.95506419423502076,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.6",
+        "Value": 0.99591836719861049,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.7",
+        "Value": 1.0019555682776824,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.8",
+        "Value": 0.91979277953597138,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.liquidCorrection.9",
+        "Value": 0.926831034357916,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.rainShareMiss.0",
+        "Value": -0.0066244551167761179,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.rainShareMiss.1",
+        "Value": -0.00074041459809204291,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.rainShareMiss.11",
+        "Value": -0.023173306532916271,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.rainShareMiss.5",
+        "Value": -0.001137140503416012,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.rainShareMiss.6",
+        "Value": -0.00886948919073749,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.rainShareMiss.7",
+        "Value": -0.051803399161330921,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.rainShareMiss.8",
+        "Value": -0.075838818402682584,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.sizeHourMeanScore",
+        "Value": 0.72288637891492447,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.sizeSpreadPerSd",
+        "Value": -0.18512841553860215,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.sizeWarmFPerSd",
+        "Value": 0.42213623154738045,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.spearman",
+        "Value": 0.879496516087373,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.total.lognormalKs",
+        "Value": 0.025916529544283862,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.total.sigma",
+        "Value": 1.0998948050548325,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.0",
+        "Value": 0.17066079894186004,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.1",
+        "Value": 0.030556035305743023,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.10",
+        "Value": -0.27324462270812688,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.11",
+        "Value": 0.35078634280156251,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.2",
+        "Value": 0.11494188425531604,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.3",
+        "Value": 0.059363560452901254,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.4",
+        "Value": -0.075620261461274652,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.5",
+        "Value": 0.084858892150066367,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.6",
+        "Value": -0.055959805742332946,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.7",
+        "Value": -0.018707187535248693,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.8",
+        "Value": 0.06376030385811049,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.varianceMiss.9",
+        "Value": 2.641265182271205,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.0",
+        "Value": -0.77054553133366355,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.1",
+        "Value": 0.76896479353308678,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.10",
+        "Value": 0.75678965398964948,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.11",
+        "Value": -2.62310876570173,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.2",
+        "Value": 2.7039271611770026,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.3",
+        "Value": 2.2080850105952834,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.4",
+        "Value": 1.7534096915451052,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.5",
+        "Value": -0.79018829283836567,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.6",
+        "Value": 1.1352378804998473,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.7",
+        "Value": 0.63558911038387578,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.8",
+        "Value": 1.0366303106293131,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.warmShift.9",
+        "Value": 4.5107819544559575,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.weibullShape",
+        "Value": 1.1518693490287291,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.0",
+        "Value": -0.001325115355715667,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.1",
+        "Value": -0.57477219194996465,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.10",
+        "Value": 0.003091159233683527,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.11",
+        "Value": 0.020362746943838772,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.2",
+        "Value": 0.010099265633478183,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.3",
+        "Value": 0.011920069628107655,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.4",
+        "Value": 0.050976662000344675,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.5",
+        "Value": -0.20505565049272434,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.6",
+        "Value": 0.0091693421555412158,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.7",
+        "Value": -0.010880953621025924,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.8",
+        "Value": -0.056978224556189616,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.wetBulbMiss.9",
+        "Value": -0.0036210470573863063,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit storm.withinWarmF",
+        "Value": 1.0652959613221975,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit wet.gameLink",
+        "Value": 0.18929678040660552,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit wet.lean",
+        "Value": 1.1083537205993219,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit wet.linkMiss.0",
+        "Value": 0.024807667298614028,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit wet.linkMiss.1",
+        "Value": 0.003245541148557296,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit wet.recordLink",
+        "Value": 0.067891833995203571,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit wind.memoryPerFaceHour",
+        "Value": 0.76539875854053263,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit wind.stormPerRate",
+        "Value": 0.071369076019332248,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit wobble.memory",
+        "Value": 0.60208611357171926,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit wobble.spread",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit wobble.spreadMiss.0",
+        "Value": -0.14465600094295894,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "fit wobble.spreadMiss.1",
+        "Value": -0.14465600094295894,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": ""
+      },
+      {
+        "Name": "pooled anomaly.lag1",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled anomaly.shape",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "record, refitted on the finished hours"
+      },
+      {
+        "Name": "pooled anomaly.spread",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled backToBack",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled building.median",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled building.scale",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled building.zeroShare",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled clearing.liquidShare",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled clearing.median",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled clearing.octants",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled clearing.scale",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled clearness.building",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled clearness.clearing",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled clearness.fair",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled clearness.storm",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled cloud.day.building",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled cloud.day.clearing",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled cloud.day.fair",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled cloud.day.storm",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled cloud.night.building",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled cloud.night.clearing",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled cloud.night.fair",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled cloud.night.storm",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled dew.building",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled dew.clearing",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled dew.fair",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled dew.storm",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled diurnal.fair",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled diurnal.storm",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled fair.median",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled fair.octants",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled fair.rawMedian",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled lapse.day",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled lapse.dew",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled lapse.night",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled offset.building",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled offset.clearing",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled offset.fair",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled offset.storm",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled pattern.mix.0",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled precip.gradient",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled quarter.0",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "site"
+      },
+      {
+        "Name": "pooled quarter.1",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "winter"
+      },
+      {
+        "Name": "pooled quarter.2",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "winter"
+      },
+      {
+        "Name": "pooled quarter.3",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "winter"
+      },
+      {
+        "Name": "pooled storm.logMean",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled storm.mean",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled storm.median",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled storm.octants",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled storm.offsetSpread",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled storm.rawMedian",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled storm.scale",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled wind.building",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled wind.clearing",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled wind.fair",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled wind.spread.building",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled wind.spread.clearing",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled wind.spread.fair",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled wind.spread.storm",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      },
+      {
+        "Name": "pooled wind.storm",
+        "Value": 0.0,
+        "Low": 0.0,
+        "High": 0.0,
+        "Result": "report",
+        "Note": "third"
+      }
+    ],
+    "BuiltBy": "tests, QC limits v1"
+  },
+  "CreatedUtc": "2026-09-27T18:55:45Z",
+  "Tool": "MountainPlanner.Acquisition 0.1"
+}

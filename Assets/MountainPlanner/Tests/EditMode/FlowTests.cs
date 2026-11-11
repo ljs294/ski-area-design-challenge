@@ -53,6 +53,43 @@ namespace MountainPlanner.Tests
             Assert.That(vm.Title, Is.EqualTo("Downloading Crystal Mountain · 2 km"));
         }
 
+        /// <summary>
+        /// Owner finding F1 (task 4.05, PR A2): Get weather and Get water and roads show on the download card, in their own
+        /// words, with the stage, server and transfer a download has; no pause, and Retry only when the player started it.
+        /// </summary>
+        [Test]
+        public void AnAreaJobReadsAsItselfOnTheCard()
+        {
+            var vm = new DownloadViewModel();
+            vm.StartAreaJob("Jackson Hole", LibraryViewModel.GetWeather, "Getting weather", canRetry: true);
+            Assert.That(vm.AreaJob);
+            Assert.That(vm.Title, Is.EqualTo("Getting weather for Jackson Hole"));
+            Assert.That(vm.Pill, Is.EqualTo("Getting weather for Jackson Hole · 0%"));
+            vm.Apply(new DownloadStatus
+            {
+                Name = "Jackson Hole", Stages = new[] { "Weather" }, StageIndex = 1, StageCount = 1, Stage = "Weather", Overall = 0.42,
+                Bytes = 21_000_000, BytesPerSecond = 2_000_000, SecondsRemaining = 30, Server = "Weather services",
+                Detail = "Weather: Fetching weather history 1 of 2 · 60%",
+            });
+            Assert.That(vm.StageNames, Is.EqualTo(new[] { "Weather" }));
+            Assert.That(vm.Pill, Is.EqualTo("Getting weather for Jackson Hole · 42%"));
+            Assert.That(vm.BarLabel, Is.EqualTo("Getting weather · 42%"));
+            Assert.That(vm.BarText, Is.EqualTo("Jackson Hole"));
+            Assert.That(vm.Transfer, Is.EqualTo("21.0 MB · 2.0 MB/s"));
+            Assert.That(vm.Title, Is.EqualTo("Getting weather for Jackson Hole"), "no km: the area is already here");
+            vm.Failed(new DownloadProblem { Kind = ProblemKind.NoConnection, Title = "Get weather stopped", Text = "No internet connection." });
+            Assert.That(vm.BarLabel, Is.EqualTo("Get weather stopped · 42%"));
+            Assert.That(vm.CanRetry);
+
+            vm.StartAreaJob("Jackson Hole", LibraryViewModel.GetWeather, "Getting weather", canRetry: false);
+            Assert.That(vm.CanRetry, Is.False, "the automatic try on open tries again at the next open instead");
+            vm.Start("Crystal Mountain", 2);
+            Assert.That(vm.AreaJob, Is.False, "a download after it reads as a download again");
+            Assert.That(vm.CanRetry);
+            Assert.That(vm.Pill, Is.EqualTo("Downloading Crystal Mountain · 0%"));
+            Assert.That(vm.BarLabel, Is.EqualTo("Downloading · 0%"));
+        }
+
         [Test]
         public void RowsRebuildOnlyWhenTheListChanges()
         {
@@ -209,6 +246,25 @@ namespace MountainPlanner.Tests
             var vm = LibraryViewModel.Build(entries, new List<PendingDownload>(), new RecentResorts(), LibrarySort.Name, new DateTime(2026, 11, 3));
             Assert.That(vm.Rows.Where(r => r.NeedsWaterAndRoads).Select(r => r.Name), Is.EqualTo(new[] { "Without" }), "not the demo (read-only), nor one it can't read");
             Assert.That(vm.Rows.Single(r => r.Name == "Without").WaterAndRoadsText, Is.EqualTo(LibraryViewModel.NoWaterAndRoads));
+        }
+
+        /// <summary>Task 4.05, PR A2: Get weather on the player's own areas that have none; one status line for both gaps.</summary>
+        [Test]
+        public void GetWeatherIsOfferedOnlyOnThePlayersAreasThatLackIt()
+        {
+            var entries = new List<LibraryEntry>
+            {
+                new LibraryEntry { PackageId = "a", Name = "Without", Folder = "A", NeedsWeather = true },
+                new LibraryEntry { PackageId = "b", Name = "With", Folder = "B" },
+                new LibraryEntry { PackageId = "c", Name = "Demo", Folder = "C", NeedsWeather = true, Bundled = true },
+                new LibraryEntry { PackageId = "d", Name = "Newer", Folder = "D", NeedsWeather = true, Refusal = "newer" },
+                new LibraryEntry { PackageId = "e", Name = "Both", Folder = "E", NeedsWeather = true, NeedsWaterAndRoads = true },
+            };
+            var vm = LibraryViewModel.Build(entries, new List<PendingDownload>(), new RecentResorts(), LibrarySort.Name, new DateTime(2026, 11, 10));
+            Assert.That(vm.Rows.Where(r => r.NeedsWeather).Select(r => r.Name), Is.EquivalentTo(new[] { "Without", "Both" }), "not the demo (read-only), nor one it can't read");
+            Assert.That(vm.Rows.Single(r => r.Name == "Without").MissingText, Is.EqualTo(LibraryViewModel.NoWeather));
+            Assert.That(vm.Rows.Single(r => r.Name == "Both").MissingText, Is.EqualTo(LibraryViewModel.NoWaterAndRoads + " · " + LibraryViewModel.NoWeather));
+            Assert.That(vm.Rows.Single(r => r.Name == "With").MissingText, Is.Empty);
         }
 
         [Test]
@@ -435,6 +491,28 @@ namespace MountainPlanner.Tests
 
             flow.SceneReady(inGame: true);
             Assert.That(flow.Escape(), Is.False, "in the game Esc belongs to the viewer's menu");
+        }
+
+        /// <summary>Owner finding F1: an area job takes the card and pill but never the quality card, and leaves the screen be.</summary>
+        [Test]
+        public void AnAreaJobShowsTheCardAndEndsWithoutTheQualityCard()
+        {
+            var (flow, host) = Title();
+            flow.MyResorts();
+            flow.AreaJobStarted(openCard: true);
+            Assert.That(host.CardOpen && flow.DownloadActive);
+            Assert.That(flow.Screen, Is.EqualTo(FlowScreen.Library));
+            flow.MinimiseDownload();
+            Assert.That(host.CardOpen, Is.False);
+            flow.RestoreDownload();
+            Assert.That(host.CardOpen, "the pill opens it again");
+            flow.DownloadStopped();
+            Assert.That(flow.DownloadActive || host.CardOpen, Is.False);
+            Assert.That(flow.Screen, Is.EqualTo(FlowScreen.Library), "no quality card: the area was already in the library");
+
+            flow.AreaJobStarted(openCard: false);
+            Assert.That(host.CardOpen, Is.False, "the automatic try on open is the pill alone");
+            Assert.That(flow.DownloadActive);
         }
 
         [Test]

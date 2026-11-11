@@ -55,6 +55,19 @@ namespace MountainPlanner.Persistence
                 catch (InvalidDataException e) { problems.Add($"{layer.File} is damaged: {e.Message}"); }
                 catch (EndOfStreamException) { problems.Add($"{layer.File} is truncated."); }
             }
+            // Format 2 (task 4.05): the weather's rows, when the Weather block lists them (an area outside Daymet lists none).
+            var weather = m.Weather;
+            if (weather != null && !string.IsNullOrEmpty(weather.RowsFile))
+            {
+                string path = Path.Combine(folder, weather.RowsFile);
+                if (!File.Exists(path)) problems.Add($"{weather.RowsFile} is missing.");
+                else
+                {
+                    try { WeatherRowsFile.Read(folder, weather.RowsSha256); }
+                    catch (Exception e) when (e is InvalidDataException || e is IOException || e is EndOfStreamException)
+                    { problems.Add(e.Message.StartsWith(weather.RowsFile, StringComparison.Ordinal) ? e.Message : $"{weather.RowsFile} is damaged: {e.Message}"); }
+                }
+            }
             return problems;
         }
     }
@@ -108,6 +121,11 @@ namespace MountainPlanner.Persistence
         /// offers Get water and roads (task P3-16, BB6).
         /// </summary>
         public bool NeedsWaterAndRoads { get; set; }
+        /// <summary>
+        /// It has no Weather block yet (a format 1 area, or one whose download finished without it): Manage Areas offers Get
+        /// weather, and opening it online adds it (task 4.05, PR A2).
+        /// </summary>
+        public bool NeedsWeather { get; set; }
     }
 
     /// <summary>
@@ -223,7 +241,7 @@ namespace MountainPlanner.Persistence
                     Folder = folder, Latitude = m.Site.Latitude, Longitude = m.Site.Longitude,
                     SizeKm = m.Site.SizeMetres / 1000.0, TerrainScore = m.Quality.Score, FloraScore = m.Flora.Score,
                     CreatedUtc = m.CreatedUtc, CacheReady = TerrainCache.IsCurrent(folder, m), RenameRefusal = view.Refusal,
-                    NeedsWaterAndRoads = WaterAndRoads.Needed(m),
+                    NeedsWaterAndRoads = WaterAndRoads.Needed(m), NeedsWeather = m.Weather == null,
                 });
             }
             newer?.Sort((a, b) => string.CompareOrdinal(a.Folder, b.Folder));

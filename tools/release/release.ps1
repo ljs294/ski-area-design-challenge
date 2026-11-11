@@ -126,6 +126,9 @@ if ($release -and $version -ne $tag.Substring(1)) { Fail "The build stamped $ver
 if ($release -and -not (Test-ReleaseVersion $version)) { Fail "$version isn't a release version." }
 $exe = Join-Path $player "$($script:ProductFile).exe"
 Write-Host "  Built $version"
+# Task 4.05, PR A2: a demo without weather still ships (it plays the stand-in), but say so.
+$noWeather = Select-String -Path $buildLog -Pattern '\[DemoBundle\] No weather in the demo' -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($noWeather) { Write-Host "  WARNING: $($noWeather.Line.Trim() -replace '^.*\[DemoBundle\] ', '')" -ForegroundColor Yellow; $report.warnings += @('demo has no weather') }
 $report.version = $version
 
 # ---- 5. Smoke test ----

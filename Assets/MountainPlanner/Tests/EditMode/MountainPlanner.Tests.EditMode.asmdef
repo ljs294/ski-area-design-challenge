@@ -12,6 +12,7 @@
         "MountainPlanner.Presentation",
         "MountainPlanner.UI",
         "MountainPlanner.App",
+        "MountainPlanner.Editor",
         "Unity.InputSystem",
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Universal.Runtime"

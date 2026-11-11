@@ -81,6 +81,9 @@ namespace MountainPlanner.App.Flow
             // -offline: every network call fails, as with the cable out (the acceptance check for opening offline);
             // Settings › Data › Offline mode does the same (task P2-05).
             if (Array.IndexOf(args, "-offline") >= 0 || DataPreferences.Offline) MountainPlanner.Acquisition.IO.Http.NetworkDisabled = true;
+            // -weatherrecording <folder> (task 4.05, PR A2): weather answers from a recorded site, not the services (demo 95).
+            int replay = Array.IndexOf(args, "-weatherrecording");
+            if (replay >= 0 && replay + 1 < args.Length) MountainPlanner.Acquisition.Weather.WeatherBuild.ReplayFolder = System.IO.Path.GetFullPath(args[replay + 1]);
             Create(DataRootFrom(args), new PipelineDownloader(DataRootFrom(args)));
         }
 
@@ -180,6 +183,7 @@ namespace MountainPlanner.App.Flow
             Screens.FreeSpaceConfirmed += FreeSpace;
             Screens.OpenChosen += r => { if (r.CanOpen) Controller.Open(r.Entry.Folder); };
             Screens.WaterAndRoadsChosen += GetWaterAndRoads;   // task P3-16, BB6 (AppFlow.WaterAndRoads.cs)
+            Screens.WeatherChosen += r => GetWeather(r);       // task 4.05, PR A2 (AppFlow.Weather.cs)
             Screens.DeleteConfirmed += Delete;
             WireSaveList();   // Load Area's saves: open, rename, delete (AppFlow.Saves.cs, task P3-04)
             if (Picker != null)
@@ -397,7 +401,7 @@ namespace MountainPlanner.App.Flow
         public void SetDownloadCardOpen(bool open)
         {
             Screens.InvalidateDownload();
-            Screens.ShowDownloadCard(open, Downloads.Current != null, !MountainViewer.TitleMode);
+            Screens.ShowDownloadCard(open, Downloads.Current != null || _areaJob != null, !MountainViewer.TitleMode);
         }
 
         public void OpenMountain(string packageFolder)
@@ -416,6 +420,7 @@ namespace MountainPlanner.App.Flow
             MountainViewer.RequestedPackage = packageFolder;
             Reload();
             CoverFor(packageFolder);
+            WeatherWhenOpen(packageFolder);   // task 4.05, PR A2: an area without its weather gets it in the background
         }
 
         public void ReturnToTitle(FlowScreen then)
@@ -476,8 +481,8 @@ namespace MountainPlanner.App.Flow
         {
             string refusal = LibraryIndex.Refusal(DataRoot);
             return refusal != null ? LibraryViewModel.Refused(refusal, _sort)
-                                   : MarkWaterAndRoads(LibraryViewModel.Build(_entries, _pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow, _newer, _leftovers,
-                                                            e => SaveStore.List(DataRoot, e.PackageId)));   // each area's saves (task P3-04)
+                                   : MarkWeather(MarkWaterAndRoads(LibraryViewModel.Build(_entries, _pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow, _newer, _leftovers,
+                                                            e => SaveStore.List(DataRoot, e.PackageId))));   // each area's saves (task P3-04)
         }
 
         async void MeasureLibrary()

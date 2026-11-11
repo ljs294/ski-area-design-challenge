@@ -23,6 +23,10 @@ using MountainPlanner.Persistence;
 //   acquire refresh-osm [--package <folder>] [--cache <folder>] [--no-prepare]
 //                                                 adds the missing water and roads (task P3-16) to a package (or to every
 //                                                 mountain in the library that lacks them), moves its saves, then re-prepares it
+//   acquire weather-build [--package <folder>] [--cache <folder>] [--recording <dir>] [--build-year <yyyy>]
+//                                                 adds the weather (task 4.05, PR A2) to a package (or to every mountain in the
+//                                                 library without it), as Get weather does; --recording replays a recorded site
+//   acquire weather-info --package <folder>       prints a package's Weather block: verdict, years, sources, checks
 //   acquire forest-dump --package <folder> --out <dir>
 //                                                 grow a package's forest and write its trees and 10 m cells (forest-structure report, NE8)
 //   acquire species-survey --areas <ski_areas.geojson> --out <survey.jsonl> [--km 5] [--limit N]
@@ -148,20 +152,8 @@ switch (command)
         // runs fetch them, through the download cache (--cache), so a rerun replays without the network.
         string folder = opts["package"], outDir = opts["out"];
         var manifest = ResortPackage.ReadManifest(folder);
-        var site = new MountainPlanner.Acquisition.Weather.WeatherSiteRequest
-        {
-            Name = manifest.Site.Name, Latitude = manifest.Site.Latitude, Longitude = manifest.Site.Longitude,
-            CentreX = manifest.Site.CentreX, CentreY = manifest.Site.CentreY, SizeMetres = manifest.Site.SizeMetres,
-            RingMetres = manifest.Site.RingMetres,
-            BuildYear = int.Parse(opts.GetValueOrDefault("build-year", DateTime.UtcNow.Year.ToString()), CultureInfo.InvariantCulture),
-        };
-        float[] core = ResortPackage.ReadLayer(folder, manifest, "heights-core", out var coreHeader);
-        float[] ring = ResortPackage.ReadLayer(folder, manifest, "heights-ring", out var ringHeader);
-        var heights = new TerrainCache.HeightField(core, coreHeader, ring, ringHeader);
-        double rw = ringHeader.West, rn = ringHeader.North, re = rw + ringHeader.Width * ringHeader.CellSize, rs = rn - ringHeader.Height * ringHeader.CellSize;
-        site.OurPixelElevations = MountainPlanner.Acquisition.Weather.WeatherFetch.PixelElevations(site,
-            (x, y) => x < rw || x > re || y < rs || y > rn ? double.NaN : heights.At(x, y));
-        (site.BaseFeet, site.SummitFeet) = MountainPlanner.Acquisition.Weather.WeatherFetch.ReferenceFeet(core);
+        var site = MountainPlanner.Acquisition.Weather.WeatherBuild.SiteFor(folder, manifest,
+            int.Parse(opts.GetValueOrDefault("build-year", DateTime.UtcNow.Year.ToString()), CultureInfo.InvariantCulture));
         Directory.CreateDirectory(outDir);
         string sitePath = Path.Combine(outDir, MountainPlanner.Acquisition.Weather.WeatherSiteRequest.FileName);
         if (opts.ContainsKey("points-only"))
@@ -242,6 +234,53 @@ switch (command)
             }
         }
         Console.WriteLine("Done.");
+        return 0;
+    }
+
+    case "weather-build":
+    {
+        // Get weather (task 4.05, PR A2), as Manage Areas does it: the weather for a package without it. The id and every
+        // other file stay as they are. --package <folder> for one; otherwise every mountain in the library that needs it.
+        var folders = opts.TryGetValue("package", out string? one) ? new List<string> { one }
+            : ResortLibrary.Scan(dataRoot).Where(e => e.NeedsWeather).Select(e => e.Folder).ToList();
+        if (folders.Count == 0) Console.WriteLine("Every mountain already has its weather.");
+        string cache = opts.GetValueOrDefault("cache", Path.Combine(dataRoot, "download-cache"));
+        int? year = opts.TryGetValue("build-year", out string? y) ? int.Parse(y, CultureInfo.InvariantCulture) : null;
+        var shown = new Progress<AcquisitionProgress>(p => Console.Write($"\r  {p.Detail,-56} {p.Overall,4:P0}   "));
+        foreach (string folder in folders)
+        {
+            var meter = new TransferMeter();
+            MountainPlanner.Acquisition.Weather.IWeatherResponses source = opts.TryGetValue("recording", out string? rec)
+                ? new MountainPlanner.Acquisition.Weather.FolderWeatherResponses(rec)
+                : new MountainPlanner.Acquisition.Weather.LiveWeatherResponses(new DiskCache(cache), meter);
+            bool added = await MountainPlanner.Acquisition.Weather.WeatherBackfill.RunAsync(folder, source, meter, shown, CancellationToken.None, year);
+            Console.WriteLine();
+            var w = ResortPackage.ReadManifest(folder).Weather;
+            Console.WriteLine(added ? $"{Path.GetFileName(folder)}: weather added, {w!.Verdict}, label years {w.FirstLabelYear}-{w.LastLabelYear}"
+                                    : $"{Path.GetFileName(folder)}: already had its weather.");
+        }
+        Console.WriteLine("Done.");
+        return 0;
+    }
+
+    case "weather-info":
+    {
+        var m = ResortPackage.ReadManifest(opts["package"]);
+        var w = m.Weather;
+        if (w == null) { Console.WriteLine($"{m.Site.Name}: no weather yet (Get weather adds it)."); return 0; }
+        Console.WriteLine($"{m.Site.Name}: {w.Verdict}{(w.Limited ? " (limited)" : "")}, label years {w.FirstLabelYear}-{w.LastLabelYear}, " +
+                          (w.RowsFile.Length > 0 ? $"{w.RowsFile} v{w.RowsVersion}, sha256 {w.RowsSha256.Substring(0, 12)}..." : "no rows"));
+        Console.WriteLine($"  reference pixel {w.ReferenceLatitude:F4}, {w.ReferenceLongitude:F4} at {w.ReferenceElevationMetres:F0} m; observation lag {w.ObservationLagHours} h");
+        foreach (string r in w.Reasons) Console.WriteLine("  reason: " + r);
+        foreach (var s in w.Sources) Console.WriteLine($"  source {s.Name} ({s.Version}), accessed {s.AccessedUtc}: {s.Citation}");
+        foreach (var s in w.Stations) Console.WriteLine($"  station {s.Triplet} {s.Name} {s.Note}".TrimEnd());
+        long qcRejected = w.Qc.Sum(q => q.Rejected);
+        Console.WriteLine($"  QC: {w.Qc.Count} screen results, {qcRejected:N0} values made missing, {w.Qc.Count(q => q.Outcome == "flag")} flags");
+        foreach (var c in w.Checks.Where(c => c.Result != "report"))
+            Console.WriteLine($"  [{c.Result}] {c.Name}: {c.Value:0.###} (gate {c.Low:0.###} to {c.High:0.###}) {c.Note}".TrimEnd());
+        Console.WriteLine($"  {w.Checks.Count(c => c.Result == "report")} reported fits; built by {w.BuiltBy}");
+        foreach (string line in m.Attribution.Where(a => a.StartsWith("Weather", StringComparison.Ordinal) || a.StartsWith("Snow check", StringComparison.Ordinal)))
+            Console.WriteLine("  credit: " + line);
         return 0;
     }
 

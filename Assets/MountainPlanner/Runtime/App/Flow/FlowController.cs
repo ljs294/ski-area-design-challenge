@@ -73,6 +73,17 @@ namespace MountainPlanner.App.Flow
             SetCard(openCard);
         }
 
+        /// <summary>
+        /// An area job (task 4.05, PR A2: Get weather, Get water and roads) takes the card and pill: opened when the player
+        /// asked for it, the pill alone for the automatic try. It ends with <see cref="DownloadStopped"/>, never the quality
+        /// card (the area is already in the library), and leaves the screen where it is.
+        /// </summary>
+        public void AreaJobStarted(bool openCard)
+        {
+            DownloadActive = true;
+            SetCard(openCard);
+        }
+
         public void MinimiseDownload() => SetCard(false);
 
         public void RestoreDownload()

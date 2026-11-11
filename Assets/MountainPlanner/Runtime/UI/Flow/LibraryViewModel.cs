@@ -52,10 +52,18 @@ namespace MountainPlanner.UI.Flow
         /// which is read-only, nor a newer game's area.
         /// </summary>
         public bool NeedsWaterAndRoads => Entry != null && Entry.NeedsWaterAndRoads && !IsBuiltIn && !IsNewer && Entry.Refusal.Length == 0;
-        /// <summary>Get water and roads is running on this area: it can't be opened, renamed or deleted until it's done.</summary>
+        /// <summary>
+        /// Get weather (Manage Areas, task 4.05 PR A2): an area of the player's with no Weather block yet. Never the demo, which
+        /// ships with its weather, nor a newer game's area.
+        /// </summary>
+        public bool NeedsWeather => Entry != null && Entry.NeedsWeather && !IsBuiltIn && !IsNewer && Entry.Refusal.Length == 0;
+        /// <summary>Get water and roads or Get weather is running on this area: it can't be changed until it's done.</summary>
         public bool Busy;
-        /// <summary>The status line: "No water and roads", or the running job's progress.</summary>
+        /// <summary>The running job's progress line ("Getting weather · 40%"), shown in place of <see cref="MissingText"/>.</summary>
         public string WaterAndRoadsText = LibraryViewModel.NoWaterAndRoads;
+        /// <summary>What the area lacks, for its status line: "No water and roads", "No weather yet", or both.</summary>
+        public string MissingText => NeedsWaterAndRoads && NeedsWeather ? LibraryViewModel.NoWaterAndRoads + " · " + LibraryViewModel.NoWeather
+                                   : NeedsWaterAndRoads ? LibraryViewModel.NoWaterAndRoads : NeedsWeather ? LibraryViewModel.NoWeather : "";
     }
 
     /// <summary>
@@ -157,6 +165,8 @@ namespace MountainPlanner.UI.Flow
         public const string NewerVersion = "Made by a newer version of Mountain Planner. Update the game to open it.";
         public const string NoWaterAndRoads = "No water and roads";
         public const string GetWaterAndRoads = "Get water and roads";
+        public const string NoWeather = "No weather yet";
+        public const string GetWeather = "Get weather";
         public const string Measuring = "…";
 
         public const string BuiltIn = "Built in";

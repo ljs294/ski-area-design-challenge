@@ -58,7 +58,10 @@ namespace MountainPlanner.App.Flow
             Exception diagnosed;
             try
             {
-                await new AcquisitionPipeline(CacheFolder(_dataRoot)).RunAsync(request, buildFolder, sink, ct, skipOptional).ConfigureAwait(false);
+                var pipeline = new AcquisitionPipeline(CacheFolder(_dataRoot));
+                await pipeline.RunAsync(request, buildFolder, sink, ct, skipOptional).ConfigureAwait(false);
+                // Weather is optional (task 4.05, PR A2): the area finished without it, and Get weather adds it later.
+                if (pipeline.LastWeatherFailure != null) UnityEngine.Debug.LogWarning($"[Download] {d.Name} finished without weather: {pipeline.LastWeatherFailure}");
                 return ResortLibrary.Add(_dataRoot, buildFolder);
             }
             // A server that couldn't be reached or stopped answering: if the other map services answer, it's that server,

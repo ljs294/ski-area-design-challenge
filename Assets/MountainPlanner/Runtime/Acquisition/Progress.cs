@@ -62,6 +62,8 @@ namespace MountainPlanner.Acquisition
         string _verb = "";
         string? _server;
         Func<double> _stepFraction = () => 0;
+        /// <summary>The step's fraction covers the whole phase (<see cref="SetPhase"/>); its number is for the detail line only.</summary>
+        bool _stepIsPhase;
         double _completedWeight;
         double _lastByteAt;
         double _spanStart, _spanEnd = 1;
@@ -130,10 +132,15 @@ namespace MountainPlanner.Acquisition
         /// <paramref name="fraction"/> reports the step's own progress when polled. <paramref name="server"/> is the
         /// <see cref="Servers"/> name of the server the step downloads from; leave it null for steps that use no network.
         /// </summary>
-        public void BeginStep(string verb, int step, int count, Func<double> fraction, string? server = null)
+        /// <param name="wholePhase">
+        /// <paramref name="fraction"/> runs across the whole phase set by <see cref="SetPhase"/>, rather than its
+        /// <paramref name="step"/>th of <paramref name="count"/> share: for steps of unequal length that each have their own phase.
+        /// </param>
+        public void BeginStep(string verb, int step, int count, Func<double> fraction, string? server = null, bool wholePhase = false)
         {
             lock (_gate)
             {
+                _stepIsPhase = wholePhase;
                 _server = server;
                 _verb = verb;
                 _step = step;
@@ -175,7 +182,7 @@ namespace MountainPlanner.Acquisition
                 double total = 0;
                 foreach (var s in _stages) total += s.Weight;
                 double stepFraction = Clamp01(_stepFraction());
-                double phaseFraction = _stepCount > 0 ? ((_step - 1) + stepFraction) / _stepCount : stepFraction;
+                double phaseFraction = _stepCount > 0 && !_stepIsPhase ? ((_step - 1) + stepFraction) / _stepCount : stepFraction;
                 double stageFraction = _spanStart + (_spanEnd - _spanStart) * Clamp01(phaseFraction);
                 double current = _stage >= 0 && _stage < _stages.Count ? _stages[_stage].Weight * Clamp01(stageFraction) : 0;
                 double overall = finished ? 1 : Clamp01((_completedWeight + current) / Math.Max(total, 1e-9));

@@ -27,6 +27,8 @@ namespace MountainPlanner.UI.Flow
         public event Action<LibraryRow> OpenChosen, ResumeChosen, DiscardChosen, DeleteConfirmed;
         /// <summary>Get water and roads on an area's row (Manage Areas, task P3-16, BB6).</summary>
         public event Action<LibraryRow> WaterAndRoadsChosen;
+        /// <summary>Get weather on an area's row (Manage Areas, task 4.05 PR A2).</summary>
+        public event Action<LibraryRow> WeatherChosen;
         /// <summary>Rename confirmed in its dialog (Manage Areas, task P2-04): the row and the name as typed.</summary>
         public event Action<LibraryRow, string> RenameConfirmed;
         /// <summary>Free space confirmed (Manage Areas, task P2-04).</summary>
@@ -64,7 +66,9 @@ namespace MountainPlanner.UI.Flow
         readonly Dictionary<string, Label> _rowJobs = new Dictionary<string, Label>();
         VisualElement _dlActions, _dlConfirm, _dlFailed, _dlWaiting, _dlHeld, _confirmPanel, _pillFill;
         Label _dlHeldLine;
-        Button _dlHeldSkip;
+        Button _dlHeldSkip, _dlRetry;
+        /// <summary>The card shows an area job (task 4.05, PR A2): Cancel stops it at once, with no keep-or-discard question.</summary>
+        bool _dlAreaJob;
         Label _confirmTitle, _pillText;
         Button _confirmAlt, _confirmCancel, _confirmOk;
         Action _altAction;
@@ -132,6 +136,7 @@ namespace MountainPlanner.UI.Flow
             _dlHeld = _root.Q("dl-held");
             _dlHeldLine = _root.Q<Label>("dl-held-line");
             _dlHeldSkip = _root.Q<Button>("dl-held-skip");
+            _dlRetry = _root.Q<Button>("dl-retry");
             _confirmPanel = _root.Q("confirm-panel");
             _confirmTitle = _root.Q<Label>("confirm-title");
             _confirmAlt = _root.Q<Button>("confirm-alt");
@@ -191,11 +196,11 @@ namespace MountainPlanner.UI.Flow
             _sortName.clicked += () => SortChosen?.Invoke(LibrarySort.Name);
             _sortQuality.clicked += () => SortChosen?.Invoke(LibrarySort.Quality);
             _root.Q<Button>("dl-minimise").clicked += () => MinimiseChosen?.Invoke();
-            _root.Q<Button>("dl-cancel").clicked += () => ShowCancelConfirm(true);
+            _root.Q<Button>("dl-cancel").clicked += () => { if (_dlAreaJob) CancelConfirmed?.Invoke(false); else ShowCancelConfirm(true); };
             _root.Q<Button>("dl-back").clicked += () => ShowCancelConfirm(false);
             _root.Q<Button>("dl-keep").clicked += () => { ShowCancelConfirm(false); CancelConfirmed?.Invoke(true); };
             _root.Q<Button>("dl-discard").clicked += () => { ShowCancelConfirm(false); CancelConfirmed?.Invoke(false); };
-            _root.Q<Button>("dl-retry").clicked += () => RetryChosen?.Invoke();
+            _dlRetry.clicked += () => RetryChosen?.Invoke();
             _root.Q<Button>("dl-close").clicked += () => CloseChosen?.Invoke();
             _root.Q<Button>("dl-trynow").clicked += () => TryNowChosen?.Invoke();
             _root.Q<Button>("dl-wait-cancel").clicked += () => ShowCancelConfirm(true);
@@ -358,11 +363,13 @@ namespace MountainPlanner.UI.Flow
                     el.Add(DiskCell(r));
                     el.Add(Text(r.Opened, "lib-cell", "lib-cell--when"));
                     if (!manage) AddSaveCount(el, r);   // "3 saves" (task P3-04)
-                    if (manage && r.NeedsWaterAndRoads)
+                    if (manage && (r.NeedsWaterAndRoads || r.NeedsWeather || r.Busy))
                     {
-                        // Task P3-16, BB6: the status takes the spacer's place; it reads the job's progress while it runs.
-                        var status = Text(r.Busy ? r.WaterAndRoadsText : LibraryViewModel.NoWaterAndRoads, "lib-paused", "lib-status");
-                        status.tooltip = "Downloaded without OpenStreetMap water and roads: satellite land cover stands in for them.";
+                        // Task P3-16, BB6 (and 4.05's weather): the status takes the spacer's place; it reads the job's progress while it runs.
+                        var status = Text(r.Busy ? r.WaterAndRoadsText : r.MissingText, "lib-paused", "lib-status");
+                        status.tooltip = r.NeedsWaterAndRoads && r.NeedsWeather ? "Downloaded without OpenStreetMap water and roads (satellite land cover stands in) and without its weather history."
+                                       : r.NeedsWaterAndRoads ? "Downloaded without OpenStreetMap water and roads: satellite land cover stands in for them."
+                                       : "Downloaded before the weather (or while its services were down): it gets its own weather when you open it online, or now with Get weather.";
                         _rowJobs[r.Entry.Folder] = status;
                         el.Add(status);
                     }
@@ -388,6 +395,12 @@ namespace MountainPlanner.UI.Flow
                             var get = Btn(LibraryViewModel.GetWaterAndRoads, "btn--ghost", () => WaterAndRoadsChosen?.Invoke(r));
                             get.tooltip = "Downloads this area's OpenStreetMap water and roads (a few MB). Its saves come with it.";
                             actions.Add(get);
+                        }
+                        if (r.NeedsWeather && !r.Busy)   // task 4.05, PR A2
+                        {
+                            var weather = Btn(LibraryViewModel.GetWeather, "btn--ghost", () => WeatherChosen?.Invoke(r));
+                            weather.tooltip = "Downloads 20 winters of this area's weather history (about 45 MB) and calibrates its own weather. Its saves stay as they are.";
+                            actions.Add(weather);
                         }
                         var rename = Btn("Rename", "btn--ghost", () => OpenRename(r));
                         rename.SetEnabled(r.CanRename && !r.Busy);
@@ -417,7 +430,7 @@ namespace MountainPlanner.UI.Flow
                     {
                         if (e.target != el) return;
                         if (!manage) { SaveKeys(e, r); return; }   // → and ← show and hide the area's saves (task P3-04)
-                        if (r.Busy) return;   // Get water and roads is running on it (task P3-16, BB6)
+                        if (r.Busy) return;   // Get water and roads or Get weather is running on it (task P3-16, BB6; 4.05)
                         if (e.keyCode == KeyCode.Delete && r.CanDelete) ConfirmDelete(r);
                         else if (e.keyCode == KeyCode.F2) OpenRename(r);
                     });
@@ -619,6 +632,8 @@ namespace MountainPlanner.UI.Flow
             bool confirming = !_dlConfirm.ClassListContains("hidden");
             SetText(_dlHeldLine, vm.HeldLine);
             Show(_dlHeldSkip, vm.CanSkip);
+            Show(_dlRetry, vm.CanRetry);
+            _dlAreaJob = vm.AreaJob;
             Show(_dlFailed, failed);
             Show(_dlHeld, held && !confirming);
             Show(_dlWaiting, waiting && !confirming);

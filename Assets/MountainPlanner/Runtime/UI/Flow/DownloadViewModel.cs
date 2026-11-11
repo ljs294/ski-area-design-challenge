@@ -66,14 +66,14 @@ namespace MountainPlanner.UI.Flow
         public string Error { get; private set; } = "";
         /// <summary>The HUD bar's two lines (task P2-06, owner D3): what it's doing, then the area and share.</summary>
         public string BarLabel =>
-            (Phase == DownloadPhase.Failed ? "Download stopped"
+            (Phase == DownloadPhase.Failed ? (AreaJob ? Action + " stopped" : "Download stopped")
              : Phase == DownloadPhase.Paused ? "Download paused"
              : Held ? (HeldConnection ? "Held up · no connection" : "Held up · " + (HeldServer ?? "a map service"))
              : Phase == DownloadPhase.Waiting ? (Problem?.Kind == ProblemKind.OfflineMode ? "Paused · offline mode"
                                                  : Problem?.Kind == ProblemKind.ServiceBusy ? "Waiting for the map service"
                                                  : Problem?.Kind == ProblemKind.ServerDown ? "Waiting for " + (Problem.Server ?? "a map service")
                                                  : "Waiting for connection")
-             : "Downloading") + " · " + Percent;
+             : Verb) + " · " + Percent;
         public string BarText => Name;
         /// <summary>Why it stopped or waits, in the player's words (S11); null while it runs.</summary>
         public DownloadProblem Problem { get; private set; }
@@ -88,11 +88,53 @@ namespace MountainPlanner.UI.Flow
         public bool CanSkip { get; private set; }
         /// <summary>Bumps on every change, so the screen redraws only then (at most 4 times a second while it runs).</summary>
         public int Version { get; private set; }
+        /// <summary>
+        /// Adding data to an area already here (task 4.05, PR A2: Get weather, Get water and roads) rather than downloading a new
+        /// one: no pause, no keep-for-resuming, and nothing on disk changes until it finishes, so Cancel needs no question.
+        /// </summary>
+        public bool AreaJob { get; private set; }
+        /// <summary>The failed card offers Retry (a download, or an area job the player started).</summary>
+        public bool CanRetry { get; private set; } = true;
+        /// <summary>What it's doing, for the title, pill and HUD bar: "Downloading", or an area job's "Getting weather".</summary>
+        public string Verb { get; private set; } = "Downloading";
+        /// <summary>The area job's button, for "Get weather stopped"; "Download" for a download.</summary>
+        public string Action { get; private set; } = "Download";
+        /// <summary>"Downloading Crystal Mountain", "Getting weather for Jackson Hole".</summary>
+        string Lead => AreaJob ? $"{Verb} for {Name}" : $"{Verb} {Name}";
         /// <summary>The stage and share a resumed download had reached: the bar holds there until the work passes it.</summary>
         double _floor;
         int _waitSeconds = -1;
 
         public void Start(string name, double sizeKm)
+        {
+            AreaJob = false;
+            CanRetry = true;
+            Verb = "Downloading";
+            Action = "Download";
+            Begin(name);
+            Title = $"Downloading {name} · {FlowUnits.SiteSize(sizeKm)}";
+            Pill = $"{Lead} · 0%";
+            Version++;
+        }
+
+        /// <summary>
+        /// An area job (<see cref="AreaJob"/>): <paramref name="action"/> is its button ("Get weather"), <paramref name="verb"/> what
+        /// it's doing ("Getting weather"); <paramref name="canRetry"/> is false for the automatic try when an area opens, which
+        /// simply tries again at the next open.
+        /// </summary>
+        public void StartAreaJob(string name, string action, string verb, bool canRetry)
+        {
+            AreaJob = true;
+            CanRetry = canRetry;
+            Action = action;
+            Verb = verb;
+            Begin(name);
+            Title = Lead;
+            Pill = $"{Lead} · 0%";
+            Version++;
+        }
+
+        void Begin(string name)
         {
             _names.Clear();
             _states.Clear();
@@ -106,15 +148,12 @@ namespace MountainPlanner.UI.Flow
             TimeLeft = "";
             Detail = "Starting";
             Transfer = "";
-            Title = $"Downloading {name} · {FlowUnits.SiteSize(sizeKm)}";
-            Pill = $"Downloading {name} · 0%";
             Problem = null;
             Held = false;
             HeldLine = "";
             CanSkip = false;
             _floor = 0;
             _waitSeconds = -1;
-            Version++;
         }
 
         /// <summary>
@@ -141,7 +180,7 @@ namespace MountainPlanner.UI.Flow
             Held = false;
             HeldLine = "";
             CanSkip = false;
-            if (Phase == DownloadPhase.Running) Pill = $"Downloading {Name} · {Percent}";
+            if (Phase == DownloadPhase.Running) Pill = $"{Lead} · {Percent}";
             Version++;
         }
 
@@ -156,7 +195,7 @@ namespace MountainPlanner.UI.Flow
             Fraction = (float)_floor;
             Percent = Pct(_floor);
             Detail = lastStage.Length > 0 ? $"Resuming at {lastStage}: reading back what already arrived" : "Resuming: reading back what already arrived";
-            Pill = $"Downloading {Name} · {Percent}";
+            Pill = $"{Lead} · {Percent}";
             Version++;
         }
 
@@ -183,9 +222,9 @@ namespace MountainPlanner.UI.Flow
             Detail = replaying ? $"Resuming: {s.Detail}" : s.Detail;
             if (!s.Finished && Phase == DownloadPhase.Waiting) { Phase = DownloadPhase.Running; Problem = null; _waitSeconds = -1; }
             Transfer = Megabytes(s.Bytes) + (s.BytesPerSecond > 0 && !s.Finished ? " · " + Megabytes((long)s.BytesPerSecond) + "/s" : "");
-            if (Phase == DownloadPhase.Running && !Held) Pill = $"Downloading {Name} · {Percent}";
+            if (Phase == DownloadPhase.Running && !Held) Pill = $"{Lead} · {Percent}";
             if (s.Finished) Phase = DownloadPhase.Finished;   // a late snapshot after a pause or failure keeps that phase
-            if (s.Stages.Count == 0 && s.StageCount > 0 && !s.Finished)
+            if (s.Stages.Count == 0 && s.StageCount > 0 && !s.Finished && !AreaJob)
                 Title = $"Downloading {Name} · stage {Math.Max(1, s.StageIndex)} of {s.StageCount}";
             Version++;
         }

@@ -332,6 +332,40 @@ pack's temperature.
 - Tests: the western pillows as a standing check; north against south and shade against open at one height; a
   clear night refreezes, a cloudy one doesn't; a cold pack survives a one-afternoon thaw; energy balances; 0 B per hour.
 
+## 3b. PR A2: every area gets its own weather (task 4.05, 2026-11-10)
+
+A2 packages the v0.1 core; nothing in the game reads the weather until PR B (no save, sidecar or Pacing change).
+- **WX-10…20 packaging:** one build chain, `Acquisition/Weather/WeatherBuild`: fetch, the three screens, the blend, the
+  calibration, `weather.rows`, then the manifest's Weather block (sources with each service's own citation, the QC
+  log and its limits, stations, checks, verdict, years). Its site request is built from the package's own heights. On
+  the recorded Jackson Hole 2 km answers it gives the frozen rows byte for byte, so the game's path is the tested one.
+  About 45 MB uncompressed per area, and 15 to 21 s of one core for the calibration.
+- **Package manifest v2:** `Weather` (null = no weather yet) and `CurrentFormat = 2`; the 1 → 2 step adds nothing,
+  so a v1 area reads as "no weather yet". The package id is unchanged (`ComputeId` hashes the site and layers only),
+  so adding weather moves no save. `PackageValidator` checks `weather.rows` against `RowsSha256`. Fixture
+  `TestData/formats/v2-package`; the v1 fixtures stay as they were. A v0.3.x game refuses a v2 area as newer.
+- **The download's Weather stage**, after Building and before Preparing (the site request needs the built heights).
+  It never holds a download up: if the services fail, the area finishes without weather (the log says why) and gets
+  it later. `ToolName` stays 0.1, so a build finished by an older game resumes, gets its weather, then prepares.
+- **WX-13 outside Daymet:** the area gets a Weather block with verdict "No history" and no rows file, so it isn't
+  asked again; PR B's generic rows play there.
+- **Get weather (`WeatherBackfill`):** the manifest write is the commit point, and no other file changes. Two ways in:
+  the Get weather button in Manage Areas, and an automatic try when an area without weather opens online (it opens at
+  once; a failure is only logged, and the next open tries again). One area job at a time, shared with Get water and
+  roads. Never the bundled demo, which ships its weather in the build (`DemoBundle`; `release.bat` warns without it).
+- **On the download card (owner finding F1, demo 95):** Get weather and Get water and roads are area jobs on the S4 card
+  and its pill, in their own words ("Getting weather for Jackson Hole"): the stage, the server, the MB and speed, time
+  left, and the detail line through "Fetching weather history" and "Calibrating the weather". The calibration reports
+  after each of its plays, so the bar moves through its ~15 s (fetching is 0–70 % of the stage, calibrating 70–100 %).
+  The button opens the card; the automatic try shows only the pill. Cancel stops at once with no question (nothing is
+  written before the commit point). A failure the player started stays on the card with the reason and Retry; the
+  automatic try's failure just goes. The card never leads to the quality card: the area is already in the library.
+- **WX-12 credits:** "Weather history: Thornton et al., Daymet Version 4 R1, ORNL DAAC", "Weather hours: NASA Langley
+  Research Center POWER Project, funded through the NASA Earth Science Division", "Snow check: USDA NRCS SNOTEL".
+- **Dev switch `-weatherrecording <folder>`:** every answer comes from a recorded site (it also takes the recording's
+  build year); demo 95 and the tests use it. `acquire weather-build` and `weather-info` do the same from the
+  command line.
+
 ## 4. Weather runs on the calendar, compressed like time
 
 The owner's ruling (Q17, superseding an earlier size-and-frequency split): *storm frequency over duration; use
