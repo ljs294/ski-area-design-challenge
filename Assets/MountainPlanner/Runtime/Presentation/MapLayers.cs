@@ -28,9 +28,11 @@ namespace MountainPlanner.Presentation
         public const string Trails = "trails";
         public const string SlopeAngle = "slope", Exposure = "exposure", SnowDepth = "depth", SnowConditions = "conditions", Contours = "contours";
         public const string CoverMap = "cover";
+        /// <summary>SN-31 (task 4.13 PR C): where the guests skied and waited, over the Network view's dark relief.</summary>
+        public const string Traffic = "traffic";
 
         /// <summary>What recolours the ground: nothing, one info layer, or the developer's cover map. The shader reads the number.</summary>
-        public enum InfoView { None = 0, CoverMap = 1, SlopeAngle = 2, Exposure = 3, SnowDepth = 4, Network = 5 }
+        public enum InfoView { None = 0, CoverMap = 1, SlopeAngle = 2, Exposure = 3, SnowDepth = 4, Network = 5, Traffic = 6 }
 
         public const string ApplyMarkerName = "MountainPlanner.Layers.Apply";
         /// <summary>Wraps every layer change: one sample in the frame of a switch, none otherwise.</summary>
@@ -49,6 +51,8 @@ namespace MountainPlanner.Presentation
         /// </summary>
         public bool NetworkViewOn { get; private set; }
         public InfoView Info { get; private set; }
+        /// <summary>The ground is the dark relief: the Network view, or the Traffic layer (the shaders draw any view past 4.5 so).</summary>
+        public bool ReliefOn => NetworkViewOn || Info == InfoView.Traffic;
         public bool CoverMapOn => Info == InfoView.CoverMap;
         /// <summary>The info layer that's on, as its id, or null (none, or the developer's cover map).</summary>
         public string InfoLayerId => Info switch
@@ -56,6 +60,7 @@ namespace MountainPlanner.Presentation
             InfoView.SlopeAngle => SlopeAngle,
             InfoView.Exposure => Exposure,
             InfoView.SnowDepth => SnowDepth,
+            InfoView.Traffic => Traffic,
             _ => null,
         };
         /// <summary>The F1 panel's tree-snow switch (bare evergreens under a snowy ground); the Snow layer still wins.</summary>
@@ -68,7 +73,7 @@ namespace MountainPlanner.Presentation
         /// <summary>The map layers, in the HUD's order.</summary>
         public static readonly string[] MapIds = { Snow, Trees, Lifts, Trails };
         /// <summary>The info layers, in the HUD's order.</summary>
-        public static readonly string[] InfoIds = { SlopeAngle, Exposure, SnowDepth, SnowConditions, Contours };
+        public static readonly string[] InfoIds = { SlopeAngle, Exposure, SnowDepth, SnowConditions, Traffic, Contours };
 
         /// <summary>Whether a layer can be switched in this version (Snow conditions waits for the snow simulation).</summary>
         public static bool IsSwitchable(string id) => id == Snow || id == Trees || id == Lifts || id == Trails || id == Contours || id == CoverMap || ViewOf(id) != InfoView.None;
@@ -82,6 +87,7 @@ namespace MountainPlanner.Presentation
             Exposure => InfoView.Exposure,
             SnowDepth => InfoView.SnowDepth,
             CoverMap => InfoView.CoverMap,
+            Traffic => InfoView.Traffic,
             _ => InfoView.None,
         };
 
@@ -163,7 +169,7 @@ namespace MountainPlanner.Presentation
             {
                 float snow = SnowOn ? 1 : 0;
                 _ground?.SetSnow(SnowOn);
-                _ground?.SetOverlay(Info == InfoView.CoverMap && !NetworkViewOn);
+                _ground?.SetOverlay(Info == InfoView.CoverMap && !ReliefOn);
                 Shader.SetGlobalFloat(InfoViewId, NetworkViewOn ? (float)InfoView.Network : Info == InfoView.CoverMap ? 0 : (float)Info);
                 Shader.SetGlobalFloat(ContoursId, ContoursOn ? 1 : 0);
                 ApplyUnits(DisplayUnits.Current);
@@ -171,7 +177,7 @@ namespace MountainPlanner.Presentation
                 if (_cliff != null) _cliff.SetFloat(SnowLoadId, snow);
                 if (_forest != null)
                 {
-                    _forest.enabled = TreesOn && !NetworkViewOn;
+                    _forest.enabled = TreesOn && !ReliefOn;
                     var trees = _forest.Renderer;
                     float load = SnowOn && TreeSnowOn ? 1 : 0;
                     if (trees != null && trees.SnowLoad != load) trees.SetSnowLoad(load);

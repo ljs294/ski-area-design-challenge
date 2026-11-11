@@ -427,6 +427,7 @@ namespace MountainPlanner.App
             yield return GuestShot(dir, "1-opening");
             yield return WaitUntilFaceSecondOfDay(11 * 3600);    // the crowd is in and the lines have formed
             yield return GuestShot(dir, "2-mid-morning");
+            yield return TrafficShots(dir, "2e-traffic");   // task 4.13 PR C (SN-31)
             yield return LineShots(dir);   // task 4.13: the busiest line close up, then one of its skiers picked and followed
 
             // The lists, with their live Status, Wait and Popularity.
@@ -464,9 +465,11 @@ namespace MountainPlanner.App
             }
             yield return WaitUntilFaceSecondOfDay(15 * 3600 + 30 * 60);
             yield return LateLineShot(dir);
+            yield return TrafficShots(dir, "5d-traffic-late");
 
             yield return WaitUntilFaceSecondOfDay(16 * 3600 + 45 * 60);   // past the stop: the day is counted, the hill clears
             yield return GuestShot(dir, "6-after-the-stop");
+            yield return TrafficShots(dir, "6b-traffic-the-day");
             Debug.Log("[GuestShots] done → " + dir);
             Application.Quit();
         }

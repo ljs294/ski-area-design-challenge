@@ -34,6 +34,8 @@ namespace MountainPlanner.Presentation
         // P3-15 (TB-01): the Terrain tab's letters; the brushes' strength (Shift: a Slope's grade) and target (TB-02, TB-07).
         TerrainRaise, TerrainFlatten, TerrainSmooth, TerrainSlope,
         BrushWeaker, BrushStronger, TargetUp, TargetDown,
+        // Task 4.13 PR C (SN-31): the Traffic info layer.
+        InfoTraffic,
     }
 
     [Flags]
@@ -197,6 +199,8 @@ namespace MountainPlanner.Presentation
             new Info("Building", "Brush stronger (Shift: a steeper slope)", Context.Tray, new KeyChord(Key.Period), whileClaimed: true),
             new Info("Building", "Target up 1 ft (Shift 10 ft)", Context.Tray, new KeyChord(Key.PageUp), whileClaimed: true),
             new Info("Building", "Target down 1 ft (Shift 10 ft)", Context.Tray, new KeyChord(Key.PageDown), whileClaimed: true),
+            // Task 4.13 PR C (SN-31): the Traffic info layer, on the last free layer chord.
+            new Info("Layers", "Traffic", Context.Normal, new KeyChord(Key.Digit5, KeyMods.Shift)),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>

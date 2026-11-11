@@ -138,7 +138,7 @@ namespace MountainPlanner.App
                 if (_network != null) ApplyNetwork(_networkDoc, _network);
             }
             if (_networkView != null) _networkView.Visible = _networkOn;
-            _mapLines?.SetVisible(!_networkOn && _liftsShown);   // the diagram takes the lifts' map lines' place
+            _mapLines?.SetVisible(!_networkOn && _liftsShown && !TrafficOn);   // the diagram takes the lifts' map lines' place
             if (!_networkOn) ClearNetworkPick();
         }
 

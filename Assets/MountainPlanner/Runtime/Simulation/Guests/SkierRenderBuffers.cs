@@ -73,6 +73,9 @@ namespace MountainPlanner.Simulation
             /// <summary>SN-31 (view only): per network edge, the skiers on it now, its passes over the rolling face hour and today.</summary>
             public int[] EdgeOn = Array.Empty<int>(), EdgeLastHour = Array.Empty<int>(), EdgeToday = Array.Empty<int>();
             public int EdgeCount;
+            /// <summary>SN-31 (view only, task 4.13 PR C): per lift, its boardings over the rolling face hour and what it could carry in a face hour.</summary>
+            public int[] LiftLastHour = Array.Empty<int>(), LiftHourCapacity = Array.Empty<int>();
+            public int LiftCount;
             public Frame(int cap) { Skiers = new SkierRender[cap]; }
         }
 

@@ -450,7 +450,7 @@ namespace MountainPlanner.App
             if (KeyBindings.Pressed(keys, GameAction.FreeFly) && Camera != null) Camera.ToggleMode();
             if (KeyBindings.Pressed(keys, GameAction.Units, letters)) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
             if (KeyBindings.Pressed(keys, GameAction.ResetView)) HomeView();
-            // Map layers (Shift+4 and 5 are free for the rest as they're built).
+            // Map layers.
             if (KeyBindings.Pressed(keys, GameAction.LayerSnow, letters)) ToggleLayer(MapLayers.Snow);
             if (KeyBindings.Pressed(keys, GameAction.LayerTrees, letters)) ToggleLayer(MapLayers.Trees);
             if (KeyBindings.Pressed(keys, GameAction.LayerLifts, letters)) ToggleLayer(MapLayers.Lifts);
@@ -461,6 +461,7 @@ namespace MountainPlanner.App
             if (KeyBindings.Pressed(keys, GameAction.InfoExposure, letters)) ToggleLayer(MapLayers.Exposure);
             if (KeyBindings.Pressed(keys, GameAction.InfoDepth, letters)) ToggleLayer(MapLayers.SnowDepth);
             if (KeyBindings.Pressed(keys, GameAction.InfoConditions, letters)) ToggleLayer(MapLayers.SnowConditions);   // reserved
+            if (KeyBindings.Pressed(keys, GameAction.InfoTraffic, letters)) ToggleLayer(MapLayers.Traffic);   // task 4.13 PR C
         }
 
         /// <summary>
@@ -610,6 +611,7 @@ namespace MountainPlanner.App
             _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _resort?.Surface, _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
             TickTrailLayer(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);   // task 08
             TickNetwork(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);      // task P3-10
+            TickTraffic(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);      // task 4.13 PR C (SN-31)
             TickCatchment(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);    // task P3-10, NT16
             _labelPlacement.Place();   // every set's names at once, none overlapping (NT7)
             var set = _resort.ContourLabels[(int)DisplayUnits.Current];
@@ -680,6 +682,7 @@ namespace MountainPlanner.App
             }
             Hud.SetElevation(elevation);
             Hud.SetInfoReadout(info, slope, bearing, snow);
+            if (info == MapLayers.Traffic) TrafficReadout(cam, pointer);   // task 4.13 PR C: the run or lift under the pointer
         }
 
         ForestRenderer Forest => _resort?.Root != null ? _resort.Root.GetComponent<ForestView>()?.Renderer : null;

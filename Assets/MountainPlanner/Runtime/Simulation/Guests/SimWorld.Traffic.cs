@@ -16,6 +16,7 @@ namespace MountainPlanner.Simulation
         int[] _trafficBucket = Array.Empty<int>();   // edge × TrafficBuckets
         int[] _passesToday = Array.Empty<int>();
         long _trafficBucketIndex = -1;                // the absolute bucket (FaceMs / TrafficBucketMs) last written
+        int[] _liftBucket = Array.Empty<int>();       // lift × TrafficBuckets: boardings (PR C, the lift's load)
 
         void AllocTraffic(int edges)
         {
@@ -37,6 +38,7 @@ namespace MountainPlanner.Simulation
             {
                 int k = (int)(((b % TrafficBuckets) + TrafficBuckets) % TrafficBuckets);
                 for (int e = 0; e < edges; e++) _trafficBucket[e * TrafficBuckets + k] = 0;
+                for (int l = k; l < _liftBucket.Length; l += TrafficBuckets) _liftBucket[l] = 0;
             }
             _trafficBucketIndex = now;
         }
@@ -49,8 +51,22 @@ namespace MountainPlanner.Simulation
             _trafficBucket[edge * TrafficBuckets + (int)(_trafficBucketIndex % TrafficBuckets)]++;
         }
 
+        /// <summary>
+        /// SN-31's lift load (task 4.13 PR C): a carrier's boardings go in the rolling hour. The ring is sized to the lifts
+        /// lazily, so a design change (lifts renumbered) starts it empty; it refills within the face hour.
+        /// </summary>
+        void CountLiftTraffic(int lift, int boarded)
+        {
+            if (boarded <= 0 || lift < 0) return;
+            if (_liftBucket.Length != _liftCount * TrafficBuckets) _liftBucket = new int[_liftCount * TrafficBuckets];
+            if (lift >= _liftCount) return;
+            AdvanceTraffic();
+            _liftBucket[lift * TrafficBuckets + (int)(_trafficBucketIndex % TrafficBuckets)] += boarded;
+        }
+
         void ResetTrafficDay()
         {
+            Array.Clear(_liftBucket, 0, _liftBucket.Length);
             Array.Clear(_passesToday, 0, _passesToday.Length);
             Array.Clear(_trafficBucket, 0, _trafficBucket.Length);
             _trafficBucketIndex = -1;
@@ -74,6 +90,20 @@ namespace MountainPlanner.Simulation
                 frame.EdgeLastHour[e] = sum;
             }
             frame.EdgeCount = edges;
+
+            int lifts = _liftCount;
+            if (frame.LiftLastHour.Length < lifts) { frame.LiftLastHour = new int[lifts]; frame.LiftHourCapacity = new int[lifts]; }
+            bool counted = _liftBucket.Length == lifts * TrafficBuckets;
+            long hourRealMs = (long)Pacing.DayHourRealSeconds * 1000L;
+            for (int i = 0; i < lifts; i++)
+            {
+                int sum = 0;
+                if (counted) for (int k = 0, at = i * TrafficBuckets; k < TrafficBuckets; k++) sum += _liftBucket[at + k];
+                frame.LiftLastHour[i] = sum;
+                frame.LiftHourCapacity[i] = i < _intervalMs.Length && _intervalMs[i] > 0
+                    ? (int)Math.Min(int.MaxValue, hourRealMs / _intervalMs[i] * Design.Lifts[i].Seats) : 0;
+            }
+            frame.LiftCount = lifts;
         }
     }
 }

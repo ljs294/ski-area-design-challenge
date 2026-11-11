@@ -326,6 +326,16 @@ density, so water and snow balance (SI-10).
 - **SN-31, the Traffic info layer.** SN-24's band counters per segment per hour and the stations' line lengths are
   a free **Traffic** info layer (where they skied, where they waited): the most legible thing a lift-planning game
   can show, from counters that already exist. (An info layer per 12b: display only.)
+  - **As built (task 4.13 PR C, the owner took the plan's defaults 2026-11-11).**
+    - Shift+5. The ground goes to the Network view's dark relief.
+    - Runs are coloured by crowding: skiers an hour per 100 ft of width, in five steps (Quiet, Light, Busy, Crowded,
+      Packed). Walking paths are thin and grey.
+    - Lifts are coloured by how full their chairs ran: boardings over the rolling hour against what the carriers hold
+      in a face hour. This is one more view-only counter, beside the edges'.
+    - A circle at each lift's bottom grows with its line, with "42 · 1:45" (the line and LO-04's wait) beside it.
+    - The legend switches between the last hour and today's average hour. Past the stop the layer reads today.
+    - The pointer reads the run or lift under it.
+    - The dots fade back, coloured by ability, state or satisfaction as the legend's switch says.
 - **SN-29, the map looks sharp (owner).** The depth and conditions info layers draw the fine tiles at 1 m with hard
   type edges and the 8 m field between them bilinearly filtered, so the picture reads as one free-flowing heat map
   that snaps into detail over the trails; no 8 m blocks show anywhere. The look is 4.08's; the two-resolution source
