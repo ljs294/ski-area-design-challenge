@@ -190,6 +190,7 @@ namespace MountainPlanner.App
             while (!_resort.CoverReady.IsCompleted) yield return null;
             while (WorkBusy) yield return null;   // -styletile: measured with the trail and lift in (task 07)
             while (TimingTreeDetail) yield return null;   // -treedetail auto: Auto picks the bias before the laps
+            yield return BenchCrowd(GuestsArgument(args, 0));   // -guests N: the laps measure the frame with N skiers drawn (task 4.13)
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = -1;
             if (Camera != null) Camera.InputEnabled = false;

@@ -83,7 +83,7 @@ namespace MountainPlanner.App
             var design = history != null
                 ? SimDesign.From(history.Current, SimGraphFor(history.Current.Document), SimFactsFor(history.Current.Document))
                 : SimDesign.Empty(0);
-            if (history != null) _simSent = history.Current;
+            if (history != null) { _simSent = history.Current; NoteSkierDesign(design, history.Current.Document); }
             Hud?.ClearLive();
             var simSite = new SimSite(site.Latitude, site.Longitude);
             var world = RestoredWorld(pacing, design, simSite) ?? new SimWorld(pacing, design, simSite, Math.Max(2, startYear));
@@ -167,6 +167,9 @@ namespace MountainPlanner.App
             _sim?.Dispose();
             _sim = null;
             _simNow = null;
+            _skierDesign = null;   // the next worker's design rebuilds the dots' paths (task 4.13)
+            _skierBuiltAny = false;
+            _skierSelected = 0;
         }
 
         /// <summary>SI-20: every design revision (an edit, undo, redo, an opened save) goes to the worker whole.</summary>
@@ -222,8 +225,9 @@ namespace MountainPlanner.App
         {
             if (_sim == null || snapshot.Document == null) return;
             _simSent = snapshot;
-            _sim.Send(SimCommandKind.SetDesign, 0,
-                      SimDesign.From(snapshot, SimGraphFor(snapshot.Document), SimFactsFor(snapshot.Document)));
+            var design = SimDesign.From(snapshot, SimGraphFor(snapshot.Document), SimFactsFor(snapshot.Document));
+            NoteSkierDesign(design, snapshot.Document);   // the dots' paths come from exactly this (task 4.13)
+            _sim.Send(SimCommandKind.SetDesign, 0, design);
         }
 
         void SendSim(SimCommandKind kind, long a = 0) => _sim?.Send(kind, a);

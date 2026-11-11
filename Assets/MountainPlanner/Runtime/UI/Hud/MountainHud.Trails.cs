@@ -214,6 +214,7 @@ namespace MountainPlanner.UI
 
         void OpenTrailCard(ulong id)
         {
+            CloseSkierCardIfOpen();   // one card at a time (task 4.13)
             _trailCardId = id;
             _trailsList.SetFocused(id);
             FillTrailCard();
