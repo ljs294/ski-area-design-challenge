@@ -417,14 +417,25 @@ namespace MountainPlanner.Tests
             return w.SaveState();
         }
 
+        /// <summary>
+        /// The v4 layout is frozen. The fixture was made under Pacing v3 (task 4.12) and stays unedited; from Pacing v4
+        /// (task 4.13's confidence speed) a fresh play no longer reaches the same state, so the layout is proved by a round
+        /// trip instead: the fixture read and written again gives back its own bytes, all but the header's Pacing hash and
+        /// version and the closing state hash, which fold the Pacing table in (SI-22).
+        /// </summary>
         [Test]
         public void TheVersionFourSidecarIsFrozen()
         {
             byte[] fixture = File.ReadAllBytes(FixtureFile(4));
-            Assert.That(FixtureFour(), Is.EqualTo(fixture), "the sidecar v4 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
             var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
             Assert.That(header.SidecarVersion, Is.EqualTo(4));
-            Assert.That(header.PacingHash, Is.EqualTo(P.ContentsHash), "the fixture was made with this Pacing");
+            Assert.That(header.PacingVersion, Is.EqualTo(3), "the fixture was made with Pacing v3 and stays unedited");
+            byte[] again = w.SaveState();
+            Assert.That(again.Length, Is.EqualTo(fixture.Length), "the sidecar v4 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
+            for (int i = 0; i < 8; i++) Assert.That(again[i], Is.EqualTo(fixture[i]), "magic and version");
+            for (int i = 20; i < fixture.Length - 8; i++)
+                if (again[i] != fixture[i]) Assert.Fail($"the sidecar v4 is frozen: byte {i} changed on a round trip (0.3 §5)");
+            Assert.That(header.PacingHash, Is.Not.EqualTo(P.ContentsHash), "Pacing v4 is a different table");
             Assert.That((w.Phase, w.SeasonDay), Is.EqualTo((SeasonPhase.Season, 4)));
             Assert.That(w.LineOf(101), Is.GreaterThan(0));
             Assert.That(w.HeldNow(202), Is.True);

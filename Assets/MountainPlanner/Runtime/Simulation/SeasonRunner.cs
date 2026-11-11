@@ -94,7 +94,7 @@ namespace MountainPlanner.Simulation
             int widthCm = (int)(widthFeet * 30.48);
             int areaM2 = (int)(metres * (widthFeet * 0.3048));
             int skiMs = (int)(metres * 10_000L / (tenths * 447L / 100));
-            return new TrailEdgeFacts(band, band, widthCm, areaM2, skiMs);
+            return TrailEdgeFacts.SteadyPitch(band, band, widthCm, areaM2, skiMs);   // GU-10 v3: every band its own time
         }
 
         public static List<Scripted> GoldenScript(Pacing p)
@@ -113,7 +113,7 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>SI-08's pinned fold of the golden script over two label years. A behaviour change re-pins it, approved.</summary>
-        public const ulong GoldenFoldValue = 0xFEE1DF04B5D4B9EDUL;   // re-pinned at 4.12 (guests, Pacing v3, sidecar v4; owner OK 2026-11-09), over 4.11's hold values (10 / 5 game minutes)
+        public const ulong GoldenFoldValue = 0x5921F6F22F4F9B46UL;   // re-pinned at 4.13 (GU-10 v2 confidence speed, Pacing v4; owner OK 2026-11-09), over 4.12 0xFEE1DF04B5D4B9ED
 
         /// <summary>One fold of every face-hour hash of the golden run to the given face day (the pinned value).</summary>
         public static ulong GoldenFold(Pacing p, int faceDays, int maxStep = int.MaxValue, SimSite site = default)

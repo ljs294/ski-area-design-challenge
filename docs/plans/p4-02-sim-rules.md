@@ -111,7 +111,7 @@ front end that displays it"): they write down the boundary between the worker an
 
 - **SI-16, the snapshot.** A snapshot is an **immutable record stamped with the tick it describes and a sequence
   number**: the clocks and label, per-lift state (line count, rope travel, hold, open), the entity board (SI-19),
-  the per-skier render records (GU-16's six fields, ~16 B a skier, ≤ 48 KB; never the day record, GU-02), the
+  the per-skier render records (GU-16, 24 B a skier since 4.13, in a buffer beside the snapshot, §7.1–7.2; never the day record, GU-02), the
   ledgers, the event ring (SI-18) and the list of staged tiles (SI-17). The worker publishes latest-wins into a
   **triple buffer**; readers take the newest and hold it for one frame; a snapshot is never mutated after publish.
   The HUD reads the newest snapshot at most every 100 ms (TM-13), so 8× doesn't octuple UI work.
@@ -763,6 +763,89 @@ Each was approved with the task's plan.
   with an 11,000-skier peak on a fifty-lift mountain costs **0.53 ms a tick** — 42 ms of worker per real second at 8× —
   and 30,000 skiers take **13 MB**. Ten times the cap with the same crowd costs no more than the small one, which is the
   property that lets the cap rise.
+
+### 7.2 As task 4.13 built them (2026-11-09)
+
+Task 4.13's departures from §7 and LO-02. The owner approved them with the task's plan.
+
+**Guests Engine v0.1** (the owner's name, 2026-11-09) is the guest system as of task 4.13: 4.12's crowd (§7) with
+these rules, the dots, lines, card and follow camera, and GU-10 v3.
+
+- **GU-10 v2, confidence speed (owner, 2026-11-09: "an expert on a green should be zooming, a beginner on a blue a bit
+  slower").** A skier's speed on a trail segment is multiplied by **clamp(1 + `Pacing.ConfidenceStepPermille` × (own
+  band − the segment's true band), `ConfidenceMinPermille`, `ConfidenceMaxPermille`)**: 0.2 per band, 0.7 to 1.4.
+  - The true band is the pitch the skier actually meets.
+  - A party goes at its slowest member's speed after the factor.
+  - An expert on a green is × 1.4 on top of GU-10's ability term. The cap was proposed at 1.6 and lowered after a
+    review: at 1.6 an expert crossed the screen at about 55 mph through beginners at 18.
+  - A beginner meets a blue only through a sign posted easier than its pitch (the gate reads the harder rating), and
+    goes × 0.8 there.
+  - This made **Pacing v4**. `GoldenFoldValue` and `GuestDayFold` were re-pinned; with the factor held at 1 and the
+    Pacing table unchanged, both pins stood.
+- **GU-10 v3, steepness by ability (owner, 2026-11-09: guests should also move with the steepness of the slope, not
+  only their ability).** Each 25 ft station's speed is
+  **BandSpeed(trail) × clamp(grade / DesignGrade(trail), 0.4, RunCap(skier)) × clamp(2 − grade / Comfort(skier), 0.5, 1)**.
+  - RunCap (how far a skier lets the skis run where it steepens): beginner 1.0, intermediate 1.15, advanced and
+    expert 1.3 (v1's cap for everyone).
+  - Comfort (the grade past which a skier snowploughs, side-slips and traverses, down to half speed): beginner 18 %,
+    intermediate 32 %, advanced 50 %, expert none.
+  - An expert's table is v1's exactly, so `BaseMs` (routing, paths) didn't move. Each trail edge also carries a time
+    per band (`TrailEdgeFacts.MsFor`, `SimNetwork.EdgeBandMs`), and a party (one band, GU-05) is scheduled from its own.
+  - On the 8 % runout of a green every band's factor is 0.53. On a 22 % pitch of a green it is 0.78 / 1.15 / 1.3 / 1.3,
+    and on a 40 % headwall of a blue 0.5 / 0.86 / 1.25 / 1.25. Confidence (v2) and each skier's own speed multiply on
+    top.
+  - The numbers sit in `SkiTimeTable` beside GU-10's band speeds: the worker receives only times, so Pacing (v4) is
+    unchanged. No save or sidecar change.
+  - `GuestDayFold` was re-pinned. `GoldenFoldValue` stood: the golden script has no guests on trails.
+  - The screen draws each dot down its own band's table, and where a band holds back (caution under 1) the dot
+    traverses: a swing across the run of up to 0.6 of its half width, every 24 m, phased per skier. That is render
+    only; the time down is the worker's.
+- **GU-10's table is in Domain (`SkiTimeTable`).** The loop that gave each edge its `BaseMs` is unchanged. Its total is
+  still what the worker uses, and the screen maps a skier's progress through the same station table. The two agree to
+  the millisecond (a test). `SimNetwork` keeps each edge's start and end along its trail, so the screen finds an edge's
+  piece of centreline without re-deriving the network's order.
+- **GU-16's record is 24 bytes (v2), and the app publishes it.** 4.12's column was filled only when a test passed a
+  snapshot to `Step`. The host now writes it with every snapshot it publishes, paused or not, at the snapshot's own
+  tick. The record holds:
+  - the whole serial, because about 68 pairs of 3,000 skiers share their low 16 bits;
+  - the worker's slot, stable while a skier is on the hill, so the screen keeps easing state per skier;
+  - LO-02's rank, 16 bits, because a line can be 300 deep;
+  - for a rider, the rope travel at boarding and at release instead of ticks;
+  - `Frame.DayStartTick`, for the absolute ticks;
+  - the node a skier is choosing or dwelling at (or walking from), because a choosing skier's segment is 0 and would
+    otherwise read as edge 0;
+  - its satisfaction, cut to a byte, for the Satisfaction colour mode.
+
+  The record is in memory only; nothing about it is saved.
+- **`InspectSkier` refreshes on the tick it lands.** It already did: the block is re-read whenever the selection
+  changes, and while paused a command applies at once and the host publishes. A test now holds both, because the
+  selection bar is 100 ms and `InspectTicks` is a whole second at 1×.
+- **SN-31's counters.** These ride in the render frame, view output only (never hashed or saved):
+  - per edge, the skiers on it now;
+  - its passes over a **rolling face hour** of twelve five-minute buckets, so the layer never flashes empty on the hour;
+  - its passes today.
+
+  The lines' lengths are already in the snapshot.
+- **LO-02's rows are 7 ft on screen, not 2.5 ft.** A standing skier on skis is about 1.7 m long, so 2.5 ft rows put
+  skis three deep through each other.
+  - The screen lays a line out 3 ft per column and 7 ft per row, as wide as the carrier's seats.
+  - It is laid over a free-space grid at the bottom station, so it never runs into terminals, chair lanes, towers,
+    forest, steep ground, water, a run or another lift's line.
+  - These are presentation constants: no Pacing row.
+- **A line on screen grows as long as it needs to (owner, 2026-11-10, demo findings 1 and 2: "lines should grow as
+  long as they need to, to hold every guest in them").** This replaces the plan's "+N" badge and its "No room for this
+  line" problem.
+  - A fold that meets a tree, a steep patch or another line turns there and steers round it.
+  - A line boxed in strings out single file along the shortest open way to ground where it can fold again.
+  - With no open ground in reach, it folds on, full width, over trees or steep ground right where it is, so it stays a
+    line at its lift. Only a line hemmed in by hard ground even so strings out single file through the soft ground. It
+    never stands on a terminal, a lift's line or a run.
+  - The design build lays each line's first 100 places, and the screen adds 100 more when a line comes within 50 of
+    its end. Places only append, so a skier's place never moves.
+  - Nobody stands in a pile past the end: that pile was the two findings.
+  - A skier joining a line reaches its place in about 1.5 s, however far off it is. A row forward is a short walk. At
+    walking pace, newcomers to a distant tail were drawn as a loose stream across the snow.
+  - Render only: LO-02's line in the worker is unchanged.
 
 ## 8. Snowmaking
 

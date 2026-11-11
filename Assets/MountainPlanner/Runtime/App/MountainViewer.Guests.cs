@@ -77,48 +77,18 @@ namespace MountainPlanner.App
                 if (!_byTrail.TryGetValue(trailId, out var e)) return false;
                 int lengthMm = Math.Max(1, endMm - startMm);
                 int areaM2 = (int)Math.Max(1, (long)lengthMm / 1000 * e.WidthCm / 100);
-                facts = new TrailEdgeFacts(e.TrueBand, e.PostedBand, e.WidthCm, areaM2, SkiMs(e, startMm, endMm, lengthMm));
+                facts = new TrailEdgeFacts(e.TrueBand, e.PostedBand, e.WidthCm, areaM2, SkiMs(e, SkiTimeTable.Reference, startMm, endMm, lengthMm),
+                                           SkiMs(e, 0, startMm, endMm, lengthMm), SkiMs(e, 1, startMm, endMm, lengthMm),
+                                           SkiMs(e, 2, startMm, endMm, lengthMm));
                 return true;
             }
 
             /// <summary>
-            /// GU-10: how long a reference skier of the trail's band takes over this piece of it. Each 25 ft station
-            /// contributes its own length over the band's base speed, slowed or quickened by how steep it is against the
-            /// grade that speed assumes, so a dot slows on the runout instead of crossing it at the headwall's speed.
+            /// GU-10 v3: a skier of <paramref name="skierBand"/>'s time over this piece, from the table the renderer also
+            /// draws by (the expert's is the reference).
             /// </summary>
-            static int SkiMs(in Entry e, int startMm, int endMm, int lengthMm)
-            {
-                int tenths = BandSpeedTenths(e.TrueBand), design = BandDesignGrade(e.TrueBand);
-                var r = e.Result;
-                if (r == null || r.Along == null || r.Along.Length < 2) return FlatMs(lengthMm, tenths);
-                double start = startMm / 1000.0, end = endMm / 1000.0;
-                double ms = 0, covered = 0;
-                for (int k = 0; k + 1 < r.Along.Length; k++)
-                {
-                    double a = r.Along[k], b = r.Along[k + 1];
-                    double from = Math.Max(a, start), to = Math.Min(b, end);
-                    if (to <= from) continue;
-                    double run = to - from;
-                    double gradePercent = b > a && r.Surface != null && k + 1 < r.Surface.Length
-                        ? Math.Abs(r.Surface[k] - r.Surface[k + 1]) / (b - a) * 100 : design;
-                    double factor = gradePercent / design;
-                    if (factor < 0.4) factor = 0.4; else if (factor > 1.3) factor = 1.3;
-                    double metresPerSecond = tenths * 0.044704 * factor;
-                    ms += run / Math.Max(0.1, metresPerSecond) * 1000;
-                    covered += run;
-                }
-                if (covered < 1) return FlatMs(lengthMm, tenths);
-                // Any part of the piece the stations didn't cover goes at the band's own speed.
-                double restMm = lengthMm - covered * 1000;
-                if (restMm > 0) ms += FlatMs((int)restMm, tenths);
-                return (int)Math.Max(1, Math.Min(int.MaxValue, Math.Round(ms)));
-            }
-
-            static int FlatMs(int lengthMm, int tenths) =>
-                (int)Math.Max(1, lengthMm * 10_000L / (tenths * 4_470L));
-
-            static int BandSpeedTenths(byte band) => band == 0 ? 130 : band == 1 ? 200 : band == 2 ? 250 : 270;
-            static int BandDesignGrade(byte band) => band == 0 ? 15 : band == 1 ? 32 : band == 2 ? 50 : 70;
+            static int SkiMs(in Entry e, byte skierBand, int startMm, int endMm, int lengthMm) =>
+                SkiTimeTable.TotalMs(e.Result, e.TrueBand, skierBand, startMm, endMm, lengthMm);
         }
 
         /// <summary>SI-21: the trail facts for the design a network build is about to run over, or null before it is rated.</summary>
