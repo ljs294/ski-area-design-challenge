@@ -417,6 +417,7 @@ MonoBehaviour:
   Smoothing: 12
   LettersToTools: 0
   InputEnabled: 1
+  FollowSmoothSeconds: 0.25
 --- !u!20 &1783688404
 Camera:
   m_ObjectHideFlags: 0

@@ -397,6 +397,7 @@ namespace MountainPlanner.App
         {
             // Unity resolves a relative capture path against the player's own folder and never makes the directory, so
             // a relative one writes nothing and says nothing. Resolve it here, where the folder is made.
+            BeginScriptedRun();
             dir = System.IO.Path.GetFullPath(dir);
             System.IO.Directory.CreateDirectory(dir);
             // Any mountain, any save: the edit session is *asked for* here rather than waited for, because on a save
@@ -426,6 +427,7 @@ namespace MountainPlanner.App
             yield return GuestShot(dir, "1-opening");
             yield return WaitUntilFaceSecondOfDay(11 * 3600);    // the crowd is in and the lines have formed
             yield return GuestShot(dir, "2-mid-morning");
+            yield return LineShots(dir);   // task 4.13: the busiest line close up, then one of its skiers picked and followed
 
             // The lists, with their live Status, Wait and Popularity.
             _help = false;
@@ -446,10 +448,199 @@ namespace MountainPlanner.App
             for (int k = 0; k < 60; k++) yield return null;
             yield return GuestShot(dir, "5-watching");
 
+            // Demo findings 1-2 (owner, 2026-11-10): late in the day the longest line, close up, stands in rows.
+            _watching = false;
+            SelectSkier(0);
+            // A rush, so the lines get long: 600 more skiers over the bands the mountain has runs for (GU-05 sends the
+            // others home at the gate).
+            yield return WaitUntilFaceSecondOfDay(14 * 3600);
+            var gv = _simNow?.Guests;
+            if (gv != null)
+            {
+                int open = 0;
+                for (int b = 0; b < Pacing.Bands; b++) if (gv.UsableBases[b] > 0) open++;
+                for (int b = 0; b < Pacing.Bands && open > 0; b++)
+                    if (gv.UsableBases[b] > 0) _sim.Send(SimCommand.Of(SimCommandKind.SpawnSkiers, 0, new SkierSpawn(b, 600 / open)));
+            }
+            yield return WaitUntilFaceSecondOfDay(15 * 3600 + 30 * 60);
+            yield return LateLineShot(dir);
+
             yield return WaitUntilFaceSecondOfDay(16 * 3600 + 45 * 60);   // past the stop: the day is counted, the hill clears
             yield return GuestShot(dir, "6-after-the-stop");
             Debug.Log("[GuestShots] done → " + dir);
             Application.Quit();
+        }
+
+        /// <summary>
+        /// Task 4.13: the lift with the longest line framed from close by (its dots in the line, as wide as its chair),
+        /// then the skier at the front of it clicked and followed, with its card.
+        /// </summary>
+        System.Collections.IEnumerator LineShots(string dir)
+        {
+            var s = _simNow;
+            var design = _skierDesign;
+            var doc = _skierDoc;
+            if (s == null || design == null || doc == null || Camera == null) yield break;
+            int best = -1, most = 0;
+            for (int i = 0; i < s.LiftCount; i++) if (s.LineCount[i] > most) { most = s.LineCount[i]; best = i; }
+            if (best < 0) { Debug.Log("[GuestShots] no line anywhere: no line shots"); yield break; }
+            var lift = doc.FindLift(new MountainPlanner.Domain.Design.LiftId(s.LiftIds[best]));
+            if (lift == null) yield break;
+            var b = MountainPlanner.Presentation.Design.DesignFrame.ToLocal(lift.Bottom);
+            float y = ReadoutHeight(b.x, b.y);
+            _help = false;   // the panel covers the middle of the screen
+            Camera.Frame(new Vector3(b.x, float.IsNaN(y) ? 0 : y, b.y), 90f);
+            for (int k = 0; k < 90; k++) yield return null;
+            Debug.Log($"[GuestShots] line shot: {lift.Name}, {most} in line, {_skiers?.Lines?.Describe(DesignLiftIndex(s.LiftIds[best])) ?? "no layout"}, lines grown {_skiers?.LinesGrown ?? 0} times, {_skiers?.Drawn ?? 0} dots drawn");
+            var camT = Camera.transform.position;
+            int logged = 0;
+            for (int i = 0; i < _skiers.Count && logged < 6; i++)
+            {
+                _skiers.Describe(i, out var dot, out var sp);
+                if (dot.w < 0) continue;
+                logged++;
+                Debug.Log($"[GuestShots] dot {i}: world ({dot.x:F1}, {dot.y:F1}, {dot.z:F1}) packed {dot.w} screen ({sp.x:F0}, {sp.y:F0}, w {sp.z:F1}); " +
+                          $"ground {ReadoutHeight(dot.x, dot.z):F1}; camera ({camT.x:F0}, {camT.y:F0}, {camT.z:F0})");
+            }
+            yield return GuestShot(dir, "2b-line");
+            yield return PickTargetCheck();
+            uint front = 0;
+            if (_skiers != null)
+            {
+                int index = DesignLiftIndex(s.LiftIds[best]);
+                front = _skiers.FrontOfLine(index);
+            }
+            if (front == 0 && _skiers != null)
+            {
+                // No line to pick from: a skier on a run instead (the first dot drawn that is skiing).
+                for (int i = 0; i < _skiers.Count && front == 0; i++)
+                    if (_skiers.ScreenPointOf(i, out _, out uint any) && _skiers.TryFind(any, out _, out var rec) && rec.State == (byte)GuestState.Skiing) front = any;
+            }
+            if (front == 0) { _help = true; yield break; }
+            SelectSkier(front);
+            if (_skiers.TryFind(front, out var spot, out _)) Camera.Frame(spot, 120f);
+            StartFollowingSkier();
+            for (int k = 0; k < 120; k++) yield return null;
+            yield return GuestShot(dir, "2c-picked");
+            for (int k = 0; k < 600; k++) yield return null;   // a while later at 8x: riding up, or off at the top
+            yield return GuestShot(dir, "2d-followed");
+            SelectSkier(0);
+            _help = true;
+        }
+
+        /// <summary>The longest line late in the day, framed close (its places logged for every lift).</summary>
+        System.Collections.IEnumerator LateLineShot(string dir)
+        {
+            var s = _simNow;
+            var doc = _skierDoc;
+            if (s == null || doc == null || Camera == null) yield break;
+            int best = -1, most = 0;
+            for (int i = 0; i < s.LiftCount; i++)
+            {
+                int index = DesignLiftIndex(s.LiftIds[i]);
+                var lift = doc.FindLift(new MountainPlanner.Domain.Design.LiftId(s.LiftIds[i]));
+                Debug.Log($"[GuestShots] late line: {lift?.Name ?? "?"}, {s.LineCount[i]} in line, {_skiers?.Lines?.Describe(index) ?? "no layout"}");
+                if (s.LineCount[i] > most) { most = s.LineCount[i]; best = i; }
+            }
+            if (best < 0) yield break;
+            var l = doc.FindLift(new MountainPlanner.Domain.Design.LiftId(s.LiftIds[best]));
+            if (l == null) yield break;
+            var b = MountainPlanner.Presentation.Design.DesignFrame.ToLocal(l.Bottom);
+            float y = ReadoutHeight(b.x, b.y);
+            _help = false;
+            Camera.Frame(new Vector3(b.x, float.IsNaN(y) ? 0 : y, b.y), 150f);
+            for (int k = 0; k < 120; k++) yield return null;
+            Debug.Log($"[GuestShots] late line shot: {l.Name}, {most} in line, {_skiers?.Lines?.Describe(DesignLiftIndex(s.LiftIds[best])) ?? "no layout"}, lines grown {_skiers?.LinesGrown ?? 0} times");
+            yield return GuestShot(dir, "5b-late-line");
+            LogLinePlaces(DesignLiftIndex(s.LiftIds[best]), b, l.Name);
+            yield return LineVisibility(DesignLiftIndex(s.LiftIds[best]), l.Name);
+            bool onTop = _dotsOnTop;
+            _dotsOnTop = true;   // where the whole line stands, trees or not
+            yield return GuestShot(dir, "5b-late-line-ontop");
+            _dotsOnTop = onTop;
+            // The back of that line, picked: its card says its place, and it stands in a row.
+            uint tail = _skiers?.LastInLine(DesignLiftIndex(s.LiftIds[best])) ?? 0;
+            if (tail != 0)
+            {
+                SelectSkier(tail);
+                if (_skiers.TryFind(tail, out var at, out _)) Camera.Frame(at, 70f);
+                for (int k = 0; k < 120; k++) yield return null;
+                yield return GuestShot(dir, "5c-late-tail");
+                SelectSkier(0);
+            }
+            _help = true;
+        }
+
+        /// <summary>
+        /// How much of one lift's line the player can see: its queued dots on screen, and how many of them show (the
+        /// frame with the dots shown and hidden differs there; a tree or a ridge in front hides one). Paused; logged.
+        /// </summary>
+        System.Collections.IEnumerator LineVisibility(int lift, string name)
+        {
+            var layer = _skiers;
+            if (layer == null || _sim == null || lift < 0) yield break;
+            SendSim(SimCommandKind.Pause);
+            for (int k = 0; k < 600 && (_simNow == null || !_simNow.Paused); k++) yield return null;
+            for (int k = 0; k < 10; k++) yield return null;
+            yield return new WaitForEndOfFrame();
+            var shown = ScreenCapture.CaptureScreenshotAsTexture();
+            var targets = new System.Collections.Generic.List<Vector2>();
+            for (int i = 0; i < layer.Count; i++)
+            {
+                if (!layer.ScreenPointOf(i, out var at, out uint serial) || PointerOverUi(at)) continue;
+                if (!layer.TryFind(serial, out _, out var rec) || rec.State != (byte)GuestState.Queued || rec.Index != lift) continue;
+                if (at.x >= 2 && at.y >= 2 && at.x < shown.width - 2 && at.y < shown.height - 2) targets.Add(at);
+            }
+            _skiersShown = false;
+            for (int k = 0; k < 3; k++) yield return null;
+            yield return new WaitForEndOfFrame();
+            var hidden = ScreenCapture.CaptureScreenshotAsTexture();
+            _skiersShown = true;
+            int seen = 0;
+            foreach (var at in targets)
+            {
+                Color a = shown.GetPixel((int)at.x, (int)at.y), b = hidden.GetPixel((int)at.x, (int)at.y);
+                if (Mathf.Abs(a.r - b.r) + Mathf.Abs(a.g - b.g) + Mathf.Abs(a.b - b.b) > 0.15f) seen++;
+            }
+            Destroy(shown);
+            Destroy(hidden);
+            Debug.Log($"[GuestShots] line visibility: {name}, {targets.Count} in line on screen, {seen} of them show (the rest behind trees or ground)");
+            SendSim(SimCommandKind.Resume);
+        }
+
+        /// <summary>Where a lift's line places are (from its bottom terminal, and on screen), and its queued dots (logs).</summary>
+        void LogLinePlaces(int lift, Vector2 bottom, string name)
+        {
+            var lines = _skiers?.Lines;
+            if (lines == null || lift < 0 || Camera == null) return;
+            var cam = Camera.GetComponent<UnityEngine.Camera>();
+            var sb = new System.Text.StringBuilder($"[GuestShots] places of {name} ({lines.Capacity(lift)}):");
+            foreach (int k in new[] { 0, 1, 4, 10, 20, 40, 60, 80, 100, 120, 137, 200, 300 })
+            {
+                if (!lines.PlaceOf(lift, k, out var p)) break;
+                var sp = cam != null ? cam.WorldToScreenPoint(p) : Vector3.zero;
+                sb.Append($" #{k} ({p.x - bottom.x:F0}, {p.z - bottom.y:F0}) screen ({sp.x:F0}, {sp.y:F0})");
+            }
+            Debug.Log(sb.ToString());
+            var q = new System.Text.StringBuilder($"[GuestShots] queued at {name}:");
+            int shown = 0, hidden = 0;
+            for (int i = 0; i < _skiers.Count; i++)
+            {
+                _skiers.Describe(i, out var dot, out var sp);
+                if (!_skiers.RecordAt(i, out var rec) || rec.State != (byte)GuestState.Queued || rec.Index != lift) continue;
+                if (dot.w < 0) hidden++; else shown++;
+                if (shown + hidden <= 12) q.Append($" rank {rec.Rank} dot ({dot.x - bottom.x:F0}, {dot.z - bottom.y:F0}, w {dot.w:F0}) screen ({sp.x:F0}, {sp.y:F0}, {sp.z:F0});");
+            }
+            q.Append($" {shown} drawn, {hidden} hidden");
+            Debug.Log(q.ToString());
+        }
+
+        int DesignLiftIndex(ulong id)
+        {
+            var d = _skierDesign;
+            if (d == null) return -1;
+            for (int i = 0; i < d.Lifts.Length; i++) if (d.Lifts[i].Id == id) return i;
+            return -1;
         }
 
         /// <summary>Waits for the face clock to reach a time of day, however fast the preset is running.</summary>
@@ -462,6 +653,45 @@ namespace MountainPlanner.App
                 if (_sim?.Failure != null) { Debug.LogError("[GuestShots] the simulation stopped: " + _sim.Failure); yield break; }
                 yield return null;
             }
+        }
+
+        /// <summary>
+        /// Finding 3 (owner, 2026-11-10): a click lands on the dot as drawn. Paused, with the dots drawn over everything (so
+        /// nothing hides one), the same frame is taken with the dots shown and hidden; at each of up to 20 dots' click
+        /// targets the two must differ, which they only do where a dot is drawn. Logged; under 90% says FAIL.
+        /// </summary>
+        System.Collections.IEnumerator PickTargetCheck()
+        {
+            var layer = _skiers;
+            if (layer == null || _sim == null) yield break;
+            SendSim(SimCommandKind.Pause);
+            for (int k = 0; k < 600 && (_simNow == null || !_simNow.Paused); k++) yield return null;
+            bool onTop = _dotsOnTop;
+            _dotsOnTop = true;
+            for (int k = 0; k < 10; k++) yield return null;
+            yield return new WaitForEndOfFrame();
+            var shown = ScreenCapture.CaptureScreenshotAsTexture();
+            var targets = new System.Collections.Generic.List<Vector2>();
+            for (int i = 0; i < layer.Count && targets.Count < 20; i++)
+                if (layer.ScreenPointOf((i * 7919) % Math.Max(1, layer.Count), out var at, out _) && !PointerOverUi(at)
+                    && at.x >= 2 && at.y >= 2 && at.x < shown.width - 2 && at.y < shown.height - 2) targets.Add(at);
+            _skiersShown = false;
+            for (int k = 0; k < 3; k++) yield return null;
+            yield return new WaitForEndOfFrame();
+            var hidden = ScreenCapture.CaptureScreenshotAsTexture();
+            _skiersShown = true;
+            _dotsOnTop = onTop;
+            int hits = 0;
+            foreach (var at in targets)
+            {
+                Color a = shown.GetPixel((int)at.x, (int)at.y), b = hidden.GetPixel((int)at.x, (int)at.y);
+                if (Mathf.Abs(a.r - b.r) + Mathf.Abs(a.g - b.g) + Mathf.Abs(a.b - b.b) > 0.15f) hits++;
+            }
+            Destroy(shown);
+            Destroy(hidden);
+            bool pass = targets.Count > 0 && hits >= targets.Count * 0.9f;
+            Debug.Log($"[GuestShots] pick targets: {hits} of {targets.Count} land on their drawn dot → {(pass ? "PASS" : "FAIL")}");
+            SendSim(SimCommandKind.Resume);
         }
 
         System.Collections.IEnumerator GuestShot(string dir, string name)

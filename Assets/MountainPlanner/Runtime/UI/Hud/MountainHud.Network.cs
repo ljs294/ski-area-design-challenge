@@ -257,7 +257,7 @@ namespace MountainPlanner.UI
         void FoldLegend()
         {
             if (_legend == null || _legendFold == null) return;
-            bool card = _trailCardId != 0 || _liftCardId != 0 || _areaCardId != 0;
+            bool card = _trailCardId != 0 || _liftCardId != 0 || _areaCardId != 0 || _skierCardSerial != 0;
             bool folded = card && !_legendPeek;
             if (!card) _legendPeek = false;
             _legend.EnableInClassList("legend--folded", folded);

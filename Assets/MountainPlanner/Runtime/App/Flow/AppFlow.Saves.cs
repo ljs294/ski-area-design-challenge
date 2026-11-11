@@ -140,6 +140,7 @@ namespace MountainPlanner.App.Flow
             "-simgolden",   // task 4.03
             "-simguests",   // task 4.12
             "-rideshots", "-ridebench",   // task 4.11 PR B
+            "-pickbench",   // task 4.13
         };
 
         void UpdateSaves(Keyboard keys)

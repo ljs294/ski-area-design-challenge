@@ -341,6 +341,10 @@ echo        record's own noise, the hold-out on unseen winters, and the shared-b
 echo     97 Weather Lab (4.05, no Unity): every site's sample seasons week by week (snow, rain, base depth,
 echo        temperatures), against 200 seasons and the real winters, opened in your browser; later runs show the
 echo        first run as the baseline ("before"). Builds in about a minute.
+echo   Guests Engine v0.1 (4.13 guests on screen, PR B; rebuilds the game; close the Unity editor first)
+echo     98 The guest tests, then the game: every skier as a dot (green, blue, black, red) that skis the slope by its
+echo        ability, lines at the lifts as wide as the chair that grow as long as they need (round trees, through
+echo        gaps, never a pile), click a dot for its card (the click lands on the dot), Follow, Next, pause.
 echo.
 echo     Q  Quit
 echo.
@@ -474,6 +478,7 @@ if /i "%CHOICE%"=="92" goto ridelift
 if /i "%CHOICE%"=="96" goto guests
 if /i "%CHOICE%"=="93" goto weatherreport
 if /i "%CHOICE%"=="97" goto weatherlab
+if /i "%CHOICE%"=="98" goto guestsonscreen
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -908,6 +913,43 @@ echo   8. If nobody skis, F1's Network row says why in words: how many places th
 echo      lift's bottom), and for each colour how much of the mountain it can ski home from. A colour with nothing it
 echo      may ski is turned away at the gate - that is GU-05, not a bug.
 echo   9. Do 1-3 again on a second mountain (another of your saves), to see none of it is tuned to one site.
+start "" "%GAME%"
+goto menu
+
+:guestsonscreen
+rem Guests Engine v0.1 (4.13 PR B): the guests on screen (dots, lift lines, the skier card, Follow, steepness by ability).
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~GuestsOnScreenTests|FullyQualifiedName~GuestsTests" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open any mountain or save of your own with a built lift and a trail down from it (Katahdin, Kearsarge, the demo).
+echo   1. F1, Mountain: closed (now open), then Skip to morning, then 4 for 8x. From 8:30 the crowd arrives as dots:
+echo      green, blue, black, and red for experts. They ski down the runs in their lanes and stand on the snow.
+echo   2. Zoom to a lift's bottom. Its line is as wide as the chair (a double two, a quad four, a carpet one) and
+echo      folds back and forth behind the terminal. It grows as skiers join and steps forward a row as each chair
+echo      leaves. It keeps to open snow where there is some, and never stands on a run, under a lift or in a
+echo      terminal. F1, "+25 beginner" a few times makes a long line quickly. However long it gets, everyone stands
+echo      in it (demo findings 1-2): a fold that meets a tree turns round it, a line boxed in by forest strings out
+echo      single file through a gap and folds again beyond, and with no open snow near it folds on over the trees
+echo      at its lift (partly hidden by them). A skier joining the back gets there in a second or two; nobody
+echo      stands in a loose pile or drifts across the snow. Click a far dot in a long line: its card says
+echo      its place (say 151st) and it stands in a row. At the end of the day the Turtle T-bar's line stands in rows. Chair riders are hidden (the chairs ride empty); T-bar and carpet riders show.
+echo   3. An expert on a green zooms past; a beginner on a blue goes a bit slower (confidence, Pacing v4).
+echo      Steepness by ability (GU-10 v3): on the steepest blue, follow a blue dot, then a black or red one. The blue
+echo      one slows and zig-zags across the headwall; the black and red ones speed up. On the flat runout below
+echo      everyone coasts alike. A green dot on a steep stretch of a green snowploughs and traverses the same way.
+echo   4. Hover a dot: it grows. Click it, zoomed right in too: the click lands on the dot (finding 3); a drag
+echo      still moves the camera. The skier card opens where the lift card
+echo      does - Now ("In line at Summit Quad - 12th - ~1:45", "Skiing Moose Run", "Riding ... (time compressed)"),
+echo      Today (lap, wait), Mood, Why, and its last runs. The selected dot has a white ring.
+echo   5. Follow: the camera keeps the skier in the middle. Orbit (middle drag, Q/E) and zoom still work and keep
+echo      following; a pan (right drag or WASD) lets go. On a chair the camera glides up the line with it.
+echo   6. Next skier picks another; Next in this line (only while in a line) steps back one place. Esc or the X closes.
+echo   7. Space pauses: every dot stops at once, and you can still click and read cards. Space again goes on.
+echo   8. When a followed skier goes home the card says so and the camera stays where it was.
+echo   9. Do 1-2 on a second mountain, to see none of it is tuned to one site.
 start "" "%GAME%"
 goto menu
 

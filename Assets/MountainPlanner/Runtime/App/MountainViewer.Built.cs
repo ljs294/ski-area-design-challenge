@@ -559,7 +559,7 @@ namespace MountainPlanner.App
             var mouse = UnityEngine.InputSystem.Mouse.current;
             if (Hud == null || cam == null || mouse == null || PhotoOpen || (_tools != null && _tools.Armed)) { _cardPressed = false; return; }
             var pos = mouse.position.ReadValue();
-            if (mouse.leftButton.wasPressedThisFrame && !PointerOverUi(pos))
+            if (mouse.leftButton.wasPressedThisFrame && !PointerOverUi(pos) && !SkierTookPress)   // a skier's dot wins (4.13)
             {
                 _cardPressed = true;
                 _cardPress = pos;

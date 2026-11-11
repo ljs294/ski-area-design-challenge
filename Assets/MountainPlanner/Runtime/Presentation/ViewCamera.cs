@@ -137,6 +137,7 @@ namespace MountainPlanner.Presentation
         /// <summary>Orbit around <paramref name="target"/> from <paramref name="distance"/> metres (switches to orbit).</summary>
         public void Frame(Vector3 target, float distance)
         {
+            BreakFollow();   // framing something else lets go of a followed skier
             Current = Mode.Orbit;
             Target = target;
             Distance = _distanceGoal = distance;
@@ -160,6 +161,7 @@ namespace MountainPlanner.Presentation
         /// <summary>C: orbit to free-fly at the current eye, or free-fly to orbit around the ground point in view.</summary>
         public void ToggleMode()
         {
+            BreakFollow();
             EnsureInitialised();
             if (Current == Mode.Orbit)
             {
@@ -195,6 +197,39 @@ namespace MountainPlanner.Presentation
 
         /// <summary>The free-fly eye (the ride keeps it, to put the camera back where it was).</summary>
         public Vector3 FlyEye => _eye;
+
+        // ---------- following a skier (task 4.13, owner Q1: CS2's way) ----------
+
+        /// <summary>
+        /// Whether the orbit's target is following a point the app moves every frame (a skier). Orbit and zoom work as
+        /// ever; a pan (a right-drag or the move keys) lets go, and <see cref="FollowBroken"/> says so.
+        /// </summary>
+        public bool Following { get; private set; }
+        /// <summary>Where the followed thing is now (set every frame by the app while <see cref="Following"/>).</summary>
+        [System.NonSerialized] public Vector3 FollowPoint;
+        /// <summary>The target's lag behind the followed point, seconds: critically damped, so it never overshoots.</summary>
+        public float FollowSmoothSeconds = 0.25f;
+        public event System.Action FollowBroken;
+        Vector3 _followVelocity;
+
+        /// <summary>Starts following <paramref name="at"/> (switches to orbit; the yaw, pitch and zoom stay the player's).</summary>
+        public void Follow(Vector3 at)
+        {
+            if (Current != Mode.Orbit) { Current = Mode.Orbit; EnsureInitialised(); }
+            FollowPoint = at;
+            if (!Following) _followVelocity = Vector3.zero;
+            Following = true;
+        }
+
+        /// <summary>Stops following without saying so (the app let go: the card closed, the skier went home).</summary>
+        public void StopFollowing() => Following = false;
+
+        void BreakFollow()
+        {
+            if (!Following) return;
+            Following = false;
+            FollowBroken?.Invoke();
+        }
 
         void LateUpdate()
         {
@@ -236,7 +271,8 @@ namespace MountainPlanner.Presentation
                 }
                 else if (rightDown)
                 {
-                    // Drag the ground: the terrain follows the pointer.
+                    // Drag the ground: the terrain follows the pointer. A pan lets go of a followed skier (CS2).
+                    if (delta.sqrMagnitude > 0.01f) BreakFollow();
                     float scale = Distance * 0.0012f;
                     Target -= (right * delta.x + yawOnly * Vector3.forward * delta.y) * scale;
                 }
@@ -272,6 +308,7 @@ namespace MountainPlanner.Presentation
             }
             else
             {
+                if (move.sqrMagnitude > 1e-6f) BreakFollow();
                 Target += move.normalized * speed * boost * dt;
                 float rate = Mathf.Pow(0.2f * (fast ? 0.3f : 1f), dt * zoomRate);
                 if (zoomIn || up) _distanceGoal *= rate;
@@ -296,12 +333,14 @@ namespace MountainPlanner.Presentation
             Yaw = Mathf.LerpAngle(Yaw, _yawGoal, t);
             Pitch = Mathf.Lerp(Pitch, _pitchGoal, t);
 
+            if (Following)
+                Target = Vector3.SmoothDamp(Target, FollowPoint, ref _followVelocity, FollowSmoothSeconds, float.PositiveInfinity, Mathf.Max(1e-4f, dt));
             if (HasRing)
             {
                 Target.x = Mathf.Clamp(Target.x, Ring.xMin, Ring.xMax);
                 Target.z = Mathf.Clamp(Target.z, Ring.yMin, Ring.yMax);
             }
-            if (Surface != null && TargetRidesGround)
+            if (Surface != null && TargetRidesGround && !Following)
             {
                 // The target rides on the ground, so moving across a ridge keeps the view level with it.
                 float targetGround = Surface.HeightAt(Target.x, Target.z);
