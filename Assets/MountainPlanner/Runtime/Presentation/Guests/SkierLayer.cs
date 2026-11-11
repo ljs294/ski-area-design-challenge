@@ -60,7 +60,7 @@ namespace MountainPlanner.Presentation.Guests
         float2 _screenSize;
         static readonly int DotsId = Shader.PropertyToID("_Dots"), PixelsId = Shader.PropertyToID("_DotPixels"),
                             MetresId = Shader.PropertyToID("_DotMetres"), MinPixelsId = Shader.PropertyToID("_MinDotPixels"),
-                            ModeId = Shader.PropertyToID("_ColourMode"), ZTestId = Shader.PropertyToID("_ZTest"),
+                            ModeId = Shader.PropertyToID("_ColourMode"), DimId = Shader.PropertyToID("_Dim"), ZTestId = Shader.PropertyToID("_ZTest"),
                             ScreenPixelsId = Shader.PropertyToID("_ScreenPixels"), LiftId = Shader.PropertyToID("_DotLift"),
                             PullMaxId = Shader.PropertyToID("_PullMax"), PullShareId = Shader.PropertyToID("_PullShare");
 
@@ -68,6 +68,8 @@ namespace MountainPlanner.Presentation.Guests
         /// <summary>Debug (-dotsontop): draw every dot over everything, to tell "not drawn" from "hidden by the ground".</summary>
         public bool OnTop;
         public ColourMode Mode = ColourMode.Ability;
+        /// <summary>Task 4.13 PR C: how far the dots fade back (0 none, 1 gone), but never the selected or hovered one.</summary>
+        public float Dim;
         public float UiScale = 1f;
         public bool Visible = true;
         /// <summary>The dots drawn last frame (hidden riders and arrivals not counted).</summary>
@@ -219,6 +221,7 @@ namespace MountainPlanner.Presentation.Guests
             _material.SetFloat(MetresId, DotMetres);
             _material.SetVector(ScreenPixelsId, new Vector4(camera.pixelWidth, camera.pixelHeight, 0, 0));
             _material.SetFloat(ModeId, (float)Mode);
+            _material.SetFloat(DimId, Dim);
             _material.SetFloat(LiftId, DotLiftMetres);
             _material.SetFloat(PullMaxId, PullMaxMetres);
             _material.SetFloat(PullShareId, PullShare);

@@ -28,6 +28,7 @@ Shader "MountainPlanner/SkierDot"
 
             StructuredBuffer<float4> _Dots;
             float _DotPixels, _DotMetres, _MinDotPixels, _ColourMode;
+            float _Dim;   // task 4.13 PR C: under the Traffic layer the dots step back (the selected and hovered ones don't)
             // SkierLayer.DotLiftMetres, PullMaxMetres, PullShare: the click target (SkierPlaceJob.DrawnCentre) uses the same.
             float _DotLift, _PullMax, _PullShare;
             // The screen's own pixels (set from C#): the render target can be larger or smaller (render scale), and a
@@ -100,7 +101,7 @@ Shader "MountainPlanner/SkierDot"
                 clip.xy += corner * ext * clip.w;
                 o.positionCS = clip;
                 half3 c = _ColourMode < 0.5 ? BandColour(band) : _ColourMode < 1.5 ? StateColour(cls) : SatisfactionColour(sat);
-                o.colour = half4(c, 1);
+                o.colour = half4(c, (flags & 3) ? 1 : 1 - _Dim);
                 o.lightRim = dot(c, half3(0.3, 0.59, 0.11)) < 0.25 ? 1 : 0;
                 o.ring = (flags & 1) ? 2 : (flags & 2) ? 1 : 0;
                 return o;
@@ -119,7 +120,7 @@ Shader "MountainPlanner/SkierDot"
                 float rimWidth = i.ring > 0.5 ? 2.5 / (px * 0.5) : 1 / (px * 0.5);
                 float inRim = saturate((r - (1 - rimWidth)) / aa);
                 half3 c = lerp(i.colour.rgb, rim, inRim);
-                return half4(c, alpha);
+                return half4(c, alpha * i.colour.a);
             }
             ENDHLSL
         }

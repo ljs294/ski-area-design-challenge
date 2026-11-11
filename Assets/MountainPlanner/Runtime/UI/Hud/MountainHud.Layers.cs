@@ -135,6 +135,9 @@ namespace MountainPlanner.UI
                     }
                     _legendBody.Add(Note(InfoLegend.SnowDepthNote));
                     break;
+                case MapLayers.Traffic:
+                    BuildTrafficLegend(units);   // task 4.13 PR C (SN-31)
+                    break;
                 default:
                     _legendTitle.text = "Contours";
                     break;

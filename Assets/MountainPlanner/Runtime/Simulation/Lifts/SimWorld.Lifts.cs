@@ -336,6 +336,7 @@ namespace MountainPlanner.Simulation
                 _occ[slot] = (byte)board;
                 _aboard[i] += board;
                 _rides[i] += board;
+                CountLiftTraffic(i, board);
             }
             // LO-06: hidden riders step off at the top, oldest first, and go to the guests row (which runs after this one).
             while (_rideCount[i] > 0 && _guests.RideExitRunMs[_rideFirst[i]] <= after)

@@ -429,7 +429,7 @@ namespace MountainPlanner.App
             _liftsShown = on;
             foreach (var kv in _liftViews) if (kv.Value.View?.Root != null) kv.Value.View.Root.SetActive(on && !LiftHidden(kv.Key));
             if (_draftView != null && !on) _draftView.Root.SetActive(false);   // shown again at the draft's next redraw
-            _mapLines?.SetVisible(on && !_networkOn);   // the Network view's diagram stands in for them (task P3-10)
+            _mapLines?.SetVisible(on && !_networkOn && !TrafficOn);   // the Network view's diagram stands in for them (task P3-10)
         }
 
         void DrawChairs()

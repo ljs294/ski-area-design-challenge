@@ -281,6 +281,9 @@
 .hud .compass__dir { font-size: 12px; -unity-font-style: bold; }
 .hud .compass__deg { margin-top: 1px; font-size: 10.5px; opacity: 0.85; }
 .hud .lrule { height: 1px; margin-top: 7px; background-color: var(--hair); }
+/* Task 4.13 PR C: the Traffic legend's two switches (the window, what colours the dots). */
+.hud .legend__seg { margin: 6px 12px 2px 12px; }
+.hud .legend__seg > .mp-seg__opt { flex-grow: 1; height: 21px; padding: 3px 6px; font-size: 11.5px; }
 .hud .cl { flex-direction: row; align-items: center; padding: 7px 12px 0 12px; }
 .hud .cl--alone { padding-top: 0; }
 .hud .cl__icon { width: 22px; height: 12px; flex-shrink: 0; margin-right: 8px; color: var(--muted); -unity-text-outline-color: var(--muted); }

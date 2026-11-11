@@ -67,6 +67,53 @@ namespace MountainPlanner.Presentation
             return rows;
         }
 
+        // ---------- Traffic (SN-31, task 4.13 PR C) ----------
+
+        /// <summary>Traffic's five steps, quiet to packed: cool to hot, bright enough to read on the dark relief.</summary>
+        public static readonly Color[] TrafficColours =
+        {
+            new Color(0.290f, 0.420f, 0.600f), new Color(0.380f, 0.690f, 0.560f), new Color(0.920f, 0.800f, 0.300f),
+            new Color(0.950f, 0.520f, 0.180f), new Color(0.880f, 0.200f, 0.170f),
+        };
+        public static readonly string[] TrafficWords = { "Quiet", "Light", "Busy", "Crowded", "Packed" };
+
+        /// <summary>A run's step: skiers an hour per 100 ft of its width at or over each (none below the first is Quiet).</summary>
+        public static readonly int[] RunBreaks = { 15, 40, 80, 150 };
+        /// <summary>A lift's step: how full its chairs ran over the hour, in percent of what it can carry, at or over each.</summary>
+        public static readonly int[] LoadBreaksPercent = { 25, 50, 75, 90 };
+
+        /// <summary>The step (0–4) a value falls in, against four rising breaks.</summary>
+        public static int Step(float value, int[] breaks)
+        {
+            int k = 0;
+            while (k < breaks.Length && value >= breaks[k]) k++;
+            return k;
+        }
+
+        /// <summary>The runs' rows: the words and the skiers an hour per 100 ft of width (30 m in metric).</summary>
+        public static Entry[] TrafficRuns => Rows(RunBreaks, "");
+        /// <summary>The lifts' rows: how full the chairs ran.</summary>
+        public static Entry[] TrafficLifts => Rows(LoadBreaksPercent, "%");
+
+        static Entry[] Rows(int[] breaks, string unit)
+        {
+            var rows = new Entry[TrafficColours.Length];
+            for (int k = 0; k < rows.Length; k++)
+            {
+                string figure = k == 0 ? "under " + breaks[0] + unit
+                              : k == rows.Length - 1 ? breaks[k - 1] + unit + "+"
+                              : breaks[k - 1] + "–" + breaks[k] + unit;
+                rows[k] = new Entry(TrafficColours[k], TrafficWords[k], figure);
+            }
+            return rows;
+        }
+
+        public const string TrafficTitle = "Traffic";
+        public static string TrafficRunsHead(UnitSystem units) =>
+            units == UnitSystem.Imperial ? "Runs: skiers an hour per 100 ft of width" : "Runs: skiers an hour per 30 m of width";
+        public const string TrafficLiftsHead = "Lifts: how full the chairs run";
+        public const string TrafficNote = "A circle at a lift's bottom grows with its line: the line and the wait beside it.";
+
         public const string SlopeTitle = "Slope angle", ExposureTitle = "Slope exposure", SnowDepthTitle = "Snow depth";
         public const string SlopeNote = "Grade: rise over run (100% is 45°).";
         public const string ExposureNote = "The way each slope faces, from true north; flatter than 10% is grey.";

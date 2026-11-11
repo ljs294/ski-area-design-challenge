@@ -105,7 +105,8 @@ namespace MountainPlanner.App
             layer.UiScale = MountainPlanner.UI.UiPreferences.Scale;
             layer.Visible = _skiersShown && !_riding && !PhotoOpen;
             layer.OnTop = _dotsOnTop;
-            layer.Place(_sim.SkierRender.Latest, _ropes != null ? _ropes.DrawTick : 0, cam, Mathf.Min(0.25f, Time.unscaledDeltaTime), perSecond);
+            _skierFrame = _sim.SkierRender.Latest;   // read once a frame: the Traffic layer shares it (task 4.13 PR C)
+            layer.Place(_skierFrame, _ropes != null ? _ropes.DrawTick : 0, cam, Mathf.Min(0.25f, Time.unscaledDeltaTime), perSecond);
             layer.Draw(cam);
             TickSkierCard();
         }

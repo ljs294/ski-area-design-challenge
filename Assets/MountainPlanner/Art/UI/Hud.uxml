@@ -231,6 +231,11 @@
                     </ui:VisualElement>
                     <ui:Label class="row__key mono" text="Shift 0" picking-mode="Ignore" />
                 </ui:Button>
+                <ui:Button name="layer-traffic" class="row lay">
+                    <ui:VisualElement class="rad" picking-mode="Ignore"><ui:VisualElement class="rad__dot" picking-mode="Ignore" /></ui:VisualElement>
+                    <ui:Label class="row__label" text="Traffic" picking-mode="Ignore" />
+                    <ui:Label class="row__key mono" text="Shift 5" picking-mode="Ignore" />
+                </ui:Button>
                 <ui:Button name="layer-contours" class="row lay">
                     <ui:VisualElement class="chk" picking-mode="Ignore"><ui:VisualElement class="chk__tick" picking-mode="Ignore" /></ui:VisualElement>
                     <ui:Label class="row__label" text="Contours" picking-mode="Ignore" />

@@ -349,6 +349,8 @@ echo   Guests Engine v0.1 (4.13 guests on screen, PR B; rebuilds the game; close
 echo     98 The guest tests, then the game: every skier as a dot (green, blue, black, red) that skis the slope by its
 echo        ability, lines at the lifts as wide as the chair that grow as long as they need (round trees, through
 echo        gaps, never a pile), click a dot for its card (the click lands on the dot), Follow, Next, pause.
+echo     99 Traffic (4.13 PR C): Shift+5 over a busy day: runs coloured by how crowded they are, lifts by how full
+echo        their chairs run, a circle at each lift's bottom that grows with its line ("42 - 1:45"), Last hour or Today.
 echo.
 echo     Q  Quit
 echo.
@@ -484,6 +486,7 @@ if /i "%CHOICE%"=="96" goto guests
 if /i "%CHOICE%"=="93" goto weatherreport
 if /i "%CHOICE%"=="97" goto weatherlab
 if /i "%CHOICE%"=="98" goto guestsonscreen
+if /i "%CHOICE%"=="99" goto traffic
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -995,6 +998,32 @@ echo   6. Next skier picks another; Next in this line (only while in a line) ste
 echo   7. Space pauses: every dot stops at once, and you can still click and read cards. Space again goes on.
 echo   8. When a followed skier goes home the card says so and the camera stays where it was.
 echo   9. Do 1-2 on a second mountain, to see none of it is tuned to one site.
+start "" "%GAME%"
+goto menu
+
+:traffic
+rem Guests Engine v0.1 (4.13 PR C): SN-31, the Traffic info layer - where the guests skied and where they waited.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~SN31" <nul
+if errorlevel 1 goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open any mountain or save of your own with built lifts and trails (Katahdin, Kearsarge, the demo).
+echo   1. F1, Mountain: closed (now open), then Skip to morning, then 4 for 8x. Let the crowd come in until about 11.
+echo   2. Shift+5 (or Layers, Traffic). The ground goes dark, as in the Network view, and every run is coloured by
+echo      how crowded it is: skiers an hour per 100 ft of its width, Quiet blue to Packed red. Walking paths are thin
+echo      and grey. The dots fade back so the colours read; a selected or hovered dot stays bright.
+echo   3. Lifts are coloured by how full their chairs ran in the last hour. A circle at each lift's bottom grows with its
+echo      line, and "42 - 1:45" beside it is the line and the wait. F1, "+25 beginner" a few times: a beginner lift's
+echo      circle swells and its colour goes hot.
+echo   4. Point at a run: the bar under the elevation names it with "3 on it - 84 in the last hour - 412 today".
+echo      Point at a lift or its circle: "42 in line - 1:45 - 76%% full".
+echo   5. The legend (beside Layers) shows every step with its real figures. Its switch reads Last hour or Today
+echo      (today's average hour). Past the stop the layer reads Today by itself, so the day can be read back.
+echo   6. "Dots by" in the legend colours the dots by Ability, State (skiing, in line, riding, going home) or Happiness.
+echo   7. Shift+7 (Slope angle) takes Traffic's turn; Shift+6 Contours go with it. Analysis, Network still works.
+echo   8. Do 2-4 on a second mountain, to see none of it is tuned to one site.
 start "" "%GAME%"
 goto menu
 

@@ -85,6 +85,22 @@ namespace MountainPlanner.UI
             }
         }
 
+        /// <summary>How many names the set holds.</summary>
+        public int Count => _labels.Count;
+
+        /// <summary>
+        /// Changes one name's text in place, keeping its spots (task 4.13 PR C: the Traffic layer's "42 · 1:45" once a second,
+        /// with no labels made again). Its width is measured again only when its length changes.
+        /// </summary>
+        public void SetText(int index, string text)
+        {
+            if ((uint)index >= (uint)_labels.Count) return;
+            var label = _labels[index];
+            if (label.text == text) return;
+            if ((label.text?.Length ?? 0) != (text?.Length ?? 0)) _widths[index] = float.NaN;
+            label.text = text;
+        }
+
         void Clear()
         {
             _layer.Clear();

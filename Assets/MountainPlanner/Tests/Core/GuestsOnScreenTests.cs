@@ -256,6 +256,34 @@ namespace MountainPlanner.Tests
             Assert.That(later, Is.LessThan(hour), "the window rolled on");
         }
 
+        [Test]
+        public void SN31_ALiftsLoadIsItsBoardingsOverTheRollingHourAgainstWhatItCanCarry()
+        {
+            var w = Busy(2 * 3600);
+            var s = new SimSnapshot(P);
+            w.Step(1, s);
+            var f = Published(w);
+            Assert.That(f.LiftCount, Is.EqualTo(s.LiftCount), "one load per lift");
+            long hour = 0, today = 0;
+            for (int i = 0; i < f.LiftCount; i++)
+            {
+                Assert.That(f.LiftHourCapacity[i], Is.GreaterThan(0), "every lift can carry someone");
+                Assert.That(f.LiftLastHour[i], Is.LessThanOrEqualTo(s.RidesToday[i]), "the hour is part of the day");
+                Assert.That(f.LiftLastHour[i], Is.LessThanOrEqualTo(f.LiftHourCapacity[i] + s.Seats[i]),
+                            "no lift boards more in an hour than its carriers hold");
+                hour += f.LiftLastHour[i]; today += s.RidesToday[i];
+            }
+            Assert.That(hour, Is.GreaterThan(0).And.LessThan(today), "two hours in, the last hour is some of the day's rides");
+            // Closed, the lifts stop boarding and the window empties.
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetMountainOpen, 0));
+            long until = w.FaceMs + 2 * SimWorld.HourMs;
+            while (w.FaceMs < until) w.Step(8);
+            f = Published(w);
+            long later = 0;
+            for (int i = 0; i < f.LiftCount; i++) later += f.LiftLastHour[i];
+            Assert.That(later, Is.LessThan(hour), "the window rolled on");
+        }
+
         // ---------- GU-10: the table the sim and the screen share ----------
 
         static TrailRating.Result Profile()

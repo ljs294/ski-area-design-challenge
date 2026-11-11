@@ -138,7 +138,7 @@ namespace MountainPlanner.App
         {
             if (_trailLayer == null) return;
             bool on = _layers == null || _layers.TrailsOn;
-            bool lines = on && !_networkOn;   // the Network view's diagram stands in for the run lines (task P3-10)
+            bool lines = on && !_networkOn && !TrafficOn;   // and the Traffic layer's (task 4.13 PR C)   // the Network view's diagram stands in for the run lines (task P3-10)
             if (_trailLayer.Visible != lines) _trailLayer.Visible = lines;
             if (cam != null) _trailLayer.Follow(cam);
             // The run names' sight test samples the loaded terrain (it carries the edits), as every other label's does: the
