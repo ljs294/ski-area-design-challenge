@@ -91,7 +91,7 @@ a crowd that reads the snow report, and a mountain whose operations can be set t
 
 - **WX-15 v2, the blended record** (built in Acquisition at package build, off the game's threads). First the
   **observation-time lag**: Daymet's day follows its stations' reading times (often 7 a.m. to 7 a.m.), so the blend
-  cross-correlates Daymet's daily `prcp` with POWER's 24-hour sums at lags 0, +12 and +24 hours, shifts POWER's day
+  cross-correlates Daymet's daily `prcp` with POWER's 24-hour sums at lags 0, +12 and +24 hours (v3: every 3 hours, §3a), shifts POWER's day
   boundary to the best lag and records the lag in the manifest. Then, for each real day of the window, at the
   reference pixel:
   - **Temperature:** POWER's hourly `T2M` gives the day's shape; it is stretched and shifted so that the day's
@@ -216,7 +216,7 @@ describe how this place's weather behaves, and the machine plays dice with them.
     monthly aggregates** (liquid ±15 %, temperature ±2 °F, storm count ±20 %). Per-third numbers are reported with
     the rows' own leave-one-out spread as the stated noise floor, not gated: with 20 years, a ±15 % band per third
     would fail about 9 of 36 thirds on sampling noise even for a perfect generator.
-  - **Snow on the ground.** Daymet's `swe` is itself a model, with 20–50 % errors in mountains, so it can't be the
+  - **Snow on the ground** (v4's reference model and gates replace this, §3a). Daymet's `swe` is itself a model, with 20–50 % errors in mountains, so it can't be the
     gate. One **shared reference snow model** (a degree-day accumulation and melt, the same code, fixed constants)
     runs on the blended record's hours and on the generator's: its peak from the generator is within ±15 % of its
     peak from the record and within one third of the date. Daymet's SWE and, where there is one, the nearest
@@ -227,6 +227,110 @@ describe how this place's weather behaves, and the machine plays dice with them.
     `PowderDayIn`'s share test (WX-41) and the compass-quarter effects are reported, not gated.
   - Freezing rain is tracked, not fitted (the record can't see the warm layer aloft): on the fixture it happens on
     0–3 face days a typical season. A miss is a calibration bug, fixed in the rows' derivation, never by a quota.
+
+## 3a. Weather engine v0.1: what changed in the build (task 4.05, 2026-11-08 to 11-09)
+
+**v0.1 is locked here** (owner, 2026-11-09): the sources, QC, blend, calibration, the generator and the tests below,
+with the frozen rows of seven sites (`TestData/weather/<site>/weather.rows`, format `weather.rows` v1, fixture
+`TestData/formats/v1-weather-rows`). From here a calibration change is an approved re-record of the rows and their
+WX-33 goldens, and a change to the rows' shape is a v2 with a migration (0.3 §5). Nothing in the game reads the rows
+yet: the engine joins the simulation in PR B. The rules below refine §2, §3, §5 and §6; each also sits in the code
+beside what it governs.
+
+**Rule changes**
+- **WX-03 v3, phase (refines WX-03 v2, owner 2026-11-09):** all snow at a wet bulb at or below **32.0 °F**, all rain
+  above **35.6 °F**, the snow share falling linearly between (`Psychrometrics.SnowWetBulbF`, `RainWetBulbF`). v2's
+  30.2 / 33.8 °F made Stevens Pass's snowfall less than its SNOTEL pillow holds after melt; with v3 the record's
+  April 1 snowfall at the four western pillows sits at or above them. The snow line is where the wet bulb crosses
+  32–36 °F. Freezing rain (PR B) keys on the same rain threshold.
+- **WX-15 v3, the day alignment (refines WX-15 v2):** the observation-time lag is searched every 3 hours from 0 to
+  +24 (v2 tried 0, +12 and +24); the seven sites now sit at 0–6 hours. A wet Daymet day whose lagged POWER window was
+  dry shares its total over its humid hours, or evenly, and both are counted in the calibration report (0–19 days in
+  20 years).
+- **WX-25 v3, storm temperature (owner 2026-11-08):** bigger storms run warmer between storms (a slope on the total's
+  normal score) and heavier hours run warmer within one; the storm spread no longer counts the anomaly twice; the
+  anomaly's shape is the record's own, not a normal.
+- **WX-25 v4, nights and the hour's wobble (2026-11-08):** each night draws its own depth, and each hour a small
+  wobble with the record's 3-hour memory, both played until the game's winter spreads match the record's; the
+  anomaly gives up what they add. Without them the game's cold snaps fell 3–8 °F short.
+- **WX-25 v5, the wet spell and the snowy side (owner 2026-11-09):** a wet week leans cold by the record's own
+  correlation of day temperature with the running liquid (Tahoe's snowy winters are its cold ones); storm
+  temperature is fitted to the wet bulb or the rain share, whichever leaves the storms colder ("err on the side of
+  more snow, for tycoon fun").
+- **WX-25 v6, the cold side (2026-11-09):** after every other correction, three plays move each third's mean to the
+  record's and refit the anomaly's shape on December–February hours, then centre it. The coldest 1 % of winter
+  hours, 1.8 °F mild at all seven sites before, is now within 0.9 °F everywhere.
+- **WX-31 v3, the fits (owner 2026-11-08):** storm totals use the record's own pooled shape (a log-normal ran 11–17 %
+  light at the 90th percentile); a Weibull that fails KS at the 1 % point for its own sample (1.63 ÷ √n) gives way to
+  the record's own shape; each month's liquid is played and its tables rescaled by the miss (±20 %). Every correction
+  that hits its clamp is counted in the calibration report (`clamp.*`).
+
+**WX-07 v4, the tests by rule (refines WX-07 v3; the adversarial review, owner-approved 2026-11-09).** Three kinds,
+named for what they can prove:
+- **Consistency** (`WeatherAcceptanceTests`, WX-07 v3(a), WX-58): the generator reproduces its own rows. They catch
+  code bugs, not wrong rows.
+- **Fidelity** (`WeatherFidelityTests`): the frozen rows played over 300 seeds against the record, on 33 statistics a
+  player feels: storm and 1- and 3-face-day tails; rain share November to April; October–April snow water and the
+  wet-hour temperature; storm size against temperature and the storm-to-storm spread; the coldest 1 % and 10 % of
+  winter hours and the thawing hours; wind memory; a dry spell against the next storm; storm clustering by season
+  half; the pack on the 1st of January to April, its peak and melt-out day; holiday cover (1 in of water on December
+  25); rain on a pack; powder face days (0.5 in of snow water), both ways; season-to-season spread of liquid and snow
+  and of the April 1 pack.
+  - **The gate is the record's own noise.** Each statistic's 95 % range comes from resampling the record's winters
+    (a keyed block bootstrap); the game's miss is measured in it (z, 1.96 at the 95 % edge), with a floor for what the
+    statistic resolves (one winter's worth for a share of winters). Every cell must sit inside the record's 99.9 %
+    range; over all cells (231 at seven sites), no more may sit outside the 99 % range than a binomial at 1 % allows
+    (6). **`SnowyMargin` = 1.0** (z units) widens both on the side that means more snow: the owner's "fun" is one
+    visible number, the same at every site, with no hand-set gate anywhere.
+  - **Shared bias:** each statistic's z averaged over the sites must sit inside 2.58 ÷ √(sites), with the snowy
+    margin scaled the same way, so a miss every site makes a little of can't pass unseen.
+  - **Hold-out** (the only check the calibration can't fit): rows built from the odd winters judged against the even
+    ones and the other way round. Its yardstick is the record's own two halves: an honest model's typical miss is
+    √(the halves' miss² + its miss on its own half²); over-fitting shows above that, beyond twice the median's
+    bootstrap spread.
+  - **The reference snow model (v2)** runs the same code on the record's hours and the game's, at `zref`: the snow
+    share of each hour's liquid accumulates; melt is a temperature index whose factor follows the sun's season (0.0011
+    in of water per °F-hour over 32 °F at the winter solstice to 0.0044 at the summer one, SNOW-17's published range)
+    and waits for a cold pack to warm (the pack follows the air over two days; ice holds 0.0035 in of melt per inch
+    of water per °F). v1's degree-hour melt (0.0036 in per °F-hour every hour above 32 °F) melted the western packs to
+    a third or less of what their SNOTEL pillows hold; v2 brings Stevens Pass's April 1 pack to 35 in against the
+    pillow's 37. It is a yardstick shared by both sides, not the game's melt (SN-09, 4.07).
+- **Guards:** the frozen rows must be what today's calibration makes from the recorded sources; WX-33's golden is
+  pinned at all seven sites; planted QC faults leave the rows as if those days were simply missing.
+
+**Known limits of v0.1** (each listed in its test, so a new failure and a silent fix both show):
+- Jackson NH's clearing lengths fail their KS test (0.066 against 0.057) since the 3-hour alignment; the checks that
+  read clearings (dry spells, clustering) pass there.
+- Two of 231 fidelity cells sit outside the record's 99 % range (chance allows 6): Jackson Hole's October–December
+  storm clustering (z +2.7) and Jackson NH's powder face days (z −3.0, fewer than the record).
+- On unseen winters Jackson Hole and Stevens Pass miss a little more than an honest model would (1.47 and 1.58
+  against 1.27 and 1.45), inside the allowance.
+- The three eastern sites have no independent snow check: no SNOTEL, and no free mountain network Daymet doesn't
+  already use.
+- Season character (WX-19 v2) is reported, not refitted; the first of the two storm-temperature fits is kept untested.
+
+**Finding for 4.07 (SN-09 v1):** its melt has no snowpack temperature, so one warm hour melts a pack that sat at 0 °F
+for a week, and its 0.012 in per °F-hour is about 3 times the published midwinter factor. Weather engine v0.2 takes
+the snow's energy over (below).
+
+**Planned for v0.2, built with PR B (owner, 2026-11-09: "add all of the above to the weather engine"):** the weather
+engine owns the energy at the snow's surface; 4.07 keeps the snow itself and stores one more number per cell, the
+pack's temperature.
+- **WX-59, the horizon map:** per 8 m cell, the skyline's angle in 16 directions (one byte each) from the downloaded
+  heights and the surround ring, never the player's earthwork, built once per area into the terrain cache; each
+  cell's open-sky share follows from it.
+- **WX-60, sun on the slope** (refines WX-40, replaces SN-09's sun factor): direct sun × how squarely the cell faces it
+  × 0 while the sun is under the cell's skyline, plus diffuse sky light × the open-sky share; canopy as now.
+- **WX-61, snow brightness:** fresh snow reflects about 85 %, old or wet snow about 55 %, by the age and type 4.07
+  tracks; new snow resets it.
+- **WX-62, sky cooling:** heat lost to a clear sky by cloud cover and open-sky share: hard refreezes on clear nights,
+  soft snow under cloud.
+- **WX-63, the pack's energy each face hour:** air + absorbed sun + sky cooling + rain's heat; a cold pack warms to
+  32 °F before any melt, and a negative balance cools it. One integer function (`Domain/Weather/SnowEnergy`) shared by
+  the game and the tests, replacing the tests' reference model.
+- **WX-64, what 4.07 reads back:** melt water, the pack's temperature and a frozen-surface flag for its refreeze rule.
+- Tests: the western pillows as a standing check; north against south and shade against open at one height; a
+  clear night refreezes, a cloudy one doesn't; a cold pack survives a one-afternoon thaw; energy balances; 0 B per hour.
 
 ## 4. Weather runs on the calendar, compressed like time
 
@@ -536,7 +640,7 @@ into tables, never stored per cell.
   **mean is within ±10 %** of Daymet's and its **slope with elevation within ±30 %** of the row's gradient. No
   per-pixel band: Daymet can't tell windward from lee (WX-35), so a per-pixel match would only test the factor
   against an answer that doesn't hold it.
-  - **WX-03 v2, phase (refines WX-03):** by the cell's wet bulb, **snow at ≤ 30.2 °F, rain above 33.8 °F, mixed
+  - **WX-03 v2, phase (refines WX-03; superseded by v3's 32.0 / 35.6 °F, §3a):** by the cell's wet bulb, **snow at ≤ 30.2 °F, rain above 33.8 °F, mixed
     between with the snow share falling linearly**. **Freezing rain** when the cell's wet bulb *without* the pool is
     above 33.8 °F (it would rain) but its air *with* the pool is at or below 32 °F: warm air riding over cold valley
     air, the real mechanism. Then the whole hour's liquid is freezing rain (liquid that glazes on contact, for 4.07),

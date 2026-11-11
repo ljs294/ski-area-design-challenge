@@ -141,6 +141,74 @@ switch (command)
         return 0;
     }
 
+    case "weather-record":
+    {
+        // Task 4.05: records a package's weather sources (Daymet reference pixel and lattice, NASA POWER hours, SNOTEL) as
+        // gzipped answers plus site.json under --out, the form of the fixtures in TestData/weather/. The same clients the game
+        // runs fetch them, through the download cache (--cache), so a rerun replays without the network.
+        string folder = opts["package"], outDir = opts["out"];
+        var manifest = ResortPackage.ReadManifest(folder);
+        var site = new MountainPlanner.Acquisition.Weather.WeatherSiteRequest
+        {
+            Name = manifest.Site.Name, Latitude = manifest.Site.Latitude, Longitude = manifest.Site.Longitude,
+            CentreX = manifest.Site.CentreX, CentreY = manifest.Site.CentreY, SizeMetres = manifest.Site.SizeMetres,
+            RingMetres = manifest.Site.RingMetres,
+            BuildYear = int.Parse(opts.GetValueOrDefault("build-year", DateTime.UtcNow.Year.ToString()), CultureInfo.InvariantCulture),
+        };
+        float[] core = ResortPackage.ReadLayer(folder, manifest, "heights-core", out var coreHeader);
+        float[] ring = ResortPackage.ReadLayer(folder, manifest, "heights-ring", out var ringHeader);
+        var heights = new TerrainCache.HeightField(core, coreHeader, ring, ringHeader);
+        double rw = ringHeader.West, rn = ringHeader.North, re = rw + ringHeader.Width * ringHeader.CellSize, rs = rn - ringHeader.Height * ringHeader.CellSize;
+        site.OurPixelElevations = MountainPlanner.Acquisition.Weather.WeatherFetch.PixelElevations(site,
+            (x, y) => x < rw || x > re || y < rs || y > rn ? double.NaN : heights.At(x, y));
+        (site.BaseFeet, site.SummitFeet) = MountainPlanner.Acquisition.Weather.WeatherFetch.ReferenceFeet(core);
+        Directory.CreateDirectory(outDir);
+        string sitePath = Path.Combine(outDir, MountainPlanner.Acquisition.Weather.WeatherSiteRequest.FileName);
+        if (opts.ContainsKey("points-only"))
+        {
+            // Patch a recorded site.json with the reference points only (its recorded answers stay as they are).
+            var old = MountainPlanner.Acquisition.Weather.WeatherSiteRequest.FromJson(File.ReadAllText(sitePath));
+            old.BaseFeet = site.BaseFeet;
+            old.SummitFeet = site.SummitFeet;
+            File.WriteAllText(sitePath, old.ToJson());
+            Console.WriteLine($"{old.Name}: base {old.BaseFeet} ft, summit {old.SummitFeet} ft");
+            return 0;
+        }
+        File.WriteAllText(sitePath, site.ToJson());
+        string cacheDir = opts.GetValueOrDefault("cache", Path.Combine(dataRoot, "download-cache"));
+        var meter = new TransferMeter();
+        var live = new MountainPlanner.Acquisition.Weather.LiveWeatherResponses(new DiskCache(cacheDir), meter);
+        var recording = new MountainPlanner.Acquisition.Weather.RecordingWeatherResponses(live, outDir);
+        var progress = new Progress<(int Done, int Total)>(p => Console.Write($"\r  {p.Done}/{p.Total} answers, {meter.Bytes / 1e6:F1} MB   "));
+        var record = await MountainPlanner.Acquisition.Weather.WeatherFetch.FetchAsync(recording, site, progress, CancellationToken.None);
+        Console.WriteLine();
+        Console.WriteLine($"{site.Name}: label years {record.FirstLabelYear}-{record.LastLabelYear}, " +
+                          (record.OutsideDaymet ? "outside Daymet" : $"reference pixel {record.Reference!.ElevationMetres:F0} m, {record.Lattice.Count} lattice pixels") +
+                          $", {record.Power.Count:N0} POWER hours (API {record.Power.ApiVersion}), " +
+                          $"{record.Snotel.Count} SNOTEL station(s){(record.SnotelNote.Length > 0 ? " - " + record.SnotelNote : "")}");
+        foreach (var s in record.Snotel)
+            Console.WriteLine($"  {s.Station.Triplet} {s.Station.Name}, {s.Station.DistanceMetres / 1000:F1} km, {s.Station.ElevationFeet:F0} ft, " +
+                              $"{s.Days.Count} days{(s.Station.GhcnId.Length > 0 ? ", in GHCN-Daily as " + s.Station.GhcnId : "")}");
+        return 0;
+    }
+
+    case "weather-qc":
+    {
+        // Task 4.05: runs the QC screens over a recorded site (--record <dir>, as weather-record wrote it) and prints the log.
+        var record = await MountainPlanner.Acquisition.Weather.WeatherFetch.LoadRecordingAsync(opts["record"]);
+        var log = new MountainPlanner.Acquisition.Weather.Qc.WeatherQcLog();
+        MountainPlanner.Acquisition.Weather.Qc.DaymetScreen.Apply(record, log);
+        MountainPlanner.Acquisition.Weather.Qc.PowerScreen.Apply(record, log);
+        var stations = MountainPlanner.Acquisition.Weather.Qc.SnotelScreen.Apply(record, log);
+        Console.WriteLine($"{record.Site.Name}: {MountainPlanner.Acquisition.Weather.Qc.WeatherQcLog.Name(log.Verdict)}");
+        foreach (var e in log.Entries)
+            Console.WriteLine($"  [{e.Outcome,-8}] {e.Source,-10} {e.Test,-32} {e.Rejected,7:N0}/{e.Checked,-9:N0} {e.Note}");
+        foreach (var s in stations)
+            Console.WriteLine($"  station {s.Triplet} {s.Name}: {s.UsableWinters} usable winters, ratio {s.MedianRatio:F2}, undercatch {s.UndercatchWinters}. {s.Note}");
+        foreach (string r in log.LimitedReasons) Console.WriteLine("  limited: " + r);
+        return 0;
+    }
+
     case "validate":
     {
         var problems = PackageValidator.Validate(opts["package"]);

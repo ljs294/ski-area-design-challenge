@@ -335,6 +335,12 @@ echo        the card's Wind hold, Today, Runs and Hours.
 echo   4.12 guests v1 (rebuilds the game; close the Unity editor first)
 echo     96 The guest tests and the scale run, then the game: a crowd arrives through the morning, queues, rides, skis
 echo        and goes home; Popularity fills in; F1 shows the demand stack, the reputations and one skier's day.
+echo   4.05 weather engine v0.1 (no Unity, no game build)
+echo     93 Weather report (4.05 weather engine v0.1, no Unity): all seven sites' fidelity checks against the
+echo        record's own noise, the hold-out on unseen winters, and the shared-bias table, one line per check.
+echo     97 Weather Lab (4.05, no Unity): every site's sample seasons week by week (snow, rain, base depth,
+echo        temperatures), against 200 seasons and the real winters, opened in your browser; later runs show the
+echo        first run as the baseline ("before"). Builds in about a minute.
 echo.
 echo     Q  Quit
 echo.
@@ -466,6 +472,8 @@ if /i "%CHOICE%"=="90" goto simsave
 if /i "%CHOICE%"=="91" goto liftops
 if /i "%CHOICE%"=="92" goto ridelift
 if /i "%CHOICE%"=="96" goto guests
+if /i "%CHOICE%"=="93" goto weatherreport
+if /i "%CHOICE%"=="97" goto weatherlab
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -817,6 +825,29 @@ echo      they were, still paused. Space: the day carries on.
 echo   5. Let it run a little, then quit to the title without saving: it asks, because the clock moved.
 echo   6. An older save (made before this build) opens at October 1 as before; so does a new design.
 start "" "%GAME%"
+goto menu
+
+:weatherreport
+rem 4.05 weather engine v0.1: the frozen rows of seven sites played over 300 seeds against their 20-winter records.
+chcp 65001 >nul
+echo Builds and runs the weather fidelity and hold-out tests (about 10 minutes). Each line reads
+echo   statistic: game^|record (the record's 95 %% range), miss, z in [allowed]
+echo where z is the miss in the record's own noise (1.96 = its 95 %% edge). "outside 99 %%" is allowed a few times by
+echo chance; "FAIL" is not. The hold-out lines compare rows built from half the winters with the other half.
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~WeatherFidelityTests" --logger "console;verbosity=normal" <nul | findstr /v /c:"Test run for" /c:"A total" /c:"NUnit" /c:"Running selected"
+pause
+goto menu
+
+:weatherlab
+rem 4.05 Weather Lab (tools/weather-lab/README.md): sample seasons of every site from the frozen rows, as a web page.
+chcp 65001 >nul
+echo Builds the lab's data (every site's 20 sample seasons, 200 for the range, the real winters), then the page.
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~WeatherLabTests" --logger "console;verbosity=normal" <nul | findstr /c:"done" /c:"Weather Lab" /c:"Passed" /c:"Failed" /c:"error"
+node "%~dp0tools\weather-lab\build.mjs"
+if exist "%~dp0test-results\weather-lab\index.html" start "" "%~dp0test-results\weather-lab\index.html"
+echo To compare a later change against this run, keep test-results\weather-lab\baseline.json; to re-pin it, run
+echo   node tools\weather-lab\build.mjs --pin
+pause
 goto menu
 
 :liftops
