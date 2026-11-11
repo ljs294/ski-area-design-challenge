@@ -370,6 +370,7 @@ namespace MountainPlanner.Simulation
             }
             HoursFor(faceDay, out _todayOpen, out _todayLastChair, out _todayStop, out _todayTrimmed);
             _dayStartTick = Tick;
+            ResetTrafficDay();
             LiftHoursToday();
             if (_todayTrimmed && announce) Events.Add(Tick, SimEventType.HoursTrimmed, -1, _todayOpen * 100000L + _todayStop);
             RefreshBoard();

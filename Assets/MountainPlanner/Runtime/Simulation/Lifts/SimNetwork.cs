@@ -28,10 +28,42 @@ namespace MountainPlanner.Simulation
         public readonly int AreaM2;
         /// <summary>GU-10: how long a reference skier of the trail's band takes over this segment, real ms at 1×.</summary>
         public readonly int BaseMs;
+        /// <summary>
+        /// GU-10 v3 (Guests Engine v0.1): the same piece for a beginner, an intermediate and an advanced skier, who hold
+        /// back where it is steeper than they like (an expert takes <see cref="BaseMs"/>). 0: the same as BaseMs.
+        /// </summary>
+        public readonly int BeginnerMs, IntermediateMs, AdvancedMs;
 
         public TrailEdgeFacts(byte trueBand, byte postedBand, int widthCm, int areaM2, int baseMs)
+            : this(trueBand, postedBand, widthCm, areaM2, baseMs, 0, 0, 0) { }
+
+        public TrailEdgeFacts(byte trueBand, byte postedBand, int widthCm, int areaM2, int baseMs, int beginnerMs, int intermediateMs, int advancedMs)
         {
             TrueBand = trueBand; PostedBand = postedBand; WidthCm = widthCm; AreaM2 = areaM2; BaseMs = baseMs;
+            BeginnerMs = beginnerMs; IntermediateMs = intermediateMs; AdvancedMs = advancedMs;
+        }
+
+        /// <summary>
+        /// GU-10 v3, for scripted designs with no ground (the golden script, the tests): a trail of one steady pitch,
+        /// <see cref="SteadyPitchShare"/> of its band's design grade, where <paramref name="baseMs"/> is the expert's
+        /// time; the others' times follow from <see cref="SkiTimeTable.StationFactor"/> on that pitch.
+        /// </summary>
+        public static TrailEdgeFacts SteadyPitch(byte trueBand, byte postedBand, int widthCm, int areaM2, int baseMs)
+        {
+            double grade = SkiTimeTable.BandDesignGrade(trueBand) * SteadyPitchShare;
+            double expert = SkiTimeTable.StationFactor(trueBand, SkiTimeTable.Reference, grade);
+            int Ms(byte skier) => (int)Math.Max(1, Math.Round(baseMs * expert / SkiTimeTable.StationFactor(trueBand, skier, grade)));
+            return new TrailEdgeFacts(trueBand, postedBand, widthCm, areaM2, baseMs, Ms(0), Ms(1), Ms(2));
+        }
+
+        /// <summary>A steady pitch's grade against its band's design grade (a touch steeper than the band assumes).</summary>
+        public const double SteadyPitchShare = 1.2;
+
+        /// <summary>GU-10 v3: the time for a skier of this band (0 beginner to 3 expert).</summary>
+        public int MsFor(int skierBand)
+        {
+            int ms = skierBand == 0 ? BeginnerMs : skierBand == 1 ? IntermediateMs : skierBand == 2 ? AdvancedMs : BaseMs;
+            return ms > 0 ? ms : BaseMs;
         }
     }
 
@@ -87,6 +119,17 @@ namespace MountainPlanner.Simulation
         public readonly int[] EdgeWidthCm, EdgeAreaM2;
         /// <summary>GU-10: a reference skier's time over the edge, real ms at 1× (a walker's, for a path).</summary>
         public readonly int[] EdgeBaseMs;
+        /// <summary>
+        /// GU-10 v3 (Guests Engine v0.1): per edge and skier band (index edge × <see cref="Pacing.Bands"/> + band), that
+        /// skier's time over the edge, real ms at 1×. The expert's is <see cref="EdgeBaseMs"/>; a path is the same for all.
+        /// </summary>
+        public int[] EdgeBandMs { get; private set; }
+        /// <summary>
+        /// GU-16 (4.13): where a trail segment lies along its trail, millimetres from the trail's head (0 and the length for
+        /// a path), so the screen maps an edge to its piece of centreline without re-deriving this list's order.
+        /// </summary>
+        public int[] EdgeStartMm { get; private set; } = Array.Empty<int>();
+        public int[] EdgeEndMm { get; private set; } = Array.Empty<int>();
 
         /// <summary>The reverse of the edge list, grouped by to-node: how the routing search runs backwards (GU-07).</summary>
         public readonly int[] IntoFirst, IntoCount, IntoEdge;
@@ -99,6 +142,7 @@ namespace MountainPlanner.Simulation
             NodeIds = nodeIds;
             EdgeKeys = keys; EdgeKindOf = kinds; EdgeTrueBand = trueBand; EdgePostedBand = postedBand;
             EdgeLengthMm = lengthMm; EdgeWidthCm = widthCm; EdgeAreaM2 = areaM2; EdgeBaseMs = baseMs;
+            EdgeBandMs = FillBands(new int[baseMs.Length * Pacing.Bands], baseMs);
             FirstEdge = new int[nodes];
             EdgeCount = new int[nodes];
             for (int n = 0; n < nodes; n++) FirstEdge[n] = -1;
@@ -122,6 +166,15 @@ namespace MountainPlanner.Simulation
             for (int n = 0; n < nodes; n++) h = Mix(h, nodeIds[n]);
             for (int e = 0; e < keys.Length; e++) { h = Mix(h, keys[e]); h = Mix(h, (ulong)(uint)to[e]); }
             ShapeHash = h;
+        }
+
+        /// <summary>GU-10 v3: an edge with no per-band time (a path, or no facts) takes its one time for every band.</summary>
+        static int[] FillBands(int[] bandMs, int[] baseMs)
+        {
+            for (int e = 0; e < baseMs.Length; e++)
+                for (int b = 0; b < Pacing.Bands; b++)
+                    if (bandMs[e * Pacing.Bands + b] < 1) bandMs[e * Pacing.Bands + b] = baseMs[e];
+            return bandMs;
         }
 
         static ulong Mix(ulong h, ulong v)
@@ -161,6 +214,7 @@ namespace MountainPlanner.Simulation
             var from = new int[n]; var to = new int[n]; var trail = new int[n];
             var keys = new ulong[n]; var kinds = new byte[n]; var trueBand = new byte[n]; var posted = new byte[n];
             var lengthMm = new int[n]; var widthCm = new int[n]; var areaM2 = new int[n]; var baseMs = new int[n];
+            var bandMs = new int[n * Pacing.Bands];
             for (int i = 0; i < n; i++)
             {
                 var e = list[i];
@@ -175,6 +229,7 @@ namespace MountainPlanner.Simulation
                     var f = facts[e.k];
                     trueBand[i] = f.TrueBand; posted[i] = f.PostedBand;
                     widthCm[i] = f.WidthCm; areaM2[i] = f.AreaM2; baseMs[i] = f.BaseMs;
+                    for (int b = 0; b < Pacing.Bands; b++) bandMs[i * Pacing.Bands + b] = f.MsFor(b);
                 }
                 else
                 {
@@ -189,7 +244,8 @@ namespace MountainPlanner.Simulation
             }
             var nodeIds = new ulong[nodes];
             for (int k = 0; k < nodes; k++) nodeIds[k] = (ulong)(k + 1);
-            return new SimNetwork(nodes, from, to, trail, trailIds, nodeIds, keys, kinds, trueBand, posted, lengthMm, widthCm, areaM2, baseMs);
+            return new SimNetwork(nodes, from, to, trail, trailIds, nodeIds, keys, kinds, trueBand, posted, lengthMm, widthCm, areaM2, baseMs)
+                { EdgeBandMs = FillBands(bandMs, baseMs) };
         }
 
         /// <summary>A blue skier at 20 mph, or a walker at 3 mph, over <paramref name="lengthMm"/>: real ms at 1×.</summary>
@@ -236,6 +292,8 @@ namespace MountainPlanner.Simulation
             var from = new int[n]; var to = new int[n]; var trail = new int[n];
             var keys = new ulong[n]; var kinds = new byte[n]; var trueBand = new byte[n]; var posted = new byte[n];
             var lengthMm = new int[n]; var widthCm = new int[n]; var areaM2 = new int[n]; var baseMs = new int[n];
+            var bandMs = new int[n * Pacing.Bands];
+            var startMm = new int[n]; var endMm = new int[n];
             for (int i = 0; i < n; i++)
             {
                 var k = kept[i];
@@ -248,15 +306,18 @@ namespace MountainPlanner.Simulation
                     lengthMm[i] = Distance(graph.Nodes[k.from].At, graph.Nodes[k.to].At);
                     widthCm[i] = 0; areaM2[i] = 0;
                     baseMs[i] = DefaultMs(lengthMm[i], true);
+                    startMm[i] = 0; endMm[i] = lengthMm[i];
                 }
                 else
                 {
                     keys[i] = Key(k.e.Owner, k.e.StartMm, (uint)(k.e.EndMm - k.e.StartMm));
                     lengthMm[i] = Math.Max(1, k.e.EndMm - k.e.StartMm);
+                    startMm[i] = k.e.StartMm; endMm[i] = k.e.EndMm;
                     if (facts != null && facts.TrailSegment(k.e.Owner, k.e.StartMm, k.e.EndMm, out var f))
                     {
                         trueBand[i] = f.TrueBand; posted[i] = f.PostedBand;
                         widthCm[i] = f.WidthCm; areaM2[i] = f.AreaM2; baseMs[i] = f.BaseMs;
+                        for (int b = 0; b < Pacing.Bands; b++) bandMs[i * Pacing.Bands + b] = f.MsFor(b);
                     }
                     else
                     {
@@ -280,7 +341,7 @@ namespace MountainPlanner.Simulation
                 liftBottom[i] = index.TryGetValue(graph.StationOf(id, top: false), out int b) ? b : -1;
             }
             return new SimNetwork(graph.Nodes.Count, from, to, trail, trailIds, nodeIds, keys, kinds, trueBand, posted,
-                                  lengthMm, widthCm, areaM2, baseMs);
+                                  lengthMm, widthCm, areaM2, baseMs) { EdgeStartMm = startMm, EdgeEndMm = endMm, EdgeBandMs = FillBands(bandMs, baseMs) };
         }
 
         static int Distance(PointMm a, PointMm b)

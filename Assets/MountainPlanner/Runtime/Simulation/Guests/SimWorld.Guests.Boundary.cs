@@ -147,13 +147,24 @@ namespace MountainPlanner.Simulation
             return -1;
         }
 
+        /// <summary>LO-02: each queued slot's place in its lift's line, filled while the column is written. Never hashed.</summary>
+        ushort[] _rankOf = Array.Empty<ushort>();
+
         /// <summary>
-        /// GU-16: fills the render column and publishes it. Queued and riding skiers are in it too, because 4.13 draws a
-        /// line as a serpentine inside the station's hull (LO-02) and a rider has to go somewhere.
+        /// GU-16 v2: fills the render column and publishes it. Queued and riding skiers are in it too, because 4.13 draws a
+        /// line (LO-02) and follows a rider up the rope. Reads state only, so it can run whenever the host publishes,
+        /// paused or not, and changes no result.
         /// </summary>
-        void PublishSkierRender()
+        public void PublishSkierRender()
         {
             if (_guests == null || SkierRender == null) return;
+            if (_rankOf.Length != _guests.Cap) _rankOf = new ushort[_guests.Cap];
+            int lifts = Math.Min(_liftCount, _lineFirst.Length);
+            for (int i = 0; i < lifts; i++)
+            {
+                int rank = 0;
+                for (int k = _lineFirst[i]; k >= 0; k = _guests.LineNext[k]) _rankOf[k] = (ushort)Math.Min(ushort.MaxValue, rank++);
+            }
             var frame = SkierRender.Back;
             int n = 0;
             var cap = frame.Skiers.Length;
@@ -163,18 +174,37 @@ namespace MountainPlanner.Simulation
                 if (st == (byte)GuestState.Free) continue;
                 int edge = _guests.Edge[s], lift = _guests.Lift[s];
                 ushort segment = edge >= 0 ? SegmentCode(edge) : lift >= 0 ? LiftCode(lift) : (ushort)0;
+                uint a, b;
+                ushort rank = 0;
+                if (st == (byte)GuestState.Riding && lift >= 0 && lift < Design.Lifts.Length)
+                {
+                    long exit = _guests.RideExitRunMs[s];
+                    a = unchecked((uint)(exit - RideSpanMs(Design.Lifts[lift])));
+                    b = unchecked((uint)exit);
+                }
+                else
+                {
+                    bool queued = st == (byte)GuestState.Queued;
+                    a = (uint)Math.Max(0, (queued ? _guests.JoinTick[s] : _guests.EntryTick[s]) - _dayStartTick);
+                    b = queued ? 0u : (uint)Math.Max(0, _guests.ExitTick[s] - _dayStartTick);
+                    if (queued) rank = _rankOf[s];
+                }
                 frame.Skiers[n++] = new SkierRender(
-                    segment,
-                    (ushort)(_guests.Serial[s] & 0xFFFF),
-                    (uint)Math.Max(0, _guests.EntryTick[s] - _dayStartTick),
-                    (uint)Math.Max(0, _guests.ExitTick[s] - _dayStartTick),
-                    _guests.Lane[s], st, _guests.Band[s], 0);
+                    unchecked((uint)_guests.Serial[s]), segment, rank, (ushort)s,
+                    _guests.Node[s] >= 0 && _guests.Node[s] < MountainPlanner.Simulation.SkierRender.NoNode ? (ushort)_guests.Node[s] : MountainPlanner.Simulation.SkierRender.NoNode,
+                    a, b, _guests.Lane[s], st, _guests.Band[s], (byte)Math.Max(0, Math.Min(255, _guests.Sat[s] * 255 / 1000)));
             }
             frame.Count = n;
             frame.Tick = Tick;
             frame.Revision = Design.Revision;
+            frame.DayStartTick = _dayStartTick;
+            WriteTraffic(frame);
             SkierRender.Publish();
         }
+
+        /// <summary>LO-06: the rope travel a ride takes, as <see cref="ExitRun"/> counts it before rounding to an arrival.</summary>
+        long RideSpanMs(in LiftInput lift) =>
+            LiftKinds.Compressed(lift.Kind) ? lift.RideMs / Math.Max(1, Pacing.RideCompression) : lift.RideMs;
 
         // ================= commands (SI-03, GU-02, GU-15) =================
 
@@ -185,8 +215,7 @@ namespace MountainPlanner.Simulation
                 case SimCommandKind.InspectSkier:
                     // A view command: it changes nothing the state hash sees, which is what makes GU-02's promise true.
                     // −1 is "whoever is next": the worker picks, because only it knows which serials are on the hill.
-                    // The screen must not have to guess one — the render column carries serials cut to 16 bits for the
-                    // dots (GU-16), and after about 65,000 visits a guess from there names the wrong skier or nobody.
+                    // A click on a dot names its skier by the full serial the render column carries (since 4.13).
                     _inspectSerial = c.A < 0 ? NextSerialAfter(_inspectSerial) : (int)Math.Min(int.MaxValue, c.A);
                     _inspectPublishedAt = long.MinValue;
                     return true;
