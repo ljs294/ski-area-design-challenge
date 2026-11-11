@@ -273,6 +273,7 @@ namespace MountainPlanner.App
                 StartSectionShots(args);   // -sectionshots <folder> (MountainViewer.Sections.cs, task P3-10 B2)
                 StartBrushRuns(args);      // -brushtour <folder> [-brushmovie], -brushbench <out.json> (MountainViewer.Brush.cs, task P3-15)
                 StartGuestShots(args);     // -guestshot <folder> (MountainViewer.Guests.cs, task 4.12)
+                StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
                 StartCoroutine(RunRideArguments(args));   // -ride <lift> [-rideshots <folder> | -ridebench <out.json>] (task 4.11 PR B)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
@@ -364,6 +365,7 @@ namespace MountainPlanner.App
                 TickTools();   // the armed construction tool (MountainViewer.Tools.cs)
             }
             UpdateBuiltWork();   // built trails and lifts (MountainViewer.Built.cs)
+            UpdateSkierHover();  // the dot under the pointer, and a click on one (task 4.13)
             UpdateLiftHover();   // the lift under the pointer glows (task 09, LT23)
             UpdateTrailHover();  // and a trail lights and opens its card (task P3-10, sections finding 4)
             _resort?.States?.Sync();
@@ -397,7 +399,7 @@ namespace MountainPlanner.App
                 && (mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame)
                 && !PointerOverUi(mouse.position.ReadValue()))
                 Hud.ReleaseKeyboard();
-            if (keys == null) return;
+            if (keys == null || _scriptedRun) return;   // a scripted capture or benchmark ignores stray keys (task 4.13)
             bool letters = Camera == null || !Camera.LettersToTools;
             bool flowKeys = (FlowHasKeyboard?.Invoke() ?? false) || FlowTookEscapeFrame == Time.frameCount;
             if (keys.escapeKey.wasPressedThisFrame && !flowKeys)
@@ -410,6 +412,7 @@ namespace MountainPlanner.App
                 else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
                 else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
                 else if (_resort != null && ClearNetworkPick()) { }   // the Network view's pick and its card (task P3-10, NT11)
+                else if (Hud != null && _resort != null && Hud.CloseSkierCardIfOpen()) { }   // the skier card (task 4.13)
                 else if (Hud != null && _resort != null && Hud.CloseTrailCardIfOpen()) { }   // a trail's focus card (task 08)
                 else if (Hud != null && _resort != null && Hud.CloseLiftCardIfOpen()) { }    // a lift's focus card (task 09)
                 else if (_resort != null && EscapeTool()) { }   // the armed tool backs out a step (CF-07, P3-06)
@@ -569,6 +572,7 @@ namespace MountainPlanner.App
         void OnDestroy()
         {
             LogChairCost();
+            LogSkierTiming();
             _resort?.CacheLease?.Dispose();   // the next scene's viewer holds its own
             DisplayUnits.Changed -= OnUnitsChanged;
             ReleasePhoto();
@@ -577,6 +581,8 @@ namespace MountainPlanner.App
             if (ViewCamera.KeysBlocked == (Func<bool>)UiHasKeyboard) ViewCamera.KeysBlocked = null;
             ReleaseSettings();
             StopSimulation();
+            _skiers?.Dispose();
+            _skiers = null;
         }
 
         /// <summary>
@@ -596,6 +602,7 @@ namespace MountainPlanner.App
         void LateUpdate()
         {
             TickRide();     // a ride's seat moves the camera, from this frame's rope time (task 4.11 PR B)
+            TimedTickSkiers();   // every dot placed and drawn at the rope clock's tick (task 4.13)
             DrawChairs();   // after the camera has moved, for its LODs
             LogHeightReads();
             if (_contourLabels == null || _resort == null) return;

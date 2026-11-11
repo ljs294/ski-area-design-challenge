@@ -35,6 +35,7 @@ namespace MountainPlanner.App.Flow
         static readonly string[] SkipTitle =
         {
             "-notitle", "-package", "-site", "-screenshot", "-trailshots", "-trailbench", "-paintbench", "-paintmovie", "-paintcheck", "-designbench", "-benchmark", "-benchmark-views", "-pathmovie", "-lineup", "-lodtransitions", "-view", "-landmark", "-clip",
+            "-pickbench",   // task 4.13: a bench never waits on the title (it stalled there, 2026-11-09)
         };
 
         public static AppFlow Instance { get; private set; }
