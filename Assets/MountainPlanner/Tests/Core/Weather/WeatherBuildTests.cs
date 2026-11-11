@@ -28,10 +28,22 @@ namespace MountainPlanner.Tests
         [SetUp] public void SetUp() => _temp = Path.Combine(Path.GetTempPath(), "mp-weather-build-" + Guid.NewGuid().ToString("N"));
         [TearDown] public void TearDown() { if (Directory.Exists(_temp)) Directory.Delete(_temp, true); }
 
+        /// <summary>
+        /// The Jackson Hole 2 km test package, skipping the test where its heights are Git LFS pointers: CI fetches only the
+        /// small fixtures (repo-checks.yml), and the weather's site request is built from the heights.
+        /// </summary>
+        internal static string PackageWithHeights()
+        {
+            string from = TestData.Folder(WeatherFixtures.JacksonHole);
+            TestData.Bytes(from, "heights-core.grid");
+            TestData.Bytes(from, "heights-ring.grid");
+            return from;
+        }
+
         /// <summary>A copy of the Jackson Hole 2 km test package (format 1, no weather), the recording's own area.</summary>
         internal static string CopyPackage(string to)
         {
-            string from = TestData.Folder(WeatherFixtures.JacksonHole);
+            string from = PackageWithHeights();
             Directory.CreateDirectory(to);
             foreach (string f in Directory.GetFiles(from)) File.Copy(f, Path.Combine(to, Path.GetFileName(f)));
             return to;
@@ -60,7 +72,7 @@ namespace MountainPlanner.Tests
         [Test]
         public void TheSiteRequestComesFromThePackagesOwnHeights()
         {
-            string pkg = TestData.Folder(WeatherFixtures.JacksonHole);
+            string pkg = PackageWithHeights();
             var site = WeatherBuild.SiteFor(pkg, ResortPackage.ReadManifest(pkg), 2026);
             var recorded = WeatherSiteRequest.FromJson(File.ReadAllText(Path.Combine(TestData.Folder("weather/" + WeatherFixtures.JacksonHole), WeatherSiteRequest.FileName)));
             // The pixel means are sums of doubles, which Unity's Mono and .NET round apart in the last digits (1e-11 m); they
