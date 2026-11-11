@@ -345,6 +345,11 @@ echo     95 Get weather: a scratch library with Jackson Hole 2 km from before th
 echo        yet"; Get weather opens the download card (fetching, then calibrating, with Cancel), then a toast; Credits
 echo        lists Daymet and NASA POWER. Then the game reopens offline and the area plays as before, and the tool prints
 echo        the area's weather report.
+echo   4.05 weather PR B1: the weather in the game (rebuilds the game; close the Unity editor first)
+echo     94 Weather in game: your own Mount Katahdin save (copied; yours is untouched) plays the typical eastern
+echo        weather, every face hour, with a readout on the right: sky, base, mid and summit, each lifts top gust
+echo        against the gust that holds it. Skip days and watch storms; summit lifts go ON HOLD. Then Jackson Hole
+echo        2 km: typical western weather until its own arrives, which waits for next October 1.
 echo   Guests Engine v0.1 (4.13 guests on screen, PR B; rebuilds the game; close the Unity editor first)
 echo     98 The guest tests, then the game: every skier as a dot (green, blue, black, red) that skis the slope by its
 echo        ability, lines at the lifts as wide as the chair that grow as long as they need (round trees, through
@@ -479,6 +484,7 @@ if /i "%CHOICE%"=="89" goto simcore
 if /i "%CHOICE%"=="90" goto simsave
 if /i "%CHOICE%"=="91" goto liftops
 if /i "%CHOICE%"=="92" goto ridelift
+if /i "%CHOICE%"=="94" goto weatheringame
 if /i "%CHOICE%"=="95" goto getweather
 if /i "%CHOICE%"=="96" goto guests
 if /i "%CHOICE%"=="93" goto weatherreport
@@ -885,6 +891,57 @@ start "" /wait "%GAME%" -data "%WX95%" -offline
 echo.
 echo   5. The area's weather report:
 dotnet run --project "%~dp0tools\acquire" -- weather-info --package "%WX95PKG%" <nul
+pause
+goto menu
+
+:weatheringame
+rem 4.05 PR B1: the weather in the world (SimWorld.Weather), on a copy of the owner's own save and on the 2 km test area.
+chcp 65001 >nul
+set "WX94=%LOCALAPPDATA%\SkiAreaDesignChallenge-weather94"
+set "WX94KAT=27aeb2b792ce331f"
+set "WX94SRC=%LOCALAPPDATA%\SkiAreaDesignChallenge"
+call :buildplayer
+if not exist "%GAME%" goto done
+rem A fresh copy each run: your library and saves are never opened by this demo.
+if exist "%WX94%" rmdir /s /q "%WX94%"
+if not exist "%WX94SRC%\Resorts\%WX94KAT%\manifest.json" (echo   Mount Katahdin isn't in your library; part 1 is skipped. & goto weatheringame2)
+robocopy "%WX94SRC%\Resorts\%WX94KAT%" "%WX94%\Resorts\%WX94KAT%" /e /njh /njs /nfl /ndl >nul
+robocopy "%WX94SRC%\Saves\%WX94KAT%\save-002" "%WX94%\Saves\%WX94KAT%\save-002" /e /njh /njs /nfl /ndl >nul
+echo.
+echo   Part 1: Mount Katahdin, your save-002 (Nov 10, saved before the weather), offline so it keeps the typical weather.
+echo   1. On the title, Continue opens Mount Katahdin's save-002 (or Load Area, Mount Katahdin, then save-002 and Open).
+echo      The readout on the right says "Typical eastern weather: this area has no weather history yet", then the
+echo      winter, face hour, state and pattern; the sky; summit, mid and base (feet from your area's own heights, the
+echo      summit colder and windier); and each lift's top gust against the gust that holds it ("34/46 mph").
+echo   2. Your save is already in its season, so the clock moves a day at a time: press 4 (8x, a day in about two
+echo      minutes), and after each day closes, F1 ^> Skip to morning. The face hours run on; storms come with snow or
+echo      rain at each height, and clear. When a lift's top gust passes its limit it reads ON HOLD (its card says Wind
+echo      hold), and it opens again when the wind drops. The summit lifts hold far more often than Turtle Quad low down.
+echo   3. Save (Ctrl+S), quit and run this part again if you like: the save reloads to the same weather.
+echo   Quit the game when done.
+start "" /wait "%GAME%" -data "%WX94%" -offline -weatherreadout
+findstr /i /c:"[Weather]" /c:"[Simulation] restored" "%PLAYERLOG%"
+:weatheringame2
+set "WX94JH=%WX94%\Resorts\jackson-hole-2km-test"
+robocopy "%~dp0TestData\jackson-hole-2km" "%WX94JH%" /e /njh /njs /nfl /ndl >nul
+echo.
+echo   Part 2: Jackson Hole 2 km, from before the weather (its weather comes from the recording, no network needed).
+echo   4. The readout says "Typical western weather" with base and summit at this area's heights. Within a minute the
+echo      HUD's pill gets the area's own weather (Get weather on open); then the readout adds "its own weather plays
+echo      from next October 1": this winter keeps the weather it started with. F1 ^> Next month until October to see
+echo      "Jackson Hole's own weather" take over (optional).
+echo   Quit the game when done.
+pause
+start "" /wait "%GAME%" -data "%WX94%" -package "%WX94JH%" -weatherrecording "%~dp0TestData\weather\jackson-hole-2km" -weatherreadout
+findstr /i /c:"[Weather]" /c:"[AppFlow] Weather" "%PLAYERLOG%"
+echo.
+echo   Part 3: the wind-hold report: every site's weather for five winters at WindScale 1.00, 0.85 and 0.70, as
+echo   charts in your browser (about two minutes).
+choice /c YN /n /m "Build the report? Y or N "
+if errorlevel 2 goto menu
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~WeatherHoldReportTests" --logger "console;verbosity=normal" <nul | findstr /c:"held hours" /c:"Passed" /c:"Failed" /c:"error"
+node "%~dp0tools\weather-holds\report.mjs" "%~dp0test-results\weather-holds\data.json"
+start "" "%~dp0test-results\weather-holds\report.html"
 pause
 goto menu
 

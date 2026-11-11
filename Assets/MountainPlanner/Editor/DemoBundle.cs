@@ -114,11 +114,35 @@ namespace MountainPlanner.Editor
         }
 
         /// <summary>
+        /// Task 4.05 PR B1: the typical mountain's two frozen rows (West and East) into StreamingAssets/Weather, in every build,
+        /// demo or not: an area without its own weather plays them. Throws when they're LFS pointers (run git lfs pull), since
+        /// a build without them plays the flat stand-in hour everywhere.
+        /// </summary>
+        public static void AddTypicalWeather(string playerExe)
+        {
+            string folder = Path.Combine(StreamingAssetsOf(playerExe), App.TypicalWeather.FolderName);
+            Directory.CreateDirectory(folder);
+            foreach (bool east in new[] { false, true })
+            {
+                string from = App.TypicalWeather.RepoRows(east);
+                string to = Path.Combine(folder, east ? Domain.Weather.WeatherGeneric.EastFile : Domain.Weather.WeatherGeneric.WestFile);
+                try { WeatherRowsFile.FromBytes(File.ReadAllBytes(from)); }
+                catch (Exception e) when (e is IOException || e is InvalidDataException)
+                {
+                    throw new BuildFailedException($"The typical mountain's rows {from} don't read (an LFS pointer? run git lfs pull): {e.Message}");
+                }
+                File.Copy(from, to, true);
+            }
+            Debug.Log($"[DemoBundle] The typical mountain's weather rows → {folder}");
+        }
+
+        /// <summary>
         /// The build step: bundles the demo into <paramref name="playerExe"/>. Without a source package it warns and
         /// builds without one (owner, task P2-03): the game then falls back to the library's Jackson Hole.
         /// </summary>
         public static void AddTo(string playerExe, string[] args, string dataRoot, bool required = false)
         {
+            AddTypicalWeather(playerExe);
             string source = FindSource(args, dataRoot, out string why);
             // A release (task P2-10) without the demo would open testers on an empty title: it fails instead.
             if (source == null && required) throw new BuildFailedException($"A release build needs the demo. {why}");

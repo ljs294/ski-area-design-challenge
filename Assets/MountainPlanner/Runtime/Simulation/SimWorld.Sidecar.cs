@@ -23,8 +23,8 @@ namespace MountainPlanner.Simulation
         public int StageSnow(TileStagingRing ring, bool paused) =>
             Snow.Stage(ring, Tick, Pacing.StageTilesPerTick, Pacing.TileFlushTicks, paused);
 
-        // The field order below is the sidecar's (SimSidecar, v2: v1's fields, then the lift-operations block, task 4.11):
-        // append only through a version bump.
+        // The field order below is the sidecar's (SimSidecar, v2: v1's fields, then the lift-operations block, task 4.11;
+        // v4: the guests, task 4.12; v5: the weather, task 4.05): append only through a version bump.
 
         internal void WriteState(SidecarWriter o)
         {
@@ -59,6 +59,7 @@ namespace MountainPlanner.Simulation
             o.U16s(Snow.Cells);
             WriteLiftState(o);
             WriteGuestState(o);
+            WriteWeatherState(o);
         }
 
         internal void ReadState(SidecarReader r, SimSidecar.Header header)
@@ -125,6 +126,8 @@ namespace MountainPlanner.Simulation
                 ReadGuestState(r);
             }
             else ResetGuestsForOlderSave();
+            // v1–v4 → v5 (task 4.05): no weather block; SimSidecar.Read gives the weather the area has now.
+            if (header.SidecarVersion >= 5) ReadWeatherState(r);
         }
 
         /// <summary>

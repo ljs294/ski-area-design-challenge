@@ -216,7 +216,7 @@ namespace MountainPlanner.Tests
         public void SI08_AWorldWithoutSnowHashesAsBefore()
         {
             // The golden fold predates the snow field: a world that never had snow must not move it.
-            Assert.That(SeasonRunner.GoldenFold(P, 20), Is.EqualTo(SeasonRunner.GoldenFold(P, 20, 1)));
+            Assert.That(SeasonRunner.GoldenFold(P, 20, weather: SimWeatherTests.Golden()), Is.EqualTo(SeasonRunner.GoldenFold(P, 20, 1, weather: SimWeatherTests.Golden())));
             var w = new SimWorld(P, SeasonRunner.GoldenDesign(1, false), SimSite.None, 2026);
             Assert.That(w.Snow.Width, Is.Zero);
         }
@@ -406,47 +406,68 @@ namespace MountainPlanner.Tests
             Assert.That(w.Phase, Is.EqualTo(SeasonPhase.Season), "and it plays on");
         }
 
-        /// <summary>v4's world adds the guests (task 4.12): a crowd on the hill, their day, and the reputations.</summary>
-        static byte[] FixtureFour()
+        /// <summary>
+        /// v4 (task 4.12) still opens. Its bytes are untouched (made under Pacing v3); from v5 the reader turns its whole-mph
+        /// top-station gusts into tenths and starts the weather (task 4.05) from October 1 of its year.
+        /// </summary>
+        [Test]
+        public void TheVersionFourSidecarStillOpens()
         {
-            var w = Played(3 * Day + 9 * SimWorld.HourMs, out _);
+            byte[] fixture = File.ReadAllBytes(FixtureFile(4));
+            Assert.That(SimSidecar.VersionOf(fixture), Is.EqualTo(4));
+            var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
+            Assert.That(header.SidecarVersion, Is.EqualTo(4));
+            Assert.That(header.PacingVersion, Is.EqualTo(3), "the fixture was made with Pacing v3 and stays unedited");
+            Assert.That((w.Phase, w.SeasonDay), Is.EqualTo((SeasonPhase.Season, 4)));
+            Assert.That(w.LineOf(101), Is.GreaterThan(0));
+            Assert.That(w.HeldNow(202), Is.True);
+            Assert.That(w.Weather, Is.Null, "no weather given: the stand-in hour");
+            Assert.That(SimSidecar.VersionOf(w.SaveState()), Is.EqualTo(5), "it saves as v5");
+        }
+
+        /// <summary>v5's world adds the weather (task 4.05): the golden's rows, mid-season, with a gust override and a crowd.</summary>
+        static byte[] FixtureFive()
+        {
+            var w = new SimWorld(P, SeasonRunner.GoldenDesign(1, false), SimSite.None, 2026, weather: SimWeatherTests.Golden());
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetSnowpack, 0, Snowpack(1)));
+            SeasonRunner.Run(w, SeasonRunner.GoldenScript(P), 3 * Day + 9 * SimWorld.HourMs, null);
             w.ApplyNow(SimCommand.Of(SimCommandKind.FeedLine, 0, new LiftFeed(101, 120, 20)));
             w.ApplyNow(SimCommand.Of(SimCommandKind.SetGust, 60));
             w.ApplyNow(SimCommand.Of(SimCommandKind.SpawnSkiers, 0, new SkierSpawn(1, 40)));
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetWeather, 0, SimWeather.Own(SimWeatherTests.Frozen(WeatherFixtures.JacksonNh))));
             while (w.FaceMs < 3 * Day + 10 * SimWorld.HourMs) w.Step(1);
             return w.SaveState();
         }
 
         /// <summary>
-        /// The v4 layout is frozen. The fixture was made under Pacing v3 (task 4.12) and stays unedited; from Pacing v4
-        /// (task 4.13's confidence speed) a fresh play no longer reaches the same state, so the layout is proved by a round
-        /// trip instead: the fixture read and written again gives back its own bytes, all but the header's Pacing hash and
-        /// version and the closing state hash, which fold the Pacing table in (SI-22).
+        /// The v5 layout is frozen (0.3 §5): the fixture read and written again gives back its own bytes, all but the header's
+        /// Pacing hash and version and the closing state hash, which fold the Pacing table in (SI-22), so a later tuning
+        /// never needs the fixture re-made.
         /// </summary>
         [Test]
-        public void TheVersionFourSidecarIsFrozen()
+        public void TheVersionFiveSidecarIsFrozen()
         {
-            byte[] fixture = File.ReadAllBytes(FixtureFile(4));
+            byte[] fixture = File.ReadAllBytes(FixtureFile(5));
             var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
-            Assert.That(header.SidecarVersion, Is.EqualTo(4));
-            Assert.That(header.PacingVersion, Is.EqualTo(3), "the fixture was made with Pacing v3 and stays unedited");
+            Assert.That(header.SidecarVersion, Is.EqualTo(5));
             byte[] again = w.SaveState();
-            Assert.That(again.Length, Is.EqualTo(fixture.Length), "the sidecar v4 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
+            Assert.That(again.Length, Is.EqualTo(fixture.Length), "the sidecar v5 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
             for (int i = 0; i < 8; i++) Assert.That(again[i], Is.EqualTo(fixture[i]), "magic and version");
             for (int i = 20; i < fixture.Length - 8; i++)
-                if (again[i] != fixture[i]) Assert.Fail($"the sidecar v4 is frozen: byte {i} changed on a round trip (0.3 §5)");
-            Assert.That(header.PacingHash, Is.Not.EqualTo(P.ContentsHash), "Pacing v4 is a different table");
+                if (again[i] != fixture[i]) Assert.Fail($"the sidecar v5 is frozen: byte {i} changed on a round trip (0.3 §5)");
             Assert.That((w.Phase, w.SeasonDay), Is.EqualTo((SeasonPhase.Season, 4)));
-            Assert.That(w.LineOf(101), Is.GreaterThan(0));
             Assert.That(w.HeldNow(202), Is.True);
+            Assert.That(w.Weather, Is.Not.Null);
+            Assert.That(w.WeatherNext, Is.Not.Null, "the eastern rows wait for October 1");
+            Assert.That(w.WeatherKnown);
         }
 
-        [Test, Explicit("Regenerates the frozen v4 sidecar fixture")]
-        public void WriteTheVersionFourSidecarFixture()
+        [Test, Explicit("Regenerates the frozen v5 sidecar fixture")]
+        public void WriteTheVersionFiveSidecarFixture()
         {
-            string folder = Path.Combine(TestData.Folder("formats"), "v4-sim");
+            string folder = Path.Combine(TestData.Folder("formats"), "v5-sim");
             Directory.CreateDirectory(folder);
-            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), FixtureFour());
+            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), FixtureFive());
         }
     }
 }

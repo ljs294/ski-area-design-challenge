@@ -79,6 +79,12 @@ namespace MountainPlanner.App
         public ForestRenderer Forest;
         /// <summary>The snowpack's inputs (8 m cells over the ring), kept for terrain edits to rebuild the snow.</summary>
         public float[] SnowElevation, SnowCanopy;
+        /// <summary>
+        /// WX-35's base and summit (ft) from the downloaded heights over the core (10th and 95th percentiles, as the weather
+        /// build takes them), set with the snowpack before any terrain edit: the typical mountain's reference points (task
+        /// 4.05). 0 until then.
+        /// </summary>
+        public int WeatherBaseFeet, WeatherSummitFeet;
         public long CliffTriangles;
         /// <summary>Each cache tile's cliff shell, for terrain edits to trim where the ground moves.</summary>
         public readonly System.Collections.Generic.Dictionary<(int, int), CliffShells.Placed> Cliffs = new System.Collections.Generic.Dictionary<(int, int), CliffShells.Placed>();
@@ -266,6 +272,7 @@ namespace MountainPlanner.App
             resort.ContourLabels = labels;
             resort.SnowElevation = snowElevation;
             resort.SnowCanopy = snowCanopy;
+            (resort.WeatherBaseFeet, resort.WeatherSummitFeet) = CoreReferenceFeet(snowElevation, resort.States.Snow.Width, resort.Ring, resort.Core);
             resort.SnowpackSeconds = clock.Elapsed.TotalSeconds;
             load?.End(LoadStage.Snowpack);
             UnityEngine.Debug.Log($"[ResortOpener] snowpack in the snow-depth field at {resort.SnowpackSeconds:F2} s");
@@ -327,6 +334,26 @@ namespace MountainPlanner.App
             resort.ForestSeconds = clock.Elapsed.TotalSeconds;
             load?.End(LoadStage.Forest);
             UnityEngine.Debug.Log($"[ResortOpener] {instances.Length:N0} trees planted at {resort.ForestSeconds:F2} s ({renderer.DrawCount} indirect draws)");
+        }
+
+        /// <summary>WX-35's reference points from the 8 m elevations, over the cells whose centres are in the core.</summary>
+        static (int, int) CoreReferenceFeet(float[] elevation, int width, Rect ring, Rect core)
+        {
+            if (elevation == null || width <= 0) return (0, 0);
+            const float cell = SurfaceStates.CellMetres;
+            int depth = elevation.Length / width;
+            var inside = new List<float>();
+            for (int j = 0; j < depth; j++)
+            {
+                float z = ring.yMin + (j + 0.5f) * cell;
+                if (z < core.yMin || z > core.yMax) continue;
+                for (int i = 0; i < width; i++)
+                {
+                    float x = ring.xMin + (i + 0.5f) * cell;
+                    if (x >= core.xMin && x <= core.xMax) inside.Add(elevation[j * width + i]);
+                }
+            }
+            return MountainPlanner.Acquisition.Weather.WeatherFetch.ReferenceFeet(inside.ToArray());
         }
 
         /// <summary>

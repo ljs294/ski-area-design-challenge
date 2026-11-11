@@ -177,6 +177,17 @@ namespace MountainPlanner.Simulation
         /// <summary>GU-03, GU-13, GU-18: the crowd as the Guests tab shows it, and the selected skier's day (GU-02).</summary>
         public readonly GuestView Guests;
 
+        // Task 4.05: the weather. False until the first face hour with weather.
+        public bool WeatherKnown;
+        /// <summary>The typical mountain's rows (the area has no weather history yet), and new rows waiting for October 1.</summary>
+        public bool WeatherGeneric, WeatherWaiting;
+        /// <summary>WX-30: the last face hour at zref.</summary>
+        public Domain.Weather.WeatherHour WeatherHour;
+        /// <summary>WX-35: the reference points' samples.</summary>
+        public WeatherSample WeatherBase, WeatherMid, WeatherSummit;
+        /// <summary>LO-11, WX-39: each lift's gust at its top station this hour, 0.1 mph (the weather's, not SetGust's override).</summary>
+        public readonly int[] LiftGustTenths;
+
         public SimSnapshot(Pacing p)
         {
             Guests = new GuestView(p);
@@ -192,6 +203,7 @@ namespace MountainPlanner.Simulation
             IntervalMs = new int[p.MaxLifts];
             Seats = new byte[p.MaxLifts];
             LiftOpenSecond = new int[p.MaxLifts];
+            LiftGustTenths = new int[p.MaxLifts];
             TrailIds = new ulong[p.MaxTrails];
             TrailStatus = new LiftOpStatus[p.MaxTrails];
             LastDayReport = new DayReport(p.MaxLifts);
@@ -212,7 +224,7 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>SI-16's budget: the bytes this snapshot's arrays and fields take at their full size.</summary>
-        public int SizeBytes => 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + 1 + DayReport.SizeBytesPerLift)
+        public int SizeBytes => 256 + 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + 1 + 4 + DayReport.SizeBytesPerLift)
                                 + TrailIds.Length * (8 + 1 + 1) + Events.Length * 24
                                 + Guests.SizeBytes;
 

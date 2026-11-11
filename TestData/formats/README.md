@@ -107,6 +107,13 @@ reads: a version number, and a name for the greyed library row.
   Made again once, with the owner's OK (2026-11-08, PR B of task 4.11): LO-11 v2's calm ten minutes (Pacing
   `HoldResumeFaceMinutes` 10, `HoldRecheckFaceMinutes` 5) moved the header's Pacing hash and the held lift's state.
 
+- **`v5-sim/golden.sim`** is the golden world in `SimSidecar` v5 (task 4.05 PR B1, the weather): v4's fields, then
+  the weather block (the rows the world plays and the rows waiting for October 1, each with its generic flag, base and
+  summit and content hash; then the seed, label year and hour the generator reached). Here the Jackson Hole rows play,
+  a lift's gust is held at 60 mph and the eastern rows wait for October 1. `SimSaveTests` checks that the writer
+  reproduces it apart from the header's replay fields and the hash; `v4-sim` still opens and starts its weather from
+  October 1. Pacing v5 moved the header's hash.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

@@ -239,10 +239,11 @@ namespace MountainPlanner.Tests
         [Test]
         public void SI08_TheGoldenSeasonsHashesArePinned()
         {
-            ulong fold = SeasonRunner.GoldenFold(P, 2 * new LabelCalendar(P).YearFaceDays);
+            // Task 4.05: the golden plays weather (the western typical mountain's rows), so the hour's gusts are in it.
+            ulong fold = SeasonRunner.GoldenFold(P, 2 * new LabelCalendar(P).YearFaceDays, weather: SimWeatherTests.Golden());
             TestContext.Progress.WriteLine($"golden fold: 0x{fold:X16}");
             Assert.That(fold, Is.EqualTo(SeasonRunner.GoldenFoldValue), "a behaviour change to the simulation needs an approved re-pin");
-            Assert.That(SeasonRunner.GoldenFold(P, 2 * new LabelCalendar(P).YearFaceDays, maxStep: 1), Is.EqualTo(fold), "TM-03: one tick at a time");
+            Assert.That(SeasonRunner.GoldenFold(P, 2 * new LabelCalendar(P).YearFaceDays, maxStep: 1, weather: SimWeatherTests.Golden()), Is.EqualTo(fold), "TM-03: one tick at a time");
         }
 
         [Test, Category("Nightly"), Explicit("Ten label years: the nightly job (repo-checks.yml sim-nightly)")]
@@ -250,7 +251,8 @@ namespace MountainPlanner.Tests
         {
             int days = 10 * new LabelCalendar(P).YearFaceDays;
             var site = new SimSite(43.59, -110.83);
-            Assert.That(SeasonRunner.GoldenFold(P, days, maxStep: 1, site: site), Is.EqualTo(SeasonRunner.GoldenFold(P, days, site: site)));
+            var wx = SimWeatherTests.Golden();
+            Assert.That(SeasonRunner.GoldenFold(P, days, maxStep: 1, site: site, weather: wx), Is.EqualTo(SeasonRunner.GoldenFold(P, days, site: site, weather: wx)));
         }
 
         [Test]

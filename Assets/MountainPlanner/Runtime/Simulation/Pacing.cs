@@ -14,8 +14,9 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 4;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 5;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
                                         // 4: task 4.13's confidence speed (GU-10 v2)
+                                        // 5: task 4.05's weather (WX-17 v2, WX-28 v2, WX-29, WX-34 v2, WX-35, WX-36 v2, WX-39)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -97,6 +98,27 @@ namespace MountainPlanner.Simulation
         public readonly int HoldRecheckFaceMinutes;
         /// <summary>SI-16: the most trails a snapshot holds (their open state).</summary>
         public readonly int MaxTrails;
+
+        // ---- Weather (task 4.05; p4-04-weather-design §5, §6) ----
+
+        /// <summary>WX-17 v2, WX-28 v2: the gust factor by state (‰): in a storm, and otherwise.</summary>
+        public readonly int GustFactorStorm, GustFactorFair;
+        /// <summary>WX-24 v2: a storm burst's spread, lowest and highest (‰ of the slot's share).</summary>
+        public readonly int[] StormBurst;
+        /// <summary>WX-29: the cold pool's build per clear calm night hour and its cap (0.1 °F), and its depth (ft, WX-36 v2).</summary>
+        public readonly int PoolBuildPerHour, PoolMax, PoolDepthFeet;
+        /// <summary>WX-39: the free wind's scale (‰; POWER's smoothed wind runs low in mountains), tuned against how often a fixed-grip holds.</summary>
+        public readonly int WindScale;
+        /// <summary>WX-39: the wind's factor by exposure class (‰), sheltered valley first, exposed summit last (8 classes).</summary>
+        public readonly int[] WindExposure;
+        /// <summary>WX-35 v2: the orographic factor's most on a windward face, spillover just past a crest and the snow shadow (‰ change).</summary>
+        public readonly int OrographicWindward, OrographicSpillover, OrographicShadow;
+        /// <summary>WX-35 v2: how far past a crest the snow still falls as spillover (m).</summary>
+        public readonly int SpilloverReachMetres;
+        /// <summary>WX-34 v2 (owner Q8): the winter's liquid (‰) and temperature offset (0.1 °F): typical 1000 and 0, lean 750 and +30, big 1250 and −30. Scenario data and dev switches only.</summary>
+        public readonly int WinterLiquid, WinterTemp;
+        /// <summary>WX-34 v2: the forecast's skill (‰ of the wobble and pull toward normal): sharp 600, normal 1000, poor 1600 (PR C).</summary>
+        public readonly int ForecastSkill;
 
         // ---- Guests: the crowd (GU-03, GU-04, GU-18; task 4.12) ----
 
@@ -261,6 +283,23 @@ namespace MountainPlanner.Simulation
             HoldResumeFaceMinutes = Int(map, nameof(HoldResumeFaceMinutes), 1, 24 * 60);
             HoldRecheckFaceMinutes = Int(map, nameof(HoldRecheckFaceMinutes), 1, 60);
             if (60 % HoldRecheckFaceMinutes != 0) throw new FormatException("HoldRecheckFaceMinutes must divide the hour.");
+            GustFactorStorm = Int(map, nameof(GustFactorStorm), 1000, 3000);
+            GustFactorFair = Int(map, nameof(GustFactorFair), 1000, 3000);
+            StormBurst = Ints(map, nameof(StormBurst), 0, 5000);
+            if (StormBurst.Length != 2 || StormBurst[0] > StormBurst[1]) throw new FormatException("StormBurst needs two entries, lowest then highest.");
+            PoolBuildPerHour = Int(map, nameof(PoolBuildPerHour), 0, 100);
+            PoolMax = Int(map, nameof(PoolMax), 0, 300);
+            PoolDepthFeet = Int(map, nameof(PoolDepthFeet), 1, 5000);
+            WindScale = Int(map, nameof(WindScale), 0, 5000);
+            WindExposure = Ints(map, nameof(WindExposure), 0, 5000);
+            if (WindExposure.Length != 8) throw new FormatException("WindExposure needs eight entries, sheltered valley to exposed summit.");
+            OrographicWindward = Int(map, nameof(OrographicWindward), 0, 1000);
+            OrographicSpillover = Int(map, nameof(OrographicSpillover), 0, 1000);
+            OrographicShadow = Int(map, nameof(OrographicShadow), 0, 1000);
+            SpilloverReachMetres = Int(map, nameof(SpilloverReachMetres), 0, 10_000);
+            WinterLiquid = Int(map, nameof(WinterLiquid), 100, 5000);
+            WinterTemp = Int(map, nameof(WinterTemp), -200, 200);
+            ForecastSkill = Int(map, nameof(ForecastSkill), 0, 5000);
             MaxTrails = Int(map, nameof(MaxTrails), 1, 8192);
             SkierCap = Int(map, nameof(SkierCap), 0, 1 << 20);
             LocationDraw = Int(map, nameof(LocationDraw), 0, 1 << 20);
@@ -391,6 +430,21 @@ namespace MountainPlanner.Simulation
             E(nameof(HoldResumeMarginMph), "10"),
             E(nameof(HoldResumeFaceMinutes), "10"),   // 4.11 PR B's values; MaxLine retired by 4.12's line lists
             E(nameof(HoldRecheckFaceMinutes), "5"),
+            E(nameof(GustFactorStorm), "1600"),
+            E(nameof(GustFactorFair), "1300"),
+            E(nameof(StormBurst), "500, 1600"),
+            E(nameof(PoolBuildPerHour), "10"),
+            E(nameof(PoolMax), "80"),
+            E(nameof(PoolDepthFeet), "500"),
+            E(nameof(WindScale), "850"),
+            E(nameof(WindExposure), "400, 550, 700, 850, 1000, 1200, 1400, 1600"),
+            E(nameof(OrographicWindward), "400"),
+            E(nameof(OrographicSpillover), "100"),
+            E(nameof(OrographicShadow), "300"),
+            E(nameof(SpilloverReachMetres), "1000"),
+            E(nameof(WinterLiquid), "1000"),
+            E(nameof(WinterTemp), "0"),
+            E(nameof(ForecastSkill), "1000"),
             E(nameof(MaxTrails), "1024"),
             // GU-01…GU-18 (task 4.12). The crowd:
             E(nameof(SkierCap), "3000"),

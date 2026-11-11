@@ -273,6 +273,7 @@ namespace MountainPlanner.App
                 StartSectionShots(args);   // -sectionshots <folder> (MountainViewer.Sections.cs, task P3-10 B2)
                 StartBrushRuns(args);      // -brushtour <folder> [-brushmovie], -brushbench <out.json> (MountainViewer.Brush.cs, task P3-15)
                 StartGuestShots(args);     // -guestshot <folder> (MountainViewer.Guests.cs, task 4.12)
+                StartWeatherShots(args);   // -weathershots <folder> (MountainViewer.WeatherReadout.cs, task 4.05)
                 StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
                 StartCoroutine(RunRideArguments(args));   // -ride <lift> [-rideshots <folder> | -ridebench <out.json>] (task 4.11 PR B)
                 int clip = Array.IndexOf(args, "-clip");
@@ -739,6 +740,7 @@ namespace MountainPlanner.App
             if (_error == null && _resort == null && (CoverUp?.Invoke() ?? false)) return false;   // the flow's cover says it
             if (_error != null || _resort == null || _help) return true;
             if (_toast != null && Time.unscaledTime < _toastUntil) return true;
+            if (WeatherReadoutAlways && _sim != null) return true;   // task 4.05: -weatherreadout (a dev switch; it allocates)
             return Hud == null;
         }
 
@@ -763,6 +765,7 @@ namespace MountainPlanner.App
                 ? $"{_status}\n[{new string('#', (int)(_fraction * 30)).PadRight(30, '.')}] {_fraction * 100:F0}%"
                 : $"{_resort.Manifest.Site.Name} · {UnitFormat.SiteSize(_resort.Manifest.Site.SizeMetres, DisplayUnits.Current)} · {_status} · {_fps:F0} fps\n" +
                   $"{_resort.Manifest.Quality.OneLiner}\n{_resort.Manifest.Flora.OneLiner}";
+            DrawWeatherReadout();   // task 4.05: -weatherreadout, over the HUD or not
             if (_resort != null && !_help && Hud != null) return;   // the HUD carries the rest, landmark names included; F1 shows the developer panel
             if (_resort != null && _help)
             {

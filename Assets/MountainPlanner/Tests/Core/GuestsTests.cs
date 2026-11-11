@@ -401,7 +401,7 @@ namespace MountainPlanner.Tests
         }
 
         /// <summary>The pinned fold of a whole day on the fixture: every skier's record and the day's ledgers (SI-08).</summary>
-        const ulong GuestDayFold = 0xA299F99061B91E69UL;   // 4.13: GU-10 v3 steepness by ability (Guests Engine v0.1, owner OK 2026-11-09), over v2 0x9BFD6B2E0CF63F2D (Pacing v4), over 4.12 0xB9C422088A472FAE
+        const ulong GuestDayFold = 0x6FA654C4380BF133UL;   // 4.05 PR B1: Pacing v5 (WindScale 0.85) and every wind check a boundary (owner OK 2026-11-11), over 0xA299F99061B91E69; 4.13: GU-10 v3 steepness by ability (Guests Engine v0.1, owner OK 2026-11-09), over v2 0x9BFD6B2E0CF63F2D (Pacing v4), over 4.12 0xB9C422088A472FAE
 
         [Test]
         public void GU02_WatchingASkierChangesNothing()

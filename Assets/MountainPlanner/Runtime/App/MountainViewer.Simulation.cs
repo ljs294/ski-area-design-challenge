@@ -43,6 +43,10 @@ namespace MountainPlanner.App
         long _simTickSaved;
         bool _simMarkedChanged;
         long _simTilesShown;
+        /// <summary>Task 4.05: the weather the worker was given (the area's rows or the typical mountain's), and whether the
+        /// snowpack's reference points have followed it (the typical mountain's only).</summary>
+        SimWeather _simWeather;
+        bool _simWeatherPointsSent;
 
         /// <summary>How far the face clock runs ahead of the sun before the sun catches up (an eighth of a degree).</summary>
         const int SunPushSeconds = 30;
@@ -86,7 +90,10 @@ namespace MountainPlanner.App
             if (history != null) { _simSent = history.Current; NoteSkierDesign(design, history.Current.Document); }
             Hud?.ClearLive();
             var simSite = new SimSite(site.Latitude, site.Longitude);
-            var world = RestoredWorld(pacing, design, simSite) ?? new SimWorld(pacing, design, simSite, Math.Max(2, startYear));
+            _simWeather = TypicalWeather.For(_resort.Manifest, _resort.PackageFolder, _resort.WeatherBaseFeet, _resort.WeatherSummitFeet);
+            _simWeatherPointsSent = _simWeather == null || !_simWeather.Generic || _resort.WeatherBaseFeet > 0;
+            var world = RestoredWorld(pacing, design, simSite, _simWeather)
+                        ?? new SimWorld(pacing, design, simSite, Math.Max(2, startYear), weather: _simWeather);
             var mirror = _resort.States?.Snow;
             _simSnowSent = world.Snow.Set && mirror != null && world.Snow.Width == mirror.Width && world.Snow.Height == mirror.Height;
             _sim = new SimulationHost(world, new StopwatchTime());
@@ -111,13 +118,13 @@ namespace MountainPlanner.App
         /// SI-12 v2: the opened save's simulation, if it brought one that reads; else null (a new game starts). A sidecar that
         /// doesn't read is said once and the clock starts over; the design is never lost over it.
         /// </summary>
-        SimWorld RestoredWorld(Pacing pacing, SimDesign design, SimSite site)
+        SimWorld RestoredWorld(Pacing pacing, SimDesign design, SimSite site, SimWeather weather)
         {
             var saved = OpenDesign.Current?.LoadedSimulation;
             if (saved == null) return null;
             try
             {
-                var w = SimSidecar.Read(saved.Bytes, pacing, design, site, out var header);
+                var w = SimSidecar.Read(saved.Bytes, pacing, design, site, out var header, weather);
                 if (header.PacingHash != pacing.ContentsHash)
                     _simNotice = "This save's clock ran on another version's pacing; it carries on with this one's.";
                 Debug.Log($"[Simulation] restored the save's state: tick {w.Tick}, face day {w.FaceMs / SimWorld.DayMs}, {saved.Bytes.Length} bytes");
@@ -232,6 +239,26 @@ namespace MountainPlanner.App
 
         void SendSim(SimCommandKind kind, long a = 0) => _sim?.Send(kind, a);
 
+        /// <summary>
+        /// Task 4.05: Get weather finished for <paramref name="packageFolder"/>. If it's the open area, the worker gets its own
+        /// rows, which wait for the next October 1 (WX-32 v2: this winter keeps the weather it started with).
+        /// </summary>
+        internal void WeatherAdded(string packageFolder)
+        {
+            if (_sim == null || _resort?.PackageFolder == null || packageFolder == null) return;
+            if (!string.Equals(System.IO.Path.GetFullPath(_resort.PackageFolder).TrimEnd('\\', '/'),
+                               System.IO.Path.GetFullPath(packageFolder).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase)) return;
+            Persistence.PackageManifest m;
+            try { m = Persistence.ResortPackage.ReadManifest(packageFolder); }
+            catch (Exception e) when (e is System.IO.IOException || e is System.IO.InvalidDataException) { return; }
+            var w = TypicalWeather.For(m, packageFolder, _resort.WeatherBaseFeet, _resort.WeatherSummitFeet);
+            if (w == null || w.Generic) return;
+            _simWeather = w;
+            _simWeatherPointsSent = true;
+            _sim.Send(SimCommandKind.SetWeather, 0, w);
+            Debug.Log($"[Weather] the area's own weather rows go to the worker; they play from the next October 1");
+        }
+
         /// <summary>Once a frame: the newest snapshot moves the chairs, the HUD's clock, the sun (while it runs) and the toasts.</summary>
         void RunClock()
         {
@@ -255,6 +282,14 @@ namespace MountainPlanner.App
                 SendSnowpack(mirror.Cells, 0, 0, mirror.Width, mirror.Height);
             }
             if (_simNotice != null && Hud != null && _hudShown) { Hud.Toast(_simNotice); _simNotice = null; }
+            // Task 4.05: the typical mountain's base and summit follow from the snowpack's heights once they land (the same
+            // rows, so the worker moves its points at once and the weather itself is unchanged).
+            if (!_simWeatherPointsSent && _resort.WeatherBaseFeet > 0)
+            {
+                _simWeatherPointsSent = true;
+                _simWeather = _simWeather.WithPoints(_resort.WeatherBaseFeet, _resort.WeatherSummitFeet);
+                _sim.Send(SimCommandKind.SetWeather, 0, _simWeather);
+            }
             // SI-12 v2: time that has passed since the save is the player's progress, so the design asks to be saved (the bar's
             // symbol, leaving, the autosave), as an edit does.
             if (!_simMarkedChanged && s.Tick > _simTickSaved && _simSavesFor != null) { _simSavesFor.MarkChanged(); _simMarkedChanged = true; }
@@ -349,6 +384,7 @@ namespace MountainPlanner.App
                 _sim.Send(s.SeedPinned ? SimCommand.Of(SimCommandKind.UnpinSeasonSeed) : SimCommand.Of(SimCommandKind.PinSeasonSeed, unchecked((long)s.SeasonSeed)));
             y += note(y, 1,
                 $"{(s.Phase == SeasonPhase.PreSeason ? "Pre-season" : s.Phase == SeasonPhase.Season ? "Day " + s.SeasonDay : "Summer")} · {s.SeasonSeed:X16} · tick {s.TickMeanMicros} µs (p99 {s.TickP99Micros}) · {s.SustainedPermille / 10}% of speed · {s.OpenSecond / 3600}:{s.OpenSecond / 60 % 60:D2}–{s.StopSecond / 3600}:{s.StopSecond / 60 % 60:D2}{(s.HoursTrimmed ? " (daylight)" : "")}");
+            DrawWeatherRows(ref y, row, caption, note);
             DrawLiftOpsRows(ref y, row, x0, w, caption, button, note);
             DrawGuestRows(ref y, row, x0, w, caption, button, note);
         }
