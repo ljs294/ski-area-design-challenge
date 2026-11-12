@@ -14,9 +14,10 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 5;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 6;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
                                         // 4: task 4.13's confidence speed (GU-10 v2)
                                         // 5: task 4.05's weather (WX-17 v2, WX-28 v2, WX-29, WX-34 v2, WX-35, WX-36 v2, WX-39)
+                                        // 6: task 4.05 PR B2's weather over the map (WX-35, WX-39) and PR C's forecast (WX-05 v3, WX-41)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -119,6 +120,21 @@ namespace MountainPlanner.Simulation
         public readonly int WinterLiquid, WinterTemp;
         /// <summary>WX-34 v2: the forecast's skill (‰ of the wobble and pull toward normal): sharp 600, normal 1000, poor 1600 (PR C).</summary>
         public readonly int ForecastSkill;
+        /// <summary>WX-35 (PR B2): the hvf (ft) where each exposure class above 0 starts (7 rising values), and the 7×7 rise (ft) that moves a cell one class.</summary>
+        public readonly int[] ExposureHvfFeet;
+        public readonly int ExposureRiseFeet;
+        /// <summary>WX-35 v2 (PR B2): the climb (ft) that earns the whole windward factor, and the barrier (ft) that casts the whole shadow.</summary>
+        public readonly int OrographicClimbFeet, OrographicBarrierFeet;
+        /// <summary>WX-39 (PR B2): a valley this deep (ft) turns the wind fully along it, below this hvf (ft) it turns at all; a rise's speed-up (‰ at 300 ft); the lee's factor (‰) behind ground this much (ft) higher upwind.</summary>
+        public readonly int SteerValleyFeet, SteerShelterFeet, SteerHillSpeed, SteerCrestLee, SteerLeeFeet;
+        /// <summary>WX-05 v3 (PR C): the forecast's lean on the truth (‰) a day out and at a week.</summary>
+        public readonly int ForecastLeanDay1, ForecastLeanDay7;
+        /// <summary>WX-05 v3 (PR C): the shown temperature's half-range (0.1 °F) a day out and at a week; the precipitation's (‰) the evening before, at 3 days and at a week; a true storm's chance of precipitation (‰) at the same leads.</summary>
+        public readonly int[] ForecastTempTenths, ForecastPrecipPermille, ForecastChancePermille;
+        /// <summary>WX-05 v3 (PR C): the share of storms whose size busts (‰), and phantom storms as a share of the third's storm rate (‰).</summary>
+        public readonly int ForecastBustPermille, ForecastPhantomPermille;
+        /// <summary>WX-41 (PR C): the summit gust (mph) that makes a wind event.</summary>
+        public readonly int WindEventGust;
 
         // ---- Guests: the crowd (GU-03, GU-04, GU-18; task 4.12) ----
 
@@ -300,6 +316,27 @@ namespace MountainPlanner.Simulation
             WinterLiquid = Int(map, nameof(WinterLiquid), 100, 5000);
             WinterTemp = Int(map, nameof(WinterTemp), -200, 200);
             ForecastSkill = Int(map, nameof(ForecastSkill), 0, 5000);
+            ExposureHvfFeet = Ints(map, nameof(ExposureHvfFeet), 0, 10_000);
+            if (ExposureHvfFeet.Length != 7) throw new FormatException("ExposureHvfFeet needs seven rising entries, one per class above the first.");
+            ExposureRiseFeet = Int(map, nameof(ExposureRiseFeet), 1, 1000);
+            OrographicClimbFeet = Int(map, nameof(OrographicClimbFeet), 1, 20_000);
+            OrographicBarrierFeet = Int(map, nameof(OrographicBarrierFeet), 1, 20_000);
+            SteerValleyFeet = Int(map, nameof(SteerValleyFeet), 1, 10_000);
+            SteerShelterFeet = Int(map, nameof(SteerShelterFeet), 1, 10_000);
+            SteerHillSpeed = Int(map, nameof(SteerHillSpeed), 0, 1000);
+            SteerCrestLee = Int(map, nameof(SteerCrestLee), 100, 1000);
+            SteerLeeFeet = Int(map, nameof(SteerLeeFeet), 1, 10_000);
+            ForecastLeanDay1 = Int(map, nameof(ForecastLeanDay1), 0, 1000);
+            ForecastLeanDay7 = Int(map, nameof(ForecastLeanDay7), 0, 1000);
+            ForecastTempTenths = Ints(map, nameof(ForecastTempTenths), 0, 500);
+            if (ForecastTempTenths.Length != 2) throw new FormatException("ForecastTempTenths needs two entries: a day out, then a week.");
+            ForecastPrecipPermille = Ints(map, nameof(ForecastPrecipPermille), 0, 1000);
+            if (ForecastPrecipPermille.Length != 3) throw new FormatException("ForecastPrecipPermille needs three entries: the evening before, 3 days, a week.");
+            ForecastChancePermille = Ints(map, nameof(ForecastChancePermille), 0, 1000);
+            if (ForecastChancePermille.Length != 3) throw new FormatException("ForecastChancePermille needs three entries: the evening before, 3 days, a week.");
+            ForecastBustPermille = Int(map, nameof(ForecastBustPermille), 0, 1000);
+            ForecastPhantomPermille = Int(map, nameof(ForecastPhantomPermille), 0, 1000);
+            WindEventGust = Int(map, nameof(WindEventGust), 1, 500);
             MaxTrails = Int(map, nameof(MaxTrails), 1, 8192);
             SkierCap = Int(map, nameof(SkierCap), 0, 1 << 20);
             LocationDraw = Int(map, nameof(LocationDraw), 0, 1 << 20);
@@ -445,6 +482,23 @@ namespace MountainPlanner.Simulation
             E(nameof(WinterLiquid), "1000"),
             E(nameof(WinterTemp), "0"),
             E(nameof(ForecastSkill), "1000"),
+            E(nameof(ExposureHvfFeet), "50, 150, 300, 500, 800, 1200, 1800"),
+            E(nameof(ExposureRiseFeet), "8"),
+            E(nameof(OrographicClimbFeet), "2000"),
+            E(nameof(OrographicBarrierFeet), "2000"),
+            E(nameof(SteerValleyFeet), "300"),
+            E(nameof(SteerShelterFeet), "1000"),
+            E(nameof(SteerHillSpeed), "250"),
+            E(nameof(SteerCrestLee), "700"),
+            E(nameof(SteerLeeFeet), "150"),
+            E(nameof(ForecastLeanDay1), "950"),
+            E(nameof(ForecastLeanDay7), "650"),
+            E(nameof(ForecastTempTenths), "20, 40"),
+            E(nameof(ForecastPrecipPermille), "200, 400, 600"),
+            E(nameof(ForecastChancePermille), "950, 900, 800"),
+            E(nameof(ForecastBustPermille), "50"),
+            E(nameof(ForecastPhantomPermille), "100"),
+            E(nameof(WindEventGust), "45"),
             E(nameof(MaxTrails), "1024"),
             // GU-01…GU-18 (task 4.12). The crowd:
             E(nameof(SkierCap), "3000"),

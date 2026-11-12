@@ -121,6 +121,8 @@ namespace MountainPlanner.Simulation
         /// <summary>The speed, 1–4 (1×, 2×, 4×, 8×), and the ticks per real tick it asks for.</summary>
         public int Speed, TicksPerRealTick;
         public bool Paused;
+        /// <summary>The host is held (the weather's inputs are being built): nothing steps until it's released.</summary>
+        public bool Held;
         /// <summary>SI-11: the rate the machine sustains, in thousandths of the one asked for.</summary>
         public int SustainedPermille;
         public SkipKind Skip;
@@ -187,6 +189,11 @@ namespace MountainPlanner.Simulation
         public WeatherSample WeatherBase, WeatherMid, WeatherSummit;
         /// <summary>LO-11, WX-39: each lift's gust at its top station this hour, 0.1 mph (the weather's, not SetGust's override).</summary>
         public readonly int[] LiftGustTenths;
+        /// <summary>
+        /// WX-02 v2 (PR B2): the last face hour's tables over the map, read with <see cref="WeatherFields.At(int, out WeatherCell)"/>.
+        /// Copied only when the hour moves, so it sits beside SI-16's per-tick budget, not in it.
+        /// </summary>
+        public readonly WeatherFields WeatherFields = new WeatherFields();
 
         public SimSnapshot(Pacing p)
         {

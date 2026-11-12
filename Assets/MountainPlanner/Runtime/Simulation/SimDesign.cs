@@ -104,7 +104,7 @@ namespace MountainPlanner.Simulation
             int bottomLevelCm = l.Levels.HasValue ? l.Levels.Value.BottomMm / 10 : 0;
             int topFeet = l.Levels.HasValue ? (int)Math.Round(l.Levels.Value.TopMetres / 0.3048) : 0;
             return new LiftInput(l.Id.Value, l.Stage == WorkStage.Built, l.Schedule, l.Hours, kind, seats, intervalMs, rideMs,
-                                 topNode, bottomNode, walkInMs, bottomLevelCm, topFeet);
+                                 topNode, bottomNode, walkInMs, bottomLevelCm, topFeet, (l.Top.X, l.Top.Y));
         }
 
         /// <summary>
@@ -168,10 +168,14 @@ namespace MountainPlanner.Simulation
         public readonly int BottomLevelCm;
         /// <summary>WX-39 (task 4.05): the top station's height, ft, where the weather samples the lift's gust (0: unknown, the summit).</summary>
         public readonly int TopFeet;
+        /// <summary>WX-39 (PR B2): the top station's position in the design's frame (mm from the site's centre), where its gust is the map's; <see cref="HasTop"/> false: unknown.</summary>
+        public readonly int TopXMm, TopYMm;
+        public readonly bool HasTop;
 
         public LiftInput(ulong id, bool built, LiftSchedule schedule = LiftSchedule.Daily, DayHours? hours = null,
                          LiftKind kind = LiftKind.FixedGripChair, int seats = 4, int intervalMs = 6000, int rideMs = 360_000,
-                         int topNode = -1, int bottomNode = -1, int walkInMs = 0, int bottomLevelCm = 0, int topFeet = 0)
+                         int topNode = -1, int bottomNode = -1, int walkInMs = 0, int bottomLevelCm = 0, int topFeet = 0,
+                         (int X, int Y)? topMm = null)
         {
             if (seats < 1 || seats > 255) throw new ArgumentOutOfRangeException(nameof(seats));
             if (intervalMs < 1) throw new ArgumentOutOfRangeException(nameof(intervalMs));
@@ -190,6 +194,9 @@ namespace MountainPlanner.Simulation
             WalkInMs = walkInMs < 0 ? 0 : walkInMs;
             BottomLevelCm = bottomLevelCm;
             TopFeet = topFeet < 0 ? 0 : topFeet;
+            HasTop = topMm.HasValue;
+            TopXMm = topMm?.X ?? 0;
+            TopYMm = topMm?.Y ?? 0;
         }
 
         /// <summary>LO-03: rated capacity, people an hour, at 1x.</summary>

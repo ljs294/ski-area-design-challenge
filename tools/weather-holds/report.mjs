@@ -1,7 +1,9 @@
 // Task 4.05 PR B1: the wind-hold report (demo 94). Reads test-results/weather-holds/data.json, which
 // WeatherHoldReportTests writes, and writes report.html beside it: held hours a season at the summit for every site
-// and WindScale, the days with a hold, and the summit's gust spread. Usage: node tools/weather-holds/report.mjs [data.json]
-import { readFileSync, writeFileSync } from "node:fs";
+// and WindScale, the days with a hold, and the summit's gust spread. PR B2: when steered.json is beside it (the drawn
+// resort on Jackson Hole 5 km, MP_JH5_PACKAGE), a section compares B1's height rule with each lift's own steered cell.
+// Usage: node tools/weather-holds/report.mjs [data.json]
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const dataPath = resolve(process.argv[2] ?? "test-results/weather-holds/data.json");
@@ -86,6 +88,52 @@ function gusts() {
   return `<figure><figcaption><b>How hard the summit blows when the lifts run</b><span>Each site's top-station gust in open face hours, WindScale 1.00, in 5 mph bins (mph along the bottom). The lines are the gusts that hold a detachable quad (DQ) and a fixed-grip quad (FG).</span></figcaption><div class="grid7">${cells.join("")}</div></figure>`;
 }
 
+// ---- PR B2: the drawn resort's six lifts, B1's height rule against each top station's steered cell ----
+const steeredPath = join(dirname(dataPath), "steered.json");
+const steered = existsSync(steeredPath) ? JSON.parse(readFileSync(steeredPath, "utf8")) : null;
+const classWords = ["deep valley", "valley", "low slope", "slope", "open slope", "upper slope", "ridge", "summit"];
+
+function steeredBars(scale) {
+  const sc = steered.scales.find((x) => x.windScale === scale);
+  const lifts = steered.lifts;
+  const rowH = 44, barH = 14, gap = 3, left = 170, right = 40, top = 10, width = 640, plotW = width - left - right;
+  const max = Math.max(1, ...steered.scales.flatMap((x) => [...x.heightRule, ...x.steered]));
+  const niceMax = Math.ceil(max / 10) * 10;
+  const x = (v) => left + (v / niceMax) * plotW;
+  const h = top + lifts.length * rowH + 30;
+  let svg = `<svg viewBox="0 0 ${width} ${h}" role="img" aria-label="Held hours by lift at WindScale ${(scale / 1000).toFixed(2)}">`;
+  for (let t = 0; t <= niceMax; t += niceMax / 5) {
+    svg += `<line x1="${x(t)}" x2="${x(t)}" y1="${top}" y2="${h - 26}" class="grid"/>`;
+    svg += `<text x="${x(t)}" y="${h - 10}" class="tick" text-anchor="middle">${fmt(t)}</text>`;
+  }
+  lifts.forEach((l, i) => {
+    const y0 = top + i * rowH + 4;
+    svg += `<text x="${left - 10}" y="${y0 + 13}" class="label" text-anchor="end">${esc(l.name)}</text>`;
+    svg += `<text x="${left - 10}" y="${y0 + 29}" class="tick" text-anchor="end">${fmt(l.topFeet)} ft · ${esc(classWords[l.exposure] ?? "?")}</text>`;
+    [["heightRule", "B1's height rule", 1], ["steered", "its own steered cell", 2]].forEach(([key, word, k], j) => {
+      const v = sc[key][i], y = y0 + j * (barH + gap), w = Math.max(0, x(v) - left);
+      const tip = `${l.name} (holds at ${l.limitMph} mph), WindScale ${(scale / 1000).toFixed(2)}, ${word}: ${fmt(v, 1)} held face hours a season`;
+      svg += `<g class="hit"><title>${esc(tip)}</title><rect x="${left}" y="${y - 1}" width="${plotW}" height="${barH + 2}" fill="transparent"/>`;
+      if (w > 0) svg += `<path d="M${left},${y} h${Math.max(0, w - 4)} a4,4 0 0 1 4,4 v${barH - 8} a4,4 0 0 1 -4,4 h-${Math.max(0, w - 4)} z" class="s${k}"/>`;
+      svg += `<text x="${x(v) + 6}" y="${y + barH - 3}" class="value">${fmt(v, v < 10 ? 1 : 0)}</text></g>`;
+    });
+  });
+  svg += `<line x1="${left}" x2="${left}" y1="${top}" y2="${h - 26}" class="axis"/></svg>`;
+  return `<figure><figcaption><b>WindScale ${(scale / 1000).toFixed(2)}${scale === 850 ? " (today)" : ""}</b><span>Held face hours a season, December to March, mean of ${steered.years} winters</span></figcaption>${svg}</figure>`;
+}
+
+function steeredSection() {
+  if (!steered) return "";
+  const sum = (key, scale) => steered.scales.find((x) => x.windScale === scale)[key].reduce((a, b) => a + b, 0);
+  const rows = steered.lifts.map((l, i) => `<tr><th>${esc(l.name)}</th><td>${esc(l.kind === "DetachableChair" ? "detachable" : "fixed grip")}, holds at ${l.limitMph} mph</td><td>${fmt(l.topFeet)} ft</td><td>${fmt(l.hvfFeet)} ft</td><td>${l.exposure} (${esc(classWords[l.exposure] ?? "?")})</td>` +
+    steered.scales.map((sc) => `<td>${fmt(sc.heightRule[i], 1)} → ${fmt(sc.steered[i], 1)}</td>`).join("") + `</tr>`).join("");
+  return `<h2 style="font-size:20px;margin-top:40px">PR B2: the same weather, each lift on its own ground</h2>
+<p>The drawn resort's six lifts on Jackson Hole 5 km (Jackson Hole's frozen rows, ${steered.years} winters). <b>B1's height rule</b> gives a top station the exposure of its height between the area's base (${fmt(steered.baseFeet)} ft) and summit (${fmt(steered.summitFeet)} ft). <b>Its own steered cell</b> is PR B2's: the 8 m cell's exposure class (from its height above the valley floor and the rise around it) × the steered speed for the hour's wind (faster over a crest, × 0.7 behind higher ground upwind). In total the holds barely change (${fmt(sum("heightRule", 850), 1)} → ${fmt(sum("steered", 850), 1)} held hours a season at 0.85), but they move to the lifts whose tops stand in the wind.</p>
+<div class="legend"><span class="key"><i class="s1"></i>B1's height rule</span><span class="key"><i class="s2"></i>Its own steered cell (PR B2)</span></div>
+<div class="two">${steeredBars(1000)}${steeredBars(850)}</div>
+<details><summary>The numbers (held face hours a season: height rule → steered)</summary><table><thead><tr><th>Lift</th><th>Kind</th><th>Top</th><th>Above the valley floor</th><th>Exposure class</th>${steered.scales.map((sc) => `<th>WindScale ${(sc.windScale / 1000).toFixed(2)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></details>`;
+}
+
 function table() {
   let rows = "";
   for (const st of sites) {
@@ -101,7 +149,7 @@ function table() {
   return `<details><summary>The numbers (means of ${data.years} winters: held face hours · days with a hold)</summary><table><thead><tr><th>Site</th><th>Base–summit</th><th>Open hours</th>${head}</tr><tr><th></th><th></th><th></th>${sub}</tr></thead><tbody>${rows}</tbody></table></details>`;
 }
 
-const legend = scales.map((sc, k) => `<span class="key"><i class="s${k + 1}"></i>WindScale ${(sc / 1000).toFixed(2)}${k === 0 ? " (today)" : ""}</span>`).join("");
+const legend = scales.map((sc, k) => `<span class="key"><i class="s${k + 1}"></i>WindScale ${(sc / 1000).toFixed(2)}${sc === 850 ? " (today)" : ""}</span>`).join("");
 const baseHeld = scales.map((sc) => sites.reduce((a, st) => a + stats(sc, st, 0).mean, 0));
 const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>4.05 B1 · wind holds by site</title>
 <style>
@@ -129,6 +177,7 @@ ul{color:var(--text-secondary)}li{margin:4px 0}
 <div class="two">${bars("Summit fixed-grip quad: days", "Days a season with any hold", 1, "days", "days")}${bars("Summit detachable quad: days", "Days a season with any hold", 2, "days", "days")}</div>
 ${gusts()}
 ${table()}
+${steeredSection()}
 <h2 style="font-size:17px">What this run can't say</h2>
 <ul>
 <li>B1's exposure is one rule at every site: the sheltered class at the base height, the exposed class (×1.6) at the summit height, in steps between. A lift's real exposure (a ridge, a lee bowl, trees) comes with B-fields' per-cell exposure, so a site whose summit is barely above its base (Snow Ridge, ${fmt(at(scales[0], "snow-ridge-2km").summitFeet - at(scales[0], "snow-ridge-2km").baseFeet)} ft) still gets the full summit exposure here.</li>

@@ -25,6 +25,13 @@ namespace MountainPlanner.Simulation
         CancelSkip = 8,
         /// <summary>SI-12 v2: the state for a save, at the tick boundary. Payload = a <see cref="SimStateRequest"/>.</summary>
         SaveState = 9,
+        /// <summary>
+        /// Task 4.05 PR B2: the host runs no tick and no skip while held, whatever the pause, the speed or a skip asked for
+        /// (the area's weather inputs are still being built: an hour stepped without them would differ from the game that
+        /// saved). Pause, speed and a requested skip are kept as they are and take effect at <see cref="Release"/>.
+        /// </summary>
+        Hold = 10,
+        Release = 11,
         // ---- the world's (stamped and logged) ----
         /// <summary>TM-11 v2: A = 1 Open, 0 Closed.</summary>
         SetMountainOpen = 20,
@@ -45,6 +52,8 @@ namespace MountainPlanner.Simulation
         SpawnSkiers = 28,
         /// <summary>Task 4.05: Payload = a <see cref="SimWeather"/>, the area's weather (new rows wait for October 1, WX-32 v2).</summary>
         SetWeather = 29,
+        /// <summary>Task 4.05 PR B2: Payload = a <see cref="Domain.Weather.WeatherTerrain"/>, the area's static inputs (WX-35), applied at once.</summary>
+        SetWeatherTerrain = 30,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>
@@ -58,7 +67,7 @@ namespace MountainPlanner.Simulation
         public long Tick;
         public long Seq;
 
-        public bool IsHosts => Kind >= SimCommandKind.SetSpeed && Kind <= SimCommandKind.SaveState;
+        public bool IsHosts => Kind >= SimCommandKind.SetSpeed && Kind <= SimCommandKind.Release;
 
         public static SimCommand Of(SimCommandKind kind, long a = 0, object payload = null, long issuedAgainstTick = -1) =>
             new SimCommand { Kind = kind, A = a, Payload = payload, IssuedAgainstTick = issuedAgainstTick };

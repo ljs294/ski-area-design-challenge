@@ -54,6 +54,7 @@ namespace MountainPlanner.App
             Sample(t, "Mid", s.WeatherMid);
             Sample(t, "Base", s.WeatherBase);
             LiftGusts(t, s);
+            CursorWeather(t, s);
             return _wxShown = t.ToString();
         }
 
@@ -94,6 +95,41 @@ namespace MountainPlanner.App
                 else if (limit > 0 && s.LiftGustTenths[i] >= limit * 10 && s.LiftStatus[i] == LiftOpStatus.Open) t.Append(" (gusting past its limit; its own wind check decides)");
             }
             if (!any) t.Append("\nTop gusts: no lift built yet");
+        }
+
+        static readonly string[] ExposureWords = { "deep valley", "valley", "low slope", "slope", "open slope", "upper slope", "ridge", "summit" };
+
+        /// <summary>
+        /// PR B2: the weather of the 8 m cell under the pointer, from the snapshot's tables (WX-02 v2): what 4.07's snow, 4.16's
+        /// guns and 4.06's layers will read there.
+        /// </summary>
+        void CursorWeather(StringBuilder t, SimSnapshot s)
+        {
+            var fields = s.WeatherFields;
+            var terrain = fields.Terrain;
+            if (terrain == null || fields.Hour < 0)
+            {
+                t.Append(_resort?.WeatherTerrain == null ? "\nAt the cursor: the weather's map inputs are still building" : "\nAt the cursor: waiting for the first face hour");
+                return;
+            }
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
+            if (mouse == null || cam == null) return;
+            var ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+            float hit = Camera.GroundAlong(ray, 30000);
+            if (float.IsNaN(hit)) { t.Append("\nAt the cursor: off the map"); return; }
+            var g = ray.GetPoint(hit);
+            int cell = terrain.CellAt((long)Math.Round(g.x * 1000.0), (long)Math.Round(g.z * 1000.0));
+            fields.At(cell, out var c);
+            if (!c.Known) { t.Append("\nAt the cursor: no heights here"); return; }
+            t.Append($"\nAt the cursor: {c.Feet:N0} ft, {c.HvfFeet:N0} ft above the valley floor, {ExposureWords[c.Exposure]} (class {c.Exposure})");
+            t.Append($"\n  {c.Temp / 10.0:F1} °F, wet bulb {c.WetBulb / 10.0:F1} °F, RH {c.Rh / 10}%");
+            if (c.FreezingRain && c.Liquid > 0) t.Append($" · FREEZING RAIN {c.Liquid / 100.0:F2} in/h");
+            else if (c.Liquid > 0)
+                t.Append(c.SnowPermille >= 999 ? $" · snowing {c.SnowTenthsIn / 10.0:F1} in/h"
+                         : c.SnowPermille <= 1 ? $" · raining {c.Liquid / 100.0:F2} in/h"
+                         : $" · mixed {c.SnowPermille / 10}% snow, {c.SnowTenthsIn / 10.0:F1} in/h");
+            t.Append($" · wind {c.Wind / 10} mph from {c.Direction}°, gusts {c.Gust / 10} mph · sun {c.Shortwave} W/m²");
         }
 
         /// <summary>The F1 panel's Weather rows.</summary>

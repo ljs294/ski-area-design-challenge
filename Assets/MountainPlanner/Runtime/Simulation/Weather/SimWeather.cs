@@ -41,8 +41,14 @@ namespace MountainPlanner.Simulation
             new WeatherTuning(p.SeasonCalendarDays, p.SeasonDays, p.GustFactorStorm, p.GustFactorFair, p.StormBurst[0], p.StormBurst[1],
                               p.PoolBuildPerHour, p.PoolMax, p.WinterLiquid, p.WinterTemp, p.WindScale);
 
+        /// <summary>WX-35 and WX-39's static-input tuning (PR B2), from the pacing table.</summary>
+        public static WeatherTerrainTuning TerrainTuning(Pacing p) =>
+            new WeatherTerrainTuning(p.ExposureHvfFeet, p.ExposureRiseFeet, p.OrographicWindward, p.OrographicSpillover, p.OrographicShadow,
+                                     p.SpilloverReachMetres, p.OrographicClimbFeet, p.OrographicBarrierFeet, p.SteerValleyFeet,
+                                     p.SteerShelterFeet, p.SteerHillSpeed, p.SteerCrestLee, p.SteerLeeFeet);
+
         /// <summary>
-        /// WX-39 (B1's form, before the steering grid of B-fields): a point's exposure factor (‰), from its height between the
+        /// WX-39 (B1's form, for a world without static inputs: golden runs, tests): a point's exposure factor (‰), from its height between the
         /// base and the summit: the sheltered valley class at the base and below, the exposed summit class at the summit and
         /// above, the classes between in steps.
         /// </summary>

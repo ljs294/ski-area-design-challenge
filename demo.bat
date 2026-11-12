@@ -345,11 +345,12 @@ echo     95 Get weather: a scratch library with Jackson Hole 2 km from before th
 echo        yet"; Get weather opens the download card (fetching, then calibrating, with Cancel), then a toast; Credits
 echo        lists Daymet and NASA POWER. Then the game reopens offline and the area plays as before, and the tool prints
 echo        the area's weather report.
-echo   4.05 weather PR B1: the weather in the game (rebuilds the game; close the Unity editor first)
+echo   4.05 weather PR B1 and B2: the weather in the game and over the map (rebuilds the game; close the Unity editor first)
 echo     94 Weather in game: your own Mount Katahdin save (copied; yours is untouched) plays the typical eastern
 echo        weather, every face hour, with a readout on the right: sky, base, mid and summit, each lifts top gust
-echo        against the gust that holds it. Skip days and watch storms; summit lifts go ON HOLD. Then Jackson Hole
-echo        2 km: typical western weather until its own arrives, which waits for next October 1.
+echo        against the gust that holds it, and (B2) the weather of the 8 m cell under your mouse. Skip days and watch
+echo        storms; exposed lifts go ON HOLD. Then Jackson Hole 2 km, then the wind-hold report with your Jackson Hole
+echo        5 km and the drawn resort's six lifts on their own ground.
 echo   Guests Engine v0.1 (4.13 guests on screen, PR B; rebuilds the game; close the Unity editor first)
 echo     98 The guest tests, then the game: every skier as a dot (green, blue, black, red) that skis the slope by its
 echo        ability, lines at the lifts as wide as the chair that grow as long as they need (round trees, through
@@ -920,7 +921,15 @@ echo   2. Your save is already in its season, so the clock moves a day at a time
 echo      minutes), and after each day closes, F1 ^> Skip to morning. The face hours run on; storms come with snow or
 echo      rain at each height, and clear. When a lift's top gust passes its limit it reads ON HOLD (its card says Wind
 echo      hold), and it opens again when the wind drops. The summit lifts hold far more often than Turtle Quad low down.
-echo   3. Save (Ctrl+S), quit and run this part again if you like: the save reloads to the same weather.
+echo   3. New in round 2 (PR B2): the readout's last lines, "At the cursor", are the weather of the 8 m cell under your
+echo      mouse: its height, how far it sits above the valley floor, its exposure (deep valley up to summit), the air,
+echo      wet bulb and humidity, snow or rain (or FREEZING RAIN) and its rate, the wind, gusts and direction, and the
+echo      sun. Move over a valley floor and a ridge: the ridge is windier; on a clear calm night the floor is colder
+echo      (the cold pool); in a storm the snow line shows as rain low and snow high. Each lift's top gust is now its
+echo      top station's own cell, so a lift on a ridge holds more than one tucked under a higher peak.
+echo   4. Save (Ctrl+S), quit and run this part again: as soon as the map shows, press Space or F1 ^> Skip to morning.
+echo      The clock waits (a note says "Preparing the weather") until the weather's map is ready, then does what you
+echo      asked, so the save reloads to the same weather however fast you are.
 echo   Quit the game when done.
 start "" /wait "%GAME%" -data "%WX94%" -offline -weatherreadout
 findstr /i /c:"[Weather]" /c:"[Simulation] restored" "%PLAYERLOG%"
@@ -929,7 +938,7 @@ set "WX94JH=%WX94%\Resorts\jackson-hole-2km-test"
 robocopy "%~dp0TestData\jackson-hole-2km" "%WX94JH%" /e /njh /njs /nfl /ndl >nul
 echo.
 echo   Part 2: Jackson Hole 2 km, from before the weather (its weather comes from the recording, no network needed).
-echo   4. The readout says "Typical western weather" with base and summit at this area's heights. Within a minute the
+echo   5. The readout says "Typical western weather" with base and summit at this area's heights. Within a minute the
 echo      HUD's pill gets the area's own weather (Get weather on open); then the readout adds "its own weather plays
 echo      from next October 1": this winter keeps the weather it started with. F1 ^> Next month until October to see
 echo      "Jackson Hole's own weather" take over (optional).
@@ -938,11 +947,17 @@ pause
 start "" /wait "%GAME%" -data "%WX94%" -package "%WX94JH%" -weatherrecording "%~dp0TestData\weather\jackson-hole-2km" -weatherreadout
 findstr /i /c:"[Weather]" /c:"[AppFlow] Weather" "%PLAYERLOG%"
 echo.
-echo   Part 3: the wind-hold report: every site's weather for five winters at WindScale 1.00, 0.85 and 0.70, as
-echo   charts in your browser (about two minutes).
+echo   Part 3: the wind-hold report: every site's weather for five winters at WindScale 1.00, 0.85 and 0.70, and (B2)
+echo   the drawn resort's six lifts on your Jackson Hole 5 km, each top station on its own ground, as charts in your
+echo   browser (about three minutes; your Jackson Hole package is only read).
 choice /c YN /n /m "Build the report? Y or N "
 if errorlevel 2 goto menu
-dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~WeatherHoldReportTests" --logger "console;verbosity=normal" <nul | findstr /c:"held hours" /c:"Passed" /c:"Failed" /c:"error"
+set "MP_JH5_PACKAGE="
+for /d %%D in ("%WX94SRC%\Resorts\*") do (
+  findstr /c:"Jackson Hole" "%%D\manifest.json" >nul 2>&1 && findstr /r /c:"SizeMetres.: 5000" "%%D\manifest.json" >nul 2>&1 && set "MP_JH5_PACKAGE=%%D"
+)
+if not defined MP_JH5_PACKAGE echo   Jackson Hole 5 km isn't in your library (demo 12 downloads it); the report skips its B2 part.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~WeatherHoldReportTests" --logger "console;verbosity=normal" <nul | findstr /c:"held hours" /c:"steered" /c:"height rule" /c:"Passed" /c:"Failed" /c:"Skipped" /c:"error"
 node "%~dp0tools\weather-holds\report.mjs" "%~dp0test-results\weather-holds\data.json"
 start "" "%~dp0test-results\weather-holds\report.html"
 pause
