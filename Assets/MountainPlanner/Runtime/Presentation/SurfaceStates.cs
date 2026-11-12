@@ -14,7 +14,7 @@ namespace MountainPlanner.Presentation
     /// </summary>
     public sealed class SurfaceStates : System.IDisposable
     {
-        public const float CellMetres = 8;
+        public const float CellMetres = Domain.Snow.SurfaceGrid.CellMetres;
         /// <summary>Snow this deep (metres) covers the ground completely; thinner snow lets the ground show.</summary>
         public const float FullCoverMetres = 0.15f;
 

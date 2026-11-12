@@ -37,7 +37,9 @@ namespace MountainPlanner.Domain.Weather
         {
             if (rh >= 99) return tempF;
             rh = Math.Max(5, rh);
-            if (tempF < -4) return tempF - (-4 - StullF(-4, rh));
+            // Stull at its −4 °F edge reads above the air in very dry air (PR B2's test found +4.3 °F at 5 % RH), so the carried
+            // depression is never negative. Calibration's rows can't move: below 0 °F every hour is all snow at the top ratio.
+            if (tempF < -4) return tempF - Math.Max(0, -4 - StullF(-4, rh));
             return Math.Min(tempF, StullF(Math.Min(tempF, 122), rh));
         }
 

@@ -313,9 +313,11 @@ named for what they can prove:
 for a week, and its 0.012 in per °F-hour is about 3 times the published midwinter factor. Weather engine v0.2 takes
 the snow's energy over (below).
 
-**Planned for v0.2, built with PR B (owner, 2026-11-09: "add all of the above to the weather engine"):** the weather
-engine owns the energy at the snow's surface; 4.07 keeps the snow itself and stores one more number per cell, the
-pack's temperature.
+**Moved to 4.07 (owner, 2026-11-11, 4.05's closing plan):** the snow energy below isn't in 4.05's §14 row, nothing
+reads it before 4.07's snow, and its pillow tests need 4.07's pack, so 4.07 builds it, with these rules unchanged and
+PR B2's tables giving it the sun, the cloud and the air. (It was planned for v0.2 with PR B, owner 2026-11-09: "add
+all of the above to the weather engine".) The weather engine's part is the energy at the snow's surface; 4.07 keeps
+the snow itself and stores one more number per cell, the pack's temperature.
 - **WX-59, the horizon map:** per 8 m cell, the skyline's angle in 16 directions (one byte each) from the downloaded
   heights and the surround ring, never the player's earthwork, built once per area into the terrain cache; each
   cell's open-sky share follows from it.
@@ -402,6 +404,81 @@ that reads these numbers is task 4.07.
 - **Demo 94 and the readout:** `-weatherreadout` (and F1's Weather rows) shows the hour, the three samples and each
   lift's top gust against its hold gust. The wind-hold report (`WeatherHoldReportTests`, `tools/weather-holds`) plays
   every site's rows for five winters at three `WindScale` values; the owner chose 0.85 after demo 94 (2026-11-11).
+
+## 3d. PR B2: the weather over the map (task 4.05, 2026-11-11)
+
+B2 gives every 8 m cell the same hour's weather, as a few lookups, with nothing stored per cell (WX-02 v2, WX-35…40).
+4.06's layers, 4.07's snow and 4.16's guns read it; the readout's "At the cursor" line shows it today (demo 94).
+- **The 8 m grid has one definition** (`Domain/Snow/SurfaceGrid.CellMetres`): `SurfaceStates` (the snow-depth field) and
+  the weather's static inputs share it, so 4.07's snow and the weather line up cell for cell.
+- **WX-35's static inputs** (`Domain/Weather/WeatherTerrain`, integer, immutable): per cell the elevation bin (33 ft,
+  255 bins; coarser only where the ring's relief passes about 8,400 ft, so a tall area's summit keeps its own bin), `hvf` (10 ft steps, the lowest cell within 1 km by a separable running minimum) and the exposure class
+  (0–7: `hvf` thresholds `Pacing.ExposureHvfFeet`, ±1 by the 7 × 7 rise past `ExposureRiseFeet`); per 512 m cell and
+  octant the orographic factor; per 96 m cell and octant the steering's turn and speed. **Built at open** from the
+  downloaded heights in the snowpack's worker pass, as a copy taken before any earthwork can touch them (the array
+  goes on to be `SnowElevation`, which follows earthwork; the copy doesn't), and never cached: about 0.3 s at 11 km, so the terrain cache doesn't bump.
+  - **Changed from WX-35 v1:** the coarse grids are 64 and 12 cells (512 m and 96 m) so they tile the 8 m grid exactly;
+    the orographic factor is normalised over the box's coarse cells (the Daymet lattice is the box's 1 km pixels, so
+    the mean is the same and Domain needs no Daymet grid); the steering is a static terrain-following estimate (the
+    valley's axis is the opposite pair of directions the ground changes least along, 384 m out; the turn grows with
+    the valley's depth across it and the cell's shelter; the speed with the rise over its ring, × `SteerCrestLee` 0.7
+    behind ground `SteerLeeFeet` above it within 384 m upwind).
+  - **Into the sim:** `SimCommandKind.SetWeatherTerrain = 30`, applied at once (they're the terrain's, so they never wait
+    for October 1). It changes no state and is stamped from the view sequence (as `InspectSkier`), so a game that gets
+    it again after a load hashes as the one that saved. Not hashed, not saved; the lift gusts it produces are both.
+  - **The hold.** While the inputs are still building, the host is held (`SimCommandKind.Hold = 10`, `Release = 11`, or
+    born held): no tick and no skip runs, whatever the pause, the speed or a skip asked for, and the player's pause
+    and speed are as they left them at the release. App starts the host held when the cover build is still running,
+    sends the inputs then the release, and releases without them if the build ended with none (the area then plays
+    B1's height rule; the clock is never left stuck). An area whose inputs are already there gives them to the world
+    before its worker starts.
+- **WX-02 v2's tables** (`Simulation/Weather/WeatherFields`), filled once per face hour in the hour step (0.25 ms at
+  11 km, 0 B): air per (bin × pool band) the area has, precipitation per bin and per 512 m cell (blended between the
+  two octants nearest the storm's direction), the steered wind and direction per 96 m cell (between the two nearest
+  the hour's), and the hour's flat-surface sun (WX-40: `SolarPosition` once an hour, × clearness; the snapshot's only,
+  never hashed). Reads: `At(cell)` and the banded, tile-masked `ReadRows` with the caller's canopy (51 ms for all 1.9 M
+  cells at 11 km, release build); one formula behind both, so a lift's gust is the map's. A cell's liquid is rounded
+  once (rate × elevation factor × orographic factor), so a 0.01 in hour isn't lost where the factor is under 1.0. The
+  snapshot copies the tables when the hour or the inputs change, outside SI-16's 64 KB (166 KB at 11 km; the first copy
+  into each snapshot allocates, none after).
+- **WX-37's integer wet bulb** (`Domain/Weather/WeatherAir`): a table generated from Stull (whole °F × whole % RH) and
+  kept as literals (`WeatherAirTables`, as `WeatherMath.LowerHalf`), so no platform computes it; within 0.5 °F of
+  Stull (0.4 measured), and a test on CoreCLR and Mono checks the literals still equal the generator's. The reference points' samples use it too, so the
+  readout and the map agree. **Measured against the psychrometric equation** (WX-37's test): in humid air (RH ≥ 60 %:
+  storms, gun nights) within 1.5 °F at sea level and at 10,000 ft; in dry air Stull reads warm, up to about 4 °F at 0 °F
+  and 20 % RH at 10,000 ft (the guns conservative, never optimistic), so WX-37's "about 1 °F" was too small. The test
+  also found Stull's −4 °F extension reading above the air in very dry air (+4.3 °F at 5 % RH); it now never does
+  (no calibrated row moves: below 0 °F every hour is all snow at the top ratio).
+- **WX-39: lift gusts from the map.** A lift's top station reads its own cell (exposure class × steered speed); a world
+  without static inputs (golden runs, tests) keeps B1's height rule.
+- **WX-38 v2's lattice test** (200 seeds, all seven sites): the November–April liquid's mean over the lattice is
+  within 5 % of Daymet's everywhere (±10 % allowed). The slope with elevation, measured as calibration measures it (x
+  and y as covariates), is within 30 % at four sites; **known limit at three**: Olympic Valley ×1.45, Jackson NH ×2.05,
+  Snowshoe ×1.48. Cause, measured: calibration's gradient is the plain mean of each wet day's relative gradient, but
+  small showery days have steep gradients and big storms flat ones, so the season follows the amount-weighted mean
+  (Olympic Valley 5.9 → 3.7 %, Jackson NH 14.5 → 7.7 %, Snowshoe 10.1 → 8.2 % per 1,000 ft). The fix weights each day
+  by its mean liquid; it changes calibration and every area's rows, so it waits for the owner.
+- **The adversarial audit (2026-11-12)** found five major problems, fixed before the demo: the clock hold leaked (a
+  skip, Play or 8× could step hours before the inputs landed: now the host's hold above); bins clamped past 8,400 ft
+  of relief; a cell's liquid was rounded down twice; the wet-bulb table was computed at start-up; and the first tests
+  left the batch read, the copy, the canopy, the octant blend, holes, a box inside the grid and real terrain
+  unchecked (`WeatherMapAuditTests`, and `WeatherTerrainAppTests` on the Jackson Hole 2 km fixture through
+  `ResortOpener.BuildWeatherTerrain`). Its twelve minor findings (true north against grid north, the sun's clock,
+  hillsides read as valleys, the cross-valley tie, diagonal reach and spillover, the reference points' pool, and
+  smaller ones) are the next PR.
+- **Pacing v6** (one bump for B2 and PR C): `ExposureHvfFeet`, `ExposureRiseFeet`, `OrographicClimbFeet`,
+  `OrographicBarrierFeet`, the five `Steer…` numbers, and PR C's forecast numbers as data (`ForecastLeanDay1/7`,
+  `ForecastTempTenths`, `ForecastPrecipPermille`, `ForecastChancePermille`, `ForecastBustPermille`,
+  `ForecastPhantomPermille`, `WindEventGust`). Re-pinned once: `SeasonRunner.GoldenFoldValue`, `GuestsTests.GuestDayFold`.
+- **Memory (BG-08 v3's line):** the static inputs are 3 B per cell plus 8 × 2 B per 512 m cell and 8 × 2 B per 96 m
+  cell: 5.6 MB at 11 km. The tables are about 170 KB at 11 km (most of it the steered wind per 96 m cell), once in the
+  worker and once in each of the three snapshots.
+- **Demo 94, round 2:** the readout's "At the cursor" line (height, `hvf`, exposure class, air, wet bulb, RH, phase and
+  rate or freezing rain, wind, gusts, direction, sun), and the hold report re-run on Jackson Hole 5 km with the drawn
+  resort's six lifts, height rule against the steered cells. At 0.85 the season's holds barely change in total (14.4 →
+  11.6 held face hours over the six lifts) but move to the lifts whose tops stand in the wind: Summit Six's top sits
+  under higher ground to its west and drops from 14.4 to 0.4, and Base Six's top, on a ridge 1,700 ft above its valley,
+  rises from 0 to 11.2. `WindScale` stays 0.85 (closing plan, decision 4).
 
 ## 4. Weather runs on the calendar, compressed like time
 
@@ -956,11 +1033,12 @@ the simulation steps.
   generator step < 0.01 ms per face hour; WX-02 v2's tables (≤ 4,096 entries + ≤ 576 coarse cells) < 1 ms, the
   first slice of the hour step; the forecast issue (168 face hours of the site machine, samples at the 3 reference
   points and, for display only, up to 64 lift tops) < 2 ms once a face day, in the night's first slice; a mid-year
-  seed re-run (WX-56, also the season strip's shading) < 50 ms; static inputs (WX-35) < 1 s per package, cached.
+  seed re-run (WX-56, also the season strip's shading) < 50 ms; static inputs (WX-35) < 1 s per package, built at open
+  (PR B2: about 0.3 s at 11 km).
   The pattern chain adds one draw per cycle and the storm's bursts one per storm hour: inside the generator's
   budget. Memory: rows and pooled fields about 30 KB, `hvf` and
   exposure 1 B each per 8 m cell (≤ 4 MB), the orographic grid 8 × 576 B, the steering grid ≤ 200 KB; 4.05 adds these static inputs to BG-08
-  (v3) beside the snow fields. **No per-cell weather is stored.** 0 B allocated per tick or per hour (preallocated tables).
+  (v3) beside the snow fields (PR B2, measured: 5.6 MB at 11 km with the elevation bin, §3d). **No per-cell weather is stored.** 0 B allocated per tick or per hour (preallocated tables).
 - **Determinism:** the generator is integer (WX-31) and its golden is cross-runtime (WX-33); the tables and
   everything downstream follow SI-08 (player-build goldens). Weather never reads the design (WX-08), so building
   can't farm a storm. Skips run every face hour (SI-11), so a skipped night has the same weather as a played one.
@@ -999,7 +1077,7 @@ simulated hours from it. Each number or idea: **K** kept, **C** changed, **D** d
 |---|---|
 | 4.05 Weather data and engine | WX-10…20, WX-07 v3's two-part tests and the SNOTEL cross-check, WX-21, WX-23…40, WX-54…58, WX-02 v2, WX-03 v2, WX-05 v3's engine, WX-41's weather events, WX-42's triggers, WX-51; the Acquisition provider and fixtures, the weather chunk (manifest v2, already reserved), the sidecar bump (WX-32) |
 | 4.06 Weather on screen | WX-50, WX-53, WX-47's layers, the Weather tab mockup (WX-46) |
-| 4.07 Snow | WX-22's ×K in SN-08…18, SN-22 v2's hold-for-powder, WX-41's Rain on snow, Glaze and Corn morning, WX-52's attribution |
+| 4.07 Snow | WX-22's ×K in SN-08…18, SN-22 v2's hold-for-powder (with `Pacing.HoldForPowderIn`), WX-41's Rain on snow, Glaze and Corn morning, WX-52's attribution, the snow energy (WX-59…64, moved from 4.05 on 2026-11-11) |
 | 4.09 Lakes | WX-22's ×K for ice |
 | 4.11 Lift operations | WX-39's top-station gust into LO-11; the forecast gust on the lift window |
 | 4.12 Guests | WX-44 (GU-04 v2) |

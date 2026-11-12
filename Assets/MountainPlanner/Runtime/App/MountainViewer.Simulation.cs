@@ -46,6 +46,7 @@ namespace MountainPlanner.App
         /// <summary>Task 4.05: the weather the worker was given (the area's rows or the typical mountain's), and whether the
         /// snowpack's reference points have followed it (the typical mountain's only).</summary>
         SimWeather _simWeather;
+        bool _simWeatherTerrainSent, _simHoldReleased, _simHoldSaid;
         bool _simWeatherPointsSent;
 
         /// <summary>How far the face clock runs ahead of the sun before the sun catches up (an eighth of a degree).</summary>
@@ -92,11 +93,23 @@ namespace MountainPlanner.App
             var simSite = new SimSite(site.Latitude, site.Longitude);
             _simWeather = TypicalWeather.For(_resort.Manifest, _resort.PackageFolder, _resort.WeatherBaseFeet, _resort.WeatherSummitFeet);
             _simWeatherPointsSent = _simWeather == null || !_simWeather.Generic || _resort.WeatherBaseFeet > 0;
+            _simWeatherTerrainSent = false;
+            _simHoldSaid = false;
             var world = RestoredWorld(pacing, design, simSite, _simWeather)
                         ?? new SimWorld(pacing, design, simSite, Math.Max(2, startYear), weather: _simWeather);
             var mirror = _resort.States?.Snow;
             _simSnowSent = world.Snow.Set && mirror != null && world.Snow.Width == mirror.Width && world.Snow.Height == mirror.Height;
-            _sim = new SimulationHost(world, new StopwatchTime());
+            // Task 4.05 PR B2: the weather's static inputs are built with the snowpack. Already here: the world takes them before
+            // its worker starts. Still building: the host starts held, so no tick and no skip can run without them (a reloaded
+            // game steps exactly as the one that saved); RunClock sends them and releases it.
+            if (_resort.WeatherTerrain != null)
+            {
+                world.ApplyNow(SimCommand.Of(SimCommandKind.SetWeatherTerrain, 0, _resort.WeatherTerrain));
+                _simWeatherTerrainSent = true;
+            }
+            bool hold = !_simWeatherTerrainSent && _resort.CoverReady != null && !_resort.CoverReady.IsCompleted;
+            _simHoldReleased = !hold;
+            _sim = new SimulationHost(world, new StopwatchTime(), held: hold);
             _simTickSaved = world.Tick;
             _simMarkedChanged = false;
             _simTilesShown = 0;
@@ -289,6 +302,22 @@ namespace MountainPlanner.App
                 _simWeatherPointsSent = true;
                 _simWeather = _simWeather.WithPoints(_resort.WeatherBaseFeet, _resort.WeatherSummitFeet);
                 _sim.Send(SimCommandKind.SetWeather, 0, _simWeather);
+            }
+            // Task 4.05 PR B2: the weather's static inputs, built with the snowpack, go to the worker before the clock first runs:
+            // a clock started before they land waits for them, so a reloaded game steps exactly as the one that saved.
+            // A send the queue refuses is tried again next frame; the release follows the inputs in the same queue.
+            if (!_simWeatherTerrainSent && _resort.WeatherTerrain != null)
+                _simWeatherTerrainSent = _sim.Send(SimCommandKind.SetWeatherTerrain, 0, _resort.WeatherTerrain);
+            if (!_simHoldReleased && (_simWeatherTerrainSent || _resort.CoverReady == null || _resort.CoverReady.IsCompleted))
+            {
+                // Released with the inputs, or without them when the cover build ended with none (it failed): then the area
+                // plays B1's height rule, and the clock is never left stuck.
+                if (_simWeatherTerrainSent || _resort.WeatherTerrain == null) _simHoldReleased = _sim.Send(SimCommandKind.Release);
+            }
+            if (s.Held && !_simHoldSaid && (!s.Paused || s.Skip != SkipKind.None) && Hud != null && _hudShown)
+            {
+                _simHoldSaid = true;
+                Hud.Toast("Preparing the weather: the clock starts in a moment");
             }
             // SI-12 v2: time that has passed since the save is the player's progress, so the design asks to be saved (the bar's
             // symbol, leaving, the autosave), as an edit does.

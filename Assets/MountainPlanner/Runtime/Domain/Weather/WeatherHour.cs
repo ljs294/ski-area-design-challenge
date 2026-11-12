@@ -55,7 +55,11 @@ namespace MountainPlanner.Domain.Weather
             WinterLiquid = winterLiquid; WinterTemp = winterTemp; WindScale = windScale;
         }
 
-        /// <summary>The defaults, equal to <c>Pacing.Default</c>'s (a test checks they agree): what calibration plays with.</summary>
+        /// <summary>
+        /// What calibration plays with: <c>Pacing.Default</c>'s numbers (a test checks they agree), except <c>WindScale</c>, which
+        /// stays 1.0 here because calibration compares the record's own wind with itself; the game plays Pacing's (0.85 since
+        /// PR B1, the owner's choice from demo 94's hold report).
+        /// </summary>
         public static WeatherTuning Default => new WeatherTuning(121, 42, 1600, 1300, 500, 1600, 10, 80, 1000, 0, 1000);
 
         public WeatherTuning WithWinter(int liquid, int temp) =>

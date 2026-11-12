@@ -249,8 +249,10 @@ namespace MountainPlanner.Simulation
             if (c.IssuedAgainstTick >= 0 && Tick - c.IssuedAgainstTick > Pacing.StaleCommandTicks) { Reject(c, SimRefusal.Stale); return; }
             var stamped = c;
             stamped.Tick = Tick;
-            // GU-02: a view command is stamped from its own sequence, so watching a skier leaves the state's alone.
-            stamped.Seq = c.Kind == SimCommandKind.InspectSkier ? _viewSeq++ : _commandSeq++;
+            // GU-02: a view command is stamped from its own sequence, so watching a skier leaves the state's alone. So are the
+            // weather's static inputs (WX-35, PR B2): the terrain's, not a player's, sent again after every load, so a reloaded
+            // game hashes as the one that saved.
+            stamped.Seq = c.Kind == SimCommandKind.InspectSkier || c.Kind == SimCommandKind.SetWeatherTerrain ? _viewSeq++ : _commandSeq++;
             switch (c.Kind)
             {
                 case SimCommandKind.SetMountainOpen:
@@ -277,6 +279,9 @@ namespace MountainPlanner.Simulation
                     break;
                 case SimCommandKind.SetWeather:
                     if (!(c.Payload is SimWeather wx) || !ApplyWeather(wx)) { Reject(c, SimRefusal.Unknown); return; }
+                    break;
+                case SimCommandKind.SetWeatherTerrain:
+                    if (!(c.Payload is Domain.Weather.WeatherTerrain wt) || !ApplyWeatherTerrain(wt)) { Reject(c, SimRefusal.Unknown); return; }
                     break;
                 case SimCommandKind.SetGust:
                 case SimCommandKind.FeedLine:

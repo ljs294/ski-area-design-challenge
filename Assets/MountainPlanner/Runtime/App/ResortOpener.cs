@@ -85,6 +85,11 @@ namespace MountainPlanner.App
         /// 4.05). 0 until then.
         /// </summary>
         public int WeatherBaseFeet, WeatherSummitFeet;
+        /// <summary>
+        /// WX-35's static inputs (task 4.05 PR B2), built with the snowpack from the same downloaded heights, before any terrain
+        /// edit: the weather over the map. Null until then.
+        /// </summary>
+        public MountainPlanner.Domain.Weather.WeatherTerrain WeatherTerrain;
         public long CliffTriangles;
         /// <summary>Each cache tile's cliff shell, for terrain edits to trim where the ground moves.</summary>
         public readonly System.Collections.Generic.Dictionary<(int, int), CliffShells.Placed> Cliffs = new System.Collections.Generic.Dictionary<(int, int), CliffShells.Placed>();
@@ -237,7 +242,7 @@ namespace MountainPlanner.App
             double convergence = manifest.Crs.GridConvergenceDegrees;
             var snowpack = Task.Run(async () => BuildSnowpack(order, await Task.WhenAll(decoded).ConfigureAwait(false),
                                                                 await Task.WhenAll(covers).ConfigureAwait(false), cache, frame, ringRect,
-                                                                states.Snow.Width, states.Snow.Height, convergence), ct);
+                                                                states.Snow.Width, states.Snow.Height, convergence, coreRect), ct);
             resort.CoverReady = PaintCoverAsync(resort, order, covers, cliffTasks, forests, forest, clock, ct, snowpack, load);
             return resort;
         }
@@ -245,7 +250,7 @@ namespace MountainPlanner.App
         /// <summary>Paints each tile's ground cover, nearest first, a few tiles per frame.</summary>
         static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers, List<Task<CliffShells.Prepared>> cliffTasks,
                                           List<Task<ForestInstance[]>> forests, ForestAssets forest,
-                                          Stopwatch clock, CancellationToken ct, Task<(float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy)> snowpack, LoadProgress load)
+                                          Stopwatch clock, CancellationToken ct, Task<(float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy, MountainPlanner.Domain.Weather.WeatherTerrain Weather)> snowpack, LoadProgress load)
         {
             load?.Begin(LoadStage.GroundCover, order.Count);
             for (int n = 0; n < order.Count; n++)
@@ -266,12 +271,13 @@ namespace MountainPlanner.App
 
             // The snowpack replaces the opening 12 in; SurfaceStates.Sync uploads it once.
             load?.Begin(LoadStage.Snowpack);
-            var (depths, labels, snowElevation, snowCanopy) = await snowpack;
+            var (depths, labels, snowElevation, snowCanopy, weatherTerrain) = await snowpack;
             if (resort.Root == null) return;
             resort.States.Snow.CopyFrom(depths);
             resort.ContourLabels = labels;
             resort.SnowElevation = snowElevation;
             resort.SnowCanopy = snowCanopy;
+            resort.WeatherTerrain = weatherTerrain;
             (resort.WeatherBaseFeet, resort.WeatherSummitFeet) = CoreReferenceFeet(snowElevation, resort.States.Snow.Width, resort.Ring, resort.Core);
             resort.SnowpackSeconds = clock.Elapsed.TotalSeconds;
             load?.End(LoadStage.Snowpack);
@@ -362,8 +368,8 @@ namespace MountainPlanner.App
         /// <see cref="Snowpack.Compute"/>. Cells no tile covers have no data and get the valley depth. The same
         /// elevations place the contour labels for both unit systems (task 12b.2).
         /// </summary>
-        static (float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy) BuildSnowpack(List<CacheTile> order, float[][,] heights, SplatTexels[] covers, CacheManifest cache, LocalFrame frame,
-                                     Rect ring, int width, int depth, double convergence)
+        static (float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy, MountainPlanner.Domain.Weather.WeatherTerrain Weather) BuildSnowpack(List<CacheTile> order, float[][,] heights, SplatTexels[] covers, CacheManifest cache, LocalFrame frame,
+                                     Rect ring, int width, int depth, double convergence, Rect core)
         {
             const float cell = SurfaceStates.CellMetres;
             var elevation = new float[width * depth];
@@ -407,7 +413,28 @@ namespace MountainPlanner.App
             foreach (var units in new[] { UnitSystem.Imperial, UnitSystem.Metric })
                 labels[(int)units] = ContourLabels.Place(width, depth, cell, ring.xMin, ring.yMin, elevation, units);
             UnityEngine.Debug.Log($"[ResortOpener] contour labels: {labels[0].Length:N0} (200 ft), {labels[1].Length:N0} (50 m)");
-            return (result, labels, elevation, canopy);
+            return (result, labels, elevation, canopy, BuildWeatherTerrain(elevation, width, depth, ring, core));
+        }
+
+        /// <summary>
+        /// WX-35's static inputs (task 4.05 PR B2) from the 8 m elevations as downloaded (this runs before any terrain edit can
+        /// touch them), in whole feet. The design's frame and the ring's local frame share the site's centre as origin.
+        /// </summary>
+        internal static MountainPlanner.Domain.Weather.WeatherTerrain BuildWeatherTerrain(float[] elevation, int width, int depth, Rect ring, Rect core)
+        {
+            var clock = Stopwatch.StartNew();
+            const float cell = SurfaceStates.CellMetres;
+            var feet = new int[elevation.Length];
+            for (int k = 0; k < feet.Length; k++) feet[k] = float.IsNaN(elevation[k]) ? int.MinValue : (int)System.Math.Round(elevation[k] / 0.3048);
+            int Col(float x) => Mathf.Clamp(Mathf.CeilToInt((x - ring.xMin) / cell - 0.5f), 0, width);
+            int Row(float z) => Mathf.Clamp(Mathf.CeilToInt((z - ring.yMin) / cell - 0.5f), 0, depth);
+            int originX = (int)System.Math.Round(ring.xMin * 1000.0), originY = (int)System.Math.Round(ring.yMin * 1000.0);
+            int ri = Mathf.Clamp(Mathf.FloorToInt(-ring.xMin / cell), 0, width - 1), rj = Mathf.Clamp(Mathf.FloorToInt(-ring.yMin / cell), 0, depth - 1);
+            var terrain = MountainPlanner.Domain.Weather.WeatherTerrain.Build(width, depth, feet, originX, originY,
+                (Col(core.xMin), Row(core.yMin), Col(core.xMax), Row(core.yMax)), rj * width + ri,
+                MountainPlanner.Simulation.SimWeather.TerrainTuning(MountainPlanner.Simulation.Pacing.Default));
+            UnityEngine.Debug.Log($"[ResortOpener] weather's static inputs: {width}×{depth} cells, hvf_ref {terrain.HvfRefFeet} ft, in {clock.Elapsed.TotalMilliseconds:F0} ms");
+            return terrain;
         }
 
         static double Distance(CacheTile t, CacheManifest cache, LocalFrame frame)

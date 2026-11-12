@@ -44,6 +44,16 @@ namespace MountainPlanner.Simulation
         bool _wxHourSet;
         // ---- the snapshot's samples (worked out from the hour; not state) ----
         WeatherSample _wxBase, _wxMid, _wxSummit;
+        // ---- PR B2: the weather over the map ----
+        /// <summary>WX-35's static inputs (SI-21, by reference), or null: then lifts and samples keep B1's height rule.</summary>
+        WeatherTerrain _wxTerrain;
+        /// <summary>WX-02 v2's tables for the last face hour (worked out from the hour and the inputs; not state).</summary>
+        WeatherFields _wxFields;
+
+        /// <summary>The static inputs the world reads, or null.</summary>
+        public WeatherTerrain WeatherTerrain => _wxTerrain;
+        /// <summary>The last face hour's tables (null without static inputs).</summary>
+        public WeatherFields WeatherFields => _wxFields;
 
         /// <summary>The weather playing now, or null.</summary>
         public SimWeather Weather => _weather;
@@ -80,6 +90,51 @@ namespace MountainPlanner.Simulation
             return true;
         }
 
+        /// <summary>
+        /// The <see cref="SimCommandKind.SetWeatherTerrain"/> command: the area's static inputs, applied at once (they're the
+        /// terrain's, not the rows', so they never wait for October 1). They change no state now: the tables refill for the
+        /// readout, and the next hour's gusts read them. App sends them before the clock first runs, so a reloaded game steps
+        /// as the one that saved.
+        /// </summary>
+        bool ApplyWeatherTerrain(WeatherTerrain t)
+        {
+            if (t == null) return false;
+            _wxTerrain = t;
+            _wxFields ??= new WeatherFields();
+            FillFields();
+            return true;
+        }
+
+        void FillFields()
+        {
+            if (_wxTerrain == null || _weather == null || !_wxHourSet) return;
+            _wxFields.Fill(_weatherHour, _wxHour, _wxTerrain, _weather.Rows.ZrefFeet, Pacing, ShortwaveNow());
+        }
+
+        /// <summary>
+        /// WX-40: the hour's clear-sky shortwave × its clearness on a flat surface (W/m²), from the sun at the middle of the face
+        /// hour (WX-04's shared Domain function, float, once an hour). The snapshot's only: never hashed.
+        /// </summary>
+        int ShortwaveNow()
+        {
+            if (!Site.Known || _wxHour.Clearness <= 0) return 0;
+            int j = _wxHour.HourOfYear / 24;
+            if (j >= Calendar.YearFaceDays) return 0;
+            int y = _wxHour.LabelYear;
+            // Local mean solar time to UTC: west of Greenwich an evening hour is the next UTC day.
+            double utc = (_wxHour.HourOfDay + 0.5) * 3600 - Site.Longitude * 240;
+            int year = Calendar.CalendarYear(y, j), day = Calendar.DayOfYear(y, j);
+            if (utc >= 86400) { utc -= 86400; day++; }
+            else if (utc < 0) { utc += 86400; day--; }
+            if (day > DaysIn(year)) { day = 1; year++; }
+            else if (day < 1) { year--; day = DaysIn(year); }
+            var sun = Domain.Sky.SolarPosition.At(Site.Latitude, Site.Longitude, year, day, utc);
+            if (sun.Elevation <= 0) return 0;
+            return (int)Math.Round(1361 * 0.75 * Math.Sin(sun.Elevation * Math.PI / 180) * _wxHour.Clearness / 1000);
+        }
+
+        static int DaysIn(int year) => year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) ? 366 : 365;
+
         /// <summary>The hour step's weather (WX-06's call order: first).</summary>
         void HourStepWeather(long hour)
         {
@@ -109,9 +164,18 @@ namespace MountainPlanner.Simulation
             _wxHourSet = true;
             _weatherTenthsF = _wxHour.Temp;
             _weatherWindMph = _wxHour.Wind / 10;
+            FillFields();
             for (int i = 0; i < _liftCount; i++)
             {
-                int top = Design.Lifts[i].TopFeet;
+                var lift = Design.Lifts[i];
+                // WX-39: the top station's own cell, steered (PR B2); B1's height rule where there are no static inputs.
+                int cell = _wxTerrain != null && lift.HasTop ? _wxTerrain.CellAt(lift.TopXMm, lift.TopYMm) : -1;
+                if (cell >= 0)
+                {
+                    _wxFields.At(cell, out var c);
+                    if (c.Known) { _weatherGustTenths[i] = c.Gust; continue; }
+                }
+                int top = lift.TopFeet;
                 _weatherGustTenths[i] = GustTenthsAt(top > 0 ? top : _weather.SummitFeet);
             }
             SampleWeather();
@@ -132,14 +196,17 @@ namespace MountainPlanner.Simulation
             _wxSummit = SampleAt(_weather.SummitFeet);
         }
 
+        /// <summary>A reference point's sample, with the map's integer air (PR B2), so the readout and the fields agree.</summary>
         WeatherSample SampleAt(int feet)
         {
-            var p = WeatherPoint.At(_wxHour, _weather.Rows.ZrefFeet, feet);
+            int dz = feet - _weather.Rows.ZrefFeet;
+            WeatherFields.AirAt(_wxHour, _weather.Rows.ZrefFeet, feet, out int temp, out int dew, out _, out int wb, out int snow);
+            int liquid = (int)WeatherMath.DivRound((long)_wxHour.Liquid * WeatherFields.PrecipFactor(_wxHour, dz), 1000);
             long wind = (long)_wxHour.Wind * _weather.ExposureAt(Pacing, feet) / 1000;
             return new WeatherSample
             {
-                Feet = feet, Temp = p.Temp, Dew = p.Dew, WetBulb = (int)Math.Round(p.WetBulbF * 10), SnowPermille = (int)Math.Round(p.SnowShare * 1000),
-                Liquid = p.Liquid, SnowTenthsIn = p.SnowTenthsIn, Wind = (int)wind, Gust = GustTenthsAt(feet),
+                Feet = feet, Temp = temp, Dew = dew, WetBulb = wb, SnowPermille = snow,
+                Liquid = liquid, SnowTenthsIn = WeatherAir.SnowTenthsIn(liquid, snow, wb), Wind = (int)wind, Gust = GustTenthsAt(feet),
             };
         }
 
@@ -151,7 +218,12 @@ namespace MountainPlanner.Simulation
             s.WeatherHour = _wxHour;
             s.WeatherBase = _wxBase; s.WeatherMid = _wxMid; s.WeatherSummit = _wxSummit;
             for (int i = 0; i < _liftCount; i++) s.LiftGustTenths[i] = _weatherGustTenths[i];
+            // The tables, copied only when the hour (or the inputs) moved: the main thread never sees a half-filled hour.
+            if (_wxFields == null || _wxFields.Hour < 0) { if (s.WeatherFields.Hour >= 0) s.WeatherFields.CopyFrom(_wxFields ?? EmptyFields); }
+            else if (s.WeatherFields.Hour != _wxFields.Hour || s.WeatherFields.Terrain != _wxFields.Terrain) s.WeatherFields.CopyFrom(_wxFields);
         }
+
+        static readonly WeatherFields EmptyFields = new WeatherFields();
 
         /// <summary>SI-08: the weather's part of the hash. The generator's state is a function of what's hashed here (WX-33).</summary>
         void HashWeather(ref StateHasher h)

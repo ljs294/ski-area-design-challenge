@@ -42,6 +42,8 @@ namespace MountainPlanner.Simulation
         long _accMicros;          // motion microseconds owed
         int _speed = 1;
         bool _paused = true;
+        /// <summary>Held (<see cref="SimCommandKind.Hold"/>): nothing steps, not even a skip, until the release.</summary>
+        bool _held;
         bool _dirty = true;
         long _ticksRun;
         SkipKind _skip;
@@ -60,8 +62,10 @@ namespace MountainPlanner.Simulation
         /// <summary>A skip batch's tick cap, for a real-time source that doesn't move (tests).</summary>
         public const int SkipBatchMaxSteps = 20_000;
 
-        public SimulationHost(SimWorld world, IRealTime time, bool threaded = true)
+        /// <param name="held">Start held (as <see cref="SimCommandKind.Hold"/>, with no command to race the first Play).</param>
+        public SimulationHost(SimWorld world, IRealTime time, bool threaded = true, bool held = false)
         {
+            _held = held;
             _world = world ?? throw new ArgumentNullException(nameof(world));
             _time = time ?? throw new ArgumentNullException(nameof(time));
             Pacing = world.Pacing;
@@ -135,7 +139,8 @@ namespace MountainPlanner.Simulation
             _lastMicros = now;
             TakeCommands();
             int wait;
-            if (_skip != SkipKind.None)
+            if (_held) wait = -1;   // until the release wakes it; the real time that passes meanwhile is owed to no one
+            else if (_skip != SkipKind.None)
             {
                 RunSkipBatch();
                 wait = _skip != SkipKind.None ? 0 : NextWait();
@@ -147,7 +152,7 @@ namespace MountainPlanner.Simulation
             }
             UpdateSustained(now);
             // SI-17: the snow's due tiles to the screen, after the steps (and while paused, so an edit's snow still shows).
-            if (_world.StageSnow(Staging, _paused || _skip != SkipKind.None) > 0) _dirty = true;
+            if (_world.StageSnow(Staging, _paused || _held || _skip != SkipKind.None) > 0) _dirty = true;
             if (_dirty) PublishNow();
             // Tiles still due (the ring is full, or a tile staged a moment ago): come back soon rather than sleep.
             if (_world.Snow.TilesDue > 0 && (wait < 0 || wait > 10)) wait = 10;
@@ -172,7 +177,7 @@ namespace MountainPlanner.Simulation
                 if (c.IsHosts) { HostCommand(c); continue; }
                 // SI-03 v2: while paused (and between steps) a world command applies at once; while running it waits for the
                 // next tick's start. Both stamp it with the tick it took effect at.
-                if (_paused || _skip != SkipKind.None) _world.ApplyNow(c);
+                if (_paused || _held || _skip != SkipKind.None) _world.ApplyNow(c);
                 else _world.Stage(c);
             }
         }
@@ -210,6 +215,13 @@ namespace MountainPlanner.Simulation
                 case SimCommandKind.SaveState:
                     if (c.Payload is SimStateRequest request) request.Answer(_world);
                     break;
+                case SimCommandKind.Hold:
+                    _held = true;
+                    break;
+                case SimCommandKind.Release:
+                    _held = false;
+                    _accMicros = 0;   // nothing is owed from the hold
+                    break;
                 case SimCommandKind.CancelSkip:
                     if (_skip == SkipKind.None) { _world.Reject(c, SimRefusal.NoChange); break; }
                     _world.Events.Add(_world.Tick, SimEventType.SkipCancelled, -1, _world.FaceMs, (ushort)_skip);
@@ -228,7 +240,7 @@ namespace MountainPlanner.Simulation
             _accMicros += asked;
             long cap = perSecond * Pacing.MaxBacklogRealTicks * tickMicros;
             if (_accMicros > cap) _accMicros = cap;
-            while (_accMicros >= tickMicros && !_stop)
+            while (_accMicros >= tickMicros && !_stop && !_held)
             {
                 long owed = _accMicros / tickMicros;
                 int k = RunStep((int)Math.Min(owed, Pacing.IdleTickFactor));
@@ -248,7 +260,7 @@ namespace MountainPlanner.Simulation
             {
                 RunStep(Pacing.IdleTickFactor);
                 if (++steps >= SkipBatchMaxSteps || _time.Microseconds - start >= SkipBatchMicros) break;
-                if (_queue.Count > 0) { TakeCommands(); if (_skip == SkipKind.None) return; }
+                if (_queue.Count > 0) { TakeCommands(); if (_skip == SkipKind.None || _held) return; }
             }
             if (_world.FaceMs >= _skipTo)
             {
@@ -300,6 +312,7 @@ namespace MountainPlanner.Simulation
             s.Speed = _speed;
             s.TicksPerRealTick = Pacing.Speeds[_speed - 1];
             s.Paused = _paused;
+            s.Held = _held;
             s.SustainedPermille = _sustained;
             s.Skip = _skip;
             long span = _skipTo - _skipFrom;
