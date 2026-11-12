@@ -84,7 +84,7 @@ namespace MountainPlanner.App
             if (on)
             {
                 _backTime = Lighting != null ? Lighting.Clock.Now : default;
-                _backPaused = _sim == null || (_sim.Latest?.Paused ?? true);
+                _backPaused = _sim == null || (_simNow?.Paused ?? true);   // the frame's own snapshot: a second Latest would hand the one being read back to the worker
                 _backStyle = Lighting != null ? Mathf.Max(0, LookStyle.IndexOf(Lighting.Style.Name)) : LookStyle.Default;
                 _backFollowFov = Camera.FollowFovSetting;
                 _backFov = cam.fieldOfView;

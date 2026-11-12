@@ -413,14 +413,17 @@ namespace MountainPlanner.App
             foreach (var units in new[] { UnitSystem.Imperial, UnitSystem.Metric })
                 labels[(int)units] = ContourLabels.Place(width, depth, cell, ring.xMin, ring.yMin, elevation, units);
             UnityEngine.Debug.Log($"[ResortOpener] contour labels: {labels[0].Length:N0} (200 ft), {labels[1].Length:N0} (50 m)");
-            return (result, labels, elevation, canopy, BuildWeatherTerrain(elevation, width, depth, ring, core));
+            return (result, labels, elevation, canopy, BuildWeatherTerrain(elevation, width, depth, ring, core, convergence, MountainPlanner.Simulation.Pacing.Default));
         }
 
         /// <summary>
         /// WX-35's static inputs (task 4.05 PR B2) from the 8 m elevations as downloaded (this runs before any terrain edit can
         /// touch them), in whole feet. The design's frame and the ring's local frame share the site's centre as origin.
+        /// <paramref name="convergence"/> is the grid's (degrees, grid north clockwise to true north): the weather's winds are
+        /// true. <paramref name="pacing"/> is the world's (the app plays one).
         /// </summary>
-        internal static MountainPlanner.Domain.Weather.WeatherTerrain BuildWeatherTerrain(float[] elevation, int width, int depth, Rect ring, Rect core)
+        internal static MountainPlanner.Domain.Weather.WeatherTerrain BuildWeatherTerrain(float[] elevation, int width, int depth, Rect ring, Rect core,
+                                                                                          double convergence, MountainPlanner.Simulation.Pacing pacing)
         {
             var clock = Stopwatch.StartNew();
             const float cell = SurfaceStates.CellMetres;
@@ -432,8 +435,9 @@ namespace MountainPlanner.App
             int ri = Mathf.Clamp(Mathf.FloorToInt(-ring.xMin / cell), 0, width - 1), rj = Mathf.Clamp(Mathf.FloorToInt(-ring.yMin / cell), 0, depth - 1);
             var terrain = MountainPlanner.Domain.Weather.WeatherTerrain.Build(width, depth, feet, originX, originY,
                 (Col(core.xMin), Row(core.yMin), Col(core.xMax), Row(core.yMax)), rj * width + ri,
-                MountainPlanner.Simulation.SimWeather.TerrainTuning(MountainPlanner.Simulation.Pacing.Default));
-            UnityEngine.Debug.Log($"[ResortOpener] weather's static inputs: {width}×{depth} cells, hvf_ref {terrain.HvfRefFeet} ft, in {clock.Elapsed.TotalMilliseconds:F0} ms");
+                MountainPlanner.Simulation.SimWeather.TerrainTuning(pacing), (int)System.Math.Round(convergence * 10));
+            UnityEngine.Debug.Log($"[ResortOpener] weather's static inputs: {width}×{depth} cells, hvf_ref {terrain.HvfRefFeet} ft, convergence {convergence:F1}°, " +
+                                  $"hash {terrain.Hash:X16}, in {clock.Elapsed.TotalMilliseconds:F0} ms");
             return terrain;
         }
 

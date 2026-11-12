@@ -49,7 +49,9 @@ namespace MountainPlanner.Tests
                     for (int i = 0; i < width; i++)
                         elevation[j * width + i] = (float)heights.At(ringBox.West + (i + 0.5) * cell, ringBox.South + (j + 0.5) * cell);
 
-            var t = ResortOpener.BuildWeatherTerrain(elevation, width, depth, ring, core);
+            var pacing = MountainPlanner.Simulation.Pacing.Default;
+            var t = ResortOpener.BuildWeatherTerrain(elevation, width, depth, ring, core, m.Crs.GridConvergenceDegrees, pacing);
+            Assert.That(t.ConvergenceTenths, Is.EqualTo(90).Within(2), "Jackson Hole's grid north is about 9° off true north");
             Assert.That((t.Width, t.Depth), Is.EqualTo((width, depth)));
             Assert.That(t.BinFeet, Is.EqualTo(WeatherTerrain.MinBinFeet));
             Assert.That(t.CellAt(0, 0), Is.EqualTo(depth / 2 * width + width / 2), "the site's centre is the grid's middle cell");
@@ -101,7 +103,7 @@ namespace MountainPlanner.Tests
             for (int k = 0; k < elevation.Length; k++) elevation[k] -= 200;
             Assert.That(t.Hash, Is.EqualTo(before));
             Assert.That(t.Bin[high], Is.EqualTo(binAtHigh));
-            Assert.That(ResortOpener.BuildWeatherTerrain(elevation, width, depth, ring, core).MinFeet, Is.LessThan(t.MinFeet), "a rebuild would have followed the edit: so the game never rebuilds");
+            Assert.That(ResortOpener.BuildWeatherTerrain(elevation, width, depth, ring, core, m.Crs.GridConvergenceDegrees, pacing).MinFeet, Is.LessThan(t.MinFeet), "a rebuild would have followed the edit: so the game never rebuilds");
         }
     }
 }

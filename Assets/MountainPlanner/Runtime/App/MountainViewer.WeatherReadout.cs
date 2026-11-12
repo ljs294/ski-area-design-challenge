@@ -63,7 +63,8 @@ namespace MountainPlanner.App
         static void Sample(StringBuilder t, string name, in WeatherSample p)
         {
             t.Append($"\n{name} {p.Feet:N0} ft: {p.Temp / 10.0:F1} °F, wet bulb {p.WetBulb / 10.0:F1} °F, dew {p.Dew / 10.0:F1} °F");
-            if (p.Liquid > 0)
+            if (p.FreezingRain && p.Liquid > 0) t.Append($" · FREEZING RAIN {p.Liquid / 100.0:F2} in/h");
+            else if (p.Liquid > 0)
                 t.Append(p.SnowPermille >= 999 ? $" · snowing {p.SnowTenthsIn / 10.0:F1} in/h"
                          : p.SnowPermille <= 1 ? $" · raining {p.Liquid / 100.0:F2} in/h"
                          : $" · mixed {p.SnowPermille / 10}% snow, {p.SnowTenthsIn / 10.0:F1} in/h");
