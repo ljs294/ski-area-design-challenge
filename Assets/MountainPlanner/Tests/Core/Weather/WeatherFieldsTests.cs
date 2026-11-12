@@ -122,7 +122,7 @@ namespace MountainPlanner.Tests
             Assert.That(t.Exposure[ridge], Is.GreaterThanOrEqualTo(4));
 
             int sf = Steer(t, w / 2, d / 2), cells = t.SteerWidth * t.SteerDepth;
-            int across = t.Turn[6 * cells + sf] * 2, along = t.Turn[0 * cells + sf] * 2;
+            int across = WeatherTerrain.TurnDegrees(t.Axis[sf], t.TurnWeight[sf], 90), along = WeatherTerrain.TurnDegrees(t.Axis[sf], t.TurnWeight[sf], 180);
             TestContext.Progress.WriteLine($"floor: a west wind turns {across}°, a north wind {along}°; speed {t.Speed[6 * cells + sf]}%, ridge {t.Speed[6 * cells + Steer(t, w / 2 + 160, d / 2)]}%");
             Assert.That(Math.Abs(across), Is.GreaterThanOrEqualTo(80), "a cross-valley wind turns to run along the floor");
             Assert.That(Math.Abs(along), Is.LessThanOrEqualTo(4), "a wind along the valley keeps its line");
@@ -319,7 +319,7 @@ namespace MountainPlanner.Tests
             var watch = Stopwatch.StartNew();
             var t = WeatherTerrain.Build(n, n, feet, -n * 4000, -n * 4000, (125, 125, n - 125, n - 125), n / 2 * n + n / 2, Tuning);
             watch.Stop();
-            long bytes = t.Bin.Length + t.Hvf.Length + t.Exposure.Length + t.Present.Length + t.Orographic.Length * 2L + t.Turn.Length + t.Speed.Length;
+            long bytes = t.Bin.Length + t.Hvf.Length + t.Exposure.Length + t.Present.Length + t.Orographic.Length * 2L + t.Axis.Length + t.TurnWeight.Length + t.Speed.Length + t.BinHvfFeet.Length * 2;
             TestContext.Progress.WriteLine($"static inputs at 11 km: {bytes / 1048576.0:F1} MB");
             Budget.AtMost(watch.Elapsed.TotalMilliseconds, 1000, "static inputs at 11 km (1,375² cells)");
 

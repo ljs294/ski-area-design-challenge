@@ -14,6 +14,8 @@ namespace MountainPlanner.Simulation
         public int Liquid, SnowTenthsIn;
         /// <summary>Wind and gust at this height's exposure (0.1 mph).</summary>
         public int Wind, Gust;
+        /// <summary>WX-38 v2: warm air over the pool at this height: the hour's liquid glazes (PR C's Freezing rain event reads it).</summary>
+        public bool FreezingRain;
     }
 
     /// <summary>
@@ -102,6 +104,7 @@ namespace MountainPlanner.Simulation
             _wxTerrain = t;
             _wxFields ??= new WeatherFields();
             FillFields();
+            SampleWeather();   // the reference points take their pool from the map's inputs
             return true;
         }
 
@@ -121,19 +124,12 @@ namespace MountainPlanner.Simulation
             int j = _wxHour.HourOfYear / 24;
             if (j >= Calendar.YearFaceDays) return 0;
             int y = _wxHour.LabelYear;
-            // Local mean solar time to UTC: west of Greenwich an evening hour is the next UTC day.
-            double utc = (_wxHour.HourOfDay + 0.5) * 3600 - Site.Longitude * 240;
-            int year = Calendar.CalendarYear(y, j), day = Calendar.DayOfYear(y, j);
-            if (utc >= 86400) { utc -= 86400; day++; }
-            else if (utc < 0) { utc += 86400; day--; }
-            if (day > DaysIn(year)) { day = 1; year++; }
-            else if (day < 1) { year--; day = DaysIn(year); }
-            var sun = Domain.Sky.SolarPosition.At(Site.Latitude, Site.Longitude, year, day, utc);
+            // The face clock is the area's standard time, as the lighting reads it (SolarDay), so the map's sun is the sky's.
+            var sun = new Domain.Sky.SolarDay(Site.Latitude, Site.Longitude, Calendar.CalendarYear(y, j), Calendar.DayOfYear(y, j))
+                .SunAt((_wxHour.HourOfDay + 0.5) * 3600);
             if (sun.Elevation <= 0) return 0;
             return (int)Math.Round(1361 * 0.75 * Math.Sin(sun.Elevation * Math.PI / 180) * _wxHour.Clearness / 1000);
         }
-
-        static int DaysIn(int year) => year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) ? 366 : 365;
 
         /// <summary>The hour step's weather (WX-06's call order: first).</summary>
         void HourStepWeather(long hour)
@@ -200,13 +196,13 @@ namespace MountainPlanner.Simulation
         WeatherSample SampleAt(int feet)
         {
             int dz = feet - _weather.Rows.ZrefFeet;
-            WeatherFields.AirAt(_wxHour, _weather.Rows.ZrefFeet, feet, out int temp, out int dew, out _, out int wb, out int snow);
+            WeatherFields.AirAt(_wxHour, _weather.Rows.ZrefFeet, feet, _wxTerrain, Pacing, out int temp, out int dew, out _, out int wb, out int snow, out bool freezing);
             int liquid = (int)WeatherMath.DivRound((long)_wxHour.Liquid * WeatherFields.PrecipFactor(_wxHour, dz), 1000);
             long wind = (long)_wxHour.Wind * _weather.ExposureAt(Pacing, feet) / 1000;
             return new WeatherSample
             {
                 Feet = feet, Temp = temp, Dew = dew, WetBulb = wb, SnowPermille = snow,
-                Liquid = liquid, SnowTenthsIn = WeatherAir.SnowTenthsIn(liquid, snow, wb), Wind = (int)wind, Gust = GustTenthsAt(feet),
+                Liquid = liquid, SnowTenthsIn = WeatherAir.SnowTenthsIn(liquid, snow, wb), Wind = (int)wind, Gust = GustTenthsAt(feet), FreezingRain = freezing,
             };
         }
 

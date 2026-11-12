@@ -364,12 +364,17 @@ namespace MountainPlanner.Tests
             var mid = A(248);
             Assert.That(mid.Wind, Is.InRange(Math.Min(a.Wind, b.Wind), Math.Max(a.Wind, b.Wind)));
             Assert.That(mid.Direction, Is.InRange(Math.Min(a.Direction, b.Direction), Math.Max(a.Direction, b.Direction)));
-            // And a storm's own direction, not the hour's wind, picks the precipitation's octants.
-            f.Fill(10, Wet(90, 12, stormDirection: 270), t, 6000, P, 0);
-            f.At(slope, out var west);
-            f.Fill(11, Wet(90, 12, stormDirection: 90), t, 6000, P, 0);
-            f.At(slope, out var east);
-            Assert.That(west.Liquid, Is.Not.EqualTo(east.Liquid), "the east slope is windward for one storm and lee for the other");
+            // And a storm's own direction, not the hour's wind, picks the precipitation's octants: at a 512 m cell's centre the
+            // liquid follows that octant's factor there.
+            int centre = (3 * 64 + 32) * w + 3 * 64 + 32, cc = t.CoarseWidth * t.CoarseDepth, coarse = 3 * t.CoarseWidth + 3;
+            int fromWest = t.Orographic[6 * cc + coarse], fromEast = t.Orographic[2 * cc + coarse];
+            Assert.That(fromWest, Is.Not.EqualTo(fromEast));
+            f.Fill(10, Wet(90, 300, stormDirection: 270), t, 6000, P, 0);
+            f.At(centre, out var west);
+            f.Fill(11, Wet(90, 300, stormDirection: 90), t, 6000, P, 0);
+            f.At(centre, out var east);
+            Assert.That(west.Liquid, Is.Not.EqualTo(east.Liquid));
+            Assert.That(west.Liquid > east.Liquid, Is.EqualTo(fromWest > fromEast), "the storm's direction, not the hour's wind, picks the factor");
         }
 
         [Test]
@@ -462,6 +467,226 @@ namespace MountainPlanner.Tests
             }
             Assert.That(hours, Is.GreaterThan(80));
             Assert.That(more, Is.EqualTo(hours), "the same height, so only the ground can tell them apart");
+        }
+
+        // ---------------- the audit's minor findings ----------------
+
+        static WeatherTerrain NorthSouthValley(int convergenceTenths = 0)
+        {
+            const int w = 400, d = 400;
+            var feet = new int[w * d];
+            for (int j = 0; j < d; j++) for (int i = 0; i < w; i++) feet[j * w + i] = 6000 + Math.Abs(i - w / 2) * 8;
+            return WeatherTerrain.Build(w, d, feet, -w * 4000, -d * 4000, (0, 0, w, d), d / 2 * w + 230, Tuning, convergenceTenths);
+        }
+
+        /// <summary>m3: a plain hillside (up one side, down the other) is no valley, so it turns no wind; a valley and a ridge differ.</summary>
+        [Test]
+        public void AHillsideIsNoValley()
+        {
+            const int w = 300, d = 300;
+            var slope = new int[w * d];
+            var ridge = new int[w * d];
+            for (int j = 0; j < d; j++)
+                for (int i = 0; i < w; i++)
+                {
+                    slope[j * w + i] = 6000 + i * 7;                               // rising east at about 27 %
+                    ridge[j * w + i] = 8000 - Math.Abs(i - w / 2) * 8;             // a north–south ridge
+                }
+            var hill = WeatherTerrain.Build(w, d, slope, 0, 0, (0, 0, w, d), 0, Tuning);
+            var crest = WeatherTerrain.Build(w, d, ridge, 0, 0, (0, 0, w, d), 0, Tuning);
+            int mid = d / 2 / 12 * hill.SteerWidth + w / 2 / 12;
+            Assert.That(hill.TurnWeight[mid], Is.EqualTo(0), "the wind crosses a hillside as it came");
+            Assert.That(crest.TurnWeight[mid], Is.EqualTo(0), "and a ridge");
+            var valley = NorthSouthValley();
+            int floor = 200 / 12 * valley.SteerWidth + 200 / 12;
+            Assert.That(valley.TurnWeight[floor], Is.GreaterThanOrEqualTo(90));
+            Assert.That(valley.Axis[floor] % 4, Is.EqualTo(0), "the axis runs north–south");
+        }
+
+        /// <summary>m4: between a wind 45° off the valley and one straight across it, every direction still runs along the floor.</summary>
+        [Test]
+        public void AWindNearlyAcrossAValleyStillRunsAlongIt()
+        {
+            var t = NorthSouthValley();
+            int floor = 200 * 400 + 200;
+            var f = new WeatherFields();
+            for (int from = 0; from < 360; from += 7)
+            {
+                f.Fill(from, Wet(from, 0), t, 6000, P, 0);
+                f.At(floor, out var c);
+                int off = Math.Min(c.Direction % 180, 180 - c.Direction % 180);
+                Assert.That(off, Is.LessThanOrEqualTo(8), $"a wind from {from}° runs {c.Direction}° on the floor");
+                // And it keeps its side: a wind with any south in it still comes from the south half.
+                bool fromSouth = from > 95 && from < 265, fromNorth = from < 85 || from > 275;
+                if (fromSouth) Assert.That(c.Direction, Is.InRange(170, 190), $"from {from}°");
+                if (fromNorth) Assert.That(c.Direction <= 10 || c.Direction >= 350, $"from {from}° runs {c.Direction}°");
+            }
+        }
+
+        /// <summary>m1: the weather's directions are true; the grid's octants and axes are read through the convergence.</summary>
+        [Test]
+        public void TrueNorthIsTurnedToTheGridsNorth()
+        {
+            var plain = NorthSouthValley();
+            var turned = NorthSouthValley(convergenceTenths: 150);   // Crystal Mountain's 15°
+            Assert.That(turned.Hash, Is.Not.EqualTo(plain.Hash));
+            Assert.That(turned.GridDegrees(255), Is.EqualTo(270));
+            int slope = 200 * 400 + 360, floor = 200 * 400 + 200;
+            var a = new WeatherFields();
+            var b = new WeatherFields();
+            a.Fill(0, Wet(270, 12), plain, 6000, P, 0);
+            b.Fill(0, Wet(255, 12), turned, 6000, P, 0);     // a true 255° is the grid's 270° there
+            a.At(slope, out var ca); b.At(slope, out var cb);
+            Assert.That((cb.Liquid, cb.Wind, cb.Gust), Is.EqualTo((ca.Liquid, ca.Wind, ca.Gust)), "the same wind on the grid, the same weather");
+            a.At(floor, out ca); b.At(floor, out cb);
+            // On the floor both run along the grid's north–south valley: 0 or 180 on the grid, so 345 or 165 true.
+            Assert.That(ca.Direction % 180, Is.EqualTo(0).Within(4).Or.EqualTo(180).Within(4));
+            Assert.That((cb.Direction + 15) % 180, Is.EqualTo(0).Within(4).Or.EqualTo(180).Within(4), "the readout's direction stays true");
+        }
+
+        /// <summary>m5: no wind reaches further upwind than another, and the cell just behind a crest gets its spillover.</summary>
+        [Test]
+        public void SpilloverSitsJustBehindTheCrest()
+        {
+            const int w = 1024, d = 1024;
+            var feet = new int[w * d];
+            // A sharp north–south wall one 512 m cell wide, 2,000 ft high, on a plain.
+            for (int j = 0; j < d; j++) for (int i = 0; i < w; i++) feet[j * w + i] = 6000 + (i >= 512 && i < 576 ? 2000 : 0);
+            var t = WeatherTerrain.Build(w, d, feet, 0, 0, (0, 0, w, d), 0, Tuning);
+            int cells = t.CoarseWidth * t.CoarseDepth, row = 8 * t.CoarseWidth;
+            int o = 6;   // from the west: the wall is coarse column 8
+            int crest = t.Orographic[o * cells + row + 8], behind = t.Orographic[o * cells + row + 9], second = t.Orographic[o * cells + row + 10],
+                far = t.Orographic[o * cells + row + 13], plain = t.Orographic[o * cells + row + 2];
+            TestContext.Progress.WriteLine($"west wind over a wall: plain {plain}, crest {crest}, just behind {behind}, next {second}, 2.5 km behind {far}");
+            Assert.That(crest, Is.GreaterThan(plain), "the wall is windward");
+            Assert.That(behind, Is.GreaterThan(plain * 105 / 100), "spillover just behind the crest (+7 % of +10 % at a cell's distance)");
+            Assert.That(second, Is.GreaterThan(far), "fading before the shadow");
+            Assert.That(far, Is.LessThan(plain), "the shadow further back");
+            // A diagonal wind's shadow ends as far out as a straight one's: 3 km, not 3.6.
+            int shadowStraight = 0, shadowDiagonal = 0;
+            for (int k = 1; k <= 7; k++)
+            {
+                if (t.Orographic[6 * cells + row + 8 + k] < plain) shadowStraight = k * 512;
+                // from the south-west (octant 5): k cells north-east of the wall along the diagonal is k columns east
+                if (t.Orographic[5 * cells + (8 + k) * t.CoarseWidth + 8 + k] < t.Orographic[5 * cells + row + 2]) shadowDiagonal = k * 512;
+            }
+            TestContext.Progress.WriteLine($"the shadow reaches {shadowStraight} m east of the wall for a west wind, {shadowDiagonal} m for a south-west one");
+            Assert.That(shadowDiagonal, Is.LessThanOrEqualTo(shadowStraight));
+        }
+
+        /// <summary>m6: the base's sample is the map's base: pooled on a still night, with freezing rain when warm air rides over it.</summary>
+        [Test]
+        public void TheBasesSampleSitsInThePool()
+        {
+            var t = NorthSouthValley();
+            var rows = SimWeatherTests.Golden();
+            var wx = rows.WithPoints(6000, 7280);
+            LiftInput lift = new LiftInput(1, true, LiftSchedule.Daily, null, LiftKind.DetachableChair, 4, 6000, 360_000, topFeet: 7000);
+            var with = new SimWorld(P, new SimDesign(1, 1, 77, DayHours.Default, new[] { lift }, 1), SimSite.None, 2026, weather: wx);
+            var without = new SimWorld(P, new SimDesign(1, 1, 77, DayHours.Default, new[] { lift }, 1), SimSite.None, 2026, weather: wx);
+            with.ApplyNow(SimCommand.Of(SimCommandKind.SetWeatherTerrain, 0, t));
+            var a = new SimSnapshot(P);
+            var b = new SimSnapshot(P);
+            int pooled = 0, colder = 0, summitWarmer = 0;
+            long last = with.HourIndex;
+            while (with.FaceMs < 12 * SimWorld.DayMs)
+            {
+                with.Step(P.IdleTickFactor);
+                without.Step(P.IdleTickFactor);
+                if (with.HourIndex == last) continue;
+                last = with.HourIndex;
+                if (with.WeatherNow.Pool < 30) continue;
+                with.Write(a); without.Write(b);
+                pooled++;
+                if (a.WeatherBase.Temp < b.WeatherBase.Temp) colder++;
+                if (a.WeatherSummit.Temp >= b.WeatherSummit.Temp) summitWarmer++;
+                // The base's sample is a floor cell's air at its height.
+                a.WeatherFields.At(200 * 400 + 200, out var floor);
+                Assert.That(a.WeatherBase.Temp, Is.EqualTo(floor.Temp).Within(12), "the readout's Base and the cursor at the base agree");
+            }
+            TestContext.Progress.WriteLine($"{pooled} pooled hours: the base colder in {colder}, the summit no colder in {summitWarmer}");
+            Assert.That(pooled, Is.GreaterThan(8), "October's still nights");
+            Assert.That(colder, Is.EqualTo(pooled));
+            Assert.That(summitWarmer, Is.EqualTo(pooled));
+        }
+
+        /// <summary>m2: the map's sun is the sky's: the face clock is standard time, as the lighting reads it.</summary>
+        [Test]
+        public void TheMapsSunIsTheLightingsSun()
+        {
+            var t = NorthSouthValley();
+            var site = new SimSite(43.59, -110.83);
+            var w = new SimWorld(P, new SimDesign(1, 1, 77, DayHours.Default, Array.Empty<LiftInput>(), 0), site, 2026, weather: SimWeatherTests.Golden());
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetWeatherTerrain, 0, t));
+            var cal = new LabelCalendar(P);
+            int checkedHours = 0;
+            long last = w.HourIndex;
+            while (w.FaceMs < 3 * SimWorld.DayMs)
+            {
+                w.Step(P.IdleTickFactor);
+                if (w.HourIndex == last) continue;
+                last = w.HourIndex;
+                var h = w.WeatherNow;
+                int j = h.HourOfYear / 24;
+                var sun = new MountainPlanner.Domain.Sky.SolarDay(site.Latitude, site.Longitude, cal.CalendarYear(h.LabelYear, j), cal.DayOfYear(h.LabelYear, j))
+                    .SunAt((h.HourOfDay + 0.5) * 3600);
+                int expected = sun.Elevation <= 0 || h.Clearness <= 0 ? 0
+                    : (int)Math.Round(1361 * 0.75 * Math.Sin(sun.Elevation * Math.PI / 180) * h.Clearness / 1000);
+                Assert.That(w.WeatherFields.Shortwave, Is.EqualTo(expected), $"face hour {h.HourOfYear}, {h.HourOfDay}:30");
+                checkedHours++;
+            }
+            Assert.That(checkedHours, Is.GreaterThan(60));
+        }
+
+        /// <summary>m7: a read that starts off the grid still puts each row where the caller asked.</summary>
+        [Test]
+        public void ARangeOffTheGridKeepsItsRows()
+        {
+            var t = RoughTerrain(out _, holes: false);
+            var f = new WeatherFields();
+            f.Fill(0, Wet(250), t, 7000, P, 0);
+            var dest = new WeatherCell[6 * W];
+            f.ReadRows(-2, 4, dest);
+            Assert.That(dest[0].Known, Is.False, "rows −2 and −1 don't exist");
+            Assert.That(dest[W + 5].Known, Is.False);
+            for (int j = 0; j < 4; j++)
+            {
+                f.At(j * W + 17, out var c);
+                Assert.That(dest[(j + 2) * W + 17], Is.EqualTo(c), $"row {j}");
+            }
+            var tail = new WeatherCell[4 * W];
+            f.ReadRows(D - 2, D + 2, tail);
+            f.At((D - 1) * W + 3, out var lastRow);
+            Assert.That(tail[W + 3], Is.EqualTo(lastRow));
+            Assert.That(tail[2 * W + 3].Known, Is.False);
+        }
+
+        /// <summary>m9: the pacing table refuses numbers that would break the inputs' promises.</summary>
+        [Test]
+        public void ThePacingTableRefusesBrokenWeatherNumbers()
+        {
+            Assert.Throws<FormatException>(() => Pacing.Parse("ExposureHvfFeet = 50, 150, 300, 300, 800, 1200, 1800"), "not rising");
+            Assert.Throws<FormatException>(() => Pacing.Parse("OrographicShadow = 900"), "a shadow that could empty a cell");
+            Assert.DoesNotThrow(() => Pacing.Parse("OrographicShadow = 500"));
+            // The tuning owns its thresholds: changing the caller's array afterwards changes nothing.
+            var mine = new[] { 50, 150, 300, 500, 800, 1200, 1800 };
+            var tuning = new WeatherTerrainTuning(mine, 8, 400, 100, 300, 1000, 2000, 2000, 300, 1000, 250, 700, 150);
+            mine[0] = 9999;
+            Assert.That(tuning.ExposureHvfFeet[0], Is.EqualTo(50));
+        }
+
+        /// <summary>m11: the command log notes that the static inputs came, without keeping megabytes of them alive.</summary>
+        [Test]
+        public void TheLogDoesntKeepTheStaticInputs()
+        {
+            var t = NorthSouthValley();
+            var w = new SimWorld(P, new SimDesign(1, 1, 77, DayHours.Default, Array.Empty<LiftInput>(), 0), SimSite.None, 2026, weather: SimWeatherTests.Golden());
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetWeatherTerrain, 0, t));
+            Assert.That(w.WeatherTerrain, Is.SameAs(t));
+            bool seen = false;
+            foreach (var c in w.Log)
+                if (c.Kind == SimCommandKind.SetWeatherTerrain) { seen = true; Assert.That(c.Payload, Is.Null); }
+            Assert.That(seen);
         }
 
         [Test]

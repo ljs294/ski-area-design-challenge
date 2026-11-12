@@ -419,10 +419,20 @@ B2 gives every 8 m cell the same hour's weather, as a few lookups, with nothing 
   goes on to be `SnowElevation`, which follows earthwork; the copy doesn't), and never cached: about 0.3 s at 11 km, so the terrain cache doesn't bump.
   - **Changed from WX-35 v1:** the coarse grids are 64 and 12 cells (512 m and 96 m) so they tile the 8 m grid exactly;
     the orographic factor is normalised over the box's coarse cells (the Daymet lattice is the box's 1 km pixels, so
-    the mean is the same and Domain needs no Daymet grid); the steering is a static terrain-following estimate (the
-    valley's axis is the opposite pair of directions the ground changes least along, 384 m out; the turn grows with
-    the valley's depth across it and the cell's shelter; the speed with the rise over its ring, × `SteerCrestLee` 0.7
-    behind ground `SteerLeeFeet` above it within 384 m upwind).
+    the mean is the same and Domain needs no Daymet grid). Every wind looks the same 3 km upwind (5 cells along the
+    grid, 4 on a diagonal), and a crest's distance is to its cell's near edge, so the cell just behind a crest gets
+    +7 % of the +10 % spillover.
+  - **The steering** is a static terrain-following estimate. Per 96 m cell, whatever the wind: across each of the four
+    lines through the cell the valley's depth is how far the ground rises on *both* sides about 400 m out (a plain
+    hillside or a ridge is no valley); the axis is the line across the deepest, pointing down the valley; the weight
+    grows with that depth (`SteerValleyFeet`) and the cell's shelter (`SteerShelterFeet`). Each hour the wind turns
+    toward the nearer end of the axis by that weight, **from its exact direction** (nothing blended between octants,
+    so a wind 67° off the valley still runs along it); blowing exactly across, it turns down the valley. Per octant,
+    the speed: faster over a rise, slower in a hollow, × `SteerCrestLee` 0.7 behind ground `SteerLeeFeet` above it
+    within about 400 m upwind.
+  - **True north.** The weather's directions are true (POWER's); the octants and axes are the grid's. The inputs carry
+    the grid's convergence (9° at Jackson Hole, 15° at Crystal Mountain) and turn each direction by it before reading
+    either; a cell's direction in the readout stays true.
   - **Into the sim:** `SimCommandKind.SetWeatherTerrain = 30`, applied at once (they're the terrain's, so they never wait
     for October 1). It changes no state and is stamped from the view sequence (as `InspectSkier`), so a game that gets
     it again after a load hashes as the one that saved. Not hashed, not saved; the lift gusts it produces are both.
@@ -435,16 +445,15 @@ B2 gives every 8 m cell the same hour's weather, as a few lookups, with nothing 
 - **WX-02 v2's tables** (`Simulation/Weather/WeatherFields`), filled once per face hour in the hour step (0.25 ms at
   11 km, 0 B): air per (bin × pool band) the area has, precipitation per bin and per 512 m cell (blended between the
   two octants nearest the storm's direction), the steered wind and direction per 96 m cell (between the two nearest
-  the hour's), and the hour's flat-surface sun (WX-40: `SolarPosition` once an hour, × clearness; the snapshot's only,
-  never hashed). Reads: `At(cell)` and the banded, tile-masked `ReadRows` with the caller's canopy (51 ms for all 1.9 M
+  the hour's), and the hour's flat-surface sun (WX-40: `SolarDay.SunAt` once an hour, on the face clock's standard time
+  as the lighting reads it, × clearness; the snapshot's only, never hashed). Reads: `At(cell)` and the banded, tile-masked `ReadRows` with the caller's canopy (51 ms for all 1.9 M
   cells at 11 km, release build); one formula behind both, so a lift's gust is the map's. A cell's liquid is rounded
   once (rate × elevation factor × orographic factor), so a 0.01 in hour isn't lost where the factor is under 1.0. The
   snapshot copies the tables when the hour or the inputs change, outside SI-16's 64 KB (166 KB at 11 km; the first copy
   into each snapshot allocates, none after).
 - **WX-37's integer wet bulb** (`Domain/Weather/WeatherAir`): a table generated from Stull (whole °F × whole % RH) and
   kept as literals (`WeatherAirTables`, as `WeatherMath.LowerHalf`), so no platform computes it; within 0.5 °F of
-  Stull (0.4 measured), and a test on CoreCLR and Mono checks the literals still equal the generator's. The reference points' samples use it too, so the
-  readout and the map agree. **Measured against the psychrometric equation** (WX-37's test): in humid air (RH ≥ 60 %:
+  Stull (0.4 measured), and a test on CoreCLR and Mono checks the literals still equal the generator's. The reference points' samples use it too, and with static inputs each sits in the pool where the box's own cells at its height do (the mean hvf per elevation bin), so the readout's Base agrees with the cursor at the base and carries the freezing-rain flag PR C's event reads. **Measured against the psychrometric equation** (WX-37's test): in humid air (RH ≥ 60 %:
   storms, gun nights) within 1.5 °F at sea level and at 10,000 ft; in dry air Stull reads warm, up to about 4 °F at 0 °F
   and 20 % RH at 10,000 ft (the guns conservative, never optimistic), so WX-37's "about 1 °F" was too small. The test
   also found Stull's −4 °F extension reading above the air in very dry air (+4.3 °F at 5 % RH); it now never does
@@ -463,9 +472,11 @@ B2 gives every 8 m cell the same hour's weather, as a few lookups, with nothing 
   of relief; a cell's liquid was rounded down twice; the wet-bulb table was computed at start-up; and the first tests
   left the batch read, the copy, the canopy, the octant blend, holes, a box inside the grid and real terrain
   unchecked (`WeatherMapAuditTests`, and `WeatherTerrainAppTests` on the Jackson Hole 2 km fixture through
-  `ResortOpener.BuildWeatherTerrain`). Its twelve minor findings (true north against grid north, the sun's clock,
-  hillsides read as valleys, the cross-valley tie, diagonal reach and spillover, the reference points' pool, and
-  smaller ones) are the next PR.
+  `ResortOpener.BuildWeatherTerrain`). Its twelve minor findings were fixed in a second PR: true north against grid
+  north, the sun's clock, hillsides read as valleys, the cross-valley tie, diagonal reach and spillover, the
+  reference points' pool, a batch read safe for two readers and for ranges off the grid, arrays sized before the
+  inputs are swapped, `Pacing` refusing thresholds that don't rise or factors past ±50 %, 30 MB less garbage at
+  open, and the command log not keeping the inputs alive.
 - **Pacing v6** (one bump for B2 and PR C): `ExposureHvfFeet`, `ExposureRiseFeet`, `OrographicClimbFeet`,
   `OrographicBarrierFeet`, the five `Steer…` numbers, and PR C's forecast numbers as data (`ForecastLeanDay1/7`,
   `ForecastTempTenths`, `ForecastPrecipPermille`, `ForecastChancePermille`, `ForecastBustPermille`,
@@ -475,9 +486,8 @@ B2 gives every 8 m cell the same hour's weather, as a few lookups, with nothing 
   worker and once in each of the three snapshots.
 - **Demo 94, round 2:** the readout's "At the cursor" line (height, `hvf`, exposure class, air, wet bulb, RH, phase and
   rate or freezing rain, wind, gusts, direction, sun), and the hold report re-run on Jackson Hole 5 km with the drawn
-  resort's six lifts, height rule against the steered cells. At 0.85 the season's holds barely change in total (14.4 →
-  11.6 held face hours over the six lifts) but move to the lifts whose tops stand in the wind: Summit Six's top sits
-  under higher ground to its west and drops from 14.4 to 0.4, and Base Six's top, on a ridge 1,700 ft above its valley,
+  resort's six lifts, height rule against the steered cells. At 0.85 the season's holds barely change in total (14.4 → 11.2 held face hours over the six lifts, after the audit's fixes) but move to the lifts whose tops stand in the wind: Summit Six's top sits
+  under higher ground to its west and drops from 14.4 to 0, and Base Six's top, on a ridge 1,700 ft above its valley,
   rises from 0 to 11.2. `WindScale` stays 0.85 (closing plan, decision 4).
 
 ## 4. Weather runs on the calendar, compressed like time

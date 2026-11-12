@@ -45,8 +45,8 @@ namespace MountainPlanner.Simulation
         /// <summary>Per (bin × band): the snow share × the snow ratio, so a cell's snow is its liquid × this ÷ 100,000.</summary>
         readonly int[] _snowFactor = new int[Pairs];
         /// <summary>Per 512 m cell: the blended orographic factor (‰). Per 96 m cell: the free wind × the steering's speed (0.1 mph,
-        /// before the exposure class) and the direction the wind comes from (°). A per-row scratch for the batch read.</summary>
-        int[] _oro = Array.Empty<int>(), _steerWind = Array.Empty<int>(), _steerDir = Array.Empty<int>(), _rowOro = Array.Empty<int>();
+        /// before the exposure class) and the direction the wind comes from (°, true).</summary>
+        int[] _oro = Array.Empty<int>(), _steerWind = Array.Empty<int>(), _steerDir = Array.Empty<int>();
         int _liquid, _wind, _gustFactor, _direction, _shortwave;
 
         /// <summary>The face hour these tables describe (−1: none yet).</summary>
@@ -55,17 +55,17 @@ namespace MountainPlanner.Simulation
         public WeatherTerrain Terrain { get; private set; }
         public int Shortwave => _shortwave;
         /// <summary>What this fill holds, bytes (the fixed tables and the per-terrain ones): beside SI-16's 64 KB, never inside it.</summary>
-        public int SizeBytes => Pairs * (5 * 2 + 1 + 4) + _precipBin.Length * 4 + 8 * 4 + (_oro.Length + _steerWind.Length + _steerDir.Length + _rowOro.Length) * 4;
+        public int SizeBytes => Pairs * (5 * 2 + 1 + 4) + _precipBin.Length * 4 + 8 * 4 + (_oro.Length + _steerWind.Length + _steerDir.Length) * 4;
 
         /// <summary>Sizes the per-terrain tables (once, when the static inputs arrive: never per hour).</summary>
         void Size(WeatherTerrain t)
         {
             if (Terrain == t) return;
-            Terrain = t;
             int coarse = t.CoarseWidth * t.CoarseDepth, steer = t.SteerWidth * t.SteerDepth;
             if (_oro.Length != coarse) _oro = new int[coarse];
-            if (_rowOro.Length != t.CoarseWidth) _rowOro = new int[t.CoarseWidth];
             if (_steerWind.Length != steer) { _steerWind = new int[steer]; _steerDir = new int[steer]; }
+            // Last: a reader that sees the new inputs finds arrays already sized for them.
+            Terrain = t;
         }
 
         /// <summary>
@@ -92,7 +92,9 @@ namespace MountainPlanner.Simulation
                 {
                     int k = b * WeatherTerrain.Bands + band;
                     if (!t.Present[k]) continue;
-                    Air(h, dz, PoolShare(band * WeatherTerrain.BandFeet + WeatherTerrain.BandFeet / 2, p) - refPool, out int temp, out int dew,
+                    // The last band is everything above the pool's reach: no share at all.
+                    int share = band == WeatherTerrain.Bands - 1 ? 0 : PoolShare(band * WeatherTerrain.BandFeet + WeatherTerrain.BandFeet / 2, p);
+                    Air(h, dz, share - refPool, out int temp, out int dew,
                         out int rh, out int wb, out int snow, out bool freezing);
                     _temp[k] = (short)temp; _dew[k] = (short)dew; _rh[k] = (short)rh; _wetBulb[k] = (short)wb; _snow[k] = (short)snow;
                     _freezing[k] = freezing;
@@ -101,18 +103,20 @@ namespace MountainPlanner.Simulation
             }
 
             // WX-38 v2: the orographic factor between the two octants nearest the storm's direction (the hour's when there's none).
+            // The weather's directions are true; the octants are the grid's (the convergence, 9° at Jackson Hole).
             int stormDir = h.StormOrdinal >= 0 ? h.StormDirection : _direction;
-            Blend(stormDir, out int o0, out int o1, out int w1);
+            Blend(t.GridDegrees(stormDir), out int o0, out int o1, out int w1);
             int coarse = t.CoarseWidth * t.CoarseDepth;
             for (int c = 0; c < coarse; c++)
                 _oro[c] = (t.Orographic[o0 * coarse + c] * (1000 - w1) + t.Orographic[o1 * coarse + c] * w1) / 1000;
-            // WX-39: the steering between the two octants nearest the hour's direction.
-            Blend(_direction, out o0, out o1, out w1);
+            // WX-39: the speed between the two octants nearest the hour's direction; the turn from its exact heading.
+            int gridFrom = t.GridDegrees(_direction), heading = (gridFrom + 180) % 360;
+            Blend(gridFrom, out o0, out o1, out w1);
             int steer = t.SteerWidth * t.SteerDepth;
             for (int c = 0; c < steer; c++)
             {
                 int speed = (t.Speed[o0 * steer + c] * (1000 - w1) + t.Speed[o1 * steer + c] * w1) / 100;   // ‰
-                int turn = (t.Turn[o0 * steer + c] * 2 * (1000 - w1) + t.Turn[o1 * steer + c] * 2 * w1) / 1000;
+                int turn = WeatherTerrain.TurnDegrees(t.Axis[c], t.TurnWeight[c], heading);
                 _steerWind[c] = _wind * speed / 1000;
                 _steerDir[c] = ((_direction + turn) % 360 + 360) % 360;
             }
@@ -139,7 +143,7 @@ namespace MountainPlanner.Simulation
             (int)WeatherMath.Clamp(1000 + WeatherMath.DivRound((long)h.PrecipGradient * dz, 100), 0, 4000);
 
         /// <summary>WX-36 v2's p(h) = max(0, 1 − h ÷ PoolDepth), ‰.</summary>
-        static int PoolShare(int hvfFeet, Pacing p) => Math.Max(0, 1000 - (int)((long)hvfFeet * 1000 / p.PoolDepthFeet));
+        public static int PoolShare(int hvfFeet, Pacing p) => Math.Max(0, 1000 - (int)((long)hvfFeet * 1000 / p.PoolDepthFeet));
 
         static void Blend(int direction, out int o0, out int o1, out int w1)
         {
@@ -149,10 +153,21 @@ namespace MountainPlanner.Simulation
             w1 = d % 45 * 1000 / 45;
         }
 
-        /// <summary>A reference point's air with no pool of its own (the reference points sit at the reference pixel's hvf).</summary>
-        public static void AirAt(in WeatherHour h, int zrefFeet, int feet, out int temp, out int dew, out int rh, out int wb, out int snow)
+        /// <summary>
+        /// A reference point's air (WX-35's base, mid, summit). With static inputs its pool is the box's own at that height
+        /// (<see cref="WeatherTerrain.BinHvfFeet"/>), as the map's cells there; without them (or at a height the box doesn't
+        /// have) it sits at the reference pixel's, with no pool of its own.
+        /// </summary>
+        public static void AirAt(in WeatherHour h, int zrefFeet, int feet, WeatherTerrain t, Pacing p,
+                                 out int temp, out int dew, out int rh, out int wb, out int snow, out bool freezing)
         {
-            Air(h, feet - zrefFeet, 0, out temp, out dew, out rh, out wb, out snow, out _);
+            int share = 0;
+            if (t != null)
+            {
+                int hvf = t.BinHvfFeet[t.BinOf(feet)];
+                if (hvf >= 0) share = (hvf >= (WeatherTerrain.Bands - 1) * WeatherTerrain.BandFeet ? 0 : PoolShare(hvf, p)) - PoolShare(t.HvfRefFeet, p);
+            }
+            Air(h, feet - zrefFeet, share, out temp, out dew, out rh, out wb, out snow, out freezing);
         }
 
         /// <summary>WX-02's point read: one cell's weather this hour (<c>Known</c> false for a cell without heights).</summary>
@@ -223,21 +238,30 @@ namespace MountainPlanner.Simulation
         {
             var t = Terrain;
             if (t == null || Hour < 0) return;
+            int first = y0;   // dest's first row is y0 as asked, even when part of the range is off the grid
             y0 = Math.Max(0, y0);
             y1 = Math.Min(t.Depth, y1);
             int width = t.Width, tilesWide = (width + 63) / 64, cw = t.CoarseWidth;
             for (int j = y0; j < y1; j++)
             {
-                // The orographic factor blended along y once per row, per 512 m column.
+                // The orographic factor blended along y for the two 512 m columns round the cell, worked out again only when
+                // the column changes (every 64 cells): no scratch, so two readers of one fill (4.07's bands on two threads)
+                // share nothing.
                 int fy = j * 2 + 1 - N, r0 = Math.Max(0, Math.Min(t.CoarseDepth - 1, FloorDiv(fy, 2 * N))), r1 = Math.Min(t.CoarseDepth - 1, r0 + 1);
                 int uy = WeatherMath.Clamp(fy - r0 * 2 * N, 0, 2 * N);
-                for (int x = 0; x < cw; x++) _rowOro[x] = _oro[r0 * cw + x] * (2 * N - uy) + _oro[r1 * cw + x] * uy;
-                int row = j * width, outRow = (j - y0) * width;
+                int row = j * width, outRow = (j - first) * width, lastX0 = -1, col0 = 0, col1 = 0;
                 for (int i = 0; i < width; i++)
                 {
                     if (tileMask != null && !tileMask[j / 64 * tilesWide + i / 64]) { i = (i / 64 + 1) * 64 - 1; continue; }
-                    int fx = i * 2 + 1 - N, x0 = Math.Max(0, Math.Min(cw - 1, FloorDiv(fx, 2 * N))), x1 = Math.Min(cw - 1, x0 + 1);
-                    Cell(t, row + i, i, j, _rowOro[x0], _rowOro[x1], canopy == null ? -1 : canopy[row + i], ref dest[outRow + i]);
+                    int fx = i * 2 + 1 - N, x0 = Math.Max(0, Math.Min(cw - 1, FloorDiv(fx, 2 * N)));
+                    if (x0 != lastX0)
+                    {
+                        int x1 = Math.Min(cw - 1, x0 + 1);
+                        col0 = _oro[r0 * cw + x0] * (2 * N - uy) + _oro[r1 * cw + x0] * uy;
+                        col1 = _oro[r0 * cw + x1] * (2 * N - uy) + _oro[r1 * cw + x1] * uy;
+                        lastX0 = x0;
+                    }
+                    Cell(t, row + i, i, j, col0, col1, canopy == null ? -1 : canopy[row + i], ref dest[outRow + i]);
                 }
             }
         }

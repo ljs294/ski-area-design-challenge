@@ -19,7 +19,7 @@ namespace MountainPlanner.Domain.Weather
                                     int climbFeet, int barrierFeet, int valleyFeet, int shelterFeet, int hillSpeed, int crestLee, int leeFeet)
         {
             if (exposureHvfFeet == null || exposureHvfFeet.Length != 7) throw new ArgumentException("Seven class thresholds.", nameof(exposureHvfFeet));
-            ExposureHvfFeet = exposureHvfFeet; ExposureRiseFeet = exposureRiseFeet;
+            ExposureHvfFeet = (int[])exposureHvfFeet.Clone(); ExposureRiseFeet = exposureRiseFeet;
             Windward = windward; Spillover = spillover; Shadow = shadow; SpilloverReachMetres = spilloverReachMetres;
             ClimbFeet = Math.Max(1, climbFeet); BarrierFeet = Math.Max(1, barrierFeet);
             ValleyFeet = Math.Max(1, valleyFeet); ShelterFeet = Math.Max(1, shelterFeet); HillSpeed = hillSpeed; CrestLee = crestLee; LeeFeet = leeFeet;
@@ -35,7 +35,7 @@ namespace MountainPlanner.Domain.Weather
     ///   cell within 1 km, 10 ft steps) and the exposure class (0 sheltered valley … 7 exposed summit).
     /// - Per 512 m cell and arrival octant: the orographic factor (‰), from the upwind terrain within 3 km, normalised so its
     ///   mean over the box is 1.0 (the Daymet lattice is the box's pixels at 1 km, so it has the same mean).
-    /// - Per 96 m cell and octant: the steering's turn (2° units) and speed factor (0.01).
+    /// - Per 96 m cell: the valley's axis and how strongly it turns the wind; per octant, the speed factor (0.01).
     /// </summary>
     public sealed class WeatherTerrain
     {
@@ -63,9 +63,19 @@ namespace MountainPlanner.Domain.Weather
         public readonly int CoarseWidth, CoarseDepth, SteerWidth, SteerDepth;
         /// <summary>[octant × coarse cells]: the orographic factor (‰). Octant 0 is a wind from the north, clockwise.</summary>
         public readonly short[] Orographic;
-        /// <summary>[octant × steer cells]: the turn (2° units, + clockwise) and the speed factor (0.01).</summary>
-        public readonly sbyte[] Turn;
+        /// <summary>Per steer cell: the valley's axis as a direction (× 45°, on the grid), pointing down the valley, and how
+        /// strongly the cell turns the wind to it (%): see <see cref="TurnDegrees"/>.</summary>
+        public readonly byte[] Axis, TurnWeight;
+        /// <summary>[octant × steer cells]: the speed factor (0.01) for a wind arriving from that octant.</summary>
         public readonly byte[] Speed;
+        /// <summary>
+        /// The grid's convergence, 0.1°: from grid north clockwise to true north (0.3 §4.1). The weather's directions are true
+        /// (POWER's); the octants and the axes are the grid's, so a direction is turned by this before either is read.
+        /// </summary>
+        public readonly int ConvergenceTenths;
+        /// <summary>Per elevation bin: the mean hvf (ft) of the box's cells at that height, −1 where the box has none: where
+        /// a reference point (the base, the summit) sits in the pool (WX-36 v2).</summary>
+        public readonly short[] BinHvfFeet;
         /// <summary>A content hash over every field.</summary>
         public readonly ulong Hash;
 
@@ -78,6 +88,12 @@ namespace MountainPlanner.Domain.Weather
             return i < 0 || j < 0 || i >= Width || j >= Depth ? -1 : (int)(j * Width + i);
         }
 
+        /// <summary>The bin holding a height (clamped to the area's range).</summary>
+        public int BinOf(int feet) => WeatherMath.Clamp((feet - MinFeet) / BinFeet, 0, Bins - 2);
+
+        /// <summary>A direction on the grid (°) from a true one.</summary>
+        public int GridDegrees(int trueDegrees) => ((trueDegrees + (int)WeatherMath.DivRound(ConvergenceTenths, 10)) % 360 + 360) % 360;
+
         /// <summary>A cell's bin centre (ft).</summary>
         public int BinCentreFeet(int bin) => MinFeet + bin * BinFeet + BinFeet / 2;
 
@@ -85,19 +101,21 @@ namespace MountainPlanner.Domain.Weather
         public static int BandOf(int hvfTenFeet) => Math.Min(Bands - 1, hvfTenFeet * 10 / BandFeet);
 
         WeatherTerrain(int width, int depth, int originX, int originY, int minFeet, int binFeet, byte[] bin, byte[] hvf, byte[] exposure, bool[] present, int hvfRef,
-                       int cw, int cd, short[] oro, int sw, int sd, sbyte[] turn, byte[] speed)
+                       int cw, int cd, short[] oro, int sw, int sd, byte[] axis, byte[] weight, byte[] speed, int convergenceTenths, short[] binHvf)
         {
             Width = width; Depth = depth; OriginXMm = originX; OriginYMm = originY; MinFeet = minFeet; BinFeet = binFeet;
             Bin = bin; Hvf = hvf; Exposure = exposure; Present = present; HvfRefFeet = hvfRef;
-            CoarseWidth = cw; CoarseDepth = cd; Orographic = oro; SteerWidth = sw; SteerDepth = sd; Turn = turn; Speed = speed;
+            CoarseWidth = cw; CoarseDepth = cd; Orographic = oro; SteerWidth = sw; SteerDepth = sd; Axis = axis; TurnWeight = weight; Speed = speed;
+            ConvergenceTenths = convergenceTenths; BinHvfFeet = binHvf;
             ulong h = 14695981039346656037UL;
             void Mix(long v) => h = (h ^ (ulong)v) * 1099511628211UL;
-            Mix(width); Mix(depth); Mix(originX); Mix(originY); Mix(minFeet); Mix(binFeet); Mix(hvfRef);
+            Mix(width); Mix(depth); Mix(originX); Mix(originY); Mix(minFeet); Mix(binFeet); Mix(hvfRef); Mix(convergenceTenths);
             foreach (byte v in bin) Mix(v);
             foreach (byte v in hvf) Mix(v);
             foreach (byte v in exposure) Mix(v);
             foreach (short v in oro) Mix(v);
-            foreach (sbyte v in turn) Mix(v);
+            foreach (byte v in axis) Mix(v);
+            foreach (byte v in weight) Mix(v);
             foreach (byte v in speed) Mix(v);
             Hash = h;
         }
@@ -108,10 +126,11 @@ namespace MountainPlanner.Domain.Weather
         /// <summary>
         /// Builds the static inputs from the 8 m grid's elevations (ft, <see cref="int.MinValue"/> where there's no data).
         /// <paramref name="core"/> is the box in cells (x0, y0, x1, y1, ends exclusive), <paramref name="reference"/> the cell under
-        /// the site's centre (the reference pixel).
+        /// the site's centre (the reference pixel), <paramref name="convergenceTenths"/> the grid's convergence (0.1°, grid
+        /// north clockwise to true north).
         /// </summary>
         public static WeatherTerrain Build(int width, int depth, int[] feet, int originXMm, int originYMm,
-                                           (int X0, int Y0, int X1, int Y1) core, int reference, WeatherTerrainTuning t)
+                                           (int X0, int Y0, int X1, int Y1) core, int reference, WeatherTerrainTuning t, int convergenceTenths = 0)
         {
             if (width <= 0 || depth <= 0 || feet == null || feet.Length != width * depth) throw new ArgumentException("One elevation per cell.", nameof(feet));
             int n = width * depth;
@@ -125,16 +144,17 @@ namespace MountainPlanner.Domain.Weather
             var floor = new int[n];
             var line = new int[Math.Max(width, depth)];
             var outLine = new int[line.Length];
+            int[] pre = new int[line.Length], suf = new int[line.Length];   // the running minimum's, once (not per row: 30 MB of garbage at 11 km)
             for (int j = 0; j < depth; j++)
             {
                 for (int i = 0; i < width; i++) { int f = feet[j * width + i]; line[i] = f == int.MinValue ? int.MaxValue : f; }
-                RunningMin(line, width, FloorRadius, outLine);
+                RunningMin(line, width, FloorRadius, outLine, pre, suf);
                 Array.Copy(outLine, 0, floor, j * width, width);
             }
             for (int i = 0; i < width; i++)
             {
                 for (int j = 0; j < depth; j++) line[j] = floor[j * width + i];
-                RunningMin(line, depth, FloorRadius, outLine);
+                RunningMin(line, depth, FloorRadius, outLine, pre, suf);
                 for (int j = 0; j < depth; j++) floor[j * width + i] = outLine[j];
             }
 
@@ -154,6 +174,8 @@ namespace MountainPlanner.Domain.Weather
             var hvf = new byte[n];
             var exposure = new byte[n];
             var present = new bool[Bins * Bands];
+            var binHvfSum = new long[Bins];
+            var binHvfCount = new int[Bins];
             for (int j = 0; j < depth; j++)
                 for (int i = 0; i < width; i++)
                 {
@@ -165,6 +187,7 @@ namespace MountainPlanner.Domain.Weather
                     bin[c] = (byte)b;
                     hvf[c] = (byte)h;
                     present[b * Bands + BandOf(h)] = true;
+                    if (i >= core.X0 && i < core.X1 && j >= core.Y0 && j < core.Y1) { binHvfSum[b] += above; binHvfCount[b]++; }
                     int x0 = Math.Max(0, i - 3), x1 = Math.Min(width, i + 4), y0 = Math.Max(0, j - 3), y1 = Math.Min(depth, j + 4);
                     long s = Area(sum, width, x0, y0, x1, y1);
                     int m = (int)Area(cnt, width, x0, y0, x1, y1);
@@ -192,8 +215,12 @@ namespace MountainPlanner.Domain.Weather
             var oro = BuildOrographic(coarse, cw, cd, core, t);
             var (sw, sd, steer) = BlockMeans(feet, width, depth, SteerCells);
             var steerHvf = BlockHvf(hvf, width, depth, sw, sd);
-            var (turn, speed) = Steering(steer, steerHvf, sw, sd, t);
-            return new WeatherTerrain(width, depth, originXMm, originYMm, min, binFeet, bin, hvf, exposure, present, hvfRef, cw, cd, oro, sw, sd, turn, speed);
+            var (axis, weight, speed) = Steering(steer, steerHvf, sw, sd, t);
+            var binHvf = new short[Bins];
+            for (int b = 0; b < Bins; b++)
+                binHvf[b] = binHvfCount[b] == 0 ? (short)-1 : (short)Math.Min(short.MaxValue, WeatherMath.DivRound(binHvfSum[b], binHvfCount[b]));
+            return new WeatherTerrain(width, depth, originXMm, originYMm, min, binFeet, bin, hvf, exposure, present, hvfRef, cw, cd, oro, sw, sd,
+                                      axis, weight, speed, convergenceTenths, binHvf);
         }
 
         static long Area(long[] s, int width, int x0, int y0, int x1, int y1)
@@ -209,11 +236,9 @@ namespace MountainPlanner.Domain.Weather
         }
 
         /// <summary>The minimum over [k − r, k + r] for each k (van Herk–Gil-Werman: block prefix and suffix minima, O(n)).</summary>
-        static void RunningMin(int[] v, int count, int r, int[] result)
+        static void RunningMin(int[] v, int count, int r, int[] result, int[] pre, int[] suf)
         {
             int w = 2 * r + 1;
-            var pre = new int[count];
-            var suf = new int[count];
             for (int k = 0; k < count; k++) pre[k] = k % w == 0 ? v[k] : Math.Min(pre[k - 1], v[k]);
             for (int k = count - 1; k >= 0; k--) suf[k] = k == count - 1 || (k + 1) % w == 0 ? v[k] : Math.Min(suf[k + 1], v[k]);
             for (int k = 0; k < count; k++)
@@ -269,7 +294,7 @@ namespace MountainPlanner.Domain.Weather
                     c[k]++;
                 }
             var m = new int[bw * bd];
-            for (int k = 0; k < m.Length; k++) m[k] = c[k] == 0 ? 0 : (int)(s[k] / c[k]);
+            for (int k = 0; k < m.Length; k++) m[k] = c[k] == 0 ? 0 : (int)WeatherMath.DivRound(s[k], c[k]);
             return m;
         }
 
@@ -281,12 +306,14 @@ namespace MountainPlanner.Domain.Weather
         /// </summary>
         static short[] BuildOrographic(int[] z, int cw, int cd, (int X0, int Y0, int X1, int Y1) core, WeatherTerrainTuning t)
         {
-            int cells = cw * cd, stepMetres = CoarseCells * CellMetres, steps = UpwindMetres / stepMetres;
+            int cells = cw * cd, stepMetres = CoarseCells * CellMetres;
             var oro = new short[8 * cells];
             var raw = new int[cells];
             for (int o = 0; o < 8; o++)
             {
+                // A diagonal step is 1.41 cells long: fewer of them reach the same 3 km (5 along the grid, 4 on a diagonal).
                 int diag = Dx[o] != 0 && Dy[o] != 0 ? 1414 : 1000;
+                int steps = UpwindMetres * 1000 / (stepMetres * diag);
                 for (int j = 0; j < cd; j++)
                     for (int i = 0; i < cw; i++)
                     {
@@ -299,7 +326,8 @@ namespace MountainPlanner.Domain.Weather
                             if (x < 0 || y < 0 || x >= cw || y >= cd) break;
                             int zu = z[y * cw + x];
                             if (zu == int.MinValue) break;
-                            if (zu > highest) { highest = zu; highestAt = s * stepMetres * diag / 1000; }
+                            // The crest's distance is to its cell's near edge: the cell just behind a crest is "just behind it".
+                            if (zu > highest) { highest = zu; highestAt = (2 * s - 1) * stepMetres * diag / 2000; }
                             if (zu < lowest) lowest = zu;
                         }
                         int f = 1000;
@@ -330,16 +358,23 @@ namespace MountainPlanner.Domain.Weather
         }
 
         /// <summary>
-        /// WX-39's steering per arrival octant over the 96 m grid, a static terrain-following estimate (no flow solver): the
-        /// wind turns toward the axis of a valley (the pair of opposite directions the ground changes least along, 384 m out),
-        /// as much as the valley is deep across it and the cell is sheltered (low hvf); it speeds up over a rise and slows in
-        /// a hollow, and drops to <see cref="WeatherTerrainTuning.CrestLee"/> behind a rise upwind.
+        /// WX-39's steering over the 96 m grid, a static terrain-following estimate (no flow solver).
+        /// - **The valley's axis and weight (one per cell, whatever the wind):** across each of the four lines through the cell
+        ///   the valley's depth is how far the ground rises on *both* sides (the mean of the two changes about 400 m out, so a
+        ///   plain hillside, up one side and down the other, is no valley). The axis is the line across the deepest; the
+        ///   weight is that depth less the depth along the axis, over <see cref="WeatherTerrainTuning.ValleyFeet"/>, times
+        ///   the cell's shelter (low hvf). <see cref="Axis"/> points down the valley (the lower end), which settles a wind
+        ///   blowing exactly across it. The hour's turn is <see cref="TurnDegrees"/>, from its exact direction.
+        /// - **The speed, per arrival octant:** faster over a rise and slower in a hollow, and down to
+        ///   <see cref="WeatherTerrainTuning.CrestLee"/> behind ground standing <see cref="WeatherTerrainTuning.LeeFeet"/>
+        ///   above the cell within about 400 m upwind.
+        /// Diagonals are sampled 3 cells out (407 m) and the others 4 (384 m), so no direction reaches further than another.
         /// </summary>
-        static (sbyte[] Turn, byte[] Speed) Steering(int[] z, int[] hvf, int sw, int sd, WeatherTerrainTuning t)
+        static (byte[] Axis, byte[] Weight, byte[] Speed) Steering(int[] z, int[] hvf, int sw, int sd, WeatherTerrainTuning t)
         {
-            const int R = 4;
             int cells = sw * sd;
-            var turn = new sbyte[8 * cells];
+            var axisOut = new byte[cells];
+            var weightOut = new byte[cells];
             var speed = new byte[8 * cells];
             var change = new int[8];
             for (int j = 0; j < sd; j++)
@@ -355,37 +390,35 @@ namespace MountainPlanner.Domain.Weather
                     int ringCount = 0;
                     for (int d = 0; d < 8; d++)
                     {
-                        int x = Math.Max(0, Math.Min(sw - 1, i + Dx[d] * R)), y = Math.Max(0, Math.Min(sd - 1, j + Dy[d] * R));
-                        int zd = z[y * sw + x];
+                        int r = Reach(d);
+                        int x = i + Dx[d] * r, y = j + Dy[d] * r;
+                        // Past the grid's edge or over a hole there is nothing to read: the ground counts as level there.
+                        int zd = x < 0 || y < 0 || x >= sw || y >= sd ? int.MinValue : z[y * sw + x];
                         change[d] = zd == int.MinValue ? 0 : zd - zc;
                         if (zd != int.MinValue) { ring += zd; ringCount++; }
                     }
-                    // The valley's axis: the opposite pair the ground changes least along; its depth: how much more it changes across.
-                    int axis = 0, along = int.MaxValue, across = 0;
-                    for (int k = 0; k < 4; k++)
+                    int deepest = 0, across = 0;
+                    for (int q = 0; q < 4; q++)
                     {
-                        int a = (Math.Abs(change[k]) + Math.Abs(change[k + 4])) / 2;
-                        if (a < along) { along = a; axis = k; }
-                        if (a > across) across = a;
+                        int v = (change[q] + change[q + 4]) / 2;
+                        if (v > across) { across = v; deepest = q; }
                     }
+                    int axis = (deepest + 2) % 4;
+                    int along = Math.Max(0, (change[axis] + change[axis + 4]) / 2);
                     int depth = Math.Max(0, across - along);
                     int shelter = Math.Max(0, 1000 - hvf[c] * 1000 / t.ShelterFeet);
                     int weight = (int)((long)Math.Min(1000, depth * 1000 / t.ValleyFeet) * shelter / 1000);
+                    // Down the valley: the axis end the ground falls toward (the first of the two when it's level).
+                    axisOut[c] = (byte)(change[axis + 4] < change[axis] ? axis + 4 : axis);
+                    weightOut[c] = (byte)((weight + 5) / 10);
                     int hill = ringCount == 0 ? 0 : zc - (int)(ring / ringCount);
                     int baseSpeed = 1000 + t.HillSpeed * WeatherMath.Clamp(hill, -300, 300) / 300;
                     for (int o = 0; o < 8; o++)
                     {
-                        // The wind blows toward o + 180°; the axis direction nearer to that is the one it turns to.
-                        int to = (o * 45 + 180) % 360, a1 = axis * 45, a2 = a1 + 180;
-                        int d1 = AngleDiff(a1, to), d2 = AngleDiff(a2, to);
-                        int target = Math.Abs(d1) <= Math.Abs(d2) ? d1 : d2;
-                        int deg = WeatherMath.Clamp(target * weight / 1000, -90, 90);
-                        turn[o * cells + c] = (sbyte)((deg >= 0 ? deg + 1 : deg - 1) / 2);
-                        // The lee: the highest ground up to 384 m upwind standing well above the cell.
                         int s = baseSpeed;
-                        for (int k = 1; k <= R; k++)
+                        for (int q = 1, r = Reach(o); q <= r; q++)
                         {
-                            int x = i + Dx[o] * k, y = j + Dy[o] * k;
+                            int x = i + Dx[o] * q, y = j + Dy[o] * q;
                             if (x < 0 || y < 0 || x >= sw || y >= sd) break;
                             int zu = z[y * sw + x];
                             if (zu != int.MinValue && zu - zc >= t.LeeFeet) { s = s * t.CrestLee / 1000; break; }
@@ -393,7 +426,24 @@ namespace MountainPlanner.Domain.Weather
                         speed[o * cells + c] = (byte)WeatherMath.Clamp((s + 5) / 10, 50, 150);
                     }
                 }
-            return (turn, speed);
+            return (axisOut, weightOut, speed);
+        }
+
+        /// <summary>How many 96 m cells out a direction reads: 4 along the grid (384 m), 3 on a diagonal (407 m).</summary>
+        static int Reach(int direction) => (direction & 1) == 0 ? 4 : 3;
+
+        /// <summary>
+        /// WX-39: how far the terrain turns a wind (°, + clockwise), from a steering cell's <see cref="Axis"/> and
+        /// <see cref="TurnWeight"/> and the wind's heading on the grid (the way it blows *to*, °). The wind turns toward the
+        /// nearer end of the valley's axis, by the cell's weight; blowing exactly across, it turns down the valley. From the
+        /// hour's own direction, never blended between octants, so it is continuous everywhere but that one line.
+        /// </summary>
+        public static int TurnDegrees(int axis, int weightPercent, int headingDegrees)
+        {
+            if (weightPercent <= 0) return 0;
+            int down = AngleDiff(axis * 45, headingDegrees), up = AngleDiff(axis * 45 + 180, headingDegrees);
+            int target = Math.Abs(down) <= Math.Abs(up) ? down : up;
+            return WeatherMath.Clamp(target * weightPercent / 100, -90, 90);
         }
 
         /// <summary>The signed turn (°, −180…180, + clockwise) from the wind's heading to an axis direction.</summary>

@@ -295,6 +295,8 @@ namespace MountainPlanner.Simulation
                     Reject(c, SimRefusal.Unknown);
                     return;
             }
+            // The static inputs are megabytes and the area's own: the log keeps that they came, not a second reference to them.
+            if (stamped.Kind == SimCommandKind.SetWeatherTerrain) stamped.Payload = null;
             Log.Add(stamped);
         }
 

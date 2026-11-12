@@ -309,15 +309,18 @@ namespace MountainPlanner.Simulation
             WindScale = Int(map, nameof(WindScale), 0, 5000);
             WindExposure = Ints(map, nameof(WindExposure), 0, 5000);
             if (WindExposure.Length != 8) throw new FormatException("WindExposure needs eight entries, sheltered valley to exposed summit.");
-            OrographicWindward = Int(map, nameof(OrographicWindward), 0, 1000);
-            OrographicSpillover = Int(map, nameof(OrographicSpillover), 0, 1000);
-            OrographicShadow = Int(map, nameof(OrographicShadow), 0, 1000);
+            // At most ±50 %: then no cell's factor can reach the 0.1–3.0 clamp after normalising, so the box's mean stays 1.0.
+            OrographicWindward = Int(map, nameof(OrographicWindward), 0, 500);
+            OrographicSpillover = Int(map, nameof(OrographicSpillover), 0, 500);
+            OrographicShadow = Int(map, nameof(OrographicShadow), 0, 500);
             SpilloverReachMetres = Int(map, nameof(SpilloverReachMetres), 0, 10_000);
             WinterLiquid = Int(map, nameof(WinterLiquid), 100, 5000);
             WinterTemp = Int(map, nameof(WinterTemp), -200, 200);
             ForecastSkill = Int(map, nameof(ForecastSkill), 0, 5000);
             ExposureHvfFeet = Ints(map, nameof(ExposureHvfFeet), 0, 10_000);
             if (ExposureHvfFeet.Length != 7) throw new FormatException("ExposureHvfFeet needs seven rising entries, one per class above the first.");
+            for (int i = 1; i < ExposureHvfFeet.Length; i++)
+                if (ExposureHvfFeet[i] <= ExposureHvfFeet[i - 1]) throw new FormatException("ExposureHvfFeet needs seven rising entries, one per class above the first.");
             ExposureRiseFeet = Int(map, nameof(ExposureRiseFeet), 1, 1000);
             OrographicClimbFeet = Int(map, nameof(OrographicClimbFeet), 1, 20_000);
             OrographicBarrierFeet = Int(map, nameof(OrographicBarrierFeet), 1, 20_000);
