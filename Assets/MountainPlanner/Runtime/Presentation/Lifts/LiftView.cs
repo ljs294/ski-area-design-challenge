@@ -355,7 +355,7 @@ namespace MountainPlanner.Presentation.Lifts
             SetLoop(loop);
             BuildCable((float)type.RopeDiameterMetres / 2);
             var carrier = Carrier(type);
-            PrepareChairs(carrier, livery, type, Track(type, retRig, driveRig, bottom, dir));
+            PrepareChairs(carrier, livery, type, Track(type, retRig, driveRig, bottom, dir), bottom, dir);
             if (type.Tow && carrier != null) Gone(carrier);   // put together for this lift only
         }
 
@@ -550,7 +550,7 @@ namespace MountainPlanner.Presentation.Lifts
             SetLoop(loop);
             BuildCable((float)type.RopeDiameterMetres / 2);
             var carrier = Carrier(type);
-            PrepareChairs(carrier, livery, type, Track(type, retRig, driveRig, bottom, dir));
+            PrepareChairs(carrier, livery, type, Track(type, retRig, driveRig, bottom, dir), bottom, dir);
             if (type.Tow && carrier != null) Gone(carrier);   // put together for this lift only
             return true;
         }
@@ -1273,10 +1273,11 @@ namespace MountainPlanner.Presentation.Lifts
                                            (float)LiftType.RampAccel);
         }
 
-        void PrepareChairs(GameObject chair, LiftLivery livery, LiftType type, CarrierTrack track)
+        void PrepareChairs(GameObject chair, LiftLivery livery, LiftType type, CarrierTrack track, Vector3 bottom, Vector3 dir)
         {
             _chairCount = 0;
             _track = track;
+            SeatLocal = Array.Empty<Vector3>();
             if (chair == null || track == null || track.LoopTime <= 0) return;
             // LT41: the carriers come round one loading interval apart, so they bunch where they're slow (a detachable's
             // stations) and spread where they're fast; on a fixed grip that's the spacing.
@@ -1290,6 +1291,7 @@ namespace MountainPlanner.Presentation.Lifts
             var hingePivot = rig != null ? rig.Pivot("hanger") : null;
             _splitChair = hingePivot != null;
             _hinge = _splitChair ? instance.transform.InverseTransformPoint(hingePivot.position) : Vector3.zero;
+            PrepareSeats(rig, instance.transform, track, bottom, dir);   // task 4.22: the chair riders
             if (group != null)
             {
                 var lods = group.GetLODs();
@@ -1358,6 +1360,65 @@ namespace MountainPlanner.Presentation.Lifts
                 copies[i] = m;
             }
             return copies;
+        }
+
+        /// <summary>
+        /// Task 4.22: where each seat is (its <c>seat_N</c> socket) in the hanger's frame (<see cref="CarrierPose"/>'s
+        /// <c>hang</c>), and when a carrier is on the loaded rope: <see cref="BoardTime"/> is the track time it leaves the
+        /// bottom with its riders, <see cref="RideTime"/> how long until it reaches the top. No seats on a tow, a gondola or
+        /// a carpet.
+        /// </summary>
+        public Vector3[] SeatLocal { get; private set; } = Array.Empty<Vector3>();
+        public float BoardTime { get; private set; }
+        public float RideTime { get; private set; }
+
+        void PrepareSeats(LiftRig rig, Transform instance, CarrierTrack track, Vector3 bottom, Vector3 dir)
+        {
+            if (rig == null || Tow || _belt) return;
+            var seats = new List<Vector3>();
+            for (int n = 1; n <= 16; n++)
+            {
+                var socket = rig.Socket("seat_" + n);
+                if (socket == null) break;
+                var local = instance.InverseTransformPoint(socket.position);
+                seats.Add(_splitChair ? local - _hinge : local);
+            }
+            // The loaded side is the run of track on the lift's right (the loop goes up the right, down the left), from the
+            // loading point to the top.
+            var points = track.Points;
+            var times = track.Times;
+            int count = points.Length;
+            if (seats.Count == 0 || count < 3) return;
+            var right = Vector3.Cross(Vector3.up, dir);
+            bool Up(int i) => Vector3.Dot(points[(i % count + count) % count] - bottom, right) > 0;
+            int start = -1, best = 0;
+            float board = 0, ride = 0;
+            for (int i = 0; i < count; i++)
+            {
+                if (!Up(i) || Up(i - 1)) continue;   // the start of a run on the right
+                int end = i;
+                while (end + 1 < i + count && Up(end + 1)) end++;
+                if (end - i <= best) continue;
+                best = end - i;
+                // Riders get on where the carrier, off the bottom wheel, first heads straight up the line.
+                int load = i;
+                var flatDir = new Vector3(dir.x, 0, dir.z).normalized;
+                while (load < end)
+                {
+                    var step = points[(load + 1) % count] - points[load % count];
+                    step.y = 0;
+                    if (step.sqrMagnitude > 1e-6f && Vector3.Dot(step.normalized, flatDir) > 0.95f) break;
+                    load++;
+                }
+                start = load;
+                board = times[load % count];
+                float t = times[end % count];
+                ride = ((t - board) % track.LoopTime + track.LoopTime) % track.LoopTime;
+            }
+            if (start < 0 || ride <= 0) return;
+            SeatLocal = seats.ToArray();
+            BoardTime = board;
+            RideTime = ride;
         }
 
         /// <summary>Task 4.11 PR B: the carrier being ridden (-1 for none): drawn at LOD0 and never culled.</summary>

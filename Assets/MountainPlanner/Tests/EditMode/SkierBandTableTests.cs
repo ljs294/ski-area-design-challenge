@@ -51,6 +51,7 @@ namespace MountainPlanner.Tests
             var rec = new NativeArray<SkierRender>(records, Allocator.TempJob);
             var none3 = new NativeArray<float3>(1, Allocator.TempJob);
             var none2 = new NativeArray<int2>(1, Allocator.TempJob);
+            var noFacing = new NativeArray<float2>(1, Allocator.TempJob);
             var ropes = new NativeArray<uint>(1, Allocator.TempJob);
             var riders = new NativeArray<byte>(1, Allocator.TempJob);
             var lines = new NativeArray<int>(1, Allocator.TempJob);
@@ -59,6 +60,7 @@ namespace MountainPlanner.Tests
             var prevSerial = new NativeArray<uint>(16, Allocator.TempJob);
             var dots = new NativeArray<float4>(records.Length, Allocator.TempJob);
             var screen = new NativeArray<float3>(records.Length, Allocator.TempJob);
+            var facing = new NativeArray<float4>(records.Length, Allocator.TempJob);
             try
             {
                 new SkierPlaceJob
@@ -66,18 +68,18 @@ namespace MountainPlanner.Tests
                     Records = rec, DrawTick = drawTick, WalkStep = 1,
                     Edges = paths.Edges, EdgeSize = paths.EdgeSize, Samples = paths.Samples, Side = paths.Side,
                     LaneY = paths.LaneY, Table = paths.Table, LiftPaths = paths.Lifts, Nodes = paths.Nodes,
-                    Slots = none3, LiftSlots = none2, RopeNow = ropes, DrawRiders = riders, LineCount = lines,
+                    Slots = none3, SlotFacing = noFacing, LiftSlots = none2, RopeNow = ropes, DrawRiders = riders, LineCount = lines,
                     Snow = snow, SnowCell = 8,
                     ViewProjection = viewProjection, ScreenSize = new float2(1920, 1080), CameraPosition = camera,
-                    Prev = prev, PrevSerial = prevSerial, Dots = dots, Screen = screen,
+                    Prev = prev, PrevSerial = prevSerial, Dots = dots, Screen = screen, Facing = facing,
                 }.Run(records.Length);
                 screens = screen.ToArray();
                 return dots.ToArray();
             }
             finally
             {
-                rec.Dispose(); none3.Dispose(); none2.Dispose(); ropes.Dispose(); riders.Dispose(); lines.Dispose();
-                snow.Dispose(); prev.Dispose(); prevSerial.Dispose(); dots.Dispose(); screen.Dispose();
+                rec.Dispose(); none3.Dispose(); none2.Dispose(); noFacing.Dispose(); ropes.Dispose(); riders.Dispose(); lines.Dispose();
+                snow.Dispose(); prev.Dispose(); prevSerial.Dispose(); dots.Dispose(); screen.Dispose(); facing.Dispose();
             }
         }
 

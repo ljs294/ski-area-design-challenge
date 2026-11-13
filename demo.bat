@@ -363,6 +363,11 @@ echo     99 Traffic (4.13 PR C): Shift+5 over a busy day: runs coloured by how c
 echo        their chairs run, a circle at each lift's bottom that grows with its line ("42 - 1:45"), Last hour or Today.
 echo    100 Guest benchmark (4.13 PR C2): the frame with 3,000 skiers at High and Medium, click and pause timing,
 echo        11,000 dots of headroom, and the skier-model proof (grey stand-in figures near the camera, never shipped).
+echo   4.22 skiers in the game (rebuilds the game; close the Unity editor first)
+echo     105 The guests as people: skiers and snowboarders that ski by their ability, stand in the lift lines,
+echo        ride the chairs up and turn into dots far away. Open any mountain with lifts and trails.
+echo     106 The crowd benchmark: the drawn resort with 3,000 guests at High and Medium, as dots and as figures
+echo        (measure lane, about 35 minutes), then the Development game for garbage, against the stored baselines.
 echo   4.22 skier models (Blender 5.2 only: no Unity, no game build; render lane, about 4 minutes)
 echo     107 The skier and the snowboarder as pictures: the poses from three sides, both on the FGQ-4 chair, the
 echo        six LODs side by side, ten random outfits, close-ups, each turn as eight frames, and a slope from 12
@@ -505,6 +510,8 @@ if /i "%CHOICE%"=="97" goto weatherlab
 if /i "%CHOICE%"=="98" goto guestsonscreen
 if /i "%CHOICE%"=="99" goto traffic
 if /i "%CHOICE%"=="100" goto guestbench
+if /i "%CHOICE%"=="105" goto skiersingame
+if /i "%CHOICE%"=="106" goto skiersbench
 if /i "%CHOICE%"=="107" goto skiermodels
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
@@ -2251,8 +2258,62 @@ chcp 65001 >nul
 dotnet run --project "%SPIKE%\src\DataSpike.Cli" -- site --name "%~1" --lat %2 --lon %3 --km %4 --out "%OUT%\%FILE%-%~4km.json" <nul
 exit /b 0
 
+:skiersingame
+rem Task 4.22: the guests drawn as the skier and snowboarder figures (dots stay far away; -dotsonly keeps the old look).
+chcp 65001 >nul
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Open any mountain or save of your own with built lifts and trails (Katahdin, Kearsarge, the demo, or 72's drawn resort).
+echo   1. F1, Mountain: closed (now open), then Skip to morning, then 4 for 8x. Zoom in on a run: near the camera every
+echo      guest is a person now, a skier or (about one in four) a snowboarder, in a random outfit.
+echo   2. Ability shows in how they ski: green wedges slowly, blue makes skidded turns, black short quick turns, experts
+echo      long carves; snowboarders carve heel and toe. Their turns follow the track: they swing across the run and
+echo      lean down the hill. On a steep stretch a cautious skier traverses, as the dots did.
+echo   3. A lift line: rows the width of the chair, everyone facing the front, the front rows under the chairs they
+echo      board. Each chair that leaves moves the line up a row;
+echo      skiers shuffle and snowboarders push with one foot. Waiting guests stand, lean on their poles or rest.
+echo   4. The chairs go up loaded and come down empty. Rides are time-compressed, so a guest is skiing again long
+echo      before its chair reaches the top: the riders you see on a chair wear their own outfits, so nobody has a twin.
+echo      Gondola riders stay hidden in the cabin. On a T-bar the riders stand on the snow, on a carpet on the belt.
+echo   5. Zoom out: the figures get simpler with distance and become dots past about 250 m (closer in a small window).
+echo   6. Hover and click still pick a guest; the selected one keeps its ring. Follow a skier from close up.
+echo   7. Ride a lift (4.11): the other chairs around you have riders; yours does not.
+echo   8. Do 1-4 on a second mountain, to see none of it is tuned to one site.
+echo   (To compare with the dots: start the game with -dotsonly.)
+start "" "%GAME%"
+goto menu
+
+:skiersbench
+rem Task 4.22: the frame with 3,000 guests drawn as dots (-dotsonly, as before) and as figures, on the benchmark path.
+call :buildplayer
+if not exist "%GAME%" goto done
+call :builddev
+if not exist "%GAMEDEV%" goto done
+set "CROWD=%~dp0test-results\p4-22\bench"
+if not exist "%CROWD%" mkdir "%CROWD%"
+for %%Q in (high medium) do (
+  echo 3,000 guests as dots at %%Q ^(about 8 minutes^)...
+  %MEASURE% "%GAME%" %SCREEN% -quality %%Q -drawnresort -guests 3000 -dotsonly -benchmark "%CROWD%\%%Q-dots.json" -logFile "%CROWD%\%%Q-dots.log" <nul
+  echo 3,000 guests as figures at %%Q ^(about 8 minutes^)...
+  %MEASURE% "%GAME%" %SCREEN% -quality %%Q -drawnresort -guests 3000 -benchmark "%CROWD%\%%Q-figures.json" -logFile "%CROWD%\%%Q-figures.log" <nul
+)
+echo 3,000 guests as figures at high, the Development game: garbage and memory ^(about 4 minutes^)...
+%MEASURE% "%GAMEDEV%" %SCREEN% -quality high -laps 1 -drawnresort -guests 3000 -benchmark "%CROWD%\high-dev-figures.json" -logFile "%CROWD%\high-dev-figures.log" <nul
+echo.
+for %%R in (high-dots high-figures medium-dots medium-figures high-dev-figures) do (
+  findstr /l /c:"[SkierBench] crowd" "%CROWD%\%%R.log"
+  findstr /l /c:" at 1920x1080" "%CROWD%\%%R.log"
+)
+echo.
+echo Figures against dots, then each against the drawn resort's stored baseline:
+for %%R in (high medium) do node "%~dp0tools\perf\compare.mjs" "%CROWD%\%%R-dots.json" "%CROWD%\%%R-figures.json"
+for %%R in (high medium) do node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-%%R-drawn.json" "%CROWD%\%%R-figures.json"
+start "" "%CROWD%"
+goto menu
+
 :skiermodels
-rem Task 4.22: the skier and snowboarder models as review pictures. Blender only; nothing is in Unity yet.
+rem Task 4.22: the skier and snowboarder models as review pictures, in Blender only (demo 105 shows them in the game).
 set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
 if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
 set "SKIERPICS=%~dp0test-results\p4-22"

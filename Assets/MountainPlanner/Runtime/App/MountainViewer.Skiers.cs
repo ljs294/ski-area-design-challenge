@@ -4,6 +4,7 @@ using MountainPlanner.Domain.Design;
 using MountainPlanner.Presentation.Design;
 using MountainPlanner.Presentation.Guests;
 using MountainPlanner.Presentation.Lifts;
+using MountainPlanner.Presentation.Skiers;
 using MountainPlanner.Simulation;
 using UnityEngine;
 
@@ -51,6 +52,10 @@ namespace MountainPlanner.App
         }
 
         bool _dotsOnTop;
+        // Task 4.22: the guests as skiers and snowboarders (-dotsonly: the dots as they were).
+        SkierFigures _figures;
+        SkierChairRiders _riders;
+        bool _figuresTried;
         /// <summary>
         /// A scripted capture or benchmark is running: keys, clicks and the camera's own input are ignored, because the
         /// player's window comes to the front and whatever is typed elsewhere on the machine lands in it (a stray Space
@@ -84,6 +89,16 @@ namespace MountainPlanner.App
             return _skiers;
         }
 
+        SkierFigures EnsureSkierFigures()
+        {
+            if (_figuresTried) return _figures;
+            _figuresTried = true;
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dotsonly") >= 0) return null;
+            _figures = SkierFigures.Load(Math.Max(1, Pacing.Default.SkierCap));
+            if (_figures != null && Array.IndexOf(Environment.GetCommandLineArgs(), "-figurenoshadow") >= 0) _figures.Shadows = false;
+            return _figures;
+        }
+
         /// <summary>Once a frame from LateUpdate, after the camera moved: place and draw every dot.</summary>
         void TickSkiers()
         {
@@ -106,7 +121,16 @@ namespace MountainPlanner.App
                     ulong id = design.Lifts[i].Id;
                     while (k < s.LiftCount && s.LiftIds[k] < id) k++;
                     int line = k < s.LiftCount && s.LiftIds[k] == id ? s.LineCount[k] : 0;
-                    layer.SetLift(i, _ropes != null ? _ropes.Seconds(id) : 0, !LiftKinds.Compressed(design.Lifts[i].Kind), line);
+                    layer.SetLift(i, _ropes != null ? _ropes.Seconds(id) : 0, !LiftKinds.Compressed(design.Lifts[i].Kind), line,
+                                  design.Lifts[i].Kind == LiftKind.Carpet);
+                    if (_riders != null)
+                    {
+                        // Task 4.22: a chair's riders sit on its chairs (as the chairs are drawn: shown, at their own clock).
+                        var liftId = new LiftId(id);
+                        _liftViews.TryGetValue(liftId, out var built);
+                        _riders.SetLift(i, built.View, ChairSeconds(liftId),
+                                        LiftKinds.Compressed(design.Lifts[i].Kind) && _liftsShown && !LiftHidden(liftId));
+                    }
                 }
             }
             int perSecond = s == null || s.Paused ? 0 : s.TicksPerRealTick * (1000 / Math.Max(1, Pacing.Default.TickMs));
@@ -115,9 +139,20 @@ namespace MountainPlanner.App
             layer.UiScale = MountainPlanner.UI.UiPreferences.Scale;
             layer.Visible = _skiersShown && !_riding && !PhotoOpen;
             layer.OnTop = _dotsOnTop;
+            var figures = EnsureSkierFigures();
+            if (figures != null && _riders == null) _riders = new SkierChairRiders(Math.Max(1, Pacing.Default.SkierCap));
+            if (figures != null) figures.Visible = _skiersShown;
+            layer.Figures = figures != null;
+            layer.FigureMetres = figures != null && figures.Visible ? figures.DotCutoff(cam) : 0;
             _skierFrame = _sim.SkierRender.Latest;   // read once a frame: the Traffic layer shares it (task 4.13 PR C)
             layer.Place(_skierFrame, _ropes != null ? _ropes.DrawTick : 0, cam, Mathf.Min(0.25f, Time.unscaledDeltaTime), perSecond);
             layer.Draw(cam);
+            if (figures != null)
+            {
+                _riders?.Update(layer.Records, layer.Count, figures.Outfits);
+                figures.Place(layer, cam, Mathf.Min(0.25f, Time.unscaledDeltaTime), _riders);
+                figures.Draw(cam);
+            }
             TickSkierCard();
         }
 
@@ -210,6 +245,7 @@ namespace MountainPlanner.App
                     Behind = (float)(b?.Behind ?? 3), Ahead = (float)(b?.Ahead ?? 3), HalfWidth = (float)(b?.HalfWidth ?? 3),
                     TopBehind = (float)(tp?.Behind ?? 3), TopAhead = (float)(tp?.Ahead ?? 3), TopHalfWidth = (float)(tp?.HalfWidth ?? 3),
                     LaneHalfWidth = (float)LiftLanes.HalfWidth(type),
+                    LoadSide = type.Belt ? 0 : (float)type.GaugeMetres / 2,   // task 4.22: under the loaded rope
                 });
             }
             var paths = SkierPaths.Build(design.Revision, edges, liftLines, nodes, ground);

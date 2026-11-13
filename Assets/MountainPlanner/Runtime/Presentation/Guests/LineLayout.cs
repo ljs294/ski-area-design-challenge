@@ -65,6 +65,9 @@ namespace MountainPlanner.Presentation.Guests
             public float LaneHalfWidth;
             /// <summary>Whether the lift is built and has a line at all (a planned lift blocks nothing yet and queues nobody).</summary>
             public bool Built;
+            /// <summary>Task 4.22: how far right of the centreline (looking uphill) the carriers load, metres: half the rope
+            /// gauge, so the line's front rows stand under the loaded rope's chairs (0 for a carpet).</summary>
+            public float LoadSide;
         }
 
         /// <summary>A run's centreline, for keeping lines off the runs (local x, z per point) and its half width.</summary>
@@ -76,6 +79,9 @@ namespace MountainPlanner.Presentation.Guests
 
         /// <summary>Every lift's places, front first: index <c>LiftSlots[i].x + rank</c>, <c>LiftSlots[i].y</c> of them.</summary>
         public NativeArray<float3> Slots;
+        /// <summary>Task 4.22: per place, the way its skier faces (flat, unit): toward the front of the line, along the pass
+        /// it is on, so a row stands side by side facing the lift's way rather than at its neighbour.</summary>
+        public NativeArray<float2> Facing;
         public NativeArray<int2> LiftSlots;
         public long Revision { get; private set; } = -1;
 
@@ -153,6 +159,7 @@ namespace MountainPlanner.Presentation.Guests
             public bool SoftGround;
             public bool Fits(Grid grid, int i, int j) => SoftGround ? grid.Passable(i, j) : grid.Free(i, j);
             public readonly List<Vector3> Placed = new List<Vector3>();
+            public readonly List<Vector2> Faces = new List<Vector2>();
 
             public float V => Pass * (Width + AisleMetres) + Width * 0.5f;
             public Vector2 Point(float u, float v) => Origin + Along * u + Across * v;
@@ -235,13 +242,14 @@ namespace MountainPlanner.Presentation.Guests
                 var u = up.sqrMagnitude > 1e-6f ? up.normalized : Vector2.up;
                 var back = -u;
                 var side = new Vector2(back.y, -back.x);
+                var load = l.Bottom + new Vector2(u.y, -u.x) * l.LoadSide;   // under the loaded rope
                 float width = l.Seats * ColumnMetres;
                 // Past the terminal's back by half the line's width, so a fold turned sideways clears its corner.
                 int rows = Mathf.Max(1, Mathf.CeilToInt((Mathf.Max(0, l.Behind) + TerminalMarginMetres + width * 0.5f) / RowMetres));
                 throats[i] = new List<Vector3>(rows * l.Seats);
                 for (int k = 0; k < rows; k++)
                 {
-                    var centre = l.Bottom + back * (RowMetres * (k + 0.5f));
+                    var centre = load + back * (RowMetres * (k + 0.5f));
                     for (float du = -RowMetres * 0.5f + CellMetres * 0.5f; du < RowMetres * 0.5f; du += CellMetres)
                         for (float dv = -width * 0.5f + CellMetres * 0.5f; dv < width * 0.5f; dv += CellMetres)
                         {
@@ -254,7 +262,7 @@ namespace MountainPlanner.Presentation.Guests
                         throats[i].Add(new Vector3(q.x, layout.Height(q), q.y));
                     }
                 }
-                starts[i] = l.Bottom + back * (RowMetres * rows);
+                starts[i] = load + back * (RowMetres * rows);
             }
             for (int i = 0; i < lifts.Count; i++)
             {
@@ -264,6 +272,7 @@ namespace MountainPlanner.Presentation.Guests
                 var back = -(up.sqrMagnitude > 1e-6f ? up.normalized : Vector2.up);
                 snakes[i] = layout.Choose(l, i, grids[i], starts[i]);
                 snakes[i].Placed.AddRange(throats[i]);
+                for (int k = 0; k < throats[i].Count; k++) snakes[i].Faces.Add(-back);
                 snakes[i].Tail = starts[i] - back * (RowMetres * 0.5f);
                 snakes[i].TailDir = back;
             }
@@ -345,8 +354,10 @@ namespace MountainPlanner.Presentation.Guests
             int total = 0;
             foreach (var s in _snakes) if (s != null) total += s.Placed.Count;
             if (Slots.IsCreated) Slots.Dispose();
+            if (Facing.IsCreated) Facing.Dispose();
             if (LiftSlots.IsCreated) LiftSlots.Dispose();
             Slots = new NativeArray<float3>(Math.Max(1, total), Allocator.Persistent);
+            Facing = new NativeArray<float2>(Math.Max(1, total), Allocator.Persistent);
             LiftSlots = new NativeArray<int2>(_snakes.Length, Allocator.Persistent);
             int at = 0;
             for (int i = 0; i < _snakes.Length; i++)
@@ -354,7 +365,7 @@ namespace MountainPlanner.Presentation.Guests
                 var s = _snakes[i];
                 int n = s?.Placed.Count ?? 0;
                 LiftSlots[i] = new int2(at, n);
-                for (int k = 0; k < n; k++) Slots[at + k] = s.Placed[k];
+                for (int k = 0; k < n; k++) { Slots[at + k] = s.Placed[k]; Facing[at + k] = s.Faces[k]; }
                 at += n;
             }
         }
@@ -563,11 +574,11 @@ namespace MountainPlanner.Presentation.Guests
                         {
                             since += (p - prev).magnitude;
                             ClaimAround(p);
-                            if (since >= RowMetres) { s.Placed.Add(new Vector3(p.x, Height(p), p.y)); s.WalkPlaces++; laid++; since = 0; }
+                            if (since >= RowMetres) { s.Placed.Add(new Vector3(p.x, Height(p), p.y)); s.Faces.Add(Toward(prev - p, -dir)); s.WalkPlaces++; laid++; since = 0; }
                             prev = p;
                         }
                         var end = path[path.Count - 1];
-                        if (laid == 0) { s.Placed.Add(new Vector3(end.x, Height(end), end.y)); s.WalkPlaces++; }
+                        if (laid == 0) { s.Placed.Add(new Vector3(end.x, Height(end), end.y)); s.Faces.Add(Toward(path.Count > 1 ? path[path.Count - 2] - end : -dir, -dir)); s.WalkPlaces++; }
                         s.TailDir = path.Count > 1 ? (end - path[path.Count - 2]).normalized : dir;
                         s.Tail = end;
                         Steer(s, grid, end, s.TailDir, commit: true, allowSoft: false);
@@ -643,6 +654,7 @@ namespace MountainPlanner.Presentation.Guests
                 if (since >= RowMetres)
                 {
                     s.Placed.Add(new Vector3(pos.x, Height(pos), pos.y));
+                    s.Faces.Add(-heading);
                     s.SoftPlaces++; placed++; since = 0;
                 }
                 if (placed > 0 && OpenDisc(grid, pos + heading * (disc + 0.5f), disc)
@@ -745,10 +757,13 @@ namespace MountainPlanner.Presentation.Guests
                 float dv = -half + ColumnMetres * (c + 0.5f);
                 var p = s.Point(u, v + dv);
                 s.Placed.Add(new Vector3(p.x, Height(p), p.y));
+                s.Faces.Add(-s.Along * s.Direction);   // back the way the pass came: toward the front of the line
             }
             s.Tail = s.Point(u, v);
             s.TailDir = s.Along * s.Direction;
         }
+
+        static Vector2 Toward(Vector2 v, Vector2 otherwise) => v.sqrMagnitude > 1e-6f ? v.normalized : otherwise;
 
         static Vector2 Rotate(Vector2 v, float degrees)
         {
@@ -816,6 +831,7 @@ namespace MountainPlanner.Presentation.Guests
         public void Dispose()
         {
             if (Slots.IsCreated) Slots.Dispose();
+            if (Facing.IsCreated) Facing.Dispose();
             if (LiftSlots.IsCreated) LiftSlots.Dispose();
         }
     }

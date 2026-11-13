@@ -141,6 +141,7 @@ namespace MountainPlanner.App.Flow
             "-simguests",   // task 4.12
             "-rideshots", "-ridebench",   // task 4.11 PR B
             "-pickbench",   // task 4.13
+            "-skiershot",   // task 4.22
             "-proofhold",   // task 4.13 PR C2
         };
 
