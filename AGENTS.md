@@ -87,7 +87,7 @@ only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architec
 | .NET tools | `tools/domain-tests/`, `tools/acquire/`, `tools/data-spike/` | Unity-free builds, the downloader CLI |
 | Test data | `TestData/` (Git LFS) | Jackson Hole 2 km package, S1M fixture |
 | Tree assets | `tools/assets/trees/` | Blender species pipeline, enforced budgets |
-| Lift assets | `tools/assets/lifts/` | Blender lift and snow gun pipeline, budgets, Lift Lab (demo 22/23) |
+| Lift, skier assets | `tools/assets/lifts/`, `tools/assets/skiers/` | Blender lift, snow gun and skier pipelines, budgets, Lift Lab (demo 22/23), skier pictures (demo 107) |
 | GPU lanes | `tools/gpu/` | Shared GPU queue: measure and render lanes |
 | Release, reports | `tools/release/`, `release.bat`, `tools/reports/` | Version from tag, error logs, zip, symbols, problem reports (demo 71) |
 | Benchmark | `Assets/MountainPlanner/Runtime/App/Benchmark/`, `tools/perf/`, `docs/perf/` | Fixed camera path, budgets, baselines |
