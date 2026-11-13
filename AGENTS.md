@@ -14,6 +14,8 @@ a nested `AGENTS.md` needs a same-directory `CLAUDE.md` with the same import.
 - Repo checks: `node tools/repo-checks/check.mjs` (also bans Unity and nondeterministic APIs in
   engine-free code).
 - Engine-free tests without Unity: `dotnet test tools/domain-tests/Tests`.
+- Local tests are targeted only: `--filter` (Unity `-testFilter`) the tests, pins and formats a change can move.
+  No whole suites locally unless asked; CI's dotnet-tests runs everything.
 - Hands-on demos: double-click `demo.bat`; add an entry for anything a PR makes demoable.
 - Release (task P2-10): `release.bat` (or `demo.bat` 58) checks, runs EditMode tests, builds with the demo, smoke-tests
   the exe and zips it; a clean commit tagged `vX.Y.Z` builds release X.Y.Z. `tools/release/compile-check.ps1` compiles

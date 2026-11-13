@@ -356,6 +356,7 @@ namespace MountainPlanner.App
         void OnSimEvent(SimEvent e)
         {
             if (Hud == null || !_hudShown) return;
+            if (OnWeatherEvent(e)) return;
             switch (e.Type)
             {
                 case SimEventType.SeasonOpened: Hud.Toast("The season opens: Day 1"); break;
@@ -383,6 +384,7 @@ namespace MountainPlanner.App
             var s = _simNow;
             if (s == null || !_simClock.Now.IsValid) return;
             Hud.SetClock(_simClock.Now, s.Speed, s.Paused, HudText.SimDay(s.Phase, s.SeasonDay), HudText.SimDate(s.Month, s.Third, s.DayType));
+            SetHudWeather();
         }
 
         /// <summary>A lift's chairs' time: its rope's travel from the simulation, or the review movie's own step.</summary>

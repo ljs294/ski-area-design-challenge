@@ -204,6 +204,9 @@ namespace MountainPlanner.Simulation
             if (sod == LandingSecond(_todayOpen) * 1000L) PlanTheDay(faceDay);
             if (sod == _todayOpen * 1000L) AtOpening();
             if (sod % HourMs == 0) HourStep(FaceMs / HourMs);
+            // WX-05 v3 (4.05 PR C): the evening sheet at the stop, its refresh at the landing, each after the hour's weather.
+            if (sod == _todayStop * 1000L) { WeatherAtStop(FaceMs); IssueForecast(evening: true); }
+            if (sod == LandingSecond(_todayOpen) * 1000L) IssueForecast(evening: false);
         }
 
         internal void RunTickInterval()

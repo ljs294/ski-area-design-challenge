@@ -337,7 +337,9 @@ echo        and goes home; Popularity fills in; F1 shows the demand stack, the r
 echo   4.05 weather engine v0.1 (no Unity, no game build)
 echo     93 Weather report (4.05 weather engine v0.1, no Unity): all seven sites' fidelity checks against the
 echo        record's own noise, the hold-out on unseen winters, and the shared-bias table, one line per check;
-echo        then (PR A3) the SNOTEL pillow check: each western pillow's own snowfall, Oct 1 to Apr 1, by phase.
+echo        then (PR A3) the SNOTEL pillow check: each western pillow's own snowfall, Oct 1 to Apr 1, by phase;
+echo        then (PR C) the forecast report: its skill at every site at the week lean 0.85 (and 0.65 before), the named
+echo        events a winter, and the crowd's weather mornings, as charts in your browser.
 echo     97 Weather Lab (4.05, no Unity): every site's sample seasons week by week (snow, rain, base depth,
 echo        temperatures), against 200 seasons and the real winters, opened in your browser; later runs show the
 echo        first run as the baseline ("before"). Builds in about a minute.
@@ -351,7 +353,8 @@ echo     94 Weather in game: your own Mount Katahdin save (copied; yours is unto
 echo        weather, every face hour, with a readout on the right: sky, base, mid and summit, each lifts top gust
 echo        against the gust that holds it, and (B2) the weather of the 8 m cell under your mouse. Skip days and watch
 echo        storms; exposed lifts go ON HOLD. Then Jackson Hole 2 km, then the wind-hold report with your Jackson Hole
-echo        5 km and the drawn resort's six lifts on their own ground.
+echo        5 km and the drawn resort's six lifts on their own ground. PR C: the weather line under the clock, the
+echo        evening sheet in the readout, alert and event toasts, powder mornings' crowds, "Holds likely" from the forecast.
 echo   Guests Engine v0.1 (4.13 guests on screen, PR B; rebuilds the game; close the Unity editor first)
 echo     98 The guest tests, then the game: every skier as a dot (green, blue, black, red) that skis the slope by its
 echo        ability, lines at the lifts as wide as the chair that grow as long as they need (round trees, through
@@ -865,6 +868,13 @@ echo.
 echo The SNOTEL pillows (WX-03 v3): the gauge's own precipitation that falls as snow should reach what the pillow
 echo holds on April 1. Jackson Hole and Winter Park can't: their gauges catch less in total than the pillow holds.
 dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "FullyQualifiedName~WeatherPillowTests.WriteThePillowCheck" --logger "console;verbosity=normal" <nul | findstr /c:"[pillow]" /c:"Failed"
+echo.
+echo The forecast (PR C): 50 seasons of evening sheets a site at the week lean 0.85 (the game) and 0.65 (before), then three
+echo whole winters a site for the named events and the crowd's weather mornings, as charts in your browser (several
+echo minutes). One line a site and lean prints as it goes.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~WeatherForecastReportTests" --logger "console;verbosity=normal" <nul | findstr /c:"[skill]" /c:"[events]" /c:"Failed" /c:"error"
+node "%~dp0tools\weather-forecast\report.mjs" "%~dp0test-results\weather-forecast\data.json"
+start "" "%~dp0test-results\weather-forecast\report.html"
 pause
 goto menu
 
@@ -940,6 +950,22 @@ echo      top station's own cell, so a lift on a ridge holds more than one tucke
 echo   4. Save (Ctrl+S), quit and run this part again: as soon as the map shows, press Space or F1 ^> Skip to morning.
 echo      The clock waits (a note says "Preparing the weather") until the weather's map is ready, then does what you
 echo      asked, so the save reloads to the same weather however fast you are.
+echo   5. New in PR C (the forecast). Watch a week at 4 (8x), skipping each night:
+echo      a. Under the clock, the weather line: "21° · 9°" (base · summit now), and "· +4 in" when the forecast has snow
+echo         at mid in the next 24 hours; hover it for the words. U switches it to metric.
+echo      b. At 4:30 the evening sheet appears at the bottom of the readout: tonight's gun window by band, tonight's and
+echo         tomorrow's snow, then seven day cards ("snow likely 90%%", high and low ranges that narrow as the day
+echo         nears, the snow range, the snow line, the summit gust, "from the southwest" once a storm is firm, the
+echo         events it expects) and a pattern line. At 7:30 it refreshes: the same days, a little sharper.
+echo      c. Toasts: an amber "Big storm coming tomorrow" (or Rain, Thaw, Cold snap, High wind, naming the lifts that may
+echo         hold) a day or two ahead; then "It's snowing on the mountain", "A big storm is arriving", "Powder day:
+echo         9 in overnight", "A bluebird day", "A thaw..."; and now "(lift) is on wind hold: gusts 47 mph" and
+echo         "...is running again" when lifts hold.
+echo      d. A powder morning: the readout's last line shows the crowd's weather lines, "powder x1.40", and the day
+echo         fills up; a day forecast to rain at the base in the ski day reads "forecast x0.50" and the mountain is quiet.
+echo      e. Click a summit lift before a wind event: its card's Today row says Holds likely, from tomorrow's forecast
+echo         gust at its top against its hold line.
+echo      f. Save at night after the sheet, quit and reopen: the same sheet comes back, figure for figure.
 echo   Quit the game when done.
 start "" /wait "%GAME%" -data "%WX94%" -offline -weatherreadout
 findstr /i /c:"[Weather]" /c:"[Simulation] restored" "%PLAYERLOG%"
@@ -948,7 +974,7 @@ set "WX94JH=%WX94%\Resorts\jackson-hole-2km-test"
 robocopy "%~dp0TestData\jackson-hole-2km" "%WX94JH%" /e /njh /njs /nfl /ndl >nul
 echo.
 echo   Part 2: Jackson Hole 2 km, from before the weather (its weather comes from the recording, no network needed).
-echo   5. The readout says "Typical western weather" with base and summit at this area's heights. Within a minute the
+echo   6. The readout says "Typical western weather" with base and summit at this area's heights. Within a minute the
 echo      HUD's pill gets the area's own weather (Get weather on open); then the readout adds "its own weather plays
 echo      from next October 1": this winter keeps the weather it started with. F1 ^> Next month until October to see
 echo      "Jackson Hole's own weather" take over (optional).
@@ -1029,8 +1055,8 @@ echo      them by state (on the way, deciding, in line, riding, skiing) and the 
 echo   2. Analysis, Trails: Popularity reads "-" until the first skier, then fills with each trail's share of the
 echo      busiest (0-100); the Lifts list's Popularity does the same for boardings. Sort and filter by it.
 echo   3. F1's Demand line: the day's crowd archetype by archetype, with every factor that made it (reputation, day
-echo      type, snow, powder, forecast) and the lift and terrain capacity beside it. The weather factors read 1.00
-echo      until 4.05 lands.
+echo      type, snow, powder, forecast) and the lift and terrain capacity beside it. Powder and forecast move with
+echo      the weather (4.05 PR C): above 1.00 on a powder morning, below on a forecast rain day.
 echo   4. F1, "+25 beginner": twenty-five beginners appear at a base. Watch them: they take the green runs and never a
 echo      black, and they never ride a lift whose top has no green way down.
 echo   5. F1, "Watch a skier": its band, ability, party, laps, wait and satisfaction, the factors behind its last

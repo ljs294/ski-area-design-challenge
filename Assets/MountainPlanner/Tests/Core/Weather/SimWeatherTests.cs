@@ -87,7 +87,7 @@ namespace MountainPlanner.Tests
             a.ApplyNow(SimCommand.Of(SimCommandKind.SetMountainOpen, 1));
             RunTo(a, 3 * Day + 7 * Hour + 1234);
             byte[] bytes = a.SaveState();
-            Assert.That(SimSidecar.VersionOf(bytes), Is.EqualTo(5));
+            Assert.That(SimSidecar.VersionOf(bytes), Is.EqualTo(SimSidecar.Version));
             var b = SimSidecar.Read(bytes, P, a.Design, SimSite.None, out _, wx);
             Assert.That(b.Hash(), Is.EqualTo(a.Hash()));
             Assert.That(b.WeatherNow, Is.EqualTo(a.WeatherNow), "the hour comes back from October 1");

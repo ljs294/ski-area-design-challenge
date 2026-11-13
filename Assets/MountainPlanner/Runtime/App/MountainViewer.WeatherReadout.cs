@@ -55,6 +55,7 @@ namespace MountainPlanner.App
             Sample(t, "Base", s.WeatherBase);
             LiftGusts(t, s);
             CursorWeather(t, s);
+            ForecastReadout(t, s);
             return _wxShown = t.ToString();
         }
 
