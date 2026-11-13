@@ -58,7 +58,7 @@ under `test-results\p3-11\` beside `demo.bat` itself, whichever folder it is sta
 The drawn resort's path with a crowd (`-guests 3000`: the mountain opens, the morning starts and the crowd is topped
 up to 3,000 every 4 s), so a later change that slows the guests shows up against these. Built at 49e4827f, clean, one
 run after another under one measure slot. `demo.bat` 100 runs them with the click and pause timing, 11,000 dots of
-headroom and the skier-model proof, under `test-results\p4-13ench\`.
+headroom and the skier-model proof, under `test-results\p4-13\bench\`.
 
 | File | Player | Command | Frame p95 | GPU p95 |
 | --- | --- | --- | --- | --- |
