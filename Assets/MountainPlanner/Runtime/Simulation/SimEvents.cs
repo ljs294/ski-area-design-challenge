@@ -69,6 +69,14 @@ namespace MountainPlanner.Simulation
         DayDemand = 29,
         /// <summary>GU-06: a skier finished its stay and went home happy or otherwise (the value is its serial).</summary>
         SkierLeft = 30,
+        /// <summary>WX-41 (4.05 PR C): a named weather event began (the detail is its <see cref="WeatherEventKind"/>; the value its face day, or its size: a storm's total, the night's snow).</summary>
+        WeatherEventBegan = 31,
+        /// <summary>WX-41: a lasting weather event ended (the detail is its kind, the value the face day).</summary>
+        WeatherEventEnded = 32,
+        /// <summary>WX-42: the forecast first shows an event within the alert lead (the detail is its kind, the value the target face day).</summary>
+        WeatherAlert = 33,
+        /// <summary>WX-05 v3: the forecast was issued (the value is the issue's face day; the detail 1 for the evening sheet, 0 the landing's refresh).</summary>
+        ForecastIssued = 34,
     }
 
     /// <summary>Why a command was turned away (an event's Detail). Stable numbers.</summary>

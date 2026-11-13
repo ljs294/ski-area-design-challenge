@@ -19,11 +19,13 @@ namespace MountainPlanner.Simulation
     /// archetype (GU-18), SN-24's wear counters and the Popularity cells. v3 was held for task 4.05's weather and never
     /// written (the guests merged first). v5 (task 4.05) appends the weather: the rows playing and any waiting for October 1,
     /// each with its reference points, and what the generator was reset with and the hour it reached (it is rebuilt by
-    /// re-running from October 1, WX-56); the top-station gusts in the lift block turn from whole mph to tenths.
+    /// re-running from October 1, WX-56); the top-station gusts in the lift block turn from whole mph to tenths. v6 (task
+    /// 4.05 PR C) appends the forecast's issue (the hour and whether it was the evening's; the sheet itself is made again from
+    /// it, WX-32) and the named events' running counts and the alerts' dedupe days (WX-41, WX-42).
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 5;
+        public const int Version = 6;
         public const string Extension = ".sim";
         static readonly byte[] Magic = { (byte)'M', (byte)'P', (byte)'S', (byte)'M' };
 
@@ -120,7 +122,7 @@ namespace MountainPlanner.Simulation
         /// One step per version bump, oldest first. v1 → v2: v1 has no lift-operations block, and the reader leaves the lines
         /// and chairs empty, the lift ledger at zero and the holds as saved (<see cref="SimWorld"/>'s ReadState reads the block
         /// only from v2), so the bytes need no rewrite. v4 → v5 likewise: the reader multiplies the saved gusts by ten and
-        /// starts the weather from October 1.
+        /// starts the weather from October 1, and v5 → v6: the reader starts the events empty and the forecast unissued.
         /// </summary>
         static byte[] Upgrade(byte[] bytes)
         {

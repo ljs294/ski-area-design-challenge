@@ -76,6 +76,36 @@ namespace MountainPlanner.UI.Hud
             return text;
         }
 
+        // ---------- the weather line (task 4.05 PR C) ----------
+
+        /// <summary>Whole degrees from 0.1 °F, in the player's units (WX-49: whole °F; °C when metric).</summary>
+        public static int WholeDegrees(int tenthsF, bool metric) => metric
+            ? (int)Math.Round((tenthsF / 10.0 - 32) * 5 / 9, MidpointRounding.AwayFromZero)
+            : (int)Math.Round(tenthsF / 10.0, MidpointRounding.AwayFromZero);
+
+        /// <summary>Whole inches (or centimetres when metric) from 0.1 in.</summary>
+        public static int WholeSnow(int tenthsIn, bool metric) => metric
+            ? (int)Math.Round(tenthsIn * 0.254, MidpointRounding.AwayFromZero)
+            : (int)Math.Round(tenthsIn / 10.0, MidpointRounding.AwayFromZero);
+
+        /// <summary>
+        /// The bar's weather line: "21° · 9° · +4 in" (base · summit now, the forecast's snow at mid in the next 24 hours),
+        /// "−6° · −13° · +10 cm" in metric; no snow part when none is forecast. The caller makes it only when a figure moves.
+        /// </summary>
+        public static string WeatherLine(int baseDegrees, int summitDegrees, int snow, bool metric) =>
+            $"{Signed(baseDegrees)}° · {Signed(summitDegrees)}°" + (snow <= 0 ? "" : metric ? $" · +{snow} cm" : $" · +{snow} in");
+
+        /// <summary>The weather line's tooltip; a snow of −1 means no forecast yet.</summary>
+        public static string WeatherTip(int baseDegrees, int summitDegrees, int snow, bool metric)
+        {
+            string deg = metric ? "°C" : "°F", unit = metric ? "cm" : "in";
+            return $"Now: base {Signed(baseDegrees)} {deg}, summit {Signed(summitDegrees)} {deg}. " + (snow < 0
+                ? "The forecast comes with the evening sheet at closing."
+                : snow == 0 ? "No snow forecast in the next 24 hours." : $"Forecast: {snow} {unit} of snow at mid-mountain in the next 24 hours.");
+        }
+
+        static string Signed(int v) => v < 0 ? "\u2212" + (-v) : v.ToString();
+
         /// <summary>The season's day: 1 on 1 September, counting on through the winter.</summary>
         public static int SeasonDay(int year, int dayOfYear)
         {

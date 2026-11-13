@@ -124,6 +124,7 @@ namespace MountainPlanner.Simulation
         /// </summary>
         void PlanTheDay(int faceDay)
         {
+            WeatherAtLanding(faceDay);   // WX-44 (4.05 PR C): the night's snow and the evening's forecast set the two weather lines
             _demandDay = faceDay;
             Array.Clear(_demand, 0, _demand.Length);
             Array.Clear(_demandUncapped, 0, _demandUncapped.Length);
