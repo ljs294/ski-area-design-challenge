@@ -12,7 +12,7 @@ using NUnit.Framework;
 namespace MountainPlanner.Tests
 {
     /// <summary>
-    /// Task 4.05 PR B2: the weather over the map. The integer wet bulb against the psychrometric equation and Stull (WX-37);
+    /// Task 4.05 PR B2: the weather over the map. The integer wet bulb against the psychrometric equation (WX-37 v2);
     /// the static inputs on synthetic terrain (a valley floor is sheltered, pooled and steered along its axis; a ridge's
     /// windward face is wetter than its lee, WX-35, WX-36 v2, WX-39); freezing rain (WX-38 v2); lift gusts from the map; a
     /// save with static inputs reloads to the same future; the budgets (WX-51); and WX-38 v2's lattice test on all seven
@@ -27,8 +27,11 @@ namespace MountainPlanner.Tests
 
         // ---------------- WX-37: the wet bulb ----------------
 
-        /// <summary>The psychrometric equation (ventilated psychrometer, over water, at <paramref name="hPa"/>), solved by bisection: independent of Stull.</summary>
-        static double PsychrometricWetBulbF(double tempF, double rhPercent, double hPa)
+        /// <summary>
+        /// The psychrometric equation (ventilated psychrometer, over water, at <paramref name="hPa"/>), solved by bisection with
+        /// Bolton's saturation pressure: written apart from the game's (Magnus, Alduchov and Eskridge), so it checks it.
+        /// </summary>
+        internal static double PsychrometricWetBulbF(double tempF, double rhPercent, double hPa)
         {
             double t = Psychrometrics.FToC(tempF);
             static double Es(double c) => 6.112 * Math.Exp(17.67 * c / (c + 243.5));   // hPa (Bolton)
@@ -44,46 +47,53 @@ namespace MountainPlanner.Tests
         }
 
         /// <summary>
-        /// WX-37's check at −10, 0, 20 and 30 °F, at sea level and at 10,000 ft (Stull ignores pressure). Measured (PR B2): in
-        /// humid air (RH ≥ 60 %, storms and gun nights) the game's wet bulb is within 1.5 °F of the equation; in dry air it
-        /// reads warm, up to about 4 °F at 0 °F and 20 % RH at 10,000 ft (the guns conservative, never optimistic), and never
-        /// more than 1.5 °F cold anywhere. A pressure-aware wet bulb stays a Later line.
+        /// WX-37 v2's check at −10, 0, 20 and 30 °F and RH 20–95 %, at sea level, 6,200 ft and 10,000 ft: the game's wet bulb
+        /// (integers) and calibration's (doubles) both within 0.5 °F of the equation, dry air or humid. (v1's Stull read up to
+        /// 4 °F warm in dry cold air at 10,000 ft and 0.3–1.1 °F cold in humid air near freezing.)
         /// </summary>
         [Test]
         public void TheWetBulbMatchesThePsychrometricEquation()
         {
-            foreach (double hPa in new[] { 1013.25, 697.0 })
+            foreach (int feet in new[] { 0, 6200, 10000 })
                 foreach (int f in new[] { -10, 0, 20, 30 })
                     foreach (int rh in new[] { 20, 40, 60, 80, 95 })
                     {
-                        double reference = PsychrometricWetBulbF(f, rh, hPa);
-                        int wb = WeatherAir.WetBulb(f * 10, rh * 10);
+                        double reference = PsychrometricWetBulbF(f, rh, Psychrometrics.StandardPressurePa(feet) / 100);
+                        int dew = (int)Math.Round(Psychrometrics.CToF(Psychrometrics.DewPointC(Psychrometrics.SaturationPa(Psychrometrics.FToC(f)) * rh / 100)) * 10);
+                        int wb = WeatherAir.WetBulb(f * 10, dew, feet);
+                        double wbF = Psychrometrics.WetBulbF(f, rh, feet);
                         double gap = wb / 10.0 - reference;
-                        TestContext.Progress.WriteLine($"{hPa,7:F0} hPa {f,4} °F {rh,3} %: game {wb / 10.0,6:F1}, equation {reference,6:F1} ({gap:+0.0;-0.0})");
+                        TestContext.Progress.WriteLine($"{feet,6} ft {f,4} °F {rh,3} %: game {wb / 10.0,6:F1}, calibration {wbF,6:F2}, equation {reference,6:F2} ({gap:+0.0;-0.0})");
                         Assert.That(wb, Is.LessThanOrEqualTo(f * 10), "never above the air");
-                        Assert.That(gap, Is.GreaterThanOrEqualTo(-1.5), $"{f} °F at {rh} %, {hPa} hPa: never much colder than the truth");
-                        Assert.That(gap, Is.LessThanOrEqualTo(rh >= 60 ? 1.5 : 4.5), $"{f} °F at {rh} %, {hPa} hPa");
+                        Assert.That(wb, Is.GreaterThanOrEqualTo(dew), "never below the dew point");
+                        Assert.That(gap, Is.InRange(-0.5, 0.5), $"{f} °F at {rh} %, {feet} ft: the game");
+                        Assert.That(wbF - reference, Is.InRange(-0.5, 0.5), $"{f} °F at {rh} %, {feet} ft: calibration");
                     }
         }
 
+        /// <summary>The game's integer wet bulb against calibration's double one: −40 to 60 °F, RH 5–99 %, sea level to 14,000 ft.</summary>
         [Test]
-        public void TheIntegerWetBulbTracksStull()
+        public void TheIntegerWetBulbTracksCalibrations()
         {
-            int worst = 0;
-            for (int t = -200; t <= 600; t += 7)
-                for (int rh = 50; rh <= 1000; rh += 13)
-                {
-                    int wb = WeatherAir.WetBulb(t, rh);
-                    int stull = (int)Math.Round(Psychrometrics.WetBulbF(t / 10.0, rh / 10.0) * 10);
-                    worst = Math.Max(worst, Math.Abs(wb - stull));
-                }
-            TestContext.Progress.WriteLine($"the integer wet bulb's worst gap from Stull: {worst / 10.0:F1} °F");
-            Assert.That(worst, Is.LessThanOrEqualTo(5), "within 0.5 °F: the table is bilinear between whole °F and whole % RH");
+            double worst = 0;
+            for (int feet = 0; feet <= 14000; feet += 1750)
+                for (int t = -400; t <= 600; t += 7)
+                    for (int dep = 1; dep <= 400; dep += 13)
+                    {
+                        int dew = t - dep;
+                        double rh = Psychrometrics.RelativeHumidity(t / 10.0, dew / 10.0);
+                        if (rh < 5) continue;
+                        double gap = Math.Abs(WeatherAir.WetBulb(t, dew, feet) / 10.0 - Psychrometrics.WetBulbF(t / 10.0, rh, feet));
+                        worst = Math.Max(worst, gap);
+                    }
+            TestContext.Progress.WriteLine($"the integer wet bulb's worst gap from calibration's: {worst:F2} °F");
+            Assert.That(worst, Is.LessThanOrEqualTo(0.2), "within 0.2 °F: whole tenths, a table linear between whole °F");
             Assert.That(WeatherAir.RhPermille(300, 300), Is.EqualTo(1000));
-            Assert.That(WeatherAir.WetBulb(300, 1000), Is.EqualTo(300), "saturated air is its own wet bulb");
+            Assert.That(WeatherAir.WetBulb(300, 300, 8000), Is.EqualTo(300), "saturated air is its own wet bulb");
+            Assert.That(WeatherAir.WetBulb(300, 200, 10000), Is.LessThan(WeatherAir.WetBulb(300, 200, 0)), "thinner air, a colder wet bulb");
         }
 
-        /// <summary>The table is built from doubles at type init: every runtime (CoreCLR here, Mono in Unity) must build the same bytes.</summary>
+        /// <summary>The tables are literals: every runtime (CoreCLR here, Mono in Unity) must read the same bytes.</summary>
         [Test]
         public void TheWetBulbTableIsPinned()
         {
@@ -91,7 +101,7 @@ namespace MountainPlanner.Tests
             Assert.That(WeatherAir.TableHash(), Is.EqualTo(TablePin));
         }
 
-        const ulong TablePin = 0x68D9E886397F0BB8UL;
+        const ulong TablePin = 0x0B9F692F71711F64UL;
 
         // ---------------- WX-35, WX-36 v2, WX-39: the static inputs ----------------
 
@@ -392,18 +402,10 @@ namespace MountainPlanner.Tests
         static bool NovToApr(int month) => month >= 11 || month <= 4;
 
         /// <summary>
-        /// Known limit, found by this test (PR B2): calibration's precipitation gradient is the plain mean of each wet day's
-        /// relative gradient, but small showery days have steep gradients and big storms flat ones, so the season's slope
-        /// follows the amount-weighted mean. Measured on Daymet's lattice (per 1,000 ft, equal-weight → amount-weighted):
-        /// Olympic Valley 5.9 → 3.7 %, Jackson NH 14.5 → 7.7 %, Snowshoe 10.1 → 8.2 %; the other four within 30 %. The fix
-        /// (weight each day by its mean liquid) changes calibration and so every area's rows: the owner's call.
-        /// </summary>
-        static readonly string[] SteepGradientSites = { WeatherFixtures.OlympicValley, WeatherFixtures.JacksonNh, WeatherFixtures.Snowshoe };
-
-        /// <summary>
         /// Over the Daymet lattice pixels, the generated November–April liquid (the rows at zref × the elevation factor at each
         /// pixel's own Daymet elevation, 200 seeds) against Daymet's own: the mean within ±10 %, the slope with elevation within
-        /// ±30 % (WX-38 v2). No per-pixel band: Daymet can't tell windward from lee.
+        /// ±30 % (WX-38 v2), at every site. No per-pixel band: Daymet can't tell windward from lee. PR B2 found three sites'
+        /// slopes 1.45–2.05 × Daymet's (calibration's plain mean over wet days); WX-38 v3 weights each day by its liquid.
         /// </summary>
         [Test]
         public void TheLatticeTest([ValueSource(typeof(WeatherFixtures), nameof(WeatherFixtures.Sites))] string site)
@@ -469,12 +471,6 @@ namespace MountainPlanner.Tests
                 $"{site}: {ok.Count} pixels over {relief:F0} ft; Nov–Apr liquid mean game {gMean / 100:F2} in, Daymet {dMean / 100:F2} in " +
                 $"(×{gMean / dMean:F3}); slope game {gSlope / 100:F2} in, Daymet {dSlope / 100:F2} in per 1,000 ft (×{(dSlope == 0 ? double.NaN : gSlope / dSlope):F2})");
             Assert.That(gMean / dMean, Is.InRange(0.9, 1.1), "the mean within ±10 %");
-            if (Array.IndexOf(SteepGradientSites, site) >= 0)
-            {
-                // Known limit (PR B2): see SteepGradientSites. Held from getting worse until calibration weights its days.
-                Assert.That(gSlope / dSlope, Is.InRange(0.7, 2.2), "a known-limit site's slope");
-                return;
-            }
             Assert.That(gSlope, Is.EqualTo(dSlope).Within(Math.Abs(dSlope) * 0.3), "the slope with elevation within ±30 %");
         }
     }

@@ -3,7 +3,7 @@ using System;
 namespace MountainPlanner.Domain.Weather
 {
     /// <summary>
-    /// The shared humidity and phase functions (WX-37, WX-03 v2, SN-05), in °F. Float work: the calibration calls them per
+    /// The shared humidity and phase functions (WX-37 v2, WX-03 v3, SN-05), in °F. Float work: the calibration calls them per
     /// record hour, the simulation once per table entry per face hour (WX-02 v2), never per cell (SI-09).
     /// </summary>
     public static class Psychrometrics
@@ -29,26 +29,34 @@ namespace MountainPlanner.Domain.Weather
         }
 
         /// <summary>
-        /// WX-37: the wet bulb (°F) by Stull's formula (2011), from air temperature (°F) and RH (%). Stull is fitted for −4 to
-        /// 122 °F (−20 to 50 °C) and RH 5–99 %; outside it the inputs are clamped: RH ≥ 99 % gives the air temperature; below
-        /// −4 °F the wet bulb is the air minus the depression Stull gives at −4 °F and the same RH; never above the air.
+        /// The standard atmosphere's pressure (Pa) at a height (ft above sea level): 101,325 × (1 − 6.8756·10⁻⁶ × ft)^5.2559.
+        /// WX-37 v2 reads the wet bulb at it (a day's own pressure moves the wet bulb by under 0.1 °F).
         /// </summary>
-        public static double WetBulbF(double tempF, double rh)
-        {
-            if (rh >= 99) return tempF;
-            rh = Math.Max(5, rh);
-            // Stull at its −4 °F edge reads above the air in very dry air (PR B2's test found +4.3 °F at 5 % RH), so the carried
-            // depression is never negative. Calibration's rows can't move: below 0 °F every hour is all snow at the top ratio.
-            if (tempF < -4) return tempF - Math.Max(0, -4 - StullF(-4, rh));
-            return Math.Min(tempF, StullF(Math.Min(tempF, 122), rh));
-        }
+        public static double StandardPressurePa(double feet) => 101_325 * Math.Pow(1 - 6.8756e-6 * feet, 5.2559);
 
-        static double StullF(double tempF, double rh)
+        /// <summary>WX-37 v2's psychrometer coefficient, per °C: γ = 6.60·10⁻⁴ × (1 + 0.00115 × Tw).</summary>
+        public static double PsychrometerCoefficient(double wetBulbC) => 6.60e-4 * (1 + 0.00115 * wetBulbC);
+
+        /// <summary>
+        /// WX-37 v2 (owner 2026-11-12, task 4.05 PR A3): the wet bulb (°F) from air temperature (°F), RH (%) and the point's
+        /// height (ft), by the psychrometric equation e = Es(Tw) − γ·P·(T − Tw) (ventilated, over water, at the standard
+        /// atmosphere's pressure there), solved by bisection between the dew point and the air. v1 used Stull's formula
+        /// (2011), which ignores pressure: up to about 4 °F warm in dry cold air at 10,000 ft and 0.3–1.1 °F cold in humid air
+        /// near freezing. Never above the air or below the dew point; saturated air is its own wet bulb.
+        /// </summary>
+        public static double WetBulbF(double tempF, double rh, double feet)
         {
+            if (rh >= 100) return tempF;
             double t = FToC(tempF);
-            double tw = t * Math.Atan(0.151977 * Math.Sqrt(rh + 8.313659)) + Math.Atan(t + rh) - Math.Atan(rh - 1.676331)
-                        + 0.00391838 * Math.Pow(rh, 1.5) * Math.Atan(0.023101 * rh) - 4.686035;
-            return CToF(tw);
+            double e = SaturationPa(t) * Math.Max(0.1, rh) / 100;
+            double p = StandardPressurePa(feet);
+            double lo = DewPointC(e), hi = t;
+            for (int k = 0; k < 50; k++)
+            {
+                double tw = (lo + hi) / 2;
+                if (SaturationPa(tw) - PsychrometerCoefficient(tw) * p * (t - tw) - e > 0) hi = tw; else lo = tw;
+            }
+            return Math.Min(tempF, CToF((lo + hi) / 2));
         }
 
         /// <summary>

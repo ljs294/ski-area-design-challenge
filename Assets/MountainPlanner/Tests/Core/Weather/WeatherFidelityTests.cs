@@ -64,7 +64,7 @@ namespace MountainPlanner.Tests
         ///   per °F (its heat capacity over the latent heat, 2.1 ÷ 334 per °C).
         /// Checked against SNOTEL pillows (step 2, 2026-11-09): Stevens Pass April 1, 35 in against the pillow's 37.
         /// </summary>
-        sealed class ReferenceSnow
+        internal sealed class ReferenceSnow
         {
             public const double MeltWinter = 0.0011, MeltSummer = 0.0044, IceHeat = 0.0035, PackFollowsAirHours = 48;
             public double Pack, PackTemp = 32;
@@ -142,7 +142,7 @@ namespace MountainPlanner.Tests
             return p;
         }
 
-        static double SnowShare(double t, double d) => Psychrometrics.SnowShare(Psychrometrics.WetBulbF(t, Psychrometrics.RelativeHumidity(t, Math.Min(t, d))));
+        static double SnowShare(double t, double d, int feet) => Psychrometrics.SnowShare(Psychrometrics.WetBulbF(t, Psychrometrics.RelativeHumidity(t, Math.Min(t, d)), feet));
         static bool DecToMar(int third) => third >= 6 && third < 18;
         static bool NovToApr(int third) => third >= 3 && third < 21;
         static bool DecToFeb(int third) => third >= 6 && third < 15;
@@ -216,7 +216,7 @@ namespace MountainPlanner.Tests
                             if (float.IsNaN(b.P[k])) missing = true;
                             sum += P(k);
                             double t = T(k);
-                            if (!double.IsNaN(t) && P(k) > 0) snow += P(k) * SnowShare(t, D(k, t));
+                            if (!double.IsNaN(t) && P(k) > 0) snow += P(k) * SnowShare(t, D(k, t), rows.ZrefFeet);
                         }
                         if (missing) continue;
                         y.Win[j].Add(sum);
@@ -234,7 +234,7 @@ namespace MountainPlanner.Tests
                     double t = T(k);
                     if (!double.IsNaN(t))
                     {
-                        double p = P(k), share = p > 0 ? SnowShare(t, D(k, t)) : 0;
+                        double p = P(k), share = p > 0 ? SnowShare(t, D(k, t), rows.ZrefFeet) : 0;
                         if (DecToFeb(third)) { y.Cold.Add(t); if (t > ThawF) y.Thaw++; }
                         if (p > 0)
                         {
@@ -305,7 +305,7 @@ namespace MountainPlanner.Tests
                     if (h.State != WeatherRows.Fair && prevState == WeatherRows.Fair && fairStart >= 0 && NovToApr(fairThird)) { pendingGap = i - fairStart; gapThird = fairThird; }
                     prevState = h.State;
 
-                    double share = p > 0 ? SnowShare(t, d) : 0;
+                    double share = p > 0 ? SnowShare(t, d, rows.ZrefFeet) : 0;
                     if (DecToFeb(third)) { y.Cold.Add(t); if (t > ThawF) y.Thaw++; }
                     if (p > 0)
                     {

@@ -336,7 +336,8 @@ echo     96 The guest tests and the scale run, then the game: a crowd arrives th
 echo        and goes home; Popularity fills in; F1 shows the demand stack, the reputations and one skier's day.
 echo   4.05 weather engine v0.1 (no Unity, no game build)
 echo     93 Weather report (4.05 weather engine v0.1, no Unity): all seven sites' fidelity checks against the
-echo        record's own noise, the hold-out on unseen winters, and the shared-bias table, one line per check.
+echo        record's own noise, the hold-out on unseen winters, and the shared-bias table, one line per check;
+echo        then (PR A3) the SNOTEL pillow check: each western pillow's own snowfall, Oct 1 to Apr 1, by phase.
 echo     97 Weather Lab (4.05, no Unity): every site's sample seasons week by week (snow, rain, base depth,
 echo        temperatures), against 200 seasons and the real winters, opened in your browser; later runs show the
 echo        first run as the baseline ("before"). Builds in about a minute.
@@ -855,6 +856,10 @@ echo   statistic: game^|record (the record's 95 %% range), miss, z in [allowed]
 echo where z is the miss in the record's own noise (1.96 = its 95 %% edge). "outside 99 %%" is allowed a few times by
 echo chance; "FAIL" is not. The hold-out lines compare rows built from half the winters with the other half.
 dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~WeatherFidelityTests" --logger "console;verbosity=normal" <nul | findstr /v /c:"Test run for" /c:"A total" /c:"NUnit" /c:"Running selected"
+echo.
+echo The SNOTEL pillows (WX-03 v3): the gauge's own precipitation that falls as snow should reach what the pillow
+echo holds on April 1. Jackson Hole and Winter Park can't: their gauges catch less in total than the pillow holds.
+dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "FullyQualifiedName~WeatherPillowTests.WriteThePillowCheck" --logger "console;verbosity=normal" <nul | findstr /c:"[pillow]" /c:"Failed"
 pause
 goto menu
 

@@ -21,13 +21,13 @@ namespace MountainPlanner.Tests
         /// <summary>WX-33: the fold of every field of every face hour of label year 2026 under <see cref="Seed"/>, per site.</summary>
         static readonly Dictionary<string, ulong> Golden = new Dictionary<string, ulong>
         {
-            [WeatherFixtures.JacksonHole] = 0xBCB7221BF6A53675UL,
-            [WeatherFixtures.OlympicValley] = 0xAE1726CBF2A5908EUL,
-            [WeatherFixtures.StevensPass] = 0x04E54080206D28CEUL,
-            [WeatherFixtures.WinterPark] = 0x63017CCA9F7B0686UL,
-            [WeatherFixtures.JacksonNh] = 0x3074583E520F0E6CUL,
-            [WeatherFixtures.Snowshoe] = 0xB493CDBBFA82412FUL,
-            [WeatherFixtures.SnowRidge] = 0x2DEE2424CEDE03BBUL,
+            [WeatherFixtures.JacksonHole] = 0x80A9552A8A216584UL,
+            [WeatherFixtures.OlympicValley] = 0x8220C8F5E28C4476UL,
+            [WeatherFixtures.StevensPass] = 0xBC3BD9A3B36E922EUL,
+            [WeatherFixtures.WinterPark] = 0x88B8FBCF657B7A91UL,
+            [WeatherFixtures.JacksonNh] = 0x8A9EC67AAB75F0D1UL,
+            [WeatherFixtures.Snowshoe] = 0xFC8DC1FDEABA62CEUL,
+            [WeatherFixtures.SnowRidge] = 0xFAA4A529F8FFE6FDUL,
         };
 
         static WeatherRows Frozen(string site) =>
