@@ -1,0 +1,15 @@
+{
+ "_about": "Enforced triangle budgets and LOD switch distances for the skier and snowboarder models. The Blender build reads this file; the Unity import will read the same file. Distances are metres at lodBias 1 with a 60 degree vertical field of view at 1080p, where a 1.75 m figure is about 1,637 / distance pixels tall. The counts are a skier with skis and poles; a snowboarder is about a tenth lighter. Beyond the last distance a skier is a coloured dot (task 4.13). Ladder from the adversarial close-up audit of 2026-11-12 (owner: more LODs, a bigger budget up close).",
+ "figure": {
+  "lods": [
+   {"lod": 0, "maxTris": 5000, "untilM": 6, "pixelsAtSwitch": 273, "boneInfluences": 4, "shadow": "lod1 mesh", "drops": "nothing"},
+   {"lod": 1, "maxTris": 2200, "untilM": 14, "pixelsAtSwitch": 117, "boneInfluences": 4, "shadow": "lod2 mesh", "drops": "vents, buckles, zip pull, cuff tabs, half the folds"},
+   {"lod": 2, "maxTris": 900, "untilM": 30, "pixelsAtSwitch": 55, "boneInfluences": 2, "shadow": "lod3 mesh", "drops": "goggle frame, ear pads, brim, thumb, pocket zips, binding detail"},
+   {"lod": 3, "maxTris": 400, "untilM": 60, "pixelsAtSwitch": 27, "boneInfluences": 2, "shadow": "lod4 mesh", "drops": "collar, hood, zip, strap, bindings, cloth facets"},
+   {"lod": 4, "maxTris": 150, "untilM": 120, "pixelsAtSwitch": 14, "boneInfluences": 1, "shadow": "none", "drops": "poles, gloves, knee patches"},
+   {"lod": 5, "maxTris": 56, "untilM": 250, "pixelsAtSwitch": 6.5, "boneInfluences": 1, "shadow": "none", "drops": "limbs: three boxes and a plank"}
+  ],
+  "nearestAtLod0": 12,
+  "hysteresis": 0.1
+ }
+}

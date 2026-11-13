@@ -358,6 +358,10 @@ echo        ability, lines at the lifts as wide as the chair that grow as long a
 echo        gaps, never a pile), click a dot for its card (the click lands on the dot), Follow, Next, pause.
 echo     99 Traffic (4.13 PR C): Shift+5 over a busy day: runs coloured by how crowded they are, lifts by how full
 echo        their chairs run, a circle at each lift's bottom that grows with its line ("42 - 1:45"), Last hour or Today.
+echo   4.22 skier models (Blender 5.2 only: no Unity, no game build; render lane, about 4 minutes)
+echo     107 The skier and the snowboarder as pictures: the poses from three sides, both on the FGQ-4 chair, the
+echo        six LODs side by side, ten random outfits, close-ups, each turn as eight frames, and a slope from 12
+echo        to 120 m with every figure at the LOD the game would draw. The folder opens when they are done.
 echo.
 echo     Q  Quit
 echo.
@@ -495,6 +499,7 @@ if /i "%CHOICE%"=="93" goto weatherreport
 if /i "%CHOICE%"=="97" goto weatherlab
 if /i "%CHOICE%"=="98" goto guestsonscreen
 if /i "%CHOICE%"=="99" goto traffic
+if /i "%CHOICE%"=="107" goto skiermodels
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2134,6 +2139,34 @@ echo.
 chcp 65001 >nul
 dotnet run --project "%SPIKE%\src\DataSpike.Cli" -- site --name "%~1" --lat %2 --lon %3 --km %4 --out "%OUT%\%FILE%-%~4km.json" <nul
 exit /b 0
+
+:skiermodels
+rem Task 4.22: the skier and snowboarder models as review pictures. Blender only; nothing is in Unity yet.
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+set "SKIERPICS=%~dp0test-results\p4-22"
+if not exist "%SKIERPICS%" mkdir "%SKIERPICS%"
+rem The chair pictures seat the riders on the FGQ-4 chair, which is a build output of the lift pipeline.
+if exist "%~dp0tools\assets\lifts\out\sessellift_fgq4_chair.fbx" goto skierrender
+echo Building the lift models in Blender for the chair pictures (about 15 seconds)...
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\lifts\build_lifts.py" -- --out "%~dp0tools\assets\lifts\out" <nul >nul
+if errorlevel 1 (echo   The lift build failed. & goto done)
+:skierrender
+echo Rendering the skier and the snowboarder in Blender (about 4 minutes, once a GPU slot is free)...
+%RENDER% "%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\skiers\render_review.py" -- --out "%SKIERPICS%" --shots sheet,chair,lods,colours,closeups,idles,strips,tycoon <nul
+if errorlevel 1 (echo   The render failed. & goto done)
+echo.
+echo The pictures are in test-results\p4-22:
+echo   sheet_*    standing and carving, from the front, three-quarter and back
+echo   chair_*    both riders on the FGQ-4 chair
+echo   lods*      the six LODs side by side, standing and carving; the triangle counts are in lods.json
+echo   colours    ten guests in random outfits
+echo   idles      the ways of waiting in a lift line
+echo   close_*    what a close camera sees, from 1 to 4 m
+echo   strip_*    each turn as eight frames, left to right in time: green, blue, black, expert, snowboard
+echo   tycoon_*   a slope from 12, 25, 60 and 120 m, every figure at the LOD the game would draw
+start "" "%SKIERPICS%"
+goto done
 
 :done
 chcp %OLDCP% >nul

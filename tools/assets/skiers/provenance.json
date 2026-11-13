@@ -1,0 +1,18 @@
+{
+ "_about": "Every outside source the skier and snowboarder models use, with its licence. The models themselves are built by script in skierkit/ and are ours. Only CC0 sources are allowed (owner, 2026-11-12); the audit fails on any other licence.",
+ "sources": [
+  {
+   "name": "MakeHuman base mesh hm08 and its game-engine rig",
+   "use": "Bone lengths and joint heights of a 1.75 m adult (skierkit/skeleton.py). No mesh, texture or weight data is copied.",
+   "from": "MPFB 2.0.18 (extensions.blender.org), data/3dobjs/base.obj and data/rigs/standard/rig.game_engine.json",
+   "licence": "CC0",
+   "note": "The base mesh file states it was released as CC0 in September 2020. The MPFB add-on itself is GPL v3; it is a tool and nothing of it ships."
+  }
+ ],
+ "notUsed": [
+  {"name": "Mixamo", "why": "not CC0; raw files may not be redistributed"},
+  {"name": "CMU motion capture", "why": "free to use but not CC0, and it has no skiing"},
+  {"name": "MakeHuman community asset packs", "why": "mixed licences (some CC-BY)"}
+ ],
+ "motion": "All clips are keyed by script in skierkit/clips.py; no motion capture is used."
+}
