@@ -451,9 +451,10 @@ B2 gives every 8 m cell the same hour's weather, as a few lookups, with nothing 
   once (rate × elevation factor × orographic factor), so a 0.01 in hour isn't lost where the factor is under 1.0. The
   snapshot copies the tables when the hour or the inputs change, outside SI-16's 64 KB (166 KB at 11 km; the first copy
   into each snapshot allocates, none after).
-- **WX-37's integer wet bulb** (`Domain/Weather/WeatherAir`): a table generated from Stull (whole °F × whole % RH) and
-  kept as literals (`WeatherAirTables`, as `WeatherMath.LowerHalf`), so no platform computes it; within 0.5 °F of
-  Stull (0.4 measured), and a test on CoreCLR and Mono checks the literals still equal the generator's. The reference points' samples use it too, and with static inputs each sits in the pool where the box's own cells at its height do (the mean hvf per elevation bin), so the readout's Base agrees with the cursor at the base and carries the freezing-rain flag PR C's event reads. **Measured against the psychrometric equation** (WX-37's test): in humid air (RH ≥ 60 %:
+- **WX-37's integer wet bulb** (`Domain/Weather/WeatherAir`; superseded by WX-37 v2's integer solver, §3e): a table
+  generated from Stull (whole °F × whole % RH) and kept as literals (`WeatherAirTables`, as `WeatherMath.LowerHalf`),
+  so no platform computes it; within 0.5 °F of Stull (0.4 measured), and a test on CoreCLR and Mono checks the
+  literals still equal the generator's. The reference points' samples use it too, and with static inputs each sits in the pool where the box's own cells at its height do (the mean hvf per elevation bin), so the readout's Base agrees with the cursor at the base and carries the freezing-rain flag PR C's event reads. **Measured against the psychrometric equation** (WX-37's test): in humid air (RH ≥ 60 %:
   storms, gun nights) within 1.5 °F at sea level and at 10,000 ft; in dry air Stull reads warm, up to about 4 °F at 0 °F
   and 20 % RH at 10,000 ft (the guns conservative, never optimistic), so WX-37's "about 1 °F" was too small. The test
   also found Stull's −4 °F extension reading above the air in very dry air (+4.3 °F at 5 % RH); it now never does
@@ -465,8 +466,8 @@ B2 gives every 8 m cell the same hour's weather, as a few lookups, with nothing 
   and y as covariates), is within 30 % at four sites; **known limit at three**: Olympic Valley ×1.45, Jackson NH ×2.05,
   Snowshoe ×1.48. Cause, measured: calibration's gradient is the plain mean of each wet day's relative gradient, but
   small showery days have steep gradients and big storms flat ones, so the season follows the amount-weighted mean
-  (Olympic Valley 5.9 → 3.7 %, Jackson NH 14.5 → 7.7 %, Snowshoe 10.1 → 8.2 % per 1,000 ft). The fix weights each day
-  by its mean liquid; it changes calibration and every area's rows, so it waits for the owner.
+  (Olympic Valley 5.9 → 3.7 %, Jackson NH 14.5 → 7.7 %, Snowshoe 10.1 → 8.2 % per 1,000 ft). Fixed in PR A3 (WX-38 v3,
+  §3e): every site now within 30 %.
 - **The adversarial audit (2026-11-12)** found five major problems, fixed before the demo: the clock hold leaked (a
   skip, Play or 8× could step hours before the inputs landed: now the host's hold above); bins clamped past 8,400 ft
   of relief; a cell's liquid was rounded down twice; the wet-bulb table was computed at start-up; and the first tests
@@ -489,6 +490,48 @@ B2 gives every 8 m cell the same hour's weather, as a few lookups, with nothing 
   resort's six lifts, height rule against the steered cells. At 0.85 the season's holds barely change in total (14.4 → 11.2 held face hours over the six lifts, after the audit's fixes) but move to the lifts whose tops stand in the wind: Summit Six's top sits
   under higher ground to its west and drops from 14.4 to 0, and Base Six's top, on a ridge 1,700 ft above its valley,
   rises from 0 to 11.2. `WindScale` stays 0.85 (closing plan, decision 4).
+
+## 3e. PR A3: a pressure-aware wet bulb and an amount-weighted snow gradient (task 4.05, 2026-11-12)
+
+The two calibration findings the B2 audit left to the owner, approved 2026-11-12 and fixed together, so the seven
+sites' rows were re-recorded once (`RecordFrozenRows`) and the pins moved once.
+- **WX-38 v3, the precipitation gradient (refines WX-38 v2):** each wet day's relative gradient is weighted by its
+  mean liquid (Σ g·P ÷ Σ P, through the ladder as `dew.storm` is); n stays the day count, so the shrink and the
+  Limited flag are unchanged, and the 0–20 % per 1,000 ft clamp stays. The lattice test now holds every site to ±30 %
+  with no known-limit list: slope ratios 0.87–1.06 (Olympic Valley 1.45 → 1.01, Jackson NH 2.05 → 0.87, Snowshoe
+  1.48 → 1.06); December–March gradients fall most where showery days had led (Jackson NH 11.3 → 4.8, Snowshoe
+  10.5 → 7.2, Snow Ridge 20.0 → 16.4 % per 1,000 ft), barely at Jackson Hole (20.0 → 19.9, still at the clamp).
+- **WX-37 v2, the wet bulb (replaces Stull):** the psychrometric equation e = Es(Tw) − γ·P·(T − Tw), γ = 6.60·10⁻⁴ ×
+  (1 + 0.00115·Tw) per °C, over water, at the standard atmosphere's pressure at the point's height (a day's own
+  pressure would move it under 0.1 °F), solved by bisection between the dew point and the air; never above the air
+  or below the dew point. Calibration solves it in doubles (`Psychrometrics.WetBulbF(temp, rh, feet)`: the record and
+  the plays at zref, WX-41's powder at mid); the game in integers on whole tenths (`WeatherAir.WetBulb(temp, dew,
+  feet)`, from the literal `Es` table and a literal pressure table every 500 ft, `WeatherAirTables`; Stull's
+  17,271-entry table is gone), within 0.05 °F of calibration's from −40 to 60 °F, RH 5–99 % and sea level to
+  14,000 ft, and of an independent solver (Bolton's saturation pressure) through the snow line. `WeatherFields` solves each bin's wet bulb without the pool once.
+  Stull read up to 4.6 °F warm in dry cold air at 10,000 ft (the guns too cautious) and up to 1.3 °F cold in humid
+  air near freezing (snow where the thresholds meant rain). WX-03 v3's 32.0 / 35.6 °F stay: they are wet bulbs as
+  the literature defines them, which the game now computes.
+- **What a season plays like (100 seasons, November–April new snow):** every site a little less, 1–9 %: at the
+  summit Jackson Hole 318 → 310 in, Olympic Valley 464 → 442, Stevens Pass 592 → 564, Winter Park 242 → 237,
+  Jackson NH 242 → 221, Snowshoe 162 → 155, Snow Ridge 167 → 157. The gentler gradient takes it up high; at the
+  maritime sites the warmer (true) wet bulb in humid air near freezing takes the rest. Powder thresholds move by
+  0–0.5 in.
+- **The SNOTEL pillow check is a standing report now** (`WeatherPillowTests.WriteThePillowCheck`, explicit; before it
+  a hand note). At each of the four western sites' six pillows, the record's hours are carried to the pillow's height
+  by the site's rows, and the pillow's own gauge precipitation is split by phase from October 1 to April 1. No
+  pillow changed side: Olympic Valley 848 and 809 and Stevens Pass stay at or above their April 1 water (Stevens Pass
+  42.0 → 38.2 in against 37.1), Olympic Valley 784 stays just below (40.0 → 39.2 against 40.8), and Jackson Hole and
+  Winter Park stay below because their gauges catch less in total than the pillow ends up holding (Winter Park 17.9 in
+  against 19.4): gauge undercatch, which no phase rule can pass.
+- **Rows and pins:** the seven `TestData/weather/<site>/weather.rows` re-recorded; the seven WX-33 goldens and
+  `SeasonRunner.GoldenFoldValue` (0x86882E603CE5D69A → 0x78F54C0EFBDE2342) re-pinned; the wet-bulb table pin
+  (0x68D9E886397F0BB8 → 0x0B9F692F71711F64). `GuestDayFold` and the frozen format fixtures (`v1-weather-rows`,
+  `v2-package`, `v5-sim`) don't move. No format changes: a save keeps its rows until October 1, as before, and the
+  built game copies the typical mountains' rows from TestData.
+- **No rebuild path for downloaded areas:** no shipped build or player save holds weather rows yet (v0.3.2 predates
+  weather), so none is stale. The first calibration change after a shipped weather build needs one (a version beside
+  the rows and Get weather offering a rebuild): handed to 4.07.
 
 ## 4. Weather runs on the calendar, compressed like time
 
@@ -783,7 +826,8 @@ into tables, never stored per cell.
     read as lapse); the third's lapse is the mean of its days' coefficients, its **n is reported in days**, and the
     share of nights whose coefficient hits the 1.0 floor is logged (a strong-inversion site: 4.05 reports it, and the
     pool does the rest).
-- **WX-37, humidity and wet bulb.** Dew point at a cell = dew point at `zref` minus the row's dew-point lapse,
+- **WX-37, humidity and wet bulb (superseded by WX-37 v2, §3e: the psychrometric equation at the point's
+  pressure).** Dew point at a cell = dew point at `zref` minus the row's dew-point lapse,
   never above the cell's temperature; RH from the two; **wet bulb by Stull's formula** (kept, WX-02) from T and RH,
   computed once per hour per table entry, so its `atan` and `sqrt` never run per cell (SI-09). Stull is fitted for
   −4 to 122 °F and RH 5–99 %; outside it the inputs are clamped (RH ≥ 99 % gives wet bulb = air; below −4 °F the wet
@@ -793,7 +837,7 @@ into tables, never stored per cell.
   wet bulb is a Later line.
 - **WX-38 v2, precipitation at a cell.** `rate × (1 + gradient × (z − zref)) × orographic(octant, coarse cell)`, the
   gradient from the row (clamped 0–20 % per 1,000 ft; regressed on wet days the same way as WX-36 v2's lapse, n in
-  days), the orographic factor bilinear between coarse cells and blended between the two octants nearest the
+  days; WX-38 v3, §3e: each day weighted by its liquid), the orographic factor bilinear between coarse cells and blended between the two octants nearest the
   storm's direction. **Lattice test** (4.05, 200 seeds): over the Daymet lattice pixels, the generated season liquid's
   **mean is within ±10 %** of Daymet's and its **slope with elevation within ±30 %** of the row's gradient. No
   per-pixel band: Daymet can't tell windward from lee (WX-35), so a per-pixel match would only test the factor
@@ -1071,7 +1115,7 @@ simulated hours from it. Each number or idea: **K** kept, **C** changed, **D** d
 | Real-time weather (one hour per hour) | C | Compressed with the calendar, K ≈ 2.88 (WX-21) | Owner: frequency over duration |
 | Lapse 6.5 °C/km (3.6 °F/1,000 ft) everywhere | C | Per third, day and night, from the Daymet lattice; 3.6 is the default (WX-36) | The site's own lapse |
 | Cold pooling 1.5 °C when clear and calm | C | Pool strength state, up to 8 °F, by height above the valley floor (WX-29, WX-36) | Matters to guns; cheap |
-| Stull wet bulb | K | WX-37 | |
+| Stull wet bulb | C | WX-37 v2: the psychrometric equation at the point's pressure (§3e) | Stull read up to 4.6 °F warm in dry air up high |
 | Phase thresholds −1 / 1 / 2 °C wet bulb | C | WX-03 v2: snow / mixed / rain kept; freezing rain by the pool | The old test could never fire |
 | Fixed snow ratio 10 | D | SN-05's SLR by wet bulb | 4.02 |
 | Gust factor per month ± 0.08 noise | C | A `Pacing` constant by state, raised in heavy hours, ± 10 % keyed (WX-28 v2) | POWER has no hourly gust |
@@ -1103,7 +1147,7 @@ simulated hours from it. Each number or idea: **K** kept, **C** changed, **D** d
 - **Formats (for the coordinator; this document bumps nothing):** the package manifest's weather chunk (v2,
   reserved for 4.05); the sim sidecar's `SidecarVersion` for WX-32's state (4.05); the design shape for SN-22 v2's
   grooming setting (4.07). Saved formats follow 0.3 §5.
-- **Later:** non-US anchors (WX-13); calibrating the orographic factor against SNOTEL where stations sit on both sides of a ridge (WX-35); a pressure-aware wet bulb (WX-37); a moving-storm grid finer than 500 m for
+- **Later:** non-US anchors (WX-13); calibrating the orographic factor against SNOTEL where stations sit on both sides of a ridge (WX-35); a moving-storm grid finer than 500 m for
   10 km maps; freezing rain icing lifts (rime, holds); a per-lift slow or close-ahead command; a precipitation info
   layer; "first to open / last to close" challenges reading WX-07's rows; difficulty settings exposed through
   scenarios (TM-16); an omniscient forecast for a sandbox.

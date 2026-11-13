@@ -86,15 +86,16 @@ namespace MountainPlanner.Simulation
             int refPool = PoolShare(t.HvfRefFeet, p);
             for (int b = 0; b < WeatherTerrain.Bins; b++)
             {
-                int dz = t.BinCentreFeet(b) - zrefFeet;
+                int feet = t.BinCentreFeet(b), dz = feet - zrefFeet;
                 _precipBin[b] = PrecipFactor(h, dz);
+                int wbNoPool = int.MinValue;   // the bin's wet bulb without the pool: solved once, when a band needs it
                 for (int band = 0; band < WeatherTerrain.Bands; band++)
                 {
                     int k = b * WeatherTerrain.Bands + band;
                     if (!t.Present[k]) continue;
                     // The last band is everything above the pool's reach: no share at all.
                     int share = band == WeatherTerrain.Bands - 1 ? 0 : PoolShare(band * WeatherTerrain.BandFeet + WeatherTerrain.BandFeet / 2, p);
-                    Air(h, dz, share - refPool, out int temp, out int dew,
+                    Air(h, feet, dz, share - refPool, ref wbNoPool, out int temp, out int dew,
                         out int rh, out int wb, out int snow, out bool freezing);
                     _temp[k] = (short)temp; _dew[k] = (short)dew; _rh[k] = (short)rh; _wetBulb[k] = (short)wb; _snow[k] = (short)snow;
                     _freezing[k] = freezing;
@@ -122,19 +123,26 @@ namespace MountainPlanner.Simulation
             }
         }
 
-        /// <summary>The air at <paramref name="dz"/> ft above zref with a pool share (‰) relative to the reference pixel's.</summary>
-        static void Air(in WeatherHour h, int dz, int poolShare, out int temp, out int dew, out int rh, out int wb, out int snow, out bool freezing)
+        /// <summary>
+        /// The air at <paramref name="feet"/> (<paramref name="dz"/> ft above zref) with a pool share (‰) relative to the
+        /// reference pixel's. <paramref name="wbNoPool"/>, the wet bulb without the pool, depends on the height alone: pass
+        /// <c>int.MinValue</c> and it's solved here when needed, then kept for the bin's other bands.
+        /// </summary>
+        static void Air(in WeatherHour h, int feet, int dz, int poolShare, ref int wbNoPool, out int temp, out int dew, out int rh, out int wb, out int snow, out bool freezing)
         {
             int free = h.Temp - (int)WeatherMath.DivRound((long)h.Lapse * dz, 1000);
             int dewFree = h.Dew - (int)WeatherMath.DivRound((long)h.DewLapse * dz, 1000);
             temp = free - (int)WeatherMath.DivRound((long)h.Pool * poolShare, 1000);
             dew = Math.Min(temp, dewFree);
             rh = WeatherAir.RhPermille(temp, dew);
-            wb = WeatherAir.WetBulb(temp, rh);
+            wb = WeatherAir.WetBulb(temp, dew, feet);
             // Freezing rain: without the pool it would rain, but the pooled air is at or below freezing.
-            int dewNoPool = Math.Min(free, dewFree);
-            int wbNoPool = WeatherAir.WetBulb(free, WeatherAir.RhPermille(free, dewNoPool));
-            freezing = poolShare > 0 && wbNoPool > WeatherAir.RainWetBulb && temp <= WeatherAir.Freezing;
+            freezing = false;
+            if (poolShare > 0 && temp <= WeatherAir.Freezing)
+            {
+                if (wbNoPool == int.MinValue) wbNoPool = WeatherAir.WetBulb(free, Math.Min(free, dewFree), feet);
+                freezing = wbNoPool > WeatherAir.RainWetBulb;
+            }
             snow = freezing ? 0 : WeatherAir.SnowPermille(wb);
         }
 
@@ -167,7 +175,8 @@ namespace MountainPlanner.Simulation
                 int hvf = t.BinHvfFeet[t.BinOf(feet)];
                 if (hvf >= 0) share = (hvf >= (WeatherTerrain.Bands - 1) * WeatherTerrain.BandFeet ? 0 : PoolShare(hvf, p)) - PoolShare(t.HvfRefFeet, p);
             }
-            Air(h, feet - zrefFeet, share, out temp, out dew, out rh, out wb, out snow, out freezing);
+            int wbNoPool = int.MinValue;
+            Air(h, feet, feet - zrefFeet, share, ref wbNoPool, out temp, out dew, out rh, out wb, out snow, out freezing);
         }
 
         /// <summary>WX-02's point read: one cell's weather this hour (<c>Known</c> false for a cell without heights).</summary>

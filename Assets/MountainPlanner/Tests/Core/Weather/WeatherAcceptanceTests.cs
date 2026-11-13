@@ -77,7 +77,7 @@ namespace MountainPlanner.Tests
                         if (m <= 6 && h.Liquid > 0)
                         {
                             p.WetTempSum += (double)h.Liquid * h.Temp / 10; p.WetLiquid += h.Liquid;
-                            double snow = WeatherPoint.From(h.Temp, h.Dew, h.Liquid).SnowTenthsIn / 10.0;
+                            double snow = WeatherPoint.From(h.Temp, h.Dew, h.Liquid, rows.ZrefFeet).SnowTenthsIn / 10.0;
                             p.Snowfall += snow; seasonSnow += snow;
                         }
                         if (h.State == WeatherRows.Storm)

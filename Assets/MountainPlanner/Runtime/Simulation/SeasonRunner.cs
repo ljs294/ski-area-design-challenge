@@ -113,7 +113,7 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>SI-08's pinned fold of the golden script over two label years. A behaviour change re-pins it, approved.</summary>
-        public const ulong GoldenFoldValue = 0x86882E603CE5D69AUL;   // re-pinned at 4.05 PR B2 (Pacing v6: the map's static-input and PR C's forecast numbers; owner OK 2026-11-11, closing plan), over B1 0xF3B0438B4C621B3D; B1 (the weather plays at WindScale 0.85, real top-station gusts, every wind check a boundary, Pacing v5; owner OK 2026-11-11), over 4.13 0x5921F6F22F4F9B46
+        public const ulong GoldenFoldValue = 0x78F54C0EFBDE2342UL;   // re-pinned at 4.05 PR A3 (WX-37 v2 pressure-aware wet bulb, WX-38 v3 amount-weighted gradient: the seven sites re-recorded; owner OK 2026-11-12), over B2 0x86882E603CE5D69A; B2 (Pacing v6: the map's static-input and PR C's forecast numbers; owner OK 2026-11-11, closing plan), over B1 0xF3B0438B4C621B3D; B1 (the weather plays at WindScale 0.85, real top-station gusts, every wind check a boundary, Pacing v5; owner OK 2026-11-11), over 4.13 0x5921F6F22F4F9B46
 
         /// <summary>
         /// One fold of every face-hour hash of the golden run to the given face day (the pinned value). Task 4.05: the golden

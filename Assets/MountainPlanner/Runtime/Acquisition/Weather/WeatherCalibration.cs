@@ -863,7 +863,11 @@ namespace MountainPlanner.Acquisition.Weather
             for (int i = 0; i < src.Lattice.Count; i++) if (src.Lattice[i].Has("tmax") && src.Lattice[i].Has("tmin")) centres.Add(src.LatticeCentres[i]);
             double elevRange = pixels.Count == 0 ? 0 : pixels.Max(p => p.ElevationMetres) - pixels.Min(p => p.ElevationMetres);
             bool usable = pixels.Count >= 6 && elevRange >= 100;
-            var day = Groups(); var nightL = Groups(); var dew = Groups(); var grad = Groups();
+            var day = Groups(); var nightL = Groups(); var dew = Groups();
+            // WX-38 v3: each wet day's relative gradient weighted by its mean liquid (Σ g·P ÷ Σ P), so the season's snow follows
+            // its storms: small showery days run steep and big storms flat, and v2's plain mean over days made the lattice's
+            // season slope 1.45–2.05 × Daymet's at three sites. n stays the day count (the shrink and the Limited flag).
+            var gradSum = new double[36]; var gradWeight = new double[36]; var gradN = new int[36];
             int floorNights = 0, nights = 0;
             if (usable)
             {
@@ -900,7 +904,7 @@ namespace MountainPlanner.Acquisition.Weather
                     if (meanP >= WeatherStates.WetDayMm && pr.All(v => !double.IsNaN(v)))
                     {
                         double g = LeastSquares.Solve(xs, pr.Select(v => v / meanP).ToList())[1] * 30.48 * 1000;   // ‰ per 100 ft
-                        foreach (int t in targets) grad[t].Add(g);
+                        foreach (int t in targets) { gradSum[t] += g * meanP; gradWeight[t] += meanP; gradN[t]++; }
                         rep.GradientDays++;
                     }
                 }
@@ -911,7 +915,12 @@ namespace MountainPlanner.Acquisition.Weather
             var ld = Ladder(rep, "lapse.day", day, Mean, MeanN0, ScaleMin, 36);
             var ln = Ladder(rep, "lapse.night", nightL, Mean, MeanN0, ScaleMin, 20);
             var lw = Ladder(rep, "lapse.dew", dew, Mean, MeanN0, ScaleMin, 20);
-            var lg = Ladder(rep, "precip.gradient", grad, Mean, MeanN0, ScaleMin, 8);
+            var lg = LadderStat(rep, "precip.gradient", set =>
+            {
+                double sum = 0, weight = 0; int n = 0;
+                foreach (int t in set) { sum += gradSum[t]; weight += gradWeight[t]; n += gradN[t]; }
+                return (weight <= 0 ? double.NaN : sum / weight, n);
+            }, MeanN0, ScaleMin, 8);
             for (int t = 0; t < 36; t++)
             {
                 rows.LapseDay[t] = (int)Math.Round(Math.Max(10, Math.Min(55, ld[t])));
@@ -942,7 +951,7 @@ namespace MountainPlanner.Acquisition.Weather
                 {
                     int k = d * 24 + b.LagHours + h;
                     if (k >= b.HourCount || float.IsNaN(b.P[k]) || b.P[k] <= 0 || double.IsNaN(tf[k])) continue;
-                    double share = Psychrometrics.SnowShare(Psychrometrics.WetBulbF(tf[k], float.IsNaN(b.Rh[k]) ? 90 : b.Rh[k]));
+                    double share = Psychrometrics.SnowShare(Psychrometrics.WetBulbF(tf[k], float.IsNaN(b.Rh[k]) ? 90 : b.Rh[k], rows.ZrefFeet));
                     snow[t] += b.P[k] * share;
                     rainMm += b.P[k] * (1 - share);
                 }
@@ -1114,8 +1123,9 @@ namespace MountainPlanner.Acquisition.Weather
             if (seeds <= 0) return;
             // The wet bulb, not the air: it decides snow or rain and how deep (WX-03 v2, SN-05). At the same air temperature
             // Stevens Pass's played wet bulb ran 0.25 °F cold and its snow 7 % deep.
-            static double WetBulb(double t, double d) => Psychrometrics.WetBulbF(t, Psychrometrics.RelativeHumidity(t, Math.Min(t, d)));
-            static double Rain(double t, double d) => 1 - Psychrometrics.SnowShare(WetBulb(t, d));
+            int zref = rows.ZrefFeet;   // record and game hours both sit at zref (WX-37 v2: the wet bulb at its pressure)
+            double WetBulb(double t, double d) => Psychrometrics.WetBulbF(t, Psychrometrics.RelativeHumidity(t, Math.Min(t, d)), zref);
+            double Rain(double t, double d) => 1 - Psychrometrics.SnowShare(WetBulb(t, d));
             var recWet = new double[12]; var recLiquid = new double[12]; var recRain = new double[12];
             for (int k = 0; k < b.HourCount; k++)
             {
@@ -1903,7 +1913,7 @@ namespace MountainPlanner.Acquisition.Weather
                     int temp = Tenths(tf[k]) - (int)Math.Round((double)lapse * dz / 1000);
                     int dew = Tenths(Psychrometrics.CToF(float.IsNaN(b.Td[k]) ? b.T[k] : b.Td[k])) - (int)Math.Round((double)rows.DewLapse[t] * dz / 1000);
                     int liquid = (int)Math.Round(b.P[k] * MmToHundredthsIn * Math.Max(0, 1 + rows.PrecipGradient[t] * dz / 100_000.0));
-                    snowIn += WeatherPoint.From(temp, Math.Min(temp, dew), liquid).SnowTenthsIn / 10.0;
+                    snowIn += WeatherPoint.From(temp, Math.Min(temp, dew), liquid, rows.MidFeet).SnowTenthsIn / 10.0;
                 }
                 if (snowIn >= PowderInches) powder++;
             }

@@ -66,7 +66,7 @@ namespace MountainPlanner.Tests
                         if (!float.IsNaN(blend.P[k])) carry += blend.P[k] / 0.254;
                         int liquid = (int)Math.Round(carry);
                         carry -= liquid;
-                        arr[w].Add(WeatherPoint.From(temp, Math.Min(temp, dew), liquid), temp);
+                        arr[w].Add(WeatherPoint.From(temp, Math.Min(temp, dew), liquid, rows.ZrefFeet), temp);
                     }
                 }
                 foreach (var s in states.Storms)
@@ -94,7 +94,7 @@ namespace MountainPlanner.Tests
                         int w = (int)(i * realPerFace / 24 / 7);
                         if (w >= Weeks) break;
                         // A face hour stands for C ÷ S real hours of weather: its liquid is already the whole stretch's.
-                        arr[w].Add(WeatherPoint.From(h.Temp, h.Dew, h.Liquid), h.Temp, realPerFace);
+                        arr[w].Add(WeatherPoint.From(h.Temp, h.Dew, h.Liquid, rows.ZrefFeet), h.Temp, realPerFace);
                         if (h.StormOrdinal >= 0 && h.StormOrdinal != ordinal) { ordinal = h.StormOrdinal; arr[w].Storms++; if (h.Third / 3 == 2) dec++; }
                     }
                     game.Add((s, arr.Sum(x => x.Snow), arr.Sum(x => x.Precip), arr, dec));

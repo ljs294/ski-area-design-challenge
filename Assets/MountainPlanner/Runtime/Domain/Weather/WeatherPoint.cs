@@ -29,14 +29,14 @@ namespace MountainPlanner.Domain.Weather
             int dew = Math.Min(temp, h.Dew - (int)WeatherMath.DivRound((long)h.DewLapse * dz, 1000));
             long factor = WeatherMath.Clamp(1000 + WeatherMath.DivRound((long)h.PrecipGradient * dz, 100), 0, 4000);
             int liquid = (int)WeatherMath.DivRound(h.Liquid * factor, 1000);
-            return From(temp, dew, liquid);
+            return From(temp, dew, liquid, feet);
         }
 
-        /// <summary>Phase and snow for an air temperature, dew point (0.1 °F) and liquid (0.01 in).</summary>
-        public static WeatherPoint From(int temp, int dew, int liquid)
+        /// <summary>Phase and snow for an air temperature, dew point (0.1 °F) and liquid (0.01 in) at a height (ft, WX-37 v2).</summary>
+        public static WeatherPoint From(int temp, int dew, int liquid, int feet)
         {
             double t = temp / 10.0, d = dew / 10.0;
-            double wb = Psychrometrics.WetBulbF(t, Psychrometrics.RelativeHumidity(t, d));
+            double wb = Psychrometrics.WetBulbF(t, Psychrometrics.RelativeHumidity(t, d), feet);
             double share = Psychrometrics.SnowShare(wb);
             int snow = liquid <= 0 || share <= 0 ? 0 : (int)Math.Round(liquid * share * Psychrometrics.SnowToLiquid(wb) / 10.0);
             return new WeatherPoint(temp, dew, wb, share, liquid, snow);

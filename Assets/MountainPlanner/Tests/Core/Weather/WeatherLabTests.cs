@@ -155,7 +155,7 @@ namespace MountainPlanner.Tests
                 json.Append(e > 0 ? "," : "").Append('"').Append(names[e]).Append("\":{\"depth\":").Append(Percentiles(bandDepth, e, weeks))
                     .Append(",\"snow\":").Append(Percentiles(bandSnow, e, weeks)).Append('}');
             json.Append("},\"record\":[");
-            Record(site, fh, weeks, json);
+            Record(site, fh, weeks, rows.ZrefFeet, json);
             json.Append("]}");
         }
 
@@ -173,7 +173,7 @@ namespace MountainPlanner.Tests
         }
 
         /// <summary>The record's winters at zref through the same pack, cut at the game weeks' ends in calendar time.</summary>
-        static void Record(string site, double fh, int weeks, StringBuilder json)
+        static void Record(string site, double fh, int weeks, int zrefFeet, StringBuilder json)
         {
             var b = WeatherFixtures.Screened(site).Blend;
             bool first = true;
@@ -192,7 +192,7 @@ namespace MountainPlanner.Tests
                         int t = (int)Math.Round(Psychrometrics.CToF(b.T[k]) * 10);
                         int dew = float.IsNaN(b.Td[k]) ? t - 20 : (int)Math.Round(Psychrometrics.CToF(b.Td[k]) * 10);
                         int liquid = float.IsNaN(b.P[k]) ? 0 : (int)Math.Round(b.P[k] / 0.254);
-                        var p = WeatherPoint.From(t, Math.Min(t, dew), liquid);
+                        var p = WeatherPoint.From(t, Math.Min(t, dew), liquid, zrefFeet);
                         double rainWater = p.Liquid * (1 - p.SnowShare) / 100.0;
                         pack.Step(p.Liquid * p.SnowShare / 100.0, p.SnowTenthsIn / 10.0, t / 10.0, CivilDay.Date(b.Days[k / 24]).DayOfYear, 1, rainWater > 0.005);
                         snow += p.SnowTenthsIn / 10.0;
