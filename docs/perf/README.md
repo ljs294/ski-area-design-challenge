@@ -53,6 +53,21 @@ with the resort loaded (`-designbench`, five rounds); [edit-timing.md](edit-timi
 and what still misses. `demo.bat` 72 opens the resort, 72b runs the frame benchmark, 72c the edit timing; each writes
 under `test-results\p3-11\` beside `demo.bat` itself, whichever folder it is started from.
 
+## The drawn resort with 3,000 guests (Phase 4 task 13)
+
+The drawn resort's path with a crowd (`-guests 3000`: the mountain opens, the morning starts and the crowd is topped
+up to 3,000 every 4 s), so a later change that slows the guests shows up against these. Built at 49e4827f, clean, one
+run after another under one measure slot. `demo.bat` 100 runs them with the click and pause timing, 11,000 dots of
+headroom and the skier-model proof, under `test-results\p4-13ench\`.
+
+| File | Player | Command | Frame p95 | GPU p95 |
+| --- | --- | --- | --- | --- |
+| `jackson-hole-5km-high-drawn-guests.json` | Release | `-quality high -drawnresort -guests 3000` | 9.43 ms | 9.32 ms |
+| `jackson-hole-5km-medium-drawn-guests.json` | Release | `-quality medium -drawnresort -guests 3000` | 5.37 ms | 4.85 ms |
+| `jackson-hole-5km-high-dev-drawn-guests.json` | Development | `-quality high -laps 1 -drawnresort -guests 3000` (48 B in 1 of 25,636 frames, 1,324 MB graphics memory) | 8.58 ms | 8.91 ms |
+
+An earlier High run of the same code the same day read 8.69 ms, so High varies by about 0.7 ms from run to run.
+
 ## History
 
 - **2026-10-05, task 15** (commit 19d5e37): the first baselines, lit by the scene's default lighting preset (the clock didn't run yet).
@@ -76,3 +91,4 @@ the files in the same PR as the change.
 - **2026-11-07, Phase 4 task 01** (v0.3.2 release zip, then branch `feature/p4-01-small-fixes`): v0.3.2 against the baselines, on an idle GPU (a first run on 2026-11-06 shared the GPU with another game and was discarded). High 7.77 / 7.58 ms p95 frame / GPU (pass, −2.2%); Medium 5.02 / 4.77 (+7.5%; valley +14%, inforest +12% by spot); 40 lifts 9.40 / 9.23 (+12.7%, fail), its `[Chairs]` line 2.45 ms a frame against 0.81. The cause: the rope sheaves that turn with the rope (#134) read every pivot's world position each frame to test its distance. The fix tests the contact cached at the pose and skips a lift whose sheaves are all past 300 m: 40 lifts 8.69 / 8.50 (+4.2%), `[Chairs]` 0.86 ms. Corbet, valley and slope stay 11–15% over by spot (+0.6–0.9 ms, CPU, GPU +1.5%), as Medium's valley does with no lifts; recorded, not chased. Baselines unchanged.
 - **2026-11-07, Phase 4 task 01, the trail window** (branch `feature/p4-01-trail-window`, TL24): the trail look moves from one 2048 m texture to 65 x 65-point pages in a structured buffer, one per 64 m tile a trail reaches, found through a page table. Main against the branch, release games, same session (p95 frame ms): drawn resort High graded 12.57 / 12.75, liftline 7.00 / 7.08, cattrack 5.14 / 5.20, top 4.74 / 4.74; Medium graded 6.83 / 6.91, liftline 4.29 / 4.38, cattrack 4.28 / 4.24, top 4.05 / 3.97; Jackson Hole High forest 6.81 / 6.82, inforest 7.35 / 7.34, cliffs 5.55 / 5.82, ringforest 11.19 / 11.20. Every run passes its baseline; the trail views cost up to about 0.2 ms (four buffer reads per value, filtered by hand, in place of one bilinear sample). The design bench draws 20 of 20 built trails at both ends. Ten trail shots match main within 5 of 255 once built (the hand filtering), and exactly before. Baselines unchanged.
 - **2026-11-07, Phase 4 task 01, Direct3D 11** (branch `feature/p4-01-d3d11`, owner's choice): the Windows player now starts on D3D11 (D3D12 stays second in the list, for `-force-d3d12`). D3D12 crashed as the game quit, an access violation in `D3D12Core.dll` as Unity tore the device down (v0.3.1 and v0.3.2 each 2 of 15 style-tile quits); D3D11 quit 30 of 30 clean. Against the baselines (p95 frame / GPU ms, baseline then D3D11): High 7.94 / 7.76 to 7.12 / 7.05; Medium 4.67 / 4.43 to 4.12 / 4.02; Low 2.87 / 2.05 to 2.30 / 2.14; Ultra 11.32 / 11.15 to 10.82 / 10.70; 40 lifts 8.34 / 8.38 to 7.72 / 7.63; drawn resort High 8.76 / 8.65 to 8.30 / 8.43, Medium 5.17 / 5.08 to 4.56 / 4.52. Every run passes. The style tile matches D3D12 within 26 of 255 on 0.17% of pixels; the 2 km trail shots differ on about 1% of pixels, single pixels at tree crowns' edges, not visible side by side. The baselines stay as they are (the switch isn't meant to change frame time; they are D3D12's, and D3D11 runs pass them).
+- **2026-11-13, Phase 4 task 13 PR C2** (commit 49e4827f, clean): the three 3,000-guest drawn baselines added (section above); the others are unchanged.
