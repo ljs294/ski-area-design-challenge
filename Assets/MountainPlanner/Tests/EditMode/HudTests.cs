@@ -104,6 +104,22 @@ namespace MountainPlanner.Tests
             Assert.That(HudText.SimDate(12, MountainPlanner.Simulation.MonthThird.Mid, MountainPlanner.Simulation.DayType.Weekend), Is.SameAs(date));
         }
 
+        [Test]
+        public void TheWeatherLineReadsBaseSummitAndTheSnowAhead()
+        {
+            Assert.That(HudText.WeatherLine(HudText.WholeDegrees(214, false), HudText.WholeDegrees(86, false), HudText.WholeSnow(38, false), false),
+                        Is.EqualTo("21° · 9° · +4 in"));
+            Assert.That(HudText.WeatherLine(22, 9, 0, false), Is.EqualTo("22° · 9°"), "no snow forecast: no snow part");
+            Assert.That(HudText.WeatherLine(22, 9, -1, false), Is.EqualTo("22° · 9°"), "no forecast yet");
+            int b = HudText.WholeDegrees(214, true), t = HudText.WholeDegrees(86, true);
+            Assert.That((b, t), Is.EqualTo((-6, -13)));
+            Assert.That(HudText.WholeSnow(38, true), Is.EqualTo(10));
+            Assert.That(HudText.WeatherLine(b, t, 10, true), Is.EqualTo("\u22126° · \u221213° · +10 cm"), "a true minus sign");
+            StringAssert.Contains("No snow forecast", HudText.WeatherTip(22, 9, 0, false));
+            StringAssert.Contains("4 in of snow", HudText.WeatherTip(21, 9, 4, false));
+            StringAssert.Contains("evening sheet", HudText.WeatherTip(21, 9, -1, false));
+        }
+
         /// <summary>Every part the mockup names (data-ui) exists in the HUD with the same name, so the parity check can measure it.</summary>
         [Test]
         public void EveryMockupPartHasItsElement()

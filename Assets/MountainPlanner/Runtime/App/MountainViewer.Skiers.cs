@@ -75,7 +75,17 @@ namespace MountainPlanner.App
             _dotsOnTop = Array.IndexOf(Environment.GetCommandLineArgs(), "-dotsontop") >= 0;
             var shader = Resources.Load<Shader>(SkierLayer.ShaderResource);
             if (shader == null) { Debug.LogWarning("[Skiers] the dot shader is missing: " + SkierLayer.ShaderResource); return null; }
-            _skiers = new SkierLayer(shader, Math.Max(1, Pacing.Default.SkierCap));
+            var args = Environment.GetCommandLineArgs();
+            int stress = DotStressArgument(args);
+            _skiers = new SkierLayer(shader, Math.Max(1, Math.Max(Pacing.Default.SkierCap, stress))) { StressTo = stress };
+            if (SkierProofArgument(args, out bool lod0))
+            {
+                var proofShader = Resources.Load<Shader>(SkierProof.ShaderResource);
+                if (proofShader == null) Debug.LogWarning("[SkierProof] the stand-in shader is missing: " + SkierProof.ShaderResource);
+                else _skiers.Proof = new SkierProof(proofShader, Math.Max(1, Math.Max(Pacing.Default.SkierCap, stress))) { AllLod0 = lod0 };
+            }
+            if (stress > 0 || _skiers.Proof != null)
+                Debug.Log($"[SkierBench] dot stress {(stress > 0 ? stress.ToString() : "off")}, skier proof {(_skiers.Proof == null ? "off" : lod0 ? "lod0" : "lod")}");
             return _skiers;
         }
 

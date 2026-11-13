@@ -403,6 +403,9 @@ namespace MountainPlanner.Tests
             Assert.That(viewer.PhotoOpen, Is.False, "a second Esc leaves photo mode");
         }
 
+        static readonly string[] WeatherLines = { "21° · 9° · +4 in", "22° · 9°" };
+        const string WeatherTip = "Base 21 °F · summit 9 °F.";
+
         static void HudRefreshAllocatesNothing(MountainHud hud)
         {
             void Pass()
@@ -416,6 +419,7 @@ namespace MountainPlanner.Tests
                     hud.SetLayer(MountainPlanner.Presentation.MapLayers.SlopeAngle, true);
                     hud.SetLegend(MountainPlanner.Presentation.MapLayers.SlopeAngle, true);
                     hud.SetElevation(2000 + i * 3.7f);
+                    hud.SetWeather(WeatherLines[i / 50 % 2], WeatherTip);   // the viewer makes the text only when a figure moves
                     hud.SetInfoReadout(MountainPlanner.Presentation.MapLayers.SlopeAngle, i % 90, 0, float.NaN);
                 }
                 hud.SetInfoReadout(null, float.NaN, 0, float.NaN);

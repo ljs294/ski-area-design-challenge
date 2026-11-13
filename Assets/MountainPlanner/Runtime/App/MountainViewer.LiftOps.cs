@@ -48,8 +48,10 @@ namespace MountainPlanner.App
             int factor = s.Paused || s.Speed < 1 || s.Speed > speeds.Length ? 1 : speeds[s.Speed - 1];
             for (int i = 0; i < s.LiftCount; i++)
             {
-                // The card's Today row: until 4.05's forecast, a hold is likely while the F1 gust is at or over its limit.
-                bool likely = _gustMph >= 0 && _holdMph.TryGetValue(s.LiftIds[i], out int hold) && hold >= 0 && _gustMph >= hold;
+                // The card's Today row: a hold is likely when tomorrow's forecast gust at the lift's top reaches its hold line
+                // (4.05 PR C), or while the F1 panel's test gust does.
+                bool hasHold = _holdMph.TryGetValue(s.LiftIds[i], out int hold) && hold >= 0;
+                bool likely = hasHold && ((_gustMph >= 0 && _gustMph >= hold) || HoldLikely(s, i, hold));
                 Hud.SetLiftLive(s.LiftIds[i], new MountainHud.LiftLive(Word(s.LiftStatus[i]), s.LineCount[i], s.WaitMs[i] / 1000.0 / factor, likely));
             }
             // 4.11's trail loop keyed each row by the run's TrailId, which no row has (the list holds TrailLineIds), so

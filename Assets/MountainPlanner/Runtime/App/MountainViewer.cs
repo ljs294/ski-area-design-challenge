@@ -276,6 +276,7 @@ namespace MountainPlanner.App
                 StartWeatherShots(args);   // -weathershots <folder> (MountainViewer.WeatherReadout.cs, task 4.05)
                 StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
                 StartSkierFigureShots(args);   // -skiershot <folder> [-guests N] (MountainViewer.SkierFigureShots.cs, task 4.22)
+                StartProofHold(args);      // -proofhold <out.json> [-guests N] [-skierproof lod|lod0] (task 4.13 PR C2)
                 StartCoroutine(RunRideArguments(args));   // -ride <lift> [-rideshots <folder> | -ridebench <out.json>] (task 4.11 PR B)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
@@ -576,6 +577,7 @@ namespace MountainPlanner.App
         {
             LogChairCost();
             LogSkierTiming();
+            LogSkierProof();
             _resort?.CacheLease?.Dispose();   // the next scene's viewer holds its own
             DisplayUnits.Changed -= OnUnitsChanged;
             ReleasePhoto();

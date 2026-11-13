@@ -14,10 +14,11 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 6;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 7;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
                                         // 4: task 4.13's confidence speed (GU-10 v2)
                                         // 5: task 4.05's weather (WX-17 v2, WX-28 v2, WX-29, WX-34 v2, WX-35, WX-36 v2, WX-39)
                                         // 6: task 4.05 PR B2's weather over the map (WX-35, WX-39) and PR C's forecast (WX-05 v3, WX-41)
+                                        // 7: task 4.05 PR C's named events (WX-41), alerts (WX-42) and forecast pulls (WX-44)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -135,6 +136,20 @@ namespace MountainPlanner.Simulation
         public readonly int ForecastBustPermille, ForecastPhantomPermille;
         /// <summary>WX-41 (PR C): the summit gust (mph) that makes a wind event.</summary>
         public readonly int WindEventGust;
+        /// <summary>WX-05 v3 (PR C): the storms whose day shows one off at 3 days (‰), and a dry day's chance of precipitation at no skill (‰, × (1 − lean)).</summary>
+        public readonly int ForecastTimingPermille, ForecastDryChancePermille;
+        /// <summary>WX-05 v3 (PR C): the gun window's wet bulb (0.1 °F; SM-02's AutoOn).</summary>
+        public readonly int GunWindowWetBulb;
+        /// <summary>WX-41 (PR C): a storm's liquid at the summit over two face hours (0.01 in); rain's face hours at the base.</summary>
+        public readonly int StormEventLiquid, RainEventHours;
+        /// <summary>WX-41 (PR C): a thaw (mid air above, 0.1 °F, for face hours) and a refreeze (mid air below, for face hours).</summary>
+        public readonly int ThawTemp, ThawHours, RefreezeTemp, RefreezeHours;
+        /// <summary>WX-41 (PR C): a bluebird's clearness (‰), and the base colder than mid that makes an inversion (0.1 °F).</summary>
+        public readonly int BluebirdClearness, InversionTenths;
+        /// <summary>WX-42 (PR C): an alert goes out when the forecast's event is this many face days out or fewer.</summary>
+        public readonly int AlertLeadDays;
+        /// <summary>WX-44 (PR C): the crowd's read of the evening's forecast (‰): rain at the base, a storm with summit gusts above <see cref="ForecastPullStormGust"/> (mph), bluebird, a cold snap.</summary>
+        public readonly int ForecastPullRain, ForecastPullStorm, ForecastPullStormGust, ForecastPullBluebird, ForecastPullColdSnap;
 
         // ---- Guests: the crowd (GU-03, GU-04, GU-18; task 4.12) ----
 
@@ -340,6 +355,24 @@ namespace MountainPlanner.Simulation
             ForecastBustPermille = Int(map, nameof(ForecastBustPermille), 0, 1000);
             ForecastPhantomPermille = Int(map, nameof(ForecastPhantomPermille), 0, 1000);
             WindEventGust = Int(map, nameof(WindEventGust), 1, 500);
+            ForecastTimingPermille = Int(map, nameof(ForecastTimingPermille), 0, 1000);
+            ForecastDryChancePermille = Int(map, nameof(ForecastDryChancePermille), 0, 1000);
+            GunWindowWetBulb = Int(map, nameof(GunWindowWetBulb), -400, 400);
+            StormEventLiquid = Int(map, nameof(StormEventLiquid), 1, 1000);
+            RainEventHours = Int(map, nameof(RainEventHours), 1, 24);
+            ThawTemp = Int(map, nameof(ThawTemp), 0, 600);
+            ThawHours = Int(map, nameof(ThawHours), 1, 24);
+            RefreezeTemp = Int(map, nameof(RefreezeTemp), -200, 400);
+            RefreezeHours = Int(map, nameof(RefreezeHours), 1, 24);
+            if (RefreezeTemp >= ThawTemp) throw new FormatException("RefreezeTemp must be below ThawTemp.");
+            BluebirdClearness = Int(map, nameof(BluebirdClearness), 0, 1000);
+            InversionTenths = Int(map, nameof(InversionTenths), 1, 400);
+            AlertLeadDays = Int(map, nameof(AlertLeadDays), 1, 7);
+            ForecastPullRain = Int(map, nameof(ForecastPullRain), 0, 2000);
+            ForecastPullStorm = Int(map, nameof(ForecastPullStorm), 0, 2000);
+            ForecastPullStormGust = Int(map, nameof(ForecastPullStormGust), 1, 500);
+            ForecastPullBluebird = Int(map, nameof(ForecastPullBluebird), 0, 2000);
+            ForecastPullColdSnap = Int(map, nameof(ForecastPullColdSnap), 0, 2000);
             MaxTrails = Int(map, nameof(MaxTrails), 1, 8192);
             SkierCap = Int(map, nameof(SkierCap), 0, 1 << 20);
             LocationDraw = Int(map, nameof(LocationDraw), 0, 1 << 20);
@@ -495,13 +528,30 @@ namespace MountainPlanner.Simulation
             E(nameof(SteerCrestLee), "700"),
             E(nameof(SteerLeeFeet), "150"),
             E(nameof(ForecastLeanDay1), "950"),
-            E(nameof(ForecastLeanDay7), "650"),
+            E(nameof(ForecastLeanDay7), "850"),   // owner 2026-11-13: 0.85 keeps WX-54's 5 °F at a week at every site (0.65 missed at six)
             E(nameof(ForecastTempTenths), "20, 40"),
             E(nameof(ForecastPrecipPermille), "200, 400, 600"),
             E(nameof(ForecastChancePermille), "950, 900, 800"),
             E(nameof(ForecastBustPermille), "50"),
             E(nameof(ForecastPhantomPermille), "100"),
             E(nameof(WindEventGust), "45"),
+            E(nameof(ForecastTimingPermille), "30"),
+            E(nameof(ForecastDryChancePermille), "300"),
+            E(nameof(GunWindowWetBulb), "270"),
+            E(nameof(StormEventLiquid), "5"),
+            E(nameof(RainEventHours), "2"),
+            E(nameof(ThawTemp), "340"),
+            E(nameof(ThawHours), "3"),
+            E(nameof(RefreezeTemp), "280"),
+            E(nameof(RefreezeHours), "2"),
+            E(nameof(BluebirdClearness), "800"),
+            E(nameof(InversionTenths), "40"),
+            E(nameof(AlertLeadDays), "2"),
+            E(nameof(ForecastPullRain), "500"),
+            E(nameof(ForecastPullStorm), "700"),
+            E(nameof(ForecastPullStormGust), "40"),
+            E(nameof(ForecastPullBluebird), "1100"),
+            E(nameof(ForecastPullColdSnap), "700"),
             E(nameof(MaxTrails), "1024"),
             // GU-01…GU-18 (task 4.12). The crowd:
             E(nameof(SkierCap), "3000"),
