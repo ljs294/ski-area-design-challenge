@@ -533,6 +533,52 @@ sites' rows were re-recorded once (`RecordFrozenRows`) and the pins moved once.
   weather), so none is stale. The first calibration change after a shipped weather build needs one (a version beside
   the rows and Get weather offering a rebuild): handed to 4.07.
 
+## 3f. PR C: the forecast, named events, alerts and the crowd (task 4.05, 2026-11-13)
+
+The last piece of 4.05: what lets a player plan around the weather. Owner's answers (2026-11-13): a light HUD touch
+only (the weather line under the clock, toasts, the lift card's "Holds likely"); the full sheet stays in the dev
+readout until 4.17; no alert pauses the game yet.
+- **WX-05 v3, built (`SimWorld.Forecast`, `ForecastSheet`).** Issued at the resort's stop and refreshed at the 7:30
+  landing. A second generator (`CopyStateFrom` live; re-run from October 1 to the issue hour when stale) runs 7 face
+  days ahead for the truth. Every shown figure is integer: lean × truth + pull × climate (the third's mean, lapsed to
+  the point) + a wobble keyed by (seed, `WeatherKey.Forecast`, target day), so the sheet is cross-runtime like the
+  generator. Precipitation is a range around a centre (± 20 / 40 / 60 % by lead); a non-bust centre is held so the
+  truth stays in its range, and a bust (keyed per storm) lands outside it. Storms: a two-day window at ≥ 4 days, firm
+  at ≤ 3 (shown a day off on `ForecastTimingPermille` = 3 % of storms at 3 days). Phantoms at 5–7 days only.
+- **WX-32, built.** The sheet is never saved: the sidecar keeps the issue hour and whether it was the evening's; a
+  load makes it again byte for byte (tested at 10 PM, and its hourly hashes replay).
+- **WX-41, built (`SimWorld.WeatherEvents`).** Hourly from the base, mid and summit samples: Storm, Big storm, Storm of
+  the season, Powder day (at the landing), Bluebird (at the stop), Rain, Freezing rain, Thaw, Refreeze, Cold snap,
+  Wind event, Inversion. Lasting events begin and end (`WeatherEventBegan` 31, `WeatherEventEnded` 32); the snapshot
+  carries the bits. A Jackson Hole winter (October 1 – April 1, the golden seed) names 49 storms, 10 big storms, 3
+  storms of the season, 6 powder days, 17 bluebirds, 13 rain days, 5 thaws, 10 refreezes, 2 cold snaps and 5 wind
+  events; inversions and freezing rain need the terrain's pool, so the flat test world has none.
+- **WX-42, built.** From each sheet, the first time a Big storm, Rain, Freezing rain, Thaw, Cold snap or Wind event is
+  expected within `AlertLeadDays` = 2: one `WeatherAlert` (33) per kind and target day, with a day's cooldown; the
+  dedupe is saved. `ForecastIssued` (34) marks each sheet. All are notices.
+- **WX-44, built.** `PlanTheDay` reads the powder pull (overnight snow at mid: × 1.0 at none to `PowderPull` at twice
+  the site's powder threshold) and the forecast pull from the evening sheet (rain × 0.5, a storm gusting over 40 mph
+  × 0.7, bluebird × 1.1, cold snap × 0.7; Pacing data). **WX-44 v2 (owner, 2026-11-13): only rain in the ski day
+  keeps the crowd home.** A face day carries about three days of weather, so counting two rain hours in a row at the
+  base anywhere in the card's 24 face hours (the Rain event's rule) cut the crowd on 9–27 of a winter's 42 face days.
+  The crowd now reads `RainWhileOpen`: the run inside the fixed ski day (`DayHours.Default`, 8:30–4:30, never the
+  resort's own hours, so the sheet still never follows them); the Rain event and its alert still count every hour.
+  Over three winters a site the sheet cuts the crowd on 9–25 days, and the two lines together leave a winter's crowd
+  at × 0.79 (Snowshoe) to × 0.99 (Jackson Hole) of a weatherless one (before: × 0.72–0.98); Winter Park's cuts are
+  gusty storms, not rain, so it stays at × 0.86. The factors are 4.12's to tune.
+- **On screen:** the weather line under the clock (base · summit now, the next 24 h's snow at mid), toasts for the
+  alerts (amber, naming the lifts whose forecast gust reaches their hold), the events' starts and the wind holds, the
+  lift card's "Holds likely" from tomorrow's forecast gust, and the whole sheet in the `-weatherreadout` readout.
+- **WX-54 v2, measured** (50 seeds, seven sites, Release): high within 2 °F a day out 90–95 %; chance of precipitation
+  95.0 / 90.5 / 80.4 % by lead; wrong day at 3 days 1.9–3.1 %; busts 3.9–5.6 %; no phantoms inside 4 days; a storm's
+  7-day card wet 100 %; the issue 0.07–0.18 ms (budget 2 ms). **The week lean is 0.85 (owner, 2026-11-13):** with the
+  design's 0.65 the high was within 5 °F at a week only 62–90 % of the time (Snowshoe and Snow Ridge lowest); at 0.85
+  every site passes (92–97.5 %, right side of normal 89–95 %). The Mono and .NET runs give the same shares, as the
+  sheet is integer.
+- **Formats and pins:** sim sidecar v6 (fixture `TestData/formats/v6-sim`; v1–v5 still open), Pacing v7;
+  `SeasonRunner.GoldenFoldValue` (0x78F54C0EFBDE2342 → 0x0286096DBB30C488) and `GuestDayFold` (0x13ED1EF232C7A39C →
+  0x07B9C769D00CB382) re-pinned once. The seven WX-33 goldens and the rows don't move.
+
 ## 4. Weather runs on the calendar, compressed like time
 
 The owner's ruling (Q17, superseding an earlier size-and-frequency split): *storm frequency over duration; use
@@ -948,7 +994,8 @@ but no event, alert, crowd line or automation reads those.
     temp, weather type and precip amounts farther out").** The forecast is never noise around the truth; it **leans
     toward the truth at every lead**, softened toward normal the farther out it is:
     - **shown value = w(lead) × truth + (1 − w) × the climate for the date + a small keyed wobble**, with w = 0.95 a
-      day out falling linearly to **0.65 at a week** (`Pacing.ForecastLeanDay1`, `ForecastLeanDay7`). So the 7-day
+      day out falling linearly to **0.85 at a week** (`Pacing.ForecastLeanDay1`, `ForecastLeanDay7`; owner 2026-11-13,
+      was 0.65, which missed WX-54's 5 °F rule at six sites). So the 7-day
       card always points the right way: a cold snap reads cold, a warm storm reads warm, a big storm reads big, just
       less so than it will be.
     - Each target day draws its wobble **once** (by the target day's key) and the lead scales it, so tomorrow's
@@ -973,9 +1020,9 @@ but no event, alert, crowd line or automation reads those.
       pattern is Zonal throughout), with the same lean: firm in words inside 3 days, "likely" beyond.
     - `Pacing.ForecastSkill` scales the wobble and the pull toward normal (1 − w) (WX-34). There is no omniscient
       mode.
-  - The forecast's own wobbles are integer draws (WX-31), but its samples (wet bulb, gun window) go through WX-37's
-    float function, so like the fields it follows SI-08 (player-build goldens), not WX-33's cross-runtime one. It
-    runs in the night's first slice (BG-02's 2 ms night slice, with the hour step's own work in later slices).
+  - The forecast is integer throughout (WX-31; since PR A3 the wet bulb is too, WX-37 v2), so it is cross-runtime
+    like WX-33's generator. It runs in the night's first slice (BG-02's 2 ms night slice, with the hour step's own
+    work in later slices).
 - **WX-54 v2, forecast skill acceptance** (4.05, over 50 seeds on the fixture, `ForecastSkill` normal): the shown
   high is within 2 °F of the truth 90 % of the time a day out, and **within 5 °F 90 % of the time at a week**, on the
   right side of normal 85 % of the time at a week; **a true storm's 7-day card shows precipitation 95 % of the
@@ -1008,7 +1055,7 @@ but no event, alert, crowd line or automation reads those.
     `PowderDayIn` and flat above (`Pacing.PowderPull`, tuned at 4.12). Powder days fill the mountain the morning
     after the storm, as they do.
   - **Today's weather, as forecast:** read from the forecast the crowd saw the evening before, not the truth: rain or
-    mixed at the base × 0.5, a storm with summit gusts above 40 mph × 0.7, bluebird × 1.1, a cold snap × 0.7 (tuned at
+    mixed at the base in the ski day × 0.5 (WX-44 v2, §3f), a storm with summit gusts above 40 mph × 0.7, bluebird × 1.1, a cold snap × 0.7 (tuned at
     4.12). So a busted forecast is drama: an empty mountain under ten inches of fresh, or a mob on a day that turned
     to rain.
   - The day report names the cause ("Powder day: 1,840 came on a weekday").
@@ -1129,7 +1176,7 @@ simulated hours from it. Each number or idea: **K** kept, **C** changed, **D** d
 
 | Task | Rules |
 |---|---|
-| 4.05 Weather data and engine | WX-10…20, WX-07 v3's two-part tests and the SNOTEL cross-check, WX-21, WX-23…40, WX-54…58, WX-02 v2, WX-03 v2, WX-05 v3's engine, WX-41's weather events, WX-42's triggers, WX-51; the Acquisition provider and fixtures, the weather chunk (manifest v2, already reserved), the sidecar bump (WX-32) |
+| 4.05 Weather data and engine | WX-10…20, WX-07 v3's two-part tests and the SNOTEL cross-check, WX-21, WX-23…40, WX-54…58, WX-02 v2, WX-03 v2, WX-05 v3's engine, WX-41's weather events, WX-42's triggers, WX-44's pulls, WX-51; the Acquisition provider and fixtures, the weather chunk (manifest v2, already reserved), the sidecar bump (WX-32). **Done** with PR C (§3f) |
 | 4.06 Weather on screen | WX-50, WX-53, WX-47's layers, the Weather tab mockup (WX-46) |
 | 4.07 Snow | WX-22's ×K in SN-08…18, SN-22 v2's hold-for-powder (with `Pacing.HoldForPowderIn`), WX-41's Rain on snow, Glaze and Corn morning, WX-52's attribution, the snow energy (WX-59…64, moved from 4.05 on 2026-11-11) |
 | 4.09 Lakes | WX-22's ×K for ice |

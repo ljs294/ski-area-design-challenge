@@ -73,6 +73,8 @@ namespace MountainPlanner.Simulation
             _genYear = int.MinValue;
             _wxHourSet = false;
             _wxHour = default;
+            if (w != null) ForecastBuffers();
+            MarkForecastStale();
         }
 
         /// <summary>The <see cref="SimCommandKind.SetWeather"/> command: see the class's rules.</summary>
@@ -86,6 +88,7 @@ namespace MountainPlanner.Simulation
                 _weather = w;
                 _weatherNext = null;
                 SampleWeather();
+                MarkForecastStale();   // the sheet's reference points moved
                 return true;
             }
             _weatherNext = w;
@@ -105,6 +108,7 @@ namespace MountainPlanner.Simulation
             _wxFields ??= new WeatherFields();
             FillFields();
             SampleWeather();   // the reference points take their pool from the map's inputs
+            MarkForecastStale();
             return true;
         }
 
@@ -152,6 +156,7 @@ namespace MountainPlanner.Simulation
             }
             if (_genYear != labelYear || _genSeed != SeasonSeed || _gen.Hour != hourOfYear)
             {
+                if (_genSeed != SeasonSeed) MarkForecastStale();   // a seed pinned mid-year: the sheet is the new seed's
                 _gen.RunTo(SeasonSeed, labelYear, hourOfYear);
                 _genSeed = SeasonSeed;
                 _genYear = labelYear;
@@ -172,37 +177,38 @@ namespace MountainPlanner.Simulation
                     if (c.Known) { _weatherGustTenths[i] = c.Gust; continue; }
                 }
                 int top = lift.TopFeet;
-                _weatherGustTenths[i] = GustTenthsAt(top > 0 ? top : _weather.SummitFeet);
+                _weatherGustTenths[i] = GustTenthsAt(_wxHour, top > 0 ? top : _weather.SummitFeet);
             }
             SampleWeather();
+            StepWeatherEvents(hour);
         }
 
         /// <summary>WX-39 (B1): the hour's gust at a height, 0.1 mph: the free wind × the height's exposure × the gust factor.</summary>
-        int GustTenthsAt(int feet)
+        int GustTenthsAt(in WeatherHour h, int feet)
         {
-            long wind = (long)_wxHour.Wind * _weather.ExposureAt(Pacing, feet) / 1000;
-            return (int)Math.Min(5000, wind * _wxHour.GustFactor / 1000);
+            long wind = (long)h.Wind * _weather.ExposureAt(Pacing, feet) / 1000;
+            return (int)Math.Min(5000, wind * h.GustFactor / 1000);
         }
 
         void SampleWeather()
         {
             if (_weather == null || !_wxHourSet) return;
-            _wxBase = SampleAt(_weather.BaseFeet);
-            _wxMid = SampleAt(_weather.MidFeet);
-            _wxSummit = SampleAt(_weather.SummitFeet);
+            _wxBase = SampleAt(_wxHour, _weather.BaseFeet);
+            _wxMid = SampleAt(_wxHour, _weather.MidFeet);
+            _wxSummit = SampleAt(_wxHour, _weather.SummitFeet);
         }
 
         /// <summary>A reference point's sample, with the map's integer air (PR B2), so the readout and the fields agree.</summary>
-        WeatherSample SampleAt(int feet)
+        WeatherSample SampleAt(in WeatherHour h, int feet)
         {
             int dz = feet - _weather.Rows.ZrefFeet;
-            WeatherFields.AirAt(_wxHour, _weather.Rows.ZrefFeet, feet, _wxTerrain, Pacing, out int temp, out int dew, out _, out int wb, out int snow, out bool freezing);
-            int liquid = (int)WeatherMath.DivRound((long)_wxHour.Liquid * WeatherFields.PrecipFactor(_wxHour, dz), 1000);
-            long wind = (long)_wxHour.Wind * _weather.ExposureAt(Pacing, feet) / 1000;
+            WeatherFields.AirAt(h, _weather.Rows.ZrefFeet, feet, _wxTerrain, Pacing, out int temp, out int dew, out _, out int wb, out int snow, out bool freezing);
+            int liquid = (int)WeatherMath.DivRound((long)h.Liquid * WeatherFields.PrecipFactor(h, dz), 1000);
+            long wind = (long)h.Wind * _weather.ExposureAt(Pacing, feet) / 1000;
             return new WeatherSample
             {
                 Feet = feet, Temp = temp, Dew = dew, WetBulb = wb, SnowPermille = snow,
-                Liquid = liquid, SnowTenthsIn = WeatherAir.SnowTenthsIn(liquid, snow, wb), Wind = (int)wind, Gust = GustTenthsAt(feet), FreezingRain = freezing,
+                Liquid = liquid, SnowTenthsIn = WeatherAir.SnowTenthsIn(liquid, snow, wb), Wind = (int)wind, Gust = GustTenthsAt(h, feet), FreezingRain = freezing,
             };
         }
 
@@ -217,6 +223,14 @@ namespace MountainPlanner.Simulation
             // The tables, copied only when the hour (or the inputs) moved: the main thread never sees a half-filled hour.
             if (_wxFields == null || _wxFields.Hour < 0) { if (s.WeatherFields.Hour >= 0) s.WeatherFields.CopyFrom(_wxFields ?? EmptyFields); }
             else if (s.WeatherFields.Hour != _wxFields.Hour || s.WeatherFields.Terrain != _wxFields.Terrain) s.WeatherFields.CopyFrom(_wxFields);
+            // PR C: the events under way, the night's snow, and the sheet (copied only when it was made again).
+            s.WeatherEvents = _evActive;
+            s.OvernightSnowMid = _evLastOvernight;
+            s.PowderPull = PowderPullToday;
+            s.ForecastPull = ForecastPullToday;
+            EnsureForecast();
+            if (_forecast == null) { if (s.Forecast.Known) { s.Forecast.Clear(); s.ForecastVersion = -1; } }
+            else if (s.ForecastVersion != _fcVersion) { s.Forecast.CopyFrom(_forecast); s.ForecastVersion = _fcVersion; }
         }
 
         static readonly WeatherFields EmptyFields = new WeatherFields();
@@ -226,6 +240,7 @@ namespace MountainPlanner.Simulation
         {
             HashWeather(ref h, _weather);
             HashWeather(ref h, _weatherNext);
+            HashWeatherEvents(ref h);
             if (_weather == null) return;
             h.Add(_genSeed); h.Add(_genYear); h.Add(_gen.Hour);
         }
@@ -264,6 +279,7 @@ namespace MountainPlanner.Simulation
         {
             _weather = ReadWeather(r);
             _weatherNext = ReadWeather(r);
+            if (_weather != null) ForecastBuffers();
             _gen = null;
             _wxHourSet = false;
             _wxHour = default;

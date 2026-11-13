@@ -15,7 +15,7 @@ namespace MountainPlanner.UI
     public sealed partial class MountainHud
     {
         VisualElement _bar, _readout, _readoutSwatch;
-        Label _day, _date, _clockHm, _clockS, _clockAmPm, _elevation, _readoutLead, _readoutFigure, _readoutTail;
+        Label _day, _date, _clockHm, _clockS, _clockAmPm, _elevation, _readoutLead, _readoutFigure, _readoutTail, _weather;
         Button _pause, _when;
         HudIcon _pauseIcon;
         readonly Button[] _speeds = new Button[MaxSpeed];
@@ -45,6 +45,7 @@ namespace MountainPlanner.UI
             _clockS = _root.Q<Label>("bar-clock-s");
             _clockAmPm = _root.Q<Label>("bar-clock-ampm");
             _elevation = _root.Q<Label>("bar-elev-value");
+            _weather = _root.Q<Label>("bar-weather");
             _readout = _root.Q("bar-readout");
             _readoutSwatch = _root.Q("bar-readout-swatch");
             _readoutLead = _root.Q<Label>("bar-readout-lead");
@@ -154,6 +155,18 @@ namespace MountainPlanner.UI
             var text = _elevationText[(int)units];
             int i = key - _elevationFirstKey[(int)units];
             return text != null && i >= 0 && i < text.Length ? text[i] : UnitFormat.ElevationFromKey(key, units);
+        }
+
+        /// <summary>
+        /// Task 4.05 PR C: the weather line under the clock (temperature at base · summit, the forecast's snow in the next
+        /// 24 hours). The caller builds the text only when a shown figure changes, so this never allocates on its own.
+        /// </summary>
+        public void SetWeather(string line, string tip)
+        {
+            if (_weather == null) return;
+            _weather.EnableInClassList("nodata", false);
+            if (_weather.text != line) _weather.text = line;
+            if (_weather.tooltip != tip) _weather.tooltip = tip;
         }
 
         /// <summary>The elevation under the pointer in metres (NaN: off the terrain, or over the HUD).</summary>

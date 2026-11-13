@@ -422,11 +422,32 @@ namespace MountainPlanner.Tests
             Assert.That(w.LineOf(101), Is.GreaterThan(0));
             Assert.That(w.HeldNow(202), Is.True);
             Assert.That(w.Weather, Is.Null, "no weather given: the stand-in hour");
-            Assert.That(SimSidecar.VersionOf(w.SaveState()), Is.EqualTo(5), "it saves as v5");
+            Assert.That(SimSidecar.VersionOf(w.SaveState()), Is.EqualTo(SimSidecar.Version), "it saves as the newest version");
         }
 
-        /// <summary>v5's world adds the weather (task 4.05): the golden's rows, mid-season, with a gust override and a crowd.</summary>
-        static byte[] FixtureFive()
+        /// <summary>
+        /// v5 (task 4.05 PR B) still opens, its bytes untouched: from v6 the reader starts the named events, alerts and the
+        /// crowd's weather lines empty and issues the forecast at once (WX-32: the sheet is never saved, only made).
+        /// </summary>
+        [Test]
+        public void TheVersionFiveSidecarStillOpens()
+        {
+            byte[] fixture = File.ReadAllBytes(FixtureFile(5));
+            var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
+            Assert.That(header.SidecarVersion, Is.EqualTo(5));
+            Assert.That((w.Phase, w.SeasonDay), Is.EqualTo((SeasonPhase.Season, 4)));
+            Assert.That(w.HeldNow(202), Is.True);
+            Assert.That(w.Weather, Is.Not.Null);
+            Assert.That(w.WeatherNext, Is.Not.Null, "the eastern rows wait for October 1");
+            Assert.That(w.WeatherKnown);
+            Assert.That(w.WeatherEventsNow, Is.EqualTo(0), "no events carried from before v6");
+            Assert.That(SimSidecar.VersionOf(w.SaveState()), Is.EqualTo(SimSidecar.Version), "it saves as the newest version");
+            for (int i = 0; i < 1000; i++) w.Step(1);
+            Assert.That(w.Phase, Is.EqualTo(SeasonPhase.Season), "and it plays on");
+        }
+
+        /// <summary>v6's world adds the forecast's issue, the named events and the alerts (task 4.05 PR C): v5's, past an evening sheet.</summary>
+        static byte[] FixtureSix()
         {
             var w = new SimWorld(P, SeasonRunner.GoldenDesign(1, false), SimSite.None, 2026, weather: SimWeatherTests.Golden());
             w.ApplyNow(SimCommand.Of(SimCommandKind.SetSnowpack, 0, Snowpack(1)));
@@ -434,40 +455,38 @@ namespace MountainPlanner.Tests
             w.ApplyNow(SimCommand.Of(SimCommandKind.FeedLine, 0, new LiftFeed(101, 120, 20)));
             w.ApplyNow(SimCommand.Of(SimCommandKind.SetGust, 60));
             w.ApplyNow(SimCommand.Of(SimCommandKind.SpawnSkiers, 0, new SkierSpawn(1, 40)));
-            w.ApplyNow(SimCommand.Of(SimCommandKind.SetWeather, 0, SimWeather.Own(SimWeatherTests.Frozen(WeatherFixtures.JacksonNh))));
-            while (w.FaceMs < 3 * Day + 10 * SimWorld.HourMs) w.Step(1);
+            while (w.FaceMs < 3 * Day + 22 * SimWorld.HourMs) w.Step(1);
             return w.SaveState();
         }
 
         /// <summary>
-        /// The v5 layout is frozen (0.3 §5): the fixture read and written again gives back its own bytes, all but the header's
+        /// The v6 layout is frozen (0.3 §5): the fixture read and written again gives back its own bytes, all but the header's
         /// Pacing hash and version and the closing state hash, which fold the Pacing table in (SI-22), so a later tuning
         /// never needs the fixture re-made.
         /// </summary>
         [Test]
-        public void TheVersionFiveSidecarIsFrozen()
+        public void TheVersionSixSidecarIsFrozen()
         {
-            byte[] fixture = File.ReadAllBytes(FixtureFile(5));
+            byte[] fixture = File.ReadAllBytes(FixtureFile(6));
             var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
-            Assert.That(header.SidecarVersion, Is.EqualTo(5));
+            Assert.That(header.SidecarVersion, Is.EqualTo(6));
             byte[] again = w.SaveState();
-            Assert.That(again.Length, Is.EqualTo(fixture.Length), "the sidecar v5 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
+            Assert.That(again.Length, Is.EqualTo(fixture.Length), "the sidecar v6 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
             for (int i = 0; i < 8; i++) Assert.That(again[i], Is.EqualTo(fixture[i]), "magic and version");
             for (int i = 20; i < fixture.Length - 8; i++)
-                if (again[i] != fixture[i]) Assert.Fail($"the sidecar v5 is frozen: byte {i} changed on a round trip (0.3 §5)");
+                if (again[i] != fixture[i]) Assert.Fail($"the sidecar v6 is frozen: byte {i} changed on a round trip (0.3 §5)");
             Assert.That((w.Phase, w.SeasonDay), Is.EqualTo((SeasonPhase.Season, 4)));
             Assert.That(w.HeldNow(202), Is.True);
             Assert.That(w.Weather, Is.Not.Null);
-            Assert.That(w.WeatherNext, Is.Not.Null, "the eastern rows wait for October 1");
-            Assert.That(w.WeatherKnown);
+            Assert.That(w.Forecast.Known && w.Forecast.Evening, Is.True, "the evening sheet is made again from its issue");
         }
 
-        [Test, Explicit("Regenerates the frozen v5 sidecar fixture")]
-        public void WriteTheVersionFiveSidecarFixture()
+        [Test, Explicit("Regenerates the frozen v6 sidecar fixture")]
+        public void WriteTheVersionSixSidecarFixture()
         {
-            string folder = Path.Combine(TestData.Folder("formats"), "v5-sim");
+            string folder = Path.Combine(TestData.Folder("formats"), "v6-sim");
             Directory.CreateDirectory(folder);
-            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), FixtureFive());
+            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), FixtureSix());
         }
     }
 }

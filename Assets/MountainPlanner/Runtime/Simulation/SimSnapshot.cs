@@ -194,6 +194,13 @@ namespace MountainPlanner.Simulation
         /// Copied only when the hour moves, so it sits beside SI-16's per-tick budget, not in it.
         /// </summary>
         public readonly WeatherFields WeatherFields = new WeatherFields();
+        /// <summary>WX-41 (PR C): the lasting weather events under way (bits of <see cref="WeatherEventKind"/>), and the snow at mid the last landing read (0.1 in).</summary>
+        public int WeatherEvents, OvernightSnowMid;
+        /// <summary>WX-44 (PR C): today's two weather lines of the crowd's demand (‰, 1000 = none), as the landing set them.</summary>
+        public int PowderPull = 1000, ForecastPull = 1000;
+        /// <summary>WX-05 v3 (PR C): the evening sheet (or the landing's refresh), copied only when the world makes it again.</summary>
+        public readonly ForecastSheet Forecast;
+        public int ForecastVersion = -1;
 
         public SimSnapshot(Pacing p)
         {
@@ -211,6 +218,7 @@ namespace MountainPlanner.Simulation
             Seats = new byte[p.MaxLifts];
             LiftOpenSecond = new int[p.MaxLifts];
             LiftGustTenths = new int[p.MaxLifts];
+            Forecast = new ForecastSheet(p.MaxLifts);
             TrailIds = new ulong[p.MaxTrails];
             TrailStatus = new LiftOpStatus[p.MaxTrails];
             LastDayReport = new DayReport(p.MaxLifts);
@@ -233,7 +241,7 @@ namespace MountainPlanner.Simulation
         /// <summary>SI-16's budget: the bytes this snapshot's arrays and fields take at their full size.</summary>
         public int SizeBytes => 256 + 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + 1 + 4 + DayReport.SizeBytesPerLift)
                                 + TrailIds.Length * (8 + 1 + 1) + Events.Length * 24
-                                + Guests.SizeBytes;
+                                + Guests.SizeBytes + Forecast.SizeBytes;
 
         /// <summary>The trail's index here, or −1.</summary>
         public int IndexOfTrail(ulong id)
