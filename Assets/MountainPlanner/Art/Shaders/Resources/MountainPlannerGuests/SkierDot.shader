@@ -34,6 +34,9 @@ Shader "MountainPlanner/SkierDot"
             // The screen's own pixels (set from C#): the render target can be larger or smaller (render scale), and a
             // dot's size is the player's pixels, not the target's (first capture: half size at High).
             float2 _ScreenPixels;
+            // Task 4.22: nearer than this a guest is drawn as a figure (SkierFigures), so its dot isn't, unless it is the
+            // selected or hovered one or the Traffic layer has dimmed the dots (0: no figures, every dot draws).
+            float _FigureMetres;
 
             struct Varyings
             {
@@ -86,6 +89,12 @@ Shader "MountainPlanner/SkierDot"
                 uint packed = (uint)d.w;
                 uint band = packed & 3, cls = (packed >> 2) & 15, flags = (packed >> 6) & 3;
                 float sat = ((packed >> 8) & 255) / 255.0;
+                if (_FigureMetres > 0 && _Dim <= 0 && flags == 0 && distance(d.xyz, GetCameraPositionWS()) < _FigureMetres)
+                {
+                    o.positionCS = float4(2, 2, 2, 1);
+                    o.colour = 0; o.ring = 0; o.pixels = 1; o.lightRim = 0;
+                    return o;
+                }
                 float3 world = d.xyz + float3(0, _DotLift, 0);   // a standing skier's middle
                 float3 toCamera = GetCameraPositionWS() - world;
                 float dist = length(toCamera);

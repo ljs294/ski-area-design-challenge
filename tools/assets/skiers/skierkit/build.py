@@ -10,7 +10,9 @@ from .mesh import MATS, Mesh
 # The ladder lives in budgets.json beside the build script (the Unity import reads the same file): the most triangles
 # of a skier with skis and poles, how far each level is used, and how many bones may move one vertex.
 with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "budgets.json")) as _f:
-    _LODS = json.load(_f)["figure"]["lods"]
+    _FIGURE = json.load(_f)["figure"]
+_LODS = _FIGURE["lods"]
+HYSTERESIS = _FIGURE["hysteresis"]
 LOD_COUNT = len(_LODS)
 assert LOD_COUNT == body.LODS, "budgets.json and body.py disagree on the number of LODs"
 BUDGET = tuple(row["maxTris"] for row in _LODS)

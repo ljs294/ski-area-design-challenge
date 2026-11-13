@@ -39,8 +39,11 @@ namespace MountainPlanner.Presentation.Guests
         [ReadOnly] public NativeArray<int2> LiftPaths;
         [ReadOnly] public NativeArray<float3> Nodes;
         [ReadOnly] public NativeArray<float3> Slots;
+        /// <summary>Task 4.22: per place, the way its skier faces (LineLayout.Facing).</summary>
+        [ReadOnly] public NativeArray<float2> SlotFacing;
         [ReadOnly] public NativeArray<int2> LiftSlots;
-        /// <summary>Per lift index: the rope travel drawn now (ms, cut to 32 bits), and 1 when riders are drawn (tows, carpets).</summary>
+        /// <summary>Per lift index: the rope travel drawn now (ms, cut to 32 bits), and 1 when riders are drawn (tows; 2 for a
+        /// carpet, task 4.22).</summary>
         [ReadOnly] public NativeArray<uint> RopeNow;
         [ReadOnly] public NativeArray<byte> DrawRiders;
         /// <summary>Per lift index: how many stand in its line now (the tail a walker heads for).</summary>
@@ -62,6 +65,18 @@ namespace MountainPlanner.Presentation.Guests
 
         [WriteOnly] public NativeArray<float4> Dots;
         [WriteOnly] public NativeArray<float3> Screen;
+        /// <summary>
+        /// Task 4.22, for the figures: per skier (heading x, heading z, phase, slope). Heading is the way it faces on the
+        /// ground (zero: let the figure pick); phase is how far through its clip it is (turns, or steps while walking a
+        /// path; -1: the figure counts its own steps); slope is the fall in degrees along the heading.
+        /// </summary>
+        [WriteOnly] public NativeArray<float4> Facing;
+        /// <summary>
+        /// Task 4.22: the figures are drawn. A skier's track swings across its lane in time with its turns, and every guest
+        /// stands on the snow as the terrain draws it (the ground: the snow depth colours the terrain but doesn't raise
+        /// it), not on top of the depth as a dot does, so a figure's skis touch the snow.
+        /// </summary>
+        public bool Figures;
 
         public const float Hidden = -1f;
         /// <summary>How high over the ground a hidden chair rider is taken to be (the follow camera's target).</summary>
@@ -77,9 +92,10 @@ namespace MountainPlanner.Presentation.Guests
             int cls;
             bool ease = false;
             var st = (GuestState)r.State;
+            float4 facing = new float4(0, 0, -1, 0);
             if (st == GuestState.Skiing || (st == GuestState.Walking && !r.OnALift))
             {
-                if (!OnEdge(r, out p)) { Hide(i); return; }
+                if (!OnEdge(r, st == GuestState.Skiing, out p, out facing)) { Hide(i); return; }
                 cls = ClassSkiing;
             }
             else if (st == GuestState.Walking)
@@ -89,6 +105,7 @@ namespace MountainPlanner.Presentation.Guests
                 float3 from = r.Node < Nodes.Length ? Nodes[r.Node] : TailOf(lift, 0);
                 float3 to = TailOf(lift, lift < LineCount.Length ? LineCount[lift] : 0);
                 p = math.lerp(from, to, Progress(r));
+                facing = new float4(Flat(to - from), math.distance(from, to) * Progress(r) / StrideMetres, 0);
                 cls = ClassStanding;
             }
             else if (st == GuestState.Queued)
@@ -99,6 +116,10 @@ namespace MountainPlanner.Presentation.Guests
                 // Lines grow as long as they need (owner, 2026-11-10): a skier past the end only waits a frame for the
                 // layout to lay more places, standing at the tail meanwhile, never in a pile round it.
                 else { p = Slots[s.x + math.min((int)r.Rank, s.y - 1)]; cls = ClassQueued; }
+                // Facing the front of the line along its pass (task 4.22: not at the neighbour in the row).
+                int rank = math.min((int)r.Rank, s.y - 1);
+                float3 ahead = s.y > 0 && s.x + rank < SlotFacing.Length ? new float3(SlotFacing[s.x + rank].x, 0, SlotFacing[s.x + rank].y) : LiftDirection(lift);
+                facing = new float4(Flat(ahead), -1, 0);
                 ease = true;
             }
             else if (st == GuestState.Riding)
@@ -109,6 +130,7 @@ namespace MountainPlanner.Presentation.Guests
                 int span = (int)(r.ExitTick - r.EntryTick);
                 float f = span > 0 ? math.saturate((int)(now - r.EntryTick) / (float)span) : 1f;
                 p = OnLift(lift, f);
+                facing = new float4(Flat(LiftDirection(lift)), -1, 0);
                 if (lift >= DrawRiders.Length || DrawRiders[lift] == 0)
                 {
                     // LO-06: a chair's rider isn't drawn, but where it is still is (the follow camera glides up the line
@@ -117,6 +139,9 @@ namespace MountainPlanner.Presentation.Guests
                     Dots[i] = new float4(p.x, p.y + ChairRiderMetres, p.z, Hidden);
                     return;
                 }
+                // Task 4.22: a figure on a carpet stands on the belt. The carpet's fill keeps the ground its snow room under
+                // the modules' foot all along, so the belt top is the belt height over the drawn ground.
+                if (Figures && DrawRiders[lift] == 2) p.y += (float)MountainPlanner.Domain.Design.CarpetBed.BeltHeightMetres;
                 cls = ClassRiding;
             }
             else if (st == GuestState.Choosing || st == GuestState.Dwelling)
@@ -146,9 +171,10 @@ namespace MountainPlanner.Presentation.Guests
                 else Prev[slot] = p;
             }
 
-            p.y += SnowAt(p.x, p.z);
+            if (!Figures) p.y += SnowAt(p.x, p.z);
             int flags = (r.Serial == Selected && Selected != 0 ? 1 : 0) | (r.Serial == Hovered && Hovered != 0 ? 2 : 0);
             Dots[i] = new float4(p, r.Band + 4 * cls + 64 * flags + 256 * r.Satisfaction);
+            Facing[i] = facing;
             // The click target is where the shader draws the dot, not the feet (finding 3, owner 2026-11-10: 0.9 m up close
             // is 20-40 px, so clicks on the dot missed).
             float4 c = math.mul(ViewProjection, new float4(DrawnCentre(p, CameraPosition), 1));
@@ -170,10 +196,40 @@ namespace MountainPlanner.Presentation.Guests
             return world + toCamera / math.max(dist, 1e-3f) * math.min(SkierLayer.PullMaxMetres, dist * SkierLayer.PullShare);
         }
 
+        /// <summary>Metres a skier walks per step cycle of its figure (SkierFigureJob.StrideMetres).</summary>
+        public const float StrideMetres = 1.6f;
+
+        static float2 Flat(float3 d)
+        {
+            float2 v = new float2(d.x, d.z);
+            return math.lengthsq(v) > 1e-8f ? math.normalize(v) : float2.zero;
+        }
+
+        float3 LiftDirection(int lift)
+        {
+            if (lift >= LiftPaths.Length) return float3.zero;
+            int2 lp = LiftPaths[lift];
+            return lp.y >= 2 ? Samples[lp.x + 1].xyz - Samples[lp.x].xyz : float3.zero;
+        }
+
+        /// <summary>
+        /// Task 4.22: a turn pair's width (metres either side of the lane) and length down the run, by band: a wedge
+        /// barely leaves its line, short turns are tight, an expert's carve swings wide.
+        /// </summary>
+        public static float2 SwayOf(int band, uint serial)
+        {
+            if (IsBoarder(serial)) return new float2(1.3f, 15f);
+            return band <= 0 ? new float2(0.5f, 9f) : band == 1 ? new float2(1.1f, 13f) : band == 2 ? new float2(0.6f, 8f) : new float2(1.8f, 20f);
+        }
+
+        /// <summary>Task 4.22: one guest in four rides a snowboard, keyed on its serial (the figures' choice too).</summary>
+        public static bool IsBoarder(uint serial) => ((serial * 0x9E3779B1u) >> 24) < 64u;
+
         void Hide(int i)
         {
             Dots[i] = new float4(0, 0, 0, Hidden);
             Screen[i] = new float3(0, 0, -1);
+            Facing[i] = float4.zero;
             var r = Records[i];
             if (r.Slot < PrevSerial.Length) PrevSerial[r.Slot] = 0;
         }
@@ -184,9 +240,10 @@ namespace MountainPlanner.Presentation.Guests
             return span > 0 ? (float)math.saturate((DrawTick - r.EntryTick) / span) : 1f;
         }
 
-        bool OnEdge(in SkierRender r, out float3 p)
+        bool OnEdge(in SkierRender r, bool skiing, out float3 p, out float4 facing)
         {
             p = float3.zero;
+            facing = new float4(0, 0, -1, 0);
             int e = r.Index;
             if (e >= Edges.Length) return false;
             int4 ed = Edges[e];
@@ -218,8 +275,30 @@ namespace MountainPlanner.Presentation.Guests
             int lane = math.min(r.Lane, SkierPaths.Lanes - 1);
             float half = EdgeSize[e].y;
             float off = SkierPaths.LaneOffset(lane, half) + Traverse(along, hold, half, r.Serial);
+            // Task 4.22: the figure's turns. The track swings across the lane in time with the clip (phase 0 is the
+            // change of edges into a turn to the skier's left, so the swing to the right is at its fastest there), easing
+            // to nothing at the edge's ends so it joins the next edge's swing.
+            float2 forward = new float2(-side.y, side.x);
+            float slope = 0, phase = along / StrideMetres, drds = TraverseSlope(along, hold, half, r.Serial);
+            if (skiing)
+            {
+                float2 sway = SwayOf(r.Band, r.Serial);
+                phase = along / sway.y + (((r.Serial * 2246822519u) >> 8) * (1f / 16777216f));
+                if (Figures)
+                {
+                    float length = EdgeSize[e].x;
+                    float ease = math.saturate(along / 6f) * math.saturate((length - along) / 6f);
+                    float a = sway.x * ease * math.saturate(1f - math.saturate((1f - hold) * 2f));
+                    off += a * math.sin(phase * 2f * math.PI);
+                    drds += a * 2f * math.PI / sway.y * math.cos(phase * 2f * math.PI);
+                }
+            }
             float edgeOff = half * 0.8f;
             off = math.clamp(off, -edgeOff, edgeOff);
+            float grade = s1.w > s0.w ? (s1.y - s0.y) / (s1.w - s0.w) : 0f;
+            float2 heading = math.normalizesafe(forward + side * drds, forward);
+            slope = math.degrees(math.atan(-grade * math.dot(heading, forward)));
+            facing = new float4(heading, phase - math.floor(phase), slope);
             // The ground under the offset: between the two lanes it falls between.
             float lanePos = half > 1e-3f ? (off / (2f * edgeOff) + 0.5f) * SkierPaths.Lanes - 0.5f : lane;
             int la = math.clamp((int)math.floor(lanePos), 0, SkierPaths.Lanes - 1), lb = math.min(la + 1, SkierPaths.Lanes - 1);
@@ -245,6 +324,15 @@ namespace MountainPlanner.Presentation.Guests
             if (depth <= 0f) return 0f;
             float phase = ((serial * 2654435761u) >> 8) * (1f / 16777216f);   // keyed per skier, exact
             return math.sin((along / TraverseMetres + phase) * 2f * math.PI) * depth * 0.6f * halfWidth;
+        }
+
+        /// <summary>How fast <see cref="Traverse"/> swings across per metre down the run (its slope, for the heading).</summary>
+        public static float TraverseSlope(float along, float hold, float halfWidth, uint serial)
+        {
+            float depth = math.saturate((1f - hold) * 2f);
+            if (depth <= 0f) return 0f;
+            float phase = ((serial * 2654435761u) >> 8) * (1f / 16777216f);
+            return math.cos((along / TraverseMetres + phase) * 2f * math.PI) * 2f * math.PI / TraverseMetres * depth * 0.6f * halfWidth;
         }
 
         float3 OnLift(int lift, float f)

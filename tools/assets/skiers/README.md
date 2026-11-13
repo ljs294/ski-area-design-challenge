@@ -4,7 +4,9 @@ Rigged low-poly guests for the mountain: one skier and one snowboarder, built by
 style of `tools/assets/lifts`. The look follows the owner's concept art ("low-poly + technical alpine shells"). This
 folder holds the pipeline only. Review renders, audits and references stay outside the repository.
 
-Nothing here is imported into Unity yet (task 4.22 stops at approved models).
+The game draws them (task 4.22 part 2): `build-skiers.bat` bakes both figures into one file, Unity's
+**Mountain Planner > Import Skiers** checks it and copies it into Resources, and the game skins them in a shader.
+There is no FBX and no Animator.
 
 ## What is built
 
@@ -19,7 +21,8 @@ Nothing here is imported into Unity yet (task 4.22 stops at approved models).
 ## Axes and units
 
 Metres. `+X` is the figure's left, `-Y` is forward (the direction of travel), `+Z` is up. The origin is on the snow
-between the boots. The FBX export will use the lift pipeline's settings (`-Z` forward, `Y` up).
+between the boots (on the seat, under the hips, for the seated pose). The bake turns this into Unity's frame:
+Blender `(x, y, z)` becomes Unity `(-x, z, -y)`, so the figure faces Unity's `+Z`.
 
 ## Files
 
@@ -36,6 +39,8 @@ between the boots. The FBX export will use the lift pipeline's settings (`-Z` fo
 | `skierkit/poses.py` | Still poses: stand, carve, seated on a chair |
 | `skierkit/clips.py` | Turn cycles: four ski styles by ability and the snowboard heel and toe turns |
 | `skierkit/build.py` | Builds a rigged figure with its LODs and materials in a Blender scene |
+| `skierkit/bake.py` | The game's file: every LOD, every clip baked to bone matrices at four slopes, the outfits |
+| `build_skiers.py`, `build-skiers.bat` | Runs the bake into `out/` (not in git) and checks it, then Blender's own armature against it |
 | `render_review.py` | Review renders (Cycles): pose sheet, chair, LODs, colours, close-ups, clip strips, slope |
 
 ## The colour layer
@@ -53,7 +58,45 @@ turn to the figure's left; phase 0.5 is the change into the turn to the right. T
 along its path; a clip only moves the body over the skis or the board. A snowboarder (left foot leading) turns left
 on the heel edge and right on the toe edge.
 
+## The game's file
+
+`out/skiers.bytes` ("MPSK" v1, little-endian; read by `Presentation/Skiers/SkierFigureData.cs`) and
+`out/skiers.json` (its summary and reference points). Per figure: its LODs as triangle lists (position, four bone
+indices and weights, material id, tone), its clips and their frames, each frame's bone matrices, and 1,024 keyed
+outfits of 16 colours. The turns are baked at 0, 12, 24 and 36 degrees of slope (the body leans forward on the
+hill, the head stays level); the game picks the nearest. Two travel clips (a skier's shuffle and a snowboarder's
+one-foot push) move guests along lift lines and paths.
+
+The build fails on any of these:
+
+- a vertex with more than four influences, or weights that don't add up;
+- a pole tip, boot or binding that drifts off its ski or board by more than 1 mm;
+- a clip whose last frame doesn't meet its first;
+- skis more than 5 cm, or a board more than 16 cm (it rides on edge), off the snow;
+- Blender's own armature, posed with the same solver, putting a vertex more than 0.5 mm from the bake.
+
+The import skins the reference points (vertices Blender posed) again in C# and refuses a file more than 1 mm off.
+The EditMode test `SkierFigureTests` checks the shipped file the same way.
+
+## In the game
+
+`SkierFigures` (Presentation/Skiers) draws every guest nearer than 250 m as a figure: one draw per figure and LOD,
+skinned in `SkierFigure.shader`, with shadows on the three nearest LODs. `SkierFigureJob` (Burst) picks for each
+guest the figure (one in four rides a board, by serial), the LOD (budgets.json's distances, scaled by the camera's
+field of view and window height, with 10 percent hysteresis), the clip (the band's turn on the slope's pitch, the
+travel clip when moving on the flat, a keyed waiting pose when standing) and the outfit. `SkierChairRiders` seats
+chair riders: rides are time-compressed, so a seated figure takes the chair that left the loading point when its
+guest boarded and rides it to the top, in its own outfit. Farther than 250 m, and for the selected guest's marker,
+the dots stay. `-dotsonly` draws only the dots, as before.
+
 ## Running
+
+Bake and check (about 15 seconds), then import in Unity:
+
+```
+tools\assets\skiers\build-skiers.bat
+<Unity.exe> -batchmode -projectPath . -executeMethod MountainPlanner.Editor.SkierImport.Import -quit
+```
 
 Review renders go through the GPU render lane (see `tools/gpu/README.md`):
 

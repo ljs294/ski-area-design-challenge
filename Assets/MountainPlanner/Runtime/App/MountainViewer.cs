@@ -275,6 +275,7 @@ namespace MountainPlanner.App
                 StartGuestShots(args);     // -guestshot <folder> (MountainViewer.Guests.cs, task 4.12)
                 StartWeatherShots(args);   // -weathershots <folder> (MountainViewer.WeatherReadout.cs, task 4.05)
                 StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
+                StartSkierFigureShots(args);   // -skiershot <folder> [-guests N] (MountainViewer.SkierFigureShots.cs, task 4.22)
                 StartCoroutine(RunRideArguments(args));   // -ride <lift> [-rideshots <folder> | -ridebench <out.json>] (task 4.11 PR B)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
@@ -585,6 +586,11 @@ namespace MountainPlanner.App
             StopSimulation();
             _skiers?.Dispose();
             _skiers = null;
+            _figures?.Dispose();
+            _figures = null;
+            _figuresTried = false;
+            _riders?.Dispose();
+            _riders = null;
         }
 
         /// <summary>

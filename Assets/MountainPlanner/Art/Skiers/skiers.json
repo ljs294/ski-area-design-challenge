@@ -1,0 +1,618 @@
+{
+ "version": 1,
+ "axes": "Unity: x right, y up, z forward; metres",
+ "kinds": {
+  "skier": {
+   "bones": [
+    "root",
+    "pelvis",
+    "spine_01",
+    "spine_02",
+    "spine_03",
+    "neck",
+    "head",
+    "clavicle_l",
+    "upperarm_l",
+    "lowerarm_l",
+    "hand_l",
+    "thigh_l",
+    "calf_l",
+    "foot_l",
+    "ski_l",
+    "pole_l",
+    "clavicle_r",
+    "upperarm_r",
+    "lowerarm_r",
+    "hand_r",
+    "thigh_r",
+    "calf_r",
+    "foot_r",
+    "ski_r",
+    "pole_r"
+   ],
+   "lods": [
+    {
+     "lod": 0,
+     "triangles": 3117,
+     "vertices": 9351,
+     "influences": 3
+    },
+    {
+     "lod": 1,
+     "triangles": 1967,
+     "vertices": 5901,
+     "influences": 3
+    },
+    {
+     "lod": 2,
+     "triangles": 878,
+     "vertices": 2634,
+     "influences": 2
+    },
+    {
+     "lod": 3,
+     "triangles": 384,
+     "vertices": 1152,
+     "influences": 2
+    },
+    {
+     "lod": 4,
+     "triangles": 150,
+     "vertices": 450,
+     "influences": 1
+    },
+    {
+     "lod": 5,
+     "triangles": 38,
+     "vertices": 114,
+     "influences": 1
+    }
+   ],
+   "clips": [
+    {
+     "name": "turn_green_0",
+     "frames": 32,
+     "loops": true,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_green_12",
+     "frames": 32,
+     "loops": true,
+     "pitch": 12,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_green_24",
+     "frames": 32,
+     "loops": true,
+     "pitch": 24,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_green_36",
+     "frames": 32,
+     "loops": true,
+     "pitch": 36,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_blue_0",
+     "frames": 32,
+     "loops": true,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_blue_12",
+     "frames": 32,
+     "loops": true,
+     "pitch": 12,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_blue_24",
+     "frames": 32,
+     "loops": true,
+     "pitch": 24,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_blue_36",
+     "frames": 32,
+     "loops": true,
+     "pitch": 36,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_black_0",
+     "frames": 32,
+     "loops": true,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_black_12",
+     "frames": 32,
+     "loops": true,
+     "pitch": 12,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_black_24",
+     "frames": 32,
+     "loops": true,
+     "pitch": 24,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_black_36",
+     "frames": 32,
+     "loops": true,
+     "pitch": 36,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_expert_0",
+     "frames": 32,
+     "loops": true,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_expert_12",
+     "frames": 32,
+     "loops": true,
+     "pitch": 12,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_expert_24",
+     "frames": 32,
+     "loops": true,
+     "pitch": 24,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_expert_36",
+     "frames": 32,
+     "loops": true,
+     "pitch": 36,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "travel",
+     "frames": 16,
+     "loops": true,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "stand",
+     "frames": 1,
+     "loops": false,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "lean",
+     "frames": 1,
+     "loops": false,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "rest",
+     "frames": 1,
+     "loops": false,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "seated",
+     "frames": 1,
+     "loops": false,
+     "pitch": 0,
+     "reach_mm": 0.0
+    }
+   ],
+   "reference": [
+    {
+     "clip": "turn_green_0",
+     "frame": 0,
+     "vertex": 0,
+     "rest": [
+      -0.215,
+      0.87,
+      -0.006
+     ],
+     "posed": [
+      -0.215,
+      0.795465,
+      -0.130652
+     ]
+    },
+    {
+     "clip": "turn_green_0",
+     "frame": 0,
+     "vertex": 3117,
+     "rest": [
+      0.345725,
+      1.194003,
+      0.060331
+     ],
+     "posed": [
+      0.299107,
+      1.095379,
+      0.062172
+     ]
+    },
+    {
+     "clip": "turn_green_0",
+     "frame": 0,
+     "vertex": 6235,
+     "rest": [
+      0.114561,
+      1.815,
+      0.046724
+     ],
+     "posed": [
+      0.081567,
+      1.696401,
+      0.18794
+     ]
+    },
+    {
+     "clip": "turn_expert_24",
+     "frame": 7,
+     "vertex": 0,
+     "rest": [
+      -0.215,
+      0.87,
+      -0.006
+     ],
+     "posed": [
+      -0.585659,
+      0.519925,
+      0.12614
+     ]
+    },
+    {
+     "clip": "turn_expert_24",
+     "frame": 7,
+     "vertex": 3117,
+     "rest": [
+      0.345725,
+      1.194003,
+      0.060331
+     ],
+     "posed": [
+      -0.173616,
+      0.809222,
+      0.407786
+     ]
+    },
+    {
+     "clip": "turn_expert_24",
+     "frame": 7,
+     "vertex": 6235,
+     "rest": [
+      0.114561,
+      1.815,
+      0.046724
+     ],
+     "posed": [
+      -0.371118,
+      1.248718,
+      0.815634
+     ]
+    },
+    {
+     "clip": "seated",
+     "frame": 0,
+     "vertex": 0,
+     "rest": [
+      -0.215,
+      0.87,
+      -0.006
+     ],
+     "posed": [
+      -0.215,
+      0.02729,
+      -0.047828
+     ]
+    },
+    {
+     "clip": "seated",
+     "frame": 0,
+     "vertex": 3117,
+     "rest": [
+      0.345725,
+      1.194003,
+      0.060331
+     ],
+     "posed": [
+      0.157306,
+      0.327455,
+      -0.102395
+     ]
+    },
+    {
+     "clip": "seated",
+     "frame": 0,
+     "vertex": 6235,
+     "rest": [
+      0.114561,
+      1.815,
+      0.046724
+     ],
+     "posed": [
+      0.114561,
+      0.969119,
+      -0.029562
+     ]
+    }
+   ]
+  },
+  "boarder": {
+   "bones": [
+    "root",
+    "pelvis",
+    "spine_01",
+    "spine_02",
+    "spine_03",
+    "neck",
+    "head",
+    "clavicle_l",
+    "upperarm_l",
+    "lowerarm_l",
+    "hand_l",
+    "thigh_l",
+    "calf_l",
+    "foot_l",
+    "clavicle_r",
+    "upperarm_r",
+    "lowerarm_r",
+    "hand_r",
+    "thigh_r",
+    "calf_r",
+    "foot_r",
+    "board"
+   ],
+   "lods": [
+    {
+     "lod": 0,
+     "triangles": 2681,
+     "vertices": 8043,
+     "influences": 3
+    },
+    {
+     "lod": 1,
+     "triangles": 1799,
+     "vertices": 5397,
+     "influences": 3
+    },
+    {
+     "lod": 2,
+     "triangles": 830,
+     "vertices": 2490,
+     "influences": 2
+    },
+    {
+     "lod": 3,
+     "triangles": 312,
+     "vertices": 936,
+     "influences": 2
+    },
+    {
+     "lod": 4,
+     "triangles": 148,
+     "vertices": 444,
+     "influences": 1
+    },
+    {
+     "lod": 5,
+     "triangles": 36,
+     "vertices": 108,
+     "influences": 1
+    }
+   ],
+   "clips": [
+    {
+     "name": "turn_board_0",
+     "frames": 32,
+     "loops": true,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_board_12",
+     "frames": 32,
+     "loops": true,
+     "pitch": 12,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_board_24",
+     "frames": 32,
+     "loops": true,
+     "pitch": 24,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "turn_board_36",
+     "frames": 32,
+     "loops": true,
+     "pitch": 36,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "travel",
+     "frames": 16,
+     "loops": true,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "stand",
+     "frames": 1,
+     "loops": false,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "queue",
+     "frames": 1,
+     "loops": false,
+     "pitch": 0,
+     "reach_mm": 0.0
+    },
+    {
+     "name": "seated",
+     "frames": 1,
+     "loops": false,
+     "pitch": 0,
+     "reach_mm": 0.0
+    }
+   ],
+   "reference": [
+    {
+     "clip": "turn_board_0",
+     "frame": 0,
+     "vertex": 0,
+     "rest": [
+      -0.215,
+      0.87,
+      -0.006
+     ],
+     "posed": [
+      -0.044225,
+      0.770157,
+      0.250519
+     ]
+    },
+    {
+     "clip": "turn_board_0",
+     "frame": 0,
+     "vertex": 2681,
+     "rest": [
+      -0.67145,
+      0.85776,
+      -0.028284
+     ],
+     "posed": [
+      0.102084,
+      0.802147,
+      0.650838
+     ]
+    },
+    {
+     "clip": "turn_board_0",
+     "frame": 0,
+     "vertex": 5363,
+     "rest": [
+      -0.046669,
+      1.635,
+      0.065983
+     ],
+     "posed": [
+      0.096539,
+      1.516815,
+      0.149032
+     ]
+    },
+    {
+     "clip": "turn_board_24",
+     "frame": 7,
+     "vertex": 0,
+     "rest": [
+      -0.215,
+      0.87,
+      -0.006
+     ],
+     "posed": [
+      -0.346283,
+      0.606231,
+      0.523292
+     ]
+    },
+    {
+     "clip": "turn_board_24",
+     "frame": 7,
+     "vertex": 2681,
+     "rest": [
+      -0.67145,
+      0.85776,
+      -0.028284
+     ],
+     "posed": [
+      -0.13989,
+      0.48652,
+      0.929476
+     ]
+    },
+    {
+     "clip": "turn_board_24",
+     "frame": 7,
+     "vertex": 5363,
+     "rest": [
+      -0.046669,
+      1.635,
+      0.065983
+     ],
+     "posed": [
+      -0.327814,
+      1.380681,
+      0.710901
+     ]
+    },
+    {
+     "clip": "seated",
+     "frame": 0,
+     "vertex": 0,
+     "rest": [
+      -0.215,
+      0.87,
+      -0.006
+     ],
+     "posed": [
+      -0.215,
+      0.02729,
+      -0.047828
+     ]
+    },
+    {
+     "clip": "seated",
+     "frame": 0,
+     "vertex": 2681,
+     "rest": [
+      -0.67145,
+      0.85776,
+      -0.028284
+     ],
+     "posed": [
+      -0.076254,
+      0.023299,
+      0.32945
+     ]
+    },
+    {
+     "clip": "seated",
+     "frame": 0,
+     "vertex": 5363,
+     "rest": [
+      -0.046669,
+      1.635,
+      0.065983
+     ],
+     "posed": [
+      -0.046669,
+      0.788702,
+      -0.014707
+     ]
+    }
+   ]
+  }
+ }
+}

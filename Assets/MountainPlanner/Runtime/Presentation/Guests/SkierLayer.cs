@@ -39,6 +39,7 @@ namespace MountainPlanner.Presentation.Guests
         readonly Material _material;
         NativeArray<SkierRender> _records;
         NativeArray<float4> _dots;
+        NativeArray<float4> _facing;
         NativeArray<float3> _screen;
         NativeArray<float3> _prev;
         NativeArray<uint> _prevSerial;
@@ -47,6 +48,7 @@ namespace MountainPlanner.Presentation.Guests
         NativeArray<int> _lineCount;
         NativeArray<float> _snow;
         NativeArray<float3> _noSlots;
+        NativeArray<float2> _noFacing;
         NativeArray<int2> _noLiftSlots;
         GraphicsBuffer _buffer;
         int _count;
@@ -62,9 +64,22 @@ namespace MountainPlanner.Presentation.Guests
                             MetresId = Shader.PropertyToID("_DotMetres"), MinPixelsId = Shader.PropertyToID("_MinDotPixels"),
                             ModeId = Shader.PropertyToID("_ColourMode"), DimId = Shader.PropertyToID("_Dim"), ZTestId = Shader.PropertyToID("_ZTest"),
                             ScreenPixelsId = Shader.PropertyToID("_ScreenPixels"), LiftId = Shader.PropertyToID("_DotLift"),
-                            PullMaxId = Shader.PropertyToID("_PullMax"), PullShareId = Shader.PropertyToID("_PullShare");
+                            PullMaxId = Shader.PropertyToID("_PullMax"), PullShareId = Shader.PropertyToID("_PullShare"),
+                            FigureMetresId = Shader.PropertyToID("_FigureMetres");
 
         public uint Selected, Hovered;
+        /// <summary>
+        /// Task 4.22: drawn as figures. The tracks swing with the figures' turns and stand on the drawn snow
+        /// (<see cref="SkierPlaceJob.Figures"/>), and a
+        /// dot nearer the eye than <see cref="FigureMetres"/> isn't drawn unless it is selected or hovered, or the Traffic
+        /// layer has dimmed the dots (its colours read on the figures' dots). Off: the dots as they were.
+        /// </summary>
+        public bool Figures;
+        public float FigureMetres;
+        /// <summary>Task 4.22: this frame's records, dots and facings, for the figures (read only, after <see cref="Place"/>).</summary>
+        public NativeArray<SkierRender> Records => _records;
+        public NativeArray<float4> Dots => _dots;
+        public NativeArray<float4> Facing => _facing;
         /// <summary>Debug (-dotsontop): draw every dot over everything, to tell "not drawn" from "hidden by the ground".</summary>
         public bool OnTop;
         public ColourMode Mode = ColourMode.Ability;
@@ -85,6 +100,7 @@ namespace MountainPlanner.Presentation.Guests
             _material = shader != null ? new Material(shader) { hideFlags = HideFlags.HideAndDontSave, enableInstancing = true } : null;
             _records = new NativeArray<SkierRender>(_cap, Allocator.Persistent);
             _dots = new NativeArray<float4>(_cap, Allocator.Persistent);
+            _facing = new NativeArray<float4>(_cap, Allocator.Persistent);
             _screen = new NativeArray<float3>(_cap, Allocator.Persistent);
             _prev = new NativeArray<float3>(_cap, Allocator.Persistent);
             _prevSerial = new NativeArray<uint>(_cap, Allocator.Persistent);
@@ -92,6 +108,7 @@ namespace MountainPlanner.Presentation.Guests
             Lifts(1);
             _snow = new NativeArray<float>(1, Allocator.Persistent);
             _noSlots = new NativeArray<float3>(1, Allocator.Persistent);
+            _noFacing = new NativeArray<float2>(1, Allocator.Persistent);
             _noLiftSlots = new NativeArray<int2>(1, Allocator.Persistent);
         }
 
@@ -133,13 +150,14 @@ namespace MountainPlanner.Presentation.Guests
             _snowW = width; _snowH = height; _snowOrigin = new float2(origin.x, origin.y); _snowCell = cell;
         }
 
-        /// <summary>Per lift index (the design's order): its rope travel drawn now, whether riders show, its line now.</summary>
-        public void SetLift(int index, double ropeSeconds, bool drawRiders, int lineCount)
+        /// <summary>Per lift index (the design's order): its rope travel drawn now, whether riders show, its line now, and
+        /// (task 4.22) whether it is a carpet, whose figures stand on the belt rather than the ground.</summary>
+        public void SetLift(int index, double ropeSeconds, bool drawRiders, int lineCount, bool belt = false)
         {
             if (index < 0) return;
             Lifts(index + 1);
             _ropeNow[index] = unchecked((uint)(long)Math.Round(ropeSeconds * 1000.0));
-            _drawRiders[index] = (byte)(drawRiders ? 1 : 0);
+            _drawRiders[index] = (byte)(drawRiders ? belt ? 2 : 1 : 0);
             _lineCount[index] = lineCount;
         }
 
@@ -171,7 +189,7 @@ namespace MountainPlanner.Presentation.Guests
                 Selected = Selected, Hovered = Hovered,
                 Edges = _paths.Edges, EdgeSize = _paths.EdgeSize, Samples = _paths.Samples, Side = _paths.Side,
                 LaneY = _paths.LaneY, Table = _paths.Table, LiftPaths = _paths.Lifts, Nodes = _paths.Nodes,
-                Slots = lines != null ? lines.Slots : _noSlots, LiftSlots = lines != null ? lines.LiftSlots : _noLiftSlots,
+                Slots = lines != null ? lines.Slots : _noSlots, SlotFacing = lines != null ? lines.Facing : _noFacing, LiftSlots = lines != null ? lines.LiftSlots : _noLiftSlots,
                 RopeNow = _ropeNow, DrawRiders = _drawRiders, LineCount = _lineCount,
                 Snow = _snow, SnowOrigin = _snowOrigin, SnowCell = _snowCell, SnowW = _snowW, SnowH = _snowH,
                 // Picking wants the plain projection (no GPU flip): screen points in the Input System's pixels.
@@ -179,7 +197,7 @@ namespace MountainPlanner.Presentation.Guests
                 ScreenSize = _screenSize = new float2(camera.pixelWidth, camera.pixelHeight),
                 CameraPosition = camera.transform.position,
                 Prev = _prev, PrevSerial = _prevSerial,
-                Dots = _dots, Screen = _screen,
+                Dots = _dots, Screen = _screen, Facing = _facing, Figures = Figures,
             };
             job.Schedule(_count, 256).Complete();
             for (int i = 0; i < _count; i++) if (_dots[i].w >= 0) Drawn++;
@@ -225,6 +243,7 @@ namespace MountainPlanner.Presentation.Guests
             _material.SetFloat(LiftId, DotLiftMetres);
             _material.SetFloat(PullMaxId, PullMaxMetres);
             _material.SetFloat(PullShareId, PullShare);
+            _material.SetFloat(FigureMetresId, FigureMetres);
             _material.SetFloat(ZTestId, OnTop ? (float)CompareFunction.Always : (float)CompareFunction.LessEqual);
             var rp = new RenderParams(_material)
             {
@@ -363,6 +382,7 @@ namespace MountainPlanner.Presentation.Guests
             _lines?.Dispose(); _lines = null;
             if (_records.IsCreated) _records.Dispose();
             if (_dots.IsCreated) _dots.Dispose();
+            if (_facing.IsCreated) _facing.Dispose();
             if (_screen.IsCreated) _screen.Dispose();
             if (_prev.IsCreated) _prev.Dispose();
             if (_prevSerial.IsCreated) _prevSerial.Dispose();
@@ -371,6 +391,7 @@ namespace MountainPlanner.Presentation.Guests
             if (_lineCount.IsCreated) _lineCount.Dispose();
             if (_snow.IsCreated) _snow.Dispose();
             if (_noSlots.IsCreated) _noSlots.Dispose();
+            if (_noFacing.IsCreated) _noFacing.Dispose();
             if (_noLiftSlots.IsCreated) _noLiftSlots.Dispose();
             _buffer?.Release(); _buffer = null;
             if (_material != null) UnityEngine.Object.Destroy(_material);
