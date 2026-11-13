@@ -245,6 +245,8 @@ namespace MountainPlanner.App
                                         leg.name, leg.stats.p95Ms, leg.stats.gpuP95Ms, leg.stats.gcBytesTotal, leg.stats.drawCalls));
             Debug.Log("[Benchmark] " + report.result.summary);
             Debug.Log($"[Benchmark] written to {outPath}");
+            yield return BenchTrafficCheck();   // task 4.13 PR C2: the Traffic breaks against a full hill (record only)
+            LogSkierProof();
             Application.Quit();
         }
 

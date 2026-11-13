@@ -358,6 +358,8 @@ echo        ability, lines at the lifts as wide as the chair that grow as long a
 echo        gaps, never a pile), click a dot for its card (the click lands on the dot), Follow, Next, pause.
 echo     99 Traffic (4.13 PR C): Shift+5 over a busy day: runs coloured by how crowded they are, lifts by how full
 echo        their chairs run, a circle at each lift's bottom that grows with its line ("42 - 1:45"), Last hour or Today.
+echo    100 Guest benchmark (4.13 PR C2): the frame with 3,000 skiers at High and Medium, click and pause timing,
+echo        11,000 dots of headroom, and the skier-model proof (grey stand-in figures near the camera, never shipped).
 echo   4.22 skier models (Blender 5.2 only: no Unity, no game build; render lane, about 4 minutes)
 echo     107 The skier and the snowboarder as pictures: the poses from three sides, both on the FGQ-4 chair, the
 echo        six LODs side by side, ten random outfits, close-ups, each turn as eight frames, and a slope from 12
@@ -499,6 +501,7 @@ if /i "%CHOICE%"=="93" goto weatherreport
 if /i "%CHOICE%"=="97" goto weatherlab
 if /i "%CHOICE%"=="98" goto guestsonscreen
 if /i "%CHOICE%"=="99" goto traffic
+if /i "%CHOICE%"=="100" goto guestbench
 if /i "%CHOICE%"=="107" goto skiermodels
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
@@ -1081,6 +1084,88 @@ echo   7. Space pauses: every dot stops at once, and you can still click and rea
 echo   8. When a followed skier goes home the card says so and the camera stays where it was.
 echo   9. Do 1-2 on a second mountain, to see none of it is tuned to one site.
 start "" "%GAME%"
+goto menu
+
+:guestbench
+rem Guests Engine v0.1 (4.13 PR C2): task 4.13's exit (3,000 dots within the frame budget; pause and selection p95 at
+rem most 100 ms) as a run anyone can repeat, the dots' headroom, and the skier-model proof (owner 2026-11-09: a proof only).
+chcp 65001 >nul
+set "GB=%~dp0test-results\p4-13\bench"
+set "PERF=%~dp0docs\perf\jackson-hole-5km"
+set "GBCHOICE="
+echo.
+echo   1  Everything, hands-off (about 55 minutes; the game builds first if it needs to)
+echo   2  The guest benchmark and click/pause timing only (about 20 minutes)
+echo   3  The skier-model proof only (about 25 minutes)
+echo   4  Look at the stand-in figures yourself (the drawn resort with -skierproof)
+set /p "GBCHOICE=Choose: "
+if "%GBCHOICE%"=="4" goto guestbenchlook
+call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%GB%" mkdir "%GB%"
+if "%GBCHOICE%"=="3" goto guestbenchproof
+call :builddev
+if not exist "%GAMEDEV%" goto done
+for %%Q in (high medium) do (
+  echo Benchmark at %%Q with 3,000 skiers on the drawn resort ^(about 6 minutes^)...
+  %MEASURE% "%GAME%" %SCREEN% -quality %%Q -drawnresort -guests 3000 -benchmark "%GB%\%%Q.json" -logFile "%GB%\%%Q.log" <nul
+)
+echo Benchmark at high with 3,000 skiers, the Development game: exact garbage and memory ^(about 4 minutes^)...
+%MEASURE% "%GAMEDEV%" %SCREEN% -quality high -laps 1 -drawnresort -guests 3000 -benchmark "%GB%\high-dev.json" -logFile "%GB%\high-dev.log" <nul
+echo Click and pause timing: 200 clicks on dots, 50 pauses ^(about 4 minutes^)...
+%MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -pickbench "%GB%\pick.json" -logFile "%GB%\pick.log" <nul
+echo.
+for %%R in (high medium high-dev) do findstr /l /c:" at 1920x1080" "%GB%\%%R.log"
+findstr /l /c:"[PickBench]" "%GB%\pick.log"
+findstr /l /c:"[Traffic] bench end" "%GB%\high.log"
+node "%~dp0tools\perf\compare.mjs" "%PERF%-high-drawn-guests.json" "%GB%\high.json"
+node "%~dp0tools\perf\compare.mjs" "%PERF%-medium-drawn-guests.json" "%GB%\medium.json"
+node "%~dp0tools\perf\compare.mjs" "%PERF%-high-dev-drawn-guests.json" "%GB%\high-dev.json"
+if "%GBCHOICE%"=="2" goto guestbenchend
+:guestbenchproof
+if not exist "%GB%\high.json" (
+  echo The dots-only run at high first, to compare the proof with ^(about 6 minutes^)...
+  %MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -guests 3000 -benchmark "%GB%\high.json" -logFile "%GB%\high.log" <nul
+)
+echo Headroom: 11,000 dots at high ^(copies of the skiers on runs, render only; about 6 minutes^)...
+%MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -guests 3000 -dotstress 11000 -benchmark "%GB%\dots-11000.json" -logFile "%GB%\dots-11000.log" <nul
+echo The skier-model proof at 3,000: stand-ins by distance ^(1,500 / 400 / 80 triangles^)...
+%MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -guests 3000 -skierproof lod -benchmark "%GB%\proof-lod-3000.json" -logFile "%GB%\proof-lod-3000.log" <nul
+echo The skier-model proof at 3,000, the worst case: every stand-in at 1,500 triangles...
+%MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -guests 3000 -skierproof lod0 -benchmark "%GB%\proof-lod0-3000.json" -logFile "%GB%\proof-lod0-3000.log" <nul
+echo The skier-model proof at 11,000: stand-ins by distance...
+%MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -guests 3000 -dotstress 11000 -skierproof lod -benchmark "%GB%\proof-lod-11000.json" -logFile "%GB%\proof-lod-11000.log" <nul
+echo The crowd close up: the camera parks over the busiest line at 25, 60 and 150 m, 15 s each, dots then stand-ins...
+for %%P in (dots lod lod0) do (
+  if "%%P"=="dots" (
+    %MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -guests 3000 -proofhold "%GB%\hold-%%P.json" -logFile "%GB%\hold-%%P.log" <nul
+  ) else (
+    %MEASURE% "%GAME%" %SCREEN% -quality high -drawnresort -guests 3000 -skierproof %%P -proofhold "%GB%\hold-%%P.json" -logFile "%GB%\hold-%%P.log" <nul
+  )
+)
+echo.
+for %%R in (high dots-11000 proof-lod-3000 proof-lod0-3000 proof-lod-11000) do findstr /l /c:" at 1920x1080" "%GB%\%%R.log"
+for %%P in (dots lod lod0) do findstr /l /c:"[ProofHold]" "%GB%\hold-%%P.log"
+for %%R in (proof-lod-3000 proof-lod0-3000 proof-lod-11000) do findstr /l /c:"[SkierProof]" "%GB%\%%R.log"
+echo Against the dots-only run at 3,000 (the same session):
+for %%R in (dots-11000 proof-lod-3000 proof-lod0-3000 proof-lod-11000) do node "%~dp0tools\perf\compare.mjs" "%GB%\high.json" "%GB%\%%R.json"
+:guestbenchend
+echo.
+echo Every run's numbers, log and leg pictures are in %GB%. The frame budget is 20 ms at p95.
+start "" "%GB%"
+goto done
+
+:guestbenchlook
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo The drawn resort opens with -skierproof: every skier within 250 m of the camera is a grey stand-in figure
+echo (a placeholder to measure the cost, not art; the jacket shows its ability colour), dots beyond.
+echo   1. F1, Mountain: closed (now open), Skip to morning, then 4 for 8x until about 10, then 1 for 1x.
+echo   2. Fly down to a busy run and a lift base: figures face the way they ski, stand in the lines, and become dots
+echo      past 250 m. Up close (under 30 m) they are 1,500 triangles, to 100 m 400, to 250 m 80.
+echo   3. Close the game when you've seen enough.
+start "" "%GAME%" -notitle -drawnresort -skierproof lod
 goto menu
 
 :traffic

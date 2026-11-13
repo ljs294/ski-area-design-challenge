@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using MountainPlanner.Presentation;
 using MountainPlanner.Simulation;
 using UnityEngine;
 
@@ -44,6 +45,46 @@ namespace MountainPlanner.App
             Debug.Log($"[SkierTiming] {_skierFrames} frames: skier work p50 {p50:F3} ms, p95 {p95:F3} ms, max {max:F2} ms");
         }
 
+        bool _benchLogged;
+
+        /// <summary>The crowd's range and the proof's figures, once (at the benchmark's end, or on quitting).</summary>
+        void LogSkierProof()
+        {
+            if (_benchLogged) return;
+            _benchLogged = true;
+            LogCrowdHeld();
+            if (_skiers?.Proof != null) Debug.Log("[SkierProof] " + _skiers.Proof.Summary());
+        }
+
+        /// <summary><c>-dotstress N</c> (task 4.13 PR C2): the dots padded to N with copies, a render-only measurement; 0 off.</summary>
+        static int DotStressArgument(string[] args)
+        {
+            int i = Array.IndexOf(args, "-dotstress");
+            return i >= 0 && i + 1 < args.Length && int.TryParse(args[i + 1], out int n) ? Math.Clamp(n, 0, 1 << 16) : 0;
+        }
+
+        /// <summary><c>-skierproof [lod|lod0]</c> (task 4.13 PR C2): the stand-in figures near the camera; lod0 is the worst case.</summary>
+        static bool SkierProofArgument(string[] args, out bool lod0)
+        {
+            int i = Array.IndexOf(args, "-skierproof");
+            lod0 = i >= 0 && i + 1 < args.Length && string.Equals(args[i + 1], "lod0", StringComparison.OrdinalIgnoreCase);
+            return i >= 0;
+        }
+
+        /// <summary>
+        /// After a benchmark with a crowd: Traffic on for a moment to log the runs' crowding and the lifts' load at this
+        /// hour, so the layer's colour breaks can be checked against a full hill (record only), then off. After the laps,
+        /// so it never touches a measured frame.
+        /// </summary>
+        IEnumerator BenchTrafficCheck()
+        {
+            if ((_simNow?.Guests?.SkierCount ?? 0) == 0) yield break;
+            SetLayerForCapture(MapLayers.Traffic, true);
+            for (int k = 0; k < 90; k++) yield return null;
+            LogTrafficNumbers("bench end");
+            SetLayerForCapture(MapLayers.Traffic, false);
+        }
+
         static int GuestsArgument(string[] args, int fallback)
         {
             int i = Array.IndexOf(args, "-guests");
@@ -78,20 +119,7 @@ namespace MountainPlanner.App
             // A few rounds, because parties and the free slots round the count.
             for (int round = 0; round < 4; round++)
             {
-                var g = _simNow?.Guests;
-                int want = Math.Max(0, count - (g?.SkierCount ?? 0));
-                if (want == 0 || g == null) break;
-                int open = 0;
-                for (int b = 0; b < Pacing.Bands; b++) if (g.UsableBases[b] > 0) open++;
-                if (open == 0) { Debug.LogWarning("[SkierBench] no band has anything to ski: no crowd"); break; }
-                for (int b = 0; b < Pacing.Archetypes && want > 0; b++)
-                {
-                    if (g.UsableBases[b] == 0) continue;
-                    int n = want / open--;
-                    if (open == 0) n = want;
-                    if (n > 0) _sim.Send(SimCommand.Of(SimCommandKind.SpawnSkiers, 0, new SkierSpawn(b, n)));
-                    want -= n;
-                }
+                if (!TopUpCrowd(count)) break;
                 for (int k = 0; k < 300; k++) yield return null;
             }
             for (int k = 0; k < 300; k++) yield return null;
@@ -99,6 +127,56 @@ namespace MountainPlanner.App
             for (int k = 0; k < 120; k++) yield return null;
             Debug.Log($"[SkierBench] crowd: {_simNow?.Guests?.SkierCount ?? 0} on the hill, {_skiers?.Drawn ?? 0} dots drawn " +
                       $"(paths {_skierPathsMs:F1} ms, lines {_skierLinesMs:F1} ms)");
+            StartCoroutine(HoldCrowd(count));
+        }
+
+        /// <summary>
+        /// Sends spawns for the skiers short of <paramref name="count"/>, spread over the bands the mountain offers
+        /// something to (an archetype is a band; GU-05 turns a band with nothing to ski away at the gate, so spawning it
+        /// is lost: the drawn resort has no green or blue a skier can reach). False when nothing was sent.
+        /// </summary>
+        bool TopUpCrowd(int count)
+        {
+            var g = _simNow?.Guests;
+            int want = Math.Max(0, count - (g?.SkierCount ?? 0));
+            if (want == 0 || g == null || _sim == null) return false;
+            int open = 0;
+            for (int b = 0; b < Pacing.Bands; b++) if (g.UsableBases[b] > 0) open++;
+            if (open == 0) { Debug.LogWarning("[SkierBench] no band has anything to ski: no crowd"); return false; }
+            for (int b = 0; b < Pacing.Archetypes && want > 0; b++)
+            {
+                if (g.UsableBases[b] == 0) continue;
+                int n = want / open--;
+                if (open == 0) n = want;
+                if (n > 0) _sim.Send(SimCommand.Of(SimCommandKind.SpawnSkiers, 0, new SkierSpawn(b, n)));
+                want -= n;
+            }
+            return true;
+        }
+
+        int _crowdLow = int.MaxValue, _crowdHigh;
+
+        /// <summary>
+        /// Task 4.13 PR C2: through the measured laps the crowd stays at <paramref name="count"/>: skiers whose stay ends
+        /// go home, so every few seconds the shortfall is spawned again (at 1× a lap is about two face hours, and the
+        /// first measurement's crowd fell from 3,000 to 885 by its end). The low and high it saw go in the log.
+        /// </summary>
+        IEnumerator HoldCrowd(int count)
+        {
+            var wait = new WaitForSecondsRealtime(4f);
+            while (this != null && _sim != null)
+            {
+                yield return wait;
+                int now = _simNow?.Guests?.SkierCount ?? 0;
+                if (now < _crowdLow) _crowdLow = now;
+                if (now > _crowdHigh) _crowdHigh = now;
+                if (now < count - 25) TopUpCrowd(count);
+            }
+        }
+
+        void LogCrowdHeld()
+        {
+            if (_crowdHigh > 0) Debug.Log($"[SkierBench] the crowd held between {_crowdLow} and {_crowdHigh} on the hill (sampled every 4 s, topped up below the count)");
         }
 
         void StartPickBench(string[] args)
@@ -170,6 +248,103 @@ namespace MountainPlanner.App
             File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
             Debug.Log($"[PickBench] {picks} picks ({matched} the dot aimed at), pick {report.pickCpuP95Us:F0} µs p95, select {report.selectP95Ms:F1} ms p95; " +
                       $"{pauses} pauses {report.pauseP95Ms:F1} ms p95 → {(report.pass ? "PASS" : "FAIL")} → {outPath}");
+            Application.Quit();
+        }
+
+        // ---------- -proofhold: the crowd close up (task 4.13 PR C2) ----------
+
+        void StartProofHold(string[] args)
+        {
+            int i = Array.IndexOf(args, "-proofhold");
+            if (i >= 0 && i + 1 < args.Length) StartCoroutine(ProofHold(args[i + 1], GuestsArgument(args, 3000)));
+        }
+
+        [Serializable]
+        sealed class ProofHoldReport
+        {
+            public int skiers;
+            public string proof;
+            public string lift;
+            public int line;
+            public ProofHoldView[] views;
+        }
+
+        [Serializable]
+        sealed class ProofHoldView
+        {
+            public float distance;
+            public int frames, figuresMean, figuresMost, nearMean, dotsDrawn;
+            public float p50Ms, p95Ms, gpuP95Ms;
+        }
+
+        /// <summary>
+        /// The benchmark path never comes close to the crowd (18 figures a frame on average with -skierproof), so the proof
+        /// also parks the camera over the busiest line, its middle, at 25, 60 and 150 m, and times 15 s at each: the
+        /// view a player has of a busy base, where real skier models would cost the most. Run with and without
+        /// <c>-skierproof</c> to compare. Writes <paramref name="outPath"/> and quits.
+        /// </summary>
+        IEnumerator ProofHold(string outPath, int crowd)
+        {
+            BeginScriptedRun();
+            yield return BenchCrowd(crowd);
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = -1;
+            var s = _simNow;
+            int best = -1, most = -1;
+            for (int i = 0; s != null && i < s.LiftCount; i++) if (s.LineCount[i] > most) { most = s.LineCount[i]; best = i; }
+            int lift = best >= 0 ? DesignLiftIndex(s.LiftIds[best]) : -1;
+            Vector3 front = default, back = default;
+            bool found = lift >= 0 && _skiers != null
+                         && _skiers.TryFind(_skiers.FrontOfLine(lift), out front, out _) && _skiers.TryFind(_skiers.LastInLine(lift), out back, out _);
+            if (!found) { Debug.LogWarning("[ProofHold] no line to look at"); Application.Quit(); yield break; }
+            var middle = (front + back) * 0.5f;
+            var along = back - front;
+            float yaw = Mathf.Atan2(along.x, along.z) * Mathf.Rad2Deg + 70f;   // across the line, a little along it
+            var report = new ProofHoldReport
+            {
+                skiers = s.Guests?.SkierCount ?? 0,
+                proof = _skiers.Proof == null ? "dots" : _skiers.Proof.AllLod0 ? "lod0" : "lod",
+                lift = _skierDoc?.FindLift(new MountainPlanner.Domain.Design.LiftId(s.LiftIds[best]))?.Name ?? "lift " + lift, line = most,
+            };
+            float[] distances = { 25f, 60f, 150f };
+            report.views = new ProofHoldView[distances.Length];
+            for (int v = 0; v < distances.Length; v++)
+            {
+                Camera.Frame(middle, distances[v]);
+                Camera.SetAngles(yaw, distances[v] < 50 ? 18f : 26f);
+                for (float until = Time.realtimeSinceStartup + 2f; Time.realtimeSinceStartup < until;) yield return null;
+                var stats = new FrameStats(1 << 16);
+                stats.Reset();
+                long figures = 0, near = 0, dots = 0;
+                int frames = 0, top = 0;
+                for (float until = Time.realtimeSinceStartup + 15f; Time.realtimeSinceStartup < until;)
+                {
+                    yield return null;
+                    stats.Record(Time.unscaledDeltaTime, FrameStats.SampleGpuMs());
+                    int f = _skiers.Proof?.Figures ?? 0;
+                    figures += f; if (f > top) top = f;
+                    near += _skiers.Proof?.CountIn(0) ?? 0;
+                    dots += _skiers.Drawn;
+                    frames++;
+                }
+                stats.Stop();
+                var sum = stats.Summarise();
+                stats.Dispose();
+                report.views[v] = new ProofHoldView
+                {
+                    distance = distances[v], frames = sum.frames, p50Ms = sum.p50Ms, p95Ms = sum.p95Ms, gpuP95Ms = sum.gpuP95Ms,
+                    figuresMean = (int)(figures / Math.Max(1, frames)), figuresMost = top,
+                    nearMean = (int)(near / Math.Max(1, frames)), dotsDrawn = (int)(dots / Math.Max(1, frames)),
+                };
+                ScreenCapture.CaptureScreenshot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outPath)) ?? ".",
+                                                             Path.GetFileNameWithoutExtension(outPath) + $"_{distances[v]:F0}m.png"));
+                Debug.Log($"[ProofHold] {report.proof} at {distances[v]:F0} m over {report.lift}'s line ({most}): frame p95 {sum.p95Ms:F2} ms, " +
+                          $"GPU p95 {sum.gpuP95Ms:F2} ms, {report.views[v].figuresMean} figures (most {top}, {report.views[v].nearMean} under 30 m), {report.views[v].dotsDrawn} dots");
+            }
+            for (int k = 0; k < 10; k++) yield return null;   // the last screenshot saves
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath)) ?? ".");
+            File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
+            LogSkierProof();
             Application.Quit();
         }
 

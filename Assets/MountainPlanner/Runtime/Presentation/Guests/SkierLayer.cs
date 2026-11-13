@@ -72,6 +72,10 @@ namespace MountainPlanner.Presentation.Guests
         public float Dim;
         public float UiScale = 1f;
         public bool Visible = true;
+        /// <summary>Task 4.13 PR C2, <c>-dotstress N</c>: each column is padded to this many records (<see cref="DotStress"/>).</summary>
+        public int StressTo;
+        /// <summary>Task 4.13 PR C2, <c>-skierproof</c>: the stand-in figures near the camera (null: dots only).</summary>
+        public SkierProof Proof;
         /// <summary>The dots drawn last frame (hidden riders and arrivals not counted).</summary>
         public int Drawn { get; private set; }
         public SkierPaths Paths => _paths;
@@ -156,6 +160,7 @@ namespace MountainPlanner.Presentation.Guests
                 _dayStart = frame.DayStartTick;
                 _count = Math.Min(frame.Count, _cap);
                 NativeArray<SkierRender>.Copy(frame.Skiers, _records, _count);
+                if (StressTo > _count) _count = DotStress.Pad(_records, _count, StressTo, unchecked((uint)(frame.Tick - frame.DayStartTick)));
             }
             Drawn = 0;
             if (!Ready || camera == null) return;
@@ -183,6 +188,7 @@ namespace MountainPlanner.Presentation.Guests
             };
             job.Schedule(_count, 256).Complete();
             for (int i = 0; i < _count; i++) if (_dots[i].w >= 0) Drawn++;
+            if (Proof != null && Visible) Proof.Select(_dots, _records, _count, camera);   // hides the dots that become figures
             _buffer.SetData(_dots, 0, 0, _count);
         }
 
@@ -234,6 +240,7 @@ namespace MountainPlanner.Presentation.Guests
                 receiveShadows = false,
             };
             Graphics.RenderPrimitives(rp, MeshTopology.Triangles, 6, _count);
+            Proof?.Draw(camera);
         }
 
         /// <summary>
@@ -361,6 +368,7 @@ namespace MountainPlanner.Presentation.Guests
         {
             _paths?.Dispose(); _paths = null;
             _lines?.Dispose(); _lines = null;
+            Proof?.Dispose(); Proof = null;
             if (_records.IsCreated) _records.Dispose();
             if (_dots.IsCreated) _dots.Dispose();
             if (_screen.IsCreated) _screen.Dispose();
