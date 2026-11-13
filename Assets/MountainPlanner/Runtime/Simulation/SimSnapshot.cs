@@ -202,8 +202,25 @@ namespace MountainPlanner.Simulation
         public readonly ForecastSheet Forecast;
         public int ForecastVersion = -1;
 
+        // Task 4.09: every water body's surface (LK-08 v2), in the body table's order (body 0 is the streams body). Zero
+        // bodies until the world has a table.
+        public int WaterBodyCount;
+        public readonly ulong[] WaterBodyIds;
+        public readonly Domain.Water.WaterSurfaceState[] WaterStates;
+        /// <summary>Ice (0.01 in) and snow on it (0.1 in).</summary>
+        public readonly int[] IceHundredthsIn, IceSnowTenthsIn;
+        /// <summary>The label year's ice-on and ice-out face days, −1 for not yet.</summary>
+        public readonly short[] IceOnDay, IceOutDay;
+
         public SimSnapshot(Pacing p)
         {
+            int bodies = 1 + p.MaxLakes + p.MaxPonds;
+            WaterBodyIds = new ulong[bodies];
+            WaterStates = new Domain.Water.WaterSurfaceState[bodies];
+            IceHundredthsIn = new int[bodies];
+            IceSnowTenthsIn = new int[bodies];
+            IceOnDay = new short[bodies];
+            IceOutDay = new short[bodies];
             Guests = new GuestView(p);
             LiftIds = new ulong[p.MaxLifts];
             RunMs = new long[p.MaxLifts];
@@ -241,7 +258,7 @@ namespace MountainPlanner.Simulation
         /// <summary>SI-16's budget: the bytes this snapshot's arrays and fields take at their full size.</summary>
         public int SizeBytes => 256 + 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + 1 + 4 + DayReport.SizeBytesPerLift)
                                 + TrailIds.Length * (8 + 1 + 1) + Events.Length * 24
-                                + Guests.SizeBytes + Forecast.SizeBytes;
+                                + Guests.SizeBytes + Forecast.SizeBytes + WaterBodyIds.Length * (8 + 4 + 4 + 4 + 2 + 2);
 
         /// <summary>The trail's index here, or −1.</summary>
         public int IndexOfTrail(ulong id)

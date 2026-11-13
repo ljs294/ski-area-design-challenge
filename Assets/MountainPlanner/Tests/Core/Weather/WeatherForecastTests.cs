@@ -220,7 +220,7 @@ namespace MountainPlanner.Tests
             RunTo(a, (cal.December1FaceDay + 5) * Day + 22 * Hour);   // 10 PM, after the evening sheet
             Assert.That(a.Forecast.Known && a.Forecast.Evening, Is.True);
             byte[] bytes = a.SaveState();
-            Assert.That(SimSidecar.VersionOf(bytes), Is.EqualTo(6));
+            Assert.That(SimSidecar.VersionOf(bytes), Is.EqualTo(SimSidecar.Version));
             var b = SimSidecar.Read(bytes, P, a.Design, SimSite.None, out _, wx);
             Assert.That(b.Hash(), Is.EqualTo(a.Hash()));
             Assert.That(Text(b.Forecast), Is.EqualTo(Text(a.Forecast)), "the sheet is made again exactly from its issue");

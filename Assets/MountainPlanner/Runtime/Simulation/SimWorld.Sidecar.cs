@@ -24,7 +24,8 @@ namespace MountainPlanner.Simulation
             Snow.Stage(ring, Tick, Pacing.StageTilesPerTick, Pacing.TileFlushTicks, paused);
 
         // The field order below is the sidecar's (SimSidecar, v2: v1's fields, then the lift-operations block, task 4.11;
-        // v4: the guests, task 4.12; v5: the weather, task 4.05; v6: the forecast's issue and the weather events, 4.05 PR C):
+        // v4: the guests, task 4.12; v5: the weather, task 4.05; v6: the forecast's issue and the weather events, 4.05 PR C;
+        // v7: the lakes, task 4.09):
         // append only through a version bump.
 
         internal void WriteState(SidecarWriter o)
@@ -62,6 +63,7 @@ namespace MountainPlanner.Simulation
             WriteGuestState(o);
             WriteWeatherState(o);
             WriteWeatherEventState(o);
+            WriteLakeState(o);
         }
 
         internal void ReadState(SidecarReader r, SimSidecar.Header header)
@@ -133,6 +135,9 @@ namespace MountainPlanner.Simulation
             // v1–v5 → v6 (4.05 PR C): no events under way, and the first forecast at the next stop or landing.
             if (header.SidecarVersion >= 6) ReadWeatherEventState(r);
             else StartWeatherEventsForOlderSave();
+            // v1–v6 → v7 (task 4.09): no lake block; every body starts as open water when the table arrives.
+            if (header.SidecarVersion >= SimSidecar.LakesVersion) ReadLakeState(r);
+            else StartLakesForOlderSave();
         }
 
         /// <summary>

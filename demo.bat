@@ -363,6 +363,9 @@ echo     99 Traffic (4.13 PR C): Shift+5 over a busy day: runs coloured by how c
 echo        their chairs run, a circle at each lift's bottom that grows with its line ("42 - 1:45"), Last hour or Today.
 echo    100 Guest benchmark (4.13 PR C2): the frame with 3,000 skiers at High and Medium, click and pause timing,
 echo        11,000 dots of headroom, and the skier-model proof (grey stand-in figures near the camera, never shipped).
+echo   4.09 lakes freeze and thaw, PR A (rebuilds the game; close the Unity editor first)
+echo    101 The lakes report: the lake tests, then one year of ice and snow on four test lakes (Jackson Hole and New
+echo        Hampshire weather) and on every lake and pond of your Mount Katahdin map (read only), as charts.
 echo   4.22 skiers in the game (rebuilds the game; close the Unity editor first)
 echo     105 The guests as people: skiers and snowboarders that ski by their ability, stand in the lift lines,
 echo        ride the chairs up and turn into dots far away. Open any mountain with lifts and trails.
@@ -510,6 +513,7 @@ if /i "%CHOICE%"=="97" goto weatherlab
 if /i "%CHOICE%"=="98" goto guestsonscreen
 if /i "%CHOICE%"=="99" goto traffic
 if /i "%CHOICE%"=="100" goto guestbench
+if /i "%CHOICE%"=="101" goto lakereport
 if /i "%CHOICE%"=="105" goto skiersingame
 if /i "%CHOICE%"=="106" goto skiersbench
 if /i "%CHOICE%"=="107" goto skiermodels
@@ -2311,6 +2315,46 @@ for %%R in (high medium) do node "%~dp0tools\perf\compare.mjs" "%CROWD%\%%R-dots
 for %%R in (high medium) do node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-%%R-drawn.json" "%CROWD%\%%R-figures.json"
 start "" "%CROWD%"
 goto menu
+
+:lakereport
+rem 4.09 PR A: the water-body map (LK-01 v2) and each body's ice and snow (LK-03 v2..LK-08 v2), as a chart report.
+chcp 65001 >nul
+set "LAKES=%~dp0test-results\lakes"
+set "LK101=%LOCALAPPDATA%\SkiAreaDesignChallenge-lakes101"
+set "LK101KAT=27aeb2b792ce331f"
+set "LK101SRC=%LOCALAPPDATA%\SkiAreaDesignChallenge"
+if exist "%LAKES%" rmdir /s /q "%LAKES%"
+mkdir "%LAKES%"
+echo The lake tests (the map, the ice rules, saves and the pinned winter):
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~LakeTests|FullyQualifiedName~SimSaveTests" <nul
+if errorlevel 1 goto done
+echo The four test lakes over a year of Jackson Hole and of Jackson, New Hampshire weather:
+dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "Name=LK_WriteTheReportData" <nul >nul
+if errorlevel 1 (echo   The report data failed. & goto done)
+if not exist "%LK101SRC%\Resorts\%LK101KAT%\manifest.json" (echo   Mount Katahdin isn't in your library; the map part is skipped. & goto lakereportdraw)
+call :buildplayer
+if not exist "%GAME%" goto done
+rem A scratch data root: the game reads your Katahdin package and writes nothing into your library.
+if exist "%LK101%" rmdir /s /q "%LK101%"
+mkdir "%LK101%"
+echo Your Mount Katahdin map: building its water bodies and playing a year over them (a minute or two)...
+%RENDER% "%GAME%" -data "%LK101%" -package "%LK101SRC%\Resorts\%LK101KAT%" -offline -lakereport "%LAKES%\katahdin" <nul
+findstr /i /c:"[Lakes]" /c:"water bodies:" "%PLAYERLOG%"
+:lakereportdraw
+python "%~dp0tools\lakes\report.py" "%LAKES%"
+if errorlevel 1 (echo   The report needs Python 3 on the PATH. & goto done)
+echo.
+echo The report opens in your browser (test-results\lakes\report.html):
+echo   1. Four test lakes, all at 6,500 ft so only depth tells them apart: the streams (1 ft), a 6 ft pond, a 30 ft
+echo      lake and a 120 ft lake. Blue is the ice, grey the snow on it, the dashed lines the ice-on and ice-out dates.
+echo      Shallow water freezes first (the streams in October, the 120 ft lake about December 1) and opens first in
+echo      spring; snow on the ice slows its growth; a thin skim under an inch counts as open water.
+echo   2. The same four lakes in New Hampshire's weather (later ice, earlier thaw).
+echo   3. Mount Katahdin: the map of its water bodies (a colour per lake, the streams blue-grey), every body's frozen
+echo      days as a bar from shallow to deep, and ice-on and ice-out against each lake's estimated depth.
+echo   Nothing in the game looks different yet: PR B draws each lake in its own state.
+start "" "%LAKES%\report.html"
+goto done
 
 :skiermodels
 rem Task 4.22: the skier and snowboarder models as review pictures, in Blender only (demo 105 shows them in the game).

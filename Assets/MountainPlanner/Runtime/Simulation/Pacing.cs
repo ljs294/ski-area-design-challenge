@@ -14,11 +14,12 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 7;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 8;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
                                         // 4: task 4.13's confidence speed (GU-10 v2)
                                         // 5: task 4.05's weather (WX-17 v2, WX-28 v2, WX-29, WX-34 v2, WX-35, WX-36 v2, WX-39)
                                         // 6: task 4.05 PR B2's weather over the map (WX-35, WX-39) and PR C's forecast (WX-05 v3, WX-41)
                                         // 7: task 4.05 PR C's named events (WX-41), alerts (WX-42) and forecast pulls (WX-44)
+                                        // 8: task 4.09's lakes (LK-01 v2…LK-08 v2)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -261,6 +262,29 @@ namespace MountainPlanner.Simulation
         /// <summary>TM-15: face days of history kept (a label year is fewer).</summary>
         public readonly int HistoryDays;
 
+        // ---- Lakes (LK-01 v2…LK-08 v2; task 4.09) ----
+
+        /// <summary>LK-01 v2: a cell is water at this share (‰) or more; a lake is at least <see cref="LakeMinArea"/> (m²).</summary>
+        public readonly int LakeWaterShare, LakeMinArea;
+        /// <summary>LK-01 v2: a core whose area ÷ (widest inscribed width)² is above this (0.1) is a river; a lake's core grows back this many cells.</summary>
+        public readonly int RiverElongation, LakeGrowCells;
+        /// <summary>LK-01 v2: the most lakes a map holds, and the places kept after them for ponds (4.14).</summary>
+        public readonly int MaxLakes, MaxPonds;
+        /// <summary>LK-02's depth clamp and LK-07's streams depth (0.1 ft).</summary>
+        public readonly int LakeDepthMin, LakeDepthMax, StreamsDepth;
+        /// <summary>LK-03 v2: the fall lag, calendar °F-days below 32 per foot of depth (0.1).</summary>
+        public readonly int LakeLagPerFoot;
+        /// <summary>LK-04 v2: Stefan's α (0.01 in per √°F-day), and the snow depth (0.1 in) that halves it.</summary>
+        public readonly int IceAlpha, IceSnowInsulation;
+        /// <summary>LK-05 v2: snow on ice: its settled density (kg/m³), its cap (0.1 in), its melt (0.0001 in of water per calendar °F-hour) and the rain's (‰ of the rain).</summary>
+        public readonly int IceSnowDensity, IceSnowMax, IceSnowMelt, IceRainMelt;
+        /// <summary>LK-06 v2: ice lost per calendar thawing °F-day (0.01 in), scaled by the reference depth (0.1 ft) ÷ the body's, within ½–2.</summary>
+        public readonly int IceMeltPerDegDay, LakeThawRefDepth;
+        /// <summary>LK-07 v2: the streams body's ice cap (0.01 in).</summary>
+        public readonly int StreamsIceMax;
+        /// <summary>LK-08 v2: open water at or under this much ice (0.01 in); snow-covered at this much snow (0.1 in).</summary>
+        public readonly int IceOpenAt, SnowCoveredAt;
+
         /// <summary>Face milliseconds one tick covers by day and by night (from the real seconds above).</summary>
         public readonly int DayFaceMsPerTick, NightFaceMsPerTick;
 
@@ -432,6 +456,27 @@ namespace MountainPlanner.Simulation
             StageTilesPerTick = Int(map, nameof(StageTilesPerTick), 1, 1024);
             HourStepMaxTicks = Int(map, nameof(HourStepMaxTicks), 1, 10_000);
             HistoryDays = Int(map, nameof(HistoryDays), 1, 4096);
+            LakeWaterShare = Int(map, nameof(LakeWaterShare), 1, 1000);
+            LakeMinArea = Int(map, nameof(LakeMinArea), 1, 100_000_000);
+            RiverElongation = Int(map, nameof(RiverElongation), 1, 100_000);
+            LakeGrowCells = Int(map, nameof(LakeGrowCells), 1, 64);
+            MaxLakes = Int(map, nameof(MaxLakes), 0, 254);
+            MaxPonds = Int(map, nameof(MaxPonds), 0, 254 - MaxLakes);
+            LakeDepthMin = Int(map, nameof(LakeDepthMin), 1, 10_000);
+            LakeDepthMax = Int(map, nameof(LakeDepthMax), LakeDepthMin, 10_000);
+            StreamsDepth = Int(map, nameof(StreamsDepth), 1, 10_000);
+            LakeLagPerFoot = Int(map, nameof(LakeLagPerFoot), 0, 10_000);
+            IceAlpha = Int(map, nameof(IceAlpha), 1, 1000);
+            IceSnowInsulation = Int(map, nameof(IceSnowInsulation), 1, 10_000);
+            IceSnowDensity = Int(map, nameof(IceSnowDensity), 50, 917);
+            IceSnowMax = Int(map, nameof(IceSnowMax), 1, 10_000);
+            IceSnowMelt = Int(map, nameof(IceSnowMelt), 0, 10_000);
+            IceRainMelt = Int(map, nameof(IceRainMelt), 0, 10_000);
+            IceMeltPerDegDay = Int(map, nameof(IceMeltPerDegDay), 0, 10_000);
+            LakeThawRefDepth = Int(map, nameof(LakeThawRefDepth), 1, 10_000);
+            StreamsIceMax = Int(map, nameof(StreamsIceMax), 1, 100_000);
+            IceOpenAt = Int(map, nameof(IceOpenAt), 0, 10_000);
+            SnowCoveredAt = Int(map, nameof(SnowCoveredAt), 0, 10_000);
 
             DayFaceMsPerTick = FaceMsPerTick(DayHourRealSeconds, nameof(DayHourRealSeconds));
             NightFaceMsPerTick = FaceMsPerTick(NightHourRealSeconds, nameof(NightHourRealSeconds));
@@ -606,6 +651,28 @@ namespace MountainPlanner.Simulation
             E(nameof(StageTilesPerTick), "32"),
             E(nameof(HourStepMaxTicks), "80"),
             E(nameof(HistoryDays), "256"),
+            // Lakes (LK-01 v2…LK-08 v2, task 4.09):
+            E(nameof(LakeWaterShare), "500"),
+            E(nameof(LakeMinArea), "4047"),
+            E(nameof(RiverElongation), "120"),
+            E(nameof(LakeGrowCells), "6"),
+            E(nameof(MaxLakes), "128"),
+            E(nameof(MaxPonds), "32"),
+            E(nameof(LakeDepthMin), "16"),
+            E(nameof(LakeDepthMax), "1600"),
+            E(nameof(StreamsDepth), "10"),
+            E(nameof(LakeLagPerFoot), "20"),
+            E(nameof(IceAlpha), "80"),
+            E(nameof(IceSnowInsulation), "60"),
+            E(nameof(IceSnowDensity), "250"),
+            E(nameof(IceSnowMax), "240"),
+            E(nameof(IceSnowMelt), "40"),
+            E(nameof(IceRainMelt), "350"),
+            E(nameof(IceMeltPerDegDay), "10"),
+            E(nameof(LakeThawRefDepth), "200"),
+            E(nameof(StreamsIceMax), "600"),
+            E(nameof(IceOpenAt), "100"),
+            E(nameof(SnowCoveredAt), "10"),
         };
 
         static KeyValuePair<string, string> E(string name, string value) => new KeyValuePair<string, string>(name, value);
