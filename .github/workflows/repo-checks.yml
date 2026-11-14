@@ -89,7 +89,13 @@ jobs:
       - name: Engine-free core, fast tier (the same sources Unity compiles)
         run: >
           dotnet test tools/domain-tests/Tests -c Release -s tools/domain-tests/Tests/ci.runsettings
-          --filter "TestCategory!=Heavy"
+          --filter "TestCategory!=Heavy" --logger "trx;LogFileName=fast.trx" --results-directory "$RUNNER_TEMP/trx"
+      # Every run keeps its per-test times: node tools/ci/trx-report.mjs fast=fast.trx
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trx-fast
+          path: ${{ runner.temp }}/trx/*.trx
       - name: Acquisition CLI builds
         run: dotnet build tools/acquire
       - name: Data spike (offline, recorded fixtures)
@@ -135,7 +141,12 @@ jobs:
             filter="TestCategory=Heavy&Name~${{ matrix.shard }}"
           fi
           echo "filter: $filter"
-          dotnet test tools/domain-tests/Tests -c Release -s tools/domain-tests/Tests/ci.runsettings --filter "$filter"
+          dotnet test tools/domain-tests/Tests -c Release -s tools/domain-tests/Tests/ci.runsettings --filter "$filter"             --logger "trx;LogFileName=weather-${{ matrix.shard }}.trx" --results-directory "$RUNNER_TEMP/trx"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trx-weather-${{ matrix.shard }}
+          path: ${{ runner.temp }}/trx/*.trx
 
   # Task 0.4: per-test durations (Release, one test at a time) as a trx artifact, by hand only. Chart it with
   # node tools/ci/trx-report.mjs Release=core-Release.trx.
