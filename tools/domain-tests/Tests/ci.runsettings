@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Task 0.4: CI runs the Core fixtures on four workers (the ubuntu runner's cores). AssemblyInfo.cs in Tests/Core says
+     which fixtures run alone. Locally: dotnet test tools/domain-tests/Tests -c Release -s tools/domain-tests/Tests/ci.runsettings -->
+<RunSettings>
+  <NUnit>
+    <NumberOfTestWorkers>4</NumberOfTestWorkers>
+  </NUnit>
+</RunSettings>

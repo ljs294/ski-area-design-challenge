@@ -17,6 +17,7 @@ namespace MountainPlanner.Tests
     /// sound package for the same request runs the whole pipeline again (whose downloads come from the disk cache:
     /// <see cref="ResumeCacheTests"/>).
     /// </summary>
+    [Parallelizable(ParallelScope.None)] // task 0.4: shares process-wide state or timing; see AssemblyInfo.cs
     public sealed class DownloadResumeTests
     {
         string _folder;

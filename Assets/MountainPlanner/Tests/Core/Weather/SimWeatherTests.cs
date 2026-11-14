@@ -221,7 +221,7 @@ namespace MountainPlanner.Tests
             Assert.That(with, Is.LessThanOrEqualTo(without));
         }
 
-        [Test]
+        [Test, Parallelizable(ParallelScope.None)] // task 0.4: a wall-clock limit that holds on CI too
         public void AMonthsSkipFitsItsBudget()
         {
             var w = new SimWorld(P, Resort(Quad(1, 0)), SimSite.None, 2026, weather: Golden());

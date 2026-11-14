@@ -319,7 +319,7 @@ namespace MountainPlanner.Tests
             foreach (var site in WeatherFixtures.Sites) TestContext.Progress.WriteLine($"{site}: {Measure(site, Seeds, p)}");
         }
 
-        [TestCaseSource(typeof(WeatherFixtures), nameof(WeatherFixtures.Sites))]
+        [TestCaseSource(typeof(WeatherFixtures), nameof(WeatherFixtures.Sites)), Parallelizable(ParallelScope.None)] // task 0.4: ms per issue
         public void WX54_TheForecastTeasesTheTruth(string site)
         {
             var k = Measure(site);
