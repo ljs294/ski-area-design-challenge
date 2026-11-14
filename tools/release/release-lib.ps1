@@ -3,6 +3,9 @@
 
 $script:ReleaseTagGlob = 'v[0-9]*.[0-9]*.[0-9]*'
 $script:ProductFile = 'SkiAreaDesignChallenge'
+# Task 4.23: the launcher in every zip, and the same exe on its own as the one file a friend downloads to install.
+$script:LauncherExe = 'Launcher.exe'
+$script:SetupName = 'SkiAreaDesignChallenge-Setup.exe'
 $script:LicenceLapsed = 198
 # Windows' own bsdtar (it writes zips); a Git or MSYS tar earlier on PATH can't.
 $script:Tar = Join-Path $env:SystemRoot 'System32\tar.exe'
@@ -98,7 +101,7 @@ function Test-ZipLayout([string]$zip, [string]$version) {
     } finally { $archive.Dispose() }
     $outside = @($names | Where-Object { -not $_.StartsWith("$top/") })
     if ($outside.Count -gt 0) { $problems.Add("entries outside $top/: $($outside[0])") }
-    foreach ($need in @("$top/$($script:ProductFile).exe", "$top/UnityPlayer.dll", "$top/README.txt", "$top/NOTICES.txt")) {
+    foreach ($need in @("$top/$($script:ProductFile).exe", "$top/UnityPlayer.dll", "$top/$($script:LauncherExe)", "$top/README.txt", "$top/NOTICES.txt")) {
         if ($names -notcontains $need) { $problems.Add("missing $need") }
     }
     $demo = "$top/$($script:ProductFile)_Data/StreamingAssets/Demo/"
@@ -106,6 +109,21 @@ function Test-ZipLayout([string]$zip, [string]$version) {
     if (-not ($names | Where-Object { $_.StartsWith($demo) -and $_ -match '/cache-v\d+/' })) { $problems.Add('no prebuilt demo cache') }
     if ($names | Where-Object { $_ -match 'DoNotShip' }) { $problems.Add('ships a DoNotShip folder') }
     return , $problems.ToArray()
+}
+
+# ---- The launcher (task 4.23) ----
+# tools/launcher, a .NET Framework 4.8 exe built with the .NET SDK. Its file version is the release number (X.Y.Z) and
+# its product version the whole version, which the installed launcher compares before it replaces itself (UP8).
+function Build-Launcher([string]$root, [string]$version, [string]$out) {
+    $number = ($version -split '\+')[0]
+    $project = Join-Path $root 'tools\launcher\Launcher.csproj'
+    if (Test-Path $out) { Remove-Item -Recurse -Force $out }
+    $ErrorActionPreference = 'Continue'   # dotnet writes progress to stderr
+    $lines = & dotnet build $project -c Release -nologo "-p:Version=$number" "-p:InformationalVersion=$version" -o $out 2>&1
+    $code = $LASTEXITCODE
+    $exe = Join-Path $out $script:LauncherExe
+    $errors = @($lines | ForEach-Object { "$_" } | Where-Object { $_ -match 'error ' } | Select-Object -Unique)
+    return [pscustomobject]@{ Ok = ($code -eq 0 -and (Test-Path $exe)); Exe = $exe; Errors = $errors }
 }
 
 # ---- Symbols (task P3-14, decision PR8) ----

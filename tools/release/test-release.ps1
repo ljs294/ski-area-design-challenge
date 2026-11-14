@@ -7,6 +7,7 @@
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'release-lib.ps1')
 $failures = 0
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 function Check([bool]$ok, [string]$what) {
     if ($ok) { Write-Host "  ok   $what" } else { Write-Host "  FAIL $what" -ForegroundColor Red; $script:failures++ }
 }
@@ -70,7 +71,7 @@ try {
     $top = Join-Path $scratch 'stage\SkiAreaDesignChallenge-0.2.0'
     $demo = Join-Path $top 'SkiAreaDesignChallenge_Data\StreamingAssets\Demo\abc'
     New-Item -ItemType Directory -Force (Join-Path $demo 'cache-v12') | Out-Null
-    foreach ($f in 'SkiAreaDesignChallenge.exe', 'UnityPlayer.dll', 'README.txt', 'NOTICES.txt') { Set-Content (Join-Path $top $f) 'x' }
+    foreach ($f in 'SkiAreaDesignChallenge.exe', 'UnityPlayer.dll', 'Launcher.exe', 'README.txt', 'NOTICES.txt') { Set-Content (Join-Path $top $f) 'x' }
     Set-Content (Join-Path $demo 'manifest.json') '{}'
     Set-Content (Join-Path $demo 'cache-v12\cache.json') '{}'
     $zip = Join-Path $scratch 'good.zip'
@@ -80,11 +81,23 @@ try {
     New-Item -ItemType Directory -Force (Join-Path $top 'Ski Area Design Challenge_BurstDebugInformation_DoNotShip') | Out-Null
     Set-Content (Join-Path $top 'Ski Area Design Challenge_BurstDebugInformation_DoNotShip\x.txt') 'x'
     Remove-Item (Join-Path $demo 'cache-v12') -Recurse
+    Remove-Item (Join-Path $top 'Launcher.exe')
     $bad = Join-Path $scratch 'bad.zip'
     & $script:Tar -a -c -f $bad -C (Join-Path $scratch 'stage') 'SkiAreaDesignChallenge-0.2.0'
     $problems = Test-ZipLayout $bad '0.2.0'
     Check (($problems -join ';') -match 'DoNotShip') 'DoNotShip is refused'
     Check (($problems -join ';') -match 'cache') 'a demo without its cache is refused'
+    Check (($problems -join ';') -match 'Launcher.exe') 'a zip without the launcher is refused (task 4.23)'
+
+    Write-Host 'Launcher (task 4.23)'
+    $built = Build-Launcher $root '0.3.9+dev.2.abc1234' (Join-Path $scratch 'launcher')
+    Check $built.Ok 'the launcher builds'
+    if ($built.Ok) {
+        $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($built.Exe)
+        Check ($info.FileVersion -eq '0.3.9.0') "its file version is the release number ($($info.FileVersion))"
+        Check ($info.ProductVersion -eq '0.3.9+dev.2.abc1234') "its product version is the whole version ($($info.ProductVersion))"
+        Check ((Get-Item $built.Exe).Length -lt 1MB) 'it stays small'
+    }
 
     Write-Host 'Symbols (task P3-14)'
     $player = Join-Path $scratch 'Player'
