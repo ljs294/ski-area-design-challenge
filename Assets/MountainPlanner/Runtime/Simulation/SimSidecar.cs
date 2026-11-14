@@ -21,11 +21,15 @@ namespace MountainPlanner.Simulation
     /// each with its reference points, and what the generator was reset with and the hour it reached (it is rebuilt by
     /// re-running from October 1, WX-56); the top-station gusts in the lift block turn from whole mph to tenths. v6 (task
     /// 4.05 PR C) appends the forecast's issue (the hour and whether it was the evening's; the sheet itself is made again from
-    /// it, WX-32) and the named events' running counts and the alerts' dedupe days (WX-41, WX-42).
+    /// it, WX-32) and the named events' running counts and the alerts' dedupe days (WX-41, WX-42). v7 (task 4.09) appends the lakes: the body table's hash the records were made against, then each body's record (kind,
+    /// id, centroid and radius for matching, the lag, the ice as h², the snow's water, the remainders, the ledger counters and
+    /// the dates). The table itself is the area's, rebuilt at open and resent; a v6 save's bodies start as open water.
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 6;
+        public const int Version = 7;
+        /// <summary>The first version with the lake block (task 4.09).</summary>
+        public const int LakesVersion = 7;
         public const string Extension = ".sim";
         static readonly byte[] Magic = { (byte)'M', (byte)'P', (byte)'S', (byte)'M' };
 
@@ -122,7 +126,8 @@ namespace MountainPlanner.Simulation
         /// One step per version bump, oldest first. v1 → v2: v1 has no lift-operations block, and the reader leaves the lines
         /// and chairs empty, the lift ledger at zero and the holds as saved (<see cref="SimWorld"/>'s ReadState reads the block
         /// only from v2), so the bytes need no rewrite. v4 → v5 likewise: the reader multiplies the saved gusts by ten and
-        /// starts the weather from October 1, and v5 → v6: the reader starts the events empty and the forecast unissued.
+        /// starts the weather from October 1, and v5 → v6: the reader starts the events empty and the forecast unissued. v6 → v7:
+        /// no lake block, every body open water with no lag.
         /// </summary>
         static byte[] Upgrade(byte[] bytes)
         {

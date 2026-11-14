@@ -46,7 +46,7 @@ namespace MountainPlanner.App
         /// <summary>Task 4.05: the weather the worker was given (the area's rows or the typical mountain's), and whether the
         /// snowpack's reference points have followed it (the typical mountain's only).</summary>
         SimWeather _simWeather;
-        bool _simWeatherTerrainSent, _simHoldReleased, _simHoldSaid;
+        bool _simWeatherTerrainSent, _simWaterSent, _simHoldReleased, _simHoldSaid;
         bool _simWeatherPointsSent;
 
         /// <summary>How far the face clock runs ahead of the sun before the sun catches up (an eighth of a degree).</summary>
@@ -94,6 +94,7 @@ namespace MountainPlanner.App
             _simWeather = TypicalWeather.For(_resort.Manifest, _resort.PackageFolder, _resort.WeatherBaseFeet, _resort.WeatherSummitFeet);
             _simWeatherPointsSent = _simWeather == null || !_simWeather.Generic || _resort.WeatherBaseFeet > 0;
             _simWeatherTerrainSent = false;
+            _simWaterSent = false;
             _simHoldSaid = false;
             var world = RestoredWorld(pacing, design, simSite, _simWeather)
                         ?? new SimWorld(pacing, design, simSite, Math.Max(2, startYear), weather: _simWeather);
@@ -107,7 +108,13 @@ namespace MountainPlanner.App
                 world.ApplyNow(SimCommand.Of(SimCommandKind.SetWeatherTerrain, 0, _resort.WeatherTerrain));
                 _simWeatherTerrainSent = true;
             }
-            bool hold = !_simWeatherTerrainSent && _resort.CoverReady != null && !_resort.CoverReady.IsCompleted;
+            // Task 4.09: the water bodies come with the same build and follow the same rule (a lake's records wait for them).
+            if (_resort.WaterBodies != null)
+            {
+                world.ApplyNow(SimCommand.Of(SimCommandKind.SetWaterBodies, 0, _resort.WaterBodies));
+                _simWaterSent = true;
+            }
+            bool hold = !(_simWeatherTerrainSent && _simWaterSent) && _resort.CoverReady != null && !_resort.CoverReady.IsCompleted;
             _simHoldReleased = !hold;
             _sim = new SimulationHost(world, new StopwatchTime(), held: hold);
             _simTickSaved = world.Tick;
@@ -308,11 +315,14 @@ namespace MountainPlanner.App
             // A send the queue refuses is tried again next frame; the release follows the inputs in the same queue.
             if (!_simWeatherTerrainSent && _resort.WeatherTerrain != null)
                 _simWeatherTerrainSent = _sim.Send(SimCommandKind.SetWeatherTerrain, 0, _resort.WeatherTerrain);
-            if (!_simHoldReleased && (_simWeatherTerrainSent || _resort.CoverReady == null || _resort.CoverReady.IsCompleted))
+            if (!_simWaterSent && _resort.WaterBodies != null)
+                _simWaterSent = _sim.Send(SimCommandKind.SetWaterBodies, 0, _resort.WaterBodies);
+            bool inputsSent = _simWeatherTerrainSent && _simWaterSent;
+            if (!_simHoldReleased && (inputsSent || _resort.CoverReady == null || _resort.CoverReady.IsCompleted))
             {
                 // Released with the inputs, or without them when the cover build ended with none (it failed): then the area
-                // plays B1's height rule, and the clock is never left stuck.
-                if (_simWeatherTerrainSent || _resort.WeatherTerrain == null) _simHoldReleased = _sim.Send(SimCommandKind.Release);
+                // plays B1's height rule and has no lakes, and the clock is never left stuck.
+                if (inputsSent || _resort.WeatherTerrain == null || _resort.WaterBodies == null) _simHoldReleased = _sim.Send(SimCommandKind.Release);
             }
             if (s.Held && !_simHoldSaid && (!s.Paused || s.Skip != SkipKind.None) && Hud != null && _hudShown)
             {

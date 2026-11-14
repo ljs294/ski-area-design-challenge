@@ -77,6 +77,10 @@ namespace MountainPlanner.Simulation
         WeatherAlert = 33,
         /// <summary>WX-05 v3: the forecast was issued (the value is the issue's face day; the detail 1 for the evening sheet, 0 the landing's refresh).</summary>
         ForecastIssued = 34,
+        /// <summary>LK-08 v2 (task 4.09): a water body froze over (the entity is its index in the body table, the value the face day).</summary>
+        LakeFroze = 35,
+        /// <summary>LK-08 v2: a frozen water body thawed out to open water (the entity its index, the value the face day).</summary>
+        LakeOpened = 36,
     }
 
     /// <summary>Why a command was turned away (an event's Detail). Stable numbers.</summary>

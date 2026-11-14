@@ -90,6 +90,8 @@ namespace MountainPlanner.App
         /// edit: the weather over the map. Null until then.
         /// </summary>
         public MountainPlanner.Domain.Weather.WeatherTerrain WeatherTerrain;
+        /// <summary>LK-01 v2's water bodies (task 4.09), built with the snowpack on the same grid. Null until then.</summary>
+        public MountainPlanner.Domain.Water.WaterBodyTable WaterBodies;
         public long CliffTriangles;
         /// <summary>Each cache tile's cliff shell, for terrain edits to trim where the ground moves.</summary>
         public readonly System.Collections.Generic.Dictionary<(int, int), CliffShells.Placed> Cliffs = new System.Collections.Generic.Dictionary<(int, int), CliffShells.Placed>();
@@ -250,7 +252,7 @@ namespace MountainPlanner.App
         /// <summary>Paints each tile's ground cover, nearest first, a few tiles per frame.</summary>
         static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers, List<Task<CliffShells.Prepared>> cliffTasks,
                                           List<Task<ForestInstance[]>> forests, ForestAssets forest,
-                                          Stopwatch clock, CancellationToken ct, Task<(float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy, MountainPlanner.Domain.Weather.WeatherTerrain Weather)> snowpack, LoadProgress load)
+                                          Stopwatch clock, CancellationToken ct, Task<(float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy, MountainPlanner.Domain.Weather.WeatherTerrain Weather, MountainPlanner.Domain.Water.WaterBodyTable Water)> snowpack, LoadProgress load)
         {
             load?.Begin(LoadStage.GroundCover, order.Count);
             for (int n = 0; n < order.Count; n++)
@@ -271,13 +273,14 @@ namespace MountainPlanner.App
 
             // The snowpack replaces the opening 12 in; SurfaceStates.Sync uploads it once.
             load?.Begin(LoadStage.Snowpack);
-            var (depths, labels, snowElevation, snowCanopy, weatherTerrain) = await snowpack;
+            var (depths, labels, snowElevation, snowCanopy, weatherTerrain, water) = await snowpack;
             if (resort.Root == null) return;
             resort.States.Snow.CopyFrom(depths);
             resort.ContourLabels = labels;
             resort.SnowElevation = snowElevation;
             resort.SnowCanopy = snowCanopy;
             resort.WeatherTerrain = weatherTerrain;
+            resort.WaterBodies = water;
             (resort.WeatherBaseFeet, resort.WeatherSummitFeet) = CoreReferenceFeet(snowElevation, resort.States.Snow.Width, resort.Ring, resort.Core);
             resort.SnowpackSeconds = clock.Elapsed.TotalSeconds;
             load?.End(LoadStage.Snowpack);
@@ -368,12 +371,16 @@ namespace MountainPlanner.App
         /// <see cref="Snowpack.Compute"/>. Cells no tile covers have no data and get the valley depth. The same
         /// elevations place the contour labels for both unit systems (task 12b.2).
         /// </summary>
-        static (float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy, MountainPlanner.Domain.Weather.WeatherTerrain Weather) BuildSnowpack(List<CacheTile> order, float[][,] heights, SplatTexels[] covers, CacheManifest cache, LocalFrame frame,
+        static (float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy, MountainPlanner.Domain.Weather.WeatherTerrain Weather, MountainPlanner.Domain.Water.WaterBodyTable Water) BuildSnowpack(List<CacheTile> order, float[][,] heights, SplatTexels[] covers, CacheManifest cache, LocalFrame frame,
                                      Rect ring, int width, int depth, double convergence, Rect core)
         {
             const float cell = SurfaceStates.CellMetres;
             var elevation = new float[width * depth];
             var canopy = new float[width * depth];
+            // Task 4.09: each cell's water share, the integer mean of the splat's water texels whose centres fall in the cell
+            // (a cell on a tile edge sums both tiles' texels), for the water-body map.
+            var waterSum = new int[width * depth];
+            var waterCount = new int[width * depth];
             for (int k = 0; k < elevation.Length; k++) elevation[k] = float.NaN;
             float tileMetres = (float)cache.TileMetres;
             for (int n = 0; n < order.Count; n++)
@@ -396,6 +403,25 @@ namespace MountainPlanner.App
                         int ci = Mathf.Clamp(Mathf.RoundToInt(u * (c - 1)), 0, c - 1), cj = Mathf.Clamp(Mathf.RoundToInt(v * (c - 1)), 0, c - 1);
                         canopy[j * width + i] = cover.Textures[0][(cj * c + ci) * 4 + 1] / 255f;
                     }
+                // The water texels: texel t of a tile sits at t / (c - 1) across it (the mapping above), so each lands in one cell.
+                {
+                    int c = cover.Resolution;
+                    byte[] water = cover.Textures[1];
+                    for (int tj = 0; tj < c; tj++)
+                    {
+                        float z = (float)oz + tj * tileMetres / (c - 1);
+                        int j = Mathf.FloorToInt((z - ring.yMin) / cell);
+                        if (j < 0 || j >= depth) continue;
+                        for (int ti = 0; ti < c; ti++)
+                        {
+                            float x = (float)ox + ti * tileMetres / (c - 1);
+                            int i = Mathf.FloorToInt((x - ring.xMin) / cell);
+                            if (i < 0 || i >= width) continue;
+                            waterSum[j * width + i] += water[(tj * c + ti) * 4 + 1];
+                            waterCount[j * width + i]++;
+                        }
+                    }
+                }
             }
             var result = new float[width * depth];
             Snowpack.Compute(width, depth, cell, elevation, canopy, convergence, result);
@@ -413,7 +439,31 @@ namespace MountainPlanner.App
             foreach (var units in new[] { UnitSystem.Imperial, UnitSystem.Metric })
                 labels[(int)units] = ContourLabels.Place(width, depth, cell, ring.xMin, ring.yMin, elevation, units);
             UnityEngine.Debug.Log($"[ResortOpener] contour labels: {labels[0].Length:N0} (200 ft), {labels[1].Length:N0} (50 m)");
-            return (result, labels, elevation, canopy, BuildWeatherTerrain(elevation, width, depth, ring, core, convergence, MountainPlanner.Simulation.Pacing.Default));
+            var weather = BuildWeatherTerrain(elevation, width, depth, ring, core, convergence, MountainPlanner.Simulation.Pacing.Default);
+            return (result, labels, elevation, canopy, weather, BuildWaterBodies(elevation, waterSum, waterCount, width, depth, ring, MountainPlanner.Simulation.Pacing.Default));
+        }
+
+        /// <summary>
+        /// LK-01 v2's water-body map (task 4.09) from the cells' water shares and the downloaded heights (whole ft), on the same
+        /// grid and origin as the weather's static inputs. <paramref name="pacing"/> is the world's (the app plays the default).
+        /// </summary>
+        internal static MountainPlanner.Domain.Water.WaterBodyTable BuildWaterBodies(float[] elevation, int[] waterSum, int[] waterCount, int width, int depth, Rect ring,
+                                                                                     MountainPlanner.Simulation.Pacing pacing)
+        {
+            var clock = Stopwatch.StartNew();
+            var feet = new int[elevation.Length];
+            var share = new byte[elevation.Length];
+            for (int k = 0; k < feet.Length; k++)
+            {
+                feet[k] = float.IsNaN(elevation[k]) ? int.MinValue : (int)System.Math.Round(elevation[k] / 0.3048);
+                share[k] = waterCount[k] == 0 ? (byte)0 : (byte)((waterSum[k] + waterCount[k] / 2) / waterCount[k]);
+            }
+            int originX = (int)System.Math.Round(ring.xMin * 1000.0), originY = (int)System.Math.Round(ring.yMin * 1000.0);
+            var table = MountainPlanner.Domain.Water.WaterBodyTable.Build(width, depth, share, feet, originX, originY, MountainPlanner.Simulation.SimWater.Tuning(pacing));
+            int lakes = table.Count - 1, clipped = 0;
+            for (int b = 1; b < table.Count; b++) if (table[b].Clipped) clipped++;
+            UnityEngine.Debug.Log($"[ResortOpener] water bodies: {lakes} lakes ({clipped} cut by the ring), streams {table[0].Cells:N0} cells, hash {table.Hash:X16}, in {clock.Elapsed.TotalMilliseconds:F0} ms");
+            return table;
         }
 
         /// <summary>
