@@ -12,11 +12,14 @@ namespace MountainPlanner.Persistence
     /// an array as its length (int32) then its values (int32, or int64 for the Q32 rows). The file's SHA-256 (hex) is
     /// <see cref="WeatherInfo.RowsSha256"/>. A new field, a resized array or a changed unit bumps <see cref="Version"/> and
     /// adds a <c>TestData/formats</c> fixture; the v1 fixture stays unedited.
+    /// v2 (4.07, 2026-11-13): adds <see cref="WeatherRows.DewDiurnal"/> at the end; a v1 file reads it as 0 (no effect).
     /// </summary>
     public static class WeatherRowsFile
     {
         public const string FileName = "weather.rows";
-        public const int Version = 1;
+        public const int Version = WeatherRows.Format;
+        /// <summary>The oldest version this build reads (and migrates).</summary>
+        public const int OldestVersion = 1;
         static readonly byte[] Magic = { (byte)'M', (byte)'P', (byte)'W', (byte)'R' };
 
         public static byte[] ToBytes(WeatherRows rows)
@@ -49,8 +52,9 @@ namespace MountainPlanner.Persistence
                     if (magic.Length != 4 || magic[0] != Magic[0] || magic[1] != Magic[1] || magic[2] != Magic[2] || magic[3] != Magic[3])
                         throw new InvalidDataException($"{FileName} has no MPWR header.");
                     int version = r.ReadInt32();
-                    if (version != Version) throw new InvalidDataException($"{FileName} is version {version}; this build reads version {Version}.");
-                    rows.Visit(new Reader(r));
+                    if (version < OldestVersion || version > Version)
+                        throw new InvalidDataException($"{FileName} is version {version}; this build reads versions {OldestVersion}–{Version}.");
+                    rows.Visit(new Reader(r), version);
                 }
                 catch (EndOfStreamException)
                 {

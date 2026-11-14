@@ -54,6 +54,8 @@ namespace MountainPlanner.Simulation
         SetWeather = 29,
         /// <summary>Task 4.05 PR B2: Payload = a <see cref="Domain.Weather.WeatherTerrain"/>, the area's static inputs (WX-35), applied at once.</summary>
         SetWeatherTerrain = 30,
+        /// <summary>Task 4.09: Payload = a <see cref="Domain.Water.WaterBodyTable"/>, the area's water bodies (LK-01 v2), applied at once; a view-sequence command (resent after every load).</summary>
+        SetWaterBodies = 31,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>
