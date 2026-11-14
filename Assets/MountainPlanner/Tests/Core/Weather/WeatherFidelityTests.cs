@@ -31,6 +31,7 @@ namespace MountainPlanner.Tests
     /// miss every site makes a little of.</para>
     /// </summary>
     [Category("Fidelity")]
+    [Category("Heavy")] // task 0.4: the weather tier; CI runs it per site when weather code changes, and on main
     public sealed class WeatherFidelityTests
     {
         const int Seeds = 300, HoldOutSeeds = 150, Draws = 1000, HoldOutDraws = 400;

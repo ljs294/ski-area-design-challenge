@@ -18,6 +18,7 @@ namespace MountainPlanner.Tests
     /// snowfall and wet-hour temperature, WX-58's clustering, WX-19's season spread).</para>
     /// </summary>
     [Category("Consistency")]
+    [Category("Heavy")] // task 0.4: the weather tier; CI runs it per site when weather code changes, and on main
     public sealed class WeatherAcceptanceTests
     {
         /// <summary>WX-07 v3 asks for at least 200; 1,000 keeps a month's sampling noise near 1.5 %, so a miss is a bug.</summary>

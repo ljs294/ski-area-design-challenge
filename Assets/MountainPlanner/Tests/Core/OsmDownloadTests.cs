@@ -21,6 +21,7 @@ namespace MountainPlanner.Tests
     /// connection waits: every mirror failed to connect and the other map services don't answer either. Anything else
     /// leaves the layer out, and each mirror gets one bounded try.
     /// </summary>
+    [Parallelizable(ParallelScope.None)] // task 0.4: shares process-wide state or timing; see AssemblyInfo.cs
     public sealed class OsmDownloadTests
     {
         static readonly byte[] Result = Encoding.UTF8.GetBytes("{\"elements\":[]}");

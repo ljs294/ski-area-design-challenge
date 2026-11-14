@@ -12,6 +12,7 @@ namespace MountainPlanner.Tests
     /// Engine-free. Task 4.05: the calibration on both recorded sites. Storm finding (WX-18 v2), the fits (WX-31 v2), the
     /// powder threshold (WX-41) and WX-07 v3(b), the rows against years they didn't see.
     /// </summary>
+    [Category("Heavy")] // task 0.4: the weather tier; CI runs it per site when weather code changes, and on main
     public sealed class WeatherCalibrationTests
     {
         static readonly string[] MonthName = { "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr" };

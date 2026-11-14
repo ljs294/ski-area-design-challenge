@@ -17,6 +17,7 @@ namespace MountainPlanner.Tests
     /// Task 4.05, PR A2: Get weather on an area from before the weather, and the download's Weather stage. The area keeps its
     /// id and every other file; a run cut short leaves it as it was; the stage never holds a download up.
     /// </summary>
+    [Parallelizable(ParallelScope.None)] // task 0.4: shares process-wide state or timing; see AssemblyInfo.cs
     public sealed class WeatherBackfillTests
     {
         const int BuildYear = 2026;   // the recording's own

@@ -330,7 +330,7 @@ namespace MountainPlanner.Tests
             [WeatherFixtures.Snowshoe] = 1574 / 1750.0,
         };
 
-        [TestCaseSource(typeof(WeatherFixtures), nameof(WeatherFixtures.Sites))]
+        [TestCaseSource(typeof(WeatherFixtures), nameof(WeatherFixtures.Sites)), Parallelizable(ParallelScope.None)] // task 0.4: ms per issue
         public void WX54_TheForecastTeasesTheTruth(string site)
         {
             var k = Measure(site);
