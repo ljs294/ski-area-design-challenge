@@ -12,6 +12,7 @@ namespace MountainPlanner.Tests
     /// the rows barely move when they are, and the screens reject almost nothing on the two clean sites (the false-positive
     /// budget: no Daymet day, under 0.5 % of POWER's values).
     /// </summary>
+    [Category("Heavy")] // task 0.4: the weather tier; CI runs it per site when weather code changes, and on main
     public sealed class WeatherQcTests
     {
         static WeatherQcLog Screen(WeatherSourceRecord record)

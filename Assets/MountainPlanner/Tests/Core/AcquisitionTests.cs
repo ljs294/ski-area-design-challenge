@@ -356,7 +356,7 @@ namespace MountainPlanner.Tests
             Assert.That(tracker.Snapshot(finished: true).Overall, Is.EqualTo(1));
         }
 
-        [Test]
+        [Test, Parallelizable(ParallelScope.None)] // task 0.4: a thread-pool timer, counted against the wall clock
         public void ProgressIsPublishedAtLeastFourTimesASecond()
         {
             Assert.That(ProgressTracker.IntervalMilliseconds, Is.LessThanOrEqualTo(250));

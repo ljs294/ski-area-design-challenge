@@ -120,6 +120,11 @@ reads: a version number, and a name for the greyed library row.
   under Jackson Hole weather with the four `LakeTests.FourBodies` bodies, a week into December. `SimSaveTests` checks
   the writer reproduces it; `v6-sim` still opens and its bodies start as open water when the table arrives.
 
+- **`v8-sim/golden.sim`** is the same world in `SimSidecar` v8 (task 4.07 PR A1): v7's fields, with each weather block's
+  rows in rows format 2 (WX-26 v2's `DewDiurnal`, the dew depression by hour, per third of a month). `SimSaveTests`
+  checks the writer reproduces it; `v7-sim` still opens, its rows read as format 1 (κ = 0) and hash as they did, and
+  it saves as v8.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

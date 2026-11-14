@@ -34,6 +34,7 @@ namespace MountainPlanner.Domain.Weather
         readonly long[] _phiFace = new long[WeatherRows.Thirds];
         readonly int[] _innovationQ16 = new int[WeatherRows.Thirds];
         readonly int[] _fairTop = new int[WeatherRows.Thirds], _fairTopHour = new int[WeatherRows.Thirds];   // the fair shape's peak (‰) and its hour
+        readonly int[] _fairMean = new int[WeatherRows.Thirds], _stormMean = new int[WeatherRows.Thirds];   // the fair and storm shapes' daily means (‰)
         readonly int _windMemory, _windFresh, _fastMemory, _fastFresh;   // ‰: the wind's memory per face hour and √(1 − memory²)
         /// <summary>The middle of each third in real tenths of an hour after October 1.</summary>
         readonly int[] _thirdMiddle = new int[WeatherRows.Thirds];
@@ -79,7 +80,11 @@ namespace MountainPlanner.Domain.Weather
                 int length = part < 2 ? 10 : MonthStartDay[month + 1] - MonthStartDay[month] - 20;
                 _thirdMiddle[i] = (start * 24 + length * 12) * 10;
                 for (int h = 0; h < 24; h++)
+                {
                     if (h == 0 || rows.DiurnalFair[i * 24 + h] > _fairTop[i]) { _fairTop[i] = rows.DiurnalFair[i * 24 + h]; _fairTopHour[i] = h; }
+                    _fairMean[i] += rows.DiurnalFair[i * 24 + h]; _stormMean[i] += rows.DiurnalStorm[i * 24 + h];
+                }
+                _fairMean[i] = (_fairMean[i] + 12) / 24; _stormMean[i] = (_stormMean[i] + 12) / 24;
             }
             // WX-17 v2: K × the fitted 99.5 % real hourly rate, in 0.01 in per face hour, never below the floor.
             _rateCap = Math.Max(RateCapFloor, (int)WeatherMath.DivRound((long)rows.RateCapRealMilliIn * tuning.CalendarDays, 10L * tuning.FaceDays));
@@ -560,8 +565,14 @@ namespace MountainPlanner.Domain.Weather
             int temp = climate + (int)WeatherMath.DivRound(_shaped * kept, 10_000) + _eased + lean + season + wetLean
                      + (int)WeatherMath.DivRound(((long)_fast * r.FastSpread - _nightDepth * below) * calm, 1_000_000);
 
+            // WX-26 v2: the depression opens in the afternoon and closes at night, by the share of the climate curve's departure
+            // from its daily mean that the dew point doesn't follow; a storm's (saturated) hours keep their own.
             int depression = Math.Max(0, Blend(r.DewDepression, WeatherRows.States, _state));
-            int dew = temp - depression;
+            int meanShape = Blend(_fairMean, 1, 0) + (int)((long)(Blend(_stormMean, 1, 0) - Blend(_fairMean, 1, 0)) * _stormWeight / 1000);
+            long swing = (long)(max - min) * (shape - meanShape) / 1000;
+            int open = (int)WeatherMath.DivRound(swing * Blend(r.DewDiurnal, 1, 0) * calm, 1_000_000);
+            int dew = Math.Min(temp, temp - depression - open);
+            int depressionNow = temp - dew;   // the hour's own depression: fog (WX-29) and the cloud base (WX-27) read it
 
             // The sky: cloud by state, day or night, with a keyed wobble; clearness by day with the same wobble.
             int wobble = WeatherMath.Between(hk(WeatherKey.Sky, 0), -100, 100);
@@ -618,7 +629,7 @@ namespace MountainPlanner.Domain.Weather
             h.DewLapse = Blend(r.DewLapse, 1, 0);
             h.PrecipGradient = Blend(r.PrecipGradient, 1, 0);
             h.Pool = _pool;
-            h.Fog = _pool >= FogPool && depression < FogDepression;
+            h.Fog = _pool >= FogPool && depressionNow < FogDepression;
             h.Liquid = liquid;
             bool inStorm = stormInHour;   // the storm fell in this hour, even if it ended inside it
             h.StormOrdinal = inStorm ? _storm : -1;
@@ -631,7 +642,7 @@ namespace MountainPlanner.Domain.Weather
             h.GustFactor = gust;
             h.Cloud = cloud;
             h.Clearness = clearness;
-            h.CloudBaseFeet = depression * CloudBaseFeetPerTenthF / 10;
+            h.CloudBaseFeet = depressionNow * CloudBaseFeetPerTenthF / 10;
             h.SeasonOffset = season;
             h.WetLean = wetLean;
             h.SeasonShare = _share;

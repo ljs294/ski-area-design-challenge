@@ -131,7 +131,7 @@ namespace MountainPlanner.Simulation
             }
             else ResetGuestsForOlderSave();
             // v1–v4 → v5 (task 4.05): no weather block; SimSidecar.Read gives the weather the area has now.
-            if (header.SidecarVersion >= 5) ReadWeatherState(r);
+            if (header.SidecarVersion >= 5) ReadWeatherState(r, header.SidecarVersion);
             // v1–v5 → v6 (4.05 PR C): no events under way, and the first forecast at the next stop or landing.
             if (header.SidecarVersion >= 6) ReadWeatherEventState(r);
             else StartWeatherEventsForOlderSave();

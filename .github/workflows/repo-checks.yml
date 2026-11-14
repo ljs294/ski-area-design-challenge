@@ -11,6 +11,15 @@ on:
 permissions:
   contents: read
 
+# The small LFS fixtures the tests read (see the lfs-fixtures job).
+env:
+  LFS_FIXTURES: "tools/data-spike/tests/DataSpike.Tests/fixtures/*,TestData/s1m-fixture/*,TestData/jackson-hole-2km/canopy-core.grid,TestData/jackson-hole-2km/cover.grid,TestData/jackson-hole-2km/forest-truth.bin,TestData/weather/**"
+
+# Task 0.4: a newer push to a PR cancels that PR's older run; main, nightly and hand runs always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   repo-checks:
     if: github.event_name != 'schedule'
@@ -27,20 +36,45 @@ jobs:
       - name: Agent docs and .meta integrity
         run: node tools/repo-checks/check.mjs
 
-  dotnet-tests:
-    if: github.event_name != 'schedule'
+  # Task 0.4 (CI speed): the engine-free Core tests run in two tiers, built in Release with fixtures side by side
+  # (tools/domain-tests/Tests/ci.runsettings; Tests/Core/AssemblyInfo.cs says which fixtures run alone).
+  # - dotnet-tests, every run: everything except [Category("Heavy")] - goldens, folds, frozen formats, the rest.
+  # - dotnet-weather, the Heavy tier (weather calibration, fidelity, hold-out, QC, consistency), one job per site:
+  #   on a PR only when it touches WEATHER_PATHS below; always on main, nightly and by hand, reporting only there.
+  # Per-test times are kept as trx artifacts: node tools/ci/trx-report.mjs fast=fast.trx.
+  changes:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    env:
-      # Only the small fixtures: the test terrain's heights (TestData/jackson-hole-2km, ~35 MB) are tested
-      # locally, to stay inside GitHub's free Git LFS bandwidth (P5). Its canopy, cover and lidar truth
-      # (< 1 MB) come along so the D4 forest-rule gate (task 07) runs on every PR.
-      LFS_FIXTURES: "tools/data-spike/tests/DataSpike.Tests/fixtures/*,TestData/s1m-fixture/*,TestData/jackson-hole-2km/canopy-core.grid,TestData/jackson-hole-2km/cover.grid,TestData/jackson-hole-2km/forest-truth.bin,TestData/weather/**"
+    outputs:
+      weather: ${{ steps.diff.outputs.weather }}
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: false
-      # The fixtures' LFS objects come from the free Actions cache while they're unchanged, so most runs download
-      # nothing from LFS and its allowance stays for the game's assets.
+          fetch-depth: 0
+      - name: Does the PR touch the weather tier's paths?
+        id: diff
+        env:
+          # What the Heavy fixtures compile against (Domain/Weather, Acquisition/Weather, WeatherRowsFile) and their data,
+          # plus the snow and sim weather code the owner listed, and the test project and this workflow.
+          WEATHER_PATHS: >-
+            ^Assets/MountainPlanner/Runtime/Domain/(Weather|Snow|Sky)/|^Assets/MountainPlanner/Runtime/Acquisition/Weather/|^Assets/MountainPlanner/Runtime/Persistence/WeatherRowsFile\.cs|^Assets/MountainPlanner/Runtime/Simulation/(Weather/|SimSnow\.cs)|^Assets/MountainPlanner/Tests/Core/(Weather|Snow)/|^TestData/weather/|^tools/domain-tests/|^\.github/workflows/
+        run: |
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" > "$RUNNER_TEMP/changed.txt"
+          if grep -E "$WEATHER_PATHS" "$RUNNER_TEMP/changed.txt"; then echo "weather=true" >> "$GITHUB_OUTPUT"; else echo "weather=false" >> "$GITHUB_OUTPUT"; fi
+
+  # The small LFS fixtures go into the free Actions cache once, here, and every test job restores them, so a changed
+  # fixture is downloaded from LFS once, not once per job, and the allowance stays for the game's assets. Only the small
+  # ones: the test terrain's heights (TestData/jackson-hole-2km, ~35 MB) are tested locally (P5). Its canopy, cover and
+  # lidar truth (< 1 MB) come along so the D4 forest-rule gate (task 07) runs on every PR.
+  lfs-fixtures:
+    runs-on: ubuntu-latest
+    outputs:
+      key: ${{ steps.lfs.outputs.key }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
       - name: List the small LFS fixtures
         id: lfs
         run: |
@@ -48,20 +82,115 @@ jobs:
           cat "$RUNNER_TEMP/lfs-fixtures.txt"
           echo "key=lfs-fixtures-$(sha256sum "$RUNNER_TEMP/lfs-fixtures.txt" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
+        id: cache
         with:
           path: .git/lfs/objects
           key: ${{ steps.lfs.outputs.key }}
       - name: Fetch small LFS fixtures
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: git lfs pull --include="$LFS_FIXTURES"
+
+  dotnet-tests:
+    needs: lfs-fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/cache/restore@v4
+        with:
+          path: .git/lfs/objects
+          key: ${{ needs.lfs-fixtures.outputs.key }}
+      - name: Check out small LFS fixtures
         run: git lfs pull --include="$LFS_FIXTURES"
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - name: Engine-free core (the same sources Unity compiles)
-        run: dotnet test tools/domain-tests/Tests
+      - name: Engine-free core, fast tier (the same sources Unity compiles)
+        run: >
+          dotnet test tools/domain-tests/Tests -c Release -s tools/domain-tests/Tests/ci.runsettings
+          --filter "TestCategory!=Heavy" --logger "trx;LogFileName=fast.trx" --results-directory "$RUNNER_TEMP/trx"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trx-fast
+          path: ${{ runner.temp }}/trx/*.trx
       - name: Acquisition CLI builds
         run: dotnet build tools/acquire
       - name: Data spike (offline, recorded fixtures)
         run: dotnet test tools/data-spike/tests/DataSpike.Tests
+
+  dotnet-weather:
+    needs: [changes, lfs-fixtures]
+    # Runs when `changes` said so, or was skipped because this isn't a PR (main, nightly, by hand).
+    if: ${{ !cancelled() && needs.lfs-fixtures.result == 'success' && (needs.changes.result == 'skipped' || needs.changes.outputs.weather == 'true') }}
+    runs-on: ubuntu-latest
+    # On a PR a red site fails the PR; on main and nightly it is a finding for the weather thread.
+    continue-on-error: ${{ github.event_name != 'pull_request' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # WeatherFixtures.Sites; "other" runs every Heavy test not named for one of them (a new site lands there).
+        shard: [jackson-hole-2km, olympic-valley-4km, stevens-pass-2km, winter-park-2km, jackson-nh-4km, snowshoe-2km, snow-ridge-2km, other]
+    env:
+      SITES: "jackson-hole-2km olympic-valley-4km stevens-pass-2km winter-park-2km jackson-nh-4km snowshoe-2km snow-ridge-2km"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/cache/restore@v4
+        with:
+          path: .git/lfs/objects
+          key: ${{ needs.lfs-fixtures.outputs.key }}
+      - name: Check out the weather LFS fixtures
+        run: git lfs pull --include="TestData/weather/**"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Weather tier, ${{ matrix.shard }}
+        run: |
+          if [ "${{ matrix.shard }}" = other ]; then
+            filter="TestCategory=Heavy"; for s in $SITES; do filter="$filter&Name!~$s"; done
+          else
+            filter="TestCategory=Heavy&Name~${{ matrix.shard }}"
+          fi
+          echo "filter: $filter"
+          dotnet test tools/domain-tests/Tests -c Release -s tools/domain-tests/Tests/ci.runsettings --filter "$filter" \
+            --logger "trx;LogFileName=weather-${{ matrix.shard }}.trx" --results-directory "$RUNNER_TEMP/trx"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trx-weather-${{ matrix.shard }}
+          path: ${{ runner.temp }}/trx/*.trx
+
+  # Task 0.4: every test's own time (Release, one test at a time), by hand only: node tools/ci/trx-report.mjs
+  # Release=core-Release.trx.
+  measure:
+    if: github.event_name == 'workflow_dispatch'
+    needs: lfs-fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/cache/restore@v4
+        with:
+          path: .git/lfs/objects
+          key: ${{ needs.lfs-fixtures.outputs.key }}
+      - name: Check out small LFS fixtures
+        run: git lfs pull --include="$LFS_FIXTURES"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Engine-free core, every test, timed
+        run: >
+          dotnet test tools/domain-tests/Tests -c Release
+          --logger "trx;LogFileName=core-Release.trx" --results-directory "$RUNNER_TEMP/trx"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trx-Release
+          path: ${{ runner.temp }}/trx/*.trx
 
   # Task 4.03 (SI-08, TM-03): ten label years of the golden script, one tick at a time against the idle step, every face
   # hour's hash compared. Report-only: a red night is a finding for the simulation's thread, never a blocked PR.
