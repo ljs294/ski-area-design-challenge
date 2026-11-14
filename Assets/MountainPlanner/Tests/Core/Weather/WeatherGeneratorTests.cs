@@ -18,16 +18,20 @@ namespace MountainPlanner.Tests
         const ulong Seed = 0x4D50_5758_0000_0001UL;
         const int LabelYear = 2026;
 
-        /// <summary>WX-33: the fold of every field of every face hour of label year 2026 under <see cref="Seed"/>, per site.</summary>
+        /// <summary>WX-33: the fold of every field of every face hour of label year 2026 under <see cref="Seed"/>, per site.
+        /// Re-pinned at 4.07 PR A1 (rows v2: WX-26 v2's afternoon dew, WX-03 v4's 32–37 °F ramp, the cloud base and fog on the hour's depression, the liquid correction over
+        /// 600 seeds; the seven sites re-recorded; owner plan OK and Coordinator clear 2026-11-13). Before: Jackson Hole
+        /// 0x80A9552A8A216584, Olympic Valley 0x8220C8F5E28C4476, Stevens Pass 0xBC3BD9A3B36E922E, Winter Park 0x88B8FBCF657B7A91,
+        /// Jackson NH 0x8A9EC67AAB75F0D1, Snowshoe 0xFC8DC1FDEABA62CE, Snow Ridge 0xFAA4A529F8FFE6FD.</summary>
         static readonly Dictionary<string, ulong> Golden = new Dictionary<string, ulong>
         {
-            [WeatherFixtures.JacksonHole] = 0x80A9552A8A216584UL,
-            [WeatherFixtures.OlympicValley] = 0x8220C8F5E28C4476UL,
-            [WeatherFixtures.StevensPass] = 0xBC3BD9A3B36E922EUL,
-            [WeatherFixtures.WinterPark] = 0x88B8FBCF657B7A91UL,
-            [WeatherFixtures.JacksonNh] = 0x8A9EC67AAB75F0D1UL,
-            [WeatherFixtures.Snowshoe] = 0xFC8DC1FDEABA62CEUL,
-            [WeatherFixtures.SnowRidge] = 0xFAA4A529F8FFE6FDUL,
+            [WeatherFixtures.JacksonHole] = 0x9C99E1B6D1A5AC14UL,
+            [WeatherFixtures.OlympicValley] = 0xC4B59EB14DB3340DUL,
+            [WeatherFixtures.StevensPass] = 0xC23C4D4F8EF433CAUL,
+            [WeatherFixtures.WinterPark] = 0x13AAB71310CB7BBDUL,
+            [WeatherFixtures.JacksonNh] = 0xC74173018E4187E7UL,
+            [WeatherFixtures.Snowshoe] = 0x601BA0D4332803D0UL,
+            [WeatherFixtures.SnowRidge] = 0x0D04A655F9AAC7E5UL,
         };
 
         static WeatherRows Frozen(string site) =>
@@ -212,15 +216,35 @@ namespace MountainPlanner.Tests
             Assert.That(today, Is.EqualTo(frozen), $"{site}: weather.rows is stale; re-record it (an approved calibration change)");
         }
 
+        /// <summary>v1 (before 4.07's dew swing) still reads, and migrates: DewDiurnal 0, so the dew point follows the air as it
+        /// did; written again it is v2, the v1 bytes with the new version and the new field appended.</summary>
         [Test]
         public void RowsFile_TheV1FixtureStillReads()
         {
             string folder = TestData.Folder("formats/v1-weather-rows");
             byte[] bytes = TestData.Bytes(folder, WeatherRowsFile.FileName);
+            Assert.That(WeatherRowsFile.Sha256(bytes), Is.EqualTo(File.ReadAllText(Path.Combine(folder, "weather.rows.sha256")).Trim()));
+            Assert.That(BitConverter.ToInt32(bytes, 4), Is.EqualTo(1), "the fixture is v1");
             var rows = WeatherRowsFile.FromBytes(bytes);
-            Assert.That(WeatherRowsFile.ToBytes(rows), Is.EqualTo(bytes), "today's writer reproduces v1 byte for byte");
+            Assert.That(rows.ZrefFeet, Is.GreaterThan(5000), "Jackson Hole's zref");
+            Assert.That(rows.DewDiurnal, Is.All.EqualTo(0), "v1 migrates with no dew swing");
+            byte[] again = WeatherRowsFile.ToBytes(rows);
+            Assert.That(BitConverter.ToInt32(again, 4), Is.EqualTo(WeatherRowsFile.Version));
+            Assert.That(again.Length, Is.EqualTo(bytes.Length + 4 + 4 * WeatherRows.Thirds), "v2 appends one array");
+            for (int i = 8; i < bytes.Length; i++) if (again[i] != bytes[i]) Assert.Fail($"byte {i} of the v1 fields moved");
+        }
+
+        /// <summary>v2 (4.07, 2026-11-13): today's writer reproduces the fixture byte for byte.</summary>
+        [Test]
+        public void RowsFile_TheV2FixtureStillReads()
+        {
+            string folder = TestData.Folder("formats/v2-weather-rows");
+            byte[] bytes = TestData.Bytes(folder, WeatherRowsFile.FileName);
+            var rows = WeatherRowsFile.FromBytes(bytes);
+            Assert.That(WeatherRowsFile.ToBytes(rows), Is.EqualTo(bytes), "today's writer reproduces v2 byte for byte");
             Assert.That(WeatherRowsFile.Sha256(bytes), Is.EqualTo(File.ReadAllText(Path.Combine(folder, "weather.rows.sha256")).Trim()));
             Assert.That(rows.ZrefFeet, Is.GreaterThan(5000), "Jackson Hole's zref");
+            Assert.That(rows.DewDiurnal, Has.Some.GreaterThan(0), "Jackson Hole's afternoons dry out");
         }
 
         [Test]
@@ -263,6 +287,17 @@ namespace MountainPlanner.Tests
                 string sha = WeatherRowsFile.Write(TestData.Folder("weather/" + site), WeatherFixtures.Calibrated(site).Rows);
                 TestContext.Progress.WriteLine($"{site}: weather.rows {sha}");
             }
+        }
+
+        [Test, Explicit("Writes the frozen v2 weather.rows fixture (once; never edited after merge)")]
+        public void RecordV2Fixture()
+        {
+            string folder = Path.Combine(TestData.Folder("formats"), "v2-weather-rows");
+            Assert.That(Directory.Exists(folder), Is.False, "the v2 fixture is frozen");
+            Directory.CreateDirectory(folder);
+            byte[] bytes = TestData.Bytes(TestData.Folder("weather/" + WeatherFixtures.JacksonHole), WeatherRowsFile.FileName);
+            File.WriteAllBytes(Path.Combine(folder, WeatherRowsFile.FileName), bytes);
+            File.WriteAllText(Path.Combine(folder, "weather.rows.sha256"), WeatherRowsFile.Sha256(bytes) + "\n");
         }
 
         [Test, Explicit("Writes the frozen v1 weather.rows fixture (once; never edited after merge)")]

@@ -238,8 +238,8 @@ yet: the engine joins the simulation in PR B. The rules below refine §2, §3, �
 beside what it governs.
 
 **Rule changes**
-- **WX-03 v3, phase (refines WX-03 v2, owner 2026-11-09):** all snow at a wet bulb at or below **32.0 °F**, all rain
-  above **35.6 °F**, the snow share falling linearly between (`Psychrometrics.SnowWetBulbF`, `RainWetBulbF`). v2's
+- **WX-03 v3, phase (refines WX-03 v2, owner 2026-11-09; superseded by v4's 32.0 / 37.0 °F, §3g):** all snow at a wet
+  bulb at or below **32.0 °F**, all rain above **35.6 °F**, the snow share falling linearly between (`Psychrometrics.SnowWetBulbF`, `RainWetBulbF`). v2's
   30.2 / 33.8 °F made Stevens Pass's snowfall less than its SNOTEL pillow holds after melt; with v3 the record's
   April 1 snowfall at the four western pillows sits at or above them. The snow line is where the wet bulb crosses
   32–36 °F. Freezing rain (PR B) keys on the same rain threshold.
@@ -579,6 +579,60 @@ readout until 4.17; no alert pauses the game yet.
   `SeasonRunner.GoldenFoldValue` (0x78F54C0EFBDE2342 → 0x0286096DBB30C488) and `GuestDayFold` (0x13ED1EF232C7A39C →
   0x07B9C769D00CB382) re-pinned once. The seven WX-33 goldens and the rows don't move.
 
+## 3g. 4.07 PR A1: the snow energy judges the weather (task 4.07, 2026-11-13)
+
+WX-63's swap made `SnowEnergy` (4.07) the snow the fidelity tests judge. Through it the generated weather melted
+spring snow too fast (Winter Park melt-out 14 days early) and the six SNOTEL pillows showed the rain/snow line too
+cold. The owner approved fixing both in A1 by a fit loop (one hypothesis at a time, one constant set, no gate
+loosened); the Coordinator cleared the format bump and the re-record. The fit log is in 4.07's A1 report.
+- **WX-26 v2, the dew point's day (rows format 2):** `DewDiurnal` per third (‰) is the share of the climate curve's
+  departure from its daily mean that the dew point doesn't follow: dew = min(air, air − depression − κ × departure),
+  faded out under a storm's weight. Fitted as the slope of the record's mean-day depression on its mean-day air outside
+  storms, pooled with the neighbouring thirds, clamped 0–1. The record's depression opens in the afternoon (Winter
+  Park in April 5 °F at night, 23 °F at 3 pm); the generator's was flat (11 °F), so its afternoons were too humid and
+  its spring snow took 30 % more energy than the record's (April net 31.7 against 23.9 W/m²). κ runs 0.4–0.7 in
+  midwinter, near 1 in spring, and near 0 at Stevens Pass in midwinter (maritime air stays humid all day).
+- **WX-03 v4, phase:** all snow at a wet bulb at or below **32.0 °F**, all rain above **37.0 °F** (was 35.6), half and
+  half at 34.5 °F. At all six western pillows the pillow gained snow on days v3 called rain; their half-and-half points
+  sat at 33.7–35.0 °F. Stevens Pass's April 1 water went from × 0.76 to × 0.87 of the pillow; no pillow gate misses.
+  Freezing rain keys on the same rain threshold. The rain share of an hour's liquid, old → new: 34.0 °F wet bulb 56 % →
+  40 %; 35.0 °F 83 % → 60 %; 35.6 °F 100 % → 72 %; 36.0 °F 100 % → 80 %; 36.5 °F 100 % → 90 %; 37.0 °F 100 % → 100 %.
+- **WX-31 v3's liquid correction over 600 seeds** (was 120): on its own 120 seeds each month met its target exactly;
+  on fresh seeds months missed by up to 10 % (Olympic Valley January, Winter Park December −6 %), the sample's noise
+  fitted in. Over 600 they land within 3 %; the build takes 4 s longer for all seven sites. This also brought Jackson
+  NH's powder face days (§3a's known limit, z −3.0) inside the record's 99 % range.
+- **WX-41 v2's PowderDayIn over 300 seeds** (was 20): the same overfit. On fresh seeds Winter Park's powder mornings ran
+  26 % over the record's (the gate is ±25 %; main sat at the edge too); over 300 they land within 7 % at every site
+  that isn't at the 6 in floor (Winter Park 7.1 → 7.9 in, Snowshoe 6.1 → 6.8 in, Jackson Hole 6.9 → 7.0 in).
+- **WX-27's cloud base and WX-29's fog read the hour's own depression** (air − dew), now that WX-26 v2 opens and closes
+  it through the day, not the row's flat one.
+- **The sim sidecar v8:** the sidecar keeps the weather rows it plays, so their new field is a sidecar change. Sidecars
+  up to v7 read their rows as format 1 (κ = 0); `WeatherRows.ContentHash` hashes rows whose `DewDiurnal` is all 0 as
+  format 1, so every older save and downloaded area keeps its rows hash and its state hash (Coordinator 2026-11-13;
+  v7 is task 4.09's lakes).
+- **Rows and pins:** `WeatherRowsFile` v2 (v1 reads with κ = 0, the dew point following the air as before; fixture
+  `TestData/formats/v2-weather-rows`; v1's untouched); the seven `TestData/weather/<site>/weather.rows` re-recorded;
+  the seven WX-33 goldens and `SeasonRunner.GoldenFoldValue` (4.09 PR A's 0xEC4F3D1560DC79EB → 0x46763774A22C2C03) and `LakeTests.LakeWinterFold` (0xA3444D79FA83272F → 0xE0CC199FD3EBF3E9; no ice day moved) re-pinned;
+  `GuestDayFold` doesn't move. Under the old reference snow all 86 fidelity cells still pass.
+- **WX-54's Snowshoe cell, a sample's edge:** the day-ahead high within 2 °F is 1,574 of 1,750 cards (89.94 %) on the
+  gate's 50 seeds, against 1,576 (90.06 %) on main. Over 250 seeds it is 90.62 % here and 90.65 % on main: the
+  forecast's skill didn't move, the gate's fixed sample sits 2 cards either side of its line. The owner approved it as
+  a listed limit (2026-11-13): `WX54`'s `KnownHigh1Limits` holds it at 1,574 cards and fails on a lost card or a
+  silent fix; the 90 % gate is unchanged.
+- **Under `SnowEnergy`, 85 of 86 pass.** The one miss: Winter Park's Christmases with 1 in of water on the ground,
+  87 % of the game's winters against all 20 of the record's (the record's driest autumn kept 1.12 in). Its early
+  snowfall's mean is the record's (−3 %) and its spread wider by a margin 20 winters can't tell from chance (sd 2.05 against
+  1.62 in); a game that is right would show 20 of 20 covered 6 % of the time, and the gate's noise floor (1 ÷ 20)
+  reads the record's 20 of 20 as exact. The owner approved it as a listed limit (2026-11-13): the fidelity tests'
+  `KnownLimits` names it, and the site fails on any other miss or once this one passes; no band is widened.
+- **Found, not changed (a follow-up for the weather engine):** the anomaly's memory is fitted on lag 1 (0.71–0.79),
+  but the record's correlation falls faster after a day than one AR(1) allows (0.27 at 3 days against 0.42), so the
+  game's autumn means vary up to 1.9 × the record's (Stevens Pass, 30 face days) and the season character is shrunk to
+  zero at six of seven sites. Fitting φ over lags 1–5 brought the West in line but left the East short and failed the
+  shared Christmas bias; a two-timescale anomaly would fit both.
+- **Downloaded areas keep their rows:** an area built before this change reads its v1 rows with κ = 0 and the WX-31
+  correction of its build. A rebuild path (§3e's last bullet) is the owner's call.
+
 ## 4. Weather runs on the calendar, compressed like time
 
 The owner's ruling (Q17, superseding an earlier size-and-frequency split): *storm frequency over duration; use
@@ -745,7 +799,7 @@ because we compress time, we compress weather events accordingly; it is a tycoon
     enough, never stuck.
 
 - **WX-26, dew point at `zref`:** temperature minus the state's depression (row), never above the temperature. Near
-  saturation in storms, dry in fair weather.
+  saturation in storms, dry in fair weather. **v2 (§3g):** the depression opens in the afternoon and closes at night.
 - **WX-27 v2, the sky.** **Cloud cover** (%) by state from the row (POWER's cloud amount, day and night, WX-15
   v2) with a keyed hourly wobble; by day, **clearness** (‰) for the sun (WX-40) from the row's daytime clearness by
   state, with the same wobble; **cloud base** above `zref` = **228 ft per °F** of dew-point depression (the lifting

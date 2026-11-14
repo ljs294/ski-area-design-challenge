@@ -275,10 +275,10 @@ namespace MountainPlanner.Simulation
             w.Rows.Visit(new RowsOut(o));
         }
 
-        void ReadWeatherState(SidecarReader r)
+        void ReadWeatherState(SidecarReader r, int version)
         {
-            _weather = ReadWeather(r);
-            _weatherNext = ReadWeather(r);
+            _weather = ReadWeather(r, version);
+            _weatherNext = ReadWeather(r, version);
             if (_weather != null) ForecastBuffers();
             _gen = null;
             _wxHourSet = false;
@@ -296,14 +296,15 @@ namespace MountainPlanner.Simulation
             SampleWeather();
         }
 
-        static SimWeather ReadWeather(SidecarReader r)
+        static SimWeather ReadWeather(SidecarReader r, int version)
         {
             if (!r.Bool()) return null;
             bool generic = r.Bool();
             int baseFeet = r.I32(), summitFeet = r.I32();
             ulong hash = r.U64();
             var rows = new WeatherRows();
-            rows.Visit(new RowsIn(r));
+            // Rows format 2 (WX-26 v2's DewDiurnal) from sidecar v8; older sidecars hold format 1 and read it with κ = 0.
+            rows.Visit(new RowsIn(r), version >= SimSidecar.WeatherRowsTwo ? WeatherRows.Format : 1);
             var w = new SimWeather(rows, generic, baseFeet, summitFeet);
             if (w.RowsHash != hash) throw new InvalidDataException("The save's weather rows don't add up to their hash.");
             return w;

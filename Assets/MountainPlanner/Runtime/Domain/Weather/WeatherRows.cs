@@ -28,6 +28,8 @@ namespace MountainPlanner.Domain.Weather
         public const int Patterns = 3, Ridge = 0, Zonal = 1, Active = 2;
         /// <summary>WX-11 v1: winters in the season character table (WX-19 v2).</summary>
         public const int Winters = 20;
+        /// <summary>The newest field layout <see cref="Visit(IWeatherRowsVisitor)"/> walks (the rows file's version).</summary>
+        public const int Format = 2;
 
         // ---- Site constants ----
         /// <summary>The reference pixel's elevation, Daymet's (ft): zref.</summary>
@@ -178,9 +180,21 @@ namespace MountainPlanner.Domain.Weather
         /// </summary>
         public int WetMemory, WetLean;
         public readonly int[] WetMean = new int[Thirds * States], WetSpread = new int[Thirds * States];
+        /// <summary>
+        /// WX-26 v2 (format 2; 4.07, 2026-11-13): how much of the day's swing the dew point does not follow, per third (‰).
+        /// The record's air dries out in the afternoon and is near saturation at night (Winter Park in April: a 5 °F depression
+        /// at night, 23 °F in the afternoon); a dew point that follows the air all day keeps the depression flat and melts a
+        /// spring snowpack too fast. The slope of the record's mean-day depression on its mean-day air, outside storms. Rows
+        /// from format 1 read 0: the dew point follows the air, as before.
+        /// </summary>
+        public readonly int[] DewDiurnal = new int[Thirds];
 
         /// <summary>Walks every field in the file's order: one place for the writer, the reader and the hash.</summary>
-        public void Visit(IWeatherRowsVisitor v)
+        public void Visit(IWeatherRowsVisitor v) => Visit(v, Format);
+
+        /// <summary>Walks the fields of one format: a reader of an older file stops where that format ended, and the newer
+        /// fields keep their defaults (the migration).</summary>
+        public void Visit(IWeatherRowsVisitor v, int format)
         {
             v.Int(ref ZrefFeet); v.Int(ref BaseFeet); v.Int(ref MidFeet); v.Int(ref SummitFeet);
             v.Int(ref PowderDayTenthsIn); v.Int(ref ObservationLagHours); v.Int(ref Limited); v.Int(ref FirstLabelYear);
@@ -201,17 +215,28 @@ namespace MountainPlanner.Domain.Weather
             v.Int(ref StormSizeWarm); v.Int(ref StormIntensityWarm); v.Int(ref StormSizeSpread); v.Int(ref WindMemory); v.Int(ref StormWindPerRate);
             v.Ints(CharacterShare); v.Ints(CharacterAnomaly);
             v.Int(ref WetMemory); v.Int(ref WetLean); v.Ints(WetMean); v.Ints(WetSpread);
+            if (format < 2) return;
+            v.Ints(DewDiurnal);
         }
 
         public int Quantile(int third, int distribution, int point) => Quantiles[(third * Distributions + distribution) * QuantileCount + point];
         public void SetQuantile(int third, int distribution, int point, int value) => Quantiles[(third * Distributions + distribution) * QuantileCount + point] = value;
 
-        /// <summary>A content hash over every field (FNV-1a over 64-bit words), for the replay header (SI-22).</summary>
+        /// <summary>A content hash over every field (FNV-1a over 64-bit words), for the replay header (SI-22). Rows a format 1
+        /// file says all of (<see cref="DewDiurnal"/> all 0) hash as format 1, so a save or an area from before format 2 keeps
+        /// its hash.</summary>
         public ulong ContentHash()
         {
             var h = new HashVisitor();
-            Visit(h);
+            Visit(h, OldestFormatHolding());
             return h.Value;
+        }
+
+        /// <summary>The oldest format that holds every field's value: 1 while <see cref="DewDiurnal"/> is all 0.</summary>
+        public int OldestFormatHolding()
+        {
+            foreach (int k in DewDiurnal) if (k != 0) return Format;
+            return 1;
         }
 
         public WeatherRows Clone()
