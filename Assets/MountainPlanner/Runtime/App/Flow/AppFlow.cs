@@ -80,6 +80,7 @@ namespace MountainPlanner.App.Flow
             string[] args = Environment.GetCommandLineArgs();
             if (Application.isBatchMode && Array.IndexOf(args, "-title") < 0) return;
             if (SkipTitle.Any(a => Array.IndexOf(args, a) >= 0)) return;
+            if (HandOffToLauncher(args)) return;   // task 4.23 R1: the launcher's quick check first; this run quits
             // -offline: every network call fails, as with the cable out (the acceptance check for opening offline);
             // Settings › Data › Offline mode does the same (task P2-05).
             if (Array.IndexOf(args, "-offline") >= 0 || DataPreferences.Offline) MountainPlanner.Acquisition.IO.Http.NetworkDisabled = true;
@@ -197,6 +198,7 @@ namespace MountainPlanner.App.Flow
             Screens.QualityLibraryChosen += Controller.QualityBackToLibrary;
             WireDownloads();   // the download card, pills, dialogs and offline states (AppFlow.Downloads.cs, task P2-06)
             WireDiagnostics();   // the version and the first error's notice (AppFlow.Diagnostics.cs, task P2-10)
+            WireUpdates();       // the update check, its notice and Settings › Data › Version (AppFlow.Updates.cs, task 4.23)
             FlowUnits.Changed += OnUnitsChanged;
         }
 
@@ -274,6 +276,7 @@ namespace MountainPlanner.App.Flow
             HandleKeys(Keyboard.current);
             UpdateSaves(Keyboard.current);
             UpdateCrashOffer();   // task P3-14
+            UpdateUpdateCheck();  // task 4.23 (AppFlow.Updates.cs)
             if (Screens.CrashOfferShown && !Screens.TitleShown) Screens.ShowCrashOffer(false);   // only ever over the title's signs
 
             // The title's slow drift over the demo mountain (the viewer's own camera input is off in title mode).

@@ -6,24 +6,26 @@ Design a ski area on a real mountain. Every slope, cliff and forest comes from U
 
 ## Download and play
 
-**[Download the latest release](https://github.com/ljs294/ski-area-design-challenge/releases/latest)**: under **Assets**, click the `.zip` file (about 370 MB).
+**[Download the installer](https://github.com/ljs294/ski-area-design-challenge/releases/latest/download/SkiAreaDesignChallenge-Setup.exe)** (`SkiAreaDesignChallenge-Setup.exe`, under 1 MB) and run it.
 
-You don't need to clone this repository, Unity or Git to play. Please don't clone it just to play: the repository's large files have a monthly download limit, and the release zip doesn't count toward it.
+You don't need to clone this repository, Unity or Git to play. Please don't clone it just to play: the repository's large files have a monthly download limit, and the release downloads don't count toward it.
 
-1. **Before unzipping**, right-click the zip, choose **Properties**, tick **Unblock** at the bottom and click **OK**.
-   The game isn't signed yet, and without this step Windows may refuse to start it.
-2. Unzip it anywhere you like (not inside Program Files), for example your Desktop.
-3. Double-click **SkiAreaDesignChallenge.exe**.
+1. The game isn't signed yet, so Windows says "Windows protected your PC" once: click **More info**, then **Run anyway**.
+2. Click **Install**. It downloads the game (about 400 MB) from GitHub into
+   `%LOCALAPPDATA%\Programs\SkiAreaDesignChallenge` (no administrator needed), with a Start-menu entry and, if you
+   like, a desktop shortcut. Then click **Launch Ski Area Design Challenge**.
+3. From then on, start it from the Start menu or the shortcut. Each start checks GitHub for a new version and asks
+   before updating; the version before stays installed, and **Other versions** plays it. The check sends nothing
+   about you or your computer, and **Settings › Data › Check for updates** turns it off.
 
-If Windows says "Windows protected your PC", click **More info**, then **Run anyway**.
-
-To uninstall, delete the folder. Downloaded mountains and logs stay in `%LOCALAPPDATA%\SkiAreaDesignChallenge` until you delete that folder too.
+To uninstall: Start menu › Ski Area Design Challenge › **Uninstall Ski Area Design Challenge**. Downloaded mountains,
+saves and logs stay in `%LOCALAPPDATA%\SkiAreaDesignChallenge` until you delete that folder too.
 
 ### What you need
 
 - Windows 10 or 11, 64-bit.
 - A graphics card that supports DirectX 11 or 12.
-- About 600 MB of disk space, plus about 200 MB for each mountain you download.
+- About 1.5 GB of disk space (two versions stay installed), plus about 200 MB for each mountain you download.
 - An internet connection only for downloading new mountains.
 
 The game is tested on Windows 11 with a GeForce RTX 3060 Ti. The minimum hardware hasn't been measured yet. If it runs slowly, lower **Settings › Graphics › Quality preset**.

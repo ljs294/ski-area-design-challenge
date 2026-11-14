@@ -9,7 +9,7 @@ namespace MountainPlanner.UI.Flow
     /// </summary>
     public static class DataPreferences
     {
-        const string FolderKey = "LibraryFolder", OfflineKey = "Offline", CrashOfferKey = "CrashOffer";
+        const string FolderKey = "LibraryFolder", OfflineKey = "Offline", CrashOfferKey = "CrashOffer", UpdateCheckKey = "UpdateCheck";
 
         /// <summary>Settings › Data › Offer a report after a crash (task P3-14): on unless the player turned it off.</summary>
         public static bool CrashOffer => (_crashOffer ?? SettingsStore.GetInt(CrashOfferKey, 1) != 0);
@@ -20,6 +20,20 @@ namespace MountainPlanner.UI.Flow
         {
             if (remember) SettingsStore.SetInt(CrashOfferKey, on ? 1 : 0);
             _crashOffer = on;
+        }
+
+        /// <summary>
+        /// Settings › Data › Check for updates (task 4.23, UP7): on unless the player turned it off. The launcher reads the
+        /// same PlayerPrefs value (MountainPlanner.UpdateCheck) from the registry, so one switch covers both.
+        /// </summary>
+        public static bool UpdateCheck => _updateCheck ?? SettingsStore.GetInt(UpdateCheckKey, 1) != 0;
+
+        static bool? _updateCheck;
+
+        public static void SetUpdateCheck(bool on, bool remember = true)
+        {
+            if (remember) SettingsStore.SetInt(UpdateCheckKey, on ? 1 : 0);
+            _updateCheck = on;
         }
 
         /// <summary>The chosen library folder, or "" for the default (%LOCALAPPDATA%\SkiAreaDesignChallenge).</summary>

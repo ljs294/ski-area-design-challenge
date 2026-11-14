@@ -375,6 +375,13 @@ echo   4.22 skier models (Blender 5.2 only: no Unity, no game build; render lane
 echo     107 The skier and the snowboarder as pictures: the poses from three sides, both on the FGQ-4 chair, the
 echo        six LODs side by side, ten random outfits, close-ups, each turn as eight frames, and a slope from 12
 echo        to 120 m with every figure at the LOD the game would draw. The folder opens when they are done.
+echo   4.23 auto updater (friends download one small exe once; every start checks for a new version)
+echo     114 Install an older release: the launcher installs v0.3.1 from GitHub into a scratch folder
+echo        (%%LOCALAPPDATA%%\SkiAreaDesignChallenge-updater, never your real install) and ends on its Launch
+echo        screen, then shows that none of its files carries a download mark. About 400 MB from GitHub.
+echo     115 Update to the newest: start this branch's game as if it were 0.3.1; it hands over to the 114
+echo        launcher, which asks, installs the newest and ends on "Launch ... v0.3.2". Then a start with no
+echo        update (no launcher window), offline, and the version list. Rebuilds the game; close the editor first.
 echo.
 echo     Q  Quit
 echo.
@@ -517,6 +524,8 @@ if /i "%CHOICE%"=="101" goto lakereport
 if /i "%CHOICE%"=="105" goto skiersingame
 if /i "%CHOICE%"=="106" goto skiersbench
 if /i "%CHOICE%"=="107" goto skiermodels
+if /i "%CHOICE%"=="114" goto updaterinstall
+if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2261,6 +2270,78 @@ echo.
 chcp 65001 >nul
 dotnet run --project "%SPIKE%\src\DataSpike.Cli" -- site --name "%~1" --lat %2 --lon %3 --km %4 --out "%OUT%\%FILE%-%~4km.json" <nul
 exit /b 0
+
+:buildlauncher
+rem Task 4.23: the launcher from tools\launcher (a small .NET Framework 4.8 exe), built as 0.0.0 for the demos.
+set "LAUNCHERBUILD=%~dp0test-results\launcher\Launcher.exe"
+echo Building the launcher (a few seconds)...
+dotnet build "%~dp0tools\launcher\Launcher.csproj" -c Release -nologo -v q -p:Version=0.0.0 -o "%~dp0test-results\launcher" <nul
+if not exist "%LAUNCHERBUILD%" (echo   The launcher did not build. & exit /b 1)
+exit /b 0
+
+:updaterinstall
+rem Task 4.23: what a friend does once. The scratch root keeps this away from a real install in
+rem %LOCALAPPDATA%\Programs\SkiAreaDesignChallenge; --version picks the older release so 115 has something to update.
+set "UPROOT=%LOCALAPPDATA%\SkiAreaDesignChallenge-updater"
+call :buildlauncher || goto done
+if exist "%UPROOT%" rmdir /s /q "%UPROOT%"
+echo.
+echo Worktree: %~dp0
+echo The installer window opens, as a friend sees it after SmartScreen's "Run anyway" (none here: you built it).
+echo   1. It names version 0.3.1 and the folder; the desktop-shortcut box is hidden for this scratch install.
+echo   2. Install: about 400 MB from GitHub, then it checks the SHA-256 and unzips into versions\0.3.1.
+echo   3. It ends on "0.3.1 is installed" with Launch Ski Area Design Challenge v0.3.1. The Version list has
+echo      0.3.1 (installed) and GitHub's other releases, with 0.3.2 marked new. Launch it and look at its
+echo      title, then quit it; or just Close.
+"%LAUNCHERBUILD%" --installroot "%UPROOT%" --version 0.3.1 --no-shortcuts
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\launcher\demo-check.ps1" -Root "%UPROOT%" -Label "After the install (%UPROOT%):"
+echo   The launcher's log: %UPROOT%\launcher.log
+pause
+goto menu
+
+:updaterupdate
+rem Task 4.23 R1-R4: a start of the game exe goes through the launcher's quick check. -asversion makes this preview
+rem build compare as that release (a release build ignores it); -launcher points it at the 114 install.
+set "UPROOT=%LOCALAPPDATA%\SkiAreaDesignChallenge-updater"
+if not exist "%UPROOT%\Launcher.exe" (echo Run 114 first: it installs the older release this updates. & pause & goto menu)
+call :buildlauncher || goto done
+copy /y "%LAUNCHERBUILD%" "%UPROOT%\Launcher.exe" >nul
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Worktree: %~dp0
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\launcher\demo-check.ps1" -Root "%UPROOT%" -Label "Before the update:"
+echo.
+echo A. The game, started as if it were 0.3.1. Its window flashes and closes, and the launcher asks: "0.3.2 is out",
+echo    with Update, Play 0.3.1, What's new and Other versions. Choose Update: it downloads, checks and unzips,
+echo    then ends on "0.3.2 is installed" with Launch Ski Area Design Challenge v0.3.2. In the Version list,
+echo    0.3.2 and 0.3.1 are installed and 0.3.0 can be downloaded; Check for updates says you have the newest.
+echo    Launch it, look at its title (v0.3.2), then quit it.
+start "" /wait "%GAME%" -asversion 0.3.1 -launcher "%UPROOT%\Launcher.exe"
+echo.
+echo When you have quit 0.3.2, press a key.
+pause >nul
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\launcher\demo-check.ps1" -Root "%UPROOT%" -Label "After the update:"
+echo.
+echo B. No update: the same game as if it were 0.3.2. Its window flashes, then the game starts again by itself
+echo    with no launcher window (this is the branch's preview build, so its title says preview). Quit it.
+start "" /wait "%GAME%" -asversion 0.3.2 -launcher "%UPROOT%\Launcher.exe"
+echo When you have quit it, press a key.
+pause >nul
+echo.
+echo C. Offline: as 0.3.1 with -offline. No hand-over and no notice: the game starts at once. Quit it.
+start "" /wait "%GAME%" -asversion 0.3.1 -offline -launcher "%UPROOT%\Launcher.exe"
+echo.
+echo D. The version list: the launcher with --choose (or hold Shift as it starts). Pick 0.3.1, then
+echo    Launch Ski Area Design Challenge v0.3.1: the older release starts; quit it. Picking 0.3.0 says what it
+echo    downloads and that 0.3.1 makes room; Cancel there unless you want another 400 MB.
+"%UPROOT%\Launcher.exe" --choose
+echo.
+echo The launcher's log: %UPROOT%\launcher.log
+echo To remove the scratch install, delete %UPROOT%.
+pause
+goto menu
 
 :skiersingame
 rem Task 4.22: the guests drawn as the skier and snowboarder figures (dots stay far away; -dotsonly keeps the old look).
