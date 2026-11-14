@@ -490,9 +490,9 @@ namespace MountainPlanner.Tests
         [Test]
         public void TheVersionSevenSidecarIsFrozen()
         {
-            byte[] fixture = File.ReadAllBytes(FixtureFile(9));
+            byte[] fixture = File.ReadAllBytes(FixtureFile(7));
             var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
-            Assert.That(header.SidecarVersion, Is.EqualTo(9));
+            Assert.That(header.SidecarVersion, Is.EqualTo(7));
             byte[] again = w.SaveState();
             Assert.That(again.Length, Is.EqualTo(fixture.Length), "the sidecar v7 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
             for (int i = 0; i < 8; i++) Assert.That(again[i], Is.EqualTo(fixture[i]), "magic and version");
