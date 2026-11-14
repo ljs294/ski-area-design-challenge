@@ -36,6 +36,8 @@ namespace MountainPlanner.UI.Flow
         public event Action LogsOpenChosen;
         /// <summary>Data › Logs › Send logs…: Send feedback on Problem (task P3-14).</summary>
         public event Action LogsSendChosen;
+        /// <summary>Data › Version › Check now (task 4.23).</summary>
+        public event Action UpdateCheckNowChosen;
 
         /// <summary>False for captures and tests: changes apply for this run only, and the player's settings stay as they were.</summary>
         public bool Remember = true;
@@ -64,8 +66,8 @@ namespace MountainPlanner.UI.Flow
         int _listenEndFrame = -10;
 
         // Data.
-        Label _libraryPath, _diskText, _cacheText;
-        Button _libraryChange, _freeSpace, _clearCache;
+        Label _libraryPath, _diskText, _cacheText, _updateText;
+        Button _libraryChange, _freeSpace, _clearCache, _updateCheckNow;
         long _freeable, _cacheBytes;
         string _cacheBusy = "";
 
@@ -541,6 +543,14 @@ namespace MountainPlanner.UI.Flow
             Row(page, "Offline mode", "No downloads, map tiles or place search; the areas you have open as usual.",
                 Seg("offline", new[] { "on", "off" }, new[] { "On", "Off" },
                     () => DataPreferences.OfflineNow ? 0 : 1, i => { DataPreferences.SetOffline(i == 0, Remember); Refresh(); }));
+            // Task 4.23 (UP7): the update check, which the launcher follows too, and the version with Check now.
+            Row(page, "Check for updates", "At start, asks GitHub whether a newer version is out. Nothing about you or this computer is sent.",
+                Seg("update-check", new[] { "on", "off" }, new[] { "On", "Off" },
+                    () => DataPreferences.UpdateCheck ? 0 : 1, i => { DataPreferences.SetUpdateCheck(i == 0, Remember); Refresh(); }));
+            _updateCheckNow = Ghost("update-check-now", "Check now", () => UpdateCheckNowChosen?.Invoke());
+            var version = Row(page, "Version", "", _updateCheckNow);
+            _updateText = version.Q<Label>(className: "mp-srow__desc");
+            _updateText.name = "data-update";
             _refresh.Add(() =>
             {
                 _freeSpace.SetEnabled(_freeable > 0);
@@ -565,6 +575,14 @@ namespace MountainPlanner.UI.Flow
             _libraryPath.text = folder;
             _libraryChange.SetEnabled(canChange);
             _libraryChange.tooltip = canChange ? "" : why;
+        }
+
+        /// <summary>The Version row (task 4.23): this version and what the last check found; Check now off while one runs.</summary>
+        public void ShowUpdateStatus(string text, bool canCheck)
+        {
+            if (_updateText == null) return;
+            _updateText.text = text ?? "";
+            _updateCheckNow.SetEnabled(canCheck);
         }
 
         /// <summary>Disk use, measured by the app flow; <paramref name="freeable"/> is what Free space would remove.</summary>

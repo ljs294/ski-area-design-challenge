@@ -116,6 +116,12 @@ namespace MountainPlanner.App.Flow
             try
             {
                 full = Path.GetFullPath(folder);
+                // Task 4.23: an update replaces the install, so a library inside it would be lost.
+                if (InsideInstall(full))
+                {
+                    Screens.Toast("That folder is inside the game's install, which updates replace. Choose a folder outside it.", 7);
+                    return;
+                }
                 Directory.CreateDirectory(full);
                 string probe = Path.Combine(full, ".write-test");
                 File.WriteAllText(probe, "");

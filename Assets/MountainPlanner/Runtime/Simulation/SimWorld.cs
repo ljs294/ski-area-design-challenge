@@ -255,7 +255,8 @@ namespace MountainPlanner.Simulation
             // GU-02: a view command is stamped from its own sequence, so watching a skier leaves the state's alone. So are the
             // weather's static inputs (WX-35, PR B2): the terrain's, not a player's, sent again after every load, so a reloaded
             // game hashes as the one that saved.
-            stamped.Seq = c.Kind == SimCommandKind.InspectSkier || c.Kind == SimCommandKind.SetWeatherTerrain ? _viewSeq++ : _commandSeq++;
+            stamped.Seq = c.Kind == SimCommandKind.InspectSkier || c.Kind == SimCommandKind.SetWeatherTerrain || c.Kind == SimCommandKind.SetWaterBodies
+                ? _viewSeq++ : _commandSeq++;
             switch (c.Kind)
             {
                 case SimCommandKind.SetMountainOpen:
@@ -286,6 +287,9 @@ namespace MountainPlanner.Simulation
                 case SimCommandKind.SetWeatherTerrain:
                     if (!(c.Payload is Domain.Weather.WeatherTerrain wt) || !ApplyWeatherTerrain(wt)) { Reject(c, SimRefusal.Unknown); return; }
                     break;
+                case SimCommandKind.SetWaterBodies:
+                    if (!(c.Payload is Domain.Water.WaterBodyTable wb) || !ApplyWaterBodies(wb)) { Reject(c, SimRefusal.Unknown); return; }
+                    break;
                 case SimCommandKind.SetGust:
                 case SimCommandKind.FeedLine:
                     if (!ApplyLiftCommand(c)) return;
@@ -299,7 +303,7 @@ namespace MountainPlanner.Simulation
                     return;
             }
             // The static inputs are megabytes and the area's own: the log keeps that they came, not a second reference to them.
-            if (stamped.Kind == SimCommandKind.SetWeatherTerrain) stamped.Payload = null;
+            if (stamped.Kind == SimCommandKind.SetWeatherTerrain || stamped.Kind == SimCommandKind.SetWaterBodies) stamped.Payload = null;
             Log.Add(stamped);
         }
 
@@ -429,6 +433,7 @@ namespace MountainPlanner.Simulation
         void HourStep(long hour)
         {
             HourStepWeather(hour);
+            HourStepLakes(hour);
             _hourSliceCursor = 0;
             _trailsReadyNext = Design.BuiltTrails;
             BoardLifts(_liftOpenNext);
@@ -673,6 +678,7 @@ namespace MountainPlanner.Simulation
             s.FirstEventSeq = Events.CopyNewest(s.Events, out s.EventCount);
             s.SnowSet = Snow.Set;
             WriteWeather(s);
+            WriteLakes(s);
         }
 
         /// <summary>The run time of a lift by ID, ms, or −1 (tests).</summary>
@@ -709,6 +715,7 @@ namespace MountainPlanner.Simulation
             // The snow joined in PR B (SI-17): a world that has never had any hashes as before, so the goldens stand.
             if (Snow.Set || Snow.Width > 0) Snow.AddTo(ref h);
             HashGuests(ref h);
+            HashLakes(ref h);
             return h.Value;
         }
     }
@@ -735,6 +742,8 @@ namespace MountainPlanner.Simulation
         public const ulong LaneTag = Base + 8;
         /// <summary>GU-07: a party's weighted draw between the runs and lifts on offer.</summary>
         public const ulong ChoiceTag = Base + 9;
+        /// <summary>LK-01 v2 (task 4.09): a lake's id, keyed from its centroid's 8 m cell (seed 0: the place's, not the resort's).</summary>
+        public const ulong WaterBodyTag = Base + 10;
 
         public static ulong Hash(ulong seed, ulong tag, ulong a) => DesignKey.Hash(seed, tag, a);
         public static ulong Hash(ulong seed, ulong tag, ulong a, ulong b) => DesignKey.Hash(seed, tag, a, b);

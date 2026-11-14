@@ -474,23 +474,47 @@ MapLibre had no lake model; these rules are new. They give task 4.09 "each lake 
   `Pacing.LakeMinArea = 1 acre` are lakes with stable keyed IDs (SI-06, from the body's centroid cell); smaller
   water and all stream pixels form the **streams body**. Ponds (PD) join as new bodies when built. `WaterBodies`
   gains one entry per body, replacing `AllWater`.
-- **LK-02 v1, depth.** Mean depth = median shoreline slope × equivalent radius ÷ 3, clamped to [1.6 ft, min(160 ft,
-  radius ÷ 3)] (MapLibre's estimator, kept); the player may override it in the lake's window. Volume = area × depth
-  (WS-02).
-- **LK-03 v1, the fall lag.** A lake can't freeze until its heat is gone: ice starts once the running sum of
-  freezing degree-days (°F-days below 32, hourly mean) since the last thaw-out exceeds `Pacing.LakeLagPerFoot = 15`
-  × mean depth (ft) (a 20 ft pond needs about 10 days at 2 °F below freezing; a 100 ft lake most of December).
-- **LK-04 v1, ice growth.** Thickness h (in) = `Pacing.IceAlpha = 0.8` × √(FDD) where FDD is the accumulated
-  freezing degree-days (°F) since ice-on (Stefan's law, α ≈ 2 cm/√°C-day), reduced by snow on ice: α × 1 ÷ (1 + snow
-  depth (in) ÷ 6).
-- **LK-05, snow on ice.** New snow lands on the ice (SN-25) and insulates it (LK-04); it melts by SN-09 and its water
-  runs off the body (ledger).
-- **LK-06 v1, thaw.** Ice loses `Pacing.IceMeltPerDegDay = 0.1 in` per thawing degree-day (°F above 32, hourly) plus
-  the shortwave term of SN-09 on the ice surface; at h ≤ 1 in the body is open water and its FDD resets.
-- **LK-07, the streams body.** Freezes as a shallow lake of depth 1 ft, so it ices quickly and opens quickly; it
-  receives runoff (SN-10) for the water ledger and feeds dam inflow (WS-04).
-- **LK-08, states.** `WaterBodies` per body: OpenWater; Ice (h > 1 in, snow < 1 in); SnowCoveredIce (snow ≥ 1 in);
-  thicknesses as today. The renderer needs no change (0.3 §4.6).
+- **LK-01 v2, as 4.09 builds it (owner, 2026-11-13).** The ingest burns lakes and streams into one water band, so the
+  body map tells them apart on the 8 m surface grid: a cell is water at a share of at least `Pacing.LakeWaterShare =
+  50 %`; the mask is eroded by one cell (8-connected), which removes streams (2.5–14 m wide); the surviving cores are
+  labelled (4-connected); a long thin core (area ÷ the square of its widest inscribed width above
+  `Pacing.RiverElongation`) is a river and goes to the streams body; each other core grows back through the water by a
+  breadth-first flood of up to `Pacing.LakeGrowCells = 6` cells (48 m), ties to the lowest core, so bays stay with their lake.
+  A grown body of at least `LakeMinArea` is a lake. At most `Pacing.MaxLakes = 128` lakes (the smallest beyond it join
+  the streams body) plus `Pacing.MaxPonds = 32` places kept for 4.14. A lake the ring cuts is flagged Clipped. The
+  table is immutable and is rebuilt at open, never saved; ponds come as a new table.
+- **LK-02 v1, depth.** Mean depth = median shoreline slope (4.09: per shore cell the steepest of the 8 directions, rise over
+  the two cells beyond) × equivalent radius ÷ 3, clamped to [1.6 ft, min(160 ft,
+  radius ÷ 3)] (MapLibre's estimator, kept); the player may override it in the lake's window (4.14, as a command).
+  Volume = area × depth (WS-02).
+- **LK-03 v2, the fall lag (owner, 2026-11-13).** A lake can't freeze until its heat is gone: ice starts once the
+  running sum of freezing degree-days (°F-days below 32, hourly) since the last thaw-out reaches
+  `Pacing.LakeLagPerFoot = 2` × mean depth (ft). Warm hours give heat back (the sum falls, never below 0). **Lake time is
+  calendar time:** a face day stands for `SeasonCalendarDays ÷ SeasonDays` (121 ÷ 42, about 2.88) calendar days but
+  carries one real day of temperatures, so every lake degree-day (LK-03, LK-04, LK-06) counts × 121 ÷ 42 and the
+  rule numbers stay physical. (v1's 15 per foot, with its example, needed 1,500 °F-days for a 100 ft lake: more than
+  a whole Jackson Hole winter. At 2, a 20 ft pond needs 40 calendar °F-days, two weeks at 29 °F; a 100 ft lake 200,
+  about December at a cold site. Tuned from the 4.09 chart report.)
+- **LK-04 v2, ice growth.** Stefan's law, h (in) = `Pacing.IceAlpha = 0.8` × √(FDD since ice-on), taken hour by hour
+  as h² += (α × k)² × ΔFDD with the snow's insulation k = 1 ÷ (1 + snow depth (in) ÷ `Pacing.IceSnowInsulation =
+  6`), so snow that comes and goes thins the growth while it lies. Kept as h² in whole 1e-4 in² (no hour rounds to 0).
+- **LK-05 v2, snow on ice.** New snow lands on the ice (SN-25) and insulates it (LK-04). Its depth is its water at a
+  settled `Pacing.IceSnowDensity = 250 kg/m³`, capped at `Pacing.IceSnowMax = 24 in`. It melts by a lake-only
+  degree-hour melt (`Pacing.IceSnowMelt`, in 0.0001 in of water per °F-hour, plus rain on it) until 4.07's snow energy
+  replaces it; its water runs off the body (ledger). Snow on open water is a ledgered sink. Lakes own the snow of their
+  cells: the land snow field skips water cells (4.07).
+- **LK-06 v2, thaw.** Ice loses `Pacing.IceMeltPerDegDay = 0.1 in` per thawing degree-day (°F above 32, hourly,
+  calendar time) × `clamp(Pacing.LakeThawRefDepth = 20 ft ÷ depth, ½, 2)`, so shallow water opens first. Snow on the
+  ice melts first and shields it. The shortwave term waits for an integer sun on the ice (4.07); a frozen body that
+  reaches h ≤ 1 in while thawing is open water, and its FDD and lag reset.
+- **LK-07 v2, the streams body.** Freezes as a shallow lake of depth `Pacing.StreamsDepth = 1 ft`, and moving water
+  caps its ice at `Pacing.StreamsIceMax = 6 in`, so it ices quickly and opens first; it receives runoff (SN-10) for
+  the water ledger and feeds dam inflow (WS-04).
+- **LK-08 v2, states and dates.** `WaterBodies` per body: OpenWater; Ice (h > 1 in, snow < 1 in); SnowCoveredIce
+  (snow ≥ 1 in); thicknesses as today. A body carries a Frozen flag: it turns on when the lag is met (ice under 1 in
+  reads OpenWater but keeps growing) and off at the thaw-out of LK-06. The ice-on date is the label year's first
+  freeze, the ice-out date its last thaw-out; both clear on October 1. `LakeFroze` and `LakeOpened` come at most once
+  per body per face day. The renderer draws each body's own state through a body-ID map (4.09 PR B).
 - **LK-09, as a source.** A frozen lake can still be drawn from through its intake (WS-05): the ice sits on the pool.
   Drawdown under ice lowers the water, not the ice.
 

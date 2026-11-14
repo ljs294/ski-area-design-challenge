@@ -17,8 +17,10 @@
     5b. Symbols (task P3-14): a tagged release keeps what crash dumps need in <Symbols>\<version> (default
        D:\skiAreaDesignChallenge\symbols, beside the main checkout), outside git and never in the zip; -KeepSymbols
        keeps a preview's too. tools/reports/README.md says how to use them.
-    6. The zip <Out>\SkiAreaDesignChallenge-<version>-win64.zip with README.txt and NOTICES.txt, its .sha256 and
-       release.json (what was built and checked).
+    6. The zip <Out>\SkiAreaDesignChallenge-<version>-win64.zip with README.txt, NOTICES.txt and Launcher.exe, its
+       .sha256 and release.json (what was built and checked).
+    7. The installer (task 4.23): <Out>\SkiAreaDesignChallenge-Setup.exe, the launcher on its own, and its .sha256. A
+       friend downloads only this; it installs the zip of the latest release and every release after it.
   A tagged release refuses -AllowDirty, -SkipTests and -NoSmoke.
 #>
 param(
@@ -48,6 +50,7 @@ function Fail([string]$text, [int]$code = 1) {
 # ---- 1. Checks ----
 Step 'Checks'
 if (-not (Test-Path $Unity)) { Fail "Unity 6000.3.25f1 was not found at $Unity." }
+if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) { Fail 'The .NET SDK (dotnet) was not found: it builds the launcher (tools/launcher, task 4.23).' }
 if (Test-EditorOpen $root) { Fail 'The project is open in the Unity editor: close it first.' }
 $status = & git -C $root status --porcelain --untracked-files=no
 $dirty = [bool]$status
@@ -131,6 +134,15 @@ $noWeather = Select-String -Path $buildLog -Pattern '\[DemoBundle\] No weather i
 if ($noWeather) { Write-Host "  WARNING: $($noWeather.Line.Trim() -replace '^.*\[DemoBundle\] ', '')" -ForegroundColor Yellow; $report.warnings += @('demo has no weather') }
 $report.version = $version
 
+# ---- 4b. The launcher (task 4.23) ----
+Step 'Launcher (tools/launcher)'
+$launcher = Build-Launcher $root $version (Join-Path $Out 'launcher')
+if (-not $launcher.Ok) {
+    foreach ($line in $launcher.Errors) { Write-Host "  $line" }
+    Fail 'The launcher did not build (above).'
+}
+Write-Host "  Built $($launcher.Exe) ($([math]::Round((Get-Item $launcher.Exe).Length / 1KB)) KB)"
+
 # ---- 5. Smoke test ----
 if (-not $NoSmoke) {
     Step 'Smoke test of the shipped exe (GPU render lane): fresh install, offline, forced exception'
@@ -172,6 +184,7 @@ if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 $top = Join-Path $stage $name
 New-Item -ItemType Directory -Force $top | Out-Null
 Get-ChildItem $player | Where-Object { $_.Name -notmatch 'DoNotShip' -and $_.Name -ne 'version.txt' } | Copy-Item -Destination $top -Recurse
+Copy-Item $launcher.Exe (Join-Path $top $script:LauncherExe)
 $stagedBytes = (Get-ChildItem $top -Recurse -File | Measure-Object -Property Length -Sum).Sum
 $size = "$([math]::Ceiling($stagedBytes / 100MB) * 100) MB"
 $readme = (Get-Content -Raw (Join-Path $PSScriptRoot 'README.txt')).Replace('{VERSION}', $version).Replace('{SIZE}', $size)
@@ -188,6 +201,13 @@ if ($problems.Count -gt 0) { Fail "The zip's layout is wrong: $($problems -join 
 $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
 Set-Content -Path "$zip.sha256" -Value "$hash  $(Split-Path -Leaf $zip)" -Encoding ascii
 Remove-Item -Recurse -Force $stage
+# ---- 7. The installer (task 4.23) ----
+$setup = Join-Path $Out $script:SetupName
+Copy-Item $launcher.Exe $setup -Force
+$setupHash = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
+Set-Content -Path "$setup.sha256" -Value "$setupHash  $($script:SetupName)" -Encoding ascii
+$report.setup = $script:SetupName
+$report.setupSha256 = $setupHash
 $report.zip = Split-Path -Leaf $zip
 $report.bytes = (Get-Item $zip).Length
 $report.sha256 = $hash
@@ -199,4 +219,5 @@ $kind = 'Preview'
 if ($release) { $kind = 'Release' }
 Write-Host "$kind $version is ready: $zip ($([math]::Round($report.bytes / 1MB)) MB, $($report.minutes) min)" -ForegroundColor Green
 Write-Host "  SHA-256 $hash"
+Write-Host "  Installer: $setup (upload it with the zip and both .sha256 files)"
 exit 0

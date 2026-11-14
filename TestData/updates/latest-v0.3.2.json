@@ -1,0 +1,37 @@
+{
+  "url": "https://api.github.com/repos/ljs294/ski-area-design-challenge/releases/437364017",
+  "html_url": "https://github.com/ljs294/ski-area-design-challenge/releases/tag/v0.3.2",
+  "id": 437364017,
+  "tag_name": "v0.3.2",
+  "target_commitish": "main",
+  "name": "v0.3.2",
+  "draft": false,
+  "immutable": false,
+  "prerelease": false,
+  "created_at": "2026-11-07T04:08:39Z",
+  "published_at": "2026-11-07T05:38:39Z",
+  "assets": [
+    {
+      "url": "https://api.github.com/repos/ljs294/ski-area-design-challenge/releases/assets/719743712",
+      "id": 719743712,
+      "name": "SkiAreaDesignChallenge-0.3.2-win64.zip",
+      "label": "",
+      "content_type": "application/zip",
+      "state": "uploaded",
+      "size": 400923513,
+      "digest": "sha256:daea7ab75a6723ef794fa03482ff68fbf3f4861538b0ea93391a33c8ba036736",
+      "browser_download_url": "https://github.com/ljs294/ski-area-design-challenge/releases/download/v0.3.2/SkiAreaDesignChallenge-0.3.2-win64.zip"
+    },
+    {
+      "url": "https://api.github.com/repos/ljs294/ski-area-design-challenge/releases/assets/719743711",
+      "id": 719743711,
+      "name": "SkiAreaDesignChallenge-0.3.2-win64.zip.sha256",
+      "label": "",
+      "content_type": "application/octet-stream",
+      "state": "uploaded",
+      "size": 106,
+      "digest": "sha256:06f3bda1d44ee51acdc34db510b6ddb15e0b628a81de09630bb80cce59252b3d",
+      "browser_download_url": "https://github.com/ljs294/ski-area-design-challenge/releases/download/v0.3.2/SkiAreaDesignChallenge-0.3.2-win64.zip.sha256"
+    }
+  ]
+}

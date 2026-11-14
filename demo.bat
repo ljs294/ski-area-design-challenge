@@ -363,6 +363,9 @@ echo     99 Traffic (4.13 PR C): Shift+5 over a busy day: runs coloured by how c
 echo        their chairs run, a circle at each lift's bottom that grows with its line ("42 - 1:45"), Last hour or Today.
 echo    100 Guest benchmark (4.13 PR C2): the frame with 3,000 skiers at High and Medium, click and pause timing,
 echo        11,000 dots of headroom, and the skier-model proof (grey stand-in figures near the camera, never shipped).
+echo   4.09 lakes freeze and thaw, PR A (rebuilds the game; close the Unity editor first)
+echo    101 The lakes report: the lake tests, then one year of ice and snow on four test lakes (Jackson Hole and New
+echo        Hampshire weather) and on every lake and pond of your Mount Katahdin map (read only), as charts.
 echo   4.22 skiers in the game (rebuilds the game; close the Unity editor first)
 echo     105 The guests as people: skiers and snowboarders that ski by their ability, stand in the lift lines,
 echo        ride the chairs up and turn into dots far away. Open any mountain with lifts and trails.
@@ -382,6 +385,13 @@ echo        Quit the game: the Lift Lab opens on the 500-gun field with the plum
 echo     110 The Weather tab, mockup first (WX-46 v2; opens in Edge, no game build): Tonight's gun window by
 echo        height and tomorrow's lifts at risk, then Forecast (hourly at three heights, the week), Season so far
 echo        and Climate. Click the three views; the menu switches Dark/Light and Metric/Imperial.
+echo   4.23 auto updater (friends download one small exe once; every start checks for a new version)
+echo     114 Install an older release: the launcher installs v0.3.1 from GitHub into a scratch folder
+echo        (%%LOCALAPPDATA%%\SkiAreaDesignChallenge-updater, never your real install) and ends on its Launch
+echo        screen, then shows that none of its files carries a download mark. About 400 MB from GitHub.
+echo     115 Update to the newest: start this branch's game as if it were 0.3.1; it hands over to the 114
+echo        launcher, which asks, installs the newest and ends on "Launch ... v0.3.2". Then a start with no
+echo        update (no launcher window), offline, and the version list. Rebuilds the game; close the editor first.
 echo.
 echo     Q  Quit
 echo.
@@ -520,11 +530,14 @@ if /i "%CHOICE%"=="97" goto weatherlab
 if /i "%CHOICE%"=="98" goto guestsonscreen
 if /i "%CHOICE%"=="99" goto traffic
 if /i "%CHOICE%"=="100" goto guestbench
+if /i "%CHOICE%"=="101" goto lakereport
 if /i "%CHOICE%"=="105" goto skiersingame
 if /i "%CHOICE%"=="106" goto skiersbench
 if /i "%CHOICE%"=="107" goto skiermodels
 if /i "%CHOICE%"=="108" goto weatherlook
 if /i "%CHOICE%"=="110" goto weathertabmock
+if /i "%CHOICE%"=="114" goto updaterinstall
+if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2270,6 +2283,78 @@ chcp 65001 >nul
 dotnet run --project "%SPIKE%\src\DataSpike.Cli" -- site --name "%~1" --lat %2 --lon %3 --km %4 --out "%OUT%\%FILE%-%~4km.json" <nul
 exit /b 0
 
+:buildlauncher
+rem Task 4.23: the launcher from tools\launcher (a small .NET Framework 4.8 exe), built as 0.0.0 for the demos.
+set "LAUNCHERBUILD=%~dp0test-results\launcher\Launcher.exe"
+echo Building the launcher (a few seconds)...
+dotnet build "%~dp0tools\launcher\Launcher.csproj" -c Release -nologo -v q -p:Version=0.0.0 -o "%~dp0test-results\launcher" <nul
+if not exist "%LAUNCHERBUILD%" (echo   The launcher did not build. & exit /b 1)
+exit /b 0
+
+:updaterinstall
+rem Task 4.23: what a friend does once. The scratch root keeps this away from a real install in
+rem %LOCALAPPDATA%\Programs\SkiAreaDesignChallenge; --version picks the older release so 115 has something to update.
+set "UPROOT=%LOCALAPPDATA%\SkiAreaDesignChallenge-updater"
+call :buildlauncher || goto done
+if exist "%UPROOT%" rmdir /s /q "%UPROOT%"
+echo.
+echo Worktree: %~dp0
+echo The installer window opens, as a friend sees it after SmartScreen's "Run anyway" (none here: you built it).
+echo   1. It names version 0.3.1 and the folder; the desktop-shortcut box is hidden for this scratch install.
+echo   2. Install: about 400 MB from GitHub, then it checks the SHA-256 and unzips into versions\0.3.1.
+echo   3. It ends on "0.3.1 is installed" with Launch Ski Area Design Challenge v0.3.1. The Version list has
+echo      0.3.1 (installed) and GitHub's other releases, with 0.3.2 marked new. Launch it and look at its
+echo      title, then quit it; or just Close.
+"%LAUNCHERBUILD%" --installroot "%UPROOT%" --version 0.3.1 --no-shortcuts
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\launcher\demo-check.ps1" -Root "%UPROOT%" -Label "After the install (%UPROOT%):"
+echo   The launcher's log: %UPROOT%\launcher.log
+pause
+goto menu
+
+:updaterupdate
+rem Task 4.23 R1-R4: a start of the game exe goes through the launcher's quick check. -asversion makes this preview
+rem build compare as that release (a release build ignores it); -launcher points it at the 114 install.
+set "UPROOT=%LOCALAPPDATA%\SkiAreaDesignChallenge-updater"
+if not exist "%UPROOT%\Launcher.exe" (echo Run 114 first: it installs the older release this updates. & pause & goto menu)
+call :buildlauncher || goto done
+copy /y "%LAUNCHERBUILD%" "%UPROOT%\Launcher.exe" >nul
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo Worktree: %~dp0
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\launcher\demo-check.ps1" -Root "%UPROOT%" -Label "Before the update:"
+echo.
+echo A. The game, started as if it were 0.3.1. Its window flashes and closes, and the launcher asks: "0.3.2 is out",
+echo    with Update, Play 0.3.1, What's new and Other versions. Choose Update: it downloads, checks and unzips,
+echo    then ends on "0.3.2 is installed" with Launch Ski Area Design Challenge v0.3.2. In the Version list,
+echo    0.3.2 and 0.3.1 are installed and 0.3.0 can be downloaded; Check for updates says you have the newest.
+echo    Launch it, look at its title (v0.3.2), then quit it.
+start "" /wait "%GAME%" -asversion 0.3.1 -launcher "%UPROOT%\Launcher.exe"
+echo.
+echo When you have quit 0.3.2, press a key.
+pause >nul
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\launcher\demo-check.ps1" -Root "%UPROOT%" -Label "After the update:"
+echo.
+echo B. No update: the same game as if it were 0.3.2. Its window flashes, then the game starts again by itself
+echo    with no launcher window (this is the branch's preview build, so its title says preview). Quit it.
+start "" /wait "%GAME%" -asversion 0.3.2 -launcher "%UPROOT%\Launcher.exe"
+echo When you have quit it, press a key.
+pause >nul
+echo.
+echo C. Offline: as 0.3.1 with -offline. No hand-over and no notice: the game starts at once. Quit it.
+start "" /wait "%GAME%" -asversion 0.3.1 -offline -launcher "%UPROOT%\Launcher.exe"
+echo.
+echo D. The version list: the launcher with --choose (or hold Shift as it starts). Pick 0.3.1, then
+echo    Launch Ski Area Design Challenge v0.3.1: the older release starts; quit it. Picking 0.3.0 says what it
+echo    downloads and that 0.3.1 makes room; Cancel there unless you want another 400 MB.
+"%UPROOT%\Launcher.exe" --choose
+echo.
+echo The launcher's log: %UPROOT%\launcher.log
+echo To remove the scratch install, delete %UPROOT%.
+pause
+goto menu
+
 :skiersingame
 rem Task 4.22: the guests drawn as the skier and snowboarder figures (dots stay far away; -dotsonly keeps the old look).
 chcp 65001 >nul
@@ -2323,6 +2408,46 @@ for %%R in (high medium) do node "%~dp0tools\perf\compare.mjs" "%CROWD%\%%R-dots
 for %%R in (high medium) do node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-%%R-drawn.json" "%CROWD%\%%R-figures.json"
 start "" "%CROWD%"
 goto menu
+
+:lakereport
+rem 4.09 PR A: the water-body map (LK-01 v2) and each body's ice and snow (LK-03 v2..LK-08 v2), as a chart report.
+chcp 65001 >nul
+set "LAKES=%~dp0test-results\lakes"
+set "LK101=%LOCALAPPDATA%\SkiAreaDesignChallenge-lakes101"
+set "LK101KAT=27aeb2b792ce331f"
+set "LK101SRC=%LOCALAPPDATA%\SkiAreaDesignChallenge"
+if exist "%LAKES%" rmdir /s /q "%LAKES%"
+mkdir "%LAKES%"
+echo The lake tests (the map, the ice rules, saves and the pinned winter):
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~LakeTests|FullyQualifiedName~SimSaveTests" <nul
+if errorlevel 1 goto done
+echo The four test lakes over a year of Jackson Hole and of Jackson, New Hampshire weather:
+dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "Name=LK_WriteTheReportData" <nul >nul
+if errorlevel 1 (echo   The report data failed. & goto done)
+if not exist "%LK101SRC%\Resorts\%LK101KAT%\manifest.json" (echo   Mount Katahdin isn't in your library; the map part is skipped. & goto lakereportdraw)
+call :buildplayer
+if not exist "%GAME%" goto done
+rem A scratch data root: the game reads your Katahdin package and writes nothing into your library.
+if exist "%LK101%" rmdir /s /q "%LK101%"
+mkdir "%LK101%"
+echo Your Mount Katahdin map: building its water bodies and playing a year over them (a minute or two)...
+%RENDER% "%GAME%" -data "%LK101%" -package "%LK101SRC%\Resorts\%LK101KAT%" -offline -lakereport "%LAKES%\katahdin" <nul
+findstr /i /c:"[Lakes]" /c:"water bodies:" "%PLAYERLOG%"
+:lakereportdraw
+python "%~dp0tools\lakes\report.py" "%LAKES%"
+if errorlevel 1 (echo   The report needs Python 3 on the PATH. & goto done)
+echo.
+echo The report opens in your browser (test-results\lakes\report.html):
+echo   1. Four test lakes, all at 6,500 ft so only depth tells them apart: the streams (1 ft), a 6 ft pond, a 30 ft
+echo      lake and a 120 ft lake. Blue is the ice, grey the snow on it, the dashed lines the ice-on and ice-out dates.
+echo      Shallow water freezes first (the streams in October, the 120 ft lake about December 1) and opens first in
+echo      spring; snow on the ice slows its growth; a thin skim under an inch counts as open water.
+echo   2. The same four lakes in New Hampshire's weather (later ice, earlier thaw).
+echo   3. Mount Katahdin: the map of its water bodies (a colour per lake, the streams blue-grey), every body's frozen
+echo      days as a bar from shallow to deep, and ice-on and ice-out against each lake's estimated depth.
+echo   Nothing in the game looks different yet: PR B draws each lake in its own state.
+start "" "%LAKES%\report.html"
+goto done
 
 :skiermodels
 rem Task 4.22: the skier and snowboarder models as review pictures, in Blender only (demo 105 shows them in the game).
