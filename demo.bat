@@ -372,6 +372,16 @@ echo   4.22 skier models (Blender 5.2 only: no Unity, no game build; render lane
 echo     107 The skier and the snowboarder as pictures: the poses from three sides, both on the FGQ-4 chair, the
 echo        six LODs side by side, ten random outfits, close-ups, each turn as eight frames, and a slope from 12
 echo        to 120 m with every figure at the LOD the game would draw. The folder opens when they are done.
+echo   4.06 weather on screen
+echo     108 The weather on screen (PR A, the look): builds the game, then plays a real storm on a pinned season
+echo        seed at 4x, Building, Storm, Clearing, the powder morning, with the HUD's forecast and toasts agreeing.
+echo        Look for the deck over the summits, cloud shadows drifting, valley fog, snow near the camera, the light
+echo        going flat in the storm, and the trees leaning with the wind. Pick a tool or a layer: the fog thins.
+echo        In a gale: spindrift off the ridges and gusts over the far forest; on a bluebird morning the snow sparkles.
+echo        Quit the game: the Lift Lab opens on the 500-gun field with the plumes (O steps their wind).
+echo     110 The Weather tab, mockup first (WX-46 v2; opens in Edge, no game build): Tonight's gun window by
+echo        height and tomorrow's lifts at risk, then Forecast (hourly at three heights, the week), Season so far
+echo        and Climate. Click the three views; the menu switches Dark/Light and Metric/Imperial.
 echo.
 echo     Q  Quit
 echo.
@@ -513,6 +523,8 @@ if /i "%CHOICE%"=="100" goto guestbench
 if /i "%CHOICE%"=="105" goto skiersingame
 if /i "%CHOICE%"=="106" goto skiersbench
 if /i "%CHOICE%"=="107" goto skiermodels
+if /i "%CHOICE%"=="108" goto weatherlook
+if /i "%CHOICE%"=="110" goto weathertabmock
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2345,4 +2357,29 @@ chcp %OLDCP% >nul
 echo.
 echo Reports are in %OUT%
 pause
+goto menu
+
+:weathertabmock
+rem 4.06: the Weather tab mockup (WX-46 v2) in the HUD mockup, opened on its state: Phase 2's HUD with lifts, the evening
+set "MOCK=%~dp0docs\plans\prototypes\ui-layout.html"
+start "" msedge "file:///%MOCK:\=/%#solo&demo=p2,net,wx46,aweather"
+echo   The Weather tab opened in Edge. Other states: add ,wxseason or ,wxclimate or ,wxlimited or ,light to the address (Climate: ,wxweekly or ,wxseasonal).
+goto menu
+
+:weatherlook
+rem 4.06 PR A: the weather on screen. A scratch data root, so your own saves and settings stay untouched.
+call :buildplayer
+if not exist "%GAME%" goto done
+set "WX108=%LOCALAPPDATA%\SkiAreaDesignChallenge-wx108"
+if not exist "%WX108%" mkdir "%WX108%"
+echo   The game opens on the demo mountain, finds a big storm in this season's forecast (skipping mornings), and
+echo   plays it at 4x. Fly around: the overview (zoomed out) should stay readable, a close look gets the full storm.
+echo   Quit the game when done.
+start "" /wait "%GAME%" -data "%WX108%" -notitle -wxdemo
+rem Then the snow guns' plumes in the Lift Lab (the API 4.16's guns will use): rebuilt, so the plumes are this branch's.
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto menu
+echo   The Lift Lab's gun field: 500 guns, each with its plume. O steps the wind (off, calm, breeze, strong); 7 the guns
+echo   up close. Esc quits.
+start "" "%LIFTLAB%" -mode gunfield
 goto menu

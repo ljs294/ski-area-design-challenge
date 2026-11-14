@@ -24,14 +24,15 @@ Shader "MountainPlanner/Sky"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_fragment _ WX_AIR   // task 4.06: the weather's fog, only while something's in the air (WeatherView)
             #pragma target 4.5
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Weather.hlsl"   // task 4.06: the clouds and the fog the far ridges get (declares _SkySunDirection)
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _Zenith, _Horizon, _Below, _SunColor;
                 float _DiscCos, _Stars;
             CBUFFER_END
-            float3 _SkySunDirection;
 
             struct Attributes { float4 positionOS : POSITION; };
             struct Varyings { float4 positionCS : SV_POSITION; float3 direction : TEXCOORD0; };
@@ -85,8 +86,44 @@ Shader "MountainPlanner/Sky"
                     }
                 }
 
+                // Task 4.06: the weather's sky. From under the deck, its clouds on the deck's plane (the same field that shades the
+                // ground): dark where they're thick, a bright rim where they thin toward the sun, the turned detail in their edges.
+                float3 cam = _WorldSpaceCameraPos;
+                UNITY_BRANCH
+                if (_WxParams.x > 0.5)
+                {
+                    float under = _WxDeck.x - cam.y;
+                    UNITY_BRANCH
+                    if (up > 0.01 && under > 0)
+                    {
+                        float dist = under / up;
+                        float2 q = cam.xz + d.xz * dist + _WxCloud.zw;
+                        float lod = WxLod(dist, up);
+                        float n = WxCloudField(q, lod, true);
+                        float cover = WxCover(q);
+                        float cl = WxCloudFrom(n, cover, WxFrontAt(q, n), lod);
+                        float thick = saturate((n - (1 - cover)) * 3);
+                        float sunUp = saturate(sun.y * 3 + 0.15);
+                        float toSun = pow(saturate(dot(d, sun)), 4) * sunUp;
+                        float rim = cl * (1 - cl) * 4 * toSun;
+                        float3 cloud = lerp(_WxFogColor.rgb * 0.97, _WxFogLow.rgb * _WxLight.w, thick) + _WxSun.rgb * (0.12 * toSun + 0.8 * rim);
+                        colour = lerp(colour, cloud, cl * lerp(0.7, 1, n));
+                    }
+                }
+
                 // Below the horizon: a soft backdrop the diorama floats in.
                 colour = lerp(colour, _Below.rgb, smoothstep(0, -0.12, up));
+
+                // Then the air the far ridges get (the same cap, so the sky and the ridges meet without a seam). Below the horizon
+                // that's the deck's top or the valley sea running on past the diorama's edge, so the diorama sits in the weather.
+                UNITY_BRANCH
+                #if defined(WX_AIR)
+                if (_WxParams.x > 0.5 && _WxParams.y > 0) colour = WxApplyAir((half3)colour, WxAirTo(cam + d * 30000, true), 0);
+                #endif
+
+                // A touch of noise against banding in the dark storm and night grades.
+                float ign = frac(52.9829189 * frac(dot(i.positionCS.xy, float2(0.06711056, 0.00583715))));
+                colour += (ign - 0.5) / 255.0;
                 return half4(colour, 1);
             }
             ENDHLSL

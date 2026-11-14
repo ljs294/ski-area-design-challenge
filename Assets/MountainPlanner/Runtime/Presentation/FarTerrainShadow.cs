@@ -126,10 +126,21 @@ namespace MountainPlanner.Presentation
             Shader.SetGlobalVector(ParamsId, Params());
         }
 
+        /// <summary>Task 4.06: how dark the far shadows fall (0–1), following the sun's shadow strength under cloud.</summary>
+        public float Strength { get; private set; } = 1;
+
+        public void SetStrength(float strength)
+        {
+            strength = Mathf.Clamp01(strength);
+            if (Mathf.Abs(strength - Strength) < 0.002f) return;
+            Strength = strength;
+            Shader.SetGlobalVector(ParamsId, Params());
+        }
+
         Vector4 Params()
         {
             float distance = GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp ? urp.shadowDistance : QualitySettings.shadowDistance;
-            return new Vector4(distance * FadeFrom, distance, 1, Enabled && _lit != null ? 1 : 0);
+            return new Vector4(distance * FadeFrom, distance, Strength, Enabled && _lit != null && Strength > 0.01f ? 1 : 0);
         }
 
         /// <summary>The light moved (unit vector toward it, world space): rebuilds the lit map if it moved enough.</summary>

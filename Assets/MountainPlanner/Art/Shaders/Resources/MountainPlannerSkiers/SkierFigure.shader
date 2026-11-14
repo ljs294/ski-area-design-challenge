@@ -65,6 +65,7 @@ Shader "MountainPlanner/SkierFigure"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_fragment _ WX_AIR   // task 4.06: the weather's fog, only while something's in the air (WeatherView)
             #pragma target 4.5
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
@@ -72,6 +73,7 @@ Shader "MountainPlanner/SkierFigure"
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "../../Weather.hlsl"
 
             struct Varyings
             {
@@ -127,6 +129,7 @@ Shader "MountainPlanner/SkierFigure"
                 surface.alpha = 1;
                 half4 colour = UniversalFragmentPBR(input, surface);
                 colour.rgb = MixFog(colour.rgb, input.fogCoord);
+                colour.rgb = WeatherFogKeep(colour.rgb, positionWS, 0.2h);   // task 4.06: the weather, the skier still reads
                 colour.a = 1;
                 return colour;
             }

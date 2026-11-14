@@ -6,6 +6,8 @@
 #ifndef MOUNTAIN_FAR_SHADOW
 #define MOUNTAIN_FAR_SHADOW
 
+#include "Weather.hlsl"
+
 TEXTURE2D(_FarShadowMap);
 SAMPLER(sampler_FarShadowMap);
 float4 _FarShadowRect;     // west, south, 1 / width, 1 / depth (world metres)
@@ -42,7 +44,7 @@ half TerrainSkyVisibility(float3 positionWS)
 Light MainLightWithFarShadow(float3 positionWS)
 {
     Light sun = GetMainLight(TransformWorldToShadowCoord(positionWS));
-    sun.shadowAttenuation = min(sun.shadowAttenuation, FarShadow(positionWS));
+    sun.shadowAttenuation = min(sun.shadowAttenuation, FarShadow(positionWS)) * CloudShadow(positionWS);   // task 4.06: clouds' shadows
     return sun;
 }
 

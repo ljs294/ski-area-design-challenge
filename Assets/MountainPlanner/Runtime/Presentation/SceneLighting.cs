@@ -48,6 +48,21 @@ namespace MountainPlanner.Presentation
         /// <summary>The light as last applied.</summary>
         public SkyLight CurrentLight { get; private set; }
         public string CurrentName => LightingPreset.All[Current].Name;
+        /// <summary>Task 4.06: the weather's grade over the look (<see cref="Weather.WeatherGrade"/>), and the look as last applied.</summary>
+        public Weather.WeatherGrade WeatherGrade { get; private set; }
+        public LightingPreset Applied { get; private set; } = LightingPreset.All[LightingPreset.Noon];
+        /// <summary>
+        /// Task 4.06: 0 by day, 1 at night, eased over dusk (sun from 1° to 7° below the horizon), so the weather's grade and its
+        /// cloud shadows fade instead of switching when the sun sets.
+        /// </summary>
+        public static float NightWeight(float sunElevation)
+        {
+            float t = Mathf.Clamp01((-1f - sunElevation) / 6f);
+            return t * t * (3 - 2 * t);
+        }
+
+        /// <summary>Below this the sun's shadow passes are skipped (a storm's flat light saves them).</summary>
+        public const float LeastShadow = 0.05f;
 
         FarTerrainShadow _farShadows;
         Vector3 _toLight = Vector3.up;
@@ -121,6 +136,14 @@ namespace MountainPlanner.Presentation
         {
             if (index < 0 || index >= LookStyle.All.Length) return;
             Style = LookStyle.All[index];
+            _dirty = true;
+        }
+
+        /// <summary>Task 4.06: the weather's grade; re-applies the look only when it moves.</summary>
+        public void SetWeather(in Weather.WeatherGrade grade)
+        {
+            if (grade.Near(WeatherGrade)) return;
+            WeatherGrade = grade;
             _dirty = true;
         }
 
@@ -213,6 +236,9 @@ namespace MountainPlanner.Presentation
             p.Exposure += s.ExposureAdd;
             p.Contrast += s.ContrastAdd;
             p.Saturation += s.SaturationAdd;
+            float clearShadow = p.ShadowStrength;
+            p = WeatherGrade.Apply(p, NightWeight((float)light.SunElevation));
+            Applied = p;
             var toLight = _toLight = new Vector3((float)light.X, (float)light.Y, (float)light.Z);
             if (Sun != null)
             {
@@ -220,9 +246,11 @@ namespace MountainPlanner.Presentation
                 Sun.color = p.SunColor;
                 Sun.intensity = p.SunIntensity * (float)light.Strength;
                 Sun.shadowStrength = p.ShadowStrength;
-                Sun.shadows = light.Strength > 0.001 ? LightShadows.Soft : LightShadows.None;   // no shadow passes for a dark light
+                // No shadow passes for a dark light, or under a deck that leaves no shadow to draw (task 4.06).
+                Sun.shadows = light.Strength > 0.001 && p.ShadowStrength > LeastShadow ? LightShadows.Soft : LightShadows.None;
             }
             _farShadows?.SetLight(toLight);
+            _farShadows?.SetStrength(p.ShadowStrength > LeastShadow ? Mathf.Clamp01(p.ShadowStrength / Mathf.Max(clearShadow, 0.01f)) : 0);
             RenderSettings.ambientSkyColor = p.AmbientSky;
             RenderSettings.ambientEquatorColor = p.AmbientEquator;
             RenderSettings.ambientGroundColor = p.AmbientGround;

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using MountainPlanner.Presentation;
 using MountainPlanner.Presentation.Lifts;
+using MountainPlanner.Presentation.Weather;
 using MountainPlanner.World.Lifts;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -32,7 +33,7 @@ namespace MountainPlanner.App
     ///   M fixed-grip terminals (the Sessellift quad, triple and double, the Monta 4, 3 and 2 and the Stern: every terminal)
     ///   V terminal head: every fixed-grip terminal shows its next head (drive at either end: bottom, top 4, 6, 8)
     ///   Tab next asset · L LOD auto/0/1/2/3 · N snow · C livery colour · I accent colour (the carpet glass's tint, C16)
-    ///   T turntable · G ground on/off
+    ///   T turntable · G ground on/off · O the snow guns' plumes: off, calm, breeze, strong wind (task 4.06; 7 and 8)
     ///   B benchmark · P screenshot · H help · Esc quit (camera: ViewCamera's keys)
     /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs|sixpack|fixedgrip|d4|stern|tbar|carpet, -lod n,
     /// -snow 0..1, -livery n and -accent n (the colours C and I step to, from 0),
@@ -126,6 +127,11 @@ namespace MountainPlanner.App
         enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField, Monta, Chairs, SixPack, FixedGrip, Quad, Stern, Tbar, Carpet }
 
         readonly List<GameObject> _spawned = new List<GameObject>();
+        /// <summary>Task 4.06: the snow guns' plumes (7 and 8), from each gun's nozzle socket; O steps the wind they blow in.</summary>
+        readonly WindRibbons _plumes = new WindRibbons();
+        static readonly float[] PlumeWinds = { 0f, 1.5f, 5f, 11f };   // m/s; 0 is off
+        static readonly string[] PlumeWindNames = { "off", "calm", "breeze", "strong wind" };
+        int _plumeWind = 2;
         readonly List<Mesh> _meshes = new List<Mesh>();   // the carpet approaches, made per scene
         readonly Dictionary<GameObject, int[]> _lodTriangles = new Dictionary<GameObject, int[]>();
         LiftMaterials _materials;
@@ -517,6 +523,50 @@ namespace MountainPlanner.App
             }
             _materials.SetSnowLoad(_snow);
             if (_glassAlpha >= 0f) SetGlassAlpha(_glassAlpha);
+            SetPlumes();
+        }
+
+        /// <summary>
+        /// Task 4.06: a plume from every placed snow gun's nozzle socket, thrown along the gun's lean (the hinge to the nozzle,
+        /// lifted 15 degrees) or its barrel, then carried off by the wind. The emitters 4.16's guns will hand the game's
+        /// <see cref="WindRibbons"/> the same way.
+        /// </summary>
+        void SetPlumes()
+        {
+            var emitters = new List<WindRibbons.Emitter>();
+            foreach (var go in _spawned)
+            {
+                var rig = go != null ? go.GetComponent<LiftRig>() : null;
+                var nozzle = rig != null ? rig.Socket("nozzle") : null;
+                if (nozzle == null) continue;
+                bool ground = go.name.StartsWith("sle_ground_gun", StringComparison.Ordinal);
+                var from = rig.Pivots.Length > 0 && rig.Pivots[0] != null ? rig.Pivots[0].position : go.transform.position;
+                var lean = nozzle.position - from;
+                lean.y = 0;
+                if (lean.sqrMagnitude < 0.01f) lean = go.transform.forward;
+                var aim = Quaternion.AngleAxis(-15f, Vector3.Cross(Vector3.up, lean.normalized)) * lean.normalized;
+                emitters.Add(new WindRibbons.Emitter
+                {
+                    Position = nozzle.position, Jet = aim * (ground ? 22f : 14f), Strength = 1, Life = 6,
+                    SizeFrom = 1.1f, SizeTo = ground ? 7f : 6f, Sink = 5f, Carry = 1,   // born wider than the gap between puffs: a jet, not beads
+                });
+            }
+            _plumes.SetEmitters(emitters.ToArray(), emitters.Count);
+            _plumes.Snap(1);
+        }
+
+        void DrawPlumes(float dt)
+        {
+            if (_plumes.Count == 0 || Camera == null) return;
+            var cam = Camera.GetComponent<UnityEngine.Camera>();
+            var sun = RenderSettings.sun != null ? RenderSettings.sun.color.linear * RenderSettings.sun.intensity : Color.white;
+            var sky = ((RenderSettings.ambientSkyColor + RenderSettings.ambientEquatorColor) * 0.5f).linear;
+            if (sky.maxColorComponent < 0.05f) sky = new Color(0.45f, 0.5f, 0.58f);
+            float wind = PlumeWinds[_plumeWind % PlumeWinds.Length];
+            // The wind blows across the field (along +X, the guns' trails run along Z), veering slowly so the plumes swing.
+            float veer = Mathf.Sin(Time.unscaledTime * 0.05f) * 25f * Mathf.Deg2Rad;
+            var toward = new Vector2(Mathf.Cos(veer), Mathf.Sin(veer)) * wind;
+            _plumes.Draw(cam, toward, wind > 8f ? 0.6f : 0.2f, wind > 0 ? 1 : 0, dt, false, sun, sky);
         }
 
         /// <summary>Review only (-glass a): every placed glass copy, the hoods' and the carpet gallery's, at one face-on opacity.</summary>
@@ -948,6 +998,7 @@ namespace MountainPlanner.App
         {
             float dt = Time.unscaledDeltaTime;
             _recent[_recentCount++ % _recent.Length] = dt * 1000f;
+            DrawPlumes(dt);
             if (_benchmarking) { _stats.Record(dt, FrameStats.SampleGpuMs()); return; }
             var keys = Keyboard.current;
             if (keys != null)
@@ -976,6 +1027,7 @@ namespace MountainPlanner.App
                 if (keys.iKey.wasPressedThisFrame) { _accent++; Show(_mode); }
                 if (keys.tKey.wasPressedThisFrame) _turntable = !_turntable;
                 if (keys.gKey.wasPressedThisFrame) _ground.SetActive(!_ground.activeSelf);
+                if (keys.oKey.wasPressedThisFrame) _plumeWind = (_plumeWind + 1) % PlumeWinds.Length;
                 if (keys.bKey.wasPressedThisFrame) StartCoroutine(Benchmark(null, false));
                 if (keys.pKey.wasPressedThisFrame) ScreenCapture.CaptureScreenshot(Path.Combine(Application.persistentDataPath, $"LiftLab_{DateTime.Now:yyyyMMdd_HHmmss}.png"));
                 if (keys.hKey.wasPressedThisFrame) Help = !Help;
@@ -1051,9 +1103,10 @@ namespace MountainPlanner.App
             }
             _text.Append("Snow ").Append((_snow * 100).ToString("F0")).Append("% · livery ").Append(_livery % Liveries.Length + 1).Append('/').Append(Liveries.Length)
                  .Append(" · accent ").Append(_accent % Accents.Length + 1).Append('/').Append(Accents.Length);
+            if (_plumes.Count > 0) _text.Append(" · plumes: ").Append(_plumes.Count).Append(", ").Append(PlumeWindNames[_plumeWind % PlumeWindNames.Length]);
             if (Help)
                 _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · 9 Monta · 0 chairs · X six-pack · J D4 quad · K Stern · U T-bar · Y carpets · M fixed-grip · V head (")
-                     .Append(HeadKeys[_head] ?? "own").Append(") · Tab next · L LOD · N snow · C colour · I accent · T turntable · G ground · B benchmark · P screenshot · H help · Esc quit")
+                     .Append(HeadKeys[_head] ?? "own").Append(") · Tab next · L LOD · N snow · C colour · I accent · T turntable · G ground · O plumes' wind · B benchmark · P screenshot · H help · Esc quit")
                      .Append("\nWASD move · Q/E rotate · R/F tilt · wheel zoom · middle-drag rotate · right-drag move · Shift faster");
             return _text.ToString();
         }
@@ -1137,6 +1190,7 @@ namespace MountainPlanner.App
         {
             _materials?.Dispose();
             _stats?.Dispose();
+            _plumes.Dispose();
         }
 
         [Serializable]

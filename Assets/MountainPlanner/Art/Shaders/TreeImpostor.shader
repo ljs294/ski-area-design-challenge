@@ -187,6 +187,7 @@ Shader "MountainPlanner/TreeImpostor"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_fragment _ WX_AIR   // task 4.06: the weather's fog, only while something's in the air (WeatherView)
             #pragma target 4.5
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -239,6 +240,7 @@ Shader "MountainPlanner/TreeImpostor"
                 half ao = data.b * lerp(1 - _ImpRelief, 1, flecks.y);
                 ao = lerp(ao, 1, snow * 0.3);
                 half3 lit = TreeLight(colour, SnowNormal(n, snow), ao, i.positionWS, _Translucency * (1 - snow));
+                lit *= WeatherGust(i.positionWS);   // task 4.06: gust patches over the far forest in a gale
                 return half4(ApplyHaze(lit, i.positionWS), coverage);
             }
             ENDHLSL
