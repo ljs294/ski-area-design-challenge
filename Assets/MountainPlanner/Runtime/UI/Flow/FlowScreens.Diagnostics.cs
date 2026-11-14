@@ -35,6 +35,7 @@ namespace MountainPlanner.UI.Flow
             _root.Q<Button>("error-notice-x").clicked += HideErrorNotice;
             Settings.LogsOpenChosen += () => ErrorLogsOpenChosen?.Invoke();
             WireReport();   // Send feedback, the notice's Send logs and the crash offer (FlowScreens.Report.cs, task P3-14)
+            WireUpdates();  // the update notice and Settings › Data › Version (FlowScreens.Updates.cs, task 4.23)
         }
 
         /// <summary>The version under the title's signs: "v0.2.0".</summary>

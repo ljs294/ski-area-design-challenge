@@ -339,6 +339,14 @@
             <ui:Button name="crash-notice-later" text="Not now" class="mp-ghost" />
         </ui:VisualElement>
 
+        <!-- Task 4.23: a newer release is out (the title, once per run, unless the launcher already asked). -->
+        <ui:VisualElement name="update-notice" class="error-notice update-notice hidden">
+            <ui:Label name="update-notice-text" text="A newer version is out." class="error-notice-text" />
+            <ui:Button name="update-notice-go" text="Update" class="mp-go" />
+            <ui:Button name="update-notice-news" text="What's new" class="mp-ghost" />
+            <ui:Button name="update-notice-later" text="Not now" class="mp-ghost" />
+        </ui:VisualElement>
+
         <!-- Task P3-14: Send feedback (#demo=fb, fbsug, fbcrash) and Report saved (#demo=fbsent). FlowScreens.Report.cs fills the parts. -->
         <ui:VisualElement name="feedback" class="modal hidden">
             <mp:StageColumn>

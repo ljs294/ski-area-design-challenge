@@ -26,7 +26,10 @@ Close the Unity editor, then double-click `release.bat` at the repo root, or cho
    - the forced exception and a worker-thread one reach the error log, which carries the version;
    - the exe quits with 0.
 6. **The zip**, `Builds/Release/SkiAreaDesignChallenge-<version>-win64.zip`, with its `.sha256` and `release.json`
-   (what was built and checked).
+   (what was built and checked). The zip holds `Launcher.exe` too (task 4.23).
+7. **The installer** (task 4.23), `Builds/Release/SkiAreaDesignChallenge-Setup.exe` and its `.sha256`: the launcher
+   on its own (`tools/launcher`, built with the .NET SDK), the one file a friend downloads. See "Installer and
+   updates" below.
 
 Options:
 - `-AllowDirty`: build with uncommitted changes. The version is marked `.dirty`.
@@ -69,6 +72,55 @@ To release:
 3. Run `release.bat` on main.
 4. Check the zip.
 5. Push the tag (after the owner's OK).
+6. Upload all four files to the GitHub release (after the owner's OK): the zip, `SkiAreaDesignChallenge-Setup.exe`
+   and both `.sha256`. The launcher installs only a release whose zip and `.zip.sha256` are both there.
+
+## Installer and updates (task 4.23)
+
+Friends download one small exe, `SkiAreaDesignChallenge-Setup.exe`, and click SmartScreen's "More info > Run
+anyway" once. A program that downloads a file itself over HTTP adds no Mark of the Web, so nothing it installs needs
+"Unblock" (it never removes a mark either). Decisions UP1-UP10 are in `docs/plans/p4-23-auto-updater.md`.
+
+- **The link:** the Setup asset has no version in its name, so
+  `https://github.com/ljs294/ski-area-design-challenge/releases/latest/download/SkiAreaDesignChallenge-Setup.exe`
+  always gives the newest.
+- **The install:** `%LOCALAPPDATA%\Programs\SkiAreaDesignChallenge\` holds `Launcher.exe`, `launcher.log` (this run's
+  log) and `versions\<x.y.z>\`, one folder per version. A version counts once its folder holds the empty `.complete`
+  marker, written last. The newest plays; two versions stay installed (the newest, and the one before or the one
+  just picked from the version list); older ones are deleted. There is no state file. Saves, areas, logs and settings
+  live in `%LOCALAPPDATA%\SkiAreaDesignChallenge` and the registry, never in the install.
+- **Every start checks (R1, R2):** the Start-menu shortcut runs `Launcher.exe`; the game exe started directly (a
+  shortcut to it, or a copy unzipped by hand, which has `Launcher.exe` beside it) hands over to the launcher with
+  `--game <exe> --gameversion <v>` and quits at once. The launcher checks out of sight: no update (or GitHub
+  unreachable within 5 s) starts the game with `-updatechecked`, with no window. An update asks: Update, Play the
+  current version, What's new, Other versions. The hand-off is skipped offline, with the switch off, for capture and
+  test runs, preview builds and a game with no launcher. Player-prev.log, which problem reports send, is kept through
+  the hand-off run (`Player-prev-kept.log`, put back by the next run that plays).
+- **The Launch screen (R3, R4):** every install ends on "0.3.3 is installed" with **Launch Ski Area Design Challenge
+  v0.3.3**, not a game that starts by itself. It has the version list (installed versions, then GitHub's other
+  releases from `/releases`; picking one not installed says what it downloads and which version makes room) and
+  Check for updates. `--choose`, or Shift as the launcher starts, opens the same screen. A picked version plays that
+  once; nothing is remembered.
+- **The check:** `GET https://api.github.com/repos/ljs294/ski-area-design-challenge/releases/latest` with the game's
+  User-Agent, no token and nothing about the player. Downloads come from github.com, which hands them to
+  `release-assets.githubusercontent.com`. Preview builds (`+dev`) are never offered releases. 5 s timeout; a failure
+  just plays the installed version.
+- **The install of a version:** the `.sha256` (and GitHub's own digest, when given: both must agree), the zip to
+  `downloads\<zip>.partial` (a dropped download resumes), SHA-256, then unzip to `versions\<v>.partial\` (every entry
+  kept inside) and rename. A failure leaves the installed version untouched.
+- **In the game:** Settings > Data > Check for updates (on by default; the launcher reads the same switch, and
+  Offline mode, from the registry) and Version > Check now. The title's own check is now the fallback for a start the
+  launcher didn't check; Update starts the launcher with `--update`, which installs at once and ends on the Launch
+  screen. A game with no launcher offers the release page instead. `-asversion <x.y.z>` makes a preview build compare
+  as that release (demo 115).
+- **The launcher's own update:** each zip ships `Launcher.exe`; a newer one replaces the installed launcher.
+- **Options:** `--game EXE --gameversion V` (the game's hand-off); for demos and tests `--installroot DIR`,
+  `--version X.Y.Z`, `--feed DIR` (a local folder in GitHub's shape), `--update`, `--choose` (or Shift),
+  `--uninstall`, `--no-shortcuts`, `--no-start`, `--yes`, `-- <game args>`.
+- **Code:** `Runtime/Acquisition/Updates/` is engine-free and shared by the game and the launcher (Core tests:
+  `dotnet test tools/domain-tests/Tests --filter FullyQualifiedName~UpdatesTests`). `tools/launcher/` is the window.
+- **Not signed:** SmartScreen's one "Run anyway" stays until the exe is code-signed (paid; not planned). Windows 11's
+  Smart App Control, where it is on, blocks unsigned exes outright, the zip's too.
 
 ## Error logs
 
@@ -118,4 +170,5 @@ The hook skips, with a message, when the editor has the project open or the chec
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/release/test-release.ps1
 ```
 
-It covers version names, fresh results and logs, licence lapses, and the zip layout. It needs no Unity or GPU.
+It covers version names, fresh results and logs, licence lapses, the zip layout and the launcher build. It needs no
+Unity or GPU.

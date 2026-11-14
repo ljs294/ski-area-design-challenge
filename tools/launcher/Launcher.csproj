@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The launcher and installer (task 4.23): one small exe that friends download once. It installs the game into
+    %LOCALAPPDATA%\Programs\SkiAreaDesignChallenge, one folder per version, and installs each new GitHub release.
+    .NET Framework 4.8 is part of Windows 10 and 11, so the exe needs no runtime and no DLLs beside it.
+    It compiles the engine-free update code from the game itself (Runtime/Acquisition/Updates), so both agree.
+    Build: dotnet build tools/launcher -c Release (-p:Version=0.3.3 for a release; release.ps1 does both).
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Launcher</AssemblyName>
+    <RootNamespace>MountainPlanner.Launcher</RootNamespace>
+    <Product>Ski Area Design Challenge</Product>
+    <Company>Alpine Labs</Company>
+    <AssemblyTitle>Ski Area Design Challenge launcher</AssemblyTitle>
+    <Copyright>Alpine Labs</Copyright>
+    <Version Condition="'$(Version)' == ''">0.0.0</Version>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- The file version is the release number alone, which the self-update compares (UP8). -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssetsRoot>$(MSBuildThisFileDirectory)..\..\Assets\MountainPlanner\</AssetsRoot>
+    <IconPngs>$(AssetsRoot)Art\UI\Brand\Icon\</IconPngs>
+    <AppIcon>$(MSBuildProjectDirectory)\obj\app.ico</AppIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(AssetsRoot)Runtime\Acquisition\Updates\*.cs" Link="Shared\%(Filename)%(Extension)" />
+    <Compile Include="$(AssetsRoot)Runtime\Persistence\ReleaseVersion.cs" Link="Shared\ReleaseVersion.cs" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+  <!-- The game's own app icon (task P2-10), packed from its PNGs; skipped where Git LFS left them as pointers. -->
+  <Target Name="MakeIcon" BeforeTargets="BeforeBuild" Condition="Exists('$(IconPngs)icon-256.png')">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)make-icon.ps1&quot; -Pngs &quot;$(IconPngs).&quot; -Out &quot;$(AppIcon)&quot;" ContinueOnError="true">
+      <Output TaskParameter="ExitCode" PropertyName="IconExit" />
+    </Exec>
+    <PropertyGroup Condition="'$(IconExit)' == '0'">
+      <ApplicationIcon>$(AppIcon)</ApplicationIcon>
+      <Win32Icon>$(AppIcon)</Win32Icon>
+    </PropertyGroup>
+  </Target>
+</Project>

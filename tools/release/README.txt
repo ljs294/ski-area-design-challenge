@@ -21,20 +21,31 @@ NEW IN 0.3.2
 - A lift line over some ground no longer asks for a cut about 1,000 m deep.
 
 
-RUNNING THE GAME
+INSTALLING THE GAME
 
-1. Before unzipping, right-click the zip file, choose Properties, tick "Unblock" at the bottom and click OK.
-   This test build isn't signed, and without this step Windows may refuse to start it.
-2. Unzip this folder anywhere you like (not inside Program Files), for example your Desktop.
-3. Double-click SkiAreaDesignChallenge.exe.
+Download SkiAreaDesignChallenge-Setup.exe from the release page and run it.
 
-If Windows still says "Windows protected your PC", click "More info", then "Run anyway".
+1. This test build isn't signed, so Windows says "Windows protected your PC" once: click "More info", then
+   "Run anyway".
+2. Click Install. The game goes into %LOCALAPPDATA%\Programs\SkiAreaDesignChallenge (no administrator needed),
+   with a Start-menu entry and, if you like, a desktop shortcut. When it's in, click
+   "Launch Ski Area Design Challenge".
+3. From then on, start the game from the Start menu or the shortcut. Each start checks for a new version first.
+   When one is out, it asks: Update downloads it, checks it against its SHA-256 (no "Unblock" needed) and ends on
+   "Launch Ski Area Design Challenge" with the new version. The version before stays installed: Other versions
+   (or holding Shift as the game starts) lists it and GitHub's older releases, and plays the one you pick.
+   If a new version won't start, the game offers the older one.
+
+The update check asks GitHub only whether a newer version is out; nothing about you or your computer is sent.
+Settings > Data > Check for updates turns it off. Without an internet connection the game starts as usual.
+
+To uninstall: Start menu > Ski Area Design Challenge > Uninstall Ski Area Design Challenge.
 
 The game opens on the title over Jackson Hole, which is built in and works offline. New Area downloads another
 mountain, which needs an internet connection; downloads go to %LOCALAPPDATA%\SkiAreaDesignChallenge.
 
-To uninstall, delete this folder. Your downloaded areas, saves and error logs stay in
-%LOCALAPPDATA%\SkiAreaDesignChallenge until you delete that folder too.
+Your downloaded areas, saves, settings and error logs stay in %LOCALAPPDATA%\SkiAreaDesignChallenge through every
+update and uninstall, until you delete that folder too.
 
 
 BUILDING AND SAVING
