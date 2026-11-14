@@ -76,7 +76,7 @@ namespace MountainPlanner.Acquisition.Weather
         internal static readonly double[] PlayShares = { 0, 0.05, 0.08, 0.26, 0.31, 0.37, 0.43, 0.56, 0.77, 0.86, 0.99, 1 };
 
         public static (WeatherRows Rows, CalibrationReport Report) Build(BlendedRecord b, WeatherSourceRecord src, ReferencePoints points, WeatherTuning tuning,
-                                                                          int characterSeeds = 200, int powderSeeds = 20, int rateSeeds = 400, int stormSeeds = 120,
+                                                                          int characterSeeds = 200, int powderSeeds = 300, int rateSeeds = 400, int stormSeeds = 120,
                                                                           Action<double>? progress = null)
         {
             var rows = new WeatherRows();
@@ -465,6 +465,7 @@ namespace MountainPlanner.Acquisition.Weather
                 }
             }
 
+            DewDiurnal(rows, rep, b, states, nh);
             Wind(rows, rep, b, states, tuning);
 
             // Rate cap: K × the fitted 99.5 % real hourly rate of storm hours (log-normal), floor applied by the generator.
@@ -493,7 +494,7 @@ namespace MountainPlanner.Acquisition.Weather
             Played();
             ShrinkCharacter(rows, rep, b, states, tuning, characterSeeds, years); Played();
             RateCorrection(rows, rep, tuning, stormRate, rateSeeds); Played();
-            LiquidCorrection(rows, rep, tuning, stormSeeds); Played();
+            LiquidCorrection(rows, rep, tuning, stormSeeds * 5); Played();   // 600: each month's mean must be its own, not 120 seeds' noise
             NightDepth(rows, rep, states, tf, tuning, stormSeeds); Played();
             HourWobble(rows, rep, states, tf, tuning, stormSeeds); Played();
             StormTemperature(rows, rep, b, states, tf, tuning, stormSeeds); Played();
@@ -501,7 +502,7 @@ namespace MountainPlanner.Acquisition.Weather
             WetLean(rows, rep, b, states, tf, tuning, stormSeeds * 5 / 2); Played();   // 300: the link is a small correlation
             ColdSide(rows, rep, states, tf, tuning, stormSeeds); Played();
             StormTemperature(rows, rep, b, states, tf, tuning, stormSeeds); Played();
-            PowderDay(rows, rep, b, states, tf, tuning, powderSeeds); Played();
+            PowderDay(rows, rep, b, states, tf, tuning, powderSeeds); Played();   // 300: the threshold is a tail quantile, not 20 seeds' luck
 
             if (rep.LimitedReasons.Count > 0) rows.Limited = 1;
             return (rows, rep);
@@ -853,6 +854,40 @@ namespace MountainPlanner.Acquisition.Weather
                 if (s.Cycles[mid].FairStart <= k) { found = mid; lo = mid + 1; } else hi = mid - 1;
             }
             return found;
+        }
+
+        /// <summary>
+        /// WX-26 v2 (4.07, 2026-11-13): how much of the day's swing the dew point doesn't follow, per third. Outside storms, the
+        /// record's mean day by hour (pooled with the neighbouring thirds): the slope of the dew-point depression's profile on
+        /// the air's, clamped 0–1. The record's depression opens in the afternoon (Winter Park in April: 5 °F at night, 23 °F at
+        /// 3 pm); with a flat depression the game's afternoons were too humid and its spring snow melted weeks early.
+        /// </summary>
+        static void DewDiurnal(WeatherRows rows, CalibrationReport rep, BlendedRecord b, RecordStates states, int nh)
+        {
+            var air = new double[36 * 24]; var dep = new double[36 * 24]; var n = new int[36 * 24];
+            for (int k = 0; k < Math.Min(nh, states.State.Length); k++)
+            {
+                if (states.State[k] == WeatherRows.Storm || float.IsNaN(b.T[k]) || float.IsNaN(b.Td[k])) continue;
+                int i = states.HourThird(k) * 24 + k % 24;
+                air[i] += b.T[k] * 1.8; dep[i] += Math.Max(0, b.T[k] - b.Td[k]) * 1.8; n[i]++;
+            }
+            for (int t = 0; t < 36; t++)
+            {
+                var a = new double[24]; var d = new double[24];
+                bool whole = true;
+                for (int h = 0; h < 24 && whole; h++)
+                {
+                    double sa = 0, sd = 0; int c = 0;
+                    for (int u = Math.Max(0, t - 1); u <= Math.Min(35, t + 1); u++) { sa += air[u * 24 + h]; sd += dep[u * 24 + h]; c += n[u * 24 + h]; }
+                    if (c < MeanN0) whole = false; else { a[h] = sa / c; d[h] = sd / c; }
+                }
+                if (!whole) { rows.DewDiurnal[t] = 0; continue; }
+                double ma = a.Average(), md = d.Average(), cov = 0, spread = 0;
+                for (int h = 0; h < 24; h++) { cov += (a[h] - ma) * (d[h] - md); spread += (a[h] - ma) * (a[h] - ma); }
+                double kappa = spread <= 0 ? 0 : Math.Max(0, Math.Min(1, cov / spread));
+                rows.DewDiurnal[t] = (int)Math.Round(kappa * 1000);
+                if (t % 3 == 1) rep.Fits[$"dew.diurnal.{t / 3}"] = kappa;
+            }
         }
 
         static void Lapse(WeatherRows rows, CalibrationReport rep, WeatherSourceRecord src, RecordStates states, BlendedRecord b)
@@ -1690,7 +1725,9 @@ namespace MountainPlanner.Acquisition.Weather
         /// tables, their blending between thirds and the flurries on top left October–April 3–4 % wetter than the record at
         /// every site, and snowfall with it. Two rounds over fixed seeds: each month's played liquid is set against the
         /// record's (its thirds' mean liquid per year) and the month's storm-total tables are rescaled by the miss, clamped
-        /// to ±20 %. The flurries are a share of the storm's total, so they follow.
+        /// to ±20 %. The flurries are a share of the storm's total, so they follow. Played over 600 seeds (4.07's fix round,
+        /// 2026-11-13): over 120 the months matched their targets exactly on those seeds and missed by up to 10 % on fresh
+        /// ones (Olympic Valley January, Winter Park December −6 %): the correction had fitted the sample's noise.
         /// </summary>
         static void LiquidCorrection(WeatherRows rows, CalibrationReport rep, WeatherTuning tuning, int seeds)
         {

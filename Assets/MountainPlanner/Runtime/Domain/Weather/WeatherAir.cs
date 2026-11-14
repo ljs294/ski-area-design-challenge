@@ -19,8 +19,8 @@ namespace MountainPlanner.Domain.Weather
         static readonly long[] Es = WeatherAirTables.Es;
         static readonly int[] Pressure = WeatherAirTables.PressurePa;
 
-        /// <summary>WX-03 v3's thresholds, 0.1 °F: all snow at or below 32.0 °F, all rain above 35.6 °F.</summary>
-        public const int SnowWetBulb = 320, RainWetBulb = 356, Freezing = 320;
+        /// <summary>WX-03 v4's thresholds, 0.1 °F: all snow at or below 32.0 °F, all rain above 37.0 °F.</summary>
+        public const int SnowWetBulb = 320, RainWetBulb = 370, Freezing = 320;
 
         /// <summary>The generator's (<see cref="WeatherAirTables"/> holds its output as literals; a test checks they still agree).</summary>
         public static long[] BuildEs()
@@ -41,7 +41,7 @@ namespace MountainPlanner.Domain.Weather
         }
 
         /// <summary>Saturation vapour pressure, mPa, at a temperature in 0.1 °F (clamped to the table).</summary>
-        static long SaturationMilliPa(int tenthsF)
+        internal static long SaturationMilliPa(int tenthsF)
         {
             int lo = EsMinF * 10, hi = EsMaxF * 10;
             if (tenthsF <= lo) return Es[0];
@@ -59,7 +59,7 @@ namespace MountainPlanner.Domain.Weather
         }
 
         /// <summary>The standard atmosphere's pressure, Pa, at a height in feet (clamped to the table).</summary>
-        static long PressurePa(int feet)
+        internal static long PressurePa(int feet)
         {
             if (feet <= PressureMinFeet) return Pressure[0];
             if (feet >= PressureMaxFeet) return Pressure[Pressure.Length - 1];
@@ -94,7 +94,7 @@ namespace MountainPlanner.Domain.Weather
         static long Excess(int tw, int temp, long e, long p) =>
             SaturationMilliPa(tw) - e - 66L * p * (temp - tw) * (360_000 + 23L * (tw - 320)) / 648_000_000;
 
-        /// <summary>WX-03 v3: the snow share of the liquid (‰) at a wet bulb (0.1 °F), falling linearly from 32.0 to 35.6 °F.</summary>
+        /// <summary>WX-03 v4: the snow share of the liquid (‰) at a wet bulb (0.1 °F), falling linearly from 32.0 to 37.0 °F.</summary>
         public static int SnowPermille(int wetBulb)
         {
             if (wetBulb <= SnowWetBulb) return 1000;

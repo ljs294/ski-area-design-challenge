@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using MountainPlanner.Acquisition.Weather;
+using MountainPlanner.Domain.Sky;
 using MountainPlanner.Domain.Weather;
 using MountainPlanner.Persistence;
 using NUnit.Framework;
@@ -81,6 +82,44 @@ namespace MountainPlanner.Tests
             }
         }
 
+
+        /// <summary>
+        /// WX-63 (task 4.07 PR A1): the snow the fidelity tests judge is the game's own, <see cref="SnowEnergy"/>, at zref on
+        /// open flat ground, for the record (hourly) and the game (face hours) alike. <see cref="ReferenceSnow"/> stays as
+        /// the pillow checks' yardstick.
+        /// </summary>
+        internal sealed class EnergySnow
+        {
+            SnowPack _p;
+            readonly int _lat, _lon, _feet;
+            public EnergySnow((int Lat, int Lon) at, int feet) { _lat = at.Lat; _lon = at.Lon; _feet = feet; }
+            public double Pack => _p.Swe / 25_400.0;
+            const int OpenWind = 850;   // ‰ of the zref wind on open flat ground, as the season report
+
+            /// <summary>Snow and rain water (in), air and dew (°F), wind (0.1 mph), cloud and clearness (‰).</summary>
+            public void Step(double snowIn, double rainIn, double tempF, double dewF, int wind, int cloud, int clearness, int dayOfYear, int hourOfDay, int seconds)
+            {
+                int air = (int)Math.Round(tempF * 10), dew = (int)Math.Round(Math.Min(tempF, dewF) * 10);
+                int wb = WeatherAir.WetBulb(air, dew, _feet);
+                var sun = SunVector.At(_lat, _lon, dayOfYear, hourOfDay * 3600 + 1800);
+                var (beam, diffuse) = SlopeSun.At(sun, sun.AboveHorizon ? clearness : 0, 0, 0, SunVector.One, 1000, true);
+                var x = new SnowInput
+                {
+                    Seconds = seconds, Air = air, Dew = dew, WetBulb = wb, Feet = _feet, Wind = wind * OpenWind / 1000, Cloud = cloud,
+                    Beam = beam, Diffuse = diffuse, OpenSky = 1000, Canopy = 0,
+                    Snow = (int)Math.Round(snowIn * 25_400), SnowDensity = 10_000 / WeatherAir.SnowRatioTenths(wb), Rain = (int)Math.Round(rainIn * 25_400),
+                };
+                SnowEnergy.Step(ref _p, x, SnowTuning.Default);
+            }
+        }
+
+        /// <summary>A site's place (millionths of a degree), for the snow's sun.</summary>
+        static (int Lat, int Lon) Where(string site)
+        {
+            var s = WeatherFixtures.Screened(site).Record.Site;
+            return ((int)Math.Round(s.Latitude * 1e6), (int)Math.Round(s.Longitude * 1e6));
+        }
+
         // ---------------- One winter (a record label year, or one played seed) ----------------
 
         sealed class Yr
@@ -150,7 +189,7 @@ namespace MountainPlanner.Tests
 
         // ---------------- The record's winters ----------------
 
-        static List<Yr> RecordYears(BlendedRecord b, WeatherRows rows)
+        static List<Yr> RecordYears(BlendedRecord b, WeatherRows rows, (int Lat, int Lon) at)
         {
             var states = WeatherStates.Find(b);
             var ys = new Dictionary<int, Yr>();
@@ -227,7 +266,7 @@ namespace MountainPlanner.Tests
                 for (int w = 0; w < windows.Length; w++) { int half = HalfOf(w * WindowDays); if (half >= 0) y.Clusters[half].Add(windows[w]); }
 
                 var swe = new double[365];
-                var pack = new ReferenceSnow();
+                var pack = new EnergySnow(at, rows.ZrefFeet);
                 for (int k = start; k < start + 365 * 24; k++)
                 {
                     int third = states.HourThird(k), day = (k - start) / 24;
@@ -242,7 +281,10 @@ namespace MountainPlanner.Tests
                             if (third < 21) { y.WetT += p * t; y.WetL += p; y.SnowWater += p * share; }
                             if (NovToApr(third)) { y.NovAprLiquid += p; if (pack.Pack >= CoverIn) y.RainOnSnow += p * (1 - share); }
                         }
-                        pack.Step(p / 100 * share, t, CivilDay.Date(b.Days[k / 24]).DayOfYear, 1);
+                        int wind = float.IsNaN(b.Wind[k]) ? 45 : (int)Math.Round(b.Wind[k] * 22.369);
+                        int cloud = float.IsNaN(b.Cloud[k]) ? 500 : (int)Math.Round(Math.Max(0, Math.Min(100, b.Cloud[k])) * 10);   // percent
+                        int clear = float.IsNaN(b.Clearness[k]) ? 0 : (int)Math.Round(Math.Max(0, Math.Min(1, b.Clearness[k])) * 1000);
+                        pack.Step(p / 100 * share, p / 100 * (1 - share), t, D(k, t), wind, cloud, clear, CivilDay.Date(b.Days[k / 24]).DayOfYear, k % 24, 3600);
                     }
                     if ((k - start + 1) % 24 == 0) swe[day] = pack.Pack;
                 }
@@ -266,7 +308,7 @@ namespace MountainPlanner.Tests
 
         // ---------------- The game's winters: one per seed ----------------
 
-        static List<Yr> GameYears(WeatherRows rows, int seeds)
+        static List<Yr> GameYears(WeatherRows rows, int seeds, (int Lat, int Lon) at)
         {
             var result = new List<Yr>();
             var tuning = WeatherTuning.Default;
@@ -282,7 +324,7 @@ namespace MountainPlanner.Tests
                 double stormTemp = 0, prevZ = double.NaN; int stormN = 0;
                 var window = new double[2]; double snowWindow = 0;
                 var swe = new double[365];
-                var pack = new ReferenceSnow();
+                var pack = new EnergySnow(at, rows.ZrefFeet);
                 for (int i = 0; i < hours; i++)
                 {
                     gen.Step(ref h);
@@ -340,7 +382,7 @@ namespace MountainPlanner.Tests
                         clusterStorms = 0;
                     }
 
-                    pack.Step(p / 100.0 * share, t, (274 + day - 1) % 365 + 1, fh);
+                    pack.Step(p / 100.0 * share, p / 100.0 * (1 - share), t, d, h.Wind, h.Cloud, h.Clearness, (274 + day - 1) % 365 + 1, h.HourOfDay, (int)Math.Round(fh * 3600));
                     int end = (int)((i + 1) * fh / 24) - 1;
                     if (end >= 0 && end < 365) swe[end] = pack.Pack;
                 }
@@ -455,19 +497,36 @@ namespace MountainPlanner.Tests
             {
                 if (Cache.TryGetValue(site, out var hit)) return hit;
                 var rows = WeatherRowsFile.FromBytes(TestData.Bytes(TestData.Folder("weather/" + site), WeatherRowsFile.FileName));
-                var years = RecordYears(WeatherFixtures.Screened(site).Blend, rows);
-                var record = PoolOf(years); var game = PoolOf(GameYears(rows, Seeds));
+                var years = RecordYears(WeatherFixtures.Screened(site).Blend, rows, Where(site));
+                var record = PoolOf(years); var game = PoolOf(GameYears(rows, Seeds, Where(site)));
                 var resampled = Resample(years, Draws, 0xB007_5EED_0000_0000UL);
                 return Cache[site] = Enumerable.Range(0, Stats.Length).Select(k => Judge(k, game, record, resampled[k])).ToArray();
             }
         }
 
+        /// <summary>
+        /// The cells that miss today, by site, each approved by the owner as a listed limit (task 4.07 A1, 2026-11-13). A
+        /// known limit is listed, not hidden: a site passes only when its misses equal this table, so a new miss and a
+        /// silent fix both show. No band is widened.
+        /// </summary>
+        static readonly Dictionary<string, string[]> KnownLimits = new Dictionary<string, string[]>
+        {
+            // Under SnowEnergy, 87 % of Winter Park's played winters have 1 in of water on the ground at Christmas against
+            // the record's 20 of 20. Its autumn snowfall's mean is the record's (−3 %), its spread wider (sd 2.05 against
+            // 1.62 in); a right game would show 20 of 20 about 6 % of the time, so 20 winters can't tell it from chance.
+            [WeatherFixtures.WinterPark] = new[] { $"holidays with ≥ {CoverIn} in of water on Dec 25" },
+        };
+
         static void Gate(string site, string group)
         {
             var v = Verdicts(site).Where(x => x.Stat.Group == group).ToList();
             foreach (var x in v) TestContext.Progress.WriteLine($"{site}: {x.Line()}");
-            var misses = v.Where(x => !x.Hard).Select(x => x.Line()).ToList();
+            var known = KnownLimits.TryGetValue(site, out var k0) ? k0 : new string[0];
+            var misses = v.Where(x => !x.Hard && !known.Contains(x.Stat.Name)).Select(x => x.Line()).ToList();
             Assert.That(misses, Is.Empty, $"{site}: outside the record's 99.9 % range ({group})");
+            var listed = v.Where(x => known.Contains(x.Stat.Name)).ToList();
+            Assert.That(listed.Where(x => x.Hard).Select(x => x.Line()), Is.Empty,
+                $"{site}: a listed limit now passes; take it off {nameof(KnownLimits)} ({group})");
         }
 
         // ---------------- The tests ----------------
@@ -573,7 +632,7 @@ namespace MountainPlanner.Tests
             var screened = WeatherFixtures.Screened(site); var s = screened.Record.Site;
             var points = new ReferencePoints(s.BaseFeet, s.SummitFeet);
             var frozen = WeatherRowsFile.FromBytes(TestData.Bytes(TestData.Folder("weather/" + site), WeatherRowsFile.FileName));
-            var years = RecordYears(screened.Blend, frozen).OrderBy(y => y.Year).ToList();
+            var years = RecordYears(screened.Blend, frozen, Where(site)).OrderBy(y => y.Year).ToList();
             var inZ = new List<double>(); var outZ = new List<double>(); var baseZ = new List<double>();
             for (int half = 0; half < 2; half++)
             {
@@ -581,7 +640,7 @@ namespace MountainPlanner.Tests
                 var b = screened.Blend;
                 foreach (var y in test) b = b.WithoutLabelYear(y.Year);
                 var rows = WeatherCalibration.Build(b, screened.Record, points, WeatherTuning.Default).Rows;
-                var game = PoolOf(GameYears(rows, HoldOutSeeds));
+                var game = PoolOf(GameYears(rows, HoldOutSeeds, Where(site)));
                 Pool pin = PoolOf(train), pout = PoolOf(test);
                 var rin = Resample(train, HoldOutDraws, 0x401D_0000_0000_0000UL + (ulong)half);
                 var rout = Resample(test, HoldOutDraws, 0x401D_0001_0000_0000UL + (ulong)half);

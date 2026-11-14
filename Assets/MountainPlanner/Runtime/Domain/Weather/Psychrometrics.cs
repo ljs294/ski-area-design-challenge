@@ -60,11 +60,12 @@ namespace MountainPlanner.Domain.Weather
         }
 
         /// <summary>
-        /// WX-03 v3 (owner 2026-11-09, the weather review): all snow at a wet bulb at or below 32.0 °F (0 °C), all rain above
-        /// 35.6 °F (2 °C), half and half at 1 °C. v2 sat 1 °C colder; against the SNOTEL pillows (the one check independent of
-        /// Daymet) it made less snow at Stevens Pass than the pillow held even with no melt at all.
+        /// WX-03 v4 (4.07, 2026-11-13): all snow at a wet bulb at or below 32.0 °F (0 °C), all rain above 37.0 °F (2.8 °C), half
+        /// and half at 34.5 °F. v3 ended the ramp at 35.6 °F; at all six western SNOTEL pillows the pillow gained snow on days
+        /// v3 called rain, their half-and-half points at 33.7–35.0 °F, and Stevens Pass's April 1 water came out at ×0.76.
+        /// v2 (30.2 / 33.8 °F) sat colder still.
         /// </summary>
-        public const double SnowWetBulbF = 32.0, RainWetBulbF = 35.6;
+        public const double SnowWetBulbF = 32.0, RainWetBulbF = 37.0;
 
         /// <summary>WX-03 v3: the snow share of an hour's liquid at a wet bulb (0–1), falling linearly between the thresholds.</summary>
         public static double SnowShare(double wetBulbF)

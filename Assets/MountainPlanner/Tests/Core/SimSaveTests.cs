@@ -448,8 +448,10 @@ namespace MountainPlanner.Tests
 
         /// <summary>v6's world adds the forecast's issue, the named events and the alerts (task 4.05 PR C): v5's, past an evening sheet.</summary>
         /// <summary>
-        /// The v6 fixture still opens (task 4.09, v7): everything as saved, and no lake records, so every body starts as open
-        /// water when the table arrives.
+        /// The v6 fixture still opens (task 4.09, v7; task 4.07 PR A1, v8): everything as saved, and no lake records, so every
+        /// body starts as open water when the table arrives. Its weather rows read as rows format 1, the dew point following
+        /// the air (κ = 0), and hash as they did, so the state adds up to the hash it was saved with; it saves as the newest
+        /// version, the rows grown by the empty DewDiurnal.
         /// </summary>
         [Test]
         public void TheVersionSixSidecarStillOpens()
@@ -457,6 +459,11 @@ namespace MountainPlanner.Tests
             byte[] fixture = File.ReadAllBytes(FixtureFile(6));
             var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
             Assert.That(header.SidecarVersion, Is.EqualTo(6));
+            foreach (int k in w.Weather.Rows.DewDiurnal) Assert.That(k, Is.Zero, "rows format 1 read with κ = 0");
+            byte[] again = w.SaveState();
+            Assert.That(SimSidecar.VersionOf(again), Is.EqualTo(SimSidecar.Version), "it saves as the newest version");
+            var back = SimSidecar.Read(again, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out _);
+            Assert.That(back.Hash(), Is.EqualTo(w.Hash()), "and reads back to the same state");
             Assert.That((w.Phase, w.SeasonDay), Is.EqualTo((SeasonPhase.Season, 4)));
             Assert.That(w.HeldNow(202), Is.True);
             Assert.That(w.Weather, Is.Not.Null);
@@ -467,7 +474,7 @@ namespace MountainPlanner.Tests
             for (int b = 0; b < 4; b++) Assert.That(w.FrozenOf(b), Is.False);
         }
 
-        static byte[] FixtureSeven()
+        static byte[] FixtureLakes()
         {
             var w = new SimWorld(P, SeasonRunner.GoldenDesign(1, false), SimSite.None, 2026, weather: SimWeatherTests.Golden());
             w.ApplyNow(SimCommand.Of(SimCommandKind.SetSnowpack, 0, Snowpack(1)));
@@ -483,21 +490,45 @@ namespace MountainPlanner.Tests
         }
 
         /// <summary>
-        /// The v7 layout is frozen (0.3 §5): the fixture read and written again gives back its own bytes, all but the header's
-        /// Pacing hash and version and the closing state hash, which fold the Pacing table in (SI-22), so a later tuning
-        /// never needs the fixture re-made. The lake records come back before the table does, and hash the same.
+        /// v7 (task 4.09) still opens, its bytes untouched (task 4.07 PR A1, v8): the lakes come back as saved, before the table
+        /// does, and the same table changes nothing; its weather rows read as rows format 1 (κ = 0) and hash as they did, so
+        /// it saves as the newest version and reads back to the same state.
         /// </summary>
         [Test]
-        public void TheVersionSevenSidecarIsFrozen()
+        public void TheVersionSevenSidecarStillOpens()
         {
             byte[] fixture = File.ReadAllBytes(FixtureFile(7));
             var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
             Assert.That(header.SidecarVersion, Is.EqualTo(7));
+            foreach (int k in w.Weather.Rows.DewDiurnal) Assert.That(k, Is.Zero, "rows format 1 read with κ = 0");
+            Assert.That(w.LakeCount, Is.EqualTo(4));
+            Assert.That(w.FrozenOf(0), Is.True, "the streams have frozen by mid-December");
+            ulong before = w.Hash();
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetWaterBodies, 0, LakeTests.FourBodies()));
+            Assert.That(w.Hash(), Is.EqualTo(before), "the same table changes nothing");
+            Assert.That(w.LakeTableChanged, Is.False);
             byte[] again = w.SaveState();
-            Assert.That(again.Length, Is.EqualTo(fixture.Length), "the sidecar v7 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
+            Assert.That(SimSidecar.VersionOf(again), Is.EqualTo(SimSidecar.Version), "it saves as the newest version");
+            var back = SimSidecar.Read(again, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out _);
+            Assert.That(back.Hash(), Is.EqualTo(w.Hash()), "and reads back to the same state");
+        }
+
+        /// <summary>
+        /// The v8 layout is frozen (0.3 §5): the fixture read and written again gives back its own bytes, all but the header's
+        /// Pacing hash and version and the closing state hash, which fold the Pacing table in (SI-22), so a later tuning
+        /// never needs the fixture re-made. The weather rows are format 2; the lake records hash the same as before the table.
+        /// </summary>
+        [Test]
+        public void TheVersionEightSidecarIsFrozen()
+        {
+            byte[] fixture = File.ReadAllBytes(FixtureFile(8));
+            var w = SimSidecar.Read(fixture, P, SeasonRunner.GoldenDesign(1, false), SimSite.None, out var header);
+            Assert.That(header.SidecarVersion, Is.EqualTo(8));
+            byte[] again = w.SaveState();
+            Assert.That(again.Length, Is.EqualTo(fixture.Length), "the sidecar v8 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
             for (int i = 0; i < 8; i++) Assert.That(again[i], Is.EqualTo(fixture[i]), "magic and version");
             for (int i = 20; i < fixture.Length - 8; i++)
-                if (again[i] != fixture[i]) Assert.Fail($"the sidecar v7 is frozen: byte {i} changed on a round trip (0.3 §5)");
+                if (again[i] != fixture[i]) Assert.Fail($"the sidecar v8 is frozen: byte {i} changed on a round trip (0.3 §5)");
             Assert.That(w.LakeCount, Is.EqualTo(4));
             Assert.That(w.FrozenOf(0), Is.True, "the streams have frozen by mid-December");
             ulong before = w.Hash();
@@ -506,12 +537,12 @@ namespace MountainPlanner.Tests
             Assert.That(w.LakeTableChanged, Is.False);
         }
 
-        [Test, Explicit("Regenerates the frozen v7 sidecar fixture")]
-        public void WriteTheVersionSevenSidecarFixture()
+        [Test, Explicit("Regenerates the frozen v8 sidecar fixture (v7's stays as 4.09 recorded it)")]
+        public void WriteTheVersionEightSidecarFixture()
         {
-            string folder = Path.Combine(TestData.Folder("formats"), "v7-sim");
+            string folder = Path.Combine(TestData.Folder("formats"), "v8-sim");
             Directory.CreateDirectory(folder);
-            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), FixtureSeven());
+            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), FixtureLakes());
         }
     }
 }
