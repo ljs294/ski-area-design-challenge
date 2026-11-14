@@ -63,4 +63,5 @@ TestData/formats/v1-sim/** -text
 TestData/formats/v2-sim/** -text
 TestData/formats/v4-sim/** -text
 TestData/formats/v5-sim/** -text
+TestData/formats/v7-sim/** -text
 TestData/formats/v2-package/** -text
