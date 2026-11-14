@@ -317,11 +317,14 @@ namespace MountainPlanner.Tests.Core
         [Test]
         public void InsideMeansInside()
         {
-            Assert.IsTrue(VersionStore.IsInside(@"C:\Games\SADC", @"C:\Games\SADC\versions\0.3.2"));
-            Assert.IsTrue(VersionStore.IsInside(@"C:\Games\SADC", @"c:\games\sadc"));
-            Assert.IsFalse(VersionStore.IsInside(@"C:\Games\SADC", @"C:\Games\SADC2"));
-            Assert.IsFalse(VersionStore.IsInside(@"C:\Games\SADC", @"C:\Games"));
-            Assert.IsFalse(VersionStore.IsInside("", @"C:\Games"));
+            // Built from the scratch folder, not "C:\...", so the test also runs where '\' isn't a separator (CI's Linux).
+            string root = Path.Combine(_scratch, "SADC");
+            Assert.IsTrue(VersionStore.IsInside(root, Path.Combine(root, "versions", "0.3.2")));
+            Assert.IsTrue(VersionStore.IsInside(root, root + Path.DirectorySeparatorChar));
+            Assert.IsTrue(VersionStore.IsInside(root, root.ToUpperInvariant()), "Windows paths ignore case");
+            Assert.IsFalse(VersionStore.IsInside(root, root + "2"));
+            Assert.IsFalse(VersionStore.IsInside(root, _scratch));
+            Assert.IsFalse(VersionStore.IsInside("", _scratch));
         }
 
         // ---- Helpers ----
