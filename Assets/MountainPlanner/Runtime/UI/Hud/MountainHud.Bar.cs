@@ -25,6 +25,10 @@ namespace MountainPlanner.UI
         int _shownSecond = -1, _shownSpeed = -1, _shownElevation = int.MinValue;
         int _shownPaused = -1;
         long _shownInfo = long.MinValue;
+        // Task 4.09 PR B: the lake readout's own key (no figure key reaches kind 6) and the line it shows; the ice rim's blue.
+        const long LakeReadoutKey = 6L << 40;
+        static readonly Color LakeSwatch = new Color(0.75f, 0.85f, 0.90f);
+        string _shownLakeLine;
         UnitSystem _shownUnits = (UnitSystem)(-1);
 
         /// <summary>
@@ -185,11 +189,26 @@ namespace MountainPlanner.UI
         /// What the info layer that's on reads under the pointer, under the elevation (task 12b.2), as the mockup shows it:
         /// a swatch of the layer's colour there, then "Slope 47% · Most difficult", "Faces SE · 135°" (or "Flat · under
         /// 10%") or "Snow 2 ft 4 in", the figure in bold. A NaN hides the figures ("– – –"); no info layer hides the
-        /// line. The text is rebuilt only when the shown figure changes.
+        /// line. The text is rebuilt only when the shown figure changes. Task 4.09 PR B: over a lake or pond with the snow
+        /// depth layer on, <paramref name="lakeLine"/> ("Lake · 14 in ice · 6 in snow · froze Dec 3") replaces the land's
+        /// snow; the caller makes a new string only when the line changes, so the same instance shows without a rebuild.
         /// </summary>
-        public void SetInfoReadout(string infoId, float slopePercent, float bearingDegrees, float snowMetres)
+        public void SetInfoReadout(string infoId, float slopePercent, float bearingDegrees, float snowMetres, string lakeLine = null)
         {
             CheckUnits();
+            if (lakeLine != null && infoId == MapLayers.SnowDepth)
+            {
+                if (_shownInfo == LakeReadoutKey && ReferenceEquals(lakeLine, _shownLakeLine)) return;
+                _shownInfo = LakeReadoutKey;
+                _shownLakeLine = lakeLine;
+                _readout.EnableInClassList("hidden", false);
+                _readoutSwatch.EnableInClassList("hidden", false);
+                _readoutSwatch.style.backgroundColor = LakeSwatch;
+                _readoutLead.text = lakeLine;
+                _readoutFigure.EnableInClassList("hidden", true);
+                _readoutTail.EnableInClassList("hidden", true);
+                return;
+            }
             var units = _shownUnits;
             long key;
             switch (infoId)
