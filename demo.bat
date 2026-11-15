@@ -366,6 +366,9 @@ echo        11,000 dots of headroom, and the skier-model proof (grey stand-in fi
 echo   4.09 lakes freeze and thaw, PR A (rebuilds the game; close the Unity editor first)
 echo    101 The lakes report: the lake tests, then one year of ice and snow on four test lakes (Jackson Hole and New
 echo        Hampshire weather) and on every lake and pond of your Mount Katahdin map (read only), as charts.
+echo   4.09 lakes on screen, PR B (rebuilds the game; close the Unity editor first)
+echo    102 Each lake in its own state: a new game on a scratch copy of your Mount Katahdin map, from October 1, with
+echo        the Snow depth layer on over its ponds. Watch the shallow ponds freeze first and the deep lake last.
 echo   4.22 skiers in the game (rebuilds the game; close the Unity editor first)
 echo     105 The guests as people: skiers and snowboarders that ski by their ability, stand in the lift lines,
 echo        ride the chairs up and turn into dots far away. Open any mountain with lifts and trails.
@@ -527,6 +530,7 @@ if /i "%CHOICE%"=="98" goto guestsonscreen
 if /i "%CHOICE%"=="99" goto traffic
 if /i "%CHOICE%"=="100" goto guestbench
 if /i "%CHOICE%"=="101" goto lakereport
+if /i "%CHOICE%"=="102" goto lakescreen
 if /i "%CHOICE%"=="105" goto skiersingame
 if /i "%CHOICE%"=="106" goto skiersbench
 if /i "%CHOICE%"=="107" goto skiermodels
@@ -2464,6 +2468,33 @@ echo   3. Mount Katahdin: the map of its water bodies (a colour per lake, the st
 echo      days as a bar from shallow to deep, and ice-on and ice-out against each lake's estimated depth.
 echo   Nothing in the game looks different yet: PR B draws each lake in its own state.
 start "" "%LAKES%\report.html"
+goto done
+
+:lakescreen
+rem 4.09 PR B: each water body drawn in its own state (LK-08 v2), on a scratch data root over your Katahdin package.
+chcp 65001 >nul
+set "LK102=%LOCALAPPDATA%\SkiAreaDesignChallenge-lakes102"
+set "LK102KAT=27aeb2b792ce331f"
+set "LK102SRC=%LOCALAPPDATA%\SkiAreaDesignChallenge"
+if not exist "%LK102SRC%\Resorts\%LK102KAT%\manifest.json" (echo   Mount Katahdin isn't in your library: open it once in the game first. & goto done)
+call :buildplayer
+if not exist "%GAME%" goto done
+rem A scratch data root: a new game (October 1) that reads your Katahdin package and writes nothing into your library.
+if exist "%LK102%" rmdir /s /q "%LK102%"
+mkdir "%LK102%"
+echo.
+echo Starting a new game on Mount Katahdin (a scratch copy) on October 1, the Snow depth layer on, over the lakes east of the summit.
+echo   1. The lakes start as open water: dark, glassy, the sky in them at a low angle. Hover a pond: the readout under
+echo      the elevation says "Pond . open water . not frozen yet" (or "Lake ...").
+echo   2. Space starts the clock. F1, "Next third" a few times (or 4 for 8x and wait): the shallow ponds ice over first (mid-October), then
+echo      snow covers their ice; the deep lake in the middle (about 17 ft) stays open into November.
+echo      Each lake changes on its own day; where a frozen lake meets open water the edge is a soft band, not 8 m steps.
+echo   3. Hover a frozen pond: "Pond . 4 in ice . 2 in snow . froze Oct 20". U switches feet and metres.
+echo   4. F1, "Next month" through the winter into April and May: the ponds open again, shallow ones first.
+echo   5. F1, Lakes: "Snow on ice", "Bare ice", "Open water" put one look on every lake and hold it; "From the sim"
+echo      gives each lake its own state back.
+echo   Quit the game when done (the scratch copy is deleted next time).
+start "" "%GAME%" -data "%LK102%" -package "%LK102SRC%\Resorts\%LK102KAT%" -offline -info depth -view 1350,2000,900,90,35 -lakesim
 goto done
 
 :skiermodels

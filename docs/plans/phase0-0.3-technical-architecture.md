@@ -260,6 +260,15 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
   - Snow on and off still swaps the splat maps, and the field follows them (full before snow returns, zero after it leaves). Thinner snow from a future model will need both splats.
   - `WaterBodies` (Domain) holds a `WaterSurface` (open water, ice, or snow-covered ice, plus thicknesses) per body, with a version number. Iteration 1 has one body, `AllWater`, because telling lakes apart needs a body-ID map, which comes with the weather engine (owner, 2026-10-01).
   - The shader draws that state: snow on ice, bare ice, or open water (dark, glassy, a faint ripple, and the horizon reflected at grazing angles). The developer panel and `-lake snow|ice|open` switch it.
+- *As built (task 4.09 PR B):*
+  - **The body map.** `SurfaceStates.SetBodies` binds the body table from `WaterBodyTable` (LK-01 v2) as an R8 `_WaterBodyMap` (linear, point-filtered). It sits on the snow map's grid and holds body index + 1 per 8 m cell, dilated one cell by `LakeSurfaces.Dilated`: a lake beats the streams, and a larger lake beats a smaller one.
+  - **The states.** A small RGBAHalf `_WaterBodyStates` holds one texel per body. It is uploaded only when `WaterBodies.Version` moves.
+  - **The shader.** `LakeStateWeights` loads the four cells around a pixel and weights the three looks bilinearly, then sharpens the weights, so two bodies meet in a band a few metres wide. Only looks with weight run.
+  - **Before any table,** every pixel reads body 0, so the look is as before.
+  - **The App.** It copies each body's surface from the snapshot, by id, on every face-hour change, even while paused. It rebinds when the table's hash changes (4.14's ponds).
+  - **Captures and benchmarks** keep the iteration 1 look unless `-lakesim` is passed. `-lakemix` draws odd bodies open for the GPU check.
+  - **The override.** The panel and `-lake` set a `WaterBodies.Override` that holds until "From the sim" clears it.
+  - **The readout.** With the Snow depth layer on, it shows a body's ice, snow and dates over the dilated map.
 
 ### 4.7 Lighting and camera (T9)
 
