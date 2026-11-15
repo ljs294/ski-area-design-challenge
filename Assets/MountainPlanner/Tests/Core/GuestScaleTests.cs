@@ -16,6 +16,7 @@ namespace MountainPlanner.Tests
     /// whose turn it is, a party is scheduled once for all of its members, and the routing search runs at most once a
     /// tick however many lifts changed. A cap ten times larger should therefore cost far less than ten times as much.
     /// </summary>
+    [Parallelizable(ParallelScope.None)] // task 0.4: shares process-wide state or timing; see AssemblyInfo.cs
     public sealed class GuestScaleTests
     {
         const long Day = SimWorld.DayMs;

@@ -18,6 +18,7 @@ namespace MountainPlanner.Tests
     /// Task P3-16 PR D0, the groundwork for held-up alerts and getting water and roads later: players' server names, the
     /// failing host on a request error, quiet time counted from the last byte, an atomic manifest and re-addable OSM layers.
     /// </summary>
+    [Parallelizable(ParallelScope.None)] // task 0.4: shares process-wide state or timing; see AssemblyInfo.cs
     public sealed class DownloadPrepTests
     {
         [Test]

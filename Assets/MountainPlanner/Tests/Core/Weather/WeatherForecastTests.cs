@@ -319,12 +319,28 @@ namespace MountainPlanner.Tests
             foreach (var site in WeatherFixtures.Sites) TestContext.Progress.WriteLine($"{site}: {Measure(site, Seeds, p)}");
         }
 
-        [TestCaseSource(typeof(WeatherFixtures), nameof(WeatherFixtures.Sites))]
+        /// <summary>
+        /// Listed limits, approved by the owner (task 4.07 A1, 2026-11-13): Snowshoe's day-ahead high sits 2 cards under its
+        /// 90 % line on this fixed 50-seed sample (1,574 of 1,750; main had 1,576). Over 250 seeds it is 90.62 % against
+        /// main's 90.65 %, so the skill didn't move. The cell must stay at its listed share and still miss: a lost card or
+        /// a silent fix both show. The 90 % gate is unchanged.
+        /// </summary>
+        static readonly Dictionary<string, double> KnownHigh1Limits = new Dictionary<string, double>
+        {
+            [WeatherFixtures.Snowshoe] = 1574 / 1750.0,
+        };
+
+        [TestCaseSource(typeof(WeatherFixtures), nameof(WeatherFixtures.Sites)), Parallelizable(ParallelScope.None)] // task 0.4: ms per issue
         public void WX54_TheForecastTeasesTheTruth(string site)
         {
             var k = Measure(site);
             TestContext.Progress.WriteLine($"{site}: {k}");
-            Assert.That(k.Share(k.High1In, k.High1), Is.GreaterThanOrEqualTo(0.90), "the high within 2 °F a day out");
+            if (KnownHigh1Limits.TryGetValue(site, out double listed))
+            {
+                Assert.That(k.Share(k.High1In, k.High1), Is.GreaterThanOrEqualTo(listed - 1e-9), "the high within 2 °F a day out (a listed limit)");
+                Assert.That(k.Share(k.High1In, k.High1), Is.LessThan(0.90), $"the listed limit now passes; take it off {nameof(KnownHigh1Limits)}");
+            }
+            else Assert.That(k.Share(k.High1In, k.High1), Is.GreaterThanOrEqualTo(0.90), "the high within 2 °F a day out");
             Assert.That(k.Share(k.High7In, k.High7), Is.GreaterThanOrEqualTo(0.90), "the high within 5 °F at a week");
             Assert.That(k.Share(k.Side7Right, k.Side7), Is.GreaterThanOrEqualTo(0.85), "the right side of normal at a week");
             Assert.That(k.Share(k.Storms7Wet, k.Storms7), Is.GreaterThanOrEqualTo(0.95), "a true storm's 7-day card shows precipitation");
