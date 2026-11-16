@@ -444,6 +444,20 @@ density, so water and snow balance (SI-10).
   start left 0.4 mm instead of none. Fidelity: the pack and powder gates moved at most 0.009 in of water and 0.07
   days of melt-out, z at most 0.1; all 14 pass. The edges that remain are old melt-out lines under later snow, which
   follow the contours and fade over about four cells.
+- **SN-09 v4, thin snow keeps its brightness** (task 4.07 PR A2, the owner's finding 2, 2026-11-15).
+  - **The rule:** the ground shows through the snow's brightness only under `Pacing.SnowThinUm = 5 mm` of water,
+    about 2 in of new snow. It was 20 mm, about 8 in.
+  - **Why:** under the old value, 4 in of new snow reflected half the sun. A fresh inch at the base melted within two
+    face hours while it was still snowing at 30–34 °F under cloud, and the valley floor went green between storms.
+  - **Fidelity:**
+    - All the pillow gates pass, and the daily error falls at all six pillows. Tahoe City goes from 0.96 to 0.79 in,
+      against the reference model's 0.85. With the old value today's code missed that gate; it passed at 0.71 on
+      2026-11-14, before A2's later changes.
+    - Fool Creek's January 1 water goes from × 0.68 to × 0.78.
+  - **Big piles:** a 4 m whale's middle melts the same to the µm and its edge tapers with no ring (`SnowWhaleTests`).
+  - **The look (Presentation):** the ground draws fully white from 2 in (`SurfaceStates.FullCoverMetres`, was 6 in),
+    and the readout says "Bare" under about 1 in.
+  - **Report:** `SnowValleyProbeTests`, `tools/snow-a2/valley.mjs`.
 - **SN-09 v1 (superseded), melt per face hour** (SWE lost, inches): **0.012 in per °F-hour** above 32 °F of cell air temperature
   (MapLibre's 0.55 mm per °C-hour, kept), plus **0.35 in per inch of rain** on snow (kept), plus **shortwave melt =
   1.2e-6 m per W/m²-hour × the slope's sun factor**, where the sun factor is the cosine of the angle between the

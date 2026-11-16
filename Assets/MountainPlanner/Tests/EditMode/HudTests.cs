@@ -64,8 +64,8 @@ namespace MountainPlanner.Tests
 
         // Owner's demo 111 (task 4.07 PR A2, 2026-11-15): a thaw's last few mm read as bare ground, as the layer draws them.
         [TestCase(9, 0.003f, true)]    // wet granular, 3 mm: bare, traces of wet granular
-        [TestCase(9, 0.07f, true)]     // just under half cover
-        [TestCase(9, 0.08f, false)]    // over half cover: wet granular
+        [TestCase(9, 0.02f, true)]     // just under half cover (full white from 2 in since finding 2, 2026-11-15)
+        [TestCase(9, 0.03f, false)]    // over half cover: wet granular
         [TestCase(1, 0.5f, false)]     // powder half a metre deep
         [TestCase(0, 0f, false)]       // bare ground is bare without traces
         public void ThinSnowReadsAsBareGround(int type, float metres, bool bare)

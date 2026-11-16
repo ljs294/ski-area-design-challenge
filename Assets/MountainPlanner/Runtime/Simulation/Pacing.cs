@@ -755,7 +755,7 @@ namespace MountainPlanner.Simulation
             E(nameof(SnowCoveredAt), "10"),
             // Natural snow (task 4.07 PR A2; the snow energy's fitted set, SnowTuning.Default):
             E(nameof(SnowSurfaceUm), "25000"),
-            E(nameof(SnowThinUm), "20000"),
+            E(nameof(SnowThinUm), "5000"),     // SN-09 v4 (owner, 2026-11-15): was 20000
             E(nameof(AlbedoFresh), "850"),
             E(nameof(AlbedoCold), "700"),
             E(nameof(AlbedoWet), "550"),

@@ -87,7 +87,7 @@ namespace MountainPlanner.App
             return 100f * Mathf.Sqrt(gx * gx + gz * gz);
         }
 
-        /// <summary>The screen's snow over the core: mean and deepest, the share covered (≥ 15 cm), and the worker's last day.</summary>
+        /// <summary>The screen's snow over the core: mean and deepest, the share covered (≥ SurfaceStates.FullCoverMetres), and the worker's last day.</summary>
         string SnowSummary()
         {
             var field = _resort?.States?.Snow;

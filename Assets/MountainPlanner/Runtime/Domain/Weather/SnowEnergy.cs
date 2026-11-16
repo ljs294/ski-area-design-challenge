@@ -58,7 +58,7 @@ namespace MountainPlanner.Domain.Weather
     public readonly struct SnowTuning
     {
         /// <summary>Ice in the surface layer at an hour's step (µm; × the step's hours, up to 4), and below which the ground
-        /// shows through the brightness (µm).</summary>
+        /// shows through the brightness (µm; SN-09 v4: 5 mm of water, about 2 in of new snow).</summary>
         public readonly int SurfaceUm, ThinUm;
         /// <summary>Brightness (‰): fresh, the cold floor, the wet floor, bare ground; new snow resets it in full at ResetUm.</summary>
         public readonly int AlbedoFresh, AlbedoCold, AlbedoWet, AlbedoGround, AlbedoResetUm;
@@ -88,7 +88,7 @@ namespace MountainPlanner.Domain.Weather
 
         /// <summary>The fitted set (task 4.07 PR A1). Pacing v8 carries the same numbers.</summary>
         public static readonly SnowTuning Default = new SnowTuning(
-            surfaceUm: 25_000, thinUm: 20_000, albedoFresh: 850, albedoCold: 700, albedoWet: 550, albedoGround: 200, albedoResetUm: 5_000,
+            surfaceUm: 25_000, thinUm: 5_000, albedoFresh: 850, albedoCold: 700, albedoWet: 550, albedoGround: 200, albedoResetUm: 5_000,
             albedoColdTau: 1_728_000, albedoWetTau: 1_209_600, canopyShade: 700, windPer10k: 15, calmMms: 1, groundMw: 2_000,
             holdPermille: 50, crumbUm: 2_540, settleTau: 2_400_000, settleWetFactor: 3, densityCold: 300, densityWarm: 380, densityWet: 450);
     }

@@ -98,7 +98,7 @@ namespace MountainPlanner.Presentation
         /// <summary>
         /// Under this depth the Snow conditions readout says "Bare" (with "traces of" the type): the ground's snow covers fully
         /// from <see cref="SurfaceStates.FullCoverMetres"/>, and the layer fades each type to bare by the same cover, so below
-        /// half of it the point reads as bare ground (owner's demo 111, 2026-11-15).
+        /// half of it (about 1 in) the point reads as bare ground (owner's demo 111, 2026-11-15).
         /// </summary>
         public const float SnowBareBelowMetres = SurfaceStates.FullCoverMetres / 2;
 

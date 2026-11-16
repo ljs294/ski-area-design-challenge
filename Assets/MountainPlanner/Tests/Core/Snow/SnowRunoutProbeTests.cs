@@ -34,12 +34,13 @@ namespace MountainPlanner.Tests
 
         /// <summary>The 2 km round a package's centre at 8 m through the game's own sampler (SN-01 v2's <see cref="SurfaceSampler"/>,
         /// as the opener and the edits take it): the posts 2 m apart, each cell their mean, edges split fairly; no canopy.
-        /// <paramref name="nearest"/> keeps the old one sample at the centre.</summary>
-        internal static SnowFieldTests.Mountain Crop(string dir, bool nearest = false)
+        /// <paramref name="nearest"/> keeps the old one sample at the centre. <paramref name="east"/> and <paramref name="north"/>
+        /// (metres) move the crop's centre off the site's, into the ring (task 4.07 PR A2's valley probe).</summary>
+        internal static SnowFieldTests.Mountain Crop(string dir, bool nearest = false, double east = 0, double north = 0)
         {
             var man = ResortPackage.ReadManifest(dir);
             var m = new SnowFieldTests.Mountain { Mm = new int[W * D], Feet = new int[W * D], Canopy = new byte[W * D] };
-            double cx = man.Site.CentreX, cy = man.Site.CentreY, west = cx - W * 4, south = cy - D * 4;
+            double cx = man.Site.CentreX + east, cy = man.Site.CentreY + north, west = cx - W * 4, south = cy - D * 4;
             using (var h = new PackageHeights(dir, man))
             {
                 if (nearest)

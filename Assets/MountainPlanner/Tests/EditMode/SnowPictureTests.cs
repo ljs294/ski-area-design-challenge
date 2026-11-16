@@ -159,7 +159,8 @@ namespace MountainPlanner.Tests
                     deep = Mathf.Max(deep, Off(px[y * Size + 13 * PixelsPerCell], wet));
                 }
                 Debug.Log($"[picture] wet granular 3 mm: {thin:F3} off bare; a metre: {deep:F3} off wet granular");
-                Assert.That(thin, Is.LessThan(0.02f), "3 mm of wet granular draws as bare ground");
+                // Finding 2 (2026-11-15): full white from 2 in, so 3 mm covers 6 % (was 2 %): 0.021 off bare, not visible.
+                Assert.That(thin, Is.LessThan(0.03f), "3 mm of wet granular draws as bare ground");
                 Assert.That(deep, Is.LessThan(0.02f), "a metre of it keeps its colour");
             }
             finally { states.Dispose(); }

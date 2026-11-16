@@ -17,8 +17,10 @@ namespace MountainPlanner.Presentation
     public sealed class SurfaceStates : System.IDisposable
     {
         public const float CellMetres = Domain.Snow.SurfaceGrid.CellMetres;
-        /// <summary>Snow this deep (metres) covers the ground completely; thinner snow lets the ground show.</summary>
-        public const float FullCoverMetres = 0.15f;
+        /// <summary>Snow this deep (metres) covers the ground completely; thinner snow lets the ground show. Task 4.07 PR A2,
+        /// the owner's finding 2 (2026-11-15): 2 in, as a flat meadow looks white under about 2 in of new snow (was 6 in, which
+        /// drew a fresh inch or two as green while the same snow on lake ice drew white).</summary>
+        public const float FullCoverMetres = 0.05f;
 
         static readonly int MapId = Shader.PropertyToID("_SnowDepthMap"), RectId = Shader.PropertyToID("_SnowDepthRect"),
                             ParamsId = Shader.PropertyToID("_SnowDepthParams"), BodyMapId = Shader.PropertyToID("_WaterBodyMap"),

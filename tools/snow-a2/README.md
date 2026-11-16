@@ -22,3 +22,12 @@ node tools/snow-a2/report.mjs test-results/snow-a2/report.json test-results/snow
 
 `SnowRunoutProbeTests` (explicit) is the probe behind the run-out fan: where the shed lands and the deepest cells, on
 Jackson Hole or on `MP_PROBE_DIR` with `MP_PROBE_ROWS` until `MP_PROBE_UNTIL` (month/day).
+
+`SnowValleyProbeTests` (explicit) is the probe behind the owner's finding 2 (the valley going green too soon): three
+cells hour by hour on Jackson Hole (the valley floor by the valley lake, a cell at the base's height, the cliff pile),
+each run with thin snow bright from 20 mm of water (before SN-09 v4) and from 5 mm (after). It writes
+`test-results/snow-a2/valley/probe.json`; `valley.mjs` draws it as `valley.html` beside it.
+
+```
+node tools/snow-a2/valley.mjs test-results/snow-a2/valley/probe.json
+```

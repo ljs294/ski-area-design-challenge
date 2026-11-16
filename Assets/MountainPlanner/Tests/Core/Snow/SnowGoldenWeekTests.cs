@@ -17,7 +17,7 @@ namespace MountainPlanner.Tests
         // 4.07 PR A2 round 2 (2026-11-14, for the owner's OK at the review): WX-35 v3 and WX-02 v3 (the precipitation and the
         // snow's read follow the ground), SN-07 v3's drift, SN-09 v3's crumb, SN-06 v3's cone, the crop through SurfaceSampler;
         // over the first pin 0x2FC0AB70D6381D58.
-        const ulong GoldenWeeksFold = 0x55DBFD753C91126DUL;
+        const ulong GoldenWeeksFold = 0x2A26EA543F4B45B3UL;   // 4.07 PR A2 finding 2 (SN-09 v4: SnowThinUm 5 mm; owner OK 2026-11-15), over 0x55DBFD753C91126D
 
         [Test]
         public void SN_TheGoldenWeeksOnJacksonHole()
