@@ -2627,7 +2627,7 @@ echo   Esc, Settings, Weather: Weather on screen Off shows a clear day (the weat
 echo   each part on or off: clouds 3D/Flat/Off, Cloud ceiling (clouds 1,000 ft over the summit), the fog slider, valley fog,
 echo   rays, snow and rain, spindrift, cloud shadows, storm light, tree sway, sparkle. Try them in the storm.
 echo   Quit the game when done.
-start "" /wait "%GAME%" -data "%WX108%" -notitle -wxdemo
+start "" /wait "%GAME%" -data "%WX108%" -notitle -wxdemo -snowseed
 rem Then the snow guns' plumes in the Lift Lab (the API 4.16's guns will use): rebuilt, so the plumes are this branch's.
 call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto menu
