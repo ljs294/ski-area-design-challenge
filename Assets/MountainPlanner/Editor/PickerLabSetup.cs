@@ -80,46 +80,73 @@ namespace MountainPlanner.Editor
             var args = Environment.GetCommandLineArgs();
             int i = Array.IndexOf(args, "-movies");
             string root = i >= 0 && i + 1 < args.Length ? args[i + 1] : throw new ArgumentException("-movies folder");
-            const int fps = 15;
             foreach (string dir in Directory.GetDirectories(root))
             {
                 var frames = Directory.GetFiles(dir, "f_*.jpg").OrderBy(f => f, StringComparer.Ordinal).ToArray();
                 if (frames.Length == 0) continue;
                 var times = frames.Select(f => int.Parse(Path.GetFileNameWithoutExtension(f).Substring(2), CultureInfo.InvariantCulture)).ToArray();
-                var decoded = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                decoded.LoadImage(File.ReadAllBytes(frames[0]));
-                int w = decoded.width & ~1, h = decoded.height & ~1;
-                var frame = new Texture2D(w, h, TextureFormat.RGBA32, false);
-                string output = Path.Combine(root, Path.GetFileName(dir) + ".mp4");
-                var video = new VideoTrackAttributes
-                {
-                    frameRate = new MediaRational(fps),
-                    width = (uint)w,
-                    height = (uint)h,
-                    includeAlpha = false,
-                    bitRateMode = VideoBitrateMode.High,
-                };
-                int count = times[times.Length - 1] * fps / 1000 + fps;   // a second's hold on the last frame
-                int shown = -1;
-                using (var encoder = new MediaEncoder(output, video))
-                {
-                    for (int k = 0, j = 0; k < count; k++)
-                    {
-                        int at = k * 1000 / fps;
-                        while (j + 1 < times.Length && times[j + 1] <= at) j++;
-                        if (j != shown)
-                        {
-                            decoded.LoadImage(File.ReadAllBytes(frames[j]));
-                            frame.SetPixels32(Crop(decoded.GetPixels32(), decoded.width, w, h));
-                            frame.Apply();
-                            shown = j;
-                        }
-                        encoder.AddFrame(frame);
-                    }
-                }
-                Debug.Log($"[PickerLabSetup] {output}: {count} frames ({count / (double)fps:F1} s) from {frames.Length} captures");
+                Encode(frames, times, Path.Combine(root, Path.GetFileName(dir) + ".mp4"));
             }
             if (Application.isBatchMode) EditorApplication.Exit(0);
+        }
+
+        /// <summary>
+        /// Turns a folder of stills into an MP4, each held for the same time, in name order (task 4.07 PR A2: the snow's
+        /// time-lapse, one still a face day, from demo 111):
+        ///   Unity -batchmode -executeMethod MountainPlanner.Editor.PickerLabSetup.EncodeStills -stills folder -pattern
+        ///   snow-*.png -hold 400 -out file.mp4 -quit
+        /// </summary>
+        public static void EncodeStills()
+        {
+            var args = Environment.GetCommandLineArgs();
+            string Arg(string name, string fallback)
+            {
+                int k = Array.IndexOf(args, name);
+                return k >= 0 && k + 1 < args.Length ? args[k + 1] : fallback ?? throw new ArgumentException(name);
+            }
+            string folder = Arg("-stills", null);
+            int hold = int.Parse(Arg("-hold", "400"), CultureInfo.InvariantCulture);
+            var frames = Directory.GetFiles(folder, Arg("-pattern", "*.png")).OrderBy(f => f, StringComparer.Ordinal).ToArray();
+            if (frames.Length > 0) Encode(frames, frames.Select((_, k) => k * hold).ToArray(), Arg("-out", Path.Combine(folder, "movie.mp4")));
+            else Debug.LogWarning($"[PickerLabSetup] no stills in {folder}");
+            if (Application.isBatchMode) EditorApplication.Exit(0);
+        }
+
+        /// <summary>Encodes frames (JPG or PNG) shown from their times (ms) at 15 fps, with a second's hold on the last.</summary>
+        static void Encode(string[] frames, int[] times, string output)
+        {
+            const int fps = 15;
+            var decoded = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            decoded.LoadImage(File.ReadAllBytes(frames[0]));
+            int w = decoded.width & ~1, h = decoded.height & ~1;
+            var frame = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            var video = new VideoTrackAttributes
+            {
+                frameRate = new MediaRational(fps),
+                width = (uint)w,
+                height = (uint)h,
+                includeAlpha = false,
+                bitRateMode = VideoBitrateMode.High,
+            };
+            int count = times[times.Length - 1] * fps / 1000 + fps;   // a second's hold on the last frame
+            int shown = -1;
+            using (var encoder = new MediaEncoder(output, video))
+            {
+                for (int k = 0, j = 0; k < count; k++)
+                {
+                    int at = k * 1000 / fps;
+                    while (j + 1 < times.Length && times[j + 1] <= at) j++;
+                    if (j != shown)
+                    {
+                        decoded.LoadImage(File.ReadAllBytes(frames[j]));
+                        frame.SetPixels32(Crop(decoded.GetPixels32(), decoded.width, w, h));
+                        frame.Apply();
+                        shown = j;
+                    }
+                    encoder.AddFrame(frame);
+                }
+            }
+            Debug.Log($"[PickerLabSetup] {output}: {count} frames ({count / (double)fps:F1} s) from {frames.Length} captures");
         }
 
         static Color32[] Crop(Color32[] pixels, int width, int w, int h)

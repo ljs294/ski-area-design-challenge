@@ -143,6 +143,7 @@ namespace MountainPlanner.App.Flow
             "-pickbench",   // task 4.13
             "-skiershot",   // task 4.22
             "-proofhold",   // task 4.13 PR C2
+            "-snowlapse",   // task 4.07 PR A2: the time-lapse plays its own new game
             "-lakereport",   // task 4.09
         };
 

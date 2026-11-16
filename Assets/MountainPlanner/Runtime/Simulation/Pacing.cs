@@ -14,12 +14,13 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 8;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 9;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
                                         // 4: task 4.13's confidence speed (GU-10 v2)
                                         // 5: task 4.05's weather (WX-17 v2, WX-28 v2, WX-29, WX-34 v2, WX-35, WX-36 v2, WX-39)
                                         // 6: task 4.05 PR B2's weather over the map (WX-35, WX-39) and PR C's forecast (WX-05 v3, WX-41)
                                         // 7: task 4.05 PR C's named events (WX-41), alerts (WX-42) and forecast pulls (WX-44)
                                         // 8: task 4.09's lakes (LK-01 v2…LK-08 v2)
+                                        // 9: task 4.07 PR A2's natural snow (SN-05 v2…SN-18 v2, WX-59…WX-64)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -285,6 +286,39 @@ namespace MountainPlanner.Simulation
         /// <summary>LK-08 v2: open water at or under this much ice (0.01 in); snow-covered at this much snow (0.1 in).</summary>
         public readonly int IceOpenAt, SnowCoveredAt;
 
+        // ---- Natural snow (task 4.07 PR A2: SN-05 v2…SN-18 v2, WX-59…WX-64) ----
+
+        /// <summary>SN-09 v2, WX-63: the snow energy's numbers (<c>SnowTuning</c>): the surface layer and the thin pack (µm of
+        /// water); brightness fresh, cold floor, wet floor, bare ground (‰) and the new snow that resets it (µm); its time
+        /// constants cold and melting (s); the canopy's shade (‰); turbulent exchange (wind × per 10,000, plus calm, mm/s);
+        /// the ground's heat (mW/m²); SN-10's holding capacity (‰) and SN-09's crumb (µm); SN-08 v2's settling (s, × when wet)
+        /// toward cold, near freezing and wet densities (kg/m³).</summary>
+        public readonly int SnowSurfaceUm, SnowThinUm, AlbedoFresh, AlbedoCold, AlbedoWet, AlbedoGround, AlbedoResetUm,
+                            AlbedoColdTau, AlbedoWetTau, CanopyShade, SnowWindPer10k, SnowCalmMms, GroundHeatMw, SnowHoldPermille,
+                            SnowCrumbUm, SettleTau, SettleWetFactor, DensityCold, DensityWarm, DensityWet;
+        /// <summary>SN-06 v2: the most new snow a full canopy holds back (‰); steep slopes shed from and to these grades (%); the
+        /// shed spreads over a run-out fan this long (m), a cell taking at most this much of it (µm of water) an hour. SN-06 v3:
+        /// and only while its water stands under this many times (‰) the mean water round it (the cone's height).</summary>
+        public readonly int CanopyHolds, ShedStartGrade, ShedFullGrade, ShedRunout, ShedPileMax, ShedPileRatio;
+        /// <summary>SN-07 v3: drift above this wind (0.1 mph); the share moved rises over this much more wind to its cap (‰);
+        /// it runs this far downwind (m); a cell gives more the higher it stands over its surroundings, all of the share at
+        /// twice this rise (dm), and keeps less of what reaches it, none at this rise.</summary>
+        public readonly int DriftWind, DriftWindSpan, DriftShareMax, DriftReach, DriftExposedRise;
+        /// <summary>SN-14 v2: powder once this much water (µm) has fallen since the last surface event, wet powder above this wet
+        /// bulb (0.1 °F); a wet surface refreezes once its skin has been below this (0.01 °C) for these face hours; corn after
+        /// this many thaw–refreeze cycles within these face days.</summary>
+        public readonly int PowderNewUm, WetPowderWetBulb, RefreezeSkin, SnowRefreezeHours, CornCycles, CornWindowDays;
+        /// <summary>SN-16 v2: base quality per type (‰, P PP MG HP IS CO FG LG WG WP), the age term per face hour (‰) and its floor (‰).</summary>
+        public readonly int[] QualityBase;
+        public readonly int QualityAgePerHour, QualityAgeFloor;
+        /// <summary>A seed's density (<c>SetSnowpack</c>, an old save's depths: packed powder, kg/m³).</summary>
+        public readonly int SeedDensity;
+        /// <summary>BG-02 v4: the hour's snow lands this long after the roll (face ms: a whole number of day and night ticks), on
+        /// this many snow threads (the bytes don't depend on it).</summary>
+        public readonly int SnowLandFaceMs, SnowThreads;
+        /// <summary>WX-60 v2: the sun fades over this much of its elevation's sine (millionths) as it crosses the skyline.</summary>
+        public readonly int SkylineFade;
+
         /// <summary>Face milliseconds one tick covers by day and by night (from the real seconds above).</summary>
         public readonly int DayFaceMsPerTick, NightFaceMsPerTick;
 
@@ -477,6 +511,52 @@ namespace MountainPlanner.Simulation
             StreamsIceMax = Int(map, nameof(StreamsIceMax), 1, 100_000);
             IceOpenAt = Int(map, nameof(IceOpenAt), 0, 10_000);
             SnowCoveredAt = Int(map, nameof(SnowCoveredAt), 0, 10_000);
+
+            SnowSurfaceUm = Int(map, nameof(SnowSurfaceUm), 1_000, 1_000_000);
+            SnowThinUm = Int(map, nameof(SnowThinUm), 1, 1_000_000);
+            AlbedoFresh = Int(map, nameof(AlbedoFresh), 1, 1000);
+            AlbedoCold = Int(map, nameof(AlbedoCold), 1, AlbedoFresh);
+            AlbedoWet = Int(map, nameof(AlbedoWet), 1, AlbedoCold);
+            AlbedoGround = Int(map, nameof(AlbedoGround), 0, 1000);
+            AlbedoResetUm = Int(map, nameof(AlbedoResetUm), 1, 1_000_000);
+            AlbedoColdTau = Int(map, nameof(AlbedoColdTau), 1, 100_000_000);
+            AlbedoWetTau = Int(map, nameof(AlbedoWetTau), 1, 100_000_000);
+            CanopyShade = Int(map, nameof(CanopyShade), 0, 1000);
+            SnowWindPer10k = Int(map, nameof(SnowWindPer10k), 0, 10_000);
+            SnowCalmMms = Int(map, nameof(SnowCalmMms), 0, 1000);
+            GroundHeatMw = Int(map, nameof(GroundHeatMw), 0, 100_000);
+            SnowHoldPermille = Int(map, nameof(SnowHoldPermille), 0, 1000);
+            SnowCrumbUm = Int(map, nameof(SnowCrumbUm), 0, 100_000);
+            SettleTau = Int(map, nameof(SettleTau), 1, 100_000_000);
+            SettleWetFactor = Int(map, nameof(SettleWetFactor), 1, 100);
+            DensityCold = Int(map, nameof(DensityCold), 50, 917);
+            DensityWarm = Int(map, nameof(DensityWarm), 50, 917);
+            DensityWet = Int(map, nameof(DensityWet), 50, 917);
+            CanopyHolds = Int(map, nameof(CanopyHolds), 0, 1000);
+            ShedStartGrade = Int(map, nameof(ShedStartGrade), 1, 1000);
+            ShedFullGrade = Int(map, nameof(ShedFullGrade), ShedStartGrade + 1, 2000);
+            ShedRunout = Int(map, nameof(ShedRunout), 8, 400);
+            ShedPileMax = Int(map, nameof(ShedPileMax), 254, 1_000_000);
+            ShedPileRatio = Int(map, nameof(ShedPileRatio), 1000, 100_000);
+            DriftWind = Int(map, nameof(DriftWind), 0, 2000);
+            DriftWindSpan = Int(map, nameof(DriftWindSpan), 1, 2000);
+            DriftShareMax = Int(map, nameof(DriftShareMax), 0, 1000);
+            DriftReach = Int(map, nameof(DriftReach), 8, 400);
+            DriftExposedRise = Int(map, nameof(DriftExposedRise), 0, 127);
+            PowderNewUm = Int(map, nameof(PowderNewUm), 1, 100_000);
+            WetPowderWetBulb = Int(map, nameof(WetPowderWetBulb), 0, 400);
+            RefreezeSkin = Int(map, nameof(RefreezeSkin), -5000, 0);
+            SnowRefreezeHours = Int(map, nameof(SnowRefreezeHours), 1, 3);
+            CornCycles = Int(map, nameof(CornCycles), 1, 3);
+            CornWindowDays = Int(map, nameof(CornWindowDays), 1, 60);
+            QualityBase = Ints(map, nameof(QualityBase), 0, 1000);
+            if (QualityBase.Length != 10) throw new FormatException("QualityBase needs ten types.");
+            QualityAgePerHour = Int(map, nameof(QualityAgePerHour), 0, 1000);
+            QualityAgeFloor = Int(map, nameof(QualityAgeFloor), 0, 1000);
+            SeedDensity = Int(map, nameof(SeedDensity), 50, 917);
+            SnowLandFaceMs = Int(map, nameof(SnowLandFaceMs), 0, 3_600_000);
+            SnowThreads = Int(map, nameof(SnowThreads), 1, 16);
+            SkylineFade = Int(map, nameof(SkylineFade), 1, 1_000_000);
 
             DayFaceMsPerTick = FaceMsPerTick(DayHourRealSeconds, nameof(DayHourRealSeconds));
             NightFaceMsPerTick = FaceMsPerTick(NightHourRealSeconds, nameof(NightHourRealSeconds));
@@ -673,6 +753,51 @@ namespace MountainPlanner.Simulation
             E(nameof(StreamsIceMax), "600"),
             E(nameof(IceOpenAt), "100"),
             E(nameof(SnowCoveredAt), "10"),
+            // Natural snow (task 4.07 PR A2; the snow energy's fitted set, SnowTuning.Default):
+            E(nameof(SnowSurfaceUm), "25000"),
+            E(nameof(SnowThinUm), "20000"),
+            E(nameof(AlbedoFresh), "850"),
+            E(nameof(AlbedoCold), "700"),
+            E(nameof(AlbedoWet), "550"),
+            E(nameof(AlbedoGround), "200"),
+            E(nameof(AlbedoResetUm), "5000"),
+            E(nameof(AlbedoColdTau), "1728000"),
+            E(nameof(AlbedoWetTau), "1209600"),
+            E(nameof(CanopyShade), "700"),
+            E(nameof(SnowWindPer10k), "15"),
+            E(nameof(SnowCalmMms), "1"),
+            E(nameof(GroundHeatMw), "2000"),
+            E(nameof(SnowHoldPermille), "50"),
+            E(nameof(SnowCrumbUm), "2540"),
+            E(nameof(SettleTau), "2400000"),
+            E(nameof(SettleWetFactor), "3"),
+            E(nameof(DensityCold), "300"),
+            E(nameof(DensityWarm), "380"),
+            E(nameof(DensityWet), "450"),
+            E(nameof(CanopyHolds), "300"),
+            E(nameof(ShedStartGrade), "85"),
+            E(nameof(ShedFullGrade), "175"),
+            E(nameof(ShedRunout), "64"),
+            E(nameof(ShedPileMax), "12700"),
+            E(nameof(ShedPileRatio), "3000"),
+            E(nameof(DriftWind), "200"),
+            E(nameof(DriftWindSpan), "600"),
+            E(nameof(DriftShareMax), "300"),
+            E(nameof(DriftReach), "100"),
+            E(nameof(DriftExposedRise), "5"),
+            E(nameof(PowderNewUm), "2540"),
+            E(nameof(WetPowderWetBulb), "310"),
+            E(nameof(RefreezeSkin), "-222"),
+            E(nameof(SnowRefreezeHours), "2"),
+            E(nameof(CornCycles), "3"),
+            E(nameof(CornWindowDays), "5"),
+            E(nameof(QualityBase), "960, 900, 940, 680, 160, 840, 420, 640, 500, 780"),
+            E(nameof(QualityAgePerHour), "4"),
+            E(nameof(QualityAgeFloor), "600"),
+            E(nameof(SeedDensity), "300"),
+            E(nameof(SnowLandFaceMs), "312000"),
+            E(nameof(SnowThreads), "4"),
+            E(nameof(SkylineFade), "52000"),
         };
 
         static KeyValuePair<string, string> E(string name, string value) => new KeyValuePair<string, string>(name, value);

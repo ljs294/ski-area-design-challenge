@@ -82,30 +82,16 @@ Shader "MountainPlanner/Terrain"
         static const float MeadowTile = 4, ScreeTile = 6, DirtTile = 3, MeadowFarTile = 90;   // metres per repeat
         float4 _OverlayColor[8];
         // Task 10 seams (0.3 §4.6), set by SurfaceStates. The snow-depth map (metres) over the ring: snow covers
-        // fully from _SnowDepthParams.x metres deep; .w = 0 (not set yet) is full cover. Iteration 1 is 12 in
-        // everywhere, so the picture is the same as before the map existed.
-        TEXTURE2D(_SnowDepthMap); SAMPLER(sampler_SnowDepthMap);
-        float4 _SnowDepthRect;       // west, south, 1 / width, 1 / depth (world metres)
-        float4 _SnowDepthParams;     // x: depth for full cover (m), w: on (0/1)
+        // fully from _SnowDepthParams.x metres deep; .w = 0 (not set yet) is full cover. Task 4.07 PR A2: read through
+        // Snow.hlsl's curved filter (SN-29 v2), with the live snow's surface for the conditions layer.
+        #include "Snow.hlsl"
         // The water's surface state (WaterBodies): x = state + 1 (1 open water, 2 ice, 3 snow-covered ice;
         // 0 not set yet, drawn as snow-covered ice), y ice and z snow thickness (m).
         float4 _LakeState;
 
-        // Snow depth in metres at a point (12 in until the field is set).
-        float SnowDepthMetres(float3 positionWS)
-        {
-            if (_SnowDepthParams.w < 0.5) return 0.3048;
-            float2 uv = (positionWS.xz - _SnowDepthRect.xy) * _SnowDepthRect.zw;
-            return SAMPLE_TEXTURE2D_LOD(_SnowDepthMap, sampler_SnowDepthMap, uv, 0).r;
-        }
-
-        float SnowCover(float3 positionWS)
-        {
-            UNITY_BRANCH
-            if (_SnowDepthParams.w < 0.5) return 1;
-            float2 uv = (positionWS.xz - _SnowDepthRect.xy) * _SnowDepthRect.zw;
-            return saturate(SAMPLE_TEXTURE2D_LOD(_SnowDepthMap, sampler_SnowDepthMap, uv, 0).r / _SnowDepthParams.x);
-        }
+        // Snow depth in metres at a point (12 in until the field is set), and how fully it covers the ground (Snow.hlsl).
+        float SnowDepthMetres(float3 positionWS) { return SnowDepthAt(positionWS); }
+        float SnowCover(float3 positionWS) { return SnowCoverAt(positionWS); }
 
         // Built trails (task 07, TrailSurfaceMap; task 4.01, TL24: wherever the trails are): 1 m numbers per lattice point
         // in 65 × 65 pages, each a 64 m lattice tile and its east and south neighbours' first column and row (so the four
@@ -577,7 +563,8 @@ Shader "MountainPlanner/Terrain"
                 float composed = c0.g + c0.b + c0.a + c1.r + c1.g + c1.b + c1.a;
                 float painted = saturate(composed * 50);
                 float land = 1 - c1.g;
-                float snowWeight = c0.r * lerp(1, SnowCover(i.positionWS), painted);
+                float cover = SnowCover(i.positionWS);
+                float snowWeight = c0.r * lerp(1, cover, painted);
                 // Under the crowns only (P2-09): SplatTexels thinned the snow over a whole stand (ForestShade, 45% at
                 // full canopy); with the crown map the snow between trees comes back and the trees keep their wells.
                 float crown = CrownCover(i.positionWS.xz);
@@ -590,7 +577,8 @@ Shader "MountainPlanner/Terrain"
                 // The cover-map overlay leaves the snow out whatever the Snow layer says.
                 float snowOn = lerp(1, _SnowOn > 0.5 && _Overlay < 0.5 ? 1 : 0, painted);
                 snowWeight *= snowOn;
-                snowWeight = max(snowWeight, land * snowOn * groomed);
+                // Task 4.07 PR A2: a groomed trail is white only where there is snow (bare October ground stays bare).
+                snowWeight = max(snowWeight, land * snowOn * groomed * cover);
                 float keep = land > 0.004 ? saturate(1 - snowWeight / land) : 0;
                 float weights[8] = { snowWeight, c0.g * keep, c0.b * keep, c0.a * keep, c1.r * keep, c1.g, c1.b * keep, c1.a * keep };
 
@@ -608,7 +596,8 @@ Shader "MountainPlanner/Terrain"
                 if (_MP_InfoView > 0.5)
                 {
                     float3 info;
-                    if (_MP_InfoView > 4.5) info = NetworkReliefColour;   // task P3-10: the Network view
+                    if (_MP_InfoView > 8.5) info = SnowConditionsColour(i.positionWS);   // task 4.07 PR A2: Snow conditions
+                    else if (_MP_InfoView > 4.5) info = NetworkReliefColour;   // task P3-10: the Network view
                     else if (_MP_InfoView > 3.5) info = SnowDepthColour(SnowDepthMetres(i.positionWS));
                     else
                     {

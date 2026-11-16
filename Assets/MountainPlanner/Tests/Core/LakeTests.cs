@@ -415,7 +415,7 @@ namespace MountainPlanner.Tests
         }
 
         /// <summary>The exit golden: the generated winter freezes and thaws each lake on its own pinned dates.</summary>
-        public const ulong LakeWinterFold = 0xE0CC199FD3EBF3E9UL;   // re-pinned at 4.07 PR A1 (weather rows v2: the seven sites re-recorded; the ice days did not move), over 4.09 PR A 0xA3444D79FA83272F (Pacing v8)
+        public const ulong LakeWinterFold = 0x4E4E592B65CA83B5UL;   // re-pinned at 4.07 PR A2 round 2 (Pacing: SN-06 v3's ShedPileRatio; the fixture sends no snow inputs, so only the table's hash moves it; for the owner's OK at the review, 2026-11-14; the ice days did not move), over A2 0x466F15BFF701A34B; re-pinned at 4.07 PR A2 (Pacing v9: the natural snow's numbers; the ice days did not move), over A1 0xE0CC199FD3EBF3E9; re-pinned at 4.07 PR A1 (weather rows v2: the seven sites re-recorded; the ice days did not move), over 4.09 PR A 0xA3444D79FA83272F (Pacing v8)
         /// <summary>Face days of the label year (0 = October 1, 21 = December 1, 63 = April 1): streams, 6 ft pond, 30 ft and 120 ft lakes.</summary>
         static readonly int[] IceOn = { 2, 7, 14, 21 }, IceOut = { 70, 68, 75, 78 };
 

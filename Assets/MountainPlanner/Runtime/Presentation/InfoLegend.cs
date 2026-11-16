@@ -67,6 +67,72 @@ namespace MountainPlanner.Presentation
             return rows;
         }
 
+        // ---------- Snow conditions (task 4.07 PR A2, info view 9) ----------
+
+        /// <summary>
+        /// Each snow type's colour (indexed by the simulation's SnowType; Snow.hlsl's SnowTypeColours, the same numbers): four
+        /// families, fresh blue, groomed and packed teal, hard and icy violet, spring amber, lighter and darker inside each.
+        /// </summary>
+        public static readonly Color[] SnowTypeColours =
+        {
+            new Color(0.545f, 0.455f, 0.345f),   // bare
+            new Color(0.353f, 0.635f, 0.925f),   // powder
+            new Color(0.169f, 0.710f, 0.522f),   // packed powder
+            new Color(0.086f, 0.541f, 0.369f),   // machine groomed
+            new Color(0.718f, 0.478f, 0.788f),   // hard packed
+            new Color(0.431f, 0.184f, 0.533f),   // icy
+            new Color(0.961f, 0.753f, 0.290f),   // corn
+            new Color(0.604f, 0.310f, 0.690f),   // frozen granular
+            new Color(0.929f, 0.631f, 0.000f),   // loose granular
+            new Color(0.769f, 0.498f, 0.000f),   // wet granular
+            new Color(0.173f, 0.455f, 0.776f),   // wet powder
+        };
+
+        /// <summary>The snow types' names, as the readout says them (indexed as <see cref="SnowTypeColours"/>).</summary>
+        public static readonly string[] SnowTypeNames =
+        {
+            "Bare", "Powder", "Packed powder", "Machine groomed", "Hard packed", "Icy", "Corn", "Frozen granular", "Loose granular",
+            "Wet granular", "Wet powder",
+        };
+
+        /// <summary>
+        /// Under this depth the Snow conditions readout says "Bare" (with "traces of" the type): the ground's snow covers fully
+        /// from <see cref="SurfaceStates.FullCoverMetres"/>, and the layer fades each type to bare by the same cover, so below
+        /// half of it the point reads as bare ground (owner's demo 111, 2026-11-15).
+        /// </summary>
+        public const float SnowBareBelowMetres = SurfaceStates.FullCoverMetres / 2;
+
+        /// <summary>True when a point with snow of <paramref name="type"/> (SnowType, 0 bare) <paramref name="metres"/> deep reads as
+        /// bare ground with traces of it.</summary>
+        public static bool SnowReadsBare(int type, float metres) => type > 0 && metres < SnowBareBelowMetres;
+
+        /// <summary>The legend's rows: the types the natural snow makes (grooming and skiing bring the rest, task 4.07 PR B), by
+        /// family, with the family's name as the figure on its first row.</summary>
+        public static readonly Entry[] SnowConditions =
+        {
+            new Entry(SnowTypeColours[1], "Powder", "Fresh"),
+            new Entry(SnowTypeColours[10], "Wet powder", ""),
+            new Entry(SnowTypeColours[2], "Packed powder", "Packed"),
+            new Entry(SnowTypeColours[7], "Frozen granular", "Hard"),
+            new Entry(SnowTypeColours[5], "Icy", ""),
+            new Entry(SnowTypeColours[6], "Corn", "Spring"),
+            new Entry(SnowTypeColours[9], "Wet granular", ""),
+            new Entry(SnowTypeColours[0], "Bare", ""),
+        };
+
+        static readonly string[] QualityWords = { "Poor", "Fair", "Good", "Excellent" };
+
+        /// <summary>The readout's word for a snow quality (‰): under 400 Poor, then Fair, Good, and Excellent from 800.</summary>
+        public static int SnowQualityStep(int permille) => permille >= 800 ? 3 : permille >= 600 ? 2 : permille >= 400 ? 1 : 0;
+        public static string SnowQualityWord(int permille) => QualityWords[SnowQualityStep(permille)];
+
+        /// <summary>The surface's age in the player's days (face hours ÷ 24; the simulation counts to 255 hours).</summary>
+        public static string SnowAge(int faceHours) =>
+            faceHours >= 255 ? "10+ days old" : faceHours < 24 ? "under a day old" : faceHours < 48 ? "1 day old" : faceHours / 24 + " days old";
+
+        public const string SnowConditionsTitle = "Snow conditions";
+        public const string SnowConditionsNote = "The surface the snow has now. Point at the ground for its depth, quality and age.";
+
         // ---------- Traffic (SN-31, task 4.13 PR C) ----------
 
         /// <summary>Traffic's five steps, quiet to packed: cool to hot, bright enough to read on the dark relief.</summary>
@@ -117,7 +183,7 @@ namespace MountainPlanner.Presentation
         public const string SlopeTitle = "Slope angle", ExposureTitle = "Slope exposure", SnowDepthTitle = "Snow depth";
         public const string SlopeNote = "Grade: rise over run (100% is 45°).";
         public const string ExposureNote = "The way each slope faces, from true north; flatter than 10% is grey.";
-        public const string SnowDepthNote = "The natural snowpack: deeper up high, thinner on sunny faces, steep rock and under trees.";
+        public const string SnowDepthNote = "The snow on the ground: it builds storm by storm, blows off ridges into hollows, settles and melts.";
 
         public static string ContoursNote(UnitSystem units) => units == UnitSystem.Imperial
             ? "Contours every 40 ft, down to 10 ft up close; labelled every 200 ft."

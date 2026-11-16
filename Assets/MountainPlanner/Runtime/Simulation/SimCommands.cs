@@ -56,6 +56,10 @@ namespace MountainPlanner.Simulation
         SetWeatherTerrain = 30,
         /// <summary>Task 4.09: Payload = a <see cref="Domain.Water.WaterBodyTable"/>, the area's water bodies (LK-01 v2), applied at once; a view-sequence command (resent after every load).</summary>
         SetWaterBodies = 31,
+        /// <summary>Task 4.07 PR A2: Payload = a <see cref="Domain.Snow.SnowTerrain"/> (the snow's inputs, the worker's own copy:
+        /// the first makes the snow live) or a <see cref="Domain.Snow.SnowTerrainPatch"/> (after earthwork or Clear trees: the
+        /// inputs change, the snow stays); a view-sequence command (resent after every load).</summary>
+        SetSnowTerrain = 32,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>

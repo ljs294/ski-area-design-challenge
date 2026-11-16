@@ -185,15 +185,27 @@ namespace MountainPlanner.UI
         /// What the info layer that's on reads under the pointer, under the elevation (task 12b.2), as the mockup shows it:
         /// a swatch of the layer's colour there, then "Slope 47% · Most difficult", "Faces SE · 135°" (or "Flat · under
         /// 10%") or "Snow 2 ft 4 in", the figure in bold. A NaN hides the figures ("– – –"); no info layer hides the
-        /// line. The text is rebuilt only when the shown figure changes.
+        /// line. The text is rebuilt only when the shown figure changes. Task 4.07 PR A2: Snow conditions reads the cell's
+        /// type, then the depth, the quality's word and the age ("Powder 14 in · Good · 2 days old"), the swatch its type's
+        /// colour; <paramref name="snowType"/> −1 is no reading.
         /// </summary>
-        public void SetInfoReadout(string infoId, float slopePercent, float bearingDegrees, float snowMetres)
+        public void SetInfoReadout(string infoId, float slopePercent, float bearingDegrees, float snowMetres,
+                                   int snowType = -1, int qualityPermille = 0, int ageHours = 0, float waterMetres = 0)
         {
             CheckUnits();
             var units = _shownUnits;
             long key;
             switch (infoId)
             {
+                case MapLayers.SnowConditions:
+                    if (float.IsNaN(snowMetres) || snowType < 0 || snowType >= InfoLegend.SnowTypeNames.Length) { key = 5L << 40; break; }
+                    // Under half cover the layer draws bare ground, and so does the readout: "Bare · traces of wet granular".
+                    if (InfoLegend.SnowReadsBare(snowType, snowMetres)) { key = 7L << 40 | (long)snowType; break; }
+                    // units (1 bit), type (4), quality's word (3), age in days (8), the water's key (12), the depth's key (12)
+                    key = 6L << 40 | (long)units << 39 | (long)snowType << 35 | (long)InfoLegend.SnowQualityStep(qualityPermille) << 32
+                        | (long)Mathf.Min(255, ageHours / 24) << 24 | (long)Mathf.Min(4095, UnitFormat.SnowWaterKey(waterMetres, units)) << 12
+                        | (long)Mathf.Min(4095, UnitFormat.SnowDepthKey(snowMetres, units));
+                    break;
                 case MapLayers.SlopeAngle: key = float.IsNaN(slopePercent) ? 5L << 40 : 1L << 40 | (uint)Mathf.RoundToInt(slopePercent); break;
                 case MapLayers.Exposure:
                     key = float.IsNaN(slopePercent) ? 5L << 40 : slopePercent < SlopeBands.FlatPercent ? 2L << 40 : 3L << 40 | (uint)Mathf.RoundToInt(Mathf.Repeat(bearingDegrees, 360)) % 360; break;
@@ -231,6 +243,21 @@ namespace MountainPlanner.UI
                     _readoutLead.text = "Snow";
                     figure = InfoFigure(key | (long)units << 48, kind, value, units, snowMetres);
                     break;
+                case 6:
+                    _readoutSwatch.style.backgroundColor = InfoLegend.SnowTypeColours[snowType];
+                    _readoutLead.text = InfoLegend.SnowTypeNames[snowType];
+                    if (snowType > 0)
+                    {
+                        figure = UnitFormat.SnowDepth(snowMetres, units);
+                        tail = "· " + UnitFormat.SnowWater(waterMetres, units) + " · " + InfoLegend.SnowQualityWord(qualityPermille) + " · "
+                               + InfoLegend.SnowAge(ageHours);
+                    }
+                    break;
+                case 7:
+                    _readoutSwatch.style.backgroundColor = InfoLegend.SnowTypeColours[0];
+                    _readoutLead.text = InfoLegend.SnowTypeNames[0];
+                    tail = TraceTails[value] ??= "· traces of " + InfoLegend.SnowTypeNames[value].ToLowerInvariant();
+                    break;
                 default:
                     _readoutLead.text = "– – –";
                     break;
@@ -240,6 +267,9 @@ namespace MountainPlanner.UI
             _readoutFigure.EnableInClassList("hidden", figure.Length == 0);
             _readoutTail.EnableInClassList("hidden", tail.Length == 0);
         }
+
+        /// <summary>"· traces of powder" and so on, made the first time each shows (the readout allocates nothing after).</summary>
+        static readonly string[] TraceTails = new string[InfoLegend.SnowTypeNames.Length];
 
         /// <summary>The bold figure for a readout key, made the first time it shows.</summary>
         string InfoFigure(long cacheKey, long kind, int value, UnitSystem units, float snowMetres)

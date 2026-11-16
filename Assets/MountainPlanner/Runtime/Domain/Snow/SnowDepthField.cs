@@ -79,8 +79,9 @@ namespace MountainPlanner.Domain.Snow
         /// <summary>
         /// Sets a rectangle from whole millimetres (<paramref name="cells"/> from <paramref name="offset"/>, row by row,
         /// <paramref name="width"/> a row) and marks it changed: the simulation's staged tiles (SI-17) reach the screen here.
+        /// <paramref name="mark"/> false: the caller uploads the rectangle itself (task 4.07 PR A2: by tile, not the whole map).
         /// </summary>
-        public void CopyMillimetres(ushort[] cells, int offset, int x, int y, int width, int height)
+        public void CopyMillimetres(ushort[] cells, int offset, int x, int y, int width, int height, bool mark = true)
         {
             if (cells == null) throw new ArgumentNullException(nameof(cells));
             if (x < 0 || y < 0 || width < 0 || height < 0 || x + width > Width || y + height > Height || offset < 0 || offset + width * height > cells.Length)
@@ -91,8 +92,11 @@ namespace MountainPlanner.Domain.Snow
                 int row = (y + j) * Width + x, at = offset + j * width;
                 for (int i = 0; i < width; i++) _depth[row + i] = cells[at + i] * 0.001f;
             }
-            Mark(x, y, x + width, y + height);
+            if (mark) Mark(x, y, x + width, y + height);
         }
+
+        /// <summary>Marks a rectangle changed whose cells are already set (an upload that has to fall back to the whole map).</summary>
+        public void MarkChanged(int x, int y, int width, int height) => Mark(x, y, x + width, y + height);
 
         void Mark(int x0, int y0, int x1, int y1)
         {

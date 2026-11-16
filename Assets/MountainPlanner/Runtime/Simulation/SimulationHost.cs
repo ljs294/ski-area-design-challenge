@@ -372,22 +372,37 @@ namespace MountainPlanner.Simulation
     public sealed class SimStateRequest
     {
         readonly ManualResetEventSlim _done = new ManualResetEventSlim(false);
-        public byte[] Bytes { get; private set; }
+        SimStateCapture _capture;
+        byte[] _bytes;
+        /// <summary>The state's bytes: encoded on first read, on the reader's thread (the save's task), not the worker's.</summary>
+        public byte[] Bytes
+        {
+            get
+            {
+                if (_bytes == null && _capture != null)
+                {
+                    try { _bytes = _capture.Encode(); }
+                    catch (Exception e) { Error = e.Message; }
+                }
+                return _bytes;
+            }
+        }
         public string Error { get; private set; } = "";
 
         internal void Answer(SimWorld w)
         {
             try
             {
-                Bytes = w.SaveState();
-                w.Events.Add(w.Tick, SimEventType.StateSaved, -1, Bytes.Length);
+                _capture = w.CaptureState();   // the worker only copies (task 4.07 PR A2)
+                w.Events.Add(w.Tick, SimEventType.StateSaved, -1, 0);
             }
             catch (Exception e) { Error = e.Message; }
             _done.Set();
         }
 
-        /// <summary>Waits up to <paramref name="milliseconds"/> for the state; true when it came.</summary>
-        public bool Wait(int milliseconds) => _done.Wait(milliseconds) && Bytes != null;
+        /// <summary>Waits up to <paramref name="milliseconds"/> for the worker's copy of the state; true when it came. The
+        /// encoding happens at the first read of <see cref="Bytes"/>.</summary>
+        public bool Wait(int milliseconds) => _done.Wait(milliseconds) && _capture != null;
     }
 
     /// <summary>

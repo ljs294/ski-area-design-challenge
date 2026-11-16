@@ -665,6 +665,12 @@ because we compress time, we compress weather events accordingly; it is a tycoon
   passes, lift rides) and anything per event (a groomer pass per night). Each owner
   task re-versions its rule when it builds it (SN-09 v2, SG-05 v2, …); none is a format change. SM-07's acceptance
   numbers get re-derived by 4.16.
+- **WX-22 v2, the snow's age is on the face clock** (task 4.07 PR A2, owner 2026-11-14, with the snow's plan v2).
+  WX-22 as above, but the age in the quality term (SN-16 v2, SN-18 v2) counts face hours, ×1, not ×K: a face hour
+  ages a cell's surface one hour (0.004 off its quality, floor 0.6), and the cursor's "2 days old" is two of the
+  player's days. The age is what the player reads and plans by (it's on the motion clock, like the skier passes it
+  meets in PR B); ×K would make powder go stale in under a face day. Everything physical in the pack stays ×K:
+  settling (SN-08 v2), melt and refreeze (SN-09 v2, SN-10), sublimation (SN-12). The age stops at 255 face hours.
 
 ![A real week of weather compressed into about two and a half face days](images/p4-04-compression.svg)
 
@@ -970,6 +976,17 @@ into tables, never stored per cell.
   wind is WX-39's per-cell product. **Aspect leaves the air tables** (4.02's WX-02 had an aspect octant): aspect
   changes the sun on the snow, not the air, so it enters only through SN-09's sun factor; canopy enters only the
   wind (WX-39) and SN-06/SN-09. Guns, lifts, the HUD and the forecast sample the same function at points.
+- **WX-02 v3, the snow's read blends every edge** (task 4.07 PR A2, owner 2026-11-14). The snow's smooth read blends
+  a cell with the neighbouring bin and pool band, as v2. Two fixes:
+  - **The neighbour pairs are filled:** each hour also fills every pair beside one the area has, not only the pairs
+    the area has. On ground where height and height above the floor rise together (any even slope), a bin holds one
+    band, so its neighbouring pairs weren't on the map. The read fell back to the cell's own pair there and stepped at
+    every bin edge: 15‰ of snow share in one 8 m row where the rows round it changed 0.7‰.
+  - **The last band blends too:** the last pool band (everything above 480 ft) now blends with the band below. It was
+    left out, so the air stepped 0.8 °F at its foot in a 12 °F pool.
+  The point read (`At`, the readout, lifts, guns, the forecast) is unchanged. Test: an even 15 % slope, 3 km long, read
+  row by row near freezing, in a cold pool and cold; the largest row step is 5‰ of share (the 0.1 °F wet bulb's) and
+  0.3 °F in the pool (its 10 ft height steps) (SnowWorldTests).
 
 ## 7. Storms and events: what the player can name
 

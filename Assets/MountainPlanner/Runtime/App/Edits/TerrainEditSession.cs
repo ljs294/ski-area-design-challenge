@@ -72,7 +72,8 @@ namespace MountainPlanner.App.Edits
             if (resort.Forest != null) pipeline.AttachForest(resort.Forest, resort.TreeInstances, resort.TreeRanges);
             pipeline.AttachCliffs(resort.Cliffs);
             if (resort.SnowElevation != null)
-                pipeline.AttachSnow(resort.States, resort.SnowElevation, resort.SnowCanopy, resort.Manifest.Crs.GridConvergenceDegrees, resort.Ring);
+                pipeline.AttachSnow(resort.States, resort.SnowElevation, resort.SnowCanopy, resort.Manifest.Crs.GridConvergenceDegrees, resort.Ring,
+                                    resort.SnowMm, resort.SnowCanopyBytes, resort.Core);
             var session = new TerrainEditSession(resort, history, pipeline);
             pipeline.TreeLanes = LiftLanes.Of(history.Document, session.Earthwork.Site);
             if (!history.Terrain.IsEmpty) await (session.Applying = pipeline.ApplyAsync(history.Terrain, ct));

@@ -275,6 +275,7 @@ namespace MountainPlanner.App
                 StartGuestShots(args);     // -guestshot <folder> (MountainViewer.Guests.cs, task 4.12)
                 StartWeatherShots(args);   // -weathershots <folder> (MountainViewer.WeatherReadout.cs, task 4.05)
                 StartLakeReport(args);     // -lakereport <folder> (MountainViewer.Lakes.cs, task 4.09)
+                StartSnowLapse(args);      // -snowlapse <folder> [-snowdays N] (MountainViewer.SnowLapse.cs, task 4.07 PR A2)
                 StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
                 StartSkierFigureShots(args);   // -skiershot <folder> [-guests N] (MountainViewer.SkierFigureShots.cs, task 4.22)
                 StartProofHold(args);      // -proofhold <out.json> [-guests N] [-skierproof lod|lod0] (task 4.13 PR C2)
@@ -463,21 +464,18 @@ namespace MountainPlanner.App
             if (KeyBindings.Pressed(keys, GameAction.InfoSlope, letters)) ToggleLayer(MapLayers.SlopeAngle);
             if (KeyBindings.Pressed(keys, GameAction.InfoExposure, letters)) ToggleLayer(MapLayers.Exposure);
             if (KeyBindings.Pressed(keys, GameAction.InfoDepth, letters)) ToggleLayer(MapLayers.SnowDepth);
-            if (KeyBindings.Pressed(keys, GameAction.InfoConditions, letters)) ToggleLayer(MapLayers.SnowConditions);   // reserved
+            if (KeyBindings.Pressed(keys, GameAction.InfoConditions, letters)) ToggleLayer(MapLayers.SnowConditions);   // task 4.07 PR A2
             if (KeyBindings.Pressed(keys, GameAction.InfoTraffic, letters)) ToggleLayer(MapLayers.Traffic);   // task 4.13 PR C
         }
 
         /// <summary>
         /// The keys, the HUD's layer rows and the F1 panel all switch layers here (<see cref="MapLayers"/>): the change
-        /// shows in this frame. Snow conditions waits for the snow simulation.
+        /// shows in this frame.
         /// </summary>
         void ToggleLayer(string layer)
         {
             if (_resort == null) return;
-            if (_layers.Toggle(layer)) return;
-            if (layer != MapLayers.SnowConditions) return;
-            if (Hud != null && _hudShown) Hud.Toast("Snow conditions come with the snow simulation");
-            else Toast("Snow conditions come with the snow simulation");
+            _layers.Toggle(layer);
         }
 
         /// <summary>For UI captures (AppFlow.UiCapture): a layer on or off, and the pointer at a fraction of the screen (null: the mouse).</summary>
@@ -643,18 +641,8 @@ namespace MountainPlanner.App
             return ((float)SlopeBands.PercentFromRise(Mathf.Sqrt(east * east + north * north)), bearing);
         }
 
-        /// <summary>The snow-depth field at a point, between its 8 m cells.</summary>
-        float SnowDepthAt(float x, float z)
-        {
-            var field = _resort.States?.Snow;
-            if (field == null) return float.NaN;
-            float u = Mathf.Clamp((x - _resort.Ring.xMin) / field.CellMetres - 0.5f, 0, field.Width - 1);
-            float v = Mathf.Clamp((z - _resort.Ring.yMin) / field.CellMetres - 0.5f, 0, field.Height - 1);
-            int i = Mathf.Min((int)u, field.Width - 2 < 0 ? 0 : field.Width - 2), j = Mathf.Min((int)v, field.Height - 2 < 0 ? 0 : field.Height - 2);
-            int i1 = Mathf.Min(i + 1, field.Width - 1), j1 = Mathf.Min(j + 1, field.Height - 1);
-            float fu = u - i, fv = v - j;
-            return Mathf.Lerp(Mathf.Lerp(field[i, j], field[i1, j], fu), Mathf.Lerp(field[i, j1], field[i1, j1], fu), fv);
-        }
+        /// <summary>The snow's depth at a point through the screen's curved filter (SN-29 v2: as the picture draws it).</summary>
+        float SnowDepthAt(float x, float z) => SnowCursor.DepthAt(_resort.States, _resort.Ring, x, z);
 
         /// <summary>Shows or hides the HUD and refreshes it ten times a second (0.4 §8: bounded, no per-frame allocation).</summary>
         void UpdateHud()
@@ -672,6 +660,7 @@ namespace MountainPlanner.App
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             var mouse = Mouse.current;
             float elevation = float.NaN, slope = float.NaN, bearing = 0, snow = float.NaN;
+            int snowType = -1, quality = 0, age = 0, density = 0; float water = 0;
             string info = _layers.InfoLayerId;
             Vector2? pointer = _pointer.HasValue ? new Vector2(_pointer.Value.x * Screen.width, _pointer.Value.y * Screen.height)
                 : mouse != null ? mouse.position.ReadValue() : (Vector2?)null;
@@ -687,10 +676,18 @@ namespace MountainPlanner.App
                     // What the info layer that's on reads under the pointer (task 12b.2).
                     if (!float.IsNaN(elevation) && (info == MapLayers.SlopeAngle || info == MapLayers.Exposure)) (slope, bearing) = SlopeAt(g.x, g.z);
                     else if (!float.IsNaN(elevation) && info == MapLayers.SnowDepth) snow = SnowDepthAt(g.x, g.z);
+                    else if (!float.IsNaN(elevation) && info == MapLayers.SnowConditions)
+                    {
+                        // Task 4.07 PR A2: the cell's surface, the depth as drawn.
+                        snow = SnowDepthAt(g.x, g.z);
+                        (snowType, quality, age, density) = SnowCursor.SurfaceAt(_resort.States, _resort.Ring, g.x, g.z);
+                        if (snowType > 0 && snow < 0.0025f) snowType = 0;   // under a tenth of an inch reads bare
+                        water = snow * density / 1000f;   // depth is water ÷ density (SN-08 v2), so the drawn depth × the cell's density
+                    }
                 }
             }
             Hud.SetElevation(elevation);
-            Hud.SetInfoReadout(info, slope, bearing, snow);
+            Hud.SetInfoReadout(info, slope, bearing, snow, snowType, quality, age, water);
             if (info == MapLayers.Traffic) TrafficReadout(cam, pointer);   // task 4.13 PR C: the run or lift under the pointer
         }
 
@@ -783,7 +780,7 @@ namespace MountainPlanner.App
             {
                 text += "\nWASD or arrows pan · Q/E rotate · R/F tilt · Wheel, +/− or PgUp/PgDn zoom · Middle-drag rotate · Right-drag pan · Shift faster · " +
                         "Home reset view · C free-fly (W/S fly, Q/E turn, R/F pitch, PgUp/PgDn rise and sink, right-drag look) · " +
-                        "Map layers: Shift+1 snow, Shift+3 trees · Info layers: Shift+6 contours, Shift+7 slope angle, Shift+8 slope exposure, Shift+9 snow depth, Shift+0 snow conditions (later) · U feet or metres · H hide UI · P photo mode · F1 this panel · Esc menu · map data © OpenStreetMap contributors";
+                        "Map layers: Shift+1 snow, Shift+3 trees · Info layers: Shift+6 contours, Shift+7 slope angle, Shift+8 slope exposure, Shift+9 snow depth, Shift+0 snow conditions · U feet or metres · H hide UI · P photo mode · F1 this panel · Esc menu · map data © OpenStreetMap contributors";
                 // As wide as the screen allows (the owner's is 2,560 px, a laptop's 1,366): the panel's sentences wrap
                 // inside it, so a wider screen simply reads in fewer lines.
                 float wide = Mathf.Clamp(Screen.width - 40, 520, 1440);
