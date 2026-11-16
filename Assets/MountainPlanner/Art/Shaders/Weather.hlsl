@@ -24,7 +24,8 @@ float4 _WxCurtain;     // x: density in a shower (1/m; 0: none), y: the share of
 float4 _WxFogColor;    // rgb: the fog aloft (the graded horizon), w: 1 / the height over which it brightens from the low colour (1/m)
 float4 _WxFogLow;      // rgb: the fog in the valleys (darker, cooler), w: the height it's that colour at (world y)
 float4 _WxSun;         // rgb: the sun's light as graded (linear), w: day (0 night - 1 day)
-float4 _WxLight;       // rgb: the sky's ambient as graded (linear), w: how dark the deck's base is against the valley fog (0-1)
+float4 _WxLight;       // rgb: the light inside a cloud (linear; WeatherView.CloudLight), w: how dark the deck's base is against the valley fog (0-1)
+float4 _WxDriftTurn;   // the drift the wrap took out, for the turned tiles: xy the small tile's UV, zw the huge tile's (WeatherView.DriftCorrection)
 float4 _WxCloud;       // x: cover (0-1), y: shadow strength (0-1), z, w: the clouds' drift (m)
 float4 _WxCloudScale;  // x: 1 / large tile (m), y: 1 / small tile (m), z: the deck's base for the shadows' projection (world y), w: edge softness
 float4 _WxFront;       // xy: the way the front travels (grid xz, unit), z: where it is along that (m), w: 1 / its width (m); w 0: no front
@@ -35,11 +36,16 @@ float4 _WxPixel;       // x: one pixel's angle (rad), y: the large tile's texel 
 float4 _WxGust;        // xy: the way the gusts run (grid xz, unit), z: strength (0: none), w: how far they've run (m, wrapped at 2100)
 float4 _WxGlint;       // x: the snow's sparkle (0: none), y: the distance it's gone by (m)
 float4 _WxShadowAt;    // the clouds' shadow map: xy its origin on the deck's plane (grid xz), z 1 / its extent (m), w its size (texels)
-float4 _WxSunRun;      // xy: how far the sun's ray runs across (grid xz) for each metre it climbs
+float4 _WxSunRun;      // xy: how far the sun's ray runs across (grid xz) for each metre it climbs, z: the clouds' map is drawn this frame (0/1)
+float4 _WxVolume;      // the screen pass (WeatherVolume.cs): x: it draws the air (1), y: the sun's share of the haze's light (gone in shadow), z: how far its rays are stepped (m), w: the beams' density (1/m; lit air scatters the sun toward the eye)
+float4 _WxCeiling;     // x: the shadow ceiling's strength (0 with the sun down, fading in between 0.6° and 2°), y: 1 / the height over which air goes from shadowed to lit (1/m), z: the share of the ceiling a step ahead of the light (cross-fade)
+float4 _WxCeilingRect; // the ceiling map's west, south, 1 / width, 1 / depth (world metres)
 float3 _SkySunDirection;
 TEXTURE2D(_WxCloudTex);   // R: cumulus cells (Perlin-Worley, histogram-flattened), G: the detail that erodes their edges
 SAMPLER(sampler_WxCloudTex);
 TEXTURE2D(_WxShadowMap);  // R: the cloud over the deck's plane around the view (CloudShadowMap.cs)
+TEXTURE2D(_WxCeilingMap); // R: the height (world y) under which the air is in the mountain's shadow (FarTerrainShadow.cs)
+TEXTURE2D(_WxCeilingMapB);   // the same a step ahead of the light
 SAMPLER(sampler_WxShadowMap);
 
 // The mip that matches a pixel's footprint at a distance, seen at a grazing angle (|dir.y|): no shimmer far off, no streaks
@@ -53,12 +59,15 @@ float WxLod(float dist, float graze)
 
 float2 WxTurn(float2 q) { return float2(q.x * 0.7986 - q.y * 0.6018, q.x * 0.6018 + q.y * 0.7986); }   // 37°, so the tiles never line up
 
+// The small, turned tile's UV at a point of the drifted field (the detail that erodes the cells' edges).
+float2 WxDetailUv(float2 q) { return WxTurn(q) * _WxCloudScale.y + 0.37 + _WxDriftTurn.xy; }
+
 // The cloud field at a point on the deck's plane (0-1): the large tile's cells, plus the small, turned tile's detail.
 float WxCloudField(float2 q, float lod, bool detail)
 {
     float n = SAMPLE_TEXTURE2D_LOD(_WxCloudTex, sampler_WxCloudTex, q * _WxCloudScale.x, lod).r;
     UNITY_BRANCH
-    if (detail) n += (SAMPLE_TEXTURE2D_LOD(_WxCloudTex, sampler_WxCloudTex, WxTurn(q) * _WxCloudScale.y + 0.37, lod + 2).g - 0.5) * 0.3;
+    if (detail) n += (SAMPLE_TEXTURE2D_LOD(_WxCloudTex, sampler_WxCloudTex, WxDetailUv(q), lod + 2).g - 0.5) * 0.3;
     return n;
 }
 
@@ -70,7 +79,7 @@ float WxCover(float2 q)
     UNITY_BRANCH
     if (_WxPixel.w > 0)
     {
-        float v = SAMPLE_TEXTURE2D_LOD(_WxCloudTex, sampler_WxCloudTex, WxTurn(q.yx) * _WxPixel.z + 0.61, 5).r - 0.5;
+        float v = SAMPLE_TEXTURE2D_LOD(_WxCloudTex, sampler_WxCloudTex, WxTurn(q.yx) * _WxPixel.z + 0.61 + _WxDriftTurn.zw, 5).r - 0.5;
         cover = saturate(cover + v * _WxPixel.w * cover * (1 - cover) * 4);
     }
     return cover;
@@ -107,9 +116,11 @@ float WxKnee(float tau, float most) { return most * (1 - exp(-tau / max(most, 1e
 
 // What the air between the camera and p does: the general layers (haze, deck, curtains) as one amount and colour, and the
 // valley sea under them as another, so a sea seen from above keeps its own flat bright top.
-struct WxAir { float amount; float3 colour; float sea; float3 seaColour; };
+struct WxAir { float amount; float3 colour; float sea; float3 seaColour; float3 seaAt; };
 
-WxAir WxAirTo(float3 p, bool sky)
+// lit: the share of the haze along the way that the sun reaches (1 on a surface; the screen pass steps it, WX_PASS).
+// deck: false leaves the deck out (the screen pass marches it as a volume).
+WxAir WxAirToShaded(float3 p, bool sky, float lit, bool deck)
 {
     WxAir air = (WxAir)0;
     float3 cam = _WorldSpaceCameraPos;
@@ -146,6 +157,9 @@ WxAir WxAirTo(float3 p, bool sky)
         tauH = _WxHaze.x * d * f * k;
         float lift = saturate((lerp(p.y, cam.y, 0.25) - _WxFogLow.w) * _WxFogColor.w);
         colourH = lerp(_WxFogLow.rgb, _WxFogColor.rgb, lift) + sunL * _WxHaze.w * pow(saturate(dot(dir, normalize(_SkySunDirection))), 8);
+#if defined(WX_PASS)
+        colourH *= 1 - _WxVolume.y * (1 - lit);   // shadowed haze loses the sun's share of its light
+#endif
     }
 
     // The deck: the cloud field in the air between its base and top. Sampled where the line of sight enters and leaves it, so
@@ -154,7 +168,7 @@ WxAir WxAirTo(float3 p, bool sky)
     float tauD = 0;
     float3 colourD = 0;
     UNITY_BRANCH
-    if (_WxDeck.z > 0 && !(sky && dir.y > 0 && cam.y < _WxDeck.x))
+    if (deck && _WxDeck.z > 0 && !(sky && dir.y > 0 && cam.y < _WxDeck.x))
     {
         float2 t = WxSpan(cam.y, dy, _WxDeck.x, _WxDeck.y);
         UNITY_BRANCH
@@ -165,6 +179,14 @@ WxAir WxAirTo(float3 p, bool sky)
             float nin = WxCloudField(qin, lod, false), nout = WxCloudField(qout, lod, false);
             float ahead = WxFrontAt(qin, nin);
             float cin = WxCloudFrom(nin, cover, ahead, lod), cout = WxCloudFrom(nout, cover, ahead, lod);
+            // Crossed nearly edge-on, the way in and the way out are whole cells apart and all between them is skipped, which
+            // would show as upright bars toward the horizon: there the deck settles to its average.
+            float flat = smoothstep(0.3, 1.2, length(pout.xz - pin.xz) * _WxCloudScale.x);
+            float mean = lerp(cover, _WxFrontOld.x, ahead);
+            cin = lerp(cin, mean, flat);
+            cout = lerp(cout, mean, flat);
+            nin = lerp(nin, 0.5, flat);
+            nout = lerp(nout, 0.5, flat);
             // The base wavers with the field where it's crossed, so summits go into a ragged base, not a ruled line.
             float rag = (nin - 0.5) * _WxDeck.w;
             float2 tr = WxSpan(cam.y, dy, _WxDeck.x + rag, _WxDeck.y);
@@ -211,7 +233,8 @@ WxAir WxAirTo(float3 p, bool sky)
                 float nc = WxCloudField(qc, lod, false);
                 shower += smoothstep(edge - 0.08, edge + 0.08, nc) * lerp(_WxFrontScale.z, _WxFrontScale.w, WxFrontAt(qc, nc));
             }
-            tauC = _WxCurtain.x * (t.y - t.x) * d * (shower / taps) * k;
+            // Far off three taps can't tell showers from gaps: they fade out by 30 km (task 4.06, F6: dark blocks past the ring).
+            tauC = _WxCurtain.x * (t.y - t.x) * d * (shower / taps) * k * (1 - smoothstep(15000, 30000, d * lerp(t.x, t.y, 0.5)));
         }
     }
 
@@ -233,6 +256,7 @@ WxAir WxAirTo(float3 p, bool sky)
         if (t.y > t.x)
         {
             float3 e = cam + v * t.x;
+            air.seaAt = e;
             float n = WxCloudField(e.xz * 0.5 + _WxCloud.zw * 0.2, lod, false);
             float2 tr = WxSpan(cam.y, dy, -100000, _WxValley.x + (n - 0.5) * _WxValley.w);
             float tauV = _WxValley.y * max(0, tr.y - tr.x) * d * lerp(0.7, 1, n) * _WxParams.y;
@@ -243,6 +267,8 @@ WxAir WxAirTo(float3 p, bool sky)
     }
     return air;
 }
+
+WxAir WxAirTo(float3 p, bool sky) { return WxAirToShaded(p, sky, 1, true); }
 
 // The snow line while it falls (F5): the ground below it wet and darker, a faint brighter fringe just above it (relative to
 // the light, so it never glows at night), so the player sees where rain turns to snow. A weather veil only: the snow cover
@@ -271,7 +297,7 @@ half3 WxApplyAir(half3 colour, in WxAir air, half keep)
 // How much the weather fogs p (0-1), for anything that blends rather than colours.
 float WeatherFogAmount(float3 p)
 {
-#if !defined(WX_AIR)
+#if !defined(WX_AIR) && !defined(WX_KEEP)
     return 0;
 #endif
     UNITY_BRANCH
@@ -282,7 +308,9 @@ float WeatherFogAmount(float3 p)
 
 half3 WeatherFog(half3 colour, float3 p)
 {
-#if !defined(WX_AIR)
+#if defined(WX_VEIL)
+    return _WxParams.x < 0.5 ? colour : WxSnowLineVeil(colour, p);   // the screen pass draws the air; the veil stays on the ground
+#elif !defined(WX_AIR)
     return colour;
 #endif
     UNITY_BRANCH
@@ -294,7 +322,7 @@ half3 WeatherFog(half3 colour, float3 p)
 // keep of its own colour, so a lift's silhouette still shows in a white-out.
 half3 WeatherFogKeep(half3 colour, float3 p, half keep)
 {
-#if !defined(WX_AIR)
+#if !defined(WX_AIR) && !defined(WX_KEEP)
     return colour;
 #endif
     UNITY_BRANCH
@@ -306,7 +334,7 @@ half3 WeatherFogKeep(half3 colour, float3 p, half keep)
 // relief fades from view; below the snow line while it rains the ground is wet and takes a soft sheen.
 void WeatherSurface(inout float3 normal, inout float smooth, float3 geometric, float3 p)
 {
-#if !defined(WX_AIR)
+#if !defined(WX_AIR) && !defined(WX_VEIL)
     return;   // a closed deck and the rain both fill the air
 #endif
     UNITY_BRANCH
@@ -370,13 +398,29 @@ float WeatherGlint(float3 p, float3 normal, float3 h, float3 albedo)
 // pixel). Beyond the map, the region's cover on average: the haze has the ground by then. Soft-edged, and they drift.
 // No branch: the tap goes out early and its wait hides behind the lighting's own work (behind a branch it measured 0.15-0.3 ms
 // near the ground). With the weather off _WxParams.x is 0, so whatever the map holds changes nothing.
-half CloudShadow(float3 p)
+float WxCloudOver(float3 p)
 {
     float2 uv = (p.xz + _WxSunRun.xy * max(0, _WxCloudScale.z - p.y) - _WxShadowAt.xy) * _WxShadowAt.z;
     float c = SAMPLE_TEXTURE2D_LOD(_WxShadowMap, sampler_WxShadowMap, uv, 0).r;
     float2 e = min(uv, 1 - uv);
-    c = lerp(_WxCloud.x, c, saturate(min(e.x, e.y) * 20));
-    return 1 - c * (_WxCloud.y * _WxParams.x);
+    return lerp(_WxCloud.x, c, saturate(min(e.x, e.y) * 20));
+}
+
+half CloudShadow(float3 p) { return 1 - WxCloudOver(p) * (_WxCloud.y * _WxParams.x); }
+
+// Whether the sun reaches a point in the air (1: lit), for the screen pass's rays: above the mountain's shadow ceiling (two
+// taps, cross-faded between the light's last map and the one ahead; lit outside its map, fading in over the last 500 m of the
+// ring so its edge never draws a wall) and, under the deck, not under a cloud (the same map the ground's shadows read).
+float WxSunLit(float3 p)
+{
+    float2 uv = (p.xz - _WxCeilingRect.xy) * _WxCeilingRect.zw;
+    float ceiling = lerp(SAMPLE_TEXTURE2D_LOD(_WxCeilingMap, sampler_WxShadowMap, uv, 0).r,
+                         SAMPLE_TEXTURE2D_LOD(_WxCeilingMapB, sampler_WxShadowMap, uv, 0).r, _WxCeiling.z);
+    float2 e = min(uv, 1 - uv) / _WxCeilingRect.zw;
+    float lit = saturate((p.y - ceiling) * _WxCeiling.y + 0.5);
+    lit = lerp(1, lit, _WxCeiling.x * saturate(min(e.x, e.y) * (1.0 / 500)));
+    float under = saturate((_WxCloudScale.z - p.y) * 0.01);
+    return lit * (1 - 0.85 * under * _WxSunRun.z * WxCloudOver(p));
 }
 
 #endif

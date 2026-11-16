@@ -20,7 +20,7 @@ Shader "MountainPlanner/WindRibbon"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
-            #pragma multi_compile_fragment _ WX_AIR   // task 4.06: the weather's fog, only while something's in the air (WeatherView)
+            #pragma multi_compile _ WX_AIR WX_KEEP   // task 4.06: the weather's fog while something's in the air (worked out per vertex; WX_KEEP while the screen pass draws the air)
             #pragma target 4.5
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"

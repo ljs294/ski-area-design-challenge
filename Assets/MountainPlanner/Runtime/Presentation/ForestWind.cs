@@ -52,6 +52,15 @@ namespace MountainPlanner.Presentation
             _weatherToward = towardGridDegrees;
         }
 
+        /// <summary>The weather lets go (Weather on screen turned off): back to the player's level, eased.</summary>
+        public void ClearWeather()
+        {
+            if (!Weathered) return;
+            Weathered = false;
+            _goal = StrengthOf(Target);
+            _towardDegrees = BaseDegrees;
+        }
+
         const float BaseDegrees = 67.5f;
 
         public static float StrengthOf(Level level) => level switch

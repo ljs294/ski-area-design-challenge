@@ -94,7 +94,7 @@ Shader "MountainPlanner/Sky"
                 {
                     float under = _WxDeck.x - cam.y;
                     UNITY_BRANCH
-                    if (up > 0.01 && under > 0)
+                    if (up > 0.01 && under > 0 && _WxVolume.x < 1.5)   // 2: the screen pass marches the deck (WeatherVolume)
                     {
                         float dist = under / up;
                         float2 q = cam.xz + d.xz * dist + _WxCloud.zw;
@@ -103,6 +103,12 @@ Shader "MountainPlanner/Sky"
                         float cover = WxCover(q);
                         float cl = WxCloudFrom(n, cover, WxFrontAt(q, n), lod);
                         float thick = saturate((n - (1 - cover)) * 3);
+                        // Toward the horizon one pixel reaches across whole cells of the field along the plane, which would
+                        // show as upright bars: there the layer settles to its average (a cover of c hides c of the sky).
+                        float flat = smoothstep(0.15, 0.6, dist * _WxPixel.x / up * _WxCloudScale.x);
+                        cl = lerp(cl, cover, flat);
+                        thick = lerp(thick, 0.5 * cover, flat);
+                        n = lerp(n, 0.5, flat);
                         float sunUp = saturate(sun.y * 3 + 0.15);
                         float toSun = pow(saturate(dot(d, sun)), 4) * sunUp;
                         float rim = cl * (1 - cl) * 4 * toSun;

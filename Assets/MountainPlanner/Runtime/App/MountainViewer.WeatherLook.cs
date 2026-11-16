@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using MountainPlanner.Presentation;
 using MountainPlanner.Presentation.Weather;
 using MountainPlanner.Simulation;
 using UnityEngine;
@@ -13,6 +14,9 @@ namespace MountainPlanner.App
     /// <c>-nograde</c>, <c>-noglint</c>, <c>-nogust</c>, <c>-noskyclouds</c>, <c>-nowind</c>, <c>-wxoff</c> (no weather on screen at
     /// all), <c>-wxmapsize N</c> and <c>-wxmapevery N</c> (the clouds' shadow map) bisect its cost, and
     /// <c>-wxshots folder</c> takes the review shots: each look from the overview, two from near the ground, then quits.
+    /// <c>-wxvolume off|rays|full</c> picks how the air is drawn (else by quality: Low off, Medium rays, High up full),
+    /// <c>-wxdebug</c> shows the sun's reach through the air as grey, and <c>-wxrays folder</c> takes the low-sun shots
+    /// (ridge shadows, shafts), then quits. Demo 108 (<c>-wxdemo</c>) adds two keys: F9 steps the way, F10 pins the next look.
     /// </summary>
     public sealed partial class MountainViewer
     {
@@ -29,16 +33,50 @@ namespace MountainPlanner.App
             _weatherView.NoGust = Array.IndexOf(args, "-nogust") >= 0;
             _weatherView.NoSkyClouds = Array.IndexOf(args, "-noskyclouds") >= 0;
             _weatherView.NoWind = Array.IndexOf(args, "-nowind") >= 0;
-            if (Array.IndexOf(args, "-wxoff") >= 0) _weatherView.Enabled = false;   // the build with no weather on screen at all
+            _wxOffSwitch = Array.IndexOf(args, "-wxoff") >= 0;   // the build with no weather on screen at all
             int m = Array.IndexOf(args, "-wxmapsize");
             if (m >= 0 && m + 1 < args.Length && int.TryParse(args[m + 1], out int size)) _weatherView.ShadowMapSize = size;
             m = Array.IndexOf(args, "-wxmapevery");
             if (m >= 0 && m + 1 < args.Length && int.TryParse(args[m + 1], out int every)) _weatherView.ShadowMapEvery = every;
+            _weatherView.VolumeDebug = Array.IndexOf(args, "-wxdebug") >= 0;
+            // Settings › Weather for this run only, never remembered (review shots): -wxceiling, -wxfog <0-100>.
+            if (Array.IndexOf(args, "-wxceiling") >= 0) WeatherOptions.SetCeiling(true, remember: false);
+            m = Array.IndexOf(args, "-wxfog");
+            if (m >= 0 && m + 1 < args.Length && int.TryParse(args[m + 1], out int fog)) WeatherOptions.SetFogPercent(fog, remember: false);
+            m = Array.IndexOf(args, "-wxvolume");   // off | rays | full: how the air is drawn (by quality without it)
+            if (m >= 0 && m + 1 < args.Length && WeatherVolume.TryParseMode(args[m + 1], out var volume)) _weatherView.VolumeMode = volume;
             int i = Array.IndexOf(args, "-wxlook");
             if (i >= 0 && i + 1 < args.Length && PinLook(args[i + 1])) Toast($"Pinned weather look: {args[i + 1]} (-wxlook; the HUD tells the game's weather)");
+            int rays = Array.IndexOf(args, "-wxrays");   // -wxrays <folder>: the low-sun review shots (rays, ridge shadows), then quits
+            if (rays >= 0 && rays + 1 < args.Length) StartCoroutine(WeatherRayShots(Path.GetFullPath(args[rays + 1])));
             int shots = Array.IndexOf(args, "-wxshots");
             if (shots >= 0 && shots + 1 < args.Length) StartCoroutine(WeatherLookShots(Path.GetFullPath(args[shots + 1])));
-            if (Array.IndexOf(args, "-wxdemo") >= 0) StartCoroutine(WeatherDemo());
+            if (Array.IndexOf(args, "-wxdemo") >= 0) { _weatherDemoKeys = true; StartCoroutine(WeatherDemo()); }
+        }
+
+        // Demo 108's two keys, for comparing the ways the air is drawn on the same weather: F9 steps the way (the quality's
+        // own, then today's look, god rays, the full volume), F10 pins the next look (and after the last, the game's weather).
+        bool _weatherDemoKeys;
+        int _demoWay = -1, _demoLook = -1;
+        static readonly string[] DemoLooks = { "bluebird", "building", "clearing", "inversion", "coldsnap", "storm", "bigstorm", "gale" };
+        static readonly string[] DemoWays = { "today's look (the surfaces draw the air)", "god rays over the flat clouds", "volumetric clouds and god rays" };
+
+        void UpdateWeatherDemoKeys()
+        {
+            var keys = _weatherDemoKeys ? UnityEngine.InputSystem.Keyboard.current : null;
+            if (keys == null) return;
+            if (keys.f9Key.wasPressedThisFrame)
+            {
+                _demoWay = _demoWay >= 2 ? -1 : _demoWay + 1;
+                _weatherView.VolumeMode = _demoWay < 0 ? (WeatherVolumeMode?)null : (WeatherVolumeMode)_demoWay;
+                Toast(_demoWay < 0 ? $"The air: this quality's own way ({DemoWays[(int)WeatherVolume.ModeFor(MountainPlanner.Presentation.QualityPresets.Current)]})" : $"The air: {DemoWays[_demoWay]}");
+            }
+            if (keys.f10Key.wasPressedThisFrame)
+            {
+                _demoLook = _demoLook >= DemoLooks.Length - 1 ? -1 : _demoLook + 1;
+                if (_demoLook < 0) { _weatherView.Unpin(); Toast("The game's own weather again"); }
+                else if (PinLook(DemoLooks[_demoLook])) Toast($"Pinned look: {DemoLooks[_demoLook]} (F10 for the next)");
+            }
         }
 
         bool PinLook(string name)
@@ -92,6 +130,54 @@ namespace MountainPlanner.App
             for (int i = 0; i < Math.Min(2, f.DayCount); i++)
                 if (f.Cards[i].Expects(WeatherEventKind.BigStorm) || f.Cards[i].Expects(WeatherEventKind.StormOfTheSeason)) return true;
             return false;
+        }
+
+        // The morning's clock moved on until the sun stands this high (degrees).
+        IEnumerator SunAt(float elevation)
+        {
+            var now = Lighting.Clock.Now;
+            for (int second = 5 * 3600; second < 13 * 3600; second += 120)
+            {
+                Lighting.SetTime(new ViewTime(now.Year, now.DayOfYear, second));
+                yield return null;
+                if (Lighting.CurrentLight.SunElevation >= elevation) break;
+            }
+        }
+
+        IEnumerator WeatherRayShots(string dir)
+        {
+            BeginScriptedRun();
+            while (_resort == null || !_resort.CoverReady.IsCompleted || WorkBusy || Forest == null) yield return null;
+            PinLook("bluebird");
+            while (!_weatherView.Ready) yield return null;
+            Directory.CreateDirectory(dir);
+            for (int f = 0; f < 90; f++) yield return null;
+            var home = Camera.Target;
+            // look, the sun's height, the camera's distance and pitch, and whether it faces the sun (else across it)
+            var list = new (string look, float sun, float distance, float pitch, bool toSun, string name)[]
+            {
+                ("bluebird", 5, 5000, 24, false, "bluebird-sunrise"),
+                ("bluebird", 9, 2500, 8, true, "bluebird-into-sun"),
+                ("inversion", 7, 5000, 24, false, "inversion-sunrise"),
+                ("clearing", 22, 3000, 10, true, "clearing-shafts"),
+                ("building", 14, 5000, 24, false, "building-morning"),
+                ("coldsnap", 6, 1500, 6, true, "coldsnap-valley"),
+            };
+            foreach (var shot in list)
+            {
+                PinLook(shot.look);
+                yield return SunAt(shot.sun);
+                var toSun = (Vector3)Shader.GetGlobalVector("_SkySunDirection");
+                float azimuth = Mathf.Atan2(toSun.x, toSun.z) * Mathf.Rad2Deg;
+                Camera.Frame(home, shot.distance);
+                Camera.SetAngles(shot.toSun ? azimuth + 20 : azimuth + 110, shot.pitch);
+                for (int f = 0; f < 120; f++) yield return null;
+                Debug.Log($"[WeatherLook] {shot.name}: sun {Lighting.CurrentLight.SunElevation:0.0} deg, azimuth {azimuth:0}, volume {(_weatherView.Volume != null && _weatherView.Volume.Active ? "on" : "off")}");
+                ScreenCapture.CaptureScreenshot(Path.Combine(dir, $"{shot.name}.png"));
+                yield return null; yield return null;
+            }
+            Debug.Log($"[WeatherLook] ray shots in {dir}");
+            Application.Quit();
         }
 
         IEnumerator WeatherLookShots(string dir)

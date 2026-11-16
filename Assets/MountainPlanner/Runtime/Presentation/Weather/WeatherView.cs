@@ -33,9 +33,11 @@ namespace MountainPlanner.Presentation.Weather
         public const float CurtainAt1Mm = 1500, CurtainDepth = 1200, ShowerShare = 0.6f, CurtainShare = 0.85f;
         /// <summary>The snow-line veil (F5): the band's height (m) and how much darker the wet ground below it is (more in rain).</summary>
         public const float SnowLineBand = 45, WetDarkening = 0.18f, RainWetDarkening = 0.32f;
-        /// <summary>The cloud field's tiles (m): both divide <see cref="DriftWrap"/>, so the drift wraps without a jump; the huge
-        /// tile moves the cover about so the large one never shows its repeat.</summary>
-        public const float LargeTile = 7000, SmallTile = 1800, HugeTile = 40000, DriftWrap = 63000, CoverVariation = 0.6f;
+        /// <summary>The cloud field's tiles (m). The large tile and the valley sea's (a fifth of the drift on a tile of twice the
+        /// size) divide <see cref="DriftWrap"/>; the small and huge tiles are read turned, so no wrap divides them, and
+        /// <see cref="DriftCorrection"/> carries the whole drift into their lookups instead (task 4.06, F8: the wrap jumped them).
+        /// The huge tile moves the cover about so the large one never shows its repeat.</summary>
+        public const float LargeTile = 7000, SmallTile = 1800, HugeTile = 40000, DriftWrap = 315000, CoverVariation = 0.6f;
         /// <summary>Cloud shadows: the darkest a cloud makes the sun's light, and how fast they drift per mph of summit wind (m/s).</summary>
         public const float ShadowDepth = 0.8f, DriftPerMph = 1.4f;
         /// <summary>How fast the arcs' own looks come and go (per real second).</summary>
@@ -44,8 +46,10 @@ namespace MountainPlanner.Presentation.Weather
         public const float SpindriftFrom = 20, SpindriftFull = 40, GustFrom = 14, GustFull = 40, GustWrap = 2100;
         /// <summary>The bluebird's sparkle: how far from the camera it shows (m).</summary>
         public const float GlintReach = 600;
-        /// <summary>The front (B7): a cover change this big crosses the map over <see cref="FrontSeconds"/> of real time, <see cref="FrontWidth"/> wide, from <see cref="FrontReach"/> upwind to as far downwind.</summary>
-        public const float FrontChange = 0.15f, FrontSeconds = 30f, FrontWidth = 2500f, FrontReach = 14000f;
+        /// <summary>The front (B7): a cover change this big crosses the map over <see cref="FrontSeconds"/> of real time, <see cref="FrontWidth"/> wide, from <see cref="FrontReach"/> upwind to as far downwind.
+        /// Task 4.06: never longer than <see cref="FrontHourShare"/> of the face hour's real length (at least <see cref="FrontLeastSeconds"/>),
+        /// and a front still crossing finishes before another starts, so a fast clock never sends it back upwind.</summary>
+        public const float FrontChange = 0.15f, FrontSeconds = 30f, FrontWidth = 2500f, FrontReach = 14000f, FrontHourShare = 0.8f, FrontLeastSeconds = 3f;
 
         static readonly int ParamsId = Shader.PropertyToID("_WxParams"), HazeId = Shader.PropertyToID("_WxHaze"),
                             DeckId = Shader.PropertyToID("_WxDeck"), ValleyId = Shader.PropertyToID("_WxValley"),
@@ -57,13 +61,46 @@ namespace MountainPlanner.Presentation.Weather
                             FrontScaleId = Shader.PropertyToID("_WxFrontScale"), SnowLineId = Shader.PropertyToID("_WxSnowLine"),
                             PixelId = Shader.PropertyToID("_WxPixel"), GustId = Shader.PropertyToID("_WxGust"),
                             GlintId = Shader.PropertyToID("_WxGlint"), SunRunId = Shader.PropertyToID("_WxSunRun"),
-                            SunDirId = Shader.PropertyToID("_SkySunDirection");
+                            SunDirId = Shader.PropertyToID("_SkySunDirection"), VolumeId = Shader.PropertyToID("_WxVolume"),
+                            DeckVolId = Shader.PropertyToID("_WxDeckVol"), DeckShapeId = Shader.PropertyToID("_WxDeckShape"),
+                            DriftTurnId = Shader.PropertyToID("_WxDriftTurn");
 
-        /// <summary>The fog's and the glint's shader keywords (Weather.hlsl): on only while they'd show, since their code alone
-        /// costs the terrain time. Both are on for the first <see cref="WarmFrames"/> frames, invisibly (their globals are still
-        /// zero), so the driver builds those shaders while the mountain opens rather than when the first storm fogs.</summary>
-        static readonly UnityEngine.Rendering.GlobalKeyword AirKeyword = UnityEngine.Rendering.GlobalKeyword.Create("WX_AIR"),
-                                                            GlintKeyword = UnityEngine.Rendering.GlobalKeyword.Create("WX_GLINT");
+        /// <summary>The marched deck: the visibility inside a cell (m), how tall a broken sky's tallest cell is (a share of the
+        /// deck's depth; a closed sky fills it), the longest stretch marched (m), and the most a broken deck hides seen from
+        /// over it (so the overview looks down through real clouds, never at a lid).</summary>
+        public const float CellVisibility = 250, BrokenCellHeight = 0.5f, DeckMarch = 15000, BrokenFromAbove = 0.45f;
+        /// <summary>Task 4.06 (F3): the most a closed marched deck hides seen from over it, so the mountain still reads under it.</summary>
+        public const float ClosedFromAbove = 0.45f;
+
+        /// <summary>The rays: the sun's share of the haze's light (shadowed air loses it) and how far they're stepped (m).</summary>
+        public const float RayShare = 0.6f, RayReach = 12000;
+        /// <summary>The beams: the visibility of the air that scatters the sun toward the eye at its most (m), under a broken sky
+        /// or a low sun; a clear midday and an overcast have none.</summary>
+        public const float BeamVisibility = 90000;
+        /// <summary><c>-wxdebug</c>: the pass shows the sun's reach through the air as grey instead of the weather.</summary>
+        public bool VolumeDebug;
+        /// <summary>How the air is drawn (<c>-wxvolume off|rays|full</c>); null: by quality (Low off, Medium rays, High up full).</summary>
+        public WeatherVolumeMode? VolumeMode { get; set; }
+        /// <summary>The screen pass, once a mode that needs it is asked for.</summary>
+        public WeatherVolume Volume => _volume;
+        WeatherVolume _volume;
+        /// <summary>The weather's shader keywords (Weather.hlsl). The fog's and the glint's are on only while they'd show, since
+        /// their code alone costs the terrain time; both are on for the first <see cref="WarmFrames"/> frames, invisibly (their
+        /// globals are still zero), so the driver builds those shaders while the mountain opens rather than when the first storm
+        /// fogs. A class of their own, made on first use in <see cref="Update"/>: the viewer makes its WeatherView in a field
+        /// initializer, inside a MonoBehaviour's constructor, where Unity forbids GlobalKeyword.Create (the editor and the
+        /// Development game throw; the release game doesn't check).</summary>
+        static class Keywords
+        {
+            public static readonly UnityEngine.Rendering.GlobalKeyword Air = UnityEngine.Rendering.GlobalKeyword.Create("WX_AIR"),
+                                                                       Glint = UnityEngine.Rendering.GlobalKeyword.Create("WX_GLINT"),
+                                                                       Veil = UnityEngine.Rendering.GlobalKeyword.Create("WX_VEIL"),
+                                                                       // The pass draws the air and skips what fogs itself (lifts, cables, skier figures).
+                                                                       Keep = UnityEngine.Rendering.GlobalKeyword.Create("WX_KEEP");
+
+            // An explicit static constructor drops beforefieldinit, so the runtime may not make these early.
+            static Keywords() { }
+        }
         public const int WarmFrames = 30;
         /// <summary>The glint shows within <see cref="GlintReach"/> of the camera, so from further than this it's off.</summary>
         public const float GlintCameraReach = 800;
@@ -75,12 +112,17 @@ namespace MountainPlanner.Presentation.Weather
         readonly CloudShadowMap _shadowMap = new CloudShadowMap();
         WeatherTerrain _spindriftFor;
         bool _snapSpindrift;
+        float _ceilingLift;
         Task<Vector3[]> _spindriftPoints;
         float _gustRun;
         Texture2D _clouds;
         Vector2 _drift;
+        // The whole drift, never wrapped (task 4.06, F8): the turned tiles' lookups take what the wrap left out.
+        double _driftX, _driftY;
         float _fogScale = 1, _big, _rain, _building, _clearing, _bluebird, _thaw, _coldSnap;
         float _frontAt = -1, _frontCover, _frontDeck, _frontCurtain, _lastTargetCover = -1, _deckNow, _curtainNow;
+        long _lastFaceMs = -1;
+        float _faceMsPerSecond;
         Vector2 _frontWay, _frontCentre;
         bool _pinned, _snapArcs, _on;
         WeatherLook.State _pin;
@@ -107,6 +149,11 @@ namespace MountainPlanner.Presentation.Weather
         public Vector3[] SpindriftPoints { get; private set; } = System.Array.Empty<Vector3>();
         /// <summary>The area's static weather inputs (the opener's), so the spindrift needn't wait for the clock to move an hour.</summary>
         public WeatherTerrain Area { get; set; }
+        /// <summary>
+        /// Settings › Weather › Cloud ceiling (task 4.06): the lowest the clouds may sit while it's on, in metres (the area's
+        /// highest ground plus <see cref="WeatherOptions.CeilingClearance"/>); negative infinity before an area opens.
+        /// </summary>
+        public float CeilingFloor { get; set; } = float.NegativeInfinity;
 
         /// <summary>Pins a look (<c>-wxlook</c>): the snapshot's weather is ignored until <see cref="Unpin"/>.</summary>
         public void Pin(in WeatherLook.State look, WeatherLook.Arc arc)
@@ -134,7 +181,7 @@ namespace MountainPlanner.Presentation.Weather
             }
             if (!Enabled || !have || _clouds == null)
             {
-                if (_on) Off(lighting);
+                if (_on) Off(lighting, wind);
                 return;
             }
 
@@ -150,11 +197,27 @@ namespace MountainPlanner.Presentation.Weather
                 var h = s.WeatherHour;
                 var look = WeatherLook.From(h, s.WeatherBase, s.WeatherMid, s.WeatherSummit, cell, zrefFeet);
                 arc = WeatherLook.ArcOf(h, s.WeatherSummit, s.WeatherEvents);
-                long hourKey = (long)h.LabelYear * 10000 + h.HourOfYear;
+                long hourKey = s.FaceMs / 3_600_000;   // the face hour, counted on through the new year (task 4.06)
                 _easer.Step(look, hourKey, s.FaceMs % 3_600_000, realSeconds, snap: skipping);
             }
             Arc = arc;
             var w = _easer.Shown;
+            // Settings › Weather (task 4.06): the player's choices, each under its bisect switch.
+            var clouds = WeatherOptions.Clouds;
+            bool noSky = NoSkyClouds || clouds == CloudLook.Off;
+            bool noPrecip = NoPrecipitation || !WeatherOptions.Shows(WeatherPart.Falling);
+            bool noShadow = NoCloudShadow || clouds == CloudLook.Off || !WeatherOptions.Shows(WeatherPart.CloudShadows);
+            bool noGrade = NoGrade || !WeatherOptions.Shows(WeatherPart.StormLight);
+            bool noGlint = NoGlint || !WeatherOptions.Shows(WeatherPart.Sparkle);
+            bool noWind = NoWind || !WeatherOptions.Shows(WeatherPart.TreeSway);
+            bool noRays = !WeatherOptions.Shows(WeatherPart.Rays);
+            float fogShare = WeatherOptions.FogPercent / (float)WeatherOptions.MaxFog;
+            // The ceiling lifts the deck over the highest ground; turning it on eases the clouds up rather than jumping them
+            // (a skip, a pinned look or the first weather snaps).
+            float lift = CeilingLift(w.DeckBase, WeatherOptions.Ceiling ? CeilingFloor : float.NegativeInfinity);
+            bool snapLift = skipping || _snapArcs || !_on;
+            _ceilingLift = snapLift ? lift : Mathf.Lerp(_ceilingLift, lift, 1 - Mathf.Exp(-Mathf.Max(0, realSeconds) / WeatherLook.Tune.PanEaseSeconds));
+            w.DeckBase += _ceilingLift;
             _on = true;
             float night = lighting != null ? SceneLighting.NightWeight((float)lighting.CurrentLight.SunElevation) : 0, day = 1 - night;
 
@@ -177,14 +240,23 @@ namespace MountainPlanner.Presentation.Weather
                 BigStorm = _big, Rain = _rain, Building = _building, Clearing = _clearing,
                 Bluebird = _bluebird, Thaw = _thaw, ColdSnap = _coldSnap,
             };
-            if (lighting != null) lighting.SetWeather(NoGrade ? default : grade);
+            if (lighting != null) lighting.SetWeather(noGrade ? default : grade);
             float aloft = Smooth(WeatherLook.Tune.VeilFrom, WeatherLook.Tune.VeilFull, cameraDistance);
 
             // The haze: the visibility past the clear day's at the target's height, thinning upward, so a clear day adds nothing.
             // From up high most of what falls hangs in the curtains, not evenly, so showers stand out from the gaps between them.
-            float even = w.Rate > 0.05f && !NoPrecipitation ? WeatherLook.Visibility(w.Cover, w.Rate * (1 - CurtainShare * aloft), w.Snow) : w.Visibility;
-            float vis = WeatherLook.ViewVisibility(Mathf.Max(w.Visibility, even), cameraDistance);
+            float even = w.Rate > 0.05f && !noPrecip ? WeatherLook.Visibility(w.Cover, w.Rate * (1 - CurtainShare * aloft), w.Snow) : w.Visibility;
+            // The screen pass (Medium up) can shadow the air, so with it a low sun gets a light haze even on a clear day, for the
+            // ridges' shadows to fall across; by mid-morning it's gone.
+            var mode = VolumeMode ?? ModeFor(WeatherVolume.ModeFor(QualityPresets.Current), clouds);
+            if (mode != WeatherVolumeMode.Off && _volume == null) _volume = new WeatherVolume();
+            bool volume = mode != WeatherVolumeMode.Off && _volume.Available && !NoFog;
+            float elevation = lighting != null ? (float)lighting.CurrentLight.SunElevation : 45;
+            float lowSun = volume ? (1 - Smooth(4, 16, elevation)) * Smooth(-2, 2, elevation) : 0;
+            float clearest = Mathf.Lerp(WeatherLook.Tune.ClearVisibility, WeatherLook.Tune.LowSunVisibility, lowSun);
+            float vis = WeatherLook.ViewVisibility(Mathf.Min(Mathf.Max(w.Visibility, even), clearest), cameraDistance);
             float haze = Mathf.Max(0, 3.912f * (1f / vis - 1f / WeatherLook.Tune.ClearVisibility));
+            haze *= fogShare;   // Settings › Weather › Fog and haze
             if (haze < 1e-7f) haze = 0;
 
             // The deck: lit, holed, ragged; from the overview a structured veil over the mountain, never a lid.
@@ -192,19 +264,20 @@ namespace MountainPlanner.Presentation.Weather
             float deckCap = Mathf.Lerp(BrokenDeckMost, WeatherLook.Tune.SlabMost, Smooth(0.75f, 1f, w.Cover));
             float deck = w.Deck > 0.001f ? 3.912f / WeatherLook.SlabViewVisibility(DeckVisibility / w.Deck, deckThick, cameraDistance, deckCap) : 0;
             float curtain = 0;
-            if (w.Rate > 0.05f && !NoPrecipitation)
+            if (w.Rate > 0.05f && !noPrecip)
             {
                 float showerVis = CurtainAt1Mm * Mathf.Pow(1f / Mathf.Max(w.Rate, 0.1f), 0.7f);
                 curtain = 3.912f / WeatherLook.SlabViewVisibility(showerVis, CurtainDepth, cameraDistance);
             }
             // The valley sea (an inversion's fog), or the cold snap's thin ice haze.
-            float sea = Mathf.Max(w.Fog, IceHaze * _coldSnap);
+            float sea = WeatherOptions.Shows(WeatherPart.ValleyFog) ? Mathf.Max(w.Fog, IceHaze * _coldSnap) : 0;
             float seaDensity = sea > 0.001f ? 3.912f / (WeatherLook.Tune.FogVisibility / sea) : 0;
 
             // A new hour that changes the sky a lot sends a front across from upwind: ahead of it the last hour's cover, deck
             // and curtains, behind it the new ones.
             float targetCover = _easer.Target.Cover;
-            if (_lastTargetCover >= 0 && Mathf.Abs(targetCover - _lastTargetCover) >= FrontChange && !_pinned && !skipping)
+            if (!_pinned && s != null) TrackFaceRate(s.FaceMs, realSeconds);
+            if (_lastTargetCover >= 0 && Mathf.Abs(targetCover - _lastTargetCover) >= FrontChange && !_pinned && !skipping && _frontAt < 0)
             {
                 float way = (_easer.Target.Direction + 180f + (float)gridConvergence) * Mathf.Deg2Rad;
                 _frontWay = new Vector2(Mathf.Sin(way), Mathf.Cos(way));
@@ -217,11 +290,13 @@ namespace MountainPlanner.Presentation.Weather
             float deckOld = deck, curtainOld = curtain, coverOld = w.Cover;
             if (_frontAt >= 0)
             {
-                _frontAt += Mathf.Max(0, realSeconds) / FrontSeconds;
+                _frontAt += Mathf.Max(0, realSeconds) / FrontCrossSeconds(_faceMsPerSecond);
                 if (_frontAt >= 1) _frontAt = -1;
                 else
                 {
-                    float along = Vector2.Dot(_frontCentre, _frontWay) + Mathf.Lerp(-FrontReach, FrontReach, _frontAt);
+                    // In the drifted field's coordinates (the shaders' q + _WxCloud.zw), so the front crosses the target, wherever
+                    // the drift has got to (task 4.06).
+                    float along = Vector2.Dot(_frontCentre, _frontWay) + Mathf.Lerp(-FrontReach, FrontReach, _frontAt) - Vector2.Dot(_drift, _frontWay);
                     Shader.SetGlobalVector(FrontId, new Vector4(_frontWay.x, _frontWay.y, along, 1f / FrontWidth));
                     deckOld = _frontDeck; curtainOld = _frontCurtain; coverOld = _frontCover;
                 }
@@ -233,7 +308,7 @@ namespace MountainPlanner.Presentation.Weather
                                                              curtainMost > 0 ? curtain / curtainMost : 1, curtainMost > 0 ? curtainOld / curtainMost : 1));
 
             // The snow line shows only while something falls: in all-rain the whole mountain is wet, in all-snow the line is below it.
-            float line = NoPrecipitation ? 0 : Smooth(0.05f, 1f, w.Rate);
+            float line = noPrecip ? 0 : Smooth(0.05f, 1f, w.Rate);
             Shader.SetGlobalVector(SnowLineId, new Vector4(w.SnowLine, line, SnowLineBand, Mathf.Lerp(WetDarkening, RainWetDarkening, _rain)));
 
             // Nothing in the air that would show (a clear day): the shaders skip the fog's work entirely.
@@ -242,9 +317,41 @@ namespace MountainPlanner.Presentation.Weather
             Shader.SetGlobalVector(ParamsId, new Vector4(1, NoFog || !air ? 0 : _fogScale, ClearRadius, most));
             bool warming = _warm > 0;
             if (warming) _warm--;
-            Shader.SetKeyword(AirKeyword, warming || (!NoFog && air && _fogScale > 0));
+            // With the screen pass the surfaces draw no air: only the snow line's veil and the closed deck's flat light, if any.
+            bool airOn = !NoFog && air && _fogScale > 0;
+            Shader.SetKeyword(Keywords.Air, warming || (airOn && !volume));
+            Shader.SetKeyword(Keywords.Veil, airOn && volume && (line > 0 || w.Cover > 0.7f));
+            Shader.SetKeyword(Keywords.Keep, airOn && volume);
+            if (_volume != null)
+            {
+                _volume.Active = airOn && volume;
+                _volume.Steps = QualityPresets.Current >= QualityPreset.High ? WeatherVolume.StepsHigh : WeatherVolume.StepsMedium;
+                _volume.ShowReach = VolumeDebug;
+            }
+            float rays = volume && !noRays ? RayShare * (1 - grade.Overcast) * Smooth(-1, 3, elevation) : 0;
+            float broken = Mathf.Clamp01(Mathf.Max(lowSun, 4 * w.Cover * (1 - w.Cover) * Smooth(0.05f, 0.25f, w.Cover)));
+            float beam = NoFog ? 0 : 3.912f / BeamVisibility * broken * (rays / RayShare) * _fogScale;
+            if (beam < 1e-7f) beam = 0;
+            // The marched deck (High up): solid cells under a broken sky; as the sky closes, from the overview it thins to the
+            // veil the flat deck is (never a lid), and a tool or an info view thins it like the rest of the air.
+            bool marched = volume && mode == WeatherVolumeMode.Full && w.Cover > 0.03f && !noSky && _fogScale > 0;
+            float eyeY = camera != null ? camera.transform.position.y : target.y + cameraDistance;
+            // Task 4.06 (F2, F3): "from over it" counts from the deck's top, so inside the cloud it's solid all the way up.
+            float veil = Mathf.Max(Smooth(0.7f, 0.95f, w.Cover), Smooth(-200, 400, eyeY - (w.DeckBase + deckThick))) * aloft;
+            float marchedCap = Mathf.Lerp(BrokenFromAbove, ClosedFromAbove, Smooth(0.75f, 1f, w.Cover));
+            float deckHides = Mathf.Lerp(1, marchedCap, veil) * _fogScale;
+            int deckSteps = QualityPresets.Current >= QualityPreset.Ultra ? WeatherVolume.DeckStepsUltra : WeatherVolume.DeckStepsHigh;
+            Shader.SetGlobalVector(DeckVolId, new Vector4(3.912f / CellVisibility, deckHides, deckSteps, marched ? 1 : 0));
+            Shader.SetGlobalVector(DeckShapeId, new Vector4(Mathf.Lerp(BrokenCellHeight, 1, Smooth(0.6f, 0.95f, w.Cover)), DeckMarch, 0, 0));
+            if (_volume != null)
+            {
+                _volume.Active = volume && (airOn || beam > 0 || marched);
+                _volume.Rays = rays > 0 && (haze > 0 || seaDensity > 0 || beam > 0);
+                _volume.Deck = marched;
+            }
+            Shader.SetGlobalVector(VolumeId, new Vector4(marched ? 2 : volume ? 1 : 0, rays, RayReach, beam));
             Shader.SetGlobalVector(HazeId, new Vector4(haze, target.y, 1f / HazeHeight, SunGlow * (1 - grade.Overcast) * day));
-            Shader.SetGlobalVector(DeckId, new Vector4(NoSkyClouds ? -100000 : w.DeckBase, w.DeckBase + deckThick, deckMost, Raggedness));
+            Shader.SetGlobalVector(DeckId, new Vector4(noSky ? -100000 : w.DeckBase, w.DeckBase + deckThick, deckMost, Raggedness));
             Shader.SetGlobalVector(ValleyId, new Vector4(sea > 0.001f ? w.FogTop : -100000f, seaDensity, SeaMost, SeaRaggedness));
             float fall = Mathf.Lerp(6f, 1f, w.Snow), across = Mathf.Min(1.5f, w.Wind * 0.447f * 0.6f / fall);
             float toward = (w.Direction + 180f + (float)gridConvergence) * Mathf.Deg2Rad;
@@ -259,44 +366,50 @@ namespace MountainPlanner.Presentation.Weather
             Shader.SetGlobalVector(FogLowId, new Vector4(low.r, low.g, low.b, target.y - 300));
             var sun = lighting != null && lighting.Sun != null ? lighting.Sun.color.linear * lighting.Sun.intensity : Color.white;
             Shader.SetGlobalVector(SunId, new Vector4(sun.r, sun.g, sun.b, day));
-            // The light the deck is lit by: the sky's ambient, drained toward grey as the deck closes (a closed deck lights itself).
+            // The light inside a cloud (task 4.06, F1, F4): see CloudLight.
             var ambient = ((RenderSettings.ambientSkyColor + RenderSettings.ambientEquatorColor) * 0.5f).linear;
-            float al = 0.2126f * ambient.r + 0.7152f * ambient.g + 0.0722f * ambient.b;
-            ambient = Color.Lerp(ambient, new Color(al, al, al), 0.6f * grade.Overcast);
-            Shader.SetGlobalVector(LightId, new Vector4(ambient.r, ambient.g, ambient.b, DeckBase));
+            var cloudLight = CloudLight(horizon, sun, ambient, grade.Overcast);
+            Shader.SetGlobalVector(LightId, new Vector4(cloudLight.r, cloudLight.g, cloudLight.b, DeckBase));
 
             // The clouds drift with the wind in real time (a skip or 8× never streaks them). Their shadows are deep under a broken
             // sky, fade as the deck closes into flat light, and fade with the dusk (no shadow work at all when they'd not show).
-            _drift += new Vector2(Mathf.Sin(toward), Mathf.Cos(toward)) * (w.Wind * DriftPerMph * Mathf.Max(0, realSeconds));
-            _drift.x = Mathf.Repeat(_drift.x, DriftWrap);
-            _drift.y = Mathf.Repeat(_drift.y, DriftWrap);
-            float shadow = NoCloudShadow ? 0 : ShadowDepth * (1 - grade.Overcast) * Smooth(0.03f, 0.15f, w.Cover) * day;
+            var moved = new Vector2(Mathf.Sin(toward), Mathf.Cos(toward)) * (w.Wind * DriftPerMph * Mathf.Max(0, realSeconds));
+            _driftX += moved.x;
+            _driftY += moved.y;
+            _drift = new Vector2((float)Wrap(_driftX), (float)Wrap(_driftY));
+            Shader.SetGlobalVector(DriftTurnId, DriftCorrection(_driftX, _driftY));
+            float shadow = noShadow ? 0 : ShadowDepth * (1 - grade.Overcast) * Smooth(0.03f, 0.15f, w.Cover) * day;
             if (shadow < 0.002f) shadow = 0;
             Shader.SetGlobalVector(CloudId, new Vector4(w.Cover, shadow, -_drift.x, -_drift.y));
             float soft = 0.06f + 0.05f * Smooth(0, 2500, w.DeckBase - target.y);
             Shader.SetGlobalVector(CloudScaleId, new Vector4(1f / LargeTile, 1f / SmallTile, w.DeckBase, soft));
             float pixel = camera != null ? 2f * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, camera.pixelHeight) : 0.001f;
             Shader.SetGlobalVector(PixelId, new Vector4(pixel, LargeTile / CloudField.Size, 1f / HugeTile, CoverVariation));
-            if (shadow > 0)
+            if (shadow > 0 || (rays > 0 && w.Cover > 0.03f))   // the rays read the clouds' map too
             {
                 // The shadows' map, centred where the sun's ray from the target meets the deck (after the globals it reads).
                 var toSun = ((Vector3)Shader.GetGlobalVector(SunDirId)).normalized;
                 var run = new Vector2(toSun.x, toSun.z) / Mathf.Max(toSun.y, 0.12f);
-                Shader.SetGlobalVector(SunRunId, new Vector4(run.x, run.y, 0, 0));
+                Shader.SetGlobalVector(SunRunId, new Vector4(run.x, run.y, 1, 0));
                 var centre = new Vector2(target.x, target.z) + run * Mathf.Max(0, w.DeckBase - target.y);
                 int size = ShadowMapSize > 0 ? ShadowMapSize : QualityPresets.Current >= QualityPreset.High ? CloudShadowMap.SizeHigh : CloudShadowMap.SizeLow;
                 var eye = camera != null ? camera.transform.position : target + Vector3.up * cameraDistance;
                 var shift = centre - new Vector2(target.x, target.z);
                 if (!_shadowMap.Draw(centre, new Vector3(eye.x + shift.x, eye.z + shift.y, eye.y - target.y), size))
+                {
                     Shader.SetGlobalVector(CloudId, new Vector4(w.Cover, 0, -_drift.x, -_drift.y));
+                    Shader.SetGlobalVector(SunRunId, Vector4.zero);
+                }
             }
+            else Shader.SetGlobalVector(SunRunId, Vector4.zero);
 
             float towardGrid = (w.Direction + 180f + (float)gridConvergence) % 360f;
-            if (!NoWind) wind?.SetWeather(w.Wind, towardGrid);
+            if (!noWind) wind?.SetWeather(w.Wind, towardGrid);
+            else wind?.ClearWeather();   // the trees back to the player's own wind
             _precip.PerShell = QualityPresets.Current == QualityPreset.Low ? Precipitation.PerShellLow
                              : QualityPresets.Current == QualityPreset.Medium ? Precipitation.PerShellMedium : Precipitation.PerShellHigh;
             var sky = ((RenderSettings.ambientSkyColor + RenderSettings.ambientEquatorColor) * 0.5f).linear;
-            _precip.Draw(camera, w, towardGrid, frozen: skipping, off: thin || NoPrecipitation, realSeconds,
+            _precip.Draw(camera, w, towardGrid, frozen: skipping, off: thin || noPrecip, realSeconds,
                          sun, sky, cameraDistance, _rain);
 
             // Spindrift off the exposed ridges in a gale (not in the rain or a thaw, and not while a tool is on), and gust
@@ -305,9 +418,7 @@ namespace MountainPlanner.Presentation.Weather
             if (area != null && area != _spindriftFor)
             {
                 _spindriftFor = area;
-                // Its own thread: on the pool it can queue behind the opener's and the tiles' work for minutes.
-                _spindriftPoints = Task.Factory.StartNew(() => Weather.Spindrift.Points(area), System.Threading.CancellationToken.None,
-                                                         TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                _spindriftPoints = FindSpindrift(area);
             }
             if (_spindriftPoints != null && _spindriftPoints.IsCompleted)
             {
@@ -323,24 +434,92 @@ namespace MountainPlanner.Presentation.Weather
             }
             float windMs = w.Wind * 0.447f;
             var downwind = new Vector2(Mathf.Sin(toward), Mathf.Cos(toward));
-            float drift = Smooth(SpindriftFrom, SpindriftFull, w.Wind) * (1 - _rain) * (1 - _thaw) * (thin || NoPrecipitation ? 0 : 1);
+            float drift = Smooth(SpindriftFrom, SpindriftFull, w.Wind) * (1 - _rain) * (1 - _thaw) * (thin || noPrecip || !WeatherOptions.Shows(WeatherPart.Spindrift) ? 0 : 1);
             if (_snapSpindrift && _spindrift.Count > 0) { _spindrift.Snap(drift); _snapSpindrift = false; }   // a pinned look shows at once
             _spindrift.Draw(camera, downwind * windMs, Mathf.Clamp01(w.Gust - 1), drift, realSeconds, skipping, sun, sky);
             _gustRun = Mathf.Repeat(_gustRun + windMs * 0.8f * Mathf.Max(0, realSeconds), GustWrap);
             Shader.SetGlobalVector(GustId, new Vector4(downwind.x, downwind.y, NoGust ? 0 : Smooth(GustFrom, GustFull, w.Wind), _gustRun));
             // The bluebird's sparkle (a cold snap's dry snow too) in the sun: 4.07 refines it with the snow's real age.
             float glint = Mathf.Max(_bluebird, 0.7f * _coldSnap) * (1 - grade.Overcast) * day;
-            bool glints = glint > 0.01f && !NoGlint && cameraDistance < GlintCameraReach;
-            Shader.SetKeyword(GlintKeyword, warming || glints);
+            bool glints = glint > 0.01f && !noGlint && cameraDistance < GlintCameraReach;
+            Shader.SetKeyword(Keywords.Glint, warming || glints);
             Shader.SetGlobalVector(GlintId, new Vector4(glints ? glint : 0, GlintReach, 0, 0));
         }
 
-        void Off(SceneLighting lighting)
+        static double Wrap(double v) => v - System.Math.Floor(v / DriftWrap) * DriftWrap;
+
+        /// <summary>
+        /// Task 4.06, Settings › Weather › Clouds: how the clouds are drawn for the tier's own mode. 3D marches the deck on any
+        /// tier; Flat never does (the rays stay where the tier has them); Auto and Off keep the tier's (Off hides the clouds).
+        /// </summary>
+        public static WeatherVolumeMode ModeFor(WeatherVolumeMode tier, CloudLook clouds) =>
+            clouds == CloudLook.ThreeD ? WeatherVolumeMode.Full
+            : clouds == CloudLook.Flat && tier == WeatherVolumeMode.Full ? WeatherVolumeMode.Rays : tier;
+
+        /// <summary>Task 4.06, the cloud ceiling: how far the deck's base must rise to sit at <paramref name="floor"/> or above.</summary>
+        public static float CeilingLift(float deckBase, float floor) => float.IsNegativeInfinity(floor) ? 0 : Mathf.Max(0, floor - deckBase);
+
+        /// <summary>
+        /// Task 4.06 (F8): what the turned tiles' lookups add for the drift the wrap took out (the shaders see the drift wrapped at
+        /// <see cref="DriftWrap"/>; the turned tiles don't repeat there). xy: the small tile's UV, zw: the huge tile's. Worked in
+        /// double from the whole drift, so the clouds never jump.
+        /// </summary>
+        public static Vector4 DriftCorrection(double totalX, double totalY)
+        {
+            // The field is read at q - drift; the shaders have q - wrapped, so the turned reads take -(turn(drift - wrapped)).
+            double kx = totalX - Wrap(totalX), ky = totalY - Wrap(totalY);
+            const double a = 0.7986f, b = 0.6018f;   // WxTurn's, as the shader has them (float)
+            double sx = (kx * a - ky * b) / SmallTile, sy = (kx * b + ky * a) / SmallTile;
+            double hx = (ky * a - kx * b) / HugeTile, hy = (ky * b + kx * a) / HugeTile;   // the huge tile is read turned from q.yx
+            return new Vector4((float)-Frac(sx), (float)-Frac(sy), (float)-Frac(hx), (float)-Frac(hy));
+        }
+
+        static double Frac(double v) => v - System.Math.Floor(v);
+
+        /// <summary>
+        /// Task 4.06 (F1, F4, F5): the light scattered inside a cloud. By day it's the haze's own colour (the graded horizon), so
+        /// walking into a cloud keeps the brightness outside it instead of dropping to the blue sky light; at night and dusk the
+        /// moon and the sky light it as brightly as they light the snow. Mostly grey: clouds are white-grey, never sky-blue.
+        /// </summary>
+        public static Color CloudLight(Color horizon, Color sun, Color ambient, float overcast)
+        {
+            var c = new Color(Mathf.Max(horizon.r, 0.55f * sun.r + 1.2f * ambient.r), Mathf.Max(horizon.g, 0.55f * sun.g + 1.2f * ambient.g),
+                              Mathf.Max(horizon.b, 0.55f * sun.b + 1.2f * ambient.b));
+            float l = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+            return Color.Lerp(c, new Color(l, l, l), 0.5f + 0.3f * Mathf.Clamp01(overcast));
+        }
+
+        /// <summary>Task 4.06: the real seconds a front takes to cross, for a clock running this many face ms per real second.</summary>
+        public static float FrontCrossSeconds(float faceMsPerSecond)
+        {
+            if (faceMsPerSecond <= 0) return FrontSeconds;
+            return Mathf.Clamp(FrontHourShare * 3_600_000f / faceMsPerSecond, FrontLeastSeconds, FrontSeconds);
+        }
+
+        // How fast the face clock runs (face ms per real second), eased over a few seconds; a jump (a skip, a load) is ignored.
+        void TrackFaceRate(long faceMs, float realSeconds)
+        {
+            if (_lastFaceMs >= 0 && realSeconds > 0)
+            {
+                long moved = faceMs - _lastFaceMs;
+                if (moved >= 0 && moved < 3_600_000)
+                    _faceMsPerSecond = Mathf.Lerp(_faceMsPerSecond, moved / realSeconds, 1 - Mathf.Exp(-realSeconds / 2f));
+            }
+            _lastFaceMs = faceMs;
+        }
+
+        void Off(SceneLighting lighting, ForestWind wind)
         {
             _on = false;
+            _lastTargetCover = -1;   // turned back on, the sky starts where it is rather than sending a front
+            wind?.ClearWeather();
             Shader.SetGlobalVector(ParamsId, Vector4.zero);
-            Shader.SetKeyword(AirKeyword, false);
-            Shader.SetKeyword(GlintKeyword, false);
+            Shader.SetGlobalVector(VolumeId, Vector4.zero);
+            Shader.SetKeyword(Keywords.Air, false);
+            Shader.SetKeyword(Keywords.Veil, false);
+            Shader.SetKeyword(Keywords.Keep, false);
+            if (_volume != null) _volume.Active = false;
+            Shader.SetKeyword(Keywords.Glint, false);
             Shader.SetGlobalVector(FrontId, Vector4.zero);
             _frontAt = -1;
             if (lighting != null) lighting.SetWeather(default);
@@ -349,8 +528,12 @@ namespace MountainPlanner.Presentation.Weather
         public void Dispose()
         {
             Shader.SetGlobalVector(ParamsId, Vector4.zero);
-            Shader.SetKeyword(AirKeyword, false);
-            Shader.SetKeyword(GlintKeyword, false);
+            Shader.SetKeyword(Keywords.Air, false);
+            Shader.SetKeyword(Keywords.Glint, false);
+            Shader.SetKeyword(Keywords.Veil, false);
+            Shader.SetKeyword(Keywords.Keep, false);
+            _volume?.Dispose();
+            _volume = null;
             _precip.Dispose();
             _spindrift.Dispose();
             _shadowMap.Dispose();
@@ -359,6 +542,13 @@ namespace MountainPlanner.Presentation.Weather
         }
 
         static float Ease(float v, bool on, float k) => Mathf.MoveTowards(v, on ? 1 : 0, k);
+
+        // The ridge search on its own thread: on the pool it can queue behind the opener's and the tiles' work for minutes. A
+        // method of its own because a lambda that captures a local makes its closure where the local is declared: written
+        // inline in Update, that cost 32 bytes of garbage every frame, even on the frames that never start a search.
+        static Task<Vector3[]> FindSpindrift(WeatherTerrain area) =>
+            Task.Factory.StartNew(() => Weather.Spindrift.Points(area), System.Threading.CancellationToken.None,
+                                  TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         static float Smooth(float e0, float e1, float x)
         {

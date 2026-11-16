@@ -9,7 +9,9 @@
 #include "Weather.hlsl"
 
 TEXTURE2D(_FarShadowMap);
+TEXTURE2D(_FarShadowMapB);   // task 4.06: the map a step ahead of the light, cross-faded in by _FarShadowBlend.x
 SAMPLER(sampler_FarShadowMap);
+float4 _FarShadowBlend;
 float4 _FarShadowRect;     // west, south, 1 / width, 1 / depth (world metres)
 float4 _FarShadowParams;   // x: fade in from (m), y: full by (m), z: strength (0-1), w: on (0/1)
 
@@ -23,6 +25,8 @@ half FarShadow(float3 positionWS)
     if (fade <= 0) return 1;
     float2 uv = (positionWS.xz - _FarShadowRect.xy) * _FarShadowRect.zw;
     half lit = SAMPLE_TEXTURE2D_LOD(_FarShadowMap, sampler_FarShadowMap, uv, 0).r;
+    UNITY_BRANCH
+    if (_FarShadowBlend.x > 0.001) lit = lerp(lit, SAMPLE_TEXTURE2D_LOD(_FarShadowMapB, sampler_FarShadowMap, uv, 0).r, _FarShadowBlend.x);
     return lerp(1, lit, fade * _FarShadowParams.z);
 }
 

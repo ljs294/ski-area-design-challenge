@@ -21,6 +21,8 @@ namespace MountainPlanner.Presentation.Weather
             public const float FeetToMetres = 0.3048f;
             /// <summary>Visibility on a clear day, under overcast with nothing falling, and the least anything falling gives (m).</summary>
             public const float ClearVisibility = 60000, OvercastVisibility = 22000, LeastVisibility = 120;
+            /// <summary>With the rays on, the clearest the air is while the sun is low (m): a light haze for the ridges' shadows.</summary>
+            public const float LowSunVisibility = 32000;
             /// <summary>Snow: the visibility at 1 mm/h of water and its exponent; rain the same (rain blinds far less).</summary>
             public const float SnowVisibilityAt1Mm = 1100, SnowExponent = 0.8f, RainVisibilityAt1Mm = 9000, RainExponent = 0.6f;
             /// <summary>Inside valley fog (m).</summary>
@@ -35,8 +37,11 @@ namespace MountainPlanner.Presentation.Weather
             public const float FogLeastDepth = 50, FogDepthPerDegree = 18, FogMostDepth = 420;
             /// <summary>The deck: the cover it starts at, and its thickness (m).</summary>
             public const float DeckFromCover = 0.35f, DeckThickness = 1400;
-            /// <summary>The share of a face hour the look takes to reach the hour, and the fastest real-time blend (per second).</summary>
-            public const float EaseShare = 0.6f, MostBlendPerSecond = 0.35f;
+            /// <summary>The share of a face hour the look takes to reach the hour (all of it, evenly: task 4.06, so the sky never
+            /// eases then holds), and the fastest real-time blend (per second).</summary>
+            public const float EaseShare = 1f, MostBlendPerSecond = 0.35f;
+            /// <summary>Task 4.06: a pan to other weather cells within the hour eases over about this many real seconds.</summary>
+            public const float PanEaseSeconds = 1f;
             /// <summary>Snow share (‰) that counts as snow for the snow line.</summary>
             public const int SnowLineShare = 500;
             /// <summary>The cold pool (0.1 °F) that reads as an inversion when the event isn't set.</summary>
@@ -227,9 +232,10 @@ namespace MountainPlanner.Presentation.Weather
         }
 
         /// <summary>
-        /// The look between hours: it eases from the look it showed when the hour arrived to the hour's own over the first
+        /// The look between hours: it eases from the look it showed when the hour arrived to the hour's own evenly over
         /// <see cref="Tune.EaseShare"/> of the face hour, and never faster than <see cref="Tune.MostBlendPerSecond"/> of real
-        /// time, so a night hour at 8× (1.9 s) still blends instead of strobing. A skip snaps.
+        /// time, so a night hour at 8× (1.9 s) still blends instead of strobing. Within an hour a new target (the camera panned
+        /// to another cell) eases over <see cref="Tune.PanEaseSeconds"/>. A skip snaps.
         /// </summary>
         public sealed class Easer
         {
@@ -250,9 +256,14 @@ namespace MountainPlanner.Presentation.Weather
                     _from = _to = _shown = target; _hour = hourKey; _blend = 1;
                     return;
                 }
-                if (hourKey != _hour) { _from = _shown; _hour = hourKey; _blend = 0; }
-                _to = target;
-                float wanted = Smooth(0, Tune.EaseShare, faceMsIntoHour / 3_600_000f);
+                if (hourKey != _hour) { _from = _shown; _hour = hourKey; _blend = 0; _to = target; }
+                else
+                {
+                    bool night = target.Night;
+                    _to = State.Lerp(_to, target, 1 - (float)Math.Exp(-Math.Max(0, realSeconds) / Tune.PanEaseSeconds));
+                    _to.Night = night;
+                }
+                float wanted = Math.Clamp(faceMsIntoHour / (3_600_000f * Tune.EaseShare), 0f, 1f);
                 _blend = Math.Min(wanted, _blend + Math.Max(0, realSeconds) * Tune.MostBlendPerSecond);
                 _blend = Math.Max(_blend, 0);
                 _shown = State.Lerp(_from, _to, _blend);

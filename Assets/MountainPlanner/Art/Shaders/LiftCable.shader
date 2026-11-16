@@ -11,15 +11,16 @@ Shader "MountainPlanner/LiftCable"
     }
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" "Queue" = "Geometry" }
+        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" "Queue" = "AlphaTest+40" }   // after every other solid thing: its stencil mark must be the last word on its pixels (task 4.06)
         Pass
         {
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
+            Stencil { Ref 8 WriteMask 8 Comp Always Pass Replace }   // task 4.06: the weather's screen pass leaves these pixels alone (WeatherVolume)
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
-            #pragma multi_compile_fragment _ WX_AIR   // task 4.06: the weather's fog, only while something's in the air (WeatherView)
+            #pragma multi_compile_fragment _ WX_AIR WX_KEEP   // task 4.06: the weather's fog while something's in the air; WX_KEEP while the screen pass draws the air and skips this (WeatherView)
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"

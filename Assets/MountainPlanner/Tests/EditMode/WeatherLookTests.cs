@@ -34,6 +34,8 @@ namespace MountainPlanner.Tests
         [TestCase("MountainPlanner/SkierFigure")]
         [TestCase("MountainPlanner/Precipitation")]
         [TestCase("MountainPlanner/WindRibbon")]
+        [TestCase("Hidden/MountainPlanner/WeatherVolume")]
+        [TestCase("Hidden/MountainPlanner/CloudShadowMap")]
         public void TheShadersTheWeatherTouchesCompile(string name)
         {
             var shader = Shader.Find(name);
@@ -167,12 +169,12 @@ namespace MountainPlanner.Tests
             e.Step(Look(0, 60000), 100, 0, 0, false);
             Assert.That(e.Shown.Cover, Is.EqualTo(0));
 
-            // The next hour arrives: it starts from what was shown and reaches the hour by EaseShare of the face hour.
+            // The next hour arrives: it starts from what was shown and reaches the hour evenly over the face hour.
             e.Step(Look(1, 500), 101, 0, 0.1f, false);
             Assert.That(e.Shown.Cover, Is.EqualTo(0).Within(1e-4));
             e.Step(Look(1, 500), 101, 1_800_000, 0.1f, false);
             Assert.That(e.Shown.Cover, Is.GreaterThan(0).And.LessThan(1), "the real-time limit holds a fast hour back");
-            for (int i = 0; i < 60; i++) e.Step(Look(1, 500), 101, 2_400_000, 0.1f, false);
+            for (int i = 0; i < 60; i++) e.Step(Look(1, 500), 101, 3_599_999, 0.1f, false);
             Assert.That(e.Shown.Cover, Is.EqualTo(1).Within(1e-4));
             Assert.That(e.Shown.Visibility, Is.EqualTo(500).Within(1));
 
@@ -185,6 +187,36 @@ namespace MountainPlanner.Tests
             Assert.That(e.Shown.Cover, Is.EqualTo(0.5f));
             e.Step(Look(0.2f, 9000), 110, 0, 0.01f, false);
             Assert.That(e.Shown.Cover, Is.EqualTo(0.2f));
+        }
+
+        // Task 4.06: the look moves all hour long (no ease-then-hold), and a pan to another cell eases instead of stepping.
+        [Test]
+        public void TheLookMovesAllHourAndAPanEases()
+        {
+            var e = new WeatherLook.Easer();
+            e.Step(Look(0, 60000), 100, 0, 0, false);
+            float last = 0;
+            for (long ms = 0; ms < 3_600_000; ms += 100_000)
+            {
+                e.Step(Look(1, 500), 101, ms, 1f, false);
+                if (ms > 0) Assert.That(e.Shown.Cover, Is.GreaterThan(last), $"still moving at {ms / 60_000} minutes");
+                last = e.Shown.Cover;
+            }
+            // Same hour, the camera pans to a clear cell: the target eases over about a second, not at once.
+            var before = e.Shown.Cover;
+            e.Step(Look(0, 60000), 101, 3_590_000, 0.02f, false);
+            Assert.That(before - e.Shown.Cover, Is.LessThan(0.05f), "a pan doesn't jump the sky");
+            for (int i = 0; i < 300; i++) e.Step(Look(0, 60000), 101, 3_590_000, 0.02f, false);
+            Assert.That(e.Shown.Cover, Is.LessThan(0.01f), "and gets there");
+        }
+
+        [Test]
+        public void AFrontIsQuickerThanAFastHourButNeverLongerThanThirtySeconds()
+        {
+            Assert.That(WeatherView.FrontCrossSeconds(0), Is.EqualTo(WeatherView.FrontSeconds));
+            Assert.That(WeatherView.FrontCrossSeconds(40_000), Is.EqualTo(WeatherView.FrontSeconds), "a 90 s day hour at 1×");
+            Assert.That(WeatherView.FrontCrossSeconds(320_000), Is.EqualTo(9f).Within(0.01f), "an 11 s day hour at 8×");
+            Assert.That(WeatherView.FrontCrossSeconds(1_920_000), Is.EqualTo(WeatherView.FrontLeastSeconds), "a 1.9 s night hour at 8×");
         }
 
         [Test]

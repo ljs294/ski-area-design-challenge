@@ -37,7 +37,7 @@ Shader "Hidden/MountainPlanner/CloudShadowMap"
                 // under this texel: from further off it reads as noise, and the overview sees soft shapes.
                 float near = 1 - smoothstep(2500, 4000, length(float3(m - _WxShadowEye.xy, _WxShadowEye.z)));
                 UNITY_BRANCH
-                if (near > 0) n += near * (SAMPLE_TEXTURE2D_LOD(_WxCloudTex, sampler_WxCloudTex, WxTurn(q) * _WxCloudScale.y + 0.37, lod + 2).g - 0.5) * 0.3;
+                if (near > 0) n += near * (SAMPLE_TEXTURE2D_LOD(_WxCloudTex, sampler_WxCloudTex, WxDetailUv(q), lod + 2).g - 0.5) * 0.3;
                 return WxCloudFrom(n, WxCover(q), WxFrontAt(q, n), lod);
             }
             ENDHLSL

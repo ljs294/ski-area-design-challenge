@@ -116,7 +116,7 @@ Shader "MountainPlanner/TreeInstanced"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
-            #pragma multi_compile_fragment _ WX_AIR   // task 4.06: the weather's fog, only while something's in the air (WeatherView)
+            #pragma multi_compile_fragment _ WX_AIR WX_VEIL   // task 4.06: the weather's fog while something's in the air; only its snow-line veil while the screen pass draws the air (WeatherView)
             #pragma target 4.5
             #pragma multi_compile_local_vertex _ _WIND
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
