@@ -35,7 +35,7 @@ namespace MountainPlanner.UI
                 else _legendClosed = true;
                 ShowLegend();
             };
-            // One row per layer, named layer-<id> (MapLayers ids). Snow conditions waits for the snow simulation.
+            // One row per layer, named layer-<id> (MapLayers ids). Snow conditions since task 4.07 PR A2.
             foreach (var ids in new[] { MapLayers.MapIds, MapLayers.InfoIds })
                 foreach (string id in ids)
                 {
@@ -134,6 +134,12 @@ namespace MountainPlanner.UI
                         _legendBody.Add(LegendRow(rows[k].Colour, false, rows[k].Label, figure));
                     }
                     _legendBody.Add(Note(InfoLegend.SnowDepthNote));
+                    break;
+                case MapLayers.SnowConditions:
+                    // Task 4.07 PR A2: the natural snow's types by family (the family's name beside its first row).
+                    _legendTitle.text = InfoLegend.SnowConditionsTitle;
+                    foreach (var e in InfoLegend.SnowConditions) _legendBody.Add(LegendRow(e.Colour, false, e.Label, e.Figure));
+                    _legendBody.Add(Note(InfoLegend.SnowConditionsNote));
                     break;
                 case MapLayers.Traffic:
                     BuildTrafficLegend(units);   // task 4.13 PR C (SN-31)

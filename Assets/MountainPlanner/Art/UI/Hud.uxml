@@ -223,12 +223,9 @@
                     <ui:Label class="row__label" text="Snow depth" picking-mode="Ignore" />
                     <ui:Label class="row__key mono" text="Shift 9" picking-mode="Ignore" />
                 </ui:Button>
-                <ui:Button name="layer-conditions" class="row lay row--dis row--two" tooltip="Comes with the snow simulation">
-                    <ui:VisualElement class="rad" picking-mode="Ignore" />
-                    <ui:VisualElement class="row__stack" picking-mode="Ignore">
-                        <ui:Label class="row__label" text="Snow conditions" picking-mode="Ignore" />
-                        <ui:Label class="row__small" text="Comes with the snow simulation" picking-mode="Ignore" />
-                    </ui:VisualElement>
+                <ui:Button name="layer-conditions" class="row lay">
+                    <ui:VisualElement class="rad" picking-mode="Ignore"><ui:VisualElement class="rad__dot" picking-mode="Ignore" /></ui:VisualElement>
+                    <ui:Label class="row__label" text="Snow conditions" picking-mode="Ignore" />
                     <ui:Label class="row__key mono" text="Shift 0" picking-mode="Ignore" />
                 </ui:Button>
                 <ui:Button name="layer-traffic" class="row lay">

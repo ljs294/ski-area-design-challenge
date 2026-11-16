@@ -37,6 +37,15 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void SnowWaterReadsInTenthsOfAnInchOrMillimetres()
+        {
+            Assert.That(UnitFormat.SnowWater(0.03556, Ft), Is.EqualTo("1.4 in water"));
+            Assert.That(UnitFormat.SnowWater(0, Ft), Is.EqualTo("0.0 in water"));
+            Assert.That(UnitFormat.SnowWater(0.036, M), Is.EqualTo("36 mm water"));
+            Assert.That(UnitFormat.SnowWaterKey(0.03556, Ft), Is.EqualTo(14));
+        }
+
+        [Test]
         public void ContoursFollowTheUsgsMountainIntervalOrTenMetres()
         {
             Assert.That(UnitFormat.ContourIntervalMetres(Ft), Is.EqualTo(12.192).Within(1e-9), "40 ft");

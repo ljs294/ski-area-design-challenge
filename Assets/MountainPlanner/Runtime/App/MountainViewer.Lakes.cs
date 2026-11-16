@@ -108,7 +108,7 @@ namespace MountainPlanner.App
         /// <summary>
         /// Binds the area's body table to the screen (again whenever it changes, 4.14's ponds), then copies each body's surface
         /// from the snapshot when its face hour or body count moved, matched by id. A capture or benchmark keeps iteration 1's
-        /// look unless <c>-lakesim</c> (as the sun does), so stored captures and baselines don't move; <c>-lakemix</c> draws
+        /// look unless <c>-lakesim</c> or <c>-snowlapse</c> (as the sun does), so stored captures and baselines don't move; <c>-lakemix</c> draws
         /// odd bodies open and the rest snow on ice (the GPU check); an override (the panel, <c>-lake</c>) stops the copy.
         /// </summary>
         void ShowLakes(SimSnapshot s)
@@ -121,7 +121,8 @@ namespace MountainPlanner.App
                 _lakeFlagsRead = true;
                 var args = Environment.GetCommandLineArgs();
                 _lakeMix = Array.IndexOf(args, "-lakemix") >= 0;
-                _lakeFollowSim = !Flow.AppFlow.CaptureRun || Array.IndexOf(args, "-lakesim") >= 0;
+                // Task 4.07 PR A2: the snow time-lapse plays a live season, so its lakes freeze and thaw with it.
+                _lakeFollowSim = !Flow.AppFlow.CaptureRun || Array.IndexOf(args, "-lakesim") >= 0 || Array.IndexOf(args, "-snowlapse") >= 0;
             }
             if (states.BoundTable != table.Hash || _lakeTable != table)
             {

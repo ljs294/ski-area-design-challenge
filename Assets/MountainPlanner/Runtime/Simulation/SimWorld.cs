@@ -195,6 +195,8 @@ namespace MountainPlanner.Simulation
 
         internal void RunHourStep()
         {
+            // Task 4.07 PR A2: the hour's snow lands at its fixed tick, before anything else that tick does.
+            if (_snowLandAt >= 0 && FaceMs >= _snowLandAt) LandSnowNow();
             if (_boundaryDoneAt == FaceMs) return;
             long sod = FaceMs % DayMs;
             if (!IsBoundary(sod)) return;
@@ -256,7 +258,10 @@ namespace MountainPlanner.Simulation
             // weather's static inputs (WX-35, PR B2): the terrain's, not a player's, sent again after every load, so a reloaded
             // game hashes as the one that saved.
             stamped.Seq = c.Kind == SimCommandKind.InspectSkier || c.Kind == SimCommandKind.SetWeatherTerrain || c.Kind == SimCommandKind.SetWaterBodies
+                          || c.Kind == SimCommandKind.SetSnowTerrain
                 ? _viewSeq++ : _commandSeq++;
+            // Task 4.07 PR A2: what an hour's snow in flight reads (the weather's tables and inputs, the lakes) waits for it.
+            if (c.Kind == SimCommandKind.SetWeather || c.Kind == SimCommandKind.SetWeatherTerrain || c.Kind == SimCommandKind.SetWaterBodies) JoinSnow();
             switch (c.Kind)
             {
                 case SimCommandKind.SetMountainOpen:
@@ -278,7 +283,7 @@ namespace MountainPlanner.Simulation
                     Events.Add(Tick, SimEventType.DesignApplied, -1, d.Revision);
                     break;
                 case SimCommandKind.SetSnowpack:
-                    if (!(c.Payload is SimSnowpack p) || !Snow.Apply(p)) { Reject(c, SimRefusal.Unknown); return; }
+                    if (!(c.Payload is SimSnowpack p) || !ApplySnowpack(p)) { Reject(c, SimRefusal.Unknown); return; }
                     Events.Add(Tick, SimEventType.SnowpackApplied, -1, (long)p.Width * p.Height);
                     break;
                 case SimCommandKind.SetWeather:
@@ -289,6 +294,9 @@ namespace MountainPlanner.Simulation
                     break;
                 case SimCommandKind.SetWaterBodies:
                     if (!(c.Payload is Domain.Water.WaterBodyTable wb) || !ApplyWaterBodies(wb)) { Reject(c, SimRefusal.Unknown); return; }
+                    break;
+                case SimCommandKind.SetSnowTerrain:
+                    if (!ApplySnowTerrain(c.Payload)) { Reject(c, SimRefusal.Unknown); return; }
                     break;
                 case SimCommandKind.SetGust:
                 case SimCommandKind.FeedLine:
@@ -303,7 +311,8 @@ namespace MountainPlanner.Simulation
                     return;
             }
             // The static inputs are megabytes and the area's own: the log keeps that they came, not a second reference to them.
-            if (stamped.Kind == SimCommandKind.SetWeatherTerrain || stamped.Kind == SimCommandKind.SetWaterBodies) stamped.Payload = null;
+            if (stamped.Kind == SimCommandKind.SetWeatherTerrain || stamped.Kind == SimCommandKind.SetWaterBodies
+                || stamped.Kind == SimCommandKind.SetSnowTerrain) stamped.Payload = null;
             Log.Add(stamped);
         }
 
@@ -427,12 +436,13 @@ namespace MountainPlanner.Simulation
 
         /// <summary>
         /// WX-06 and WX-08's call order: the weather first (4.05: the hour at zref, each lift's top-station gust), then snow
-        /// (4.07), lakes (4.09) and trail readiness (4.07's stand-in: every built trail is Ready). The board flips once at the
-        /// end (SI-19): the hour's work is one slice today, so it finishes in the tick it starts.
+        /// (4.07 PR A2: the hour's job starts on the snow crew and lands later, SimWorld.Snow), lakes (4.09) and trail
+        /// readiness (4.07's stand-in until PR B: every built trail is Ready). The board flips once at the end (SI-19).
         /// </summary>
         void HourStep(long hour)
         {
             HourStepWeather(hour);
+            HourStepSnow(hour);
             HourStepLakes(hour);
             _hourSliceCursor = 0;
             _trailsReadyNext = Design.BuiltTrails;
@@ -477,6 +487,8 @@ namespace MountainPlanner.Simulation
             if (land > sod && land < next) next = land;
             if (open > sod && open < next) next = open;
             if (stop > sod && stop < next) next = stop;
+            long snow = SnowLandingSod(sod);
+            if (snow > sod && snow < next) next = snow;
             return LiftBoundary(sod, next, windChecks);
         }
 
@@ -677,6 +689,10 @@ namespace MountainPlanner.Simulation
             WriteGuests(s);
             s.FirstEventSeq = Events.CopyNewest(s.Events, out s.EventCount);
             s.SnowSet = Snow.Set;
+            s.SnowLive = Snow.Live;
+            s.SnowInFlight = _snowLandAt >= 0;
+            s.SnowToday = _snowToday;
+            s.SnowLastDay = _snowLastDay;
             WriteWeather(s);
             WriteLakes(s);
         }
@@ -714,6 +730,7 @@ namespace MountainPlanner.Simulation
             HashWeather(ref h);
             // The snow joined in PR B (SI-17): a world that has never had any hashes as before, so the goldens stand.
             if (Snow.Set || Snow.Width > 0) Snow.AddTo(ref h);
+            HashSnowLive(ref h);
             HashGuests(ref h);
             HashLakes(ref h);
             return h.Value;

@@ -27,10 +27,9 @@ Shader "MountainPlanner/Cliff"
         CBUFFER_END
         static const int RockLayer = 3;
         static const int SnowLayer = 0;
-        // Task 10's snow-depth map (SurfaceStates), for the Snow depth info layer.
-        TEXTURE2D(_SnowDepthMap); SAMPLER(sampler_SnowDepthMap);
-        float4 _SnowDepthRect;
-        float4 _SnowDepthParams;
+        // Task 10's snow-depth map (SurfaceStates), through Snow.hlsl's curved filter (task 4.07 PR A2): the info layers
+        // and the snow on the ledges.
+        #include "Snow.hlsl"
         ENDHLSL
 
         Pass
@@ -72,14 +71,9 @@ Shader "MountainPlanner/Cliff"
                 if (_MP_InfoView > 0.5)
                 {
                     float3 info;
-                    if (_MP_InfoView > 4.5) info = NetworkReliefColour;   // task P3-10: the Network view
-                    else if (_MP_InfoView > 3.5)
-                    {
-                        float depth = 0.3048;
-                        if (_SnowDepthParams.w > 0.5)
-                            depth = SAMPLE_TEXTURE2D_LOD(_SnowDepthMap, sampler_SnowDepthMap, (p.xz - _SnowDepthRect.xy) * _SnowDepthRect.zw, 0).r;
-                        info = SnowDepthColour(depth);
-                    }
+                    if (_MP_InfoView > 8.5) info = SnowConditionsColour(p);   // task 4.07 PR A2: Snow conditions
+                    else if (_MP_InfoView > 4.5) info = NetworkReliefColour;   // task P3-10: the Network view
+                    else if (_MP_InfoView > 3.5) info = SnowDepthColour(SnowDepthAt(p));
                     else
                     {
                         float slopePercent = length(n.xz) / max(n.y, 1e-3) * 100;   // rise over run
@@ -106,9 +100,10 @@ Shader "MountainPlanner/Cliff"
 
                 // Snow settles where the rock faces up (ledge tops), more where the rock's own relief is low.
                 float4 snowAlbedo = SAMPLE_TEXTURE2D_ARRAY(_Albedo, sampler_Albedo, p.xz / _SnowTile, SnowLayer);
-                float snow = smoothstep(0.45, 0.75, rn.y + (0.5 - rock.a) * 0.35);
-                // Where the shell fades into the slope, it becomes the snowfield it merges with.
-                snow = max(snow, 1 - smoothstep(0.15, 0.55, i.weight)) * _SnowLoad;
+                // Task 4.07 PR A2: the ledges hold snow once a little lies there (2 in), so October rock is bare.
+                float ledge = smoothstep(0.45, 0.75, rn.y + (0.5 - rock.a) * 0.35) * saturate(SnowDepthAt(p) / 0.05);
+                // Where the shell fades into the slope, it becomes the snowfield it merges with (as the ground's cover there).
+                float snow = max(ledge, (1 - smoothstep(0.15, 0.55, i.weight)) * SnowCoverAt(p)) * _SnowLoad;
                 float3 albedo = lerp(rock.rgb, snowAlbedo.rgb, snow);
                 float3 normal = normalize(lerp(rn, n, snow * 0.7));
 

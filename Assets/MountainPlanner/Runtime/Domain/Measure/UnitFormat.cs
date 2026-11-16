@@ -42,6 +42,18 @@ namespace MountainPlanner.Domain.Measure
             return key < 100 ? key.ToString(Invariant) + " cm" : (key / 100.0).ToString("0.##", Invariant) + " m";
         }
 
+        /// <summary>The snow's water (its depth × density ÷ water's): "1.4 in water", "0 in water"; or "36 mm water" (task 4.07
+        /// PR A2's cursor readout).</summary>
+        public static string SnowWater(double metres, UnitSystem units)
+        {
+            int key = SnowWaterKey(metres, units);
+            return units == UnitSystem.Imperial ? (key / 10.0).ToString("0.0", Invariant) + " in water" : key.ToString(Invariant) + " mm water";
+        }
+
+        /// <summary>Tenths of an inch, or whole millimetres.</summary>
+        public static int SnowWaterKey(double metres, UnitSystem units) =>
+            (int)Math.Round(Math.Max(0, metres) / (units == UnitSystem.Imperial ? MetresPerInch / 10 : 0.001));
+
         /// <summary>Whole inches, or whole centimetres.</summary>
         public static int SnowDepthKey(double metres, UnitSystem units) =>
             (int)Math.Round(Math.Max(0, metres) / (units == UnitSystem.Imperial ? MetresPerInch : 0.01));

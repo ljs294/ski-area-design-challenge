@@ -29,19 +29,35 @@ namespace MountainPlanner.Tests
         public static WeatherSourceRecord Raw(string site) =>
             WeatherFetch.LoadRecordingAsync(TestData.Folder("weather/" + site)).GetAwaiter().GetResult();
 
+        /// <summary>
+        /// One lock per site, held while that site's entry is built, so two sites fill side by side (the tests run fixtures
+        /// in parallel); the dictionaries themselves are only touched under their own short locks.
+        /// </summary>
+        static readonly Dictionary<string, object> SiteLocks = new Dictionary<string, object>();
+
+        static object SiteLock(string site)
+        {
+            lock (SiteLocks)
+            {
+                if (!SiteLocks.TryGetValue(site, out var l)) SiteLocks[site] = l = new object();
+                return l;
+            }
+        }
+
         /// <summary>The screened record, its QC log and its blend (shared: never change them).</summary>
         public static (WeatherSourceRecord Record, WeatherQcLog Log, BlendedRecord Blend) Screened(string site)
         {
-            lock (Cache)
+            lock (SiteLock(site))
             {
-                if (Cache.TryGetValue(site, out var hit)) return hit;
+                lock (Cache) if (Cache.TryGetValue(site, out var hit)) return hit;
                 var record = Raw(site);
                 var log = new WeatherQcLog();
                 DaymetScreen.Apply(record, log);
                 PowerScreen.Apply(record, log);
                 SnotelScreen.Apply(record, log);
-                var blend = WeatherBlend.Build(record);
-                return Cache[site] = (record, log, blend);
+                var built = (record, log, WeatherBlend.Build(record));
+                lock (Cache) Cache[site] = built;
+                return built;
             }
         }
 
@@ -52,12 +68,14 @@ namespace MountainPlanner.Tests
         public static (WeatherRows Rows, CalibrationReport Report) Calibrated(string site)
         {
             var screened = Screened(site);
-            lock (Rows)
+            lock (SiteLock(site))
             {
-                if (Rows.TryGetValue(site, out var hit)) return hit;
+                lock (Rows) if (Rows.TryGetValue(site, out var hit)) return hit;
                 var s = screened.Record.Site;
                 var points = new ReferencePoints(s.BaseFeet, s.SummitFeet);
-                return Rows[site] = WeatherCalibration.Build(screened.Blend, screened.Record, points, WeatherTuning.Default);
+                var built = WeatherCalibration.Build(screened.Blend, screened.Record, points, WeatherTuning.Default);
+                lock (Rows) Rows[site] = built;
+                return built;
             }
         }
     }

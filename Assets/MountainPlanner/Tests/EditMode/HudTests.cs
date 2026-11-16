@@ -62,6 +62,19 @@ namespace MountainPlanner.Tests
         public void TheLiftCardNamesItsType(string catalogId, string name) =>
             Assert.That(MountainPlanner.UI.Tools.LiftTypeMenu.TypeName(catalogId), Is.EqualTo(name));
 
+        // Owner's demo 111 (task 4.07 PR A2, 2026-11-15): a thaw's last few mm read as bare ground, as the layer draws them.
+        [TestCase(9, 0.003f, true)]    // wet granular, 3 mm: bare, traces of wet granular
+        [TestCase(9, 0.02f, true)]     // just under half cover (full white from 2 in since finding 2, 2026-11-15)
+        [TestCase(9, 0.03f, false)]    // over half cover: wet granular
+        [TestCase(1, 0.5f, false)]     // powder half a metre deep
+        [TestCase(0, 0f, false)]       // bare ground is bare without traces
+        public void ThinSnowReadsAsBareGround(int type, float metres, bool bare)
+        {
+            Assert.That(MountainPlanner.Presentation.InfoLegend.SnowReadsBare(type, metres), Is.EqualTo(bare));
+            Assert.That(MountainPlanner.Presentation.InfoLegend.SnowBareBelowMetres,
+                Is.EqualTo(MountainPlanner.Presentation.SurfaceStates.FullCoverMetres / 2), "half of the ground's full cover");
+        }
+
         [Test]
         public void EveryCarrierHasATypeName()
         {

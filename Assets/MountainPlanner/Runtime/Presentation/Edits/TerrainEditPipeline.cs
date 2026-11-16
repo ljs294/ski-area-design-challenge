@@ -156,8 +156,13 @@ namespace MountainPlanner.Presentation.Edits
         /// <summary>A shell stands on moved ground where the edit there is more than 10 cm (GR-13's smallest tie-ins keep theirs).</summary>
         public const int CliffTrimMm = 100;
 
-        /// <summary>The snowpack's inputs once it's computed (ResortOpener's 8 m elevation and canopy cells).</summary>
-        public void AttachSnow(SurfaceStates states, float[] elevation, float[] canopy, double convergence, Rect ring)
+        /// <summary>
+        /// The snowpack's inputs once it's computed (ResortOpener's 8 m elevation and canopy cells), and the live snow's
+        /// (task 4.07 PR A2: the cells' mean heights and canopy as downloaded, copied so edits change only the pipeline's, and
+        /// the core's rectangle); <see cref="AttachSnowTerrain"/> follows once the snow's inputs are built.
+        /// </summary>
+        public void AttachSnow(SurfaceStates states, float[] elevation, float[] canopy, double convergence, Rect ring,
+                               int[] meanMm = null, byte[] meanCanopy = null, Rect core = default)
         {
             _states = states;
             _elevation = elevation;
@@ -165,6 +170,7 @@ namespace MountainPlanner.Presentation.Edits
             _convergence = convergence;
             _ring = ring;
             _depth = (float[])states.Snow.Cells.Clone();
+            if (meanMm != null && meanCanopy != null) AttachSnowInputs((int[])meanMm.Clone(), (byte[])meanCanopy.Clone(), core);
         }
 
         /// <summary>The edited height at a local position, or NaN outside the core tiles (the HUD's readout, SH-02).</summary>
@@ -698,7 +704,11 @@ namespace MountainPlanner.Presentation.Edits
                                 _canopy[j * width + i] = p.Splat.Textures[0][(py * p.Splat.Width + px) * 4 + 1] / 255f;
                         }
                     }
+                // Task 4.07 PR A2: the live snow's inputs over the same cells (a cell's mean reads posts up to its edges: one more round).
+                NoteSnowInputs(p, ci0 - 1, cj0 - 1, ci1 + 1, cj1 + 1);
             }
+            _snowHeights = heights;
+            _snowToken = ct;
             _snowDue = true;
             if (!_snowRunning) RunSnow(watch, ct);
         }
@@ -715,6 +725,14 @@ namespace MountainPlanner.Presentation.Edits
                         await Task.Delay(TimeSpan.FromSeconds(SnowSeconds - _snowSince.Elapsed.TotalSeconds), ct);
                     _snowDue = false;
                     _snowSince.Restart();
+                    // Task 4.07 PR A2: what the live snow's inputs need, taken on the main thread.
+                    var cells = _snowCells;
+                    _snowCells = CellRect.Empty;
+                    var snowHeights = _snowHeights;
+                    var terrain = _snowTerrain;
+                    List<CanopyWindow> windows;
+                    lock (_canopyLock) { windows = new List<CanopyWindow>(_canopyQueue); _canopyQueue.Clear(); }
+                    bool live = LiveSnow;
                     if (_snowElevation == null || _snowElevation.Length != _elevation.Length)
                     {
                         _snowElevation = new float[_elevation.Length];
@@ -729,23 +747,34 @@ namespace MountainPlanner.Presentation.Edits
                     const float cell = SurfaceStates.CellMetres;
                     // The depths on screen only change here, between computes, so the worker can find what changed too.
                     var shown = _depth;
-                    var (labels, x0, y0, x1, y1) = await Task.Run(() =>
+                    var (labels, x0, y0, x1, y1, patch) = await Task.Run(() =>
                     {
-                        Snowpack.Compute(width, depth, cell, elevation, canopy, convergence, result, _snowScratch);
+                        var snowPatch = _snowMm == null ? null : SampleSnowInputs(cells, snowHeights, windows, terrain);
                         var l = new ContourLabel[2][];
                         foreach (var units in new[] { UnitSystem.Imperial, UnitSystem.Metric })
                             l[(int)units] = ContourLabels.Place(width, depth, cell, ring.xMin, ring.yMin, elevation, units);
+                        // Live, the worker owns the depths and an edit leaves them alone: no static snowpack.
                         int a0 = int.MaxValue, b0 = int.MaxValue, a1 = -1, b1 = -1;
-                        for (int j = 0; j < depth; j++)
-                            for (int i = 0; i < width; i++)
-                                if (result[j * width + i] != shown[j * width + i])
-                                {
-                                    a0 = Math.Min(a0, i); a1 = Math.Max(a1, i);
-                                    b0 = Math.Min(b0, j); b1 = Math.Max(b1, j);
-                                }
-                        return (l, a0, b0, a1, b1);
+                        if (!live)
+                        {
+                            Snowpack.Compute(width, depth, cell, elevation, canopy, convergence, result, _snowScratch);
+                            for (int j = 0; j < depth; j++)
+                                for (int i = 0; i < width; i++)
+                                    if (result[j * width + i] != shown[j * width + i])
+                                    {
+                                        a0 = Math.Min(a0, i); a1 = Math.Max(a1, i);
+                                        b0 = Math.Min(b0, j); b1 = Math.Max(b1, j);
+                                    }
+                        }
+                        return (l, a0, b0, a1, b1, snowPatch);
                     }, ct);
                     if (_states == null) return;
+                    if (patch != null)
+                    {
+                        // The presentation's copy takes it (its hash waits for the next clone), then the worker.
+                        _snowTerrain.Apply(patch, rehash: false);
+                        SnowTerrainChanged?.Invoke(patch);
+                    }
                     var main = Stopwatch.StartNew();
                     double compareMs = 0;
                     if (x1 >= 0)
@@ -755,8 +784,11 @@ namespace MountainPlanner.Presentation.Edits
                         else _states.Snow.CopyRect(result, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
                     }
                     double copyMs = main.Elapsed.TotalMilliseconds - compareMs;
-                    _snowResult = _depth;   // the old depths become the next result's buffer
-                    _depth = result;
+                    if (!live)
+                    {
+                        _snowResult = _depth;   // the old depths become the next result's buffer
+                        _depth = result;
+                    }
                     bool relabel = !SameLabels(_labels, labels);
                     if (relabel) { _labels = labels; LabelsChanged?.Invoke(labels); }   // BR21: the overlay rebuilds only for a real change
                     if (Verbose)

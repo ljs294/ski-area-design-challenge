@@ -35,6 +35,38 @@ namespace MountainPlanner.App
         double _chairOverrideSeconds;
         /// <summary>SI-17: the worker has been sent the whole field once (or brought its own from a save).</summary>
         bool _simSnowSent;
+        /// <summary>
+        /// Task 4.07 PR A2: the worker has the snow's inputs (a clone of the resort's, every edit so far in it), so its snow is
+        /// live: edits send patches of the inputs (queued here while the command queue is full, in order) and never depths.
+        /// </summary>
+        bool _simSnowTerrainSent;
+        readonly System.Collections.Generic.Queue<Domain.Snow.SnowTerrainPatch> _simSnowPatches = new System.Collections.Generic.Queue<Domain.Snow.SnowTerrainPatch>();
+        Action<Domain.Snow.SnowTerrainPatch> _onPipelineSnowTerrain;
+
+        static bool? _snowSeedWanted;
+        /// <summary>
+        /// Task 4.07 PR A2: a new game starts on bare ground on October 1. <c>-snowseed</c> (and every capture and benchmark,
+        /// unless <c>-snowlapse</c>) starts it on the opening's static snowpack instead, the mid-winter picture they were made
+        /// with, as the live snow's seed.
+        /// </summary>
+        internal static bool SnowSeedWanted => _snowSeedWanted ??= Array.IndexOf(Environment.GetCommandLineArgs(), "-snowseed") >= 0
+                                                                    || (Flow.AppFlow.CaptureRun && Array.IndexOf(Environment.GetCommandLineArgs(), "-snowlapse") < 0);
+
+        bool CoverDone => _resort.CoverReady == null || _resort.CoverReady.IsCompleted;
+
+        /// <summary>The snow's inputs didn't build (the area then plays the static snowpack, as before task 4.07).</summary>
+        bool SnowTerrainFailed => CoverDone && _resort.SnowTerrain == null && (_resort.SnowTerrainReady == null || _resort.SnowTerrainReady.IsCompleted);
+
+        /// <summary>The presentation's snow inputs hold every edit there will be before the worker's first hour: a loaded save's
+        /// terrain edits are laid over them first (its edit session starts at once), so a reloaded game steps as the one that saved.</summary>
+        bool SnowInputsSettled => _edits == null ? !_editsStarting
+                                                 : _edits.Pipeline == null || (_edits.Pipeline.HasSnowTerrain && _edits.Pipeline.SnowSettled && _edits.Applying.IsCompleted);
+
+        /// <summary>Some static input the worker must have before its first tick is still building (the host stays held).</summary>
+        bool SimInputsMissing =>
+            (!_simWeatherTerrainSent && !(CoverDone && _resort.WeatherTerrain == null)) ||
+            (!_simWaterSent && !(CoverDone && _resort.WaterBodies == null)) ||
+            (!_simSnowTerrainSent && !SnowTerrainFailed);
         /// <summary>Said once the HUD shows: why a save's simulation didn't come back, or that its pacing differs.</summary>
         string _simNotice;
         OpenDesign _simSavesFor;
@@ -92,6 +124,8 @@ namespace MountainPlanner.App
             _simWeatherPointsSent = _simWeather == null || !_simWeather.Generic || _resort.WeatherBaseFeet > 0;
             _simWeatherTerrainSent = false;
             _simWaterSent = false;
+            _simSnowTerrainSent = false;
+            _simSnowPatches.Clear();
             _simHoldSaid = false;
             var world = RestoredWorld(pacing, design, simSite, _simWeather)
                         ?? new SimWorld(pacing, design, simSite, Math.Max(2, startYear), weather: _simWeather);
@@ -111,7 +145,8 @@ namespace MountainPlanner.App
                 world.ApplyNow(SimCommand.Of(SimCommandKind.SetWaterBodies, 0, _resort.WaterBodies));
                 _simWaterSent = true;
             }
-            bool hold = !(_simWeatherTerrainSent && _simWaterSent) && _resort.CoverReady != null && !_resort.CoverReady.IsCompleted;
+            // Task 4.07 PR A2: the snow's inputs too (built after the snowpack, with a loaded save's edits laid over them).
+            bool hold = SimInputsMissing;
             _simHoldReleased = !hold;
             _sim = new SimulationHost(world, new StopwatchTime(), held: hold);
             _simTickSaved = world.Tick;
@@ -172,15 +207,28 @@ namespace MountainPlanner.App
             var host = _sim;
             if (host == null) return null;
             var request = new SimStateRequest();
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             if (!host.Send(SimCommandKind.SaveState, 0, request) || !request.Wait(SaveStateWaitMs))
             {
                 Debug.LogWarning("[Simulation] the worker didn't hand over its state in time; the save goes without it. " + request.Error);
                 return null;
             }
-            _simTickSaved = SimSidecar.ReadHeader(request.Bytes).Tick;
+            LastSaveWaitMs = clock.Elapsed.TotalMilliseconds;
+            clock.Restart();
+            byte[] bytes = request.Bytes;   // encoded here, on the save's task (task 4.07 PR A2): the worker only copied
+            LastSaveEncodeMs = clock.Elapsed.TotalMilliseconds;
+            if (bytes == null)
+            {
+                Debug.LogWarning("[Simulation] the state couldn't be encoded; the save goes without it. " + request.Error);
+                return null;
+            }
+            _simTickSaved = SimSidecar.ReadHeader(bytes).Tick;
             _simMarkedChanged = false;
-            return new SimSidecarBytes(request.Bytes, SimSidecar.Version);
+            return new SimSidecarBytes(bytes, SimSidecar.Version);
         }
+
+        /// <summary>The last save's wait for the worker's copy (a tick boundary and the copy) and its encoding, ms.</summary>
+        internal double LastSaveWaitMs, LastSaveEncodeMs;
 
         /// <summary>How long a save waits for the worker's state (it comes within a tick; a skip batch is 50 ms).</summary>
         const int SaveStateWaitMs = 2000;
@@ -203,12 +251,22 @@ namespace MountainPlanner.App
             if (_simDesignFor != null)
             {
                 _simDesignFor.History.Changed -= SendDesign;
-                if (_simDesignFor.Pipeline != null) _simDesignFor.Pipeline.SnowChanged = null;
+                if (_simDesignFor.Pipeline != null)
+                {
+                    _simDesignFor.Pipeline.SnowChanged = null;
+                    _simDesignFor.Pipeline.SnowTerrainChanged = null;
+                    _simDesignFor.Pipeline.LiveSnow = false;
+                }
             }
             _simDesignFor = session;
             if (session == null || _sim == null) return;
             session.History.Changed += SendDesign;
-            if (session.Pipeline != null) session.Pipeline.SnowChanged = _onPipelineSnow ??= SendSnowpack;
+            if (session.Pipeline != null)
+            {
+                session.Pipeline.SnowChanged = _onPipelineSnow ??= SendSnowpack;
+                session.Pipeline.SnowTerrainChanged = _onPipelineSnowTerrain ??= SendSnowTerrainPatch;
+                session.Pipeline.LiveSnow = _simSnowTerrainSent;
+            }
             SendDesign(session.History.Current);
         }
 
@@ -222,11 +280,79 @@ namespace MountainPlanner.App
         {
             var mirror = _resort?.States?.Snow;
             if (_sim == null || mirror == null) return;
+            // Task 4.07 PR A2: live, the worker's snow is its own; before that, the static snowpack goes only as the seed.
+            if (_simSnowTerrainSent || !(SnowSeedWanted || SnowTerrainFailed)) return;
             var p = _simSnowSent
                 ? SimSnowpack.FromMetres(metres, mirror.Width, mirror.Height, x, y, width, height)
                 : SimSnowpack.FromMetres(metres, mirror.Width, mirror.Height, 0, 0, mirror.Width, mirror.Height);
             _sim.Send(SimCommandKind.SetSnowpack, 0, p);
             _simSnowSent = true;
+        }
+
+        /// <summary>Task 4.07 PR A2: an edit's patch of the snow's inputs, to the worker in order (once it has the inputs; before
+        /// that, the clone it gets holds the patch).</summary>
+        void SendSnowTerrainPatch(Domain.Snow.SnowTerrainPatch patch)
+        {
+            if (_sim == null || !_simSnowTerrainSent || patch == null) return;
+            _simSnowPatches.Enqueue(patch);
+            FlushSnowTerrainPatches();
+        }
+
+        void FlushSnowTerrainPatches()
+        {
+            while (_simSnowPatches.Count > 0 && _sim.Send(SimCommandKind.SetSnowTerrain, 0, _simSnowPatches.Peek())) _simSnowPatches.Dequeue();
+        }
+
+        /// <summary>
+        /// Task 4.07 PR A2: the snow's inputs to the worker once they're built and hold every edit so far (a clone: the pipeline
+        /// keeps patching the resort's). Its snow goes live: a new game's bare, a save's as it was, a seed's from the seed.
+        /// </summary>
+        void SendSnowTerrain()
+        {
+            if (_edits?.Pipeline is Presentation.Edits.TerrainEditPipeline pipe && !pipe.HasSnowTerrain && _resort.SnowTerrain != null)
+                pipe.AttachSnowTerrain(_resort.SnowTerrain);
+            if (!_simSnowTerrainSent && _resort.SnowTerrain != null && SnowInputsSettled)
+            {
+                var clone = _resort.SnowTerrain.Clone();
+                _simSnowTerrainSent = _sim.Send(SimCommandKind.SetSnowTerrain, 0, clone);
+                if (_simSnowTerrainSent)
+                {
+                    _simSnowPatches.Clear();
+                    if (_simDesignFor?.Pipeline != null) _simDesignFor.Pipeline.LiveSnow = true;
+                    Debug.Log($"[Simulation] the snow's inputs go to the worker (hash {clone.Hash:X16}): its snow is live" +
+                              (_simSnowSent ? " from the snow it has" : SnowSeedWanted ? ", seeded" : ", bare"));
+                }
+            }
+            if (_simSnowTerrainSent) FlushSnowTerrainPatches();
+        }
+
+        float _siteSnowTarget = -1, _nextSiteSnow;
+
+        /// <summary>
+        /// Task 4.07 PR A2: the trees' and lifts' white follows the snow on the ground. Once a second, the share of the field
+        /// (every 4th cell each way) under 2 in of snow sets a target: none below 15 %, full from 60 %; the white eases to it
+        /// over about two seconds, so a storm frosts the forest and a thaw clears it without a jump.
+        /// </summary>
+        void EaseSiteSnow()
+        {
+            var field = _resort?.States?.Snow;
+            if (field == null || _layers == null) return;
+            if (_siteSnowTarget < 0 || Time.unscaledTime >= _nextSiteSnow)
+            {
+                _nextSiteSnow = Time.unscaledTime + 1;
+                int covered = 0, cells = 0;
+                for (int j = 2; j < field.Height; j += 4)
+                    for (int i = 2; i < field.Width; i += 4, cells++)
+                        if (field[i, j] >= 0.05f) covered++;
+                float share = cells > 0 ? covered / (float)cells : 0;
+                bool first = _siteSnowTarget < 0;
+                _siteSnowTarget = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0.15f, 0.6f, share));
+                if (first) { _layers.SetSiteSnow(_siteSnowTarget); return; }
+            }
+            float now = _layers.SiteSnow;
+            if (now != _siteSnowTarget)
+                _layers.SetSiteSnow(Mathf.Abs(_siteSnowTarget - now) < 0.01f ? _siteSnowTarget
+                                    : now + (_siteSnowTarget - now) * Mathf.Min(1, Time.unscaledDeltaTime / 2));
         }
 
         /// <summary>SI-17: the staged tiles the newest snapshot lists, into the screen's field, then their slots back to the worker.</summary>
@@ -239,7 +365,8 @@ namespace MountainPlanner.App
             for (long n = from; n < to; n++)
             {
                 ring.Read(n, out int x, out int y, out int w, out int h, out int offset, out ushort[] cells);
-                if (mirror != null && x + w <= mirror.Width && y + h <= mirror.Height) mirror.CopyMillimetres(cells, offset, x, y, w, h);
+                ring.ReadSurface(n, out int surfaceOffset, out byte[] surface);
+                if (mirror != null && x + w <= mirror.Width && y + h <= mirror.Height) _resort.States.TakeTile(x, y, w, h, cells, offset, surface, surfaceOffset);
             }
             ring.Release(to);
             if (_simTilesShown == 0) Debug.Log($"[Simulation] snow from the worker's staging ring: {to - from} tiles in the first frame");
@@ -294,8 +421,11 @@ namespace MountainPlanner.App
             _simNow = s;
             DrainSnowTiles(s);
             ShowLakes(s);   // task 4.09 PR B: before the paused return, so a reopened save shows its ice while paused
-            // SI-17: once the opening's snowpack is in, the worker gets the whole field (unless a save brought its own).
-            if (!_simSnowSent && !s.SnowSet && _resort.CoverReady != null && _resort.CoverReady.IsCompleted && _resort.States?.Snow != null)
+            EaseSiteSnow();
+            // SI-17: once the opening's snowpack is in, the worker gets the whole field (unless a save brought its own). Task 4.07
+            // PR A2: only as a seed (-snowseed, captures) or when the snow's inputs failed; a new game otherwise starts bare.
+            if (!_simSnowSent && !s.SnowSet && _resort.CoverReady != null && _resort.CoverReady.IsCompleted && _resort.States?.Snow != null
+                && (SnowSeedWanted || SnowTerrainFailed))
             {
                 var mirror = _resort.States.Snow;
                 SendSnowpack(mirror.Cells, 0, 0, mirror.Width, mirror.Height);
@@ -316,13 +446,10 @@ namespace MountainPlanner.App
                 _simWeatherTerrainSent = _sim.Send(SimCommandKind.SetWeatherTerrain, 0, _resort.WeatherTerrain);
             if (!_simWaterSent && _resort.WaterBodies != null)
                 _simWaterSent = _sim.Send(SimCommandKind.SetWaterBodies, 0, _resort.WaterBodies);
-            bool inputsSent = _simWeatherTerrainSent && _simWaterSent;
-            if (!_simHoldReleased && (inputsSent || _resort.CoverReady == null || _resort.CoverReady.IsCompleted))
-            {
-                // Released with the inputs, or without them when the cover build ended with none (it failed): then the area
-                // plays B1's height rule and has no lakes, and the clock is never left stuck.
-                if (inputsSent || _resort.WeatherTerrain == null || _resort.WaterBodies == null) _simHoldReleased = _sim.Send(SimCommandKind.Release);
-            }
+            SendSnowTerrain();
+            // Released with the inputs, or without one whose build ended with none (it failed): then the area plays B1's height
+            // rule, has no lakes or keeps the static snow, and the clock is never left stuck.
+            if (!_simHoldReleased && !SimInputsMissing) _simHoldReleased = _sim.Send(SimCommandKind.Release);
             if (s.Held && !_simHoldSaid && (!s.Paused || s.Skip != SkipKind.None) && Hud != null && _hudShown)
             {
                 _simHoldSaid = true;

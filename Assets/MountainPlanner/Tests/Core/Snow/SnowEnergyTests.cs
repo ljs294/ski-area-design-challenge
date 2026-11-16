@@ -198,6 +198,62 @@ namespace MountainPlanner.Tests
             Assert.That(h, Is.GreaterThan(2 * Math.Max(1, d)), "condensation in a humid wind is the rain-on-snow melt");
         }
 
+        /// <summary>
+        /// SN-09 v3 (task 4.07 PR A2, owner 2026-11-14): thin snow is patchy and melts faster the thinner it is, but no depth is a
+        /// cliff. v2 took a whole pack under the crumb (0.1 in of water) at the first melt or drop of rain, so two neighbours a few
+        /// µm apart came out all or nothing, and the snow line ran along whatever line split them.
+        /// </summary>
+        [Test]
+        public void SN09_AThinPackMeltsFasterButNeverAllOrNothing()
+        {
+            // A mild hour and a warm, windy one (a face hour melts about 5 mm of water in it): no cliff in either.
+            foreach (var hour in new[] { Hour(36, 34, windMph: 8, cloud: 1000), Hour(45, 43, windMph: 12, cloud: 1000) })
+            {
+                int last = -1, worst = 0;
+                for (int start = 500; start <= 8000; start += 100)   // from 0.5 mm (under it the hour's melt takes it all, give or take tens of µm)
+                {
+                    var p = Pack(start / 25_400.0, 0, 133, 0.11);
+                    SnowEnergy.Step(ref p, hour, K);
+                    int left = p.Swe;
+                    if (last >= 0)
+                    {
+                        Assert.That(left, Is.GreaterThanOrEqualTo(last), $"{start} µm: more snow never leaves less");
+                        worst = Math.Max(worst, left - last);
+                    }
+                    last = left;
+                }
+                Console.WriteLine($"[crumb] {hour.Air / 10} °F: what's left moves at most {worst} µm for 100 µm more at the start");
+                Assert.That(worst, Is.LessThanOrEqualTo(400), "no jump between neighbouring depths (at most 1 + melt ÷ crumb times)");
+            }
+            // Still patchy: a thin pack loses more of itself than a thick one in the same hour.
+            var thin = Pack(0.03, 0, 250); var thick = Pack(1, 0, 250);
+            int t0 = thin.Swe, k0 = thick.Swe;
+            SnowEnergy.Step(ref thin, Hour(36, 34, windMph: 8, cloud: 1000), K);
+            SnowEnergy.Step(ref thick, Hour(36, 34, windMph: 8, cloud: 1000), K);
+            Assert.That(t0 - thin.Swe, Is.GreaterThan(k0 - thick.Swe), "the thin pack melts faster");
+        }
+
+        [Test]
+        public void SN09_RainAloneDoesNotWipeAColdDusting()
+        {
+            var p = Pack(0.05, -3, 120);
+            var x = Hour(30, 28, cloud: 1000);
+            x.Rain = 100;   // a few drops in a mostly-snow hour
+            x.Snow = 900;
+            SnowEnergy.Step(ref p, x, K);
+            Assert.That(p.Swe, Is.GreaterThan(1270), "the dusting keeps its water and the new snow");
+        }
+
+        [Test]
+        public void SN09_AThinPackStillMeltsOut()
+        {
+            var p = Pack(0.05, 0, 250);
+            int hours = 0;
+            while (p.Swe > 0 && hours < 48) { SnowEnergy.Step(ref p, Hour(40, 35, windMph: 6, cloud: 800), K); hours++; }
+            Console.WriteLine($"[crumb] 0.05 in of water at 40 °F under cloud melts out in {hours} face hours");
+            Assert.That(p.Swe, Is.Zero, "no remnant lingers");
+        }
+
         [Test]
         public void WX63_ADustingOnAClearNightDoesNotSwing()
         {
@@ -326,11 +382,22 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void TheSurfaceTablesAreTheFormulas()
+        {
+            // Task 4.07 PR A2: the step reads its emission and vapour terms from tables built by the same formulas; every entry,
+            // and the fallback past both ends, gives the same number.
+            for (int c = -8100; c <= 300; c++)
+                Assert.That(SnowEnergy.TablesMatch(c), Is.True, $"{c / 100.0:F2} °C");
+        }
+
+        [Test]
         public void BG02_TheStepAllocatesNothing()
         {
             var p = Pack(20, -3);
             var x = Hour(28, 20, beam: 300, diffuse: 80);
-            SnowEnergy.Step(ref p, x, K);
+            // The same loop once unmeasured first: the runtime's tiering (on-stack replacement of this loop, the step's
+            // re-JIT) settles there, not in the count (CI saw 1 KB once, 2026-11-16, with no change to the step).
+            for (int i = 0; i < 100_000; i++) { var q = p; SnowEnergy.Step(ref q, x, K); }
             long before;
             try { before = GC.GetAllocatedBytesForCurrentThread(); }
             catch (PlatformNotSupportedException) { Assert.Ignore("needs CoreCLR"); return; }

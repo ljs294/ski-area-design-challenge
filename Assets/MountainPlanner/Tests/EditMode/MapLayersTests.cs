@@ -136,12 +136,18 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void SnowConditionsIsReserved()
+        public void SnowConditionsIsInfoViewNine()
         {
+            // Task 4.07 PR A2: the live snow's conditions take their turn with the other info layers.
             var layers = Bound(out _, out _);
-            Assert.That(MapLayers.IsSwitchable(MapLayers.SnowConditions), Is.False);
-            Assert.That(layers.Toggle(MapLayers.SnowConditions), Is.False);
-            Assert.That(layers.IsOn(MapLayers.SnowConditions), Is.False);
+            Assert.That(MapLayers.IsSwitchable(MapLayers.SnowConditions), Is.True);
+            Assert.That(layers.Toggle(MapLayers.SnowConditions), Is.True);
+            Assert.That(layers.IsOn(MapLayers.SnowConditions), Is.True);
+            Assert.That(layers.Info, Is.EqualTo(MapLayers.InfoView.SnowConditions));
+            Assert.That((int)MapLayers.InfoView.SnowConditions, Is.EqualTo(9), "Snow.hlsl and Cliff.shader read 9");
+            Assert.That(layers.InfoLayerId, Is.EqualTo(MapLayers.SnowConditions));
+            layers.Set(MapLayers.SnowDepth, true);
+            Assert.That(layers.IsOn(MapLayers.SnowConditions), Is.False, "one info layer at a time");
             Assert.That(layers.Toggle("ground"), Is.False, "retired ids do nothing");
             Assert.That(MapLayers.MapIds, Is.EqualTo(new[] { MapLayers.Snow, MapLayers.Trees, MapLayers.Lifts, MapLayers.Trails }), "task 09 adds Lifts (LT7), task 08 Trails (TL6)");
             Assert.That(MapLayers.InfoIds, Is.EqualTo(new[] { MapLayers.SlopeAngle, MapLayers.Exposure, MapLayers.SnowDepth, MapLayers.SnowConditions, MapLayers.Traffic, MapLayers.Contours }));

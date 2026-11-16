@@ -195,15 +195,17 @@ namespace MountainPlanner.Tests
         [Test]
         public void AWindwardFaceIsWetterThanItsLee()
         {
-            var t = Ridge(out _);
-            int cells = t.CoarseWidth * t.CoarseDepth, o = 6;   // a wind from the west
+            var t = Ridge(out int[] feet);
+            const int o = 6;   // a wind from the west
+            // WX-35 v3: each cell's own factor at its own height, averaged over 512 m columns of cells.
             double Mean(int x0, int x1)
             {
                 double s = 0; int n = 0;
-                for (int j = 0; j < t.CoarseDepth; j++) for (int i = x0; i <= x1; i++) { s += t.Orographic[o * cells + j * t.CoarseWidth + i]; n++; }
+                for (int j = 0; j < t.Depth; j += 4)
+                    for (int i = x0 * 64; i < (x1 + 1) * 64; i += 4) { s += t.OrographicAt(o, i, j, feet[j * t.Width + i]); n++; }
                 return s / n;
             }
-            double windward = Mean(4, 6), lee = Mean(11, 13), box = Mean(0, t.CoarseWidth - 1);
+            double windward = Mean(4, 6), lee = Mean(11, 13), box = Mean(0, t.Width / 64 - 1);
             TestContext.Progress.WriteLine($"west wind: windward {windward:F0}‰, far lee {lee:F0}‰, box {box:F0}‰");
             Assert.That(windward, Is.GreaterThan(1000));
             Assert.That(lee, Is.LessThan(1000));
@@ -216,6 +218,79 @@ namespace MountainPlanner.Tests
             f.At(row + 5 * 64 + 32, out var a);
             f.At(row + 12 * 64 + 32, out var b);
             Assert.That(a.Liquid, Is.GreaterThan(b.Liquid));
+        }
+
+        /// <summary>A west-facing climb to a 9,000 ft crest, then a lee slope falling east, cut by a 150 ft V gully running down it.</summary>
+        static WeatherTerrain GulliedLee(out int[] feet)
+        {
+            const int w = 1024, d = 512;
+            feet = new int[w * d];
+            for (int j = 0; j < d; j++)
+                for (int i = 0; i < w; i++)
+                {
+                    int f = i < 300 ? 6000 + i * 10 : Math.Max(6000, 9000 - (i - 300) * 5);
+                    int across = Math.Abs(j - d / 2);
+                    if (i > 300 && across < 40) f -= 150 * (40 - across) / 40;
+                    feet[j * w + i] = f;
+                }
+            return WeatherTerrain.Build(w, d, feet, -w / 2 * 8000, -d / 2 * 8000, (0, 0, w, d), d / 2 * w + w / 2, Tuning);
+        }
+
+        /// <summary>
+        /// WX-35 v3 (task 4.07 PR A2, owner 2026-11-14): each cell is judged at its own height against the upwind crest, so the
+        /// precipitation follows the ground: a gully in the lee sits deeper in the shadow than the slope either side of it,
+        /// though it is much narrower than a 512 m block (v2 gave the whole block one value). And nothing on the map is a step:
+        /// the distance terms only ease, so no line of equal distance from a crest shows.
+        /// </summary>
+        [Test]
+        public void WX35_ThePrecipitationFollowsAGullyWithNoStep()
+        {
+            var t = GulliedLee(out int[] feet);
+            const int o = 6, x = 500;   // a west wind; 1.6 km behind the crest
+            int Oro(int i, int j) => t.OrographicAt(o, i, j, feet[j * t.Width + i]);
+            int bottom = Oro(x, t.Depth / 2), side = Oro(x, t.Depth / 2 + 60);
+            TestContext.Progress.WriteLine($"west wind, 1.6 km into the lee: gully bottom {bottom}‰, the slope beside it {side}‰");
+            Assert.That(bottom, Is.LessThan(side - 10), "the gully gets less than the slope beside it");
+            for (int j = t.Depth / 2; j < t.Depth / 2 + 40; j++)
+                Assert.That(Oro(x, j), Is.LessThanOrEqualTo(Oro(x, j + 1)), $"rising out of the gully, row {j}: the factor rises with the ground");
+            int most = 0;
+            for (int j = 1; j < t.Depth - 1; j++)
+                for (int i = 1; i < t.Width - 1; i++)
+                    most = Math.Max(most, Math.Max(Math.Abs(Oro(i, j) - Oro(i - 1, j)), Math.Abs(Oro(i, j) - Oro(i, j - 1))));
+            TestContext.Progress.WriteLine($"the largest step between neighbouring cells: {most}‰");
+            Assert.That(most, Is.LessThanOrEqualTo(12), "no step between neighbours anywhere, even where the windward face turns into the lee over the crest's 400 ft");
+        }
+
+        /// <summary>
+        /// Task 4.07 PR A2 (owner 2026-11-14): what the snow reads has no straight seams. Its water is the unrounded µm (the
+        /// 0.01 in reading steps by 254 µm between neighbours) and its wind is blended between the 96 m steering cells (the
+        /// point read keeps each cell's own, as the readout and the lifts show it).
+        /// </summary>
+        [Test]
+        public void TheSnowsReadHasNoSeams()
+        {
+            var t = Valley(400, 400, 200, out _);
+            var f = new WeatherFields();
+            f.Fill(0, Hour(300, 290, liquid: 17, wind: 250, direction: 250), t, 6000, P, 0);
+            var place = new byte[t.Width * t.Depth];
+            var exposure = new byte[t.Width * t.Depth];
+            Array.Fill(place, (byte)128);
+            Array.Fill(exposure, (byte)125);
+            var row = new WeatherCell[t.Width];
+            int liquidStep = 0, umStep = 0, smoothWind = 0;
+            for (int j = 20; j < t.Depth - 20; j += 7)
+            {
+                f.ReadRowsSmooth(j, j + 1, row, place, exposure, null);
+                for (int i = 21; i < t.Width - 20; i++)
+                {
+                    liquidStep = Math.Max(liquidStep, Math.Abs(row[i].Liquid - row[i - 1].Liquid) * 254);
+                    umStep = Math.Max(umStep, Math.Abs(row[i].LiquidUm - row[i - 1].LiquidUm));
+                    smoothWind = Math.Max(smoothWind, Math.Abs(row[i].Wind - row[i - 1].Wind));
+                }
+            }
+            TestContext.Progress.WriteLine($"largest step between neighbours: water {umStep} µm (in 0.01 in, {liquidStep} µm); the snow's wind {smoothWind / 10.0:0.0} mph");
+            Assert.That(umStep, Is.LessThan(Math.Max(1, liquidStep) / 2), "the snow's water has no 0.01 in steps");
+            Assert.That(smoothWind, Is.LessThanOrEqualTo(10), "no 96 m step in the snow's wind (at most 1 mph a cell)");
         }
 
         // ---------------- WX-39: lift gusts from the map ----------------
@@ -329,7 +404,7 @@ namespace MountainPlanner.Tests
             var watch = Stopwatch.StartNew();
             var t = WeatherTerrain.Build(n, n, feet, -n * 4000, -n * 4000, (125, 125, n - 125, n - 125), n / 2 * n + n / 2, Tuning);
             watch.Stop();
-            long bytes = t.Bin.Length + t.Hvf.Length + t.Exposure.Length + t.Present.Length + t.Orographic.Length * 2L + t.Axis.Length + t.TurnWeight.Length + t.Speed.Length + t.BinHvfFeet.Length * 2;
+            long bytes = t.Bin.Length + t.Hvf.Length + t.Exposure.Length + t.Present.Length + (t.CrestFeet.Length + t.CrestMetres.Length + t.UpwindLowFeet.Length) * 2L + t.Axis.Length + t.TurnWeight.Length + t.Speed.Length + t.BinHvfFeet.Length * 2;
             TestContext.Progress.WriteLine($"static inputs at 11 km: {bytes / 1048576.0:F1} MB");
             Budget.AtMost(watch.Elapsed.TotalMilliseconds, 1000, "static inputs at 11 km (1,375² cells)");
 

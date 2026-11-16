@@ -77,18 +77,19 @@ namespace MountainPlanner.Tests
             foreach (int n in classes) if (n > 0) used++;
             Assert.That(used, Is.GreaterThanOrEqualTo(5), "real terrain spreads over the classes");
 
-            // The factor's mean over the box's 512 m cells is 1.0 for every wind, and it isn't flat.
-            int coarse = t.CoarseWidth * t.CoarseDepth;
+            // WX-35 v3: the factor's mean over the box's cells, each at its own height, is 1.0 for every wind, and it isn't flat.
             for (int o = 0; o < 8; o++)
             {
                 long sum = 0;
                 int n = 0, min = int.MaxValue, max = 0;
-                for (int j = 0; j < t.CoarseDepth; j++)
-                    for (int i = 0; i < t.CoarseWidth; i++)
+                for (int j = 0; j < depth; j += 4)
+                    for (int i = 0; i < width; i += 4)
                     {
-                        float x = ring.xMin + (i * 64 + 32) * cell, z = ring.yMin + (j * 64 + 32) * cell;
+                        int c = j * width + i;
+                        if (t.Bin[c] == WeatherTerrain.NoData) continue;
+                        float x = ring.xMin + (i + 0.5f) * cell, z = ring.yMin + (j + 0.5f) * cell;
                         if (x < core.xMin || x >= core.xMax || z < core.yMin || z >= core.yMax) continue;
-                        int v = t.Orographic[o * coarse + j * t.CoarseWidth + i];
+                        int v = t.OrographicAt(o, i, j, Mathf.RoundToInt(elevation[c] / 0.3048f));
                         sum += v; n++;
                         min = Mathf.Min(min, v); max = Mathf.Max(max, v);
                     }
