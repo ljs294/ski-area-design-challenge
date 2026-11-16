@@ -274,6 +274,7 @@ namespace MountainPlanner.App
                 StartBrushRuns(args);      // -brushtour <folder> [-brushmovie], -brushbench <out.json> (MountainViewer.Brush.cs, task P3-15)
                 StartGuestShots(args);     // -guestshot <folder> (MountainViewer.Guests.cs, task 4.12)
                 StartWeatherShots(args);   // -weathershots <folder> (MountainViewer.WeatherReadout.cs, task 4.05)
+                StartWeatherLook(args);    // -wxlook <look>, -wxshots <folder>, -wxdemo, bisect switches (MountainViewer.WeatherLook.cs, task 4.06)
                 StartLakeReport(args);     // -lakereport <folder> (MountainViewer.Lakes.cs, task 4.09)
                 StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
                 StartSkierFigureShots(args);   // -skiershot <folder> [-guests N] (MountainViewer.SkierFigureShots.cs, task 4.22)
@@ -374,6 +375,7 @@ namespace MountainPlanner.App
             UpdateTrailHover();  // and a trail lights and opens its card (task P3-10, sections finding 4)
             _resort?.States?.Sync();
             RunClock();
+            UpdateWeather();   // task 4.06: the weather on screen (MountainViewer.Weather.cs)
             // The Auto theme follows this sun on every screen (task P2-01); nothing happens unless sunrise or sunset passed.
             if (Lighting != null) MountainPlanner.UI.UiPreferences.SetDaylight(Lighting.CurrentLight.SunElevation > 0);
             UpdateHud();
@@ -579,6 +581,7 @@ namespace MountainPlanner.App
             LogChairCost();
             LogSkierTiming();
             LogSkierProof();
+            _weatherView.Dispose();   // task 4.06: the cloud field and the precipitation's material
             _resort?.CacheLease?.Dispose();   // the next scene's viewer holds its own
             DisplayUnits.Changed -= OnUnitsChanged;
             ReleasePhoto();

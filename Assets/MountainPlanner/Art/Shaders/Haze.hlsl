@@ -6,6 +6,9 @@
 #ifndef MOUNTAIN_HAZE
 #define MOUNTAIN_HAZE
 
+// Task 4.06: the weather's fog rides on the haze, so every surface that hazes also fogs.
+#include "Weather.hlsl"
+
 float4 _Haze;          // x: start (m), y: full (m), z: strongest (0-1), w: on (0/1)
 float3 _HazeColor;
 
@@ -13,7 +16,7 @@ half3 ApplyHaze(half3 colour, float3 positionWS)
 {
     float d = distance(positionWS, _WorldSpaceCameraPos);
     float t = saturate((d - _Haze.x) / max(_Haze.y - _Haze.x, 1));
-    return lerp(colour, _HazeColor, t * t * (3 - 2 * t) * _Haze.z * _Haze.w);
+    return WeatherFog(lerp(colour, _HazeColor, t * t * (3 - 2 * t) * _Haze.z * _Haze.w), positionWS);
 }
 
 #endif

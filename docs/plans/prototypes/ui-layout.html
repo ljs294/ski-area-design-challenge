@@ -113,6 +113,30 @@ body.solo .frame { border-radius: 0; }
 .hud .cal .c.today { box-shadow: inset 0 0 0 1.5px var(--text); }
 .hud .cal .c.later { background: transparent; }
 .hud .cal .c.later .num { color: var(--faint); }
+/* WX-46 v2 (task 4.06): the Weather tab as the evening's command centre. Tonight's plate, then Forecast, Season so far
+   or Climate. Solid plates and hairlines, figures in Overpass Mono, words in the sign face. */
+.hud .wxnow { display: flex; align-items: center; gap: 8px; padding: 9px 12px 8px; font: 700 13px 'DotFix', 'Overpass'; }
+.hud .wxnow svg.g { width: 20px; height: 20px; }
+.hud .wxnow .t { color: var(--muted); font: 600 12.5px 'Overpass Mono', monospace; }
+.hud .wxnow .r { margin-left: auto; color: var(--soft); font: 600 12px 'Overpass Mono', monospace; }
+.hud .wxev { display: inline-block; padding: 1px 6px 0; border-radius: 2px; font: 700 11px 'DotFix', 'Overpass'; background: var(--tile); color: var(--text); box-shadow: inset 2px 0 0 var(--pp); }
+.hud .wxev.warn { box-shadow: inset 2px 0 0 var(--warn); color: var(--warn); }
+.hud .wxplate { margin: 0 12px 8px; background: var(--tile); border-radius: 3px; }
+.hud .wxplate .hd2 { display: flex; justify-content: space-between; padding: 7px 10px 3px; font: 700 12.5px 'DotFix', 'Overpass'; color: var(--head); }
+.hud .wxplate .hd2 span + span { color: var(--soft); font-weight: 600; font-size: 11.5px; }
+.hud .wxplate .tbl .r { padding: 4px 10px; border-top-color: var(--hair); }
+.hud .wxplate .tbl .r.th { padding: 3px 10px 2px; }
+.hud .wxplate .note { padding: 5px 10px 7px; border-top: 1px solid var(--hair); font: 600 12px 'DotFix', 'Overpass'; color: var(--muted); display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.hud .wxplate .note b { color: var(--strong); }
+.hud .wxplate .note .warn { color: var(--warn); }
+.hud .wxplate .note .k { color: var(--soft); min-width: 92px; }
+.hud .tbl .r.today { box-shadow: inset 2px 0 0 var(--text); }
+.hud .tbl .lead { color: var(--soft); font: 600 11px 'DotFix', 'Overpass'; }
+.hud .wxkey { display: flex; gap: 12px; padding: 2px 12px 0; font: 600 11px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .wxkey i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--chart-a); vertical-align: middle; margin-right: 4px; }
+.hud .wxlist .r { grid-template-columns: 0.9fr 1.1fr 2fr; }
+.hud .wxweek .n, .hud .wxweek .r.th { white-space: nowrap; }
+.hud .wxweek .r { padding: 4px 12px; }
 .hud svg .cbar.hot { opacity: 1; filter: brightness(1.2); }
 /* the resort stats window: an elevation gauge beside the figures */
 .hud .modal .pn.rstats { width: 560px; }
@@ -741,7 +765,7 @@ body.solo .frame { border-radius: 0; }
     incomeToday: 0, opsToday: 0.09e6, buildToday: 5.68e6, base: 142,
     dayNet: {}, finScale: 'week',   // each finished day's net ($M) as played; the net chart's time scale
     zoom: 1, layers: { snow: true, trees: true, lifts: true, trails: true, making: true, infra: true, labels: true },
-    info: null, contours: false, legendClosed: false, wxView: 'outlook', wxMonth: 0,   // the info layer that's on (slope, aspect, depth), and contours over it
+    info: null, contours: false, legendClosed: false, wxView: 'forecast', wxClim: null, wxMonth: 0,   // the info layer that's on (slope, aspect, depth), and contours over it
     toolbox: false, tab: 'lifts', tool: null, analysis: false, drop: null, sketch: false, modal: null,
     lifts: [
       { id: 'l2', n: 2, name: 'Aspen Quad', a: [548, 616], b: [652, 402], model: 'Fixed 4', built: true },
@@ -797,6 +821,20 @@ body.solo .frame { border-radius: 0; }
       { k: 'trees', label: 'Tree detail', desc: 'How far trees keep their detailed models. Auto times this PC the first time an area opens.', step: ['Auto', 'Low', 'Medium', 'High', 'Ultra'] },
       { k: 'treeTiming', label: 'Auto tree detail', desc: 'Chose High for this PC and screen size.', btn: ['Measure again'] },
       { k: 'textures', label: 'Textures', desc: 'Half and Quarter save graphics memory on older cards.', seg: [['full', 'Full'], ['half', 'Half'], ['quarter', 'Quarter']] },
+    ] },
+    { id: 'weather', title: 'Weather', rows: [
+      { k: 'weather', label: 'Weather on screen', desc: 'Clouds, fog, rain and snow in the air, cloud shadows and storm light. Off shows a clear day.', seg: ONOFF },
+      { k: 'clouds', label: 'Clouds', desc: 'Auto follows the quality preset. 3D clouds cost the most; Flat draws a lighter layer; Off clears the sky.', seg: [['auto', 'Auto'], ['3d', '3D'], ['flat', 'Flat'], ['off', 'Off']] },
+      { k: 'ceiling', label: 'Cloud ceiling', desc: "Keeps the clouds at least 1,000 ft (300 m) above the map's highest point, so the whole mountain stays in view.", seg: ONOFF },
+      { k: 'fog', label: 'Fog and haze', desc: "How thick the haze and fog are, falling snow's included. A storm's murk is mostly cloud: see Cloud ceiling.", range: [0, 100], unit: '%' },
+      { k: 'valleyFog', label: 'Valley fog', desc: "The sea of cloud in the valleys on a cold morning, and a cold snap's ice haze.", seg: ONOFF },
+      { k: 'rays', label: 'Sun rays', desc: 'Shafts of light between the clouds and past the ridges (Medium quality and up).', seg: ONOFF },
+      { k: 'falling', label: 'Falling snow and rain', desc: 'Flakes and drops near the camera, and showers seen from far off.', seg: ONOFF },
+      { k: 'spindrift', label: 'Spindrift', desc: 'Snow blown off the ridges in a strong wind.', seg: ONOFF },
+      { k: 'cloudShadows', label: 'Cloud shadows', desc: "The clouds' shadows drifting across the slopes.", seg: ONOFF },
+      { k: 'stormLight', label: 'Storm light', desc: 'The light greys and dims under cloud and in a storm.', seg: ONOFF },
+      { k: 'treeSway', label: 'Trees sway with the weather', desc: 'Off keeps the trees at your own wind level.', seg: ONOFF },
+      { k: 'sparkle', label: 'Snow sparkle', desc: 'Fresh, cold snow glints in the sun on a clear day.', seg: ONOFF },
     ] },
     { id: 'display', title: 'Display', rows: [
       { k: 'display', label: 'Display mode', desc: 'A window, or the whole screen without a border or with the screen to itself. Alt+Enter switches too.', step: ['Windowed', 'Borderless', 'Fullscreen'] },
@@ -3705,35 +3743,266 @@ body.solo .frame { border-radius: 0; }
   const P2_DIS_TABS = ['guests'];
   const P3_LIVE = ['new-lift', 'new-trail'];   // the tools the game has (P3-06); tasks 08-10 add theirs
   const P2_DIS_LAYERS = ['lifts', 'trails', 'making', 'infra'];
-  // The weather calendar: a month of days. Past days show the snow that fell, the next five the forecast,
-  // later ones only their date. Day 1 (1 September) is the first month you can page back to.
-  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  function calMonth() {
-    const now = new Date(Date.UTC(2026, 8, S.day)), first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + S.wxMonth, 1));
-    const y = first.getUTCFullYear(), m = first.getUTCMonth();
-    return { y, m, n: new Date(Date.UTC(y, m + 1, 0)).getUTCDate(), lead: first.getUTCDay(), dayOf: (date) => Math.round((Date.UTC(y, m, date) - Date.UTC(2026, 8, 1)) / 86400000) + 1 };
+  // WX-46 v2 (task 4.06 mockup; 4.17 wires it): the Weather tab as the evening's command centre. Placeholder weather,
+  // hashed by day like the bar's: the three reference points (base, mid, summit), a cold pool on clear calm nights
+  // (the inversion), snow heavier up high and rain at the base when it's warm. The game reads its ForecastSheet.
+  const WXFT = { summit: 10450, mid: 8380, base: 6310 };
+  const WXBANDS = [['summit', 'Summit'], ['mid', 'Mid'], ['base', 'Base']];
+  const WXSNOW = { summit: 1.35, mid: 1, base: 0.55 };
+  const GUN_WB = -2.8;   // 27 °F wet bulb: guns make snow below it (SM-02's AutoOn)
+  const wxNight = (h) => { const hd = ((h % 24) + 24) % 24; return hd < SUNRISE || hd >= SUNSET; };
+  // A mild spell, so the placeholder teaches: the base too warm for guns in the evening, the snow line partway down.
+  const WXWARM = 9;
+  function wxPool(d, h) {   // °C the base pools below the free air: clear, calm evenings, until the storm's cloud arrives
+    const hd = ((h % 24) + 24) % 24, dd = d + Math.floor(h / 24);
+    if (!wxNight(hd) || snowRate(dd, hd) > 0 || (hd >= 21 && stormCm(dd) > 0) || hd < SUNRISE) return 0;
+    return 5.5 * Math.min(1, (hd - SUNSET) / 4.5) * (0.8 + 0.2 * hash2(dd, 211));
   }
-  function wxMonthNav() {
-    const c = calMonth(), back = c.dayOf(1) > 1, fwd = S.wxMonth < 6;
-    return `<div class="mnav"><span class="sb${back ? '' : ' dis'}" data-act="${back ? 'wxmonth' : ''}" data-v="-1">‹</span><b>${MONTHS[c.m]}</b><span class="sb${fwd ? '' : ' dis'}" data-act="${fwd ? 'wxmonth' : ''}" data-v="1">›</span></div>`;
+  function wxAt(d, h, band) {   // one band's hour: air, wet bulb, snow (cm) or rain (mm)
+    const hd = ((h % 24) + 24) % 24, dd = d + Math.floor(h / 24), free = airAt(dd, hd) + WXWARM, rate = snowRate(dd, hd);
+    const temp = band === 'base' ? free - wxPool(d, h) : band === 'mid' ? free - 2.5 : free - 6.5;
+    const wb = temp - (rate > 0 ? 0.3 : 1.8), wet = rate * WXSNOW[band];
+    return { temp, wb, snow: temp <= 1 ? wet : 0, rain: temp > 1 ? wet * 10 * 0.1 : 0 };
   }
-  function wxCalendar() {
-    const c = calMonth(), ic = (k) => wxIcon(k).replace('class="g"', 'class="g" style="width:14px;height:14px"');
-    let h = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((w) => `<span class="wd">${w}</span>`).join('');
-    for (let i = 0; i < c.lead; i++) h += '<span></span>';
-    for (let date = 1; date <= c.n; date++) {
-      const d = c.dayOf(date), cm = stormCm(d);
-      if (d < 1) { h += `<span class="c later"><span class="top"><span class="num">${date}</span></span></span>`; continue; }
-      const past = d < S.day, today = d === S.day, fc = d >= S.day && d <= S.day + 4;
-      const title = `${dateTxt(d)}: ${past ? (cm ? `${snowAmt(cm)} fell that night` : 'no new snow') : fc ? `${dayWord(d)}, high ${tempTxt(Math.round(airAt(d, 14.5)))}${cm ? `, ${snowAmt(cm)} of snow` : ''}` : 'beyond the forecast'}`;
-      const body = past ? (cm ? `<span class="sn">${snowAmt(cm)}</span>` : '')
-        : fc ? (cm ? `<span class="sn">${snowAmt(cm)}</span>` : `<span class="hi">${tempTxt(Math.round(airAt(d, 14.5)))}</span>`) : '';
-      h += `<span class="c${past ? ' past' : ''}${today ? ' today' : ''}${!past && !fc ? ' later' : ''}" title="${title}"><span class="top"><span class="num">${date}</span>${past || fc ? ic(dayKind(d)) : ''}</span>${body}</span>`;
+  const liqTxt = (mm) => (IMP() ? `${(mm / 25.4).toFixed(2)} in` : `${Math.round(mm)} mm`);
+  const rangeTxt = (a, b, f) => (f(a) === f(b) ? f(a) : `${f(a).replace(/ (in|cm)$/, '')}–${f(b)}`);
+  const tempRange = (a, b) => { const s = (c) => tempTxt(Math.round(c)).replace(/°[FC]$/, '°'); return s(a) === s(b) ? s(a) : `${s(a).replace('°', '')}${s(a).startsWith('−') || s(b).startsWith('−') ? ' to ' : '–'}${s(b)}`; };
+  const DIR8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const stormDir = (d) => DIR8[[5, 6, 5, 7, 4, 6][Math.floor(hash2(d, 401) * 6)]];
+  const turnDir = (d) => DIR8[(DIR8.indexOf(stormDir(d)) + 1) % 8];
+  const dirWord = { N: 'north', NE: 'northeast', E: 'east', SE: 'southeast', S: 'south', SW: 'southwest', W: 'west', NW: 'northwest' };
+  // Tonight: the stop (4:30 PM) to the next opening, per band: the coldest wet bulb, the gun window and the new snow.
+  function wxTonight() {
+    const h0 = LIFTS_CLOSE, h1 = 24 + LIFTS_OPEN, rows = {};
+    for (const [b] of WXBANDS) {
+      let lo = Infinity, snow = 0, rain = 0; const ok = [];
+      for (let h = h0; h < h1; h += 1) { const x = wxAt(S.day, h + 0.5, b); lo = Math.min(lo, x.wb); snow += x.snow; rain += x.rain; ok.push(x.wb <= GUN_WB); }
+      rows[b] = { lo, snow, rain, ok };
     }
-    return `<div class="cal" title="Past days show the snow that fell; the next five days are the forecast.">${h}</div>`;
+    return { h0, h1, rows };
+  }
+  // The gun window as a strip: a cell per hour from the stop to the opening, filled where the guns can run.
+  function gunStrip(ok, h0) {
+    const w = 150, cw = w / ok.length;
+    let s = `<rect x="0" y="3" width="${w}" height="8" rx="1" style="fill:var(--chart-bg);stroke:var(--hair2)"/>`;
+    ok.forEach((v, i) => { if (v) s += `<rect x="${f1(i * cw + 0.5)}" y="3.5" width="${f1(cw - 1)}" height="7" style="fill:var(--pp)"/>`; });
+    for (const hh of [18, 24, 30]) { const x = (hh - h0) * cw; s += `<line x1="${f1(x)}" y1="0" x2="${f1(x)}" y2="14" style="stroke:var(--chart-label)" stroke-width="0.8"/>`; }
+    return `<svg width="${w}" height="14" style="display:block">${s}</svg>`;
+  }
+  function gunWords(ok, h0) {
+    const first = ok.indexOf(true), last = ok.lastIndexOf(true);
+    if (first < 0) return '<span class="lead">No window</span>';
+    const n = ok.filter(Boolean).length;
+    return `<b>${hourLbl(h0 + first)}</b>–<b>${hourLbl(h0 + last + 1)}</b> <span class="lead">${n} h</span>`;
+  }
+  // Tomorrow's summit gusts at each built lift's top against its hold line (the lift card's Holds likely, collected).
+  function liftsAtRisk() {
+    const out = [];
+    for (const l of S.lifts.filter((x) => x.built)) {
+      const hold = holdMph(l.model); if (!hold) continue;
+      const gust = todayGust(l) + 3;
+      if (gust >= hold - 2) out.push({ l, hold, gust, likely: gust >= hold });
+    }
+    return out;
+  }
+  // The week ahead: the truth, softened toward normal and wobbled by lead (WX-05 v3). Precipitation is a range that
+  // widens with lead; a storm's day is a two-day window at 4 days and more; words hedge as the day gets farther.
+  function wxDay(k) {
+    const d = S.day + k, cm = stormCm(d), spread = [0.2, 0.2, 0.2, 0.4, 0.4, 0.5, 0.6, 0.6][k];
+    const phantom = !cm && k >= 5 && hash2(d, 97) < 0.22;
+    const words = cm ? (k <= 2 ? (cm >= 15 ? 'Heavy snow' : 'Snow') : k <= 5 ? 'Snow likely' : 'Unsettled, snow possible')
+      : phantom ? 'Unsettled' : hash2(d, 93) < 0.55 ? 'Sunny' : 'Partly cloudy';
+    const kind = cm ? 'snow' : phantom ? 'cloud' : words === 'Sunny' ? 'sun' : 'few';
+    const chance = cm ? [95, 95, 93, 90, 86, 83, 80, 80][k] : phantom ? 25 : Math.round(5 + hash2(d, 91) * 10);
+    const w = 1 + k * 0.55, hi = airAt(d, 14.5) + WXWARM, lo = Math.min(wxAt(d, 30.5, 'base').temp, airAt(d + 1, 2.5) + WXWARM);
+    const shi = hi - 6.5;
+    const window2 = cm && k >= 4 ? (hash2(d, 403) < 0.5 ? [d - 1, d] : [d, d + 1]) : null;
+    const big = cm >= 15;
+    return { d, k, cm, words, kind, chance, hi: [hi - w, hi + w], lo: [lo - w, lo + w], shi: [shi - w, shi + w], spread, window2, big,
+      snowS: [cm * WXSNOW.summit * (1 - spread), cm * WXSNOW.summit * (1 + spread)], snowB: [cm * WXSNOW.base * (1 - spread), cm * WXSNOW.base * (1 + spread)],
+      line: cm ? WXFT.base + Math.round(Math.max(0, (hi - 1) * 300) / 100) * 100 : null };
+  }
+  const shortDay = (d) => { const dt = new Date(Date.UTC(2026, 8, d)); return `${WD[dt.getUTCDay()]} ${dt.getUTCDate()}`; };
+  function wxOutlook() {
+    const days = []; for (let k = 1; k <= 7; k++) days.push(wxDay(k));
+    const wet = days.filter((x) => x.cm).length, firstWet = days.find((x) => x.cm);
+    if (wet >= 3) return `<b>Active pattern:</b> storms lining up${firstWet && firstWet.k <= 3 ? ' from ' + WD[new Date(Date.UTC(2026, 8, firstWet.d)).getUTCDay()] : ', likely'} through the week.`;
+    if (!wet) return '<b>A ridge is building:</b> dry and cold for several days.';
+    return '';
+  }
+  // The forecast view: tonight and tomorrow hourly (three lines, freezing line, snow bars, inversion tags), then the week.
+  function wxForecast() {
+    const h0 = Math.floor(S.t / 3600), N = 40, w = AW - 24, hgt = 100, top = 10, base = hgt - 36, X = (i) => 34 + i / N * (w - 46);
+    const hrs = []; for (let i = 0; i <= N; i++) { const h = h0 + i, o = { i, hd: h % 24 }; for (const [b] of WXBANDS) o[b] = wxAt(S.day, h + 0.5, b); hrs.push(o); }
+    const all = hrs.flatMap((x) => [x.summit.temp, x.mid.temp, x.base.temp]), tl = Math.min(...all, 0) - 1.5, th = Math.max(...all, 0) + 1.5;
+    const TY = (v) => top + (th - v) / (th - tl) * (base - top);
+    const cw = (w - 46) / N;
+    let ch = '';
+    // nights, then inversion spans (base colder than mid by 4 °F or more), so the lines draw over them
+    for (const x of hrs) if (x.i < N && wxNight(x.hd + 0.5)) ch += `<rect x="${f1(X(x.i))}" y="${top - 6}" width="${f1(cw + 0.2)}" height="${f1(base - top + 6)}" style="fill:var(--chart-bg)"/>`;
+    let inv = null;
+    const invs = [];
+    for (const x of hrs) { const on = x.i < N && x.mid.temp - x.base.temp >= 2.2; if (on && inv === null) inv = x.i; if (!on && inv !== null) { invs.push([inv, x.i]); inv = null; } }
+    for (const [a, b] of invs) ch += `<rect x="${f1(X(a))}" y="${f1(base - 3)}" width="${f1(X(b) - X(a))}" height="3" style="fill:var(--warn)" opacity=".7"/><text x="${f1((X(a) + X(b)) / 2)}" y="${f1(base - 6)}" text-anchor="middle" style="font:700 9.5px 'DotFix','Overpass';fill:var(--warn)">Inversion</text>`;
+    ch += `<line x1="34" y1="${f1(TY(0))}" x2="${w - 12}" y2="${f1(TY(0))}" stroke-dasharray="3 3" style="stroke:var(--soft)"/><text x="30" y="${f1(TY(0) + 3)}" text-anchor="end" style="font:600 9px 'Overpass Mono';fill:var(--soft)">${tempTxt(0)}</text>`;
+    const line = (b, sw, dash, col) => `<path d="${hrs.map((x, k) => `${k ? 'L' : 'M'}${f1(X(x.i))} ${f1(TY(x[b].temp))}`).join('')}" fill="none" stroke-width="${sw}"${dash ? ` stroke-dasharray="${dash}"` : ''} style="stroke:${col}"/>`;
+    ch += line('base', 1.4, '4 2.5', 'var(--chart-a)') + line('mid', 1.2, '', 'var(--soft)') + line('summit', 1.8, '', 'var(--strong)');
+    // precipitation under the axis: snow at mid in blue, rain at the base in amber
+    const pb = hgt - 22;
+    ch += `<line x1="34" y1="${pb}" x2="${w - 12}" y2="${pb}" style="stroke:var(--chart-b)"/>`;
+    for (const x of hrs) if (x.i < N) {
+      const s = x.mid.snow, r = x.base.rain;
+      if (s > 0) { const bh = Math.min(1, s / 1.5) * 16; ch += `<rect x="${f1(X(x.i) + 0.6)}" y="${f1(pb - bh)}" width="${f1(cw - 1.2)}" height="${f1(bh)}" rx="0.8" style="fill:var(--pp)"/>`; }
+      if (r > 0) { const bh = Math.min(1, r / 3) * 16; ch += `<rect x="${f1(X(x.i) + 0.6)}" y="${f1(pb - bh)}" width="${f1(cw - 1.2)}" height="${f1(bh)}" rx="0.8" style="fill:var(--warn)" opacity=".8"/>`; }
+    }
+    for (const x of hrs) if (x.i % 6 === 0 && x.i < N) ch += `<text x="${f1(X(x.i))}" y="${hgt - 8}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label);pointer-events:none">${x.i ? hourLbl(x.hd) : 'now'}</text>`;
+    let tip = '';
+    for (const x of hrs) {
+      if (x.i >= N) continue;
+      const key = `wx:${x.i}`;
+      ch += hoverCol(key, X(x.i), cw, pb, '');
+      if (chartHover === key) {
+        const T = (v) => tempTxt(Math.round(v)).replace(/°[FC]$/, '°'), fall = x.mid.snow ? `snow ${snowAmt(x.mid.snow)}` : x.base.rain ? `rain at base` : 'dry';
+        ch += `<line x1="${f1(X(x.i) + cw / 2)}" y1="${top - 4}" x2="${f1(X(x.i) + cw / 2)}" y2="${pb}" stroke-dasharray="2 2" style="stroke:var(--soft);pointer-events:none"/>`;
+        tip = hoverTip(X(x.i), cw, w, top + 8, `${hhmm(x.hd)} · ${T(x.summit.temp)} ${T(x.mid.temp)} ${T(x.base.temp)} · ${fall}`);
+      }
+    }
+    ch += tip;
+    const key = `<span class="wxkey" style="padding:0"><span title="${lenFt(WXFT.summit)}"><i style="border-top-color:var(--strong)"></i>Summit</span><span title="${lenFt(WXFT.mid)}"><i style="border-top-color:var(--soft)"></i>Mid</span><span title="${lenFt(WXFT.base)}"><i style="border-top:2px dashed var(--chart-a)"></i>Base</span><span><i style="border-top:5px solid var(--pp);width:8px"></i>Snow</span><span><i style="border-top:5px solid var(--warn);width:8px"></i>Rain</span></span>`;
+    const cols = 'grid-template-columns:0.6fr 1.7fr 0.55fr 0.75fr 0.75fr 1.05fr 0.8fr';
+    const rows = []; for (let k = 1; k <= 7; k++) {
+      const x = wxDay(k), win = x.window2 ? `${WD[new Date(Date.UTC(2026, 8, x.window2[0])).getUTCDay()]} or ${WD[new Date(Date.UTC(2026, 8, x.window2[1])).getUTCDay()]}` : '';
+      const short = x.words === 'Unsettled, snow possible' ? 'Unsettled' : x.words;
+      const tag = x.big && k <= 2 ? ' <span class="wxev warn">Big storm</span>' : x.cm && k <= 3 ? ` <span class="lead">from ${stormDir(x.d)}</span>` : win ? ` <span class="lead">${win}</span>` : '';
+      const words = `${wxIcon(x.kind).replace('class="g"', 'class="g" style="width:16px;height:16px"')}<span>${short}${tag}</span>`;
+      const snow = x.cm ? `<b>${rangeTxt(x.snowS[0], x.snowS[1], snowAmt)}</b>` : '—';
+      const T = (r) => (k <= 2 ? tempTxt(Math.round((r[0] + r[1]) / 2)).replace(/°[FC]$/, '°') : tempRange(r[0], r[1]));
+      const dirTxt = x.cm && k <= 3 ? ` From the ${dirWord[stormDir(x.d)]}, turning ${dirWord[turnDir(x.d)]} overnight.` : win ? ` The storm's day isn't firm yet: ${win}.` : '';
+      rows.push(`<div class="r" style="${cols}" title="${dateTxt(x.d)}: ${x.words.toLowerCase()}, ${x.chance}% chance of snow.${dirTxt} Summit high ${tempRange(x.shi[0], x.shi[1])}.${x.cm ? ` Base ${rangeTxt(x.snowB[0], x.snowB[1], snowAmt)}.` : ''}"><span>${shortDay(x.d)}</span><span class="nm">${words}</span><span class="n">${x.chance}%</span><span class="n">${T(x.hi)}</span><span class="n" style="color:var(--soft)">${T(x.lo)}</span><span class="n">${snow}</span><span class="n">${x.line ? lenFt(x.line) : '—'}</span></div>`);
+    }
+    const out = wxOutlook();
+    return `<div class="sub"><span>Tonight and tomorrow, hourly</span>${key}</div>
+      <svg width="${w}" height="${hgt + 2}" style="display:block;margin:4px 12px 0">${ch}</svg>
+      <div class="rule" style="margin-top:6px"></div>
+      <div class="tbl wxweek"><div class="r th" style="${cols}"><span>Week</span><span></span><span class="n">Chance</span><span class="n">High</span><span class="n">Low</span><span class="n">Summit snow</span><span class="n">Snow line</span></div>${rows.join('')}
+      ${out ? `<div class="foot">${out}</div>` : ''}</div>`;
+  }
+  // Season so far: snowfall to date against normal, the days as bars over the spells the season lived (in forecaster's
+  // words, never the generator's states), and the named events. Recomputed from October 1 when the tab opens (WX-56).
+  const SPELL = (d) => { const r = hash2(Math.floor((d - 61) / 6), 1201); return r < 0.28 ? 'ridge' : r > 0.66 ? 'active' : 'zonal'; };
+  const seasonSnow = (d) => (SPELL(d) === 'ridge' ? 0 : stormCm(d - 1) * (SPELL(d) === 'active' ? 1.5 : 0.8));
+  function seasonEvents() {
+    const ev = [];
+    for (let d = 62; d < S.day; d++) {
+      const cm = seasonSnow(d) * WXSNOW.summit;
+      if (cm >= 25) ev.push([d, 'Big storm', `${snowAmt(cm)} at the summit`]);
+      else if (cm >= 10) ev.push([d, 'Storm', `${snowAmt(cm)} at the summit`]);
+      if (seasonSnow(d) >= 15) ev.push([d, 'Powder day', `${snowAmt(seasonSnow(d))} overnight at mid`]);
+      if (hash2(d, 311) < 0.025) { ev.push([d, 'Thaw', 'mid-mountain above freezing all afternoon']); ev.push([d + 1, 'Refreeze', 'icy by morning']); }
+      if (hash2(d, 313) < 0.02) ev.push([d, 'Cold snap', `a high of ${tempTxt(-19)} at the base`]);
+      if (hash2(d, 317) < 0.03) ev.push([d, 'Wind event', `summit gusts to ${IMP() ? '52 mph' : '84 km/h'}`]);
+    }
+    return ev.filter((e) => e[0] < S.day);
+  }
+  function wxSeason() {
+    const d0 = 62, n = S.day - d0, w = AW - 24, hgt = 84, base = hgt - 16, bw = (w - 24) / n;
+    let sum = 0, sumB = 0; const mx = Math.max(20, ...Array.from({ length: n }, (_, i) => seasonSnow(d0 + i) * WXSNOW.summit));
+    let ch = '', spell = null, from = 0;
+    const flush = (to) => { if (spell && spell !== 'zonal') ch += `<rect x="${f1(12 + from * bw)}" y="4" width="${f1((to - from) * bw)}" height="${base - 4}" style="fill:${spell === 'active' ? 'var(--pp)' : 'var(--warn)'}" opacity=".10"/><text x="${f1(12 + from * bw + 3)}" y="14" style="font:700 9px 'DotFix','Overpass';fill:${spell === 'active' ? 'var(--pp)' : 'var(--warn)'}">${(to - from) * bw > 30 ? (spell === 'active' ? 'Active' : 'Dry') : ''}</text>`; };
+    for (let i = 0; i < n; i++) { const s = SPELL(d0 + i); if (s !== spell) { flush(i); spell = s; from = i; } }
+    flush(n);
+    let tip = '';
+    for (let i = 0; i < n; i++) {
+      const d = d0 + i, cm = seasonSnow(d) * WXSNOW.summit; sum += cm; sumB += seasonSnow(d) * WXSNOW.base;
+      const bh = cm / mx * (base - 18), key = `ss:${i}`;
+      ch += hoverCol(key, 12 + i * bw, bw, base, cm ? `<rect class="cbar" x="${f1(12 + i * bw + 0.4)}" y="${f1(base - bh)}" width="${f1(Math.max(0.8, bw - 0.8))}" height="${f1(bh)}" style="fill:var(--chart-a)"/>` : '');
+      if (chartHover === key) tip = hoverTip(12 + i * bw, bw, w, base - bh - 4, `${dateTxt(d)} · ${cm ? snowAmt(cm) + ' at the summit' : 'no new snow'}`);
+      const dt = new Date(Date.UTC(2026, 8, d)); if (dt.getUTCDate() === 1) ch += `<line x1="${f1(12 + i * bw)}" y1="${base}" x2="${f1(12 + i * bw)}" y2="${base + 4}" style="stroke:var(--chart-label)"/><text x="${f1(12 + i * bw + 2)}" y="${base + 13}" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${MON[dt.getUTCMonth()]}</text>`;
+    }
+    ch = `<line x1="12" y1="${base}" x2="${w - 12}" y2="${base}" style="stroke:var(--chart-b)"/>` + ch + tip;
+    const normS = n * 3.3, normB = n * 1.45;   // placeholder normals for the date (cm)
+    const vs = (a, b) => { const p = Math.round((a / b - 1) * 100); return `<span class="lead" title="Normal for the date: ${snowAmt(b)}">${p >= 0 ? '+' : '−'}${Math.abs(p)}%</span>`; };
+    const ev = seasonEvents(), count = (k) => ev.filter((e) => e[1] === k).length;
+    const list = ev.slice(-6).reverse().map(([d, k, t]) => `<div class="r"><span class="lead">${shortDay(d)}</span><span><span class="wxev${['Big storm', 'Thaw', 'Cold snap', 'Wind event'].includes(k) ? ' warn' : ''}">${k}</span></span><span style="color:var(--muted)">${t}</span></div>`).join('');
+    return `<div class="cols">${kvs([['Snowfall, summit', `<b>${snowAmt(sum)}</b> ${vs(sum, normS)}`], ['Snowfall, base', `<b>${snowAmt(sumB)}</b> ${vs(sumB, normB)}`]])}
+      ${kvs([['Storms', `<b>${count('Storm') + count('Big storm')}</b>, ${count('Big storm')} big`], ['Powder days', `<b>${count('Powder day')}</b>`]])}</div>
+      <div class="sub"><span>Day by day since November 1</span><span class="wxkey" style="padding:0"><span><i style="border-top:6px solid var(--chart-a);width:6px"></i>Summit snow</span><span><i style="border-top:8px solid var(--pp);opacity:.35;width:10px"></i>Active spell</span><span><i style="border-top:8px solid var(--warn);opacity:.35;width:10px"></i>Dry ridge</span></span></div>
+      <svg width="${w}" height="${hgt}" style="display:block;margin:4px 12px 0">${ch}</svg>
+      <div class="rule" style="margin-top:4px"></div>
+      <div class="tbl wxlist"><div class="r th"><span>Named this season</span><span></span><span></span></div>${list}
+      <div class="foot">The shading is the weather you've lived through. The winter ahead keeps its secrets.</div></div>`;
+  }
+  // Climate (owner Q15): monthly normal temperatures and precipitation only. No snow-line table, no wind rose.
+  const CLIMATE = [['November', 1.5, -10.5, 58, 64], ['December', -3.5, -15, 71, 99], ['January', -3, -15.5, 69, 102], ['February', -0.5, -14, 56, 81], ['March', 4, -9.5, 61, 74], ['April', 9, -5, 48, 33]];
+  // Climate's two views (owner 2026-11-13): Weekly (the season's 26 weeks as a chart, this week and the next three as rows) and
+  // Seasonal (the monthly table). Weekly opens first in the limited view; Seasonal otherwise.
+  function climAt(day) {
+    const dt = new Date(Date.UTC(2026, 8, day));
+    const mi = Math.max(0, Math.min(CLIMATE.length - 1, ((dt.getUTCMonth() - 10 + 12) % 12) + (dt.getUTCDate() - 15) / 30.4));
+    const i0 = Math.min(CLIMATE.length - 2, Math.floor(mi)), t = mi - i0, a = CLIMATE[i0], b = CLIMATE[i0 + 1];
+    const L = (k) => a[k] + (b[k] - a[k]) * t;
+    return { hi: L(1), lo: L(2), mm: L(3) * 7 / 30.4, cm: L(4) * 7 / 30.4 };
+  }
+  const weekOf = (d) => { const dt = new Date(Date.UTC(2026, 8, d)); return `${MON[dt.getUTCMonth()]} ${dt.getUTCDate()}`; };
+  function climWeekly() {
+    const d0 = 62, weeks = 26, w = AW - 24, hgt = 112, base = hgt - 16, top = 8, bw = (w - 24) / weeks;
+    const wk = Array.from({ length: weeks }, (_, i) => ({ d: d0 + i * 7, ...climAt(d0 + i * 7 + 3) }));
+    const cur = Math.max(0, Math.min(weeks - 1, Math.floor((S.day - d0) / 7)));
+    const tMax = Math.max(...wk.map((x) => x.hi)) + 2, tMin = Math.min(...wk.map((x) => x.lo)) - 2, cmMax = Math.max(...wk.map((x) => x.cm));
+    const ty = (c) => top + (tMax - c) / (tMax - tMin) * (base - top - 4);
+    const cx = (i) => 12 + i * bw + bw / 2;
+    let ch = `<rect x="${f1(12 + cur * bw)}" y="${top - 4}" width="${f1(bw)}" height="${base - top + 4}" style="fill:var(--chart-a)" opacity=".12"/>`;
+    let tip = '';
+    wk.forEach((x, i) => {
+      const bh = x.cm / cmMax * (base - top) * 0.45, key = `cw:${i}`;
+      ch += hoverCol(key, 12 + i * bw, bw, base, `<rect class="cbar" x="${f1(12 + i * bw + 1)}" y="${f1(base - bh)}" width="${f1(bw - 2)}" height="${f1(bh)}" style="fill:var(--chart-a)" opacity=".55"/>`);
+      if (chartHover === key) tip = hoverTip(12 + i * bw, bw, w, ty(x.hi) - 4, `Week of ${weekOf(x.d)} · ${tempTxt(Math.round(x.hi))} / ${tempTxt(Math.round(x.lo))} · ${snowAmt(x.cm)} snow`);
+      const dt = new Date(Date.UTC(2026, 8, x.d)), prev = new Date(Date.UTC(2026, 8, x.d - 7));
+      if (i === 0 || dt.getUTCMonth() !== prev.getUTCMonth()) ch += `<text x="${f1(12 + i * bw + 2)}" y="${base + 13}" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${MON[dt.getUTCMonth()]}</text>`;
+    });
+    const line = (k, style) => `<polyline points="${wk.map((x, i) => `${f1(cx(i))},${f1(ty(x[k]))}`).join(' ')}" style="fill:none;${style}"/>`;
+    const fz = ty(0);
+    ch = `<line x1="12" y1="${base}" x2="${w - 12}" y2="${base}" style="stroke:var(--chart-b)"/>` + ch
+      + (fz > top && fz < base ? `<line x1="12" y1="${f1(fz)}" x2="${w - 12}" y2="${f1(fz)}" style="stroke:var(--chart-label);stroke-dasharray:3 3"/><text x="${w - 14}" y="${f1(fz - 3)}" text-anchor="end" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${tempTxt(0)}</text>` : '')
+      + line('hi', 'stroke:var(--warn);stroke-width:2') + line('lo', 'stroke:var(--pp);stroke-width:2') + tip;
+    const cols = 'grid-template-columns:1.3fr 1fr 1fr 1fr 1.1fr';
+    const rows = wk.slice(cur, cur + 4).map((x, j) => `<div class="r${j === 0 ? ' today' : ''}" style="${cols}"><span>${j === 0 ? 'This week' : 'Week of ' + weekOf(x.d)}</span><span class="n">${tempTxt(Math.round(x.hi))}</span><span class="n">${tempTxt(Math.round(x.lo))}</span><span class="n">${liqTxt(Math.round(x.mm))}</span><span class="n">${snowAmt(x.cm)}</span></div>`).join('');
+    return `<div class="sub"><span>Normal week by week, November to April</span><span class="wxkey" style="padding:0"><span><i style="border-top:2px solid var(--warn);width:10px"></i>High</span><span><i style="border-top:2px solid var(--pp);width:10px"></i>Low</span><span><i style="border-top:6px solid var(--chart-a);opacity:.55;width:6px"></i>Snow</span></span></div>
+      <svg width="${w}" height="${hgt}" style="display:block;margin:4px 12px 0">${ch}</svg>
+      <div class="rule" style="margin-top:4px"></div>
+      <div class="tbl"><div class="r th" style="${cols}"><span>Normals at ${lenFt(WXFT.base)}</span><span class="n">High</span><span class="n">Low</span><span class="n">Precipitation</span><span class="n">As snow</span></div>${rows}`;
+  }
+  function climSeasonal() {
+    const cur = new Date(Date.UTC(2026, 8, S.day)).getUTCMonth(), cols = 'grid-template-columns:1.3fr 1fr 1fr 1fr 1.1fr';
+    const rows = CLIMATE.map(([m, hi, lo, mm, cm]) => `<div class="r${MONTHS[cur] === m ? ' today' : ''}" style="${cols}"><span>${m}</span><span class="n">${tempTxt(hi)}</span><span class="n">${tempTxt(lo)}</span><span class="n">${liqTxt(mm)}</span><span class="n">${snowAmt(cm)}</span></div>`).join('');
+    return `<div class="tbl"><div class="r th" style="${cols}"><span>Normals at ${lenFt(WXFT.base)}</span><span class="n">High</span><span class="n">Low</span><span class="n">Precipitation</span><span class="n">As snow</span></div>${rows}`;
+  }
+  function wxClimate() {
+    const mode = S.wxClim || (S.wxLimited ? 'weekly' : 'season');
+    return `<div class="wxsw" style="padding-top:2px">${qseg('wxclim', mode, [['weekly', 'Weekly'], ['season', 'Seasonal']])}</div>
+      ${mode === 'weekly' ? climWeekly() : climSeasonal()}
+      <div class="foot">${S.wxLimited ? '<b style="color:var(--warn)">Limited data.</b> This area plays a typical western mountain\'s weather until Get weather finishes for it.' : 'From 20 winters of records, 2005 to 2024.'}</div></div>`;
+  }
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function weatherTab() {
+    const wx = weather(S.t), b = wxAt(S.day, S.t / 3600, 'base'), s = wxAt(S.day, S.t / 3600, 'summit');
+    const T = (v) => tempTxt(Math.round(v)).replace(/°[FC]$/, '°'), event = wx.rate >= 2 ? '<span class="wxev">Storm</span>' : '';
+    const now = `<div class="wxnow">${wxIcon(wx.kind)}${wx.desc}${event}<span class="t">Base ${T(b.temp)} · Summit ${T(s.temp)}</span><span class="r">Summit wind ${windTxt(wx.dir, Math.round(wx.kmh * 1.6))}</span></div>`;
+    const tn = wxTonight(), cols = 'grid-template-columns:0.9fr 0.9fr 1.7fr 1.3fr 0.9fr';
+    const rows = WXBANDS.map(([k, name]) => { const r = tn.rows[k]; return `<div class="r" style="${cols}"><span>${name}</span><span class="n" style="color:var(--soft)">${lenFt(WXFT[k])}</span><span>${gunStrip(r.ok, tn.h0)}</span><span class="n">${gunWords(r.ok, tn.h0)}</span><span class="n">${r.snow > 0.05 ? `<b>${snowAmt(r.snow)}</b>` : r.rain > 0 ? '<span class="warn">rain</span>' : '—'}</span></div>`; }).join('');
+    const risk = liftsAtRisk();
+    const riskTxt = risk.length ? risk.map((x) => `<span class="${x.likely ? 'warn' : ''}"><b style="color:inherit">${esc(x.l.name)}</b> gusts ${x.gust} mph, holds at ${x.hold}${x.likely ? ' · likely 11 AM–2 PM' : ' · close'}</span>`).join('<span>·</span>') : '<span>No holds expected</span>';
+    const tonight = `<div class="wxplate"><div class="hd2"><span>Tonight · ${hhmm(tn.h0)} to ${hhmm(LIFTS_OPEN)}</span><span>Forecast issued ${hhmm(LIFTS_CLOSE)}</span></div>
+      <div class="tbl"><div class="r th" style="${cols}"><span></span><span></span><span>Gun window</span><span class="n" style="font-weight:600">wet bulb ≤ ${tempTxt(GUN_WB)}</span><span class="n">New snow</span></div>${rows}</div>
+      <div class="note"><span class="k">Tomorrow's lifts</span>${riskTxt}</div></div>`;
+    const view = S.wxView === 'season' ? wxSeason() : S.wxView === 'climate' ? wxClimate() : wxForecast();
+    return `${now}<div class="rule"></div><div style="height:8px"></div>${tonight}
+      <div class="wxsw">${qseg('wxview', S.wxView, [['forecast', 'Forecast'], ['season', 'Season so far'], ['climate', 'Climate']])}${S.wxLimited ? '<span class="lead" style="color:var(--warn)">Limited data</span>' : ''}</div>
+      ${view}`;
   }
   function analysisBody() {
     if (S.atab === 'network') return networkTab();   // task P3-10: the game has it in Phase 3
+    if (S.atab === 'weather' && (S.wx46 || !S.p2)) return weatherTab();   // task 4.06: WX-46 v2
     if (S.p2) return `<div class="empty" data-ui="analysis-empty">${P2_EMPTY[S.atab]}</div>`;
     const wx = weather(S.t), open = isOpen(), built = S.lifts.filter((l) => l.built), waits = built.map(waitFor);
     const avgWait = waits.length && S.skiers ? waits.reduce((a, b) => a + b, 0) / waits.length : 0;
@@ -3784,42 +4053,6 @@ body.solo .frame { border-radius: 0; }
       return `<div class="cols">${kvs([['Conditions', `<span class="word">${lampHtml(cond[1])}${cond[0]}</span>`], ['Air', tempTxt(wx.temp)], ['Guns', `<b>${guns}</b>`], ['Running now', `<b>${running}</b>`]])}
         ${kvs([['Water lines', distTxt(lines)], ['Pump houses', `<b>${pumps}</b>`], ['Water used today', waterTxt(guns * 0.6 * 0.45 * 60 * hoursRun)], ['Snow base', snowAmt(S.base)]])}</div>
         <div class="hint" style="border-top:1px solid var(--hair)">Guns run overnight, ${hhmm(19)} to ${hhmm(7)}, whenever the air is below ${tempTxt(-2)}. Natural snow tonight: ${snowAmt(stormCm(S.day))}.</div>`;
-    }
-    if (S.atab === 'weather') {
-      // Now, the next 24 hours as a chart (air temperature over snowfall), then the week ahead.
-      const h0 = S.t / 3600, w = AW - 24, hgt = 92, top = 14, base = hgt - 16, X = (i) => 12 + i / 24 * (w - 24);
-      const hrs = []; for (let i = 0; i <= 24; i++) { const hh = h0 + i, d = S.day + Math.floor(hh / 24), hd = hh % 24; hrs.push({ i, hd, temp: airAt(d, hd), rate: snowRate(d, hd) }); }
-      const tl = Math.min(...hrs.map((x) => x.temp)) - 1, th = Math.max(...hrs.map((x) => x.temp)) + 1, TY = (v) => top + (th - v) / (th - tl) * (base - top - 18);
-      let ch = `<line x1="12" y1="${base}" x2="${w - 12}" y2="${base}" style="stroke:var(--chart-b)"/>`;
-      for (const x of hrs) if (x.i < 24 && x.rate > 0) { const bh = Math.min(1, x.rate / 3) * 26; ch += `<rect x="${f1(X(x.i) + 1)}" y="${f1(base - bh)}" width="${f1((w - 24) / 24 - 2)}" height="${f1(bh)}" rx="1" style="fill:var(--pp)" opacity=".85"/>`; }
-      ch += `<path d="${hrs.map((x, k) => `${k ? 'L' : 'M'}${f1(X(x.i))} ${f1(TY(x.temp))}`).join('')}" fill="none" stroke-width="1.6" style="stroke:var(--chart-a)"/>`;
-      const hi = hrs.reduce((a, b) => (b.temp > a.temp ? b : a)), lo = hrs.reduce((a, b) => (b.temp < a.temp ? b : a));
-      for (const x of [hi, lo]) ch += `<circle cx="${f1(X(x.i))}" cy="${f1(TY(x.temp))}" r="2.4" style="fill:var(--chart-a)"/><text x="${f1(X(x.i))}" y="${f1(TY(x.temp) - 6)}" text-anchor="middle" style="font:600 10px 'Overpass Mono';fill:var(--muted)">${tempTxt(Math.round(x.temp))}</text>`;
-      for (const x of hrs) if (x.i % 3 === 0 && x.i < 24) ch += `<text x="${f1(X(x.i))}" y="${hgt - 2}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label);pointer-events:none">${x.i ? hourLbl(x.hd) : 'now'}</text>`;
-      // Hover an hour: a guide, a dot on the temperature line, and the hour's air and snowfall.
-      const cw = (w - 24) / 24;
-      let wtip = '';
-      for (const x of hrs) {
-        const key = `wx:${x.i}`;
-        ch += hoverCol(key, X(x.i) - cw / 2, cw, base, '');
-        if (chartHover === key) {
-          const ty = TY(x.temp);
-          ch += `<line x1="${f1(X(x.i))}" y1="${top - 4}" x2="${f1(X(x.i))}" y2="${base}" stroke-dasharray="2 2" style="stroke:var(--soft);pointer-events:none"/><circle cx="${f1(X(x.i))}" cy="${f1(ty)}" r="3" style="fill:var(--strong);pointer-events:none"/>`;
-          wtip = hoverTip(X(x.i) - cw / 2, cw, w, Math.min(ty, base - 30), `${x.i ? hhmm(x.hd) : 'Now'} · ${tempTxt(Math.round(x.temp))} · ${x.rate ? `snow ${snowAmt(x.rate)}/h` : 'no snow'}`);
-        }
-      }
-      ch += wtip;
-      const sunTxt = `${hhmm(SUNRISE)} – ${hhmm(SUNSET)}`;
-      const days = []; for (let k = 0; k < 5; k++) { const d = S.day + k, hiT = Math.round(airAt(d, 14.5)), loT = Math.round(airAt(d + 1, 2.5)), cm = stormCm(d); days.push(`<div class="r" style="grid-template-columns:1.1fr 1.6fr 0.9fr 0.9fr"><span>${k ? dateTxt(d) : 'Today'}</span><span class="nm">${wxIcon(dayKind(d)).replace('class="g"', 'class="g" style="width:16px;height:16px"')}${dayWord(d)}</span><span class="n">${tempTxt(hiT)} / ${tempTxt(loT)}</span><span class="n" style="color:${cm ? 'var(--pp)' : ''}">${cm ? snowAmt(cm) : '—'}</span></div>`); }
-      return `<div class="statusline">${wxIcon(wx.kind)}${wx.desc}<span class="t">${tempTxt(wx.temp)}</span><span class="r">Wind ${windTxt(wx.dir, wx.kmh)}</span></div><div class="rule"></div>
-        <div class="sub"><span>Next 24 hours</span><span>air temperature over snowfall</span></div>
-        <svg width="${w}" height="${hgt}" style="display:block;margin:4px 12px 0">${ch}</svg>
-        <div class="rule" style="margin-top:6px"></div>
-        <div class="cols">${kvs([['Snowing now', wx.rate ? `<b>${snowAmt(wx.rate)}</b> an hour` : 'No'], ['Next 24 hours', `<b>${snowAmt(wx.fc)}</b>`], ['Last 24 hours', `<b>${snowAmt(wx.fell)}</b>`]])}
-        ${kvs([['Snow base', `<b>${snowAmt(S.base)}</b>`], ['Daylight', sunTxt], ['Snowmaking', wx.temp <= -2 ? 'cold enough' : 'too warm']])}</div>
-        <div class="rule"></div>
-        <div class="wxsw">${qseg('wxview', S.wxView, [['outlook', 'Outlook'], ['calendar', 'Calendar']])}${S.wxView === 'calendar' ? wxMonthNav() : ''}</div>
-        ${S.wxView === 'calendar' ? wxCalendar() : `<div class="tbl"><div class="r th" style="grid-template-columns:1.1fr 1.6fr 0.9fr 0.9fr"><span>Next five days</span><span></span><span class="n">High / low</span><span class="n">New snow</span></div>${days.join('')}</div>`}`;
     }
     if (S.atab === 'amenities') {
       const lodges = 3 + S.things.filter((t) => t.kind === 'lodge' && t.built).length, seats = 1450 + (lodges - 3) * 300;
@@ -4620,7 +4853,8 @@ body.solo .frame { border-radius: 0; }
       case 'sdone': S.modal = null; break;
       case 'controls': S.drop = null; S.stab = 'controls'; S.modal = { settings: true }; break;
       case 'atab': S.atab = v; break;
-      case 'wxview': S.wxView = v; S.wxMonth = 0; break;
+      case 'wxview': S.wxView = v; break;
+      case 'wxclim': S.wxClim = v; break;
       case 'wxmonth': S.wxMonth += +v; break;
       case 'finscale': S.finScale = v; break;
       case 'aopen': if (S.analysis && S.atab === v) S.analysis = false; else { S.analysis = true; S.atab = v; S.toolbox = false; S.tool = null; S.draft = null; S.sel = null; } break;
@@ -5057,7 +5291,15 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('auto')) S.theme = 'auto';
     for (const x of SETTINGS) if (d.includes('set' + x.id)) { S.modal = { settings: true }; S.stab = x.id; }
     if (d.includes('h24')) S.set.clock = '24';
-    if (d.includes('wxcal')) S.wxView = 'calendar';
+    // wx46 (task 4.06): the Weather tab as WX-46 v2 designs it, even under p2; wxseason and wxclimate its other views;
+    // wxlimited the line an area without its own weather shows.
+    if (d.includes('wx46')) S.wx46 = true;
+    if (d.includes('wxseason') || d.includes('wxcal')) S.wxView = 'season';
+    if (d.includes('wxclimate')) S.wxView = 'climate';
+    if (d.includes('wxlimited')) S.wxLimited = true;
+    // wxweekly / wxseasonal: Climate's view, over the default (Weekly in the limited view, Seasonal otherwise).
+    if (d.includes('wxweekly')) S.wxClim = 'weekly';
+    if (d.includes('wxseasonal')) S.wxClim = 'season';
     if (d.includes('finmonth')) S.finScale = 'month';
     if (d.includes('finseason')) S.finScale = 'season';
     const hv = d.find((x) => /^hov\d+$/.test(x)); if (hv) chartHover = (S.atab === 'finances' ? `fin:${S.finScale}:` : S.atab === 'weather' ? 'wx:' : 'ov:') + hv.slice(3);
@@ -5085,6 +5327,7 @@ body.solo .frame { border-radius: 0; }
       if (d.includes('netarea')) { const a = netOf().areas[0]; if (a) { S.netNode = a.id; S.focus = 'area:' + a.id; } }   // NT19: Aspen Quad & Beaver Double base, its card
       if (d.includes('netnode')) { const js = netOf().nodes.filter((x) => x.kind === 'junction').sort((a, b) => b.p[1] - a.p[1]); if (js.length) S.netNode = js[0].id; }   // finding 7: where Catwalk meets Bighorn
     }
+    if (S.wx46 && d.includes('aweather')) { S.analysis = true; S.atab = 'weather'; S.t = 16.75 * 3600; }   // the evening, with the sheet just issued
     if (d.includes('sortlen')) { S.af.lifts.sort = 'len-down'; S.af.trails.sort = 'len-down'; }
     if (d.includes('filtmenu')) { S.af[S.atab === 'trails' ? 'trails' : 'lifts'].on = true; S.afMenu = `${S.atab === 'trails' ? 'trails' : 'lifts'}:len`; }
     if (d.includes('compact')) S.set.money = 'compact';

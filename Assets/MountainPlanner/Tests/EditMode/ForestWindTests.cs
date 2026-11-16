@@ -60,6 +60,20 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void ClearingTheWeatherEasesBackToThePlayersLevel()
+        {
+            var wind = new ForestWind(ForestWind.Level.Calm);
+            wind.SetWeather(40, 180);
+            for (int i = 0; i < 240; i++) wind.Advance(1f / 60);
+            Assert.That(wind.Weathered, Is.True);
+            Assert.That(wind.Strength, Is.GreaterThan(1f));
+            wind.ClearWeather();
+            Assert.That(wind.Weathered, Is.False, "Weather on screen off lets go of the trees");
+            for (int i = 0; i < 600; i++) wind.Advance(1f / 60);
+            Assert.That(wind.Strength, Is.EqualTo(0f), "back to the player's Calm");
+        }
+
+        [Test]
         public void DirectionIsAUnitVectorNearTheBaseDirection()
         {
             var wind = new ForestWind();

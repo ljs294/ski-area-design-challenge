@@ -14,12 +14,13 @@ Shader "Hidden/MountainPlanner/DesignLine"
     }
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "Queue" = "Geometry+10" "RenderPipeline" = "UniversalPipeline" }
+        Tags { "RenderType" = "Opaque" "Queue" = "AlphaTest+45" "RenderPipeline" = "UniversalPipeline" }
         Pass
         {
             Name "DesignLine"
             Tags { "LightMode" = "UniversalForward" }
             ZWrite On ZTest LEqual Cull Off
+            Stencil { Ref 8 WriteMask 8 Comp Always Pass Replace }   // task 4.06: the weather's screen pass doesn't fog the design's lines (WeatherVolume)
 
             HLSLPROGRAM
             #pragma vertex Vert

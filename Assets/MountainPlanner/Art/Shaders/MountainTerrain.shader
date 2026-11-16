@@ -257,6 +257,8 @@ Shader "MountainPlanner/Terrain"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_fragment _ WX_AIR WX_VEIL   // task 4.06: the weather's fog while something's in the air; only its snow-line veil while the screen pass draws the air (WeatherView)
+            #pragma multi_compile_fragment _ WX_GLINT   // task 4.06: the bluebird's sparkle, only near the ground
             #pragma target 4.5
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
@@ -813,6 +815,7 @@ Shader "MountainPlanner/Terrain"
                 albedo = ApplyPaint(albedo, i.positionWS.xz);
                 normal = normalize(normal);
                 smooth /= total;
+                WeatherSurface(normal, smooth, n, i.positionWS);   // task 4.06: flat light under a closed deck, wet ground in the rain
 
                 Light sun = MainLightWithFarShadow(i.positionWS);
                 float3 view = normalize(GetWorldSpaceViewDir(i.positionWS));
@@ -831,6 +834,8 @@ Shader "MountainPlanner/Terrain"
                 sun.shadowAttenuation *= 1 - 0.5 * under * farFade;
                 float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation * lerp(1, crease, 0.5) + SampleSH(normal) * skyLight)
                            + sun.color * spec * sun.shadowAttenuation;
+                // Task 4.06: the bluebird's sparkle on fresh snow, last (WX_GLINT), so its sums don't keep the layers' registers.
+                lit += sun.color * (WeatherGlint(i.positionWS, normal, h, albedo) * sun.shadowAttenuation);
                 lit = ApplyContours(lit, i.positionWS.y, ContourElevation(i.uv, i.positionWS.y));
                 lit = MixFog(lit, i.fog);
                 return half4(ApplyHaze(lit, i.positionWS), 1);

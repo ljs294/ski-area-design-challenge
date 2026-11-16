@@ -30,7 +30,7 @@ Shader "MountainPlanner/LiftStructure"
     }
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "Queue" = "Geometry" "RenderPipeline" = "UniversalPipeline" }
+        Tags { "RenderType" = "Opaque" "Queue" = "AlphaTest+40" "RenderPipeline" = "UniversalPipeline" }
 
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -82,6 +82,7 @@ Shader "MountainPlanner/LiftStructure"
         {
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
+            Stencil { Ref 8 WriteMask 8 Comp Always Pass Replace }   // task 4.06: the weather's screen pass leaves these pixels alone (WeatherVolume)
             Blend [_SrcBlend] [_DstBlend]
             ZWrite [_ZWrite]
             Cull Back
@@ -90,6 +91,7 @@ Shader "MountainPlanner/LiftStructure"
             #pragma target 3.5
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_fragment _ WX_AIR WX_KEEP   // task 4.06: the weather's fog while something's in the air; WX_KEEP while the screen pass draws the air and skips this (WeatherView)
             #pragma shader_feature_local_fragment _LIFT_GLASS
             #if defined(_LIFT_GLASS)
                 // URP scales only the diffuse by alpha (blend One, OneMinusSrcAlpha). The 1 matters: URP tests it with
@@ -113,6 +115,7 @@ Shader "MountainPlanner/LiftStructure"
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
+            #include "Weather.hlsl"
 
             struct Attributes
             {
@@ -215,6 +218,7 @@ Shader "MountainPlanner/LiftStructure"
 
                 half4 color = UniversalFragmentPBR(input, surface);
                 color.rgb = MixFog(color.rgb, input.fogCoord);
+                color.rgb = WeatherFogKeep(color.rgb, i.positionWS, 0.25h);   // task 4.06: the weather, silhouette kept
                 #if defined(_LIFT_GLASS)
                     color.a = glassAlpha;
                 #else

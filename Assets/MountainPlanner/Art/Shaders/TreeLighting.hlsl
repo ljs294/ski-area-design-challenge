@@ -1,6 +1,8 @@
 // Tree lighting, shared by TreeInstanced.shader and TreeImpostor.shader. Include after URP Lighting.hlsl.
 #ifndef MOUNTAIN_TREE_LIGHTING
 #define MOUNTAIN_TREE_LIGHTING
+// Task 4.06: crowns take the weather's cheaper path (one curtain tap, no snow-line fringe): they are most of the screen's pixels.
+#define WX_COARSE_SHADOW 1
 #include "FarShadow.hlsl"
 // Foliage: wrapped diffuse (needles pass light, so crowns never go black), ambient from the sky, both
 // darkened by the crown's own occlusion, plus a glow when the sun is behind the tree.

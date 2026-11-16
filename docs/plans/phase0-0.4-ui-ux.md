@@ -190,7 +190,9 @@ Resume, Settings, My Mountains, Main menu, Quit to desktop.
 
 **As built (task P2-05; decisions ST1–ST7):** the accepted mockup's window with six pages built from one table in
 `SettingsWindow`: Interface (theme, scale), Units and time, Graphics (preset or Custom, render scale, anti-aliasing,
-shadows, shadow distance, terrain detail, terrain shading, tree detail with Auto and Measure again, textures), Display
+shadows, shadow distance, terrain detail, terrain shading, tree detail with Auto and Measure again, textures), since task 4.06 Weather (weather on screen, clouds Auto/3D/Flat/Off, a cloud
+ceiling 1,000 ft over the map's highest point, fog and haze 0–100%, and each part on or off: valley fog, sun rays, falling snow
+and rain, spindrift, cloud shadows, storm light, trees swaying with the weather, snow sparkle), Display
 (window mode, resolution with 21:9 and 32:9, V-Sync, frame-rate limit, vertical field of view, and a 15-second "Keep
 these settings?" after a display change), Controls (invert scroll zoom, zoom speed, every key rebindable) and Data
 (library folder, disk use with Free space, offline mode). Everything applies at once; nothing needs a restart. Audio

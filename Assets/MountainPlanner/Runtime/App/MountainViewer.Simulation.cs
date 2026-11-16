@@ -49,9 +49,6 @@ namespace MountainPlanner.App
         bool _simWeatherTerrainSent, _simWaterSent, _simHoldReleased, _simHoldSaid;
         bool _simWeatherPointsSent;
 
-        /// <summary>How far the face clock runs ahead of the sun before the sun catches up (an eighth of a degree).</summary>
-        const int SunPushSeconds = 30;
-
         /// <summary>App's real time for the worker: the one stopwatch the simulation is paced by (never inside its state).</summary>
         sealed class StopwatchTime : IRealTime
         {
@@ -122,6 +119,7 @@ namespace MountainPlanner.App
             _simTilesShown = 0;
             FollowSavesForSimulation(OpenDesign.Current);
             _ropes = new RopeClock(pacing);
+            _sunClock = new FaceClock();
             _onSimEvent ??= OnSimEvent;
             _simWasPaused = true;
             _shownSimSeasonDay = -1;
@@ -334,6 +332,7 @@ namespace MountainPlanner.App
             // symbol, leaving, the autosave), as an edit does.
             if (!_simMarkedChanged && s.Tick > _simTickSaved && _simSavesFor != null) { _simSavesFor.MarkChanged(); _simMarkedChanged = true; }
             _ropes.Advance(s, Mathf.Min(0.25f, Time.unscaledDeltaTime), Pacing.Default.TickMs);
+            _sunClock.Advance(s, Mathf.Min(0.25f, Time.unscaledDeltaTime), Pacing.Default.TickMs);   // task 4.06
             _simEvents.Read(s, _onSimEvent);
             _simClock.Feed(s);
             if (s.Phase == SeasonPhase.Season && s.SeasonDay != _shownSimSeasonDay)
@@ -348,8 +347,7 @@ namespace MountainPlanner.App
                 _simWasPaused = true;
                 return;
             }
-            var now = _simClock.Now;
-            if (_simWasPaused || Math.Abs(SecondsBetween(now, _sunPushed)) >= SunPushSeconds) PushSun(now);
+            PushSunEveryFrame(_simClock.Now);   // task 4.06
             _simWasPaused = false;
         }
 
@@ -359,10 +357,6 @@ namespace MountainPlanner.App
             Lighting.SetTime(t);
             _sunPushed = t;
         }
-
-        static long SecondsBetween(ViewTime a, ViewTime b) => a.Year == b.Year
-            ? (long)(a.DayOfYear - b.DayOfYear) * ViewTime.SecondsPerDay + a.SecondOfDay - b.SecondOfDay
-            : 366L * ViewTime.SecondsPerDay;
 
         void OnSimEvent(SimEvent e)
         {

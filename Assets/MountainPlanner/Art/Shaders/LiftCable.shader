@@ -11,17 +11,20 @@ Shader "MountainPlanner/LiftCable"
     }
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" "Queue" = "Geometry" }
+        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" "Queue" = "AlphaTest+40" }   // after every other solid thing: its stencil mark must be the last word on its pixels (task 4.06)
         Pass
         {
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
+            Stencil { Ref 8 WriteMask 8 Comp Always Pass Replace }   // task 4.06: the weather's screen pass leaves these pixels alone (WeatherVolume)
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_fragment _ WX_AIR WX_KEEP   // task 4.06: the weather's fog while something's in the air; WX_KEEP while the screen pass draws the air and skips this (WeatherView)
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Weather.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _Color;
@@ -67,7 +70,7 @@ Shader "MountainPlanner/LiftCable"
                 float3 lit = _Color.rgb * (sun.color * ndl * sun.shadowAttenuation + SampleSH(n)) + spec * sun.color * sun.shadowAttenuation;
                 // A rope thinner than a pixel covers only part of it: lean toward the sky behind as it thins.
                 lit = lerp(SampleSH(float3(0, 1, 0)) * 0.9, lit, lerp(0.55, 1, i.thin));
-                return half4(MixFog(lit, i.fog), 1);
+                return half4(WeatherFogKeep(MixFog(lit, i.fog), i.positionWS, 0.15h), 1);   // task 4.06: the weather
             }
             ENDHLSL
         }

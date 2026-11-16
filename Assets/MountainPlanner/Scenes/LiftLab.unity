@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 2100000, guid: bab0205acc0b8074a81fe346a7d2a1dc, type: 2}
+  m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -37,7 +37,7 @@ RenderSettings:
   m_ReflectionBounces: 1
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
-  m_Sun: {fileID: 527627003}
+  m_Sun: {fileID: 190669685}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &527627002
+--- !u!1 &190669684
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,8 +127,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 527627004}
-  - component: {fileID: 527627003}
+  - component: {fileID: 190669686}
+  - component: {fileID: 190669685}
   m_Layer: 0
   m_Name: Sun
   m_TagString: Untagged
@@ -136,13 +136,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!108 &527627003
+--- !u!108 &190669685
 Light:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 527627002}
+  m_GameObject: {fileID: 190669684}
   m_Enabled: 1
   serializedVersion: 12
   m_Type: 1
@@ -201,13 +201,13 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
---- !u!4 &527627004
+--- !u!4 &190669686
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 527627002}
+  m_GameObject: {fileID: 190669684}
   serializedVersion: 2
   m_LocalRotation: {x: 0.07782839, y: 0.9212198, z: -0.29045948, w: 0.24684013}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -216,7 +216,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &641191602
+--- !u!1 &469378890
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -224,9 +224,75 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 641191605}
-  - component: {fileID: 641191604}
-  - component: {fileID: 641191603}
+  - component: {fileID: 469378893}
+  - component: {fileID: 469378892}
+  - component: {fileID: 469378891}
+  m_Layer: 0
+  m_Name: Lift Lab
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &469378891
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 469378890}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 753839a645033e24597c94a1ddd2e18a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: MountainPlanner.App::MountainPlanner.App.LiftLabOverlay
+  Lab: {fileID: 469378892}
+--- !u!114 &469378892
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 469378890}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 070844ad05f3d9047a9be23c2a3ed89f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: MountainPlanner.App::MountainPlanner.App.LiftLab
+  Models: {fileID: 11400000, guid: c25d4e59e2f71bb4a8fff3310202bfff, type: 2}
+  Structure: {fileID: 2100000, guid: 69e846a2a29764c4d8eb3a6037092fda, type: 2}
+  Glass: {fileID: 2100000, guid: e76214511235fcc4a86eb86a789af2e2, type: 2}
+  Chair: {fileID: 2100000, guid: 647087dd2f0bb084bb7eb1b0abeec574, type: 2}
+  RopeMaterial: {fileID: 2100000, guid: a7d1ba7f7bedfac4ab8ca1c96a8562c5, type: 2}
+  GroundMaterial: {fileID: 2100000, guid: 4fca7d34716a95a468e4347da1ca958d, type: 2}
+  Camera: {fileID: 1360137856}
+  Overlay: {fileID: 469378891}
+--- !u!4 &469378893
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 469378890}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1360137855
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1360137858}
+  - component: {fileID: 1360137857}
+  - component: {fileID: 1360137856}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -234,36 +300,50 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &641191603
+--- !u!114 &1360137856
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 641191602}
+  m_GameObject: {fileID: 1360137855}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ffb6951a7e00410994f33cb0d3808ea7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: MountainPlanner.Presentation::MountainPlanner.Presentation.ViewCamera
+  Ring:
+    serializedVersion: 2
+    x: 0
+    y: 0
+    width: 0
+    height: 0
+  HasRing: 0
+  PlinthTop: -Infinity
+  SnowDepth: 0.3048
+  Clearance: 0.5
+  TargetRidesGround: 1
+  OutsideRing: 2000
   Target: {x: 0, y: 0, z: 0}
   Distance: 30
   Yaw: 200
   Pitch: 24
-  MinClearance: 3
   ZoomStep: 0.25
   MinDistance: 1.5
   MaxDistance: 20000
   RotateSpeed: 90
   TiltSpeed: 45
   Smoothing: 12
---- !u!20 &641191604
+  LettersToTools: 0
+  InputEnabled: 1
+  FollowSmoothSeconds: 0.25
+--- !u!20 &1360137857
 Camera:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 641191602}
+  m_GameObject: {fileID: 1360137855}
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 1
@@ -308,79 +388,13 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
---- !u!4 &641191605
+--- !u!4 &1360137858
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 641191602}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1922615941
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1922615944}
-  - component: {fileID: 1922615943}
-  - component: {fileID: 1922615942}
-  m_Layer: 0
-  m_Name: Lift Lab
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1922615942
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1922615941}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 753839a645033e24597c94a1ddd2e18a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: MountainPlanner.App::MountainPlanner.App.LiftLabOverlay
-  Lab: {fileID: 1922615943}
---- !u!114 &1922615943
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1922615941}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 070844ad05f3d9047a9be23c2a3ed89f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: MountainPlanner.App::MountainPlanner.App.LiftLab
-  Models: {fileID: 11400000, guid: c25d4e59e2f71bb4a8fff3310202bfff, type: 2}
-  Structure: {fileID: 2100000, guid: 69e846a2a29764c4d8eb3a6037092fda, type: 2}
-  Glass: {fileID: 2100000, guid: e76214511235fcc4a86eb86a789af2e2, type: 2}
-  Chair: {fileID: 2100000, guid: 647087dd2f0bb084bb7eb1b0abeec574, type: 2}
-  RopeMaterial: {fileID: 2100000, guid: a7d1ba7f7bedfac4ab8ca1c96a8562c5, type: 2}
-  GroundMaterial: {fileID: 2100000, guid: 4fca7d34716a95a468e4347da1ca958d, type: 2}
-  Camera: {fileID: 641191603}
-  Overlay: {fileID: 1922615942}
---- !u!4 &1922615944
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1922615941}
+  m_GameObject: {fileID: 1360137855}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -393,6 +407,6 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 527627004}
-  - {fileID: 641191605}
-  - {fileID: 1922615944}
+  - {fileID: 190669686}
+  - {fileID: 1360137858}
+  - {fileID: 469378893}

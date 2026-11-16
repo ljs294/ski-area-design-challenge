@@ -20,7 +20,7 @@ namespace MountainPlanner.UI.Flow
     {
         public const int KeepSeconds = 15;
         /// <summary>The pages' order, for opening one directly (the menu's Controls).</summary>
-        public const int InterfacePage = 0, UnitsPage = 1, GameplayPage = 2, GraphicsPage = 3, DisplayPage = 4, ControlsPage = 5, DataPage = 6;
+        public const int InterfacePage = 0, UnitsPage = 1, GameplayPage = 2, GraphicsPage = 3, WeatherPage = 4, DisplayPage = 5, ControlsPage = 6, DataPage = 7;
 
         /// <summary>Data › Library folder › Open: show the folder.</summary>
         public event Action LibraryOpenChosen;
@@ -82,6 +82,7 @@ namespace MountainPlanner.UI.Flow
             BuildUnits();
             BuildGameplay();
             BuildGraphics();
+            BuildWeather();
             BuildDisplay();
             BuildControls();
             BuildData();
@@ -109,6 +110,7 @@ namespace MountainPlanner.UI.Flow
             UiPreferences.Changed += RefreshIfOpen;
             FlowUnits.Changed += RefreshIfOpen;
             KeyBindings.Changed += RefreshIfOpen;
+            WeatherOptions.Changed += RefreshIfOpen;
         }
 
         /// <summary>Lets go of the game-wide events (the document is being rebuilt or closed).</summary>
@@ -119,6 +121,7 @@ namespace MountainPlanner.UI.Flow
             UiPreferences.Changed -= RefreshIfOpen;
             FlowUnits.Changed -= RefreshIfOpen;
             KeyBindings.Changed -= RefreshIfOpen;
+            WeatherOptions.Changed -= RefreshIfOpen;
         }
 
         void RefreshIfOpen()
@@ -282,6 +285,41 @@ namespace MountainPlanner.UI.Flow
                 Seg("textures", new[] { "full", "half", "quarter" }, new[] { "Full", "Half", "Quarter" },
                     () => (int)QualityPresets.Options.Textures, i => Graphics(o => { o.Textures = (TextureQuality)i; return o; })));
         }
+
+        /// <summary>Settings › Weather (task 4.06): the weather on screen, all of it or part by part. Only the picture changes.</summary>
+        void BuildWeather()
+        {
+            var page = AddPage("weather", "Weather");
+            Note(page, "Only what's drawn changes: the weather itself still runs, with its snow, wind holds and forecast.", "mp-pnote");
+            Row(page, "Weather on screen", "Clouds, fog, rain and snow in the air, cloud shadows and storm light. Off shows a clear day.",
+                Seg("weather", new[] { "on", "off" }, new[] { "On", "Off" },
+                    () => WeatherOptions.OnScreen ? 0 : 1, i => WeatherOptions.SetOnScreen(i == 0, Remember)));
+            var rows = new List<VisualElement>
+            {
+                Row(page, "Clouds", "Auto follows the quality preset. 3D clouds cost the most; Flat draws a lighter layer; Off clears the sky.",
+                    Seg("clouds", new[] { "auto", "3d", "flat", "off" }, new[] { "Auto", "3D", "Flat", "Off" },
+                        () => (int)WeatherOptions.Clouds, i => WeatherOptions.SetClouds((CloudLook)i, Remember))),
+                Row(page, "Cloud ceiling", "Keeps the clouds at least 1,000 ft (300 m) above the map's highest point, so the whole mountain stays in view.",
+                    Seg("ceiling", new[] { "on", "off" }, new[] { "On", "Off" },
+                        () => WeatherOptions.Ceiling ? 0 : 1, i => WeatherOptions.SetCeiling(i == 0, Remember))),
+                Row(page, "Fog and haze", "How thick the haze and fog are, falling snow's included. A storm's murk is mostly cloud: see Cloud ceiling.",
+                    Slider("fog", 0, WeatherOptions.MaxFog, WeatherOptions.FogStep, () => WeatherOptions.FogPercent,
+                           v => { WeatherOptions.SetFogPercent(v, Remember); Refresh(); }, v => v + "%")),
+                Part(page, WeatherPart.ValleyFog, "valley-fog", "Valley fog", "The sea of cloud in the valleys on a cold morning, and a cold snap's ice haze."),
+                Part(page, WeatherPart.Rays, "rays", "Sun rays", "Shafts of light between the clouds and past the ridges (Medium quality and up)."),
+                Part(page, WeatherPart.Falling, "falling", "Falling snow and rain", "Flakes and drops near the camera, and showers seen from far off."),
+                Part(page, WeatherPart.Spindrift, "spindrift", "Spindrift", "Snow blown off the ridges in a strong wind."),
+                Part(page, WeatherPart.CloudShadows, "cloud-shadows", "Cloud shadows", "The clouds' shadows drifting across the slopes."),
+                Part(page, WeatherPart.StormLight, "storm-light", "Storm light", "The light greys and dims under cloud and in a storm."),
+                Part(page, WeatherPart.TreeSway, "tree-sway", "Trees sway with the weather", "Off keeps the trees at your own wind level."),
+                Part(page, WeatherPart.Sparkle, "sparkle", "Snow sparkle", "Fresh, cold snow glints in the sun on a clear day."),
+            };
+            _refresh.Add(() => { foreach (var row in rows) row.SetEnabled(WeatherOptions.OnScreen); });
+        }
+
+        VisualElement Part(VisualElement page, WeatherPart part, string name, string label, string desc) =>
+            Row(page, label, desc, Seg(name, new[] { "on", "off" }, new[] { "On", "Off" },
+                                       () => WeatherOptions.Shows(part) ? 0 : 1, i => WeatherOptions.SetShows(part, i == 0, Remember)));
 
         static readonly string[] AaNames = { "Off", "FXAA", "SMAA", "MSAA 2×", "MSAA 4×" };
 
@@ -756,6 +794,7 @@ namespace MountainPlanner.UI.Flow
             UiPreferences.SetScale(UiPreferences.DefaultScalePercent, Remember);
             FlowUnits.Set(true, Remember);
             QualityPresets.Choose(GraphicsOptions.Default, Remember);
+            WeatherOptions.SetDefaults(Remember);   // task 4.06
             FramePacing.SetVSync(false, Remember);
             FramePacing.SetCap(0, Remember);
             ViewFov.Set(ViewFov.Default, Remember);
