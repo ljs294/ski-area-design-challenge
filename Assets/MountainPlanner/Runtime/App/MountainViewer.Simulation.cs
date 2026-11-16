@@ -293,6 +293,7 @@ namespace MountainPlanner.App
             if (s == null) return;
             _simNow = s;
             DrainSnowTiles(s);
+            ShowLakes(s);   // task 4.09 PR B: before the paused return, so a reopened save shows its ice while paused
             // SI-17: once the opening's snowpack is in, the worker gets the whole field (unless a save brought its own).
             if (!_simSnowSent && !s.SnowSet && _resort.CoverReady != null && _resort.CoverReady.IsCompleted && _resort.States?.Snow != null)
             {
