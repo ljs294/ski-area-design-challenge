@@ -56,15 +56,17 @@ under `test-results\p3-11\` beside `demo.bat` itself, whichever folder it is sta
 ## The drawn resort with 3,000 guests (Phase 4 task 13)
 
 The drawn resort's path with a crowd (`-guests 3000`: the mountain opens, the morning starts and the crowd is topped
-up to 3,000 every 4 s), so a later change that slows the guests shows up against these. Re-pinned by task 4.22 at
-4c4cc309 (the guests drawn as skier and snowboarder figures near the camera), clean, on the measure lane. `demo.bat` 100 runs them with the click and pause timing, 11,000 dots of
+up to 3,000 every 4 s), so a later change that slows the guests shows up against these. Re-pinned by task 4.06 at
+1d303e82 (the weather on screen: the season's own weather at 10:30, and a pinned big storm), clean, on the measure lane. `demo.bat` 100 runs them with the click and pause timing, 11,000 dots of
 headroom and the skier-model proof, under `test-results\p4-13\bench\`.
 
 | File | Player | Command | Frame p95 | GPU p95 |
 | --- | --- | --- | --- | --- |
-| `jackson-hole-5km-high-drawn-guests.json` | Release | `-quality high -drawnresort -guests 3000` | 8.51 ms | 8.92 ms |
-| `jackson-hole-5km-medium-drawn-guests.json` | Release | `-quality medium -drawnresort -guests 3000` | 4.86 ms | 4.87 ms |
-| `jackson-hole-5km-high-dev-drawn-guests.json` | Development | `-quality high -laps 1 -drawnresort -guests 3000` (48 B in 1 of 25,159 frames, 1,326 MB graphics memory) | 8.62 ms | 8.98 ms |
+| `jackson-hole-5km-high-drawn-guests.json` | Release | `-quality high -drawnresort -guests 3000` | 9.86 ms | 10.31 ms |
+| `jackson-hole-5km-medium-drawn-guests.json` | Release | `-quality medium -drawnresort -guests 3000` | 5.46 ms | 5.48 ms |
+| `jackson-hole-5km-high-dev-drawn-guests.json` | Development | `-quality high -laps 1 -drawnresort -guests 3000` (48 B in 1 of 21,689 frames, 1,355 MB graphics memory) | 9.89 ms | 10.31 ms |
+| `jackson-hole-5km-high-drawn-guests-bigstorm.json` | Release | `-quality high -drawnresort -guests 3000 -wxlook bigstorm` | 5.85 ms | 5.74 ms |
+| `jackson-hole-5km-medium-drawn-guests-bigstorm.json` | Release | `-quality medium -drawnresort -guests 3000 -wxlook bigstorm` | 4.70 ms | 4.46 ms |
 
 4.13's first pins (49e4827f, dots) read High 9.43 ms, a slow run (the same code also read 8.49 and 8.69 ms); High varies by
 about 0.7 ms from run to run, and the one-lap Development run's single spots by about 0.6 ms (a first 4.22 run read
@@ -95,3 +97,4 @@ the files in the same PR as the change.
 - **2026-11-07, Phase 4 task 01, Direct3D 11** (branch `feature/p4-01-d3d11`, owner's choice): the Windows player now starts on D3D11 (D3D12 stays second in the list, for `-force-d3d12`). D3D12 crashed as the game quit, an access violation in `D3D12Core.dll` as Unity tore the device down (v0.3.1 and v0.3.2 each 2 of 15 style-tile quits); D3D11 quit 30 of 30 clean. Against the baselines (p95 frame / GPU ms, baseline then D3D11): High 7.94 / 7.76 to 7.12 / 7.05; Medium 4.67 / 4.43 to 4.12 / 4.02; Low 2.87 / 2.05 to 2.30 / 2.14; Ultra 11.32 / 11.15 to 10.82 / 10.70; 40 lifts 8.34 / 8.38 to 7.72 / 7.63; drawn resort High 8.76 / 8.65 to 8.30 / 8.43, Medium 5.17 / 5.08 to 4.56 / 4.52. Every run passes. The style tile matches D3D12 within 26 of 255 on 0.17% of pixels; the 2 km trail shots differ on about 1% of pixels, single pixels at tree crowns' edges, not visible side by side. The baselines stay as they are (the switch isn't meant to change frame time; they are D3D12's, and D3D11 runs pass them).
 - **2026-11-13, Phase 4 task 13 PR C2** (commit 49e4827f, clean): the three 3,000-guest drawn baselines added (section above); the others are unchanged.
 - **2026-11-13, Phase 4 task 22** (commit 4c4cc309, clean, PR #160): the guests near the camera drawn as skier and snowboarder figures; the three 3,000-guest drawn baselines re-pinned (High 9.43 to 8.51 ms p95 frame, Medium 5.37 to 4.86, Development 8.58 to 8.62, 1,326 MB graphics memory). Every view of the High and Medium runs passes the C2 pins; the others are unchanged.
+- **2026-11-16, Phase 4 task 06** (commit 1d303e82, clean, after PR #166): the weather on screen (volumetric clouds and rays, fog, cloud shadows, falling snow) costs every view, so the three 3,000-guest drawn baselines are re-pinned (High 8.51 to 9.86 ms p95 frame, Medium 4.86 to 5.46, Development 8.62 to 9.89, 0 B a frame, 1,355 MB graphics memory) and two big-storm ones added (`-wxlook bigstorm`: High 5.85, Medium 4.70; a storm turns the sun's shadow passes off, so it costs less than a clear day). Interleaved with the old pins' own build (4c4cc309) on a quiet machine, two rounds: High +0.98 ms, Medium +0.22 ms, inside 4.06's budget (2.0 and 0.8). A second High and Medium run passes against the new files (9.66, 5.44). A first pinning slot was void: other threads' builds and tests ran beside it (High read 10.98 ms, its confirm 10.23, single views apart by up to 2.1 ms), so the pinning runs checked before each run that no Unity, dotnet or compiler server was busy. The other baselines are not re-pinned and read slower by the weather's cost. Measured before 4.07's #168 merged; if it moves demo 41 beyond noise, 4.07 re-pins.
