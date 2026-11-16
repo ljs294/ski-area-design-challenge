@@ -690,7 +690,7 @@ namespace MountainPlanner.Tests
             try
             {
                 var nav = ui.Q("settings-nav");
-                foreach (string id in new[] { "interface", "units", "graphics", "display", "controls", "data" })
+                foreach (string id in new[] { "interface", "units", "graphics", "weather", "display", "controls", "data" })
                 {
                     // From the first control in a row, Left goes back to the categories (the Controls page is long for Tab alone).
                     yield return BackToCategories(ui);

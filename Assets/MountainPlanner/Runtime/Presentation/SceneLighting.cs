@@ -48,6 +48,24 @@ namespace MountainPlanner.Presentation
         /// <summary>The light as last applied.</summary>
         public SkyLight CurrentLight { get; private set; }
         public string CurrentName => LightingPreset.All[Current].Name;
+        /// <summary>Task 4.06: the weather's grade over the look (<see cref="Weather.WeatherGrade"/>), and the look as last applied.</summary>
+        public Weather.WeatherGrade WeatherGrade { get; private set; }
+        public LightingPreset Applied { get; private set; } = LightingPreset.All[LightingPreset.Noon];
+        /// <summary>
+        /// Task 4.06: 0 by day, 1 at night, eased over dusk (sun from 1° to 7° below the horizon), so the weather's grade and its
+        /// cloud shadows fade instead of switching when the sun sets.
+        /// </summary>
+        public static float NightWeight(float sunElevation)
+        {
+            float t = Mathf.Clamp01((-1f - sunElevation) / 6f);
+            return t * t * (3 - 2 * t);
+        }
+
+        /// <summary>Below this the sun's shadow passes are skipped (a storm's flat light saves them).</summary>
+        public const float LeastShadow = 0.05f;
+
+        /// <summary>Task 4.06: shadows fade to nothing as their strength falls to <see cref="LeastShadow"/>, where they switch off.</summary>
+        public static float ShadowFade(float shadowStrength) => Mathf.SmoothStep(0, 1, Mathf.InverseLerp(LeastShadow, 2 * LeastShadow, shadowStrength));
 
         FarTerrainShadow _farShadows;
         Vector3 _toLight = Vector3.up;
@@ -55,6 +73,8 @@ namespace MountainPlanner.Presentation
         double _animFrom, _animTo;
         float _anim = 1;
         bool _dirty = true;
+        // Task 4.06: seconds past the clock's whole second the sun is drawn at (the simulation's time between snapshots).
+        double _fraction;
         int _noonYear, _noonDay;
         double _noonLat = double.NaN, _noonLon, _noonSecond;
         Volume _volume;
@@ -124,6 +144,14 @@ namespace MountainPlanner.Presentation
             _dirty = true;
         }
 
+        /// <summary>Task 4.06: the weather's grade; re-applies the look only when it moves.</summary>
+        public void SetWeather(in Weather.WeatherGrade grade)
+        {
+            if (grade.Near(WeatherGrade)) return;
+            WeatherGrade = grade;
+            _dirty = true;
+        }
+
         public void SetHaze(bool on)
         {
             HazeOn = on;
@@ -139,6 +167,7 @@ namespace MountainPlanner.Presentation
             if (index < 0 || index >= LightingPreset.All.Length) return;
             EnsureClock();
             _pinnedPreset = index;
+            SetFraction(0);
             var now = Clock.Now;
             double target = PresetSecond(index, now.Year, now.DayOfYear);
             if (instant)
@@ -153,12 +182,26 @@ namespace MountainPlanner.Presentation
         }
 
         /// <summary>Sets the view time directly (the time and date scrubbers, -time).</summary>
-        public void SetTime(ViewTime time)
+        public void SetTime(ViewTime time) => SetTime(time, 0);
+
+        /// <summary>
+        /// Task 4.06: the view time and how many seconds past its whole second the sun stands (may be negative), so a running
+        /// clock moves the sun, its shadows and the sky every frame instead of in whole seconds.
+        /// </summary>
+        public void SetTime(ViewTime time, double secondsPast)
         {
             EnsureClock();
             _pinnedPreset = -1;
             _anim = 1;
+            SetFraction(secondsPast);
             Clock.Set(time);
+        }
+
+        void SetFraction(double secondsPast)
+        {
+            if (System.Math.Abs(secondsPast - _fraction) < 1e-4) return;
+            _fraction = secondsPast;
+            _dirty = true;
         }
 
         /// <summary>A preset's local time (seconds after midnight) on a day at the current site.</summary>
@@ -200,7 +243,7 @@ namespace MountainPlanner.Presentation
             _dirty = false;
             var now = Clock.Now;
             var day = new SolarDay(Latitude, Longitude, now.Year, now.DayOfYear);
-            var light = SkyLight.From(day.SunAt(now.SecondOfDay), GridConvergence);
+            var light = SkyLight.From(day.SunAt(now.SecondOfDay + _fraction), GridConvergence);
             CurrentLight = light;
             var p = LightingPreset.Look((float)light.SunElevation, now.SecondOfDay < SolarNoon(day), out int nearest);
             Current = nearest;
@@ -213,16 +256,22 @@ namespace MountainPlanner.Presentation
             p.Exposure += s.ExposureAdd;
             p.Contrast += s.ContrastAdd;
             p.Saturation += s.SaturationAdd;
+            float clearShadow = p.ShadowStrength;
+            p = WeatherGrade.Apply(p, NightWeight((float)light.SunElevation));
+            Applied = p;
             var toLight = _toLight = new Vector3((float)light.X, (float)light.Y, (float)light.Z);
             if (Sun != null)
             {
                 Sun.transform.rotation = Quaternion.LookRotation(-toLight);
                 Sun.color = p.SunColor;
                 Sun.intensity = p.SunIntensity * (float)light.Strength;
-                Sun.shadowStrength = p.ShadowStrength;
-                Sun.shadows = light.Strength > 0.001 ? LightShadows.Soft : LightShadows.None;   // no shadow passes for a dark light
+                // No shadow passes for a dark light, or under a deck that leaves no shadow to draw (task 4.06); the shadows fade
+                // out before they switch off, so a thickening deck never pops them.
+                Sun.shadowStrength = p.ShadowStrength * ShadowFade(p.ShadowStrength);
+                Sun.shadows = light.Strength > 0.001 && p.ShadowStrength > LeastShadow ? LightShadows.Soft : LightShadows.None;
             }
             _farShadows?.SetLight(toLight);
+            _farShadows?.SetStrength(Mathf.Clamp01(p.ShadowStrength / Mathf.Max(clearShadow, 0.01f)) * ShadowFade(p.ShadowStrength));
             RenderSettings.ambientSkyColor = p.AmbientSky;
             RenderSettings.ambientEquatorColor = p.AmbientEquator;
             RenderSettings.ambientGroundColor = p.AmbientGround;

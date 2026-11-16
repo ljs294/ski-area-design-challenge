@@ -7,7 +7,7 @@ Shader "MountainPlanner/PendingContours"
     }
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "Queue" = "Geometry+10" "RenderPipeline" = "UniversalPipeline" }
+        Tags { "RenderType" = "Opaque" "Queue" = "AlphaTest+45" "RenderPipeline" = "UniversalPipeline" }
         Pass
         {
             Name "Lines"
@@ -15,6 +15,7 @@ Shader "MountainPlanner/PendingContours"
             ZWrite Off
             ZTest LEqual
             Offset -2, -2
+            Stencil { Ref 8 WriteMask 8 Comp Always Pass Replace }   // task 4.06: the weather's screen pass doesn't fog the pending contours (WeatherVolume)
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag

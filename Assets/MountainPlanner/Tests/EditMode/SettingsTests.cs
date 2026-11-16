@@ -19,7 +19,8 @@ namespace MountainPlanner.Tests
     public sealed class SettingsTests
     {
         const string TestPrefix = "MountainPlannerTest.P2-05.";
-        static readonly string[] Keys = { "Graphics", "VSync", "FrameCap", "FieldOfView", "Keys", "InvertZoom", "ZoomSpeed", "TreeDetailAuto", "LibraryFolder", "Offline" };
+        static readonly string[] Keys = { "Graphics", "VSync", "FrameCap", "FieldOfView", "Keys", "InvertZoom", "ZoomSpeed", "TreeDetailAuto", "LibraryFolder", "Offline", "WeatherOnScreen", "WeatherClouds", "WeatherCeiling", "WeatherFog",
+            "WeatherValleyFog", "WeatherFalling", "WeatherSpindrift", "WeatherCloudShadows", "WeatherStormLight", "WeatherTreeSway", "WeatherSparkle", "WeatherRays" };
         int _vsync, _frameRate;
 
         [SetUp]
@@ -56,6 +57,7 @@ namespace MountainPlanner.Tests
             KeyBindings.Reload();
             CameraOptions.Reload();
             DataPreferences.Reload();
+            WeatherOptions.Reload();
         }
 
         // ---------- graphics options ----------
@@ -152,6 +154,12 @@ namespace MountainPlanner.Tests
             CameraOptions.SetSpeed(ZoomSpeed.Fast);
             KeyBindings.Bind(GameAction.Toolbox, 0, new KeyChord(Key.B, KeyMods.Ctrl));
             DataPreferences.SetOffline(true);
+            WeatherOptions.SetOnScreen(false);
+            WeatherOptions.SetClouds(CloudLook.Flat);
+            WeatherOptions.SetCeiling(true);
+            WeatherOptions.SetFogPercent(40);
+            WeatherOptions.SetShows(WeatherPart.Rays, false);
+            WeatherOptions.SetShows(WeatherPart.TreeSway, false);
 
             ReloadAll();   // a new launch
 
@@ -164,6 +172,13 @@ namespace MountainPlanner.Tests
             Assert.That(KeyBindings.Get(GameAction.Toolbox, 0), Is.EqualTo(new KeyChord(Key.B, KeyMods.Ctrl)));
             Assert.That(KeyBindings.Caption(GameAction.Toolbox), Is.EqualTo("Ctrl B"));
             Assert.That(DataPreferences.Offline, Is.True);
+            Assert.That(WeatherOptions.OnScreen, Is.False);
+            Assert.That(WeatherOptions.Clouds, Is.EqualTo(CloudLook.Flat));
+            Assert.That(WeatherOptions.Ceiling, Is.True);
+            Assert.That(WeatherOptions.FogPercent, Is.EqualTo(40));
+            Assert.That(WeatherOptions.Shows(WeatherPart.Rays), Is.False);
+            Assert.That(WeatherOptions.Shows(WeatherPart.TreeSway), Is.False);
+            Assert.That(WeatherOptions.Shows(WeatherPart.Falling), Is.True, "the rest stay on");
         }
 
         [Test]
@@ -176,6 +191,33 @@ namespace MountainPlanner.Tests
             Assert.That(CameraOptions.InvertZoom, Is.False);
             Assert.That(KeyBindings.IsDefault, Is.True);
             Assert.That(DataPreferences.LibraryFolder, Is.EqualTo(""));
+            Assert.That(WeatherOptions.OnScreen, Is.True, "weather on screen starts on");
+            AssertWeatherDefaults();
+        }
+
+        // Task 4.06: Settings › Weather starts as the game's own look, and Restore defaults goes back to it.
+        static void AssertWeatherDefaults()
+        {
+            Assert.That(WeatherOptions.Clouds, Is.EqualTo(CloudLook.Auto));
+            Assert.That(WeatherOptions.Ceiling, Is.False, "the ceiling starts off");
+            Assert.That(WeatherOptions.FogPercent, Is.EqualTo(WeatherOptions.MaxFog));
+            foreach (WeatherPart part in System.Enum.GetValues(typeof(WeatherPart))) Assert.That(WeatherOptions.Shows(part), Is.True, part.ToString());
+        }
+
+        [Test]
+        public void WeatherSettingsGoBackToTheGamesOwnLook()
+        {
+            WeatherOptions.SetOnScreen(false);
+            WeatherOptions.SetClouds(CloudLook.Off);
+            WeatherOptions.SetCeiling(true);
+            WeatherOptions.SetFogPercent(0);
+            WeatherOptions.SetShows(WeatherPart.ValleyFog, false);
+            WeatherOptions.SetDefaults();
+            ReloadAll();
+            Assert.That(WeatherOptions.OnScreen, Is.True);
+            AssertWeatherDefaults();
+            WeatherOptions.SetFogPercent(37);
+            Assert.That(WeatherOptions.FogPercent, Is.EqualTo(35), "the fog steps by 5%");
         }
 
         [Test]
@@ -185,12 +227,17 @@ namespace MountainPlanner.Tests
             SettingsStore.SetString("Keys", "Nonsense=Q;MoveForward=Escape,Banana;Toolbox=Shift+Ctrl+K,");
             SettingsStore.SetInt("FieldOfView", 500);
             SettingsStore.SetInt("FrameCap", 77);
+            SettingsStore.SetInt("WeatherClouds", 9);
+            SettingsStore.SetInt("WeatherFog", 250);
+            SettingsStore.SetInt("WeatherCeiling", 7);
             ReloadAll();
             Assert.That(QualityPresets.Saved(), Is.EqualTo(GraphicsOptions.Default));
             Assert.That(KeyBindings.Get(GameAction.MoveForward, 0), Is.EqualTo(new KeyChord(Key.W)), "Esc can't be bound; the default stays");
             Assert.That(KeyBindings.Get(GameAction.Toolbox, 0), Is.EqualTo(new KeyChord(Key.K, KeyMods.Shift | KeyMods.Ctrl)));
             Assert.That(ViewFov.Vertical, Is.EqualTo(ViewFov.Max));
             Assert.That(FramePacing.Cap, Is.EqualTo(0));
+            Assert.That(WeatherOptions.OnScreen, Is.True);
+            AssertWeatherDefaults();
         }
 
         // ---------- keys ----------

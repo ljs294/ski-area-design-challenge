@@ -5,6 +5,8 @@
 #pragma kernel Gather
 #pragma kernel Shadow
 #pragma kernel SkyView
+#pragma kernel CeilingStart
+#pragma kernel CeilingStep
 
 // Gather: one terrain tile into the height map.
 Texture2D<float> _TileHeights;
@@ -105,4 +107,37 @@ void SkyView(uint3 id : SV_DispatchThreadID)
         hidden += rise / sqrt(1 + rise * rise);   // sin of the horizon's elevation
     }
     _Sky[id.xy] = 1 - hidden / 16;
+}
+
+// The shadow ceiling (task 4.06, the weather's rays): per coarse texel, the height under which the air is in the
+// mountain's shadow, so a point in the air is sunlit when it's above it. It's the highest of terrain(x + toward the
+// light * t) - t * tan(elevation) over every t. CeilingStart takes the terrain's highest over each coarse texel;
+// CeilingStep, run with steps of 1, 2, 4, ... texels, takes the higher of a texel and the texel a step toward the
+// light less the ray's rise over that step, so after n passes every distance up to 2^n texels has been looked at.
+Texture2D<float> _CeilIn;
+RWTexture2D<float> _CeilOut;
+float4 _CeilParams;      // texels in the ceiling map (width, depth), this pass's step (texels), the ray's rise over it (m)
+uint _CeilScale;         // height-map texels per ceiling texel
+
+[numthreads(8, 8, 1)]
+void CeilingStart(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_CeilParams.x || id.y >= (uint)_CeilParams.y) return;
+    uint2 size = (uint2)_ShadowParams.xy;
+    float top = -10000;
+    for (uint y = 0; y < _CeilScale; y++)
+    for (uint x = 0; x < _CeilScale; x++)
+        top = max(top, _HeightsIn[min(id.xy * _CeilScale + uint2(x, y), size - 1)]);
+    _CeilOut[id.xy] = top;
+}
+
+[numthreads(8, 8, 1)]
+void CeilingStep(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_CeilParams.x || id.y >= (uint)_CeilParams.y) return;
+    float here = _CeilIn[id.xy];
+    float2 q = id.xy + 0.5 + _Light.xy * _CeilParams.z;
+    float there = -10000;
+    if (all(q >= 0) && all(q <= _CeilParams.xy)) there = _CeilIn.SampleLevel(sampler_linear_clamp, q / _CeilParams.xy, 0) - _CeilParams.w;
+    _CeilOut[id.xy] = max(here, there);
 }
