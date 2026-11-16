@@ -94,6 +94,111 @@ namespace MountainPlanner.App
             Application.Quit();
         }
 
+        // ---------------- Task 4.09 PR B: each body on screen ----------------
+
+        WaterBodyTable _lakeTable;
+        byte[] _lakeMap;
+        long _lakeCopiedHour = -1;
+        int _lakeCopiedCount = -1;
+        bool _lakeFlagsRead, _lakeFollowSim, _lakeMix;
+        LabelCalendar _lakeCalendar;
+        long _lakeShownKey;
+        string _lakeShownLine;
+
+        /// <summary>
+        /// Binds the area's body table to the screen (again whenever it changes, 4.14's ponds), then copies each body's surface
+        /// from the snapshot when its face hour or body count moved, matched by id. A capture or benchmark keeps iteration 1's
+        /// look unless <c>-lakesim</c> (as the sun does), so stored captures and baselines don't move; <c>-lakemix</c> draws
+        /// odd bodies open and the rest snow on ice (the GPU check); an override (the panel, <c>-lake</c>) stops the copy.
+        /// </summary>
+        void ShowLakes(SimSnapshot s)
+        {
+            var states = _resort?.States;
+            var table = _resort?.WaterBodies;
+            if (states == null || table == null) return;
+            if (!_lakeFlagsRead)
+            {
+                _lakeFlagsRead = true;
+                var args = Environment.GetCommandLineArgs();
+                _lakeMix = Array.IndexOf(args, "-lakemix") >= 0;
+                _lakeFollowSim = !Flow.AppFlow.CaptureRun || Array.IndexOf(args, "-lakesim") >= 0;
+            }
+            if (states.BoundTable != table.Hash || _lakeTable != table)
+            {
+                var map = LakeSurfaces.Dilated(table);
+                if (!states.SetBodies(table, map)) { _lakeTable = table; _lakeMap = null; return; }
+                _lakeTable = table;
+                _lakeMap = map;
+                _lakeCopiedHour = -1;
+                if (_lakeMix)
+                    for (int b = 0; b < states.Water.Count; b++)
+                        states.Water.Set(b, b % 2 == 1 ? new WaterSurface(WaterSurfaceState.OpenWater, 0, 0) : WaterSurface.IterationOne);
+            }
+            if (_lakeMap == null || _lakeMix || !_lakeFollowSim || states.Water.Override.HasValue || s.WaterBodyCount == 0) return;
+            long hour = s.FaceDay * 24L + s.FaceMs / SimWorld.HourMs;
+            if (hour == _lakeCopiedHour && s.WaterBodyCount == _lakeCopiedCount) return;
+            _lakeCopiedHour = hour;
+            _lakeCopiedCount = s.WaterBodyCount;
+            for (int b = 0; b < s.WaterBodyCount; b++)
+            {
+                int i = table.IndexOf(s.WaterBodyIds[b]);
+                if (i < 0 || i >= states.Water.Count) continue;
+                states.Water.Set(i, LakeSurfaces.Surface(s.WaterStates[b], s.IceHundredthsIn[b], s.IceSnowTenthsIn[b]));
+            }
+        }
+
+        /// <summary>The panel and <c>-lake</c>: one look on every body until "From the simulation" (null) clears it.</summary>
+        void SetLakeOverride(WaterSurface? surface)
+        {
+            var water = _resort?.States?.Water;
+            if (water == null) return;
+            water.SetOverride(surface);
+            _lakeCopiedHour = -1;   // the next snapshot copies again
+        }
+
+        /// <summary>
+        /// The readout over a body (the dilated map, the cells the shader draws): its line, or null over land or without the
+        /// simulation's numbers for it. <paramref name="key"/> changes only when the line would, so the caller formats it
+        /// only then.
+        /// </summary>
+        bool LakeUnder(float x, float z, out long key, out int snapshotIndex)
+        {
+            key = 0; snapshotIndex = -1;
+            var s = _simNow;
+            if (_lakeMap == null || _lakeTable == null || s == null || s.WaterBodyCount == 0) return false;
+            int cell = LakeCell(x, z);
+            if (cell < 0) return false;
+            int id = _lakeMap[cell];
+            if (id == 0) return false;
+            ulong bodyId = _lakeTable[id - 1].Id;
+            for (int b = 0; b < s.WaterBodyCount; b++)
+                if (s.WaterBodyIds[b] == bodyId) { snapshotIndex = b; break; }
+            if (snapshotIndex < 0) return false;
+            int k = snapshotIndex;
+            key = ((long)(id & 0xFF) << 56) ^ ((long)s.WaterStates[k] << 52) ^ ((long)(s.IceHundredthsIn[k] / 25) << 32)
+                  ^ ((long)(s.IceSnowTenthsIn[k] / 5) << 20) ^ ((long)(s.IceOnDay[k] & 0x3FF) << 10) ^ (s.IceOutDay[k] & 0x3FF);
+            return true;
+        }
+
+        /// <summary>The body map's cell under a point (local metres), or −1 off the map.</summary>
+        int LakeCell(float x, float z)
+        {
+            int cx = Mathf.FloorToInt((x - _resort.Ring.xMin) / WaterBodyTable.CellMetres), cy = Mathf.FloorToInt((z - _resort.Ring.yMin) / WaterBodyTable.CellMetres);
+            return cx < 0 || cy < 0 || cx >= _lakeTable.Width || cy >= _lakeTable.Depth ? -1 : cy * _lakeTable.Width + cx;
+        }
+
+        string LakeLine(int k, int body, Domain.Measure.UnitSystem units)
+        {
+            var s = _simNow;
+            _lakeCalendar ??= new LabelCalendar(Pacing.Default);
+            int on = s.IceOnDay[k], off = s.IceOutDay[k];
+            int days = _lakeCalendar.YearFaceDays;
+            bool hasOn = on >= 0 && on < days, hasOff = off >= 0 && off < days;
+            return LakeSurfaces.Readout(_lakeTable[body].Kind, s.WaterStates[k], s.IceHundredthsIn[k], s.IceSnowTenthsIn[k],
+                                        hasOn ? _lakeCalendar.Month(on) : 0, hasOn ? _lakeCalendar.Day(on) : 0,
+                                        hasOff ? _lakeCalendar.Month(off) : 0, hasOff ? _lakeCalendar.Day(off) : 0, units);
+        }
+
         /// <summary>A label year of the area's weather over the bodies on a scratch world: each face day's ice (0.01 in) and snow (0.1 in) per body.</summary>
         static (int[,] Daily, int[] On, int[] Off, int Days) PlayLakeYear(WaterBodyTable table, SimWeather weather, Domain.Weather.WeatherTerrain terrain, int startYear)
         {

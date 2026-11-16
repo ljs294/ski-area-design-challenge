@@ -661,6 +661,7 @@ namespace MountainPlanner.App
             var mouse = Mouse.current;
             float elevation = float.NaN, slope = float.NaN, bearing = 0, snow = float.NaN;
             int snowType = -1, quality = 0, age = 0, density = 0; float water = 0;
+            string lakeLine = null;
             string info = _layers.InfoLayerId;
             Vector2? pointer = _pointer.HasValue ? new Vector2(_pointer.Value.x * Screen.width, _pointer.Value.y * Screen.height)
                 : mouse != null ? mouse.position.ReadValue() : (Vector2?)null;
@@ -675,6 +676,20 @@ namespace MountainPlanner.App
                     elevation = ReadoutHeight(g.x, g.z);   // the edited float32 heights (SH-02, task P3-05)
                     // What the info layer that's on reads under the pointer (task 12b.2).
                     if (!float.IsNaN(elevation) && (info == MapLayers.SlopeAngle || info == MapLayers.Exposure)) (slope, bearing) = SlopeAt(g.x, g.z);
+                    else if (!float.IsNaN(elevation) && (info == MapLayers.SnowDepth || info == MapLayers.SnowConditions)
+                             && LakeUnder(g.x, g.z, out long lakeKey, out int lakeIndex))
+                    {
+                        // Task 4.09 PR B: over a lake or pond, its own ice and snow (the land field's snow isn't on the ice). Task 4.07
+                        // PR A2: under Snow conditions too, where the land field reads bare over water (SN-25 sends what falls to the lake).
+                        var units = DisplayUnits.Current;
+                        lakeKey ^= (long)units << 62;
+                        if (lakeKey != _lakeShownKey || _lakeShownLine == null)
+                        {
+                            _lakeShownKey = lakeKey;
+                            _lakeShownLine = LakeLine(lakeIndex, _lakeMap[LakeCell(g.x, g.z)] - 1, units);
+                        }
+                        lakeLine = _lakeShownLine;
+                    }
                     else if (!float.IsNaN(elevation) && info == MapLayers.SnowDepth) snow = SnowDepthAt(g.x, g.z);
                     else if (!float.IsNaN(elevation) && info == MapLayers.SnowConditions)
                     {
@@ -687,19 +702,18 @@ namespace MountainPlanner.App
                 }
             }
             Hud.SetElevation(elevation);
-            Hud.SetInfoReadout(info, slope, bearing, snow, snowType, quality, age, water);
+            Hud.SetInfoReadout(info, slope, bearing, snow, snowType, quality, age, water, lakeLine);
             if (info == MapLayers.Traffic) TrafficReadout(cam, pointer);   // task 4.13 PR C: the run or lift under the pointer
         }
 
         ForestRenderer Forest => _resort?.Root != null ? _resort.Root.GetComponent<ForestView>()?.Renderer : null;
 
-        /// <summary>Every lake's surface state, through the task 10 API (iteration 1: one shared state).</summary>
-        void SetLakes(WaterSurfaceState state)
-        {
-            if (_resort?.States == null) return;
-            var surface = state == WaterSurfaceState.SnowCoveredIce ? WaterSurface.IterationOne : new WaterSurface(state, 0.4f, 0);
-            _resort.States.Water.Set(WaterBodies.AllWater, surface);
-        }
+        /// <summary>
+        /// One look on every lake, through the task 10 API: an override that holds (task 4.09 PR B) until the panel's "From the
+        /// simulation" clears it, and that bodies bound later take too.
+        /// </summary>
+        void SetLakes(WaterSurfaceState state) =>
+            SetLakeOverride(state == WaterSurfaceState.SnowCoveredIce ? WaterSurface.IterationOne : new WaterSurface(state, 0.4f, 0));
 
         System.Collections.IEnumerator WhenForestReady(Action action)
         {
@@ -873,10 +887,15 @@ namespace MountainPlanner.App
             }
 
             Caption("Lakes");
-            var lakes = _resort.States != null ? _resort.States.Water[WaterBodies.AllWater].State : WaterSurfaceState.SnowCoveredIce;
-            if (Button(0, (lakes == WaterSurfaceState.SnowCoveredIce ? "● " : "") + "Snow on ice")) SetLakes(WaterSurfaceState.SnowCoveredIce);
-            if (Button(1, (lakes == WaterSurfaceState.Ice ? "● " : "") + "Bare ice")) SetLakes(WaterSurfaceState.Ice);
-            if (Button(2, (lakes == WaterSurfaceState.OpenWater ? "● " : "") + "Open water")) SetLakes(WaterSurfaceState.OpenWater);
+            // Task 4.09 PR B: the "●" marks the override, or "From the simulation" when each lake follows its own state.
+            var lakeOverride = _resort.States?.Water.Override;
+            bool overridden = lakeOverride.HasValue;
+            var lakes = overridden ? lakeOverride.Value.State : (WaterSurfaceState)(-1);
+            if (Button(0, (overridden && lakes == WaterSurfaceState.SnowCoveredIce ? "● " : "") + "Snow on ice")) SetLakes(WaterSurfaceState.SnowCoveredIce);
+            if (Button(1, (overridden && lakes == WaterSurfaceState.Ice ? "● " : "") + "Bare ice")) SetLakes(WaterSurfaceState.Ice);
+            if (Button(2, (overridden && lakes == WaterSurfaceState.OpenWater ? "● " : "") + "Open water")) SetLakes(WaterSurfaceState.OpenWater);
+            y += row;
+            if (Button(0, (overridden ? "" : "● ") + "From the sim")) SetLakeOverride(null);
             y += row;
 
             Caption("Shadows");

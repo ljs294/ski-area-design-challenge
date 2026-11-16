@@ -7,11 +7,14 @@ using UnityEngine;
 namespace MountainPlanner.Tests
 {
     // Task 10 acceptance: the lake state switches rendering through the API, and the snow-depth field
-    // reaches the terrain shader. (The visual check is in the PR: -lake open|ice|snow.)
+    // reaches the terrain shader. Task 4.09 PR B: each body through the body map. (The visual check: -lake, -lakemix.)
     public sealed class SurfaceStatesTests
     {
-        static readonly int Lake = Shader.PropertyToID("_LakeState"), DepthParams = Shader.PropertyToID("_SnowDepthParams"),
+        static readonly int BodyParams = Shader.PropertyToID("_WaterBodyParams"), BodyMap = Shader.PropertyToID("_WaterBodyMap"),
+                            BodyStates = Shader.PropertyToID("_WaterBodyStates"), DepthParams = Shader.PropertyToID("_SnowDepthParams"),
                             DepthMap = Shader.PropertyToID("_SnowDepthMap");
+
+        static Color StateTexel(int body) => ((Texture2D)Shader.GetGlobalTexture(BodyStates)).GetPixel(body, 0);
 
         [Test]
         public void TheLakeStateSwitchesWhatTheShaderDraws()
@@ -19,19 +22,86 @@ namespace MountainPlanner.Tests
             var states = new SurfaceStates(new Rect(-500, -400, 1000, 800));
             try
             {
-                Assert.That(Shader.GetGlobalVector(Lake).x, Is.EqualTo(3), "iteration 1: snow-covered ice (state 2, sent as 3)");
+                Assert.That(Shader.GetGlobalVector(BodyParams).x, Is.Zero, "no body map yet: every water pixel reads body 0");
+                Assert.That(StateTexel(0).r, Is.EqualTo(3), "iteration 1: snow-covered ice (state 2, sent as 3)");
+                int uploads = states.StateUploads;
                 states.Water.Set(WaterBodies.AllWater, new WaterSurface(WaterSurfaceState.OpenWater, 0, 0));
-                Assert.That(Shader.GetGlobalVector(Lake).x, Is.EqualTo(3), "nothing reaches the GPU until Sync");
+                Assert.That(StateTexel(0).r, Is.EqualTo(3), "nothing reaches the GPU until Sync");
                 states.Sync();
-                Assert.That(Shader.GetGlobalVector(Lake).x, Is.EqualTo(1), "open water");
+                states.Sync();
+                Assert.That(StateTexel(0).r, Is.EqualTo(1), "open water");
+                Assert.That(states.StateUploads, Is.EqualTo(uploads + 1), "one upload per change, none when nothing moved");
                 states.Water.Set(WaterBodies.AllWater, new WaterSurface(WaterSurfaceState.Ice, 0.3f, 0));
                 states.Sync();
-                var v = Shader.GetGlobalVector(Lake);
-                Assert.That(v.x, Is.EqualTo(2), "bare ice");
-                Assert.That(v.y, Is.EqualTo(0.3f).Within(1e-6f), "with its thickness");
+                Assert.That(StateTexel(0).r, Is.EqualTo(2), "bare ice");
+                Assert.That(StateTexel(0).g, Is.EqualTo(0.3f).Within(1e-3f), "with its thickness");
             }
             finally { states.Dispose(); }
-            Assert.That(Shader.GetGlobalVector(Lake).x, Is.EqualTo(0), "closing the mountain clears the state");
+            Assert.That(Shader.GetGlobalVector(BodyParams), Is.EqualTo(Vector4.zero), "closing the mountain clears the state");
+        }
+
+        /// <summary>A 10 × 5 table at the ring's corner: the streams in cell 0, a lake (index 1) in cells 12–13.</summary>
+        static WaterBodyTable Table(Rect ring, int width = 10, int depth = 5)
+        {
+            var mask = new byte[width * depth];
+            mask[0] = 1;
+            mask[12] = mask[13] = 2;
+            var bodies = new[]
+            {
+                new WaterBody(WaterBodyKind.Streams, 0, 1, -1, 0, 0, 1000, 0, 10, false),
+                new WaterBody(WaterBodyKind.Lake, 0xA, 2, -1, 0, 0, 1000, 6000, 50, false),
+            };
+            return WaterBodyTable.Of(width, depth, (int)System.Math.Round(ring.xMin * 1000), (int)System.Math.Round(ring.yMin * 1000), mask, bodies, 4);
+        }
+
+        [Test]
+        public void EachBodyGetsItsOwnStateThroughTheMap()
+        {
+            var ring = new Rect(-40.0004f, -20, 80, 40);   // 10 × 5 cells; the corner a fraction of a millimetre off whole mm
+            var states = new SurfaceStates(ring);
+            try
+            {
+                var t = Table(ring);
+                Assert.That(states.SetBodies(t, LakeSurfaces.Dilated(t)), Is.True);
+                var map = (Texture2D)Shader.GetGlobalTexture(BodyMap);
+                Assert.That(map.format, Is.EqualTo(TextureFormat.R8));
+                Assert.That(map.filterMode, Is.EqualTo(FilterMode.Point));
+                Assert.That(map.isDataSRGB, Is.False, "linear: the shader reads the id back exactly");
+                Assert.That(Mathf.RoundToInt(map.GetPixelData<byte>(0)[12]), Is.EqualTo(2), "the lake's cell: index 1 + 1");
+                Assert.That(map.GetPixelData<byte>(0)[11], Is.EqualTo(2), "dilated: the shore cell takes the lake");
+                Assert.That(Shader.GetGlobalVector(BodyParams), Is.EqualTo(new Vector4(1, 2, 10, 5)));
+                Assert.That(states.Water.Count, Is.EqualTo(2));
+                Assert.That(states.BoundTable, Is.EqualTo(t.Hash));
+
+                states.Water.Set(1, new WaterSurface(WaterSurfaceState.OpenWater, 0, 0));
+                states.Sync();
+                Assert.That(StateTexel(0).r, Is.EqualTo(3), "the streams keep their snow");
+                Assert.That(StateTexel(1).r, Is.EqualTo(1), "the lake is open");
+
+                // 4.14: a pond added later rebinds with one more body.
+                var withPond = t.WithPond(0xB, new[] { 40 }, 40, 1000);
+                Assert.That(states.SetBodies(withPond, LakeSurfaces.Dilated(withPond)), Is.True);
+                Assert.That(states.Water.Count, Is.EqualTo(3));
+                Assert.That(Shader.GetGlobalVector(BodyParams).y, Is.EqualTo(3));
+                Assert.That(StateTexel(1).r, Is.EqualTo(1), "the lake keeps its state over the rebind");
+            }
+            finally { states.Dispose(); }
+            Assert.That(Shader.GetGlobalTexture(BodyMap), Is.Null);
+        }
+
+        [Test]
+        public void ATableOnAnotherGridIsRefusedOutLoud()
+        {
+            var ring = new Rect(0, 0, 80, 40);
+            var states = new SurfaceStates(ring);
+            try
+            {
+                var t = Table(new Rect(8, 0, 80, 40));   // shifted one cell
+                UnityEngine.TestTools.LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("isn't the snow map's"));
+                Assert.That(states.SetBodies(t, LakeSurfaces.Dilated(t)), Is.False);
+                Assert.That(Shader.GetGlobalVector(BodyParams).x, Is.Zero, "the lakes keep one state");
+            }
+            finally { states.Dispose(); }
         }
 
         [Test]

@@ -85,9 +85,13 @@ Shader "MountainPlanner/Terrain"
         // fully from _SnowDepthParams.x metres deep; .w = 0 (not set yet) is full cover. Task 4.07 PR A2: read through
         // Snow.hlsl's curved filter (SN-29 v2), with the live snow's surface for the conditions layer.
         #include "Snow.hlsl"
-        // The water's surface state (WaterBodies): x = state + 1 (1 open water, 2 ice, 3 snow-covered ice;
-        // 0 not set yet, drawn as snow-covered ice), y ice and z snow thickness (m).
-        float4 _LakeState;
+        // Each water body's surface state (task 4.09 PR B, SurfaceStates): the body map is body index + 1 per 8 m cell on
+        // the snow map's grid (R8, linear, dilated one cell; 0 no body), and the states texture has one texel per body:
+        // x = state + 1 (1 open water, 2 ice, 3 snow-covered ice; 0 not set yet, drawn as snow-covered ice), y ice and
+        // z snow thickness (m). _WaterBodyParams: x map bound (0/1), y body count, z width, w depth (cells).
+        TEXTURE2D(_WaterBodyMap);
+        TEXTURE2D(_WaterBodyStates);
+        float4 _WaterBodyParams;
 
         // Snow depth in metres at a point (12 in until the field is set), and how fully it covers the ground (Snow.hlsl).
         float SnowDepthMetres(float3 positionWS) { return SnowDepthAt(positionWS); }
@@ -393,6 +397,51 @@ Shader "MountainPlanner/Terrain"
                 return SAMPLE_TEXTURE2D_LOD(_Control1, sampler_Control0, cuv + offsetMetres / max(_TileSize, 1) * ((res - 1) / res), 0).g;
             }
 
+            // A body's state as 0 open water, 1 bare ice, 2 snow-covered ice (unset reads as snow-covered ice).
+            float LakeBodyState(uint body)
+            {
+                float s = LOAD_TEXTURE2D(_WaterBodyStates, uint2(min(body, (uint)max(_WaterBodyParams.y, 1) - 1), 0)).x;
+                return s > 0.5 ? s - 1 : 2;
+            }
+
+            // Task 4.09 PR B: how much of each look (x open water, y bare ice, z snow on ice) this pixel takes, from the
+            // bodies of the four 8 m cells around it (loaded, no sampler), bilinear and then sharpened, so two bodies in
+            // different states meet in a band a few metres wide. A cell with no body doesn't vote; no map bound (or no
+            // body near) is body 0, the streams and iteration 1's one shared state.
+            float3 LakeStateWeights(float3 p)
+            {
+                float3 votes = 0;
+                UNITY_BRANCH
+                if (_WaterBodyParams.x > 0.5)
+                {
+                    float2 size = _WaterBodyParams.zw;
+                    float2 c = (p.xz - _SnowDepthRect.xy) * _SnowDepthRect.zw * size - 0.5;
+                    float2 f = frac(c);
+                    int2 c0 = (int2)floor(c);
+                    [unroll] for (int k = 0; k < 4; k++)
+                    {
+                        int2 o = int2(k & 1, k >> 1);
+                        int2 q = clamp(c0 + o, int2(0, 0), (int2)size - 1);
+                        uint id = (uint)round(LOAD_TEXTURE2D(_WaterBodyMap, q).r * 255);
+                        if (id == 0) continue;
+                        float s = LakeBodyState(id - 1);
+                        float w = (o.x ? f.x : 1 - f.x) * (o.y ? f.y : 1 - f.y);
+                        votes += float3(s < 0.5, s >= 0.5 && s < 1.5, s >= 1.5) * w;
+                    }
+                }
+                float total = votes.x + votes.y + votes.z;
+                if (total < 1e-4)
+                {
+                    float s = LakeBodyState(0);
+                    return float3(s < 0.5, s >= 0.5 && s < 1.5, s >= 1.5);
+                }
+                votes /= total;
+                float3 sharp = smoothstep(0.35, 0.65, votes);
+                float sum = sharp.x + sharp.y + sharp.z;
+                if (sum < 1e-3) sharp = float3(votes.x >= votes.y && votes.x >= votes.z, votes.y > votes.x && votes.y >= votes.z, votes.z > votes.x && votes.z > votes.y);
+                return sharp / max(sharp.x + sharp.y + sharp.z, 1e-4);
+            }
+
             // Frozen lakes (T8, 0.5 §2): flat snow-covered ice, smoother and a touch brighter than land snow,
             // with a thin rim of exposed blue-grey ice at the waterline and pressure cracks running along the
             // shore. Streams stay snow-filled channels. With the snow off,
@@ -434,8 +483,12 @@ Shader "MountainPlanner/Terrain"
                 float3 clear = max(float3(0.11, 0.18, 0.19) * (0.8 + 0.4 * ValueNoise(p.xz / 25)) + grain * 0.1, 0.02);
                 const float3 rimIce = float3(0.52, 0.69, 0.79);                  // #BFD9E6, the art direction's ice rim
 
-                float state = _LakeState.x > 0.5 ? _LakeState.x - 1 : 2;   // WaterSurfaceState; unset reads as snow-covered ice
-                if (state > 1.5 && _SnowOn > 0.5)
+                // Each look runs only where this pixel takes some of it (task 4.09 PR B: per body, blended at a seam).
+                float3 looks = LakeStateWeights(p);
+                if (_SnowOn < 0.5) { looks.y += looks.z; looks.z = 0; }    // with the snow off, snow on ice is bare ice
+                albedo = 0; normal = 0; smooth = 0;
+                UNITY_BRANCH
+                if (looks.z > 0)
                 {
                     // (Wind-scoured patches of bare ice were tried and read as grey smudges, so the snow is unbroken.)
                     float rim = (1 - smoothstep(0, 0.35, inside)) * lake;       // about a metre of bare ice at the waterline
@@ -445,11 +498,12 @@ Shader "MountainPlanner/Terrain"
                     colour = lerp(colour, rimIce * 0.8, crack * (1 - bare) * 0.6);
                     // Streams: a snow-filled channel, a little cooler toward the middle.
                     colour = lerp(colour, snow.rgb * float3(0.93, 0.96, 1.0), (1 - lake) * saturate(water * 1.5 - 0.3));
-                    albedo = float4(colour, 0.12 + 0.18 * (1 - bare));
-                    normal = normalize(lerp(n, snowN, 0.35 * (1 - bare)));      // packed flat: less relief than land snow
-                    smooth = lerp(0.5, 0.8, bare);
+                    albedo += float4(colour, 0.12 + 0.18 * (1 - bare)) * looks.z;
+                    normal += normalize(lerp(n, snowN, 0.35 * (1 - bare))) * looks.z;   // packed flat: less relief than land snow
+                    smooth += lerp(0.5, 0.8, bare) * looks.z;
                 }
-                else if (state < 0.5)
+                UNITY_BRANCH
+                if (looks.x > 0)
                 {
                     // Open water (a thaw, for the future weather engine): darker than clear ice, glassy, with a
                     // faint ripple, and the sky's horizon reflected at grazing angles. No ice rim or cracks.
@@ -458,18 +512,20 @@ Shader "MountainPlanner/Terrain"
                     float3 rippled = normalize(n + float3(ripple, 0, ValueNoise(p.xz / 3 + 11) - 0.5) * 0.06);
                     float fresnel = 0.02 + 0.98 * pow(1 - saturate(dot(rippled, v)), 5);
                     float3 deep = float3(0.035, 0.07, 0.075) * (0.85 + 0.3 * ValueNoise(p.xz / 40));
-                    albedo = float4(lerp(deep, _HazeColor * 0.8, fresnel * lake + fresnel * 0.4 * (1 - lake)), 0);
-                    normal = rippled;
-                    smooth = 0.95;
+                    albedo += float4(lerp(deep, _HazeColor * 0.8, fresnel * lake + fresnel * 0.4 * (1 - lake)), 0) * looks.x;
+                    normal += rippled * looks.x;
+                    smooth += 0.95 * looks.x;
                 }
-                else
+                UNITY_BRANCH
+                if (looks.y > 0)
                 {
                     // Bare ice: clear and dark, whiter at the shore and along the cracks.
                     float3 colour = lerp(clear, rimIce * 0.75, saturate((1 - inside) * 0.7 + crack * 0.4));
-                    albedo = float4(colour, 0.2);
-                    normal = normalize(lerp(n, iceN, 0.2));
-                    smooth = 0.6;
+                    albedo += float4(colour, 0.2) * looks.y;
+                    normal += normalize(lerp(n, iceN, 0.2)) * looks.y;
+                    smooth += 0.6 * looks.y;
                 }
+                normal = normalize(normal);
             }
 
             // The ground's rise per metre east (x) and north (y), from the tile's heightmap by central differences two

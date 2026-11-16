@@ -37,16 +37,17 @@ namespace MountainPlanner.Domain.Water
     }
 
     /// <summary>
-    /// Every water body's surface state: the seam a future weather engine freezes and thaws lakes through
-    /// (0.3 §4.6). The lake itself never changes, and the renderer draws whatever the state says.
-    /// Iteration 1 knows one body, <see cref="AllWater"/>, which stands for every lake and stream: telling
-    /// lakes apart needs a body-ID map, which comes with the weather engine (owner, 2026-10-01). Changes bump
-    /// <see cref="Version"/>, so a renderer polls it instead of subscribing.
+    /// Every water body's surface state: the seam the simulation freezes and thaws lakes through (0.3 §4.6). The lake
+    /// itself never changes, and the renderer draws whatever the state says. Body i is the body table's index i
+    /// (<see cref="WaterBodyTable"/>, task 4.09); body 0, <see cref="AllWater"/>, is the streams and any water outside a
+    /// body, and until a table is bound it stands for every lake and stream. Changes bump <see cref="Version"/>, so a
+    /// renderer polls it instead of subscribing. An <see cref="Override"/> (the developer panel, <c>-lake</c>) puts one
+    /// look on every body, including bodies a later <see cref="Resize"/> adds.
     /// </summary>
     public sealed class WaterBodies
     {
         public const int AllWater = 0;
-        readonly WaterSurface[] _surfaces;
+        WaterSurface[] _surfaces;
 
         public WaterBodies(int count = 1)
         {
@@ -69,6 +70,31 @@ namespace MountainPlanner.Domain.Water
             _surfaces[body] = surface;
             Version++;
             return true;
+        }
+
+        /// <summary>One look on every body (null: none), kept for bodies a later <see cref="Resize"/> adds.</summary>
+        public WaterSurface? Override { get; private set; }
+
+        /// <summary>Sets or clears the override; setting one puts it on every body now.</summary>
+        public void SetOverride(WaterSurface? surface)
+        {
+            Override = surface;
+            if (surface.HasValue)
+                for (int i = 0; i < _surfaces.Length; i++) Set(i, surface.Value);
+        }
+
+        /// <summary>
+        /// Gives the bodies a new count (task 4.09: the body table's). Bodies kept keep their surface; new ones take the
+        /// override, or iteration 1's look. Always bumps <see cref="Version"/>.
+        /// </summary>
+        public void Resize(int count)
+        {
+            if (count < 1) throw new ArgumentOutOfRangeException(nameof(count));
+            var next = new WaterSurface[count];
+            var fresh = Override ?? WaterSurface.IterationOne;
+            for (int i = 0; i < count; i++) next[i] = i < _surfaces.Length ? _surfaces[i] : fresh;
+            _surfaces = next;
+            Version++;
         }
 
         int Check(int body) => body >= 0 && body < _surfaces.Length ? body : throw new ArgumentOutOfRangeException(nameof(body));
