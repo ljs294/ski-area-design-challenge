@@ -411,6 +411,10 @@ echo        game's clock against the hour, the energy balance), then six western
 echo        through the new snow energy, as charts in your browser: the pass marks, each pillow's median winter
 echo        against what it measured and 4.05's old model, and where the melt's energy comes from. The fix round (the
 echo        afternoon dew, the 32-37 °F rain line, the snow gates at seven sites) is the report's first section.
+echo   0.5 GPU queue fixes (no Unity, no build)
+echo    125 The GPU queue's tests (about three minutes, no GPU), then the last 7 days of its new history with any
+echo        overlaps, then a live check: the game starts outside the queue and a 5-second measure run waits for it;
+echo        quit the game and the run goes. Your own play never waits; only queued measure runs do.
 echo.
 echo     Q  Quit
 echo.
@@ -560,6 +564,7 @@ if /i "%CHOICE%"=="114" goto updaterinstall
 if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
 if /i "%CHOICE%"=="111" goto snowlive
+if /i "%CHOICE%"=="125" goto gpuqueue
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2634,4 +2639,30 @@ if not exist "%LIFTLAB%" goto menu
 echo   The Lift Lab's gun field: 500 guns, each with its plume. O steps the wind (off, calm, breeze, strong); 7 the guns
 echo   up close. Esc quits.
 start "" "%LIFTLAB%" -mode gunfield
+goto menu
+
+:gpuqueue
+rem 0.5: the GPU queue's history, time limit and wait for play outside the queue (tools\gpu\README.md).
+set "GPUPS=powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\gpu\gpu.ps1""
+echo   1/3 The tests: a scratch queue with dummy commands; nothing here touches the real queue or the GPU.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\gpu\test-gpu.ps1"
+echo.
+echo   2/3 The real queue's history for the last 7 days (it starts empty: runs from before this change aren't in it).
+%GPUPS% history -Since 7d
+echo.
+if not exist "%GAME%" (
+  echo   3/3 skipped: no game build at %GAME% ^(choose 1 to build it^).
+  pause
+  goto menu
+)
+echo   3/3 The game opens outside the queue, as your own play does. Back here, a 5-second measure run then waits for it:
+echo   "waiting: GPU process(es) outside the queue: SkiAreaDesignChallenge". Quit the game and the run goes (if a thread
+echo   holds the GPU, it also waits for that, and says so). Ctrl+C here cancels the wait.
+pause
+start "" "%GAME%"
+timeout /t 5 /nobreak >nul
+%GPUPS% run -Lane measure -Name owner-demo -- ping -n 6 127.0.0.1
+echo.
+%GPUPS% history -Since 1h -Name owner-demo
+pause
 goto menu

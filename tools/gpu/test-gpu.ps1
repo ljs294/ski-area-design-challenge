@@ -1,7 +1,7 @@
 <#
   Tests for gpu.ps1 that need no GPU: dummy PowerShell children log their start and end times, and the
   test checks the intervals. Uses a scratch state folder, so the live state and the old .gpu-lock are
-  never touched. About two minutes.
+  never touched. About three minutes.
   Usage: powershell -NoProfile -ExecutionPolicy Bypass -File tools/gpu/test-gpu.ps1
 #>
 $ErrorActionPreference = 'Stop'
@@ -24,8 +24,10 @@ function Check([bool]$ok, [string]$what) {
 function Quote([string]$s) { if ($s -match '[\s"]') { return '"' + ($s -replace '"', '\"') + '"' } return $s }
 
 function Get-GpuArgs([string]$action, [string[]]$extra) {
+    # No real player, editor or game (another thread's run, the owner's play) may block these runs: the GPU-heavy list
+    # names a process that never runs unless a check passes its own -HeavyProcesses (a later option wins).
     $list = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Gpu, $action, '-StateDir', $StateDir,
-        '-PollSec', '0.3', '-LegacyProcesses', $NoProcess) + $extra
+        '-PollSec', '0.3', '-LegacyProcesses', $NoProcess, '-HeavyProcesses', $NoProcess, '-WatchSec', '0.3') + $extra
     return (($list | ForEach-Object { Quote $_ }) -join ' ')
 }
 
@@ -265,6 +267,111 @@ exit 0
     $r = Invoke-Gpu 'run' @('-Lane', 'render', '-Name', 'legacy-3', '-TimeoutSec', '5', '--', 'cmd', '/c', 'exit 0')
     Check ($r.code -eq 0) 'an old owner.txt with none of the processes running is ignored'
     Check (Test-Path $Legacy) 'the old lock folder is left alone'
+    Remove-Item -Recurse -Force $Legacy
+
+    # ---- Task 0.5: history, time limit, GPU-heavy processes outside the queue ----
+
+    Write-Host 'Every ticket leaves one history line (task 0.5)'
+    $hist = @(((Invoke-Gpu 'history' @('-Json')).out | ConvertFrom-Json).records)
+    $byName = @{}
+    foreach ($h in $hist) { if (-not $byName.ContainsKey($h.name)) { $byName[$h.name] = @() }; $byName[$h.name] += $h }
+    $one = { param($n) if ($byName.ContainsKey($n)) { $byName[$n][0] } else { $null } }
+    Check ((& $one 'exit') -and (& $one 'exit').outcome -eq 'failed' -and (& $one 'exit').exit -eq 7) 'a failed run: outcome failed, exit 7'
+    Check ((& $one 'exit0') -and (& $one 'exit0').outcome -eq 'ok' -and (& $one 'exit0').started) 'a good run: outcome ok, with its start time'
+    Check ((& $one 'impatient') -and (& $one 'impatient').outcome -eq 'gave-up-waiting' -and -not (& $one 'impatient').started) 'a run that gave up waiting: never started'
+    Check ((& $one 'kill-1') -and (& $one 'kill-1').outcome -eq 'stale') 'a killed run: written as stale when cleaned up'
+    Check ((& $one 'ctrl-c') -and (& $one 'ctrl-c').outcome -eq 'interrupted') "Ctrl+C: outcome interrupted ($(if (& $one 'ctrl-c') { (& $one 'ctrl-c').outcome } else { 'no line' }))"
+    $dupes = @($hist | Group-Object ticket | Where-Object { $_.Count -gt 1 })
+    Check ($dupes.Count -eq 0) "one line per ticket ($($dupes.Count) tickets with more)"
+    Check ($hist.Count -ge 20) "the runs so far are all there ($($hist.Count) lines)"
+    $r = Invoke-Gpu 'history'
+    Check ($r.code -eq 0 -and $r.out -match 'Overlaps: none') 'the real runs so far show no overlaps'
+    $r = Invoke-Gpu 'history' @('-Name', 'exit0', '-Since', '1h')
+    Check ($r.out -match 'exit0' -and $r.out -notmatch ' impatient ') 'history -Name -Since filters'
+    $r = Invoke-Gpu 'history' @('-Since', 'yesterday-ish')
+    Check ($r.code -eq 64) 'a bad -Since is a usage error'
+
+    Write-Host 'history finds overlaps in a written history'
+    $odir = Join-Path $Root 'overlap'
+    New-Item -ItemType Directory -Force $odir | Out-Null
+    $line = { param($t, $lane, $s, $e, $unq) ([pscustomobject]@{ ticket = $t; lane = $lane; name = "n$t"; command = 'x'; pid = 1; priority = $false; limitMin = 60
+                queued = "2026-11-01T10:00:00Z"; started = "2026-11-01T$($s)Z"; ended = "2026-11-01T$($e)Z"; exit = 0; outcome = 'ok'; unqueued = @($unq) } | ConvertTo-Json -Compress) }
+    Set-Content -Path (Join-Path $odir 'history.jsonl') -Encoding Ascii -Value @(
+        (& $line 1 'measure' '10:00:00' '10:10:00' @()),
+        (& $line 2 'render' '10:05:00' '10:06:00' @()),
+        (& $line 3 'render' '11:00:00' '11:10:00' @()),
+        (& $line 4 'render' '11:01:00' '11:09:00' @()),
+        (& $line 5 'render' '11:02:00' '11:03:00' @()),
+        (& $line 6 'measure' '12:00:00' '12:10:00' @('SkiAreaDesignChallenge (pid 9)')))
+    $a = (Get-GpuArgs 'history' @('-Json')) -replace [regex]::Escape((Quote $StateDir)), (Quote $odir)
+    $p = Start-Process powershell -ArgumentList $a -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput (Join-Path $Logs 'ov.out')
+    $ov = @((Get-Content -Raw (Join-Path $Logs 'ov.out') | ConvertFrom-Json).overlaps)
+    Check (@($ov | Where-Object { $_.kind -eq 'measure-overlap' -and ($_.tickets -join ',') -eq '1,2' }).Count -eq 1) 'a render run inside a measure run is flagged'
+    Check (@($ov | Where-Object { $_.kind -eq 'render-over-slots' }).Count -eq 1) 'three render runs at once (2 slots) are flagged'
+    Check (@($ov | Where-Object { $_.kind -eq 'contaminated' -and $_.tickets[0] -eq 6 }).Count -eq 1) 'a measure run that saw a player outside the queue is flagged'
+    Check ($ov.Count -eq 3) "nothing else is flagged ($($ov.Count))"
+
+    Write-Host 'The time limit kills the run and its children (exit 124)'
+    $limitExe = Join-Path $Root 'gpulimittest.exe'
+    Copy-Item (Join-Path $env:SystemRoot 'System32\PING.EXE') $limitExe
+    $t0 = [DateTime]::UtcNow
+    $r = Invoke-Gpu 'run' @('-Lane', 'render', '-Name', 'limit', '-LimitMin', '0.05', '--', 'cmd', '/c', $limitExe, '-n', '60', '127.0.0.1')
+    $took = ([DateTime]::UtcNow - $t0).TotalSeconds
+    Check ($r.code -eq 124) "a run past -LimitMin 0.05 exits 124 ($($r.code))"
+    Check ($took -lt 30) "it was stopped after the limit ($([int]$took) s)"
+    Start-Sleep -Milliseconds 300
+    Check (@(Get-Process -Name 'gpulimittest' -ErrorAction SilentlyContinue).Count -eq 0) 'its grandchild is gone too'
+    $h = @(((Invoke-Gpu 'history' @('-Json', '-Name', 'limit')).out | ConvertFrom-Json).records)
+    Check ($h.Count -eq 1 -and $h[0].outcome -eq 'time-limit') 'history says time-limit'
+    $r = Invoke-Gpu 'run' @('-Lane', 'measure', '-Name', 'nolimit', '-LimitMin', '0', '--', 'cmd', '/c', 'exit 0')
+    Check ($r.code -eq 0) '-LimitMin 0 runs without a limit'
+
+    Write-Host 'A measure run waits for a GPU-heavy process outside the queue; render runs do not'
+    $heavyExe = Join-Path $Root 'gpuheavytest.exe'
+    Copy-Item (Join-Path $env:SystemRoot 'System32\PING.EXE') $heavyExe
+    $heavy = @('-HeavyProcesses', 'gpuheavytest,gpuheadless')
+    $play = Start-Process $heavyExe -ArgumentList '-n 30 127.0.0.1' -PassThru -WindowStyle Hidden
+    $script:Launched += $play
+    $r = Invoke-Gpu 'run' (@('-Lane', 'measure', '-Name', 'u-wait', '-TimeoutSec', '2') + $heavy + @('--', 'cmd', '/c', 'exit 0'))
+    Check ($r.code -eq 124) "a measure run waits while one runs ($($r.code))"
+    Check ((Get-Content -Raw (Join-Path $Logs 'last.err')) -match 'outside the queue: gpuheavytest') 'and says what it waits for'
+    $r = Invoke-Gpu 'status' $heavy
+    Check ($r.out -match 'Outside the queue: gpuheavytest') 'status lists it'
+    $r = Invoke-Gpu 'run' (@('-Lane', 'render', '-Name', 'u-render', '-TimeoutSec', '5') + $heavy + @('--', 'cmd', '/c', 'exit 0'))
+    Check ($r.code -eq 0) "a render run doesn't wait ($($r.code))"
+
+    Write-Host 'Render runs pass a measure run that waits only for play outside the queue'
+    $p = @()
+    $p += Start-Run 'measure' 'u-m' 300 $heavy; Wait-Entry 'u-m'
+    $p += Start-Run 'render' 'u-r' 300 $heavy
+    [void]$p[1].WaitForExit(20000)
+    Check ((Get-Span 'u-r') -and -not (Get-Span 'u-m')) 'the render run finished while the measure run still waits'
+    & taskkill.exe /F /PID $play.Id 2>$null | Out-Null
+    [void]$p[0].WaitForExit(20000)
+    Check ([bool](Get-Span 'u-m')) 'the measure run starts once the process quits'
+
+    Write-Host 'Headless runs and a queued run''s own children never count'
+    $headless = Start-Process (Copy-Item (Join-Path $env:SystemRoot 'System32\cmd.exe') (Join-Path $Root 'gpuheadless.exe') -PassThru).FullName `
+        -ArgumentList '/c ping -n 30 127.0.0.1 & rem -nographics' -PassThru -WindowStyle Hidden
+    $script:Launched += $headless
+    $r = Invoke-Gpu 'run' (@('-Lane', 'measure', '-Name', 'u-headless', '-TimeoutSec', '5') + $heavy + @('--', 'cmd', '/c', 'exit 0'))
+    Check ($r.code -eq 0) "a -nographics process doesn't block a measure run ($($r.code))"
+    & taskkill.exe /F /PID $headless.Id 2>$null | Out-Null
+    $r = Invoke-Gpu 'run' (@('-Lane', 'measure', '-Name', 'u-own') + $heavy + @('--', 'cmd', '/c', $heavyExe, '-n', '3', '127.0.0.1'))
+    $h = @(((Invoke-Gpu 'history' @('-Json', '-Name', 'u-own')).out | ConvertFrom-Json).records)
+    Check ($r.code -eq 0 -and $h.Count -eq 1 -and @($h[0].unqueued).Count -eq 0) 'a measure run''s own player is not outside the queue'
+
+    Write-Host 'A player that starts during a measure run marks it contaminated'
+    $c = Start-Run 'measure' 'u-contam' 4000 $heavy
+    [void](Wait-For { param($s) @($s.holders | Where-Object { $_.name -eq 'u-contam' -and $_.childPid }).Count -gt 0 } 'u-contam holds')
+    $late = Start-Process $heavyExe -ArgumentList '-n 3 127.0.0.1' -PassThru -WindowStyle Hidden
+    $script:Launched += $late
+    Wait-All @($c)
+    $h = @(((Invoke-Gpu 'history' @('-Json', '-Name', 'u-contam')).out | ConvertFrom-Json).records)
+    Check ($h.Count -eq 1 -and @($h[0].unqueued | Where-Object { $_ -like 'gpuheavytest*' }).Count -ge 1) 'its history line names the player'
+    Check ($h.Count -eq 1 -and $h[0].exit -eq 0) 'the run itself still finished normally'
+    $r = Invoke-Gpu 'history' @('-Name', 'u-contam')
+    Check ($r.out -match 'CONTAMINATED' -and $r.out -match 'contaminated: measure #') 'history shows it as contaminated'
 } finally {
     foreach ($p in $script:Launched) { if (-not $p.HasExited) { try { & taskkill.exe /T /F /PID $p.Id 2>$null | Out-Null } catch { } } }   # it may exit meanwhile
     Start-Sleep -Milliseconds 300
