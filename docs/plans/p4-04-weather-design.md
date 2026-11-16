@@ -625,6 +625,8 @@ loosened); the Coordinator cleared the format bump and the re-record. The fit lo
   1.62 in); a game that is right would show 20 of 20 covered 6 % of the time, and the gate's noise floor (1 ÷ 20)
   reads the record's 20 of 20 as exact. The owner approved it as a listed limit (2026-11-13): the fidelity tests'
   `KnownLimits` names it, and the site fails on any other miss or once this one passes; no band is widened.
+  **Passed since SN-09 v4** (task 4.07 A2, 2026-11-15): with thin snow keeping its brightness, 92.7 % of the game's
+  Christmases keep 1 in of water (z −2.9, inside the 99.9 % range). It's off `KnownLimits`, and all 86 cells pass.
 - **Found, not changed (a follow-up for the weather engine):** the anomaly's memory is fitted on lag 1 (0.71–0.79),
   but the record's correlation falls faster after a day than one AR(1) allows (0.27 at 3 days against 0.42), so the
   game's autumn means vary up to 1.9 × the record's (Stevens Pass, 30 face days) and the season character is shrunk to
