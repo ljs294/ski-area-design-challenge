@@ -397,6 +397,10 @@ echo        screen, then shows that none of its files carries a download mark. A
 echo     115 Update to the newest: start this branch's game as if it were 0.3.1; it hands over to the 114
 echo        launcher, which asks, installs the newest and ends on "Launch ... v0.3.2". Then a start with no
 echo        update (no launcher window), offline, and the version list. Rebuilds the game; close the editor first.
+echo   4.14 ponds, dams, water
+echo     116 The Snowmaking tab, mockup first (opens in Edge, no game build): Pond, Dam, Lake, Edit and Remove.
+echo        Pond: click the shoreline, Enter, then the pool and the dig; Dam: click a bank of Twin Creek, the far
+echo        bank snaps to the same height; Lake: click Moose Lake to use it. It lists ten more states when it opens.
 echo   4.07 snow model PR A1: the snow energy, on paper (no Unity, no game build; about six minutes)
 echo     112 The snow's rule tests (south against north, shade, clear and cloudy nights, a cold pack, humid wind, the
 echo        game's clock against the hour, the energy balance), then six western snow pillows played for 20 winters
@@ -548,6 +552,7 @@ if /i "%CHOICE%"=="106" goto skiersbench
 if /i "%CHOICE%"=="107" goto skiermodels
 if /i "%CHOICE%"=="108" goto weatherlook
 if /i "%CHOICE%"=="110" goto weathertabmock
+if /i "%CHOICE%"=="116" goto watermock
 if /i "%CHOICE%"=="114" goto updaterinstall
 if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
@@ -2551,6 +2556,14 @@ rem 4.06: the Weather tab mockup (WX-46 v2) in the HUD mockup, opened on its sta
 set "MOCK=%~dp0docs\plans\prototypes\ui-layout.html"
 start "" msedge "file:///%MOCK:\=/%#solo&demo=p2,net,wx46,aweather"
 echo   The Weather tab opened in Edge. Other states: add ,wxseason or ,wxclimate or ,wxlimited or ,light to the address (Climate: ,wxweekly or ,wxseasonal).
+goto menu
+
+:watermock
+rem 4.14 Gate 0: the Snowmaking tab mockup (ponds, dams, lakes as sources) in the HUD mockup, opened on its tray.
+set "MOCK=%~dp0docs\plans\prototypes\ui-layout.html"
+start "" msedge "file:///%MOCK:\=/%#solo&demo=watertray"
+echo   The Snowmaking tab opened in Edge. Other states: change watertray in the address to pondshore, pondpool, pondberm,
+echo   damfirst, damreview, damedge, watersource, pondedit, damedit or waterremove.
 goto menu
 
 :weatherlook
