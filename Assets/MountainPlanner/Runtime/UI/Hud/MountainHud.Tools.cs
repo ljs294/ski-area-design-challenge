@@ -32,6 +32,11 @@ namespace MountainPlanner.UI
             TerrainIds.Flatten => "right-click a height, paint to it",
             TerrainIds.Smooth => "take out the bumps",
             TerrainIds.Slope => "right-click a height, drag a ramp to it",
+            PondTool.ToolId => "draw its waterline; the berm goes outside",
+            DamTool.ToolId => "click both banks across a stream",
+            WaterSourceTool.ToolId => "switch a lake on as a water source",
+            EditWaterTool.ToolId => "reshape a pond, or open a dam or lake",
+            RemoveWaterTool.ToolId => "take a pond or dam out; its ground goes back",
             _ => "",
         };
 
@@ -41,6 +46,10 @@ namespace MountainPlanner.UI
             : id == TerrainIds.Flatten ? GameAction.TerrainFlatten
             : id == TerrainIds.Smooth ? GameAction.TerrainSmooth
             : id == TerrainIds.Slope ? GameAction.TerrainSlope
+            // Task 4.14: the Snowmaking tab shares the Terrain tab's letters (O, B, L by default; rebinding one moves both).
+            : id == PondTool.ToolId ? GameAction.TerrainSmooth
+            : id == DamTool.ToolId ? GameAction.TerrainRaise
+            : id == WaterSourceTool.ToolId ? GameAction.TerrainFlatten
             : id.StartsWith("new-", StringComparison.Ordinal) ? GameAction.ToolNew
             : id.StartsWith("edit-", StringComparison.Ordinal) ? GameAction.ToolEdit
             : id.StartsWith("remove-", StringComparison.Ordinal) ? GameAction.ToolRemove
@@ -56,6 +65,16 @@ namespace MountainPlanner.UI
                     GameAction.TerrainFlatten => TerrainIds.Flatten,
                     GameAction.TerrainSmooth => TerrainIds.Smooth,
                     GameAction.TerrainSlope => TerrainIds.Slope,
+                    _ => null,
+                };
+            if (_toolboxTab == "snow")   // task 4.14: the Water group's letters
+                return action switch
+                {
+                    GameAction.TerrainSmooth => PondTool.ToolId,
+                    GameAction.TerrainRaise => DamTool.ToolId,
+                    GameAction.TerrainFlatten => WaterSourceTool.ToolId,
+                    GameAction.ToolEdit => EditWaterTool.ToolId,
+                    GameAction.ToolRemove => RemoveWaterTool.ToolId,
                     _ => null,
                 };
             string noun = _toolboxTab == "lifts" ? "lift" : _toolboxTab == "trails" ? "trail" : null;

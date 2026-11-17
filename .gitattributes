@@ -43,6 +43,8 @@ Assets/MountainPlanner/Art/UI/Fonts/*.asset filter=lfs diff=lfs merge=lfs -text
 
 # Road layers (task 12d) are verified by their SHA-256: never convert their line endings.
 roads.json -text
+# Water lines and names (task 4.14) are verified by their SHA-256 too.
+water.json -text
 # The pre-push hook (task P2-10) is a sh script: CRLF would break it.
 tools/git-hooks/* text eol=lf
 # The frozen save fixture (task P3-04): byte-exact, no line-end conversion
@@ -59,6 +61,7 @@ TestData/formats/v10-save/** -text
 TestData/formats/v11-save/** -text
 TestData/formats/v12-save/** -text
 TestData/formats/v13-save/** -text
+TestData/formats/v14-save/** -text
 TestData/formats/v1-sim/** -text
 TestData/formats/v2-sim/** -text
 TestData/formats/v4-sim/** -text
@@ -66,3 +69,4 @@ TestData/formats/v5-sim/** -text
 TestData/formats/v7-sim/** -text
 TestData/formats/v8-sim/** -text
 TestData/formats/v2-package/** -text
+TestData/formats/v3-package/** -text

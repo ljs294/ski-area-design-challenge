@@ -275,6 +275,7 @@ namespace MountainPlanner.App
                 StartGuestShots(args);     // -guestshot <folder> (MountainViewer.Guests.cs, task 4.12)
                 StartWeatherShots(args);   // -weathershots <folder> (MountainViewer.WeatherReadout.cs, task 4.05)
                 StartWeatherLook(args);    // -wxlook <look>, -wxshots <folder>, -wxdemo, bisect switches (MountainViewer.WeatherLook.cs, task 4.06)
+                StartWaterShots(args);     // -watershots <folder> (MountainViewer.WaterShots.cs, task 4.14)
                 StartLakeReport(args);     // -lakereport <folder> (MountainViewer.Lakes.cs, task 4.09)
                 StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
                 StartSkierFigureShots(args);   // -skiershot <folder> [-guests N] (MountainViewer.SkierFigureShots.cs, task 4.22)
@@ -373,6 +374,7 @@ namespace MountainPlanner.App
             UpdateSkierHover();  // the dot under the pointer, and a click on one (task 4.13)
             UpdateLiftHover();   // the lift under the pointer glows (task 09, LT23)
             UpdateTrailHover();  // and a trail lights and opens its card (task P3-10, sections finding 4)
+            UpdateWaterHover();  // then water: a dam, pond, stream or lake lights and opens its card (task 4.14, LK-10)
             _resort?.States?.Sync();
             RunClock();
             UpdateWeather();   // task 4.06: the weather on screen (MountainViewer.Weather.cs)
@@ -421,6 +423,7 @@ namespace MountainPlanner.App
                 else if (Hud != null && _resort != null && Hud.CloseSkierCardIfOpen()) { }   // the skier card (task 4.13)
                 else if (Hud != null && _resort != null && Hud.CloseTrailCardIfOpen()) { }   // a trail's focus card (task 08)
                 else if (Hud != null && _resort != null && Hud.CloseLiftCardIfOpen()) { }    // a lift's focus card (task 09)
+                else if (Hud != null && _resort != null && Hud.CloseWaterCardIfOpen()) { }   // a water card (task 4.14)
                 else if (_resort != null && EscapeTool()) { }   // the armed tool backs out a step (CF-07, P3-06)
                 else if (Hud != null && _resort != null && Hud.BackOut()) { }
                 else if (Hud != null && _resort != null) Hud.ToggleMenu();

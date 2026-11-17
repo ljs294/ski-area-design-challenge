@@ -29,6 +29,11 @@ namespace MountainPlanner.UI.Tools
             new Entry(TerrainIds.Flatten, "s-flatten", null, () => new FlattenTool()),
             new Entry(TerrainIds.Smooth, "s-smooth", null, () => new SmoothTool()),
             new Entry(TerrainIds.Slope, "s-slope", null, () => new SlopeTool()),
+            new Entry(PondTool.ToolId, "s-pond", null, () => new PondTool()),                    // task 4.14 (PD-01…04)
+            new Entry(DamTool.ToolId, "s-dam", null, () => new DamTool()),                       // task 4.14 (PD-05…07)
+            new Entry(WaterSourceTool.ToolId, "s-source", null, () => new WaterSourceTool()),    // task 4.14 (WS-01, LK-02)
+            new Entry(EditWaterTool.ToolId, "s-pond", "edit", () => new EditWaterTool()),
+            new Entry(RemoveWaterTool.ToolId, "s-pond", "remove", () => new RemoveWaterTool()),  // task 4.14 (PD-08)
         };
 
         public static IReadOnlyList<Entry> All => Entries;

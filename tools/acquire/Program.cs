@@ -208,6 +208,22 @@ switch (command)
         return problems.Count == 0 ? 0 : 1;
     }
 
+    case "refresh-water":
+    {
+        // Stream lines and water names (task 4.14, WS-08, LK-10) for areas whose water and roads came before them, as the game
+        // does on open. The id doesn't change. --package <folder> for one; otherwise every mountain in the library that needs them.
+        var folders = opts.TryGetValue("package", out string? one) ? new List<string> { one }
+            : ResortLibrary.Scan(dataRoot).Select(e => e.Folder).Where(f => WaterLinesBackfill.Needed(ResortPackage.ReadManifest(f))).ToList();
+        string cache = opts.GetValueOrDefault("cache", Path.Combine(dataRoot, "download-cache"));
+        foreach (string folder in folders)
+        {
+            bool added = await WaterLinesBackfill.RunAsync(folder, cache, CancellationToken.None);
+            var w = ResortPackage.ReadManifest(folder).Water;
+            Console.WriteLine($"{folder}: {(added ? "added" : "nothing needed")}, {w?.Streams ?? 0} streams, {w?.Names ?? 0} names");
+        }
+        return 0;
+    }
+
     case "refresh-osm":
     {
         // Get water and roads (task P3-16, BB6), as Manage Areas does it: OpenStreetMap water, developed land and roads for a

@@ -144,6 +144,7 @@ namespace MountainPlanner.App.Flow
             "-skiershot",   // task 4.22
             "-proofhold",   // task 4.13 PR C2
             "-lakereport",   // task 4.09
+            "-watershots",   // task 4.14
         };
 
         void UpdateSaves(Keyboard keys)

@@ -141,6 +141,10 @@
 /* the step buttons (.lbtns) and the commit buttons (.acts: Break ground fills, Save plan is a ghost) */
 .hud .tw-btns { flex-direction: row; padding: 2px 12px 6px 12px; }
 .hud .tw-btns > .mp-ghost { flex-grow: 1; height: 30px; flex-direction: row; justify-content: center; align-items: center; }
+/* Task 4.14: the water card's buttons wrap, and a switch that is on reads as the segmented control's on option. */
+.hud .water-card__btns { flex-wrap: wrap; }
+.hud .water-card__btns > .mp-ghost { flex-grow: 0; padding: 0 10px; margin: 0 6px 6px 0; }
+.hud .water-card__btns > .mp-ghost--on, .hud .water-card__btns > .mp-ghost--on:hover { background-color: var(--on-bg); color: var(--on-fg); -unity-text-outline-color: var(--on-fg); }
 .hud .tw-acts { flex-direction: row; flex-shrink: 0; padding: 4px 12px 12px 12px; }   /* pinned: only the scroll above it gives way */
 .hud .tw-acts > .mp-go { flex-grow: 1; flex-direction: row; justify-content: space-between; align-items: center; margin-right: 6px; }
 .hud .tw-acts > .mp-ghost { flex-shrink: 0; }

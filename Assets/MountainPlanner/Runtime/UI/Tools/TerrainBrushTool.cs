@@ -329,6 +329,15 @@ namespace MountainPlanner.UI.Tools
 
         // ---------- painting ----------
 
+        // Task 4.14 (owner Q6): ponds and dams fold last and own their footprint, so a stroke starting on one is refused.
+        string OnWater(Domain.Design.PointMm p)
+        {
+            var doc = _ctx.History.Document;
+            if (doc.Ponds.Count == 0 && doc.Dams.Count == 0) return null;
+            ulong id = WaterPick.Under(doc, _ctx.Earthwork, p);
+            return id != 0 ? WaterPick.NameOf(doc, id) : null;
+        }
+
         public void Tick(in ToolInput input)
         {
             // The fold ahead waits for the let-go's catch-up to land, so the two don't share the CPU.
@@ -389,6 +398,8 @@ namespace MountainPlanner.UI.Tools
                 }
                 else if (left && _mode == TerrainToolMode.Slope && !_targetAt.HasValue)
                     _ctx.Window.SetMessage("Right-click the ground to set the slope's target first.", false);   // BR16: no hidden target
+                else if ((left || (right && _mode == TerrainToolMode.RaiseLower)) && input.HasGround && input.InCore && OnWater(input.Point) is string pond)
+                    _ctx.Window.SetMessage($"{pond} owns its ground: change it with Edit water (Snowmaking, M).", true);   // task 4.14 (Q6)
                 else if ((left || (right && _mode == TerrainToolMode.RaiseLower)) && input.HasGround && input.InCore)
                     Begin(input, lower: right);
                 if (_mode == TerrainToolMode.Slope && input.HasGround && _run == null) ShowRamp(input.Point, GroundMm(input.Point));

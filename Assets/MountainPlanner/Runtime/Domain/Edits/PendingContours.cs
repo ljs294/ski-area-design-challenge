@@ -49,6 +49,45 @@ namespace MountainPlanner.Domain.Edits
             }
         }
 
+        /// <summary>
+        /// Task 4.14 (F3): the one contour at <paramref name="level"/> within <paramref name="radius"/> metres of
+        /// (<paramref name="cx"/>, <paramref name="cy"/>), package metres, on a <paramref name="step"/>-metre grid, as the same
+        /// quintuples as <see cref="Build"/>: where a dam's far bank can land at full pool.
+        /// </summary>
+        public static void AtLevel(IHeightSource heights, double cx, double cy, double radius, double step, double level, List<double> into)
+        {
+            if (heights == null || into == null) throw new ArgumentNullException(nameof(heights));
+            if (!(step > 0) || !(radius > 0)) throw new ArgumentOutOfRangeException(nameof(step));
+            into.Clear();
+            int n = (int)Math.Ceiling(2 * radius / step) + 1;
+            double x0 = cx - radius, y0 = cy + radius;   // the north-west corner; rows run south
+            var h = new double[n * n];
+            for (int j = 0; j < n; j++)
+                for (int i = 0; i < n; i++)
+                    h[j * n + i] = heights.At(x0 + i * step, y0 - j * step);
+            double r2 = radius * radius;
+            Span<double> px = stackalloc double[4];
+            Span<double> py = stackalloc double[4];
+            for (int j = 0; j < n - 1; j++)
+                for (int i = 0; i < n - 1; i++)
+                {
+                    double x = x0 + i * step, y = y0 - j * step;
+                    double mx = x + step / 2 - cx, my = y - step / 2 - cy;
+                    if (mx * mx + my * my > r2) continue;
+                    double a = h[j * n + i], b = h[j * n + i + 1], d = h[(j + 1) * n + i], e = h[(j + 1) * n + i + 1];
+                    if (double.IsNaN(a) || double.IsNaN(b) || double.IsNaN(d) || double.IsNaN(e)) continue;
+                    int count = 0;
+                    Cross(a, b, level, x, y, x + step, y, px, py, ref count);
+                    Cross(b, e, level, x + step, y, x + step, y - step, px, py, ref count);
+                    Cross(e, d, level, x + step, y - step, x, y - step, px, py, ref count);
+                    Cross(d, a, level, x, y - step, x, y, px, py, ref count);
+                    for (int s = 0; s + 1 < count; s += 2)
+                    {
+                        into.Add(px[s]); into.Add(py[s]); into.Add(px[s + 1]); into.Add(py[s + 1]); into.Add(level);
+                    }
+                }
+        }
+
         static double H(double[] h, int k, EditedHeights pending, int c, int r)
         {
             if (double.IsNaN(h[k])) h[k] = pending.AtPoint(c, r);
