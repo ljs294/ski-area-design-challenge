@@ -125,5 +125,57 @@ namespace MountainPlanner.Tests
             }
             finally { states.Dispose(); }
         }
+
+        [Test]
+        public void TheWorkersTilesReachTheGpuAndAWholeMapUploadKeepsThem()
+        {
+            // Task 4.07 PR A2: tiles go up by rectangle (a staging strip and CopyTexture), so the map's own CPU copy falls
+            // behind; a later whole-map upload (a seed, an old save's snow) must not bring the old depths back.
+            var states = new SurfaceStates(new Rect(0, 0, 800, 400));
+            try
+            {
+                const int x = 64, y = 0, w = 36, h = 50;
+                var mm = new ushort[w * h];
+                for (int k = 0; k < mm.Length; k++) mm[k] = 250;
+                var surface = new byte[w * h * 4];
+                for (int k = 0; k < surface.Length; k += 4) surface[k] = 3;
+                states.TakeTile(x, y, w, h, mm, 0, surface, 0);
+                for (int f = 0; f < 4 && states.TilesWaiting > 0; f++) states.Sync();
+                Assert.That(states.TilesWaiting, Is.Zero);
+                float[] gpu = ReadBack((Texture2D)Shader.GetGlobalTexture(DepthMap));
+                Assert.That(gpu[10 * 100 + 70], Is.EqualTo(0.25f).Within(1e-6f), "inside the tile");
+                Assert.That(gpu[10 * 100 + 10], Is.EqualTo(SnowDepthField.IterationOneMetres).Within(1e-6f), "outside it");
+                Assert.That(states.SurfaceAt(70, 10).Type, Is.EqualTo(3), "the surface bytes too");
+
+                states.Snow.SetRect(2, 2, 2, 2, 0.05f);
+                states.Sync();
+                gpu = ReadBack((Texture2D)Shader.GetGlobalTexture(DepthMap));
+                Assert.That(gpu[3 * 100 + 3], Is.EqualTo(0.05f).Within(1e-6f), "the whole-map write");
+                Assert.That(gpu[10 * 100 + 70], Is.EqualTo(0.25f).Within(1e-6f), "the tile is still there after it");
+            }
+            finally { states.Dispose(); }
+        }
+
+        /// <summary>What the GPU holds (not the texture's CPU copy, which tile uploads skip).</summary>
+        static float[] ReadBack(Texture2D map)
+        {
+            var rt = RenderTexture.GetTemporary(map.width, map.height, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
+            var read = new Texture2D(map.width, map.height, TextureFormat.RFloat, false, true);
+            var was = RenderTexture.active;
+            try
+            {
+                Graphics.Blit(map, rt);
+                RenderTexture.active = rt;
+                read.ReadPixels(new Rect(0, 0, map.width, map.height), 0, 0);
+                read.Apply(false);
+                return read.GetPixelData<float>(0).ToArray();
+            }
+            finally
+            {
+                RenderTexture.active = was;
+                RenderTexture.ReleaseTemporary(rt);
+                Object.DestroyImmediate(read);
+            }
+        }
     }
 }

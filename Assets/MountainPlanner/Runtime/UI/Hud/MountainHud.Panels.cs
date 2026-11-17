@@ -114,7 +114,7 @@ namespace MountainPlanner.UI
             Inert(_trSketch, "sq--dis", null);
             // The lift and trail counts are live since task P3-10 (MountainHud.Network.cs, NT5).
             foreach (string name in new[] { "bar-money", "bar-guests", "bar-save" }) Inert(_root.Q(name), null, null);
-            foreach (string name in new[] { "menu-save", "menu-rename", "layer-snowmaking", "layer-infrastructure", "layer-conditions" })
+            foreach (string name in new[] { "menu-save", "menu-rename", "layer-snowmaking", "layer-infrastructure" })
                 Inert(_root.Q(name), "row--dis", null);
 
             WireTooltips();

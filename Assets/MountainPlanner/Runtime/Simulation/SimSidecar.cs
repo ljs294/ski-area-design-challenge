@@ -26,10 +26,17 @@ namespace MountainPlanner.Simulation
     /// the dates). The table itself is the area's, rebuilt at open and resent; a v6 save's bodies start as open water.
     /// v8 (task 4.07 PR A1) writes the weather rows as rows format 2, with WX-26 v2's dew point by hour (`DewDiurnal`); an
     /// older sidecar's rows read as format 1, the dew point following the air (κ = 0), and hash as before.
+    /// v9 (task 4.07 PR A2) writes the snow block in place as a mode byte (0 never set, 1 static depths, 2 live) and the
+    /// field's size; static depths as before; live, the hour in flight (its landing and hour, the ledgers, both tile-hash
+    /// sets: a save mid-hour holds the hour's result and lands it as it would have) and the snow itself, tile by tile (a bare
+    /// tile is one byte), each plane as differences along the tile's rows in short numbers (<see cref="SnowCodec"/>). An
+    /// older sidecar's depths read as static depths; the snow's inputs then make them the seed.
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 8;
+        public const int Version = 9;
+        /// <summary>The first version with the snow block's mode byte and the live snow (task 4.07 PR A2).</summary>
+        public const int LiveSnowVersion = 9;
         /// <summary>The first version with the lake block (task 4.09).</summary>
         public const int LakesVersion = 7;
         /// <summary>The first sidecar whose weather rows are rows format 2 (task 4.07 PR A1).</summary>
@@ -73,7 +80,10 @@ namespace MountainPlanner.Simulation
         static Header ReadHeader(SidecarReader r, int version) =>
             new Header(version, r.U64(), r.I32(), r.U64(), r.U64(), r.I32(), r.I64());
 
-        internal static byte[] Write(SimWorld w)
+        internal static byte[] Write(SimWorld w) => Capture(w).Encode();
+
+        /// <summary>The state at this tick, copied but not yet encoded (the worker's part of a save).</summary>
+        internal static SimStateCapture Capture(SimWorld w)
         {
             var o = new SidecarWriter();
             o.Bytes(Magic);
@@ -87,7 +97,7 @@ namespace MountainPlanner.Simulation
             o.I64(w.Tick);
             w.WriteState(o);
             o.U64(w.Hash());
-            return o.ToArray();
+            return new SimStateCapture(o);
         }
 
         /// <summary>
@@ -132,7 +142,8 @@ namespace MountainPlanner.Simulation
         /// only from v2), so the bytes need no rewrite. v4 → v5 likewise: the reader multiplies the saved gusts by ten and
         /// starts the weather from October 1, and v5 → v6: the reader starts the events empty and the forecast unissued. v6 → v7:
         /// no lake block, every body open water with no lag. v7 → v8: the reader reads each weather block's rows as format 1
-        /// (κ = 0), and they hash as they did.
+        /// (κ = 0), and they hash as they did. v8 → v9: the reader reads the old snow block (set, size, depths) as static
+        /// depths.
         /// </summary>
         static byte[] Upgrade(byte[] bytes)
         {
@@ -179,11 +190,65 @@ namespace MountainPlanner.Simulation
             for (int i = 0; i < v.Length; i++) { _b[_n++] = (byte)v[i]; _b[_n++] = (byte)(v[i] >> 8); }
         }
 
+        /// <summary>A signed number in as few bytes as it needs (zigzag, then 7 bits a byte, low first: v9's snow planes).</summary>
+        public void Var(long v)
+        {
+            ulong z = unchecked((ulong)((v << 1) ^ (v >> 63)));
+            Room(10);
+            while (z >= 0x80) { _b[_n++] = (byte)(z | 0x80); z >>= 7; }
+            _b[_n++] = (byte)z;
+        }
+
+        // Snow fields to encode at their place in the bytes, when the bytes are asked for (task 4.07 PR A2's save split).
+        System.Collections.Generic.List<(int At, SnowField Field, SimWorld Owner)> _deferred;
+
+        /// <summary>Marks <paramref name="field"/>'s encoding here, done in <see cref="ToArray"/>; the field goes back to
+        /// <paramref name="owner"/> for its next save once it's encoded.</summary>
+        internal void Defer(SnowField field, SimWorld owner) => (_deferred ??= new System.Collections.Generic.List<(int, SnowField, SimWorld)>()).Add((_n, field, owner));
+
         public byte[] ToArray()
         {
-            var a = new byte[_n];
-            Buffer.BlockCopy(_b, 0, a, 0, _n);
-            return a;
+            if (_deferred == null)
+            {
+                var a = new byte[_n];
+                Buffer.BlockCopy(_b, 0, a, 0, _n);
+                return a;
+            }
+            var o = new SidecarWriter();
+            int from = 0;
+            foreach (var d in _deferred)
+            {
+                o.Room(d.At - from); Buffer.BlockCopy(_b, from, o._b, o._n, d.At - from); o._n += d.At - from;
+                SnowCodec.Write(o, d.Field);
+                d.Owner?.ReturnSaveCopy(d.Field);
+                from = d.At;
+            }
+            o.Room(_n - from); Buffer.BlockCopy(_b, from, o._b, o._n, _n - from); o._n += _n - from;
+            _deferred = null;
+            _b = o._b; _n = o._n;
+            return ToArray();
+        }
+    }
+
+    /// <summary>
+    /// A world's state copied at a tick boundary, not yet encoded (task 4.07 PR A2's save split): <see cref="Encode"/> gives
+    /// the sidecar's bytes, the same as <see cref="SimSidecar.Write"/> would have at that tick, on whatever thread calls it.
+    /// </summary>
+    public sealed class SimStateCapture
+    {
+        readonly object _gate = new object();
+        SidecarWriter _o;
+        byte[] _bytes;
+
+        internal SimStateCapture(SidecarWriter o) { _o = o; }
+
+        public byte[] Encode()
+        {
+            lock (_gate)
+            {
+                if (_bytes == null) { _bytes = _o.ToArray(); _o = null; }
+                return _bytes;
+            }
         }
     }
 
@@ -239,6 +304,20 @@ namespace MountainPlanner.Simulation
         {
             Need(into.Length * 2);
             for (int i = 0; i < into.Length; i++) { into[i] = (ushort)(_b[_at] | _b[_at + 1] << 8); _at += 2; }
+        }
+
+        /// <summary>The writer's <c>Var</c>: refused past ten bytes.</summary>
+        public long Var()
+        {
+            ulong z = 0;
+            for (int shift = 0; ; shift += 7)
+            {
+                if (shift > 63) throw new InvalidDataException("A short number runs past ten bytes.");
+                byte b = U8();
+                z |= (ulong)(b & 0x7F) << shift;
+                if (b < 0x80) break;
+            }
+            return unchecked((long)(z >> 1) ^ -(long)(z & 1));
         }
 
         /// <summary>A skier slot, refused outside 0 to <paramref name="cap"/>−1 (GU-01: the lines are chains over slots).</summary>

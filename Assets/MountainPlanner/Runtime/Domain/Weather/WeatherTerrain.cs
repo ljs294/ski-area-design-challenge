@@ -33,14 +33,22 @@ namespace MountainPlanner.Domain.Weather
     /// (SI-21).
     /// - Per 8 m cell: the elevation bin (<see cref="BinFeet"/>), the height above the valley floor (<c>hvf</c>, the lowest
     ///   cell within 1 km, 10 ft steps) and the exposure class (0 sheltered valley … 7 exposed summit).
-    /// - Per 512 m cell and arrival octant: the orographic factor (‰), from the upwind terrain within 3 km, normalised so its
-    ///   mean over the box is 1.0 (the Daymet lattice is the box's pixels at 1 km, so it has the same mean).
+    /// - WX-35 v3 (task 4.07 PR A2, owner 2026-11-14): per arrival octant, the upwind crest within 3 km (its height, its
+    ///   distance, and the lowest ground on the way), marched over the 512 m blocks and carried on a 64 m lattice by the
+    ///   curved filter. Each 8 m cell judges its orographic factor by its own height against it (<see cref="OrographicAt"/>),
+    ///   so gullies sit deeper in a lee than ridges and the line of equal precipitation follows the ground; normalised so
+    ///   its mean over the box's cells is 1.0 (the Daymet lattice is the box's pixels at 1 km, so it has the same mean).
+    ///   v2 gave a whole 512 m block one factor from its mean height, blended in straight lines: a straight snow line.
     /// - Per 96 m cell: the valley's axis and how strongly it turns the wind; per octant, the speed factor (0.01).
     /// </summary>
     public sealed class WeatherTerrain
     {
         public const int CellMetres = Snow.SurfaceGrid.CellMetres, MinBinFeet = 33, Bins = 256, Bands = 16, BandFeet = 32, NoData = 255;
         public const int CoarseCells = 64, SteerCells = 12;
+        /// <summary>WX-35 v3: the crest lattice's spacing (cells, 64 m).</summary>
+        public const int FineCells = 8;
+        /// <summary>WX-35 v3: the ramp that turns windward into lee without a step (over the first ft below the crest's height).</summary>
+        public const int CrestRampFeet = 400;
         /// <summary>The valley floor's reach (1 km in cells), the reference pixel's half-size (500 m) and the upwind search (3 km).</summary>
         const int FloorRadius = 125, RefRadius = 62, UpwindMetres = 3000;
 
@@ -61,8 +69,18 @@ namespace MountainPlanner.Domain.Weather
         /// <summary>WX-36 v2: the reference pixel's mean hvf (ft): the pool is measured against it.</summary>
         public readonly int HvfRefFeet;
         public readonly int CoarseWidth, CoarseDepth, SteerWidth, SteerDepth;
-        /// <summary>[octant × coarse cells]: the orographic factor (‰). Octant 0 is a wind from the north, clockwise.</summary>
-        public readonly short[] Orographic;
+        /// <summary>
+        /// WX-35 v3, [octant × fine nodes] (64 m, <see cref="FineWidth"/> × <see cref="FineDepth"/>; node m's centre is cell 8m + 4):
+        /// the highest ground upwind within 3 km (ft), how far it is (m), and the lowest ground on the way (ft). Octant 0 is a
+        /// wind from the north, clockwise. Where nothing lies upwind (the map's edge) the crest is the ground itself, far off.
+        /// </summary>
+        public readonly short[] CrestFeet, CrestMetres, UpwindLowFeet;
+        public readonly int FineWidth, FineDepth;
+        /// <summary>WX-35 v3: per octant, the raw factor's mean over the box's cells (‰): the factor is raw × 1000 ÷ this.</summary>
+        public readonly int[] OrographicMean;
+        /// <summary>The orographic rule's numbers (WeatherTerrainTuning's): windward, spillover and shadow (‰), the spillover's
+        /// reach (m), the climb and the barrier (ft).</summary>
+        public readonly int Windward, Spillover, Shadow, SpilloverReachMetres, ClimbFeet, BarrierFeet;
         /// <summary>Per steer cell: the valley's axis as a direction (× 45°, on the grid), pointing down the valley, and how
         /// strongly the cell turns the wind to it (%): see <see cref="TurnDegrees"/>.</summary>
         public readonly byte[] Axis, TurnWeight;
@@ -101,11 +119,16 @@ namespace MountainPlanner.Domain.Weather
         public static int BandOf(int hvfTenFeet) => Math.Min(Bands - 1, hvfTenFeet * 10 / BandFeet);
 
         WeatherTerrain(int width, int depth, int originX, int originY, int minFeet, int binFeet, byte[] bin, byte[] hvf, byte[] exposure, bool[] present, int hvfRef,
-                       int cw, int cd, short[] oro, int sw, int sd, byte[] axis, byte[] weight, byte[] speed, int convergenceTenths, short[] binHvf)
+                       int cw, int cd, Crest crest, int sw, int sd, byte[] axis, byte[] weight, byte[] speed, int convergenceTenths, short[] binHvf,
+                       WeatherTerrainTuning t)
         {
             Width = width; Depth = depth; OriginXMm = originX; OriginYMm = originY; MinFeet = minFeet; BinFeet = binFeet;
             Bin = bin; Hvf = hvf; Exposure = exposure; Present = present; HvfRefFeet = hvfRef;
-            CoarseWidth = cw; CoarseDepth = cd; Orographic = oro; SteerWidth = sw; SteerDepth = sd; Axis = axis; TurnWeight = weight; Speed = speed;
+            CoarseWidth = cw; CoarseDepth = cd; SteerWidth = sw; SteerDepth = sd; Axis = axis; TurnWeight = weight; Speed = speed;
+            CrestFeet = crest.Feet; CrestMetres = crest.Metres; UpwindLowFeet = crest.Low; FineWidth = crest.W; FineDepth = crest.D;
+            OrographicMean = crest.Mean;
+            Windward = t.Windward; Spillover = t.Spillover; Shadow = t.Shadow; SpilloverReachMetres = t.SpilloverReachMetres;
+            ClimbFeet = t.ClimbFeet; BarrierFeet = t.BarrierFeet;
             ConvergenceTenths = convergenceTenths; BinHvfFeet = binHvf;
             ulong h = 14695981039346656037UL;
             void Mix(long v) => h = (h ^ (ulong)v) * 1099511628211UL;
@@ -113,12 +136,80 @@ namespace MountainPlanner.Domain.Weather
             foreach (byte v in bin) Mix(v);
             foreach (byte v in hvf) Mix(v);
             foreach (byte v in exposure) Mix(v);
-            foreach (short v in oro) Mix(v);
+            Mix(FineWidth); Mix(FineDepth);
+            foreach (short v in CrestFeet) Mix(v);
+            foreach (short v in CrestMetres) Mix(v);
+            foreach (short v in UpwindLowFeet) Mix(v);
+            foreach (int v in OrographicMean) Mix(v);
+            Mix(Windward); Mix(Spillover); Mix(Shadow); Mix(SpilloverReachMetres); Mix(ClimbFeet); Mix(BarrierFeet);
             foreach (byte v in axis) Mix(v);
             foreach (byte v in weight) Mix(v);
             foreach (byte v in speed) Mix(v);
             Hash = h;
         }
+
+        /// <summary>
+        /// WX-35 v3: the orographic factor (‰, 100–3,000) for wind from octant <paramref name="octant"/> at cell
+        /// (<paramref name="i"/>, <paramref name="j"/>) standing at <paramref name="feet"/>: the crest read from the 64 m lattice
+        /// (straight-line blend between nodes, the nodes themselves already curved), the rule on the cell's own height.
+        /// </summary>
+        public int OrographicAt(int octant, int i, int j, int feet)
+        {
+            int raw = RawAt(CrestFeet, CrestMetres, UpwindLowFeet, FineWidth, FineDepth, octant, i, j, feet,
+                            Windward, Spillover, Shadow, SpilloverReachMetres, ClimbFeet, BarrierFeet);
+            return WeatherMath.Clamp((int)WeatherMath.DivRound(raw * 1000L, OrographicMean[octant]), 100, 3000);
+        }
+
+        /// <summary>The raw factor (‰, before the box's mean) at a cell: the crest read off the lattice, the rule on the cell's height.</summary>
+        static int RawAt(short[] crestFeet, short[] crestMetres, short[] lowFeet, int fw, int fd, int octant, int i, int j, int feet,
+                         int windward, int spillover, int shadow, int reach, int climbFeet, int barrierFeet)
+        {
+            // Node m's centre is cell 8m + 4: in half cells 16m + 8, the cell's centre 2i + 1.
+            int fx = i * 2 + 1 - FineCells, fy = j * 2 + 1 - FineCells;
+            int x0 = WeatherMath.Clamp(FloorDiv(fx, 2 * FineCells), 0, fw - 1), y0 = WeatherMath.Clamp(FloorDiv(fy, 2 * FineCells), 0, fd - 1);
+            int ux = WeatherMath.Clamp(fx - x0 * 2 * FineCells, 0, 2 * FineCells), uy = WeatherMath.Clamp(fy - y0 * 2 * FineCells, 0, 2 * FineCells);
+            int x1 = Math.Min(fw - 1, x0 + 1), y1 = Math.Min(fd - 1, y0 + 1);
+            int b = octant * fw * fd, a00 = b + y0 * fw + x0, a10 = b + y0 * fw + x1, a01 = b + y1 * fw + x0, a11 = b + y1 * fw + x1;
+            int w00 = (16 - ux) * (16 - uy), w10 = ux * (16 - uy), w01 = (16 - ux) * uy, w11 = ux * uy;
+            int crest = (int)WeatherMath.DivRound((long)crestFeet[a00] * w00 + (long)crestFeet[a10] * w10 + (long)crestFeet[a01] * w01 + (long)crestFeet[a11] * w11, 256);
+            int at = (int)WeatherMath.DivRound((long)crestMetres[a00] * w00 + (long)crestMetres[a10] * w10 + (long)crestMetres[a01] * w01 + (long)crestMetres[a11] * w11, 256);
+            int low = (int)WeatherMath.DivRound((long)lowFeet[a00] * w00 + (long)lowFeet[a10] * w10 + (long)lowFeet[a01] * w01 + (long)lowFeet[a11] * w11, 256);
+            return Raw(feet, crest, at, low, windward, spillover, shadow, reach, climbFeet, barrierFeet);
+        }
+
+        /// <summary>
+        /// WX-35 v3's rule for ground at <paramref name="feet"/> under a crest of <paramref name="crest"/> ft, <paramref name="at"/> m
+        /// upwind, with <paramref name="low"/> ft the lowest ground on the way (‰, before the box's mean):
+        /// - at or above the crest, windward: up to +windward as the air climbs into the cell from the low ground;
+        /// - below it, the spillover, +spillover at the crest easing to nothing at the reach, less the shadow, which eases in
+        ///   from half the reach to twice it and is up to −shadow as the cell sits deeper below the crest;
+        /// - distance only ever eases, and the turn to windward is a ramp over the first <see cref="CrestRampFeet"/> below the
+        ///   crest's height (level ground under a level upwind is plain windward, 1.0), so no line on the map is a step.
+        /// </summary>
+        public static int Raw(int feet, int crest, int at, int low, int windward, int spillover, int shadow, int reach, int climbFeet, int barrierFeet)
+        {
+            int climb = WeatherMath.Clamp(feet - low, 0, climbFeet);
+            long up = 1000 + (long)windward * climb / climbFeet;
+            int below = Math.Max(0, crest - feet);
+            // Distance only ever eases (smoothsteps over the reach and more): a line of equal distance from a crest is straight,
+            // so nothing on it may step. What changes fast is the cell's own depth below the crest, which follows the ground.
+            reach = Math.Max(1, reach);
+            long spill = (long)spillover * (1000 - Smooth(at * 1000L / reach)) / 1000;
+            long grow = Smooth((at - reach / 2) * 1000L / (reach * 3 / 2));
+            long dark = (long)shadow * Math.Min(barrierFeet, below) / barrierFeet * grow / 1000;
+            long lee = 1000 + spill - dark;
+            int wl = WeatherMath.Clamp((crest - feet) * 1000 / CrestRampFeet, 0, 1000);
+            return (int)((up * (1000 - wl) + lee * wl) / 1000);
+        }
+
+        /// <summary>Smoothstep in ‰: 0 at or below 0, 1000 at or above 1000, flat at both ends.</summary>
+        static long Smooth(long x)
+        {
+            x = Math.Max(0, Math.Min(1000, x));
+            return x * x * (3000 - 2 * x) / 1_000_000;
+        }
+
+        static int FloorDiv(int a, int b) => a >= 0 ? a / b : -((-a + b - 1) / b);
 
         /// <summary>Octant <paramref name="o"/>'s upwind unit step (east, north): the direction the wind comes from.</summary>
         static readonly int[] Dx = { 0, 1, 1, 1, 0, -1, -1, -1 }, Dy = { 1, 1, 0, -1, -1, -1, 0, 1 };
@@ -212,15 +303,15 @@ namespace MountainPlanner.Domain.Weather
             int hvfRef = refCount == 0 ? 0 : (int)WeatherMath.DivRound(refSum, refCount);
 
             var (cw, cd, coarse) = BlockMeans(feet, width, depth, CoarseCells);
-            var oro = BuildOrographic(coarse, cw, cd, core, t);
+            var crest = BuildCrest(coarse, cw, cd, width, depth, feet, core, t);
             var (sw, sd, steer) = BlockMeans(feet, width, depth, SteerCells);
             var steerHvf = BlockHvf(hvf, width, depth, sw, sd);
             var (axis, weight, speed) = Steering(steer, steerHvf, sw, sd, t);
             var binHvf = new short[Bins];
             for (int b = 0; b < Bins; b++)
                 binHvf[b] = binHvfCount[b] == 0 ? (short)-1 : (short)Math.Min(short.MaxValue, WeatherMath.DivRound(binHvfSum[b], binHvfCount[b]));
-            return new WeatherTerrain(width, depth, originXMm, originYMm, min, binFeet, bin, hvf, exposure, present, hvfRef, cw, cd, oro, sw, sd,
-                                      axis, weight, speed, convergenceTenths, binHvf);
+            return new WeatherTerrain(width, depth, originXMm, originYMm, min, binFeet, bin, hvf, exposure, present, hvfRef, cw, cd, crest, sw, sd,
+                                      axis, weight, speed, convergenceTenths, binHvf, t);
         }
 
         static long Area(long[] s, int width, int x0, int y0, int x1, int y1)
@@ -298,17 +389,50 @@ namespace MountainPlanner.Domain.Weather
             return m;
         }
 
-        /// <summary>
-        /// WX-35 v2's orographic factor per arrival octant over the 512 m grid: march upwind to 3 km. A cell the air climbs into
-        /// gets up to +<see cref="WeatherTerrainTuning.Windward"/>; within the spillover reach past a higher crest, up to
-        /// +<see cref="WeatherTerrainTuning.Spillover"/> (never below 1.0); further behind a barrier, the shadow, down to
-        /// −<see cref="WeatherTerrainTuning.Shadow"/> as the barrier grows. Then each octant's mean over the box is 1.0.
-        /// </summary>
-        static short[] BuildOrographic(int[] z, int cw, int cd, (int X0, int Y0, int X1, int Y1) core, WeatherTerrainTuning t)
+        /// <summary>WX-35 v3's crest lattice, built once.</summary>
+        sealed class Crest
         {
-            int cells = cw * cd, stepMetres = CoarseCells * CellMetres;
-            var oro = new short[8 * cells];
-            var raw = new int[cells];
+            public short[] Feet, Metres, Low;
+            public int W, D;
+            public int[] Mean;
+        }
+
+        /// <summary>
+        /// WX-35 v3: per arrival octant, march upwind over the 512 m blocks to 3 km from each block (its mean height is where the
+        /// air arrives): the highest block on the way, its distance (to its near edge, so the block just behind a crest is just
+        /// behind it), the lowest. Where nothing lies upwind (the edge) the crest is the block itself, far off; a block without
+        /// heights takes its neighbours'. Then onto the 64 m lattice by the curved filter (cubic B-spline), and the raw factor's
+        /// mean over the box's own cells, each at its own height, so the factor moves snow and never adds any.
+        /// </summary>
+        static Crest BuildCrest(int[] z, int cw, int cd, int width, int depth, int[] feet, (int X0, int Y0, int X1, int Y1) core, WeatherTerrainTuning t)
+        {
+            int cells = cw * cd, stepMetres = CoarseCells * CellMetres, far = 2 * t.SpilloverReachMetres + 1000;   // past the shadow's full depth
+            int fw = (width + FineCells - 1) / FineCells, fd = (depth + FineCells - 1) / FineCells, fine = fw * fd;
+            var crest = new Crest { W = fw, D = fd, Feet = new short[8 * fine], Metres = new short[8 * fine], Low = new short[8 * fine], Mean = new int[8] };
+            // Blocks without heights take their neighbours' mean (a few passes), so the curved filter never reads a hole.
+            var zf = (int[])z.Clone();
+            for (int pass = 0; pass < 64; pass++)
+            {
+                bool any = false;
+                var next = (int[])zf.Clone();
+                for (int j = 0; j < cd; j++)
+                    for (int i = 0; i < cw; i++)
+                    {
+                        if (zf[j * cw + i] != int.MinValue) continue;
+                        long s = 0; int n = 0;
+                        if (i > 0 && zf[j * cw + i - 1] != int.MinValue) { s += zf[j * cw + i - 1]; n++; }
+                        if (i + 1 < cw && zf[j * cw + i + 1] != int.MinValue) { s += zf[j * cw + i + 1]; n++; }
+                        if (j > 0 && zf[(j - 1) * cw + i] != int.MinValue) { s += zf[(j - 1) * cw + i]; n++; }
+                        if (j + 1 < cd && zf[(j + 1) * cw + i] != int.MinValue) { s += zf[(j + 1) * cw + i]; n++; }
+                        if (n > 0) next[j * cw + i] = (int)WeatherMath.DivRound(s, n); else any = true;
+                    }
+                zf = next;
+                if (!any) break;
+            }
+            for (int c = 0; c < cells; c++) if (zf[c] == int.MinValue) zf[c] = 0;
+
+            var hi = new int[cells]; var at = new int[cells]; var lo = new int[cells];
+            var rowTmp = new long[fw * cd];
             for (int o = 0; o < 8; o++)
             {
                 // A diagonal step is 1.41 cells long: fewer of them reach the same 3 km (5 along the grid, 4 on a diagonal).
@@ -317,44 +441,84 @@ namespace MountainPlanner.Domain.Weather
                 for (int j = 0; j < cd; j++)
                     for (int i = 0; i < cw; i++)
                     {
-                        int c = j * cw + i, zc = z[c];
-                        if (zc == int.MinValue) { raw[c] = 1000; continue; }
+                        int c = j * cw + i, zc = zf[c];
                         int highest = int.MinValue, highestAt = 0, lowest = int.MaxValue;
                         for (int s = 1; s <= steps; s++)
                         {
                             int x = i + Dx[o] * s, y = j + Dy[o] * s;
                             if (x < 0 || y < 0 || x >= cw || y >= cd) break;
-                            int zu = z[y * cw + x];
-                            if (zu == int.MinValue) break;
-                            // The crest's distance is to its cell's near edge: the cell just behind a crest is "just behind it".
+                            if (z[y * cw + x] == int.MinValue) break;
+                            int zu = zf[y * cw + x];
                             if (zu > highest) { highest = zu; highestAt = (2 * s - 1) * stepMetres * diag / 2000; }
                             if (zu < lowest) lowest = zu;
                         }
-                        int f = 1000;
-                        if (highest == int.MinValue) f = 1000;
-                        else if (highest <= zc)
-                            f = 1000 + (int)((long)t.Windward * Math.Min(t.ClimbFeet, zc - lowest) / t.ClimbFeet);
-                        else if (highestAt <= t.SpilloverReachMetres)
-                            f = 1000 + t.Spillover * Math.Max(0, t.SpilloverReachMetres - highestAt) / Math.Max(1, t.SpilloverReachMetres);
-                        else
-                            f = 1000 - (int)((long)t.Shadow * Math.Min(t.BarrierFeet, highest - zc) / t.BarrierFeet);
-                        raw[c] = f;
+                        if (highest == int.MinValue) { hi[c] = zc; at[c] = far; lo[c] = zc; }
+                        else { hi[c] = highest; at[c] = highestAt; lo[c] = Math.Min(lowest, zc); }
                     }
-                // Normalise over the box's cells (the lattice's pixels): the factor moves snow, never adds any.
-                long sum = 0;
-                int count = 0;
-                for (int j = 0; j < cd; j++)
-                    for (int i = 0; i < cw; i++)
+                Upsample(hi, cw, cd, fw, fd, rowTmp, crest.Feet, o * fine);
+                Upsample(at, cw, cd, fw, fd, rowTmp, crest.Metres, o * fine);
+                Upsample(lo, cw, cd, fw, fd, rowTmp, crest.Low, o * fine);
+            }
+
+            // The raw factor's mean over the box's cells, each at its own height.
+            for (int o = 0; o < 8; o++)
+            {
+                long sum = 0; long count = 0;
+                for (int j = Math.Max(0, core.Y0); j < Math.Min(depth, core.Y1); j++)
+                    for (int i = Math.Max(0, core.X0); i < Math.Min(width, core.X1); i++)
                     {
-                        int cx = i * CoarseCells + CoarseCells / 2, cy = j * CoarseCells + CoarseCells / 2;
-                        if (cx < core.X0 || cx >= core.X1 || cy < core.Y0 || cy >= core.Y1 || z[j * cw + i] == int.MinValue) continue;
-                        sum += raw[j * cw + i];
+                        int f = feet[j * width + i];
+                        if (f == int.MinValue) continue;
+                        sum += RawAt(crest.Feet, crest.Metres, crest.Low, fw, fd, o, i, j, f, t.Windward, t.Spillover, t.Shadow,
+                                     t.SpilloverReachMetres, t.ClimbFeet, t.BarrierFeet);
                         count++;
                     }
-                long mean = count == 0 ? 1000 : Math.Max(1, sum / count);
-                for (int c = 0; c < cells; c++) oro[o * cells + c] = (short)WeatherMath.Clamp(WeatherMath.DivRound(raw[c] * 1000L, mean), 100, 3000);
+                crest.Mean[o] = count == 0 ? 1000 : (int)Math.Max(1, WeatherMath.DivRound(sum, count));
             }
-            return oro;
+            return crest;
+        }
+
+        /// <summary>
+        /// The 512 m blocks onto the 64 m lattice by the uniform cubic B-spline (the snow's curved filter): node m's centre is
+        /// cell 8m + 4, block k's 64k + 32, so the node sits at (2m − 7) ÷ 16 blocks. Integer weights over 6 × 16³; the ends
+        /// repeat the edge block. Rows first (into <paramref name="tmp"/>), then columns, rounded once.
+        /// </summary>
+        static void Upsample(int[] v, int cw, int cd, int fw, int fd, long[] tmp, short[] dest, int offset)
+        {
+            const long Sum = 6 * 16 * 16 * 16;
+            for (int j = 0; j < cd; j++)
+                for (int m = 0; m < fw; m++)
+                {
+                    int p = 2 * m - 7, k0 = FloorDiv(p, 16), q = p - 16 * k0;
+                    long s = 0;
+                    for (int a = 0; a < 4; a++)
+                        s += Weight(a, q) * (long)v[j * cw + WeatherMath.Clamp(k0 - 1 + a, 0, cw - 1)];
+                    tmp[j * fw + m] = s;
+                }
+            for (int n = 0; n < fd; n++)
+            {
+                int p = 2 * n - 7, k0 = FloorDiv(p, 16), q = p - 16 * k0;
+                for (int m = 0; m < fw; m++)
+                {
+                    long s = 0;
+                    for (int a = 0; a < 4; a++)
+                        s += Weight(a, q) * tmp[WeatherMath.Clamp(k0 - 1 + a, 0, cd - 1) * fw + m];
+                    dest[offset + n * fw + m] = (short)Math.Max(short.MinValue, Math.Min(short.MaxValue, WeatherMath.DivRound(s, Sum * Sum)));
+                }
+            }
+        }
+
+        /// <summary>The cubic B-spline's weight for tap <paramref name="a"/> (0–3) at q ÷ 16 past tap 1, over 6 × 16³.</summary>
+        static long Weight(int a, int q)
+        {
+            long u = 16 - q, q2 = (long)q * q, q3 = q2 * q;
+            switch (a)
+            {
+                case 0: return u * u * u;
+                case 1: return 3 * q3 - 6 * 16 * q2 + 4 * 16 * 16 * 16;
+                case 2: return -3 * q3 + 3 * 16 * q2 + 3 * 16 * 16 * q + 16 * 16 * 16;
+                default: return q3;
+            }
         }
 
         /// <summary>

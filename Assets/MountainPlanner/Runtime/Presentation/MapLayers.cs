@@ -32,7 +32,7 @@ namespace MountainPlanner.Presentation
         public const string Traffic = "traffic";
 
         /// <summary>What recolours the ground: nothing, one info layer, or the developer's cover map. The shader reads the number.</summary>
-        public enum InfoView { None = 0, CoverMap = 1, SlopeAngle = 2, Exposure = 3, SnowDepth = 4, Network = 5, Traffic = 6 }
+        public enum InfoView { None = 0, CoverMap = 1, SlopeAngle = 2, Exposure = 3, SnowDepth = 4, Network = 5, Traffic = 6, SnowConditions = 9 }
 
         public const string ApplyMarkerName = "MountainPlanner.Layers.Apply";
         /// <summary>Wraps every layer change: one sample in the frame of a switch, none otherwise.</summary>
@@ -60,6 +60,7 @@ namespace MountainPlanner.Presentation
             InfoView.SlopeAngle => SlopeAngle,
             InfoView.Exposure => Exposure,
             InfoView.SnowDepth => SnowDepth,
+            InfoView.SnowConditions => SnowConditions,
             InfoView.Traffic => Traffic,
             _ => null,
         };
@@ -75,17 +76,18 @@ namespace MountainPlanner.Presentation
         /// <summary>The info layers, in the HUD's order.</summary>
         public static readonly string[] InfoIds = { SlopeAngle, Exposure, SnowDepth, SnowConditions, Traffic, Contours };
 
-        /// <summary>Whether a layer can be switched in this version (Snow conditions waits for the snow simulation).</summary>
+        /// <summary>Whether a layer can be switched in this version (Snow conditions since task 4.07 PR A2).</summary>
         public static bool IsSwitchable(string id) => id == Snow || id == Trees || id == Lifts || id == Trails || id == Contours || id == CoverMap || ViewOf(id) != InfoView.None;
 
         /// <summary>The info layers that take turns; Contours combine with any of them.</summary>
-        public static bool IsExclusive(string id) => id == SnowConditions || ViewOf(id) != InfoView.None;
+        public static bool IsExclusive(string id) => ViewOf(id) != InfoView.None;
 
         static InfoView ViewOf(string id) => id switch
         {
             SlopeAngle => InfoView.SlopeAngle,
             Exposure => InfoView.Exposure,
             SnowDepth => InfoView.SnowDepth,
+            SnowConditions => InfoView.SnowConditions,
             CoverMap => InfoView.CoverMap,
             Traffic => InfoView.Traffic,
             _ => InfoView.None,
@@ -98,7 +100,6 @@ namespace MountainPlanner.Presentation
             Lifts => LiftsOn,
             Trails => TrailsOn,
             Contours => ContoursOn,
-            SnowConditions => false,
             _ => ViewOf(id) != InfoView.None && Info == ViewOf(id),
         };
 
@@ -162,6 +163,26 @@ namespace MountainPlanner.Presentation
             Apply();
         }
 
+        /// <summary>Task 4.07 PR A2: how white the trees and lifts are while the snow is on (0 to 1): the share of the site under
+        /// snow, eased by the viewer, so October's trees stand green on brown ground. 1 until the viewer says otherwise.</summary>
+        public float SiteSnow { get; private set; } = 1;
+
+        /// <summary>Sets <see cref="SiteSnow"/>; the trees follow at once (cheap: one value on their materials).</summary>
+        public void SetSiteSnow(float load)
+        {
+            load = Mathf.Clamp01(load);
+            if (load == SiteSnow) return;
+            SiteSnow = load;
+            ApplyTreeSnow();
+        }
+
+        void ApplyTreeSnow()
+        {
+            var trees = _forest != null ? _forest.Renderer : null;
+            float load = SnowOn && TreeSnowOn ? SiteSnow : 0;
+            if (trees != null && trees.SnowLoad != load) trees.SetSnowLoad(load);
+        }
+
         /// <summary>Pushes the layers to the GPU-side state: a few shader values and a component switch.</summary>
         public void Apply()
         {
@@ -178,9 +199,7 @@ namespace MountainPlanner.Presentation
                 if (_forest != null)
                 {
                     _forest.enabled = TreesOn && !ReliefOn;
-                    var trees = _forest.Renderer;
-                    float load = SnowOn && TreeSnowOn ? 1 : 0;
-                    if (trees != null && trees.SnowLoad != load) trees.SetSnowLoad(load);
+                    ApplyTreeSnow();
                 }
             }
         }
@@ -204,7 +223,7 @@ namespace MountainPlanner.Presentation
         static readonly int SnowDepthStopsId = Shader.PropertyToID("_MP_SnowDepthStops");
         static readonly int SnowOnId = Shader.PropertyToID("_SnowOn");
         static readonly int SnowLoadId = Shader.PropertyToID("_SnowLoad");
-        /// <summary>InfoLayers.hlsl: 0 none, 2 slope angle, 3 exposure, 4 snow depth (the cover map has its own switch).</summary>
+        /// <summary>InfoLayers.hlsl: 0 none, 2 slope angle, 3 exposure, 4 snow depth, 9 snow conditions (the cover map has its own switch).</summary>
         static readonly int InfoViewId = Shader.PropertyToID("_MP_InfoView");
         static readonly int ContoursId = Shader.PropertyToID("_MP_Contours");
         static readonly int ConvergenceId = Shader.PropertyToID("_MP_GridConvergence");

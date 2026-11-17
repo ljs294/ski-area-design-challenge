@@ -79,6 +79,18 @@ namespace MountainPlanner.App
         public ForestRenderer Forest;
         /// <summary>The snowpack's inputs (8 m cells over the ring), kept for terrain edits to rebuild the snow.</summary>
         public float[] SnowElevation, SnowCanopy;
+        /// <summary>SN-01 v2 (task 4.07 PR A2): the 8 m cells' mean heights (mm) and canopy (0–255) as downloaded, for terrain
+        /// edits to patch the snow's inputs from.</summary>
+        public int[] SnowMm;
+        public byte[] SnowCanopyBytes;
+        /// <summary>
+        /// The snow's static inputs (task 4.07 PR A2), built after the snowpack from the downloaded heights (the skyline is the
+        /// slow part); terrain edits patch this copy in place and the worker gets clones. Null until <see cref="SnowTerrainReady"/>
+        /// ends (or for good if the build failed).
+        /// </summary>
+        public SnowTerrain SnowTerrain;
+        /// <summary>The snow's inputs' build, once the snowpack has landed (null before).</summary>
+        public Task SnowTerrainReady;
         /// <summary>
         /// WX-35's base and summit (ft) from the downloaded heights over the core (10th and 95th percentiles, as the weather
         /// build takes them), set with the snowpack before any terrain edit: the typical mountain's reference points (task
@@ -252,7 +264,7 @@ namespace MountainPlanner.App
         /// <summary>Paints each tile's ground cover, nearest first, a few tiles per frame.</summary>
         static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers, List<Task<CliffShells.Prepared>> cliffTasks,
                                           List<Task<ForestInstance[]>> forests, ForestAssets forest,
-                                          Stopwatch clock, CancellationToken ct, Task<(float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy, MountainPlanner.Domain.Weather.WeatherTerrain Weather, MountainPlanner.Domain.Water.WaterBodyTable Water)> snowpack, LoadProgress load)
+                                          Stopwatch clock, CancellationToken ct, Task<(float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy, MountainPlanner.Domain.Weather.WeatherTerrain Weather, MountainPlanner.Domain.Water.WaterBodyTable Water, int[] Mm, byte[] CanopyBytes)> snowpack, LoadProgress load)
         {
             load?.Begin(LoadStage.GroundCover, order.Count);
             for (int n = 0; n < order.Count; n++)
@@ -273,12 +285,17 @@ namespace MountainPlanner.App
 
             // The snowpack replaces the opening 12 in; SurfaceStates.Sync uploads it once.
             load?.Begin(LoadStage.Snowpack);
-            var (depths, labels, snowElevation, snowCanopy, weatherTerrain, water) = await snowpack;
+            var (depths, labels, snowElevation, snowCanopy, weatherTerrain, water, snowMm, canopyBytes) = await snowpack;
             if (resort.Root == null) return;
             resort.States.Snow.CopyFrom(depths);
             resort.ContourLabels = labels;
             resort.SnowElevation = snowElevation;
             resort.SnowCanopy = snowCanopy;
+            resort.SnowMm = snowMm;
+            resort.SnowCanopyBytes = canopyBytes;
+            int snowWidth = resort.States.Snow.Width, snowDepth = resort.States.Snow.Height;
+            resort.SnowTerrainReady = PublishSnowTerrain(resort, Task.Run(() => BuildSnowTerrain(snowMm, canopyBytes, snowWidth, snowDepth, weatherTerrain,
+                                                                                                MountainPlanner.Simulation.Pacing.Default), ct));
             resort.WeatherTerrain = weatherTerrain;
             resort.WaterBodies = water;
             (resort.WeatherBaseFeet, resort.WeatherSummitFeet) = CoreReferenceFeet(snowElevation, resort.States.Snow.Width, resort.Ring, resort.Core);
@@ -365,13 +382,49 @@ namespace MountainPlanner.App
             return MountainPlanner.Acquisition.Weather.WeatherFetch.ReferenceFeet(inside.ToArray());
         }
 
+        /// <summary>The snow's inputs onto the resort on the main thread (the edit pipeline patches them there).</summary>
+        static async Task PublishSnowTerrain(OpenedResort resort, Task<SnowTerrain> build)
+        {
+            SnowTerrain t;
+            try { t = await build; }
+            catch (OperationCanceledException) { return; }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogException(e);   // the area plays the static snowpack
+                return;
+            }
+            if (resort.Root == null) return;
+            resort.SnowTerrain = t;
+        }
+
+        /// <summary>
+        /// SN-01 v2's inputs (task 4.07 PR A2) from the cells' mean heights and canopy as downloaded, against the weather's terrain
+        /// built from the same heights: the shapes and bins at once, the skyline in bands of lattice rows on every core (each row
+        /// is its own, so any split gives the same bytes). <paramref name="pacing"/> is the world's (the app plays the default).
+        /// </summary>
+        internal static SnowTerrain BuildSnowTerrain(int[] mm, byte[] canopy, int width, int depth, MountainPlanner.Domain.Weather.WeatherTerrain weather,
+                                                     MountainPlanner.Simulation.Pacing pacing)
+        {
+            var clock = Stopwatch.StartNew();
+            var t = SnowTerrain.Build(width, depth, mm, canopy, weather, (int[])pacing.WindExposure.Clone(), horizon: false);
+            double shapes = clock.Elapsed.TotalMilliseconds;
+            int bands = Math.Max(1, Math.Min(16, Environment.ProcessorCount)), rows = t.LatticeDepth;
+            Parallel.For(0, bands, b => t.BuildHorizonRows(mm, rows * b / bands, rows * (b + 1) / bands));
+            t.Rehash();
+            UnityEngine.Debug.Log($"[ResortOpener] snow's static inputs: {width}×{depth} cells, shapes {shapes:F0} ms, skyline {clock.Elapsed.TotalMilliseconds - shapes:F0} ms " +
+                                  $"on {bands} threads, hash {t.Hash:X16}");
+            return t;
+        }
+
         /// <summary>
         /// The natural snowpack over the snow-depth field's cells (8 m over the ring): each cell's elevation and canopy
         /// share (the forest-floor weight of the bare ground cover) from the tile under its centre, then
         /// <see cref="Snowpack.Compute"/>. Cells no tile covers have no data and get the valley depth. The same
-        /// elevations place the contour labels for both unit systems (task 12b.2).
+        /// elevations place the contour labels for both unit systems (task 12b.2). SN-01 v2 (task 4.07 PR A2): the same tiles
+        /// also give each cell the mean of its posts and canopy texels (<see cref="SurfaceSampler"/>), which the weather's and the
+        /// snow's inputs read; the static snowpack and the labels keep the nearest post.
         /// </summary>
-        static (float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy, MountainPlanner.Domain.Weather.WeatherTerrain Weather, MountainPlanner.Domain.Water.WaterBodyTable Water) BuildSnowpack(List<CacheTile> order, float[][,] heights, SplatTexels[] covers, CacheManifest cache, LocalFrame frame,
+        static (float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy, MountainPlanner.Domain.Weather.WeatherTerrain Weather, MountainPlanner.Domain.Water.WaterBodyTable Water, int[] Mm, byte[] CanopyBytes) BuildSnowpack(List<CacheTile> order, float[][,] heights, SplatTexels[] covers, CacheManifest cache, LocalFrame frame,
                                      Rect ring, int width, int depth, double convergence, Rect core)
         {
             const float cell = SurfaceStates.CellMetres;
@@ -383,6 +436,9 @@ namespace MountainPlanner.App
             var waterCount = new int[width * depth];
             for (int k = 0; k < elevation.Length; k++) elevation[k] = float.NaN;
             float tileMetres = (float)cache.TileMetres;
+            var sampler = new SurfaceSampler(width, depth);
+            var present = new HashSet<(int, int)>();
+            foreach (var t in order) present.Add((t.Column, t.Row));
             for (int n = 0; n < order.Count; n++)
             {
                 var tile = order[n];
@@ -390,6 +446,13 @@ namespace MountainPlanner.App
                 float[,] h = heights[n];
                 int res = h.GetLength(0);
                 var cover = covers[n];
+                {
+                    // SN-01 v2: the mean of every post and texel in a cell (a row number grows south, so the north tile is row − 1).
+                    var (westMm, southMm, tileMm) = SnowTileMm(ox, oz, ring, cache.TileMetres);
+                    bool lastEast = !present.Contains((tile.Column + 1, tile.Row)), lastNorth = !present.Contains((tile.Column, tile.Row - 1));
+                    sampler.AddPosts(new Presentation.Edits.SnowSamples.Posts(h, cache.HeightMin, cache.HeightRange), westMm, southMm, tileMm, lastEast, lastNorth, 0, 0, width, depth);
+                    sampler.AddCanopy(new Presentation.Edits.SnowSamples.Canopy(cover.Textures[0], cover.Resolution, 4, 1), westMm, southMm, tileMm, lastEast, lastNorth, 0, 0, width, depth);
+                }
                 int i0 = Mathf.Max(0, Mathf.CeilToInt(((float)ox - ring.xMin) / cell - 0.5f)), i1 = Mathf.Min(width, Mathf.CeilToInt(((float)ox + tileMetres - ring.xMin) / cell - 0.5f));
                 int j0 = Mathf.Max(0, Mathf.CeilToInt(((float)oz - ring.yMin) / cell - 0.5f)), j1 = Mathf.Min(depth, Mathf.CeilToInt(((float)oz + tileMetres - ring.yMin) / cell - 0.5f));
                 for (int j = j0; j < j1; j++)
@@ -439,9 +502,21 @@ namespace MountainPlanner.App
             foreach (var units in new[] { UnitSystem.Imperial, UnitSystem.Metric })
                 labels[(int)units] = ContourLabels.Place(width, depth, cell, ring.xMin, ring.yMin, elevation, units);
             UnityEngine.Debug.Log($"[ResortOpener] contour labels: {labels[0].Length:N0} (200 ft), {labels[1].Length:N0} (50 m)");
-            var weather = BuildWeatherTerrain(elevation, width, depth, ring, core, convergence, MountainPlanner.Simulation.Pacing.Default);
-            return (result, labels, elevation, canopy, weather, BuildWaterBodies(elevation, waterSum, waterCount, width, depth, ring, MountainPlanner.Simulation.Pacing.Default));
+            var mm = new int[width * depth];
+            var canopyBytes = new byte[width * depth];
+            sampler.Heights(mm);
+            sampler.Canopy(canopyBytes);
+            var meanFeet = new int[mm.Length];
+            for (int k = 0; k < mm.Length; k++) meanFeet[k] = mm[k] == SurfaceSampler.NoData ? int.MinValue : (int)System.Math.Round(mm[k] / 304.8);
+            var weather = BuildWeatherTerrain(meanFeet, width, depth, ring, core, convergence, MountainPlanner.Simulation.Pacing.Default);
+            return (result, labels, elevation, canopy, weather, BuildWaterBodies(elevation, waterSum, waterCount, width, depth, ring, MountainPlanner.Simulation.Pacing.Default),
+                    mm, canopyBytes);
         }
+
+        /// <summary>A tile's south-west corner from the ring's (mm) and its side, as the snow's sampler takes them; the edit
+        /// pipeline works them out the same way.</summary>
+        public static (long West, long South, long Side) SnowTileMm(double ox, double oz, Rect ring, double tileMetres) =>
+            Presentation.Edits.SnowSamples.TileMm(ox, oz, ring.xMin, ring.yMin, tileMetres);
 
         /// <summary>
         /// LK-01 v2's water-body map (task 4.09) from the cells' water shares and the downloaded heights (whole ft), on the same
@@ -475,10 +550,17 @@ namespace MountainPlanner.App
         internal static MountainPlanner.Domain.Weather.WeatherTerrain BuildWeatherTerrain(float[] elevation, int width, int depth, Rect ring, Rect core,
                                                                                           double convergence, MountainPlanner.Simulation.Pacing pacing)
         {
-            var clock = Stopwatch.StartNew();
-            const float cell = SurfaceStates.CellMetres;
             var feet = new int[elevation.Length];
             for (int k = 0; k < feet.Length; k++) feet[k] = float.IsNaN(elevation[k]) ? int.MinValue : (int)System.Math.Round(elevation[k] / 0.3048);
+            return BuildWeatherTerrain(feet, width, depth, ring, core, convergence, pacing);
+        }
+
+        /// <summary>As above from whole feet (<see cref="int.MinValue"/> where none): SN-01 v2's cell means (task 4.07 PR A2).</summary>
+        internal static MountainPlanner.Domain.Weather.WeatherTerrain BuildWeatherTerrain(int[] feet, int width, int depth, Rect ring, Rect core,
+                                                                                          double convergence, MountainPlanner.Simulation.Pacing pacing)
+        {
+            var clock = Stopwatch.StartNew();
+            const float cell = SurfaceStates.CellMetres;
             int Col(float x) => Mathf.Clamp(Mathf.CeilToInt((x - ring.xMin) / cell - 0.5f), 0, width);
             int Row(float z) => Mathf.Clamp(Mathf.CeilToInt((z - ring.yMin) / cell - 0.5f), 0, depth);
             int originX = (int)System.Math.Round(ring.xMin * 1000.0), originY = (int)System.Math.Round(ring.yMin * 1000.0);

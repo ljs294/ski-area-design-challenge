@@ -1,11 +1,12 @@
-// Info layers (task 12b, owner 2026-10-02): the colours the Slope angle, Exposure and Snow depth info layers paint
-// over the ground, and the contour lines that draw over anything. Shared by the terrain and the cliff shells so
-// both read as one surface. MapLayers sets the globals; switching is a value, never a rebuild. The legend
+// Info layers (task 12b, owner 2026-10-02): the colours the Slope angle, Exposure, Snow depth and (task 4.07 PR A2) Snow
+// conditions info layers paint over the ground, and the contour lines that draw over anything. Shared by the terrain
+// and the cliff shells so both read as one surface. MapLayers sets the globals; switching is a value, never a rebuild. The legend
 // colours in MountainHud (InfoLegend) match the constants here.
 #ifndef MP_INFO_LAYERS_INCLUDED
 #define MP_INFO_LAYERS_INCLUDED
 
-float _MP_InfoView;          // 0 none, 2 slope angle, 3 exposure, 4 snow depth, 5 the network view's relief (MapLayers.InfoView)
+float _MP_InfoView;          // MapLayers.InfoView: 0 none, 2 slope angle, 3 exposure, 4 snow depth, 5 the network view's relief,
+                             // 6 traffic (relief), 9 snow conditions
 float _MP_Contours;          // 1: contour lines on
 float _MP_GridConvergence;   // radians from grid north clockwise to true north
 float _MP_ContourInterval;   // metres between contours: 40 ft or 10 m (UnitFormat.ContourIntervalMetres)

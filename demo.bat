@@ -11,6 +11,8 @@ title Ski Area Design Challenge - demos
 set "SPIKE=%~dp0tools\data-spike"
 set "OUT=%SPIKE%\results\local"
 set "PACKAGES=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts"
+rem Task 4.07 PR A2: a new game starts on bare October ground; -snowseed starts it with the old mid-winter snowpack, so
+rem the hands-on demos look as they did (demo 111 starts bare; a save keeps its own snow either way).
 set "GAME=%~dp0Builds\Windows\SkiAreaDesignChallenge.exe"
 set "GAMEDEV=%~dp0Builds\WindowsDev\SkiAreaDesignChallenge.exe"
 set "BENCH=%~dp0test-results\benchmark"
@@ -404,12 +406,22 @@ echo        bank snaps to the same height; Lake: click Moose Lake to use it. It 
 echo     117 Ponds and dams on the ground (PR A): the dam preview, the guardrails, water cards and names, pumped
 echo        ponds; save, reopen. Your Doublehead (D) or Kearsarge (K), or the demo mountain, as a scratch copy;
 echo        rebuilds the game, close the editor first.
+echo   4.07 snow model PR A2: the snow in the game (a few minutes without Unity, then the game, then a time-lapse)
+echo     111 Part 1: the live snow's tests, then a report in your browser: a season from bare October 1 on Jackson
+echo        Hole and (from your downloads, read only) Olympic Valley: depth at the base, mid and summit, the deepest
+echo        cell against the mean, where the water went, depth and conditions maps on five dates, the budgets.
+echo        Part 2: the game for your hands-on check. Part 3: the time-lapse, October into February on Jackson
+echo        Hole (about 5 minutes), added to the report. Rebuilds the game; close the editor first.
 echo   4.07 snow model PR A1: the snow energy, on paper (no Unity, no game build; about six minutes)
 echo     112 The snow's rule tests (south against north, shade, clear and cloudy nights, a cold pack, humid wind, the
 echo        game's clock against the hour, the energy balance), then six western snow pillows played for 20 winters
 echo        through the new snow energy, as charts in your browser: the pass marks, each pillow's median winter
 echo        against what it measured and 4.05's old model, and where the melt's energy comes from. The fix round (the
 echo        afternoon dew, the 32-37 °F rain line, the snow gates at seven sites) is the report's first section.
+echo   0.5 GPU queue fixes (no Unity, no build)
+echo    125 The GPU queue's tests (about three minutes, no GPU), then the last 7 days of its new history with any
+echo        overlaps, then a live check: the game starts outside the queue and a 5-second measure run waits for it;
+echo        quit the game and the run goes. Your own play never waits; only queued measure runs do.
 echo.
 echo     Q  Quit
 echo.
@@ -560,6 +572,8 @@ if /i "%CHOICE%"=="117" goto waterground
 if /i "%CHOICE%"=="114" goto updaterinstall
 if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
+if /i "%CHOICE%"=="111" goto snowlive
+if /i "%CHOICE%"=="125" goto gpuqueue
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -620,7 +634,7 @@ exit /b 0
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 echo Starting the game on the title screen ^(your own library^). In a mountain: WASD or arrows pan, Q/E rotate, R/F tilt, wheel or +/- zoom, Home resets the view, C free-fly (PgUp/PgDn rise and sink), map layers Shift+1 snow and Shift+3 trees, info layers Shift+6 contours, Shift+7 slope angle, Shift+8 slope exposure, Shift+9 snow depth (Shift+0 snow conditions comes later), U feet or metres, H hide the UI, P photo mode (F12 saves a picture), F1 every key plus the developer panel (wind, tree snow, cover map, light and time of day, haze, lakes, distant shadows, Corbet's), Esc menu (Quit is there).
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :flow
@@ -631,7 +645,7 @@ echo Starting the game on the title screen with the scratch library %SCRATCH%.
 echo   New Area opens the site picker. Crystal Mountain (search it; 2 km) uses 3DEP fallback terrain, which the
 echo   quality card reports. Minimise (Esc or -) keeps the download going as a pill.
 echo   Load Area: Enter opens. Manage Areas: Delete removes, Resume continues a paused download. Esc backs out one step.
-start "" "%GAME%" -data "%SCRATCH%"
+start "" "%GAME%" -snowseed -data "%SCRATCH%"
 goto menu
 
 :flowoffline
@@ -639,7 +653,7 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 call :seedscratch
 echo Starting the game with the network off ^(-offline^): Load Area, then open any area. New Area says why it can't go on.
-start "" "%GAME%" -data "%SCRATCH%" -offline
+start "" "%GAME%" -snowseed -data "%SCRATCH%" -offline
 goto menu
 
 :overpassskip
@@ -677,7 +691,7 @@ echo     bottom only; its return at the top picks its row the same way.
 echo   6 Edit lift (M), click a lift, change Drive: one step, "Change drive end"; Ctrl+Z puts it back.
 echo   7 Save, quit, open the save again: every lift keeps its drive end. An older save opens with the Sessellift
 echo     driven at the top and the Monta at the bottom, as before.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto done
 
 :waterroads
@@ -708,7 +722,7 @@ echo   Place the bottom terminal, then move the top one: the panel's Cost row fo
 echo     4,000 ft long and 1,000 ft up). Hover the row for its parts: terminals, length and rise.
 echo   Change the type: a detachable quad or six costs more; gondolas and trams read "no price yet".
 echo   Build it, then Edit lift: the Cost row shows there too. Quit the game when done.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :sitecosts
@@ -730,7 +744,7 @@ echo   5 Trails tab: paint a trail through trees. The review has a Cost row (Cle
 echo     "Trees cleared" is the forest it clears. A trail across a lift's line doesn't pay for the cleared corridor again.
 echo   6 Tab for Analysis: hover the greyed Guests tab. It reads "Guests come with the simulation in Phase 4."
 echo   The price table printed above is yours to change: say any number and it's one line.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :surfacetows
@@ -755,7 +769,7 @@ echo   Fly up close to a tower head (any lift): every sheave the rope touches tu
 echo     rope speed; a sheave the rope leaves stands still.
 echo   Paint a trail either side of it: no automatic path crosses the line. Save, quit and reload: it comes back.
 echo   Cost reads "no price yet". Quit the game when done.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :smallfixes
@@ -775,7 +789,7 @@ echo   Place a line 1,000-2,000 ft up and build it. Edit lift on it: the row rea
 echo   as New lift does. The game's Player.log says "TW-01 v2 OK (rope over the track ...)".
 echo   Do the same with a J-bar. Fly close to a tower head: its sheaves still turn with the rope (they only turn
 echo   within 300 m of the eye, now measured cheaply; v0.3.2's 40-lift frame went 9.40 to 8.69 ms). Quit when done.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :grader
@@ -791,7 +805,7 @@ findstr /c:"[DesignBench] with" "%~dp0test-results\p4-01\designbench.log"
 echo Before (v0.3.2): grade a run 1005 ms, remove a run 946, new lift 1424. docs\perf\edit-timing.md has the rest.
 echo Open the demo area, T for the Toolbox, Trails: pick a natural run, Edit, set Graded: the preview comes faster
 echo   than v0.3.2 (a new lift's preview most of all); the ground and the cost read as before. Quit when done.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :trailwindow
@@ -809,7 +823,7 @@ echo Open the Jackson Hole demo area, T for the Toolbox, Trails: paint a trail n
 echo   well away from your other trails, and build it graded. It shows corduroy, earth faces and the groomed bench like
 echo   a trail near the middle (before, a trail more than 2 km from the others' north-west corner showed bare ground).
 echo   Repaint it and Ctrl+Z: the look follows. Quit when done.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :d3d11
@@ -829,7 +843,7 @@ for /f %%n in ('dir /b "%DUMPS%\SkiAreaDesignChallenge*" 2^>nul ^| find /c /v ""
 echo   Crash dumps in %DUMPS%: %DUMPSBEFORE% before, %DUMPSAFTER% after (the same number is clean).
 echo Every run should exit 0, and the log line reads "Direct3D 11". Then play as usual: open an area, build
 echo   a lift and a trail, look round, quit from the menu. It should look as it did and quit cleanly.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :trailrating
@@ -866,7 +880,7 @@ echo 6. Quit, then run the game without the dev switch (demo 1, or the exe): no 
 echo    shaded box in the profile, no estimate while painting; only your signs.
 echo 7. Repeat 1 and 2 on Crystal Mountain (or any second area).
 echo The game's log (Player.log) has a "[TrueRating]" line for each built trail: its sign and the game's rating.
-start "" "%GAME%" -truerating
+start "" "%GAME%" -snowseed -truerating
 :simcore
 rem 4.03 PR A: the simulation runs on its own thread; the bar's clock, the season, the chairs and the skips read it.
 chcp 65001 >nul
@@ -889,7 +903,7 @@ echo      The night runs six times faster. F1, Skip to morning: it lands at 7:30
 echo   4. Pause, move F1's Time slider: the sun moves. Space again: the sun snaps back to the clock.
 echo   5. F1, Mountain: open (now closed): the season is over, Summer. Next month skips; Next third says it can't.
 echo   6. Photo mode (P) pauses; leaving it plays again if it was playing. Quit when done.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :simsave
@@ -910,7 +924,7 @@ echo   4. Esc, Quit to title, Load Area, open that save: the same day, date and 
 echo      they were, still paused. Space: the day carries on.
 echo   5. Let it run a little, then quit to the title without saving: it asks, because the clock moved.
 echo   6. An older save (made before this build) opens at October 1 as before; so does a new design.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :weatherreport
@@ -1056,6 +1070,54 @@ start "" "%~dp0test-results\weather-holds\report.html"
 pause
 goto menu
 
+:snowlive
+rem 4.07 PR A2 (docs/plans/p4-02-sim-rules.md section 4): the live snow's tests and season report, the game, the time-lapse.
+chcp 65001 >nul
+echo.
+echo   Part 1: the live snow's tests (a bare start, the daily ledger, one thread against four, saves mid-hour, the
+echo   golden weeks on Jackson Hole), then the season report (about half a minute).
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~SnowFieldTests|FullyQualifiedName~SnowTerrainTests|FullyQualifiedName~SnowGoldenWeekTests|FullyQualifiedName~SimSaveTests" <nul | findstr /l /c:"Passed!" /c:"Failed" /c:"error"
+set "MP_SNOW_SECOND=Olympic Valley|olympic-valley-4km"
+set "MP_SNOW_AREAS=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts"
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~SnowA2ReportTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"[snow-a2]" /c:"error"
+set "MP_SNOW_SECOND="
+set "MP_SNOW_AREAS="
+node "%~dp0tools\snow-a2\report.mjs" "%~dp0test-results\snow-a2\report.json" "%~dp0test-results\snow-a2\lapse"
+start "" "%~dp0test-results\snow-a2\report.html"
+echo.
+echo   Part 2: the game.
+call :buildplayer
+if not exist "%GAME%" goto done
+echo   1. Start a new game on Jackson Hole (the demo). It is October 1: brown ground, green trees, bare rock ledges.
+echo   2. F1, Skip to morning a few times (or 4 for 8x). A storm whitens the summit first; a warm day melts it back.
+echo      Trees and lifts turn white only as the ground around them does.
+echo   3. Shift+0, Snow conditions: blue is fresh snow, violet a crust or ice, amber spring snow, brown bare ground.
+echo      Point at the ground: the bar reads the type, depth, water, quality and age, for example
+echo      "Powder 14 in · 1.4 in water · Good · 2 days old".
+echo   4. Shift+9, Snow depth: smooth, no squares or stripes; the figure under the pointer matches the colour.
+echo   5. Toolbox, Terrain: dig through snowy ground. The snow stays where it lay (before, an edit redrew it).
+echo   6. Look under the big cliffs: the snow that slides off lands as a fan below them, not as one tall spike.
+echo   7. Open one of your older saves: it keeps the snow it had, and from there the snow lives.
+echo   8. Do 1-4 on a second mountain (Olympic Valley, Katahdin): nothing here is tuned to Jackson Hole.
+echo   (Lakes still show snow on ice in October here: 4.09 B's lake drawing is on main and comes in when this
+echo   branch merges main, after your demo.)
+start "" "%GAME%"
+echo.
+echo   Part 3: the time-lapse, one still a face day from bare October 1 into February, in a scratch folder (your
+echo   saves are not touched). It waits for a free GPU slot, then takes about 5 minutes. Press a key to start it,
+echo   or close this window to skip it.
+pause
+if not exist "%~dp0test-results\snow-a2\lapse" mkdir "%~dp0test-results\snow-a2\lapse"
+%RENDER% "%GAME%" -benchres 1920x1080 -data "%LOCALAPPDATA%\SkiAreaDesignChallenge-snowlapse" -notitle -offline -snowlapse "%~dp0test-results\snow-a2\lapse" -snowdays 45 -logFile "%~dp0test-results\snow-a2\lapse\run.log" <nul
+findstr /l /c:"[SnowLapse]" "%~dp0test-results\snow-a2\lapse\run.log"
+echo   Joining the stills into a movie (lapse.mp4, 0.4 s a day)...
+"%UNITY%" -batchmode -nographics -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.PickerLabSetup.EncodeStills -stills "%~dp0test-results\snow-a2\lapse" -pattern "snow-*.png" -hold 400 -out "%~dp0test-results\snow-a2\lapse\lapse.mp4" -quit -logFile "%~dp0test-results\snow-a2\lapse\encode.log" <nul
+if exist "%~dp0test-results\snow-a2\lapse\lapse.mp4" start "" "%~dp0test-results\snow-a2\lapse\lapse.mp4"
+node "%~dp0tools\snow-a2\report.mjs" "%~dp0test-results\snow-a2\report.json" "%~dp0test-results\snow-a2\lapse"
+start "" "%~dp0test-results\snow-a2\report.html"
+pause
+goto menu
+
 :snowpillows
 rem 4.07 PR A1 (tools/snow-pillows/README.md): the snow energy's rule tests, then the pillow check and its report.
 chcp 65001 >nul
@@ -1112,7 +1174,7 @@ echo      parked; on a weekend day it opens. Ctrl+Z puts it back.
 echo   6. At 4:15 (last chair) no one joins a line; the line keeps boarding until 4:30, when the ropes stop, every lift
 echo      reads Closed and whoever is still in line goes home. The closing toast and F1 show the day's rides.
 echo   7. Save and reopen mid-day: the line, the hold and the wait come back as they were. An older save opens with no lines.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :guests
@@ -1148,7 +1210,7 @@ echo   8. If nobody skis, F1's Network row says why in words: how many places th
 echo      lift's bottom), and for each colour how much of the mountain it can ski home from. A colour with nothing it
 echo      may ski is turned away at the gate - that is GU-05, not a bug.
 echo   9. Do 1-3 again on a second mountain (another of your saves), to see none of it is tuned to one site.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :guestsonscreen
@@ -1185,7 +1247,7 @@ echo   6. Next skier picks another; Next in this line (only while in a line) ste
 echo   7. Space pauses: every dot stops at once, and you can still click and read cards. Space again goes on.
 echo   8. When a followed skier goes home the card says so and the camera stays where it was.
 echo   9. Do 1-2 on a second mountain, to see none of it is tuned to one site.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :guestbench
@@ -1267,7 +1329,7 @@ echo   1. F1, Mountain: closed (now open), Skip to morning, then 4 for 8x until 
 echo   2. Fly down to a busy run and a lift base: figures face the way they ski, stand in the lines, and become dots
 echo      past 250 m. Up close (under 30 m) they are 1,500 triangles, to 100 m 400, to 250 m 80.
 echo   3. Close the game when you've seen enough.
-start "" "%GAME%" -notitle -drawnresort -skierproof lod
+start "" "%GAME%" -snowseed -notitle -drawnresort -skierproof lod
 goto menu
 
 :traffic
@@ -1293,7 +1355,7 @@ echo      (today's average hour). Past the stop the layer reads Today by itself,
 echo   6. "Dots by" in the legend colours the dots by Ability, State (skiing, in line, riding, going home) or Happiness.
 echo   7. Shift+7 (Slope angle) takes Traffic's turn; Shift+6 Contours go with it. Analysis, Network still works.
 echo   8. Do 2-4 on a second mountain, to see none of it is tuned to one site.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :ridelift
@@ -1319,7 +1381,7 @@ echo   5. Let a ride reach the top: you get off by yourself, framed on the top s
 echo   6. Ride a detachable (slows through the stations), a T-bar (standing on the snow), and a carpet (on the belt).
 echo      Put a lift on hold (F1 gust) mid-ride: the chair stops and the bar reads "On hold - wind over N mph".
 echo   7. The chair you ride stays sharp close up (no pop, no clipping at arm's length); every chair rides empty.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :d3d11run
@@ -1348,7 +1410,7 @@ echo     plates less the snow room. Covered: the gallery with exit bays and a po
 echo   Edit lift: click a station, drag it, or Page Up / Page Down its level; the bed lays again. Apply.
 echo   Save, quit and reload: it comes back on the same ground. Cost reads "no price yet". The belt doesn't move yet.
 echo   Quit the game when done.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :quitcrash
@@ -1390,7 +1452,7 @@ if exist "%FIRSTRUN%" rmdir /s /q "%FIRSTRUN%"
 echo Starting the game as a fresh install, offline, with loading details on.
 echo   The loading box shows the game's logo, "Opening Jackson Hole", the bar, each stage as it finishes, and Alpine Labs.
 echo   On the title, the name plate carries the game's logo and name with the studio's name below.
-start "" "%GAME%" -data "%FIRSTRUN%" -offline -loadingdetails on
+start "" "%GAME%" -snowseed -data "%FIRSTRUN%" -offline -loadingdetails on
 goto menu
 
 :titlestill
@@ -1425,7 +1487,7 @@ echo Starting the game with the scratch library %FORMATS%.
 echo   Continue reads a Phase 1 recent.json: Jackson Hole, last opened Oct 3. Open it: the Phase 1 package opens as before.
 echo   Load Area: Crystal Mountain is greyed, "Made by a newer version of Mountain Planner", and won't open.
 echo   Manage Areas: Delete removes it. Run 44 again to bring it back.
-start "" "%GAME%" -data "%FORMATS%"
+start "" "%GAME%" -snowseed -data "%FORMATS%"
 goto menu
 
 :formatsnewer
@@ -1435,7 +1497,7 @@ call :seedformats
 copy /y "%~dp0TestData\formats\demo\library.json" "%FORMATS%\library.json" >nul
 echo Starting the game with the same scratch library, marked as laid out by a newer game ^(library.json version 99^).
 echo   The title briefly shows "This library was saved by a newer version...". Load Area lists nothing and says the same. 44 puts it back.
-start "" "%GAME%" -data "%FORMATS%"
+start "" "%GAME%" -snowseed -data "%FORMATS%"
 goto menu
 
 :housekeeping
@@ -1450,7 +1512,7 @@ echo   Manage Areas: each row's disk use (hover it for the parts), the total at 
 echo   F2 or Rename: type a new name, Enter. Quit and start 49 again: the new name, and the sort you chose, are kept.
 echo   Free 120 MB: asks first, then removes the older cache; the area still opens at once.
 echo   Delete: asks, naming the space it frees. Run 49 again to bring the area back.
-start "" "%GAME%" -data "%LIBDEMO%"
+start "" "%GAME%" -snowseed -data "%LIBDEMO%"
 goto menu
 
 :designdoc
@@ -1508,7 +1570,7 @@ exit /b 0
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 echo Starting the game on Crystal Mountain (download it first with 24). The keys are the same as in 17.
-start "" "%GAME%" -site "Crystal Mountain"
+start "" "%GAME%" -snowseed -site "Crystal Mountain"
 goto menu
 
 :benchcrystal
@@ -1525,14 +1587,14 @@ goto done
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 echo Starting the game in a dense spruce-fir stand on Sugarloaf (download it first with 29): mixed heights, small trees under big ones, clumps and gaps. The keys are the same as in 17.
-start "" "%GAME%" -site "Sugarloaf" -view 1500,-1550,250,200,25
+start "" "%GAME%" -snowseed -site "Sugarloaf" -view 1500,-1550,250,200,25
 goto menu
 
 :playsugarloaf
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 echo Starting the game on Sugarloaf (download it first with 29). The keys are the same as in 17.
-start "" "%GAME%" -site "Sugarloaf"
+start "" "%GAME%" -snowseed -site "Sugarloaf"
 goto menu
 
 :refreshroads
@@ -1589,7 +1651,7 @@ echo Capturing the overhead lineup (the game window opens and closes by itself, 
 %RENDER% "%GAME%" -quality high -lineup "%~dp0test-results\forest-look\l" -lineupset top -logFile "%~dp0test-results\forest-look\lineup.log" <nul
 start "" "%~dp0test-results\forest-look"
 echo Starting the game above the Jackson Hole forest. Shift+1: snow off and on; wheel: zoom; drag: orbit.
-start "" "%GAME%" -quality high -view 350,-150,600,200,80
+start "" "%GAME%" -snowseed -quality high -view 350,-150,600,200,80
 goto menu
 
 :lineup
@@ -1685,7 +1747,7 @@ findstr /c:"Photo run" /c:"Photo hitch" /c:"Photo saved" "%~dp0test-results\phot
 start "" "%UICAP%"
 echo Starting the game: open an area, press P. Drag Time, step Date, try Focus and Size, Space saves; Esc puts it all back.
 echo   Menu ^> Credits lists every area's sources; Licence texts shows the OFL.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto done
 
 :release
@@ -1787,7 +1849,7 @@ echo     the same tower keys, Insert adds one, drag a terminal, change the type 
 echo     Ctrl+Z undoes inside the tool; Apply (Ctrl+Enter) or Cancel.
 echo   X for Remove lift: click a lift, click it again (or Enter) to remove it with its pads and clearing.
 echo   Tab for Analysis, Lifts tab: the list; hover a row to light its lift, click it for its card.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :styletile
@@ -1989,7 +2051,7 @@ echo   Switching brushes keeps your pending strokes. Ctrl+Z takes back the last 
 echo     Enter again confirms ^(one undo step^). Esc with strokes pending asks, then puts the ground back.
 echo   Contours come on while a brush is armed: zoom in close for 20 ft and 10 ft lines.
 echo   Near a lift ^(build one on the Lifts tab first^): the brush stops at the pad, the chairs' clearance and a tower's limits.
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto done
 
 :brushbench
@@ -2422,7 +2484,7 @@ echo   6. Hover and click still pick a guest; the selected one keeps its ring. F
 echo   7. Ride a lift (4.11): the other chairs around you have riders; yours does not.
 echo   8. Do 1-4 on a second mountain, to see none of it is tuned to one site.
 echo   (To compare with the dots: start the game with -dotsonly.)
-start "" "%GAME%"
+start "" "%GAME%" -snowseed
 goto menu
 
 :skiersbench
@@ -2616,9 +2678,9 @@ if /i not "%WG117MAP%"=="" if not defined WG117PKG echo That map is not in your 
 if defined WG117PKG (
     echo Copying %WG117NAME% into the scratch folder...
     robocopy "%WG117PKG%" "%WG117%\%WG117NAME%" /e /nfl /ndl /njh /njs /np >nul
-    start "" "%GAME%" -data "%WG117%" -package "%WG117%\%WG117NAME%" -notitle
+    start "" "%GAME%" -snowseed -data "%WG117%" -package "%WG117%\%WG117NAME%" -notitle
 ) else (
-    start "" "%GAME%" -data "%WG117%" -notitle
+    start "" "%GAME%" -snowseed -data "%WG117%" -notitle
 )
 goto done
 
@@ -2639,11 +2701,37 @@ echo   Esc, Settings, Weather: Weather on screen Off shows a clear day (the weat
 echo   each part on or off: clouds 3D/Flat/Off, Cloud ceiling (clouds 1,000 ft over the summit), the fog slider, valley fog,
 echo   rays, snow and rain, spindrift, cloud shadows, storm light, tree sway, sparkle. Try them in the storm.
 echo   Quit the game when done.
-start "" /wait "%GAME%" -data "%WX108%" -notitle -wxdemo
+start "" /wait "%GAME%" -data "%WX108%" -notitle -wxdemo -snowseed
 rem Then the snow guns' plumes in the Lift Lab (the API 4.16's guns will use): rebuilt, so the plumes are this branch's.
 call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto menu
 echo   The Lift Lab's gun field: 500 guns, each with its plume. O steps the wind (off, calm, breeze, strong); 7 the guns
 echo   up close. Esc quits.
 start "" "%LIFTLAB%" -mode gunfield
+goto menu
+
+:gpuqueue
+rem 0.5: the GPU queue's history, time limit and wait for play outside the queue (tools\gpu\README.md).
+set "GPUPS=powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\gpu\gpu.ps1""
+echo   1/3 The tests: a scratch queue with dummy commands; nothing here touches the real queue or the GPU.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\gpu\test-gpu.ps1"
+echo.
+echo   2/3 The real queue's history for the last 7 days (it starts empty: runs from before this change aren't in it).
+%GPUPS% history -Since 7d
+echo.
+if not exist "%GAME%" (
+  echo   3/3 skipped: no game build at %GAME% ^(choose 1 to build it^).
+  pause
+  goto menu
+)
+echo   3/3 The game opens outside the queue, as your own play does. Back here, a 5-second measure run then waits for it:
+echo   "waiting: GPU process(es) outside the queue: SkiAreaDesignChallenge". Quit the game and the run goes (if a thread
+echo   holds the GPU, it also waits for that, and says so). Ctrl+C here cancels the wait.
+pause
+start "" "%GAME%"
+timeout /t 5 /nobreak >nul
+%GPUPS% run -Lane measure -Name owner-demo -- ping -n 6 127.0.0.1
+echo.
+%GPUPS% history -Since 1h -Name owner-demo
+pause
 goto menu

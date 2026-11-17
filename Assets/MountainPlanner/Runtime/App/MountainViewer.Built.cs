@@ -147,7 +147,7 @@ namespace MountainPlanner.App
         void UpdateBuiltWork()
         {
             if (_builtFor == null || _resort == null) return;
-            float snow = _layers != null && _layers.SnowOn ? 1 : 0;
+            float snow = _layers != null && _layers.SnowOn ? _layers.SiteSnow : 0;   // task 4.07 PR A2: as the trees
             if (_liftSnow != snow)
             {
                 _liftSnow = snow;

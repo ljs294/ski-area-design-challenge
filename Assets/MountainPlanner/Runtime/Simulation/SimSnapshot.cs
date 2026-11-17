@@ -175,6 +175,9 @@ namespace MountainPlanner.Simulation
         // SI-17: the staging ring's slots written so far (read them up to here), and whether the field has snow yet.
         public long StagedTiles;
         public bool SnowSet;
+        /// <summary>Task 4.07 PR A2: the snow is simulated; an hour of it is in flight; the day's ledger so far and the last day's.</summary>
+        public bool SnowLive, SnowInFlight;
+        public SnowLedger SnowToday, SnowLastDay;
 
         /// <summary>GU-03, GU-13, GU-18: the crowd as the Guests tab shows it, and the selected skier's day (GU-02).</summary>
         public readonly GuestView Guests;

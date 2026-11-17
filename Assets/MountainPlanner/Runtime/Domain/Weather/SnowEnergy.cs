@@ -58,7 +58,7 @@ namespace MountainPlanner.Domain.Weather
     public readonly struct SnowTuning
     {
         /// <summary>Ice in the surface layer at an hour's step (µm; × the step's hours, up to 4), and below which the ground
-        /// shows through the brightness (µm).</summary>
+        /// shows through the brightness (µm; SN-09 v4: 5 mm of water, about 2 in of new snow).</summary>
         public readonly int SurfaceUm, ThinUm;
         /// <summary>Brightness (‰): fresh, the cold floor, the wet floor, bare ground; new snow resets it in full at ResetUm.</summary>
         public readonly int AlbedoFresh, AlbedoCold, AlbedoWet, AlbedoGround, AlbedoResetUm;
@@ -88,7 +88,7 @@ namespace MountainPlanner.Domain.Weather
 
         /// <summary>The fitted set (task 4.07 PR A1). Pacing v8 carries the same numbers.</summary>
         public static readonly SnowTuning Default = new SnowTuning(
-            surfaceUm: 25_000, thinUm: 20_000, albedoFresh: 850, albedoCold: 700, albedoWet: 550, albedoGround: 200, albedoResetUm: 5_000,
+            surfaceUm: 25_000, thinUm: 5_000, albedoFresh: 850, albedoCold: 700, albedoWet: 550, albedoGround: 200, albedoResetUm: 5_000,
             albedoColdTau: 1_728_000, albedoWetTau: 1_209_600, canopyShade: 700, windPer10k: 15, calmMms: 1, groundMw: 2_000,
             holdPermille: 50, crumbUm: 2_540, settleTau: 2_400_000, settleWetFactor: 3, densityCold: 300, densityWarm: 380, densityWet: 450);
     }
@@ -121,23 +121,81 @@ namespace MountainPlanner.Domain.Weather
         /// <summary>σT⁴ in µW/m² for a temperature in 0.01 °C.</summary>
         public static long Emission(int centiC)
         {
+            uint t = (uint)(centiC - TableMin);
+            return t < TableSize ? Tables.Emission[t] : EmissionOf(centiC);
+        }
+
+        static long EmissionOf(int centiC)
+        {
             long k10 = (27_315 + centiC) / 10;            // 0.1 K
             long k2 = k10 * k10;
             return k2 * k2 / 1000 * 5_670_374 / 1_000_000_000;
         }
 
         /// <summary>4σT³ in µW/m² per 0.01 K.</summary>
-        static long EmissionSlope(int centiC)
+        static long EmissionSlopeOf(int centiC)
         {
             long k10 = (27_315 + centiC) / 10;
             return 4 * (k10 * k10 * k10 * 5_670_374 / 100_000_000_000) / 100;
         }
 
         /// <summary>Saturation vapour pressure over ice below 0 °C (over water at and above), mPa.</summary>
-        static long Saturation(int centiC)
+        static long SaturationOf(int centiC)
         {
             long w = WeatherAir.SaturationMilliPa(TenthsF(centiC));
             return centiC >= 0 ? w : w * (1_000_000 + 97L * centiC) / 1_000_000;
+        }
+
+        /// <summary>
+        /// The surface's terms at a temperature (0.01 °C), as the solves use them: its emission and the emission's slope (both
+        /// × the snow's emissivity, 0.99), the saturation vapour pressure and its slope (mPa per 0.01 K, over ±0.5 K). Read
+        /// from <see cref="Tables"/> over the range a pack reaches, worked out by the same integer formulas outside it: the
+        /// same numbers either way (task 4.07 PR A2: a face hour over a whole site calls these about 15 times a cell).
+        /// </summary>
+        static void Surface(int centiC, out long lwOut, out long lwSlope, out long es, out long dedt)
+        {
+            uint t = (uint)(centiC - TableMin);
+            if (t < TableSize)
+            {
+                lwOut = Tables.LwOut[t]; lwSlope = Tables.LwSlope[t]; es = Tables.Es[t]; dedt = Tables.Dedt[t];
+                return;
+            }
+            SurfaceOf(centiC, out lwOut, out lwSlope, out es, out dedt);
+        }
+
+        static void SurfaceOf(int centiC, out long lwOut, out long lwSlope, out long es, out long dedt)
+        {
+            lwOut = EmissionOf(centiC) * 990 / 1000; lwSlope = EmissionSlopeOf(centiC) * 990 / 1000;
+            es = SaturationOf(centiC); dedt = (SaturationOf(centiC + 50) - SaturationOf(centiC - 50)) / 100;
+        }
+
+        /// <summary>The tables' range: −80 °C to +2 °C in 0.01 °C.</summary>
+        const int TableMin = -8000, TableMax = 200;
+        const uint TableSize = TableMax - TableMin + 1;
+
+        /// <summary>Built once, on first use, by the formulas they stand for (a test checks every entry).</summary>
+        static class Tables
+        {
+            internal static readonly long[] Emission = new long[TableSize], LwOut = new long[TableSize], LwSlope = new long[TableSize],
+                                            Es = new long[TableSize], Dedt = new long[TableSize];
+
+            static Tables()
+            {
+                for (int i = 0; i < TableSize; i++)
+                {
+                    int c = TableMin + i;
+                    Emission[i] = EmissionOf(c);
+                    SurfaceOf(c, out LwOut[i], out LwSlope[i], out Es[i], out Dedt[i]);
+                }
+            }
+        }
+
+        /// <summary>For the tests: the table's terms and the formulas' at a temperature, which must be equal.</summary>
+        internal static bool TablesMatch(int centiC)
+        {
+            Surface(centiC, out long a, out long b, out long c, out long d);
+            SurfaceOf(centiC, out long a2, out long b2, out long c2, out long d2);
+            return a == a2 && b == b2 && c == c2 && d == d2 && Emission(centiC) == EmissionOf(centiC);
         }
 
         /// <summary>The step (see the type's summary). The pack is changed in place; returns what happened.</summary>
@@ -243,8 +301,7 @@ namespace MountainPlanner.Domain.Weather
                 int tl = ts0;
                 for (int pass = 0; pass < 2; pass++)
                 {
-                    lwOut = Emission(tl) * 990 / 1000; lwSlope = EmissionSlope(tl) * 990 / 1000;
-                    es = Saturation(tl); dedt = (Saturation(tl + 50) - Saturation(tl - 50)) / 100;   // mPa per 0.01 K
+                    Surface(tl, out lwOut, out lwSlope, out es, out dedt);   // dedt: mPa per 0.01 K
                     long b = lwSlope + hs + hl * dedt + ke;
                     a = sw + lwIn - lwOut + lwSlope * tl + hs * ta + hl * (ea - es + dedt * tl) + ke * tq0 / 100 + (md == 0 ? ground : 0);
                     ts1 = (cs * ts0 + dt * a + qRain) / (cs + dt * b);
@@ -260,8 +317,7 @@ namespace MountainPlanner.Domain.Weather
                 if (ts1 < 0 && wetSurface > 0)
                 {
                     tl = 0;
-                    lwOut = Emission(0) * 990 / 1000; lwSlope = EmissionSlope(0) * 990 / 1000;
-                    es = Saturation(0); dedt = (Saturation(50) - Saturation(-50)) / 100;
+                    Surface(0, out lwOut, out lwSlope, out es, out dedt);
                     long b = lwSlope + hs + hl * dedt + ke;
                     a = sw + lwIn - lwOut + hs * ta + hl * (ea - es) + ke * tq0 / 100 + (md == 0 ? ground : 0);
                     long e0 = dt * a + qRain + cs * ts0;                       // the step's surplus held at 0 °C
@@ -368,8 +424,7 @@ namespace MountainPlanner.Domain.Weather
                     long skin = tk;
                     for (int pass = 0; pass < 2; pass++)
                     {
-                        long lo = Emission(tk) * 990 / 1000, ls = EmissionSlope(tk) * 990 / 1000;
-                        long e1 = Saturation(tk), d1 = (Saturation(tk + 50) - Saturation(tk - 50)) / 100;
+                        Surface(tk, out long lo, out long ls, out long e1, out long d1);
                         long a1 = sw + lwIn - lo + ls * tk + hs * ta + hl * (ea - e1 + d1 * tk) + gk * p.SurfaceTemp;
                         skin = a1 / (ls + hs + hl * d1 + gk);
                         if (skin > 0) skin = 0;
@@ -384,7 +439,20 @@ namespace MountainPlanner.Domain.Weather
             long hold = (long)p.Swe * k.HoldPermille / 1000;
             if (p.Liquid > hold) { int off = (int)(p.Liquid - hold); o.Runoff += off; p.Liquid -= off; p.Swe -= off; }
             if (p.SurfaceLiquid > p.Liquid) p.SurfaceLiquid = p.Liquid;
-            if (p.Swe > 0 && p.Swe < k.CrumbUm && (o.Melt > 0 || x.Rain > 0)) { o.Runoff += p.Swe; Clear(ref p, ref o); return o; }
+            // SN-09 v3: thin snow is patchy, and the bare ground between the patches melts it faster the thinner it is: while
+            // it melts, a pack under the crumb loses up to the hour's melt again, more the thinner it is (melt × (crumb − pack)
+            // ÷ crumb). No depth is a cliff at any melt: what's left changes at most 1 + melt ÷ crumb times as fast as what
+            // was there. (v2 took the whole pack below the crumb at the first melt or drop of rain; a ÷ pack form steepened
+            // without bound as the pack thinned, so a face hour's big melt still split neighbours into all or nothing.)
+            if (p.Swe > 0 && p.Swe < k.CrumbUm && o.Melt > 0)
+            {
+                long extra = (long)o.Melt * (k.CrumbUm - p.Swe) / k.CrumbUm;
+                if (extra >= p.Swe) { o.Runoff += p.Swe; o.Melt += p.Ice; Clear(ref p, ref o); return o; }
+                // The patches that go take their share of the pack's water with them, so the pack thins to nothing smoothly.
+                int liquid = (int)((long)p.Liquid * extra / p.Swe), ice = (int)extra - liquid;
+                p.Swe -= (int)extra; p.Liquid -= liquid; o.Runoff += (int)extra; o.Melt += ice;
+                if (p.SurfaceLiquid > p.Liquid) p.SurfaceLiquid = p.Liquid;
+            }
             if (p.Ice <= 0) { o.Runoff += p.Swe; Clear(ref p, ref o); return o; }
 
             // ---- SN-08 v2: settling toward a density by wetness.
@@ -462,6 +530,16 @@ namespace MountainPlanner.Domain.Weather
                 if (cosInc > 0) beam = Math.Min(4 * beamFlat, beamFlat * cosInc / s);
             }
             return ((int)beam, (int)(diffuse * openSky / 1000));
+        }
+
+        /// <summary>
+        /// As above with a soft skyline (task 4.07 PR A2): <paramref name="visiblePermille"/> of the beam clears the skyline (the
+        /// sun fading over a few degrees as it sets behind a ridge, not switching off), 1000 the same as visible.
+        /// </summary>
+        public static (int Beam, int Diffuse) At(in Sky.SunVector sun, int clearness, int nx, int ny, int nz, int openSky, int visiblePermille)
+        {
+            var (beam, diffuse) = At(sun, clearness, nx, ny, nz, openSky, visiblePermille > 0);
+            return (visiblePermille >= 1000 ? beam : (int)((long)beam * visiblePermille / 1000), diffuse);
         }
     }
 }

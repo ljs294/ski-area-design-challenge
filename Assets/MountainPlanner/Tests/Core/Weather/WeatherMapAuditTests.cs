@@ -317,21 +317,27 @@ namespace MountainPlanner.Tests
                 }
         }
 
+        /// <summary>WX-35 v3: the factor at a 512 m block's centre cell, at that cell's own height.</summary>
+        static int OroAtBlock(WeatherTerrain t, int[] feet, int width, int o, int bi, int bj)
+        {
+            int i = bi * 64 + 32, j = bj * 64 + 32;
+            return t.OrographicAt(o, i, j, feet[j * width + i]);
+        }
+
         [Test]
         public void TheFactorsMeanOverTheBoxIsOneForEveryWind()
         {
-            var t = RoughTerrain(out _);   // the box is inside the grid, as in the game (the ring is the grid)
-            int cells = t.CoarseWidth * t.CoarseDepth;
+            var t = RoughTerrain(out int[] feet);   // the box is inside the grid, as in the game (the ring is the grid)
             for (int o = 0; o < 8; o++)
             {
                 long sum = 0;
                 int n = 0, low = int.MaxValue, high = 0;
-                for (int j = 0; j < t.CoarseDepth; j++)
-                    for (int i = 0; i < t.CoarseWidth; i++)
+                // WX-35 v3: every cell's own factor over the box (the mean is taken over the box's cells).
+                for (int j = 30; j < D - 30; j++)
+                    for (int i = 40; i < W - 40; i++)
                     {
-                        int cx = i * 64 + 32, cy = j * 64 + 32;
-                        if (cx < 40 || cx >= W - 40 || cy < 30 || cy >= D - 30) continue;
-                        int v = t.Orographic[o * cells + j * t.CoarseWidth + i];
+                        if (feet[j * W + i] == int.MinValue) continue;
+                        int v = t.OrographicAt(o, i, j, feet[j * W + i]);
                         sum += v; n++;
                         low = Math.Min(low, v); high = Math.Max(high, v);
                     }
@@ -366,8 +372,8 @@ namespace MountainPlanner.Tests
             Assert.That(mid.Direction, Is.InRange(Math.Min(a.Direction, b.Direction), Math.Max(a.Direction, b.Direction)));
             // And a storm's own direction, not the hour's wind, picks the precipitation's octants: at a 512 m cell's centre the
             // liquid follows that octant's factor there.
-            int centre = (3 * 64 + 32) * w + 3 * 64 + 32, cc = t.CoarseWidth * t.CoarseDepth, coarse = 3 * t.CoarseWidth + 3;
-            int fromWest = t.Orographic[6 * cc + coarse], fromEast = t.Orographic[2 * cc + coarse];
+            int centre = (3 * 64 + 32) * w + 3 * 64 + 32;
+            int fromWest = OroAtBlock(t, feet, w, 6, 3, 3), fromEast = OroAtBlock(t, feet, w, 2, 3, 3);
             Assert.That(fromWest, Is.Not.EqualTo(fromEast));
             f.Fill(10, Wet(90, 300, stormDirection: 270), t, 6000, P, 0);
             f.At(centre, out var west);
@@ -542,10 +548,9 @@ namespace MountainPlanner.Tests
             // A sharp north–south wall one 512 m cell wide, 2,000 ft high, on a plain.
             for (int j = 0; j < d; j++) for (int i = 0; i < w; i++) feet[j * w + i] = 6000 + (i >= 512 && i < 576 ? 2000 : 0);
             var t = WeatherTerrain.Build(w, d, feet, 0, 0, (0, 0, w, d), 0, Tuning);
-            int cells = t.CoarseWidth * t.CoarseDepth, row = 8 * t.CoarseWidth;
             int o = 6;   // from the west: the wall is coarse column 8
-            int crest = t.Orographic[o * cells + row + 8], behind = t.Orographic[o * cells + row + 9], second = t.Orographic[o * cells + row + 10],
-                far = t.Orographic[o * cells + row + 13], plain = t.Orographic[o * cells + row + 2];
+            int At(int oct, int bi, int bj) => OroAtBlock(t, feet, w, oct, bi, bj);
+            int crest = At(o, 8, 8), behind = At(o, 9, 8), second = At(o, 10, 8), far = At(o, 13, 8), plain = At(o, 2, 8);
             TestContext.Progress.WriteLine($"west wind over a wall: plain {plain}, crest {crest}, just behind {behind}, next {second}, 2.5 km behind {far}");
             Assert.That(crest, Is.GreaterThan(plain), "the wall is windward");
             Assert.That(behind, Is.GreaterThan(plain * 105 / 100), "spillover just behind the crest (+7 % of +10 % at a cell's distance)");
@@ -555,9 +560,9 @@ namespace MountainPlanner.Tests
             int shadowStraight = 0, shadowDiagonal = 0;
             for (int k = 1; k <= 7; k++)
             {
-                if (t.Orographic[6 * cells + row + 8 + k] < plain) shadowStraight = k * 512;
+                if (At(6, 8 + k, 8) < plain) shadowStraight = k * 512;
                 // from the south-west (octant 5): k cells north-east of the wall along the diagonal is k columns east
-                if (t.Orographic[5 * cells + (8 + k) * t.CoarseWidth + 8 + k] < t.Orographic[5 * cells + row + 2]) shadowDiagonal = k * 512;
+                if (At(5, 8 + k, 8 + k) < At(5, 2, 8)) shadowDiagonal = k * 512;
             }
             TestContext.Progress.WriteLine($"the shadow reaches {shadowStraight} m east of the wall for a west wind, {shadowDiagonal} m for a south-west one");
             Assert.That(shadowDiagonal, Is.LessThanOrEqualTo(shadowStraight));

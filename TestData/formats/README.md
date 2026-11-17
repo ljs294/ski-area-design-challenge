@@ -140,6 +140,16 @@ reads: a version number, and a name for the greyed library row.
   checks the writer reproduces it; `v7-sim` still opens, its rows read as format 1 (κ = 0) and hash as they did, and
   it saves as v8.
 
+- **`v9-sim/golden.sim`** is a world in `SimSidecar` v9 (task 4.07 PR A2, the live snow): v8's fields, with the snow
+  block led by its mode (0 none, 1 set depths, 2 live). A live block holds the landing tick and the hour, today's and
+  the last day's ledgers, the landed tile hashes, and, with an hour in flight, its ledger, its water and the next tile
+  hashes; then the field, tile by tile (`SnowCodec`: a bare tile is one byte, a snowy one its twelve planes as
+  differences in short numbers). A 64 × 64 live mountain under Jackson Hole's rows, into December's cover, saved with
+  an hour in flight. `SimSaveTests` checks a round trip gives back its bytes (all but the header's Pacing hash and
+  version and the closing state hash) and that it lands its hour as the world that saved it would have; `v8-sim`
+  still opens with its set depths and saves as v9. Since the save split (same PR) the worker only copies the field and
+  the save's task encodes it; the bytes are the same.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

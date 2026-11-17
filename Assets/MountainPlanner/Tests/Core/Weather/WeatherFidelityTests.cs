@@ -512,10 +512,9 @@ namespace MountainPlanner.Tests
         /// </summary>
         static readonly Dictionary<string, string[]> KnownLimits = new Dictionary<string, string[]>
         {
-            // Under SnowEnergy, 87 % of Winter Park's played winters have 1 in of water on the ground at Christmas against
-            // the record's 20 of 20. Its autumn snowfall's mean is the record's (−3 %), its spread wider (sd 2.05 against
-            // 1.62 in); a right game would show 20 of 20 about 6 % of the time, so 20 winters can't tell it from chance.
-            [WeatherFixtures.WinterPark] = new[] { $"holidays with ≥ {CoverIn} in of water on Dec 25" },
+            // Empty since SN-09 v4 (task 4.07 A2, 2026-11-15): Winter Park's Christmases with 1 in of water on the ground,
+            // listed on 2026-11-13 at 87 % of the game's winters against the record's 20 of 20, came back inside the
+            // 99.9 % range at 92.7 % (z −2.9) once thin snow kept its brightness. All 86 cells pass.
         };
 
         static void Gate(string site, string group)

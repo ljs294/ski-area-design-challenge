@@ -301,11 +301,22 @@ density, so water and snow balance (SI-10).
 
 ### 4.1 Fields
 
-- **SN-01, static inputs per 8 m cell**, computed engine-free from the float heights (SH-02) when a mountain opens and
-  by dirty rectangle after earthwork: elevation, slope (%), aspect (° true), the unit normal (3 × int16, for SN-09's
-  sun factor), canopy share, ridge exposure (as
-  Snowpack v0's 7×7 rise), water mask. Snowpack v0's `Mathf` path is replaced by this.
-- **SN-02 v1, the natural snow field** per 8 m cell over the ring: **SWE** (in, stored per SI-07: 0.001 mm `int`) and **density**
+- **SN-01 v2, static inputs per 8 m cell** (task 4.07 PR A2, owner 2026-11-14), built engine-free (`Domain/Snow/SnowTerrain`) at open beside the
+  weather's inputs, from the downloaded heights and canopy. One sampler (`SurfaceSampler`) serves the opener, the edit
+  pipeline and the tests, so all three build the same bytes. A cell is the **mean** of its 1 m posts and canopy
+  texels, not one post (one post per cell was a cause of the faceted snow). Per cell: the unit normal's two horizontal
+  parts (2 B, for SN-09's sun and the fall line), canopy share, the ridge rise over 7 × 7 cells (cm since SN-07 v3, Snowpack v0's),
+  its own height, and the wind exposure blended between the weather's bands. On a 16 m lattice: the skyline in 16
+  directions and the open-sky share. Lakes are 4.09's table on the worker. After earthwork or Clear trees, the
+  changed rectangle's inputs go to the worker as a patch (command 32); the snow on the ground stays. The weather's
+  terrain reads the same means, so its inputs moved slightly at every site (no format or golden moved).
+- **SN-02 v2, the live field** (task 4.07 PR A2, owner 2026-11-14): per 8 m cell, A1's pack as proven (water and held water in µm, the surface's and
+  the pack's temperatures, brightness, density), plus type, age, the water fallen since the last surface event and the
+  spring-cycle state: 31 B a cell (BG-08 v3). Depth = water ÷ density. New games start bare on October 1; a seed
+  (`SetSnowpack`: the old static picture, as packed powder at `Pacing.SeedDensity = 300 kg/m³`) serves the benchmark,
+  the captures, the review movies and `-snowseed`. Old saves keep the snow they had, read the same way. The v1 text
+  follows.
+- **SN-02 v1- **SN-02 v1, the natural snow field** per 8 m cell over the ring: **SWE** (in, stored per SI-07: 0.001 mm `int`) and **density**
   (lb/ft³, stored kg/m³). Depth = SWE ÷ density, derived for the texture and `HeightAt`. The field replaces
   `SnowDepthField`'s metres as the source; the depth texture upload (dirty rows) is unchanged.
 - **SN-03 v2, the fine field (owner, 2026-11-07: "high def over painted trails and areas").** Sparse **1 m tiles**
@@ -337,43 +348,133 @@ density, so water and snow balance (SI-10).
     - The legend switches between the last hour and today's average hour. Past the stop the layer reads today.
     - The pointer reads the run or lift under it.
     - The dots fade back, coloured by ability, state or satisfaction as the legend's switch says.
-- **SN-29, the map looks sharp (owner).** The depth and conditions info layers draw the fine tiles at 1 m with hard
-  type edges and the 8 m field between them bilinearly filtered, so the picture reads as one free-flowing heat map
-  that snaps into detail over the trails; no 8 m blocks show anywhere. The look is 4.08's; the two-resolution source
-  is this rule.
+- **SN-29 v2, the map is drawn smooth (owner: fluid, never jagged)** (task 4.07 PR A2, owner 2026-11-14). The 8 m field is drawn through one
+  curved filter, a cubic B-spline over the 4 × 4 cells round each pixel (`Art/Shaders/Snow.hlsl`, four bilinear taps), everywhere
+  snow is read: the ground's snow cover, the cliff ledges, the Snow depth layer, the Snow conditions layer (16 taps
+  blending the type colours, so types blend across cell borders) and the cursor (the same curve on the CPU,
+  `SnowCursor`, so the readout never disagrees with the picture). No snow texture is point-sampled. How the 1 m trail
+  tiles' edges look is PR B's question (v1 had them hard-edged).
+- **SN-29 v1 (superseded):** the depth and conditions info layers draw the fine tiles at 1 m with hard type edges and the 8 m
+  field between them bilinearly filtered, so the picture reads as one free-flowing heat map that snaps into detail
+  over the trails; no 8 m blocks show anywhere. The look is 4.08's; the two-resolution source is this rule.
 
 ### 4.2 Accumulation
 
-- **SN-05 v1, new snow.** Per face hour, snowfall SWE = precipitation × phase share (snow 1, mixed 0.5, rain 0). New
+- **SN-05 v2, new snow** (task 4.07 PR A2, owner 2026-11-14). Each face hour, a cell's snow is the hour's water × the weather's own rain/snow ramp
+  (WX-03 v4: all snow at a 32 °F wet bulb, all rain above 37 °F), not "snow 1, mixed 0.5, rain 0". Its density is
+  1,000 ÷ the weather's snow-to-liquid ratio at the cell's wet bulb. The air is read smoothly: blended between
+  elevation bands and cold-pool bands by the cell's own height, so an even slope shows no step at a band edge.
+- **SN-05 v1 (superseded), new snow.** Per face hour, snowfall SWE = precipitation × phase share (snow 1, mixed 0.5, rain 0). New
   snow density = 1,000 ÷ SLR kg/m³ where the **snow-to-liquid ratio SLR = clamp(8 + 0.8 × (30 − wet bulb °F) ÷ 1.8,
   8, 18)** (MapLibre's rule in °F: 8:1 at a 30 °F wet bulb, 18:1 at about 8 °F). Mixed precipitation also leaves
   its rain share as retained water (SN-09).
-- **SN-06 v1, retention on the ground.** New snow × canopy × shedding × ridge, all from Snowpack v0 (12b, owner):
+- **SN-06 v3, the cliff-foot cone** (task 4.07 PR A2, owner 2026-11-14). SN-06 v2 as below, and a run-out fan's cell
+  takes shed snow only while its water stands under `Pacing.ShedPileRatio = 3×` the mean water round it (the 128 m
+  blocks' means at the hour's start, read bilinearly between their centres so the cap has no seam; never under an
+  hour's `ShedPileMax`). A full fan runs on down the fall line to eight times its length (was three). So a couloir's
+  foot builds a cone that spreads once it stands about three times the snow round it. Why: on the 11 km Jackson Hole
+  lapse one cell on an 88 % cliff band under a converging catchment reached 736 in by February (19 × the 38 in mean);
+  the shed's 100 m slide still ended on the band, and the fan landed there every storm. Test: a V-shaped bowl draining
+  over a 200 % cliff, by November 30: 5.0 × the 128 m round it without the cap, 3.2 × with it (SnowShedTests).
+- **SN-06 v2, retention on the ground** (task 4.07 PR A2, owner 2026-11-14). A full canopy holds back up to `Pacing.CanopyHolds = 30 %` of the
+  hour's new snow (it sublimates there; the ledger's Canopy). A slope steeper than `ShedStartGrade = 85 %` sheds a
+  share of the rest, rising to all of it at `ShedFullGrade = 175 %`. The shed slides down the fall line (the normal's
+  downhill octant) to the first cell under 85 %, at most `DriftReach = 100 m`; a lake takes it.
+  **New (for approval at the demo):** from there it spreads over a **run-out fan**. Along the fall line for
+  `Pacing.ShedRunout = 64 m`, an equal share of what's still carried lands at each step on the 3 × 3 cells round the
+  path (weights 1-2-1 by 1-2-1). No cell takes more than `Pacing.ShedPileMax = 0.5 in` of water an hour in all. A full
+  fan runs on down the fall line, to three times its length; anything left at the end lands round its last cell. Snow
+  that slides off the map's edge or into a hole in its heights leaves the field (the ledger's OffMap), as the world goes
+  on past the edge. Without the fan, a whole cliff's catchment landed in one cell (65 m deep by late October at 11 km); with it, the
+  deepest cell on the 2 km Jackson Hole crop on November 15 went from 109 in to 14 in (mean 1.4 in); over a season on
+  the Olympic Valley crop the deepest went from 1,881 in (piled at the crop's edge) to 305 in (mean 55 in).
+- **SN-06 v1 (superseded), retention on the ground.** New snow × canopy × shedding × ridge, all from Snowpack v0 (12b, owner):
   canopy keeps back up to 30 % under dense forest; shedding falls from 1 at 85 % grade to 0 at 175 %; ridges lose up
   to 30 % and hollows gain it (SN-07 moves it). MapLibre's slope-retention table (15–60°) is dropped for these.
-- **SN-07 v1, wind moves snow.** When the hour's wind exceeds `Pacing.DriftWind = 20 mph`, a share
+- **SN-07 v3, the drift as a gather** (task 4.07 PR A2, owner 2026-11-14). What a cell gives and keeps, and where it goes:
+  - **Gives:** above `DriftWind`, a cell gives a share of its new snow after shedding, as v2. It rises with the cell's
+    rise over its 7 × 7 surroundings: nothing at or below them, all of v2's share at twice `DriftExposedRise` (1 m).
+  - **Keeps:** how much of what reaches a cell it keeps runs from all of it at or below its surroundings (and water) to
+    none at `DriftExposedRise` (0.5 m), a ramp, not a line between giving and taking. The rise is stored in cm; in dm,
+    its steps made the take jump 20 % a step along every rise contour.
+  - **The footprint:** one for the whole map each hour, along the hour's free wind: `DriftReach = 100 m` in 12 cell-long
+    steps, an equal share a step, each spread 1-2-1 across the wind a cell either side and landed bilinearly. It's
+    integers of 65,536, summing exactly.
+  - **The gather:** each drifting cell sends each footprint cell its weight × that cell's keep. A footprint cell past the
+    map's edge or in a hole sends its share off the map (OffMap). What finds no shelter within the reach stays where it
+    fell, with the rounding. The shares are not renormalised over the cells that keep: that poured a ridge's whole drift
+    onto a thin strip of shelter, a line along the keep's edge. Each cell then gathers from upwind with the same integers,
+    so the drift conserves to the µm and runs on every thread like the rest of the hour.
+  - **Tests:** 14 windy days balance to the µm; a windy run shows the same one-cell lines as a calm one (526 against
+    480; the first form, with dm rise and renormalised shares, made 2,195); the footprint sums exactly in every
+    direction (SnowDriftTests).
+- **SN-07 v2 (superseded), wind moves snow** (task 4.07 PR A2, owner 2026-11-14). Above `Pacing.DriftWind = 20 mph`, a cell more than 0.5 m above its 7 × 7
+  surroundings gives a share of its new snow (after shedding). The share rises over the next 60 mph to a cap of 30 %.
+  The drift runs downwind along the cell's own wind direction, sampled along the true direction (no stripes), a cell
+  a step, up to `DriftReach = 100 m` (was 40 m, as the weather thread recommended). At each step an equal share of
+  what's still carried lands bilinearly on the cells round the point that take (at or below their surroundings, or
+  water); what's left at the reach lands on the last cell passed, and what blows off the map's edge leaves the field
+  (the ledger's OffMap; v1 ledgered it as well). It moves the hour's new snow only;
+  scouring old snow stays for later. SWE is conserved (the ledger balances).
+- **SN-07 v1 (superseded), wind moves snow.** When the hour's wind exceeds `Pacing.DriftWind = 20 mph`, a share
   min(0.3, (wind − 20) ÷ 60) of the hour's new snow on exposed cells (ridge exposure > 0) moves downwind into the
   first sheltered cells within `Pacing.DriftReach = 5` cells along the wind direction, split 50 / 30 / 20 % over
   three of them (else edge outflow), conserving SWE; what leaves the ring is ledgered. A one-cell hop would draw a
   stripe along every ridge. MapLibre's wind term deleted snow; this moves it.
-- **SN-08 v1, compaction.** Density rises toward `Pacing.MaxDensity = 28 lb/ft³` (450 kg/m³): ρ += (ρmax − ρ) ×
+- **SN-08 v2, settling** (task 4.07 PR A2, owner 2026-11-14) (approved with plan v2). Density settles toward a target by wetness: cold 300,
+  near freezing 380, wet 450 kg/m³, with time constant `Pacing.SettleTau = 2,400,000 s`, three times faster when wet.
+  SWE is unchanged by settling.
+- **SN-08 v1 (superseded), compaction.** Density rises toward `Pacing.MaxDensity = 28 lb/ft³` (450 kg/m³): ρ += (ρmax − ρ) ×
   0.0015 per face hour (MapLibre's 0.9985/h on depth, now on density), faster when wet (×3 when the surface is WG/WP).
   SWE is unchanged by compaction.
 
 ### 4.3 Melt
 
-- **SN-09 v1, melt per face hour** (SWE lost, inches): **0.012 in per °F-hour** above 32 °F of cell air temperature
+- **SN-09 v2, the snow energy** (task 4.07 PR A2, owner 2026-11-14) (approved with plan v2; WX-59…64). Each face hour, `SnowEnergy.Step` balances a thin
+  surface layer and the deep pack, each with its own temperature: the slope's sun (WX-60, with a soft skyline: the sun
+  fades over about 3° as it crosses the ridge line), brightness that ages faster when melting and resets with 5 mm of
+  new water (WX-61), the clear sky's longwave (WX-62), turbulent exchange with the air, rain's heat and the ground's.
+  Melt below `Pacing.SnowCrumbUm = 0.1 in` of water takes the rest (v2; SN-09 v3 replaces it). One integer function
+  serves the game and the pillow tests (demo 112).
+- **SN-09 v3, thin snow melts faster, never all or nothing** (task 4.07 PR A2, owner 2026-11-14). While it melts, a
+  pack under the crumb (0.1 in of water) loses up to one more hour's melt, more the thinner it is: melt × (crumb −
+  pack) ÷ crumb. The patches that go take their share of the pack's liquid with them. What's left changes at most 1 +
+  melt ÷ crumb times as fast as what was there, so two neighbours a few µm apart never split into bare and white. v2
+  took the whole pack under the crumb at the first melt or drop of rain. A first v3 form, ÷ pack, steepened without
+  bound as the pack thinned: a face hour (2.9 real hours) melts about 5 mm in a warm hour, and 0.1 mm more at the
+  start left 0.4 mm instead of none. Fidelity: the pack and powder gates moved at most 0.009 in of water and 0.07
+  days of melt-out, z at most 0.1; all 14 pass. The edges that remain are old melt-out lines under later snow, which
+  follow the contours and fade over about four cells.
+- **SN-09 v4, thin snow keeps its brightness** (task 4.07 PR A2, the owner's finding 2, 2026-11-15).
+  - **The rule:** the ground shows through the snow's brightness only under `Pacing.SnowThinUm = 5 mm` of water,
+    about 2 in of new snow. It was 20 mm, about 8 in.
+  - **Why:** under the old value, 4 in of new snow reflected half the sun. A fresh inch at the base melted within two
+    face hours while it was still snowing at 30–34 °F under cloud, and the valley floor went green between storms.
+  - **Fidelity:**
+    - All the pillow gates pass, and the daily error falls at all six pillows. Tahoe City goes from 0.96 to 0.79 in,
+      against the reference model's 0.85. With the old value today's code missed that gate; it passed at 0.71 on
+      2026-11-14, before A2's later changes.
+    - Fool Creek's January 1 water goes from × 0.68 to × 0.78.
+  - **Big piles:** a 4 m whale's middle melts the same to the µm and its edge tapers with no ring (`SnowWhaleTests`).
+  - **The look (Presentation):** the ground draws fully white from 2 in (`SurfaceStates.FullCoverMetres`, was 6 in),
+    and the readout says "Bare" under about 1 in.
+  - **Report:** `SnowValleyProbeTests`, `tools/snow-a2/valley.mjs`.
+- **SN-09 v1 (superseded), melt per face hour** (SWE lost, inches): **0.012 in per °F-hour** above 32 °F of cell air temperature
   (MapLibre's 0.55 mm per °C-hour, kept), plus **0.35 in per inch of rain** on snow (kept), plus **shortwave melt =
   1.2e-6 m per W/m²-hour × the slope's sun factor**, where the sun factor is the cosine of the angle between the
   hour's sun and the cell's slope normal (a dot product of the cell's stored unit normal, 3 × int16 in SN-01, with
   the hour's sun vector: no cosine per cell; 0 when the sun is below the slope's horizon, canopy ×0.5). MapLibre's
   radiation term had no slope or aspect; this one gives the owner's north/south rule. Melt below `Pacing.MeltCrumb =
   0.1 in` of SWE removes the rest (no slush crumbs; 0.5 in would snap 5 in of fresh depth away in an hour).
-- **SN-10, where melt water goes.** Melt and rain beyond the pack's holding capacity (5 % of SWE) run off (ledgered;
+- **SN-10 v2, where melt water goes** (task 4.07 PR A2, owner 2026-11-14). The pack holds up to 5 % of its water as liquid; the rest runs off
+  (ledgered). Held water refreezes against the pack's own cold (its cold content), not at a fixed air temperature.
+- **SN-10 v1 (superseded), where melt water goes.** Melt and rain beyond the pack's holding capacity (5 % of SWE) run off (ledgered;
   into the streams body, LK-07). Below freezing, held water refreezes into the pack (density up, SN-08).
 - **SN-11, managed snow melts and wears first** where it exists, then natural. A whale (SN-27) melts on its surface at
   the same rate per area but, being deep, lasts; that is the point of whales.
-- **SN-12, sublimation.** 0.002 in SWE per face hour when RH < 50 % and wind > 10 mph (tuned at 4.07; small, for the
+- **SN-12 v2, sublimation** (task 4.07 PR A2, owner 2026-11-14) (approved with plan v2): from the snow energy's latent heat; frost gains water
+  (a negative sublimation in the ledger).
+- **SN-12 v1 (superseded), sublimation.** 0.002 in SWE per face hour when RH < 50 % and wind > 10 mph (tuned at 4.07; small, for the
   ledger).
 
 ### 4.4 The conditions map
@@ -382,7 +483,17 @@ density, so water and snow balance (SI-10).
   machine groomed, **HP** hard packed, **IS** icy surface, **CO** corn, **FG** frozen granular, **LG** loose granular,
   **WG** wet granular, **WP** wet powder. **SC** spring conditions is a **trail-level label** (SN-21) when no type
   covers ≥ 50 % of the trail, never a cell type. The snow doc's *crud* and *wind-board* fold into quality and HP.
-- **SN-14 v1, transitions**, evaluated per face hour in this order, first match wins (T is cell air temperature,
+- **SN-14 v2, transitions** (task 4.07 PR A2, owner 2026-11-14) (approved with plan v2). The natural types only in A2; grooming and traffic arrive
+  with PR B. Each face hour, after the snow energy, first match wins:
+  1. **Powder** once 0.1 in of water has fallen since the last surface event (**wet powder** above a 31 °F wet bulb);
+     the age starts again.
+  2. **Corn**: a thaw (no rain) on frozen granular, loose granular or corn that would be the third thaw–refreeze cycle
+     within 5 face days; corn while the thaw holds.
+  3. A thaw or rain: **wet granular** (powder and packed powder become **wet powder** first). Rain marks the wet.
+  4. A refreeze: the surface's skin below −2.2 °C for 2 face hours on wet granular, wet powder or corn. After rain:
+     **icy**; otherwise **frozen granular**, which counts a cycle.
+  Bare ground has no type; snow on bare ground starts as powder or wet powder.
+- **SN-14 v1 (superseded), transitions**, evaluated per face hour in this order, first match wins (T is cell air temperature,
   "thaw" means the hour's melt > 0):
   1. new snow ≥ 0.2 in SWE this hour → **P** (or **WP** if T > 31 °F or phase mixed); age and passes reset.
   2. groomed this hour (SN-23) → **MG** (from FG, IS or LG → **LG** first, then MG the next grooming).
@@ -394,17 +505,47 @@ density, so water and snow balance (SI-10).
   6. traffic: passes ≥ `Pacing.PackedPasses = 200` on P → **PP**; passes ≥ `Pacing.HardPasses = 800` on PP/MG →
      **HP**; traffic on FG/IS → **LG** at 200 passes.
   7. groomed many times with no new snow (≥ 5 groomings) → **HP**.
+- **SN-15 v2, the powder thresholds by aspect** (approved with plan v2; owner decision 2026-11-13). The table stays
+  the game's rule, as a pattern the snow energy must show: CI checks that the thresholds fall from north to south on
+  both sides and stay within 3 °F of the table's spread. The energy, not a lookup, decides when a cell's powder turns.
 - **SN-15 v1, the powder thresholds by aspect (owner's ideas doc).** For rule 3 on a **P** cell the thaw test uses
   the owner's by-day thresholds instead of the hour's melt: powder stays powder while the air is below **42 °F N,
   40 NE, 36 E, 30 SE, 28 S, 32 SW, 34 W, 38 NW** by day and 32 °F at night (interpolated by aspect). This is the
   rule the player feels on a sunny day; the SWE physics (SN-09) still melts what melts.
-- **SN-16 v1, quality** per cell: the type's base quality × age and traffic terms: base **P .96, PP .90, MG .94,
+- **SN-16 v2, quality** (task 4.07 PR A2, owner 2026-11-14) (approved with plan v2): the type's base (`Pacing.QualityBase`, the v1 table) × (1 − 0.004
+  per face hour of age, floor 0.6), with the age in face hours (WX-22 v2). The traffic and mogul terms arrive with PR B.
+  The cursor reads it as a word: Excellent from 0.8, Good from 0.6, Fair from 0.4, else Poor.
+- **SN-16 v1 (superseded), quality** per cell: the type's base quality × age and traffic terms: base **P .96, PP .90, MG .94,
   HP .68, IS .16, CO .84, FG .42, LG .64, WG .50, WP .78** (MapLibre's table, kept); × (1 − 0.004 per face hour of
   age, floor 0.6); × (1 − 0.0003 per pass, floor 0.5); moguls ×(1 − 0.3 × moguls) for the under-advanced bands only
   (GU-07 reads it by band).
 - **SN-17 v1, moguls.** On an ungroomed trail cell with grade ≥ `Pacing.MogulGrade = 40 %`, moguls += passes ×
   0.0005 per face hour (so about 800 passes make a full field); grooming resets to 0; new snow ≥ 6 in halves them.
-- **SN-18, age.** Face hours since the last new snow ≥ 0.2 in SWE or grooming.
+- **SN-18 v2, age** (task 4.07 PR A2, owner 2026-11-14): face hours since the last powder reset (0.1 in of water of new snow, SN-14 v2 rule 1) or
+  grooming (PR B), to 255.
+- **SN-18 v1 (superseded), age.** Face hours since the last new snow ≥ 0.2 in SWE or grooming.
+- **SN-32, the Snow conditions info layer** (task 4.07 PR A2, owner 2026-11-14). Shift+0, info view 9. Four families by colour, lighter and
+  darker inside each, checked for colour-blind readers: fresh blue (powder #5AA2EC, wet powder #2C74C6), groomed and
+  packed teal (#2BB585, #168A5E), hard and icy violet (hard packed #B77AC9, frozen granular #9A4FB0, icy #6E2F88),
+  spring amber (corn #F5C04A, loose granular #EDA100, wet granular #C47F00), bare #8B7458. The cursor reads the cell's
+  type, depth, water, quality word and age ("Powder 14 in · 1.4 in water · Good · 2 days old"): the water is the drawn
+  depth × the cell's density (in tenths of an inch, or mm).
+- **A2's rule tests** (task 4.07 PR A2, 2026-11-14). Each SN-13/14 v2 transition runs on one cell through the hour's own
+  function (SnowConditionsTests): powder at 0.1 in of new water with the age reset, wet powder above a 31 °F wet bulb,
+  a thaw's wet powder then wet granular, two cold hours to a crust (ice after rain), corn on the third cycle within
+  five face days (not after rain, not with older cycles); SN-16 v2's quality and SN-18 v2's age cap. SN-08 v2's density
+  (SnowDensityTests): new snow 61 kg/m³ at 12 °F and 126 at 33 °F; ten face days from 120 kg/m³ settle a cold pack
+  to 235 and a wet one to 434, the water exact and the depth water ÷ density every hour; settling never thins a pack.
+  In a whole world (SnowWorldTests): earthwork leaves the snow where it lay (an edit with an hour in flight moves no
+  snow; a day later 3 % of a 1 km map lives differently, the farthest 400 m away); a skip to morning and to the next
+  third give the same bytes as ticking; an even slope across the bins shows no step you could see; the snow's hour
+  allocates nothing once warm (the drift footprint's scratch is kept, was 1.9 KB a windy hour). Nightly: a whole
+  season on the 2 km crop, every day's ledger balanced, the managed memory flat.
+- **A finding, not changed (task 4.07 PR A2, 2026-11-14):** a thaw on thin snow can split neighbouring cells by about
+  1 mm of water. The weather's wet bulb is whole tenths of a degree, so the new snow's temperature differs by 0.05 °C
+  between some rows; the melt and refreeze carry that on, and SN-09 v3's faster melt of thin snow triples it (973 µm
+  in one December thaw on the test slope, 346 µm without the crumb rule). It's under half an inch of snow on the 32 mm
+  pack there, too little to see on the map.
 
 ### 4.5 Trails: coverage, open and closed, grooming, wear
 
@@ -1110,6 +1251,27 @@ skiers and 500 guns:
   night; the lag is now stated, v2 left it implicit), banded (SI-09). A 64 m tile with zero SWE, no precipitation
   this hour and no gun is **skipped by a tile bitmask**, so bare rock in summer costs nothing. Past the cap new
   trails get fine tiles only over their graded footprint and a warning in the report.
+- **BG-02 v4, the natural snow's hour** (task 4.07 PR A2, owner 2026-11-14). Measured on 11 km (1.89 M cells, all snowy, January): 407 ms a face
+  hour on one thread in the game's runtime (Mono), 155 ms on four (.NET: 240 and 91). The hour's snow runs on
+  `Pacing.SnowThreads = 4` snow threads from the roll, in a fixed split (any thread count gives the same bytes), and
+  lands at the roll + `Pacing.SnowLandFaceMs` (80 ticks of the day clock), never on the main thread. Bare dry tiles
+  are skipped. Skip to morning ≤ 5 s, skip a month ≤ 60 s. The surround stays on the 8 m grid (the 32 m option was not
+  needed).
+  - **Measured on the whole hour (2026-11-15).** The 2.5 s and 39 s above were projections from the read, sun and
+    energy alone. The whole hour, on 11 km with every cell under a metre in January (Core, .NET, 4 snow threads,
+    `SnowCostReportTests.ReportTheFillAndAWeekJump`), jumped a face week in 62 s: the shed walk (SN-06, one thread)
+    took 42 s of it, because most of a busy hour's fans carry a walk's last µm to the end of its run-on and read the
+    pile cap nine times for nothing.
+  - **The fix, same bytes:** a fan whose shares all round to nothing returns at once, and a cell that has taken the
+    hour's pile max needs no pile cap read. The whole field folds the same after the week; the week now takes 27.5 s
+    (a face day 3.4 s median, 8.1 s the worst), so a month (about 10.8 face days) is about 42 s and a skip to morning
+    (16 face hours) about 2.2 s, 5.4 s on the worst day.
+  - **In the game** (Mono, real Jackson Hole at 11 km, the 45-day lapse from bare October 1): before the fix a whole
+    face day's skip took 22 s median, 57 s the worst. With the fix (2026-11-15) it takes 9.7 s median, 21.2 s the worst
+    (the lapse 967 s → 449 s, the same snow on the last day), about 6.4 s and 14 s for 16 face hours: still over 5 s.
+    The game runs the hour about 2.7 times slower than Core on .NET. Accepted for now (owner, 2026-11-15); bringing the
+    game under 5 s (threading the shed walk, a faster pass C, or the player's scripting backend) is a later Phase 4
+    follow-up.
 - **BG-03 v2, the hydraulic solve:** a 500-gun, 200-pipe network ≤ 20 ms **as a job off the tick** (HY-08), its ≤ 10
   shut-off re-solves inside it.
 - **BG-04 v2, gun deposit:** 500 guns' stencils (SG-03) ≤ 0.5 ms per tick; uploads by dirty tile ≤ 0.2 ms per frame
@@ -1123,6 +1285,8 @@ skiers and 500 guns:
 - **BG-08 v2, memory:** skiers ≤ 2 MB (3,000 × ~600 B with the day record and key ordinals), the 8 m snow fields
   ≤ 40 MB (SWE, density, conditions over the ring), the fine tiles ≤ 32 MB at the cap (16 B per 1 m cell), no
   per-cell weather (WX-02), no growth over a season (a soak test).
+- **BG-08 v3, the natural snow's memory** (task 4.07 PR A2, owner 2026-11-14): the 8 m field ≤ 64 MB at 11 km (31 B a cell, exactly A1's proven
+  precision; v2 said 40 MB), its static inputs ≤ 20 MB, the screen's copies about 8 MB more.
 - **BG-09, measured from App** or the headless harness (SI-23), never inside `Simulation` (`Stopwatch` is banned
   there); the benchmark forces a scenario (all guns running, a holiday day) by command.
 - **BG-10, minimum spec:** the 2016 laptop is the **simulation's** floor: it runs 1× within budget with 1,500 skiers

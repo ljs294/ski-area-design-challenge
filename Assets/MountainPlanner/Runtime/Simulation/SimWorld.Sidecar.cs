@@ -10,11 +10,31 @@ namespace MountainPlanner.Simulation
         /// would apply at this same tick before anything else ran, so applying them now changes nothing but where they wait.
         /// The event ring and the command log aren't state (nothing reads them back) and aren't saved.
         /// </summary>
-        public byte[] SaveState()
+        public byte[] SaveState() => CaptureState().Encode();
+
+        /// <summary>
+        /// SI-12 v2's state, split (task 4.07 PR A2): the worker copies it at the tick boundary (the snow field's planes as
+        /// arrays, everything else written), and <see cref="SimStateCapture.Encode"/> turns it into the same bytes later, on
+        /// whichever thread asks (the save's task), so the worker doesn't stop for the snow's encoding.
+        /// </summary>
+        public SimStateCapture CaptureState()
         {
             RunCommands();
-            return SimSidecar.Write(this);
+            JoinSnow();   // task 4.07 PR A2: the hour in flight is in the snow the save holds (it lands as it would have)
+            return SimSidecar.Capture(this);
         }
+
+        // One spare copy of the snow field for saves, handed back once a save has encoded it (no 64 MB allocation a save at
+        // 11 km). The save's thread and the worker trade it, so it's swapped atomically.
+        SnowField _saveCopy;
+
+        internal SnowField TakeSaveCopy()
+        {
+            var f = System.Threading.Interlocked.Exchange(ref _saveCopy, null);
+            return f != null && f.Width == Snow.Width && f.Height == Snow.Height ? f : new SnowField(Snow.Width, Snow.Height);
+        }
+
+        internal void ReturnSaveCopy(SnowField f) => System.Threading.Interlocked.Exchange(ref _saveCopy, f);
 
         /// <summary>
         /// SI-17: copies due snow tiles into <paramref name="ring"/> (the host calls it after its steps, and while paused so an
@@ -25,7 +45,7 @@ namespace MountainPlanner.Simulation
 
         // The field order below is the sidecar's (SimSidecar, v2: v1's fields, then the lift-operations block, task 4.11;
         // v4: the guests, task 4.12; v5: the weather, task 4.05; v6: the forecast's issue and the weather events, 4.05 PR C;
-        // v7: the lakes, task 4.09):
+        // v7: the lakes, task 4.09; v9: the snow block's mode and the live snow, task 4.07 PR A2):
         // append only through a version bump.
 
         internal void WriteState(SidecarWriter o)
@@ -57,8 +77,7 @@ namespace MountainPlanner.Simulation
             }
             o.Bool(_newSeasonHistory);
             o.I64(_commandSeq); o.I64(HourIndex); o.U64(HourHash);
-            o.Bool(Snow.Set); o.I32(Snow.Width); o.I32(Snow.Height);
-            o.U16s(Snow.Cells);
+            WriteSnowState(o);
             WriteLiftState(o);
             WriteGuestState(o);
             WriteWeatherState(o);
@@ -114,12 +133,7 @@ namespace MountainPlanner.Simulation
             }
             _newSeasonHistory = r.Bool();
             _commandSeq = r.I64(); HourIndex = r.I64(); HourHash = r.U64();
-            bool set = r.Bool();
-            int width = r.Count(1 << 16), height = r.Count(1 << 16);
-            if ((long)width * height > 64_000_000) throw new InvalidDataException("The snow field is too big.");
-            var mm = new ushort[width * height];
-            r.U16s(mm);
-            Snow.Load(width, height, set, mm);
+            ReadSnowState(r, header.SidecarVersion);
             // v1 → v2 (SimSidecar.Upgrade): no lift-operations block; lines and chairs empty, ledger zero, holds as saved.
             if (header.SidecarVersion >= 2) ReadLiftState(r, header.SidecarVersion);
             Design = real;

@@ -28,10 +28,10 @@ a nested `AGENTS.md` needs a same-directory `CLAUDE.md` with the same import.
   PRs state before-and-after numbers (0.3 §8.1). Never pass `-screen-*` to a player: Unity saves it as the
   owner's window mode; `-benchres` sets a window for one run and restores the saved mode before quitting.
 - GPU: run every GPU job through `powershell -NoProfile -ExecutionPolicy Bypass -File tools/gpu/gpu.ps1 run -Lane
-  measure|render -Name "<thread>" -- <exe> <args>`, launched with run_in_background: it queues, holds the slot only
-  while the command runs and releases it on exit. `measure` (alone): benchmarks, timing, review movies. `render` (2 at
-  once): `-screenshot`/`-uicapture` players, PlayMode on site caches, Cycles renders, Lift Lab captures. No lane:
-  builds, EditMode, `-nographics`, dotnet. `gpu.ps1 status` shows holders and the queue. See `tools/gpu/README.md`.
+  measure|render -Name "<thread>" -- <exe> <args>` with run_in_background: it queues and holds the slot while the
+  command runs (limit 60/120 min). `measure` (alone; waits for play outside the queue): benchmarks, timing, movies.
+  `render` (2 at once): `-screenshot`/`-uicapture` players, PlayMode on site caches, Cycles, Lift Lab captures. No
+  lane: builds, EditMode, `-nographics`, dotnet. `status`/`history`: queue, past runs, overlaps (`tools/gpu/`).
 
 ## Assemblies
 `Domain -> Simulation -> Persistence -> Acquisition -> World -> Presentation -> UI -> App`; references
