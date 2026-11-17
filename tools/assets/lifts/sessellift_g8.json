@@ -1,0 +1,142 @@
+{
+  "_about": "Sessellift G8, an eight-seat gondola cabin (task 4.24) on the Sessellift D6's terminals and wide heads: only the carrier is new. Millimetres, chair frame: u = travel, v = outboard (the door and hanger side), w = up, origin the grip on the rope. Measured on the owner's reference cabin (kept locally, never in the repo; Gate 0, 2026-11-17). The D6 hangs its rope 3,600 over the load level, so the cabin hangs 500 higher than the reference (owner, Gate 0): its floor sits 135 over the load level. The cabin hangs centred under the haul rope (centreV 0, owner): the hanger runs outboard round the stations, then back in to a clamp over the roof's middle.",
+  "catalog": {
+    "maker": "Sessellift",
+    "name": "G8",
+    "parts": {
+      "sessellift_g8_cabin": "Eight-seat cabin"
+    }
+  },
+  "common": {
+    "_about": "The D6's line (sessellift_d6.json common): the cabin runs on its terminals and heads.",
+    "ropeElevation": 3600,
+    "lineGauge": 5600,
+    "ropeDiameter": 50.8
+  },
+  "cabin": {
+    "seats": 8,
+    "centreV": 0,
+    "_profile": "the barrel's plan section at each height: [w, half along u, half across v]; a rounded rectangle of corner radius cornerR, fitted within 3 to the reference's measured silhouette (every 20); profileFar (LOD1), profileMid (LOD2) and profileSpeck (LOD3) pick levels from it, each keeping the glass edges",
+    "profile": [[-3555, 580, 714], [-3465, 640, 774], [-3400, 683, 817], [-3265, 754, 888], [-3240, 767, 901], [-3060, 838, 971], [-2880, 886, 1020], [-2700, 914, 1048], [-2540, 923, 1057], [-2320, 913, 1047], [-2140, 884, 1018], [-1960, 834, 968], [-1780, 762, 896], [-1640, 688, 823], [-1565, 640, 774], [-1455, 567, 701]],
+    "profileFar": [0, 3, 6, 8, 10, 12, 14, 15],
+    "profileMid": [0, 3, 6, 9, 11, 14, 15],
+    "profileSpeck": [0, 3, 12, 15],
+    "cornerR": 55,
+    "glass": [-3265, -1565],
+    "floor": -3465,
+    "ceiling": -1555,
+    "pillar": {
+      "_about": "the corners are the livery shell itself (the reference paints its corner arcs red): the arc and a strip this wide either side of it",
+      "flat": 25
+    },
+    "door": {
+      "_about": "two leaves on the outboard face, shut (no door motion): livery frames (outer and inner stiles, top and bottom rails) and a black seal where the leaves meet",
+      "halfU": 547,
+      "w": [-3465, -1555],
+      "stileOuter": 100,
+      "stileInner": 60,
+      "seal": 40,
+      "railTop": 80,
+      "railBottom": 120,
+      "depth": 25,
+      "sealDepth": 32
+    },
+    "skiRack": {
+      "_about": "on each door leaf: a basket for the ski tails and three bars the skis lean on",
+      "basket": {
+        "_about": "a box tipped out at the top by tilt (degrees), from its inner bottom edge origin [v, w]: out and height in its own frame, the outer corners rounded in plan, a dark rim round the open top",
+        "u": [16, 590],
+        "origin": [910, -3258],
+        "tilt": 14.4,
+        "out": 350,
+        "height": 364,
+        "round": 100,
+        "rim": 40
+      },
+      "bars": [-2565, -2140, -1865],
+      "bar": {
+        "_about": "a flat strap standing off the door on two short legs at its ends",
+        "u": [50, 490],
+        "size": [18, 56],
+        "standoff": 35
+      }
+    },
+    "bumpers": {
+      "_about": "black rubber pads on the end faces at the corners, rounded every way",
+      "w": [-2676, -2354],
+      "size": [90, 120],
+      "u": 922,
+      "v": 1044
+    },
+    "skid": {
+      "_about": "the guide tube under the inboard side: bowed out past the floor, its ends hooked back in under it; path [u, v] is the centreline's +u half (mirrored); it hangs drop under the underside (Gate 0: the reference's 70 would reach under the load level)",
+      "path": [[0, -869], [160, -856], [320, -832], [440, -798], [520, -783], [575, -765], [600, -735], [602, -700], [580, -660], [540, -635], [500, -622]],
+      "dia": 36,
+      "drop": 20
+    },
+    "bench": {
+      "_about": "two benches of four across the line, facing each other",
+      "v": [-920, 927],
+      "front": 341,
+      "back": 804,
+      "top": -2965,
+      "bottom": -3135,
+      "pad": 60,
+      "back_rest": {
+        "u": [736, 892],
+        "w": [-2856, -2490]
+      },
+      "ends": {
+        "u": [720, 879],
+        "v": [835, 870],
+        "w": [-3015, -2533]
+      }
+    },
+    "seatSocket": {
+      "u": 620,
+      "w": -3015
+    },
+    "roofFrame": {
+      "_about": "the hanger's frame on the roof: two bars along u on four black mounts (a knob [dia, height] on top of each), two channels across them (the spine) at the same height, a fork of two plates clasping the hanger's arm, joined over it by two crossbars",
+      "halfU": 500,
+      "barV": [-585, 595],
+      "bar": [59, 64],
+      "mount": {
+        "dia": 70,
+        "height": 60,
+        "u": 420,
+        "knob": [50, 14]
+      },
+      "spine": {
+        "u": [55, 110],
+        "height": 70
+      },
+      "spineV": [-625, 640],
+      "fork": {
+        "u": [110, 130],
+        "bottomV": 245,
+        "topV": 200,
+        "top": -1109,
+        "bar": 40
+      }
+    },
+    "hanger": {
+      "_about": "the D6 hanger from the grip's socket down and outboard round the stations' bellies (proven clear there), then a broad elbow into a level arm over the roof, clasped by the roof frame's fork; a square bar like the reference's, a little stouter (owner: in proportion with the cabin)",
+      "path": [[362, -89], [361, -127], [395, -191], [425, -254], [464, -381], [479, -476], [526, -762], [565, -885], [554, -968], [522, -1045], [471, -1111], [405, -1162], [328, -1194], [245, -1205], [-424, -1205]],
+      "far": [0, 3, 5, 7, 9, 11, 13, 14],
+      "section": [110, 120]
+    },
+    "step": {
+      "_about": "the dark step plate under the doors",
+      "halfU": 547,
+      "v": [743, 1133],
+      "w": [-3525, -3465]
+    },
+    "handrail": {
+      "_about": "a dark handrail inside on the inboard wall",
+      "u": 879,
+      "v": [-1009, -976],
+      "w": [-2682, -2620]
+    }
+  }
+}

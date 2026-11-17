@@ -39,7 +39,9 @@ MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "cha
            "chairworks_chair_double_fixed": ("chairworks_chair", "double_fixed"),
            "chairworks_chair_triple_fixed": ("chairworks_chair", "triple_fixed"),
            # the Sessellift Stern, the second fixed-grip style: bottom drive, top return (owner, 2026-11-02)
-           "stern4_drive": "stern_drive", "stern4_return": "stern_return"}
+           "stern4_drive": "stern_drive", "stern4_return": "stern_return",
+           # the Sessellift G8 gondola cabin (task 4.24): runs on the D6's terminals and wide heads
+           "g8_cabin": "g8_cabin"}
 # the fixed-grip doubles and triples (v0.3.2): the quads' modules built from an overlay spec (liftkit/gauge.py):
 # name -> (module, spec, variant or None)
 OVERLAY = {}
@@ -73,6 +75,7 @@ MONTA = ("monta_drive", "monta_return", "monta_return_bottom")
 CHAIRWORKS = ("chairworks_chair_detach", "chairworks_chair_fixed", "chairworks_chair_double_fixed", "chairworks_chair_triple_fixed")
 STERN = ("stern4_drive", "stern4_return")
 D6 = ("d6_drive", "d6_return", "d6_chair") + tuple(f"d6_tower_{h}" for h in ("s4", "s6", "s10", "b10", "d10", "c8"))
+G8 = ("g8_cabin",)
 # the Monta T-bar (surface lifts): towers (assets/tbar.py), terminals and carriers; ids monta_tbar_<name>
 MODULES.update({f"monta_tbar_{v}": ("tbar", v) for v in ("tower_s4", "tower_s6", "tower_d4", "mast", "base")})
 MODULES.update({"monta_tbar_drive": ("tbar_terminal", "drive"), "monta_tbar_return": ("tbar_terminal", "return"),
@@ -90,7 +93,7 @@ CARPET2 = {f"glidepath_carpet2_{v}": ("carpet", "glidepath_carpet2.json", v) for
 CARPET2.update({f"glidepath_carpet2_{v}": ("carpet_station", "glidepath_carpet2.json", v) for v in ("top", "bottom")})
 CARPET = tuple(k for k in MODULES if k.startswith("glidepath_carpet_")) + tuple(CARPET2)
 ALL = ("drive,return,terminal_footing,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA) + "," + ",".join(CHAIRWORKS)
-       + "," + ",".join(D6) + "," + ",".join(STERN) + "," + ",".join(OVERLAY) + "," + ",".join(TBAR) + "," + ",".join(CARPET))
+       + "," + ",".join(D6) + "," + ",".join(G8) + "," + ",".join(STERN) + "," + ",".join(OVERLAY) + "," + ",".join(TBAR) + "," + ",".join(CARPET))
 OVERLAY.update(CARPET2)
 
 
@@ -115,7 +118,7 @@ def ao_options(kind, assets):
     stands on it at its own 0.00 (contract M5, finding #9): heads sit on a mast, the D6's terminals on piers of any
     height (the FGQ-4's are baked at their standard grade, polish 2026-10-23); a mast section is baked between its neighbours (a cast-only ghost section above and one below, so
     both ends get the same light)."""
-    ground = kind not in ("tower_head", "tower_head_wide", "tower_mast", "chair", "chair_detach", "terminal_footing",
+    ground = kind not in ("tower_head", "tower_head_wide", "tower_mast", "chair", "chair_detach", "carrier_cabin", "terminal_footing",
                           "surface_tower_head", "surface_mast", "surface_carrier")         and not (kind == "terminal_detach" and "pier_top_1" in assets[0].sockets)
     return ground, (assets[0].sockets["top"][2] if kind in ("tower_mast", "surface_mast") else None)
 
@@ -283,6 +286,8 @@ def main():
         coll = bpy.data.collections.new(aid)
         bpy.context.scene.collection.children.link(coll)
         mats = [chair_mat] if kind in ("chair", "chair_detach") else [structure, glass]
+        if kind == "carrier_cabin":   # a glazed carrier (the G8 cabin): the chairs' material and the hoods' glass
+            mats = [chair_mat, glass]
         if uses_slot(assets, GLASS_CLEAR):   # a third slot only where it is used: every other FBX keeps its two
             mats = [structure, glass, glass_clear]
         objs, rep, split = export.make_objects(assets, mats, coll)

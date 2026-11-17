@@ -47,6 +47,8 @@ ORTHO = {
     "d4_top": [("side", "+u", "+w"), ("end", "-v", "+w"), ("plan", "+u", "+v")],
     # the Sessellift D4 detachable quad (v0.3.2), as the D6
     "d4_chair": [("front", "-v", "+w"), ("side", "+u", "+w")],
+    # the Sessellift G8 gondola cabin (task 4.24): end on and from the door side
+    "g8_cabin": [("front", "-v", "+w"), ("side", "+u", "+w")],
 }
 # the fixed-grip doubles' and triples' chairs (v0.3.2), as the quads'
 ORTHO.update({k: [("front", "-v", "+w"), ("side", "+u", "+w")]
@@ -678,6 +680,47 @@ def chair_photos(built, spec, out_dir, mats, key="chair"):
     _photo_end(sc, extras + [fig])
 
 
+def cabin_photos(built, spec, out_dir, mats, key="g8_cabin"):
+    """Cycles "photos" of the G8 cabin (task 4.24), about ten for the owner: hung on a rope stub at the D6's rope height
+    over snow at the load level, as the game draws it (back faces hidden). Three-quarter, the door side, the inboard
+    side, from above (roof frame and hanger), into the cabin through the door, the grip and hanger, beside a 1.8 m
+    figure, a line of cabins at the G8's spacing, and one after snowfall."""
+    sc, sun = _photo_scene()
+    load = spec["common"]["ropeElevation"] / 1000
+    objs = lod_objects(built, 0)
+    bpy.ops.mesh.primitive_cylinder_add(radius=spec["common"]["ropeDiameter"] / 2000, depth=200, vertices=12,
+                                        location=frame.b((40.0, 0.0, 0.0)), rotation=(math.pi / 2, 0, 0))
+    rope = bpy.context.active_object
+    rope.name = "PhotoRope"
+    rope.data.materials.append(_rope_material())
+    extras = [rope, _snow_plane(-load), sun]
+    fig = _photo_figure((0.2, 1.6, -load))
+    materials.cull_backfaces(mats)
+    materials.set_snow(mats, 0.0)
+    show_only(objs + extras)
+    restore_uv(objs)
+    shoot = _shooter(key, out_dir)
+    whole = (0.0, -0.18, -2.1)
+    shoot("hero", whole, 35, 10, 9.0)
+    shoot("door", whole, 90, 4, 8.5)
+    shoot("inboard", whole, 215, 10, 9.0)
+    shoot("high", (0.0, -0.1, -1.6), 50, 45, 7.5)
+    shoot("interior", (0.0, -0.3, -2.9), 75, 6, 2.6, lens=24)     # through the door's glass: benches and floor
+    shoot("grip_hanger", (0.0, 0.25, -0.6), 55, 10, 2.8)
+    show_only(objs + extras + [fig])
+    shoot("scale", (0.0, 0.6, -2.0), 25, 6, 10.0, lens=40)
+    line = hang_chairs(objs, [((48.8 * k / 4, 0.0, 0.0), 0.0) for k in range(1, 5)])   # 160 ft spacing (gondola-8)
+    show_only(objs + extras + line)
+    shoot("line", (24.4, 0.0, -2.0), 8, 3, 60.0, lens=50)
+    for o in line:
+        bpy.data.objects.remove(o)
+    show_only(objs + extras)
+    materials.set_snow(mats, 1.0)
+    shoot("snowfall", whole, 35, 14, 9.0)
+    materials.set_snow(mats, 0.0)
+    _photo_end(sc, extras + [fig])
+
+
 def gun_photos(key, built, out_dir, mats):
     """Cycles "photos" of a snow gun on snow with a 1.8 m figure: the whole gun, close-ups (the stick gun's head
     and base; the ground gun from its valve side, its mount and from behind) and one after snowfall."""
@@ -1275,13 +1318,13 @@ def _rope_over_head(spec, variant, rope_w, v, far=60.0):
     """The rope's path past a tower head (lift frame points): on a support head it rides over the sheaves' arc and
     leaves along its tangents, on a hold-down head it passes under the arc, on a combination it runs straight."""
     from liftkit import parts as lk_parts
-    t = spec["tower"]
-    cfg = t["heads"][variant]
+    wide = spec.get("towerWide", {}).get("heads", {})   # the D6's wide heads (as tower_wide.py reads them)
+    cfg = wide[variant] if variant in wide else spec["tower"]["heads"][variant]
     a = lk_parts.line_spec(spec)
     if "combo" in cfg:
         return [Vector((-far, v, rope_w)), Vector((far, v, rope_w))]
     mode = "support" if "support" in cfg else "hold"
-    radius = a["arcs"][cfg["arc"]]
+    radius = cfg["radius"] / 1000 if "radius" in cfg else a["arcs"][cfg["arc"]]
     ends = lk_parts.arc_axles(a, cfg[mode], radius)
     rr = radius + a["sheave"]["dia"] / 2 + a["ropeR"]           # the rope's circle, about the axle circle's centre
     phi = math.asin(ends[-1][0] / radius)
@@ -1646,6 +1689,8 @@ def render_all(built, spec, out_dir, shots, mats):
     chairs = lod_objects(built["chair"], 0) if "chair" in built else None
     d6_chairs = lod_objects(built["d6_chair"], 0) if "d6_chair" in built else None   # the D6 terminals hang their own
     d4_chairs = lod_objects(built["d4_chair"], 0) if "d4_chair" in built else None   # and the D4's
+    if "g8_cabin" in built and "d6_chair" not in built:   # the G8 gondola (task 4.24): the D6's stations and heads hang cabins
+        d6_chairs = lod_objects(built["g8_cabin"], 0)
 
     narrow = {seats: lod_objects(built[f"{model}_chair"], 0) for seats, model in ((2, "fgd2"), (3, "fgt3"))
               if f"{model}_chair" in built}
@@ -1699,6 +1744,8 @@ def render_all(built, spec, out_dir, shots, mats):
         for key in built:
             if key in CHAIRS and "photos" in shots:
                 chair_photos(built[key], built[key].get("spec", spec), out_dir, mats, key)
+            elif key == "g8_cabin" and "photos" in shots:
+                cabin_photos(built[key], built[key].get("spec", spec), out_dir, mats, key)
             elif key.startswith("sle_") and "photos" in shots:
                 gun_photos(key, built[key], out_dir, mats)
             elif key in D6_STATIONS:
