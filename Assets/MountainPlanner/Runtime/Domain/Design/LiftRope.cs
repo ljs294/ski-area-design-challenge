@@ -96,6 +96,13 @@ namespace MountainPlanner.Domain.Design
         /// stand open or under a raised hood; the D6's sit inside its tub (glimpses from above only), so they stay still.
         /// </summary>
         public bool BullwheelVisible { get; private set; } = true;
+        /// <summary>
+        /// Task 4.24: the carrier's own model where it isn't its kit's chair (the G8's cabin on the D6's kit); null draws
+        /// <see cref="TowerKit"/> + "chair".
+        /// </summary>
+        public string CarrierModel { get; private set; }
+        /// <summary>Task 4.24: a cabin's two benches face each other, so the seats ahead of the hanger face back.</summary>
+        public bool SeatsFaceEachOther { get; private set; }
 
         // ---------- the line's rules, per type (a surface tow's differ; v0.3.2) ----------
 
@@ -212,6 +219,7 @@ namespace MountainPlanner.Domain.Design
             // are the models' (the view measures them again: LiftTypes.Measured).
             if (catalogId == LiftCatalogIds.SesselliftD6) return D6(type);
             if (catalogId == LiftCatalogIds.SesselliftD4) return D4(type);
+            if (catalogId == LiftCatalogIds.SesselliftG8) return G8(type);
             if (monta)
             {
                 type.Bottom = new TerminalEnd("monta_fg4_drive", TerminalRow.HoldDown, MontaExitMin, MontaExitMax, 0.9 * MontaExitMax,
@@ -280,6 +288,31 @@ namespace MountainPlanner.Domain.Design
             // LT42: a detachable's pads end at the hood's middle (LF-12 v5).
             t.Bottom = new TerminalEnd("sessellift_d6_return", TerminalRow.Support, -level, 0, 0, 9.108, 12.816, 4.45, 12.816, 3.6, 0, 3, padToMiddle: true);
             t.Top = new TerminalEnd("sessellift_d6_drive", TerminalRow.Support, -level, 0, 0, 8.784, 13.137, 4.45, 13.137, 3.6, 0, 3, padToMiddle: true);
+            return t;
+        }
+
+        /// <summary>
+        /// The Sessellift G8 eight-seat gondola (task 4.24, owner 2026-11-17): the D6's line, terminals and wide heads with
+        /// its own cabin (sessellift_g8_cabin), as the catalog's gondola-8: 1,000 fpm at a 9.6 s interval (3,000 an hour, 160
+        /// ft apart on the line), a 1,700 lb cabin carrying 170 lb riders. The D6's 2 in rope carries it: the load a metre
+        /// of line is the D6's (3,060 lb every 160 ft against 2,320 every 120). The cabin hangs centred under the rope, its
+        /// lowest point (the guide tube) 3.575 m under it; its ski baskets reach 1.34 m out on the door side.
+        /// </summary>
+        static LiftType G8(LiftType placeholder)
+        {
+            const double Lb = 0.45359237;
+            var d6 = D6(placeholder);
+            double interval = placeholder.IntervalSeconds;
+            var t = new LiftType(LiftCatalogIds.SesselliftG8, 8, d6.SpeedMetresPerSecond, d6.SpeedMetresPerSecond * interval, d6.RopeKgPerMetre,
+                                 d6.RatedTensionNewtons, placeholder.CounterweightNewtons, 1700 * Lb, 170 * Lb, 3.575, d6.GaugeMetres,
+                                 d6.RopeDiameterMetres)
+            {
+                Name = placeholder.Name, RiseLimitMetres = placeholder.RiseLimitMetres, Detachable = true, _interval = interval,
+                _capacity = placeholder._capacity, ChairHalfWidthMetres = 1.34, Heads = d6.Heads, TowerKit = d6.TowerKit,
+                BullwheelVisible = false, CarrierModel = "sessellift_g8_cabin", SeatsFaceEachOther = true,
+            };
+            t.Bottom = d6.Bottom;
+            t.Top = d6.Top;
             return t;
         }
 

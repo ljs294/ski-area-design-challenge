@@ -75,9 +75,20 @@ namespace MountainPlanner.Tests
         [Test]
         public void GondolasTramsAndEightsHaveNoPriceYet()
         {
-            foreach (string carrier in new[] { "gondola-6", "gondola-8", "gondola-10", "tram-60", "tram-100", "detach-eight" })
+            // the eight-seat gondola has a placeholder since task 4.24 (TheGondola8HasAPlaceholderPrice)
+            foreach (string carrier in new[] { "gondola-6", "gondola-10", "tram-60", "tram-100", "detach-eight" })
                 Assert.That(Cost(LiftCatalogIds.Of(carrier, "sessellift"), 4000, 1000), Is.Null, carrier);
             Assert.That(LiftCost.Of(null, 1000, 300), Is.Null);
+        }
+
+        [Test]
+        public void TheGondola8HasAPlaceholderPrice()
+        {
+            Assert.That(LiftPrices.For(LiftType.Of(LiftCatalogIds.SesselliftG8)), Is.SameAs(LiftPrices.Gondola8));
+            Assert.That(LiftPrices.Gondola8.Basis, Does.StartWith("Placeholder"));
+            // dearer than the six-pack whose terminals and line it runs on: the cabins
+            Assert.That(Cost(LiftCatalogIds.SesselliftG8, 5000, 1200).TotalUsd, Is.GreaterThan(Cost(LiftCatalogIds.SesselliftD6, 5000, 1200).TotalUsd));
+            Assert.That(Cost(LiftCatalogIds.SesselliftG8, 5000, 1200).TotalUsd, Is.EqualTo(5_000_000 + 1_350 * 5000 + 340 * 1200));
         }
 
         [Test]
@@ -189,6 +200,7 @@ namespace MountainPlanner.Tests
                 [LiftFamily.TBar] = LiftCatalogIds.MontaTbar, [LiftFamily.JBar] = LiftCatalogIds.MontaJbar,
                 [LiftFamily.Carpet] = LiftCatalogIds.GlidepathCarpet, [LiftFamily.CarpetCovered] = LiftCatalogIds.GlidepathCarpetCovered,
                 [LiftFamily.DoubleCarpet] = LiftCatalogIds.GlidepathCarpet2, [LiftFamily.DoubleCarpetCovered] = LiftCatalogIds.GlidepathCarpet2Covered,
+                [LiftFamily.Gondola8] = LiftCatalogIds.SesselliftG8,
             };
             foreach (var price in LiftPrices.All)
             {
@@ -203,7 +215,7 @@ namespace MountainPlanner.Tests
                 text.AppendLine();
                 text.AppendLine($"  {price.Basis}");
             }
-            text.AppendLine("Lines are slope length x vertical rise, feet. Gondolas, trams and eights: no price yet.");
+            text.AppendLine("Lines are slope length x vertical rise, feet. The other gondolas, trams and eights: no price yet.");
             text.AppendLine($"Site works (task 4.01), {SoilPrices.PrivateShare:0.0} of the public bid: cut ${SoilPrices.CutUsdPerCubicYard:0.00}/yd3, "
                           + $"fill ${SoilPrices.FillUsdPerCubicYard:0.00}/yd3, clearing ${SoilPrices.ClearingUsdPerAcre:#,0}/acre of forest");
             text.AppendLine($"  {SoilPrices.CutBasis}");

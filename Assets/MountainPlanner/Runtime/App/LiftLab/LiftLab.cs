@@ -25,6 +25,7 @@ namespace MountainPlanner.App
     ///   9 Monta FG4 (its drive as the bottom station, the rope climbing out with Sessellift chairs; the return beside)
     ///   0 chairs (the Sessellift chair and the Chairworks chair with either grip, side by side on the rope)
     ///   X six-pack (the Sessellift D6: both terminals, its chair, and its six tower heads on full towers with ropes)
+    ///   Z gondola (the Sessellift G8: the D6's terminals and six tower heads, its cabins on the ropes; task 4.24)
     ///   J detachable quad (the Sessellift D4: bottom with its first tower, top, its chair, and its five tower heads)
     ///   K Sessellift Stern (its quad, triple and double: return and drive facing up the line, a chair between each pair)
     ///   U T-bar (the Monta T-bar: drive, hut, its three heads on leaning towers, return, T bars and a J bar)
@@ -35,7 +36,7 @@ namespace MountainPlanner.App
     ///   Tab next asset · L LOD auto/0/1/2/3 · N snow · C livery colour · I accent colour (the carpet glass's tint, C16)
     ///   T turntable · G ground on/off · O the snow guns' plumes: off, calm, breeze, strong wind (task 4.06; 7 and 8)
     ///   B benchmark · P screenshot · H help · Esc quit (camera: ViewCamera's keys)
-    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs|sixpack|fixedgrip|d4|stern|tbar|carpet, -lod n,
+    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs|sixpack|fixedgrip|d4|stern|tbar|carpet|gondola, -lod n,
     /// -snow 0..1, -livery n and -accent n (the colours C and I step to, from 0),
     /// -head bottom|top|top6|top8 (the head every fixed-grip terminal shows; else its own),
     /// -view yaw,pitch,distance, -focus id (with -view: frame the first placed asset whose id starts so, at its hood),
@@ -65,7 +66,7 @@ namespace MountainPlanner.App
         };
         /// <summary>The accents I cycles (LT41): the default dark, a light blue and red; the carpet galleries' glass takes it (C16).</summary>
         static readonly Color[] Accents = { LiftLivery.DarkAccent, new Color(0.61f, 0.78f, 0.91f), LiftLivery.Red };
-        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers", "guns", "gunfield", "monta", "chairs", "sixpack", "fixedgrip", "d4", "stern", "tbar", "carpet" };
+        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers", "guns", "gunfield", "monta", "chairs", "sixpack", "fixedgrip", "d4", "stern", "tbar", "carpet", "gondola" };
         /// <summary>The fixed-grip mode's rows, front to back: each model's terminals, left to right.</summary>
         static readonly string[][] FixedGrip =
         {
@@ -124,7 +125,7 @@ namespace MountainPlanner.App
         const float CarpetPlateTop = 0.372f, CarpetBottomPlate = -0.6f, CarpetTopPlate = -1.0f;
         const float CarpetFlat = 4.9f, CarpetEase = 0.10f, CarpetMargin = 1.0f, CarpetRunOff = 2.0f, CarpetRunOffFall = 0.05f;
 
-        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField, Monta, Chairs, SixPack, FixedGrip, Quad, Stern, Tbar, Carpet }
+        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField, Monta, Chairs, SixPack, FixedGrip, Quad, Stern, Tbar, Carpet, Gondola }
 
         readonly List<GameObject> _spawned = new List<GameObject>();
         /// <summary>Task 4.06: the snow guns' plumes (7 and 8), from each gun's nozzle socket; O steps the wind they blow in.</summary>
@@ -376,10 +377,11 @@ namespace MountainPlanner.App
                     if (_focus != null) FrameOn(_focus, 9f, 205f, 12f);
                     break;
                 case Mode.SixPack:
+                case Mode.Gondola:
                 {
-                    // the D6's return and drive facing up the line, a chair on the rope between them, and its tower
-                    // heads on full kit towers further up, each with its ropes and a chair on the right
-                    var chair = Asset("sessellift_d6_chair");
+                    // the D6's return and drive facing up the line, a chair (the G8: a cabin) on the rope between them, and
+                    // its tower heads on full kit towers further up, each with its ropes and a carrier on the right
+                    var chair = Asset(mode == Mode.Gondola ? "sessellift_g8_cabin" : "sessellift_d6_chair");
                     var ret = Asset("sessellift_d6_return");
                     var drive = Asset("sessellift_d6_drive");
                     if (ret != null) Spawn(ret, new Vector3(-12f, 0, 0), Quaternion.identity, livery);
@@ -1014,6 +1016,7 @@ namespace MountainPlanner.App
                 if (keys.digit9Key.wasPressedThisFrame) Show(Mode.Monta);
                 if (keys.digit0Key.wasPressedThisFrame) Show(Mode.Chairs);
                 if (keys.xKey.wasPressedThisFrame) Show(Mode.SixPack);
+                if (keys.zKey.wasPressedThisFrame) Show(Mode.Gondola);
                 if (keys.mKey.wasPressedThisFrame) Show(Mode.FixedGrip);
                 if (keys.jKey.wasPressedThisFrame) Show(Mode.Quad);
                 if (keys.kKey.wasPressedThisFrame) Show(Mode.Stern);
@@ -1105,7 +1108,7 @@ namespace MountainPlanner.App
                  .Append(" · accent ").Append(_accent % Accents.Length + 1).Append('/').Append(Accents.Length);
             if (_plumes.Count > 0) _text.Append(" · plumes: ").Append(_plumes.Count).Append(", ").Append(PlumeWindNames[_plumeWind % PlumeWindNames.Length]);
             if (Help)
-                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · 9 Monta · 0 chairs · X six-pack · J D4 quad · K Stern · U T-bar · Y carpets · M fixed-grip · V head (")
+                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · 9 Monta · 0 chairs · X six-pack · Z G8 gondola · J D4 quad · K Stern · U T-bar · Y carpets · M fixed-grip · V head (")
                      .Append(HeadKeys[_head] ?? "own").Append(") · Tab next · L LOD · N snow · C colour · I accent · T turntable · G ground · O plumes' wind · B benchmark · P screenshot · H help · Esc quit")
                      .Append("\nWASD move · Q/E rotate · R/F tilt · wheel zoom · middle-drag rotate · right-drag move · Shift faster");
             return _text.ToString();

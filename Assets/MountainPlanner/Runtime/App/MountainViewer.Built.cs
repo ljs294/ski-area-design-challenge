@@ -401,6 +401,7 @@ namespace MountainPlanner.App
                     foreach (var kv in counts) parts.Add($"{kv.Value} {kv.Key}");
                     row.Heads = string.Join(", ", parts);
                     row.LowestChairsMetres = rope.LowestClearance;
+                    row.LowestLabel = MountainPlanner.UI.Tools.LiftSummary.Lowest(rope.Type);
                     row.RiseMetres = rope.RiseMetres;
                     row.RiseLimitMetres = rope.Type.RiseLimitMetres;
                     _liftRowList[_liftRowList.Count - 1] = row;

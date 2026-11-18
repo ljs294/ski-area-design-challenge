@@ -129,6 +129,40 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void G8_TheGondolaBuiltRunsItsCabinsRoundTheD6Stations()
+        {
+            // Task 4.24: the G8 on the D6's terminals, drawn with its own cabin; eight seats, four facing back.
+            var models = AssetDatabase.LoadAssetAtPath<LiftModelSet>(SetPath);
+            if (models == null) Assert.Ignore("The lift library isn't imported.");
+            Assert.That(models.Find("sessellift_g8_cabin"), Is.Not.Null, "the cabin is imported");
+            var g8 = LiftType.Of(LiftCatalogIds.SesselliftG8);
+            var ground = new EditedHeights(new Slope(), new EditLattice(West, North), TerrainEdits.Empty);
+            var b = LiftBuild.Build(g8, ground, West + 100, North - 900, West + 100, North - 100, TowerStance.Leaned);
+            var lift = new Lift(LiftId.Make(1, 1), "Gondola", WorkStage.Built, g8.CatalogId, new PointMm(0, 0), new PointMm(0, 800_000),
+                                TowerMode.Automatic, TowerStance.Leaned, b.Towers.Select((t, i) => new Tower(TowerId.Make(1, i), t.AlongMm, t.HeightMm)).ToList(), b.Levels);
+            var material = new Material(Shader.Find("MountainPlanner/LiftStructure") ?? Shader.Find("Universal Render Pipeline/Lit"));
+            var view = new LiftView(null, models, new LiftMaterials(material, material, material), material, "G8 test lift");
+            try
+            {
+                view.Build(lift, new EditedHeights(ground.Source, ground.Lattice, b.Edits), new LocalFrame(new AlbersPoint(West + 100, North - 900)), LiftLivery.For(g8.CatalogId));
+                var track = view.Carriers;
+                Assert.That(track, Is.Not.Null, "the D6's station rails");
+                Assert.That(view.ChairCount, Is.EqualTo(Mathf.RoundToInt(track.LoopTime / (float)g8.IntervalSeconds)), "one cabin an interval");
+                Assert.That(track.SmallestGap(view.ChairCount), Is.GreaterThanOrEqualTo(3.5f), "cabins 1.85 m long never touch");
+                // below the hanger's hinge (44 mm under the rope): the cabin, not the D6's chair (3.27 m)
+                Assert.That(view.CarrierDrop, Is.EqualTo((float)g8.ChairDropMetres - 0.044f).Within(0.01f), "the cabin, not the D6's chair");
+                Assert.That(view.SeatLocal.Length, Is.EqualTo(8));
+                Assert.That(view.SeatTurned.Count(t => t), Is.EqualTo(4), "the bench ahead of the hanger faces back");
+                Assert.That(view.Root.GetComponentsInChildren<LiftRig>().Any(r => r.AssetId.StartsWith("sessellift_d6_tower_")), Is.True, "the D6's heads");
+            }
+            finally
+            {
+                view.Dispose();
+                Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
         public void G5_TheD6ChairSwungInClearsTheMastAndThePassingChair()
         {
             // G5 (the D6 findings; LT41: checked once per type, not per lift): a chair swung 11.5° inboard (the design wind

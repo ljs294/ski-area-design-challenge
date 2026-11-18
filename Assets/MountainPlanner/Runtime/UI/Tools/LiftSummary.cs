@@ -19,7 +19,11 @@ namespace MountainPlanner.UI.Tools
 
         /// <summary>People an hour, with a detachable's loading interval.</summary>
         public static string Capacity(LiftType type) =>
-            type.Detachable ? $"{type.Capacity:#,0} an hour · a chair every {type.IntervalSeconds:0.#} s" : $"{type.Capacity:#,0} an hour";
+            type.Detachable ? $"{type.Capacity:#,0} an hour · a {(type.CarrierModel != null ? "cabin" : "chair")} every {type.IntervalSeconds:0.#} s"
+                            : $"{type.Capacity:#,0} an hour";
+
+        /// <summary>The clearance row's name: a cabin lift's carriers are cabins (task 4.24), every other lift's chairs.</summary>
+        public static string Lowest(LiftType type) => type.CarrierModel != null ? "Lowest cabins" : "Lowest chairs";
 
         /// <summary>A head's short name in the summary (S4: support, 4 sheaves; B: breakover; D: hold-down; C: combination).</summary>
         public static string HeadCode(LiftRope.Head head) => head switch

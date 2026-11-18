@@ -43,6 +43,9 @@ CLASSES = [
     # the Glidepath carpet's gallery panes (owner C16, 2026-11-05): light glass the lift's accent colour tints (mask 2),
     # so the default dark accent reads as smoked glass and a player's colour as tinted glass
     ("glass_accent", "#F4F4F2", 0, 0.88),
+    # the Sessellift G8 cabin's benches (task 4.24, Gate 2): a matte warm light grey, as painted grey in the shaded
+    # cabin read navy from the sky's reflection
+    ("cabin_grey", "#A9A59D", 0, 0.12),
 ]
 INDEX = {name: i for i, (name, *_) in enumerate(CLASSES)}
 

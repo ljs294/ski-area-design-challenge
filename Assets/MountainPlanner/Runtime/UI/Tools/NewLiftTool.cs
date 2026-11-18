@@ -133,7 +133,8 @@ namespace MountainPlanner.UI.Tools
         }
 
         static string NextName(DesignDocument doc, string catalogId = null) =>
-            (LiftCatalogIds.IsBelt(catalogId) ? "Carpet " : LiftCatalogIds.IsTow(catalogId) ? "T-bar " : "Chair ") + (doc.Lifts.Count + 1);
+            (LiftCatalogIds.IsBelt(catalogId) ? "Carpet " : LiftCatalogIds.IsTow(catalogId) ? "T-bar "
+             : catalogId != null && catalogId.StartsWith("gondola-", System.StringComparison.Ordinal) ? "Gondola " : "Chair ") + (doc.Lifts.Count + 1);
         string _wasKind;
 
         void Go(Step step)
@@ -607,7 +608,7 @@ namespace MountainPlanner.UI.Tools
             }
             var rope = _built.Rope;
             _review.Add("Towers", LiftSummary.Towers(_built.Towers, rope, run), "TW-02, TW-12; LD3: tallest, longest span and heads")
-                .Add(rope.Type.Tow ? "Rope over track" : "Lowest chairs",
+                .Add(rope.Type.Tow ? "Rope over track" : LiftSummary.Lowest(rope.Type),
                      rope.Type.Tow ? $"{ToolFormat.Length(rope.LowestClearance)} to {ToolFormat.Length(rope.HighestOverTrack)}"
                                    : $"{ToolFormat.Length(rope.LowestClearance)} over the ground",
                      rope.Type.Tow ? $"TW-01: {ToolFormat.Length(rope.Type.ClearanceMetres)} to {ToolFormat.Length(rope.Type.RopeMaxMetres)} for the bars" : "TW-01: 15 ft at least")
