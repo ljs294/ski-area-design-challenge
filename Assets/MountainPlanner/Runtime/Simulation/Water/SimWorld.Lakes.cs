@@ -295,7 +295,7 @@ namespace MountainPlanner.Simulation
             SizeLakes(n);
             for (int b = 0; b < n; b++)
             {
-                _lakeKind[b] = (WaterBodyKind)r.Enum(0, 2, "A water body's kind");
+                _lakeKind[b] = (WaterBodyKind)r.Enum(0, (int)WaterBodyKind.Reservoir, "A water body's kind");   // a dam's reservoir is 3 (task 4.14)
                 _lakeId[b] = r.U64(); _lakeCx[b] = r.I32(); _lakeCy[b] = r.I32(); _lakeRadius[b] = r.I32();
                 _lakeFrozen[b] = r.Bool(); _lakeLag[b] = r.I64(); _lakeIce2[b] = r.I64(); _lakeSwe[b] = r.I64();
                 if (_lakeLag[b] < 0 || _lakeIce2[b] < 0 || _lakeSwe[b] < 0) throw new InvalidDataException("A water body's state is negative.");

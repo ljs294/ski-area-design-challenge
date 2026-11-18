@@ -146,7 +146,7 @@ namespace MountainPlanner.Domain.Water
             for (int b = 1; b < bodies.Length; b++)
             {
                 if (bodies[b].Kind == WaterBodyKind.Streams) throw new ArgumentException("Only body 0 is the streams body.", nameof(bodies));
-                if (bodies[b].Kind == WaterBodyKind.Pond) ponds++;
+                if (bodies[b].Kind == WaterBodyKind.Pond || bodies[b].Kind == WaterBodyKind.Reservoir) ponds++;
             }
             foreach (byte m in mask)
                 if (m > bodies.Length) throw new ArgumentException("The mask names a body the table doesn't have.", nameof(mask));
