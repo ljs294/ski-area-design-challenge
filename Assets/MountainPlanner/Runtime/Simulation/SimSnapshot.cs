@@ -215,8 +215,26 @@ namespace MountainPlanner.Simulation
         /// <summary>The label year's ice-on and ice-out face days, −1 for not yet.</summary>
         public readonly short[] IceOnDay, IceOutDay;
 
+        // Task 4.14 PR B: every snowmaking source's water (WS-02…WS-07), in id order. Zero until the world has sources.
+        public int SourceCount;
+        public readonly ulong[] SourceIds;
+        /// <summary>Gallons held, at capacity (full pool) and kept back (MinPool or a lake's drawdown limit).</summary>
+        public readonly long[] SourceHeldGallons, SourceCapacityGallons, SourceFloorGallons;
+        /// <summary>How far under full pool the water stands, micrometres.</summary>
+        public readonly int[] SourceBelowFullMicrons;
+        /// <summary>The last hour in and out (gallons a minute of calendar time), and the test draw.</summary>
+        public readonly int[] SourceInGpm, SourceOutGpm, SourceTestGpm;
+        /// <summary><see cref="SimWorld.SourceAtFloor"/> and the rest.</summary>
+        public readonly byte[] SourceFlags;
+
         public SimSnapshot(Pacing p)
         {
+            int sources = p.MaxSources;
+            SourceIds = new ulong[sources];
+            SourceHeldGallons = new long[sources]; SourceCapacityGallons = new long[sources]; SourceFloorGallons = new long[sources];
+            SourceBelowFullMicrons = new int[sources];
+            SourceInGpm = new int[sources]; SourceOutGpm = new int[sources]; SourceTestGpm = new int[sources];
+            SourceFlags = new byte[sources];
             int bodies = 1 + p.MaxLakes + p.MaxPonds;
             WaterBodyIds = new ulong[bodies];
             WaterStates = new Domain.Water.WaterSurfaceState[bodies];
@@ -261,7 +279,8 @@ namespace MountainPlanner.Simulation
         /// <summary>SI-16's budget: the bytes this snapshot's arrays and fields take at their full size.</summary>
         public int SizeBytes => 256 + 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + 1 + 4 + DayReport.SizeBytesPerLift)
                                 + TrailIds.Length * (8 + 1 + 1) + Events.Length * 24
-                                + Guests.SizeBytes + Forecast.SizeBytes + WaterBodyIds.Length * (8 + 4 + 4 + 4 + 2 + 2);
+                                + Guests.SizeBytes + Forecast.SizeBytes + WaterBodyIds.Length * (8 + 4 + 4 + 4 + 2 + 2)
+                                + SourceIds.Length * (8 + 8 + 8 + 8 + 4 + 4 + 4 + 4 + 1);
 
         /// <summary>The trail's index here, or −1.</summary>
         public int IndexOfTrail(ulong id)

@@ -74,6 +74,8 @@ namespace MountainPlanner.Domain.Design
         public double CrestMetres { get; internal set; }
         public int ClearedCells { get; internal set; }
         public WaterMask Wet { get; internal set; }
+        /// <summary>WS-02 v2 (task 4.14 PR B): the water held at each 0.1 ft below full pool, from the same wet points.</summary>
+        public Water.StageCurve Curve { get; internal set; }
         /// <summary>What stops it being built here (the berm too tall, water past the edge…), or null.</summary>
         public string Problem { get; internal set; }
         /// <summary>PD-11: an amber note that doesn't stop a Build (more earth moved than water held), or null.</summary>

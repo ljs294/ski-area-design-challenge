@@ -81,6 +81,13 @@ namespace MountainPlanner.Simulation
         LakeFroze = 35,
         /// <summary>LK-08 v2: a frozen water body thawed out to open water (the entity its index, the value the face day).</summary>
         LakeOpened = 36,
+        // 37–40: task 4.07 PR B's.
+        /// <summary>WS-05 (task 4.14 PR B): a pond or reservoir stopped giving water at MinPool (the entity is its index among the sources, the value the face day).</summary>
+        SourceAtMinPool = 41,
+        /// <summary>WS-06: a source is full and spilling (the entity its index among the sources, the value the face day).</summary>
+        SourceSpilling = 42,
+        /// <summary>WS-05: a lake reached its drawdown limit (the entity its index among the sources, the value the face day).</summary>
+        SourceAtDrawdownLimit = 43,
     }
 
     /// <summary>Why a command was turned away (an event's Detail). Stable numbers.</summary>

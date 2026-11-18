@@ -258,7 +258,7 @@ namespace MountainPlanner.Simulation
             // weather's static inputs (WX-35, PR B2): the terrain's, not a player's, sent again after every load, so a reloaded
             // game hashes as the one that saved.
             stamped.Seq = c.Kind == SimCommandKind.InspectSkier || c.Kind == SimCommandKind.SetWeatherTerrain || c.Kind == SimCommandKind.SetWaterBodies
-                          || c.Kind == SimCommandKind.SetSnowTerrain
+                          || c.Kind == SimCommandKind.SetSnowTerrain || c.Kind == SimCommandKind.SetWaterSources
                 ? _viewSeq++ : _commandSeq++;
             // Task 4.07 PR A2: what an hour's snow in flight reads (the weather's tables and inputs, the lakes) waits for it.
             if (c.Kind == SimCommandKind.SetWeather || c.Kind == SimCommandKind.SetWeatherTerrain || c.Kind == SimCommandKind.SetWaterBodies) JoinSnow();
@@ -298,6 +298,12 @@ namespace MountainPlanner.Simulation
                 case SimCommandKind.SetSnowTerrain:
                     if (!ApplySnowTerrain(c.Payload)) { Reject(c, SimRefusal.Unknown); return; }
                     break;
+                case SimCommandKind.SetWaterSources:
+                    if (!(c.Payload is Domain.Water.WaterSources ws) || !ApplyWaterSources(ws)) { Reject(c, SimRefusal.Unknown); return; }
+                    break;
+                case SimCommandKind.SetTestDraw:
+                    if (!ApplyTestDraw(c)) return;
+                    break;
                 case SimCommandKind.SetGust:
                 case SimCommandKind.FeedLine:
                     if (!ApplyLiftCommand(c)) return;
@@ -312,7 +318,7 @@ namespace MountainPlanner.Simulation
             }
             // The static inputs are megabytes and the area's own: the log keeps that they came, not a second reference to them.
             if (stamped.Kind == SimCommandKind.SetWeatherTerrain || stamped.Kind == SimCommandKind.SetWaterBodies
-                || stamped.Kind == SimCommandKind.SetSnowTerrain) stamped.Payload = null;
+                || stamped.Kind == SimCommandKind.SetSnowTerrain || stamped.Kind == SimCommandKind.SetWaterSources) stamped.Payload = null;
             Log.Add(stamped);
         }
 
@@ -444,6 +450,7 @@ namespace MountainPlanner.Simulation
             HourStepWeather(hour);
             HourStepSnow(hour);
             HourStepLakes(hour);
+            HourStepSources(hour);
             _hourSliceCursor = 0;
             _trailsReadyNext = Design.BuiltTrails;
             BoardLifts(_liftOpenNext);
@@ -695,6 +702,7 @@ namespace MountainPlanner.Simulation
             s.SnowLastDay = _snowLastDay;
             WriteWeather(s);
             WriteLakes(s);
+            WriteSources(s);
         }
 
         /// <summary>The run time of a lift by ID, ms, or −1 (tests).</summary>
@@ -733,6 +741,7 @@ namespace MountainPlanner.Simulation
             HashSnowLive(ref h);
             HashGuests(ref h);
             HashLakes(ref h);
+            HashSources(ref h);
             return h.Value;
         }
     }

@@ -7,8 +7,8 @@ using UnityEngine.Rendering;
 namespace MountainPlanner.Presentation.Ponds
 {
     /// <summary>
-    /// Task 4.14's pond and reservoir water: one flat opaque mesh per body at its level (full pool in PR A; PR B's level
-    /// follows the stored water), over its wet lattice points, each row's run of points one quad, grown a metre at each end
+    /// Task 4.14's pond and reservoir water: one flat opaque mesh per body, built at full pool and moved down to the level
+    /// the stored water stands at (PR B, <see cref="SetLevel"/>), over its wet lattice points, each row's run of points one quad, grown a metre at each end
     /// so the water runs under the bank and the ground draws the shoreline through the depth buffer. Built only when the
     /// design's water changes, never per frame; drawn with PondWater.shader, which takes the lakes' ice states by the
     /// body's index in the table (<c>_WaterBodyStates</c>), so a pond freezes with the lakes.
@@ -35,12 +35,13 @@ namespace MountainPlanner.Presentation.Ponds
             public Material Material;
             public WaterMask Wet;
             public double Level;
+            public bool Empty;
         }
 
         readonly Transform _parent;
         readonly Shader _shader;
         readonly Dictionary<ulong, Drawn> _drawn = new Dictionary<ulong, Drawn>();
-        bool _snowOn = true;
+        bool _snowOn = true, _visible = true;
 
         public PondWater(Transform parent)
         {
@@ -63,6 +64,7 @@ namespace MountainPlanner.Presentation.Ponds
                 {
                     if (_shader == null) continue;
                     d = new Drawn { Go = new GameObject("Pond water") };
+                    d.Go.SetActive(_visible);
                     d.Go.transform.SetParent(_parent, false);
                     d.Mesh = new Mesh { name = "Pond water", indexFormat = IndexFormat.UInt32 };
                     d.Go.AddComponent<MeshFilter>().sharedMesh = d.Mesh;
@@ -94,7 +96,22 @@ namespace MountainPlanner.Presentation.Ponds
 
         public void SetVisible(bool on)
         {
-            foreach (var d in _drawn.Values) d.Go.SetActive(on);
+            _visible = on;
+            foreach (var d in _drawn.Values) d.Go.SetActive(on && !d.Empty);
+        }
+
+        /// <summary>
+        /// Task 4.14 PR B (WS-02): the water's level now, <paramref name="dropMetres"/> under the level its mesh was built at
+        /// (full pool), by moving the mesh: no rebuild, nothing allocated. An empty body (nothing held) isn't drawn.
+        /// </summary>
+        public void SetLevel(ulong id, float dropMetres, bool empty)
+        {
+            if (!_drawn.TryGetValue(id, out var d)) return;
+            var at = new Vector3(0, -Mathf.Max(0, dropMetres), 0);
+            if (d.Go.transform.localPosition != at) d.Go.transform.localPosition = at;
+            if (d.Empty == empty) return;
+            d.Empty = empty;
+            d.Go.SetActive(_visible && !empty);
         }
 
         /// <summary>The mesh: per lattice row, each run of wet points one quad (half a point each side, plus a metre).</summary>

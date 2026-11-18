@@ -493,6 +493,7 @@ namespace MountainPlanner.Simulation
             }
             var energy = _rules.Energy;
             int lw = t.LatticeWidth, ld = t.LatticeDepth;
+            var runoff = f.RunoffHour;
             for (int j = y0; j < y1; j++)
             {
                 _fields.ReadRowsSmooth(j, j + 1, row, t.BinPlace, t.Exposure, t.Canopy, _readMask);
@@ -500,8 +501,8 @@ namespace MountainPlanner.Simulation
                 for (int tx = 0; tx < s.TilesX; tx++)
                 {
                     int k = tx0 + tx;
-                    if (!_readMask[k]) continue;
                     int x0 = tx * SimSnow.TileCells, x1 = Math.Min(w, x0 + SimSnow.TileCells);
+                    if (!_readMask[k]) { Array.Clear(runoff, j * w + x0, x1 - x0); continue; }
                     ulong hash = s.TileHashNext[k];
                     bool snowy = s.TileSnowy[k], changed = s.TileChanged[k];
                     for (int i = x0; i < x1; i++)
@@ -509,6 +510,7 @@ namespace MountainPlanner.Simulation
                         int c = j * w + i;
                         ref var p = ref f.Pack[c];
                         ref var wc = ref row[i];
+                        runoff[c] = 0;
                         if (wc.Known && !Lake(c))
                         {
                             int snow = 0, rain = 0;
@@ -519,7 +521,7 @@ namespace MountainPlanner.Simulation
                             }
                             if (p.Swe <= 0 && snow <= 0)
                             {
-                                if (rain > 0) L.Runoff += rain;
+                                if (rain > 0) { L.Runoff += rain; runoff[c] = rain; }
                                 if (f.Type[c] != 0 || p.Swe != 0) f.Clear(c);
                             }
                             else
@@ -546,6 +548,7 @@ namespace MountainPlanner.Simulation
                                 };
                                 var o = SnowEnergy.Step(ref p, x, energy);
                                 L.Runoff += o.Runoff; L.Sublimated += o.Sublimated; L.Melt += o.Melt;
+                                runoff[c] = (int)o.Runoff;
                                 Conditions(_rules, _faceDay, f, c, o.Thawed, o.Skin, x.Snow, rain, wc.WetBulb);
                             }
                         }

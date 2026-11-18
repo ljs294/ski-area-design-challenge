@@ -60,6 +60,12 @@ namespace MountainPlanner.Simulation
         /// the first makes the snow live) or a <see cref="Domain.Snow.SnowTerrainPatch"/> (after earthwork or Clear trees: the
         /// inputs change, the snow stays); a view-sequence command (resent after every load).</summary>
         SetSnowTerrain = 32,
+        /// <summary>Task 4.14 PR B: Payload = a <see cref="Domain.Water.WaterSources"/>, the design's snowmaking sources (WS-01:
+        /// their stage–storage curves, streams, springs, options and catchments), applied at once; a view-sequence command
+        /// (resent after every load): the water they hold is the state's.</summary>
+        SetWaterSources = 33,
+        /// <summary>Task 4.14 PR B (WS-05): Payload = a <see cref="TestDraw"/>, a source's test draw (gallons a minute).</summary>
+        SetTestDraw = 34,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>

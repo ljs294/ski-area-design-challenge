@@ -75,6 +75,7 @@ namespace MountainPlanner.Domain.Design
             bool edge = false;
             double cut = 0, fill = 0, vol = 0, maxDepth = 0, berm = 0;
             int cleared = 0;
+            var curve = new Water.StageCurve.Builder();
             for (int r = box.MinRow; r <= box.MaxRow; r++)
             {
                 double y = lat.Y(r);
@@ -102,6 +103,7 @@ namespace MountainPlanner.Domain.Design
                     {
                         wet.Set(c, r);
                         vol += P - z;
+                        curve.Add(P - z);
                         if (P - z > maxDepth) maxDepth = P - z;
                     }
                     if (inside || Math.Abs(dzMm) >= TerrainBrush.ClearMm) { writes.Clear(c, r); cleared++; }
@@ -112,6 +114,7 @@ namespace MountainPlanner.Domain.Design
             b.VolumeCubicMetres = vol;
             b.AreaSquareMetres = wet.Count;
             b.MaxDepthMetres = maxDepth;
+            b.Curve = curve.Build();
             b.BermMaxMetres = berm;
             b.ClearedCells = cleared;
             b.Problem = Problem(pond, site, edge, berm, vol, maxDepth);

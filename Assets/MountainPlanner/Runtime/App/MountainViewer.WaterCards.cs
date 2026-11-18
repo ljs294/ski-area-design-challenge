@@ -244,6 +244,7 @@ namespace MountainPlanner.App
                     w.VolumeCubicMetres = b.AreaSquareMetres * depthM;
                     w.Fills = "naturally";
                     w.Snowmaking = rec.Source ? $"a source · draws down 3 ft at most ({ToolFormat.Water(b.AreaSquareMetres * 0.9144)})" : "not a source";
+                    if (rec.Source) LiveWater(ref w, id, acts);
                     WaterCardRows.Add(rows, w);
                     acts.Add(("source", rec.Source ? "Snowmaking source ✓" : "Use for snowmaking", rec.Source));
                     acts.Add(("shallower", "Depth −1 ft", false));
@@ -293,6 +294,7 @@ namespace MountainPlanner.App
                     var w = Built(pond.FullPoolMm, b, pond.StartsEmpty);
                     w.Fills = pond.Fill == PondFill.Pumped ? "pumped only · from a pump house (coming next)" : "naturally · runoff and any spring";
                     w.StartsEmpty = pond.StartsEmpty;
+                    LiveWater(ref w, id, acts);
                     WaterCardRows.Add(rows, w);
                     acts.Add(("edit", "Edit", false));
                     acts.Add(("remove", "Remove", false));
@@ -310,6 +312,7 @@ namespace MountainPlanner.App
                     var w = Built(dam.FullPoolMm, b, dam.StartsEmpty);
                     w.Fills = "naturally · from " + stream;
                     w.StartsEmpty = dam.StartsEmpty;
+                    LiveWater(ref w, id, acts);
                     WaterCardRows.Add(rows, w);
                     if (b != null) rows.Add(("Dam", $"{ToolFormat.Length(b.LengthMetres)} long · up to {ToolFormat.Depth(b.HeightMaxMetres)} high"));
                     rows.Add(("Spillway", dam.Spill == SpillBank.First ? "at the first bank" : "at the far bank"));
@@ -381,6 +384,11 @@ namespace MountainPlanner.App
             if (history == null || !Parse(key, out string kind, out ulong id)) return;
             var doc = history.Document;
             DesignCommand cmd = null;
+            if (action == "drawless" || action == "drawmore" || action == "drawoff")
+            {
+                SendTestDraw(id, action == "drawoff" ? 0 : action == "drawmore" ? +TestDrawStepGpm : -TestDrawStepGpm);
+                return;
+            }
             if (kind == "lake")
             {
                 var rec = doc.FindLake(id);

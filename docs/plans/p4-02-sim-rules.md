@@ -1040,18 +1040,32 @@ snow and used no water. Phase 4 makes it an operating system (owner, 2026-11-05 
 - **WS-02 v1, volume and level.** Lake volume = area × mean depth (LK-02); pond and dam volume from the graded surface
   (PD-04, PD-09). Level falls with drawdown by the stage–storage curve of the graded bowl (ponds, dams) or as a
   prism (lakes).
+  **v2 (4.14 PR B):** the earthwork keeps every wet 1 m point's depth below full pool in 0.1 ft bins; the curve holds,
+  at each 0.1 ft step L, the exact area and V(L) = Σ(L − z) over the points below L, in whole gallons. The level of a
+  stored volume reads back by binary search with integer interpolation. A lake's prism uses the player's depth if set.
+  All water terms run on **calendar time** (WX-22: one face hour is 121/42 calendar hours), so a stream's cfs and a
+  draw's gpm compare directly with the dates on screen.
 - **WS-03 v1, inflow to a dam** from the dammed stream's width (OSM `width` or the defaults: stream 8 ft, river
   46 ft): **≤ 3 ft: 1 cfs; 6.5 ft: 3.5; 13 ft: 11; 26 ft: 35; 50 ft: 106; 100 ft: 353; 200 ft: 1,060; wider: 2,650 cfs**
-  (MapLibre's table in m³/s, kept) × a season factor (`Pacing.InflowSeason`: Dec–Feb 0.6, Mar 1.0, Apr 1.5, from the
-  site's record via WX-07; tuned at 4.14).
+  (MapLibre's table in m³/s, kept) × a season factor (`Pacing.InflowSeason`: Oct–Nov 0.8, Dec–Feb 0.6, Mar 1.0,
+  Apr 1.5, May–Sep 1.0, from the site's record via WX-07; tuned at 4.14).
 - **WS-04, recharge of a pond.** A pond with no stream gets runoff from its catchment (SN-10's runoff over the cells
   draining to it, a D8 fill of the static inputs) and nothing else; a spring-fed override (gpm) is the player's.
+  **v2 (4.14 PR B):** a priority flood over the 8 m mean heights climbs from every outlet at once (each water cell and
+  the field's edge), so each land cell drains to the first outlet its water reaches: the land round a pond in its own
+  bowl drains into it, not over its rim. Ties go by the order cells were reached (sides before corners). Each cell's
+  runoff for the landed hour (SN-10: the rain on bare ground, else the melt's runoff) is summed into the source it
+  drains to. A source lake refills the same way and spills at its natural level. Water landing on a source's own
+  cells isn't counted in v1.
 - **WS-05 v1, the intake and the minimum pool.** The intake sits at the source's full-pool elevation minus
   `Pacing.IntakeDepth = 6 ft`; its head is the **current** level (MapLibre's fixed full-pool head is changed). A
   source stops supplying at `Pacing.MinPool = 10 %` of volume (alert, TM-12). A natural lake may be drawn down at
   most `Pacing.LakeDrawdown = 3 ft` below its surface (a permit rule; alert at the limit). The source card shows
   **"days of making left"** at the current draw: on a lake the drawdown limit is the only water tension in Phase 4,
   so it must be visible.
+  **v2 (4.14 PR B):** "Making left" reads the days at the last hour's net draw and the date it runs out ("12 days ·
+  to Jan 9"); evaporation may still take a source below its floor. Alerts (events 41–43) at most once per source per
+  face day. A Test draw (0–5,000 gpm, 250 steps, saved) draws from a source until 4.16's guns do.
 - **WS-06, spill.** A full pond or dam spills inflow (ledgered) rather than overtopping.
 - **WS-07, evaporation.** 0.01 in per day of open water (small; ledger).
 - **WS-08, stream lines in the package.** Dams need the stream's line and width: the area package gains the OSM
