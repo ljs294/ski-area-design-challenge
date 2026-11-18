@@ -88,6 +88,6 @@ namespace MountainPlanner.App
         }
 
         static void Add(List<Vector3> points, ITerrainSurface surface, Vector2 p) =>
-            points.Add(new Vector3(p.x, surface.HeightAt(p.x, p.y) + Lift, p.y));
+            points.Add(new Vector3(p.x, surface.SurfaceAt(p.x, p.y) + Lift, p.y));
     }
 }

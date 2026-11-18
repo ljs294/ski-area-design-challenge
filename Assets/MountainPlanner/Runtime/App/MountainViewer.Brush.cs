@@ -6,6 +6,7 @@ using MountainPlanner.Domain.Design;
 using MountainPlanner.Presentation.Design;
 using MountainPlanner.UI.Tools;
 using UnityEngine;
+using MountainPlanner.World;
 
 namespace MountainPlanner.App
 {
@@ -48,7 +49,7 @@ namespace MountainPlanner.App
         ToolInput BrushInput(Vector2 xz, bool left = false, bool right = false, bool click = false, bool release = false)
         {
             xz += _brushShift;
-            float y = _resort.Surface.HeightAt(xz.x, xz.y);
+            float y = _resort.Surface.SurfaceAt(xz.x, xz.y);   // task 4.07 PR A3: the ring lies on the drawn ground
             var g = new Vector3(xz.x, y, xz.y);
             return new ToolInput
             {

@@ -13,11 +13,33 @@ namespace MountainPlanner.World
     /// </summary>
     public interface ITerrainSurface
     {
-        /// <summary>Elevation in metres at a local position; NaN outside the terrain.</summary>
+        /// <summary>Elevation in metres at a local position; NaN outside the terrain. The earth: what anything built stands
+        /// on (task 4.07 PR A3; <see cref="TerrainSurfaces.SurfaceAt"/> is the top of the snow).</summary>
         float HeightAt(float x, float z);
+
+        /// <summary>Task 4.07 PR A3: how far the snow lifts the drawn ground above the earth at a local position (metres, 0
+        /// where there's none or the lift is off).</summary>
+        float LiftAt(float x, float z);
 
         /// <summary>The terrain's footprint in local x/z.</summary>
         Rect Footprint { get; }
+    }
+
+    /// <summary>
+    /// Task 4.07 PR A3 (Coordinator, 2026-11-13): the snow lifts the ground. <see cref="ITerrainSurface.HeightAt"/> keeps
+    /// meaning the earth (towers, terminals, trees, water, tools' placement); <see cref="SurfaceAt"/> is the top of the snow,
+    /// where the picture draws the ground (the camera, the cursor, skiers, labels and lines).
+    /// </summary>
+    public static class TerrainSurfaces
+    {
+        /// <summary>The top of the snow at a local position: the earth plus the snow's lift; NaN outside the terrain.</summary>
+        public static float SurfaceAt(this ITerrainSurface surface, float x, float z) => surface.HeightAt(x, z) + surface.LiftAt(x, z);
+    }
+
+    /// <summary>Task 4.07 PR A3: where the snow's lift comes from (the screen's snow field, Presentation's SurfaceStates).</summary>
+    public interface ISnowLift
+    {
+        float LiftAt(float x, float z);
     }
 
     /// <summary>Per-quality-preset terrain detail (0.3 §8; the graphics settings in 0.4 pick one).</summary>
@@ -44,8 +66,11 @@ namespace MountainPlanner.World
 
         public static void Apply(Terrain terrain, TerrainDetail detail)
         {
-            terrain.heightmapPixelError = PixelError(detail);
-            terrain.basemapDistance = BasemapDistance(detail);
+            // Task 4.07 PR A3 round 3: the snow shell stands on an 8 m field, so it takes half the ground's detail.
+            terrain.heightmapPixelError = PixelError(detail) * (TerrainTiles.IsShell(terrain) ? TerrainTiles.ShellPixelErrorFactor : 1);
+            // Our shader draws every distance and has no baked basemap: the ground and its snow shell keep the far distance
+            // through every Apply (a quality change used to reset it; the shell never had it. Task 4.07 PR A3 repair).
+            terrain.basemapDistance = TerrainTiles.UsesMountainShader(terrain.materialTemplate) ? TerrainTiles.MountainBasemapDistance : BasemapDistance(detail);
         }
     }
 
@@ -149,8 +174,7 @@ namespace MountainPlanner.World
             TerrainDetailSettings.Apply(terrain, detail);
             if (UsesMountainShader(material))
             {
-                terrain.basemapDistance = 100000;   // our shader draws every distance; no baked basemap
-                BindSplat(terrain);
+                BindSplat(terrain);   // (its base-map distance: TerrainDetailSettings.Apply)
             }
             ProfileSetup += watch.Elapsed.TotalSeconds;
             watch.Restart();
@@ -163,6 +187,100 @@ namespace MountainPlanner.World
         }
 
         public const string MountainShader = "MountainPlanner/Terrain";
+        public const float MountainBasemapDistance = 100000;
+
+        /// <summary>
+        /// Task 4.07 PR A3 round 3 (owner, 2026-11-17: the ground never moves; the snow is its own layer on top): the snow
+        /// shell, a second Terrain on the tile's own TerrainData (no extra memory; terrain edits reach it by themselves), drawn
+        /// with the mountain shader's _SNOW_SHELL variant (GroundLayers.ShellMaterial), which raises it by the snow's depth and
+        /// draws it only where the snow is deeper than 2 in. A child of its tile, named <see cref="ShellName"/>.
+        /// </summary>
+        public const string ShellName = "snow shell";
+        public const string ShellKeyword = "_SNOW_SHELL";
+        public const float ShellPixelErrorFactor = 2;
+
+        /// <summary>
+        /// Finding A3-6: Unity culls a terrain's patches by boxes around the earth's heights, but the shell is drawn up to the
+        /// snow's depth above them, so a low camera over flat ground lost the shell along the screen's bottom edge. Each
+        /// patch's box top is raised by <paramref name="metres"/> (the shell's deepest lift) over the data's true heights,
+        /// through Unity's own per-patch override: flat ground (a graded pad, a bench) is padded like any other. Not
+        /// <see cref="Terrain.patchBoundsMultiplier"/>: that scales a patch's own height range, so it adds nothing over flat
+        /// ground, and the taller boxes make Unity pick finer detail (demo 41 High: x50 drew 3.4 M triangles, not 1.6 M).
+        /// The data is the tile's and its shell's, so the earth's boxes grow too (harmless: only less is culled).
+        /// Unity keeps an override through later height changes, so every sync re-pads (<see cref="RepadShellBounds"/>).
+        /// </summary>
+        public static void PadShellBounds(TerrainData data, float metres)
+        {
+            if (data == null) return;
+            ShellPads.GetOrCreateValue(data).Metres = metres;
+            ApplyShellPad(data, metres);
+        }
+
+        /// <summary>After a height sync: the pad <see cref="PadShellBounds"/> gave this data, over its new heights.</summary>
+        public static void RepadShellBounds(TerrainData data)
+        {
+            if (data != null && ShellPads.TryGetValue(data, out var pad)) ApplyShellPad(data, pad.Metres);
+        }
+
+        /// <summary>The pad <see cref="PadShellBounds"/> last gave this data, metres (0: none).</summary>
+        public static float ShellPadOf(TerrainData data) => data != null && ShellPads.TryGetValue(data, out var pad) ? pad.Metres : 0;
+
+        sealed class ShellPad { public float Metres; }
+        static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TerrainData, ShellPad> ShellPads =
+            new System.Runtime.CompilerServices.ConditionalWeakTable<TerrainData, ShellPad>();
+
+        static void ApplyShellPad(TerrainData data, float metres)
+        {
+            // The true heights' extents: an override never shows here (EditMode probe, 2026-11-17), so this never compounds.
+            var extents = data.GetPatchMinMaxHeights();
+            if (extents == null || extents.Length == 0) return;
+            float up = metres / data.size.y;   // the extents are 0-1 of the data's height range
+            for (int k = 0; k < extents.Length; k++)
+            {
+                var e = extents[k];
+                e.max += up;
+                extents[k] = e;
+            }
+            data.OverrideMinMaxPatchHeights(extents);
+        }
+
+        public static bool IsShell(Terrain terrain) => terrain != null && terrain.materialTemplate != null && terrain.materialTemplate.IsKeywordEnabled(ShellKeyword);
+
+        /// <summary>The tile's snow shell, or null.</summary>
+        public static Terrain ShellOf(Terrain tile)
+        {
+            if (tile == null) return null;
+            var t = tile.transform.Find(ShellName);
+            return t != null ? t.GetComponent<Terrain>() : null;
+        }
+
+        /// <summary>Adds the snow shell over a tile (main thread), shown or not. Bind its splat with the tile's (<see cref="BindSplat"/>).</summary>
+        public static Terrain CreateShell(Terrain tile, Material shellMaterial, TerrainDetail detail, bool shown)
+        {
+            var go = new GameObject(ShellName);
+            go.transform.SetParent(tile.transform, false);
+            var shell = go.AddComponent<Terrain>();
+            shell.terrainData = tile.terrainData;
+            shell.drawInstanced = tile.drawInstanced;
+            shell.groupingID = 2;
+            shell.allowAutoConnect = false;
+            shell.materialTemplate = shellMaterial;
+            shell.drawTreesAndFoliage = false;
+            TerrainDetailSettings.Apply(shell, detail);
+            shell.drawHeightmap = shown;
+            BindSplat(tile);
+            return shell;
+        }
+
+        /// <summary>Shows or hides every tile's snow shell (the Snow map layer; at once, nothing moves).</summary>
+        public static void ShowShells(IEnumerable<Terrain> tiles, bool shown)
+        {
+            foreach (var tile in tiles)
+            {
+                var shell = ShellOf(tile);
+                if (shell != null && shell.drawHeightmap != shown) shell.drawHeightmap = shown;
+            }
+        }
 
         public static bool UsesMountainShader(Material material) => material != null && material.shader != null && material.shader.name == MountainShader;
 
@@ -200,6 +318,7 @@ namespace MountainPlanner.World
             hp.w = terrain.GetPosition().y;
             block.SetVector(HeightmapParamsId, hp);
             terrain.SetSplatMaterialPropertyBlock(block);
+            ShellOf(terrain)?.SetSplatMaterialPropertyBlock(block);   // task 4.07 PR A3 round 3: the snow shell reads the same maps
         }
 
         static MaterialPropertyBlock SplatBlock;
@@ -261,6 +380,7 @@ namespace MountainPlanner.World
         {
             data.SetHeightsDelayLOD(xBase, yBase, heights);
             data.SyncHeightmap();
+            RepadShellBounds(data);   // finding A3-6
         }
 
         /// <summary>
@@ -343,6 +463,11 @@ namespace MountainPlanner.World
         }
 
         public Rect Footprint { get; }
+
+        /// <summary>Task 4.07 PR A3: the snow the ground stands on (null: none).</summary>
+        public ISnowLift Snow { get; set; }
+
+        public float LiftAt(float x, float z) => Snow?.LiftAt(x, z) ?? 0;
 
         public float HeightAt(float x, float z)
         {

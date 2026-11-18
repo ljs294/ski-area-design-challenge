@@ -5,6 +5,7 @@ using MountainPlanner.Domain.Edits;
 using MountainPlanner.Domain.Geo;
 using MountainPlanner.Domain.Measure;
 using UnityEngine;
+using MountainPlanner.World;
 
 namespace MountainPlanner.Presentation.Design
 {
@@ -103,6 +104,7 @@ namespace MountainPlanner.Presentation.Design
             public LocalFrame Frame;
             public EditedSurface(World.ITerrainSurface terrain) { _terrain = terrain; }
             public Rect Footprint => _terrain?.Footprint ?? default;
+            public float LiftAt(float x, float z) => _terrain?.LiftAt(x, z) ?? 0;
 
             public float HeightAt(float x, float z)
             {
@@ -328,7 +330,7 @@ namespace MountainPlanner.Presentation.Design
         {
             if (line.Length < 2)
             {
-                float y = _ground.HeightAt(line[0].x, line[0].y);
+                float y = _ground.SurfaceAt(line[0].x, line[0].y);
                 return new[] { MapLabelSpot.Upright(new Vector3(line[0].x, float.IsNaN(y) ? 0 : y, line[0].y)) };
             }
             var run = new float[line.Length];
@@ -351,7 +353,7 @@ namespace MountainPlanner.Presentation.Design
             while (k < line.Length - 1 && run[k] < at) k++;
             float span = run[k] - run[k - 1];
             var p = span > 0 ? Vector2.Lerp(line[k - 1], line[k], (at - run[k - 1]) / span) : line[k];
-            float y = _ground.HeightAt(p.x, p.y);
+            float y = _ground.SurfaceAt(p.x, p.y);   // task 4.07 PR A3: the labels and lines over the snow
             return new Vector3(p.x, float.IsNaN(y) ? 0 : y, p.y);
         }
 

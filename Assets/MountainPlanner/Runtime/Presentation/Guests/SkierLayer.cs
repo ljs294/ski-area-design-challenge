@@ -56,6 +56,9 @@ namespace MountainPlanner.Presentation.Guests
         LineLayout _lines;
         float2 _snowOrigin;
         float _snowCell = 8f;
+        /// <summary>Task 4.07 PR A3: whether the dots stand on the snow shell (SurfaceStates.LiftScale, 0 or 1), set every frame so
+        /// they follow the Snow layer at once while the copied cells change only every 2 s.</summary>
+        public float SnowScale { get; set; } = 1;
         int _snowW, _snowH;
         long _frameTick = long.MinValue, _frameRevision = long.MinValue;
         long _dayStart;
@@ -196,7 +199,7 @@ namespace MountainPlanner.Presentation.Guests
                 LaneY = _paths.LaneY, Table = _paths.Table, LiftPaths = _paths.Lifts, Nodes = _paths.Nodes,
                 Slots = lines != null ? lines.Slots : _noSlots, SlotFacing = lines != null ? lines.Facing : _noFacing, LiftSlots = lines != null ? lines.LiftSlots : _noLiftSlots,
                 RopeNow = _ropeNow, DrawRiders = _drawRiders, LineCount = _lineCount,
-                Snow = _snow, SnowOrigin = _snowOrigin, SnowCell = _snowCell, SnowW = _snowW, SnowH = _snowH,
+                Snow = _snow, SnowScale = SnowScale, SnowOrigin = _snowOrigin, SnowCell = _snowCell, SnowW = _snowW, SnowH = _snowH,
                 // Picking wants the plain projection (no GPU flip): screen points in the Input System's pixels.
                 ViewProjection = camera.projectionMatrix * camera.worldToCameraMatrix,
                 ScreenSize = _screenSize = new float2(camera.pixelWidth, camera.pixelHeight),

@@ -212,6 +212,12 @@ adversarially and dropped: see §10.
   default hours; `Pacing.SkipLandsBeforeOpenMinutes = 60`); it keeps the player's speed, so a paused clock stays paused
   and a running one plays that hour (15 s at 1×) before the day rate starts. It is refused while the lifts run and
   between that landing point and the opening.
+- **TM-06 v3, every skip at any hour (owner, 2026-11-17; task 4.07 PR A3).** Skip to morning, Next third (TM-14 v2) and
+  Next month (TM-08 v2) are allowed in every phase (pre-season, an open season, summer) and at every hour, the lift
+  hours included; the only refusal left is a skip already running. Skip to morning lands an hour before the next
+  opening: during the lift hours, or past today's landing point, that is tomorrow's. Through ski hours the guests are
+  simulated tick by tick, as at any speed (SI-11), so the day report still arrives at each closing and satisfaction and
+  reputation stay true; such a skip costs more than one through a night.
 - **TM-07, the week.** Three face days make a week: **weekday, weekday, weekend day** (`Pacing.Week = [Weekday,
   Weekday, Weekend]`). Day types drive demand (GU-03) and lift schedules (LO-09).
 - **TM-08 v1, the season and the calendar label.** The baseline season **December 1 to April 1 is 42 face days**
@@ -220,6 +226,9 @@ adversarially and dropped: see §10.
   (WX-07) and how the player finds holidays. Opening and closing are the player's (TM-11): the game nudges to close
   when open trails fall below `Pacing.CloseNudgeShare = 25 %` of built trails (SN-20), and an early opening or late
   closing adds days at the same rate. The label runs through summer; in summer the only control is "next month".
+- **TM-08 v2, Next month at any time (owner, 2026-11-17; task 4.07 PR A3).** "Next month" lands an hour before opening
+  on the 1st of the next label month, from any phase and at any hour (TM-06 v3); a new game's October can skip straight
+  to November.
 - **TM-09, holidays.** From the calendar label (`Pacing.Holidays`): Thanksgiving weekend, Christmas week (two holiday
   days), New Year's, MLK weekend, Presidents' Day weekend, and the four spring-break weekends. A holiday day uses the
   Holiday day type (GU-03) whatever its slot in the week.
@@ -236,6 +245,9 @@ adversarially and dropped: see §10.
   per face hour, guns and groomers only) with "Skip to morning" and "Skip to the next third" allowed; every face hour
   is still simulated (SI-11). So October and November are the player's build time with the weather and the guns
   running, and opening early is a real choice, not a menu item.
+- **TM-14 v2, every skip in every phase (owner, 2026-11-17; task 4.07 PR A3).** "Skip to the next third" lands an hour
+  before opening on the first face day of the next third of a month, in any phase and at any hour (TM-06 v3), an open
+  season and summer included. Every face hour is still simulated.
 - **TM-15, the day report.** At 4:30 the worker emits one `DayReport` event built from the ring and the ledgers:
   target, arrived, turned away, went home, stranded; per lift rides and **utilisation %** (LO-12), peak and mean
   wait, hold minutes; trails Ready / Marginal / Bare and open, mean quality; snow made (ft³), water drawn, gun-hours,
@@ -352,7 +364,9 @@ density, so water and snow balance (SI-10).
   curved filter, a cubic B-spline over the 4 × 4 cells round each pixel (`Art/Shaders/Snow.hlsl`, four bilinear taps), everywhere
   snow is read: the ground's snow cover, the cliff ledges, the Snow depth layer, the Snow conditions layer (16 taps
   blending the type colours, so types blend across cell borders) and the cursor (the same curve on the CPU,
-  `SnowCursor`, so the readout never disagrees with the picture). No snow texture is point-sampled. How the 1 m trail
+  `SnowCursor`, so the readout never disagrees with the picture). No snow texture is point-sampled. Since PR A3 the ground's
+  lift (`_SnowLiftMap`, depth × keep) is drawn through the same curve, so skiers, the camera and the cursor stand where the
+  picture puts the snow's top. How the 1 m trail
   tiles' edges look is PR B's question (v1 had them hard-edged).
 - **SN-29 v1 (superseded):** the depth and conditions info layers draw the fine tiles at 1 m with hard type edges and the 8 m
   field between them bilinearly filtered, so the picture reads as one free-flowing heat map that snaps into detail
@@ -1308,7 +1322,7 @@ skiers and 500 guns:
 | 08:00–16:00 | C | 8:30 open, 4:15 last chair, 4:30 stop (LO-07) | The accepted HUD mockup |
 | 24-week winter from the first Monday on/after 1 Nov | C | 42 face days, Dec 1–Apr 1 baseline, player opens/closes (TM-08) | A season in a few sittings; the label calendar |
 | Nights simulated at the day rate | C | 4-minute night, skippable (TM-02/06) | Owner: nights are for adjustments |
-| Jumps: Next Opening, Day, Week, Month, Season, Skip to Winter | D | Skip to morning; next month in summer (TM-06/08) | No skipping a played season |
+| Jumps: Next Opening, Day, Week, Month, Season, Skip to Winter | D | Skip to morning, next third, next month, any time (TM-06 v3, TM-08 v2, TM-14 v2) | Every skipped hour is still simulated |
 | 1-minute accounting intervals, fractional seat credits | D | Chair-by-chair boarding (LO-02) | The line must step as a chair leaves |
 | 8 ms worker slices, 10 Hz publish, snow ≤ 1 Hz | C | 100 ms tick, ≤10 Hz HUD, ≤4 Hz dashboards (SI-04, TM-13) | Same idea, fixed tick |
 | New game 1 May; weather in 72 h chunks | C | 1 Oct start, generated weather (TM-11, WX-01) | |
@@ -1483,7 +1497,8 @@ Suggested batching: 03 + 11 together; 14 + 15 + 16 together; 07 + 09 together.
 
 **Contradictions with earlier documents, to settle as noted:**
 - **Phase 4 plan, task 03** lists jumps (next opening, day, week, season) and "chairs move on game time": replaced by
-  TM-06 (skip to morning only) and TM-04 (chairs on the motion clock at real speed).
+  TM-06 v3 (skip to morning, next third and next month, each simulated hour by hour) and TM-04 (chairs on the motion
+  clock at real speed).
 - **Task 04/05**: "how a game year is made (MapLibre's resampler, a generator, or a replay)" is decided: a generator
   calibrated on the record (WX-01); 05's "the same seed gives the same year" holds.
 - **Task 12**: "aggregate flows at high speeds" is dropped (GU-01); "3,000 guests in structure-of-arrays" stands.

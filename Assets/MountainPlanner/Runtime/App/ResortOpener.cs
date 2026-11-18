@@ -230,6 +230,14 @@ namespace MountainPlanner.App
                 if ((n + 1) % TilesPerFrame == 0) await Task.Yield();
             }
             TerrainTiles.ConnectNeighbours(tiles);
+            if (ground.ShellMaterial != null)
+            {
+                // Task 4.07 PR A3 round 3: the snow shell over every tile, on the tile's own data, linked as the tiles are.
+                var shells = new Dictionary<(int, int), Terrain>(tiles.Count);
+                foreach (var kv in tiles) shells[kv.Key] = TerrainTiles.CreateShell(kv.Value, ground.ShellMaterial, detail, ground.SnowOn);
+                TerrainTiles.ConnectNeighbours(shells);
+                ground.ShellTiles = tiles.Values;
+            }
             UnityEngine.Debug.Log($"[ResortOpener] {order.Count} tiles: waiting for decode {waited:F2} s, creating terrains {created:F2} s " +
                                   $"(setup {TerrainTiles.ProfileSetup:F2}, heights {TerrainTiles.ProfileSetHeights:F2}, sync {TerrainTiles.ProfileSync:F2}), total {clock.Elapsed.TotalSeconds:F2} s");
 
@@ -243,6 +251,7 @@ namespace MountainPlanner.App
                 Ground = ground, PackageFolder = packageFolder, CacheLease = lease,
                 Ring = ringRect, Core = coreRect, PlinthTop = (float)cache.HeightMin - DioramaBase.BaseDepth, States = new SurfaceStates(ringRect),
             };
+            surface.Snow = resort.States;   // task 4.07 PR A3: SurfaceAt stands on the snow shell
             if (forest?.Edge != null)
             {
                 // Sampled a few centimetres inside the cut, where the terrain has data on every side.

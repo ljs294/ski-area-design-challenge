@@ -60,7 +60,8 @@ The terrain's vertex shader lifts each vertex by the total depth there: natural 
 - **Unity Terrain** draws its own mesh, but our custom terrain shader controls the vertex stage, so this works with today's tiles. Near the camera, tiles are 1 m, matching the managed field. At distance, the coarser LOD averages the depth naturally.
 - **Seams:** neighbouring tiles read the same depth texture at the same world positions, so their edges stay matched, as the heights already do.
 - **Shadows, depth and picking** use the same displaced position, so the ShadowCaster and DepthOnly passes include it.
-- **Gameplay heights:** `ITerrainSurface.HeightAt` becomes ground plus depth. A `GroundAt` stays for things that sit on the earth, such as lift tower footings. Camera bounds, skiers, labels and the info readout all use `HeightAt`.
+- **Gameplay heights (as built, task 4.07 PR A3; names per the Coordinator, 2026-11-13):** `ITerrainSurface.HeightAt` keeps meaning the earth: lift towers, terminals, carpets, trees, cliff shells, water, the diorama walls, tools' placement and the Elev. readout stand on it. `SurfaceAt` (an extension: `HeightAt` + `LiftAt`) is the top of the snow: the camera's floor and target, picking and the brush cursor, skiers (tow riders too; carpet and chair riders stay on their lift), labels, map lines and previews.
+- **The lift (A3):** the natural depth × a keep that is 0 on lakes and ponds, within 16 m of a built lift's stations (dug out on screen until PR B's managed aprons) and on the ring's outer 3 cells, rising to 1 at 64 m. It goes to the GPU as its own `_SnowLiftMap` with the depth's dirty tiles and switches on once the live snow's tiles have all come in. The normal tilts by the lift's exact B-spline slope; contours keep the earth's height.
 
 ### 4.2 The look of the surface
 
@@ -121,7 +122,7 @@ The rating shows in the trail's window, and "Run 7 is icy" can come up as a warn
 
 | Step | What | When |
 |---|---|---|
-| S1 | Displacement from natural depth; `HeightAt` includes snow; `GroundAt` for footings | Early Phase 3 (needs nothing else) |
+| S1 | Displacement from natural depth; `SurfaceAt` is the snow's top, `HeightAt` the earth for footings | Task 4.07 PR A3 |
 | S2 | Managed depth (sparse 1 m tiles, atlas and page table) with a debug brush to paint whales | With the snowmaking tools |
 | S3 | Snowmaking deposits whales | Snowmaking (Phase 3) |
 | S4 | The snow conditions map; groomed corduroy; the Snow conditions info layer goes live; trail conditions ratings | Grooming (Phase 3) |

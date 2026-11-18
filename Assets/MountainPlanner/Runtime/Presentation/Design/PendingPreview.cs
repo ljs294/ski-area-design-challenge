@@ -109,7 +109,7 @@ namespace MountainPlanner.Presentation.Design
 
         float Ground(Vector2 xz)
         {
-            float h = _surface != null ? _surface.HeightAt(xz.x, xz.y) : 0;
+            float h = _surface != null ? _surface.SurfaceAt(xz.x, xz.y) : 0;   // task 4.07 PR A3: over the snow
             return float.IsNaN(h) ? 0 : h;
         }
 

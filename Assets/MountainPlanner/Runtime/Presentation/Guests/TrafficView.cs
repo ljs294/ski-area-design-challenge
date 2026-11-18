@@ -119,7 +119,7 @@ namespace MountainPlanner.Presentation.Guests
             _dirty = true;
         }
 
-        static Vector3[] Decimated(SkierPaths paths, int first, int count)
+        Vector3[] Decimated(SkierPaths paths, int first, int count)
         {
             if (count <= 0) return Array.Empty<Vector3>();
             int n = (count - 1) / SampleStride + 1;
@@ -130,10 +130,13 @@ namespace MountainPlanner.Presentation.Guests
             return pts;
         }
 
-        static Vector3 At(SkierPaths paths, int sample)
+        /// <summary>Task 4.07 PR A3: the ground the lines drape on (its snow's lift; null: the earth).</summary>
+        public World.ITerrainSurface Surface;
+
+        Vector3 At(SkierPaths paths, int sample)
         {
             var s = paths.Samples[sample];
-            return new Vector3(s.x, s.y + DrapeMetres, s.z);
+            return new Vector3(s.x, s.y + DrapeMetres + (Surface != null ? Surface.LiftAt(s.x, s.z) : 0), s.z);
         }
 
         /// <summary>

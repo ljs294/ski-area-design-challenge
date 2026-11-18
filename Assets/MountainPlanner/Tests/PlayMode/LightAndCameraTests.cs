@@ -21,6 +21,8 @@ namespace MountainPlanner.Tests
         {
             public static readonly Rect RingRect = new Rect(-3000, -3000, 6000, 6000);
             public Rect Footprint => RingRect;
+            public float Lift;
+            public float LiftAt(float x, float z) => Lift;
             public float HeightAt(float x, float z) =>
                 RingRect.Contains(new Vector2(x, z))
                     ? 2000 + 1200 * Mathf.Exp(-(x * x + z * z) / 2e6f) + 40 * Mathf.Sin(x * 0.02f) * Mathf.Cos(z * 0.017f)
@@ -96,13 +98,13 @@ namespace MountainPlanner.Tests
         {
             var p = view.transform.position;
             var surface = view.Surface;
-            float ground = surface.HeightAt(p.x, p.z);
+            float ground = surface.SurfaceAt(p.x, p.z);   // task 4.07 PR A3: the top of the snow
             var cam = view.GetComponent<Camera>();
             // The near plane's lowest corner, a conservative bound at this field of view.
             float halfHeight = cam.nearClipPlane * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
             float reach = Mathf.Sqrt(cam.nearClipPlane * cam.nearClipPlane + halfHeight * halfHeight * (1 + cam.aspect * cam.aspect));
             if (!float.IsNaN(ground))
-                Assert.That(p.y - reach, Is.GreaterThanOrEqualTo(ground + view.SnowDepth - 1e-3f), $"{what}: above the snow");
+                Assert.That(p.y - reach, Is.GreaterThanOrEqualTo(ground + view.GroundMargin - 1e-3f), $"{what}: above the snow");
             else
                 Assert.That(p.y, Is.GreaterThanOrEqualTo(view.PlinthTop), $"{what}: above the plinth");
             Assert.That(view.Target.x, Is.InRange(view.Ring.xMin, view.Ring.xMax), $"{what}: focus inside the ring");

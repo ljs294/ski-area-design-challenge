@@ -74,6 +74,14 @@ namespace MountainPlanner.Presentation
         /// <summary>The terrain material this resort draws with (the mountain terrain shader), if any.</summary>
         public Material Material { get; private set; }
 
+        /// <summary>Task 4.07 PR A3 round 3: the snow shell's copy of <see cref="Material"/> (its _SNOW_SHELL variant, drawn
+        /// just before the ground and a step nearer, so it wins over the ground under thin snow and hides the ground's pixels
+        /// under deep snow from shading). Null without the mountain shader.</summary>
+        public Material ShellMaterial { get; private set; }
+
+        /// <summary>The tiles whose snow shells the Snow layer shows and hides (ResortOpener).</summary>
+        public System.Collections.Generic.IEnumerable<Terrain> ShellTiles { get; set; }
+
         /// <summary>
         /// Sets up a resort's copy of the mountain terrain shader: per-layer tiling and smoothness, the
         /// overlay colours, and the edge of the downloaded data (local frame) where the terrain is cut.
@@ -91,13 +99,26 @@ namespace MountainPlanner.Presentation
                 smooth[slot] = SlotSmooth[slot];
                 overlay[slot] = Overlay[k];
             }
-            material.SetFloatArray("_Tile", tile);
-            material.SetFloatArray("_Smooth", smooth);
-            material.SetVectorArray("_OverlayColor", overlay);
-            material.SetVector("_RingBounds", new Vector4(ring.xMin, ring.yMin, ring.xMax, ring.yMax));
-            material.SetFloat(OverlayId, OverlayOn ? 1 : 0);
-            material.SetFloat(SnowOnId, SnowOn ? 1 : 0);
+            ShellMaterial = new Material(material) { name = material.name + " (snow shell)" };
+            // Every value goes to both by name. A material's copy isn't trusted to carry values the shader doesn't declare as
+            // properties (the ring's bounds, the arrays): a shell without the ring's bounds is cut away everywhere (task 4.07
+            // PR A3 repair; MountainViewer.ShellCheck measures it).
+            foreach (var m in new[] { material, ShellMaterial })
+            {
+                m.SetFloatArray("_Tile", tile);
+                m.SetFloatArray("_Smooth", smooth);
+                m.SetVectorArray("_OverlayColor", overlay);
+                m.SetVector("_RingBounds", new Vector4(ring.xMin, ring.yMin, ring.xMax, ring.yMax));
+                m.SetFloat(OverlayId, OverlayOn ? 1 : 0);
+                m.SetFloat(SnowOnId, SnowOn ? 1 : 0);
+            }
+            ShellMaterial.EnableKeyword(World.TerrainTiles.ShellKeyword);
+            ShellMaterial.SetFloat(ShellOffsetId, -1);
+            // Drawn before the ground: where the snow is deep, the ground behind it fails the depth test and isn't shaded twice.
+            ShellMaterial.renderQueue = material.renderQueue - 1;
         }
+
+        static readonly int ShellOffsetId = Shader.PropertyToID("_ShellOffset");
 
         /// <summary>The terrain layer slot of cover layer k (0-4 ground in GroundLayer order, 5 = snow).</summary>
         public static int Slot(int k) => k == Snow ? 0 : k + 1;
@@ -111,6 +132,7 @@ namespace MountainPlanner.Presentation
             if (Material == null) return;
             float span = highest - lowest;
             Material.SetVector(AlpineBandId, new Vector4(lowest + 0.45f * span, lowest + 0.7f * span, 0, 0));
+            ShellMaterial?.SetVector(AlpineBandId, new Vector4(lowest + 0.45f * span, lowest + 0.7f * span, 0, 0));
         }
 
         static readonly int AlpineBandId = Shader.PropertyToID("_AlpineBand");
@@ -135,6 +157,7 @@ namespace MountainPlanner.Presentation
             if (Material != null)
             {
                 Material.SetFloat(OverlayId, on ? 1 : 0);
+                ShellMaterial?.SetFloat(OverlayId, on ? 1 : 0);   // the shell steps aside for the cover map
                 return;
             }
             // Without the mountain shader (tests, fallback) Unity's terrain shader draws the layers' own textures.
@@ -150,6 +173,9 @@ namespace MountainPlanner.Presentation
         {
             SnowOn = on;
             if (Material != null) Material.SetFloat(SnowOnId, on ? 1 : 0);
+            ShellMaterial?.SetFloat(SnowOnId, on ? 1 : 0);
+            // Task 4.07 PR A3 round 3: the snow shell shows or hides with the white, in the same frame; the ground never moves.
+            if (ShellTiles != null) World.TerrainTiles.ShowShells(ShellTiles, on);
         }
 
         /// <summary>URP terrain reads a layer texture's alpha as smoothness, so alpha carries the layer's smoothness.</summary>

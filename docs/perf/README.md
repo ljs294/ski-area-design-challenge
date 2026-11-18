@@ -13,14 +13,14 @@ node tools/perf/compare.mjs docs/perf/jackson-hole-5km-high.json <run.json>
 
 | File | Player | Command (all with `-benchres 1920x1080`) | Frame p95 | GPU p95 |
 | --- | --- | --- | --- | --- |
-| `jackson-hole-5km-high.json` | Release | `-quality high` | 7.94 ms | 7.76 ms |
-| `jackson-hole-5km-medium.json` | Release | `-quality medium` | 4.67 ms | 4.43 ms |
+| `jackson-hole-5km-high.json` | Release | `-quality high` | 8.27 ms | 8.25 ms |
+| `jackson-hole-5km-medium.json` | Release | `-quality medium` | 4.86 ms | 4.72 ms |
 | `jackson-hole-5km-low.json` | Release | `-quality low` | 2.87 ms | 2.05 ms |
 | `jackson-hole-5km-ultra.json` | Release | `-quality ultra` (no budget: reported, not checked) | 11.32 ms | 11.15 ms |
 | `jackson-hole-5km-high-noinstancing.json` | Release | `-quality high -noinstancing` | 8.01 ms | 7.77 ms |
-| `jackson-hole-5km-high-dev.json` | Development | `-quality high -laps 1` (exact garbage and memory) | 8.19 ms | 7.86 ms |
-| `jackson-hole-5km-medium-dev.json` | Development | `-quality medium -laps 1` | 4.83 ms | 4.56 ms |
-| `jackson-hole-5km-high-dev-hud.json` | Development | `-quality high -laps 1 -withhud` | 8.02 ms | 7.83 ms |
+| `jackson-hole-5km-high-dev.json` | Development | `-quality high -laps 1` (exact garbage and memory) | 8.36 ms | 8.40 ms |
+| `jackson-hole-5km-medium-dev.json` | Development | `-quality medium -laps 1` | 5.09 ms | 4.92 ms |
+| `jackson-hole-5km-high-dev-hud.json` | Development | `-quality high -laps 1 -withhud` | 8.37 ms | 8.42 ms |
 | `jackson-hole-5km-high-lifts40.json` | Release | `-quality high -liftbench 40` (40 built lifts: 14 Sessellift FGQ-4, 13 D6, 13 Monta FG4; the log's `[Chairs]` line gives their main-thread cost, 0.81 ms) | 8.34 ms | 8.38 ms |
 
 `demo.bat` 41 runs High and Medium (Release and Development) and High with the HUD, and compares each with its file;
@@ -62,11 +62,11 @@ headroom and the skier-model proof, under `test-results\p4-13\bench\`.
 
 | File | Player | Command | Frame p95 | GPU p95 |
 | --- | --- | --- | --- | --- |
-| `jackson-hole-5km-high-drawn-guests.json` | Release | `-quality high -drawnresort -guests 3000` | 9.86 ms | 10.31 ms |
-| `jackson-hole-5km-medium-drawn-guests.json` | Release | `-quality medium -drawnresort -guests 3000` | 5.46 ms | 5.48 ms |
-| `jackson-hole-5km-high-dev-drawn-guests.json` | Development | `-quality high -laps 1 -drawnresort -guests 3000` (48 B in 1 of 21,689 frames, 1,355 MB graphics memory) | 9.89 ms | 10.31 ms |
-| `jackson-hole-5km-high-drawn-guests-bigstorm.json` | Release | `-quality high -drawnresort -guests 3000 -wxlook bigstorm` | 5.85 ms | 5.74 ms |
-| `jackson-hole-5km-medium-drawn-guests-bigstorm.json` | Release | `-quality medium -drawnresort -guests 3000 -wxlook bigstorm` | 4.70 ms | 4.46 ms |
+| `jackson-hole-5km-high-drawn-guests.json` | Release | `-quality high -drawnresort -guests 3000` | 10.53 ms | 10.68 ms |
+| `jackson-hole-5km-medium-drawn-guests.json` | Release | `-quality medium -drawnresort -guests 3000` | 6.56 ms | 6.17 ms |
+| `jackson-hole-5km-high-dev-drawn-guests.json` | Development | `-quality high -laps 1 -drawnresort -guests 3000` (48 B in 1 of 19,403 frames, 1,372 MB graphics memory) | 10.61 ms | 10.74 ms |
+| `jackson-hole-5km-high-drawn-guests-bigstorm.json` | Release | `-quality high -drawnresort -guests 3000 -wxlook bigstorm` | 6.57 ms | 6.34 ms |
+| `jackson-hole-5km-medium-drawn-guests-bigstorm.json` | Release | `-quality medium -drawnresort -guests 3000 -wxlook bigstorm` | 5.22 ms | 4.95 ms |
 
 4.13's first pins (49e4827f, dots) read High 9.43 ms, a slow run (the same code also read 8.49 and 8.69 ms); High varies by
 about 0.7 ms from run to run, and the one-lap Development run's single spots by about 0.6 ms (a first 4.22 run read
@@ -98,3 +98,4 @@ the files in the same PR as the change.
 - **2026-11-13, Phase 4 task 13 PR C2** (commit 49e4827f, clean): the three 3,000-guest drawn baselines added (section above); the others are unchanged.
 - **2026-11-13, Phase 4 task 22** (commit 4c4cc309, clean, PR #160): the guests near the camera drawn as skier and snowboarder figures; the three 3,000-guest drawn baselines re-pinned (High 9.43 to 8.51 ms p95 frame, Medium 5.37 to 4.86, Development 8.58 to 8.62, 1,326 MB graphics memory). Every view of the High and Medium runs passes the C2 pins; the others are unchanged.
 - **2026-11-16, Phase 4 task 06** (commit 1d303e82, clean, after PR #166): the weather on screen (volumetric clouds and rays, fog, cloud shadows, falling snow) costs every view, so the three 3,000-guest drawn baselines are re-pinned (High 8.51 to 9.86 ms p95 frame, Medium 4.86 to 5.46, Development 8.62 to 9.89, 0 B a frame, 1,355 MB graphics memory) and two big-storm ones added (`-wxlook bigstorm`: High 5.85, Medium 4.70; a storm turns the sun's shadow passes off, so it costs less than a clear day). Interleaved with the old pins' own build (4c4cc309) on a quiet machine, two rounds: High +0.98 ms, Medium +0.22 ms, inside 4.06's budget (2.0 and 0.8). A second High and Medium run passes against the new files (9.66, 5.44). A first pinning slot was void: other threads' builds and tests ran beside it (High read 10.98 ms, its confirm 10.23, single views apart by up to 2.1 ms), so the pinning runs checked before each run that no Unity, dotnet or compiler server was busy. The other baselines are not re-pinned and read slower by the weather's cost. Measured before 4.07's #168 merged; if it moves demo 41 beyond noise, 4.07 re-pins.
+- **2026-11-17, Phase 4 task 07 A3** (commits 1ce125b6 and 0e3cce7a, PR #173, owner-approved re-pin): the snow is drawn as its own shell, a second set of terrain patches over the earth, which costs every view (more draws even where there is no snow). The benchmark itself changed twice: it waits for the live snow (the shell standing on it) before its laps, and it is a scripted run, so the real pointer left over the window no longer lights a trail mid-lap (that hover allocated 33 MB in the drawn-resort leg, finding A3-13). Ten baselines are re-pinned, each from runs one after another under a measure slot with the other threads held: the five without the drawn resort from the build with the wait, the five 3,000-guest ones from the build with both changes. high 7.94 to 8.27; medium 4.67 to 4.86; high-dev 8.19 to 8.36; medium-dev 4.83 to 5.09; high-dev-hud 8.02 to 8.37; high-drawn-guests 9.86 to 10.53; medium-drawn-guests 5.46 to 6.56; high-dev-drawn-guests 9.89 to 10.61; high-drawn-guests-bigstorm 5.85 to 6.57; medium-drawn-guests-bigstorm 4.70 to 5.22 ms p95 frame. The Development runs allocate 0 B a frame (the drawn-guests one 48 B once, as before). A second High run (8.28 ms) and a second Medium run pass `compare.mjs` against the new files. The others (Low, Ultra, no instancing, 40 lifts, the drawn resort without guests) are not re-pinned and read slower by the shell's cost.

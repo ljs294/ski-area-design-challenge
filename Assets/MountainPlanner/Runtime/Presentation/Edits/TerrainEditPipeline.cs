@@ -258,6 +258,7 @@ namespace MountainPlanner.Presentation.Edits
                 foreach (var p in patches)
                     if (p.Tile == key && p.Heights != null) terrain.terrainData.SetHeightsDelayLOD(p.HeightX, p.HeightY, p.Heights);
                 terrain.terrainData.SyncHeightmap();
+                TerrainTiles.RepadShellBounds(terrain.terrainData);   // the snow shell's culling boxes (finding A3-6)
                 // The sync can hand the tile a new GPU heightmap: rebind it, or the slope and exposure layers read a stale one.
                 TerrainTiles.BindSplat(terrain);
                 report.HeightsMs += part.Elapsed.TotalMilliseconds;

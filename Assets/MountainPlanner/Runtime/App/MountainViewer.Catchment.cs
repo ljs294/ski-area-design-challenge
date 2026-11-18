@@ -4,6 +4,7 @@ using MountainPlanner.Domain.Design;
 using MountainPlanner.Presentation.Design;
 using MountainPlanner.UI.Tools;
 using UnityEngine;
+using MountainPlanner.World;
 
 namespace MountainPlanner.App
 {
@@ -89,7 +90,7 @@ namespace MountainPlanner.App
             Vector3 Drape(double latticeX, double latticeY)
             {
                 float x = (float)(latticeX - site.OriginX), z = (float)(latticeY - site.OriginY);
-                float y = surface.HeightAt(x, z);
+                float y = surface.SurfaceAt(x, z);   // task 4.07 PR A3: draped on the snow
                 return new Vector3(x, float.IsNaN(y) ? 0 : y + 2, z);
             }
 

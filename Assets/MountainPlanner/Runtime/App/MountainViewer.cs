@@ -203,6 +203,22 @@ namespace MountainPlanner.App
                 _landmarks = Landmarks.Place(_resort.Root.transform, _resort.Frame, _resort.Surface, HighlightMaterial);
                 if (TitleMode) foreach (var landmark in _landmarks) landmark.Line.enabled = false;   // a clean postcard behind the title
                 _layers.Bind(_resort.Ground, _resort.EdgeMaterial, assets.Cliff, (float)_resort.Manifest.Crs.GridConvergenceDegrees);
+                _layers.BindSnow(_resort.States);
+                // -shelldebug (task 4.07 PR A3 repair): the snow shell painted flat and raised 2 m by plain material numbers,
+                // which tells a shell that isn't drawn from one drawn with the wrong variant (MountainViewer.ShellCheck.cs).
+                if (Array.IndexOf(args, "-shelldebug") >= 0 && _resort.Ground?.ShellMaterial != null)
+                {
+                    _resort.Ground.ShellMaterial.SetFloat("_ShellDebug", 1);
+                    _resort.Ground.ShellMaterial.SetFloat("_ShellForce", 2);
+                }
+                // -shellfull (finding A3-7): the snow shell at the ground's own mesh detail, not half, to compare the facets.
+                if (Array.IndexOf(args, "-shellfull") >= 0 && _resort.Ground?.ShellTiles != null)
+                    foreach (var tile in _resort.Ground.ShellTiles)
+                    {
+                        var shell = TerrainTiles.ShellOf(tile);
+                        if (shell != null) shell.heightmapPixelError = tile.heightmapPixelError;
+                    }
+                ReadShellPadArguments(args);   // -noshellpad, -flatpad (finding A3-6, MountainViewer.ShellPad.cs)
                 StartCoroutine(WhenForestReady(() => _layers.BindForest(_resort.Root.GetComponent<ForestView>())));
                 WireHud();
                 if (Array.IndexOf(args, "-landmark") >= 0) FlyToLandmark();
@@ -241,6 +257,9 @@ namespace MountainPlanner.App
                 if (view >= 0 && view + 1 < args.Length && Camera != null)
                 {
                     var v = args[view + 1].Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                    // -viewearth (task 4.07 PR A3 repair): the view stays on the earth whatever the snow, so pictures at
+                    // different depths share one camera and only the snow moves.
+                    Camera.OnEarth = Array.IndexOf(args, "-viewearth") >= 0;
                     Camera.Frame(new Vector3(v[0], _resort.Surface.HeightAt(v[0], v[1]), v[1]), v[2]);
                     Camera.SetAngles(v[3], v[4]);
                 }
@@ -278,6 +297,9 @@ namespace MountainPlanner.App
                 StartWaterShots(args);     // -watershots <folder> (MountainViewer.WaterShots.cs, task 4.14)
                 StartLakeReport(args);     // -lakereport <folder> (MountainViewer.Lakes.cs, task 4.09)
                 StartSnowLapse(args);      // -snowlapse <folder> [-snowdays N] (MountainViewer.SnowLapse.cs, task 4.07 PR A2)
+                StartWhaleReport(args);    // -gunwhale: what became of it, once the snow is in (MountainViewer.GunWhale.cs)
+                StartShellCheck(args);     // -shellcheck x,z[;x,z…] [-shellsteps] (MountainViewer.ShellCheck.cs, task 4.07 PR A3 repair)
+                StartSimTo(args);          // -simto <MM-DD> (MountainViewer.SimTo.cs, task 4.07 PR A3)
                 StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
                 StartSkierFigureShots(args);   // -skiershot <folder> [-guests N] (MountainViewer.SkierFigureShots.cs, task 4.22)
                 StartCrowdShots(args);     // -crowdshot <folder> -crowdviews "x,z,d,yaw,pitch;..." [-guests N] (task 4.24)
@@ -320,9 +342,8 @@ namespace MountainPlanner.App
 
         System.Collections.IEnumerator CaptureAndQuit(string path)
         {
-            while (!_resort.CoverReady.IsCompleted) yield return null;   // the cover, snowpack, contour labels and forest are in
-            while (WorkBusy) yield return null;                           // and any -testbench or -styletile edit, drawn
-            for (int i = 0; i < 90; i++) yield return null; // let LOD and shadows settle
+            yield return WaitForCaptureReady();
+            yield return ShellCheck("before the picture");   // -shellcheck: the drawn snow surface, measured (task 4.07 PR A3)
             var cam = Camera != null ? Camera.transform.position : Vector3.zero;
             Debug.Log($"[MountainViewer] camera {cam}, ground below {_resort.Surface.HeightAt(cam.x, cam.z):F0} m, target {(Camera != null ? Camera.Target : Vector3.zero)}, " +
                       $"active terrains {Terrain.activeTerrains.Length}, material {(TerrainMaterial != null ? TerrainMaterial.shader.name : "none")}, " +
@@ -332,6 +353,29 @@ namespace MountainPlanner.App
             yield return null;
             Debug.Log($"[MountainViewer] Screenshot saved to {path}; {_fps:F0} fps");
             Application.Quit();
+        }
+
+        /// <summary>A capture's wait: the cover, any scripted edit, the live snow's first pass (seeded runs) and 90 frames to settle.</summary>
+        System.Collections.IEnumerator WaitForCaptureReady()
+        {
+            while (!_resort.CoverReady.IsCompleted) yield return null;   // the cover, snowpack, contour labels and forest are in
+            while (WorkBusy) yield return null;                           // and any -testbench or -styletile edit, drawn
+            while (_simToRunning) yield return null;                      // and a -simto run, at its date
+            // Task 4.07 PR A3: a seeded capture waits (up to 180 s: a -styletile build re-runs the snow's inputs first) for the
+            // live snow's first full pass, when the snow shell stands on it; it says so if it gave up.
+            float waited = 0;
+            bool LiveIn() => _resort.States == null || (_simSnowTerrainSent && _resort.States.FirstPassDone && _resort.States.LiftOn);
+            bool wantLive = SnowSeedWanted || Array.IndexOf(Environment.GetCommandLineArgs(), "-simto") >= 0;
+            for (; wantLive && !LiveIn() && waited < 180; waited += Time.unscaledDeltaTime)
+                yield return null;
+            if (wantLive && _resort.States != null)
+            {
+                var target = Camera != null ? Camera.Target : Vector3.zero;
+                Debug.Log((LiveIn() ? $"[MountainViewer] live snow in after {waited:F0} s" : "[MountainViewer] live snow NOT in after 180 s")
+                          + $" (inputs sent {_simSnowTerrainSent}, seed sent {_simSnowSent}, first pass {_resort.States.FirstPassDone}, lift {_resort.States.LiftScale});"
+                          + $" depth at the target {SnowCursor.LiftAt(_resort.States, _resort.Ring, target.x, target.z):F2} m");
+            }
+            for (int i = 0; i < 90; i++) yield return null; // let LOD and shadows settle
         }
 
         static string PickPackage()
@@ -378,6 +422,7 @@ namespace MountainPlanner.App
             UpdateTrailHover();  // and a trail lights and opens its card (task P3-10, sections finding 4)
             UpdateWaterHover();  // then water: a dam, pond, stream or lake lights and opens its card (task 4.14, LK-10)
             _resort?.States?.Sync();
+            UpdateShellPad();
             RunClock();
             UpdateWeather();   // task 4.06: the weather on screen (MountainViewer.Weather.cs)
             // The Auto theme follows this sun on every screen (task P2-01); nothing happens unless sunrise or sunset passed.
@@ -702,7 +747,7 @@ namespace MountainPlanner.App
                     {
                         // Task 4.07 PR A2: the cell's surface, the depth as drawn.
                         snow = SnowDepthAt(g.x, g.z);
-                        (snowType, quality, age, density) = SnowCursor.SurfaceAt(_resort.States, _resort.Ring, g.x, g.z);
+                        (snowType, quality, age, density) = SnowCursor.ConditionsAt(_resort.States, _resort.Ring, g.x, g.z);
                         if (snowType > 0 && snow < 0.0025f) snowType = 0;   // under a tenth of an inch reads bare
                         water = snow * density / 1000f;   // depth is water ÷ density (SN-08 v2), so the drawn depth × the cell's density
                     }
