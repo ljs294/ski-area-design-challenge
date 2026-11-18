@@ -294,6 +294,7 @@ namespace MountainPlanner.App
                 StartGuestShots(args);     // -guestshot <folder> (MountainViewer.Guests.cs, task 4.12)
                 StartWeatherShots(args);   // -weathershots <folder> (MountainViewer.WeatherReadout.cs, task 4.05)
                 StartWeatherLook(args);    // -wxlook <look>, -wxshots <folder>, -wxdemo, bisect switches (MountainViewer.WeatherLook.cs, task 4.06)
+                StartWaterShots(args);     // -watershots <folder> (MountainViewer.WaterShots.cs, task 4.14)
                 StartLakeReport(args);     // -lakereport <folder> (MountainViewer.Lakes.cs, task 4.09)
                 StartSnowLapse(args);      // -snowlapse <folder> [-snowdays N] (MountainViewer.SnowLapse.cs, task 4.07 PR A2)
                 StartWhaleReport(args);    // -gunwhale: what became of it, once the snow is in (MountainViewer.GunWhale.cs)
@@ -301,6 +302,7 @@ namespace MountainPlanner.App
                 StartSimTo(args);          // -simto <MM-DD> (MountainViewer.SimTo.cs, task 4.07 PR A3)
                 StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
                 StartSkierFigureShots(args);   // -skiershot <folder> [-guests N] (MountainViewer.SkierFigureShots.cs, task 4.22)
+                StartCrowdShots(args);     // -crowdshot <folder> -crowdviews "x,z,d,yaw,pitch;..." [-guests N] (task 4.24)
                 StartProofHold(args);      // -proofhold <out.json> [-guests N] [-skierproof lod|lod0] (task 4.13 PR C2)
                 StartCoroutine(RunRideArguments(args));   // -ride <lift> [-rideshots <folder> | -ridebench <out.json>] (task 4.11 PR B)
                 int clip = Array.IndexOf(args, "-clip");
@@ -418,6 +420,7 @@ namespace MountainPlanner.App
             UpdateSkierHover();  // the dot under the pointer, and a click on one (task 4.13)
             UpdateLiftHover();   // the lift under the pointer glows (task 09, LT23)
             UpdateTrailHover();  // and a trail lights and opens its card (task P3-10, sections finding 4)
+            UpdateWaterHover();  // then water: a dam, pond, stream or lake lights and opens its card (task 4.14, LK-10)
             _resort?.States?.Sync();
             UpdateShellPad();
             RunClock();
@@ -467,6 +470,7 @@ namespace MountainPlanner.App
                 else if (Hud != null && _resort != null && Hud.CloseSkierCardIfOpen()) { }   // the skier card (task 4.13)
                 else if (Hud != null && _resort != null && Hud.CloseTrailCardIfOpen()) { }   // a trail's focus card (task 08)
                 else if (Hud != null && _resort != null && Hud.CloseLiftCardIfOpen()) { }    // a lift's focus card (task 09)
+                else if (Hud != null && _resort != null && Hud.CloseWaterCardIfOpen()) { }   // a water card (task 4.14)
                 else if (_resort != null && EscapeTool()) { }   // the armed tool backs out a step (CF-07, P3-06)
                 else if (Hud != null && _resort != null && Hud.BackOut()) { }
                 else if (Hud != null && _resort != null) Hud.ToggleMenu();

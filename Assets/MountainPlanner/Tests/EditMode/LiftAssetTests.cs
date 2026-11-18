@@ -26,7 +26,7 @@ namespace MountainPlanner.Tests
         const string ArtRoot = "Assets/MountainPlanner/Art/Lifts";
         const float Mm = 0.001f;
         /// <summary>Our makers' code names, as asset id prefixes (decision LP3).</summary>
-        static readonly string[] Makers = { "sessellift_fgq4_", "sessellift_fgd2_", "sessellift_fgt3_", "sessellift_d6_", "sessellift_d4_", "sessellift_stern", "sle_",
+        static readonly string[] Makers = { "sessellift_fgq4_", "sessellift_fgd2_", "sessellift_fgt3_", "sessellift_d6_", "sessellift_d4_", "sessellift_g8_", "sessellift_stern", "sle_",
             "monta_fg4_", "monta_fg3_", "monta_fg2_", "monta_tbar_", "chairworks_chair_", "glidepath_carpet" };
         /// <summary>A carpet module's belt top above its origin at grade (glidepath_carpet.json section.beltTop).</summary>
         const float CarpetBelt = 0.35f;
@@ -37,7 +37,7 @@ namespace MountainPlanner.Tests
             public KindBudget terminal_detach; public KindBudget chair_detach; public KindBudget tower_head_wide;
             public KindBudget surface_terminal; public KindBudget surface_tower_head; public KindBudget surface_mast; public KindBudget surface_base;
             public KindBudget surface_hut; public KindBudget surface_carrier;
-            public KindBudget carpet_segment; public KindBudget carpet_station; public KindBudget carpet_gallery; }
+            public KindBudget carpet_segment; public KindBudget carpet_station; public KindBudget carpet_gallery; public KindBudget carrier_cabin; }
         [Serializable] sealed class Common { public float ropeElevation; public float lineGauge; }
         [Serializable] sealed class Spec { public Common common; }
 
@@ -85,6 +85,7 @@ namespace MountainPlanner.Tests
             "carpet_segment" => b.carpet_segment,
             "carpet_station" => b.carpet_station,
             "carpet_gallery" => b.carpet_gallery,
+            "carrier_cabin" => b.carrier_cabin,
             _ => throw new ArgumentException(kind),
         };
 
@@ -225,7 +226,7 @@ namespace MountainPlanner.Tests
         public void RopeSocketsAreOnTheRope(GameObject prefab)
         {
             var rig = prefab.GetComponent<LiftRig>();
-            if (rig.Kind == "chair" || rig.Kind == "chair_detach" || rig.Kind == "surface_carrier") Assert.Ignore("Chairs and carriers hang from the rope; no rope sockets.");
+            if (rig.Kind == "chair" || rig.Kind == "chair_detach" || rig.Kind == "surface_carrier" || rig.Kind == "carrier_cabin") Assert.Ignore("Chairs and carriers hang from the rope; no rope sockets.");
             if (rig.Kind == "tower_mast" || rig.Kind == "tower_base" || rig.Kind == "surface_mast" || rig.Kind == "surface_base")
                 Assert.Ignore("Mast sections and bases carry no rope.");
             if (rig.Kind == "surface_hut") Assert.Ignore("The operator hut carries no rope.");
@@ -611,7 +612,8 @@ namespace MountainPlanner.Tests
         [TestCaseSource(nameof(Cases))]
         public void OnlyTheCarpetGalleryIsOnTheClearGlass(GameObject prefab)
         {
-            // owner C17: the gallery's panes are on LiftGlassClear (45 % face-on) at every LOD; nothing else uses it
+            // owner C17: the gallery's panes are on LiftGlassClear (45 % face-on) at every LOD; besides them only the G8
+            // cabin's LOD0 uses it, for its panes seen from inside (the rider's view, task 4.24)
             var clear = AssetDatabase.LoadAssetAtPath<Material>($"{ArtRoot}/Materials/LiftGlassClear.mat");
             Assert.That(clear, Is.Not.Null, "LiftImport makes LiftGlassClear.mat");
             var lods = prefab.GetComponent<LODGroup>().GetLODs();
@@ -619,7 +621,9 @@ namespace MountainPlanner.Tests
             for (int i = 0; i < lods.Length; i++)
             {
                 bool uses = lods[i].renderers.Any(r => r.sharedMaterials.Contains(clear));
-                Assert.That(uses, Is.EqualTo(bay), $"LOD{i}: {(bay ? "a gallery bay's panes are" : "only a gallery bay is")} on the clear glass");
+                bool inside = prefab.GetComponent<LiftRig>().Kind == "carrier_cabin" && i == 0;
+                Assert.That(uses, Is.EqualTo(bay || inside),
+                    $"LOD{i}: {(bay ? "a gallery bay's panes are" : inside ? "the cabin's inside panes are" : "only a gallery bay is")} on the clear glass");
                 if (bay)
                     Assert.That(lods[i].renderers.Any(r => r.sharedMaterials.Any(m => m != null && m.name == "LiftGlass")), Is.False,
                         $"LOD{i}: no pane on the hood glass");
@@ -644,6 +648,37 @@ namespace MountainPlanner.Tests
             Assert.That(Mathf.Abs(Vector3.Dot(rig.PivotAxes[i].normalized, Vector3.right)), Is.GreaterThan(0.999f), "hinged across the rope (X)");
             foreach (string s in new[] { "seat_1", "seat_2", "seat_3", "seat_4", "bar_hinge" })
                 Assert.That(rig.Socket(s).IsChildOf(hanger), s + " rides with the hanger");
+        }
+
+        [Test]
+        public void TheG8CabinHangsCentredUnderTheRopeWithEightSeats()
+        {
+            // Task 4.24: the cabin on the D6's grip, its hanger hinged across the rope, eight seats riding with it on two
+            // benches facing each other, the cabin centred under the rope (owner, 2026-11-17).
+            var prefab = Prefabs().FirstOrDefault(p => p.name == "sessellift_g8_cabin");
+            Assert.That(prefab, Is.Not.Null, "imported");
+            var rig = prefab.GetComponent<LiftRig>();
+            Assert.That(rig.Kind, Is.EqualTo("carrier_cabin"));
+            var grip = rig.Pivot("grip");
+            var hanger = rig.Pivot("hanger");
+            Assert.That(hanger.parent, Is.SameAs(grip), "the hanger hangs from the grip");
+            var seats = Enumerable.Range(1, 8).Select(n => rig.Socket("seat_" + n)).ToArray();
+            Assert.That(rig.Socket("seat_9"), Is.Null);
+            foreach (var s in seats) Assert.That(s.IsChildOf(hanger), s.name + " rides with the hanger");
+            int behind = seats.Count(s => prefab.transform.InverseTransformPoint(s.position).z < 0);
+            Assert.That(behind, Is.EqualTo(4), "four a bench, either side of the hanger along the line");
+            var go = UnityEngine.Object.Instantiate(prefab);
+            try
+            {
+                go.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                var lod0 = go.GetComponent<LODGroup>().GetLODs()[0].renderers.Where(r => r != null).ToArray();
+                var bounds = lod0[0].bounds;
+                foreach (var r in lod0) bounds.Encapsulate(r.bounds);
+                Assert.That(bounds.min.y, Is.EqualTo(-3.575f).Within(0.01f), "rope to the guide tube (LiftType.ChairDropMetres)");
+                Assert.That(Mathf.Max(-bounds.min.x, bounds.max.x), Is.LessThan(1.35f), "within the type's 1.34 m half-width");
+                Assert.That(Mathf.Abs(bounds.min.z + bounds.max.z) / 2, Is.LessThan(0.02f), "centred along the line");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(go); }
         }
     }
 }

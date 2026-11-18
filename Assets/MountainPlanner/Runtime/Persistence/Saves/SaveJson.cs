@@ -178,7 +178,109 @@ namespace MountainPlanner.Persistence.Saves
             }
             w.WriteEndArray();
             w.WritePropertyName("Hours"); WriteHours(w, d.Hours);   // v12 (LO-07 v2)
+            WriteWater(w, d);                                          // v14 (task 4.14)
             w.WriteEndObject();
+        }
+
+        // v14 (task 4.14, PD-08, WS-01, LK-10): "Ponds", "Dams", "Lakes" and "Streams", in ID order.
+        static void WriteWater(JsonWriter w, DesignDocument d)
+        {
+            w.WritePropertyName("Ponds");
+            w.WriteStartArray();
+            foreach (var p in d.Ponds)
+            {
+                w.WriteStartObject();
+                w.WritePropertyName("Id"); w.WriteValue(Hex(p.Id.Value));
+                w.WritePropertyName("Name"); w.WriteValue(p.Name);
+                w.WritePropertyName("Ring");
+                w.WriteStartArray();
+                foreach (var q in p.Ring) WritePoint(w, q);
+                w.WriteEndArray();
+                w.WritePropertyName("FullPoolMm"); w.WriteValue(p.FullPoolMm);
+                w.WritePropertyName("ExcavationMm"); w.WriteValue(p.ExcavationMm);
+                w.WritePropertyName("SpringGpm"); w.WriteValue(p.SpringGpm);
+                w.WritePropertyName("Fill"); w.WriteValue(p.Fill == PondFill.Pumped ? "pumped" : "natural");
+                w.WritePropertyName("StartsEmpty"); w.WriteValue(p.StartsEmpty);
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+            w.WritePropertyName("Dams");
+            w.WriteStartArray();
+            foreach (var m in d.Dams)
+            {
+                w.WriteStartObject();
+                w.WritePropertyName("Id"); w.WriteValue(Hex(m.Id.Value));
+                w.WritePropertyName("Name"); w.WriteValue(m.Name);
+                w.WritePropertyName("BankA"); WritePoint(w, m.BankA);
+                w.WritePropertyName("BankB"); WritePoint(w, m.BankB);
+                w.WritePropertyName("FullPoolMm"); w.WriteValue(m.FullPoolMm);
+                w.WritePropertyName("Water"); w.WriteValue(m.UpstreamLeft ? "left" : "right");
+                w.WritePropertyName("Spillway"); w.WriteValue(m.Spill == SpillBank.First ? "first" : "far");
+                w.WritePropertyName("StreamWay"); w.WriteValue(Hex(m.StreamWay));
+                w.WritePropertyName("StartsEmpty"); w.WriteValue(m.StartsEmpty);
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+            w.WritePropertyName("Lakes");
+            w.WriteStartArray();
+            foreach (var k in d.Lakes)
+            {
+                w.WriteStartObject();
+                w.WritePropertyName("Lake"); w.WriteValue(Hex(k.Lake));
+                w.WritePropertyName("Name"); w.WriteValue(k.Name);
+                w.WritePropertyName("DepthTenthsFt"); w.WriteValue(k.DepthTenthsFt);
+                w.WritePropertyName("Source"); w.WriteValue(k.Source);
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+            w.WritePropertyName("Streams");
+            w.WriteStartArray();
+            foreach (var k in d.Streams)
+            {
+                w.WriteStartObject();
+                w.WritePropertyName("Way"); w.WriteValue(Hex(k.Way));
+                w.WritePropertyName("Name"); w.WriteValue(k.Name);
+                w.WritePropertyName("WidthCm"); w.WriteValue(k.WidthCm);
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+        }
+
+        static void ReadWater(JObject d, out List<Pond> ponds, out List<Dam> dams, out List<LakeRecord> lakes, out List<StreamRecord> streams)
+        {
+            ponds = new List<Pond>();
+            foreach (var t in Arr(d, "Ponds"))
+            {
+                var o = AsObj(t);
+                var ring = new List<PointMm>();
+                foreach (var q in Arr(o, "Ring")) { if (!(q is JArray xy) || xy.Count != 2) throw new FormatException("A shoreline point isn't a point"); ring.Add(new PointMm(IntOf(xy[0]), IntOf(xy[1]))); }
+                string fill = Str(o, "Fill");
+                if (fill != "natural" && fill != "pumped") throw new FormatException($"'{fill}' isn't a pond's fill");
+                ponds.Add(new Pond(new PondId(HexValue(Str(o, "Id"))), Str(o, "Name"), ring, Int(o, "FullPoolMm"), Int(o, "ExcavationMm"), Int(o, "SpringGpm"),
+                                   fill == "pumped" ? PondFill.Pumped : PondFill.Natural, Bool(o, "StartsEmpty")));
+            }
+            dams = new List<Dam>();
+            foreach (var t in Arr(d, "Dams"))
+            {
+                var o = AsObj(t);
+                string water = Str(o, "Water"), spill = Str(o, "Spillway");
+                if (water != "left" && water != "right") throw new FormatException($"'{water}' isn't a dam's water side");
+                if (spill != "first" && spill != "far") throw new FormatException($"'{spill}' isn't a spillway bank");
+                dams.Add(new Dam(new DamId(HexValue(Str(o, "Id"))), Str(o, "Name"), Point(o, "BankA"), Point(o, "BankB"), Int(o, "FullPoolMm"),
+                                 water == "left", spill == "first" ? SpillBank.First : SpillBank.Far, HexValue(Str(o, "StreamWay")), Bool(o, "StartsEmpty")));
+            }
+            lakes = new List<LakeRecord>();
+            foreach (var t in Arr(d, "Lakes"))
+            {
+                var o = AsObj(t);
+                lakes.Add(new LakeRecord(HexValue(Str(o, "Lake")), Str(o, "Name"), Int(o, "DepthTenthsFt"), Bool(o, "Source")));
+            }
+            streams = new List<StreamRecord>();
+            foreach (var t in Arr(d, "Streams"))
+            {
+                var o = AsObj(t);
+                streams.Add(new StreamRecord(HexValue(Str(o, "Way")), Str(o, "Name"), Int(o, "WidthCm")));
+            }
         }
 
         static void WriteHours(JsonWriter w, DayHours h)
@@ -512,7 +614,8 @@ namespace MountainPlanner.Persistence.Saves
             }
             var cuts = new List<TrailCut>();
             foreach (var c in Arr(d, "Cuts")) { var co = AsObj(c); cuts.Add(new TrailCut(new TrailId(HexValue(Str(co, "Piece"))), Point(co, "At"))); }
-            return DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, ReadHours(Obj(d, "Hours")));
+            ReadWater(d, out var ponds, out var dams, out var lakes, out var streams);   // v14 (task 4.14)
+            return DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, ReadHours(Obj(d, "Hours")), ponds, dams, lakes, streams);
         }
 
         static SimSidecarRef? ReadSim(JToken t)

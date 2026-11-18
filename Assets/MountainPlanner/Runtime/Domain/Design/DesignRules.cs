@@ -360,6 +360,32 @@ namespace MountainPlanner.Domain.Design
                 if (doc.FindTrail(c.Piece) == null) return "A cut is on a run that isn't in the design.";
                 if (PointProblem(c.At) is string p) return p;
             }
+            // Task 4.14 (PD-08, WS-01, shape 14): ponds, dams and lake sources.
+            if (doc.Ponds.Count + doc.Dams.Count > PondRules.MaxWater) return $"The design holds at most {PondRules.MaxWater} ponds and dams.";
+            foreach (var pond in doc.Ponds)
+            {
+                if (PondRules.PondProblem(pond) is string p) return p;
+                if (!seen.Add(pond.Id.Value)) return "Two entities share an ID.";
+            }
+            foreach (var dam in doc.Dams)
+            {
+                if (PondRules.DamProblem(dam) is string p) return p;
+                if (!seen.Add(dam.Id.Value)) return "Two entities share an ID.";
+            }
+            var lakes = new HashSet<ulong>();
+            foreach (var s in doc.Lakes)
+            {
+                if (s.IsEmpty) return "A lake record holds nothing.";
+                if (PondRules.LakeProblem(s) is string p) return p;
+                if (!lakes.Add(s.Lake)) return "A lake is recorded twice.";
+            }
+            var streams = new HashSet<ulong>();
+            foreach (var s in doc.Streams)
+            {
+                if (s.IsEmpty) return "A stream record holds nothing.";
+                if (PondRules.StreamProblem(s) is string p) return p;
+                if (!streams.Add(s.Way)) return "A stream is recorded twice.";
+            }
             return null;
         }
 

@@ -17,6 +17,7 @@ which carry the Sessellift chair; and the **Chairworks quad chair** with either 
 | `sle_guns.json` | The snow guns' dimensions (`stickGun`, `groundGun`, `tripod`) and their `catalog` names; an asset module names its spec with `SPEC` |
 | `monta_fg4.json` | The Monta terminals' dimensions (`common`, `drive`, `return`) and their `catalog` |
 | `chairworks_chair.json` | The Chairworks chair's dimensions (the body, both grips) and its `catalog` |
+| `sessellift_g8.json` | The Sessellift G8 gondola cabin: the barrel's measured profile, door, ski racks, benches, roof frame and hanger; the G8 runs on the D6's terminals and heads (see Sessellift G8 below) |
 | `sessellift_d4.json`, `sessellift_d4_towers.json` | The Sessellift D4 detachable quad: an overlay on `sessellift_d6.json` (its station one bay shorter, at a 4.8 m gauge) and its tower heads, the quad kit's at that gauge (see Sessellift D4 below) |
 | `sessellift_stern4.json`, `sessellift_stern3.json`, `sessellift_stern2.json` | The Sessellift Stern, the second Sessellift fixed-grip style: the quad's terminals, and the triple and double as overlays on it at their gauges (see Sessellift Stern below) |
 | `fixed_grip.json` | The fixed grip every fixed-grip chair carries (LP22) |
@@ -242,6 +243,17 @@ spin only at LOD0 on towers; from LOD1 a head is one mesh.
   rope elevation) and climbing `rope_*_out`; `dims.integratedTowerU` and `dims.ropeExitDeg` (8.6 at rest; the rows
   pose for exits of 5-16 degrees).
 - **Heights:** the D6's (rope 3,600 mm), so the chair hangs on the D6's hanger unchanged.
+
+## Sessellift G8 gondola (task 4.24)
+
+| Asset | Origin | What it is |
+|---|---|---|
+| `sessellift_g8_cabin` | the grip, on the rope | an eight-seat cabin (`carrier_cabin`, `assets/g8_cabin.py`): a glazed barrel (glass slot up close, opaque glass from LOD2) with its skirt, roof band, roof and corner pillars in the livery, a two-leaf door with livery frames and ski racks (tipped baskets, standing-off straps) on the outboard side, rounded black bumpers, a guide tube under the inboard side, two benches of four facing each other, a roof frame with a fork, on a square-bar hanger (the D6's path, then a broad elbow and a level arm over the roof) and the Sessellift detachable grip |
+
+- **Line:** the D6's terminals and wide heads unchanged (gauge 5.6 m, rope 3,600 mm); the cabin hangs centred under the
+  haul rope, its floor 135 mm over the load level. The cabin passes both stations (LOD0-2) and all six heads, swung 8 degrees either way, with the 50 mm rule.
+- **Sockets:** `grip`, and `seat_1..8` on the hanger: seats 1-4 on the bench at -u face +u, 5-8 face -u (`dims.seatFacing`).
+- **Materials:** the chairs' `LiftChair` and the hoods' `LiftGlass` (the only carrier with two slots).
 
 ## Monta T-bar (surface lifts)
 

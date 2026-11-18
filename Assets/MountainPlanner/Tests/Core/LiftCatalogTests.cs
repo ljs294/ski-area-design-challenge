@@ -33,7 +33,7 @@ namespace MountainPlanner.Tests
                 {
                     string id = LiftCatalogIds.Of(carrier, maker);
                     Assert.That(LiftCatalogIds.Known(id), Is.True, id);
-                    if (id == LiftCatalogIds.SesselliftD6 || id == LiftCatalogIds.SesselliftD4) continue;   // their own models (LT41, D4)
+                    if (id == LiftCatalogIds.SesselliftD6 || id == LiftCatalogIds.SesselliftD4 || id == LiftCatalogIds.SesselliftG8) continue;   // their own models (LT41, D4, 4.24)
                     if (carrier == "fixed-double" || carrier == "fixed-triple") continue;   // their own models (LD1, below)
                     var type = LiftType.Of(id);
                     Assert.That(type.Bottom.Model, Does.StartWith(maker == "monta" ? "monta_fg4_" : "sessellift_fgq4_"), "drawn with the maker's quad");
@@ -117,11 +117,33 @@ namespace MountainPlanner.Tests
                                             new[] { Tower(3000, 200) }, WorkStage.Built));
             Assert.That(tram.Accepted, Is.False, "a menu placeholder (owner, LT41)");
             Assert.That(tram.Reason, Does.Contain("can't be built yet"));
-            foreach (string id in new[] { LiftCatalogIds.SesselliftFgq4, LiftCatalogIds.MontaFg4, LiftCatalogIds.SesselliftD6 })
+            foreach (string id in new[] { LiftCatalogIds.SesselliftFgq4, LiftCatalogIds.MontaFg4, LiftCatalogIds.SesselliftD6, LiftCatalogIds.SesselliftG8 })
             {
                 var r = h.Submit(new AddLift(h.Revision, id, id, P(0, 0), P(0, 3000), TowerMode.Automatic, TowerStance.Plumb, null, WorkStage.Plan));
                 Assert.That(r.Accepted, Is.True, id + ": " + r);
             }
+        }
+
+        [Test]
+        public void G8_TheGondolaRunsOnTheD6WithItsOwnCabin()
+        {
+            // Task 4.24 (owner, 2026-11-17): the D6's terminals, wide heads, gauge and rope; only the carrier is new.
+            var g8 = LiftType.Of(LiftCatalogIds.SesselliftG8);
+            var d6 = LiftType.Of(LiftCatalogIds.SesselliftD6);
+            Assert.That(g8.Buildable && g8.Detachable, Is.True);
+            Assert.That(g8.Seats, Is.EqualTo(8));
+            Assert.That(g8.IntervalSeconds, Is.EqualTo(9.6).Within(1e-9));
+            Assert.That(g8.ChairSpacingMetres / Ft, Is.EqualTo(160).Within(1e-6), "gondola-8: 160 ft");
+            Assert.That(g8.Capacity, Is.EqualTo(3000).Within(1e-6));
+            Assert.That(g8.CarrierModel, Is.EqualTo("sessellift_g8_cabin"));
+            Assert.That(g8.SeatsFaceEachOther, Is.True);
+            Assert.That(g8.ChairDropMetres, Is.EqualTo(3.575), "rope to the guide tube");
+            Assert.That((g8.GaugeMetres, g8.RopeDiameterMetres, g8.SpeedMetresPerSecond), Is.EqualTo((d6.GaugeMetres, d6.RopeDiameterMetres, d6.SpeedMetresPerSecond)));
+            Assert.That((g8.TowerKit, g8.Heads, g8.BullwheelVisible), Is.EqualTo((d6.TowerKit, d6.Heads, d6.BullwheelVisible)));
+            Assert.That((g8.Bottom.Model, g8.Top.Model), Is.EqualTo((d6.Bottom.Model, d6.Top.Model)));
+            Assert.That(d6.CarrierModel, Is.Null, "the D6 keeps its chair");
+            Assert.That(d6.SeatsFaceEachOther, Is.False);
+            Assert.That(LiftCatalogIds.Buildable("gondola-8:monta"), Is.False, "the Monta's stays a placeholder");
         }
 
         [Test]

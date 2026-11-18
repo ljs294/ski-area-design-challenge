@@ -123,7 +123,8 @@ namespace MountainPlanner.Presentation.Skiers
                     {
                         if (double.IsNaN(l.Board[first + s])) continue;
                         var p = hang.MultiplyPoint3x4(v.SeatLocal[s]);
-                        _seated[Count] = new float4(p.x, p.y, p.z, yaw);
+                        bool turned = s < v.SeatTurned.Length && v.SeatTurned[s];   // a cabin's far bench (task 4.24)
+                        _seated[Count] = new float4(p.x, p.y, p.z, turned ? yaw + Mathf.PI : yaw);
                         _seatedKey[Count] = l.Key[first + s];
                         Count++;
                     }

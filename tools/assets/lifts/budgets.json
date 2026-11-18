@@ -93,6 +93,17 @@
     "shadowLods": 2,
     "crossFade": false
   },
+  "carrier_cabin": {
+    "_about": "A glazed gondola cabin (the Sessellift G8, task 4.24): the D6's detachable grip and hanger over an eight-seat barrel with its benches, door frames and ski racks seen through the glass up close; the glass opaque from LOD2; a 3-section box out to 1.2 km, where cabins still read on a line.",
+    "lods": [
+      {"lod": 0, "maxTris": 6000, "untilM": 10},
+      {"lod": 1, "maxTris": 1200, "untilM": 40},
+      {"lod": 2, "maxTris": 200, "untilM": 300},
+      {"lod": 3, "maxTris": 40, "untilM": 1200}
+    ],
+    "shadowLods": 2,
+    "crossFade": false
+  },
   "tower_head_wide": {
     "_about": "The wide-gauge heads (the Sessellift D6 at 5.6 m, owner LM3 and LM5): a crossarm with walkways and railings, and up to 12 sheaves a rope.",
     "lods": [

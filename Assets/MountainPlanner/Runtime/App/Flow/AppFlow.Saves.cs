@@ -147,6 +147,7 @@ namespace MountainPlanner.App.Flow
             "-snowlapse",   // task 4.07 PR A2: the time-lapse plays its own new game
             "-simto",   // task 4.07 PR A3: so does the run to mid-season
             "-lakereport",   // task 4.09
+            "-watershots",   // task 4.14
         };
 
         void UpdateSaves(Keyboard keys)

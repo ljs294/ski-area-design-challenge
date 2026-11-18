@@ -395,7 +395,9 @@ namespace MountainPlanner.Tests
         {
             var p = Pack(20, -3);
             var x = Hour(28, 20, beam: 300, diffuse: 80);
-            SnowEnergy.Step(ref p, x, K);
+            // The same loop once unmeasured first: the runtime's tiering (on-stack replacement of this loop, the step's
+            // re-JIT) settles there, not in the count (CI saw 1 KB once, 2026-11-16, with no change to the step).
+            for (int i = 0; i < 100_000; i++) { var q = p; SnowEnergy.Step(ref q, x, K); }
             long before;
             try { before = GC.GetAllocatedBytesForCurrentThread(); }
             catch (PlatformNotSupportedException) { Assert.Ignore("needs CoreCLR"); return; }

@@ -37,6 +37,7 @@ namespace MountainPlanner.App.Flow
             "-notitle", "-package", "-site", "-screenshot", "-trailshots", "-trailbench", "-paintbench", "-paintmovie", "-paintcheck", "-designbench", "-benchmark", "-benchmark-views", "-pathmovie", "-lineup", "-lodtransitions", "-view", "-landmark", "-clip",
             "-pickbench",   // task 4.13: a bench never waits on the title (it stalled there, 2026-11-09)
             "-proofhold",   // task 4.13 PR C2
+            "-watershots",   // task 4.14
             "-snowlapse",   // task 4.07 PR A2
             "-simto",   // task 4.07 PR A3
         };
@@ -428,6 +429,7 @@ namespace MountainPlanner.App.Flow
             Reload();
             CoverFor(packageFolder);
             WeatherWhenOpen(packageFolder);   // task 4.05, PR A2: an area without its weather gets it in the background
+            WaterLinesWhenOpen(packageFolder);   // task 4.14: an area from before 4.14 gets its stream lines and water names
         }
 
         public void ReturnToTitle(FlowScreen then)

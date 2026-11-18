@@ -399,6 +399,13 @@ echo        screen, then shows that none of its files carries a download mark. A
 echo     115 Update to the newest: start this branch's game as if it were 0.3.1; it hands over to the 114
 echo        launcher, which asks, installs the newest and ends on "Launch ... v0.3.2". Then a start with no
 echo        update (no launcher window), offline, and the version list. Rebuilds the game; close the editor first.
+echo   4.14 ponds, dams, water
+echo     116 The Snowmaking tab, mockup first (opens in Edge, no game build): Pond, Dam, Lake, Edit and Remove.
+echo        Pond: click the shoreline, Enter, then the pool and the dig; Dam: click a bank of Twin Creek, the far
+echo        bank snaps to the same height; Lake: click Moose Lake to use it. It lists ten more states when it opens.
+echo     117 Ponds and dams on the ground (PR A): the dam preview, the guardrails, water cards and names, pumped
+echo        ponds; save, reopen. Your Doublehead (D) or Kearsarge (K), or the demo mountain, as a scratch copy;
+echo        rebuilds the game, close the editor first.
 echo   4.07 snow model PR A2: the snow in the game (a few minutes without Unity, then the game, then a time-lapse)
 echo     111 Part 1: the live snow's tests, then a report in your browser: a season from bare October 1 on Jackson
 echo        Hole and (from your downloads, read only) Olympic Valley: depth at the base, mid and summit, the deepest
@@ -416,6 +423,17 @@ echo        game's clock against the hour, the energy balance), then six western
 echo        through the new snow energy, as charts in your browser: the pass marks, each pillow's median winter
 echo        against what it measured and 4.05's old model, and where the melt's energy comes from. The fix round (the
 echo        afternoon dew, the 32-37 °F rain line, the snow gates at seven sites) is the report's first section.
+echo   0.5 GPU queue fixes (no Unity, no build)
+echo    125 The GPU queue's tests (about three minutes, no GPU), then the last 7 days of its new history with any
+echo        overlaps, then a live check: the game starts outside the queue and a 5-second measure run waits for it;
+echo        quit the game and the run goes. Your own play never waits; only queued measure runs do.
+echo   4.24 Sessellift G8 gondola (the D6's terminals and wide heads with an eight-seat cabin; close the editor first)
+echo    126 The game with a G8 built up the style tile's slope (rebuilds the game). Watch the cabins round the D6
+echo        stations, the guests seated four a bench facing each other, and ride one (click a cabin). New lift,
+echo        Detachable gondola, 8 person, Sessellift G8 builds your own; its price is a placeholder.
+echo    127 The G8 in the Lift Lab: the D6 terminals, a cabin between them and the six tower heads with cabins on the
+echo        ropes. Z this view, L LOD, N snow, C colour, T turntable, H help, Esc quit.
+echo    128 Rebuild the G8 cabin in Blender with its checks (budgets, pivots, sockets; no Unity, no render).
 echo.
 echo     Q  Quit
 echo.
@@ -561,10 +579,16 @@ if /i "%CHOICE%"=="106" goto skiersbench
 if /i "%CHOICE%"=="107" goto skiermodels
 if /i "%CHOICE%"=="108" goto weatherlook
 if /i "%CHOICE%"=="110" goto weathertabmock
+if /i "%CHOICE%"=="116" goto watermock
+if /i "%CHOICE%"=="117" goto waterground
 if /i "%CHOICE%"=="114" goto updaterinstall
 if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
 if /i "%CHOICE%"=="111" goto snowlive
+if /i "%CHOICE%"=="125" goto gpuqueue
+if /i "%CHOICE%"=="126" goto gondolagame
+if /i "%CHOICE%"=="127" goto gondolalab
+if /i "%CHOICE%"=="128" goto gondolamodel
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2258,6 +2282,34 @@ echo Starting the Lift Lab on the fixed-grip terminals. V next head, M back to t
 start "" "%LIFTLAB%" -mode fixedgrip
 goto menu
 
+:gondolagame
+rem Task 4.24: always rebuilt, so the gondola on this branch is the one you see.
+call :projectfree || goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo Starting the game with a Sessellift G8 up the style tile's slope ("Check gondola-8:sessellift").
+start "" "%GAME%" -snowseed -notitle -styletile -extralift -150,-900,650 -extratype gondola-8:sessellift
+goto menu
+
+:gondolalab
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the Sessellift G8 gondola. Z this view, L LOD, N snow, C colour, T turntable, H help, Esc quit.
+start "" "%LIFTLAB%" -mode gondola
+goto menu
+
+:gondolamodel
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+if not exist "%~dp0test-results\g8" mkdir "%~dp0test-results\g8"
+echo Building the G8 cabin in Blender (about 20 seconds)...
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\lifts\build_lifts.py" -- --assets g8_cabin --out "%~dp0test-results\g8" <nul
+if errorlevel 1 (echo   The build failed. & goto done)
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\lifts\audit_lifts.py" -- --out "%~dp0test-results\g8" --assets sessellift_g8_cabin <nul
+if errorlevel 1 (echo   The checks failed. & goto done)
+echo   Built and checked: test-results\g8\sessellift_g8_cabin.fbx
+goto done
+
 :quaddetach
 call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto done
@@ -2514,7 +2566,8 @@ echo      board. Each chair that leaves moves the line up a row;
 echo      skiers shuffle and snowboarders push with one foot. Waiting guests stand, lean on their poles or rest.
 echo   4. The chairs go up loaded and come down empty. Rides are time-compressed, so a guest is skiing again long
 echo      before its chair reaches the top: the riders you see on a chair wear their own outfits, so nobody has a twin.
-echo      Gondola riders stay hidden in the cabin. On a T-bar the riders stand on the snow, on a carpet on the belt.
+echo      Gondola riders sit on the cabin's two benches, facing each other ^(4.24^). On a T-bar the riders stand on the
+echo      snow, on a carpet on the belt.
 echo   5. Zoom out: the figures get simpler with distance and become dots past about 250 m (closer in a small window).
 echo   6. Hover and click still pick a guest; the selected one keeps its ring. Follow a skier from close up.
 echo   7. Ride a lift (4.11): the other chairs around you have riders; yours does not.
@@ -2660,6 +2713,66 @@ start "" msedge "file:///%MOCK:\=/%#solo&demo=p2,net,wx46,aweather"
 echo   The Weather tab opened in Edge. Other states: add ,wxseason or ,wxclimate or ,wxlimited or ,light to the address (Climate: ,wxweekly or ,wxseasonal).
 goto menu
 
+:watermock
+rem 4.14 Gate 0: the Snowmaking tab mockup (ponds, dams, lakes as sources) in the HUD mockup, opened on its tray.
+set "MOCK=%~dp0docs\plans\prototypes\ui-layout.html"
+start "" msedge "file:///%MOCK:\=/%#solo&demo=watertray"
+echo   The Snowmaking tab opened in Edge. Other states: change watertray in the address to pondshore, pondpool, pondberm,
+echo   damfirst, damreview, damedge, watersource, pondedit, damedit or waterremove.
+goto menu
+
+:waterground
+rem 4.14 PR A: ponds, dams and lakes as sources on the ground, on a scratch data root (your saves stay untouched).
+chcp 65001 >nul
+call :buildplayer
+if not exist "%GAME%" goto done
+set "WG117=%LOCALAPPDATA%\SkiAreaDesignChallenge-water117"
+if exist "%WG117%" rmdir /s /q "%WG117%"
+mkdir "%WG117%"
+echo.
+echo The game opens on a scratch copy (your saves stay untouched). Toolbox (T), the Snowmaking tab:
+echo   1. Dam (B): the area's streams show in blue. Hover beside one: the hint gives full pool there; away from a stream
+echo      the dot turns red and a click is refused (PD-12). Click a bank: a yellow line rings it at full pool, where the
+echo      far bank can land. Click near the far bank: it snaps. The review shows the graded embankment on the mountain,
+echo      the reservoir as water at full pool with its shore in blue, a blue dot at the spillway; rows for Over the
+echo      stream (PD-13), Embankment and Water per fill (PD-14). PgUp/PgDn move the pool, [ and ] the stream's width.
+echo   2. The guardrails: try a dam where full pool stands under 5 ft over the stream (a red dot on the bed, PD-13), a
+echo      long low line on a gentle slope (refused: it moves 10x or more earth than it holds water, PD-11; amber under
+echo      1:1), and the edge of a drop (refused, "a cliff edge", PD-10). Esc steps back; the ground goes back too.
+echo   3. Pond (O): click a shoreline, Enter; the review shows the berm and the dig on the ground and the water. Fills:
+echo      switch it to Pumped only, Starts: Empty. Break ground. Its card says it fills only from a pump house.
+echo   4. Close the Toolbox and click things: a lake, a stream, your pond, your dam. Each opens a card on the right.
+echo      Lake: name it by clicking the name or F2 (Restore brings OpenStreetMap's back), Snowmaking source, depth.
+echo      Stream: rename it, Narrower and Wider; a dam on it follows the width. Pond and dam: rename, Edit, Remove.
+echo      Named lakes, ponds and dams appear on the Labels layer. Hover outlines what a click would open.
+echo   5. Edit (M) your dam, move its pool: the review water replaces the built water. Remove (X): the ground goes
+echo      back exactly; Ctrl+Z brings it back.
+echo   6. Esc, Save; back to the title and open that save: the names, widths, pond options and dams come back.
+echo   Quit the game when done.
+echo.
+rem The owner's Doublehead and Kearsarge maps have good dam sites: a scratch copy of the package, library and saves untouched.
+set "WG117D="
+set "WG117K="
+for /d %%D in ("%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts\*") do (
+    if not defined WG117D findstr /i /c:"doublehead" "%%D\manifest.json" >nul 2>nul && set "WG117D=%%D"
+    if not defined WG117K findstr /i /c:"kearsarge" "%%D\manifest.json" >nul 2>nul && set "WG117K=%%D"
+)
+set "WG117MAP="
+set /p "WG117MAP=Open your Doublehead map (D), Kearsarge (K), or Enter for the demo mountain: "
+set "WG117PKG="
+set "WG117NAME="
+if /i "%WG117MAP%"=="D" if defined WG117D set "WG117PKG=%WG117D%" & set "WG117NAME=Doublehead"
+if /i "%WG117MAP%"=="K" if defined WG117K set "WG117PKG=%WG117K%" & set "WG117NAME=Kearsarge"
+if /i not "%WG117MAP%"=="" if not defined WG117PKG echo That map is not in your library; opening the demo mountain.
+if defined WG117PKG (
+    echo Copying %WG117NAME% into the scratch folder...
+    robocopy "%WG117PKG%" "%WG117%\%WG117NAME%" /e /nfl /ndl /njh /njs /np >nul
+    start "" "%GAME%" -snowseed -data "%WG117%" -package "%WG117%\%WG117NAME%" -notitle
+) else (
+    start "" "%GAME%" -snowseed -data "%WG117%" -notitle
+)
+goto done
+
 :weatherlook
 rem 4.06 PR A: the weather on screen. A scratch data root, so your own saves and settings stay untouched.
 call :buildplayer
@@ -2684,4 +2797,30 @@ if not exist "%LIFTLAB%" goto menu
 echo   The Lift Lab's gun field: 500 guns, each with its plume. O steps the wind (off, calm, breeze, strong); 7 the guns
 echo   up close. Esc quits.
 start "" "%LIFTLAB%" -mode gunfield
+goto menu
+
+:gpuqueue
+rem 0.5: the GPU queue's history, time limit and wait for play outside the queue (tools\gpu\README.md).
+set "GPUPS=powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\gpu\gpu.ps1""
+echo   1/3 The tests: a scratch queue with dummy commands; nothing here touches the real queue or the GPU.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\gpu\test-gpu.ps1"
+echo.
+echo   2/3 The real queue's history for the last 7 days (it starts empty: runs from before this change aren't in it).
+%GPUPS% history -Since 7d
+echo.
+if not exist "%GAME%" (
+  echo   3/3 skipped: no game build at %GAME% ^(choose 1 to build it^).
+  pause
+  goto menu
+)
+echo   3/3 The game opens outside the queue, as your own play does. Back here, a 5-second measure run then waits for it:
+echo   "waiting: GPU process(es) outside the queue: SkiAreaDesignChallenge". Quit the game and the run goes (if a thread
+echo   holds the GPU, it also waits for that, and says so). Ctrl+C here cancels the wait.
+pause
+start "" "%GAME%"
+timeout /t 5 /nobreak >nul
+%GPUPS% run -Lane measure -Name owner-demo -- ping -n 6 127.0.0.1
+echo.
+%GPUPS% history -Since 1h -Name owner-demo
+pause
 goto menu

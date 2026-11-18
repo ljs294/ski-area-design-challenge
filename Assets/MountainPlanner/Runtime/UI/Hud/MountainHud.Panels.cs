@@ -29,6 +29,12 @@ namespace MountainPlanner.UI
             ("terrain", TerrainIds.Flatten, "Flatten", "Flatten ground", "L", "s-flatten", null),
             ("terrain", TerrainIds.Smooth, "Smooth", "Smooth ground", "O", "s-smooth", null),
             ("terrain", TerrainIds.Slope, "Slope", "Slope ground", "G", "s-slope", null),
+            // Task 4.14: the Water group first (WS-01, PD-01…09), then 4.15's tools, greyed until they come.
+            ("snow", PondTool.ToolId, "Pond", "Pond", "O", "s-pond", null),
+            ("snow", DamTool.ToolId, "Dam", "Dam", "B", "s-dam", null),
+            ("snow", WaterSourceTool.ToolId, "Lake", "Lake as a source", "L", "s-source", null),
+            ("snow", EditWaterTool.ToolId, "Edit", "Edit water", "M", "s-pond", "edit"),
+            ("snow", RemoveWaterTool.ToolId, "Remove", "Remove water", "X", "s-pond", "remove"),
             ("snow", "gun", "Snow gun", "Snow gun", "G", "s-gun", null),
             ("snow", "pipe", "Water line", "Water line", "W", "s-pipe", null),
             ("snow", "pump", "Pump house", "Pump house", "P", "s-pump", null),
@@ -165,7 +171,7 @@ namespace MountainPlanner.UI
                 var t = tool;
                 if (!MakeLive(tile, t.Id, t.Name))   // a working tool (P3-06, MountainHud.Tools.cs); the rest come later
                 {
-                    tile.RegisterCallback<PointerEnterEvent>(_ => ShowTool(t.Name, t.Key, "comes in Phase 3"));
+                    tile.RegisterCallback<PointerEnterEvent>(_ => ShowTool(t.Name, t.Key, t.Tab == "snow" ? "comes with task 4.15" : "comes in Phase 3"));
                     tile.RegisterCallback<PointerLeaveEvent>(_ => ShowActiveTool());
                 }
                 _tools.Add(tile);

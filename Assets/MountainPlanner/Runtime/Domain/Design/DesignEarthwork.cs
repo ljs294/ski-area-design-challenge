@@ -12,7 +12,7 @@ namespace MountainPlanner.Domain.Design
     {
         /// <summary>Unique within the design: the trail's or lift's ID.</summary>
         ulong Key { get; }
-        /// <summary>The fold's order: every trail (0), then every lift (1), then every terrain stroke (2, task 15); within a phase, <see cref="Order"/>.</summary>
+        /// <summary>The fold's order: every trail (0), then every lift (1), then every terrain stroke (2, task 15), then every pond and dam (3, task 4.14); within a phase, <see cref="Order"/>.</summary>
         int Phase { get; }
         /// <summary>Creation order within the phase (the document ordinal the ID was minted at).</summary>
         long Order { get; }
@@ -119,7 +119,7 @@ namespace MountainPlanner.Domain.Design
     /// </summary>
     public sealed class DesignEarthwork
     {
-        static readonly List<IEarthworkContributor> Registered = new List<IEarthworkContributor> { new TrailEarthwork(), new LiftEarthwork(), new BrushEarthwork() };
+        static readonly List<IEarthworkContributor> Registered = new List<IEarthworkContributor> { new TrailEarthwork(), new LiftEarthwork(), new BrushEarthwork(), new PondEarthwork(), new DamEarthwork() };
 
         /// <summary>Adds a contributor (task 09's lifts). Returns a handle that removes it.</summary>
         public static IDisposable Register(IEarthworkContributor contributor)

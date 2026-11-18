@@ -705,6 +705,10 @@ namespace MountainPlanner.Tests
             dd.Choose(1);
             Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftD6), "the detachable chair: the D6");
             Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-model-value").text, Is.EqualTo("Sessellift D6"));
+            dd.Choose(2);
+            Assert.That(lift.CatalogId, Is.EqualTo(LiftCatalogIds.SesselliftG8), "the gondola: the G8 (task 4.24)");
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-model-value").text, Is.EqualTo("Sessellift G8"));
+            Assert.That(w.Q<UnityEngine.UIElements.Label>("toolwin-dd-carrier-value").text, Is.EqualTo("8 person"));
 
             // The chosen type is what Break ground builds.
             lift.Choose(LiftCatalogIds.SesselliftFgq4);
