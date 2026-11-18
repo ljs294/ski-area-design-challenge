@@ -221,20 +221,37 @@ namespace MountainPlanner.App
                 PlaceOnPath(path, 0);
                 yield return null;
             }
+            // Task 4.07 PR A3, -liftab: the snow's lift flips on and off in blocks of LiftAbBlock frames along the same laps
+            // (interleaved, so drift and run-to-run noise fall on both alike), dropping the first frames after each flip; the
+            // per-leg median GPU time with and without goes to <out>_liftab.json. Off by default: the laps are today's.
+            bool liftAb = Array.IndexOf(args, "-liftab") >= 0 && _resort.States != null;
+            var abGpu = liftAb ? new float[path.LegCount * 2][] : null;
+            var abCount = liftAb ? new int[path.LegCount * 2] : null;
+            if (liftAb) for (int i = 0; i < abGpu.Length; i++) abGpu[i] = new float[1 << 15];
             total.Reset();   // marks the managed heap for the garbage check
             foreach (var s in legs) s.Reset();
             start = Time.unscaledTime;
             float duration = laps * path.LapSeconds;
+            int frame = 0;
             for (float t = 0; t < duration; t = Time.unscaledTime - start)
             {
+                bool liftOn = (frame / LiftAbBlock) % 2 == 0;
+                if (liftAb && frame % LiftAbBlock == 0) _resort.States.LiftOn = liftOn;
                 int leg = PlaceOnPath(path, t);
                 yield return null;
                 float gpu = FrameStats.SampleGpuMs();
                 float dt = Time.unscaledDeltaTime;
                 total.Record(dt, gpu);
                 legs[leg].Record(dt, gpu);
+                if (liftAb && frame % LiftAbBlock >= LiftAbSettle && gpu > 0)
+                {
+                    int k = leg * 2 + (liftOn ? 1 : 0);
+                    if (abCount[k] < abGpu[k].Length) abGpu[k][abCount[k]++] = gpu;
+                }
+                frame++;
             }
             total.Stop();
+            if (liftAb) WriteLiftAb(prefix + "_liftab.json", path, abGpu, abCount);
 
             var report = BuildReport(path, laps, total, legs);
             total.Dispose();
@@ -248,6 +265,56 @@ namespace MountainPlanner.App
             yield return BenchTrafficCheck();   // task 4.13 PR C2: the Traffic breaks against a full hill (record only)
             LogSkierProof();
             Application.Quit();
+        }
+
+        const int LiftAbBlock = 60, LiftAbSettle = 3;
+
+        [Serializable]
+        sealed class LiftAbReport
+        {
+            public int block = LiftAbBlock, settle = LiftAbSettle;
+            public LiftAbLeg[] legs;
+            public float medianOfDifferencesMs;
+        }
+
+        [Serializable]
+        sealed class LiftAbLeg
+        {
+            public string name;
+            public int framesOff, framesOn;
+            public float gpuMedianOffMs, gpuMedianOnMs, differenceMs;
+        }
+
+        /// <summary>Task 4.07 PR A3: the -liftab result, each leg's median GPU time without and with the lift.</summary>
+        void WriteLiftAb(string file, BenchmarkPath path, float[][] gpu, int[] count)
+        {
+            static float Median(float[] v, int n)
+            {
+                if (n == 0) return -1;
+                var c = new float[n];
+                Array.Copy(v, c, n);
+                Array.Sort(c);
+                return n % 2 == 1 ? c[n / 2] : (c[n / 2 - 1] + c[n / 2]) / 2;
+            }
+            var r = new LiftAbReport { legs = new LiftAbLeg[path.LegCount] };
+            var diffs = new float[path.LegCount];
+            int nd = 0;
+            for (int i = 0; i < path.LegCount; i++)
+            {
+                float off = Median(gpu[i * 2], count[i * 2]), on = Median(gpu[i * 2 + 1], count[i * 2 + 1]);
+                r.legs[i] = new LiftAbLeg
+                {
+                    name = path.LegName(i), framesOff = count[i * 2], framesOn = count[i * 2 + 1],
+                    gpuMedianOffMs = off, gpuMedianOnMs = on, differenceMs = off > 0 && on > 0 ? on - off : 0,
+                };
+                if (off > 0 && on > 0) diffs[nd++] = on - off;
+                Debug.Log(string.Format(CultureInfo.InvariantCulture, "[LiftAB] {0}: GPU median {1:F3} ms off, {2:F3} ms on ({3:+0.000;-0.000} ms)",
+                                        path.LegName(i), off, on, on - off));
+            }
+            r.medianOfDifferencesMs = Median(diffs, nd);
+            File.WriteAllText(file, JsonUtility.ToJson(r, true));
+            Debug.Log(string.Format(CultureInfo.InvariantCulture, "[LiftAB] the lift costs {0:+0.000;-0.000} ms (median over legs); written to {1}",
+                                    r.medianOfDifferencesMs, file));
         }
 
         BenchmarkReport BuildReport(BenchmarkPath path, int laps, FrameStats total, FrameStats[] legs)

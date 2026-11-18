@@ -16,8 +16,9 @@ namespace MountainPlanner.Presentation
     /// Those are the default keys; the player can rebind them (<see cref="KeyBindings"/>, task P2-05).
     /// Bounds (owner, 2026-10-01): the focus point never leaves the ring, and free-fly stays over it; the orbit
     /// eye may swing out up to <see cref="OutsideRing"/> past the edge to see the diorama walls, never below
-    /// the plinth top. Over the terrain the camera stays <see cref="Clearance"/> above the snow
-    /// (<see cref="SnowDepth"/> over the ground), and the near plane closes in as it gets low.
+    /// the plinth top. Over the terrain the camera stays <see cref="Clearance"/> above the snow (task 4.07 PR A3: the top of
+    /// the snow the ground is drawn lifted by, <see cref="TerrainSurfaces.SurfaceAt"/>, plus <see cref="GroundMargin"/>), and
+    /// the near plane closes in as it gets low.
     /// Moves start on the frame the key goes down; zoom and turns ease toward their targets.
     /// </summary>
     public sealed class ViewCamera : MonoBehaviour
@@ -29,8 +30,9 @@ namespace MountainPlanner.Presentation
         public Rect Ring;
         public bool HasRing;
         public float PlinthTop = float.NegativeInfinity;
-        /// <summary>The snow on the ground, metres (iteration 1: a flat 12 in).</summary>
-        public float SnowDepth = 0.3048f;
+        /// <summary>A margin over the drawn ground, metres: iteration 1's flat 12 in of snow, kept since task 4.07 PR A3 for the
+        /// gap between the terrain's mesh (its level of detail) and the true surface.</summary>
+        public float GroundMargin = 0.3048f;
         /// <summary>The least gap between the near plane and the snow, metres.</summary>
         public float Clearance = 0.5f;
 
@@ -135,6 +137,12 @@ namespace MountainPlanner.Presentation
         void ApplyAntialiasing() => QualityPresets.ApplyTo(_camera);
 
         /// <summary>Orbit around <paramref name="target"/> from <paramref name="distance"/> metres (switches to orbit).</summary>
+        /// <summary>Task 4.07 PR A3 repair (-viewearth): the camera stands on the earth, not on the snow, so review pictures at
+        /// different snow depths share one pose. Off in play.</summary>
+        public bool OnEarth { get; set; }
+
+        float GroundAt(float x, float z) => OnEarth ? Surface.HeightAt(x, z) : Surface.SurfaceAt(x, z);
+
         public void Frame(Vector3 target, float distance)
         {
             BreakFollow();   // framing something else lets go of a followed skier
@@ -343,8 +351,8 @@ namespace MountainPlanner.Presentation
             if (Surface != null && TargetRidesGround && !Following)
             {
                 // The target rides on the ground, so moving across a ridge keeps the view level with it.
-                float targetGround = Surface.HeightAt(Target.x, Target.z);
-                if (!float.IsNaN(targetGround)) Target.y = targetGround + SnowDepth;
+                float targetGround = GroundAt(Target.x, Target.z);
+                if (!float.IsNaN(targetGround)) Target.y = targetGround + GroundMargin;
             }
             var rotation = Quaternion.Euler(Pitch, Yaw, 0);
             var back = rotation * Vector3.back;
@@ -381,9 +389,9 @@ namespace MountainPlanner.Presentation
         /// <summary>The lowest the eye may be at a place: above the snow by the clearance and the near plane, or the plinth top off the terrain.</summary>
         float Floor(Vector3 p)
         {
-            float ground = Surface != null ? Surface.HeightAt(p.x, p.z) : float.NaN;
+            float ground = Surface != null ? GroundAt(p.x, p.z) : float.NaN;
             bool overRing = !HasRing || Ring.Contains(new Vector2(p.x, p.z));
-            if (!float.IsNaN(ground) && overRing) return ground + SnowDepth + Clearance + NearFor(Clearance);
+            if (!float.IsNaN(ground) && overRing) return ground + GroundMargin + Clearance + NearFor(Clearance);
             return HasRing ? PlinthTop + Clearance : float.NegativeInfinity;
         }
 
@@ -395,16 +403,24 @@ namespace MountainPlanner.Presentation
         void SetNear(Vector3 eye)
         {
             if (_camera == null) return;
-            float above = HeightAboveGround(eye);
+            // Above the SNOW, even with OnEarth (finding A3-6): a near plane sized from the earth clipped the snow shell
+            // close to the camera along the bottom of the screen (-viewearth review pictures over deep snow).
+            float above = HeightAboveSnow(eye);
             _camera.nearClipPlane = float.IsNaN(above) ? _farNear : Mathf.Clamp(above / 3f, 0.05f, _farNear);
         }
 
         float NearFor(float gap) => Mathf.Min(_farNear, 0.05f + gap / 3f);
 
+        float HeightAboveSnow(Vector3 p)
+        {
+            float snow = Surface != null ? Surface.SurfaceAt(p.x, p.z) : float.NaN;
+            return float.IsNaN(snow) ? (Surface == null ? 1000f : float.NaN) : p.y - snow - GroundMargin;
+        }
+
         float HeightAboveGround(Vector3 p)
         {
-            float ground = Surface != null ? Surface.HeightAt(p.x, p.z) : float.NaN;
-            return float.IsNaN(ground) ? (Surface == null ? 1000f : float.NaN) : p.y - ground - SnowDepth;
+            float ground = Surface != null ? GroundAt(p.x, p.z) : float.NaN;
+            return float.IsNaN(ground) ? (Surface == null ? 1000f : float.NaN) : p.y - ground - GroundMargin;
         }
 
         /// <summary>Distance along a ray from a point inside a box (x/z only) to where it leaves.</summary>
@@ -418,7 +434,9 @@ namespace MountainPlanner.Presentation
             return Mathf.Max(0, t);
         }
 
-        /// <summary>Distance along a ray to the ground (NaN if it doesn't meet it within <paramref name="max"/>): march, then bisect.</summary>
+        /// <summary>Distance along a ray to the ground as drawn (NaN if it doesn't meet it within <paramref name="max"/>): march, then
+        /// bisect. Task 4.07 PR A3: the top of the snow, so a click lands where the picture shows; a tool that places something
+        /// re-reads the earth (HeightAt) at the hit's x, z.</summary>
         public float GroundAlong(Ray ray, float max)
         {
             if (Surface == null) return float.NaN;
@@ -426,7 +444,7 @@ namespace MountainPlanner.Presentation
             while (t < max)
             {
                 var p = ray.GetPoint(t);
-                float h = Surface.HeightAt(p.x, p.z);
+                float h = GroundAt(p.x, p.z);
                 if (!float.IsNaN(h) && p.y <= h)
                 {
                     float lo = previous, hi = t;
@@ -434,7 +452,7 @@ namespace MountainPlanner.Presentation
                     {
                         float mid = (lo + hi) * 0.5f;
                         var m = ray.GetPoint(mid);
-                        float hm = Surface.HeightAt(m.x, m.z);
+                        float hm = GroundAt(m.x, m.z);
                         if (!float.IsNaN(hm) && m.y <= hm) hi = mid; else lo = mid;
                     }
                     return hi;

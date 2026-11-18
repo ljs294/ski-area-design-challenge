@@ -107,12 +107,22 @@ namespace MountainPlanner.Presentation
         /// The resort's terrain layers and the materials whose snow follows the Snow layer (either may be null), and
         /// the grid convergence (degrees from grid north clockwise to true north) for the Exposure layer.
         /// </summary>
+        SurfaceStates _states;
+
         public void Bind(GroundLayers ground, Material edge, Material cliff, float gridConvergenceDegrees = 0)
         {
             _ground = ground;
             _edge = edge;
             _cliff = cliff;
             Shader.SetGlobalFloat(ConvergenceId, gridConvergenceDegrees * Mathf.Deg2Rad);
+            Apply();
+        }
+
+        /// <summary>Task 4.07 PR A3: the screen's snow, whose ground rises onto the snow while the Snow layer is on and sinks to the
+        /// earth while it is off (owner, 2026-11-17).</summary>
+        public void BindSnow(SurfaceStates states)
+        {
+            _states = states;
             Apply();
         }
 
@@ -190,6 +200,7 @@ namespace MountainPlanner.Presentation
             {
                 float snow = SnowOn ? 1 : 0;
                 _ground?.SetSnow(SnowOn);
+                if (_states != null) _states.SnowShown = SnowOn;
                 _ground?.SetOverlay(Info == InfoView.CoverMap && !ReliefOn);
                 Shader.SetGlobalFloat(InfoViewId, NetworkViewOn ? (float)InfoView.Network : Info == InfoView.CoverMap ? 0 : (float)Info);
                 Shader.SetGlobalFloat(ContoursId, ContoursOn ? 1 : 0);

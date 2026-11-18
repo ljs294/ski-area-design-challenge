@@ -7,6 +7,7 @@ using MountainPlanner.UI.Photo;
 using MountainPlanner.World.Lifts;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using MountainPlanner.World;
 
 namespace MountainPlanner.App
 {
@@ -228,7 +229,7 @@ namespace MountainPlanner.App
                 float along = Mathf.Max(0, (float)(seconds - _rideStartSeconds) * _beltSpeed);
                 progress = length > 0 ? along / length : 1;
                 remaining = Mathf.Max(0, length - along) / _beltSpeed;
-                eye = Vector3.Lerp(_beltFrom, _beltTo, Mathf.Clamp01(progress)) + Vector3.up * (StandingEye + Camera.SnowDepth);
+                eye = Vector3.Lerp(_beltFrom, _beltTo, Mathf.Clamp01(progress)) + Vector3.up * (StandingEye + Camera.GroundMargin);   // the belt: on the earth
                 var flat = new Vector3(_beltTo.x - _beltFrom.x, 0, _beltTo.z - _beltFrom.z);
                 facing = flat.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(flat) : Quaternion.identity;
             }
@@ -244,8 +245,8 @@ namespace MountainPlanner.App
                 {
                     // A tow's rider stands on the snow under the bar, towed along its track.
                     var under = hang.MultiplyPoint3x4(new Vector3(0, -view.CarrierDrop, 0));
-                    float ground = _resort.Surface.HeightAt(under.x, under.z);
-                    eye = new Vector3(under.x, (float.IsNaN(ground) ? under.y : ground) + Camera.SnowDepth + StandingEye, under.z);
+                    float ground = _resort.Surface.SurfaceAt(under.x, under.z);   // task 4.07 PR A3: on top of the snow
+                    eye = new Vector3(under.x, (float.IsNaN(ground) ? under.y : ground) + Camera.GroundMargin + StandingEye, under.z);
                 }
                 else eye = hang.MultiplyPoint3x4(new Vector3(SeatEye.x, SeatEye.y - view.CarrierDrop, SeatEye.z));
                 if (up >= _rideUpT - AlightEarly && up <= _rideUpT + view.CarrierInterval) progress = 1;

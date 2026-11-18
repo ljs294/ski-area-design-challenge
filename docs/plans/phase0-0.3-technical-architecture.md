@@ -256,7 +256,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
   - A future weather engine will freeze and thaw each lake by changing that state. The lake itself and the rendering do not change.
 - *As built (task 10):*
   - `SnowDepthField` (Domain) holds metres per 8 m cell over the ring, filled with 12 in (0.3048 m). Writers change rectangles.
-  - `SurfaceStates` (Presentation) copies the dirty rows into an RFloat texture. `MountainTerrain.shader` scales the snow layer by depth ÷ 0.15 m, so 12 in renders exactly as before.
+  - `SurfaceStates` (Presentation) copies the dirty rows into an RFloat texture. `MountainTerrain.shader` scales the snow layer by depth ÷ the full-cover depth (0.15 m as built; 2 in, `SurfaceStates.FullCoverMetres`, since SN-09 v4 in task 4.07 PR A2). Since task 4.07 PR A3 the ground also stands on the snow (`snow-rendering-design.md` §4.1).
   - Snow on and off still swaps the splat maps, and the field follows them (full before snow returns, zero after it leaves). Thinner snow from a future model will need both splats.
   - `WaterBodies` (Domain) holds a `WaterSurface` (open water, ice, or snow-covered ice, plus thicknesses) per body, with a version number. Iteration 1 has one body, `AllWater`, because telling lakes apart needs a body-ID map, which comes with the weather engine (owner, 2026-10-01).
   - The shader draws that state: snow on ice, bare ice, or open water (dark, glassy, a faint ripple, and the horizon reflected at grazing angles). The developer panel and `-lake snow|ice|open` switch it.

@@ -39,8 +39,12 @@ namespace MountainPlanner.Presentation.Edits
 
         public int Segments { get; private set; }
 
-        /// <summary>Shows the segments (<see cref="Domain.Edits.PendingContours.Build"/>'s quintuples, package metres) in the local frame.</summary>
-        public void Show(List<double> segments, LocalFrame frame)
+        /// <summary>
+        /// Shows the segments (<see cref="Domain.Edits.PendingContours.Build"/>'s quintuples, package metres) in the local frame.
+        /// With <paramref name="surface"/>, each end is raised by the snow there (task 4.07 A3), so the lines show on the snow
+        /// as the earth's own contours do.
+        /// </summary>
+        public void Show(List<double> segments, LocalFrame frame, MountainPlanner.World.ITerrainSurface surface = null)
         {
             _vertices.Clear();
             _indices.Clear();
@@ -49,10 +53,12 @@ namespace MountainPlanner.Presentation.Edits
                 var (x0, z0) = frame.ToLocal(new AlbersPoint(segments[s], segments[s + 1]));
                 var (x1, z1) = frame.ToLocal(new AlbersPoint(segments[s + 2], segments[s + 3]));
                 float y = (float)segments[s + 4] + Lift;
+                float y0 = y + (surface != null ? surface.LiftAt((float)x0, (float)z0) : 0);
+                float y1 = y + (surface != null ? surface.LiftAt((float)x1, (float)z1) : 0);
                 _indices.Add(_vertices.Count);
-                _vertices.Add(new Vector3((float)x0, y, (float)z0));
+                _vertices.Add(new Vector3((float)x0, y0, (float)z0));
                 _indices.Add(_vertices.Count);
-                _vertices.Add(new Vector3((float)x1, y, (float)z1));
+                _vertices.Add(new Vector3((float)x1, y1, (float)z1));
             }
             Segments = _indices.Count / 2;
             _mesh.Clear();

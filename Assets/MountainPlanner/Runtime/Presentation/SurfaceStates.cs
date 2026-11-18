@@ -14,7 +14,7 @@ namespace MountainPlanner.Presentation
     /// snow map's grid) and the shader draws each body in its own state from a small states texture. Until a map is bound
     /// every water pixel reads body 0 (<see cref="WaterBodies.AllWater"/>), iteration 1's one shared state.
     /// </summary>
-    public sealed class SurfaceStates : System.IDisposable
+    public sealed class SurfaceStates : System.IDisposable, World.ISnowLift
     {
         public const float CellMetres = Domain.Snow.SurfaceGrid.CellMetres;
         /// <summary>Snow this deep (metres) covers the ground completely; thinner snow lets the ground show. Task 4.07 PR A2,
@@ -25,7 +25,17 @@ namespace MountainPlanner.Presentation
         static readonly int MapId = Shader.PropertyToID("_SnowDepthMap"), RectId = Shader.PropertyToID("_SnowDepthRect"),
                             ParamsId = Shader.PropertyToID("_SnowDepthParams"), BodyMapId = Shader.PropertyToID("_WaterBodyMap"),
                             BodyStatesId = Shader.PropertyToID("_WaterBodyStates"), BodyParamsId = Shader.PropertyToID("_WaterBodyParams"),
-                            SurfaceId = Shader.PropertyToID("_SnowSurfaceMap"), SizeId = Shader.PropertyToID("_SnowDepthSize");
+                            SurfaceId = Shader.PropertyToID("_SnowSurfaceMap"), SizeId = Shader.PropertyToID("_SnowDepthSize"),
+                            LiftMapId = Shader.PropertyToID("_SnowLiftMap"), LiftParamsId = Shader.PropertyToID("_SnowLiftParams");
+
+        /// <summary>Task 4.07 PR A3: the lift fades in over this far from the ring's edge (the outer <see cref="EdgeZeroCells"/>
+        /// cells don't lift at all), so the diorama wall still meets the ground.</summary>
+        public const float EdgeFadeMetres = 64;
+        public const int EdgeZeroCells = 3;
+        /// <summary>Task 4.07 PR A3: a lift station's footprint is dug out this far round (a point on the curved filter reads two
+        /// cells either side, so the ground is flat right up to the footprint; the cells cleared reach √2 as far on the
+        /// diagonal).</summary>
+        public const float StationClearMetres = 16;
 
         public readonly SnowDepthField Snow;
         public readonly WaterBodies Water;
@@ -34,7 +44,17 @@ namespace MountainPlanner.Presentation
         /// ÷ 4), as the worker stages it: the conditions layer's texture and the cursor's readout. All zero for static snow.
         /// </summary>
         public readonly byte[] Surface;
-        readonly Texture2D _depth, _surface;
+        /// <summary>
+        /// Task 4.07 PR A3: how far the ground is lifted per cell (metres), as the GPU has it: the depth × <see cref="Keep"/>,
+        /// written as each tile goes up, so <see cref="SnowCursor.LiftAt"/> never runs ahead of the picture.
+        /// </summary>
+        public readonly float[] Lift;
+        /// <summary>Task 4.07 PR A3: the share of a cell's depth that lifts the ground: 0 on lakes and ponds (streams keep their
+        /// snow), round lift stations and at the ring's edge, else 1 (fading in over <see cref="EdgeFadeMetres"/>).</summary>
+        public readonly float[] Keep;
+        readonly float[] _edgeKeep;
+        readonly bool[] _lakeCell, _stationCell;
+        readonly Texture2D _depth, _surface, _lift;
         readonly Rect _ring;
         Texture2D _bodyMap, _bodyStates;
         int _waterVersion = -1;
@@ -48,13 +68,17 @@ namespace MountainPlanner.Presentation
         // maps by CopyTexture; three strips in turn, so the CPU never writes one the GPU may still be reading. The rows gather
         // in managed scratch first (a native copy pins its managed source on every call: per row that was most of the cost).
         // With CopyTexture the maps' own CPU copies aren't kept per tile; a whole-map upload (Sync) refreshes them first.
-        Texture2D[] _stageDepth, _stageSurface;
+        Texture2D[] _stageDepth, _stageSurface, _stageLift;
         int _stageNext;
         const int Strips = 3;
         readonly RectInt[] _placed = new RectInt[TilesPerFrame];
-        float[] _scratchDepth;
+        float[] _scratchDepth, _scratchLift;
         byte[] _scratchSurface;
-        bool _mirrorStale;
+        bool _mirrorStale, _liftMirrorStale;
+        // Task 4.07 PR A3: the lift waits for the first full pass of the live snow's tiles (a new game's static snowpack would
+        // otherwise drop away in 512 m squares as they arrive).
+        readonly bool[] _tileSeen;
+        int _tilesSeen;
         /// <summary>Tiles uploaded a frame at most (BG-02 v4: ≤ 0.2 ms a frame; 32 KB a tile, so an 11 km map's 480 tiles in
         /// 80 frames).</summary>
         public const int TilesPerFrame = 6;
@@ -77,6 +101,23 @@ namespace MountainPlanner.Presentation
                 name = "Snow surface", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp,
             };
             Surface = new byte[width * depth * 4];
+            Lift = new float[width * depth];
+            Keep = new float[width * depth];
+            _edgeKeep = new float[width * depth];
+            _lakeCell = new bool[width * depth];
+            _stationCell = new bool[width * depth];
+            for (int j = 0; j < depth; j++)
+                for (int i = 0; i < width; i++)
+                {
+                    int fromEdge = Mathf.Min(Mathf.Min(i, width - 1 - i), Mathf.Min(j, depth - 1 - j));
+                    _edgeKeep[j * width + i] = EdgeKeep(fromEdge);
+                }
+            System.Array.Copy(_edgeKeep, Keep, Keep.Length);
+            _tileSeen = new bool[((width + Tile - 1) / Tile) * ((depth + Tile - 1) / Tile)];
+            _lift = new Texture2D(width, depth, TextureFormat.RFloat, false, true)
+            {
+                name = "Snow lift", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp,
+            };
             _surface.SetPixelData(Surface, 0);
             _surface.Apply(false);
             if (CanCopy)
@@ -84,16 +125,21 @@ namespace MountainPlanner.Presentation
                 // The staging strips now, not on the first tile (that frame was 1.4 ms).
                 _stageDepth = new Texture2D[Strips];
                 _stageSurface = new Texture2D[Strips];
+                _stageLift = new Texture2D[Strips];
                 for (int k = 0; k < Strips; k++)
                 {
+                    _stageLift[k] = new Texture2D(Tile, Tile * TilesPerFrame, TextureFormat.RFloat, false, true) { name = "Snow lift strip" };
                     _stageDepth[k] = new Texture2D(Tile, Tile * TilesPerFrame, TextureFormat.RFloat, false, true) { name = "Snow depth strip" };
                     _stageSurface[k] = new Texture2D(Tile, Tile * TilesPerFrame, TextureFormat.RGBA32, false, true) { name = "Snow surface strip" };
                 }
                 _scratchDepth = new float[Tile * Tile * TilesPerFrame];
+                _scratchLift = new float[Tile * Tile * TilesPerFrame];
                 _scratchSurface = new byte[Tile * Tile * TilesPerFrame * 4];
             }
             Shader.SetGlobalTexture(MapId, _depth);
             Shader.SetGlobalTexture(SurfaceId, _surface);
+            Shader.SetGlobalTexture(LiftMapId, _lift);
+            Shader.SetGlobalVector(LiftParamsId, Vector4.zero);
             _bodyMap = new Texture2D(1, 1, TextureFormat.R8, false, true) { name = "Water bodies (none)", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
             _bodyMap.SetPixelData(new byte[1], 0);
             _bodyMap.Apply(false);
@@ -116,13 +162,15 @@ namespace MountainPlanner.Presentation
                 System.Buffer.BlockCopy(surface, surfaceOffset + j * width * 4, Surface, ((y + j) * Snow.Width + x) * 4, width * 4);
             int key = (y / Tile) * 65536 + x / Tile;
             if (_tilesQueued.Add(key)) _tiles.Enqueue(new RectInt(x, y, width, height));
+            int seen = (y / Tile) * ((Snow.Width + Tile - 1) / Tile) + x / Tile;
+            if (seen >= 0 && seen < _tileSeen.Length && !_tileSeen[seen]) { _tileSeen[seen] = true; _tilesSeen++; }
         }
 
         /// <summary>Tiles still waiting for the GPU.</summary>
         public int TilesWaiting => _tiles.Count;
 
-        /// <summary>The surface's bytes at a cell (type, quality ÷ 4, age, density ÷ 4).</summary>
-        public (byte Type, byte Quality, byte Age, byte Density) SurfaceAt(int x, int y)
+        /// <summary>The surface's bytes at a cell (type, quality ÷ 4, age, density ÷ 4): the Snow conditions map's.</summary>
+        public (byte Type, byte Quality, byte Age, byte Density) ConditionsAt(int x, int y)
         {
             int k = (y * Snow.Width + x) * 4;
             return (Surface[k], Surface[k + 1], Surface[k + 2], Surface[k + 3]);
@@ -181,15 +229,23 @@ namespace MountainPlanner.Presentation
                         NativeArray<float>.Copy(cells, j * fw + r.x, depthPixels, j * fw + r.x, r.width);
                         NativeArray<byte>.Copy(Surface, (j * fw + r.x) * 4, surfacePixels, (j * fw + r.x) * 4, r.width * 4);
                     }
-                    Snow.MarkChanged(r.x, r.y, r.width, r.height);
+                    Snow.MarkChanged(r.x, r.y, r.width, r.height);   // Sync's dirty rows write the lift too
                     wholeSurface = true;
                     continue;
                 }
                 _mirrorStale = true;
                 // Tile k's rows start at row k × Tile, Tile cells apart (an edge tile's narrower rows leave the rest unused).
                 int at = staged * Tile * Tile;
+                _liftMirrorStale = true;
                 for (int j = 0; j < r.height; j++)
                 {
+                    int row = (r.y + j) * fw + r.x, to = at + j * Tile;
+                    for (int i = 0; i < r.width; i++)
+                    {
+                        float lift = cells[row + i] * Keep[row + i];
+                        _scratchLift[to + i] = Lift[row + i] = lift;
+                        if (lift > LiftCeiling) LiftCeiling = lift;
+                    }
                     System.Array.Copy(cells, (r.y + j) * fw + r.x, _scratchDepth, at + j * Tile, r.width);
                     System.Buffer.BlockCopy(Surface, ((r.y + j) * fw + r.x) * 4, _scratchSurface, (at + j * Tile) * 4, r.width * 4);
                 }
@@ -199,7 +255,10 @@ namespace MountainPlanner.Presentation
             {
                 var sd = _stageDepth[_stageNext];
                 var ss = _stageSurface[_stageNext];
+                var sl = _stageLift[_stageNext];
                 _stageNext = (_stageNext + 1) % Strips;
+                NativeArray<float>.Copy(_scratchLift, sl.GetPixelData<float>(0), staged * Tile * Tile);
+                sl.Apply(false);
                 NativeArray<float>.Copy(_scratchDepth, sd.GetPixelData<float>(0), staged * Tile * Tile);
                 NativeArray<byte>.Copy(_scratchSurface, ss.GetPixelData<byte>(0), staged * Tile * Tile * 4);
                 sd.Apply(false);
@@ -209,7 +268,9 @@ namespace MountainPlanner.Presentation
                     var r = placed[k];
                     Graphics.CopyTexture(sd, 0, 0, 0, k * Tile, r.width, r.height, _depth, 0, 0, r.x, r.y);
                     Graphics.CopyTexture(ss, 0, 0, 0, k * Tile, r.width, r.height, _surface, 0, 0, r.x, r.y);
+                    Graphics.CopyTexture(sl, 0, 0, 0, k * Tile, r.width, r.height, _lift, 0, 0, r.x, r.y);
                 }
+                LiftVersion++;
             }
             if (wholeSurface) _surface.Apply(false);
         }
@@ -233,7 +294,10 @@ namespace MountainPlanner.Presentation
                     for (int j = y; j < y + h; j++)
                         NativeArray<float>.Copy(cells, j * Snow.Width + x, pixels, j * Snow.Width + x, w);
                 _depth.Apply(false);
+                PushLift(x, y, w, h);
             }
+            if (!_liftReady && FirstPassDone && _tiles.Count == 0) _liftReady = true;
+            if (_liftAuto) SwitchLift(_snowShown && _liftReady);
             if (Water.Version != _waterVersion)
             {
                 _waterVersion = Water.Version;
@@ -258,6 +322,147 @@ namespace MountainPlanner.Presentation
                 _bodyStates.Apply(false);
                 StateUploads++;
             }
+        }
+
+        /// <summary>
+        /// Task 4.07 PR A3: whether the snow shell stands on the snow, 0 or 1: the shader's lift and <see cref="SnowCursor.LiftAt"/>
+        /// are the lift cells × this. 1 while the Snow map layer is shown (<see cref="SnowShown"/>) and the live snow's first
+        /// full pass has come in (<see cref="FirstPassDone"/>), 0 otherwise. Round 3 (owner, 2026-11-17): it switches at once;
+        /// the ground never moves, and the Snow layer shows or hides the shell (GroundLayers).
+        /// </summary>
+        public float LiftScale { get; private set; }
+
+        /// <summary>The snow shell stands on the snow (<see cref="LiftScale"/> is 1). Setting it switches the lift and takes
+        /// over from the Snow layer for good (<c>-liftab</c>, tests).</summary>
+        public bool LiftOn
+        {
+            get => LiftScale > 0;
+            set
+            {
+                _liftAuto = false;
+                SetLiftScale(value ? 1 : 0);
+                LiftVersion++;
+            }
+        }
+
+        /// <summary>The Snow map layer is on (<see cref="MapLayers"/> sets it). On until told.</summary>
+        public bool SnowShown { get => _snowShown; set => _snowShown = value; }
+
+        bool _liftAuto = true, _liftReady, _snowShown = true;
+
+        void SwitchLift(bool on)
+        {
+            if (LiftOn == on) return;
+            SetLiftScale(on ? 1 : 0);
+            LiftVersion++;   // what is cached on the snow (lines, labels, the traffic) is laid again once
+        }
+
+        void SetLiftScale(float scale)
+        {
+            LiftScale = scale;
+            Shader.SetGlobalVector(LiftParamsId, new Vector4(scale, 0, 0, 0));
+        }
+
+        /// <summary>Task 4.07 PR A3: the lift at local x, z, as the terrain shader draws it (<see cref="SnowCursor.LiftAt"/>).</summary>
+        public float LiftAt(float x, float z) => SnowCursor.LiftAt(this, _ring, x, z);
+
+        /// <summary>Every tile of the field has come in from the worker at least once (the lift's own switch waits for it).</summary>
+        public bool FirstPassDone => _tilesSeen == _tileSeen.Length;
+
+        static float EdgeKeep(int cellsFromEdge)
+        {
+            float metres = (cellsFromEdge - EdgeZeroCells + 0.5f) * CellMetres;
+            return Mathf.Clamp01(metres / (EdgeFadeMetres - EdgeZeroCells * CellMetres));
+        }
+
+        /// <summary>The lift's cells over a rectangle, from the depth and the keep, onto the lift texture's own CPU copy.</summary>
+        void PushLift(int x, int y, int w, int h)
+        {
+            float[] cells = Snow.Cells;
+            int fw = Snow.Width;
+            NativeArray<float> pixels = _lift.GetPixelData<float>(0);
+            if (_liftMirrorStale)
+            {
+                // Tiles went up by CopyTexture, not through this copy: the whole lift, from the CPU cells those tiles wrote.
+                x = 0; y = 0; w = fw; h = Snow.Height;
+                _liftMirrorStale = false;
+            }
+            for (int j = y; j < y + h; j++)
+            {
+                int row = j * fw;
+                for (int i = x; i < x + w; i++)
+                {
+                    float lift = cells[row + i] * Keep[row + i];
+                    Lift[row + i] = lift;
+                    if (lift > LiftCeiling) LiftCeiling = lift;
+                }
+                NativeArray<float>.Copy(Lift, row + x, pixels, row + x, w);
+            }
+            _lift.Apply(false);
+            LiftUploads++;
+            LiftVersion++;
+        }
+
+        /// <summary>
+        /// The deepest lift cell this field has held, metres (it only grows): the snow shell's culling boxes are padded by
+        /// at least this (finding A3-6, <see cref="World.TerrainTiles.PadShellBounds"/>). The shader's lift blends cells, so
+        /// it never stands higher.
+        /// </summary>
+        public float LiftCeiling { get; private set; }
+
+        /// <summary>Moves on whenever the lift the GPU has changes (its cells or its switch): the skiers' copy follows it.</summary>
+        public int LiftVersion { get; private set; }
+
+        /// <summary>Uploads of the lift texture through its CPU copy (tests).</summary>
+        public int LiftUploads { get; private set; }
+
+        void RebuildKeep()
+        {
+            for (int c = 0; c < Keep.Length; c++) Keep[c] = _lakeCell[c] || _stationCell[c] ? 0 : _edgeKeep[c];
+            _liftMirrorStale = true;
+            PushLift(0, 0, Snow.Width, Snow.Height);
+        }
+
+        /// <summary>
+        /// Task 4.07 PR A3: footprints kept clear of the snow (local x/z); cells within <see cref="StationClearMetres"/> of one
+        /// don't lift. Round 3 (owner, 2026-11-17: snow piles up round everything): only a carpet's belt is given, not the
+        /// chair and tow terminals.
+        /// </summary>
+        public void SetStations(System.Collections.Generic.IReadOnlyList<Footprint> stations)
+        {
+            System.Array.Clear(_stationCell, 0, _stationCell.Length);
+            int fw = Snow.Width, fh = Snow.Height;
+            if (stations != null)
+                foreach (var f in stations)
+                {
+                    float reach = Mathf.Max(f.Behind, f.Ahead) + f.HalfWidth + StationClearMetres + CellMetres;
+                    int i0 = Mathf.Max(0, Mathf.FloorToInt((f.Centre.x - reach - _ring.xMin) / CellMetres));
+                    int i1 = Mathf.Min(fw - 1, Mathf.FloorToInt((f.Centre.x + reach - _ring.xMin) / CellMetres));
+                    int j0 = Mathf.Max(0, Mathf.FloorToInt((f.Centre.y - reach - _ring.yMin) / CellMetres));
+                    int j1 = Mathf.Min(fh - 1, Mathf.FloorToInt((f.Centre.y + reach - _ring.yMin) / CellMetres));
+                    var along = f.Along.sqrMagnitude > 1e-6f ? f.Along.normalized : Vector2.up;
+                    var side = new Vector2(-along.y, along.x);
+                    for (int j = j0; j <= j1; j++)
+                        for (int i = i0; i <= i1; i++)
+                        {
+                            // A point on the curve reads cells up to two away along each grid axis (16 m each way, so up to
+                            // 16 m × √2 on the diagonal): a cell whose centre is that close to the footprint can't lift it.
+                            var d = new Vector2(_ring.xMin + (i + 0.5f) * CellMetres, _ring.yMin + (j + 0.5f) * CellMetres) - f.Centre;
+                            float a = Vector2.Dot(d, along), s = Mathf.Abs(Vector2.Dot(d, side));
+                            float outA = a > f.Ahead ? a - f.Ahead : a < -f.Behind ? -f.Behind - a : 0;
+                            float outS = Mathf.Max(0, s - f.HalfWidth);
+                            if (Mathf.Sqrt(outA * outA + outS * outS) <= StationClearMetres * 1.415f) _stationCell[j * fw + i] = true;
+                        }
+                }
+            RebuildKeep();
+        }
+
+        /// <summary>A lift station's footprint for <see cref="SetStations"/>: the bullwheel's spot, the unit direction toward the
+        /// line, and the footprint behind, ahead and to either side (metres).</summary>
+        public struct Footprint
+        {
+            public Vector2 Centre, Along;
+            public float Behind, Ahead, HalfWidth;
         }
 
         /// <summary>How many times the states texture has been uploaded (tests: once per version).</summary>
@@ -290,6 +495,9 @@ namespace MountainPlanner.Presentation
             }
             _bodyMap.SetPixelData(map, 0);
             _bodyMap.Apply(false);
+            // Task 4.07 PR A3: water stays on the earth (lakes and ponds, grown one cell onto the shore; streams keep their snow).
+            for (int c = 0; c < _lakeCell.Length; c++) _lakeCell[c] = map[c] >= 2;
+            RebuildKeep();
             if (Water.Count != table.Count) Water.Resize(table.Count);
             Shader.SetGlobalVector(BodyParamsId, new Vector4(1, table.Count, table.Width, table.Depth));
             BoundTable = table.Hash;
@@ -307,6 +515,8 @@ namespace MountainPlanner.Presentation
         public void Dispose()
         {
             Shader.SetGlobalVector(ParamsId, Vector4.zero);
+            Shader.SetGlobalVector(LiftParamsId, Vector4.zero);
+            Shader.SetGlobalTexture(LiftMapId, null);
             Shader.SetGlobalVector(BodyParamsId, Vector4.zero);
             Shader.SetGlobalTexture(BodyMapId, null);
             Shader.SetGlobalTexture(BodyStatesId, null);
@@ -316,8 +526,9 @@ namespace MountainPlanner.Presentation
             BoundTable = 0;
             DestroyTexture(_depth);
             DestroyTexture(_surface);
+            DestroyTexture(_lift);
             if (_stageDepth != null)
-                for (int k = 0; k < _stageDepth.Length; k++) { DestroyTexture(_stageDepth[k]); DestroyTexture(_stageSurface[k]); }
+                for (int k = 0; k < _stageDepth.Length; k++) { DestroyTexture(_stageDepth[k]); DestroyTexture(_stageSurface[k]); DestroyTexture(_stageLift[k]); }
         }
     }
 }

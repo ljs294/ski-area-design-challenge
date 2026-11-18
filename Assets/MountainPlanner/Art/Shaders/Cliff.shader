@@ -30,6 +30,7 @@ Shader "MountainPlanner/Cliff"
         // Task 10's snow-depth map (SurfaceStates), through Snow.hlsl's curved filter (task 4.07 PR A2): the info layers
         // and the snow on the ledges.
         #include "Snow.hlsl"
+        #include "TrailPaint.hlsl"   // task 4.07 PR A3 round 3 (A3-3): a run painted across a cliff band reads as one band
         ENDHLSL
 
         Pass
@@ -80,7 +81,7 @@ Shader "MountainPlanner/Cliff"
                         info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopePercent, i.positionCS.xy) : ExposureColour(n.xz, slopePercent);
                     }
                     Light sunI = GetMainLight();
-                    return half4(ApplyHaze(ApplyContours(ShadeInfo(info, n, sunI.direction), p.y), p), 1);
+                    return half4(ApplyHaze(ApplyContours(ShadeInfo(ApplyPaint(info, p.xz), n, sunI.direction), p.y), p), 1);
                 }
                 float3 w = pow(abs(n), 4);
                 w /= w.x + w.y + w.z;
@@ -104,7 +105,7 @@ Shader "MountainPlanner/Cliff"
                 float ledge = smoothstep(0.45, 0.75, rn.y + (0.5 - rock.a) * 0.35) * saturate(SnowDepthAt(p) / 0.05);
                 // Where the shell fades into the slope, it becomes the snowfield it merges with (as the ground's cover there).
                 float snow = max(ledge, (1 - smoothstep(0.15, 0.55, i.weight)) * SnowCoverAt(p)) * _SnowLoad;
-                float3 albedo = lerp(rock.rgb, snowAlbedo.rgb, snow);
+                float3 albedo = ApplyPaint(lerp(rock.rgb, snowAlbedo.rgb, snow), p.xz);   // as the ground paints its albedo
                 float3 normal = normalize(lerp(rn, n, snow * 0.7));
 
                 Light sun = MainLightWithFarShadow(p);

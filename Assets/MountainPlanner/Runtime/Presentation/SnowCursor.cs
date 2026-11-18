@@ -14,29 +14,49 @@ namespace MountainPlanner.Presentation
         {
             var field = states?.Snow;
             if (field == null) return float.NaN;
-            float s = (x - ring.xMin) / field.CellMetres - 0.5f, t = (z - ring.yMin) / field.CellMetres - 0.5f;
-            if (s < -1 || t < -1 || s > field.Width || t > field.Height) return float.NaN;
+            return Smooth(field.Cells, field.Width, field.Height, field.CellMetres, ring, x, z);
+        }
+
+        /// <summary>
+        /// Task 4.07 PR A3: how far the ground is lifted at local x, z (metres), as the terrain shader lifts it: the same curve
+        /// over <see cref="SurfaceStates.Lift"/>, × <see cref="SurfaceStates.LiftScale"/>. 0 while the lift is off, and off the field.
+        /// </summary>
+        public static float LiftAt(SurfaceStates states, Rect ring, float x, float z)
+        {
+            if (states == null || !states.LiftOn) return 0;
+            var field = states.Snow;
+            float d = Smooth(states.Lift, field.Width, field.Height, field.CellMetres, ring, x, z);
+            return float.IsNaN(d) ? 0 : d * states.LiftScale;
+        }
+
+        /// <summary>The cubic B-spline over a field's cells (clamped at its edges, as the textures are), or NaN past them.</summary>
+        static float Smooth(float[] cells, int width, int height, float cellMetres, Rect ring, float x, float z)
+        {
+            float s = (x - ring.xMin) / cellMetres - 0.5f, t = (z - ring.yMin) / cellMetres - 0.5f;
+            if (s < -1 || t < -1 || s > width || t > height) return float.NaN;
             int i = Mathf.FloorToInt(s), j = Mathf.FloorToInt(t);
             Weights(s - i, out float a0, out float a1, out float a2, out float a3);
             Weights(t - j, out float b0, out float b1, out float b2, out float b3);
-            float Row(int y) => a0 * Cell(field, i - 1, y) + a1 * Cell(field, i, y) + a2 * Cell(field, i + 1, y) + a3 * Cell(field, i + 2, y);
+            float Row(int y)
+            {
+                int r = Mathf.Clamp(y, 0, height - 1) * width;
+                return a0 * cells[r + Mathf.Clamp(i - 1, 0, width - 1)] + a1 * cells[r + Mathf.Clamp(i, 0, width - 1)]
+                     + a2 * cells[r + Mathf.Clamp(i + 1, 0, width - 1)] + a3 * cells[r + Mathf.Clamp(i + 2, 0, width - 1)];
+            }
             return Mathf.Max(0, b0 * Row(j - 1) + b1 * Row(j) + b2 * Row(j + 1) + b3 * Row(j + 2));
         }
 
         /// <summary>The surface of the cell under local x, z: its type (SnowType's number), quality (‰), age (face hours) and
         /// density (kg/m³); type −1 off the field.</summary>
-        public static (int Type, int Quality, int AgeHours, int Density) SurfaceAt(SurfaceStates states, Rect ring, float x, float z)
+        public static (int Type, int Quality, int AgeHours, int Density) ConditionsAt(SurfaceStates states, Rect ring, float x, float z)
         {
             var field = states?.Snow;
             if (field == null) return (-1, 0, 0, 0);
             int i = Mathf.FloorToInt((x - ring.xMin) / field.CellMetres), j = Mathf.FloorToInt((z - ring.yMin) / field.CellMetres);
             if (i < 0 || j < 0 || i >= field.Width || j >= field.Height) return (-1, 0, 0, 0);
-            var (type, quality, age, density) = states.SurfaceAt(i, j);
+            var (type, quality, age, density) = states.ConditionsAt(i, j);
             return (type, quality * 4, age, density * 4);
         }
-
-        // The texture's clamp: a cell past the edge reads the edge's.
-        static float Cell(Domain.Snow.SnowDepthField f, int x, int y) => f[Mathf.Clamp(x, 0, f.Width - 1), Mathf.Clamp(y, 0, f.Height - 1)];
 
         /// <summary>The cubic B-spline's weights for a fraction past the second of four cells (Snow.hlsl's SnowSplineWeights).</summary>
         public static void Weights(float f, out float w0, out float w1, out float w2, out float w3)

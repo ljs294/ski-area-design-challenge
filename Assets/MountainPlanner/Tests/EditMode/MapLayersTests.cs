@@ -78,6 +78,50 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void SnowShowsAndHidesTheSnowShellInTheSameCall()
+        {
+            // Task 4.07 PR A3 round 3: a tile's snow shell is a second Terrain on the tile's own data, drawn with the shell variant.
+            var layers = Bound(out var ground, out _);
+            var data = new TerrainData { heightmapResolution = 33, size = new Vector3(64, 100, 64) };
+            var tileObject = new GameObject("tile");
+            try
+            {
+                var tile = tileObject.AddComponent<Terrain>();
+                tile.terrainData = data;
+                tile.materialTemplate = _terrain;
+                Assert.That(ground.ShellMaterial, Is.Not.Null);
+                Assert.That(ground.ShellMaterial.IsKeywordEnabled(MountainPlanner.World.TerrainTiles.ShellKeyword), "the shell variant");
+                Assert.That(ground.ShellMaterial.GetFloat("_ShellOffset"), Is.EqualTo(-1), "a step nearer than the ground");
+                // Task 4.07 PR A3 repair: the shell is cut to the ring by its own copy of the bounds; without them it is cut
+                // away everywhere (the copy of the ground's material didn't carry them in the built game).
+                Assert.That(ground.ShellMaterial.GetVector("_RingBounds"), Is.EqualTo(new Vector4(-1000, -1000, 1000, 1000)), "the shell's own ring bounds");
+                Assert.That(ground.ShellMaterial.GetFloatArray("_Tile"), Is.EqualTo(_terrain.GetFloatArray("_Tile")), "and its own tiling");
+                Assert.That(ground.ShellMaterial.renderQueue, Is.EqualTo(_terrain.renderQueue - 1), "drawn before the ground (the ground under it is not shaded)");
+                var shell = MountainPlanner.World.TerrainTiles.CreateShell(tile, ground.ShellMaterial, MountainPlanner.World.TerrainDetail.High, ground.SnowOn);
+                ground.ShellTiles = new[] { tile };
+                Assert.That(MountainPlanner.World.TerrainTiles.ShellOf(tile), Is.SameAs(shell));
+                Assert.That(shell.terrainData, Is.SameAs(data), "the tile's own data: no copy, edits reach it");
+                Assert.That(shell.heightmapPixelError, Is.EqualTo(2 * tile.heightmapPixelError).Or.EqualTo(2 * MountainPlanner.World.TerrainDetailSettings.PixelError(MountainPlanner.World.TerrainDetail.High)), "half the ground's detail");
+                Assert.That(MountainPlanner.World.TerrainTiles.IsShell(shell) && !MountainPlanner.World.TerrainTiles.IsShell(tile));
+                Assert.That(shell.drawHeightmap, Is.True);
+                layers.Toggle(MapLayers.Snow);
+                Assert.That(shell.drawHeightmap, Is.False, "off: hidden in the same call as the white");
+                Assert.That(tile.drawHeightmap, Is.True, "the ground stays");
+                Assert.That(tile.transform.position, Is.EqualTo(Vector3.zero), "and never moves");
+                layers.Toggle(MapLayers.Snow);
+                Assert.That(shell.drawHeightmap, Is.True);
+                layers.Set(MapLayers.CoverMap, true);
+                Assert.That(ground.ShellMaterial.GetFloat("_Overlay"), Is.EqualTo(1), "the shell steps aside for the cover map");
+            }
+            finally
+            {
+                Object.DestroyImmediate(tileObject);
+                Object.DestroyImmediate(data);
+                Object.DestroyImmediate(ground.ShellMaterial);
+            }
+        }
+
+        [Test]
         public void TreesStopDrawingWithoutLosingThem()
         {
             var layers = Bound(out _, out var view);

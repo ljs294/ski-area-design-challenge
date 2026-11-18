@@ -5,6 +5,7 @@ using MountainPlanner.Domain.Design;
 using MountainPlanner.Presentation.Design;
 using MountainPlanner.UI;
 using UnityEngine;
+using MountainPlanner.World;
 
 namespace MountainPlanner.App
 {
@@ -185,7 +186,7 @@ namespace MountainPlanner.App
                 {
                     var c = a.Area.Station.Centre;
                     float cx = (float)c.XMetres, cz = (float)c.YMetres;
-                    _areaLabelSpots.Add((a.Area.Name, new Vector3(cx, _resort.Surface.HeightAt(cx, cz) + 12, cz)));
+                    _areaLabelSpots.Add((a.Area.Name, new Vector3(cx, _resort.Surface.SurfaceAt(cx, cz) + 12, cz)));
                 }
             }
             if (Hud != null && _resort != null)
@@ -211,7 +212,7 @@ namespace MountainPlanner.App
             Vector3 Drape(double latticeX, double latticeY)
             {
                 float x = (float)(latticeX - site.OriginX), z = (float)(latticeY - site.OriginY);
-                float y = surface.HeightAt(x, z);
+                float y = surface.SurfaceAt(x, z);   // task 4.07 PR A3: draped on the snow
                 return new Vector3(x, float.IsNaN(y) ? 0 : y + 2, z);
             }
             Vector3 DrapePoint(PointMm p) => Drape(site.OriginX + p.XMetres, site.OriginY + p.YMetres);

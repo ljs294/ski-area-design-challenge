@@ -8,6 +8,7 @@ using MountainPlanner.Presentation.Design;
 using MountainPlanner.Presentation.Lifts;
 using MountainPlanner.World.Lifts;
 using UnityEngine;
+using MountainPlanner.World;
 
 namespace MountainPlanner.App
 {
@@ -144,6 +145,12 @@ namespace MountainPlanner.App
         /// <summary>How long the last rebuild of the built lifts and trail lines took on the main thread, ms (the brush bench).</summary>
         public double LastBuiltMs { get; private set; }
 
+        float _builtLiftScale = -1, _builtRelayNext;
+        int _builtLiftVersion = -1;
+        bool _relayLiftLines;
+        /// <summary>How often the lift lines over the snow follow its changes (real seconds; about a face hour at 1×).</summary>
+        const float RelaySeconds = 15;
+
         void UpdateBuiltWork()
         {
             if (_builtFor == null || _resort == null) return;
@@ -154,6 +161,28 @@ namespace MountainPlanner.App
                 _liftMaterials?.SetSnowLoad(snow);
             }
             ShowLifts(_layers == null || _layers.LiftsOn, false);
+            // Task 4.07 PR A3 round 3: the lines and labels laid over the snow follow it: at once when the Snow layer switches
+            // the shell, and as the snow changes, at most every RelaySeconds (the lifts themselves stand on the earth and stay).
+            var liftStates = _resort.States;
+            if (liftStates != null && liftStates.LiftVersion != _builtLiftVersion)
+            {
+                bool switched = liftStates.LiftScale != _builtLiftScale;
+                if (switched || Time.unscaledTime >= _builtRelayNext)
+                {
+                    bool first = _builtLiftScale < 0;
+                    _builtLiftVersion = liftStates.LiftVersion;
+                    _builtLiftScale = liftStates.LiftScale;
+                    _builtRelayNext = Time.unscaledTime + RelaySeconds;
+                    // The switch lays everything again; the snow's own changes only the lift lines (cheap; the trail map's
+                    // rebuild is not, so its lines follow the snow at the switch and with the design).
+                    if (!first && _builtFor != null) { _builtDirty |= switched; _relayLiftLines = true; }
+                }
+            }
+            if (_relayLiftLines && !_builtDirty)
+            {
+                _relayLiftLines = false;
+                foreach (var kv in _liftViews) if (kv.Value.View != null) SetLiftMapLine(kv.Value.Lift, kv.Value.View);
+            }
             if (!_builtDirty) return;
             if (EditsBusy)
             {
@@ -245,15 +274,7 @@ namespace MountainPlanner.App
                 _liftViews[lift.Id] = (lift, view);
                 _liftGround[lift.Id] = underTowers;
                 var rope = view.Rope;
-                // LT10: the lift's trail-map line, ticks at its towers.
-                if (_mapLines == null) _mapLines = new LiftMapLines(_resort.Root.transform);
-                var b0 = new Vector3((float)lift.Bottom.XMetres, 0, (float)lift.Bottom.YMetres);
-                var t0 = new Vector3((float)lift.Top.XMetres, 0, (float)lift.Top.YMetres);
-                var along = (t0 - b0).normalized;
-                var ticks = new List<Vector3>(rope?.Towers.Count ?? 0);
-                if (rope != null) foreach (var tower in rope.Towers) ticks.Add(b0 + along * (float)tower.BaseS);
-                var surface = _resort.Surface;
-                _mapLines.Set(lift.Id.Value, b0, t0, ticks, (x, z) => surface.HeightAt(x, z));
+                SetLiftMapLine(lift, view);
                 if (rope == null)
                 {
                     var bed = view.Bed;
@@ -270,6 +291,11 @@ namespace MountainPlanner.App
                           (rope.Towers.Count > 0   // a lift built before task 09 places its towers has none
                               ? $"station foundations {rope.Towers[0].Reveal / 0.3048:F1} / {rope.Towers[rope.Towers.Count - 1].Reveal / 0.3048:F1} ft"
                               : "no towers yet"));
+            }
+            if (_relayLiftLines)
+            {
+                _relayLiftLines = false;
+                foreach (var kv in _liftViews) if (kv.Value.View != null) SetLiftMapLine(kv.Value.Lift, kv.Value.View);
             }
             double liftsMs = builtWatch.Elapsed.TotalMilliseconds - mapMs - layerMs;
             var gone = new List<LiftId>();
@@ -308,6 +334,20 @@ namespace MountainPlanner.App
 
         // Each lift's name centred on its line and slanted with it (NT7), rebuilt when the design changes; lift names
         // always show (NT7: lift labels win).
+        /// <summary>LT10: the lift's trail-map line, ticks at its towers, laid over the snow (task 4.07 PR A3).</summary>
+        void SetLiftMapLine(Lift lift, LiftView view)
+        {
+            if (_mapLines == null) _mapLines = new LiftMapLines(_resort.Root.transform);
+            var rope = view.Rope;
+            var b0 = new Vector3((float)lift.Bottom.XMetres, 0, (float)lift.Bottom.YMetres);
+            var t0 = new Vector3((float)lift.Top.XMetres, 0, (float)lift.Top.YMetres);
+            var along = (t0 - b0).normalized;
+            var ticks = new List<Vector3>(rope?.Towers.Count ?? 0);
+            if (rope != null) foreach (var tower in rope.Towers) ticks.Add(b0 + along * (float)tower.BaseS);
+            var surface = _resort.Surface;
+            _mapLines.Set(lift.Id.Value, b0, t0, ticks, (x, z) => surface.SurfaceAt(x, z));
+        }
+
         void LabelLifts(DesignDocument doc)
         {
             if (Hud == null || _resort == null) return;
@@ -322,7 +362,7 @@ namespace MountainPlanner.App
             _liftLabels.SetLabels(_liftLabelSpots);
         }
 
-        Vector3 OnGround(Vector2 p) => new Vector3(p.x, _resort.Surface.HeightAt(p.x, p.y), p.y);
+        Vector3 OnGround(Vector2 p) => new Vector3(p.x, _resort.Surface.SurfaceAt(p.x, p.y), p.y);   // task 4.07 PR A3: the top of the snow
 
         // ---------- Analysis › Lifts (task 09) ----------
 

@@ -158,10 +158,53 @@ namespace MountainPlanner.App
 
         // ---------- paths and lines, once per design ----------
 
+        long _stationsRevision = long.MinValue;
+        readonly List<Presentation.SurfaceStates.Footprint> _stations = new List<Presentation.SurfaceStates.Footprint>();
+
+        /// <summary>
+        /// Task 4.07 PR A3 (owner, 2026-11-15): until PR B gives stations managed snow, the picture digs each built lift's
+        /// terminals out of the snow (and a carpet over its whole length), so a loading area isn't buried and its line doesn't
+        /// stand above the chairs. Once per design revision.
+        /// </summary>
+        void DigOutStations(SimDesign design)
+        {
+            var states = _resort?.States;
+            var doc = _skierDoc;
+            if (states == null || doc == null || design.Revision == _stationsRevision) return;
+            _stationsRevision = design.Revision;
+            _stations.Clear();
+            foreach (var li in design.Lifts)
+            {
+                if (!li.Built) continue;
+                var lift = doc.FindLift(new LiftId(li.Id));
+                if (lift == null) continue;
+                var bottom = DesignFrame.ToLocal(lift.Bottom);
+                var top = DesignFrame.ToLocal(lift.Top);
+                var up = top - bottom;
+                float len = up.magnitude;
+                if (len < 1e-3f) continue;
+                var type = LiftTypes.Measured(LiftType.Of(lift), Lifts);
+                var b = type.Bottom;
+                var tp = type.TopFootprint ?? type.Top;
+                float bb = (float)(b?.Behind ?? 3), ba = (float)(b?.Ahead ?? 3), bw = (float)(b?.HalfWidth ?? 3);
+                float tb = (float)(tp?.Behind ?? 3), ta = (float)(tp?.Ahead ?? 3), tw = (float)(tp?.HalfWidth ?? 3);
+                if (type.Belt)
+                {
+                    // A carpet lies on the earth end to end: one footprint from behind its bottom to past its top.
+                    _stations.Add(new Presentation.SurfaceStates.Footprint { Centre = bottom, Along = up, Behind = bb, Ahead = len + tb, HalfWidth = Mathf.Max(bw, tw) });
+                    continue;
+                }
+                // Task 4.07 PR A3 round 3 (owner, 2026-11-17: snow piles up round everything): a chair or tow's terminals stand in
+                // the snow, their bases buried; only a carpet's belt is kept clear.
+            }
+            states.SetStations(_stations);
+        }
+
         void BuildSkierPaths(SkierLayer layer)
         {
             var design = _skierDesign;
             if (design == null) return;
+            DigOutStations(design);
             var network = design.Network;
             if (_skierBuiltAny && design.Revision == _skierBuiltRevision && ReferenceEquals(network, _skierBuiltNetwork)) return;
             var doc = _skierDoc;
@@ -283,14 +326,18 @@ namespace MountainPlanner.App
             };
         }
 
-        /// <summary>SI-17: the dots stand on the snow, copied from the screen's field when tiles come in (at most every 2 s).</summary>
+        /// <summary>SI-17, task 4.07 PR A3: the guests stand on the snow the ground is drawn lifted by, copied from the screen's lift
+        /// when it changes (at most every 2 s), times the lift's scale every frame (the Snow layer's ease; 0 while it is off).</summary>
         void CopySkierSnow(SkierLayer layer)
         {
-            var field = _resort.States?.Snow;
-            if (field == null || Time.unscaledTime < _nextSkierSnow || _simTilesShown == _skierSnowShown) return;
+            var states = _resort.States;
+            if (states == null) return;
+            layer.SnowScale = states.LiftScale;
+            if (Time.unscaledTime < _nextSkierSnow || states.LiftVersion == _skierSnowShown) return;
             _nextSkierSnow = Time.unscaledTime + 2f;
-            _skierSnowShown = _simTilesShown;
-            layer.SetSnow(field.Width, field.Height, new Vector2(_resort.Ring.xMin, _resort.Ring.yMin), field.CellMetres, field.Cells);
+            _skierSnowShown = states.LiftVersion;
+            var field = states.Snow;
+            layer.SetSnow(field.Width, field.Height, new Vector2(_resort.Ring.xMin, _resort.Ring.yMin), field.CellMetres, states.Lift);
         }
 
         // ---------- hover and click ----------

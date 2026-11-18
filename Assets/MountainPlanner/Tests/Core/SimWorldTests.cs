@@ -179,32 +179,42 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void TM06_SkipToMorningLandsAnHourBeforeOpeningAndNotWhileTheLiftsRun()
+        public void TM06_SkipToMorningLandsAnHourBeforeTheNextOpeningEvenWhileTheLiftsRun()
         {
             var w = World();
             Open(w);
             w.Step(1);
-            Assert.That(w.SkipTarget(SkipKind.Morning, out _), Is.False, "the lifts are running");
+            long tomorrow = Day + (DayHours.Default.OpenSecond - 3600) * 1000L;
+            Assert.That(w.SkipTarget(SkipKind.Morning, out long t), Is.True, "the lifts are running: tomorrow's morning");
+            Assert.That(t, Is.EqualTo(tomorrow));
             RunTo(w, 18 * Hour);
-            Assert.That(w.SkipTarget(SkipKind.Morning, out long t), Is.True);
-            Assert.That(t, Is.EqualTo(Day + (DayHours.Default.OpenSecond - 3600) * 1000L), "7:30 the next day");
+            Assert.That(w.SkipTarget(SkipKind.Morning, out t), Is.True);
+            Assert.That(t, Is.EqualTo(tomorrow), "7:30 the next day");
             RunTo(w, Day + 7 * Hour + 45 * 60_000L);
-            Assert.That(w.SkipTarget(SkipKind.Morning, out _), Is.False, "already morning");
+            Assert.That(w.SkipTarget(SkipKind.Morning, out t), Is.True, "already morning: the next one");
+            Assert.That(t, Is.EqualTo(2 * Day + (DayHours.Default.OpenSecond - 3600) * 1000L));
         }
 
         [Test]
-        public void TM14_TheNextThirdIsForPreSeasonAndTheNextMonthForSummer()
+        public void TM14_EverySkipWorksInEveryPhase()
         {
             var w = World();
-            Assert.That(w.SkipTarget(SkipKind.NextThird, out long t), Is.True);
             var cal = new LabelCalendar(P);
-            Assert.That(t, Is.EqualTo(cal.NextThirdStart(0) * Day + (DayHours.Default.OpenSecond - 3600) * 1000L));
-            Assert.That(w.SkipTarget(SkipKind.NextMonth, out _), Is.False);
+            long landing = (DayHours.Default.OpenSecond - 3600) * 1000L;
+            Assert.That(w.Phase, Is.EqualTo(SeasonPhase.PreSeason));
+            Assert.That(w.SkipTarget(SkipKind.NextThird, out long t), Is.True);
+            Assert.That(t, Is.EqualTo(cal.NextThirdStart(0) * Day + landing));
+            Assert.That(w.SkipTarget(SkipKind.NextMonth, out t), Is.True, "pre-season: the next month too");
+            Assert.That(t, Is.EqualTo(cal.NextMonthStart(0) * Day + landing), "November 1");
             Open(w);
             w.Step(1);
+            Assert.That(w.Phase, Is.EqualTo(SeasonPhase.Season));
+            foreach (var kind in new[] { SkipKind.Morning, SkipKind.NextThird, SkipKind.NextMonth })
+                Assert.That(w.SkipTarget(kind, out _), Is.True, $"{kind} in an open season, the lifts running");
             w.ApplyNow(SimCommand.Of(SimCommandKind.SetMountainOpen, 0));
-            Assert.That(w.SkipTarget(SkipKind.NextThird, out _), Is.False);
-            Assert.That(w.SkipTarget(SkipKind.NextMonth, out _), Is.True);
+            Assert.That(w.Phase, Is.EqualTo(SeasonPhase.Summer));
+            foreach (var kind in new[] { SkipKind.Morning, SkipKind.NextThird, SkipKind.NextMonth })
+                Assert.That(w.SkipTarget(kind, out _), Is.True, $"{kind} in summer");
         }
 
         [Test]
@@ -433,8 +443,14 @@ namespace MountainPlanner.Tests
             h.Service();
             Assert.That(h.Latest.Skip, Is.EqualTo(SkipKind.None));
             h.Send(SimCommandKind.SkipToNextMonth);
+            h.Send(SimCommandKind.SkipToMorning);
             h.Service();
-            Assert.That(h.Latest.Skip, Is.EqualTo(SkipKind.None), "pre-season: no month skip");
+            Assert.That(h.Latest.Skip, Is.EqualTo(SkipKind.NextMonth), "pre-season: the month skip runs");
+            bool refused = false;
+            var events = h.WorldUnsafe.Events;
+            for (long q = 0; q < events.Count; q++)
+                if (events.TryGet(q, out var e) && e.Type == SimEventType.CommandRejected && e.Detail == (ushort)SimRefusal.SkipNotAllowed) refused = true;
+            Assert.That(refused, Is.True, "a second skip while one runs is refused");
         }
 
         [Test]

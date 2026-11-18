@@ -12,6 +12,8 @@ namespace MountainPlanner.Tests
         sealed class Ridge : ITerrainSurface
         {
             public Rect Footprint => new Rect(-2000, -2000, 4000, 4000);
+            public float Lift;
+            public float LiftAt(float x, float z) => Lift;
             public float HeightAt(float x, float z) => 1000 + Mathf.Max(0, 300 - Mathf.Abs(x) * 3);
         }
 
@@ -31,6 +33,7 @@ namespace MountainPlanner.Tests
             readonly Ridge _ridge = new Ridge();
             public int Samples;
             public Rect Footprint => _ridge.Footprint;
+            public float LiftAt(float x, float z) => _ridge.LiftAt(x, z);
             public float HeightAt(float x, float z) { Samples++; return _ridge.HeightAt(x, z); }
         }
 

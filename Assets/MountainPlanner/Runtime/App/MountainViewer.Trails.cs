@@ -197,6 +197,22 @@ namespace MountainPlanner.App
                 ["steep"] = (new float[] { -650, 380, -660, 500, -650, 640 }, new[] { 150 }, new (float, float, int)[0]),
             };
 
+        /// <summary>A test trail by name: <see cref="TrailSpots"/>, or "corbet" (task 4.07 PR A3, finding A3-3): down the first
+        /// landmark's line (Corbet's Couloir at Jackson Hole) and 250 m on, through its cliff band, 100 ft wide.</summary>
+        bool TryTrailSpot(string name, out (float[] path, int[] feet, (float x, float z, int ft)[] islands) spot)
+        {
+            if (TrailSpots.TryGetValue(name, out spot)) return true;
+            if (name != "corbet" || _landmarks.Count == 0 || _landmarks[0].Line == null || _landmarks[0].Line.positionCount < 2) return false;
+            var line = _landmarks[0].Line;
+            var top = line.GetPosition(0);
+            var bottom = line.GetPosition(line.positionCount - 1);
+            var dir = new Vector2(bottom.x - top.x, bottom.z - top.z).normalized;
+            var end = new Vector2(bottom.x, bottom.z) + dir * 250;
+            spot = (new[] { top.x, top.z, bottom.x, bottom.z, end.x, end.y }, new[] { 100 }, new (float, float, int)[0]);
+            Debug.Log($"[TrailShots] corbet: ({top.x:F0}, {top.z:F0}) → ({bottom.x:F0}, {bottom.z:F0}) → ({end.x:F0}, {end.y:F0})");
+            return true;
+        }
+
         // ---------- -paintbench <file>: how the brush feels (owner, 2026-10-20: "laggy, not very elegant") ----------
 
         /// <summary>
@@ -279,7 +295,7 @@ namespace MountainPlanner.App
         IEnumerator PaintMovie(string folder, string spotName)
         {
             while (_resort == null || !_resort.CoverReady.IsCompleted || WorkBusy || _tools == null) yield return null;
-            if (!TrailSpots.TryGetValue(spotName, out var spot)) yield break;
+            if (!TryTrailSpot(spotName, out var spot)) yield break;
             if (Camera != null) Camera.InputEnabled = false;
             Hud.SetToolboxTab("trails");
             Hud.SetToolbox(true);
@@ -471,7 +487,7 @@ namespace MountainPlanner.App
         {
             Directory.CreateDirectory(dir);
             while (_resort == null || !_resort.CoverReady.IsCompleted || WorkBusy || _tools == null) yield return null;
-            if (!TrailSpots.TryGetValue(spotName, out var spot)) { Debug.LogWarning("[TrailShots] unknown spot " + spotName); yield break; }
+            if (!TryTrailSpot(spotName, out var spot)) { Debug.LogWarning("[TrailShots] unknown spot " + spotName); yield break; }
             Hud.SetToolboxTab("trails");
             Hud.SetToolbox(true);
             _tools.Choose(NewTrailTool.ToolId);
