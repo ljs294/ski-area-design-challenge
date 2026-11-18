@@ -60,7 +60,7 @@ namespace MountainPlanner.App
                 _trailPaint.Style = Mathf.Max(0, "abc".IndexOf(char.ToLowerInvariant(cli[style + 1][0])));
             _preview.Cleared += _trailPaint.Clear;   // a tool's close or commit takes its paint off the ground too
             FollowDesign();
-            _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core)
+            _tools = new ToolHost(_ => HookedWater(new ToolContext(Design, _preview, _resort.Surface, _resort.Core)
             {
                 Earthwork = Ground, Lines = new TrailLineSnap(() => Ground?.Earthwork), Paint = _trailPaint,
                 LiveGround = Ground as ILiveGround,   // task 15's brushes
@@ -90,12 +90,14 @@ namespace MountainPlanner.App
                 DraftPartUnderPointer = () => _draftPart,
                 HighlightDraftPart = HighlightDraftPart,
                 CatchmentNote = () => _catchmentNote,   // P3-10, NT16
-            }, Hud.OpenWindow);
+            }), Hud.OpenWindow);
             _tools.ActiveChanged += Hud.SetActiveTool;
             _tools.Notice += text => Hud.Toast(text);
             Hud.ToolChosen += id => _tools.Choose(id);
             Hud.ToolboxLeft += CancelTool;
         }
+
+        ToolContext HookedWater(ToolContext c) { HookWater(c); return c; }   // task 4.14
 
         // A tray closing or changing tab cancels the armed tool at once, saying so if it had work (CF-01; P3-06 Q8).
         void CancelTool()

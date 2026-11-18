@@ -90,6 +90,31 @@ namespace MountainPlanner.UI.Tools
         /// <summary>A one-line notice in the HUD's toasts ("New trail discarded").</summary>
         public Action<string> Notice { get; set; }
 
+        /// <summary>Task 4.14: the stream or lake at a design point ("Twin Creek", "a stream", "a lake"), or null for dry ground;
+        /// a pond's shoreline may not cross one. Null in tests without a map.</summary>
+        public Func<PointMm, string> WaterUnder { get; set; }
+
+        /// <summary>Task 4.14 (PD-05): the streams a dam line from a to b crosses, from the area's water.json (or the
+        /// rasterised streams body); null in tests without a map.</summary>
+        public Func<PointMm, PointMm, IReadOnlyList<StreamCrossing>> StreamsCrossing { get; set; }
+
+        /// <summary>Task 4.14 (PD-12): metres from a design point to the nearest stream (a line from water.json, or the streams
+        /// body), +∞ when none is within reach; null in tests without a map (any point may start a dam).</summary>
+        public Func<PointMm, double> StreamDistance { get; set; }
+
+        /// <summary>
+        /// Task 4.14 (F3): the review's water standing at <c>level</c> metres over the mask's points, hiding the built pond or
+        /// dam (by id, 0 for none) it would replace; a null mask takes it away. Unset in tests.
+        /// </summary>
+        public Action<WaterMask, double, ulong> PreviewWater { get; set; }
+
+        /// <summary>Task 4.14 (F3): the area's stream lines, local metres (x east, z north), for the Dam tool to show.</summary>
+        public Func<IReadOnlyList<Vector2[]>> StreamLines { get; set; }
+
+        /// <summary>Task 4.14 (WS-01, LK-02): the lake under a design point (its WaterBodyTable id, name, estimated depth in
+        /// tenths of a foot, area), or null; the Water source tool picks with it.</summary>
+        public Func<PointMm, LakeUnder?> LakeAt { get; set; }
+
         /// <summary>Where confirmed earthwork is paid for (BR19): the Phase 4 economy; null until then, so nothing is charged.</summary>
         public IEarthworkCharges Charges { get; set; }
 

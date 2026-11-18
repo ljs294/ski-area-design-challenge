@@ -145,6 +145,7 @@ namespace MountainPlanner.App.Flow
             "-proofhold",   // task 4.13 PR C2
             "-snowlapse",   // task 4.07 PR A2: the time-lapse plays its own new game
             "-lakereport",   // task 4.09
+            "-watershots",   // task 4.14
         };
 
         void UpdateSaves(Keyboard keys)

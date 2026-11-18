@@ -548,6 +548,13 @@ body.solo .frame { border-radius: 0; }
 .hud .secchip .mono { color: var(--soft); }
 .hud .lmsg.err { color: var(--neg); }
 .hud .lmsg.warn { color: var(--warn); }
+/* task 4.14: a source's fill bar (the tick is the minimum pool, WS-05) and the source of a figure (estimate, OpenStreetMap, yours) */
+.hud .wbar { position: relative; display: inline-block; width: 58px; height: 8px; margin-right: 5px; vertical-align: middle; border-radius: 2px; background: var(--chip); }
+.hud .wbar span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: #4f8fb8; }
+.hud .wbar i { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--warn); }
+.hud .wbtn { display: inline-grid; place-items: center; min-width: 20px; height: 19px; padding: 0 6px; margin-left: 3px; border: 1px solid var(--hair2); border-radius: 3px; font: 700 10.5px 'Overpass Mono', monospace; color: var(--text); cursor: pointer; vertical-align: middle; }
+.hud .wbtn:hover { background: var(--chip); }
+.hud .wtag { padding: 1px 5px; border-radius: 3px; background: var(--chip); color: var(--muted); font: 700 10px 'DotFix', 'Overpass'; }
 .hud .lstrip { overflow: hidden; }
 .hud .lstrip .lsh { display: flex; align-items: center; gap: 12px; height: 30px; padding: 0 12px; border-bottom: 1px solid var(--hair); font: 800 13px 'DotFix', 'Overpass'; white-space: nowrap; }
 .hud .lstrip .lsh .mono { font: 500 11.5px 'Overpass Mono', monospace; color: var(--muted); }
@@ -631,6 +638,9 @@ body.solo .frame { border-radius: 0; }
   <symbol id="s-gun" viewBox="0 0 24 24"><g transform="rotate(-28 11 12)"><rect x="3.8" y="8.6" width="11" height="6.8" rx="2.2"/><rect x="15.6" y="7.6" width="2.4" height="8.8" rx="1"/></g><path d="M9.6 15.2L7 21.4M9.6 15.2l3 6.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="19.6" cy="4.3" r="1.2"/><circle cx="21.6" cy="7.6" r="1.05"/><circle cx="17.5" cy="2.2" r=".9"/><circle cx="21.9" cy="2.9" r=".8"/></symbol>
   <symbol id="s-pipe" viewBox="0 0 24 24"><rect x="2" y="8.6" width="20" height="5.2" rx="1.2"/><rect x="5.6" y="6.8" width="2.6" height="8.8" rx=".8"/><rect x="15.8" y="6.8" width="2.6" height="8.8" rx=".8"/><path d="M12 16.4c-1.7 2-2.5 3.2-2.5 4.1a2.5 2.5 0 0 0 5 0c0-.9-.8-2.1-2.5-4.1z"/></symbol>
   <symbol id="s-pump" viewBox="0 0 24 24"><path d="M3 11.2L12 3.4l9 7.8v9.2a1.2 1.2 0 0 1-1.2 1.2H4.2A1.2 1.2 0 0 1 3 20.4z"/><path d="M12 10.2c-2 2.4-3 3.9-3 5.2a3 3 0 0 0 6 0c0-1.3-1-2.8-3-5.2z" style="fill:var(--knock)"/></symbol>
+  <symbol id="s-pond" viewBox="0 0 24 24"><ellipse cx="12" cy="12.5" rx="10" ry="6.8" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M6.2 11.6c1.9-1.2 3.8-1.2 5.8 0s3.9 1.2 5.8 0v2.4c-1.9 1.2-3.8 1.2-5.8 0s-3.9-1.2-5.8 0z"/></symbol>
+  <symbol id="s-dam" viewBox="0 0 24 24"><path d="M4 19.5L10 6h3.4l7.6 13.5z"/><path d="M1 11.6h6.6L4.4 19.5H1z" opacity=".55"/></symbol>
+  <symbol id="s-source" viewBox="0 0 24 24"><path d="M12 2.4c-3.5 4.3-5.8 7.6-5.8 10.6a5.8 5.8 0 0 0 11.6 0c0-3-2.3-6.3-5.8-10.6z"/><path d="M2 20.2c2.5-1.5 5-1.5 7.5 0s5 1.5 7.5 0 3.6-1.3 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
   <symbol id="s-raise" viewBox="0 0 24 24"><path d="M1.6 21.4c3.4-.2 5.6-5.6 10.4-5.6s7 5.4 10.4 5.6z"/><path d="M12 2.4l4.4 5h-2.9v5.6h-3V7.4H7.6z"/></symbol>
   <symbol id="s-flatten" viewBox="0 0 24 24"><path d="M1.6 21.4c2.4-.3 3.7-4.6 6.4-6.6h8c2.7 2 4 6.3 6.4 6.6z"/><rect x="3" y="11.2" width="18" height="2" rx="1"/><path d="M12 3.4l3.4 4.2h-6.8z"/></symbol>
   <symbol id="s-smooth" viewBox="0 0 24 24"><path d="M1.6 21.4c4-.3 6.4-6.6 10.4-6.6s6.4 6.3 10.4 6.6z"/><path d="M2 9.6c2-3.4 4-3.4 6 0s4 3.4 6 0 4-3.4 6 0l1.6-1c-2.6-4.6-6.2-4.6-8.8 0-1.4 2.3-1.8 2.3-3.2 0-2.6-4.6-6.2-4.6-8.8 0z"/></symbol>
@@ -661,6 +671,7 @@ body.solo .frame { border-radius: 0; }
   <ul class="try">
     <li><b>Build a lift</b> (Phase 3 tool): Toolbox → Lifts → New opens the lift menu: type, capacity, and towers <b>Automatic</b> or <b>By hand</b>. The whole terminal follows the pointer; click to anchor it, then click far away to place the other terminal, which fixes the line (drawn as a trail map draws a lift, a line with a dot at each end). Automatic puts the towers in as you aim. By hand, the tower in hand slides along the line, green where it fits and red with the reason; Page Up / Page Down change it ±5 ft, a click places it, a click on a tower selects it (drag to slide, Delete to remove), and Fill the rest finishes the line. The profile strip shows the side view, the chairs' height over the ground against 15 ft, the green band where the tower in hand fits, and the line's tension. Review, then Break ground (or Save plan). Every rule number is a P3-02 draft placeholder; hover a readout for its rule ID. States: <code>#solo&amp;demo=liftorigin</code>, <code>liftauto</code>, <code>lift</code>, <code>liftred</code>, <code>liftreview</code>, <code>liftsel</code>. The catchment ring (NW-14, NT16): each terminal in hand shows its 100 ft area, built terminals theirs fainter, and the trails it would gather light up; the readout names a shared base or a transfer: <code>#solo&amp;demo=p2,net,liftbase</code>, <code>liftbaseaim</code>.</li>
     <li><b>Shape the ground</b> (task P3-15): Toolbox → Terrain holds <b>Raise/Lower</b> (B: hold left to raise, right to lower), <b>Flatten</b> (L: right-click takes the target height under the pointer, left paints to it), <b>Smooth</b> (O) and <b>Slope</b> (G: right-click sets the target point, then drag from the start; the ground ramps evenly between the two, and the pane shows the grade they make). Every brush has the same pane: <b>Diameter</b> (<b>[ ]</b>, 10–400 ft), <b>Strength</b> (<b>, .</b>) and <b>Clear trees</b> (BR22: on, the trees come out where the ground moves a foot or more, as it moves; off, they ride the new ground), plus the target (Page Up / Page Down) and, for Slope, the ramp it makes. A session runs from opening a brush to closing it, and switching brushes keeps it (BR15, BR17): what you paint is the edit (in the game the ground moves live), and the pane counts its cut, fill and net, the trees cleared and where the brush was held (a terminal's pad and its 1:1, the lift line's clearance, a tower's limit) as you paint. <b>Confirm</b> (Enter) puts the session in as one undo step and is when it's paid for (BR19); <b>Revert</b> puts its ground back; Ctrl+Z undoes one press, never past the session's start. Closing with ground not confirmed asks <b>Confirm / Revert / Keep painting</b> (BR18). The wheel over any slider moves it a step a notch, with its value in a bubble over the thumb (BR20). States: <code>terrainraise</code>, <code>terrainflatten</code>, <code>terrainsmooth</code>, <code>terrainslope</code>, <code>terrainask</code>, and <code>terrainraise,sliderhover</code>.</li>
+    <li><b>Water for snowmaking</b> (task 4.14): Toolbox → Snowmaking holds the <b>Water</b> group, and with the tab open the streams and lakes are outlined. <b>Pond</b> (O): click around the water's edge at full pool (the berm goes outside it), Enter or a click on the first point closes the ring; the pool starts at the suggested height (PD-03: Page Up / Page Down move it 1 ft, Shift 10) and <b>Excavation</b> (0–50 ft, <b>[ ]</b>) digs the bowl deeper; the window counts water, depth, berm, cut, fill and balance as you change them, and refuses a ring that crosses itself or a stream, or a berm over 65 ft. <b>Dam</b> (B): click one bank (that height is full pool), then the far bank, which snaps to the same contour within 250 ft; the line must cross one stream; the review gives the stream's width (OpenStreetMap, the default or yours), the reservoir, the embankment, the inflow for the season and the time to fill, and the spillway's bank (PD-07). <b>Lake</b> (L): click a lake and switch it on as a water source; its depth is an estimate you can override. <b>Edit</b> (M) reshapes a pond (drag its points) or opens a dam or lake; <b>Remove</b> (X) takes a pond or dam out and its ground goes back exactly (Ctrl+Z brings it back). Each source's <b>Water now</b> shows its level, what it holds, what comes in and goes out, a <b>Test draw</b> until the guns come (task 4.16) and the days of making left. Snow gun, Water line and Pump house come with task 4.15. States: <code>watertray</code>, <code>pondshore</code>, <code>pondpool</code>, <code>pondberm</code>, <code>damfirst</code>, <code>damreview</code>, <code>damedge</code>, <code>watersource</code>, <code>pondedit</code>, <code>damedit</code>, <code>waterremove</code>.</li>
     <li><b>Draw a trail</b> (Phase 3 tool): Toolbox → Trails → New opens the trail menu: name, brush width (<b>[ ]</b> or the slider, 25–400 ft) and Graded or Natural. <b>1 Paint:</b> drag on the mountain to paint the trail's area, any widths, leaving holes for islands of trees; Shift-drag erases, Ctrl+Z undoes a stroke, and a separate patch shows red. <b>2 Head and tail:</b> click the top, then the bottom (they join a lift's end or another trail nearby); the centreline, the pending contours (yellow), stretches too steep to grade (red) and the rating appear, with the profile along the bottom. <b>3 Review</b>, then Break ground. Scroll to zoom in first: at this distance 100 ft is about 5 px. States: <code>trailpaint</code>, <code>trailends</code>, <code>trailreview</code>, <code>trailcontinue</code> (NT38: "Continues Upper Bowl").</li>
     <li><b>Trails made of sections</b> (task P3-10, owner NT24–NT41): a trail is a name and its sections, top first. Edit trail opens the trail's pane (rating over its whole length, its sections; Repaint and Move ends change the outlined section). <b>Edit sections</b> goes into network mode: <b>Choose sections</b>, where a left-click on any run beyond the trail's top or bottom adds everything on the way and a right-click takes a section out, and <b>Cut</b>, which cuts a section in two at the pointer (snapping to junctions; refused across a switchback) or rejoins a hollow cut node. The hover shows each click's result, the window lists every trail a session changes with editable names, Ctrl+Z undoes a click and Done (Enter) is one step. A trail left in two pieces becomes Upper and Lower. States: <code>trailsecs</code>, <code>trailroute</code>, <code>trailmerge</code>, <code>trailtakeout</code>, <code>trailmiddle</code>, <code>trailnear</code>, <code>trailnearjoin</code> (NT42: ends within 100 ft meet, drawn met, nothing shown), <code>trailcut</code>, <code>trailcutbend</code> (NT45: a cut on a bend), <code>trailsecsundo</code>. Junctions (NT43–NT45): a run splits wherever another run lands on it or crosses it, at a lift it passes and where you cut it; a trail is the segments between, and may turn at a junction: <code>trailjunction</code>, <code>trailreroute</code>, <code>trailrerouted</code>. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking with clicks.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
@@ -985,10 +996,16 @@ body.solo .frame { border-radius: 0; }
       { id: 'terrain-smooth', label: 'Smooth', name: 'Smooth ground', hint: 'take out the bumps', key: 'O', glyph: 's-smooth', kind: 'terrain', brush: 'smooth' },
       { id: 'terrain-slope', label: 'Slope', name: 'Slope ground', hint: 'right-click a height, drag a ramp to it', key: 'G', glyph: 's-slope', kind: 'terrain', brush: 'slope' },
     ],
+    // task 4.14: the Water group first (WS-01, PD-01…09), then 4.15's tools, greyed until they come
     snow: [
-      { id: 'gun', label: 'Snow gun', name: 'Snow gun', hint: 'place fan guns along a trail', key: 'G', glyph: 's-gun', kind: 'points', unit: 'snow gun', each: 42000, layer: 'making' },
-      { id: 'pipe', label: 'Water line', name: 'Water line', hint: 'run water up to the guns', key: 'W', glyph: 's-pipe', kind: 'line', perM: 310, layer: 'making' },
-      { id: 'pump', label: 'Pump house', name: 'Pump house', hint: 'pressure for a snowmaking system', key: 'P', glyph: 's-pump', kind: 'points', unit: 'pump house', each: 1.2e6, layer: 'making' },
+      { id: 'pond', label: 'Pond', name: 'Pond', hint: 'draw its waterline; the berm goes outside', key: 'O', glyph: 's-pond', kind: 'pond' },
+      { id: 'dam', label: 'Dam', name: 'Dam', hint: 'click both banks across a stream', key: 'B', glyph: 's-dam', kind: 'dam' },
+      { id: 'water-source', label: 'Lake', name: 'Lake as a source', hint: 'switch a lake on as a water source', key: 'L', glyph: 's-source', kind: 'source' },
+      { id: 'edit-water', label: 'Edit', name: 'Edit water', hint: 'reshape a pond, or open a dam or lake', key: 'M', glyph: 's-pond', badge: 'edit', kind: 'wpick', mode: 'edit' },
+      { id: 'remove-water', label: 'Remove', name: 'Remove water', hint: 'take a pond or dam out; its ground goes back', key: 'X', glyph: 's-pond', badge: 'remove', kind: 'wpick', mode: 'remove' },
+      { id: 'gun', label: 'Snow gun', name: 'Snow gun', hint: 'place fan guns along a trail', key: 'G', glyph: 's-gun', kind: 'points', unit: 'snow gun', each: 42000, layer: 'making', soon: 'task 4.15' },
+      { id: 'pipe', label: 'Water line', name: 'Water line', hint: 'run water up to the guns', key: 'W', glyph: 's-pipe', kind: 'line', perM: 310, layer: 'making', soon: 'task 4.15' },
+      { id: 'pump', label: 'Pump house', name: 'Pump house', hint: 'pressure for a snowmaking system', key: 'P', glyph: 's-pump', kind: 'points', unit: 'pump house', each: 1.2e6, layer: 'making', soon: 'task 4.15' },
     ],
     infra: [
       { id: 'lodge', label: 'Lodge', name: 'Lodge', hint: 'food, warmth and toilets', key: 'L', glyph: 's-lodge', kind: 'points', unit: 'lodge', each: 6.5e6, layer: 'infra' },
@@ -1011,6 +1028,7 @@ body.solo .frame { border-radius: 0; }
     if (t.kind === 'lift') S.draft = newLiftDraft();
     else if (t.kind === 'trail') S.draft = newTrailDraft();
     else if (t.kind === 'terrain') { S.draft = newTerrainDraft(t); if (carry) Object.assign(S.draft, { strokes: carry.strokes, target: carry.target, targetAt: carry.targetAt }); }
+    else if (WATER.has(t.kind)) S.draft = newWaterDraft(t);
     else if (t.kind === 'points' || t.kind === 'line') S.draft = { kind: t.kind, tool: t.id, pts: [], done: false };
     else S.draft = null;
     render();
@@ -1133,6 +1151,7 @@ body.solo .frame { border-radius: 0; }
     mapEl.classList.toggle('netview', !!netOn);
     if (!netOn) S.netKeyClosed = false;   // the key comes back when the Network view opens again
     if (netOn) { worldEl.innerHTML = drawNetwork(netPick, hiId, netPick === S.netLift ? S.netNode : null); return; }
+    s += drawWater();   // task 4.14: lakes, streams (with the Snowmaking tab open), ponds and dams
     for (const th of S.things) if (S.layers[toolById(th.kind).layer]) s += drawThing(th);
     if (S.layers.trails) {
       // NT43: each trail's segments in its own colour, lit whole, and its name once along it
@@ -1155,6 +1174,7 @@ body.solo .frame { border-radius: 0; }
     if (d && d.kind === 'lift') s += drawLiftDraft(d);
     if (d && d.kind === 'trail') s += drawTrailDraft(d);
     if (d && d.kind === 'terrain') s += drawTerrainDraft(d);
+    if (d && WATER.has(d.kind)) s += drawWaterDraft(d);
     if (d && d.kind === 'line') {
       const pts = d.pts.slice(); if (!d.done && mouse && pts.length) pts.push(mouse);
       if (d.kind === 'trail') s += drawTrail({ name: d.name, diff: d.diff, pts, built: false }, { noTag: !d.done });
@@ -3178,6 +3198,402 @@ body.solo .frame { border-radius: 0; }
     }
     return false;
   }
+  // ---------- water: ponds, dams and lakes as sources (task 4.14; rules WS-01…08, PD-01…09) ----------
+  // The Snowmaking tab's Water group. A pond's drawn ring is its waterline at full pool and its berm sits outside it
+  // (PD-01); a dam's first click sets full pool and the far bank snaps to the same height (PD-05); a lake becomes a
+  // source with a switch (WS-01). Stand-in numbers from the placeholder heights; the game grades on the 1 m lattice.
+  const WATER = new Set(['pond', 'dam', 'source', 'wpick']);
+  const PD = { free: 0.6, crest: 3.5, wet: 3, dry: 2, cut: 1, reach: 250, excMax: 15, bermMax: 20, damMax: 40, minArea: 100, snap: 75, minLen: 5, spill: 6.1 };   // metres (PD-02, PD-06, PD-07)
+  const WS = { intake: 1.83, minPool: 0.1, lakeDraw: 0.914, evap: 0.000254 };   // WS-05, WS-07 (m, share, m, m a day)
+  // WS-03: inflow by the stream's width (ft → cfs), and the season factor (Oct–Nov a guess, tuned in PR B)
+  const INFLOW = [[3, 1], [6.5, 3.5], [13, 11], [26, 35], [50, 106], [100, 353], [200, 1060], [Infinity, 2650]];
+  const SEASONF = (day) => { const m = new Date(Date.UTC(2026, 8, day)).getUTCMonth(); return m === 2 ? 1 : m === 3 ? 1.5 : m === 9 || m === 10 ? 0.8 : 0.6; };
+  const SEASONW = (day) => { const m = new Date(Date.UTC(2026, 8, day)).getUTCMonth(); return m === 2 ? 'March' : m === 3 ? 'April' : m === 9 || m === 10 ? 'Oct–Nov' : 'Dec–Feb'; };
+  // OSM water the package carries (WS-08): stream lines with their class and width, and the lakes (LK-01)
+  S.water = {
+    streams: [{ id: 's1', name: 'Twin Creek', cls: 'stream', osmW: null, carve: 14, pts: [[996, 520], [990, 555], [984, 590], [978, 620], [972, 648], [966, 676]] },
+      { id: 's2', name: 'Moose Creek', cls: 'stream', osmW: 2.5, carve: 4, pts: [[772, 590], [752, 612], [734, 632], [722, 642]] }],
+    lakes: [{ id: 'k1', name: 'Moose Lake', pts: [[676, 646], [694, 636], [718, 637], [736, 645], [730, 657], [704, 662], [682, 658]], est: 4.3, depth: null, on: false }],
+    ponds: [], dams: [], undo: [],
+  };
+  const elevW = (p) => { let c = 0; for (const st of S.water.streams) { let d = 1e9; for (let i = 1; i < st.pts.length; i++) d = Math.min(d, segDist(p, st.pts[i - 1], st.pts[i])); c = Math.max(c, (st.carve || 0) * Math.exp(-d * d / 300)); } return elevXY(p[0], p[1]) - c; };
+  const wfmt = (v) => (v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString('en-US'));
+  const acft = (m3) => (IMP() ? `<b>${wfmt(m3 / 1233.48)}</b> acre-ft` : `<b>${wfmt(m3 / 1000)}</b> ML`);
+  const galM = (m3) => (IMP() ? `${wfmt(m3 * 264.172 / 1e6)}M gal` : `${Math.round(m3).toLocaleString('en-US')} m³`);
+  const cfsTxt = (cms) => (IMP() ? `<b>${wfmt(cms * 35.3147)}</b> cfs` : `<b>${wfmt(cms)}</b> m³/s`);
+  const gpmTxt = (gpm) => (IMP() ? `<b>${Math.round(gpm).toLocaleString('en-US')}</b> gpm` : `<b>${Math.round(gpm * 0.0630902).toLocaleString('en-US')}</b> L/s`);
+  const wArea = (m2) => (IMP() ? `<b>${(m2 / 4046.86).toFixed(1)}</b> acres` : `<b>${(m2 / 1e4).toFixed(2)}</b> ha`);
+  const ftm = (m) => lenFt(m * FT);   // metres, shown imperial first
+  const yd3m = (m3) => yd3(m3 * 35.3147);
+  const polyArea = (pts) => { let a = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; } return Math.abs(a / 2) * MPX * MPX; };
+  const inPoly = (p, pts) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const a = pts[i], b = pts[j]; if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  const crosses = (a, b, c, d) => { const o = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])); return o(a, b, c) !== o(a, b, d) && o(c, d, a) !== o(c, d, b); };
+  const ringSimple = (pts) => { const n = pts.length; for (let i = 0; i < n; i++) for (let j = i + 2; j < n; j++) { if (i === 0 && j === n - 1) continue; if (crosses(pts[i], pts[(i + 1) % n], pts[j], pts[(j + 1) % n])) return false; } return true; };
+  const ringDist = (p, pts) => { let d = 1e9; for (let i = 0; i < pts.length; i++) d = Math.min(d, segDist(p, pts[i], pts[(i + 1) % pts.length])); return inPoly(p, pts) ? -d : d; };
+  const cellsPath = (cells, s) => cells.map(([x, y]) => `M${x} ${y}h${s}v${s}h${-s}z`).join('');
+  const streamWidthFt = (st, over) => over != null ? over : st.osmW != null ? st.osmW * FT : st.cls === 'river' ? 46 : 8;
+  const inflowCfs = (wft) => INFLOW.find(([w]) => wft <= w)[1];
+  // PD-03: the suggested pool is the mean ground inside the ring, rounded up to 0.5 m, plus 1 m
+  function pondSuggest(pts) {
+    let n = 0, sum = 0; const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    for (let y = Math.min(...ys); y <= Math.max(...ys); y++) for (let x = Math.min(...xs); x <= Math.max(...xs); x++) if (inPoly([x, y], pts)) { n++; sum += elevW([x, y]); }
+    return Math.ceil((n ? sum / n : elevW(pts[0])) / 0.5) * 0.5 + 1;
+  }
+  // PD-01…04, PD-09: design = max(fill(d), min(ground, cut(d))) by signed distance d from the waterline (m, inside < 0)
+  function pondEval(pts, P, exc, skip) {
+    if (pts.length < 3 || !ringSimple(pts)) return { err: 'Draw a shoreline of at least three points that doesn\'t cross itself.' };
+    if (!pts.every(onTerrain)) return { err: 'Keep the whole pond inside the core.' };
+    const area = polyArea(pts);
+    if (area < PD.minArea) return { err: `Too small: draw at least ${IMP() ? '1,100 ft²' : '100 m²'} of water.` };
+    for (const st of S.water.streams) for (let i = 1; i < st.pts.length; i++) for (let k = 0; k < pts.length; k++) if (crosses(st.pts[i - 1], st.pts[i], pts[k], pts[(k + 1) % pts.length]) || inPoly(st.pts[i], pts)) return { err: `${st.name} runs through this ring: dam the stream instead (Dam, B).` };
+    for (const o of S.water.lakes.concat(S.water.ponds.filter((q) => q.id !== skip))) if (o.pts.some((q) => inPoly(q, pts)) || pts.some((q) => inPoly(q, o.pts))) return { err: `This ring overlaps ${o.name}.` };
+    const F = P - exc, fill = (d) => (d <= PD.free * PD.wet ? P + d / PD.wet : d <= PD.free * PD.wet + PD.crest ? P + PD.free : P + PD.free - (d - PD.free * PD.wet - PD.crest) / PD.dry);
+    const cut = (d) => (d <= 0 ? Math.max(F, P + d / PD.wet) : P + d / PD.cut);
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]), m = Math.ceil(PD.reach / MPX), A = MPX * MPX;
+    const r = { area, P, exc, crest: P + PD.free, cut: 0, fill: 0, vol: 0, maxDepth: 0, bermMax: 0, moved: 0, trees: 0, edge: false, footprint: [] };
+    let wet = 0;
+    for (let y = Math.min(...ys) - m; y <= Math.max(...ys) + m; y++) for (let x = Math.min(...xs) - m; x <= Math.max(...xs) + m; x++) {
+      const p = [x + 0.5, y + 0.5], d = ringDist(p, pts) * MPX; if (d > PD.reach) continue;
+      const g0 = elevW([p[0], p[1]]), z = Math.max(fill(d), Math.min(g0, cut(d))), dz = z - g0;
+      if (Math.abs(dz) > 0.01) { r.moved += A; if (dz > 0) r.fill += dz * A; else r.cut -= dz * A; r.footprint.push([x, y]); if (d > PD.reach - MPX) r.edge = true; if (d > 0) r.bermMax = Math.max(r.bermMax, dz); }
+      if (d < 0 && z < P) { r.vol += (P - z) * A; wet += A; r.maxDepth = Math.max(r.maxDepth, P - z); }
+    }
+    r.vol *= area / Math.max(1, wet); r.avgDepth = r.vol / area; r.trees = Math.round(r.moved / 90);
+    for (const l of S.lifts) for (const q of [l.a, l.b]) if (r.footprint.some(([x, y]) => Math.hypot(x + 0.5 - q[0], y + 0.5 - q[1]) < 3)) return { ...r, err: `The berm reaches ${l.name}'s terminal: move the pond or lower its pool.` };
+    if (r.edge) return { ...r, err: `The berm can't reach natural ground within ${IMP() ? '820 ft' : '250 m'}: lower the pool or draw a smaller pond.` };
+    if (r.bermMax > PD.bermMax) return { ...r, err: `This pond needs a ${ftm(r.bermMax)} berm. Keep it under ${IMP() ? '65 ft' : '20 m'}: lower the pool, or dam a stream instead.` };
+    if (r.vol <= 1 || r.maxDepth < 0.1) return { ...r, err: 'Raise the pool above the ground inside the ring.' };
+    return r;
+  }
+  // PD-05: the far bank, on the same contour as full pool, within 250 ft of the pointer and at least 16 ft away
+  function damSnap(a, P, near) {
+    let best = null, bd = 1e9; const R = PD.snap / MPX;
+    for (let rr = 0; rr <= R; rr += 0.5) for (let k = 0; k < 48; k++) {
+      const t = k / 48 * Math.PI * 2, q = [near[0] + rr * Math.cos(t), near[1] + rr * Math.sin(t)];
+      if (!onTerrain(q) || Math.abs(elevW(q) - P) > 0.25 || Math.hypot(q[0] - a[0], q[1] - a[1]) * MPX < PD.minLen) continue;
+      if (rr < bd) { bd = rr; best = q; }
+    }
+    return best;
+  }
+  const alongPt = (pts, from, dist) => {   // a point `dist` px along a polyline from vertex-interpolated `from` (s in px), clamped
+    let s = from + dist, acc = 0; if (s <= 0) return pts[0];
+    for (let i = 1; i < pts.length; i++) { const L = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); if (acc + L >= s) { const f = (s - acc) / L; return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f]; } acc += L; }
+    return pts[pts.length - 1];
+  };
+  function damFlood(a, b, P, seed, box, wall) {
+    const s = 2, nx = Math.ceil((box[2] - box[0]) / s), ny = Math.ceil((box[3] - box[1]) / s), seen = new Uint8Array(nx * ny), q = [], cells = [];
+    const i0 = Math.floor((seed[0] - box[0]) / s), j0 = Math.floor((seed[1] - box[1]) / s); if (i0 < 0 || j0 < 0 || i0 >= nx || j0 >= ny) return { cells, edge: true };
+    q.push([i0, j0]); seen[j0 * nx + i0] = 1; let edge = false;
+    while (q.length) {
+      const [i, j] = q.pop(), x = box[0] + i * s, y = box[1] + j * s, c = [x + s / 2, y + s / 2];
+      if (elevW(c) > P || segDist(c, a, b) < wall) continue;
+      cells.push([x, y]); if (i === 0 || j === 0 || i === nx - 1 || j === ny - 1) edge = true;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const u = i + di, v = j + dj; if (u < 0 || v < 0 || u >= nx || v >= ny || seen[v * nx + u]) continue; seen[v * nx + u] = 1; q.push([u, v]); }
+    }
+    return { cells, edge };
+  }
+  // PD-05/06/07, WS-03: the crossing, the upstream side, the embankment and the reservoir on the graded ground
+  function damEval(d) {
+    const { a, b, P } = d; if (!b) return null;
+    const hits = []; for (const st of S.water.streams) for (let i = 1; i < st.pts.length; i++) if (crosses(a, b, st.pts[i - 1], st.pts[i])) { let s0 = 0; for (let k = 1; k < i; k++) s0 += Math.hypot(st.pts[k][0] - st.pts[k - 1][0], st.pts[k][1] - st.pts[k - 1][1]); const A0 = st.pts[i - 1], B0 = st.pts[i], den = (b[0] - a[0]) * (B0[1] - A0[1]) - (b[1] - a[1]) * (B0[0] - A0[0]), t = ((A0[0] - a[0]) * (B0[1] - A0[1]) - (A0[1] - a[1]) * (B0[0] - A0[0])) / den, X = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; if (!hits.some((q) => q.st === st && Math.hypot(q.X[0] - X[0], q.X[1] - X[1]) < 0.1 * 3 / MPX + 0.05)) hits.push({ st, s: s0 + Math.hypot(X[0] - A0[0], X[1] - A0[1]), X }); }   // a crossing at a shared vertex counts once
+    if (hits.length !== 1) return { err: hits.length ? 'The dam crosses more than one stream: move it to one.' : 'The dam must cross a stream: click a bank beside one.' };
+    const { st, s, X } = hits[0], med = (dir) => { const v = [20, 50, 100].map((m) => elevW(alongPt(st.pts, s, dir * m / MPX))).sort((x, y) => x - y); return v[1]; };
+    let up = med(-1) > med(1) + 0.25 ? -1 : med(1) > med(-1) + 0.25 ? 1 : 0;
+    const box = [X[0] - 115, X[1] - 115, X[0] + 115, X[1] + 115], crest = P + PD.free;
+    const tryUp = (dir) => damFlood(a, b, P, alongPt(st.pts, s, dir * 50 / MPX), box, 2.5);
+    let fl;
+    if (up) fl = tryUp(up); else { const f1_ = tryUp(-1), f2 = tryUp(1); up = f1_.cells.length >= f2.cells.length ? -1 : 1; fl = up === -1 ? f1_ : f2; }   // a flat valley: the side that holds the water
+    if (fl.edge) return { err: 'Full pool here backs water past the edge of the area: pick a lower point on the bank, or move the dam upstream.' };
+    if (fl.cells.some(([x, y]) => segDist([x + 1, y + 1], alongPt(st.pts, s, -up * 5), alongPt(st.pts, s, -up * 50 / MPX)) < 2)) return { err: 'Water runs round the end of the dam: the bank there sits below full pool.' };
+    // the embankment: crest = full pool + 2 ft, deck 11.5 ft, 3:1 upstream, 2:1 downstream (PD-06); fill only
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(16, Math.ceil(L * 2)), ds = L * MPX / n;
+    let hMax = 0, hSum = 0, stand = 0, fillV = 0, foot = 0;
+    for (let i = 0; i <= n; i++) { const p = [a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n], h = crest - elevW(p); if (h <= 0.05) continue; stand++; hMax = Math.max(hMax, h); hSum += h; fillV += (PD.crest * h + (PD.wet + PD.dry) / 2 * h * h) * ds; foot += (PD.crest + (PD.wet + PD.dry) * h) * ds; }
+    if (hMax > PD.damMax) return { err: `This dam would stand ${ftm(hMax)} tall: keep it under ${IMP() ? '130 ft' : '40 m'}.` };
+    // the second flood, on the graded surface: cells under the embankment's water face drop out
+    const cells = fl.cells.filter(([x, y]) => { const c = [x + 1, y + 1], h = crest - elevW(c); return segDist(c, a, b) * MPX > PD.crest / 2 + PD.wet * Math.max(0, hMax * 0.6); });
+    const A = 4 * MPX * MPX, area = cells.length * A; let vol = 0, maxD = 0; for (const [x, y] of cells) { const dz = P - elevW([x + 1, y + 1]); vol += Math.max(0, dz) * A; maxD = Math.max(maxD, dz); }
+    if (area < PD.minArea || vol <= 1 || maxD <= 0.1) return { err: 'This line doesn\'t make a usable pond: the embankment fills the basin.' };
+    const wft = streamWidthFt(st, d.width), base = inflowCfs(wft) / 35.3147, now = base * SEASONF(S.day);
+    return { st, X, up, cells, area, vol, maxDepth: maxD, avgDepth: vol / area, crest, len: L * MPX, built: stand * ds, hMax, hAvg: stand ? hSum / stand : 0, fill: fillV, moved: foot, trees: Math.round(foot / 90), wft, wsrc: d.width != null ? 'yours' : st.osmW != null ? 'OpenStreetMap' : 'default', base, now, fillDays: vol / now / 86400 };
+  }
+  // the new-tool drafts
+  const pondName = () => `Pond ${S.water.ponds.length + 1}`, damName = (st) => `${st ? st.name.replace(/ Creek$/, '') : 'New'} Dam`;
+  function newWaterDraft(t) {
+    if (t.kind === 'pond') return { kind: 'pond', tool: t.id, step: 'shore', pts: [], P: null, exc: 3.05, name: pondName(), res: null };
+    if (t.kind === 'dam') return { kind: 'dam', tool: t.id, step: 'banks', a: null, b: null, P: null, name: 'New dam', spill: 'a', width: null, res: null };
+    return { kind: t.kind, tool: t.id, mode: t.mode || null };
+  }
+  function pondRegrade(d) { d.res = pondEval(d.pts, d.P, d.exc, d.editing); }
+  function waterClick(p, dbl) {
+    const d = S.draft;
+    if (d.kind === 'pond') {
+      if (d.step === 'shore') {
+        if (!onTerrain(p)) { log('<span>Keep the pond inside the core</span>', '#8e2b1f', true); return; }
+        if (d.pts.length >= 3 && Math.hypot(p[0] - d.pts[0][0], p[1] - d.pts[0][1]) < 6 / S.zoom) { waterKeys({ key: 'Enter' }, 'enter'); return; }   // a click on the first point closes the ring
+        const last = d.pts[d.pts.length - 1]; if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) * MPX > 1) d.pts.push(p);
+      }
+      render(); return;
+    }
+    if (d.kind === 'dam') {
+      if (d.step === 'banks' && !d.a) { if (!onTerrain(p)) return; d.a = p; d.P = elevW(p); render(); return; }
+      if (d.step === 'banks' && d.a) { const b = damSnap(d.a, d.P, p); if (!b) return; d.b = b; d.res = damEval(d); if (d.res && d.res.st && d.name === 'New dam') d.name = damName(d.res.st); d.step = 'review'; render(); return; }
+      return;
+    }
+    // Water source: a lake; Edit and Remove: a pond, a dam or a lake source
+    const id = waterAt(p, d.kind === 'source' ? 'lake' : 'any');
+    if (d.kind === 'wpick' && d.mode === 'edit' && id && id.startsWith('w')) { const o = S.water.ponds.find((x) => x.id === id); S.sel = id; S.draft = { kind: 'pond', tool: S.tool, step: 'pool', pts: o.pts.map((q) => q.slice()), P: o.P, exc: o.exc, name: o.name, editing: id, res: null, test: o.test }; pondRegrade(S.draft); render(); return; }
+    if (d.kind === 'wpick' && d.mode === 'remove' && id && S.removeArmed === id) { waterRemove(id); return; }
+    S.sel = id; S.removeArmed = d.kind === 'wpick' && d.mode === 'remove' ? id : null; render();
+  }
+  function waterAt(p, what) {
+    if (what !== 'lake') {
+      for (const o of S.water.ponds) if (ringDist(p, o.pts) < 5 / S.zoom) return o.id;
+      for (const o of S.water.dams) if (segDist(p, o.a, o.b) < 7 / S.zoom || o.res.cells.some(([x, y]) => p[0] >= x && p[0] < x + 2 && p[1] >= y && p[1] < y + 2)) return o.id;
+    }
+    for (const k of S.water.lakes) if ((what === 'lake' || k.on) && ringDist(p, k.pts) < 5 / S.zoom) return k.id;
+    return null;
+  }
+  const waterById = (id) => S.water.ponds.find((x) => x.id === id) || S.water.dams.find((x) => x.id === id) || S.water.lakes.find((x) => x.id === id);
+  function waterBuild() {
+    const d = S.draft;
+    if (d.kind === 'pond') {
+      const o = { id: d.editing || 'w' + (uid++), name: d.name, pts: d.pts.map((q) => q.slice()), P: d.P, exc: d.exc, res: d.res, fillPct: d.editing ? (waterById(d.editing).fillPct) : 1, test: d.test || 0 };
+      if (d.editing) { const i = S.water.ponds.findIndex((x) => x.id === d.editing); S.water.undo.push({ kind: 'pond', was: S.water.ponds[i] }); S.water.ponds[i] = o; }
+      else { S.water.ponds.push(o); S.water.undo.push({ kind: 'add', id: o.id }); }
+      log(`<span><b>${esc(o.name)}</b> ${d.editing ? 'regraded' : 'dug'} <span style="color:var(--soft)">· cut ${yd3m(o.res.cut)} · fill ${yd3m(o.res.fill)} · ${acft(o.res.vol).replace(/<\/?b>/g, '')}</span></span>`);
+    } else if (d.kind === 'dam') {
+      const o = { id: 'd' + (uid++), name: d.name, a: d.a, b: d.b, P: d.P, spill: d.spill, width: d.width, res: d.res, fillPct: 1, test: 0 };
+      S.water.dams.push(o); S.water.undo.push({ kind: 'add', id: o.id });
+      log(`<span><b>${esc(o.name)}</b> built across ${esc(o.res.st.name)} <span style="color:var(--soft)">· fill ${yd3m(o.res.fill)} · ${acft(o.res.vol).replace(/<\/?b>/g, '')}</span></span>`);
+    }
+    S.saveDue = true; S.draft = newWaterDraft(toolById(S.tool)); S.sel = null; render();
+  }
+  function waterRemove(id) {
+    const o = waterById(id);
+    if (id.startsWith('k')) { o.on = false; log(`<span><b>${esc(o.name)}</b> is no longer a water source <span style="color:var(--soft)">· the lake stays</span></span>`); }
+    else { const list = id.startsWith('w') ? S.water.ponds : S.water.dams, i = list.indexOf(o); list.splice(i, 1); S.water.undo.push({ kind: 'remove', list: id[0], i, was: o }); log(`<span><b>${esc(o.name)}</b> removed <span style="color:var(--soft)">· its ground goes back as it was (PD-08) · Ctrl+Z brings it back</span></span>`, '#8e2b1f'); }
+    S.sel = null; S.removeArmed = null; S.saveDue = true; render();
+  }
+  function waterKeys(e, k) {
+    const d = S.draft;
+    if (d.kind === 'pond' && d.step === 'shore') {
+      if (k === 'backspace' && d.pts.length) { d.pts.pop(); render(); return true; }
+      if (k === 'enter' && d.pts.length >= 3) { d.step = 'pool'; d.P = pondSuggest(d.pts); d.suggested = d.P; pondRegrade(d); render(); return true; }
+      if (k === 'escape' && d.pts.length) { d.pts = []; render(); return true; }
+    }
+    if (d.kind === 'pond' && d.step === 'pool') {
+      const step = (e.shiftKey ? 10 : 1) / FT;
+      if (k === 'pageup' || k === 'pagedown') { e.preventDefault && e.preventDefault(); d.P += k === 'pageup' ? step : -step; pondRegrade(d); render(); return true; }   // PD-01: the pool, 1 ft a press (Shift 10)
+      if (k === '[' || k === ']') { d.exc = Math.max(0, Math.min(PD.excMax, d.exc + (k === ']' ? 1 : -1) / FT)); pondRegrade(d); render(); return true; }
+      if (k === 'escape' && !d.editing) { d.step = 'shore'; d.res = null; render(); return true; }
+      if (k === 'escape') { S.draft = newWaterDraft(toolById(S.tool)); S.sel = null; render(); return true; }   // Edit pond: back to picking, nothing changed
+    }
+    if (d.kind === 'dam' && k === 'escape' && (d.a || d.b)) { Object.assign(d, { step: 'banks', a: null, b: null, P: null, res: null, name: 'New dam' }); render(); return true; }
+    return false;
+  }
+  function waterAct(a, v) {
+    const d = S.draft;
+    if (a === 'wstep') { if (d.kind === 'pond' && v === 'shore' && !d.editing) { d.step = 'shore'; d.res = null; } }
+    else if (a === 'wexc') { d.exc = Math.max(0, Math.min(PD.excMax, +v)); pondRegrade(d); }
+    else if (a === 'wpool') { d.P += (+v) / FT; pondRegrade(d); }
+    else if (a === 'wsuggest') { d.P = pondSuggest(d.pts); pondRegrade(d); }
+    else if (a === 'wnext') waterKeys({ key: 'Enter' }, 'enter');
+    else if (a === 'wspill') { const o = d.kind === 'dam' ? d : waterById(S.sel); o.spill = v; }
+    else if (a === 'wwidth') { const o = d.kind === 'dam' ? d : waterById(S.sel), st = (o.res || {}).st; if (!st) return; const w = streamWidthFt(st, o.width); o.width = v === 'reset' ? null : Math.max(1, w + (+v)); o.res = damEval(o); }
+    else if (a === 'wlake') { const k = S.water.lakes.find((x) => x.id === S.sel); k.on = v === 'on'; S.saveDue = true; log(`<span><b>${esc(k.name)}</b> ${k.on ? 'is a water source' : 'is no longer a water source'}</span>`); }
+    else if (a === 'wdepth') { const k = S.water.lakes.find((x) => x.id === S.sel); k.depth = v === 'reset' ? null : Math.max(0.5, (k.depth || k.est) + (+v) / FT); }
+    else if (a === 'wdraw') { const o = d.kind === 'pond' && d.editing ? d : waterById(S.sel); o.test = Math.max(0, Math.min(5000, (o.test || 0) + (+v))); const w = d.editing && waterById(d.editing); if (w) w.test = o.test; }
+    else if (a === 'wbuild') { waterBuild(); return; }
+    else if (a === 'wremove') { waterRemove(S.sel); return; }
+    render();
+  }
+  function waterUndo() {
+    const u = S.water.undo.pop(); if (!u) return false;
+    if (u.kind === 'add') { S.water.ponds = S.water.ponds.filter((x) => x.id !== u.id); S.water.dams = S.water.dams.filter((x) => x.id !== u.id); }
+    else if (u.kind === 'pond') { const i = S.water.ponds.findIndex((x) => x.id === u.was.id); S.water.ponds[i] = u.was; }
+    else (u.list === 'w' ? S.water.ponds : S.water.dams).splice(u.i, 0, u.was);
+    log('<span>Undone: the ground goes back exactly (PD-08)</span>', '#6f675e'); S.saveDue = true; render(); return true;
+  }
+  // ----- on the mountain -----
+  const WATERC = '#4f8fb8', WATERE = '#2f6d96', BERMC = '#b59a73';
+  function drawWater() {
+    let s = '';
+    const show = S.toolbox && S.tab === 'snow';   // the Snowmaking tab outlines the streams and lakes, where dams and sources go
+    for (const k of S.water.lakes) if (show || k.on) { const hi = S.sel === k.id || S.hover === k.id; s += `<path d="M${k.pts.map((p) => p.join(' ')).join('L')}Z" fill="${WATERC}" fill-opacity=".72" stroke="${hi ? selC : k.on ? white : WATERE}" stroke-width="${hi || k.on ? 1.8 : 1}"/>`; }
+    if (show) for (const st of S.water.streams) s += `<path d="M${st.pts.map((p) => p.join(' ')).join('L')}" fill="none" stroke="${WATERE}" stroke-width="${Math.max(1.4, streamWidthFt(st) / 6)}" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>`;
+    for (const o of S.water.dams) {
+      const hi = S.sel === o.id || S.hover === o.id || S.removeArmed === o.id;
+      s += `<path d="${cellsPath(o.res.cells, 2)}" fill="${WATERC}" fill-opacity=".85"/>`;
+      s += damLine(o, hi);
+    }
+    for (const o of S.water.ponds) if (!(S.draft && S.draft.editing === o.id)) s += pondShape(o.pts, o.res, S.sel === o.id || S.hover === o.id || S.removeArmed === o.id, o.fillPct);
+    if (S.layers.labels) for (const o of [...S.water.ponds, ...S.water.dams, ...S.water.lakes.filter((k) => k.on || show)]) {
+      const c = o.pts ? [o.pts.reduce((a, p) => a + p[0], 0) / o.pts.length, o.pts.reduce((a, p) => a + p[1], 0) / o.pts.length] : [(o.a[0] + o.b[0]) / 2, (o.a[1] + o.b[1]) / 2 - 10];
+      s += `<text x="${f1(c[0])}" y="${f1(c[1] + 3)}" text-anchor="middle" style="font:700 10px 'DotFix','Overpass';fill:#fff;paint-order:stroke;stroke:rgba(20,40,60,.75);stroke-width:2.6px">${esc(o.name)}</text>`;
+    }
+    return s;
+  }
+  function pondShape(pts, res, hi, fillPct = 1) {
+    let s = '';
+    // the berm: the cells the grading moves outside the waterline, in the earth colour
+    if (res && res.footprint) s += `<path d="${cellsPath(res.footprint, 1)}" fill="${BERMC}" fill-opacity=".55"/>`;
+    s += `<path d="M${pts.map((p) => p.map(f1).join(' ')).join('L')}Z" fill="${WATERC}" fill-opacity="${fillPct < 1 ? .62 : .85}" stroke="${hi ? selC : WATERE}" stroke-width="${hi ? 2.4 : 1.2}"/>`;
+    return s;
+  }
+  function damLine(o, hi, ghost) {
+    const { a, b } = o, nx = -(b[1] - a[1]), ny = b[0] - a[0], L = Math.hypot(nx, ny), sp = o.spill === 'b' ? b : a, ux = (b[0] - a[0]) / Math.hypot(b[0] - a[0], b[1] - a[1]), uy = (b[1] - a[1]) / Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const w = 3.2, ox = nx / L * w, oy = ny / L * w, q = (p, sgn) => `${f1(p[0] + sgn * ox)} ${f1(p[1] + sgn * oy)}`;
+    let s = `<path d="M${q(a, 1)}L${q(b, 1)}L${q(b, -1)}L${q(a, -1)}Z" fill="#8b7355" fill-opacity="${ghost ? .5 : .9}" stroke="${hi ? selC : '#5f4a33'}" stroke-width="${hi ? 2 : 1}"/>`;
+    s += `<line x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}" stroke="#d8c8a6" stroke-width="1.6"/>`;
+    // PD-07: the spillway, a notch at full pool at its bank
+    const c = [sp[0] + ux * (sp === a ? 4 : -4), sp[1] + uy * (sp === a ? 4 : -4)];
+    s += `<line x1="${f1(c[0] - ox * 1.3)}" y1="${f1(c[1] - oy * 1.3)}" x2="${f1(c[0] + ox * 1.3)}" y2="${f1(c[1] + oy * 1.3)}" stroke="${WATERC}" stroke-width="3.4" stroke-linecap="round"/>`;
+    return s;
+  }
+  function drawWaterDraft(d) {
+    let s = '';
+    if (d.kind === 'pond') {
+      if (d.step === 'pool' && d.res) s += pondShape(d.pts, d.res.err ? null : d.res, false);
+      const pts = d.pts.slice(); if (d.step === 'shore' && mouse && pts.length) pts.push(mouse);
+      if (d.step === 'shore' && pts.length > 1) s += `<path d="M${pts.map((p) => p.map(f1).join(' ')).join('L')}" fill="${pts.length > 2 ? WATERC : 'none'}" fill-opacity=".3" stroke="#d7f5ff" stroke-width="1.6" stroke-dasharray="5 4"/>`;
+      for (const [i, p] of d.pts.entries()) s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${i === 0 && d.step === 'shore' && d.pts.length > 2 ? 4.2 : 3}" fill="${white}" stroke="${flag}" stroke-width="1.4"/>`;
+      if (d.step === 'shore' && d.pts.length > 2) { const A = polyArea(pts), e = pts[pts.length - 1], txt = IMP() ? `${(A / 4046.86).toFixed(1)} acres` : `${(A / 1e4).toFixed(2)} ha`; s += readoutCard(e[0], e[1] - 10, [[txt]]); }
+    }
+    if (d.kind === 'dam') {
+      if (d.a) s += `<circle cx="${f1(d.a[0])}" cy="${f1(d.a[1])}" r="4" fill="${white}" stroke="#c69a53" stroke-width="1.8"/>`;
+      if (d.step === 'banks' && d.a && mouse) {
+        const b = damSnap(d.a, d.P, mouse);
+        if (b) s += `<line x1="${f1(d.a[0])}" y1="${f1(d.a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}" stroke="#f0b44d" stroke-width="2" stroke-dasharray="5 4"/><circle cx="${f1(b[0])}" cy="${f1(b[1])}" r="4" fill="#d7f5ff" stroke="${WATERE}" stroke-width="1.6"/>`
+          + readoutCard(b[0], b[1] - 12, [[`Far bank · ${lenTxt(d.P)}`], ['Click to set it', '#cfc7bb']]);
+        else s += readoutCard(mouse[0], mouse[1] - 12, [[`No bank at ${lenTxt(d.P)} near here`, BADC], [`within ${IMP() ? '250 ft' : '75 m'} of the pointer`, '#cfc7bb']]);
+      }
+      if (d.step === 'review' && d.res && !d.res.err) { s += `<path d="${cellsPath(d.res.cells, 2)}" fill="${WATERC}" fill-opacity=".45" stroke="none"/>`; s += damLine(d, false, true); }
+      if (d.step === 'review' && d.b && (!d.res || d.res.err)) s += `<line x1="${f1(d.a[0])}" y1="${f1(d.a[1])}" x2="${f1(d.b[0])}" y2="${f1(d.b[1])}" stroke="${BADC}" stroke-width="2.2" stroke-dasharray="5 4"/>`;
+    }
+    return s;
+  }
+  // ----- the windows -----
+  const POND_STEPS = [['shore', 'Shoreline'], ['pool', 'Pool and review']], DAM_STEPS = [['banks', 'Banks'], ['review', 'Review']];
+  const wkv = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`;
+  const wsteps = (steps, cur, back) => `<div class="lsteps tsteps" data-ui="toolwin-steps">${steps.map(([k, v], i) => `<span class="${i === cur ? 'now' : i < cur ? 'done' : ''}"${i < cur && back ? ` data-act="wt:wstep" data-v="${k}"` : ''}><b>${i < cur ? '✓' : i + 1}</b>${v}</span>`).join('')}</div><div class="rule"></div>`;
+  const wbtns = (ready, label, ui = 'review-go') => `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'wt:wbuild' : ''}" data-ui="${ui}" title="PD-08: one undo step; Ctrl+Z puts the ground back exactly"><span>${label}</span><span class="kbd kbd-go">Ctrl Enter</span></div><div class="ghost" data-act="close" data-ui="review-cancel">Cancel</div></div>`;
+  function pondCtx() {
+    const d = S.draft, r = d.res;
+    let h = d.editing ? '' : wsteps(POND_STEPS, d.step === 'shore' ? 0 : 1, true);
+    if (d.step === 'shore') {
+      h += `<div class="hint">Click around the water's edge at <b>full pool</b>: the berm goes outside it (PD-01). <b>Enter</b> or a click on the first point closes the ring.</div>`;
+      if (d.pts.length > 2) h += `<dl class="kv">${wkv('Points', `<b>${d.pts.length}</b>`)}${wkv('Water', wArea(polyArea(d.pts)), 'PD-02: at least 1,100 ft²')}</dl>`;
+      h += `<div class="lkeys"><span><span class="kbd">Backspace</span> takes the last point back</span><span><span class="kbd">Esc</span> starts over</span></div>`;
+      h += `<div class="lbtns"><span class="ghost${d.pts.length > 2 ? '' : ' dis'}" data-act="${d.pts.length > 2 ? 'wt:wnext' : ''}">Next<span class="kbd" style="margin-left:8px">Enter</span></span></div>`;
+      return h;
+    }
+    if (r && r.err) h += `<div class="lmsg err" style="padding-top:6px">✕ ${esc(r.err)}</div>`;
+    else if (r) {
+      h += `<dl class="kv" style="padding-top:6px">${wkv('Water', `${wArea(r.area)} · ${acft(r.vol)}`, 'PD-04, PD-09: Σ (full pool − graded ground) × cell area')}${wkv('', `<span style="color:var(--soft)">${galM(r.vol)}</span>`)}
+        ${wkv('Depth', `mean <b>${ftm(r.avgDepth)}</b> · deepest <b>${ftm(r.maxDepth)}</b>`)}${wkv('Berm', `crest <b>${lenTxt(r.crest)}</b> · up to <b>${ftm(r.bermMax)}</b> high`, 'PD-02: 2 ft freeboard, 11.5 ft crest, 3:1 water face, 2:1 outside')}
+        ${wkv('Cut · fill', `${yd3m(r.cut)} · ${yd3m(r.fill)}`, 'PD-04: as the trail bill (GR-08)')}${wkv('Balance', `${r.cut >= r.fill ? '' : '−'}${yd3m(Math.abs(r.cut - r.fill))}`, 'cut − fill')}${wkv('Trees cleared', `about <b>${r.trees.toLocaleString('en-US')}</b>`)}</dl>`;
+      if (Math.abs(r.cut - r.fill) > 0.25 * Math.max(r.cut, r.fill)) h += `<div class="lmsg warn">! ${r.fill > r.cut ? 'More fill than cut: dig deeper to balance' : 'More cut than fill: dig less, or raise the pool'}</div>`;
+    }
+    h += `<div class="lkeys"><span><span class="kbd">PgUp</span><span class="kbd">PgDn</span> pool</span><span><span class="kbd">[</span><span class="kbd">]</span> excavation</span>${d.editing ? '<span>drag a point to move it</span>' : ''}</div>`;
+    if (d.editing) h += waterNow(waterById(d.editing), d);
+    return h + wbtns(r && !r.err, d.editing ? 'Regrade' : 'Break ground');
+  }
+  function pondRows(d) {
+    let h = '';
+    const sugg = Math.abs(d.P - pondSuggest(d.pts)) < 0.01;
+    h += `<div class="lrow"><span>Full pool</span><span class="tbv" title="PD-03: the mean ground inside the ring, rounded up to 1.6 ft, plus 3.3 ft; Page Up / Page Down 1 ft (Shift 10 ft)"><b>${lenTxt(d.P)}</b> ${sugg ? '<span style="color:var(--soft)">· suggested</span>' : '<span class="wbtn" data-act="wt:wsuggest">Suggest</span>'}</span></div>`;
+    h += `<div class="lrow"><span>Excavation</span><div class="rng-wrap" style="min-width:0" title="PD-02: 0–50 ft below full pool: dig deeper to make fill from cut"><input type="range" class="rng" min="0" max="50" step="1" value="${Math.round(d.exc * FT)}" data-wt="exc" style="--p:${d.exc * FT / 50 * 100}%" aria-label="Excavation"><span class="rv" id="wexc" style="width:52px">${ftm(d.exc)}</span></div></div>`;
+    return h;
+  }
+  function damCtx() {
+    const d = S.draft, r = d.res;
+    let h = wsteps(DAM_STEPS, d.step === 'banks' ? 0 : 1, false);
+    if (d.step === 'banks') {
+      h += `<div class="hint">${!d.a ? 'Click one bank, where the water should reach: <b>that height is full pool</b> (PD-05).' : `Full pool <b>${lenTxt(d.P)}</b>. Now click the far bank: it snaps to the same height within ${IMP() ? '250 ft' : '75 m'}.`} The line must cross one stream.</div>`;
+      h += `<div class="lkeys"><span><span class="kbd">Esc</span> ${d.a ? 'picks the first bank again' : 'closes'}</span></div>`;
+      return h + wbtns(false, 'Break ground');
+    }
+    return h + damFacts(d, r, true) + wbtns(r && !r.err, 'Break ground');
+  }
+  function damFacts(o, r, live) {
+    if (!r || r.err) return `<div class="lmsg err" style="padding-top:6px">✕ ${esc(r ? r.err : 'No far bank')}</div><div class="hint">Esc picks the first bank again.</div>`;
+    const tag = (t) => `<span class="wtag">${t}</span>`;
+    return `<dl class="kv" style="padding-top:6px">${wkv('Stream', `<b>${esc(r.st.name)}</b> · ${r.st.cls}`, 'WS-08: the OpenStreetMap line the dam crosses')}
+      ${wkv('Width', `<b>${ftm(r.wft / FT)}</b> ${tag(r.wsrc)}<span class="wbtn" data-act="wt:wwidth" data-v="-1">−</span><span class="wbtn" data-act="wt:wwidth" data-v="1">+</span>${o.width != null ? '<span class="wbtn" data-act="wt:wwidth" data-v="reset">Reset</span>' : ''}`, 'WS-03, WS-08: OpenStreetMap\'s width, or the default (stream 8 ft, river 46 ft), or yours; it sets the inflow')}
+      ${wkv('Full pool', `<b>${lenTxt(o.P)}</b> · crest <b>${lenTxt(r.crest)}</b>`, 'PD-06: crest = full pool + 2 ft freeboard, deck 11.5 ft')}${wkv('Length', `<b>${ftm(r.len)}</b> · embankment ${ftm(r.built)}`)}
+      ${wkv('Height', `up to <b>${ftm(r.hMax)}</b> · mean ${ftm(r.hAvg)}`, 'PD-06: at most 130 ft; 3:1 upstream, 2:1 downstream')}
+      ${wkv('Water', `${wArea(r.area)} · ${acft(r.vol)}`, 'PD-09: flooded on the graded surface (PD-06)')}${wkv('', `<span style="color:var(--soft)">${galM(r.vol)} · mean ${ftm(r.avgDepth)} · deepest ${ftm(r.maxDepth)}</span>`)}
+      ${wkv('Inflow', `${cfsTxt(r.now)} now <span style="color:var(--soft)">· ${wfmt(r.base * 35.3147)} × ${SEASONF(S.day)} (${SEASONW(S.day)})</span>`, 'WS-03: by the stream\'s width, × the season factor')}
+      ${wkv('Fills in', `about <b>${r.fillDays < 1 ? Math.max(1, Math.round(r.fillDays * 24)) + ' hours' : Math.round(r.fillDays) + ' days'}</b> at that flow`)}
+      </dl><div class="lrow" style="padding:2px 12px" title="PD-07: every dam spills at full pool, so it never overtops (WS-06)"><span>Spillway</span><div class="seg" data-ui="toolwin-dam-spill">${[['a', 'First bank'], ['b', 'Far bank']].map(([v, l]) => `<span class="${o.spill === v ? 'on' : ''}" data-act="wt:wspill" data-v="${v}">${l}</span>`).join('')}</div></div>
+      <dl class="kv">${wkv('Fill', `${yd3m(r.fill)} <span style="color:var(--soft)">· brought in</span>`, 'PD-06: an earth-fill embankment, fill only')}${wkv('Trees cleared', `about <b>${r.trees.toLocaleString('en-US')}</b>`)}</dl>`;
+  }
+  // WS-01…07 (PR B): what the source holds and does now, with the test draw until the guns draw (4.16)
+  function waterNow(o, ed) {
+    if (!o) return '';
+    const lake = !!o.est, cap = lake ? polyArea(o.pts) * (o.depth || o.est) : o.res.vol, usable = lake ? polyArea(o.pts) * WS.lakeDraw : cap * (1 - WS.minPool);
+    const pct = o.fillPct == null ? 1 : o.fillPct, stored = cap * pct, draw = (ed || o).test || 0, drawCms = draw * 0.0000630902;
+    const below = lake ? 0 : (1 - pct) * (o.res.maxDepth || 3) * 0.55, inflow = o.res && o.res.now ? o.res.now : 0, full = pct >= 0.999;
+    const left = drawCms > inflow ? (lake ? usable : Math.max(0, stored - cap * WS.minPool)) / ((drawCms - inflow) * 86400) : Infinity;
+    const bar = `<span class="wbar" title="WS-05: the line is the minimum pool"><span style="width:${(pct * 100).toFixed(0)}%"></span><i style="left:${lake ? (1 - usable / cap) * 100 : WS.minPool * 100}%"></i></span>`;
+    return `<div class="rule"></div><div class="sub" style="padding:6px 12px 0"><span>Water now</span></div><dl class="kv">${wkv('Level', `<b>${lenTxt(lake ? elevW(o.pts[0]) : o.P - below)}</b> ${below > 0.01 ? `<span style="color:var(--soft)">· ${ftm(below)} below full</span>` : '<span style="color:var(--soft)">· full</span>'}`, 'WS-02: from the graded bowl\'s stage–storage curve')}
+      ${wkv('Stored', `${bar} <b>${Math.round(pct * 100)}%</b> · ${acft(stored).replace(/<\/?b>/g, '')}`)}
+      ${wkv('In', lake ? '<span style="color:var(--soft)">its own (not counted)</span>' : o.a ? `${cfsTxt(inflow)} from ${esc(o.res.st.name)}` : `runoff ${gpmTxt(o.runoff || 0)} <span style="color:var(--soft)">· ${wArea(o.catch || 1.2e5)} drains here</span>`, 'WS-03 a dam\'s stream; WS-04 a pond\'s catchment runoff, or its spring')}
+      ${wkv('Out', `evaporation ${IMP() ? '0.01 in' : '0.25 mm'} a day${full && inflow > drawCms ? ` · <b>spilling</b> ${cfsTxt(inflow - drawCms).replace(/<\/?b>/g, '')}` : ''}`, 'WS-06 spill, WS-07 evaporation')}
+      <dt title="WS-05: until the guns draw (4.16), a test draw shows the drawdown">Test draw</dt><dd><span class="wbtn" data-act="wt:wdraw" data-v="-250">−</span> ${draw ? gpmTxt(draw) : '<span style="color:var(--soft)">none</span>'} <span class="wbtn" data-act="wt:wdraw" data-v="250">+</span></dd>
+      ${wkv('Making left', drawCms <= inflow ? '<span style="color:var(--soft)">— nothing drawing it down</span>' : `<b>${left < 1 ? Math.round(left * 24) + ' hours' : left.toFixed(1) + ' days'}</b> at this draw`, lake ? 'WS-05: a lake stops 3 ft down (the permit)' : 'WS-05: stops at 10% (the minimum pool)')}</dl>`;
+  }
+  function lakeCard(k) {
+    const A = polyArea(k.pts), dep = k.depth || k.est;
+    return `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(k.name)}</b> <span style="color:var(--soft)">· standing water · OpenStreetMap</span></div>
+      <div class="lrow" style="padding:6px 12px 2px" title="WS-01: a lake you switch on is a water source"><span>Snowmaking</span><div class="seg" data-ui="toolwin-lake-source">${[['on', 'Water source'], ['off', 'Off']].map(([v, l]) => `<span class="${(k.on ? 'on' : 'off') === v ? 'on' : ''}" data-act="wt:wlake" data-v="${v}">${l}</span>`).join('')}</div></div>
+      <dl class="kv">${wkv('Area', wArea(A))}${wkv('Surface', `<b>${lenTxt(elevW(k.pts[0]))}</b>`)}
+      ${wkv('Mean depth', `<b>${ftm(dep)}</b> <span class="wtag">${k.depth ? 'yours' : 'estimate'}</span> <span class="wbtn" data-act="wt:wdepth" data-v="-1">−</span><span class="wbtn" data-act="wt:wdepth" data-v="1">+</span>${k.depth ? ' <span class="wbtn" data-act="wt:wdepth" data-v="reset">Reset</span>' : ''}`, 'LK-02: from the shoreline\'s slope; a terrain estimate, not measured')}
+      ${wkv('Volume', `${acft(A * dep)} <span style="color:var(--soft)">· ${galM(A * dep)}</span>`, 'WS-02: area × mean depth')}${wkv('Usable', `${acft(A * WS.lakeDraw)} <span style="color:var(--soft)">· the top 3 ft</span>`, 'WS-05: a natural lake may be drawn down at most 3 ft (a permit rule)')}</dl>${k.on ? waterNow(k) : ''}`;
+  }
+  function waterPanel() {
+    const d = S.draft, t = toolById(S.tool);
+    if (d.kind === 'pond') return panelShell(`${g('s-pond')}${d.editing ? 'Edit pond' : 'New pond'} <span class="nm">${esc(d.name)}</span>`, `<div style="padding:8px 0 4px"><div class="lrow"><span>Name</span><input id="pondname" class="field tname" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(d.name)}"></div>${d.step === 'pool' ? pondRows(d) : ''}</div><div class="rule"></div><div id="waterctx">${pondCtx()}</div>`, 344, 'toolwin');
+    if (d.kind === 'dam') return panelShell(`${g('s-dam')}New dam <span class="nm">${esc(d.name)}</span>`, `<div id="waterctx">${damCtx()}</div>`, 344, 'toolwin');
+    const o = S.sel && waterById(S.sel), head = `${toolGlyph(t)}${t.name}`;
+    if (d.kind === 'source') return panelShell(head, o ? lakeCard(o) : `<div class="hint">Click a lake to use it as a water source. Ponds and dams are sources already (WS-01).</div>`, 320, 'toolwin');
+    if (!o) return panelShell(head, `<div class="hint">${d.mode === 'edit' ? 'Click a pond, a dam or a lake source to open it.' : 'Click a pond, a dam or a lake source: it lights up, and a second click removes it.'}</div>`, 300);
+    if (d.mode === 'remove') {
+      const what = o.est ? `Stops using ${esc(o.name)} as a source; the lake stays.` : `${o.a ? 'Its embankment comes out' : 'Its berm comes out and the hole fills in'}: the ground goes back exactly as it was (PD-08). Ctrl+Z brings it back.`;
+      return panelShell(head, `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(o.name)}</b></div><div class="hint">${what}</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="wt:wremove"><span>${S.removeArmed === o.id ? 'Click again to remove' : `Remove ${esc(o.name)}`}</span><span class="mono">${S.removeArmed === o.id ? 'Esc keeps it' : ''}</span></div></div>`, 300);
+    }
+    if (o.est) return panelShell(head, lakeCard(o), 320, 'toolwin');
+    return panelShell(`${g('s-dam')}Edit dam <span class="nm">${esc(o.name)}</span>`, damFacts(o, o.res, false) + waterNow(o), 344, 'toolwin');
+  }
+  function refreshWater() { drawWorld(); const cx = document.getElementById('waterctx'); if (cx && S.draft && (S.draft.kind === 'pond' || S.draft.kind === 'dam')) cx.innerHTML = S.draft.kind === 'pond' ? pondCtx() : damCtx(); }
+  let wDrag = null, wDragged = false;   // Edit pond: drag a shoreline point
+  function waterDown(e) {
+    const d = S.draft; if (!d || d.kind !== 'pond' || d.step !== 'pool' || e.button !== 0) return false;
+    const p = toMap(e), i = d.pts.findIndex((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 6 / S.zoom); if (i < 0) return false;
+    wDrag = i; stage.setPointerCapture(e.pointerId); return true;
+  }
+  function waterMove(p) { const d = S.draft; d.pts[wDrag] = p; pondRegrade(d); refreshWater(); }
+  // the demo states (task 4.14 mockup): see the "try" list
+  function waterDemo(dd) {
+    const POND = [[876, 631], [869, 639], [855, 641], [845, 635], [846, 625], [857, 619], [871, 622]];
+    const DAM = { a: [961, 620], far: [993, 620] };
+    const seed = (withPond, withDam, lakeOn) => {
+      if (withPond) { const res = pondEval(POND, pondSuggest(POND), 3.05); S.water.ponds.push({ id: 'w1', name: 'Base Pond', pts: POND.map((q) => q.slice()), P: pondSuggest(POND), exc: 3.05, res, fillPct: 0.84, test: 1000, runoff: 3, catch: 1.6e5 }); }
+      if (withDam) { const P = elevW(DAM.a), b = damSnap(DAM.a, P, DAM.far), o = { a: DAM.a, b, P, spill: 'a', width: null }; o.res = damEval(o); if (o.res.err) console.error('seed dam: ' + o.res.err + ' b=' + JSON.stringify(b)); else S.water.dams.push({ id: 'd1', name: 'Twin Dam', ...o, fillPct: 1, test: 0 }); }
+      if (lakeOn) S.water.lakes[0].on = true;
+    };
+    const open = (id) => { S.toolbox = true; S.tab = 'snow'; chooseTool(id); };
+    if (dd.includes('pondshore')) { open('pond'); const d = S.draft; d.pts = POND.slice(0, 5).map((q) => q.slice()); mouse = [858, 618]; }
+    if (dd.includes('pondpool') || dd.includes('pondberm')) { open('pond'); const d = S.draft; d.pts = POND.map((q) => q.slice()); waterKeys({ key: 'Enter' }, 'enter'); if (dd.includes('pondberm')) { d.P += 22; pondRegrade(d); } }
+    if (dd.includes('damfirst')) { open('dam'); const d = S.draft; d.a = DAM.a; d.P = elevW(DAM.a); mouse = [992, 622]; }
+    if (dd.includes('damreview') || dd.includes('damedge')) { open('dam'); const a = dd.includes('damedge') ? [951, 648] : DAM.a; waterClick(a); waterClick(dd.includes('damedge') ? [989, 648] : DAM.far); }
+    if (dd.includes('watersource')) { seed(false, false, false); open('water-source'); S.sel = 'k1'; S.water.lakes[0].on = true; }
+    if (dd.includes('pondedit')) { seed(true, true, true); open('edit-water'); waterClick([860, 630]); }
+    if (dd.includes('damedit')) { seed(true, true, true); open('edit-water'); S.sel = 'd1'; }
+    if (dd.includes('waterremove')) { seed(true, true, true); open('remove-water'); S.sel = 'w1'; S.removeArmed = 'w1'; }
+    if (dd.includes('watertray')) { seed(true, true, true); S.toolbox = true; S.tab = 'snow'; }
+  }
   function reviewActs(ready, plan, rules) {
     return `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}" data-ui="review-go" title="${rules}"><span>Break ground</span><span class="kbd kbd-go">Ctrl Enter</span></div><div class="ghost${plan ? '' : ' dis'}" data-act="${plan ? 'plan' : ''}" data-ui="review-plan">Save plan</div></div>`;
   }
@@ -4186,13 +4602,13 @@ body.solo .frame { border-radius: 0; }
     if (S.toolbox && !S.analysis) {
       const cur = S.tool ? toolById(S.tool) : null;
       // demo=p2 is the game as built: New lift and New trail are real since P3-06, the other tiles still come later.
-      const tile = (t) => P2 && !P3_LIVE.includes(t.id) ? `<span class="tool dis" data-ui="tool-${t.id}" data-name="${t.name}" data-key="${t.key}" data-hint="comes in Phase 3">${toolGlyph(t)}<span>${t.label}</span></span>`
+      const tile = (t) => (P2 && !P3_LIVE.includes(t.id)) || t.soon ? `<span class="tool dis" data-ui="tool-${t.id}" data-name="${t.name}" data-key="${t.key}" data-hint="${t.soon ? `comes with ${t.soon}` : 'comes in Phase 3'}">${toolGlyph(t)}<span>${t.label}</span></span>`
         : `<span class="tool${S.tool === t.id ? ' on' : ''}" data-act="tool" data-v="${t.id}" data-ui="tool-${t.id}" data-name="${t.name}" data-key="${t.key}" data-hint="${esc(t.hint)}">${toolGlyph(t)}<span>${t.label}</span></span>`;
       h += `<div class="box" data-ui="toolbox" style="bottom:${trayBottom}px"><div class="tabs">${TABS.map(([k, v]) => `<span class="${S.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}" data-ui="toolbox-tab-${k}">${v}</span>`).join('')}</div><div class="tabrule"></div>
         <div class="toollabel" id="toollabel" data-ui="toolbox-label">${cur && TOOLS[S.tab].includes(cur) ? `${cur.name}<span class="mono">${cur.key}</span>` : 'Select tool'}</div>
         <div class="tools">${TOOLS[S.tab].map(tile).join('')}</div></div>`;
     }
-    if (S.tool) { const t = toolById(S.tool); h += t.kind === 'lift' || (S.draft && S.draft.edit) ? liftPanel() : t.kind === 'trail' ? trailPanel() : t.kind === 'terrain' ? terrainPanel() : t.kind === 'pick' ? pickPanel() : placePanel(); }
+    if (S.tool) { const t = toolById(S.tool); h += WATER.has(t.kind) ? waterPanel() : t.kind === 'lift' || (S.draft && S.draft.edit) ? liftPanel() : t.kind === 'trail' ? trailPanel() : t.kind === 'terrain' ? terrainPanel() : t.kind === 'pick' ? pickPanel() : placePanel(); }
     // the lift tool's profile strip, beside the tray along the bottom
     if (S.draft && S.draft.kind === 'lift') h += liftStrip(S.draft, 436, trayBottom);
     if (S.draft && S.draft.kind === 'trail') h += trailStrip(S.draft, 436, trayBottom);
@@ -4740,6 +5156,7 @@ body.solo .frame { border-radius: 0; }
   function act(a, v, e) {
     if (a !== 'amenu' && a !== 'afchk' && a !== 'afclr') S.afMenu = null;
     if (a !== 'lkmenu') S.lkMenu = false;
+    if (a && a.startsWith('wt:')) { waterAct(a.slice(3), v); return; }   // task 4.14's water windows
     switch (a) {
       case 'toolbox': S.toolbox = !S.toolbox; S.analysis = false; if (!S.toolbox) { S.tool = null; S.draft = null; S.sel = null; } break;
       case 'analysis': S.analysis = !S.analysis; if (S.analysis) { S.toolbox = false; S.tool = null; S.draft = null; S.sel = null; } break;
@@ -4779,7 +5196,7 @@ body.solo .frame { border-radius: 0; }
       case 'lmaker': case 'lkmenu': case 'lkind': case 'lcarrier': case 'ltype': case 'lcap': case 'lmode': case 'lstand': case 'lscale': case 'lstep': case 'lfill': case 'lreplace': case 'lh': case 'ldel': case 'ldrop': case 'lkeep': case 'llevel': case 'lundo': case 'lapply': case 'lcancel': liftAct(a, v); return;
       case 'model': S.draft.model = v; break;
       case 'diff': S.draft.diff = v; break;
-      case 'build': commit(false); return;
+      case 'build': if (S.draft && WATER.has(S.draft.kind)) { waterBuild(); return; } commit(false); return;
       case 'plan': commit(true); return;
       case 'setmodel': { const l = S.lifts.find((x) => x.id === S.sel); if (l && l.model !== v) { const before = liftStats(l.a, l.b, l.model).cost.total; l.model = v; const diff = liftStats(l.a, l.b, v).cost.total - before; if (l.built && diff > 0) spend(diff); S.saveDue = true; log(`<span><b>${esc(l.name)}</b> is now a ${v}${l.built && diff > 0 ? ` <span class="mono" style="color:var(--neg)">${short(-diff)}</span>` : ''}</span>`); } break; }
       case 'tedit': {
@@ -4940,6 +5357,7 @@ body.solo .frame { border-radius: 0; }
       else if (hp && hp.hover) { liftDrag = { t: hp.hover }; d.sel = hp.hover; d.selT = null; editSnap(d); liftDragged = false; stage.setPointerCapture(e.pointerId); }
       else if (!d.edit && Math.hypot(p[0] - B[0], p[1] - B[1]) < 9 / S.zoom) { liftDrag = { term: true }; d.lenWas = d.len; liftDragged = false; stage.setPointerCapture(e.pointerId); }
     }
+    if (waterDown(e)) return;   // Edit pond: a shoreline point in hand
     if (S.draft && S.draft.kind === 'terrain' && (e.button === 0 || e.button === 2) && !onUi(e)) { const p = toMap(e); mouse = p; tbStart(S.draft, p, e.button === 2); if (S.draft.stroke) stage.setPointerCapture(e.pointerId); refreshTerrain(); }
     if (S.draft && S.draft.kind === 'trail' && S.draft.step === 'paint' && e.button === 0) { const d = S.draft; d.stroke = { idx: [], was: [], erase: e.shiftKey, last: null }; strokeTo(d, toMap(e)); stage.setPointerCapture(e.pointerId); }
     if (S.sketch) { sketching = [toMap(e)]; S.sketches.push(sketching); stage.setPointerCapture(e.pointerId); }
@@ -4947,6 +5365,7 @@ body.solo .frame { border-radius: 0; }
   stage.addEventListener('pointermove', (e) => {
     if (drag) { const sc = S.set.hudScale / 100, U = K * sc; S.panelPos = { x: Math.max(0, Math.min(W / sc - 120, e.clientX / U - drag.dx)), y: Math.max(0, Math.min(H / sc - 60, e.clientY / U - drag.dy)) }; const pn = document.getElementById('pn'); pn.style.left = S.panelPos.x + 'px'; pn.style.top = S.panelPos.y + 'px'; return; }
     if (sketching) { sketching.push(toMap(e)); drawWorld(); return; }
+    if (wDrag != null) { const p = toMap(e); mouse = p; wDragged = true; waterMove(p); showElev(); return; }
     if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { const p = toMap(e); strokeTo(S.draft, p); mouse = p; showElev(); drawWorld(); return; }
     if (S.draft && S.draft.kind === 'terrain' && S.draft.stroke) { const p = toMap(e); mouse = p; tbDab(S.draft, p); showElev(); refreshTerrain(); return; }
     if (liftDrag) {
@@ -4974,7 +5393,7 @@ body.solo .frame { border-radius: 0; }
     if (S.secs && !onUi(e)) { e.preventDefault(); if (S.secs.mode === 'choose') { const sg = segAt(toMap(e)); if (sg) secsTakeOut(sg.key); render(); } }   // NT35: right-click takes out
   });
   stage.addEventListener('pointerleave', () => { if (liftDrag) return; mouse = null; showElev(); if (S.draft && S.draft.kind === 'lift') { S.draft.hand = null; refreshLift(); } else if (S.draft) drawWorld(); });
-  window.addEventListener('pointerup', () => { if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { endStroke(S.draft); render(); } if (S.draft && S.draft.kind === 'terrain' && S.draft.stroke) { tbEnd(S.draft); render(); } if (liftDrag) { const d = S.draft; if (liftDrag.term) d.dropAsk = d.towers.length - towersOn(d).length; if (liftDrag.end) endMove(d, liftDragged); if (d.edit && !liftDragged) d.hist.pop(); liftDrag = null; render(); } });
+  window.addEventListener('pointerup', () => { if (wDrag != null) { wDrag = null; render(); } if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { endStroke(S.draft); render(); } if (S.draft && S.draft.kind === 'terrain' && S.draft.stroke) { tbEnd(S.draft); render(); } if (liftDrag) { const d = S.draft; if (liftDrag.term) d.dropAsk = d.towers.length - towersOn(d).length; if (liftDrag.end) endMove(d, liftDragged); if (d.edit && !liftDragged) d.hist.pop(); liftDrag = null; render(); } });
   // BR20: the wheel over any slider moves it a step a notch (up is more) and never scrolls the panel or zooms; a bubble
   // over the thumb shows its value while hovered, dragged or wheeled.
   let rngTipEl = null, rngTipFor = null, rngTipHide = null, rngDrag = null, rngPinned = false;
@@ -5016,6 +5435,12 @@ body.solo .frame { border-radius: 0; }
   stage.addEventListener('input', (e) => { const rg = e.target.closest && e.target.closest('input.rng'); if (rg && rngTipFor) setTimeout(() => rngTip(rg, true), 0); });
   stage.addEventListener('input', (e) => {
     if (e.target.id === 'trailname' && S.draft && S.draft.kind === 'trail') { S.draft.name = e.target.value.slice(0, 28); return; }
+    if (e.target.id === 'pondname' && S.draft && S.draft.kind === 'pond') { S.draft.name = e.target.value.slice(0, 28); return; }
+    if (e.target.dataset && e.target.dataset.wt === 'exc' && S.draft && S.draft.kind === 'pond') {   // PD-02: excavation, 0–50 ft
+      const rg = e.target; rg.style.setProperty('--p', `${rg.value / 50 * 100}%`); S.draft.exc = +rg.value / FT; pondRegrade(S.draft);
+      document.getElementById('wexc').textContent = ftm(S.draft.exc); refreshWater();
+      return;
+    }
     if (e.target.dataset && e.target.dataset.secname && S.secs) { S.secs.typed[e.target.dataset.secname] = e.target.value.slice(0, 28); applyTyped(); drawWorld(); return; }   // NT40
     if ((e.target.id === 'fbtitle' || e.target.id === 'fbnote') && S.modal && S.modal.fb) {   // P3-14: kept across re-renders; Send lights once there's a title
       const fb = S.modal.fb, had = !!fb.title.trim(); if (e.target.id === 'fbtitle') fb.title = e.target.value; else fb.note = e.target.value;
@@ -5060,6 +5485,7 @@ body.solo .frame { border-radius: 0; }
     if (d) {
       if (d.kind === 'lift') { if (liftDragged) { liftDragged = false; return; } liftClick(p); return; }
       if (d.kind === 'trail') { trailClick(p); return; }
+      if (WATER.has(d.kind)) { if (wDragged) { wDragged = false; return; } waterClick(p, dbl); return; }
       else if (d.kind === 'trail' || d.kind === 'line') { if (d.done) return; if (dbl && d.pts.length > 1) d.done = true; else d.pts.push(p); }
       else d.pts.push(p);
       render(); return;
@@ -5118,6 +5544,7 @@ body.solo .frame { border-radius: 0; }
     if ((e.ctrlKey || e.metaKey) && k === 'z' && S.draft && S.draft.kind === 'trail' && S.draft.step === 'paint') { e.preventDefault(); undoStroke(S.draft); render(); return; }   // TF-02
     // Edit lift's own undo inside the tool; outside a tool, the last applied lift edit or removal (one command each)
     if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y') && S.draft && S.draft.edit) { e.preventDefault(); editUndo(S.draft, k === 'y'); render(); return; }
+    if ((e.ctrlKey || e.metaKey) && k === 'z' && (!S.draft || S.draft.kind === 'wpick' || S.draft.kind === 'source') && !S.modal && S.water.undo.length) { e.preventDefault(); waterUndo(); return; }   // PD-08
     if ((e.ctrlKey || e.metaKey) && k === 'z' && !S.draft && !S.modal && S.liftUndo.length) { e.preventDefault(); liftUndoLast(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (S.modal && k !== 'escape') return;   // a window is open: only Esc, which closes it
@@ -5141,6 +5568,7 @@ body.solo .frame { border-radius: 0; }
     if (S.draft && S.draft.kind === 'lift' && liftKeys(e, k)) return;
     if (S.draft && S.draft.kind === 'trail' && trailKeys(e, k)) return;
     if (S.draft && S.draft.kind === 'terrain' && terrainKeys(e, k)) return;
+    if (S.draft && WATER.has(S.draft.kind) && waterKeys(e, k)) return;
     if (k === 'escape') {
       if (S.modal) S.modal = null;
       else if (S.drop) S.drop = null;
@@ -5172,7 +5600,7 @@ body.solo .frame { border-radius: 0; }
     if (k === '-') { act('zoom', -1); return; }
     if (k === 'pageup' || k === 'pagedown') { e.preventDefault(); act('zoom', k === 'pageup' ? 1 : -1); return; }   // zoom, unless a tower is in hand
     if (k === 'home') { act('resetview'); return; }
-    if (S.toolbox) { const t = TOOLS[S.tab].find((x) => x.key.toLowerCase() === k); if (t && (!S.p2 || P3_LIVE.includes(t.id))) chooseTool(t.id); }
+    if (S.toolbox) { const t = TOOLS[S.tab].find((x) => x.key.toLowerCase() === k); if (t && !t.soon && (!S.p2 || P3_LIVE.includes(t.id))) chooseTool(t.id); }
   });
 
   // ---------- the clock: game seconds per real second at each speed ----------
@@ -5391,6 +5819,9 @@ body.solo .frame { border-radius: 0; }
       if (d.includes('liftnear')) S.zoom = 1.6;
       if (d.includes('liftclose')) S.zoom = 1.8;
     }
+    // task 4.14, the Snowmaking tab's water: watertray, pondshore, pondpool, pondberm, damfirst, damreview, damedge,
+    // watersource, pondedit, damedit, waterremove
+    waterDemo(d);
     // The terrain brush (task P3-15): terrainraise, terrainflatten, terrainsmooth, terrainslope (each mid-stroke, the cursor
     // on the ground, the session's bill counting) and terrainask (closing with ground not confirmed, BR18).
     const tb = ['terrainraise', 'terrainflatten', 'terrainsmooth', 'terrainslope', 'terrainask'].find((x) => d.includes(x));

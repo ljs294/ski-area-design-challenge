@@ -117,7 +117,7 @@ namespace MountainPlanner.Tests.Core
             SaveStore.Write(folder, FixtureSave());
             var o = JObject.Parse(File.ReadAllText(Path.Combine(folder, SaveFile.FileName)));
             Assert.That(o.Properties().Select(p => p.Name), Is.EqualTo(new[] { "Version", "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256", "Design", "Edits", "Sim" }));
-            Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "TrailLines", "Cuts", "Hours" }),
+            Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "TrailLines", "Cuts", "Hours", "Ponds", "Dams", "Lakes", "Streams" }),
                 "no network, stats, ratings, rope or volumes (SH-05); no undo history (DD1)");
             Assert.That(((JObject)o["Design"]["Lifts"][0]).Properties().Select(p => p.Name),
                 Is.EqualTo(new[] { "Id", "Name", "Stage", "Catalog", "Bottom", "Top", "TowerMode", "Stance", "Towers", "Levels", "Drive", "Schedule", "Hours", "Plate" }),
@@ -346,14 +346,40 @@ namespace MountainPlanner.Tests.Core
             return save;
         }
 
+        /// <summary>
+        /// The save the v14 fixture holds (task 4.14, PD-08, WS-01): the v13 fixture plus a pond (a spring on it), a dam with
+        /// its spillway on the far bank and a width of its own, and a lake switched on with a depth of its own, so every
+        /// field is pinned.
+        /// </summary>
+        static SaveFile FixtureSaveFourteen()
+        {
+            var save = FixtureSaveThirteen();
+            var ring = new[] { new PointMm(100_000, 50_000), new PointMm(140_000, 52_000), new PointMm(138_000, 80_000), new PointMm(104_000, 78_000) };
+            var r = new AddPond(0, "Base Pond", ring, 2_031_500, 3_048).Apply(save.Design);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            var pond = r.Document.FindPond(new PondId(r.Created[0]));
+            r = new EditPond(0, pond.Id, pond.Name, pond.Ring, pond.FullPoolMm, pond.ExcavationMm, 250, PondFill.Pumped, true).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            r = new AddDam(0, "Twin Dam", new PointMm(-200_000, 10_000), new PointMm(-170_000, 12_000), 2_050_250, true, SpillBank.Far, 0x1234_5678_9abc_def0UL, true, 457).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            r = new SetLakeSource(0, 0x0fed_cba9_8765_4321UL, true, 43).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            r = new SetLake(0, 0x0fed_cba9_8765_4321UL, "Moose Lake", 43).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            r = new SetStream(0, 0x1234_5678_9abc_def0UL, "Cody Creek", 460).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            save.Design = r.Document;
+            return save;
+        }
+
         [Test]
         public void TheWriterReproducesTheFrozenFixtureByteForByte()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v13-save")), "Saves", JacksonHole, "save-001");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v14-save")), "Saves", JacksonHole, "save-001");
             string folder = Path.Combine(_root, "again");
-            SaveStore.Write(folder, FixtureSaveThirteen());
+            SaveStore.Write(folder, FixtureSaveFourteen());
             Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveFile.FileName)), Is.EqualTo(File.ReadAllBytes(Path.Combine(fixture, SaveFile.FileName))),
-                "save.json v13 is frozen: a writer change is a format change (0.3 §5)");
+                "save.json v14 is frozen: a writer change is a format change (0.3 §5)");
             foreach (string tile in Directory.GetFiles(Path.Combine(fixture, SaveStore.TilesFolder)))
                 Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveStore.TilesFolder, Path.GetFileName(tile))), Is.EqualTo(File.ReadAllBytes(tile)));
         }
@@ -454,7 +480,7 @@ namespace MountainPlanner.Tests.Core
             byte[] before = File.ReadAllBytes(path);
 
             var e = Assert.Throws<FormatTooNewException>(() => SaveStore.Read(folder));
-            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 14; this version reads up to 13). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 15; this version reads up to 14). Update the game to open it."));
             Assert.That(SaveStore.Write(folder, FixtureSave()), Is.False);
             Assert.That(SaveStore.Rename(folder, "Mine now"), Is.False);
             Assert.That(File.ReadAllBytes(path), Is.EqualTo(before), "nothing is written over a newer save (0.3 §5 rule 3)");
@@ -720,6 +746,38 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
+        public void TheVersionFourteenFixtureReadsUnchanged()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v14-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture14");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveFourteen(), back);
+            Assert.That(back.MigratedFrom, Is.EqualTo(14));
+            Assert.That(back.Design.Ponds.Select(p => $"{p.Name} {p.Ring.Count} {p.FullPoolMm} {p.ExcavationMm} {p.SpringGpm} {p.Fill} {p.StartsEmpty}"),
+                Is.EqualTo(new[] { "Base Pond 4 2031500 3048 250 Pumped True" }));
+            Assert.That(back.Design.Dams.Select(d => $"{d.Name} {d.UpstreamLeft} {d.Spill} {d.StreamWay:x16} {d.StartsEmpty}"),
+                Is.EqualTo(new[] { "Twin Dam True Far 123456789abcdef0 True" }));
+            Assert.That(back.Design.Lakes.Select(k => $"{k.Lake:x16} {k.Name} {k.DepthTenthsFt} {k.Source}"), Is.EqualTo(new[] { "0fedcba987654321 Moose Lake 43 True" }));
+            Assert.That(back.Design.Streams.Select(k => $"{k.Way:x16} {k.Name} {k.WidthCm}"), Is.EqualTo(new[] { "123456789abcdef0 Cody Creek 460" }));
+        }
+
+        [Test]
+        public void PD08_OlderSavesOpenWithNoPondsDamsLakesOrStreams()
+        {
+            // v13 → v14 (task 4.14): an older save held none.
+            foreach (string version in new[] { "v1-save", "v7-save", "v12-save", "v13-save" })
+            {
+                string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", version)), "Saves", JacksonHole, "save-001");
+                var back = SaveJson.Read(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName)), out _);
+                Assert.That(back.Design.Ponds, Is.Empty, version);
+                Assert.That(back.Design.Dams, Is.Empty, version);
+                Assert.That(back.Design.Lakes, Is.Empty, version);
+                Assert.That(back.Design.Streams, Is.Empty, version);
+            }
+        }
+
+        [Test]
         public void OlderSavesOpenWithNoPlates()
         {
             // v12 → v13 (task 4.11 PR B; owner 2026-11-08: plates are optional): an older save's lifts open with no plate.
@@ -908,7 +966,8 @@ namespace MountainPlanner.Tests.Core
         // Shape 11 (task 4.21, TD-07): the shape number and a not-posted byte for each trail and shaped trail; from c7a67ac0….
         // Shape 12 (task 4.03, LO-07 v2, LO-09): the shape number, the resort's default hours and each lift's daily schedule
         // with no hours of its own; from 1c7c9274…. Shape 13 (task 4.11 PR B): each lift's plate, numbered in ID order; from f5af52b0….
-        const string ConvertedSevenSha = "a5a2784512a7211309f6a276714b4f2b68f661e7c49c9f58cf143517b4268245";
+        // Shape 14 (task 4.14): the shape number and no ponds, dams or lake sources; from a5a27845…, awaiting the owner's approval.
+        const string ConvertedSevenSha = "f17253371d1fa108df658889b9e4acf4aa018d8ee6268a1f7bdd85e5a09de161";
 
         [Test]
         public void ADamagedOlderTrailRefusesTheSave()
@@ -1011,6 +1070,16 @@ namespace MountainPlanner.Tests.Core
                 Assert.That(back.Design.Strokes, Is.Empty, kv.Key);
                 Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
             }
+        }
+
+        [Test, Explicit("Regenerates the frozen v14 save fixture")]
+        public void WriteTheVersionFourteenFixture()
+        {
+            string formats = TestData.Folder("formats");
+            string folder = Path.Combine(formats, "v14-save", "Saves", JacksonHole, "save-001");
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+            Assert.That(SaveStore.Write(folder, FixtureSaveFourteen()), Is.True);
+            File.Delete(Path.Combine(folder, SaveFile.BackupName));
         }
 
         [Test, Explicit("Regenerates the frozen v13 save fixture")]

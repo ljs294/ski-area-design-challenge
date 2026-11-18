@@ -444,7 +444,9 @@ namespace MountainPlanner.App
             // A send the queue refuses is tried again next frame; the release follows the inputs in the same queue.
             if (!_simWeatherTerrainSent && _resort.WeatherTerrain != null)
                 _simWeatherTerrainSent = _sim.Send(SimCommandKind.SetWeatherTerrain, 0, _resort.WeatherTerrain);
-            if (!_simWaterSent && _resort.WaterBodies != null)
+            // Task 4.14: the table carries the design's ponds and reservoirs; the first waits for them, a change is sent again.
+            bool waterReady = UpdateDesignWater();
+            if (!_simWaterSent && _resort.WaterBodies != null && waterReady)
                 _simWaterSent = _sim.Send(SimCommandKind.SetWaterBodies, 0, _resort.WaterBodies);
             SendSnowTerrain();
             // Released with the inputs, or without one whose build ended with none (it failed): then the area plays B1's height

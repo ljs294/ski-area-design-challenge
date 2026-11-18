@@ -69,7 +69,7 @@ namespace MountainPlanner.Domain.Water
         public static string Readout(WaterBodyKind kind, WaterSurfaceState state, int iceHundredthsIn, int snowTenthsIn,
                                      int onMonth, int onDay, int outMonth, int outDay, UnitSystem units)
         {
-            string name = kind == WaterBodyKind.Streams ? "Stream" : kind == WaterBodyKind.Pond ? "Pond" : "Lake";
+            string name = kind == WaterBodyKind.Streams ? "Stream" : kind == WaterBodyKind.Pond ? "Pond" : kind == WaterBodyKind.Reservoir ? "Reservoir" : "Lake";
             if (state == WaterSurfaceState.OpenWater)
                 return name + " · open water · " + (outMonth > 0 ? "opened " + Date(outMonth, outDay) : onMonth > 0 ? "thawing" : "not frozen yet");
             string text = name + " · " + Ice(iceHundredthsIn, units) + " ice";

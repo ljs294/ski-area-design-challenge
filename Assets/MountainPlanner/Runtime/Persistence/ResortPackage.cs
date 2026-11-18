@@ -15,8 +15,9 @@ namespace MountainPlanner.Persistence
     /// </summary>
     public sealed class PackageManifest
     {
-        /// <summary>2 since task 4.05 (PR A2): the Weather block, and its weather.rows beside the manifest.</summary>
-        public const int CurrentFormat = 2;
+        /// <summary>2 since task 4.05 (PR A2): the Weather block, and its weather.rows beside the manifest. 3 since task 4.14
+        /// (WS-08, LK-10): the Water entry, and its water.json beside the manifest.</summary>
+        public const int CurrentFormat = 3;
 
         /// <summary>
         /// The frozen manifest format (task 08, 0.3 §5): a newer one is refused, an older one is migrated as it's read.
@@ -24,6 +25,8 @@ namespace MountainPlanner.Persistence
         /// </summary>
         public static readonly VersionedJson Migrations = new VersionedJson("area package", nameof(FormatVersion), CurrentFormat,
             // 1 -> 2 (task 4.05): nothing to add; a v1 area has no Weather block, which reads as "no weather yet".
+            _ => { },
+            // 2 -> 3 (task 4.14): nothing to add; a v2 area has no Water entry, which reads as "rasterised streams only, no names".
             _ => { });
 
         public int FormatVersion { get; set; } = CurrentFormat;
@@ -50,6 +53,13 @@ namespace MountainPlanner.Persistence
         /// id, so adding it moves no saves.
         /// </summary>
         public WeatherInfo Weather { get; set; }
+
+        /// <summary>
+        /// The OSM stream lines and water names (format 3, task 4.14, WS-08, LK-10): water.json's name and hash. Null means
+        /// none (an area made before 4.14, or a download without OpenStreetMap): dams fall back to the rasterised streams
+        /// and lakes have no OSM names. Not part of the package id, so adding it moves no saves.
+        /// </summary>
+        public WaterInfo Water { get; set; }
 
         /// <summary>When the package was built. Not part of the package id.</summary>
         public string CreatedUtc { get; set; } = "";

@@ -30,6 +30,10 @@ namespace MountainPlanner.Domain.Design
         public const ulong AreaTag = 14;
         /// <summary>A trail made of sections (task 10, owner NT24): keyed by its founding section, never by an ordinal.</summary>
         public const ulong TrailLineTag = 15;
+        /// <summary>Task 4.14's ponds (PD-08).</summary>
+        public const ulong PondTag = 16;
+        /// <summary>Task 4.14's dams (PD-08).</summary>
+        public const ulong DamTag = 17;
 
         public static ulong Hash(ulong seed, ulong tag, ulong a) => Hash(seed, tag, a, 0);
 
