@@ -43,6 +43,12 @@ namespace MountainPlanner.Simulation
         public readonly SnowPack[] Pack;
         public readonly byte[] Type, Age, Flags, CycleDay;
         public readonly ushort[] NewSince;
+        /// <summary>
+        /// Task 4.14 PR B (WS-04, agreed with 4.07): each cell's runoff in the hour in flight, µm of water (rain on bare ground,
+        /// or what leaves the pack, its rain included); 0 where nothing ran (a lake, no weather, a tile not read). Written by
+        /// the hour for every cell, read only by the water at the landing; the snow never reads it, and it isn't saved.
+        /// </summary>
+        public readonly int[] RunoffHour;
 
         // Flags: bit 0 the wet came from rain or glaze; bits 1–2 cold skin hours (0–3); bits 3–4 thaw–refreeze cycles (0–3).
         public const int RainWet = 1, ColdShift = 1, CycleShift = 3;
@@ -54,6 +60,7 @@ namespace MountainPlanner.Simulation
             Pack = new SnowPack[n];
             Type = new byte[n]; Age = new byte[n]; Flags = new byte[n]; CycleDay = new byte[n];
             NewSince = new ushort[n];
+            RunoffHour = new int[n];
         }
 
         public int Cells => Width * Height;

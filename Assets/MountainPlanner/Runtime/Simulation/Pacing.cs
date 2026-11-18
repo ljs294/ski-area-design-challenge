@@ -14,13 +14,14 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 9;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 10;  // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
                                         // 4: task 4.13's confidence speed (GU-10 v2)
                                         // 5: task 4.05's weather (WX-17 v2, WX-28 v2, WX-29, WX-34 v2, WX-35, WX-36 v2, WX-39)
                                         // 6: task 4.05 PR B2's weather over the map (WX-35, WX-39) and PR C's forecast (WX-05 v3, WX-41)
                                         // 7: task 4.05 PR C's named events (WX-41), alerts (WX-42) and forecast pulls (WX-44)
                                         // 8: task 4.09's lakes (LK-01 v2…LK-08 v2)
                                         // 9: task 4.07 PR A2's natural snow (SN-05 v2…SN-18 v2, WX-59…WX-64)
+                                        // 10: task 4.14 PR B's water sources (WS-03 v2, WS-05, WS-07, WS-01's cap; number confirmed with 0.0 at merge)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -319,6 +320,21 @@ namespace MountainPlanner.Simulation
         /// <summary>WX-60 v2: the sun fades over this much of its elevation's sine (millionths) as it crosses the skyline.</summary>
         public readonly int SkylineFade;
 
+        // ---- Water sources (WS-02…WS-11; task 4.14 PR B) ----
+
+        /// <summary>WS-03 v2: a stream's flow by calendar month (‰ of its base cfs), January first.</summary>
+        public readonly int[] InflowSeason;
+        /// <summary>WS-05: the intake sits this far under full pool (mm); its head is the level now.</summary>
+        public readonly int IntakeDepthMm;
+        /// <summary>WS-05: a pond or reservoir stops giving water at this share of its capacity (‰).</summary>
+        public readonly int MinPoolPermille;
+        /// <summary>WS-05: a lake may be drawn down this far under its natural level (mm).</summary>
+        public readonly int LakeDrawdownMm;
+        /// <summary>WS-07: open water loses this much a calendar day (µm).</summary>
+        public readonly int EvapMicronsPerDay;
+        /// <summary>WS-01: the most sources the simulation keeps water for (ponds and dams first, then lakes).</summary>
+        public readonly int MaxSources;
+
         /// <summary>Face milliseconds one tick covers by day and by night (from the real seconds above).</summary>
         public readonly int DayFaceMsPerTick, NightFaceMsPerTick;
 
@@ -557,6 +573,13 @@ namespace MountainPlanner.Simulation
             SnowLandFaceMs = Int(map, nameof(SnowLandFaceMs), 0, 3_600_000);
             SnowThreads = Int(map, nameof(SnowThreads), 1, 16);
             SkylineFade = Int(map, nameof(SkylineFade), 1, 1_000_000);
+            InflowSeason = Ints(map, nameof(InflowSeason), 0, 10_000);
+            if (InflowSeason.Length != 12) throw new FormatException("InflowSeason needs a value for each month.");
+            IntakeDepthMm = Int(map, nameof(IntakeDepthMm), 0, 30_000);
+            MinPoolPermille = Int(map, nameof(MinPoolPermille), 0, 1000);
+            LakeDrawdownMm = Int(map, nameof(LakeDrawdownMm), 0, 30_000);
+            EvapMicronsPerDay = Int(map, nameof(EvapMicronsPerDay), 0, 100_000);
+            MaxSources = Int(map, nameof(MaxSources), 0, 254);
 
             DayFaceMsPerTick = FaceMsPerTick(DayHourRealSeconds, nameof(DayHourRealSeconds));
             NightFaceMsPerTick = FaceMsPerTick(NightHourRealSeconds, nameof(NightHourRealSeconds));
@@ -798,6 +821,12 @@ namespace MountainPlanner.Simulation
             E(nameof(SnowLandFaceMs), "312000"),
             E(nameof(SnowThreads), "4"),
             E(nameof(SkylineFade), "52000"),
+            E(nameof(InflowSeason), "600,600,1000,1500,1000,1000,1000,1000,1000,800,800,600"),
+            E(nameof(IntakeDepthMm), "1829"),
+            E(nameof(MinPoolPermille), "100"),
+            E(nameof(LakeDrawdownMm), "914"),
+            E(nameof(EvapMicronsPerDay), "254"),
+            E(nameof(MaxSources), "64"),
         };
 
         static KeyValuePair<string, string> E(string name, string value) => new KeyValuePair<string, string>(name, value);

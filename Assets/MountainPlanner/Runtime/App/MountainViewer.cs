@@ -709,6 +709,7 @@ namespace MountainPlanner.App
             Hud.SetLegend(_layers.InfoLayerId, _layers.ContoursOn);
             SetHudClock();
             UpdateLiftLive();
+            UpdateWaterLive();
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             var mouse = Mouse.current;
             float elevation = float.NaN, slope = float.NaN, bearing = 0, snow = float.NaN;

@@ -406,6 +406,9 @@ echo        bank snaps to the same height; Lake: click Moose Lake to use it. It 
 echo     117 Ponds and dams on the ground (PR A): the dam preview, the guardrails, water cards and names, pumped
 echo        ponds; save, reopen. Your Doublehead (D) or Kearsarge (K), or the demo mountain, as a scratch copy;
 echo        rebuilds the game, close the editor first.
+echo     118 Water over the season (PR B): the water tests, then a report in your browser (a year of four sources on a
+echo        test mountain: levels, water in and out, the ledger), then the game on a scratch copy: build a pond that
+echo        starts empty and watch it fill, set a Test draw on its card, save and reopen. Rebuilds the game.
 echo   4.07 snow model PR A2: the snow in the game (a few minutes without Unity, then the game, then a time-lapse)
 echo     111 Part 1: the live snow's tests, then a report in your browser: a season from bare October 1 on Jackson
 echo        Hole and (from your downloads, read only) Olympic Valley: depth at the base, mid and summit, the deepest
@@ -581,6 +584,7 @@ if /i "%CHOICE%"=="108" goto weatherlook
 if /i "%CHOICE%"=="110" goto weathertabmock
 if /i "%CHOICE%"=="116" goto watermock
 if /i "%CHOICE%"=="117" goto waterground
+if /i "%CHOICE%"=="118" goto waterclock
 if /i "%CHOICE%"=="114" goto updaterinstall
 if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
@@ -2771,6 +2775,46 @@ if defined WG117PKG (
 ) else (
     start "" "%GAME%" -snowseed -data "%WG117%" -notitle
 )
+goto done
+
+:waterclock
+rem 4.14 PR B: the water each source holds, hour by hour (WS-02..WS-11, SI-10): a report, then the game.
+chcp 65001 >nul
+set "WATER=%~dp0test-results\water"
+if exist "%WATER%" rmdir /s /q "%WATER%"
+mkdir "%WATER%"
+echo The water tests (the curve, catchments, inflow, limits, spill, evaporation, transfers, the ledger, saves):
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~WaterSourceTests|FullyQualifiedName~SimSaveTests" <nul
+if errorlevel 1 goto done
+echo A year of water on the test mountain (half a minute):
+dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "Name=WS_WriteTheReportData" <nul >nul
+if errorlevel 1 (echo   The report data failed. & goto done)
+node "%~dp0tools\water\report.mjs" "%WATER%"
+if errorlevel 1 (echo   The report needs Node on the PATH. & goto done)
+echo.
+echo The report opens in your browser (test-results\water\report.html):
+echo   1. How full each source is over the year: the lake drawn to its 3 ft limit in December, refilled by the melt;
+echo      the empty natural pond filled by the first storm; the pumped-only pond filled from the lake in November and
+echo      only losing to evaporation after; the reservoir drawn to its 10%% minimum pool and refilled in April.
+echo   2. Water in and out each face day: rain and snowmelt into the catchments, the stream by the month, the draws.
+echo   3. The year's ledger: every term per source, and the resort's balance checked every hour (0 gal off).
+start "" "%WATER%\report.html"
+echo.
+set "WC118="
+set /p "WC118=Open the game for the hands-on part? (Y, or Enter to stop here) "
+if /i not "%WC118%"=="Y" goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+set "WG118=%LOCALAPPDATA%\SkiAreaDesignChallenge-water118"
+if exist "%WG118%" rmdir /s /q "%WG118%"
+mkdir "%WG118%"
+echo   The game opens on the demo mountain (a scratch copy; your saves stay untouched). Try:
+echo   1. Snowmaking tab, Pond: draw a pond, set Starts: Empty, Build. It isn't drawn while empty; play at 4x and it
+echo      rises with the rain and the melt (its card: Water level, Percent full, In, Out).
+echo   2. Click it with no tool armed: Test draw +250 a few times. Out goes up, Making left counts the days and the date.
+echo   3. A Pumped only pond stays empty (In 0 gpm) until 4.15's pump house.
+echo   4. Save, quit, reopen the save: the water and the test draw are kept.
+start "" "%GAME%" -snowseed -data "%WG118%" -notitle
 goto done
 
 :weatherlook

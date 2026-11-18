@@ -83,6 +83,7 @@ namespace MountainPlanner.Simulation
             WriteWeatherState(o);
             WriteWeatherEventState(o);
             WriteLakeState(o);
+            WriteSourceState(o);
         }
 
         internal void ReadState(SidecarReader r, SimSidecar.Header header)
@@ -152,6 +153,9 @@ namespace MountainPlanner.Simulation
             // v1–v6 → v7 (task 4.09): no lake block; every body starts as open water when the table arrives.
             if (header.SidecarVersion >= SimSidecar.LakesVersion) ReadLakeState(r);
             else StartLakesForOlderSave();
+            // v1–v9 → v10 (task 4.14 PR B): no water block; every source starts full when the sources arrive.
+            if (header.SidecarVersion >= SimSidecar.WaterVersion) ReadSourceState(r);
+            else StartSourcesForOlderSave();
         }
 
         /// <summary>

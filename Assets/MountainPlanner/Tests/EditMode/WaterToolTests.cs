@@ -196,6 +196,7 @@ namespace MountainPlanner.Tests
             built.LevelMetres = 581; built.FullPoolMetres = 581; built.PercentFull = 100; built.AreaSquareMetres = 2400; built.MeanDepthMetres = 2.1;
             built.MaxDepthMetres = 3; built.VolumeCubicMetres = 5100; built.Fills = "naturally"; built.StartsEmpty = false;
             built.Snowmaking = "a source"; built.CutCubicMetres = 3260; built.FillCubicMetres = 4560;
+            built.StoredCubicMetres = 2550; built.InGpm = 120; built.OutGpm = 500; built.MakingLeft = "3 days · to Jan 9"; built.TestDrawGpm = 500;
             var lake = UI.WaterCardRows.Empty();
             lake.LevelMetres = 460; lake.FullPoolMetres = 460; lake.PercentFull = 100; lake.AreaSquareMetres = 344_800; lake.MeanDepthMetres = 8.5; lake.DepthNote = "estimate";
             lake.VolumeCubicMetres = 2_930_000; lake.Fills = "naturally"; lake.Snowmaking = "not a source";
@@ -203,6 +204,7 @@ namespace MountainPlanner.Tests
             var lakeOrder = new List<string>(UI.WaterCardRows.Order);
             lakeOrder.Remove(UI.WaterCardRows.Starts);
             lakeOrder.Remove(UI.WaterCardRows.Earthwork);
+            foreach (string live in new[] { UI.WaterCardRows.In, UI.WaterCardRows.Out, UI.WaterCardRows.MakingLeft, UI.WaterCardRows.TestDraw }) lakeOrder.Remove(live);
             Assert.That(Labels(lake), Is.EqualTo(lakeOrder), "a lake: the same rows, less Starts and Earthwork");
             var rows = new List<(string, string)>();
             UI.WaterCardRows.Add(rows, lake);
@@ -211,6 +213,11 @@ namespace MountainPlanner.Tests
             Assert.That(rows[1].Item1, Is.EqualTo("Full pool"), "then the highest it fills");
             Assert.That(rows[2], Is.EqualTo(("Percent full", "100%")), "then how full it is");
             Assert.That(rows.Find(r => r.Item1 == "Volume").Item2, Does.Contain("acre-ft").And.Contain("gal"));
+            // Task 4.14 PR B: a source's card says what it holds of its whole, and its rates.
+            rows.Clear();
+            UI.WaterCardRows.Add(rows, built);
+            Assert.That(rows.Find(r => r.Item1 == "Volume").Item2, Does.Contain(" of "), "stored of capacity");
+            Assert.That(rows.Find(r => r.Item1 == "Test draw").Item2, Does.EndWith("gpm"));
             Assert.That(UI.WaterCardRows.Hint("Too much earth.", null, true), Is.EqualTo("Too much earth. Click the name to rename it. Name © OpenStreetMap contributors."));
         }
     }

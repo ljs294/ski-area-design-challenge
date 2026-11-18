@@ -145,6 +145,7 @@ namespace MountainPlanner.Domain.Design
             bool edge = false, leak = false;
             double vol = 0, maxDepth = 0, leakAt = PondRules.LeakMm / 1000.0;
             var stack = new Stack<(int, int)>();
+            var curve = new Water.StageCurve.Builder();
             var seen = new WaterMask(box);
             var strip = Box(dam, site, off);
             for (int r = Math.Max(strip.MinRow, box.MinRow); r <= Math.Min(strip.MaxRow, box.MaxRow); r++)
@@ -165,6 +166,7 @@ namespace MountainPlanner.Domain.Design
                     if (z >= P - Dry) continue;
                     wet.Set(c, r);
                     vol += P - z;
+                    curve.Add(P - z);
                     if (P - z > maxDepth) maxDepth = P - z;
                     double x = lat.X(c), y = lat.Y(r);
                     if ((c == box.MinColumn || c == box.MaxColumn || r == box.MinRow || r == box.MaxRow) && !edge) { edge = true; edgeX = x; edgeY = y; }
@@ -183,6 +185,7 @@ namespace MountainPlanner.Domain.Design
             b.VolumeCubicMetres = vol;
             b.AreaSquareMetres = wet.Count;
             b.MaxDepthMetres = maxDepth;
+            b.Curve = curve.Build();
             b.ClearedCells = cleared;
             b.Problem = Problem(dam, site, b, edge, leak, runaway);
             double sMid = (spillFrom + spillTo) / 2;

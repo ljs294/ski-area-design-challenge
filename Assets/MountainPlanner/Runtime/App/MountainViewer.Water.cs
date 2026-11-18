@@ -27,7 +27,10 @@ namespace MountainPlanner.App
         List<StreamPath> _streamPaths;
         WaterBodyTable _lakesOnly;
         DesignDocument _waterFor;
-        Task<(WaterBodyTable Table, List<Presentation.Ponds.PondWater.Body> Bodies)> _waterBuild;
+        Task<(WaterBodyTable Table, List<Presentation.Ponds.PondWater.Body> Bodies, WaterSources Sources)> _waterBuild;
+        /// <summary>Task 4.14 PR B: the sources the worker keeps water for (WS-01), built with the table; null until settled.</summary>
+        WaterSources _waterSources;
+        Catchments _catchments;
         Presentation.Ponds.PondWater _pondWater;
         EarthworkSite _waterSite;
         DesignDocument _waterBuilding;
@@ -337,7 +340,7 @@ namespace MountainPlanner.App
             _lakesOnly ??= _resort.WaterBodies;
             var design = Design;
             var doc = design?.Document;
-            if (doc == null) return true;
+            if (doc == null) { SetWaterSources(WaterSources.None); return true; }
             if (_waterBuild != null)
             {
                 if (!_waterBuild.IsCompleted) return _waterSettled;
@@ -349,6 +352,7 @@ namespace MountainPlanner.App
                 if (built.Table != null && ReferenceEquals(forDoc, doc))
                 {
                     SetWaterTable(built.Table);
+                    SetWaterSources(built.Sources ?? WaterSources.None);
                     ShowPonds(built.Bodies);
                     _waterFor = doc;
                     _waterSettled = true;
@@ -360,8 +364,18 @@ namespace MountainPlanner.App
             {
                 SetWaterTable(_lakesOnly);
                 ShowPonds(null);
-                _waterFor = doc;
-                return _waterSettled = true;
+                bool lakeSources = false;
+                foreach (var l in doc.Lakes) lakeSources |= l.Source;
+                if (!lakeSources)
+                {
+                    SetWaterSources(WaterSources.None);
+                    _waterFor = doc;
+                    return _waterSettled = true;
+                }
+                // WS-04: a lake source's catchment takes a flood over the area: off the main thread too.
+                _waterBuilding = doc;
+                _waterBuild = BuildLakeSources(_lakesOnly, doc, CatchmentsFor(), Simulation.Pacing.Default.MaxSources);
+                return _waterSettled;
             }
             var host = Ground;
             host.Start();
@@ -369,28 +383,62 @@ namespace MountainPlanner.App
             var fold = host.Earthwork;
             _waterBuilding = doc;
             _waterSite = fold.Site;
-            _waterBuild = BuildWater(fold, doc, design.Terrain, _lakesOnly);
+            _waterBuild = BuildWater(fold, doc, design.Terrain, _lakesOnly, DamStreamWidths(doc), CatchmentsFor(), Simulation.Pacing.Default.MaxSources);
             return _waterSettled;
         }
 
         // Its own method, so the lambda's captures are allocated only when a build starts, never on the per-frame path (CF-09).
-        static Task<(WaterBodyTable Table, List<Presentation.Ponds.PondWater.Body> Bodies)> BuildWater(DesignEarthwork fold, DesignDocument doc,
-            Domain.Edits.TerrainEdits terrain, WaterBodyTable lakes) => Task.Run(() =>
+        static Task<(WaterBodyTable Table, List<Presentation.Ponds.PondWater.Body> Bodies, WaterSources Sources)> BuildWater(DesignEarthwork fold, DesignDocument doc,
+            Domain.Edits.TerrainEdits terrain, WaterBodyTable lakes, Dictionary<ulong, double> widths, Catchments catchments, int maxSources) => Task.Run(() =>
         {
             var r = fold.Rebuild(doc, terrain);
             object BuildOf(ulong id) => r.DetailOf(id) ?? fold.DetailOf(id);
             var table = DesignWater.With(lakes, doc, BuildOf, fold.Site);
             var bodies = new List<Presentation.Ponds.PondWater.Body>();
-            // WS-10: one that starts empty shows its dry floor (PR A has no water clock; PR B fills it).
-            foreach (var p in doc.Ponds) if (!p.StartsEmpty) Add(p.Id.Value);
-            foreach (var d in doc.Dams) if (!d.StartsEmpty) Add(d.Id.Value);
+            // PR B: every pond and reservoir is drawn at full pool and moved down to the water it holds (an empty one isn't drawn).
+            foreach (var p in doc.Ponds) Add(p.Id.Value);
+            foreach (var d in doc.Dams) Add(d.Id.Value);
             void Add(ulong id)
             {
                 if (BuildOf(id) is WaterBuild b && b.Wet != null && b.Problem == null)
                     bodies.Add(new Presentation.Ponds.PondWater.Body(id, table.IndexOf(id), b.Wet, b.FullPoolMetres));
             }
-            return (table, bodies);
+            var sources = DesignWater.Sources(table, doc, BuildOf, way => widths.TryGetValue(way, out double w) ? w : 8, catchments, maxSources);
+            return (table, bodies, sources);
         });
+
+        static Task<(WaterBodyTable Table, List<Presentation.Ponds.PondWater.Body> Bodies, WaterSources Sources)> BuildLakeSources(WaterBodyTable lakes, DesignDocument doc, Catchments catchments, int maxSources) =>
+            Task.Run(() => (lakes, new List<Presentation.Ponds.PondWater.Body>(), DesignWater.Sources(lakes, doc, _ => null, null, catchments, maxSources)));
+
+        /// <summary>WS-03: each dam's stream width (ft): the player's, else OSM's or the class default, else the streams body's 8 ft.</summary>
+        Dictionary<ulong, double> DamStreamWidths(DesignDocument doc)
+        {
+            var widths = new Dictionary<ulong, double>();
+            foreach (var d in doc.Dams)
+            {
+                if (widths.ContainsKey(d.StreamWay)) continue;
+                var rec = doc.FindStream(d.StreamWay);
+                var s = d.StreamWay != 0 ? StreamOf(d.StreamWay) : null;
+                double m = rec.WidthCm > 0 ? rec.WidthCm / 100.0 : s != null ? s.Line.WidthMetres : StreamFlow.DefaultWidthMetres("stream");
+                widths[d.StreamWay] = m / 0.3048;
+            }
+            return widths;
+        }
+
+        /// <summary>WS-04: the area's drainage, from the downloaded 8 m heights (once per area).</summary>
+        Catchments CatchmentsFor()
+        {
+            if (_catchments != null || _resort?.SnowMm == null || _lakesOnly == null) return _catchments;
+            if (_resort.SnowMm.Length != _lakesOnly.Width * _lakesOnly.Depth) return null;
+            return _catchments = Catchments.Of(_lakesOnly.Width, _lakesOnly.Depth, _resort.SnowMm);
+        }
+
+        void SetWaterSources(WaterSources s)
+        {
+            if (s == null || _waterSources != null && _waterSources.Hash == s.Hash) return;
+            _waterSources = s;
+            _simSourcesSent = false;
+        }
 
         void SetWaterTable(WaterBodyTable t)
         {
@@ -399,16 +447,20 @@ namespace MountainPlanner.App
             _simWaterSent = false;   // the worker matches its records by id: lakes and unchanged ponds keep their ice
         }
 
-        // PR A: the water stands at full pool (owner Q1: ponds and dams start full); PR B moves it with the stored water.
+        // Built at full pool; PR B moves each down to the water it holds (ShowPondLevels).
         void ShowPonds(List<Presentation.Ponds.PondWater.Body> bodies)
         {
             _pondBodies = bodies;
             if (bodies == null || bodies.Count == 0) { _pondWater?.Show(Array.Empty<Presentation.Ponds.PondWater.Body>(), _waterSite); return; }
             _pondWater ??= new Presentation.Ponds.PondWater(_resort.Root.transform);
-            if (_previewReplaces == 0) { _pondWater.Show(bodies, _waterSite); return; }
-            var shown = new List<Presentation.Ponds.PondWater.Body>(bodies.Count);
-            foreach (var b in bodies) if (b.Id != _previewReplaces) shown.Add(b);   // F3: an edit's review water stands in for it
-            _pondWater.Show(shown, _waterSite);
+            if (_previewReplaces == 0) _pondWater.Show(bodies, _waterSite);
+            else
+            {
+                var shown = new List<Presentation.Ponds.PondWater.Body>(bodies.Count);
+                foreach (var b in bodies) if (b.Id != _previewReplaces) shown.Add(b);   // F3: an edit's review water stands in for it
+                _pondWater.Show(shown, _waterSite);
+            }
+            HideEmptyStarts(Design?.Document);   // PR B: the snapshot moves each to its level from here
         }
 
         // F3: the tools' review water, its own mesh (id 1, the streams body's look: open water). An edit's review hides the
@@ -460,6 +512,8 @@ namespace MountainPlanner.App
             _waterBuild = null;
             _waterBuilding = null;
             _waterSettled = false;
+            _waterSources = null;
+            _catchments = null;
         }
     }
 }

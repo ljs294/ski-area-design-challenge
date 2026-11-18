@@ -11,10 +11,11 @@ namespace MountainPlanner.UI
     public static class WaterCardRows
     {
         public const string WaterLevel = "Water level", FullPool = "Full pool", PercentFull = "Percent full", Area = "Area", Depth = "Depth", Volume = "Volume", Fills = "Fills",
-                            Starts = "Starts", Snowmaking = "Snowmaking", Earthwork = "Earthwork";
+                            Starts = "Starts", Snowmaking = "Snowmaking", Earthwork = "Earthwork",
+                            In = "In", Out = "Out", MakingLeft = "Making left", TestDraw = "Test draw";
 
         /// <summary>The order, for tests and for anyone adding a row.</summary>
-        public static readonly string[] Order = { WaterLevel, FullPool, PercentFull, Area, Depth, Volume, Fills, Starts, Snowmaking, Earthwork };
+        public static readonly string[] Order = { WaterLevel, FullPool, PercentFull, Area, Depth, Volume, In, Out, MakingLeft, TestDraw, Fills, Starts, Snowmaking, Earthwork };
 
         /// <summary>One standing water's figures; NaN (or null text) leaves its row out.</summary>
         public struct Standing
@@ -27,7 +28,11 @@ namespace MountainPlanner.UI
             public double AreaSquareMetres;
             public double MeanDepthMetres, MaxDepthMetres;
             public string DepthNote;          // "estimate" or "yours" (a lake's), else null
-            public double VolumeCubicMetres;
+            public double VolumeCubicMetres;  // what it holds full
+            public double StoredCubicMetres;  // task 4.14 PR B: what it holds now (a source); NaN: Volume is the full figure only
+            public double InGpm, OutGpm;      // the last hour's, gallons a minute (a source)
+            public string MakingLeft;         // "12 days · to Jan 9" (a source)
+            public double TestDrawGpm;        // 0: "off" (a source)
             public string Fills;
             public bool? StartsEmpty;         // null: no Starts row (a lake)
             public string Snowmaking;
@@ -47,7 +52,14 @@ namespace MountainPlanner.UI
                 if (!string.IsNullOrEmpty(s.DepthNote)) depth += " · " + s.DepthNote;
                 rows.Add((Depth, depth));
             }
-            if (!double.IsNaN(s.VolumeCubicMetres)) rows.Add((Volume, $"{ToolFormat.Water(s.VolumeCubicMetres)} · {ToolFormat.Gallons(s.VolumeCubicMetres)}"));
+            if (!double.IsNaN(s.VolumeCubicMetres))
+                rows.Add((Volume, double.IsNaN(s.StoredCubicMetres)
+                    ? $"{ToolFormat.Water(s.VolumeCubicMetres)} · {ToolFormat.Gallons(s.VolumeCubicMetres)}"
+                    : $"{ToolFormat.Water(s.StoredCubicMetres)} of {ToolFormat.Water(s.VolumeCubicMetres)} · {ToolFormat.Gallons(s.StoredCubicMetres)}"));
+            if (!double.IsNaN(s.InGpm)) rows.Add((In, ToolFormat.Gpm(s.InGpm)));
+            if (!double.IsNaN(s.OutGpm)) rows.Add((Out, ToolFormat.Gpm(s.OutGpm)));
+            if (!string.IsNullOrEmpty(s.MakingLeft)) rows.Add((MakingLeft, s.MakingLeft));
+            if (!double.IsNaN(s.TestDrawGpm)) rows.Add((TestDraw, s.TestDrawGpm > 0 ? ToolFormat.Gpm(s.TestDrawGpm) : "off"));
             if (!string.IsNullOrEmpty(s.Fills)) rows.Add((Fills, s.Fills));
             if (s.StartsEmpty.HasValue) rows.Add((Starts, s.StartsEmpty.Value ? "empty" : "full"));
             if (!string.IsNullOrEmpty(s.Snowmaking)) rows.Add((Snowmaking, s.Snowmaking));
@@ -76,6 +88,7 @@ namespace MountainPlanner.UI
         {
             LevelMetres = double.NaN, FullPoolMetres = double.NaN, PercentFull = double.NaN, AreaSquareMetres = double.NaN, MeanDepthMetres = double.NaN, MaxDepthMetres = double.NaN,
             VolumeCubicMetres = double.NaN, CutCubicMetres = double.NaN, FillCubicMetres = double.NaN,
+            StoredCubicMetres = double.NaN, InGpm = double.NaN, OutGpm = double.NaN, TestDrawGpm = double.NaN,
         };
     }
 }

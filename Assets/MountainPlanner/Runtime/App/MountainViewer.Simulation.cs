@@ -68,6 +68,7 @@ namespace MountainPlanner.App
         bool SimInputsMissing =>
             (!_simWeatherTerrainSent && !(CoverDone && _resort.WeatherTerrain == null)) ||
             (!_simWaterSent && !(CoverDone && _resort.WaterBodies == null)) ||
+            (!_simSourcesSent && !(CoverDone && _resort.WaterBodies == null)) ||
             (!_simSnowTerrainSent && !SnowTerrainFailed);
         /// <summary>Said once the HUD shows: why a save's simulation didn't come back, or that its pacing differs.</summary>
         string _simNotice;
@@ -80,7 +81,7 @@ namespace MountainPlanner.App
         /// <summary>Task 4.05: the weather the worker was given (the area's rows or the typical mountain's), and whether the
         /// snowpack's reference points have followed it (the typical mountain's only).</summary>
         SimWeather _simWeather;
-        bool _simWeatherTerrainSent, _simWaterSent, _simHoldReleased, _simHoldSaid;
+        bool _simWeatherTerrainSent, _simWaterSent, _simSourcesSent, _simHoldReleased, _simHoldSaid;
         bool _simWeatherPointsSent;
 
         /// <summary>App's real time for the worker: the one stopwatch the simulation is paced by (never inside its state).</summary>
@@ -126,6 +127,7 @@ namespace MountainPlanner.App
             _simWeatherPointsSent = _simWeather == null || !_simWeather.Generic || _resort.WeatherBaseFeet > 0;
             _simWeatherTerrainSent = false;
             _simWaterSent = false;
+            _simSourcesSent = false;
             _simSnowTerrainSent = false;
             _simSnowPatches.Clear();
             _simHoldSaid = false;
@@ -447,6 +449,7 @@ namespace MountainPlanner.App
             _simNow = s;
             DrainSnowTiles(s);
             ShowLakes(s);   // task 4.09 PR B: before the paused return, so a reopened save shows its ice while paused
+            ShowPondLevels(s);   // task 4.14 PR B: the same, for the water a pond or reservoir holds
             EaseSiteSnow();
             // SI-17: once the opening's snowpack is in, the worker gets the whole field (unless a save brought its own). Task 4.07
             // PR A2: only as a seed (-snowseed, captures) or when the snow's inputs failed; a new game otherwise starts bare.
@@ -474,6 +477,9 @@ namespace MountainPlanner.App
             bool waterReady = UpdateDesignWater();
             if (!_simWaterSent && _resort.WaterBodies != null && waterReady)
                 _simWaterSent = _sim.Send(SimCommandKind.SetWaterBodies, 0, _resort.WaterBodies);
+            // Task 4.14 PR B: the sources follow their table in the same queue (their bodies are its indices).
+            if (_simWaterSent && !_simSourcesSent && _waterSources != null && waterReady)
+                _simSourcesSent = _sim.Send(SimCommandKind.SetWaterSources, 0, _waterSources);
             SendSnowTerrain();
             // Released with the inputs, or without one whose build ended with none (it failed): then the area plays B1's height
             // rule, has no lakes or keeps the static snow, and the clock is never left stuck.
@@ -517,6 +523,7 @@ namespace MountainPlanner.App
         {
             if (Hud == null || !_hudShown) return;
             if (OnWeatherEvent(e)) return;
+            if (OnWaterEvent(e)) return;
             switch (e.Type)
             {
                 case SimEventType.SeasonOpened: Hud.Toast("The season opens: Day 1"); break;

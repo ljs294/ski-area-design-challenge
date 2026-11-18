@@ -64,6 +64,10 @@ namespace MountainPlanner.UI.Tools
         public static string Flow(double cubicFeetPerSecond) =>
             Imperial ? N(cubicFeetPerSecond, cubicFeetPerSecond < 10 ? "N1" : "N0") + " cfs" : N(cubicFeetPerSecond * 0.028316846592, "N2") + " m³/s";
 
+        /// <summary>Task 4.14 PR B: a rate of water, "1,250 gpm" (or "4,732 L/min").</summary>
+        public static string Gpm(double gallonsPerMinute) =>
+            Imperial ? N(gallonsPerMinute) + " gpm" : N(gallonsPerMinute * 3.785411784) + " L/min";
+
         /// <summary>Task 4.14: a height or depth to the foot, "23 ft" (or "7.0 m").</summary>
         public static string Depth(double metres) => Imperial ? N(metres / UnitFormat.MetresPerFoot) + " ft" : N(metres, "N1") + " m";
 

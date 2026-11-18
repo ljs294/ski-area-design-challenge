@@ -171,7 +171,7 @@ namespace MountainPlanner.Tests
             RunTo(a, 12, 10, Pacing.Default.IdleTickFactor);
             IntoFlight(a);
             byte[] bytes = a.SaveState();
-            Assert.That(SimSidecar.VersionOf(bytes), Is.EqualTo(9));
+            Assert.That(SimSidecar.VersionOf(bytes), Is.EqualTo(SimSidecar.Version));
             var b = SimSidecar.Read(bytes, Pacing.Default, SeasonRunner.GoldenDesign(1, false), Site, out _, SimWeatherTests.Golden());
             SendInputs(b, Shared);
             Assert.That(b.Hash(), Is.EqualTo(a.Hash()), "the same state, the hour still in flight");
