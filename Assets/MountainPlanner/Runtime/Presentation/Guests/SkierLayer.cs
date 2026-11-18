@@ -158,15 +158,21 @@ namespace MountainPlanner.Presentation.Guests
         }
 
         /// <summary>Per lift index (the design's order): its rope travel drawn now, whether riders show, its line now, and
-        /// (task 4.22) whether it is a carpet, whose figures stand on the belt rather than the ground.</summary>
-        public void SetLift(int index, double ropeSeconds, bool drawRiders, int lineCount, bool belt = false)
+        /// (task 4.22) whether it is a carpet, whose figures stand on the belt rather than the ground; (task 4.24 PR B, RD-2)
+        /// how many stand in its top line.</summary>
+        public void SetLift(int index, double ropeSeconds, bool drawRiders, int lineCount, bool belt = false, int topLine = 0)
         {
             if (index < 0) return;
             Lifts(index + 1);
             _ropeNow[index] = unchecked((uint)(long)Math.Round(ropeSeconds * 1000.0));
             _drawRiders[index] = (byte)(drawRiders ? belt ? 2 : 1 : 0);
             _lineCount[index] = lineCount;
+            if (index >= _topLine.Length) Array.Resize(ref _topLine, Math.Max(index + 1, _topLine.Length * 2));
+            _topLine[index] = topLine;
         }
+
+        /// <summary>RD-2: per lift index, the skiers in its top line (only the growth of the top lines' places reads it).</summary>
+        int[] _topLine = new int[8];
 
         /// <summary>
         /// Once a frame: takes the newest column if it moved on, and places every dot at <paramref name="drawTick"/> (the
@@ -198,6 +204,7 @@ namespace MountainPlanner.Presentation.Guests
                 Edges = _paths.Edges, EdgeSize = _paths.EdgeSize, Samples = _paths.Samples, Side = _paths.Side,
                 LaneY = _paths.LaneY, Table = _paths.Table, LiftPaths = _paths.Lifts, Nodes = _paths.Nodes,
                 Slots = lines != null ? lines.Slots : _noSlots, SlotFacing = lines != null ? lines.Facing : _noFacing, LiftSlots = lines != null ? lines.LiftSlots : _noLiftSlots,
+                TopSlotsAt = lines != null && lines.TopSlotsAt >= 0 ? lines.TopSlotsAt : int.MaxValue / 2,
                 RopeNow = _ropeNow, DrawRiders = _drawRiders, LineCount = _lineCount,
                 Snow = _snow, SnowScale = SnowScale, SnowOrigin = _snowOrigin, SnowCell = _snowCell, SnowW = _snowW, SnowH = _snowH,
                 // Picking wants the plain projection (no GPU flip): screen points in the Input System's pixels.
@@ -225,11 +232,13 @@ namespace MountainPlanner.Presentation.Guests
         {
             var lines = _lines;
             if (lines == null || !lines.LiftSlots.IsCreated) return;
-            int n = Math.Min(lines.LiftSlots.Length, _lineCount.Length);
+            int n = lines.LiftSlots.Length, top = lines.TopSlotsAt >= 0 ? lines.TopSlotsAt : n;
             for (int k = 0; k < n; k++)
             {
                 int i = (_growNext + k) % n;
-                if (_lineCount[i] + LineHeadroom <= lines.Capacity(i) || !lines.CanGrow(i)) continue;
+                // RD-2: entries past TopSlotsAt are the top lines (lift i − TopSlotsAt's).
+                int queued = i < top ? (i < _lineCount.Length ? _lineCount[i] : 0) : (i - top < _topLine.Length ? _topLine[i - top] : 0);
+                if (queued + LineHeadroom <= lines.Capacity(i) || !lines.CanGrow(i)) continue;
                 if (lines.Grow(i)) { _growNext = (i + 1) % n; LinesGrown++; }
                 return;
             }
@@ -304,7 +313,7 @@ namespace MountainPlanner.Presentation.Guests
                 record = _records[i];
                 var p = _dots[i];
                 at = new Vector3(p.x, p.y, p.z);
-                return p.w >= 0 || record.State == (byte)GuestState.Riding;
+                return p.w >= 0 || record.State == (byte)GuestState.Riding || record.State == (byte)GuestState.RidingDown;
             }
             return false;
         }
@@ -317,14 +326,16 @@ namespace MountainPlanner.Presentation.Guests
         {
             int at = -1;
             for (int i = 0; i < _count; i++) if (_records[i].Serial == serial) { at = i; break; }
-            if (at < 0 || _records[at].State != (byte)GuestState.Queued) return 0;
+            if (at < 0) return 0;
+            byte line = _records[at].State;   // the bottom line, or (RD-2) the top line: its own ranks
+            if (line != (byte)GuestState.Queued && line != (byte)GuestState.QueuedDown) return 0;
             int lift = _records[at].Index, rank = _records[at].Rank;
             uint next = 0, first = 0;
             int nextRank = int.MaxValue, firstRank = int.MaxValue;
             for (int i = 0; i < _count; i++)
             {
                 var r = _records[i];
-                if (r.State != (byte)GuestState.Queued || r.Index != lift || r.Serial == serial) continue;
+                if (r.State != line || r.Index != lift || r.Serial == serial) continue;
                 if (r.Rank > rank && r.Rank < nextRank) { nextRank = r.Rank; next = r.Serial; }
                 if (r.Rank < firstRank) { firstRank = r.Rank; first = r.Serial; }
             }

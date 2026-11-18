@@ -154,6 +154,13 @@ namespace MountainPlanner.Tests
                 Assert.That(view.SeatLocal.Length, Is.EqualTo(8));
                 Assert.That(view.SeatTurned.Count(t => t), Is.EqualTo(4), "the bench ahead of the hanger faces back");
                 Assert.That(view.Root.GetComponentsInChildren<LiftRig>().Any(r => r.AssetId.StartsWith("sessellift_d6_tower_")), Is.True, "the D6's heads");
+                // Task 4.24 PR B (RD-2): the down side's seat window, loading at the top and riding the line back down.
+                Assert.That(view.DownRideTime, Is.EqualTo(view.RideTime).Within(view.RideTime * 0.1f), "about the same ride down as up");
+                float loop = track.LoopTime;
+                float apart = ((view.DownBoardTime - view.BoardTime) % loop + loop) % loop;
+                Assert.That(apart, Is.GreaterThan(view.RideTime * 0.9f).And.LessThan(loop), "it loads after the ride up has reached the top");
+                Assert.That(view.CarrierPose(0, view.DownBoardTime, out var at, out _), Is.True);
+                Assert.That(at.z, Is.GreaterThan(700f), "a cabin at the down window's start is at the top station");
             }
             finally
             {

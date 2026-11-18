@@ -161,11 +161,20 @@ namespace MountainPlanner.UI
             public readonly double WaitSeconds;
             /// <summary>The card's Today row: a hold is likely today (the forecast, 4.05; until then the F1 gust).</summary>
             public readonly bool HoldsLikely;
-            public LiftLive(OperatingStatus status, int line, double waitSeconds, bool holdsLikely = false)
+            /// <summary>Task 4.24 PR B (RD-2): whether the lift carries riders down now (a gondola, or a downloading chair),
+            /// its top line and that line's wait (real seconds), and the rides down today.</summary>
+            public readonly bool CarriesDown;
+            public readonly int TopLine, RidesDown;
+            public readonly double TopWaitSeconds;
+            public LiftLive(OperatingStatus status, int line, double waitSeconds, bool holdsLikely = false,
+                            bool carriesDown = false, int topLine = 0, double topWaitSeconds = 0, int ridesDown = 0)
             {
                 Status = status; Line = line; WaitSeconds = waitSeconds; HoldsLikely = holdsLikely;
+                CarriesDown = carriesDown; TopLine = topLine; TopWaitSeconds = topWaitSeconds; RidesDown = ridesDown;
             }
-            public bool Same(LiftLive o) => Status == o.Status && Line == o.Line && (int)WaitSeconds == (int)o.WaitSeconds && HoldsLikely == o.HoldsLikely;
+            public bool Same(LiftLive o) => Status == o.Status && Line == o.Line && (int)WaitSeconds == (int)o.WaitSeconds && HoldsLikely == o.HoldsLikely
+                                            && CarriesDown == o.CarriesDown && TopLine == o.TopLine && (int)TopWaitSeconds == (int)o.TopWaitSeconds
+                                            && RidesDown == o.RidesDown;
         }
 
         readonly Dictionary<ulong, LiftLive> _liftLive = new Dictionary<ulong, LiftLive>();
@@ -276,6 +285,10 @@ namespace MountainPlanner.UI
                 Kv("Rise", $"{ToolFormat.Length(l.RiseMetres)} of {(double.IsInfinity(l.RiseLimitMetres) ? "no limit" : ToolFormat.Length(l.RiseLimitMetres))}");
             Kv("Status", OperatingStatusWords.Word(LiftStatus(l)));   // F4, 4.11
             if (l.Built) Kv("Line", LiftWaitText(l.Id, words: true));   // LO-04 v1
+            // RD-2: while the lift carries riders down, its top line ("12 waiting at the top · 1:30 · 40 down today").
+            if (l.Built && _liftLive.TryGetValue(l.Id, out var atTop) && (atTop.CarriesDown || atTop.TopLine > 0))
+                Kv("At the top", (atTop.TopLine == 0 ? "No line" : $"{atTop.TopLine:#,0} waiting at the top · {Hud.HudText.Clock(atTop.TopWaitSeconds)}")
+                                 + (atTop.RidesDown > 0 ? $" · {atTop.RidesDown:#,0} down today" : ""));
             // LO-11 v2 (owner 2026-11-08): one figure for the hold, then whether one is expected today.
             Kv("Wind hold", l.HoldMph < 0 ? "Never" : $"{l.HoldMph} mph");
             if (l.HoldMph >= 0 && l.Built)

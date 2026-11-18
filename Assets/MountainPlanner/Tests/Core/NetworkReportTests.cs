@@ -342,5 +342,45 @@ namespace MountainPlanner.Tests
             Assert.That(whole, Is.GreaterThan(upper).And.LessThan(lower));
             Assert.That(double.IsNaN(NetworkReport.SegmentRating(slope, along, 100_000, 200_000)), Is.True, "no station there");
         }
+
+        // ---------- task 4.24 PR B (LO-10 v2): a gondola carries skiers down ----------
+
+        static LiftId AddGondola(DesignHistory h, string name, PointMm bottom, PointMm top, bool gondola = true)
+        {
+            var r = h.Submit(new AddLift(h.Revision, name, gondola ? LiftCatalogIds.SesselliftG8 : LiftCatalogIds.SesselliftFgq4, bottom, top,
+                                         TowerMode.Automatic, TowerStance.Plumb, new TowerSpec[0], WorkStage.Built));
+            Assert.That(r.Accepted, Is.True, r.ToString());
+            return new LiftId(r.Created[0]);
+        }
+
+        [Test]
+        public void LO10v2_AGondolaIsItsOwnWayDown()
+        {
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var gondola = AddGondola(h, "Gondola", P(0, 0), P(0, 3000));
+            var report = NetworkReport.Build(h.Document, new TrailNetworkGeometry(Site));
+            Assert.That(report.Of(gondola).Connected, Is.True, "no trail from its top, but it carries skiers down");
+            Assert.That(report.Of(gondola).RidesDown, Is.True);
+            Assert.That(report.LiftWarnings, Is.Zero);
+            Assert.That(report.ReachFrom(gondola).RidesDown, Is.EquivalentTo(new[] { gondola }));
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void LO10v2_ARunEndingAtAGondolasTopLeadsDownIt(bool gondola)
+        {
+            // Upper's only run ends at the lower lift's top. A gondola carries its skiers on down; a chair leaves them there.
+            var h = new DesignHistory(DesignDocument.Empty(3));
+            var lower = AddGondola(h, "Lower", P(0, 0), P(0, 3000), gondola);
+            var upper = AddLift(h, "Upper", P(1500, 3000), P(1500, 6000));
+            var run = AddTrail(h, "Down To The Gondola", P(1510, 5990), P(20, 3010));
+            var report = NetworkReport.Build(h.Document, new TrailNetworkGeometry(Site));
+            Assert.That(report.Of(upper).Connected, Is.EqualTo(gondola), "Upper has a way down only by riding the gondola");
+            Assert.That(report.Of(run).Warning, Is.EqualTo(gondola ? NetworkWarning.None : NetworkWarning.LeadsNowhere));
+            var reach = report.ReachFrom(upper);
+            Assert.That(reach.RidesDown.Contains(lower), Is.EqualTo(gondola));
+            Assert.That(reach.Lifts.Contains(lower), Is.EqualTo(gondola), "the gondola's bottom is reached");
+            Assert.That(report.Of(lower).RidesDown, Is.EqualTo(gondola));
+        }
     }
 }

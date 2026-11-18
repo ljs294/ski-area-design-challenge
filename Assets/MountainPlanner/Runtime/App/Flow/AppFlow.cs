@@ -40,6 +40,7 @@ namespace MountainPlanner.App.Flow
             "-watershots",   // task 4.14
             "-snowlapse",   // task 4.07 PR A2
             "-simto",   // task 4.07 PR A3
+            "-crowdshot",   // task 4.24: on the title background no simulation runs, so its stills had nobody in them
         };
 
         public static AppFlow Instance { get; private set; }

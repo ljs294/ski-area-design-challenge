@@ -155,6 +155,12 @@ namespace MountainPlanner.Simulation
         public readonly byte[] Seats;
         /// <summary>LO-07 v2: each lift's opening today, seconds of the day (a Scheduled lift says when).</summary>
         public readonly int[] LiftOpenSecond;
+        /// <summary>RD-2 (task 4.24 PR B): skiers in each lift's top line, and its wait (motion ms at 1×, as <see cref="WaitMs"/>).</summary>
+        public readonly int[] TopLineCount, TopWaitMs;
+        /// <summary>RD-2: today's rides down so far (not in <see cref="RidesToday"/>, which LO-12's utilisation reads).</summary>
+        public readonly int[] RidesDownToday;
+        /// <summary>RD-1: whether each lift carries riders down now (a gondola, or a chair that is downloading).</summary>
+        public readonly bool[] CarriesDown;
         public int TrailsReady;
 
         // Per network trail, in ID order (LO-10's stand-in for SN-20 until 4.07: Open when an open lift's descent runs along it)
@@ -255,6 +261,10 @@ namespace MountainPlanner.Simulation
             IntervalMs = new int[p.MaxLifts];
             Seats = new byte[p.MaxLifts];
             LiftOpenSecond = new int[p.MaxLifts];
+            TopLineCount = new int[p.MaxLifts];
+            TopWaitMs = new int[p.MaxLifts];
+            RidesDownToday = new int[p.MaxLifts];
+            CarriesDown = new bool[p.MaxLifts];
             LiftGustTenths = new int[p.MaxLifts];
             Forecast = new ForecastSheet(p.MaxLifts);
             TrailIds = new ulong[p.MaxTrails];
@@ -277,7 +287,7 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>SI-16's budget: the bytes this snapshot's arrays and fields take at their full size.</summary>
-        public int SizeBytes => 256 + 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + 1 + 4 + DayReport.SizeBytesPerLift)
+        public int SizeBytes => 256 + 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + 1 + 4 + 4 + 4 + 4 + 1 + DayReport.SizeBytesPerLift)
                                 + TrailIds.Length * (8 + 1 + 1) + Events.Length * 24
                                 + Guests.SizeBytes + Forecast.SizeBytes + WaterBodyIds.Length * (8 + 4 + 4 + 4 + 2 + 2)
                                 + SourceIds.Length * (8 + 8 + 8 + 8 + 4 + 4 + 4 + 4 + 1);

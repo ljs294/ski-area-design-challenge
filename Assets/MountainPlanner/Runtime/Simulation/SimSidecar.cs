@@ -34,12 +34,18 @@ namespace MountainPlanner.Simulation
     /// v10 (task 4.14 PR B) appends the water block: per source (id order) its id, kind, the water it holds (milligallons),
     /// its test draw, its alert days and its season ledger, then the resort's ledger (SI-10). The sources themselves are the
     /// design's, rebuilt and resent; an older sidecar's sources start full when they arrive (they stood full before).
+    /// v11 (task 4.24 PR B) appends the ride-down
+    /// block: per lift, the top line's and the down riders' chain ends and counts and today's rides down (RD-2); the guest
+    /// block's skier state may then be 8 (in line at the top) or 9 (riding down). An older sidecar opens with no top lines
+    /// and nobody riding down, and hashes as before (the new state folds only when it holds something).
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 10;
+        public const int Version = 11;
         /// <summary>The first version with the water block (task 4.14 PR B; the number confirmed with 0.0 at merge).</summary>
         public const int WaterVersion = 10;
+        /// <summary>The first version with the ride-down block and guest states 8 and 9 (task 4.24 PR B).</summary>
+        public const int RideDownVersion = 11;
         /// <summary>The first version with the snow block's mode byte and the live snow (task 4.07 PR A2).</summary>
         public const int LiveSnowVersion = 9;
         /// <summary>The first version with the lake block (task 4.09).</summary>

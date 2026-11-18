@@ -48,6 +48,9 @@ namespace MountainPlanner.Simulation
         /// <summary>An option that is a lift, not a ski edge: the lift's index is the rest of the value.</summary>
         const int LiftOption = 1 << 30;
 
+        /// <summary>RD-3 (task 4.24 PR B): an option that is riding a lift down from its top; the lift's index is the rest.</summary>
+        const int DownOption = 1 << 29;
+
         /// <summary>GU-02: the serial of the skier the player has selected, or 0. Selecting one changes no result.</summary>
         int _inspectSerial;
         long _inspectPublishedAt = long.MinValue;
@@ -135,7 +138,8 @@ namespace MountainPlanner.Simulation
                 int home = _guests.Home[s];
                 _guests.Home[s] = home >= 0 && home < was.NodeCount ? FindNode(net, was.NodeIds[home]) : -1;
                 if (_guests.Home[s] < 0) _guests.Home[s] = _guests.Node[s];
-                if (state == GuestState.Queued || state == GuestState.Riding) continue;   // the lifts row lets them out
+                if (state == GuestState.Queued || state == GuestState.Riding || state == GuestState.QueuedDown || state == GuestState.RidingDown)
+                    continue;   // the lifts row lets them out
                 Stand(s, _guests.Node[s]);
                 if (_guests.Lead[s] == s) _guests.Schedule(s, Tick);
             }
@@ -166,6 +170,9 @@ namespace MountainPlanner.Simulation
         /// A lift bottom is the honest definition: it is where a skier can get on something, and therefore where a
         /// skier is never stranded. Which of them a skier *arrives* at is a separate question — see
         /// <see cref="ArrivalNode"/>, which only sends a band somewhere it has something to ski.
+        ///
+        /// Task 4.24 PR B (RD-1): a station at the top of a built gondola is not a base, even with a chair leaving it: a
+        /// skier got there by riding up, so going home from it means riding down (or skiing), not vanishing at the top.
         /// </summary>
         void FindBases(SimNetwork net)
         {
@@ -175,7 +182,7 @@ namespace MountainPlanner.Simulation
             for (int i = 0; i < LiftsNow; i++)
             {
                 int b = Design.Lifts[i].BottomNode;
-                if (b < 0 || b >= net.NodeCount || !Design.Lifts[i].Built) continue;
+                if (b < 0 || b >= net.NodeCount || !Design.Lifts[i].Built || AtAGondolaTop(b)) continue;
                 AddBase(b, Design.Lifts[i].RatedPerHour);
             }
             if (_baseCount == 0)
@@ -183,6 +190,13 @@ namespace MountainPlanner.Simulation
                 int low = LowestBase(net);
                 if (low >= 0) AddBase(low, 1);
             }
+        }
+
+        bool AtAGondolaTop(int node)
+        {
+            for (int i = 0; i < LiftsNow; i++)
+                if (Design.Lifts[i].Built && Design.Lifts[i].TopNode == node && LiftKinds.BothWays(Design.Lifts[i].Kind)) return true;
+            return false;
         }
 
         void AddBase(int node, int weight)
@@ -501,6 +515,12 @@ namespace MountainPlanner.Simulation
 
         void TakeOption(int lead, int opt, long t)
         {
+            if ((opt & DownOption) != 0)
+            {
+                // RD-2: the party is at the lift's top; it joins the line there (no walk: a top station is one place).
+                JoinTopParty(lead, opt & ~DownOption);
+                return;
+            }
             if ((opt & LiftOption) != 0)
             {
                 int lift = opt & ~LiftOption;
@@ -635,6 +655,13 @@ namespace MountainPlanner.Simulation
             _guests.Schedule(lead, t + LeaveWaitTicks);
         }
 
+        /// <summary>RD-2: the party joins a lift's top line. Nobody leaves that line, so the lead is not scheduled to give up.</summary>
+        void JoinTopParty(int lead, int lift)
+        {
+            _guests.PartyHere[lead] = 0;   // it gathers again at the bottom, as JoinParty's does at the top
+            for (int s = lead; s >= 0; s = _guests.Member[s]) JoinTop(lift, s);
+        }
+
         /// <summary>The party has finished its segment: the record, the wear counter, the lap's snow, then it chooses.</summary>
         void FinishEdge(int lead, long t)
         {
@@ -698,8 +725,9 @@ namespace MountainPlanner.Simulation
                 if (!_guests.Alive(s)) continue;
                 if (_guests.Arch[s] == GuestColumns.FeederArch) { _guests.Give(s); continue; }
                 _guests.Record(s, LiftCode(lift), _guests.EntryTick[s], Tick, _dayStartTick);
-                int top = Design.Lifts[lift].TopNode;
-                _guests.Node[s] = top;
+                // RD-2: a rider on the way down steps off at the bottom; every other rider at the top.
+                bool down = _guests.State[s] == (byte)GuestState.RidingDown;
+                _guests.Node[s] = down ? Design.Lifts[lift].BottomNode : Design.Lifts[lift].TopNode;
                 _guests.Edge[s] = -1;
                 _guests.Lift[s] = -1;
                 _guests.State[s] = (byte)GuestState.Choosing;
@@ -719,7 +747,9 @@ namespace MountainPlanner.Simulation
                 ChargeWait(s, Tick);
                 // A dump can separate a party (some rode up, some did not), so each dumped skier goes its own way.
                 SplitOff(s);
-                _guests.Node[s] = lift >= 0 ? Design.Lifts[lift].BottomNode : _guests.Home[s];
+                // RD-2: a top line let go chooses again at the top (its chair has a way down again).
+                bool atTop = _guests.State[s] == (byte)GuestState.QueuedDown;
+                _guests.Node[s] = lift < 0 ? _guests.Home[s] : atTop ? Design.Lifts[lift].TopNode : Design.Lifts[lift].BottomNode;
                 _guests.Lift[s] = -1;
                 _guests.Edge[s] = -1;
                 _guests.PartyHere[s] = 1;
@@ -774,6 +804,13 @@ namespace MountainPlanner.Simulation
             CloseLap(s);
             if (_guests.Laps[s] < byte.MaxValue) _guests.Laps[s]++;
             if (_guests.Laps[s] >= _guests.StayLaps[s]) _guests.Homeward[_guests.Lead[s]] = 1;
+        }
+
+        /// <summary>RD-2: a skier has boarded at the top. A ride down is not a lap; its wait costs what any wait costs (GU-13).</summary>
+        void OnBoardedDown(int lift, int s)
+        {
+            if (_guests.Arch[s] == GuestColumns.FeederArch) return;
+            ChargeWait(s, Tick);
         }
 
         // ================= leaving (GU-06, GU-11) =================
@@ -853,6 +890,8 @@ namespace MountainPlanner.Simulation
             {
                 _lineFirst[i] = _lineLast[i] = -1; _lineCount[i] = 0;
                 _rideFirst[i] = _rideLast[i] = -1; _rideCount[i] = 0;
+                _topFirst[i] = _topLast[i] = -1; _topCount[i] = 0;
+                _downFirst[i] = _downLast[i] = -1; _downCount[i] = 0;
             }
             UpdateReputation();
             _guests.Reset();

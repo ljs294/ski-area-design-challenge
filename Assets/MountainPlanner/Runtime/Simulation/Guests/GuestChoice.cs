@@ -42,7 +42,7 @@ namespace MountainPlanner.Simulation
             int maxDegree = 0;
             if (net != null)
                 for (int v = 0; v < nodes; v++) if (net.EdgeCount[v] > maxDegree) maxDegree = net.EdgeCount[v];
-            int room = maxDegree + Pacing.MaxLifts + 1;
+            int room = maxDegree + 2 * Pacing.MaxLifts + 1;   // the lifts up from here and (RD-3) down from here
             if (_optEdge.Length < room) { _optEdge = new int[room]; _optScore = new int[room]; }
         }
 
@@ -89,6 +89,8 @@ namespace MountainPlanner.Simulation
                 if (top < 0 || top >= net.NodeCount) continue;
                 if (!CanReachBase(top, band)) continue;                   // LO-10: no way down for this band up there
                 int atTop = _bestAtNode[band * net.NodeCount + top];
+                // RD-4 (rule 3): a ride up to a top with nothing for this band is worth a look, when the lift brings it back.
+                if (atTop <= 0 && CarriesDown(i)) atTop = Pacing.RideDownScore;
                 if (atTop <= 0) continue;
                 long waitMs = WaitMsOf(i);
                 if (waitMs < bestWaitMs) { bestWaitMs = (int)Math.Min(int.MaxValue, waitMs); bestWaitLift = i; }
@@ -96,6 +98,19 @@ namespace MountainPlanner.Simulation
                 _optEdge[_optCount] = LiftOption | i; _optScore[_optCount] = score; _optCount++;
                 total += score;
             }
+            // RD-3 (rule 1): at a lift's top, the ride down — offered only to a band that can't get home from here
+            // without it. It is worth what waits at the bottom (RD-4's look at least), over the top line's wait.
+            if (!SkisHome(node, band))
+                for (int i = node < _nodeTop.Length ? _nodeTop[node] : -1; i >= 0 && _optCount < _optEdge.Length; i = _topNext[i])
+                {
+                    if (i >= LiftsNow || !CarriesDown(i)) continue;
+                    int bottom = Design.Lifts[i].BottomNode;
+                    if (bottom < 0 || bottom >= net.NodeCount || !CanReachBase(bottom, band)) continue;
+                    int atBottom = Math.Max(_bestAtNode[band * net.NodeCount + bottom], Pacing.RideDownScore);
+                    int score = (int)Math.Max(1, (long)atBottom * WaitFactor(TopWaitMsOf(i)) / 1000);
+                    _optEdge[_optCount] = DownOption | i; _optScore[_optCount] = score; _optCount++;
+                    total += score;
+                }
             // GU-08: a lift whose wait is past BalkWait is dropped while anything else is on offer, which is balking: the
             // party walks to the other lift in the Area, or skis somewhere else. With nothing else it joins and waits.
             if (bestWaitMs != int.MaxValue && bestWaitMs > BalkWaitMs)
@@ -198,6 +213,11 @@ namespace MountainPlanner.Simulation
             {
                 int lift = option & ~LiftOption;
                 _whyFactors[(int)ChoiceFactor.Wait] = WaitFactor(WaitMsOf(lift));
+                return;
+            }
+            if ((option & DownOption) != 0)
+            {
+                _whyFactors[(int)ChoiceFactor.Wait] = WaitFactor(TopWaitMsOf(option & ~DownOption));
                 return;
             }
             _whyFactors[(int)ChoiceFactor.Fit] = FitFactor(option, band);

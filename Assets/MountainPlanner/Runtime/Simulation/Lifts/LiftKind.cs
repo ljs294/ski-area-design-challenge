@@ -29,7 +29,7 @@ namespace MountainPlanner.Simulation
         Open = 3,
         /// <summary>LO-11: stopped for wind, expected back the same day.</summary>
         OnHold = 4,
-        /// <summary>LO-10: lost its way down mid-day; closed to boarding, the chairs still carry riders down.</summary>
+        /// <summary>LO-10: lost its way down mid-day; closed to boarding at the bottom, the chairs carry riders down from the top (RD-1).</summary>
         Downloading = 5,
     }
 
@@ -40,6 +40,12 @@ namespace MountainPlanner.Simulation
 
         /// <summary>LO-10: chairs and gondolas download; tows and carpets just close.</summary>
         public static bool CanDownload(LiftKind k) => k == LiftKind.FixedGripChair || k == LiftKind.DetachableChair || k == LiftKind.Gondola || k == LiftKind.Tram;
+
+        /// <summary>
+        /// RD-1 (task 4.24 PR B, owner 2026-11-17): a lift that carries riders down all day, not only while downloading —
+        /// a gondola. It is its own way down (LO-10 v2). Trams join when their jig-back (LO-08) is built.
+        /// </summary>
+        public static bool BothWays(LiftKind k) => k == LiftKind.Gondola;
 
         /// <summary>LO-11: the index into <see cref="Pacing.HoldGustMph"/> and <see cref="Pacing.HoldGustPerSeatTenths"/>, or −1 for a kind that never holds.</summary>
         public static int HoldIndex(LiftKind k) => k switch

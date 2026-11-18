@@ -72,6 +72,7 @@ namespace MountainPlanner.App
         SkierLayer EnsureSkierLayer()
         {
             if (_skiers != null) return _skiers;
+            if (!SystemInfo.supportsComputeShaders) return null;   // no dots (task 4.24: a -nographics player has no compute shaders; it still runs the simulation)
             _dotsOnTop = Array.IndexOf(Environment.GetCommandLineArgs(), "-dotsontop") >= 0;
             var shader = Resources.Load<Shader>(SkierLayer.ShaderResource);
             if (shader == null) { Debug.LogWarning("[Skiers] the dot shader is missing: " + SkierLayer.ShaderResource); return null; }
@@ -120,9 +121,10 @@ namespace MountainPlanner.App
                 {
                     ulong id = design.Lifts[i].Id;
                     while (k < s.LiftCount && s.LiftIds[k] < id) k++;
-                    int line = k < s.LiftCount && s.LiftIds[k] == id ? s.LineCount[k] : 0;
+                    bool match = k < s.LiftCount && s.LiftIds[k] == id;
+                    int line = match ? s.LineCount[k] : 0;
                     layer.SetLift(i, _ropes != null ? _ropes.Seconds(id) : 0, !LiftKinds.Compressed(design.Lifts[i].Kind), line,
-                                  design.Lifts[i].Kind == LiftKind.Carpet);
+                                  design.Lifts[i].Kind == LiftKind.Carpet, match ? s.TopLineCount[k] : 0);
                     if (_riders != null)
                     {
                         // Task 4.22: a chair's riders sit on its chairs (as the chairs are drawn: shown, at their own clock).
@@ -291,10 +293,27 @@ namespace MountainPlanner.App
                     LoadSide = type.Belt ? 0 : (float)type.GaugeMetres / 2,   // task 4.22: under the loaded rope
                 });
             }
+            // Task 4.24 PR B (RD-2): the top lines, one mirrored input per lift after the lifts (lift i's at count + i): its
+            // top is the mirror's bottom, its top terminal the mirror's bottom terminal, and the same load side lands under
+            // the descending rope. Only lifts that carry riders down all day get places; a downloading chair's top line
+            // stands round its top station.
+            int liftCount = liftInputs.Count;
+            for (int i = 0; i < liftCount; i++)
+            {
+                var up = liftInputs[i];
+                bool both = up.Built && i < design.Lifts.Length && LiftKinds.BothWays(design.Lifts[i].Kind);
+                liftInputs.Add(new LineLayout.LiftInput
+                {
+                    Bottom = up.Top, Top = up.Bottom, Seats = up.Seats, Built = both,
+                    Behind = up.TopBehind, Ahead = up.TopAhead, HalfWidth = up.TopHalfWidth,
+                    TopBehind = up.Behind, TopAhead = up.Ahead, TopHalfWidth = up.HalfWidth,
+                    LaneHalfWidth = up.LaneHalfWidth, LoadSide = up.LoadSide,
+                });
+            }
             var paths = SkierPaths.Build(design.Revision, edges, liftLines, nodes, ground);
             _skierPathsMs = watch.Elapsed.TotalMilliseconds;
             watch.Restart();
-            var layout = LineLayout.Build(design.Revision, liftInputs, runs, ground, CoverBlocks());
+            var layout = LineLayout.Build(design.Revision, liftInputs, runs, ground, CoverBlocks(), topSlotsAt: liftCount);
             _skierLinesMs = watch.Elapsed.TotalMilliseconds;
             layer.SetPaths(paths);
             layer.SetLines(layout);
@@ -490,7 +509,7 @@ namespace MountainPlanner.App
             else if (drawn)
             {
                 card.Now = NowWords(rec, design, doc);
-                card.Queued = rec.State == (byte)GuestState.Queued;
+                card.Queued = rec.State == (byte)GuestState.Queued || rec.State == (byte)GuestState.QueuedDown;
             }
             if (answered)
             {
@@ -527,6 +546,10 @@ namespace MountainPlanner.App
                     int place = r.Rank + 1;
                     return $"In line at {LiftName(r.Index, design, doc) ?? "a lift"} · {Ordinal(place)}{LineWait(r.Index)}";
                 }
+                case GuestState.QueuedDown:   // RD-2 (task 4.24 PR B)
+                    return $"In line at the top of {LiftName(r.Index, design, doc) ?? "a lift"} · {Ordinal(r.Rank + 1)}{TopWait(r.Index)}";
+                case GuestState.RidingDown:
+                    return "Riding " + (LiftName(r.Index, design, doc) ?? "a lift") + " down (time compressed)";
                 case GuestState.Riding:
                 {
                     bool compressed = design != null && r.Index < design.Lifts.Length && LiftKinds.Compressed(design.Lifts[r.Index].Kind);
@@ -549,6 +572,20 @@ namespace MountainPlanner.App
             int factor = s.Paused || s.Speed < 1 || s.Speed > speeds.Length ? 1 : speeds[s.Speed - 1];
             for (int i = 0; i < s.LiftCount; i++)
                 if (s.LiftIds[i] == id) return " · ~" + WaitClock((int)(s.WaitMs[i] / 1000 / factor));
+            return "";
+        }
+
+        /// <summary>RD-2: the wait for a lift's top line, " · ~1:45", as <see cref="LineWait"/> does the bottom's.</summary>
+        string TopWait(int liftIndex)
+        {
+            var s = _simNow;
+            var design = _skierDesign;
+            if (s == null || design == null || liftIndex >= design.Lifts.Length) return "";
+            ulong id = design.Lifts[liftIndex].Id;
+            var speeds = Pacing.Default.Speeds;
+            int factor = s.Paused || s.Speed < 1 || s.Speed > speeds.Length ? 1 : speeds[s.Speed - 1];
+            for (int i = 0; i < s.LiftCount; i++)
+                if (s.LiftIds[i] == id) return " · ~" + WaitClock(s.TopWaitMs[i] / 1000 / factor);
             return "";
         }
 

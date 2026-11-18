@@ -84,6 +84,9 @@ namespace MountainPlanner.Presentation.Guests
         public NativeArray<float2> Facing;
         public NativeArray<int2> LiftSlots;
         public long Revision { get; private set; } = -1;
+        /// <summary>Task 4.24 PR B (RD-2): where the top lines start among the inputs (lift i's is input TopSlotsAt + i, a
+        /// mirror of it laid at its top station's down side), or -1 when there are none.</summary>
+        public int TopSlotsAt { get; private set; } = -1;
 
         /// <summary>How many skiers lift <paramref name="lift"/>'s line has places for now.</summary>
         /// <summary>Place <paramref name="k"/> of lift <paramref name="lift"/>'s line, if it has one (logs, captures).</summary>
@@ -173,9 +176,9 @@ namespace MountainPlanner.Presentation.Guests
         // ================= building =================
 
         public static LineLayout Build(long revision, IReadOnlyList<LiftInput> lifts, IReadOnlyList<RunInput> runs,
-                                       Func<float, float, float> ground, Func<float, float, bool> coverOrWater)
+                                       Func<float, float, float> ground, Func<float, float, bool> coverOrWater, int topSlotsAt = -1)
         {
-            var layout = new LineLayout { Revision = revision, _lifts = lifts, _ground = ground };
+            var layout = new LineLayout { Revision = revision, _lifts = lifts, _ground = ground, TopSlotsAt = topSlotsAt };
             var runIndex = new RunIndex(runs);
             // Why a spot is no good for standing in a line (0: it's fine); the reasons feed the build's diagnosis.
             // 1 bottom terminal, 2 top terminal, 3 a lift's line, 4 forest or water, 5 steep, 6 a run.

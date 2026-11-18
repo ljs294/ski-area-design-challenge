@@ -86,6 +86,13 @@ namespace MountainPlanner.Domain.Design
             return Array.IndexOf(Carriers, id.Substring(0, colon)) >= 0 && Array.IndexOf(Makers, id.Substring(colon + 1)) >= 0;
         }
 
+        /// <summary>
+        /// Task 4.24 PR B (RD-1, LO-10 v2): whether a lift of this catalog carries skiers down as well as up all day, so its
+        /// top is a way down of its own: the gondolas (trams later, with LO-08). The simulation's <c>LiftKinds.BothWays</c>
+        /// says the same of the kind it makes from this id.
+        /// </summary>
+        public static bool RidesDown(string id) => Carrier(id)?.StartsWith("gondola-", StringComparison.Ordinal) == true;
+
         /// <summary>The carrier part ("fixed-quad" for the two models).</summary>
         public static string Carrier(string id)
         {

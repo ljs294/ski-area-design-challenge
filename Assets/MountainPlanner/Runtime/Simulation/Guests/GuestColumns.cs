@@ -23,6 +23,10 @@ namespace MountainPlanner.Simulation
         Walking = 6,
         /// <summary>At a node until its tick comes. Unused in Phase 4; lodges, lessons and rests will need it.</summary>
         Dwelling = 7,
+        /// <summary>RD-2 (task 4.24 PR B): in the line at a lift's top station, to ride down (sidecar v11).</summary>
+        QueuedDown = 8,
+        /// <summary>RD-2: on the way down, hidden for the compressed ride like <see cref="Riding"/> (sidecar v11).</summary>
+        RidingDown = 9,
     }
 
     /// <summary>

@@ -1374,6 +1374,12 @@ namespace MountainPlanner.Presentation.Lifts
         public bool[] SeatTurned { get; private set; } = Array.Empty<bool>();
         public float BoardTime { get; private set; }
         public float RideTime { get; private set; }
+        /// <summary>
+        /// Task 4.24 PR B (RD-2): the same for the way down: the track time a carrier leaves the top with riders going down
+        /// (where it first heads straight down the line, on the left), and how long until it reaches the bottom.
+        /// </summary>
+        public float DownBoardTime { get; private set; }
+        public float DownRideTime { get; private set; }
 
         void PrepareSeats(LiftRig rig, Transform instance, CarrierTrack track, Vector3 bottom, Vector3 dir, bool faceEachOther)
         {
@@ -1393,38 +1399,46 @@ namespace MountainPlanner.Presentation.Lifts
             int count = points.Length;
             if (seats.Count == 0 || count < 3) return;
             var right = Vector3.Cross(Vector3.up, dir);
+            var flatDir = new Vector3(dir.x, 0, dir.z).normalized;
             bool Up(int i) => Vector3.Dot(points[(i % count + count) % count] - bottom, right) > 0;
-            int start = -1, best = 0;
-            float board = 0, ride = 0;
-            for (int i = 0; i < count; i++)
+            // The longest run of track on one side, and where on it a carrier, off the wheel, first heads straight along
+            // the line that way: riders get on there.
+            bool Window(bool upSide, Vector3 heading, out float board, out float ride)
             {
-                if (!Up(i) || Up(i - 1)) continue;   // the start of a run on the right
-                int end = i;
-                while (end + 1 < i + count && Up(end + 1)) end++;
-                if (end - i <= best) continue;
-                best = end - i;
-                // Riders get on where the carrier, off the bottom wheel, first heads straight up the line.
-                int load = i;
-                var flatDir = new Vector3(dir.x, 0, dir.z).normalized;
-                while (load < end)
+                int start = -1, best = 0;
+                board = 0; ride = 0;
+                for (int i = 0; i < count; i++)
                 {
-                    var step = points[(load + 1) % count] - points[load % count];
-                    step.y = 0;
-                    if (step.sqrMagnitude > 1e-6f && Vector3.Dot(step.normalized, flatDir) > 0.95f) break;
-                    load++;
+                    if (Up(i) != upSide || Up(i - 1) == upSide) continue;   // the start of a run on that side
+                    int end = i;
+                    while (end + 1 < i + count && Up(end + 1) == upSide) end++;
+                    if (end - i <= best) continue;
+                    best = end - i;
+                    int load = i;
+                    while (load < end)
+                    {
+                        var step = points[(load + 1) % count] - points[load % count];
+                        step.y = 0;
+                        if (step.sqrMagnitude > 1e-6f && Vector3.Dot(step.normalized, heading) > 0.95f) break;
+                        load++;
+                    }
+                    start = load;
+                    board = times[load % count];
+                    float t = times[end % count];
+                    ride = ((t - board) % track.LoopTime + track.LoopTime) % track.LoopTime;
                 }
-                start = load;
-                board = times[load % count];
-                float t = times[end % count];
-                ride = ((t - board) % track.LoopTime + track.LoopTime) % track.LoopTime;
+                return start >= 0 && ride > 0;
             }
-            if (start < 0 || ride <= 0) return;
+            if (!Window(true, flatDir, out float up, out float upRide)) return;
             SeatLocal = seats.ToArray();
             SeatTurned = new bool[seats.Count];
             if (faceEachOther)
                 for (int s = 0; s < seats.Count; s++) SeatTurned[s] = seats[s].z > 0;   // the hanger frame's z runs along the line
-            BoardTime = board;
-            RideTime = ride;
+            BoardTime = up;
+            RideTime = upRide;
+            // RD-2: the way down, on the left from the top. A lift without one (it should always have one) seats nobody down.
+            if (Window(false, -flatDir, out float down, out float downRide)) { DownBoardTime = down; DownRideTime = downRide; }
+            else { DownBoardTime = 0; DownRideTime = 0; }
         }
 
         /// <summary>Task 4.11 PR B: the carrier being ridden (-1 for none): drawn at LOD0 and never culled.</summary>

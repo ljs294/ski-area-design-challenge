@@ -52,7 +52,8 @@ namespace MountainPlanner.App
                 // (4.05 PR C), or while the F1 panel's test gust does.
                 bool hasHold = _holdMph.TryGetValue(s.LiftIds[i], out int hold) && hold >= 0;
                 bool likely = hasHold && ((_gustMph >= 0 && _gustMph >= hold) || HoldLikely(s, i, hold));
-                Hud.SetLiftLive(s.LiftIds[i], new MountainHud.LiftLive(Word(s.LiftStatus[i]), s.LineCount[i], s.WaitMs[i] / 1000.0 / factor, likely));
+                Hud.SetLiftLive(s.LiftIds[i], new MountainHud.LiftLive(Word(s.LiftStatus[i]), s.LineCount[i], s.WaitMs[i] / 1000.0 / factor, likely,
+                    s.CarriesDown[i], s.TopLineCount[i], s.TopWaitMs[i] / 1000.0 / factor, s.RidesDownToday[i]));
             }
             // 4.11's trail loop keyed each row by the run's TrailId, which no row has (the list holds TrailLineIds), so
             // Status never filled; UpdateTrailLive maps runs to the player's lines and fills Status and Popularity both.

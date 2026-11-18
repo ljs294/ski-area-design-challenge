@@ -431,12 +431,14 @@ echo    125 The GPU queue's tests (about three minutes, no GPU), then the last 7
 echo        overlaps, then a live check: the game starts outside the queue and a 5-second measure run waits for it;
 echo        quit the game and the run goes. Your own play never waits; only queued measure runs do.
 echo   4.24 Sessellift G8 gondola (the D6's terminals and wide heads with an eight-seat cabin; close the editor first)
-echo    126 The game with a G8 built up the style tile's slope (rebuilds the game). Watch the cabins round the D6
-echo        stations, the guests seated four a bench facing each other, and ride one (click a cabin). New lift,
-echo        Detachable gondola, 8 person, Sessellift G8 builds your own; its price is a placeholder.
+echo    126 Guests ride the gondola both ways (PR B, rebuilds the game): the drawn resort with Base Six built as a G8.
+echo        F1, open the mountain and Skip to morning; riders sit in the cabins going down too, a line stands at the
+echo        top, and the lift card shows "At the top". New lift, Detachable gondola, 8 person builds your own.
 echo    127 The G8 in the Lift Lab: the D6 terminals, a cabin between them and the six tower heads with cabins on the
 echo        ropes. Z this view, L LOD, N snow, C colour, T turntable, H help, Esc quit.
 echo    128 Rebuild the G8 cabin in Blender with its checks (budgets, pivots, sockets; no Unity, no render).
+echo    129 Riding down: the Core tests, then a headless day each way (lift 303 a gondola, then a chair): rides up and
+echo        down per lift, the top line's peak, nobody stranded (rebuilds the game; no GPU).
 echo.
 echo     Q  Quit
 echo.
@@ -593,6 +595,7 @@ if /i "%CHOICE%"=="125" goto gpuqueue
 if /i "%CHOICE%"=="126" goto gondolagame
 if /i "%CHOICE%"=="127" goto gondolalab
 if /i "%CHOICE%"=="128" goto gondolamodel
+if /i "%CHOICE%"=="129" goto ridedown
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2287,13 +2290,32 @@ start "" "%LIFTLAB%" -mode fixedgrip
 goto menu
 
 :gondolagame
-rem Task 4.24: always rebuilt, so the gondola on this branch is the one you see.
+rem Task 4.24 PR B: always rebuilt, so the gondola on this branch is the one you see. A capture-style run: the drawn
+rem resort never goes into one of your saves.
 call :projectfree || goto done
 call :buildplayer
 if not exist "%GAME%" goto done
-echo Starting the game with a Sessellift G8 up the style tile's slope ("Check gondola-8:sessellift").
-start "" "%GAME%" -snowseed -notitle -styletile -extralift -150,-900,650 -extratype gondola-8:sessellift
+echo Starting the drawn resort with Base Six as a Sessellift G8.
+echo   1. F1, Mountain: open, then Skip to morning. Guests arrive from 8:30.
+echo   2. Fly to Base Six's top station: a short line stands beside it, and cabins leave it with riders seated.
+echo      Beginners ride up to look and ride back down; anyone ending the day there rides down.
+echo   3. Click Base Six: the card's "At the top" row reads how many wait there, the wait, and the rides down today.
+echo   4. Click a guest in the top line: "In line at the top of Base Six"; in a cabin going down, "Riding Base Six down".
+echo   5. Remove a chair's only trail down mid-day: the chair downloads, and everyone it brings up rides it back down.
+start "" "%GAME%" -snowseed -drawnresort -drawngondola
 goto menu
+
+:ridedown
+rem Task 4.24 PR B: the ride-down rules (RD-1..RD-5, LO-10 v2) under .NET, then the same day headless in the game.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~RideDownTests|FullyQualifiedName~LiftOpsTests|FullyQualifiedName~SimSaveTests" <nul
+if errorlevel 1 goto done
+call :projectfree || goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+"%GAME%" -batchmode -nographics -simridedown "%~dp0test-results\p4-24\ridedown-day.txt" <nul
+if exist "%~dp0test-results\p4-24\ridedown-day.txt" type "%~dp0test-results\p4-24\ridedown-day.txt"
+goto done
 
 :gondolalab
 call :projectfree && call :buildliftlab
@@ -2568,7 +2590,7 @@ echo      lean down the hill. On a steep stretch a cautious skier traverses, as 
 echo   3. A lift line: rows the width of the chair, everyone facing the front, the front rows under the chairs they
 echo      board. Each chair that leaves moves the line up a row;
 echo      skiers shuffle and snowboarders push with one foot. Waiting guests stand, lean on their poles or rest.
-echo   4. The chairs go up loaded and come down empty. Rides are time-compressed, so a guest is skiing again long
+echo   4. The chairs go up loaded and come down empty (a gondola's cabins carry riders down too, 4.24). Rides are time-compressed, so a guest is skiing again long
 echo      before its chair reaches the top: the riders you see on a chair wear their own outfits, so nobody has a twin.
 echo      Gondola riders sit on the cabin's two benches, facing each other ^(4.24^). On a T-bar the riders stand on the
 echo      snow, on a carpet on the belt.

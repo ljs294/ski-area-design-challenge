@@ -62,6 +62,21 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void G8_TheGondolaResortLeavesOutOnlyBaseSixsLowerRuns()
+        {
+            // Task 4.24 PR B (-drawngondola): with those three gone, Base Six (a G8) is the only way to and from Summit Six's
+            // pod, whose runs end at its top, so everyone leaving the upper mountain rides the gondola down.
+            var left = DrawnResort.Trails.Where(DrawnResort.GondolaLower).Select(r => r.Name);
+            Assert.That(left, Is.EquivalentTo(new[] { "Lower Timbers", "Wapiti Glades", "Moose Meadow" }));
+            // Its top and Summit Six's bottom are one station (NW-14: reaches touch), so the gondola leads to the pod and
+            // Summit Six's bottom is no base of its own (GU-06); 112 m apart they were two, and nobody needed the gondola.
+            var summit = DrawnResort.Lifts.Single(l => l.Name == "Summit Six");
+            double apart = Math.Sqrt(Math.Pow(summit.BottomX - DrawnResort.GondolaTopX, 2) + Math.Pow(summit.BottomZ - DrawnResort.GondolaTopZ, 2));
+            Assert.That(apart * 1000, Is.LessThan(2 * DesignStations.ReachMm - 5000), "a margin inside the join");
+            Assert.That(apart, Is.GreaterThan(40), "room for the two terminals");
+        }
+
+        [Test]
         public void DB1_TheResortBuildsByCommandTheSameEachTime()
         {
             string dir = Environment.GetEnvironmentVariable("MP_JH5_PACKAGE");

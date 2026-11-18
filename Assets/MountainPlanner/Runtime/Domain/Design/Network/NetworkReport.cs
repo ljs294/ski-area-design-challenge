@@ -10,7 +10,9 @@ namespace MountainPlanner.Domain.Design
     /// What the network says about each built lift and trail (NW-03, NW-12, NW-13), worked out from the graph alone.
     /// <list type="bullet">
     /// <item>A lift is <b>connected</b> when a descent from its top (trail segments and paths, never a lift) reaches some
-    /// lift's bottom, its own included (NW-03); otherwise "No way down".</item>
+    /// lift's bottom, its own included (NW-03); otherwise "No way down". Task 4.24 PR B (LO-10 v2): a descent that reaches
+    /// the top of a gondola rides it down and goes on from its bottom, so a gondola is its own way down and a run ending at
+    /// its top leads somewhere.</item>
     /// <item>A trail is <b>served</b> when a descent from some lift's top runs along it; otherwise "No lift serves this".</item>
     /// <item>A trail <b>leads nowhere</b> when its tail joins no lift bottom, no other trail and no path (NT6): nothing but
     /// its own end within 30 ft of the tail (TR-05).</item>
@@ -26,6 +28,8 @@ namespace MountainPlanner.Domain.Design
             /// <summary>Every trail a descent from the top runs along, by ID (NW-13's highlight).</summary>
             public IReadOnlyList<TrailId> Reaches { get; internal set; }
             public NetworkWarning Warning => Connected ? NetworkWarning.None : NetworkWarning.NoWayDown;
+            /// <summary>Task 4.24 PR B: the lift carries skiers down too (a gondola), so its top is a way down of its own.</summary>
+            public bool RidesDown { get; internal set; }
         }
 
         public sealed class TrailStatus
@@ -52,10 +56,13 @@ namespace MountainPlanner.Domain.Design
             public IReadOnlyList<LiftId> Lifts { get; internal set; }
             /// <summary>Every node reached, the start included.</summary>
             public IReadOnlyList<ulong> Nodes { get; internal set; }
+            /// <summary>Task 4.24 PR B: the gondolas the descent rides down (from a top it reached to their bottoms), ID order.</summary>
+            public IReadOnlyList<LiftId> RidesDown { get; internal set; } = Array.Empty<LiftId>();
 
             public static readonly Reach Nothing = new Reach
             {
                 Segments = Array.Empty<int>(), Trails = Array.Empty<TrailId>(), Lifts = Array.Empty<LiftId>(), Nodes = Array.Empty<ulong>(),
+                RidesDown = Array.Empty<LiftId>(),
             };
         }
 
@@ -78,14 +85,16 @@ namespace MountainPlanner.Domain.Design
         readonly ulong _seed;
         readonly Dictionary<ulong, List<int>> _down;
         readonly Dictionary<ulong, List<LiftId>> _bottoms;
+        readonly Dictionary<ulong, List<LiftId>> _tops;
 
         NetworkReport(NetworkGraph graph, ulong seed, Dictionary<ulong, List<int>> down, Dictionary<ulong, List<LiftId>> bottoms,
-                      LiftStatus[] lifts, TrailStatus[] trails, AreaStatus[] areas)
+                      Dictionary<ulong, List<LiftId>> tops, LiftStatus[] lifts, TrailStatus[] trails, AreaStatus[] areas)
         {
             Graph = graph;
             _seed = seed;
             _down = down;
             _bottoms = bottoms;
+            _tops = tops;
             Lifts = lifts;
             Trails = trails;
             Areas = areas;
@@ -103,41 +112,45 @@ namespace MountainPlanner.Domain.Design
         /// and up each lift that loads there and down from its top. Those lifts count as reached. Nothing for a station
         /// that isn't in the graph.
         /// </summary>
-        public Reach ReachFromArea(ulong station) => AreaReach(Graph, _down, _bottoms, station);
+        public Reach ReachFromArea(ulong station) => AreaReach(Graph, _down, _bottoms, _tops, station);
 
-        static Reach AreaReach(NetworkGraph graph, Dictionary<ulong, List<int>> down, Dictionary<ulong, List<LiftId>> bottoms, ulong station)
+        static Reach AreaReach(NetworkGraph graph, Dictionary<ulong, List<int>> down, Dictionary<ulong, List<LiftId>> bottoms,
+                              Dictionary<ulong, List<LiftId>> tops, ulong station)
         {
             if (!graph.TryGetNode(station, out _)) return Reach.Nothing;
-            var parts = new List<Reach> { Search(graph, down, bottoms, station) };
+            var parts = new List<Reach> { Search(graph, down, bottoms, tops, station) };
             var loads = bottoms.TryGetValue(station, out var here) ? here : new List<LiftId>();
             foreach (var lift in loads)
             {
                 ulong top = graph.StationOf(lift, top: true);
-                if (top != 0) parts.Add(Search(graph, down, bottoms, top, transferFrom: lift));
+                if (top != 0) parts.Add(Search(graph, down, bottoms, tops, top, transferFrom: lift));
             }
             var segments = new SortedSet<int>();
             var trails = new SortedSet<TrailId>();
             var lifts = new SortedSet<LiftId>(loads);
             var nodes = new SortedSet<ulong>();
+            var ridden = new SortedSet<LiftId>();
             foreach (var r in parts)
             {
                 segments.UnionWith(r.Segments);
                 trails.UnionWith(r.Trails);
                 lifts.UnionWith(r.Lifts);
                 nodes.UnionWith(r.Nodes);
+                ridden.UnionWith(r.RidesDown);
             }
-            return new Reach { Segments = new List<int>(segments), Trails = new List<TrailId>(trails), Lifts = new List<LiftId>(lifts), Nodes = new List<ulong>(nodes) };
+            return new Reach { Segments = new List<int>(segments), Trails = new List<TrailId>(trails), Lifts = new List<LiftId>(lifts), Nodes = new List<ulong>(nodes),
+                               RidesDown = new List<LiftId>(ridden) };
         }
 
         /// <summary>A descent from <paramref name="node"/> (finding 7: any node); nothing for a node not in the graph.</summary>
-        public Reach ReachFrom(ulong node) => Graph.TryGetNode(node, out _) ? Search(Graph, _down, _bottoms, node) : Reach.Nothing;
+        public Reach ReachFrom(ulong node) => Graph.TryGetNode(node, out _) ? Search(Graph, _down, _bottoms, _tops, node) : Reach.Nothing;
 
         /// <summary>A descent from the lift's top station (NW-13); another lift's bottom in that station is reached at once
         /// (a transfer, NT14).</summary>
         public Reach ReachFrom(LiftId lift)
         {
             ulong top = Graph.StationOf(lift, top: true);
-            return top == 0 ? Reach.Nothing : Search(Graph, _down, _bottoms, top, transferFrom: lift);
+            return top == 0 ? Reach.Nothing : Search(Graph, _down, _bottoms, _tops, top, transferFrom: lift);
         }
 
         /// <summary>A descent down the trail from its head (finding 2): its first segment, then everything below. Other
@@ -147,7 +160,7 @@ namespace MountainPlanner.Domain.Design
             var edges = Graph.Edges;
             // Edges are sorted by kind, owner, then start, so a trail's first segment is the one from its head.
             for (int i = 0; i < edges.Count; i++)
-                if (edges[i].Kind == EdgeKind.TrailSegment && edges[i].Owner == trail.Value) return Search(Graph, _down, _bottoms, edges[i].From, i);
+                if (edges[i].Kind == EdgeKind.TrailSegment && edges[i].Owner == trail.Value) return Search(Graph, _down, _bottoms, _tops, edges[i].From, i);
             return Reach.Nothing;
         }
 
@@ -160,7 +173,7 @@ namespace MountainPlanner.Domain.Design
         {
             var edges = Graph.Edges;
             if (edge < 0 || edge >= edges.Count || edges[edge].Kind != EdgeKind.TrailSegment) return Reach.Nothing;
-            return Search(Graph, _down, _bottoms, edges[edge].From, edge);
+            return Search(Graph, _down, _bottoms, _tops, edges[edge].From, edge);
         }
 
         /// <summary>The trail segment of <paramref name="trail"/> holding the point <paramref name="alongMm"/> from its head
@@ -181,7 +194,8 @@ namespace MountainPlanner.Domain.Design
 
         /// <param name="first">When not negative, the search leaves <paramref name="start"/> by that segment only.</param>
         /// <param name="transferFrom">For a lift's own reach: the other lifts' bottoms in its top station count (NT14).</param>
-        static Reach Search(NetworkGraph graph, Dictionary<ulong, List<int>> down, Dictionary<ulong, List<LiftId>> bottoms, ulong start, int first = -1,
+        static Reach Search(NetworkGraph graph, Dictionary<ulong, List<int>> down, Dictionary<ulong, List<LiftId>> bottoms,
+                            Dictionary<ulong, List<LiftId>> tops, ulong start, int first = -1,
                             LiftId? transferFrom = null)
         {
             var edges = graph.Edges;
@@ -190,6 +204,7 @@ namespace MountainPlanner.Domain.Design
             var segments = new List<int>();
             var trails = new SortedSet<TrailId>();
             var lifts = new SortedSet<LiftId>();
+            var ridden = new SortedSet<LiftId>();
             if (first < 0) queue.Enqueue(start);
             else
             {
@@ -203,6 +218,16 @@ namespace MountainPlanner.Domain.Design
                 if (bottoms.TryGetValue(n, out var here))
                     foreach (var lift in here)
                         if (n != start || (transferFrom.HasValue && lift != transferFrom.Value)) lifts.Add(lift);
+                // Task 4.24 PR B (LO-10 v2): a gondola whose top this is carries the skier down; the descent goes on from its
+                // bottom (where that gondola, its own bottom reached, counts like any other).
+                if (tops != null && tops.TryGetValue(n, out var ridesHere))
+                    foreach (var lift in ridesHere)
+                    {
+                        ulong bottom = graph.StationOf(lift, top: false);
+                        if (bottom == 0) continue;
+                        ridden.Add(lift);
+                        if (visited.Add(bottom)) queue.Enqueue(bottom);
+                    }
                 if (!down.TryGetValue(n, out var outs)) continue;
                 foreach (int i in outs)
                 {
@@ -218,7 +243,8 @@ namespace MountainPlanner.Domain.Design
             segments.Sort();
             var nodes = new List<ulong>(visited);
             nodes.Sort();
-            return new Reach { Segments = segments, Trails = new List<TrailId>(trails), Lifts = new List<LiftId>(lifts), Nodes = nodes };
+            return new Reach { Segments = segments, Trails = new List<TrailId>(trails), Lifts = new List<LiftId>(lifts), Nodes = nodes,
+                               RidesDown = new List<LiftId>(ridden) };
         }
 
         public int LiftWarnings
@@ -291,6 +317,16 @@ namespace MountainPlanner.Domain.Design
                     if (!bottoms.TryGetValue(st.Id, out var list)) bottoms.Add(st.Id, list = new List<LiftId>());
                     list.Add(m.Lift);
                 }
+            // Task 4.24 PR B: each station's built gondolas that unload there, and so carry a skier down from it.
+            var tops = new Dictionary<ulong, List<LiftId>>();
+            foreach (var lift in lifts)
+            {
+                if (lift.Stage != WorkStage.Built || !LiftCatalogIds.RidesDown(lift.CatalogId)) continue;
+                ulong top = graph.StationOf(lift.Id, top: true);
+                if (top == 0) continue;
+                if (!tops.TryGetValue(top, out var list)) tops.Add(top, list = new List<LiftId>());
+                list.Add(lift.Id);
+            }
 
             var served = new HashSet<ulong>();
             var liftList = new List<LiftStatus>();
@@ -298,9 +334,10 @@ namespace MountainPlanner.Domain.Design
             {
                 if (lift.Stage != WorkStage.Built) continue;
                 // A descent from the top; the top is a bottom only for a lift whose ends meet, which LF rules forbid.
-                var reach = Search(graph, down, bottoms, graph.StationOf(lift.Id, top: true), transferFrom: lift.Id);
+                var reach = Search(graph, down, bottoms, tops, graph.StationOf(lift.Id, top: true), transferFrom: lift.Id);
                 foreach (var t in reach.Trails) served.Add(t.Value);
-                liftList.Add(new LiftStatus { Lift = lift.Id, Connected = reach.Lifts.Count > 0, Reaches = reach.Trails });
+                liftList.Add(new LiftStatus { Lift = lift.Id, Connected = reach.Lifts.Count > 0, Reaches = reach.Trails,
+                                              RidesDown = LiftCatalogIds.RidesDown(lift.CatalogId) });
             }
 
             // NT6: what each trail's last 30 ft meets.
@@ -312,8 +349,8 @@ namespace MountainPlanner.Domain.Design
             {
                 if (e.Kind != EdgeKind.TrailSegment) continue;
                 int length = lengths[e.Owner];
-                if (e.EndMm >= length - DesignUnits.SnapMm && Joins(graph, e.To)) joinsAtTail.Add(e.Owner);
-                if (e.StartMm >= length - DesignUnits.SnapMm && Joins(graph, e.From)) joinsAtTail.Add(e.Owner);
+                if (e.EndMm >= length - DesignUnits.SnapMm && Joins(graph, tops, e.To)) joinsAtTail.Add(e.Owner);
+                if (e.StartMm >= length - DesignUnits.SnapMm && Joins(graph, tops, e.From)) joinsAtTail.Add(e.Owner);
             }
 
             var trailList = new List<TrailStatus>();
@@ -332,14 +369,15 @@ namespace MountainPlanner.Domain.Design
                 var here = new SortedSet<TrailId>();
                 foreach (var e in edges)
                     if (e.Kind == EdgeKind.TrailSegment && (e.From == id || e.To == id)) here.Add(new TrailId(e.Owner));
-                areaList.Add(new AreaStatus { Area = area, TrailsHere = new List<TrailId>(here), Reach = AreaReach(graph, down, bottoms, id) });
+                areaList.Add(new AreaStatus { Area = area, TrailsHere = new List<TrailId>(here), Reach = AreaReach(graph, down, bottoms, tops, id) });
             }
-            return new NetworkReport(graph, doc.Seed, down, bottoms, liftList.ToArray(), trailList.ToArray(), areaList.ToArray());
+            return new NetworkReport(graph, doc.Seed, down, bottoms, tops, liftList.ToArray(), trailList.ToArray(), areaList.ToArray());
         }
 
-        static bool Joins(NetworkGraph graph, ulong node) =>
+        // Task 4.24 PR B: a gondola's top is somewhere to end a run too: the gondola carries the skier down.
+        static bool Joins(NetworkGraph graph, Dictionary<ulong, List<LiftId>> tops, ulong node) =>
             graph.TryGetNode(node, out var n) && (n.Kind == NodeKind.Junction || n.Kind == NodeKind.PathEnd
-                                                  || (n.Kind == NodeKind.Station && graph.StationById(node)?.HasBottom == true));
+                                                  || (n.Kind == NodeKind.Station && (graph.StationById(node)?.HasBottom == true || tops.ContainsKey(node))));
 
         /// <summary>
         /// NW-08, NT9: a segment's own rating, TD-02 v2 on the stations between <paramref name="startMm"/> and
