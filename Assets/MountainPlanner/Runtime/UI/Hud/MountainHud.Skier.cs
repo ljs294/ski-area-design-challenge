@@ -105,6 +105,7 @@ namespace MountainPlanner.UI
             {
                 CloseLiftCardIfOpen();
                 CloseTrailCardIfOpen();
+                CloseWaterCardIfOpen();
             }
             _skierCardSerial = c.Serial;
             _skierCardFollowing = c.Following;

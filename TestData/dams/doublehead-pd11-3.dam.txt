@@ -1,0 +1,15 @@
+# Task 4.14 guardrail fixture (owner finding F4): a dam on a crop of the owner's area, found along its OSM stream lines.
+# Points are design mm from the site's centre (TE5); goldens from DamFixtureTests.RecordTheDamFixtures.
+area Doublehead. NH
+expect PD11
+origin 1963734 2610758
+lattice 1958534 2615958
+dam -1243770 -201768 -1102780 -93935 394683 left first
+golden areaM2 839.000
+golden fillM3 9685.772
+golden heightMaxM 6.852
+golden poolOverBedM 6.252
+golden problem This dam moves 14× more earth than it holds water: find a deeper, narrower spot.
+golden volumeM3 698.490
+golden warning none
+golden writes 4636adb8c201f70e8aa8303dd6b867bbdf7701ffecc7ef33879a1698a8e8ad58

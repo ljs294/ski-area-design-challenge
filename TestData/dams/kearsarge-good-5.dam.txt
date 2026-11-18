@@ -1,0 +1,15 @@
+# Task 4.14 guardrail fixture (owner finding F4): a dam on a crop of the owner's area, found along its OSM stream lines.
+# Points are design mm from the site's centre (TE5); goldens from DamFixtureTests.RecordTheDamFixtures.
+area Kearsarge Mountain
+expect good
+origin 1962952 2605126
+lattice 1957552 2610526
+dam -1812722 -508036 -1829772 -739910 204915 left first
+golden areaM2 24263.000
+golden fillM3 22321.830
+golden heightMaxM 8.063
+golden poolOverBedM 7.463
+golden problem none
+golden volumeM3 62488.249
+golden warning none
+golden writes 1828e917f6c5ede3f8af3f49931d9bf4d3c665b87b0accea1e6d51c15e3c6a00

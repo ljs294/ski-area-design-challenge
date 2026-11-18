@@ -28,6 +28,8 @@ namespace MountainPlanner.Acquisition.Providers
         public double WidthMetres;
         public List<List<AlbersPoint>> Parts = new List<List<AlbersPoint>>();
         public string Tag = "";
+        /// <summary>OSM's `name` (task 4.14, LK-10: water areas name the lakes).</summary>
+        public string Name = "";
     }
 
     /// <summary>
@@ -211,6 +213,50 @@ namespace MountainPlanner.Acquisition.Providers
             return roads;
         }
 
+        /// <summary>
+        /// The waterway lines in an Overpass response (task 4.14, WS-08): every stream, river and canal way above ground,
+        /// with its OSM way id, name and width (OSM `width` when sensible, else WS-03's default for its class).
+        /// </summary>
+        public static List<Domain.Water.StreamLine> ParseStreams(byte[] response)
+        {
+            var streams = new List<Domain.Water.StreamLine>();
+            var root = JObject.Parse(Encoding.UTF8.GetString(response));
+            foreach (var e in (JArray?)root["elements"] ?? new JArray())
+            {
+                if ((string?)e["type"] != "way" || !(e["tags"] is JObject tags)) continue;
+                string Tag(string key) => (string?)tags[key] ?? "";
+                string kind = Tag("waterway");
+                if (!WaterwayWidths.ContainsKey(kind)) continue;
+                if (Tag("tunnel") is string tunnel && tunnel != "" && tunnel != "no") continue;
+                if (Tag("location") == "underground") continue;
+                var points = Points(e["geometry"] as JArray);
+                if (points.Count < 2) continue;
+                double fallback = Domain.Water.StreamFlow.DefaultWidthMetres(kind), width = ParseWidth(Tag("width"), double.NaN);
+                streams.Add(new Domain.Water.StreamLine
+                {
+                    Way = (ulong?)e["id"] ?? 0, Class = kind, Name = Tag("name"), Points = points,
+                    WidthMetres = double.IsNaN(width) ? fallback : width, WidthFromOsm = !double.IsNaN(width),
+                });
+            }
+            return streams;
+        }
+
+        /// <summary>
+        /// The named water areas among <paramref name="shapes"/> (task 4.14, LK-10), each with a point inside it, in a stable
+        /// order (name, then point). Unnamed water and degenerate shapes are left out.
+        /// </summary>
+        public static List<Domain.Water.WaterName> WaterNames(IReadOnlyList<OsmShape> shapes)
+        {
+            var names = new List<Domain.Water.WaterName>();
+            foreach (var s in shapes)
+            {
+                if (s.Kind != OsmKind.Water || !s.IsArea || string.IsNullOrWhiteSpace(s.Name)) continue;
+                if (Domain.Water.WaterName.InteriorPoint(s.Parts) is AlbersPoint p)
+                    names.Add(new Domain.Water.WaterName { Name = s.Name.Trim(), Inside = p });
+            }
+            return names.OrderBy(n => n.Name, StringComparer.Ordinal).ThenBy(n => n.Inside.X).ThenBy(n => n.Inside.Y).ToList();
+        }
+
         /// <summary>Turns an Overpass JSON response into water and developed shapes.</summary>
         public static List<OsmShape> Parse(byte[] response)
         {
@@ -227,6 +273,7 @@ namespace MountainPlanner.Acquisition.Providers
                 string type = (string?)e["type"] ?? "";
                 var shape = Classify(Tag);
                 if (shape == null) continue;
+                shape.Name = Tag("name");
                 if (type == "way")
                 {
                     var line = Points(e["geometry"] as JArray);

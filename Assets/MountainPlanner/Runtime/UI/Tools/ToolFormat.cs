@@ -41,5 +41,33 @@ namespace MountainPlanner.UI.Tools
         }
 
         public static string Feet(int feet) => Imperial ? $"{feet} ft" : $"{Math.Round(feet * UnitFormat.MetresPerFoot):0} m";
+
+        static string N(double v, string format = "N0") => v.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
+
+        /// <summary>Task 4.14: stored water, "40 acre-ft" (a tenth under 10), or "49,300 m³".</summary>
+        public static string Water(double cubicMetres)
+        {
+            if (!Imperial) return N(cubicMetres) + " m³";
+            double af = cubicMetres / 1233.48183754752;
+            return (af < 10 ? N(af, "N1") : N(af)) + " acre-ft";
+        }
+
+        /// <summary>Task 4.14: the same water in gallons, "13M gal" (or "49 ML").</summary>
+        public static string Gallons(double cubicMetres)
+        {
+            if (!Imperial) return N(cubicMetres / 1000, cubicMetres < 10_000 ? "N1" : "N0") + " ML";
+            double g = cubicMetres * 264.172052358148;
+            return g >= 1e6 ? N(g / 1e6, g < 1e7 ? "N1" : "N0") + "M gal" : N(g) + " gal";
+        }
+
+        /// <summary>Task 4.14: a stream's flow, "6.6 cfs" (or "0.19 m³/s").</summary>
+        public static string Flow(double cubicFeetPerSecond) =>
+            Imperial ? N(cubicFeetPerSecond, cubicFeetPerSecond < 10 ? "N1" : "N0") + " cfs" : N(cubicFeetPerSecond * 0.028316846592, "N2") + " m³/s";
+
+        /// <summary>Task 4.14: a height or depth to the foot, "23 ft" (or "7.0 m").</summary>
+        public static string Depth(double metres) => Imperial ? N(metres / UnitFormat.MetresPerFoot) + " ft" : N(metres, "N1") + " m";
+
+        /// <summary>Task 4.14: an elevation, "7,406 ft" (or "2,257.4 m").</summary>
+        public static string Elevation(double metres) => Imperial ? N(metres / UnitFormat.MetresPerFoot) + " ft" : N(metres, "N1") + " m";
     }
 }

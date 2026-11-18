@@ -34,6 +34,10 @@ namespace MountainPlanner.Acquisition
             public byte[]? Core, Ring;
             public int Shapes;
             public List<Road>? Roads;
+            /// <summary>The waterway lines (task 4.14, WS-08).</summary>
+            public List<Domain.Water.StreamLine>? Streams;
+            /// <summary>The named water areas (task 4.14, LK-10).</summary>
+            public List<Domain.Water.WaterName>? WaterNames;
             public string? Failure;
         }
 
@@ -74,7 +78,8 @@ namespace MountainPlanner.Acquisition
             rasterized = 1;
             tracker?.BeginStep($"drawing {shapes.Count:N0} map features, surroundings at 2 m", 3, 3, () => 0.5);
             var (rw, rd) = OsmFeatures.Rasterize(shapes, site.RingGrid);
-            return new Result { Core = OsmFeatures.Interleave(cw, cd), Ring = OsmFeatures.Interleave(rw, rd), Shapes = shapes.Count, Roads = OsmFeatures.ParseRoads(response) };
+            return new Result { Core = OsmFeatures.Interleave(cw, cd), Ring = OsmFeatures.Interleave(rw, rd), Shapes = shapes.Count, Roads = OsmFeatures.ParseRoads(response),
+                                Streams = OsmFeatures.ParseStreams(response), WaterNames = OsmFeatures.WaterNames(shapes) };
         }
 
         static Result Skipped(ProgressTracker? tracker)
@@ -116,6 +121,8 @@ namespace MountainPlanner.Acquisition
                 Items = new List<string> { $"{osm.Shapes} features" },
             });
             if (osm.Roads != null && Write(RoadsFile.LayerId)) RoadsFile.Add(folder, manifest, osm.Roads);   // the roads themselves (task 12d)
+            if (osm.Streams != null && (!onlyMissing || manifest.Water == null))   // WS-08, LK-10 (task 4.14), outside the id
+                WaterFile.Add(folder, manifest, osm.Streams, osm.WaterNames ?? new List<Domain.Water.WaterName>());
             if (!manifest.Attribution.Contains(Attribution)) manifest.Attribution.Add(Attribution);
         }
     }

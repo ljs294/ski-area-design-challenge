@@ -1,0 +1,6 @@
+{"streams":[
+{"way":"0000000000000fa1","class":"stream","name":"Twin Creek","width":2.44,"widthFrom":"default","points":[-1188864.77,2382772.37,-1189038.45,2381669.96]},
+{"way":"0000000000000fa2","class":"river","name":"","width":12.0,"widthFrom":"osm","points":[-1188070.71,2382647.31,-1187450.08,2381419.89]}
+],"names":[
+{"name":"Moose Pond","inside":[-1184583.79,2381534.34]}
+]}

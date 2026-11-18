@@ -88,7 +88,22 @@ reads: a version number, and a name for the greyed library row.
   lift wears a `Plate`, one to three letters or digits shown beside its name (design shape 13). Here the lifts are
   given `"1"`, `"A"` and `"12"`. Plates are optional (owner 2026-11-08): `""` is no plate, a new lift has none, and v1 to
   v12 saves migrate with none.
-  `SaveFileTests` checks that the writer reproduces it byte for byte.
+  `SaveFileTests` checks that it still reads unchanged.
+
+- **`v14-save/Saves/5792676e513f5302/save-001/`** is the same save in format v14 (task 4.14, PD-08, WS-01, WS-09,
+  WS-10, LK-10): the design (shape 14) gains `Ponds` (a shoreline `Ring`, `FullPoolMm`, `ExcavationMm`, `SpringGpm`,
+  `Fill` `"natural"` or `"pumped"` and `StartsEmpty`), `Dams` (`BankA`, `BankB`, `FullPoolMm`, the `Water` side
+  `"left"` or `"right"` of A→B, the `Spillway` bank `"first"` or `"far"`, the OSM `StreamWay` and `StartsEmpty`),
+  `Lakes` (`Lake`, the player's `Name`, "" for OSM's, `DepthTenthsFt`, 0 for LK-02's estimate, and `Source`) and
+  `Streams` (the OSM `Way`, the player's `Name` and `WidthCm`, 0 for OSM's; every dam on the stream reads it). Here one
+  of each, every field set. v1 to v13 saves migrate with none. `SaveFileTests` checks that the writer reproduces it
+  byte for byte.
+
+- **`v3-package/`** is a package manifest in format v3 (task 4.14, WS-08, LK-10): the `v2-package` manifest plus a
+  `Water` entry and its `water.json`: `streams`, the OSM stream lines (way, class, name, width and whether OSM gave it,
+  Albers points), and `names`, each named OSM water area with a point inside it (which names the lake under it). The
+  entry is outside the package id, so the id equals v2's: adding water moves no area and no save. A v2 package
+  migrates with none (the rasterised streams only, no names). `StreamsTests` checks that it reads back and keeps the id.
 
 - **`v1-sim/golden.sim`** is a simulation sidecar (task 4.03 PR B, SI-12 v2, `SimSidecar` v1): the golden script's world
   at 10:00 on Day 4 of its first season, with a 150 × 90 cell snow field, as a save keeps it under `sim/<sha256>.sim`.

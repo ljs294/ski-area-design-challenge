@@ -158,6 +158,44 @@ namespace MountainPlanner.Tests
             }
             finally { hud.AreaRenamed = renamed; }
 
+            // Task 4.14 (LK-10, finding F1): a lake's card in the right-hand column, renamed with a click or F2, its buttons
+            // given back to the app with the card's key; one card at a time.
+            var waterRenamed = hud.WaterRenamed;
+            string waterTyped = null, pressed = null;
+            System.Action<string, string> press = (key, id) => pressed = key + ":" + id;
+            hud.WaterRenamed = (key, name) => { waterTyped = key + ":" + name; return null; };
+            hud.WaterCardAction += press;
+            try
+            {
+                hud.ShowWaterCard(new WaterCardModel
+                {
+                    Key = "lake:00000000000000aa", Kind = "Lake", Name = "Moose Pond", Renamable = true,
+                    Rows = new[] { ("Area", "4.2 acres"), ("Depth", "12 ft · estimate (LK-02)") },
+                    Actions = new[] { ("source", "Use for snowmaking", false), ("deeper", "Depth +1 ft", false) },
+                    Hint = "Click the name to rename it.",
+                });
+                yield return Frames(2);
+                var card = root.Q("water-card");
+                Assert.That(card.parent.name, Is.EqualTo("rcol"));
+                Assert.That(card.ClassListContains("hidden"), Is.False);
+                Assert.That(hud.WaterCardTextForTest(), Is.EqualTo("Moose Pond | Lake | Area | 4.2 acres | Depth | 12 ft · estimate (LK-02) | [Use for snowmaking] | [Depth +1 ft] | Click the name to rename it."));
+                Assert.That(root.Q("legend").ClassListContains("legend--folded"), Is.True);
+                hud.RenameWaterCardForTest("Moose Lake");
+                Assert.That(waterTyped, Is.EqualTo("lake:00000000000000aa:Moose Lake"));
+                hud.PressWaterCardForTest("source");
+                Assert.That(pressed, Is.EqualTo("lake:00000000000000aa:source"));
+                hud.OpenAreaCardFor(99);   // another card closes it
+                yield return Frames(2);
+                Assert.That(hud.WaterCardKey, Is.Null);
+                Assert.That(card.ClassListContains("hidden"), Is.True);
+                hud.CloseAreaCardIfOpen();
+            }
+            finally
+            {
+                hud.WaterRenamed = waterRenamed;
+                hud.WaterCardAction -= press;
+            }
+
             // Task 4.11 PR B (owner 2026-11-08): plates are optional. A lift without one shows a faint "#" chip on its card;
             // typing one adds it, and an empty field removes it (each one undoable SetLiftPlate in the app).
             var plateChanged = hud.LiftPlateChanged;

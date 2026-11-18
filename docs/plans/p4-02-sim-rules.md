@@ -73,7 +73,8 @@ the owner's ideas doc, [snow rendering design](snow-rendering-design.md), [SLE s
 - **SI-10, conservation ledgers.** Three ledgers balance every day, to the quantum of SI-07:
   - **Snow (SWE):** snowfall + machine snow + retained rain = ∆stored + melt runoff + sublimation + edge outflow
     (wind past the ring) + shedding to the void (cliffs). Grooming and wind move snow; they create none.
-  - **Water:** inflow + recharge = ∆pool + gun draw + spill + evaporation.
+  - **Water:** inflow + recharge + pumped in = ∆pool + gun draw + pumped out + spill + evaporation (pumped in and out
+    are WS-11's transfers between sources; they cancel across the resort).
   - **Skiers:** target = arrived + turned away (GU-03; turned away is 0 until ticket caps exist); arrived = on the
     hill + left + went home from a line (GU-06).
   - **Operations (in kind, for the economy to price later, never recompute):** gun-hours, pump energy (hp × hours
@@ -650,7 +651,7 @@ MapLibre had no lake model; these rules are new. They give task 4.09 "each lake 
   reaches h ≤ 1 in while thawing is open water, and its FDD and lag reset.
 - **LK-07 v2, the streams body.** Freezes as a shallow lake of depth `Pacing.StreamsDepth = 1 ft`, and moving water
   caps its ice at `Pacing.StreamsIceMax = 6 in`, so it ices quickly and opens first; it receives runoff (SN-10) for
-  the water ledger and feeds dam inflow (WS-04).
+  the water ledger and feeds dam inflow (WS-03).
 - **LK-08 v2, states and dates.** `WaterBodies` per body: OpenWater; Ice (h > 1 in, snow < 1 in); SnowCoveredIce
   (snow ≥ 1 in); thicknesses as today. A body carries a Frozen flag: it turns on when the lag is met (ice under 1 in
   reads OpenWater but keeps growing) and off at the thaw-out of LK-06. The ice-on date is the label year's first
@@ -658,6 +659,11 @@ MapLibre had no lake model; these rules are new. They give task 4.09 "each lake 
   per body per face day. The renderer draws each body's own state through a body-ID map (4.09 PR B).
 - **LK-09, as a source.** A frozen lake can still be drawn from through its intake (WS-05): the ice sits on the pool.
   Drawdown under ice lowers the water, not the ice.
+- **LK-10, names and cards** (4.14, owner finding F1; MapLibre's lake and stream inspectors). A lake body takes the name
+  of the OSM water area over it (WS-08's file); a stream line keeps its OSM name. The player may rename a lake or a
+  stream (a design record, saved; Restore brings the OSM name back), set a lake's depth (LK-02) and a stream's width
+  (WS-03; every dam on the stream follows it). A click on a lake, stream, pond or dam with no tool armed opens its card;
+  named water shows on the Labels layer.
 
 ## 6. LO · Lift operations
 
@@ -1049,7 +1055,17 @@ snow and used no water. Phase 4 makes it an operating system (owner, 2026-11-05 
 - **WS-06, spill.** A full pond or dam spills inflow (ledgered) rather than overtopping.
 - **WS-07, evaporation.** 0.01 in per day of open water (small; ledger).
 - **WS-08, stream lines in the package.** Dams need the stream's line and width: the area package gains the OSM
-  waterway vectors it already fetches but only rasterises (a format change, §12).
+  waterway vectors it already fetches but only rasterises (a format change, §12). The same file carries the names of
+  OSM water areas, bound to LK-01's bodies (LK-10).
+- **WS-09, pumped-only ponds** (owner, 2026-11-16, finding F5). A pond either **fills naturally** (WS-04's runoff and
+  spring) or is **pumped only** (lined: no runoff, no spring); it then gains water only through WS-11. MapLibre's ponds
+  never filled ("this pond will not fill on its own"); 4.14 lets the player choose. Dams always fill naturally (WS-03).
+- **WS-10, starting empty.** A new pond or dam starts **full** (SI-14, the default) or **empty** (the player's choice),
+  then fills by WS-03/04 or WS-11. A save's existing sources keep their stored water.
+- **WS-11, transfers between sources.** Water moves from one source to another only through a pump house (4.15,
+  HY-01): the simulation's transfer debits the source (stopping at its MinPool or a lake's drawdown limit, WS-05) and
+  credits the target (up to full pool), both ledgered (SI-10: pumped out, pumped in). 4.14 owns the transfer; 4.15 owns
+  the pump house and pipe that perform it.
 
 ### 8.2 PD · Ponds and dams (earthwork)
 
@@ -1063,7 +1079,7 @@ pond and dam doctrine):
   **65 ft** (20 m) ("dam a stream instead"); area ≥ **1,100 ft²** (100 m²); the ring simple and inside the core.
 - **PD-03, the suggested pool** = mean ground inside the ring rounded up to 1.6 ft (0.5 m) + 3.3 ft (1 m).
 - **PD-04, the pond's bill and capacity** from the graded raster (cut, fill, balance; capacity = Σ depth × cell area
-  on the geodesic area), as the trail bill (TB-01).
+  on the geodesic area), as the trail bill (GR-08).
 - **PD-05, dams: the first click sets full pool**; the second end snaps to the same contour within 250 ft (75 m), at
   least 16 ft (5 m) away; the alignment crosses exactly one stream (WS-08).
 - **PD-06 v1, dam constants.** Crest = full pool + 2 ft freeboard; deck 11.5 ft; upstream 3:1; downstream 2:1; height ≤
@@ -1073,6 +1089,20 @@ pond and dam doctrine):
 - **PD-08, ponds and dams are design entities**: authored shapes with derived earthwork (SH-05), undo restores heights
   exactly, core only (SH-06), saved (§12).
 - **PD-09, volume on the graded ground** = Σ (full pool − graded height) × cell area over the flooded cells.
+
+Guardrails (owner, 2026-11-16, finding F4: the game stops a dam or pond no engineer would build; MapLibre had none of
+these beyond its height and reach limits):
+
+- **PD-10, no cliff edges.** An embankment or berm whose faces never meet the ground within its reach (the ground falls
+  away faster than the 2:1 face, as at a cliff's lip) is refused: "it stands on a cliff edge".
+- **PD-11 v1, worth building.** Water stored against earth moved (dam: fill; pond: cut + fill), by volume: under
+  **1:10** the build is refused ("moves N× more earth than it holds water"); under **1:1** it is allowed with an amber
+  warning.
+- **PD-12, a dam starts at a stream.** The first bank must be within **250 ft** of a stream line (WS-08), or of the
+  streams body on an area without lines; elsewhere the click is refused ("click beside a stream").
+- **PD-13, a minimum dam.** Full pool stands at least **5 ft** over the lowest ground on the dam's line.
+- **PD-14, the review shows the case.** The dam review lists dam length against embankment length and water stored per
+  cubic yard of fill, so a poor site reads as poor before PD-11 refuses it.
 
 ### 8.3 HY · Hydraulics
 
@@ -1493,7 +1523,7 @@ Suggested batching: 03 + 11 together; 14 + 15 + 16 together; 07 + 09 together.
 | 4.11 Lift operations | LO-01…13 |
 | 4.12 Guests | GU-01…15, GU-17, GU-18 (reputation per band), SN-24's passes |
 | 4.13 Guests on screen | GU-16 (the render clock), LO-02's queued records, GU-10's speed table, the skier card from GU-02's `InspectSkier` events, SN-31's Traffic layer. **Picking and following one is 4.13's to make real** (owner, 2026-11-09, on 4.12's panel: "tracking/following guests is a little hard to do"): click a dot to watch that skier (`InspectSkier` takes its serial; −1 asks the worker for whoever is next), and a camera that keeps the watched one in view as it skis and rides, the way the lift ride does |
-| 4.14 Ponds, dams, water | WS-01…08, PD-01…09 |
+| 4.14 Ponds, dams, water | WS-01…11, PD-01…14, LK-10 |
 | 4.15 Pipes, pumps, guns | HY-01…10 (HY-08's solve job), SG-01…07 (SG-03's stencils, `GunCatalog`) |
 | 4.16 Making snow | SM-01…08, SN-26…27 |
 | 4.17 Sim bar, tabs | TM-03's controls, TM-06's night, TM-12's alerts, TM-13, TM-15's day report and trend, GU-03's stack, GU-13's reasons, LO-04's readout, SM-08, WS-05's days left |

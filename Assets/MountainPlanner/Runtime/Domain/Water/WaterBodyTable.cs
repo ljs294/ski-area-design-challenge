@@ -9,6 +9,8 @@ namespace MountainPlanner.Domain.Water
         Streams = 0,
         Lake = 1,
         Pond = 2,
+        /// <summary>The water behind a dam (task 4.14); in every rule a pond, but named for what it is.</summary>
+        Reservoir = 3,
     }
 
     /// <summary>The <c>Pacing</c> numbers the body map reads (SI-01), so Domain needs no reference to Simulation.</summary>
@@ -383,8 +385,9 @@ namespace MountainPlanner.Domain.Water
         /// A new table with a pond (4.14) added after the other bodies: its id (the design's), its cells, depth (0.1 ft) and
         /// surface (ft). The pond's cells leave whatever body held them.
         /// </summary>
-        public WaterBodyTable WithPond(ulong id, int[] cells, int depthTenthsFt, int surfaceFeet)
+        public WaterBodyTable WithPond(ulong id, int[] cells, int depthTenthsFt, int surfaceFeet, WaterBodyKind kind = WaterBodyKind.Pond)
         {
+            if (kind != WaterBodyKind.Pond && kind != WaterBodyKind.Reservoir) throw new ArgumentException("A pond or a reservoir.", nameof(kind));
             if (Ponds >= MaxPonds) throw new InvalidOperationException("The table has no room for another pond.");
             if (cells == null || cells.Length == 0) throw new ArgumentException("A pond has cells.", nameof(cells));
             if (IndexOf(id) >= 0) throw new ArgumentException("That id is taken.", nameof(id));
@@ -409,7 +412,7 @@ namespace MountainPlanner.Domain.Water
             int ci = (int)(si / cells.Length), cj = (int)(sj / cells.Length);
             int cx = OriginXMm + ci * CellMetres * 1000 + CellMetres * 500, cy = OriginYMm + cj * CellMetres * 1000 + CellMetres * 500;
             long areaMm2 = (long)cells.Length * CellMetres * CellMetres * 1_000_000L;
-            all[index] = new WaterBody(WaterBodyKind.Pond, id, cells.Length, NearestCell(mask, index + 1, Width, cx, cy, OriginXMm, OriginYMm), cx, cy, surfaceFeet,
+            all[index] = new WaterBody(kind, id, cells.Length, NearestCell(mask, index + 1, Width, cx, cy, OriginXMm, OriginYMm), cx, cy, surfaceFeet,
                                        (int)ISqrt(areaMm2 * 1_000_000L / 3_141_593L), depthTenthsFt, false);
             return new WaterBodyTable(Width, Depth, OriginXMm, OriginYMm, mask, all, Ponds + 1, MaxPonds);
         }

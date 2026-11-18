@@ -399,6 +399,13 @@ echo        screen, then shows that none of its files carries a download mark. A
 echo     115 Update to the newest: start this branch's game as if it were 0.3.1; it hands over to the 114
 echo        launcher, which asks, installs the newest and ends on "Launch ... v0.3.2". Then a start with no
 echo        update (no launcher window), offline, and the version list. Rebuilds the game; close the editor first.
+echo   4.14 ponds, dams, water
+echo     116 The Snowmaking tab, mockup first (opens in Edge, no game build): Pond, Dam, Lake, Edit and Remove.
+echo        Pond: click the shoreline, Enter, then the pool and the dig; Dam: click a bank of Twin Creek, the far
+echo        bank snaps to the same height; Lake: click Moose Lake to use it. It lists ten more states when it opens.
+echo     117 Ponds and dams on the ground (PR A): the dam preview, the guardrails, water cards and names, pumped
+echo        ponds; save, reopen. Your Doublehead (D) or Kearsarge (K), or the demo mountain, as a scratch copy;
+echo        rebuilds the game, close the editor first.
 echo   4.07 snow model PR A2: the snow in the game (a few minutes without Unity, then the game, then a time-lapse)
 echo     111 Part 1: the live snow's tests, then a report in your browser: a season from bare October 1 on Jackson
 echo        Hole and (from your downloads, read only) Olympic Valley: depth at the base, mid and summit, the deepest
@@ -567,6 +574,8 @@ if /i "%CHOICE%"=="106" goto skiersbench
 if /i "%CHOICE%"=="107" goto skiermodels
 if /i "%CHOICE%"=="108" goto weatherlook
 if /i "%CHOICE%"=="110" goto weathertabmock
+if /i "%CHOICE%"=="116" goto watermock
+if /i "%CHOICE%"=="117" goto waterground
 if /i "%CHOICE%"=="114" goto updaterinstall
 if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
@@ -2653,6 +2662,66 @@ set "MOCK=%~dp0docs\plans\prototypes\ui-layout.html"
 start "" msedge "file:///%MOCK:\=/%#solo&demo=p2,net,wx46,aweather"
 echo   The Weather tab opened in Edge. Other states: add ,wxseason or ,wxclimate or ,wxlimited or ,light to the address (Climate: ,wxweekly or ,wxseasonal).
 goto menu
+
+:watermock
+rem 4.14 Gate 0: the Snowmaking tab mockup (ponds, dams, lakes as sources) in the HUD mockup, opened on its tray.
+set "MOCK=%~dp0docs\plans\prototypes\ui-layout.html"
+start "" msedge "file:///%MOCK:\=/%#solo&demo=watertray"
+echo   The Snowmaking tab opened in Edge. Other states: change watertray in the address to pondshore, pondpool, pondberm,
+echo   damfirst, damreview, damedge, watersource, pondedit, damedit or waterremove.
+goto menu
+
+:waterground
+rem 4.14 PR A: ponds, dams and lakes as sources on the ground, on a scratch data root (your saves stay untouched).
+chcp 65001 >nul
+call :buildplayer
+if not exist "%GAME%" goto done
+set "WG117=%LOCALAPPDATA%\SkiAreaDesignChallenge-water117"
+if exist "%WG117%" rmdir /s /q "%WG117%"
+mkdir "%WG117%"
+echo.
+echo The game opens on a scratch copy (your saves stay untouched). Toolbox (T), the Snowmaking tab:
+echo   1. Dam (B): the area's streams show in blue. Hover beside one: the hint gives full pool there; away from a stream
+echo      the dot turns red and a click is refused (PD-12). Click a bank: a yellow line rings it at full pool, where the
+echo      far bank can land. Click near the far bank: it snaps. The review shows the graded embankment on the mountain,
+echo      the reservoir as water at full pool with its shore in blue, a blue dot at the spillway; rows for Over the
+echo      stream (PD-13), Embankment and Water per fill (PD-14). PgUp/PgDn move the pool, [ and ] the stream's width.
+echo   2. The guardrails: try a dam where full pool stands under 5 ft over the stream (a red dot on the bed, PD-13), a
+echo      long low line on a gentle slope (refused: it moves 10x or more earth than it holds water, PD-11; amber under
+echo      1:1), and the edge of a drop (refused, "a cliff edge", PD-10). Esc steps back; the ground goes back too.
+echo   3. Pond (O): click a shoreline, Enter; the review shows the berm and the dig on the ground and the water. Fills:
+echo      switch it to Pumped only, Starts: Empty. Break ground. Its card says it fills only from a pump house.
+echo   4. Close the Toolbox and click things: a lake, a stream, your pond, your dam. Each opens a card on the right.
+echo      Lake: name it by clicking the name or F2 (Restore brings OpenStreetMap's back), Snowmaking source, depth.
+echo      Stream: rename it, Narrower and Wider; a dam on it follows the width. Pond and dam: rename, Edit, Remove.
+echo      Named lakes, ponds and dams appear on the Labels layer. Hover outlines what a click would open.
+echo   5. Edit (M) your dam, move its pool: the review water replaces the built water. Remove (X): the ground goes
+echo      back exactly; Ctrl+Z brings it back.
+echo   6. Esc, Save; back to the title and open that save: the names, widths, pond options and dams come back.
+echo   Quit the game when done.
+echo.
+rem The owner's Doublehead and Kearsarge maps have good dam sites: a scratch copy of the package, library and saves untouched.
+set "WG117D="
+set "WG117K="
+for /d %%D in ("%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts\*") do (
+    if not defined WG117D findstr /i /c:"doublehead" "%%D\manifest.json" >nul 2>nul && set "WG117D=%%D"
+    if not defined WG117K findstr /i /c:"kearsarge" "%%D\manifest.json" >nul 2>nul && set "WG117K=%%D"
+)
+set "WG117MAP="
+set /p "WG117MAP=Open your Doublehead map (D), Kearsarge (K), or Enter for the demo mountain: "
+set "WG117PKG="
+set "WG117NAME="
+if /i "%WG117MAP%"=="D" if defined WG117D set "WG117PKG=%WG117D%" & set "WG117NAME=Doublehead"
+if /i "%WG117MAP%"=="K" if defined WG117K set "WG117PKG=%WG117K%" & set "WG117NAME=Kearsarge"
+if /i not "%WG117MAP%"=="" if not defined WG117PKG echo That map is not in your library; opening the demo mountain.
+if defined WG117PKG (
+    echo Copying %WG117NAME% into the scratch folder...
+    robocopy "%WG117PKG%" "%WG117%\%WG117NAME%" /e /nfl /ndl /njh /njs /np >nul
+    start "" "%GAME%" -snowseed -data "%WG117%" -package "%WG117%\%WG117NAME%" -notitle
+) else (
+    start "" "%GAME%" -snowseed -data "%WG117%" -notitle
+)
+goto done
 
 :weatherlook
 rem 4.06 PR A: the weather on screen. A scratch data root, so your own saves and settings stay untouched.

@@ -63,6 +63,7 @@ namespace MountainPlanner.Domain.Design
                 w.Point(c.At);
             }
             WriteHours(w, doc.Hours);   // shape 12 (LO-07 v2): the resort's hours
+            WriteWater(w, doc);         // shape 14 (task 4.14): ponds, dams and lake sources
             return w.ToArray();
         }
 
@@ -137,11 +138,104 @@ namespace MountainPlanner.Domain.Design
             var cuts = new TrailCut[r.Count(1 << 20)];
             for (int i = 0; i < cuts.Length; i++) cuts[i] = new TrailCut(new TrailId(r.U64()), r.Point());
             var hours = ReadHours(r);   // shape 12
+            ReadWater(r, out var ponds, out var dams, out var lakes, out var streams);   // shape 14
             if (!r.AtEnd) throw new FormatException("Trailing bytes after the design document.");
-            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, hours);
+            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, hours, ponds, dams, lakes, streams);
             // Canonical means written in order: a reordered file is not this format.
             if (!Same(Encode(doc), bytes)) throw new FormatException("The design document isn't in canonical order.");
             return doc;
+        }
+
+        // Shape 14 (task 4.14): each pond's ring, pool, dig, spring, fill and start; each dam's line, pool, water side,
+        // spillway, stream and start; each lake record's lake, name, depth and source; each stream record's way, name and width.
+        static void WriteWater(Writer w, DesignDocument doc)
+        {
+            w.I32(doc.Ponds.Count);
+            foreach (var p in doc.Ponds)
+            {
+                w.U64(p.Id.Value);
+                w.Str(p.Name);
+                w.I32(p.Ring.Count);
+                foreach (var q in p.Ring) w.Point(q);
+                w.I32(p.FullPoolMm);
+                w.I32(p.ExcavationMm);
+                w.I32(p.SpringGpm);
+                w.U8((byte)p.Fill);
+                w.U8(p.StartsEmpty ? (byte)1 : (byte)0);
+            }
+            w.I32(doc.Dams.Count);
+            foreach (var d in doc.Dams)
+            {
+                w.U64(d.Id.Value);
+                w.Str(d.Name);
+                w.Point(d.BankA);
+                w.Point(d.BankB);
+                w.I32(d.FullPoolMm);
+                w.U8(d.UpstreamLeft ? (byte)1 : (byte)0);
+                w.U8((byte)d.Spill);
+                w.U64(d.StreamWay);
+                w.U8(d.StartsEmpty ? (byte)1 : (byte)0);
+            }
+            w.I32(doc.Lakes.Count);
+            foreach (var s in doc.Lakes)
+            {
+                w.U64(s.Lake);
+                w.Str(s.Name);
+                w.I32(s.DepthTenthsFt);
+                w.U8(s.Source ? (byte)1 : (byte)0);
+            }
+            w.I32(doc.Streams.Count);
+            foreach (var s in doc.Streams)
+            {
+                w.U64(s.Way);
+                w.Str(s.Name);
+                w.I32(s.WidthCm);
+            }
+        }
+
+        static void ReadWater(Reader r, out Pond[] ponds, out Dam[] dams, out LakeRecord[] lakes, out StreamRecord[] streams)
+        {
+            ponds = new Pond[r.Count(PondRules.MaxWater)];
+            for (int i = 0; i < ponds.Length; i++)
+            {
+                var id = new PondId(r.U64());
+                string name = r.Str();
+                var ring = new PointMm[r.Count(PondRules.MaxRingPoints)];
+                for (int k = 0; k < ring.Length; k++) ring[k] = r.Point();
+                int pool = r.I32(), dig = r.I32(), spring = r.I32();   // left to right
+                var fill = (PondFill)r.U8();
+                bool empty = r.Bool();
+                ponds[i] = new Pond(id, name, ring, pool, dig, spring, fill, empty);
+            }
+            dams = new Dam[r.Count(PondRules.MaxWater)];
+            for (int i = 0; i < dams.Length; i++)
+            {
+                var id = new DamId(r.U64());
+                string name = r.Str();
+                var a = r.Point();
+                var b = r.Point();
+                int pool = r.I32();
+                bool left = r.Bool();
+                var spill = (SpillBank)r.U8();
+                ulong way = r.U64();
+                bool empty = r.Bool();
+                dams[i] = new Dam(id, name, a, b, pool, left, spill, way, empty);
+            }
+            lakes = new LakeRecord[r.Count(1 << 16)];
+            for (int i = 0; i < lakes.Length; i++)
+            {
+                ulong lake = r.U64();
+                string name = r.Str();
+                int depth = r.I32();
+                lakes[i] = new LakeRecord(lake, name, depth, r.Bool());
+            }
+            streams = new StreamRecord[r.Count(1 << 16)];
+            for (int i = 0; i < streams.Length; i++)
+            {
+                ulong way = r.U64();
+                string name = r.Str();
+                streams[i] = new StreamRecord(way, name, r.I32());
+            }
         }
 
         public static bool Same(byte[] a, byte[] b)

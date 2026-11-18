@@ -97,7 +97,7 @@ namespace MountainPlanner.Tests
             var read = ResortPackage.ReadManifest(pkg);
             Assert.That(read.PackageId, Is.EqualTo(id), "the weather isn't part of the id: no saves move");
             Assert.That(JsonConvert.SerializeObject(read.Layers), Is.EqualTo(layers));
-            Assert.That(read.FormatVersion, Is.EqualTo(2));
+            Assert.That(read.FormatVersion, Is.EqualTo(PackageManifest.CurrentFormat));
             Assert.That(read.Weather.RowsSha256, Is.EqualTo(WeatherRowsFile.Sha256(File.ReadAllBytes(Path.Combine(pkg, WeatherRowsFile.FileName)))));
             Assert.That(PackageValidator.Validate(pkg), Is.Empty);
             foreach (var kv in before)
@@ -167,7 +167,9 @@ namespace MountainPlanner.Tests
         {
             string dir = TestData.Folder("formats/v2-package");
             var m = ResortPackage.ReadManifest(dir);
-            Assert.That(m.FormatVersion, Is.EqualTo(2));
+            // The file on disk stays v2 (frozen); reading it migrates to the current format (v3 since task 4.14).
+            Assert.That((int)Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(Path.Combine(dir, ResortPackage.ManifestFile)))["FormatVersion"], Is.EqualTo(2));
+            Assert.That(m.FormatVersion, Is.EqualTo(PackageManifest.CurrentFormat));
             Assert.That(m.PackageId, Is.EqualTo(ResortPackage.ComputeId(m)));
             Assert.That(m.Weather, Is.Not.Null);
             Assert.That(m.Weather.RowsVersion, Is.EqualTo(1));
