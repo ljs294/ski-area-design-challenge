@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Water;
 using MountainPlanner.Persistence.Saves;
 using MountainPlanner.Simulation;
 using NUnit.Framework;
@@ -71,6 +72,34 @@ namespace MountainPlanner.Tests
             var b = SimSidecar.Read(bytes, P, a.Design, SimSite.None, out _);
             Assert.That(b.SaveState(), Is.EqualTo(bytes));
             Assert.That(SimSidecar.VersionOf(bytes), Is.EqualTo(SimSidecar.Version));
+        }
+
+        /// <summary>
+        /// Task 4.14 hotfix: a save with a dam's reservoir (kind 3) and a pond in its water table reads back. The reader
+        /// refused kind 3, so a game saved with a dam lost its clock on reopen.
+        /// </summary>
+        [Test]
+        public void LK_ASaveWithAPondAndAReservoirReadsBack()
+        {
+            var a = Played(10 * Day, out _);
+            var t = LakeTests.FourBodies();
+            t = t.WithPond(0x40, new[] { 200, 201, 216, 217 }, 80, 6500, WaterBodyKind.Pond);
+            t = t.WithPond(0x50, new[] { 230, 231, 246, 247 }, 150, 6510, WaterBodyKind.Reservoir);
+            a.ApplyNow(SimCommand.Of(SimCommandKind.SetWaterBodies, 0, t));
+            byte[] bytes = a.SaveState();
+            var b = SimSidecar.Read(bytes, P, a.Design, SimSite.None, out _);
+            Assert.That(b.SaveState(), Is.EqualTo(bytes));
+            Assert.That(b.Hash(), Is.EqualTo(a.Hash()));
+            Assert.That(t.Ponds, Is.EqualTo(2));
+            Assert.That(WaterBodyTable.Of(t.Width, t.Depth, t.OriginXMm, t.OriginYMm, t.Mask, Bodies(t), t.MaxPonds).Ponds, Is.EqualTo(2),
+                        "Of counts a reservoir as WithPond does");
+        }
+
+        static WaterBody[] Bodies(WaterBodyTable t)
+        {
+            var bodies = new WaterBody[t.Count];
+            for (int i = 0; i < t.Count; i++) bodies[i] = t[i];
+            return bodies;
         }
 
         [Test]
