@@ -191,9 +191,8 @@ namespace MountainPlanner.App
             while (WorkBusy) yield return null;   // -styletile: measured with the trail and lift in (task 07)
             while (TimingTreeDetail) yield return null;   // -treedetail auto: Auto picks the bias before the laps
             yield return BenchCrowd(GuestsArgument(args, 0));   // -guests N: the laps measure the frame with N skiers drawn (task 4.13)
-            // Task 4.07 PR A3: the laps measure the snow shell standing on the live snow. Its switch-on lays the lines and
-            // labels on the snow once (a rebuild that allocates); with 3,000 guests the worker's first full pass came in
-            // 72 s into the laps, so part of the run measured no shell and the rebuild failed the garbage rule.
+            // Task 4.07 PR A3: the laps measure the snow shell standing on the live snow, never part of a run without it. Its
+            // switch-on lays the lines and labels on the snow once (a rebuild that allocates), so that lands here too.
             float liveWait = 0;
             bool LiveSnow() => _resort.States == null || !_resort.States.SnowShown || _resort.States.LiftOn;
             for (; !LiveSnow() && liveWait < 180; liveWait += Time.unscaledDeltaTime) yield return null;
@@ -202,7 +201,9 @@ namespace MountainPlanner.App
             Debug.Log(LiveSnow() ? $"[Benchmark] live snow in after {liveWait:F0} s" : "[Benchmark] live snow NOT in after 180 s: measuring without it");
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = -1;
-            if (Camera != null) Camera.InputEnabled = false;
+            // Keys and the pointer are ignored (finding A3-13: a trail lit under the real pointer, left over the window, as the
+            // drawn-resort leg began, and its highlight allocated 33 MB in a measured frame).
+            BeginScriptedRun();
             var path = new BenchmarkPath(BenchLegs());
             string prefix = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outPath)) ?? ".", Path.GetFileNameWithoutExtension(outPath));
 

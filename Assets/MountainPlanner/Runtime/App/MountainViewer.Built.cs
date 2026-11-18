@@ -549,7 +549,7 @@ namespace MountainPlanner.App
                     }
                 var mouse = UnityEngine.InputSystem.Mouse.current;
                 Vector2? screen = HoverPointerForCapture.HasValue ? new Vector2(HoverPointerForCapture.Value.x * Screen.width, HoverPointerForCapture.Value.y * Screen.height)
-                    : mouse != null ? mouse.position.ReadValue() : (Vector2?)null;
+                    : mouse != null && !_scriptedRun ? mouse.position.ReadValue() : (Vector2?)null;   // a scripted run: not the real pointer
                 if (screen.HasValue && !PointerOverUi(screen.Value))
                 {
                     var ray = cam.ScreenPointToRay(screen.Value);
