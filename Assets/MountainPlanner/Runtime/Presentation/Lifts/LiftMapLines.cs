@@ -26,7 +26,9 @@ namespace MountainPlanner.Presentation.Lifts
             public GameObject Root;
             public LineRenderer Line, Casing;
             public readonly List<LineRenderer> Marks = new List<LineRenderer>();   // end dots and tower ticks
-            public Vector3 Middle;
+            public readonly List<float> TickAlong = new List<float>();             // each tick's share of the way up
+            public Vector3 Middle, Bottom, Top, Side;
+            public float Lift;
             public bool Lit;
         }
 
@@ -80,6 +82,7 @@ namespace MountainPlanner.Presentation.Lifts
             var points = new[] { from, to };
             int n = 2;
             g.Middle = (from + to) / 2;
+            g.Bottom = bottom; g.Top = top; g.Side = side; g.Lift = lift;
             g.Casing = MakeLine(g.Root, "Casing", points, _white);
             g.Casing.enabled = false;
             g.Casing.sortingOrder = -1;   // under the red line, whatever their distances
@@ -92,10 +95,40 @@ namespace MountainPlanner.Presentation.Lifts
                 float along = length > 1e-3f ? Mathf.Clamp01(Vector3.Dot(new Vector3(t.x - bottom.x, 0, t.z - bottom.z), dir) / length) : 0;
                 var c = Vector3.Lerp(from, to, along);
                 g.Marks.Add(MakeLine(g.Root, "Tick", new[] { c - side * 6, c + side * 6 }, _red));
+                g.TickAlong.Add(along);
             }
             g.Root.SetActive(_visible);
             _groups[id] = g;
         }
+
+        /// <summary>
+        /// Task 4.07 PR A3: lays every line again on <paramref name="height"/> (the snow's top as it changes) by moving the
+        /// points it already has, with no allocation (the benchmark's garbage rule; a rebuild by <see cref="Set"/> made new
+        /// objects every time the snow changed).
+        /// </summary>
+        public void Drape(Func<float, float, float> height)
+        {
+            foreach (var g in _groups.Values)
+            {
+                var from = new Vector3(g.Bottom.x, height(g.Bottom.x, g.Bottom.z) + g.Lift, g.Bottom.z);
+                var to = new Vector3(g.Top.x, height(g.Top.x, g.Top.z) + g.Lift, g.Top.z);
+                g.Middle = (from + to) / 2;
+                g.Line.SetPosition(0, from); g.Line.SetPosition(1, to);
+                g.Casing.SetPosition(0, from); g.Casing.SetPosition(1, to);
+                var dot = new Vector3(0.01f, 0, 0);
+                g.Marks[0].SetPosition(0, from); g.Marks[0].SetPosition(1, from + dot);
+                g.Marks[1].SetPosition(0, to); g.Marks[1].SetPosition(1, to + dot);
+                for (int k = 0; k < g.TickAlong.Count; k++)
+                {
+                    var c = Vector3.Lerp(from, to, g.TickAlong[k]);
+                    g.Marks[2 + k].SetPosition(0, c - g.Side * 6);
+                    g.Marks[2 + k].SetPosition(1, c + g.Side * 6);
+                }
+            }
+        }
+
+        /// <summary>The first point of lift <paramref name="id"/>'s line (tests), or null.</summary>
+        public Vector3? LineStart(ulong id) => _groups.TryGetValue(id, out var g) ? g.Line.GetPosition(0) : (Vector3?)null;
 
         public void Remove(ulong id)
         {

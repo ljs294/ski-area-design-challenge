@@ -148,6 +148,7 @@ namespace MountainPlanner.App
         float _builtLiftScale = -1, _builtRelayNext;
         int _builtLiftVersion = -1;
         bool _relayLiftLines;
+        Func<float, float, float> _onSnow;
         /// <summary>How often the lift lines over the snow follow its changes (real seconds; about a face hour at 1×).</summary>
         const float RelaySeconds = 15;
 
@@ -181,7 +182,9 @@ namespace MountainPlanner.App
             if (_relayLiftLines && !_builtDirty)
             {
                 _relayLiftLines = false;
-                foreach (var kv in _liftViews) if (kv.Value.View != null) SetLiftMapLine(kv.Value.Lift, kv.Value.View);
+                // Moves the lines' points onto the snow, with no allocation (the benchmark's garbage rule).
+                _onSnow ??= (x, z) => _resort != null ? _resort.Surface.SurfaceAt(x, z) : 0;
+                _mapLines?.Drape(_onSnow);
             }
             if (!_builtDirty) return;
             if (EditsBusy)

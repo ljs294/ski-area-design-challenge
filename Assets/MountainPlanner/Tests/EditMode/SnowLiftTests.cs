@@ -276,5 +276,31 @@ namespace MountainPlanner.Tests
             }
             finally { states.Dispose(); }
         }
+    
+        [Test]
+        public void TheLiftLinesFollowTheSnowWithoutAllocating()
+        {
+            // The relay as the snow changes moves the lines' points (LiftMapLines.Drape); the Development benchmark with
+            // 3,000 guests caught 27 KB every 15 s when it rebuilt them.
+            var root = new GameObject("lift lines test");
+            var lines = new MountainPlanner.Presentation.Lifts.LiftMapLines(root.transform);
+            try
+            {
+                var towers = new System.Collections.Generic.List<Vector3> { new Vector3(0, 0, 100), new Vector3(0, 0, 200) };
+                lines.Set(7, new Vector3(0, 0, 0), new Vector3(0, 0, 300), towers, (x, z) => 100);
+                Assert.That(lines.LineStart(7).Value.y, Is.EqualTo(102).Within(1e-4f), "laid on the earth, 2 m over it");
+                float depth = 3;
+                System.Func<float, float, float> onSnow = (x, z) => 100 + depth;
+                lines.Drape(onSnow);
+                Assert.That(lines.LineStart(7).Value.y, Is.EqualTo(105).Within(1e-4f), "on 3 m of snow");
+                for (int i = 0; i < 10; i++) lines.Drape(onSnow);   // warm
+                long before = System.GC.GetTotalMemory(false);
+                for (int i = 0; i < 300; i++) { depth = i * 0.01f; lines.Drape(onSnow); }
+                long grew = System.GC.GetTotalMemory(false) - before;
+                Assert.That(lines.LineStart(7).Value.y, Is.EqualTo(102 + 2.99f).Within(1e-3f));
+                Assert.That(grew, Is.LessThanOrEqualTo(0), "300 drapes allocate nothing");
+            }
+            finally { Object.DestroyImmediate(root); }   // edit mode: Dispose's Object.Destroy would log an error
+        }
     }
 }
