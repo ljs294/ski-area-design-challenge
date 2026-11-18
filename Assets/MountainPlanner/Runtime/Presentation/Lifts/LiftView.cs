@@ -366,6 +366,7 @@ namespace MountainPlanner.Presentation.Lifts
         /// </summary>
         GameObject Carrier(LiftType type)
         {
+            if (type.CarrierModel != null) return Model(type.CarrierModel) ?? Prefab("chair");   // the G8's cabin (task 4.24)
             if (!type.Tow) return Prefab("chair");
             var box = Model(_kit + "springbox");
             var bar = Model(_kit + (type.CatalogId == LiftCatalogIds.MontaJbar ? "bar_j" : "bar_t"));
@@ -1278,6 +1279,7 @@ namespace MountainPlanner.Presentation.Lifts
             _chairCount = 0;
             _track = track;
             SeatLocal = Array.Empty<Vector3>();
+            SeatTurned = Array.Empty<bool>();
             if (chair == null || track == null || track.LoopTime <= 0) return;
             // LT41: the carriers come round one loading interval apart, so they bunch where they're slow (a detachable's
             // stations) and spread where they're fast; on a fixed grip that's the spacing.
@@ -1291,7 +1293,7 @@ namespace MountainPlanner.Presentation.Lifts
             var hingePivot = rig != null ? rig.Pivot("hanger") : null;
             _splitChair = hingePivot != null;
             _hinge = _splitChair ? instance.transform.InverseTransformPoint(hingePivot.position) : Vector3.zero;
-            PrepareSeats(rig, instance.transform, track, bottom, dir);   // task 4.22: the chair riders
+            PrepareSeats(rig, instance.transform, track, bottom, dir, type.SeatsFaceEachOther);   // task 4.22: the chair riders
             if (group != null)
             {
                 var lods = group.GetLODs();
@@ -1365,14 +1367,15 @@ namespace MountainPlanner.Presentation.Lifts
         /// <summary>
         /// Task 4.22: where each seat is (its <c>seat_N</c> socket) in the hanger's frame (<see cref="CarrierPose"/>'s
         /// <c>hang</c>), and when a carrier is on the loaded rope: <see cref="BoardTime"/> is the track time it leaves the
-        /// bottom with its riders, <see cref="RideTime"/> how long until it reaches the top. No seats on a tow, a gondola or
-        /// a carpet.
+        /// bottom with its riders, <see cref="RideTime"/> how long until it reaches the top. No seats on a tow or a carpet.
         /// </summary>
         public Vector3[] SeatLocal { get; private set; } = Array.Empty<Vector3>();
+        /// <summary>Task 4.24: per seat, whether its rider faces back along the line (a cabin's bench ahead of the hanger).</summary>
+        public bool[] SeatTurned { get; private set; } = Array.Empty<bool>();
         public float BoardTime { get; private set; }
         public float RideTime { get; private set; }
 
-        void PrepareSeats(LiftRig rig, Transform instance, CarrierTrack track, Vector3 bottom, Vector3 dir)
+        void PrepareSeats(LiftRig rig, Transform instance, CarrierTrack track, Vector3 bottom, Vector3 dir, bool faceEachOther)
         {
             if (rig == null || Tow || _belt) return;
             var seats = new List<Vector3>();
@@ -1417,6 +1420,9 @@ namespace MountainPlanner.Presentation.Lifts
             }
             if (start < 0 || ride <= 0) return;
             SeatLocal = seats.ToArray();
+            SeatTurned = new bool[seats.Count];
+            if (faceEachOther)
+                for (int s = 0; s < seats.Count; s++) SeatTurned[s] = seats[s].z > 0;   // the hanger frame's z runs along the line
             BoardTime = board;
             RideTime = ride;
         }

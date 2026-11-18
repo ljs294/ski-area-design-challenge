@@ -11,7 +11,7 @@ namespace MountainPlanner.Presentation.Lifts
     /// each livery colour gets its own copy of the structure material (the hood's livery mask decides where
     /// the colour shows), each glass material (LiftGlass, the carpet gallery's clearer LiftGlassClear: any with the
     /// shader's Glass toggle on) one copy per accent colour (panes marked for the accent take it, owner C16), chairs
-    /// one shared copy, and <see cref="SetSnowLoad"/> changes all of them. Copies are cached, so placing many lifts
+    /// one copy per livery colour (a cabin's shell takes it), and <see cref="SetSnowLoad"/> changes all of them. Copies are cached, so placing many lifts
     /// in the same colours adds no materials.
     /// </summary>
     public sealed class LiftMaterials : IDisposable
@@ -28,7 +28,7 @@ namespace MountainPlanner.Presentation.Lifts
         readonly Dictionary<(Material, Color32), Material> _glasses = new Dictionary<(Material, Color32), Material>();
         readonly List<Material> _copies = new List<Material>();
         readonly HashSet<Material> _made = new HashSet<Material>();   // the copies, never copied again
-        readonly Material _chairCopy;
+        readonly Dictionary<Color32, Material> _chairs = new Dictionary<Color32, Material>();
 
         public float SnowLoad { get; private set; } = 1f;
 
@@ -37,7 +37,21 @@ namespace MountainPlanner.Presentation.Lifts
             _structure = structure;
             _glass = glass;
             _chair = chair;
-            _chairCopy = Copy(chair);
+        }
+
+        /// <summary>
+        /// The chair material in a lift's livery (task 4.24; cached per colour): a cabin's livery-masked shell takes the
+        /// lift's colour as the stations do. The chairs mask none of their faces, so they look the same in every colour.
+        /// </summary>
+        public Material ChairFor(LiftLivery livery)
+        {
+            if (_chair == null) return null;
+            var key = (Color32)livery.Primary;
+            if (_chairs.TryGetValue(key, out var m)) return m;
+            m = Copy(_chair);
+            if (m.HasProperty(LiveryId)) m.SetColor(LiveryId, livery.Primary);
+            _chairs.Add(key, m);
+            return m;
         }
 
         Material Copy(Material source)
@@ -97,7 +111,7 @@ namespace MountainPlanner.Presentation.Lifts
                 for (int i = 0; i < shared.Length; i++)
                 {
                     if (shared[i] == _structure) shared[i] = structure;
-                    else if (shared[i] == _chair) shared[i] = _chairCopy;
+                    else if (shared[i] == _chair) shared[i] = ChairFor(livery);
                     else if (IsGlass(shared[i])) shared[i] = GlassFor(shared[i], livery.Accent);
                 }
                 r.sharedMaterials = shared;
@@ -122,6 +136,7 @@ namespace MountainPlanner.Presentation.Lifts
             _copies.Clear();
             _livery.Clear();
             _glasses.Clear();
+            _chairs.Clear();
             _made.Clear();
         }
     }

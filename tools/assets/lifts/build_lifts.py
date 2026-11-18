@@ -289,7 +289,7 @@ def main():
         if kind == "carrier_cabin":   # a glazed carrier (the G8 cabin): the chairs' material and the hoods' glass
             mats = [chair_mat, glass]
         if uses_slot(assets, GLASS_CLEAR):   # a third slot only where it is used: every other FBX keeps its two
-            mats = [structure, glass, glass_clear]
+            mats = [mats[0], glass, glass_clear]   # the cabin's first slot stays the chairs' material
         objs, rep, split = export.make_objects(assets, mats, coll)
         sweep = sweep_heads(assets[0]) if assets[0].pivots else {}
         tiling = None

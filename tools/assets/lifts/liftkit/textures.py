@@ -24,7 +24,7 @@ CLASS_TILE = {
     "sign_black": "paint", "aluminium": "plain", "valve_maroon": "paint",
     # the D6's gloss panels carry no seam grid: their joints are geometry on the real panel lines
     "livery_gloss": "gloss", "livery_mirror": "gloss", "white_smooth": "gloss", "roof_alu": "roof_rib",
-    "glass_black": "plain",
+    "glass_black": "plain", "cabin_grey": "paint",
 }
 
 

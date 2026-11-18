@@ -5,8 +5,9 @@ using MountainPlanner.Domain.Design;
 namespace MountainPlanner.Domain.Costs
 {
     /// <summary>The lift families with a price: fixed-grip doubles, triples and quads, detachable quads and sixes, and (task
-    /// 4.01) the surface lifts: T-bar, J-bar and the carpets, single or double, open or covered.</summary>
-    public enum LiftFamily { FixedDouble, FixedTriple, FixedQuad, DetachQuad, DetachSix, TBar, JBar, Carpet, CarpetCovered, DoubleCarpet, DoubleCarpetCovered }
+    /// 4.01) the surface lifts: T-bar, J-bar and the carpets, single or double, open or covered; (task 4.24) the eight-seat
+    /// gondola, a placeholder.</summary>
+    public enum LiftFamily { FixedDouble, FixedTriple, FixedQuad, DetachQuad, DetachSix, TBar, JBar, Carpet, CarpetCovered, DoubleCarpet, DoubleCarpetCovered, Gondola8 }
 
     /// <summary>
     /// One family's price (2025 US dollars): the two terminals, then so much a foot of slope length and a foot of vertical
@@ -34,7 +35,8 @@ namespace MountainPlanner.Domain.Costs
     /// barns, maintenance buildings, roads and grading listed apart are left out), each brought to 2025 by the CPI-U annual
     /// average (2025 = 321.9). Length and rise climb together in the data, so the fit holds the rise rate at a set share of
     /// the length rate; a free fit gives negative rates. The family comes from the type's seats and grip, so a new maker's
-    /// type prices itself. Gondolas, trams and detachable eights have no price yet.
+    /// type prices itself. The eight-seat gondola's is a placeholder (task 4.24); the other gondolas, trams and detachable
+    /// eights have no price yet.
     /// Surface lifts (task 4.01, researched 2026-11-06; thin public data, owner to confirm at the demo): T-bars and J-bars
     /// from resort project figures, carpets from two municipal installs brought to 2025 by CPI-U and ×0.8 (public
     /// projects, owner's private-party share). A carpet's rise costs nothing extra (115 ft at most).
@@ -68,13 +70,20 @@ namespace MountainPlanner.Domain.Costs
         public static readonly LiftPrice DoubleCarpetCovered = new LiftPrice(LiftFamily.DoubleCarpetCovered, "Covered double carpet", 140_000, 1_950, 0,
             "The double carpet plus a wide gallery, about $600 a foot");
 
-        /// <summary>Every row, the chairs cheapest first, then the surface lifts.</summary>
+        /// <summary>
+        /// Task 4.24, a placeholder until there are filings (owner to confirm): the six-pack's terminals and rates, its line
+        /// raised for the cabins, which cost far more than chairs: about $55k a cabin, one every 160 ft each way.
+        /// </summary>
+        public static readonly LiftPrice Gondola8 = new LiftPrice(LiftFamily.Gondola8, "Gondola, 8 person", 5_000_000, 1_350, 340,
+            "Placeholder, no filings: the six-pack's terminals and rates plus the cabins (about $55k each, one every 160 ft each way)");
+
+        /// <summary>Every row, the chairs cheapest first and the gondola, then the surface lifts.</summary>
         public static readonly IReadOnlyList<LiftPrice> All = new[]
         {
-            FixedDouble, FixedTriple, FixedQuad, DetachQuad, DetachSix, TBar, JBar, Carpet, CarpetCovered, DoubleCarpet, DoubleCarpetCovered,
+            FixedDouble, FixedTriple, FixedQuad, DetachQuad, DetachSix, Gondola8, TBar, JBar, Carpet, CarpetCovered, DoubleCarpet, DoubleCarpetCovered,
         };
 
-        /// <summary>The price for a type, or null when its family has none yet (gondolas, trams, eights).</summary>
+        /// <summary>The price for a type, or null when its family has none yet (the other gondolas, trams, eights).</summary>
         public static LiftPrice For(LiftType type)
         {
             if (type == null) return null;
@@ -86,6 +95,7 @@ namespace MountainPlanner.Domain.Costs
                 return two ? (covered ? DoubleCarpetCovered : DoubleCarpet) : covered ? CarpetCovered : Carpet;
             }
             string carrier = LiftCatalogIds.Carrier(type.CatalogId) ?? "";
+            if (carrier == "gondola-8") return Gondola8;
             if (carrier.StartsWith("gondola-", StringComparison.Ordinal) || carrier.StartsWith("tram-", StringComparison.Ordinal)) return null;
             if (type.Detachable)
                 return type.Seats == 4 ? DetachQuad : type.Seats == 6 ? DetachSix : null;

@@ -24,6 +24,8 @@ namespace MountainPlanner.UI
         /// type's limit (metres; the limit infinite for none), from the built lift's rope; null and NaN for a plan.</summary>
         public string Heads;
         public double LowestChairsMetres, RiseMetres, RiseLimitMetres;
+        /// <summary>The lowest carriers' row name ("Lowest chairs", a gondola's "Lowest cabins"); null reads "Lowest chairs".</summary>
+        public string LowestLabel;
         /// <summary>Task 4.11 PR B (shape 13): the plate beside its name ("3", "A").</summary>
         public string Plate;
         /// <summary>LO-11 v2: the gust it holds at, in mph, or -1 for a lift that never holds (tows and carpets).</summary>
@@ -268,7 +270,7 @@ namespace MountainPlanner.UI
             Kv("Capacity", $"{l.Capacity:#,0} an hour");
             if (l.RideSeconds > 0) Kv("Ride", ToolFormat.Duration(l.RideSeconds));
             if (l.Built) Kv("Towers", string.IsNullOrEmpty(l.Heads) ? l.Towers.ToString() : $"{l.Towers} · {l.Heads}");
-            if (l.Built && !double.IsNaN(l.LowestChairsMetres)) Kv("Lowest chairs", $"{ToolFormat.Length(l.LowestChairsMetres)} over the ground");
+            if (l.Built && !double.IsNaN(l.LowestChairsMetres)) Kv(l.LowestLabel ?? "Lowest chairs", $"{ToolFormat.Length(l.LowestChairsMetres)} over the ground");
             if (l.Built && !double.IsNaN(l.RiseMetres))
                 Kv("Rise", $"{ToolFormat.Length(l.RiseMetres)} of {(double.IsInfinity(l.RiseLimitMetres) ? "no limit" : ToolFormat.Length(l.RiseLimitMetres))}");
             Kv("Status", OperatingStatusWords.Word(LiftStatus(l)));   // F4, 4.11

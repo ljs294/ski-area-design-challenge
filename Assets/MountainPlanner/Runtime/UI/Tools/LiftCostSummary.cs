@@ -23,7 +23,7 @@ namespace MountainPlanner.UI.Tools
         public static string Rule(LiftType type, double run, double rise, in SiteWorks works)
         {
             var cost = Breakdown(type, run, rise, works);
-            if (cost == null) return "Lift costs: gondolas, trams and eights have no price yet";
+            if (cost == null) return "Lift costs: trams, eights and the other gondolas have no price yet";
             return $"{LiftPrices.DollarYear} dollars: terminals {Money(cost.Line(LiftCost.Terminals))} + length {Money(cost.Line(LiftCost.Length))}"
                  + $" + rise {Money(cost.Line(LiftCost.Rise))} + {Works(cost, works, true)}";
         }

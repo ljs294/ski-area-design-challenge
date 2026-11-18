@@ -27,6 +27,26 @@ namespace MountainPlanner.App
         const float RideYawLimit = 110f, RidePitchDown = 70f, RidePitchUp = 40f, RideLookRate = 0.15f;
         /// <summary>A seated eye above the carrier's lowest point (a chair's footrest) and off its hanger, in the hanger's frame.</summary>
         static readonly Vector3 SeatEye = new Vector3(-0.35f, 1.2f, 0.05f);
+        /// <summary>A seated eye above and behind a bench seat's socket (a cabin's rider; task 4.24).</summary>
+        static readonly Vector3 BenchEye = new Vector3(0f, 0.75f, -0.12f);
+
+        /// <summary>
+        /// The rider's eye in the hanger's frame. A carrier whose seats face each other (a cabin) seats the rider on the
+        /// outermost seat that faces up the line, so the eye is on a bench by a window rather than in the aisle between
+        /// the benches; any other carrier keeps the chair's eye above its lowest point.
+        /// </summary>
+        static Vector3 RideEyeLocal(LiftView view)
+        {
+            int best = -1;
+            for (int s = 0; s < view.SeatLocal.Length && s < view.SeatTurned.Length; s++)
+                if (!view.SeatTurned[s] && (best < 0 || Mathf.Abs(view.SeatLocal[s].x) > Mathf.Abs(view.SeatLocal[best].x) + 1e-3f))
+                    best = s;
+            bool facing = false;
+            for (int s = 0; s < view.SeatTurned.Length; s++) facing |= view.SeatTurned[s];
+            return facing && best >= 0 ? view.SeatLocal[best] + BenchEye
+                : new Vector3(SeatEye.x, SeatEye.y - view.CarrierDrop, SeatEye.z);
+        }
+
         /// <summary>A standing eye above the snow (a tow's or a carpet's rider).</summary>
         const float StandingEye = 1.65f;
         /// <summary>The rider gets off this many seconds of rope run before the carrier reaches the top station's wheel.</summary>
@@ -247,7 +267,7 @@ namespace MountainPlanner.App
                     float ground = _resort.Surface.HeightAt(under.x, under.z);
                     eye = new Vector3(under.x, (float.IsNaN(ground) ? under.y : ground) + Camera.SnowDepth + StandingEye, under.z);
                 }
-                else eye = hang.MultiplyPoint3x4(new Vector3(SeatEye.x, SeatEye.y - view.CarrierDrop, SeatEye.z));
+                else eye = hang.MultiplyPoint3x4(RideEyeLocal(view));
                 if (up >= _rideUpT - AlightEarly && up <= _rideUpT + view.CarrierInterval) progress = 1;
             }
             Camera.transform.SetPositionAndRotation(eye, facing * Quaternion.Euler(_lookPitch, _lookYaw, 0));

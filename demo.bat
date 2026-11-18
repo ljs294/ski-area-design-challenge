@@ -415,6 +415,13 @@ echo   0.5 GPU queue fixes (no Unity, no build)
 echo    125 The GPU queue's tests (about three minutes, no GPU), then the last 7 days of its new history with any
 echo        overlaps, then a live check: the game starts outside the queue and a 5-second measure run waits for it;
 echo        quit the game and the run goes. Your own play never waits; only queued measure runs do.
+echo   4.24 Sessellift G8 gondola (the D6's terminals and wide heads with an eight-seat cabin; close the editor first)
+echo    126 The game with a G8 built up the style tile's slope (rebuilds the game). Watch the cabins round the D6
+echo        stations, the guests seated four a bench facing each other, and ride one (click a cabin). New lift,
+echo        Detachable gondola, 8 person, Sessellift G8 builds your own; its price is a placeholder.
+echo    127 The G8 in the Lift Lab: the D6 terminals, a cabin between them and the six tower heads with cabins on the
+echo        ropes. Z this view, L LOD, N snow, C colour, T turntable, H help, Esc quit.
+echo    128 Rebuild the G8 cabin in Blender with its checks (budgets, pivots, sockets; no Unity, no render).
 echo.
 echo     Q  Quit
 echo.
@@ -565,6 +572,9 @@ if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
 if /i "%CHOICE%"=="111" goto snowlive
 if /i "%CHOICE%"=="125" goto gpuqueue
+if /i "%CHOICE%"=="126" goto gondolagame
+if /i "%CHOICE%"=="127" goto gondolalab
+if /i "%CHOICE%"=="128" goto gondolamodel
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2213,6 +2223,34 @@ echo Starting the Lift Lab on the fixed-grip terminals. V next head, M back to t
 start "" "%LIFTLAB%" -mode fixedgrip
 goto menu
 
+:gondolagame
+rem Task 4.24: always rebuilt, so the gondola on this branch is the one you see.
+call :projectfree || goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+echo Starting the game with a Sessellift G8 up the style tile's slope ("Check gondola-8:sessellift").
+start "" "%GAME%" -snowseed -notitle -styletile -extralift -150,-900,650 -extratype gondola-8:sessellift
+goto menu
+
+:gondolalab
+call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab on the Sessellift G8 gondola. Z this view, L LOD, N snow, C colour, T turntable, H help, Esc quit.
+start "" "%LIFTLAB%" -mode gondola
+goto menu
+
+:gondolamodel
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+if not exist "%~dp0test-results\g8" mkdir "%~dp0test-results\g8"
+echo Building the G8 cabin in Blender (about 20 seconds)...
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\lifts\build_lifts.py" -- --assets g8_cabin --out "%~dp0test-results\g8" <nul
+if errorlevel 1 (echo   The build failed. & goto done)
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\lifts\audit_lifts.py" -- --out "%~dp0test-results\g8" --assets sessellift_g8_cabin <nul
+if errorlevel 1 (echo   The checks failed. & goto done)
+echo   Built and checked: test-results\g8\sessellift_g8_cabin.fbx
+goto done
+
 :quaddetach
 call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto done
@@ -2469,7 +2507,8 @@ echo      board. Each chair that leaves moves the line up a row;
 echo      skiers shuffle and snowboarders push with one foot. Waiting guests stand, lean on their poles or rest.
 echo   4. The chairs go up loaded and come down empty. Rides are time-compressed, so a guest is skiing again long
 echo      before its chair reaches the top: the riders you see on a chair wear their own outfits, so nobody has a twin.
-echo      Gondola riders stay hidden in the cabin. On a T-bar the riders stand on the snow, on a carpet on the belt.
+echo      Gondola riders sit on the cabin's two benches, facing each other ^(4.24^). On a T-bar the riders stand on the
+echo      snow, on a carpet on the belt.
 echo   5. Zoom out: the figures get simpler with distance and become dots past about 250 m (closer in a small window).
 echo   6. Hover and click still pick a guest; the selected one keeps its ring. Follow a skier from close up.
 echo   7. Ride a lift (4.11): the other chairs around you have riders; yours does not.

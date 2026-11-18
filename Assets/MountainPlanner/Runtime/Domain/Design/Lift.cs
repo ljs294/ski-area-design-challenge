@@ -32,7 +32,8 @@ namespace MountainPlanner.Domain.Design
         /// <summary>LT41 (owner, 2026-10-23): the types a player can build, the ones with their own models. Every other
         /// entry stays in the menu as a placeholder (greyed) until its models exist.</summary>
         public static bool Buildable(string id) => id == SesselliftFgq4 || id == MontaFg4 || id == SesselliftD6
-            || id == SesselliftFgd2 || id == SesselliftFgt3 || id == MontaFg2 || id == MontaFg3 || id == SesselliftD4 || IsStern(id) || IsTow(id) || IsBelt(id);
+            || id == SesselliftFgd2 || id == SesselliftFgt3 || id == MontaFg2 || id == MontaFg3 || id == SesselliftD4 || id == SesselliftG8
+            || IsStern(id) || IsTow(id) || IsBelt(id);
         /// <summary>The Monta T-bar and J-bar (surface lifts, v0.3.2; the surface-lifts model thread's D1–D11): one rope low over
         /// the snow, riders towed up a track on the ground, a bottom drive. One carrier kind a line (D7), so the bar is in the id.</summary>
         public const string MontaTbar = "monta-tbar", MontaJbar = "monta-jbar";
@@ -59,6 +60,8 @@ namespace MountainPlanner.Domain.Design
         public static LiftDrive DefaultDrive(string id) => Maker(id) == "monta" || IsStern(id) ? LiftDrive.Bottom : LiftDrive.Top;
         /// <summary>The Sessellift D4 detachable quad (v0.3.2, the D4 model thread).</summary>
         public const string SesselliftD4 = "detach-quad:sessellift";
+        /// <summary>The Sessellift G8 eight-seat gondola (task 4.24): the D6's terminals and wide heads, its own cabin.</summary>
+        public const string SesselliftG8 = "gondola-8:sessellift";
         /// <summary>The fixed-grip doubles and triples (v0.3.2, owner LD1): Sessellift FGD-2 / FGT-3 and Monta FG2 / FG3.</summary>
         public const string SesselliftFgd2 = "fixed-double:sessellift", SesselliftFgt3 = "fixed-triple:sessellift",
                             MontaFg2 = "fixed-double:monta", MontaFg3 = "fixed-triple:monta";

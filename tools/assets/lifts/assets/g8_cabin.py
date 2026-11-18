@@ -27,7 +27,7 @@ from mathutils import Vector
 
 from liftkit import parts, prims
 from liftkit.export import Asset
-from liftkit.mesh import GLASS, MeshBuilder, Style
+from liftkit.mesh import GLASS, GLASS_CLEAR, MeshBuilder, Style
 
 KIND = "carrier_cabin"
 LODS = 4
@@ -44,6 +44,7 @@ def styles(lod):
         "livery": Style("livery_gloss", livery=1.0, snow=0.0, smooth=True, group="shell", crease=50.0),
         "glass": (Style("glass", slot=GLASS, smooth=True, group="glass", crease=50.0) if near
                   else Style("glass_black", smooth=True, group="glass", crease=50.0)),
+        "glass_in": Style("glass_accent", livery=2.0, slot=GLASS_CLEAR, smooth=True, group="glass", crease=50.0),
         "roof": Style("livery_gloss", livery=1.0, snow=0.3),   # the reference paints its roof red
         "under": Style("trim_dark"),
         "frame": Style("trim_dark"),
@@ -52,8 +53,9 @@ def styles(lod):
         "ceiling": Style("white"),
         "inner": Style("interior"),
         "seat": Style("trim_dark"),        # the reference's charcoal cushions
-        "seat_base": Style("paint_grey"),
-        "back": Style("paint_grey"),       # backrests and bench ends (light in the reference)
+        "seat_base": Style("cabin_grey"),
+        "back": Style("cabin_grey"),       # backrests and bench ends (light in the reference; matte, so the
+                                           # shaded cabin doesn't mirror the blue sky)
         "hanger": Style("grip", snow=0.1),  # the reference's hanger is dark grey
         "steel": Style("chair_steel", snow=0.1),
         "galv": Style("galvanised", snow=0.1),
@@ -191,6 +193,13 @@ def shell(mb, cab, bar, st, lod):
     cap(mb, bar.ring(fl, k, inset=0.012), st["floor"], True)
     cap(mb, bar.ring(ce, k, inset=0.012), st["ceiling"], False)
     loft(mb, bar, [fl, (fl + g0) / 2, g0], k, lambda a, b, c: st["inner"], inward=True, inset=0.012)
+    if lod == 0:   # the rider's view (rides draw LOD0): the glass band and the livery pillars seen from inside
+        # (LOD1's sections and corner arcs, so it stays in budget; a coarser arc's chords lie inside the shell)
+        far = [allw[i] for i in cab["profileFar"]]
+        band = [g0] + [w for w in far if g0 + 1e-6 < w < ce - 1e-6] + [ce]
+        # inside the panes are the clearer glass (45 % face-on, the carpet gallery's), so the view out isn't dusk
+        inside = lambda w0, w1, corner: st["glass_in"] if zone(w0, w1, corner) is st["glass"] else st["livery"]
+        loft(mb, bar, band, 1, inside, inward=True, inset=0.012)
 
 
 def frames(mb, cab, bar, st, lod):
