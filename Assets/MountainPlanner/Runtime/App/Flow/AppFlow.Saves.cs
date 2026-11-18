@@ -135,6 +135,7 @@ namespace MountainPlanner.App.Flow
             "-uicapture", "-flowcapture", "-trailshots", "-trailbench", "-paintbench", "-paintmovie", "-paintcheck", "-screenshot", "-weathershots", "-benchmark", "-benchmark-views", "-pathmovie", "-lineup",
             "-lodtransitions", "-clip", "-titleshots", "-titlemovie", "-photoshot", "-styletile", "-testbench", "-editbench", "-smoketest",
             "-liftbench", "-hoverlift",   // task 09
+            "-shellcheck",   // task 4.07 PR A3 repair
             "-drawnresort", "-designbench",   // task P3-11: the drawn resort never goes into a player's save
             "-guestshot",   // task 4.12
             "-simgolden",   // task 4.03
@@ -144,6 +145,7 @@ namespace MountainPlanner.App.Flow
             "-skiershot",   // task 4.22
             "-proofhold",   // task 4.13 PR C2
             "-snowlapse",   // task 4.07 PR A2: the time-lapse plays its own new game
+            "-simto",   // task 4.07 PR A3: so does the run to mid-season
             "-lakereport",   // task 4.09
             "-watershots",   // task 4.14
         };

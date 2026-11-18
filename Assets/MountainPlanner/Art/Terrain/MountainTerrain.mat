@@ -35,6 +35,9 @@ Material:
     m_Floats:
     - _HeightBlend: 0.2
     - _Overlay: 0
+    - _ShellDebug: 0
+    - _ShellForce: 0
+    - _ShellOffset: 0
     - _SnowOn: 1
     m_Colors: []
   m_BuildTextureStacks: []

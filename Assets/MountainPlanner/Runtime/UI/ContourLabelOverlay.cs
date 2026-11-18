@@ -97,7 +97,7 @@ namespace MountainPlanner.UI
                     continue;
                 }
                 var l = _labels[_chosen[k]];
-                if (!Project(camera, l, out var at, out float degrees)) { label.style.display = DisplayStyle.None; continue; }
+                if (!Project(camera, LabelAt(l, surface), l.Angle, out var at, out float degrees)) { label.style.display = DisplayStyle.None; continue; }
                 var local = _layer.WorldToLocal(RuntimePanelUtils.ScreenToPanel(_layer.panel, new Vector2(at.x, Screen.height - at.y)));
                 label.style.translate = new Translate(local.x - LabelWidth / 2, local.y - LabelHeight / 2);
                 label.style.rotate = new Rotate(-degrees);
@@ -121,13 +121,19 @@ namespace MountainPlanner.UI
         }
 
         /// <summary>A label's screen point and its line's screen angle in degrees, turned to read left to right.</summary>
-        static bool Project(Camera camera, in ContourLabel l, out Vector3 at, out float degrees)
+        /// <summary>
+        /// Where a label stands: over its line at the earth's height, raised by the snow there (task 4.07 A3; owner,
+        /// 2026-11-17: the earth's lines show on the snow, so their labels go on the snow with them).
+        /// </summary>
+        static Vector3 LabelAt(in ContourLabel l, ITerrainSurface surface) =>
+            new Vector3(l.X, l.Elevation + (surface != null ? surface.LiftAt(l.X, l.Z) : 0), l.Z);
+
+        static bool Project(Camera camera, Vector3 p, float angle, out Vector3 at, out float degrees)
         {
-            var p = new Vector3(l.X, l.Elevation, l.Z);
             at = camera.WorldToScreenPoint(p);
             degrees = 0;
             if (at.z <= 0) return false;
-            var ahead = camera.WorldToScreenPoint(p + new Vector3(Mathf.Cos(l.Angle), 0, Mathf.Sin(l.Angle)) * 20);
+            var ahead = camera.WorldToScreenPoint(p + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * 20);
             degrees = Mathf.Atan2(ahead.y - at.y, ahead.x - at.x) * Mathf.Rad2Deg;
             if (degrees > 90) degrees -= 180;
             else if (degrees < -90) degrees += 180;
@@ -141,6 +147,7 @@ namespace MountainPlanner.UI
             for (int i = 0; i < _labels.Length; i++)
             {
                 var l = _labels[i];
+                // The earth's height is near enough for this screen test (the snow is metres; the margin is pixels).
                 var at = camera.WorldToScreenPoint(new Vector3(l.X, l.Elevation, l.Z));
                 if (at.z <= 1 || at.x < Margin || at.y < Margin || at.x > Screen.width - Margin || at.y > Screen.height - Margin) continue;
                 // How far apart the labelled lines sit on screen here; where they pack tight only the heavy lines' labels stay.
@@ -157,7 +164,7 @@ namespace MountainPlanner.UI
             for (int c = 0; c < candidates && _chosenCount < MaxLabels; c++)
             {
                 var l = _labels[_order[c]];
-                Vector2 at = camera.WorldToScreenPoint(new Vector3(l.X, l.Elevation, l.Z));
+                Vector2 at = camera.WorldToScreenPoint(LabelAt(l, surface));
                 bool crowded = false;
                 for (int a = 0; a < _chosenCount && !crowded; a++) crowded = (_accepted[a] - at).sqrMagnitude < ClearancePixels * ClearancePixels;
                 if (crowded || Hidden(camera.transform.position, l, surface)) continue;
@@ -168,6 +175,6 @@ namespace MountainPlanner.UI
 
         /// <summary>True when the ground rises between the camera and the label (<see cref="LabelSight"/>).</summary>
         static bool Hidden(Vector3 eye, in ContourLabel l, ITerrainSurface surface) =>
-            LabelSight.Hidden(eye, new Vector3(l.X, l.Elevation, l.Z), surface);
+            LabelSight.Hidden(eye, LabelAt(l, surface), surface);
     }
 }

@@ -401,7 +401,7 @@ MonoBehaviour:
     height: 0
   HasRing: 0
   PlinthTop: -Infinity
-  SnowDepth: 0.3048
+  GroundMargin: 0.3048
   Clearance: 0.5
   TargetRidesGround: 1
   OutsideRing: 2000

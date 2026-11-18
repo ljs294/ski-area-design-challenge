@@ -34,6 +34,7 @@ namespace MountainPlanner.Tests
         sealed class Surface : ITerrainSurface
         {
             public Rect Footprint => new Rect(-1400, -1400, 2800, 2800);
+            public float LiftAt(float x, float z) => 0;
             public float HeightAt(float x, float z) => (float)(2000 + 0.1 * z);
         }
 

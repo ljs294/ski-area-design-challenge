@@ -49,7 +49,8 @@ namespace MountainPlanner.Presentation.Guests
         /// <summary>Per lift index: how many stand in its line now (the tail a walker heads for).</summary>
         [ReadOnly] public NativeArray<int> LineCount;
 
-        [ReadOnly] public NativeArray<float> Snow;   // metres, 8 m cells
+        [ReadOnly] public NativeArray<float> Snow;   // task 4.07 PR A3: the ground's lift (SurfaceStates.Lift), metres, 8 m cells
+        public float SnowScale;   // × the lift: the Snow layer's ease (SurfaceStates.LiftScale)
         public float2 SnowOrigin;
         public float SnowCell;
         public int SnowW, SnowH;
@@ -72,9 +73,8 @@ namespace MountainPlanner.Presentation.Guests
         /// </summary>
         [WriteOnly] public NativeArray<float4> Facing;
         /// <summary>
-        /// Task 4.22: the figures are drawn. A skier's track swings across its lane in time with its turns, and every guest
-        /// stands on the snow as the terrain draws it (the ground: the snow depth colours the terrain but doesn't raise
-        /// it), not on top of the depth as a dot does, so a figure's skis touch the snow.
+        /// Task 4.22: the figures are drawn. A skier's track swings across its lane in time with its turns. Task 4.07 PR A3: the
+        /// terrain is drawn lifted by the snow, so figures and dots alike stand on top of it (the same curve as the shader).
         /// </summary>
         public bool Figures;
 
@@ -90,7 +90,7 @@ namespace MountainPlanner.Presentation.Guests
             var r = Records[i];
             float3 p;
             int cls;
-            bool ease = false;
+            bool ease = false, onSnow = true;   // task 4.07 PR A3: stands on the snow (all but a carpet's and a chair's riders)
             var st = (GuestState)r.State;
             float4 facing = new float4(0, 0, -1, 0);
             if (st == GuestState.Skiing || (st == GuestState.Walking && !r.OnALift))
@@ -142,6 +142,8 @@ namespace MountainPlanner.Presentation.Guests
                 // Task 4.22: a figure on a carpet stands on the belt. The carpet's fill keeps the ground its snow room under
                 // the modules' foot all along, so the belt top is the belt height over the drawn ground.
                 if (Figures && DrawRiders[lift] == 2) p.y += (float)MountainPlanner.Domain.Design.CarpetBed.BeltHeightMetres;
+                // Task 4.07 PR A3: a carpet's rider is on its belt, on the earth; a tow's is on the snow under the bar.
+                onSnow = DrawRiders[lift] == 1;
                 cls = ClassRiding;
             }
             else if (st == GuestState.Choosing || st == GuestState.Dwelling)
@@ -171,7 +173,7 @@ namespace MountainPlanner.Presentation.Guests
                 else Prev[slot] = p;
             }
 
-            if (!Figures) p.y += SnowAt(p.x, p.z);
+            if (onSnow && SnowScale > 0) p.y += SnowAt(p.x, p.z) * SnowScale;
             int flags = (r.Serial == Selected && Selected != 0 ? 1 : 0) | (r.Serial == Hovered && Hovered != 0 ? 2 : 0);
             Dots[i] = new float4(p, r.Band + 4 * cls + 64 * flags + 256 * r.Satisfaction);
             Facing[i] = facing;
@@ -365,17 +367,30 @@ namespace MountainPlanner.Presentation.Guests
             return new float3(c.x + math.cos(angle) * radius, c.y, c.z + math.sin(angle) * radius);
         }
 
+        /// <summary>The ground's lift at x, z: the cubic B-spline over the 4 × 4 cells round it, as Snow.hlsl's SnowLiftAt and
+        /// SnowCursor.LiftAt (SN-29 v2: one curve everywhere), clamped at the field's edges; 0 off it.</summary>
         float SnowAt(float x, float z)
         {
-            if (SnowW < 2 || SnowH < 2 || !Snow.IsCreated || Snow.Length < SnowW * SnowH) return 0;
-            float u = math.clamp((x - SnowOrigin.x) / SnowCell - 0.5f, 0, SnowW - 1);
-            float v = math.clamp((z - SnowOrigin.y) / SnowCell - 0.5f, 0, SnowH - 1);
-            int i = math.min((int)u, SnowW - 2), j = math.min((int)v, SnowH - 2);
-            float fu = u - i, fv = v - j;
-            float a = Snow[j * SnowW + i], b = Snow[j * SnowW + i + 1];
-            float c = Snow[(j + 1) * SnowW + i], d = Snow[(j + 1) * SnowW + i + 1];
-            float s = math.lerp(math.lerp(a, b, fu), math.lerp(c, d, fu), fv);
-            return math.isnan(s) ? 0 : s;
+            if (SnowW < 1 || SnowH < 1 || !Snow.IsCreated || Snow.Length < SnowW * SnowH) return 0;
+            float s = (x - SnowOrigin.x) / SnowCell - 0.5f, t = (z - SnowOrigin.y) / SnowCell - 0.5f;
+            if (s < -1 || t < -1 || s > SnowW || t > SnowH) return 0;
+            int i = (int)math.floor(s), j = (int)math.floor(t);
+            float4 a = Spline(s - i), b = Spline(t - j);
+            float sum = 0;
+            for (int dy = 0; dy < 4; dy++)
+            {
+                int row = math.clamp(j - 1 + dy, 0, SnowH - 1) * SnowW;
+                float r = a.x * Snow[row + math.clamp(i - 1, 0, SnowW - 1)] + a.y * Snow[row + math.clamp(i, 0, SnowW - 1)]
+                        + a.z * Snow[row + math.clamp(i + 1, 0, SnowW - 1)] + a.w * Snow[row + math.clamp(i + 2, 0, SnowW - 1)];
+                sum += b[dy] * r;
+            }
+            return math.isnan(sum) ? 0 : math.max(0, sum);
+        }
+
+        static float4 Spline(float f)
+        {
+            float f2 = f * f, f3 = f2 * f;
+            return new float4(1 - 3 * f + 3 * f2 - f3, 4 - 6 * f2 + 3 * f3, 1 + 3 * f + 3 * f2 - 3 * f3, f3) / 6f;
         }
     }
 }

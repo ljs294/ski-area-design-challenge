@@ -16,11 +16,11 @@ namespace MountainPlanner.Simulation
         Pause = 2,
         Resume = 3,
         TogglePause = 4,
-        /// <summary>TM-06 v2: finish the night, landing an hour before opening.</summary>
+        /// <summary>TM-06 v3: to the next opening, landing an hour before it; any phase, any hour.</summary>
         SkipToMorning = 5,
-        /// <summary>TM-14: before the season, to the next third of the month.</summary>
+        /// <summary>TM-14 v2: to the next third of the month; any phase, any hour.</summary>
         SkipToNextThird = 6,
-        /// <summary>TM-08: in summer, to the next month.</summary>
+        /// <summary>TM-08 v2: to the 1st of the next month; any phase, any hour.</summary>
         SkipToNextMonth = 7,
         CancelSkip = 8,
         /// <summary>SI-12 v2: the state for a save, at the tick boundary. Payload = a <see cref="SimStateRequest"/>.</summary>

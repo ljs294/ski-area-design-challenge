@@ -600,12 +600,13 @@ namespace MountainPlanner.Simulation
         public DayType HistoryType(int k) => (DayType)_historyType[k];
         public DayReport LastReport => _lastReport;
 
-        // ================= skips (TM-06 v2, TM-14) =================
+        // ================= skips (TM-06 v3, TM-08 v2, TM-14 v2) =================
 
         /// <summary>
-        /// Where a skip of <paramref name="kind"/> would land, in face ms, or a refusal. Morning: an hour before the next
-        /// opening, from the night or a day nobody skis, never while the lifts run (TM-06 v2). The next third: only before the
-        /// season (TM-14). The next month: only in summer (TM-08).
+        /// Where a skip of <paramref name="kind"/> lands, in face ms: an hour before an opening. Every skip works in every
+        /// phase and at every hour, the lift hours included (owner, 2026-11-17); the guests keep skiing through skipped
+        /// hours, because a skip steps every tick. Morning: today's landing if it's still ahead, otherwise tomorrow's
+        /// (TM-06 v3). The next third (TM-14 v2) and the next month (TM-08 v2): the first day of the next one.
         /// </summary>
         public bool SkipTarget(SkipKind kind, out long target)
         {
@@ -617,23 +618,18 @@ namespace MountainPlanner.Simulation
             {
                 case SkipKind.Morning:
                 {
-                    if (DayRateAt(sod)) return false;
                     long landToday = dayStart + LandingSecond(_todayOpen) * 1000L;
-                    if (FaceMs < landToday) { target = landToday; return true; }
-                    if (Phase == SeasonPhase.Season && sod < _todayOpen * 1000L) return false;   // already morning
-                    target = LandingOn(faceDay + 1);
+                    target = FaceMs < landToday ? landToday : LandingOn(faceDay + 1);
                     return true;
                 }
                 case SkipKind.NextThird:
                 {
-                    if (Phase != SeasonPhase.PreSeason) return false;
                     int j = faceDay % Calendar.YearFaceDays;
                     target = LandingOn(faceDay - j + Calendar.NextThirdStart(j));
                     return true;
                 }
                 case SkipKind.NextMonth:
                 {
-                    if (Phase != SeasonPhase.Summer) return false;
                     int j = faceDay % Calendar.YearFaceDays;
                     target = LandingOn(faceDay - j + Calendar.NextMonthStart(j));
                     return true;

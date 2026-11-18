@@ -122,7 +122,8 @@ namespace MountainPlanner.App
                 var args = Environment.GetCommandLineArgs();
                 _lakeMix = Array.IndexOf(args, "-lakemix") >= 0;
                 // Task 4.07 PR A2: the snow time-lapse plays a live season, so its lakes freeze and thaw with it.
-                _lakeFollowSim = !Flow.AppFlow.CaptureRun || Array.IndexOf(args, "-lakesim") >= 0 || Array.IndexOf(args, "-snowlapse") >= 0;
+                _lakeFollowSim = !Flow.AppFlow.CaptureRun || Array.IndexOf(args, "-lakesim") >= 0 || Array.IndexOf(args, "-snowlapse") >= 0
+                                 || Array.IndexOf(args, "-simto") >= 0;
             }
             if (states.BoundTable != table.Hash || _lakeTable != table)
             {

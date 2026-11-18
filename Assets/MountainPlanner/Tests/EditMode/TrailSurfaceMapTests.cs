@@ -68,6 +68,41 @@ namespace MountainPlanner.Tests
             Assert.That(ShaderUtil.ShaderHasError(shader), Is.False);
         }
 
+        /// <summary>
+        /// Task 4.07 PR A3 round 3 repair: the snow shell's variant, compiled on purpose. <see cref="TheTerrainShaderCompiles"/>
+        /// only reads the messages of variants the editor happened to compile, and nothing compiled this one: in the built
+        /// game its fragment program failed ("Unrecognized sampler 'sampler_control0'": the shell uses no _Control0, whose
+        /// sampler _Control1 borrowed), so the shell drew nothing and the snow never stood on the ground (owner, 2026-11-17).
+        /// </summary>
+        [Test]
+        public void TheSnowShellVariantsCompile()
+        {
+            var shader = Shader.Find("MountainPlanner/Terrain");
+            Assert.That(shader, Is.Not.Null, "the terrain shader");
+            var sub = ShaderUtil.GetShaderData(shader).GetSubshader(0);
+            var sets = new[]
+            {
+                new[] { "_SNOW_SHELL" },
+                new[] { "_SNOW_SHELL", "INSTANCING_ON" },
+                new[] { "_SNOW_SHELL", "INSTANCING_ON", "_MAIN_LIGHT_SHADOWS_CASCADE", "WX_AIR", "WX_GLINT" },
+                new[] { "INSTANCING_ON" },
+            };
+            var failures = new System.Collections.Generic.List<string>();
+            for (int p = 0; p < sub.PassCount; p++)
+            {
+                var pass = sub.GetPass(p);
+                foreach (var keywords in sets)
+                    foreach (var stage in new[] { UnityEditor.Rendering.ShaderType.Vertex, UnityEditor.Rendering.ShaderType.Fragment })
+                    {
+                        var result = pass.CompileVariant(stage, keywords, UnityEditor.Rendering.ShaderCompilerPlatform.D3D, BuildTarget.StandaloneWindows64);
+                        var errors = result.Messages.Where(m => m.severity == UnityEditor.Rendering.ShaderCompilerMessageSeverity.Error).Select(m => m.message).ToList();
+                        if (!result.Success || errors.Count > 0)
+                            failures.Add($"{pass.Name} {stage} [{string.Join(" ", keywords)}]: {string.Join("; ", errors)}");
+                    }
+            }
+            Assert.That(failures, Is.Empty);
+        }
+
         [Test]
         public void ThePagesOnTheGpuAreTheFields()
         {

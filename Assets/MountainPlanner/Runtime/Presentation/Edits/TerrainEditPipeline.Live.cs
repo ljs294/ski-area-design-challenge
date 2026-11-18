@@ -55,6 +55,7 @@ namespace MountainPlanner.Presentation.Edits
             if (!_tiles.TryGetValue(key, out var terrain)) return false;
             var watch = System.Diagnostics.Stopwatch.StartNew();
             terrain.terrainData.SyncHeightmap();
+            TerrainTiles.RepadShellBounds(terrain.terrainData);   // the snow shell's culling boxes (finding A3-6)
             TerrainTiles.BindSplat(terrain);
             if (Verbose) UnityEngine.Debug.Log($"[TerrainEdits] frame {UnityEngine.Time.frameCount}: live tile {key} synced in {watch.Elapsed.TotalMilliseconds:F1} ms ({_liveUnsynced.Count} to go)");
             return true;

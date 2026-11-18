@@ -166,7 +166,9 @@ namespace MountainPlanner.App
         {
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
             var mouse = UnityEngine.InputSystem.Mouse.current;
-            Vector2? at = TrailPointerForCapture ?? (mouse != null ? mouse.position.ReadValue() : (Vector2?)null);
+            // A scripted run (a benchmark or capture) ignores wherever the real pointer was left (task 4.07 PR A3, finding
+            // A3-13): a trail lighting under it mid-run is input the run didn't script.
+            Vector2? at = TrailPointerForCapture ?? (mouse != null && !_scriptedRun ? mouse.position.ReadValue() : (Vector2?)null);
             bool picking = Hud != null && cam != null && at.HasValue && !_networkOn && !PhotoOpen && (_tools == null || !_tools.Armed)
                            && _trailLayer != null && _trailLayer.Visible && _hoveredId == 0;
             ulong hit = 0;

@@ -415,6 +415,11 @@ echo        Hole and (from your downloads, read only) Olympic Valley: depth at t
 echo        cell against the mean, where the water went, depth and conditions maps on five dates, the budgets.
 echo        Part 2: the game for your hands-on check. Part 3: the time-lapse, October into February on Jackson
 echo        Hole (about 5 minutes), added to the report. Rebuilds the game; close the editor first.
+echo        Part 4 (PR A3, the snow as its own layer): the gun whale's tests, then the game mid-winter with a 3-night
+echo        gun whale: the snow lies on the ground that never moves, the skiers and the camera stand on it, lifts and
+echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
+echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
+echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
 echo   4.07 snow model PR A1: the snow energy, on paper (no Unity, no game build; about six minutes)
 echo     112 The snow's rule tests (south against north, shade, clear and cloudy nights, a cold pack, humid wind, the
 echo        game's clock against the hour, the energy balance), then six western snow pillows played for 20 winters
@@ -915,7 +920,7 @@ echo      the chairs run. 1 to 4 are 1x, 2x, 4x and 8x (hover the bar's arrows).
 echo   3. At 4:30 a line says the day closed and how long the lifts ran; the clock runs on (no pause) and the chairs stop.
 echo      The night runs six times faster. F1, Skip to morning: it lands at 7:30 the next day, still at your speed.
 echo   4. Pause, move F1's Time slider: the sun moves. Space again: the sun snaps back to the clock.
-echo   5. F1, Mountain: open (now closed): the season is over, Summer. Next month skips; Next third says it can't.
+echo   5. F1, Mountain: open (now closed): the season is over, Summer. Next month and Next third skip (any time, TM-14 v2).
 echo   6. Photo mode (P) pauses; leaving it plays again if it was playing. Quit when done.
 start "" "%GAME%" -snowseed
 goto menu
@@ -1088,6 +1093,13 @@ goto menu
 rem 4.07 PR A2 (docs/plans/p4-02-sim-rules.md section 4): the live snow's tests and season report, the game, the time-lapse.
 chcp 65001 >nul
 echo.
+echo   Press Enter for every part (tests, report, time-lapse, then the game), or type 4 to go straight to the game
+echo   (Part 4, then Part 5), or 5 for Part 5 only.
+set "SNOWPART="
+set /p "SNOWPART=Start at part: "
+if "%SNOWPART%"=="4" goto snowlive4
+if "%SNOWPART%"=="5" goto snowlive5
+echo.
 echo   Part 1: the live snow's tests (a bare start, the daily ledger, one thread against four, saves mid-hour, the
 echo   golden weeks on Jackson Hole), then the season report (about half a minute).
 dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~SnowFieldTests|FullyQualifiedName~SnowTerrainTests|FullyQualifiedName~SnowGoldenWeekTests|FullyQualifiedName~SimSaveTests" <nul | findstr /l /c:"Passed!" /c:"Failed" /c:"error"
@@ -1129,6 +1141,44 @@ echo   Joining the stills into a movie (lapse.mp4, 0.4 s a day)...
 if exist "%~dp0test-results\snow-a2\lapse\lapse.mp4" start "" "%~dp0test-results\snow-a2\lapse\lapse.mp4"
 node "%~dp0tools\snow-a2\report.mjs" "%~dp0test-results\snow-a2\report.json" "%~dp0test-results\snow-a2\lapse"
 start "" "%~dp0test-results\snow-a2\report.html"
+:snowlive4
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo   Part 4 (PR A3): the snow as its own layer on the ground. The gun whale's tests (a 20 ft stick gun's water to the cm3, the
+echo   26 ft cap, its 8 m squares, three nights' whale melting in the live snow), then the game in a scratch folder
+echo   (your saves are not touched), mid-winter on the opening's snow with a 3-night gun whale near the base.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~GunWhaleTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"[gun whale]" /c:"Passed!" /c:"Failed" /c:"error"
+echo   1. The snow is a layer on the ground: deep snow at the top and the piles under the cliffs stand up and shade as
+echo      piles; snow thinner than 2 in is painted on the ground. The ground itself never moves. Contour lines (Shift+6)
+echo      are the earth's: they show on the snow where the bare earth's are, and their labels stand on the snow over
+echo      them; the Elev. readout is the earth's (the depth has its own line).
+echo   2. F1, Skip to morning a few times: the snow settles. Lakes and ponds stay flat.
+echo   3. The gun whale: the game opens looking at it from the side, on the lowest flat, open, treeless ground in
+echo      the area. It is a rounded mound about 16 ft tall and 40 ft wide (the gun's model is a 26 ft ridge; the snow
+echo      lives on 8 m squares, so it draws lower and broader until the fine trail grid). It is the same white as the
+echo      snow round it, so look for its outline and shading. The log's [GunWhale] lines give the spot and the heights.
+echo   4. Skiers and dots walk on top of the snow, not inside it; tow riders ride on it; carpet and chair riders stay
+echo      on their lift. Lift towers and terminals stand on the earth with the snow piled round their bases.
+echo   5. Labels, lift lines and trail lines sit on the snow; the camera never dips into it.
+echo   6. Shift+1 (the Snow layer) off: the snow is gone at once and the bare earth shows; nothing moves, every tree
+echo      and tower shows to its base, the skiers walk on the earth. On again: the snow is back at once.
+echo   7b. Paint a new run across a cliff band (Toolbox, Trails, New): the fill reads as one band over rock and snow.
+echo   7. Krummholz on deep snow near the summit: with the Snow layer on, mats (3 ft) and cushions (5 ft) are under
+echo      6 ft of snow and a flag tree (10.5 ft) shows its top; with it off, all three show whole.
+start "" /wait "%GAME%" -data "%LOCALAPPDATA%\SkiAreaDesignChallenge-snowlift" -notitle -snowseed -gunwhale 3 -whaleview
+:snowlive5
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo   Part 5 (PR A3): the season to mid-winter without the drawing. Jackson Hole from bare October 1 (no seed) to
+echo   February 1 in a scratch folder (your saves are not touched). The screen shows one line with the date and the
+echo   progress (End cancels); then the drawing comes back, paused on February 1. Fly round, switch Shift+1, Shift+9
+echo   (Snow depth) and Shift+0 (Snow conditions), and point at the ground to read the depth. Close the game when done;
+echo   the log's [SimTo] lines (the real time it took, the base, the summit, the deepest cell) print here.
+if not exist "%~dp0test-results\snow-a3" mkdir "%~dp0test-results\snow-a3"
+start "" /wait "%GAME%" -data "%LOCALAPPDATA%\SkiAreaDesignChallenge-simto" -notitle -offline -simto 02-01 -logFile "%~dp0test-results\snow-a3\simto.log"
+findstr /l /c:"[SimTo]" "%~dp0test-results\snow-a3\simto.log"
 pause
 goto menu
 

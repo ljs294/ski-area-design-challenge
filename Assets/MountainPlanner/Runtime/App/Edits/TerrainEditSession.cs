@@ -131,7 +131,7 @@ namespace MountainPlanner.App.Edits
             var result = TestBench.Build(current, a.X, a.Y, b.X, b.Y, BenchWidthMetres);
             var pending = new EditedHeights(current.Source, current.Lattice, result.Edits);
             PendingContours.Build(current, pending, result.Tiles, UnitFormat.ContourIntervalMetres(DisplayUnits.Current), _segments);
-            Preview.Show(_segments, _resort.Frame);
+            Preview.Show(_segments, _resort.Frame, _resort.Surface);
             _pending = result;
             _pendingLine = (head, head + d * (float)BenchLengthMetres);
             return watch.Elapsed.TotalMilliseconds;
@@ -140,7 +140,7 @@ namespace MountainPlanner.App.Edits
         public bool HasPending => _pending.HasValue;
 
         /// <summary>Draws a tool's pending contours (task 08), from <see cref="PendingContours"/> segments in package metres.</summary>
-        public void ShowPending(List<double> segments) => Preview.Show(segments, _resort.Frame);
+        public void ShowPending(List<double> segments) => Preview.Show(segments, _resort.Frame, _resort.Surface);
 
         /// <summary>
         /// Lays edits that aren't the history's over the mountain (task 15: a terrain brush's pending strokes, or the

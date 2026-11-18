@@ -14,6 +14,9 @@ Shader "MountainPlanner/Terrain"
         _Overlay ("Cover-map overlay", Float) = 0
         _HeightBlend ("Height-blend sharpness", Range(0.01, 1)) = 0.2
         _SnowOn ("Snow layer: snow on the ground (lakes: snow on ice, or bare ice)", Float) = 1
+        _ShellOffset ("Depth offset (the snow shell: -1, so it wins over the ground under thin snow)", Float) = 0
+        _ShellDebug ("Developer (-shelldebug): 1 paints this material flat, cyan on the shell variant, magenta on the plain one", Float) = 0
+        _ShellForce ("Developer (-shelldebug): metres this material is raised by, whatever the variant", Float) = 0
     }
     SubShader
     {
@@ -22,7 +25,9 @@ Shader "MountainPlanner/Terrain"
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-        TEXTURE2D(_Control0); SAMPLER(sampler_Control0);
+        // The cover maps read through a fixed sampler of their own, not _Control0's: a variant that uses only _Control1 (the
+        // snow shell, task 4.07 PR A3) drops _Control0 and its sampler with it, and then failed to compile in the built game.
+        TEXTURE2D(_Control0); SAMPLER(sampler_mp_control_linear_clamp);
         TEXTURE2D(_Control1);
         TEXTURE2D_ARRAY(_Albedo); SAMPLER(sampler_Albedo);
         TEXTURE2D_ARRAY(_Normals);
@@ -31,6 +36,8 @@ Shader "MountainPlanner/Terrain"
             float _Overlay;
             float _HeightBlend;
             float _SnowOn;
+            float _ShellDebug;   // -shelldebug (task 4.07 PR A3 repair): plain numbers, not a variant, so they tell which variant ran
+            float _ShellForce;
             #ifdef UNITY_INSTANCING_ENABLED
             float4 _TerrainHeightmapRecipSize;   // set by Unity for instanced terrain: 1/width, 1/height, 1/(width-1), 1/(height-1)
             float4 _TerrainHeightmapScale;       // the heightmap's scale, y over the 16-bit range
@@ -147,58 +154,8 @@ Shader "MountainPlanner/Terrain"
             return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
         }
 
-        // The trail being painted (task 08, TF-02; owner 2026-10-19: paint like a brush; 2026-10-20: make it elegant): the
-        // lattice's own 1 m cells (TrailPaintMap), r painted and g a patch apart, filtered so the coverage is smooth, then
-        // drawn as a light fill with a crisp line where the coverage crosses half (the paint's edge), a few pixels wide at
-        // any zoom. _PaintParams.x = 0 when nothing's painted, y the style: 0 A (light orange, darker edge), 1 B (white-blue
-        // highlight, blue edge), 2 C (the live difficulty's colour, _PaintTint). A patch apart is red in every style.
-        // _PaintCursor: the brush under the pointer (x, z, radius, w 1 painting, 2 rubbing out, 0 hidden).
-        TEXTURE2D(_PaintMap); SAMPLER(sampler_PaintMap);
-        float4 _PaintRect;           // west, south, 1 / width, 1 / depth (world metres, texel corners)
-        float4 _PaintParams;
-        float4 _PaintCursor;
-        float4 _PaintTint;
-
-        float3 ApplyPaint(float3 colour, float2 xz)
-        {
-            UNITY_BRANCH
-            if (_PaintParams.x > 0.5)
-            {
-                float2 uv = (xz - _PaintRect.xy) * _PaintRect.zw;
-                if (all(uv > 0) && all(uv < 1))
-                {
-                    float2 paint = SAMPLE_TEXTURE2D_LOD(_PaintMap, sampler_PaintMap, uv, 0).rg;
-                    float cover = saturate(paint.r + paint.g);
-                    float w = clamp(fwidth(cover), 1e-4, 0.25);
-                    float inside = smoothstep(0.5 - w, 0.5 + w, cover);
-                    float edge = saturate(1 - abs(cover - 0.5) / (1.5 * w));
-                    float apart = saturate(paint.g / max(cover, 1e-3));
-                    float3 fill, edgeInk;
-                    float alpha;
-                    // Snow is near white, so a fill needs colour and weight to read on it (linear space).
-                    if (_PaintParams.y < 0.5) { fill = float3(0.92, 0.50, 0.18); edgeInk = float3(0.66, 0.24, 0.04); alpha = 0.42; }
-                    else if (_PaintParams.y < 1.5) { fill = float3(0.42, 0.66, 1.00); edgeInk = float3(0.10, 0.38, 0.88); alpha = 0.40; }
-                    else { fill = _PaintTint.rgb; edgeInk = _PaintTint.rgb * 0.7; alpha = 0.45; }
-                    fill = lerp(fill, float3(0.86, 0.16, 0.10), apart);
-                    edgeInk = lerp(edgeInk, float3(0.70, 0.08, 0.05), apart);
-                    colour = lerp(colour, fill, alpha * inside);
-                    colour = lerp(colour, edgeInk, 0.9 * edge);
-                }
-            }
-            UNITY_BRANCH
-            if (_PaintCursor.w > 0.5)
-            {
-                // A soft disc in a crisp dark ring (red to rub out), about two pixels wide whatever the zoom.
-                float d = distance(xz, _PaintCursor.xy), r = _PaintCursor.z;
-                float px = max(fwidth(d), 1e-3);
-                float ring = saturate(1.5 - abs(d - r) / px);
-                float disc = 1 - smoothstep(r - px, r + px, d);
-                float3 ink = _PaintCursor.w > 1.5 ? float3(0.80, 0.12, 0.08) : float3(0.12, 0.13, 0.16);
-                colour = lerp(colour, ink, 0.10 * disc);
-                colour = lerp(colour, ink, 0.80 * ring);
-            }
-            return colour;
-        }
+        // The trail being painted and the brush (task 08): TrailPaint.hlsl, shared with the snow shell and the cliffs.
+        #include "TrailPaint.hlsl"
 
         // The offset across the trail (m) at full float precision (task 07, finding #11), from the trail pages.
         float TrailOffsetAt(float2 xz)
@@ -240,11 +197,13 @@ Shader "MountainPlanner/Terrain"
         {
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
+            Offset [_ShellOffset], [_ShellOffset]   // task 4.07 PR A3 round 3: the snow shell a step nearer than the ground
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_fragment _ WX_AIR WX_VEIL   // task 4.06: the weather's fog while something's in the air; only its snow-line veil while the screen pass draws the air (WeatherView)
             #pragma multi_compile_fragment _ WX_GLINT   // task 4.06: the bluebird's sparkle, only near the ground
+            #pragma multi_compile_local _ _SNOW_SHELL   // task 4.07 PR A3 round 3: the snow shell over the ground (TerrainTiles)
             #pragma target 4.5
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
@@ -264,6 +223,8 @@ Shader "MountainPlanner/Terrain"
                 float3 positionWS : TEXCOORD1;
                 float3 normalWS : TEXCOORD2;
                 float fog : TEXCOORD3;
+                float earthY : TEXCOORD4;      // task 4.07 PR A3: the earth's height (the shell's is above it; the contours follow the earth)
+                float2 liftSlope : TEXCOORD5;  // the snow's slope on the shell, 0 on the ground (graded trails' smoothed normal adds it)
             };
 
             Varyings Vert(Attributes v)
@@ -272,8 +233,20 @@ Shader "MountainPlanner/Terrain"
                 UNITY_SETUP_INSTANCE_ID(v);
                 TerrainInstancing(v.positionOS, v.normalOS, v.uv);
                 o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
+                o.earthY = o.positionWS.y;
+                // Task 4.07 PR A3 round 3: the ground never moves; the snow shell (a second terrain on the same data) stands on
+                // the snow's depth, and the snow's slope tilts its normal (a pile shades as a pile).
+                #if defined(_SNOW_SHELL)
+                o.positionWS.y += SnowLiftAt(o.positionWS);
+                o.liftSlope = SnowLiftSlope(o.positionWS);
+                #else
+                o.liftSlope = 0;
+                #endif
+                o.positionWS.y += _ShellForce;   // -shelldebug only (0 in play)
                 o.positionCS = TransformWorldToHClip(o.positionWS);
-                o.normalWS = TransformObjectToWorldNormal(v.normalOS);
+                float3 ground = TransformObjectToWorldNormal(v.normalOS);
+                float up = max(ground.y, 1e-3);
+                o.normalWS = normalize(float3(ground.x / up - o.liftSlope.x, 1, ground.z / up - o.liftSlope.y));
                 o.uv = v.uv;
                 o.fog = ComputeFogFactor(o.positionCS.z);
                 return o;
@@ -396,7 +369,7 @@ Shader "MountainPlanner/Terrain"
             // The water weight at a world offset (metres) from this pixel's splat uv.
             float WaterAt(float2 cuv, float2 offsetMetres, float res)
             {
-                return SAMPLE_TEXTURE2D_LOD(_Control1, sampler_Control0, cuv + offsetMetres / max(_TileSize, 1) * ((res - 1) / res), 0).g;
+                return SAMPLE_TEXTURE2D_LOD(_Control1, sampler_mp_control_linear_clamp, cuv + offsetMetres / max(_TileSize, 1) * ((res - 1) / res), 0).g;
             }
 
             // A body's state as 0 open water, 1 bare ice, 2 snow-covered ice (unset reads as snow-covered ice).
@@ -581,13 +554,22 @@ Shader "MountainPlanner/Terrain"
             half4 Frag(Varyings i) : SV_Target
             {
                 ClipToRing(i.positionWS);
+                #if defined(_SNOW_SHELL)
+                // The shell is only where the snow is deeper than ShellMinMetres (thinner snow stays painted on the ground,
+                // so the shell's edge meets white ground), and never over the cover-map overlay.
+                if (_ShellDebug > 0.5) return half4(0, 1, 1, 1);   // -shelldebug: the shell variant ran here
+                clip(SnowLiftAt(i.positionWS) - ShellMinMetres);
+                clip(0.5 - _Overlay);
+                #else
+                if (_ShellDebug > 0.5) return half4(1, 0, 1, 1);   // -shelldebug: the plain variant ran on a debug material
+                #endif
                 float3 n = normalize(i.normalWS);
 
                 // Splat weights, sampled texel-centre to texel-centre as Unity lays them out.
                 float res = max(_ControlRes, 2);
                 float2 cuv = (i.uv * (res - 1) + 0.5) / res;
-                float4 c0 = SAMPLE_TEXTURE2D(_Control0, sampler_Control0, cuv);
-                float4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_Control0, cuv);
+                float4 c0 = SAMPLE_TEXTURE2D(_Control0, sampler_mp_control_linear_clamp, cuv);
+                float4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_mp_control_linear_clamp, cuv);
                 // A built trail (task 07): graded faces are fresh earth, not the rock the cover gives anything this steep;
                 // the bench and gentle faces are groomed in winter (full snow) and mown in summer.
                 float4 trail = TrailAt(i.positionWS.xz);
@@ -606,7 +588,7 @@ Shader "MountainPlanner/Terrain"
                 [branch] if (smoothShade > 0.01)
                 {
                     float2 g = HeightGradient(i.uv);
-                    float3 wide = normalize(float3(-g.x, 1, -g.y));
+                    float3 wide = normalize(float3(-g.x - i.liftSlope.x, 1, -g.y - i.liftSlope.y));
                     n = normalize(lerp(n, wide, 0.85 * smoothShade));
                 }
                 {
@@ -637,6 +619,9 @@ Shader "MountainPlanner/Terrain"
                 snowWeight *= snowOn;
                 // Task 4.07 PR A2: a groomed trail is white only where there is snow (bare October ground stays bare).
                 snowWeight = max(snowWeight, land * snowOn * groomed * cover);
+                #if defined(_SNOW_SHELL)
+                snowWeight = land;   // the shell is snow wherever it stands (a lake's ice is the ground's; the shell isn't there)
+                #endif
                 float keep = land > 0.004 ? saturate(1 - snowWeight / land) : 0;
                 float weights[8] = { snowWeight, c0.g * keep, c0.b * keep, c0.a * keep, c1.r * keep, c1.g, c1.b * keep, c1.a * keep };
 
@@ -646,7 +631,7 @@ Shader "MountainPlanner/Terrain"
                     [unroll] for (int k = 0; k < 8; k++) flat += weights[k] * _OverlayColor[k].rgb;
                     Light sun0 = GetMainLight();
                     float lambert = saturate(dot(n, sun0.direction)) * 0.6 + 0.5;
-                    return half4(ApplyContours(ApplyPaint(flat, i.positionWS.xz) * lambert, i.positionWS.y, ContourElevation(i.uv, i.positionWS.y)), 1);
+                    return half4(ApplyContours(ApplyPaint(flat, i.positionWS.xz) * lambert, i.earthY, ContourElevation(i.uv, i.earthY)), 1);
                 }
 
                 // Info layers (task 12b): slope angle, exposure or snow depth over the ground, lit so the relief reads.
@@ -664,7 +649,10 @@ Shader "MountainPlanner/Terrain"
                         info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopePercent, i.positionCS.xy) : ExposureColour(-rise, slopePercent);
                     }
                     Light sunI = GetMainLight();
-                    float3 shaded = ApplyContours(ShadeInfo(ApplyPaint(info, i.positionWS.xz), n, sunI.direction), i.positionWS.y, ContourElevation(i.uv, i.positionWS.y));
+                    float3 shaded = ShadeInfo(ApplyPaint(info, i.positionWS.xz), n, sunI.direction);
+                    // The earth's lines (owner, 2026-11-17: the real ground's contours show through the snow): the shell draws
+                    // them at the earth's height under it, so from above they match the bare earth exactly.
+                    shaded = ApplyContours(shaded, i.earthY, ContourElevation(i.uv, i.earthY));
                     return half4(ApplyHaze(MixFog(shaded, i.fog), i.positionWS), 1);
                 }
 
@@ -825,7 +813,9 @@ Shader "MountainPlanner/Terrain"
                            + sun.color * spec * sun.shadowAttenuation;
                 // Task 4.06: the bluebird's sparkle on fresh snow, last (WX_GLINT), so its sums don't keep the layers' registers.
                 lit += sun.color * (WeatherGlint(i.positionWS, normal, h, albedo) * sun.shadowAttenuation);
-                lit = ApplyContours(lit, i.positionWS.y, ContourElevation(i.uv, i.positionWS.y));
+                // The earth's lines, on the ground and on the snow shell alike (owner, 2026-11-17: the real ground's contours show
+                // through the snow). earthY is the earth's height under the pixel, so a line is where the bare earth's is.
+                lit = ApplyContours(lit, i.earthY, ContourElevation(i.uv, i.earthY));
                 lit = MixFog(lit, i.fog);
                 return half4(ApplyHaze(lit, i.positionWS), 1);
             }
@@ -843,6 +833,7 @@ Shader "MountainPlanner/Terrain"
             #pragma fragment Frag
             #pragma target 4.5
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #pragma multi_compile_local _ _SNOW_SHELL
             #pragma multi_compile_instancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -858,6 +849,10 @@ Shader "MountainPlanner/Terrain"
                 float2 uv = 0;
                 TerrainInstancing(v.positionOS, v.normalOS, uv);
                 o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
+                #if defined(_SNOW_SHELL)
+                o.positionWS.y += SnowLiftAt(o.positionWS);   // task 4.07 PR A3: the shell's lift, as the picture
+                #endif
+                o.positionWS.y += _ShellForce;   // -shelldebug only (0 in play)
                 float3 n = TransformObjectToWorldNormal(v.normalOS);
                 float4 cs = TransformWorldToHClip(ApplyShadowBias(o.positionWS, n, _LightDirection));
                 #if UNITY_REVERSED_Z
@@ -872,6 +867,9 @@ Shader "MountainPlanner/Terrain"
             half4 Frag(Varyings i) : SV_Target
             {
                 ClipToRing(i.positionWS);
+                #if defined(_SNOW_SHELL)
+                if (_ShellDebug < 0.5) clip(SnowLiftAt(i.positionWS) - ShellMinMetres);
+                #endif
                 return 0;
             }
             ENDHLSL
@@ -883,10 +881,12 @@ Shader "MountainPlanner/Terrain"
             Tags { "LightMode" = "DepthOnly" }
             ZWrite On
             ColorMask R
+            Offset [_ShellOffset], [_ShellOffset]
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma target 4.5
+            #pragma multi_compile_local _ _SNOW_SHELL
             #pragma multi_compile_instancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
             struct Attributes { float4 positionOS : POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
@@ -900,6 +900,10 @@ Shader "MountainPlanner/Terrain"
                 float2 uv = 0;
                 TerrainInstancing(v.positionOS, n, uv);
                 o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
+                #if defined(_SNOW_SHELL)
+                o.positionWS.y += SnowLiftAt(o.positionWS);   // task 4.07 PR A3: the shell's lift, as the picture
+                #endif
+                o.positionWS.y += _ShellForce;   // -shelldebug only (0 in play)
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 return o;
             }
@@ -907,6 +911,9 @@ Shader "MountainPlanner/Terrain"
             half4 Frag(Varyings i) : SV_Target
             {
                 ClipToRing(i.positionWS);
+                #if defined(_SNOW_SHELL)
+                if (_ShellDebug < 0.5) clip(SnowLiftAt(i.positionWS) - ShellMinMetres);
+                #endif
                 return 0;
             }
             ENDHLSL

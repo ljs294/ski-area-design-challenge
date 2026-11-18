@@ -59,7 +59,7 @@ namespace MountainPlanner.App
             var mouse = UnityEngine.InputSystem.Mouse.current;
             var doc = Design?.Document;
             if (!ReferenceEquals(doc, _waterOutlinesFor)) { _waterOutlines.Clear(); _waterOutlinesFor = doc; _waterHoverKey = default; _waterCardDrawn = null; }
-            bool picking = cam != null && mouse != null && doc != null && !_networkOn && !PhotoOpen && (_tools == null || !_tools.Armed)
+            bool picking = cam != null && mouse != null && !_scriptedRun && doc != null && !_networkOn && !PhotoOpen && (_tools == null || !_tools.Armed)
                            && _hoveredId == 0 && _hoveredTrailRow == 0;
             WaterKey hit = default;
             Vector2 pos = mouse != null ? mouse.position.ReadValue() : default;

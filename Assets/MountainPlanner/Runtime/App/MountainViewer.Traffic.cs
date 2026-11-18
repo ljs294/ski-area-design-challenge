@@ -26,6 +26,8 @@ namespace MountainPlanner.App
         TrafficView _traffic;
         SkierRenderBuffers.Frame _skierFrame;
         float _trafficNext;
+        int _trafficLiftVersion = -1;
+        float _trafficLiftNext;
         bool _trafficWasOn;
         MountainPlanner.UI.LandmarkLabelOverlay _trafficLabels;
         readonly List<(string Name, Vector3 At)> _trafficLabelSpots = new List<(string, Vector3)>();
@@ -60,7 +62,17 @@ namespace MountainPlanner.App
             if (paths == null || _resort == null) return;
             if (_traffic != null && !_traffic.Alive) _traffic = null;   // a mountain closed: its root took the layer with it
             _traffic ??= new TrafficView(_resort.Root.transform);
-            if (_traffic.Revision != paths.Revision) { _traffic.SetPaths(paths, PathEdges()); _trafficNext = 0; }
+            // Task 4.07 PR A3: the lines drape on the snow, so a changed lift redraws them too (at most every 10 s).
+            int liftVersion = _resort.States?.LiftVersion ?? 0;
+            bool liftMoved = liftVersion != _trafficLiftVersion && Time.unscaledTime >= _trafficLiftNext;
+            if (_traffic.Revision != paths.Revision || liftMoved)
+            {
+                _traffic.Surface = _resort.Surface;
+                _traffic.SetPaths(paths, PathEdges());
+                _trafficNext = 0;
+                _trafficLiftVersion = liftVersion;
+                _trafficLiftNext = Time.unscaledTime + 10f;
+            }
             _traffic.Visible = true;
             if (Time.unscaledTime >= _trafficNext)
             {

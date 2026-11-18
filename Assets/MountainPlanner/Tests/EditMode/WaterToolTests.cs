@@ -23,6 +23,7 @@ namespace MountainPlanner.Tests
         {
             public Rect Footprint => new Rect(-2000, -2000, 4000, 4000);
             public float HeightAt(float x, float z) => Footprint.Contains(new Vector2(x, z)) ? 2000 + 0.15f * z : float.NaN;
+            public float LiftAt(float x, float z) => 0;
         }
 
         sealed class NullPreview : IToolPreview

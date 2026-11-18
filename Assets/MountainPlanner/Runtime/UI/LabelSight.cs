@@ -16,7 +16,7 @@ namespace MountainPlanner.UI
             for (int k = 1; k < 16; k++)
             {
                 var p = Vector3.Lerp(eye, target, k / 16f);
-                float ground = surface.HeightAt(p.x, p.z);
+                float ground = surface.SurfaceAt(p.x, p.z);   // task 4.07 PR A3: the snow hides what's behind it too
                 if (!float.IsNaN(ground) && ground > p.y + 2) return true;
             }
             return false;

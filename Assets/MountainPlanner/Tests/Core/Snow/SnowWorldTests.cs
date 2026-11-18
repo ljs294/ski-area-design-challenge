@@ -104,7 +104,7 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void BG02_ASkipToMorningAndToTheNextThirdGiveTheSameSnowAsTicking()
+        public void BG02_ASkipToMorningTheNextThirdAndTheNextMonthGiveTheSameSnowAsTicking()
         {
             var a = World(Small);
             var b = World(Small);
@@ -117,8 +117,10 @@ namespace MountainPlanner.Tests
             while (b.Tick < a.Tick) b.Step(Pacing.Default.IdleTickFactor);
             var morning = SkipAgainstTicks(a, b, SkipKind.Morning);
             var third = SkipAgainstTicks(a, b, SkipKind.NextThird);
+            var month = SkipAgainstTicks(a, b, SkipKind.NextMonth);   // TM-08 v2: before the season too
             Say($"[skips] to morning: {morning.Ticks:N0} ticks one at a time ({morning.Seconds:F1} s); to the next third: " +
-                $"{third.Ticks:N0} ticks ({third.Seconds:F1} s); the same bytes; {a.SnowToday.End / 1e6 / (W * D) * 1000:F0} mm of water a cell");
+                $"{third.Ticks:N0} ticks ({third.Seconds:F1} s); to the next month: {month.Ticks:N0} ticks ({month.Seconds:F1} s); " +
+                $"the same bytes; {a.SnowToday.End / 1e6 / (W * D) * 1000:F0} mm of water a cell");
             Assert.That(a.SnowToday.End, Is.GreaterThan(0), "snow to compare");
         }
 

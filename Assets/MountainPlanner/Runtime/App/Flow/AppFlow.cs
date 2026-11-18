@@ -39,6 +39,7 @@ namespace MountainPlanner.App.Flow
             "-proofhold",   // task 4.13 PR C2
             "-watershots",   // task 4.14
             "-snowlapse",   // task 4.07 PR A2
+            "-simto",   // task 4.07 PR A3
         };
 
         public static AppFlow Instance { get; private set; }

@@ -145,7 +145,7 @@ namespace MountainPlanner.Tests
                 float[] gpu = ReadBack((Texture2D)Shader.GetGlobalTexture(DepthMap));
                 Assert.That(gpu[10 * 100 + 70], Is.EqualTo(0.25f).Within(1e-6f), "inside the tile");
                 Assert.That(gpu[10 * 100 + 10], Is.EqualTo(SnowDepthField.IterationOneMetres).Within(1e-6f), "outside it");
-                Assert.That(states.SurfaceAt(70, 10).Type, Is.EqualTo(3), "the surface bytes too");
+                Assert.That(states.ConditionsAt(70, 10).Type, Is.EqualTo(3), "the surface bytes too");
 
                 states.Snow.SetRect(2, 2, 2, 2, 0.05f);
                 states.Sync();

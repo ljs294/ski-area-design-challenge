@@ -212,6 +212,29 @@ namespace MountainPlanner.Editor
         [MenuItem("Mountain Planner/Build Windows Player")]
         public static void BuildWindows() => Build(PlayerPath, BuildOptions.None, release: false);
 
+        static long EditorLogLength()
+        {
+            try { return new FileInfo(Application.consoleLogPath).Length; } catch { return 0; }
+        }
+
+        /// <summary>The "Shader error in 'MountainPlanner/…" lines the editor's log gained since <paramref name="from"/> (a build's).</summary>
+        static System.Collections.Generic.List<string> ShaderErrorsSince(long from)
+        {
+            var found = new System.Collections.Generic.List<string>();
+            try
+            {
+                using var stream = new FileStream(Application.consoleLogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                if (from > stream.Length) from = 0;
+                stream.Seek(from, SeekOrigin.Begin);
+                using var reader = new StreamReader(stream);
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                    if (line.StartsWith("Shader error in 'MountainPlanner/") && !found.Contains(line)) found.Add(line);
+            }
+            catch (System.Exception e) { Debug.LogWarning("[ViewerSetup] couldn't read the log for shader errors: " + e.Message); }
+            return found;
+        }
+
         /// <summary>
         /// A Development player beside the release one: the profiler counters a release player doesn't record
         /// ("GC Allocated In Frame", "Gfx Used Memory") work here, so the benchmark's garbage and memory checks are exact.
@@ -266,6 +289,7 @@ namespace MountainPlanner.Editor
             string savedVersion = PlayerSettings.bundleVersion;
             PlayerSettings.bundleVersion = info.version;
             UnityEditor.Build.Reporting.BuildReport report;
+            long logStart = EditorLogLength();
             try
             {
                 report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
@@ -283,6 +307,16 @@ namespace MountainPlanner.Editor
             }
             Debug.Log($"[ViewerSetup] Build {report.summary.result}: {info.version} {report.summary.totalSize / 1e6:F0} MB in {report.summary.totalTime.TotalSeconds:F0} s → {path}");
             bool ok = report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded;
+            // Unity builds a player whose shader variant failed to compile and only says so in the log; that variant then
+            // draws nothing (the snow shell, task 4.07 PR A3: its fragment program failed and the snow never rose). One of
+            // our shaders with an error fails the build.
+            var shaderErrors = ShaderErrorsSince(logStart);
+            if (shaderErrors.Count > 0)
+            {
+                foreach (string e in shaderErrors) Debug.LogError("[ViewerSetup] " + e);
+                Debug.LogError($"[ViewerSetup] Build Failed: {shaderErrors.Count} shader error(s) in MountainPlanner shaders");
+                ok = false;
+            }
             // The Jackson Hole demo and its prebuilt cache go into the player's StreamingAssets (task P2-03); a damaged
             // package or a cache of the wrong version fails the build, and so does a missing one for a release (P2-10).
             if (ok)

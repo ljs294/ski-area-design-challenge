@@ -45,6 +45,58 @@ float SnowDepthSmooth(float2 uv)
                    g1.x * SAMPLE_TEXTURE2D_LOD(_SnowDepthMap, sampler_SnowDepthMap, float2(p1.x, p1.y), 0).r);
 }
 
+// Task 4.07 PR A3: the snow stands on the ground. SurfaceStates keeps a lift map beside the depth (the depth × a keep that is
+// 0 on lakes and ponds and at the ring's edge), switched on once the live snow's tiles have all come in. Round 3 (owner,
+// 2026-11-17): the ground never moves; the snow shell, a second terrain over the same data (MountainTerrain's _SNOW_SHELL),
+// lifts its vertices by this curve in every pass, so its picture, shadows and depth agree, and the C# twin
+// (SnowCursor.LiftAt) gives the cursor, the skiers and the camera the same height. The Snow map layer shows or hides the
+// shell at once.
+TEXTURE2D(_SnowLiftMap); SAMPLER(sampler_SnowLiftMap);
+float4 _SnowLiftParams;      // x: 1 once the live snow's first pass is in (the shell stands on it), 0 before
+
+// The shell draws only where the snow is deeper than this (2 in); thinner snow is painted on the ground.
+static const float ShellMinMetres = 0.05;
+
+float SnowLiftTap(float2 uv) { return SAMPLE_TEXTURE2D_LOD(_SnowLiftMap, sampler_SnowLiftMap, uv, 0).r; }
+
+// The lift (metres) at a point: the curved filter over the lift map × the scale, 0 while it's off.
+float SnowLiftAt(float3 positionWS)
+{
+    UNITY_BRANCH
+    if (_SnowLiftParams.x <= 0) return 0;
+    float2 st = SnowUV(positionWS.xz) * _SnowDepthSize.xy - 0.5;
+    float2 i = floor(st);
+    float2 w0, w1, w2, w3;
+    SnowSplineWeights(st - i, w0, w1, w2, w3);
+    float2 g0 = w0 + w1, g1 = w2 + w3;
+    float2 p0 = (i - 1 + w1 / g0 + 0.5) * _SnowDepthSize.zw;
+    float2 p1 = (i + 1 + w3 / g1 + 0.5) * _SnowDepthSize.zw;
+    return _SnowLiftParams.x * max(0, g0.y * (g0.x * SnowLiftTap(float2(p0.x, p0.y)) + g1.x * SnowLiftTap(float2(p1.x, p0.y))) +
+                                      g1.y * (g0.x * SnowLiftTap(float2(p0.x, p1.y)) + g1.x * SnowLiftTap(float2(p1.x, p1.y))));
+}
+
+// The lift's slope (metres per metre, along x and z): the curve's exact derivative. Its weights pair with one sign each
+// (the first two ≤ 0, the last two ≥ 0), so it takes the same bilinear trick: four reads a direction.
+float2 SnowLiftSlope(float3 positionWS)
+{
+    UNITY_BRANCH
+    if (_SnowLiftParams.x <= 0) return 0;
+    float2 st = SnowUV(positionWS.xz) * _SnowDepthSize.xy - 0.5;
+    float2 i = floor(st), f = st - i;
+    float2 w0, w1, w2, w3;
+    SnowSplineWeights(f, w0, w1, w2, w3);
+    float2 d0 = -(1 - f) * (1 - f) / 2, d1 = f * (3 * f - 4) / 2, d2 = (1 + 2 * f - 3 * f * f) / 2, d3 = f * f / 2;
+    float2 g0 = w0 + w1, g1 = w2 + w3, h0 = d0 + d1, h1 = d2 + d3;
+    float2 p0 = (i - 1 + w1 / g0 + 0.5) * _SnowDepthSize.zw, p1 = (i + 1 + w3 / g1 + 0.5) * _SnowDepthSize.zw;
+    float2 q0 = (i - 1 + d1 / min(h0, -1e-6) + 0.5) * _SnowDepthSize.zw, q1 = (i + 1 + d3 / max(h1, 1e-6) + 0.5) * _SnowDepthSize.zw;
+    float dx = g0.y * (h0.x * SnowLiftTap(float2(q0.x, p0.y)) + h1.x * SnowLiftTap(float2(q1.x, p0.y))) +
+               g1.y * (h0.x * SnowLiftTap(float2(q0.x, p1.y)) + h1.x * SnowLiftTap(float2(q1.x, p1.y)));
+    float dz = h0.y * (g0.x * SnowLiftTap(float2(p0.x, q0.y)) + g1.x * SnowLiftTap(float2(p1.x, q0.y))) +
+               h1.y * (g0.x * SnowLiftTap(float2(p0.x, q1.y)) + g1.x * SnowLiftTap(float2(p1.x, q1.y)));
+    // Per cell to per metre: a cell is 1 / (_SnowDepthRect.zw × _SnowDepthSize.xy) metres.
+    return _SnowLiftParams.x * float2(dx, dz) * _SnowDepthRect.zw * _SnowDepthSize.xy;
+}
+
 // Snow depth in metres at a point (12 in until the field is set).
 float SnowDepthAt(float3 positionWS)
 {

@@ -46,11 +46,13 @@ namespace MountainPlanner.App
         static bool? _snowSeedWanted;
         /// <summary>
         /// Task 4.07 PR A2: a new game starts on bare ground on October 1. <c>-snowseed</c> (and every capture and benchmark,
-        /// unless <c>-snowlapse</c>) starts it on the opening's static snowpack instead, the mid-winter picture they were made
+        /// unless <c>-snowlapse</c> or <c>-simto</c>) starts it on the opening's static snowpack instead, the mid-winter picture they were made
         /// with, as the live snow's seed.
         /// </summary>
         internal static bool SnowSeedWanted => _snowSeedWanted ??= Array.IndexOf(Environment.GetCommandLineArgs(), "-snowseed") >= 0
-                                                                    || (Flow.AppFlow.CaptureRun && Array.IndexOf(Environment.GetCommandLineArgs(), "-snowlapse") < 0);
+                                                                    || SeedMetres != null || GunWhaleWanted.Nights > 0   // task 4.07 PR A3
+                                                                    || (Flow.AppFlow.CaptureRun && Array.IndexOf(Environment.GetCommandLineArgs(), "-snowlapse") < 0
+                                                                        && Array.IndexOf(Environment.GetCommandLineArgs(), "-simto") < 0);
 
         bool CoverDone => _resort.CoverReady == null || _resort.CoverReady.IsCompleted;
 
@@ -284,11 +286,35 @@ namespace MountainPlanner.App
             if (_sim == null || mirror == null) return;
             // Task 4.07 PR A2: live, the worker's snow is its own; before that, the static snowpack goes only as the seed.
             if (_simSnowTerrainSent || !(SnowSeedWanted || SnowTerrainFailed)) return;
-            var p = _simSnowSent
-                ? SimSnowpack.FromMetres(metres, mirror.Width, mirror.Height, x, y, width, height)
-                : SimSnowpack.FromMetres(metres, mirror.Width, mirror.Height, 0, 0, mirror.Width, mirror.Height);
-            _sim.Send(SimCommandKind.SetSnowpack, 0, p);
+            // Task 4.07 PR A3: the developer seed (-snowseedm, -gunwhale) rides on whichever snowpack goes first, so an edit's
+            // snowpack (-styletile builds before the opening's goes) doesn't drop it; an even seed holds over a later edit's
+            // rectangle too, so the built area isn't left at the static depth.
+            bool first = !_simSnowSent;
+            if (first) metres = DeveloperSeed(metres, mirror.Width, mirror.Height, mirror.CellMetres);
+            else if (SeedMetres != null || _whaleAdd != null)
+            {
+                // A later edit's rectangle carries the static depth: the seed is laid over it again (the even depth, the whale).
+                metres = (float[])metres.Clone();
+                for (int j = y; j < y + height; j++)
+                    for (int i = x; i < x + width; i++)
+                    {
+                        int c = j * mirror.Width + i;
+                        if (SeedMetres is float even) metres[c] = even;
+                        if (_whaleAdd != null) metres[c] += _whaleAdd[c];
+                    }
+            }
+            var p = first
+                ? SimSnowpack.FromMetres(metres, mirror.Width, mirror.Height, 0, 0, mirror.Width, mirror.Height)
+                : SimSnowpack.FromMetres(metres, mirror.Width, mirror.Height, x, y, width, height);
+            // The snow counts as sent only if the worker's queue took it (finding W5): a refused first send is tried again
+            // (the opening's every frame, an edit's with its next rectangle); a refused rectangle says so.
+            if (!_sim.Send(SimCommandKind.SetSnowpack, 0, p))
+            {
+                if (!first) Debug.LogWarning("[Simulation] the worker's queue refused a snowpack rectangle: the snow there keeps its old depth");
+                return;
+            }
             _simSnowSent = true;
+            if (first && _whaleAdd != null) _whaleLaid = true;
         }
 
         /// <summary>Task 4.07 PR A2: an edit's patch of the snow's inputs, to the worker in order (once it has the inputs; before
@@ -514,9 +540,32 @@ namespace MountainPlanner.App
                 case SimEventType.SeasonEnded: Hud.Toast("The season is over"); break;
                 case SimEventType.MountainOpened: Hud.Toast("The mountain is open"); break;
                 case SimEventType.MountainClosed: Hud.Toast("The mountain is closed"); break;
-                case SimEventType.CommandRejected when e.Detail == (ushort)SimRefusal.SkipNotAllowed: Hud.Toast("Can't skip from here"); break;
+                // TM-06 v3 / TM-08 v2 / TM-14 v2: every skip works at any time, so the only refusal left is a skip already running.
+                case SimEventType.CommandRejected when e.Detail == (ushort)SimRefusal.SkipNotAllowed: Hud.Toast("A skip is already running"); break;
+                // Only the player's own skips toast: scripted runs (the lapse's stills) skip quietly.
+                case SimEventType.SkipStarted when _playerSkip: Hud.Toast($"Skipping to {SkipLabel(e.Value)}…"); break;
+                case SimEventType.SkipFinished when _playerSkip: _playerSkip = false; Hud.Toast($"Skipped to {SkipLabel(e.Value)}"); break;
+                case SimEventType.SkipCancelled when _playerSkip: _playerSkip = false; Hud.Toast("Skip cancelled"); break;
                 case SimEventType.CommandRejected when e.Detail == (ushort)SimRefusal.NotInSummer: Hud.Toast("The mountain opens again next season"); break;
             }
+        }
+
+        LabelCalendar _skipCalendar;
+        bool _playerSkip;
+
+        /// <summary>A skip the player asked for (F1), which toasts its start and end.</summary>
+        void PlayerSkip(SimCommandKind kind)
+        {
+            if (_simNow != null && _simNow.Skip == SkipKind.None) _playerSkip = true;
+            SendSim(kind);
+        }
+
+        /// <summary>A skip's landing as the calendar names it ("December 1"), for its toasts (a few words a skip).</summary>
+        string SkipLabel(long faceMs)
+        {
+            _skipCalendar ??= new LabelCalendar(Pacing.Default);
+            int j = (int)(faceMs / SimWorld.DayMs % _skipCalendar.YearFaceDays);
+            return System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(_skipCalendar.Month(j)) + " " + _skipCalendar.Day(j);
         }
 
         /// <summary>The bar's clock from the newest snapshot (10 Hz, from <see cref="UpdateHud"/>).</summary>
@@ -546,9 +595,9 @@ namespace MountainPlanner.App
             }
             caption("Simulation");
             if (button(0, s.Open ? "Mountain: open" : "Mountain: closed")) SendSim(SimCommandKind.SetMountainOpen, s.Open ? 0 : 1);
-            if (button(1, "Skip to morning")) SendSim(SimCommandKind.SkipToMorning);
-            if (button(2, "Next third")) SendSim(SimCommandKind.SkipToNextThird);
-            if (button(3, "Next month")) SendSim(SimCommandKind.SkipToNextMonth);
+            if (button(1, "Skip to morning")) PlayerSkip(SimCommandKind.SkipToMorning);
+            if (button(2, "Next third")) PlayerSkip(SimCommandKind.SkipToNextThird);
+            if (button(3, "Next month")) PlayerSkip(SimCommandKind.SkipToNextMonth);
             if (s.Skip != SkipKind.None && button(4, $"Cancel ({s.SkipPermille / 10}%)")) SendSim(SimCommandKind.CancelSkip);
             y += row;
             caption("Season seed");
