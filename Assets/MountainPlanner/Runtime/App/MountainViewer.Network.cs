@@ -238,7 +238,8 @@ namespace MountainPlanner.App
             {
                 var l = doc.FindLift(s.Lift);
                 if (l == null) continue;
-                lifts.Add(new NetworkView.LiftLine { Id = s.Lift.Value, Bottom = DrapePoint(l.Bottom), Top = DrapePoint(l.Top), Connected = s.Connected });
+                lifts.Add(new NetworkView.LiftLine { Id = s.Lift.Value, Bottom = DrapePoint(l.Bottom), Top = DrapePoint(l.Top), Connected = s.Connected,
+                                                     RidesDown = s.RidesDown });
             }
             var deadTails = new HashSet<ulong>();
             var deadEnds = new List<NetworkView.DeadEnd>();
@@ -401,6 +402,8 @@ namespace MountainPlanner.App
             else if (_pickArea != 0) reach = _network.ReachFromArea(_pickArea);   // NW-15: its lifts ridden too
             var lifts = new List<ulong>();
             if (reach != null) foreach (var l in reach.Lifts) lifts.Add(l.Value);
+            // Task 4.24 PR B: a gondola the descent rides down lights as part of the reach.
+            if (reach != null) foreach (var l in reach.RidesDown) if (!lifts.Contains(l.Value)) lifts.Add(l.Value);
             _networkView.SetPick(edge, _pickLift, _pickNode != 0 ? _pickNode : _pickArea, reach?.Segments, lifts, reach?.Nodes);
         }
 

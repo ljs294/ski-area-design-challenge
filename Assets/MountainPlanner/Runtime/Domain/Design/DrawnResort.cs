@@ -343,19 +343,46 @@ namespace MountainPlanner.Domain.Design
         /// is <paramref name="fold"/>'s rebuild of the design with it (trails, then lifts, TL3), accepted once the command
         /// is. <paramref name="source"/> and <paramref name="lattice"/> are the mountain's natural ground (the fold's own),
         /// <paramref name="frame"/> its local frame; <paramref name="types"/> gives a catalog id's lift type (the game's
-        /// measured types; <see cref="LiftType.Of"/> by default). Returns a report, one line per item.
+        /// measured types; <see cref="LiftType.Of"/> by default). <paramref name="gondola"/> (task 4.24 PR B, <c>-drawngondola</c>)
+        /// builds Base Six as a Sessellift G8 on the same line and leaves out the runs from its top back to its bottom, so the
+        /// gondola is the only way to and from the upper mountain (Summit Six's pod) and everyone leaving it rides down.
+        /// Returns a report, one line per item.
         /// </summary>
         public static Report Build(DesignHistory history, DesignEarthwork fold, IHeightSource source, EditLattice lattice, LocalFrame frame,
-                                   Func<string, LiftType> types = null)
+                                   Func<string, LiftType> types = null, bool gondola = false)
         {
             if (history == null) throw new ArgumentNullException(nameof(history));
             if (fold == null) throw new ArgumentNullException(nameof(fold));
             types ??= id => LiftType.Of(id);
             var report = new Report();
-            foreach (var line in Lifts) report.Add(BuildLift(history, fold, source, lattice, frame, types(line.CatalogId), line));
-            foreach (var run in Trails) report.Add(BuildTrail(history, fold, run));
+            foreach (var l in Lifts)
+            {
+                var line = gondola && l == Lifts[0] ? new LiftLine(l.Name, LiftCatalogIds.SesselliftG8, l.BottomX, l.BottomZ, GondolaTopX, GondolaTopZ) : l;
+                report.Add(BuildLift(history, fold, source, lattice, frame, types(line.CatalogId), line));
+            }
+            foreach (var run in Trails)
+                if (!gondola || !GondolaLower(run)) report.Add(BuildTrail(history, fold, run));
             return report;
         }
+
+        /// <summary>
+        /// Where the gondola's line ends with <c>-drawngondola</c>: 49 m from Summit Six's bottom, inside NW-14's 100 ft reach of
+        /// each, so the two terminals are one station (a mid-station Area) and the gondola leads to Summit Six's pod. On
+        /// Base Six's own top, 112 m away, they were two stations and Summit Six's bottom a base of its own (GU-06), so
+        /// nobody needed the gondola either way.
+        /// </summary>
+        public const float GondolaTopX = -1280.0f, GondolaTopZ = -845.0f;
+
+        /// <summary>A run from Base Six's top back to its bottom (both ends within 150 m): left out with <c>-drawngondola</c>.</summary>
+        public static bool GondolaLower(Run run)
+        {
+            var l = Lifts[0];
+            float[] c = run.Centreline;
+            int n = c.Length;
+            return n >= 4 && Near(c[0], c[1], l.TopX, l.TopZ) && Near(c[n - 2], c[n - 1], l.BottomX, l.BottomZ);
+        }
+
+        static bool Near(float x, float z, float x0, float z0) => (x - x0) * (x - x0) + (z - z0) * (z - z0) <= 150f * 150f;
 
         /// <summary>What a build made: one line per item, and how many went in.</summary>
         public sealed class Report

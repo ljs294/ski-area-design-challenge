@@ -57,6 +57,7 @@ namespace MountainPlanner.Presentation.Weather
             _count = 0;
             _buffer?.Release();
             _buffer = null;
+            if (!SystemInfo.supportsComputeShaders) return;   // no ribbons (task 4.24: a -nographics player has no compute shaders; it still runs the simulation)
             if (emitters == null || count <= 0) return;
             count = Mathf.Min(count, emitters.Length);
             var data = new Vector4[count * 3];

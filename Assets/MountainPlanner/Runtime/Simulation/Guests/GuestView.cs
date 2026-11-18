@@ -21,7 +21,7 @@ namespace MountainPlanner.Simulation
 
         public int SkierCount;
         /// <summary>Skiers by <see cref="GuestState"/>, indexed by its value.</summary>
-        public readonly int[] ByState = new int[8];
+        public readonly int[] ByState = new int[10];   // every GuestState, RD-2's two included
 
         // GU-03: the day's demand, per archetype, and what each line of the stack did to it.
         public readonly int[] Demand = new int[Pacing.Archetypes];

@@ -66,6 +66,7 @@ namespace MountainPlanner.Presentation.Design
         {
             Shader.SetGlobalVector(ParamsId, Vector4.zero);
             if (_quit) return;   // a map disposed while the game quits makes no new buffers
+            if (!SystemInfo.supportsComputeShaders) return;   // no buffers to bind (task 4.24: a -nographics player has no compute shaders; it still opens the area and runs the simulation)
             if (_nonePoints == null || !_nonePoints.IsValid())
             {
                 _nonePoints = new GraphicsBuffer(GraphicsBuffer.Target.Structured, 1, Marshal.SizeOf<Point>()) { name = "Trail points (none)" };
@@ -173,6 +174,7 @@ namespace MountainPlanner.Presentation.Design
         /// <summary>Packs what <see cref="Prepare"/> worked out into the buffers (main thread). Returns how many trails it drew.</summary>
         public int Upload()
         {
+            if (!SystemInfo.supportsComputeShaders) return 0;   // nothing can be drawn (task 4.24: a -nographics player has no compute shaders; it still opens the area and runs the simulation)
             var watch = System.Diagnostics.Stopwatch.StartNew();
             double shapesMs = _shapesMs, fieldsMs = _fieldsMs;
             if (!_show)

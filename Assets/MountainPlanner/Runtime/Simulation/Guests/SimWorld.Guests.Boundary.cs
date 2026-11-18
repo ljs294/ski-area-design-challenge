@@ -164,6 +164,10 @@ namespace MountainPlanner.Simulation
             {
                 int rank = 0;
                 for (int k = _lineFirst[i]; k >= 0; k = _guests.LineNext[k]) _rankOf[k] = (ushort)Math.Min(ushort.MaxValue, rank++);
+                // RD-2: the top line's ranks, its own count from the front (a skier is in one line at a time).
+                if (i >= _topFirst.Length) continue;
+                rank = 0;
+                for (int k = _topFirst[i]; k >= 0; k = _guests.LineNext[k]) _rankOf[k] = (ushort)Math.Min(ushort.MaxValue, rank++);
             }
             var frame = SkierRender.Back;
             int n = 0;
@@ -176,7 +180,7 @@ namespace MountainPlanner.Simulation
                 ushort segment = edge >= 0 ? SegmentCode(edge) : lift >= 0 ? LiftCode(lift) : (ushort)0;
                 uint a, b;
                 ushort rank = 0;
-                if (st == (byte)GuestState.Riding && lift >= 0 && lift < Design.Lifts.Length)
+                if ((st == (byte)GuestState.Riding || st == (byte)GuestState.RidingDown) && lift >= 0 && lift < Design.Lifts.Length)
                 {
                     long exit = _guests.RideExitRunMs[s];
                     a = unchecked((uint)(exit - RideSpanMs(Design.Lifts[lift])));
@@ -184,7 +188,7 @@ namespace MountainPlanner.Simulation
                 }
                 else
                 {
-                    bool queued = st == (byte)GuestState.Queued;
+                    bool queued = st == (byte)GuestState.Queued || st == (byte)GuestState.QueuedDown;
                     a = (uint)Math.Max(0, (queued ? _guests.JoinTick[s] : _guests.EntryTick[s]) - _dayStartTick);
                     b = queued ? 0u : (uint)Math.Max(0, _guests.ExitTick[s] - _dayStartTick);
                     if (queued) rank = _rankOf[s];
@@ -358,7 +362,7 @@ namespace MountainPlanner.Simulation
             for (int k = 0; k < _trailPop.Length; k++) o.U8(_trailPop[k]);
         }
 
-        internal void ReadGuestState(SidecarReader r)
+        internal void ReadGuestState(SidecarReader r, int version)
         {
             int cap = r.Count(1 << 20);
             int record = r.Count(4096);
@@ -386,7 +390,7 @@ namespace MountainPlanner.Simulation
                 _guests.Home[s] = r.I32(); _guests.StayLaps[s] = r.U8(); _guests.ArriveTick[s] = r.I64();
                 _guests.PartyId[s] = r.I32(); _guests.Lead[s] = r.Slot(Pacing.SkierCap); _guests.Member[s] = r.SlotOrNone(Pacing.SkierCap);
                 _guests.PartySize[s] = r.U8(); _guests.PartyHere[s] = r.U8();
-                _guests.State[s] = r.Enum(1, 7, "A skier's state"); _guests.Homeward[s] = r.Enum(0, 1, "A skier's way home");
+                _guests.State[s] = r.Enum(1, version >= SimSidecar.RideDownVersion ? 9 : 7, "A skier's state"); _guests.Homeward[s] = r.Enum(0, 1, "A skier's way home");
                 _guests.Node[s] = r.I32(); _guests.Edge[s] = r.I32(); _guests.Lift[s] = r.I32();
                 _guests.EntryTick[s] = r.I64(); _guests.ExitTick[s] = r.I64(); _guests.DueTick[s] = r.I64(); _guests.RideExitRunMs[s] = r.I64();
                 _guests.Lane[s] = r.U8(); _guests.Speed[s] = (short)r.U16(); _guests.Laps[s] = r.U8();

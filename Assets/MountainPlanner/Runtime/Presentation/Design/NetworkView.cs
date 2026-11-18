@@ -8,7 +8,7 @@ namespace MountainPlanner.Presentation.Design
     /// <summary>
     /// The Network view's diagram (task P3-10; the approved mockup, owner findings 1–7 and R2-1–R2-3), drawn over a dark
     /// relief while Analysis › Network is open: runs pale with chevrons pointing downhill, lifts red with chevrons
-    /// pointing up, a stretch no lift serves amber and dashed, a run that leads nowhere ending in an amber bar, paths
+    /// pointing up (a gondola's both ways: it carries skiers down too, task 4.24 PR B), a stretch no lift serves amber and dashed, a run that leads nowhere ending in an amber bar, paths
     /// dashed white, and every node a circle (junctions large and white, lift ends red, path ends small, a run's own
     /// start or end open). A pick (a trail segment, a lift or a node) lights what a skier can reach from it in each
     /// thing's own colour, the picked one wider with a white glow, the rest grey; hover widens only the segment or node
@@ -40,6 +40,8 @@ namespace MountainPlanner.Presentation.Design
             public ulong Id;
             public Vector3 Bottom, Top;
             public bool Connected;
+            /// <summary>Task 4.24 PR B: it carries skiers down too (a gondola): chevrons both ways.</summary>
+            public bool RidesDown;
         }
 
         public struct Node
@@ -295,6 +297,8 @@ namespace MountainPlanner.Presentation.Design
                     Ribbon(pts, w, c, 0, 0);
                     Chevrons(pts, White, 40);
                 }
+                // Task 4.24 PR B: a gondola carries skiers down as well, so its chevrons point both ways.
+                if (l.RidesDown) Chevrons(Two(l.Top, l.Bottom), White, 40);
                 if (!l.Connected) Ring(l.Top, 11, 2.4f, Warn);   // NW-12: no way down
             }
             // Nodes: every one a circle (finding 1).

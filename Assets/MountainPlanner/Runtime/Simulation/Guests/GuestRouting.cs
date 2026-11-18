@@ -14,6 +14,12 @@ namespace MountainPlanner.Simulation
         int[] _homeStep = Array.Empty<int>();
         /// <summary>GU-07: the best board-only score of a run leaving each node, per band — what a lift's top is worth.</summary>
         int[] _bestAtNode = Array.Empty<int>();
+        /// <summary>
+        /// RD-3 (task 4.24 PR B): 1 where this band can get home from the node **without riding down** — by trails, paths
+        /// and lifts upward, as before PR B. A party is offered the ride down only where this is 0 (rule 1: no fitting way
+        /// down from the top).
+        /// </summary>
+        byte[] _skisHome = Array.Empty<byte>();
         /// <summary>Lifts by their top station, as a chain, so the reverse search can ride a lift upward.</summary>
         int[] _nodeTop = Array.Empty<int>(), _topNext = Array.Empty<int>();
         /// <summary>GU-05, GU-17: the band a skier must be to take each edge, and the band its sign claims.</summary>
@@ -42,6 +48,7 @@ namespace MountainPlanner.Simulation
                 _dist = new int[perBand];
                 _homeStep = new int[perBand];
                 _bestAtNode = new int[perBand];
+                _skisHome = new byte[perBand];
             }
             if (_heapNode.Length != nodes + 1) { _heapNode = new int[nodes + 1]; _heapPos = new int[Math.Max(1, nodes)]; }
             if (_gateBand.Length != edges) { _gateBand = new byte[edges]; _fitBand = new byte[edges]; _edgeCost = new int[edges]; }
@@ -128,38 +135,16 @@ namespace MountainPlanner.Simulation
             var net = _guestsNetwork;
             if (net == null || _dist.Length == 0) return;
             int n = net.NodeCount;
+            // RD-1: the lifts that carry riders down now. With none (a mountain of chairs, none downloading) the search is
+            // exactly the one before PR B, run once per band.
+            bool anyDown = false;
+            for (int i = 0; i < LiftsNow && !anyDown; i++) anyDown = CarriesDown(i);
             for (int band = 0; band < Pacing.Bands; band++)
             {
                 int at = band * n;
-                for (int k = 0; k < n; k++) { _dist[at + k] = NoWayHome; _homeStep[at + k] = NoOption; }
-                _heapCount = 0;
-                for (int k = 0; k < _baseCount; k++)
-                {
-                    int b = _baseNode[k];
-                    if (b < 0 || b >= n || _dist[at + b] == 0) continue;
-                    _dist[at + b] = 0;
-                    HeapPush(at, b);
-                }
-                while (_heapCount > 0)
-                {
-                    int v = HeapPop(at);
-                    int dv = _dist[at + v];
-                    // Edges that run into v: skiing one takes you from its from-node to v.
-                    for (int k = 0; k < net.IntoCount[v]; k++)
-                    {
-                        int e = net.IntoEdge[net.IntoFirst[v] + k];
-                        if (!EdgeAllowed(e, band)) continue;
-                        Relax(at, net.EdgeFrom[e], dv + _edgeCost[e], e, v, n);
-                    }
-                    // A lift whose top is v: riding it takes you from its bottom to v (LO-10's way down, per band).
-                    for (int i = _nodeTop[v]; i >= 0; i = _topNext[i])
-                    {
-                        if (!LiftOpenToSkiers(i)) continue;
-                        int from = Design.Lifts[i].BottomNode;
-                        if (from < 0 || from >= n) continue;
-                        Relax(at, from, dv + _liftCost[i], LiftOption | i, v, n);
-                    }
-                }
+                SearchHome(net, band, at, n, rideDown: false);
+                for (int k = 0; k < n; k++) _skisHome[at + k] = (byte)(_dist[at + k] != NoWayHome ? 1 : 0);
+                if (anyDown) SearchHome(net, band, at, n, rideDown: true);
                 // What the runs leaving each node are worth to this band, from the board alone (no crowd, no wait), so a
                 // lift's score can be looked up rather than searched (A2: the choice stays O(its own edges)).
                 for (int v = 0; v < n; v++)
@@ -176,6 +161,68 @@ namespace MountainPlanner.Simulation
                             if (score > best) best = score;
                         }
                     _bestAtNode[at + v] = best;
+                }
+                // Task 4.24 PR B: a node is also worth what an open lift leaving it leads to, so a lift that only feeds
+                // another (a gondola to a mid-station whose one way on is a chair) is worth that chair's runs, not
+                // nothing. Without it the arrival gate (GU-05) turned every band away from the gondola's bottom. Lift
+                // chains are short: one pass per lift reaches the fixed point.
+                for (int pass = 0; pass < LiftsNow; pass++)
+                {
+                    bool changed = false;
+                    for (int i = 0; i < LiftsNow; i++)
+                    {
+                        if (!LiftOpenToSkiers(i)) continue;
+                        int bottom = Design.Lifts[i].BottomNode, top = Design.Lifts[i].TopNode;
+                        if (bottom < 0 || bottom >= n || top < 0 || top >= n || _dist[at + top] == NoWayHome) continue;
+                        if (_bestAtNode[at + top] > _bestAtNode[at + bottom]) { _bestAtNode[at + bottom] = _bestAtNode[at + top]; changed = true; }
+                    }
+                    if (!changed) break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// One band's search backwards from the bases. With <paramref name="rideDown"/>, a lift that carries riders down
+        /// (RD-1) is also an edge from its top to its bottom (RD-3: the ride down counts on the way home).
+        /// </summary>
+        void SearchHome(SimNetwork net, int band, int at, int n, bool rideDown)
+        {
+            for (int k = 0; k < n; k++) { _dist[at + k] = NoWayHome; _homeStep[at + k] = NoOption; }
+            _heapCount = 0;
+            for (int k = 0; k < _baseCount; k++)
+            {
+                int b = _baseNode[k];
+                if (b < 0 || b >= n || _dist[at + b] == 0) continue;
+                _dist[at + b] = 0;
+                HeapPush(at, b);
+            }
+            while (_heapCount > 0)
+            {
+                int v = HeapPop(at);
+                int dv = _dist[at + v];
+                // Edges that run into v: skiing one takes you from its from-node to v.
+                for (int k = 0; k < net.IntoCount[v]; k++)
+                {
+                    int e = net.IntoEdge[net.IntoFirst[v] + k];
+                    if (!EdgeAllowed(e, band)) continue;
+                    Relax(at, net.EdgeFrom[e], dv + _edgeCost[e], e, v, n);
+                }
+                // A lift whose top is v: riding it takes you from its bottom to v (LO-10's way down, per band).
+                for (int i = _nodeTop[v]; i >= 0; i = _topNext[i])
+                {
+                    if (!LiftOpenToSkiers(i)) continue;
+                    int from = Design.Lifts[i].BottomNode;
+                    if (from < 0 || from >= n) continue;
+                    Relax(at, from, dv + _liftCost[i], LiftOption | i, v, n);
+                }
+                // RD-3: a lift whose bottom is v and which carries riders down: riding it takes you from its top to v.
+                if (!rideDown) continue;
+                for (int i = v < _nodeBottom.Length ? _nodeBottom[v] : -1; i >= 0; i = _bottomNext[i])
+                {
+                    if (i >= LiftsNow || !CarriesDown(i)) continue;
+                    int from = Design.Lifts[i].TopNode;
+                    if (from < 0 || from >= n) continue;
+                    Relax(at, from, dv + _liftCost[i], DownOption | i, v, n);
                 }
             }
         }
@@ -241,6 +288,13 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>GU-07: whether this band can still ski home from a node (the dead-end rule).</summary>
+        /// <summary>RD-3: whether this band can get home from a node without riding a lift down.</summary>
+        bool SkisHome(int node, int band)
+        {
+            if (_guestsNetwork == null || node < 0 || node >= _guestsNetwork.NodeCount) return false;
+            return _skisHome[band * _guestsNetwork.NodeCount + node] != 0;
+        }
+
         bool CanReachBase(int node, int band)
         {
             if (_guestsNetwork == null || node < 0 || node >= _guestsNetwork.NodeCount) return false;
@@ -333,6 +387,7 @@ namespace MountainPlanner.Simulation
             int step = _homeStep[band * _guestsNetwork.NodeCount + node];
             if (step == NoOption) return NoOption;
             // The step may be a lift that has just closed to boarding; then there is no way home from here.
+            if ((step & DownOption) != 0) return CarriesDown(step & ~DownOption) ? step : NoOption;   // RD-3
             if ((step & LiftOption) != 0 && !LiftOpenToSkiers(step & ~LiftOption)) return NoOption;
             if ((step & LiftOption) == 0 && !EdgeAllowed(step, band)) return NoOption;
             return step;

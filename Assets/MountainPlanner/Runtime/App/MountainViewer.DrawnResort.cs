@@ -35,7 +35,8 @@ namespace MountainPlanner.App
             var clock = System.Diagnostics.Stopwatch.StartNew();
             var heights = _edits.Pipeline.Heights;
             var report = DrawnResort.Build(_edits.History, _edits.Earthwork, heights.Source, heights.Lattice, _resort.Frame,
-                                           id => LiftTypes.Measured(LiftType.Of(id), Lifts));
+                                           id => LiftTypes.Measured(LiftType.Of(id), Lifts),
+                                           gondola: Array.IndexOf(Environment.GetCommandLineArgs(), "-drawngondola") >= 0);   // task 4.24 PR B
             double buildMs = clock.Elapsed.TotalMilliseconds;
             while (!_edits.Applying.IsCompleted) yield return null;
             // The built models rebuild only once edits aren't busy (UpdateBuiltWork), so stop holding EditsBusy here; the

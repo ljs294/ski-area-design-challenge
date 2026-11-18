@@ -84,6 +84,7 @@ namespace MountainPlanner.Simulation
             WriteWeatherEventState(o);
             WriteLakeState(o);
             WriteSourceState(o);
+            WriteRideDownState(o);
         }
 
         internal void ReadState(SidecarReader r, SimSidecar.Header header)
@@ -142,7 +143,7 @@ namespace MountainPlanner.Simulation
             if (header.SidecarVersion >= 4)
             {
                 PrepareGuests(Design);
-                ReadGuestState(r);
+                ReadGuestState(r, header.SidecarVersion);
             }
             else ResetGuestsForOlderSave();
             // v1–v4 → v5 (task 4.05): no weather block; SimSidecar.Read gives the weather the area has now.
@@ -156,6 +157,8 @@ namespace MountainPlanner.Simulation
             // v1–v9 → v10 (task 4.14 PR B): no water block; every source starts full when the sources arrive.
             if (header.SidecarVersion >= SimSidecar.WaterVersion) ReadSourceState(r);
             else StartSourcesForOlderSave();
+            // v1–v10 → v11 (task 4.24 PR B): no top lines, nobody riding down, no rides down today.
+            if (header.SidecarVersion >= SimSidecar.RideDownVersion) ReadRideDownState(r);
         }
 
         /// <summary>

@@ -212,6 +212,8 @@ namespace MountainPlanner.App
             caption("On the hill");
             y += note(y, 0, $"{g.ByState[(int)GuestState.Arriving]} on their way · {g.ByState[(int)GuestState.Choosing]} deciding" +
                     $" · {g.ByState[(int)GuestState.Queued]} in line · {g.ByState[(int)GuestState.Riding]} riding up" +
+                    (g.ByState[(int)GuestState.QueuedDown] + g.ByState[(int)GuestState.RidingDown] > 0   // RD-2 (task 4.24 PR B)
+                        ? $" · {g.ByState[(int)GuestState.QueuedDown]} waiting at a top · {g.ByState[(int)GuestState.RidingDown]} riding down" : "") +
                     $" · {g.ByState[(int)GuestState.Skiing]} skiing · {g.ByState[(int)GuestState.Walking]} walking");
             y += row;
 
@@ -295,6 +297,8 @@ namespace MountainPlanner.App
             GuestState.Choosing => "deciding",
             GuestState.Queued => "in a line",
             GuestState.Riding => "riding up",
+            GuestState.QueuedDown => "in a line at the top",
+            GuestState.RidingDown => "riding down",
             GuestState.Skiing => "skiing",
             GuestState.Walking => "walking",
             GuestState.Dwelling => "stopped",

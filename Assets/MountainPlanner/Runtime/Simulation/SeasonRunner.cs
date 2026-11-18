@@ -87,6 +87,71 @@ namespace MountainPlanner.Simulation
                                  Domain.Design.DayHours.Default, lifts, trails.Length, net);
         }
 
+        /// <summary>
+        /// Task 4.24 PR B (RD-1..RD-5): <see cref="GuestsDesign"/>'s two chairs, plus lift 303 from the base to a third top
+        /// whose only way home is a black (16). With <paramref name="gondola"/> it is a gondola, which beginners may ride up
+        /// to look and ride back down (RD-4) and anyone may ride down; without, the same line as a detachable chair, which
+        /// no beginner takes. The pair is the report's (and the tests') with-and-without. Without <paramref name="peakTrail"/>
+        /// the black is gone (closed mid-day, say): the chair downloads (LO-10) and the gondola is the only way down.
+        /// </summary>
+        public static SimDesign RideDownDesign(bool gondola, long revision = 1, bool peakTrail = true)
+        {
+            const int Base = 0, LowTop = 1, HighTop = 2, Peak = 3;
+            var trails = new ulong[] { 11, 12, 13, 14, 16 };
+            var edges = new List<(int from, int to, int trail)>
+            {
+                (LowTop, Base, 0), (LowTop, Base, 1), (HighTop, Base, 2), (HighTop, Base, 3),
+                (Peak, Base, 4),      // 16: a black, the peak's only way home
+            };
+            if (!peakTrail) edges.RemoveAt(4);
+            var facts = new List<TrailEdgeFacts>
+            {
+                Facts(0, 120, 1200), Facts(1, 80, 900), Facts(0, 100, 1800), Facts(2, 60, 1000), Facts(2, 60, 1400),
+            };
+            var lengths = new List<int> { 1_200_000, 900_000, 1_800_000, 1_000_000, 1_400_000 };
+            var net = SimNetwork.Of(4, edges, trails, facts, lengths);
+            var lifts = new[]
+            {
+                new LiftInput(101, true, LiftSchedule.Daily, null, LiftKind.FixedGripChair, 4, 6000, 300_000, LowTop, Base),
+                new LiftInput(202, true, LiftSchedule.Daily, null, LiftKind.FixedGripChair, 4, 6000, 420_000, HighTop, Base),
+                new LiftInput(303, true, LiftSchedule.Daily, null, gondola ? LiftKind.Gondola : LiftKind.DetachableChair,
+                              gondola ? 8 : 6, 9000, 480_000, Peak, Base),
+            };
+            return new SimDesign(revision, 0x51BE_5700_0000_0303UL ^ (ulong)revision ^ (gondola ? 1UL : 0UL), 0x5EED_0042UL,
+                                 Domain.Design.DayHours.Default, lifts, trails.Length, net);
+        }
+
+        /// <summary>
+        /// Task 4.24 PR B: the drawn resort's <c>-drawngondola</c> layout in miniature: gondola 303 from the base (node 0) to
+        /// an upper station (node 1) with no run back down; Summit chair 404 from there to the summit (node 2), whose blacks
+        /// and an expert run end back at the gondola's top; and beginner chair 101 at the base with its green and blue. The
+        /// upper mountain's skiers can leave it only by riding the gondola down, which the review capture is meant to show.
+        /// </summary>
+        public static SimDesign UpperMountainDesign(long revision = 1)
+        {
+            const int Base = 0, GondolaTop = 1, Summit = 2, LowTop = 3;
+            var trails = new ulong[] { 11, 12, 21, 22, 23 };
+            var edges = new List<(int from, int to, int trail)>
+            {
+                (LowTop, Base, 0), (LowTop, Base, 1),
+                (Summit, GondolaTop, 2), (Summit, GondolaTop, 3), (Summit, GondolaTop, 4),
+            };
+            var facts = new List<TrailEdgeFacts>
+            {
+                Facts(0, 120, 1000), Facts(1, 80, 900), Facts(2, 60, 1000), Facts(2, 80, 1100), Facts(3, 50, 900),
+            };
+            var lengths = new List<int> { 1_000_000, 900_000, 1_000_000, 1_100_000, 900_000 };
+            var net = SimNetwork.Of(4, edges, trails, facts, lengths);
+            var lifts = new[]
+            {
+                new LiftInput(101, true, LiftSchedule.Daily, null, LiftKind.FixedGripChair, 4, 6000, 300_000, LowTop, Base),
+                new LiftInput(303, true, LiftSchedule.Daily, null, LiftKind.Gondola, 8, 9000, 480_000, GondolaTop, Base),
+                new LiftInput(404, true, LiftSchedule.Daily, null, LiftKind.DetachableChair, 6, 7200, 300_000, Summit, GondolaTop),
+            };
+            return new SimDesign(revision, 0x51BE_5700_0000_0404UL ^ (ulong)revision, 0x5EED_0042UL,
+                                 Domain.Design.DayHours.Default, lifts, trails.Length, net);
+        }
+
         /// <summary>One trail's facts for <see cref="GuestsDesign"/>: its band, its width in feet and its length.</summary>
         static TrailEdgeFacts Facts(byte band, int widthFeet, int metres)
         {
@@ -113,7 +178,7 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>SI-08's pinned fold of the golden script over two label years. A behaviour change re-pins it, approved.</summary>
-        public const ulong GoldenFoldValue = 0xDCB4B99D9DAB75B5UL;   // re-pinned at 4.14 PR B (Pacing v10: the water sources' numbers, WS-03 season factors, MinPool, the lake limit, evaporation; the golden design has no water, so only the table's hash moves it; owner OK 2026-11-18), over 0x07E5A422674F5E17; re-pinned at 4.07 PR A2 finding 2 (SN-09 v4: SnowThinUm 5 mm; owner OK 2026-11-15), over 0xBE201D66E1713767; re-pinned at 4.07 PR A2 round 2 (Pacing: SN-06 v3's ShedPileRatio; the fixture sends no snow inputs, so only the table's hash moves it; for the owner's OK at the review, 2026-11-14), over A2 0x11C61B236702619C; re-pinned at 4.07 PR A2 (Pacing v9: the natural snow's numbers, SN-06 v2's run-out fan among them; the golden season sends no snow inputs, so only the table's hash moves it; owner OK with the plan 2026-11-14), over A1 0x46763774A22C2C03; re-pinned at 4.07 PR A1 (weather rows v2: WX-26 v2's afternoon dew, WX-03 v4's 32–37 °F rain/snow ramp, the liquid correction over 600 seeds and PowderDayIn over 300, the cloud base and fog on the hour's depression; the seven sites re-recorded; owner plan OK and Coordinator clear 2026-11-13), over 4.09 A 0xEC4F3D1560DC79EB; re-pinned at 4.09 PR A (Pacing v8: the lakes' numbers; the golden design has no water, so only the table's hash moves it; owner OK with the plan 2026-11-13), over 4.05 PR C 0x0286096DBB30C488; re-pinned at 4.05 PR C (Pacing v7 with the week lean 0.85, WX-41 events, WX-42 alerts, WX-44 v2 pulls and the forecast's issue in the hash, sidecar v6; owner and Coordinator OK 2026-11-13), over A3 0x78F54C0EFBDE2342; re-pinned at 4.05 PR A3 (WX-37 v2 pressure-aware wet bulb, WX-38 v3 amount-weighted gradient: the seven sites re-recorded; owner OK 2026-11-12), over B2 0x86882E603CE5D69A; B2 (Pacing v6: the map's static-input and PR C's forecast numbers; owner OK 2026-11-11, closing plan), over B1 0xF3B0438B4C621B3D; B1 (the weather plays at WindScale 0.85, real top-station gusts, every wind check a boundary, Pacing v5; owner OK 2026-11-11), over 4.13 0x5921F6F22F4F9B46
+        public const ulong GoldenFoldValue = 0xDC415E6B8E6522F3UL;   // re-pinned at 4.24 PR B (Pacing v11: RideDownScore; no design in these runs carries riders down, so only the table's hash moves it; chairs-only guest days identical to main; for the owner's OK before commit, 2026-11-18), over 0xDCB4B99D9DAB75B5; re-pinned at 4.14 PR B (Pacing v10: the water sources' numbers, WS-03 season factors, MinPool, the lake limit, evaporation; the golden design has no water, so only the table's hash moves it; owner OK 2026-11-18), over 0x07E5A422674F5E17; re-pinned at 4.07 PR A2 finding 2 (SN-09 v4: SnowThinUm 5 mm; owner OK 2026-11-15), over 0xBE201D66E1713767; re-pinned at 4.07 PR A2 round 2 (Pacing: SN-06 v3's ShedPileRatio; the fixture sends no snow inputs, so only the table's hash moves it; for the owner's OK at the review, 2026-11-14), over A2 0x11C61B236702619C; re-pinned at 4.07 PR A2 (Pacing v9: the natural snow's numbers, SN-06 v2's run-out fan among them; the golden season sends no snow inputs, so only the table's hash moves it; owner OK with the plan 2026-11-14), over A1 0x46763774A22C2C03; re-pinned at 4.07 PR A1 (weather rows v2: WX-26 v2's afternoon dew, WX-03 v4's 32–37 °F rain/snow ramp, the liquid correction over 600 seeds and PowderDayIn over 300, the cloud base and fog on the hour's depression; the seven sites re-recorded; owner plan OK and Coordinator clear 2026-11-13), over 4.09 A 0xEC4F3D1560DC79EB; re-pinned at 4.09 PR A (Pacing v8: the lakes' numbers; the golden design has no water, so only the table's hash moves it; owner OK with the plan 2026-11-13), over 4.05 PR C 0x0286096DBB30C488; re-pinned at 4.05 PR C (Pacing v7 with the week lean 0.85, WX-41 events, WX-42 alerts, WX-44 v2 pulls and the forecast's issue in the hash, sidecar v6; owner and Coordinator OK 2026-11-13), over A3 0x78F54C0EFBDE2342; re-pinned at 4.05 PR A3 (WX-37 v2 pressure-aware wet bulb, WX-38 v3 amount-weighted gradient: the seven sites re-recorded; owner OK 2026-11-12), over B2 0x86882E603CE5D69A; B2 (Pacing v6: the map's static-input and PR C's forecast numbers; owner OK 2026-11-11, closing plan), over B1 0xF3B0438B4C621B3D; B1 (the weather plays at WindScale 0.85, real top-station gusts, every wind check a boundary, Pacing v5; owner OK 2026-11-11), over 4.13 0x5921F6F22F4F9B46
 
         /// <summary>
         /// One fold of every face-hour hash of the golden run to the given face day (the pinned value). Task 4.05: the golden

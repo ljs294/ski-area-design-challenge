@@ -42,6 +42,11 @@ namespace MountainPlanner.Presentation.Guests
         /// <summary>Task 4.22: per place, the way its skier faces (LineLayout.Facing).</summary>
         [ReadOnly] public NativeArray<float2> SlotFacing;
         [ReadOnly] public NativeArray<int2> LiftSlots;
+        /// <summary>
+        /// Task 4.24 PR B (RD-2): where the top lines' places start in <see cref="LiftSlots"/>: lift i's top line is entry
+        /// <c>TopSlotsAt + i</c> (the layout's mirrored inputs). Zero entries past the end: the line stands round the top.
+        /// </summary>
+        public int TopSlotsAt;
         /// <summary>Per lift index: the rope travel drawn now (ms, cut to 32 bits), and 1 when riders are drawn (tows; 2 for a
         /// carpet, task 4.22).</summary>
         [ReadOnly] public NativeArray<uint> RopeNow;
@@ -108,30 +113,34 @@ namespace MountainPlanner.Presentation.Guests
                 facing = new float4(Flat(to - from), math.distance(from, to) * Progress(r) / StrideMetres, 0);
                 cls = ClassStanding;
             }
-            else if (st == GuestState.Queued)
+            else if (st == GuestState.Queued || st == GuestState.QueuedDown)
             {
                 int lift = r.Index;
-                int2 s = lift < LiftSlots.Length ? LiftSlots[lift] : int2.zero;
+                // RD-2: the top line has its own places, laid like a bottom line at the top station's down side.
+                int at = st == GuestState.QueuedDown ? TopSlotsAt + lift : lift;
+                int2 s = at < LiftSlots.Length ? LiftSlots[at] : int2.zero;
                 if (s.y <= 0) { p = r.Node < Nodes.Length ? Ring(Nodes[r.Node], r.Serial) : float3.zero; cls = ClassOverflow; }
                 // Lines grow as long as they need (owner, 2026-11-10): a skier past the end only waits a frame for the
                 // layout to lay more places, standing at the tail meanwhile, never in a pile round it.
                 else { p = Slots[s.x + math.min((int)r.Rank, s.y - 1)]; cls = ClassQueued; }
                 // Facing the front of the line along its pass (task 4.22: not at the neighbour in the row).
                 int rank = math.min((int)r.Rank, s.y - 1);
-                float3 ahead = s.y > 0 && s.x + rank < SlotFacing.Length ? new float3(SlotFacing[s.x + rank].x, 0, SlotFacing[s.x + rank].y) : LiftDirection(lift);
+                float3 ahead = s.y > 0 && s.x + rank < SlotFacing.Length ? new float3(SlotFacing[s.x + rank].x, 0, SlotFacing[s.x + rank].y)
+                    : st == GuestState.QueuedDown ? -LiftDirection(lift) : LiftDirection(lift);
                 facing = new float4(Flat(ahead), -1, 0);
                 ease = true;
             }
-            else if (st == GuestState.Riding)
+            else if (st == GuestState.Riding || st == GuestState.RidingDown)
             {
                 int lift = r.Index;
                 if (lift >= LiftPaths.Length || lift >= RopeNow.Length) { Hide(i); return; }
                 uint now = RopeNow[lift];
                 int span = (int)(r.ExitTick - r.EntryTick);
                 float f = span > 0 ? math.saturate((int)(now - r.EntryTick) / (float)span) : 1f;
-                p = OnLift(lift, f);
-                facing = new float4(Flat(LiftDirection(lift)), -1, 0);
-                if (lift >= DrawRiders.Length || DrawRiders[lift] == 0)
+                bool down = st == GuestState.RidingDown;   // RD-2: the same line, top to bottom
+                p = OnLift(lift, down ? 1f - f : f);
+                facing = new float4(Flat(down ? -LiftDirection(lift) : LiftDirection(lift)), -1, 0);
+                if (down || lift >= DrawRiders.Length || DrawRiders[lift] == 0)
                 {
                     // LO-06: a chair's rider isn't drawn, but where it is still is (the follow camera glides up the line
                     // with it, about a chair's height over the ground).

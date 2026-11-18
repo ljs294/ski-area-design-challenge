@@ -43,6 +43,10 @@ namespace MountainPlanner.Simulation
         // (a base quad on a holiday wants thousands), costs nothing per lift, and a dump is a walk of the chain.
         int[] _lineFirst = Array.Empty<int>(), _lineLast = Array.Empty<int>(), _lineCount = Array.Empty<int>();
         int[] _rideFirst = Array.Empty<int>(), _rideLast = Array.Empty<int>(), _rideCount = Array.Empty<int>();
+        // RD-2 (task 4.24 PR B): the line at the top and the riders on the way down, chains over the same columns
+        int[] _topFirst = Array.Empty<int>(), _topLast = Array.Empty<int>(), _topCount = Array.Empty<int>();
+        int[] _downFirst = Array.Empty<int>(), _downLast = Array.Empty<int>(), _downCount = Array.Empty<int>();
+        int[] _ridesDown = Array.Empty<int>();
         // the carriers' riders (LO-05): one byte per carrier slot in flight on the way up
         byte[] _occ = Array.Empty<byte>();
         int[] _occOffset = Array.Empty<int>(), _occSlots = Array.Empty<int>();
@@ -78,6 +82,10 @@ namespace MountainPlanner.Simulation
             var occOffset = new int[n]; var occSlots = new int[n];
             var rides = new int[n]; var peak = new int[n]; var waitCount = new int[n]; var left = new int[n]; var released = new int[n];
             var waitTicks = new long[n]; var holdMs = new long[n];
+            var topFirst = new int[n]; var topLast = new int[n]; var topCount = new int[n];
+            var downFirst = new int[n]; var downLast = new int[n]; var downCount = new int[n]; var ridesDown = new int[n];
+            var newIndex = new int[Math.Max(1, oldCount)];
+            for (int k = 0; k < newIndex.Length; k++) newIndex[k] = -1;
             int total = 0;
             for (int i = 0; i < n; i++)
             {
@@ -94,8 +102,10 @@ namespace MountainPlanner.Simulation
                 calm[i] = -1;
                 wayDown[i] = 1;
                 lineFirst[i] = -1; lineLast[i] = -1; rideFirst[i] = -1; rideLast[i] = -1;
+                topFirst[i] = -1; topLast[i] = -1; downFirst[i] = -1; downLast[i] = -1;
                 int was = Array.BinarySearch(oldIds, 0, oldCount, ids[i]);
                 if (was < 0 || was >= _intervalMs.Length) continue;
+                newIndex[was] = i;
                 downloading[i] = _downloading[was]; wayDown[i] = _wayDown[was];
                 calm[i] = _calmSince[was]; gust[i] = _weatherGustTenths[was]; feed[i] = _feedPerMin[was]; acc[i] = _feedAcc[was];
                 rides[i] = _rides[was]; peak[i] = _peakLine[was]; waitCount[i] = _waitCount[was]; left[i] = _leftInLine[was];
@@ -104,6 +114,11 @@ namespace MountainPlanner.Simulation
                 // is copied and no skier changes place. A lift whose interval changed keeps them (they ride the new one).
                 lineFirst[i] = _lineFirst[was]; lineLast[i] = _lineLast[was]; lineCount[i] = _lineCount[was];
                 rideFirst[i] = _rideFirst[was]; rideLast[i] = _rideLast[was]; rideCount[i] = _rideCount[was];
+                if (was < _topCount.Length)
+                {
+                    topFirst[i] = _topFirst[was]; topLast[i] = _topLast[was]; topCount[i] = _topCount[was];
+                    downFirst[i] = _downFirst[was]; downLast[i] = _downLast[was]; downCount[i] = _downCount[was]; ridesDown[i] = _ridesDown[was];
+                }
                 if (_occSlots[was] == occSlots[i] && _intervalMs[was] == interval[i])
                 {
                     Buffer.BlockCopy(_occ, _occOffset[was], occ, occOffset[i], occSlots[i]);
@@ -118,6 +133,9 @@ namespace MountainPlanner.Simulation
             _rideFirst = rideFirst; _rideLast = rideLast; _rideCount = rideCount;
             _occ = occ; _occOffset = occOffset; _occSlots = occSlots;
             _rides = rides; _peakLine = peak; _waitCount = waitCount; _leftInLine = left; _released = released; _waitTicks = waitTicks; _holdFaceMs = holdMs;
+            _topFirst = topFirst; _topLast = topLast; _topCount = topCount;
+            _downFirst = downFirst; _downLast = downLast; _downCount = downCount; _ridesDown = ridesDown;
+            if (oldCount > 0) ReindexLiftSkiers(newIndex, oldCount);
             _lOpen = new int[n]; _lLast = new int[n]; _lStop = new int[n];
             FoldNetwork(n);
             LiftHoursToday();
@@ -130,6 +148,7 @@ namespace MountainPlanner.Simulation
             _bottomNext = new int[n];
             if (net == null)
             {
+                _nodeTopL = Array.Empty<int>(); _topNextL = new int[n];
                 _nodeBottom = Array.Empty<int>(); _searchStack = Array.Empty<int>(); _visitedAt = Array.Empty<int>(); _trailReached = Array.Empty<byte>();
                 return;
             }
@@ -143,6 +162,7 @@ namespace MountainPlanner.Simulation
                 _bottomNext[i] = _nodeBottom[b];
                 _nodeBottom[b] = i;
             }
+            FoldWayDownTops(net, n);
             _searchStack = new int[net.NodeCount + 1];
             _visitedAt = new int[net.NodeCount];
             _visitMark = 0;
@@ -202,6 +222,7 @@ namespace MountainPlanner.Simulation
                     into[i] = 1;
                     continue;
                 }
+                if (_downloading[i] != 0) EndDownloading(i);
                 _downloading[i] = 0;
                 into[i] = (byte)(way ? 1 : 0);
             }
@@ -228,6 +249,7 @@ namespace MountainPlanner.Simulation
                 for (int i = 0; i < _liftCount; i++)
                 {
                     if (_wayDown[i] == 0) continue;
+                    if (LiftKinds.BothWays(Design.Lifts[i].Kind)) continue;   // LO-10 v2: a gondola is its own way down
                     if (!Descend(i, mark: false)) { _wayDown[i] = 0; changed = true; }
                 }
             }
@@ -251,6 +273,7 @@ namespace MountainPlanner.Simulation
                 int node = _searchStack[--sp];
                 for (int j = _nodeBottom[node]; j >= 0; j = _bottomNext[j])
                     if (_wayDown[j] != 0) { found = true; if (!mark) return true; }
+                if (ReachesRideDown(node)) { found = true; if (!mark) return true; }
                 int e0 = net.FirstEdge[node];
                 if (e0 < 0) continue;
                 for (int e = e0; e < e0 + net.EdgeCount[node]; e++)
@@ -295,7 +318,7 @@ namespace MountainPlanner.Simulation
                     Events.Add(Tick, run ? SimEventType.LiftStarted : SimEventType.LiftStopped, i, (long)_liftIds[i]);
                 }
                 if (run) Advance(i, ms, sod);
-                else if (!InLiftDay(i, sod) && (_lineCount[i] > 0 || _rideCount[i] > 0 || _aboard[i] > 0)) CloseOut(i);
+                else if (!InLiftDay(i, sod) && (_lineCount[i] > 0 || _rideCount[i] > 0 || _aboard[i] > 0 || _topCount[i] > 0 || _downCount[i] > 0)) CloseOut(i);
                 if (_liftHold[i] != 0 && InLiftDay(i, sod)) _holdFaceMs[i] += _stepAdvance;
             }
         }
@@ -321,6 +344,8 @@ namespace MountainPlanner.Simulation
                     int slot = _occOffset[i] + (int)(a % _occSlots[i]);
                     _aboard[i] -= _occ[slot];
                     _occ[slot] = 0;
+                    // RD-2: the carrier that has just unloaded at the top takes the front of the top line down.
+                    if (_topCount[i] > 0) BoardDown(i, lift, a * iv + ride, iv);
                 }
             }
             // LO-01, LO-02: a carrier leaves the bottom every interval of run time; the front N board it. LO-07: past last chair
@@ -345,6 +370,8 @@ namespace MountainPlanner.Simulation
                 _released[i]++;
                 ReleaseRider(i, s);
             }
+            // RD-2: riders on the way down step off at the bottom, oldest first.
+            while (_downCount[i] > 0 && _guests.RideExitRunMs[_downFirst[i]] <= after) ReleaseRider(i, PopDown(i));
         }
 
         /// <summary>
@@ -353,36 +380,8 @@ namespace MountainPlanner.Simulation
         /// consecutive carriers and gathers again at the top. When the front party is too big for the seats *left*, the
         /// singles behind it fill them rather than the carrier going up half empty. Returns how many boarded.
         /// </summary>
-        int BoardCarrier(int i, int seats, long exitRun)
-        {
-            int room = seats, boarded = 0;
-            while (room > 0 && _lineCount[i] > 0)
-            {
-                int front = _lineFirst[i];
-                int size = PartyInLine(i, front);
-                if (size > room && size <= seats) break;       // it waits for a carrier of its own; the singles pass fills in
-                int take = size <= room ? size : room;         // a party bigger than the carrier splits across carriers
-                for (int k = 0; k < take; k++) { BoardOne(i, PopLine(i), exitRun); boarded++; }
-                room -= take;
-            }
-            // LO-02: the seats a waiting party can't use go to the singles behind it, within a bounded look down the line.
-            // The walk steps party by party, so it never boards a member out of the middle of one.
-            int prev = -1, s = _lineFirst[i], steps = 0, limit = 4 * seats;
-            while (room > 0 && s >= 0 && steps < limit)
-            {
-                int size = PartyInLine(i, s);
-                if (size == 1)
-                {
-                    int next = _guests.LineNext[s];
-                    RemoveFromLine(i, prev, s);
-                    BoardOne(i, s, exitRun);
-                    boarded++; room--;
-                    s = next; steps++;
-                }
-                else for (int k = 0; k < size && s >= 0; k++) { prev = s; s = _guests.LineNext[s]; steps++; }
-            }
-            return boarded;
-        }
+        int BoardCarrier(int i, int seats, long exitRun) =>
+            BoardFrom(_lineFirst, _lineLast, _lineCount, i, seats, exitRun, down: false);
 
         /// <summary>How many of <paramref name="s"/>'s party stand together at this point in the line (one to four).</summary>
         int PartyInLine(int i, int s)
@@ -473,7 +472,19 @@ namespace MountainPlanner.Simulation
         {
             _leftInLine[i] += _lineCount[i];
             while (_lineCount[i] > 0) DumpFromLine(i, PopLine(i));
-            while (_rideCount[i] > 0) { _released[i]++; ReleaseRider(i, PopRide(i)); }
+            // RD-5: a lift that carries riders down keeps its riders still going up aboard, and they come back down with it
+            // (the top would have no way down left for them); any other lift lets them off at the top, as LO-07 always did.
+            bool carriesDown = LiftKinds.BothWays(Design.Lifts[i].Kind) || _downloading[i] != 0;
+            while (_rideCount[i] > 0)
+            {
+                _released[i]++;
+                int s = PopRide(i);
+                if (carriesDown) { _guests.State[s] = (byte)GuestState.RidingDown; _ridesDown[i]++; }
+                ReleaseRider(i, s);
+            }
+            // RD-5: at the stop, everyone waiting at the top or on the way down steps off at the bottom at once.
+            while (_downCount[i] > 0) ReleaseRider(i, PopDown(i));
+            while (_topCount[i] > 0) CarryDownAtOnce(i, PopTop(i));
             Array.Clear(_occ, _occOffset[i], _occSlots[i]);
             _aboard[i] = 0;
         }
@@ -633,6 +644,7 @@ namespace MountainPlanner.Simulation
             Array.Clear(_rides, 0, _rides.Length); Array.Clear(_peakLine, 0, _peakLine.Length); Array.Clear(_waitCount, 0, _waitCount.Length);
             Array.Clear(_leftInLine, 0, _leftInLine.Length); Array.Clear(_released, 0, _released.Length);
             Array.Clear(_waitTicks, 0, _waitTicks.Length); Array.Clear(_holdFaceMs, 0, _holdFaceMs.Length);
+            Array.Clear(_ridesDown, 0, _ridesDown.Length);
             for (int i = 0; i < _liftCount; i++) if (_lineCount[i] > _peakLine[i]) _peakLine[i] = _lineCount[i];
         }
 
@@ -686,6 +698,10 @@ namespace MountainPlanner.Simulation
                 s.IntervalMs[i] = _intervalMs[i];
                 s.Seats[i] = (byte)Design.Lifts[i].Seats;
                 s.LiftOpenSecond[i] = _lOpen[i];
+                s.TopLineCount[i] = _topCount[i];
+                s.TopWaitMs[i] = (int)Math.Min(int.MaxValue, TopWaitMsOf(i));
+                s.RidesDownToday[i] = _ridesDown[i];
+                s.CarriesDown[i] = CarriesDown(i, sod);
             }
             var net = Design.Network;
             int t = net == null ? 0 : Math.Min(net.TrailIds.Length, s.TrailIds.Length);
@@ -747,6 +763,15 @@ namespace MountainPlanner.Simulation
                 h.Add(_rideCount[i]);
                 for (int s = _rideFirst[i]; s >= 0; s = _guests.RideNext[s]) h.Add(s);
                 for (int k = 0; k < _occSlots[i]; k++) h.Add(_occ[_occOffset[i] + k]);
+                // RD-2 (sidecar v11): folded only when there is something, so a world from before it hashes as it did.
+                if (_topCount[i] != 0 || _downCount[i] != 0 || _ridesDown[i] != 0)
+                {
+                    h.Add(_topCount[i]);
+                    for (int s = _topFirst[i]; s >= 0; s = _guests.LineNext[s]) h.Add(s);
+                    h.Add(_downCount[i]);
+                    for (int s = _downFirst[i]; s >= 0; s = _guests.RideNext[s]) h.Add(s);
+                    h.Add(_ridesDown[i]);
+                }
             }
             for (int k = 0; k < _trailReached.Length; k++) h.Add(_trailReached[k]);
         }
