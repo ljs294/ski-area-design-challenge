@@ -1036,8 +1036,8 @@ but no event, alert, crowd line or automation reads those.
   Wind holds (LO-11), keyed (alert type, face day). Critical ones pause per TM-12.
 - **WX-52, rain as a crisis arc.** Rain is the best crisis in the game, so it gets a beginning, a middle and an end:
   the alert two days out (time to push guns on the low trails tonight), the event on the day, and **attribution** on
-  the trail window and the day report ("Icy since the rain on Day 18 · groomed once · one more grooming to Loose
-  granular"), so the player can see the recovery. 4.07 and 4.17 build it: each trail keeps the id of the event that
+  the trail window and the day report ("Icy since the rain on Day 18 · two groomings to Machine
+  groomed": icy goes to Loose granular, then Machine groomed, SN-14 v3), so the player can see the recovery. 4.07 and 4.17 build it: each trail keeps the id of the event that
   last changed its type, and the recovery line reads SN-14's transitions. Test: on the fixture, a scripted rain then
   refreeze leaves an open trail Icy with the rain's event id and day, and two groomings bring it to MG.
 

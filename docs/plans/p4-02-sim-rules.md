@@ -331,7 +331,19 @@ density, so water and snow balance (SI-10).
 - **SN-02 v1- **SN-02 v1, the natural snow field** per 8 m cell over the ring: **SWE** (in, stored per SI-07: 0.001 mm `int`) and **density**
   (lb/ft³, stored kg/m³). Depth = SWE ÷ density, derived for the texture and `HeightAt`. The field replaces
   `SnowDepthField`'s metres as the source; the depth texture upload (dirty rows) is unchanged.
-- **SN-03 v2, the fine field (owner, 2026-11-07: "high def over painted trails and areas").** Sparse **1 m tiles**
+- **SN-03 v3, the fine field (task 4.07 PR B1, owner 2026-11-17), Q1).** Every 8 m cell a trail's 250 mm mask touches is split into a block
+  of fine cells, **one fine size per resort**: 1 m, 2 m or 4 m, the finest whose cells fit under
+  `Pacing.FineCellCap = 2,000,000` (1 m for a small resort, 2 m for a Jackson-sized one, 4 m beyond). Every trail gets
+  the same size, so no trail is second-class; at 2 m a trail 16 m wide still has all eight lanes (SN-24). Each fine cell
+  belongs to **one trail** (its nearest centreline where trails overlap) and carries its distance along that centreline
+  (grooming, SN-23) and its lane, 0–7 across the width (wear, SN-24). **The weather's physics stays on the 8 m cell:**
+  each fine cell under it takes the cell's new snow and its losses per unit area, exactly to the quantum (never more
+  than the fine cell holds; the rest stays on its neighbours so the block's sum is the cell's), then runs its own type,
+  age, packing, wear and moguls. The 8 m cell's planes then show the block's roll-up (its most common type, mean
+  quality and depth), so coverage, the ledger, the far view and the Snow conditions layer keep reading one source.
+  Machine snow (3 bytes a fine cell kept for it) and the station aprons arrive with 4.16. v2's 1 m everywhere would
+  cost a Jackson-sized resort 320 MB and 2.3 s more a skipped day.
+- **SN-03 v2 (superseded by v3), the fine field (owner, 2026-11-07: "high def over painted trails and areas").** Sparse **1 m tiles**
   (64 m, as the snow doc §3) cover every trail footprint with a one-cell margin and every Area's station aprons; off
   them the 8 m field is the only state. Inside a fine tile **the whole state lives at 1 m**: SWE, density, machine
   snow, groomed shape, and the conditions record (SN-04); the 8 m cell beneath holds the tile's area-weighted roll-up
@@ -497,7 +509,14 @@ density, so water and snow balance (SI-10).
   machine groomed, **HP** hard packed, **IS** icy surface, **CO** corn, **FG** frozen granular, **LG** loose granular,
   **WG** wet granular, **WP** wet powder. **SC** spring conditions is a **trail-level label** (SN-21) when no type
   covers ≥ 50 % of the trail, never a cell type. The snow doc's *crud* and *wind-board* fold into quality and HP.
-- **SN-14 v2, transitions** (task 4.07 PR A2, owner 2026-11-14) (approved with plan v2). The natural types only in A2; grooming and traffic arrive
+- **SN-14 v3, transitions (task 4.07 PR B1, owner 2026-11-17), Q4).** v2's four natural rules first, unchanged, then on the fine cells:
+  5. **Groomed** this night (SN-23 v3) → **machine groomed** (MG), age, passes and moguls 0. Frozen granular and icy
+     go to **loose granular** (LG) first; the next grooming makes them MG.
+  6. **Traffic**: passes ≥ `Pacing.PackedPasses = 200` on powder → **packed powder** (PP); passes ≥
+     `Pacing.HardPasses = 800` on PP or MG → **hard packed** (HP); 200 passes on frozen granular or icy → LG.
+  7. Five groomings in a row with no powder reset between them → **HP**.
+  Each change caused by rain, a refreeze or a grooming records its cause for WX-52's line (SN-34).
+- **SN-14 v2 (superseded by v3, its rules 1–4 kept), transitions** (task 4.07 PR A2, owner 2026-11-14) (approved with plan v2). The natural types only in A2; grooming and traffic arrive
   with PR B. Each face hour, after the snow energy, first match wins:
   1. **Powder** once 0.1 in of water has fallen since the last surface event (**wet powder** above a 31 °F wet bulb);
      the age starts again.
@@ -526,7 +545,11 @@ density, so water and snow balance (SI-10).
   the owner's by-day thresholds instead of the hour's melt: powder stays powder while the air is below **42 °F N,
   40 NE, 36 E, 30 SE, 28 S, 32 SW, 34 W, 38 NW** by day and 32 °F at night (interpolated by aspect). This is the
   rule the player feels on a sunny day; the SWE physics (SN-09) still melts what melts.
-- **SN-16 v2, quality** (task 4.07 PR A2, owner 2026-11-14) (approved with plan v2): the type's base (`Pacing.QualityBase`, the v1 table) × (1 − 0.004
+- **SN-16 v3, quality (task 4.07 PR B1, owner 2026-11-17)).** v2's type base × age term, then × (1 − 0.0003 per pass, floor 0.5) with the
+  passes since the last grooming or powder reset, then × (1 − 0.3 × moguls) for the bands below a trail's posted band
+  only (experts like moguls; GU-07 reads it by band, per segment). Worlds without trails or snow keep the 900
+  stand-in.
+- **SN-16 v2 (superseded by v3), quality** (task 4.07 PR A2, owner 2026-11-14) (approved with plan v2): the type's base (`Pacing.QualityBase`, the v1 table) × (1 − 0.004
   per face hour of age, floor 0.6), with the age in face hours (WX-22 v2). The traffic and mogul terms arrive with PR B.
   The cursor reads it as a word: Excellent from 0.8, Good from 0.6, Fair from 0.4, else Poor.
 - **SN-16 v1 (superseded), quality** per cell: the type's base quality × age and traffic terms: base **P .96, PP .90, MG .94,
@@ -563,7 +586,8 @@ density, so water and snow balance (SI-10).
 
 ### 4.5 Trails: coverage, open and closed, grooming, wear
 
-- **SN-19 v1, footprints on cells.** Each trail's area share per 8 m cell is precomputed from its 250 mm mask when
+- **SN-19 v1 (retired (task 4.07 PR B1, owner 2026-11-17)), footprints on cells.** SN-03 v3 gives every fine cell to one trail, so no area
+  shares are kept. The old text: each trail's area share per 8 m cell is precomputed from its 250 mm mask when
   built (and per segment, NW-08); coverage, quality and wear use these shares.
 - **SN-20 v2, readiness, and who opens a trail (OQ2, owner 2026-11-07: "the game knows, the player decides").** A
   trail cell is *covered* when total depth ≥ `Pacing.CoverGraded = 6 in` on a graded trail, 12 in on a natural one.
@@ -577,6 +601,10 @@ density, so water and snow balance (SI-10).
 - **SN-21 v1, the trail's conditions summary** (for the trail window and the rating 4.07 designs): the share of
   each type over the footprint, mean quality, ice share, mogul mean, coverage; **SC** when no type reaches 50 %.
   Per segment for the network (NW-08).
+- **SN-22 v3, the grooming setting's defaults (task 4.07 PR B1, owner 2026-11-17), Q3).** The settings are SN-22 v2's: *Groomed nightly*,
+  *Groom unless it's snowing tonight*, *Groom when ordered*, *Never*. A run defaults to *Groomed nightly*, a glade or
+  zone to *Never*, for new trails and old saves alike; *unless it's snowing tonight* is the player's choice. Every
+  trail's open switch defaults to Auto (SN-20).
 - **SN-22, the grooming setting (new trail attribute, NT29).** Per trail: *Groomed nightly*, *Groom when ordered*,
   *Never* (glades and zones default to Never). Saved in the design (a bump, §12). The groom direction is the
   trail's centreline direction (SH-05 derived).
@@ -597,13 +625,23 @@ density, so water and snow balance (SI-10).
   3. Cells go to **MG** with age 0, passes 0, moguls 0.
   A groomer can't push a whale that's still curing (SM-07) or snow deeper than `Pacing.GroomMaxDepth = 10 ft`.
   Animated groomers are Later; the night shows them driving (Presentation only).
-- **SN-30, a packed base lasts (owner).** Two effects make groomed and skier-packed snow outlast loose snow under the
+- **SN-23 v3, which trails are groomed (task 4.07 PR B1, owner 2026-11-17), Q5).** A Bare trail is skipped (nothing to push); Marginal and Ready
+  ones are groomed on any night their setting says. *Unless it's snowing tonight* reads the evening forecast once
+  (WX-43) and stores the night's decision, so the physics never reads the forecast. *When ordered* is a one-night
+  order (command 36). Each trail's keyed hour is drawn from its id inside the window.
+- **SN-30 v2, a packed base lasts (task 4.07 PR B1, owner 2026-11-17), Q2).** As v1, but `Pacing.PackedMeltFactor` applies only to
+  **packed fine cells**: ones groomed or skied since their last powder reset. Naturally settled snow, dense or not,
+  melts as A1 calibrated it, so the mountain's snow away from the trails doesn't move.
+- **SN-30 v1 (superseded by v2), a packed base lasts (owner).** Two effects make groomed and skier-packed snow outlast loose snow under the
   same weather. (a) Melt removes SWE (SN-09), so **an inch of melt takes 2½ in of depth off a 400 kg/m³ base and 10 in
   off 100 kg/m³ powder**: this falls out of SN-02 with no extra rule. (b) A dense pack holds less air and sheds less to
   wind and sun: the SWE melt and sublimation of SN-09 and SN-12 are multiplied by `Pacing.PackedMeltFactor =
   clamp(1 − 0.25 × (ρ − 200) ÷ 200, 0.75, 1)` (1 at ≤ 200 kg/m³, 0.75 at ≥ 400). Without grooming or traffic every
   trail melts out at the same pace; with them the groomed base is the last snow standing. (Tuned at 4.07.)
-- **SN-24 v2, wear.** A skier finishing a segment increments that **segment's hourly pass counter per lateral band**
+- **SN-24 v3, wear (task 4.07 PR B1, owner 2026-11-17)).** As v2, on SN-03 v3's lanes: every fine cell in a lane gains that lane's count for
+  the hour (each skier in the lane crosses each of its cells; no area share, SN-19 is retired) and loses its SWE
+  wear; on an ungroomed cell with grade ≥ 40 % moguls grow by SN-17. The counters start each hour at zero.
+- **SN-24 v2 (superseded by v3), wear.** A skier finishing a segment increments that **segment's hourly pass counter per lateral band**
   (`Pacing.WearBands = 8` across the width; the band is GU-16's lateral offset), O(1) per tick. At the face-hour step
   the snow system applies the hour's counts to the segment's cells in one banded pass: each cell gains passes by its
   band's count × area share × (segment width reference 100 ft ÷ actual width) and loses SWE **0.0002 in per pass ×
@@ -613,6 +651,11 @@ density, so water and snow balance (SI-10).
   it (owner, 2026-11-07).
 - **SN-25, snow on water.** New snow on an ice cell goes to the lake's snow-on-ice (LK-05); on open water it is a
   ledgered sink.
+
+- **SN-34, a trail's surface cause (task 4.07 PR B1, owner 2026-11-17), WX-52).** Each trail keeps the event that last changed its most
+  common type (rain on snow, a refreeze, a grooming) with its day, for the trail window's line ("Icy since the rain on
+  Day 18 · two groomings to Machine groomed"). The recovery count reads SN-14 v3: icy and frozen granular need two
+  groomings, LG one.
 
 ### 4.6 Machine snow (the output of §8)
 
