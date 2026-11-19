@@ -58,6 +58,9 @@ namespace MountainPlanner.Domain.Snowmaking
         public readonly bool[] ComponentHasWater;
         /// <summary>Plan distance from the nearest water along the pipes, ft (SG-07's "furthest from the source").</summary>
         public readonly double[] FromWaterFt;
+        /// <summary>Whether water can reach each node over open links, pumps only forward (HY-09 4, 19): a node it can't
+        /// gets no pressure on the screen, though the solve gives a stretch behind a check valve a number (no flow).</summary>
+        public bool[] Reached { get; private set; }
 
         // Links.
         public int LinkCount => LinkKind.Length;
@@ -295,6 +298,7 @@ namespace MountainPlanner.Domain.Snowmaking
             var adj = Adjacency();
             // Reach from water over every open link, pumps only forward, intakes and outlets only their way.
             var reachOpen = Reach(adj, k => !ValveClosed[k], -1);
+            Reached = reachOpen;
             var reachAll = Reach(adj, k => true, -1);
             for (int i = 0; i < Guns.Length; i++)
             {

@@ -443,8 +443,8 @@ echo    130 Snowmaking solver (4.15 PR A): the hand-checked networks, the 20 dia
 echo        ponds, then 500 guns solved in the game against the 20 ms budget (rebuilds the game; no GPU, no window).
 echo    131 Snowmaking network, hands on (4.15 PR B): build a pump house, a water line, a booster and guns in the game
 echo        and read the pressure live; Check lists the problems with fixes (a scratch copy of the demo mountain).
-echo    132 The snowmaking tools' tests, then the review pictures: the tools driven by script in the game, twelve
-echo        pictures in test-results\p4-15\shots (rebuilds the game; about 5 minutes).
+echo    132 The snowmaking tools' tests, then the review pictures: the tools, cards and map names driven by script
+echo        in the game, seventeen pictures in test-results\p4-15\shots (rebuilds the game; about 5 minutes).
 echo.
 echo     Q  Quit
 echo.
@@ -2361,7 +2361,10 @@ echo   6. Inline pump (I): hover the line (the arrow points away from the pump h
 echo      booster. The pressure past it rises about 300 psi.
 echo   7. Check (K): the problems by number, with Show me and a fix (Flip pump, Upsize, Open valve). Guns: Every gun
 echo      running shows whether the network could feed them all.
-echo   8. Undo (Ctrl Z) takes each step back; save, quit and reopen: the network is kept.
+echo   8. Close the Toolbox and click any part (a line, hydrant, gun, pump or pump house): its card shows the live
+echo      flow and pressure, why a gun is short with a fix, and buttons (Upsize, valves, Flip, Auto/On/Off, setpoint).
+echo      Click a line's or pump house's name to rename it. Names (P1, J2, H12) sit on the map with the Labels layer.
+echo   9. Undo (Ctrl Z) takes each step back; save, quit and reopen: the network is kept.
 start "" "%GAME%" -snowseed -simto 01-15 -data "%SN131%" -notitle
 goto done
 
@@ -2372,7 +2375,7 @@ call :projectfree || goto done
 set "SNT=%~dp0test-results\p4-15"
 if not exist "%SNT%" mkdir "%SNT%"
 echo The Snowmaking tools' tests (EditMode, a few minutes):
-"%UNITY%" -batchmode -projectPath "%~dp0." -runTests -testPlatform EditMode -testFilter "SnowToolTests|WaterToolTests" -testResults "%SNT%\editmode-snowtools.xml" -logFile "%SNT%\editmode-snowtools.log" <nul
+"%UNITY%" -batchmode -projectPath "%~dp0." -runTests -testPlatform EditMode -testFilter "SnowToolTests|SnowCardTests|WaterToolTests" -testResults "%SNT%\editmode-snowtools.xml" -logFile "%SNT%\editmode-snowtools.log" <nul
 if errorlevel 1 (echo   A test failed: see test-results\p4-15\editmode-snowtools.xml & goto done)
 echo   Passed.
 call :buildplayer

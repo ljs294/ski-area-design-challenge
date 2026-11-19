@@ -47,7 +47,7 @@ namespace MountainPlanner.Domain.Snowmaking
             if (Solved)
             {
                 for (int i = 0; i < g.NodeCount; i++)
-                    if (g.Unknown[i] >= 0) { GradePsi[i] = (float)s.Solver.GradePsi(i); PipePsi[i] = (float)s.Solver.Psi(i); Known[i] = true; }
+                    if (g.Unknown[i] >= 0 && (g.Reached == null || g.Reached[i])) { GradePsi[i] = (float)s.Solver.GradePsi(i); PipePsi[i] = (float)s.Solver.Psi(i); Known[i] = true; }
                 for (int k = 0; k < g.LinkCount; k++) LinkGpm[k] = s.Solver.Shut[k] ? 0f : (float)s.Solver.Q[k];
             }
             GunStates = (GunState[])s.GunStates.Clone();
@@ -56,7 +56,9 @@ namespace MountainPlanner.Domain.Snowmaking
             for (int i = 0; i < GunStage.Length; i++)
             {
                 GunStage[i] = (byte)s.GunStages[i].Number;
-                GunPsi[i] = double.IsNaN(s.GunPsi[i]) ? float.NaN : (float)s.GunPsi[i];
+                int node = g.GunNode[i];
+                bool reached = node >= 0 && (g.Reached == null || g.Reached[node]);
+                GunPsi[i] = double.IsNaN(s.GunPsi[i]) || !reached ? float.NaN : (float)s.GunPsi[i];
             }
             PumpStates = (PumpState[])s.PumpStates.Clone();
             AirDrawn = (int[])s.AirDrawn.Clone();

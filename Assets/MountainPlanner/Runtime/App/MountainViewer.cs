@@ -421,6 +421,7 @@ namespace MountainPlanner.App
             UpdateSkierHover();  // the dot under the pointer, and a click on one (task 4.13)
             UpdateLiftHover();   // the lift under the pointer glows (task 09, LT23)
             UpdateTrailHover();  // and a trail lights and opens its card (task P3-10, sections finding 4)
+            UpdateSnowHover();   // then snowmaking: a gun, node, pump house or water line lights and opens its card (task 4.15)
             UpdateWaterHover();  // then water: a dam, pond, stream or lake lights and opens its card (task 4.14, LK-10)
             _resort?.States?.Sync();
             UpdateShellPad();

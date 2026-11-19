@@ -43,7 +43,7 @@ namespace MountainPlanner.UI
     public sealed class LabelPlacement
     {
         /// <summary>The sets' ranks: lower places first.</summary>
-        public const int Lifts = 0, Areas = 1, Trails = 2, Landmarks = 3;
+        public const int Lifts = 0, Areas = 1, Trails = 2, Landmarks = 3, Snowmaking = 4;
 
         readonly List<LandmarkLabelOverlay> _sets = new List<LandmarkLabelOverlay>();
         readonly List<LabelBox> _taken = new List<LabelBox>(256);

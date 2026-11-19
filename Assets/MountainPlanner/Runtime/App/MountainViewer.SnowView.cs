@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Snowmaking;
 using MountainPlanner.Presentation;
+using MountainPlanner.Presentation.Design;
 using MountainPlanner.Presentation.Snowmaking;
+using MountainPlanner.UI;
 using UnityEngine;
 
 namespace MountainPlanner.App
@@ -33,6 +35,7 @@ namespace MountainPlanner.App
             if (!shown)
             {
                 if (_snowView != null) _snowView.Visible = false;
+                _snowLabels?.Update(cam, _resort.Surface, false);
                 return;
             }
             _snowView ??= new SnowNetworkView(_resort.Root.transform);
@@ -55,6 +58,49 @@ namespace MountainPlanner.App
                 _snowViewGround = ground;
             }
             _snowView.Follow(cam);
+            if (!ReferenceEquals(net, _snowLabelsFor)) BuildSnowLabels(net);
+            _snowLabels?.Update(cam, _resort.Surface, _hudShown && !PhotoOpen && Hud != null && Hud.LabelsOn);
+        }
+
+        LandmarkLabelOverlay _snowLabels;
+        SnowNetwork _snowLabelsFor;
+        readonly List<(string Name, MapLabelSpot[] Spots)> _snowLabelSpots = new List<(string, MapLabelSpot[])>();
+
+        /// <summary>
+        /// The network's names on the map (plan: P#/J#/H#), with the other sets' and never over them: pump houses first, then
+        /// each water line along its middle, then the inline pumps, the junctions and the hydrants, so a crowded view keeps
+        /// the names that matter and drops the hydrants'. Rebuilt when the network changes, never per frame.
+        /// </summary>
+        void BuildSnowLabels(SnowNetwork net)
+        {
+            _snowLabelsFor = net;
+            if (Hud == null) return;
+            _snowLabelSpots.Clear();
+            Vector3 Up(PointMm p, float up) { var v = SnowOnGround(p); v.y += up; return v; }
+            foreach (var h in net.Houses) _snowLabelSpots.Add((h.Name, new[] { MapLabelSpot.Upright(Up(h.Centre, 8)) }));
+            foreach (var p in net.Pipes)
+            {
+                double len = SnowGeometry.Length(p.Route);
+                if (len < 60_000 || string.IsNullOrEmpty(p.Name)) continue;   // under about 200 ft: its ends' names say enough
+                double mid = len / 2, half = System.Math.Min(20_000, len / 4);
+                _snowLabelSpots.Add((p.Name, new[] { new MapLabelSpot(Up(SnowGeometry.At(p.Route, mid), 2), Up(SnowGeometry.At(p.Route, mid - half), 2), Up(SnowGeometry.At(p.Route, mid + half), 2)) }));
+            }
+            var ends = new Dictionary<SnowId, int>();
+            foreach (var p in net.Pipes)
+            {
+                ends[p.From] = ends.TryGetValue(p.From, out int a) ? a + 1 : 1;
+                ends[p.To] = ends.TryGetValue(p.To, out int b) ? b + 1 : 1;
+            }
+            foreach (var kind in new[] { SnowNodeKind.Pump, SnowNodeKind.Junction, SnowNodeKind.Hydrant })
+                foreach (var n in net.Nodes)
+                {
+                    if (n.Kind != kind) continue;
+                    if (kind == SnowNodeKind.Junction && !n.IsTap && ends.TryGetValue(n.Id, out int meet) && meet == 2) continue;   // a bend
+                    _snowLabelSpots.Add((MountainPlanner.UI.Tools.SnowSnap.Label(net, n), new[] { MapLabelSpot.Upright(Up(n.At, 3)) }));
+                }
+            _snowLabels ??= new LandmarkLabelOverlay(Hud.ContourLabelLayer, _labelPlacement, LabelPlacement.Snowmaking,
+                                                     nudges: new[] { Vector2.zero, new Vector2(0, -18), new Vector2(0, 18) });
+            _snowLabels.SetLabels(_snowLabelSpots);
         }
 
         readonly List<double> _profileAt = new List<double>();
@@ -167,6 +213,9 @@ namespace MountainPlanner.App
             _snowView = null;
             _snowViewNet = null;
             _snowViewSol = null;
+            _snowLabelsFor = null;
+            _snowLabelSpots.Clear();
+            _snowLabels?.SetLabels(_snowLabelSpots);
         }
     }
 }

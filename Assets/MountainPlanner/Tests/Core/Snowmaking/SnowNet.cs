@@ -9,7 +9,7 @@ namespace MountainPlanner.Tests.Snowmaking
     /// A small kit for task 4.15's tests: networks laid out in feet on a ground the test describes, compiled with no bury
     /// so the hand calculations in the tests read straight off the drawings.
     /// </summary>
-    sealed class SnowNet
+    public sealed class SnowNet
     {
         public readonly List<SnowNode> Nodes = new List<SnowNode>();
         public readonly List<SnowPipe> Pipes = new List<SnowPipe>();

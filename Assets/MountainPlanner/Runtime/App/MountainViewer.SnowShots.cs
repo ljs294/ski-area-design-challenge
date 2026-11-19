@@ -267,10 +267,67 @@ namespace MountainPlanner.App
             LogSolve("12-check-wrong-way-pump");
             yield return Shot(dir, "12-check-wrong-way-pump");
             _tools.Close();
+            Hud.SetToolbox(false);
+
+            // 13–17: the cards, opened as a click with no tool armed opens them; each card's text goes to the log.
+            var net = Design.Document.Snow;
+            var cut = net.Guns.Where(g => _simNow?.Snowmaking is SnowSolution sol && sol.GunIndex(g.Id) is int gi && gi >= 0 && sol.GunStates[gi] == GunState.NoWater)
+                         .OrderBy(g => Vector2.Dot(Xz(g.At) - house, up)).FirstOrDefault();
+            if (cut != null)
+            {
+                ShowWaterCardFor(SnowCards.Key(cut.Id));
+                LookAt(Xz(cut.At), 160, Yaw(up) + 30, 50);
+                yield return SettleCard();
+                LogCard("13-gun-card-cut-off");
+                yield return Shot(dir, "13-gun-card-cut-off");
+            }
+            // The line's card where it was clicked a quarter of the way up, over the pressure layer.
+            SetLayerForCapture(MapLayers.Pressure, true);
+            _snowCardAtMm = SnowGeometry.Length(pipe.Route) * 0.25;
+            ShowWaterCardFor(SnowCards.Key(pipe.Id));
+            LookAt(Xz(SnowGeometry.At(pipe.Route, _snowCardAtMm)), 260, Yaw(up) + 25, 55);
+            yield return SettleCard();
+            LogCard("14-pipe-card");
+            yield return Shot(dir, "14-pipe-card");
+            SetLayerForCapture(MapLayers.Pressure, false);
+            // The wrong-way booster's card, then its Flip button and the card after.
+            var bad = net.Nodes.FirstOrDefault(n => n.Kind == SnowNodeKind.Pump && !n.Forward);
+            if (bad != null)
+            {
+                ShowWaterCardFor(SnowCards.Key(bad.Id));
+                LookAt(Xz(bad.At), 200, Yaw(up) + 25, 55);
+                yield return SettleCard();
+                LogCard("15-pump-card-wrong-way");
+                yield return Shot(dir, "15-pump-card-wrong-way");
+                Hud.PressWaterCardForTest("flip");
+                yield return WaitSnowSolve();
+                yield return SettleCard();
+                LogSolve("16-pump-card-flipped");
+                LogCard("16-pump-card-flipped");
+                yield return Shot(dir, "16-pump-card-flipped");
+            }
+            // The pump house's card, and the network's names on the map.
+            var built = Design.Document.Snow.Houses.FirstOrDefault();
+            if (built != null)
+            {
+                ShowWaterCardFor(SnowCards.Key(built.Id));
+                LookAt(Xz(built.Centre) + up * 90, 260, Yaw(up) + 25, 55);
+                yield return SettleCard();
+                LogCard("17-pump-house-card-labels");
+                yield return Shot(dir, "17-pump-house-card-labels");
+            }
+            Hud.CloseWaterCardIfOpen();
 
             Debug.Log("[SnowShots] done");
             Application.Quit(0);
         }
+
+        IEnumerator SettleCard()
+        {
+            for (int i = 0; i < 20; i++) yield return null;   // the card follows the solve; the labels place over a few frames
+        }
+
+        void LogCard(string shot) => Debug.Log($"[SnowShots] {shot}: {Hud.WaterCardTextForTest() ?? "no card"}");
 
         float H(Vector2 p) => _resort.Surface.HeightAt(p.x, p.y);
         static Vector2 Xz(PointMm p) => new Vector2((float)p.XMetres, (float)p.YMetres);

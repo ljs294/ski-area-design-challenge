@@ -505,6 +505,30 @@ namespace MountainPlanner.Domain.Design
         }
     }
 
+    /// <summary>A pump house's name (its card).</summary>
+    public sealed class RenamePumpHouse : DesignCommand
+    {
+        public SnowId Id { get; }
+        public string Name { get; }
+
+        public RenamePumpHouse(long baseRevision, SnowId id, string name) : base(baseRevision)
+        {
+            Id = id;
+            Name = name;
+        }
+
+        public override string Label => "Rename a pump house";
+
+        protected override CommandResult Run(DesignDocument doc)
+        {
+            var h = doc.Snow.FindHouse(Id);
+            if (h == null) return Missing(doc, "That pump house");
+            string name = Name?.Trim() ?? "";
+            if (DesignRules.NameProblem(name) is string p) return Invalid(doc, p);
+            return name == h.Name ? CommandResult.Accept(doc) : CommandResult.Accept(doc.WithSnow(doc.Snow.Put(h.WithName(name))));
+        }
+    }
+
     /// <summary>
     /// Remove pipes, nodes, pump houses or guns (one undo step). A pipe takes its taps with it, and its end nodes when
     /// nothing else meets them; a gun on a removed hydrant stays, disconnected (MapLibre's guard, re-specified: the tool
