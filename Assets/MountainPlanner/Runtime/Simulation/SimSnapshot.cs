@@ -184,6 +184,17 @@ namespace MountainPlanner.Simulation
         /// <summary>Task 4.07 PR A2: the snow is simulated; an hour of it is in flight; the day's ledger so far and the last day's.</summary>
         public bool SnowLive, SnowInFlight;
         public SnowLedger SnowToday, SnowLastDay;
+        /// <summary>Task 4.07 B1 part 2a, for the F1 readout: the fine size (0: no trail snow), its cells, the trails' mean depth
+        /// (mm) and packed share (‰) at the last hour roll, the trails groomed this face day, and the water the trails took off
+        /// the 8 m snow in all (µm, the ledger's missing term until 2c).</summary>
+        public int TrailFineMetres, TrailFineCells, TrailDepthMm, TrailPackedPermille, TrailsGroomedToday;
+        /// <summary>The trails' 8 m cells (blocks), and how many of them the Snow conditions layer shows as machine groomed.</summary>
+        public int TrailBlocks, TrailBlocksGroomed;
+        /// <summary>Task 4.07 B1 part 2a: the 8 m squares and trails the last nightly pass worked (the readout's check).</summary>
+        public int TrailBlocksLastGroom, TrailsLastGroom;
+        /// <summary>Task 4.07 B1 part 2a: trail squares whose 8 m type is powder (P or WP), for the readout.</summary>
+        public int TrailBlocksPowder;
+        public long TrailRemovedTotal;
 
         /// <summary>GU-03, GU-13, GU-18: the crowd as the Guests tab shows it, and the selected skier's day (GU-02).</summary>
         public readonly GuestView Guests;

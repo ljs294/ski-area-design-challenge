@@ -604,7 +604,8 @@ density, so water and snow balance (SI-10).
 - **SN-22 v3, the grooming setting's defaults (task 4.07 PR B1, owner 2026-11-17), Q3).** The settings are SN-22 v2's: *Groomed nightly*,
   *Groom unless it's snowing tonight*, *Groom when ordered*, *Never*. A run defaults to *Groomed nightly*, a glade or
   zone to *Never*, for new trails and old saves alike; *unless it's snowing tonight* is the player's choice. Every
-  trail's open switch defaults to Auto (SN-20).
+  trail's open switch defaults to Auto (SN-20). *(Its "Groomed nightly" default is replaced by task 4.25's SN-22 v4,
+  Autopilot, owner 2026-11-19.)*
 - **SN-22, the grooming setting (new trail attribute, NT29).** Per trail: *Groomed nightly*, *Groom when ordered*,
   *Never* (glades and zones default to Never). Saved in the design (a bump, §12). The groom direction is the
   trail's centreline direction (SH-05 derived).
@@ -623,12 +624,27 @@ density, so water and snow balance (SI-10).
      `Pacing.GroomPack = 60 %` of the gap per pass, SWE unchanged, so **the depth reading drops** (fresh 8:1 snow loses
      about half its depth) while the water in the trail is the same.
   3. Cells go to **MG** with age 0, passes 0, moguls 0.
-  A groomer can't push a whale that's still curing (SM-07) or snow deeper than `Pacing.GroomMaxDepth = 10 ft`.
+  A groomer can spread a whale at any age (SN-27 v2: a green push sets up harder), but not snow deeper than
+  `Pacing.GroomMaxDepth = 10 ft`.
   Animated groomers are Later; the night shows them driving (Presentation only).
 - **SN-23 v3, which trails are groomed (task 4.07 PR B1, owner 2026-11-17), Q5).** A Bare trail is skipped (nothing to push); Marginal and Ready
   ones are groomed on any night their setting says. *Unless it's snowing tonight* reads the evening forecast once
   (WX-43) and stores the night's decision, so the physics never reads the forecast. *When ordered* is a one-night
-  order (command 36). Each trail's keyed hour is drawn from its id inside the window.
+  order (command 36). Each trail's keyed hour is drawn from its id inside the window. *(The keyed hour is replaced:
+  see SN-23 v4.)*
+- **SN-23 v4, the groomer's floor (task 4.07 B1 part 2a, owner 2026-11-18: a groomer on snow too thin or too narrow
+  "would tear the trail to mud").** A fine cell under `Pacing.GroomMinDepthMm = 12 in` (305 mm) of depth, or over
+  `GroomMaxDepthMm = 10 ft`, isn't worked, nor any cell of a station (one fine cell of distance along) whose workable
+  strip is narrower than `GroomMinWidthMm = 13 ft` (3,962 mm); draft numbers the owner tunes in the demo. The window's
+  mean is over the workable cells only, and the trail's total water is kept exactly (the rounding spread back over the
+  groomed cells). Five groomings in a row (`GroomsToHard`) make **HP**; new snow (P, WP) resets the count.
+  **Strength** (task 4.25's light and heavy, owner 2026-11-19): a pass carries its reach, blend and pack. **Heavy** is
+  the reach of 50 ft at 70 % above; **light** is `GroomLightReachMm = 15 ft` at `GroomLightBlend = 30 %`, packing as a
+  heavy pass does. **When** is task 4.25's (shifts, Autopilot, owner 2026-11-19: "Yes, split it"): until then every
+  trail set to groom gets one heavy pass a night at `Pacing.GroomStartHour = 8 PM` (no keyed hour, no window). **Bare
+  trails:** a light groom skips a Bare trail; a heavy push may work one, because pushing whales is how a gunned trail
+  first gets a skiable line (2b brings readiness; until then no trail counts as Bare). Fine-cell flag bit 5 is
+  reserved for SN-27 v2's green push.
 - **SN-30 v2, a packed base lasts (task 4.07 PR B1, owner 2026-11-17), Q2).** As v1, but `Pacing.PackedMeltFactor` applies only to
   **packed fine cells**: ones groomed or skied since their last powder reset. Naturally settled snow, dense or not,
   melts as A1 calibrated it, so the mountain's snow away from the trails doesn't move.
@@ -663,7 +679,14 @@ density, so water and snow balance (SI-10).
   type becomes **LG** (loose granular, machine snow) until groomed, then **MG**.
 - **SN-27 v1, whales.** Managed depth is capped at `Pacing.WhaleMax = 26 ft` (8 m, owner 2026-10-02); deposit above
   the cap spills to the lowest neighbouring cell. A whale cures for `Pacing.WhaleCure = 12 face hours` before a groomer
-  may spread it (SN-23).
+  may spread it (SN-23). *(Superseded by v2.)*
+- **SN-27 v2, whales (task 4.25, owner 2026-11-19).** As v1 (`WhaleMax = 26 ft`, the spill to the lowest neighbour). A
+  whale is snow standing more than `Pacing.WhaleRise = 3 ft` above the trail's local mean (one number, shared by SM-05
+  and 4.25's push jobs). It cures for `Pacing.WhaleCure = 12 face hours`, but **curing is optional**: a groomer may
+  spread a whale at any age. Snow pushed before it has cured (**pushed green**) flags the cells it lands in (fine-cell
+  flag bit 5): they set up as **HP** rather than MG, and their quality is multiplied by `Pacing.GreenPushQuality`
+  until the next grooming clears the flag. The player may schedule a push for a later night to let a whale dry longer
+  (GO rules, 4.25).
 
 ## 5. LK · Lakes
 

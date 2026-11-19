@@ -98,6 +98,10 @@ namespace MountainPlanner.App
             for (int f = 0; f < 30 || (_resort.States.TilesWaiting > 0 && f < 600); f++) yield return null;
             Debug.Log($"[SimTo] {(cancelled ? "cancelled at" : "reached")} {Label(calendar, Now())} ({_simClock.Now}) in {clock.Elapsed.TotalSeconds:F0} s real time, {skips} skips, "
                       + $"{Math.Max(0, Now() - start)} face days; {SnowSummary()}; {BaseAndSummit()}");
+            if (_simNow.TrailFineCells > 0)
+                Debug.Log($"[TrailSnow] at {Label(calendar, Now())}: {_simNow.TrailBlocks} trail squares, {_simNow.TrailBlocksGroomed} machine groomed and {_simNow.TrailBlocksPowder} powder in the " +
+                          $"Snow conditions layer; mean depth {_simNow.TrailDepthMm / 25.4:F0} in, {_simNow.TrailPackedPermille / 10}% packed, " +
+                          $"{_simNow.TrailsGroomedToday} trails groomed today; the last night's pass worked {_simNow.TrailBlocksLastGroom} squares on {_simNow.TrailsLastGroom} trails");
             Toast(cancelled ? $"Stopped at {Label(calendar, Now())}" : $"{goal}: paused");
             _simToRunning = false;
         }

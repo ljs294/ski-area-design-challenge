@@ -420,6 +420,11 @@ echo        gun whale: the snow lies on the ground that never moves, the skiers 
 echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
+echo   4.07 snow model B1 part 2a: the snow on the trails (rebuilds the game if there is none; close the editor first)
+echo     113 The trail snow's tests (an untouched run changes nothing, grooming keeps the water, wear on its lane),
+echo        then two charts: a groomed and an ungroomed run through a thaw, and one night's grooming across a run.
+echo        Then the drawn resort on Jackson Hole simulated to December 21 (a few minutes, no drawing), paused there:
+echo        I (info layers) then Snow conditions shows the groomed runs; F1 shows the Trail snow line.
 echo   4.07 snow model PR A1: the snow energy, on paper (no Unity, no game build; about six minutes)
 echo     112 The snow's rule tests (south against north, shade, clear and cloudy nights, a cold pack, humid wind, the
 echo        game's clock against the hour, the energy balance), then six western snow pillows played for 20 winters
@@ -596,6 +601,7 @@ if /i "%CHOICE%"=="118" goto waterclock
 if /i "%CHOICE%"=="114" goto updaterinstall
 if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
+if /i "%CHOICE%"=="113" goto trailsnow
 if /i "%CHOICE%"=="111" goto snowlive
 if /i "%CHOICE%"=="125" goto gpuqueue
 if /i "%CHOICE%"=="126" goto gondolagame
@@ -1191,6 +1197,27 @@ echo   the log's [SimTo] lines (the real time it took, the base, the summit, the
 if not exist "%~dp0test-results\snow-a3" mkdir "%~dp0test-results\snow-a3"
 start "" /wait "%GAME%" -data "%LOCALAPPDATA%\SkiAreaDesignChallenge-simto" -notitle -offline -simto 02-01 -logFile "%~dp0test-results\snow-a3\simto.log"
 findstr /l /c:"[SimTo]" "%~dp0test-results\snow-a3\simto.log"
+pause
+goto menu
+
+:trailsnow
+rem 4.07 B1 part 2a: the trails' fine snow (wear, nightly grooming, packed snow melting slower).
+chcp 65001 >nul
+echo.
+echo   Part 1: the trail snow's tests.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~TrailSnowWorldTests|FullyQualifiedName~FineSnowTests|FullyQualifiedName~TrailSnowLayoutTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"[" /c:"Passed" /c:"Failed" /c:"error"
+echo.
+echo   Part 2: the charts' numbers (TS90), then the charts.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~TS90_WriteTheReportData" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+python "%~dp0tools\snow-trails\charts.py" "%~dp0test-results\snow-b2a"
+start "" "%~dp0test-results\snow-b2a\demo\1-thaw.png"
+start "" "%~dp0test-results\snow-b2a\demo\2-one-night.png"
+echo.
+echo   Part 3: the game, the drawn resort simulated to December 21 in a scratch data folder (your saves aren't touched).
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+start "" /wait "%GAME%" -data "%LOCALAPPDATA%\SkiAreaDesignChallenge-trailsnow" -notitle -offline -drawnresort -simto 12-21 -logFile "%~dp0test-results\snow-b2a\game.log"
+findstr /l /c:"[TrailSnow]" "%~dp0test-results\snow-b2a\game.log"
 pause
 goto menu
 

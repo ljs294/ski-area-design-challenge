@@ -121,7 +121,7 @@ namespace MountainPlanner.App
             var design = history != null
                 ? SimDesign.From(history.Current, SimGraphFor(history.Current.Document), SimFactsFor(history.Current.Document))
                 : SimDesign.Empty(0);
-            if (history != null) { _simSent = history.Current; NoteSkierDesign(design, history.Current.Document); }
+            if (history != null) { _simSent = history.Current; NoteSkierDesign(design, history.Current.Document); NoteTrailSnow(design, history.Current.Document); }
             Hud?.ClearLive();
             var simSite = new SimSite(site.Latitude, site.Longitude);
             _simWeather = TypicalWeather.For(_resort.Manifest, _resort.PackageFolder, _resort.WeatherBaseFeet, _resort.WeatherSummitFeet);
@@ -131,6 +131,7 @@ namespace MountainPlanner.App
             _simSourcesSent = false;
             ResetSnowNetworkSend();   // task 4.15
             _simSnowTerrainSent = false;
+            ResetTrailSnow();
             _simSnowPatches.Clear();
             _simHoldSaid = false;
             var world = RestoredWorld(pacing, design, simSite, _simWeather)
@@ -409,6 +410,7 @@ namespace MountainPlanner.App
             _simSent = snapshot;
             var design = SimDesign.From(snapshot, SimGraphFor(snapshot.Document), SimFactsFor(snapshot.Document));
             NoteSkierDesign(design, snapshot.Document);   // the dots' paths come from exactly this (task 4.13)
+            NoteTrailSnow(design, snapshot.Document);     // and the trails' fine snow (task 4.07 B1 part 2a)
             _sim.Send(SimCommandKind.SetDesign, 0, design);
         }
 
@@ -485,6 +487,7 @@ namespace MountainPlanner.App
             // Task 4.15: the snowmaking network follows its sources (an outlet fills one by id).
             if (waterReady) UpdateSnowNetwork();
             SendSnowTerrain();
+            SendTrailSnow();
             // Released with the inputs, or without one whose build ended with none (it failed): then the area plays B1's height
             // rule, has no lakes or keeps the static snow, and the clock is never left stuck.
             if (!_simHoldReleased && !SimInputsMissing) _simHoldReleased = _sim.Send(SimCommandKind.Release);
@@ -609,6 +612,9 @@ namespace MountainPlanner.App
                 _sim.Send(s.SeedPinned ? SimCommand.Of(SimCommandKind.UnpinSeasonSeed) : SimCommand.Of(SimCommandKind.PinSeasonSeed, unchecked((long)s.SeasonSeed)));
             y += note(y, 1,
                 $"{(s.Phase == SeasonPhase.PreSeason ? "Pre-season" : s.Phase == SeasonPhase.Season ? "Day " + s.SeasonDay : "Summer")} · {s.SeasonSeed:X16} · tick {s.TickMeanMicros} µs (p99 {s.TickP99Micros}) · {s.SustainedPermille / 10}% of speed · {s.OpenSecond / 3600}:{s.OpenSecond / 60 % 60:D2}–{s.StopSecond / 3600}:{s.StopSecond / 60 % 60:D2}{(s.HoursTrimmed ? " (daylight)" : "")}");
+            if (s.TrailFineCells > 0)
+                y += note(y, 1, $"Trail snow · {s.TrailFineMetres} m squares, {s.TrailFineCells:N0} · mean depth {s.TrailDepthMm / 25.4:F0} in · " +
+                                $"{s.TrailPackedPermille / 10}% packed · {s.TrailsGroomedToday} groomed today · {s.TrailRemovedTotal * 64 / 1e6:F1} m³ of water off the 8 m snow");
             DrawWeatherRows(ref y, row, caption, note);
             DrawLiftOpsRows(ref y, row, x0, w, caption, button, note);
             DrawGuestRows(ref y, row, x0, w, caption, button, note);

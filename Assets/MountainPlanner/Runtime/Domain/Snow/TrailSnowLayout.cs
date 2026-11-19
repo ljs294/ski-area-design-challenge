@@ -20,6 +20,10 @@ namespace MountainPlanner.Domain.Snow
         public int[] SegmentStartMm;
         /// <summary>Each segment's edge in the simulation's network (one per entry of <see cref="SegmentStartMm"/>).</summary>
         public int[] SegmentEdge;
+        /// <summary>SN-22 v3: a glade or zone, never groomed (runs are groomed nightly until the player's settings, 2c).</summary>
+        public bool NeverGroom;
+        /// <summary>The trail's stable id (its grooming hour is keyed on it, so adding a trail moves no other's).</summary>
+        public ulong Id;
     }
 
     /// <summary>
@@ -69,6 +73,10 @@ namespace MountainPlanner.Domain.Snow
         public int[] Edge { get; private set; }
         /// <summary>Fine cells each trail owns.</summary>
         public int[] TrailCells { get; private set; }
+        /// <summary>Per trail: groomed nightly (SN-22 v3's default for a run; false for a glade or zone).</summary>
+        public bool[] TrailGroomed { get; private set; }
+        /// <summary>Per trail: its stable id (<see cref="TrailSnowInput.Id"/>).</summary>
+        public ulong[] TrailId { get; private set; }
 
         public int Blocks => BlockCell.Length;
         public int FineCells => Owner.Length;
@@ -98,6 +106,8 @@ namespace MountainPlanner.Domain.Snow
             void Mix(long v) { unchecked { for (int i = 0; i < 8; i++) { h ^= (byte)(v >> (8 * i)); h *= 1099511628211UL; } } }
             Mix(FineMetres); Mix(GridWidth); Mix(GridHeight); Mix(OriginXMm); Mix(OriginYMm); Mix((long)NetworkHash);
             foreach (int c in BlockCell) Mix(c);
+            foreach (bool g in TrailGroomed) Mix(g ? 1 : 0);
+            foreach (ulong id in TrailId) Mix((long)id);
             for (int i = 0; i < Owner.Length; i++) { Mix(Owner[i]); Mix(AlongMm[i]); Mix(Lane[i]); Mix(Edge[i]); }
             return h;
         }
@@ -162,6 +172,9 @@ namespace MountainPlanner.Domain.Snow
             int per = L.PerSide, bc = per * per, total = blocks.Count * bc;
             L.Owner = new short[total]; L.AlongMm = new int[total]; L.Lane = new byte[total]; L.Edge = new int[total];
             L.TrailCells = new int[n];
+            L.TrailGroomed = new bool[n];
+            L.TrailId = new ulong[n];
+            for (int t = 0; t < n; t++) { L.TrailGroomed[t] = !trails[t].NeverGroom; L.TrailId[t] = trails[t].Id; }
             for (int i = 0; i < total; i++) { L.Owner[i] = -1; L.Edge[i] = -1; }
 
             // 3. Each trail's segments: lengths and where each starts along the line.
