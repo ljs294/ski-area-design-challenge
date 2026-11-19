@@ -69,7 +69,8 @@ namespace MountainPlanner.App
             (!_simWeatherTerrainSent && !(CoverDone && _resort.WeatherTerrain == null)) ||
             (!_simWaterSent && !(CoverDone && _resort.WaterBodies == null)) ||
             (!_simSourcesSent && !(CoverDone && _resort.WaterBodies == null)) ||
-            (!_simSnowTerrainSent && !SnowTerrainFailed);
+            (!_simSnowTerrainSent && !SnowTerrainFailed) ||
+            SnowNetMissing;   // task 4.15: a network that fills a pond (WS-11)
         /// <summary>Said once the HUD shows: why a save's simulation didn't come back, or that its pacing differs.</summary>
         string _simNotice;
         OpenDesign _simSavesFor;
@@ -128,6 +129,7 @@ namespace MountainPlanner.App
             _simWeatherTerrainSent = false;
             _simWaterSent = false;
             _simSourcesSent = false;
+            ResetSnowNetworkSend();   // task 4.15
             _simSnowTerrainSent = false;
             _simSnowPatches.Clear();
             _simHoldSaid = false;
@@ -480,6 +482,8 @@ namespace MountainPlanner.App
             // Task 4.14 PR B: the sources follow their table in the same queue (their bodies are its indices).
             if (_simWaterSent && !_simSourcesSent && _waterSources != null && waterReady)
                 _simSourcesSent = _sim.Send(SimCommandKind.SetWaterSources, 0, _waterSources);
+            // Task 4.15: the snowmaking network follows its sources (an outlet fills one by id).
+            if (waterReady) UpdateSnowNetwork();
             SendSnowTerrain();
             // Released with the inputs, or without one whose build ended with none (it failed): then the area plays B1's height
             // rule, has no lakes or keeps the static snow, and the clock is never left stuck.

@@ -96,8 +96,18 @@ reads: a version number, and a name for the greyed library row.
   `"left"` or `"right"` of A→B, the `Spillway` bank `"first"` or `"far"`, the OSM `StreamWay` and `StartsEmpty`),
   `Lakes` (`Lake`, the player's `Name`, "" for OSM's, `DepthTenthsFt`, 0 for LK-02's estimate, and `Source`) and
   `Streams` (the OSM `Way`, the player's `Name` and `WidthCm`, 0 for OSM's; every dam on the stream reads it). Here one
-  of each, every field set. v1 to v13 saves migrate with none. `SaveFileTests` checks that the writer reproduces it
-  byte for byte.
+  of each, every field set. v1 to v13 saves migrate with none. `SaveFileTests` checks that it still reads unchanged.
+
+- **`v15-save/Saves/5792676e513f5302/save-001/`** is the same save in format v15 (task 4.15, HY-01): the design (shape 15)
+  gains `Snowmaking`: `Nodes` (`Kind` `"intake"`, `"junction"`, `"hydrant"`, `"pump"`, `"outlet"` or `"house"`, the `Label`
+  number, the water `Source`, the `Host` pipe a tap sits on, the pump's `Forward` direction and its `Hp`,
+  `EfficiencyPermille`, `BoostPsi` and `PumpOn`, and the `House` a house node belongs to), `Pipes` (`Name`, `DiameterIn`,
+  the `Route`, the `From` and `To` nodes and a valve at each end, `FromClosed` and `ToClosed`), `PumpHouses` (`Centre`,
+  `BearingCentideg`, `LengthMm`, `WidthMm`, `Source`, `CompressorCfm` and `Foundation` `"flatten"` or `"slab"`) and `Guns`
+  (`Model` `"stick10"`, `"stick20"`, `"stick30"` or `"ground"`, `At`, the `Hydrant`, `AimCentideg` and `Override` `"auto"`,
+  `"on"` or `"off"`). Here a pump house on the pond, a main with a closed far valve and a hydrant run, a booster facing
+  back, an intake on the lake, an outlet into the pond and one gun of each model. v1 to v14 saves migrate with none.
+  `SaveFileTests` checks that the writer reproduces it byte for byte.
 
 - **`v3-package/`** is a package manifest in format v3 (task 4.14, WS-08, LK-10): the `v2-package` manifest plus a
   `Water` entry and its `water.json`: `streams`, the OSM stream lines (way, class, name, width and whether OSM gave it,

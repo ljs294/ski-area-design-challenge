@@ -35,9 +35,12 @@ namespace MountainPlanner.UI
             ("snow", WaterSourceTool.ToolId, "Lake", "Lake as a source", "L", "s-source", null),
             ("snow", EditWaterTool.ToolId, "Edit", "Edit water", "M", "s-pond", "edit"),
             ("snow", RemoveWaterTool.ToolId, "Remove", "Remove water", "X", "s-pond", "remove"),
-            ("snow", "gun", "Snow gun", "Snow gun", "G", "s-gun", null),
-            ("snow", "pipe", "Water line", "Water line", "W", "s-pipe", null),
-            ("snow", "pump", "Pump house", "Pump house", "P", "s-pump", null),
+            // Task 4.15: the Snowmaking group, in building order (the approved mockup's snowtray).
+            ("snow", PumpHouseTool.ToolId, "Pump house", "Pump house", "P", "s-pump", null),
+            ("snow", WaterLineTool.ToolId, "Water line", "Water line", "N", "s-pipe", null),
+            ("snow", InlinePumpTool.ToolId, "Inline pump", "Inline pump", "I", "s-pump", "inline"),
+            ("snow", SnowGunTool.ToolId, "Snow gun", "Snow gun", "G", "s-gun", null),
+            ("snow", CheckNetworkTool.ToolId, "Check", "Check the network", "K", "s-check", null),
             ("infra", "lodge", "Lodge", "Lodge", "L", "s-lodge", null),
             ("infra", "road", "Road", "Road", "R", "s-road", null),
             ("infra", "parking", "Parking", "Parking", "K", "s-parking", null),
@@ -114,7 +117,7 @@ namespace MountainPlanner.UI
             Inert(_trSketch, "sq--dis", null);
             // The lift and trail counts are live since task P3-10 (MountainHud.Network.cs, NT5).
             foreach (string name in new[] { "bar-money", "bar-guests", "bar-save" }) Inert(_root.Q(name), null, null);
-            foreach (string name in new[] { "menu-save", "menu-rename", "layer-snowmaking", "layer-infrastructure" })
+            foreach (string name in new[] { "menu-save", "menu-rename", "layer-infrastructure" })
                 Inert(_root.Q(name), "row--dis", null);
 
             WireTooltips();

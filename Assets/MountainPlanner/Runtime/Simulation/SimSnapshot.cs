@@ -233,6 +233,11 @@ namespace MountainPlanner.Simulation
         /// <summary><see cref="SimWorld.SourceAtFloor"/> and the rest.</summary>
         public readonly byte[] SourceFlags;
 
+        // Task 4.15 (HY-08): the snowmaking network's last answers, by reference (made once a solve, never copied), or null.
+        public Domain.Snowmaking.SnowSolution Snowmaking, SnowCheck;
+        /// <summary>A solve is asked for and lands within <see cref="Pacing.SolveLatencyTicks"/> ticks (the screen greys the answer).</summary>
+        public bool SnowSolvePending;
+
         public SimSnapshot(Pacing p)
         {
             int sources = p.MaxSources;

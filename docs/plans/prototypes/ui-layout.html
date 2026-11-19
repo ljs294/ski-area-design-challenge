@@ -554,6 +554,23 @@ body.solo .frame { border-radius: 0; }
 .hud .wbar i { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--warn); }
 .hud .wbtn { display: inline-grid; place-items: center; min-width: 20px; height: 19px; padding: 0 6px; margin-left: 3px; border: 1px solid var(--hair2); border-radius: 3px; font: 700 10.5px 'Overpass Mono', monospace; color: var(--text); cursor: pointer; vertical-align: middle; }
 .hud .wbtn:hover { background: var(--chip); }
+.hud .box .tgrp { padding: 0 12px 5px; font: 700 11.5px 'DotFix', 'Overpass'; color: var(--soft); }   /* task 4.15: the Snowmaking tab's two groups */
+.hud .sdiag { display: grid; grid-template-columns: 20px 1fr; gap: 0 8px; padding: 7px 12px 8px; border-top: 1px solid var(--hair); font: 500 12px 'DotFix', 'Overpass'; color: var(--muted); line-height: 1.38; }
+.hud .sdiag .sn { font: 700 12.5px 'Overpass Mono', monospace; color: var(--soft); text-align: right; }
+.hud .sdiag.bad .sn { color: var(--neg); }
+.hud .sdiag.warn .sn { color: var(--warn); }
+.hud .sdiag b { display: block; color: var(--strong); font: 700 12.5px 'DotFix', 'Overpass'; margin-bottom: 1px; }
+.hud .sdiag .sdh { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.hud .sdiag .sdh b { flex: 1; margin: 0; }
+.hud .sdiag .sacts { display: flex; gap: 5px; flex: none; }
+.hud .sdiag .ghost { height: 21px; padding: 0 8px; font-size: 11px; }
+.hud .sdiag .ghost.fix { color: var(--strong); border-color: var(--ghost-hover); }
+.hud .sdlist { max-height: 330px; overflow: hidden; }
+.hud .sdef { margin: 0 12px 8px; padding: 7px 10px; border-left: 3px solid var(--neg); background: var(--chip); font: 500 12px 'DotFix', 'Overpass'; color: var(--muted); line-height: 1.4; }
+.hud .sdef b { display: block; color: var(--strong); font-weight: 700; }
+.hud .sspin { display: inline-block; width: 10px; height: 10px; margin-right: 7px; vertical-align: -1px; border: 2px solid var(--hair2); border-top-color: var(--text); border-radius: 50%; animation: sspin 0.8s linear infinite; }
+@keyframes sspin { to { transform: rotate(360deg); } }
+.hud .legend .lr .seg span { padding: 3px 8px 2px; }
 .hud .wtag { padding: 1px 5px; border-radius: 3px; background: var(--chip); color: var(--muted); font: 700 10px 'DotFix', 'Overpass'; }
 .hud .lstrip { overflow: hidden; }
 .hud .lstrip .lsh { display: flex; align-items: center; gap: 12px; height: 30px; padding: 0 12px; border-bottom: 1px solid var(--hair); font: 800 13px 'DotFix', 'Overpass'; white-space: nowrap; }
@@ -637,6 +654,8 @@ body.solo .frame { border-radius: 0; }
   <symbol id="s-skier" viewBox="0 0 24 24"><circle cx="16.4" cy="4.1" r="2.3"/><path d="M14.8 7.6l-3.9 4.8 3.6 2.9-1.9 3.9M10.9 12.4l-2.1 4.7" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.3 8.7l4.2 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M18.5 10.9l1.3 6.6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M3 19.6l18.2-3.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
   <symbol id="s-gun" viewBox="0 0 24 24"><g transform="rotate(-28 11 12)"><rect x="3.8" y="8.6" width="11" height="6.8" rx="2.2"/><rect x="15.6" y="7.6" width="2.4" height="8.8" rx="1"/></g><path d="M9.6 15.2L7 21.4M9.6 15.2l3 6.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="19.6" cy="4.3" r="1.2"/><circle cx="21.6" cy="7.6" r="1.05"/><circle cx="17.5" cy="2.2" r=".9"/><circle cx="21.9" cy="2.9" r=".8"/></symbol>
   <symbol id="s-pipe" viewBox="0 0 24 24"><rect x="2" y="8.6" width="20" height="5.2" rx="1.2"/><rect x="5.6" y="6.8" width="2.6" height="8.8" rx=".8"/><rect x="15.8" y="6.8" width="2.6" height="8.8" rx=".8"/><path d="M12 16.4c-1.7 2-2.5 3.2-2.5 4.1a2.5 2.5 0 0 0 5 0c0-.9-.8-2.1-2.5-4.1z"/></symbol>
+  <symbol id="s-booster" viewBox="0 0 24 24"><rect x="1.5" y="9.4" width="21" height="5.2" rx="1.2"/><circle cx="12" cy="12" r="6.6"/><path d="M9.6 8.4l5.6 3.6-5.6 3.6z" style="fill:var(--knock)"/></symbol>
+  <symbol id="s-check" viewBox="0 0 24 24"><path d="M12 2.6a9.4 9.4 0 1 0 0 18.8 9.4 9.4 0 0 0 0-18.8zm0 2.7a6.7 6.7 0 1 1 0 13.4 6.7 6.7 0 0 1 0-13.4z"/><path d="M10.9 11.1l4.9-5.1 1.6 1.6-5.1 4.9z"/><circle cx="12" cy="12" r="2.1"/></symbol>
   <symbol id="s-pump" viewBox="0 0 24 24"><path d="M3 11.2L12 3.4l9 7.8v9.2a1.2 1.2 0 0 1-1.2 1.2H4.2A1.2 1.2 0 0 1 3 20.4z"/><path d="M12 10.2c-2 2.4-3 3.9-3 5.2a3 3 0 0 0 6 0c0-1.3-1-2.8-3-5.2z" style="fill:var(--knock)"/></symbol>
   <symbol id="s-pond" viewBox="0 0 24 24"><ellipse cx="12" cy="12.5" rx="10" ry="6.8" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M6.2 11.6c1.9-1.2 3.8-1.2 5.8 0s3.9 1.2 5.8 0v2.4c-1.9 1.2-3.8 1.2-5.8 0s-3.9-1.2-5.8 0z"/></symbol>
   <symbol id="s-dam" viewBox="0 0 24 24"><path d="M4 19.5L10 6h3.4l7.6 13.5z"/><path d="M1 11.6h6.6L4.4 19.5H1z" opacity=".55"/></symbol>
@@ -671,7 +690,8 @@ body.solo .frame { border-radius: 0; }
   <ul class="try">
     <li><b>Build a lift</b> (Phase 3 tool): Toolbox → Lifts → New opens the lift menu: type, capacity, and towers <b>Automatic</b> or <b>By hand</b>. The whole terminal follows the pointer; click to anchor it, then click far away to place the other terminal, which fixes the line (drawn as a trail map draws a lift, a line with a dot at each end). Automatic puts the towers in as you aim. By hand, the tower in hand slides along the line, green where it fits and red with the reason; Page Up / Page Down change it ±5 ft, a click places it, a click on a tower selects it (drag to slide, Delete to remove), and Fill the rest finishes the line. The profile strip shows the side view, the chairs' height over the ground against 15 ft, the green band where the tower in hand fits, and the line's tension. Review, then Break ground (or Save plan). Every rule number is a P3-02 draft placeholder; hover a readout for its rule ID. States: <code>#solo&amp;demo=liftorigin</code>, <code>liftauto</code>, <code>lift</code>, <code>liftred</code>, <code>liftreview</code>, <code>liftsel</code>. The catchment ring (NW-14, NT16): each terminal in hand shows its 100 ft area, built terminals theirs fainter, and the trails it would gather light up; the readout names a shared base or a transfer: <code>#solo&amp;demo=p2,net,liftbase</code>, <code>liftbaseaim</code>.</li>
     <li><b>Shape the ground</b> (task P3-15): Toolbox → Terrain holds <b>Raise/Lower</b> (B: hold left to raise, right to lower), <b>Flatten</b> (L: right-click takes the target height under the pointer, left paints to it), <b>Smooth</b> (O) and <b>Slope</b> (G: right-click sets the target point, then drag from the start; the ground ramps evenly between the two, and the pane shows the grade they make). Every brush has the same pane: <b>Diameter</b> (<b>[ ]</b>, 10–400 ft), <b>Strength</b> (<b>, .</b>) and <b>Clear trees</b> (BR22: on, the trees come out where the ground moves a foot or more, as it moves; off, they ride the new ground), plus the target (Page Up / Page Down) and, for Slope, the ramp it makes. A session runs from opening a brush to closing it, and switching brushes keeps it (BR15, BR17): what you paint is the edit (in the game the ground moves live), and the pane counts its cut, fill and net, the trees cleared and where the brush was held (a terminal's pad and its 1:1, the lift line's clearance, a tower's limit) as you paint. <b>Confirm</b> (Enter) puts the session in as one undo step and is when it's paid for (BR19); <b>Revert</b> puts its ground back; Ctrl+Z undoes one press, never past the session's start. Closing with ground not confirmed asks <b>Confirm / Revert / Keep painting</b> (BR18). The wheel over any slider moves it a step a notch, with its value in a bubble over the thumb (BR20). States: <code>terrainraise</code>, <code>terrainflatten</code>, <code>terrainsmooth</code>, <code>terrainslope</code>, <code>terrainask</code>, and <code>terrainraise,sliderhover</code>.</li>
-    <li><b>Water for snowmaking</b> (task 4.14): Toolbox → Snowmaking holds the <b>Water</b> group, and with the tab open the streams and lakes are outlined. <b>Pond</b> (O): click around the water's edge at full pool (the berm goes outside it), Enter or a click on the first point closes the ring; the pool starts at the suggested height (PD-03: Page Up / Page Down move it 1 ft, Shift 10) and <b>Excavation</b> (0–50 ft, <b>[ ]</b>) digs the bowl deeper; the window counts water, depth, berm, cut, fill and balance as you change them, and refuses a ring that crosses itself or a stream, or a berm over 65 ft. <b>Dam</b> (B): click one bank (that height is full pool), then the far bank, which snaps to the same contour within 250 ft; the line must cross one stream; the review gives the stream's width (OpenStreetMap, the default or yours), the reservoir, the embankment, the inflow for the season and the time to fill, and the spillway's bank (PD-07). <b>Lake</b> (L): click a lake and switch it on as a water source; its depth is an estimate you can override. <b>Edit</b> (M) reshapes a pond (drag its points) or opens a dam or lake; <b>Remove</b> (X) takes a pond or dam out and its ground goes back exactly (Ctrl+Z brings it back). Each source's <b>Water now</b> shows its level, what it holds, what comes in and goes out, a <b>Test draw</b> until the guns come (task 4.16) and the days of making left. Snow gun, Water line and Pump house come with task 4.15. States: <code>watertray</code>, <code>pondshore</code>, <code>pondpool</code>, <code>pondberm</code>, <code>damfirst</code>, <code>damreview</code>, <code>damedge</code>, <code>watersource</code>, <code>pondedit</code>, <code>damedit</code>, <code>waterremove</code>.</li>
+    <li><b>Water for snowmaking</b> (task 4.14): Toolbox → Snowmaking holds the <b>Water</b> group, and with the tab open the streams and lakes are outlined. <b>Pond</b> (O): click around the water's edge at full pool (the berm goes outside it), Enter or a click on the first point closes the ring; the pool starts at the suggested height (PD-03: Page Up / Page Down move it 1 ft, Shift 10) and <b>Excavation</b> (0–50 ft, <b>[ ]</b>) digs the bowl deeper; the window counts water, depth, berm, cut, fill and balance as you change them, and refuses a ring that crosses itself or a stream, or a berm over 65 ft. <b>Dam</b> (B): click one bank (that height is full pool), then the far bank, which snaps to the same contour within 250 ft; the line must cross one stream; the review gives the stream's width (OpenStreetMap, the default or yours), the reservoir, the embankment, the inflow for the season and the time to fill, and the spillway's bank (PD-07). <b>Lake</b> (L): click a lake and switch it on as a water source; its depth is an estimate you can override. <b>Edit</b> (M) reshapes a pond (drag its points) or opens a dam or lake; <b>Remove</b> (X) takes a pond or dam out and its ground goes back exactly (Ctrl+Z brings it back). Each source's <b>Water now</b> shows its level, what it holds, what comes in and goes out, a <b>Test draw</b> until the guns come (task 4.16) and the days of making left. The <b>Snowmaking network</b> group is task 4.15 (below). States: <code>watertray</code>, <code>pondshore</code>, <code>pondpool</code>, <code>pondberm</code>, <code>damfirst</code>, <code>damreview</code>, <code>damedge</code>, <code>watersource</code>, <code>pondedit</code>, <code>damedit</code>, <code>waterremove</code>.</li>
+    <li><b>Snowmaking network</b> (task 4.15): the tab's second group. <b>Pump house</b> (P): click a centre within 150 ft of a pond, dam or lake shore, then the bearing, then review the name, a flattened pad or a level slab, cut and fill, the 1,000 hp pump (85%, held at 600 psi) and the 5,000 cfm compressor. <b>Water line</b> (W): pick the diameter (4–24 in, <b>[ ]</b>), click along the route; it snaps to a pump house, a line (a junction), a hydrant or a pond, and the cursor reads the length, the climb, the pressure at the end, the guns past it that would be short and the velocity, all from Hazen–Williams (C 120) and 2.31 ft of head per psi. The review names it and sets valves (both ends, start, end, none) and hydrants by spacing or by count; spots too steep or taken are skipped and marked. A line that ends in a pond fills it. <b>Inline pump</b> (I): click inside a line; it faces away from the pump house and adds up to 300 psi (250 hp); its card has <b>Flip</b> and On/Off. <b>Snow gun</b> (G): pick 10, 20 or 30 ft stick or a fan gun; each click hooks to the nearest free hydrant within 50 ft by a hose, and a red ring means none is in reach; <b>Fill hydrants</b> puts one on every free hydrant of a line; <b>Select</b> lassoes guns and sets them Auto, On or Off. Guns need 200 psi; the stage (1–5) comes from the wet bulb. Hover any part for a quick card; click it for its full card (pipe with the flow, pressure, friction and velocity where you clicked; hydrant; gun with its shortfall and a fix; pump; pump house). <b>Check</b> (K) lists the problems by number with <b>Show me</b> and a one-click fix, and can run every gun at once; the <b>Pipe pressure</b> info layer colours the pipes on one scale (200 psi a gun's need, amber over 800, red over the 1,000 psi class). After an edit the figures grey out for a moment while the result updates. States: <code>snowtray</code>, <code>snowline</code>, <code>snowlinereview</code>, <code>snowpump</code>, <code>snowhouse</code>, <code>snowgun</code>, <code>snowlasso</code>, <code>snowgunshort</code>, <code>snowpipecard</code>, <code>snowdiag</code>, <code>snowpressure</code>, <code>snowcheck</code>, <code>snowfill</code>, <code>snowstale</code>.</li>
     <li><b>Draw a trail</b> (Phase 3 tool): Toolbox → Trails → New opens the trail menu: name, brush width (<b>[ ]</b> or the slider, 25–400 ft) and Graded or Natural. <b>1 Paint:</b> drag on the mountain to paint the trail's area, any widths, leaving holes for islands of trees; Shift-drag erases, Ctrl+Z undoes a stroke, and a separate patch shows red. <b>2 Head and tail:</b> click the top, then the bottom (they join a lift's end or another trail nearby); the centreline, the pending contours (yellow), stretches too steep to grade (red) and the rating appear, with the profile along the bottom. <b>3 Review</b>, then Break ground. Scroll to zoom in first: at this distance 100 ft is about 5 px. States: <code>trailpaint</code>, <code>trailends</code>, <code>trailreview</code>, <code>trailcontinue</code> (NT38: "Continues Upper Bowl").</li>
     <li><b>Trails made of sections</b> (task P3-10, owner NT24–NT41): a trail is a name and its sections, top first. Edit trail opens the trail's pane (rating over its whole length, its sections; Repaint and Move ends change the outlined section). <b>Edit sections</b> goes into network mode: <b>Choose sections</b>, where a left-click on any run beyond the trail's top or bottom adds everything on the way and a right-click takes a section out, and <b>Cut</b>, which cuts a section in two at the pointer (snapping to junctions; refused across a switchback) or rejoins a hollow cut node. The hover shows each click's result, the window lists every trail a session changes with editable names, Ctrl+Z undoes a click and Done (Enter) is one step. A trail left in two pieces becomes Upper and Lower. States: <code>trailsecs</code>, <code>trailroute</code>, <code>trailmerge</code>, <code>trailtakeout</code>, <code>trailmiddle</code>, <code>trailnear</code>, <code>trailnearjoin</code> (NT42: ends within 100 ft meet, drawn met, nothing shown), <code>trailcut</code>, <code>trailcutbend</code> (NT45: a cut on a bend), <code>trailsecsundo</code>. Junctions (NT43–NT45): a run splits wherever another run lands on it or crosses it, at a lift it passes and where you cut it; a trail is the segments between, and may turn at a junction: <code>trailjunction</code>, <code>trailreroute</code>, <code>trailrerouted</code>. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking with clicks.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
@@ -998,14 +1018,17 @@ body.solo .frame { border-radius: 0; }
     ],
     // task 4.14: the Water group first (WS-01, PD-01…09), then 4.15's tools, greyed until they come
     snow: [
-      { id: 'pond', label: 'Pond', name: 'Pond', hint: 'draw its waterline; the berm goes outside', key: 'O', glyph: 's-pond', kind: 'pond' },
-      { id: 'dam', label: 'Dam', name: 'Dam', hint: 'click both banks across a stream', key: 'B', glyph: 's-dam', kind: 'dam' },
-      { id: 'water-source', label: 'Lake', name: 'Lake as a source', hint: 'switch a lake on as a water source', key: 'L', glyph: 's-source', kind: 'source' },
-      { id: 'edit-water', label: 'Edit', name: 'Edit water', hint: 'reshape a pond, or open a dam or lake', key: 'M', glyph: 's-pond', badge: 'edit', kind: 'wpick', mode: 'edit' },
-      { id: 'remove-water', label: 'Remove', name: 'Remove water', hint: 'take a pond or dam out; its ground goes back', key: 'X', glyph: 's-pond', badge: 'remove', kind: 'wpick', mode: 'remove' },
-      { id: 'gun', label: 'Snow gun', name: 'Snow gun', hint: 'place fan guns along a trail', key: 'G', glyph: 's-gun', kind: 'points', unit: 'snow gun', each: 42000, layer: 'making', soon: 'task 4.15' },
-      { id: 'pipe', label: 'Water line', name: 'Water line', hint: 'run water up to the guns', key: 'W', glyph: 's-pipe', kind: 'line', perM: 310, layer: 'making', soon: 'task 4.15' },
-      { id: 'pump', label: 'Pump house', name: 'Pump house', hint: 'pressure for a snowmaking system', key: 'P', glyph: 's-pump', kind: 'points', unit: 'pump house', each: 1.2e6, layer: 'making', soon: 'task 4.15' },
+      { group: 'water', id: 'pond', label: 'Pond', name: 'Pond', hint: 'draw its waterline; the berm goes outside', key: 'O', glyph: 's-pond', kind: 'pond' },
+      { group: 'water', id: 'dam', label: 'Dam', name: 'Dam', hint: 'click both banks across a stream', key: 'B', glyph: 's-dam', kind: 'dam' },
+      { group: 'water', id: 'water-source', label: 'Lake', name: 'Lake as a source', hint: 'switch a lake on as a water source', key: 'L', glyph: 's-source', kind: 'source' },
+      { group: 'water', id: 'edit-water', label: 'Edit', name: 'Edit water', hint: 'reshape a pond, or open a dam or lake', key: 'M', glyph: 's-pond', badge: 'edit', kind: 'wpick', mode: 'edit' },
+      { group: 'water', id: 'remove-water', label: 'Remove', name: 'Remove water', hint: 'take a pond or dam out; its ground goes back', key: 'X', glyph: 's-pond', badge: 'remove', kind: 'wpick', mode: 'remove' },
+      // task 4.15: the network (HY-01…10, SG-01…07): a pump house at the water, lines with hydrants, boosters, guns, and the check
+      { id: 'pump', label: 'Pump house', name: 'Pump house', hint: 'beside a source: its pump and compressor', key: 'P', glyph: 's-pump', kind: 'shouse', group: 'net' },
+      { id: 'pipe', label: 'Water line', name: 'Water line', hint: 'a line with hydrants every 100 ft', key: 'W', glyph: 's-pipe', kind: 'spipe', group: 'net' },
+      { id: 'booster', label: 'Inline pump', name: 'Inline pump', hint: 'a booster inside a line', key: 'I', glyph: 's-booster', kind: 'sbooster', group: 'net' },
+      { id: 'gun', label: 'Snow gun', name: 'Snow gun', hint: 'on a hydrant; or fill a line, or select', key: 'G', glyph: 's-gun', kind: 'sgun', group: 'net' },
+      { id: 'snow-check', label: 'Check', name: 'Check the network', hint: 'pressure, problems and fixes', key: 'K', glyph: 's-check', kind: 'scheck', group: 'net' },
     ],
     infra: [
       { id: 'lodge', label: 'Lodge', name: 'Lodge', hint: 'food, warmth and toilets', key: 'L', glyph: 's-lodge', kind: 'points', unit: 'lodge', each: 6.5e6, layer: 'infra' },
@@ -1014,7 +1037,7 @@ body.solo .frame { border-radius: 0; }
     ],
   };
   const toolById = (id) => Object.values(TOOLS).flat().find((t) => t.id === id);
-  const toolGlyph = (t) => tg(t.glyph, t.badge);
+  const toolGlyph = (t) => (t.svg ? `<svg class="g" viewBox="0 0 24 24">${t.svg}</svg>` : tg(t.glyph, t.badge));
 
   function chooseTool(id) {
     if (S.tool === id) { if (!terrainAsk(() => closeTool())) closeTool(); return; }
@@ -1029,6 +1052,7 @@ body.solo .frame { border-radius: 0; }
     else if (t.kind === 'trail') S.draft = newTrailDraft();
     else if (t.kind === 'terrain') { S.draft = newTerrainDraft(t); if (carry) Object.assign(S.draft, { strokes: carry.strokes, target: carry.target, targetAt: carry.targetAt }); }
     else if (WATER.has(t.kind)) S.draft = newWaterDraft(t);
+    else if (SNOW.has(t.kind)) S.draft = newSnowDraft(t);
     else if (t.kind === 'points' || t.kind === 'line') S.draft = { kind: t.kind, tool: t.id, pts: [], done: false };
     else S.draft = null;
     render();
@@ -1152,6 +1176,8 @@ body.solo .frame { border-radius: 0; }
     if (!netOn) S.netKeyClosed = false;   // the key comes back when the Network view opens again
     if (netOn) { worldEl.innerHTML = drawNetwork(netPick, hiId, netPick === S.netLift ? S.netNode : null); return; }
     s += drawWater();   // task 4.14: lakes, streams (with the Snowmaking tab open), ponds and dams
+    const snowTop = S.toolbox && S.tab === 'snow';   // task 4.15: with its tab open the network draws over the trails and lifts
+    if (!snowTop) s += drawSnow();   // the snowmaking network (the Snowmaking layer, or the tab open)
     for (const th of S.things) if (S.layers[toolById(th.kind).layer]) s += drawThing(th);
     if (S.layers.trails) {
       // NT43: each trail's segments in its own colour, lit whole, and its name once along it
@@ -1170,11 +1196,13 @@ body.solo .frame { border-radius: 0; }
     if (S.layers.lifts && S.layers.labels) s += netLabels(areaLabels(netOf().areas, '#ffffff'));   // NT19: the Areas' names
     // Remove lift: the picked lift is lit (the wider white casing) and a second click on it takes it out
     if (S.tool === 'remove-lift' && S.removeArmed && S.removeArmed === S.sel) { const l = S.lifts.find((x) => x.id === S.sel); if (l) s += readoutCard((l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2 + 6, [['Click again to remove'], ['Esc keeps it', '#cfc7bb']]); }
+    if (snowTop) s += drawSnow();
     const d = S.draft;
     if (d && d.kind === 'lift') s += drawLiftDraft(d);
     if (d && d.kind === 'trail') s += drawTrailDraft(d);
     if (d && d.kind === 'terrain') s += drawTerrainDraft(d);
     if (d && WATER.has(d.kind)) s += drawWaterDraft(d);
+    if (d && SNOW.has(d.kind)) s += drawSnowDraft(d);
     if (d && d.kind === 'line') {
       const pts = d.pts.slice(); if (!d.done && mouse && pts.length) pts.push(mouse);
       if (d.kind === 'trail') s += drawTrail({ name: d.name, diff: d.diff, pts, built: false }, { noTag: !d.done });
@@ -1190,7 +1218,7 @@ body.solo .frame { border-radius: 0; }
   // ---------- info layers and contours, painted over the capture ----------
   // The capture can't be re-rendered, so these stand in for the game's: steepness and facing come from the placeholder
   // heights, sharpened by what the capture shows (dark bare rock reads steep with thin snow; dark green is forest).
-  const INFO = { slope: ['Slope angle', '7'], aspect: ['Slope exposure', '8'], depth: ['Snow depth', '9'] };
+  const INFO = { slope: ['Slope angle', '7'], aspect: ['Slope exposure', '8'], depth: ['Snow depth', '9'], pressure: ['Pipe pressure', ''] };   // task 4.15: pressure along the water lines
   const SLOPE_BANDS = [[25, '#1B8A4C', 'Easiest', 'under 25%'], [40, '#1C5EC0', 'More difficult', '25–40%'], [60, '#2A2A2B', 'Most difficult', '40–60%'], [Infinity, 'hatch', 'Experts only', 'over 60%']];
   const ASPECTS = [['N', '#3B6BD1'], ['NE', '#2E9EB0'], ['E', '#58B066'], ['SE', '#D5BE41'], ['S', '#E88638'], ['SW', '#CE5341'], ['W', '#AC4F94'], ['NW', '#6B58C7']];
   const FLAT = '#9E9E99';
@@ -1286,7 +1314,7 @@ body.solo .frame { border-radius: 0; }
   }
   function paintInfo() {
     const cv = document.getElementById('info'), key = S.info ? S.info + (px ? '+' : '-') : '';
-    if (key !== painted) { painted = key; cv.hidden = !S.info; if (S.info) cv.getContext('2d').putImageData(infoImage(S.info), 0, 0); }
+    if (key !== painted) { painted = key; const raster = S.info && S.info !== 'pressure'; cv.hidden = !raster; if (raster) cv.getContext('2d').putImageData(infoImage(S.info), 0, 0); }   // the pressure layer colours the pipes instead
     const ck = S.contours ? S.units : '';
     if (ck !== contourKey) { contourKey = ck; document.getElementById('contours').innerHTML = S.contours ? contourSvg() : ''; }
   }
@@ -1297,6 +1325,7 @@ body.solo .frame { border-radius: 0; }
   }
   function readout(p) {
     if (!p || !onTerrain(p)) return '<span style="color:var(--ph)">– – –</span>';
+    if (S.info === 'pressure') return snowReadout(p);
     const s = sample(p[0], p[1]);
     if (S.info === 'slope') { const b = slopeBand(s.pct); return `<i style="background:${b[1] === 'hatch' ? HATCH : b[1]}"></i>Slope <b>${Math.round(s.pct)}%</b> · ${b[2]}`; }
     if (S.info === 'aspect') { const a = aspectOf(s); return a ? `<i style="background:${a[1]}"></i>Faces <b>${a[0]} · ${Math.round(s.bearing)}°</b>` : `<i style="background:${FLAT}"></i>Flat · under 10%`; }
@@ -1339,6 +1368,7 @@ body.solo .frame { border-radius: 0; }
       const figs = I ? ['0 in', '6 in', '1 ft 6 in', '3 ft', '6 ft', '10 ft+'] : ['0', '15 cm', '50 cm', '1 m', '2 m', '3 m+'], words = ['Bare', 'Thin', '', '', '', 'Deep'];
       b = head('Snow depth') + DEPTH_STOPS.map(([, c], i) => row(c, words[i], figs[i])).join('') + '<div class="ln">The natural snowpack: deeper up high, thinner on sunny faces, steep rock and under trees.</div>';
     }
+    if (S.info === 'pressure') b = pressureLegend(head);
     if (S.contours) {
       const cl = `<div class="cl"><svg width="22" height="12" viewBox="0 0 22 12"><path d="M0 3.5c6-2 12 2 22 0" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M0 9c7-2 13 1.5 22-.5" fill="none" stroke="currentColor" stroke-width=".7" opacity=".7"/></svg><span>Contours every ${I ? '40 ft' : '10 m'},<br>labelled every ${I ? '200 ft' : '50 m'}</span></div>`;
       b += b ? `<div class="lrule"></div>${cl}` : head('Contours') + cl.replace('class="cl"', 'class="cl" style="padding-top:0"');
@@ -1814,7 +1844,7 @@ body.solo .frame { border-radius: 0; }
   }
   // A readout card beside the pointer: a bold first line, then plain lines.
   function readoutCard(x, y, lines) {
-    const w = Math.max(...lines.map((l) => l[0].length)) * 6.1 + 18, h = lines.length * 15 + 8, cx = 640 + (x + 16 + w - 640) * S.zoom > W - 6 ? x - 16 - w : x + 16;   // flip left at the frame's edge, zoomed or not
+    const w = Math.max(...lines.map((l) => l[0].length)) * 6.1 + 18, h = lines.length * 15 + 8, ox = (S.zoomO || [640])[0], cx = ox + (x + 16 + w - ox) * S.zoom > W - 6 ? x - 16 - w : x + 16;   // flip left at the frame's edge, zoomed or not
     return `<g style="pointer-events:none"><rect x="${f1(cx)}" y="${f1(y - 10)}" width="${f1(w)}" height="${h}" rx="2" fill="${graphite}"/>${lines.map(([t, col], i) => `<text x="${f1(cx + 9)}" y="${f1(y + 5 + i * 15)}" style="font:${i ? 500 : 700} 11px DotFix,Overpass,sans-serif;fill:${col || '#efe9df'}">${esc(t)}</text>`).join('')}</g>`;
   }
   const OKC = '#5fd06a', BADC = '#ff5a4a';
@@ -3594,6 +3624,804 @@ body.solo .frame { border-radius: 0; }
     if (dd.includes('waterremove')) { seed(true, true, true); open('remove-water'); S.sel = 'w1'; S.removeArmed = 'w1'; }
     if (dd.includes('watertray')) { seed(true, true, true); S.toolbox = true; S.tab = 'snow'; }
   }
+  // ---------- the snowmaking network: water lines, pumps, hydrants and guns (task 4.15; rules HY-01…10, SG-01…07) ----------
+  // A water line is a polyline with stations along it (feet from its start): its ends, its hydrants, the junctions where
+  // other lines join it and its inline pumps. The mockup solves each pump house's tree: the flow in a stretch is the sum
+  // of the guns On (or every gun, for Check network) past it; pressure falls by Hazen–Williams friction (US form, C 120)
+  // and 0.433 psi a foot of climb; pumps add head up to their power (H = 3,960·hp·η/Q). The game's solver (GGA in
+  // Domain/Snowmaking) also solves loops and several sources. Wet bulb is a stand-in: the bar's air at the base, 2°F
+  // drier, 3.3°F colder every 1,000 ft.
+  const SNOW = new Set(['spipe', 'shouse', 'sbooster', 'sgun', 'scheck']);
+  const SN = { C: 120, psiFt: 2.31, bury: 6, need: 200, cls: 1000, clsWarn: 800, vel: 15, hose: 50, snap: 7, shore: 150, taken: 30, fill: 1000, baseFt: 7396 };
+  const HOUSE = { hp: 1000, eff: 0.85, set: 600, cfm: 5000, w: 60, d: 40, h: 16 };
+  const BOOST = { hp: 250, eff: 0.85, add: 300 };
+  const DIAS = [4, 6, 8, 10, 12, 14, 16, 18, 20, 24];
+  const STAGES = [[28, 18, 56], [24, 28, 56], [19, 38, 56], [14, 48, 16], [9, 58, 16]];   // SG-01: wet bulb at or under °F → gpm, cfm
+  const GUN_MODELS = [['s10', 'Stick 10 ft', 8500], ['s20', 'Stick 20 ft', 11000], ['s30', 'Stick 30 ft', 14000], ['fan', 'Ground fan', 42000]];   // stand-in prices
+  const PIPE_FT = (dia) => 14 + dia * 6.5, HYD_COST = 2400, HOUSE_COST = 1.2e6, BOOST_COST = 180000;   // stand-in prices: a foot of pipe laid 6 ft down, a hydrant
+  const hfFt = (L, Q, D) => (Q <= 0 ? 0 : 10.44 * L * Math.pow(Q, 1.852) / (Math.pow(SN.C, 1.852) * Math.pow(D, 4.87)));   // HY-04: ft of head
+  const velFs = (Q, D) => Q / (2.448 * D * D);
+  const powerFt = (hp, eff, Q) => (Q > 0 ? 3960 * hp * eff / Q : Infinity);
+  const housePsi = (h, Q) => Math.min(h.set, powerFt(h.hp, HOUSE.eff, Q) / SN.psiFt);   // Q1: a setpoint up to its power
+  const boostPsi = (b, Q) => Math.min(b.add, powerFt(b.hp, BOOST.eff, Q) / SN.psiFt);
+  const zFt = (p) => elevW(p) * FT;
+  const psiV = (v) => (IMP() ? Math.round(v).toLocaleString('en-US') : (v * 0.0689476).toFixed(1));
+  const psiU = () => (IMP() ? 'psi' : 'bar');
+  const psiTxt = (v) => `<b>${psiV(v)}</b> ${psiU()}`, psiPlain = (v) => `${psiV(v)} ${psiU()}`;
+  const gpmPlain = (q) => gpmTxt(q).replace(/<\/?b>/g, '');
+  const inTxt = (d) => (IMP() ? `${d} in` : `${Math.round(d * 25.4)} mm`);
+  const velTxt = (v) => (IMP() ? `${v.toFixed(1)} ft/s` : `${(v * 0.3048).toFixed(1)} m/s`);
+  const degF = (f) => (IMP() ? `${Math.round(f)}°F` : `${Math.round((f - 32) * 5 / 9)}°C`);
+  const ftPlain = (ft) => lenFt(ft);
+  const wbAt = (p) => weather(S.t).temp * 9 / 5 + 32 - 2 - 3.3 * (zFt(p) - SN.baseFt) / 1000;
+  const stageOf = (wb) => { let i = 0; while (i < STAGES.length && wb <= STAGES[i][0]) i++; return i; };   // 0: too warm
+  const plLen = (pts) => { let s = 0; for (let i = 1; i < pts.length; i++) s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return s; };
+  const lineFt = (ln) => plLen(ln.pts) * FT_PX;
+  const lineAt = (ln, s) => alongPt(ln.pts, 0, s / FT_PX);
+  function runFt(ln, s0, s1) { const n = Math.max(2, Math.ceil((s1 - s0) / 50)); let L = 0, za = zFt(lineAt(ln, s0)); for (let i = 1; i <= n; i++) { const zb = zFt(lineAt(ln, s0 + (s1 - s0) * i / n)); L += Math.hypot((s1 - s0) / n, zb - za); za = zb; } return L; }
+  function nearOnLine(pts, p) {
+    let best = { d: 1e9 }, acc = 0;
+    for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1, L = Math.sqrt(l2); let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2; t = Math.max(0, Math.min(1, t)); const q = [a[0] + t * dx, a[1] + t * dy], d = Math.hypot(p[0] - q[0], p[1] - q[1]); if (d < best.d) best = { d, p: q, s: (acc + t * L) * FT_PX, tan: [dx / L, dy / L] }; acc += L; }
+    return best;
+  }
+  function snSub(ln, s0, s1) {   // the polyline between two stations
+    const out = [lineAt(ln, s0)]; let acc = 0;
+    for (let i = 1; i < ln.pts.length; i++) { acc += Math.hypot(ln.pts[i][0] - ln.pts[i - 1][0], ln.pts[i][1] - ln.pts[i - 1][1]) * FT_PX; if (acc > s0 + 0.5 && acc < s1 - 0.5) out.push(ln.pts[i]); }
+    out.push(lineAt(ln, s1)); return out;
+  }
+  const NODE_PRE = { junction: 'J', hydrant: 'H', pump: 'P', outlet: 'O', intake: 'I', end: 'E' };
+  S.snow = { lines: [], nodes: [], houses: [], guns: [], every: false, stale: false, n: { J: 0, H: 0, P: 0, O: 0, I: 0, E: 0, G: 0, L: 0, PH: 0 }, card: null, hover: null, show: null, R: null, undo: [] };
+  // a readout card beside a point that keeps its size on screen at any zoom (readoutCard's look)
+  function mapCard(x, y, lines) {
+    const k = S.zoom, [ox, oy] = S.zoomO || [640, 400], sx = ox + (x - ox) * k, sy = oy + (y - oy) * k;
+    const w = Math.max(...lines.map((l) => l[0].length)) * 5.7 + 18, h = lines.length * 15 + 8, cx = sx + 16 + w > W - 6 ? sx - 16 - w : sx + 16, cy = Math.max(14, Math.min(H - h - 70, sy - 10));
+    const inner = `<rect x="${f1(cx)}" y="${f1(cy)}" width="${f1(w)}" height="${h}" rx="2" fill="${graphite}"/>${lines.map(([t, col], i) => `<text x="${f1(cx + 9)}" y="${f1(cy + 15 + i * 15)}" style="font:${i ? 500 : 700} 11px DotFix,Overpass,sans-serif;fill:${col || '#efe9df'}">${esc(t)}</text>`).join('')}`;
+    return `<g style="pointer-events:none" transform="translate(${f1(ox)} ${f1(oy)}) scale(${(1 / k).toFixed(4)}) translate(${f1(-ox)} ${f1(-oy)})">${inner}</g>`;
+  }
+  const snode = (id) => S.snow.nodes.find((x) => x.id === id), sline = (id) => S.snow.lines.find((x) => x.id === id);
+  const shouse = (id) => S.snow.houses.find((x) => x.id === id), sgun = (id) => S.snow.guns.find((x) => x.id === id);
+  function addNode(kind, p, extra = {}, net = S.snow) { const k = NODE_PRE[kind]; const nd = { id: 'n' + (uid++), kind, p: p.slice(), n: ++net.n[k], ...extra }; net.nodes.push(nd); return nd; }
+  function nodeName(nd) { if (!nd) return '—'; if (nd.kind === 'intake') { const h = S.snow.houses.find((x) => x.intake === nd.id); return h ? h.name : 'Intake'; } return nd.kind === 'outlet' ? `Outlet ${nd.n}` : NODE_PRE[nd.kind] + nd.n; }
+  const gunOn = (gn) => S.snow.guns.find((x) => x.hyd === gn);
+  const edgeDia = (e) => (e.ln.up || []).reduce((d, u) => (e.s0 >= u.s0 - 0.5 && e.s1 <= u.s1 + 0.5 ? Math.max(d, u.dia) : d), e.ln.dia);
+
+  // ----- the solve -----
+  function snowSolve(net = S.snow, opt = {}) {
+    const every = opt.every != null ? opt.every : net.every, N = new Map(net.nodes.map((n) => [n.id, n])), adj = new Map(), edges = [];
+    for (const n of net.nodes) adj.set(n.id, []);
+    for (const ln of net.lines) {
+      const st = ln.st.slice().sort((a, b) => a.s - b.s);
+      for (let i = 1; i < st.length; i++) {
+        const key = `${st[i - 1].s.toFixed(1)}:${st[i].s.toFixed(1)}`; ln._run = ln._run || {};
+        const L = ln._run[key] || (ln._run[key] = runFt(ln, st[i - 1].s, st[i].s));
+        const e = { id: `${ln.id}:${i}`, ln, a: st[i - 1].id, b: st[i].id, s0: st[i - 1].s, s1: st[i].s, L, closed: (i === 1 && ln.valveA === 'closed') || (i === st.length - 1 && ln.valveB === 'closed'), q: 0, fwd: 0, pu: null, pv: null, hf: 0 };
+        e.dia = edgeDia(e); edges.push(e); if (adj.has(e.a)) adj.get(e.a).push(e); if (adj.has(e.b)) adj.get(e.b).push(e);
+      }
+    }
+    // the guns that run: On, or every gun (Check network) that isn't too warm; a gun forced On while too warm still runs stage 1's water
+    const dem = new Map(), gun = new Map();
+    for (const gn of net.guns) {
+      const h = gn.hyd && N.get(gn.hyd), wb = wbAt(gn.p), st = stageOf(wb), runs = !!h && (every ? st > 0 : gn.mode === 'on');
+      const row = STAGES[Math.max(1, st) - 1];
+      gun.set(gn.id, { wb, st, runs, q: runs ? row[1] : 0, cfm: runs ? row[2] : 0 });
+      if (runs) dem.set(h.id, (dem.get(h.id) || 0) + row[1]);
+    }
+    for (const n of net.nodes) if (n.kind === 'outlet' && n.rate) dem.set(n.id, (dem.get(n.id) || 0) + n.rate);
+    // the tree from each pump house, breadth first; a check valve passes water only the way a pump faces (HY-06, Q2)
+    const par = new Map(), order = [], house = new Map(), blocked = [];
+    for (const h of net.houses) { const r = N.get(h.intake); if (!r || par.has(r.id)) continue; par.set(r.id, null); house.set(r.id, h); order.push(r.id); }
+    for (let k = 0; k < order.length; k++) {
+      const u = order[k], nu = N.get(u);
+      for (const e of adj.get(u)) {
+        const v = e.a === u ? e.b : e.a; if (par.has(v) || e.closed) continue;
+        const along = e.a === u ? 1 : -1;
+        if (nu.kind === 'pump' && nu.line === e.ln.id && along !== nu.dir) { blocked.push({ pump: nu, e, v }); continue; }
+        par.set(v, { e, u, along }); house.set(v, house.get(u)); order.push(v);
+      }
+    }
+    const Q = new Map();
+    for (let k = order.length - 1; k >= 0; k--) { const v = order[k]; Q.set(v, (Q.get(v) || 0) + (dem.get(v) || 0)); const pr = par.get(v); if (pr) Q.set(pr.u, (Q.get(pr.u) || 0) + Q.get(v)); }
+    const P = new Map(), pumps = new Map(), root = new Map();
+    const propagate = () => {
+      pumps.clear();
+      for (const v of order) {
+        const pr = par.get(v), nv = N.get(v);
+        if (!pr) { P.set(v, root.has(v) ? root.get(v) : housePsi(house.get(v), Q.get(v))); continue; }
+        const nu = N.get(pr.u), q = Q.get(v); let pu = P.get(pr.u);
+        if (nu.kind === 'pump') { if (!pumps.has(nu.id)) pumps.set(nu.id, { in: pu, q: Q.get(nu.id), add: nu.on ? boostPsi(nu, Q.get(nu.id)) : 0 }); pu = pumps.get(nu.id).in + pumps.get(nu.id).add; }
+        const e = pr.e, hf = hfFt(e.L, q, e.dia) / SN.psiFt, dz = (zFt(nv.p) - zFt(nu.p)) / SN.psiFt;
+        P.set(v, pu - hf - dz); Object.assign(e, { q, fwd: pr.along, hf, pu, pv: P.get(v), from: pr.u, to: v });
+      }
+    };
+    propagate();
+    // a house that only fills a pond runs its VFD down to what the outlet needs (lift and friction, plus 5 psi)
+    let again = false;
+    for (const h of net.houses) {
+      const r = h.intake; if (!par.has(r)) continue;
+      const mine = order.filter((v) => house.get(v) === h);
+      if (mine.some((v) => (dem.get(v) || 0) > 0 && N.get(v).kind !== 'outlet')) continue;
+      const outs = mine.filter((v) => N.get(v).kind === 'outlet' && N.get(v).rate); if (!outs.length) continue;
+      const need = Math.max(...outs.map((v) => P.get(r) - P.get(v))) + 5; root.set(r, Math.min(P.get(r), need)); again = true;
+    }
+    if (again) propagate();
+    for (const pb of blocked) if (!pumps.has(pb.pump.id) && par.has(pb.pump.id)) pumps.set(pb.pump.id, { in: P.get(pb.pump.id), q: 0, add: 0, faces: true });
+    // air per pump house (SG-06)
+    const air = new Map(); for (const h of net.houses) air.set(h.id, 0);
+    for (const gn of net.guns) { const g0 = gun.get(gn.id); if (g0.runs && par.has(gn.hyd)) { const h = house.get(gn.hyd); air.set(h.id, air.get(h.id) + g0.cfm); } }
+    return { N, edges, adj, P, Q, par, house, pumps, blocked, gun, air, dem, every };
+  }
+  const snowR = () => S.snow.R || (S.snow.R = snowSolve());
+  function snowTouched(quiet) { S.snow.R = null; S.saveDue = true; if (quiet) return; S.snow.stale = true; clearTimeout(snowTouched.t); snowTouched.t = setTimeout(() => { S.snow.stale = false; render(); }, 240); }
+  const edgeVel = (e) => velFs(e.q, e.dia);
+  const edgeMax = (e) => (e.pu == null ? null : Math.max(e.pu, e.pv) + SN.bury / SN.psiFt);   // M10: the class at the buried depth
+  const hydPsi = (R, id) => (R.P.has(id) ? R.P.get(id) : null);
+  // the path back to the source, gun first
+  function pathTo(R, id) { const out = []; let v = id; while (R.par.get(v)) { const pr = R.par.get(v); out.push(pr); v = pr.u; } return out; }
+  // what fixes a gun short of pressure: an off pump on its way, else the stretch with the most friction upsized, else a booster
+  function gunAdvice(R, gn) {
+    const p = hydPsi(R, gn.hyd); if (p == null) return null;
+    const short = SN.need - p, path = pathTo(R, gn.hyd);
+    for (const pr of path) { const nu = R.N.get(pr.u); if (nu.kind === 'pump' && !nu.on) return { text: `${nodeName(nu)} is off: turn it on`, fix: ['pumpon', nu.id, 'Turn pump on'] }; }
+    const runs = []; for (const pr of path) { const last = runs[runs.length - 1]; if (last && last.ln === pr.e.ln && last.dia === pr.e.dia) { last.hf += pr.e.hf; last.top = pr.u; last.s0 = Math.min(last.s0, pr.e.s0); } else runs.push({ ln: pr.e.ln, dia: pr.e.dia, hf: pr.e.hf, bot: pr.e.to, top: pr.u, s0: pr.e.s0, s1: pr.e.s1 }); }
+    for (const r of runs) { const a = R.N.get(r.top), b = R.N.get(r.bot); r.from = nodeName(a); r.to = nodeName(b); }
+    const best = runs.sort((x, y) => y.hf - x.hf)[0], fric = path.reduce((a, pr) => a + pr.e.hf, 0);
+    let booster = null; for (const pr of path.slice().reverse()) { if (R.P.get(pr.e.to) < SN.need + 40) { booster = R.N.get(pr.u); break; } }
+    const bTxt = booster ? `add a booster below ${nodeName(booster)}` : 'add a booster';
+    if (best) for (const k of [1, 2, 3]) {
+      const D2 = DIAS[DIAS.indexOf(best.dia) + k]; if (!D2) break;
+      const save = best.hf * (1 - Math.pow(best.dia / D2, 4.87));
+      if (save >= short) return { text: `upsize ${best.from}–${best.to} to ${inTxt(D2)} or ${bTxt}`, fix: ['upsize', `${best.ln.id}|${best.s0}|${best.s1}|${D2}`, `Upsize to ${inTxt(D2)}`], run: best, fric };
+    }
+    return { text: `${bTxt}: the climb, not the pipe, takes the pressure (friction is only ${psiPlain(fric)})`, fix: null, run: best, fric };
+  }
+  // ----- diagnostics (numbered as 4.15's plan; 5 and 6 can't arise, the tools build pumps inside a pipe) -----
+  const DIAG = { 1: 'No water source', 2: 'Gun not on a hydrant', 3: 'Hydrant on no pipe', 4: 'No route to this gun', 7: 'Pump faces the wrong way', 8: 'Elevation not known', 9: 'Pump not set up', 10: 'Solve didn\'t settle', 11: 'Pump has no forward flow', 12: 'Short of pressure', 13: 'Over the pipe class', 14: 'Water too fast', 15: 'Air lock', 16: 'Source at its minimum pool', 17: 'Lake at its drawdown limit', 18: 'Short of air', 19: 'Valve cuts off guns', 20: 'On while too warm' };
+  function snowDiag(net = S.snow, R = snowR()) {
+    const out = [], wants = (gn) => (R.every ? R.gun.get(gn.id).st > 0 : gn.mode === 'on');
+    // components, whatever the valves and pumps do
+    const comp = new Map(), find = (x) => { while (comp.get(x) !== x) x = comp.get(x); return x; };
+    for (const n of net.nodes) comp.set(n.id, n.id);
+    for (const e of R.edges) { const a = find(e.a), b = find(e.b); if (a !== b) comp.set(a, b); }
+    const fed = new Set(net.houses.map((h) => find(h.intake)));
+    const explained = new Set();
+    for (const ln of net.lines) if (ln.st.length && !fed.has(find(ln.st[0].id))) { out.push({ c: 1, sev: 'bad', title: DIAG[1], text: `${esc(ln.name)} isn't joined to a pump house: start a water line at one, or join it to a line that is.`, at: ln.pts[Math.floor(ln.pts.length / 2)] }); ln.st.forEach((x) => explained.add(x.id)); }
+    // what lies past a node that isn't reached
+    const past = (start, skip) => { const seen = new Set([start]), q = [start]; while (q.length) { const u = q.pop(); for (const e of R.adj.get(u) || []) { const v = e.a === u ? e.b : e.a; if (v === skip || seen.has(v) || R.par.has(v)) continue; seen.add(v); q.push(v); } } return seen; };
+    const gunsIn = (set) => net.guns.filter((gn) => gn.hyd && set.has(gn.hyd) && (R.every || gn.mode !== 'off'));
+    for (const b of R.blocked) {
+      if (R.par.has(b.v)) continue; const set = past(b.v, b.pump.id); set.forEach((x) => explained.add(x)); const gs = gunsIn(set);
+      out.push({ c: 7, sev: 'bad', title: DIAG[7], text: `${nodeName(b.pump)} on ${esc(sline(b.pump.line).name)} pushes toward the pump house, and its check valve holds the water back: ${gs.length ? `${gs.length} gun${gs.length > 1 ? 's' : ''} past it get none` : 'nothing past it gets water'}.`, at: b.pump.p, fix: ['flip', b.pump.id, 'Flip pump'] });
+    }
+    for (const e of R.edges) if (e.closed && (R.par.has(e.a) !== R.par.has(e.b))) {
+      const far = R.par.has(e.a) ? e.b : e.a, set = past(far, null); set.forEach((x) => explained.add(x)); const gs = gunsIn(set);
+      out.push({ c: 19, sev: gs.length ? 'bad' : 'warn', title: DIAG[19], text: `The valve at the ${e.s0 === 0 ? 'start' : 'end'} of ${esc(e.ln.name)} is closed: ${gs.length ? `${gs.length} gun${gs.length > 1 ? 's' : ''} past it get no water` : 'no guns past it yet'}.`, at: lineAt(e.ln, e.s0 === 0 ? 0 : e.s1), fix: ['valve', `${e.ln.id}|${e.s0 === 0 ? 'A' : 'B'}`, 'Open valve'] });
+    }
+    for (const gn of net.guns) {
+      const r = R.gun.get(gn.id);
+      if (!gn.hyd) { out.push({ c: 2, sev: 'bad', title: DIAG[2], text: `Gun ${gn.n} has no free hydrant within ${IMP() ? '50 ft' : '15 m'}: move it, or run a line past it.`, at: gn.p, gun: gn.id }); continue; }
+      if (!R.par.has(gn.hyd) && !explained.has(gn.hyd) && wants(gn)) out.push({ c: 4, sev: 'bad', title: DIAG[4], text: `Gun ${gn.n}: no open way from a pump house to ${nodeName(snode(gn.hyd))}.`, at: gn.p, gun: gn.id });
+      if (r.runs && r.st === 0 && !R.every) out.push({ c: 20, sev: 'warn', title: DIAG[20], text: `Gun ${gn.n} is On at a wet bulb of ${degF(r.wb)}: too warm to make snow (28°F or colder), so it only wastes water.`, at: gn.p, gun: gn.id, fix: ['gunauto', gn.id, 'Set to Auto'] });
+    }
+    // 12: grouped by line, the worst gun first
+    const short = net.guns.filter((gn) => R.gun.get(gn.id).runs && R.par.has(gn.hyd) && R.P.get(gn.hyd) < SN.need);
+    const byLine = new Map(); for (const gn of short) { const k = gn.line || 'x'; if (!byLine.has(k)) byLine.set(k, []); byLine.get(k).push(gn); }
+    for (const [k, gs] of byLine) {
+      gs.sort((a, b) => R.P.get(a.hyd) - R.P.get(b.hyd)); const w = gs[0], adv = gunAdvice(R, w), ln = sline(k);
+      out.push({ c: 12, sev: 'bad', title: DIAG[12], text: `${gs.length} gun${gs.length > 1 ? 's' : ''} on ${esc(ln ? ln.name : 'a line')} under ${psiPlain(SN.need)}; the worst, gun ${w.n} at ${nodeName(snode(w.hyd))}, has ${psiPlain(R.P.get(w.hyd))}: ${adv ? adv.text : ''}.`, at: w.p, gun: w.id, fix: adv && adv.fix });
+    }
+    const lineWorst = (pred) => { const m = new Map(); for (const e of R.edges) if (pred(e)) { const o = m.get(e.ln.id); if (!o || pred(e) > pred(o)) m.set(e.ln.id, e); } return [...m.values()]; };
+    for (const e of lineWorst((e) => (edgeMax(e) != null && edgeMax(e) > SN.cls ? edgeMax(e) : 0))) out.push({ c: 13, sev: 'bad', title: DIAG[13], text: `${esc(e.ln.name)} reaches ${psiPlain(edgeMax(e))} at its buried depth, over its ${psiPlain(SN.cls)} class: add a pressure-reducing station, or route it lower.`, at: lineAt(e.ln, (e.s0 + e.s1) / 2) });
+    for (const e of lineWorst((e) => (edgeVel(e) > SN.vel ? edgeVel(e) : 0))) { const D2 = DIAS.find((d) => velFs(e.q, d) <= SN.vel) || 24; out.push({ c: 14, sev: 'warn', title: DIAG[14], text: `${esc(e.ln.name)} (${inTxt(e.dia)}) carries ${gpmPlain(e.q)} at ${velTxt(edgeVel(e))}, over ${velTxt(SN.vel)}: water hammer wears it out. ${inTxt(D2)} brings it down to ${velTxt(velFs(e.q, D2))}.`, at: lineAt(e.ln, (e.s0 + e.s1) / 2), fix: ['upsize', `${e.ln.id}|0|${lineFt(e.ln)}|${D2}`, `Upsize to ${inTxt(D2)}`] }); }
+    for (const e of R.edges) {   // 15: a hump between two stations with no hydrant to bleed the air
+      const za = zFt(lineAt(e.ln, e.s0)), zb = zFt(lineAt(e.ln, e.s1)); let top = -1e9, at = null;
+      for (let k = 1; k < 8; k++) { const s = e.s0 + (e.s1 - e.s0) * k / 8, z = zFt(lineAt(e.ln, s)); if (z > top) { top = z; at = s; } }
+      if (top > Math.max(za, zb) + 8 && e.s1 - e.s0 > 150) out.push({ c: 15, sev: 'warn', title: DIAG[15], text: `${esc(e.ln.name)} humps ${ftPlain(top - Math.max(za, zb))} between ${nodeName(snode(e.a))} and ${nodeName(snode(e.b))} with no hydrant to let the air out: add one there.`, at: lineAt(e.ln, at) });
+    }
+    for (const nd of net.nodes) if (nd.kind === 'pump' && R.pumps.has(nd.id) && nd.on && !R.pumps.get(nd.id).q && !R.pumps.get(nd.id).faces) out.push({ c: 11, sev: 'warn', title: DIAG[11], text: `${nodeName(nd)} is on with no gun past it running: it would run dry against its check valve.`, at: nd.p, fix: ['pumpoff', nd.id, 'Turn pump off'] });
+    for (const nd of net.nodes) if (!onTerrain(nd.p)) out.push({ c: 8, sev: 'bad', title: DIAG[8], text: `${nodeName(nd)} is off the terrain we have heights for.`, at: nd.p });
+    for (const h of net.houses) {
+      const src = waterById(h.src), used = R.air.get(h.id);
+      if (used > h.cfm) out.push({ c: 18, sev: 'bad', title: DIAG[18], text: `${esc(h.name)}'s guns need ${Math.round(used).toLocaleString('en-US')} cfm of its ${h.cfm.toLocaleString('en-US')}: the coldest-stage guns use 16 cfm, the warm stages 56.`, at: h.c });
+      if (src && src.fillPct != null && src.fillPct <= WS.minPool + 1e-6) out.push({ c: 16, sev: 'bad', title: DIAG[16], text: `${esc(src.name)} is down to its minimum pool (10%): ${esc(h.name)} stops drawing.`, at: h.c });
+      if (src && src.est && src.drawn >= WS.lakeDraw) out.push({ c: 17, sev: 'bad', title: DIAG[17], text: `${esc(src.name)} is drawn down 3 ft, the permit's limit.`, at: h.c });
+    }
+    return out.sort((a, b) => a.c - b.c);
+  }
+
+  // ----- planning a line: its stations and hydrants -----
+  // ends: { node } an existing node, { line, s, p } a point inside a line (a junction), { house } a pump house's intake,
+  // { pond, p } inside a pond or dam (an outlet), or null (a free end)
+  function snapAt(p, skipLine) {
+    const z = 1 / S.zoom, net = S.snow;
+    for (const h of net.houses) if (Math.hypot(p[0] - h.c[0], p[1] - h.c[1]) < 9 * z) return { house: h.id, p: h.c.slice(), label: h.name };
+    let bn = null, bd = SN.snap * z;
+    for (const nd of net.nodes) { if (nd.kind === 'intake') continue; const d = Math.hypot(p[0] - nd.p[0], p[1] - nd.p[1]); if (d < bd && (nd.kind !== 'hydrant' || d < 3.5 * z)) { bd = d; bn = nd; } }
+    if (bn) return { node: bn.id, p: bn.p.slice(), label: nodeName(bn) };
+    let bl = null; bd = 6 * z;
+    for (const ln of net.lines) { if (ln.id === skipLine) continue; const o = nearOnLine(ln.pts, p); if (o.d < bd) { bd = o.d; bl = { line: ln.id, s: o.s, p: o.p, label: `a junction on ${ln.name}`, short: ln.name }; } }
+    if (bl) return bl;
+    for (const o of S.water.ponds) if (inPoly(p, o.pts)) return { pond: o.id, p: p.slice(), label: `an outlet into ${o.name}` };
+    for (const o of S.water.dams) if (o.res.cells.some(([x, y]) => p[0] >= x && p[0] < x + 2 && p[1] >= y && p[1] < y + 2)) return { pond: o.id, p: p.slice(), label: `an outlet into ${o.name}` };
+    return null;
+  }
+  // net: the network to plan into (a copy for the live preview); returns what Break ground would add
+  function planLine(d, pts, net) {
+    const ln = { id: 'sl' + (uid++), name: d.name, dia: d.dia, pts: pts.map((q) => q.slice()), st: [], valveA: d.valves === 'both' || d.valves === 'start' ? 'open' : null, valveB: d.valves === 'both' || d.valves === 'end' ? 'open' : null };
+    const L = lineFt(ln), endNode = (snap, s) => {
+      if (snap && snap.node) return { id: snap.node, taken: true };
+      if (snap && snap.house) { const h = net.houses.find((x) => x.id === snap.house); return { id: h.intake, taken: true }; }
+      if (snap && snap.line) {   // a mid-pipe snap makes a junction in that line
+        const other = net.lines.find((x) => x.id === snap.line), j = addNode('junction', snap.p, {}, net);
+        other.st = other.st.filter((x) => { const nd = net.nodes.find((n) => n.id === x.id); return !(nd.kind === 'hydrant' && Math.abs(x.s - snap.s) < SN.taken && !net.guns.some((gn) => gn.hyd === nd.id)); });
+        other.st.push({ s: snap.s, id: j.id }); other._run = null; return { id: j.id, taken: true };
+      }
+      if (snap && snap.pond) return { id: addNode('outlet', snap.p, { pond: snap.pond, rate: SN.fill, line: ln.id }, net).id, taken: true };
+      return null;
+    };
+    const a = endNode(d.snapA, 0), b = endNode(d.snapB, L), skipped = [];
+    // hydrants every N ft (or by count), both ends included; spots by another line's node are skipped and marked
+    let spots = [];
+    if (d.hyd === 'none') spots = [];
+    else if (d.hyd === 'count') { const n = Math.max(1, d.count); spots = n === 1 ? [L / 2] : Array.from({ length: n }, (_, i) => L * i / (n - 1)); }
+    else { const n = Math.max(1, Math.round(L / d.every)); spots = Array.from({ length: n + 1 }, (_, i) => Math.min(L, i * d.every)); if (L - spots[spots.length - 2] < d.every * 0.4) spots.splice(spots.length - 2, 1); }
+    const near = (p) => net.nodes.some((nd) => Math.hypot(nd.p[0] - p[0], nd.p[1] - p[1]) * FT_PX < SN.taken);
+    for (const s of spots) {
+      const p = lineAt(ln, s);
+      if ((s < 1 && a) || (s > L - 1 && b) || ((s >= 1 && s <= L - 1) && near(p))) { skipped.push(p); continue; }
+      const h = addNode('hydrant', p, { line: ln.id }, net); ln.st.push({ s, id: h.id });
+    }
+    if (a) ln.st.push({ s: 0, id: a.id }); else if (!ln.st.some((x) => x.s < 1)) ln.st.push({ s: 0, id: addNode('end', pts[0], { line: ln.id }, net).id });
+    if (b) ln.st.push({ s: L, id: b.id }); else if (!ln.st.some((x) => x.s > L - 1)) ln.st.push({ s: L, id: addNode('end', pts[pts.length - 1], { line: ln.id }, net).id });
+    ln.st.sort((x, y) => x.s - y.s); net.lines.push(ln);
+    return { ln, skipped, hyd: ln.st.filter((x) => net.nodes.find((n) => n.id === x.id).kind === 'hydrant').length, L };
+  }
+  const netCopy = () => { const n = S.snow; return { lines: n.lines.map((l) => ({ ...l, st: l.st.slice() })), nodes: n.nodes.slice(), houses: n.houses, guns: n.guns.slice(), every: false, n: { ...n.n } }; };
+  // the live preview: the network with the drawn line in it, a gun on every new hydrant
+  function linePreview(d, pts) {
+    if (pts.length < 2) return null;
+    const net = netCopy(), pl = planLine({ ...d, snapB: d.snapB }, pts, net);
+    for (const x of pl.ln.st) { const nd = net.nodes.find((n) => n.id === x.id); if (nd.kind === 'hydrant') net.guns.push({ id: 'pg' + x.id, n: 0, hyd: nd.id, p: nd.p, mode: 'on', line: pl.ln.id, model: 's20', hyp: true }); }
+    const R = snowSolve(net, { every: false }), endId = pl.ln.st[pl.ln.st.length - 1].id, startId = pl.ln.st[0].id;
+    const hyps = net.guns.filter((gn) => gn.hyp), short = hyps.filter((gn) => R.P.has(gn.hyd) && R.P.get(gn.hyd) < SN.need), worst = short.length ? Math.max(...short.map((gn) => SN.need - R.P.get(gn.hyd))) : 0;
+    const first = R.edges.find((e) => e.ln === pl.ln && R.par.has(e.a) && R.par.has(e.b)), vel = first ? edgeVel(first) : 0;
+    return { R, pl, L: pl.ln.st.length > 1 ? runFt(pl.ln, 0, pl.L) : 0, run: pl.L, vert: zFt(pts[pts.length - 1]) - zFt(pts[0]), endPsi: R.P.has(endId) ? R.P.get(endId) : null, fed: R.P.has(startId), n: hyps.length, short: short.length, worst, vel, q: first ? first.q : 0 };
+  }
+
+  // ----- the tools -----
+  const lineName = () => `Line ${S.snow.lines.length + 1}`, houseName = () => (S.snow.houses.length ? `Pump House ${S.snow.houses.length + 1}` : 'Base Pump House');
+  function newSnowDraft(t) {
+    if (t.kind === 'spipe') return { kind: 'spipe', tool: t.id, step: 'route', pts: [], snapA: null, snapB: null, dia: S.snowDia || 8, name: lineName(), valves: 'both', hyd: 'every', every: 100, count: 10 };
+    if (t.kind === 'shouse') return { kind: 'shouse', tool: t.id, step: 'centre', c: null, bearing: 0, found: 'pad', name: houseName() };
+    if (t.kind === 'sgun') return { kind: 'sgun', tool: t.id, model: S.gunModel || 's20', mode: 'place', lasso: null, sel: [] };
+    return { kind: t.kind, tool: t.id };
+  }
+  // a pump house: beside a source's shore (within 150 ft of the centre), on a pad or a slab
+  function houseEval(d) {
+    if (!d.c) return null;
+    let src = null, sd = 1e9;
+    for (const o of S.water.ponds) { const v = Math.max(0, ringDist(d.c, o.pts)); if (v < sd) { sd = v; src = o; } }
+    for (const o of S.water.lakes) if (o.on) { const v = Math.max(0, ringDist(d.c, o.pts)); if (v < sd) { sd = v; src = o; } }
+    for (const o of S.water.dams) for (const [x, y] of o.res.cells) { const v = Math.hypot(x + 1 - d.c[0], y + 1 - d.c[1]); if (v < sd) { sd = v; src = o; } }
+    const c = Math.cos(d.bearing), s = Math.sin(d.bearing), zs = [];
+    for (let u = -HOUSE.w / 2; u <= HOUSE.w / 2; u += 5) for (let v = -HOUSE.d / 2; v <= HOUSE.d / 2; v += 5) zs.push(zFt([d.c[0] + (u * c - v * s) / FT_PX, d.c[1] + (u * s + v * c) / FT_PX]));
+    const pad = zs.reduce((a, b) => a + b, 0) / zs.length, cut = zs.reduce((a, z) => a + Math.max(0, z - pad) * 25, 0), fill = zs.reduce((a, z) => a + Math.max(0, pad - z) * 25, 0);
+    const r = { src, dist: sd * FT_PX, pad, cut, fill, fall: Math.max(...zs) - Math.min(...zs) };
+    if (!onTerrain(d.c)) r.err = 'Keep the pump house inside the core.';
+    else if (!src || r.dist > SN.shore) r.err = `A pump house stands beside its water: move it within ${IMP() ? '150 ft' : '45 m'} of a pond, a dam or a lake source's shore.`;
+    else if (S.snow.houses.some((h) => h !== d.editing && Math.hypot(h.c[0] - d.c[0], h.c[1] - d.c[1]) * FT_PX < 120)) r.err = 'Too close to another pump house.';
+    return r;
+  }
+  function houseBuild(d) {
+    const r = houseEval(d); if (!r || r.err) return;
+    const h = { id: 'ph' + (uid++), name: d.name, c: d.c.slice(), bearing: d.bearing, found: d.found, src: r.src.id, hp: HOUSE.hp, set: HOUSE.set, cfm: HOUSE.cfm, pad: r.pad };
+    h.intake = addNode('intake', d.c, { house: h.id }).id; S.snow.houses.push(h); S.snow.n.PH++;
+    spend(HOUSE_COST); log(`<span><b>${esc(h.name)}</b> built beside ${esc(r.src.name)} <span class="mono" style="color:var(--neg)">${short(-HOUSE_COST)}</span></span>`, '#1a6b3c');
+    snowTouched(); S.draft = newSnowDraft(toolById(S.tool)); S.snow.card = { t: 'house', id: h.id }; render();
+  }
+  function lineBuild(d) {
+    const pl = planLine(d, d.pts, S.snow), cost = pl.L * PIPE_FT(d.dia) + pl.hyd * HYD_COST;
+    S.snowDia = d.dia; spend(cost);
+    log(`<span><b>${esc(d.name)}</b>: ${lenFt(pl.L)} of ${inTxt(d.dia)} pipe, ${pl.hyd} hydrants <span class="mono" style="color:var(--neg)">${short(-cost)}</span></span>`, '#1a6b3c');
+    snowTouched(); S.draft = newSnowDraft(toolById(S.tool)); S.snow.card = { t: 'pipe', id: pl.ln.id, s: pl.L / 2 }; render();
+  }
+  function placeBooster(p) {
+    const z = 1 / S.zoom; let best = null;
+    for (const ln of S.snow.lines) { const o = nearOnLine(ln.pts, p); if (o.d < 6 * z && (!best || o.d < best.o.d)) best = { ln, o }; }
+    if (!best) { log('<span>Click inside a water line</span>', '#8e2b1f', true); return; }
+    const { ln, o } = best, L = lineFt(ln);
+    if (o.s < 40 || o.s > L - 40 || ln.st.some((x) => Math.abs(x.s - o.s) < 12 && snode(x.id).kind !== 'hydrant')) { log('<span>Too close to the end of the line or a junction</span>', '#8e2b1f', true); return; }
+    // HY-06: it faces away from the source, the way the water already goes there
+    const R = snowR(), e = R.edges.find((x) => x.ln === ln && x.s0 <= o.s && x.s1 >= o.s), dir = e && e.fwd ? e.fwd : 1;
+    ln.st = ln.st.filter((x) => !(Math.abs(x.s - o.s) < 12 && snode(x.id).kind === 'hydrant' && !gunOn(x.id)));
+    const nd = addNode('pump', o.p, { line: ln.id, dir, on: true, hp: BOOST.hp, add: BOOST.add });
+    ln.st.push({ s: o.s, id: nd.id }); ln._run = null; spend(BOOST_COST);
+    log(`<span><b>${nodeName(nd)}</b>, an inline pump on ${esc(ln.name)} <span class="mono" style="color:var(--neg)">${short(-BOOST_COST)}</span></span>`, '#1a6b3c');
+    snowTouched(); S.snow.card = { t: 'pump', id: nd.id }; render();
+  }
+  // a gun hooks to the nearest free hydrant within 50 ft (SG-02)
+  function freeHydrant(p) { let best = null, bd = SN.hose / FT_PX; for (const nd of S.snow.nodes) { if (nd.kind !== 'hydrant' || gunOn(nd.id)) continue; const d = Math.hypot(nd.p[0] - p[0], nd.p[1] - p[1]); if (d <= bd) { bd = d; best = nd; } } return best; }
+  function addGun(p, hyd, model, mode = 'auto') { const gn = { id: 'sg' + (uid++), n: ++S.snow.n.G, p: p.slice(), hyd: hyd ? hyd.id : null, line: hyd ? hyd.line : null, model, mode }; S.snow.guns.push(gn); return gn; }
+  const gunCost = (m) => GUN_MODELS.find((x) => x[0] === m)[2];
+  function fillHydrants(ln, model) {
+    let n = 0; const L = lineFt(ln);
+    for (const x of ln.st) { const nd = snode(x.id); if (nd.kind !== 'hydrant' || gunOn(nd.id)) continue; const o = nearOnLine(ln.pts, nd.p), side = n % 2 ? 1 : -1; addGun([nd.p[0] - o.tan[1] * side * 1.6, nd.p[1] + o.tan[0] * side * 1.6], nd, model); n++; }
+    return n;
+  }
+  function snowHit(p) {
+    const z = 1 / S.zoom, net = S.snow;
+    for (const gn of net.guns) if (Math.hypot(p[0] - gn.p[0], p[1] - gn.p[1]) < 5 * z) return { t: 'gun', id: gn.id };
+    for (const h of net.houses) if (Math.hypot(p[0] - h.c[0], p[1] - h.c[1]) < 6 * z || Math.hypot(p[0] - h.c[0], p[1] - (h.c[1] - 19 * z)) < 11 * z) return { t: 'house', id: h.id };
+    for (const nd of net.nodes) if ((nd.kind === 'pump' || nd.kind === 'outlet' || nd.kind === 'junction') && Math.hypot(p[0] - nd.p[0], p[1] - nd.p[1]) < 6 * z) return { t: nd.kind === 'pump' ? 'pump' : nd.kind === 'outlet' ? 'outlet' : 'hyd', id: nd.id };
+    for (const nd of net.nodes) if (nd.kind === 'hydrant' && Math.hypot(p[0] - nd.p[0], p[1] - nd.p[1]) < 3 * z) return { t: 'hyd', id: nd.id };
+    let best = null, bd = 5 * z; for (const ln of net.lines) { const o = nearOnLine(ln.pts, p); if (o.d < bd) { bd = o.d; best = { t: 'pipe', id: ln.id, s: o.s }; } }
+    return best;
+  }
+  function snowClick(p, dbl) {
+    const d = S.draft;
+    if (d.kind === 'spipe' && d.step === 'route') {
+      const sn = snapAt(p), q = sn ? sn.p : p;
+      if (!onTerrain(q)) return;
+      if (!d.pts.length) { d.snapA = sn && !sn.pond ? sn : null; d.pts.push(q); render(); return; }
+      if (dbl && d.pts.length > 1) { snowKeys({ key: 'Enter' }, 'enter'); return; }
+      if (Math.hypot(q[0] - d.pts[d.pts.length - 1][0], q[1] - d.pts[d.pts.length - 1][1]) * FT_PX < 10) return;
+      d.pts.push(q);
+      if (sn && (sn.node || sn.line || sn.house || sn.pond)) { d.snapB = sn; d.step = 'review'; }   // landing on the network or a pond ends the line
+      render(); return;
+    }
+    if (d.kind === 'shouse') {
+      if (d.step === 'centre') { if (!onTerrain(p)) return; d.c = p; d.step = 'bearing'; render(); return; }
+      if (d.step === 'bearing') { if (Math.hypot(p[0] - d.c[0], p[1] - d.c[1]) * FT_PX < 3) return; d.bearing = Math.atan2(p[1] - d.c[1], p[0] - d.c[0]); d.step = 'review'; d.res = houseEval(d); render(); return; }
+      return;
+    }
+    if (d.kind === 'sbooster') { const hit = snowHit(p); if (hit && hit.t === 'pump') { S.snow.card = hit; render(); return; } placeBooster(p); return; }
+    if (d.kind === 'sgun') {
+      if (d.mode === 'place') {
+        const hit = snowHit(p); if (hit && hit.t === 'gun') { S.snow.card = hit; render(); return; }
+        const h = freeHydrant(p), gn = addGun(p, h, d.model); spend(gunCost(d.model));
+        if (!h) log(`<span>Gun ${gn.n} placed with no hydrant in reach <span style="color:var(--soft)">· it needs one within ${IMP() ? '50 ft' : '15 m'}</span></span>`, '#8e2b1f');
+        snowTouched(true); render(); return;
+      }
+      if (d.mode === 'fill') {
+        let best = null, bd = 6 / S.zoom; for (const ln of S.snow.lines) { const o = nearOnLine(ln.pts, p); if (o.d < bd) { bd = o.d; best = ln; } }
+        if (!best) return; const n = fillHydrants(best, d.model); spend(n * gunCost(d.model));
+        log(`<span><b>${n}</b> guns on ${esc(best.name)}'s free hydrants <span class="mono" style="color:var(--neg)">${short(-n * gunCost(d.model))}</span></span>`, '#1a6b3c');
+        snowTouched(true); render(); return;
+      }
+      return;
+    }
+    // Check, or no tool: a click opens the card of what's under it
+    S.snow.card = snowHit(p); render();
+  }
+  function snowKeys(e, k) {
+    const d = S.draft;
+    if (d.kind === 'spipe') {
+      if (d.step === 'route') {
+        if (k === 'backspace' && d.pts.length) { d.pts.pop(); if (!d.pts.length) d.snapA = null; render(); return true; }
+        if (k === 'enter' && d.pts.length > 1) { d.step = 'review'; render(); return true; }
+        if (k === 'escape' && d.pts.length) { d.pts = []; d.snapA = null; render(); return true; }
+      } else if (k === 'escape' || k === 'backspace') { d.step = 'route'; d.snapB = null; if (k === 'backspace') d.pts.pop(); render(); return true; }
+      if (k === '[' || k === ']') { snowAct('dia', k === ']' ? 1 : -1); return true; }
+    }
+    if (d.kind === 'shouse' && k === 'escape' && d.step !== 'centre') { Object.assign(d, { step: 'centre', c: null, res: null }); render(); return true; }
+    if (d.kind === 'sgun' && k === 'escape' && (d.sel.length || d.mode !== 'place')) { d.sel = []; d.mode = 'place'; render(); return true; }
+    if (S.snow.card && k === 'escape') { S.snow.card = null; render(); return true; }
+    return false;
+  }
+  function snowAct(a, v) {
+    const d = S.draft, net = S.snow;
+    if (a === 'dia') { const o = d && d.kind === 'spipe' ? d : null, i = DIAS.indexOf(o ? o.dia : 8); if (o) o.dia = DIAS[Math.max(0, Math.min(DIAS.length - 1, i + (+v)))]; }
+    else if (a === 'valves') d.valves = v;
+    else if (a === 'hyd') d.hyd = v;
+    else if (a === 'every') { if (d.hyd === 'count') d.count = Math.max(1, Math.min(200, d.count + (+v))); else d.every = Math.max(50, Math.min(400, d.every + (+v) * 25)); }
+    else if (a === 'next') snowKeys({ key: 'Enter' }, 'enter');
+    else if (a === 'lstep') { if (v === 'route' && d.step === 'review') { d.step = 'route'; d.snapB = null; } }
+    else if (a === 'found') { d.found = v; }
+    else if (a === 'hstep') { if (v === 'centre') Object.assign(d, { step: 'centre', c: null, res: null }); else if (v === 'bearing' && d.c) { d.step = 'bearing'; d.res = null; } }
+    else if (a === 'build') { if (d.kind === 'spipe') lineBuild(d); else if (d.kind === 'shouse') houseBuild(d); return; }
+    else if (a === 'model') { d.model = v; S.gunModel = v; }
+    else if (a === 'gmode') { d.mode = v; d.sel = []; }
+    else if (a === 'gset') { const ids = d && d.sel && d.sel.length ? d.sel : S.snow.card && S.snow.card.t === 'gun' ? [S.snow.card.id] : []; for (const id of ids) sgun(id).mode = v; if (ids.length > 1) log(`<span><b>${ids.length}</b> guns set to ${v === 'on' ? 'On' : v === 'off' ? 'Off' : 'Auto'}</span>`); snowTouched(); }
+    else if (a === 'gclear') d.sel = [];
+    else if (a === 'every-guns') { net.every = v === 'every'; snowTouched(); }
+    else if (a === 'card') S.snow.card = null;
+    else if (a === 'show') { const it = snowDiag()[+v]; if (it) { S.snow.show = it.at.slice(); S.zoom = Math.max(S.zoom, 1.6); S.zoomO = it.at.slice(); } }
+    else if (a === 'fix') { const it = snowDiag()[+v]; if (it && it.fix) { snowAct(it.fix[0], it.fix[1]); return; } }
+    else if (a === 'flip') { const nd = snode(v); nd.dir = -nd.dir; log(`<span><b>${nodeName(nd)}</b> flipped: it pushes ${nd.dir > 0 ? 'up' : 'down'} ${esc(sline(nd.line).name)}</span>`); snowTouched(); }
+    else if (a === 'pumpon' || a === 'pumpoff') { const nd = snode(v); nd.on = a === 'pumpon'; log(`<span><b>${nodeName(nd)}</b> turned ${nd.on ? 'on' : 'off'}</span>`); snowTouched(); }
+    else if (a === 'gunauto') { sgun(v).mode = 'auto'; snowTouched(); }
+    else if (a === 'valve') { const [id, end] = v.split('|'), ln = sline(id); ln['valve' + end] = ln['valve' + end] === 'closed' ? 'open' : 'closed'; log(`<span>Valve at the ${end === 'A' ? 'start' : 'end'} of <b>${esc(ln.name)}</b> ${ln['valve' + end]}</span>`); snowTouched(); }
+    else if (a === 'upsize') {
+      const [id, s0, s1, D2] = v.split('|'), ln = sline(id), lo = +s0, hi = +s1, dia = +D2;
+      if (lo <= 0.5 && hi >= lineFt(ln) - 0.5) { ln.dia = dia; ln.up = []; } else { ln.up = (ln.up || []).concat([{ s0: lo, s1: hi, dia }]); }
+      const cost = (hi - lo) * (PIPE_FT(dia) - PIPE_FT(ln.dia) * 0.4); spend(cost);
+      log(`<span><b>${esc(ln.name)}</b> upsized to ${inTxt(dia)}${lo > 0.5 || hi < lineFt(ln) - 0.5 ? ` for ${lenFt(hi - lo)}` : ''} <span class="mono" style="color:var(--neg)">${short(-cost)}</span></span>`, '#1a6b3c'); snowTouched();
+    }
+    else if (a === 'setp') { const h = shouse(S.snow.card.id); h.set = Math.max(100, Math.min(900, h.set + (+v))); snowTouched(); }
+    else if (a === 'rate') { const nd = snode(S.snow.card.id); nd.rate = Math.max(0, Math.min(4000, nd.rate + (+v))); snowTouched(); }
+    else if (a === 'cardflip') { snowAct('flip', S.snow.card.id); return; }
+    else if (a === 'cardpump') { snowAct(snode(S.snow.card.id).on ? 'pumpoff' : 'pumpon', S.snow.card.id); return; }
+    render();
+  }
+
+  // ----- on the mountain -----
+  const PIPEC = '#5fb3e6', PIPEV = '#f0b43c';
+  const PSI_RAMP = [[0, '#8e2b1f'], [199.9, '#ee8a3a'], [200, '#cfeaf2'], [500, '#5aa6d6'], [799.9, '#2b4f9e'], [800, '#f0b43c'], [999.9, '#f0b43c'], [1000, '#ff2d2d']];
+  function psiHex(p) {
+    if (p <= 0) return PSI_RAMP[0][1]; if (p >= 1000) return PSI_RAMP[7][1];
+    for (let i = 1; i < PSI_RAMP.length; i++) if (p <= PSI_RAMP[i][0]) { const [p0, h0] = PSI_RAMP[i - 1], [p1, h1] = PSI_RAMP[i], t = (p - p0) / (p1 - p0 || 1), a = rgb(h0), b = rgb(h1); return toHex(a.map((x, k) => x + (b[k] - x) * t)); }
+    return PSI_RAMP[7][1];
+  }
+  const ptsD = (pts) => 'M' + pts.map((q) => `${f1(q[0])} ${f1(q[1])}`).join('L');
+  function chevron(p, dir, sz, col) { const [ux, uy] = dir, nx = -uy, ny = ux; return `<path d="M${f1(p[0] - ux * sz + nx * sz)} ${f1(p[1] - uy * sz + ny * sz)}L${f1(p[0] + ux * sz)} ${f1(p[1] + uy * sz)}L${f1(p[0] - ux * sz - nx * sz)} ${f1(p[1] - uy * sz - ny * sz)}" fill="none" stroke="${col}" stroke-width="${f1(sz * 0.55)}" stroke-linecap="round" stroke-linejoin="round"/>`; }
+  function houseGlyph(h, hi, ghost, z) {
+    const c = Math.cos(h.bearing), s = Math.sin(h.bearing), at = (u, v) => `${f1(h.c[0] + (u * c - v * s) / FT_PX)} ${f1(h.c[1] + (u * s + v * c) / FT_PX)}`;
+    const w = HOUSE.w / 2, dd = HOUSE.d / 2, R = 10 * z, py = h.c[1] - R - 9 * z;   // the plate stands above its true 60 × 40 ft footprint, on a leader
+    let o = `<path d="M${at(-w, -dd)}L${at(w, -dd)}L${at(w, dd)}L${at(-w, dd)}Z" fill="${ghost ? 'rgba(255,106,31,.35)' : '#cfc6b6'}" stroke="${ghost ? flag : ink}" stroke-width="${f1(0.9 * z)}"/>`;
+    o += `<line x1="${f1(h.c[0])}" y1="${f1(h.c[1])}" x2="${f1(h.c[0])}" y2="${f1(py + R)}" stroke="${ghost ? flag : ink}" stroke-width="${f1(1.2 * z)}"/>`;
+    o += `<g style="--knock:${ghost ? '#1c1916' : white}" opacity="${ghost ? 0.85 : 1}"><rect x="${f1(h.c[0] - R)}" y="${f1(py - R)}" width="${f1(2 * R)}" height="${f1(2 * R)}" rx="${f1(2 * z)}" fill="${ghost ? graphite : white}" stroke="${hi ? selC : ghost ? flag : ink}" stroke-width="${f1((hi ? 2.2 : 1.3) * z)}" ${ghost ? `stroke-dasharray="${f1(3 * z)} ${f1(2 * z)}"` : ''}/><svg x="${f1(h.c[0] - R * 0.78)}" y="${f1(py - R * 0.78)}" width="${f1(R * 1.56)}" height="${f1(R * 1.56)}" viewBox="0 0 24 24" style="fill:${ghost ? flag : ink}"><use href="#s-pump"/></svg></g>`;
+    return o;
+  }
+  function pumpGlyph(nd, R, z, ghost) {
+    const ln = sline(nd.line) || (S.draft && S.draft.pl && S.draft.pl.ln), o = ln ? nearOnLine(ln.pts, nd.p) : { tan: [0, -1] }, dir = [o.tan[0] * nd.dir, o.tan[1] * nd.dir], r = 6.5 * z;
+    const pr = R && R.pumps.get(nd.id), bad = pr && pr.faces, col = !nd.on ? '#a39b90' : bad ? BADC : white;
+    return `<circle cx="${f1(nd.p[0])}" cy="${f1(nd.p[1])}" r="${f1(r)}" fill="${graphite}" stroke="${col}" stroke-width="${f1(1.4 * z)}" ${ghost ? 'opacity=".7"' : ''}/><path d="M${f1(nd.p[0] + dir[0] * r * 0.62)} ${f1(nd.p[1] + dir[1] * r * 0.62)}L${f1(nd.p[0] - dir[0] * r * 0.42 - dir[1] * r * 0.5)} ${f1(nd.p[1] - dir[1] * r * 0.42 + dir[0] * r * 0.5)}L${f1(nd.p[0] - dir[0] * r * 0.42 + dir[1] * r * 0.5)} ${f1(nd.p[1] - dir[1] * r * 0.42 - dir[0] * r * 0.5)}Z" fill="${col}"/>`;
+  }
+  function gunGlyph(gn, R, z, hi) {
+    const r = R && R.gun.get(gn.id), h = gn.hyd && snode(gn.hyd), p = h && R && R.P.has(h.id) ? R.P.get(h.id) : null;
+    const bad = !h || (r && r.runs && (p == null || p < SN.need)) || (r && r.runs && r.st === 0 && !R.every);
+    const fill = gn.mode === 'on' ? '#e9f6ff' : gn.mode === 'off' ? '#6f675e' : graphite, ring = gn.mode === 'on' ? '#1f5fa8' : gn.mode === 'off' ? '#a39b90' : '#e9f6ff';
+    let s = '';
+    if (h) s += `<line x1="${f1(gn.p[0])}" y1="${f1(gn.p[1])}" x2="${f1(h.p[0])}" y2="${f1(h.p[1])}" stroke="${white}" stroke-width="${f1(0.9 * z)}" stroke-dasharray="${f1(1.6 * z)} ${f1(1.1 * z)}"/>`;
+    if (hi) s += `<circle cx="${f1(gn.p[0])}" cy="${f1(gn.p[1])}" r="${f1(5.4 * z)}" fill="none" stroke="${selC}" stroke-width="${f1(1.8 * z)}"/>`;
+    s += `<circle cx="${f1(gn.p[0])}" cy="${f1(gn.p[1])}" r="${f1(3.3 * z)}" fill="${fill}" stroke="${ring}" stroke-width="${f1(1.3 * z)}"/>`;
+    if (bad) s += `<circle cx="${f1(gn.p[0])}" cy="${f1(gn.p[1])}" r="${f1(4.6 * z)}" fill="none" stroke="${BADC}" stroke-width="${f1(1.4 * z)}"/>`;
+    return s;
+  }
+  function drawSnow() {
+    const net = S.snow, tab = S.toolbox && S.tab === 'snow';
+    if (!(S.layers.making || tab) || (!net.lines.length && !net.houses.length && !net.guns.length)) return '';
+    const R = snowR(), z = 1 / S.zoom, pres = S.info === 'pressure', card = net.card || {}, hov = net.hover || {};
+    let s = '';
+    for (const h of net.houses) s += houseGlyph(h, card.id === h.id || hov.id === h.id, false, z);
+    // pipes, each stretch between stations: the casing, then its colour (velocity amber; pressure on the ramp)
+    for (const e of R.edges) {
+      const pts = snSub(e.ln, e.s0, e.s1), d = ptsD(pts), fed = e.pu != null, dia = e.dia, w = (pres ? 3.6 : 1.8 + dia * 0.11) * z;
+      const hi = (card.t === 'pipe' && card.id === e.ln.id) || (hov.t === 'pipe' && hov.id === e.ln.id);
+      if (hi) s += `<path d="${d}" fill="none" stroke="${selC}" stroke-width="${f1(w + 4.4 * z)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      s += `<path d="${d}" fill="none" stroke="${graphite}" stroke-width="${f1(w + 1.8 * z)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      const col = !fed ? '#8f877c' : pres ? psiHex(Math.min(e.pu, e.pv) < SN.need ? Math.min(e.pu, e.pv) : edgeMax(e) > SN.clsWarn ? edgeMax(e) : (e.pu + e.pv) / 2) : edgeVel(e) > SN.vel ? PIPEV : PIPEC;
+      s += `<path d="${d}" fill="none" stroke="${col}" stroke-width="${f1(w)}" stroke-linecap="round" stroke-linejoin="round" ${!fed ? `stroke-dasharray="${f1(3 * z)} ${f1(2 * z)}"` : ''}/>`;
+      if (pres && fed && edgeMax(e) > SN.cls) s += `<path d="${d}" fill="none" stroke="#fff" stroke-width="${f1(w * 0.35)}" stroke-dasharray="${f1(2 * z)} ${f1(2.5 * z)}"/>`;
+      if (e.closed) { const q = lineAt(e.ln, e.s0 === 0 ? e.s0 + 30 : e.s1 - 30); s += `<rect x="${f1(q[0] - 3 * z)}" y="${f1(q[1] - 3 * z)}" width="${f1(6 * z)}" height="${f1(6 * z)}" fill="${BADC}" stroke="${white}" stroke-width="${f1(z)}" transform="rotate(45 ${f1(q[0])} ${f1(q[1])})"/>`; }
+    }
+    // valves at the ends, as small bars across the line
+    for (const ln of net.lines) for (const [end, sv] of [['A', 30], ['B', lineFt(ln) - 30]]) { const st = ln['valve' + end]; if (st !== 'open') continue; const o = nearOnLine(ln.pts, lineAt(ln, sv)), q = o.p, nx = -o.tan[1] * 3 * z, ny = o.tan[0] * 3 * z; s += `<line x1="${f1(q[0] - nx)}" y1="${f1(q[1] - ny)}" x2="${f1(q[0] + nx)}" y2="${f1(q[1] + ny)}" stroke="${white}" stroke-width="${f1(1.4 * z)}"/>`; }
+    // flow arrows, and psi at the nodes, when zoomed in (or with the pressure layer)
+    const close = S.zoom >= 2.1;
+    if (close || pres) R.edges.forEach((e, i) => { if (!e.q || i % (close ? 2 : 4)) return; const m = (e.s0 + e.s1) / 2, o = nearOnLine(e.ln.pts, lineAt(e.ln, m)), dir = [o.tan[0] * e.fwd, o.tan[1] * e.fwd]; s += chevron(o.p, dir, 2.2 * z, pres ? '#1b1815' : white); });
+    for (const nd of net.nodes) {
+      if (nd.kind === 'hydrant') { const hi = (card.id === nd.id || hov.id === nd.id); s += `<circle cx="${f1(nd.p[0])}" cy="${f1(nd.p[1])}" r="${f1((hi ? 2.6 : 1.35) * z)}" fill="${white}" stroke="${hi ? selC : ink}" stroke-width="${f1(0.7 * z)}"/>`; }
+      else if (nd.kind === 'junction' || nd.kind === 'end') s += `<circle cx="${f1(nd.p[0])}" cy="${f1(nd.p[1])}" r="${f1(2.6 * z)}" fill="${white}" stroke="${card.id === nd.id ? selC : ink}" stroke-width="${f1(1.2 * z)}"/>`;
+      else if (nd.kind === 'outlet') s += `<circle cx="${f1(nd.p[0])}" cy="${f1(nd.p[1])}" r="${f1(3.4 * z)}" fill="${WATERC}" stroke="${card.id === nd.id ? selC : white}" stroke-width="${f1(1.4 * z)}"/><circle cx="${f1(nd.p[0])}" cy="${f1(nd.p[1])}" r="${f1(1.2 * z)}" fill="${white}"/>`;
+    }
+    for (const nd of net.nodes) if (nd.kind === 'pump') { if (card.id === nd.id || hov.id === nd.id) s += `<circle cx="${f1(nd.p[0])}" cy="${f1(nd.p[1])}" r="${f1(8 * z)}" fill="none" stroke="${selC}" stroke-width="${f1(1.8 * z)}"/>`; s += pumpGlyph(nd, R, z); }
+    const selG = S.draft && S.draft.kind === 'sgun' ? S.draft.sel : [];
+    for (const gn of net.guns) s += gunGlyph(gn, R, z, card.id === gn.id || hov.id === gn.id || selG.includes(gn.id));
+    // labels: line names along the line; node names and psi up close
+    const lab = (x, y, t, col = '#efe9df', anchor = 'start') => `<text x="${f1(x)}" y="${f1(y)}" text-anchor="${anchor}" style="font:700 ${f1(9.5 * z)}px 'Overpass Mono',monospace;fill:${col};paint-order:stroke;stroke:rgba(20,18,16,.85);stroke-width:${f1(2.6 * z)}px">${esc(t)}</text>`;
+    if (S.layers.labels) for (const ln of net.lines) {
+      const ltr = ln.pts[ln.pts.length - 1][0] >= ln.pts[0][0], pid = `sl-${ln.id}`, lp = ptsD(ltr ? ln.pts : ln.pts.slice().reverse());
+      s += `<path id="${pid}" d="${lp}" fill="none" stroke="none"/><text dy="${f1(-4.5 * z)}" style="font:800 ${f1(9.5 * z)}px DotFix,Overpass,sans-serif;letter-spacing:.05em;fill:#1f5fa8;stroke:rgba(251,248,242,.95);stroke-width:${f1(4 * z)}px;stroke-linejoin:round;paint-order:stroke"><textPath href="#${pid}" startOffset="30%" text-anchor="middle">${esc(ln.name.toUpperCase())} · ${inTxt(ln.dia)}</textPath></text>`;
+    }
+    const placed = [];
+    if (close) for (const nd of net.nodes.slice().sort((a, b) => (a.kind === 'hydrant') - (b.kind === 'hydrant'))) {
+      const p = R.P.get(nd.id), named = nd.kind === 'junction' || nd.kind === 'pump' || nd.kind === 'outlet' || (nd.kind === 'hydrant' && nd.n % 5 === 0);
+      if (!named || placed.some((q) => Math.hypot(q[0] - nd.p[0], q[1] - nd.p[1]) < 9 * z)) continue; placed.push(nd.p);
+      s += lab(nd.p[0] + 5 * z, nd.p[1] - 3 * z, nodeName(nd)) + (p != null && (pres || nd.kind !== 'hydrant') ? lab(nd.p[0] + 5 * z, nd.p[1] + 7 * z, psiPlain(p), pres ? psiHex(p) : '#cfc7bb') : '');
+    }
+    if (net.show) s += `<circle cx="${f1(net.show[0])}" cy="${f1(net.show[1])}" r="${f1(14 * z)}" fill="none" stroke="${selC}" stroke-width="${f1(2 * z)}" stroke-dasharray="${f1(4 * z)} ${f1(3 * z)}"/>`;
+    // the hover card
+    if (net.hover && !S.draft?.lasso) s += quickCard(net.hover, R);
+    return net.stale ? `<g style="filter:grayscale(1);opacity:.45">${s}</g>` : s;
+  }
+  function quickCard(h, R) {
+    let lines = [], at = null;
+    if (h.t === 'pipe') { const ln = sline(h.id), e = R.edges.find((x) => x.ln === ln && x.s0 <= h.s && x.s1 >= h.s); if (!ln || !e) return ''; at = lineAt(ln, h.s); lines = [[`${ln.name} · ${inTxt(e.dia).replace(/<\/?b>/g, '')}`], e.pu == null ? ['No water reaches here', BADC] : [`${gpmPlain(e.q)} · ${velTxt(edgeVel(e))}`, edgeVel(e) > SN.vel ? PIPEV : null], e.pu == null ? null : [`${psiPlain(e.pu)} → ${psiPlain(e.pv)}`]].filter(Boolean); }
+    if (h.t === 'hyd') { const nd = snode(h.id), gn = gunOn(h.id), p = R.P.get(h.id); at = nd.p; lines = [[`${nodeName(nd)} · ${p != null ? psiPlain(p) : 'no water'}`, p != null && p < SN.need ? BADC : null], [gn ? `Gun ${gn.n} · ${gn.mode === 'on' ? 'On' : gn.mode === 'off' ? 'Off' : 'Auto'}` : 'Free hydrant', '#cfc7bb']]; }
+    if (h.t === 'gun') { const gn = sgun(h.id), r = R.gun.get(gn.id), p = gn.hyd ? R.P.get(gn.hyd) : null; at = gn.p; lines = [[`Gun ${gn.n} · ${GUN_MODELS.find((m) => m[0] === gn.model)[1]} · ${gn.mode === 'on' ? 'On' : gn.mode === 'off' ? 'Off' : 'Auto'}`], !gn.hyd ? ['Not on a hydrant', BADC] : r.st === 0 ? [`Too warm · wet bulb ${degF(r.wb)}`, '#f0b43c'] : [`Stage ${r.st} · ${STAGES[r.st - 1][1]} gpm · ${degF(r.wb)} wet bulb`, '#cfc7bb'], p == null ? null : [`${psiPlain(p)}${p < SN.need ? ` · short ${psiPlain(SN.need - p)}` : ''}`, p < SN.need ? BADC : null]].filter(Boolean); }
+    if (h.t === 'pump') { const nd = snode(h.id), pr = R.pumps.get(nd.id); at = nd.p; lines = [[`${nodeName(nd)} · inline pump · ${nd.on ? 'On' : 'Off'}`], pr ? (pr.faces ? ['Faces away from the water', BADC] : [`+${psiPlain(pr.add)} · ${gpmPlain(pr.q)}`, '#cfc7bb']) : ['No water reaches it', BADC]]; }
+    if (h.t === 'house') { const ho = shouse(h.id), q = R.Q.get(ho.intake) || 0; at = ho.c; lines = [[ho.name], [`${psiPlain(R.P.get(ho.intake) || 0)} · ${gpmPlain(q)}`, '#cfc7bb']]; }
+    if (h.t === 'outlet') { const nd = snode(h.id); at = nd.p; lines = [[`Outlet into ${waterById(nd.pond).name}`], [`${gpmPlain(R.P.has(nd.id) ? nd.rate : 0)} moving`, '#cfc7bb']]; }
+    return at ? mapCard(at[0], at[1] - 12 / S.zoom, lines) : '';
+  }
+  function drawSnowDraft(d) {
+    let s = ''; const z = 1 / S.zoom;
+    if (d.kind === 'spipe') {
+      const pts = d.pts.slice(); let sn = null;
+      if (d.step === 'route' && mouse) { sn = snapAt(mouse); pts.push(sn ? sn.p : mouse); }
+      const pv = pts.length > 1 ? linePreview({ ...d, snapB: d.step === 'review' ? d.snapB : sn }, pts) : null; d.pv = pv; d.pl = pv && pv.pl;
+      if (pv) {
+        const col = pv.vel > SN.vel ? PIPEV : '#d7f5ff', w = (1.8 + d.dia * 0.11) * z;
+        s += `<path d="${ptsD(pts)}" fill="none" stroke="${graphite}" stroke-width="${f1(w + 1.8 * z)}" stroke-linecap="round" stroke-linejoin="round"/><path d="${ptsD(pts)}" fill="none" stroke="${col}" stroke-width="${f1(w)}" stroke-dasharray="${f1(5 * z)} ${f1(3 * z)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+        if (d.step === 'review') {
+          for (const x of pv.pl.ln.st) { const nd = pv.R.N.get(x.id); if (nd.kind === 'hydrant') s += `<circle cx="${f1(nd.p[0])}" cy="${f1(nd.p[1])}" r="${f1(1.7 * z)}" fill="${white}" stroke="${flag}" stroke-width="${f1(0.8 * z)}"/>`; }
+          for (const q of pv.pl.skipped) s += `<path d="M${f1(q[0] - 2.4 * z)} ${f1(q[1] - 2.4 * z)}l${f1(4.8 * z)} ${f1(4.8 * z)}m0 ${f1(-4.8 * z)}l${f1(-4.8 * z)} ${f1(4.8 * z)}" stroke="${BADC}" stroke-width="${f1(1.3 * z)}"/>`;
+        }
+      }
+      for (const p of d.pts) s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${f1(2.6 * z)}" fill="${white}" stroke="${flag}" stroke-width="${f1(1.2 * z)}"/>`;
+      if (sn) s += `<circle cx="${f1(sn.p[0])}" cy="${f1(sn.p[1])}" r="${f1(5 * z)}" fill="none" stroke="${selC}" stroke-width="${f1(1.6 * z)}"/>`;
+      if (d.step === 'route' && mouse && pv) {
+        const e = pts[pts.length - 1], lines = [[`${lenFt(pv.L)} · ${pv.vert >= 0 ? 'up' : 'down'} ${lenFt(Math.abs(pv.vert))}`]];
+        lines.push(pv.endPsi == null ? ['No pump house feeds it yet', '#cfc7bb'] : [`${psiPlain(pv.endPsi)} at the end`, pv.endPsi < SN.need ? BADC : null]);
+        if (pv.endPsi != null) lines.push(pv.short ? [`${pv.short} gun${pv.short > 1 ? 's' : ''} past here short, by up to ${psiPlain(pv.worst)}`, BADC] : [`All ${pv.n} guns past here have ${psiPlain(SN.need)}`, OKC]);
+        if (pv.vel > SN.vel) lines.push([`${velTxt(pv.vel)}: too fast for ${inTxt(d.dia)}`, PIPEV]);
+        if (sn) lines.push([`Joins ${sn.label}`, selC]);
+        s += mapCard(e[0], e[1] - 14 * z, lines);
+      }
+      const live = document.getElementById('snowlive'); if (live) live.innerHTML = lineLive(d);
+    }
+    if (d.kind === 'shouse') {
+      const c = d.c || (mouse && d.step === 'centre' ? mouse : null);
+      if (c) { const b = d.step === 'bearing' && mouse ? Math.atan2(mouse[1] - c[1], mouse[0] - c[0]) : d.bearing, gh = { c, bearing: b }, r = houseEval({ ...d, c, bearing: b });
+        s += houseGlyph(gh, false, true, z);
+        if (d.step === 'bearing' && mouse) s += `<line x1="${f1(c[0])}" y1="${f1(c[1])}" x2="${f1(mouse[0])}" y2="${f1(mouse[1])}" stroke="${flag}" stroke-width="${f1(1.4 * z)}" stroke-dasharray="${f1(4 * z)} ${f1(3 * z)}"/>`;
+        if (r && r.src && !r.err) { const sp = r.src.pts ? r.src.pts.reduce((a, q) => (Math.hypot(q[0] - c[0], q[1] - c[1]) < Math.hypot(a[0] - c[0], a[1] - c[1]) ? q : a)) : c; s += `<line x1="${f1(c[0])}" y1="${f1(c[1])}" x2="${f1(sp[0])}" y2="${f1(sp[1])}" stroke="${WATERE}" stroke-width="${f1(1.6 * z)}" stroke-dasharray="${f1(2 * z)} ${f1(2 * z)}"/>`; }
+        if (d.step === 'review' && r && !r.err) s += mapCard(c[0], c[1] - 22 * z, [[d.name || 'New pump house'], [`Intake ${lenFt(r.dist)} to ${r.src.name}`, '#cfc7bb']]);
+        else if (d.step !== 'review' && mouse) s += mapCard(c[0], c[1] - 16 * z, r && !r.err ? [[`Beside ${r.src.name}`], [d.step === 'centre' ? 'Click to set the centre' : 'Click to set the bearing', '#cfc7bb']] : [[r ? r.err.split(':')[0] : 'Pick a spot', BADC], [`within ${IMP() ? '150 ft' : '45 m'} of a source's shore`, '#cfc7bb']]);
+      }
+    }
+    if (d.kind === 'sbooster' && mouse) {
+      let best = null; for (const ln of S.snow.lines) { const o = nearOnLine(ln.pts, mouse); if (o.d < 6 * z && (!best || o.d < best.o.d)) best = { ln, o }; }
+      if (best) { const R = snowR(), e = R.edges.find((x) => x.ln === best.ln && x.s0 <= best.o.s && x.s1 >= best.o.s), dir = e && e.fwd ? e.fwd : 1; s += pumpGlyph({ p: best.o.p, line: best.ln.id, dir, on: true }, null, z, true) + mapCard(best.o.p[0], best.o.p[1] - 14 * z, [[`Inline pump on ${best.ln.name}`], [e && e.pu != null ? `${psiPlain(e.pu + (e.pv - e.pu) * (best.o.s - e.s0) / (e.s1 - e.s0 || 1))} here · faces away from the pump house` : 'Faces away from the pump house', '#cfc7bb']]); }
+    }
+    if (d.kind === 'sgun' && mouse && d.mode === 'place') {
+      const h = freeHydrant(mouse), gh = { id: 'ghost', p: mouse, hyd: h ? h.id : null, mode: 'auto', model: d.model };
+      if (h) s += `<line x1="${f1(mouse[0])}" y1="${f1(mouse[1])}" x2="${f1(h.p[0])}" y2="${f1(h.p[1])}" stroke="${white}" stroke-width="${f1(0.9 * z)}" stroke-dasharray="${f1(1.6 * z)} ${f1(1.1 * z)}"/>`;
+      s += `<circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(2.9 * z)}" fill="${graphite}" stroke="${flag}" stroke-width="${f1(1.3 * z)}"/>`;
+      if (!h) s += `<circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(SN.hose / FT_PX)}" fill="none" stroke="${BADC}" stroke-width="${f1(1.2 * z)}"/>`;
+      const R = snowR(), p = h && R.P.get(h.id), st = stageOf(wbAt(mouse));
+      s += mapCard(mouse[0], mouse[1] - 14 * z, h ? [[`Hooks to ${nodeName(h)} · ${lenFt(Math.hypot(h.p[0] - mouse[0], h.p[1] - mouse[1]) * FT_PX)} hose`], [p != null ? `${psiPlain(p)} · stage ${st} here` : 'No water reaches that hydrant', p != null && p < SN.need ? BADC : '#cfc7bb']] : [[`No free hydrant within ${IMP() ? '50 ft' : '15 m'}`, BADC], ['Click to place it anyway', '#cfc7bb']]);
+      void gh;
+    }
+    if (d.kind === 'sgun' && d.lasso && d.lasso.length > 1) s += `<path d="${ptsD(d.lasso)}Z" fill="${selC}" fill-opacity=".12" stroke="${selC}" stroke-width="${f1(1.4 * z)}" stroke-dasharray="${f1(4 * z)} ${f1(3 * z)}"/>`;
+    return s;
+  }
+
+  // ----- the windows -----
+  const LINE_STEPS = [['route', 'Route'], ['review', 'Hydrants and review']], HOUSE_STEPS = [['centre', 'Centre'], ['bearing', 'Bearing'], ['review', 'Review']];
+  const snsteps = (steps, cur, act) => `<div class="lsteps tsteps" data-ui="toolwin-steps">${steps.map(([k, v], i) => `<span class="${i === cur ? 'now' : i < cur ? 'done' : ''}"${i < cur ? ` data-act="sn:${act}" data-v="${k}"` : ''}><b>${i < cur ? '✓' : i + 1}</b>${v}</span>`).join('')}</div><div class="rule"></div>`;
+  const snbtns = (ready, label, cost) => `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'sn:build' : ''}" data-ui="review-go"><span>${label}</span><span class="mono">${ready && cost ? short(cost).replace('+', '') : ''}</span></div><div class="ghost" data-act="close" data-ui="review-cancel">Cancel</div></div>`;
+  const snStep = (act, val, note = '') => `<span class="tbv"><span class="wbtn" data-act="sn:${act}" data-v="-1">−</span> <b>${val}</b> <span class="wbtn" data-act="sn:${act}" data-v="1">+</span>${note ? ` <span style="color:var(--soft)">${note}</span>` : ''}</span>`;
+  const snSeg = (act, cur, opts, ui) => `<div class="seg"${ui ? ` data-ui="${ui}"` : ''}>${opts.map(([v, l, tip]) => `<span class="${cur === v ? 'on' : ''}" data-act="sn:${act}" data-v="${v}"${tip ? ` title="${tip}"` : ''}>${l}</span>`).join('')}</div>`;
+  const staleNote = () => (S.snow.stale ? '<div class="lmsg" style="color:var(--soft);padding:6px 12px 0"><span class="sspin"></span>Updating the result…</div>' : '');
+  function lineLive(d) {
+    const pv = d.pv;
+    if (!pv) return `<dl class="kv">${wkv('Length', dash)}${wkv('Vertical', dash)}${wkv('At the end', dash)}</dl>`;
+    return `<dl class="kv">${wkv('Length', `<b>${lenFt(pv.L)}</b>`, 'along the ground, with the climb')}${wkv('Vertical', `<b>${pv.vert >= 0 ? '+' : '−'}${lenFt(Math.abs(pv.vert))}</b>`)}
+      ${wkv('At the end', pv.endPsi == null ? '<span style="color:var(--soft)">no pump house feeds it</span>' : `<span style="color:${pv.endPsi < SN.need ? 'var(--neg)' : 'inherit'}">${psiTxt(pv.endPsi)}</span>`, 'HY-04: Hazen–Williams friction and 0.433 psi a foot, with a gun on every new hydrant')}
+      ${pv.endPsi == null ? '' : wkv('Guns past here', pv.short ? `<span style="color:var(--neg)"><b>${pv.short}</b> of ${pv.n} short, up to ${psiTxt(pv.worst)}</span>` : `all <b>${pv.n}</b> have ${psiPlain(SN.need)}`, 'if every new hydrant runs a gun at tonight\'s stage')}
+      ${pv.q ? wkv('Velocity', `<span style="color:${pv.vel > SN.vel ? 'var(--warn)' : 'inherit'}"><b>${velTxt(pv.vel)}</b></span> <span style="color:var(--soft)">at ${gpmPlain(pv.q)}</span>`, 'HY-07: over 15 ft/s warns') : ''}</dl>`;
+  }
+  function linePanel() {
+    const d = S.draft, head = `${g('s-pipe')}New water line <span class="nm">${esc(d.name)}</span>`;
+    let h = snsteps(LINE_STEPS, d.step === 'route' ? 0 : 1, 'lstep');
+    h += `<div style="padding:6px 0 2px">${d.step === 'review' ? `<div class="lrow"><span>Name</span><input id="snowname" class="field tname" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(d.name)}"></div>` : ''}<div class="lrow" title="HY-03: 4 to 24 in; [ and ] step it"><span>Diameter</span>${snStep('dia', inTxt(d.dia), IMP() ? 'from 4 to 24 in' : 'from 100 to 600 mm')}</div></div>`;
+    if (d.step === 'route') {
+      h += `<div class="hint">${!d.pts.length ? 'Click where it starts: <b>a pump house</b>, a junction, or anywhere on a line (that makes a junction).' : 'Keep clicking along the route. Landing on a line, a hydrant or a pond ends it; <b>Enter</b> ends it anywhere.'}</div>`;
+      h += `<div id="snowlive">${lineLive(d)}</div>`;
+      h += `<div class="lkeys"><span><span class="kbd">Backspace</span> last point</span><span><span class="kbd">Enter</span> finish</span><span><span class="kbd">Esc</span> start over</span><span><span class="kbd">[</span><span class="kbd">]</span> diameter</span></div>`;
+      h += `<div class="lbtns"><span class="ghost${d.pts.length > 1 ? '' : ' dis'}" data-act="${d.pts.length > 1 ? 'sn:next' : ''}">Next<span class="kbd" style="margin-left:8px">Enter</span></span></div>`;
+      return panelShell(head, h, 344, 'toolwin');
+    }
+    const pv = d.pv || linePreview(d, d.pts), cost = pv ? pv.run * PIPE_FT(d.dia) + pv.n * HYD_COST : 0;
+    h += `<div class="lrow" style="padding:3px 12px" title="HY-09: a valve at each end lets a line be shut off"><span>Valves</span>${snSeg('valves', d.valves, [['both', 'Both ends'], ['start', 'Start'], ['end', 'End'], ['none', 'None']], 'toolwin-line-valves')}</div>`;
+    h += `<div class="lrow" style="padding:3px 12px"><span>Hydrants</span>${snSeg('hyd', d.hyd, [['every', 'By spacing'], ['count', 'By count'], ['none', 'None']], 'toolwin-line-hydrants')}</div>`;
+    if (d.hyd !== 'none') h += `<div class="lrow"><span></span>${d.hyd === 'count' ? snStep('every', `${d.count} hydrants`) : snStep('every', `every ${lenFt(d.every)}`)}</div>`;
+    if (pv) h += `<dl class="kv" style="padding-top:6px">${wkv('Hydrants', `<b>${pv.n}</b>${pv.pl.skipped.length ? ` <span style="color:var(--soft)">· ${pv.pl.skipped.length} taken ✕</span>` : ''}`, 'both ends included; a spot by a junction, a pump or another line is taken: skipped, and marked ✕ on the map')}
+      ${wkv('Length', `<b>${lenFt(pv.L)}</b> · ${pv.vert >= 0 ? 'up' : 'down'} ${lenFt(Math.abs(pv.vert))}`)}
+      ${wkv('From · to', `${d.snapA ? esc(d.snapA.short || d.snapA.label) : 'a free end'} → ${d.snapB ? esc(d.snapB.short || d.snapB.label) : 'a free end'}`)}
+      ${pv.endPsi == null ? wkv('Pressure', '<span style="color:var(--warn)">no pump house feeds it yet</span>') : wkv('Every gun on', pv.short ? `<span style="color:var(--neg)"><b>${pv.short}</b> short, by up to ${psiTxt(pv.worst)}</span>` : `<span style="color:var(--pos)">all ${pv.n} have ${psiPlain(SN.need)}</span>`, 'a gun on every hydrant at tonight\'s stage')}
+      ${wkv('Pipe', money(pv.run * PIPE_FT(d.dia)), `${perLenShort(PIPE_FT(d.dia) * FT)} a foot laid 6 ft down (stand-in)`)}${wkv('Hydrants', `${pv.n} × ${money(HYD_COST)}`)}</dl>`;
+    h += `<div class="lkeys"><span><span class="kbd">Esc</span> back to the route</span></div>`;
+    return panelShell(head, h + snbtns(!!pv, 'Break ground', cost), 344, 'toolwin');
+  }
+  function housePanel() {
+    const d = S.draft, head = `${g('s-pump')}New pump house <span class="nm">${esc(d.name)}</span>`, cur = HOUSE_STEPS.findIndex((x) => x[0] === d.step);
+    let h = snsteps(HOUSE_STEPS, cur, 'hstep');
+    if (d.step !== 'review') {
+      h += `<div class="hint">${d.step === 'centre' ? 'Click where it stands, <b>beside a pond, a dam or a lake source</b>: it draws through an intake on the shore.' : 'Turn it: click the way its long side faces (at least 3 ft from the centre).'}</div>`;
+      h += `<dl class="kv">${wkv('Building', `${IMP() ? '60 × 40 × 16 ft' : '18 × 12 × 5 m'} · 4:12 gable`)}${wkv('Pump', `<b>${HOUSE.hp.toLocaleString('en-US')}</b> hp · ${psiTxt(HOUSE.set)} setpoint`)}${wkv('Compressor', `<b>${HOUSE.cfm.toLocaleString('en-US')}</b> cfm`)}</dl>`;
+      h += `<div class="lkeys"><span><span class="kbd">Esc</span> ${d.step === 'centre' ? 'closes' : 'picks the centre again'}</span></div>`;
+      return panelShell(head, h, 344, 'toolwin');
+    }
+    const r = d.res || houseEval(d);
+    h += `<div style="padding:6px 0 2px"><div class="lrow"><span>Name</span><input id="housename" class="field tname" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(d.name)}"></div>
+      <div class="lrow" style="padding:3px 12px"><span>Ground</span>${snSeg('found', d.found, [['pad', 'Flatten a pad', 'cut and fill to one level'], ['slab', 'Level slab', 'a slab on footings; the ground stays']], 'toolwin-house-found')}</div></div>`;
+    if (r.err) h += `<div class="lmsg err" style="padding-top:6px">✕ ${esc(r.err)}</div>`;
+    else h += `<dl class="kv" style="padding-top:6px">${wkv('Source', `<b>${esc(r.src.name)}</b> · shore ${lenFt(r.dist)} away`, 'WS-01: it owns the intake, the pump and the compressor')}
+      ${d.found === 'pad' ? wkv('Pad', `<b>${lenTxt(r.pad / FT)}</b> · ${lenFt(HOUSE.w)} × ${lenFt(HOUSE.d)}`, 'the footprint graded to its mean height') + wkv('Cut · fill', `${yd3(r.cut)} · ${yd3(r.fill)}`) : wkv('Slab', `ground falls <b>${lenFt(r.fall)}</b> across it`, 'a level slab on footings; the ground stays')}
+      ${wkv('Pump', `<b>${HOUSE.hp.toLocaleString('en-US')}</b> hp at 85% · ${psiTxt(HOUSE.set)}`, 'Q1: it holds a setpoint up to its power')}${wkv('Holds it to', `<b>${gpmPlain(powerFt(HOUSE.hp, HOUSE.eff, 1) / (HOUSE.set * SN.psiFt)).replace(' gpm', '')}</b> gpm`, 'then less: H = 3,960·hp·η / Q')}
+      ${wkv('Compressor', `<b>${HOUSE.cfm.toLocaleString('en-US')}</b> cfm`, 'Q3: about 89 guns at the warm stages')}${wkv('Cost', money(HOUSE_COST))}</dl>`;
+    return panelShell(head, h + `<div class="lkeys"><span><span class="kbd">Esc</span> picks the centre again</span></div>` + snbtns(!r.err, 'Break ground', HOUSE_COST), 344, 'toolwin');
+  }
+  function boosterPanel() {
+    const head = `${toolGlyph(toolById('booster'))}Inline pump`;
+    const h = `<div class="hint">Click inside a water line. It <b>faces away from the pump house</b>, the way the water goes there, and its check valve holds water from running back (HY-06).</div>
+      <dl class="kv">${wkv('Power', `<b>${BOOST.hp}</b> hp at 85%`)}${wkv('Adds', `up to ${psiTxt(BOOST.add)}`, 'Q1: a setpoint, less once its power runs out')}${wkv('Cost', money(BOOST_COST))}</dl>
+      <div class="hint" style="padding-top:0;color:var(--soft)">Each pump's card has <b>Flip</b> and On/Off.</div>`;
+    return panelShell(head, h, 300, 'toolwin');
+  }
+  function gunPanel() {
+    const d = S.draft, net = S.snow, R = snowR(), head = `${g('s-gun')}Snow gun`;
+    let h = `<div style="padding:8px 0 2px"><div class="lrow" style="padding:3px 12px"><span>Model</span>${snSeg('model', d.model, GUN_MODELS.map(([k, l]) => [k, l.replace('Stick ', '').replace('Ground fan', 'Fan')]), 'toolwin-gun-model')}</div>
+      <div class="lrow" style="padding:3px 12px"><span>Do</span>${snSeg('gmode', d.mode, [['place', 'Place'], ['fill', 'Fill hydrants'], ['select', 'Select']], 'toolwin-gun-mode')}</div></div><div class="rule"></div>`;
+    const m = GUN_MODELS.find((x) => x[0] === d.model);
+    if (d.mode === 'place') h += `<div class="hint"><b>${m[1]}</b>, ${money(m[2])}. Each click hooks to the nearest free hydrant within ${IMP() ? '50 ft' : '15 m'} by a hose; a red ring means none is in reach (SG-02).</div>`;
+    if (d.mode === 'fill') h += `<div class="hint">Click a water line: a <b>${m[1].toLowerCase()}</b> goes on every free hydrant along it.</div>`;
+    if (d.mode === 'select') {
+      h += d.sel.length ? `<div class="sub" style="padding-top:8px"><span>${d.sel.length} gun${d.sel.length > 1 ? 's' : ''} picked</span><span class="wbtn" data-act="sn:gclear">Clear</span></div>
+        <div class="lrow" style="padding:6px 12px 4px" title="Auto waits for the schedule (task 4.16); On runs now; Off stays off"><span>Set</span>${snSeg('gset', (() => { const ms = [...new Set(d.sel.map((id) => sgun(id).mode))]; return ms.length === 1 ? ms[0] : ''; })(), [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']], 'toolwin-gun-set')}</div>`
+        : '<div class="hint">Drag a loop around guns to pick them, then set them <b>Auto</b>, <b>On</b> or <b>Off</b> together.</div>';
+    }
+    const on = net.guns.filter((gn) => gn.mode === 'on').length, auto = net.guns.filter((gn) => gn.mode === 'auto').length, bad = net.guns.filter((gn) => !gn.hyd).length;
+    h += `<dl class="kv">${wkv('Guns', `<b>${net.guns.length}</b> · ${on} on · ${auto} auto · ${net.guns.length - on - auto} off`)}${bad ? wkv('Not on a hydrant', `<span style="color:var(--neg)"><b>${bad}</b></span>`) : ''}${wkv('Tonight', `wet bulb ${degF(wbAt(net.houses[0] ? net.houses[0].c : [860, 620]))} at the base`, 'SG-01: the stage each gun runs at comes from its own wet bulb')}</dl>`;
+    h += `<div class="lkeys"><span><span class="kbd">Esc</span> ${d.mode === 'place' ? 'closes' : 'back to Place'}</span></div>`;
+    return panelShell(head, h, 344, 'toolwin');
+  }
+  function checkPanel() {
+    const net = S.snow, R = snowR(), list = snowDiag(net, R), head = `${toolGlyph(toolById('snow-check'))}Check the network`;
+    const guns = net.guns.length, run = net.guns.filter((gn) => R.gun.get(gn.id).runs).length, shortN = net.guns.filter((gn) => R.gun.get(gn.id).runs && R.P.has(gn.hyd) && R.P.get(gn.hyd) < SN.need).length;
+    const q = net.houses.reduce((a, h) => a + (R.Q.get(h.intake) || 0), 0), air = net.houses.reduce((a, h) => a + R.air.get(h.id), 0), cfm = net.houses.reduce((a, h) => a + h.cfm, 0);
+    let h = `<div class="lrow" style="padding:8px 12px 4px" title="Check network: what if every gun ran, each at its hydrant's wet-bulb stage (Q4)"><span>Guns</span>${snSeg('every-guns', net.every ? 'every' : 'set', [['set', 'As they\'re set'], ['every', 'Every gun running']], 'toolwin-check-guns')}</div>${staleNote()}`;
+    h += `<dl class="kv"${net.stale ? ' style="opacity:.45"' : ''}>${wkv('Running', `<b>${run}</b> of ${guns} guns${shortN ? ` · <span style="color:var(--neg)">${shortN} short</span>` : ''}`)}${wkv('Water', gpmTxt(q))}${wkv('Air', `<b>${Math.round(air).toLocaleString('en-US')}</b> of ${cfm.toLocaleString('en-US')} cfm`, 'SG-06')}</dl>`;
+    h += `<div class="sub" style="padding-top:4px"><span>${list.length ? `${list.length} problem${list.length > 1 ? 's' : ''}` : 'No problems'}</span><span>${list.length ? 'worst first by number' : ''}</span></div>`;
+    if (!list.length) h += `<div class="hint">Every running gun has ${psiPlain(SN.need)} at its hydrant, the pipes are inside their class and the compressors keep up.</div>`;
+    h += `<div class="sdlist"${net.stale ? ' style="opacity:.45"' : ''}>` + list.map((it, i) => `<div class="sdiag ${it.sev}"><span class="sn">${it.c}</span><div><div class="sdh"><b>${it.title}</b><div class="sacts"><span class="ghost" data-act="sn:show" data-v="${i}">Show me</span>${it.fix ? `<span class="ghost fix" data-act="sn:fix" data-v="${i}">${it.fix[2]}</span>` : ''}</div></div>${it.text}</div></div>`).join('') + '</div>';
+    h += `<div class="hint" style="color:var(--soft);font-size:11.5px">Checked live after every edit: 20 checks, numbered as in HY-10.</div>`;
+    return panelShell(head, h, 360, 'toolwin');
+  }
+  function snowPanel() {
+    const d = S.draft;
+    if (d.kind === 'spipe') return linePanel();
+    if (d.kind === 'shouse') return housePanel();
+    if (d.kind === 'sbooster') return boosterPanel();
+    if (d.kind === 'sgun') return gunPanel();
+    return checkPanel();
+  }
+  // the full card, in the right-hand column
+  function snowCard() {
+    const c = S.snow.card; if (!c) return '';
+    const R = snowR(), kv = wkv, x = `<span class="x" data-act="sn:card" title="Close (Esc)">✕</span>`, sty = S.snow.stale ? ' style="opacity:.45"' : '';
+    const shell = (glyph, name, sub, body, acts = '') => `<div class="pn fcard" data-ui="toolwin-snow-card"><div class="hd">${glyph}${name}<span class="nm">${sub}</span>${x}</div>${staleNote()}<div${sty}>${body}</div>${acts}</div>`;
+    if (c.t === 'pipe') {
+      const ln = sline(c.id); if (!ln) return '';
+      const es = R.edges.filter((e) => e.ln === ln), e = es.find((x) => x.s0 <= c.s && x.s1 >= c.s) || es[0], L = runFt(ln, 0, lineFt(ln)), vert = zFt(ln.pts[ln.pts.length - 1]) - zFt(ln.pts[0]);
+      const fed = es.filter((x) => x.pu != null), hi = fed.length ? Math.max(...fed.map(edgeMax)) : null, fric = fed.reduce((a, x) => a + x.hf, 0), v = e && e.pu != null ? edgeVel(e) : 0;
+      const hyd = ln.st.filter((s0) => snode(s0.id).kind === 'hydrant').length, guns = S.snow.guns.filter((gn) => gn.line === ln.id).length;
+      const up = e && e.fwd ? (zFt(R.N.get(e.to).p) > zFt(R.N.get(e.from).p) ? 'uphill' : 'downhill') : '';
+      const body = `<dl class="kv">${kv('Diameter', `<b>${inTxt(e ? e.dia : ln.dia)}</b>${(ln.up || []).length ? ` <span style="color:var(--soft)">· ${inTxt(ln.dia)} elsewhere</span>` : ''}`)}${kv('Length', `<b>${lenFt(L)}</b> · ${vert >= 0 ? 'climbs' : 'drops'} ${lenFt(Math.abs(vert))}`)}${kv('Hydrants', `<b>${hyd}</b> · ${guns} gun${guns === 1 ? '' : 's'}`)}</dl><div class="rule"></div>
+        <div class="sub"><span>Here, ${e ? `${nodeName(R.N.get(e.a))}–${nodeName(R.N.get(e.b))}` : ''}</span><span></span></div>
+        <dl class="kv">${!e || e.pu == null ? kv('Water', '<span style="color:var(--neg)">none reaches here</span>') : `${kv('Flow', `${gpmTxt(e.q)} ${e.q ? `<span style="color:var(--soft)">${up}, toward ${nodeName(R.N.get(e.to))}</span>` : ''}`)}${kv('Pressure', `${psiTxt(e.pu)} → ${psiTxt(e.pv)}`, 'at grade, upstream end to downstream end')}${kv('Friction', `${psiTxt(e.hf)} <span style="color:var(--soft)">in ${lenFt(e.L)}</span>`, 'HY-04: 10.44·L·Q^1.852 / (120^1.852·D^4.87) ft, ÷ 2.31')}${kv('Velocity', `<span style="color:${v > SN.vel ? 'var(--warn)' : 'inherit'}"><b>${velTxt(v)}</b></span>${v > SN.vel ? ' · over 15' : ''}`, 'Q / (2.448·D²)')}`}</dl><div class="rule"></div>
+        <dl class="kv">${kv('Friction, whole line', psiTxt(fric))}${kv('Class', hi == null ? dash : `<span style="color:${hi > SN.cls ? 'var(--neg)' : hi > SN.clsWarn ? 'var(--warn)' : 'inherit'}">${psiTxt(hi)} of ${psiPlain(SN.cls)}</span>`, 'M10: the highest pressure at the buried depth (6 ft, +2.6 psi)')}${hi == null ? '' : kv('', `<span style="color:var(--soft)">margin ${psiPlain(SN.cls - hi)}</span>`)}${kv('Valves', (ln.valveA || 'none') === (ln.valveB || 'none') ? (ln.valveA ? `both ends ${ln.valveA}` : 'none') : `start ${ln.valveA || 'none'} · end ${ln.valveB || 'none'}`)}</dl>`;
+      const acts = `<div class="acts" style="grid-template-columns:1fr 1fr">${ln.valveA ? `<div class="ghost" data-act="sn:valve" data-v="${ln.id}|A">${ln.valveA === 'closed' ? 'Open' : 'Close'} start valve</div>` : '<div class="ghost dis">No start valve</div>'}<div class="ghost" data-act="sn:upsize" data-v="${ln.id}|0|${lineFt(ln)}|${DIAS[Math.min(DIAS.length - 1, DIAS.indexOf(ln.dia) + 1)]}">Upsize to ${inTxt(DIAS[Math.min(DIAS.length - 1, DIAS.indexOf(ln.dia) + 1)])}</div></div>`;
+      return shell(g('s-pipe'), esc(ln.name), 'water line', body, acts);
+    }
+    if (c.t === 'hyd') {
+      const nd = snode(c.id), p = R.P.get(nd.id), gn = gunOn(nd.id), ln = sline(nd.line);
+      const body = `<dl class="kv">${kv('Line', ln ? esc(ln.name) : '—')}${kv('Pressure', p == null ? '<span style="color:var(--neg)">no water</span>' : `<span style="color:${p < SN.need ? 'var(--neg)' : 'inherit'}">${psiTxt(p)}</span>`, 'M10: at the outlet, at grade')}${kv('Elevation', `<b>${lenFt(zFt(nd.p))}</b>`)}${kv('Gun', gn ? `Gun ${gn.n} · ${gn.mode === 'on' ? 'On' : gn.mode === 'off' ? 'Off' : 'Auto'}` : '<span style="color:var(--soft)">free</span>')}${kv('Wet bulb', degF(wbAt(nd.p)))}</dl>`;
+      return shell('', nodeName(nd), nd.kind === 'hydrant' ? 'hydrant' : nd.kind, body);
+    }
+    if (c.t === 'gun') {
+      const gn = sgun(c.id), r = R.gun.get(gn.id), p = gn.hyd ? R.P.get(gn.hyd) : null, adv = p != null && p < SN.need && r.runs ? gunAdvice(R, gn) : null, m = GUN_MODELS.find((x) => x[0] === gn.model);
+      const why = r.st === 0 ? `too warm: wet bulb ${degF(r.wb)}, over 28°F` : `wet bulb ${degF(r.wb)} · ≤ ${degF(STAGES[r.st - 1][0])}`;
+      const status = !gn.hyd ? '<span style="color:var(--neg)">not on a hydrant</span>' : p == null ? '<span style="color:var(--neg)">no water reaches its hydrant</span>' : !r.runs ? (gn.mode === 'auto' ? 'waits for the schedule (4.16)' : 'off') : p < SN.need ? '<span style="color:var(--neg)">short of pressure</span>' : r.st === 0 ? '<span style="color:var(--warn)">running, too warm for snow</span>' : '<span style="color:var(--pos)">making snow</span>';
+      let body = `<div class="lrow" style="padding:8px 12px 4px"><span>Mode</span>${snSeg('gset', gn.mode, [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']], 'toolwin-snow-card-mode')}</div><dl class="kv">${kv('Now', status)}${kv('Stage', r.st ? `<b>${r.st}</b> of 5 · ${STAGES[r.st - 1][1]} gpm · ${STAGES[r.st - 1][2]} cfm` : '—', 'SG-01')}${kv('Why', why)}${kv('Hydrant', gn.hyd ? `${nodeName(snode(gn.hyd))} · ${lenFt(Math.hypot(snode(gn.hyd).p[0] - gn.p[0], snode(gn.hyd).p[1] - gn.p[1]) * FT_PX)} hose` : '—')}${kv('Pressure', p == null ? dash : `<span style="color:${p < SN.need ? 'var(--neg)' : 'inherit'}">${psiTxt(p)}</span> <span style="color:var(--soft)">needs ${psiPlain(SN.need)}</span>`, 'SG-02: 200 psi at the hydrant')}</dl>`;
+      if (adv) body += `<div class="sdef"><b>Needs ${psiPlain(SN.need)}, has ${psiPlain(p)}</b>${esc(adv.text.charAt(0).toUpperCase() + adv.text.slice(1))}.</div>`;
+      const acts = adv && adv.fix ? `<div class="acts" style="grid-template-columns:1fr"><div class="ghost" data-act="sn:${adv.fix[0]}" data-v="${adv.fix[1]}">${adv.fix[2]}</div></div>` : '';
+      return shell(g('s-gun'), `Gun ${gn.n}`, m[1], body, acts);
+    }
+    if (c.t === 'pump') {
+      const nd = snode(c.id), pr = R.pumps.get(nd.id), ln = sline(nd.line);
+      const st = !nd.on ? 'off: passes water forward only' : !pr ? '<span style="color:var(--neg)">no water reaches it</span>' : pr.faces ? '<span style="color:var(--neg)">faces away from the water</span>' : !pr.q ? '<span style="color:var(--warn)">nothing past it running</span>' : pr.add < nd.add - 0.5 ? '<span style="color:var(--warn)">at its power limit</span>' : '<span style="color:var(--pos)">holding its setpoint</span>';
+      const body = `<dl class="kv">${kv('On', ln ? esc(ln.name) : '—')}${kv('Status', st)}${kv('Flow', pr ? gpmTxt(pr.q) : dash)}${kv('Head', pr ? `+${psiTxt(pr.add)} <span style="color:var(--soft)">${lenFt(pr.add * SN.psiFt)}</span>` : dash, 'H = min(setpoint, 3,960·hp·η / Q)')}${kv('In · out', pr && !pr.faces ? `${psiTxt(pr.in)} → ${psiTxt(pr.in + pr.add)}` : dash)}${kv('Setpoint', `+${psiTxt(nd.add)} · ${nd.hp} hp`, 'Q1')}${kv('Faces', pr && pr.faces ? '<span style="color:var(--neg)">toward the pump house</span>' : `away from the pump house, ${(() => { const q = ln && nearOnLine(ln.pts, nd.p), ahead = q && lineAt(ln, Math.max(0, Math.min(lineFt(ln), q.s + nd.dir * 200))); return ahead && zFt(ahead) > zFt(nd.p) ? 'uphill' : 'downhill'; })()}`)}</dl>`;
+      const acts = `<div class="acts" style="grid-template-columns:1fr 1fr"><div class="ghost" data-act="sn:cardflip">Flip</div><div class="ghost" data-act="sn:cardpump">Turn ${nd.on ? 'off' : 'on'}</div></div>`;
+      return shell(toolGlyph(toolById('booster')), nodeName(nd), 'inline pump', body, acts);
+    }
+    if (c.t === 'house') {
+      const h = shouse(c.id), q = R.Q.get(h.intake) || 0, p = R.P.get(h.intake) || 0, src = waterById(h.src), limit = powerFt(h.hp, HOUSE.eff, 1) / (h.set * SN.psiFt);
+      const outs = S.snow.nodes.filter((nd) => nd.kind === 'outlet' && R.house.get(nd.id) === h && R.P.has(nd.id)), fillQ = outs.reduce((a, nd) => a + nd.rate, 0);
+      const into = S.snow.nodes.filter((nd) => nd.kind === 'outlet' && nd.pond === h.src && R.P.has(nd.id)), inQ = into.reduce((a, nd) => a + nd.rate, 0);
+      const body = `<dl class="kv">${kv('Pump', `<b>${h.hp.toLocaleString('en-US')}</b> hp at 85%`)}${kv('Setpoint', `<span class="wbtn" data-act="sn:setp" data-v="-25">−</span> ${psiTxt(h.set)} <span class="wbtn" data-act="sn:setp" data-v="25">+</span>`, 'Q1: the player sets it; it holds it up to its power')}${kv('Now', `${psiTxt(p)} · ${gpmTxt(q)}`)}${kv('', `<span style="color:${q > limit ? 'var(--warn)' : 'var(--soft)'}">${q > limit ? 'at its power limit' : `holds ${psiPlain(h.set)} to ${gpmPlain(limit)}`}</span>`)}${kv('Air', `<b>${Math.round(R.air.get(h.id)).toLocaleString('en-US')}</b> of ${h.cfm.toLocaleString('en-US')} cfm`, 'SG-06')}</dl><div class="rule"></div>
+        <div class="sub"><span>${src ? esc(src.name) : 'No source'}</span><span>${src && src.fillPct != null ? `${Math.round(src.fillPct * 100)}% full` : src && src.est ? 'lake' : ''}</span></div>
+        <dl class="kv">${kv('Pumped out', `${gpmTxt(q)}${fillQ ? ` <span style="color:var(--soft)">· ${gpmPlain(fillQ)} of it to fill a pond</span>` : ''}`, 'SI-10: what the house draws from its source')}${kv('Pumped in', inQ ? `${gpmTxt(inQ)} <span style="color:var(--soft)">from ${into.map((nd) => esc(R.house.get(nd.id).name)).join(', ')}</span>` : '<span style="color:var(--soft)">none</span>', 'SI-10: outlets filling this source')}</dl>`;
+      return shell(g('s-pump'), esc(h.name), 'pump house', body);
+    }
+    if (c.t === 'outlet') {
+      const nd = snode(c.id), o = waterById(nd.pond), fed = R.P.has(nd.id), h = fed && R.house.get(nd.id), cap = o.res.vol, left = cap * (1 - (o.fillPct == null ? 1 : o.fillPct));
+      const days = fed && nd.rate ? left / (nd.rate * 0.00378541 * 1440) : Infinity, lift = h ? zFt(nd.p) - zFt(h.c) : 0;
+      const body = `<div class="hint" style="padding-bottom:0">A line that ends inside a pond fills it (WS-11).</div><dl class="kv">${kv('Fills', `<b>${esc(o.name)}</b> · ${Math.round((o.fillPct == null ? 1 : o.fillPct) * 100)}% full`)}${kv('Rate', `<span class="wbtn" data-act="sn:rate" data-v="-250">−</span> ${gpmTxt(fed ? nd.rate : 0)} <span class="wbtn" data-act="sn:rate" data-v="250">+</span>`)}${kv('From', h ? `${esc(h.name)}` : '<span style="color:var(--neg)">no pump house reaches it</span>')}${fed ? kv('Lift', `${lift >= 0 ? 'up' : 'down'} <b>${lenFt(Math.abs(lift))}</b>`) + kv('Pump runs at', psiTxt(R.P.get(h.intake))) : ''}${kv('To full', !fed || !nd.rate ? dash : left <= 0 ? 'full' : `about <b>${days < 1 ? Math.max(1, Math.round(days * 24)) + ' hours' : days.toFixed(1) + ' days'}</b>`)}${fed && nd.rate && left > 0 ? kv('Still to fill', galM(left)) : ''}</dl>`;
+      return shell(g('s-pond'), `Outlet ${nd.n}`, 'fill a pond', body);
+    }
+    return '';
+  }
+  // the Pipe pressure info layer's key, and what it reads under the pointer
+  function pressureLegend(head) {
+    const W0 = 244, X = (p) => 6 + Math.min(1100, p) / 1100 * (W0 - 12), stops = PSI_RAMP.map(([p, c]) => `<stop offset="${(X(p) / W0).toFixed(4)}" stop-color="${c}"/>`).join('') + `<stop offset="1" stop-color="#ff2d2d"/>`;
+    const tick = (p, t, strong) => `<line x1="${f1(X(p))}" y1="${strong ? 2 : 6}" x2="${f1(X(p))}" y2="22" stroke="currentColor" stroke-width="${strong ? 1.6 : 1}"/><text x="${f1(X(p))}" y="33" text-anchor="middle" style="font:${strong ? 700 : 500} 10px 'Overpass Mono',monospace;fill:currentColor">${t}</text>`;
+    const bar = `<svg width="${W0}" height="36" viewBox="0 0 ${W0} 36" style="display:block;margin:4px 12px 0;color:var(--muted)"><defs><linearGradient id="psig" x1="0" x2="1">${stops}</linearGradient></defs><rect x="6" y="8" width="${W0 - 12}" height="11" rx="2" fill="url(#psig)"/>${tick(0, '0')}${tick(200, psiV(200), true)}${tick(500, psiV(500))}${tick(800, psiV(800))}${tick(1000, psiV(1000))}</svg>`;
+    const row = (bg, word, fig) => `<div class="lr"><span class="sw" style="background:${bg}"></span><span>${word}</span><span class="n">${fig}</span></div>`;
+    return head('Pipe pressure') + bar + row('linear-gradient(90deg,#8e2b1f,#ee8a3a)', 'Guns can\'t start', `under ${psiV(200)}`) + row('linear-gradient(90deg,#cfeaf2,#2b4f9e)', 'Enough for a gun', `${psiV(200)}–${psiV(800)}`) + row('#f0b43c', 'Near the pipe class', `${psiV(800)}–${psiV(1000)}`) + row('repeating-linear-gradient(90deg,#ff2d2d 0 5px,#fff 5px 7px)', 'Over the class', `over ${psiV(1000)}`)
+      + `<div class="lr" style="padding-top:6px"><span></span><span>${snSeg('every-guns', S.snow.every ? 'every' : 'set', [['set', 'Guns as set'], ['every', 'Every gun']], 'toolwin-pressure-guns')}</span><span></span></div>`
+      + `<div class="ln">${psiU() === 'psi' ? 'Psi' : 'Bar'} at grade, on one scale for every network, so colours compare between edits. Zoom in for the flow arrows and the figures at the nodes.</div>`;
+  }
+  function snowReadout(p) {
+    const R = snowR(); let best = null, bd = 12 / S.zoom;
+    for (const nd of S.snow.nodes) { if (!R.P.has(nd.id)) continue; const d = Math.hypot(nd.p[0] - p[0], nd.p[1] - p[1]); if (d < bd) { bd = d; best = nd; } }
+    if (!best) return '<i style="background:#8f877c"></i>Pressure <span style="color:var(--ph)">– no pipe here</span>';
+    const v = R.P.get(best.id); return `<i style="background:${psiHex(v)}"></i>${nodeName(best)} <b>${psiPlain(v)}</b>`;
+  }
+  function refreshSnow() { drawWorld(); }
+  // the lasso (Snow gun › Select)
+  function snowDown(e) {
+    const d = S.draft; if (!d || d.kind !== 'sgun' || d.mode !== 'select' || e.button !== 0) return false;
+    d.lasso = [toMap(e)]; stage.setPointerCapture(e.pointerId); return true;
+  }
+  function snowMove(p) { const d = S.draft; if (d && d.lasso) { d.lasso.push(p); drawWorld(); return true; } return false; }
+  function snowUp() { const d = S.draft; if (!d || !d.lasso) return false; if (d.lasso.length > 2) d.sel = S.snow.guns.filter((gn) => inPoly(gn.p, d.lasso)).map((gn) => gn.id); d.lasso = null; render(); return true; }
+
+  // ----- the demo states (task 4.15 mockup): see the "try" list -----
+  function snowDemo(dd) {
+    const ST = ['snowtray', 'snowline', 'snowlinereview', 'snowpump', 'snowhouse', 'snowgun', 'snowlasso', 'snowgunshort', 'snowpipecard', 'snowdiag', 'snowpressure', 'snowcheck', 'snowfill', 'snowstale'];
+    const which = ST.find((x) => dd.includes(x)); if (!which) return;
+    S.t = 19.5 * 3600; S.paused = true;   // a snowmaking night: 7:30 PM, the clock held for the pictures
+    const water = () => { if (!S.water.ponds.length) waterDemo(['watertray']); S.toolbox = true; S.tab = 'snow'; S.tool = null; S.draft = null; };
+    water();
+    const MAIN = [[863, 614], [853, 592], [846, 568], [868, 539], [894, 509], [916, 481], [931, 449], [941, 417]];
+    const BRANCH = [[822, 554], [806, 530], [810, 502], [818, 476], [824, 452]];
+    const SPUR = [[890, 550], [911, 557], [932, 560]];
+    const mkLine = (name, dia, pts, snapA, snapB, hyd = 'every') => planLine({ name, dia, valves: 'both', hyd, every: 100, count: 10, snapA, snapB }, pts, S.snow).ln;
+    const build = (o = {}) => {
+      const hd = { name: 'Base Pump House', c: [864, 614], bearing: -0.35, found: 'pad' }, r = houseEval(hd);
+      const h = { id: 'ph1', name: hd.name, c: hd.c, bearing: hd.bearing, found: 'pad', src: r.src.id, hp: HOUSE.hp, set: HOUSE.set, cfm: HOUSE.cfm, pad: r.pad }; h.intake = addNode('intake', h.c, { house: h.id }).id; S.snow.houses.push(h); S.snow.n.PH = 1;
+      const main = mkLine('Timberline Main', 10, MAIN, { house: h.id });
+      const jb = nearOnLine(main.pts, [846, 568]); const branch = mkLine('Headwall Branch', o.branch || 4, [jb.p, ...BRANCH], { line: main.id, s: jb.s, p: jb.p });
+      const js = nearOnLine(main.pts, [868, 539]); const spur = mkLine('Timberline Spur', o.spur || 6, [js.p, ...SPUR], { line: main.id, s: js.s, p: js.p });
+      // the booster where the main has climbed about 650 ft
+      const bs = nearOnLine(main.pts, [894, 509]); main.st = main.st.filter((x) => !(Math.abs(x.s - bs.s) < 12 && snode(x.id).kind === 'hydrant'));
+      const b = addNode('pump', bs.p, { line: main.id, dir: o.flip ? -1 : 1, on: true, hp: BOOST.hp, add: BOOST.add }); main.st.push({ s: bs.s, id: b.id });
+      // guns: every other hydrant up the main and the branch, every hydrant on the spur
+      const hyds = (ln) => ln.st.slice().sort((a, c) => a.s - c.s).map((x) => snode(x.id)).filter((nd) => nd.kind === 'hydrant');
+      const put = (ln, every, mode, from = 0, to = 1e9) => hyds(ln).forEach((nd, i) => { if (i < from || i > to || i % every) return; const oo = nearOnLine(ln.pts, nd.p), side = (i / every) % 2 ? 1 : -1; addGun([nd.p[0] - oo.tan[1] * side * 1.7, nd.p[1] + oo.tan[0] * side * 1.7], nd, 's20', typeof mode === 'function' ? mode(i) : mode); });
+      put(main, 3, (i) => (i % 6 === 0 ? 'on' : 'auto'), 3, 40); put(main, 1, 'on', 41);
+      put(branch, 2, (i) => (i < 10 || i >= 20 ? 'on' : 'auto'));
+      put(spur, o.spurAll ? 1 : 3, o.spurAll ? 'on' : 'auto');
+      S.snow.R = null; return { h, main, branch, spur, b };
+    };
+    const open = (id) => { S.toolbox = true; S.tab = 'snow'; chooseTool(id); };
+    mapEl.style.transition = 'none'; setTimeout(() => { mapEl.style.transition = ''; }, 400);   // the picture opens at its zoom, not part-way through the animation
+    const look = (C, k, T = [800, 360]) => { S.zoom = k; S.zoomO = [(T[0] - C[0] * k) / (1 - k), (T[1] - C[1] * k) / (1 - k)]; };
+    if (which === 'snowtray') { build(); look([880, 515], 2.0, [800, 340]); }
+    const spurDraft = (n, review) => { open('pipe'); const d = S.draft, jp = nearOnLine(n.main.pts, [916, 481]); d.snapA = { line: n.main.id, s: jp.s, p: jp.p, label: `a junction on ${n.main.name}`, short: n.main.name }; d.name = 'Upper Spur'; d.pts = [jp.p, [936, 470], [952, 452]]; if (review) { d.pts.push([975, 410]); d.step = 'review'; } else mouse = [975, 410]; look([945, 448], 2.2, [700, 360]); };
+    if (which === 'snowline') spurDraft(build(), false);
+    if (which === 'snowlinereview') spurDraft(build(), true);
+    if (which === 'snowpump') { const n = build(); open('booster'); S.snow.card = { t: 'pump', id: n.b.id }; look(n.b.p, 2.4, [660, 380]); }
+    if (which === 'snowhouse') { open('pump'); const d = S.draft; d.c = [864, 614]; d.bearing = -0.35; d.step = 'review'; d.res = houseEval(d); look([864, 612], 3.2, [700, 400]); }
+    if (which === 'snowgun') { const n = build(); open('gun'); const hy = n.spur.st.map((x) => snode(x.id)).filter((nd) => nd.kind === 'hydrant' && !gunOn(nd.id)); const free = hy[2] || hy[0]; addGun([free.p[0] + 0.6, free.p[1] + 1.6], free, 's20', 'auto'); addGun([948, 568], null, 's20', 'auto'); S.snow.R = null; const f2 = hy[5] || hy[1]; mouse = [f2.p[0] - 0.8, f2.p[1] + 1.8]; look([915, 558], 2.8, [660, 380]); }
+    if (which === 'snowlasso') { build(); open('gun'); const d = S.draft; d.mode = 'select'; const poly = [[811, 566], [834, 558], [826, 516], [812, 497], [796, 505], [800, 540]]; d.sel = S.snow.guns.filter((gn) => inPoly(gn.p, poly)).map((gn) => gn.id); d.lasso = poly; look([815, 528], 2.2, [680, 380]); }
+    if (which === 'snowgunshort') { build(); open('snow-check'); const R = snowR(), gn = S.snow.guns.filter((x) => x.mode === 'on' && x.line === S.snow.lines[1].id && R.P.has(x.hyd) && R.P.get(x.hyd) < SN.need)[0]; S.snow.card = { t: 'gun', id: gn.id }; look(gn.p, 2.2, [660, 360]); }
+    if (which === 'snowpipecard') { const n = build(); open('snow-check'); S.snow.card = { t: 'pipe', id: n.branch.id, s: lineFt(n.branch) * 0.45 }; look([840, 520], 1.8, [660, 380]); }
+    if (which === 'snowdiag') { const n = build({ flip: true, spur: 4, spurAll: true }); n.branch.valveA = 'closed'; const lone = mkLine('Meadow Line', 8, [[872, 588], [900, 597], [928, 603], [955, 601]], null); const lh = lone.st.map((x) => snode(x.id)).find((nd) => nd.kind === 'hydrant'); addGun([lh.p[0], lh.p[1] - 1.6], lh, 's20', 'on'); addGun([948, 568], null, 'fan', 'on'); S.snow.R = null; open('snow-check'); look([860, 540], 1.6, [800, 440]); }
+    if (which === 'snowpressure') { build(); S.info = 'pressure'; S.legendClosed = false; S.toolbox = false; look([885, 515], 1.8, [640, 380]); }
+    if (which === 'snowcheck') { build(); S.snow.every = true; S.info = 'pressure'; S.legendClosed = false; open('snow-check'); look([885, 515], 1.6, [700, 380]); }
+    if (which === 'snowfill') {
+      build();
+      const hd = { c: [739, 641], bearing: 0.1 }, r = houseEval(hd);
+      const h = { id: 'ph2', name: 'Moose Lake House', c: hd.c, bearing: hd.bearing, found: 'slab', src: r.src ? r.src.id : 'k1', hp: HOUSE.hp, set: HOUSE.set, cfm: HOUSE.cfm, pad: r.pad }; h.intake = addNode('intake', h.c, { house: h.id }).id; S.snow.houses.push(h);
+      mkLine('Pond Fill', 12, [[739, 641], [780, 641], [815, 637], [852, 633]], { house: h.id }, { pond: 'w1', p: [852, 633] }, 'none');
+      S.snow.R = null; open('snow-check'); const out = S.snow.nodes.find((nd) => nd.kind === 'outlet'); S.snow.card = { t: 'outlet', id: out.id }; look([800, 630], 2.0, [760, 560]);
+    }
+    if (which === 'snowstale') { build(); open('snow-check'); S.snow.stale = true; S.snow.card = { t: 'pipe', id: S.snow.lines[0].id, s: 2600 }; look([880, 520], 1.6, [680, 380]); }
+  }
   function reviewActs(ready, plan, rules) {
     return `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}" data-ui="review-go" title="${rules}"><span>Break ground</span><span class="kbd kbd-go">Ctrl Enter</span></div><div class="ghost${plan ? '' : ' dis'}" data-act="${plan ? 'plan' : ''}" data-ui="review-plan">Save plan</div></div>`;
   }
@@ -4547,6 +5375,7 @@ body.solo .frame { border-radius: 0; }
     if (S.set.pauseOnBuild === 'on' && building) { if (!S.buildPauseDone) { S.buildPauseDone = true; if (!S.paused) { S.paused = true; S.autoPaused = true; } } }
     else { S.buildPauseDone = false; if (S.autoPaused) { S.paused = false; S.autoPaused = false; } }
     mapEl.style.transform = `scale(${S.zoom})`;
+    if (!S.ride) mapEl.style.transformOrigin = S.zoomO ? `${S.zoomO[0]}px ${S.zoomO[1]}px` : '';   // Show me (task 4.15) zooms about the problem
     if (S.ride) {   // 4.11 PR B: only the ride bar (unless H hid it), the chair in front, and the toasts
       ui.innerHTML = chairFg() + (S.ride.hidden ? '' : rideBar()) + `<div class="log" id="log" data-ui="toasts">${logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join('')}</div>`;
       if (S.set.tooltips === 'off') ui.querySelectorAll('[title]').forEach((n) => n.removeAttribute('title'));
@@ -4569,13 +5398,13 @@ body.solo .frame { border-radius: 0; }
     const lay = (k, label, key) => P2 && P2_DIS_LAYERS.includes(k)
       ? `<div class="row lay dis plain" data-ui="layer-${LAY_UI[k] || k}" title="Comes with the building tools in Phase 3"><i class="chk"></i>${label}</div>`
       : `<div class="row lay" data-act="layer" data-v="${k}" data-ui="layer-${LAY_UI[k] || k}"><span class="chk${S.layers[k] ? ' on' : ''}"></span>${label}${key ? `<span class="r">Shift ${key}</span>` : ''}</div>`;
-    const inf = (k) => `<div class="row lay" data-act="info" data-v="${k}" data-ui="layer-${INFO_UI[k] || k}"><span class="rad${S.info === k ? ' on' : ''}"></span>${INFO[k][0]}<span class="r">Shift ${INFO[k][1]}</span></div>`;
+    const inf = (k) => `<div class="row lay" data-act="info" data-v="${k}" data-ui="layer-${INFO_UI[k] || k}"><span class="rad${S.info === k ? ' on' : ''}"></span>${INFO[k][0]}${INFO[k][1] ? `<span class="r">Shift ${INFO[k][1]}</span>` : ''}</div>`;
     let rc = '';
     if (S.drop === 'layers') rc += `<div class="drop" data-ui="layers"><div class="ghead">Map layers</div>${lay('snow', 'Snow', '1')}${lay('trees', 'Trees', '3')}${lay('lifts', 'Lifts', '2')}${lay('trails', 'Trails')}${lay('making', 'Snowmaking')}${lay('infra', 'Infrastructure')}${lay('labels', 'Labels')}
-      <div class="sepl"></div><div class="ghead">Info layers</div>${inf('slope')}${inf('aspect')}${inf('depth')}
+      <div class="sepl"></div><div class="ghead">Info layers</div>${inf('slope')}${inf('aspect')}${inf('depth')}${inf('pressure')}
       <div class="row lay dis" data-ui="layer-conditions" title="Comes with the snow simulation"><span class="rad"></span><span>Snow conditions<small>Comes with the snow simulation</small></span><span class="r">Shift 0</span></div>
       <div class="row lay" data-act="contours" data-ui="layer-contours"><span class="chk${S.contours ? ' on' : ''}"></span>Contours<span class="r">Shift 6</span></div></div>`;
-    const card = S.focus && !S.drop ? focusCard() : '';
+    const card = S.focus && !S.drop ? focusCard() : S.snow.card && !S.drop ? snowCard() : '';
     if (S.drop !== 'menu') {   // the menu opens over the legend's place
       let lg = legendCard();
       // finding 3 (NT12): with a card open, the legend folds to its title (▸ unfolds it) and the card stacks below it
@@ -4606,9 +5435,9 @@ body.solo .frame { border-radius: 0; }
         : `<span class="tool${S.tool === t.id ? ' on' : ''}" data-act="tool" data-v="${t.id}" data-ui="tool-${t.id}" data-name="${t.name}" data-key="${t.key}" data-hint="${esc(t.hint)}">${toolGlyph(t)}<span>${t.label}</span></span>`;
       h += `<div class="box" data-ui="toolbox" style="bottom:${trayBottom}px"><div class="tabs">${TABS.map(([k, v]) => `<span class="${S.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}" data-ui="toolbox-tab-${k}">${v}</span>`).join('')}</div><div class="tabrule"></div>
         <div class="toollabel" id="toollabel" data-ui="toolbox-label">${cur && TOOLS[S.tab].includes(cur) ? `${cur.name}<span class="mono">${cur.key}</span>` : 'Select tool'}</div>
-        <div class="tools">${TOOLS[S.tab].map(tile).join('')}</div></div>`;
+        ${TOOLS[S.tab].some((t) => t.group) ? [['water', 'Water'], ['net', 'Snowmaking network']].map(([k, v]) => `<div class="tgrp">${v}</div><div class="tools">${TOOLS[S.tab].filter((t) => t.group === k).map(tile).join('')}</div>`).join('') : `<div class="tools">${TOOLS[S.tab].map(tile).join('')}</div>`}</div>`;
     }
-    if (S.tool) { const t = toolById(S.tool); h += WATER.has(t.kind) ? waterPanel() : t.kind === 'lift' || (S.draft && S.draft.edit) ? liftPanel() : t.kind === 'trail' ? trailPanel() : t.kind === 'terrain' ? terrainPanel() : t.kind === 'pick' ? pickPanel() : placePanel(); }
+    if (S.tool) { const t = toolById(S.tool); h += WATER.has(t.kind) ? waterPanel() : SNOW.has(t.kind) ? snowPanel() : t.kind === 'lift' || (S.draft && S.draft.edit) ? liftPanel() : t.kind === 'trail' ? trailPanel() : t.kind === 'terrain' ? terrainPanel() : t.kind === 'pick' ? pickPanel() : placePanel(); }
     // the lift tool's profile strip, beside the tray along the bottom
     if (S.draft && S.draft.kind === 'lift') h += liftStrip(S.draft, 436, trayBottom);
     if (S.draft && S.draft.kind === 'trail') h += trailStrip(S.draft, 436, trayBottom);
@@ -5157,10 +5986,11 @@ body.solo .frame { border-radius: 0; }
     if (a !== 'amenu' && a !== 'afchk' && a !== 'afclr') S.afMenu = null;
     if (a !== 'lkmenu') S.lkMenu = false;
     if (a && a.startsWith('wt:')) { waterAct(a.slice(3), v); return; }   // task 4.14's water windows
+    if (a && a.startsWith('sn:')) { snowAct(a.slice(3), v); return; }   // task 4.15's snowmaking windows and cards
     switch (a) {
       case 'toolbox': S.toolbox = !S.toolbox; S.analysis = false; if (!S.toolbox) { S.tool = null; S.draft = null; S.sel = null; } break;
       case 'analysis': S.analysis = !S.analysis; if (S.analysis) { S.toolbox = false; S.tool = null; S.draft = null; S.sel = null; } break;
-      case 'tab': S.tab = v; S.tool = null; S.draft = null; S.sel = null; break;
+      case 'tab': S.tab = v; S.tool = null; S.draft = null; S.sel = null; S.snow.card = null; break;
       case 'tool': chooseTool(v); return;
       case 'tgrade': case 'tnext': case 'tstep': trailAct(a, v); return;
       case 'tbrate': case 'tbconfirm': case 'tbrevert': case 'tbkeep': case 'tbclear': terrainAct(a, v); return;
@@ -5196,7 +6026,7 @@ body.solo .frame { border-radius: 0; }
       case 'lmaker': case 'lkmenu': case 'lkind': case 'lcarrier': case 'ltype': case 'lcap': case 'lmode': case 'lstand': case 'lscale': case 'lstep': case 'lfill': case 'lreplace': case 'lh': case 'ldel': case 'ldrop': case 'lkeep': case 'llevel': case 'lundo': case 'lapply': case 'lcancel': liftAct(a, v); return;
       case 'model': S.draft.model = v; break;
       case 'diff': S.draft.diff = v; break;
-      case 'build': if (S.draft && WATER.has(S.draft.kind)) { waterBuild(); return; } commit(false); return;
+      case 'build': if (S.draft && WATER.has(S.draft.kind)) { waterBuild(); return; } if (S.draft && SNOW.has(S.draft.kind)) { snowAct('build'); return; } commit(false); return;
       case 'plan': commit(true); return;
       case 'setmodel': { const l = S.lifts.find((x) => x.id === S.sel); if (l && l.model !== v) { const before = liftStats(l.a, l.b, l.model).cost.total; l.model = v; const diff = liftStats(l.a, l.b, v).cost.total - before; if (l.built && diff > 0) spend(diff); S.saveDue = true; log(`<span><b>${esc(l.name)}</b> is now a ${v}${l.built && diff > 0 ? ` <span class="mono" style="color:var(--neg)">${short(-diff)}</span>` : ''}</span>`); } break; }
       case 'tedit': {
@@ -5301,7 +6131,7 @@ body.solo .frame { border-radius: 0; }
       case 'title': S.drop = null; if (S.saveDue) { S.modal = { save: 'leave' }; break; } S.modal = { title: 'Exit to title', body: 'The title screen is frame D1 on the art-directions page; it isn\'t wired into this mockup.' }; break;
       case 'modal': case 'modalbg': if (a === 'modalbg' && e && e.target.closest('.pn')) return; S.modal = null; break;
       case 'zoom': S.zoom = Math.min(1.8, Math.max(1, S.zoom + (+v) * { slow: 0.1, normal: 0.2, fast: 0.3 }[S.set.zoomSpeed])); break;
-      case 'resetview': if (S.zoom === 1) return; S.zoom = 1; render(); log('<span>View reset</span>', '#6f675e', true); return;
+      case 'resetview': if (S.zoom === 1) return; S.zoom = 1; S.zoomO = null; S.snow.show = null; render(); log('<span>View reset</span>', '#6f675e', true); return;
       default: return;
     }
     render();
@@ -5310,7 +6140,8 @@ body.solo .frame { border-radius: 0; }
   // ---------- pointer ----------
   const toMap = (e) => {
     const r = stage.getBoundingClientRect(), sx = (e.clientX - r.left) / K, sy = (e.clientY - r.top) / K;
-    return [640 + (sx - 640) / S.zoom, 400 + (sy - 400) / S.zoom];
+    const [ox, oy] = S.zoomO || [640, 400];
+    return [ox + (sx - ox) / S.zoom, oy + (sy - oy) / S.zoom];
   };
   const onUi = (e) => e.target.closest('#ui .pn, #ui .bar, #ui .box, #ui .tr, #ui .drop, #ui .rcol, #ui .strip, #ui .modal');
   function showElev() {
@@ -5358,6 +6189,7 @@ body.solo .frame { border-radius: 0; }
       else if (!d.edit && Math.hypot(p[0] - B[0], p[1] - B[1]) < 9 / S.zoom) { liftDrag = { term: true }; d.lenWas = d.len; liftDragged = false; stage.setPointerCapture(e.pointerId); }
     }
     if (waterDown(e)) return;   // Edit pond: a shoreline point in hand
+    if (!onUi(e) && snowDown(e)) return;   // Snow gun › Select: a lasso
     if (S.draft && S.draft.kind === 'terrain' && (e.button === 0 || e.button === 2) && !onUi(e)) { const p = toMap(e); mouse = p; tbStart(S.draft, p, e.button === 2); if (S.draft.stroke) stage.setPointerCapture(e.pointerId); refreshTerrain(); }
     if (S.draft && S.draft.kind === 'trail' && S.draft.step === 'paint' && e.button === 0) { const d = S.draft; d.stroke = { idx: [], was: [], erase: e.shiftKey, last: null }; strokeTo(d, toMap(e)); stage.setPointerCapture(e.pointerId); }
     if (S.sketch) { sketching = [toMap(e)]; S.sketches.push(sketching); stage.setPointerCapture(e.pointerId); }
@@ -5366,6 +6198,7 @@ body.solo .frame { border-radius: 0; }
     if (drag) { const sc = S.set.hudScale / 100, U = K * sc; S.panelPos = { x: Math.max(0, Math.min(W / sc - 120, e.clientX / U - drag.dx)), y: Math.max(0, Math.min(H / sc - 60, e.clientY / U - drag.dy)) }; const pn = document.getElementById('pn'); pn.style.left = S.panelPos.x + 'px'; pn.style.top = S.panelPos.y + 'px'; return; }
     if (sketching) { sketching.push(toMap(e)); drawWorld(); return; }
     if (wDrag != null) { const p = toMap(e); mouse = p; wDragged = true; waterMove(p); showElev(); return; }
+    if (S.draft && S.draft.lasso) { const p = toMap(e); mouse = p; snowMove(p); return; }
     if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { const p = toMap(e); strokeTo(S.draft, p); mouse = p; showElev(); drawWorld(); return; }
     if (S.draft && S.draft.kind === 'terrain' && S.draft.stroke) { const p = toMap(e); mouse = p; tbDab(S.draft, p); showElev(); refreshTerrain(); return; }
     if (liftDrag) {
@@ -5386,6 +6219,8 @@ body.solo .frame { border-radius: 0; }
       if (key !== S.hoverKey) { S.hoverKey = key; S.hoverNode = hit.node || null; S.hoverSeg = hit.seg || null; S.hover = hit.seg ? null : hit.id || null; drawWorld(); }
     }
     else if (!S.tool && !S.sketch) { const hv = pickAt(mouse, 'lift') || pickAt(mouse, 'trail'); stage.classList.toggle('pick', !!hv); if (hv !== S.hover) { S.hover = hv; drawWorld(); } }
+    // task 4.15: hover a pipe, hydrant, gun, pump or pump house for its quick card (the Snowmaking tab, the Check tool, or no tool)
+    if (S.layers.making && (!S.draft || S.draft.kind === 'scheck' || (S.draft.kind === 'sgun' && S.draft.mode === 'select'))) { const hv = snowHit(mouse), was = S.snow.hover; if ((hv && hv.id) !== (was && was.id)) { S.snow.hover = hv; if (!S.draft) drawWorld(); } }
     if (S.draft || picking) drawWorld();
   });
   stage.addEventListener('contextmenu', (e) => {
@@ -5393,7 +6228,7 @@ body.solo .frame { border-radius: 0; }
     if (S.secs && !onUi(e)) { e.preventDefault(); if (S.secs.mode === 'choose') { const sg = segAt(toMap(e)); if (sg) secsTakeOut(sg.key); render(); } }   // NT35: right-click takes out
   });
   stage.addEventListener('pointerleave', () => { if (liftDrag) return; mouse = null; showElev(); if (S.draft && S.draft.kind === 'lift') { S.draft.hand = null; refreshLift(); } else if (S.draft) drawWorld(); });
-  window.addEventListener('pointerup', () => { if (wDrag != null) { wDrag = null; render(); } if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { endStroke(S.draft); render(); } if (S.draft && S.draft.kind === 'terrain' && S.draft.stroke) { tbEnd(S.draft); render(); } if (liftDrag) { const d = S.draft; if (liftDrag.term) d.dropAsk = d.towers.length - towersOn(d).length; if (liftDrag.end) endMove(d, liftDragged); if (d.edit && !liftDragged) d.hist.pop(); liftDrag = null; render(); } });
+  window.addEventListener('pointerup', () => { if (snowUp()) return; if (wDrag != null) { wDrag = null; render(); } if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; if (S.draft && S.draft.kind === 'trail' && S.draft.stroke) { endStroke(S.draft); render(); } if (S.draft && S.draft.kind === 'terrain' && S.draft.stroke) { tbEnd(S.draft); render(); } if (liftDrag) { const d = S.draft; if (liftDrag.term) d.dropAsk = d.towers.length - towersOn(d).length; if (liftDrag.end) endMove(d, liftDragged); if (d.edit && !liftDragged) d.hist.pop(); liftDrag = null; render(); } });
   // BR20: the wheel over any slider moves it a step a notch (up is more) and never scrolls the panel or zooms; a bubble
   // over the thumb shows its value while hovered, dragged or wheeled.
   let rngTipEl = null, rngTipFor = null, rngTipHide = null, rngDrag = null, rngPinned = false;
@@ -5436,6 +6271,7 @@ body.solo .frame { border-radius: 0; }
   stage.addEventListener('input', (e) => {
     if (e.target.id === 'trailname' && S.draft && S.draft.kind === 'trail') { S.draft.name = e.target.value.slice(0, 28); return; }
     if (e.target.id === 'pondname' && S.draft && S.draft.kind === 'pond') { S.draft.name = e.target.value.slice(0, 28); return; }
+    if ((e.target.id === 'snowname' || e.target.id === 'housename') && S.draft && SNOW.has(S.draft.kind)) { S.draft.name = e.target.value.slice(0, 28); return; }
     if (e.target.dataset && e.target.dataset.wt === 'exc' && S.draft && S.draft.kind === 'pond') {   // PD-02: excavation, 0–50 ft
       const rg = e.target; rg.style.setProperty('--p', `${rg.value / 50 * 100}%`); S.draft.exc = +rg.value / FT; pondRegrade(S.draft);
       document.getElementById('wexc').textContent = ftm(S.draft.exc); refreshWater();
@@ -5486,6 +6322,7 @@ body.solo .frame { border-radius: 0; }
       if (d.kind === 'lift') { if (liftDragged) { liftDragged = false; return; } liftClick(p); return; }
       if (d.kind === 'trail') { trailClick(p); return; }
       if (WATER.has(d.kind)) { if (wDragged) { wDragged = false; return; } waterClick(p, dbl); return; }
+      if (SNOW.has(d.kind)) { snowClick(p, dbl); return; }
       else if (d.kind === 'trail' || d.kind === 'line') { if (d.done) return; if (dbl && d.pts.length > 1) d.done = true; else d.pts.push(p); }
       else d.pts.push(p);
       render(); return;
@@ -5515,7 +6352,7 @@ body.solo .frame { border-radius: 0; }
       const isArea = S.netNode && netOf().areas.some((a) => a.id === S.netNode);   // NT19: an Area opens its card
       S.focus = S.netLift || (isArea ? 'area:' + S.netNode : null); S.drop = null; render();
     }
-    else if (!S.tool) { S.focus = pickAt(p, 'lift') || pickAt(p, 'trail'); S.drop = null; render(); }   // a lift or trail opens its card
+    else if (!S.tool) { const sh = S.layers.making && snowHit(p); S.snow.card = sh || null; S.focus = sh ? null : pickAt(p, 'lift') || pickAt(p, 'trail'); S.drop = null; render(); }   // a lift or trail opens its card; so does a part of the snowmaking network (task 4.15)
   });
 
   // ---------- keys ----------
@@ -5562,17 +6399,19 @@ body.solo .frame { border-radius: 0; }
       else if (e.code === 'BracketLeft' || e.code === 'BracketRight') { const d = e.code === 'BracketLeft' ? -1 : 1; if (e.shiftKey) act('phday', d); else { S.t = (S.t + d * 900 + 86400) % 86400; render(); } }   // the camera keeps WASD and the arrows
       return;
     }
-    if (k === 'p') { enterPhoto(); return; }
+    if (k === 'p' && !S.toolbox) { enterPhoto(); return; }   // P is photo mode while the tray is closed; open, it's the tray's (Pump house)
     if (k === 'f2' && S.tool === 'edit-trail' && S.sel && !S.secs) { e.preventDefault(); act('trename'); render(); return; }
     if (k === 'f2' && S.focus && S.focus.startsWith('area:')) { e.preventDefault(); act('arearename', S.focus.slice(5)); render(); return; }   // NT19
     if (S.draft && S.draft.kind === 'lift' && liftKeys(e, k)) return;
     if (S.draft && S.draft.kind === 'trail' && trailKeys(e, k)) return;
     if (S.draft && S.draft.kind === 'terrain' && terrainKeys(e, k)) return;
     if (S.draft && WATER.has(S.draft.kind) && waterKeys(e, k)) return;
+    if (S.draft && SNOW.has(S.draft.kind) && snowKeys(e, k)) return;
+    if (!S.draft && S.snow.card && k === 'escape') { S.snow.card = null; render(); return; }
     if (k === 'escape') {
       if (S.modal) S.modal = null;
       else if (S.drop) S.drop = null;
-      else if (S.draft && S.draft.pts && S.draft.pts.length) { S.draft.pts = []; S.draft.done = false; }
+      else if (S.draft && S.draft.pts && S.draft.pts.length && !SNOW.has(S.draft.kind)) { S.draft.pts = []; S.draft.done = false; }
       else if (S.sel) { S.sel = null; S.removeArmed = null; }
       else if (S.tool) { S.tool = null; S.draft = null; }
       else if (S.sketch) S.sketch = false;
@@ -5822,6 +6661,9 @@ body.solo .frame { border-radius: 0; }
     // task 4.14, the Snowmaking tab's water: watertray, pondshore, pondpool, pondberm, damfirst, damreview, damedge,
     // watersource, pondedit, damedit, waterremove
     waterDemo(d);
+    // task 4.15, the snowmaking network: snowtray, snowline, snowlinereview, snowpump, snowhouse, snowgun, snowlasso,
+    // snowgunshort, snowpipecard, snowdiag, snowpressure, snowcheck, snowfill, snowstale
+    snowDemo(d);
     // The terrain brush (task P3-15): terrainraise, terrainflatten, terrainsmooth, terrainslope (each mid-stroke, the cursor
     // on the ground, the session's bill counting) and terrainask (closing with ground not confirmed, BR18).
     const tb = ['terrainraise', 'terrainflatten', 'terrainsmooth', 'terrainslope', 'terrainask'].find((x) => d.includes(x));

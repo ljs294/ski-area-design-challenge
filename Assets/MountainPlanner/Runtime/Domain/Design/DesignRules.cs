@@ -386,6 +386,19 @@ namespace MountainPlanner.Domain.Design
                 if (PondRules.StreamProblem(s) is string p) return p;
                 if (!streams.Add(s.Way)) return "A stream is recorded twice.";
             }
+            if (SnowProblem(doc, seen) is string snow) return snow;   // task 4.15 (shape 16)
+            return null;
+        }
+
+        /// <summary>Task 4.15 (HY-01, shape 16): the snowmaking network's own rules, and its IDs unique across the design.</summary>
+        static string SnowProblem(DesignDocument doc, HashSet<ulong> seen)
+        {
+            var net = doc.Snow;
+            if (SnowRules.NetworkProblem(net) is string p) return p;
+            foreach (var n in net.Nodes) if (!seen.Add(n.Id.Value)) return "Two entities share an ID.";
+            foreach (var x in net.Pipes) if (!seen.Add(x.Id.Value)) return "Two entities share an ID.";
+            foreach (var x in net.Houses) if (!seen.Add(x.Id.Value)) return "Two entities share an ID.";
+            foreach (var x in net.Guns) if (!seen.Add(x.Id.Value)) return "Two entities share an ID.";
             return null;
         }
 

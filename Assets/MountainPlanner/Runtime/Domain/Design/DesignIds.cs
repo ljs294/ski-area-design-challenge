@@ -34,6 +34,14 @@ namespace MountainPlanner.Domain.Design
         public const ulong PondTag = 16;
         /// <summary>Task 4.14's dams (PD-08).</summary>
         public const ulong DamTag = 17;
+        /// <summary>Task 4.15's snowmaking pipes (HY-01).</summary>
+        public const ulong SnowPipeTag = 18;
+        /// <summary>Task 4.15's snowmaking nodes: intakes, junctions, hydrants, pumps, outlets (HY-01).</summary>
+        public const ulong SnowNodeTag = 19;
+        /// <summary>Task 4.15's pump houses (HY-01, SG-06).</summary>
+        public const ulong PumpHouseTag = 20;
+        /// <summary>Task 4.15's SLE guns (SG-01…04).</summary>
+        public const ulong SnowGunTag = 21;
 
         public static ulong Hash(ulong seed, ulong tag, ulong a) => Hash(seed, tag, a, 0);
 

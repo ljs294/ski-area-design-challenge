@@ -148,7 +148,9 @@ namespace MountainPlanner.App.Flow
             "-simto",   // task 4.07 PR A3: so does the run to mid-season
             "-lakereport",   // task 4.09
             "-watershots",   // task 4.14
+            "-snowshots",    // task 4.15
             "-crowdshot", "-drawngondola", "-simridedown",   // task 4.24
+            "-solvebench",   // task 4.15
         };
 
         void UpdateSaves(Keyboard keys)

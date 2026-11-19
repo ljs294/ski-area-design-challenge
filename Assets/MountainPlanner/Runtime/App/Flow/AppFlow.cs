@@ -38,6 +38,7 @@ namespace MountainPlanner.App.Flow
             "-pickbench",   // task 4.13: a bench never waits on the title (it stalled there, 2026-11-09)
             "-proofhold",   // task 4.13 PR C2
             "-watershots",   // task 4.14
+            "-snowshots",    // task 4.15
             "-snowlapse",   // task 4.07 PR A2
             "-simto",   // task 4.07 PR A3
             "-crowdshot",   // task 4.24: on the title background no simulation runs, so its stills had nobody in them

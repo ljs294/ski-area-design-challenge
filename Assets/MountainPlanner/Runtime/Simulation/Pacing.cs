@@ -14,7 +14,7 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 11;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 12;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
                                         // 4: task 4.13's confidence speed (GU-10 v2)
                                         // 5: task 4.05's weather (WX-17 v2, WX-28 v2, WX-29, WX-34 v2, WX-35, WX-36 v2, WX-39)
                                         // 6: task 4.05 PR B2's weather over the map (WX-35, WX-39) and PR C's forecast (WX-05 v3, WX-41)
@@ -23,6 +23,7 @@ namespace MountainPlanner.Simulation
                                         // 9: task 4.07 PR A2's natural snow (SN-05 v2…SN-18 v2, WX-59…WX-64)
                                         // 10: task 4.14 PR B's water sources (WS-03 v2, WS-05, WS-07, WS-01's cap; number confirmed with 0.0 at merge)
                                         // 11: task 4.24 PR B's ride down (RD-4; it merged before 4.07 B1, which takes 12, 0.0)
+                                        // 12: task 4.15's snowmaking solve (HY-07 PipeClass, HY-08 SolveLatencyTicks and MaxResolves); 0.0: the first of 4.15 and 4.07 B1 to merge takes 12, the other renumbers
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -342,6 +343,14 @@ namespace MountainPlanner.Simulation
         /// <summary>WS-01: the most sources the simulation keeps water for (ponds and dams first, then lakes).</summary>
         public readonly int MaxSources;
 
+        // ---- Snowmaking (task 4.15) ----
+
+        /// <summary>HY-08: ticks from a solve's ask (a network edit, a gun set On, Check network) to its answer, fixed; the
+        /// SG-07 re-solves one solve may run.</summary>
+        public readonly int SolveLatencyTicks, MaxResolves;
+        /// <summary>HY-07: the pipe's pressure class (psi): a warning above 80 %, the pumps throttle above it.</summary>
+        public readonly int PipeClass;
+
         /// <summary>Face milliseconds one tick covers by day and by night (from the real seconds above).</summary>
         public readonly int DayFaceMsPerTick, NightFaceMsPerTick;
 
@@ -588,6 +597,9 @@ namespace MountainPlanner.Simulation
             LakeDrawdownMm = Int(map, nameof(LakeDrawdownMm), 0, 30_000);
             EvapMicronsPerDay = Int(map, nameof(EvapMicronsPerDay), 0, 100_000);
             MaxSources = Int(map, nameof(MaxSources), 0, 254);
+            SolveLatencyTicks = Int(map, nameof(SolveLatencyTicks), 0, 100);
+            MaxResolves = Int(map, nameof(MaxResolves), 0, 100);
+            PipeClass = Int(map, nameof(PipeClass), 100, 5000);
 
             DayFaceMsPerTick = FaceMsPerTick(DayHourRealSeconds, nameof(DayHourRealSeconds));
             NightFaceMsPerTick = FaceMsPerTick(NightHourRealSeconds, nameof(NightHourRealSeconds));
@@ -836,6 +848,9 @@ namespace MountainPlanner.Simulation
             E(nameof(LakeDrawdownMm), "914"),
             E(nameof(EvapMicronsPerDay), "254"),
             E(nameof(MaxSources), "64"),
+            E(nameof(SolveLatencyTicks), "5"),
+            E(nameof(MaxResolves), "10"),
+            E(nameof(PipeClass), "1000"),
         };
 
         static KeyValuePair<string, string> E(string name, string value) => new KeyValuePair<string, string>(name, value);

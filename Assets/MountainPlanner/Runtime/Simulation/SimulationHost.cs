@@ -153,6 +153,8 @@ namespace MountainPlanner.Simulation
             UpdateSustained(now);
             // SI-17: the snow's due tiles to the screen, after the steps (and while paused, so an edit's snow still shows).
             if (_world.StageSnow(Staging, _paused || _held || _skip != SkipKind.None) > 0) _dirty = true;
+            // Task 4.15 (HY-08): a snowmaking solve asked for while paused lands now, not after ticks that never come.
+            if ((_paused || _held) && _world.SolveSnowNow()) _dirty = true;
             if (_dirty) PublishNow();
             // Tiles still due (the ring is full, or a tile staged a moment ago): come back soon rather than sleep.
             if (_world.Snow.TilesDue > 0 && (wait < 0 || wait > 10)) wait = 10;

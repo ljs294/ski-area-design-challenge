@@ -60,7 +60,7 @@ namespace MountainPlanner.App
             var doc = Design?.Document;
             if (!ReferenceEquals(doc, _waterOutlinesFor)) { _waterOutlines.Clear(); _waterOutlinesFor = doc; _waterHoverKey = default; _waterCardDrawn = null; }
             bool picking = cam != null && mouse != null && !_scriptedRun && doc != null && !_networkOn && !PhotoOpen && (_tools == null || !_tools.Armed)
-                           && _hoveredId == 0 && _hoveredTrailRow == 0;
+                           && _hoveredId == 0 && _hoveredTrailRow == 0 && _snowHover.IsNone;
             WaterKey hit = default;
             Vector2 pos = mouse != null ? mouse.position.ReadValue() : default;
             if (picking && !PointerOverUi(pos)) hit = WaterKeyUnder(cam, pos, doc);
@@ -225,6 +225,7 @@ namespace MountainPlanner.App
             var acts = new List<(string, string, bool)>();
             switch (kind)
             {
+                case "snow": return SnowCardFor(doc, id);
                 case "lake":
                 {
                     int body = LakeBody(id);
@@ -292,7 +293,7 @@ namespace MountainPlanner.App
                     if (pond == null) return null;
                     var b = Ground != null && Ground.Ready ? Ground.Earthwork.DetailOf(id) as PondBuild : null;
                     var w = Built(pond.FullPoolMm, b, pond.StartsEmpty);
-                    w.Fills = pond.Fill == PondFill.Pumped ? "pumped only · from a pump house (coming next)" : "naturally · runoff and any spring";
+                    w.Fills = pond.Fill == PondFill.Pumped ? "pumped only · by a water line ending in it" : "naturally · runoff and any spring";
                     w.StartsEmpty = pond.StartsEmpty;
                     LiveWater(ref w, id, acts);
                     WaterCardRows.Add(rows, w);
@@ -350,6 +351,12 @@ namespace MountainPlanner.App
         {
             var history = Design;
             if (history == null || !Parse(key, out string kind, out ulong id)) return "No design is open";
+            if (kind == "snow")
+            {
+                string problem = RenameSnow(id, name);
+                if (problem == null) ShowWaterCardFor(key);
+                return problem;
+            }
             var doc = history.Document;
             DesignCommand cmd;
             switch (kind)
@@ -382,6 +389,7 @@ namespace MountainPlanner.App
         {
             var history = Design;
             if (history == null || !Parse(key, out string kind, out ulong id)) return;
+            if (kind == "snow") { SnowCardAction(key, id, action); return; }
             var doc = history.Document;
             DesignCommand cmd = null;
             if (action == "drawless" || action == "drawmore" || action == "drawoff")

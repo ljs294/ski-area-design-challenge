@@ -49,4 +49,25 @@ namespace MountainPlanner.UI.Tools
 
         public string Label => string.IsNullOrEmpty(Name) ? "Lake" : Name;
     }
+
+    /// <summary>Task 4.15 (WS-05, WS-11): a snowmaking source's water near a point: its id, name and the nearest water.</summary>
+    public readonly struct SourceNear
+    {
+        public readonly ulong Id;
+        public readonly string Name;
+        /// <summary>The source's water nearest the point (the point itself when it is in the water).</summary>
+        public readonly PointMm Water;
+        public readonly double DistanceMetres;
+        /// <summary>A pond or dam (an outlet may fill it); a lake may only be drawn from.</summary>
+        public readonly bool Fillable;
+
+        public SourceNear(ulong id, string name, PointMm water, double distanceMetres, bool fillable)
+        {
+            Id = id;
+            Name = name ?? "";
+            Water = water;
+            DistanceMetres = distanceMetres;
+            Fillable = fillable;
+        }
+    }
 }
