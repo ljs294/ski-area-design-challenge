@@ -344,6 +344,21 @@ namespace MountainPlanner.Domain.Design
             return list;
         }
 
+        /// <summary>
+        /// The hydrants a pipe feeds: its hydrant taps (ID order), then a hydrant at either end (task 4.15, owner 2026-11-19:
+        /// a line's free end gets one, so its top gun stands at its end).
+        /// </summary>
+        public List<SnowNode> HydrantsOn(SnowId pipe)
+        {
+            var list = new List<SnowNode>();
+            foreach (var n in _nodes) if (n.Host == pipe && n.Kind == SnowNodeKind.Hydrant) list.Add(n);
+            var p = FindPipe(pipe);
+            if (p == null) return list;
+            foreach (var end in new[] { p.From, p.To })
+                if (FindNode(end) is SnowNode e && e.Kind == SnowNodeKind.Hydrant && !list.Contains(e)) list.Add(e);
+            return list;
+        }
+
         /// <summary>The pipes that end on a node, in ID order.</summary>
         public List<SnowPipe> PipesAt(SnowId node)
         {

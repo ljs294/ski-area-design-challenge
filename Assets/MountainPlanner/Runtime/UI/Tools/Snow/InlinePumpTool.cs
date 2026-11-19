@@ -53,7 +53,7 @@ namespace MountainPlanner.UI.Tools
             if (!_hover.Any) { p.Ring(RingSlot, SnowSnap.Xz(input.Point), 4, PreviewInk.Bad); p.Hide(ArrowSlot); return; }
             var pipe = net.FindPipe(_hover.Id);
             var on = SnowGeometry.Project(pipe.Route, _hover.At);
-            string problem = TapProblem(net, pipe, on.ChainageMm);
+            string problem = SnowSnap.TapProblem(net, pipe, on.ChainageMm);
             _forward = SnowRoutes.AwayFromSource(net, pipe.Id, on.ChainageMm) ^ _flip;
             p.Ring(RingSlot, SnowSnap.Xz(_hover.At), 4, problem == null ? PreviewInk.Ok : PreviewInk.Bad);
             DrawArrow(pipe, on);
@@ -65,16 +65,6 @@ namespace MountainPlanner.UI.Tools
             _ctx.Notice?.Invoke("Booster placed on " + SnowSnap.Name(pipe));
             _flip = false;
             Card();
-        }
-
-        static string TapProblem(SnowNetwork net, SnowPipe host, double chainageMm)
-        {
-            double len = SnowGeometry.Length(host.Route);
-            if (chainageMm < SnowRules.TapGapMm || chainageMm > len - SnowRules.TapGapMm) return "Too close to the line's end: put it at least 10 ft along.";
-            foreach (var t in net.TapsOn(host.Id))
-                if (Math.Abs(SnowGeometry.Project(host.Route, t.At).ChainageMm - chainageMm) < SnowRules.TapGapMm)
-                    return "A hydrant or pump is within 10 ft.";
-            return null;
         }
 
         void DrawArrow(SnowPipe pipe, SnowGeometry.OnRoute on)

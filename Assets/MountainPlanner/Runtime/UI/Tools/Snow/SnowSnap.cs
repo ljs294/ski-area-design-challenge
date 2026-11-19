@@ -118,6 +118,17 @@ namespace MountainPlanner.UI.Tools
             }
         }
 
+        /// <summary>Why a new hydrant or pump can't go at a chainage on a pipe (10 ft from its ends and its taps), or null.</summary>
+        public static string TapProblem(SnowNetwork net, SnowPipe host, double chainageMm)
+        {
+            double len = SnowGeometry.Length(host.Route);
+            if (chainageMm < SnowRules.TapGapMm || chainageMm > len - SnowRules.TapGapMm) return "Too close to the line's end: put it at least 10 ft along.";
+            foreach (var t in net.TapsOn(host.Id))
+                if (Math.Abs(SnowGeometry.Project(host.Route, t.At).ChainageMm - chainageMm) < SnowRules.TapGapMm)
+                    return "A hydrant or pump is within 10 ft.";
+            return null;
+        }
+
         public static string Name(SnowPipe p) => string.IsNullOrEmpty(p.Name) ? "Water line" : p.Name;
 
         public static string Psi(double psi) => double.IsNaN(psi) ? "—" : Math.Round(psi).ToString("N0", CultureInfo.InvariantCulture) + " psi";

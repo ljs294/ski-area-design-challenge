@@ -23,7 +23,7 @@ namespace MountainPlanner.UI.Tools
         const int RingSlot = 0, HoseSlot = 1, LassoSlot = 2, PickSlots = 10, MaxPicks = 400;
         const int FillOffsetMm = 3_048;   // 10 ft off the line
         static readonly string[] Models = { "10 ft", "20 ft", "30 ft", "Fan" };
-        static readonly string[] Modes = { "Place", "Fill hydrants", "Select" };
+        static readonly string[] Modes = { "Place", "Fill hydrants", "Select", "Hydrant" };
         static readonly string[] NewModes = { "On", "Auto" };
 
         ToolContext _ctx;
@@ -66,13 +66,14 @@ namespace MountainPlanner.UI.Tools
             _lasso.Clear();
             _picked.Clear();
             var w = _ctx.Window;
-            w.ShowOption("model", mode != 2);
-            w.ShowOption("new", mode != 2);
-            w.SetSteps(new[] { mode == 0 ? "Place guns" : mode == 1 ? "Fill a line" : "Select guns" });
+            w.ShowOption("model", mode < 2);
+            w.ShowOption("new", mode < 2);
+            w.SetSteps(new[] { mode == 0 ? "Place guns" : mode == 1 ? "Fill a line" : mode == 2 ? "Select guns" : "Add hydrants" });
             w.SetStep(0);
-            w.SetHint(mode == 0 ? "Click beside a hydrant: its 50 ft hose hooks to the nearest free one (a red ring: none in reach)."
+            w.SetHint(mode == 0 ? "Click beside a hydrant: its 50 ft hose hooks to the nearest free one (a red ring: none in reach; Do: Hydrant adds one)."
                     : mode == 1 ? "Click a water line: a gun beside every free hydrant on it."
-                    : "Drag round guns to select them, then set them Auto, On or Off.");
+                    : mode == 2 ? "Drag round guns to select them, then set them Auto, On or Off."
+                    : "Click a water line to put a hydrant there: anywhere along it, 10 ft from its ends and other hydrants.");
             w.SetMessage(null);
             w.SetKeys();
             w.SetButtons();
@@ -86,6 +87,7 @@ namespace MountainPlanner.UI.Tools
             if (_mode == 2) { LassoTick(input); return; }
             if (!input.HasGround || input.OverPanel) { p.Hide(RingSlot); p.Hide(HoseSlot); return; }
             var net = _ctx.History.Document.Snow;
+            if (_mode == 3) { HydrantTick(input, net); return; }
             if (_mode == 0)
             {
                 var h = NearestFreeHydrant(net, input.Point);
@@ -113,6 +115,21 @@ namespace MountainPlanner.UI.Tools
             AddSnowGuns.FillPoints(net, pipe.Id, FillOffsetMm, points, aims);
             if (points.Count == 0) { _ctx.Window.SetMessage("Every hydrant on " + pipe.Label + " has a gun (or it has none).", true); return; }
             Submit(new AddSnowGuns(_ctx.History.Revision, _model, points, aims, _newOverride), SnowSnap.Count(points.Count, "gun") + " on " + pipe.Label);
+        }
+
+        // Do: Hydrant (owner 2026-11-19: hydrants wherever the player likes): one on the line under the pointer, one undo step.
+        void HydrantTick(in ToolInput input, SnowNetwork net)
+        {
+            var p = _ctx.Preview;
+            p.Hide(HoseSlot);
+            var hit = SnowSnap.Pipe(net, input.Point, _ctx.SnapReachMm);
+            if (!hit.Any) { p.Ring(RingSlot, SnowSnap.Xz(input.Point), 4, PreviewInk.Bad); return; }
+            var pipe = net.FindPipe(hit.Id);
+            string problem = SnowSnap.TapProblem(net, pipe, SnowGeometry.Project(pipe.Route, hit.At).ChainageMm);
+            p.Ring(RingSlot, SnowSnap.Xz(hit.At), 3, problem == null ? PreviewInk.Ok : PreviewInk.Bad);
+            if (!input.Click) return;
+            if (problem != null) { _ctx.Window.SetMessage(problem, true); return; }
+            Submit(new AddSnowTap(_ctx.History.Revision, SnowNodeKind.Hydrant, pipe.Id, hit.At), "Hydrant added to " + SnowSnap.Name(pipe));
         }
 
         void Submit(DesignCommand cmd, string done)
@@ -231,8 +248,14 @@ namespace MountainPlanner.UI.Tools
             int hooked = 0, on = 0;
             foreach (var g in net.Guns) { if (!g.Hydrant.IsNone) hooked++; if (g.Override == GunOverride.On) on++; }
             var r = new ReviewModel();
-            if (_mode != 2) r.Add("Model", $"{spec.Name} · throws {ToolFormat.Feet((int)spec.ThrowFt)}", "SG-03");
-            else r.Add("Selected", _picked.Count == 0 ? "none: drag round guns" : SnowSnap.Count(_picked.Count, "gun"));
+            if (_mode < 2) r.Add("Model", $"{spec.Name} · throws {ToolFormat.Feet((int)spec.ThrowFt)}", "SG-03");
+            else if (_mode == 3)
+            {
+                int hydrants = 0, free = 0;
+                foreach (var n in net.Nodes) if (n.Kind == SnowNodeKind.Hydrant) { hydrants++; if (net.GunOn(n.Id) == null) free++; }
+                r.Add("Hydrants", hydrants == 0 ? "none yet" : $"{hydrants} · {free} free");
+            }
+            if (_mode == 2) r.Add("Selected", _picked.Count == 0 ? "none: drag round guns" : SnowSnap.Count(_picked.Count, "gun"));
             r.Add("Needs", $"{GunCatalog.MinPsi} psi at its hydrant · up to {GunCatalog.Stages[GunCatalog.Stages.Length - 1].WaterGpm} gpm", "SG-01, SG-02");
             r.Add("Guns", net.Guns.Count == 0 ? "none yet" : $"{net.Guns.Count} · {hooked} on hydrants · {on} on");
             r.Ready(false, false);

@@ -316,7 +316,38 @@ namespace MountainPlanner.App
                 LogCard("17-pump-house-card-labels");
                 yield return Shot(dir, "17-pump-house-card-labels");
             }
+            // 18: the line's free top end has a hydrant of its own (owner 2026-11-19), with its card.
+            var top = Design.Document.Snow.FindNode(pipe.To);
+            if (top != null)
+            {
+                ShowWaterCardFor(SnowCards.Key(top.Id));
+                LookAt(Xz(top.At), 160, Yaw(up) + 25, 55);
+                yield return SettleCard();
+                Debug.Log($"[SnowShots] 18-end-hydrant: {top.Kind} H{top.Label}, {Design.Document.Snow.HydrantsOn(pipe.Id).Count} hydrants on the line");
+                LogCard("18-end-hydrant");
+                yield return Shot(dir, "18-end-hydrant");
+            }
             Hud.CloseWaterCardIfOpen();
+            // 19: Do: Hydrant adds one anywhere: midway between the first two spaced hydrants.
+            var spaced = Design.Document.Snow.TapsOn(pipe.Id).Where(n => n.Kind == SnowNodeKind.Hydrant)
+                .Select(n => SnowGeometry.Project(pipe.Route, n.At).ChainageMm).OrderBy(c => c).ToList();
+            if (spaced.Count >= 2)
+            {
+                int before = Design.Document.Snow.HydrantsOn(pipe.Id).Count;
+                _tools.Choose(SnowGunTool.ToolId);
+                var hy = (SnowGunTool)_tools.Active;
+                _toolScripted = true;
+                hy.Choose(GunModel.Stick20, 3);
+                var between = SnowGeometry.At(pipe.Route, (spaced[0] + spaced[1]) / 2);
+                ClickAt(Xz(between));
+                yield return WaitSnowSolve();
+                LookAt(Xz(between), 140, Yaw(up) + 25, 55);
+                for (int i = 0; i < 10; i++) { _tools.Tick(GroundInput(Xz(between))); yield return null; }
+                Debug.Log($"[SnowShots] 19-hydrant-added: {before} -> {Design.Document.Snow.HydrantsOn(pipe.Id).Count} hydrants");
+                yield return Shot(dir, "19-hydrant-added");
+                _toolScripted = false;
+                _tools.Close();
+            }
 
             Debug.Log("[SnowShots] done");
             Application.Quit(0);

@@ -214,6 +214,26 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void TheLinesFreeEndGetsAHydrantAndTheGunToolAddsOneAnywhere()
+        {
+            BuildHouse();
+            var pipe = BuildLine();
+            var end = Net.FindNode(pipe.To);
+            Assert.That(end.Kind, Is.EqualTo(SnowNodeKind.Hydrant), "the dead end gets a hydrant (owner 2026-11-19)");
+            int before = Net.HydrantsOn(pipe.Id).Count;
+            Assert.That(_host.Choose(SnowGunTool.ToolId), Is.True);
+            var tool = (SnowGunTool)_host.Active;
+            tool.Choose(GunModel.Stick20, 3);
+            // Midway between the first two spaced hydrants, on the line.
+            var spaced = Net.TapsOn(pipe.Id).OrderBy(n => n.At.X).ToList();
+            float x = (spaced[0].At.X + spaced[1].At.X) / 2000f;
+            Click(x, 0);
+            Assert.That(Net.HydrantsOn(pipe.Id).Count, Is.EqualTo(before + 1), "a hydrant where it was clicked");
+            Click(spaced[2].At.X / 1000f, 0);
+            Assert.That(Net.HydrantsOn(pipe.Id).Count, Is.EqualTo(before + 1), "too near another hydrant: refused");
+        }
+
+        [Test]
         public void HY09_CheckTurnsTheEveryGunSolveOnAndOffAndFixesAPump()
         {
             BuildHouse();

@@ -53,6 +53,8 @@ namespace MountainPlanner.UI.Tools
             public string Problem;
             public double LengthM, ClimbM;
             public double EndPsi = double.NaN;
+            /// <summary>The hydrant farthest along the line ("H30"), whose pressure <see cref="EndPsi"/> is; null: the line's end.</summary>
+            public string LastHydrant;
             public int Guns, Short;
             public double WorstShortPsi;
             public double MaxVelocityFtS, PeakGpm;
@@ -77,7 +79,7 @@ namespace MountainPlanner.UI.Tools
             _setDiameter = w.AddSlider("dia", "Diameter", 0, SnowRules.Diameters.Length - 1, 1, _diameterIndex, i => SetDiameter(i),
                 "HY-01: 4 to 24 in. A bigger pipe loses less to friction; [ and ] change it");
             _setMode = w.AddSwitch("hmode", "Hydrants", HydrantModes, _hydrantMode, i => { _hydrantMode = i; ShowHydrantRows(); Changed(); },
-                "Hydrants along the line, both ends included; a spot within 10 ft of another tap or the line's end is skipped");
+                "Hydrants along the line; a free (dead) end gets one too. A spot within 10 ft of another tap or a connected end is skipped. Add more anywhere with Snow gun › Hydrant");
             _setSpacing = w.AddSlider("spacing", "Every", 50, 500, 25, _spacingFt, v => { _spacingFt = v; _setSpacing(v, ToolFormat.Feet(v)); Changed(); });
             _setCount = w.AddSlider("count", "Count", 2, 100, 1, _count, v => { _count = v; _setCount(v, v.ToString()); Changed(); });
             _setSpacing(_spacingFt, ToolFormat.Feet(_spacingFt));
@@ -281,11 +283,24 @@ namespace MountainPlanner.UI.Tools
             SnowPipe pipe = null;
             foreach (var p in net.Pipes) if (doc.Snow.FindPipe(p.Id) == null) pipe = p;
             if (pipe == null) { r.Problem = "Nothing to lay."; return r; }
-            r.Hydrants = net.TapsOn(pipe.Id).FindAll(t => t.Kind == SnowNodeKind.Hydrant).Count;
+            var hydrants = net.HydrantsOn(pipe.Id);
+            r.Hydrants = hydrants.Count;
             if (cmd.SpacingMm > 0)
             {
                 var run = SnowGeometry.RunBySpacing(0, SnowGeometry.Length(pipe.Route), cmd.SpacingMm);
-                r.Skipped = Math.Max(0, run.Count - 2 - r.Hydrants);   // the run's two ends sit on the line's own ends
+                int taps = hydrants.FindAll(h => h.Host == pipe.Id).Count;
+                r.Skipped = Math.Max(0, run.Count - 2 - taps);   // the run's two ends sit on the line's own ends
+            }
+            // Owner 2026-11-19: pipe past the last hydrant is a dead end: the readout is the last hydrant's, not the end's.
+            double lastC = SnowGeometry.Length(pipe.Route);
+            if (hydrants.Count > 0)
+            {
+                lastC = -1;
+                foreach (var h in hydrants)
+                {
+                    double c = SnowGeometry.Project(pipe.Route, h.At).ChainageMm;
+                    if (c > lastC) { lastC = c; r.LastHydrant = SnowSnap.Label(net, h); }
+                }
             }
             if (service == null) { r.NoGround = true; return r; }
             if (service.Ground.TryHeightMm(pipe.Route[0], out int z0) && service.Ground.TryHeightMm(pipe.Route[pipe.Route.Count - 1], out int z1))
@@ -302,7 +317,7 @@ namespace MountainPlanner.UI.Tools
             }
             var sol = service.Solve(withGuns.Snow, everyGun: true);
             var psi = new float[1];
-            SnowProfile.PressureAlong(sol, pipe, service.Ground, new[] { SnowGeometry.Length(pipe.Route) }, psi);
+            SnowProfile.PressureAlong(sol, pipe, service.Ground, new[] { lastC }, psi);
             r.EndPsi = psi[0];
             foreach (var s in SnowProfile.Stretches(sol, pipe))
             {
@@ -310,7 +325,7 @@ namespace MountainPlanner.UI.Tools
                 r.PeakGpm = Math.Max(r.PeakGpm, Math.Abs(s.Gpm));
             }
             var mine = new HashSet<SnowId>();
-            foreach (var t in withGuns.Snow.TapsOn(pipe.Id)) mine.Add(t.Id);
+            foreach (var t in withGuns.Snow.HydrantsOn(pipe.Id)) mine.Add(t.Id);
             r.WorstShortPsi = 0;
             foreach (var gun in withGuns.Snow.Guns)
             {
@@ -347,7 +362,8 @@ namespace MountainPlanner.UI.Tools
             _review.Add("Length", ToolFormat.Length(r.LengthM));
             if (r.NoGround) { _review.Add("Pressure", "reading the ground…"); return; }
             _review.Add("Vertical", (r.ClimbM >= 0 ? "+" : "−") + ToolFormat.Length(Math.Abs(r.ClimbM)), "HY-03: the pipe follows the ground");
-            _review.Add("At the far end", SnowSnap.Psi(r.EndPsi), "Psi at grade where the line ends (past its last hydrant: no tap stands within 10 ft of an end), with every gun on it running");
+            if (r.LastHydrant != null) _review.Add("Last hydrant", $"{r.LastHydrant} · {SnowSnap.Psi(r.EndPsi)}", "Psi at grade at the hydrant farthest along, with every gun on the line running; pipe past it is a dead end");
+            else _review.Add("At the end", SnowSnap.Psi(r.EndPsi), "Psi at grade where the line ends, with every gun on it running");
             if (r.Guns > 0)
                 _review.Add("Guns on it", r.Short == 0 ? $"all {r.Guns} have 200 psi" : $"{r.Short} of {r.Guns} short, up to {Math.Round(r.WorstShortPsi):0} psi", "SG-02: a gun needs 200 psi at its hydrant");
             if (r.PeakGpm > 0)

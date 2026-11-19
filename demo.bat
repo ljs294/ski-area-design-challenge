@@ -444,7 +444,7 @@ echo        ponds, then 500 guns solved in the game against the 20 ms budget (re
 echo    131 Snowmaking network, hands on (4.15 PR B): build a pump house, a water line, a booster and guns in the game
 echo        and read the pressure live; Check lists the problems with fixes (a scratch copy of the demo mountain).
 echo    132 The snowmaking tools' tests, then the review pictures: the tools, cards and map names driven by script
-echo        in the game, seventeen pictures in test-results\p4-15\shots (rebuilds the game; about 5 minutes).
+echo        in the game, nineteen pictures in test-results\p4-15\shots (rebuilds the game; about 5 minutes).
 echo.
 echo     Q  Quit
 echo.
@@ -2355,7 +2355,8 @@ echo   3. Water line (N): click on the pump house, then up the hill; the window 
 echo      the end and the guns that would be short. [ and ] change the diameter. Enter ends it; review the hydrants
 echo      (every 100 ft, by count or none) and Break ground. Ending a line in a pond makes it fill that pond.
 echo   4. Snow gun (G): click beside a hydrant (a dashed hose; a red ring when none is within 50 ft), or Do: Fill
-echo      hydrants and click the line. Do: Select, drag round guns, then Auto, On or Off.
+echo      hydrants and click the line. Do: Hydrant adds a hydrant anywhere on a line (a line's free end has one
+echo      already; pipe past the last hydrant is ignored). Do: Select, drag round guns, then Auto, On or Off.
 echo   5. Layers: Pipe pressure colours the lines (red under 200 psi, blue above, amber over 800, red over 1,000).
 echo   6. Inline pump (I): hover the line (the arrow points away from the pump house; Enter flips it), click to add a
 echo      booster. The pressure past it rises about 300 psi.

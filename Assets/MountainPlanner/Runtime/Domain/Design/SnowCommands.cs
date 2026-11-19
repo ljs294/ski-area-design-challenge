@@ -189,7 +189,11 @@ namespace MountainPlanner.Domain.Design
                 double len = SnowGeometry.Length(route);
                 var run = SnowGeometry.RunBySpacing(0, len, SpacingMm);
                 if (run.Count == 0) return Invalid(doc, $"That spacing makes more than {SnowRules.MaxRun} hydrants.");
+                // Owner 2026-11-19: a free end (a dead end) is a hydrant, so the line's last gun stands at its end. Labelled
+                // in route order: a free start before the run, a free end after it.
+                if (From.Kind == SnowEndKind.Free) net = net.Put(a.WithKind(SnowNodeKind.Hydrant, net.NextLabel(SnowNodeKind.Hydrant)));
                 SnowEdit.Run(ref net, ref mint, pipe, run, created);
+                if (To.Kind == SnowEndKind.Free) net = net.Put(b.WithKind(SnowNodeKind.Hydrant, net.NextLabel(SnowNodeKind.Hydrant)));
             }
             return SnowEdit.Finish(doc, net, mint, created, Invalid);
         }
@@ -395,12 +399,13 @@ namespace MountainPlanner.Domain.Design
         {
             var p = net.FindPipe(pipe);
             if (p == null) return;
-            foreach (var t in net.TapsOn(pipe))
+            foreach (var t in net.HydrantsOn(pipe))
             {
-                if (t.Kind != SnowNodeKind.Hydrant || net.GunOn(t.Id) != null) continue;
+                if (net.GunOn(t.Id) != null) continue;
                 var on = SnowGeometry.Project(p.Route, t.At);
-                var a = p.Route[on.Segment];
-                var b = p.Route[on.Segment + 1];
+                int seg = Math.Min(on.Segment, p.Route.Count - 2);
+                var a = p.Route[seg];
+                var b = p.Route[seg + 1];
                 double dx = b.X - a.X, dy = b.Y - a.Y, len = Math.Sqrt(dx * dx + dy * dy);
                 if (len <= 0) continue;
                 double lx = -dy / len, ly = dx / len;

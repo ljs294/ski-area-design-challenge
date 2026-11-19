@@ -69,12 +69,10 @@ namespace MountainPlanner.UI.Tools
                 if (a >= 0 && b >= 0) climbFt = g.GradeFt[b] - g.GradeFt[a];
             }
             int hydrants = 0, guns = 0;
-            var taps = net.TapsOn(p.Id);
-            foreach (var t in taps)
+            foreach (var t in net.HydrantsOn(p.Id))
             {
-                if (t.Kind != SnowNodeKind.Hydrant) continue;
                 hydrants++;
-                foreach (var gun in net.Guns) if (gun.Hydrant == t.Id) { guns++; break; }
+                if (net.GunOn(t.Id) != null) guns++;
             }
             rows.Add(("Diameter", SnowSnap.Inches(p.DiameterIn)));
             rows.Add(("Length", ToolFormat.Length(lengthM) + (double.IsNaN(climbFt) ? "" : $" · {(climbFt >= 0 ? "climbs" : "drops")} {ToolFormat.Length(Math.Abs(climbFt) * 0.3048)}")));
@@ -343,7 +341,7 @@ namespace MountainPlanner.UI.Tools
         {
             var g = sol?.Graph;
             int i = g != null ? g.NodeOf(n.Id) : -1;
-            var line = n.IsTap ? net.FindPipe(n.Host) : null;
+            var line = n.IsTap ? net.FindPipe(n.Host) : net.PipesAt(n.Id) is var at && at.Count > 0 ? at[0] : null;
             if (line != null) rows.Add(("Line", SnowSnap.Name(line)));
             if (sol == null) rows.Add(("Pressure", "solving…"));
             else if (i >= 0 && sol.Known[i]) rows.Add(("Pressure", SnowSnap.Psi(sol.GradePsi[i]) + (n.Kind == SnowNodeKind.Hydrant && sol.GradePsi[i] < GunCatalog.MinPsi ? " · under a gun's 200" : "")));
