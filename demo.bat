@@ -439,6 +439,8 @@ echo        ropes. Z this view, L LOD, N snow, C colour, T turntable, H help, Es
 echo    128 Rebuild the G8 cabin in Blender with its checks (budgets, pivots, sockets; no Unity, no render).
 echo    129 Riding down: the Core tests, then a headless day each way (lift 303 a gondola, then a chair): rides up and
 echo        down per lift, the top line's peak, nobody stranded (rebuilds the game; no GPU).
+echo    130 Snowmaking solver (4.15 PR A): the hand-checked networks, the 20 diagnostics, the water moved between
+echo        ponds, then 500 guns solved in the game against the 20 ms budget (rebuilds the game; no GPU, no window).
 echo.
 echo     Q  Quit
 echo.
@@ -596,6 +598,7 @@ if /i "%CHOICE%"=="126" goto gondolagame
 if /i "%CHOICE%"=="127" goto gondolalab
 if /i "%CHOICE%"=="128" goto gondolamodel
 if /i "%CHOICE%"=="129" goto ridedown
+if /i "%CHOICE%"=="130" goto snowsolver
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2315,6 +2318,20 @@ call :buildplayer
 if not exist "%GAME%" goto done
 "%GAME%" -batchmode -nographics -simridedown "%~dp0test-results\p4-24\ridedown-day.txt" <nul
 if exist "%~dp0test-results\p4-24\ridedown-day.txt" type "%~dp0test-results\p4-24\ridedown-day.txt"
+goto done
+
+:snowsolver
+rem Task 4.15 PR A: the hydraulic solver (HY-01..HY-10, SG-01..SG-07, WS-11) under .NET, then BG-03's bench in the game.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~Snowmaking|FullyQualifiedName~SaveFileTests" --logger "console;verbosity=normal" <nul
+if errorlevel 1 goto done
+call :projectfree || goto done
+call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\p4-15" mkdir "%~dp0test-results\p4-15"
+"%GAME%" -batchmode -nographics -solvebench "%~dp0test-results\p4-15\solvebench.txt" -logFile "%~dp0test-results\p4-15\solvebench.log" <nul
+if exist "%~dp0test-results\p4-15\solvebench.txt" type "%~dp0test-results\p4-15\solvebench.txt"
+echo It should read PASS: 500 guns cold well under 20 ms.
 goto done
 
 :gondolalab

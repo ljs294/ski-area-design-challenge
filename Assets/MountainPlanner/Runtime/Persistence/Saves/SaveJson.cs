@@ -64,7 +64,7 @@ namespace MountainPlanner.Persistence.Saves
     ///   "Sim": { "SidecarVersion", "Sha256" } or null }
     /// </code>
     /// </summary>
-    public static class SaveJson
+    public static partial class SaveJson
     {
         /// <summary>A terrain edit tile's place (its <c>EditTileKey</c>) and file, as save.json lists it.</summary>
         public readonly struct TileRef
@@ -179,6 +179,7 @@ namespace MountainPlanner.Persistence.Saves
             w.WriteEndArray();
             w.WritePropertyName("Hours"); WriteHours(w, d.Hours);   // v12 (LO-07 v2)
             WriteWater(w, d);                                          // v14 (task 4.14)
+            WriteSnow(w, d.Snow);                                      // v15 (task 4.15)
             w.WriteEndObject();
         }
 
@@ -615,7 +616,8 @@ namespace MountainPlanner.Persistence.Saves
             var cuts = new List<TrailCut>();
             foreach (var c in Arr(d, "Cuts")) { var co = AsObj(c); cuts.Add(new TrailCut(new TrailId(HexValue(Str(co, "Piece"))), Point(co, "At"))); }
             ReadWater(d, out var ponds, out var dams, out var lakes, out var streams);   // v14 (task 4.14)
-            return DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, ReadHours(Obj(d, "Hours")), ponds, dams, lakes, streams);
+            return DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, ReadHours(Obj(d, "Hours")), ponds, dams, lakes, streams,
+                ReadSnow(d));   // v15 (task 4.15)
         }
 
         static SimSidecarRef? ReadSim(JToken t)

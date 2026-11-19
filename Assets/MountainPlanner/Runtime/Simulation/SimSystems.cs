@@ -65,7 +65,7 @@ namespace MountainPlanner.Simulation
             new TickIntervalSystem(),
             new LiftsSystem(),
             new Empty("Gun schedules (4.16)", SimColumns.Weather | SimColumns.Hours, SimColumns.GunSchedule),
-            new Empty("Gun output (4.15)", SimColumns.GunSchedule | SimColumns.Weather | SimColumns.TickInterval, SimColumns.GunOutput),
+            new SnowmakingSystem(),
             new GuestsSystem(),
             new Empty("Wear (4.07)", SimColumns.Skiers | SimColumns.Passes | SimColumns.TickInterval, SimColumns.Wear),
             new Empty("Events", SimColumns.Clock, SimColumns.Events),
@@ -82,6 +82,15 @@ namespace MountainPlanner.Simulation
             public override SimColumns Reads => _reads;
             public override SimColumns Writes => _writes;
             internal override void Run(SimWorld w) { }
+        }
+
+        /// <summary>Task 4.15 (HY-08): the network's requested solve lands its fixed latency after the ask.</summary>
+        sealed class SnowmakingSystem : SimSystem
+        {
+            public override string Name => "Gun output (4.15)";
+            public override SimColumns Reads => SimColumns.GunSchedule | SimColumns.Weather | SimColumns.TickInterval;
+            public override SimColumns Writes => SimColumns.GunOutput;
+            internal override void Run(SimWorld w) => w.StepSnowmaking();
         }
 
         sealed class CommandsSystem : SimSystem

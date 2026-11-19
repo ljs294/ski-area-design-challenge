@@ -30,8 +30,10 @@ namespace MountainPlanner.Tests
         // Shape 13 (task 4.11 PR B, owner 2026-11-08; save v13 cleared by the coordinator): each lift's plate, the scripted
         // lifts taking 1, 2 … as they're built; from be70d92a….
         // Shape 14 (task 4.14, PD-08; save v14 cleared by the coordinator): ponds, dams and lake sources, none here, so the
-        // shape number and three empty counts; from a4b01100…, re-pin awaiting the owner's approval.
-        const string GoldenSha = "759a5fab0330f5fec2ad6c2d2644a3ee4db63a740ee79cff2713602c446b044d";
+        // shape number and three empty counts; from a4b01100….
+        // Shape 15 (task 4.15, HY-01; save v15 cleared by the coordinator): the snowmaking network, none here, so the shape
+        // number and four empty counts; from 759a5fab…, owner OK 2026-11-18.
+        const string GoldenSha = "a851fe55ab91021cf79a3af69a54d9202f1696acc7d76a9285a594d152592f19";
 
         [Test]
         public void SH04_SameCommandsInTheSameOrderGiveTheSameBytes()
@@ -73,7 +75,7 @@ namespace MountainPlanner.Tests
         {
             // The authored shape, property by property (SH-05, NW-06, TW-15). A new property is a format change for
             // task 04 (bump ShapeVersion, migrate, fixture) and must never be derived data.
-            AssertProperties(typeof(DesignDocument), "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "Lines", "Cuts", "Hours", "Ponds", "Dams", "Lakes", "Streams");
+            AssertProperties(typeof(DesignDocument), "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "Lines", "Cuts", "Hours", "Ponds", "Dams", "Lakes", "Streams", "Snow");
             AssertProperties(typeof(TrailLine), "Id", "Name", "Spans", "Posted");   // NT43: a shaped trail, spans of runs top first; TD-07 its sign
             AssertFields(typeof(Span), "Piece", "From", "To", "FromMm", "ToMm");
             AssertFields(typeof(Anchor), "Kind", "Other", "End", "K", "At");
@@ -97,7 +99,13 @@ namespace MountainPlanner.Tests
             AssertProperties(typeof(Dam), "Id", "Name", "BankA", "BankB", "FullPoolMm", "UpstreamLeft", "Spill", "StreamWay", "StartsEmpty");
             AssertFields(typeof(LakeRecord), "Lake", "Name", "DepthTenthsFt", "Source");
             AssertFields(typeof(StreamRecord), "Way", "Name", "WidthCm");
-            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(14));   // 11: TD-07, posted ratings (4.21); 12: the hours (4.03); 13: lift plates (4.11); 14: water (4.14)
+            AssertProperties(typeof(SnowNetwork), "Nodes", "Pipes", "Houses", "Guns", "IsEmpty");                                  // shape 15 (4.15)
+            AssertProperties(typeof(SnowNode), "Id", "Kind", "At", "Label", "Source", "Pump", "Host", "Forward", "House", "IsPump", "IsTap");
+            AssertFields(typeof(PumpSpec), "Hp", "EfficiencyPermille", "BoostPsi", "On");
+            AssertProperties(typeof(SnowPipe), "Id", "Name", "DiameterIn", "Route", "From", "To", "FromClosed", "ToClosed", "Closed");
+            AssertProperties(typeof(PumpHouse), "Id", "Name", "Centre", "BearingCentideg", "LengthMm", "WidthMm", "Source", "CompressorCfm", "Foundation");
+            AssertProperties(typeof(SnowGun), "Id", "Model", "At", "Hydrant", "AimCentideg", "Override");
+            Assert.That(DesignDocument.ShapeVersion, Is.EqualTo(15));   // 11: TD-07, posted ratings (4.21); 12: the hours (4.03); 13: lift plates (4.11); 14: water (4.14); 15: snowmaking (4.15)
         }
 
         static void AssertProperties(Type type, params string[] names)

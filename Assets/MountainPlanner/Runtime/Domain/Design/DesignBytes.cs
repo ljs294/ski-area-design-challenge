@@ -10,7 +10,7 @@ namespace MountainPlanner.Domain.Design
     /// <see cref="DesignDocument.ShapeVersion"/>, written in ID order. Equal documents give equal bytes, so goldens and
     /// undo checks compare these (SH-04). It is not the save file: task 04 picks that encoding and freezes it.
     /// </summary>
-    public static class DesignBytes
+    public static partial class DesignBytes
     {
         static readonly byte[] Magic = { (byte)'M', (byte)'P', (byte)'D', (byte)'S' };
 
@@ -64,6 +64,7 @@ namespace MountainPlanner.Domain.Design
             }
             WriteHours(w, doc.Hours);   // shape 12 (LO-07 v2): the resort's hours
             WriteWater(w, doc);         // shape 14 (task 4.14): ponds, dams and lake sources
+            WriteSnow(w, doc.Snow);     // shape 16 (task 4.15): the snowmaking network
             return w.ToArray();
         }
 
@@ -139,8 +140,9 @@ namespace MountainPlanner.Domain.Design
             for (int i = 0; i < cuts.Length; i++) cuts[i] = new TrailCut(new TrailId(r.U64()), r.Point());
             var hours = ReadHours(r);   // shape 12
             ReadWater(r, out var ponds, out var dams, out var lakes, out var streams);   // shape 14
+            var snow = ReadSnow(r);   // shape 16
             if (!r.AtEnd) throw new FormatException("Trailing bytes after the design document.");
-            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, hours, ponds, dams, lakes, streams);
+            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, hours, ponds, dams, lakes, streams, snow);
             // Canonical means written in order: a reordered file is not this format.
             if (!Same(Encode(doc), bytes)) throw new FormatException("The design document isn't in canonical order.");
             return doc;

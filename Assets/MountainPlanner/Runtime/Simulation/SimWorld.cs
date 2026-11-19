@@ -259,6 +259,7 @@ namespace MountainPlanner.Simulation
             // game hashes as the one that saved.
             stamped.Seq = c.Kind == SimCommandKind.InspectSkier || c.Kind == SimCommandKind.SetWeatherTerrain || c.Kind == SimCommandKind.SetWaterBodies
                           || c.Kind == SimCommandKind.SetSnowTerrain || c.Kind == SimCommandKind.SetWaterSources
+                          || c.Kind == SimCommandKind.SetSnowNetwork || c.Kind == SimCommandKind.CheckNetwork   // task 4.15
                 ? _viewSeq++ : _commandSeq++;
             // Task 4.07 PR A2: what an hour's snow in flight reads (the weather's tables and inputs, the lakes) waits for it.
             if (c.Kind == SimCommandKind.SetWeather || c.Kind == SimCommandKind.SetWeatherTerrain || c.Kind == SimCommandKind.SetWaterBodies) JoinSnow();
@@ -304,6 +305,12 @@ namespace MountainPlanner.Simulation
                 case SimCommandKind.SetTestDraw:
                     if (!ApplyTestDraw(c)) return;
                     break;
+                case SimCommandKind.SetSnowNetwork:   // task 4.15
+                    if (!ApplySnowNetwork(c.Payload)) { Reject(c, SimRefusal.Unknown); return; }
+                    break;
+                case SimCommandKind.CheckNetwork:
+                    if (!ApplyCheckNetwork(c)) return;
+                    break;
                 case SimCommandKind.SetGust:
                 case SimCommandKind.FeedLine:
                     if (!ApplyLiftCommand(c)) return;
@@ -318,7 +325,8 @@ namespace MountainPlanner.Simulation
             }
             // The static inputs are megabytes and the area's own: the log keeps that they came, not a second reference to them.
             if (stamped.Kind == SimCommandKind.SetWeatherTerrain || stamped.Kind == SimCommandKind.SetWaterBodies
-                || stamped.Kind == SimCommandKind.SetSnowTerrain || stamped.Kind == SimCommandKind.SetWaterSources) stamped.Payload = null;
+                || stamped.Kind == SimCommandKind.SetSnowTerrain || stamped.Kind == SimCommandKind.SetWaterSources
+                || stamped.Kind == SimCommandKind.SetSnowNetwork) stamped.Payload = null;
             Log.Add(stamped);
         }
 
@@ -451,6 +459,7 @@ namespace MountainPlanner.Simulation
             HourStepSnow(hour);
             HourStepLakes(hour);
             HourStepSources(hour);
+            HourStepSnowmaking();   // task 4.15: WS-11's transfers, after the sources' own water
             _hourSliceCursor = 0;
             _trailsReadyNext = Design.BuiltTrails;
             BoardLifts(_liftOpenNext);
@@ -699,6 +708,7 @@ namespace MountainPlanner.Simulation
             WriteWeather(s);
             WriteLakes(s);
             WriteSources(s);
+            WriteSnowmaking(s);
         }
 
         /// <summary>The run time of a lift by ID, ms, or −1 (tests).</summary>

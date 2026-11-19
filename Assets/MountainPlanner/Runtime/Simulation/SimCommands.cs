@@ -66,6 +66,11 @@ namespace MountainPlanner.Simulation
         SetWaterSources = 33,
         /// <summary>Task 4.14 PR B (WS-05): Payload = a <see cref="TestDraw"/>, a source's test draw (gallons a minute).</summary>
         SetTestDraw = 34,
+        /// <summary>Task 4.15 (HY-01, HY-08): Payload = a <see cref="SimSnowNetwork"/>, the design's snowmaking network compiled
+        /// against the ground, or null for none; a view-sequence command (resent after every load and every network edit).</summary>
+        SetSnowNetwork = 37,
+        /// <summary>Task 4.15 (plan Q4): A = 1 also solves as if every gun ran ("Check network"), 0 stops; a view command.</summary>
+        CheckNetwork = 38,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>

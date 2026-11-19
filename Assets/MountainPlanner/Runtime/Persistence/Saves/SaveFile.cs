@@ -13,13 +13,13 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 14;
+        public const int CurrentVersion = 15;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven, UpToTwelve, UpToThirteen, UpToFourteen);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven, UpToTwelve, UpToThirteen, UpToFourteen, UpToFifteen);
 
         /// <summary>
         /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
@@ -228,6 +228,20 @@ namespace MountainPlanner.Persistence.Saves
             if (design["Dams"] == null) design["Dams"] = new JArray();
             if (design["Lakes"] == null) design["Lakes"] = new JArray();
             if (design["Streams"] == null) design["Streams"] = new JArray();
+        }
+
+        /// <summary>
+        /// v14 → v15 (task 4.15, HY-01): the design's shape 14 → 15, where the snowmaking network arrives. A v14 design has
+        /// none, so it gains an empty one.
+        /// </summary>
+        static void UpToFifteen(JObject o)
+        {
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 15;
+            if (design["Snowmaking"] == null) design["Snowmaking"] = new JObject
+            {
+                ["Nodes"] = new JArray(), ["Pipes"] = new JArray(), ["PumpHouses"] = new JArray(), ["Guns"] = new JArray(),
+            };
         }
 
         /// <summary>The player's name for it ("Autosave" for the autosave slot).</summary>

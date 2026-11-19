@@ -117,7 +117,7 @@ namespace MountainPlanner.Tests.Core
             SaveStore.Write(folder, FixtureSave());
             var o = JObject.Parse(File.ReadAllText(Path.Combine(folder, SaveFile.FileName)));
             Assert.That(o.Properties().Select(p => p.Name), Is.EqualTo(new[] { "Version", "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256", "Design", "Edits", "Sim" }));
-            Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "TrailLines", "Cuts", "Hours", "Ponds", "Dams", "Lakes", "Streams" }),
+            Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "TrailLines", "Cuts", "Hours", "Ponds", "Dams", "Lakes", "Streams", "Snowmaking" }),
                 "no network, stats, ratings, rope or volumes (SH-05); no undo history (DD1)");
             Assert.That(((JObject)o["Design"]["Lifts"][0]).Properties().Select(p => p.Name),
                 Is.EqualTo(new[] { "Id", "Name", "Stage", "Catalog", "Bottom", "Top", "TowerMode", "Stance", "Towers", "Levels", "Drive", "Schedule", "Hours", "Plate" }),
@@ -372,14 +372,52 @@ namespace MountainPlanner.Tests.Core
             return save;
         }
 
+        /// <summary>
+        /// The save the v15 fixture holds (task 4.15, HY-01): the v14 fixture plus a snowmaking network with every field set: a
+        /// pump house on Base Pond (slab, a compressor of its own), a 10 in main with a closed valve at its far end, a hydrant
+        /// run, an inline booster facing back toward the house, an intake on the lake, an outlet into the pond, and one gun of
+        /// each model, each override.
+        /// </summary>
+        static SaveFile FixtureSaveFifteen()
+        {
+            var save = FixtureSaveFourteen();
+            var doc = save.Design;
+            ulong pond = doc.Ponds[0].Id.Value, lake = 0x0fed_cba9_8765_4321UL;
+            CommandResult Ok(CommandResult r, [System.Runtime.CompilerServices.CallerLineNumber] int line = 0) { Assert.That(r.Accepted, Is.True, $"line {line}: {r.Reason}"); return r; }
+            doc = Ok(new AddPumpHouse(0, "North Pumps", new PointMm(150_000, 60_000), 4_500, pond, HouseFoundation.Slab, 7_500).Apply(doc)).Document;
+            var house = doc.Snow.Nodes.Single(n => n.Kind == SnowNodeKind.House);
+            var route = new[] { house.At, new PointMm(250_000, 70_000), new PointMm(400_000, 120_000) };
+            doc = Ok(new AddSnowPipe(0, "Main A", 10, route, SnowEnd.OnNode(house), SnowEnd.Free(route[2]), 30_480).Apply(doc)).Document;
+            var main = doc.Snow.Pipes.Single();
+            doc = Ok(new EditSnowPipe(0, main.Id, "Main A", 10, false, true).Apply(doc)).Document;
+            // The booster sits midway between the fifth and sixth hydrants along the main.
+            var along = doc.Snow.TapsOn(main.Id).Select(t => SnowGeometry.Project(main.Route, t.At).ChainageMm).OrderBy(c => c).ToArray();
+            var pumpAt = SnowGeometry.At(main.Route, (along[4] + along[5]) / 2);
+            doc = Ok(new AddSnowTap(0, SnowNodeKind.Pump, main.Id, pumpAt, false, new PumpSpec(300, 800, 250, false)).Apply(doc)).Document;
+            var lakeRoute = new[] { new PointMm(-50_000, 200_000), new PointMm(250_000, 70_000) };
+            doc = Ok(new AddSnowPipe(0, "Lake Line", 6, lakeRoute, SnowEnd.Intake(lakeRoute[0], lake), SnowEnd.OnPipe(main.Id, lakeRoute[1])).Apply(doc)).Document;
+            var fillRoute = new[] { new PointMm(400_000, 120_000), new PointMm(120_000, 65_000) };
+            var far = doc.Snow.Nodes.First(n => n.At == route[2]);
+            doc = Ok(new AddSnowPipe(0, "Pond Fill", 4, fillRoute, SnowEnd.OnNode(far), SnowEnd.Outlet(fillRoute[1], pond)).Apply(doc)).Document;
+            var hydrants = doc.Snow.Nodes.Where(n => n.Kind == SnowNodeKind.Hydrant).Take(4).ToArray();
+            var models = new[] { GunModel.Stick10, GunModel.Stick20, GunModel.Stick30, GunModel.Ground };
+            for (int i = 0; i < hydrants.Length; i++)
+                doc = Ok(new AddSnowGuns(0, models[i], new[] { hydrants[i].At }, new[] { 1_000 * (i + 1) }).Apply(doc)).Document;
+            var guns = doc.Snow.Guns;
+            doc = Ok(new SetGunOverride(0, new[] { guns.Single(g => g.Model == GunModel.Stick10).Id }, GunOverride.On).Apply(doc)).Document;
+            doc = Ok(new SetGunOverride(0, new[] { guns.Single(g => g.Model == GunModel.Stick20).Id }, GunOverride.Off).Apply(doc)).Document;
+            save.Design = doc;
+            return save;
+        }
+
         [Test]
         public void TheWriterReproducesTheFrozenFixtureByteForByte()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v14-save")), "Saves", JacksonHole, "save-001");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v15-save")), "Saves", JacksonHole, "save-001");
             string folder = Path.Combine(_root, "again");
-            SaveStore.Write(folder, FixtureSaveFourteen());
+            SaveStore.Write(folder, FixtureSaveFifteen());
             Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveFile.FileName)), Is.EqualTo(File.ReadAllBytes(Path.Combine(fixture, SaveFile.FileName))),
-                "save.json v14 is frozen: a writer change is a format change (0.3 §5)");
+                "save.json v15 is frozen: a writer change is a format change (0.3 §5)");
             foreach (string tile in Directory.GetFiles(Path.Combine(fixture, SaveStore.TilesFolder)))
                 Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveStore.TilesFolder, Path.GetFileName(tile))), Is.EqualTo(File.ReadAllBytes(tile)));
         }
@@ -480,7 +518,7 @@ namespace MountainPlanner.Tests.Core
             byte[] before = File.ReadAllBytes(path);
 
             var e = Assert.Throws<FormatTooNewException>(() => SaveStore.Read(folder));
-            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 15; this version reads up to 14). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 16; this version reads up to 15). Update the game to open it."));
             Assert.That(SaveStore.Write(folder, FixtureSave()), Is.False);
             Assert.That(SaveStore.Rename(folder, "Mine now"), Is.False);
             Assert.That(File.ReadAllBytes(path), Is.EqualTo(before), "nothing is written over a newer save (0.3 §5 rule 3)");
@@ -763,6 +801,47 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
+        public void TheVersionFifteenFixtureReadsUnchanged()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v15-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture15");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveFifteen(), back);
+            Assert.That(back.MigratedFrom, Is.EqualTo(15));
+            var snow = back.Design.Snow;
+            Assert.That(snow.Houses.Select(h => $"{h.Name} {h.BearingCentideg} {h.Foundation} {h.CompressorCfm}"), Is.EqualTo(new[] { "North Pumps 4500 Slab 7500" }));
+            Assert.That(snow.Pipes.Select(p => $"{p.Name} {p.DiameterIn} {p.FromClosed} {p.ToClosed}").OrderBy(x => x, StringComparer.Ordinal),
+                Is.EqualTo(new[] { "Lake Line 6 False False", "Main A 10 False True", "Pond Fill 4 False False" }));
+            var pump = snow.Nodes.Single(n => n.Kind == SnowNodeKind.Pump);
+            Assert.That($"{pump.Forward} {pump.Pump.Hp} {pump.Pump.EfficiencyPermille} {pump.Pump.BoostPsi} {pump.Pump.On}", Is.EqualTo("False 300 800 250 False"));
+            Assert.That(snow.Nodes.Count(n => n.Kind == SnowNodeKind.Intake), Is.EqualTo(1));
+            Assert.That(snow.Nodes.Count(n => n.Kind == SnowNodeKind.Outlet), Is.EqualTo(1));
+            Assert.That(snow.Guns.Select(g => $"{g.Model} {g.AimCentideg} {g.Override}"),
+                Is.EquivalentTo(new[] { "Stick10 1000 On", "Stick20 2000 Off", "Stick30 3000 Auto", "Ground 4000 Auto" }));
+        }
+
+        [Test]
+        public void HY01_OlderSavesOpenWithNoSnowmaking()
+        {
+            // v14 → v15 (task 4.15): an older save held no snowmaking network.
+            foreach (string version in new[] { "v1-save", "v7-save", "v13-save", "v14-save" })
+            {
+                string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", version)), "Saves", JacksonHole, "save-001");
+                var back = SaveJson.Read(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName)), out _);
+                Assert.That(back.Design.Snow.IsEmpty, Is.True, version);
+            }
+        }
+
+        [Test, Explicit("writes the v15 fixture once; never rerun on a frozen fixture")]
+        public void WriteVersionFifteenFixture()
+        {
+            string folder = Path.Combine(TestData.Folder("formats"), "v15-save", "Saves", JacksonHole, "save-001");
+            Assert.That(Directory.Exists(folder), Is.False, "the v15 fixture is frozen");
+            SaveStore.Write(folder, FixtureSaveFifteen());
+        }
+
+        [Test]
         public void PD08_OlderSavesOpenWithNoPondsDamsLakesOrStreams()
         {
             // v13 → v14 (task 4.14): an older save held none.
@@ -966,8 +1045,9 @@ namespace MountainPlanner.Tests.Core
         // Shape 11 (task 4.21, TD-07): the shape number and a not-posted byte for each trail and shaped trail; from c7a67ac0….
         // Shape 12 (task 4.03, LO-07 v2, LO-09): the shape number, the resort's default hours and each lift's daily schedule
         // with no hours of its own; from 1c7c9274…. Shape 13 (task 4.11 PR B): each lift's plate, numbered in ID order; from f5af52b0….
-        // Shape 14 (task 4.14): the shape number and no ponds, dams or lake sources; from a5a27845…, awaiting the owner's approval.
-        const string ConvertedSevenSha = "f17253371d1fa108df658889b9e4acf4aa018d8ee6268a1f7bdd85e5a09de161";
+        // Shape 14 (task 4.14): the shape number and no ponds, dams or lake sources; from a5a27845….
+        // Shape 15 (task 4.15, HY-01): the shape number and an empty snowmaking network; from f1725337…, owner OK 2026-11-18.
+        const string ConvertedSevenSha = "4c1b9a923fc8d56ed5cafac34222cf06e6cc1c23094f9ea39578a1997d913bcb";
 
         [Test]
         public void ADamagedOlderTrailRefusesTheSave()

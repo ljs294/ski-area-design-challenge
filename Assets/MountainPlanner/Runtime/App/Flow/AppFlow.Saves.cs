@@ -149,6 +149,7 @@ namespace MountainPlanner.App.Flow
             "-lakereport",   // task 4.09
             "-watershots",   // task 4.14
             "-crowdshot", "-drawngondola", "-simridedown",   // task 4.24
+            "-solvebench",   // task 4.15
         };
 
         void UpdateSaves(Keyboard keys)
