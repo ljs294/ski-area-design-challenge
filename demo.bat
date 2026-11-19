@@ -445,6 +445,8 @@ echo    131 Snowmaking network, hands on (4.15 PR B): build a pump house, a wate
 echo        and read the pressure live; Check lists the problems with fixes (a scratch copy of the demo mountain).
 echo    132 The snowmaking tools' tests, then the review pictures: the tools, cards and map names driven by script
 echo        in the game, nineteen pictures in test-results\p4-15\shots (rebuilds the game; about 5 minutes).
+echo    134 The Grooming tab mockup (4.25): Trails (the night strip, each trail's setting, what needs you) and Equipment
+echo        (groomers, crews, Buy), last night, a resort with no groomers, a trail card (opens in Edge, nothing to build).
 echo.
 echo     Q  Quit
 echo.
@@ -605,6 +607,7 @@ if /i "%CHOICE%"=="129" goto ridedown
 if /i "%CHOICE%"=="130" goto snowsolver
 if /i "%CHOICE%"=="131" goto snownet
 if /i "%CHOICE%"=="132" goto snowshots
+if /i "%CHOICE%"=="134" goto groommock
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2819,6 +2822,14 @@ set "MOCK=%~dp0docs\plans\prototypes\ui-layout.html"
 start "" msedge "file:///%MOCK:\=/%#solo&demo=watertray"
 echo   The Snowmaking tab opened in Edge. Other states: change watertray in the address to pondshore, pondpool, pondberm,
 echo   damfirst, damreview, damedge, watersource, pondedit, damedit or waterremove.
+goto menu
+
+:groommock
+rem 4.25: the Grooming tab mockup (Analysis, Grooming) in the HUD mockup, opened on Trails at 4:45 PM.
+set "MOCK=%~dp0docs\plans\prototypes\ui-layout.html"
+start "" msedge "file:///%MOCK:\=/%#solo&demo=agrooming"
+echo   The Grooming tab opened in Edge. Other states: change agrooming in the address to groomsuggest, groomfleet,
+echo   groombuy, groomlast, groomnone, groomcard, groommenu or groompin. Tabs, menus, crew checks and Buy work by click.
 goto menu
 
 :waterground

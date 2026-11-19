@@ -132,6 +132,60 @@ body.solo .frame { border-radius: 0; }
 .hud .wxplate .note .k { color: var(--soft); min-width: 92px; }
 .hud .tbl .r.today { box-shadow: inset 2px 0 0 var(--text); }
 .hud .tbl .lead { color: var(--soft); font: 600 11px 'DotFix', 'Overpass'; }
+/* task 4.25: Analysis › Grooming (round 5: Trails | Equipment) */
+.hud .ana .tabs.ten { gap: 1px; }   /* ten tabs fit (task 4.25) */
+.hud .ana .tabs.ten span { font-size: 12px; padding: 5px 3px 4px; white-space: nowrap; }
+.hud .gralert { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); vertical-align: 1px; }
+.hud .grwarn { color: var(--warn); }
+.hud .wxsw.grsw { padding: 8px 12px 6px; }
+.hud .wxsw.grsw .lead { font-size: 12px; }
+.hud .grplate { margin-bottom: 2px; }
+.hud .grplate + .grplate { margin-top: 8px; }
+.hud .grhd { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px 2px; font: 600 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .grhd .seg.mini span { padding: 3px 9px 2px; }
+.hud .grstrip { padding: 4px 10px 2px; }
+.hud .grstrip svg { display: block; overflow: visible; }
+.hud .grstrip .lane { cursor: pointer; }
+.hud .grkey { display: flex; gap: 11px; align-items: center; padding: 1px 10px 7px; font: 600 10.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .grkey i { display: inline-block; width: 12px; height: 8px; border-radius: 1px; margin-right: 4px; vertical-align: -1px; background: var(--chart-a); opacity: 0.92; }
+.hud .grkey i.t { opacity: 0.62; }
+.hud .grkey i.w { background: var(--warn); }
+.hud .grkey i.b { background: var(--neg); }
+.hud .grkey .r { margin-left: auto; color: var(--faint); }
+.hud .grn { font: 700 12px 'Overpass Mono', monospace; text-align: right; color: var(--soft); }
+.hud .grn.bad { color: var(--neg); }
+.hud .grn.warn { color: var(--warn); }
+.hud .grdd { position: relative; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; white-space: nowrap; color: var(--muted); font: 600 12px 'DotFix', 'Overpass'; cursor: pointer; }
+.hud .grdd i { font-style: normal; font-size: 9px; color: var(--faint); }
+.hud .grdd.set { color: var(--strong); font-weight: 700; }
+.hud .grdd:hover, .hud .grdd:hover i { color: var(--strong); }
+.hud .grsel { position: relative; display: flex; align-items: center; justify-content: space-between; height: 26px; padding: 0 8px; border: 1px solid var(--hair2); border-radius: 4px; font: 700 12px 'DotFix', 'Overpass'; color: var(--text); cursor: pointer; }
+.hud .grdd .amenu, .hud .grsel .amenu { min-width: 236px; cursor: default; }
+.hud .grdd .amenu .mi, .hud .grsel .amenu .mi { display: grid; grid-template-columns: 14px 1fr; gap: 1px 8px; white-space: normal; color: var(--text); font-weight: 600; }
+.hud .grdd .amenu .mi small, .hud .grsel .amenu .mi small { grid-column: 2; font: 500 11px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .amenu .mi.dis small { color: var(--faint); }
+.hud .grradio { width: 13px; height: 13px; border: 1.5px solid var(--dim); border-radius: 50%; display: grid; place-items: center; }
+.hud .grradio.on { border-color: var(--on-bg); }
+.hud .grradio.on::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--on-bg); }
+.hud .tbl.grt .r { padding-top: 4px; padding-bottom: 3px; }
+.hud .tbl.grt .r .st { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; font: 600 12px 'DotFix', 'Overpass'; }
+.hud .tbl.grt .r .st .lead { font-size: 11.5px; }
+.hud .tbl.grt .r.why { border-top: 0; padding-top: 0; padding-bottom: 6px; align-items: start; font: 500 11.5px 'DotFix', 'Overpass'; color: var(--muted); line-height: 1.35; }
+.hud .tbl.grt .r.why .fx { display: flex; gap: 5px; justify-content: flex-end; }
+.hud .tbl.grt .r.why .ghost { height: 21px; padding: 0 8px; font-size: 11px; }
+.hud .tbl.grt .r.why .ghost.fix { color: var(--strong); border-color: var(--ghost-hover); }
+.hud .tbl .r.grtot { font: 600 12px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .tbl .r.grtot .lead { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud .tbl .grc { display: grid; justify-items: center; cursor: pointer; }
+.hud .tbl .grcc { text-align: center; white-space: nowrap; }
+.hud .tbl .grcc b { font: 700 12.5px 'Overpass Mono', monospace; color: var(--strong); }
+.hud .tbl .grcc .pin { cursor: pointer; }
+.hud .tbl .r.th.grwins { padding-top: 0; font: 600 10.5px 'DotFix', 'Overpass'; color: var(--faint); }
+.hud .tbl .r.dis { color: var(--faint); }
+.hud .pn.fcard .grpair { display: grid; grid-template-columns: 1.45fr 1fr; gap: 6px; }
+.hud .pn.fcard .sched .atb { justify-self: start; font: 700 11.5px 'DotFix', 'Overpass'; }
+.hud .pn.fcard .grlast { font: 600 12px 'DotFix', 'Overpass'; color: var(--text); }
+.hud .wxsw .lead, .hud .kv dd .lead { color: var(--soft); font: 600 11.5px 'DotFix', 'Overpass'; }
 .hud .wxkey { display: flex; gap: 12px; padding: 2px 12px 0; font: 600 11px 'DotFix', 'Overpass'; color: var(--soft); }
 .hud .wxkey i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--chart-a); vertical-align: middle; margin-right: 4px; }
 .hud .wxlist .r { grid-template-columns: 0.9fr 1.1fr 2fr; }
@@ -692,6 +746,7 @@ body.solo .frame { border-radius: 0; }
     <li><b>Shape the ground</b> (task P3-15): Toolbox → Terrain holds <b>Raise/Lower</b> (B: hold left to raise, right to lower), <b>Flatten</b> (L: right-click takes the target height under the pointer, left paints to it), <b>Smooth</b> (O) and <b>Slope</b> (G: right-click sets the target point, then drag from the start; the ground ramps evenly between the two, and the pane shows the grade they make). Every brush has the same pane: <b>Diameter</b> (<b>[ ]</b>, 10–400 ft), <b>Strength</b> (<b>, .</b>) and <b>Clear trees</b> (BR22: on, the trees come out where the ground moves a foot or more, as it moves; off, they ride the new ground), plus the target (Page Up / Page Down) and, for Slope, the ramp it makes. A session runs from opening a brush to closing it, and switching brushes keeps it (BR15, BR17): what you paint is the edit (in the game the ground moves live), and the pane counts its cut, fill and net, the trees cleared and where the brush was held (a terminal's pad and its 1:1, the lift line's clearance, a tower's limit) as you paint. <b>Confirm</b> (Enter) puts the session in as one undo step and is when it's paid for (BR19); <b>Revert</b> puts its ground back; Ctrl+Z undoes one press, never past the session's start. Closing with ground not confirmed asks <b>Confirm / Revert / Keep painting</b> (BR18). The wheel over any slider moves it a step a notch, with its value in a bubble over the thumb (BR20). States: <code>terrainraise</code>, <code>terrainflatten</code>, <code>terrainsmooth</code>, <code>terrainslope</code>, <code>terrainask</code>, and <code>terrainraise,sliderhover</code>.</li>
     <li><b>Water for snowmaking</b> (task 4.14): Toolbox → Snowmaking holds the <b>Water</b> group, and with the tab open the streams and lakes are outlined. <b>Pond</b> (O): click around the water's edge at full pool (the berm goes outside it), Enter or a click on the first point closes the ring; the pool starts at the suggested height (PD-03: Page Up / Page Down move it 1 ft, Shift 10) and <b>Excavation</b> (0–50 ft, <b>[ ]</b>) digs the bowl deeper; the window counts water, depth, berm, cut, fill and balance as you change them, and refuses a ring that crosses itself or a stream, or a berm over 65 ft. <b>Dam</b> (B): click one bank (that height is full pool), then the far bank, which snaps to the same contour within 250 ft; the line must cross one stream; the review gives the stream's width (OpenStreetMap, the default or yours), the reservoir, the embankment, the inflow for the season and the time to fill, and the spillway's bank (PD-07). <b>Lake</b> (L): click a lake and switch it on as a water source; its depth is an estimate you can override. <b>Edit</b> (M) reshapes a pond (drag its points) or opens a dam or lake; <b>Remove</b> (X) takes a pond or dam out and its ground goes back exactly (Ctrl+Z brings it back). Each source's <b>Water now</b> shows its level, what it holds, what comes in and goes out, a <b>Test draw</b> until the guns come (task 4.16) and the days of making left. The <b>Snowmaking network</b> group is task 4.15 (below). States: <code>watertray</code>, <code>pondshore</code>, <code>pondpool</code>, <code>pondberm</code>, <code>damfirst</code>, <code>damreview</code>, <code>damedge</code>, <code>watersource</code>, <code>pondedit</code>, <code>damedit</code>, <code>waterremove</code>.</li>
     <li><b>Snowmaking network</b> (task 4.15): the tab's second group. <b>Pump house</b> (P): click a centre within 150 ft of a pond, dam or lake shore, then the bearing, then review the name, a flattened pad or a level slab, cut and fill, the 1,000 hp pump (85%, held at 600 psi) and the 5,000 cfm compressor. <b>Water line</b> (W): pick the diameter (4–24 in, <b>[ ]</b>), click along the route; it snaps to a pump house, a line (a junction), a hydrant or a pond, and the cursor reads the length, the climb, the pressure at the end, the guns past it that would be short and the velocity, all from Hazen–Williams (C 120) and 2.31 ft of head per psi. The review names it and sets valves (both ends, start, end, none) and hydrants by spacing or by count; spots too steep or taken are skipped and marked. A line that ends in a pond fills it. <b>Inline pump</b> (I): click inside a line; it faces away from the pump house and adds up to 300 psi (250 hp); its card has <b>Flip</b> and On/Off. <b>Snow gun</b> (G): pick 10, 20 or 30 ft stick or a fan gun; each click hooks to the nearest free hydrant within 50 ft by a hose, and a red ring means none is in reach; <b>Fill hydrants</b> puts one on every free hydrant of a line; <b>Select</b> lassoes guns and sets them Auto, On or Off. Guns need 200 psi; the stage (1–5) comes from the wet bulb. Hover any part for a quick card; click it for its full card (pipe with the flow, pressure, friction and velocity where you clicked; hydrant; gun with its shortfall and a fix; pump; pump house). <b>Check</b> (K) lists the problems by number with <b>Show me</b> and a one-click fix, and can run every gun at once; the <b>Pipe pressure</b> info layer colours the pipes on one scale (200 psi a gun's need, amber over 800, red over the 1,000 psi class). After an edit the figures grey out for a moment while the result updates. States: <code>snowtray</code>, <code>snowline</code>, <code>snowlinereview</code>, <code>snowpump</code>, <code>snowhouse</code>, <code>snowgun</code>, <code>snowlasso</code>, <code>snowgunshort</code>, <code>snowpipecard</code>, <code>snowdiag</code>, <code>snowpressure</code>, <code>snowcheck</code>, <code>snowfill</code>, <code>snowstale</code>.</li>
+    <li><b>Grooming</b> (task 4.25, mockup first; round 5 reworked the UI, the rules unchanged): Analysis › Grooming, next to Snowmaking, with two sub-tabs. <b>Trails</b>: the night strip runs from the lift stop to the opening, one lane per groomer, with <b>Swing</b> (from the sweep after the lifts stop, 8 h) and <b>Night</b> (to an hour before opening); each lane shows its work in order (solid: Push, by the pile, 800 yd³ a groomer-hour; lighter: Till, by area, 7 acres a groomer-hour), a dashed lane has no crew, and what doesn't fit hangs past 7:00 AM in amber (cut short) and red (not reached). Hover a block for its trail and times (and to find it on the map); click a groomer for its card. <b>Tonight | Last night</b> turns the strip and the list into what happened. The list's filters: <b>Tonight</b> (the trails that need you first, numbered worst first, then the work in order), <b>Needs you</b> (each one's reason and its one-click fix; Autopilot's suggestions, which never change a schedule, have ✕ to dismiss) and <b>Never</b>. Each row's <b>Grooming</b> (Autopilot, Every night, Unless it's snowing, When ordered, Never) and <b>Priority</b> (High, Normal, Low) are menus right there. With the tab open the drawn trails show tonight: amber under one that needs you, red under one not reached, faded with nothing on. <b>Equipment</b>: the groomers, each with a crew check per shift (a check staffs it; changing one pins that shift's count, ✕ hands it back to Autopilot), the crews and cost per shift (estimates: operators $32 an hour, swing +10 %, night +20 %, fuel and upkeep $45 a groomer-hour), then the Skogkatt catalogue: the 400 and the 800, each also as a W with a winch (the 800 tills and pushes faster; a W climbs to 100 %). A groomer opens its card (figures, its winch if a W, Fit a wider tiller, Sell); a model opens the buy card (drive, price, Buy; it arrives at once). A trail's card gets one Grooming row: the setting and the priority, its last groom and tonight's job; Skip tonight is in the setting's menu. States: <code>agrooming</code>, <code>groomsuggest</code>, <code>groomfleet</code>, <code>groombuy</code>, <code>groomlast</code>, <code>groomnone</code>, <code>groomcard</code>, <code>groommenu</code>, <code>groompin</code>; under <code>p2</code> add <code>groom</code>.</li>
     <li><b>Draw a trail</b> (Phase 3 tool): Toolbox → Trails → New opens the trail menu: name, brush width (<b>[ ]</b> or the slider, 25–400 ft) and Graded or Natural. <b>1 Paint:</b> drag on the mountain to paint the trail's area, any widths, leaving holes for islands of trees; Shift-drag erases, Ctrl+Z undoes a stroke, and a separate patch shows red. <b>2 Head and tail:</b> click the top, then the bottom (they join a lift's end or another trail nearby); the centreline, the pending contours (yellow), stretches too steep to grade (red) and the rating appear, with the profile along the bottom. <b>3 Review</b>, then Break ground. Scroll to zoom in first: at this distance 100 ft is about 5 px. States: <code>trailpaint</code>, <code>trailends</code>, <code>trailreview</code>, <code>trailcontinue</code> (NT38: "Continues Upper Bowl").</li>
     <li><b>Trails made of sections</b> (task P3-10, owner NT24–NT41): a trail is a name and its sections, top first. Edit trail opens the trail's pane (rating over its whole length, its sections; Repaint and Move ends change the outlined section). <b>Edit sections</b> goes into network mode: <b>Choose sections</b>, where a left-click on any run beyond the trail's top or bottom adds everything on the way and a right-click takes a section out, and <b>Cut</b>, which cuts a section in two at the pointer (snapping to junctions; refused across a switchback) or rejoins a hollow cut node. The hover shows each click's result, the window lists every trail a session changes with editable names, Ctrl+Z undoes a click and Done (Enter) is one step. A trail left in two pieces becomes Upper and Lower. States: <code>trailsecs</code>, <code>trailroute</code>, <code>trailmerge</code>, <code>trailtakeout</code>, <code>trailmiddle</code>, <code>trailnear</code>, <code>trailnearjoin</code> (NT42: ends within 100 ft meet, drawn met, nothing shown), <code>trailcut</code>, <code>trailcutbend</code> (NT45: a cut on a bend), <code>trailsecsundo</code>. Junctions (NT43–NT45): a run splits wherever another run lands on it or crosses it, at a lift it passes and where you cut it; a trail is the segments between, and may turn at a junction: <code>trailjunction</code>, <code>trailreroute</code>, <code>trailrerouted</code>. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking with clicks.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
@@ -797,6 +852,10 @@ body.solo .frame { border-radius: 0; }
     dayNet: {}, finScale: 'week',   // each finished day's net ($M) as played; the net chart's time scale
     zoom: 1, layers: { snow: true, trees: true, lifts: true, trails: true, making: true, infra: true, labels: true },
     info: null, contours: false, legendClosed: false, wxView: 'forecast', wxClim: null, wxMonth: 0,   // the info layer that's on (slope, aspect, depth), and contours over it
+    // task 4.25, Analysis › Grooming: its view, the fleet (Skogkatt groomers), crews per shift (null = Autopilot's),
+    // the fleet row picked, the Buy panel's choices, and the trail card's grooming setting and priority (by trail id)
+    gr: { tab: 'trails', view: 'tonight', filter: 'tonight', fleet: [{ n: 1, type: 'm400', drive: 'diesel', up: [], season: 212 }, { n: 2, type: 'm400', drive: 'diesel', up: [], season: 198 }, { n: 3, type: 'm400', drive: 'hybrid', up: [], season: 176 }],
+      crews: { swing: null, night: null, day: null }, card: null, trail: {}, menu: null, fresh: false, gone: [] },
     toolbox: false, tab: 'lifts', tool: null, analysis: false, drop: null, sketch: false, modal: null,
     lifts: [
       { id: 'l2', n: 2, name: 'Aspen Quad', a: [548, 616], b: [652, 402], model: 'Fixed 4', built: true },
@@ -1184,8 +1243,10 @@ body.solo .frame { border-radius: 0; }
       const hiLine = S.secs ? secsLine() : hiId && lineOf(hiId);
       for (const l of allLines()) {
         const diff = lineDiff(l), hi = !!hiLine && hiLine.id === l.id;
+        if (grOn()) s += grHalo(l, true);   // task 4.25: amber or red under a trail that needs you
         for (const seg of l.segs) s += drawTrail({ ...secOf(seg.piece), id: seg.key, pts: segPts(seg), diff }, { hi, noTag: true });
         s += drawTrail({ id: l.id, name: l.name, diff, pts: linePts(l), built: l.built }, { only: true });
+        if (grOn()) s += grHalo(l, false);
       }
       // NT30: the run Repaint and Move ends would change, outlined, when the trail runs over more than one
       if (S.tool === 'edit-trail' && S.sel && !S.secs && secOf(S.sel) && selTrail() && selTrail().segs.some((x) => x.piece !== S.sel)) s += `<path d="${smooth(secOf(S.sel).pts)}" fill="none" stroke="${selC}" stroke-width="2" stroke-dasharray="4 3" stroke-linecap="round"/>`;
@@ -1353,6 +1414,7 @@ body.solo .frame { border-radius: 0; }
   // The legend card for the info layer that's on (and the contour interval when contours are on).
   function legendCard() {
     if (S.analysis && S.atab === 'network') return S.netKeyClosed ? '' : netLegend();   // game finding 2: its ✕ closes it until the view reopens
+    if (grOn()) return S.legendClosed ? '' : grLegend();   // task 4.25: tonight's grooming on the drawn trails
     if ((!S.info && !S.contours) || S.legendClosed) return '';
     // One card for the info layer and contours together; the X closes it until another layer is picked.
     // Keys show only in the open layers panel.
@@ -4937,6 +4999,7 @@ body.solo .frame { border-radius: 0; }
     const r = trailRec(t, open, 0), st = STATUS_LAMP[r.status];
     return `<div class="pn fcard"><div class="hd">${RATING[t.diff]}${esc(t.name)}<span class="nm">${lampHtml(st[1])} ${st[0]}</span><span class="x" data-act="fclose" title="Close (Esc)">✕</span></div>
       <dl class="kv">${kv('Rating', `${DIFFS[t.diff]}`)}${kv('Length', `<b>${lenFt(r.len)}</b>`)}${kv('Vertical', `<b>${lenFt(r.vert)}</b>`)}${kv('Average grade', `${Math.round(r.avg)}%`)}${kv('Steepest', `${Math.round(r.steep)}%`)}${kv('Surface', r.surface)}</dl>
+      ${S.p2 && !S.groom ? '' : grCardBlock()}
       <div class="acts" style="grid-template-columns:1fr 1fr"><div class="ghost" data-act="fedit" data-v="trail">Edit</div><div class="ghost" data-act="fremove" data-v="trail">Remove</div></div></div>`;
   }
   // NT19: an Area's card: its name (click or F2 renames it), its lifts and what each does there, the trails that touch
@@ -4950,7 +5013,10 @@ body.solo .frame { border-radius: 0; }
       <dl class="kv">${kv('Lifts', lifts)}${kv('Trails here', `<b>${a.here}</b>`)}${kv('Reaches', `<b>${a.reach.reach.size}</b> trails · <b>${a.reach.lifts.size}</b> lifts`)}</dl>
       <div class="hint">One stop on the network: every lift and trail here connects.${a.named ? '' : ' Click the name to name it.'}</div></div>`;
   }
-  const ATABS = [['overview', 'Overview'], ['lifts', 'Lifts'], ['trails', 'Trails'], ['network', 'Network'], ['guests', 'Guests'], ['snow', 'Snowmaking'], ['weather', 'Weather'], ['amenities', 'Amenities'], ['finances', 'Finances']];
+  const ATABS = [['overview', 'Overview'], ['lifts', 'Lifts'], ['trails', 'Trails'], ['network', 'Network'], ['guests', 'Guests'], ['snow', 'Snowmaking'], ['grooming', 'Grooming'], ['weather', 'Weather'], ['amenities', 'Amenities'], ['finances', 'Finances']];
+  // Task 4.25: the game gets the Grooming tab with its PR B, so demo=p2 (the game as built, the parity checks) leaves
+  // it out unless the groom flag asks for it.
+  const atabsShown = () => ATABS.filter(([k]) => k !== 'grooming' || !S.p2 || S.groom);
   const isOpen = () => { const h = S.t / 3600; return h >= LIFTS_OPEN && h < LIFTS_CLOSE; };
   const waitFor = (l) => { if (!S.skiers || !l.built) return 0; const st = liftStats(l.a, l.b, l.model, l.cap); return Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)); };
   const lampHtml = (c) => `<i class="lamp" style="--lamp:${c}"></i>`;
@@ -4968,9 +5034,9 @@ body.solo .frame { border-radius: 0; }
   const openLifts = () => (isOpen() ? S.liftsTotal : 0), openTrails = () => (isOpen() ? S.trailsTotal : 0);
   function analysisPanel(bottom) {
     const tab = ([k, v]) => S.p2 && P2_DIS_TABS.includes(k) ? `<span class="dis" data-ui="analysis-tab-${k}" title="${P2_EMPTY[k]}">${v}</span>`
-      : `<span class="${S.atab === k ? 'on' : ''}" data-act="atab" data-v="${k}" data-ui="analysis-tab-${k}">${v}</span>`;
+      : `<span class="${S.atab === k ? 'on' : ''}" data-act="atab" data-v="${k}" data-ui="analysis-tab-${k}">${v}${k === 'grooming' && !S.gr.fleet.length ? ' <i class="gralert" title="No groomers: nothing is groomed tonight"></i>' : ''}</span>`;
     return `<div class="pn ana" data-ui="analysis" style="left:10px;bottom:${bottom}px;width:${AW}px;z-index:4"><div class="hd" data-ui="analysis-head">${g('s-analysis')}Analysis <span class="nm">${esc(S.name)}</span><span class="x" data-act="analysis" data-ui="analysis-x">✕</span></div>
-      <div class="tabs">${ATABS.map(tab).join('')}</div><div class="tabrule"></div>
+      <div class="tabs${atabsShown().length > 9 ? ' ten' : ''}">${atabsShown().map(tab).join('')}</div><div class="tabrule"></div>
       <div id="anabody" data-ui="analysis-body">${analysisBody()}</div></div>`;
   }
   // demo=p2: each tab's line until its phase fills it, and the tabs greyed until then.
@@ -4980,6 +5046,7 @@ body.solo .frame { border-radius: 0; }
     trails: 'Trails come with the building tools in Phase 3.',
     guests: 'Guests come with the simulation in Phase 4.',
     snow: 'Snowmaking comes with the building tools in Phase 3.',
+    grooming: 'Grooming comes with the simulation in Phase 4.',
     weather: 'Weather comes with the snow simulation in Phase 4.',
     amenities: 'Lodges and parking come with the building tools in Phase 3.',
     finances: 'Money comes with the simulation in Phase 4.',
@@ -5244,8 +5311,325 @@ body.solo .frame { border-radius: 0; }
       <div class="wxsw">${qseg('wxview', S.wxView, [['forecast', 'Forecast'], ['season', 'Season so far'], ['climate', 'Climate']])}${S.wxLimited ? '<span class="lead" style="color:var(--warn)">Limited data</span>' : ''}</div>
       ${view}`;
   }
+  // ---------- task 4.25: Analysis › Grooming (mockup first; the game builds it in 4.25 PR B) ----------
+  // Round 5 (owner, 2026-11-19): the UI only, the rules unchanged. Two sub-tabs. Trails: the night strip (a lane per
+  // groomer, tonight's work along it, what doesn't fit hanging past the end), then the trails with their setting and
+  // priority, the ones that need you first. Equipment: the groomers with a crew check per shift, and the Skogkatt
+  // catalogue; a groomer or a model opens its card on the right. The two jobs are Till (light, paid by area: 7 acres a
+  // groomer-hour, +12 % with a wider tiller) and Push (heavy, paid by the pile: 800 yd³ a groomer-hour). Swing starts
+  // after the sweep that follows the lift stop and runs 8 h; night runs to an hour before opening; day is 8 AM–4 PM
+  // tomorrow, closed trails only. A crew is paid its window and grooms it less an hour (half an hour out, half back).
+  // Work goes in order (High, pushes that open a trail, open trails by yesterday's skiers, the rest), each piece to the
+  // groomer free soonest (the lowest-numbered on a tie); a task may stop at a shift's end and go on in the next. Autopilot
+  // never changes a trail's schedule: it suggests, in four cases. Only Bighorn, Cornice, Headwall and Timberline are on
+  // the drawn map; the rest are placeholders, and this fleet is all 400s so the hours add up by eye (the
+  // game counts each groomer at its own pace). Prices are estimates: nothing is charged until the economy.
+  // Owner round 6: the maker's two sizes, each with a W (winch) version. The 800 has more power (612 PS against
+  // 435) and a wider blade, so it tills more acres an hour and pushes more snow; a W climbs to 100 % on its winch (45
+  // or 40 kN), a little slower on the flat. Fuel and upkeep follow the engine.
+  const GR_TYPES = {
+    m400: { name: '400', price: 500000, acres: 7, push: 800, ps: 435, fuel: 45, slopes: 'to 70 %', where: 'Every trail to 70 %' },
+    m400w: { name: '400 W', price: 650000, acres: 6.7, push: 760, ps: 435, fuel: 47, slopes: 'to 100 %', where: 'Winch: 40 kN, steep pitches', winch: 40 },
+    m800: { name: '800', price: 650000, acres: 8.5, push: 1100, ps: 612, fuel: 55, slopes: 'to 70 %', where: 'Every trail to 70 %; wide' },
+    m800w: { name: '800 W', price: 820000, acres: 8.1, push: 1050, ps: 612, fuel: 58, slopes: 'to 100 %', where: 'Winch: 45 kN, steep pitches', winch: 45 },
+    park: { name: 'Park', price: 550000, acres: 6, push: 1000, ps: 435, fuel: 45, slopes: 'to 70 %', where: 'Park features', later: true },
+  };
+  const GR_DRIVES = { diesel: ['Diesel', 1, 'The whole shift'], hybrid: ['Hybrid', 1.2, 'The whole shift'], electric: ['Electric', 1.4, 'About 5 h a charge'] };
+  const GR_UPS = { tiller: ['Wider tiller', 40000, '+12 % acres an hour; not on trails under 30 ft'] };
+  const GR_PAY = { op: 32, fuel: 45, swing: 1.1, night: 1.2, day: 1 };   // an operator's hour; fuel and upkeep a groomer-hour; shift premiums
+  const GR_PAYTIP = `Estimates: a crew is paid its whole window and grooms it less an hour; $${GR_PAY.op} an operator-hour (swing +10 %, night +20 %) and fuel and upkeep by the groomer-hour: $45 for a 400, $55 for an 800 (a little more for a W). Nothing is charged until money comes.`;
+  const GR_SETS = { auto: ['Autopilot', 'Grooms when the snow needs it'], nightly: ['Every night', 'Tills it every night'], unless: ['Unless it\'s snowing', 'Every night, but leaves new snow'], ordered: ['When ordered', 'Only when you order it'], never: ['Never', 'Glades and zones start here'] };
+  const GR_PRIO = { high: ['High', 'Worked first; pushes whales before they cure'], normal: ['Normal', 'In order of yesterday\'s skiers'], low: ['Low', 'After every other trail'] };
+  const GR_JOB = { till: ['Till', 'Tilled'], push: ['Push', 'Pushed'] };
+  // Tonight's tasks in the order of work: the job, why (the tooltip) and its groomer-hours.
+  const GR_TASKS = [
+    { name: 'Lower Ridge', d: 'blue', job: 'push', why: 'High · 2 whales, not cured yet', h: 12 },
+    { name: 'Moose Run', d: 'green', job: 'push', why: '1 whale · opens it', h: 7.5 },
+    { name: 'Timberline', d: 'blue', job: 'till', why: '2,410 skiers', h: 2.9, id: 't4' },
+    { name: 'Bighorn', d: 'blue', job: 'till', why: '1,840 skiers', h: 1.8, id: 't1' },
+    { name: 'Upper Ridge', d: 'blue', job: 'till', why: '1,700 skiers', h: 2.4 },
+    { name: 'Elk Meadow', d: 'green', job: 'till', why: '1,620 skiers', h: 1.4 },
+    { name: 'Sundance', d: 'blue', job: 'till', why: '1,300 skiers', h: 2.2 },
+    { name: 'Headwall', d: 'black', job: 'till', why: '1,150 skiers · 74 % pitch', h: 2.6, winch: true, id: 't3' },
+    { name: 'Wapiti', d: 'blue', job: 'till', why: '990 skiers', h: 1.9 },
+    { name: 'Catwalk', d: 'green', job: 'till', why: '940 skiers', h: 0.9 },
+    { name: 'South Face', d: 'black', job: 'till', why: '900 skiers', h: 2.6 },
+    { name: 'Little Elk', d: 'green', job: 'till', why: '880 skiers', h: 1.2 },
+    { name: 'Lower Bighorn', d: 'blue', job: 'till', why: '760 skiers', h: 1.6 },
+  ];
+  // A new resort's opening night (groomnone): no skiers yet, new snow to pack and the guns' piles to push.
+  const GR_TASKS_NEW = [
+    { name: 'Lower Ridge', d: 'blue', job: 'push', why: 'Gun piles · opens it', h: 9 },
+    { name: 'Moose Run', d: 'green', job: 'push', why: 'Gun piles · opens it', h: 6.5 },
+    { name: 'Timberline', d: 'blue', job: 'till', why: '14 in new · packs the base', h: 3.4, id: 't4' },
+    { name: 'Bighorn', d: 'blue', job: 'till', why: '14 in new · packs the base', h: 2.1, id: 't1' },
+    { name: 'Upper Ridge', d: 'blue', job: 'till', why: '14 in new · packs the base', h: 2.8 },
+    { name: 'Elk Meadow', d: 'green', job: 'till', why: '14 in new · packs the base', h: 1.7 },
+    { name: 'Sundance', d: 'blue', job: 'till', why: '14 in new · packs the base', h: 2.6 },
+  ];
+  // Autopilot's cases on trails whose schedule you set (the fourth, a pitch no groomer can climb, is Headwall's task).
+  const GR_SUGGEST = [
+    { name: 'Cornice', d: 'black', id: 't2', why: 'Left 3 nights running for new snow; its moguls are growing.', fix: 'Till tonight' },
+    { name: 'Upper Cornice', d: 'black', why: '2 whales keep it closed. A push takes 6.5 h, tonight or on tomorrow\'s day shift.', fix: 'Order a push' },
+    { name: 'Sunrise Traverse', d: 'green', why: 'Too thin to till: 9 in, and tilling needs 12. A push fills the thin strip (2.5 h).', fix: 'Push tonight' },
+  ];
+  const GR_NEVER = [['Bear Glade', 'black'], ['Hidden Trees', 'black'], ['Moose Glade', 'blue'], ['Aspen Glade', 'blue'], ['Elk Trees', 'black'], ['Fir Glade', 'black'], ['Saddle Trees', 'blue'], ['North Glade', 'black'], ['Ridge Trees', 'black']];
+  const GR_DEF = { 'Lower Ridge': { set: 'auto', prio: 'high' }, Cornice: { set: 'unless', prio: 'normal' }, 'Upper Cornice': { set: 'ordered', prio: 'normal' }, 'Sunrise Traverse': { set: 'nightly', prio: 'normal' } };
+  GR_NEVER.forEach(([n]) => { GR_DEF[n] = { set: 'never', prio: 'normal' }; });
+  const grTr = (name) => S.gr.trail[name] || GR_DEF[name] || { set: 'auto', prio: 'normal' };
+  const usd = (v) => `$${(Math.round(v / 10) * 10).toLocaleString('en-US')}`;
+  const grH = (h) => h.toFixed(1);
+  const grTasksNow = () => (S.gr.fresh ? GR_TASKS_NEW : GR_TASKS);
+  const grOn = () => S.analysis && S.atab === 'grooming' && (S.groom || !S.p2);
+  function grShifts() {
+    const a = LIFTS_CLOSE + 0.5, b = a + 8, end = 24 + LIFTS_OPEN - 1;   // swing after the sweep (30 min), night to an hour before opening
+    return [{ k: 'swing', name: 'Swing', a, b }, { k: 'night', name: 'Night', a: b, b: end }, { k: 'day', name: 'Day', a: 24 + 8, b: 24 + 16, closed: true }]
+      .map((s) => ({ ...s, len: s.b - s.a, work: s.b - s.a - 1 }));
+  }
+  // Tonight's plan: Autopilot's crews (just enough, swing then night, never more than the fleet) unless pinned; then the
+  // tasks in order, each piece to the groomer free soonest. What doesn't fit is laid past the end of the night.
+  function grPlan() {
+    const sh = grShifts(), fleet = S.gr.fleet, tasks = grTasksNow(), need = tasks.reduce((a, t) => a + t.h, 0), crews = {};
+    let left = need;
+    for (const s of sh) {
+      const auto = s.closed ? 0 : Math.min(fleet.length, Math.ceil(Math.max(0, left) / s.work - 1e-9));
+      crews[s.k] = S.gr.crews[s.k] === null ? auto : Math.min(fleet.length, S.gr.crews[s.k]);
+      if (!s.closed) left -= crews[s.k] * s.work;
+    }
+    const lanes = fleet.map((m, i) => {
+      const win = sh.filter((s) => !s.closed && i < crews[s.k]).map((s) => ({ k: s.k, a: s.a + 0.5, b: s.b - 0.5 }));
+      return { m, win, wi: 0, t: win.length ? win[0].a : Infinity, blocks: [] };
+    });
+    const free = (L) => { while (L.wi < L.win.length && L.t >= L.win[L.wi].b - 1e-9) { L.wi++; L.t = L.wi < L.win.length ? L.win[L.wi].a : Infinity; } return L.t; };
+    const winch = fleet.some((m) => GR_TYPES[m.type].winch);
+    const rows = tasks.map((t) => {
+      let rem = t.h, got = 0; const parts = [];
+      while (rem > 1e-6) {
+        let best = null;
+        for (const L of lanes) if (free(L) < Infinity && (!best || L.t < best.t - 1e-9)) best = L;
+        if (!best) break;
+        const w = best.win[best.wi], take = Math.min(rem, w.b - best.t), blk = { name: t.name, id: t.id, job: t.job, a: best.t, b: best.t + take, k: w.k, n: best.m.n };
+        best.blocks.push(blk); parts.push(blk); best.t += take; rem -= take; got += take;
+      }
+      const state = got < 1e-6 ? 'none' : rem > 1e-6 ? 'part' : t.winch && !winch ? 'winch' : 'planned';
+      parts.forEach((b) => { b.state = state; });
+      return { ...t, got, parts, state };
+    });
+    const endT = sh[1].b - 0.5, over = lanes.map(() => endT);
+    for (const r of rows) if (r.h - r.got > 1e-6 && lanes.length) {
+      const i = over.indexOf(Math.min(...over));
+      lanes[i].blocks.push({ name: r.name, id: r.id, job: r.job, a: over[i], b: over[i] + r.h - r.got, over: true, state: r.state });
+      over[i] += r.h - r.got;
+    }
+    const used = { swing: 0, night: 0 };
+    lanes.forEach((L) => { L.hours = 0; L.blocks.forEach((b) => { if (!b.over) { used[b.k] += b.b - b.a; L.hours += b.b - b.a; } }); });
+    const short = rows.reduce((a, r) => a + r.h - r.got, 0), cap = { swing: crews.swing * sh[0].work, night: crews.night * sh[1].work, day: crews.day * sh[2].work };
+    const cost = (s) => crews[s.k] * s.len * GR_PAY.op * GR_PAY[s.k] + fleet.slice(0, crews[s.k]).reduce((a, m) => a + s.work * GR_TYPES[m.type].fuel, 0);
+    const total = sh.reduce((a, s) => a + cost(s), 0), crewN = sh.reduce((a, s) => a + crews[s.k], 0);
+    return { sh, crews, cap, used, rows, lanes, need, short, cost, total, crewN, winch, worked: used.swing + used.night };
+  }
+  // The trails that need you, worst first: not reached, cut short, a pitch skipped, then Autopilot's suggestions.
+  function grNeeds(p, last) {
+    if (!S.gr.fleet.length) return [];
+    const out = [], by = (s) => p.rows.filter((r) => r.state === s);
+    for (const r of by('none')) out.push({ r, sev: 'bad', why: `Out of hours: every groomer ${last ? 'was' : 'is'} out both shifts.`, fix: ['Buy a groomer', 'grbuyopen', 'm800'] });
+    for (const r of by('part')) out.push({ r, sev: 'warn', why: `Out of hours after ${grH(r.got)} of ${grH(r.h)} h; the rest goes first ${last ? 'tonight' : 'tomorrow night'}.` });
+    for (const r of by('winch')) if (!S.gr.gone.includes(r.name)) out.push({ r, sev: 'warn', why: 'Its 74 % pitch needs a W (winch) groomer; you have none, so the moguls there grow.', fix: ['Buy a 400 W · $650,000', 'grbuyopen', 'm400w'], x: true });
+    if (!S.gr.fresh) for (const g of GR_SUGGEST) if (!S.gr.gone.includes(g.name)) out.push({ r: { name: g.name, d: g.d, id: g.id, h: 0, state: 'idle' }, sev: 'warn', why: g.why, fix: [g.fix, 'grsug', g.name], x: true });
+    return out;
+  }
+  const grWho = (r) => { const ns = [...new Set(r.parts.map((b) => b.n))], ks = [...new Set(r.parts.map((b) => b.k))]; return `${ns.map((n) => `G${n}`).join(', ')} <span class="lead">${ks.length > 1 ? 'all night' : ks[0]}</span>`; };
+  // A row's tonight (or last night): the job and who does it, or what goes wrong.
+  function grWhat(r, last) {
+    if (r.state === 'planned') return `<span class="st">${GR_JOB[r.job][last ? 1 : 0]} · ${grWho(r)}</span>`;
+    if (r.state === 'part') return `<span class="st">${lampHtml('#f0b43c')}${last ? `Cut short · ${grH(r.got)} of ${grH(r.h)} h` : `Short by ${grH(r.h - r.got)} h`}</span>`;
+    if (r.state === 'winch') return `<span class="st">${lampHtml('#f0b43c')}Pitch skipped</span>`;
+    if (r.state === 'idle') return `<span class="st"><span class="lead">${last ? 'Not groomed' : 'Nothing tonight'}</span></span>`;
+    if (r.state === 'never') return '<span class="st"><span class="lead">Never groomed</span></span>';
+    return `<span class="st">${lampHtml('#d4513f')}${S.gr.fleet.length ? 'Not reached' : 'No groomer'}</span>`;
+  }
+  // A setting or priority as a quiet dropdown (in a row) or a boxed one (on the trail card), with its menu.
+  function grDD(w, name, kind) {
+    const tr = grTr(name), key = `${w}:${name}:${kind}`, L = kind === 'set' ? GR_SETS : GR_PRIO, cur = kind === 'set' ? tr.set : tr.prio, dflt = kind === 'set' ? 'auto' : 'normal';
+    let menu = '';
+    if (S.gr.menu === key) {
+      menu = Object.entries(L).map(([k, [l, d]]) => `<div class="mi" data-act="grpick" data-v="${key}:${k}"><span class="grradio${cur === k ? ' on' : ''}"></span><span>${l}</span><small>${d}</small></div>`).join('');
+      if (w === 'c' && kind === 'set') menu += `<div class="sepl"></div><div class="mi" data-act="grorder" data-v="skip"><span></span><span>Skip tonight</span><small>Leaves it as it is; the setting stays</small></div><div class="mi dis" title="No whales or thin strips to push"><span></span><span>Push tonight</span><small>Nothing to push</small></div>`;
+      menu = `<div class="amenu${w === 'r' && kind === 'prio' ? ' rt' : ''}">${menu}</div>`;
+    }
+    return w === 'c' ? `<div class="grsel" data-act="grmenu" data-v="${key}">${L[cur][0]}<span style="color:var(--soft)">▾</span>${menu}</div>`
+      : `<span class="grdd${cur !== dflt ? ' set' : ''}" data-act="grmenu" data-v="${key}">${L[cur][0]}<i>▾</i>${menu}</span>`;
+  }
+  // The night strip: one lane per groomer from the lift stop to the opening, its work along it; past 7:00 AM, in
+  // amber and red, what doesn't fit.
+  function grStrip(p, last) {
+    const W = 520, x0 = 70, x1 = W - 38, h0 = LIFTS_CLOSE, h1 = 24 + LIFTS_OPEN + 0.5, X = (h) => x0 + (h - h0) / (h1 - h0) * (x1 - x0);
+    const [sw, ni] = p.sh, top = 19, lh = 19, N = p.lanes.length, bot = top + Math.max(1, N) * lh;
+    const T = (x, y, txt, st, anchor = 'middle') => `<text x="${f1(x)}" y="${f1(y)}" text-anchor="${anchor}" style="${st}">${txt}</text>`;
+    const lab = 'font:700 11px DotFix,Overpass,sans-serif;fill:var(--soft)', tick = 'font:600 10px DotFix,Overpass,sans-serif;fill:var(--chart-label)';
+    let s = `<defs><pattern id="grover" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" style="stroke:var(--hair2)" stroke-width="1.2"/></pattern></defs>`;
+    s += T(X((sw.a + sw.b) / 2), 11, `Swing <tspan style="font-weight:600;fill:var(--chart-label)">${hhmm(sw.a % 24)}–${hhmm(sw.b % 24)}</tspan>`, lab);
+    s += T(X((ni.a + ni.b) / 2), 11, `Night <tspan style="font-weight:600;fill:var(--chart-label)">${hhmm(ni.a % 24)}–${hhmm(ni.b % 24)}</tspan>`, lab);
+    s += `<rect x="${f1(X(ni.b))}" y="${top}" width="${f1(X(h1) - X(ni.b))}" height="${bot - top}" fill="url(#grover)"/>`;
+    p.lanes.forEach((L, i) => {
+      const y = top + i * lh, pick = S.gr.card && S.gr.card.kind === 'groomer' && S.gr.card.n === L.m.n;
+      s += `<g class="lane" data-act="grgroomer" data-v="${L.m.n}">${T(0, y + 13, `Groomer ${L.m.n}`, `font:${pick ? 800 : 700} 11.5px DotFix,Overpass,sans-serif;fill:var(--${pick ? 'strong' : 'text'})`, 'start')}</g>`;
+      for (const k of ['swing', 'night']) {
+        const sh = p.sh.find((x) => x.k === k), on = L.win.some((w) => w.k === k);
+        s += `<rect x="${f1(X(sh.a) + 0.5)}" y="${y + 2.5}" width="${f1(X(sh.b) - X(sh.a) - 1)}" height="${lh - 5}" rx="1" style="fill:${on ? 'var(--chart-bg)' : 'none'};stroke:var(--hair2)"${on ? '' : ' stroke-dasharray="2 2"'}/>`;
+        if (!on) s += T(X((sh.a + sh.b) / 2), y + 13, 'No crew', 'font:600 10.5px DotFix,Overpass,sans-serif;fill:var(--faint)');
+      }
+      for (const b of L.blocks) {
+        const xa = X(b.a) + 0.6, w = Math.max(1.5, X(Math.min(b.b, h1)) - X(b.a) - 1.2), bad = b.over && b.state === 'none', warn = b.state === 'winch' || (b.over && b.state === 'part');
+        const fill = bad ? 'var(--neg)' : warn ? 'var(--warn)' : 'var(--chart-a)', op = b.job === 'till' && !bad && !warn ? 0.62 : 0.92;
+        const tip = `${b.name} · ${GR_JOB[b.job][0]} · ${grH(b.b - b.a)} h${b.over ? (b.state === 'none' ? ' · not reached' : ' · past the crews\' hours') : ` · ${hhmm(b.a % 24)}–${hhmm(b.b % 24)}`}${b.state === 'winch' ? ' · the pitch is skipped' : ''}`;
+        const fits = Math.floor((w - 6) / 5.7), word = b.name.length <= fits ? b.name : fits >= 4 ? b.name.slice(0, fits - 1) + '…' : '';
+        s += `<g${b.id ? ` data-row="${b.id}"` : ''}><title>${tip}</title><rect x="${f1(xa)}" y="${y + 3.5}" width="${f1(w)}" height="${lh - 7}" rx="1" style="fill:${fill}" opacity="${op}"/>`;
+        if (word) s += T(xa + 3, y + 13.2, esc(word), `font:700 10px DotFix,Overpass,sans-serif;fill:${bad ? '#fff' : 'var(--panel)'}`, 'start');
+        s += '</g>';
+      }
+      s += T(W, y + 13, `${grH(L.hours)} h`, 'font:600 11px Overpass Mono,monospace;fill:var(--muted)', 'end');
+    });
+    if (!N) s += T((x0 + x1) / 2, top + 13, `No groomers: none of tonight's ${grH(p.need)} h can be done`, 'font:700 11.5px DotFix,Overpass,sans-serif;fill:var(--warn)');
+    for (const hh of [sw.b, ni.b]) s += `<line x1="${f1(X(hh))}" y1="${top - 3}" x2="${f1(X(hh))}" y2="${bot + 2}" style="stroke:var(--chart-label)" stroke-width="0.8"/>`;
+    s += `<line x1="${f1(X(24 + LIFTS_OPEN))}" y1="${top - 3}" x2="${f1(X(24 + LIFTS_OPEN))}" y2="${bot + 2}" style="stroke:var(--chart-label)" stroke-width="0.8" stroke-dasharray="2 2"/>`;
+    for (const hh of [18, 21, 24, 27]) s += T(X(hh), bot + 12, hourLbl(hh % 24), tick);
+    s += T(X(24 + LIFTS_OPEN), bot + 12, `Opens ${hhmm(LIFTS_OPEN)}`, tick, 'end');
+    return `<svg width="${W}" height="${bot + 15}" class="grsvg">${s}</svg>`;
+  }
+  function grStripPlate(p, last) {
+    const f = S.gr.fleet.length, cost = `<span title="${GR_PAYTIP}">≈ ${usd(p.total)}</span>`;
+    const right = !f ? `${grH(p.need)} h of work · no groomers` : last ? `${grH(p.worked)} h worked${p.short > 0.05 ? ` · <span class="grwarn">${grH(p.short)} h short</span>` : ''} · ${cost}`
+      : `${grH(p.worked)} of ${grH(p.need)} h${p.short > 0.05 ? ` · <span class="grwarn">${grH(p.short)} h short</span>` : ''} · ${cost}`;
+    const key = f ? `<div class="grkey"><span><i></i>Push</span><span><i class="t"></i>Till</span><span><i class="w"></i>Needs you</span><span><i class="b"></i>Not reached</span><span class="r">Hover a block for its trail; click a groomer for its card</span></div>` : '';
+    return `<div class="wxplate grplate" data-ui="grooming-strip"><div class="grhd">${qseg('grview', S.gr.view, [['tonight', 'Tonight'], ['last', 'Last night']])}<span>${right}</span></div>
+      <div class="grstrip">${grStrip(p, last)}</div>${key}
+      ${f ? '' : '<div class="acts" style="grid-template-columns:1fr;padding:2px 10px 9px"><div class="go" data-act="grbuyopen" data-v="m400"><span>Buy your first groomer</span><span>from $500,000</span></div></div>'}</div>`;
+  }
+  // The trails: the ones that need you first (numbered, worst first), then tonight's work in order. Needs you adds each
+  // one's reason and its fix; Never lists the trails nobody grooms.
+  function grTrailTable(p, last) {
+    const needs = grNeeds(p, last), flt = S.gr.filter, cols = 'grid-template-columns:16px minmax(0,1.3fr) 0.95fr 0.62fr minmax(0,1.2fr) 30px';
+    const row = (r, num, sev) => `<div class="r${r.id ? ` arow${S.focus === r.id ? ' on' : ''}${S.rowHover === r.id ? ' hv' : ''}" data-row="${r.id}" data-act="afocus" data-v="${r.id}` : ''}" style="${cols}"${r.why ? ` title="${r.why}"` : ''}><span class="grn ${sev || ''}">${num || ''}</span><span class="nm">${RATING[r.d]}${esc(r.name)}</span><span>${grDD('r', r.name, 'set')}</span><span>${grDD('r', r.name, 'prio')}</span>${grWhat(r, last)}<span class="n">${r.h ? grH(r.h) : ''}</span></div>`;
+    const why = (it) => `<div class="r why" style="${cols}"><span></span><span style="grid-column:2 / 5">${it.why}</span><span class="fx" style="grid-column:5 / 7">${it.fix ? `<span class="ghost fix" data-act="${it.fix[1]}" data-v="${it.fix[2]}">${it.fix[0]}</span>` : ''}${it.x ? `<span class="ghost" data-act="grgone" data-v="${it.r.name}" title="Dismiss: keep the trail's schedule">✕</span>` : ''}</span></div>`;
+    const inNeeds = new Set(needs.map((it) => it.r.name));
+    let body = '';
+    if (flt === 'never') body = GR_NEVER.map(([n, d]) => row({ name: n, d, h: 0, state: 'never' })).join('');
+    else if (flt === 'needs') body = needs.length ? needs.map((it, i) => row(it.r, i + 1, it.sev) + why(it)).join('') : '<div class="r"><span class="lead">Nothing needs you tonight.</span></div>';
+    else body = needs.map((it, i) => row(it.r, i + 1, it.sev)).join('') + p.rows.filter((r) => !inNeeds.has(r.name)).map((r) => row(r)).join('');
+    const tools = `<div class="atools">${qseg('grfilt', flt, [['tonight', `Tonight <span class="lead">${p.rows.length + (S.gr.fresh || !S.gr.fleet.length ? 0 : GR_SUGGEST.filter((g) => !S.gr.gone.includes(g.name)).length)}</span>`], ['needs', `Needs you <span class="lead">${needs.length}</span>`], ['never', `Never <span class="lead">${GR_NEVER.length}</span>`]])}<span style="margin-left:auto">${flt === 'tonight' ? 'Needs you first, then in order of work' : flt === 'needs' ? 'Worst first' : 'Glades and zones'}</span></div>`;
+    return `${tools}<div class="tbl grt" data-ui="grooming-trails"><div class="r th" style="${cols}"><span></span><span>Trail</span><span>Grooming</span><span>Priority</span><span>${last ? 'Last night' : 'Tonight'}</span><span class="n">h</span></div>${body}</div>`;
+  }
+  // Equipment: each groomer with a crew check per shift (a check staffs it; changing one pins that shift's count), the
+  // crews and cost per shift under them, then the Skogkatt catalogue.
+  function grEquip(p) {
+    const f = S.gr.fleet, sh = p.sh, cols = 'grid-template-columns:minmax(0,0.9fr) minmax(0,1.3fr) 66px 66px 66px 44px';
+    const cell = (i, s) => { const on = i < p.crews[s.k]; return `<span class="grc" data-act="grcell" data-v="${s.k}:${i}" title="${on ? 'Bench this groomer' : 'Staff this groomer'} for the ${s.name.toLowerCase()} shift"><span class="chk${on ? ' on' : ''}"></span></span>`; };
+    const pickN = S.gr.card && S.gr.card.kind === 'groomer' ? S.gr.card.n : null;
+    const rows = f.length ? f.map((m, i) => `<div class="r arow${pickN === m.n ? ' on' : ''}" style="${cols}" data-act="grgroomer" data-v="${m.n}"><span>Groomer ${m.n}</span><span class="nm">Skogkatt ${GR_TYPES[m.type].name}, ${GR_DRIVES[m.drive][0].toLowerCase()}${m.up.length ? ` <span class="lead">+ ${m.up.map((u) => GR_UPS[u][0].toLowerCase()).join(', ')}</span>` : ''}</span>${sh.map((s) => cell(i, s)).join('')}<span class="n">${m.season} h</span></div>`).join('')
+      : `<div class="r"><span class="lead">No groomers yet: buy one below.</span></div>`;
+    const crewCell = (s) => `<span class="grcc"><b>${p.crews[s.k]}</b> ${S.gr.crews[s.k] === null ? '<span class="lead">auto</span>' : `<span class="lead pin" data-act="grauto" data-v="${s.k}" title="Hand it back to Autopilot">pinned ✕</span>`}</span>`;
+    const tot = f.length ? `<div class="r grtot" style="${cols}"><span>Crews</span><span class="lead">Autopilot staffs just enough</span>${sh.map(crewCell).join('')}<span></span></div>
+      <div class="r grtot" style="${cols}" title="${GR_PAYTIP}"><span>Cost ≈</span><span class="lead">paid by the window</span>${sh.map((s) => `<span class="grcc">${p.crews[s.k] ? usd(p.cost(s)) : '<span class="lead">—</span>'}</span>`).join('')}<span class="n"><b>${usd(p.total)}</b></span></div>` : '';
+    const fleet = `<div class="wxplate grplate" data-ui="grooming-fleet"><div class="hd2"><span>Groomers</span><span>${f.length ? `${grH(f.length * (sh[0].work + sh[1].work))} groomer-hours a night with every crew out` : 'none yet'}</span></div>
+      <div class="tbl"><div class="r th" style="${cols}"><span>Groomer</span><span>Model</span>${sh.map((s) => `<span class="grcc">${s.name}</span>`).join('')}<span class="n">Season</span></div>
+      <div class="r th grwins" style="${cols}"><span></span><span></span>${sh.map((s) => `<span class="grcc">${s.closed ? `${hourLbl(s.a % 24)}–${hourLbl(s.b % 24)}` : `${hourLbl(s.a % 24).replace(' PM', '').replace(' AM', '')}${s.a % 24 >= 12 ? ' PM' : ''}–${hhmm(s.b % 24).replace(':00', '')}`}</span>`).join('')}<span></span></div>${rows}${tot}</div></div>`;
+    const ccols = 'grid-template-columns:52px 76px 34px 78px 96px minmax(0,1fr)';
+    const pickT = S.gr.card && S.gr.card.kind === 'buy' ? S.gr.card.type : null;
+    const cat = Object.entries(GR_TYPES).map(([k, t]) => (t.later ? `<div class="r dis" style="${ccols}" title="Parks come later"><span>${t.name}</span><span class="n">later</span><span></span><span></span><span></span><span>${t.where}</span></div>`
+      : `<div class="r arow${pickT === k ? ' on' : ''}" style="${ccols}" data-act="grbuyopen" data-v="${k}"><span>${t.name}</span><span class="n">${usd(t.price)}</span><span class="n">${t.ps}</span><span class="n">${t.acres.toFixed(1)} <span class="lead">ac/h</span></span><span class="n">${t.push.toLocaleString('en-US')} <span class="lead">yd³/h</span></span><span class="nm">${t.slopes}${t.winch ? ` <span class="lead">· ${t.winch} kN winch</span>` : ''}</span></div>`)).join('');
+    const buy = `<div class="wxplate grplate" data-ui="grooming-buy"><div class="hd2"><span>Buy a Skogkatt</span><span>Arrives at once · diesel price</span></div>
+      <div class="tbl"><div class="r th" style="${ccols}"><span>Model</span><span class="n">Price</span><span class="n">PS</span><span class="n">Till</span><span class="n">Push</span><span>Slopes</span></div>${cat}</div></div>`;
+    return fleet + buy;
+  }
+  // The card on the right: a groomer (its figures, upgrades and Sell) or a model to buy (drive, price, Buy).
+  function grSideCard() {
+    const c = S.gr.card; if (!c) return '';
+    const kv = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+    if (c.kind === 'groomer') {
+      const m = S.gr.fleet.find((x) => x.n === c.n); if (!m) return '';
+      const t = GR_TYPES[m.type], p = grPlan(), i = S.gr.fleet.indexOf(m), sw = i < p.crews.swing, ni = i < p.crews.night;
+      const fit = (k) => (m.up.includes(k) ? `<span class="grlast">Fitted</span>` : `<span class="atb" data-act="grfit" data-v="${m.n}:${k}">Fit · ${usd(GR_UPS[k][1])}</span>`);
+      const wl = t.winch ? `<span class="grlast">${t.winch} kN, built in</span><div class="shint">Steep pitches to 100 %, at half speed.</div>` : '<span class="grlast"><span class="lead">None: a W model has one</span></span><div class="shint">Pitches past 70 % are skipped.</div>';
+      return `<div class="pn fcard" data-ui="groomer-card"><div class="hd">Groomer ${m.n}<span class="nm">${sw || ni ? `${lampHtml('#5fbf6a')} ${sw && ni ? 'Swing, night' : sw ? 'Swing' : 'Night'}` : 'In the bay'}</span><span class="x" data-act="grcardx" title="Close (Esc)">✕</span></div>
+        <dl class="kv">${kv('Model', `Skogkatt ${t.name}`)}${kv('Power', `<b>${t.ps}</b> PS`)}${kv('Drive', GR_DRIVES[m.drive][0])}${kv('Till', `<b>${(t.acres * (m.up.includes('tiller') ? 1.12 : 1)).toFixed(1)}</b> acres an hour`)}${kv('Push', `<b>${t.push}</b> yd³ an hour`)}${kv('Slopes', t.slopes)}${kv('Half speed', 'past 40 %')}${kv('This season', `<b>${m.season}</b> h`)}</dl>
+        <div class="sched"><span>Winch</span>${wl}<span>Tiller</span>${fit('tiller')}<div class="shint">Wider: ${GR_UPS.tiller[2]}.</div></div>
+        <div class="acts" style="grid-template-columns:1fr"><div class="ghost" data-act="grsell" data-v="${m.n}" title="Asks first; a guess at half its price">Sell · ${usd(t.price * GR_DRIVES[m.drive][1] / 2)}</div></div></div>`;
+    }
+    const t = GR_TYPES[c.type], extra = t.price * (GR_DRIVES[c.drive][1] - 1);
+    const seg = `<div class="seg">${Object.entries(GR_DRIVES).map(([k, x]) => `<span class="${c.drive === k ? 'on' : ''}" data-act="grbdrive" data-v="${k}">${x[0]}</span>`).join('')}</div>`;
+    return `<div class="pn fcard" data-ui="groomer-buy-card"><div class="hd">Skogkatt ${t.name}<span class="nm">Arrives at once</span><span class="x" data-act="grcardx" title="Close (Esc)">✕</span></div>
+      <div class="sched" style="border-top:0"><span>Drive</span>${seg}</div>
+      <dl class="kv">${kv('Price', usd(t.price))}${extra ? kv(GR_DRIVES[c.drive][0], `+${usd(extra)}`) : ''}${kv('Power', `<b>${t.ps}</b> PS`)}${kv('Till', `<b>${t.acres.toFixed(1)}</b> acres an hour`)}${kv('Push', `<b>${t.push.toLocaleString('en-US')}</b> yd³ an hour`)}${kv('Slopes', `${t.slopes}${t.winch ? ` on its ${t.winch} kN winch` : ''}`)}${kv('Runs', GR_DRIVES[c.drive][2])}</dl>
+      <div class="hint" style="padding-top:0;font-size:11.5px;color:var(--soft)">A wider tiller is fitted later, from the groomer's card. A winch comes only on a W.</div>
+      <div class="acts"><div class="go" data-act="grbuyok"><span>Buy · ${usd(t.price + extra)}</span></div><div class="ghost" data-act="grcardx">Cancel</div></div></div>`;
+  }
+  // The trail card's grooming row: the setting and the priority, then the last groom and tonight's job.
+  function grCardBlock() {
+    const l = lineOf(S.focus); if (!l) return '';
+    const name = lineRec(l).name, row = grPlan().rows.find((x) => x.name === name);
+    const lastG = { Bighorn: ['2:40 AM', '1,840'], Cornice: ['3 nights ago', '2,960'], Headwall: ['1:15 AM', '1,150'], Timberline: ['4:05 AM', '2,410'] }[name] || ['last night', 'no'];
+    const ks = row ? [...new Set(row.parts.map((b) => b.k))] : [], ns = row ? [...new Set(row.parts.map((b) => b.n))] : [];
+    const tn = !row ? 'nothing' : row.state === 'planned' || row.state === 'winch' ? `${GR_JOB[row.job][0]} on Groomer ${ns.join(' and ')}, ${ks.length > 1 ? 'all night' : ks[0]}` : row.state === 'part' ? 'cut short' : 'not reached';
+    return `<div class="sched" data-ui="trail-card-grooming"><span>Grooming</span><div class="grpair">${grDD('c', name, 'set')}${grDD('c', name, 'prio')}</div>
+      <div class="shint">Groomed ${lastG[0]} · ${lastG[1]} skiers since · tonight: ${tn}</div></div>`;
+  }
+  // The map while the tab is open: amber under a trail that needs you, red under one not reached, faded if nothing's on.
+  function grMapState(name) {
+    if (!S.gr.gone.includes(name) && GR_SUGGEST.some((x) => x.name === name)) return S.gr.fleet.length && !S.gr.fresh ? 'warn' : 'idle';
+    const r = grPlan().rows.find((x) => x.name === name);
+    if (!r) return 'idle';
+    return r.state === 'none' ? 'bad' : r.state === 'planned' || (r.state === 'winch' && S.gr.gone.includes(name)) ? 'plan' : 'warn';
+  }
+  function grHalo(l, under) {
+    const st = grMapState(l.name), d = smooth(linePts(l)); if (!d) return '';
+    if (under) return st === 'warn' || st === 'bad' ? `<path d="${d}" fill="none" stroke="${st === 'bad' ? '#d4513f' : '#f0b43c'}" stroke-width="12" opacity=".8" stroke-linecap="round"/>` : '';
+    return st === 'idle' ? `<path d="${d}" fill="none" stroke="#fbf8f2" stroke-width="3" opacity=".6" stroke-linecap="round"/>` : '';
+  }
+  function grLegend() {
+    const mk = (svg) => `<svg width="22" height="12" viewBox="0 0 22 12">${svg}</svg>`, ln = (c) => `<line x1="2" y1="6" x2="20" y2="6" stroke="#fff" stroke-width="4.4" stroke-linecap="round" opacity=".75"/><line x1="2" y1="6" x2="20" y2="6" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/>`;
+    const halo = (c) => `<line x1="2" y1="6" x2="20" y2="6" stroke="${c}" stroke-width="10" stroke-linecap="round" opacity=".8"/>`;
+    const row = (svg, word) => `<div class="lr"><span>${mk(svg)}</span><span>${word}</span><span></span></div>`;
+    return `<div class="legend" data-ui="legend"><div class="lh" data-ui="legend-head">Grooming ${S.gr.view === 'last' ? 'last night' : 'tonight'}<span class="x" data-act="legendx" data-ui="legend-x" title="Close the key">✕</span></div>
+      ${row(ln(runColour.blue), S.gr.view === 'last' ? 'Groomed' : 'Groomed tonight')}${row(halo('#f0b43c') + ln(runColour.blue), 'Needs you')}${row(halo('#d4513f') + ln(runColour.blue), 'Not reached')}${row(ln(runColour.blue) + '<line x1="2" y1="6" x2="20" y2="6" stroke="#fbf8f2" stroke-width="3" opacity=".6" stroke-linecap="round"/>', S.gr.view === 'last' ? 'Not groomed' : 'Nothing tonight')}
+      <div class="ln">Hover a block on the night strip to find its trail.</div></div>`;
+  }
+  function grAct(a, v) {
+    const gr = S.gr, m = (n) => gr.fleet.find((x) => x.n === +n), tr = (name) => (gr.trail[name] = gr.trail[name] || { ...grTr(name) });
+    switch (a) {
+      case 'grtab': gr.tab = v; break;
+      case 'grview': gr.view = v; break;
+      case 'grfilt': gr.filter = v; break;
+      case 'grmenu': gr.menu = gr.menu === v ? null : v; break;
+      case 'grpick': { const [, name, kind, k] = v.split(':'); tr(name)[kind] = k; gr.menu = null; break; }
+      case 'grorder': log('<span>Skipped tonight; its setting stays</span>', '#6f675e', true); break;
+      case 'grcell': { const [k, i] = v.split(':'), on = +i < grPlan().crews[k]; gr.crews[k] = on ? +i : +i + 1; break; }
+      case 'grauto': gr.crews[v] = null; break;
+      case 'grgroomer': gr.tab = 'equip'; gr.card = { kind: 'groomer', n: +v }; S.focus = null; break;
+      case 'grfitgo': gr.tab = 'equip'; gr.card = { kind: 'groomer', n: +v }; S.focus = null; break;
+      case 'grcardx': gr.card = null; break;
+      case 'grbuyopen': gr.tab = 'equip'; gr.card = { kind: 'buy', type: v || 'm400', drive: 'diesel' }; S.focus = null; break;
+      case 'grbdrive': gr.card.drive = v; break;
+      case 'grbuyok': { const n = Math.max(0, ...gr.fleet.map((x) => x.n)) + 1; gr.fleet.push({ n, type: gr.card.type, drive: gr.card.drive, up: [], season: 0 }); log(`<span><b>Groomer ${n}</b> bought: Skogkatt ${GR_TYPES[gr.card.type].name}, ready tonight</span>`, '#1a6b3c'); gr.card = { kind: 'groomer', n }; break; }
+      case 'grfit': { const [n, k] = v.split(':'); m(n).up.push(k); log(`<span><b>Groomer ${n}</b>: ${GR_UPS[k][0].toLowerCase()} fitted</span>`, '#1a6b3c'); break; }
+      case 'grsell': gr.fleet = gr.fleet.filter((x) => x.n !== +v); gr.card = null; log(`<span><b>Groomer ${v}</b> sold (the game asks first)</span>`); break;
+      case 'grsug': log(`<span><b>${esc(v)}</b>: done for tonight; its schedule stays yours</span>`, '#6f675e', true); break;
+      case 'grgone': gr.gone.push(v); break;
+      default: return false;
+    }
+    if (a !== 'grmenu') gr.menu = null;
+    render();
+    return true;
+  }
+  function groomingTab() {
+    const p = grPlan(), f = S.gr.fleet.length, equip = S.gr.tab === 'equip', needs = grNeeds(p, S.gr.view === 'last').length;
+    const right = equip ? `Maker: Skogkatt · ${f} groomer${f === 1 ? '' : 's'}` : !f ? '<span class="grwarn">No groomers</span>' : needs ? `<span class="grwarn">${needs} need${needs === 1 ? 's' : ''} you</span>` : 'Nothing needs you';
+    return `<div class="wxsw grsw">${qseg('grtab', S.gr.tab, [['trails', 'Trails'], ['equip', 'Equipment']])}<span class="lead">${right}</span></div>
+      ${equip ? grEquip(p) : grStripPlate(p, S.gr.view === 'last') + grTrailTable(p, S.gr.view === 'last')}`;
+  }
   function analysisBody() {
     if (S.atab === 'network') return networkTab();   // task P3-10: the game has it in Phase 3
+    if (S.atab === 'grooming' && (S.groom || !S.p2)) return groomingTab();   // task 4.25: the mockup, before the game has it
     if (S.atab === 'weather' && (S.wx46 || !S.p2)) return weatherTab();   // task 4.06: WX-46 v2
     if (S.p2) return `<div class="empty" data-ui="analysis-empty">${P2_EMPTY[S.atab]}</div>`;
     const wx = weather(S.t), open = isOpen(), built = S.lifts.filter((l) => l.built), waits = built.map(waitFor);
@@ -5404,7 +5788,7 @@ body.solo .frame { border-radius: 0; }
       <div class="sepl"></div><div class="ghead">Info layers</div>${inf('slope')}${inf('aspect')}${inf('depth')}${inf('pressure')}
       <div class="row lay dis" data-ui="layer-conditions" title="Comes with the snow simulation"><span class="rad"></span><span>Snow conditions<small>Comes with the snow simulation</small></span><span class="r">Shift 0</span></div>
       <div class="row lay" data-act="contours" data-ui="layer-contours"><span class="chk${S.contours ? ' on' : ''}"></span>Contours<span class="r">Shift 6</span></div></div>`;
-    const card = S.focus && !S.drop ? focusCard() : S.snow.card && !S.drop ? snowCard() : '';
+    const card = S.focus && !S.drop ? focusCard() : S.snow.card && !S.drop ? snowCard() : grOn() && S.gr.card && !S.drop ? grSideCard() : '';   // task 4.25: a groomer's or a model's card
     if (S.drop !== 'menu') {   // the menu opens over the legend's place
       let lg = legendCard();
       // finding 3 (NT12): with a card open, the legend folds to its title (▸ unfolds it) and the card stacks below it
@@ -5987,6 +6371,8 @@ body.solo .frame { border-radius: 0; }
     if (a !== 'lkmenu') S.lkMenu = false;
     if (a && a.startsWith('wt:')) { waterAct(a.slice(3), v); return; }   // task 4.14's water windows
     if (a && a.startsWith('sn:')) { snowAct(a.slice(3), v); return; }   // task 4.15's snowmaking windows and cards
+    if (a && a.startsWith('gr') && grAct(a, v)) return;   // task 4.25's Grooming tab and trail-card block
+    if (a !== 'grmenu') S.gr.menu = null;
     switch (a) {
       case 'toolbox': S.toolbox = !S.toolbox; S.analysis = false; if (!S.toolbox) { S.tool = null; S.draft = null; S.sel = null; } break;
       case 'analysis': S.analysis = !S.analysis; if (S.analysis) { S.toolbox = false; S.tool = null; S.draft = null; S.sel = null; } break;
@@ -6564,6 +6950,28 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('wxseason') || d.includes('wxcal')) S.wxView = 'season';
     if (d.includes('wxclimate')) S.wxView = 'climate';
     if (d.includes('wxlimited')) S.wxLimited = true;
+    // task 4.25, Analysis › Grooming at 4:45 PM, after the sweep: agrooming (Trails: the night strip and tonight's trails),
+    // groomsuggest (Trails, Needs you: each reason and its fix), groomfleet (Equipment, Groomer 1's card), groombuy
+    // (Equipment, buying an 800 W), groomlast (8:00 AM: last night, with the morning toast), groomnone (a new
+    // resort: no groomers), groomcard (Bighorn's card), groommenu (its setting menu open), groompin (Equipment, night
+    // crews pinned at 2); groom shows the tab under p2.
+    if (d.includes('groom')) S.groom = true;
+    if (['agrooming', 'groomsuggest', 'groomfleet', 'groombuy', 'groomlast', 'groomnone', 'groomcard', 'groommenu', 'groompin'].some((x) => d.includes(x))) { S.analysis = true; S.atab = 'grooming'; S.t = 16.75 * 3600; }
+    if (d.includes('groomsuggest')) S.gr.filter = 'needs';
+    if (d.includes('groomfleet')) { S.gr.tab = 'equip'; S.gr.card = { kind: 'groomer', n: 1 }; }
+    if (d.includes('groombuy')) { S.gr.tab = 'equip'; S.gr.card = { kind: 'buy', type: 'm800w', drive: 'diesel' }; }
+    if (d.includes('groomnone')) {   // a new resort's opening eve, November 27: no groomers, no skiers yet
+      S.gr.fleet = []; S.gr.fresh = true; S.day = 88; S.skiers = 0; S.peakToday = 0;
+      logs.push({ text: '<span><b>No groomers:</b> nothing will be groomed tonight</span>', c: '#f0b43c' });
+    }
+    if (d.includes('groompin')) { S.gr.crews.night = 2; S.gr.tab = 'equip'; }
+    if (d.includes('groomcard') || d.includes('groommenu')) S.focus = 't1';
+    if (d.includes('groommenu')) S.gr.menu = 'c:Bighorn:set';
+    if (d.includes('groomlast')) {
+      const p = grPlan(), none = p.rows.filter((r) => r.state === 'none').length;
+      S.gr.view = 'last'; S.t = 8 * 3600; S.day += 1;   // the next morning
+      logs.push({ text: `<span><b>${none} trails</b> not groomed last night · ${grH(p.short)} groomer-hours short</span>`, c: '#f0b43c' });
+    }
     // wxweekly / wxseasonal: Climate's view, over the default (Weekly in the limited view, Seasonal otherwise).
     if (d.includes('wxweekly')) S.wxClim = 'weekly';
     if (d.includes('wxseasonal')) S.wxClim = 'season';
