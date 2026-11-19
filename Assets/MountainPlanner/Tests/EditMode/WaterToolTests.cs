@@ -81,7 +81,7 @@ namespace MountainPlanner.Tests
         {
             foreach (var id in new[] { PondTool.ToolId, DamTool.ToolId, WaterSourceTool.ToolId, EditWaterTool.ToolId, RemoveWaterTool.ToolId })
                 Assert.That(ToolCatalog.IsLive(id), Is.True, id);
-            Assert.That(ToolCatalog.IsLive("gun"), Is.False, "4.15's tools stay greyed");
+            Assert.That(ToolCatalog.IsLive(SnowGunTool.ToolId), Is.True, "4.15's network tools are live (SnowToolTests)");
         }
 
         [Test]

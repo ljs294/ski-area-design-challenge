@@ -180,6 +180,19 @@ namespace MountainPlanner.Presentation
         public const string TrafficLiftsHead = "Lifts: how full the chairs run";
         public const string TrafficNote = "A circle at a lift's bottom grows with its line: the line and the wait beside it.";
 
+        // ---------- Pipe pressure (task 4.15, the approved mockup's legend) ----------
+
+        public const string PressureTitle = "Pipe pressure";
+        /// <summary>One fixed scale for every network (plan: anchored at the 200 psi a gun needs), so colours compare between edits.</summary>
+        public static Entry[] Pressure => new[]
+        {
+            new Entry(Snowmaking.SnowNetworkView.PressureColour(120), "Guns can't start", "under 200 psi"),
+            new Entry(Snowmaking.SnowNetworkView.PressureColour(500), "Enough for a gun", "200–800"),
+            new Entry(Snowmaking.SnowNetworkView.PressureColour(900), "Near the pipe class", "800–1,000"),
+            new Entry(Snowmaking.SnowNetworkView.PressureColour(1100), "Over the class", "over 1,000"),
+        };
+        public const string PressureNote = "Psi at grade, on one scale for every network, so colours compare between edits. Greyed while a change is being solved.";
+
         public const string SlopeTitle = "Slope angle", ExposureTitle = "Slope exposure", SnowDepthTitle = "Snow depth";
         public const string SlopeNote = "Grade: rise over run (100% is 45°).";
         public const string ExposureNote = "The way each slope faces, from true north; flatter than 10% is grey.";

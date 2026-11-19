@@ -25,6 +25,8 @@ namespace MountainPlanner.UI.Hud
             ["s-skier"] = new[] { new Layer("s-skier", false) },
             ["s-gun"] = new[] { new Layer("s-gun", false) },
             ["s-pipe"] = new[] { new Layer("s-pipe", false) },
+            ["s-booster"] = new[] { new Layer("s-booster.0", false), new Layer("s-booster.1", true) },
+            ["s-check"] = new[] { new Layer("s-check", false) },
             ["s-pump"] = new[] { new Layer("s-pump.0", false), new Layer("s-pump.1", true) },
             ["s-pond"] = new[] { new Layer("s-pond", false) },
             ["s-dam"] = new[] { new Layer("s-dam", false) },

@@ -19,6 +19,8 @@ namespace MountainPlanner.Domain.Snowmaking
         public readonly bool WhatIf;
         /// <summary>Pressure at each graph node: at grade (a hydrant's outlet, what a gun sees) and in the buried pipe.</summary>
         public readonly float[] GradePsi, PipePsi;
+        /// <summary>Whether a node has a pressure (water nodes and nodes cut off from all water have none).</summary>
+        public readonly bool[] Known;
         /// <summary>Flow on each graph link, gpm, positive from A to B.</summary>
         public readonly float[] LinkGpm;
         public readonly GunState[] GunStates;
@@ -41,10 +43,11 @@ namespace MountainPlanner.Domain.Snowmaking
             GradePsi = new float[g.NodeCount];
             PipePsi = new float[g.NodeCount];
             LinkGpm = new float[g.LinkCount];
+            Known = new bool[g.NodeCount];
             if (Solved)
             {
                 for (int i = 0; i < g.NodeCount; i++)
-                    if (g.Unknown[i] >= 0) { GradePsi[i] = (float)s.Solver.GradePsi(i); PipePsi[i] = (float)s.Solver.Psi(i); }
+                    if (g.Unknown[i] >= 0) { GradePsi[i] = (float)s.Solver.GradePsi(i); PipePsi[i] = (float)s.Solver.Psi(i); Known[i] = true; }
                 for (int k = 0; k < g.LinkCount; k++) LinkGpm[k] = s.Solver.Shut[k] ? 0f : (float)s.Solver.Q[k];
             }
             GunStates = (GunState[])s.GunStates.Clone();

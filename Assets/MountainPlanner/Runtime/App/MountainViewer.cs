@@ -295,6 +295,7 @@ namespace MountainPlanner.App
                 StartWeatherShots(args);   // -weathershots <folder> (MountainViewer.WeatherReadout.cs, task 4.05)
                 StartWeatherLook(args);    // -wxlook <look>, -wxshots <folder>, -wxdemo, bisect switches (MountainViewer.WeatherLook.cs, task 4.06)
                 StartWaterShots(args);     // -watershots <folder> (MountainViewer.WaterShots.cs, task 4.14)
+                StartSnowShots(args);      // -snowshots <folder> (MountainViewer.SnowShots.cs, task 4.15 PR B)
                 StartLakeReport(args);     // -lakereport <folder> (MountainViewer.Lakes.cs, task 4.09)
                 StartSnowLapse(args);      // -snowlapse <folder> [-snowdays N] (MountainViewer.SnowLapse.cs, task 4.07 PR A2)
                 StartWhaleReport(args);    // -gunwhale: what became of it, once the snow is in (MountainViewer.GunWhale.cs)
@@ -670,6 +671,7 @@ namespace MountainPlanner.App
             _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _resort?.Surface, _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
             TickTrailLayer(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);   // task 08
             TickNetwork(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);      // task P3-10
+            TickSnowView(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);     // task 4.15
             TickTraffic(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);      // task 4.13 PR C (SN-31)
             TickCatchment(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);    // task P3-10, NT16
             _labelPlacement.Place();   // every set's names at once, none overlapping (NT7)

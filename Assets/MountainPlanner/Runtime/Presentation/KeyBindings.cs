@@ -36,6 +36,8 @@ namespace MountainPlanner.Presentation
         BrushWeaker, BrushStronger, TargetUp, TargetDown,
         // Task 4.13 PR C (SN-31): the Traffic info layer.
         InfoTraffic,
+        // Task 4.15: the Snowmaking tab's own letters (the Water line takes the tray's N and the Snow gun its G).
+        SnowPumpHouse, SnowInlinePump, SnowCheck,
     }
 
     [Flags]
@@ -201,6 +203,10 @@ namespace MountainPlanner.Presentation
             new Info("Building", "Target down 1 ft (Shift 10 ft)", Context.Tray, new KeyChord(Key.PageDown), whileClaimed: true),
             // Task 4.13 PR C (SN-31): the Traffic info layer, on the last free layer chord.
             new Info("Layers", "Traffic", Context.Normal, new KeyChord(Key.Digit5, KeyMods.Shift)),
+            // Task 4.15: P is photo mode only with the tray shut; K is a tower's kind only while a tower is selected.
+            new Info("Toolbox", "Pump house", Context.Tray, new KeyChord(Key.P)),
+            new Info("Toolbox", "Inline pump", Context.Tray, new KeyChord(Key.I)),
+            new Info("Toolbox", "Check the snowmaking network", Context.Tray, new KeyChord(Key.K)),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>

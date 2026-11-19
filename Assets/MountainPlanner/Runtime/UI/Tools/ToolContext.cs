@@ -115,6 +115,32 @@ namespace MountainPlanner.UI.Tools
         /// tenths of a foot, area), or null; the Water source tool picks with it.</summary>
         public Func<PointMm, LakeUnder?> LakeAt { get; set; }
 
+        /// <summary>
+        /// Task 4.15: solves a draft snowmaking network as the game plays it (the edited ground, the sources' full pools, this
+        /// hour's weather), on any thread; null until the ground is ready, and in tests without a mountain.
+        /// </summary>
+        public Func<SnowService> Snow { get; set; }
+
+        /// <summary>Task 4.15 (WS-05, WS-11): the snowmaking source whose water is nearest a point within a reach (mm), or null;
+        /// null in tests without a map.</summary>
+        public Func<PointMm, int, SourceNear?> SourceNear { get; set; }
+
+        /// <summary>Task 4.15: the game's last solve of the built network (the guns as set), or null.</summary>
+        public Func<Domain.Snowmaking.SnowSolution> LiveSnow { get; set; }
+
+        /// <summary>Task 4.15 (plan Q4): the game's "every gun running" solve while <see cref="SetSnowCheck"/> is on, or null.</summary>
+        public Func<Domain.Snowmaking.SnowSolution> LiveSnowCheck { get; set; }
+
+        /// <summary>Task 4.15: whether the game's solve is waiting on its latency after an edit (the result shows greyed).</summary>
+        public Func<bool> SnowPending { get; set; }
+
+        /// <summary>Task 4.15: turns the game's "every gun running" check on or off.</summary>
+        public Action<bool> SetSnowCheck { get; set; }
+
+        /// <summary>Task 4.15: lights network pieces on the map (pipes, nodes, houses, guns; empty for none) and the
+        /// "Show me" flight to one point (null: stay).</summary>
+        public Action<IReadOnlyList<SnowId>, PointMm?> ShowSnow { get; set; }
+
         /// <summary>Where confirmed earthwork is paid for (BR19): the Phase 4 economy; null until then, so nothing is charged.</summary>
         public IEarthworkCharges Charges { get; set; }
 

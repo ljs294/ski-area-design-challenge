@@ -37,6 +37,11 @@ namespace MountainPlanner.UI
             WaterSourceTool.ToolId => "switch a lake on as a water source",
             EditWaterTool.ToolId => "reshape a pond, or open a dam or lake",
             RemoveWaterTool.ToolId => "take a pond or dam out; its ground goes back",
+            PumpHouseTool.ToolId => "beside a pond, dam or lake: it pumps the water up",
+            WaterLineTool.ToolId => "click its points; hydrants every 100 ft",
+            InlinePumpTool.ToolId => "click a line: a booster adds 300 psi",
+            SnowGunTool.ToolId => "click beside a hydrant, or fill a whole line",
+            CheckNetworkTool.ToolId => "the network's problems, with fixes",
             _ => "",
         };
 
@@ -50,6 +55,12 @@ namespace MountainPlanner.UI
             : id == PondTool.ToolId ? GameAction.TerrainSmooth
             : id == DamTool.ToolId ? GameAction.TerrainRaise
             : id == WaterSourceTool.ToolId ? GameAction.TerrainFlatten
+            // Task 4.15: W is the camera's, so the Water line takes N (New); the gun shares Slope's G.
+            : id == PumpHouseTool.ToolId ? GameAction.SnowPumpHouse
+            : id == WaterLineTool.ToolId ? GameAction.ToolNew
+            : id == InlinePumpTool.ToolId ? GameAction.SnowInlinePump
+            : id == SnowGunTool.ToolId ? GameAction.TerrainSlope
+            : id == CheckNetworkTool.ToolId ? GameAction.SnowCheck
             : id.StartsWith("new-", StringComparison.Ordinal) ? GameAction.ToolNew
             : id.StartsWith("edit-", StringComparison.Ordinal) ? GameAction.ToolEdit
             : id.StartsWith("remove-", StringComparison.Ordinal) ? GameAction.ToolRemove
@@ -75,6 +86,11 @@ namespace MountainPlanner.UI
                     GameAction.TerrainFlatten => WaterSourceTool.ToolId,
                     GameAction.ToolEdit => EditWaterTool.ToolId,
                     GameAction.ToolRemove => RemoveWaterTool.ToolId,
+                    GameAction.SnowPumpHouse => PumpHouseTool.ToolId,
+                    GameAction.ToolNew => WaterLineTool.ToolId,
+                    GameAction.SnowInlinePump => InlinePumpTool.ToolId,
+                    GameAction.TerrainSlope => SnowGunTool.ToolId,
+                    GameAction.SnowCheck => CheckNetworkTool.ToolId,
                     _ => null,
                 };
             string noun = _toolboxTab == "lifts" ? "lift" : _toolboxTab == "trails" ? "trail" : null;

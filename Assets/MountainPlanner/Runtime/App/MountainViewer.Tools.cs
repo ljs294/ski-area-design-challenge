@@ -97,7 +97,7 @@ namespace MountainPlanner.App
             Hud.ToolboxLeft += CancelTool;
         }
 
-        ToolContext HookedWater(ToolContext c) { HookWater(c); return c; }   // task 4.14
+        ToolContext HookedWater(ToolContext c) { HookWater(c); HookSnow(c); return c; }   // tasks 4.14, 4.15
 
         // A tray closing or changing tab cancels the armed tool at once, saying so if it had work (CF-01; P3-06 Q8).
         void CancelTool()
@@ -137,6 +137,7 @@ namespace MountainPlanner.App
             _designOverlay?.Dispose();
             DisposeTrailLayer();
             DisposeNetworkView();   // task P3-10
+            DisposeSnowView();      // task 4.15
             DisposeCatchment();
             _tools = null;
             _preview = null;
@@ -185,7 +186,8 @@ namespace MountainPlanner.App
         }
 
         static readonly GameAction[] TrayLetters = { GameAction.ToolNew, GameAction.ToolEdit, GameAction.ToolRemove,
-                                                     GameAction.TerrainRaise, GameAction.TerrainFlatten, GameAction.TerrainSmooth, GameAction.TerrainSlope };
+                                                     GameAction.TerrainRaise, GameAction.TerrainFlatten, GameAction.TerrainSmooth, GameAction.TerrainSlope,
+                                                     GameAction.SnowPumpHouse, GameAction.SnowInlinePump, GameAction.SnowCheck };
 
         static string Lower(string label) => string.IsNullOrEmpty(label) ? "" : char.ToLowerInvariant(label[0]) + label.Substring(1);
 

@@ -262,3 +262,14 @@
 .hud .tw-gauge__ends { flex-direction: row; justify-content: space-between; }
 .hud .tw-gauge__end { margin: 0; padding: 0; font-size: 10px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
 .hud .tw-gauge__detail { margin: 2px 0 0 0; padding: 0; font-size: 11px; white-space: normal; color: var(--soft); -unity-text-outline-color: var(--soft); }
+
+/* Task 4.15: the Check tool's numbered problems (the approved mockup's snowdiag): number, title, buttons on the title row. */
+.hud .tw-block { flex-shrink: 0; padding: 2px 0 4px 0; max-height: 330px; overflow: hidden; }
+.hud .tw-prob { flex-shrink: 0; padding: 6px 12px 7px 12px; border-top-width: 1px; border-color: var(--hair); }
+.hud .tw-prob__head { flex-direction: row; align-items: center; }
+.hud .tw-prob__n { width: 22px; margin: 0; padding: 0; font-size: 13px; -unity-font-style: bold; color: var(--neg); -unity-text-outline-color: var(--neg); }
+.hud .tw-prob__n--warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.hud .tw-prob__title { flex-grow: 1; flex-shrink: 1; white-space: normal; margin: 0; padding: 0; font-size: 13px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .tw-prob__btn { flex-shrink: 0; height: 24px; margin: 0 0 0 6px; padding: 0 8px; font-size: 12px; }
+.hud .tw-prob__none { margin: 6px 12px 4px 12px; padding: 0; font-size: 12px; white-space: normal; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw-prob__text { margin: 3px 0 0 22px; padding: 0; font-size: 12px; white-space: normal; color: var(--soft); -unity-text-outline-color: var(--soft); }

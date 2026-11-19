@@ -354,12 +354,16 @@ namespace MountainPlanner.Domain.Design
         public IReadOnlyList<PointMm> Points { get; }
         /// <summary>The yaw of each new gun, hundredths of a degree (the tool aims it across its trail).</summary>
         public IReadOnlyList<int> Aims { get; }
+        /// <summary>The new guns' SM-02 setting (task 4.15 PR B: the Snow gun tool's "New guns"; Auto by default).</summary>
+        public GunOverride Override { get; }
 
-        public AddSnowGuns(long baseRevision, GunModel model, IReadOnlyList<PointMm> points, IReadOnlyList<int> aims = null) : base(baseRevision)
+        public AddSnowGuns(long baseRevision, GunModel model, IReadOnlyList<PointMm> points, IReadOnlyList<int> aims = null,
+                           GunOverride over = GunOverride.Auto) : base(baseRevision)
         {
             Model = model;
             Points = points ?? Array.Empty<PointMm>();
             Aims = aims;
+            Override = over;
         }
 
         public override string Label => Points.Count == 1 ? "Install a gun" : "Install guns";
@@ -376,7 +380,7 @@ namespace MountainPlanner.Domain.Design
                 var h = SnowEdit.NearestFreeHydrant(net, Points[i], taken);
                 if (!h.IsNone) taken.Add(h);
                 int aim = Aims != null && i < Aims.Count ? ((Aims[i] % 36000) + 36000) % 36000 : 0;
-                var g = new SnowGun(mint.SnowGun(), Model, Points[i], h, aim, GunOverride.Auto);
+                var g = new SnowGun(mint.SnowGun(), Model, Points[i], h, aim, Override);
                 net = net.Put(g);
                 created.Add(g.Id.Value);
             }

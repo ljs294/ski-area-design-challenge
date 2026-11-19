@@ -526,6 +526,47 @@ namespace MountainPlanner.UI.Tools
             return field;
         }
 
+        /// <summary>
+        /// Task 4.15: a block among the options that the tool fills itself (the Check tool's numbered problems, each with its
+        /// own Show me and fix buttons). Rows made by <see cref="ProblemRow"/>.
+        /// </summary>
+        public VisualElement AddBlock(string name)
+        {
+            var b = _opts.Q("toolwin-opt-" + name);
+            if (b != null) return b;   // the same block again: its owner refills it
+            b = Part("toolwin-opt-" + name, "tw-block");
+            _opts.Add(b);
+            return b;
+        }
+
+        /// <summary>One numbered problem (HY-09): its number, title and words, with buttons on the title row.</summary>
+        public static VisualElement ProblemRow(int code, string title, string text, bool warning, params (string Text, Action Click)[] buttons)
+        {
+            var row = Part(null, "tw-prob");
+            var head = Part(null, "tw-prob__head");
+            var n = new Label(code.ToString()) { pickingMode = PickingMode.Ignore };
+            n.AddToClassList("tw-prob__n");
+            n.AddToClassList("mono");
+            n.EnableInClassList("tw-prob__n--warn", warning);
+            var t = new Label(title) { pickingMode = PickingMode.Ignore };
+            t.AddToClassList("tw-prob__title");
+            head.Add(n);
+            head.Add(t);
+            foreach (var b in buttons)
+            {
+                var click = b.Click;
+                var button = new Button(() => click?.Invoke()) { text = b.Text };
+                button.AddToClassList("mp-ghost");
+                button.AddToClassList("tw-prob__btn");
+                head.Add(button);
+            }
+            row.Add(head);
+            var words = new Label(text) { pickingMode = PickingMode.Ignore };
+            words.AddToClassList("tw-prob__text");
+            row.Add(words);
+            return row;
+        }
+
         /// <summary>A line of small print under the options ("2,400 an hour · 450 ft/min").</summary>
         public Label AddNote(string name, string text, string tooltip = null)
         {

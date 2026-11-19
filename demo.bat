@@ -441,6 +441,10 @@ echo    129 Riding down: the Core tests, then a headless day each way (lift 303 
 echo        down per lift, the top line's peak, nobody stranded (rebuilds the game; no GPU).
 echo    130 Snowmaking solver (4.15 PR A): the hand-checked networks, the 20 diagnostics, the water moved between
 echo        ponds, then 500 guns solved in the game against the 20 ms budget (rebuilds the game; no GPU, no window).
+echo    131 Snowmaking network, hands on (4.15 PR B): build a pump house, a water line, a booster and guns in the game
+echo        and read the pressure live; Check lists the problems with fixes (a scratch copy of the demo mountain).
+echo    132 The snowmaking tools' tests, then the review pictures: the tools driven by script in the game, twelve
+echo        pictures in test-results\p4-15\shots (rebuilds the game; about 5 minutes).
 echo.
 echo     Q  Quit
 echo.
@@ -599,6 +603,8 @@ if /i "%CHOICE%"=="127" goto gondolalab
 if /i "%CHOICE%"=="128" goto gondolamodel
 if /i "%CHOICE%"=="129" goto ridedown
 if /i "%CHOICE%"=="130" goto snowsolver
+if /i "%CHOICE%"=="131" goto snownet
+if /i "%CHOICE%"=="132" goto snowshots
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2332,6 +2338,53 @@ if not exist "%~dp0test-results\p4-15" mkdir "%~dp0test-results\p4-15"
 "%GAME%" -batchmode -nographics -solvebench "%~dp0test-results\p4-15\solvebench.txt" -logFile "%~dp0test-results\p4-15\solvebench.log" <nul
 if exist "%~dp0test-results\p4-15\solvebench.txt" type "%~dp0test-results\p4-15\solvebench.txt"
 echo It should read PASS: 500 guns cold well under 20 ms.
+goto done
+
+:snownet
+rem Task 4.15 PR B: the snowmaking network's tools (HY-01..HY-10, SG-01..SG-07), hands on. A scratch data root.
+call :buildplayer
+if not exist "%GAME%" goto done
+set "SN131=%LOCALAPPDATA%\SkiAreaDesignChallenge-snow131"
+if exist "%SN131%" rmdir /s /q "%SN131%"
+mkdir "%SN131%"
+echo   The game opens on the demo mountain and first skips the season to the morning of January 15 (a line shows the
+echo   progress), so the guns run cold; then it pauses. A scratch copy: your saves stay untouched. Try:
+echo   1. Toolbox (T), Snowmaking tab. Pond (O): draw a pond on gentle ground and Build it (it starts full).
+echo   2. Pump house (P): click beside the pond (within 300 ft), click again to turn it, Break ground.
+echo   3. Water line (N): click on the pump house, then up the hill; the window reads the length, the climb, the psi at
+echo      the end and the guns that would be short. [ and ] change the diameter. Enter ends it; review the hydrants
+echo      (every 100 ft, by count or none) and Break ground. Ending a line in a pond makes it fill that pond.
+echo   4. Snow gun (G): click beside a hydrant (a dashed hose; a red ring when none is within 50 ft), or Do: Fill
+echo      hydrants and click the line. Do: Select, drag round guns, then Auto, On or Off.
+echo   5. Layers: Pipe pressure colours the lines (red under 200 psi, blue above, amber over 800, red over 1,000).
+echo   6. Inline pump (I): hover the line (the arrow points away from the pump house; Enter flips it), click to add a
+echo      booster. The pressure past it rises about 300 psi.
+echo   7. Check (K): the problems by number, with Show me and a fix (Flip pump, Upsize, Open valve). Guns: Every gun
+echo      running shows whether the network could feed them all.
+echo   8. Undo (Ctrl Z) takes each step back; save, quit and reopen: the network is kept.
+start "" "%GAME%" -snowseed -simto 01-15 -data "%SN131%" -notitle
+goto done
+
+:snowshots
+rem Task 4.15 PR B: the tool tests (no Unity window), then the scripted pictures in the release game.
+chcp 65001 >nul
+call :projectfree || goto done
+set "SNT=%~dp0test-results\p4-15"
+if not exist "%SNT%" mkdir "%SNT%"
+echo The Snowmaking tools' tests (EditMode, a few minutes):
+"%UNITY%" -batchmode -projectPath "%~dp0." -runTests -testPlatform EditMode -testFilter "SnowToolTests|WaterToolTests" -testResults "%SNT%\editmode-snowtools.xml" -logFile "%SNT%\editmode-snowtools.log" <nul
+if errorlevel 1 (echo   A test failed: see test-results\p4-15\editmode-snowtools.xml & goto done)
+echo   Passed.
+call :buildplayer
+if not exist "%GAME%" goto done
+set "SN132=%LOCALAPPDATA%\SkiAreaDesignChallenge-snow132"
+if exist "%SN132%" rmdir /s /q "%SN132%"
+mkdir "%SN132%"
+if exist "%SNT%\shots" rmdir /s /q "%SNT%\shots"
+echo The pictures (the game drives the tools by itself; about 3 minutes, then it quits):
+"%GAME%" -snowseed -simto 01-15 -data "%SN132%" -notitle -snowshots "%SNT%\shots" -logFile "%SNT%\snowshots.log" <nul
+findstr /c:"[SnowShots]" "%SNT%\snowshots.log"
+start "" "%SNT%\shots"
 goto done
 
 :gondolalab

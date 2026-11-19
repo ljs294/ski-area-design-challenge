@@ -30,9 +30,11 @@ namespace MountainPlanner.Presentation
         public const string CoverMap = "cover";
         /// <summary>SN-31 (task 4.13 PR C): where the guests skied and waited, over the Network view's dark relief.</summary>
         public const string Traffic = "traffic";
+        /// <summary>Task 4.15: the snowmaking network (a map layer, on by default) and its Pipe pressure info layer.</summary>
+        public const string Snowmaking = "snowmaking", Pressure = "pressure";
 
         /// <summary>What recolours the ground: nothing, one info layer, or the developer's cover map. The shader reads the number.</summary>
-        public enum InfoView { None = 0, CoverMap = 1, SlopeAngle = 2, Exposure = 3, SnowDepth = 4, Network = 5, Traffic = 6, SnowConditions = 9 }
+        public enum InfoView { None = 0, CoverMap = 1, SlopeAngle = 2, Exposure = 3, SnowDepth = 4, Network = 5, Traffic = 6, SnowConditions = 9, Pressure = 10 }
 
         public const string ApplyMarkerName = "MountainPlanner.Layers.Apply";
         /// <summary>Wraps every layer change: one sample in the frame of a switch, none otherwise.</summary>
@@ -43,6 +45,7 @@ namespace MountainPlanner.Presentation
         /// <summary>The Lifts layer (task 09, LT7): the viewer reads it each frame and shows or hides every lift.</summary>
         public bool LiftsOn { get; private set; } = true;
         public bool TrailsOn { get; private set; } = true;
+        public bool SnowmakingOn { get; private set; } = true;
         public bool ContoursOn { get; private set; }
         /// <summary>
         /// The Network view (task P3-10): while Analysis › Network is open the ground is a dark grey relief and the trees are
@@ -62,6 +65,7 @@ namespace MountainPlanner.Presentation
             InfoView.SnowDepth => SnowDepth,
             InfoView.SnowConditions => SnowConditions,
             InfoView.Traffic => Traffic,
+            InfoView.Pressure => Pressure,
             _ => null,
         };
         /// <summary>The F1 panel's tree-snow switch (bare evergreens under a snowy ground); the Snow layer still wins.</summary>
@@ -72,12 +76,12 @@ namespace MountainPlanner.Presentation
         ForestView _forest;
 
         /// <summary>The map layers, in the HUD's order.</summary>
-        public static readonly string[] MapIds = { Snow, Trees, Lifts, Trails };
+        public static readonly string[] MapIds = { Snow, Trees, Lifts, Trails, Snowmaking };
         /// <summary>The info layers, in the HUD's order.</summary>
-        public static readonly string[] InfoIds = { SlopeAngle, Exposure, SnowDepth, SnowConditions, Traffic, Contours };
+        public static readonly string[] InfoIds = { SlopeAngle, Exposure, SnowDepth, SnowConditions, Traffic, Pressure, Contours };
 
         /// <summary>Whether a layer can be switched in this version (Snow conditions since task 4.07 PR A2).</summary>
-        public static bool IsSwitchable(string id) => id == Snow || id == Trees || id == Lifts || id == Trails || id == Contours || id == CoverMap || ViewOf(id) != InfoView.None;
+        public static bool IsSwitchable(string id) => id == Snow || id == Trees || id == Lifts || id == Trails || id == Snowmaking || id == Contours || id == CoverMap || ViewOf(id) != InfoView.None;
 
         /// <summary>The info layers that take turns; Contours combine with any of them.</summary>
         public static bool IsExclusive(string id) => ViewOf(id) != InfoView.None;
@@ -90,6 +94,7 @@ namespace MountainPlanner.Presentation
             SnowConditions => InfoView.SnowConditions,
             CoverMap => InfoView.CoverMap,
             Traffic => InfoView.Traffic,
+            Pressure => InfoView.Pressure,
             _ => InfoView.None,
         };
 
@@ -99,6 +104,7 @@ namespace MountainPlanner.Presentation
             Trees => TreesOn,
             Lifts => LiftsOn,
             Trails => TrailsOn,
+            Snowmaking => SnowmakingOn,
             Contours => ContoursOn,
             _ => ViewOf(id) != InfoView.None && Info == ViewOf(id),
         };
@@ -145,6 +151,7 @@ namespace MountainPlanner.Presentation
                 case Trees: TreesOn = on; break;
                 case Lifts: LiftsOn = on; break;
                 case Trails: TrailsOn = on; break;
+                case Snowmaking: SnowmakingOn = on; break;
                 case Contours: ContoursOn = on; break;
                 default:
                     var view = ViewOf(id);
@@ -202,7 +209,7 @@ namespace MountainPlanner.Presentation
                 _ground?.SetSnow(SnowOn);
                 if (_states != null) _states.SnowShown = SnowOn;
                 _ground?.SetOverlay(Info == InfoView.CoverMap && !ReliefOn);
-                Shader.SetGlobalFloat(InfoViewId, NetworkViewOn ? (float)InfoView.Network : Info == InfoView.CoverMap ? 0 : (float)Info);
+                Shader.SetGlobalFloat(InfoViewId, NetworkViewOn ? (float)InfoView.Network : Info == InfoView.CoverMap || Info == InfoView.Pressure ? 0 : (float)Info);   // 4.15: pressure colours the pipes, not the ground
                 Shader.SetGlobalFloat(ContoursId, ContoursOn ? 1 : 0);
                 ApplyUnits(DisplayUnits.Current);
                 if (_edge != null) _edge.SetFloat(SnowOnId, snow);

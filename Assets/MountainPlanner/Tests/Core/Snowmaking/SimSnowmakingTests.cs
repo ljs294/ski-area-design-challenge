@@ -71,6 +71,20 @@ namespace MountainPlanner.Tests.Snowmaking
         }
 
         [Test]
+        public void HY08_WhilePausedTheSolveLandsAtOnce()
+        {
+            // The host calls SolveSnowNow while paused: no tick passes, the screen still gets its answer, and only once.
+            var w = World();
+            Send(w, OneGun(GunOverride.On));
+            long at = w.Tick;
+            Assert.That(w.SolveSnowNow(), Is.True);
+            Assert.That(w.SnowSolution, Is.Not.Null);
+            Assert.That(w.SnowSolution.Tick, Is.EqualTo(at));
+            Assert.That(w.Tick, Is.EqualTo(at), "time didn't move");
+            Assert.That(w.SolveSnowNow(), Is.False, "nothing more was asked for");
+        }
+
+        [Test]
         public void Q4_CheckNetworkSolvesAsIfEveryGunRan()
         {
             var w = World();

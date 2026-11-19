@@ -99,7 +99,7 @@ namespace MountainPlanner.Tests.Snowmaking
             return a;
         }
 
-        sealed class Ground : IGroundHeights
+        internal sealed class Ground : IGroundHeights
         {
             readonly Func<double, double, double> _ft;
             public Ground(Func<double, double, double> ft) { _ft = ft; }

@@ -84,6 +84,18 @@ namespace MountainPlanner.Simulation
             SolveForScreen(end);
         }
 
+        /// <summary>
+        /// While paused or held no tick passes, so a requested screen solve lands at once (the host calls this then): building
+        /// while paused still shows the pressure. The screen's solve moves no state, so the clock's answers are unchanged.
+        /// </summary>
+        public bool SolveSnowNow()
+        {
+            if (_snowDueTick < 0) return false;
+            _snowDueTick = -1;
+            SolveForScreen(Tick);
+            return true;
+        }
+
         void SolveForScreen(long tick)
         {
             if (_snowNet == null) return;
@@ -148,25 +160,10 @@ namespace MountainPlanner.Simulation
         static bool IsFeed(HydraulicGraph g, HydraulicSolver s, int link, int component) =>
             g.LinkKind[link] == HLinkKind.Intake && !s.Shut[link] && s.Q[link] > 0 && g.Component[g.B[link]] == component;
 
-        /// <summary>SG-01 per gun: wanted when set On (and every gun in the check), at the stage its height's wet bulb gives.</summary>
-        void FillAsks(GunAsk[] asks, bool everyGun)
-        {
-            var g = _snowNet.Graph;
-            bool air = _weather != null && _wxHourSet;
-            for (int i = 0; i < asks.Length; i++)
-            {
-                var gun = g.Guns[i];
-                bool on = gun.Override == GunOverride.On;
-                int wb = GunCatalog.TooWarmTenthsF + 1;   // no weather yet: too warm to make snow, so forced guns run warm
-                int node = g.GunNode[i];
-                if (air && node >= 0)
-                {
-                    int feet = (int)Math.Round(g.GradeFt[node]);
-                    WeatherFields.AirAt(_wxHour, _weather.Rows.ZrefFeet, feet, _wxTerrain, Pacing, out _, out _, out _, out wb, out _, out _);
-                }
-                asks[i] = new GunAsk { Wanted = everyGun || on, Forced = everyGun || on, WetBulbTenthsF = wb, Priority = 3 };
-            }
-        }
+        /// <summary>SG-01 per gun, by <see cref="SnowAsks"/> (the tools' preview reads the same rule).</summary>
+        void FillAsks(GunAsk[] asks, bool everyGun) =>
+            SnowAsks.Fill(_snowNet.Graph, asks, everyGun, _weather != null && _wxHourSet ? _wxHour : (Domain.Weather.WeatherHour?)null,
+                          _weather != null ? _weather.Rows.ZrefFeet : 0, _wxTerrain, Pacing);
 
         /// <summary>A source's water for the solve: its surface now, whether it can still supply and whether it's full.</summary>
         SourceLevel SnowLevel(ulong id)

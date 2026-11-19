@@ -45,7 +45,7 @@ namespace MountainPlanner.UI
                     row.clicked += () => LayerChanged?.Invoke(id, !row.ClassListContains("row--on"));
                     row.SetEnabled(MapLayers.IsSwitchable(id));
                 }
-            // Lifts, trails, snowmaking and infrastructure come with the building tools (Phase 3): inert (WirePanels).
+            // Infrastructure comes with its building tools: inert (WirePanels). Snowmaking since task 4.15.
             var labels = _root.Q<Button>("layer-labels");
             labels.EnableInClassList("row--on", LabelsOn);
             labels.clicked += () =>
@@ -143,6 +143,11 @@ namespace MountainPlanner.UI
                     break;
                 case MapLayers.Traffic:
                     BuildTrafficLegend(units);   // task 4.13 PR C (SN-31)
+                    break;
+                case MapLayers.Pressure:   // task 4.15
+                    _legendTitle.text = InfoLegend.PressureTitle;
+                    foreach (var e in InfoLegend.Pressure) _legendBody.Add(LegendRow(e.Colour, e.Hatched, e.Label, e.Figure));
+                    _legendBody.Add(Note(InfoLegend.PressureNote));
                     break;
                 default:
                     _legendTitle.text = "Contours";

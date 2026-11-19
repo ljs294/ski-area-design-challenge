@@ -34,6 +34,11 @@ namespace MountainPlanner.UI.Tools
             new Entry(WaterSourceTool.ToolId, "s-source", null, () => new WaterSourceTool()),    // task 4.14 (WS-01, LK-02)
             new Entry(EditWaterTool.ToolId, "s-pond", "edit", () => new EditWaterTool()),
             new Entry(RemoveWaterTool.ToolId, "s-pond", "remove", () => new RemoveWaterTool()),  // task 4.14 (PD-08)
+            new Entry(PumpHouseTool.ToolId, "s-pump", null, () => new PumpHouseTool()),          // task 4.15 (HY-01, HY-05 v2)
+            new Entry(WaterLineTool.ToolId, "s-pipe", null, () => new WaterLineTool()),          // task 4.15 (HY-01…04)
+            new Entry(InlinePumpTool.ToolId, "s-pump", "inline", () => new InlinePumpTool()),
+            new Entry(SnowGunTool.ToolId, "s-gun", null, () => new SnowGunTool()),               // task 4.15 (SG-01…04, SM-02)
+            new Entry(CheckNetworkTool.ToolId, "s-check", null, () => new CheckNetworkTool()),   // task 4.15 (HY-09)
         };
 
         public static IReadOnlyList<Entry> All => Entries;
