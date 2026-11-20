@@ -392,6 +392,10 @@ echo        Quit the game: the Lift Lab opens on the 500-gun field with the plum
 echo     110 The Weather tab, mockup first (WX-46 v2; opens in Edge, no game build): Tonight's gun window by
 echo        height and tomorrow's lifts at risk, then Forecast (hourly at three heights, the week), Season so far
 echo        and Climate. Click the three views; the menu switches Dark/Light and Metric/Imperial.
+echo   4.07 hotfix: a save's clock after Load (finding B2c-5; rebuilds the game if there is none)
+echo     136 Your newest save with a simulation, copied into a scratch folder (yours is only read), opened twice
+echo        through the title's Continue: first as before the fix (the clock starts over, "couldn't be read"),
+echo        then with it (the clock waits a few seconds for the trail network, then comes back as saved).
 echo   4.23 auto updater (friends download one small exe once; every start checks for a new version)
 echo     114 Install an older release: the launcher installs v0.3.1 from GitHub into a scratch folder
 echo        (%%LOCALAPPDATA%%\SkiAreaDesignChallenge-updater, never your real install) and ends on its Launch
@@ -611,6 +615,7 @@ if /i "%CHOICE%"=="129" goto ridedown
 if /i "%CHOICE%"=="130" goto snowsolver
 if /i "%CHOICE%"=="131" goto snownet
 if /i "%CHOICE%"=="132" goto snowshots
+if /i "%CHOICE%"=="136" goto reopenclock
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -2420,6 +2425,37 @@ echo      Click a line's or pump house's name to rename it. Names (P1, J2, H12) 
 echo   9. Undo (Ctrl Z) takes each step back; save, quit and reopen: the network is kept.
 start "" "%GAME%" -snowseed -simto 01-15 -data "%SN131%" -notitle
 goto done
+
+:reopenclock
+rem 4.07 hotfix (finding B2c-5): a save's simulation is read once the design's network is in, not before.
+chcp 65001 >nul
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "RC=%LOCALAPPDATA%\SkiAreaDesignChallenge-reopenclock"
+if exist "%RC%" rmdir /s /q "%RC%"
+mkdir "%RC%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\saves\copy-newest-save.ps1" -Scratch "%RC%"
+set /p PICK=<"%RC%\pick.txt"
+if "%PICK%"=="none" echo   None of your saves has a simulation yet: save a game once the clock has run, then try again.
+if "%PICK%"=="none" goto reopenclockend
+echo.
+echo   The scratch copy: %PICK%
+echo   Run 1, as before the fix: the game opens the save; watch for "The save's clock couldn't be read, so it starts
+echo   over" and the date back at October 1. Quit the game (no need to save).
+pause
+start "" /wait "%GAME%" -data "%RC%" -offline -continue -simnowait -logFile "%RC%\before.log"
+echo   Run 2, with the fix: the clock waits a few seconds for the trail network, then the date and the snow are as
+echo   you saved them, with no toast. Quit the game.
+pause
+start "" /wait "%GAME%" -data "%RC%" -offline -continue -logFile "%RC%\after.log"
+echo.
+echo   Before the fix:
+findstr /l /c:"[Saves] Opened" /c:"restored the save" /c:"didn't read" "%RC%\before.log"
+echo   With the fix:
+findstr /l /c:"[Saves] Opened" /c:"waits for its network" /c:"the network came" /c:"didn't come" /c:"restored the save" /c:"didn't read" "%RC%\after.log"
+:reopenclockend
+pause
+goto menu
 
 :snowshots
 rem Task 4.15 PR B: the tool tests (no Unity window), then the scripted pictures in the release game.
