@@ -20,9 +20,11 @@ namespace MountainPlanner.Simulation
     public readonly struct GroomStrength
     {
         public readonly int ReachMm, Blend, Pack;
-        public GroomStrength(int reachMm, int blend, int pack) { ReachMm = reachMm; Blend = blend; Pack = pack; }
-        public static GroomStrength Heavy(Pacing p) => new GroomStrength(p.GroomReachMm, p.GroomBlend, p.GroomPack);
-        public static GroomStrength Light(Pacing p) => new GroomStrength(p.GroomLightReachMm, p.GroomLightBlend, p.GroomPack);
+        /// <summary>A heavy push may work a Bare trail; a light groom skips one (SN-23 v4).</summary>
+        public readonly bool Push;
+        public GroomStrength(int reachMm, int blend, int pack, bool push) { ReachMm = reachMm; Blend = blend; Pack = pack; Push = push; }
+        public static GroomStrength Heavy(Pacing p) => new GroomStrength(p.GroomReachMm, p.GroomBlend, p.GroomPack, true);
+        public static GroomStrength Light(Pacing p) => new GroomStrength(p.GroomLightReachMm, p.GroomLightBlend, p.GroomPack, false);
     }
 
     public sealed partial class SimWorld
@@ -109,6 +111,7 @@ namespace MountainPlanner.Simulation
             _groomPrefix = new long[_trailOrder.Length + 1];
             _groomTarget = new int[_trailOrder.Length];
             _groomCount = new int[_trailOrder.Length + 1];
+            AllocReadiness(layout);
         }
 
         /// <summary>Orders fine cells by their distance along, then by index (stable bytes).</summary>
@@ -131,6 +134,7 @@ namespace MountainPlanner.Simulation
             Groom((int)(hour % 24));
             RollUpTouched();
             Summarise();
+            RateTrails();
         }
 
         /// <summary>The readout's trail numbers, once an hour.</summary>
@@ -171,6 +175,10 @@ namespace MountainPlanner.Simulation
             s.TrailsLastGroom = _fine != null ? _trailsLastGroom : 0;
             s.TrailBlocksPowder = _fine != null ? _trailBlocksPowder : 0;
             s.TrailRemovedTotal = _trailRemovedTotal;
+            s.TrailsCovered = _fine != null ? _trailsCovered : 0;
+            s.TrailsMarginal = _fine != null ? _trailsMarginal : 0;
+            s.TrailsBare = _fine != null ? _trailsBare : 0;
+            s.LateSeason = _fine != null && _lateSeason;
         }
 
         /// <summary>SN-24 v3, SN-14 v3 rule 6, SN-17: the hour's passes per segment and lane onto the lane's fine cells.</summary>
@@ -240,7 +248,12 @@ namespace MountainPlanner.Simulation
             Array.Clear(_blockWorked, 0, _blockWorked.Length);
             int trails = 0;
             for (int t = 0; t < _trailLayout.Trails; t++)
-                if (_trailLayout.TrailGroomed[t] && GroomTrail(t, heavy)) trails++;
+                if (_trailLayout.TrailGroomed[t] && GroomTrail(t, heavy))
+                {
+                    trails++;
+                    _trailGroomedNow[t] = true;
+                    Events.Add(Tick, SimEventType.TrailGroomed, NetIndexOf(t), hourOfDay);
+                }
             _trailsGroomedToday += trails;
             _trailsLastGroom = trails;
             _trailBlocksLastGroom = 0;
@@ -259,6 +272,7 @@ namespace MountainPlanner.Simulation
             var L = _trailLayout;
             var fine = _fine;
             if (fine == null || t < 0 || t >= L.Trails) return false;
+            if (!strength.Push && TrailLabelOf(t) == TrailSnowLabel.Bare) return false;   // SN-23 v4: a light groom skips Bare
             int s = L.FineMetres * 1000, bc = fine.BlockCells;
             long reach = strength.ReachMm / 2;
             {

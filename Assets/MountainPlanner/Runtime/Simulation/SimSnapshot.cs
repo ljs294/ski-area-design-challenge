@@ -169,6 +169,20 @@ namespace MountainPlanner.Simulation
         public bool TrailsKnown;
         public readonly ulong[] TrailIds;
         public readonly LiftOpStatus[] TrailStatus;
+        /// <summary>
+        /// Task 4.07 B1 part 2b, per network trail, packed to fit SI-16's 64 KB: bits 0–11 its walk in feet (a late-season
+        /// Marginal trail's, at most 4,095), bits 12–13 its <see cref="TrailSnowLabel"/> (0 without trail snow), bits 14–15
+        /// its snow rating's word (0 Poor, 1 Fair, 2 Good, 3 Excellent: SN-16's bands over the bands' mean). Read through
+        /// <see cref="TrailLabelAt"/>, <see cref="TrailWalkFtAt"/> and <see cref="TrailRatingAt"/>.
+        /// </summary>
+        public readonly ushort[] TrailBoard;
+        /// <summary>Per network trail: its covered fine cells, % (SN-20 v3).</summary>
+        public readonly byte[] TrailCoverPct;
+
+        public TrailSnowLabel TrailLabelAt(int k) => (TrailSnowLabel)((TrailBoard[k] >> 12) & 3);
+        public int TrailWalkFtAt(int k) => TrailBoard[k] & 0xFFF;
+        /// <summary>0 Poor, 1 Fair, 2 Good, 3 Excellent.</summary>
+        public int TrailRatingAt(int k) => TrailBoard[k] >> 14;
 
         public readonly DayReport LastDayReport;
         public int HistoryCount;
@@ -195,6 +209,9 @@ namespace MountainPlanner.Simulation
         /// <summary>Task 4.07 B1 part 2a: trail squares whose 8 m type is powder (P or WP), for the readout.</summary>
         public int TrailBlocksPowder;
         public long TrailRemovedTotal;
+        /// <summary>Task 4.07 B1 part 2b: trails Covered, Marginal and Bare at the last flip, and the late season.</summary>
+        public int TrailsCovered, TrailsMarginal, TrailsBare;
+        public bool LateSeason;
 
         /// <summary>GU-03, GU-13, GU-18: the crowd as the Guests tab shows it, and the selected skier's day (GU-02).</summary>
         public readonly GuestView Guests;
@@ -285,6 +302,7 @@ namespace MountainPlanner.Simulation
             Forecast = new ForecastSheet(p.MaxLifts);
             TrailIds = new ulong[p.MaxTrails];
             TrailStatus = new LiftOpStatus[p.MaxTrails];
+            TrailBoard = new ushort[p.MaxTrails]; TrailCoverPct = new byte[p.MaxTrails];
             LastDayReport = new DayReport(p.MaxLifts);
             Events = new SimEvent[p.SnapshotEvents];
         }
@@ -304,7 +322,7 @@ namespace MountainPlanner.Simulation
 
         /// <summary>SI-16's budget: the bytes this snapshot's arrays and fields take at their full size.</summary>
         public int SizeBytes => 256 + 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + 1 + 4 + 4 + 4 + 4 + 1 + DayReport.SizeBytesPerLift)
-                                + TrailIds.Length * (8 + 1 + 1) + Events.Length * 24
+                                + TrailIds.Length * (8 + 1 + 1 + 2 + 1) + Events.Length * 24
                                 + Guests.SizeBytes + Forecast.SizeBytes + WaterBodyIds.Length * (8 + 4 + 4 + 4 + 2 + 2)
                                 + SourceIds.Length * (8 + 8 + 8 + 8 + 4 + 4 + 4 + 4 + 1);
 

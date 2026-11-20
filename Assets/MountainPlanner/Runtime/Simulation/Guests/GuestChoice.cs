@@ -157,6 +157,7 @@ namespace MountainPlanner.Simulation
             long v = FitFactor(edge, band);
             v = v * SnowFactor(edge, band) / 1000;
             v = v * WidthFactor(edge, band) / 1000;
+            v = v * WalkFactorOf(edge) / 1000;   // GU-07 v2: a late-season walk puts guests off
             return (int)Math.Max(1, v);
         }
 

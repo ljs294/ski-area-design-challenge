@@ -615,6 +615,9 @@ namespace MountainPlanner.App
             if (s.TrailFineCells > 0)
                 y += note(y, 1, $"Trail snow · {s.TrailFineMetres} m squares, {s.TrailFineCells:N0} · mean depth {s.TrailDepthMm / 25.4:F0} in · " +
                                 $"{s.TrailPackedPermille / 10}% packed · {s.TrailsGroomedToday} groomed today · {s.TrailRemovedTotal * 64 / 1e6:F1} m³ of water off the 8 m snow");
+            if (s.TrailFineCells > 0)
+                y += note(y, 1, $"Trails · {s.TrailsCovered} covered, {s.TrailsMarginal} marginal, {s.TrailsBare} bare · {s.TrailsReady} open" +
+                                (s.LateSeason ? " · late season (walking allowed)" : ""));
             DrawWeatherRows(ref y, row, caption, note);
             DrawLiftOpsRows(ref y, row, x0, w, caption, button, note);
             DrawGuestRows(ref y, row, x0, w, caption, button, note);

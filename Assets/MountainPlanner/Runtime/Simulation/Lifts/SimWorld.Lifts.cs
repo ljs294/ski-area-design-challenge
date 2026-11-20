@@ -290,9 +290,6 @@ namespace MountainPlanner.Simulation
             return found;
         }
 
-        /// <summary>SN-20's readiness of a network trail: every built trail until 4.07 writes its own bits.</summary>
-        bool TrailReady(int trail) => true;
-
         // ================= the step (the Lifts row) =================
 
         /// <summary>LO-07 v2: whether the lift's rope may run now (its hours, the board, no hold).</summary>
@@ -711,6 +708,7 @@ namespace MountainPlanner.Simulation
             for (int k = 0; k < t; k++)
             {
                 s.TrailIds[k] = net.TrailIds[k];
+                WriteTrailBoard(s, k);
                 bool reached = season && _trailReached[k] != 0;
                 s.TrailStatus[k] = !reached ? LiftOpStatus.Closed
                     : sod < _todayOpen * 1000L ? LiftOpStatus.Scheduled

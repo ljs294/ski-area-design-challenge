@@ -22,8 +22,10 @@ namespace MountainPlanner.Domain.Snow
         public int[] SegmentEdge;
         /// <summary>SN-22 v3: a glade or zone, never groomed (runs are groomed nightly until the player's settings, 2c).</summary>
         public bool NeverGroom;
-        /// <summary>The trail's stable id (its grooming hour is keyed on it, so adding a trail moves no other's).</summary>
+        /// <summary>The trail's stable id (the simulation's trails are matched to the network's by it).</summary>
         public ulong Id;
+        /// <summary>SN-20 v3 (task 4.07 B1 part 2b): a graded trail is covered at 6 in, a natural one at 12 in.</summary>
+        public bool Graded;
     }
 
     /// <summary>
@@ -71,12 +73,17 @@ namespace MountainPlanner.Domain.Snow
         public byte[] Lane { get; private set; }
         /// <summary>Per fine cell: the network edge of the owner's segment there, or −1.</summary>
         public int[] Edge { get; private set; }
+        /// <summary>Per fine cell: its signed offset from the owner's centreline, mm, positive to the left looking downhill
+        /// (SN-20 v3's skiable line reads each row across the trail by it; 0 off-trail).</summary>
+        public int[] LateralMm { get; private set; }
         /// <summary>Fine cells each trail owns.</summary>
         public int[] TrailCells { get; private set; }
         /// <summary>Per trail: groomed nightly (SN-22 v3's default for a run; false for a glade or zone).</summary>
         public bool[] TrailGroomed { get; private set; }
         /// <summary>Per trail: its stable id (<see cref="TrailSnowInput.Id"/>).</summary>
         public ulong[] TrailId { get; private set; }
+        /// <summary>Per trail: graded (<see cref="TrailSnowInput.Graded"/>).</summary>
+        public bool[] TrailGraded { get; private set; }
 
         public int Blocks => BlockCell.Length;
         public int FineCells => Owner.Length;
@@ -108,7 +115,8 @@ namespace MountainPlanner.Domain.Snow
             foreach (int c in BlockCell) Mix(c);
             foreach (bool g in TrailGroomed) Mix(g ? 1 : 0);
             foreach (ulong id in TrailId) Mix((long)id);
-            for (int i = 0; i < Owner.Length; i++) { Mix(Owner[i]); Mix(AlongMm[i]); Mix(Lane[i]); Mix(Edge[i]); }
+            foreach (bool g in TrailGraded) Mix(g ? 1 : 0);
+            for (int i = 0; i < Owner.Length; i++) { Mix(Owner[i]); Mix(AlongMm[i]); Mix(Lane[i]); Mix(Edge[i]); Mix(LateralMm[i]); }
             return h;
         }
 
@@ -171,10 +179,12 @@ namespace MountainPlanner.Domain.Snow
             L.PerSide = 8 / L.FineMetres;
             int per = L.PerSide, bc = per * per, total = blocks.Count * bc;
             L.Owner = new short[total]; L.AlongMm = new int[total]; L.Lane = new byte[total]; L.Edge = new int[total];
+            L.LateralMm = new int[total];
             L.TrailCells = new int[n];
             L.TrailGroomed = new bool[n];
             L.TrailId = new ulong[n];
-            for (int t = 0; t < n; t++) { L.TrailGroomed[t] = !trails[t].NeverGroom; L.TrailId[t] = trails[t].Id; }
+            L.TrailGraded = new bool[n];
+            for (int t = 0; t < n; t++) { L.TrailGroomed[t] = !trails[t].NeverGroom; L.TrailId[t] = trails[t].Id; L.TrailGraded[t] = trails[t].Graded; }
             for (int i = 0; i < total; i++) { L.Owner[i] = -1; L.Edge[i] = -1; }
 
             // 3. Each trail's segments: lengths and where each starts along the line.
@@ -218,6 +228,7 @@ namespace MountainPlanner.Domain.Snow
                     L.Owner[f] = (short)best;
                     L.AlongMm[f] = (int)Math.Min(int.MaxValue, bestAlong);
                     L.Lane[f] = LaneOf(bestLat, trails[best].WidthMm);
+                    L.LateralMm[f] = (int)Math.Max(int.MinValue, Math.Min(int.MaxValue, bestLat));
                     L.Edge[f] = lines[best].EdgeAt(bestAlong);
                     L.TrailCells[best]++;
                 }

@@ -24,7 +24,7 @@ namespace MountainPlanner.Simulation
                                         // 10: task 4.14 PR B's water sources (WS-03 v2, WS-05, WS-07, WS-01's cap; number confirmed with 0.0 at merge)
                                         // 11: task 4.24 PR B's ride down (RD-4; it merged before 4.07 B1, which takes 12, 0.0)
                                         // 12: task 4.15's snowmaking solve (HY-07 PipeClass, HY-08 SolveLatencyTicks and MaxResolves); 0.0: the first of 4.15 and 4.07 B1 to merge takes 12, the other renumbers
-                                        // 13: task 4.07 B1 part 2a's trail snow (SN-03 v3, SN-14 v3, SN-17, SN-23 v3, SN-24 v3, SN-30 v2; 0.0 2026-11-19: 4.15 merged first and took 12)
+                                        // 13: task 4.07 B1 part 2a's trail snow and 2b's readiness (SN-03 v3, SN-14 v3, SN-16 v3, SN-17, SN-20 v3, SN-23 v3, SN-24 v3, SN-30 v2, GU-07 v2; 0.0 2026-11-19: 4.15 merged first and took 12)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -372,6 +372,21 @@ namespace MountainPlanner.Simulation
                             GroomStartHour, GroomsToHard;
         /// <summary>SN-23 v4: a light pass's reach (mm) and blend (‰); it packs as a heavy one does (task 4.25's strengths).</summary>
         public readonly int GroomLightReachMm, GroomLightBlend;
+        /// <summary>SN-20 v3 (task 4.07 B1 part 2b): a fine cell is covered at this depth (mm) on a graded trail and on a
+        /// natural one; a trail is Covered with a skiable line and this share (‰) of its cells covered.</summary>
+        public readonly int CoverGradedMm, CoverNaturalMm, ReadyCover;
+        /// <summary>SN-20 v3: the skiable line's width (mm, 4 ft).</summary>
+        public readonly int LineWidthMm;
+        /// <summary>SN-20 v3, GU-07 v2 (owner 2026-11-18): the late season's walk tolerance L, feet, from the day it starts
+        /// to April 1; walking pulls a trail by exp(−(feet ÷ L)²).</summary>
+        public readonly int LateWalkStartFt, LateWalkEndFt;
+        /// <summary>GU-09: walking speed, mm a second (3 mph), for a Marginal trail's walk.</summary>
+        public readonly int WalkSpeedMmS;
+        /// <summary>SN-16 v3: quality lost a pass (tenths of ‰) and its floor (‰); the mogul term at full moguls (‰).</summary>
+        public readonly int QualityPassTenths, QualityPassFloor, QualityMogulPermille;
+        /// <summary>GU-07 v2's taste: experts on powder or moguls, beginners on moguls or ice (‰), moguls counting from this
+        /// fine-cell mogul level (0–255).</summary>
+        public readonly int TasteExpert, TasteBeginner, TasteMogulMin;
 
         /// <summary>Face milliseconds one tick covers by day and by night (from the real seconds above).</summary>
         public readonly int DayFaceMsPerTick, NightFaceMsPerTick;
@@ -645,6 +660,19 @@ namespace MountainPlanner.Simulation
             GroomLightReachMm = Int(map, nameof(GroomLightReachMm), 1000, 1_000_000);
             GroomLightBlend = Int(map, nameof(GroomLightBlend), 0, 1000);
             GroomsToHard = Int(map, nameof(GroomsToHard), 1, 7);
+            CoverGradedMm = Int(map, nameof(CoverGradedMm), 1, 10_000);
+            CoverNaturalMm = Int(map, nameof(CoverNaturalMm), 1, 10_000);
+            ReadyCover = Int(map, nameof(ReadyCover), 0, 1000);
+            LineWidthMm = Int(map, nameof(LineWidthMm), 100, 100_000);
+            LateWalkStartFt = Int(map, nameof(LateWalkStartFt), 1, 100_000);
+            LateWalkEndFt = Int(map, nameof(LateWalkEndFt), 1, 100_000);
+            WalkSpeedMmS = Int(map, nameof(WalkSpeedMmS), 100, 10_000);
+            QualityPassTenths = Int(map, nameof(QualityPassTenths), 0, 10_000);
+            QualityPassFloor = Int(map, nameof(QualityPassFloor), 0, 1000);
+            QualityMogulPermille = Int(map, nameof(QualityMogulPermille), 0, 1000);
+            TasteExpert = Int(map, nameof(TasteExpert), 0, 3000);
+            TasteBeginner = Int(map, nameof(TasteBeginner), 0, 3000);
+            TasteMogulMin = Int(map, nameof(TasteMogulMin), 0, 255);
 
             DayFaceMsPerTick = FaceMsPerTick(DayHourRealSeconds, nameof(DayHourRealSeconds));
             NightFaceMsPerTick = FaceMsPerTick(NightHourRealSeconds, nameof(NightHourRealSeconds));
@@ -918,6 +946,19 @@ namespace MountainPlanner.Simulation
             E(nameof(GroomLightReachMm), "4572"),
             E(nameof(GroomLightBlend), "300"),
             E(nameof(GroomsToHard), "5"),
+            E(nameof(CoverGradedMm), "152"),
+            E(nameof(CoverNaturalMm), "305"),
+            E(nameof(ReadyCover), "900"),
+            E(nameof(LineWidthMm), "1219"),
+            E(nameof(LateWalkStartFt), "60"),
+            E(nameof(LateWalkEndFt), "250"),
+            E(nameof(WalkSpeedMmS), "1341"),
+            E(nameof(QualityPassTenths), "3"),
+            E(nameof(QualityPassFloor), "500"),
+            E(nameof(QualityMogulPermille), "300"),
+            E(nameof(TasteExpert), "1200"),
+            E(nameof(TasteBeginner), "500"),
+            E(nameof(TasteMogulMin), "64"),
         };
 
         static KeyValuePair<string, string> E(string name, string value) => new KeyValuePair<string, string>(name, value);

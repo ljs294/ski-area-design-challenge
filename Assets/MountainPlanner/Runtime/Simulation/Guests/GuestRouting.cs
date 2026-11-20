@@ -35,8 +35,9 @@ namespace MountainPlanner.Simulation
         bool _routeDirty = true;
 
         /// <summary>
-        /// Something that could change where a band can go has changed: a lift opened, closed, held, resumed, began
-        /// downloading, passed its last chair, or the design moved. One flag, so a holiday's many changes cost one rebuild.
+        /// Something that could change where a band can go has changed: a lift opened or closed at the hour's flip, began
+        /// downloading or rode down, a trail opened or closed (SN-20 v3), or the design moved. One flag, so a holiday's many
+        /// changes cost one rebuild. A hold doesn't call it: a held lift's line stays joinable (LO-07), so routes don't change.
         /// </summary>
         void GuestBoardChanged() => _routeDirty = true;
 
@@ -96,7 +97,8 @@ namespace MountainPlanner.Simulation
         /// </summary>
         const int StandInQuality = 900;
 
-        int QualityOf(int edge, int band) => StandInQuality;
+        internal int QualityOf(int edge, int band) =>
+            EdgeTableLive && edge * Pacing.Bands + band < _edgeQuality.Length ? _edgeQuality[edge * Pacing.Bands + band] : StandInQuality;
 
         /// <summary>Whether this band may take this edge at all: its gate, and the trail being open (SN-20).</summary>
         bool EdgeAllowed(int edge, int band)

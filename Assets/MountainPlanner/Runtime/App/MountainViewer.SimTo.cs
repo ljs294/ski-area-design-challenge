@@ -102,6 +102,7 @@ namespace MountainPlanner.App
                 Debug.Log($"[TrailSnow] at {Label(calendar, Now())}: {_simNow.TrailBlocks} trail squares, {_simNow.TrailBlocksGroomed} machine groomed and {_simNow.TrailBlocksPowder} powder in the " +
                           $"Snow conditions layer; mean depth {_simNow.TrailDepthMm / 25.4:F0} in, {_simNow.TrailPackedPermille / 10}% packed, " +
                           $"{_simNow.TrailsGroomedToday} trails groomed today; the last night's pass worked {_simNow.TrailBlocksLastGroom} squares on {_simNow.TrailsLastGroom} trails");
+            if (_simNow.TrailFineCells > 0) LogTrailBoard(Label(calendar, Now()));
             Toast(cancelled ? $"Stopped at {Label(calendar, Now())}" : $"{goal}: paused");
             _simToRunning = false;
         }
@@ -132,6 +133,33 @@ namespace MountainPlanner.App
                 }
             }
             return $"the base ({low / 0.3048f:F0} ft) {lowDepth / 0.0254f:F0} in, the summit ({high / 0.3048f:F0} ft) {highDepth / 0.0254f:F0} in";
+        }
+
+        /// <summary>
+        /// Task 4.07 B1 part 2b: each trail's board at the end of the run, by name: its SN-20 v3 label, its walk (late season),
+        /// its covered share and its snow rating, and whether it's open. Once per run, so the strings don't matter.
+        /// </summary>
+        static readonly string[] RatingWords = { "Poor", "Fair", "Good", "Excellent" };
+
+        void LogTrailBoard(string when)
+        {
+            var s = _simNow;
+            var doc = Design?.Current.Document;
+            var line = new System.Text.StringBuilder();
+            line.Append($"[TrailBoard] at {when}: {s.TrailsCovered} covered, {s.TrailsMarginal} marginal, {s.TrailsBare} bare, " +
+                        $"{s.TrailsReady} open{(s.LateSeason ? ", late season" : "")}");
+            for (int k = 0; k < s.TrailCount; k++)
+            {
+                string name = "?";
+                if (doc != null)
+                    foreach (var t in doc.Trails)
+                        if (t.Id.Value == s.TrailIds[k]) { name = t.Name; break; }
+                var label = s.TrailLabelAt(k);
+                line.Append(System.Environment.NewLine).Append("  ").Append(name).Append(": ").Append(label == TrailSnowLabel.None ? "no snow squares" : label.ToString());
+                if (s.TrailWalkFtAt(k) > 0) line.Append($" · walk {s.TrailWalkFtAt(k)} ft");
+                line.Append($" · {s.TrailCoverPct[k]}% covered · {RatingWords[s.TrailRatingAt(k)]} · {s.TrailStatus[k]}");
+            }
+            Debug.Log(line.ToString());
         }
     }
 }

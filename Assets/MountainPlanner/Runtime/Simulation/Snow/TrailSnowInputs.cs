@@ -58,6 +58,7 @@ namespace MountainPlanner.Simulation
                     Mask = trail.Shape.Mask, LineXMm = xs, LineYMm = ys, WidthMm = widthCm > 0 ? widthCm * 10 : 30_480,
                     SegmentStartMm = starts.ToArray(), SegmentEdge = segs.ToArray(),
                     NeverGroom = trail.Settings.Kind != TrailKind.Run, Id = trail.Id.Value,
+                    Graded = trail.Settings.Grading == TrailGrading.Graded,
                 });
             }
             return TrailSnowLayout.Build(gridWidth, gridHeight, originXMm, originYMm, inputs, fineCellCap, net.ShapeHash);

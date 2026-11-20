@@ -466,7 +466,8 @@ namespace MountainPlanner.Simulation
             HourStepSources(hour);
             HourStepSnowmaking();   // task 4.15: WS-11's transfers, after the sources' own water
             _hourSliceCursor = 0;
-            _trailsReadyNext = Design.BuiltTrails;
+            BoardTrails();   // 4.07 B1 part 2b: SN-20 v3's readiness, before the lifts' way down reads it
+            _trailsReadyNext = TrailsReadyNow();
             BoardLifts(_liftOpenNext);
             FlipBoard();
             HourIndex = hour;
@@ -477,6 +478,9 @@ namespace MountainPlanner.Simulation
         {
             var t = _liftOpen; _liftOpen = _liftOpenNext; _liftOpenNext = t;
             _trailsReady = _trailsReadyNext;
+            // Finding B2b-1 (task 4.07 2b): a lift the hour opens or closes changes where the guests can go.
+            for (int i = 0; i < _liftCount; i++)
+                if (_liftOpen[i] != _liftOpenNext[i]) { GuestBoardChanged(); break; }
         }
 
         /// <summary>The board between hours: an open/close or a new design changes it at once rather than waiting for the hour.</summary>
@@ -484,7 +488,7 @@ namespace MountainPlanner.Simulation
         {
             if (_candidate.Length < _liftCount) return;   // mid-fold: FoldDesign refreshes once the lifts' operations are in
             BoardLifts(_liftOpen);
-            _trailsReady = Design.BuiltTrails;
+            _trailsReady = TrailsReadyNow();
         }
 
         bool AnyBuiltLift()
@@ -751,6 +755,7 @@ namespace MountainPlanner.Simulation
             // The snow joined in PR B (SI-17): a world that has never had any hashes as before, so the goldens stand.
             if (Snow.Set || Snow.Width > 0) Snow.AddTo(ref h);
             HashSnowLive(ref h);
+            HashTrailBoard(ref h);
             HashGuests(ref h);
             HashLakes(ref h);
             HashSources(ref h);
