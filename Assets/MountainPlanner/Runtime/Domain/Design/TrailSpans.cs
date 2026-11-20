@@ -110,20 +110,25 @@ namespace MountainPlanner.Domain.Design
         public IReadOnlyList<Span> Spans => _spans;
         /// <summary>TD-07: the rating the player posts for this trail (shape 11); null until posted.</summary>
         public SlopeBands.Band? Posted { get; }
+        /// <summary>SN-20 v4 (shape 16): this trail's Open / Closed / Auto switch; it wins over its runs' own.</summary>
+        public TrailSwitch Switch { get; }
 
         readonly Span[] _spans;
 
-        public TrailLine(TrailLineId id, string name, IReadOnlyList<Span> spans, SlopeBands.Band? posted = null)
+        public TrailLine(TrailLineId id, string name, IReadOnlyList<Span> spans, SlopeBands.Band? posted = null,
+                         TrailSwitch @switch = TrailSwitch.Auto)
         {
             Id = id;
             Name = name ?? "";
             _spans = new Span[spans?.Count ?? 0];
             for (int i = 0; i < _spans.Length; i++) _spans[i] = spans[i];
             Posted = posted;
+            Switch = @switch;
         }
 
-        public TrailLine WithName(string name) => new TrailLine(Id, name, _spans, Posted);
-        public TrailLine WithSpans(IReadOnlyList<Span> spans) => new TrailLine(Id, Name, spans, Posted);
-        public TrailLine WithPosted(SlopeBands.Band? posted) => new TrailLine(Id, Name, _spans, posted);
+        public TrailLine WithName(string name) => new TrailLine(Id, name, _spans, Posted, Switch);
+        public TrailLine WithSpans(IReadOnlyList<Span> spans) => new TrailLine(Id, Name, spans, Posted, Switch);
+        public TrailLine WithPosted(SlopeBands.Band? posted) => new TrailLine(Id, Name, _spans, posted, Switch);
+        public TrailLine WithSwitch(TrailSwitch sw) => new TrailLine(Id, Name, _spans, Posted, sw);
     }
 }

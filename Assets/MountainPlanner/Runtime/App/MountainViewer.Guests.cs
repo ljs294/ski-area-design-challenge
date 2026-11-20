@@ -32,6 +32,9 @@ namespace MountainPlanner.App
         sealed class TrailFacts : INetworkFacts
         {
             readonly Dictionary<ulong, Entry> _byTrail;
+            /// <summary>SN-20 v4: the sections the graph was built over, and the document whose switches apply.</summary>
+            readonly TrailSections _sections;
+            readonly DesignDocument _doc;
 
             struct Entry
             {
@@ -45,6 +48,8 @@ namespace MountainPlanner.App
             public TrailFacts(DesignDocument doc, Func<TrailId, TrailMapView.Facts?> factsOf, TrailSections sections,
                               Func<TrailId, double> areaOf)
             {
+                _sections = sections;
+                _doc = doc;
                 _byTrail = new Dictionary<ulong, Entry>(doc.Trails.Count);
                 foreach (var t in doc.Trails)
                 {
@@ -71,6 +76,19 @@ namespace MountainPlanner.App
                 }
             }
 
+            TrailFacts(TrailFacts from, DesignDocument doc)
+            {
+                _byTrail = from._byTrail;
+                _sections = from._sections;
+                _doc = doc;
+            }
+
+            /// <summary>
+            /// The same facts with <paramref name="doc"/>'s switches, for a document that differs from this one's only in
+            /// them (<see cref="SetTrailSwitch.OnlySwitchesDiffer"/>): the sections still map every piece to its trail.
+            /// </summary>
+            public TrailFacts WithSwitchesOf(DesignDocument doc) => new TrailFacts(this, doc);
+
             public bool TrailSegment(ulong trailId, int startMm, int endMm, out TrailEdgeFacts facts)
             {
                 facts = default;
@@ -79,8 +97,22 @@ namespace MountainPlanner.App
                 int areaM2 = (int)Math.Max(1, (long)lengthMm / 1000 * e.WidthCm / 100);
                 facts = new TrailEdgeFacts(e.TrueBand, e.PostedBand, e.WidthCm, areaM2, SkiMs(e, SkiTimeTable.Reference, startMm, endMm, lengthMm),
                                            SkiMs(e, 0, startMm, endMm, lengthMm), SkiMs(e, 1, startMm, endMm, lengthMm),
-                                           SkiMs(e, 2, startMm, endMm, lengthMm));
+                                           SkiMs(e, 2, startMm, endMm, lengthMm), SwitchAt(trailId, startMm, endMm));
                 return true;
+            }
+
+            /// <summary>
+            /// SN-20 v4: the switch of the trail the player sees on this piece of a run: its shaped trail's, else the run's
+            /// own (a shaped trail can take only part of a run, so it's asked at the piece's middle).
+            /// </summary>
+            byte SwitchAt(ulong trailId, int startMm, int endMm)
+            {
+                var run = new TrailId(trailId);
+                var seg = _sections?.SegmentAt(run, startMm + (endMm - startMm) / 2);
+                var resolved = seg != null ? _sections.TrailOf(seg) : null;
+                if (resolved?.Line != null && _doc.FindLine(resolved.Line.Id) is TrailLine line) return (byte)line.Switch;
+                var own = resolved != null && resolved.Segments.Count > 0 ? resolved.Segments[0].Piece : run;
+                return (byte)(_doc.FindTrail(own)?.Switch ?? TrailSwitch.Auto);
             }
 
             /// <summary>

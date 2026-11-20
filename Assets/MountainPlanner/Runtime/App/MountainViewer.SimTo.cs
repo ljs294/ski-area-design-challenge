@@ -29,8 +29,53 @@ namespace MountainPlanner.App
                 Debug.LogWarning($"[SimTo] '{args[i + 1]}' isn't a month-day (MM-DD, e.g. 02-01)");
                 return;
             }
+            // Task 4.07 B1 part 2c: -savequit <name> saves under that name at the date and quits (the save-and-reopen check).
+            // Only with -data: a test run never writes into the player's own saves.
+            int q = Array.IndexOf(args, "-savequit");
+            if (q >= 0)
+            {
+                if (q + 1 >= args.Length || args[q + 1].StartsWith("-")) Debug.LogWarning("[SimTo] -savequit needs a save name");
+                else if (Array.IndexOf(args, "-data") < 0) Debug.LogWarning("[SimTo] -savequit only runs with -data <scratch folder> (it never writes into your own saves)");
+                else _saveQuitName = args[q + 1];
+            }
             _simToRunning = true;
             StartCoroutine(SimTo(month, day));
+        }
+
+        string _saveQuitName;
+
+        /// <summary>-savequit: saves the design and its simulation under the name, logs the sizes, and quits.</summary>
+        void SaveAndQuit(string when)
+        {
+            var open = Persistence.Saves.OpenDesign.Current;
+            if (open == null && Design != null && _resort != null)
+            {
+                // A capture run's design (-drawnresort) lives in the session's own history: save that, as Save would.
+                var m = _resort.Manifest;
+                string heights = System.Linq.Enumerable.FirstOrDefault(m.Layers, l => l.Id == "heights-core")?.Sha256 ?? "";
+                open = new Persistence.Saves.OpenDesign(Flow.AppFlow.DataRootFrom(Environment.GetCommandLineArgs()), m.PackageId, heights, Design.Document, Design.Terrain);
+                open.Simulation = SimStateForSave;
+            }
+            bool ok = false;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                ok = open != null && open.SaveAs(_saveQuitName, Flow.DownloadService.UtcStamp(DateTime.UtcNow), BuildInfo.Current.version ?? "");
+            }
+            catch (Exception e) when (e is System.IO.IOException || e is UnauthorizedAccessException)
+            {
+                Debug.LogWarning($"[SimTo] -savequit couldn't save: {e.Message}");
+            }
+            if (ok)
+            {
+                long folderBytes = 0;
+                foreach (var f in new System.IO.DirectoryInfo(open.SaveFolder).GetFiles("*", System.IO.SearchOption.AllDirectories)) folderBytes += f.Length;
+                Debug.Log($"[SimTo] saved \"{_saveQuitName}\" at {when} to {open.SaveFolder} in {clock.ElapsedMilliseconds} ms: {folderBytes / 1e6:F2} MB in all, " +
+                          $"the simulation {LastSaveBytes / 1e6:F2} MB ({LastSaveBlocks}; the worker's copy {LastSaveWaitMs:F0} ms, encoded {LastSaveEncodeMs:F0} ms) " +
+                          $"with {_simNow.TrailFineCells} trail snow cells ({_simNow.TrailBlocks} squares)");
+            }
+            else Debug.LogWarning($"[SimTo] -savequit: \"{_saveQuitName}\" wasn't saved");
+            Application.Quit(ok ? 0 : 1);
         }
 
         /// <summary>A <c>-simto</c> run hasn't reached its date yet (a capture or <c>-shellcheck</c> waits for it).</summary>
@@ -105,6 +150,7 @@ namespace MountainPlanner.App
             if (_simNow.TrailFineCells > 0) LogTrailBoard(Label(calendar, Now()));
             Toast(cancelled ? $"Stopped at {Label(calendar, Now())}" : $"{goal}: paused");
             _simToRunning = false;
+            if (_saveQuitName != null && !cancelled) SaveAndQuit(Label(calendar, Now()));
         }
 
         static string MonthName(int month) => CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month);

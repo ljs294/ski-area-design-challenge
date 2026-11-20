@@ -105,9 +105,19 @@ namespace MountainPlanner.Simulation
         {
             var net = _guestsNetwork;
             if (_gateBand[edge] > band) return false;
+            return EdgeOpen(edge);
+        }
+
+        /// <summary>
+        /// SN-20 v4: whether an edge of the guests' network is open to skiers: a path always; a trail's piece by its switch
+        /// and its trail's board, and only once a lift's way down reaches the trail (see <see cref="TrailOpen"/>).
+        /// </summary>
+        bool EdgeOpen(int edge)
+        {
+            var net = _guestsNetwork;
             int t = net.EdgeTrail[edge];
             if (t < 0) return true;                       // a path is always open
-            return TrailOpen(t);
+            return EdgeReady(net, edge) && (t >= _trailReached.Length || _trailReached[t] != 0);
         }
 
         /// <summary>
@@ -344,8 +354,7 @@ namespace MountainPlanner.Simulation
                 for (int e = 0; e < net.EdgeFrom.Length; e++)
                 {
                     if (_gateBand[e] > band) { gated++; continue; }
-                    int t = net.EdgeTrail[e];
-                    if (t >= 0 && !TrailOpen(t)) { shut++; continue; }
+                    if (!EdgeOpen(e)) { shut++; continue; }
                     allowed++;
                 }
                 var r = NetworkFor(band);

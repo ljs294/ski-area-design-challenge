@@ -486,6 +486,8 @@ namespace MountainPlanner.Simulation
         /// <summary>The board between hours: an open/close or a new design changes it at once rather than waiting for the hour.</summary>
         void RefreshBoard()
         {
+            // SN-20 v4 (4.07 B1 part 2c): a switch acts at once, with the design that carries it.
+            if (RefreshTrailRuns()) GuestBoardChanged();
             if (_candidate.Length < _liftCount) return;   // mid-fold: FoldDesign refreshes once the lifts' operations are in
             BoardLifts(_liftOpen);
             _trailsReady = TrailsReadyNow();

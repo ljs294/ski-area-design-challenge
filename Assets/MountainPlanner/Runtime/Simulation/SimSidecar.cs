@@ -38,10 +38,19 @@ namespace MountainPlanner.Simulation
     /// block: per lift, the top line's and the down riders' chain ends and counts and today's rides down (RD-2); the guest
     /// block's skier state may then be 8 (in line at the top) or 9 (riding down). An older sidecar opens with no top lines
     /// and nobody riding down, and hashes as before (the new state folds only when it holds something).
+    /// v12 (task 4.07 B1 part 2c) appends the trail snow block: the day's trail counters and the fold remainder, then
+    /// (when the trails' board is live) the late season, the readouts, the board per trail of the design's network (by
+    /// id: open, label, walk, cover, rating), the guests' snow table with the network's shape hash, the layout's hash, fine
+    /// size and grid with each layout trail's label, walk, cover, rating and main surface, and the fine cells
+    /// (<see cref="FineSnowCodec"/>), then the runoff of the snow's hour in flight (the cells that ran, as index steps and
+    /// µm). An older sidecar's trail snow seeds from the 8 m snow when the layout arrives, and its hour in flight lands with
+    /// no runoff.
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 11;
+        public const int Version = 12;
+        /// <summary>The first version with the trail snow block (task 4.07 B1 part 2c; the number confirmed with 0.0).</summary>
+        public const int TrailSnowVersion = 12;
         /// <summary>The first version with the water block (task 4.14 PR B; the number confirmed with 0.0 at merge).</summary>
         public const int WaterVersion = 10;
         /// <summary>The first version with the ride-down block and guest states 8 and 9 (task 4.24 PR B).</summary>
@@ -210,12 +219,27 @@ namespace MountainPlanner.Simulation
             _b[_n++] = (byte)z;
         }
 
-        // Snow fields to encode at their place in the bytes, when the bytes are asked for (task 4.07 PR A2's save split).
-        System.Collections.Generic.List<(int At, SnowField Field, SimWorld Owner)> _deferred;
+        // Encodings to write at their place in the bytes, when the bytes are asked for (task 4.07 PR A2's save split; 2c
+        // adds the trail snow).
+        System.Collections.Generic.List<(int At, Action<SidecarWriter> Write)> _deferred;
 
         /// <summary>Marks <paramref name="field"/>'s encoding here, done in <see cref="ToArray"/>; the field goes back to
         /// <paramref name="owner"/> for its next save once it's encoded.</summary>
-        internal void Defer(SnowField field, SimWorld owner) => (_deferred ??= new System.Collections.Generic.List<(int, SnowField, SimWorld)>()).Add((_n, field, owner));
+        internal void Defer(SnowField field, SimWorld owner) =>
+            Defer(o => { SnowCodec.Write(o, field); owner?.ReturnSaveCopy(field); }, "the 8 m snow");
+
+        /// <summary>Marks an encoding here, run in <see cref="ToArray"/> on whichever thread asks for the bytes; its size is
+        /// noted under <paramref name="name"/> (<see cref="DeferredSizes"/>, for the save's log).</summary>
+        internal void Defer(Action<SidecarWriter> write, string name = null)
+        {
+            (_deferred ??= new System.Collections.Generic.List<(int, Action<SidecarWriter>)>()).Add((_n, write));
+            (_deferredNames ??= new System.Collections.Generic.List<string>()).Add(name ?? "a block");
+        }
+
+        System.Collections.Generic.List<string> _deferredNames;
+
+        /// <summary>After <see cref="ToArray"/>: each deferred block's name and encoded bytes, in order (diagnostics).</summary>
+        internal System.Collections.Generic.List<(string Name, int Bytes)> DeferredSizes { get; private set; }
 
         public byte[] ToArray()
         {
@@ -226,12 +250,14 @@ namespace MountainPlanner.Simulation
                 return a;
             }
             var o = new SidecarWriter();
-            int from = 0;
+            int from = 0, k = 0;
+            DeferredSizes = new System.Collections.Generic.List<(string, int)>();
             foreach (var d in _deferred)
             {
                 o.Room(d.At - from); Buffer.BlockCopy(_b, from, o._b, o._n, d.At - from); o._n += d.At - from;
-                SnowCodec.Write(o, d.Field);
-                d.Owner?.ReturnSaveCopy(d.Field);
+                int at = o._n;
+                d.Write(o);
+                DeferredSizes.Add((_deferredNames[k++], o._n - at));
                 from = d.At;
             }
             o.Room(_n - from); Buffer.BlockCopy(_b, from, o._b, o._n, _n - from); o._n += _n - from;
@@ -253,11 +279,25 @@ namespace MountainPlanner.Simulation
 
         internal SimStateCapture(SidecarWriter o) { _o = o; }
 
+        /// <summary>After <see cref="Encode"/>: the deferred blocks' sizes, e.g. "the 8 m snow 3.80 MB, the trail snow 1.20 MB".</summary>
+        public string BlockSizes { get; private set; } = "";
+
         public byte[] Encode()
         {
             lock (_gate)
             {
-                if (_bytes == null) { _bytes = _o.ToArray(); _o = null; }
+                if (_bytes == null)
+                {
+                    _bytes = _o.ToArray();
+                    var sizes = _o.DeferredSizes;
+                    if (sizes != null)
+                    {
+                        var text = new System.Text.StringBuilder();
+                        foreach (var (name, bytes) in sizes) text.Append(text.Length > 0 ? ", " : "").Append(name).Append(' ').Append((bytes / 1e6).ToString("F2", System.Globalization.CultureInfo.InvariantCulture)).Append(" MB");
+                        BlockSizes = text.ToString();
+                    }
+                    _o = null;
+                }
                 return _bytes;
             }
         }

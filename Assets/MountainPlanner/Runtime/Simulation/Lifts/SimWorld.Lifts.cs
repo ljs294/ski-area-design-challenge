@@ -279,7 +279,7 @@ namespace MountainPlanner.Simulation
                 for (int e = e0; e < e0 + net.EdgeCount[node]; e++)
                 {
                     int t = net.EdgeTrail[e];
-                    if (t >= 0 && !TrailReady(t)) continue;
+                    if (t >= 0 && !EdgeReady(net, e)) continue;   // SN-20 v4: the edge's switch and its trail's board
                     if (mark && t >= 0) _trailReached[t] = 1;
                     int to = net.EdgeTo[e];
                     if (_visitedAt[to] == _visitMark) continue;

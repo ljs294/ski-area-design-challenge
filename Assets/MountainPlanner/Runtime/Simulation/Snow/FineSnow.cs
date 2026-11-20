@@ -86,6 +86,18 @@ namespace MountainPlanner.Simulation
             Array.Copy(from.Flags, s0, Flags, d0, bc); Array.Copy(from.Machine, s0 * 3, Machine, d0 * 3, bc * 3);
         }
 
+        /// <summary>A block's fine cells from a save's (task 4.07 B1 part 2c), the same fine size.</summary>
+        public void CopyBlock(FinePlanes from, int fromBlock, int block)
+        {
+            int bc = BlockCells;
+            if (from.BlockCells != bc) throw new ArgumentException("The fine sizes differ.");
+            int s0 = fromBlock * bc, d0 = block * bc;
+            Array.Copy(from.Swe, s0, Swe, d0, bc); Array.Copy(from.Density, s0, Density, d0, bc);
+            Array.Copy(from.Passes, s0, Passes, d0, bc); Array.Copy(from.Moguls, s0, Moguls, d0, bc);
+            Array.Copy(from.Type, s0, Type, d0, bc); Array.Copy(from.Age, s0, Age, d0, bc);
+            Array.Copy(from.Flags, s0, Flags, d0, bc); Array.Copy(from.Machine, s0 * 3, Machine, d0 * 3, bc * 3);
+        }
+
         /// <summary>SN-28: one block seeded from the 8 m snow (see <see cref="Seed"/>).</summary>
         public void SeedBlock(SnowField field, int b)
         {

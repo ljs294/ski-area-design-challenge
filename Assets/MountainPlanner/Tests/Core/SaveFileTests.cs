@@ -410,14 +410,32 @@ namespace MountainPlanner.Tests.Core
             return save;
         }
 
+        /// <summary>
+        /// The save the v16 fixture holds (task 4.07 B1 part 2c, SN-20 v4): the v15 fixture with one run switched Closed and
+        /// one shaped trail switched Open; every other trail and line stays on Auto.
+        /// </summary>
+        static SaveFile FixtureSaveSixteen()
+        {
+            var save = FixtureSaveFifteen();
+            var doc = save.Design;
+            var run = doc.Trails.OrderBy(t => t.Id.Value).First().Id;
+            var line = doc.Lines.OrderBy(l => l.Id.Value).First().Id;
+            var r = new SetTrailSwitch(0, new[] { run }, null, TrailSwitch.Closed).Apply(doc);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            r = new SetTrailSwitch(0, null, new[] { line }, TrailSwitch.Open).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            save.Design = r.Document;
+            return save;
+        }
+
         [Test]
         public void TheWriterReproducesTheFrozenFixtureByteForByte()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v15-save")), "Saves", JacksonHole, "save-001");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v16-save")), "Saves", JacksonHole, "save-001");
             string folder = Path.Combine(_root, "again");
-            SaveStore.Write(folder, FixtureSaveFifteen());
+            SaveStore.Write(folder, FixtureSaveSixteen());
             Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveFile.FileName)), Is.EqualTo(File.ReadAllBytes(Path.Combine(fixture, SaveFile.FileName))),
-                "save.json v15 is frozen: a writer change is a format change (0.3 §5)");
+                "save.json v16 is frozen: a writer change is a format change (0.3 §5)");
             foreach (string tile in Directory.GetFiles(Path.Combine(fixture, SaveStore.TilesFolder)))
                 Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveStore.TilesFolder, Path.GetFileName(tile))), Is.EqualTo(File.ReadAllBytes(tile)));
         }
@@ -518,7 +536,7 @@ namespace MountainPlanner.Tests.Core
             byte[] before = File.ReadAllBytes(path);
 
             var e = Assert.Throws<FormatTooNewException>(() => SaveStore.Read(folder));
-            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 16; this version reads up to 15). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 17; this version reads up to 16). Update the game to open it."));
             Assert.That(SaveStore.Write(folder, FixtureSave()), Is.False);
             Assert.That(SaveStore.Rename(folder, "Mine now"), Is.False);
             Assert.That(File.ReadAllBytes(path), Is.EqualTo(before), "nothing is written over a newer save (0.3 §5 rule 3)");
@@ -833,6 +851,45 @@ namespace MountainPlanner.Tests.Core
             }
         }
 
+        [Test]
+        public void TheVersionSixteenFixtureReadsUnchanged()
+        {
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v16-save")), "Saves", JacksonHole, "save-001");
+            string copy = Path.Combine(_root, "fixture16");
+            CopyFolder(fixture, copy);
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveSixteen(), back);
+            Assert.That(back.MigratedFrom, Is.EqualTo(16));
+            Assert.That(back.Design.Trails.Count(t => t.Switch == TrailSwitch.Closed), Is.EqualTo(1));
+            Assert.That(back.Design.Trails.Count(t => t.Switch != TrailSwitch.Auto), Is.EqualTo(1));
+            Assert.That(back.Design.Lines.Select(l => l.Switch).Count(s => s == TrailSwitch.Open), Is.EqualTo(1));
+            Assert.That(back.Design.Lines.Count(l => l.Switch == TrailSwitch.Closed), Is.Zero);
+            var o = JObject.Parse(File.ReadAllText(Path.Combine(copy, SaveFile.FileName)));
+            Assert.That(((JArray)o["Design"]["Trails"]).Select(t => (string)t["Switch"]).Distinct().OrderBy(w => w, StringComparer.Ordinal),
+                Is.EqualTo(new[] { "auto", "closed" }));
+        }
+
+        [Test]
+        public void SW00_OlderSavesOpenWithEveryTrailOnAuto()
+        {
+            // v15 → v16 (task 4.07 B1 part 2c): no switch was saved before v16, so every trail and shaped trail opens on Auto.
+            foreach (string version in new[] { "v1-save", "v7-save", "v11-save", "v15-save" })
+            {
+                string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", version)), "Saves", JacksonHole, "save-001");
+                var back = SaveStore.Read(CopyOf(fixture, "auto-" + version));
+                Assert.That(back.Design.Trails.All(t => t.Switch == TrailSwitch.Auto), Is.True, version);
+                Assert.That(back.Design.Lines.All(l => l.Switch == TrailSwitch.Auto), Is.True, version);
+            }
+        }
+
+        [Test, Explicit("writes the v16 fixture once; never rerun on a frozen fixture")]
+        public void WriteVersionSixteenFixture()
+        {
+            string folder = Path.Combine(TestData.Folder("formats"), "v16-save", "Saves", JacksonHole, "save-001");
+            Assert.That(Directory.Exists(folder), Is.False, "the v16 fixture is frozen");
+            SaveStore.Write(folder, FixtureSaveSixteen());
+        }
+
         [Test, Explicit("writes the v15 fixture once; never rerun on a frozen fixture")]
         public void WriteVersionFifteenFixture()
         {
@@ -1047,7 +1104,9 @@ namespace MountainPlanner.Tests.Core
         // with no hours of its own; from 1c7c9274…. Shape 13 (task 4.11 PR B): each lift's plate, numbered in ID order; from f5af52b0….
         // Shape 14 (task 4.14): the shape number and no ponds, dams or lake sources; from a5a27845….
         // Shape 15 (task 4.15, HY-01): the shape number and an empty snowmaking network; from f1725337…, owner OK 2026-11-18.
-        const string ConvertedSevenSha = "4c1b9a923fc8d56ed5cafac34222cf06e6cc1c23094f9ea39578a1997d913bcb";
+        // Shape 16 (task 4.07 B1 part 2c, SN-20 v4): the shape number and an Auto switch on each trail and shaped trail;
+        // from 4c1b9a92…, owner OK pending.
+        const string ConvertedSevenSha = "58dff65f3db38ebb3c48f3b3234cc970621bbe50641f39ee687d90bc88fd6bc7";
 
         [Test]
         public void ADamagedOlderTrailRefusesTheSave()

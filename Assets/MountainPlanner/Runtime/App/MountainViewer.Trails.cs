@@ -175,7 +175,7 @@ namespace MountainPlanner.App
             if (i < 0 || i + 1 >= args.Length || Persistence.Saves.OpenDesign.Current != null) return;
             var m = _resort.Manifest;
             string heights = m.Layers.FirstOrDefault(l => l.Id == "heights-core")?.Sha256 ?? "";
-            Persistence.Saves.OpenDesign.Current = Persistence.Saves.OpenDesign.Load(DataRoot, args[i + 1], m.PackageId, heights);
+            Persistence.Saves.OpenDesign.Current = Persistence.Saves.OpenDesign.Load(Flow.AppFlow.DataRootFrom(args), args[i + 1], m.PackageId, heights);
             Debug.Log($"[Saves] Opened {args[i + 1]} for a capture: {Persistence.Saves.OpenDesign.Current.History.Document.Trails.Count} trails");
         }
 

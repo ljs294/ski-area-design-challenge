@@ -21,11 +21,14 @@ namespace MountainPlanner.Simulation
     ///   skiable line. The line walks the trail top to bottom in rows one fine cell deep; a row's covered stretches at
     ///   least <see cref="Pacing.LineWidthMm"/> wide (or the row's own width, where the trail is narrower) count, and a row
     ///   is reached when one of them overlaps a reached stretch of the row above. A row with none is walked.
-    /// - **At the flip** (with the lifts): Auto opens a Covered trail and keeps a Marginal one open; Bare closes a trail
-    ///   whatever its switch. The first close by Bare after the season's midpoint starts the late season, when a trail
-    ///   with a walk is Marginal and the walk costs time and pull (exp(−(feet ÷ L)²)).
+    /// - **At the flip** (with the lifts; SN-20 v4): Auto opens a Covered trail and keeps a Marginal one open; Open opens
+    ///   anything but Bare; Closed closes; Bare closes a trail whatever its switch. A switch acts at once, per segment (a
+    ///   shaped line's switch wins over its run's). The first close by Bare of an open trail after the season's midpoint
+    ///   starts the late season (the player's own close never does), when a trail with a walk is Marginal and the walk
+    ///   costs time and pull (exp(−(feet ÷ L)²)).
     /// - A world without the trail snow keeps the stand-ins: every built trail ready, and the same quality everywhere.
-    /// - Not saved in 2b: readiness comes again from the snow at the next hour; the late season reseeds (2c saves it).
+    /// - Saved since 2c (sidecar v12): the board, the guests' snow table and the late season come back live at once, so a
+    ///   reopened world hashes and routes as the one that saved.
     /// </summary>
     public sealed partial class SimWorld
     {
@@ -56,9 +59,17 @@ namespace MountainPlanner.Simulation
         int[] _edgeQuality = Array.Empty<int>(), _edgeQCells = Array.Empty<int>(), _edgeWalkMm = Array.Empty<int>();
         long[] _edgeQSum = Array.Empty<long>();
         SimNetwork _edgeTableNet;
+        /// <summary>The shape hash of the network the guests' table was rated on (0: none). By shape, not by object
+        /// (finding B2c-2: every design send made a new network and dropped the table to the stand-in), so a reopened save's
+        /// table holds on the same network as soon as it arrives.</summary>
+        ulong _edgeTableShape;
 
         // per trail of the design's network
         SimNetwork _trailMapNet;
+        /// <summary>The trail ids the board's arrays are in (the mapped network's, or a reopened save's until it maps).</summary>
+        ulong[] _boardIds = Array.Empty<ulong>();
+        /// <summary>A reopened save's board, live before the layout and its fine snow come back (2c).</summary>
+        bool _trailBoardRestored;
         byte[] _trailOpenNet = Array.Empty<byte>(), _trailLabelNet = Array.Empty<byte>();
         int[] _trailWalkFtNet = Array.Empty<int>(), _trailCoverNet = Array.Empty<int>(), _trailQualityNet = Array.Empty<int>();
         bool _lateSeason;
@@ -83,7 +94,10 @@ namespace MountainPlanner.Simulation
             _trailGroomedNow = new bool[n];
             _trailNetOf = new int[n];
             for (int t = 0; t < n; t++) _trailNetOf[t] = -1;
-            _trailMapNet = null;
+            // The board stays (it's per trail of the design's network, not of the layout): only the layout's trails map again.
+            for (int t = 0; t < n; t++)
+                for (int k = 0; k < _boardIds.Length; k++)
+                    if (_boardIds[k] == layout.TrailId[t]) { _trailNetOf[t] = k; break; }
             int widest = 0;
             for (int t = 0; t < n; t++) widest = Math.Max(widest, _trailStart[t + 1] - _trailStart[t]);
             _rowBuf = new int[widest];
@@ -91,6 +105,7 @@ namespace MountainPlanner.Simulation
             _shapeBreak = new bool[_trailOrder.Length];
             for (int t = 0; t < n; t++) RateTrail(t, shapeOnly: true);
             _edgeTableNet = null;
+            _edgeTableShape = 0;
         }
 
         /// <summary>The hour's ratings and lines (the roll, after the wear and the grooming).</summary>
@@ -146,8 +161,9 @@ namespace MountainPlanner.Simulation
                 Array.Clear(_edgeQCells, 0, _edgeQCells.Length);
                 Array.Clear(_edgeWalkMm, 0, _edgeWalkMm.Length);
                 _edgeTableNet = net;
+                _edgeTableShape = net.ShapeHash;
             }
-            else _edgeTableNet = null;
+            else { _edgeTableNet = null; _edgeTableShape = 0; }
             Array.Clear(_trailQSum, 0, _trailQSum.Length);
             Array.Clear(_trailRainCells, 0, _trailRainCells.Length);
             for (int t = 0; t < L.Trails; t++)
@@ -307,27 +323,7 @@ namespace MountainPlanner.Simulation
             var net = Design.Network;
             if (net == null) return;
             var L = _trailLayout;
-            int n = net.TrailIds.Length;
-            if (_trailMapNet != net || _trailOpenNet.Length != n)
-            {
-                var oldIds = _trailMapNet?.TrailIds;
-                var oldOpen = _trailOpenNet;
-                _trailOpenNet = new byte[n]; _trailLabelNet = new byte[n];
-                _trailWalkFtNet = new int[n]; _trailCoverNet = new int[n]; _trailQualityNet = new int[n];
-                for (int k = 0; k < n; k++)
-                {
-                    _trailOpenNet[k] = 2;   // not yet rated: open, as the stand-in had it
-                    if (oldIds != null)
-                        for (int o = 0; o < oldIds.Length && o < oldOpen.Length; o++)
-                            if (oldIds[o] == net.TrailIds[k]) { _trailOpenNet[k] = oldOpen[o]; break; }
-                }
-                for (int t = 0; t < L.Trails; t++)
-                {
-                    _trailNetOf[t] = -1;
-                    for (int k = 0; k < n; k++) if (net.TrailIds[k] == L.TrailId[t]) { _trailNetOf[t] = k; break; }
-                }
-                _trailMapNet = net;
-            }
+            MapBoard(net);
             int day = FaceDayNow % Calendar.YearFaceDays;
             if (_lateSeason && day < _lateDay) _lateSeason = false;   // a new label year
             bool changed = false, closedByBare = false;
@@ -346,7 +342,10 @@ namespace MountainPlanner.Simulation
                 if ((byte)label != _trailLabelNet[k] && label != TrailSnowLabel.None)
                     Events.Add(Tick, SimEventType.TrailReadinessChanged, k, (long)label + ((long)open << 8));
                 if ((open != 0) != (was != 0)) changed = true;
-                if (was != 0 && open == 0) closedByBare = true;
+                // SN-20 v4: only a trail that was open to skiers (by its switch too) and goes Bare starts the late
+                // season; the player's own close never does (owner, 2c Q3).
+                bool runWasOpen = k < _trailRunOpen.Length ? _trailRunOpen[k] != 0 : was != 0;
+                if (runWasOpen && label == TrailSnowLabel.Bare) closedByBare = true;
                 _trailOpenNet[k] = open;
                 _trailLabelNet[k] = (byte)label;
                 _trailWalkFtNet[k] = FeetOf(_trailWalkMm[t]);   // a Bare trail shows its walk too
@@ -356,6 +355,7 @@ namespace MountainPlanner.Simulation
                 else if (label == TrailSnowLabel.Marginal) _trailsMarginal++;
                 else if (label == TrailSnowLabel.Bare) _trailsBare++;
             }
+            _lastClosedByBare = closedByBare;
             int mid = (Calendar.December1FaceDay + Calendar.April1FaceDay) / 2;
             if (closedByBare && !_lateSeason && Phase == SeasonPhase.Season && day >= mid)
             {
@@ -363,29 +363,122 @@ namespace MountainPlanner.Simulation
                 _lateDay = day;
                 Events.Add(Tick, SimEventType.LateSeasonStarted, -1, day);
             }
+            if (RefreshTrailRuns()) changed = true;
             if (changed) GuestBoardChanged();
         }
 
-        /// <summary>SN-20 v3's readiness of a design-network trail: the board's, or every trail without the trail snow.</summary>
-        internal bool TrailReady(int trail) => _fine == null || trail < 0 || trail >= _trailOpenNet.Length || _trailOpenNet[trail] != 0;
+        /// <summary>
+        /// The board's per-trail arrays for <paramref name="net"/>'s trails, by trail id: a design change keeps every trail's
+        /// open state, label, walk, cover and rating (finding B2c-3: it kept only the open state, so every label fired its
+        /// event again at the next hour). A new trail starts unrated and open, as the stand-in had it.
+        /// </summary>
+        void MapBoard(SimNetwork net)
+        {
+            int n = net.TrailIds.Length;
+            if (_trailMapNet == net && _trailOpenNet.Length == n) return;
+            var oldIds = _boardIds;
+            var oldOpen = _trailOpenNet; var oldLabel = _trailLabelNet;
+            var oldWalk = _trailWalkFtNet; var oldCover = _trailCoverNet; var oldQuality = _trailQualityNet;
+            _trailOpenNet = new byte[n]; _trailLabelNet = new byte[n];
+            _trailWalkFtNet = new int[n]; _trailCoverNet = new int[n]; _trailQualityNet = new int[n];
+            for (int k = 0; k < n; k++)
+            {
+                _trailOpenNet[k] = 2;   // not yet rated: open, as the stand-in had it
+                if (oldIds == null) continue;
+                for (int o = 0; o < oldIds.Length && o < oldOpen.Length && o < oldLabel.Length; o++)
+                    if (oldIds[o] == net.TrailIds[k])
+                    {
+                        _trailOpenNet[k] = oldOpen[o]; _trailLabelNet[k] = oldLabel[o];
+                        _trailWalkFtNet[k] = oldWalk[o]; _trailCoverNet[k] = oldCover[o]; _trailQualityNet[k] = oldQuality[o];
+                        break;
+                    }
+            }
+            var L = _trailLayout;
+            if (L != null)
+                for (int t = 0; t < L.Trails && t < _trailNetOf.Length; t++)
+                {
+                    _trailNetOf[t] = -1;
+                    for (int k = 0; k < n; k++) if (net.TrailIds[k] == L.TrailId[t]) { _trailNetOf[t] = k; break; }
+                }
+            _trailMapNet = net;
+            _boardIds = net.TrailIds;
+        }
 
-        /// <summary>Built trails open by the board (the snapshot's <c>TrailsReady</c>).</summary>
+        /// <summary>
+        /// SN-20 v4: whether skiers may take an edge of <paramref name="net"/> (a path always). Closed shuts it; Bare shuts
+        /// it whatever the switch; Open opens anything else; Auto follows the board (Covered opens, Marginal stays as it
+        /// was). Without the trail snow the board is the stand-in, every trail ready, so only Closed shuts.
+        /// </summary>
+        bool EdgeReady(SimNetwork net, int edge)
+        {
+            int t = net.EdgeTrail[edge];
+            if (t < 0) return true;
+            var sws = net.EdgeSwitch;
+            byte sw = edge < sws.Length ? sws[edge] : (byte)0;
+            if (sw == SwitchClosed) return false;
+            if (!TrailBoardLive || t >= _trailOpenNet.Length) return true;
+            if (_trailLabelNet[t] == (byte)TrailSnowLabel.Bare) return false;
+            return sw == SwitchOpen || _trailOpenNet[t] != 0;
+        }
+
+        const byte SwitchOpen = (byte)Domain.Design.TrailSwitch.Open, SwitchClosed = (byte)Domain.Design.TrailSwitch.Closed;
+
+        /// <summary>Whether the trail board is live: the trail snow is in, or a reopened save brought its board (2c).</summary>
+        bool TrailBoardLive => _fine != null || _trailBoardRestored;
+
+        /// <summary>Per trail of the design's network: open when any edge of it is (<see cref="EdgeReady"/>).</summary>
+        byte[] _trailRunOpen = Array.Empty<byte>();
+        byte[] _runScratch = Array.Empty<byte>();
+
+        /// <summary>
+        /// The per-trail open table, again from the edges (an hour's board, a design, a switch: at once, never waiting for
+        /// the hour). True when a trail's open state changed. Allocates only when the number of trails does.
+        /// </summary>
+        bool RefreshTrailRuns()
+        {
+            var net = Design?.Network;
+            if (net == null)
+            {
+                bool had = _trailRunOpen.Length > 0;
+                _trailRunOpen = Array.Empty<byte>();
+                return had;
+            }
+            if (TrailBoardLive) MapBoard(net);
+            int n = net.TrailIds.Length;
+            bool changed = false;
+            if (_trailRunOpen.Length != n) { _trailRunOpen = new byte[n]; changed = true; }
+            if (_runScratch.Length < n) _runScratch = new byte[n];
+            Array.Clear(_runScratch, 0, n);
+            for (int e = 0; e < net.EdgeFrom.Length; e++)
+            {
+                int t = net.EdgeTrail[e];
+                if (t >= 0 && t < n && EdgeReady(net, e)) _runScratch[t] = 1;
+            }
+            for (int k = 0; k < n; k++)
+                if (_trailRunOpen[k] != _runScratch[k]) { _trailRunOpen[k] = _runScratch[k]; changed = true; }
+            return changed;
+        }
+
+        /// <summary>SN-20 v4's readiness of a design-network trail: any of its edges open (every trail without a network).</summary>
+        internal bool TrailReady(int trail) => trail < 0 || trail >= _trailRunOpen.Length || _trailRunOpen[trail] != 0;
+
+        /// <summary>Built trails open to skiers (the snapshot's <c>TrailsReady</c>).</summary>
         int TrailsReadyNow()
         {
             int built = Design.BuiltTrails;
-            if (_fine == null) return built;
             int closed = 0;
-            for (int k = 0; k < _trailOpenNet.Length; k++) if (_trailOpenNet[k] == 0) closed++;
+            for (int k = 0; k < _trailRunOpen.Length; k++) if (_trailRunOpen[k] == 0) closed++;
             return Math.Max(0, built - closed);
         }
 
         /// <summary>Whether the guests' rating table is for the network they stand on.</summary>
-        bool EdgeTableLive => _fine != null && _edgeTableNet != null && _edgeTableNet == _guestsNetwork;
+        bool EdgeTableLive => TrailBoardLive && _edgeTableShape != 0 && _guestsNetwork != null && _edgeTableShape == _guestsNetwork.ShapeHash
+                              && _edgeQCells.Length == _guestsNetwork.EdgeFrom.Length;
 
         /// <summary>The label of an edge's trail on the guests' network (None without the trail snow).</summary>
         TrailSnowLabel EdgeLabel(int edge)
         {
-            if (_fine == null) return TrailSnowLabel.None;
+            if (!TrailBoardLive) return TrailSnowLabel.None;
             int t = _guestsNetwork.EdgeTrail[edge];
             return t >= 0 && t < _trailLabelNet.Length ? (TrailSnowLabel)_trailLabelNet[t] : TrailSnowLabel.None;
         }
@@ -393,7 +486,7 @@ namespace MountainPlanner.Simulation
         /// <summary>GU-07 v2: the walk's pull on an edge's trail, exp(−(feet ÷ L)²) in ‰ (1000 with no walk).</summary>
         int WalkFactorOf(int edge)
         {
-            if (_fine == null) return 1000;
+            if (!TrailBoardLive) return 1000;
             int t = _guestsNetwork.EdgeTrail[edge];
             if (t < 0 || t >= _trailWalkFtNet.Length || _trailWalkFtNet[t] <= 0) return 1000;
             return WalkPullOf(_trailWalkFtNet[t], WalkToleranceFt());
@@ -411,6 +504,14 @@ namespace MountainPlanner.Simulation
 
         /// <summary>Tests: rate the trails now (between hours), and set the late season.</summary>
         internal void RateTrailsNow() { if (_fine != null) RateTrails(); }
+        /// <summary>Tests: rate the trails and set the board now, as the hour's flip does.</summary>
+        internal void BoardTrailsNow() { if (_fine != null) { RateTrails(); BoardTrails(); } }
+        /// <summary>Tests: whether the last board closed an open trail by Bare (what starts the late season after the midpoint).</summary>
+        internal bool LastBoardClosedByBare => _lastClosedByBare;
+        bool _lastClosedByBare;
+        /// <summary>Tests: <see cref="EdgeReady"/> on the design's network, and the per-trail table again.</summary>
+        internal bool EdgeReadyOf(int edge) => Design?.Network != null && EdgeReady(Design.Network, edge);
+        internal bool RefreshTrailRunsNow() => RefreshTrailRuns();
         internal void SetLateSeason(bool on, int day) { _lateSeason = on; _lateDay = day; }
 
         /// <summary>GU-09: the walk on a Marginal trail's segment, ticks (0 on any other).</summary>
@@ -429,7 +530,7 @@ namespace MountainPlanner.Simulation
             long sum = 0; int n = 0, bands = Pacing.Bands;
             for (int e = 0; e < _edgeQCells.Length; e++)
             {
-                if (_edgeQCells[e] == 0 || net.EdgeKindOf[e] != (byte)SimEdgeKind.TrailSegment || !TrailOpen(net.EdgeTrail[e])) continue;
+                if (_edgeQCells[e] == 0 || net.EdgeKindOf[e] != (byte)SimEdgeKind.TrailSegment || !EdgeOpen(e)) continue;
                 for (int b = 0; b < bands; b++) sum += _edgeQuality[e * bands + b];
                 n += bands;
             }
@@ -438,14 +539,14 @@ namespace MountainPlanner.Simulation
 
         void HashTrailBoard(ref StateHasher h)
         {
-            if (_fine == null) return;   // the goldens (no trail snow) hash as before
+            if (!TrailBoardLive) return;   // the goldens (no trail snow) hash as before
             h.Add(_lateSeason ? 1 : 0); h.Add(_lateDay);
             for (int k = 0; k < _trailOpenNet.Length; k++) { h.Add(_trailOpenNet[k]); h.Add(_trailLabelNet[k]); h.Add(_trailWalkFtNet[k]); }
         }
 
         void WriteTrailBoard(SimSnapshot s, int k)
         {
-            bool live = _fine != null && k < _trailLabelNet.Length;
+            bool live = TrailBoardLive && k < _trailLabelNet.Length;
             if (!live) { s.TrailBoard[k] = 0; s.TrailCoverPct[k] = 0; return; }
             int q = _trailQualityNet[k];
             int word = q >= 800 ? 3 : q >= 600 ? 2 : q >= 400 ? 1 : 0;   // SN-16's words

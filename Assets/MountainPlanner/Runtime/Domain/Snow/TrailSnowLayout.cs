@@ -20,7 +20,7 @@ namespace MountainPlanner.Domain.Snow
         public int[] SegmentStartMm;
         /// <summary>Each segment's edge in the simulation's network (one per entry of <see cref="SegmentStartMm"/>).</summary>
         public int[] SegmentEdge;
-        /// <summary>SN-22 v3: a glade or zone, never groomed (runs are groomed nightly until the player's settings, 2c).</summary>
+        /// <summary>SN-22 v3: a glade or zone, never groomed (runs are groomed nightly until 4.25's grooming settings).</summary>
         public bool NeverGroom;
         /// <summary>The trail's stable id (the simulation's trails are matched to the network's by it).</summary>
         public ulong Id;
@@ -106,9 +106,13 @@ namespace MountainPlanner.Domain.Snow
             y = OriginYMm + (long)cj * CellMm + fj * s + s / 2;
         }
 
-        /// <summary>A hash of everything the worker reads (the same trails, the same hash).</summary>
+        ulong _hash;
+
+        /// <summary>A hash of everything the worker reads (the same trails, the same hash). Worked out once: a layout never
+        /// changes after it's built (a race between threads works out the same number).</summary>
         public ulong Hash()
         {
+            if (_hash != 0) return _hash;
             ulong h = 14695981039346656037UL;
             void Mix(long v) { unchecked { for (int i = 0; i < 8; i++) { h ^= (byte)(v >> (8 * i)); h *= 1099511628211UL; } } }
             Mix(FineMetres); Mix(GridWidth); Mix(GridHeight); Mix(OriginXMm); Mix(OriginYMm); Mix((long)NetworkHash);
@@ -117,6 +121,8 @@ namespace MountainPlanner.Domain.Snow
             foreach (ulong id in TrailId) Mix((long)id);
             foreach (bool g in TrailGraded) Mix(g ? 1 : 0);
             for (int i = 0; i < Owner.Length; i++) { Mix(Owner[i]); Mix(AlongMm[i]); Mix(Lane[i]); Mix(Edge[i]); Mix(LateralMm[i]); }
+            if (h == 0) h = 1;
+            _hash = h;
             return h;
         }
 

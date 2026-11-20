@@ -268,7 +268,7 @@ namespace MountainPlanner.Domain.Design
     }
 
     /// <summary>
-    /// The whole snowmaking network as the design holds it (task 4.15, shape 16): nodes, pipes, pump houses and guns, each
+    /// The whole snowmaking network as the design holds it (task 4.15, shape 15): nodes, pipes, pump houses and guns, each
     /// kept in ID order (SH-04) so the same commands give the same bytes. Immutable and copy-on-write, one field of the
     /// <see cref="DesignDocument"/>.
     /// </summary>

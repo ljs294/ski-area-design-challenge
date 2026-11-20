@@ -200,7 +200,7 @@ namespace MountainPlanner.Simulation
         public SnowLedger SnowToday, SnowLastDay;
         /// <summary>Task 4.07 B1 part 2a, for the F1 readout: the fine size (0: no trail snow), its cells, the trails' mean depth
         /// (mm) and packed share (‰) at the last hour roll, the trails groomed this face day, and the water the trails took off
-        /// the 8 m snow in all (µm, the ledger's missing term until 2c).</summary>
+        /// the 8 m snow in all (µm, the ledger's own term; saved since 2c).</summary>
         public int TrailFineMetres, TrailFineCells, TrailDepthMm, TrailPackedPermille, TrailsGroomedToday;
         /// <summary>The trails' 8 m cells (blocks), and how many of them the Snow conditions layer shows as machine groomed.</summary>
         public int TrailBlocks, TrailBlocksGroomed;
@@ -212,6 +212,10 @@ namespace MountainPlanner.Simulation
         /// <summary>Task 4.07 B1 part 2b: trails Covered, Marginal and Bare at the last flip, and the late season.</summary>
         public int TrailsCovered, TrailsMarginal, TrailsBare;
         public bool LateSeason;
+        /// <summary>Task 4.07 B1 part 2c: a reopened save's trail snow waits for the layout (the game holds the clock), and the
+        /// save's blocks taken back exactly or seeded again when it came (the log).</summary>
+        public bool TrailSnowWaiting;
+        public int TrailBlocksRestored, TrailBlocksReseeded;
 
         /// <summary>GU-03, GU-13, GU-18: the crowd as the Guests tab shows it, and the selected skier's day (GU-02).</summary>
         public readonly GuestView Guests;

@@ -133,6 +133,12 @@ front end that displays it"): they write down the boundary between the worker an
   in a `SetSnowpack` command; the worker keeps it in whole mm and hashes it a 64-cell tile at a time. The staging ring's
   slots carry depth only (8 KB, 64 × 64 × 2 B) until 4.07 adds the type and quality planes. While paused the host still
   stages, so an edit's snow shows without the clock moving.
+- **The sidecar's v12 step (task 4.07 B1 part 2c).** v12 appends the trail snow block (SN-20 v4: the day's trail
+  counters and the fold remainder, the board, the guests' snow table, the late season, the layout's hash and each
+  layout trail's label and main surface, then the fine squares) and the runoff of the snow's hour in flight (only the
+  cells that ran; finding B2c-4: a save made between an hour's start and its landing lost that hour's runoff into the
+  ponds). The fine squares are encoded on the save's task, as the 8 m snow is. A v11 sidecar opens with no trail snow
+  (it seeds when the layout arrives) and its hour in flight lands with no runoff, as before.
 - **SI-18, the event ring.** Every state change a player could care about (boarded, unloaded, hold on/off, trail
   readiness change, gun start/stop/short, source level band, solve failed, skier arrived/left/balked, season opened)
   is appended as a typed event (stable type id, tick, entity, value) to a fixed-size ring in the snapshot. Alerts
@@ -591,6 +597,29 @@ density, so water and snow balance (SI-10).
 - **SN-19 v1 (retired (task 4.07 PR B1, owner 2026-11-17)), footprints on cells.** SN-03 v3 gives every fine cell to one trail, so no area
   shares are kept. The old text: each trail's area share per 8 m cell is precomputed from its 250 mm mask when
   built (and per segment, NW-08); coverage, quality and wear use these shares.
+- **SN-20 v4, the Open / Closed / Auto switch, and the board saved (task 4.07 B1 part 2c; owner 2026-11-19).** v3's
+  readiness is unchanged; v4 replaces its "who opens it" and saves the board.
+  - **The switch:** every trail and every shaped line has one, *Auto*, *Open* or *Closed* (default Auto; every older
+    save opens on Auto). The line's switch wins over its run's, as the posted sign does. It's a field of its own on
+    the trail and the line (`"Switch": "auto" | "open" | "closed"` in save.json, save v16, design shape 16), so
+    changing it never regrades or redraws a trail. One undoable command switches many trails and lines at once
+    (`SetTrailSwitch`); split, join and Edit sections keep it.
+  - **What it does:** *Auto* opens a Covered trail and keeps a Marginal one open; *Open* opens anything that isn't
+    Bare (how a mountain opens early or hangs on late); *Closed* closes it. **Bare closes a trail whatever its
+    switch.** A path is always open.
+  - **When:** a switch acts at once, not at the next hour: the game sends a switch-only edit to the worker on the
+    network it already built, and the worker reads it per segment (a shaped line can cover part of a run). The
+    guests' routes, the lifts' way down (LO-10), terrain capacity and the open count all read it.
+  - **The late season** starts only when an *open* trail falls to Bare; a trail the player closed never starts it.
+  - **Saved** (sim sidecar v12): the board (per trail by id: open, label, walk, cover, rating), the guests' snow
+    table, the late season and its day, and every fine square's snow (`FineSnowCodec`: per 8 m block and plane, all
+    zero, one value, runs or cell by cell, with a check). A reopened world's board is live at once, so it hashes and
+    routes as the one that saved; the fine snow waits for the game's trail layout and the game's clock waits with it
+    (a minute at most, or until the layout fails). The same layout takes every square back exactly; a changed one
+    keeps the blocks it shares and seeds the rest from the 8 m snow, and a block that doesn't add up to its 8 m cell
+    is seeded again and counted. An older sidecar seeds the trail snow from the 8 m snow, as before.
+  - *The grooming setting moves to task 4.25 (Autopilot and priorities); until then runs groom nightly and glades
+    and zones never, closed trails included.*
 - **SN-20 v3, readiness from a skiable line (task 4.07 B1 part 2b; owner 2026-11-18 and 2026-11-19).** Replaces v2's
   covered shares. A **fine** trail cell (SN-03 v3) is *covered* when its depth is at least `Pacing.CoverGradedMm =
   152` (6 in) on a graded trail or `Pacing.CoverNaturalMm = 305` (12 in) on a natural one. Every face hour, after
@@ -606,7 +635,7 @@ density, so water and snow balance (SI-10).
     also a trail with a walk of at most twice the day's walk tolerance, shown "Marginal · walk N ft";
   - **Bare:** no covered cells, or any other walk. It can't be skied top to bottom.
 
-  **Who opens it:** until the Open / Closed / Auto switch arrives (2c), every trail is on **Auto**: it opens when
+  **Who opens it** (replaced by SN-20 v4's switch): every trail is on **Auto**: it opens when
   Covered and stays open while Marginal (owner 2026-11-19: Marginal is still skiable; the guests pay GU-17's penalty).
   **Bare closes a trail whatever its switch.** The board flips at the next hour roll, with the lifts; any change
   calls `GuestBoardChanged()` so the routes rebuild, and raises sim event 38 (`TrailReadinessChanged`). A trail
@@ -616,7 +645,7 @@ density, so water and snow balance (SI-10).
   face days, whatever day the player opened), on which an open trail falls to Bare (sim event 37,
   `LateSeasonStarted`; a January thaw never starts spring). From then the walk tolerance L runs linearly from
   `Pacing.LateWalkStartFt = 60` that day to `Pacing.LateWalkEndFt = 250` on April 1. TM-08's close nudge counts the
-  trails open by these labels. Until 2c saves the flag, a reopened save starts it again on the next Bare.
+  trails open by these labels. The flag is saved since SN-20 v4.
 - **SN-20 v2 (superseded by v3), readiness, and who opens a trail (OQ2, owner 2026-11-07: "the game knows, the player decides").** A
   trail cell is *covered* when total depth ≥ `Pacing.CoverGraded = 6 in` on a graded trail, 12 in on a natural one.
   The game rates every trail's **readiness** each face hour: **Ready** (≥ `Pacing.ReadyCover = 90 %` of the area

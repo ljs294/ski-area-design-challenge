@@ -28,6 +28,43 @@ namespace MountainPlanner.App
             _trailSnowDirty = true;
         }
 
+        // Task 4.07 B1 part 2c: a reopened save's trail snow waits for the layout, so the clock does too (the layout goes in the
+        // same queue ahead of the release, so the first tick already has it). A failed layout or a minute releases it.
+        const float TrailSnowWaitSeconds = 60;
+        bool _trailSnowWait, _trailSnowBackSaid;
+        float _trailSnowWaitUntil, _trailSnowWaitFrom;
+
+        void HoldForTrailSnow(bool waiting)
+        {
+            _trailSnowWait = waiting;
+            _trailSnowBackSaid = !waiting;
+            _trailSnowWaitFrom = Time.unscaledTime;
+            _trailSnowWaitUntil = Time.unscaledTime + TrailSnowWaitSeconds;
+        }
+
+        /// <summary>The clock still waits for the save's trail layout.</summary>
+        bool TrailSnowMissing
+        {
+            get
+            {
+                if (!_trailSnowWait || _trailSnowSentHash != 0) return false;
+                if (Time.unscaledTime < _trailSnowWaitUntil) return true;
+                Debug.LogWarning($"[TrailSnow] the trail layout didn't come in {TrailSnowWaitSeconds:F0} s; the clock starts without it (the save's trail snow waits)");
+                _trailSnowWait = false;
+                return false;
+            }
+        }
+
+        /// <summary>Once, when the worker has taken a reopened save's trail snow back.</summary>
+        void SayTrailSnowBack(SimSnapshot s)
+        {
+            if (_trailSnowBackSaid || _trailSnowSentHash == 0 || s.TrailSnowWaiting || s.TrailFineCells == 0) return;
+            _trailSnowBackSaid = true;
+            Debug.Log($"[TrailSnow] trail snow came back: {s.TrailBlocksRestored} squares as saved, {s.TrailBlocksReseeded} seeded again " +
+                      $"(they didn't add up), {s.TrailBlocks - s.TrailBlocksRestored - s.TrailBlocksReseeded} new; the layout came after " +
+                      $"{Time.unscaledTime - _trailSnowWaitFrom:F1} s");
+        }
+
         /// <summary>A new world: nothing has been sent to it.</summary>
         void ResetTrailSnow()
         {
@@ -44,7 +81,11 @@ namespace MountainPlanner.App
             {
                 if (!_trailSnowJob.IsCompleted) return;
                 if (_trailSnowJob.Status == TaskStatus.RanToCompletion) _trailSnowReady = _trailSnowJob.Result;
-                else Debug.LogWarning($"[TrailSnow] the layout failed: {_trailSnowJob.Exception?.GetBaseException().Message}");
+                else
+                {
+                    Debug.LogWarning($"[TrailSnow] the layout failed: {_trailSnowJob.Exception?.GetBaseException().Message}");
+                    _trailSnowWait = false;   // the clock isn't left waiting for it
+                }
                 _trailSnowJob = null;
             }
             if (_trailSnowReady != null)

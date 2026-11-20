@@ -11,9 +11,9 @@ namespace MountainPlanner.Simulation
     /// - **The hour** (<see cref="SnowHour"/>) shares each 8 m cell's change with its block, the melt weighted by packing.
     /// - **Between hours** (at the roll, the job landed): the hour's skier passes wear the lanes, and the night's grooming
     ///   runs at each trail's keyed hour. Each touched block's roll-up is written back to its 8 m cell, and the water the
-    ///   8 m cells lost that way is this file's ledger term (<see cref="TrailRemovedToday"/>; saved with the sidecar in 2c).
-    /// - Not saved in 2a: a reopened game reseeds the fine field from the 8 m snow, and it isn't in the hash, so a reload
-    ///   hashes as the game that saved.
+    ///   8 m cells lost that way is this file's ledger term (<see cref="TrailRemovedToday"/>; saved with the sidecar since 2c).
+    /// - Saved since 2c (sidecar v12, <c>SimWorld.TrailSave</c>): a reopened game takes the fine field back when the layout
+    ///   arrives. The fine cells aren't in the hash (the hour's job is still writing them when the hash is taken).
     /// </summary>
     /// <summary>A grooming pass's strength (SN-23 v4, task 4.25's light and heavy): its reach along the centreline (mm),
     /// how far it moves snow toward the reach's mean (‰) and how far it packs toward the groomed density (‰).</summary>
@@ -51,7 +51,7 @@ namespace MountainPlanner.Simulation
         /// <summary>The fine field (null without a layout or live snow): tests and the readout, between hours only.</summary>
         internal FineSnow FineSnow => _fine;
         /// <summary>Water (8 m µm summed over cells) the trails' wear and grooming took off the 8 m field this face day, and
-        /// in all: the snow ledger's missing term until 2c saves it (Balance + this = 0).</summary>
+        /// in all: the snow ledger's own term, saved since 2c (Balance + this = 0).</summary>
         public long TrailRemovedToday => _trailRemovedToday;
         public long TrailRemovedTotal => _trailRemovedTotal;
 
@@ -67,6 +67,9 @@ namespace MountainPlanner.Simulation
             return true;
         }
 
+        /// <summary>Whether the fine field came from a save's trail snow over the same layout (the log).</summary>
+        internal ulong TrailLayoutHash => _trailLayout?.Hash() ?? 0;
+
         /// <summary>
         /// The fine field over the layout: a new <see cref="Domain.Snow.TrailSnowLayout"/>'s blocks keep the old field's
         /// cells where the 8 m cell and the fine size are the same (<paramref name="keep"/>), the rest seeded from the 8 m
@@ -75,6 +78,8 @@ namespace MountainPlanner.Simulation
         void RebuildFine(bool keep)
         {
             var old = keep ? _fine : null;
+            if (!keep) _trailPending = null;   // the 8 m snow was seeded again: a save's trail snow no longer belongs to it
+            var saved = old == null ? _trailPending : null;   // 2c: a reopened save's trail snow, waiting for this layout
             var layout = _trailLayout;
             if (layout == null || !Snow.Live || layout.GridWidth != Snow.Width || layout.GridHeight != Snow.Height)
             {
@@ -82,11 +87,13 @@ namespace MountainPlanner.Simulation
                 return;
             }
             var fine = new FineSnow(layout);
-            for (int b = 0; b < layout.Blocks; b++)
-            {
-                int ob = old != null && old.BlockCells == fine.BlockCells ? old.Layout.BlockOf(layout.BlockCell[b]) : -1;
-                if (ob >= 0) fine.CopyBlock(old, ob, b); else fine.SeedBlock(Snow.Field, b);
-            }
+            if (saved?.Fine != null) AdoptSavedFine(fine, saved.Fine);
+            else
+                for (int b = 0; b < layout.Blocks; b++)
+                {
+                    int ob = old != null && old.BlockCells == fine.BlockCells ? old.Layout.BlockOf(layout.BlockCell[b]) : -1;
+                    if (ob >= 0) fine.CopyBlock(old, ob, b); else fine.SeedBlock(Snow.Field, b);
+                }
             if (old != null)
                 for (int ob = 0; ob < old.Layout.Blocks; ob++)
                     if (layout.BlockOf(old.Layout.BlockCell[ob]) < 0) _trailFoldRemainder += old.Fold(ob, Snow.Field);
@@ -112,6 +119,12 @@ namespace MountainPlanner.Simulation
             _groomTarget = new int[_trailOrder.Length];
             _groomCount = new int[_trailOrder.Length + 1];
             AllocReadiness(layout);
+            if (saved != null)
+            {
+                AdoptSavedRatings(saved);
+                _trailPending = null;
+                _trailBoardRestored = false;   // the board is the fine snow's again
+            }
         }
 
         /// <summary>Orders fine cells by their distance along, then by index (stable bytes).</summary>
@@ -175,10 +188,13 @@ namespace MountainPlanner.Simulation
             s.TrailsLastGroom = _fine != null ? _trailsLastGroom : 0;
             s.TrailBlocksPowder = _fine != null ? _trailBlocksPowder : 0;
             s.TrailRemovedTotal = _trailRemovedTotal;
-            s.TrailsCovered = _fine != null ? _trailsCovered : 0;
-            s.TrailsMarginal = _fine != null ? _trailsMarginal : 0;
-            s.TrailsBare = _fine != null ? _trailsBare : 0;
-            s.LateSeason = _fine != null && _lateSeason;
+            s.TrailSnowWaiting = TrailSnowWaiting;
+            s.TrailBlocksRestored = _trailBlocksRestored;
+            s.TrailBlocksReseeded = _trailBlocksReseeded;
+            s.TrailsCovered = TrailBoardLive ? _trailsCovered : 0;
+            s.TrailsMarginal = TrailBoardLive ? _trailsMarginal : 0;
+            s.TrailsBare = TrailBoardLive ? _trailsBare : 0;
+            s.LateSeason = TrailBoardLive && _lateSeason;
         }
 
         /// <summary>SN-24 v3, SN-14 v3 rule 6, SN-17: the hour's passes per segment and lane onto the lane's fine cells.</summary>

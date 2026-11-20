@@ -220,6 +220,9 @@ namespace MountainPlanner.App
                     }
                 ReadShellPadArguments(args);   // -noshellpad, -flatpad (finding A3-6, MountainViewer.ShellPad.cs)
                 StartCoroutine(WhenForestReady(() => _layers.BindForest(_resort.Root.GetComponent<ForestView>())));
+                // -opensave <folder> (task 08 review): before the HUD starts the simulation, so a save's clock comes back as
+                // it does from Load Area (finding B2c-5).
+                OpenSaveForCapture(args);
                 WireHud();
                 if (Array.IndexOf(args, "-landmark") >= 0) FlyToLandmark();
                 // Unattended checks: -nosnow, -noforest, -covermap, -info slope|exposure|depth, -contours,
@@ -283,7 +286,6 @@ namespace MountainPlanner.App
                 int shot = Array.IndexOf(args, "-screenshot");
                 if (shot >= 0 && shot + 1 < args.Length) StartCoroutine(CaptureAndQuit(args[shot + 1]));
                 StartCoroutine(RunPhotoArguments(args));   // -photo, -photoshot (MountainViewer.Photo.cs)
-                OpenSaveForCapture(args);  // -opensave <folder>: a save on a package opened from the command line (task 08 review)
                 StartTerrainEdits(args);   // -testedit, -testbench, -editbench (MountainViewer.Edits.cs, task P3-05)
                 StartTrailShots(args);     // -trailshots <folder> [-trailspot name] (MountainViewer.Trails.cs, task P3-08)
                 StartTrailBench(args);     // -trailbench <out.json> (MountainViewer.Trails.cs, task P3-08)
@@ -426,6 +428,7 @@ namespace MountainPlanner.App
             UpdateWaterHover();  // then water: a dam, pond, stream or lake lights and opens its card (task 4.14, LK-10)
             _resort?.States?.Sync();
             UpdateShellPad();
+            StartSimulationIfReady();   // an opened save's clock, once its network is in (finding B2c-5)
             RunClock();
             UpdateWeather();   // task 4.06: the weather on screen (MountainViewer.Weather.cs)
             // The Auto theme follows this sun on every screen (task P2-01); nothing happens unless sunrise or sunset passed.
@@ -562,7 +565,7 @@ namespace MountainPlanner.App
                     Lighting.SetTime(Lighting.Clock.Now.WithSecondOfDay(TitleMode ? TitleSecondOfDay : OpeningSecond));
                 if (!TitleMode)
                 {
-                    StartSimulation(sunFromSimulation: !chosen && !Flow.AppFlow.CaptureRun);
+                    StartSimulationWhenReady(sunFromSimulation: !chosen && !Flow.AppFlow.CaptureRun);   // finding B2c-5
                     Hud.PauseChosen += () => SendSim(SimCommandKind.TogglePause);
                     Hud.SpeedChosen += speed => SendSim(SimCommandKind.SetSpeed, speed);
                 }

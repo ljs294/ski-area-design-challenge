@@ -381,6 +381,46 @@ namespace MountainPlanner.Simulation
             _waterLedger = WaterLedger.Read(r);
         }
 
+        /// <summary>
+        /// v12 (task 4.07 B1 part 2c, finding B2c-4): the hour in flight's runoff, so a save made between an hour's start and
+        /// its landing still pours that hour into the ponds when it lands. Only the cells that ran, as index steps and µm; none
+        /// when no hour is in flight.
+        /// </summary>
+        void WriteRunoffState(SidecarWriter o)
+        {
+            var f = Snow.Live && SnowInFlight ? Snow.Field : null;
+            int n = 0;
+            if (f != null) for (int c = 0; c < f.Cells; c++) if (f.RunoffHour[c] != 0) n++;
+            o.Var(n);
+            if (n == 0) return;
+            int last = -1;
+            for (int c = 0; c < f.Cells; c++)
+            {
+                int v = f.RunoffHour[c];
+                if (v == 0) continue;
+                o.Var(c - last); o.Var(v);
+                last = c;
+            }
+        }
+
+        void ReadRunoffState(SidecarReader r)
+        {
+            long n = r.Var();
+            var f = Snow.Live && SnowInFlight ? Snow.Field : null;
+            if (f != null) System.Array.Clear(f.RunoffHour, 0, f.Cells);
+            if (n == 0) return;
+            if (f == null || n < 0 || n > f.Cells) throw new System.IO.InvalidDataException("The hour's runoff doesn't fit the snow.");
+            long at = -1;
+            for (long i = 0; i < n; i++)
+            {
+                long step = r.Var(), v = r.Var();
+                at += step;
+                if (step <= 0 || at >= f.Cells || v == 0 || v < int.MinValue || v > int.MaxValue)
+                    throw new System.IO.InvalidDataException("The hour's runoff is out of range.");
+                f.RunoffHour[at] = (int)v;
+            }
+        }
+
         /// <summary>v1–v9 → v10 (task 4.14 PR B): no water block; every source the design has starts full (they stood full before).</summary>
         void StartSourcesForOlderSave()
         {

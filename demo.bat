@@ -420,11 +420,11 @@ echo        gun whale: the snow lies on the ground that never moves, the skiers 
 echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
-echo   4.07 snow model B1 part 2a: the snow on the trails (rebuilds the game if there is none; close the editor first)
-echo     113 The trail snow's tests (an untouched run changes nothing, grooming keeps the water, wear on its lane),
-echo        then two charts: a groomed and an ungroomed run through a thaw, and one night's grooming across a run.
-echo        Then the drawn resort on Jackson Hole simulated to December 21 (a few minutes, no drawing), paused there:
-echo        I (info layers) then Snow conditions shows the groomed runs; F1 shows the Trail snow line.
+echo   4.07 snow model B1 part 2: the snow on the trails, open and closed, saved (rebuilds the game if there is none)
+echo     113 The trail snow's tests (grooming keeps the water, the switch, the save), then two charts: a groomed and an
+echo        ungroomed run through a thaw, and one night's grooming across a run. Then the save check: the drawn resort
+echo        on Jackson Hole simulated to December 15 and saved, then reopened; the two runs' trail boards should match.
+echo        Then the game on that save: Snow conditions shows the groomed runs; F1, Trail switch: Auto, Open, Closed.
 echo   4.07 snow model PR A1: the snow energy, on paper (no Unity, no game build; about six minutes)
 echo     112 The snow's rule tests (south against north, shade, clear and cloudy nights, a cold pack, humid wind, the
 echo        game's clock against the hour, the energy balance), then six western snow pillows played for 20 winters
@@ -1201,23 +1201,48 @@ pause
 goto menu
 
 :trailsnow
-rem 4.07 B1 part 2a: the trails' fine snow (wear, nightly grooming, packed snow melting slower).
+rem 4.07 B1 part 2: the trails' fine snow (2a), readiness (2b), the switch and the save (2c).
 chcp 65001 >nul
 echo.
-echo   Part 1: the trail snow's tests.
-dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~TrailSnowWorldTests|FullyQualifiedName~FineSnowTests|FullyQualifiedName~TrailSnowLayoutTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"[" /c:"Passed" /c:"Failed" /c:"error"
+echo   Part 1: the trail snow's tests (the snow, the switch, the codec and the save).
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~TrailSnowWorldTests|FullyQualifiedName~FineSnowTests|FullyQualifiedName~TrailSnowLayoutTests|FullyQualifiedName~FineSnowCodecTests|FullyQualifiedName~TrailSwitchTests|FullyQualifiedName~SimSaveTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"[" /c:"Passed" /c:"Failed" /c:"error"
 echo.
 echo   Part 2: the charts' numbers (TS90), then the charts.
 dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~TS90_WriteTheReportData" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
 python "%~dp0tools\snow-trails\charts.py" "%~dp0test-results\snow-b2a"
 start "" "%~dp0test-results\snow-b2a\demo\1-thaw.png"
 start "" "%~dp0test-results\snow-b2a\demo\2-one-night.png"
-echo.
-echo   Part 3: the game, the drawn resort simulated to December 21 in a scratch data folder (your saves aren't touched).
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
-start "" /wait "%GAME%" -data "%LOCALAPPDATA%\SkiAreaDesignChallenge-trailsnow" -notitle -offline -drawnresort -simto 12-21 -logFile "%~dp0test-results\snow-b2a\game.log"
-findstr /l /c:"[TrailSnow]" "%~dp0test-results\snow-b2a\game.log"
+set "TS=%LOCALAPPDATA%\SkiAreaDesignChallenge-trailsave"
+echo.
+echo   Part 3: the save check in a fresh scratch data folder (your saves aren't touched). Run 1: the drawn resort to
+echo   December 15 (a few minutes, no drawing), saved as "Trail snow check", then it quits.
+if exist "%TS%" rmdir /s /q "%TS%"
+start "" /wait "%GAME%" -data "%TS%" -notitle -offline -drawnresort -simto 12-15 -savequit "Trail snow check" -logFile "%~dp0test-results\snow-b2a\save-1.log"
+set "TSAVE="
+for /d %%D in ("%TS%\Saves\*") do for /d %%E in ("%%D\save-*") do set "TSAVE=%%E"
+if not defined TSAVE echo   The save wasn't written; see test-results\snow-b2a\save-1.log
+if not defined TSAVE goto trailsnowend
+echo   Run 2: that save reopened (the clock waits for the trail layout, then the board is logged again).
+start "" /wait "%GAME%" -data "%TS%" -notitle -offline -opensave "%TSAVE%" -simto 12-15 -logFile "%~dp0test-results\snow-b2a\save-2.log"
+echo.
+echo   Run 1, saved:
+findstr /l /c:"[SimTo] saved" /c:"[TrailBoard]" "%~dp0test-results\snow-b2a\save-1.log"
+echo   Run 2, reopened: "restored the save's state" and "trail snow came back", never "couldn't be read":
+findstr /l /c:"[Simulation] restored" /c:"couldn't be read" /c:"didn't read" /c:"trail snow came back" /c:"[TrailBoard]" "%~dp0test-results\snow-b2a\save-2.log"
+powershell -NoProfile -Command "$b = { param($f) $l = Get-Content $f; $i = ($l | Select-String -SimpleMatch '[TrailBoard]' | Select-Object -Last 1).LineNumber; if (-not $i) { return @() }; $o = @($l[$i - 1]); for ($k = $i; $k -lt $l.Count -and $l[$k].StartsWith('  '); $k++) { $o += $l[$k] }; $o }; $a = & $b '%~dp0test-results\snow-b2a\save-1.log'; $c = & $b '%~dp0test-results\snow-b2a\save-2.log'; if ($a.Count -gt 1 -and -not (Compare-Object $a $c)) { '  The two trail boards match, line for line (' + ($a.Count - 1) + ' trails).' } else { '  The trail boards DIFFER (or one is missing): compare save-1.log and save-2.log.' }"
+echo.
+echo   Part 4: the game on that save (paused at December 15). Try:
+echo     - I (info layers), Snow conditions: the groomed runs are still there.
+echo     - Point at a trail on the map, then F1, Trail switch: the button steps Auto, Open, Closed. Closed shuts it at
+echo       once (Trails line: one fewer open); Open opens a Marginal trail, never a Bare one. Ctrl+Z takes it back.
+echo     - Ctrl+S, then quit: the game opens the save again, and the switches you set are as you left them.
+pause
+start "" /wait "%GAME%" -data "%TS%" -notitle -offline -opensave "%TSAVE%"
+echo   Reopening the save: check the switches came back (F1, Trail switch, on the trails you set).
+start "" "%GAME%" -data "%TS%" -notitle -offline -opensave "%TSAVE%"
+:trailsnowend
 pause
 goto menu
 

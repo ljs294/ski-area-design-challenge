@@ -439,6 +439,262 @@ namespace MountainPlanner.Tests
             Assert.That(bytes, Is.Zero);
         }
 
+        // ================= 4.07 B1 part 2c: the switch in the world (SN-20 v4) =================
+
+        /// <summary>The world's design again with <paramref name="sw"/> on every edge of design-network trail
+        /// <paramref name="trail"/> (or only on <paramref name="onlyEdge"/>), applied now, as a switch edit arrives.</summary>
+        static void Switch(SimWorld w, int trail, TrailSwitch sw, int onlyEdge = -1)
+        {
+            var d = w.Design;
+            var net = d.Network;
+            var s = net.EdgeSwitch.Length == net.EdgeFrom.Length ? (byte[])net.EdgeSwitch.Clone() : new byte[net.EdgeFrom.Length];
+            for (int e = 0; e < s.Length; e++)
+                if (net.EdgeTrail[e] == trail && (onlyEdge < 0 || e == onlyEdge)) s[e] = (byte)sw;
+            var next = new SimDesign(d.Revision + 1, d.RevisionHash ^ 0x5157_1C40UL, d.ResortSeed, d.Hours, d.Lifts, d.BuiltTrails, net.WithEdgeSwitches(s));
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetDesign, 0, next));
+        }
+
+        [Test]
+        public void SW10_ClosedClosesATrailAtOnce()
+        {
+            var w = World(600, null, design: SeasonRunner.GuestsDesign());
+            var net = w.Design.Network;
+            int black = -1;
+            for (int e = 0; e < net.EdgeFrom.Length; e++) if (net.EdgeTrail[e] == 3) black = e;
+            Assert.That(w.TrailReady(3), Is.True);
+            Assert.That(w.EdgeReadyOf(black), Is.True);
+            Switch(w, 3, TrailSwitch.Closed);
+            Say($"[switch] the black Closed: trail ready {w.TrailReady(3)}, its edge {w.EdgeReadyOf(black)}, the green beside it {w.TrailReady(2)}");
+            Assert.That(w.TrailReady(3), Is.False, "Closed shuts the trail at once, without waiting for the hour");
+            Assert.That(w.EdgeReadyOf(black), Is.False, "guests, the lifts' way down and the open count read the edge");
+            Assert.That(w.TrailReady(2), Is.True, "only that trail");
+            Switch(w, 3, TrailSwitch.Auto);
+            Assert.That(w.TrailReady(3), Is.True, "Auto again: the stand-in board opens it");
+        }
+
+        [Test]
+        public void SW11_OpenOpensAMarginalTrailButNeverABareOne()
+        {
+            var w = NetWorld(600);
+            Strip(w, (along, lat) => along >= 370_000 && along < 373_000);   // a 3 m walk across the trail
+            w.BoardTrailsNow();
+            Assert.That(w.TrailLabelOf(0), Is.EqualTo(TrailSnowLabel.Bare), "a walk before the late season");
+            Assert.That(w.TrailReady(0), Is.False);
+            w.SetLateSeason(true, 120);
+            w.BoardTrailsNow();
+            Assert.That(w.TrailLabelOf(0), Is.EqualTo(TrailSnowLabel.Marginal));
+            Assert.That(w.TrailReady(0), Is.False, "Auto keeps a Marginal trail as it was: closed");
+            Switch(w, 0, TrailSwitch.Open);
+            Assert.That(w.TrailReady(0), Is.True, "Open opens a Marginal trail, at once");
+            Switch(w, 0, TrailSwitch.Auto);
+            Assert.That(w.TrailReady(0), Is.False);
+            Switch(w, 0, TrailSwitch.Open);
+            Strip(w, (along, lat) => true);
+            w.BoardTrailsNow();
+            Say($"[switch] stripped and Open: {w.TrailLabelOf(0)}, ready {w.TrailReady(0)}");
+            Assert.That(w.TrailLabelOf(0), Is.EqualTo(TrailSnowLabel.Bare));
+            Assert.That(w.TrailReady(0), Is.False, "Bare closes a trail whatever its switch");
+        }
+
+        [Test]
+        public void SW12_ThePlayersOwnCloseNeverStartsTheLateSeason()
+        {
+            var auto = NetWorld(600);
+            auto.BoardTrailsNow();
+            Strip(auto, (along, lat) => true);
+            auto.BoardTrailsNow();
+            var closed = NetWorld(600);
+            closed.BoardTrailsNow();
+            Switch(closed, 0, TrailSwitch.Closed);
+            Strip(closed, (along, lat) => true);
+            closed.BoardTrailsNow();
+            Say($"[switch] goes Bare: on Auto closed-by-Bare {auto.LastBoardClosedByBare}, Closed by the player {closed.LastBoardClosedByBare}");
+            Assert.That(auto.LastBoardClosedByBare, Is.True, "an open trail falling to Bare is what starts the late season");
+            Assert.That(closed.LastBoardClosedByBare, Is.False, "a trail the player closed doesn't (owner, 2c Q3)");
+        }
+
+        [Test]
+        public void SW13_ClosingPartOfARunShutsOnlyThatPiece()
+        {
+            // One run in two pieces, top and bottom, as a shaped trail that takes only the top would leave it.
+            var trails = new ulong[] { 21 };
+            var edges = new System.Collections.Generic.List<(int from, int to, int trail)> { (2, 1, 0), (1, 0, 0) };
+            var net = SimNetwork.Of(3, edges, trails);
+            var design = new SimDesign(1, 0x2C_0001UL, 0x5EED_0042UL, DayHours.Default, Array.Empty<LiftInput>(), 1, net);
+            var w = World(600, null, design: design);
+            int top = -1;
+            for (int e = 0; e < net.EdgeFrom.Length; e++) if (net.EdgeFrom[e] == 2) top = e;
+            Switch(w, 0, TrailSwitch.Closed, onlyEdge: top);
+            Assert.That(w.EdgeReadyOf(top), Is.False, "the closed piece");
+            Assert.That(w.EdgeReadyOf(1 - top), Is.True, "the rest of the run");
+            Assert.That(w.TrailReady(0), Is.True, "a run is open while any piece of it is");
+            Switch(w, 0, TrailSwitch.Closed);
+            Assert.That(w.TrailReady(0), Is.False);
+        }
+
+        [Test]
+        public void SW14_TheSwitchTableAllocatesNothingOnceWarm()
+        {
+            var w = NetWorld(600);
+            w.BoardTrailsNow();
+            w.RefreshTrailRunsNow();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++) { w.RefreshTrailRunsNow(); w.BoardTrailsNow(); }
+            long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            Say($"[switch] ten boards: {bytes} bytes");
+            Assert.That(bytes, Is.Zero);
+        }
+
+        // ================= 4.07 B1 part 2c: the trail snow in the save (sidecar v12) =================
+
+        /// <summary>
+        /// The v12 fixture's world (and the save test's): one double's green (GuestFixture), groomed nightly, over three days of
+        /// the golden weather from a 600 mm seed, the late season set, saved halfway through an hour.
+        /// </summary>
+        internal static SimWorld TrailSaveWorld()
+        {
+            var w = World(600, null, design: GuestFixture.OneDouble());
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetTrailSnow, 0, GroomedLayout(w)));
+            RunDays(w, 3);
+            long half = w.FaceMs + SimWorld.HourMs / 2;
+            while (w.FaceMs < half) w.Step(1);
+            w.SetLateSeason(true, 100);
+            return w;
+        }
+
+        /// <summary>The first network trail as a groomed run (the fixture's layout; deterministic, the game sends the same).</summary>
+        internal static TrailSnowLayout GroomedLayout(SimWorld w, int dx = 0)
+        {
+            var net = w.Design.Network;
+            int edge = -1;
+            for (int e = 0; e < net.EdgeTrail.Length && edge < 0; e++) if (net.EdgeTrail[e] == 0) edge = e;
+            var run = Run(net.TrailIds[0], 150_000, neverGroom: false, dx: dx);
+            run.SegmentEdge = new[] { Math.Max(0, edge) };
+            return TrailSnowLayout.Build(W, D, Origin, Origin, new[] { run }, Pacing.Default.FineCellCap, net.ShapeHash);
+        }
+
+        /// <summary>A save read back as the game reopens it: the state, then the inputs the game resends after every load.</summary>
+        internal static SimWorld Reopen(byte[] bytes)
+        {
+            var back = SimSidecar.Read(bytes, Pacing.Default, GuestFixture.OneDouble(), SnowFieldTests.Site, out _, SimWeatherTests.Golden());
+            SnowFieldTests.SendInputs(back, Small);
+            return back;
+        }
+
+        static int FineDiffers(FineSnow a, FineSnow b)
+        {
+            if (a.Cells != b.Cells) return int.MaxValue;
+            int n = 0;
+            for (int f = 0; f < a.Cells; f++)
+                if (a.Swe[f] != b.Swe[f] || a.Density[f] != b.Density[f] || a.Passes[f] != b.Passes[f] || a.Moguls[f] != b.Moguls[f]
+                    || a.Type[f] != b.Type[f] || a.Age[f] != b.Age[f] || a.Flags[f] != b.Flags[f]) n++;
+            return n;
+        }
+
+        [Test]
+        public void TS20_ASaveMidHourTakesItsTrailSnowBackAndPlaysOnTheSame()
+        {
+            var w = TrailSaveWorld();
+            ulong hash = w.Hash();
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            byte[] bytes = w.SaveState();
+            double encodeMs = watch.Elapsed.TotalMilliseconds;
+            watch.Restart();
+            var back = Reopen(bytes);
+            double decodeMs = watch.Elapsed.TotalMilliseconds;
+            Assert.That(back.Hash(), Is.EqualTo(hash), "the reopened board is live at once: the check value matches");
+            Assert.That(back.TrailSnowWaiting, Is.True, "the trail snow waits for the layout");
+            Assert.That(back.LateSeason, Is.True, "the late season comes back");
+            byte[] again = back.SaveState();
+            Assert.That(again, Is.EqualTo(bytes), "saving again before the layout arrives writes the same bytes");
+            back.ApplyNow(SimCommand.Of(SimCommandKind.SetTrailSnow, 0, GroomedLayout(back)));
+            Assert.That(back.TrailSnowWaiting, Is.False);
+            int differ = FineDiffers(w.FineSnow, back.FineSnow);
+            Assert.That(differ, Is.Zero, "every square as saved");
+            Assert.That(back.TrailLabelOf(0), Is.EqualTo(w.TrailLabelOf(0)));
+            Assert.That(back.TrailCoverPermilleOf(0), Is.EqualTo(w.TrailCoverPermilleOf(0)));
+            Assert.That(back.TrailBlocksReseeded, Is.Zero);
+            Assert.That(BlocksOff(back), Is.Zero);
+            Assert.That(back.Hash(), Is.EqualTo(hash), "the layout arriving changes nothing");
+            RunDays(w, 3);
+            RunDays(back, 3);
+            Say($"[save] trail block over {w.FineSnow.Cells} fine cells: sidecar {bytes.Length} B; encode {encodeMs:F1} ms, decode {decodeMs:F1} ms; " +
+                $"three days later the hashes {(w.Hash() == back.Hash() ? "match" : "DIFFER")}, {FineDiffers(w.FineSnow, back.FineSnow)} squares differ");
+            Assert.That(back.Hash(), Is.EqualTo(w.Hash()), "three days on, the same future");
+            Assert.That(FineDiffers(w.FineSnow, back.FineSnow), Is.Zero);
+        }
+
+        [Test]
+        public void TS21_ADifferentLayoutKeepsTheSharedSquaresAndEveryBlockAddsUp()
+        {
+            var w = TrailSaveWorld();
+            var back = Reopen(w.SaveState());
+            var wider = GroomedLayout(back, dx: 40_000);   // the same trail drawn askew: some blocks shared, some new
+            back.ApplyNow(SimCommand.Of(SimCommandKind.SetTrailSnow, 0, wider));
+            var saved = w.FineSnow;
+            var now = back.FineSnow;
+            int shared = 0, kept = 0;
+            for (int b = 0; b < now.Layout.Blocks; b++)
+            {
+                int ob = saved.Layout.BlockOf(now.Layout.BlockCell[b]);
+                if (ob < 0) continue;
+                shared++;
+                bool same = true;
+                for (int k = 0; k < now.BlockCells && same; k++)
+                    same = now.Swe[b * now.BlockCells + k] == saved.Swe[ob * saved.BlockCells + k]
+                        && now.Flags[b * now.BlockCells + k] == saved.Flags[ob * saved.BlockCells + k];
+                if (same) kept++;
+            }
+            Say($"[save] askew layout: {shared} of {now.Layout.Blocks} blocks shared with the save, {kept} kept exactly; {back.TrailBlocksReseeded} reseeded");
+            Assert.That(shared, Is.GreaterThan(0));
+            Assert.That(kept, Is.EqualTo(shared), "every shared block keeps its squares");
+            Assert.That(BlocksOff(back), Is.Zero, "every block adds up to its 8 m cell");
+        }
+
+        [Test]
+        public void TS22_TheAfterRestoreHourAllocatesNothingOnceWarm()
+        {
+            var back = Reopen(TrailSaveWorld().SaveState());
+            back.ApplyNow(SimCommand.Of(SimCommandKind.SetTrailSnow, 0, GroomedLayout(back)));
+            back.BoardTrailsNow();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++) back.BoardTrailsNow();
+            Assert.That(GC.GetAllocatedBytesForCurrentThread() - before, Is.Zero);
+        }
+
+        [Test]
+        public void TS24_ASaveWithAnHourInFlightKeepsItsRunoff()
+        {
+            // Finding B2c-4: the runoff of the hour in flight reaches the ponds when it lands, after a reopen too.
+            var w = TrailSaveWorld();
+            int guard = 0;
+            while (!w.SnowInFlight && guard++ < 100_000) w.Step(1);
+            Assert.That(w.SnowInFlight, Is.True);
+            w.JoinSnow();
+            var runoff = w.Snow.Field.RunoffHour;
+            for (int c = 0; c < runoff.Length; c += 7) runoff[c] = 1 + c % 900;
+            byte[] bytes = w.SaveState();
+            var back = Reopen(bytes);
+            Assert.That(back.SnowInFlight, Is.True);
+            Assert.That(back.Snow.Field.RunoffHour, Is.EqualTo(runoff), "the hour's runoff comes back");
+            Assert.That(back.SaveState(), Is.EqualTo(bytes), "and saves the same bytes again");
+            // Landed, nothing is in flight: an empty runoff block.
+            while (w.SnowInFlight) w.Step(1);
+            var landed = Reopen(w.SaveState());
+            Assert.That(System.Array.TrueForAll(landed.Snow.Field.RunoffHour, v => v == 0), Is.True);
+        }
+
+        [Test]
+        public void TS23_AnOlderSidecarSeedsTheTrailSnowAsBefore()
+        {
+            // The v11 fixture has no trail snow block: the layout seeds from the 8 m snow, as 2b did.
+            byte[] v11 = System.IO.File.ReadAllBytes(System.IO.Path.Combine(TestData.Folder(System.IO.Path.Combine("formats", "v11-sim")), "golden.sim"));
+            var w = SimSidecar.Read(v11, Pacing.Default, SeasonRunner.RideDownDesign(true), SimSite.None, out var header);
+            Assert.That(header.SidecarVersion, Is.EqualTo(11));
+            Assert.That(w.TrailSnowWaiting, Is.False, "nothing waits");
+            Assert.That(w.LateSeason, Is.False);
+        }
+
         [Test]
         public void TS09_ALightPassEvensLessThanAHeavyOne()
         {
