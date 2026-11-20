@@ -177,6 +177,7 @@ namespace MountainPlanner.App
             if (hit != _hoveredTrailRow)
             {
                 _hoveredTrailRow = hit;
+                if (hit != 0) _switchTrailRow = hit;   // task 4.07 B1 part 2c: the F1 switch button's trail
                 FocusTrailRow(hit != 0 ? hit : _focusedTrailRow);
             }
             if (!picking || mouse == null) { _trailPressed = false; return; }
@@ -189,6 +190,40 @@ namespace MountainPlanner.App
             if (!_trailPressed || !mouse.leftButton.wasReleasedThisFrame) return;
             _trailPressed = false;
             if ((pos - _trailPress).sqrMagnitude <= 36 && hit == _trailPressId) Hud.OpenTrailCardFor(hit);
+        }
+
+        // ---------- task 4.07 B1 part 2c: the F1 panel's trail switch (a developer control until B2's trail card) ----------
+
+        /// <summary>The trail the pointer last lit on the map: the F1 switch button's.</summary>
+        ulong _switchTrailRow;
+
+        /// <summary>
+        /// The F1 row: the trail the pointer last lit, its switch on a button that steps Auto → Open → Closed through the
+        /// real undoable command (one Ctrl+Z takes it back). The worker hears it at once (SN-20 v4).
+        /// </summary>
+        void DrawTrailSwitchRow(ref float y, float row, Action<string> caption, Func<int, string, bool> button, Func<float, int, string, float> note)
+        {
+            if (_sections == null) return;
+            ResolvedTrail trail = null;
+            if (_switchTrailRow != 0) foreach (var t in _sections.Trails) if (t.Id.Value == _switchTrailRow) { trail = t; break; }
+            y += row;
+            caption("Trail switch");
+            if (trail == null)
+            {
+                y += note(y, 0, "Point at a trail on the map, then switch it here: Auto, Open or Closed (developer control; the trail card gets it in B2)");
+                return;
+            }
+            var sw = trail.Switch;
+            if (button(0, sw == TrailSwitch.Open ? "Open" : sw == TrailSwitch.Closed ? "Closed" : "Auto"))
+            {
+                var next = sw == TrailSwitch.Auto ? TrailSwitch.Open : sw == TrailSwitch.Open ? TrailSwitch.Closed : TrailSwitch.Auto;
+                var history = Design;
+                var r = history?.Submit(SetTrailSwitch.For(history.Revision, trail, next));
+                if (r != null && r.Accepted) Toast($"{trail.Name}: {next}");
+                else Toast($"{trail.Name}: the switch didn't change{(r?.Reason != null ? " (" + r.Reason + ")" : "")}");
+            }
+            y += note(y, 1, $"{trail.Name} · Auto opens it when Covered and keeps it open while Marginal · Open: anything but Bare · Closed: closed · " +
+                            "the button steps Auto → Open → Closed; Ctrl+Z takes it back");
         }
 
         // The trail whose drawn line passes within 8 pixels of the pointer on the ground (5 m at least), nearest first.

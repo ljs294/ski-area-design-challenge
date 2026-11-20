@@ -260,6 +260,7 @@ namespace MountainPlanner.Simulation
             stamped.Seq = c.Kind == SimCommandKind.InspectSkier || c.Kind == SimCommandKind.SetWeatherTerrain || c.Kind == SimCommandKind.SetWaterBodies
                           || c.Kind == SimCommandKind.SetSnowTerrain || c.Kind == SimCommandKind.SetWaterSources
                           || c.Kind == SimCommandKind.SetSnowNetwork || c.Kind == SimCommandKind.CheckNetwork   // task 4.15
+                          || c.Kind == SimCommandKind.SetTrailSnow
                 ? _viewSeq++ : _commandSeq++;
             // Task 4.07 PR A2: what an hour's snow in flight reads (the weather's tables and inputs, the lakes) waits for it.
             if (c.Kind == SimCommandKind.SetWeather || c.Kind == SimCommandKind.SetWeatherTerrain || c.Kind == SimCommandKind.SetWaterBodies) JoinSnow();
@@ -311,6 +312,9 @@ namespace MountainPlanner.Simulation
                 case SimCommandKind.CheckNetwork:
                     if (!ApplyCheckNetwork(c)) return;
                     break;
+                case SimCommandKind.SetTrailSnow:
+                    if (!ApplyTrailSnow(c.Payload)) { Reject(c, SimRefusal.Unknown); return; }
+                    break;
                 case SimCommandKind.SetGust:
                 case SimCommandKind.FeedLine:
                     if (!ApplyLiftCommand(c)) return;
@@ -326,7 +330,8 @@ namespace MountainPlanner.Simulation
             // The static inputs are megabytes and the area's own: the log keeps that they came, not a second reference to them.
             if (stamped.Kind == SimCommandKind.SetWeatherTerrain || stamped.Kind == SimCommandKind.SetWaterBodies
                 || stamped.Kind == SimCommandKind.SetSnowTerrain || stamped.Kind == SimCommandKind.SetWaterSources
-                || stamped.Kind == SimCommandKind.SetSnowNetwork) stamped.Payload = null;
+                || stamped.Kind == SimCommandKind.SetSnowNetwork
+                || stamped.Kind == SimCommandKind.SetTrailSnow) stamped.Payload = null;
             Log.Add(stamped);
         }
 
@@ -461,7 +466,8 @@ namespace MountainPlanner.Simulation
             HourStepSources(hour);
             HourStepSnowmaking();   // task 4.15: WS-11's transfers, after the sources' own water
             _hourSliceCursor = 0;
-            _trailsReadyNext = Design.BuiltTrails;
+            BoardTrails();   // 4.07 B1 part 2b: SN-20 v3's readiness, before the lifts' way down reads it
+            _trailsReadyNext = TrailsReadyNow();
             BoardLifts(_liftOpenNext);
             FlipBoard();
             HourIndex = hour;
@@ -472,14 +478,19 @@ namespace MountainPlanner.Simulation
         {
             var t = _liftOpen; _liftOpen = _liftOpenNext; _liftOpenNext = t;
             _trailsReady = _trailsReadyNext;
+            // Finding B2b-1 (task 4.07 2b): a lift the hour opens or closes changes where the guests can go.
+            for (int i = 0; i < _liftCount; i++)
+                if (_liftOpen[i] != _liftOpenNext[i]) { GuestBoardChanged(); break; }
         }
 
         /// <summary>The board between hours: an open/close or a new design changes it at once rather than waiting for the hour.</summary>
         void RefreshBoard()
         {
+            // SN-20 v4 (4.07 B1 part 2c): a switch acts at once, with the design that carries it.
+            if (RefreshTrailRuns()) GuestBoardChanged();
             if (_candidate.Length < _liftCount) return;   // mid-fold: FoldDesign refreshes once the lifts' operations are in
             BoardLifts(_liftOpen);
-            _trailsReady = Design.BuiltTrails;
+            _trailsReady = TrailsReadyNow();
         }
 
         bool AnyBuiltLift()
@@ -705,6 +716,7 @@ namespace MountainPlanner.Simulation
             s.SnowInFlight = _snowLandAt >= 0;
             s.SnowToday = _snowToday;
             s.SnowLastDay = _snowLastDay;
+            WriteTrails(s);
             WriteWeather(s);
             WriteLakes(s);
             WriteSources(s);
@@ -745,6 +757,7 @@ namespace MountainPlanner.Simulation
             // The snow joined in PR B (SI-17): a world that has never had any hashes as before, so the goldens stand.
             if (Snow.Set || Snow.Width > 0) Snow.AddTo(ref h);
             HashSnowLive(ref h);
+            HashTrailBoard(ref h);
             HashGuests(ref h);
             HashLakes(ref h);
             HashSources(ref h);
@@ -776,6 +789,7 @@ namespace MountainPlanner.Simulation
         public const ulong ChoiceTag = Base + 9;
         /// <summary>LK-01 v2 (task 4.09): a lake's id, keyed from its centroid's 8 m cell (seed 0: the place's, not the resort's).</summary>
         public const ulong WaterBodyTag = Base + 10;
+        /// <summary>SN-23 v3 (task 4.07 B1 part 2a; Base + 11 is 4.14's): a trail's grooming hour within the night window.</summary>
 
         public static ulong Hash(ulong seed, ulong tag, ulong a) => DesignKey.Hash(seed, tag, a);
         public static ulong Hash(ulong seed, ulong tag, ulong a, ulong b) => DesignKey.Hash(seed, tag, a, b);

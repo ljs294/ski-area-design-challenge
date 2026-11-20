@@ -107,7 +107,12 @@ reads: a version number, and a name for the greyed library row.
   (`Model` `"stick10"`, `"stick20"`, `"stick30"` or `"ground"`, `At`, the `Hydrant`, `AimCentideg` and `Override` `"auto"`,
   `"on"` or `"off"`). Here a pump house on the pond, a main with a closed far valve and a hydrant run, a booster facing
   back, an intake on the lake, an outlet into the pond and one gun of each model. v1 to v14 saves migrate with none.
-  `SaveFileTests` checks that the writer reproduces it byte for byte.
+  `SaveFileTests` checks that it still reads unchanged.
+
+- **`v16-save/Saves/5792676e513f5302/save-001/`** is the same save in format v16 (task 4.07 B1 part 2c, SN-20 v4): the
+  design (shape 16) gains a `Switch` on every trail and shaped trail, `"auto"`, `"open"` or `"closed"`, after its
+  `Posted`. Here one run is `"closed"` and one shaped trail `"open"`; the rest stay `"auto"`. v1 to v15 saves migrate with
+  every trail on `"auto"`. `SaveFileTests` checks that the writer reproduces it byte for byte.
 
 - **`v3-package/`** is a package manifest in format v3 (task 4.14, WS-08, LK-10): the `v2-package` manifest plus a
   `Water` entry and its `water.json`: `streams`, the OSM stream lines (way, class, name, width and whether OSM gave it,
@@ -159,6 +164,27 @@ reads: a version number, and a name for the greyed library row.
   version and the closing state hash) and that it lands its hour as the world that saved it would have; `v8-sim`
   still opens with its set depths and saves as v9. Since the save split (same PR) the worker only copies the field and
   the save's task encodes it; the bytes are the same.
+
+- **`v10-sim/golden.sim`** is a world in `SimSidecar` v10 (task 4.14 PR B, the water): v9's fields, then the water
+  block: per source (id order) its id, kind, the water it holds (milligallons), its test draw, its alert days and its
+  season ledger, then the resort's ledger. A pond, a reservoir on its stream and a lake as sources, into December with
+  test draws on two. `SimSaveTests` checks it still opens and saves as the newest version; `v9-sim`'s sources start full.
+
+- **`v11-sim/golden.sim`** is the ride-down resort in `SimSidecar` v11 (task 4.24 PR B): v10's fields, then the
+  ride-down block: per lift, the top line's and the down riders' chain ends and counts and today's rides down; a
+  skier's state may be 8 (in line at the top) or 9 (riding down). At 11:00 on its first day, the gondola's top line
+  standing and cabins on the way down. `SimSaveTests` checks it still opens and saves as the newest version.
+
+- **`v12-sim/golden.sim`** is a world in `SimSidecar` v12 (task 4.07 B1 part 2c, the trail snow): v11's fields, then
+  the trail snow block: the day's trail counters and the fold remainder; with the trails' board live, the late season,
+  the readouts, the board per trail of the design's network (by id: open, label, walk, cover, rating), the guests'
+  snow table with the network's shape hash, the layout's hash, fine size and grid with each layout trail's label, walk,
+  cover, rating and main surface, then the fine cells (`FineSnowCodec`: the blocks' 8 m cells, then per block ten
+  planes, each all zero, one value, runs or cell by cell, and a check). One double's green on a 128 × 128 live
+  mountain, groomed nightly over three days of the golden weather, the late season set, saved halfway through an hour.
+  `SimSaveTests` checks a round trip before the layout arrives gives back its bytes (all but the header's Pacing hash
+  and the closing state hash) and that every block adds up when it does; `v11-sim` still opens and its trail snow
+  seeds from the 8 m snow.
 
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;

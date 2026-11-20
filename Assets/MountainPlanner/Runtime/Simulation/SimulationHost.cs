@@ -390,6 +390,8 @@ namespace MountainPlanner.Simulation
             }
         }
         public string Error { get; private set; } = "";
+        /// <summary>After <see cref="Bytes"/>: the encoded blocks' sizes (the save's log).</summary>
+        public string BlockSizes => _capture?.BlockSizes ?? "";
 
         internal void Answer(SimWorld w)
         {

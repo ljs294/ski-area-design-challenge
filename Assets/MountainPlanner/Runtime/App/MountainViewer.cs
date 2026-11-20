@@ -303,6 +303,7 @@ namespace MountainPlanner.App
                 StartWhaleReport(args);    // -gunwhale: what became of it, once the snow is in (MountainViewer.GunWhale.cs)
                 StartShellCheck(args);     // -shellcheck x,z[;x,z…] [-shellsteps] (MountainViewer.ShellCheck.cs, task 4.07 PR A3 repair)
                 StartSimTo(args);          // -simto <MM-DD> (MountainViewer.SimTo.cs, task 4.07 PR A3)
+                StartTrailSnowShots(args); // -trailsnowshots <folder> with -simto (MountainViewer.TrailSnowShots.cs, task 4.07 B1 part 2a)
                 StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
                 StartSkierFigureShots(args);   // -skiershot <folder> [-guests N] (MountainViewer.SkierFigureShots.cs, task 4.22)
                 StartCrowdShots(args);     // -crowdshot <folder> -crowdviews "x,z,d,yaw,pitch;..." [-guests N] (task 4.24)

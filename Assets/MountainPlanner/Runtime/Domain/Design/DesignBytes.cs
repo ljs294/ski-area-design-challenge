@@ -55,6 +55,7 @@ namespace MountainPlanner.Domain.Design
                     w.I32(sp.ToMm);
                 }
                 w.U8(PostedByte(line.Posted));   // shape 11 (TD-07)
+                w.U8((byte)line.Switch);         // shape 16 (SN-20 v4)
             }
             w.I32(doc.Cuts.Count);    // shape 7 (NT45): the points cut on runs
             foreach (var c in doc.Cuts)
@@ -64,7 +65,7 @@ namespace MountainPlanner.Domain.Design
             }
             WriteHours(w, doc.Hours);   // shape 12 (LO-07 v2): the resort's hours
             WriteWater(w, doc);         // shape 14 (task 4.14): ponds, dams and lake sources
-            WriteSnow(w, doc.Snow);     // shape 16 (task 4.15): the snowmaking network
+            WriteSnow(w, doc.Snow);     // shape 15 (task 4.15): the snowmaking network
             return w.ToArray();
         }
 
@@ -134,13 +135,13 @@ namespace MountainPlanner.Domain.Design
                     var to = ReadAnchor(r);
                     spans[k] = new Span(piece, from, to, r.I32(), r.I32());
                 }
-                lines[i] = new TrailLine(id, name, spans, ReadPosted(r));
+                lines[i] = new TrailLine(id, name, spans, ReadPosted(r), ReadSwitch(r));
             }
             var cuts = new TrailCut[r.Count(1 << 20)];
             for (int i = 0; i < cuts.Length; i++) cuts[i] = new TrailCut(new TrailId(r.U64()), r.Point());
             var hours = ReadHours(r);   // shape 12
             ReadWater(r, out var ponds, out var dams, out var lakes, out var streams);   // shape 14
-            var snow = ReadSnow(r);   // shape 16
+            var snow = ReadSnow(r);   // shape 15
             if (!r.AtEnd) throw new FormatException("Trailing bytes after the design document.");
             var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, hours, ponds, dams, lakes, streams, snow);
             // Canonical means written in order: a reordered file is not this format.
@@ -265,6 +266,7 @@ namespace MountainPlanner.Domain.Design
                 foreach (var p in ring) w.Point(p);
             }
             w.U8(PostedByte(t.Posted));   // shape 11 (TD-07)
+            w.U8((byte)t.Switch);         // shape 16 (SN-20 v4)
         }
 
         // TD-07: 0 not posted, else the band + 1.
@@ -275,6 +277,14 @@ namespace MountainPlanner.Domain.Design
             byte b = r.U8();
             if (b > 4) throw new FormatException("A trail's posted rating isn't one this build knows.");
             return b == 0 ? (Measure.SlopeBands.Band?)null : (Measure.SlopeBands.Band)(b - 1);
+        }
+
+        // SN-20 v4 (shape 16): Auto 0, Open 1, Closed 2.
+        static TrailSwitch ReadSwitch(Reader r)
+        {
+            byte b = r.U8();
+            if (b > (byte)TrailSwitch.Closed) throw new FormatException("A trail's Open / Closed / Auto switch isn't one this build knows.");
+            return (TrailSwitch)b;
         }
 
         static Trail ReadTrail(Reader r)
@@ -292,7 +302,8 @@ namespace MountainPlanner.Domain.Design
                 for (int k = 0; k < ring.Length; k++) ring[k] = r.Point();
                 rings[i] = ring;
             }
-            return new Trail(id, name, stage, settings, TrailShape.FromRings(rings), head, tail, ReadPosted(r));
+            var posted = ReadPosted(r);
+            return new Trail(id, name, stage, settings, TrailShape.FromRings(rings), head, tail, posted, ReadSwitch(r));
         }
 
         static void WriteLift(Writer w, Lift l)

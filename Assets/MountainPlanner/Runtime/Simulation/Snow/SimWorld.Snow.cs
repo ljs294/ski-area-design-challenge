@@ -53,6 +53,7 @@ namespace MountainPlanner.Simulation
                         long seeded = Snow.MakeLive(t.Width, t.Depth, new SnowRules(Pacing));
                         _snowToday.Seeded += seeded - before;   // a new size starts bare: what was there leaves as a negative seed
                         _snowToday.End = seeded;
+                        RebuildFine(keep: false);
                     }
                     return true;
                 case SnowTerrainPatch p:
@@ -75,6 +76,7 @@ namespace MountainPlanner.Simulation
             RollSnowLedger(FaceDayNow);
             _snowToday.Seeded += change;
             _snowToday.End += change;
+            RebuildFine(keep: false);   // the trails' fine cells take the seeded snow
             return true;
         }
 
@@ -86,6 +88,7 @@ namespace MountainPlanner.Simulation
             if (!Snow.Live || _snowTerrain == null || _wxTerrain == null || _wxFields == null || _wxFields.Hour != hour) return;
             if (_snowTerrain.Width != Snow.Width || _snowTerrain.Depth != Snow.Height || _wxTerrain.Width != Snow.Width) return;
             LandSnowNow();
+            HourStepTrails(hour);
             var sun = default(SunVector);
             if (Site.Known)
             {
@@ -101,6 +104,8 @@ namespace MountainPlanner.Simulation
             byte[] water = table != null && table.Width == Snow.Width && table.Depth == Snow.Height ? table.Mask : null;
             int seconds = (int)WeatherMath.DivRound(_tuning.CalendarDays * 3600L, _tuning.FaceDays);
             _snowJob ??= new SnowHour(Snow);
+            _snowJob.Fine = _fine;
+            _snowJob.PackedFloor = Pacing.PackedMeltFloor;
             _snowJob.Launch(_wxFields, _wxTerrain, _snowTerrain, water, Snow.Rules, sun, _wxHour.Clearness, _wxHour.Cloud,
                             seconds, (int)(hour / 24), Pacing.SnowThreads);
             _snowRunning = true;

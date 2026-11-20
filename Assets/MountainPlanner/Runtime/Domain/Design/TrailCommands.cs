@@ -145,6 +145,76 @@ namespace MountainPlanner.Domain.Design
         }
     }
 
+    /// <summary>
+    /// SN-20 v4 (task 4.07 B1 part 2c): the Open / Closed / Auto switch on runs' own trails and shaped trails, many in one
+    /// undo step. A shaped trail's switch wins over its runs' (as the posted sign does).
+    /// </summary>
+    public sealed class SetTrailSwitch : DesignCommand
+    {
+        public IReadOnlyList<TrailId> Runs { get; }
+        public IReadOnlyList<TrailLineId> Lines { get; }
+        public TrailSwitch Switch { get; }
+
+        public SetTrailSwitch(long baseRevision, IReadOnlyList<TrailId> runs, IReadOnlyList<TrailLineId> lines, TrailSwitch sw) : base(baseRevision)
+        {
+            Runs = runs ?? Array.Empty<TrailId>();
+            Lines = lines ?? Array.Empty<TrailLineId>();
+            Switch = sw;
+        }
+
+        /// <summary>The switch for one trail as the player sees it: its shaped trail's, else its run's own.</summary>
+        public static SetTrailSwitch For(long baseRevision, ResolvedTrail trail, TrailSwitch sw) =>
+            trail.Line != null
+                ? new SetTrailSwitch(baseRevision, null, new[] { trail.Line.Id }, sw)
+                : new SetTrailSwitch(baseRevision, new[] { trail.Segments[0].Piece }, null, sw);
+
+        public override string Label => Switch == TrailSwitch.Open ? "Open trails" : Switch == TrailSwitch.Closed ? "Close trails" : "Set trails to Auto";
+
+        /// <summary>
+        /// Whether <paramref name="b"/> is <paramref name="a"/> with only trail and shaped-trail switches changed (and at
+        /// least one): the game then sends it to the simulation at once, on the network it already built (SN-20 v4).
+        /// </summary>
+        public static bool OnlySwitchesDiffer(DesignDocument a, DesignDocument b)
+        {
+            if (a == null || b == null || ReferenceEquals(a, b)) return false;
+            if (a.Trails.Count != b.Trails.Count || a.Lines.Count != b.Lines.Count) return false;
+            var x = a;
+            bool any = false;
+            foreach (var t in b.Trails)
+            {
+                var o = x.FindTrail(t.Id);
+                if (o == null) return false;
+                if (o.Switch != t.Switch) { x = x.PutTrail(o.WithSwitch(t.Switch)); any = true; }
+            }
+            foreach (var l in b.Lines)
+            {
+                var o = x.FindLine(l.Id);
+                if (o == null) return false;
+                if (o.Switch != l.Switch) { x = x.PutLine(o.WithSwitch(l.Switch)); any = true; }
+            }
+            return any && DesignBytes.Same(DesignBytes.Encode(x), DesignBytes.Encode(b));
+        }
+
+        protected override CommandResult Run(DesignDocument doc)
+        {
+            if (Switch > TrailSwitch.Closed) return Invalid(doc, "That isn't a trail switch.");
+            var next = doc;
+            foreach (var id in Runs)
+            {
+                var t = next.FindTrail(id);
+                if (t == null) return Missing(doc, "That trail");
+                if (t.Switch != Switch) next = next.PutTrail(t.WithSwitch(Switch));
+            }
+            foreach (var id in Lines)
+            {
+                var l = next.FindLine(id);
+                if (l == null) return Missing(doc, "That trail");
+                if (l.Switch != Switch) next = next.PutLine(l.WithSwitch(Switch));
+            }
+            return CommandResult.Accept(next);
+        }
+    }
+
     public sealed class DeleteTrail : DesignCommand
     {
         public TrailId Trail { get; }
@@ -215,7 +285,7 @@ namespace MountainPlanner.Domain.Design
             var mint = new IdMint(doc);
             var lowerId = mint.Trail();
             var upper = t.WithShape(upperShape).WithEnds(t.Head, At);
-            var lower = new Trail(lowerId, lowerName, t.Stage, t.Settings, lowerShape, At, t.Tail);
+            var lower = new Trail(lowerId, lowerName, t.Stage, t.Settings, lowerShape, At, t.Tail, null, t.Switch);   // SN-20 v4: the switch comes along
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutTrail(upper).PutTrail(lower), lowerId.Value);
         }
     }

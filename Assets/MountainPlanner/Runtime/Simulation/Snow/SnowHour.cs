@@ -54,6 +54,12 @@ namespace MountainPlanner.Simulation
         const int Block = 16;
         SnowLedger _scatterLedger;
 
+        /// <summary>4.07 B1 part 2a: the trails' fine snow (null: none), set by the world before each launch, and SN-30 v2's
+        /// packed floor. Each 8 m cell with a block shares its hour with it (<see cref="FineHour"/>).</summary>
+        internal FineSnow Fine;
+        internal int PackedFloor = FineSnow.WeightOne;
+        int[][] _fineWeights = Array.Empty<int[]>();
+
         /// <summary>What the hour did, summed over the bands (read by the world once the job is done).</summary>
         internal SnowLedger Ledger;
         /// <summary>The water on the field at the hour's end (µm).</summary>
@@ -92,6 +98,11 @@ namespace MountainPlanner.Simulation
             for (int b = 0; b < bands; b++) { _bandLedger[b] = default; _bandDrifts[b] = false; }
             _scatterLedger = default;
             for (int k = 0; k < tiles; k++) _readMask[k] = _wet || _snow.TileSnowy[k];
+            if (Fine != null && (_fineWeights.Length != bands || _fineWeights[0].Length != Fine.BlockCells))
+            {
+                _fineWeights = new int[bands][];
+                for (int b = 0; b < bands; b++) _fineWeights[b] = new int[Fine.BlockCells];
+            }
             Threads = Math.Max(1, threads);
             Units = bands;
             _phase = _wet ? 0 : 1;
@@ -494,6 +505,10 @@ namespace MountainPlanner.Simulation
             var energy = _rules.Energy;
             int lw = t.LatticeWidth, ld = t.LatticeDepth;
             var runoff = f.RunoffHour;
+            var fine = Fine;
+            int[] blockCell = fine?.Layout.BlockCell;
+            // The cells run in increasing index within a band, so one cursor finds each cell's block.
+            int blk = blockCell == null ? 0 : LowerBound(blockCell, y0 * w);
             for (int j = y0; j < y1; j++)
             {
                 _fields.ReadRowsSmooth(j, j + 1, row, t.BinPlace, t.Exposure, t.Canopy, _readMask);
@@ -511,6 +526,12 @@ namespace MountainPlanner.Simulation
                         ref var p = ref f.Pack[c];
                         ref var wc = ref row[i];
                         runoff[c] = 0;
+                        int b = -1;
+                        if (blockCell != null)
+                        {
+                            while (blk < blockCell.Length && blockCell[blk] < c) blk++;
+                            if (blk < blockCell.Length && blockCell[blk] == c) b = blk;
+                        }
                         if (wc.Known && !Lake(c))
                         {
                             int snow = 0, rain = 0;
@@ -546,10 +567,14 @@ namespace MountainPlanner.Simulation
                                     Cloud = _cloud, Beam = beam, Diffuse = diffuse, OpenSky = open, Canopy = t.Canopy[c] * 1000 / 255,
                                     Snow = Math.Max(0, snow), SnowDensity = 10_000 / WeatherAir.SnowRatioTenths(wc.WetBulb), Rain = rain,
                                 };
+                                int swe0 = p.Swe, rho0 = p.Density;
+                                byte type0 = f.Type[c], age0 = f.Age[c];
                                 var o = SnowEnergy.Step(ref p, x, energy);
+                                if (b >= 0) KeepPacked(ref p, ref o, b, band);
                                 L.Runoff += o.Runoff; L.Sublimated += o.Sublimated; L.Melt += o.Melt;
                                 runoff[c] = (int)o.Runoff;
                                 Conditions(_rules, _faceDay, f, c, o.Thawed, o.Skin, x.Snow, rain, wc.WetBulb);
+                                if (b >= 0) FineHour(b, c, swe0, rho0, type0, age0, x.Snow, x.SnowDensity, rain, band);
                             }
                         }
                         else if (p.Swe != 0)
@@ -557,6 +582,7 @@ namespace MountainPlanner.Simulation
                             // A lake's cell holds no snow of its own (SN-25): what a seed or an older table left goes to the water.
                             L.ToWater += p.Swe;
                             f.Clear(c);
+                            if (b >= 0) fine.ClearBlock(b);
                         }
                         L.End += p.Swe;
                         snowy |= p.Swe > 0;
@@ -566,6 +592,74 @@ namespace MountainPlanner.Simulation
                     s.TileHashNext[k] = hash; s.TileSnowy[k] = snowy; s.TileChanged[k] = changed;
                 }
             }
+        }
+
+        static int LowerBound(int[] sorted, int value)
+        {
+            int lo = 0, hi = sorted.Length;
+            while (lo < hi) { int m = (lo + hi) >> 1; if (sorted[m] < value) lo = m + 1; else hi = m; }
+            return lo;
+        }
+
+        /// <summary>
+        /// SN-30 v2 on the 8 m step: the water the hour ran off or sublimated, times the block's mean loss weight, is what
+        /// leaves; the rest stays in the pack, taken back off the runoff first, then the sublimation (exactly 1000 off the
+        /// packed cells, so loose snow's bytes are today's).
+        /// </summary>
+        void KeepPacked(ref SnowPack p, ref SnowOutput o, int b, int band)
+        {
+            var fine = Fine;
+            int bc = fine.BlockCells, f0 = b * bc;
+            var wgt = _fineWeights[band];
+            long sum = 0;
+            for (int k = 0; k < bc; k++) { wgt[k] = fine.Weight(f0 + k, PackedFloor); sum += wgt[k]; }
+            long lost = (long)o.Runoff + Math.Max(0, o.Sublimated);
+            if (lost <= 0 || sum >= (long)bc * FineSnow.WeightOne) return;
+            long kept = lost - lost * sum / ((long)bc * FineSnow.WeightOne);
+            int fromRunoff = (int)Math.Min(kept, o.Runoff);
+            o.Runoff -= fromRunoff; p.Swe += fromRunoff; p.Liquid += fromRunoff;
+            int fromSublimation = (int)(kept - fromRunoff);
+            o.Sublimated -= fromSublimation; p.Swe += fromSublimation;
+        }
+
+        /// <summary>
+        /// The 8 m cell's hour on its block: the net change shared (<see cref="FineSnow.ShareHour"/>, the loss by the weights
+        /// <see cref="KeepPacked"/> filled), a dry hour's settling, a natural change of type or age passed to every fine
+        /// cell with snow (new snow clears the packing and the groomings; 6 in of it halves the moguls, SN-17), then the
+        /// roll-up's density and type back on the 8 m cell. The 8 m water already equals the roll-up's.
+        /// </summary>
+        void FineHour(int b, int c, int swe0, int rho0, byte type0, byte age0, int snow, int snowDensity, int rain, int band)
+        {
+            var fine = Fine;
+            var f = _snow.Field;
+            ref var p = ref f.Pack[c];
+            int bc = fine.BlockCells, f0 = b * bc;
+            int delta = p.Swe - swe0;
+            int gain = Math.Max(0, delta), loss = Math.Max(0, -delta);
+            int density = snow > 0 ? snowDensity * 1000 : 1_000_000;
+            var wgt = _fineWeights[band];
+            if (!fine.ShareHour(b, gain, density, loss, wgt)) fine.SeedBlock(f, b);   // never with the invariant held
+            if (snow <= 0 && rain <= 0 && rho0 > 0) fine.Settle(b, (int)Math.Min(int.MaxValue, (long)p.Density * 1000 / rho0));
+            byte type1 = f.Type[c], age1 = f.Age[c];
+            bool fresh = type1 != type0 && (type1 == (byte)SnowType.P || type1 == (byte)SnowType.WP);
+            bool deep = snow > 0 && snowDensity > 0 && (long)snow * 1000 / snowDensity >= 152_400;
+            for (int q = f0; q < f0 + bc; q++)
+            {
+                if (fine.Swe[q] <= 0) continue;
+                if (type1 != type0) fine.Type[q] = type1;
+                if (fresh) fine.Flags[q] = (byte)(fine.Flags[q] & ~(FineSnow.Packed | FineSnow.GroomMask));
+                if (deep) fine.Moguls[q] = (byte)(fine.Moguls[q] / 2);
+                if (age1 < age0) fine.Age[q] = age1;
+                else if (age1 > age0) fine.Age[q] = (byte)Math.Min(255, fine.Age[q] + (age1 - age0));
+            }
+            // Only a block the trails have packed speaks for its 8 m cell: loose fine cells follow it exactly, so a trail no
+            // one grooms or skies leaves the 8 m snow byte for byte as it was without one.
+            bool packed = false;
+            for (int q = f0; q < f0 + bc && !packed; q++) packed = (fine.Flags[q] & FineSnow.Packed) != 0 && fine.Swe[q] > 0;
+            if (!packed) return;
+            fine.RollUp(b, out _, out int rho, out byte type);
+            if (rho > 0) p.Density = rho;
+            if (p.Swe > 0) f.Type[c] = type;
         }
 
         /// <summary>The cell's next planes; true when they differ from the landed ones.</summary>

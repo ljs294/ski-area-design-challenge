@@ -191,6 +191,7 @@ namespace MountainPlanner.Simulation
             var field = SnowCodec.Read(r, Snow, width, height);
             Snow.LoadLive(width, height, new SnowRules(Pacing), field, landed, next);
             _snowRunning = false;
+            RebuildFine(keep: false);   // 2a: the fine field isn't saved; it reseeds from the 8 m snow (2c saves it)
         }
 
         static void WriteLedger(SidecarWriter o, in SnowLedger l)

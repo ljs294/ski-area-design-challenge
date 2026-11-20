@@ -71,6 +71,10 @@ namespace MountainPlanner.Simulation
         SetSnowNetwork = 37,
         /// <summary>Task 4.15 (plan Q4): A = 1 also solves as if every gun ran ("Check network"), 0 stops; a view command.</summary>
         CheckNetwork = 38,
+        /// <summary>Task 4.07 B1 part 2a: Payload = a <see cref="Domain.Snow.TrailSnowLayout"/>, the fine snow's layout over the
+        /// built trails (SN-03 v3); a view-sequence command (resent after every load and when the trails change): the fine
+        /// cells it keeps are reseeded from the 8 m snow, so a reload hashes as the game that saved.</summary>
+        SetTrailSnow = 35,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>

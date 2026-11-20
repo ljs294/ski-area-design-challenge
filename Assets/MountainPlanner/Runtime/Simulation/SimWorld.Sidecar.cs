@@ -45,7 +45,8 @@ namespace MountainPlanner.Simulation
 
         // The field order below is the sidecar's (SimSidecar, v2: v1's fields, then the lift-operations block, task 4.11;
         // v4: the guests, task 4.12; v5: the weather, task 4.05; v6: the forecast's issue and the weather events, 4.05 PR C;
-        // v7: the lakes, task 4.09; v9: the snow block's mode and the live snow, task 4.07 PR A2):
+        // v7: the lakes, task 4.09; v9: the snow block's mode and the live snow, task 4.07 PR A2; v10: the water, 4.14;
+        // v11: the ride-down, 4.24; v12: the trail snow, 4.07 B1 part 2c):
         // append only through a version bump.
 
         internal void WriteState(SidecarWriter o)
@@ -85,6 +86,8 @@ namespace MountainPlanner.Simulation
             WriteLakeState(o);
             WriteSourceState(o);
             WriteRideDownState(o);
+            WriteTrailState(o);
+            WriteRunoffState(o);
         }
 
         internal void ReadState(SidecarReader r, SimSidecar.Header header)
@@ -159,6 +162,11 @@ namespace MountainPlanner.Simulation
             else StartSourcesForOlderSave();
             // v1–v10 → v11 (task 4.24 PR B): no top lines, nobody riding down, no rides down today.
             if (header.SidecarVersion >= SimSidecar.RideDownVersion) ReadRideDownState(r);
+            // v1–v11 → v12 (task 4.07 B1 part 2c): no trail snow block; the trail snow seeds from the 8 m snow when the
+            // layout arrives, and the board starts again from it at the next hour.
+            // Before v12 an hour in flight lands with no runoff (finding B2c-4).
+            if (header.SidecarVersion >= SimSidecar.TrailSnowVersion) { ReadTrailState(r); ReadRunoffState(r); }
+            RefreshTrailRuns();   // SN-20 v4: the switches' table, from the design and the board
         }
 
         /// <summary>

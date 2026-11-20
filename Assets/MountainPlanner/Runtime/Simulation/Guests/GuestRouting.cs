@@ -35,8 +35,9 @@ namespace MountainPlanner.Simulation
         bool _routeDirty = true;
 
         /// <summary>
-        /// Something that could change where a band can go has changed: a lift opened, closed, held, resumed, began
-        /// downloading, passed its last chair, or the design moved. One flag, so a holiday's many changes cost one rebuild.
+        /// Something that could change where a band can go has changed: a lift opened or closed at the hour's flip, began
+        /// downloading or rode down, a trail opened or closed (SN-20 v3), or the design moved. One flag, so a holiday's many
+        /// changes cost one rebuild. A hold doesn't call it: a held lift's line stays joinable (LO-07), so routes don't change.
         /// </summary>
         void GuestBoardChanged() => _routeDirty = true;
 
@@ -96,16 +97,27 @@ namespace MountainPlanner.Simulation
         /// </summary>
         const int StandInQuality = 900;
 
-        int QualityOf(int edge, int band) => StandInQuality;
+        internal int QualityOf(int edge, int band) =>
+            EdgeTableLive && edge * Pacing.Bands + band < _edgeQuality.Length ? _edgeQuality[edge * Pacing.Bands + band] : StandInQuality;
 
         /// <summary>Whether this band may take this edge at all: its gate, and the trail being open (SN-20).</summary>
         bool EdgeAllowed(int edge, int band)
         {
             var net = _guestsNetwork;
             if (_gateBand[edge] > band) return false;
+            return EdgeOpen(edge);
+        }
+
+        /// <summary>
+        /// SN-20 v4: whether an edge of the guests' network is open to skiers: a path always; a trail's piece by its switch
+        /// and its trail's board, and only once a lift's way down reaches the trail (see <see cref="TrailOpen"/>).
+        /// </summary>
+        bool EdgeOpen(int edge)
+        {
+            var net = _guestsNetwork;
             int t = net.EdgeTrail[edge];
             if (t < 0) return true;                       // a path is always open
-            return TrailOpen(t);
+            return EdgeReady(net, edge) && (t >= _trailReached.Length || _trailReached[t] != 0);
         }
 
         /// <summary>
@@ -342,8 +354,7 @@ namespace MountainPlanner.Simulation
                 for (int e = 0; e < net.EdgeFrom.Length; e++)
                 {
                     if (_gateBand[e] > band) { gated++; continue; }
-                    int t = net.EdgeTrail[e];
-                    if (t >= 0 && !TrailOpen(t)) { shut++; continue; }
+                    if (!EdgeOpen(e)) { shut++; continue; }
                     allowed++;
                 }
                 var r = NetworkFor(band);

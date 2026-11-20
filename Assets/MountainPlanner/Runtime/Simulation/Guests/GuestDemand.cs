@@ -183,7 +183,7 @@ namespace MountainPlanner.Simulation
                 for (int k = 0; k < net.TrailIds.Length; k++) if (TrailOpen(k)) open++;
             int openShare = built <= 0 ? 0 : (int)Math.Min(1000L, open * 1000L / built);
             // 0.5 + 0.5 × share × sqrt(quality ÷ 0.9), clamped 0.3–1.2. An integer root keeps it off the floats.
-            int quality = StandInQuality;
+            int quality = OpenTrailQuality();   // 4.07 B1 part 2b: the open trails' snow (the stand-in without it)
             int ratio = quality * 1000 / 900;
             int root = Isqrt(ratio * 1000);                    // sqrt in thousandths
             int v = 500 + 500 * openShare / 1000 * root / 1000;
@@ -304,8 +304,7 @@ namespace MountainPlanner.Simulation
             for (int e = 0; e < net.EdgeFrom.Length; e++)
             {
                 if (net.EdgeKindOf[e] != (byte)SimEdgeKind.TrailSegment) continue;
-                int t = net.EdgeTrail[e];
-                if (!TrailOpen(t)) continue;
+                if (!EdgeOpen(e)) continue;   // SN-20 v4: a closed piece of a trail holds nobody
                 m2 += net.EdgeAreaM2[e];
             }
             return (int)Math.Min(int.MaxValue, m2 * Pacing.SkiersPerOpenAcre / 4047);

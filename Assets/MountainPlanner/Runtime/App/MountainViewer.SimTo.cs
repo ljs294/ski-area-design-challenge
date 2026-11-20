@@ -29,8 +29,53 @@ namespace MountainPlanner.App
                 Debug.LogWarning($"[SimTo] '{args[i + 1]}' isn't a month-day (MM-DD, e.g. 02-01)");
                 return;
             }
+            // Task 4.07 B1 part 2c: -savequit <name> saves under that name at the date and quits (the save-and-reopen check).
+            // Only with -data: a test run never writes into the player's own saves.
+            int q = Array.IndexOf(args, "-savequit");
+            if (q >= 0)
+            {
+                if (q + 1 >= args.Length || args[q + 1].StartsWith("-")) Debug.LogWarning("[SimTo] -savequit needs a save name");
+                else if (Array.IndexOf(args, "-data") < 0) Debug.LogWarning("[SimTo] -savequit only runs with -data <scratch folder> (it never writes into your own saves)");
+                else _saveQuitName = args[q + 1];
+            }
             _simToRunning = true;
             StartCoroutine(SimTo(month, day));
+        }
+
+        string _saveQuitName;
+
+        /// <summary>-savequit: saves the design and its simulation under the name, logs the sizes, and quits.</summary>
+        void SaveAndQuit(string when)
+        {
+            var open = Persistence.Saves.OpenDesign.Current;
+            if (open == null && Design != null && _resort != null)
+            {
+                // A capture run's design (-drawnresort) lives in the session's own history: save that, as Save would.
+                var m = _resort.Manifest;
+                string heights = System.Linq.Enumerable.FirstOrDefault(m.Layers, l => l.Id == "heights-core")?.Sha256 ?? "";
+                open = new Persistence.Saves.OpenDesign(Flow.AppFlow.DataRootFrom(Environment.GetCommandLineArgs()), m.PackageId, heights, Design.Document, Design.Terrain);
+                open.Simulation = SimStateForSave;
+            }
+            bool ok = false;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                ok = open != null && open.SaveAs(_saveQuitName, Flow.DownloadService.UtcStamp(DateTime.UtcNow), BuildInfo.Current.version ?? "");
+            }
+            catch (Exception e) when (e is System.IO.IOException || e is UnauthorizedAccessException)
+            {
+                Debug.LogWarning($"[SimTo] -savequit couldn't save: {e.Message}");
+            }
+            if (ok)
+            {
+                long folderBytes = 0;
+                foreach (var f in new System.IO.DirectoryInfo(open.SaveFolder).GetFiles("*", System.IO.SearchOption.AllDirectories)) folderBytes += f.Length;
+                Debug.Log($"[SimTo] saved \"{_saveQuitName}\" at {when} to {open.SaveFolder} in {clock.ElapsedMilliseconds} ms: {folderBytes / 1e6:F2} MB in all, " +
+                          $"the simulation {LastSaveBytes / 1e6:F2} MB ({LastSaveBlocks}; the worker's copy {LastSaveWaitMs:F0} ms, encoded {LastSaveEncodeMs:F0} ms) " +
+                          $"with {_simNow.TrailFineCells} trail snow cells ({_simNow.TrailBlocks} squares)");
+            }
+            else Debug.LogWarning($"[SimTo] -savequit: \"{_saveQuitName}\" wasn't saved");
+            Application.Quit(ok ? 0 : 1);
         }
 
         /// <summary>A <c>-simto</c> run hasn't reached its date yet (a capture or <c>-shellcheck</c> waits for it).</summary>
@@ -98,8 +143,14 @@ namespace MountainPlanner.App
             for (int f = 0; f < 30 || (_resort.States.TilesWaiting > 0 && f < 600); f++) yield return null;
             Debug.Log($"[SimTo] {(cancelled ? "cancelled at" : "reached")} {Label(calendar, Now())} ({_simClock.Now}) in {clock.Elapsed.TotalSeconds:F0} s real time, {skips} skips, "
                       + $"{Math.Max(0, Now() - start)} face days; {SnowSummary()}; {BaseAndSummit()}");
+            if (_simNow.TrailFineCells > 0)
+                Debug.Log($"[TrailSnow] at {Label(calendar, Now())}: {_simNow.TrailBlocks} trail squares, {_simNow.TrailBlocksGroomed} machine groomed and {_simNow.TrailBlocksPowder} powder in the " +
+                          $"Snow conditions layer; mean depth {_simNow.TrailDepthMm / 25.4:F0} in, {_simNow.TrailPackedPermille / 10}% packed, " +
+                          $"{_simNow.TrailsGroomedToday} trails groomed today; the last night's pass worked {_simNow.TrailBlocksLastGroom} squares on {_simNow.TrailsLastGroom} trails");
+            if (_simNow.TrailFineCells > 0) LogTrailBoard(Label(calendar, Now()));
             Toast(cancelled ? $"Stopped at {Label(calendar, Now())}" : $"{goal}: paused");
             _simToRunning = false;
+            if (_saveQuitName != null && !cancelled) SaveAndQuit(Label(calendar, Now()));
         }
 
         static string MonthName(int month) => CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month);
@@ -128,6 +179,33 @@ namespace MountainPlanner.App
                 }
             }
             return $"the base ({low / 0.3048f:F0} ft) {lowDepth / 0.0254f:F0} in, the summit ({high / 0.3048f:F0} ft) {highDepth / 0.0254f:F0} in";
+        }
+
+        /// <summary>
+        /// Task 4.07 B1 part 2b: each trail's board at the end of the run, by name: its SN-20 v3 label, its walk (late season),
+        /// its covered share and its snow rating, and whether it's open. Once per run, so the strings don't matter.
+        /// </summary>
+        static readonly string[] RatingWords = { "Poor", "Fair", "Good", "Excellent" };
+
+        void LogTrailBoard(string when)
+        {
+            var s = _simNow;
+            var doc = Design?.Current.Document;
+            var line = new System.Text.StringBuilder();
+            line.Append($"[TrailBoard] at {when}: {s.TrailsCovered} covered, {s.TrailsMarginal} marginal, {s.TrailsBare} bare, " +
+                        $"{s.TrailsReady} open{(s.LateSeason ? ", late season" : "")}");
+            for (int k = 0; k < s.TrailCount; k++)
+            {
+                string name = "?";
+                if (doc != null)
+                    foreach (var t in doc.Trails)
+                        if (t.Id.Value == s.TrailIds[k]) { name = t.Name; break; }
+                var label = s.TrailLabelAt(k);
+                line.Append(System.Environment.NewLine).Append("  ").Append(name).Append(": ").Append(label == TrailSnowLabel.None ? "no snow squares" : label.ToString());
+                if (s.TrailWalkFtAt(k) > 0) line.Append($" · walk {s.TrailWalkFtAt(k)} ft");
+                line.Append($" · {s.TrailCoverPct[k]}% covered · {RatingWords[s.TrailRatingAt(k)]} · {s.TrailStatus[k]}");
+            }
+            Debug.Log(line.ToString());
         }
     }
 }

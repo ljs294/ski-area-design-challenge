@@ -2,7 +2,7 @@ namespace MountainPlanner.Domain.Design
 {
     public static partial class DesignBytes
     {
-        // Shape 16 (task 4.15, HY-01): the snowmaking network. Nodes (kind, place, label, source, pump, host pipe and direction, house),
+        // Shape 15 (task 4.15, HY-01): the snowmaking network. Nodes (kind, place, label, source, pump, host pipe and direction, house),
         // pipes (name, diameter, route, ends, valves), pump houses (footprint, source, compressor, foundation) and guns
         // (model, place, hydrant, aim, override), each list in ID order.
         static void WriteSnow(Writer w, SnowNetwork net)

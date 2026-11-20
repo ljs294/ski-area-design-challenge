@@ -49,17 +49,18 @@ namespace MountainPlanner.Persistence.Saves
     /// anticlockwise and holes clockwise, each from its lowest point; the writer straightens the cells' outline wherever
     /// that keeps every cell, so the same clearing always gives the same rings.
     /// <code>
-    /// { "Version": 13, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 13, "Seed", "NextOrdinal",
-    ///               "Trails": [ { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Posted", "Outline": [ [...] ] } ],
+    /// { "Version": 16, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 16, "Seed", "NextOrdinal",
+    ///               "Trails": [ { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Posted", "Switch", "Outline": [ [...] ] } ],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
     ///                            "Levels": { "BottomMm", "TopMm" } or null, "Drive", "Schedule", "Hours": {...} or null, "Plate" } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
     ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm", "Dabs": [...] } ],
     ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ],
-    ///               "TrailLines": [ { "Id", "Name", "Posted", "Spans": [ { "Piece", "From": {...}, "To": {...}, "FromMm", "ToMm" } ] } ],
+    ///               "TrailLines": [ { "Id", "Name", "Posted", "Switch", "Spans": [ { "Piece", "From": {...}, "To": {...}, "FromMm", "ToMm" } ] } ],
     ///               "Cuts": [ { "Piece", "At" } ],
-    ///               "Hours": { "OpenSecond", "LastChairSecond", "StopSecond" } },
+    ///               "Hours": { "OpenSecond", "LastChairSecond", "StopSecond" },
+    ///               "Ponds", "Dams", "Lakes", "Streams" (v14), "Snowmaking" (v15) },
     ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] },
     ///   "Sim": { "SidecarVersion", "Sha256" } or null }
     /// </code>
@@ -151,6 +152,7 @@ namespace MountainPlanner.Persistence.Saves
                 w.WritePropertyName("Id"); w.WriteValue(Hex(line.Id.Value));
                 w.WritePropertyName("Name"); w.WriteValue(line.Name);
                 w.WritePropertyName("Posted"); WritePosted(w, line.Posted);   // v11 (TD-07)
+                w.WritePropertyName("Switch"); w.WriteValue(Words.Switch(line.Switch));   // v16 (SN-20 v4)
                 w.WritePropertyName("Spans");
                 w.WriteStartArray();
                 foreach (var sp in line.Spans)
@@ -385,6 +387,7 @@ namespace MountainPlanner.Persistence.Saves
             w.WritePropertyName("Head"); WriteOptPoint(w, t.Head);
             w.WritePropertyName("Tail"); WriteOptPoint(w, t.Tail);
             w.WritePropertyName("Posted"); WritePosted(w, t.Posted);   // v11 (TD-07)
+            w.WritePropertyName("Switch"); w.WriteValue(Words.Switch(t.Switch));   // v16 (SN-20 v4)
             // v8 (sections finding 7): the clearing's rings, each [x0, y0, dx1, dy1, …] on one line, deltas from the point before.
             w.WritePropertyName("Outline");
             w.WriteStartArray();
@@ -611,7 +614,7 @@ namespace MountainPlanner.Persistence.Saves
                     var so = AsObj(s);
                     spans.Add(new Span(new TrailId(HexValue(Str(so, "Piece"))), ReadAnchor(Obj(so, "From")), ReadAnchor(Obj(so, "To")), Int(so, "FromMm"), Int(so, "ToMm")));
                 }
-                lines.Add(new TrailLine(new TrailLineId(HexValue(Str(lo, "Id"))), Str(lo, "Name"), spans, Posted(lo)));
+                lines.Add(new TrailLine(new TrailLineId(HexValue(Str(lo, "Id"))), Str(lo, "Name"), spans, Posted(lo), Words.Switch(Str(lo, "Switch"))));
             }
             var cuts = new List<TrailCut>();
             foreach (var c in Arr(d, "Cuts")) { var co = AsObj(c); cuts.Add(new TrailCut(new TrailId(HexValue(Str(co, "Piece"))), Point(co, "At"))); }
@@ -670,7 +673,7 @@ namespace MountainPlanner.Persistence.Saves
             }
             var settings = new TrailSettings(Words.Grading(Str(t, "Grading")), Words.Kind(Str(t, "Kind")), Words.Clearing(Str(t, "Clearing")));
             return new Trail(new TrailId(HexValue(Str(t, "Id"))), Str(t, "Name"), Words.Stage(Str(t, "Stage")), settings, TrailShape.FromRings(rings),
-                OptPoint(t, "Head"), OptPoint(t, "Tail"), Posted(t));
+                OptPoint(t, "Head"), OptPoint(t, "Tail"), Posted(t), Words.Switch(Str(t, "Switch")));
         }
 
         /// <summary>A v7 trail's "Parts" (strokes and cuts), read once by the v7 → v8 step.</summary>
@@ -802,6 +805,9 @@ namespace MountainPlanner.Persistence.Saves
         /// <summary>The frozen words for each enum, both ways.</summary>
         static class Words
         {
+            // v16 (SN-20 v4): a trail's Open / Closed / Auto switch.
+            public static string Switch(TrailSwitch v) => v == TrailSwitch.Auto ? "auto" : v == TrailSwitch.Open ? "open" : v == TrailSwitch.Closed ? "closed" : throw Bad(v);
+            public static TrailSwitch Switch(string s) => s == "auto" ? TrailSwitch.Auto : s == "open" ? TrailSwitch.Open : s == "closed" ? TrailSwitch.Closed : throw Unknown(s);
             public static string Stage(WorkStage v) => v == WorkStage.Plan ? "plan" : v == WorkStage.Built ? "built" : throw Bad(v);
             public static WorkStage Stage(string s) => s == "plan" ? WorkStage.Plan : s == "built" ? WorkStage.Built : throw Unknown(s);
             public static string Grading(TrailGrading v) => v == TrailGrading.Graded ? "graded" : v == TrailGrading.Natural ? "natural" : throw Bad(v);
