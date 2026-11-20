@@ -427,11 +427,16 @@ namespace MountainPlanner.Tests
                 }
         }
 
+        /// <summary>Calls before an allocation count starts: past .NET's tiered-JIT threshold (30 calls), so the runtime's
+        /// recompiling of a hot method isn't counted as the method's own allocation (TR09 failed once on CI, 8040 bytes,
+        /// after one warm call).</summary>
+        const int WarmCalls = 64;
+
         [Test]
         public void TR09_RatingTheTrailsAllocatesNothingOnceWarm()
         {
             var w = NetWorld(600);
-            w.RateTrailsNow();
+            for (int i = 0; i < WarmCalls; i++) w.RateTrailsNow();
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 10; i++) w.RateTrailsNow();
             long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -536,8 +541,7 @@ namespace MountainPlanner.Tests
         public void SW14_TheSwitchTableAllocatesNothingOnceWarm()
         {
             var w = NetWorld(600);
-            w.BoardTrailsNow();
-            w.RefreshTrailRunsNow();
+            for (int i = 0; i < WarmCalls; i++) { w.RefreshTrailRunsNow(); w.BoardTrailsNow(); }
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 10; i++) { w.RefreshTrailRunsNow(); w.BoardTrailsNow(); }
             long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -656,7 +660,7 @@ namespace MountainPlanner.Tests
         {
             var back = Reopen(TrailSaveWorld().SaveState());
             back.ApplyNow(SimCommand.Of(SimCommandKind.SetTrailSnow, 0, GroomedLayout(back)));
-            back.BoardTrailsNow();
+            for (int i = 0; i < WarmCalls; i++) back.BoardTrailsNow();
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 10; i++) back.BoardTrailsNow();
             Assert.That(GC.GetAllocatedBytesForCurrentThread() - before, Is.Zero);
