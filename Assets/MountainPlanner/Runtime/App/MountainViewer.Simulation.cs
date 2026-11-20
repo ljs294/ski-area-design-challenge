@@ -239,8 +239,56 @@ namespace MountainPlanner.App
         /// <summary>How long a save waits for the worker's state (it comes within a tick; a skip batch is 50 ms).</summary>
         const int SaveStateWaitMs = 2000;
 
+        // ---------- a save's clock waits for its network (finding B2c-5, owner 2026-11-19) ----------
+
+        // A save's simulation is read over the design's network (LO-10, GU-07: the lifts' ways down, the trails' reach), and
+        // that network is built off the main thread after the area opens. Read before it lands, the design has no network,
+        // so a save with built trails or lifts didn't read ("The trails don't match the design's network") and its clock
+        // started over (since task 4.11 PR A). So the start waits for it: a minute at most, then it reads without it.
+        const float NetworkWaitSeconds = 60;
+        /// <summary>-simnowait: the start as it was before the fix (the check shows the bug and the fix in one build).</summary>
+        static readonly bool NoNetworkWait = Array.IndexOf(Environment.GetCommandLineArgs(), "-simnowait") >= 0;
+        bool _simStartWaiting, _simStartSun;
+        float _simStartFrom;
+
+        /// <summary>From the HUD's wiring: starts the simulation now, or once the opened save's network has landed.</summary>
+        void StartSimulationWhenReady(bool sunFromSimulation)
+        {
+            _simStartSun = sunFromSimulation;
+            _simStartFrom = Time.unscaledTime;
+            _simStartWaiting = true;
+            if (SaveWaitsForNetwork()) Debug.Log("[Simulation] the save's clock waits for its network");
+            StartSimulationIfReady();
+        }
+
+        /// <summary>Every frame, before the clock runs.</summary>
+        void StartSimulationIfReady()
+        {
+            if (!_simStartWaiting) return;
+            bool waits = SaveWaitsForNetwork();
+            float waited = Time.unscaledTime - _simStartFrom;
+            if (waits && waited < NetworkWaitSeconds) return;
+            _simStartWaiting = false;
+            if (waits) Debug.LogWarning($"[Simulation] the network didn't come in {NetworkWaitSeconds:F0} s; the save's clock is read without it");
+            else if (waited > 0) Debug.Log($"[Simulation] the network came after {waited:F1} s; the save's clock is read over it");
+            StartSimulation(_simStartSun);
+        }
+
+        /// <summary>An opened save brought a simulation, and its design has built lifts or trails whose network isn't in yet.</summary>
+        bool SaveWaitsForNetwork()
+        {
+            if (OpenDesign.Current?.LoadedSimulation == null || NoNetworkWait) return false;
+            var history = _edits?.History ?? OpenDesign.Current?.History;
+            var doc = history?.Current.Document;
+            if (doc == null || SimGraphFor(doc) != null) return false;
+            foreach (var l in doc.Lifts) if (l.Stage == WorkStage.Built) return true;
+            foreach (var t in doc.Trails) if (t.Stage == WorkStage.Built) return true;
+            return false;
+        }
+
         void StopSimulation()
         {
+            _simStartWaiting = false;
             FollowSavesForSimulation(null);
             FollowDesignForSimulation(null);
             _sim?.Dispose();
