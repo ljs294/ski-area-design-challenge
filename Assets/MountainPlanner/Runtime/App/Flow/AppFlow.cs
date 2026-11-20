@@ -271,6 +271,20 @@ namespace MountainPlanner.App.Flow
             Controller.SceneReady(!MountainViewer.TitleMode, then);
         }
 
+        // -continue (finding B2c-5's check): presses the title's Continue once, as a player's click does (the same call), so
+        // a run can open the last area's newest save through the menu's own path.
+        bool _continuePressed;
+
+        void ContinueFromCommandLine()
+        {
+            if (_continuePressed || Controller.Screen != FlowScreen.Title || Screens.CoverUp) return;
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-continue") < 0) { _continuePressed = true; return; }
+            _continuePressed = true;
+            var target = ContinueTarget();
+            Debug.Log($"[AppFlow] -continue: Continue on the title opens {target?.Name ?? "nothing"}");
+            Controller.Continue(target?.Folder);
+        }
+
         void Update()
         {
             // The viewer reads RequestedPackage in its first Start; clear it after so a later reload doesn't reuse it.
@@ -278,6 +292,7 @@ namespace MountainPlanner.App.Flow
 
             UpdateCover();
             UpdateDownloads();
+            ContinueFromCommandLine();
             HandleKeys(Keyboard.current);
             UpdateSaves(Keyboard.current);
             UpdateCrashOffer();   // task P3-14
