@@ -133,6 +133,12 @@ front end that displays it"): they write down the boundary between the worker an
   in a `SetSnowpack` command; the worker keeps it in whole mm and hashes it a 64-cell tile at a time. The staging ring's
   slots carry depth only (8 KB, 64 × 64 × 2 B) until 4.07 adds the type and quality planes. While paused the host still
   stages, so an edit's snow shows without the clock moving.
+- **The sidecar's v12 step (task 4.07 B1 part 2c).** v12 appends the trail snow block (SN-20 v4: the day's trail
+  counters and the fold remainder, the board, the guests' snow table, the late season, the layout's hash and each
+  layout trail's label and main surface, then the fine squares) and the runoff of the snow's hour in flight (only the
+  cells that ran; finding B2c-4: a save made between an hour's start and its landing lost that hour's runoff into the
+  ponds). The fine squares are encoded on the save's task, as the 8 m snow is. A v11 sidecar opens with no trail snow
+  (it seeds when the layout arrives) and its hour in flight lands with no runoff, as before.
 - **SI-18, the event ring.** Every state change a player could care about (boarded, unloaded, hold on/off, trail
   readiness change, gun start/stop/short, source level band, solve failed, skier arrived/left/balked, season opened)
   is appended as a typed event (stable type id, tick, entity, value) to a fixed-size ring in the snapshot. Alerts
@@ -548,7 +554,9 @@ density, so water and snow balance (SI-10).
 - **SN-16 v3, quality (task 4.07 PR B1, owner 2026-11-17)).** v2's type base × age term, then × (1 − 0.0003 per pass, floor 0.5) with the
   passes since the last grooming or powder reset, then × (1 − 0.3 × moguls) for the bands below a trail's posted band
   only (experts like moguls; GU-07 reads it by band, per segment). Worlds without trails or snow keep the 900
-  stand-in.
+  stand-in. In numbers: per pass `Pacing.QualityPassTenths = 3` tenths of a ‰, floor `Pacing.QualityPassFloor =
+  500 ‰`; moguls `Pacing.QualityMogulPermille = 300 ‰` × moguls ÷ 255. The words stay v2's: Excellent from 0.8, Good
+  from 0.6, Fair from 0.4, else Poor.
 - **SN-16 v2 (superseded by v3), quality** (task 4.07 PR A2, owner 2026-11-14) (approved with plan v2): the type's base (`Pacing.QualityBase`, the v1 table) × (1 − 0.004
   per face hour of age, floor 0.6), with the age in face hours (WX-22 v2). The traffic and mogul terms arrive with PR B.
   The cursor reads it as a word: Excellent from 0.8, Good from 0.6, Fair from 0.4, else Poor.
@@ -589,7 +597,56 @@ density, so water and snow balance (SI-10).
 - **SN-19 v1 (retired (task 4.07 PR B1, owner 2026-11-17)), footprints on cells.** SN-03 v3 gives every fine cell to one trail, so no area
   shares are kept. The old text: each trail's area share per 8 m cell is precomputed from its 250 mm mask when
   built (and per segment, NW-08); coverage, quality and wear use these shares.
-- **SN-20 v2, readiness, and who opens a trail (OQ2, owner 2026-11-07: "the game knows, the player decides").** A
+- **SN-20 v4, the Open / Closed / Auto switch, and the board saved (task 4.07 B1 part 2c; owner 2026-11-19).** v3's
+  readiness is unchanged; v4 replaces its "who opens it" and saves the board.
+  - **The switch:** every trail and every shaped line has one, *Auto*, *Open* or *Closed* (default Auto; every older
+    save opens on Auto). The line's switch wins over its run's, as the posted sign does. It's a field of its own on
+    the trail and the line (`"Switch": "auto" | "open" | "closed"` in save.json, save v16, design shape 16), so
+    changing it never regrades or redraws a trail. One undoable command switches many trails and lines at once
+    (`SetTrailSwitch`); split, join and Edit sections keep it.
+  - **What it does:** *Auto* opens a Covered trail and keeps a Marginal one open; *Open* opens anything that isn't
+    Bare (how a mountain opens early or hangs on late); *Closed* closes it. **Bare closes a trail whatever its
+    switch.** A path is always open.
+  - **When:** a switch acts at once, not at the next hour: the game sends a switch-only edit to the worker on the
+    network it already built, and the worker reads it per segment (a shaped line can cover part of a run). The
+    guests' routes, the lifts' way down (LO-10), terrain capacity and the open count all read it.
+  - **The late season** starts only when an *open* trail falls to Bare; a trail the player closed never starts it.
+  - **Saved** (sim sidecar v12): the board (per trail by id: open, label, walk, cover, rating), the guests' snow
+    table, the late season and its day, and every fine square's snow (`FineSnowCodec`: per 8 m block and plane, all
+    zero, one value, runs or cell by cell, with a check). A reopened world's board is live at once, so it hashes and
+    routes as the one that saved; the fine snow waits for the game's trail layout and the game's clock waits with it
+    (a minute at most, or until the layout fails). The same layout takes every square back exactly; a changed one
+    keeps the blocks it shares and seeds the rest from the 8 m snow, and a block that doesn't add up to its 8 m cell
+    is seeded again and counted. An older sidecar seeds the trail snow from the 8 m snow, as before.
+  - *The grooming setting moves to task 4.25 (Autopilot and priorities); until then runs groom nightly and glades
+    and zones never, closed trails included.*
+- **SN-20 v3, readiness from a skiable line (task 4.07 B1 part 2b; owner 2026-11-18 and 2026-11-19).** Replaces v2's
+  covered shares. A **fine** trail cell (SN-03 v3) is *covered* when its depth is at least `Pacing.CoverGradedMm =
+  152` (6 in) on a graded trail or `Pacing.CoverNaturalMm = 305` (12 in) on a natural one. Every face hour, after
+  the hour's snow, wear and grooming, the game walks each trail from top to bottom in rows one fine cell deep; a
+  row's covered stretches count when at least `Pacing.LineWidthMm = 1219` (4 ft) wide (or the row's whole width, if
+  narrower). A row is **reached** when one of its stretches overlaps a reached stretch of the row above (within one
+  cell); a row with none is **walked** (its depth down the trail is added to the trail's **walk**), and the line
+  starts again at the next reachable stretch. Where the trail's **own shape** breaks the line (found once per layout
+  with every cell covered: near a join or a bend a row holds only scattered cells, or shifts aside), the line restarts
+  without a walk, so only bare snow walks (finding B2b-3). The labels:
+  - **Covered:** no walk, and at least `Pacing.ReadyCover = 900 ‰` of the trail's own fine cells covered;
+  - **Marginal:** no walk but less covered (many bare patches, skiable all the way down); in the **late season**
+    also a trail with a walk of at most twice the day's walk tolerance, shown "Marginal · walk N ft";
+  - **Bare:** no covered cells, or any other walk. It can't be skied top to bottom.
+
+  **Who opens it** (replaced by SN-20 v4's switch): every trail is on **Auto**: it opens when
+  Covered and stays open while Marginal (owner 2026-11-19: Marginal is still skiable; the guests pay GU-17's penalty).
+  **Bare closes a trail whatever its switch.** The board flips at the next hour roll, with the lifts; any change
+  calls `GuestBoardChanged()` so the routes rebuild, and raises sim event 38 (`TrailReadinessChanged`). A trail
+  without fine cells, and a world without a trail layout (every golden), keeps "ready".
+
+  **The late season** starts on the first face day, on or after the season's calendar midpoint (December 1 + 21
+  face days, whatever day the player opened), on which an open trail falls to Bare (sim event 37,
+  `LateSeasonStarted`; a January thaw never starts spring). From then the walk tolerance L runs linearly from
+  `Pacing.LateWalkStartFt = 60` that day to `Pacing.LateWalkEndFt = 250` on April 1. TM-08's close nudge counts the
+  trails open by these labels. The flag is saved since SN-20 v4.
+- **SN-20 v2 (superseded by v3), readiness, and who opens a trail (OQ2, owner 2026-11-07: "the game knows, the player decides").** A
   trail cell is *covered* when total depth ≥ `Pacing.CoverGraded = 6 in` on a graded trail, 12 in on a natural one.
   The game rates every trail's **readiness** each face hour: **Ready** (≥ `Pacing.ReadyCover = 90 %` of the area
   covered), **Marginal** (≥ `Pacing.MarginalCover = 60 %`: the white ribbon, some walking), **Bare** (below: it can't
@@ -598,13 +655,20 @@ density, so water and snow balance (SI-10).
   Readiness changes raise TM-12 alerts; a trail that falls to Bare closes whatever its switch. On a Marginal trail
   skiers cross uncovered cells at walking speed (GU-10 × 0.2) and pay GU-17's penalty. A closed trail takes no skiers
   (GU-07). MapLibre's rule (2 cm on 20 % of the area) is changed: it opened grass.
-- **SN-21 v1, the trail's conditions summary** (for the trail window and the rating 4.07 designs): the share of
+- **SN-21 v2, the snow rating (task 4.07 B1 part 2b).** Each face hour, per network segment and ability band, the
+  mean over the segment's fine cells of SN-16 v3's quality with GU-07's taste (experts ×`Pacing.TasteExpert = 1.2` on
+  powder or moguls ≥ `Pacing.TasteMogulMin = 64`/255, beginners ×`Pacing.TasteBeginner = 0.5` on moguls or ice);
+  uncovered cells count 0, a segment with no fine cells reads the 900 stand-in. It feeds the guests (GU-07 v2), not
+  the opening. The trail's rating is the mean of its bands, shown as SN-16's word. The trail summary (types, ice,
+  moguls, coverage, **SC**) stays v1's, for the trail card (B2).
+- **SN-21 v1 (the summary kept; the rating is v2's), the trail's conditions summary** (for the trail window and the rating 4.07 designs): the share of
   each type over the footprint, mean quality, ice share, mogul mean, coverage; **SC** when no type reaches 50 %.
   Per segment for the network (NW-08).
 - **SN-22 v3, the grooming setting's defaults (task 4.07 PR B1, owner 2026-11-17), Q3).** The settings are SN-22 v2's: *Groomed nightly*,
   *Groom unless it's snowing tonight*, *Groom when ordered*, *Never*. A run defaults to *Groomed nightly*, a glade or
   zone to *Never*, for new trails and old saves alike; *unless it's snowing tonight* is the player's choice. Every
-  trail's open switch defaults to Auto (SN-20).
+  trail's open switch defaults to Auto (SN-20). *(Its "Groomed nightly" default is replaced by task 4.25's SN-22 v4,
+  Autopilot, owner 2026-11-19.)*
 - **SN-22, the grooming setting (new trail attribute, NT29).** Per trail: *Groomed nightly*, *Groom when ordered*,
   *Never* (glades and zones default to Never). Saved in the design (a bump, §12). The groom direction is the
   trail's centreline direction (SH-05 derived).
@@ -623,12 +687,27 @@ density, so water and snow balance (SI-10).
      `Pacing.GroomPack = 60 %` of the gap per pass, SWE unchanged, so **the depth reading drops** (fresh 8:1 snow loses
      about half its depth) while the water in the trail is the same.
   3. Cells go to **MG** with age 0, passes 0, moguls 0.
-  A groomer can't push a whale that's still curing (SM-07) or snow deeper than `Pacing.GroomMaxDepth = 10 ft`.
+  A groomer can spread a whale at any age (SN-27 v2: a green push sets up harder), but not snow deeper than
+  `Pacing.GroomMaxDepth = 10 ft`.
   Animated groomers are Later; the night shows them driving (Presentation only).
 - **SN-23 v3, which trails are groomed (task 4.07 PR B1, owner 2026-11-17), Q5).** A Bare trail is skipped (nothing to push); Marginal and Ready
   ones are groomed on any night their setting says. *Unless it's snowing tonight* reads the evening forecast once
   (WX-43) and stores the night's decision, so the physics never reads the forecast. *When ordered* is a one-night
-  order (command 36). Each trail's keyed hour is drawn from its id inside the window.
+  order (command 36). Each trail's keyed hour is drawn from its id inside the window. *(The keyed hour is replaced:
+  see SN-23 v4.)*
+- **SN-23 v4, the groomer's floor (task 4.07 B1 part 2a, owner 2026-11-18: a groomer on snow too thin or too narrow
+  "would tear the trail to mud").** A fine cell under `Pacing.GroomMinDepthMm = 12 in` (305 mm) of depth, or over
+  `GroomMaxDepthMm = 10 ft`, isn't worked, nor any cell of a station (one fine cell of distance along) whose workable
+  strip is narrower than `GroomMinWidthMm = 13 ft` (3,962 mm); draft numbers the owner tunes in the demo. The window's
+  mean is over the workable cells only, and the trail's total water is kept exactly (the rounding spread back over the
+  groomed cells). Five groomings in a row (`GroomsToHard`) make **HP**; new snow (P, WP) resets the count.
+  **Strength** (task 4.25's light and heavy, owner 2026-11-19): a pass carries its reach, blend and pack. **Heavy** is
+  the reach of 50 ft at 70 % above; **light** is `GroomLightReachMm = 15 ft` at `GroomLightBlend = 30 %`, packing as a
+  heavy pass does. **When** is task 4.25's (shifts, Autopilot, owner 2026-11-19: "Yes, split it"): until then every
+  trail set to groom gets one heavy pass a night at `Pacing.GroomStartHour = 8 PM` (no keyed hour, no window). **Bare
+  trails:** a light groom skips a Bare trail; a heavy push may work one, because pushing whales is how a gunned trail
+  first gets a skiable line (2b brings readiness; until then no trail counts as Bare). Fine-cell flag bit 5 is
+  reserved for SN-27 v2's green push.
 - **SN-30 v2, a packed base lasts (task 4.07 PR B1, owner 2026-11-17), Q2).** As v1, but `Pacing.PackedMeltFactor` applies only to
   **packed fine cells**: ones groomed or skied since their last powder reset. Naturally settled snow, dense or not,
   melts as A1 calibrated it, so the mountain's snow away from the trails doesn't move.
@@ -663,7 +742,14 @@ density, so water and snow balance (SI-10).
   type becomes **LG** (loose granular, machine snow) until groomed, then **MG**.
 - **SN-27 v1, whales.** Managed depth is capped at `Pacing.WhaleMax = 26 ft` (8 m, owner 2026-10-02); deposit above
   the cap spills to the lowest neighbouring cell. A whale cures for `Pacing.WhaleCure = 12 face hours` before a groomer
-  may spread it (SN-23).
+  may spread it (SN-23). *(Superseded by v2.)*
+- **SN-27 v2, whales (task 4.25, owner 2026-11-19).** As v1 (`WhaleMax = 26 ft`, the spill to the lowest neighbour). A
+  whale is snow standing more than `Pacing.WhaleRise = 3 ft` above the trail's local mean (one number, shared by SM-05
+  and 4.25's push jobs). It cures for `Pacing.WhaleCure = 12 face hours`, but **curing is optional**: a groomer may
+  spread a whale at any age. Snow pushed before it has cured (**pushed green**) flags the cells it lands in (fine-cell
+  flag bit 5): they set up as **HP** rather than MG, and their quality is multiplied by `Pacing.GreenPushQuality`
+  until the next grooming clears the flag. The player may schedule a push for a later night to let a whale dry longer
+  (GO rules, 4.25).
 
 ## 5. LK · Lakes
 
@@ -867,6 +953,10 @@ the chairs carry **decorative riders** (LO-05).
   0.05` per lap × a season-phase factor `Pacing.MarginalPhase`: 1 in the first and last `Pacing.ShoulderDays = 6` face
   days of the season (opening early, hanging on late: the owner's "normal"), 2 in between (the white ribbon of death
   in February is a choice the mountain pays for). Both feed reputation later (GU-13 carries them).
+- **GU-17 v2, Marginal by SN-20 v3 (task 4.07 B1 part 2b).** A lap on a trail labelled Marginal at the moment the
+  skier finishes it sets the lap's Marginal flag, so `Pacing.MarginalPenalty` applies (nothing set it before 2b).
+  The shoulder days stay v1's text, but see finding B2b-2: the season's last 6 days can't be known now that the
+  player closes (TM-11 v2).
   - *Settled by task 4.21 (owner R1–R6, 2026-11-08; TD-07):* there's **no default**: a trail must be posted before
     it's built, and the player picks the sign in the build and edit flow. The true rating is hidden from players.
     The window is the Domain's `TrailRating.SustainedStations = 6`, not a pacing value, so tuning never re-rates a
@@ -882,6 +972,12 @@ the chairs carry **decorative riders** (LO-05).
   whichever is first. A skier **queued longer than `Pacing.LeaveWait = 4 min`** (real, at 1×) leaves from the line
   (a `WentHome` event, ledgered). MapLibre's 4–6 hour stay was 6–9 real minutes here, in which a 7:30 line was most
   of a visit.
+- **GU-07 v2, the snow and the walk (task 4.07 B1 part 2b).** v1's score, with *snow* read from SN-21 v2's table
+  per segment and band (the 900 stand-in only without trail snow), and × a **walk factor** on a late-season Marginal
+  trail: exp(−(walk ÷ L)²) from SN-20 v3's walk and the day's tolerance L (an integer table; two 10 ft hops at L 60 ≈
+  0.9, 300 ft at L 60 ≈ 0, 300 ft at L 250 ≈ 0.24). The walk also costs time: the skier ends the segment later by
+  the walk at `Pacing.WalkSpeedMmS = 1341` (3 mph, GU-09's walking speed), so 300 ft costs about 70 s. The same table
+  feeds the lap's satisfaction and the day's demand (the open trails' mean rating).
 - **GU-07 v1, choosing a trail or lift.** At a node a skier scores each outgoing edge it may take (GU-05's gate,
   SN-20's open state, LO-10's way down): **score = fit × snow × width × crowd**, where *fit* = 1 − |trail rating band −
   own band| ÷ 2 (the snow doc's table: beginners want gentle, experts want steep); *snow* = the segment's quality

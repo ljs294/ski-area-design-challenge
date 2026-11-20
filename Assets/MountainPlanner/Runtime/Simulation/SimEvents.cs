@@ -81,7 +81,16 @@ namespace MountainPlanner.Simulation
         LakeFroze = 35,
         /// <summary>LK-08 v2: a frozen water body thawed out to open water (the entity its index, the value the face day).</summary>
         LakeOpened = 36,
-        // 37–40: task 4.07 PR B's.
+        /// <summary>SN-20 v3 (task 4.07 B1 part 2b): the late season started (the value is the label year's face day).</summary>
+        LateSeasonStarted = 37,
+        /// <summary>SN-20 v3: a trail's label changed (the entity its index in the design's network, the value the label |
+        /// open &lt;&lt; 8).</summary>
+        TrailReadinessChanged = 38,
+        /// <summary>SN-23 v4: a trail was groomed (the entity its network index, the value the face hour).</summary>
+        TrailGroomed = 39,
+        /// <summary>SN-21 v2, WX-52: a trail's main surface changed (the entity its network index, the value the SnowType |
+        /// cause &lt;&lt; 8: 0 nature, 1 grooming, 2 rain).</summary>
+        TrailSurfaceChanged = 40,
         /// <summary>WS-05 (task 4.14 PR B): a pond or reservoir stopped giving water at MinPool (the entity is its index among the sources, the value the face day).</summary>
         SourceAtMinPool = 41,
         /// <summary>WS-06: a source is full and spilling (the entity its index among the sources, the value the face day).</summary>

@@ -15,8 +15,9 @@ namespace MountainPlanner.Domain.Design
         /// terrain strokes. 5 (task P3-10): the named Areas (NW-15). 6 (task P3-10): the trails made of more than one section (NT24). 7 (task P3-10): trails as spans of runs between nodes, and the
         /// player's cut points (NT43–NT46). 10 (LD9): each lift's drive end. 11 (task 4.21, TD-07): each trail's posted rating. 12 (task 4.03, LO-07 v2 and LO-09):
         /// the resort's hours, and each lift's schedule and own hours. 13 (task 4.11 PR B): each lift's plate. 14 (task 4.14, PD-08, WS-01): ponds, dams and lake sources.
-        /// 15 (task 4.15, HY-01): the snowmaking network.</summary>
-        public const int ShapeVersion = 15;
+        /// 15 (task 4.15, HY-01): the snowmaking network. 16 (task 4.07 B1 part 2c, SN-20 v4): each trail's and shaped trail's
+        /// Open / Closed / Auto switch.</summary>
+        public const int ShapeVersion = 16;
 
         /// <summary>The design's key seed: every ID is a keyed hash of it (SH-04).</summary>
         public ulong Seed { get; }
@@ -53,7 +54,7 @@ namespace MountainPlanner.Domain.Design
         public IReadOnlyList<LakeRecord> Lakes => _lakes;
         /// <summary>Task 4.14 (WS-03, LK-10; shape 14): what the player set on stream lines (name, width), by OSM way.</summary>
         public IReadOnlyList<StreamRecord> Streams => _streams;
-        /// <summary>Task 4.15 (HY-01, SG-01…04; shape 16): the snowmaking network: pipes, nodes, pump houses and guns.</summary>
+        /// <summary>Task 4.15 (HY-01, SG-01…04; shape 15): the snowmaking network: pipes, nodes, pump houses and guns.</summary>
         public SnowNetwork Snow => _snow;
 
         readonly Trail[] _trails;
@@ -67,7 +68,7 @@ namespace MountainPlanner.Domain.Design
         readonly Dam[] _dams;
         readonly LakeRecord[] _lakes;
         readonly StreamRecord[] _streams;
-        readonly SnowNetwork _snow;             // task 4.15, shape 16
+        readonly SnowNetwork _snow;             // task 4.15, shape 15
         TrailNodes _nodes;                      // NT42: where sections meet, built on first use
 
         DesignDocument(ulong seed, long nextOrdinal, Trail[] trails, Lift[] lifts, TerrainStroke[] strokes, AreaRecord[] areas, TrailLine[] lines,

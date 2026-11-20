@@ -169,6 +169,20 @@ namespace MountainPlanner.Simulation
         public bool TrailsKnown;
         public readonly ulong[] TrailIds;
         public readonly LiftOpStatus[] TrailStatus;
+        /// <summary>
+        /// Task 4.07 B1 part 2b, per network trail, packed to fit SI-16's 64 KB: bits 0–11 its walk in feet (a late-season
+        /// Marginal trail's, at most 4,095), bits 12–13 its <see cref="TrailSnowLabel"/> (0 without trail snow), bits 14–15
+        /// its snow rating's word (0 Poor, 1 Fair, 2 Good, 3 Excellent: SN-16's bands over the bands' mean). Read through
+        /// <see cref="TrailLabelAt"/>, <see cref="TrailWalkFtAt"/> and <see cref="TrailRatingAt"/>.
+        /// </summary>
+        public readonly ushort[] TrailBoard;
+        /// <summary>Per network trail: its covered fine cells, % (SN-20 v3).</summary>
+        public readonly byte[] TrailCoverPct;
+
+        public TrailSnowLabel TrailLabelAt(int k) => (TrailSnowLabel)((TrailBoard[k] >> 12) & 3);
+        public int TrailWalkFtAt(int k) => TrailBoard[k] & 0xFFF;
+        /// <summary>0 Poor, 1 Fair, 2 Good, 3 Excellent.</summary>
+        public int TrailRatingAt(int k) => TrailBoard[k] >> 14;
 
         public readonly DayReport LastDayReport;
         public int HistoryCount;
@@ -184,6 +198,24 @@ namespace MountainPlanner.Simulation
         /// <summary>Task 4.07 PR A2: the snow is simulated; an hour of it is in flight; the day's ledger so far and the last day's.</summary>
         public bool SnowLive, SnowInFlight;
         public SnowLedger SnowToday, SnowLastDay;
+        /// <summary>Task 4.07 B1 part 2a, for the F1 readout: the fine size (0: no trail snow), its cells, the trails' mean depth
+        /// (mm) and packed share (‰) at the last hour roll, the trails groomed this face day, and the water the trails took off
+        /// the 8 m snow in all (µm, the ledger's own term; saved since 2c).</summary>
+        public int TrailFineMetres, TrailFineCells, TrailDepthMm, TrailPackedPermille, TrailsGroomedToday;
+        /// <summary>The trails' 8 m cells (blocks), and how many of them the Snow conditions layer shows as machine groomed.</summary>
+        public int TrailBlocks, TrailBlocksGroomed;
+        /// <summary>Task 4.07 B1 part 2a: the 8 m squares and trails the last nightly pass worked (the readout's check).</summary>
+        public int TrailBlocksLastGroom, TrailsLastGroom;
+        /// <summary>Task 4.07 B1 part 2a: trail squares whose 8 m type is powder (P or WP), for the readout.</summary>
+        public int TrailBlocksPowder;
+        public long TrailRemovedTotal;
+        /// <summary>Task 4.07 B1 part 2b: trails Covered, Marginal and Bare at the last flip, and the late season.</summary>
+        public int TrailsCovered, TrailsMarginal, TrailsBare;
+        public bool LateSeason;
+        /// <summary>Task 4.07 B1 part 2c: a reopened save's trail snow waits for the layout (the game holds the clock), and the
+        /// save's blocks taken back exactly or seeded again when it came (the log).</summary>
+        public bool TrailSnowWaiting;
+        public int TrailBlocksRestored, TrailBlocksReseeded;
 
         /// <summary>GU-03, GU-13, GU-18: the crowd as the Guests tab shows it, and the selected skier's day (GU-02).</summary>
         public readonly GuestView Guests;
@@ -274,6 +306,7 @@ namespace MountainPlanner.Simulation
             Forecast = new ForecastSheet(p.MaxLifts);
             TrailIds = new ulong[p.MaxTrails];
             TrailStatus = new LiftOpStatus[p.MaxTrails];
+            TrailBoard = new ushort[p.MaxTrails]; TrailCoverPct = new byte[p.MaxTrails];
             LastDayReport = new DayReport(p.MaxLifts);
             Events = new SimEvent[p.SnapshotEvents];
         }
@@ -293,7 +326,7 @@ namespace MountainPlanner.Simulation
 
         /// <summary>SI-16's budget: the bytes this snapshot's arrays and fields take at their full size.</summary>
         public int SizeBytes => 256 + 256 + LiftIds.Length * (8 + 8 + 1 + 1 + 4 + 4 + 1 + 4 + 4 + 4 + 1 + 4 + 1 + 4 + 4 + 4 + 4 + 1 + DayReport.SizeBytesPerLift)
-                                + TrailIds.Length * (8 + 1 + 1) + Events.Length * 24
+                                + TrailIds.Length * (8 + 1 + 1 + 2 + 1) + Events.Length * 24
                                 + Guests.SizeBytes + Forecast.SizeBytes + WaterBodyIds.Length * (8 + 4 + 4 + 4 + 2 + 2)
                                 + SourceIds.Length * (8 + 8 + 8 + 8 + 4 + 4 + 4 + 4 + 1);
 

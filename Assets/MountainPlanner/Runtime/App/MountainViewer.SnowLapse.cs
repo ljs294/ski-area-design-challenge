@@ -118,7 +118,7 @@ namespace MountainPlanner.App
             double cells = 1000.0 * field.Width * field.Height;   // the ledger sums µm over every cell: mm of water a cell
             return $"core: mean {sum / Math.Max(1, n) / 0.0254:F1} in, deepest {max / 0.0254:F0} in (cell {maxI}, {maxJ}; {ring.xMin + (maxI + 0.5f) * field.CellMetres:F0} m E, {ring.yMin + (maxJ + 0.5f) * field.CellMetres:F0} m N; grade {GradeAt(field, ring, maxI, maxJ):F0}%; the 128 m round it {local / Math.Max(1, ln) / 0.0254:F0} in), {100.0 * covered / Math.Max(1, n):F0}% covered; " +
                    $"last day {l.Day} (mm of water a cell over the field): fell {l.Fell / cells:F1}, melt {l.Melt / cells:F1}, runoff {l.Runoff / cells:F1}, " +
-                   $"sublimated {l.Sublimated / cells:F1}, on the ground {l.End / cells:F1}; balance {l.Balance} µm";
+                   $"sublimated {l.Sublimated / cells:F1}, on the ground {l.End / cells:F1}; balance {l.Balance} µm; today so far fell {_simNow.SnowToday.Fell / cells:F1}";
         }
     }
 }

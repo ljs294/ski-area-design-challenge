@@ -260,10 +260,13 @@ namespace MountainPlanner.Domain.Design
             return null;
         }
 
+        /// <summary>SN-20 v4: Auto, Open or Closed.</summary>
+        internal static string SwitchProblem(TrailSwitch sw) => sw <= TrailSwitch.Closed ? null : "A trail's switch is Auto, Open or Closed.";
+
         internal static string TrailProblem(Trail t, bool settingsMustBeAvailable)
         {
             if (t.Id.IsNone) return "A trail needs an ID.";
-            return NameProblem(t.Name) ?? StageProblem(t.Stage) ?? ShapeProblem(t.Shape) ?? EndsProblem(t.Head, t.Tail) ?? PostedProblem(t.Posted)
+            return NameProblem(t.Name) ?? StageProblem(t.Stage) ?? ShapeProblem(t.Shape) ?? EndsProblem(t.Head, t.Tail) ?? PostedProblem(t.Posted) ?? SwitchProblem(t.Switch)
                 ?? (settingsMustBeAvailable ? SettingsProblem(t.Settings) : (t.Settings.Defined ? null : "Unknown trail settings."));
         }
 
@@ -386,11 +389,11 @@ namespace MountainPlanner.Domain.Design
                 if (PondRules.StreamProblem(s) is string p) return p;
                 if (!streams.Add(s.Way)) return "A stream is recorded twice.";
             }
-            if (SnowProblem(doc, seen) is string snow) return snow;   // task 4.15 (shape 16)
+            if (SnowProblem(doc, seen) is string snow) return snow;   // task 4.15 (shape 15)
             return null;
         }
 
-        /// <summary>Task 4.15 (HY-01, shape 16): the snowmaking network's own rules, and its IDs unique across the design.</summary>
+        /// <summary>Task 4.15 (HY-01, shape 15): the snowmaking network's own rules, and its IDs unique across the design.</summary>
         static string SnowProblem(DesignDocument doc, HashSet<ulong> seen)
         {
             var net = doc.Snow;
@@ -408,6 +411,7 @@ namespace MountainPlanner.Domain.Design
             if (line.Id.IsNone) return "A trail needs an ID.";
             if (NameProblem(line.Name) is string p) return p;
             if (PostedProblem(line.Posted) is string q) return q;
+            if (SwitchProblem(line.Switch) is string w) return w;
             if (line.Spans.Count == 0) return "A trail holds at least one section.";
             if (line.Spans.Count > 4096) return "A trail holds too many sections.";
             foreach (var sp in line.Spans)

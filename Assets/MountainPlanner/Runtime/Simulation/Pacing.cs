@@ -14,7 +14,7 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 12;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 13;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
                                         // 4: task 4.13's confidence speed (GU-10 v2)
                                         // 5: task 4.05's weather (WX-17 v2, WX-28 v2, WX-29, WX-34 v2, WX-35, WX-36 v2, WX-39)
                                         // 6: task 4.05 PR B2's weather over the map (WX-35, WX-39) and PR C's forecast (WX-05 v3, WX-41)
@@ -24,6 +24,7 @@ namespace MountainPlanner.Simulation
                                         // 10: task 4.14 PR B's water sources (WS-03 v2, WS-05, WS-07, WS-01's cap; number confirmed with 0.0 at merge)
                                         // 11: task 4.24 PR B's ride down (RD-4; it merged before 4.07 B1, which takes 12, 0.0)
                                         // 12: task 4.15's snowmaking solve (HY-07 PipeClass, HY-08 SolveLatencyTicks and MaxResolves); 0.0: the first of 4.15 and 4.07 B1 to merge takes 12, the other renumbers
+                                        // 13: task 4.07 B1 part 2a's trail snow and 2b's readiness (SN-03 v3, SN-14 v3, SN-16 v3, SN-17, SN-20 v3, SN-23 v3, SN-24 v3, SN-30 v2, GU-07 v2; 0.0 2026-11-19: 4.15 merged first and took 12)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -350,6 +351,42 @@ namespace MountainPlanner.Simulation
         public readonly int SolveLatencyTicks, MaxResolves;
         /// <summary>HY-07: the pipe's pressure class (psi): a warning above 80 %, the pumps throttle above it.</summary>
         public readonly int PipeClass;
+        // ---- Trail snow (task 4.07 B1 part 2a: SN-03 v3, SN-14 v3, SN-17, SN-23 v3, SN-24 v3, SN-30 v2) ----
+
+        /// <summary>SN-03 v3: the most fine cells a resort's trails get; the fine size steps 1, 2, 4 m to fit.</summary>
+        public readonly int FineCellCap;
+        /// <summary>SN-30 v2: a packed fine cell's loss weight at 400 kg/m³ and over (of 1000; 1000 at 200 kg/m³ and under).</summary>
+        public readonly int PackedMeltFloor;
+        /// <summary>SN-24 v3: water a skier's pass wears off a fine cell (µm), × the grade over the reference (%), clamped to
+        /// these bounds (‰).</summary>
+        public readonly int WearPerPassUm, WearGradeRef, WearFactorMin, WearFactorMax;
+        /// <summary>SN-17: moguls grow on ungroomed cells from this grade (%), by this much (of 255) per 1000 passes.</summary>
+        public readonly int MogulGrade, MogulsPerKPasses;
+        /// <summary>SN-14 v3: passes that pack powder, harden packed or groomed snow, and break a crust or ice to loose granular.</summary>
+        public readonly int PackedPasses, HardPasses, CrustPasses;
+        /// <summary>SN-23 v3: a pass evens depth within this reach along the centreline (mm), by this share (‰), and packs toward
+        /// this density (kg/m³) by this share of the gap (‰); not where the snow is under this depth or a strip narrower than
+        /// this (mm: the groomer would tear it to mud, owner 2026-11-18), nor over this depth; in this window (face hours, the
+        /// night across midnight); this many groomings in a row harden it.</summary>
+        public readonly int GroomReachMm, GroomBlend, GroomedDensity, GroomPack, GroomMinDepthMm, GroomMinWidthMm, GroomMaxDepthMm,
+                            GroomStartHour, GroomsToHard;
+        /// <summary>SN-23 v4: a light pass's reach (mm) and blend (‰); it packs as a heavy one does (task 4.25's strengths).</summary>
+        public readonly int GroomLightReachMm, GroomLightBlend;
+        /// <summary>SN-20 v3 (task 4.07 B1 part 2b): a fine cell is covered at this depth (mm) on a graded trail and on a
+        /// natural one; a trail is Covered with a skiable line and this share (‰) of its cells covered.</summary>
+        public readonly int CoverGradedMm, CoverNaturalMm, ReadyCover;
+        /// <summary>SN-20 v3: the skiable line's width (mm, 4 ft).</summary>
+        public readonly int LineWidthMm;
+        /// <summary>SN-20 v3, GU-07 v2 (owner 2026-11-18): the late season's walk tolerance L, feet, from the day it starts
+        /// to April 1; walking pulls a trail by exp(−(feet ÷ L)²).</summary>
+        public readonly int LateWalkStartFt, LateWalkEndFt;
+        /// <summary>GU-09: walking speed, mm a second (3 mph), for a Marginal trail's walk.</summary>
+        public readonly int WalkSpeedMmS;
+        /// <summary>SN-16 v3: quality lost a pass (tenths of ‰) and its floor (‰); the mogul term at full moguls (‰).</summary>
+        public readonly int QualityPassTenths, QualityPassFloor, QualityMogulPermille;
+        /// <summary>GU-07 v2's taste: experts on powder or moguls, beginners on moguls or ice (‰), moguls counting from this
+        /// fine-cell mogul level (0–255).</summary>
+        public readonly int TasteExpert, TasteBeginner, TasteMogulMin;
 
         /// <summary>Face milliseconds one tick covers by day and by night (from the real seconds above).</summary>
         public readonly int DayFaceMsPerTick, NightFaceMsPerTick;
@@ -600,6 +637,42 @@ namespace MountainPlanner.Simulation
             SolveLatencyTicks = Int(map, nameof(SolveLatencyTicks), 0, 100);
             MaxResolves = Int(map, nameof(MaxResolves), 0, 100);
             PipeClass = Int(map, nameof(PipeClass), 100, 5000);
+            FineCellCap = Int(map, nameof(FineCellCap), 1, 50_000_000);
+            PackedMeltFloor = Int(map, nameof(PackedMeltFloor), 0, 1000);
+            WearPerPassUm = Int(map, nameof(WearPerPassUm), 0, 10_000);
+            WearGradeRef = Int(map, nameof(WearGradeRef), 1, 200);
+            WearFactorMin = Int(map, nameof(WearFactorMin), 0, 10_000);
+            WearFactorMax = Int(map, nameof(WearFactorMax), 0, 10_000);
+            if (WearFactorMax < WearFactorMin) throw new FormatException("WearFactorMax is under WearFactorMin.");
+            MogulGrade = Int(map, nameof(MogulGrade), 0, 400);
+            MogulsPerKPasses = Int(map, nameof(MogulsPerKPasses), 0, 255);
+            PackedPasses = Int(map, nameof(PackedPasses), 1, 65_535);
+            HardPasses = Int(map, nameof(HardPasses), 1, 65_535);
+            CrustPasses = Int(map, nameof(CrustPasses), 1, 65_535);
+            GroomReachMm = Int(map, nameof(GroomReachMm), 1000, 1_000_000);
+            GroomBlend = Int(map, nameof(GroomBlend), 0, 1000);
+            GroomedDensity = Int(map, nameof(GroomedDensity), 50, 917);
+            GroomPack = Int(map, nameof(GroomPack), 0, 1000);
+            GroomMinDepthMm = Int(map, nameof(GroomMinDepthMm), 0, 10_000);
+            GroomMinWidthMm = Int(map, nameof(GroomMinWidthMm), 0, 100_000);
+            GroomMaxDepthMm = Int(map, nameof(GroomMaxDepthMm), 0, 100_000);
+            GroomStartHour = Int(map, nameof(GroomStartHour), 0, 23);
+            GroomLightReachMm = Int(map, nameof(GroomLightReachMm), 1000, 1_000_000);
+            GroomLightBlend = Int(map, nameof(GroomLightBlend), 0, 1000);
+            GroomsToHard = Int(map, nameof(GroomsToHard), 1, 7);
+            CoverGradedMm = Int(map, nameof(CoverGradedMm), 1, 10_000);
+            CoverNaturalMm = Int(map, nameof(CoverNaturalMm), 1, 10_000);
+            ReadyCover = Int(map, nameof(ReadyCover), 0, 1000);
+            LineWidthMm = Int(map, nameof(LineWidthMm), 100, 100_000);
+            LateWalkStartFt = Int(map, nameof(LateWalkStartFt), 1, 100_000);
+            LateWalkEndFt = Int(map, nameof(LateWalkEndFt), 1, 100_000);
+            WalkSpeedMmS = Int(map, nameof(WalkSpeedMmS), 100, 10_000);
+            QualityPassTenths = Int(map, nameof(QualityPassTenths), 0, 10_000);
+            QualityPassFloor = Int(map, nameof(QualityPassFloor), 0, 1000);
+            QualityMogulPermille = Int(map, nameof(QualityMogulPermille), 0, 1000);
+            TasteExpert = Int(map, nameof(TasteExpert), 0, 3000);
+            TasteBeginner = Int(map, nameof(TasteBeginner), 0, 3000);
+            TasteMogulMin = Int(map, nameof(TasteMogulMin), 0, 255);
 
             DayFaceMsPerTick = FaceMsPerTick(DayHourRealSeconds, nameof(DayHourRealSeconds));
             NightFaceMsPerTick = FaceMsPerTick(NightHourRealSeconds, nameof(NightHourRealSeconds));
@@ -851,6 +924,41 @@ namespace MountainPlanner.Simulation
             E(nameof(SolveLatencyTicks), "5"),
             E(nameof(MaxResolves), "10"),
             E(nameof(PipeClass), "1000"),
+            E(nameof(FineCellCap), "2000000"),
+            E(nameof(PackedMeltFloor), "750"),
+            E(nameof(WearPerPassUm), "5"),
+            E(nameof(WearGradeRef), "20"),
+            E(nameof(WearFactorMin), "500"),
+            E(nameof(WearFactorMax), "2000"),
+            E(nameof(MogulGrade), "40"),
+            E(nameof(MogulsPerKPasses), "128"),
+            E(nameof(PackedPasses), "200"),
+            E(nameof(HardPasses), "800"),
+            E(nameof(CrustPasses), "200"),
+            E(nameof(GroomReachMm), "15240"),
+            E(nameof(GroomBlend), "700"),
+            E(nameof(GroomedDensity), "400"),
+            E(nameof(GroomPack), "600"),
+            E(nameof(GroomMinDepthMm), "305"),
+            E(nameof(GroomMinWidthMm), "3962"),
+            E(nameof(GroomMaxDepthMm), "3048"),
+            E(nameof(GroomStartHour), "20"),
+            E(nameof(GroomLightReachMm), "4572"),
+            E(nameof(GroomLightBlend), "300"),
+            E(nameof(GroomsToHard), "5"),
+            E(nameof(CoverGradedMm), "152"),
+            E(nameof(CoverNaturalMm), "305"),
+            E(nameof(ReadyCover), "900"),
+            E(nameof(LineWidthMm), "1219"),
+            E(nameof(LateWalkStartFt), "60"),
+            E(nameof(LateWalkEndFt), "250"),
+            E(nameof(WalkSpeedMmS), "1341"),
+            E(nameof(QualityPassTenths), "3"),
+            E(nameof(QualityPassFloor), "500"),
+            E(nameof(QualityMogulPermille), "300"),
+            E(nameof(TasteExpert), "1200"),
+            E(nameof(TasteBeginner), "500"),
+            E(nameof(TasteMogulMin), "64"),
         };
 
         static KeyValuePair<string, string> E(string name, string value) => new KeyValuePair<string, string>(name, value);

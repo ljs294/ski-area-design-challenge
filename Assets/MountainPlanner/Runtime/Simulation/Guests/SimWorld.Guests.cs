@@ -559,6 +559,7 @@ namespace MountainPlanner.Simulation
             var net = _guestsNetwork;
             bool path = net.EdgeKindOf[edge] == (byte)SimEdgeKind.Path;
             int ticks = EdgeTicks(edge, path ? _guests.Speed[lead] : PartyTrailSpeed(lead, edge), path, _guests.Band[lead]);
+            if (!path) ticks += EdgeWalkTicks(edge);   // GU-09 with SN-20 v3: a Marginal trail's walk at walking speed
             int to = net.EdgeTo[edge];
             for (int s = lead; s >= 0; s = _guests.Member[s])
             {
@@ -673,6 +674,7 @@ namespace MountainPlanner.Simulation
             int quality = trail ? QualityOf(edge, _guests.Band[lead]) : 1000;
             int crowded = trail && _onEdgePrev[edge] > _edgeCrowd[edge] ? 1 : 0;
             int misrated = trail && Misrated(edge) ? 1 : 0;
+            int marginal = trail && EdgeLabel(edge) == TrailSnowLabel.Marginal ? 1 : 0;   // GU-17 v2
             for (int s = lead; s >= 0; s = _guests.Member[s])
             {
                 _guests.Record(s, SegmentCode(edge), _guests.EntryTick[s], t, _dayStartTick);
@@ -690,6 +692,7 @@ namespace MountainPlanner.Simulation
                     _guests.LapQuality[s] += quality * ticks;
                     _guests.LapTicks[s] += ticks;
                     if (misrated != 0) _guests.LapFlags[s] |= 1;
+                    if (marginal != 0) _guests.LapFlags[s] |= 2;
                     if (crowded != 0) _guests.LapFlags[s] |= 4;
                 }
                 _guests.State[s] = (byte)GuestState.Choosing;

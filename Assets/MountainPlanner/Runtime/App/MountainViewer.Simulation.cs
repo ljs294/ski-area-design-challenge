@@ -70,7 +70,8 @@ namespace MountainPlanner.App
             (!_simWaterSent && !(CoverDone && _resort.WaterBodies == null)) ||
             (!_simSourcesSent && !(CoverDone && _resort.WaterBodies == null)) ||
             (!_simSnowTerrainSent && !SnowTerrainFailed) ||
-            SnowNetMissing;   // task 4.15: a network that fills a pond (WS-11)
+            SnowNetMissing ||   // task 4.15: a network that fills a pond (WS-11)
+            TrailSnowMissing;   // task 4.07 B1 part 2c: a reopened save's trail snow waits for its layout
         /// <summary>Said once the HUD shows: why a save's simulation didn't come back, or that its pacing differs.</summary>
         string _simNotice;
         OpenDesign _simSavesFor;
@@ -121,7 +122,7 @@ namespace MountainPlanner.App
             var design = history != null
                 ? SimDesign.From(history.Current, SimGraphFor(history.Current.Document), SimFactsFor(history.Current.Document))
                 : SimDesign.Empty(0);
-            if (history != null) { _simSent = history.Current; NoteSkierDesign(design, history.Current.Document); }
+            if (history != null) { _simSent = history.Current; NoteSkierDesign(design, history.Current.Document); NoteTrailSnow(design, history.Current.Document); }
             Hud?.ClearLive();
             var simSite = new SimSite(site.Latitude, site.Longitude);
             _simWeather = TypicalWeather.For(_resort.Manifest, _resort.PackageFolder, _resort.WeatherBaseFeet, _resort.WeatherSummitFeet);
@@ -131,10 +132,12 @@ namespace MountainPlanner.App
             _simSourcesSent = false;
             ResetSnowNetworkSend();   // task 4.15
             _simSnowTerrainSent = false;
+            ResetTrailSnow();
             _simSnowPatches.Clear();
             _simHoldSaid = false;
             var world = RestoredWorld(pacing, design, simSite, _simWeather)
                         ?? new SimWorld(pacing, design, simSite, Math.Max(2, startYear), weather: _simWeather);
+            HoldForTrailSnow(world.TrailSnowWaiting);
             var mirror = _resort.States?.Snow;
             _simSnowSent = world.Snow.Set && mirror != null && world.Snow.Width == mirror.Width && world.Snow.Height == mirror.Height;
             // Task 4.05 PR B2: the weather's static inputs are built with the snowpack. Already here: the world takes them before
@@ -228,6 +231,8 @@ namespace MountainPlanner.App
                 Debug.LogWarning("[Simulation] the state couldn't be encoded; the save goes without it. " + request.Error);
                 return null;
             }
+            LastSaveBytes = bytes.Length;
+            LastSaveBlocks = request.BlockSizes;
             _simTickSaved = SimSidecar.ReadHeader(bytes).Tick;
             _simMarkedChanged = false;
             return new SimSidecarBytes(bytes, SimSidecar.Version);
@@ -235,12 +240,62 @@ namespace MountainPlanner.App
 
         /// <summary>The last save's wait for the worker's copy (a tick boundary and the copy) and its encoding, ms.</summary>
         internal double LastSaveWaitMs, LastSaveEncodeMs;
+        internal long LastSaveBytes;
+        internal string LastSaveBlocks = "";
 
         /// <summary>How long a save waits for the worker's state (it comes within a tick; a skip batch is 50 ms).</summary>
         const int SaveStateWaitMs = 2000;
 
+        // ---------- a save's clock waits for its network (finding B2c-5, owner 2026-11-19) ----------
+
+        // A save's simulation is read over the design's network (LO-10, GU-07: the lifts' ways down, the trails' reach), and
+        // that network is built off the main thread after the area opens. Read before it lands, the design has no network,
+        // so a save with built trails or lifts didn't read ("The trails don't match the design's network") and its clock
+        // started over (since task 4.11 PR A). So the start waits for it: a minute at most, then it reads without it.
+        const float NetworkWaitSeconds = 60;
+        /// <summary>-simnowait: the start as it was before the fix (the check shows the bug and the fix in one build).</summary>
+        static readonly bool NoNetworkWait = Array.IndexOf(Environment.GetCommandLineArgs(), "-simnowait") >= 0;
+        bool _simStartWaiting, _simStartSun;
+        float _simStartFrom;
+
+        /// <summary>From the HUD's wiring: starts the simulation now, or once the opened save's network has landed.</summary>
+        void StartSimulationWhenReady(bool sunFromSimulation)
+        {
+            _simStartSun = sunFromSimulation;
+            _simStartFrom = Time.unscaledTime;
+            _simStartWaiting = true;
+            if (SaveWaitsForNetwork()) Debug.Log("[Simulation] the save's clock waits for its network");
+            StartSimulationIfReady();
+        }
+
+        /// <summary>Every frame, before the clock runs.</summary>
+        void StartSimulationIfReady()
+        {
+            if (!_simStartWaiting) return;
+            bool waits = SaveWaitsForNetwork();
+            float waited = Time.unscaledTime - _simStartFrom;
+            if (waits && waited < NetworkWaitSeconds) return;
+            _simStartWaiting = false;
+            if (waits) Debug.LogWarning($"[Simulation] the network didn't come in {NetworkWaitSeconds:F0} s; the save's clock is read without it");
+            else if (waited > 0) Debug.Log($"[Simulation] the network came after {waited:F1} s; the save's clock is read over it");
+            StartSimulation(_simStartSun);
+        }
+
+        /// <summary>An opened save brought a simulation, and its design has built lifts or trails whose network isn't in yet.</summary>
+        bool SaveWaitsForNetwork()
+        {
+            if (OpenDesign.Current?.LoadedSimulation == null || NoNetworkWait) return false;
+            var history = _edits?.History ?? OpenDesign.Current?.History;
+            var doc = history?.Current.Document;
+            if (doc == null || SimGraphFor(doc) != null) return false;
+            foreach (var l in doc.Lifts) if (l.Stage == WorkStage.Built) return true;
+            foreach (var t in doc.Trails) if (t.Stage == WorkStage.Built) return true;
+            return false;
+        }
+
         void StopSimulation()
         {
+            _simStartWaiting = false;
             FollowSavesForSimulation(null);
             FollowDesignForSimulation(null);
             _sim?.Dispose();
@@ -407,8 +462,19 @@ namespace MountainPlanner.App
         {
             if (_sim == null || snapshot.Document == null) return;
             _simSent = snapshot;
-            var design = SimDesign.From(snapshot, SimGraphFor(snapshot.Document), SimFactsFor(snapshot.Document));
+            var doc = snapshot.Document;
+            // SN-20 v4 (4.07 B1 part 2c): an edit that only switches trails Open, Closed or Auto goes at once on the network
+            // already built for the document before it (the same graph, its pieces' switches again), not after the rebuild.
+            if (SimGraphFor(doc) == null && _simGraph != null && _simFacts is TrailFacts built
+                && SetTrailSwitch.OnlySwitchesDiffer(_simGraphDoc, doc))
+            {
+                _simGraphDoc = doc;
+                _simFacts = built.WithSwitchesOf(doc);
+                Debug.Log($"[Simulation] trail switches go to the worker at once (revision {snapshot.Revision})");
+            }
+            var design = SimDesign.From(snapshot, SimGraphFor(doc), SimFactsFor(doc));
             NoteSkierDesign(design, snapshot.Document);   // the dots' paths come from exactly this (task 4.13)
+            NoteTrailSnow(design, snapshot.Document);     // and the trails' fine snow (task 4.07 B1 part 2a)
             _sim.Send(SimCommandKind.SetDesign, 0, design);
         }
 
@@ -485,6 +551,8 @@ namespace MountainPlanner.App
             // Task 4.15: the snowmaking network follows its sources (an outlet fills one by id).
             if (waterReady) UpdateSnowNetwork();
             SendSnowTerrain();
+            SendTrailSnow();
+            SayTrailSnowBack(s);
             // Released with the inputs, or without one whose build ended with none (it failed): then the area plays B1's height
             // rule, has no lakes or keeps the static snow, and the clock is never left stuck.
             if (!_simHoldReleased && !SimInputsMissing) _simHoldReleased = _sim.Send(SimCommandKind.Release);
@@ -609,6 +677,13 @@ namespace MountainPlanner.App
                 _sim.Send(s.SeedPinned ? SimCommand.Of(SimCommandKind.UnpinSeasonSeed) : SimCommand.Of(SimCommandKind.PinSeasonSeed, unchecked((long)s.SeasonSeed)));
             y += note(y, 1,
                 $"{(s.Phase == SeasonPhase.PreSeason ? "Pre-season" : s.Phase == SeasonPhase.Season ? "Day " + s.SeasonDay : "Summer")} · {s.SeasonSeed:X16} · tick {s.TickMeanMicros} µs (p99 {s.TickP99Micros}) · {s.SustainedPermille / 10}% of speed · {s.OpenSecond / 3600}:{s.OpenSecond / 60 % 60:D2}–{s.StopSecond / 3600}:{s.StopSecond / 60 % 60:D2}{(s.HoursTrimmed ? " (daylight)" : "")}");
+            if (s.TrailFineCells > 0)
+                y += note(y, 1, $"Trail snow · {s.TrailFineMetres} m squares, {s.TrailFineCells:N0} · mean depth {s.TrailDepthMm / 25.4:F0} in · " +
+                                $"{s.TrailPackedPermille / 10}% packed · {s.TrailsGroomedToday} groomed today · {s.TrailRemovedTotal * 64 / 1e6:F1} m³ of water off the 8 m snow");
+            if (s.TrailFineCells > 0)
+                y += note(y, 1, $"Trails · {s.TrailsCovered} covered, {s.TrailsMarginal} marginal, {s.TrailsBare} bare · {s.TrailsReady} open" +
+                                (s.LateSeason ? " · late season (walking allowed)" : ""));
+            DrawTrailSwitchRow(ref y, row, caption, button, note);   // task 4.07 B1 part 2c
             DrawWeatherRows(ref y, row, caption, note);
             DrawLiftOpsRows(ref y, row, x0, w, caption, button, note);
             DrawGuestRows(ref y, row, x0, w, caption, button, note);

@@ -604,11 +604,12 @@ namespace MountainPlanner.Tests
         }
 
         /// <summary>
-        /// The v11 layout is frozen (0.3 §5): the fixture (a top line and riders on the way down) read and written again
-        /// gives back its own bytes, all but the header's Pacing hash and version and the closing state hash (SI-22).
+        /// v11 (task 4.24 PR B) still opens, its bytes untouched (task 4.07 B1 part 2c, v12): the top line and the riders on
+        /// the way down as saved, no trail snow (it seeds when a layout arrives); it saves as the newest version and reads
+        /// back the same.
         /// </summary>
         [Test]
-        public void TheVersionElevenSidecarIsFrozen()
+        public void TheVersionElevenSidecarStillOpens()
         {
             byte[] fixture = File.ReadAllBytes(FixtureFile(11));
             var w = SimSidecar.Read(fixture, P, SeasonRunner.RideDownDesign(true), SimSite.None, out var header);
@@ -616,10 +617,31 @@ namespace MountainPlanner.Tests
             var down = w.DownLedgerOf(303);
             Assert.That(down.topLine + down.ridingDown, Is.GreaterThan(0), "someone waits at the top or rides down");
             byte[] again = w.SaveState();
-            Assert.That(again.Length, Is.EqualTo(fixture.Length), "the sidecar v11 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
+            Assert.That(SimSidecar.VersionOf(again), Is.EqualTo(SimSidecar.Version), "it saves as the newest version");
+            var back = SimSidecar.Read(again, P, SeasonRunner.RideDownDesign(true), SimSite.None, out _);
+            Assert.That(back.Hash(), Is.EqualTo(w.Hash()), "and reads back to the same state");
+        }
+
+        /// <summary>
+        /// The v12 layout is frozen (0.3 §5): the fixture (groomed trail snow saved mid-hour, its board and the late season)
+        /// read and written again before its layout arrives gives back its own bytes, all but the header's Pacing hash and
+        /// the closing state hash (SI-22).
+        /// </summary>
+        [Test]
+        public void TheVersionTwelveSidecarIsFrozen()
+        {
+            byte[] fixture = File.ReadAllBytes(FixtureFile(12));
+            var w = TrailSnowWorldTests.Reopen(fixture);
+            Assert.That(SimSidecar.ReadHeader(fixture).SidecarVersion, Is.EqualTo(12));
+            Assert.That(w.TrailSnowWaiting && w.LateSeason, Is.True, "trail snow waiting for its layout, the late season on");
+            byte[] again = w.SaveState();
+            Assert.That(again.Length, Is.EqualTo(fixture.Length), "the sidecar v12 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
             for (int i = 0; i < 8; i++) Assert.That(again[i], Is.EqualTo(fixture[i]), "magic and version");
             for (int i = 20; i < fixture.Length - 8; i++)
-                if (again[i] != fixture[i]) Assert.Fail($"the sidecar v11 is frozen: byte {i} changed on a round trip (0.3 §5)");
+                if (again[i] != fixture[i]) Assert.Fail($"the sidecar v12 is frozen: byte {i} changed on a round trip (0.3 §5)");
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetTrailSnow, 0, TrailSnowWorldTests.GroomedLayout(w)));
+            Assert.That(w.TrailSnowWaiting, Is.False);
+            Assert.That(w.TrailBlocksReseeded, Is.Zero, "every saved block adds up");
         }
 
         static byte[] FixtureWater()
@@ -657,6 +679,15 @@ namespace MountainPlanner.Tests
             string folder = Path.Combine(TestData.Folder("formats"), "v10-sim");
             Directory.CreateDirectory(folder);
             File.WriteAllBytes(Path.Combine(folder, "golden.sim"), FixtureWater());
+        }
+
+        [Test, Explicit("Writes the frozen v12 sidecar fixture (task 4.07 B1 part 2c; once)")]
+        public void WriteTheVersionTwelveSidecarFixture()
+        {
+            string folder = Path.Combine(TestData.Folder("formats"), "v12-sim");
+            Assert.That(Directory.Exists(folder), Is.False, "the v12 fixture is frozen");
+            Directory.CreateDirectory(folder);
+            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), TrailSnowWorldTests.TrailSaveWorld().SaveState());
         }
 
         [Test, Explicit("Regenerates the frozen v11 sidecar fixture (task 4.24 PR B; v9's stays as PR A2 recorded it)")]

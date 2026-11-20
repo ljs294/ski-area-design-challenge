@@ -392,6 +392,10 @@ echo        Quit the game: the Lift Lab opens on the 500-gun field with the plum
 echo     110 The Weather tab, mockup first (WX-46 v2; opens in Edge, no game build): Tonight's gun window by
 echo        height and tomorrow's lifts at risk, then Forecast (hourly at three heights, the week), Season so far
 echo        and Climate. Click the three views; the menu switches Dark/Light and Metric/Imperial.
+echo   4.07 hotfix: a save's clock after Load (finding B2c-5; rebuilds the game if there is none)
+echo     136 Your newest save with a simulation, copied into a scratch folder (yours is only read), opened twice
+echo        through the title's Continue: first as before the fix (the clock starts over, "couldn't be read"),
+echo        then with it (the clock waits a few seconds for the trail network, then comes back as saved).
 echo   4.23 auto updater (friends download one small exe once; every start checks for a new version)
 echo     114 Install an older release: the launcher installs v0.3.1 from GitHub into a scratch folder
 echo        (%%LOCALAPPDATA%%\SkiAreaDesignChallenge-updater, never your real install) and ends on its Launch
@@ -420,6 +424,11 @@ echo        gun whale: the snow lies on the ground that never moves, the skiers 
 echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
+echo   4.07 snow model B1 part 2: the snow on the trails, open and closed, saved (rebuilds the game if there is none)
+echo     113 The trail snow's tests (grooming keeps the water, the switch, the save), then two charts: a groomed and an
+echo        ungroomed run through a thaw, and one night's grooming across a run. Then the save check: the drawn resort
+echo        on Jackson Hole simulated to December 15 and saved, then reopened; the two runs' trail boards should match.
+echo        Then the game on that save: Snow conditions shows the groomed runs; F1, Trail switch: Auto, Open, Closed.
 echo   4.07 snow model PR A1: the snow energy, on paper (no Unity, no game build; about six minutes)
 echo     112 The snow's rule tests (south against north, shade, clear and cloudy nights, a cold pack, humid wind, the
 echo        game's clock against the hour, the energy balance), then six western snow pillows played for 20 winters
@@ -598,6 +607,7 @@ if /i "%CHOICE%"=="118" goto waterclock
 if /i "%CHOICE%"=="114" goto updaterinstall
 if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
+if /i "%CHOICE%"=="113" goto trailsnow
 if /i "%CHOICE%"=="111" goto snowlive
 if /i "%CHOICE%"=="125" goto gpuqueue
 if /i "%CHOICE%"=="126" goto gondolagame
@@ -608,6 +618,7 @@ if /i "%CHOICE%"=="130" goto snowsolver
 if /i "%CHOICE%"=="131" goto snownet
 if /i "%CHOICE%"=="132" goto snowshots
 if /i "%CHOICE%"=="134" goto groommock
+if /i "%CHOICE%"=="136" goto reopenclock
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
@@ -1194,6 +1205,52 @@ echo   the log's [SimTo] lines (the real time it took, the base, the summit, the
 if not exist "%~dp0test-results\snow-a3" mkdir "%~dp0test-results\snow-a3"
 start "" /wait "%GAME%" -data "%LOCALAPPDATA%\SkiAreaDesignChallenge-simto" -notitle -offline -simto 02-01 -logFile "%~dp0test-results\snow-a3\simto.log"
 findstr /l /c:"[SimTo]" "%~dp0test-results\snow-a3\simto.log"
+pause
+goto menu
+
+:trailsnow
+rem 4.07 B1 part 2: the trails' fine snow (2a), readiness (2b), the switch and the save (2c).
+chcp 65001 >nul
+echo.
+echo   Part 1: the trail snow's tests (the snow, the switch, the codec and the save).
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~TrailSnowWorldTests|FullyQualifiedName~FineSnowTests|FullyQualifiedName~TrailSnowLayoutTests|FullyQualifiedName~FineSnowCodecTests|FullyQualifiedName~TrailSwitchTests|FullyQualifiedName~SimSaveTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"[" /c:"Passed" /c:"Failed" /c:"error"
+echo.
+echo   Part 2: the charts' numbers (TS90), then the charts.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~TS90_WriteTheReportData" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+python "%~dp0tools\snow-trails\charts.py" "%~dp0test-results\snow-b2a"
+start "" "%~dp0test-results\snow-b2a\demo\1-thaw.png"
+start "" "%~dp0test-results\snow-b2a\demo\2-one-night.png"
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "TS=%LOCALAPPDATA%\SkiAreaDesignChallenge-trailsave"
+echo.
+echo   Part 3: the save check in a fresh scratch data folder (your saves aren't touched). Run 1: the drawn resort to
+echo   December 15 (a few minutes, no drawing), saved as "Trail snow check", then it quits.
+if exist "%TS%" rmdir /s /q "%TS%"
+start "" /wait "%GAME%" -data "%TS%" -notitle -offline -drawnresort -simto 12-15 -savequit "Trail snow check" -logFile "%~dp0test-results\snow-b2a\save-1.log"
+set "TSAVE="
+for /d %%D in ("%TS%\Saves\*") do for /d %%E in ("%%D\save-*") do set "TSAVE=%%E"
+if not defined TSAVE echo   The save wasn't written; see test-results\snow-b2a\save-1.log
+if not defined TSAVE goto trailsnowend
+echo   Run 2: that save reopened (the clock waits for the trail layout, then the board is logged again).
+start "" /wait "%GAME%" -data "%TS%" -notitle -offline -opensave "%TSAVE%" -simto 12-15 -logFile "%~dp0test-results\snow-b2a\save-2.log"
+echo.
+echo   Run 1, saved:
+findstr /l /c:"[SimTo] saved" /c:"[TrailBoard]" "%~dp0test-results\snow-b2a\save-1.log"
+echo   Run 2, reopened: "restored the save's state" and "trail snow came back", never "couldn't be read":
+findstr /l /c:"[Simulation] restored" /c:"couldn't be read" /c:"didn't read" /c:"trail snow came back" /c:"[TrailBoard]" "%~dp0test-results\snow-b2a\save-2.log"
+powershell -NoProfile -Command "$b = { param($f) $l = Get-Content $f; $i = ($l | Select-String -SimpleMatch '[TrailBoard]' | Select-Object -Last 1).LineNumber; if (-not $i) { return @() }; $o = @($l[$i - 1]); for ($k = $i; $k -lt $l.Count -and $l[$k].StartsWith('  '); $k++) { $o += $l[$k] }; $o }; $a = & $b '%~dp0test-results\snow-b2a\save-1.log'; $c = & $b '%~dp0test-results\snow-b2a\save-2.log'; if ($a.Count -gt 1 -and -not (Compare-Object $a $c)) { '  The two trail boards match, line for line (' + ($a.Count - 1) + ' trails).' } else { '  The trail boards DIFFER (or one is missing): compare save-1.log and save-2.log.' }"
+echo.
+echo   Part 4: the game on that save (paused at December 15). Try:
+echo     - I (info layers), Snow conditions: the groomed runs are still there.
+echo     - Point at a trail on the map, then F1, Trail switch: the button steps Auto, Open, Closed. Closed shuts it at
+echo       once (Trails line: one fewer open); Open opens a Marginal trail, never a Bare one. Ctrl+Z takes it back.
+echo     - Ctrl+S, then quit: the game opens the save again, and the switches you set are as you left them.
+pause
+start "" /wait "%GAME%" -data "%TS%" -notitle -offline -opensave "%TSAVE%"
+echo   Reopening the save: check the switches came back (F1, Trail switch, on the trails you set).
+start "" "%GAME%" -data "%TS%" -notitle -offline -opensave "%TSAVE%"
+:trailsnowend
 pause
 goto menu
 
@@ -2371,6 +2428,37 @@ echo      Click a line's or pump house's name to rename it. Names (P1, J2, H12) 
 echo   9. Undo (Ctrl Z) takes each step back; save, quit and reopen: the network is kept.
 start "" "%GAME%" -snowseed -simto 01-15 -data "%SN131%" -notitle
 goto done
+
+:reopenclock
+rem 4.07 hotfix (finding B2c-5): a save's simulation is read once the design's network is in, not before.
+chcp 65001 >nul
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "RC=%LOCALAPPDATA%\SkiAreaDesignChallenge-reopenclock"
+if exist "%RC%" rmdir /s /q "%RC%"
+mkdir "%RC%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\saves\copy-newest-save.ps1" -Scratch "%RC%"
+set /p PICK=<"%RC%\pick.txt"
+if "%PICK%"=="none" echo   None of your saves has a simulation yet: save a game once the clock has run, then try again.
+if "%PICK%"=="none" goto reopenclockend
+echo.
+echo   The scratch copy: %PICK%
+echo   Run 1, as before the fix: the game opens the save; watch for "The save's clock couldn't be read, so it starts
+echo   over" and the date back at October 1. Quit the game (no need to save).
+pause
+start "" /wait "%GAME%" -data "%RC%" -offline -continue -simnowait -logFile "%RC%\before.log"
+echo   Run 2, with the fix: the clock waits a few seconds for the trail network, then the date and the snow are as
+echo   you saved them, with no toast. Quit the game.
+pause
+start "" /wait "%GAME%" -data "%RC%" -offline -continue -logFile "%RC%\after.log"
+echo.
+echo   Before the fix:
+findstr /l /c:"[Saves] Opened" /c:"restored the save" /c:"didn't read" "%RC%\before.log"
+echo   With the fix:
+findstr /l /c:"[Saves] Opened" /c:"waits for its network" /c:"the network came" /c:"didn't come" /c:"restored the save" /c:"didn't read" "%RC%\after.log"
+:reopenclockend
+pause
+goto menu
 
 :snowshots
 rem Task 4.15 PR B: the tool tests (no Unity window), then the scripted pictures in the release game.

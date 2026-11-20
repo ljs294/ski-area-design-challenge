@@ -44,14 +44,18 @@ namespace MountainPlanner.Domain.Design
         /// two shares it, NT28), else its run's. Null until posted.
         /// </summary>
         public SlopeBands.Band? Posted { get; }
+        /// <summary>SN-20 v4: the Open / Closed / Auto switch, a shaped trail's own (its broken pieces share it), else its run's.</summary>
+        public TrailSwitch Switch { get; }
 
-        internal ResolvedTrail(TrailLineId id, string name, IReadOnlyList<Segment> segments, TrailLine line, SlopeBands.Band? posted)
+        internal ResolvedTrail(TrailLineId id, string name, IReadOnlyList<Segment> segments, TrailLine line, SlopeBands.Band? posted,
+                               TrailSwitch @switch = TrailSwitch.Auto)
         {
             Id = id;
             Name = name;
             Segments = segments;
             Line = line;
             Posted = posted;
+            Switch = @switch;
         }
 
         public bool Holds(Segment s)
@@ -206,7 +210,8 @@ namespace MountainPlanner.Domain.Design
             {
                 var pid = i == 0 ? id : OwnId(doc, pieces[i][0].Piece, used);
                 var posted = line != null ? line.Posted : doc.FindTrail(pieces[i][0].Piece)?.Posted;
-                var trail = new ResolvedTrail(pid, names[i], pieces[i], line, posted);
+                var sw = line != null ? line.Switch : doc.FindTrail(pieces[i][0].Piece)?.Switch ?? TrailSwitch.Auto;
+                var trail = new ResolvedTrail(pid, names[i], pieces[i], line, posted, sw);
                 _trails.Add(trail);
                 foreach (var s in pieces[i]) _trailOf[s] = trail;
             }

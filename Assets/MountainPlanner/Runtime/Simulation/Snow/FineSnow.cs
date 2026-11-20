@@ -26,6 +26,8 @@ namespace MountainPlanner.Simulation
         // Flags: bit 0 packed (groomed or skied since the last powder reset); bits 1–3 groomings in a row (0–7); bit 4 the
         // wet came from rain.
         public const int Packed = 1, GroomShift = 1, GroomMask = 7 << GroomShift, RainWet = 1 << 4;
+        /// <summary>Bit 5, reserved for task 4.25 (SN-27 v2): snow pushed before its whale cured; zero until then.</summary>
+        public const int PushedGreen = 1 << 5;
 
         public readonly TrailSnowLayout Layout;
         public readonly int[] Swe;
@@ -66,8 +68,40 @@ namespace MountainPlanner.Simulation
         public void Seed(SnowField field)
         {
             if (field.Width != Layout.GridWidth || field.Height != Layout.GridHeight) throw new ArgumentException("The grids differ.");
+            for (int b = 0; b < Layout.Blocks; b++) SeedBlock(field, b);
+        }
+
+        /// <summary>
+        /// A block's fine cells copied from <paramref name="from"/>'s block <paramref name="fromBlock"/> (the same fine size):
+        /// a new layout keeps the trail snow of every 8 m cell both layouts share.
+        /// </summary>
+        public void CopyBlock(FineSnow from, int fromBlock, int block)
+        {
+            int bc = BlockCells;
+            if (from.BlockCells != bc) throw new ArgumentException("The fine sizes differ.");
+            int s0 = fromBlock * bc, d0 = block * bc;
+            Array.Copy(from.Swe, s0, Swe, d0, bc); Array.Copy(from.Density, s0, Density, d0, bc);
+            Array.Copy(from.Passes, s0, Passes, d0, bc); Array.Copy(from.Moguls, s0, Moguls, d0, bc);
+            Array.Copy(from.Type, s0, Type, d0, bc); Array.Copy(from.Age, s0, Age, d0, bc);
+            Array.Copy(from.Flags, s0, Flags, d0, bc); Array.Copy(from.Machine, s0 * 3, Machine, d0 * 3, bc * 3);
+        }
+
+        /// <summary>A block's fine cells from a save's (task 4.07 B1 part 2c), the same fine size.</summary>
+        public void CopyBlock(FinePlanes from, int fromBlock, int block)
+        {
+            int bc = BlockCells;
+            if (from.BlockCells != bc) throw new ArgumentException("The fine sizes differ.");
+            int s0 = fromBlock * bc, d0 = block * bc;
+            Array.Copy(from.Swe, s0, Swe, d0, bc); Array.Copy(from.Density, s0, Density, d0, bc);
+            Array.Copy(from.Passes, s0, Passes, d0, bc); Array.Copy(from.Moguls, s0, Moguls, d0, bc);
+            Array.Copy(from.Type, s0, Type, d0, bc); Array.Copy(from.Age, s0, Age, d0, bc);
+            Array.Copy(from.Flags, s0, Flags, d0, bc); Array.Copy(from.Machine, s0 * 3, Machine, d0 * 3, bc * 3);
+        }
+
+        /// <summary>SN-28: one block seeded from the 8 m snow (see <see cref="Seed"/>).</summary>
+        public void SeedBlock(SnowField field, int b)
+        {
             int bc = BlockCells, per = Layout.PerSide;
-            for (int b = 0; b < Layout.Blocks; b++)
             {
                 int cell = Layout.BlockCell[b], ci = cell % field.Width, cj = cell / field.Width;
                 long want = (long)bc * field.Pack[cell].Swe;
@@ -212,6 +246,14 @@ namespace MountainPlanner.Simulation
                 long d = (long)Density[f] * ratioPermille / 1000;
                 Density[f] = (ushort)Math.Max(1, Math.Min(Ice, d));
             }
+        }
+
+        /// <summary>A block back to bare (its 8 m cell went to a lake's water).</summary>
+        public void ClearBlock(int block)
+        {
+            int bc = BlockCells, f0 = block * bc;
+            Array.Clear(Swe, f0, bc); Array.Clear(Density, f0, bc); Array.Clear(Passes, f0, bc);
+            Array.Clear(Moguls, f0, bc); Array.Clear(Type, f0, bc); Array.Clear(Age, f0, bc); Array.Clear(Flags, f0, bc);
         }
 
         /// <summary>

@@ -279,7 +279,7 @@ namespace MountainPlanner.Simulation
                 for (int e = e0; e < e0 + net.EdgeCount[node]; e++)
                 {
                     int t = net.EdgeTrail[e];
-                    if (t >= 0 && !TrailReady(t)) continue;
+                    if (t >= 0 && !EdgeReady(net, e)) continue;   // SN-20 v4: the edge's switch and its trail's board
                     if (mark && t >= 0) _trailReached[t] = 1;
                     int to = net.EdgeTo[e];
                     if (_visitedAt[to] == _visitMark) continue;
@@ -289,9 +289,6 @@ namespace MountainPlanner.Simulation
             }
             return found;
         }
-
-        /// <summary>SN-20's readiness of a network trail: every built trail until 4.07 writes its own bits.</summary>
-        bool TrailReady(int trail) => true;
 
         // ================= the step (the Lifts row) =================
 
@@ -711,6 +708,7 @@ namespace MountainPlanner.Simulation
             for (int k = 0; k < t; k++)
             {
                 s.TrailIds[k] = net.TrailIds[k];
+                WriteTrailBoard(s, k);
                 bool reached = season && _trailReached[k] != 0;
                 s.TrailStatus[k] = !reached ? LiftOpStatus.Closed
                     : sod < _todayOpen * 1000L ? LiftOpStatus.Scheduled
