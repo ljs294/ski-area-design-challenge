@@ -155,6 +155,12 @@ namespace MountainPlanner.Presentation.Weather
         /// </summary>
         public float CeilingFloor { get; set; } = float.NegativeInfinity;
 
+        /// <summary>
+        /// The owner, 2026-11-20: Analysis (on any tab but Weather) or the Toolbox is open, so the clouds and haze fade right
+        /// out (in half a second) for the player to see the mountain; closing it fades them back.
+        /// </summary>
+        public bool ClearView { get; set; }
+
         /// <summary>Pins a look (<c>-wxlook</c>): the snapshot's weather is ignored until <see cref="Unpin"/>.</summary>
         public void Pin(in WeatherLook.State look, WeatherLook.Arc arc)
         {
@@ -231,7 +237,7 @@ namespace MountainPlanner.Presentation.Weather
             _bluebird = Ease(_bluebird, arc == WeatherLook.Arc.Bluebird, k);
             _thaw = Ease(_thaw, arc == WeatherLook.Arc.Thaw, k);
             _coldSnap = Ease(_coldSnap, arc == WeatherLook.Arc.ColdSnap, k);
-            _fogScale = Mathf.MoveTowards(_fogScale, thin ? ToolFog : 1, 2f * Mathf.Max(0, realSeconds));
+            _fogScale = Mathf.MoveTowards(_fogScale, ClearView ? 0 : thin ? ToolFog : 1, 2f * Mathf.Max(0, realSeconds));
 
             var grade = new WeatherGrade
             {

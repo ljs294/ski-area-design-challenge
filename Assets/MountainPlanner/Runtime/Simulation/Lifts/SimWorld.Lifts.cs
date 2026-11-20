@@ -714,6 +714,7 @@ namespace MountainPlanner.Simulation
                     : sod < _todayOpen * 1000L ? LiftOpStatus.Scheduled
                     : sod < _todayStop * 1000L ? LiftOpStatus.Open : LiftOpStatus.Closed;
             }
+            WriteTrailCards(s, t);   // task 4.07 B2: only when they moved
         }
 
         /// <summary>A lift's line by ID, or −1 (tests and the demo).</summary>

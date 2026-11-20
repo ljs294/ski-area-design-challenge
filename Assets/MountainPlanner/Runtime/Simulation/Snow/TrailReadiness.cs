@@ -48,6 +48,78 @@ namespace MountainPlanner.Simulation
         int[] _trailNetOf = Array.Empty<int>();
         bool[] _trailGroomedNow = Array.Empty<bool>();
         int[] _typeCount = new int[16];
+        /// <summary>
+        /// Task 4.07 B2, per layout trail: the trail card's one-line surface (SN-21 v1's summary, short): bits 0–3 the main
+        /// type, bit 4 moguls on a quarter of its covered cells, bit 5 some ice (a tenth, when ice isn't the main type).
+        /// Shown, never hashed or saved: a reopened save works it out again from the snow it takes back.
+        /// </summary>
+        byte[] _trailSurf = Array.Empty<byte>();
+        /// <summary>The same per trail of the design's network (the snapshot's <see cref="SimSnapshot.TrailSnow"/>).</summary>
+        byte[] _trailSurfNet = Array.Empty<byte>();
+        /// <summary>Moves whenever what the trail card reads may have (the snapshot copies <see cref="SimSnapshot.TrailSnow"/> then).</summary>
+        long _trailCardStamp = 1;
+
+        /// <summary>The surface bits from a trail's covered-cell counts.</summary>
+        static byte PackSurface(int main, int ice, int bumpy, int covered)
+        {
+            if (covered == 0) return 0;
+            int bits = main & 15;
+            if (bumpy * 4 >= covered) bits |= SurfaceMoguls;
+            if (main != (int)SnowType.IS && ice * 10 >= covered) bits |= SurfaceIce;
+            return (byte)bits;
+        }
+
+        internal const int SurfaceMoguls = 16, SurfaceIce = 32;
+
+        /// <summary>A layout trail's surface bits from its fine cells now (a reopened save's, before its first hour).</summary>
+        byte SurfaceOf(int t)
+        {
+            var fine = _fine;
+            long cover = CoverUm(t);
+            Array.Clear(_typeCount, 0, _typeCount.Length);
+            int covered = 0, ice = 0, bumpy = 0;
+            for (int k = _trailStart[t]; k < _trailStart[t + 1]; k++)
+            {
+                int f = _trailOrder[k];
+                if (!CoveredCell(f, cover)) continue;
+                covered++;
+                int type = fine.Type[f] & 15;
+                _typeCount[type]++;
+                if (type == (int)SnowType.IS) ice++;
+                if (fine.Moguls[f] >= Pacing.TasteMogulMin && fine.Moguls[f] > 0) bumpy++;
+            }
+            int main = 0;
+            for (int y = 1; y < _typeCount.Length; y++) if (_typeCount[y] > _typeCount[main]) main = y;
+            return PackSurface(main, ice, bumpy, covered);
+        }
+
+        /// <summary>Every layout trail's surface again, onto the board (after a reopened save's snow comes back).</summary>
+        void SurfacesNow()
+        {
+            if (_fine == null || _trailLayout == null) return;
+            for (int t = 0; t < _trailLayout.Trails; t++)
+            {
+                _trailSurf[t] = SurfaceOf(t);
+                int k = t < _trailNetOf.Length ? _trailNetOf[t] : -1;
+                if (k >= 0 && k < _trailSurfNet.Length) _trailSurfNet[k] = _trailSurf[t];
+            }
+            _trailCardStamp++;
+        }
+
+        /// <summary>The trail card's bytes into <paramref name="s"/>, for its first <paramref name="trails"/> trails, when they moved.</summary>
+        void WriteTrailCards(SimSnapshot s, int trails)
+        {
+            if (s.TrailSnowStamp == _trailCardStamp) return;
+            bool live = TrailBoardLive;
+            for (int k = 0; k < trails && k < s.TrailSnow.Length; k++)
+            {
+                int b = 0;
+                if (live && k < _trailOpenNet.Length && _trailOpenNet[k] != 0) b |= SimSnapshot.TrailSnowOpen;
+                if (live && k < _trailSurfNet.Length) b |= _trailSurfNet[k];
+                s.TrailSnow[k] = (byte)b;
+            }
+            s.TrailSnowStamp = _trailCardStamp;
+        }
         // a row across a trail, and the reached and current stretches (lateral mm, lo and hi cell centres)
         int[] _rowBuf = Array.Empty<int>();
         /// <summary>Per entry of <c>_trailOrder</c>, set at a row's first entry: the trail's own shape breaks the line there
@@ -92,6 +164,7 @@ namespace MountainPlanner.Simulation
             _trailWalkMm = new int[n]; _trailCoverPermille = new int[n]; _trailQuality = new int[n];
             _trailQSum = new long[n]; _trailMainType = new byte[n]; _trailRainCells = new int[n];
             _trailGroomedNow = new bool[n];
+            _trailSurf = new byte[n];
             _trailNetOf = new int[n];
             for (int t = 0; t < n; t++) _trailNetOf[t] = -1;
             // The board stays (it's per trail of the design's network, not of the layout): only the layout's trails map again.
@@ -106,6 +179,7 @@ namespace MountainPlanner.Simulation
             for (int t = 0; t < n; t++) RateTrail(t, shapeOnly: true);
             _edgeTableNet = null;
             _edgeTableShape = 0;
+            _trailCardStamp++;
         }
 
         /// <summary>The hour's ratings and lines (the roll, after the wear and the grooming).</summary>
@@ -170,7 +244,7 @@ namespace MountainPlanner.Simulation
             {
                 long cover = CoverUm(t);
                 Array.Clear(_typeCount, 0, _typeCount.Length);
-                int covered = 0;
+                int covered = 0, ice = 0, bumpy = 0;
                 for (int k = _trailStart[t]; k < _trailStart[t + 1]; k++)
                 {
                     int f = _trailOrder[k];
@@ -180,6 +254,8 @@ namespace MountainPlanner.Simulation
                     if (!CoveredCell(f, cover)) continue;
                     covered++;
                     _typeCount[fine.Type[f] & 15]++;
+                    if ((fine.Type[f] & 15) == (int)SnowType.IS) ice++;
+                    if (fine.Moguls[f] >= Pacing.TasteMogulMin && fine.Moguls[f] > 0) bumpy++;
                     if ((fine.Flags[f] & FineSnow.RainWet) != 0) _trailRainCells[t]++;
                     int posted = onEdge && e < _fitBand.Length ? _fitBand[e] : 0;
                     long mean = 0;
@@ -197,6 +273,7 @@ namespace MountainPlanner.Simulation
                 int main = 0;
                 for (int y = 1; y < _typeCount.Length; y++) if (_typeCount[y] > _typeCount[main]) main = y;
                 if (covered == 0) main = 0;
+                _trailSurf[t] = PackSurface(main, ice, bumpy, covered);   // task 4.07 B2: the card's line, never hashed
                 if (main != _trailMainType[t])
                 {
                     int cause = _trailGroomedNow[t] ? 1 : _trailRainCells[t] * 2 > covered ? 2 : 0;
@@ -351,6 +428,7 @@ namespace MountainPlanner.Simulation
                 _trailWalkFtNet[k] = FeetOf(_trailWalkMm[t]);   // a Bare trail shows its walk too
                 _trailCoverNet[k] = _trailCoverPermille[t];
                 _trailQualityNet[k] = _trailQuality[t];
+                if (k < _trailSurfNet.Length && t < _trailSurf.Length) _trailSurfNet[k] = _trailSurf[t];
                 if (label == TrailSnowLabel.Covered) _trailsCovered++;
                 else if (label == TrailSnowLabel.Marginal) _trailsMarginal++;
                 else if (label == TrailSnowLabel.Bare) _trailsBare++;
@@ -365,6 +443,7 @@ namespace MountainPlanner.Simulation
             }
             if (RefreshTrailRuns()) changed = true;
             if (changed) GuestBoardChanged();
+            _trailCardStamp++;   // the hour's board and surfaces (task 4.07 B2's card)
         }
 
         /// <summary>
@@ -379,7 +458,8 @@ namespace MountainPlanner.Simulation
             var oldIds = _boardIds;
             var oldOpen = _trailOpenNet; var oldLabel = _trailLabelNet;
             var oldWalk = _trailWalkFtNet; var oldCover = _trailCoverNet; var oldQuality = _trailQualityNet;
-            _trailOpenNet = new byte[n]; _trailLabelNet = new byte[n];
+            var oldSurf = _trailSurfNet;
+            _trailOpenNet = new byte[n]; _trailLabelNet = new byte[n]; _trailSurfNet = new byte[n];
             _trailWalkFtNet = new int[n]; _trailCoverNet = new int[n]; _trailQualityNet = new int[n];
             for (int k = 0; k < n; k++)
             {
@@ -390,6 +470,7 @@ namespace MountainPlanner.Simulation
                     {
                         _trailOpenNet[k] = oldOpen[o]; _trailLabelNet[k] = oldLabel[o];
                         _trailWalkFtNet[k] = oldWalk[o]; _trailCoverNet[k] = oldCover[o]; _trailQualityNet[k] = oldQuality[o];
+                        if (o < oldSurf.Length) _trailSurfNet[k] = oldSurf[o];
                         break;
                     }
             }
@@ -402,6 +483,7 @@ namespace MountainPlanner.Simulation
                 }
             _trailMapNet = net;
             _boardIds = net.TrailIds;
+            _trailCardStamp++;
         }
 
         /// <summary>

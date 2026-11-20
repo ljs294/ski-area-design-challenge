@@ -19,9 +19,9 @@ namespace MountainPlanner.UI
         public double RatingPercent, MeanPercent, SteepestPercent;
         public double LengthMetres, VerticalMetres;
         public bool Graded, Built;
-        /// <summary>F1/F4: whether it's open (a placeholder until 4.07/4.17 open trails: Planned or Closed).</summary>
+        /// <summary>F1/F4: whether it's open, until the simulation says (Planned or Closed); then <see cref="MountainHud.SetTrailLive"/>'s.</summary>
         public OperatingStatus Status;
-        /// <summary>F1: its snow conditions (SN-20 v2, 4.07); null shows "—" until then.</summary>
+        /// <summary>F1: its snow conditions until the simulation's come (task 4.07 B2); null shows "—".</summary>
         public string Conditions;
         /// <summary>F6 (owner 2026-11-08): how popular it is with guests, 0–100; null shows "—" until guests ski (4.12/4.17).</summary>
         public int? Popularity;
@@ -50,6 +50,17 @@ namespace MountainPlanner.UI
         /// <summary>The card's Edit or Remove: the app arms that tool on the trail.</summary>
         public event Action<ulong> TrailEditChosen, TrailRemoveChosen;
 
+        /// <summary>
+        /// Task 4.07 B2 (SN-20 v4): a built trail's Open / Closed / Auto switch, read from the design (null hides the row),
+        /// and the card's choice: the app submits one undoable <c>SetTrailSwitch</c> and returns null or why it couldn't.
+        /// </summary>
+        public Func<ulong, Domain.Design.TrailSwitch?> TrailSwitchOf;
+        public Func<ulong, Domain.Design.TrailSwitch, string> TrailSwitchChosen;
+        VisualElement _trailCardSnowKv, _trailCardSwitch;
+        /// <summary>Task 4.07 B2: each line's word with its reason and its snow, from the simulation (built trails only).</summary>
+        readonly Dictionary<ulong, (string Word, TrailCardModel Snow, long Sig)> _trailWhy = new Dictionary<ulong, (string, TrailCardModel, long)>();
+        static readonly (string, string)[] ConditionsBins = { ("Covered", "Covered"), ("Marginal", "Marginal"), ("Bare", "Bare"), ("None", "No snow yet") };
+
         static readonly double[] LengthBinsFt = { 2000, 5000 }, VerticalBinsFt = { 500, 1500 };
         const double Foot = 0.3048;
 
@@ -73,16 +84,17 @@ namespace MountainPlanner.UI
             TrailRow R(AnalysisList.Row r) => (TrailRow)r.Data;
             _trailsList = new AnalysisList("trails", new[]
             {
-                new AnalysisList.Column { Title = "Trail", Grow = 1.6f, Cell = r => $"{SymbolOf(R(r).Posted)}  {R(r).Name}",
+                new AnalysisList.Column { Title = "Trail", Grow = 1.3f, Cell = r => $"{SymbolOf(R(r).Posted)}  {R(r).Name}",
                     Bin = r => BandOf(R(r).Posted),
                     Bins = new[] { ("green", "● Easiest"), ("blue", "■ More difficult"), ("black", "◆ Most difficult"), ("double", "◆◆ Experts only"), ("none", "Not posted") } },
                 new AnalysisList.Column { Title = "Length", Numeric = true, Grow = 0.85f, Cell = r => ToolFormat.Length(R(r).LengthMetres),
                     SortKey = r => R(r).LengthMetres, Bin = r => Bin(R(r).LengthMetres, LengthBinsFt), Bins = BinLabels(LengthBinsFt) },
                 new AnalysisList.Column { Title = "Vertical", Numeric = true, Grow = 0.85f, Cell = r => ToolFormat.Length(R(r).VerticalMetres),
                     SortKey = r => R(r).VerticalMetres, Bin = r => Bin(R(r).VerticalMetres, VerticalBinsFt), Bins = BinLabels(VerticalBinsFt) },
-                new AnalysisList.Column { Title = "Conditions", Grow = 0.95f, Class = "an-cell--gap", Cell = r => R(r).Conditions ?? "—" },
+                new AnalysisList.Column { Title = "Conditions", Grow = 1.5f, Class = "an-cell--gap", Cell = r => SnowOf(R(r))?.ListConditions() ?? R(r).Conditions ?? "—",
+                    Bin = r => SnowOf(R(r))?.ConditionsBin() ?? "None", Bins = ConditionsBins },
                 PopularityColumn(r => LivePopularity(_trailPop, R(r).Id, R(r).Popularity)),
-                new AnalysisList.Column { Title = "Status", Grow = 0.8f, Class = "an-cell--gap", Cell = r => OperatingStatusWords.Word(TrailStatus(R(r))),
+                new AnalysisList.Column { Title = "Status", Grow = 1.3f, Class = "an-cell--gap", Cell = r => TrailStatusWord(R(r)),
                     Bin = r => TrailStatus(R(r)).ToString(), Bins = OperatingStatusWords.Bins() },
             });
             _trailsList.Root.AddToClassList("hidden");
@@ -121,6 +133,14 @@ namespace MountainPlanner.UI
             _trailCardKv = new VisualElement();
             _trailCardKv.AddToClassList("tw-kv");
             _trailCard.Add(_trailCardKv);
+            // Task 4.07 B2: its snow, and the switch (the approved mockup's second list and .sched row).
+            _trailCardSnowKv = new VisualElement { name = "trail-card-snow" };
+            _trailCardSnowKv.AddToClassList("tw-kv");
+            _trailCardSnowKv.AddToClassList("trail-card__snow");
+            _trailCard.Add(_trailCardSnowKv);
+            _trailCardSwitch = new VisualElement { name = "trail-card-switch" };
+            _trailCardSwitch.AddToClassList("lift-sched");
+            _trailCard.Add(_trailCardSwitch);
             var acts = new VisualElement();
             acts.AddToClassList("tw-btns");
             acts.AddToClassList("an-card__acts");
@@ -140,9 +160,28 @@ namespace MountainPlanner.UI
 
         OperatingStatus TrailStatus(TrailRow r) => r.Built && _trailLive.TryGetValue(r.Id, out var v) ? v : r.Status;
 
+        /// <summary>The Status word with its reason ("Closed · no snow", "Closed by you"; task 4.07 B2), or the plain word.</summary>
+        string TrailStatusWord(TrailRow r) => r.Built && _trailWhy.TryGetValue(r.Id, out var w) && w.Word != null ? w.Word : OperatingStatusWords.Word(TrailStatus(r));
+
+        /// <summary>The line's snow from the simulation, or null before it comes (and for a plan).</summary>
+        TrailCardModel SnowOf(TrailRow r) => r.Built && _trailWhy.TryGetValue(r.Id, out var w) ? w.Snow : null;
+
         /// <summary>
-        /// A built trail's word from the simulation (task 4.11's stand-in for SN-20 until 4.07: Open while an open lift's
-        /// descent runs along it in the resort's hours). The app calls it at a bounded rate; <see cref="FlushLive"/> redraws.
+        /// Task 4.07 B2: a built line's word with its reason and its snow (a model the app keeps and refills; the HUD reads it
+        /// when it draws, and redraws only when <see cref="TrailCardModel.Signature"/> or the word moves).
+        /// </summary>
+        public void SetTrailLive(ulong id, OperatingStatus status, string word, TrailCardModel snow)
+        {
+            SetTrailLive(id, status);
+            long sig = snow?.Signature ?? 0;
+            if (_trailWhy.TryGetValue(id, out var was) && was.Word == word && ReferenceEquals(was.Snow, snow) && was.Sig == sig) return;
+            _trailWhy[id] = (word, snow, sig);
+            _liveDirty = true;
+        }
+
+        /// <summary>
+        /// A built trail's word from the simulation: Open while an open lift's descent of open trails (SN-20 v4) runs along it
+        /// in the resort's hours. The app calls it at a bounded rate; <see cref="FlushLive"/> redraws.
         /// </summary>
         public void SetTrailLive(ulong id, OperatingStatus status)
         {
@@ -175,8 +214,9 @@ namespace MountainPlanner.UI
         /// <summary>Forgets the simulation's words (a new mountain, or the network not yet known): the placeholders show.</summary>
         public void ClearLive()
         {
-            if (_trailLive.Count == 0 && _liftLive.Count == 0 && _trailPop.Count == 0 && _liftPop.Count == 0) return;
+            if (_trailLive.Count == 0 && _liftLive.Count == 0 && _trailPop.Count == 0 && _liftPop.Count == 0 && _trailWhy.Count == 0) return;
             _trailLive.Clear();
+            _trailWhy.Clear();
             _liftLive.Clear();
             _trailPop.Clear();
             _liftPop.Clear();
@@ -290,7 +330,85 @@ namespace MountainPlanner.UI
             Kv("Length", ToolFormat.Length(t.LengthMetres));
             Kv("Vertical", ToolFormat.Length(t.VerticalMetres));
             if (!double.IsNaN(t.MeanPercent)) Kv("Average grade", $"{Math.Round(t.MeanPercent):0}%");
-            Kv("Status", OperatingStatusWords.Word(TrailStatus(t)));   // F4: no Grading row; 4.11's stand-in until 4.07
+            Kv("Status", TrailStatusWord(t));   // F4: no Grading row; task 4.07 B2: with its reason
+            FillTrailSnow(t);
+        }
+
+        /// <summary>Task 4.07 B2: the card's snow rows and its switch (built trails; the rows read "—" before the snow).</summary>
+        void FillTrailSnow(TrailRow t)
+        {
+            _trailCardSnowKv.Clear();
+            _trailCardSwitch.Clear();
+            var sw = t.Built ? TrailSwitchOf?.Invoke(t.Id) : null;
+            _trailCardSnowKv.EnableInClassList("hidden", !t.Built);
+            _trailCardSwitch.EnableInClassList("hidden", !sw.HasValue);
+            if (!t.Built) return;
+            var snow = SnowOf(t);
+            void Kv(string k, string v)
+            {
+                var row = new VisualElement();
+                row.AddToClassList("tw-kv__row");
+                var kl = new Label(k);
+                kl.AddToClassList("tw-kv__k");
+                var vl = new Label(v);
+                vl.AddToClassList("tw-kv__v");
+                vl.AddToClassList("mono");
+                row.Add(kl);
+                row.Add(vl);
+                _trailCardSnowKv.Add(row);
+            }
+            Kv("Conditions", snow?.Conditions() ?? "—");
+            Kv("Cover", snow?.CoverText() ?? "—");
+            Kv("Snow rating", snow?.RatingText() ?? "—");
+            Kv("Snow", snow?.Surface() ?? "—");
+            if (!sw.HasValue) return;
+            var now = sw.Value;
+            var choices = TrailCardModel.Choices;
+            var opts = new (string, bool, string, Action)[choices.Length];
+            ulong id = t.Id;
+            for (int i = 0; i < choices.Length; i++)
+            {
+                var c = choices[i];
+                opts[i] = (c.Label, c.Value == now, c.Tip, () => ChooseTrailSwitch(id, c.Value));
+            }
+            var row2 = new VisualElement();
+            row2.AddToClassList("lift-sched__row");
+            var k2 = new Label("Open");
+            k2.AddToClassList("lift-sched__k");
+            row2.Add(k2);
+            row2.Add(Seg("trail-card-switch-seg", opts));
+            _trailCardSwitch.Add(row2);
+            string hint = snow != null ? snow.SwitchHint(now) : new TrailCardModel().SwitchHint(now);
+            var hl = new Label(hint) { name = "trail-card-switch-hint" };
+            hl.AddToClassList("lift-sched__hint");
+            _trailCardSwitch.Add(hl);
+        }
+
+        void ChooseTrailSwitch(ulong id, Domain.Design.TrailSwitch sw)
+        {
+            string problem = TrailSwitchChosen?.Invoke(id, sw);
+            if (problem != null) Toast(problem);
+            if (_trailCardId == id) FillTrailCard();
+        }
+
+        /// <summary>The card's switch row's choices as shown (tests): the labels and which is on.</summary>
+        public (string Label, bool On)[] TrailCardSwitchForTest()
+        {
+            var seg = _trailCardSwitch?.Q("trail-card-switch-seg");
+            if (seg == null) return Array.Empty<(string, bool)>();
+            var list = new List<(string, bool)>();
+            foreach (var c in seg.Children()) if (c is Button b) list.Add((b.text, b.ClassListContains("mp-seg__opt--on")));
+            return list.ToArray();
+        }
+
+        /// <summary>Clicks one of the card's switch choices (tests).</summary>
+        public void ChooseTrailSwitchForTest(string label)
+        {
+            var seg = _trailCardSwitch?.Q("trail-card-switch-seg");
+            if (seg == null) return;
+            foreach (var c in seg.Children())
+                if (c is Button b && b.text == label)
+                    using (var e = NavigationSubmitEvent.GetPooled()) { e.target = b; b.SendEvent(e); }
         }
 
         void CloseTrailCard()

@@ -163,7 +163,7 @@ namespace MountainPlanner.Simulation
         public readonly bool[] CarriesDown;
         public int TrailsReady;
 
-        // Per network trail, in ID order (LO-10's stand-in for SN-20 until 4.07: Open when an open lift's descent runs along it)
+        // Per network trail, in ID order. TrailStatus: Open when an open lift's descent of open trails (SN-20 v4, LO-10) runs along it
         public int TrailCount;
         /// <summary>False until the app's network has reached the simulation: the trails' words stay placeholders.</summary>
         public bool TrailsKnown;
@@ -183,6 +183,20 @@ namespace MountainPlanner.Simulation
         public int TrailWalkFtAt(int k) => TrailBoard[k] & 0xFFF;
         /// <summary>0 Poor, 1 Fair, 2 Good, 3 Excellent.</summary>
         public int TrailRatingAt(int k) => TrailBoard[k] >> 14;
+
+        /// <summary>
+        /// Task 4.07 B2, per network trail, for the trail card: bits 0–3 its main snow type (<see cref="SnowType"/>, 0
+        /// before the snow is live), bit 4 moguls, bit 5 some ice, bit 6 <see cref="TrailSnowOpen"/> (its snow has it open on
+        /// Auto; the switch is the design's, so the card works out SN-20 v4's open itself). Copied only when
+        /// <see cref="TrailSnowStamp"/> moves (an hour's board, a design, a reopened save), as <see cref="WeatherFields"/>
+        /// is, so it sits beside SI-16's per-tick budget, not in it.
+        /// </summary>
+        public readonly byte[] TrailSnow;
+        public long TrailSnowStamp;
+        public const int TrailSnowOpen = 64;
+        public SnowType TrailMainTypeAt(int k) => (SnowType)(TrailSnow[k] & 15);
+        public bool TrailMogulsAt(int k) => (TrailSnow[k] & 16) != 0;
+        public bool TrailIceAt(int k) => (TrailSnow[k] & 32) != 0;
 
         public readonly DayReport LastDayReport;
         public int HistoryCount;
@@ -307,6 +321,7 @@ namespace MountainPlanner.Simulation
             TrailIds = new ulong[p.MaxTrails];
             TrailStatus = new LiftOpStatus[p.MaxTrails];
             TrailBoard = new ushort[p.MaxTrails]; TrailCoverPct = new byte[p.MaxTrails];
+            TrailSnow = new byte[p.MaxTrails];
             LastDayReport = new DayReport(p.MaxLifts);
             Events = new SimEvent[p.SnapshotEvents];
         }
