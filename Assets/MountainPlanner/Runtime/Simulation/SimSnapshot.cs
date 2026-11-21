@@ -176,6 +176,8 @@ namespace MountainPlanner.Simulation
         /// <see cref="TrailLabelAt"/>, <see cref="TrailWalkFtAt"/> and <see cref="TrailRatingAt"/>.
         /// </summary>
         public readonly ushort[] TrailBoard;
+        /// <summary>Task 4.25 (GO-08): the Grooming tab's night, per network trail and per groomer (its own budget, about 11 KB).</summary>
+        public readonly GroomView Grooming;
         /// <summary>Per network trail: its covered fine cells, % (SN-20 v3).</summary>
         public readonly byte[] TrailCoverPct;
 
@@ -307,6 +309,7 @@ namespace MountainPlanner.Simulation
             TrailIds = new ulong[p.MaxTrails];
             TrailStatus = new LiftOpStatus[p.MaxTrails];
             TrailBoard = new ushort[p.MaxTrails]; TrailCoverPct = new byte[p.MaxTrails];
+            Grooming = new GroomView(p.MaxTrails);
             LastDayReport = new DayReport(p.MaxLifts);
             Events = new SimEvent[p.SnapshotEvents];
         }

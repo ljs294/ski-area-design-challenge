@@ -45,10 +45,17 @@ namespace MountainPlanner.Simulation
     /// (<see cref="FineSnowCodec"/>), then the runoff of the snow's hour in flight (the cells that ran, as index steps and
     /// µm). An older sidecar's trail snow seeds from the 8 m snow when the layout arrives, and its hour in flight lands with
     /// no runoff.
+    /// v13 (task 4.25) appends the grooming block: whether a fleet ever came, then the fleet (number, model, drive, tiller,
+    /// season minutes), the crew pins and each trail's resolved setting and priority by id, each layout trail's state by id
+    /// (order, powder nights, warnings and row, last night, the share done, groomed tonight), tonight (the shifts, crews,
+    /// tasks and their pieces), last night's figures and the warnings ring. An older sidecar has no fleet: the design's
+    /// arrives with the first SetGrooming (save v17 gives an older save its free fleet).
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 12;
+        public const int Version = 13;
+        /// <summary>The first version with the grooming block (task 4.25; the number cleared by 0.0 2026-11-20).</summary>
+        public const int GroomingVersion = 13;
         /// <summary>The first version with the trail snow block (task 4.07 B1 part 2c; the number confirmed with 0.0).</summary>
         public const int TrailSnowVersion = 12;
         /// <summary>The first version with the water block (task 4.14 PR B; the number confirmed with 0.0 at merge).</summary>

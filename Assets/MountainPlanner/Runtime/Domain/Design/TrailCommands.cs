@@ -285,7 +285,7 @@ namespace MountainPlanner.Domain.Design
             var mint = new IdMint(doc);
             var lowerId = mint.Trail();
             var upper = t.WithShape(upperShape).WithEnds(t.Head, At);
-            var lower = new Trail(lowerId, lowerName, t.Stage, t.Settings, lowerShape, At, t.Tail, null, t.Switch);   // SN-20 v4: the switch comes along
+            var lower = new Trail(lowerId, lowerName, t.Stage, t.Settings, lowerShape, At, t.Tail, null, t.Switch, t.Grooming);   // SN-20 v4, SN-22 v4: the switch and the grooming come along
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutTrail(upper).PutTrail(lower), lowerId.Value);
         }
     }

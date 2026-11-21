@@ -49,18 +49,19 @@ namespace MountainPlanner.Persistence.Saves
     /// anticlockwise and holes clockwise, each from its lowest point; the writer straightens the cells' outline wherever
     /// that keeps every cell, so the same clearing always gives the same rings.
     /// <code>
-    /// { "Version": 16, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
-    ///   "Design": { "Shape": 16, "Seed", "NextOrdinal",
-    ///               "Trails": [ { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Posted", "Switch", "Outline": [ [...] ] } ],
+    /// { "Version": 17, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
+    ///   "Design": { "Shape": 17, "Seed", "NextOrdinal",
+    ///               "Trails": [ { "Id", "Name", "Stage", "Grading", "Kind", "Clearing", "Head", "Tail", "Posted", "Switch", "Groom", "GroomPriority", "Outline": [ [...] ] } ],
     ///               "Lifts": [ { ..., "Towers": [ { "Id", "AlongMm", "HeightMm", "Kind" } ],
     ///                            "Levels": { "BottomMm", "TopMm" } or null, "Drive", "Schedule", "Hours": {...} or null, "Plate" } ],
     ///               "Strokes": [ { "Id", "Kind", "RadiusMm", "FalloffPermille", "StepMm", "StrengthPermille", "TargetMm",
     ///                              "StartMm", "StartAt", "TargetAt", "LimitMm", "ClearMm", "Dabs": [...] } ],
     ///               "Areas": [ { "Id", "Name", "Ends": [ { "Lift", "End" } ] } ],
-    ///               "TrailLines": [ { "Id", "Name", "Posted", "Switch", "Spans": [ { "Piece", "From": {...}, "To": {...}, "FromMm", "ToMm" } ] } ],
+    ///               "TrailLines": [ { "Id", "Name", "Posted", "Switch", "Groom", "GroomPriority", "Spans": [ { "Piece", "From": {...}, "To": {...}, "FromMm", "ToMm" } ] } ],
     ///               "Cuts": [ { "Piece", "At" } ],
     ///               "Hours": { "OpenSecond", "LastChairSecond", "StopSecond" },
-    ///               "Ponds", "Dams", "Lakes", "Streams" (v14), "Snowmaking" (v15) },
+    ///               "Ponds", "Dams", "Lakes", "Streams" (v14), "Snowmaking" (v15),
+    ///               "Grooming": { "Groomers": [ { "Number", "Model", "Drive", "WideTiller" } ], "Crews": { "Swing", "Night", "Day" } } (v17) },
     ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] },
     ///   "Sim": { "SidecarVersion", "Sha256" } or null }
     /// </code>
@@ -153,6 +154,7 @@ namespace MountainPlanner.Persistence.Saves
                 w.WritePropertyName("Name"); w.WriteValue(line.Name);
                 w.WritePropertyName("Posted"); WritePosted(w, line.Posted);   // v11 (TD-07)
                 w.WritePropertyName("Switch"); w.WriteValue(Words.Switch(line.Switch));   // v16 (SN-20 v4)
+                WriteGrooming(w, line.Grooming);                                          // v17 (SN-22 v4)
                 w.WritePropertyName("Spans");
                 w.WriteStartArray();
                 foreach (var sp in line.Spans)
@@ -182,7 +184,56 @@ namespace MountainPlanner.Persistence.Saves
             w.WritePropertyName("Hours"); WriteHours(w, d.Hours);   // v12 (LO-07 v2)
             WriteWater(w, d);                                          // v14 (task 4.14)
             WriteSnow(w, d.Snow);                                      // v15 (task 4.15)
+            WriteFleet(w, d.Grooming);                                 // v17 (task 4.25)
             w.WriteEndObject();
+        }
+
+        // v17 (SN-22 v4): a trail's "Groom" setting and "GroomPriority".
+        static void WriteGrooming(JsonWriter w, TrailGrooming g)
+        {
+            w.WritePropertyName("Groom"); w.WriteValue(Words.Groom(g.Setting));
+            w.WritePropertyName("GroomPriority"); w.WriteValue(Words.Priority(g.Priority));
+        }
+
+        static TrailGrooming ReadGrooming(JObject o) => new TrailGrooming(Words.Groom(Str(o, "Groom")), Words.Priority(Str(o, "GroomPriority")));
+
+        // v17 (GO-01, GO-05): the groomers in number order and the crew pins (-1 Autopilot).
+        static void WriteFleet(JsonWriter w, GroomFleet f)
+        {
+            w.WritePropertyName("Grooming");
+            w.WriteStartObject();
+            w.WritePropertyName("Groomers");
+            w.WriteStartArray();
+            foreach (var g in f.Groomers)
+            {
+                w.WriteStartObject();
+                w.WritePropertyName("Number"); w.WriteValue(g.Number);
+                w.WritePropertyName("Model"); w.WriteValue(Words.Model(g.Model));
+                w.WritePropertyName("Drive"); w.WriteValue(Words.GroomDrive(g.Drive));
+                w.WritePropertyName("WideTiller"); w.WriteValue(g.WideTiller);
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+            w.WritePropertyName("Crews");
+            w.WriteStartObject();
+            w.WritePropertyName("Swing"); w.WriteValue(f.Crews.Swing);
+            w.WritePropertyName("Night"); w.WriteValue(f.Crews.Night);
+            w.WritePropertyName("Day"); w.WriteValue(f.Crews.Day);
+            w.WriteEndObject();
+            w.WriteEndObject();
+        }
+
+        static GroomFleet ReadFleet(JObject d)
+        {
+            var o = Obj(d, "Grooming");
+            var list = new List<Groomer>();
+            foreach (var t in Arr(o, "Groomers"))
+            {
+                var g = AsObj(t);
+                list.Add(new Groomer(Int(g, "Number"), Words.Model(Str(g, "Model")), Words.GroomDrive(Str(g, "Drive")), Bool(g, "WideTiller")));
+            }
+            var c = Obj(o, "Crews");
+            return GroomFleet.From(list, new GroomCrews(Int(c, "Swing"), Int(c, "Night"), Int(c, "Day")));
         }
 
         // v14 (task 4.14, PD-08, WS-01, LK-10): "Ponds", "Dams", "Lakes" and "Streams", in ID order.
@@ -388,6 +439,7 @@ namespace MountainPlanner.Persistence.Saves
             w.WritePropertyName("Tail"); WriteOptPoint(w, t.Tail);
             w.WritePropertyName("Posted"); WritePosted(w, t.Posted);   // v11 (TD-07)
             w.WritePropertyName("Switch"); w.WriteValue(Words.Switch(t.Switch));   // v16 (SN-20 v4)
+            WriteGrooming(w, t.Grooming);                                          // v17 (SN-22 v4)
             // v8 (sections finding 7): the clearing's rings, each [x0, y0, dx1, dy1, …] on one line, deltas from the point before.
             w.WritePropertyName("Outline");
             w.WriteStartArray();
@@ -614,13 +666,13 @@ namespace MountainPlanner.Persistence.Saves
                     var so = AsObj(s);
                     spans.Add(new Span(new TrailId(HexValue(Str(so, "Piece"))), ReadAnchor(Obj(so, "From")), ReadAnchor(Obj(so, "To")), Int(so, "FromMm"), Int(so, "ToMm")));
                 }
-                lines.Add(new TrailLine(new TrailLineId(HexValue(Str(lo, "Id"))), Str(lo, "Name"), spans, Posted(lo), Words.Switch(Str(lo, "Switch"))));
+                lines.Add(new TrailLine(new TrailLineId(HexValue(Str(lo, "Id"))), Str(lo, "Name"), spans, Posted(lo), Words.Switch(Str(lo, "Switch")), ReadGrooming(lo)));
             }
             var cuts = new List<TrailCut>();
             foreach (var c in Arr(d, "Cuts")) { var co = AsObj(c); cuts.Add(new TrailCut(new TrailId(HexValue(Str(co, "Piece"))), Point(co, "At"))); }
             ReadWater(d, out var ponds, out var dams, out var lakes, out var streams);   // v14 (task 4.14)
             return DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, ReadHours(Obj(d, "Hours")), ponds, dams, lakes, streams,
-                ReadSnow(d));   // v15 (task 4.15)
+                ReadSnow(d), ReadFleet(d));   // v15 (task 4.15), v17 (task 4.25)
         }
 
         static SimSidecarRef? ReadSim(JToken t)
@@ -673,7 +725,7 @@ namespace MountainPlanner.Persistence.Saves
             }
             var settings = new TrailSettings(Words.Grading(Str(t, "Grading")), Words.Kind(Str(t, "Kind")), Words.Clearing(Str(t, "Clearing")));
             return new Trail(new TrailId(HexValue(Str(t, "Id"))), Str(t, "Name"), Words.Stage(Str(t, "Stage")), settings, TrailShape.FromRings(rings),
-                OptPoint(t, "Head"), OptPoint(t, "Tail"), Posted(t), Words.Switch(Str(t, "Switch")));
+                OptPoint(t, "Head"), OptPoint(t, "Tail"), Posted(t), Words.Switch(Str(t, "Switch")), ReadGrooming(t));
         }
 
         /// <summary>A v7 trail's "Parts" (strokes and cuts), read once by the v7 → v8 step.</summary>
@@ -805,6 +857,29 @@ namespace MountainPlanner.Persistence.Saves
         /// <summary>The frozen words for each enum, both ways.</summary>
         static class Words
         {
+            // v17 (SN-22 v4, GO-01): a trail's grooming setting and priority; a groomer's model and drive.
+            public static string Groom(GroomSetting v) => v switch
+            {
+                GroomSetting.Default => "default", GroomSetting.Autopilot => "autopilot", GroomSetting.EveryNight => "every-night",
+                GroomSetting.UnlessSnowing => "unless-snowing", GroomSetting.WhenOrdered => "when-ordered", GroomSetting.Never => "never", _ => throw Bad(v),
+            };
+            public static GroomSetting Groom(string s) => s switch
+            {
+                "default" => GroomSetting.Default, "autopilot" => GroomSetting.Autopilot, "every-night" => GroomSetting.EveryNight,
+                "unless-snowing" => GroomSetting.UnlessSnowing, "when-ordered" => GroomSetting.WhenOrdered, "never" => GroomSetting.Never, _ => throw Unknown(s),
+            };
+            public static string Priority(GroomPriority v) => v == GroomPriority.Normal ? "normal" : v == GroomPriority.High ? "high" : v == GroomPriority.Low ? "low" : throw Bad(v);
+            public static GroomPriority Priority(string s) => s == "normal" ? GroomPriority.Normal : s == "high" ? GroomPriority.High : s == "low" ? GroomPriority.Low : throw Unknown(s);
+            public static string Model(GroomerModel v) => v switch
+            {
+                GroomerModel.S400 => "400", GroomerModel.S400W => "400w", GroomerModel.S800 => "800", GroomerModel.S800W => "800w", _ => throw Bad(v),
+            };
+            public static GroomerModel Model(string s) => s switch
+            {
+                "400" => GroomerModel.S400, "400w" => GroomerModel.S400W, "800" => GroomerModel.S800, "800w" => GroomerModel.S800W, _ => throw Unknown(s),
+            };
+            public static string GroomDrive(GroomerDrive v) => v == GroomerDrive.Diesel ? "diesel" : v == GroomerDrive.Hybrid ? "hybrid" : v == GroomerDrive.Electric ? "electric" : throw Bad(v);
+            public static GroomerDrive GroomDrive(string s) => s == "diesel" ? GroomerDrive.Diesel : s == "hybrid" ? GroomerDrive.Hybrid : s == "electric" ? GroomerDrive.Electric : throw Unknown(s);
             // v16 (SN-20 v4): a trail's Open / Closed / Auto switch.
             public static string Switch(TrailSwitch v) => v == TrailSwitch.Auto ? "auto" : v == TrailSwitch.Open ? "open" : v == TrailSwitch.Closed ? "closed" : throw Bad(v);
             public static TrailSwitch Switch(string s) => s == "auto" ? TrailSwitch.Auto : s == "open" ? TrailSwitch.Open : s == "closed" ? TrailSwitch.Closed : throw Unknown(s);

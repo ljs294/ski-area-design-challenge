@@ -454,6 +454,8 @@ echo    131 Snowmaking network, hands on (4.15 PR B): build a pump house, a wate
 echo        and read the pressure live; Check lists the problems with fixes (a scratch copy of the demo mountain).
 echo    132 The snowmaking tools' tests, then the review pictures: the tools, cards and map names driven by script
 echo        in the game, nineteen pictures in test-results\p4-15\shots (rebuilds the game; about 5 minutes).
+echo    133 Grooming operations (4.25 PR A): the grooming tests (shifts, model speeds, crews, Never and Skip, a save
+echo        mid-night), then the game on the demo mountain with three dev groomers, groomed nightly (a scratch copy).
 echo    134 The Grooming tab mockup (4.25): Trails (the night strip, each trail's setting, what needs you) and Equipment
 echo        (groomers, crews, Buy), last night, a resort with no groomers, a trail card (opens in Edge, nothing to build).
 echo.
@@ -617,6 +619,7 @@ if /i "%CHOICE%"=="129" goto ridedown
 if /i "%CHOICE%"=="130" goto snowsolver
 if /i "%CHOICE%"=="131" goto snownet
 if /i "%CHOICE%"=="132" goto snowshots
+if /i "%CHOICE%"=="133" goto groomsim
 if /i "%CHOICE%"=="134" goto groommock
 if /i "%CHOICE%"=="136" goto reopenclock
 if /i "%CHOICE%"=="65c" goto styletilecaptures
@@ -2911,6 +2914,29 @@ start "" msedge "file:///%MOCK:\=/%#solo&demo=watertray"
 echo   The Snowmaking tab opened in Edge. Other states: change watertray in the address to pondshore, pondpool, pondberm,
 echo   damfirst, damreview, damedge, watersource, pondedit, damedit or waterremove.
 goto menu
+
+:groomsim
+rem 4.25 PR A: grooming as an operation (GO-01..GO-12). The tests first, then the game with dev groomers.
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~GroomingTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"[none]" /c:"[night]" /c:"[crews]" /c:"[speed]" /c:"[skip]" /c:"[view]" /c:"[alloc]" /c:"Passed!" /c:"Failed"
+echo.
+echo   Above: no groomer grooms nothing; the night shift grooms the run once; one night crew is enough; each
+echo   Skogkatt model's minutes on the run; a skipped trail waits a night; the view's size; 0 bytes a day.
+echo.
+call :buildplayer
+if not exist "%GAME%" goto done
+set "GR133=%LOCALAPPDATA%\SkiAreaDesignChallenge-groom133"
+if exist "%GR133%" rmdir /s /q "%GR133%"
+mkdir "%GR133%"
+echo   The game opens on the drawn test resort on the demo mountain (your saves stay untouched) with three free Skogkatt
+echo   800 W groomers from the dev tool (-groomers 3; a new resort has none). It skips to the morning of January 15.
+echo   1. Layers: Snow conditions. Groomed trails read Groomed in the morning; the Grooming tab comes in PR B.
+echo   2. Let a night run (fast clock): the runs are groomed in the swing and night shifts, never while open.
+echo      The groomers are amber dots: they sweep their trail at work, drive to and from a depot by the lowest
+echo      lift, carry a headlight glow at night, and hovering one names it and its job.
+echo   3. The log (%PLAYERLOG%) has a [Grooming] line.
+start "" "%GAME%" -drawnresort -simto 01-15 -groomers 3 -data "%GR133%" -notitle
+goto done
 
 :groommock
 rem 4.25: the Grooming tab mockup (Analysis, Grooming) in the HUD mockup, opened on Trails at 4:45 PM.

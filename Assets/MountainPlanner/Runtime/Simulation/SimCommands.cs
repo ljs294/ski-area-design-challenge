@@ -75,6 +75,12 @@ namespace MountainPlanner.Simulation
         /// built trails (SN-03 v3); a view-sequence command (resent after every load and when the trails change): the fine
         /// cells it keeps are reseeded from the 8 m snow, so a reload hashes as the game that saved.</summary>
         SetTrailSnow = 35,
+        /// <summary>Task 4.25 (GO-01, GO-05, SN-22 v4; number cleared by 0.0 2026-11-20, 4.07's dropped SetGroomTonight):
+        /// A = 0, Payload = a <see cref="SimGrooming"/>, the design's groomers, crew pins and each trail's grooming, applied
+        /// at once, a view-sequence command (resent after every load and every grooming edit: the fleet is the design's, the
+        /// worker's state is what it did); A = 1, Payload = a <see cref="SimGroomOrder"/>, the player's order for one trail
+        /// tonight (till, push or skip), a player command.</summary>
+        SetGrooming = 36,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>

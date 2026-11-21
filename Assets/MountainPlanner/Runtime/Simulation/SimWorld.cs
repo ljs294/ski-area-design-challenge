@@ -261,6 +261,7 @@ namespace MountainPlanner.Simulation
                           || c.Kind == SimCommandKind.SetSnowTerrain || c.Kind == SimCommandKind.SetWaterSources
                           || c.Kind == SimCommandKind.SetSnowNetwork || c.Kind == SimCommandKind.CheckNetwork   // task 4.15
                           || c.Kind == SimCommandKind.SetTrailSnow
+                          || (c.Kind == SimCommandKind.SetGrooming && c.A == 0)   // task 4.25: the design's grooming, resent after every load
                 ? _viewSeq++ : _commandSeq++;
             // Task 4.07 PR A2: what an hour's snow in flight reads (the weather's tables and inputs, the lakes) waits for it.
             if (c.Kind == SimCommandKind.SetWeather || c.Kind == SimCommandKind.SetWeatherTerrain || c.Kind == SimCommandKind.SetWaterBodies) JoinSnow();
@@ -314,6 +315,9 @@ namespace MountainPlanner.Simulation
                     break;
                 case SimCommandKind.SetTrailSnow:
                     if (!ApplyTrailSnow(c.Payload)) { Reject(c, SimRefusal.Unknown); return; }
+                    break;
+                case SimCommandKind.SetGrooming:   // task 4.25
+                    if (!ApplyGrooming(c)) { Reject(c, SimRefusal.Unknown); return; }
                     break;
                 case SimCommandKind.SetGust:
                 case SimCommandKind.FeedLine:
@@ -721,6 +725,7 @@ namespace MountainPlanner.Simulation
             WriteLakes(s);
             WriteSources(s);
             WriteSnowmaking(s);
+            WriteGrooming(s);   // task 4.25
         }
 
         /// <summary>The run time of a lift by ID, ms, or −1 (tests).</summary>
@@ -761,6 +766,7 @@ namespace MountainPlanner.Simulation
             HashGuests(ref h);
             HashLakes(ref h);
             HashSources(ref h);
+            HashGrooming(ref h);   // task 4.25: only once a fleet came
             return h.Value;
         }
     }

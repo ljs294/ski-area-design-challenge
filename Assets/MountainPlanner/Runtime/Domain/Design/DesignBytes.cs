@@ -56,6 +56,7 @@ namespace MountainPlanner.Domain.Design
                 }
                 w.U8(PostedByte(line.Posted));   // shape 11 (TD-07)
                 w.U8((byte)line.Switch);         // shape 16 (SN-20 v4)
+                WriteGrooming(w, line.Grooming); // shape 17 (SN-22 v4)
             }
             w.I32(doc.Cuts.Count);    // shape 7 (NT45): the points cut on runs
             foreach (var c in doc.Cuts)
@@ -66,6 +67,7 @@ namespace MountainPlanner.Domain.Design
             WriteHours(w, doc.Hours);   // shape 12 (LO-07 v2): the resort's hours
             WriteWater(w, doc);         // shape 14 (task 4.14): ponds, dams and lake sources
             WriteSnow(w, doc.Snow);     // shape 15 (task 4.15): the snowmaking network
+            WriteFleet(w, doc.Grooming);   // shape 17 (task 4.25): the groomers and crew pins
             return w.ToArray();
         }
 
@@ -135,15 +137,18 @@ namespace MountainPlanner.Domain.Design
                     var to = ReadAnchor(r);
                     spans[k] = new Span(piece, from, to, r.I32(), r.I32());
                 }
-                lines[i] = new TrailLine(id, name, spans, ReadPosted(r), ReadSwitch(r));
+                var posted = ReadPosted(r);
+                var sw = ReadSwitch(r);
+                lines[i] = new TrailLine(id, name, spans, posted, sw, ReadGrooming(r));
             }
             var cuts = new TrailCut[r.Count(1 << 20)];
             for (int i = 0; i < cuts.Length; i++) cuts[i] = new TrailCut(new TrailId(r.U64()), r.Point());
             var hours = ReadHours(r);   // shape 12
             ReadWater(r, out var ponds, out var dams, out var lakes, out var streams);   // shape 14
             var snow = ReadSnow(r);   // shape 15
+            var fleet = ReadFleet(r);   // shape 17
             if (!r.AtEnd) throw new FormatException("Trailing bytes after the design document.");
-            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, hours, ponds, dams, lakes, streams, snow);
+            var doc = DesignDocument.From(seed, next, trails, lifts, strokes, areas, lines, cuts, hours, ponds, dams, lakes, streams, snow, fleet);
             // Canonical means written in order: a reordered file is not this format.
             if (!Same(Encode(doc), bytes)) throw new FormatException("The design document isn't in canonical order.");
             return doc;
@@ -267,6 +272,7 @@ namespace MountainPlanner.Domain.Design
             }
             w.U8(PostedByte(t.Posted));   // shape 11 (TD-07)
             w.U8((byte)t.Switch);         // shape 16 (SN-20 v4)
+            WriteGrooming(w, t.Grooming); // shape 17 (SN-22 v4)
         }
 
         // TD-07: 0 not posted, else the band + 1.
@@ -287,6 +293,40 @@ namespace MountainPlanner.Domain.Design
             return (TrailSwitch)b;
         }
 
+        // Shape 17 (SN-22 v4): a trail's grooming setting, then its priority.
+        static void WriteGrooming(Writer w, TrailGrooming g) { w.U8((byte)g.Setting); w.U8((byte)g.Priority); }
+
+        static TrailGrooming ReadGrooming(Reader r)
+        {
+            var s = (GroomSetting)r.U8();
+            var p = (GroomPriority)r.U8();
+            if (!TrailGrooming.Valid(s) || !TrailGrooming.Valid(p)) throw new FormatException("A trail's grooming isn't one this build knows.");
+            return new TrailGrooming(s, p);
+        }
+
+        // Shape 17 (GO-01, GO-05): the groomers in number order (number, model, drive, tiller), then the three crew pins
+        // (swing, night, day; -1 Autopilot).
+        static void WriteFleet(Writer w, GroomFleet f)
+        {
+            w.I32(f.Groomers.Count);
+            foreach (var g in f.Groomers) { w.I32(g.Number); w.U8((byte)g.Model); w.U8((byte)g.Drive); w.U8(g.WideTiller ? (byte)1 : (byte)0); }
+            w.I32(f.Crews.Swing); w.I32(f.Crews.Night); w.I32(f.Crews.Day);
+        }
+
+        static GroomFleet ReadFleet(Reader r)
+        {
+            var g = new Groomer[r.Count(GroomFleet.MaxGroomers)];
+            for (int i = 0; i < g.Length; i++)
+            {
+                int number = r.I32();
+                var model = (GroomerModel)r.U8();
+                var drive = (GroomerDrive)r.U8();
+                g[i] = new Groomer(number, model, drive, r.U8() != 0);
+            }
+            int swing = r.I32(), night = r.I32(), day = r.I32();   // left to right
+            return GroomFleet.From(g, new GroomCrews(swing, night, day));
+        }
+
         static Trail ReadTrail(Reader r)
         {
             var id = new TrailId(r.U64());
@@ -303,7 +343,8 @@ namespace MountainPlanner.Domain.Design
                 rings[i] = ring;
             }
             var posted = ReadPosted(r);
-            return new Trail(id, name, stage, settings, TrailShape.FromRings(rings), head, tail, posted, ReadSwitch(r));
+            var tsw = ReadSwitch(r);
+            return new Trail(id, name, stage, settings, TrailShape.FromRings(rings), head, tail, posted, tsw, ReadGrooming(r));
         }
 
         static void WriteLift(Writer w, Lift l)

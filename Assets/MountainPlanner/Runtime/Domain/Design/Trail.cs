@@ -77,9 +77,12 @@ namespace MountainPlanner.Domain.Design
         /// <summary>SN-20 v4 (shape 16): the run's own trail's Open / Closed / Auto switch; a shaped trail has its own
         /// (<see cref="TrailLine.Switch"/>). Not a setting (<see cref="TrailSettings"/>): it never regrades or redraws.</summary>
         public TrailSwitch Switch { get; }
+        /// <summary>SN-22 v4 (task 4.25, shape 17): the run's own trail's grooming setting and priority; a shaped trail has
+        /// its own (<see cref="TrailLine.Grooming"/>). Not a setting either: it never regrades or redraws.</summary>
+        public TrailGrooming Grooming { get; }
 
         public Trail(TrailId id, string name, WorkStage stage, TrailSettings settings, TrailShape shape, PointMm? head, PointMm? tail,
-                     SlopeBands.Band? posted = null, TrailSwitch @switch = TrailSwitch.Auto)
+                     SlopeBands.Band? posted = null, TrailSwitch @switch = TrailSwitch.Auto, TrailGrooming grooming = default)
         {
             Id = id;
             Name = name;
@@ -90,16 +93,18 @@ namespace MountainPlanner.Domain.Design
             Tail = tail;
             Posted = posted;
             Switch = @switch;
+            Grooming = grooming;
         }
 
         public bool HasEnds => Head.HasValue && Tail.HasValue;
 
-        public Trail WithName(string name) => new Trail(Id, name, Stage, Settings, Shape, Head, Tail, Posted, Switch);
-        public Trail WithStage(WorkStage stage) => new Trail(Id, Name, stage, Settings, Shape, Head, Tail, Posted, Switch);
-        public Trail WithSettings(TrailSettings settings) => new Trail(Id, Name, Stage, settings, Shape, Head, Tail, Posted, Switch);
-        public Trail WithShape(TrailShape shape) => new Trail(Id, Name, Stage, Settings, shape, Head, Tail, Posted, Switch);
-        public Trail WithEnds(PointMm? head, PointMm? tail) => new Trail(Id, Name, Stage, Settings, Shape, head, tail, Posted, Switch);
-        public Trail WithPosted(SlopeBands.Band? posted) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, posted, Switch);
-        public Trail WithSwitch(TrailSwitch sw) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, Posted, sw);
+        public Trail WithName(string name) => new Trail(Id, name, Stage, Settings, Shape, Head, Tail, Posted, Switch, Grooming);
+        public Trail WithStage(WorkStage stage) => new Trail(Id, Name, stage, Settings, Shape, Head, Tail, Posted, Switch, Grooming);
+        public Trail WithSettings(TrailSettings settings) => new Trail(Id, Name, Stage, settings, Shape, Head, Tail, Posted, Switch, Grooming);
+        public Trail WithShape(TrailShape shape) => new Trail(Id, Name, Stage, Settings, shape, Head, Tail, Posted, Switch, Grooming);
+        public Trail WithEnds(PointMm? head, PointMm? tail) => new Trail(Id, Name, Stage, Settings, Shape, head, tail, Posted, Switch, Grooming);
+        public Trail WithPosted(SlopeBands.Band? posted) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, posted, Switch, Grooming);
+        public Trail WithSwitch(TrailSwitch sw) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, Posted, sw, Grooming);
+        public Trail WithGrooming(TrailGrooming g) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, Posted, Switch, g);
     }
 }

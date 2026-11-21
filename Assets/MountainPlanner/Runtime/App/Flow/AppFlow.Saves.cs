@@ -151,6 +151,8 @@ namespace MountainPlanner.App.Flow
             "-snowshots",    // task 4.15
             "-crowdshot", "-drawngondola", "-simridedown",   // task 4.24
             "-solvebench",   // task 4.15
+            "-groomshots",   // task 4.25
+            "-groomdots",    // task 4.25, GO-13
         };
 
         void UpdateSaves(Keyboard keys)

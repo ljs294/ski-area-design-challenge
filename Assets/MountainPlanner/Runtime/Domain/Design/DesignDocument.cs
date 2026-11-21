@@ -16,8 +16,9 @@ namespace MountainPlanner.Domain.Design
         /// player's cut points (NT43–NT46). 10 (LD9): each lift's drive end. 11 (task 4.21, TD-07): each trail's posted rating. 12 (task 4.03, LO-07 v2 and LO-09):
         /// the resort's hours, and each lift's schedule and own hours. 13 (task 4.11 PR B): each lift's plate. 14 (task 4.14, PD-08, WS-01): ponds, dams and lake sources.
         /// 15 (task 4.15, HY-01): the snowmaking network. 16 (task 4.07 B1 part 2c, SN-20 v4): each trail's and shaped trail's
-        /// Open / Closed / Auto switch.</summary>
-        public const int ShapeVersion = 16;
+        /// Open / Closed / Auto switch. 17 (task 4.25, SN-22 v4, GO-01): each trail's and shaped trail's grooming setting and
+        /// priority, and the resort's groomers and crew pins.</summary>
+        public const int ShapeVersion = 17;
 
         /// <summary>The design's key seed: every ID is a keyed hash of it (SH-04).</summary>
         public ulong Seed { get; }
@@ -56,6 +57,8 @@ namespace MountainPlanner.Domain.Design
         public IReadOnlyList<StreamRecord> Streams => _streams;
         /// <summary>Task 4.15 (HY-01, SG-01…04; shape 15): the snowmaking network: pipes, nodes, pump houses and guns.</summary>
         public SnowNetwork Snow => _snow;
+        /// <summary>Task 4.25 (GO-01, GO-05; shape 17): the resort's groomers and the crews the player pinned.</summary>
+        public GroomFleet Grooming => _grooming;
 
         readonly Trail[] _trails;
         readonly Lift[] _lifts;
@@ -69,12 +72,15 @@ namespace MountainPlanner.Domain.Design
         readonly LakeRecord[] _lakes;
         readonly StreamRecord[] _streams;
         readonly SnowNetwork _snow;             // task 4.15, shape 15
+        readonly GroomFleet _grooming;          // task 4.25, shape 17
         TrailNodes _nodes;                      // NT42: where sections meet, built on first use
 
         DesignDocument(ulong seed, long nextOrdinal, Trail[] trails, Lift[] lifts, TerrainStroke[] strokes, AreaRecord[] areas, TrailLine[] lines,
-                       TrailCut[] cuts, DayHours hours, Pond[] ponds, Dam[] dams, LakeRecord[] lakes, StreamRecord[] streams, SnowNetwork snow)
+                       TrailCut[] cuts, DayHours hours, Pond[] ponds, Dam[] dams, LakeRecord[] lakes, StreamRecord[] streams, SnowNetwork snow,
+                       GroomFleet grooming)
         {
             _snow = snow ?? SnowNetwork.Empty;
+            _grooming = grooming ?? GroomFleet.Empty;
             _hours = hours;
             _ponds = ponds;
             _dams = dams;
@@ -93,7 +99,7 @@ namespace MountainPlanner.Domain.Design
         public static DesignDocument Empty(ulong seed) =>
             new DesignDocument(seed, 1, Array.Empty<Trail>(), Array.Empty<Lift>(), Array.Empty<TerrainStroke>(), Array.Empty<AreaRecord>(),
                 Array.Empty<TrailLine>(), Array.Empty<TrailCut>(), DayHours.Default,
-                Array.Empty<Pond>(), Array.Empty<Dam>(), Array.Empty<LakeRecord>(), Array.Empty<StreamRecord>(), SnowNetwork.Empty);
+                Array.Empty<Pond>(), Array.Empty<Dam>(), Array.Empty<LakeRecord>(), Array.Empty<StreamRecord>(), SnowNetwork.Empty, GroomFleet.Empty);
 
         /// <summary>
         /// A document from stored parts (task 04's reader). Entities are sorted by ID here and checked by the same
@@ -111,7 +117,7 @@ namespace MountainPlanner.Domain.Design
                                           IReadOnlyList<TerrainStroke> strokes, IReadOnlyList<AreaRecord> areas = null,
                                           IReadOnlyList<TrailLine> lines = null, IReadOnlyList<TrailCut> cuts = null, DayHours? hours = null,
                                           IReadOnlyList<Pond> ponds = null, IReadOnlyList<Dam> dams = null, IReadOnlyList<LakeRecord> lakes = null,
-                                          IReadOnlyList<StreamRecord> streams = null, SnowNetwork snow = null)
+                                          IReadOnlyList<StreamRecord> streams = null, SnowNetwork snow = null, GroomFleet grooming = null)
         {
             var t = new Trail[trails?.Count ?? 0];
             for (int i = 0; i < t.Length; i++) t[i] = trails[i];
@@ -135,7 +141,7 @@ namespace MountainPlanner.Domain.Design
             var d = Sorted(dams, (a, b) => a.Id.CompareTo(b.Id));
             var lk = Sorted(lakes, (a, b) => a.CompareTo(b));
             var st = Sorted(streams, (a, b) => a.CompareTo(b));
-            var doc = TrailLines.Normalise(new DesignDocument(seed, nextOrdinal, t, l, k, r, n, c, hours ?? DayHours.Default, p, d, lk, st, snow ?? SnowNetwork.Empty));
+            var doc = TrailLines.Normalise(new DesignDocument(seed, nextOrdinal, t, l, k, r, n, c, hours ?? DayHours.Default, p, d, lk, st, snow ?? SnowNetwork.Empty, grooming));
             string problem = DesignRules.DocumentProblem(doc);
             if (problem != null) throw new FormatException("Design document: " + problem);
             return doc;
@@ -267,7 +273,7 @@ namespace MountainPlanner.Domain.Design
 
         // Copy-on-write edits: each returns a new document sharing every untouched entity.
 
-        internal DesignDocument WithOrdinal(long nextOrdinal) => new DesignDocument(Seed, nextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow);
+        internal DesignDocument WithOrdinal(long nextOrdinal) => new DesignDocument(Seed, nextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow, _grooming);
 
         internal DesignDocument PutTrail(Trail trail)
         {
@@ -286,7 +292,7 @@ namespace MountainPlanner.Domain.Design
                 t[i] = trail;
                 Array.Copy(_trails, i, t, i + 1, _trails.Length - i);
             }
-            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow);
+            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow, _grooming);
         }
 
         internal DesignDocument RemoveTrail(TrailId id)
@@ -296,7 +302,7 @@ namespace MountainPlanner.Domain.Design
             var t = new Trail[_trails.Length - 1];
             Array.Copy(_trails, 0, t, 0, i);
             Array.Copy(_trails, i + 1, t, i, _trails.Length - i - 1);
-            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow);
+            return new DesignDocument(Seed, NextOrdinal, t, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow, _grooming);
         }
 
         internal DesignDocument PutLift(Lift lift)
@@ -316,7 +322,7 @@ namespace MountainPlanner.Domain.Design
                 l[i] = lift;
                 Array.Copy(_lifts, i, l, i + 1, _lifts.Length - i);
             }
-            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow);
+            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow, _grooming);
         }
 
         internal DesignDocument PutStroke(TerrainStroke stroke)
@@ -336,7 +342,7 @@ namespace MountainPlanner.Domain.Design
                 k[i] = stroke;
                 Array.Copy(_strokes, i, k, i + 1, _strokes.Length - i);
             }
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, k, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, k, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow, _grooming);
         }
 
         /// <summary>Removes a lift, and its ends from every named Area; an Area left with no ends goes too (NW-15).</summary>
@@ -353,7 +359,7 @@ namespace MountainPlanner.Domain.Design
                 var kept = a.WithoutLift(id);
                 if (kept.Ends.Count > 0) areas.Add(kept);
             }
-            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, areas.ToArray(), _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow);
+            return new DesignDocument(Seed, NextOrdinal, _trails, l, _strokes, areas.ToArray(), _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow, _grooming);
         }
 
         /// <summary>The saved lines replaced whole (sorted here); <see cref="TrailLines.Normalise"/> and the line commands.</summary>
@@ -376,7 +382,7 @@ namespace MountainPlanner.Domain.Design
             var n = new TrailLine[lines.Count];
             for (int i = 0; i < n.Length; i++) n[i] = lines[i];
             Array.Sort(n, (a, b) => a.Id.CompareTo(b.Id));
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, n, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, n, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow, _grooming);
         }
 
         /// <summary>The cut points replaced whole (sorted here).</summary>
@@ -385,11 +391,11 @@ namespace MountainPlanner.Domain.Design
             var c = new TrailCut[cuts.Count];
             for (int i = 0; i < c.Length; i++) c[i] = cuts[i];
             Array.Sort(c);
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, c, _hours, _ponds, _dams, _lakes, _streams, _snow);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, c, _hours, _ponds, _dams, _lakes, _streams, _snow, _grooming);
         }
 
         /// <summary>The resort's hours replaced (LO-07 v2, shape 12).</summary>
-        internal DesignDocument WithHours(DayHours hours) => new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, hours, _ponds, _dams, _lakes, _streams, _snow);
+        internal DesignDocument WithHours(DayHours hours) => new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, hours, _ponds, _dams, _lakes, _streams, _snow, _grooming);
 
         /// <summary>One pond replaced by ID, or added (task 4.14).</summary>
         internal DesignDocument PutPond(Pond pond)
@@ -399,14 +405,14 @@ namespace MountainPlanner.Domain.Design
             foreach (var x in _ponds) { if (x.Id == pond.Id) { a.Add(pond); replaced = true; } else a.Add(x); }
             if (!replaced) a.Add(pond);
             a.Sort((x, y) => x.Id.CompareTo(y.Id));
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, a.ToArray(), _dams, _lakes, _streams, _snow);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, a.ToArray(), _dams, _lakes, _streams, _snow, _grooming);
         }
 
         internal DesignDocument RemovePond(PondId id)
         {
             var a = new List<Pond>(_ponds.Length);
             foreach (var x in _ponds) if (x.Id != id) a.Add(x);
-            return a.Count == _ponds.Length ? this : new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, a.ToArray(), _dams, _lakes, _streams, _snow);
+            return a.Count == _ponds.Length ? this : new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, a.ToArray(), _dams, _lakes, _streams, _snow, _grooming);
         }
 
         /// <summary>One dam replaced by ID, or added (task 4.14).</summary>
@@ -417,14 +423,14 @@ namespace MountainPlanner.Domain.Design
             foreach (var x in _dams) { if (x.Id == dam.Id) { a.Add(dam); replaced = true; } else a.Add(x); }
             if (!replaced) a.Add(dam);
             a.Sort((x, y) => x.Id.CompareTo(y.Id));
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, a.ToArray(), _lakes, _streams, _snow);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, a.ToArray(), _lakes, _streams, _snow, _grooming);
         }
 
         internal DesignDocument RemoveDam(DamId id)
         {
             var a = new List<Dam>(_dams.Length);
             foreach (var x in _dams) if (x.Id != id) a.Add(x);
-            return a.Count == _dams.Length ? this : new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, a.ToArray(), _lakes, _streams, _snow);
+            return a.Count == _dams.Length ? this : new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, a.ToArray(), _lakes, _streams, _snow, _grooming);
         }
 
         /// <summary>A lake's record replaced (LK-10); an empty record leaves the design.</summary>
@@ -434,7 +440,7 @@ namespace MountainPlanner.Domain.Design
             foreach (var x in _lakes) if (x.Lake != lake.Lake) a.Add(x);
             if (!lake.IsEmpty) a.Add(lake);
             a.Sort((x, y) => x.CompareTo(y));
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, a.ToArray(), _streams, _snow);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, a.ToArray(), _streams, _snow, _grooming);
         }
 
         /// <summary>A stream's record replaced (LK-10); an empty record leaves the design.</summary>
@@ -444,12 +450,16 @@ namespace MountainPlanner.Domain.Design
             foreach (var x in _streams) if (x.Way != stream.Way) a.Add(x);
             if (!stream.IsEmpty) a.Add(stream);
             a.Sort((x, y) => x.CompareTo(y));
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, a.ToArray(), _snow);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, a.ToArray(), _snow, _grooming);
         }
 
         /// <summary>The snowmaking network replaced (task 4.15).</summary>
         internal DesignDocument WithSnow(SnowNetwork snow) => ReferenceEquals(snow, _snow) ? this
-            : new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, snow);
+            : new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, snow, _grooming);
+
+        /// <summary>The groomers and crew pins replaced (task 4.25).</summary>
+        internal DesignDocument WithGrooming(GroomFleet grooming) => ReferenceEquals(grooming, _grooming) ? this
+            : new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, _areas, _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow, grooming);
 
         /// <summary>Whether a command changed the trails or their lines, so <see cref="TrailLines.Normalise"/> must run.</summary>
         internal bool TrailsDifferFrom(DesignDocument other) =>
@@ -466,7 +476,7 @@ namespace MountainPlanner.Domain.Design
             }
             if (!replaced) a.Add(area);
             a.Sort((x, y) => x.Id.CompareTo(y.Id));
-            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, a.ToArray(), _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow);
+            return new DesignDocument(Seed, NextOrdinal, _trails, _lifts, _strokes, a.ToArray(), _lines, _cuts, _hours, _ponds, _dams, _lakes, _streams, _snow, _grooming);
         }
     }
 

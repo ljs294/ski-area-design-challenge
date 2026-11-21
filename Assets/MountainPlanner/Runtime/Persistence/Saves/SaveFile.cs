@@ -13,13 +13,13 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 16;
+        public const int CurrentVersion = 17;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven, UpToTwelve, UpToThirteen, UpToFourteen, UpToFifteen, UpToSixteen);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven, UpToTwelve, UpToThirteen, UpToFourteen, UpToFifteen, UpToSixteen, UpToSeventeen);
 
         /// <summary>
         /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
@@ -256,6 +256,76 @@ namespace MountainPlanner.Persistence.Saves
                 if (design[list] is JArray items)
                     foreach (var item in items)
                         if (item is JObject x && x["Switch"] == null) x["Switch"] = "auto";
+        }
+
+        /// <summary>
+        /// v16 → v17 (task 4.25, SN-22 v4, GO-01, owner round 2): the design's shape 16 → 17, where each trail and shaped trail
+        /// carries its grooming setting and priority, and the resort its groomers and crew pins. Before v17 runs were groomed
+        /// every night and glades and zones never, which is what "default" means. A resort that had built runs was groomed for
+        /// free, so it is given a fleet of diesel 400s sized to its usual night (<see cref="GrantedGroomers"/>), crews on
+        /// Autopilot; one with no built run gets none.
+        /// </summary>
+        static void UpToSeventeen(JObject o)
+        {
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 17;
+            foreach (string list in new[] { "Trails", "TrailLines" })
+                if (design[list] is JArray items)
+                    foreach (var item in items)
+                        if (item is JObject x)
+                        {
+                            if (x["Groom"] == null) x["Groom"] = "default";
+                            if (x["GroomPriority"] == null) x["GroomPriority"] = "normal";
+                        }
+            if (design["Grooming"] != null) return;
+            long areaMm2 = 0;
+            if (design["Trails"] is JArray trails)
+                foreach (var item in trails)
+                    if (item is JObject t && (string)t["Stage"] == "built" && (string)t["Kind"] == "run" && t["Outline"] is JArray rings)
+                        areaMm2 += SignedAreaMm2(rings);
+            var groomers = new JArray();
+            int n = GrantedGroomers(areaMm2);
+            for (int i = 1; i <= n; i++)
+                groomers.Add(new JObject { ["Number"] = i, ["Model"] = "400", ["Drive"] = "diesel", ["WideTiller"] = false });
+            design["Grooming"] = new JObject
+            {
+                ["Groomers"] = groomers,
+                ["Crews"] = new JObject { ["Swing"] = -1, ["Night"] = -1, ["Day"] = -1 },
+            };
+        }
+
+        /// <summary>
+        /// The v17 grant (GO-01): a 400 tills 7 acres an hour, and one groomer crewed swing and night works 12.5 hours, so
+        /// the usual night (every built run tilled once) needs <c>⌈acres / 87.5⌉</c> of them; at least one when there is any
+        /// run, at most <see cref="GroomFleet.MaxGroomers"/>.
+        /// </summary>
+        internal static int GrantedGroomers(long runAreaMm2)
+        {
+            if (runAreaMm2 <= 0) return 0;
+            const long PerGroomerMm2 = 4_046_856_422L * 875 / 10;   // 87.5 acres in mm²
+            long n = (runAreaMm2 + PerGroomerMm2 - 1) / PerGroomerMm2;
+            return (int)Math.Max(1, Math.Min(GroomFleet.MaxGroomers, n));
+        }
+
+        // A v8+ outline's rings ([x0, y0, dx1, dy1, …]; outer rings anticlockwise, holes clockwise): the shoelace sum is the
+        // clearing's area.
+        static long SignedAreaMm2(JArray rings)
+        {
+            long twice = 0;
+            foreach (var r in rings)
+            {
+                if (!(r is JArray flat) || flat.Count < 6) continue;
+                long x0 = 0, y0 = 0, px = 0, py = 0;
+                for (int i = 0; i + 1 < flat.Count; i += 2)
+                {
+                    long x = px + (long)flat[i], y = py + (long)flat[i + 1];
+                    if (i == 0) { x0 = x; y0 = y; }
+                    else twice += px * y - x * py;
+                    px = x; py = y;
+                }
+                twice += px * y0 - x0 * py;
+            }
+            return Math.Abs(twice) / 2;
         }
 
         /// <summary>The player's name for it ("Autosave" for the autosave slot).</summary>

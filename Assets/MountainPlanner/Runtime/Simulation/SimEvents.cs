@@ -97,6 +97,14 @@ namespace MountainPlanner.Simulation
         SourceSpilling = 42,
         /// <summary>WS-05: a lake reached its drawdown limit (the entity its index among the sources, the value the face day).</summary>
         SourceAtDrawdownLimit = 43,
+        /// <summary>GO-09 (task 4.25): the night ended short (the entity the trails not reached, the value the groomer-minutes short).</summary>
+        GroomShortfall = 44,
+        /// <summary>GO-10: one of Autopilot's warnings (the entity the trail's network index, the value the <see cref="GroomWarningKind"/>).</summary>
+        GroomWarning = 45,
+        /// <summary>GO-01: a groomer joined the fleet (the entity its number, the value its model).</summary>
+        GroomerBought = 46,
+        /// <summary>GO-01: a groomer left the fleet (the entity its number, the value its model).</summary>
+        GroomerSold = 47,
     }
 
     /// <summary>Why a command was turned away (an event's Detail). Stable numbers.</summary>
