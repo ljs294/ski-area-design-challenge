@@ -681,6 +681,7 @@ body.solo .frame { border-radius: 0; }
 .hud .pn.fcard .hrs label { display: grid; gap: 3px; font: 600 11px 'DotFix', 'Overpass'; color: var(--soft); }
 .hud .pn.fcard .hrs .step { min-width: 0; height: 26px; grid-template-columns: 20px 1fr 20px; }
 .hud .pn.fcard .hrs .step b { text-align: center; font: 600 11px 'Overpass Mono', monospace; white-space: nowrap; padding: 0 2px; }
+.hud .pn.fcard .kv.tsnow { border-top: 1px solid var(--hair); }   /* task 4.07 B2: the trail's snow */
 .hud .pn.fcard .shint { grid-column: 1 / -1; font: 500 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
 .hud .kv dd.warn { color: var(--warn); }
 .hud .bar.ride .rname { display: inline-flex; align-items: center; gap: 7px; font: 700 13px 'DotFix', 'Overpass'; color: var(--text); white-space: nowrap; }
@@ -4907,7 +4908,7 @@ body.solo .frame { border-radius: 0; }
   const LEN_BINS = [['s', 'Under 2,000', 0, 2000], ['m', '2,000–5,000', 2000, 5000], ['l', 'Over 5,000', 5000, Infinity]];
   const VERT_BINS = [['s', 'Under 500', 0, 500], ['m', '500–1,500', 500, 1500], ['l', 'Over 1,500', 1500, Infinity]];
   const binLabel = (b) => (b[2] === 0 ? `Under ${lenFt(b[3])}` : b[3] === Infinity ? `Over ${lenFt(b[2])}` : `${lenFt(b[2]).replace(/ (ft|m)$/, '')}–${lenFt(b[3])}`);
-  const STATUS_OPTS = [['open', 'Open'], ['onhold', 'On hold'], ['scheduled', 'Scheduled'], ['closed', 'Closed'], ['planned', 'Planned']];
+  const STATUS_OPTS = [['open', 'Open'], ['onhold', 'On hold'], ['scheduled', 'Scheduled'], ['closed', 'Closed'], ['closedsnow', 'Closed · no snow'], ['closedyou', 'Closed by you'], ['closedlift', 'Closed · no lift'], ['planned', 'Planned']];
   // Filters as a spreadsheet does them: the Filter button puts a ▾ on each column; its menu sorts, and ticks the values
   // to show. hide holds the values unticked.
   S.af = { lifts: { on: false, hide: { status: [], len: [], vert: [] }, sort: null }, trails: { on: false, hide: { status: [], len: [], vert: [], rating: [] }, sort: null } };
@@ -4921,11 +4922,41 @@ body.solo .frame { border-radius: 0; }
     const status = !l.built ? 'planned' : !runs ? 'closed' : l.hold && hr < h.stop ? 'onhold' : before ? 'scheduled' : inHours ? 'open' : 'closed';
     return { id: l.id, kind: 'lift', o: l, name: l.name, len: st.len * FT, vert: Math.abs(st.rise) * FT, cap: st.cap, ride: st.ride, wait: status === 'open' || status === 'onhold' ? wt : null, status };
   }
+  // Task 4.07 B2: one line under the switch saying what it does to this trail now.
+  function switchHint(sn, sw) {
+    if (sn.lb === 'bare') return 'Bare: closed whatever the switch, until it has snow again.';
+    if (sw === 'closed') return 'Closed by you: guests leave it at once.';
+    if (sw === 'open') return 'Open: stays open until it goes Bare.';
+    return sn.lb === 'covered' ? 'Auto: open while it stays Covered or Marginal.' : 'Auto: stays open while Marginal. Open opens it early.';
+  }
   function trailRec(t, open, i) {
     const st = pathStats(t.pts);
-    return { id: t.id, kind: 'trail', o: t, name: t.name, len: st.len * FT, vert: st.drop * FT, avg: st.avg, steep: st.steep, rating: t.diff, surface: t.graded ? 'Graded' : 'Natural', status: !t.built ? 'planned' : 'built' };
+    const sn = snowOf(t.id);
+    return { id: t.id, kind: 'trail', o: t, name: t.name, len: st.len * FT, vert: st.drop * FT, avg: st.avg, steep: st.steep, rating: t.diff, surface: t.graded ? 'Graded' : 'Natural', sn, cond: t.built ? sn.lb : 'none', status: trailStatus(t, open, sn) };
   }
-  const STATUS_LAMP = { open: ['Open', '#5fbf6a'], closed: ['Closed', '#d4513f'], planned: ['Planned', '#ff6a1f'], built: ['Built', '#9aa3a8'], onhold: ['On hold', '#f0b43c'], scheduled: ['Scheduled', '#9aa3a8'] };
+  const STATUS_LAMP = { open: ['Open', '#5fbf6a'], closed: ['Closed', '#d4513f'], planned: ['Planned', '#ff6a1f'], built: ['Built', '#9aa3a8'], onhold: ['On hold', '#f0b43c'], scheduled: ['Scheduled', '#9aa3a8'], closedsnow: ['Closed · no snow', '#d4513f'], closedyou: ['Closed by you', '#d4513f'], closedlift: ['Closed · no lift', '#9aa3a8'] };
+  // Task 4.07 B2: a trail's snow (SN-20 v3's label and walk, its cover, SN-21's rating and the surface summary), stand-ins
+  // picked by the trail's id so the list and the card agree; the game reads the simulation's board. The switch (SN-20 v4)
+  // is the player's: Auto opens a Covered trail and keeps a Marginal one open, Open opens anything not Bare, Closed
+  // closes it; Bare closes a trail whatever its switch.
+  const TRAIL_SNOW = [
+    { lb: 'covered', walk: 0, cover: 97, rating: 'Good', surf: 'Mostly packed powder · groomed' },
+    { lb: 'marginal', walk: 0, cover: 78, rating: 'Fair', surf: 'Packed powder · bare patches' },
+    { lb: 'covered', walk: 0, cover: 100, rating: 'Excellent', surf: 'Powder · moguls' },
+    { lb: 'bare', walk: 0, cover: 14, rating: 'Poor', surf: 'Thin · rocks showing' },
+    { lb: 'marginal', walk: 40, cover: 81, rating: 'Fair', surf: 'Hard pack · some ice' },
+  ];
+  const LABEL_WORD = { covered: 'Covered', marginal: 'Marginal', bare: 'Bare' };
+  const COND_OPTS = [['covered', 'Covered'], ['marginal', 'Marginal'], ['bare', 'Bare'], ['none', 'Not built']];
+  const snowOf = (id) => { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return TRAIL_SNOW[h % TRAIL_SNOW.length]; };
+  const condWord = (sn) => (sn.lb === 'marginal' && sn.walk ? `Marginal · walk ${sn.walk} ft` : `${LABEL_WORD[sn.lb]}${sn.lb === 'bare' ? '' : ` · ${sn.rating}`}`);
+  const switchOf = (id) => (S.tsw && S.tsw[id]) || 'auto';
+  function trailStatus(t, open, sn) {
+    if (!t.built) return 'planned';
+    if (sn.lb === 'bare') return 'closedsnow';   // Bare closes it whatever its switch
+    if (switchOf(t.id) === 'closed') return 'closedyou';
+    return open ? 'open' : 'scheduled';
+  }
   // Task 4.11: a lift's schedule and hours (LO-07 v2, LO-09). Peak days: the weekend days (and holidays, later).
   const RESORT_HOURS = { open: LIFTS_OPEN, last: LAST_CHAIR, stop: LIFTS_CLOSE };
   const isPeakDay = () => S.day % 7 === 5 || S.day % 7 === 6;
@@ -4954,7 +4985,7 @@ body.solo .frame { border-radius: 0; }
     const recs = all.filter((r) => Object.keys(f.hide).every((k) => !f.hide[k].includes(valOf(r, k))));
     if (f.sort) { const [k, dir] = f.sort.split('-'); recs.sort((a, b) => (dir === 'up' ? a[k] - b[k] : b[k] - a[k])); }
     const active = Object.values(f.hide).reduce((a, x) => a + x.length, 0);
-    const OPTS = { status: STATUS_OPTS, len: LEN_BINS.map((b) => [b[0], binLabel(b)]), vert: VERT_BINS.map((b) => [b[0], binLabel(b)]), rating: Object.keys(DIFFS).map((k) => [k, `${RATING[k]}${DIFFS[k]}`]) };
+    const OPTS = { status: STATUS_OPTS, cond: COND_OPTS, len: LEN_BINS.map((b) => [b[0], binLabel(b)]), vert: VERT_BINS.map((b) => [b[0], binLabel(b)]), rating: Object.keys(DIFFS).map((k) => [k, `${RATING[k]}${DIFFS[k]}`]) };
     const menu = (k, right) => `<div class="amenu${right ? ' rt' : ''}">${k === 'len' || k === 'vert' ? `<div class="mi" data-act="asortd" data-v="${k}-up">Sort smallest to largest</div><div class="mi" data-act="asortd" data-v="${k}-down">Sort largest to smallest</div><div class="sepl"></div>` : ''}
       ${OPTS[k].map(([v, l]) => `<div class="mi" data-act="afchk" data-v="${k}:${v}"><span class="chk${f.hide[k].includes(v) ? '' : ' on'}"></span>${l}<span class="r">${all.filter((r) => valOf(r, k) === v).length}</span></div>`).join('')}
       <div class="sepl"></div><div class="mi${f.hide[k].length ? '' : ' dis'}" data-act="${f.hide[k].length ? 'afclr' : ''}" data-v="${k}">Clear filter</div></div>`;
@@ -4964,13 +4995,13 @@ body.solo .frame { border-radius: 0; }
       return `<span class="hc${right ? ' n' : ''}">${label}${arrow}${f.on && k ? `<span class="dd${f.hide[k] && f.hide[k].length || sorted ? ' act' : ''}" data-act="amenu" data-v="${k}" title="Filter and sort">▾</span>` : ''}${S.afMenu === `${tab}:${k}` ? menu(k, right) : ''}</span>`;
     };
     const lamp = (st) => `<span class="nm" style="justify-content:flex-end">${lampHtml(STATUS_LAMP[st][1])}${STATUS_LAMP[st][0]}</span>`;
-    const cols = lifts ? 'grid-template-columns:1.6fr 1.1fr 0.8fr 0.8fr 0.7fr 0.55fr 0.8fr' : 'grid-template-columns:1.6fr 0.85fr 0.85fr 0.95fr 0.8fr';
+    const cols = lifts ? 'grid-template-columns:1.6fr 1.1fr 0.8fr 0.8fr 0.7fr 0.55fr 0.8fr' : 'grid-template-columns:1.35fr 0.75fr 0.75fr 1.25fr 1.25fr';
     const rowCls = (r) => `r arow${S.focus === r.id ? ' on' : ''}${S.rowHover === r.id ? ' hv' : ''}`;
     const rows = recs.map((r) => (lifts
       ? `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm"><span class="plate${r.o.built ? ' built' : ''}" style="font-size:10px">${r.o.n}</span>${esc(r.name)}</span><span class="nm">${esc(liftTypeName(r.o.model))}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span class="n">${r.cap.toLocaleString('en-US')}</span><span class="n" style="color:${r.wait > 8 ? 'var(--warn)' : ''}">${r.wait !== null ? r.wait.toFixed(1) : '—'}</span>${lamp(r.status)}</div>`
-      : `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm">${RATING[r.rating]}${esc(r.name)}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span>${r.surface}</span>${lamp(r.status)}</div>`)).join('');
+      : `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm">${RATING[r.rating]}${esc(r.name)}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span>${r.o.built ? condWord(r.sn) : '—'}</span>${lamp(r.status)}</div>`)).join('');
     const head = lifts ? `<div class="r th" style="${cols}">${hc('Lift')}${hc('Model')}${hc('Length', 'len', 'len', true)}${hc('Vertical', 'vert', 'vert', true)}<span class="n">An hour</span><span class="n">Wait</span>${hc('Status', 'status', null, true)}</div>`
-      : `<div class="r th" style="${cols}">${hc('Trail', 'rating')}${hc('Length', 'len', 'len', true)}${hc('Vertical', 'vert', 'vert', true)}<span>Grading</span>${hc('Status', 'status', null, true)}</div>`;
+      : `<div class="r th" style="${cols}">${hc('Trail', 'rating')}${hc('Length', 'len', 'len', true)}${hc('Vertical', 'vert', 'vert', true)}${hc('Conditions', 'cond')}${hc('Status', 'status', null, true)}</div>`;
     const builtN = lifts ? S.lifts.filter((l) => l.built).length : S.trails.filter((t) => t.built).length, others = (lifts ? S.liftsTotal : S.trailsTotal) - builtN;
     const foot = recs.length ? (lifts ? `${others} more lifts run elsewhere on the mountain: ${(others * 2100).toLocaleString('en-US')} riders an hour between them.` : `${others} more trails elsewhere on the mountain.`) : `No ${tab} match the filters.`;
     const tools = `<div class="atools"><span>${recs.length === all.length ? `${all.length} ${tab}` : `${recs.length} of ${all.length} ${tab}`} on the map</span><span style="margin-left:auto"></span>${active ? '<span class="atb" data-act="afclear">Clear filters</span>' : ''}<span class="atb${f.on ? ' on' : ''}" data-act="afon" title="Filter: a ▾ on each column sorts and filters it">Filter${active ? ` · ${active}` : ''}</span></div>`;
@@ -4997,8 +5028,12 @@ body.solo .frame { border-radius: 0; }
         <div class="acts" style="grid-template-columns:1fr 1fr"><div class="ghost" data-act="fedit" data-v="lift">Edit</div><div class="ghost" data-act="fremove" data-v="lift">Remove</div></div></div>`;
     }
     const r = trailRec(t, open, 0), st = STATUS_LAMP[r.status];
+    const tseg = (cur, opts) => `<div class="seg">${opts.map(([v, lb, tip]) => `<span class="${cur === v ? 'on' : ''}" data-act="tswitch" data-v="${v}" title="${tip}">${lb}</span>`).join('')}</div>`;
     return `<div class="pn fcard"><div class="hd">${RATING[t.diff]}${esc(t.name)}<span class="nm">${lampHtml(st[1])} ${st[0]}</span><span class="x" data-act="fclose" title="Close (Esc)">✕</span></div>
       <dl class="kv">${kv('Rating', `${DIFFS[t.diff]}`)}${kv('Length', `<b>${lenFt(r.len)}</b>`)}${kv('Vertical', `<b>${lenFt(r.vert)}</b>`)}${kv('Average grade', `${Math.round(r.avg)}%`)}${kv('Steepest', `${Math.round(r.steep)}%`)}${kv('Surface', r.surface)}</dl>
+      ${t.built ? `<dl class="kv tsnow">${kv('Conditions', r.sn.lb === 'marginal' && r.sn.walk ? `Marginal · walk <b>${r.sn.walk}</b> ft` : LABEL_WORD[r.sn.lb])}${kv('Cover', `<b>${r.sn.cover}</b>%`)}${kv('Snow rating', r.sn.rating)}${kv('Snow', r.sn.surf)}</dl>
+      <div class="sched"><span>Open</span>${tseg(switchOf(t.id), [['auto', 'Auto', 'Opens when Covered and stays open while Marginal'], ['open', 'Open', 'Opens it unless it is Bare: open early, hang on late'], ['closed', 'Closed', 'Closes it now']])}
+        <div class="shint">${switchHint(r.sn, switchOf(t.id))}</div></div>` : ''}
       ${S.p2 && !S.groom ? '' : grCardBlock()}
       <div class="acts" style="grid-template-columns:1fr 1fr"><div class="ghost" data-act="fedit" data-v="trail">Edit</div><div class="ghost" data-act="fremove" data-v="trail">Remove</div></div></div>`;
   }
@@ -6390,6 +6425,7 @@ body.solo .frame { border-radius: 0; }
       case 'ride': enterRide(v); return;
       case 'rideexit': exitRide(false); return;
       case 'ridehide': S.ride.hidden = !S.ride.hidden; break;
+      case 'tswitch': { if (S.focus) { S.tsw = S.tsw || {}; S.tsw[S.focus] = v; } break; }   // task 4.07 B2: SetTrailSwitch in the game, one undo step
       case 'lsched': { const l = S.lifts.find((x) => x.id === S.focus); if (l) l.sched = v; break; }   // a design edit: undoable in the game
       case 'lown': { const l = S.lifts.find((x) => x.id === S.focus); if (l) l.hours = v === 'own' ? { ...RESORT_HOURS } : null; break; }
       case 'lhrs': { const l = S.lifts.find((x) => x.id === S.focus); if (!l || !l.hours) break; const [k, d] = v.split(':'), h = l.hours, q = 0.25;
@@ -6980,6 +7016,7 @@ body.solo .frame { border-radius: 0; }
     const hv = d.find((x) => /^hov\d+$/.test(x)); if (hv) chartHover = (S.atab === 'finances' ? `fin:${S.finScale}:` : S.atab === 'weather' ? 'wx:' : 'ov:') + hv.slice(3);
     for (const x of d) { const m = x.match(/^(row|focus)([lt]\d+)$/); if (m) { if (m[1] === 'row') S.rowHover = m[2]; else S.focus = m[2]; } }
     // ride (task 4.11 PR B): riding Aspen Quad at 11:00; ridehold the same on a wind hold; liftcard its card with its own hours.
+    if (d.includes('trailcard')) { S.analysis = true; S.atab = 'trails'; S.t = 11 * 3600; const want = d.includes('trailcardbare') ? 'bare' : d.includes('trailcardmarg') ? 'marginal' : 'covered'; const ls = allLines().map(lineRec).filter((x) => x.built); const t = ls.find((x) => snowOf(x.id).lb === want) || ls[0]; if (t) S.focus = t.id; if (t && d.includes('trailcardyou')) S.tsw = { [t.id]: 'closed' }; }   // task 4.07 B2
     if (d.includes('liftcard')) { const l = S.lifts.find((x) => x.id === 'l2'); if (l) { l.hours = { open: 9, last: 15.75, stop: 16 }; S.focus = 'l2'; S.t = 11 * 3600; } }
     if (d.includes('ride') || d.includes('ridehold')) { S.t = 11 * 3600; const l = S.lifts.find((x) => x.id === 'l2'); if (l) { l.hold = d.includes('ridehold'); setTimeout(() => { enterRide('l2'); S.ride.p = 0.35; render(); }, 0); } }
     // net (task P3-10): two more lifts: Moose Double, whose run reaches Timberline by a path, and Teton Double with no

@@ -38,6 +38,7 @@ namespace MountainPlanner.App
                 else if (Array.IndexOf(args, "-data") < 0) Debug.LogWarning("[SimTo] -savequit only runs with -data <scratch folder> (it never writes into your own saves)");
                 else _saveQuitName = args[q + 1];
             }
+            NoteTrailCardShots(args);   // task 4.07 B2: the trail cards' review pictures at the date
             _simToRunning = true;
             StartCoroutine(SimTo(month, day));
         }
@@ -151,6 +152,7 @@ namespace MountainPlanner.App
             Toast(cancelled ? $"Stopped at {Label(calendar, Now())}" : $"{goal}: paused");
             _simToRunning = false;
             if (_saveQuitName != null && !cancelled) SaveAndQuit(Label(calendar, Now()));
+            else if (_cardShotsDir != null && !cancelled) StartCoroutine(TrailCardShots(_cardShotsDir));
         }
 
         static string MonthName(int month) => CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month);

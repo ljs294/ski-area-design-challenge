@@ -685,7 +685,6 @@ namespace MountainPlanner.App
             if (s.TrailFineCells > 0)
                 y += note(y, 1, $"Trails · {s.TrailsCovered} covered, {s.TrailsMarginal} marginal, {s.TrailsBare} bare · {s.TrailsReady} open" +
                                 (s.LateSeason ? " · late season (walking allowed)" : ""));
-            DrawTrailSwitchRow(ref y, row, caption, button, note);   // task 4.07 B1 part 2c
             DrawWeatherRows(ref y, row, caption, note);
             DrawLiftOpsRows(ref y, row, x0, w, caption, button, note);
             DrawGuestRows(ref y, row, x0, w, caption, button, note);

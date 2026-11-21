@@ -163,23 +163,65 @@ namespace MountainPlanner.App
         void UpdateTrailLive(SimSnapshot s)
         {
             if (Hud == null || s == null || !s.TrailsKnown) return;
+            _lastTrailSnapshot = s;
             _lineStatus.Clear();
             _linePopularity.Clear();
+            foreach (var m in _lineSnow.Values) m.Clear();
+            _lineSeen.Clear();
             var sections = _sections;
             var g = s.Guests;
+            bool liftsRunning = false;
+            for (int i = 0; i < s.LiftCount; i++) if (s.LiftStatus[i] == LiftOpStatus.Open) { liftsRunning = true; break; }
             for (int k = 0; k < s.TrailCount; k++)
             {
                 ulong run = s.TrailIds[k];
-                // With no sections yet (the trail list isn't built), the run's own id is the best key there is.
-                ulong line = sections?.TrailOf(new TrailId(run))?.Id.Value ?? run;
                 var word = Word(s.TrailStatus[k]);
-                _lineStatus[line] = _lineStatus.TryGetValue(line, out var was) ? LessOpen(was, word) : word;
                 int pop = k < g.TrailPopularity.Length ? g.TrailPopularity[k] : -1;
-                if (!_linePopularity.TryGetValue(line, out int best) || pop > best) _linePopularity[line] = pop;
+                var label = s.TrailLabelAt(k);
+                int walk = s.TrailWalkFtAt(k), cover = s.TrailCoverPct[k], rating = s.TrailRatingAt(k);
+                byte snow = s.TrailSnow[k];
+                // Task 4.07 B2: every segment of the run counts for the player's trail that holds it, by its length (a shaped
+                // trail may cover part of a run, or several; a run's first segment alone gave a split trail's lower part the
+                // upper's words). With no sections yet, the run's own id is the best key there is.
+                var segs = sections?.SegmentsOf(new TrailId(run));
+                if (segs == null || segs.Count == 0)
+                {
+                    AddLine(run, word, pop, label, walk, cover, rating, snow, 1);
+                    continue;
+                }
+                foreach (var seg in segs)
+                {
+                    var t = sections.TrailOf(seg);
+                    AddLine(t?.Id.Value ?? run, word, pop, label, walk, cover, rating, snow, Math.Max(1, seg.EndMm - seg.StartMm));
+                }
             }
-            foreach (var kv in _lineStatus) Hud.SetTrailLive(kv.Key, kv.Value);
+            foreach (var kv in _lineStatus)
+            {
+                var t = TrailRowOf(kv.Key);
+                var m = _lineSnow.TryGetValue(kv.Key, out var mm) ? mm : null;
+                var sw = SwitchNow(t) ?? TrailSwitch.Auto;
+                if (m == null || t == null) { Hud.SetTrailLive(kv.Key, kv.Value); continue; }
+                var (status, why) = m.Status(t.Built, sw, liftsRunning);
+                Hud.SetTrailLive(kv.Key, status, why, m);
+            }
             foreach (var kv in _linePopularity) Hud.SetTrailPopularity(kv.Key, kv.Value);
         }
+
+        /// <summary>Task 4.07 B2: one run's part of a player's trail (its status, popularity and snow).</summary>
+        void AddLine(ulong line, OperatingStatus word, int pop, Simulation.TrailSnowLabel label, int walk, int cover, int rating, byte snow, long weightMm)
+        {
+            bool first = _lineSeen.Add(line);
+            _lineStatus[line] = !first && _lineStatus.TryGetValue(line, out var was) ? LessOpen(was, word) : word;
+            if (!_linePopularity.TryGetValue(line, out int best) || pop > best) _linePopularity[line] = pop;
+            if (!_lineSnow.TryGetValue(line, out var m)) _lineSnow[line] = m = new MountainPlanner.UI.Tools.TrailCardModel();
+            m.Add(label, walk, cover, rating, snow, word, weightMm);
+        }
+
+        /// <summary>Task 4.07 B2: each player's trail's snow, pooled and refilled at the live rate (no allocation once warm).</summary>
+        readonly Dictionary<ulong, MountainPlanner.UI.Tools.TrailCardModel> _lineSnow = new Dictionary<ulong, MountainPlanner.UI.Tools.TrailCardModel>();
+        readonly HashSet<ulong> _lineSeen = new HashSet<ulong>();
+        /// <summary>The newest snapshot the trails were filled from (a switch redraws the words at once from it).</summary>
+        SimSnapshot _lastTrailSnapshot;
 
         /// <summary>The less open of two words: a line is as open as its least open run.</summary>
         static OperatingStatus LessOpen(OperatingStatus a, OperatingStatus b) => Rank(a) <= Rank(b) ? a : b;

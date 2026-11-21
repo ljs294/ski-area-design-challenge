@@ -124,6 +124,7 @@ namespace MountainPlanner.Simulation
             if (saved != null)
             {
                 AdoptSavedRatings(saved);
+                SurfacesNow();   // task 4.07 B2: the card's surface line from the snow just taken back
                 _trailPending = null;
                 _trailBoardRestored = false;   // the board is the fine snow's again
             }

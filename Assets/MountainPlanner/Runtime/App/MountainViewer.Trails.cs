@@ -85,6 +85,8 @@ namespace MountainPlanner.App
             Hud.TrailEditChosen += id => ChooseTrailRow(EditTrailTool.ToolId, id);
             Hud.TrailRemoveChosen += id => ChooseTrailRow(RemoveTrailTool.ToolId, id);
             Hud.TrailRenamed = RenameTrailRow;   // sections finding 3: the card's name, as the lift card's
+            Hud.TrailSwitchOf = id => SwitchNow(TrailRowOf(id));   // task 4.07 B2: the card's switch (SN-20 v4)
+            Hud.TrailSwitchChosen = ChooseTrailSwitch;
         }
 
         /// <summary>For captures: a built trail on the map (New trail by script, then Break ground) if there's none yet.</summary>

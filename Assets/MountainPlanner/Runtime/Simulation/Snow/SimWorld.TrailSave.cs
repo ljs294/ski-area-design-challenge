@@ -124,6 +124,7 @@ namespace MountainPlanner.Simulation
             _boardIds = ids;
             _trailMapNet = null;
             _trailBoardRestored = true;
+            _trailCardStamp++;   // task 4.07 B2: the card reads the restored board at once
             ulong shape = r.U64();
             int edges = r.Count(MaxBoardEdges);
             if ((shape == 0) != (edges == 0)) throw new InvalidDataException("The guests' snow table doesn't match its network.");
