@@ -4,31 +4,28 @@ by Alpine Labs
 A ski resort designer on real mountains, built from U.S. Geological Survey lidar.
 
 
-NEW IN 0.3.3
+NEW IN 0.3.4
 
-- Installer and updates: SkiAreaDesignChallenge-Setup.exe installs the game, and every start checks for a new
-  version and asks before updating (see INSTALLING THE GAME below).
-- Opening your mountain: in this test build the season starts from the developer panel. Build a lift and a trail
-  down from it, press F1 and click Start the season. Until then the lifts stay parked and nobody comes.
-- Time passes: a ski year from October 1, with a 42-day season from December to April; a day on the hill takes
-  about 12 minutes at 1x. Space pauses, and 1 to 4 pick 1x, 2x, 4x or 8x. Saves keep the day and the time.
-- Guests: up to 3,000 skiers and snowboarders arrive, pick runs and lifts that suit their ability, wait in line,
-  ride, ski and go home. How their day went sizes tomorrow's crowd. Click one for its card, with Follow.
-- Lifts run: lines and waits, opening hours, Daily or Peak days only, and wind holds (tows and carpets never hold).
-- Ride a lift: the video-camera button on a lift's card. Space pauses, H hides the bar, Esc takes you back.
-- Lift plates: a 1 to 3 character plate for a lift (the "#" on its card, or Shift+F2).
-- Traffic layer (Shift+5, or Layers > Traffic): runs by crowding, lifts by load, each line's length and wait.
-- Weather: every area plays weather fitted to its own records (Get weather in Manage Areas for an older area). The
-  line under the clock shows temperatures and the next 24 hours' snow, and notices warn of storms and high wind.
-- Posted trail signs: choose a trail's sign in New trail's Posted row before Break ground; change it in Edit trail.
-- Analysis lists sort and filter by column, and show Popularity and Status.
-- Surface lifts and trails have a Cost row, with Grading and Clearing in every lift and trail price.
-- Grading a run, removing one or adding a lift is about twice as quick.
-- Fixed: the game runs on DirectX 11, which ends the quit crash some PCs still had, and it's a little faster.
-- Fixed: resorts with many lifts run smoothly again; every trail on a big area shows its groomed look; a long
-  Analysis list scrolls at 150% UI scale; the Guests tab in Analysis shows its own note.
-- Saves from 0.3.2 open (the clock starts at October 1). Saves made in 0.3.3, and areas that get their weather,
-  don't open in 0.3.2.
+- Weather you can see: clouds and a cloud deck, valley fog, sun rays, falling snow and rain, travelling storm
+  fronts, cloud shadows, trees that lean in the wind. Settings > Weather turns the picture, or parts of it, off.
+- Live snow: every 8 m of the mountain gets its own snow from the weather. It falls, settles, drifts and melts
+  faster on sunny faces. Shift+9 shows snow depth and Shift+0 the snow conditions, with a legend.
+- Trails open by their snow: each hour a trail is rated Covered, Marginal or Bare, and closes without a skiable
+  line. Skiers wear the snow; moguls and ice build where runs aren't groomed.
+- The trail card shows Conditions, Cover, Snow rating and the surface, with an Auto / Open / Closed switch.
+  Analysis > Trails shows Conditions, and Status says why a trail is closed.
+- Lakes freeze and thaw, each by its depth, and carry snow on their ice.
+- Ponds and dams (Toolbox > Snowmaking): build them with a live preview at full pool. Lakes, streams, ponds and
+  dams have cards and names, and ponds fill through the season.
+- Snowmaking network: pump houses, water lines, boosters, hydrants and guns, with Check network and the pipe
+  pressure layer. The guns don't make snow yet.
+- Gondola: the Sessellift G8 eight-seat cabin. Guests ride gondolas up and down.
+- Grooming (Analysis > Grooming): buy groomers under Equipment, choose how each trail is groomed, and see tonight's
+  plan, hours and cost. A new resort starts with no groomers; saves from 0.3.3 are given a fleet.
+- Opening your mountain: the season still starts from the developer panel. Build a lift and a trail down from it,
+  press F1 and click Start the season.
+- Fixed: a save with lifts or trails keeps its clock when opened with Continue or Load, and a save with a dam opens.
+- Saves from 0.3.3 open. Saves made in 0.3.4 don't open in 0.3.3.
 
 
 INSTALLING THE GAME
