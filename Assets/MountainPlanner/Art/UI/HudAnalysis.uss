@@ -95,3 +95,108 @@
 .hud .lift-sched__hint { margin: 5px 0 0 0; padding: 0; font-size: 11.5px; color: var(--soft); -unity-text-outline-color: var(--soft); white-space: normal; }
 /* task 4.07 B2: the trail card's snow, under its figures */
 .hud .trail-card__snow { border-top-width: 1px; border-top-color: var(--row); }
+
+/* ---------- task 4.25 PR B: Analysis › Grooming (the approved mockup's .gralert, .grsw, .grplate, .grhd, .grstrip, .grkey,
+   .grn, .grdd, .tbl.grt, .grc, .grcc, .hd2), the groomer cards and the trail card's grooming row ---------- */
+.hud .gr-alert { position: absolute; width: 7px; height: 7px; border-radius: 3.5px; background-color: var(--warn); }
+.hud .gr-warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.hud .gr-bad { color: var(--neg); -unity-text-outline-color: var(--neg); }
+.hud .gr-sw { flex-direction: row; align-items: center; padding: 8px 12px 6px 12px; }
+.hud .gr-seg { flex-grow: 0; flex-shrink: 0; }
+/* each option as wide as its words (the shared switch shares one width, from a parent that stretches it) */
+.hud .gr-seg > .mp-seg__opt { flex-grow: 0; flex-shrink: 0; flex-basis: auto; }
+.hud .gr-seg--mini > .mp-seg__opt { height: 21px; padding: 3px 9px 2px 9px; font-size: 11.5px; }
+.hud .gr-lead { margin: 0 0 0 auto; padding: 0; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .gr-lead.gr-warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
+/* GO-14 v3: the budget line over both sub-tabs: the plan's hours of the crews', and a bar */
+.hud .gr-bud { margin: 0 12px 8px 12px; padding: 6px 10px 8px 10px; border-radius: 3px; background-color: var(--tile); }
+.hud .gr-bud__line { flex-direction: row; align-items: center; }
+.hud .gr-bud__t { margin: 0; padding: 0; font-size: 12px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .gr-bud__t.gr-warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.hud .gr-bud__c { margin: 0 0 0 auto; padding: 0; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .gr-bud__track { height: 6px; margin-top: 5px; border-radius: 2px; background-color: var(--hair2); overflow: hidden; }
+.hud .gr-bud__fill { height: 6px; background-color: var(--chart-a); }
+.hud .gr-bud__fill--warn { background-color: var(--warn); }
+.hud .gr-plate { margin: 0 12px 8px 12px; border-radius: 3px; background-color: var(--tile); }   /* the mockup's .wxplate */
+.hud .gr-hd { flex-direction: row; align-items: center; padding: 7px 10px 2px 10px; }
+.hud .gr-hd__text { margin: 0; padding: 0; font-size: 11.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .gr-hd__text.gr-warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.hud .gr-hd2 { flex-direction: row; align-items: center; justify-content: space-between; padding: 7px 10px 3px 10px; }
+.hud .gr-hd2__l { margin: 0; padding: 0; font-size: 12px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .gr-hd2__r { margin: 0; padding: 0; font-size: 11.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+
+/* the night strip (Painter2D; its inks from the theme) */
+.hud .gr-strip { margin: 4px 10px 2px 10px; height: 60px;
+    --gs-a: var(--chart-a); --gs-bg: var(--chart-bg); --gs-hair: var(--hair2); --gs-warn: var(--warn); --gs-neg: var(--neg); --gs-label: var(--chart-label); }
+.hud .gr-strip__shift { margin: 0; padding: 0; font-size: 11px; -unity-font-style: bold; -unity-text-align: middle-center; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .gr-strip__lane { margin: 0; padding: 0; font-size: 11.5px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .gr-strip__lane:hover, .hud .gr-strip__lane--on { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .gr-strip__hours { margin: 0; padding: 0; font-size: 11px; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .gr-strip__nocrew { margin: 0; padding: 0; font-size: 10.5px; -unity-text-align: middle-center; color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .gr-strip__tick { margin: 0; padding: 0; font-size: 10px; -unity-text-align: middle-center; color: var(--chart-label); -unity-text-outline-color: var(--chart-label); }
+.hud .gr-strip__note { margin: 0; padding: 0; font-size: 11.5px; -unity-font-style: bold; -unity-text-align: middle-center; color: var(--warn); -unity-text-outline-color: var(--warn); }
+.hud .gr-strip__hit { overflow: hidden; }
+.hud .gr-strip__word { margin: 0; padding: 0 0 0 3px; font-size: 10px; -unity-font-style: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: var(--panel); -unity-text-outline-color: var(--panel); }
+.hud .gr-strip__word--bad { color: #ffffff; -unity-text-outline-color: #ffffff; }
+.hud .gr-key { flex-direction: row; align-items: center; padding: 1px 10px 7px 10px; }
+.hud .gr-key__item { flex-direction: row; align-items: center; margin-right: 11px; }
+.hud .gr-key__sw { width: 12px; height: 8px; margin-right: 4px; border-radius: 1px; background-color: var(--chart-a); opacity: 0.92; }
+.hud .gr-key__sw--till { opacity: 0.62; }
+.hud .gr-key__sw--warn { background-color: var(--warn); }
+.hud .gr-key__sw--bad { background-color: var(--neg); }
+.hud .gr-key__sw--transit { height: 4px; margin-top: 2px; margin-bottom: 2px; background-color: var(--chart-label); opacity: 0.75; }
+.hud .gr-key__word { margin: 0; padding: 0; font-size: 10.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .gr-key__r { margin: 0 0 0 auto; padding: 0; font-size: 10.5px; color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .gr .tw-acts { padding: 2px 10px 9px 10px; }
+
+/* the trails and the groomers (.tbl.grt, .grc, .grcc) */
+.hud .gr-tools__hint { margin: 0 0 0 auto; padding: 0; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .gr-rows { max-height: 260px; flex-shrink: 1; }
+.hud .gr-row { flex-direction: row; align-items: center; min-height: 26px; margin: 0; padding: 2px 12px; border-top-width: 1px; border-color: var(--row); }
+.hud .gr-row--head { min-height: 0; padding: 6px 12px 3px 12px; border-top-width: 0; }
+.hud .gr-row--wins { padding-top: 0; }
+.hud .gr-plate .gr-row { padding-left: 10px; padding-right: 10px; }
+.hud .gr-row--item:hover { background-color: var(--hover); }
+.hud .gr-row--on { background-color: var(--hover); border-left-width: 2px; border-left-color: var(--text); }
+.hud .gr-row--dis .gr-cell { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .gr-col { margin: 0 6px 0 0; overflow: hidden; }
+.hud .gr-cell { margin: 0; padding: 0; font-size: 12.5px; -unity-font-style: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -unity-text-align: middle-left;
+    color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .gr-cell--n { -unity-text-align: middle-right; }
+.hud .gr-cell--nm { -unity-font-style: normal; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .gr-cell--lead { -unity-font-style: normal; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .gr-cell--b { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .gr-cell.gr-warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.hud .gr-cell.gr-bad { color: var(--neg); -unity-text-outline-color: var(--neg); }
+.hud .gr-tbl > .gr-cell--lead, .hud .gr-rows .gr-cell--lead { padding: 8px 12px; white-space: normal; }
+.hud .gr-plate > .gr-cell--lead { padding: 6px 10px 8px 10px; }
+.hud .gr-head { margin: 0; padding: 0; font-size: 11.5px; -unity-font-style: bold; white-space: nowrap; overflow: hidden; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .gr-head.gr-cell--n { -unity-text-align: middle-right; }
+.hud .gr-cc { -unity-text-align: middle-center; }
+.hud .gr-win { font-size: 10.5px; -unity-font-style: normal; color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .gr-gap { margin-left: 8px; }
+.hud .gr-n { margin: 0; padding: 0; font-size: 12px; -unity-font-style: bold; -unity-text-align: middle-right; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .gr-n--bad { color: var(--neg); -unity-text-outline-color: var(--neg); }
+.hud .gr-n--warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.hud .gr-row .tw-dd--quiet { flex-shrink: 1; min-width: 0; }
+.hud .gr-dd--set .tw-dd__value { -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .gr-chk { flex-direction: row; justify-content: center; align-items: center; height: 22px; margin: 0 6px 0 0; padding: 0; border-width: 0; background-color: rgba(0, 0, 0, 0); }
+.hud .gr-chk .chk { margin-right: 0; }
+.hud .gr-chk:hover .chk { border-color: var(--strong); }
+.hud .gr-hpair { flex-direction: row; justify-content: center; align-items: center; }
+.hud .gr-hrs { width: 48px; margin: 0; padding: 0; -unity-text-align: middle-right; }
+.hud .gr-pin { margin: 0 0 0 4px; padding: 0; border-width: 0; background-color: rgba(0, 0, 0, 0); font-size: 11px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .gr-pin:hover { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .gr-cc > .gr-cell { margin-left: 4px; }
+.hud .gr-cc > .gr-cell.mono { margin-left: 0; }
+
+/* the groomer and buy cards, and the trail card's grooming row */
+.hud .gr-card__v { margin: 0; padding: 0; font-size: 12.5px; -unity-font-style: bold; -unity-text-align: middle-right; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .gr-card__btn { height: 24px; padding: 0 10px; }
+.hud .gr-card__dd { flex-grow: 1; flex-basis: 0; margin-right: 6px; }
+.hud .gr-card__k { width: 66px; }
+.hud .gr-card__hint { margin: 0; padding: 0 12px 4px 12px; }
+.hud .gr-plate > .gr-buy { margin: 0; padding: 2px 10px 4px 10px; }   /* the buy form, in the catalogue's place */
+.hud .gr-plate > .gr-buy__acts { padding: 4px 10px 10px 10px; }
+.hud .gr-plate > .gr-hd2 > .mp-x { margin-left: 8px; }

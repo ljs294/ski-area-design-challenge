@@ -46,6 +46,7 @@
                 <ui:Button name="analysis-tab-network" class="tab" text="Network" />
                 <ui:Button name="analysis-tab-guests" class="tab" text="Guests" />
                 <ui:Button name="analysis-tab-snow" class="tab" text="Snowmaking" />
+                <ui:Button name="analysis-tab-grooming" class="tab" text="Grooming" />
                 <ui:Button name="analysis-tab-weather" class="tab" text="Weather" />
                 <ui:Button name="analysis-tab-amenities" class="tab" text="Amenities" />
                 <ui:Button name="analysis-tab-finances" class="tab" text="Finances" />

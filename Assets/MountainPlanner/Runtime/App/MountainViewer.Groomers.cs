@@ -14,10 +14,12 @@ namespace MountainPlanner.App
     /// Task 4.25 (GO-13, owner 2026-11-20): the groomers on the map as amber dots, from the snapshot's <see cref="GroomView"/>
     /// (each groomer's piece now, or the pieces either side) and the face clock drawn between snapshots, so they glide.
     ///
-    /// - **Working**, a dot sweeps its trail in passes side by side, down one and up the next, as many as fit the trail's
-    ///   width at <see cref="PassMetres"/> a pass; its share of the piece says how far through the passes it is.
+    /// - **Working**, a dot sweeps its trail in full-length passes side by side (GO-16 v2), from the end the sim started at,
+    ///   down one and up the next from the left edge looking downhill, as many as fit the trail's width at
+    ///   <see cref="PassMetres"/> a pass; its share of the task says how far through the passes it is, so it keeps pace with
+    ///   the sim's clock and leaves when the sim's piece ends.
     /// - **Between pieces** it drives from where it stopped to where it starts next (the depot before a shift's first and
-    ///   after its last), in the first <see cref="DriveMinutes"/> of the gap, then waits there.
+    ///   after its last) along the trails and paths (MountainViewer.GroomerRoutes), over the sim's drive minutes (else the first <see cref="DriveMinutes"/> of the gap), then waits.
     /// - **Parked** in a row at the depot: on the run nearest the foot of the lowest built lift.
     /// - **At night** a working or driving one carries its headlights' glow. Hovering one names it and its job.
     ///
@@ -53,6 +55,7 @@ namespace MountainPlanner.App
         long _groomerTipKey = -1;
         Vector2 _depotAt, _depotRow = Vector2.right;
         object _depotFor;
+        ulong _depotLift;
         bool _depotKnown;
 
         GroomerLayer EnsureGroomerDots()
@@ -86,7 +89,7 @@ namespace MountainPlanner.App
                 _groomPaths.Clear();
                 _groomPathsFor = doc; _groomPathsGeometry = _netGeometry;
             }
-            FindDepot(doc);
+            FindDepot(doc, g.DepotLift);
             double now = (s.FaceMs - _sunClock.BehindMs) / 60_000.0;
             float night = Lighting != null ? SceneLighting.NightWeight((float)Lighting.CurrentLight.SunElevation) : 0;
             float follow = 1 - Mathf.Exp(-Mathf.Min(0.25f, Time.unscaledDeltaTime) / 0.3f);
@@ -118,24 +121,27 @@ namespace MountainPlanner.App
                 double span = Math.Max(1e-3, g.AtMinB[i] - g.AtMinA[i]);
                 double u = Math.Max(0, Math.Min(1, (now - g.AtMinA[i]) / span));
                 double share = (g.AtPpmA[i] + (g.AtPpmB[i] - g.AtPpmA[i]) * u) / 1_000_000.0;
-                if (OnPasses(s, ta, share, out var p)) { at = Stand(p); return true; }
+                if (OnPasses(s, ta, share, (g.AtTail[i] & 1) != 0, out var p)) { at = Stand(p); return true; }
                 at = Depot(parked++); return false;
             }
             // between pieces: drive from A to B in the gap's first minutes, then wait at B
-            Vector2 a = ta >= 0 && OnPasses(s, ta, g.AtPpmA[i] / 1_000_000.0, out var pa) ? pa : DepotPoint(i);
-            Vector2 b = tb >= 0 && OnPasses(s, tb, g.AtPpmB[i] / 1_000_000.0, out var pb) ? pb : DepotPoint(i);
-            double drive = Math.Max(1, Math.Min(DriveMinutes, g.AtMinB[i] - g.AtMinA[i]));
+            Vector2 a = ta >= 0 && OnPasses(s, ta, g.AtPpmA[i] / 1_000_000.0, (g.AtTail[i] & 1) != 0, out var pa) ? pa : DepotPoint(i);
+            Vector2 b = tb >= 0 && OnPasses(s, tb, g.AtPpmB[i] / 1_000_000.0, (g.AtTail[i] & 2) != 0, out var pb) ? pb : DepotPoint(i);
+            double drive = Math.Max(1, Math.Min(g.AtDrive[i] > 0 ? g.AtDrive[i] : DriveMinutes, g.AtMinB[i] - g.AtMinA[i]));
             double t = Math.Max(0, Math.Min(1, (now - g.AtMinA[i]) / drive));
             bool moving = t > 0 && t < 1;
             if (ta < 0 && tb < 0) { at = Depot(parked++); return false; }
             if (ta < 0 && t <= 0) { at = Depot(parked++); return false; }   // still at the depot before the shift
             if (tb < 0 && t >= 1) { at = Depot(parked++); return false; }   // back at the depot after it
-            at = Stand(Vector2.Lerp(a, b, (float)t));
+            // round 3: over the trails and paths, as the sim drives (a straight line where there's no route)
+            long key = unchecked(((long)g.AtMinA[i] * 1_000_003L + g.AtMinB[i]) * 31L + ta * 7919L + tb * 104729L + g.AtPpmA[i] * 13L + g.AtPpmB[i] * 17L + g.AtTail[i]);
+            at = Stand(DriveAlong(i, key, a, b, (float)t));
             return moving;
         }
 
-        /// <summary>The point <paramref name="share"/> of the way through trail <paramref name="k"/>'s passes (the snapshot's order).</summary>
-        bool OnPasses(SimSnapshot s, int k, double share, out Vector2 at)
+        /// <summary>The point <paramref name="share"/> of the way through trail <paramref name="k"/>'s passes (the snapshot's order),
+        /// the first pass at the left edge looking downhill (the sim's order) and from the tail when <paramref name="fromTail"/>.</summary>
+        bool OnPasses(SimSnapshot s, int k, double share, bool fromTail, out Vector2 at)
         {
             at = default;
             if (k < 0 || k >= s.TrailCount) return false;
@@ -145,7 +151,8 @@ namespace MountainPlanner.App
             double f = Math.Max(0, Math.Min(0.999999, share)) * passes;
             int pass = (int)f;
             double u = f - pass;
-            if ((pass & 1) == 1) u = 1 - u;   // up the next pass
+            if ((pass & 1) == 1) u = 1 - u;   // back up the next pass
+            if (fromTail) u = 1 - u;
             double x = u * (path.At.Length - 1);
             int j = Math.Min(path.At.Length - 2, (int)x);
             if (j < 0) { at = path.At[0]; return true; }
@@ -153,7 +160,7 @@ namespace MountainPlanner.App
             var c = Vector2.Lerp(path.At[j], path.At[j + 1], w);
             var nrm = Vector2.Lerp(path.Across[j], path.Across[j + 1], w);
             float half = Mathf.Lerp(path.Half[j], path.Half[j + 1], w);
-            float side = passes <= 1 ? 0 : -1f + (2f * pass + 1f) / passes;
+            float side = passes <= 1 ? 0 : 1f - (2f * pass + 1f) / passes;   // the normal points left: the left edge first
             at = c + nrm * (side * half);
             return true;
         }
@@ -195,16 +202,19 @@ namespace MountainPlanner.App
             return path;
         }
 
-        /// <summary>The depot: on the run nearest the foot of the lowest built lift (once per document).</summary>
-        void FindDepot(DesignDocument doc)
+        /// <summary>The depot: on the run nearest the foot of the sim's depot lift (GO-15), else of the lowest built lift (once
+        /// per document and depot).</summary>
+        void FindDepot(DesignDocument doc, ulong depotLift)
         {
-            if (ReferenceEquals(doc, _depotFor)) return;
+            if (ReferenceEquals(doc, _depotFor) && depotLift == _depotLift) return;
             _depotFor = doc;
+            _depotLift = depotLift;
             _depotKnown = false;
             float best = float.MaxValue;
             foreach (var lift in doc.Lifts)
             {
                 if (lift.Stage != WorkStage.Built) continue;
+                if (depotLift != 0 && lift.Id.Value != depotLift) continue;
                 var bottom = DesignFrame.ToLocal(lift.Bottom);
                 float h = _resort.Surface != null ? _resort.Surface.HeightAt(bottom.x, bottom.y) : 0;
                 if (float.IsNaN(h) || h >= best) continue;

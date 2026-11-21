@@ -24,6 +24,8 @@ namespace MountainPlanner.App
             if (i >= 0 && i + 1 < args.Length) StartCoroutine(GroomShots(args[i + 1]));
             int d = Array.IndexOf(args, "-groomdots");
             if (d >= 0 && d + 1 < args.Length) StartCoroutine(GroomDots(args[d + 1]));
+            int gt = Array.IndexOf(args, "-groomtab");   // task 4.25 PR B
+            if (gt >= 0 && gt + 1 < args.Length) StartCoroutine(GroomTab(args[gt + 1]));
         }
 
         /// <summary>The capture's groomer to show hovered (−1: the pointer's, as in play).</summary>

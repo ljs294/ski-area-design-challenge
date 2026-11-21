@@ -14,7 +14,7 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 14;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 15;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
                                         // 4: task 4.13's confidence speed (GU-10 v2)
                                         // 5: task 4.05's weather (WX-17 v2, WX-28 v2, WX-29, WX-34 v2, WX-35, WX-36 v2, WX-39)
                                         // 6: task 4.05 PR B2's weather over the map (WX-35, WX-39) and PR C's forecast (WX-05 v3, WX-41)
@@ -26,6 +26,7 @@ namespace MountainPlanner.Simulation
                                         // 12: task 4.15's snowmaking solve (HY-07 PipeClass, HY-08 SolveLatencyTicks and MaxResolves); 0.0: the first of 4.15 and 4.07 B1 to merge takes 12, the other renumbers
                                         // 13: task 4.07 B1 part 2a's trail snow and 2b's readiness (SN-03 v3, SN-14 v3, SN-16 v3, SN-17, SN-20 v3, SN-23 v3, SN-24 v3, SN-30 v2, GU-07 v2; 0.0 2026-11-19: 4.15 merged first and took 12)
                                         // 14: task 4.25's grooming operations (GO-01…GO-12, SN-22 v4, SM-05, SN-27 v2's GreenPushQuality; number cleared by 0.0 2026-11-20; 4.16 may race: the second to merge renumbers)
+                                        // 15: task 4.25 PR B's transit and report at opening (GO-15, GO-16 v2, GroomTransitKmh, GroomPassMm, GroomWinchSharePermille, SkipLandsBeforeOpenMinutes 0, GO-03 v2's equal shifts with GroomSwingEndHour retired; cleared by 0.0 2026-11-21)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -67,7 +68,8 @@ namespace MountainPlanner.Simulation
         public readonly DayType[] Week;
         /// <summary>TM-09: the holidays by calendar date, each with the face days it marks.</summary>
         public readonly Holiday[] Holidays;
-        /// <summary>Owner, 2026-11-08 (plan question 8): Skip to morning lands this many face minutes before opening.</summary>
+        /// <summary>Owner, 2026-11-08 (plan question 8): Skip to morning lands this many face minutes before opening; 0 since
+        /// 2026-11-21 (4.25 PR B: it lands at opening, with the night's grooming report).</summary>
         public readonly int SkipLandsBeforeOpenMinutes;
 
         // ---- Motion (TM-04, TM-05; read from 4.11 and 4.12) ----
@@ -375,11 +377,18 @@ namespace MountainPlanner.Simulation
         public readonly int GroomLightReachMm, GroomLightBlend;
         // ---- Task 4.25: grooming operations (GO-01…GO-12, SN-22 v4, SM-05) ----
 
-        /// <summary>GO-03: the swing shift starts this long after the lift stop (the sweep), ends at this face hour; the night
-        /// shift ends this long before the next opening; the day shift runs between these face hours (closed trails only).</summary>
-        public readonly int GroomSweepMinutes, GroomSwingEndHour, GroomNightEndsBeforeOpenMinutes, GroomDayStartHour, GroomDayEndHour;
+        /// <summary>GO-03 v2 (owner 2026-11-21: "each shift the same at 8 hours"): the swing shift starts this long after the lift
+        /// stop and the night shift ends this long before the next opening (both 0: the stop to the opening, 16 h at the
+        /// default hours); the two split the time between in half. The day shift runs between these face hours (closed trails only).</summary>
+        public readonly int GroomSweepMinutes, GroomNightEndsBeforeOpenMinutes, GroomDayStartHour, GroomDayEndHour;
         /// <summary>GO-03: a shift's first and last this many minutes are travel (no work), and each trail costs this many more.</summary>
         public readonly int GroomTravelMinutes, GroomTaskMinutes;
+        /// <summary>GO-15 (owner 2026-11-21): a groomer drives between the depot and its trails at full speed, km/h, over the
+        /// trails only (cat tracks and work roads help). <see cref="GroomTravelMinutes"/> is left for a design with no network.</summary>
+        public readonly int GroomTransitKmh;
+        /// <summary>GO-16 v2 (owner 2026-11-21): one pass of the tiller across the snow, mm: a groomer works a run in full-length
+        /// passes side by side, and a drive along a run due tonight grooms one pass of it on the way, at the tilling speed.</summary>
+        public readonly int GroomPassMm;
         /// <summary>GO-01 (owner round 6), per model (400, 400 W, 800, 800 W): tilling (0.01 acre an hour), pushing (yd³ an
         /// hour), fuel and upkeep ($ a groomer-hour) and price ($, diesel).</summary>
         public readonly int[] GroomTillCentiAcres, GroomPushYd3, GroomFuelUsd, GroomPriceUsd;
@@ -390,6 +399,9 @@ namespace MountainPlanner.Simulation
         public readonly int GroomTillerPermille, GroomTillerMinWidthMm;
         /// <summary>GO-04: full speed to this grade (%), half to the next; past it only a W (winch), at half, to the last.</summary>
         public readonly int GroomFullSpeedGrade, GroomWinchGrade, GroomWinchMaxGrade;
+        /// <summary>Round 3 (owner 2026-11-21: blues shouldn't need a winch): a run needs a W only when at least this share
+        /// (permille of its area) is past the winch grade; a smaller steep patch is a slow stretch any groomer works at half speed.</summary>
+        public readonly int GroomWinchSharePermille;
         /// <summary>SN-22 v4: Autopilot tills after this much new snow (µm water); on a trail this steep (% mean) it keeps the
         /// powder up to this much, and warns after this many nights of it.</summary>
         public readonly int GroomNewSnowUm, GroomPowderKeepUm, GroomPowderGrade, GroomPowderWarnNights;
@@ -688,13 +700,14 @@ namespace MountainPlanner.Simulation
             GroomLightBlend = Int(map, nameof(GroomLightBlend), 0, 1000);
             GroomsToHard = Int(map, nameof(GroomsToHard), 1, 7);
             GroomSweepMinutes = Int(map, nameof(GroomSweepMinutes), 0, 240);
-            GroomSwingEndHour = Int(map, nameof(GroomSwingEndHour), 0, 6);
             GroomNightEndsBeforeOpenMinutes = Int(map, nameof(GroomNightEndsBeforeOpenMinutes), 0, 240);
             GroomDayStartHour = Int(map, nameof(GroomDayStartHour), 0, 23);
             GroomDayEndHour = Int(map, nameof(GroomDayEndHour), 0, 23);
             if (GroomDayEndHour <= GroomDayStartHour) throw new FormatException("GroomDayEndHour must be after GroomDayStartHour.");
             GroomTravelMinutes = Int(map, nameof(GroomTravelMinutes), 0, 120);
             GroomTaskMinutes = Int(map, nameof(GroomTaskMinutes), 0, 120);
+            GroomTransitKmh = Int(map, nameof(GroomTransitKmh), 1, 100);
+            GroomPassMm = Int(map, nameof(GroomPassMm), 1000, 20_000);
             GroomTillCentiAcres = Models(map, nameof(GroomTillCentiAcres), 1, 100_000);
             GroomPushYd3 = Models(map, nameof(GroomPushYd3), 1, 100_000);
             GroomFuelUsd = Models(map, nameof(GroomFuelUsd), 0, 10_000);
@@ -707,6 +720,7 @@ namespace MountainPlanner.Simulation
             GroomFullSpeedGrade = Int(map, nameof(GroomFullSpeedGrade), 1, 1000);
             GroomWinchGrade = Int(map, nameof(GroomWinchGrade), 1, 1000);
             GroomWinchMaxGrade = Int(map, nameof(GroomWinchMaxGrade), 1, 1000);
+            GroomWinchSharePermille = Int(map, nameof(GroomWinchSharePermille), 0, 1000);
             if (GroomWinchGrade < GroomFullSpeedGrade || GroomWinchMaxGrade < GroomWinchGrade) throw new FormatException("The grooming grades must rise.");
             GroomNewSnowUm = Int(map, nameof(GroomNewSnowUm), 0, 1_000_000);
             GroomPowderKeepUm = Int(map, nameof(GroomPowderKeepUm), 0, 1_000_000);
@@ -786,7 +800,7 @@ namespace MountainPlanner.Simulation
             E(nameof(Week), "Weekday, Weekday, Weekend"),
             // Thanksgiving; Christmas (two face days); New Year's; MLK; Presidents' Day; the four spring breaks.
             E(nameof(Holidays), "11-24 x1, 12-24 x2, 01-01 x1, 01-17 x1, 02-18 x1, 03-07 x1, 03-14 x1, 03-21 x1, 03-28 x1"),
-            E(nameof(SkipLandsBeforeOpenMinutes), "60"),
+            E(nameof(SkipLandsBeforeOpenMinutes), "0"),
             E(nameof(ChairSpeedFactor), "1"),
             E(nameof(SkierSpeedFactor), "2"),
             E(nameof(RideCompression), "8"),
@@ -1003,13 +1017,14 @@ namespace MountainPlanner.Simulation
             E(nameof(GroomLightReachMm), "4572"),
             E(nameof(GroomLightBlend), "300"),
             E(nameof(GroomsToHard), "5"),
-            E(nameof(GroomSweepMinutes), "30"),
-            E(nameof(GroomSwingEndHour), "1"),
-            E(nameof(GroomNightEndsBeforeOpenMinutes), "60"),
+            E(nameof(GroomSweepMinutes), "0"),
+            E(nameof(GroomNightEndsBeforeOpenMinutes), "0"),
             E(nameof(GroomDayStartHour), "8"),
             E(nameof(GroomDayEndHour), "16"),
             E(nameof(GroomTravelMinutes), "30"),
             E(nameof(GroomTaskMinutes), "10"),
+            E(nameof(GroomTransitKmh), "20"),
+            E(nameof(GroomPassMm), "5500"),
             E(nameof(GroomTillCentiAcres), "700,670,850,810"),
             E(nameof(GroomPushYd3), "800,760,1100,1050"),
             E(nameof(GroomFuelUsd), "45,47,55,58"),
@@ -1021,6 +1036,7 @@ namespace MountainPlanner.Simulation
             E(nameof(GroomFullSpeedGrade), "40"),
             E(nameof(GroomWinchGrade), "70"),
             E(nameof(GroomWinchMaxGrade), "100"),
+            E(nameof(GroomWinchSharePermille), "100"),
             E(nameof(GroomNewSnowUm), "5000"),
             E(nameof(GroomPowderKeepUm), "10000"),
             E(nameof(GroomPowderGrade), "35"),

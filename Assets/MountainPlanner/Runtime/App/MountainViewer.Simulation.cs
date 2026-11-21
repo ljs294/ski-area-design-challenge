@@ -686,6 +686,7 @@ namespace MountainPlanner.App
                 y += note(y, 1, $"Trails · {s.TrailsCovered} covered, {s.TrailsMarginal} marginal, {s.TrailsBare} bare · {s.TrailsReady} open" +
                                 (s.LateSeason ? " · late season (walking allowed)" : ""));
             DrawWeatherRows(ref y, row, caption, note);
+            DrawGroomerRows(ref y, row, caption, button, note);   // task 4.25 PR B: the dev "Add groomers"
             DrawLiftOpsRows(ref y, row, x0, w, caption, button, note);
             DrawGuestRows(ref y, row, x0, w, caption, button, note);
         }

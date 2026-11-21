@@ -256,6 +256,7 @@ namespace MountainPlanner.UI
         {
             CloseSkierCardIfOpen();   // one card at a time (task 4.13)
             CloseWaterCardIfOpen();   // and the water card (task 4.14)
+            CloseGroomCardIfOpen();   // and the groomer cards (task 4.25 PR B)
             _trailCardId = id;
             _trailsList.SetFocused(id);
             FillTrailCard();
@@ -332,6 +333,7 @@ namespace MountainPlanner.UI
             if (!double.IsNaN(t.MeanPercent)) Kv("Average grade", $"{Math.Round(t.MeanPercent):0}%");
             Kv("Status", TrailStatusWord(t));   // F4: no Grading row; task 4.07 B2: with its reason
             FillTrailSnow(t);
+            FillTrailGrooming(t);   // task 4.25 PR B: its setting, priority and last groom
         }
 
         /// <summary>Task 4.07 B2: the card's snow rows and its switch (built trails; the rows read "—" before the snow).</summary>

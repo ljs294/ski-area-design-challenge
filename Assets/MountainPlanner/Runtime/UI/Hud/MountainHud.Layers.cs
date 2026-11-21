@@ -31,7 +31,7 @@ namespace MountainPlanner.UI
             _root.Q<Button>("legend-x").clicked += () =>
             {
                 // The Network view's key closes on its own (game finding 2); an info layer's legend as before.
-                if (_networkView) _networkKeyClosed = true;
+                if (_networkView || _groomView) _networkKeyClosed = true;
                 else _legendClosed = true;
                 ShowLegend();
             };
@@ -79,7 +79,7 @@ namespace MountainPlanner.UI
             if ((infoId != null && infoId != _legendInfo) || (contours && !_legendContours)) _legendClosed = false;
             _legendInfo = infoId;
             _legendContours = contours;
-            if (_networkView) { ShowLegend(); return; }   // the Network view's key stays (task P3-10); this comes back after
+            if (_networkView || _groomView) { ShowLegend(); return; }   // the Network view's key stays (task P3-10); this comes back after
             if (infoId != _shownLegend || contours != _shownContours)
             {
                 _shownLegend = infoId;
@@ -91,7 +91,7 @@ namespace MountainPlanner.UI
 
         void ShowLegend()
         {
-            bool show = (_networkView ? !_networkKeyClosed : (_legendInfo != null || _legendContours) && !_legendClosed) && _drop != Drop.Menu;
+            bool show = (_networkView || _groomView ? !_networkKeyClosed : (_legendInfo != null || _legendContours) && !_legendClosed) && _drop != Drop.Menu;
             _legend.EnableInClassList("hidden", !show);
             _legend.EnableInClassList("legend--below", _drop == Drop.Layers);
             if (_drop != Drop.Layers) _root.Q("rcol").RemoveFromClassList("rcol--side");

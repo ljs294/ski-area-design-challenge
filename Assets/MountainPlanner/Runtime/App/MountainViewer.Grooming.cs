@@ -116,6 +116,50 @@ namespace MountainPlanner.App
 
         static List<Groomer> _devGroomers;
 
+        /// <summary>
+        /// Task 4.25 PR B: the F1 panel's dev row: adds free groomers as <c>-groomers</c> does (numbered on from 9001, not in
+        /// the design, not saved), and shows the fleet the worker has.
+        /// </summary>
+        void DrawGroomerRows(ref float y, float row, Action<string> caption, Func<int, string, bool> button, Func<float, int, string, float> note)
+        {
+            var g = _simNow?.Grooming;
+            caption("Groomers (dev)");
+            if (button(0, "Add 1 groomer")) AddDevGroomers(1, GroomerModel.S800W);
+            if (button(1, "Add 3 groomers")) AddDevGroomers(3, GroomerModel.S800W);
+            if (button(2, "Add 3 × 400")) AddDevGroomers(3, GroomerModel.S400);
+            y += row;
+            if (g != null)
+                y += note(y, 1, $"{g.GroomerCount} groomers ({DevGroomers.Count} dev) · crews swing {g.CrewsSwing}, night {g.CrewsNight}, day {g.CrewsDay} · " +
+                                $"tonight want {g.WantMinutes / 60.0:F1} h, crewed {g.CrewMinutes / 60.0:F1} h, short {g.ShortMinutes / 60.0:F1} h");
+        }
+
+        /// <summary>Adds <paramref name="n"/> free dev groomers and resends the fleet.</summary>
+        internal void AddDevGroomers(int n, GroomerModel model)
+        {
+            var dev = DevGroomers;
+            int fleet = Design?.Document?.Grooming?.Groomers.Count ?? 0;
+            for (int i = 0; i < n && dev.Count + fleet < GroomFleet.MaxGroomers; i++) dev.Add(new Groomer(9001 + dev.Count, model, GroomerDrive.Diesel));
+            _groomSent = null;   // resend
+            Debug.Log($"[Grooming] dev tool: now {dev.Count} free groomers");
+        }
+
+        /// <summary>
+        /// Task 4.25 PR B (GO-07): tonight's order for one trail (Till, Push, Skip, or None to clear), straight to the worker,
+        /// which keeps it in the sidecar; not a design edit, so not in the undo history (it lasts one night).
+        /// </summary>
+        internal bool SendGroomOrder(ulong trailId, GroomOrder order) =>
+            _sim != null && _sim.Send(SimCommand.Of(SimCommandKind.SetGrooming, 1, new SimGroomOrder(trailId, order)));
+
+        /// <summary>Task 4.25 PR B: a grooming edit (setting, priority, buy, sell, tiller, crews) as one undoable step; null or why not.</summary>
+        internal string SubmitGrooming(DesignCommand command)
+        {
+            var history = Design;
+            if (history == null) return "There's no resort open.";
+            var r = history.Submit(command);
+            if (r.Accepted) return null;
+            return r.Reason == "Nothing changes." ? null : r.Reason;
+        }
+
         /// <summary>The dev tool's groomers (<c>-groomers N[:model]</c>), numbered from 9001; none without the flag.</summary>
         internal static List<Groomer> DevGroomers => _devGroomers ??= ParseDevGroomers(Environment.GetCommandLineArgs());
 

@@ -122,6 +122,7 @@ namespace MountainPlanner.UI
             _waterCardActs.EnableInClassList("hidden", _waterCardActs.childCount == 0);
             _waterCardHint.text = m.Hint ?? "";
             _waterCardHint.EnableInClassList("hidden", string.IsNullOrEmpty(m.Hint));
+            CloseGroomCardIfOpen();   // one card at a time (task 4.25 PR B)
             _waterCard.RemoveFromClassList("hidden");
             CardsChanged(false);
         }

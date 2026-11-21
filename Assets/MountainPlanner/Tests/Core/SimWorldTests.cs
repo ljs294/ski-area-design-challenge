@@ -179,28 +179,31 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void TM06_SkipToMorningLandsAnHourBeforeTheNextOpeningEvenWhileTheLiftsRun()
+        public void TM06_SkipToMorningLandsAtTheNextOpeningEvenWhileTheLiftsRun()
         {
             var w = World();
             Open(w);
             w.Step(1);
-            long tomorrow = Day + (DayHours.Default.OpenSecond - 3600) * 1000L;
+            long tomorrow = Day + Landing;   // owner 2026-11-21 (4.25 PR B): at the opening, with the grooming report
             Assert.That(w.SkipTarget(SkipKind.Morning, out long t), Is.True, "the lifts are running: tomorrow's morning");
             Assert.That(t, Is.EqualTo(tomorrow));
             RunTo(w, 18 * Hour);
             Assert.That(w.SkipTarget(SkipKind.Morning, out t), Is.True);
-            Assert.That(t, Is.EqualTo(tomorrow), "7:30 the next day");
-            RunTo(w, Day + 7 * Hour + 45 * 60_000L);
+            Assert.That(t, Is.EqualTo(tomorrow), "the opening the next day");
+            RunTo(w, Day + Landing + 15 * 60_000L);
             Assert.That(w.SkipTarget(SkipKind.Morning, out t), Is.True, "already morning: the next one");
-            Assert.That(t, Is.EqualTo(2 * Day + (DayHours.Default.OpenSecond - 3600) * 1000L));
+            Assert.That(t, Is.EqualTo(2 * Day + Landing));
         }
+
+        /// <summary>Skip to morning's landing, ms after midnight (Pacing's minutes before the opening: 0 since 4.25 PR B).</summary>
+        internal static long Landing => (DayHours.Default.OpenSecond - Pacing.Default.SkipLandsBeforeOpenMinutes * 60) * 1000L;
 
         [Test]
         public void TM14_EverySkipWorksInEveryPhase()
         {
             var w = World();
             var cal = new LabelCalendar(P);
-            long landing = (DayHours.Default.OpenSecond - 3600) * 1000L;
+            long landing = Landing;
             Assert.That(w.Phase, Is.EqualTo(SeasonPhase.PreSeason));
             Assert.That(w.SkipTarget(SkipKind.NextThird, out long t), Is.True);
             Assert.That(t, Is.EqualTo(cal.NextThirdStart(0) * Day + landing));
@@ -417,7 +420,7 @@ namespace MountainPlanner.Tests
             for (int i = 0; i < 100 && (h.Latest.Skip != SkipKind.None || h.Latest.Tick == 0); i++) h.Service();
             var s = h.Latest;
             Assert.That(s.Skip, Is.EqualTo(SkipKind.None));
-            Assert.That((s.FaceDay, s.SecondOfDay), Is.EqualTo((1, DayHours.Default.OpenSecond - 3600)));
+            Assert.That((s.FaceDay, s.SecondOfDay), Is.EqualTo((1, (int)(SimWorldTests.Landing / 1000))));
             Assert.That(s.Paused, Is.True, "paused stays paused");
         }
 

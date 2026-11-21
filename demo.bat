@@ -462,6 +462,8 @@ echo    133 Grooming operations (4.25 PR A): the grooming tests (shifts, model s
 echo        mid-night), then the game on the demo mountain with three dev groomers, groomed nightly (a scratch copy).
 echo    134 The Grooming tab mockup (4.25): Trails (the night strip, each trail's setting, what needs you) and Equipment
 echo        (groomers, crews, Buy), last night, a resort with no groomers, a trail card (opens in Edge, nothing to build).
+echo    135 The Grooming tab in the game (4.25 PR B): buy groomers, set each trail's grooming, let a night run, see
+echo        last night and the corduroy on the drawn test resort (a scratch copy; rebuilds the game).
 echo.
 echo     Q  Quit
 echo.
@@ -626,6 +628,7 @@ if /i "%CHOICE%"=="131" goto snownet
 if /i "%CHOICE%"=="132" goto snowshots
 if /i "%CHOICE%"=="133" goto groomsim
 if /i "%CHOICE%"=="134" goto groommock
+if /i "%CHOICE%"=="135" goto groomtab
 if /i "%CHOICE%"=="136" goto reopenclock
 if /i "%CHOICE%"=="65c" goto styletilecaptures
 if /i "%CHOICE%"=="65b" goto styletilebench
@@ -2982,6 +2985,32 @@ echo      The groomers are amber dots: they sweep their trail at work, drive to 
 echo      lift, carry a headlight glow at night, and hovering one names it and its job.
 echo   3. The log (%PLAYERLOG%) has a [Grooming] line.
 start "" "%GAME%" -drawnresort -simto 01-15 -groomers 3 -data "%GR133%" -notitle
+goto done
+
+:groomtab
+rem 4.25 PR B: the Grooming tab, the trail card's Grooming row and corduroy that follows the snow (GO-14).
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~GroomingTests.GO14" --logger "console;verbosity=normal" <nul | findstr /l /c:"[last night]" /c:"Passed!" /c:"Failed"
+echo.
+call :buildplayer
+if not exist "%GAME%" goto done
+set "GR135=%LOCALAPPDATA%\SkiAreaDesignChallenge-groom135"
+if exist "%GR135%" rmdir /s /q "%GR135%"
+mkdir "%GR135%"
+echo   The game opens on the drawn test resort on the demo mountain (your saves stay untouched), on January 15, with
+echo   no groomers: a new resort has none.
+echo   1. Analysis (A), Grooming: the tab has an amber dot; Equipment shows only the catalogue, "Buy your first groomer".
+echo      Pick the 800 W, choose a drive and Buy; buy a 400 too. Ctrl+Z takes a buy back, one step each.
+echo   2. Trails: the night strip has a lane per groomer with tonight's work; hover a block for its trail and times.
+echo      The rows first list what needs you, with Show me, a fix and an X. Change a trail's Grooming and Priority menus.
+echo      Filters: Tonight, Needs you, All, Never. With the tab open the trails on the map take tonight's colours.
+echo   3. Equipment: click a groomer for its card (Fit wider tiller, Sell); click a shift cell to bench or staff it.
+echo   4. Open a trail's card: its Grooming row, the "Groomed ... tonight on Groomer N" line, Skip tonight and Push tonight.
+echo   5. Skip to the morning: a toast names any trails not groomed; Tonight / Last night shows what happened.
+echo      Fly down close to a groomed run: corduroy stripes; from far away faint even passes. Snow conditions'
+echo      key has Machine groomed; by afternoon skied trails read Hard packed and the stripes fade.
+echo   6. F1, Simulation: Add groomers adds free dev groomers.
+start "" "%GAME%" -drawnresort -simto 01-15 -data "%GR135%" -notitle
 goto done
 
 :groommock

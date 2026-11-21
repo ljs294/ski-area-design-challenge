@@ -210,6 +210,7 @@ namespace MountainPlanner.UI
                 _legendBody.Add(LegendStripeRow(new[] { Hex(0x1f8a4c), Hex(0x2f6bb0), Hex(0x1f1c19), Hex(0xe0483a) }, "Reachable"));
                 _legendBody.Add(Note("Click a lift, a stretch of trail or a node to light everything you can ski to from it. Esc or a click on empty ground clears it."));
             }
+            else if (_groomView) { ShowGroomKey(); return; }   // task 4.25 PR B: the grooming colours' key
             else
             {
                 _shownLegend = null;   // the info layer's own legend comes back
@@ -257,7 +258,7 @@ namespace MountainPlanner.UI
         void FoldLegend()
         {
             if (_legend == null || _legendFold == null) return;
-            bool card = _trailCardId != 0 || _liftCardId != 0 || _areaCardId != 0 || _skierCardSerial != 0 || _waterCardKey != null;
+            bool card = _trailCardId != 0 || _liftCardId != 0 || _areaCardId != 0 || _skierCardSerial != 0 || _waterCardKey != null || GroomCardOpen;
             bool folded = card && !_legendPeek;
             if (!card) _legendPeek = false;
             _legend.EnableInClassList("legend--folded", folded);

@@ -136,6 +136,7 @@ namespace MountainPlanner.UI
             _skierCardNextLine.EnableInClassList("hidden", !c.Queued);
             if (_skierCard.ClassListContains("hidden"))
             {
+                CloseGroomCardIfOpen();   // one card at a time (task 4.25 PR B)
                 _skierCard.RemoveFromClassList("hidden");
                 CardsChanged(false);
             }

@@ -777,29 +777,41 @@ density, so water and snow balance (SI-10).
   *night* from 1 AM to `GroomNightEndsBeforeOpenMinutes = 60` before the opening; *day* `GroomDayStartHour = 8` to
   `GroomDayEndHour = 4 PM`, closed trails only, and only what the night left (an unfinished task, an order, a push).
   Never an open trail. At a shared minute the night's end comes before the day's start.
+- **GO-03 v2, equal shifts** (owner 2026-11-21: "Make each shift the same at 8 hours", then "Move times"). The swing
+  starts at the lift stop and the night ends at the opening (`GroomSweepMinutes = 0`, `GroomNightEndsBeforeOpenMinutes
+  = 0`); the two split the time between in half, so at the default hours each is 8 h: *swing* 4:30 PM–12:30 AM, *night*
+  12:30 AM–8:30 AM. Other resort hours keep the shifts equal. `GroomSwingEndHour` is retired.
 - **GO-04, slopes.** Full speed to `GroomFullSpeedGrade = 40 %`, half speed to `GroomWinchGrade = 70 %`; past it only a
   W works, at half speed, to `GroomWinchMaxGrade = 100 %`. A pitch no groomer can work is left as it is: the trail is
   groomed around it (*Pitch skipped*), and with no W in the fleet Autopilot warns (GO-10).
-- **GO-05, crews.** Autopilot crews just enough: the night first, then the swing with what's left; the day only for its
-  own tasks. A pinned count per shift wins (never more than the fleet).
+- **GO-05 v2, crews (4.25 PR B, owner 2026-11-21).** Auto crews just enough: the night first, then the swing with what's
+  left; the day only for its own tasks. A pinned count per shift wins (never more than the fleet). The crews take the
+  groomers in rank order: a W first when any task tonight has a pitch only a W climbs, then the 800s, then the fleet's
+  order. The tab's per-groomer check sets the shift's count one fewer or one more.
 - **GO-06, labour (in kind, priced).** A crew is paid its whole shift at `GroomPayUsdHour = $32` × `GroomShiftPayPermille`
   (swing 1.1, night 1.2, day 1.0); fuel and upkeep `GroomFuelUsd` per groomer-hour worked (45 / 47 / 55 / 58). An
   estimate until the economy task: no bank.
 - **GO-07, tonight's list.** At each shift's start every trail gets its job from its setting and the player's order for
   tonight (Till, Push or Skip, A = 1, cleared in the morning). *Unless it's snowing* is decided once, at the swing's start.
-- **GO-08, the schedule.** Tasks in order: High; pushes that open a closed trail; open trails by skier passes since their
+- **GO-08 v2, the schedule.** Tasks in order: High; pushes that open a closed trail; open trails by skier passes since their
   groom; closed trails; Low; then the trail id. Each goes to the lane (groomer × shift) free soonest, lowest groomer on a
   tie, up to six pieces, so a long task may span groomers and shifts; a W-only pitch waits for a W lane. **B2a-3
   (4.07):** a trail with snow falling tonight is laid from the night's end backward, so it's groomed after the
   snowfall. Work is shared out minute by minute (parts per million); a task's `GroomTrail` runs once, when its share is
   whole, so water stays exact (SN-23). What doesn't fit is *Not reached* (or *Partial*: its share carries to the next
-  shift). The snapshot's `GroomView` (10.7 KB at 1,024 trails) holds tonight per trail and per groomer.
-- **GO-09, the morning.** At the night's end: the trails not reached, the minutes short, the minutes worked and the
-  estimate, kept as last night's rows; a `GroomShortfall` event (44) when any trail wasn't reached.
+  shift). The snapshot's `GroomView` (10.7 KB at 1,024 trails) holds tonight per trail and per groomer. **v2 (PR B):**
+  every lane's window is its whole shift (a swing groomer may leave the depot during the open hours, GO-15); a task goes
+  to the lane that can reach it soonest, drive included, and is worked from its nearer end (GO-16 v2); the planned
+  minutes and the drive minutes per lane are in the view, and the strip's drives (up to 64).
+- **GO-09 v2, the morning (owner 2026-11-21: report at the opening).** At the night's end the night closes: the trails not
+  reached, the minutes short, the minutes worked and the estimate. The report, last night's rows and a `GroomShortfall`
+  event (44) when any trail wasn't reached, comes at the opening (`DayHours.OpenSecond`, 8:30 AM by default; the player
+  will set it later). *Skip to morning* lands at the opening too (`SkipLandsBeforeOpenMinutes = 0`, Pacing v15).
 - **GO-10, Autopilot's four warnings** (`GroomWarning`, 45; never changes a setting): a Never or When-ordered trail
   whose whales keep it closed; a scheduled trail too bare to groom; powder held three nights running
   (`GroomPowderWarnNights`); a pitch skipped because no groomer has a winch.
-- **GO-11, the state.** Save v17 holds the fleet, the crew pins and each trail's setting and priority; sidecar v13 holds
+- **GO-11, the state.** Save v17 holds the fleet, the crew pins and each trail's setting and priority; sidecar v13 (v14 with
+  GO-15's drives, GO-16's signed share and the NoRoute row) holds
   tonight (the shifts, crews, tasks, pieces, shares, the blocks groomed so far by 8 m cell), the season minutes per
   groomer, last night and the warnings. A world never given a fleet hashes and saves as before (only the Pacing table
   moved the goldens).
@@ -816,6 +828,67 @@ density, so water and snow balance (SI-10).
   - At night a working or driving dot carries a headlight glow.
   - Hovering a dot names the groomer, its model and its job.
   - The dots are drawn only; nothing is saved and no rule changes.
+- **GO-15, transit (4.25 PR B, owner 2026-11-21).** Groomers park at the depot: the foot of the lowest built lift (a
+  parking area the player places comes later). They drive over the trails only, downhill or up, at full speed
+  (`GroomTransitKmh = 20`), on the shortest path, so cat tracks and work roads shorten the drives. Each lane drives
+  from the depot to its first task, between tasks and home again, and the drive home ends before the shift does; the
+  drive out may start during the open hours. The minutes driven are *Transit* in the night strip and the Equipment
+  table. A trail no trail reaches from the depot is *No way there* (`NoRoute`, a needs-you row).
+- **GO-16 v2, passes and partial grooming (owner 2026-11-21).** A groomer starts at the end of the run nearer it and
+  works it in full-length passes side by side, down one and up the next, from the left edge looking downhill, until
+  the clock says its job is done; then it drives to the next. A shift cut short leaves a band across part of the
+  width groomed the whole length and the rest as it was; the job carries over and a later shift (or night) finishes
+  it, from where the last one stopped. A push carries over the same way, with no nightly cap. The fine cells, the
+  conditions map and the corduroy show the split; the trail's conditions report gives its majority surface.
+  - **On the way:** a drive between runs (not the drive out before the shift, nor home) that runs along a run with a
+    tilling job tonight not yet laid grooms one pass of it on that stretch, at the tilling speed (the model's acres an
+    hour over `GroomPassMm = 5500`), uphill or down. The drive takes that much longer, and the run's own job needs
+    that many minutes fewer (its passes still cover the whole width). It is skipped when the longer drive would leave
+    no useful piece.
+  - The map's dots follow the same passes at the sim's pace, from the end the sim started at, and drive in the sim's
+    drive minutes.
+  - (Grooming only a melting run's deep middle, "the white ribbon of death", is later.)
+- **GO-14, the Grooming tab and corduroy (PR B).** Screen only: nothing here is hashed or saved, and no rule changes.
+  - The snapshot adds each groomer's drive, last night's lane per trail (its groomer, start and end minute from that
+    night's first shift, copied at the morning) and the hours since each trail's last groom (its youngest groomed fine
+    cell, none once fresh snow buries it). After a reopen, last night shows only each trail's result until the next morning.
+  - Analysis › Grooming has Trails (the night strip, Tonight | Last night, the needs-you rows with one-click fixes, the
+    trail rows with setting and priority) and Equipment (the fleet, crews per shift, the catalogue with Park greyed, the
+    groomer and buy cards). Settings, priority, buy, sell, tiller and crews go through the design history (one undo
+    each); tonight's Till, Push and Skip are `SetGrooming` A = 1 orders.
+  - While the tab is open the drawn trails take tonight's status colour; a morning toast names the trails not groomed.
+  - The trail card's Grooming row holds the setting and priority, and a line "Groomed 3 AM · tonight on Groomer 2".
+  - Corduroy shows by the 8 m snow type: machine groomed full, packed powder 0.45, hard packed 0.25, else none; from
+    far away the passes read as faint stripes. Snow conditions' key gains Machine groomed. As each 8 m cell carries its
+    own type, a run groomed part way shows corduroy on the groomed band only (GO-16 v2).
+  - The Equipment table (round 3, owner 2026-11-21: simpler, still the information) has one row a groomer: its name,
+    its short model (the maker is once in the header), a crew tick and its hours per shift, and the night's total. The
+    hours count driving; the grooming and driving split is in the tooltips. One All groomers row gives "used of
+    available" per shift and in all. The Day column shows only when a day shift is crewed or has work. One crews line
+    says "Auto staffs just enough", or "Set by you" with Back to Auto (every shift, one undo step); a tick still sets that
+    shift's crews. The season's hours are on the groomer's card.
+- **GO-14 v3, the plan and its budget, live (round 3, owner 2026-11-21: "users should be able to choose a grooming plan
+  and clearly see the budgets they have to work with").**
+  - A budget line with a bar sits at the top of both sub-tabs: "Tonight's plan · 15.6 h of work · 14.5 h fits", then
+    "1.1 h won't" in amber or "all of it", then the night's cost. The work is the grooming and the driving between the
+    runs (owner 2026-11-21: driving counts), worked and still to do, plus what no groomer can fit in; the bar is the share
+    that fits. Each groomer reads its work of its own hours ("11.1 of 14.5 h") on the strip and in Equipment, or "Idle"
+    when crewed with nothing it can do; work no groomer is free for reads "No equipment available".
+  - Picking a groomer (its lane, its Equipment row or its card) shows its path tonight on the map: its runs bright, its
+    drives between them over the trails, the rest dimmed. Screen only.
+  - It follows the plan at once, paused too (a paused clock applies commands at once and publishes a snapshot):
+    - During a night, an order (Till, Push, Skip) plans the rest of the night again from now, as a design change does.
+    - During the day, before the swing, the worker plans tonight on a copy whenever the grooming or the hour changes
+      (`PreviewTonight`, made exactly as the swing start would make it now) and the tab shows it as "Tonight's plan
+      (preview)". The live plan is swapped back before anything else reads it: the preview is never hashed or saved,
+      raises no warnings or events, and moves no dot. At the swing start the real plan is made the same way.
+  - A run no groomer can drive to ("No way there") is left out of the hours short and the hours wanted: more groomers
+    wouldn't reach it. The morning toast names it ("Big Meadow: no way there").
+  - A run with new snow tonight while it snows (B2a-3) still goes after the rest, but on the lane that reaches it soonest,
+    the swing too (owner 2026-11-21: the swing took none and sat idle while the night was busy).
+  - GO-04 v2 (owner 2026-11-21: blues shouldn't need a winch): a run needs a W only when at least
+    `Pacing.GroomWinchSharePermille = 100` (a tenth of its area) is past the winch grade; a smaller steep patch is a slow
+    stretch any groomer works at half speed.
 
 ## 5. LK · Lakes
 

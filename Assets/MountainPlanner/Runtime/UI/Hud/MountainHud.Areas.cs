@@ -108,6 +108,7 @@ namespace MountainPlanner.UI
         {
             if (!_areaRows.ContainsKey(id)) return;
             CloseWaterCardIfOpen();   // one card at a time (task 4.14)
+            CloseGroomCardIfOpen();   // task 4.25 PR B
             _areaCardId = id;
             _networkAreas.SetFocused(id);
             FillAreaCard();

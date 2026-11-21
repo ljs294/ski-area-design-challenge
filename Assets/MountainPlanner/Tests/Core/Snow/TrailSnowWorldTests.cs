@@ -194,11 +194,14 @@ namespace MountainPlanner.Tests
                 if (fine.Layout.Owner[f] != 0) continue;
                 onTrail++;
                 densityAfter += fine.Density[f];
-                if (fine.Type[f] == (byte)SnowType.MG && (fine.Flags[f] & FineSnow.Packed) != 0 && fine.Age[f] == 0) groomed++;
+                // GO-16: the groomer works along the run as the night goes, so the cells groomed first are an hour or two older
+                bool once = ((fine.Flags[f] & FineSnow.GroomMask) >> FineSnow.GroomShift) == 1;
+                if (fine.Type[f] == (byte)SnowType.MG && (fine.Flags[f] & FineSnow.Packed) != 0 && once && fine.Age[f] <= hours.Length) groomed++;
             }
             Say($"[groom] hours {string.Join(",", hours)}; water {before} -> {after}; {groomed} of {onTrail} cells groomed; " +
                 $"density {densityBefore / onTrail / FineSnow.DensityOne} -> {densityAfter / onTrail / FineSnow.DensityOne} kg/m³");
-            Assert.That(hours.Length, Is.EqualTo(1), "once a night");
+            Assert.That(hours.Length, Is.InRange(1, 3), "once a night: the run's hours of work, along it (GO-16)");
+            for (int i = 1; i < hours.Length; i++) Assert.That(hours[i], Is.EqualTo((hours[i - 1] + 1) % 24), "one stretch of work");
             Assert.That(hours[0], Is.InRange(1, Pacing.Default.GroomDayEndHour), "in a shift (task 4.25: the October run is closed, so the day shift works it)");
             Assert.That(after, Is.EqualTo(before), "grooming moves water, never makes or loses it");
             Assert.That(groomed, Is.EqualTo(onTrail), "600 mm of snow is all workable");
@@ -609,6 +612,22 @@ namespace MountainPlanner.Tests
         }
 
         /// <summary>The first network trail as a groomed run (the fixture's layout; deterministic, the game sends the same).</summary>
+        /// <summary>Task 4.25 round 3: a layout run for every network trail, side by side (the first at x −150 m, the next
+        /// at +150 m), each on its trail's first segment.</summary>
+        internal static TrailSnowLayout TwoRunLayout(SimWorld w)
+        {
+            var net = w.Design.Network;
+            var runs = new TrailSnowInput[net.TrailIds.Length];
+            for (int k = 0; k < runs.Length; k++)
+            {
+                int edge = -1;
+                for (int e = 0; e < net.EdgeTrail.Length && edge < 0; e++) if (net.EdgeTrail[e] == k) edge = e;
+                runs[k] = Run(net.TrailIds[k], k == 0 ? -150_000 : 150_000, neverGroom: false);
+                runs[k].SegmentEdge = new[] { Math.Max(0, edge) };
+            }
+            return TrailSnowLayout.Build(W, D, Origin, Origin, runs, Pacing.Default.FineCellCap, net.ShapeHash);
+        }
+
         internal static TrailSnowLayout GroomedLayout(SimWorld w, int dx = 0)
         {
             var net = w.Design.Network;
@@ -850,7 +869,7 @@ namespace MountainPlanner.Tests
             Assert.That(fold, Is.EqualTo(TrailWeeksFold), "a behaviour change to the trail snow needs an approved re-pin");
         }
 
-        public const ulong TrailWeeksFold = 0xA17651701A2CAF90UL;   // re-pinned at 4.25 (was 0x58F8E603EB371FE1: two dev groomers work the shifts, Pacing v14; owner OK 2026-11-20)
+        public const ulong TrailWeeksFold = 0xD00925FABA993975UL;   // re-pinned at 4.25 PR B round 4 (GO-03 v2 equal 8 h shifts, GO-04 v2 winch share, late runs on the soonest lane; owner OK 2026-11-21), over 0x87B11B92A5CD715D; re-pinned at 4.25 PR B round 2 (was 0x1474E971F2922E36: GO-16 v2 full-length passes, carry-over and passes on the way, GroomPassMm; owner OK 2026-11-21); at 4.25 PR B (was 0xA17651701A2CAF90: GO-15 drives and GO-16 partial grooming from the nearer end, the report at the opening, Pacing v15; owner OK 2026-11-21); at 4.25 (was 0x58F8E603EB371FE1: two dev groomers work the shifts, Pacing v14; owner OK 2026-11-20)
 
         /// <summary>Demo 113's chart data (not a check): a groomed run and its loose twin through an October thaw, hour by
         /// hour, and the run's depth across its lanes along its length before and after a night's grooming.</summary>

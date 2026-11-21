@@ -138,6 +138,29 @@ float3 SnowTypeColour(int2 cell)
     return SnowTypeColours[clamp(type, 0, 10)];
 }
 
+// Task 4.25 PR B (GO-14): how much corduroy the snow under a point carries, from the simulation's surface type: machine
+// groomed in full, a groomed surface skied to packed powder or hard pack fading, anything else (powder, ice, spring snow,
+// bare) none. The four cells round the point blend bilinearly (4 loads; the corduroy's own ridges carry the detail). Before
+// the snow map is on (no simulation yet) every trail keeps the full corduroy it had before.
+float SnowCorduroyOf(int2 cell)
+{
+    cell = clamp(cell, int2(0, 0), int2(_SnowDepthSize.xy) - 1);
+    int type = (int)round(LOAD_TEXTURE2D(_SnowSurfaceMap, cell).r * 255);
+    return type == 3 ? 1.0 : type == 2 ? 0.45 : type == 4 ? 0.25 : 0.0;
+}
+
+float SnowCorduroyAt(float3 positionWS)
+{
+    UNITY_BRANCH
+    if (_SnowDepthParams.w < 0.5) return 1;
+    float2 st = SnowUV(positionWS.xz) * _SnowDepthSize.xy - 0.5;
+    int2 c = int2(floor(st));
+    float2 f = st - floor(st);
+    float a = lerp(SnowCorduroyOf(c), SnowCorduroyOf(c + int2(1, 0)), f.x);
+    float b = lerp(SnowCorduroyOf(c + int2(0, 1)), SnowCorduroyOf(c + int2(1, 1)), f.x);
+    return lerp(a, b, f.y);
+}
+
 // The conditions colour at a point, the types' colours blended by the same curve as the depth, then faded to bare by the
 // snow's cover, as the ground draws it (owner's demo 111, 2026-11-15: a few mm left by a thaw read as wet granular on
 // ground that looked bare). The readout says "Bare" below half cover (InfoLegend.SnowBareBelowMetres).

@@ -523,7 +523,7 @@ namespace MountainPlanner.Simulation
             return LiftBoundary(sod, next, windChecks);
         }
 
-        /// <summary>Owner, 2026-11-08 (plan question 8): Skip to morning lands an hour before opening.</summary>
+        /// <summary>Owner, 2026-11-08 (plan question 8): Skip to morning lands <see cref="Pacing.SkipLandsBeforeOpenMinutes"/> before opening (at opening since 2026-11-21).</summary>
         int LandingSecond(int openSecond) => Math.Max(0, openSecond - Pacing.SkipLandsBeforeOpenMinutes * 60);
 
         /// <summary>
