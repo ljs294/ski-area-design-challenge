@@ -92,6 +92,34 @@ namespace MountainPlanner.Tests
             Assert.That(cardKeys, Does.Not.Contain("Grading").And.Not.Contain("Game rates it"));
             var status = root.Q("trail-card").Query<Label>(className: "tw-kv__k").Where(l => l.text == "Status").First();
             Assert.That(status.parent.Q<Label>(className: "tw-kv__v").text, Is.EqualTo("Closed"));
+            // Task 4.07 B2: the snow rows read "—" before the snow; wired, the switch is Auto | Open | Closed, one click one choice,
+            // and Status says why.
+            var snowKeys = root.Q("trail-card-snow").Query<Label>(className: "tw-kv__k").ToList().Select(l => l.text).ToList();
+            Assert.That(snowKeys, Is.EqualTo(new[] { "Conditions", "Cover", "Snow rating", "Snow" }));
+            Assert.That(root.Q("trail-card-switch").ClassListContains("hidden"), Is.True, "no switch until the app wires it");
+            var sw = MountainPlanner.Domain.Design.TrailSwitch.Auto;
+            MountainPlanner.Domain.Design.TrailSwitch? chosen = null;
+            hud.TrailSwitchOf = id => sw;
+            hud.TrailSwitchChosen = (id, v) => { chosen = v; sw = v; return null; };
+            var snow = new MountainPlanner.UI.Tools.TrailCardModel();
+            snow.Add(MountainPlanner.Simulation.TrailSnowLabel.Covered, 0, 97, 2,
+                     (byte)((int)MountainPlanner.Simulation.SnowType.PP | MountainPlanner.Simulation.SimSnapshot.TrailSnowOpen), OperatingStatus.Open, 1000);
+            hud.SetTrailLive(7, OperatingStatus.Closed, "Closed by you", snow);
+            hud.FlushLive();
+            yield return Frames(2);
+            Assert.That(hud.TrailCardSwitchForTest(), Is.EqualTo(new[] { ("Auto", true), ("Open", false), ("Closed", false) }));
+            hud.ChooseTrailSwitchForTest("Closed");
+            yield return Frames(2);
+            Assert.That(chosen, Is.EqualTo(MountainPlanner.Domain.Design.TrailSwitch.Closed));
+            Assert.That(hud.TrailCardSwitchForTest()[2].On, Is.True, "the card shows the new switch at once");
+            var snowValues = root.Q("trail-card-snow").Query<Label>(className: "tw-kv__v").ToList().Select(l => l.text).ToList();
+            Assert.That(snowValues, Is.EqualTo(new[] { "Covered", "97%", "Good", "Packed powder" }));
+            status = root.Q("trail-card").Query<Label>(className: "tw-kv__k").Where(l => l.text == "Status").First();
+            Assert.That(status.parent.Q<Label>(className: "tw-kv__v").text, Is.EqualTo("Closed by you"));
+            hud.TrailSwitchOf = null;
+            hud.TrailSwitchChosen = null;
+            hud.ClearLive();
+            hud.FlushLive();
             // 4.21 (owner): a column's title opens its menu; Clear filters is greyed until something is sorted or filtered.
             var clear = root.Q<Button>("an-clear-trails");
             Assert.That(clear.enabledSelf, Is.False, "nothing to clear yet");

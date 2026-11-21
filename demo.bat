@@ -424,11 +424,15 @@ echo        gun whale: the snow lies on the ground that never moves, the skiers 
 echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
+echo   4.07 snow model B2: the trail card's snow and its Open/Closed/Auto switch (builds the game if there is none)
+echo     140 The new tests, then the drawn resort on Jackson Hole to December 15 in a scratch folder (a few minutes,
+echo        your saves aren't touched), then pictures of Analysis, Trails and three trail cards. Then the game on
+echo        that save: the list's Conditions and Status, a Bare card, a Covered card switched Closed, Ctrl+Z, a save.
 echo   4.07 snow model B1 part 2: the snow on the trails, open and closed, saved (rebuilds the game if there is none)
 echo     113 The trail snow's tests (grooming keeps the water, the switch, the save), then two charts: a groomed and an
 echo        ungroomed run through a thaw, and one night's grooming across a run. Then the save check: the drawn resort
 echo        on Jackson Hole simulated to December 15 and saved, then reopened; the two runs' trail boards should match.
-echo        Then the game on that save: Snow conditions shows the groomed runs; F1, Trail switch: Auto, Open, Closed.
+echo        Then the game on that save: Snow conditions shows the groomed runs; a trail's card has Auto, Open, Closed.
 echo   4.07 snow model PR A1: the snow energy, on paper (no Unity, no game build; about six minutes)
 echo     112 The snow's rule tests (south against north, shade, clear and cloudy nights, a cold pack, humid wind, the
 echo        game's clock against the hour, the energy balance), then six western snow pillows played for 20 winters
@@ -606,6 +610,7 @@ if /i "%CHOICE%"=="114" goto updaterinstall
 if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
 if /i "%CHOICE%"=="113" goto trailsnow
+if /i "%CHOICE%"=="140" goto trailcards
 if /i "%CHOICE%"=="111" goto snowlive
 if /i "%CHOICE%"=="125" goto gpuqueue
 if /i "%CHOICE%"=="126" goto gondolagame
@@ -1205,6 +1210,47 @@ findstr /l /c:"[SimTo]" "%~dp0test-results\snow-a3\simto.log"
 pause
 goto menu
 
+:trailcards
+rem 4.07 B2: the trail card's snow and switch.
+chcp 65001 >nul
+echo.
+echo   Part 1: the new tests (the snapshot's per-trail snow byte, the switch's reason).
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~TrailSnowWorldTests.B2_" --logger "console;verbosity=normal" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "TC=%LOCALAPPDATA%\SkiAreaDesignChallenge-trailcards"
+set "TCOUT=%~dp0test-results\snow-b2"
+if not exist "%TCOUT%" mkdir "%TCOUT%"
+echo.
+echo   Part 2: the drawn resort to December 15 in a fresh scratch folder, saved as "Trail cards", then it quits.
+if exist "%TC%" rmdir /s /q "%TC%"
+start "" /wait "%GAME%" -data "%TC%" -notitle -offline -drawnresort -simto 12-15 -savequit "Trail cards" -logFile "%TCOUT%\save.log"
+set "TCSAVE="
+for /d %%D in ("%TC%\Saves\*") do for /d %%E in ("%%D\save-*") do set "TCSAVE=%%E"
+if not defined TCSAVE echo   The save wasn't written; see test-results\snow-b2\save.log
+if not defined TCSAVE goto trailcardsend
+echo   Part 3: that save reopened for the pictures: the list, a Covered, a Bare and a Marginal card, one closed by you.
+if exist "%TCOUT%\cards" rmdir /s /q "%TCOUT%\cards"
+start "" /wait "%GAME%" -data "%TC%" -notitle -offline -opensave "%TCSAVE%" -simto 12-15 -trailcardshots "%TCOUT%\cards" -logFile "%TCOUT%\cards.log"
+findstr /l /c:"[TrailCards]" "%TCOUT%\cards.log"
+if exist "%TCOUT%\cards" start "" "%TCOUT%\cards"
+echo.
+echo   Part 4: the game on that save (paused at December 15). Try:
+echo     - Analysis (Tab), Trails: Conditions reads Covered, Marginal or Bare with the rating; filter it by Marginal.
+echo       Status says why a trail is closed: no snow, by you, not ready, or no lift.
+echo     - Open a Bare trail's card: Closed, no snow. Pick Open: it stays closed, Bare closes it.
+echo     - Open a Covered trail's card and pick Closed: Closed by you at once, and the guests leave it. Ctrl+Z
+echo       takes it back to Auto.
+echo     - Pick Open on a Marginal trail that isn't open yet. Ctrl+S, quit: the game opens the save again.
+echo     - Clouds: open Analysis or the Toolbox and they fade away; Analysis, Weather keeps them, closing brings them back.
+pause
+start "" /wait "%GAME%" -data "%TC%" -notitle -offline -opensave "%TCSAVE%"
+echo   Reopening the save: the switches you set should be as you left them.
+start "" "%GAME%" -data "%TC%" -notitle -offline -opensave "%TCSAVE%"
+:trailcardsend
+pause
+goto menu
+
 :trailsnow
 rem 4.07 B1 part 2: the trails' fine snow (2a), readiness (2b), the switch and the save (2c).
 chcp 65001 >nul
@@ -1240,12 +1286,12 @@ powershell -NoProfile -Command "$b = { param($f) $l = Get-Content $f; $i = ($l |
 echo.
 echo   Part 4: the game on that save (paused at December 15). Try:
 echo     - I (info layers), Snow conditions: the groomed runs are still there.
-echo     - Point at a trail on the map, then F1, Trail switch: the button steps Auto, Open, Closed. Closed shuts it at
-echo       once (Trails line: one fewer open); Open opens a Marginal trail, never a Bare one. Ctrl+Z takes it back.
+echo     - Click a trail on the map: its card's Open row has Auto, Open, Closed. Closed shuts it at once; Open opens
+echo       a Marginal trail, never a Bare one. Ctrl+Z takes it back.
 echo     - Ctrl+S, then quit: the game opens the save again, and the switches you set are as you left them.
 pause
 start "" /wait "%GAME%" -data "%TS%" -notitle -offline -opensave "%TSAVE%"
-echo   Reopening the save: check the switches came back (F1, Trail switch, on the trails you set).
+echo   Reopening the save: check the switches came back (each trail's card, on the trails you set).
 start "" "%GAME%" -data "%TS%" -notitle -offline -opensave "%TSAVE%"
 :trailsnowend
 pause

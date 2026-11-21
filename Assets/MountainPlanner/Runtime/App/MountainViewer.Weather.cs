@@ -29,6 +29,8 @@ namespace MountainPlanner.App
                 return;
             }
             bool thin = (_tools != null && _tools.Armed) || (_layers != null && _layers.Info != MapLayers.InfoView.None);
+            // The owner, 2026-11-20: Analysis or the Toolbox open clears the clouds away; Analysis › Weather keeps them.
+            _weatherView.ClearView = Hud != null && (Hud.ToolboxOpen || (Hud.AnalysisOpen && Hud.AnalysisTab != "weather"));
             int zref = _simWeather?.Rows.ZrefFeet ?? 0;
             _weatherView.Area = _resort.WeatherTerrain;
             // Settings › Weather › Cloud ceiling: 1,000 ft over the map's highest ground.

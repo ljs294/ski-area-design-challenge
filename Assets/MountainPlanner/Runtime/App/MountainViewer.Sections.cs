@@ -177,7 +177,6 @@ namespace MountainPlanner.App
             if (hit != _hoveredTrailRow)
             {
                 _hoveredTrailRow = hit;
-                if (hit != 0) _switchTrailRow = hit;   // task 4.07 B1 part 2c: the F1 switch button's trail
                 FocusTrailRow(hit != 0 ? hit : _focusedTrailRow);
             }
             if (!picking || mouse == null) { _trailPressed = false; return; }
@@ -192,38 +191,38 @@ namespace MountainPlanner.App
             if ((pos - _trailPress).sqrMagnitude <= 36 && hit == _trailPressId) Hud.OpenTrailCardFor(hit);
         }
 
-        // ---------- task 4.07 B1 part 2c: the F1 panel's trail switch (a developer control until B2's trail card) ----------
+        // ---------- task 4.07 B2: the trail card's Open / Closed / Auto switch (SN-20 v4) ----------
 
-        /// <summary>The trail the pointer last lit on the map: the F1 switch button's.</summary>
-        ulong _switchTrailRow;
+        /// <summary>The player's trail with this row id, or null.</summary>
+        ResolvedTrail TrailRowOf(ulong id)
+        {
+            if (_sections == null || id == 0) return null;
+            foreach (var t in _sections.Trails) if (t.Id.Value == id) return t;
+            return null;
+        }
 
         /// <summary>
-        /// The F1 row: the trail the pointer last lit, its switch on a button that steps Auto → Open → Closed through the
-        /// real undoable command (one Ctrl+Z takes it back). The worker hears it at once (SN-20 v4).
+        /// A trail's switch as the document has it now (a shaped trail's own, else its run's): a switch-only edit reaches the
+        /// worker at once, before the sections are rebuilt, and the card shows it at once too.
         /// </summary>
-        void DrawTrailSwitchRow(ref float y, float row, Action<string> caption, Func<int, string, bool> button, Func<float, int, string, float> note)
+        TrailSwitch? SwitchNow(ResolvedTrail t)
         {
-            if (_sections == null) return;
-            ResolvedTrail trail = null;
-            if (_switchTrailRow != 0) foreach (var t in _sections.Trails) if (t.Id.Value == _switchTrailRow) { trail = t; break; }
-            y += row;
-            caption("Trail switch");
-            if (trail == null)
-            {
-                y += note(y, 0, "Point at a trail on the map, then switch it here: Auto, Open or Closed (developer control; the trail card gets it in B2)");
-                return;
-            }
-            var sw = trail.Switch;
-            if (button(0, sw == TrailSwitch.Open ? "Open" : sw == TrailSwitch.Closed ? "Closed" : "Auto"))
-            {
-                var next = sw == TrailSwitch.Auto ? TrailSwitch.Open : sw == TrailSwitch.Open ? TrailSwitch.Closed : TrailSwitch.Auto;
-                var history = Design;
-                var r = history?.Submit(SetTrailSwitch.For(history.Revision, trail, next));
-                if (r != null && r.Accepted) Toast($"{trail.Name}: {next}");
-                else Toast($"{trail.Name}: the switch didn't change{(r?.Reason != null ? " (" + r.Reason + ")" : "")}");
-            }
-            y += note(y, 1, $"{trail.Name} · Auto opens it when Covered and keeps it open while Marginal · Open: anything but Bare · Closed: closed · " +
-                            "the button steps Auto → Open → Closed; Ctrl+Z takes it back");
+            if (t == null || !t.Built) return null;
+            var doc = Design?.Document;
+            if (doc == null) return t.Switch;
+            if (t.Line != null) return doc.FindLine(t.Line.Id)?.Switch ?? t.Switch;
+            return doc.FindTrail(t.Segments[0].Piece)?.Switch ?? t.Switch;
+        }
+
+        /// <summary>The card's switch: one undoable <see cref="SetTrailSwitch"/> (Ctrl+Z takes it back); null or why not.</summary>
+        string ChooseTrailSwitch(ulong id, TrailSwitch sw)
+        {
+            var history = Design;
+            var trail = TrailRowOf(id);
+            if (history == null || trail == null) return "That trail isn't on the map any more.";
+            var r = history.Submit(SetTrailSwitch.For(history.Revision, trail, sw));
+            if (r.Accepted) { UpdateTrailLive(_lastTrailSnapshot); return null; }   // the word and the reason at once
+            return r.Reason == "Nothing changes." ? null : r.Reason;
         }
 
         // The trail whose drawn line passes within 8 pixels of the pointer on the ground (5 m at least), nearest first.

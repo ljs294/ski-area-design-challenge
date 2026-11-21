@@ -892,5 +892,96 @@ namespace MountainPlanner.Tests
             for (int f = 0; f < fine.Cells; f++) if (L.Owner[f] == 0 && L.Lane[f] == 3 && fine.Type[f] == (byte)SnowType.HP) hp++;
             Assert.That(hp, Is.EqualTo(onLane), "heavy traffic hardens it");
         }
+
+        // ================= 4.07 B2: what the trail card reads (snapshot only, never hashed) =================
+
+        static SimSnapshot Snap(SimWorld w)
+        {
+            var s = new SimSnapshot(Pacing.Default);
+            w.Write(s);
+            return s;
+        }
+
+        [Test]
+        public void B2_01_TheSnapshotTellsNoSnowFromClosedByYou()
+        {
+            var w = NetWorld(600);
+            w.BoardTrailsNow();
+            var s = Snap(w);
+            int k = 0;
+            Say($"[card] covered: snow byte {s.TrailSnow[k]:X2}, main {s.TrailMainTypeAt(k)}");
+            Assert.That(s.TrailSnow[k] & SimSnapshot.TrailSnowOpen, Is.Not.Zero, "its snow has it open");
+            Assert.That(s.TrailMainTypeAt(k), Is.Not.EqualTo(SnowType.None), "a covered trail has a main surface");
+            long stamp = s.TrailSnowStamp;
+            w.Write(s);
+            Assert.That(s.TrailSnowStamp, Is.EqualTo(stamp), "nothing moved: no copy");
+            Switch(w, 0, TrailSwitch.Closed);
+            w.Write(s);
+            Assert.That(w.TrailReady(0), Is.False, "closed by the player");
+            Assert.That(s.TrailSnow[k] & SimSnapshot.TrailSnowOpen, Is.Not.Zero, "while its snow would have it open: closed by you, not by snow");
+            Switch(w, 0, TrailSwitch.Auto);
+            Strip(w, (along, lat) => true);
+            w.BoardTrailsNow();
+            w.Write(s);
+            Assert.That(s.TrailSnowStamp, Is.Not.EqualTo(stamp), "an hour's board moves the stamp");
+            Assert.That(s.TrailLabelAt(k), Is.EqualTo(TrailSnowLabel.Bare));
+            Assert.That(s.TrailSnow[k] & SimSnapshot.TrailSnowOpen, Is.Zero, "no snow: closed by its snow");
+            Assert.That(s.TrailMainTypeAt(k), Is.EqualTo(SnowType.None), "nothing covered, no surface");
+        }
+
+        [Test]
+        public void B2_02_TheSurfaceLineSaysMogulsAndIce()
+        {
+            var w = NetWorld(600);
+            var fine = w.FineSnow;
+            var L = fine.Layout;
+            int n = 0;
+            for (int f = 0; f < fine.Cells; f++)
+            {
+                if (L.Owner[f] != 0) continue;
+                fine.Type[f] = (byte)SnowType.PP;
+                fine.Moguls[f] = (byte)(n % 3 == 0 ? 200 : 0);   // a third of it bumped up
+                if (n % 8 == 0) fine.Type[f] = (byte)SnowType.IS;   // an eighth of it ice
+                n++;
+            }
+            w.BoardTrailsNow();
+            var s = Snap(w);
+            Say($"[card] packed, a third moguls, an eighth ice: main {s.TrailMainTypeAt(0)}, moguls {s.TrailMogulsAt(0)}, ice {s.TrailIceAt(0)}");
+            Assert.That(s.TrailMainTypeAt(0), Is.EqualTo(SnowType.PP));
+            Assert.That(s.TrailMogulsAt(0), Is.True, "a quarter or more of it bumped up");
+            Assert.That(s.TrailIceAt(0), Is.True, "a tenth or more of it ice");
+            for (int f = 0; f < fine.Cells; f++) if (L.Owner[f] == 0) { fine.Type[f] = (byte)SnowType.IS; fine.Moguls[f] = 0; }
+            w.BoardTrailsNow();
+            s = Snap(w);
+            Assert.That(s.TrailMainTypeAt(0), Is.EqualTo(SnowType.IS));
+            Assert.That(s.TrailIceAt(0), Is.False, "ice as the main surface isn't also 'some ice'");
+            Assert.That(s.TrailMogulsAt(0), Is.False);
+        }
+
+        [Test]
+        public void B2_03_AReopenedSaveShowsItsSurfaceBeforeItsFirstHour()
+        {
+            var w = TrailSaveWorld();
+            var saved = Snap(w);
+            var back = Reopen(w.SaveState());
+            back.ApplyNow(SimCommand.Of(SimCommandKind.SetTrailSnow, 0, GroomedLayout(back)));
+            var s = Snap(back);
+            Say($"[card] saved {saved.TrailSnow[0]:X2}, reopened {s.TrailSnow[0]:X2}");
+            for (int k = 0; k < saved.TrailCount; k++)
+                Assert.That(s.TrailSnow[k], Is.EqualTo(saved.TrailSnow[k]), "the card reads the same as when it was saved");
+        }
+
+        [Test]
+        public void B2_04_TheCardsByteAllocatesNothingOnceWarm()
+        {
+            var w = NetWorld(600);
+            var s = new SimSnapshot(Pacing.Default);
+            for (int i = 0; i < WarmCalls; i++) { w.BoardTrailsNow(); w.Write(s); }
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++) { w.BoardTrailsNow(); w.Write(s); }
+            long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            Say($"[card] ten boards and snapshots: {bytes} bytes");
+            Assert.That(bytes, Is.Zero);
+        }
     }
 }
