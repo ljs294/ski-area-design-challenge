@@ -114,6 +114,15 @@ reads: a version number, and a name for the greyed library row.
   `Posted`. Here one run is `"closed"` and one shaped trail `"open"`; the rest stay `"auto"`. v1 to v15 saves migrate with
   every trail on `"auto"`. `SaveFileTests` checks that the writer reproduces it byte for byte.
 
+- **`v17-save/Saves/5792676e513f5302/save-001/`** is the same save in format v17 (task 4.25 PR A, SN-22 v4, GO-01): the
+  design (shape 17) gains a `Groom` (`"default"`, `"autopilot"`, `"every-night"`, `"unless-snowing"`,
+  `"when-ordered"` or `"never"`) and a `GroomPriority` (`"high"`, `"normal"` or `"low"`) on every trail and shaped
+  trail after its `Switch`, and a `Grooming` block: `Groomers` (`Number`, `Model` `"400"`, `"400w"`, `"800"` or
+  `"800w"`, `Drive` `"diesel"`, `"hybrid"` or `"electric"`, `WideTiller`) and `Crews` (`Swing`, `Night`, `Day`; -1
+  is Autopilot). Here a diesel 400 and a hybrid 800 W with the wider tiller, two night crews pinned, one run on Never with
+  High priority, one shaped trail on When ordered. v1 to v16 saves migrate with every trail on `"default"` and a free diesel
+  400 fleet of ⌈built run acres ÷ 87.5⌉. `SaveFileTests` checks that the writer reproduces it byte for byte.
+
 - **`v3-package/`** is a package manifest in format v3 (task 4.14, WS-08, LK-10): the `v2-package` manifest plus a
   `Water` entry and its `water.json`: `streams`, the OSM stream lines (way, class, name, width and whether OSM gave it,
   Albers points), and `names`, each named OSM water area with a point inside it (which names the lake under it). The
@@ -185,6 +194,14 @@ reads: a version number, and a name for the greyed library row.
   `SimSaveTests` checks a round trip before the layout arrives gives back its bytes (all but the header's Pacing hash
   and the closing state hash) and that every block adds up when it does; `v11-sim` still opens and its trail snow
   seeds from the 8 m snow.
+
+- **`v13-sim/golden.sim`** is a world in `SimSidecar` v13 (task 4.25 PR A, GO-11): v12's fields, then the grooming
+  block, written only by a world that was ever given a fleet: the fleet and crew pins as the worker has them, each
+  layout trail's setting, priority, order tonight, carried share and powder nights, tonight's shifts, crews, tasks and
+  pieces with their shares, the blocks groomed so far (8 m cells, ascending), the season's minutes per groomer, last
+  night's rows and the warnings. The one double's green with two 800 W groomers, saved in the middle of a night shift.
+  `SimSaveTests` checks a round trip gives back its bytes (all but the header's Pacing hash and the closing state hash)
+  and that `v12-sim` still opens.
 
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;

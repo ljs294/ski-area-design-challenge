@@ -88,6 +88,7 @@ namespace MountainPlanner.Simulation
             WriteRideDownState(o);
             WriteTrailState(o);
             WriteRunoffState(o);
+            WriteGroomState(o);   // v13 (task 4.25)
         }
 
         internal void ReadState(SidecarReader r, SimSidecar.Header header)
@@ -166,6 +167,8 @@ namespace MountainPlanner.Simulation
             // layout arrives, and the board starts again from it at the next hour.
             // Before v12 an hour in flight lands with no runoff (finding B2c-4).
             if (header.SidecarVersion >= SimSidecar.TrailSnowVersion) { ReadTrailState(r); ReadRunoffState(r); }
+            // v1–v12 → v13 (task 4.25): no grooming block; the design's fleet arrives with the first SetGrooming.
+            if (header.SidecarVersion >= SimSidecar.GroomingVersion) ReadGroomState(r);
             RefreshTrailRuns();   // SN-20 v4: the switches' table, from the design and the board
         }
 

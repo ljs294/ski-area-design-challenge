@@ -14,7 +14,7 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 13;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 14;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
                                         // 4: task 4.13's confidence speed (GU-10 v2)
                                         // 5: task 4.05's weather (WX-17 v2, WX-28 v2, WX-29, WX-34 v2, WX-35, WX-36 v2, WX-39)
                                         // 6: task 4.05 PR B2's weather over the map (WX-35, WX-39) and PR C's forecast (WX-05 v3, WX-41)
@@ -25,6 +25,7 @@ namespace MountainPlanner.Simulation
                                         // 11: task 4.24 PR B's ride down (RD-4; it merged before 4.07 B1, which takes 12, 0.0)
                                         // 12: task 4.15's snowmaking solve (HY-07 PipeClass, HY-08 SolveLatencyTicks and MaxResolves); 0.0: the first of 4.15 and 4.07 B1 to merge takes 12, the other renumbers
                                         // 13: task 4.07 B1 part 2a's trail snow and 2b's readiness (SN-03 v3, SN-14 v3, SN-16 v3, SN-17, SN-20 v3, SN-23 v3, SN-24 v3, SN-30 v2, GU-07 v2; 0.0 2026-11-19: 4.15 merged first and took 12)
+                                        // 14: task 4.25's grooming operations (GO-01…GO-12, SN-22 v4, SM-05, SN-27 v2's GreenPushQuality; number cleared by 0.0 2026-11-20; 4.16 may race: the second to merge renumbers)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -366,12 +367,39 @@ namespace MountainPlanner.Simulation
         public readonly int PackedPasses, HardPasses, CrustPasses;
         /// <summary>SN-23 v3: a pass evens depth within this reach along the centreline (mm), by this share (‰), and packs toward
         /// this density (kg/m³) by this share of the gap (‰); not where the snow is under this depth or a strip narrower than
-        /// this (mm: the groomer would tear it to mud, owner 2026-11-18), nor over this depth; in this window (face hours, the
-        /// night across midnight); this many groomings in a row harden it.</summary>
+        /// this (mm: the groomer would tear it to mud, owner 2026-11-18), nor over this depth; this many groomings in a row
+        /// harden it. (4.07's nightly hour went with task 4.25: the shifts say when.)</summary>
         public readonly int GroomReachMm, GroomBlend, GroomedDensity, GroomPack, GroomMinDepthMm, GroomMinWidthMm, GroomMaxDepthMm,
-                            GroomStartHour, GroomsToHard;
+                            GroomsToHard;
         /// <summary>SN-23 v4: a light pass's reach (mm) and blend (‰); it packs as a heavy one does (task 4.25's strengths).</summary>
         public readonly int GroomLightReachMm, GroomLightBlend;
+        // ---- Task 4.25: grooming operations (GO-01…GO-12, SN-22 v4, SM-05) ----
+
+        /// <summary>GO-03: the swing shift starts this long after the lift stop (the sweep), ends at this face hour; the night
+        /// shift ends this long before the next opening; the day shift runs between these face hours (closed trails only).</summary>
+        public readonly int GroomSweepMinutes, GroomSwingEndHour, GroomNightEndsBeforeOpenMinutes, GroomDayStartHour, GroomDayEndHour;
+        /// <summary>GO-03: a shift's first and last this many minutes are travel (no work), and each trail costs this many more.</summary>
+        public readonly int GroomTravelMinutes, GroomTaskMinutes;
+        /// <summary>GO-01 (owner round 6), per model (400, 400 W, 800, 800 W): tilling (0.01 acre an hour), pushing (yd³ an
+        /// hour), fuel and upkeep ($ a groomer-hour) and price ($, diesel).</summary>
+        public readonly int[] GroomTillCentiAcres, GroomPushYd3, GroomFuelUsd, GroomPriceUsd;
+        /// <summary>GO-01: the price by drive (diesel, hybrid, electric; ‰) and an electric groomer's minutes a shift on one charge.</summary>
+        public readonly int[] GroomDrivePricePermille;
+        public readonly int GroomElectricMinutes;
+        /// <summary>GO-02: the wider tiller's speed (‰), not on a trail narrower than this (mm).</summary>
+        public readonly int GroomTillerPermille, GroomTillerMinWidthMm;
+        /// <summary>GO-04: full speed to this grade (%), half to the next; past it only a W (winch), at half, to the last.</summary>
+        public readonly int GroomFullSpeedGrade, GroomWinchGrade, GroomWinchMaxGrade;
+        /// <summary>SN-22 v4: Autopilot tills after this much new snow (µm water); on a trail this steep (% mean) it keeps the
+        /// powder up to this much, and warns after this many nights of it.</summary>
+        public readonly int GroomNewSnowUm, GroomPowderKeepUm, GroomPowderGrade, GroomPowderWarnNights;
+        /// <summary>SM-05: a pile this far above the trail's mean depth (mm) is a whale; a whale cures in this many hours.</summary>
+        public readonly int WhaleRiseMm, GroomCureHours;
+        /// <summary>GO-06: an operator's pay ($ an hour) and the shifts' rates (swing, night, day; ‰).</summary>
+        public readonly int GroomPayUsdHour;
+        public readonly int[] GroomShiftPayPermille;
+        /// <summary>SN-27 v2: a green push's snow rates this share (‰) until it is groomed again.</summary>
+        public readonly int GreenPushQuality;
         /// <summary>SN-20 v3 (task 4.07 B1 part 2b): a fine cell is covered at this depth (mm) on a graded trail and on a
         /// natural one; a trail is Covered with a skiable line and this share (‰) of its cells covered.</summary>
         public readonly int CoverGradedMm, CoverNaturalMm, ReadyCover;
@@ -656,10 +684,40 @@ namespace MountainPlanner.Simulation
             GroomMinDepthMm = Int(map, nameof(GroomMinDepthMm), 0, 10_000);
             GroomMinWidthMm = Int(map, nameof(GroomMinWidthMm), 0, 100_000);
             GroomMaxDepthMm = Int(map, nameof(GroomMaxDepthMm), 0, 100_000);
-            GroomStartHour = Int(map, nameof(GroomStartHour), 0, 23);
             GroomLightReachMm = Int(map, nameof(GroomLightReachMm), 1000, 1_000_000);
             GroomLightBlend = Int(map, nameof(GroomLightBlend), 0, 1000);
             GroomsToHard = Int(map, nameof(GroomsToHard), 1, 7);
+            GroomSweepMinutes = Int(map, nameof(GroomSweepMinutes), 0, 240);
+            GroomSwingEndHour = Int(map, nameof(GroomSwingEndHour), 0, 6);
+            GroomNightEndsBeforeOpenMinutes = Int(map, nameof(GroomNightEndsBeforeOpenMinutes), 0, 240);
+            GroomDayStartHour = Int(map, nameof(GroomDayStartHour), 0, 23);
+            GroomDayEndHour = Int(map, nameof(GroomDayEndHour), 0, 23);
+            if (GroomDayEndHour <= GroomDayStartHour) throw new FormatException("GroomDayEndHour must be after GroomDayStartHour.");
+            GroomTravelMinutes = Int(map, nameof(GroomTravelMinutes), 0, 120);
+            GroomTaskMinutes = Int(map, nameof(GroomTaskMinutes), 0, 120);
+            GroomTillCentiAcres = Models(map, nameof(GroomTillCentiAcres), 1, 100_000);
+            GroomPushYd3 = Models(map, nameof(GroomPushYd3), 1, 100_000);
+            GroomFuelUsd = Models(map, nameof(GroomFuelUsd), 0, 10_000);
+            GroomPriceUsd = Models(map, nameof(GroomPriceUsd), 0, 100_000_000);
+            GroomDrivePricePermille = Ints(map, nameof(GroomDrivePricePermille), 0, 10_000);
+            if (GroomDrivePricePermille.Length != 3) throw new FormatException("GroomDrivePricePermille needs diesel, hybrid and electric.");
+            GroomElectricMinutes = Int(map, nameof(GroomElectricMinutes), 1, 1440);
+            GroomTillerPermille = Int(map, nameof(GroomTillerPermille), 1000, 3000);
+            GroomTillerMinWidthMm = Int(map, nameof(GroomTillerMinWidthMm), 0, 100_000);
+            GroomFullSpeedGrade = Int(map, nameof(GroomFullSpeedGrade), 1, 1000);
+            GroomWinchGrade = Int(map, nameof(GroomWinchGrade), 1, 1000);
+            GroomWinchMaxGrade = Int(map, nameof(GroomWinchMaxGrade), 1, 1000);
+            if (GroomWinchGrade < GroomFullSpeedGrade || GroomWinchMaxGrade < GroomWinchGrade) throw new FormatException("The grooming grades must rise.");
+            GroomNewSnowUm = Int(map, nameof(GroomNewSnowUm), 0, 1_000_000);
+            GroomPowderKeepUm = Int(map, nameof(GroomPowderKeepUm), 0, 1_000_000);
+            GroomPowderGrade = Int(map, nameof(GroomPowderGrade), 0, 1000);
+            GroomPowderWarnNights = Int(map, nameof(GroomPowderWarnNights), 1, 30);
+            WhaleRiseMm = Int(map, nameof(WhaleRiseMm), 1, 100_000);
+            GroomCureHours = Int(map, nameof(GroomCureHours), 0, 255);
+            GroomPayUsdHour = Int(map, nameof(GroomPayUsdHour), 0, 10_000);
+            GroomShiftPayPermille = Ints(map, nameof(GroomShiftPayPermille), 0, 10_000);
+            if (GroomShiftPayPermille.Length != 3) throw new FormatException("GroomShiftPayPermille needs swing, night and day.");
+            GreenPushQuality = Int(map, nameof(GreenPushQuality), 0, 1000);
             CoverGradedMm = Int(map, nameof(CoverGradedMm), 1, 10_000);
             CoverNaturalMm = Int(map, nameof(CoverNaturalMm), 1, 10_000);
             ReadyCover = Int(map, nameof(ReadyCover), 0, 1000);
@@ -942,10 +1000,36 @@ namespace MountainPlanner.Simulation
             E(nameof(GroomMinDepthMm), "305"),
             E(nameof(GroomMinWidthMm), "3962"),
             E(nameof(GroomMaxDepthMm), "3048"),
-            E(nameof(GroomStartHour), "20"),
             E(nameof(GroomLightReachMm), "4572"),
             E(nameof(GroomLightBlend), "300"),
             E(nameof(GroomsToHard), "5"),
+            E(nameof(GroomSweepMinutes), "30"),
+            E(nameof(GroomSwingEndHour), "1"),
+            E(nameof(GroomNightEndsBeforeOpenMinutes), "60"),
+            E(nameof(GroomDayStartHour), "8"),
+            E(nameof(GroomDayEndHour), "16"),
+            E(nameof(GroomTravelMinutes), "30"),
+            E(nameof(GroomTaskMinutes), "10"),
+            E(nameof(GroomTillCentiAcres), "700,670,850,810"),
+            E(nameof(GroomPushYd3), "800,760,1100,1050"),
+            E(nameof(GroomFuelUsd), "45,47,55,58"),
+            E(nameof(GroomPriceUsd), "500000,650000,650000,820000"),
+            E(nameof(GroomDrivePricePermille), "1000,1200,1400"),
+            E(nameof(GroomElectricMinutes), "300"),
+            E(nameof(GroomTillerPermille), "1120"),
+            E(nameof(GroomTillerMinWidthMm), "9144"),
+            E(nameof(GroomFullSpeedGrade), "40"),
+            E(nameof(GroomWinchGrade), "70"),
+            E(nameof(GroomWinchMaxGrade), "100"),
+            E(nameof(GroomNewSnowUm), "5000"),
+            E(nameof(GroomPowderKeepUm), "10000"),
+            E(nameof(GroomPowderGrade), "35"),
+            E(nameof(GroomPowderWarnNights), "3"),
+            E(nameof(WhaleRiseMm), "914"),
+            E(nameof(GroomCureHours), "24"),
+            E(nameof(GroomPayUsdHour), "32"),
+            E(nameof(GroomShiftPayPermille), "1100,1200,1000"),
+            E(nameof(GreenPushQuality), "700"),
             E(nameof(CoverGradedMm), "152"),
             E(nameof(CoverNaturalMm), "305"),
             E(nameof(ReadyCover), "900"),
@@ -967,6 +1051,14 @@ namespace MountainPlanner.Simulation
         {
             if (!int.TryParse(map[name], NumberStyles.Integer, CultureInfo.InvariantCulture, out int v) || v < min || v > max)
                 throw new FormatException($"{name} must be a whole number from {min} to {max}.");
+            return v;
+        }
+
+        /// <summary>One whole number per groomer model (400, 400 W, 800, 800 W; GO-01).</summary>
+        static int[] Models(Dictionary<string, string> map, string name, int min, int max)
+        {
+            var v = Ints(map, name, min, max);
+            if (v.Length != 4) throw new FormatException($"{name} needs the 400, the 400 W, the 800 and the 800 W.");
             return v;
         }
 

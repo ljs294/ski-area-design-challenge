@@ -112,11 +112,13 @@ namespace MountainPlanner.Domain.Design
         public SlopeBands.Band? Posted { get; }
         /// <summary>SN-20 v4 (shape 16): this trail's Open / Closed / Auto switch; it wins over its runs' own.</summary>
         public TrailSwitch Switch { get; }
+        /// <summary>SN-22 v4 (task 4.25, shape 17): the shaped trail's grooming setting and priority (wins over its runs').</summary>
+        public TrailGrooming Grooming { get; }
 
         readonly Span[] _spans;
 
         public TrailLine(TrailLineId id, string name, IReadOnlyList<Span> spans, SlopeBands.Band? posted = null,
-                         TrailSwitch @switch = TrailSwitch.Auto)
+                         TrailSwitch @switch = TrailSwitch.Auto, TrailGrooming grooming = default)
         {
             Id = id;
             Name = name ?? "";
@@ -124,11 +126,13 @@ namespace MountainPlanner.Domain.Design
             for (int i = 0; i < _spans.Length; i++) _spans[i] = spans[i];
             Posted = posted;
             Switch = @switch;
+            Grooming = grooming;
         }
 
-        public TrailLine WithName(string name) => new TrailLine(Id, name, _spans, Posted, Switch);
-        public TrailLine WithSpans(IReadOnlyList<Span> spans) => new TrailLine(Id, Name, spans, Posted, Switch);
-        public TrailLine WithPosted(SlopeBands.Band? posted) => new TrailLine(Id, Name, _spans, posted, Switch);
-        public TrailLine WithSwitch(TrailSwitch sw) => new TrailLine(Id, Name, _spans, Posted, sw);
+        public TrailLine WithName(string name) => new TrailLine(Id, name, _spans, Posted, Switch, Grooming);
+        public TrailLine WithSpans(IReadOnlyList<Span> spans) => new TrailLine(Id, Name, spans, Posted, Switch, Grooming);
+        public TrailLine WithPosted(SlopeBands.Band? posted) => new TrailLine(Id, Name, _spans, posted, Switch, Grooming);
+        public TrailLine WithSwitch(TrailSwitch sw) => new TrailLine(Id, Name, _spans, Posted, sw, Grooming);
+        public TrailLine WithGrooming(TrailGrooming g) => new TrailLine(Id, Name, _spans, Posted, Switch, g);
     }
 }

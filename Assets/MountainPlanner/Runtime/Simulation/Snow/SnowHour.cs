@@ -646,7 +646,7 @@ namespace MountainPlanner.Simulation
             for (int q = f0; q < f0 + bc; q++)
             {
                 if (fine.Swe[q] <= 0) continue;
-                if (type1 != type0) fine.Type[q] = type1;
+                if (type1 != type0 && type1 != 0) fine.Type[q] = type1;   // a bare 8 m cell has no type to pass on (task 4.25)
                 if (fresh) fine.Flags[q] = (byte)(fine.Flags[q] & ~(FineSnow.Packed | FineSnow.GroomMask));
                 if (deep) fine.Moguls[q] = (byte)(fine.Moguls[q] / 2);
                 if (age1 < age0) fine.Age[q] = age1;
@@ -657,9 +657,12 @@ namespace MountainPlanner.Simulation
             bool packed = false;
             for (int q = f0; q < f0 + bc && !packed; q++) packed = (fine.Flags[q] & FineSnow.Packed) != 0 && fine.Swe[q] > 0;
             if (!packed) return;
+            // A block under a µm a cell rolls up to a bare 8 m cell, which stays bare: no density or type (the sidecar's rule;
+            // task 4.25 found it under thin groomed snow).
+            if (p.Swe <= 0) return;
             fine.RollUp(b, out _, out int rho, out byte type);
             if (rho > 0) p.Density = rho;
-            if (p.Swe > 0) f.Type[c] = type;
+            f.Type[c] = type;
         }
 
         /// <summary>The cell's next planes; true when they differ from the landed ones.</summary>

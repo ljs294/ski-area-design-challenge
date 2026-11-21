@@ -133,6 +133,7 @@ namespace MountainPlanner.App
             ResetSnowNetworkSend();   // task 4.15
             _simSnowTerrainSent = false;
             ResetTrailSnow();
+            ResetGrooming();   // task 4.25
             _simSnowPatches.Clear();
             _simHoldSaid = false;
             var world = RestoredWorld(pacing, design, simSite, _simWeather)
@@ -552,6 +553,7 @@ namespace MountainPlanner.App
             if (waterReady) UpdateSnowNetwork();
             SendSnowTerrain();
             SendTrailSnow();
+            SendGrooming();   // task 4.25: the fleet and the runs' grooming
             SayTrailSnowBack(s);
             // Released with the inputs, or without one whose build ended with none (it failed): then the area plays B1's height
             // rule, has no lakes or keeps the static snow, and the clock is never left stuck.

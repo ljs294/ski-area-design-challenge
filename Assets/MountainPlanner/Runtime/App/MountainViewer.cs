@@ -304,6 +304,7 @@ namespace MountainPlanner.App
                 StartShellCheck(args);     // -shellcheck x,z[;x,z…] [-shellsteps] (MountainViewer.ShellCheck.cs, task 4.07 PR A3 repair)
                 StartSimTo(args);          // -simto <MM-DD> (MountainViewer.SimTo.cs, task 4.07 PR A3)
                 StartTrailSnowShots(args); // -trailsnowshots <folder> with -simto (MountainViewer.TrailSnowShots.cs, task 4.07 B1 part 2a)
+                StartGroomShots(args);     // -groomshots <folder> with -simto [-groomers N] (MountainViewer.GroomShots.cs, task 4.25 PR A)
                 StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
                 StartSkierFigureShots(args);   // -skiershot <folder> [-guests N] (MountainViewer.SkierFigureShots.cs, task 4.22)
                 StartCrowdShots(args);     // -crowdshot <folder> -crowdviews "x,z,d,yaw,pitch;..." [-guests N] (task 4.24)
@@ -644,6 +645,7 @@ namespace MountainPlanner.App
             ReleaseSettings();
             StopSimulation();
             _skiers?.Dispose();
+            _groomerDots?.Dispose(); _groomerDots = null;
             _skiers = null;
             _figures?.Dispose();
             _figures = null;
@@ -670,6 +672,7 @@ namespace MountainPlanner.App
         {
             TickRide();     // a ride's seat moves the camera, from this frame's rope time (task 4.11 PR B)
             TimedTickSkiers();   // every dot placed and drawn at the rope clock's tick (task 4.13)
+            TickGroomers();      // the groomers' dots, from the night's plan (task 4.25, GO-13)
             DrawChairs();   // after the camera has moved, for its LODs
             LogHeightReads();
             if (_contourLabels == null || _resort == null) return;

@@ -76,9 +76,30 @@ namespace MountainPlanner.Tests.Core
             return DesignDocument.From(d.Seed, d.NextOrdinal, d.Trails, lifts, d.Strokes, d.Areas, d.Lines, d.Cuts, d.Hours);
         }
 
+        /// <summary>
+        /// Task 4.25 (save v17, GO-01): a save older than v17 opens with a free fleet of diesel 400s, crews on Autopilot. The
+        /// document an older fixture should give is its builder's, plus that grant: as many plain 400s as the save opened with
+        /// (their count is checked by <see cref="GR01_OlderSavesOpenWithAFreeFleetSizedToTheirRuns"/>).
+        /// </summary>
+        static DesignDocument Granted(DesignDocument expected, SaveFile back)
+        {
+            if (back.MigratedFrom >= 17 || !expected.Grooming.IsEmpty) return expected;
+            var fleet = back.Design.Grooming;
+            Assert.That(fleet.Crews, Is.EqualTo(GroomCrews.AllAuto), "the grant's crews are on Autopilot");
+            var doc = expected;
+            foreach (var g in fleet.Groomers)
+            {
+                Assert.That((g.Model, g.Drive, g.WideTiller), Is.EqualTo((GroomerModel.S400, GroomerDrive.Diesel, false)), "the grant is plain diesel 400s");
+                var r = new BuyGroomer(0, GroomerModel.S400, GroomerDrive.Diesel).Apply(doc);
+                Assert.That(r.Accepted, Is.True, r.Reason);
+                doc = r.Document;
+            }
+            return doc;
+        }
+
         static void AssertSame(SaveFile a, SaveFile b)
         {
-            Assert.That(DesignBytes.Same(DesignBytes.Encode(a.Design), DesignBytes.Encode(b.Design)), Is.True, "identical document bytes");
+            Assert.That(DesignBytes.Same(DesignBytes.Encode(Granted(a.Design, b)), DesignBytes.Encode(b.Design)), Is.True, "identical document bytes");
             Assert.That(b.Name, Is.EqualTo(a.Name));
             Assert.That(b.Autosave, Is.EqualTo(a.Autosave));
             Assert.That(b.SavedUtc, Is.EqualTo(a.SavedUtc));
@@ -117,7 +138,7 @@ namespace MountainPlanner.Tests.Core
             SaveStore.Write(folder, FixtureSave());
             var o = JObject.Parse(File.ReadAllText(Path.Combine(folder, SaveFile.FileName)));
             Assert.That(o.Properties().Select(p => p.Name), Is.EqualTo(new[] { "Version", "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256", "Design", "Edits", "Sim" }));
-            Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "TrailLines", "Cuts", "Hours", "Ponds", "Dams", "Lakes", "Streams", "Snowmaking" }),
+            Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts", "Strokes", "Areas", "TrailLines", "Cuts", "Hours", "Ponds", "Dams", "Lakes", "Streams", "Snowmaking", "Grooming" }),
                 "no network, stats, ratings, rope or volumes (SH-05); no undo history (DD1)");
             Assert.That(((JObject)o["Design"]["Lifts"][0]).Properties().Select(p => p.Name),
                 Is.EqualTo(new[] { "Id", "Name", "Stage", "Catalog", "Bottom", "Top", "TowerMode", "Stance", "Towers", "Levels", "Drive", "Schedule", "Hours", "Plate" }),
@@ -428,14 +449,44 @@ namespace MountainPlanner.Tests.Core
             return save;
         }
 
+        /// <summary>
+        /// The save the v17 fixture holds (task 4.25, GO-01, GO-05, SN-22 v4): the v16 fixture with its grant (as an older
+        /// save opens), one run on Never at High priority, one shaped trail on Only when I order, one more groomer (an 800 W
+        /// hybrid with the wider tiller) and the night's crew pinned at 2.
+        /// </summary>
+        SaveFile FixtureSaveSeventeen()
+        {
+            var save = FixtureSaveSixteen();
+            var granted = SaveStore.Read(CopyOfFixture("v16-save"));
+            var doc = Granted(save.Design, granted);
+            var run = doc.Trails.OrderBy(t => t.Id.Value).Last().Id;
+            var line = doc.Lines.OrderBy(l => l.Id.Value).First().Id;
+            var r = new SetTrailGrooming(0, new[] { run }, null, GroomSetting.Never, GroomPriority.High).Apply(doc);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            r = new SetTrailGrooming(0, null, new[] { line }, GroomSetting.WhenOrdered, null).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            r = new BuyGroomer(0, GroomerModel.S800W, GroomerDrive.Hybrid).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            var last = r.Document.Grooming.Groomers[r.Document.Grooming.Groomers.Count - 1].Number;
+            r = new FitGroomerTiller(0, last, true).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            r = new SetGroomCrews(0, new GroomCrews(GroomCrews.Auto, 2, GroomCrews.Auto)).Apply(r.Document);
+            Assert.That(r.Accepted, Is.True, r.Reason);
+            save.Design = r.Document;
+            return save;
+        }
+
+        string CopyOfFixture(string version) =>
+            CopyOf(Path.Combine(TestData.Folder(Path.Combine("formats", version)), "Saves", JacksonHole, "save-001"), "of-" + version + "-" + Guid.NewGuid().ToString("N"));
+
         [Test]
         public void TheWriterReproducesTheFrozenFixtureByteForByte()
         {
-            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v16-save")), "Saves", JacksonHole, "save-001");
+            string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", "v17-save")), "Saves", JacksonHole, "save-001");
             string folder = Path.Combine(_root, "again");
-            SaveStore.Write(folder, FixtureSaveSixteen());
+            SaveStore.Write(folder, FixtureSaveSeventeen());
             Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveFile.FileName)), Is.EqualTo(File.ReadAllBytes(Path.Combine(fixture, SaveFile.FileName))),
-                "save.json v16 is frozen: a writer change is a format change (0.3 §5)");
+                "save.json v17 is frozen: a writer change is a format change (0.3 §5)");
             foreach (string tile in Directory.GetFiles(Path.Combine(fixture, SaveStore.TilesFolder)))
                 Assert.That(File.ReadAllBytes(Path.Combine(folder, SaveStore.TilesFolder, Path.GetFileName(tile))), Is.EqualTo(File.ReadAllBytes(tile)));
         }
@@ -536,7 +587,7 @@ namespace MountainPlanner.Tests.Core
             byte[] before = File.ReadAllBytes(path);
 
             var e = Assert.Throws<FormatTooNewException>(() => SaveStore.Read(folder));
-            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 17; this version reads up to 16). Update the game to open it."));
+            Assert.That(e.Message, Is.EqualTo("This save was saved by a newer version of Mountain Planner (format 18; this version reads up to 17). Update the game to open it."));
             Assert.That(SaveStore.Write(folder, FixtureSave()), Is.False);
             Assert.That(SaveStore.Rename(folder, "Mine now"), Is.False);
             Assert.That(File.ReadAllBytes(path), Is.EqualTo(before), "nothing is written over a newer save (0.3 §5 rule 3)");
@@ -657,7 +708,7 @@ namespace MountainPlanner.Tests.Core
             string copy = Path.Combine(_root, "v1");
             CopyFolder(fixture, copy);
             var back = SaveStore.Read(copy);
-            Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(FixtureSave().Design)), Is.True);
+            Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(Granted(FixtureSave().Design, back))), Is.True);
             Assert.That(back.Design.Lifts.All(l => l.Levels == null), Is.True);
         }
 
@@ -882,6 +933,69 @@ namespace MountainPlanner.Tests.Core
             }
         }
 
+        [Test]
+        public void TheVersionSeventeenFixtureReadsUnchanged()
+        {
+            string copy = CopyOfFixture("v17-save");
+            var back = SaveStore.Read(copy);
+            AssertSame(FixtureSaveSeventeen(), back);
+            Assert.That(back.MigratedFrom, Is.EqualTo(17));
+            var f = back.Design.Grooming;
+            Assert.That(f.Groomers[f.Groomers.Count - 1].Model, Is.EqualTo(GroomerModel.S800W));
+            Assert.That(f.Groomers[f.Groomers.Count - 1].Drive, Is.EqualTo(GroomerDrive.Hybrid));
+            Assert.That(f.Groomers[f.Groomers.Count - 1].WideTiller, Is.True);
+            Assert.That(f.Crews, Is.EqualTo(new GroomCrews(GroomCrews.Auto, 2, GroomCrews.Auto)));
+            Assert.That(back.Design.Trails.Count(t => t.Grooming.Setting == GroomSetting.Never && t.Grooming.Priority == GroomPriority.High), Is.EqualTo(1));
+            Assert.That(back.Design.Lines.Count(l => l.Grooming.Setting == GroomSetting.WhenOrdered), Is.EqualTo(1));
+            var o = JObject.Parse(File.ReadAllText(Path.Combine(copy, SaveFile.FileName)));
+            Assert.That((string)((JArray)o["Design"]["Grooming"]["Groomers"]).Last["Model"], Is.EqualTo("800w"));
+        }
+
+        [Test]
+        public void GR01_OlderSavesOpenWithAFreeFleetSizedToTheirRuns()
+        {
+            // v16 → v17 (task 4.25, GO-01): grooming was free before v17, so an older save opens with ⌈built run acres / 87.5⌉
+            // diesel 400s (at least one with any built run), crews on Autopilot, and every trail on Default, Normal. The v1
+            // fixture has only a planned glade, so it gets none.
+            foreach (string version in new[] { "v1-save", "v7-save", "v11-save", "v16-save" })
+            {
+                string fixture = Path.Combine(TestData.Folder(Path.Combine("formats", version)), "Saves", JacksonHole, "save-001");
+                var upgraded = SaveFile.Migrations.Upgrade(VersionedJson.Parse(File.ReadAllText(Path.Combine(fixture, SaveFile.FileName))), out _);
+                double areaMm2 = 0;
+                foreach (JObject t in (JArray)upgraded["Design"]["Trails"])
+                    if ((string)t["Stage"] == "built" && (string)t["Kind"] == "run") areaMm2 += AreaMm2((JArray)t["Outline"]);
+                int want = areaMm2 <= 0 ? 0 : (int)Math.Min(GroomFleet.MaxGroomers, Math.Max(1, Math.Ceiling(areaMm2 / (4_046_856_422.0 * 87.5))));
+                var back = SaveStore.Read(CopyOf(fixture, "grant-" + version));
+                Assert.That(back.Design.Grooming.Groomers.Count, Is.EqualTo(want), version);
+                Assert.That(back.Design.Trails.All(t => t.Grooming.Setting == GroomSetting.Default && t.Grooming.Priority == GroomPriority.Normal), Is.True, version);
+                Assert.That(back.Design.Lines.All(l => l.Grooming.Setting == GroomSetting.Default), Is.True, version);
+                if (version != "v1-save") Assert.That(want, Is.GreaterThan(0), version + " has built runs");
+            }
+        }
+
+        /// <summary>An outline's area in mm² (each ring [x0, y0, dx1, dy1, …] by its signed area, holes subtracting), worked
+        /// here apart from the migration's own.</summary>
+        static double AreaMm2(JArray rings)
+        {
+            double twice = 0;
+            foreach (JArray flat in rings)
+            {
+                var xs = new List<double>(); var ys = new List<double>();
+                double x = 0, y = 0;
+                for (int i = 0; i + 1 < flat.Count; i += 2) { x += (long)flat[i]; y += (long)flat[i + 1]; xs.Add(x); ys.Add(y); }
+                for (int i = 0; i < xs.Count; i++) { int j = (i + 1) % xs.Count; twice += xs[i] * ys[j] - xs[j] * ys[i]; }
+            }
+            return Math.Abs(twice) / 2;
+        }
+
+        [Test, Explicit("writes the v17 fixture once; never rerun on a frozen fixture")]
+        public void WriteVersionSeventeenFixture()
+        {
+            string folder = Path.Combine(TestData.Folder("formats"), "v17-save", "Saves", JacksonHole, "save-001");
+            Assert.That(Directory.Exists(folder), Is.False, "the v17 fixture is frozen");
+            SaveStore.Write(folder, FixtureSaveSeventeen());
+        }
+
         [Test, Explicit("writes the v16 fixture once; never rerun on a frozen fixture")]
         public void WriteVersionSixteenFixture()
         {
@@ -1082,7 +1196,7 @@ namespace MountainPlanner.Tests.Core
                 CopyFolder(fixture, copy);
                 var back = SaveStore.Read(copy);
                 Assert.That(back.MigratedFrom, Is.EqualTo(from), kv.Key + ": an older save is regraded once when it opens");
-                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(Granted(kv.Value.Design, back))), Is.True, kv.Key);
             }
         }
 
@@ -1105,8 +1219,9 @@ namespace MountainPlanner.Tests.Core
         // Shape 14 (task 4.14): the shape number and no ponds, dams or lake sources; from a5a27845….
         // Shape 15 (task 4.15, HY-01): the shape number and an empty snowmaking network; from f1725337…, owner OK 2026-11-18.
         // Shape 16 (task 4.07 B1 part 2c, SN-20 v4): the shape number and an Auto switch on each trail and shaped trail;
-        // from 4c1b9a92…, owner OK pending.
-        const string ConvertedSevenSha = "58dff65f3db38ebb3c48f3b3234cc970621bbe50641f39ee687d90bc88fd6bc7";
+        // from 4c1b9a92…, owner OK pending. Shape 17 (task 4.25, GO-01): the shape number, each trail's and shaped trail's
+        // grooming (Default, Normal) and the free fleet the v17 step grants; from 58dff65f…, owner OK 2026-11-20.
+        const string ConvertedSevenSha = "002ae590e98bfd12cb48da6dfb7db174821fc12a926f916e30da68717167ff9b";
 
         [Test]
         public void ADamagedOlderTrailRefusesTheSave()
@@ -1137,7 +1252,7 @@ namespace MountainPlanner.Tests.Core
                 string copy = Path.Combine(_root, "up7-" + kv.Key);
                 CopyFolder(fixture, copy);
                 var back = SaveStore.Read(copy);
-                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(Granted(kv.Value.Design, back))), Is.True, kv.Key);
             }
         }
 
@@ -1162,7 +1277,7 @@ namespace MountainPlanner.Tests.Core
                 CopyFolder(fixture, copy);
                 var back = SaveStore.Read(copy);
                 Assert.That(back.Design.Lines, Is.Empty, kv.Key);
-                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(Granted(kv.Value.Design, back))), Is.True, kv.Key);
             }
         }
 
@@ -1186,7 +1301,7 @@ namespace MountainPlanner.Tests.Core
                 CopyFolder(fixture, copy);
                 var back = SaveStore.Read(copy);
                 Assert.That(back.Design.Areas, Is.Empty, kv.Key);
-                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(Granted(kv.Value.Design, back))), Is.True, kv.Key);
             }
         }
 
@@ -1207,7 +1322,7 @@ namespace MountainPlanner.Tests.Core
                 CopyFolder(fixture, copy);
                 var back = SaveStore.Read(copy);
                 Assert.That(back.Design.Strokes, Is.Empty, kv.Key);
-                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(kv.Value.Design)), Is.True, kv.Key);
+                Assert.That(DesignBytes.Same(DesignBytes.Encode(back.Design), DesignBytes.Encode(Granted(kv.Value.Design, back))), Is.True, kv.Key);
             }
         }
 

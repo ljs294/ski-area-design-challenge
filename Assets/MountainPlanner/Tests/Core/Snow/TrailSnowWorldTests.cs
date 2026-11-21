@@ -41,16 +41,41 @@ namespace MountainPlanner.Tests
         static TrailSnowLayout Layout(params TrailSnowInput[] trails) =>
             TrailSnowLayout.Build(W, D, Origin, Origin, trails, Pacing.Default.FineCellCap);
 
+        /// <summary>
+        /// The small mountain's east flank is steeper than any groomed run (its trails average about 160 %), so these
+        /// worlds let a winch groomer work any grade (task 4.25, GO-04): 4.07's snow tests groom their trails whole, as before.
+        /// </summary>
+        internal static readonly Pacing Steep = Pacing.Parse("GroomWinchMaxGrade = 1000");
+
         /// <summary>A world on the small mountain with an even seed of settled snow (mm) and, if given, the trails.</summary>
-        static SimWorld World(int seedMm, TrailSnowLayout layout, Pacing pacing = null, SimDesign design = null)
+        internal static SimWorld World(int seedMm, TrailSnowLayout layout, Pacing pacing = null, SimDesign design = null)
         {
-            var w = new SimWorld(pacing ?? Pacing.Default, design ?? SeasonRunner.GoldenDesign(1, false), SnowFieldTests.Site, 2026, weather: SimWeatherTests.Golden());
+            var w = new SimWorld(pacing ?? Steep, design ?? SeasonRunner.GoldenDesign(1, false), SnowFieldTests.Site, 2026, weather: SimWeatherTests.Golden());
             SnowFieldTests.SendInputs(w, Small);
             var mm = new ushort[W * D];
             for (int c = 0; c < mm.Length; c++) mm[c] = (ushort)seedMm;
             w.ApplyNow(SimCommand.Of(SimCommandKind.SetSnowpack, 0, new SimSnowpack(W, D, 0, 0, W, D, mm)));
             if (layout != null) w.ApplyNow(SimCommand.Of(SimCommandKind.SetTrailSnow, 0, layout));
+            if (layout != null) Groomers(w, layout);
             return w;
+        }
+
+        /// <summary>
+        /// Task 4.25: a resort starts with no groomers, so these worlds get the dev tool's fleet (two 800 Ws, crews on
+        /// Autopilot) and every run the layout grooms set to Every night: 4.07's nightly pass, now worked in the shifts.
+        /// </summary>
+        internal static void Groomers(SimWorld w, TrailSnowLayout layout, int count = 2, GroomerModel model = GroomerModel.S800W,
+                                      GroomSetting setting = GroomSetting.EveryNight)
+        {
+            var nums = new int[count]; var models = new GroomerModel[count]; var drives = new GroomerDrive[count]; var tillers = new bool[count];
+            for (int i = 0; i < count; i++) { nums[i] = i + 1; models[i] = model; drives[i] = GroomerDrive.Diesel; }
+            var ids = new System.Collections.Generic.List<ulong>();
+            for (int t = 0; t < layout.Trails; t++) if (layout.TrailGroomed[t]) ids.Add(layout.TrailId[t]);
+            ids.Sort();
+            var set = new GroomSetting[ids.Count]; var pri = new GroomPriority[ids.Count];
+            for (int i = 0; i < set.Length; i++) set[i] = setting;
+            var g = new SimGrooming(nums, models, drives, tillers, -1, -1, -1, ids.ToArray(), set, pri);
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetGrooming, 0, g));
         }
 
         static void RunDays(SimWorld w, int days)
@@ -144,11 +169,11 @@ namespace MountainPlanner.Tests
             var fine = w.FineSnow;
             var hours = new System.Collections.Generic.List<int>();
             long day = w.FaceMs / SimWorld.DayMs + 1;
-            for (int h = 0; h < 24; h++)
+            for (int h = 12; h < 36; h++)   // noon to noon: the swing and night shifts (task 4.25)
             {
                 var before = (byte[])fine.Flags.Clone();
                 w.HourStepTrails(day * 24 + h);
-                for (int f = 0; f < fine.Cells; f++) if (fine.Flags[f] != before[f]) { hours.Add(h); break; }
+                for (int f = 0; f < fine.Cells; f++) if (fine.Flags[f] != before[f]) { hours.Add(h % 24); break; }
             }
             waterAfter = TrailWater(w, 0);
             return hours.ToArray();
@@ -174,7 +199,7 @@ namespace MountainPlanner.Tests
             Say($"[groom] hours {string.Join(",", hours)}; water {before} -> {after}; {groomed} of {onTrail} cells groomed; " +
                 $"density {densityBefore / onTrail / FineSnow.DensityOne} -> {densityAfter / onTrail / FineSnow.DensityOne} kg/m³");
             Assert.That(hours.Length, Is.EqualTo(1), "once a night");
-            Assert.That(hours[0], Is.EqualTo(Pacing.Default.GroomStartHour), "at the nightly hour (4.25 brings the shifts)");
+            Assert.That(hours[0], Is.InRange(1, Pacing.Default.GroomDayEndHour), "in a shift (task 4.25: the October run is closed, so the day shift works it)");
             Assert.That(after, Is.EqualTo(before), "grooming moves water, never makes or loses it");
             Assert.That(groomed, Is.EqualTo(onTrail), "600 mm of snow is all workable");
             Assert.That(densityAfter, Is.GreaterThan(densityBefore), "packed toward 400 kg/m³");
@@ -566,6 +591,23 @@ namespace MountainPlanner.Tests
             return w;
         }
 
+        /// <summary>
+        /// Task 4.25's sidecar fixture: <see cref="TrailSaveWorld"/>'s run with two dev groomers, saved at 2:20 AM, part way
+        /// through the night shift (its plan, lanes and carry in the bytes).
+        /// </summary>
+        internal static SimWorld GroomSaveWorld()
+        {
+            var w = World(600, null, design: GuestFixture.OneDouble());
+            var layout = GroomedLayout(w);
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetTrailSnow, 0, layout));
+            Groomers(w, layout);
+            RunDays(w, 3);
+            while (w.HourIndex < 0 || w.HourIndex % 24 != 2) w.Step(1);
+            long at = w.FaceMs + SimWorld.HourMs / 3;
+            while (w.FaceMs < at) w.Step(1);
+            return w;
+        }
+
         /// <summary>The first network trail as a groomed run (the fixture's layout; deterministic, the game sends the same).</summary>
         internal static TrailSnowLayout GroomedLayout(SimWorld w, int dx = 0)
         {
@@ -580,7 +622,7 @@ namespace MountainPlanner.Tests
         /// <summary>A save read back as the game reopens it: the state, then the inputs the game resends after every load.</summary>
         internal static SimWorld Reopen(byte[] bytes)
         {
-            var back = SimSidecar.Read(bytes, Pacing.Default, GuestFixture.OneDouble(), SnowFieldTests.Site, out _, SimWeatherTests.Golden());
+            var back = SimSidecar.Read(bytes, Steep, GuestFixture.OneDouble(), SnowFieldTests.Site, out _, SimWeatherTests.Golden());
             SnowFieldTests.SendInputs(back, Small);
             return back;
         }
@@ -751,7 +793,7 @@ namespace MountainPlanner.Tests
             var seen = new SnowType[6];
             for (int night = 0; night < 6; night++)
             {
-                for (int h = 0; h < 24; h++) w.HourStepTrails((night + 1) * 24 + h);
+                for (int h = 12; h < 36; h++) w.HourStepTrails((night + 1) * 24 + h);   // noon to noon: a night's shifts (task 4.25)
                 seen[night] = (SnowType)fine.Type[probe];
             }
             Say($"[types] nights: {string.Join(", ", seen)}");
@@ -764,8 +806,8 @@ namespace MountainPlanner.Tests
         public void TS07_TheSameBytesOnOneAndFourThreads()
         {
             var layout = Layout(Run(11, 150_000, neverGroom: false), Run(12, -150_000, neverGroom: false, width: 20_000));
-            var one = World(1500, layout, Pacing.Parse("SnowThreads = 1"));
-            var four = World(1500, layout, Pacing.Parse("SnowThreads = 4"));
+            var one = World(1500, layout, Pacing.Parse("SnowThreads = 1\nGroomWinchMaxGrade = 1000"));
+            var four = World(1500, layout, Pacing.Parse("SnowThreads = 4\nGroomWinchMaxGrade = 1000"));
             RunDays(one, 2);
             RunDays(four, 2);
             int differ = 0;
@@ -808,7 +850,7 @@ namespace MountainPlanner.Tests
             Assert.That(fold, Is.EqualTo(TrailWeeksFold), "a behaviour change to the trail snow needs an approved re-pin");
         }
 
-        public const ulong TrailWeeksFold = 0x58F8E603EB371FE1UL;   // re-pinned at 4.07 B1 part 2b (the trails open and close by their snow, SN-20 v3; the Pacing table grew; owner OK 2026-11-19), over 0x2108110A752AB77B; 4.07 B1 part 2a: re-pinned for the groom resetting the new-snow count (owner OK 2026-11-19), over the first pin at Pacing v13 0xCE2ED3C83F51E459 (owner OK 2026-11-19)
+        public const ulong TrailWeeksFold = 0xA17651701A2CAF90UL;   // re-pinned at 4.25 (was 0x58F8E603EB371FE1: two dev groomers work the shifts, Pacing v14; owner OK 2026-11-20)
 
         /// <summary>Demo 113's chart data (not a check): a groomed run and its loose twin through an October thaw, hour by
         /// hour, and the run's depth across its lanes along its length before and after a night's grooming.</summary>

@@ -664,6 +664,15 @@ density, so water and snow balance (SI-10).
 - **SN-21 v1 (the summary kept; the rating is v2's), the trail's conditions summary** (for the trail window and the rating 4.07 designs): the share of
   each type over the footprint, mean quality, ice share, mogul mean, coverage; **SC** when no type reaches 50 %.
   Per segment for the network (NW-08).
+- **SN-22 v4, the grooming setting (task 4.25, owner rounds 1–4, 2026-11-19).** Per trail and shaped trail: *Autopilot*
+  (a run's default), *Every night*, *Unless it's snowing tonight*, *Only when I order*, *Never* (a glade's and zone's
+  default), with a priority *High*, *Normal* or *Low*. Saved as *Default* until the player picks (save v17), so a run
+  later made a glade follows its new kind. The sim takes each run's setting as the player sees it on that run: its
+  shaped trail's at the run's middle, else the run's own. Split, join and reshape keep it. **Autopilot** tills a trail
+  skied since its groom, with 2 in of new snow (`GroomNewSnowUm`) or icy; keeps the powder on a trail of
+  `GroomPowderGrade = 35 %` or steeper once 4 in fell (`GroomPowderKeepUm`); pushes a whale once cured, or at once on a
+  High trail or when the push would open a closed one (SM-05 v2). A held schedule (Every night, Unless snowing, When
+  ordered, Never) is never overridden: Autopilot only warns (GO-10). Replaces v3's *Groomed nightly* default.
 - **SN-22 v3, the grooming setting's defaults (task 4.07 PR B1, owner 2026-11-17), Q3).** The settings are SN-22 v2's: *Groomed nightly*,
   *Groom unless it's snowing tonight*, *Groom when ordered*, *Never*. A run defaults to *Groomed nightly*, a glade or
   zone to *Never*, for new trails and old saves alike; *unless it's snowing tonight* is the player's choice. Every
@@ -703,8 +712,8 @@ density, so water and snow balance (SI-10).
   groomed cells). Five groomings in a row (`GroomsToHard`) make **HP**; new snow (P, WP) resets the count.
   **Strength** (task 4.25's light and heavy, owner 2026-11-19): a pass carries its reach, blend and pack. **Heavy** is
   the reach of 50 ft at 70 % above; **light** is `GroomLightReachMm = 15 ft` at `GroomLightBlend = 30 %`, packing as a
-  heavy pass does. **When** is task 4.25's (shifts, Autopilot, owner 2026-11-19: "Yes, split it"): until then every
-  trail set to groom gets one heavy pass a night at `Pacing.GroomStartHour = 8 PM` (no keyed hour, no window). **Bare
+  heavy pass does. **When** is task 4.25's (shifts, Autopilot, owner 2026-11-19: "Yes, split it"): GO-03…GO-09 (4.07's nightly
+  8 PM pass and its `GroomStartHour` went with it). **Bare
   trails:** a light groom skips a Bare trail; a heavy push may work one, because pushing whales is how a gunned trail
   first gets a skiable line (2b brings readiness; until then no trail counts as Bare). Fine-cell flag bit 5 is
   reserved for SN-27 v2's green push.
@@ -750,6 +759,63 @@ density, so water and snow balance (SI-10).
   flag bit 5): they set up as **HP** rather than MG, and their quality is multiplied by `Pacing.GreenPushQuality`
   until the next grooming clears the flag. The player may schedule a push for a later night to let a whale dry longer
   (GO rules, 4.25).
+
+### 4.1 GO · Grooming operations (task 4.25 PR A, owner rounds 1–6, 2026-11-19…20)
+
+- **GO-01, the fleet.** A resort owns up to 32 groomers (`GroomFleet.MaxGroomers`), each a Skogkatt model (400, 400 W,
+  800, 800 W; W has a winch), a drive (diesel, hybrid +20 %, electric +40 % on the price and about 5 h a charge,
+  `GroomElectricMinutes`) and optionally the wider tiller. A new resort has **none** (owner 2026-11-20); a save older
+  than v17 opens with ⌈built run acres ÷ 87.5⌉ diesel 400s, crews on Autopilot (the usual night: a 400 tills 7 acres an
+  hour over a 12.5 h swing and night). Buy, sell and the tiller are design commands with undo. The dev tool
+  `-groomers N[:model]` adds N free groomers to what the game sends (numbered from 9001, not saved).
+- **GO-02, two jobs.** *Till* is the light pass (SN-23 v4, 15 ft reach), worked by acres: `GroomTillCentiAcres` per
+  model (7.0 / 6.7 / 8.5 / 8.1 acres an hour), the wider tiller ×1.12 on a trail at least 30 ft wide. *Push* is the
+  heavy pass (50 ft), worked by the piles' volume above `WhaleRiseMm = 3 ft` at `GroomPushYd3` per hour
+  (800 / 760 / 1,100 / 1,050 yd³), then tilled. Each task adds `GroomTaskMinutes = 10` at the trail; each shift spends
+  `GroomTravelMinutes = 30` getting out and back.
+- **GO-03, the shifts.** *Swing* from `GroomSweepMinutes = 30` after the lift stop to `GroomSwingEndHour = 1 AM`;
+  *night* from 1 AM to `GroomNightEndsBeforeOpenMinutes = 60` before the opening; *day* `GroomDayStartHour = 8` to
+  `GroomDayEndHour = 4 PM`, closed trails only, and only what the night left (an unfinished task, an order, a push).
+  Never an open trail. At a shared minute the night's end comes before the day's start.
+- **GO-04, slopes.** Full speed to `GroomFullSpeedGrade = 40 %`, half speed to `GroomWinchGrade = 70 %`; past it only a
+  W works, at half speed, to `GroomWinchMaxGrade = 100 %`. A pitch no groomer can work is left as it is: the trail is
+  groomed around it (*Pitch skipped*), and with no W in the fleet Autopilot warns (GO-10).
+- **GO-05, crews.** Autopilot crews just enough: the night first, then the swing with what's left; the day only for its
+  own tasks. A pinned count per shift wins (never more than the fleet).
+- **GO-06, labour (in kind, priced).** A crew is paid its whole shift at `GroomPayUsdHour = $32` × `GroomShiftPayPermille`
+  (swing 1.1, night 1.2, day 1.0); fuel and upkeep `GroomFuelUsd` per groomer-hour worked (45 / 47 / 55 / 58). An
+  estimate until the economy task: no bank.
+- **GO-07, tonight's list.** At each shift's start every trail gets its job from its setting and the player's order for
+  tonight (Till, Push or Skip, A = 1, cleared in the morning). *Unless it's snowing* is decided once, at the swing's start.
+- **GO-08, the schedule.** Tasks in order: High; pushes that open a closed trail; open trails by skier passes since their
+  groom; closed trails; Low; then the trail id. Each goes to the lane (groomer × shift) free soonest, lowest groomer on a
+  tie, up to six pieces, so a long task may span groomers and shifts; a W-only pitch waits for a W lane. **B2a-3
+  (4.07):** a trail with snow falling tonight is laid from the night's end backward, so it's groomed after the
+  snowfall. Work is shared out minute by minute (parts per million); a task's `GroomTrail` runs once, when its share is
+  whole, so water stays exact (SN-23). What doesn't fit is *Not reached* (or *Partial*: its share carries to the next
+  shift). The snapshot's `GroomView` (10.7 KB at 1,024 trails) holds tonight per trail and per groomer.
+- **GO-09, the morning.** At the night's end: the trails not reached, the minutes short, the minutes worked and the
+  estimate, kept as last night's rows; a `GroomShortfall` event (44) when any trail wasn't reached.
+- **GO-10, Autopilot's four warnings** (`GroomWarning`, 45; never changes a setting): a Never or When-ordered trail
+  whose whales keep it closed; a scheduled trail too bare to groom; powder held three nights running
+  (`GroomPowderWarnNights`); a pitch skipped because no groomer has a winch.
+- **GO-11, the state.** Save v17 holds the fleet, the crew pins and each trail's setting and priority; sidecar v13 holds
+  tonight (the shifts, crews, tasks, pieces, shares, the blocks groomed so far by 8 m cell), the season minutes per
+  groomer, last night and the warnings. A world never given a fleet hashes and saves as before (only the Pacing table
+  moved the goldens).
+- **GO-12, commands and events.** `SetGrooming = 36` (A = 0 the design's grooming, resent after every load; A = 1 one
+  trail's order tonight); events `GroomShortfall 44`, `GroomWarning 45`, `GroomerBought 46`, `GroomerSold 47`.
+- **GO-13, groomers on the map (owner 2026-11-20).** Each groomer is an amber dot, a little bigger than a skier's.
+  - The snapshot carries each groomer's piece of work now: its trail, its share of the trail, and the piece's start and
+    end minute. Between pieces it carries the pieces on either side, with the depot before a shift's first piece and
+    after its last.
+  - A working dot sweeps its trail in passes side by side, down one pass and up the next. The passes are 5.5 m apart,
+    as many as fit the trail's width.
+  - Between pieces it drives for at most 20 face minutes, then waits.
+  - It parks in a row at the depot, on the run nearest the foot of the lowest built lift.
+  - At night a working or driving dot carries a headlight glow.
+  - Hovering a dot names the groomer, its model and its job.
+  - The dots are drawn only; nothing is saved and no rule changes.
 
 ## 5. LK · Lakes
 
@@ -1393,8 +1459,11 @@ re-specified for them; its real maker name does not appear here or in code (A2).
   dirty a few hundred tiles a tick; nobody sees 0.02 mm land).
 - **SM-04, whales and caps** per SN-27; off-trail deposit (a footprint past the trail edge) goes into the natural
   field at the cell under it, so a badly aimed gun wastes snow visibly.
-- **SM-05, grooming spreads it** (SN-23) once cured (SN-27); until then the whale stands and skiers route round it
-  (its cells count as closed for GU-07 when deeper than 3 ft above the trail's mean).
+- **SM-05 v2, pushing whales (task 4.25).** A push (GO-02) spreads a whale (SN-23's heavy pass) once cured (SN-27,
+  `GroomCureHours = 24`), at once on a High trail or when it would open a closed trail; a push before the cure leaves
+  pushed green snow (SN-27 v2). Until pushed, the whale stands and skiers route round it (its cells count as closed for
+  GU-07 when deeper than `WhaleRiseMm = 3 ft` above the trail's mean). A Never or When-ordered trail's whales that keep it
+  closed are Autopilot's first warning (GO-10). Replaces v1's "grooming spreads it".
 - **SM-06, the balance.** Water drawn × (1 − loss) = SWE deposited, every tick, to the quantum (SI-10): a test.
 - **SM-07, opening earlier.** A night of guns at stage 3 on a 100 ft × 2,000 ft trail with 20 guns at 100 ft spacing
   puts about 2 ft of snow on it: that trail opens (SN-20) the next morning where the ungunned twin does not: the
@@ -1643,6 +1712,7 @@ the PR:
 | 4.15 | Pipes, nodes, pumps, hydrants, guns (each with its `Auto / On / Off` override, SM-02) | Design shape |
 | 4.16 | Trail schedules, priorities, targets; machine snow in the fine tiles | Design shape; snow sidecar |
 | 4.17 | — (view.json keeps its time for the sun only) | — |
+| 4.25 | The fleet, crew pins, each trail's grooming setting and priority; tonight's plan and last night | Save v17 (design shape 17); sim sidecar v13; Pacing v14 |
 
 Suggested batching: 03 + 11 together; 14 + 15 + 16 together; 07 + 09 together.
 

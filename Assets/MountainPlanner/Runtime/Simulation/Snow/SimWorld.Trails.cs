@@ -16,13 +16,15 @@ namespace MountainPlanner.Simulation
     ///   arrives. The fine cells aren't in the hash (the hour's job is still writing them when the hash is taken).
     /// </summary>
     /// <summary>A grooming pass's strength (SN-23 v4, task 4.25's light and heavy): its reach along the centreline (mm),
-    /// how far it moves snow toward the reach's mean (‰) and how far it packs toward the groomed density (‰).</summary>
+    /// how far it moves snow toward the reach's mean (‰) and how far it packs toward the groomed density (‰); and the
+    /// steepest grade (%) it works, 0 for any (task 4.25, GO-04: without a winch a pitch past the winch grade is skipped).</summary>
     public readonly struct GroomStrength
     {
-        public readonly int ReachMm, Blend, Pack;
+        public readonly int ReachMm, Blend, Pack, MaxGrade;
         /// <summary>A heavy push may work a Bare trail; a light groom skips one (SN-23 v4).</summary>
         public readonly bool Push;
-        public GroomStrength(int reachMm, int blend, int pack, bool push) { ReachMm = reachMm; Blend = blend; Pack = pack; Push = push; }
+        public GroomStrength(int reachMm, int blend, int pack, bool push, int maxGrade = 0) { ReachMm = reachMm; Blend = blend; Pack = pack; Push = push; MaxGrade = maxGrade; }
+        public GroomStrength WithMaxGrade(int grade) => new GroomStrength(ReachMm, Blend, Pack, Push, grade);
         public static GroomStrength Heavy(Pacing p) => new GroomStrength(p.GroomReachMm, p.GroomBlend, p.GroomPack, true);
         public static GroomStrength Light(Pacing p) => new GroomStrength(p.GroomLightReachMm, p.GroomLightBlend, p.GroomPack, false);
     }
@@ -126,6 +128,7 @@ namespace MountainPlanner.Simulation
                 _trailPending = null;
                 _trailBoardRestored = false;   // the board is the fine snow's again
             }
+            GroomLayoutChanged();   // task 4.25: the grooming's per-trail state follows the trails by id
         }
 
         /// <summary>Orders fine cells by their distance along, then by index (stable bytes).</summary>
@@ -145,7 +148,7 @@ namespace MountainPlanner.Simulation
             if (day != _trailDay) { _trailDay = day; _trailRemovedToday = 0; _trailsGroomedToday = 0; }
             Array.Clear(_blockTouched, 0, _blockTouched.Length);
             Wear();
-            Groom((int)(hour % 24));
+            GroomHour(hour);   // task 4.25: the shifts, Autopilot and the fleet (GO-03…GO-09)
             RollUpTouched();
             Summarise();
             RateTrails();
@@ -255,29 +258,6 @@ namespace MountainPlanner.Simulation
         }
 
         /// <summary>
-        /// The simple nightly "when" (task 4.25 replaces this one loop with its shifts and autopilot, owner 2026-11-19):
-        /// every trail set to groom, a heavy pass, at <see cref="Pacing.GroomStartHour"/>.
-        /// </summary>
-        void Groom(int hourOfDay)
-        {
-            if (hourOfDay != Pacing.GroomStartHour) return;
-            var heavy = GroomStrength.Heavy(Pacing);
-            Array.Clear(_blockWorked, 0, _blockWorked.Length);
-            int trails = 0;
-            for (int t = 0; t < _trailLayout.Trails; t++)
-                if (_trailLayout.TrailGroomed[t] && GroomTrail(t, heavy))
-                {
-                    trails++;
-                    _trailGroomedNow[t] = true;
-                    Events.Add(Tick, SimEventType.TrailGroomed, NetIndexOf(t), hourOfDay);
-                }
-            _trailsGroomedToday += trails;
-            _trailsLastGroom = trails;
-            _trailBlocksLastGroom = 0;
-            for (int b = 0; b < _blockWorked.Length; b++) if (_blockWorked[b]) _trailBlocksLastGroom++;
-        }
-
-        /// <summary>
         /// SN-23 v4, one grooming pass over a trail at <paramref name="strength"/>; false when nothing on it was
         /// workable. Cells the groomer can't work (under the depth floor, over the push limit, or a strip narrower than the
         /// floor's width at that station) are left alone. The rest: water moved toward the running mean within the reach
@@ -290,8 +270,9 @@ namespace MountainPlanner.Simulation
             var fine = _fine;
             if (fine == null || t < 0 || t >= L.Trails) return false;
             if (!strength.Push && TrailLabelOf(t) == TrailSnowLabel.Bare) return false;   // SN-23 v4: a light groom skips Bare
-            int s = L.FineMetres * 1000, bc = fine.BlockCells;
+            int s = L.FineMetres * 1000, bc = fine.BlockCells, maxGrade = strength.MaxGrade;
             long reach = strength.ReachMm / 2;
+            bool Can(int f) => Workable(f) && (maxGrade <= 0 || GradeAt(L.BlockCell[f / bc]) <= maxGrade);
             {
                 int a = _trailStart[t], z = _trailStart[t + 1];
                 if (z <= a) return false;
@@ -300,9 +281,9 @@ namespace MountainPlanner.Simulation
                 for (int i = a; i < z;)
                 {
                     int station = L.AlongMm[_trailOrder[i]] / s, j = i, workable = 0;
-                    while (j < z && L.AlongMm[_trailOrder[j]] / s == station) { if (Workable(_trailOrder[j])) workable++; j++; }
+                    while (j < z && L.AlongMm[_trailOrder[j]] / s == station) { if (Can(_trailOrder[j])) workable++; j++; }
                     bool wide = (long)workable * s >= Pacing.GroomMinWidthMm;
-                    for (int k = i; k < j; k++) _groomTarget[k] = wide && Workable(_trailOrder[k]) ? 0 : -1;
+                    for (int k = i; k < j; k++) _groomTarget[k] = wide && Can(_trailOrder[k]) ? 0 : -1;
                     i = j;
                 }
                 // Running sums of the workable cells' water and count, in along order.

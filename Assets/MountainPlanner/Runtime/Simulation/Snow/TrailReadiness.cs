@@ -207,6 +207,7 @@ namespace MountainPlanner.Simulation
             if (type <= 0 || type > qb.Length) return 0;
             long q = (long)qb[type - 1] * Math.Max(Pacing.QualityAgeFloor, 1000 - Pacing.QualityAgePerHour * fine.Age[f]) / 1000;
             q = q * Math.Max(Pacing.QualityPassFloor, 1000 - (long)fine.Passes[f] * Pacing.QualityPassTenths / 10) / 1000;
+            if ((fine.Flags[f] & FineSnow.PushedGreen) != 0) q = q * Pacing.GreenPushQuality / 1000;   // SN-27 v2 (task 4.25)
             int moguls = fine.Moguls[f];
             if (band < posted) q = q * (1000 - (long)Pacing.QualityMogulPermille * moguls / 255) / 1000;
             bool bumpy = moguls >= Pacing.TasteMogulMin && moguls > 0;
