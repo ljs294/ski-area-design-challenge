@@ -151,6 +151,7 @@ namespace MountainPlanner.Simulation
             GroomHour(hour);   // task 4.25: the shifts, Autopilot and the fleet (GO-03…GO-09)
             RollUpTouched();
             Summarise();
+            GroomSince();   // task 4.25 PR B (GO-14): the hours since each trail's groom, for the screen
             RateTrails();
         }
 
@@ -262,9 +263,11 @@ namespace MountainPlanner.Simulation
         /// workable. Cells the groomer can't work (under the depth floor, over the push limit, or a strip narrower than the
         /// floor's width at that station) are left alone. The rest: water moved toward the running mean within the reach
         /// along the centreline (the full width), the trail's total exact; packed toward the groomed density; types per
-        /// SN-14 v3; age, passes and moguls reset; a green push's flag cleared (SN-27 v2).
+        /// SN-14 v3; age, passes and moguls reset; a green push's flag cleared (SN-27 v2). With <paramref name="from"/> and
+        /// <paramref name="upTo"/> (indices into the trail's cells in along order) only that stretch is worked (GO-16: a
+        /// groomer works the trail from one end, so a night cut short leaves it groomed part way).
         /// </summary>
-        internal bool GroomTrail(int t, in GroomStrength strength)
+        internal bool GroomTrail(int t, in GroomStrength strength, int from = -1, int upTo = -1, int bandLo = 0, int bandHi = int.MaxValue)
         {
             var L = _trailLayout;
             var fine = _fine;
@@ -275,6 +278,7 @@ namespace MountainPlanner.Simulation
             bool Can(int f) => Workable(f) && (maxGrade <= 0 || GradeAt(L.BlockCell[f / bc]) <= maxGrade);
             {
                 int a = _trailStart[t], z = _trailStart[t + 1];
+                if (from >= 0) { a = Math.Max(a, from); z = Math.Min(z, upTo); }
                 if (z <= a) return false;
                 // Which cells the groomer works (-1 not): deep enough, not too deep, on a station (one fine cell of along)
                 // whose workable strip is wide enough.
@@ -283,7 +287,13 @@ namespace MountainPlanner.Simulation
                     int station = L.AlongMm[_trailOrder[i]] / s, j = i, workable = 0;
                     while (j < z && L.AlongMm[_trailOrder[j]] / s == station) { if (Can(_trailOrder[j])) workable++; j++; }
                     bool wide = (long)workable * s >= Pacing.GroomMinWidthMm;
-                    for (int k = i; k < j; k++) _groomTarget[k] = wide && Can(_trailOrder[k]) ? 0 : -1;
+                    for (int k = i; k < j; k++)
+                    {
+                        int f = _trailOrder[k];
+                        bool inBand = true;
+                        if (bandLo > 0 || bandHi != int.MaxValue) { int b = LateralPpm(t, f); inBand = b >= bandLo && b < bandHi; }   // GO-16 v2
+                        _groomTarget[k] = wide && inBand && Can(f) ? 0 : -1;
+                    }
                     i = j;
                 }
                 // Running sums of the workable cells' water and count, in along order.

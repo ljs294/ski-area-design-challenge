@@ -50,10 +50,16 @@ namespace MountainPlanner.Simulation
     /// (order, powder nights, warnings and row, last night, the share done, groomed tonight), tonight (the shifts, crews,
     /// tasks and their pieces), last night's figures and the warnings ring. An older sidecar has no fleet: the design's
     /// arrives with the first SetGrooming (save v17 gives an older save its free fleet).
+    /// v14 (task 4.25 PR B) keeps v13's bytes and widens what they hold: a piece with task -1 is a groomer's drive (its
+    /// share packs the network nodes from and to, each +1), a trail's share done is negative when its groomer started at
+    /// the foot, and a row may be NoRoute. A v13 sidecar reads as before (no drives, every share from the head).
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 13;
+        public const int Version = 14;
+        /// <summary>The first version with GO-15's transit pieces (task -1), GO-16's signed share and the NoRoute row (task 4.25
+        /// PR B; the number cleared by 0.0 2026-11-21). The bytes are laid out as v13's.</summary>
+        public const int TransitVersion = 14;
         /// <summary>The first version with the grooming block (task 4.25; the number cleared by 0.0 2026-11-20).</summary>
         public const int GroomingVersion = 13;
         /// <summary>The first version with the trail snow block (task 4.07 B1 part 2c; the number confirmed with 0.0).</summary>

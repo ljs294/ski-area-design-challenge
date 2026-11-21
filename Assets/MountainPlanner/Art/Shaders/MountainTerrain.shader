@@ -722,24 +722,33 @@ Shader "MountainPlanner/Terrain"
                 // (owner, SK20): ridges 1 in (25 mm) apart along the trail (lines of constant offset), a sine profile while
                 // a ridge spans at least 2 pixels, then, as they shrink below that, the ridges' averaged light: darker where
                 // the sun crosses them, brighter where it runs along them. The seams between 15 ft groomer passes stay, faint.
+                // Task 4.25 PR B: the corduroy follows the simulation's grooming (SnowCorduroyAt): full where it says machine
+                // groomed, fading as skiers wear it to packed powder and hard pack, none on powder; and from far away the
+                // passes read a little stronger, so a groomed trail shows from the air.
+                // The derivatives come first, under the trail geometry's own test (smooth across a 2x2 quad), and only
+                // then the simulation's weight, which can change from pixel to pixel inside a trail.
                 [branch] if (groomed > 0.01 && weights[0] > 0.004)
                 {
                     float u = TrailOffsetAt(i.positionWS.xz);
                     // The across-trail direction from the offset's screen derivatives (no extra texture reads).
                     float2 dx = ddx(i.positionWS.xz), dy = ddy(i.positionWS.xz);
                     float du_x = ddx(u), du_y = ddy(u);
+                    float cycles = u / 0.0254;
+                    float perPixel = fwidth(cycles);
+                    float seamWidth = max(0.06, fwidth(u) * 0.75);
+                    float cord = groomed * SnowCorduroyAt(i.positionWS);
+                    if (cord > 0.01)
+                    {
                     float det = dx.x * dy.y - dx.y * dy.x;
                     float2 gradU = abs(det) > 1e-8 ? float2(du_x * dy.y - du_y * dx.y, du_y * dx.x - du_x * dy.x) / det : float2(1, 0);
                     float3 acrossWS = normalize(float3(gradU.x, 0, gradU.y) + float3(1e-5, 0, 0));
-                    normals[0] = normalize(lerp(normals[0], n, 0.6 * groomed));
-                    float cycles = u / 0.0254;
-                    float perPixel = fwidth(cycles);
-                    float fine = (1 - smoothstep(0.25, 0.5, perPixel)) * groomed;   // individual ridges, while 2+ px each
+                    normals[0] = normalize(lerp(normals[0], n, 0.6 * cord));
+                    float fine = (1 - smoothstep(0.25, 0.5, perPixel)) * cord;   // individual ridges, while 2+ px each
                     float wave = sin(cycles * 6.2831853);
                     normals[0] = normalize(normals[0] + acrossWS * cos(cycles * 6.2831853) * 0.5 * fine);
                     albedos[0].rgb *= 1 - 0.06 * fine * (0.5 + 0.5 * wave);
                     // The averaged ridges: the mean of the light on both ridge flanks against the flat surface's.
-                    float far = (1 - fine) * groomed;
+                    float far = (1 - fine) * cord;
                     Light ridgeSun = GetMainLight();
                     float3 plus = normalize(normals[0] + acrossWS * 0.5), minus = normalize(normals[0] - acrossWS * 0.5);
                     float flat0 = max(saturate(dot(normals[0], ridgeSun.direction)), 0.05);
@@ -747,11 +756,12 @@ Shader "MountainPlanner/Terrain"
                     albedos[0].rgb *= lerp(1, clamp(avg / flat0, 0.85, 1.05), far);
                     smooths[0] = lerp(smooths[0], smooths[0] * 0.7, far);
                     float lane = u / 4.572;
-                    float seamWidth = max(0.06, fwidth(u) * 0.75);
                     float seam = 1 - smoothstep(0, seamWidth, abs(frac(lane + 0.5) - 0.5) * 4.572);
                     float shade = Hash12(int2((int)floor(lane + 1000), 7)) - 0.5;
-                    albedos[0].rgb *= (1 + 0.015 * shade * groomed) * (1 - 0.03 * seam * groomed);
-                    albedos[0].rgb *= lerp(1, 1.03, groomed);
+                    float farRead = saturate(far / max(cord, 1e-3));   // 0 near (single ridges), 1 far (averaged)
+                    albedos[0].rgb *= (1 + lerp(0.015, 0.04, farRead) * shade * cord) * (1 - lerp(0.03, 0.07, farRead) * seam * cord);
+                    albedos[0].rgb *= lerp(1, lerp(1.03, 1.05, farRead), cord);
+                    }
                 }
                 // Summer: the bench is seeded and mown, a fresher, more even green; the faces fresh earth, stonier in cut.
                 [branch] if (onTrail > 0.01 && weights[2] > 0.004)

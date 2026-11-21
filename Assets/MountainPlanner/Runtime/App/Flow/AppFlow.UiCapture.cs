@@ -512,6 +512,20 @@ namespace MountainPlanner.App.Flow
             ("analysis-lifts", false, (h, v, on) => { h.SetAnalysisTab(on ? "lifts" : "overview"); h.SetAnalysis(on); }),
             ("analysis-weather", false, (h, v, on) => { h.SetAnalysisTab(on ? "weather" : "overview"); h.SetAnalysis(on); }),
             ("analysis-finances", false, (h, v, on) => { h.SetAnalysisTab(on ? "finances" : "overview"); h.SetAnalysis(on); }),
+            // Task 4.25 PR B: Analysis › Grooming over a fixed night (three groomers, or none), as the mockup's agrooming,
+            // groomfleet, groombuy and groomnone.
+            ("analysis-grooming", false, (h, v, on) => GroomState(h, v, on, 3, false)),
+            ("grooming-equipment", false, (h, v, on) =>
+            {
+                GroomState(h, v, on, 3, true);
+                if (on) h.OpenGroomerCardFor(1); else h.CloseGroomCardIfOpen();
+            }),
+            ("grooming-buy", false, (h, v, on) =>
+            {
+                GroomState(h, v, on, 3, true);
+                if (on) h.OpenGroomerBuyCardFor(MountainPlanner.Domain.Design.GroomerModel.S800W); else h.CloseGroomCardIfOpen();
+            }),
+            ("grooming-none", false, (h, v, on) => GroomState(h, v, on, 0, false)),
             ("rstats", false, (h, v, on) => h.SetStats(on)),
             // Task P2-06: a background download in the bar, as the mockup's demo=dl, dlwait and dlfail.
             ("dl", false, (h, v, on) => h.SetDownload(on ? "Downloading · 41%" : null, "Crystal Mountain", 0.41f, "")),
@@ -520,6 +534,14 @@ namespace MountainPlanner.App.Flow
             // Task P3-16, BB5: held up for two minutes by one server.
             ("dlheld", false, (h, v, on) => h.SetDownload(on ? "Held up · USGS elevation · 41%" : null, "Crystal Mountain", 0.41f, "pill--held")),
         };
+
+        static void GroomState(MountainHud h, MountainViewer v, bool on, int groomers, bool equipment)
+        {
+            v.SetGroomingForCapture(on ? groomers : (int?)null);
+            h.SetAnalysisTab(on ? "grooming" : "overview");
+            h.SetAnalysis(on);
+            if (on) h.ShowGroomingForCapture(equipment, false, MountainPlanner.UI.Hud.GroomFilter.Tonight);
+        }
 
         /// <summary>Photo mode's states (task P2-07): the mockup's #demo=p2,photo flags.</summary>
         static readonly (string Name, Action<MountainViewer> Set)[] PhotoStates =

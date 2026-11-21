@@ -153,6 +153,7 @@ namespace MountainPlanner.App.Flow
             "-solvebench",   // task 4.15
             "-groomshots",   // task 4.25
             "-groomdots",    // task 4.25, GO-13
+            "-groomtab",     // task 4.25 PR B
         };
 
         void UpdateSaves(Keyboard keys)

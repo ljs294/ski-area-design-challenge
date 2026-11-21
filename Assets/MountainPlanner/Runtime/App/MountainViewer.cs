@@ -478,6 +478,7 @@ namespace MountainPlanner.App
                 else if (Hud != null && _resort != null && Hud.CloseTrailCardIfOpen()) { }   // a trail's focus card (task 08)
                 else if (Hud != null && _resort != null && Hud.CloseLiftCardIfOpen()) { }    // a lift's focus card (task 09)
                 else if (Hud != null && _resort != null && Hud.CloseWaterCardIfOpen()) { }   // a water card (task 4.14)
+                else if (Hud != null && _resort != null && Hud.CloseGroomCardIfOpen()) { }   // a groomer card (task 4.25 PR B)
                 else if (_resort != null && EscapeTool()) { }   // the armed tool backs out a step (CF-07, P3-06)
                 else if (Hud != null && _resort != null && Hud.BackOut()) { }
                 else if (Hud != null && _resort != null) Hud.ToggleMenu();
@@ -682,6 +683,7 @@ namespace MountainPlanner.App
             TickSnowView(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);     // task 4.15
             TickTraffic(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);      // task 4.13 PR C (SN-31)
             TickCatchment(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);    // task P3-10, NT16
+            TickGroomMap(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null);     // task 4.25 PR B
             _labelPlacement.Place();   // every set's names at once, none overlapping (NT7)
             var set = _resort.ContourLabels[(int)DisplayUnits.Current];
             if (!ReferenceEquals(set, _contourLabelSet))
@@ -719,6 +721,7 @@ namespace MountainPlanner.App
             Hud.SetLegend(_layers.InfoLayerId, _layers.ContoursOn);
             SetHudClock();
             UpdateLiftLive();
+            UpdateGroomingTab();   // task 4.25 PR B
             UpdateWaterLive();
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             var mouse = Mouse.current;

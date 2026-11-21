@@ -46,7 +46,7 @@ namespace MountainPlanner.UI
             ("infra", "parking", "Parking", "Parking", "K", "s-parking", null),
         };
         static readonly string[] ToolboxTabs = { "lifts", "trails", "terrain", "snow", "infra" };
-        static readonly string[] AnalysisTabs = { "overview", "lifts", "trails", "network", "guests", "snow", "weather", "amenities", "finances" };
+        static readonly string[] AnalysisTabs = { "overview", "lifts", "trails", "network", "guests", "snow", "grooming", "weather", "amenities", "finances" };
         /// <summary>Each Analysis tab's line until its phase fills it (the mockup's demo=p2 wording).</summary>
         static readonly string[] AnalysisEmpty =
         {
@@ -56,6 +56,7 @@ namespace MountainPlanner.UI
             "No lifts or trails yet: build a lift, then a trail down from its top. The network joins them where they meet.",
             "Guests come with the simulation in Phase 4.",
             "Snowmaking comes with the building tools in Phase 3.",
+            "Grooming comes with the simulation: buy a groomer, and the night's work shows here.",
             "Weather comes with the snow simulation in Phase 4.",
             "Lodges and parking come with the building tools in Phase 3.",
             "Money comes with the simulation in Phase 4.",
@@ -212,6 +213,7 @@ namespace MountainPlanner.UI
             _barAnalysis.EnableInClassList("tbtn--on", open);
             _when.EnableInClassList("stat--on", open && _analysisTab == "weather");
             ShowNetworkTab();   // task P3-10: the Network view follows Analysis › Network
+            ShowGroomingTab();  // task 4.25 PR B: the map's grooming colours follow Analysis › Grooming
             RetintSoon();
         }
 
@@ -225,6 +227,7 @@ namespace MountainPlanner.UI
             ShowTrailsTab();   // task 08
             ShowLiftsTab();    // task 09
             ShowNetworkTab();  // task P3-10
+            ShowGroomingTab(); // task 4.25 PR B
         }
 
         public string AnalysisTab => _analysisTab;
@@ -463,6 +466,7 @@ namespace MountainPlanner.UI
         const float ToastSeconds = 3.6f;
         readonly VisualElement[] _toastItems = new VisualElement[ToastCount];
         readonly float[] _toastUntil = new float[ToastCount];
+        readonly Action[] _toastClick = new Action[ToastCount];
 
         void WireToasts()
         {
@@ -477,6 +481,16 @@ namespace MountainPlanner.UI
                 item.Add(Text("", "log__text"));
                 _toasts.Add(item);
                 _toastItems[i] = item;
+                int at = i;
+                // Task 4.25 PR B: a toast with an action (the morning's grooming) takes a click.
+                item.RegisterCallback<ClickEvent>(_ =>
+                {
+                    var go = _toastClick[at];
+                    if (go == null) return;
+                    _toastClick[at] = null;
+                    item.AddToClassList("hidden");
+                    go();
+                });
             }
             _root.schedule.Execute(ExpireToasts).Every(200);
         }
@@ -485,7 +499,10 @@ namespace MountainPlanner.UI
         /// A short message at the top centre for 3.6 seconds, with a coloured stripe (grey for a routine note); at most
         /// three, the oldest goes first.
         /// </summary>
-        public void Toast(string text, Color? stripe = null)
+        public void Toast(string text, Color? stripe = null) => Toast(text, stripe, null);
+
+        /// <summary>A toast that does <paramref name="click"/> when clicked (it takes the pointer only then).</summary>
+        public void Toast(string text, Color? stripe, Action click)
         {
             // The oldest shown, or a free one, moves to the bottom with the new text.
             VisualElement item = null;
@@ -506,13 +523,17 @@ namespace MountainPlanner.UI
             if (stripePart != null) stripePart.style.backgroundColor = stripe ?? new Color32(0x6f, 0x67, 0x5e, 255);
             var label = item.Q<Label>(className: "log__text");
             if (label != null) label.text = text;
-            _toastUntil[Array.IndexOf(_toastItems, item)] = Time.unscaledTime + ToastSeconds;
+            int slot = Array.IndexOf(_toastItems, item);
+            _toastClick[slot] = click;
+            item.pickingMode = click != null ? PickingMode.Position : PickingMode.Ignore;
+            item.tooltip = click != null ? "Click to see it" : "";
+            _toastUntil[slot] = Time.unscaledTime + (click != null ? ToastSeconds * 2 : ToastSeconds);
         }
 
         void ExpireToasts()
         {
             for (int i = 0; i < ToastCount; i++)
-                if (!_toastItems[i].ClassListContains("hidden") && Time.unscaledTime > _toastUntil[i]) _toastItems[i].AddToClassList("hidden");
+                if (!_toastItems[i].ClassListContains("hidden") && Time.unscaledTime > _toastUntil[i]) { _toastItems[i].AddToClassList("hidden"); _toastClick[i] = null; }
         }
 
         // ---------- tooltips ----------

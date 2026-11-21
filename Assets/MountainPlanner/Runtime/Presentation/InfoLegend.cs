@@ -106,14 +106,16 @@ namespace MountainPlanner.Presentation
         /// bare ground with traces of it.</summary>
         public static bool SnowReadsBare(int type, float metres) => type > 0 && metres < SnowBareBelowMetres;
 
-        /// <summary>The legend's rows: the types the natural snow makes (grooming and skiing bring the rest, task 4.07 PR B), by
-        /// family, with the family's name as the figure on its first row.</summary>
+        /// <summary>The legend's rows by family, with the family's name as the figure on its first row: the natural snow's
+        /// types, and since task 4.25 PR B what the groomers and the skiers make (machine groomed, then hard packed).</summary>
         public static readonly Entry[] SnowConditions =
         {
             new Entry(SnowTypeColours[1], "Powder", "Fresh"),
             new Entry(SnowTypeColours[10], "Wet powder", ""),
-            new Entry(SnowTypeColours[2], "Packed powder", "Packed"),
-            new Entry(SnowTypeColours[7], "Frozen granular", "Hard"),
+            new Entry(SnowTypeColours[3], "Machine groomed", "Packed"),
+            new Entry(SnowTypeColours[2], "Packed powder", ""),
+            new Entry(SnowTypeColours[4], "Hard packed", "Hard"),
+            new Entry(SnowTypeColours[7], "Frozen granular", ""),
             new Entry(SnowTypeColours[5], "Icy", ""),
             new Entry(SnowTypeColours[6], "Corn", "Spring"),
             new Entry(SnowTypeColours[9], "Wet granular", ""),

@@ -77,5 +77,6 @@ TestData/formats/v10-sim/** -text
 TestData/formats/v11-sim/** -text
 TestData/formats/v12-sim/** -text
 TestData/formats/v13-sim/** -text
+TestData/formats/v14-sim/** -text
 TestData/formats/v2-package/** -text
 TestData/formats/v3-package/** -text

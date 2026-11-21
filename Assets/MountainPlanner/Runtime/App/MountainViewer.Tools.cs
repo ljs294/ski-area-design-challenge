@@ -139,6 +139,7 @@ namespace MountainPlanner.App
             DisposeNetworkView();   // task P3-10
             DisposeSnowView();      // task 4.15
             DisposeCatchment();
+            DisposeGroomMap();      // task 4.25 PR B
             _tools = null;
             _preview = null;
             _designOverlay = null;

@@ -203,6 +203,12 @@ reads: a version number, and a name for the greyed library row.
   `SimSaveTests` checks a round trip gives back its bytes (all but the header's Pacing hash and the closing state hash)
   and that `v12-sim` still opens.
 
+- **`v14-sim/golden.sim`** is a world in `SimSidecar` v14 (task 4.25 PR B, GO-15, GO-16): v13's bytes, holding more. A
+  piece with task -1 is a groomer's drive over the trails (its share packs the network nodes from and to, each + 1), a
+  trail's carried share is negative when its groomer started at the foot, and a last-night row may be NoRoute. The same
+  world as `v13-sim`, now with its drives. `SimSaveTests` checks a round trip gives back its bytes (all but the header's
+  Pacing hash and the closing state hash) and that `v13-sim` still opens, saves as v14 and reads back the same.
+
 The `v1-library` files are never edited. When a format gains version N + 1:
 - add a `vN+1-…` folder;
 - keep this one, and test that it still migrates to the same values.

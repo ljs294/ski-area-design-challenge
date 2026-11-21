@@ -35,6 +35,8 @@ namespace MountainPlanner.Simulation
         NoGroomer = 9,
         /// <summary>The player skipped it tonight.</summary>
         Skipped = 10,
+        /// <summary>GO-15 (sidecar v14): no trail leads there from the depot (groomers drive on trails only).</summary>
+        NoRoute = 11,
     }
 
     /// <summary>GO-10: Autopilot's four warnings (owner round 3). Values are saved (sidecar v13) and in events: never renumber.</summary>
@@ -141,21 +143,57 @@ namespace MountainPlanner.Simulation
     {
         public const int MaxWarnings = 16;
         public bool Live;
+        /// <summary>GO-14 v3: the night below is tonight's preview (no night is planned yet: the day before the swing).</summary>
+        public bool Preview;
         public int NightDay = -1;
         public int SwingStartAbsMin, SwingEndAbsMin, NightEndAbsMin;
         public int CrewsSwing, CrewsNight, CrewsDay;
         public bool SnowingTonight;
         public int WantMinutes, CrewMinutes, ShortMinutes, CostUsd;
         public int LastNotReached, LastShortMinutes, LastWorkMinutes, LastCostUsd, LastNightDay = -1;
+        /// <summary>GO-14: last night's first shift start and night shift end (absolute face minutes), the Last night strip's axis.</summary>
+        public int LastSwingStartAbsMin, LastNightEndAbsMin;
         public readonly GroomJob[] Job;
         public readonly GroomRowState[] State, LastState;
         public readonly byte[] Groomer;
         public readonly short[] StartMin, EndMin, NeedMin;
+        /// <summary>GO-14, per trail: last night's lane (the groomer's index in the fleet, minutes from that night's first shift; −1 none; not saved, so
+        /// empty after a reopen until the next morning) and the hours since its last groom (255: none, or snowed over).</summary>
+        public readonly uint[] Lane;
+        /// <summary>Packs <see cref="Lane"/>: groomer 5 bits, start and end 10 bits each (end 0: no lane), hours 7 bits (126: that long
+        /// or more, 127: none).</summary>
+        public static uint PackLane(int groomer, int start, int end, int hours)
+        {
+            uint h = hours < 0 ? 127u : (uint)Math.Min(126, hours);   // hours < 0: never groomed
+            if (end <= 0 || groomer < 0) return h;
+            return ((uint)(groomer & 31) << 27) | ((uint)Math.Min(1023, Math.Max(0, start)) << 17) | ((uint)Math.Min(1023, end) << 7) | h;
+        }
+        public int LastGroomerAt(int k) => LastEndAt(k) > 0 ? (int)(Lane[k] >> 27) : -1;
+        public int LastStartAt(int k) => LastEndAt(k) > 0 ? (int)((Lane[k] >> 17) & 1023) : -1;
+        public int LastEndAt(int k) => (int)((Lane[k] >> 7) & 1023);
+        /// <summary>Hours since trail <paramref name="k"/>'s last groom (126: that long or more), or −1 (none, or snowed over).</summary>
+        public int SinceHoursAt(int k) { int h = (int)(Lane[k] & 127); return h == 127 ? -1 : h; }
         public int GroomerCount;
         public readonly int[] Number, SeasonMinutes;
         public readonly GroomerModel[] Model;
+        public readonly GroomerDrive[] Drive;
         public readonly bool[] Tiller;
         public readonly byte[] Shifts;
+        /// <summary>GO-14, per lane (groomer × 3 + shift: swing, night, day): minutes worked plus still planned. Screen only.</summary>
+        public readonly short[] PlanMin;
+        /// <summary>GO-15, per lane: minutes driven plus still to drive (to, between and from the trails). Screen only.</summary>
+        public readonly short[] TransitMin;
+        /// <summary>GO-15: the night strip's transit blocks: the groomer's index in the fleet and the minutes from the strip's
+        /// zero (as <see cref="StartMin"/>); the first may start before it (the drive out leaves during the open hours).</summary>
+        public const int MaxTransit = 48;   // within 0.0's ~16 KB side ring
+        public int TransitCount;
+        /// <summary>GO-15: the lift whose foot is the depot (its id; 0 when none), so the dots park where the sim's drives start.</summary>
+        public ulong DepotLift;
+        public readonly byte[] TransitLane;
+        public readonly short[] TransitFrom, TransitTo;
+        /// <summary>GO-14: per piece above, -1 for a drive, else the network trail it works (a work piece: a run worked in two
+        /// pieces is two blocks on the night strip).</summary>
+        public readonly short[] TransitTrail;
         /// <summary>
         /// GO-13, per groomer lane: where it is now, for the dots on the map. It goes from A to B: a trail (the snapshot's
         /// trail order, −1 the depot at the lowest lift's foot) at a share of its work (ppm along its passes), at a face
@@ -165,6 +203,12 @@ namespace MountainPlanner.Simulation
         public readonly short[] AtTrailA, AtTrailB;
         public readonly int[] AtPpmA, AtPpmB, AtMinA, AtMinB;
         public readonly GroomJob[] AtJob;
+        /// <summary>GO-16 v2: bit 0, A's task started at its trail's tail; bit 1, B's did (the passes run from that end).</summary>
+        public readonly byte[] AtTail;
+        /// <summary>GO-15: between pieces, the drive's minutes (it leaves at <see cref="AtMinA"/>); 0 when none is laid.</summary>
+        public readonly short[] AtDrive;
+        /// <summary>GO-16 v2 (screen only): stretches of runs groomed on the way this night or day.</summary>
+        public int WayPasses;
         public int WarningCount;
         public readonly GroomWarningKind[] WarningKind;
         public readonly short[] WarningTrail;
@@ -173,13 +217,17 @@ namespace MountainPlanner.Simulation
         {
             Job = new GroomJob[maxTrails]; State = new GroomRowState[maxTrails]; LastState = new GroomRowState[maxTrails];
             Groomer = new byte[maxTrails]; StartMin = new short[maxTrails]; EndMin = new short[maxTrails]; NeedMin = new short[maxTrails];
+            Lane = new uint[maxTrails];
             int g = GroomFleet.MaxGroomers;
-            Number = new int[g]; SeasonMinutes = new int[g]; Model = new GroomerModel[g]; Tiller = new bool[g]; Shifts = new byte[g];
+            Number = new int[g]; SeasonMinutes = new int[g]; Model = new GroomerModel[g]; Drive = new GroomerDrive[g]; Tiller = new bool[g]; Shifts = new byte[g];
             AtTrailA = new short[g]; AtTrailB = new short[g]; AtPpmA = new int[g]; AtPpmB = new int[g]; AtMinA = new int[g]; AtMinB = new int[g];
-            AtJob = new GroomJob[g];
+            AtJob = new GroomJob[g]; AtTail = new byte[g]; AtDrive = new short[g];
+            PlanMin = new short[g * 3]; TransitMin = new short[g * 3];
+            TransitLane = new byte[MaxTransit]; TransitFrom = new short[MaxTransit]; TransitTo = new short[MaxTransit];
+            TransitTrail = new short[MaxTransit];
             WarningKind = new GroomWarningKind[MaxWarnings]; WarningTrail = new short[MaxWarnings];
         }
 
-        public int SizeBytes => 96 + Job.Length * (1 + 1 + 1 + 1 + 2 + 2 + 2) + Number.Length * (4 + 4 + 1 + 1 + 1 + 2 + 2 + 4 * 4 + 1) + MaxWarnings * 3;
+        public int SizeBytes => 113 + Job.Length * (1 + 1 + 1 + 1 + 2 + 2 + 2 + 4) + Number.Length * (4 + 4 + 1 + 1 + 1 + 1 + 2 + 2 + 4 * 4 + 1 + 1 + 2 + 3 * 2 * 2) + MaxTransit * 7 + MaxWarnings * 3;
     }
 }

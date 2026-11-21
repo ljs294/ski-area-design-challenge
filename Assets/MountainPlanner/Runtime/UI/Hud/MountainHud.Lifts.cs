@@ -243,6 +243,7 @@ namespace MountainPlanner.UI
         {
             CloseSkierCardIfOpen();   // one card at a time (task 4.13)
             CloseWaterCardIfOpen();   // and the water card (task 4.14)
+            CloseGroomCardIfOpen();   // and the groomer cards (task 4.25 PR B)
             _liftCardId = id;
             _liftsList.SetFocused(id);
             FillLiftCard();

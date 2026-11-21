@@ -50,6 +50,11 @@ export const STATES = [
   { name: 'analysis-lifts', mockup: 'alifts' },
   { name: 'analysis-weather', mockup: 'aweather' },
   { name: 'analysis-finances', mockup: 'afinances' },
+  // Task 4.25 PR B: Analysis › Grooming, its Equipment, the buy card and the empty fleet.
+  { name: 'analysis-grooming', mockup: 'groom,agrooming' },
+  { name: 'grooming-equipment', mockup: 'groom,groomfleet' },
+  { name: 'grooming-buy', mockup: 'groom,groombuy' },
+  { name: 'grooming-none', mockup: 'groom,groomnone' },
   { name: 'rstats', mockup: 'rstats' },
   // Task P2-06: a background download in the bar, running, waiting and stopped.
   { name: 'dl', mockup: 'dl' },
