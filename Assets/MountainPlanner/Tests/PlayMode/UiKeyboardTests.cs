@@ -274,7 +274,7 @@ namespace MountainPlanner.Tests
             Assert.That(viewer.Hud.MenuOpen, Is.False);
 
             // Task 4.01: the greyed Guests tab's tooltip is its own line (it read the Network tab's).
-            Assert.That(hud.Q<Button>("analysis-tab-guests").tooltip, Is.EqualTo("Guests come with the simulation in Phase 4."),
+            Assert.That(hud.Q<Button>("analysis-tab-guests").tooltip, Is.EqualTo("Guest numbers come in a later update; the guests already ski the mountain."),
                         "the Guests tab's tooltip is the Guests line");
 
             // The map layers dropdown: the top-right button opens it; the arrows reach its rows; Enter switches a layer.

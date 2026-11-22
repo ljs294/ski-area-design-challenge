@@ -264,10 +264,18 @@ namespace MountainPlanner.Presentation
 
         public static bool IsClaimed(GameAction action) => Claimed[(int)action];
 
+        /// <summary>
+        /// Task 4.26 BB19: the armed tool has a brush whose size Ctrl + wheel changes (painting a trail, the terrain
+        /// brushes); the camera doesn't zoom on Ctrl + wheel meanwhile. Not a key binding, so nothing is saved; cleared with
+        /// the claims.
+        /// </summary>
+        public static bool BrushWheel;
+
         public static void ClearClaims()
         {
             Array.Clear(Claimed, 0, Claimed.Length);
             _claims = 0;
+            BrushWheel = false;
         }
 
         // Another action's key is shadowed while a claimed tool key uses the same key.
@@ -315,7 +323,7 @@ namespace MountainPlanner.Presentation
         /// <summary>The action's key went down this frame; Shift is free (it means a bigger step) unless the binding has it.</summary>
         public static bool PressedAnyShift(Keyboard keyboard, GameAction action)
         {
-            if (keyboard == null) return false;
+            if (keyboard == null || (Typing != null && Typing())) return false;   // BB12: typing in a field never turns a terminal or slides a tower
             Load();
             var mods = ModsOf(keyboard);
             int i = (int)action * Slots;

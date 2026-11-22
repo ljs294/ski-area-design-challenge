@@ -487,6 +487,13 @@ namespace MountainPlanner.Tests
             _host.Tick(new ToolInput { Keys = ToolKeys.BrushWider });
             Assert.That(trail.BrushFeet, Is.EqualTo(105), "] widens the brush 5 ft");
             _host.Tick(new ToolInput { Keys = ToolKeys.BrushNarrower });
+            // Task 4.26 BB19: Ctrl + wheel sizes the brush (3 notches up, 2 down), and the camera leaves the wheel alone.
+            Assert.That(MountainPlanner.Presentation.KeyBindings.BrushWheel, Is.True, "painting claims Ctrl + wheel");
+            _host.Tick(new ToolInput { BrushNotches = 3 });
+            Assert.That(trail.BrushFeet, Is.EqualTo(115));
+            _host.Tick(new ToolInput { BrushNotches = -2 });
+            Assert.That(trail.BrushFeet, Is.EqualTo(105));
+            _host.Tick(new ToolInput { Keys = ToolKeys.BrushNarrower });
 
             // One stroke down the fall line, 600 m.
             var input = At(0, 300, click: true);
@@ -757,6 +764,20 @@ namespace MountainPlanner.Tests
             var clock = System.Diagnostics.Stopwatch.StartNew();
             while (!done() && clock.ElapsedMilliseconds < 60_000) { System.Threading.Thread.Sleep(10); _host.Tick(default); }
             Assert.That(done(), Is.True, what);
+        }
+
+        [Test]
+        public void NewLiftsLeanTheirTowersByDefault()
+        {
+            // Task 4.26 BB17 (owner, 2026-11-21): leaned towers are the default; a tow is always plumb along its line, and
+            // the player's pick comes back when an aerial lift is chosen again.
+            _host.Choose(NewLiftTool.ToolId);
+            var lift = (NewLiftTool)_host.Active;
+            Assert.That(lift.Stance, Is.EqualTo(TowerStance.Leaned), "a new chairlift leans its towers");
+            lift.Choose(LiftCatalogIds.MontaJbar);
+            Assert.That(lift.Stance, Is.EqualTo(TowerStance.Plumb), "a tow's masts stand plumb along the line");
+            lift.Choose(LiftCatalogIds.SesselliftFgq4);
+            Assert.That(lift.Stance, Is.EqualTo(TowerStance.Leaned), "back to a chair: leaned again");
         }
 
         [Test]

@@ -53,11 +53,36 @@ namespace MountainPlanner.App.Flow
             string[] args = Environment.GetCommandLineArgs();
             _reportTest = Array.IndexOf(args, "-reporttest") >= 0;
             if (_reportTest) OpenReportsExternally = false;
-            if (Application.isEditor || NotAPlayerSession.Any(a => Array.IndexOf(args, a) >= 0)) return;
-            _crashMarker = new CrashMarker(MountainViewer.DataRoot);
-            _crashMarker.Begin($"{BuildInfo.Current.DisplayVersion} ({BuildInfo.Current.ShortCommit}), started {DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss'Z'", CultureInfo.InvariantCulture)}");
+            // BB20: a capture or benchmark (CaptureRun) isn't the player's session either: killed at its time limit, it
+            // read as a crash at the player's next start.
+            if (Application.isEditor || CaptureRun || NotAPlayerSession.Any(a => Array.IndexOf(args, a) >= 0)) return;
+            _crashMarker = new CrashMarker(MountainViewer.DataRoot, ProcessRunning);
+            using (var self = System.Diagnostics.Process.GetCurrentProcess())
+                _crashMarker.Begin($"{BuildInfo.Current.DisplayVersion} ({BuildInfo.Current.ShortCommit}), started {DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss'Z'", CultureInfo.InvariantCulture)}",
+                                   self.Id, StartTicks(self));
             _crashPending = _crashMarker.PendingCrash;
             Application.quitting += _crashMarker.End;
+        }
+
+        /// <summary>A process's start time in UTC ticks, to the second (the marker compares it; Windows reuses ids).</summary>
+        static long StartTicks(System.Diagnostics.Process p)
+        {
+            long t = p.StartTime.ToUniversalTime().Ticks;
+            return t - t % TimeSpan.TicksPerSecond;
+        }
+
+        /// <summary>BB20: whether the session that wrote a marker is still running (another copy of the game).</summary>
+        static bool ProcessRunning(int id, long startedTicks)
+        {
+            try
+            {
+                using var p = System.Diagnostics.Process.GetProcessById(id);
+                return !p.HasExited && Math.Abs(StartTicks(p) - startedTicks) <= TimeSpan.TicksPerSecond;
+            }
+            catch (ArgumentException) { return false; }          // no such process
+            catch (InvalidOperationException) { return false; }  // it has exited
+            catch (System.ComponentModel.Win32Exception) { return true; }   // there, but not ours to read: leave its marker
+            catch (NotSupportedException) { return false; }
         }
 
         /// <summary>The in-game menu's Send feedback (opens on Suggestion).</summary>

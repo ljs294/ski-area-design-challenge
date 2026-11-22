@@ -42,6 +42,7 @@ namespace MountainPlanner.UI.Tools
             }
             _name = new Label { name = "toolwin-name", pickingMode = PickingMode.Ignore };
             _name.AddToClassList("tw__name");
+            _name.AddToClassList(HudWindow.NoDragClass);   // BB13: a press on the name renames, not drags
             _name.RegisterCallback<ClickEvent>(_ => BeginRename());
             Window.RegisterCallback<KeyDownEvent>(e => { if (e.keyCode == KeyCode.F2 && _rename != null && !_renaming) { BeginRename(); e.StopPropagation(); } });
             Window.Head.Insert(Window.Head.IndexOf(Window.Title) + 1, _name);
@@ -229,8 +230,7 @@ namespace MountainPlanner.UI.Tools
             if (!_renaming) return;
             _renaming = false;
             string typed = _nameField.value;
-            _nameField.RemoveFromHierarchy();
-            _name.RemoveFromClassList("hidden");
+            InlineName.Close(_name, _nameField);
             if (!keep || typed == _name.text || _rename == null) return;
             string problem = _rename(typed);
             if (problem != null) SetMessage(problem);

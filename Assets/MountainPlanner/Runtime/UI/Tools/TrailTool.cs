@@ -254,6 +254,7 @@ namespace MountainPlanner.UI.Tools
             bool painting = step == Step.Paint;
             _ctx.Claim(GameAction.BrushNarrower, painting);
             _ctx.Claim(GameAction.BrushWider, painting);
+            _ctx.ClaimBrushWheel(painting);
             _ctx.Claim(GameAction.UndoStroke, painting);
             _ctx.Claim(GameAction.Erase, painting);
             w.SetGoLabel(_mode == TrailToolMode.Remove ? (_target != null ? "Remove " + _target.Name : "Remove")
@@ -271,7 +272,7 @@ namespace MountainPlanner.UI.Tools
                 case Step.Paint:
                     _hasHead = _hasTail = false;
                     DropAnalysis();
-                    w.SetKeys((GameAction.BrushNarrower, ""), (GameAction.BrushWider, "width"), (GameAction.Erase, "erases"), (GameAction.UndoStroke, "undoes a stroke"));
+                    w.SetKeys((GameAction.BrushNarrower, ""), (GameAction.BrushWider, "width (or Ctrl + wheel)"), (GameAction.Erase, "erases"), (GameAction.UndoStroke, "undoes a stroke"));
                     w.ShowReview(null);
                     w.SetCommit(false, false);
                     // Repaint shows the trail's own clearing as paint at once (the pick cleared it, finding 1).
@@ -455,6 +456,7 @@ namespace MountainPlanner.UI.Tools
         {
             if (input.Pressed(ToolKeys.BrushNarrower)) SetFeet(_feet - StepFeet);
             if (input.Pressed(ToolKeys.BrushWider)) SetFeet(_feet + StepFeet);
+            if (input.BrushNotches != 0) SetFeet(_feet + input.BrushNotches * StepFeet);   // Ctrl + wheel (BB19)
             if (input.Pressed(ToolKeys.UndoStroke) && !_painting && _strokes.Count > 0)
             {
                 _strokes.RemoveAt(_strokes.Count - 1);

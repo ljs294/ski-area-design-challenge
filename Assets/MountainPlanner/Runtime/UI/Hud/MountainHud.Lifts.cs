@@ -63,7 +63,7 @@ namespace MountainPlanner.UI
         public Func<ulong, string, string> LiftPlateChanged;
         /// <summary>LO-09, LO-07 v2: the card's Runs and Hours (one undoable SetLiftSchedule): peak days, and its own hours or null.</summary>
         public Func<ulong, bool, Domain.Design.DayHours?, string> LiftScheduleChanged;
-        /// <summary>Task 4.11 PR B: the card's Ride (or R on the card): ride that lift from the bottom.</summary>
+        /// <summary>Task 4.11 PR B: the card's Ride: ride that lift from the bottom.</summary>
         public event Action<ulong> LiftRideChosen;
         TextField _liftCardField, _liftCardPlateField;
 
@@ -124,7 +124,7 @@ namespace MountainPlanner.UI
             gap.style.flexGrow = 1;
             head.Add(gap);
             // Task 4.11 PR B: Ride this lift, the video camera in the camera's style; greyed for a plan.
-            _liftCardRide = new Button(RideLiftCard) { name = "lift-card-ride", tooltip = "Ride this lift (R)" };
+            _liftCardRide = new Button(RideLiftCard) { name = "lift-card-ride", tooltip = "Ride this lift" };
             _liftCardRide.AddToClassList("mp-x");
             _liftCardRide.AddToClassList("lift-card__ride");
             _liftCardRide.Add(new HudIcon("s-video"));
@@ -259,7 +259,7 @@ namespace MountainPlanner.UI
             ShowLiftCardPlate(l.Plate, l.Built);
             _liftCardKind.text = l.Kind ?? "Lift";   // F5
             _liftCardRide.SetEnabled(l.Built);
-            _liftCardRide.tooltip = l.Built ? "Ride this lift (R)" : "Build it to ride it";
+            _liftCardRide.tooltip = l.Built ? "Ride this lift" : "Build it to ride it";   // BB5: no key named (R was never bound)
             _liftCardKv.Clear();
             void Kv(string k, string v, bool warn = false)
             {
@@ -407,15 +407,6 @@ namespace MountainPlanner.UI
             LiftRideChosen?.Invoke(id);
         }
 
-        /// <summary>R on an open card: ride its lift (true when it did).</summary>
-        public bool RideOpenLiftCard()
-        {
-            if (_liftCardId == 0 || !_liftRows.TryGetValue(_liftCardId, out var l) || !l.Built) return false;
-            if (_liftCardField?.parent != null || _liftCardPlateField?.parent != null) return false;
-            RideLiftCard();
-            return true;
-        }
-
         /// <summary>Plates are optional (owner 2026-11-08): a lift without one shows a faint "#" chip to add one.</summary>
         void ShowLiftCardPlate(string plate, bool built)
         {
@@ -452,7 +443,7 @@ namespace MountainPlanner.UI
         {
             if (_liftCardPlateField?.parent == null) return;
             string typed = _liftCardPlateField.value.Trim().ToUpperInvariant();
-            _liftCardPlateField.RemoveFromHierarchy();
+            InlineName.Close(_liftCardPlate, _liftCardPlateField);   // BB14: the chip comes back, even left blank
             if (!keep || typed == _liftCardPlateValue || LiftPlateChanged == null) return;
             string problem = LiftPlateChanged(_liftCardId, typed);
             if (problem != null) Toast(problem);
@@ -492,8 +483,7 @@ namespace MountainPlanner.UI
         {
             if (_liftCardField?.parent == null) return;
             string typed = _liftCardField.value;
-            _liftCardField.RemoveFromHierarchy();
-            _liftCardName.RemoveFromClassList("hidden");
+            InlineName.Close(_liftCardName, _liftCardField);
             if (!keep || typed == _liftCardName.text || LiftRenamed == null) return;
             string problem = LiftRenamed(_liftCardId, typed);
             if (problem != null) Toast(problem);

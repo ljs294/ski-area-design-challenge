@@ -163,8 +163,7 @@ namespace MountainPlanner.UI
         {
             if (_areaCardField?.parent == null) return;
             string typed = _areaCardField.value;
-            _areaCardField.RemoveFromHierarchy();
-            _areaCardName.RemoveFromClassList("hidden");
+            InlineName.Close(_areaCardName, _areaCardField);
             if (!keep || typed == _areaCardName.text || AreaRenamed == null) return;
             string problem = AreaRenamed(_areaCardId, typed);
             if (problem != null) Toast(problem);

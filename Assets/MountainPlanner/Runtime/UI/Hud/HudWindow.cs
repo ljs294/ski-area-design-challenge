@@ -94,11 +94,26 @@ namespace MountainPlanner.UI.Hud
 
         void OnDown(PointerDownEvent e)
         {
-            if (e.button != 0 || e.target is Button) return;
+            if (e.button != 0 || e.target is Button || OwnsItsClicks(e.target as VisualElement)) return;
             _dragging = true;
             _grab = (Vector2)e.position - Position;
             Head.CapturePointer(e.pointerId);
             e.StopPropagation();
+        }
+
+        /// <summary>
+        /// Marks a head element that takes its own clicks (the tool window's renamable name): a press on it never starts a
+        /// drag, so its ClickEvent arrives (task 4.26 BB13: capturing the pointer for the drag swallowed the click, so the
+        /// New trail and Edit trail names could not be renamed).
+        /// </summary>
+        public const string NoDragClass = "mp-head--nodrag";
+
+        /// <summary>Whether <paramref name="t"/> is, or sits inside, a text field or a <see cref="NoDragClass"/> element.</summary>
+        bool OwnsItsClicks(VisualElement t)
+        {
+            for (; t != null && t != Head; t = t.parent)
+                if (t is TextField || t.ClassListContains(NoDragClass) || t.ClassListContains(InlineName.FieldClass)) return true;
+            return false;
         }
 
         void OnMove(PointerMoveEvent e)

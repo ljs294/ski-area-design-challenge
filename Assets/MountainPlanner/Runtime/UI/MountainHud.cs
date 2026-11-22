@@ -46,6 +46,8 @@ namespace MountainPlanner.UI
 
         /// <summary>Where the contour labels go (behind the panels); <see cref="ContourLabelOverlay"/> fills it.</summary>
         public VisualElement ContourLabelLayer => _root.Q("contour-labels");
+        /// <summary>The HUD's document root (task 4.26's -typecheck finds its fields here).</summary>
+        public VisualElement Root => _root;
 
         public bool DarkThemeOn => UiPreferences.Dark;
         /// <summary>The open area's name, as the HUD shows it.</summary>

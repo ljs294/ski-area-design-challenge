@@ -151,8 +151,7 @@ namespace MountainPlanner.UI
         {
             if (_waterCardField?.parent == null) return;
             string typed = _waterCardField.value;
-            _waterCardField.RemoveFromHierarchy();
-            _waterCardName.RemoveFromClassList("hidden");
+            InlineName.Close(_waterCardName, _waterCardField);
             if (!keep || typed == _waterCardName.text || WaterRenamed == null || _waterCardKey == null) return;
             string problem = WaterRenamed(_waterCardKey, typed);
             if (problem != null) Toast(problem);

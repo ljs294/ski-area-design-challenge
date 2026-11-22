@@ -37,5 +37,15 @@ namespace MountainPlanner.UI
             name.parent.Insert(name.parent.IndexOf(name) + 1, field);
             name.AddToClassList("hidden");
         }
+
+        /// <summary>
+        /// Takes <paramref name="field"/> away and shows <paramref name="name"/> again, whatever was typed (task 4.26 BB14:
+        /// a plate left blank hid its "#" chip for good). Every caller of <see cref="Open"/> closes through this.
+        /// </summary>
+        public static void Close(Label name, TextField field)
+        {
+            field?.RemoveFromHierarchy();
+            name?.RemoveFromClassList("hidden");
+        }
     }
 }

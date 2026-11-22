@@ -210,20 +210,72 @@ namespace MountainPlanner.Tests
         [Test]
         public void ACrashIsOfferedOnceAtTheNextLaunch()
         {
-            var marker = new CrashMarker(_root);
-            marker.Begin("v0.3.0 started 14:00");
+            var alive = new HashSet<int>();
+            bool Alive(int pid, long ticks) => alive.Contains(pid);
+            var marker = new CrashMarker(_root, Alive);
+            marker.Begin("v0.3.0 started 14:00", 100, 1);
             marker.End();
-            marker.Begin("v0.3.0 started 15:00");
-            Assert.IsNull(marker.PendingCrash, "a clean quit isn't a crash");
+            new CrashMarker(_root, Alive).Begin("v0.3.0 started 15:00", 101, 2);
+            Assert.IsNull(new CrashMarker(_root, Alive).PendingCrash, "a clean quit isn't a crash");
 
-            var next = new CrashMarker(_root);
-            next.Begin("v0.3.0 started 16:00");   // 15:00's session never ended
+            var next = new CrashMarker(_root, Alive);
+            next.Begin("v0.3.0 started 16:00", 102, 3);   // 15:00's session (101) never ended and its process is gone
             Assert.AreEqual("v0.3.0 started 15:00", next.PendingCrash);
             next.Answered();
             Assert.IsNull(next.PendingCrash);
             next.End();
-            new CrashMarker(_root).Begin("v0.3.0 started 17:00");
-            Assert.IsNull(new CrashMarker(_root).PendingCrash);
+            new CrashMarker(_root, Alive).Begin("v0.3.0 started 17:00", 103, 4);
+            Assert.IsNull(new CrashMarker(_root, Alive).PendingCrash);
+        }
+
+        [Test]
+        public void ASecondCopyRunningAtTheSameTimeIsNotACrash()
+        {
+            // Task 4.26 BB20: with one marker for every session, a second game (another copy, a test run) read the first
+            // one's marker as a crash, and the player's next start offered a report.
+            var alive = new HashSet<int> { 200 };
+            bool Alive(int pid, long ticks) => alive.Contains(pid) && ticks == 7;
+            var first = new CrashMarker(_root, Alive);
+            first.Begin("first", 200, 7);
+            var second = new CrashMarker(_root, Alive);
+            second.Begin("second", 201, 8);
+            Assert.IsNull(second.PendingCrash, "the first copy is still running");
+            alive.Add(201);
+            second.End();
+            first.End();
+            alive.Clear();
+            var third = new CrashMarker(_root, Alive);
+            third.Begin("third", 202, 9);
+            Assert.IsNull(third.PendingCrash, "both quit cleanly");
+            Assert.AreEqual(new[] { CrashMarker.RunningName(202) },
+                            Directory.GetFiles(ReportBundle.FolderIn(_root), "running*.txt").Select(Path.GetFileName).ToArray());
+        }
+
+        [Test]
+        public void AReusedProcessIdIsStillACrash()
+        {
+            // Windows reuses process ids: a live process with the crashed session's id but another start time isn't it.
+            bool Alive(int pid, long ticks) => pid == 300 && ticks == 50;
+            new CrashMarker(_root, Alive).Begin("crashed", 300, 40);
+            var next = new CrashMarker(_root, Alive);
+            next.Begin("next", 301, 60);
+            Assert.AreEqual("crashed", next.PendingCrash);
+        }
+
+        [Test]
+        public void TheOldSingleMarkerCountsAsACrashOnce()
+        {
+            string folder = ReportBundle.FolderIn(_root);
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(folder, CrashMarker.LegacyRunningName), "v0.3.4 (abc1234), started 2026-11-21 20:00:00Z\n");
+            var marker = new CrashMarker(_root, (pid, ticks) => false);
+            marker.Begin("v0.3.5", 400, 1);
+            Assert.AreEqual("v0.3.4 (abc1234), started 2026-11-21 20:00:00Z", marker.PendingCrash);
+            Assert.IsFalse(File.Exists(Path.Combine(folder, CrashMarker.LegacyRunningName)));
+            marker.Answered();
+            marker.End();
+            new CrashMarker(_root, (pid, ticks) => false).Begin("v0.3.5 again", 401, 2);
+            Assert.IsNull(new CrashMarker(_root, (pid, ticks) => false).PendingCrash);
         }
 
         // ---------- helpers ----------
