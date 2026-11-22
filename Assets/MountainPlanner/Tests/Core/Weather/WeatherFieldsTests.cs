@@ -395,47 +395,112 @@ namespace MountainPlanner.Tests
             return feet;
         }
 
-        [Test]
-        public void TheStaticInputsFitTheirBudgets()
+        /// <summary>
+        /// Task 4.26 BB9: the reads' time limits, in a fixture of their own that runs with nothing beside it (a test's own
+        /// Parallelizable(None) still shares the machine with the other fixtures: the snow's read measured 332 ms that way).
+        /// </summary>
+        [Parallelizable(ParallelScope.None)]
+        public sealed class Budgets
         {
-            const int n = 1375;
-            var feet = Hills(n);
-            WeatherTerrain.Build(256, 256, Hills(256), 0, 0, (0, 0, 256, 256), 0, Tuning);   // warm up
-            var watch = Stopwatch.StartNew();
-            var t = WeatherTerrain.Build(n, n, feet, -n * 4000, -n * 4000, (125, 125, n - 125, n - 125), n / 2 * n + n / 2, Tuning);
-            watch.Stop();
-            long bytes = t.Bin.Length + t.Hvf.Length + t.Exposure.Length + t.Present.Length + (t.CrestFeet.Length + t.CrestMetres.Length + t.UpwindLowFeet.Length) * 2L + t.Axis.Length + t.TurnWeight.Length + t.Speed.Length + t.BinHvfFeet.Length * 2;
-            TestContext.Progress.WriteLine($"static inputs at 11 km: {bytes / 1048576.0:F1} MB");
-            Budget.AtMost(watch.Elapsed.TotalMilliseconds, 1000, "static inputs at 11 km (1,375² cells)");
+            [Test]
+            public void TheStaticInputsFitTheirBudgets()
+            {
+                const int n = 1375;
+                var feet = Hills(n);
+                WeatherTerrain.Build(256, 256, Hills(256), 0, 0, (0, 0, 256, 256), 0, Tuning);   // warm up
+                var watch = Stopwatch.StartNew();
+                var t = WeatherTerrain.Build(n, n, feet, -n * 4000, -n * 4000, (125, 125, n - 125, n - 125), n / 2 * n + n / 2, Tuning);
+                watch.Stop();
+                long bytes = t.Bin.Length + t.Hvf.Length + t.Exposure.Length + t.Present.Length + (t.CrestFeet.Length + t.CrestMetres.Length + t.UpwindLowFeet.Length) * 2L + t.Axis.Length + t.TurnWeight.Length + t.Speed.Length + t.BinHvfFeet.Length * 2;
+                TestContext.Progress.WriteLine($"static inputs at 11 km: {bytes / 1048576.0:F1} MB");
+                Budget.AtMost(watch.Elapsed.TotalMilliseconds, 1000, "static inputs at 11 km (1,375² cells)");
 
-            var gen = new WeatherGenerator(SimWeatherTests.Golden().Rows, SimWeather.Tuning(P));
-            gen.Reset(42, 2026);
-            var hours = new WeatherHour[200];
-            for (int k = 0; k < hours.Length; k++) gen.Step(ref hours[k]);
-            var f = new WeatherFields();
-            f.Fill(0, hours[0], t, 7000, P, 0);
-            bool counter = true;
-            try { GC.GetAllocatedBytesForCurrentThread(); } catch (Exception e) when (e is NotImplementedException || e is PlatformNotSupportedException) { counter = false; }
-            long before = counter ? GC.GetAllocatedBytesForCurrentThread() : 0;
-            watch.Restart();
-            for (int k = 0; k < hours.Length; k++) f.Fill(k, hours[k], t, 7000, P, 0);
-            watch.Stop();
-            long allocated = counter ? GC.GetAllocatedBytesForCurrentThread() - before : 0;
-            Budget.AtMost(watch.Elapsed.TotalMilliseconds / hours.Length, 1, "one face hour's table fill at 11 km");
-            Assert.That(allocated, Is.EqualTo(0), "filling allocates nothing");
+                var gen = new WeatherGenerator(SimWeatherTests.Golden().Rows, SimWeather.Tuning(P));
+                gen.Reset(42, 2026);
+                var hours = new WeatherHour[200];
+                for (int k = 0; k < hours.Length; k++) gen.Step(ref hours[k]);
+                var f = new WeatherFields();
+                f.Fill(0, hours[0], t, 7000, P, 0);
+                bool counter = true;
+                try { GC.GetAllocatedBytesForCurrentThread(); } catch (Exception e) when (e is NotImplementedException || e is PlatformNotSupportedException) { counter = false; }
+                long before = counter ? GC.GetAllocatedBytesForCurrentThread() : 0;
+                watch.Restart();
+                for (int k = 0; k < hours.Length; k++) f.Fill(k, hours[k], t, 7000, P, 0);
+                watch.Stop();
+                long allocated = counter ? GC.GetAllocatedBytesForCurrentThread() - before : 0;
+                Budget.AtMost(watch.Elapsed.TotalMilliseconds / hours.Length, 1, "one face hour's table fill at 11 km");
+                Assert.That(allocated, Is.EqualTo(0), "filling allocates nothing");
 
-            // The batch read 4.07 will make over the whole box, in 64-row bands.
-            var band = new WeatherCell[64 * n];
-            watch.Restart();
-            for (int y = 0; y < n; y += 64) f.ReadRows(y, y + 64, band);
-            watch.Stop();
-            // 250 ms until 4.07 PR A2 (b89fcd72) added the snow's per-cell work to ReadRows: since then the reference PC reads
-            // 288-300 ms (.NET Release and Unity EditMode alike). Re-baselined to 350 ms for v0.3.4: the game itself reads
-            // through ReadRowsSmooth (SnowHour) on the sim worker, off the frame. Bringing it back under 250 ms is a backlog item.
-            Budget.AtMost(watch.Elapsed.TotalMilliseconds, 350, "the batch read of 1.9 M cells");
-            int known = 0;
-            for (int k = 0; k < band.Length; k++) if (band[k].Known) known++;
-            Assert.That(known, Is.EqualTo(band.Length), "every cell of the hills is known");
+                // The batch read 4.07 will make over the whole box, in 64-row bands.
+                var band = new WeatherCell[64 * n];
+                for (int y = 0; y < n; y += 64) f.ReadRows(y, y + 64, band);   // warm up: the game reads every hour
+                watch.Restart();
+                for (int y = 0; y < n; y += 64) f.ReadRows(y, y + 64, band);
+                watch.Stop();
+                // Task 4.26 BB9: back to 250 ms. 4.07 PR A2 (b89fcd72) put the orographic factor in every cell, and Unity's Mono
+                // read 288-300 ms (v0.3.4 raised the budget to 350). The 32-bit sums and the row-blended lattice read 183 ms there
+                // (.NET 150). The test runs alone: beside the other fixtures the same read measured 465 ms.
+                Budget.AtMost(watch.Elapsed.TotalMilliseconds, 250, "the batch read of 1.9 M cells");
+                int known = 0;
+                for (int k = 0; k < band.Length; k++) if (band[k].Known) known++;
+                Assert.That(known, Is.EqualTo(band.Length), "every cell of the hills is known");
+
+                // The read the game makes (SnowHour, one row at a time on the sim worker): Mono 417 ms before BB9, 301 after (.NET 194).
+                var place = new byte[n * n];
+                var exposure8 = new byte[n * n];
+                for (int k = 0; k < place.Length; k++) { place[k] = (byte)(k * 37); exposure8[k] = (byte)(t.Exposure[k] * 16 + 10); }
+                var one = new WeatherCell[n];
+                for (int y = 0; y < n; y++) f.ReadRowsSmooth(y, y + 1, one, place, exposure8, null);   // warm up, as above
+                watch.Restart();
+                for (int y = 0; y < n; y++) f.ReadRowsSmooth(y, y + 1, one, place, exposure8, null);
+                watch.Stop();
+                Budget.AtMost(watch.Elapsed.TotalMilliseconds, 350, "the smooth read of 1.9 M cells, a row at a time");
+            }
+        }
+
+        /// <summary>
+        /// Task 4.26 BB9: the 32-bit orographic factor, point and row-blended, is the 64-bit rule's number at every cell, octant
+        /// and a spread of heights; and the rule itself agrees over a random sweep of its inputs within <c>FitsInt</c>.
+        /// </summary>
+        [Test]
+        public void TheFastOrographicFactorIsTheRulesNumber()
+        {
+            var t = Valley(300, 260, 150, out var feet);
+            Assert.That(WeatherTerrain.FitsInt(t.Windward, t.Spillover, t.Shadow, t.SpilloverReachMetres, t.ClimbFeet, t.BarrierFeet), "the game's tuning takes the fast path");
+            var row = new int[t.OrographicRowLength];
+            int checkedCells = 0;
+            for (int o = 0; o < 8; o++)
+                for (int j = 0; j < t.Depth; j++)
+                {
+                    t.OrographicRow(o, j, row);
+                    for (int i = 0; i < t.Width; i++)
+                    {
+                        int f0 = feet[j * t.Width + i];
+                        if (f0 == int.MinValue) { checkedCells += 7; continue; }
+                        for (int df = -900; df <= 900; df += 300)
+                        {
+                            int want = t.OrographicAtLong(o, i, j, f0 + df);
+                            if (t.OrographicAt(o, i, j, f0 + df) != want || t.OrographicAtRow(o, row, i, j, f0 + df) != want)
+                                Assert.Fail($"octant {o}, cell ({i}, {j}), {f0 + df} ft: {t.OrographicAt(o, i, j, f0 + df)} / {t.OrographicAtRow(o, row, i, j, f0 + df)}, want {want}");
+                            checkedCells++;
+                        }
+                    }
+                }
+            Assert.That(checkedCells, Is.EqualTo(8 * t.Width * t.Depth * 7));
+
+            ulong h = 0x9E3779B97F4A7C15UL;
+            int Next(int lo, int hi) { h ^= h << 13; h ^= h >> 7; h ^= h << 17; return lo + (int)(h % (ulong)(hi - lo + 1)); }
+            const int L = WeatherTerrain.IntLimit;
+            for (int k = 0; k < 2_000_000; k++)
+            {
+                int windward = Next(-L, L), spill = Next(-L, L), shadow = Next(-L, L), reach = Next(-L, L);
+                int climb = Next(1, L), barrier = Next(1, L);
+                int feetK = Next(-40_000, 40_000), crest = Next(short.MinValue, short.MaxValue), at = Next(short.MinValue, short.MaxValue), low = Next(short.MinValue, short.MaxValue);
+                if (k % 4 == 0) { windward = Next(0, 500); spill = Next(0, 500); shadow = Next(0, 500); reach = Next(0, 10_000); feetK = Next(0, 15_000); crest = feetK + Next(-3000, 3000); at = Next(0, 20_000); low = feetK - Next(-500, 4000); }
+                int want = WeatherTerrain.Raw(feetK, crest, at, low, windward, spill, shadow, reach, climb, barrier);
+                int got = WeatherTerrain.RawInt(feetK, crest, at, low, windward, spill, shadow, reach, climb, barrier);
+                if (got != want) Assert.Fail($"Raw({feetK}, {crest}, {at}, {low}, {windward}, {spill}, {shadow}, {reach}, {climb}, {barrier}) = {want}, RawInt {got}");
+            }
         }
 
         [Test]
@@ -470,7 +535,7 @@ namespace MountainPlanner.Tests
             }
             try { GC.GetAllocatedBytesForCurrentThread(); }
             catch (Exception e) when (e is NotImplementedException || e is PlatformNotSupportedException) { Assert.Ignore("no per-thread allocation counter here"); return; }
-            long without = Bytes(false), with = Bytes(true);
+            long without = Allocations.Least(() => Bytes(false)), with = Allocations.Least(() => Bytes(true));   // BB8
             TestContext.Progress.WriteLine($"four face days: {without} B without weather, {with} B with the map's");
             Assert.That(with, Is.LessThanOrEqualTo(without));
         }

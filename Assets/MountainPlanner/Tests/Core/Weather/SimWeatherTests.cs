@@ -216,7 +216,7 @@ namespace MountainPlanner.Tests
             }
             try { GC.GetAllocatedBytesForCurrentThread(); }
             catch (Exception e) when (e is NotImplementedException || e is PlatformNotSupportedException) { Assert.Ignore("no per-thread allocation counter here"); return; }
-            long without = Bytes(false), with = Bytes(true);
+            long without = Allocations.Least(() => Bytes(false)), with = Allocations.Least(() => Bytes(true));   // BB8
             TestContext.Progress.WriteLine($"four face days: {without} B without weather, {with} B with");
             Assert.That(with, Is.LessThanOrEqualTo(without));
         }
