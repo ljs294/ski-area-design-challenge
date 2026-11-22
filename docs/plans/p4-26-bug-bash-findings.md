@@ -21,7 +21,7 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB1 | Candidate (backlog) | On the drawn resort, Big Meadow says "No way there" at night, but the daytime grooming preview plans it | Night grooming reaches every trail the daytime preview plans | | Explained in PR E: the drawn resort's network is split (no code change) |
 | BB2 | Candidate (backlog) | With a groomer's card open, trails off its path aren't dimmed | Trails off the groomer's path are dimmed while its card is open | | Fixed in PR E: only the path is lit |
 | BB3 | Candidate (backlog) | Hovering a trail allocates 12–33 MB: the highlight is draped on the package heights, which makes a hitch | Hovering a trail allocates nothing per frame and doesn't hitch | | Fixed in PR E: the casing copies the drawn line |
-| BB4 | Candidate (backlog) | In long lift lines two guests sometimes share one line place, so their skis cross | Every guest in a line has a place of their own | | |
+| BB4 | Candidate (backlog) | In long lift lines two guests sometimes share one line place, so their skis cross | Every guest in a line has a place of their own | | Parked: measured; how a line moves on a part-full chair is the owner's call |
 | BB5 | Candidate (backlog) | The lift ride button's tooltip names an R key that doesn't exist (`MountainHud.Lifts.cs` ~249) | The tooltip names only keys that work | | Fixed in PR A+B: "Ride this lift" |
 | BB6 | Candidate (backlog) | The Weather tab still has its placeholder tooltip (`MountainHud.Panels.cs` ~50); 4.17 may own it | A real tooltip | | Fixed in PR A+B: player words |
 | BB7 | Candidate (backlog) | T-bar and J-bar log "TW-01 v2 SHORT": the chair-clearance check runs on surface lifts | The chair-clearance check runs only on aerial lifts | | Already fixed in 4.01 PR 2 (92da0416) |
@@ -227,3 +227,28 @@ runs when no groomer is picked), so the rest are drawn as the grey line under a 
 `NetworkViewTests.BB2_ACatchmentLightsOnlyTheSegmentsAskedFor`.
 
 ![Before and after: Groomer 1's card open](images/p4-26-bb2-groomer-path.jpg)
+
+## BB4: two guests in one lift-line place (parked: needs the owner)
+
+Measured in the built game (`-linecheck <out.txt>` with `-drawnresort -guests 3000`: four minutes at 8×, twice a second,
+counting queued guests standing within 0.4 m of another on the same line; render lane, 2026-11-21):
+
+- 58 % of samples (726 of 1,257) held at least one such pair, on every lift. Over the run: 871 pairs with one guest on
+  its own place, and 14,069 with a guest between places (walking up).
+- The places themselves never overlap (0 of 1,200–1,500 places within 0.5 m of another, 6 on one line of 1,662).
+- The simulation's ranks are unique per line (a FIFO list; guests join only at the tail).
+- A guest ranked past the places laid so far stands on the last one until the line grows (owner, 2026-11-10). In this
+  run the lines could always grow; at 8× a line sometimes ran a few hundred guests past its places for a moment.
+
+Cause: a line is laid in rows as wide as a chair. When a chair takes a full row, every guest steps straight forward one
+row, which is ideal (0.91 m apart throughout). When a chair takes fewer, every guest's place moves along the rows, and
+each walks straight to its new place: the one wrapping to the row ahead walks diagonally across the guest stepping
+sideways in its old row. A model of a 4-wide line puts them 0.46 m apart mid-step for chairs taking 1, 2, 3 or 5.
+
+Tried (not kept): walking each guest along the places in between instead of straight. It cut the pairs about four times
+in the game (moving pairs 14,069 to 3,349; on-place pairs 871 to 33), but a full row now shuffles sideways through the
+row instead of stepping forward. That's the common case in a long line, and it looks worse, so it was reverted.
+
+Question for the owner: how should a line move when a chair takes less than a full row? Options: rows step forward and
+the gap fills from behind; single file through the maze, rows only at the loading gate; or guests keep their column, and
+a row boards whoever is at its front. The probe stays (`-linecheck`) to measure whichever is chosen.
