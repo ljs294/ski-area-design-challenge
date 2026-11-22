@@ -68,6 +68,8 @@ namespace MountainPlanner.UI.Tools
         public bool Shift;
         /// <summary>Shift + wheel notches this frame while a terminal turn is claimed (+ turns left), else 0 (LT21).</summary>
         public float TurnNotches;
+        /// <summary>Ctrl + wheel notches this frame while the tool's brush claims the wheel (+ wider), else 0 (BB19).</summary>
+        public int BrushNotches;
 
         public bool Pressed(ToolKeys key) => (Keys & key) != 0;
     }

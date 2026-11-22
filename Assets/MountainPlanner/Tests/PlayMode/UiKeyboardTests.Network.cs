@@ -238,13 +238,20 @@ namespace MountainPlanner.Tests
                 Assert.That(chip.text, Is.EqualTo("#"));
                 Assert.That(chip.ClassListContains("mp-plate--empty"), Is.True, "no plate: the add chip");
                 Assert.That(chip.tooltip, Does.StartWith("Add a plate"));
+                // Task 4.26 BB14: opening the field and leaving it blank hid the "#" chip for good.
+                hud.SetLiftCardPlateForTest("");
+                Assert.That(plateSent, Is.Null, "nothing changed, nothing sent");
+                Assert.That(chip.ClassListContains("hidden"), Is.False, "a plate left blank keeps its # chip");
+                Assert.That(root.Q<TextField>("lift-card-plate-field"), Is.Null, "the field is gone");
                 hud.SetLiftCardPlateForTest("b2");
+                Assert.That(chip.ClassListContains("hidden"), Is.False, "a typed plate shows on the chip");
                 Assert.That(plateSent, Is.EqualTo("7:B2"), "typed plates are upper-cased");
                 Assert.That(chip.text, Is.EqualTo("B2"));
                 Assert.That(chip.ClassListContains("mp-plate--empty"), Is.False);
                 hud.SetLiftCardPlateForTest("");
                 Assert.That(plateSent, Is.EqualTo("7:"), "an empty field removes the plate");
                 Assert.That(chip.text, Is.EqualTo("#"));
+                Assert.That(chip.ClassListContains("hidden"), Is.False, "a removed plate shows the # chip again");
                 hud.CloseLiftCardIfOpen();
             }
             finally { hud.LiftPlateChanged = plateChanged; }

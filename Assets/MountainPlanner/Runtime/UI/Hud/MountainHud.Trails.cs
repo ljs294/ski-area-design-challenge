@@ -294,8 +294,7 @@ namespace MountainPlanner.UI
         {
             if (_trailCardField?.parent == null) return;
             string typed = _trailCardField.value;
-            _trailCardField.RemoveFromHierarchy();
-            _trailCardName.RemoveFromClassList("hidden");
+            InlineName.Close(_trailCardName, _trailCardField);
             if (!keep || TrailRenamed == null || !_trailRows.TryGetValue(_trailCardId, out var row) || typed.Trim() == row.Name) return;
             string problem = TrailRenamed(_trailCardId, typed.Trim());
             if (problem != null) Toast(problem);

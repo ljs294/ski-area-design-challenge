@@ -47,19 +47,22 @@ namespace MountainPlanner.UI
         };
         static readonly string[] ToolboxTabs = { "lifts", "trails", "terrain", "snow", "infra" };
         static readonly string[] AnalysisTabs = { "overview", "lifts", "trails", "network", "guests", "snow", "grooming", "weather", "amenities", "finances" };
-        /// <summary>Each Analysis tab's line until its phase fills it (the mockup's demo=p2 wording).</summary>
+        /// <summary>
+        /// Each Analysis tab's line while it's empty, and a greyed tab's tooltip. Player words only (task 4.26 BB6: they
+        /// named phases and tasks, and the Weather tab's said weather was still to come while it snowed).
+        /// </summary>
         static readonly string[] AnalysisEmpty =
         {
-            "The resort's day (lifts, trails, guests and weather) comes with the simulation in Phase 4.",
-            "Lifts come with the building tools in Phase 3.",
-            "Trails come with the building tools in Phase 3.",
+            "The resort's day at a glance comes in a later update.",
+            "No lifts yet: open the Toolbox and build one with New lift.",
+            "No trails yet: build a lift, then paint a trail down from its top with New trail.",
             "No lifts or trails yet: build a lift, then a trail down from its top. The network joins them where they meet.",
-            "Guests come with the simulation in Phase 4.",
-            "Snowmaking comes with the building tools in Phase 3.",
+            "Guest numbers come in a later update; the guests already ski the mountain.",
+            "Snowmaking totals come in a later update; build pump houses, water lines and snow guns from the Toolbox.",
             "Grooming comes with the simulation: buy a groomer, and the night's work shows here.",
-            "Weather comes with the snow simulation in Phase 4.",
-            "Lodges and parking come with the building tools in Phase 3.",
-            "Money comes with the simulation in Phase 4.",
+            "Weather charts come in a later update; today's weather and the forecast are on the date in the top bar.",
+            "Lodges and parking come in a later update.",
+            "The money report comes in a later update.",
         };
 
         /// <summary>The empty-state line of an Analysis tab (its tooltip while greyed).</summary>
@@ -175,7 +178,7 @@ namespace MountainPlanner.UI
                 var t = tool;
                 if (!MakeLive(tile, t.Id, t.Name))   // a working tool (P3-06, MountainHud.Tools.cs); the rest come later
                 {
-                    tile.RegisterCallback<PointerEnterEvent>(_ => ShowTool(t.Name, t.Key, t.Tab == "snow" ? "comes with task 4.15" : "comes in Phase 3"));
+                    tile.RegisterCallback<PointerEnterEvent>(_ => ShowTool(t.Name, t.Key, "comes in a later update"));
                     tile.RegisterCallback<PointerLeaveEvent>(_ => ShowActiveTool());
                 }
                 _tools.Add(tile);

@@ -424,6 +424,12 @@ echo        gun whale: the snow lies on the ground that never moves, the skiers 
 echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
+echo   4.26 bug bash PR A: no crash notice after a normal start (builds the game if there is none)
+echo     142 The crash marker's tests, then two copies of the game open at once in a scratch folder: close both,
+echo        and the next start asks nothing. Then one copy is ended as a crash would end it: the next start asks once.
+echo   4.26 bug bash PR B: names, plates and typing (builds the game if there is none)
+echo     143 The typing check: the game renames trails and lifts by itself and lists what passed. Then the drawn
+echo        resort for your hands-on check: rename in New trail, Edit trail and the cards, a blank #, Ctrl + wheel brushes.
 echo   4.07 snow model B2: the trail card's snow and its Open/Closed/Auto switch (builds the game if there is none)
 echo     140 The new tests, then the drawn resort on Jackson Hole to December 15 in a scratch folder (a few minutes,
 echo        your saves aren't touched), then pictures of Analysis, Trails and three trail cards. Then the game on
@@ -616,6 +622,8 @@ if /i "%CHOICE%"=="114" goto updaterinstall
 if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
 if /i "%CHOICE%"=="113" goto trailsnow
+if /i "%CHOICE%"=="142" goto crashnotice
+if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
 if /i "%CHOICE%"=="111" goto snowlive
 if /i "%CHOICE%"=="125" goto gpuqueue
@@ -1216,6 +1224,59 @@ echo   the log's [SimTo] lines (the real time it took, the base, the summit, the
 if not exist "%~dp0test-results\snow-a3" mkdir "%~dp0test-results\snow-a3"
 start "" /wait "%GAME%" -data "%LOCALAPPDATA%\SkiAreaDesignChallenge-simto" -notitle -offline -simto 02-01 -logFile "%~dp0test-results\snow-a3\simto.log"
 findstr /l /c:"[SimTo]" "%~dp0test-results\snow-a3\simto.log"
+pause
+goto menu
+
+:crashnotice
+rem 4.26 PR A (BB20): one crash marker per session, so a second copy or a tool run is never taken for a crash.
+chcp 65001 >nul
+echo.
+echo   Part 1: the crash marker's tests (a second copy at the same time, a reused process id, the old marker).
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~ProblemReportTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "CN=%LOCALAPPDATA%\SkiAreaDesignChallenge-crashnotice"
+if exist "%CN%" rmdir /s /q "%CN%"
+echo.
+echo   Part 2: two copies of the game open now, in a scratch folder (your saves aren't touched). Close both with
+echo   the window's close box, then press a key: the game opens again and should NOT ask about a crash.
+start "" "%GAME%" -data "%CN%" -offline
+start "" "%GAME%" -data "%CN%" -offline
+pause
+start "" /wait "%GAME%" -data "%CN%" -offline
+echo.
+echo   Part 3: one copy opens and is ended in 20 seconds as a crash would end it. The next start asks once
+echo   whether to send a report; the start after that asks nothing.
+powershell -NoProfile -Command "$p = Start-Process -FilePath $env:GAME -ArgumentList '-data',('\"' + $env:CN + '\"'),'-offline' -PassThru; Start-Sleep 20; Stop-Process -Id $p.Id -Force"
+start "" /wait "%GAME%" -data "%CN%" -offline
+start "" "%GAME%" -data "%CN%" -offline
+pause
+goto menu
+
+:typing
+rem 4.26 PR B (BB12, BB13, BB14, BB5, BB6): typing in every name field, the New and Edit trail names, a blank plate.
+chcp 65001 >nul
+echo.
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "TY=%LOCALAPPDATA%\SkiAreaDesignChallenge-typing"
+set "TYOUT=%~dp0test-results\typing"
+if exist "%TY%" rmdir /s /q "%TY%"
+if not exist "%TYOUT%" mkdir "%TYOUT%"
+echo   Part 1: the game renames the New trail window, a trail card, Edit trail, a lift card and its # by itself,
+echo   checking each field opens on a click, takes the typing, keeps the camera and tools still, and closes on Enter.
+start "" /wait "%GAME%" -data "%TY%" -notitle -offline -drawnresort -typecheck "%TYOUT%\typing.txt" -logFile "%TYOUT%\typing.log"
+type "%TYOUT%\typing.txt"
+echo.
+echo   Part 2: the drawn resort for your hands-on check (scratch folder). Try:
+echo     - Toolbox, Trail: click the name in the window's title and type a new one; Enter keeps it.
+echo     - Open a trail's card, click its name, rename it. Then Edit: rename it in the Edit trail window too.
+echo     - Open a lift's card, click #, press Enter with it blank: the # stays. Type 7: it reads 7.
+echo     - Type names with W, A, S, D, Q, E and Shift in them: the camera and the tools stay still.
+echo     - Hover the Ride button (Ride this lift) and the greyed Analysis tabs (in player words).
+echo     - New lift: the towers start Leaned. Trail or a terrain brush: hold Ctrl and turn the wheel to size it.
+pause
+start "" "%GAME%" -data "%TY%" -notitle -offline -drawnresort
 pause
 goto menu
 

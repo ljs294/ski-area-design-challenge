@@ -184,9 +184,10 @@ namespace MountainPlanner.UI.Tools
             ShowTarget();
             foreach (var a in new[] { GameAction.BrushNarrower, GameAction.BrushWider, GameAction.BrushWeaker, GameAction.BrushStronger, GameAction.UndoStroke })
                 _ctx.Claim(a, true);
+            _ctx.ClaimBrushWheel(true);   // Ctrl + wheel: the diameter (BB19)
             _ctx.Claim(GameAction.TargetUp, UsesTarget);
             _ctx.Claim(GameAction.TargetDown, UsesTarget);
-            var keys = new List<(GameAction, string)> { (GameAction.BrushNarrower, ""), (GameAction.BrushWider, "diameter"), (GameAction.BrushWeaker, ""), (GameAction.BrushStronger, "strength") };
+            var keys = new List<(GameAction, string)> { (GameAction.BrushNarrower, ""), (GameAction.BrushWider, "diameter (or Ctrl + wheel)"), (GameAction.BrushWeaker, ""), (GameAction.BrushStronger, "strength") };
             if (UsesTarget) { keys.Add((GameAction.TargetUp, "")); keys.Add((GameAction.TargetDown, "target")); }
             keys.Add((GameAction.UndoStroke, "undoes a stroke"));
             w.SetKeys(keys.ToArray());
@@ -442,6 +443,7 @@ namespace MountainPlanner.UI.Tools
         {
             if (input.Pressed(ToolKeys.BrushNarrower)) SetFeet(_feet - StepFeet);
             if (input.Pressed(ToolKeys.BrushWider)) SetFeet(_feet + StepFeet);
+            if (input.BrushNotches != 0) SetFeet(_feet + input.BrushNotches * StepFeet);   // Ctrl + wheel (BB19)
             if (input.Pressed(ToolKeys.BrushWeaker)) SetStrength(_strength - 5);
             if (input.Pressed(ToolKeys.BrushStronger)) SetStrength(_strength + 5);
             if (UsesTarget && _targetMm.HasValue)

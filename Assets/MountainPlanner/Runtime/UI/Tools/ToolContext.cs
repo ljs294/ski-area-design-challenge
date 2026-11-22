@@ -178,6 +178,9 @@ namespace MountainPlanner.UI.Tools
         /// <summary>Claims a tool key, so the camera or HUD action on the same key waits (LF-09: Page Up and Page Down).</summary>
         public void Claim(GameAction action, bool on) => KeyBindings.Claim(action, on);
 
+        /// <summary>BB19: Ctrl + wheel sizes this tool's brush (<see cref="ToolInput.BrushNotches"/>) instead of zooming.</summary>
+        public void ClaimBrushWheel(bool on) => KeyBindings.BrushWheel = on;
+
         /// <summary>The stamp an analysis started now would carry (CF-03); each call is a new input.</summary>
         public AnalysisStamp NextStamp() => History.Stamp(++_input);
 

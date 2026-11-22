@@ -165,7 +165,7 @@ namespace MountainPlanner.App
                     string id = Hud.ToolFor(action);
                     if (id == null) continue;
                     if (ToolCatalog.IsLive(id)) _tools.Choose(id);
-                    else Hud.Toast("That tool comes in Phase 3");
+                    else Hud.Toast("That tool comes in a later update");
                 }
                 if (_tools.Armed && KeyBindings.Pressed(keys, GameAction.ToolWindowKeys) && _tools.Context?.Window != null)
                     Hud.TakeToolKeyboard(_tools.Context.Window.FirstControl);
@@ -502,8 +502,21 @@ namespace MountainPlanner.App
                     float scroll = mouse.scroll.ReadValue().y;
                     if (Mathf.Abs(scroll) > 0.01f) input.TurnNotches = Mathf.Abs(scroll) >= 60 ? scroll / 120f : Mathf.Sign(scroll);
                 }
+                // BB19: Ctrl + wheel sizes a brush. Windows reports 120 a notch (some devices 1, a touchpad a little a
+                // frame), so whole notches are counted and the rest carried to the next frame.
+                if (KeyBindings.BrushWheel && keys.ctrlKey.isPressed && mouse != null && !input.OverPanel)
+                {
+                    float scroll = mouse.scroll.ReadValue().y;
+                    if (Mathf.Abs(scroll) > 0.01f) _brushWheel += Mathf.Abs(scroll) >= 20f ? scroll / 120f : scroll;
+                    int whole = (int)_brushWheel;
+                    _brushWheel -= whole;
+                    input.BrushNotches = whole;
+                }
+                else _brushWheel = 0;
             }
             return input;
         }
+
+        float _brushWheel;
     }
 }

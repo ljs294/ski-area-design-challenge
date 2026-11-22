@@ -41,7 +41,9 @@ namespace MountainPlanner.UI.Tools
         string _catalogId => _typeMenu.CatalogId;
         LiftDrive _drive => _typeMenu.Drive;
         TowerMode _mode;
-        TowerStance _stance = TowerStance.Plumb;
+        // BB17 (owner, 2026-11-21): leaned towers are the default; the player's pick is kept for aerial lifts while a tow or a
+        // carpet (always plumb along the line) is chosen in between.
+        TowerStance _stance = TowerStance.Leaned, _stanceChoice = TowerStance.Leaned;
         string _name;
         readonly ReviewModel _review = new ReviewModel();
         readonly Vector2[] _line = new Vector2[2];
@@ -104,9 +106,13 @@ namespace MountainPlanner.UI.Tools
         {
             if (LiftCatalogIds.IsTow(_catalogId) || LiftCatalogIds.IsBelt(_catalogId)) i = 0;   // a tow's masts lean across the line, always (D11); a carpet has none
             _stance = i == 0 ? TowerStance.Plumb : TowerStance.Leaned;
+            if (!LiftCatalogIds.IsTow(_catalogId) && !LiftCatalogIds.IsBelt(_catalogId)) _stanceChoice = _stance;
             _stanceDd.Set(new[] { "Plumb", "Leaned" }, i);
             Retype();
         }
+
+        /// <summary>The towers' stance the lift would be built with (BB17: Leaned unless the player picks Plumb; tests).</summary>
+        public TowerStance Stance => _stance;
 
         /// <summary>Picks a lift type by its catalog id (the menu, tests and captures).</summary>
         public void Choose(string catalogId) => _typeMenu.Choose(catalogId);
@@ -120,6 +126,7 @@ namespace MountainPlanner.UI.Tools
             // A surface tow's masts lean across the line by themselves (D11): no stance to choose, plumb along it.
             bool tow = LiftCatalogIds.IsTow(_catalogId), belt = LiftCatalogIds.IsBelt(_catalogId);
             if ((tow || belt) && _stance != TowerStance.Plumb) { _stance = TowerStance.Plumb; _stanceDd.Set(new[] { "Plumb", "Leaned" }, 0); }
+            else if (!tow && !belt && _stance != _stanceChoice) { _stance = _stanceChoice; _stanceDd.Set(new[] { "Plumb", "Leaned" }, _stance == TowerStance.Plumb ? 0 : 1); }
             _stanceDd.Button.SetEnabled(!tow && !belt);
             // A carpet has no towers (surface lifts PR B): no By hand, its bed laid automatically.
             if (belt && _mode != TowerMode.Automatic) { ClearTowers(); _mode = TowerMode.Automatic; _modeDd.Set(new[] { "Automatic", "By hand" }, 0); }

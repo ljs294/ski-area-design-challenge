@@ -289,6 +289,8 @@ namespace MountainPlanner.Presentation
                 float scroll = mouse.scroll.ReadValue().y * (CameraOptions.InvertZoom ? -1f : 1f);
                 // Shift + wheel turns a terminal in hand instead (P3-09, LT21).
                 bool turning = KeyBindings.IsClaimed(GameAction.TerminalTurnLeft) && Keyboard.current != null && Keyboard.current.shiftKey.isPressed;
+                // Ctrl + wheel sizes a brush instead (task 4.26 BB19).
+                turning |= KeyBindings.BrushWheel && Keyboard.current != null && Keyboard.current.ctrlKey.isPressed;
                 if (Mathf.Abs(scroll) > 0.01f && !IsPointerBlocked(pointer) && !turning)
                 {
                     float notches = Mathf.Abs(scroll) >= 20f ? scroll / 120f : scroll;
