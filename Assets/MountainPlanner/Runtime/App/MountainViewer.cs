@@ -304,6 +304,7 @@ namespace MountainPlanner.App
                 StartShellCheck(args);     // -shellcheck x,z[;x,z…] [-shellsteps] (MountainViewer.ShellCheck.cs, task 4.07 PR A3 repair)
                 StartSimTo(args);          // -simto <MM-DD> (MountainViewer.SimTo.cs, task 4.07 PR A3)
                 StartTrailSnowShots(args); // -trailsnowshots <folder> with -simto (MountainViewer.TrailSnowShots.cs, task 4.07 B1 part 2a)
+                StartLineCheck(args);   // -linecheck <out.txt> (MountainViewer.LineCheck.cs, task 4.26 BB4)
                 StartGroomShots(args);     // -groomshots <folder> with -simto [-groomers N] (MountainViewer.GroomShots.cs, task 4.25 PR A)
                 StartPickBench(args);      // -pickbench <out.json> [-guests N] (MountainViewer.SkierBench.cs, task 4.13)
                 StartSkierFigureShots(args);   // -skiershot <folder> [-guests N] (MountainViewer.SkierFigureShots.cs, task 4.22)
