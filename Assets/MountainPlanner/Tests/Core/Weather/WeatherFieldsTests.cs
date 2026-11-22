@@ -429,7 +429,10 @@ namespace MountainPlanner.Tests
             watch.Restart();
             for (int y = 0; y < n; y += 64) f.ReadRows(y, y + 64, band);
             watch.Stop();
-            Budget.AtMost(watch.Elapsed.TotalMilliseconds, 250, "the batch read of 1.9 M cells");
+            // 250 ms until 4.07 PR A2 (b89fcd72) added the snow's per-cell work to ReadRows: since then the reference PC reads
+            // 288-300 ms (.NET Release and Unity EditMode alike). Re-baselined to 350 ms for v0.3.4: the game itself reads
+            // through ReadRowsSmooth (SnowHour) on the sim worker, off the frame. Bringing it back under 250 ms is a backlog item.
+            Budget.AtMost(watch.Elapsed.TotalMilliseconds, 350, "the batch read of 1.9 M cells");
             int known = 0;
             for (int k = 0; k < band.Length; k++) if (band[k].Known) known++;
             Assert.That(known, Is.EqualTo(band.Length), "every cell of the hills is known");

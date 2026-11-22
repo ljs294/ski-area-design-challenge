@@ -193,8 +193,8 @@ namespace MountainPlanner.Tests
             layers.Set(MapLayers.SnowDepth, true);
             Assert.That(layers.IsOn(MapLayers.SnowConditions), Is.False, "one info layer at a time");
             Assert.That(layers.Toggle("ground"), Is.False, "retired ids do nothing");
-            Assert.That(MapLayers.MapIds, Is.EqualTo(new[] { MapLayers.Snow, MapLayers.Trees, MapLayers.Lifts, MapLayers.Trails }), "task 09 adds Lifts (LT7), task 08 Trails (TL6)");
-            Assert.That(MapLayers.InfoIds, Is.EqualTo(new[] { MapLayers.SlopeAngle, MapLayers.Exposure, MapLayers.SnowDepth, MapLayers.SnowConditions, MapLayers.Traffic, MapLayers.Contours }));
+            Assert.That(MapLayers.MapIds, Is.EqualTo(new[] { MapLayers.Snow, MapLayers.Trees, MapLayers.Lifts, MapLayers.Trails, MapLayers.Snowmaking }), "task 09 adds Lifts (LT7), task 08 Trails (TL6), 4.15 Snowmaking");
+            Assert.That(MapLayers.InfoIds, Is.EqualTo(new[] { MapLayers.SlopeAngle, MapLayers.Exposure, MapLayers.SnowDepth, MapLayers.SnowConditions, MapLayers.Traffic, MapLayers.Pressure, MapLayers.Contours }), "4.15 adds Pipe pressure");
         }
 
         [Test]
