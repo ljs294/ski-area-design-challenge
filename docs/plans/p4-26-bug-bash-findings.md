@@ -32,7 +32,7 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB12 | Owner, 2026-11-21 | Typing in forms throughout the game is janky | Every form in the game is audited and typing works smoothly | | Fixed in PR A+B: Shift keys silenced while typing; `-typecheck` 55/55 |
 | BB13 | Owner, 2026-11-21 | A trail's name can't be changed from the new-trail creation pane or the trail edit pane | The name can be changed in both | | Fixed in PR A+B: a press on the name no longer drags the window |
 | BB14 | Owner, 2026-11-21 | On a lift, clicking the "#" (plate) field and leaving it blank (no number or letter) makes the field disappear entirely | A blank plate leaves the "#" field in place so it can be set later | | Fixed in PR A+B: the "#" chip comes back |
-| BB15 | Owner, 2026-11-21 | Lift terminals that are intentionally kept clear of snow get overwritten by the new snow layer model | Terminals stay clear of snow | | Parked: conflicts with the owner's 2026-11-17 ruling; the owner's call |
+| BB15 | Owner, 2026-11-21 | Lift terminals that are intentionally kept clear of snow get overwritten by the new snow layer model | Terminals stay clear of snow | | Fixed in PR K (owner 2026-11-22: keep terminals clear for now): chair and tow terminals dug out again; overrides 4.07 A3 round 3 |
 | BB16 | Owner, 2026-11-21 | The last few towers approaching a terminal are often far too tall, so carriers go really high, then really low, then back up to the terminal | A revised tower-placement algorithm: towers and the line approaching a terminal are much more consistent and realistic | | Fixed in PR C: the plan prices tall towers and height steps |
 | BB17 | Owner, 2026-11-21 | When building a ski lift, towers aren't leaned by default | Leaned towers are the default | | Fixed in PR A+B: Leaned by default |
 | BB18 | Owner, 2026-11-21 | Editing and moving towers in game isn't fluid | The edit-tower and move-tower features are audited and made much smoother and more responsive | | Improved in PR C: towers kept, dragged tower follows the pointer; rope redraw left |
@@ -260,7 +260,7 @@ Question for the owner: how should a line move when a chair takes less than a fu
 the gap fills from behind; single file through the maze, rows only at the loading gate; or guests keep their column, and
 a row boards whoever is at its front. The probe stays (`-linecheck`) to measure whichever is chosen.
 
-## BB15: snow covers the cleared lift terminals (parked: needs the owner)
+## BB15: snow covers the cleared lift terminals
 
 The snow is drawn as its own shell over the ground (4.07 PR A3). `SurfaceStates.SetStations` keeps the snow flat within
 16 m of the footprints it's given, and `MountainViewer.Skiers.cs` (`DigOutStations`) gives it only a carpet's belt. That
@@ -270,6 +270,13 @@ in the snow with their bases buried. So BB15 asks for the opposite of an earlier
 Option for the owner: clear only each chair and tow terminal's loading pad (its footprint plus 2 m), leaving the bases
 and everything round them in the snow. The Coordinator cleared both files (2026-11-21); the owner decides. Until then the
 2026-11-17 rule stands.
+
+Decision (owner, 2026-11-22): "keep terminals clear for now". PR K gives `SetStations` every built chair and tow
+terminal again: the bottom's footprint facing up the line and the top's facing down it, each from the lift type's
+measured footprint (so it works for every model). The shell then keeps each footprint at the earth and rises back to the
+snow within `StationClearMetres` (16 m). This overrides 4.07 A3 round 3 for chair and tow terminals (noted in
+`SurfaceStates.SetStations` for 4.08). `-shellcheck terminals` measures the drawn snow at every station's centre and
+40 m out along its line in the built game. Demo 147.
 
 ## BB8: `TheWeatherAllocatesNothing` is flaky
 
