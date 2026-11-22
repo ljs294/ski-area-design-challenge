@@ -68,6 +68,17 @@ namespace MountainPlanner.App
                 }
                 else Debug.LogWarning("[ShellCheck] whale: no whale was built (-gunwhale)");
             }
+            else if (spots == "terminals")
+            {
+                // -shellcheck terminals (task 4.26 BB15): every dug-out station's centre, and 40 m out along its line.
+                foreach (var f in _stations)
+                {
+                    var along = f.Along.sqrMagnitude > 1e-6f ? f.Along.normalized : Vector2.up;
+                    list.Add(f.Centre);
+                    list.Add(f.Centre + along * (f.Ahead + 40));
+                }
+                if (list.Count == 0) Debug.LogWarning("[ShellCheck] terminals: no built lift has a station");
+            }
             else
             foreach (string s in spots.Split(';'))
             {

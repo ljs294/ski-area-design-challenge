@@ -425,8 +425,8 @@ namespace MountainPlanner.Presentation
 
         /// <summary>
         /// Task 4.07 PR A3: footprints kept clear of the snow (local x/z); cells within <see cref="StationClearMetres"/> of one
-        /// don't lift. Round 3 (owner, 2026-11-17: snow piles up round everything): only a carpet's belt is given, not the
-        /// chair and tow terminals.
+        /// don't lift. Given each carpet's belt and every chair and tow terminal (task 4.26 BB15, owner 2026-11-22: keep
+        /// terminals clear, which undoes 4.07 A3 round 3).
         /// </summary>
         public void SetStations(System.Collections.Generic.IReadOnlyList<Footprint> stations)
         {

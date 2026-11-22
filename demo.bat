@@ -427,6 +427,8 @@ echo        go straight to the game (no tests, report or time-lapse; it builds o
 echo   4.26 bug bash PR E: trail hover and a groomer's path (builds the game if there is none)
 echo     145 The hover and map tests, then the drawn resort on January 15 with two groomers: hover trails, then
 echo        Analysis, Grooming, Equipment and a groomer's card (only its path lit).
+echo   4.26 bug bash PR K: lift terminals clear of snow (builds the game if there is none)
+echo     147 The drawn resort on February 1, deep snow: every chair and tow terminal stands on clear ground.
 echo   4.26 bug bash PR H: weather tests and EditMode tests before a push
 echo     146 The weather tests (steady allocation counts; the batch and snow reads back in budget, .NET and
 echo        Unity), then the EditMode fixtures the pre-push hook would run for this branch
@@ -634,6 +636,7 @@ if /i "%CHOICE%"=="113" goto trailsnow
 if /i "%CHOICE%"=="144" goto towers426
 if /i "%CHOICE%"=="145" goto hover426
 if /i "%CHOICE%"=="146" goto tests426
+if /i "%CHOICE%"=="147" goto pads426
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -1258,6 +1261,21 @@ echo     - Analysis (A), Grooming, Equipment: click a groomer. Its runs are gree
 echo       run turns plain grey. Close the card: all runs take tonight's colours again.
 pause
 start "" "%GAME%" -data "%HV%" -notitle -offline -drawnresort -simto 01-15 -groomers 2
+pause
+goto menu
+
+:pads426
+rem 4.26 PR K (BB15): chair and tow terminals dug out of the snow again (owner 2026-11-22).
+chcp 65001 >nul
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "PD=%LOCALAPPDATA%\SkiAreaDesignChallenge-pads426"
+if exist "%PD%" rmdir /s /q "%PD%"
+echo.
+echo   The drawn resort on February 1 in a scratch folder (your saves aren't touched). Fly to any lift: its bottom
+echo   and top terminals stand on clear ground, the snow rising again a few metres out; a carpet stays clear end to end.
+pause
+start "" "%GAME%" -data "%PD%" -notitle -offline -drawnresort -simto 02-01
 pause
 goto menu
 

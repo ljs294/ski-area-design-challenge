@@ -196,8 +196,11 @@ namespace MountainPlanner.App
                     _stations.Add(new Presentation.SurfaceStates.Footprint { Centre = bottom, Along = up, Behind = bb, Ahead = len + tb, HalfWidth = Mathf.Max(bw, tw) });
                     continue;
                 }
-                // Task 4.07 PR A3 round 3 (owner, 2026-11-17: snow piles up round everything): a chair or tow's terminals stand in
-                // the snow, their bases buried; only a carpet's belt is kept clear.
+                // Task 4.26 BB15 (owner, 2026-11-22: keep terminals clear for now): a chair or tow's terminals are dug out again,
+                // each footprint facing the line (this undoes 4.07 A3 round 3, which left them buried).
+                var dir = up / len;
+                _stations.Add(new Presentation.SurfaceStates.Footprint { Centre = bottom, Along = dir, Behind = bb, Ahead = ba, HalfWidth = bw });
+                _stations.Add(new Presentation.SurfaceStates.Footprint { Centre = top, Along = -dir, Behind = tb, Ahead = ta, HalfWidth = tw });
             }
             states.SetStations(_stations);
         }
