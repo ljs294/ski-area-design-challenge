@@ -18,9 +18,9 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 
 | # | Source | What happened | Expected | Sev | Decision |
 | --- | --- | --- | --- | --- | --- |
-| BB1 | Candidate (backlog) | On the drawn resort, Big Meadow says "No way there" at night, but the daytime grooming preview plans it | Night grooming reaches every trail the daytime preview plans | | |
-| BB2 | Candidate (backlog) | With a groomer's card open, trails off its path aren't dimmed | Trails off the groomer's path are dimmed while its card is open | | |
-| BB3 | Candidate (backlog) | Hovering a trail allocates 12–33 MB: the highlight is draped on the package heights, which makes a hitch | Hovering a trail allocates nothing per frame and doesn't hitch | | |
+| BB1 | Candidate (backlog) | On the drawn resort, Big Meadow says "No way there" at night, but the daytime grooming preview plans it | Night grooming reaches every trail the daytime preview plans | | Explained in PR E: the drawn resort's network is split (no code change) |
+| BB2 | Candidate (backlog) | With a groomer's card open, trails off its path aren't dimmed | Trails off the groomer's path are dimmed while its card is open | | Fixed in PR E: only the path is lit |
+| BB3 | Candidate (backlog) | Hovering a trail allocates 12–33 MB: the highlight is draped on the package heights, which makes a hitch | Hovering a trail allocates nothing per frame and doesn't hitch | | Fixed in PR E: the casing copies the drawn line |
 | BB4 | Candidate (backlog) | In long lift lines two guests sometimes share one line place, so their skis cross | Every guest in a line has a place of their own | | |
 | BB5 | Candidate (backlog) | The lift ride button's tooltip names an R key that doesn't exist (`MountainHud.Lifts.cs` ~249) | The tooltip names only keys that work | | Fixed in PR A+B: "Ride this lift" |
 | BB6 | Candidate (backlog) | The Weather tab still has its placeholder tooltip (`MountainHud.Panels.cs` ~50); 4.17 may own it | A real tooltip | | Fixed in PR A+B: player words |
@@ -183,3 +183,47 @@ Fix (`Presentation/Lifts/LiftView`):
   hand; the rope and the carriers catch up at the next redraw.
 
 Left: the rope, cable and carriers (10–15 ms a redraw) are built again each time.
+
+## BB3: hovering a trail allocates 12–33 MB
+
+Found by 4.07 A3-13: a trail under the pointer lights its whole line with a white casing. The casing was drawn as a new
+line (`TrailMapView.DrawCasing` → `PendingPreview.Line`), draped every 6 m on the trail layer's ground, which reads the
+package heights through `EditedHeights` (tile loads: 12 to 33 MB in one frame, and a hitch). The trail's own line was
+already draped, in its own slot, when the layer was drawn.
+
+Fix (`Presentation/Design`): the layer keeps which slot each drawn line is in, and the casing copies that slot's draped
+points (`PendingPreview.CopyLine`); only a line not drawn yet is draped for its casing. Test:
+`TrailHoverTests.BB3_HoveringATrailSamplesNoGroundAndAllocatesNothing` (60 hovers: no ground read, 0 bytes).
+
+## BB1: Big Meadow "No way there" at night
+
+Probed in the built game (`-drawnresort -simto 01-15 -groomers 4`, a temporary trace in `PlaceTask` and a fresh search
+from the depot beside the cached route rows, render lane, 2026-11-21). Every "No way there" from the depot (the foot of
+the lowest lift a trail reaches, node 62) is real: only 34 of the network's 70 nodes can be driven to over trails, and the
+cached rows agree with the fresh search every time. The drawn resort's network has 96 trail segments, **0 paths** and
+"10 trail warnings" (`NetworkReport`: a trail no lift serves, or with no way down). The runs off Base Six, Summit Six
+and Ridge Monta end 36–82 m short of their stations, and nothing joins them to the rest. So 11 of the 20 runs (Big
+Meadow among them) have no drive from the depot.
+
+The day's preview and the night's own plan agree: both read "No way there" for the same 11 runs (the morning after
+day 36: Done 9, NoRoute 9, PowderHeld 2). The only nights that read otherwise are snowy ones: when the plan keeps the
+powder, the row reads "Powder kept" and the route isn't asked (the morning after day 37: PowderHeld 19). That flip,
+which depends on the weather, is what looked like the route changing during the day.
+
+No code change: the planner, its cached routes and the preview are right for this network. What a player sees is the
+same as the trail warnings: a run that doesn't join a lift can't be reached by a groomer. The drawn resort's split
+network (half its runs unjoined, so the guests and the drawn benchmark also see only half the mountain) goes to the
+Coordinator's backlog. A player-placed groomer parking area is already on it.
+
+## BB2: a groomer's card doesn't dim the other runs
+
+With the Grooming tab open, a groomer's card shows its path tonight: its runs green, its drives blue, the rest in a dim
+colour. Seen in the built game (`-groomtab`, the drawn resort, two groomers): the runs off the path still read as the
+regular trail lines. The map draws them as a catchment (`NetworkView.SetCatchment`), which lights every segment it's
+given, and a lit segment gets the white casing whatever its colour; the dim fill barely showed inside it.
+
+Fix: `SetCatchment` takes the segments to light; the Grooming map lights only the picked groomer's runs and drives (all
+runs when no groomer is picked), so the rest are drawn as the grey line under a pick. Test:
+`NetworkViewTests.BB2_ACatchmentLightsOnlyTheSegmentsAskedFor`.
+
+![Before and after: Groomer 1's card open](images/p4-26-bb2-groomer-path.jpg)

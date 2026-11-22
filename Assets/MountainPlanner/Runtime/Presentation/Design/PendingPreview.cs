@@ -146,6 +146,25 @@ namespace MountainPlanner.Presentation.Design
             s.Renderer.transform.localPosition = behind ? new Vector3(0, -0.6f, 0) : Vector3.zero;
         }
 
+        /// <summary>
+        /// Task 4.26 BB3: slot <paramref name="to"/> drawn along the points slot <paramref name="from"/> already draped, so
+        /// a casing under a line in focus samples no ground (a hover on the package heights allocated 12-33 MB). False
+        /// when <paramref name="from"/> holds no line.
+        /// </summary>
+        public bool CopyLine(int from, int to, PreviewInk ink)
+        {
+            if (from == to || from >= _slots.Length || _slots[from] == null || _slots[from].Dot || _slots[from].Count < 2) return false;
+            var src = _slots[from];
+            var s = Get(to, ink);
+            s.Dot = false;
+            Ensure(s, src.Count);
+            Array.Copy(src.Points, s.Points, src.Count);
+            s.Count = src.Count;
+            s.Renderer.loop = false;
+            Push(s);
+            return true;
+        }
+
         public void Line(int slot, Vector2[] xz, int count, PreviewInk ink, bool closed = false)
         {
             if (count < 2) { Hide(slot); return; }

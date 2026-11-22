@@ -96,6 +96,30 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void BB2_ACatchmentLightsOnlyTheSegmentsAskedFor()
+        {
+            // Task 4.26 BB2: a groomer's card lights its path; the runs off it are drawn as the grey line under a pick, not
+            // with the lit white casing in a dim colour (which read as the regular trail lines).
+            var two = new[]
+            {
+                new NetworkView.Segment { Edge = 0, Trail = 7, Points = Line(-100, 210, 100, 210, 8), Own = Color.green, Served = true },
+                new NetworkView.Segment { Edge = 1, Trail = 8, Points = Line(-100, 260, 100, 260, 8), Own = Color.grey, Served = true },
+            };
+            _view.Visible = true;
+            _view.SetCatchment(two, null);
+            _view.Follow(_cam);
+            int both = _view.VertexCount;
+            _view.SetCatchment(two, null, new[] { 0 });
+            _view.Follow(_cam);
+            int one = _view.VertexCount;
+            _view.SetCatchment(two, null, new int[0]);
+            _view.Follow(_cam);
+            int none = _view.VertexCount;
+            Assert.That(one, Is.LessThan(both), "the segment off the path has no lit casing");
+            Assert.That(none, Is.LessThan(one), "and one lit segment draws more than none");
+        }
+
+        [Test]
         public void NW15_AClickInsideAnAreaPicksIt()
         {
             _cam.transform.position = new Vector3(0, 400, -400);   // near enough that the shape is many pixels across

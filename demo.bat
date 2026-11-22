@@ -424,6 +424,9 @@ echo        gun whale: the snow lies on the ground that never moves, the skiers 
 echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
+echo   4.26 bug bash PR E: trail hover and a groomer's path (builds the game if there is none)
+echo     145 The hover and map tests, then the drawn resort on January 15 with two groomers: hover trails, then
+echo        Analysis, Grooming, Equipment and a groomer's card (only its path lit).
 echo   4.26 bug bash PR C: tower placement and tower drags (builds the game if there is none)
 echo     144 The tower test over 32 real lines (a tower before a terminal no taller than its neighbours), then the
 echo        drawn resort: build a lift over a crest, and drag towers in Edit lift.
@@ -626,6 +629,7 @@ if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
 if /i "%CHOICE%"=="113" goto trailsnow
 if /i "%CHOICE%"=="144" goto towers426
+if /i "%CHOICE%"=="145" goto hover426
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -1228,6 +1232,28 @@ echo   the log's [SimTo] lines (the real time it took, the base, the summit, the
 if not exist "%~dp0test-results\snow-a3" mkdir "%~dp0test-results\snow-a3"
 start "" /wait "%GAME%" -data "%LOCALAPPDATA%\SkiAreaDesignChallenge-simto" -notitle -offline -simto 02-01 -logFile "%~dp0test-results\snow-a3\simto.log"
 findstr /l /c:"[SimTo]" "%~dp0test-results\snow-a3\simto.log"
+pause
+goto menu
+
+:hover426
+rem 4.26 PR E (BB3, BB2; BB1 explained): a trail hover reads no ground; a groomer's card lights only its path.
+chcp 65001 >nul
+echo.
+echo   Part 1: the hover test (no ground read, 0 bytes) and the map test, in the editor's test runner (about 2 minutes;
+echo   close Unity first).
+"%UNITY%" -batchmode -projectPath "%~dp0." -runTests -testPlatform EditMode -testFilter "TrailHoverTests|NetworkViewTests" -testResults "%~dp0test-results\hover426.xml" -logFile "%~dp0test-results\hover426.log"
+findstr /r /c:"testcasecount=.* result=" "%~dp0test-results\hover426.xml"
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "HV=%LOCALAPPDATA%\SkiAreaDesignChallenge-hover426"
+if exist "%HV%" rmdir /s /q "%HV%"
+echo.
+echo   Part 2: the drawn resort on January 15 with two groomers, in a scratch folder (your saves aren't touched). Try:
+echo     - Move the pointer over the trails: each lights with its white casing at once, with no hitch.
+echo     - Analysis (A), Grooming, Equipment: click a groomer. Its runs are green and its drives blue; every other
+echo       run turns plain grey. Close the card: all runs take tonight's colours again.
+pause
+start "" "%GAME%" -data "%HV%" -notitle -offline -drawnresort -simto 01-15 -groomers 2
 pause
 goto menu
 
