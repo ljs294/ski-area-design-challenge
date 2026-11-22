@@ -166,12 +166,14 @@ namespace MountainPlanner.Presentation.Design
         /// <summary>
         /// The lift tool's catchment (NT16), drawn on the trail map: the built terminals' areas faint, the terminals in
         /// hand as <see cref="StationArea.Candidate"/> areas, and the trails they'd gather lit in their own colours.
+        /// With <paramref name="lit"/>, only those segments (by <see cref="Segment.Edge"/>) are lit and the rest drawn as
+        /// the grey line under a pick (task 4.26 BB2: a groomer's path with the other runs dimmed).
         /// </summary>
-        public void SetCatchment(Segment[] gathered, StationArea[] areas)
+        public void SetCatchment(Segment[] gathered, StationArea[] areas, ICollection<int> lit = null)
         {
             Set(gathered, null, null, null, null, areas);
             var edges = new List<int>();
-            foreach (var s in _segments) edges.Add(s.Edge);
+            foreach (var s in _segments) if (lit == null || lit.Contains(s.Edge)) edges.Add(s.Edge);
             SetPick(-1, 0, 0, edges, null);
             _picked = true;   // the built areas faint, the gathered trails lit
         }

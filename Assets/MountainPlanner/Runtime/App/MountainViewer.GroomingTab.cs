@@ -286,6 +286,7 @@ namespace MountainPlanner.App
             if (_groomMap == null || _resort == null) return;
             var m = _groomTabModel;
             var segs = new List<NetworkView.Segment>();
+            var lit = new HashSet<int>();
             // round 3 (owner 2026-11-21): a picked groomer (its card open) shows its path tonight: its runs bright, its
             // drives between them over the trails, the rest dimmed
             var path = Hud.GroomingLastNight ? null : GroomerPathRows(Hud.GroomerPicked);
@@ -296,6 +297,8 @@ namespace MountainPlanner.App
                     if (!_groomDraped.TryGetValue(r.Id, out var d) || !ReferenceEquals(d.Line, line))
                         _groomDraped[r.Id] = d = (line, DrapeLine(line));
                     var colour = path == null ? MountainHud.GroomMapColour(r) : path.Contains(r.Id) ? MountainHud.GroomMapPath : MountainHud.GroomMapNever;
+                    // task 4.26 BB2: off the path, a run is drawn dim (no white casing), not lit in the dim colour
+                    if (path == null || path.Contains(r.Id)) lit.Add(segs.Count);
                     segs.Add(new NetworkView.Segment { Edge = segs.Count, Trail = r.Id, Points = d.Points, Own = colour, Served = true });
                 }
             if (path != null && path.Count > 0)
@@ -309,10 +312,12 @@ namespace MountainPlanner.App
                     NearestEnds(stops[i], stops[i + 1], out var a, out var b);
                     var route = RouteBetween(a, b);
                     var pts = route != null ? route.At : new[] { a, b };
-                    if (pts.Length >= 2) segs.Add(new NetworkView.Segment { Edge = segs.Count, Trail = 0, Points = DrapeLine(pts), Own = MountainHud.GroomMapDrive, Served = true });
+                    if (pts.Length < 2) continue;
+                    lit.Add(segs.Count);
+                    segs.Add(new NetworkView.Segment { Edge = segs.Count, Trail = 0, Points = DrapeLine(pts), Own = MountainHud.GroomMapDrive, Served = true });
                 }
             }
-            _groomMap.SetCatchment(segs.ToArray(), null);
+            _groomMap.SetCatchment(segs.ToArray(), null, lit);
         }
 
         Vector3[] DrapeLine(Vector2[] line)

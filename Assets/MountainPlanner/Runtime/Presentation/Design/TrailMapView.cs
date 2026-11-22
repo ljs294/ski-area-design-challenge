@@ -21,6 +21,8 @@ namespace MountainPlanner.Presentation.Design
         readonly PendingPreview _lines;
         readonly Dictionary<TrailId, Shape> _shapes = new Dictionary<TrailId, Shape>();
         readonly List<(TrailId id, int slot)> _slots = new List<(TrailId, int)>();
+        // Task 4.26 BB3: the slot each drawn line is in (by reference), so the casing copies its draped points.
+        readonly Dictionary<Vector2[], int> _drawnIn = new Dictionary<Vector2[], int>();
         TrailId _focus;
 
         internal sealed class Shape
@@ -162,6 +164,7 @@ namespace MountainPlanner.Presentation.Design
             var nodes = TrailNodes.Of(doc);
             int slot = CasingSlot + 1;
             _slots.Clear();
+            _drawnIn.Clear();
             // The ground that moved since the last redraw: a rating whose footprint it meets is worked out again.
             var moved = new HashSet<EditTileKey>(_ratedOver == null ? new List<EditTileKey>() : TerrainEdits.Changed(_ratedOver, heights.Edits));
             bool all = _ratedOver == null;
@@ -195,6 +198,7 @@ namespace MountainPlanner.Presentation.Design
                 if (s.Line == null) continue;
                 s.Drawn = Joined(s.Line, nodes, t);
                 _slots.Add((t.Id, slot));
+                _drawnIn[s.Drawn] = slot;
                 _lines.Line(slot++, s.Drawn, s.Drawn.Length, InkOf(s));
                 long d = System.Diagnostics.Stopwatch.GetTimestamp();
                 lines += d - c;
@@ -226,14 +230,19 @@ namespace MountainPlanner.Presentation.Design
         public void SetTrailLines(IReadOnlyList<(Vector2[] Line, PreviewInk Ink)> trails, ICollection<TrailId> covered)
         {
             int slot = CasingSlot + 1;
+            _drawnIn.Clear();
             foreach (var (line, ink) in trails)
             {
                 if (line == null || line.Length < 2) continue;
+                _drawnIn[line] = slot;
                 _lines.Line(slot++, line, line.Length, ink);
             }
             foreach (var (id, _) in _slots)
                 if (!covered.Contains(id) && _shapes.TryGetValue(id, out var s) && s.Drawn != null)
+                {
+                    _drawnIn[s.Drawn] = slot;
                     _lines.Line(slot++, s.Drawn, s.Drawn.Length, InkOf(s));
+                }
             _lines.HideFrom(slot);
             _used = slot;
             DrawCasing();
@@ -286,7 +295,9 @@ namespace MountainPlanner.Presentation.Design
             var line = _focusLine;
             if (line == null && !_focus.IsNone && _shapes.TryGetValue(_focus, out var s)) line = s.Drawn;
             if (line == null || line.Length < 2) { _lines.Hide(CasingSlot); return; }
-            _lines.Line(CasingSlot, line, line.Length, PreviewInk.Casing);
+            // The line's own slot already holds it draped: copied, it samples no ground (task 4.26 BB3).
+            if (!_drawnIn.TryGetValue(line, out int from) || !_lines.CopyLine(from, CasingSlot, PreviewInk.Casing))
+                _lines.Line(CasingSlot, line, line.Length, PreviewInk.Casing);
             _lines.SetWidth(CasingSlot, 2.4f, behind: true);
         }
 
