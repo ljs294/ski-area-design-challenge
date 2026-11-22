@@ -33,9 +33,9 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB13 | Owner, 2026-11-21 | A trail's name can't be changed from the new-trail creation pane or the trail edit pane | The name can be changed in both | | Fixed in PR A+B: a press on the name no longer drags the window |
 | BB14 | Owner, 2026-11-21 | On a lift, clicking the "#" (plate) field and leaving it blank (no number or letter) makes the field disappear entirely | A blank plate leaves the "#" field in place so it can be set later | | Fixed in PR A+B: the "#" chip comes back |
 | BB15 | Owner, 2026-11-21 | Lift terminals that are intentionally kept clear of snow get overwritten by the new snow layer model | Terminals stay clear of snow | | |
-| BB16 | Owner, 2026-11-21 | The last few towers approaching a terminal are often far too tall, so carriers go really high, then really low, then back up to the terminal | A revised tower-placement algorithm: towers and the line approaching a terminal are much more consistent and realistic | | |
+| BB16 | Owner, 2026-11-21 | The last few towers approaching a terminal are often far too tall, so carriers go really high, then really low, then back up to the terminal | A revised tower-placement algorithm: towers and the line approaching a terminal are much more consistent and realistic | | Fixed in PR C: the plan prices tall towers and height steps |
 | BB17 | Owner, 2026-11-21 | When building a ski lift, towers aren't leaned by default | Leaned towers are the default | | Fixed in PR A+B: Leaned by default |
-| BB18 | Owner, 2026-11-21 | Editing and moving towers in game isn't fluid | The edit-tower and move-tower features are audited and made much smoother and more responsive | | |
+| BB18 | Owner, 2026-11-21 | Editing and moving towers in game isn't fluid | The edit-tower and move-tower features are audited and made much smoother and more responsive | | Improved in PR C: towers kept, dragged tower follows the pointer; rope redraw left |
 | BB19 | Owner, 2026-11-21 | The brush size can't be changed with the mouse while using a brush (painting a trail, terrain edits, etc.) | With any brush, holding Ctrl and using the scroll wheel changes the brush size | | Fixed in PR A+B: Ctrl + wheel on trail and terrain brushes |
 | BB20 | Owner, 2026-11-21 | The game always starts with a crash-log popup, implying the game crashed on startup | Find out why the notice appears; a normal start shows no crash notice | | Fixed in PR A+B: one crash marker per session |
 | BB21 | Owner, 2026-11-21 | Deciduous trees seem way too big, and the owner isn't loving how they look in game | Audit the deciduous trees and report the findings as a plan to make them look more normal | | |
@@ -142,3 +142,44 @@ the `[` and `]` keys, a touchpad's small steps add up to whole notches, and the 
 tools turn it on with `ToolContext.ClaimBrushWheel` (a flag beside the key claims, cleared with them; nothing is saved,
 so key-binding prefs read unchanged). The keys strip reads "width (or Ctrl + wheel)" and "diameter (or Ctrl + wheel)".
 Test: `ToolboxTests.NewTrail_PaintHeadTailReviewBreaksGround` (3 notches up, 2 down).
+
+## BB16: tall towers before a terminal
+
+Reproduced on real ground (`Tests/Core/TowerApproachTests`, the Jackson Hole fan of 32 lines that
+`TW16v3_AFanOfRealLinesBuildsWithinTheRules` builds). Lines over a crest whose top terminal sits lower down ended
+"… 45 58 **97** 15" ft: a 97 ft last tower beside a 15 ft station tower, so the chairs rose to it, dropped steeply and
+levelled into the terminal. A tower's *spike* is how far it stands above the line between its neighbours' heights; the
+worst next to a station tower was 60 ft (FGQ-4) and 55 ft (D6), and 50 of the two lifts' 651 towers were 80 ft or taller.
+
+Cause: the tower plan (`TowerPlacement.PlanLine`, TW-12 v2) prices a tower at 1,000 and its height at
+10 × ((H − 35 ft) / 10 ft)², so a 100 ft tower cost 422 more than a 35 ft one: one very tall tower always beat one more
+tower of a modest height, before a terminal or anywhere. Nothing priced a tall tower beside a short one either.
+
+Fix (general, every chairlift; tows top out at 30 ft and are unchanged): past 50 ft a tower costs
+100 × ((H − 50 ft) / 10 ft)² more, and a height step from the tower before costs 10 × (step / 10 ft)². A 100 ft tower
+now costs about 2,900 over a 35 ft one, so the plan adds a tower where one more brings the heights down, and keeps tall
+towers for gullies. Over the fan: worst spike next to a station tower 34 ft (FGQ-4) and 33 ft (D6), 11 of 682 towers
+80 ft or taller (1 of 335 FGQ-4, 10 of 347 D6), about 5% more towers, every line still within the rules. Towers already built and saved stay as they
+are (they're stored; only building, Edit lift's Automatic and the drawn resort place towers).
+
+The Core lift tests (1,733, filtered to lifts, towers, design, earthwork, guests and the golden) all pass; no behaviour pin
+moved. Three timing tests failed once while a Unity build ran beside them and passed on a quiet PC (TW-12's mile 12 ms of
+60). `SeasonRunner.GoldenFoldValue` doesn't move (its lifts have no towers). The drawn resort places its towers as it
+opens, so its lifts gain a few towers; its benchmark baselines aren't re-pinned here.
+
+## BB18: dragging a tower
+
+Measured in the built game (`-towerdragcheck <out.txt>` with `-drawnresort`, measure lane, release player, 1920×1080):
+each step of a tower drag in Edit lift redrew the whole draft lift, 25–37 ms median and up to 52 ms per redraw, 10 times
+a second, while the rope solve took 3 ms and the profile strip 0.2 ms. The dragged tower moved only with each redraw, in
+100 ms jumps, with a hitch at every one. By part: towers 8–15 ms (a base, a head and a mast section a metre, all built
+again), the rope, cable and carriers 10–15 ms, terminals 0.4–2.3 ms.
+
+Fix (`Presentation/Lifts/LiftView`):
+- A redraw keeps the last build's tower bases and mast sections and stands them where their towers go now (as a
+  re-height does); only the heads are new, since posing turns their sheave trains from where they stand. Towers' share:
+  4–8 ms; the redraw 21–32 ms median (2026-11-21, same run setup).
+- Between redraws the dragged tower itself slides to the pointer every frame (`LiftView.NudgeTower`), so it follows the
+  hand; the rope and the carriers catch up at the next redraw.
+
+Left: the rope, cable and carriers (10–15 ms a redraw) are built again each time.

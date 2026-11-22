@@ -138,7 +138,7 @@ namespace MountainPlanner.App.Flow
             "-shellcheck",   // task 4.07 PR A3 repair
             "-drawnresort", "-designbench",   // task P3-11: the drawn resort never goes into a player's save
             "-guestshot",   // task 4.12
-            "-typecheck",   // task 4.26
+            "-typecheck", "-towerdragcheck",   // task 4.26
             "-simgolden",   // task 4.03
             "-simguests",   // task 4.12
             "-rideshots", "-ridebench",   // task 4.11 PR B

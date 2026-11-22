@@ -223,7 +223,14 @@ namespace MountainPlanner.UI.Tools
         void LiveRope()
         {
             float now = Time.realtimeSinceStartup;
-            if (now - _liveAt < 0.1f || _without == null || _ctx.ToGround == null || _draft.Towers.Count == 0) return;
+            if (now - _liveAt < 0.1f)
+            {
+                // BB18: between redraws the dragged tower itself follows the pointer.
+                int sel = _editor.Selected;
+                if (_editor.Dragging && sel >= 0 && sel < _draft.Towers.Count) _ctx.NudgeDraftTower?.Invoke(sel, _draft.Towers[sel].AlongMm / 1000.0);
+                return;
+            }
+            if (_without == null || _ctx.ToGround == null || _draft.Towers.Count == 0) return;
             _liveAt = now;
             IHeightSource under = _built != null ? new EditedHeights(_without.Source, _without.Lattice, _built.Edits) : _without;
             var type = LiftType.Of(_draft.CatalogId, _draft.Drive);

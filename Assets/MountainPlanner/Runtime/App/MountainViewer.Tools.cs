@@ -86,6 +86,7 @@ namespace MountainPlanner.App
                 // F4 (LT38): the line in 3D while it's built or edited.
                 TowerGhost = () => TowerGhostFor(),
                 ShowDraftLift = ShowDraftLift,
+                NudgeDraftTower = (i, s) => { if (_draftView != null && _edits != null) _draftView.NudgeTower(i, s, _edits.Pipeline.Heights, _resort.Frame); },
                 HideBuiltLift = HideBuiltLift,
                 DraftPartUnderPointer = () => _draftPart,
                 HighlightDraftPart = HighlightDraftPart,

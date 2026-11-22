@@ -310,6 +310,7 @@ namespace MountainPlanner.App
                 StartCrowdShots(args);     // -crowdshot <folder> -crowdviews "x,z,d,yaw,pitch;..." [-guests N] (task 4.24)
                 StartProofHold(args);      // -proofhold <out.json> [-guests N] [-skierproof lod|lod0] (task 4.13 PR C2)
                 StartTypeCheck(args);      // -typecheck <out.txt> with -drawnresort (MountainViewer.TypeCheck.cs, task 4.26)
+                StartTowerDragCheck(args); // -towerdragcheck <out.txt> with -drawnresort (MountainViewer.TowerDragCheck.cs, task 4.26 BB18)
                 StartCoroutine(RunRideArguments(args));   // -ride <lift> [-rideshots <folder> | -ridebench <out.json>] (task 4.11 PR B)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));

@@ -67,6 +67,9 @@ namespace MountainPlanner.Domain.Design
 
         const double Grid = 1.524, LineHeight = 10.668, StationDefault = 12.192, PastFront = 4.572,
                      MaxSpan = 76.2, MinGap = 15.24, Tolerance = LiftRope.ClearanceTolerance;
+        // Task 4.26 BB16: the plan's price on a tall tower (per 10 ft past 60 ft, squared) and on a height step between
+        // neighbours (per 10 ft, squared), against a thousand a tower.
+        const double TallFeet = 50, TallCost = 100, StepCost = 10;
 
         /// <summary>
         /// Places towers on the line from <paramref name="bottom"/> to <paramref name="top"/> (bullwheels, in the package's
@@ -565,13 +568,18 @@ namespace MountainPlanner.Domain.Design
             var dug = new List<double>();   // each span's trench, metres (it costs: the plan digs no more than it must)
             double ideal = (st - (ownB ? exitS : sb)) / Math.Max(1, Math.Ceiling((st - (ownB ? exitS : sb)) / PlanMaxSpan - 1e-9));
             // A span's cost: the tower it reaches (a thousand; its height's distance from a modest 35 ft), the span's distance
-            // from even, and its trench.
-            double Cost(int v, double len, double trench)
+            // from even, and its trench. Task 4.26 BB16: a tower past 60 ft costs steeply more, so that one 100 ft tower costs
+            // more than another tower at a modest height (it cost less, so the plan stood 100 ft towers before a terminal
+            // rather than add one); and a tower much taller or shorter than the one before it costs too, so the heights run
+            // evenly along the line.
+            double tallFrom = Math.Max(modestFeet, TallFeet);
+            double Cost(int u, int v, double len, double trench)
             {
                 double c = 50 * ((len - ideal) / ideal) * ((len - ideal) / ideal) + 200 * trench;
                 if (v == end) return c;
-                double over = (nH[v] / 0.3048 - modestFeet) / 10;
-                return 1000 + 10 * over * over + c;
+                double over = (nH[v] / 0.3048 - modestFeet) / 10, tall = Math.Max(0, nH[v] / 0.3048 - tallFrom) / 10;
+                double step = u > 0 ? (nH[v] - nH[u]) / 0.3048 / 10 : 0;
+                return 1000 + 10 * over * over + TallCost * tall * tall + StepCost * step * step + c;
             }
             // The spans: every pair 50–250 ft apart that clears, by the node they leave.
             var from = new List<int>();
@@ -624,7 +632,7 @@ namespace MountainPlanner.Domain.Design
             var spanLength = length.ToArray();
             var outs = new int[n][];
             for (int i = 0; i < n; i++) outs[i] = outOf[i].ToArray();
-            for (int e = 0; e < spanCost.Length; e++) spanCost[e] = Cost(to[e], length[e], dug[e]);
+            for (int e = 0; e < spanCost.Length; e++) spanCost[e] = Cost(from[e], to[e], length[e], dug[e]);
             for (int e = 0; e < best.Length; e++) { best[e] = double.PositiveInfinity; prev[e] = -1; }
             foreach (int e in outOf[0])
             {
