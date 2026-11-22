@@ -413,3 +413,22 @@ kept winter leaves (submesh 3).
 A leaf season needs a leaf material instead of the hidden one, a shader that turns and drops each card by the date and
 the region (New England's colour weeks in early October, leaf-out in May), and impostors baked for each leaf state.
 Those are the same import, materials and impostors the 4.27 overhaul rebuilds, so it fits there rather than here.
+The owner moved steps 4 and 5 into 4.27 (2026-11-22).
+
+### Step 3 measured (2026-11-22)
+
+- Pictures (Jackson NH, the default camera, render lane): only the distant forest changes; the core is pixel-identical.
+  Past the core the hardwood stands read as separate crowns instead of grey blobs, but more open ground shows between
+  them: the ring is still spaced for crowns up to 3 × wide, so capping the drawn crown at 1.5 × thins the distant
+  hardwood cover. That's the pale look that stopped NE8, milder. 4.27 re-fits the ring's spacing (it owns
+  `ForestField`'s ring width line once L lands).
+- Benchmark (demo 41's release runs at High and Medium against the stored baselines): frame and GPU p95 within ±2 % on
+  every leg; the ring forest 11.64 ms against 11.63 at High.
+
+## Found while measuring: the release game's heap grows 2.5 MB over the benchmark
+
+Demo 41's release run fails its garbage check on main: the heap grows +2,555,904 B at High (+3.8 MB at Medium) with no
+collection, where the stored baseline (cfff280) grew 0. A build without PR L's change measures the same, so it came in
+somewhere in cfff280..cd8fb7ec (58 commits), not from L. Whether it is real per-frame garbage or a one-time growth is for
+the Development-build legs of demo 41 (exact garbage), not run here. Recorded only: no baseline is re-pinned without the
+owner.
