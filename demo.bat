@@ -427,6 +427,8 @@ echo        go straight to the game (no tests, report or time-lapse; it builds o
 echo   4.26 bug bash PR E: trail hover and a groomer's path (builds the game if there is none)
 echo     145 The hover and map tests, then the drawn resort on January 15 with two groomers: hover trails, then
 echo        Analysis, Grooming, Equipment and a groomer's card (only its path lit).
+echo   4.26 bug bash PR L: distant broadleaf trees drawn narrower (builds the game if there is none)
+echo     148 The forest test, then the game: open a New England map (Jackson NH) and look at the distant hardwoods.
 echo   4.26 bug bash PR K: lift terminals clear of snow (builds the game if there is none)
 echo     147 The drawn resort on February 1, deep snow: every chair and tow terminal stands on clear ground.
 echo   4.26 bug bash PR H: weather tests and EditMode tests before a push
@@ -637,6 +639,7 @@ if /i "%CHOICE%"=="144" goto towers426
 if /i "%CHOICE%"=="145" goto hover426
 if /i "%CHOICE%"=="146" goto tests426
 if /i "%CHOICE%"=="147" goto pads426
+if /i "%CHOICE%"=="148" goto trees426
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -1261,6 +1264,24 @@ echo     - Analysis (A), Grooming, Equipment: click a groomer. Its runs are gree
 echo       run turns plain grey. Close the card: all runs take tonight's colours again.
 pause
 start "" "%GAME%" -data "%HV%" -notitle -offline -drawnresort -simto 01-15 -groomers 2
+pause
+goto menu
+
+:trees426
+rem 4.26 PR L (BB21 step 3): broadleaf crowns past the core widen at most 1.5x (conifers keep up to 3x).
+chcp 65001 >nul
+echo.
+echo   Part 1 (.NET, under a minute): the forest tests, with the broadleaf list checked against species.json and the
+echo   drawn width (an oak at most 1.5x past the core, a fir still 3x).
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~ForestTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo   Part 2: the game. Open a New England map from your library (Jackson NH has the most hardwoods) and look out
+echo   past the detailed core: the distant hardwoods are tree-sized, no longer blobs several trees wide. The trees
+echo   are still bare (the leaf season goes to 4.27) and the near ones still too wide (the 4.27 model rebuild).
+pause
+start "" "%GAME%"
 pause
 goto menu
 

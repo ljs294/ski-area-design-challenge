@@ -41,7 +41,7 @@ namespace MountainPlanner.World
                 result[i] = new ForestInstance
                 {
                     Position = new Vector3(origin.x + fx * tileMetres, heightMin + h * heightRange, origin.z + fz * tileMetres),
-                    Rotation = rotation, HeightScale = scale, WidthScale = scale * width, Prototype = (uint)prototype,
+                    Rotation = rotation, HeightScale = scale, WidthScale = scale * Domain.Flora.SpeciesMap.DrawnWidth(prototype, width), Prototype = (uint)prototype,
                 };
             }
             return result;

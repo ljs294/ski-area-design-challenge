@@ -31,6 +31,24 @@ namespace MountainPlanner.Tests
             if (json == null) Assert.Ignore("tools/assets/trees/species.json is not available here.");
             var ids = Regex.Matches(json, "\"id\"\\s*:\\s*\"([a-z_]+)\"").Cast<Match>().Select(m => m.Groups[1].Value).ToArray();
             Assert.That(SpeciesMap.Models, Is.EqualTo(ids), "model order is the prototype order in the game");
+            // Task 4.26 BB21: the broadleaf models are species.json's deciduous ones.
+            var forms = Regex.Matches(json, "\"form\"\\s*:\\s*\"([a-z]+)\"").Cast<Match>().Select(m => m.Groups[1].Value).ToArray();
+            Assert.That(forms.Length, Is.EqualTo(ids.Length), "one form per model");
+            for (int m = 0; m < ids.Length; m++)
+                Assert.That(SpeciesMap.IsBroadleaf(m), Is.EqualTo(forms[m] == "deciduous"), ids[m]);
+        }
+
+        [Test]
+        public void BroadleafCrownsWidenLessPastTheCore()
+        {
+            // Task 4.26 BB21 step 3: a ring tree's width (1–3 ×) reaches a conifer whole, a broadleaf tree up to 1.5 ×.
+            int oak = SpeciesMap.IndexOf("northern_red_oak") * SpeciesMap.VariantsPerModel + 2;
+            int fir = SpeciesMap.IndexOf("subalpine_fir") * SpeciesMap.VariantsPerModel + 1;
+            Assert.That(SpeciesMap.DrawnWidth(oak, 1), Is.EqualTo(1f), "the core's crowns are as modelled");
+            Assert.That(SpeciesMap.DrawnWidth(oak, 1.25f), Is.EqualTo(1.25f));
+            Assert.That(SpeciesMap.DrawnWidth(oak, 3), Is.EqualTo(SpeciesMap.BroadleafWidthMax));
+            Assert.That(SpeciesMap.DrawnWidth(fir, 3), Is.EqualTo(3f), "conifers keep the ring's width");
+            Assert.That(SpeciesMap.DrawnWidth(SpeciesMap.IndexOf("krummholz") * SpeciesMap.VariantsPerModel, 3), Is.EqualTo(3f));
         }
 
         [Test]

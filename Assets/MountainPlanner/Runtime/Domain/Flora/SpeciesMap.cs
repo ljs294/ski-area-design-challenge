@@ -23,6 +23,29 @@ namespace MountainPlanner.Domain.Flora
 
         public const int VariantsPerModel = 3;
 
+        /// <summary>The broadleaf (deciduous) models: <c>"form": "deciduous"</c> in species.json (a test checks).</summary>
+        static readonly HashSet<string> BroadleafModels = new HashSet<string>
+        {
+            "quaking_aspen", "paper_birch", "yellow_birch", "sugar_maple", "red_maple", "american_beech",
+            "northern_red_oak", "black_cherry",
+        };
+
+        static readonly bool[] Broadleaf = Models.Select(m => BroadleafModels.Contains(m)).ToArray();
+
+        /// <summary>Whether a model is a broadleaf tree.</summary>
+        public static bool IsBroadleaf(int model) => model >= 0 && model < Broadleaf.Length && Broadleaf[model];
+
+        /// <summary>
+        /// Task 4.26 BB21 step 3: the widest a broadleaf crown is drawn past the core. The ring spaces its fewer trees wider
+        /// and widens every crown to match (up to 3 ×, ForestField), which suits a conifer's narrow spire; a broadleaf
+        /// crown, already 2–2.5 × a conifer's, became a blob several trees wide.
+        /// </summary>
+        public const float BroadleafWidthMax = 1.5f;
+
+        /// <summary>The crown width a placed tree is drawn at (× its model's): the stored width, capped for broadleaf trees.</summary>
+        public static float DrawnWidth(int prototype, float width) =>
+            IsBroadleaf(prototype / VariantsPerModel) ? Math.Min(width, BroadleafWidthMax) : width;
+
         /// <summary>FIA species codes with their own model.</summary>
         static readonly Dictionary<int, string> Exact = new Dictionary<int, string>
         {

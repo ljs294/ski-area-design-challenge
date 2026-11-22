@@ -384,3 +384,32 @@ Questions for the owner:
 - Is the target forest-grown proportions (narrow crowns in a stand), or something in between for a more stylised look?
 - Should the trees at the forest's edge (beside trails and glades) get wider crowns, as real edge trees do?
 - Go-ahead for the model thread (step 1)?
+
+### Owner's answers (2026-11-22)
+
+1. Narrow crowns: forest-grown proportions, not a stylised in-between.
+2. Wider crowns at the forest's edge: yes, but not at the cost of another tree model now (so a per-tree scale, if any).
+3. A larger deciduous overhaul in its own thread: yes ("4.27 - Deciduous Trees", which takes steps 1 and 2, then 4).
+4. Steps 3 and 5 now: yes.
+
+### Step 3: distant broadleaf crowns widen at most 1.5 × (PR L)
+
+The ring's width (`min(3, 1/√density)`, `ForestField.PrepareCell`) is stored per 10 m cell for every species. It's capped
+where a tree is drawn, not where it's stored: `SpeciesMap.DrawnWidth` holds a broadleaf model's width to
+`BroadleafWidthMax` (1.5) in `ForestInstance.Decode`, and conifers and krummholz keep the ring's width. So the forest
+cache, its version and the forest goldens don't move; the spacing stays as it was, so a ring stand of hardwoods stays
+closed (its crowns are still 2–2.5 × the spacing's radius at 1.5 ×). `SpeciesMap.IsBroadleaf` is checked against
+species.json's `"form": "deciduous"` (Core `ForestTests`). Demo 148.
+
+### Step 5: there is no leaf calendar
+
+The bare crowns in early October aren't a wrong date: no season ever shows leaves. Since the first tree import
+("winter, iteration 1", `TreeImport`), every deciduous model's summer-leaf submesh gets `HiddenLeaves.mat`, a material
+that clips every pixel, and the impostors are baked from that bare tree. The models do carry what a calendar needs
+(each leaf card's season flag in UV1.y and its turn-and-fall order in UV2.x, and species.json's `autumn` colours), but
+nothing reads them: `TreeInstanced.shader` ignores both. The few orange leaves in the pictures are beech's and oak's
+kept winter leaves (submesh 3).
+
+A leaf season needs a leaf material instead of the hidden one, a shader that turns and drops each card by the date and
+the region (New England's colour weeks in early October, leaf-out in May), and impostors baked for each leaf state.
+Those are the same import, materials and impostors the 4.27 overhaul rebuilds, so it fits there rather than here.
