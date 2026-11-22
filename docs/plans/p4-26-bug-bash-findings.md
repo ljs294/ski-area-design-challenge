@@ -38,7 +38,7 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB18 | Owner, 2026-11-21 | Editing and moving towers in game isn't fluid | The edit-tower and move-tower features are audited and made much smoother and more responsive | | Improved in PR C: towers kept, dragged tower follows the pointer; rope redraw left |
 | BB19 | Owner, 2026-11-21 | The brush size can't be changed with the mouse while using a brush (painting a trail, terrain edits, etc.) | With any brush, holding Ctrl and using the scroll wheel changes the brush size | | Fixed in PR A+B: Ctrl + wheel on trail and terrain brushes |
 | BB20 | Owner, 2026-11-21 | The game always starts with a crash-log popup, implying the game crashed on startup | Find out why the notice appears; a normal start shows no crash notice | | Fixed in PR A+B: one crash marker per session |
-| BB21 | Owner, 2026-11-21 | Deciduous trees seem way too big, and the owner isn't loving how they look in game | Audit the deciduous trees and report the findings as a plan to make them look more normal | | |
+| BB21 | Owner, 2026-11-21 | Deciduous trees seem way too big, and the owner isn't loving how they look in game | Audit the deciduous trees and report the findings as a plan to make them look more normal | | Audited: a plan for the owner (5 steps); the model rebuild goes to its own thread after the owner's OK |
 
 Each finding's cause, fix and evidence are recorded in its own section below as it is worked.
 
@@ -312,3 +312,61 @@ it skips when the editor is open, and falls back to the compile check when no fi
 
 Waiting for the owner: a nightly run of the whole EditMode suite on main (it needs Unity closed and the PC idle, so how
 and when it runs is the owner's call). Until then, the hook only.
+
+## BB21: the deciduous trees are too big (audit and plan for the owner)
+
+Pictures from the built game at Jackson, NH (a copy of the owner's download in a scratch folder; render lane, 2026-11-21):
+
+![Jackson NH from the default camera](images/p4-26-bb21-jackson-nh-wide.jpg)
+![Jackson NH near a trail](images/p4-26-bb21-jackson-nh-near.jpg)
+
+![Crown width against height](images/p4-26-bb21-crown-ratio.png)
+
+### What's wrong, by evidence
+
+1. **The broadleaf models have open-field crowns.** `species.json`'s `crownRadius` is the crown radius as a share of the
+   height (`build_trees.py` line 591), and branches may reach past it. The nominal crown is 0.52–0.76 × the height for
+   maple, birch, cherry, beech and oak, and the widest leaf reaches 0.8–1.17 ×. Trees grown in a forest, which is what a
+   ski hill has, run about 0.3–0.45 (typical forestry proportions, not a measurement). Our conifers are 0.2–0.36. The
+   game scales width with height (`ForestInstance.cs` line 44), so the models' proportions reach the screen unchanged.
+2. **New England trees are drawn 1.5–1.9 × too tall.** Every site uses Jackson Hole's lidar factor (dominant height ×
+   2.2, `ForestRule.cs` line 145); New England's lidar says ×1.1–1.5 (forest-structure report §9). Since width follows
+   height, the crowns grow with it.
+3. **Spacing assumes narrow conifer crowns.** The density rule spaces trees by `0.1 × height + 0.6` m of crown radius
+   (at most 4.5 m, `ForestPlacement.cs` line 54). A beech or oak crown is 2.3–2.4 × that, so at 18 m an oak stand has about
+   9 crowns over each point and a beech stand 8 (spruce and fir: about 1). They merge into one grey mass.
+4. **Distant crowns widen up to 3 ×.** Ring trees outside the core get `width = min(3, 1/√density)` (`ForestField.cs`
+   line 497), for every species.
+5. **The leaves are off in the picture.** With `-season summer` the sun is July's, but the game's date is early October
+   (pre-season) and the hardwoods show bare grey twig crowns with a few orange leaves. Early October in New Hampshire
+   is peak colour. Whether this is the leaf calendar or the date the game opens on needs its own look (step 5).
+
+History the plan must respect: in NE8 (#47) the owner tried regional factors and chose option B, keeping Jackson Hole's
+everywhere, because the eastern forest read pale and thin and the ring showed a square seam. The density rule's crown
+discs don't match the rendered crowns, and D4's ×1.5 density has been making up for it (forest-structure report §9).
+Heights can only come down after density is fitted to the rendered crown cover.
+
+### The plan
+
+1. **Forest-grown proportions for the eight broadleaf models** (its own model thread, with the owner's sign-off on the
+   Blender renders before Unity). Crown diameter about 0.3–0.45 × the height: aspen and birch narrow, maple and cherry
+   middling, beech and oak broadest. Limbs are held so the widest leaf reaches no more than about 1.25 × the nominal crown.
+   Heights stay as they are. Cost: 8 species × 3 variants re-imported (about 5–10 MB of Git LFS per model).
+2. **Spacing from each model's own crown.** The density rule reads each species group's crown (as measured at import)
+   instead of the one conifer formula, so a stand of maples is as closed as it should be without stacking.
+3. **A gentler distant widening for broadleaf trees.** Ring trees widen less (about 1.5 × at most), so distant hardwoods
+   stay tree-sized.
+4. **Then the eastern heights.** With steps 1–3 in, fit density to the rendered crown cover (not the crown discs) and
+   try the New England height factor again (×1.26 east of the 100th meridian). Check from a distance and at the
+   core's edge for the pale look and the seam that stopped NE8, and benchmark it: Sugarloaf would hold about 5.9 M trees.
+5. **The leaf season.** Find why early October shows bare crowns (the leaf calendar or the opening date) and give
+   New England its colour weeks.
+
+Changes: the forest cache's version moves (it isn't a frozen format), and the forest's golden hashes move with steps
+1–4, so each needs the owner's OK. Steps 1 and 2 go together; 3 and 5 are small and can go first; step 4 last, with its
+benchmark.
+
+Questions for the owner:
+- Is the target forest-grown proportions (narrow crowns in a stand), or something in between for a more stylised look?
+- Should the trees at the forest's edge (beside trails and glades) get wider crowns, as real edge trees do?
+- Go-ahead for the model thread (step 1)?
