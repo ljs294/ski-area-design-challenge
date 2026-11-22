@@ -39,6 +39,7 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB19 | Owner, 2026-11-21 | The brush size can't be changed with the mouse while using a brush (painting a trail, terrain edits, etc.) | With any brush, holding Ctrl and using the scroll wheel changes the brush size | | Fixed in PR A+B: Ctrl + wheel on trail and terrain brushes |
 | BB20 | Owner, 2026-11-21 | The game always starts with a crash-log popup, implying the game crashed on startup | Find out why the notice appears; a normal start shows no crash notice | | Fixed in PR A+B: one crash marker per session |
 | BB21 | Owner, 2026-11-21 | Deciduous trees seem way too big, and the owner isn't loving how they look in game | Audit the deciduous trees and report the findings as a plan to make them look more normal | | Audited: a plan for the owner (5 steps); the model rebuild goes to its own thread after the owner's OK |
+| BB22 | 4.26 thread, 2026-11-22 (demo 41 for PR L) | The release game's heap grows +2.5 MB over the benchmark at High (+3.8 MB at Medium), no collection; the cfff280 baseline grew 0. Same without L's change: it's in cfff280..cd8fb7ec | The release benchmark passes its garbage check | | Recorded; next, with the owner's go: demo 41's Development-build legs (exact garbage), then bisect the merges if needed |
 
 Each finding's cause, fix and evidence are recorded in its own section below as it is worked.
 
@@ -425,7 +426,7 @@ The owner moved steps 4 and 5 into 4.27 (2026-11-22).
 - Benchmark (demo 41's release runs at High and Medium against the stored baselines): frame and GPU p95 within ±2 % on
   every leg; the ring forest 11.64 ms against 11.63 at High.
 
-## Found while measuring: the release game's heap grows 2.5 MB over the benchmark
+## BB22: the release game's heap grows 2.5 MB over the benchmark
 
 Demo 41's release run fails its garbage check on main: the heap grows +2,555,904 B at High (+3.8 MB at Medium) with no
 collection, where the stored baseline (cfff280) grew 0. A build without PR L's change measures the same, so it came in
