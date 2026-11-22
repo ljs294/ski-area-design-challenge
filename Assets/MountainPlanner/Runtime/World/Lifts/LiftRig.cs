@@ -134,19 +134,26 @@ namespace MountainPlanner.World.Lifts
             return null;
         }
 
-        public Transform Socket(string name)
-        {
-            string suffix = "_socket_" + name;
-            foreach (var s in Sockets)
-                if (s != null && s.name.EndsWith(suffix)) return s;
-            return null;
-        }
+        public Transform Socket(string name) => Find(Sockets, ref _namedSockets, ref _socketNames, "_socket_" + name);
 
-        public Transform Pivot(string name)
+        public Transform Pivot(string name) => Find(Pivots, ref _namedPivots, ref _pivotNames, "_pivot_" + name);
+
+        // Task 4.26 BB18: the names, read once per placed rig (Unity makes a new string for every name read, and a tower drag's
+        // redraw looked sockets up by name dozens of times a head). Matched ordinally: the names are ASCII identifiers.
+        [System.NonSerialized] Transform[] _namedSockets, _namedPivots;
+        [System.NonSerialized] string[] _socketNames, _pivotNames;
+
+        static Transform Find(Transform[] items, ref Transform[] seen, ref string[] names, string suffix)
         {
-            string suffix = "_pivot_" + name;
-            foreach (var p in Pivots)
-                if (p != null && p.name.EndsWith(suffix)) return p;
+            if (items == null) return null;
+            if (!ReferenceEquals(items, seen) || names == null || names.Length != items.Length)
+            {
+                seen = items;
+                names = new string[items.Length];
+                for (int i = 0; i < items.Length; i++) names[i] = items[i] != null ? items[i].name : null;
+            }
+            for (int i = 0; i < items.Length; i++)
+                if (names[i] != null && items[i] != null && names[i].EndsWith(suffix, System.StringComparison.Ordinal)) return items[i];
             return null;
         }
     }

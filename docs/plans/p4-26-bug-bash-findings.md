@@ -182,7 +182,14 @@ Fix (`Presentation/Lifts/LiftView`):
 - Between redraws the dragged tower itself slides to the pointer every frame (`LiftView.NudgeTower`), so it follows the
   hand; the rope and the carriers catch up at the next redraw.
 
-Left: the rope, cable and carriers (10–15 ms a redraw) are built again each time.
+Then the rope (PR J): splitting the rope part (10.6–15.1 ms) showed posing the rope over the sheaves at 0.3–0.6 ms, the
+cable's mesh 1.3–1.8 ms and the carriers 0.4–0.9 ms. The rest, 7.5–11.4 ms, was reading each tower head's sheave
+trains: every read looked each pivot and socket up by name, about five times a head and side. Unity makes a new string
+for each name read, and `LiftRig.Socket` compared them culture-aware. Fix:
+- `TrainPosing.Keys`: each pivot's key worked out once per model and shown head (names and hidden heads don't change).
+- `LiftRig.Socket` and `Pivot`: the names read once per placed rig and compared ordinally (every lift uses these).
+
+Measured (`-towerdragcheck`, measure lane, 6 lifts of the drawn resort, 2026-11-22): the rope part 10.6–15.1 to 4.2–7.1 ms, the train read 7.5–11.4 to 1.8–3.7 ms, and a drag step's redraw 21–31 to 14–22 ms median. These lookups run when a lift is built or posed, never per frame. The probe now splits the rope part: read, posing, apply, spin, cable and carriers.
 
 ## BB3: hovering a trail allocates 12–33 MB
 
