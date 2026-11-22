@@ -427,6 +427,8 @@ echo        go straight to the game (no tests, report or time-lapse; it builds o
 echo   4.26 bug bash PR E: trail hover and a groomer's path (builds the game if there is none)
 echo     145 The hover and map tests, then the drawn resort on January 15 with two groomers: hover trails, then
 echo        Analysis, Grooming, Equipment and a groomer's card (only its path lit).
+echo   4.26 bug bash PR M: no garbage per frame again (builds the Development game)
+echo     149 The Development benchmark at High (about 4 minutes): 0 bytes of garbage; it was 88 bytes every frame.
 echo   4.26 bug bash PR K: lift terminals clear of snow (builds the game if there is none)
 echo     147 The drawn resort on February 1, deep snow: every chair and tow terminal stands on clear ground.
 echo   4.26 bug bash PR H: weather tests and EditMode tests before a push
@@ -637,6 +639,7 @@ if /i "%CHOICE%"=="144" goto towers426
 if /i "%CHOICE%"=="145" goto hover426
 if /i "%CHOICE%"=="146" goto tests426
 if /i "%CHOICE%"=="147" goto pads426
+if /i "%CHOICE%"=="149" goto garbage426
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -1261,6 +1264,21 @@ echo     - Analysis (A), Grooming, Equipment: click a groomer. Its runs are gree
 echo       run turns plain grey. Close the card: all runs take tonight's colours again.
 pause
 start "" "%GAME%" -data "%HV%" -notitle -offline -drawnresort -simto 01-15 -groomers 2
+pause
+goto menu
+
+:garbage426
+rem 4.26 PR M (BB22): two per-frame methods made a closure at every call (88 B a frame); the benchmark's garbage is 0 again.
+chcp 65001 >nul
+call :builddev
+if not exist "%GAMEDEV%" goto done
+if not exist "%BENCH%" mkdir "%BENCH%"
+echo.
+echo   The Development game flies the benchmark path once at High (about 4 minutes; keep the PC quiet). The line to
+echo   read is "garbage": 0 B in 0 frames passes (before the fix: about 1,150,000 B in every frame).
+%MEASURE% "%GAMEDEV%" %SCREEN% -quality high -laps 1 -benchmark "%BENCH%\high-dev.json" -logFile "%BENCH%\high-dev.log" <nul
+findstr /l /c:" at 1920x1080" "%BENCH%\high-dev.log"
+node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-high-dev.json" "%BENCH%\high-dev.json"
 pause
 goto menu
 

@@ -39,6 +39,7 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB19 | Owner, 2026-11-21 | The brush size can't be changed with the mouse while using a brush (painting a trail, terrain edits, etc.) | With any brush, holding Ctrl and using the scroll wheel changes the brush size | | Fixed in PR A+B: Ctrl + wheel on trail and terrain brushes |
 | BB20 | Owner, 2026-11-21 | The game always starts with a crash-log popup, implying the game crashed on startup | Find out why the notice appears; a normal start shows no crash notice | | Fixed in PR A+B: one crash marker per session |
 | BB21 | Owner, 2026-11-21 | Deciduous trees seem way too big, and the owner isn't loving how they look in game | Audit the deciduous trees and report the findings as a plan to make them look more normal | | Audited: a plan for the owner (5 steps); the model rebuild goes to its own thread after the owner's OK |
+| BB22 | 4.26 thread, 2026-11-22 (demo 41 for PR L) | Every frame allocates 88 bytes on main (1.15 MB over the benchmark's High lap; the release heap grows 2.5 MB), where the Nov 17 baselines allocated nothing | The benchmark's garbage check passes: nothing allocates per frame | | Fixed in PR M: two per-frame methods made a lambda's closure at every call; demo 149 |
 
 Each finding's cause, fix and evidence are recorded in its own section below as it is worked.
 
@@ -384,3 +385,29 @@ Questions for the owner:
 - Is the target forest-grown proportions (narrow crowns in a stand), or something in between for a more stylised look?
 - Should the trees at the forest's edge (beside trails and glades) get wider crowns, as real edge trees do?
 - Go-ahead for the model thread (step 1)?
+
+## BB22: every frame allocates 88 bytes (found measuring PR L)
+
+Demo 41's release run failed its garbage check on main: the heap grew 2.5 MB over the High lap (3.8 MB at Medium) with
+no collection, where the Nov 17 baselines (cfff280, 4.07 A3) grew nothing. A build without PR L's change measured the
+same. The Development runs (exact garbage) showed it's real per-frame garbage: 1,151,656 B in 13,087 of 13,090 frames at
+High (88 B a frame), the same at Medium and with the HUD.
+
+Bisect over main's merges (Dev High, one lap each): #173 0 B, #177 0 B, #178 (4.15 snowmaking network) 32 B a frame,
+#179 32 B, #184 88 B, main 88 B. So two sources.
+
+The trace named them. The Development benchmark now takes `-alloctrace <file>`: it records 300 measured frames to a
+profiler log with allocation call stacks (`MountainViewer.AllocTrace.cs`), and `MountainPlanner.Editor.AllocTrace.Report`
+reads the log in batch mode and lists every allocation by thread and call stack. It found exactly two per-frame
+allocations on the main thread, both from `RunClock`:
+- `MountainViewer.SendTrailSnow` (4.07 B2a): 56 B each frame.
+- `MountainViewer.UpdateSnowNetwork` (4.15): 32 B each frame.
+
+Cause: both start a `Task.Run` whose lambda captures locals declared at the top of the method. The compiler keeps
+captured locals in one object, made where they're declared, so it was made at the top of every call, though a job
+starts only when the trails or the snowmaking network change. The rest of the method never uses it.
+
+Fix: each job starts in its own small static method (`BuildTrailSnow`, `CompileSnowNetwork`) that takes its inputs as
+arguments, so the object is made only when a job starts. The same pattern in `UpdateBuiltWork` is already safe (its
+captured locals are declared inside the block that starts the job); the other `Task.Run` calls in the viewer run on
+demand, not per frame.

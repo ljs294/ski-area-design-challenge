@@ -243,8 +243,10 @@ namespace MountainPlanner.App
             start = Time.unscaledTime;
             float duration = laps * path.LapSeconds;
             int frame = 0;
+            string allocTrace = AllocTraceFile(args);   // -alloctrace <file> (task 4.26 BB22, MountainViewer.AllocTrace.cs)
             for (float t = 0; t < duration; t = Time.unscaledTime - start)
             {
+                AllocTraceFrame(allocTrace, frame);
                 bool liftOn = (frame / LiftAbBlock) % 2 == 0;
                 if (liftAb && frame % LiftAbBlock == 0) _resort.States.LiftOn = liftOn;
                 int leg = PlaceOnPath(path, t);

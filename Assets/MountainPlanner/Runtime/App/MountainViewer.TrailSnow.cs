@@ -105,11 +105,17 @@ namespace MountainPlanner.App
             var geo = _netGeometry;
             if (!_trailSnowDirty || _trailSnowNet == null || _trailSnowDoc == null || wx == null || geo == null) return;
             _trailSnowDirty = false;
-            var net = _trailSnowNet;
-            var doc = _trailSnowDoc;
-            int cap = Pacing.Default.FineCellCap;
-            _trailSnowJob = Task.Run(() => TrailSnowInputs.Build(doc, net, geo.CentrelineLengthMm, geo.PointAlong,
-                                                                 wx.Width, wx.Depth, wx.OriginXMm, wx.OriginYMm, cap));
+            _trailSnowJob = BuildTrailSnow(_trailSnowDoc, _trailSnowNet, geo, wx, Pacing.Default.FineCellCap);
         }
+
+        /// <summary>
+        /// Task 4.26 BB22: the layout's job, started in its own method. A lambda's captured locals live in one object the
+        /// compiler makes where they're declared, so with the lambda in <see cref="SendTrailSnow"/> that object was made at
+        /// the top of every call: 56 bytes a frame, though a job starts only when the trails change.
+        /// </summary>
+        static Task<TrailSnowLayout> BuildTrailSnow(DesignDocument doc, SimNetwork net, TrailNetworkGeometry geo,
+                                                    Domain.Weather.WeatherTerrain wx, int cap) =>
+            Task.Run(() => TrailSnowInputs.Build(doc, net, geo.CentrelineLengthMm, geo.PointAlong,
+                                                 wx.Width, wx.Depth, wx.OriginXMm, wx.OriginYMm, cap));
     }
 }

@@ -127,9 +127,17 @@ namespace MountainPlanner.App
                 _snowNetFor = net;
                 _snowNetService = service;
                 _snowCompiling = net;
-                _snowCompile = Task.Run(() => new SimSnowNetwork(service.Compile(net)));
+                _snowCompile = CompileSnowNetwork(service, net);
             }
         }
+
+        /// <summary>
+        /// Task 4.26 BB22: the compile's job, started in its own method, so the lambda's captured locals (an object the
+        /// compiler makes where they're declared) aren't made at the top of every <see cref="UpdateSnowNetwork"/>: that was 32
+        /// bytes a frame, though a compile starts only when the network, ground or water moves.
+        /// </summary>
+        static Task<SimSnowNetwork> CompileSnowNetwork(SnowService service, SnowNetwork net) =>
+            Task.Run(() => new SimSnowNetwork(service.Compile(net)));
 
         ulong _snowCompiledSources;
         bool SourcesMoved(SnowService service)
