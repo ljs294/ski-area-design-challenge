@@ -233,9 +233,29 @@ namespace MountainPlanner.Presentation.Lifts
         /// they were built while hand grading moves the ground; each tower then stands on <paramref name="ground"/> with the
         /// steel and foundation it needs (<see cref="AsBuiltHeights"/>). Null: the bases on <paramref name="ground"/>.
         /// </summary>
+        /// <summary>Task 4.26 BB18: the last <see cref="Build"/>'s milliseconds by part: clearing, terminals and footings,
+        /// the rope solve, the towers, and the rope, cable and carriers.</summary>
+        public readonly double[] BuildParts = new double[5];
+        long _partMark;
+        void Part(int k)
+        {
+            long now = System.Diagnostics.Stopwatch.GetTimestamp();
+            BuildParts[k] = (now - _partMark) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            _partMark = now;
+        }
+
         public void Build(Lift lift, IHeightSource ground, LocalFrame frame, LiftLivery livery, IReadOnlyList<double> fixedBases = null)
         {
-            Clear();
+            try { BuildCore(lift, ground, frame, livery, fixedBases); }
+            finally { DropTowerPool(); }
+        }
+
+        void BuildCore(Lift lift, IHeightSource ground, LocalFrame frame, LiftLivery livery, IReadOnlyList<double> fixedBases)
+        {
+            Array.Clear(BuildParts, 0, BuildParts.Length);
+            _partMark = System.Diagnostics.Stopwatch.GetTimestamp();
+            Clear(keepTowers: true);
+            Part(0);
             _asBuilt.Clear();
             _builtFrom = lift;
             _livery = livery;
@@ -278,6 +298,7 @@ namespace MountainPlanner.Presentation.Lifts
             PlaceFooting(ret, Height, livery);
             _spawning = PartTop;
             PlaceFooting(drive, Height, livery);
+            Part(1);
 
             // Where the rope leaves each station, along the line and in elevation.
             float S(Vector3 p) => Vector3.Dot(p - bottom, dir);
@@ -294,6 +315,7 @@ namespace MountainPlanner.Presentation.Lifts
             // LD9: the top row the rope picked (its exit already the solve's), shown in place of the first.
             if (Rope.Type.Top.Head != null && Rope.Type.Top.Head != type.Top.Head) driveRig?.ShowHead(Rope.Type.Top.Head);
             type = Rope.Type;
+            Part(2);
 
             // Towers: the base level on its pier, the mast sections and head along the mast's axis (leaned down the line
             // by the rope's lean, TW-14), the rope at the head's sockets.
@@ -326,10 +348,11 @@ namespace MountainPlanner.Presentation.Lifts
             }
 
             if (type.BullwheelVisible) KeepWheels(type, retRig, driveRig);
+            Part(3);
 
             _spawning = PartRope;
             // Posable models (the model contract): each train rocks to the rope and the rope runs over its sheaves.
-            if (retRig != null && driveRig != null && TryPosedLoop(type, retRig, driveRig, heads, bottom, dir, right, livery)) return;
+            if (retRig != null && driveRig != null && TryPosedLoop(type, retRig, driveRig, heads, bottom, dir, right, livery)) { Part(4); return; }
 
             // The rope loop: up the right side (loaded), round the drive's bullwheel, down the left, round the return's.
             var loop = new List<Vector3>(4096);
@@ -357,6 +380,7 @@ namespace MountainPlanner.Presentation.Lifts
             var carrier = Carrier(type);
             PrepareChairs(carrier, livery, type, Track(type, retRig, driveRig, bottom, dir), bottom, dir);
             if (type.Tow && carrier != null) Gone(carrier);   // put together for this lift only
+            Part(4);
         }
 
         /// <summary>
@@ -895,6 +919,31 @@ namespace MountainPlanner.Presentation.Lifts
                 facing *= Quaternion.Euler(0, 180, 0);
                 lean = Quaternion.AngleAxis(-TowLeanDegrees, facing * Vector3.forward);
             }
+            // The base and the mast sections are kept; the head is always new, since posing turns its trains from where
+            // they stand (TrainPosing.Apply) and its sheaves' rest is read as it's built.
+            string key = foundation.name + "|" + mast.name + (Tow ? "|tow" : "");
+            for (int k = 0; k < _towerPool.Count; k++)
+            {
+                if (_towerPool[k].Key != key || !_towerPool[k].Livery.Equals(livery)) continue;
+                var kept = _towerPool[k].Parts;
+                _towerPool.RemoveAt(k);
+                kept.Facing = facing;
+                kept.Lean = lean;
+                if (kept.Head != null) { _pooled.Remove(kept.Head); Gone(kept.Head); }
+                kept.Head = null;
+                kept.RopeOnHead = head.GetComponent<LiftRig>().Socket("rope_right").localPosition.y;
+                foreach (var go in Pieces(kept))
+                {
+                    if (go == null) continue;
+                    _pooled.Remove(go);
+                    _partOf[go] = _spawning;
+                    foreach (var r in go.GetComponentsInChildren<Renderer>(true)) r.renderingLayerMask &= ~LiftOutline.Layer;
+                }
+                kept.Head = Spawn(head, position, Tow ? facing : lean * facing, livery);
+                Stand(kept, position, steel, reveal, livery);
+                Keep(kept, key);
+                return kept.Head;
+            }
             var top = mast.GetComponent<LiftRig>().Socket("top");
             var parts = new TowerParts
             {
@@ -910,12 +959,51 @@ namespace MountainPlanner.Presentation.Lifts
             parts.Base = Spawn(foundation, position, facing, livery);
             parts.Head = Spawn(head, position, Tow ? facing : lean * facing, livery);
             Stand(parts, position, steel, reveal, livery);
-            if (_spawning >= 0)
-            {
-                while (_towerParts.Count <= _spawning) _towerParts.Add(null);
-                _towerParts[_spawning] = parts;
-            }
+            Keep(parts, key);
             return parts.Head;
+        }
+
+        readonly List<string> _towerKeys = new List<string>();
+
+        // BB18: the tower a drag is moving, and how far its pieces have been slid from where the last build stood them.
+        int _nudgedTower = -1;
+        Vector3 _nudge;
+
+        /// <summary>
+        /// Task 4.26 BB18: slides tower <paramref name="index"/>'s pieces to <paramref name="alongMetres"/> along the line
+        /// (its stored place), over the ground there, at once and without building anything: a tower dragged in Edit lift
+        /// follows the pointer every frame while the rope and the carriers catch up at the redraw's 10 a second. False when
+        /// there's no such tower in the last build.
+        /// </summary>
+        public bool NudgeTower(int index, double alongMetres, IHeightSource ground, LocalFrame frame)
+        {
+            if (_builtFrom == null || index < 0 || index >= _towerParts.Count || index >= _builtFrom.Towers.Count) return false;
+            var parts = _towerParts[index];
+            if (parts == null || parts.Base == null) return false;
+            var bottom = new Vector3((float)_builtFrom.Bottom.XMetres, 0, (float)_builtFrom.Bottom.YMetres);
+            var top = new Vector3((float)_builtFrom.Top.XMetres, 0, (float)_builtFrom.Top.YMetres);
+            var dir = (top - bottom).normalized;
+            double was = _builtFrom.Towers[index].AlongMm / 1000.0;
+            var a = bottom + dir * (float)was;
+            var b = bottom + dir * (float)alongMetres;
+            var fa = frame.ToAlbers(a.x, a.z);
+            var fb = frame.ToAlbers(b.x, b.z);
+            var offset = (b - a) + Vector3.up * (float)(ground.At(fb.X, fb.Y) - ground.At(fa.X, fa.Y));
+            if (_nudgedTower != index) { _nudgedTower = index; _nudge = Vector3.zero; }
+            var by = offset - _nudge;
+            if (by.sqrMagnitude < 1e-8f) return true;
+            foreach (var go in Pieces(parts)) if (go != null) go.transform.position += by;
+            _nudge = offset;
+            return true;
+        }
+
+        void Keep(TowerParts parts, string key)
+        {
+            if (_spawning < 0) return;
+            while (_towerParts.Count <= _spawning) _towerParts.Add(null);
+            while (_towerKeys.Count <= _spawning) _towerKeys.Add(null);
+            _towerParts[_spawning] = parts;
+            _towerKeys[_spawning] = key;
         }
 
         /// <summary>
@@ -1595,10 +1683,46 @@ namespace MountainPlanner.Presentation.Lifts
             return true;
         }
 
-        void Clear()
+        // Task 4.26 BB18: the towers of the last build, kept through the next one. A tower drag in Edit lift redraws the
+        // draft lift 10 times a second, and building every tower again (a base, a head and a mast section a metre) took
+        // 8-15 ms of each 25-37 ms redraw. The next build stands a kept tower of the same pieces where its tower goes now
+        // (Stand, as a re-height does); what's left over goes when the build is done.
+        readonly List<(string Key, LiftLivery Livery, TowerParts Parts)> _towerPool = new List<(string, LiftLivery, TowerParts)>();
+        readonly HashSet<GameObject> _pooled = new HashSet<GameObject>();
+
+        void DropTowerPool()
         {
+            foreach (var (_, _, parts) in _towerPool) foreach (var go in Pieces(parts)) if (go != null) Gone(go);
+            _towerPool.Clear();
+            _pooled.Clear();
+        }
+
+        static IEnumerable<GameObject> Pieces(TowerParts parts)
+        {
+            yield return parts.Base;
+            yield return parts.Head;
+            foreach (var s in parts.Sections) yield return s;
+        }
+
+        void Clear(bool keepTowers = false)
+        {
+            DropTowerPool();
+            _nudgedTower = -1;
+            if (keepTowers)
+                for (int i = 0; i < _towerParts.Count; i++)
+                {
+                    var parts = _towerParts[i];
+                    if (parts == null || parts.Base == null || parts.Head == null || i >= _towerKeys.Count) continue;
+                    _towerPool.Add((_towerKeys[i], _livery, parts));
+                    foreach (var go in Pieces(parts)) if (go != null) _pooled.Add(go);
+                }
+            _towerKeys.Clear();
             if (Root != null)   // at quit the scene may have destroyed it first
-                for (int i = Root.transform.childCount - 1; i >= 0; i--) Gone(Root.transform.GetChild(i).gameObject);
+                for (int i = Root.transform.childCount - 1; i >= 0; i--)
+                {
+                    var child = Root.transform.GetChild(i).gameObject;
+                    if (!_pooled.Contains(child)) Gone(child);
+                }
             if (_cable != null) Gone(_cable);
             _cable = null;
             if (_apron != null) Gone(_apron);

@@ -424,6 +424,9 @@ echo        gun whale: the snow lies on the ground that never moves, the skiers 
 echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
+echo   4.26 bug bash PR C: tower placement and tower drags (builds the game if there is none)
+echo     144 The tower test over 32 real lines (a tower before a terminal no taller than its neighbours), then the
+echo        drawn resort: build a lift over a crest, and drag towers in Edit lift.
 echo   4.26 bug bash PR A: no crash notice after a normal start (builds the game if there is none)
 echo     142 The crash marker's tests, then two copies of the game open at once in a scratch folder: close both,
 echo        and the next start asks nothing. Then one copy is ended as a crash would end it: the next start asks once.
@@ -622,6 +625,7 @@ if /i "%CHOICE%"=="114" goto updaterinstall
 if /i "%CHOICE%"=="115" goto updaterupdate
 if /i "%CHOICE%"=="112" goto snowpillows
 if /i "%CHOICE%"=="113" goto trailsnow
+if /i "%CHOICE%"=="144" goto towers426
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -1224,6 +1228,28 @@ echo   the log's [SimTo] lines (the real time it took, the base, the summit, the
 if not exist "%~dp0test-results\snow-a3" mkdir "%~dp0test-results\snow-a3"
 start "" /wait "%GAME%" -data "%LOCALAPPDATA%\SkiAreaDesignChallenge-simto" -notitle -offline -simto 02-01 -logFile "%~dp0test-results\snow-a3\simto.log"
 findstr /l /c:"[SimTo]" "%~dp0test-results\snow-a3\simto.log"
+pause
+goto menu
+
+:towers426
+rem 4.26 PR C (BB16, BB18): towers planned in line with the rest; a tower drag in Edit lift.
+chcp 65001 >nul
+echo.
+echo   Part 1: the tower test over the Jackson Hole fan of 32 lines (FGQ-4 and D6): each line's tower heights, how far
+echo   a tower beside a station tower stands above its neighbours (34 ft at worst, was 60), and the 80 ft towers.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~TowerApproachTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"lines:" /c:"Passed" /c:"Failed" /c:"error"
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "TW=%LOCALAPPDATA%\SkiAreaDesignChallenge-towers426"
+if exist "%TW%" rmdir /s /q "%TW%"
+echo.
+echo   Part 2: the drawn resort in a scratch folder (your saves aren't touched). Try:
+echo     - New lift over a crest down to a lower top, or up a steep start: the towers near each terminal stand about
+echo       as tall as the rest, with an extra tower where one tall one used to be.
+echo     - Edit lift on a built lift, then drag a tower along the line: it follows the mouse at once; the rope and
+echo       the chairs catch up a moment later.
+pause
+start "" "%GAME%" -data "%TW%" -notitle -offline -drawnresort
 pause
 goto menu
 

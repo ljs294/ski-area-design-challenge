@@ -70,6 +70,9 @@ namespace MountainPlanner.UI.Tools
 
         /// <summary>Lights one part of the draft white (F1: the selected tower or terminal); int.MinValue for none.</summary>
         public Action<int> HighlightDraftPart { get; set; }
+        /// <summary>Task 4.26 BB18: slides the draft's tower (by index) to a place along the line (metres) at once, between
+        /// redraws of the whole draft.</summary>
+        public Action<int, double> NudgeDraftTower { get; set; }
 
         /// <summary>A design point (site-centred mm, TE5) in <see cref="EditedGround"/>'s frame.</summary>
         public Func<PointMm, (double X, double Y)> ToGround { get; set; }
