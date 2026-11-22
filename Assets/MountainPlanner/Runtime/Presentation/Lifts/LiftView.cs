@@ -234,9 +234,17 @@ namespace MountainPlanner.Presentation.Lifts
         /// steel and foundation it needs (<see cref="AsBuiltHeights"/>). Null: the bases on <paramref name="ground"/>.
         /// </summary>
         /// <summary>Task 4.26 BB18: the last <see cref="Build"/>'s milliseconds by part: clearing, terminals and footings,
-        /// the rope solve, the towers, and the rope, cable and carriers.</summary>
-        public readonly double[] BuildParts = new double[5];
-        long _partMark;
+        /// the rope solve, the towers, and the rope, cable and carriers; then, inside the last, the rope posed over the
+        /// sheaves, the cable's mesh, and the carriers' track and chairs.</summary>
+        public readonly double[] BuildParts = new double[12];
+        long _partMark, _subMark;
+        void SubStart() => _subMark = System.Diagnostics.Stopwatch.GetTimestamp();
+        void Sub(int k)
+        {
+            long now = System.Diagnostics.Stopwatch.GetTimestamp();
+            BuildParts[k] += (now - _subMark) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            _subMark = now;
+        }
         void Part(int k)
         {
             long now = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -252,6 +260,7 @@ namespace MountainPlanner.Presentation.Lifts
 
         void BuildCore(Lift lift, IHeightSource ground, LocalFrame frame, LiftLivery livery, IReadOnlyList<double> fixedBases)
         {
+            for (int q = 5; q < BuildParts.Length; q++) BuildParts[q] = 0;
             Array.Clear(BuildParts, 0, BuildParts.Length);
             _partMark = System.Diagnostics.Stopwatch.GetTimestamp();
             Clear(keepTowers: true);
@@ -439,6 +448,7 @@ namespace MountainPlanner.Presentation.Lifts
             // posed round as a fixed sheave at its rope exit (LT33), and said so in the build log.
             RigidNote = "";
             RopeRadii = "";
+            SubStart();
             foreach (var sides in new[] { up, down })
                 foreach (var h in heads) if (!TrainPosing.Posable(h, sides[1])) return false;
             double rho = LiftType.SheaveRadiusMetres + type.RopeDiameterMetres / 2;
@@ -477,6 +487,7 @@ namespace MountainPlanner.Presentation.Lifts
                 above.Add(type.Top.Row == TerminalRow.Support);
                 turn.Add(0);
                 if (trains.Exists(t => t == null)) return false;
+                Sub(8);
                 var trees = trains.ConvertAll(t => t.Tree);
                 var holds = trains.ConvertAll(t => t.HoldRow);
                 // Each train's rope at its own sheaves' radius, as the model was built (owner finding 2026-11-06); the chairs'
@@ -492,8 +503,11 @@ namespace MountainPlanner.Presentation.Lifts
                 // RP-08 (owner, round 3): the rope hangs at the load it carries; the chairs are empty, so both sides take the
                 // empty sag. The checks keep both load cases.
                 double w = type.EmptyNewtonsPerMetre;
+                Sub(9);
                 var posed = RopeOverSheaves.PoseLine(trees, above, holds, rhos, type.CounterweightNewtons, w, y0, true, 3, turn);
+                Sub(5);
                 for (int i = 0; i < trains.Count; i++) TrainPosing.Apply(trains[i], posed.Poses[i], dir);
+                Sub(10);
                 PoseError = Math.Max(PoseError, posed.TangentError);
                 // The rope runs up this side (the loaded one) and down the other, the loop's travel order: every sheave it
                 // touches turns with it, its rim at rope speed; a sheave it leaves stands still, as a real one does.
@@ -523,6 +537,7 @@ namespace MountainPlanner.Presentation.Lifts
                     }
                 }
 
+                Sub(11);
                 // The side's rope up the line, in s order: each train's contacts, and the spans between them.
                 var points = new List<Vector3>();
                 for (int i = 0; i < trains.Count; i++)
@@ -573,10 +588,13 @@ namespace MountainPlanner.Presentation.Lifts
             _sheaveLo = Vector3.positiveInfinity; _sheaveHi = Vector3.negativeInfinity;
             foreach (var s in _sheaves) { _sheaveLo = Vector3.Min(_sheaveLo, s.Contact); _sheaveHi = Vector3.Max(_sheaveHi, s.Contact); }
             SetLoop(loop);
+            SubStart();
             BuildCable((float)type.RopeDiameterMetres / 2);
+            Sub(6);
             var carrier = Carrier(type);
             PrepareChairs(carrier, livery, type, Track(type, retRig, driveRig, bottom, dir), bottom, dir);
             if (type.Tow && carrier != null) Gone(carrier);   // put together for this lift only
+            Sub(7);
             return true;
         }
 

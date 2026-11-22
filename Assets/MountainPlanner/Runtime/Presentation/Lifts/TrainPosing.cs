@@ -35,9 +35,41 @@ namespace MountainPlanner.Presentation.Lifts
         public static bool Posable(LiftRig rig, string side)
         {
             if (rig == null || rig.Pivots == null) return false;
-            foreach (var p in rig.Pivots)
-                if (Key(rig, p) is string key && key.StartsWith("rocker_" + side, StringComparison.Ordinal)) return true;   // rocker_r1…, rocker_rs1 / rocker_rh1
+            string rocker = "rocker_" + side;
+            foreach (var key in Keys(rig))
+                if (key != null && key.StartsWith(rocker, StringComparison.Ordinal)) return true;   // rocker_r1…, rocker_rs1 / rocker_rh1
             return false;
+        }
+
+        static readonly Dictionary<(string, int, int), string[]> KeyCache = new Dictionary<(string, int, int), string[]>();
+
+        /// <summary>
+        /// Task 4.26 BB18: every pivot's <see cref="Key"/>, by its index in <see cref="LiftRig.Pivots"/>. A key depends only on
+        /// the model (its pivots' names) and the head it shows (which pivots are hidden, and the shown head's prefix), so it's
+        /// worked out once per model and head: a tower drag's redraw read every head's pivots by name about five times a side
+        /// (Unity makes a new string for each name read), 7-11 ms of the redraw.
+        /// </summary>
+        static string[] Keys(LiftRig rig)
+        {
+            var pivots = rig.Pivots;
+            if (string.IsNullOrEmpty(rig.AssetId)) return Compute();
+            var k = (rig.AssetId, rig.ShownHead, pivots.Length);
+            if (!KeyCache.TryGetValue(k, out var keys)) KeyCache[k] = keys = Compute();
+            return keys;
+
+            string[] Compute()
+            {
+                var all = new string[pivots.Length];
+                for (int i = 0; i < pivots.Length; i++) all[i] = Key(rig, pivots[i]);
+                return all;
+            }
+        }
+
+        /// <summary>A transform's key: from the cache when it's one of the rig's pivots.</summary>
+        static string KeyOf(LiftRig rig, string[] keys, Transform t)
+        {
+            int i = Array.IndexOf(rig.Pivots, t);
+            return i >= 0 ? keys[i] : Key(rig, t);
         }
 
         /// <summary>
@@ -67,11 +99,14 @@ namespace MountainPlanner.Presentation.Lifts
         {
             var nodes = new List<Transform>();
             var sheaves = new List<Transform>();
-            foreach (var p in rig.Pivots)
+            var keys = Keys(rig);
+            string sheave = "sheave_" + side;
+            for (int pi = 0; pi < keys.Length; pi++)
             {
-                string key = Key(rig, p);
+                string key = keys[pi];
                 if (key == null) continue;
-                if (key.StartsWith("sheave_" + side, StringComparison.Ordinal)) { sheaves.Add(p); continue; }
+                var p = rig.Pivots[pi];
+                if (key.StartsWith(sheave, StringComparison.Ordinal)) { sheaves.Add(p); continue; }
                 foreach (var prefix in NodePrefixes)
                     if (key.StartsWith(prefix + side, StringComparison.Ordinal) || key == prefix.TrimEnd('_') + "_" + side)
                     {
@@ -124,13 +159,13 @@ namespace MountainPlanner.Presentation.Lifts
                 int parent = ParentOf(sheaves[k]);
                 treeSheaves.Add(new SheaveTree.Sheave(parent, S(sheaves[k].position), sheaves[k].position.y - origin.y));
                 for (var x = sheaves[k].parent; x != null && x != rig.transform; x = x.parent)
-                    if (Key(rig, x) is string key && (key.StartsWith("yoke_hold_", StringComparison.Ordinal) || key.StartsWith("rocker_" + side + "h", StringComparison.Ordinal)))
+                    if (KeyOf(rig, keys, x) is string key && (key.StartsWith("yoke_hold_", StringComparison.Ordinal) || key.StartsWith("rocker_" + side + "h", StringComparison.Ordinal)))
                     {
                         hold ??= new bool[sheaves.Count];
                         hold[k] = true;
                     }
             }
-            if (hold == null && Array.Exists(rig.Pivots, p => Key(rig, p) == "block_" + side)) hold = new bool[sheaves.Count];
+            if (hold == null && Array.IndexOf(keys, "block_" + side) >= 0) hold = new bool[sheaves.Count];
             float lateral = 0;
             foreach (var s in sheaves) lateral += Vector3.Dot(s.position - origin, right);
             return new Train
