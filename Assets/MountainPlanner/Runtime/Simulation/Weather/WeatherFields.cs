@@ -205,7 +205,7 @@ namespace MountainPlanner.Simulation
             var t = Terrain;
             if (t == null || Hour < 0 || cell < 0 || cell >= t.Cells) return;
             int i = cell % t.Width, j = cell / t.Width;
-            Cell(t, cell, i, j, canopy, ref c);
+            Cell(t, cell, i, j, canopy, null, null, ref c);
         }
 
         /// <summary>WX-38 v3: the hour's orographic factor (‰) at a cell standing at <paramref name="feet"/>.</summary>
@@ -216,11 +216,37 @@ namespace MountainPlanner.Simulation
             return (a * (1000 - _oroW) + t.OrographicAt(_oroB, i, j, feet) * _oroW) / 1000;
         }
 
+        /// <summary>Task 4.26 BB9: <see cref="Oro"/> from the batch read's rows (<see cref="OroRows"/>), the same number.</summary>
+        int OroRow(WeatherTerrain t, int[] rowA, int[] rowB, int i, int j, int feet)
+        {
+            int a = t.OrographicAtRow(_oroA, rowA, i, j, feet);
+            if (_oroW == 0) return a;
+            return (a * (1000 - _oroW) + t.OrographicAtRow(_oroB, rowB, i, j, feet) * _oroW) / 1000;
+        }
+
+        // Each reading thread's own rows (4.07's bands read on several threads at once), made once per thread.
+        [ThreadStatic] static int[] _rowA, _rowB;
+
+        /// <summary>A batch read's orographic rows for row <paramref name="j"/>, or nulls in a dry hour (the read needs none).</summary>
+        void OroRows(WeatherTerrain t, int j, out int[] rowA, out int[] rowB)
+        {
+            rowA = rowB = null;
+            if (_liquid <= 0) return;
+            int n = t.OrographicRowLength;
+            if (_rowA == null || _rowA.Length < n) _rowA = new int[n];
+            rowA = _rowA;
+            t.OrographicRow(_oroA, j, rowA);
+            if (_oroW == 0) return;
+            if (_rowB == null || _rowB.Length < n) _rowB = new int[n];
+            rowB = _rowB;
+            t.OrographicRow(_oroB, j, rowB);
+        }
+
         /// <summary>
         /// One cell: the point read's and the batch read's one formula (so a lift's gust is the map's). The orographic factor is
         /// judged at the bin's centre (the smooth read uses the cell's own height).
         /// </summary>
-        void Cell(WeatherTerrain t, int cell, int i, int j, int canopy, ref WeatherCell c)
+        void Cell(WeatherTerrain t, int cell, int i, int j, int canopy, int[] rowA, int[] rowB, ref WeatherCell c)
         {
             int bin = t.Bin[cell];
             if (bin == WeatherTerrain.NoData) { c = default; return; }
@@ -234,7 +260,7 @@ namespace MountainPlanner.Simulation
             if (_liquid > 0)
             {
                 // WX-38 v3: the cell's own orographic factor (WX-35 v3) × the bin's elevation factor.
-                int oro = Oro(t, i, j, c.Feet);
+                int oro = rowA != null ? OroRow(t, rowA, rowB, i, j, c.Feet) : Oro(t, i, j, c.Feet);
                 c.Liquid = (int)WeatherMath.DivRound((long)_liquid * _precipBin[bin] * oro, 1_000_000);   // rounded once, as the reference points'
                 c.LiquidUm = (int)WeatherMath.DivRound((long)_liquid * _precipBin[bin] * oro * 254, 1_000_000);
                 c.SnowTenthsIn = (int)WeatherMath.DivRound((long)c.Liquid * _snowFactor[k], 100_000);   // as WeatherAir.SnowTenthsIn
@@ -265,14 +291,15 @@ namespace MountainPlanner.Simulation
             y0 = Math.Max(0, y0);
             y1 = Math.Min(t.Depth, y1);
             int width = t.Width, tilesWide = (width + 63) / 64;
-            // No scratch: two readers of one fill (4.07's bands on several threads) share nothing.
+            // The only scratch is each thread's own (OroRows): two readers of one fill (4.07's bands on several threads) share nothing.
             for (int j = y0; j < y1; j++)
             {
                 int row = j * width, outRow = (j - first) * width;
+                OroRows(t, j, out var rowA, out var rowB);
                 for (int i = 0; i < width; i++)
                 {
                     if (tileMask != null && !tileMask[j / 64 * tilesWide + i / 64]) { i = (i / 64 + 1) * 64 - 1; continue; }
-                    Cell(t, row + i, i, j, canopy == null ? -1 : canopy[row + i], ref dest[outRow + i]);
+                    Cell(t, row + i, i, j, canopy == null ? -1 : canopy[row + i], rowA, rowB, ref dest[outRow + i]);
                 }
             }
         }
@@ -296,16 +323,17 @@ namespace MountainPlanner.Simulation
             for (int j = y0; j < y1; j++)
             {
                 int row = j * width, outRow = (j - first) * width;
+                OroRows(t, j, out var rowA, out var rowB);
                 for (int i = 0; i < width; i++)
                 {
                     if (tileMask != null && !tileMask[j / 64 * tilesWide + i / 64]) { i = (i / 64 + 1) * 64 - 1; continue; }
                     int cell = row + i;
-                    SmoothCell(t, cell, i, j, binPlace[cell], exposure8[cell], canopy == null ? -1 : canopy[cell], ref dest[outRow + i]);
+                    SmoothCell(t, cell, i, j, binPlace[cell], exposure8[cell], canopy == null ? -1 : canopy[cell], rowA, rowB, ref dest[outRow + i]);
                 }
             }
         }
 
-        void SmoothCell(WeatherTerrain t, int cell, int i, int j, int place, int exposure8, int canopy, ref WeatherCell c)
+        void SmoothCell(WeatherTerrain t, int cell, int i, int j, int place, int exposure8, int canopy, int[] rowA, int[] rowB, ref WeatherCell c)
         {
             int bin = t.Bin[cell];
             if (bin == WeatherTerrain.NoData) { c = default; return; }
@@ -340,7 +368,7 @@ namespace MountainPlanner.Simulation
             c.FreezingRain = _freezing[k];
             if (_liquid > 0)
             {
-                int oro = Oro(t, i, j, c.Feet);   // WX-35 v3: at the cell's own height
+                int oro = OroRow(t, rowA, rowB, i, j, c.Feet);   // WX-35 v3: at the cell's own height
                 long precip = WeatherMath.DivRound(_precipBin[bin] * (1000L - wBin) + _precipBin[binB] * (long)wBin, 1000);
                 c.Liquid = (int)WeatherMath.DivRound((long)_liquid * precip * oro, 1_000_000);
                 c.LiquidUm = (int)WeatherMath.DivRound((long)_liquid * precip * oro * 254, 1_000_000);

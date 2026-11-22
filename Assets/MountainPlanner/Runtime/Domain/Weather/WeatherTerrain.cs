@@ -81,6 +81,8 @@ namespace MountainPlanner.Domain.Weather
         /// <summary>The orographic rule's numbers (WeatherTerrainTuning's): windward, spillover and shadow (‰), the spillover's
         /// reach (m), the climb and the barrier (ft).</summary>
         public readonly int Windward, Spillover, Shadow, SpilloverReachMetres, ClimbFeet, BarrierFeet;
+        /// <summary>Task 4.26 BB9: the rule's numbers and means are small enough for <see cref="RawInt"/>'s 32-bit sums.</summary>
+        readonly bool _fitsInt;
         /// <summary>Per steer cell: the valley's axis as a direction (× 45°, on the grid), pointing down the valley, and how
         /// strongly the cell turns the wind to it (%): see <see cref="TurnDegrees"/>.</summary>
         public readonly byte[] Axis, TurnWeight;
@@ -129,6 +131,8 @@ namespace MountainPlanner.Domain.Weather
             OrographicMean = crest.Mean;
             Windward = t.Windward; Spillover = t.Spillover; Shadow = t.Shadow; SpilloverReachMetres = t.SpilloverReachMetres;
             ClimbFeet = t.ClimbFeet; BarrierFeet = t.BarrierFeet;
+            _fitsInt = FitsInt(Windward, Spillover, Shadow, SpilloverReachMetres, ClimbFeet, BarrierFeet);
+            foreach (int m in OrographicMean) if (m < 1 || m > IntLimit) _fitsInt = false;
             ConvergenceTenths = convergenceTenths; BinHvfFeet = binHvf;
             ulong h = 14695981039346656037UL;
             void Mix(long v) => h = (h ^ (ulong)v) * 1099511628211UL;
@@ -155,9 +159,146 @@ namespace MountainPlanner.Domain.Weather
         /// </summary>
         public int OrographicAt(int octant, int i, int j, int feet)
         {
+            return _fitsInt ? OrographicAtInt(octant, i, j, feet) : OrographicAtLong(octant, i, j, feet);
+        }
+
+        /// <summary>
+        /// Task 4.26 BB9: <see cref="OrographicAt"/> in 32-bit sums, the same number for every cell: the batch reads ask it of
+        /// every cell of the map each hour, and Unity's Mono spent 245 of the 1.9 M-cell read's 290 ms on 64-bit divisions and
+        /// calls. Every sum is bounded by <see cref="FitsInt"/>; the lattice blend's ÷ 256 is <see cref="WeatherMath.DivRound"/>'s
+        /// rounding done with a shift.
+        /// </summary>
+        int OrographicAtInt(int octant, int i, int j, int feet)
+        {
+            const int F2 = 2 * FineCells;
+            int fw = FineWidth, fd = FineDepth;
+            int fx = i * 2 + 1 - FineCells, fy = j * 2 + 1 - FineCells;
+            int x0 = fx >= 0 ? fx / F2 : -((-fx + F2 - 1) / F2), y0 = fy >= 0 ? fy / F2 : -((-fy + F2 - 1) / F2);
+            x0 = x0 < 0 ? 0 : x0 > fw - 1 ? fw - 1 : x0;
+            y0 = y0 < 0 ? 0 : y0 > fd - 1 ? fd - 1 : y0;
+            int ux = fx - x0 * F2, uy = fy - y0 * F2;
+            ux = ux < 0 ? 0 : ux > F2 ? F2 : ux;
+            uy = uy < 0 ? 0 : uy > F2 ? F2 : uy;
+            int x1 = x0 + 1 < fw ? x0 + 1 : fw - 1, y1 = y0 + 1 < fd ? y0 + 1 : fd - 1;
+            int b = octant * fw * fd, a00 = b + y0 * fw + x0, a10 = b + y0 * fw + x1, a01 = b + y1 * fw + x0, a11 = b + y1 * fw + x1;
+            int w00 = (16 - ux) * (16 - uy), w10 = ux * (16 - uy), w01 = (16 - ux) * uy, w11 = ux * uy;
+            short[] cf = CrestFeet, cm = CrestMetres, lf = UpwindLowFeet;
+            int crest = Div256(cf[a00] * w00 + cf[a10] * w10 + cf[a01] * w01 + cf[a11] * w11);
+            int at = Div256(cm[a00] * w00 + cm[a10] * w10 + cm[a01] * w01 + cm[a11] * w11);
+            int low = Div256(lf[a00] * w00 + lf[a10] * w10 + lf[a01] * w01 + lf[a11] * w11);
+            return FactorInt(octant, feet, crest, at, low);
+        }
+
+        /// <summary>The rule on the cell's height and the box's mean, in 32-bit sums.</summary>
+        int FactorInt(int octant, int feet, int crest, int at, int low)
+        {
+            int raw = RawInt(feet, crest, at, low, Windward, Spillover, Shadow, SpilloverReachMetres, ClimbFeet, BarrierFeet);
+            int a = raw * 1000, mean = OrographicMean[octant];   // DivRound(a, mean), mean ≥ 1
+            int v = a >= 0 ? (a + mean / 2) / mean : -((-a + mean / 2) / mean);
+            return v < 100 ? 100 : v > 3000 ? 3000 : v;
+        }
+
+        /// <summary>The length of <see cref="OrographicRow"/>'s scratch: three sums per lattice column.</summary>
+        public int OrographicRowLength => 3 * FineWidth;
+
+        /// <summary>
+        /// Task 4.26 BB9: a batch read's row <paramref name="j"/> for octant <paramref name="octant"/>: the lattice blended
+        /// north-south once per column (crest ft, crest m, low ft, each × 16), so each cell blends only east-west
+        /// (<see cref="OrographicAtRow"/>). The two blends' sums are the four-node blend's own integers.
+        /// </summary>
+        public void OrographicRow(int octant, int j, int[] row)
+        {
+            const int F2 = 2 * FineCells;
+            int fw = FineWidth, fd = FineDepth;
+            int fy = j * 2 + 1 - FineCells;
+            int y0 = fy >= 0 ? fy / F2 : -((-fy + F2 - 1) / F2);
+            y0 = y0 < 0 ? 0 : y0 > fd - 1 ? fd - 1 : y0;
+            int uy = fy - y0 * F2;
+            uy = uy < 0 ? 0 : uy > F2 ? F2 : uy;
+            int y1 = y0 + 1 < fd ? y0 + 1 : fd - 1, wy = 16 - uy;
+            int r0 = octant * fw * fd + y0 * fw, r1 = octant * fw * fd + y1 * fw;
+            short[] cf = CrestFeet, cm = CrestMetres, lf = UpwindLowFeet;
+            for (int x = 0, k = 0; x < fw; x++, k += 3)
+            {
+                row[k] = cf[r0 + x] * wy + cf[r1 + x] * uy;
+                row[k + 1] = cm[r0 + x] * wy + cm[r1 + x] * uy;
+                row[k + 2] = lf[r0 + x] * wy + lf[r1 + x] * uy;
+            }
+        }
+
+        /// <summary>
+        /// <see cref="OrographicAt"/> at cell (<paramref name="i"/>, <paramref name="j"/>) from <paramref name="row"/>, which
+        /// <see cref="OrographicRow"/> filled for the same octant and row: the same number.
+        /// </summary>
+        public int OrographicAtRow(int octant, int[] row, int i, int j, int feet)
+        {
+            if (!_fitsInt) return OrographicAtLong(octant, i, j, feet);
+            const int F2 = 2 * FineCells;
+            int fw = FineWidth;
+            int fx = i * 2 + 1 - FineCells;
+            int x0 = fx >= 0 ? fx / F2 : -((-fx + F2 - 1) / F2);
+            x0 = x0 < 0 ? 0 : x0 > fw - 1 ? fw - 1 : x0;
+            int ux = fx - x0 * F2;
+            ux = ux < 0 ? 0 : ux > F2 ? F2 : ux;
+            int k0 = 3 * x0, k1 = x0 + 1 < fw ? k0 + 3 : k0, wx = 16 - ux;
+            int crest = Div256(row[k0] * wx + row[k1] * ux);
+            int at = Div256(row[k0 + 1] * wx + row[k1 + 1] * ux);
+            int low = Div256(row[k0 + 2] * wx + row[k1 + 2] * ux);
+            return FactorInt(octant, feet, crest, at, low);
+        }
+
+        /// <summary>The 64-bit reference <see cref="OrographicAt"/> keeps for rule numbers past <see cref="FitsInt"/>.</summary>
+        public int OrographicAtLong(int octant, int i, int j, int feet)
+        {
             int raw = RawAt(CrestFeet, CrestMetres, UpwindLowFeet, FineWidth, FineDepth, octant, i, j, feet,
                             Windward, Spillover, Shadow, SpilloverReachMetres, ClimbFeet, BarrierFeet);
             return WeatherMath.Clamp((int)WeatherMath.DivRound(raw * 1000L, OrographicMean[octant]), 100, 3000);
+        }
+
+        /// <summary>DivRound(v, 256): half away from zero.</summary>
+        static int Div256(int v) => v >= 0 ? (v + 128) >> 8 : -((-v + 128) >> 8);
+
+        /// <summary>The bound on every rule number (and box mean) for the 32-bit sums.</summary>
+        public const int IntLimit = 10_000;
+
+        /// <summary>
+        /// Whether <see cref="RawInt"/> gives <see cref="Raw"/>'s number for these rule numbers: each within ±<see cref="IntLimit"/>
+        /// (Pacing allows 500 ‰ and a 10 km reach). Then every sum stays under 2³¹: the largest is a factor (‰) × the climb, which
+        /// is held to <c>climbFeet</c>, about 10⁸; the lattice's heights and distances are shorts.
+        /// </summary>
+        public static bool FitsInt(int windward, int spillover, int shadow, int reach, int climbFeet, int barrierFeet)
+        {
+            bool In(int v) => v >= -IntLimit && v <= IntLimit;
+            return In(windward) && In(spillover) && In(shadow) && In(reach) && climbFeet >= 1 && climbFeet <= IntLimit
+                   && barrierFeet >= 1 && barrierFeet <= IntLimit;
+        }
+
+        /// <summary>
+        /// <see cref="Raw"/> in 32-bit sums (the same truncations, in the same order), for rule numbers that pass
+        /// <see cref="FitsInt"/> and heights within a short's range (the lattice's).
+        /// </summary>
+        public static int RawInt(int feet, int crest, int at, int low, int windward, int spillover, int shadow, int reach, int climbFeet, int barrierFeet)
+        {
+            int climb = feet - low;
+            climb = climb < 0 ? 0 : climb > climbFeet ? climbFeet : climb;
+            int up = 1000 + windward * climb / climbFeet;
+            int below = crest - feet;
+            if (below < 0) below = 0;
+            if (reach < 1) reach = 1;
+            int spill = spillover * (1000 - SmoothInt(at * 1000 / reach)) / 1000;
+            int grow = SmoothInt((at - reach / 2) * 1000 / (reach * 3 / 2));
+            int dark = shadow * (barrierFeet < below ? barrierFeet : below) / barrierFeet * grow / 1000;
+            int lee = 1000 + spill - dark;
+            int wl = (crest - feet) * 1000 / CrestRampFeet;
+            wl = wl < 0 ? 0 : wl > 1000 ? 1000 : wl;
+            return (up * (1000 - wl) + lee * wl) / 1000;
+        }
+
+        /// <summary><see cref="Smooth"/> in 32 bits: x² (3000 − 2x) peaks at 10⁹ over 0–1000.</summary>
+        static int SmoothInt(int x)
+        {
+            x = x < 0 ? 0 : x > 1000 ? 1000 : x;
+            return x * x * (3000 - 2 * x) / 1_000_000;
         }
 
         /// <summary>The raw factor (‰, before the box's mean) at a cell: the crest read off the lattice, the rule on the cell's height.</summary>

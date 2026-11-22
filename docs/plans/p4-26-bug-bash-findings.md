@@ -25,14 +25,14 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB5 | Candidate (backlog) | The lift ride button's tooltip names an R key that doesn't exist (`MountainHud.Lifts.cs` ~249) | The tooltip names only keys that work | | Fixed in PR A+B: "Ride this lift" |
 | BB6 | Candidate (backlog) | The Weather tab still has its placeholder tooltip (`MountainHud.Panels.cs` ~50); 4.17 may own it | A real tooltip | | Fixed in PR A+B: player words |
 | BB7 | Candidate (backlog) | T-bar and J-bar log "TW-01 v2 SHORT": the chair-clearance check runs on surface lifts | The chair-clearance check runs only on aerial lifts | | Already fixed in 4.01 PR 2 (92da0416) |
-| BB8 | Candidate (backlog) | The Core test `TheWeatherAllocatesNothing` is flaky: 8200 vs 6152 B, seen twice on CI | The test passes every time and still catches real allocations | | |
-| BB9 | Candidate (backlog) | `WeatherFields.ReadRows` takes 288–300 ms; its test budget was raised from 250 to 350 ms for the release (#186) | It runs within the original 250 ms budget | | |
-| BB10 | Candidate (backlog) | EditMode tests aren't run in CI, so outdated EditMode tests only show up at release time | CI catches broken EditMode tests on the PR | | |
+| BB8 | Candidate (backlog) | The Core test `TheWeatherAllocatesNothing` is flaky: 8200 vs 6152 B, seen twice on CI | The test passes every time and still catches real allocations | | Fixed in PR H: the least of three runs |
+| BB9 | Candidate (backlog) | `WeatherFields.ReadRows` takes 288–300 ms; its test budget was raised from 250 to 350 ms for the release (#186) | It runs within the original 250 ms budget | | Fixed in PR H: 32-bit orographic sums, row-blended lattice; Mono 290 to 183 ms |
+| BB10 | Candidate (backlog) | EditMode tests aren't run in CI, so outdated EditMode tests only show up at release time | CI catches broken EditMode tests on the PR | | Partly fixed in PR H: the pre-push hook runs the EditMode tests a change can move; a nightly full run waits for the owner |
 | BB11 | Candidate (backlog) | The quit crash (0xC0000005) is seen again in short `-screenshot` runs after v0.3.2 | Quitting exits cleanly | | Not reproduced on v0.3.4 (7/7 clean); closed |
 | BB12 | Owner, 2026-11-21 | Typing in forms throughout the game is janky | Every form in the game is audited and typing works smoothly | | Fixed in PR A+B: Shift keys silenced while typing; `-typecheck` 55/55 |
 | BB13 | Owner, 2026-11-21 | A trail's name can't be changed from the new-trail creation pane or the trail edit pane | The name can be changed in both | | Fixed in PR A+B: a press on the name no longer drags the window |
 | BB14 | Owner, 2026-11-21 | On a lift, clicking the "#" (plate) field and leaving it blank (no number or letter) makes the field disappear entirely | A blank plate leaves the "#" field in place so it can be set later | | Fixed in PR A+B: the "#" chip comes back |
-| BB15 | Owner, 2026-11-21 | Lift terminals that are intentionally kept clear of snow get overwritten by the new snow layer model | Terminals stay clear of snow | | |
+| BB15 | Owner, 2026-11-21 | Lift terminals that are intentionally kept clear of snow get overwritten by the new snow layer model | Terminals stay clear of snow | | Parked: conflicts with the owner's 2026-11-17 ruling; the owner's call |
 | BB16 | Owner, 2026-11-21 | The last few towers approaching a terminal are often far too tall, so carriers go really high, then really low, then back up to the terminal | A revised tower-placement algorithm: towers and the line approaching a terminal are much more consistent and realistic | | Fixed in PR C: the plan prices tall towers and height steps |
 | BB17 | Owner, 2026-11-21 | When building a ski lift, towers aren't leaned by default | Leaned towers are the default | | Fixed in PR A+B: Leaned by default |
 | BB18 | Owner, 2026-11-21 | Editing and moving towers in game isn't fluid | The edit-tower and move-tower features are audited and made much smoother and more responsive | | Improved in PR C: towers kept, dragged tower follows the pointer; rope redraw left |
@@ -252,3 +252,63 @@ row instead of stepping forward. That's the common case in a long line, and it l
 Question for the owner: how should a line move when a chair takes less than a full row? Options: rows step forward and
 the gap fills from behind; single file through the maze, rows only at the loading gate; or guests keep their column, and
 a row boards whoever is at its front. The probe stays (`-linecheck`) to measure whichever is chosen.
+
+## BB15: snow covers the cleared lift terminals (parked: needs the owner)
+
+The snow is drawn as its own shell over the ground (4.07 PR A3). `SurfaceStates.SetStations` keeps the snow flat within
+16 m of the footprints it's given, and `MountainViewer.Skiers.cs` (`DigOutStations`) gives it only a carpet's belt. That
+was the owner's round-3 ruling in 4.07 A3 (2026-11-17, "snow piles up round everything"): a chair or tow's terminals stand
+in the snow with their bases buried. So BB15 asks for the opposite of an earlier ruling; nothing in the code is broken.
+
+Option for the owner: clear only each chair and tow terminal's loading pad (its footprint plus 2 m), leaving the bases
+and everything round them in the snow. The Coordinator cleared both files (2026-11-21); the owner decides. Until then the
+2026-11-17 rule stands.
+
+## BB8: `TheWeatherAllocatesNothing` is flaky
+
+Steady locally: 6,152 B with weather and without, in every run (also with tiered compilation, quick JIT and escape
+analysis turned off, so no JIT effect). On CI's parallel run the weather world read 8,200 B (twice, Nov 17 and 18) and
+14,288 B (main, after #190). The extra (2,048 B, 8,136 B) comes in allocation blocks, not a recurring object: the per-thread
+counter runs high when a collection lands in the measured window, and the parallel fixtures make that likely.
+
+Fix: `Allocations.Least` (Tests/Core) takes the least of three fresh runs. A real allocation in the hour step happens in
+every run, so it still shows; a one-off counter jump drops out. Used by both weather comparisons
+(`TheWeatherAllocatesNothing`, `TheWeatherOverTheMapAllocatesNothing`).
+
+## BB9: the batch weather read is back under 250 ms
+
+The 288–300 ms was Unity EditMode (Mono); .NET Release read the same 1.9 M cells in 150 ms. Stubbing parts out on Mono
+showed the orographic factor (WX-35 v3, added to every cell in 4.07 PR A2) took about 245 ms: the lattice blend about
+140 ms, the rule's 64-bit divisions and calls about 85 ms. Marking the helpers `AggressiveInlining` made Mono slower
+(334 ms), so it was dropped.
+
+Fix (the same numbers for every cell):
+- `WeatherTerrain.RawInt` and `OrographicAtInt`: the rule and the mean in 32-bit sums, with the same truncations in the
+  same order, and the ÷ 256 done as a rounding shift. `FitsInt` bounds every rule number by 10,000 (Pacing allows 500 ‰
+  and a 10 km reach). Past it, the 64-bit path (`OrographicAtLong`) stays.
+- `OrographicRow` and `OrographicAtRow`: a batch read blends the lattice north-south once per row and column, so each cell
+  blends only east-west. Both reads use it (`ReadRows`, and `ReadRowsSmooth`, which the snow uses on the worker), with
+  each thread's own scratch, so readers on several threads still share nothing.
+- Test `TheFastOrographicFactorIsTheRulesNumber`: point and row factors equal the 64-bit rule at every cell, octant and
+  seven heights of a valley, plus 2 M random rule inputs within `FitsInt`. The weather, snow and golden tests are unchanged.
+
+Measured on the reference PC: Mono `ReadRows` 290 to 183 ms (budget back to 250); the snow's smooth read, a row at a
+time, 417 to 301 ms (new guard: 350 ms). .NET: 120–200 and 170–195 ms. The timed test now has a fixture of its own that
+runs alone (beside the other fixtures the batch read measured 465 ms), and each read is timed after one untimed read, as
+the game reads every hour (.NET's first, unoptimised read of the snow's loop took 323 ms).
+
+## BB10: EditMode tests aren't run before a merge
+
+CI has no Unity: every job is ubuntu and dotnet, so the Unity-only tests and Unity's own Mono run of the Core tests (where
+BB9's 288 ms showed) wait for the release. The Coordinator ruled out game-ci on GitHub (a paid-minutes risk and the
+owner's Unity licence as a secret) and a self-hosted runner (public PRs would run code on the owner's PC), 2026-11-21.
+
+Fix (free, opt-in): `tools/release/editmode-affected.ps1` picks the EditMode and Core fixtures a change can move. A
+fixture is picked when its file changed or when it names a type from a changed C# file (the file's name up to its first
+dot); an asmdef change adds the architecture tests. It runs them in batch mode, which compiles every assembly too. The
+pre-push hook (`git config core.hooksPath tools/git-hooks`) runs it whenever C# changed and stops the push on a failure;
+it skips when the editor is open, and falls back to the compile check when no fixture is picked. By hand:
+`tools/release/editmode-affected.ps1 -ListOnly` lists the fixtures for this branch against origin/main.
+
+Waiting for the owner: a nightly run of the whole EditMode suite on main (it needs Unity closed and the PC idle, so how
+and when it runs is the owner's call). Until then, the hook only.

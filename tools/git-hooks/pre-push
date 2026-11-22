@@ -4,6 +4,9 @@
 # Editor would otherwise pass CI. Opt in once per clone:  git config core.hooksPath tools/git-hooks
 # It skips (with a warning) when the editor has the project open or the checkout has never been opened in Unity (the
 # first import takes far longer than a push should); a compile error or a lapsed Unity licence (exit 198) stops the push.
+# Task 4.26 BB10: when any C# changed, it first runs the EditMode tests the change can move
+# (tools/release/editmode-affected.ps1; that run compiles every assembly too), and a failing test stops the push.
+# CI has no Unity, so this is where Unity's own run of the tests (Mono) happens before a merge.
 
 zero=0000000000000000000000000000000000000000
 changed=""
@@ -23,14 +26,29 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 $files"
 done
 
-unity=$(printf '%s\n' "$changed" | grep -E '^Assets/.*\.(cs|asmdef|asmref)$' | grep -Ev '^Assets/MountainPlanner/(Runtime/(Domain|Simulation|Persistence|Acquisition)|Tests/Core)/')
-[ -z "$unity" ] && exit 0
+csharp=$(printf '%s\n' "$changed" | grep -E '^Assets/.*\.(cs|asmdef|asmref)$')
+[ -z "$csharp" ] && exit 0
+unity=$(printf '%s\n' "$csharp" | grep -Ev '^Assets/MountainPlanner/(Runtime/(Domain|Simulation|Persistence|Acquisition)|Tests/Core)/')
 
 root=$(git rev-parse --show-toplevel)
 if [ ! -d "$root/Library" ]; then
-    echo "[pre-push] Unity C# changed, but this checkout has never been opened in Unity: run tools/release/compile-check.ps1 yourself."
+    echo "[pre-push] C# changed, but this checkout has never been opened in Unity: run tools/release/editmode-affected.ps1 yourself."
     exit 0
 fi
+
+list=$(mktemp)
+printf '%s\n' "$changed" | sort -u > "$list"
+echo "[pre-push] C# changed: running the EditMode tests it can move..."
+powershell -NoProfile -ExecutionPolicy Bypass -File "$root/tools/release/editmode-affected.ps1" -ProjectPath "$root" -ChangedList "$(cygpath -w "$list" 2>/dev/null || echo "$list")"
+code=$?
+rm -f "$list"
+case $code in
+    0) exit 0 ;;
+    2) echo "[pre-push] Skipped: the project is open in the editor (run its Test Runner yourself)."; exit 0 ;;
+    4) ;;
+    *) echo "[pre-push] Push stopped (EditMode tests exit $code; results in test-results/editmode-affected.xml)."; exit 1 ;;
+esac
+[ -z "$unity" ] && exit 0
 echo "[pre-push] Unity C# changed: compiling every assembly before the push..."
 powershell -NoProfile -ExecutionPolicy Bypass -File "$root/tools/release/compile-check.ps1" -ProjectPath "$root"
 code=$?
